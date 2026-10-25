@@ -90,7 +90,8 @@
           "lm_converged": true,
           "coarse_peak_fraction": 0.703,
           "sigma_orbit_radial_px": 0.118,
-          "sigma_shape_major_px": 0.26
+          "sigma_shape_major_px": 0.26,
+          "coarse_basin_ratio": 1.0
         }
       }
     ],

@@ -26,7 +26,6 @@ from spindoctor.nav_technique.confidence import evaluate_sigmoid_combination
 from spindoctor.nav_technique.diagnostics import RingEdgeDiagnostics
 from spindoctor.nav_technique.dt_fit_gates import DTFitGateConfig, evaluate_dt_fit_gates
 from spindoctor.nav_technique.dt_fitting import (
-    CoarseSearchResult,
     build_polyline_mask,
     coarse_edge_strength_search_scored,
     coarse_ncc_search_scored,
@@ -51,6 +50,7 @@ from spindoctor.nav_technique.ring_edge_geometry import (
     _straight_edge_normals,
     is_rank_1,
 )
+from spindoctor.nav_technique.ring_edge_seed import SeedBasinCheck, check_seed_basin
 from spindoctor.nav_technique.ring_edge_stats import (
     _EdgeFitStat,
     _matched_edge_strength_fraction,
@@ -239,6 +239,30 @@ class RingEdgeNav(NavTechnique):
                 'RingEdgeNav.coarse_strength_keep_ratio must lie in [0, 1]; '
                 f'got {self._coarse_strength_keep_ratio!r}'
             )
+        raw_tolerance = self.tuning['coarse_basin_tolerance_px']
+        if (
+            not isinstance(raw_tolerance, int)
+            or isinstance(raw_tolerance, bool)
+            or (raw_tolerance < 0)
+        ):
+            raise ValueError(
+                'RingEdgeNav.coarse_basin_tolerance_px must be a non-negative integer; '
+                f'got {raw_tolerance!r}'
+            )
+        self._coarse_basin_tolerance_px = raw_tolerance
+        raw_shared = self.tuning['coarse_basin_min_shared_vertices']
+        if not isinstance(raw_shared, int) or isinstance(raw_shared, bool) or raw_shared < 1:
+            raise ValueError(
+                'RingEdgeNav.coarse_basin_min_shared_vertices must be a positive integer; '
+                f'got {raw_shared!r}'
+            )
+        self._coarse_basin_min_shared = raw_shared
+        self._coarse_basin_keep_ratio = float(self.tuning['coarse_basin_keep_ratio'])
+        if not 0.0 <= self._coarse_basin_keep_ratio <= 1.0:
+            raise ValueError(
+                'RingEdgeNav.coarse_basin_keep_ratio must lie in [0, 1]; '
+                f'got {self._coarse_basin_keep_ratio!r}'
+            )
         self._shape_sigma_px = float(self.tuning['shape_sigma_px'])
         if not math.isfinite(self._shape_sigma_px) or self._shape_sigma_px < 0.0:
             raise ValueError(
@@ -354,7 +378,7 @@ class RingEdgeNav(NavTechnique):
             )
             # The edge-strength scores read the normals their thresholds were
             # measured with (see ``RingEdgePolyline.pixel_normals_vu``).
-            coarse = self._coarse_seed(
+            seed_check = self._coarse_seed(
                 edge_mask,
                 gradient_vu,
                 vertices,
@@ -362,6 +386,7 @@ class RingEdgeNav(NavTechnique):
                 (margin_v, margin_u),
                 valid_mask=sensor_interior,
             )
+            coarse = seed_check.seed
             coarse_dv, coarse_du = coarse.offset_vu
             fit_rotation = bool(context.fit_camera_rotation)
             pivot_vu = (float(vertices[:, 0].mean()), float(vertices[:, 1].mean()))
@@ -714,6 +739,7 @@ class RingEdgeNav(NavTechnique):
                 coarse_peak_fraction=gate_verdict.coarse_peak_fraction,
                 sigma_orbit_radial_px=sigma_orbit_px,
                 sigma_shape_major_px=sigma_shape_major_px,
+                coarse_basin_ratio=seed_check.ratio,
             )
             assert self.confidence_spec is not None  # set as class attribute
             confidence, breakdown = evaluate_sigmoid_combination(
@@ -783,7 +809,7 @@ class RingEdgeNav(NavTechnique):
         search_window_vu: tuple[int, int],
         *,
         valid_mask: NDArrayBoolType,
-    ) -> CoarseSearchResult:
+    ) -> SeedBasinCheck:
         """Choose the integer seed the refinement starts from.
 
         The mask-overlap search counts every detected edge pixel alike.  A
@@ -799,6 +825,19 @@ class RingEdgeNav(NavTechnique):
         edge-strength score falls below ``coarse_strength_keep_ratio`` times
         the best score, the strongest alignment replaces it.
 
+        Both scores credit a vertex only where its rounded pixel is itself an
+        edge pixel, and each cataloged edge lies a pixel or two from its
+        rounded model vertices, by a different amount for each edge.  A model
+        of several edges therefore scores only part of its strength at the
+        true shift, while a shift that lays one model edge exactly on one
+        strong step scores all of it, and that alias can win both searches.
+        The seed so chosen is therefore checked once more, crediting each
+        vertex with the strongest edge within ``coarse_basin_tolerance_px``
+        pixels across it: when the seed's credit, over the vertices both it
+        and the tolerant maximum keep on the sensor, falls below
+        ``coarse_basin_keep_ratio`` times the maximum's, the tolerant maximum
+        replaces it.
+
         Parameters:
             edge_mask: Binary image edge mask.
             gradient_vu: ``(H, W, 2)`` image gradient.
@@ -809,7 +848,8 @@ class RingEdgeNav(NavTechnique):
                 scores: the sensor interior.
 
         Returns:
-            The chosen seed and its plain match fraction.
+            The chosen seed with the plain match fraction of the search that chose
+            it, and the basin check's ratio.
         """
         overlap = coarse_ncc_search_scored(
             edge_mask, build_polyline_mask(vertices, edge_mask.shape), search_window_vu
@@ -835,19 +875,45 @@ class RingEdgeNav(NavTechnique):
             strongest.offset_vu[1],
             ratio,
         )
-        if ratio >= self._coarse_strength_keep_ratio:
-            return overlap
-        self.logger.info(
-            'Coarse overlap seed (%d, %d) lies on edges %.2f as strong as the strongest '
-            'alignment (%d, %d), below the %.2f keep ratio; seeding from the strongest',
-            overlap.offset_vu[0],
-            overlap.offset_vu[1],
-            ratio,
-            strongest.offset_vu[0],
-            strongest.offset_vu[1],
-            self._coarse_strength_keep_ratio,
+        seed = overlap
+        if ratio < self._coarse_strength_keep_ratio:
+            self.logger.info(
+                'Coarse overlap seed (%d, %d) lies on edges %.2f as strong as the strongest '
+                'alignment (%d, %d), below the %.2f keep ratio; seeding from the strongest',
+                overlap.offset_vu[0],
+                overlap.offset_vu[1],
+                ratio,
+                strongest.offset_vu[0],
+                strongest.offset_vu[1],
+                self._coarse_strength_keep_ratio,
+            )
+            seed = strongest
+        check = check_seed_basin(
+            seed,
+            edge_mask=edge_mask,
+            gradient_vu=gradient_vu,
+            vertices=vertices,
+            normals=normals,
+            search_window_vu=search_window_vu,
+            valid_mask=valid,
+            tolerance_px=self._coarse_basin_tolerance_px,
+            keep_ratio=self._coarse_basin_keep_ratio,
+            min_shared_vertices=self._coarse_basin_min_shared,
         )
-        return strongest
+        if check.seed is not seed:
+            self.logger.info(
+                'Seed (%d, %d) lies on edges within %d px only %.2f as strong as the '
+                'alignment (%d, %d), below the %.2f basin keep ratio; seeding from that '
+                'alignment',
+                seed.offset_vu[0],
+                seed.offset_vu[1],
+                self._coarse_basin_tolerance_px,
+                check.ratio,
+                check.seed.offset_vu[0],
+                check.seed.offset_vu[1],
+                self._coarse_basin_keep_ratio,
+            )
+        return check
 
 
 class _RingEdgeConfidenceContext:

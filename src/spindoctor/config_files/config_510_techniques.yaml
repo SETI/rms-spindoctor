@@ -742,6 +742,28 @@ techniques:
       # frames); where it had locked onto ring texture or scattered-light
       # contours 16 to 94 px off it ran 0.005 to 0.68.
       coarse_strength_keep_ratio: 0.8
+      # The seed chosen above is checked once more with each model vertex
+      # credited with the strongest counted edge within this many pixel steps
+      # across it, so that every edge of a model that sits a pixel or two off
+      # its image edges contributes.  The scores above count only vertices
+      # whose rounded pixel is an edge pixel, so a shift laying one model edge
+      # exactly on one strong step can outscore the true alignment of several.
+      # 0 turns the check into a repeat of the exact score above.
+      coarse_basin_tolerance_px: 2
+      # The seed and the tolerant maximum are compared on the model vertices
+      # both keep on the sensor; below this ratio of the maximum's credit
+      # there, the maximum seeds the fit.  Measured with a 2 px tolerance on
+      # Cassini NAC frames: on 250 F ring movie frames at 5 to 10 km/px whose
+      # fit was right, the seeds the maximum differed from ran 0.66 and up;
+      # on 332 radial alias locks there the ratio was mostly 0.3 to 0.6; on 16
+      # spoke-movie frames whose maximum laid Cassini Division edges on B ring
+      # texture it ran 0.66 to 0.97.
+      coarse_basin_keep_ratio: 0.6
+      # Fewest model vertices on the sensor at both shifts for the seed and
+      # the tolerant maximum to be compared; with fewer the seed stands.  The
+      # replacements that were right on those F ring frames shared at least
+      # 127 vertices; two wrong ones shared 5 and 31.
+      coarse_basin_min_shared_vertices: 100
       # Pixels inside the sensor boundary within which detected edges are
       # left out of the edge-strength scores.  The step between the sensor
       # and the zero-padded margin of the extended frame is usually the
