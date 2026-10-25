@@ -210,14 +210,16 @@ carry the methodology and acceptance criteria):
 > numbers. A run of fewer than `MIN_FRAMES_FOR_COMMON_OFFSET` agreeing frames
 > measures no shared difference, so a small run is not a check of it.
 > The bundle's WAC C-matrices leave out the WAC frame offset, `(-7, +4.4)` NAC
-> pixels, that the pre-2024 oops library applied when the bundle was navigated
-> (removed in rms-oops 08066b302a). The bundle reader restores it before comparing,
-> except on the bundle's eleven 2007 WAC frames, whose matrices need no restoration,
-> and the report counts both kinds. Without it the WAC frames shared a 0.76 px
-> difference that was the bundle's; with it the star-navigated WAC frames share
-> `+0.003, +0.001` px and 2262 of 2448 WAC frames agree within 1 px rather than 1837
-> (#759). A few manually navigated WAC frames do not follow the date rule and have
-> not been checked against the image stars.
+> pixels, that oops applied until early 2025 (rms-oops 08066b302a and c725d6fc24)
+> and that most of the bundle's navigation offsets were measured with. The bundle
+> reader restores it before comparing, except on 21 named WAC frames whose offsets
+> were measured after the change: eleven of the twelve images f-ring commit 1895396
+> added to the mosaic lists in 2025, and ten manual offsets that, by the image
+> stars, were evidently entered after it. The report counts both kinds. Without the
+> restoration the WAC frames shared a 0.76 px difference that was the bundle's; with
+> it the star-navigated WAC frames share `+0.003, +0.001` px and 2270 of 2448 WAC
+> frames agree within 1 px rather than 1837 (#759). The cause is filed against the
+> bundle as rfrenchseti/f-ring#14.
 >
 > Therefore the strategy is: **measure absolute accuracy only in a simulation that
 > is (a) independent of the navigator and (b) proven realistic against real

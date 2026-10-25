@@ -54,8 +54,25 @@ WAC_CMATRIX = np.array(
         [0.3448644786, -0.5544238466, 0.7574184377],
     ]
 )
-# The same file moved to a 2007 date, when the bundle's matrices need no restoration.
-WAC_2007_SUPPL = WAC_SUPPL.replace('2013-01-28T17:14:09.581Z', '2007-03-17T19:32:12.015Z')
+
+
+def _wac_suppl(product_number: str, mid_time: str) -> str:
+    """The wide angle file above, as though it were another product of another date.
+
+    Parameters:
+        product_number: The image number the source product ID names.
+        mid_time: The mid time the file quotes.
+
+    Returns:
+        The file's text.
+    """
+    return WAC_SUPPL.replace('1738087703', product_number).replace(
+        '2013-01-28T17:14:09.581Z', mid_time
+    )
+
+
+# A frame the bundle publishes in the standard frame: added to the mosaic lists in 2025.
+WAC_LISTED_SUPPL = _wac_suppl('1555945704', '2007-04-22T14:34:40.415Z')
 
 
 def test_suppl_path_moves_the_camera_letter_to_the_end() -> None:
@@ -257,54 +274,45 @@ def test_a_wac_frame_says_its_offset_was_restored(tmp_path: Path) -> None:
     assert answer.note == WAC_OFFSET_RESTORED
 
 
-def test_a_2007_wac_frame_is_read_as_published(tmp_path: Path) -> None:
-    """The bundle's 2007 WAC matrices are in the standard frame, so none is restored."""
+def test_a_listed_wac_frame_is_read_as_published(tmp_path: Path) -> None:
+    """A frame navigated after oops dropped its WAC offset has its matrix used as is."""
     path = tmp_path / 'suppl.txt'
-    path.write_text(WAC_2007_SUPPL)
+    path.write_text(WAC_LISTED_SUPPL)
     answer = read_bundle_pointing(path)
     assert answer is not None
     assert answer.boresight == pytest.approx(WAC_CMATRIX[2], abs=1e-9)
 
 
-def test_a_2007_wac_frame_says_it_was_read_as_published(tmp_path: Path) -> None:
-    """The exception is named in the note rather than left to look like a NAC frame."""
+@pytest.mark.parametrize(
+    ('product_number', 'mid_time'),
+    [
+        ('1555945704', '2007-04-22T14:34:40.415Z'),
+        ('1598925706', '2008-09-01T01:23:09.831Z'),
+        ('1656595752', '2010-06-30T12:43:44.985Z'),
+    ],
+    ids=['added-in-2025-from-2007', 'added-in-2025-from-2008', 'manual-offset-after-change'],
+)
+def test_a_listed_wac_frame_says_it_was_read_as_published(
+    tmp_path: Path, product_number: str, mid_time: str
+) -> None:
+    """The listed frames are named in the note, whatever year they were taken.
+
+    Parameters:
+        tmp_path: Fixture used to write the supplementary file.
+        product_number: The listed image's number.
+        mid_time: Its mid time.
+    """
     path = tmp_path / 'suppl.txt'
-    path.write_text(WAC_2007_SUPPL)
+    path.write_text(_wac_suppl(product_number, mid_time))
     answer = read_bundle_pointing(path)
     assert answer is not None
     assert answer.note == WAC_AS_PUBLISHED
 
 
-@pytest.mark.parametrize(
-    ('mid_time', 'note'),
-    [
-        ('2006-12-31T23:59:59.999Z', WAC_OFFSET_RESTORED),
-        ('2007-01-01T00:00:00.000Z', WAC_AS_PUBLISHED),
-        ('2007-12-31T23:59:59.999Z', WAC_AS_PUBLISHED),
-        ('2008-01-01T00:00:00.000Z', WAC_OFFSET_RESTORED),
-    ],
-)
-def test_the_2007_window_has_closed_start_and_open_end(
-    tmp_path: Path, mid_time: str, note: str
-) -> None:
-    """The window is calendar 2007: its first instant is in, 2008's first is out.
-
-    Parameters:
-        tmp_path: Fixture used to write the supplementary file.
-        mid_time: The frame's mid time.
-        note: The note the frame must carry.
-    """
+def test_an_unlisted_2007_wac_frame_has_the_offset_restored(tmp_path: Path) -> None:
+    """The date plays no part: W1555949214 of 2007, whose manual offset is off, is restored."""
     path = tmp_path / 'suppl.txt'
-    path.write_text(WAC_SUPPL.replace('2013-01-28T17:14:09.581Z', mid_time))
-    answer = read_bundle_pointing(path)
-    assert answer is not None
-    assert answer.note == note
-
-
-def test_a_wac_frame_quoting_no_mid_time_has_the_offset_restored(tmp_path: Path) -> None:
-    """Absent a date, the frame is read like every WAC frame outside 2007."""
-    path = tmp_path / 'suppl.txt'
-    path.write_text(WAC_SUPPL.replace('Image Mid Time (UTC) = 2013-01-28T17:14:09.581Z\n', ''))
+    path.write_text(_wac_suppl('1555949214', '2007-04-22T15:33:10.393Z'))
     answer = read_bundle_pointing(path)
     assert answer is not None
     assert answer.note == WAC_OFFSET_RESTORED
