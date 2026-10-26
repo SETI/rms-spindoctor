@@ -991,9 +991,9 @@ techniques:
       - feature: median_residual_px
         alpha: 0.0
         divisor: 1.0
-      # Constant in the campaign (the detector always fills its
-      # max_sources=30 budget, noise peaks included) -- no information
-      # as wired; kept at zero weight.
+      # Constant in the campaign, where the detector filled its
+      # max_sources=30 budget with noise peaks; kept at zero weight.  The
+      # count is of sources within reach of the catalog stars.
       - feature: n_detected_sources
         alpha: 0.0
         divisor: 30.0
@@ -1012,6 +1012,10 @@ techniques:
       # Maximum number of brightest detected sources / brightest
       # catalog stars to feed the matcher.  Triplet count is M^3, so
       # 30 keeps the candidate list bounded (~27K triplets per side).
+      # Only sources within reach of a catalog star of the cohort (the
+      # search window's half-widths plus inlier_tolerance_px plus 1 px of
+      # its prediction) are ranked: on a frame crossed by ring texture the
+      # brightest sources elsewhere are not stars and would fill the cohort.
       max_sources: 30
       # Detection-threshold multiplier on image_noise_sigma.
       detection_sigma: 4.0
@@ -1084,12 +1088,14 @@ techniques:
       wide_offset_anchor_detections: 6
       # False-lock budget: the maximum expected number of chance locks (of
       # the achieved inlier count, over the evaluated bright-anchor seeds)
-      # under a uniform-random-detection null.  A candidate is accepted only
-      # when its computed expectation falls at or below this.  0.01 keeps the
-      # per-frame chance-lock rate at one percent; a genuine three-inlier
-      # anchor lock on a sparse field sits several orders of magnitude below
-      # it, while a two-inlier lock (anchor pair plus one chance neighbor)
-      # sits above it and is rejected.
+      # under a null of detections spread uniformly at the lower of the
+      # source densities of the frame and of the reach they were drawn
+      # from.  A candidate is accepted only when its computed expectation
+      # falls at or below this.  0.01 keeps the
+      # per-frame chance-lock rate at one percent; the three-inlier locks of
+      # spoke frames W1630378489 and W1600568582 sit at 8e-5 and 3e-4, while
+      # a two-inlier lock (anchor pair plus one chance neighbor) sits above
+      # it and is rejected.
       wide_offset_false_lock_budget: 0.01
       # Maximum inlier residual RMS (px) for a wide-offset lock.  A lock
       # whose corroborating inliers sit near the match-tolerance edge is a

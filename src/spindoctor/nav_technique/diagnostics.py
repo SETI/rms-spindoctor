@@ -324,7 +324,8 @@ class StarFieldDiagnostics:
     Parameters:
         n_inliers: Number of detection-to-catalog inliers after RANSAC.
         median_residual_px: Median position residual on inliers.
-        n_detected_sources: Number of bright sources detected in the image.
+        n_detected_sources: Number of sources the matcher uses, the brightest
+            detected within reach of the catalog cohort.
         n_catalog_predicted: Number of catalog stars in the extfov.
         n_triplets_evaluated: Number of triplet candidates considered by
             RANSAC.

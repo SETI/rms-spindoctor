@@ -10,8 +10,10 @@ Algorithm — four sub-pieces:
 1. **Source detection.**  The image is matched-filtered against a
    small Gaussian PSF kernel; pixels that are local maxima above
    ``detection_sigma * image_noise_sigma`` are accepted; a brightness-
-   weighted centroid pins each peak's sub-pixel position.  The
-   brightest ``max_sources`` survivors (default 30) feed the matcher.
+   weighted centroid pins each peak's sub-pixel position.  A peak counts
+   only within reach of some catalog star at an offset the search window
+   allows.  The brightest ``max_sources`` survivors (default 30) feed the
+   matcher.
 2. **Triplet hashing.**  For every unordered triplet of detected
    sources ``{A, B, C}`` the hash ``(d_AB / d_AC, d_BC / d_AC, ∠BAC)``
    is computed.  The vertex order is canonicalised by triangle geometry
@@ -65,6 +67,7 @@ from spindoctor.nav_technique._star_helpers import (
     similarity_transform_fit,
     usable_stars,
 )
+from spindoctor.nav_technique._star_reach import reach_mask
 from spindoctor.nav_technique._star_sharpness import (
     PsfConcentration,
     psf_concentration,
@@ -91,7 +94,7 @@ from spindoctor.nav_technique.nav_technique import (
 )
 from spindoctor.nav_technique.technique_result import NavTechniqueResult
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
-from spindoctor.support.types import NDArrayFloatType
+from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 
 if TYPE_CHECKING:  # pragma: no cover - typing-only import
     from psfmodel import PSF
@@ -169,10 +172,17 @@ class _SourceDetections:
         sources: The kept detections, brightest first.
         n_sharper_than_psf: Candidates set aside, before the cohort filled, as more
             concentrated than the instrument's point-spread function allows a star.
+        n_beyond_reach: Local maxima above the threshold set aside because they lie
+            outside the reach mask, where no predicted star can be at any offset the
+            search window allows.
+        n_candidates: Candidate peaks anywhere in the image, before the reach, the
+            cosmic-ray test, and the ``max_sources`` cut.
     """
 
     sources: list[_DetectedSource]
     n_sharper_than_psf: int
+    n_beyond_reach: int = 0
+    n_candidates: int = 0
 
 
 @dataclass(frozen=True)
@@ -253,7 +263,8 @@ def _wide_offset_false_lock_expectation(
     """Expected number of chance wide-offset locks reaching ``n_inliers``.
 
     Under the null that the ``n_detected`` detections are scattered
-    uniformly over the image, a single catalog star coincides with some
+    uniformly over the area ``image_area_px2`` (:func:`_source_area_px2`),
+    a single catalog star coincides with some
     detection within ``tolerance_px`` of a fixed offset with probability
     ``p = n_detected * pi * tolerance_px**2 / image_area_px2``.  Each
     bright-anchor seed contributes one guaranteed inlier (the anchor pair)
@@ -276,8 +287,8 @@ def _wide_offset_false_lock_expectation(
         n_catalog: Number of predicted catalog stars.
         n_detected: Number of detected image sources.
         tolerance_px: Inlier match radius in pixels.
-        image_area_px2: Image area in square pixels (detection density
-            denominator).
+        image_area_px2: Area in square pixels the detections were drawn from
+            (detection density denominator).
 
     Returns:
         Expected number of chance locks of at least ``n_inliers`` inliers.
@@ -312,6 +323,37 @@ def _gaussian_kernel(sigma_px: float, *, size: int) -> NDArrayFloatType:
     return kernel
 
 
+def _source_area_px2(
+    *, n_kept: int, n_candidates: int, reach_area_px2: float, image_area_px2: float
+) -> float:
+    """Return the area over which the false-lock model spreads the kept detections.
+
+    A chance inlier is a source that happens to lie where a star should be, so the
+    model needs the density of sources that are not the stars, and two counts give it.
+    The kept detections spread over the reach they were drawn from give one, but on a
+    sparse field the reach holds little more than the stars themselves, which then make
+    the density they are tested against.  The candidate peaks found anywhere in the
+    image, stars a small part of them, give the other, on the assumption that the other
+    sources lie where they do whatever the catalog predicts.  The lower density is
+    used, which is the larger area.  The reach's estimate is the lower one where the
+    ``max_sources`` cut leaves sources in the reach uncounted, or where the frame's
+    other sources lie away from the predicted stars.
+
+    Parameters:
+        n_kept: Detections the matcher uses.
+        n_candidates: Candidate peaks anywhere in the image.
+        reach_area_px2: Sensor area of the reach the kept detections were drawn from.
+        image_area_px2: Sensor area of the image.
+
+    Returns:
+        The larger of ``reach_area_px2`` and ``n_kept`` spread at the image's density
+        of candidates.
+    """
+    if n_candidates <= 0:
+        return reach_area_px2
+    return max(reach_area_px2, n_kept * image_area_px2 / n_candidates)
+
+
 def _detect_image_sources(
     image: NDArrayFloatType,
     *,
@@ -323,6 +365,7 @@ def _detect_image_sources(
     psf_limits: PsfConcentration | None,
     psf_sharpness_sigma: float,
     streak_vu: tuple[float, float] = (0.0, 0.0),
+    reach: NDArrayBoolType | None = None,
 ) -> _SourceDetections:
     """Detect bright local-max sources in ``image`` and return the brightest set.
 
@@ -338,7 +381,10 @@ def _detect_image_sources(
        responds most at its center.
     2. Find pixels that are local maxima within a
        ``(2 * centroid_box_half_px + 1)`` window AND clear
-       ``detection_sigma * image_noise_sigma``.
+       ``detection_sigma * image_noise_sigma``.  When ``reach`` is given, a peak
+       must also lie on it: a source no predicted star can reach at any offset the
+       search window allows is no star the matcher can pair, and on a frame crossed
+       by ring texture such peaks are the brightest and fill the cohort.
     3. For each surviving peak, fit a brightness-weighted moment in a
        small box around the peak to pull a sub-pixel centroid.  For a streak the box
        grows on each axis by
@@ -373,6 +419,8 @@ def _detect_image_sources(
         psf_sharpness_sigma: Noise multiplier by which a candidate's light must
             exceed ``psf_limits`` to be set aside.
         streak_vu: The streak ``(v, u)`` in pixels the frame's stars draw.
+        reach: Pixels a peak must lie on (:func:`reach_mask`), the shape of ``image``;
+            None keeps peaks anywhere.
 
     Returns:
         The ``_DetectedSource`` records, ordered by brightness descending (empty
@@ -393,6 +441,11 @@ def _detect_image_sources(
     threshold = detection_sigma * image_noise_sigma
     local_max = maximum_filter(response, size=kernel_size, mode='reflect')
     candidate_mask = (response == local_max) & (response > threshold)
+    n_candidates = int(np.count_nonzero(candidate_mask))
+    n_beyond_reach = 0
+    if reach is not None:
+        candidate_mask &= reach
+        n_beyond_reach = n_candidates - int(np.count_nonzero(candidate_mask))
     h, w = image.shape
     out: list[_DetectedSource] = []
     peaks: list[tuple[int, int]] = []
@@ -436,7 +489,12 @@ def _detect_image_sources(
             n_sharp += 1
             continue
         kept.append(out[i])
-    return _SourceDetections(sources=kept, n_sharper_than_psf=n_sharp)
+    return _SourceDetections(
+        sources=kept,
+        n_sharper_than_psf=n_sharp,
+        n_beyond_reach=n_beyond_reach,
+        n_candidates=n_candidates,
+    )
 
 
 def _triplet_hash(
@@ -917,6 +975,18 @@ class StarFieldFromCatalogNav(NavTechnique):
                     streak_vu[0],
                     streak_vu[1],
                 )
+            # Every answer this technique gives lies inside the search window (beyond
+            # it the result is at the edge and scores zero), so a source counts only
+            # where some catalog star of the cohort can be at such an offset: within
+            # the window's half-width plus the inlier tolerance of its prediction,
+            # plus a pixel for a centroid off its peak pixel.
+            margin_v, margin_u = search_window_for_obs(context)
+            slack_px = self._inlier_tolerance_px + 1.0
+            reach = reach_mask(
+                image_ext.shape,
+                [predicted_vu(f) for f in ranked_catalog],
+                reach_vu=(margin_v + slack_px, margin_u + slack_px),
+            )
             detections = _detect_image_sources(
                 image_ext,
                 image_noise_sigma=noise_sigma,
@@ -927,7 +997,16 @@ class StarFieldFromCatalogNav(NavTechnique):
                 psf_limits=psf_limits,
                 psf_sharpness_sigma=self._psf_sharpness_sigma,
                 streak_vu=streak_vu,
+                reach=reach,
             )
+            if detections.n_beyond_reach > 0:
+                self.logger.info(
+                    'Set aside %d source(s) beyond the reach of every catalog star at any '
+                    'offset the search window (half-widths %d, %d px) allows',
+                    detections.n_beyond_reach,
+                    margin_v,
+                    margin_u,
+                )
             if detections.n_sharper_than_psf > 0:
                 self.logger.info(
                     'Set aside %d source(s) more concentrated than the star PSF allows '
@@ -936,6 +1015,15 @@ class StarFieldFromCatalogNav(NavTechnique):
                 )
             detected = detections.sources
             n_detected_sources = len(detected)
+            # Areas count sensor pixels only: the extended frame's padding holds no
+            # source, so counting it would thin the density the false-lock model uses.
+            sensor = np.asarray(context.sensor_mask_ext, dtype=np.bool_)
+            source_area_px2 = _source_area_px2(
+                n_kept=n_detected_sources,
+                n_candidates=detections.n_candidates,
+                reach_area_px2=float(np.count_nonzero(reach & sensor)),
+                image_area_px2=float(np.count_nonzero(sensor)),
+            )
             self.logger.info(
                 'Detected %d source(s); using up to %d catalog stars',
                 n_detected_sources,
@@ -961,6 +1049,7 @@ class StarFieldFromCatalogNav(NavTechnique):
                 context=context,
                 n_detected_sources=n_detected_sources,
                 n_catalog_predicted=n_catalog_predicted,
+                source_area_px2=source_area_px2,
             )
 
     def _psf_refine_positions(
@@ -1058,8 +1147,13 @@ class StarFieldFromCatalogNav(NavTechnique):
         context: NavContext,
         n_detected_sources: int,
         n_catalog_predicted: int,
+        source_area_px2: float,
     ) -> NavTechniqueResult:
-        """RANSAC + Tukey-biweight verification on the prepared cohorts."""
+        """RANSAC + Tukey-biweight verification on the prepared cohorts.
+
+        ``source_area_px2`` is the area in square pixels over which the wide-offset
+        false-lock model spreads the detections (:func:`_source_area_px2`).
+        """
         det_points = [(s.v, s.u) for s in detected]
         det_points_arr = np.asarray(det_points, np.float64)
         det_brightness_rank = list(range(n_detected_sources))  # already sorted
@@ -1108,15 +1202,13 @@ class StarFieldFromCatalogNav(NavTechnique):
             # when the chance-alignment significance clears the false-lock
             # budget.
             det_dn = np.asarray([s.peak_dn for s in detected], np.float64)
-            image_shape = np.asarray(context.image_ext).shape
-            image_area = float(image_shape[0] * image_shape[1])
             wide = self._wide_offset_asterism_match(
                 det_points_arr=det_points_arr,
                 det_dn=det_dn,
                 cat_points_arr=cat_points_arr,
                 ranked_catalog=ranked_catalog,
                 context=context,
-                image_area=image_area,
+                image_area=source_area_px2,
             )
             if wide is None:
                 # A field can still carry exactly one confidently-detectable
@@ -1393,8 +1485,8 @@ class StarFieldFromCatalogNav(NavTechnique):
             ranked_catalog: The catalog features parallel to
                 ``cat_points_arr`` (supplies the ``#284`` photometry flags).
             context: Per-image NavContext (search-window bounds).
-            image_area: Image area in square pixels (detection-density
-                denominator for the false-lock model).
+            image_area: Area in square pixels the detections were drawn from
+                (detection-density denominator for the false-lock model).
 
         Returns:
             A :class:`_WideOffsetMatch` when a lock cleared every guard, else
