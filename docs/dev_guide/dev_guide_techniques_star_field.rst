@@ -59,6 +59,27 @@ with a Gaussian PSF kernel of the configured ``psf_sigma_px``, peaks above
 each peak gives the sub-pixel centroid. Up to ``max_sources`` brightest detections feed the
 hash-space search; the catalog side is similarly capped.
 
+A peak counts only where some star of the catalog cohort can be at an offset the technique
+can answer. Every answer lies inside the search window, whose half-widths are the
+observation's extfov margin: an answer within ``at_edge_tolerance_px`` of a half-width is
+at the edge and scores zero. A source that pairs with a star at a translation inside the
+window therefore lies within the half-widths plus ``inlier_tolerance_px`` of the star's
+prediction, less the at-edge tolerance, on each axis. The technique marks the rectangle of
+the half-widths plus ``inlier_tolerance_px`` plus 1 px around every cohort prediction
+(``reach_mask`` in ``src/spindoctor/nav_technique/_star_reach.py``) and tests each peak's
+pixel against it. The extra pixel and the at-edge tolerance together leave 2 px for a
+moment centroid that falls off its peak pixel; over 2,697 detections of stars on 300 study
+frames that distance was a median 0.35 px and at most 1.98 px. Every peak off the
+rectangle is set aside before the ``max_sources`` cut, and the count is logged.
+
+Without it the cohort is the brightest sources anywhere in the frame. On a frame crossed
+by ring texture those are mostly not stars, and the faint stars against the ring rank
+below the cut. On WAC spoke frame W1726706510 (half-widths 5 and 10 px), the 30 brightest
+of 195 sources that pass the source isolation test hold 4 of the stars, and the matcher
+found 3 inliers although 21 of the cohort's stars are detected at the pointing the stars
+measure. Within reach, 23 sources remain, and the match has 21 inliers 0.04 px from that
+pointing.
+
 On a frame whose stars draw a streak (the star model records one on every STAR feature as
 :attr:`~spindoctor.feature.flags.StarFlags.streak_vu` when it is at least 4.5 px long; see
 the measured streak in :doc:`dev_guide_navigation_models_star`), a round kernel responds
@@ -137,19 +158,35 @@ seed with the most inliers (ties broken by the tighter residual RMS). Because th
 coincides exactly at its own seed offset, it is always one inlier, so a candidate reaching
 :math:`k` inliers carries the anchor plus :math:`k - 1` corroborating stars.
 
-Why three inliers can be decisive here where the RANSAC needs six: the false-lock rate is set
-by the trial count, not the inlier count alone. The RANSAC evaluates thousands of triplet
-seeds, so a three-inlier coincidence (a seed triangle plus zero corroboration) is reachable
-by chance; restricting to a handful of brightness-anchored seeds collapses the trial count so
-the same three inliers become statistically decisive. The guard quantifies this with a
-chance-alignment significance under a uniform-detection null. A single catalog star coincides
-with some detection within ``inlier_tolerance_px`` of a fixed offset with probability
-:math:`p = N_{\text{det}}\,\pi\,\tau^{2} / A`, where :math:`\tau` is the inlier tolerance and
-:math:`A` the extfov image area, so a seed reaches :math:`k` inliers with probability
+Why three inliers can be decisive here where the RANSAC needs six: the false-lock rate is
+set by the trial count, not the inlier count alone. The RANSAC evaluates thousands of
+triplet seeds, so a three-inlier coincidence (a seed triangle plus zero corroboration) is
+reachable by chance; restricting to a handful of brightness-anchored seeds collapses the
+trial count so the same three inliers become statistically decisive. The guard quantifies
+this with a chance-alignment significance under a uniform-detection null. A single catalog
+star coincides with some detection within ``inlier_tolerance_px`` of a fixed offset with
+probability :math:`p = N_{\text{det}}\,\pi\,\tau^{2} / A`, where :math:`\tau` is the
+inlier tolerance and :math:`A` the area the detections are spread over, so a seed reaches
+:math:`k` inliers with probability
 :math:`P(\mathrm{Binom}(N_{\text{cat}} - 1,\, p) \ge k - 1)`. Multiplying by the number of
-distinct seed offsets evaluated gives the expected number of chance locks
-:math:`E`; by the Markov bound the probability of any chance lock is at most :math:`E`. A
-candidate is accepted only when :math:`E` falls at or below ``wide_offset_false_lock_budget``.
+distinct seed offsets evaluated gives the expected number of chance locks :math:`E`; by
+the Markov bound the probability of any chance lock is at most :math:`E`. A candidate is
+accepted only when :math:`E` falls at or below ``wide_offset_false_lock_budget``.
+
+The density :math:`N_{\text{det}} / A` that matters is that of the sources that are not
+the stars, and two counts estimate it. The detections the matcher keeps are drawn from the
+reach of the catalog cohort (see `Source detection`_), but on a sparse field the reach
+holds little more than the stars, which would then make the density they are tested
+against: on spoke frame W1630378489, four sources lie in reach and three of them are
+stars. The candidate peaks found anywhere in the image (those that pass the threshold and,
+where the detector applies it, the source isolation test) give the other estimate, on the
+assumption that the other sources lie where they do whatever the catalog predicts. The
+model takes the lower density, which spreads the kept detections over the larger of the
+reach and :math:`N_{\text{det}}` times the image area over the number of candidates. Both
+areas count sensor pixels only, so the extended frame's padding, which holds no source,
+does not thin the density. The null test bears the assumption out: with every catalog
+prediction moved beyond the reach on 931 study frames, no lock formed where the true
+offset was out of reach.
 
 A candidate must also clear every remaining guard:
 
@@ -443,10 +480,10 @@ sigmoid combination; see :doc:`dev_guide_techniques_confidence`. Spec is
   sim campaign the residual carried no signal. Kept wired for a future real-anchored
   calibration.
 - :attr:`~spindoctor.nav_technique.diagnostics.StarFieldDiagnostics.n_detected_sources` —
-  alpha = 0.0, offset = 0.0, divisor = 30.0, cap at 1.0. Number of bright sources detected
-  in the image. Constant in the calibration campaign (the detector always fills its
-  ``max_sources`` budget, noise peaks included), so it carries no information as wired;
-  kept at zero weight.
+  alpha = 0.0, offset = 0.0, divisor = 30.0, cap at 1.0. Number of sources the matcher
+  uses, detected within reach of the catalog cohort. Constant in the calibration campaign,
+  where the detector filled its ``max_sources`` budget with noise peaks, so it is kept at
+  zero weight.
 - :attr:`~spindoctor.nav_technique.diagnostics.StarFieldDiagnostics.n_catalog_predicted` —
   alpha = 0.768, offset = 0.0, divisor = 30.0, cap at 1.0. Number of catalog stars in the
   extfov.
@@ -472,6 +509,8 @@ Source files:
 - ``src/spindoctor/nav_technique/nav_technique_star_field.py`` —
   :class:`~spindoctor.nav_technique.nav_technique_star_field.StarFieldFromCatalogNav` and the
   hashing / RANSAC / fit helpers.
+- ``src/spindoctor/nav_technique/_star_reach.py`` — package-private ``reach_mask``, the
+  pixels within reach of the catalog cohort's predictions.
 - ``src/spindoctor/nav_technique/_star_helpers.py`` — package-private helpers
   ``usable_stars`` (filter), ``local_centroid`` (per-source centroid), and
   ``similarity_transform_fit`` (Kabsch / Procrustes solve).
@@ -512,7 +551,7 @@ Diagnostics
 - :attr:`~spindoctor.nav_technique.diagnostics.StarFieldDiagnostics.median_residual_px` — median
   position residual on inliers. Consumed by the confidence formula.
 - :attr:`~spindoctor.nav_technique.diagnostics.StarFieldDiagnostics.n_detected_sources` — number
-  of bright sources detected in the image.
+  of sources the matcher uses, the brightest detected within reach of the catalog cohort.
 - :attr:`~spindoctor.nav_technique.diagnostics.StarFieldDiagnostics.n_catalog_predicted` — number
   of catalog stars in the extfov.
 - :attr:`~spindoctor.nav_technique.diagnostics.StarFieldDiagnostics.n_triplets_evaluated` —
@@ -544,7 +583,8 @@ Call path traced through
    :attr:`~spindoctor.feature.feature.NavFeature.flags`.
 2. Run the matched-filter detection over
    :attr:`~spindoctor.nav_orchestrator.nav_context.NavContext.image_ext` to find the brightest
-   sources. Cap the catalog and detection cohorts at ``max_sources`` each.
+   sources within reach of the catalog cohort's predictions. Cap the catalog and detection
+   cohorts at ``max_sources`` each.
 3. Compute every catalog and detection triplet's (ratio, ratio, angle) hash. Scan every
    detection-triplet / catalog-triplet pair and keep all candidates whose weighted hash
    distance falls within ``hash_match_tolerance``, sorted for deterministic iteration.
