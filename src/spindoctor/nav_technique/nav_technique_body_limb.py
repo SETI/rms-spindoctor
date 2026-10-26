@@ -11,9 +11,10 @@ mistakes by construction.
 from __future__ import annotations
 
 import math
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 import numpy as np
+from scipy.linalg import pinvh
 
 from spindoctor.config import Config
 from spindoctor.feature.feature import NavFeature, body_names_from_features
@@ -26,6 +27,7 @@ from spindoctor.nav_technique.dt_fitting import (
     coarse_polarity_search_scored,
     lm_subpixel_refine,
 )
+from spindoctor.nav_technique.dt_fitting.constants import DEFAULT_PINVH_RCOND
 from spindoctor.nav_technique.feasibility import NavFeasibilityReport
 from spindoctor.nav_technique.nav_technique import (
     NavTechnique,
@@ -41,7 +43,7 @@ from spindoctor.support.types import NDArrayFloatType
 if TYPE_CHECKING:  # pragma: no cover - typing-only import
     from spindoctor.nav_orchestrator.nav_context import NavContext
 
-__all__ = ['BodyLimbNav']
+__all__ = ['BodyLimbNav', 'limb_altitude_covariance']
 
 # All numeric tunables for this technique live in
 # ``config_files/config_510_techniques.yaml`` under
@@ -89,6 +91,118 @@ def _aggregate_limb_features(
     normals = np.concatenate(normal_chunks, axis=0) if normal_chunks else empty_2
     sigmas = np.concatenate(sigma_chunks, axis=0) if sigma_chunks else empty_1
     return vertices, normals, sigmas, ids
+
+
+def _altitude_displacements(features: list[NavFeature]) -> list[NDArrayFloatType]:
+    """Return, per usable LIMB_ARC, each vertex's 1-sigma visible-limb displacement.
+
+    A limb placed at its body's visible-limb altitude moves every vertex together
+    when that altitude is wrong: vertex ``i`` moves ``altitude_px_per_km[i] *
+    altitude_sigma_km`` pixels along its normal for a one-sigma error.  One array
+    per feature, in the order :func:`_aggregate_limb_features` concatenates them,
+    each the length of its feature's vertices; all zeros for a feature that
+    carries no altitude sensitivity or a zero altitude uncertainty.
+
+    Parameters:
+        features: The technique's eligible features.
+
+    Returns:
+        One ``(N_feature,)`` array per LIMB_ARC with at least one vertex.
+    """
+    out: list[NDArrayFloatType] = []
+    for feat in features:
+        if not isinstance(feat.geometry, LimbPolyline):
+            continue
+        n = feat.geometry.vertices_vu.shape[0]
+        if n == 0:
+            continue
+        per_km = feat.geometry.altitude_px_per_km
+        sigma_km = float(feat.geometry.altitude_sigma_km)
+        if per_km is None or sigma_km <= 0.0:
+            out.append(np.zeros(n, np.float64))
+        else:
+            out.append(np.asarray(per_km, np.float64) * sigma_km)
+    return out
+
+
+def _rotation_lever(
+    vertices_vu: NDArrayFloatType, normals_vu: NDArrayFloatType, pivot_vu: tuple[float, float]
+) -> NDArrayFloatType:
+    """Return each vertex's normal displacement per radian of rotation about the pivot.
+
+    Parameters:
+        vertices_vu: ``(N, 2)`` vertices.
+        normals_vu: ``(N, 2)`` unit normals.
+        pivot_vu: The rotation pivot.
+
+    Returns:
+        ``(N,)`` pixels per radian: ``n . d(x)/d(theta)`` at zero rotation.
+    """
+    dv = vertices_vu[:, 0] - pivot_vu[0]
+    du = vertices_vu[:, 1] - pivot_vu[1]
+    return cast(NDArrayFloatType, normals_vu[:, 0] * (-du) + normals_vu[:, 1] * dv)
+
+
+def limb_altitude_covariance(
+    normals_vu: NDArrayFloatType,
+    weights: NDArrayFloatType,
+    displacements: list[NDArrayFloatType],
+    *,
+    rotation_lever_px: NDArrayFloatType | None = None,
+) -> NDArrayFloatType:
+    """Pose covariance contributed by the bodies' visible-limb altitude errors.
+
+    Each body's visible-limb altitude is one uncertain number shared by all of its
+    vertices, so its error displaces the whole arc along the arc's normals at once.
+    Linearizing the weighted fit with per-vertex Jacobian rows ``j_i`` (the normal
+    ``n_i``, plus the rotation lever when the fit solves for rotation), a displacement
+    ``d_i`` of vertex ``i`` along ``n_i`` moves the pose by
+    ``g = A^-1 sum_i w_i j_i d_i`` with ``A = sum_i w_i j_i j_i^T``, so a one-sigma
+    altitude error contributes ``g g^T``.  The bodies' altitudes are independent, so
+    their terms add.  On a full disc the normals cancel and the term vanishes; on a
+    partial arc it lies along the arc's mean normal.
+
+    Parameters:
+        normals_vu: ``(N, 2)`` unit normals of the concatenated vertices (either
+            sign).
+        weights: ``(N,)`` final fit weights of those vertices.
+        displacements: Per body, the 1-sigma displacement of its vertices, in the
+            concatenation order; their lengths sum to ``N``.
+        rotation_lever_px: Optional ``(N,)`` normal displacement per radian of
+            rotation (see the fit's pivot); when given the result is ``(3, 3)`` over
+            ``(dv, du, theta)``.
+
+    Returns:
+        The ``(2, 2)`` (or ``(3, 3)``) covariance, confined to the pose directions the
+        weighted normals constrain; zeros when every weight is zero or no body
+        carries an altitude uncertainty.
+    """
+    normals = np.asarray(normals_vu, np.float64)
+    columns = [normals[:, 0], normals[:, 1]]
+    if rotation_lever_px is not None:
+        columns.append(np.asarray(rotation_lever_px, np.float64))
+    jac = np.stack(columns, axis=-1) if normals.shape[0] else np.zeros((0, len(columns)))
+    size = jac.shape[1]
+    w = np.asarray(weights, np.float64)
+    total = np.zeros((size, size), np.float64)
+    if jac.shape[0] == 0 or not np.any(w > 0.0):
+        return total
+    info = (jac * w[:, None]).T @ jac
+    if not np.any(info != 0.0):
+        return total
+    # A pseudo-inverse, as the fit's own covariance uses: a circular arc makes
+    # rotation about the pivot indistinguishable from translation, and an arc of
+    # parallel normals leaves the tangent unconstrained; the term then lies in the
+    # directions the fit does constrain.
+    info_inv = pinvh(info, rtol=DEFAULT_PINVH_RCOND)
+    start = 0
+    for disp in displacements:
+        stop = start + disp.shape[0]
+        if np.any(disp != 0.0):
+            g = info_inv @ ((jac[start:stop] * (w[start:stop] * disp)[:, None]).sum(axis=0))
+            total += np.outer(g, g)
+        start = stop
+    return total
 
 
 class BodyLimbNav(NavTechnique):
@@ -462,6 +576,25 @@ class BodyLimbNav(NavTechnique):
                 sigma_min_px,
                 visible_limb_arc_fraction,
             )
+            # The visible-limb altitude is one uncertain number per body, so its
+            # error is a correlated displacement of the whole arc; it enters the
+            # translation covariance once, not as per-vertex noise (#321).
+            altitude_cov = limb_altitude_covariance(
+                polarity_normals,
+                result.weights,
+                _altitude_displacements(eligible_features),
+                rotation_lever_px=(
+                    _rotation_lever(vertices, polarity_normals, pivot_vu) if fit_rotation else None
+                ),
+            )
+            if np.any(altitude_cov != 0.0):
+                self.logger.info(
+                    'Visible-limb altitude uncertainty adds %.3f px (1 sigma) along the arc normal',
+                    float(np.sqrt(max(float(np.trace(altitude_cov[:2, :2])), 0.0))),
+                )
+                covariance = covariance.copy()
+                size = altitude_cov.shape[0]
+                covariance[:size, :size] += altitude_cov
             # Model-error floor (#210); rationale on load_model_error_floor.
             covariance = add_model_error_floor(covariance, self._model_error_floor_px)
             return NavTechniqueResult(
