@@ -273,6 +273,14 @@ techniques:
       # Shorter limbs do not constrain a 2-D translation enough to be
       # worth the LM iteration.
       min_arc_vertices: 30.0
+      # Limb vertices that the coarse seed puts outside the sensor, or within
+      # this many pixels of its edge, are left out of the fit.  The extended
+      # frame pads the sensor with zeros, so the sensor boundary is an edge, and
+      # the navigation blur (1.2 px) carries its gradient about 3 px inside.  On
+      # synthetic clipped discs a 3 px inset cut the worst error from 1.1 px
+      # (1-2 px inset) to 0.18 px.  Fewer than min_arc_vertices left makes the
+      # fit spurious.
+      sensor_edge_inset_px: 3
       # Final DT residual exceeding this many limb-sigmas marks the
       # result spurious.
       spurious_dt_rms_factor: 5.0

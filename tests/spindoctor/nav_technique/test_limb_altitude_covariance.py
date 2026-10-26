@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import dataclasses
 import math
+from typing import Any
 
 import numpy as np
 import pytest
@@ -19,7 +20,9 @@ from spindoctor.feature.feature import NavFeature
 from spindoctor.feature.geometry import LimbPolyline
 from spindoctor.nav_technique.nav_technique_body_limb import (
     BodyLimbNav,
+    _split_like,
     limb_altitude_covariance,
+    vertices_on_sensor,
 )
 
 
@@ -170,6 +173,72 @@ def test_rotation_term_matches_a_least_squares_solve() -> None:
     assert cov == pytest.approx(np.outer(g, g), rel=1e-6, abs=1e-9)
 
 
+@pytest.mark.parametrize(
+    ('offset_vu', 'expected'),
+    [
+        ((0.0, 0.0), [True, True, False]),
+        ((0.0, -1.0), [True, True, True]),
+        ((40.0, 0.0), [False, False, False]),
+    ],
+    ids=['as_predicted', 'shifted_into_sensor', 'shifted_off_frame'],
+)
+def test_vertices_on_sensor(offset_vu: tuple[float, float], expected: list[bool]) -> None:
+    """A vertex counts when its shifted pixel is a sensor pixel.
+
+    The sensor is the left 10 columns of a 20 x 12 extended frame.
+
+    Parameters:
+        offset_vu: The shift.
+        expected: Which vertices land on the sensor.
+    """
+    mask = np.zeros((20, 12), dtype=bool)
+    mask[:, :10] = True
+    vertices = np.array([[5.0, 2.0], [10.0, 9.4], [15.0, 10.0]])
+    assert vertices_on_sensor(vertices, offset_vu, mask).tolist() == expected
+
+
+def test_navigate_fits_only_the_vertices_on_the_sensor(
+    disc_image: DiscImageFactory,
+    arc_polyline: ArcPolylineFactory,
+    make_limb_feature: NavFeatureFactory,
+    make_nav_context: NavContextFactory,
+) -> None:
+    """A limb running into the zero-padded margin is fitted on its in-sensor part.
+
+    The disc's right side lies past the sensor's last column, where the image is
+    zero, so the sensor boundary is an edge; the vertices there would lock onto it.
+    """
+    image = disc_image((200, 200), (100.0, 130.0), 30.0)
+    sensor = np.zeros(image.shape, dtype=bool)
+    sensor[:, :145] = True
+    image = np.where(sensor, image, 0.0)
+    planted = (1.5, -2.0)
+    vertices, outward = arc_polyline(
+        (100.0 - planted[0], 130.0 - planted[1]), 30.0, 180, -np.pi / 2, np.pi / 2
+    )
+    feature = make_limb_feature('moonD', vertices=vertices, outward_normals=outward)
+    context = dataclasses.replace(make_nav_context(image), sensor_mask_ext=sensor)
+    result = BodyLimbNav().navigate([feature], context)
+    assert result.offset_px[0] == pytest.approx(planted[0], abs=0.2)
+    assert result.offset_px[1] == pytest.approx(planted[1], abs=0.2)
+
+
+def test_navigate_flags_a_limb_mostly_off_the_sensor(
+    disc_image: DiscImageFactory,
+    arc_polyline: ArcPolylineFactory,
+    make_limb_feature: NavFeatureFactory,
+    make_nav_context: NavContextFactory,
+) -> None:
+    """Too few vertices on the sensor at the seed make the fit spurious."""
+    image = disc_image((200, 200), (100.0, 100.0), 30.0)
+    sensor = np.zeros(image.shape, dtype=bool)
+    sensor[:, :60] = True
+    vertices, outward = arc_polyline((100.0, 100.0), 30.0, 120, -np.pi / 2, np.pi / 2)
+    feature = make_limb_feature('moonE', vertices=vertices, outward_normals=outward)
+    context = dataclasses.replace(make_nav_context(image), sensor_mask_ext=sensor)
+    assert BodyLimbNav().navigate([feature], context).spurious is True
+
+
 def _with_altitude(feature: NavFeature, per_km: np.ndarray, sigma_km: float) -> NavFeature:
     """Return ``feature`` carrying an altitude sensitivity and uncertainty.
 
@@ -185,6 +254,34 @@ def _with_altitude(feature: NavFeature, per_km: np.ndarray, sigma_km: float) -> 
             feature.geometry, altitude_px_per_km=per_km, altitude_sigma_km=sigma_km
         ),
     )
+
+
+def test_cropped_placed_limb_prices_only_its_fitted_vertices(
+    disc_image: DiscImageFactory,
+    arc_polyline: ArcPolylineFactory,
+    make_limb_feature: NavFeatureFactory,
+    make_nav_context: NavContextFactory,
+) -> None:
+    """A limb running off the sensor carries the altitude term of the vertices it fits.
+
+    The sensitivities rise along the arc, so pricing the dropped vertices, or pricing
+    them in the wrong order, gives a different term.
+    """
+    image = disc_image((200, 200), (100.0, 130.0), 30.0)
+    sensor = np.zeros(image.shape, dtype=bool)
+    sensor[:, :145] = True
+    image = np.where(sensor, image, 0.0)
+    vertices, outward = arc_polyline((100.0, 130.0), 30.0, 180, -np.pi / 2, np.pi / 2)
+    per_km = np.linspace(0.05, 0.25, 180)
+    plain = make_limb_feature('moonF', vertices=vertices, outward_normals=outward)
+    context = dataclasses.replace(make_nav_context(image), sensor_mask_ext=sensor)
+    base = BodyLimbNav().navigate([plain], context).covariance_px2
+    added = BodyLimbNav().navigate([_with_altitude(plain, per_km, 10.0)], context).covariance_px2
+    kept = vertices_on_sensor(vertices, (0.0, 0.0), sensor, inset_px=3)
+    expected = limb_altitude_covariance(
+        outward[kept], np.ones(int(kept.sum())), [per_km[kept] * 10.0]
+    )
+    assert np.asarray(added) - np.asarray(base) == pytest.approx(expected, rel=0.1, abs=1e-3)
 
 
 def _ellipse_arc(
@@ -238,3 +335,67 @@ def test_rotation_fit_term_matches_a_planted_altitude_shift(
     assert np.sign(added[1, 2]) == np.sign(expected[1, 2])
     assert np.sqrt(added[1, 1]) == pytest.approx(abs(shift[1]), rel=0.5)
     assert np.sqrt(added[2, 2]) == pytest.approx(abs(shift[2]), rel=0.5)
+
+
+def test_cropped_displacements_stay_with_their_bodies() -> None:
+    """Cropping two bodies' concatenated displacements keeps each body's survivors."""
+    parts = [np.array([1.0, 2.0, 3.0]), np.array([4.0, 5.0, 6.0, 7.0])]
+    keep = np.array([True, False, True, False, True, True, False])
+    split = _split_like(np.concatenate(parts)[keep], parts, keep)
+    assert [chunk.tolist() for chunk in split] == [[1.0, 3.0], [5.0, 6.0]]
+
+
+def test_a_crop_does_not_rescue_a_fit_whose_full_arc_fails_the_gates(
+    disc_image: DiscImageFactory,
+    arc_polyline: ArcPolylineFactory,
+    make_limb_feature: NavFeatureFactory,
+    make_nav_context: NavContextFactory,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """When the fit over every vertex fails the gates, the cropped fit is spurious too.
+
+    The gates are made to fail only for the full vertex set, so the verdict can only
+    come from the check of the uncropped fit.
+    """
+    image = disc_image((200, 200), (100.0, 130.0), 30.0)
+    sensor = np.zeros(image.shape, dtype=bool)
+    sensor[:, :145] = True
+    image = np.where(sensor, image, 0.0)
+    vertices, outward = arc_polyline((100.0, 130.0), 30.0, 180, -np.pi / 2, np.pi / 2)
+    feature = make_limb_feature('moonH', vertices=vertices, outward_normals=outward)
+    context = dataclasses.replace(make_nav_context(image), sensor_mask_ext=sensor)
+    original = BodyLimbNav._judge
+
+    def fail_full_arc(
+        self: BodyLimbNav, result: Any, coarse: Any, sigmas: Any, *, log: bool
+    ) -> Any:
+        """Judge as usual, but fail any fit over all 180 vertices."""
+        judged = original(self, result, coarse, sigmas, log=log)
+        return dataclasses.replace(judged, spurious=judged.spurious or sigmas.shape[0] == 180)
+
+    monkeypatch.setattr(BodyLimbNav, '_judge', fail_full_arc)
+    assert BodyLimbNav().navigate([feature], context).spurious is True
+
+
+def test_an_arc_wholly_on_the_sensor_is_judged_once(
+    disc_image: DiscImageFactory,
+    arc_polyline: ArcPolylineFactory,
+    make_limb_feature: NavFeatureFactory,
+    make_nav_context: NavContextFactory,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """With nothing cropped there is no second fit to judge."""
+    image = disc_image((200, 200), (100.0, 100.0), 30.0)
+    vertices, outward = arc_polyline((100.0, 100.0), 30.0, 120, -np.pi / 2, np.pi / 2)
+    feature = make_limb_feature('moonI', vertices=vertices, outward_normals=outward)
+    calls: list[int] = []
+    original = BodyLimbNav._judge
+
+    def counting(self: BodyLimbNav, result: Any, coarse: Any, sigmas: Any, *, log: bool) -> Any:
+        """Count the judgments."""
+        calls.append(int(sigmas.shape[0]))
+        return original(self, result, coarse, sigmas, log=log)
+
+    monkeypatch.setattr(BodyLimbNav, '_judge', counting)
+    BodyLimbNav().navigate([feature], make_nav_context(image))
+    assert calls == [120]
