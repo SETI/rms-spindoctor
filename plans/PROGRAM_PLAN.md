@@ -351,6 +351,13 @@ The known open defects:
   streak-grown box reaches from a wrong prior (#771). Open: #767 for single
   results fused inside the pixel floor, #771 for that arbitration count, and
   #772 to split the star helpers once #754 and the star-streak work meet.
+  The star field then counts only sources a catalog star can reach (#769):
+  on WAC spoke frames the faint stars against the rings had been crowded out
+  of its cohort by ring texture. A rerun of 7,091 frames improves 289
+  verdicts and worsens 33; 95 of the 631 refused WAC spoke frames now
+  answer. Stars side with the new answer, or tie, on every worse frame but
+  `W1614941856`, which goes from right to wrong through a pass-2 refine
+  fused inside the grouping floor (#767).
 - **#482** — BodyDiscCorrelateNav misses by up to ~1 px on a
   weakly-constrained axis. It is the residual the shift-equivariance fix
   (#447) leaves once it closes the coarse-grid and boundary-pinning halves.

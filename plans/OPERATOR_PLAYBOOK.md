@@ -734,7 +734,9 @@ deferred until an instrument fits rotation again; a test fails if one does.
 - **#639** a star centroid takes the brightest pixel anywhere in a 61-pixel
   window, so a brighter neighbor can win the star that was asked for
 - **#621** the star acceptance gates refuse about half the frames that are
-  demonstrably navigable by stars (the other side of #622's line)
+  demonstrably navigable by stars (the other side of #622's line); the
+  ring-texture crowding of the star-field cohort on WAC spoke frames is
+  closed (#769)
 - **#591** the sparse 16x16 ring pre-check can skip a frame whose rings fall
   between its samples
 - **#747** the combined polarity gate keys on an LM convergence flag that most
