@@ -34,6 +34,7 @@ from tests.shims.backplane import (
     FakeBackplane,
     RingBackplaneData,
     plant_circular_body,
+    sphere_limb_altitudes,
 )
 from tests.shims.catalog import (
     FakeStar,
@@ -65,4 +66,5 @@ __all__ = [
     'install_fake_catalogs',
     'make_star',
     'plant_circular_body',
+    'sphere_limb_altitudes',
 ]

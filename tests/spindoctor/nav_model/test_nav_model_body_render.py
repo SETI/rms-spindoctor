@@ -34,8 +34,16 @@ from typing import Any, cast
 import numpy as np
 import polymath
 import pytest
-from tests.shims import BodyBackplaneData, FakeBackplane, FakeMeshgrid, FakeObs, bare_nav_context
+from tests.shims import (
+    BodyBackplaneData,
+    FakeBackplane,
+    FakeMeshgrid,
+    FakeObs,
+    bare_nav_context,
+    sphere_limb_altitudes,
+)
 
+import spindoctor.nav_model.limb_placement as limb_placement_module
 import spindoctor.nav_model.nav_model_body as nav_model_body_module
 from spindoctor.annotation import Annotations
 from spindoctor.config.config import Config
@@ -230,6 +238,11 @@ def _make_model(
     """
     obs, inventory = _make_obs(spec, **obs_kwargs)
     monkeypatch.setattr(nav_model_body_module, 'Meshgrid', FakeMeshgrid)
+    monkeypatch.setattr(
+        limb_placement_module,
+        'limb_altitudes_km',
+        sphere_limb_altitudes(spec.center_vu, spec.radius_px, spec.km_per_px),
+    )
     monkeypatch.setattr(nav_model_body_module, 'Backplane', _sphere_backplane_class(spec))
     model = NavModelBody(f'body:{_BODY}', cast(Any, obs), _BODY, inventory=inventory, config=config)
     return model, obs
@@ -1217,3 +1230,203 @@ def test_the_strips_assemble_to_the_whole_box_render(monkeypatch: pytest.MonkeyP
     assert whole._limb_sampler is not None
     assert np.array_equal(striped._limb_sampler.vertices_vu, whole._limb_sampler.vertices_vu)
     assert striped._km_per_pixel_at_limb == whole._km_per_pixel_at_limb
+
+
+# ---------------------------------------------------------------------------
+# Visible-limb placement
+# ---------------------------------------------------------------------------
+
+
+def _visible_limb(
+    altitude_km: float | list[list[float]],
+    *,
+    km_per_px_range: tuple[float, float] = (1.0, 10.0),
+    phase_deg_range: tuple[float, float] = (0.0, 180.0),
+    band_offsets_km: dict[str, float] | None = None,
+) -> dict[str, Any]:
+    """Return an instrument configuration modeling the test body's visible limb.
+
+    Parameters:
+        altitude_km: The visible limb's constant altitude above the ellipsoid, or a
+            ``[[phase_deg, km], ...]`` table.
+        km_per_px_range: The scale range the model applies over (the fixture is
+            5 km/px).
+        phase_deg_range: The phase range the model applies over (the fixture is at
+            30 degrees).
+        band_offsets_km: Optional per-filter offsets.
+    """
+    table = [[0.0, altitude_km]] if isinstance(altitude_km, float) else altitude_km
+    return {
+        'visible_limb_altitude': {
+            _BODY: {
+                'altitude_km': table,
+                'sigma_km': 4.0,
+                'km_per_px_range': list(km_per_px_range),
+                'phase_deg_range': list(phase_deg_range),
+                'band_offsets_km': band_offsets_km or {},
+            }
+        }
+    }
+
+
+def _vertex_radii(geometry: LimbPolyline, obs: FakeObs, spec: _SphereSpec) -> NDArrayFloatType:
+    """Return each vertex's distance from the sphere center, in pixels.
+
+    Parameters:
+        geometry: The emitted limb polyline.
+        obs: The observation, for its extended-frame margin.
+        spec: The sphere.
+    """
+    center_v = spec.center_vu[0] + obs.extfov_margin_v - PIXEL_CENTER_TO_CORNER_PX
+    center_u = spec.center_vu[1] + obs.extfov_margin_u - PIXEL_CENTER_TO_CORNER_PX
+    return cast(
+        NDArrayFloatType,
+        np.hypot(geometry.vertices_vu[:, 0] - center_v, geometry.vertices_vu[:, 1] - center_u),
+    )
+
+
+def _placed_limb(
+    monkeypatch: pytest.MonkeyPatch, spec: _SphereSpec, inst_config: dict[str, Any] | None
+) -> tuple[LimbPolyline, FakeObs]:
+    """Render the sphere with ``inst_config`` and return its limb polyline.
+
+    Parameters:
+        monkeypatch: Patches the module's oops names.
+        spec: The sphere.
+        inst_config: The observation's instrument configuration.
+    """
+    model, obs = _make_model(monkeypatch, spec)
+    obs.inst_config = inst_config
+    model.create_model()
+    geometry = _limb_feature(model, bare_nav_context(cast(Any, obs))).geometry
+    assert isinstance(geometry, LimbPolyline)
+    return geometry, obs
+
+
+def test_unmodeled_limb_carries_no_altitude_sensitivity(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A raw-ridge limb has no altitude sensitivity for the fit to propagate."""
+    geometry, _ = _placed_limb(monkeypatch, _SphereSpec((50.0, 50.0), 20.0), None)
+    assert geometry.altitude_px_per_km is None
+
+
+def test_limb_arc_ridge_pixel_centers_sit_inside_the_silhouette(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Without the placement the vertices sit inside the edge on average.
+
+    This pins what the placement corrects: the ridge pixels' centers lie on average a
+    fraction of a pixel inside the silhouette, none of them a whole pixel.
+    """
+    spec = _SphereSpec((50.0, 50.0), 20.0)
+    geometry, obs = _placed_limb(monkeypatch, spec, None)
+    inset = spec.radius_px - _vertex_radii(geometry, obs, spec)
+    assert float(inset.max()) < 1.0
+    assert float(np.mean(inset)) > 0.1
+
+
+def test_modeled_limb_at_zero_altitude_lies_on_the_silhouette(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A modeled limb at zero altitude sits on the sphere's edge, not at pixel centers."""
+    spec = _SphereSpec((50.0, 50.0), 20.0)
+    geometry, obs = _placed_limb(monkeypatch, spec, _visible_limb(0.0))
+    radii = _vertex_radii(geometry, obs, spec)
+    assert float(np.abs(radii - spec.radius_px).max()) < 0.06
+
+
+def test_limb_arc_vertices_rise_by_the_visible_limb_altitude(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The vertices sit the model's altitude above the edge: 10 km at 5 km/px is 2 px."""
+    spec = _SphereSpec((50.0, 50.0), 20.0)
+    geometry, obs = _placed_limb(monkeypatch, spec, _visible_limb(10.0))
+    radii = _vertex_radii(geometry, obs, spec)
+    assert float(np.median(radii)) == pytest.approx(spec.radius_px + 2.0, abs=0.06)
+
+
+def test_placed_limb_lies_inside_its_bounding_box(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The polyline's bounding box covers the vertices moved out of the body's box."""
+    spec = _SphereSpec((50.0, 50.0), 20.0)
+    geometry, _ = _placed_limb(monkeypatch, spec, _visible_limb(40.0))
+    v0, u0, v1, u1 = geometry.bbox_extfov_vu
+    pix = np.floor(geometry.vertices_vu + PIXEL_CENTER_TO_CORNER_PX)
+    assert bool((pix[:, 0] >= v0).all())
+    assert bool((pix[:, 0] < v1).all())
+    assert bool((pix[:, 1] >= u0).all())
+    assert bool((pix[:, 1] < u1).all())
+
+
+def test_limb_arc_carries_its_altitude_sensitivity(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Each placed vertex moves about 1/(km per px) pixels per km of altitude."""
+    geometry, _ = _placed_limb(monkeypatch, _SphereSpec((50.0, 50.0), 20.0), _visible_limb(10.0))
+    assert geometry.altitude_px_per_km is not None
+    assert float(np.median(geometry.altitude_px_per_km)) == pytest.approx(0.2, rel=0.05)
+
+
+def test_limb_arc_carries_the_altitude_sigma(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The placed polyline carries the model's altitude uncertainty."""
+    geometry, _ = _placed_limb(monkeypatch, _SphereSpec((50.0, 50.0), 20.0), _visible_limb(10.0))
+    assert geometry.altitude_sigma_km == pytest.approx(4.0)
+
+
+def test_limb_outside_the_measured_scale_keeps_its_ridge(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A limb at a scale the model was not measured on is not moved."""
+    config = _visible_limb(10.0, km_per_px_range=(10.0, 20.0))
+    geometry, _ = _placed_limb(monkeypatch, _SphereSpec((50.0, 50.0), 20.0), config)
+    assert np.array_equal(geometry.vertices_vu, np.rint(geometry.vertices_vu))
+
+
+def test_vertex_without_a_visible_limb_position_is_dropped(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A vertex whose altitude is masked leaves the polyline, and no NaN reaches it."""
+    spec = _SphereSpec((50.0, 50.0), 20.0)
+    raw, _ = _placed_limb(monkeypatch, spec, None)
+    sphere = sphere_limb_altitudes(spec.center_vu, spec.radius_px, spec.km_per_px)
+
+    def mask_upper_half(obs: Any, body_name: str, uv: Any) -> Any:
+        """Return the sphere's altitudes, masked above the sphere's center."""
+        values = sphere(obs, body_name, uv)
+        values[np.asarray(uv)[:, 1] < spec.center_vu[0]] = np.nan
+        return values
+
+    model, obs = _make_model(monkeypatch, spec)
+    monkeypatch.setattr(limb_placement_module, 'limb_altitudes_km', mask_upper_half)
+    obs.inst_config = _visible_limb(0.0)
+    model.create_model()
+    geometry = _limb_feature(model, bare_nav_context(cast(Any, obs))).geometry
+    assert isinstance(geometry, LimbPolyline)
+    assert bool(np.isfinite(geometry.vertices_vu).all())
+    assert geometry.vertices_vu.shape[0] < raw.vertices_vu.shape[0]
+
+
+def test_altitude_follows_the_phase_table_and_the_filter(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """At 30 degrees a 0-60 degree table from 0 to 20 km gives 10 km, and MT2 adds 5.
+
+    15 km at 5 km/px is 3 px above the edge.
+    """
+    spec = _SphereSpec((50.0, 50.0), 20.0)
+    config = _visible_limb([[0.0, 0.0], [60.0, 20.0]], band_offsets_km={'MT2': 5.0})
+    model, obs = _make_model(monkeypatch, spec, phase_deg=30.0)
+    obs.inst_config = config
+    obs.filters = ['CL1', 'MT2']
+    model.create_model()
+    geometry = _limb_feature(model, bare_nav_context(cast(Any, obs))).geometry
+    assert isinstance(geometry, LimbPolyline)
+    radii = _vertex_radii(geometry, obs, spec)
+    assert float(np.median(radii)) == pytest.approx(spec.radius_px + 3.0, abs=0.06)
+
+
+def test_limb_outside_the_measured_phases_keeps_its_ridge(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A limb at a phase the model was not measured at is not moved."""
+    config = _visible_limb(10.0, phase_deg_range=(40.0, 90.0))
+    geometry, _ = _placed_limb(monkeypatch, _SphereSpec((50.0, 50.0), 20.0), config)
+    assert np.array_equal(geometry.vertices_vu, np.rint(geometry.vertices_vu))

@@ -31,6 +31,7 @@ __all__ = [
     'KeyedScalar',
     'RingBackplaneData',
     'plant_circular_body',
+    'sphere_limb_altitudes',
 ]
 
 
@@ -504,3 +505,34 @@ def plant_circular_body(
         center_phase_rad=float(np.radians(phase_angle_deg)),
         default_resolution_km_px=resolution_km_px,
     )
+
+
+def sphere_limb_altitudes(
+    center_vu: tuple[float, float],
+    radius_px: float,
+    km_per_px: float,
+) -> Callable[[Any, str, np.ndarray], np.ndarray]:
+    """Return a stand-in for ``limb_placement.limb_altitudes_km`` over a sphere.
+
+    Orthographically, a line of sight at sky-plane distance ``rho`` pixels from the
+    center of a sphere of radius ``r`` pixels passes ``(rho - r) * km_per_px``
+    kilometers above it (negative on the disc), which is the limb altitude.
+
+    Parameters:
+        center_vu: Sphere center in the sensor's pixel-corner ``(v, u)`` coordinates.
+        radius_px: Sphere radius in pixels.
+        km_per_px: Kilometers per pixel.
+
+    Returns:
+        A callable ``(obs, body_name, uv) -> altitudes_km`` for ``(M, 2)`` sensor
+        ``(u, v)`` points.
+    """
+
+    def altitudes(obs: Any, body_name: str, uv: np.ndarray) -> np.ndarray:
+        """Return the sphere's limb altitude at each ``(u, v)`` point."""
+        del obs, body_name
+        points = np.asarray(uv, dtype=np.float64)
+        rho = np.hypot(points[:, 1] - center_vu[0], points[:, 0] - center_vu[1])
+        return cast(np.ndarray, (rho - radius_px) * km_per_px)
+
+    return altitudes

@@ -150,6 +150,8 @@ class FakeObs:
             star projects onto the FOV center.
         center_ra_rad: Right ascension of the frame center, in radians.
         center_dec_rad: Declination of the frame center, in radians.
+        filters: Filter names returned in ``get_public_metadata()['filters']``.
+        inst_config: The per-camera instrument configuration mapping, or None.
     """
 
     data: np.ndarray
@@ -167,6 +169,12 @@ class FakeObs:
     center_ra_rad: float = 0.0
     center_dec_rad: float = 0.0
     fov: FakeFOV = field(default_factory=FakeFOV)
+    filters: list[str] = field(default_factory=list)
+    inst_config: dict[str, Any] | None = None
+
+    def get_public_metadata(self) -> dict[str, Any]:
+        """Return the public metadata subset a model reads (the filter names)."""
+        return {'filters': list(self.filters)}
 
     def __post_init__(self) -> None:
         """Build the extfov-padded ``extdata`` from ``data`` plus the margin."""
