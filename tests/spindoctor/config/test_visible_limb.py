@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 import pytest
 
+from spindoctor.config import Config
 from spindoctor.config.visible_limb import (
     VisibleLimbModel,
     validate_visible_limb_config,
@@ -176,3 +178,23 @@ def test_validation_rejects_a_non_mapping_block() -> None:
     """A visible-limb block that is not a mapping fails."""
     with pytest.raises(ValueError, match='must be a mapping'):
         validate_visible_limb_config({'inst_x': {'cam': {'visible_limb_altitude': [1]}}})
+
+
+def test_validation_accepts_the_packaged_configuration() -> None:
+    """The packaged configuration's entries are valid and Cassini ISS has Saturn's."""
+    config = Config()
+    config.read_config()
+    model = visible_limb_model_for(config.category('cassini_iss_calib')['wac'], 'SATURN')
+    assert model is not None
+
+
+def test_a_malformed_override_fails_when_loaded(tmp_path: Path) -> None:
+    """A user override with a malformed entry is refused when it is loaded."""
+    override = tmp_path / 'override.yaml'
+    override.write_text(
+        'cassini_iss:\n  wac:\n    visible_limb_altitude:\n      SATURN:\n        sigma_km: -5\n'
+    )
+    config = Config()
+    config.read_config()
+    with pytest.raises(ValueError, match='sigma_km must be finite'):
+        config.update_config(override)

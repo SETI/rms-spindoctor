@@ -19,6 +19,25 @@ cassini_iss:
       100: [9, 9]
     fit_camera_rotation: false
     max_rotation_deg: 5.0
+    # Height of a planet's visible limb above its reference ellipsoid, where the
+    # limb fit places the predicted limb (nav_model/limb_placement.py).  Measured
+    # 2026-10-26 on Cassini ISS frames: the image limb (the gradient ridge after the
+    # navigation blur) above the 1-bar ellipsoid, from 95 full-disc frames (88 WAC,
+    # 7 NAC) fit for translation and altitude together and 10 WAC spoke and ring
+    # observations at star or F ring bundle pointing.  Broadband and continuum
+    # filters follow the phase table; MT2 and MT3 sit higher by their median excess
+    # on 11 and 10 frames.  Scatter about the table: MAD sigma 50 km on the full
+    # discs (rms 86 km without two phase-166 discs the fit misreads) and about 100
+    # km on the pointed observations (rms 106 km without rev 115 SPKMVDFHP004, at
+    # -410 km, which is unexplained).  Each camera applies the model only over the
+    # scales and phases it was measured at; elsewhere the limb keeps its ridge.
+    visible_limb_altitude: &coiss_nac_visible_limb_altitude
+      SATURN: &coiss_saturn_visible_limb
+        altitude_km: [[30.0, 57.0], [60.0, 65.0], [90.0, 150.0], [112.0, 200.0], [140.0, 245.0], [163.0, 325.0]]
+        sigma_km: 100.0
+        band_offsets_km: {MT2: 125.0, MT3: 235.0}
+        phase_deg_range: [25.0, 164.0]
+        km_per_px_range: [123.0, 260.0]
     noise:
       saturation_dn: 4095          # 12-bit ADC
       full_well_dn: 4095
@@ -57,6 +76,10 @@ cassini_iss:
       100: [9, 9]
     fit_camera_rotation: false
     max_rotation_deg: 5.0
+    visible_limb_altitude: &coiss_wac_visible_limb_altitude
+      SATURN:
+        <<: *coiss_saturn_visible_limb
+        km_per_px_range: [67.0, 260.0]
     noise:
       saturation_dn: 4095
       full_well_dn: 4095
@@ -116,6 +139,7 @@ cassini_iss_calib:
       100: [9, 9]
     fit_camera_rotation: false
     max_rotation_deg: 5.0
+    visible_limb_altitude: *coiss_nac_visible_limb_altitude
     noise:
       marker_value: NaN              # CISS CALIB missing-pixel sentinel
     image_quality_thresholds:
@@ -146,6 +170,7 @@ cassini_iss_calib:
       100: [9, 9]
     fit_camera_rotation: false
     max_rotation_deg: 5.0
+    visible_limb_altitude: *coiss_wac_visible_limb_altitude
     noise:
       marker_value: NaN
     image_quality_thresholds:
