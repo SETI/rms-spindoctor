@@ -186,9 +186,20 @@ its section names):
    the **limb-disc pair holds as an anchor against symmetric PSF error** but
    its asymmetric/coma channel is unrenderable by the sim (#359) and the
    disc's sub-pixel NCC resolution floors detectability (#361); **multi-body
-   frames are not independent measurements** (#322); a **~2 px inward bias on
-   partial-arc limb fits** (#321) surfaced as a navigation finding in its own
-   right. The open residual, all feeding the study in item 5: measure the
+   frames are not independent measurements** (#322); the **~2 px inward bias on
+   partial-arc limb fits** (#321) is diagnosed in part: in the simulator it is
+   the renderer's Lambert limb, which falls to zero brightness at the 8-14
+   degree phases of the clipped-body cohorts and puts the gradient peak 1-4 px
+   inside the silhouette (real icy moons do not darken that way); on real frames
+   it was Saturn's visible haze limb, 60-325 km above the 1-bar ellipsoid by
+   phase and filter, plus limb vertices in or near the zero-padded frame margin.
+   The limb fit drops the margin vertices at its coarse seed, and Cassini ISS
+   places Saturn's limb at a measured altitude table (wide angle 67-260 km/px,
+   narrow angle 123-260 km/px, 25-164 degrees phase). Open: narrow angle and
+   other-instrument planet limbs, the table's residual scale dependence, and
+   the library moons' ~0.7 px inward limb-minus-star mean, which belongs with
+   the photometric limb (#150). The open residual, all feeding the study in item
+   5: measure the
    real reliability-vs-error coupling on the #225 cohorts (#358, which gates
    the reliability-gate lower-bound claim on real frames), decide whether the
    solve needs a survivorship correction (#360), probe the asymmetric-PSF

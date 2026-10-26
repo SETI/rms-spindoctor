@@ -160,7 +160,7 @@ carry the methodology and acceptance criteria):
 | WS-7 | #397, #398, #399, #400, #401, #402, #403, #404, #405, #407 | Titan haze navigation delivered and validated (#60 closed); open items are the deferred refinements and the operator ratification bundle (#407). |
 | WS-8 | #53, #67, #677, #687 | Output bundles for all four instruments (required). The Cassini ISS Saturn path is complete and schema-validated; Voyager, Galileo and NH remain. PDS4 input (#34) is availability-contingent and not required for completion. |
 | WS-9 | #233, #130, #176, #557, #675 | Measured star SNR + sensitivity tests (#233); constants inventory (#176); limiting magnitudes (#130); where the confidence scale saturates (#557); the agreement gap and the terminator coarse search (#675). |
-| WS-10 | #150, #128, #282, #283, #321, #646 | Limb bias root cause and redesign, plus the harness defect (#646) that displaces the measured bias and the undiagnosed partial-arc radial bias (#321). |
+| WS-10 | #150, #128, #282, #283, #321, #646 | Limb bias root cause and redesign, plus the harness defect (#646) that displaces the measured bias. The partial-arc radial bias (#321) is diagnosed and handled for the frame margin and for Saturn on Cassini ISS at the measured scales; the moon residual and unmeasured instruments remain. |
 | WS-12 | -- | Per-instrument guide chapters. Delivered; each instrument's workstream now updates its own pair. |
 | WS-13 | #234 (+ #153, #631) | Detector-noise model for the I/F render path; #631 is a scene rendering in I/F with a raw-DN marker. |
 | WS-15 | #236, #103, #134, #126 | Thread safety, profiling, batch-parallel throughput. |
@@ -1230,10 +1230,28 @@ and navigates library frames at 135 degrees, so the short-arc regime where the
 radial-to-translation amplification is worst is the regime the simulator refuses
 to render. Reconcile the two ridge definitions and have the harness assert they
 agree before it reports a bias; until then the ranked fixes below are ranked on
-numbers about a different object. A second, larger limb effect is undiagnosed:
-partial-arc limb fits carry an inward radial bias of about 2 px (#321), which is
-the size of the library's standing `N1484593951_2_CALIB` failure rather than the
-0.1 px this diagnosis explains.
+numbers about a different object. The second, larger limb effect, the
+partial-arc radial bias of about 2 px (#321), is diagnosed in part. In the simulator's
+clipped-body cohorts it is the renderer's Lambert shading: at 8-14 degrees phase
+it takes the limb to zero brightness, so the gradient peak sits 1-4 px inside the
+silhouette in both the image and the model render, and a full disc cancels it
+where a clipped one cannot. Real icy moons do not darken that way: fit for
+translation and altitude together on full discs, their image edge lies within
+about half a pixel of the silhouette. On real frames the partial-arc bias was
+Saturn's visible limb, the haze 60-325 km above the 1-bar ellipsoid depending on
+phase and filter (0.3 px at low phase to 3 px at high phase on wide-angle frames;
+it put the rev 201 spoke movie 1.9 px off, #760), plus ridge vertices in or near
+the zero-padded margin around the sensor. The limb fit now leaves out vertices
+its coarse seed puts outside the sensor or within 3 px of its edge, and the
+Cassini ISS configuration places Saturn's limb at an altitude table measured at
+67-260 km/px (wide angle) and 123-260 km/px (narrow angle), 25-164 degrees
+phase, with its uncertainty carried into the limb covariance. Narrow-angle limbs
+finer than 123 km/px, other instruments, and other planets keep the 1-bar
+silhouette until measured, and within the measured range the residual still
+depends on scale at high phase. Moons keep the ridge pixel centers until the
+photometric limb (#150) predicts where their edge lies; the library moons'
+mean limb-minus-star offset of about -0.7 px along the arc normal (11 frames,
+standard error 0.5 px) is unexplained by either mechanism and stays with it.
 
 **The shift-equivariance fix is held for this workstream.** The #447 fix, which
 moves the deployed model's limb and terminator vertices to sub-pixel positions
@@ -1244,7 +1262,9 @@ limb answer inward by a mean 0.27 px and farther from the stars on four of
 them, because the image edge sits inside the geometric limb by more than the
 roughly 0.1 px the simulator measured. Its landing therefore carries the
 model-side edge-offset correction with it, and the simulated body model
-adopting the same sub-pixel vertex rule.
+adopting the same sub-pixel vertex rule. Saturn's limb on Cassini ISS already
+carries sub-pixel vertices, placed on its measured visible limb; the held rule
+for airless bodies and the simulated model are unchanged.
 
 **Tasks.**
 - Land `rf_shift_equivariance_v2` with the redesign: correct the model-side
