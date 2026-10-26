@@ -414,8 +414,9 @@ What remains of the family:
   runner-up; in both reruns one streaked frame reached that test, and it
   passed either way.
   StarFieldFromCatalogNav then counts a source only within reach of a
-  catalog star of its cohort, the search window's half-widths plus the
-  inlier tolerance and a pixel (#769). On WAC spoke frames crossed by ring
+  catalog star of its cohort: on each axis, no farther from the star's
+  prediction than that axis's search-window half-width plus the inlier
+  tolerance plus one pixel (#769). On WAC spoke frames crossed by ring
   texture the 30 brightest sources were mostly not stars, so faint stars
   measurable against the rings never reached the matcher: W1726706510 now
   matches 21 inliers 0.04 px from the star consensus, where it was refused.
