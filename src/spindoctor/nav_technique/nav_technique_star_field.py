@@ -423,8 +423,11 @@ def _detect_image_sources(
             None keeps peaks anywhere.
 
     Returns:
-        The ``_DetectedSource`` records, ordered by brightness descending (empty
-        when no peak clears the threshold), and the count set aside by stage 4.
+        A ``_SourceDetections`` holding the kept ``_DetectedSource`` records, ordered by
+        brightness descending (empty when no peak survives), the count set aside by
+        stage 4, the count of peaks set aside for lying outside ``reach``, and the count
+        of candidate peaks anywhere in the image, before ``reach``, stage 3, stage 4, and
+        the ``max_sources`` cut.
     """
     kernel_size = 2 * centroid_box_half_px + 1
     kernel = _gaussian_kernel(sigma_px, size=kernel_size)
