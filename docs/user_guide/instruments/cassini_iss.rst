@@ -204,6 +204,18 @@ centroid-and-astrometry floor of 0.081, and the wide angle camera 0.086 against
 a floor of 0.053. See :doc:`/fov_distortion_report/fov_distortion_report` for
 the method, the coefficients, and the figures.
 
+**Saturn's limb.** Saturn's edge in an image is the top of its haze, not the planet's
+reference shape, which is defined at a pressure of one bar. The haze edge sits about 60
+kilometers above that shape at low phase angles and climbs to about 325 kilometers when the
+Sun is nearly behind the planet. Through the methane-band filters it sits higher still, by
+about 125 kilometers in MT2 and 235 kilometers in MT3. When only part of the limb is in
+view, a limb fit that ignored the haze would place the planet up to half a pixel off at low
+phase angles and one to three pixels off at high phase angles in a wide angle frame. The limb
+is therefore fitted at the haze height wherever it was measured: wide angle images at 67 to
+260 kilometers per pixel, narrow angle images at 123 to 260 kilometers per pixel, and phase
+angles from 25 to 164 degrees. Elsewhere the limb is fitted at the reference shape. The haze height varies from image to image by about 100
+kilometers, and the reported uncertainty of a limb answer includes that.
+
 Metadata fields
 ===============
 

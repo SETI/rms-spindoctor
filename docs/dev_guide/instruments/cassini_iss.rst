@@ -231,6 +231,27 @@ I/F constant identifies the saturated DN ceiling.
 disabled. Adding a threshold to this block would not restore the mask; the
 mask is gated on the units, not on the presence of the key.
 
+Every detector entry of both blocks carries ``visible_limb_altitude``: Saturn's visible-limb
+model, read by :func:`~spindoctor.config.visible_limb.visible_limb_model_for` and described in
+:doc:`../dev_guide_navigation_models_body`. One anchored entry carries the table, sigma, band
+offsets and phase range; the narrow angle blocks apply it from 123 to 260 km/px and the wide
+angle blocks from 67 to 260 km/px, each the span of scales it was measured at. Its values are
+**measured on navigated frames** rather than taken from a publication. The altitude is the
+height of the image limb, as the navigation's own blurred gradient sees it, above the 1-bar
+ellipsoid: fit together with the translation on 95 full-disc frames (88 wide angle at 81 to
+260 km/px, 7 narrow angle at 123 to 257 km/px) where the disc constrains both, and measured
+at known pointing (stars or the F ring bundle) on ten wide angle spoke and ring observations
+at 67 to 224 km/px, all at 25 to 164 degrees phase. Broadband and continuum filters follow
+the phase table; MT2 and MT3 sit higher by their median excess over 11 and 10 wide angle
+frames. Filters measured on fewer than five frames (UV1, UV3, VIO, BL1) carry no offset, and
+CB3 (six frames, median +36 km) is treated as continuum. The scatter about the table is 50 km
+(MAD) on the full discs, 86 km rms once two phase-166 discs that the fit misreads by
+3,000 km are set aside, and about 100 km on the pointed observations, 106 km rms once rev 115
+SPKMVDFHP004 (410 km below the ellipsoid, unexplained) is set aside; ``sigma_km`` is 100 km.
+Within the validity range the residuals still fall with coarser scale at high phase, so the
+altitude is not purely a height in kilometers. Outside the ranges the limb keeps its ridge. A
+revision should repeat the measurement rather than adjust the numbers.
+
 Placeholder values, carrying inline ``# PLACEHOLDER`` markers: the raw block's
 ``expected_noise_dn`` and ``read_noise_dn``, the calibrated block's
 ``blank_max_if`` and ``noisy_threshold_if``, and both blocks'
@@ -518,3 +539,7 @@ Open items
   that has not been needed yet.
 * The wide angle PSF kernel and the wide angle limiting-magnitude anchor both
   rest on very small cohorts.
+* Saturn's visible-limb model covers 123 to 260 km/px on the narrow angle camera, 67 to
+  260 km/px on the wide angle camera, and 25 to 164 degrees phase. Narrow angle limbs, which
+  overfill the frame below about 120 km/px, are fitted at the 1-bar ellipsoid until star-
+  referenced narrow angle limbs are measured; Jupiter has no model.

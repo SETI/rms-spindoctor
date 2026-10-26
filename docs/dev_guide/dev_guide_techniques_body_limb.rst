@@ -97,8 +97,9 @@ Sources of uncertainty
 ----------------------
 
 The reported covariance is the Moore-Penrose pseudoinverse of the M-estimator information
-matrix at convergence, scaled by the per-vertex Tukey weights, with the calibrated
-model-error floor added in quadrature to the translation diagonal
+matrix at convergence, scaled by the per-vertex Tukey weights, plus the visible-limb
+altitude term below, with the calibrated model-error floor added in quadrature to the
+translation diagonal
 (``add_model_error_floor(cov, model_error_floor_px)`` with the calibrated 2.61 px value —
 the Tukey-weighted DT covariance under-reports the limb model error, which is dominated by
 physics the fit cannot see: the limb-relief field, albedo texture, and non-Lambert shading
@@ -109,7 +110,71 @@ it does not capture systematic biases (e.g. an inflation of the per-vertex sigma
 unmodelled crater roughness) and it does not capture model-side uncertainty in the SPICE
 prediction itself (the search-window margin is what bounds that).
 
-One such systematic is a **model-vs-image edge-localization bias floor of ~0.1 px** in the
+**Visible-limb altitude term.** Where the body model places a limb at its visible-limb
+altitude (see :doc:`dev_guide_navigation_models_body`), that altitude is one uncertain
+number shared by every vertex of the body's polyline. Its error therefore moves the whole
+arc at once and is not per-vertex noise.
+:func:`~spindoctor.nav_technique.nav_technique_body_limb.limb_altitude_covariance`
+linearizes the weighted fit with Jacobian rows :math:`j_{i}` (the normal :math:`n_{i}`, plus
+the rotation lever :math:`n_{i} \cdot \partial x_{i} / \partial \theta` when the fit solves
+for rotation): a displacement :math:`d_{i}` of vertex :math:`i` along its normal moves the
+pose by :math:`g = A^{+} \sum_{i} w_{i} j_{i} d_{i}` with
+:math:`A = \sum_{i} w_{i} j_{i} j_{i}^{T}` and :math:`A^{+}` its pseudo-inverse, where
+:math:`w_{i}` are the final fit weights of the fitted vertices and :math:`d_{i}` is the
+vertex's altitude sensitivity times the one-sigma altitude uncertainty. The pseudo-inverse
+keeps the term in the directions the arc constrains: on a circular arc rotation about the
+pivot is indistinguishable from translation, and on a straight arc the tangent is free. Each
+body contributes :math:`g g^{T}`, the bodies' terms add, and the sum joins the pose
+covariance before the floor. A full disc cancels the term; a half disc carries 4/pi of the
+radial displacement along its mean normal.
+
+**Vertices outside the sensor.** The extended frame pads the sensor with zeros, so where a
+limb runs off the frame the sensor boundary is a sharp edge, of the polarity a limb vertex
+expects, and the navigation blur (1.2 px) carries its gradient about three pixels into the
+sensor. After the coarse search the technique therefore fits only the vertices that the
+coarse seed puts on a sensor pixel at least ``sensor_edge_inset_px`` from the sensor's
+edge, and flags the fit spurious when fewer than ``min_arc_vertices`` remain. Deciding at the
+seed, rather than at the predicted position, keeps the vertices a large pointing error
+brings into the frame. Leaving the margin vertices out removes their bias, but it can also
+remove what made a wrong lock fail the quality gates (an unconverged fit pinned at the trust
+region converges once the boundary stops pulling on it), and the gates were calibrated on
+every vertex. When vertices were left out, the fit over every vertex is therefore run and
+judged as well, and if it fails the gates the cropped fit is flagged spurious too. On 855
+Cassini wide-angle Saturn limb fits at known pointing this kept every previously refused fit
+refused, refused 45 more that were all off by 1.8 px or more, and of the 247 answered both
+ways moved 147 closer to the reference by more than 0.1 px and 9 farther. The coarse search itself still scores every vertex, margin ones
+included; the seed it returns is an integer pixel, and the refinement starts from the
+cropped set. The crop covers the frame boundary only: missing-data pixels inside the sensor
+are filled with zeros too and can still present an edge. The confidence term
+``visible_arc_px`` counts the fitted vertices, while ``visible_limb_arc_fraction`` still
+counts the whole predicted ridge.
+
+**Partial-arc radial bias.** On a partial arc the translation-only fit has no radial
+freedom, so any radial difference between the predicted vertices and the image edge
+becomes translation along the arc's normal. The differences measured so far:
+
+- The limb mask's pixel centers sit 0.4 to 0.5 px inside the silhouette. A limb placed on
+  its visible edge moves off them; any other limb keeps them, and for an airless body their
+  inset roughly offsets the photometric inset of its image edge at low phase.
+- Vertices in the zero-padded margin, or within a few pixels of the sensor's edge, see the
+  sensor boundary; they are left out of the fit as above.
+- A planet's image limb is its haze, tens to hundreds of kilometers above the reference
+  ellipsoid depending on phase and filter. Where an instrument models it, the limb is
+  placed there; the measurements are in the instrument chapters.
+
+Library moon frames with independent star answers still put the limb answer about 0.7 px
+inward of the star answer along the arc normal on average, over 11 frames with a standard error of
+about 0.5 px. Neither the haze nor the margin explains that; it belongs to the photometric
+limb below.
+
+The simulator's clipped-body cohorts showed a further one: a mean radial error of about
+-2 px on half-visible bodies at 8 to 14 degrees phase. In the twelve scenes examined it is
+the renderer's Lambert shading, which takes the limb to zero brightness at that phase and
+puts the gradient peak 1 to 4 px inside the silhouette in both the rendered image and the
+rendered model. Fit for translation and altitude together on full discs, the icy moons in
+real frames show their image edge within about half a pixel of the silhouette.
+
+One further systematic is a **model-vs-image edge-localization bias floor of ~0.1 px** in the
 recovered offset (median ~0.09-0.14 px over a dense sub-pixel sweep depending on the cross-axis
 phase, up to ~0.25 px at the worst two-axis phase). It is *independent of SNR* -- it persists
 on a clean, high-signal frame -- so it is not a noise effect. Its origin is the mismatch
@@ -134,7 +199,8 @@ clean planted-(0,0) recovery worsens from ~0.10 px to ~0.17 px. The ring edge, b
 symmetric transition whose gradient peak coincides with the geometric edge, does not have this
 offset and is already at its floor (~0.016 px) without the refine. The genuine remedy is a
 *model-side* fix that predicts the limb at the gradient-peak location (limb-darkening- and
-PSF-aware); that fix has not yet been made. Until then the limb fit is the least precise of
+PSF-aware); the visible-limb placement is the geometric part of that fix for planets an
+instrument models, and the photometric part has not been made. Until then the limb fit is the least precise of
 the point-feature techniques on a well-resolved body, though it stays well inside the
 navigability bound. When the converged offset
 sits within a small tolerance of any axis bound of the search window, or when the rotation
@@ -174,6 +240,12 @@ All numeric tunables for this technique live in ``techniques.BodyLimbNav.tuning`
 - ``min_arc_vertices`` — float, default ``30.0``. Minimum surviving vertex count per
   ``LIMB_ARC`` for feasibility. Arcs with fewer vertices do not constrain a 2-D translation
   enough to be worth the LM iteration.
+- ``sensor_edge_inset_px`` — int, default ``3`` px. Vertices the coarse seed puts outside
+  the sensor or within this many pixels of its edge are left out of the fit (see
+  "Vertices outside the sensor"); fewer than ``min_arc_vertices`` left makes the fit
+  spurious. Three pixels is about two and a half times the navigation blur, the reach of
+  the sensor boundary's gradient; on Cassini wide-angle Saturn fits at known pointing a 2
+  or 3 px inset gave the same result.
 - ``spurious_dt_rms_factor`` — float, default ``5.0`` (dimensionless). Final DT residual
   exceeding this many limb-sigmas marks the result spurious.
 - ``spurious_dt_floor_px`` — float, default ``3.0`` px. Floor of the spurious-detection
@@ -232,7 +304,7 @@ All numeric tunables for this technique live in ``techniques.BodyLimbNav.tuning`
 Per-instrument overrides
 ------------------------
 
-The thirteen keys above are global; the per-instrument YAML files in
+The fourteen keys above are global; the per-instrument YAML files in
 ``src/spindoctor/config_files/config_4N0_inst_*.yaml`` do not override any of them. The
 search-window margin used by the at-edge test comes from the per-instrument
 :class:`~spindoctor.nav_orchestrator.instrument_config.InstrumentSettings` rather than from this block.
