@@ -75,9 +75,8 @@ rectangle is set aside before the ``max_sources`` cut, and the count is logged.
 Without it the cohort is the brightest sources anywhere in the frame. On a frame crossed
 by ring texture those are mostly not stars, and the faint stars against the ring rank
 below the cut. On WAC spoke frame W1726706510 (half-widths 5 and 10 px), the 30 brightest
-of 195 sources that pass the source isolation test hold 4 of the stars, and the matcher
-found 3 inliers although 21 of the cohort's stars are detected at the pointing the stars
-measure. Within reach, 23 sources remain, and the match has 21 inliers 0.04 px from that
+of the 195 sources the detector keeps hold 3 of the stars, and the matcher found 3 inliers
+although 21 of the cohort's stars are detected at the pointing the stars measure. Within reach, 23 sources remain, and the match has 21 inliers 0.04 px from that
 pointing.
 
 On a frame whose stars draw a streak (the star model records one on every STAR feature as
@@ -178,13 +177,13 @@ the stars, and two counts estimate it. The detections the matcher keeps are draw
 reach of the catalog cohort (see `Source detection`_), but on a sparse field the reach
 holds little more than the stars, which would then make the density they are tested
 against: on spoke frame W1630378489, four sources lie in reach and three of them are
-stars. The candidate peaks found anywhere in the image (those that pass the threshold and,
-where the detector applies it, the source isolation test) give the other estimate, on the
-assumption that the other sources lie where they do whatever the catalog predicts. The
-model takes the lower density, which spreads the kept detections over the larger of the
-reach and :math:`N_{\text{det}}` times the image area over the number of candidates. Both
-areas count sensor pixels only, so the extended frame's padding, which holds no source,
-does not thin the density. The null test bears the assumption out: with every catalog
+stars. The candidate peaks found anywhere in the image (every peak the detector finds
+before it applies the reach, the cosmic-ray test, and the ``max_sources`` cut) give the
+other estimate, on the assumption that the other sources lie where they do whatever the
+catalog predicts. The model takes the lower density, which spreads the kept detections
+over the larger of the reach and :math:`N_{\text{det}}` times the image area over the
+number of candidates. Both areas count sensor pixels only, so the extended frame's
+padding, which holds no source, does not thin the density. The null test bears the assumption out: with every catalog
 prediction moved beyond the reach on 931 study frames, no lock formed where the true
 offset was out of reach.
 

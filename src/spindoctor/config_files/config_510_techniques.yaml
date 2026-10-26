@@ -1093,7 +1093,7 @@ techniques:
       # from.  A candidate is accepted only when its computed expectation
       # falls at or below this.  0.01 keeps the
       # per-frame chance-lock rate at one percent; the three-inlier locks of
-      # spoke frames W1630378489 and W1600568582 sit at 8e-5 and 3e-4, while
+      # spoke frames W1630378489 and W1600568582 sit at 9e-5 and 3e-4, while
       # a two-inlier lock (anchor pair plus one chance neighbor) sits above
       # it and is rejected.
       wide_offset_false_lock_budget: 0.01

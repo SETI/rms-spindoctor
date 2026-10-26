@@ -419,7 +419,8 @@ What remains of the family:
   tolerance plus one pixel (#769). On WAC spoke frames crossed by ring
   texture the 30 brightest sources were mostly not stars, so faint stars
   measurable against the rings never reached the matcher: W1726706510 now
-  matches 21 inliers 0.04 px from the star consensus, where it was refused.
+  matches 21 inliers 0.04 px from the star consensus with #754's source
+  isolation test (20 inliers, 0.05 px without it), where it was refused.
   The wide-offset false-lock model spreads the kept sources at the lower of
   the reach's and the frame's source density, so a sparse field's own stars
   do not set the density they are tested against. On a rerun of 7,091
