@@ -449,6 +449,29 @@ What remains of the family:
   (Hyperion) locks 9.4 px from its operator-verified offset, where four
   stars of signal 7 to 9 lie within 0.7 px of the new answer and none near
   the verified one: that truth needs the operator's review.
+  Two ensemble rules then settle the floor fusions those reruns found
+  (#767). A result joining a collapsed set must also agree statistically
+  with every member other than the representative that is more precise than
+  it along the line between them, whose precision its own stars check (three
+  or more) and whose prior it did not seed: on the 006ri frames
+  `N1492059380`, `N1492059602` and `N1492083763` a ring edge 1.8 to 1.9
+  standard deviations from the loose star refine representing the set, but
+  2.2 to 2.4 from the star field fit in it, had pulled the answer from 0.1
+  to 0.4 px to 1.01 to 1.05 px. And a star result seeded by a star estimator
+  it contradicts is left out unless it matched twice as many stars:
+  `W1614941856` goes from 2.45 px back to 0.75 px, `W1604284464` from 1.40
+  to 0.71 px. Replayed on the 7,091 validation frames, 15 answers change,
+  every one closer to the bundle (five verdicts better, none worse); on the
+  full F ring run 16, every one closer and no verdict changed; on the spokes
+  run none. A navigation rerun reproduced the replay on every frame it
+  changed and on 200 controls, and the image library is unchanged (75 of 75,
+  on the branch and on the combination). Eleven of the 15 drop from high to
+  medium, since a left-out result carries the disagreement penalty. Still
+  open, with no tracking issue yet: two single results inside the floor are
+  fused however far apart statistically (186 frames of the replayed full
+  run), a seeded pair the selection keeps apart can still be grouped through
+  a third result that agrees with both, and a drifted refine collapsed with
+  an unseeded result escapes the drift rule.
 - **One strong step, two cataloged edges (open).** Where cataloged edges lie
   a few tens of pixels apart, the strongest alignment can lay the wrong one
   on the strong step: 5 of the 1,041 held-out frames, 7 to 49 px across the
