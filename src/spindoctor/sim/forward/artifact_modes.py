@@ -727,6 +727,8 @@ def resolve_mode_config(mode_name: str, raw_config: Mapping[str, Any]) -> dict[s
 
     Returns:
         A fresh dict carrying every parameter, scene value overriding default.
+        A key set to ``None`` reads as unset and takes the default, as in
+        :func:`~spindoctor.sim.forward.artifacts_catalog.resolve_mode_with_catalog`.
 
     Raises:
         spindoctor.sim.scene_schema.SimSceneValidationError: If
@@ -737,5 +739,6 @@ def resolve_mode_config(mode_name: str, raw_config: Mapping[str, Any]) -> dict[s
     mode = ARTIFACT_MODES[mode_name]
     resolved: dict[str, Any] = {}
     for param in mode.params:
-        resolved[param.name] = raw_config.get(param.name, param.default)
+        value = raw_config.get(param.name)
+        resolved[param.name] = param.default if value is None else value
     return resolved

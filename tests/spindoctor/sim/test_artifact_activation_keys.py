@@ -184,6 +184,14 @@ def test_plain_resolver_refuses_the_retired_key(mode_name: str) -> None:
     assert str(excinfo.value) == _retired_message(mode_name)
 
 
+@pytest.mark.parametrize('mode_name', sorted(ARTIFACT_MODES))
+def test_plain_resolver_reads_a_null_parameter_as_unset(mode_name: str) -> None:
+    """A parameter set to null resolves to its registry default, as the catalog resolver does."""
+    params = ARTIFACT_MODES[mode_name].params
+    resolved = resolve_mode_config(mode_name, {param.name: None for param in params})
+    assert resolved == {param.name: param.default for param in params}
+
+
 @pytest.mark.parametrize(
     ('mode_name', 'instrument'),
     [
