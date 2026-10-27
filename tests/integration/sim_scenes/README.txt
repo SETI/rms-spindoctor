@@ -212,13 +212,17 @@ three classes:
   vgiss                             I/F, marker 0, as in the Voyager GEOMED products
 
 An I/F frame spans roughly 0 to 1 (a vgiss frame tops out at 1.84, a
-coiss_calib_nac frame near 2.0), so a display or threshold scaled for DN shows it
-as black.  A calibrated frame's noise-free dark sky is exactly 0 I/F.  On vgiss
+coiss_calib_nac frame near 2.0; under instrument_defaults a few pixels dip
+slightly below 0), so a display or threshold scaled for DN shows it as black.  A calibrated frame's noise-free dark sky is exactly 0 I/F.  On vgiss
 that equals the marker, so the navigator counts the sky as missing data and
 refuses the frame (missing_data_dominant) when more than 30% of its pixels are
 exactly 0.  Pin instrument_config.noise.marker_value to NaN to navigate such a
 scene; it then no longer exercises the Voyager marker.  The scene editor's status
-bar shows each render's units, range, and marker share.
+bar shows each render's units, range, and marker share, counted on the frame the
+navigator reads (planted offset applied), and the navigator's verdict when it is
+blank, overexposed, or mostly missing data.  Loading a vgiss scene for navigation
+logs a warning on the image logger when its dark sky makes the navigator refuse
+it.
 
 Body params follow the renderer: shape_model (ellipsoid | polyhedral_mesh),
 center_v, center_u, axis1, axis2, axis3, illumination_angle, phase_angle,

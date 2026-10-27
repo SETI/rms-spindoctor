@@ -76,14 +76,19 @@ cases.
   and a lost pixel reads 0, as it does in those products.
 
 An I/F frame spans roughly 0 to 1, where a DN frame of the same scene can reach
-4095, so a display or threshold scaled for counts shows an I/F frame as black. The
-editor's status bar names the units and value range of each render.
+4095, so a display or threshold scaled for counts shows an I/F frame as black.
+With ``instrument_defaults`` on, a few pixels of an I/F frame dip slightly below
+0. The editor's status bar names the units and value range of each render.
 
 A ``vgiss`` frame's dark sky is exactly 0, the same value that marks a lost pixel.
 The navigator therefore treats the dark sky as lost data, and it refuses a frame
 when more than 30% of the pixels are exactly 0. The editor's status bar warns
-when a render crosses that limit. Real Voyager frames are unaffected, because
-their dark sky sits slightly above 0.
+when a render crosses that limit. It counts the pixels of the frame the navigator
+sees, with the scene's planted offset applied, so the count can differ from what
+the preview shows. It also says when the navigator would call a frame blank, as
+it does an empty ``vgiss`` frame. A scene run through ``sd_offset`` gets a warning
+in its navigation log instead. Real Voyager frames are unaffected, because their
+dark sky sits slightly above 0.
 
 Planting defects in a scene
 ===========================

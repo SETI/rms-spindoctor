@@ -11,18 +11,20 @@ detector could *measure* on the rendered frame.  This module carries both sides:
 
 * The ``measured_*`` estimators recover the same counts from the DN image alone,
   the way a detector run against a real archive frame would, with no access to
-  the truth record.  They key on the missing-data marker (the DN a lost pixel
-  carries: 0 on the raw-DN path, NaN on the calibrated path), so they are exact
-  for the marker-based structural modes and only those.
+  the truth record.  They key on the missing-data marker (the instrument's
+  ``noise.marker_value``: 0 for the raw instruments, NaN for the Cassini CALIB
+  instruments, 0 for ``vgiss``), so they are exact for the marker-based
+  structural modes and only those.
 
 **Scope of the image estimators.**  A lost line, a truncated line, a lost block,
 and a dead pixel each overwrite pixels with the marker value, so a marker-run
 analysis recovers them exactly on a frame whose scene content is not itself at
 the marker level (a body or star frame with a non-zero bias floor; the dark-sky
-floor of an unbiased frame sits at the marker and is indistinguishable from a
-dropout).  Modes that plant *wrong* values rather than the marker -- garble
-(random DN), pixel spikes (bit-flips), and every detector-electronics mode --
-are not recoverable pixel-by-pixel from a single frame: distinguishing them from
+floor of an unbiased frame, and of every ``vgiss`` frame, whose calibrated dark
+sky is 0 I/F, sits at the marker and is indistinguishable from a dropout).
+Modes that plant *wrong* values rather than the marker -- garble (random DN),
+pixel spikes (bit-flips), and every detector-electronics mode -- are not
+recoverable pixel-by-pixel from a single frame: distinguishing them from
 scene structure needs multi-frame or noise statistics, which is out of scope
 here.  For those modes, use :func:`planted_incidence` (the truth side) only.
 """
@@ -100,8 +102,9 @@ def marker_mask(image: NDArrayFloatType, marker_value: float) -> NDArrayBoolType
 
     Parameters:
         image: The DN image.
-        marker_value: The marker DN (0 on the raw-DN path, NaN on the
-            calibrated path); NaN is matched with :func:`numpy.isnan`.
+        marker_value: The instrument's ``noise.marker_value`` (0 for the raw
+            instruments, NaN for the Cassini CALIB instruments, 0 for ``vgiss``);
+            NaN is matched with :func:`numpy.isnan`.
 
     Returns:
         A boolean array, True where the pixel equals the marker.

@@ -402,8 +402,10 @@ as scaled integers and fills lost pixels and its resample border with zero, abou
 The raw instruments render DN, and the calibrated Cassini instruments mark a lost
 pixel with ``NaN`` (see :ref:`Instruments <sim-instruments>`). An author should
 expect a frame to span 0 to about 1, up to the 1.84 I/F ceiling that the 255 DN
-clip sets before the calibration inverse. A tool scaled for a DN frame shows a
-``vgiss`` frame as black.
+clip sets before the calibration inverse. Under ``instrument_defaults`` the
+vidicon read noise takes a few percent of the pixels slightly below 0, to about
+-0.008 I/F, which a real GEOMED frame cannot hold. A tool scaled for a DN frame
+shows a ``vgiss`` frame as black.
 
 The calibration inverse subtracts the bias pedestal, so the noise-free dark sky
 renders at exactly 0 I/F, the marker value. The navigator counts it as missing
@@ -502,6 +504,7 @@ Open items
   spacecraft.
 * The simulator renders a ``vgiss`` frame's dark sky at exactly 0 I/F, the
   missing-data marker, so the navigator refuses a simulated frame that is mostly
-  sky. Modeling the real products' positive sky residual would end that.
+  sky. Modeling the real products' positive sky residual would end that; see the
+  linked issue, `#TBD <https://github.com/SETI/rms-spindoctor/issues/TBD>`__.
 * The Voyager 1 cameras have no twist or distortion measurement: no frame of
   the Voyager 1 cohort locked.

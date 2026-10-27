@@ -532,7 +532,11 @@ texture in I/F units. The chain's DN ceiling, the lower of the full well and the
 ADC clip, applies before the inverse, so a calibrated frame has an I/F ceiling as
 well: about 2.0 for ``coiss_calib_nac`` at the reference exposure, and 1.84 for
 ``vgiss`` at any exposure. The navigator applies no saturation test to an I/F
-frame of either kind.
+frame of either kind. At the other end, under ``instrument_defaults`` read noise
+around the subtracted pedestal takes part of the dark sky slightly below 0 I/F.
+On a disc scene a third of the frame across, ``vgiss`` reaches about -0.008 on 5%
+of its pixels, and ``coiss_calib_nac`` about -0.0006 on 28%. A real GEOMED product
+cannot hold a negative value.
 
 The inverse also subtracts the bias pedestal, so a calibrated frame's noise-free
 dark sky is exactly 0 I/F. On ``vgiss`` that is the missing-data marker. The
@@ -546,11 +550,25 @@ pixels are exactly 0, or when it pins ``instrument_config.noise.marker_value`` t
 ``NaN``, which stops it exercising the Voyager marker.
 
 The editor's status bar names a rendered frame's units and value range and the
-share of pixels at the marker, and warns when that share passes the navigator's
-limit (:func:`~spindoctor.sim.instruments.frame_units_summary`). Its preview
-stretch is relative to the frame, so the units are otherwise invisible: a
-``vgiss`` frame spanning 0 to 1 looks the same as a ``coiss_nac`` frame spanning
-20 to 4095.
+share of pixels at the marker (:func:`~spindoctor.sim.instruments.frame_units_summary`).
+It reads the frame the navigator reads, with the planted offset applied, although
+the preview beside it is offset-free: moving the scene against the frame changes
+how much sky it shows. When the navigator's image classifier would not call that
+frame clean, the status bar says why, in the classifier's order
+(:func:`~spindoctor.sim.instruments.read_frame_as_navigator`): a peak below the
+blank limit first, then the overexposed share, then a marker share above
+``max_missing_frac_clean``. An empty ``vgiss`` frame is all marker, but the
+navigator calls it blank. The preview stretch is relative to the frame, so the
+units are otherwise invisible: a ``vgiss`` frame spanning 0 to 1 looks the same
+as a ``coiss_nac`` frame spanning 20 to 4095.
+
+A scene loaded for navigation gets the same check without the editor:
+``ObsSim.from_file``, which ``sd_offset`` and the in-process integration runs
+call, renders inside an image log scope. When a calibrated frame with a
+numeric marker is refused because its dark sky sits at the marker,
+:func:`~spindoctor.sim.render.render_combined_model` logs a warning on the image
+logger (:func:`~spindoctor.sim.instruments.sky_at_marker_warning`) that names the
+share, the limit, and the ``marker_value: NaN`` override.
 
 .. _sim-optics-stage:
 
@@ -673,10 +691,11 @@ line-correlated read-noise term (a per-line offset plus a within-line white
 component) and a faint vertical coherent periodic component -- then 8-bit
 quantization.
 
-**The calibrated-I/F path.** A calibrated (``coiss_calib_*``) instrument renders
-through the full DN chain and then inverts the calibration transform: the bias
-and dark pedestals are subtracted before the exposure divide (matching the real
-pipeline), so a calibrated frame carries no spurious 1/exposure pedestal and
+**The calibrated-I/F path.** A calibrated instrument (``coiss_calib_*`` on the
+CCD chain, ``vgiss`` on the vidicon chain) renders through its DN chain and then
+inverts the calibration transform: the bias and dark pedestals are subtracted
+before the exposure divide (matching the real pipeline; the vidicon has no dark
+pedestal), so a calibrated frame carries no spurious 1/exposure pedestal and
 comes out in I/F units with propagated shot / read noise and quantization
 texture. The calibration scale is derived so a noise-free signal of 1.0 at the
 reference exposure round-trips to I/F 1.0.
@@ -823,8 +842,9 @@ Telemetry-stage modes
 
 Applied at the detector grid after readout, in the physical order of
 transmission (see :data:`~spindoctor.sim.forward.artifact_modes.STRUCTURED_LOSS_ORDER`).
-Loss modes write the missing-data marker (0 on the raw-DN path, NaN on the
-calibrated path); garble and spikes write *wrong* values instead.
+Loss modes write the instrument's missing-data marker, its ``noise.marker_value``:
+0 for the raw instruments, NaN for the Cassini CALIB instruments, and 0 for
+``vgiss``. Garble and spikes write *wrong* values instead.
 
 .. list-table::
    :header-rows: 1
