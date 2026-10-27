@@ -191,8 +191,10 @@ An edge fills every radius on one side of its orbit, by default everything inwar
 as the stretch where the optical depth doubles. Draw a band as a ringlet, or cut it into a
 sheet as a gap.
 
-A scene that still uses a retired name without a unit, such as ``a`` or ``width``, is
-refused when it is loaded, and the message names the key that replaces it and its unit.
+The ring names without a unit, such as ``a`` and ``width``, are retired. A scene that
+uses one is refused when it is loaded, and the message names the key that replaces it and
+its unit. An optional ring key set to ``null`` counts as unset: it takes the value it has
+when it is left out.
 The developer guide's :doc:`/dev_guide/dev_guide_simulator` chapter lists every ring key
 and tabulates which kind takes which shape key.
 

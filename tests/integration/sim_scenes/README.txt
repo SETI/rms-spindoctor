@@ -394,7 +394,8 @@ an in-memory scene that skipped validation, with a message naming its
 replacement: a, ae, long_peri, and rate_peri in an orbit; width, wavelength, and
 damping on a feature; amp and peri in an m-mode; amp, wavelength, damp, and lam0
 in an edge wave; phase_deg in the brightness modulation; r_inner and r_outer in
-the spokes; and a moonlet's a.
+the spokes; and a moonlet's a.  An optional ring key set to null counts as unset,
+to the validator, the renderer, and the editor alike.
 
 Adding a scene
 --------------

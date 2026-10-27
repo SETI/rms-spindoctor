@@ -2672,6 +2672,12 @@ in-memory scene that skipped validation (``refuse_renamed_ring_keys``).
 ``RENAMED_RING_KEYS`` in :mod:`spindoctor.sim.scene_schema` holds the table,
 and the sim editor's tooltips read their descriptions from it.
 
+**Null keys.** An optional key set to null anywhere in the block counts as unset:
+the validator, the renderer, the orbit parser the navigator-side model shares
+(``ring_orbit_from_mapping``), and the sim editor all read it as the absent key,
+through ``scene_value`` in :mod:`spindoctor.sim.scene_schema`. A required key
+set to null is refused as missing.
+
 **Features.** Each entry of ``features`` carries ``name``, ``kind``, ``tau``
 (the normal optical depth), kind-specific shape keys, a catalog ``orbit``,
 and ``navigable`` (default false). The kinds and their shape keys:
