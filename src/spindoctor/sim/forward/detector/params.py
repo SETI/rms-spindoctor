@@ -256,6 +256,26 @@ def _resolve_detector_modes(
     return modes
 
 
+def _scene_or_default(block: Mapping[str, Any], key: str, default: Any) -> Any:
+    """Read a scene ``detector`` key, treating an explicit null as absent.
+
+    The validator accepts ``detector_model: null`` (and the other detector keys
+    at null) as "use the instrument's default", so the resolver must read it
+    the same way; ``str(None)`` would otherwise select a model named ``'None'``
+    and fall through to the CCD chain.
+
+    Parameters:
+        block: The scene ``detector`` mapping.
+        key: The detector key to read.
+        default: The catalog value used when the key is absent or null.
+
+    Returns:
+        The scene's value, or ``default`` when the scene leaves it unset or null.
+    """
+    value = block.get(key)
+    return default if value is None else value
+
+
 def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
     """Collapse the scene, config, and catalog into a resolved detector view.
 
@@ -281,13 +301,17 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
     artifacts = params.get('artifacts') or {}
     instrument_defaults = bool(artifacts.get('instrument_defaults', False))
 
-    detector_model = str(detector_block.get('detector_model', catalog['detector_model']))
+    detector_model = str(
+        _scene_or_default(detector_block, 'detector_model', catalog['detector_model'])
+    )
     data_units = str(inst_config.get('data_units', 'raw_dn'))
     exposure_sec = float(params.get('exposure_sec', 1.0))
     exposure_ref_sec = float(
-        detector_block.get('exposure_ref_sec', catalog.get('exposure_ref_sec', 1.0))
+        _scene_or_default(detector_block, 'exposure_ref_sec', catalog.get('exposure_ref_sec', 1.0))
     )
-    quantization = str(detector_block.get('quantization', catalog.get('quantization', 'exact')))
+    quantization = str(
+        _scene_or_default(detector_block, 'quantization', catalog.get('quantization', 'exact'))
+    )
 
     signal_full_scale_frac = float(
         scene_noise.get(

@@ -7,7 +7,9 @@ retired ``cosmic_ray_rate_per_sec`` and ``pixel_area_cm2`` keys are refused with
 a message naming the replacement or the removal.  The cosmic-ray stage exists
 only in the CCD electron chain, so the validator refuses a non-zero rate on a
 scene whose detector model resolves to the vidicon, and on no other scene.
-Under ``artifacts.instrument_defaults`` the catalog's rate applies.
+Under ``artifacts.instrument_defaults`` the catalog's rate applies.  An explicit
+null ``detector.detector_model`` means the instrument's default model, to the
+renderer as to the validator.
 """
 
 import re
@@ -17,7 +19,7 @@ import numpy as np
 import pytest
 
 from spindoctor.config import DEFAULT_CONFIG
-from spindoctor.sim.forward.artifacts_catalog import DETECTOR_DEFAULTS
+from spindoctor.sim.forward.artifacts_catalog import DETECTOR_DEFAULTS, resolve_detector_defaults
 from spindoctor.sim.forward.detector import apply_detector
 from spindoctor.sim.forward.detector.noise_stages import add_cosmic_rays
 from spindoctor.sim.forward.detector.params import resolve_detector_params
@@ -29,6 +31,10 @@ from spindoctor.sim.seeds import derive_effect_seed
 
 _KEY = 'cosmic_ray_events_per_pixel_per_sec'
 _RETIRED = ('cosmic_ray_rate_per_sec', 'pixel_area_cm2')
+# The detector block a property case uses: absent, an explicit null (which the
+# validator and the renderer must both read as the instrument's default), or a
+# named model.
+_ABSENT = 'absent'
 _INSTRUMENTS = (*sorted(SIM_INSTRUMENTS), 'generic')
 
 
@@ -193,12 +199,14 @@ def test_zero_rate_on_vgiss_is_accepted() -> None:
 
 
 @pytest.mark.parametrize('instrument', _INSTRUMENTS)
-@pytest.mark.parametrize('model', [None, 'ccd', 'vidicon'], ids=['default', 'ccd', 'vidicon'])
+@pytest.mark.parametrize(
+    'model', [_ABSENT, None, 'ccd', 'vidicon'], ids=['default', 'null', 'ccd', 'vidicon']
+)
 def test_validator_refuses_exactly_the_paths_where_the_rate_is_inert(
     instrument: str, model: str | None
 ) -> None:
     """The validator refuses a rate if and only if the detector output ignores it."""
-    extra = {} if model is None else {'detector': {'detector_model': model}}
+    extra = {} if model == _ABSENT else {'detector': {'detector_model': model}}
     without = _detector_dn(_scene(instrument, {_KEY: 0.0}, **extra))
     with_rate = _detector_dn(_scene(instrument, {_KEY: 0.05}, **extra))
     inert = bool(np.array_equal(without, with_rate))
@@ -209,6 +217,22 @@ def test_validator_refuses_exactly_the_paths_where_the_rate_is_inert(
     else:
         refused = False
     assert refused == inert
+
+
+@pytest.mark.parametrize('instrument', _INSTRUMENTS)
+def test_null_detector_model_resolves_to_the_catalog_model(instrument: str) -> None:
+    """An explicit null detector model renders through the instrument's default model."""
+    scene = _scene(instrument, {}, detector={'detector_model': None})
+    expected = resolve_detector_defaults(instrument)['detector_model']
+    assert resolve_detector_params(scene).detector_model == expected
+
+
+def test_null_detector_keys_resolve_like_absent_ones() -> None:
+    """Every detector key set to null resolves exactly as if the block omitted it."""
+    nulls = dict.fromkeys(('gain_state', 'detector_model', 'exposure_ref_sec', 'quantization'))
+    scene = _scene('coiss_nac', {}, detector=nulls)
+    assert validate_sim_params(scene) is scene
+    assert resolve_detector_params(scene) == resolve_detector_params(_scene('coiss_nac', {}))
 
 
 # ---- instrument_defaults ----
