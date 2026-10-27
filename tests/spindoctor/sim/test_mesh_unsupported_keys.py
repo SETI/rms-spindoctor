@@ -3,15 +3,22 @@
 The scene validator refuses every key in the schema's ``MESH_UNSUPPORTED_KEYS``
 on a ``shape_model: polyhedral_mesh`` body, with the sentence
 ``mesh_unsupported_message`` builds.  The sim editor reads the same table and the
-same sentence (``test_sim_editor_mesh_keys``).
+same sentence (``test_sim_editor_mesh_keys``), and the developer guide and the
+scene README name every key in it.
 """
 
+import re
+from pathlib import Path
 from typing import Any
 
 import pytest
 
 from spindoctor.sim.scene import SimSceneValidationError, validate_sim_params
 from spindoctor.sim.scene_schema import MESH_UNSUPPORTED_KEYS, mesh_unsupported_message
+
+_REPO = Path(__file__).resolve().parents[3]
+_DEV_GUIDE = _REPO / 'docs' / 'dev_guide' / 'dev_guide_simulator.rst'
+_SCENE_README = _REPO / 'tests' / 'integration' / 'sim_scenes' / 'README.txt'
 
 # The full table, pinned so a key cannot slip in or out of it unnoticed.
 _EXPECTED_KEYS = {
@@ -97,3 +104,26 @@ def test_the_sentence_lists_the_keys_sorted() -> None:
     """mesh_unsupported_message names its keys in sorted order."""
     message = mesh_unsupported_message(['photometric_law', 'minnaert_k'])
     assert message.startswith("['minnaert_k', 'photometric_law'] are not supported on")
+
+
+def _paragraph(text: str, anchor: str) -> str:
+    """The blank-line-delimited paragraph of ``text`` that contains ``anchor``."""
+    for paragraph in re.split(r'\n\s*\n', text):
+        if anchor in paragraph:
+            return paragraph
+    raise AssertionError(f'no paragraph contains {anchor!r}')
+
+
+@pytest.mark.parametrize(
+    ('path', 'anchor'),
+    [
+        (_DEV_GUIDE, 'MESH_UNSUPPORTED_KEYS'),
+        (_SCENE_README, 'refuses the twelve'),
+    ],
+    ids=['dev_guide', 'scene_readme'],
+)
+def test_the_docs_name_every_refused_key(path: Path, anchor: str) -> None:
+    """The documented mesh rule names every key in the table."""
+    paragraph = _paragraph(path.read_text(), anchor)
+    missing = [key for key in MESH_UNSUPPORTED_KEYS if key not in paragraph]
+    assert missing == []

@@ -1480,6 +1480,8 @@ the measured behavior is that the correlation and limb fit stay accurate
 against the smooth Lambert template, and the scene fails loudly if that stops
 being true.
 
+.. _sim-mesh-appearance:
+
 Mesh shading, detail, relief, and pose scatter
 ----------------------------------------------
 
@@ -1562,9 +1564,18 @@ prediction consumes:
 The non-Lambert photometric laws, opposition surge, crater carving, the
 surface-texture and transit families, and the atmosphere halo are
 ellipsoid-path features; a mesh body carries the relief, shading, detail, and
-pose-scatter keys. The scene validator *rejects* the ellipsoid-only appearance
-keys on a ``polyhedral_mesh`` body -- the mesh renderer would silently ignore
-them, and a scene that names an effect must render it or fail loudly.
+pose-scatter keys. The scene validator *rejects* twelve ellipsoid-only
+appearance keys on a ``polyhedral_mesh`` body: ``atmosphere``,
+``photometric_law``, ``minnaert_k``, ``opposition_surge``, ``albedo_texture``,
+``disc_texture``, ``transits``, ``crater_fill``, ``crater_min_radius``,
+``crater_max_radius``, ``crater_power_law_exponent``, and
+``crater_relief_scale``. The mesh renderer would silently ignore them, and a
+scene that names an effect must render it or fail loudly. The list is
+``MESH_UNSUPPORTED_KEYS`` in :mod:`spindoctor.sim.scene_schema`, and
+``mesh_unsupported_message`` there builds the refusal. The sim editor reads
+both: on a mesh body it disables every control that writes one of these keys
+and shows the refusal as the control's tooltip (see :ref:`sim-gui`).
+
 Silhouette ``anti_aliasing`` is consumed at oversample 1 only, on both render
 paths (an oversampled scene already resolves the limb on its own grid).
 
@@ -2524,7 +2535,9 @@ resolution, defaults 16 / 32; 64 / 128 hides the facets on a large body),
 The truth-side body keys never reach the navigator. The relief, photometry,
 texture, and transit keys are consumed by the topographic path and the mesh
 extras by the mesh renderer (see :ref:`sim-body-renderer`); the navigator's
-predicted body is always the smooth Lambert template.
+predicted body is always the smooth Lambert template. The rows marked
+*ellipsoid only* are refused on a ``polyhedral_mesh`` body, as is the
+``atmosphere`` block (see :ref:`sim-mesh-appearance`).
 
 .. list-table::
    :widths: 30 70
@@ -2535,7 +2548,7 @@ predicted body is always the smooth Lambert template.
    * - ``crater_fill``, ``crater_min_radius``, ``crater_max_radius``,
        ``crater_power_law_exponent``, ``crater_relief_scale``
      - Procedural crater terrain -- nature's surface, which the navigator's
-       smooth predicted template does not know.
+       smooth predicted template does not know. *Ellipsoid only.*
    * - ``limb_relief_rms``, ``limb_relief_corr_deg``
      - The limb/terminator relief field: RMS of the limb slice as a fraction
        of the body radius (at most 0.05), and its correlation length in
@@ -2544,20 +2557,21 @@ predicted body is always the smooth Lambert template.
    * - ``photometric_law``, ``minnaert_k``
      - The surface-scattering law (``lambert`` / ``lommel_seeliger`` /
        ``minnaert`` / ``lunar_lambert``) and its Minnaert exponent; ellipsoid
-       topographic path.
+       topographic path. *Ellipsoid only.*
    * - ``opposition_surge``
      - ``{amplitude, width_deg}`` -- the normalized brightness surge near
-       opposition.
+       opposition. *Ellipsoid only.*
    * - ``albedo_texture``
      - ``{rms, corr_px, spots}`` -- a multiplicative noise field plus circular
-       albedo spots on the disc shading.
+       albedo spots on the disc shading. *Ellipsoid only.*
    * - ``disc_texture``
      - ``{band_amplitude, band_wavenumber, band_phase_deg, storms}`` -- a
-       giant-planet latitude band pattern plus storm ovals.
+       giant-planet latitude band pattern plus storm ovals. *Ellipsoid only.*
    * - ``transits``
      - A list of ``{moon, shadow}`` discs (each ``dv_px``, ``du_px``,
        ``radius_px``, and a brightness/darkness) on the parent disc; the cast
        shadow is the sharp *false crater* the disc techniques must not chase.
+       *Ellipsoid only.*
    * - ``shading``
      - Rendered mesh shading mode (``flat`` default, ``gouraud`` smooth); the
        predicted mesh always renders flat.
@@ -3193,6 +3207,8 @@ every gallery image into a temporary directory and fails, naming the stale
 files and the regeneration command, whenever a committed PNG no longer
 matches a fresh render.
 
+.. _sim-gui:
+
 The simulated-image GUI
 =======================
 
@@ -3272,6 +3288,14 @@ realism addition needs -- live in their own module:
      - The live preview (render, stretch, zoom, saturation overlay).
    * - ``widgets.py`` / ``base.py``
      - Shared widget helpers and the mixin-facing protocol.
+   * - ``body_mesh_keys.py``
+     - The editor's side of the mesh rule (see :ref:`sim-mesh-appearance`).
+       Switching a body to ``polyhedral_mesh`` disables every control that
+       writes a key in ``MESH_UNSUPPORTED_KEYS``, with the validator's refusal
+       as its tooltip, and moves the keys the body carried out of the scene
+       into a stash held for the session, so a mesh body the editor holds or
+       saves never carries a refused key. Switching the body back to an
+       ellipsoid restores the stashed keys and re-enables the controls.
 
 The GUI exposes the full scene parameter surface, so any scene that can be
 written by hand in YAML can also be built in the GUI. Two exceptions are
