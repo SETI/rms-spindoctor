@@ -27,7 +27,8 @@ ground_truth:
     0.588. Until 2026-10-27 the tier pin was left at medium because the
     frame was held red for an unrelated, pre-existing offset miss
     (RingEdgeNav locked the wrong ring feature; dv error ~2.5 px against
-    a ~1 px tolerance), and the tier assertion fired first and masked
+    a ~1 px tolerance; later traced to the rank-1 axis quantization
+    rather than a wrong lock), and the tier assertion fired first and masked
     it. This note asked whoever fixed the offset miss to expect this
     frame to land at low and re-pin deliberately -- the tier movement is
     the orbit channel's, not a consequence of that fix. Same contested

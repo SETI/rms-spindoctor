@@ -355,7 +355,7 @@ The known open defects:
   many stars. Replayed on the 7,091 validation frames they change 15 answers,
   all closer, five verdicts better and none worse; the image library is
   unchanged.
-  It also carries the along-edge part of the planted-shift sweep (raw
+  #755 also carries the along-edge part of the planted-shift sweep (raw
   RingEdgeNav rows median 4.2 / 1.7 px v/u on frames whose edge sets are
   straight or nearly so), which the along-edge covariance change leaves as
   it was. #476, the planted-shift round trip, closed on its criterion as
@@ -835,9 +835,9 @@ library votes and the decision gates, not by any implementation.
 
 ## 7. Issue index (open work by track)
 
-Every open issue, listed exactly once by the track that owns it: 305 issues
-as of 2026-10-14, less #476, closed 2026-10-27. The count is given so a
-reader can tell a stale index from a current one at a glance.
+Every open issue, listed exactly once by the track that owns it: 306 issues
+as of 2026-10-14, less #476 (closed 2026-10-27): 305. The count is given so
+a reader can tell a stale index from a current one at a glance.
 
 | Track | Count | Issues |
 |---|---|---|
