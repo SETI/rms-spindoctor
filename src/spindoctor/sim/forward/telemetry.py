@@ -25,6 +25,12 @@ grid.  It applies its sub-effects in the physical order of transmission:
    dropout knob (a worst-case stress knob, not an instrument artifact),
    applied on the raw-DN path only.
 
+The stage also records ``frame.truth['rendered_marker_frac']``: the share of
+the frame's pixels that sat at the marker before telemetry ran and still do
+after it.  Those pixels are at the marker because the scene renders them there
+(a ``vgiss`` frame's dark sky at exactly 0 I/F); the rest of the frame's marker
+pixels are planted loss.  The renderer's sky-at-marker warning reads it.
+
 Every structured loss mode is opt-in through the ``artifacts`` block, disabled
 when its activation key (``expected_events`` or ``probability``), or its fixed
 ``count`` where given, is 0, and individually seeded via
@@ -59,6 +65,7 @@ from spindoctor.sim.forward.telemetry_artifacts import (
 from spindoctor.sim.forward.telemetry_loss import LOSS_APPLIERS
 from spindoctor.sim.instruments import navigator_marker_value, resolve_sim_inst_config
 from spindoctor.sim.seeds import derive_effect_seed
+from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 
 __all__ = ['apply_telemetry']
 
@@ -83,7 +90,9 @@ def apply_telemetry(
     Parameters:
         frame: The frame whose signal plane is modified in place; its
             ``truth['artifacts']`` map receives each applied mode's realized
-            geometry.  Must be at the detector grid (``oversample == 1``).
+            geometry, and ``truth['rendered_marker_frac']`` the share of pixels
+            at the marker both before and after the stage.  Must be at the
+            detector grid (``oversample == 1``).
         params: The full scene mapping; reads the ``artifacts`` block (per-mode
             maps plus ``adversarial``) and the ``noise`` block's
             ``missing_data_rate``.
@@ -107,6 +116,7 @@ def apply_telemetry(
     loci = extract_feature_loci(frame.truth, frame.signal.shape) if adversarial else _EMPTY_LOCI
 
     instrument = params.get('instrument')
+    rendered_at_marker = _at_marker(frame.signal, marker_dn)
     records: dict[str, Any] = {}
     # The commanded truth window is resolved first so both compression and
     # missing_blocks can leave it clean.
@@ -160,6 +170,15 @@ def apply_telemetry(
 
     if records:
         frame.truth.setdefault('artifacts', {}).update(records)
+    still_at_marker = rendered_at_marker & _at_marker(frame.signal, marker_dn)
+    frame.truth['rendered_marker_frac'] = (
+        float(still_at_marker.mean()) if still_at_marker.size else 0.0
+    )
+
+
+def _at_marker(signal: NDArrayFloatType, marker: float) -> NDArrayBoolType:
+    """Return the mask of pixels carrying the marker (NaN pixels for a NaN marker)."""
+    return np.isnan(signal) if np.isnan(marker) else signal == marker
 
 
 def _saturation_value(inst_config: Mapping[str, Any]) -> float:

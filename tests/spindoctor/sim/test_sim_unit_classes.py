@@ -156,6 +156,20 @@ def test_lost_lines_carry_a_null_marker_as_the_navigator_reads_it(instrument: st
     assert _same(written, _navigator_marker(instrument, overrides))
 
 
+def test_rendered_marker_share_leaves_out_planted_loss() -> None:
+    """The telemetry truth counts the pixels already at the marker, not the lines it loses."""
+    signal = np.full((64, 64), 0.5, dtype=np.float64)
+    signal[:16, :] = 0.0
+    params = {
+        'instrument': 'vgiss',
+        'random_seed': 7,
+        'artifacts': {'missing_lines': {'expected_events': 20.0}},
+    }
+    frame = _telemetry_frame(signal, params)
+    lost_below = [line for line in frame.truth['artifacts']['missing_lines']['lines'] if line >= 16]
+    assert (len(lost_below) > 0, frame.truth['rendered_marker_frac']) == (True, 0.25)
+
+
 @pytest.mark.parametrize('instrument', _ALL_INSTRUMENTS)
 def test_marker_helper_agrees_with_the_navigator(instrument: str) -> None:
     """navigator_marker_value reads each instrument's marker as the navigator does."""
@@ -443,11 +457,63 @@ def test_navigated_vgiss_render_warns_of_sky_at_the_marker(image_log: _Recording
     img, _ = render_combined_model(_disc_scene('vgiss'))
     share = float((img == 0.0).mean()) * 100
     assert image_log.warnings == [
-        'Simulated vgiss frame: the missing-data marker 0 is also the dark-sky level of '
-        f'this calibrated frame, so {share:.1f}% of its pixels read as missing data, over '
-        'the 30% limit; the navigator will refuse it as mostly missing data.  Set '
-        'instrument_config.noise.marker_value: NaN in the scene to keep the sky.'
+        f'Simulated vgiss frame: {share:.1f}% of its pixels read as missing data, over the '
+        '30% limit, so the navigator will refuse it as mostly missing data.  The dark sky '
+        'of this calibrated frame renders at exactly the missing-data marker 0 on '
+        f'{share:.1f}% of the pixels.  Set instrument_config.noise.marker_value: NaN in '
+        'the scene to keep the sky out of that count.'
     ]
+
+
+def test_sky_warning_names_the_planted_share_beside_the_sky(
+    image_log: _RecordingLogger,
+) -> None:
+    """Sky under the limit plus planted lines over it warns, naming both shares."""
+    sky_only = _vgiss_body_scene(123.0, (0.0, 0.0), light=(18.0, 30.0))
+    params = {**sky_only, 'artifacts': {'missing_lines': {'expected_events': 10.0}}}
+    with image_scope():
+        img, _ = render_combined_model(params)
+    clean, _ = render_combined_model(sky_only)
+    sky = float((clean == 0.0).mean()) * 100
+    planted = float((img == 0.0).mean()) * 100 - sky
+    assert image_log.warnings == [
+        f'Simulated vgiss frame: {sky + planted:.1f}% of its pixels read as missing data, '
+        'over the 30% limit, so the navigator will refuse it as mostly missing data.  The '
+        'dark sky of this calibrated frame renders at exactly the missing-data marker 0 on '
+        f'{sky:.1f}% of the pixels, and planted data loss adds {planted:.1f}%.  Set '
+        'instrument_config.noise.marker_value: NaN in the scene to keep the sky out of '
+        'that count.'
+    ]
+
+
+# Refused frames whose sky is not what puts them over the limit: a frame the disc
+# fills, so every marker pixel is planted loss, and a frame whose planted lines
+# alone exceed the limit, so the NaN override would not change the verdict.
+_PLANTED_REFUSALS = {
+    'disc-fills-frame': {
+        **_vgiss_body_scene(400.0, (0.0, 0.0)),
+        'artifacts': {
+            'missing_blocks': {'expected_events': 40.0},
+            'missing_lines': {'expected_events': 60.0},
+        },
+    },
+    'planted-lines-over-limit': {
+        **_NAVIGATED_SCENES['vgiss-offset-under-limit'],
+        'artifacts': {'missing_lines': {'expected_events': 40.0}},
+    },
+}
+
+
+@pytest.mark.parametrize('name', sorted(_PLANTED_REFUSALS))
+def test_frame_refused_for_planted_loss_gets_no_sky_warning(
+    image_log: _RecordingLogger, name: str
+) -> None:
+    """A frame the navigator refuses for the loss it plants does not blame the sky."""
+    params = _PLANTED_REFUSALS[name]
+    with image_scope():
+        img, _ = render_combined_model(params)
+    reading = read_frame_as_navigator(img, _inst_config_of(params))
+    assert (reading.image_class, image_log.warnings) == ('mostly_missing_data', [])
 
 
 @pytest.mark.parametrize(
@@ -478,7 +544,7 @@ def test_loading_a_vgiss_scene_logs_the_sky_warning(capsys: pytest.CaptureFixtur
     """Loading a vgiss scene for navigation writes the warning to the image log."""
     ObsSim.from_file('/tmp/sim_unit_classes.json', sim_params=_disc_scene('vgiss'))
     out = capsys.readouterr().out
-    assert 'over the 30% limit; the navigator will refuse it as mostly missing data' in out
+    assert 'over the 30% limit, so the navigator will refuse it as mostly missing data' in out
 
 
 def test_render_outside_an_image_scope_stays_quiet(image_log: _RecordingLogger) -> None:
@@ -492,7 +558,10 @@ def test_sky_warning_needs_a_calibrated_block() -> None:
     img = np.zeros((10, 10))
     img[0, 0] = 100.0
     inst_config = resolve_sim_inst_config(DEFAULT_CONFIG, 'coiss_nac')
-    assert sky_at_marker_warning(img, inst_config, instrument='coiss_nac') is None
+    warning = sky_at_marker_warning(
+        img, inst_config, instrument='coiss_nac', rendered_marker_frac=0.99
+    )
+    assert warning is None
 
 
 def test_vgiss_dark_sky_reads_as_missing_data() -> None:

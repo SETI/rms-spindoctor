@@ -32,7 +32,8 @@ whose archived products fill lost pixels with zero.
 classifier does, and :func:`frame_units_summary` states a rendered frame's
 units, range, marker share, and that verdict for a scene author.
 :func:`sky_at_marker_warning` explains the one verdict a scene author is least
-likely to expect: a calibrated frame whose dark sky sits at a numeric marker.
+likely to expect: a calibrated frame refused because its dark sky sits at a
+numeric marker, as distinct from a frame refused for the loss the scene plants.
 """
 
 import math
@@ -414,36 +415,62 @@ def frame_units_summary(image: NDArrayFloatType, inst_config: Mapping[str, Any])
 
 
 def sky_at_marker_warning(
-    image: NDArrayFloatType, inst_config: Mapping[str, Any], *, instrument: str | None
+    image: NDArrayFloatType,
+    inst_config: Mapping[str, Any],
+    *,
+    instrument: str | None,
+    rendered_marker_frac: float,
 ) -> str | None:
     """A warning for a calibrated frame whose dark sky sits at a numeric marker.
 
     On a ``calibrated_if`` block whose marker is a number (``vgiss``: 0), a
     noise-free dark sky renders at exactly the marker, so the navigator counts
-    the sky as missing data.  When that makes the navigator refuse the frame
-    (:func:`read_frame_as_navigator` returns ``mostly_missing_data``), this
-    returns a one-line explanation naming the share, the limit, and the
-    ``instrument_config.noise.marker_value: NaN`` override that keeps the sky.
+    the sky as missing data.  The planted loss modes write the same marker, so
+    the frame's marker share is the rendered share plus the planted share.
+    This returns a one-line warning when the navigator refuses the frame as
+    missing data (:func:`read_frame_as_navigator` returns
+    ``mostly_missing_data``) and the rendered pixels are what put it over the
+    limit: the planted share alone is within the limit.  The text names the
+    marker share, the limit, the share the scene renders at the marker, the
+    planted share when there is one, and the
+    ``instrument_config.noise.marker_value: NaN`` override that keeps the
+    rendered pixels out of the count.  A frame whose planted loss alone
+    exceeds the limit doesn't get a warning, since the override would not
+    change the verdict.
 
     Parameters:
         image: The frame the navigator reads, with the planted offset applied.
         inst_config: The resolved per-instrument config block of that frame.
         instrument: The scene's instrument name, for the message.
+        rendered_marker_frac: The share of the frame's pixels the scene renders
+            at the marker, as the telemetry stage records it in
+            ``truth['rendered_marker_frac']`` (pixels at the marker both before
+            and after telemetry).
 
     Returns:
         The warning text, or None when the block is ``raw_dn``, its marker is
-        NaN, or the navigator would not refuse the frame as missing data.
+        NaN, the navigator would not refuse the frame as missing data, or the
+        planted loss alone exceeds the limit.
     """
     if str(inst_config.get('data_units', 'raw_dn')) == 'raw_dn':
         return None
     reading = read_frame_as_navigator(image, inst_config)
     if math.isnan(reading.marker) or reading.image_class != 'mostly_missing_data':
         return None
+    # The pixels telemetry put at the marker.  When they alone exceed the limit
+    # (every refusal whose sky renders above the marker), the sky is not the cause.
+    planted_frac = max(0.0, reading.missing_frac - rendered_marker_frac)
+    if planted_frac > reading.max_missing_frac:
+        return None
+    planted = (
+        f', and planted data loss adds {planted_frac * 100:.1f}%' if planted_frac > 0.0 else ''
+    )
     return (
-        f'Simulated {instrument} frame: the missing-data marker {reading.marker:g} is '
-        f'also the dark-sky level of this calibrated frame, so '
-        f'{reading.missing_frac * 100:.1f}% of its pixels read as missing data, over '
-        f'the {reading.max_missing_frac * 100:.0f}% limit; the navigator will refuse '
-        'it as mostly missing data.  Set instrument_config.noise.marker_value: NaN '
-        'in the scene to keep the sky.'
+        f'Simulated {instrument} frame: {reading.missing_frac * 100:.1f}% of its pixels '
+        f'read as missing data, over the {reading.max_missing_frac * 100:.0f}% limit, so '
+        'the navigator will refuse it as mostly missing data.  The dark sky of this '
+        f'calibrated frame renders at exactly the missing-data marker {reading.marker:g} '
+        f'on {rendered_marker_frac * 100:.1f}% of the pixels{planted}.  Set '
+        'instrument_config.noise.marker_value: NaN in the scene to keep the sky out of '
+        'that count.'
     )

@@ -16,7 +16,8 @@ A frame rendered for navigation (planted offset applied) inside an open image
 log scope, as ``ObsSim.from_file`` renders each scene it loads, is checked with
 :func:`~spindoctor.sim.instruments.sky_at_marker_warning`: a calibrated frame
 whose dark sky sits at a numeric missing-data marker (``vgiss``) logs a warning
-on the image logger before the navigator refuses it as missing data.
+on the image logger when the sky's pixels put it over the navigator's
+missing-data limit.
 """
 
 import copy
@@ -50,18 +51,27 @@ def clear_render_caches() -> None:
     psf.psf_kernel.cache_clear()
 
 
-def _warn_sky_at_marker(image: NDArrayFloatType, sim_params: dict[str, Any]) -> None:
+def _warn_sky_at_marker(
+    image: NDArrayFloatType, truth: dict[str, Any], sim_params: dict[str, Any]
+) -> None:
     """Log :func:`~spindoctor.sim.instruments.sky_at_marker_warning` for a navigated frame.
 
     Parameters:
         image: The rendered frame, planted offset applied.
+        truth: The frame's render truth, which carries the telemetry stage's
+            ``rendered_marker_frac``.
         sim_params: The scene it was rendered from.
     """
     instrument = sim_params.get('instrument')
     inst_config = resolve_sim_inst_config(
         DEFAULT_CONFIG, instrument, sim_params.get('instrument_config')
     )
-    warning = sky_at_marker_warning(image, inst_config, instrument=instrument)
+    warning = sky_at_marker_warning(
+        image,
+        inst_config,
+        instrument=instrument,
+        rendered_marker_frac=float(truth['rendered_marker_frac']),
+    )
     if warning is not None:
         # The text carries '%' signs, so it goes in as an argument, not a format.
         IMAGE_LOGGER.warning('%s', warning)
@@ -143,9 +153,11 @@ def render_combined_model(
         A tuple containing the image and metadata.  Metadata keys: ``stars``
         (rendered star records), ``bodies``, ``rings``, ``inventory``,
         ``star_info``, ``body_masks``, ``ring_masks``, ``order_near_to_far``,
-        ``body_index_map``, ``body_mask_map``, and ``body_occlusion``
+        ``body_index_map``, ``body_mask_map``, ``body_occlusion``
         (per-body mutual-event truth: ``visible_fraction`` and
-        ``occluded_limb_arc_deg`` against every nearer body).
+        ``occluded_limb_arc_deg`` against every nearer body), and
+        ``rendered_marker_frac`` (the share of pixels the scene renders at the
+        missing-data marker, apart from the loss it plants).
     """
     # Create cache key from parameters.  When ignore_offset is True the cached
     # function zeroes the planted offset AND roll, so all three keys are
@@ -163,7 +175,7 @@ def render_combined_model(
         sim_params_json, ignore_offset=ignore_offset
     )
     if not ignore_offset and image_scope_is_open():
-        _warn_sky_at_marker(cached_img, sim_params)
+        _warn_sky_at_marker(cached_img, cached_meta, sim_params)
     # Return copies to avoid cache modification
     # Use deepcopy for meta to fully isolate nested mutable structures
     return cached_img.copy(), copy.deepcopy(cached_meta)

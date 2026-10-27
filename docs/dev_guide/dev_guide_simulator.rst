@@ -565,10 +565,18 @@ as a ``coiss_nac`` frame spanning 20 to 4095.
 A scene loaded for navigation gets the same check without the editor:
 ``ObsSim.from_file``, which ``sd_offset`` and the in-process integration runs
 call, renders inside an image log scope. When a calibrated frame with a
-numeric marker is refused because its dark sky sits at the marker,
-:func:`~spindoctor.sim.render.render_combined_model` logs a warning on the image
-logger (:func:`~spindoctor.sim.instruments.sky_at_marker_warning`) that names the
-share, the limit, and the ``marker_value: NaN`` override.
+numeric marker is refused as missing data,
+:func:`~spindoctor.sim.render.render_combined_model` separates the pixels the
+scene renders at the marker from the ones the telemetry stage's planted loss
+writes there. The telemetry stage records the first share in the render truth
+as ``rendered_marker_frac``: the pixels at the marker both before and after the
+stage. When the planted share alone is within the limit, the dark sky is what
+puts the frame over it, and the renderer logs a warning on the image logger
+(:func:`~spindoctor.sim.instruments.sky_at_marker_warning`) that names the
+marker share, the limit, the sky's share, the planted share, and the
+``marker_value: NaN`` override. A frame that its planted loss alone puts over
+the limit doesn't get the warning, since the override would not change the
+verdict.
 
 .. _sim-optics-stage:
 

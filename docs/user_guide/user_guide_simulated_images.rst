@@ -87,8 +87,10 @@ when a render crosses that limit. It counts the pixels of the frame the navigato
 sees, with the scene's planted offset applied, so the count can differ from what
 the preview shows. It also says when the navigator would call a frame blank, as
 it does an empty ``vgiss`` frame. A scene run through ``sd_offset`` gets a warning
-in its navigation log instead. Real Voyager frames are unaffected, because their
-dark sky sits slightly above 0.
+in its navigation log instead, when the dark sky is what puts the frame over the
+limit. A frame that the scene's planted data loss alone puts over the limit
+doesn't get that warning, because the scene asked for that loss. Real Voyager
+frames are unaffected, because their dark sky sits slightly above 0.
 
 Planting defects in a scene
 ===========================
