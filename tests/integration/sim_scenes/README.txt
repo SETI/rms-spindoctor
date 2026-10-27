@@ -168,11 +168,7 @@ Fields
                                      bias_col_gradient_dn, vidicon {read_noise_line_dn,
                                      read_noise_pixel_dn, coherent_amplitude_dn,
                                      coherent_period_px}; unknown keys fail validation,
-                                     and a key set to null counts as unset.  The
-                                     validator, the renderer, and a sweep step refuse
-                                     the retired cosmic_ray_rate_per_sec (use
-                                     cosmic_ray_events_per_pixel_per_sec) and
-                                     pixel_area_cm2 (the rate is already per pixel)
+                                     and a key set to null counts as unset
   oversample       (int, opt)        radiance oversampling factor (default 4 when a PSF
                                      is active, else 1)
   optics           (mapping, opt)    whole-scene optical effects: psf (sigma_v, sigma_u,
@@ -319,9 +315,7 @@ no-op.  For example:
       dead_pixels: {count: 10}
       hot_pixels: {pixel_fraction: 0.002}
 
-The retired key incidence is refused by the validator, and again at render
-time, with a message naming the mode's activation key and what that key holds
-on the mode.
+A mode's map accepts only that mode's keys, so an unknown key fails validation.
 
 Ring system keys
 ----------------
@@ -393,13 +387,9 @@ side out at 60 px and one with side in at 95 px overlap, and the would-be
 annulus is only the band where tau doubles.  Author a band as a ringlet (a_px 60,
 width_px 35), or carve it into a sheet with a gap.
 
-The validator refuses each retired ring key, and so does the ring renderer for
-an in-memory scene that skipped validation, with a message naming its
-replacement: a, ae, long_peri, and rate_peri in an orbit; width, wavelength, and
-damping on a feature; amp and peri in an m-mode; amp, wavelength, damp, and lam0
-in an edge wave; phase_deg in the brightness modulation; r_inner and r_outer in
-the spokes; and a moonlet's a.  An optional ring key set to null counts as unset,
-to the validator, the renderer, and the editor alike.
+Every mapping in the ring_system block accepts only its own keys, so an unknown
+key anywhere in it fails validation.  An optional ring key set to null counts as
+unset, to the validator, the renderer, and the editor alike.
 
 Adding a scene
 --------------

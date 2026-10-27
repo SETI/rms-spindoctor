@@ -827,23 +827,10 @@ its activation key is 0, or its ``count`` where given is 0. The keys default to
 0, also under ``instrument_defaults``, so naming a mode without its activation
 key, or its ``count`` where given, doesn't plant anything.
 
-The retired ``incidence`` key is refused with a message that names the mode's
-replacement (``RENAMED_MODE_PARAMS`` holds the table) and what that key holds on
-the mode (its ``activation_semantics``), for example::
-
-    artifacts.missing_lines: 'incidence' was renamed; use 'expected_events'
-    (a Poisson expected count of whole lines lost per frame)
-
-    artifacts.bright_dark_pairs: 'incidence' was renamed; use
-    'expected_events_per_sec' (a Poisson expected count of bright/dark pairs per
-    second of exposure; the frame expects this times exposure_sec)
-
-The scene validator refuses it on load, and the render-time resolvers
-(``resolve_mode_config`` and ``resolve_mode_with_catalog``) refuse it again with
-the same message, so a scene built in memory or by a sweep step fails the same
-way instead of rendering a clean frame. The sweep harness also re-validates each
-step's ``artifacts`` and ``noise`` blocks, so a sweep path naming an unknown or
-retired mode or noise key fails when the sweep is built.
+A mode's map accepts only that mode's parameters, so an unknown key in it fails
+validation. The sweep harness re-validates each step's ``artifacts`` and
+``noise`` blocks, so a sweep path naming an unknown mode or noise key fails when
+the sweep is built.
 
 Telemetry-stage modes
 ---------------------
@@ -2662,15 +2649,11 @@ distance. The one exception is a moonlet's ``radius_px``, the radius of its
 disc in image pixels: the disc is drawn on the sky, so it isn't foreshortened.
 A key ending in ``_deg`` is in degrees, and the edge wave's ``damping_rad`` is
 in radians. Every longitude is measured in the ring plane from the ascending
-node. The validator refuses each retired
-unitless name (``a``, ``ae``, ``long_peri``, ``rate_peri``, ``width``,
-``wavelength``, ``damping``, a mode's ``amp`` and ``peri``, an edge wave's
-``amp``, ``wavelength``, ``damp``, and ``lam0``, the modulation's ``phase_deg``,
-the spokes' ``r_inner`` and ``r_outer``, and a moonlet's ``a``) with a message
-naming its replacement, and the ring renderer refuses it the same way in an
-in-memory scene that skipped validation (``refuse_renamed_ring_keys``).
-``RENAMED_RING_KEYS`` in :mod:`spindoctor.sim.scene_schema` holds the table,
-and the sim editor's tooltips read their descriptions from it.
+node. ``RING_KEY_DESCRIPTIONS`` in :mod:`spindoctor.sim.scene_schema` says
+what each length and angle key the sim editor's tooltips describe holds, and
+the tooltips read their descriptions from it. Every mapping in the block,
+down to each orbit, m-mode, edge wave, modulation, spokes, and moonlet entry,
+accepts only its own keys, so an unknown key anywhere in it fails validation.
 
 **Null keys.** An optional key set to null anywhere in the block counts as unset:
 the validator, the renderer, the orbit parser the navigator-side model shares
@@ -2956,20 +2939,6 @@ against exactly this inventory, so an unknown noise key fails loudly.
      - Vidicon DN-noise sub-map (vidicon path only): ``read_noise_line_dn``,
        ``read_noise_pixel_dn``, ``coherent_amplitude_dn``,
        ``coherent_period_px``.
-
-The validator refuses two retired noise keys, ``cosmic_ray_rate_per_sec`` and
-``pixel_area_cm2``. The message for the first names its replacement,
-``cosmic_ray_events_per_pixel_per_sec``, and the message for the second says the
-rate is already per pixel. ``RENAMED_NOISE_KEYS`` in
-:mod:`spindoctor.sim.scene_schema` holds the table. A scene names every retired
-key it carries in one message. The detector resolver refuses them in the scene's
-``noise`` block with the same message (``refuse_renamed_noise_keys``), so an
-in-memory scene that skipped validation fails at render, and the sweep harness
-re-validates each step's ``noise`` block, so a sweep that steps a retired key
-fails when the sweep is built. The configuration's ``sim.noise`` section, which a
-user overlay can change and the scene validator never sees, is checked against
-the same table when a frame renders: a retired key there fails the render with a
-``DetectorParamError`` naming each one.
 
 Physical saturation caps the electron image at the full well before gain (with
 ``bloom_length`` spreading the excess along the column); the ADC clip at
