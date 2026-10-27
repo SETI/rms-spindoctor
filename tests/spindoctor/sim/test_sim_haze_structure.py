@@ -277,7 +277,7 @@ def test_falloff_factor_bounds_contain_the_field(
     field = scale_height_field(
         structure,
         nominal,
-        sin_latitude=sin_latitude,
+        weight=hemisphere_weight(sin_latitude),
         v_ctr=np.concatenate([np.sin(angles), -np.sin(angles)])[None, :],
         u_ctr=np.concatenate([u_ctr[0], u_ctr[0]])[None, :],
         illum_v=0.0,
@@ -560,7 +560,7 @@ def test_rolled_body_splits_its_hemispheres_on_its_own_axis(
     rolled body's equator, measured along its own axis, matches the change
     across an unrolled body's equator in the same lighting.  Keying the
     blend on image rows instead would put the rolled body's equator crossing
-    of the halo deep inside one hemisphere, with nothing to change across.
+    of the halo deep inside one hemisphere, where the profile stays flat.
     """
     rolled = {'illumination_deg': _ROLLED_ILLUMINATION_DEG, 'rotation_z_deg': _ROLL_DEG}
     rolled_swing = _band_swing(

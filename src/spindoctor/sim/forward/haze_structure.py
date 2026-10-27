@@ -233,6 +233,11 @@ class HazeStructure:
     cloud_blobs: tuple[CloudBlob, ...] = ()
 
     @property
+    def splits_hemispheres(self) -> bool:
+        """Whether either hemispheric term differs from its identity value."""
+        return self.ns_asymmetry_amplitude != 0.0 or self.ns_falloff_ratio != 1.0
+
+    @property
     def scales_falloff(self) -> bool:
         """Whether any field makes the falloff length vary across the disc."""
         return self.ns_falloff_ratio != 1.0 or self.sector_sharpness_gradient != 0.0
@@ -367,7 +372,7 @@ def scale_height_field(
     structure: HazeStructure | None,
     scale_height_px: float,
     *,
-    sin_latitude: NDArrayFloatType,
+    weight: NDArrayFloatType | None,
     v_ctr: NDArrayFloatType,
     u_ctr: NDArrayFloatType,
     illum_v: float,
@@ -377,7 +382,7 @@ def scale_height_field(
 
     A plain scalar when the structure varies nothing (the base haze, and the
     common case), so the caller's exponential stays scalar arithmetic; an
-    array of the same shape as ``sin_latitude`` when a hemispheric ratio or a
+    array of the same shape as ``v_ctr`` when a hemispheric ratio or a
     sharpness gradient applies.
 
     The hemispheric term multiplies the length by
@@ -393,8 +398,8 @@ def scale_height_field(
     Parameters:
         structure: The haze structure, or None for the base haze.
         scale_height_px: Nominal falloff length in grid pixels.
-        sin_latitude: Sine of the latitude of each pixel's haze column (see
-            :func:`latitude_sine`).
+        weight: The :func:`hemisphere_weight` of each pixel, or None when the
+            structure carries neither hemispheric term.
         v_ctr: Image-frame v offset of each pixel from the body center.
         u_ctr: Image-frame u offset of each pixel from the body center.
         illum_v: V component of the (tilted) in-plane illumination direction.
@@ -402,12 +407,17 @@ def scale_height_field(
 
     Returns:
         The nominal scale height, or the per-pixel field.
+
+    Raises:
+        ValueError: If the structure carries a falloff ratio and ``weight``
+            is None.
     """
     if structure is None or not structure.scales_falloff:
         return scale_height_px
-    factor: NDArrayFloatType = np.ones_like(sin_latitude)
+    factor: NDArrayFloatType = np.ones_like(v_ctr, dtype=np.float64)
     if structure.ns_falloff_ratio != 1.0:
-        weight = hemisphere_weight(sin_latitude)
+        if weight is None:
+            raise ValueError('ns_falloff_ratio needs the hemisphere weight')
         factor = 1.0 + (structure.ns_falloff_ratio - 1.0) * weight
     if structure.sector_sharpness_gradient != 0.0:
         rho = np.maximum(np.hypot(v_ctr, u_ctr), 1e-9)
@@ -422,9 +432,9 @@ def scale_height_field(
 def apply_hemispheric_scaling(
     values: NDArrayFloatType,
     structure: HazeStructure | None,
-    sin_latitude: NDArrayFloatType,
+    weight: NDArrayFloatType | None,
 ) -> NDArrayFloatType:
-    """Scale one hemisphere's brightness by the affine asymmetry amplitude.
+    """Scale one hemisphere's brightness by the asymmetry amplitude.
 
     Multiplies each pixel by ``1 + ns_asymmetry_amplitude * w``, ``w`` the
     :func:`hemisphere_weight` of its latitude.  Poleward of the blend band
@@ -434,20 +444,30 @@ def apply_hemispheric_scaling(
     symmetry score is invariant to, which is what makes this axis the
     control against the non-affine ones.  Inside the band the scaling
     changes continuously with latitude, so the brightness carries no seam
-    at the equator.
+    at the equator, and the control is not affine there: a mirror pair's
+    ratio falls from ``1 + ns_asymmetry_amplitude`` at the band edge to 1 on
+    the mirror line (see the module docstring for why every continuous blend
+    does this).
 
     Parameters:
         values: Brightness values to scale, modified in place and returned.
         structure: The haze structure, or None for the base haze.
-        sin_latitude: Sine of the latitude of each pixel's haze column (see
-            :func:`latitude_sine`), shaped like ``values``.
+        weight: The :func:`hemisphere_weight` of each pixel, shaped like
+            ``values``, or None when the structure carries neither
+            hemispheric term.
 
     Returns:
         The scaled values (the input array).
+
+    Raises:
+        ValueError: If the structure carries an amplitude and ``weight`` is
+            None.
     """
     if structure is None or structure.ns_asymmetry_amplitude == 0.0:
         return values
-    values *= 1.0 + structure.ns_asymmetry_amplitude * hemisphere_weight(sin_latitude)
+    if weight is None:
+        raise ValueError('ns_asymmetry_amplitude needs the hemisphere weight')
+    values *= 1.0 + structure.ns_asymmetry_amplitude * weight
     return values
 
 
