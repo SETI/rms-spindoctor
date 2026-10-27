@@ -1142,9 +1142,46 @@ aliases ellipsoid shape error, which is a separate scene knob. After the
 cutoff the field is rescaled so the *limb slice's* standard deviation equals
 the commanded ``limb_relief_rms`` per realization. That RMS is a fraction of
 the body radius: 0.02 moves the limb of a 100-pixel-radius body by 2 pixels
-RMS. The scene validator caps it at 0.1, because a realization's deepest
-valleys reach about six times the RMS, and above about 0.16 they could pass
-through the body's center.
+RMS.
+
+The scene validator caps that RMS at 0.05, the point where the limb-only
+renderer stops approximating one surface. The renderer displaces only the
+limb. It draws the silhouette at the field's equator slice,
+``R (1 + h(0, phi))``, and it reads the terrain under each disc pixel at the
+smooth sphere's direction. The relief surface itself projects to the envelope
+``R max_lat (1 + h(lat, phi)) cos(lat)``. Under a pixel at elevation ``lat``
+it shows a point ``h cot(lat)`` radians away from the one the renderer reads.
+Both errors grow with the RMS and shrink with the correlation length. At the
+default 15-degree correlation length, averaged over 8 seeds:
+
+.. list-table::
+   :widths: 20 40 40
+   :header-rows: 1
+
+   * - RMS
+     - Drawn limb's RMS distance from the envelope, in units of the RMS
+     - Disc read more than half a correlation length from the point shown
+   * - 0.01
+     - 0.37
+     - 0.6%
+   * - 0.02
+     - 0.65
+     - 2.5%
+   * - 0.05
+     - 1.03
+     - 12%
+   * - 0.1
+     - 1.28
+     - 30%
+
+At 0.05 the limb's error reaches the size of the relief itself. Shorter
+correlation lengths reach that point at lower RMS: at 5 degrees the limb's
+error is already 0.98 times the RMS at an RMS of 0.01.
+
+The validator also requires ``limb_relief_corr_deg`` of at least 1 degree.
+The field's synthesis costs about the cube of ``1 / corr``: 0.5 s and 0.2 GB
+at 1 degree, 3.1 s and 0.5 GB at 0.5 degrees, and 26 s and 1.7 GB at
+0.25 degrees.
 
 **Limb and terminator application.** The renderer's normalized ellipse radial
 function ``e(p)`` (1 exactly at the unperturbed limb) is divided by
@@ -1162,14 +1199,16 @@ terrain in absolute heights ``H = h R`` (pixels): a point is shadowed when some
 upstream sample at surface distance ``d`` toward the sun satisfies
 ``H_up - H_pt > d / tan(i) + d**2 / (2 R)``, that is, when the terrain rises
 above both the sun ray and the body's curvature drop. The march is capped at
-``d_max = min((H_max - H_pt) tan(i), sqrt(2 R (H_max - H_pt)))``, the
-distance beyond which that inequality cannot hold: the longest shadow the
-terrain can cast, and the horizon distance of the highest peak. Shadows
-therefore stay in the low-sun band along the terminator, where they grow
-ragged, and the cost stays bounded. The march steps at ``max(1.0, field_cell_arc / 4)``
-pixels of surface arc -- about 16 samples per shortest terrain wavelength,
-never finer than one render pixel -- which is why it is both accurate and
-cheap.
+``d_max = min((H_max - H_pt) tan(i), sqrt(2 R (H_max - H_pt)))``, an upper
+bound on the distance at which that inequality can hold: the longest shadow
+the terrain could cast on a flat body, and the horizon distance of the
+highest peak. The bound is at most 1.62 times the exact distance, so it keeps
+the cost bounded and changes no shadow decision. Shadows fall where the
+terrain's slope exceeds the sun's elevation, so at the RMS values the
+validator allows they gather in the low-sun band along the terminator, where
+they grow ragged. The march steps at ``max(1.0, field_cell_arc / 4)`` pixels
+of surface arc -- about 16 samples per shortest terrain wavelength, never
+finer than one render pixel -- which is why it is both accurate and cheap.
 
 Split-resolution performance
 ----------------------------
@@ -2238,9 +2277,9 @@ predicted body is always the smooth Lambert template.
        smooth predicted template does not know.
    * - ``limb_relief_rms``, ``limb_relief_corr_deg``
      - The limb/terminator relief field: RMS of the limb slice as a fraction
-       of the body radius (at most 0.1), and its correlation length in degrees
-       of surface arc. Ragged silhouette plus terminator march shadows
-       (ellipsoid and mesh bodies).
+       of the body radius (at most 0.05), and its correlation length in
+       degrees of surface arc (at least 1). Ragged silhouette plus terminator
+       march shadows (ellipsoid and mesh bodies).
    * - ``photometric_law``, ``minnaert_k``
      - The surface-scattering law (``lambert`` / ``lommel_seeliger`` /
        ``minnaert`` / ``lunar_lambert``) and its Minnaert exponent; ellipsoid
