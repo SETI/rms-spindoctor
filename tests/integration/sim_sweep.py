@@ -214,22 +214,26 @@ def _pinned_technique_result(result: Any, technique: str) -> Any | None:
     return None
 
 
-def _validate_step_artifacts(
+# The step blocks a sweep re-validates in the context of its base scene.  The
+# renderer reads each artifact mode's map and the noise block by key and passes
+# over a key it does not know, so a stepped artifact or noise path is checked
+# with the full scene validator.
+_REVALIDATED_STEP_BLOCKS: tuple[str, ...] = ('artifacts', 'noise')
+
+
+def _validate_step_blocks(
     base_params: dict[str, Any], step_params: dict[str, Any], *, source: str
 ) -> None:
-    """Validate a sweep step's ``artifacts`` block in the context of its base scene.
+    """Validate a sweep step's ``artifacts`` and ``noise`` blocks against its base scene.
 
-    The renderer reads each artifact mode's map by key and passes over a key it
-    does not know, so an artifact path is checked with the full scene validator.
-    The check covers the artifacts block alone: elsewhere a sweep may walk a
-    value onto a boundary the file validator refuses on purpose (the
+    The check covers those two blocks alone: elsewhere a sweep may walk a value
+    onto a boundary the file validator refuses on purpose (the
     ``atmosphere_haze`` sweep's haze-free floor is ``tau_ref`` 0), and the rest of
     the step is the already-validated base scene.
     """
-    artifacts = step_params.get('artifacts')
-    if artifacts is None:
-        return
-    validate_sim_params({**base_params, 'artifacts': artifacts}, source=source)
+    blocks = {key: step_params[key] for key in _REVALIDATED_STEP_BLOCKS if key in step_params}
+    if blocks:
+        validate_sim_params({**base_params, **blocks}, source=source)
 
 
 def build_sweep_params(spec: SweepSpec) -> list[tuple[float, dict[str, Any]]]:
@@ -237,11 +241,12 @@ def build_sweep_params(spec: SweepSpec) -> list[tuple[float, dict[str, Any]]]:
 
     Each step deep-copies the base scene's sim params, applies the sweep's
     parameter override(s) for that value, and re-validates the step's
-    ``artifacts`` block against the base scene, so a sweep path naming an
-    unknown or retired artifact-mode key, or an out-of-range activation value,
-    fails here rather than rendering a frame that silently ignores it.  Exposed
-    so both :func:`run_sweep` (which navigates each step) and the image dump
-    (which renders each step) build the exact same frames.
+    ``artifacts`` and ``noise`` blocks against the base scene, so a sweep path
+    naming an unknown or retired artifact-mode or noise key, an out-of-range
+    activation value, or a noise value the scene's detector path refuses, fails
+    here rather than rendering a frame that silently ignores it.  Exposed so
+    both :func:`run_sweep` (which navigates each step) and the image dump (which
+    renders each step) build the exact same frames.
 
     Parameters:
         spec: The sweep specification.
@@ -250,8 +255,8 @@ def build_sweep_params(spec: SweepSpec) -> list[tuple[float, dict[str, Any]]]:
         One ``(value, sim_params)`` pair per value, in sweep order.
 
     Raises:
-        SimSceneValidationError: If a step's artifacts block fails validation;
-            the message names the sweep file and the step's value.
+        SimSceneValidationError: If a step's artifacts or noise block fails
+            validation; the message names the sweep file and the step's value.
     """
     base_params = load_sim_scene(spec.base_scene)
     steps: list[tuple[float, dict[str, Any]]] = []
@@ -259,7 +264,7 @@ def build_sweep_params(spec: SweepSpec) -> list[tuple[float, dict[str, Any]]]:
         sim_params = copy.deepcopy(base_params)
         for parameter in spec.parameters:
             _set_dotted(sim_params, parameter, value)
-        _validate_step_artifacts(base_params, sim_params, source=f'{spec.path} (value {value!r})')
+        _validate_step_blocks(base_params, sim_params, source=f'{spec.path} (value {value!r})')
         steps.append((value, sim_params))
     return steps
 

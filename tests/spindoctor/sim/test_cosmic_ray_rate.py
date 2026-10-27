@@ -26,6 +26,7 @@ from spindoctor.sim.forward.detector.noise_stages import add_cosmic_rays
 from spindoctor.sim.forward.detector.params import DetectorParamError, resolve_detector_params
 from spindoctor.sim.forward.stages import SimFrame
 from spindoctor.sim.instruments import SIM_INSTRUMENTS
+from spindoctor.sim.render import render_combined_model
 from spindoctor.sim.scene import SimSceneValidationError, validate_sim_params
 from spindoctor.sim.scene_schema import RENAMED_NOISE_KEYS
 from spindoctor.sim.seeds import derive_effect_seed
@@ -154,6 +155,33 @@ def test_scene_with_both_retired_keys_names_each() -> None:
     message = f'scene: noise: {_RENAMED_MESSAGE}; {_REMOVED_MESSAGE}'
     with pytest.raises(SimSceneValidationError, match=f'^{re.escape(message)}$'):
         validate_sim_params(scene, source='scene')
+
+
+@pytest.mark.parametrize(
+    ('noise', 'message'),
+    [
+        ({'cosmic_ray_rate_per_sec': 5.0}, _RENAMED_MESSAGE),
+        ({'pixel_area_cm2': 1.0}, _REMOVED_MESSAGE),
+        (dict.fromkeys(_RETIRED, 1.0), f'{_RENAMED_MESSAGE}; {_REMOVED_MESSAGE}'),
+    ],
+    ids=['rate', 'area', 'both'],
+)
+def test_resolver_refuses_a_retired_scene_noise_key(noise: dict[str, Any], message: str) -> None:
+    """An unvalidated scene's retired noise key fails the resolver, as validation says it.
+
+    Without the refusal the old rate would resolve as unset, a clean frame.
+    """
+    full = f'noise: {message}'
+    with pytest.raises(SimSceneValidationError, match=f'^{re.escape(full)}$'):
+        resolve_detector_params(_scene('coiss_nac', noise))
+
+
+def test_unvalidated_scene_with_a_retired_noise_key_fails_to_render() -> None:
+    """An in-memory scene that skipped validation can't render the old rate as zero."""
+    scene = _scene('coiss_nac', {'cosmic_ray_rate_per_sec': 5.0})
+    with pytest.raises(SimSceneValidationError) as excinfo:
+        render_combined_model(scene, ignore_offset=True)
+    assert str(excinfo.value) == f'noise: {_RENAMED_MESSAGE}'
 
 
 @pytest.mark.parametrize('old_key', _RETIRED)

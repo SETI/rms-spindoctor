@@ -48,7 +48,7 @@ from spindoctor.sim.forward.artifacts_catalog import (
     resolve_mode_with_catalog,
 )
 from spindoctor.sim.instruments import resolve_sim_inst_config
-from spindoctor.sim.scene_schema import retired_noise_key_messages
+from spindoctor.sim.scene_schema import refuse_renamed_noise_keys, retired_noise_key_messages
 from spindoctor.sim.seeds import derive_effect_seed
 
 __all__ = ['DetectorParams', 'resolve_detector_params']
@@ -323,6 +323,10 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
     Raises:
         DetectorParamError: If the scene selects an unavailable gain state, or
             the configuration's ``sim.noise`` section carries a retired key.
+        spindoctor.sim.scene_schema.SimSceneValidationError: If the scene's
+            ``noise`` block carries a retired key, as the validator says it
+            (:func:`~spindoctor.sim.scene_schema.refuse_renamed_noise_keys`), so
+            an in-memory scene that skipped validation can't render it as unset.
     """
     instrument = params.get('instrument')
     inst_config = resolve_sim_inst_config(
@@ -331,6 +335,7 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
     inst_noise = inst_config.get('noise') or {}
     sim_noise = DEFAULT_CONFIG.category('sim')['noise']
     _refuse_retired_config_keys(sim_noise)
+    refuse_renamed_noise_keys(params.get('noise'))
     catalog = resolve_detector_defaults(instrument)
 
     detector_block = params.get('detector') or {}
