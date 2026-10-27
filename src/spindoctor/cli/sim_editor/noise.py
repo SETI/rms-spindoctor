@@ -56,7 +56,11 @@ class NoiseMixin(SimEditorBase):
         self._missing_data_spin.setDecimals(3)
         self._missing_data_spin.setSingleStep(0.005)
         self._missing_data_spin.setValue(float(self._noise_value('missing_data_rate', 0.0)))
-        self._missing_data_spin.setToolTip('Fraction of pixels marked as missing data.')
+        self._missing_data_spin.setToolTip(
+            'Fraction of pixels marked as missing data. Raw-DN frames only: a calibrated '
+            'instrument (coiss_calib_nac, coiss_calib_wac, vgiss) ignores it, so validation '
+            'refuses a non-zero rate there.'
+        )
         self._missing_data_spin.valueChanged.connect(self._on_missing_data)
         gen_layout.addRow('Missing data rate:', self._missing_data_spin)
 

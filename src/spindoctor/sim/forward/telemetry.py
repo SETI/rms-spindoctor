@@ -241,8 +241,9 @@ def _apply_missing_data_markers(
     """Overwrite lost pixels with the missing-data marker (raw-DN path only).
 
     The generic per-pixel ``noise.missing_data_rate`` dropout stays as the
-    worst-case stress knob, applied only on the raw-DN path.  The structured loss
-    modes write the marker on every path, calibrated frames included.
+    worst-case stress knob, applied only on the raw-DN path; the scene validator
+    refuses a non-zero rate on a calibrated frame.  The structured loss modes
+    write the marker on every path, calibrated frames included.
     """
     if inst_config.get('data_units', 'raw_dn') != 'raw_dn':
         return

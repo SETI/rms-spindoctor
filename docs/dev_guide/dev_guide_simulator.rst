@@ -2864,7 +2864,12 @@ against exactly this inventory, so an unknown noise key fails loudly.
      - float
      - 0.0
      - Fraction of pixels (0-1) set to the missing-data marker (telemetry
-       stage). Stays 0 under ``instrument_defaults``.
+       stage). Stays 0 under ``instrument_defaults``. The dropout runs on
+       raw-DN frames only, so the validator refuses a non-zero value when the
+       resolved block renders ``calibrated_if`` (``coiss_calib_nac``,
+       ``coiss_calib_wac``, ``vgiss``, or any scene whose ``instrument_config``
+       sets that ``data_units``). Plant loss on a calibrated frame with an
+       artifact mode such as ``missing_lines``.
    * - ``bloom_length``
      - int
      - 0 (off)

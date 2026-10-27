@@ -158,8 +158,10 @@ Fields
                                      cosmic_ray_events_per_pixel_per_sec (expected
                                      events per pixel per second of exposure; CCD
                                      chain only, refused non-zero on the vidicon),
-                                     missing_data_rate, bloom_length, signal_full_scale_frac,
-                                     dark_current_e_per_sec, hot_pixel_fraction,
+                                     missing_data_rate (raw-DN frames only, refused
+                                     non-zero on a calibrated_if frame), bloom_length,
+                                     signal_full_scale_frac, dark_current_e_per_sec,
+                                     hot_pixel_fraction,
                                      hot_pixel_amplitude_e, hot_pixel_column_factor,
                                      banding_amplitude_e, banding_period_px,
                                      bias_pedestal_sigma_dn, bias_row_gradient_dn,
