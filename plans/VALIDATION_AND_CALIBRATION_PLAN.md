@@ -66,26 +66,28 @@ on that baseline; each has a tracking issue (cross-map below).
 rather than methodology, and it silently corrupts what every workstream below
 reads:
 
-- **#288** — 16 of the 75 curated library sidecars disagree with `main` in the
-  local integration environment, so the regression instrument that is supposed
+- **#288** — 9 of the 75 curated library sidecars are expected to disagree
+  with `main` in the local integration environment (16 at the last run; seven
+  were re-pinned on 2026-10-27 and are expected to pass, but the library has
+  not been run since), so the regression instrument that is supposed
   to detect a navigation change cannot currently do so. Until it is reconciled,
   a navigation-affecting change can only be gated on *no new failures against
   `main`*, and the library's own tiers cannot be read as verified
   expectations. Two are the Galileo frames whose recorded truth is the
   rotation-fitted answer that #560 retired, an operator decision in #744, and
-  one, `N1530185128_1`, is owned by the star-centroid defect in #639. Five
-  are `ring_only_flat` frames whose pins record the old quantized rank-1 axis
-  of a straight ring edge and await an operator re-pin (#476). The other
-  eight are attributed rather than mysterious: three are #346's ring frames,
-  now red on pins (one `failed` expectation predating a working ring fit, and
-  two Encke gap frames that land on operator truth but miss their `medium`
-  tier pin), two pin `primary_technique` to a
+  one, `N1530185128_1`, is owned by the star-centroid defect in #639. The
+  seven re-pinned frames are five `ring_only_flat` frames whose pins recorded
+  the old quantized rank-1 axis of a straight ring edge, and two of #346's
+  Encke gap frames, which land on operator truth and whose `medium` tier pins
+  became `low`. The other six are attributed rather than mysterious: one is
+  #346's remaining ring frame, red on a `failed` expectation predating a
+  working ring fit, two pin `primary_technique` to a
   technique the code correctly declines to prefer and await an operator call
   (#483), one is the ~2.7 px `dv` limb bias on a partially overflowing limb arc
   that WS-10 owns, one is the standing highly-irregular exclusion of #338, and
-  one is a tier move the operator has ruled is not to be re-ratcheted, routed
-  to #476, though the frame no longer runs RingEdgeNav since the Saturn
-  routing decision. That
+  one is a tier move the operator has ruled is not to be re-ratcheted, once
+  routed to #476 (now closed) and wanting a new owner, since the frame no
+  longer runs RingEdgeNav after the Saturn routing decision. That
   count predates the pixel-convention corrections, so it wants re-measuring
   before it is quoted again.
 
@@ -154,7 +156,7 @@ carry the methodology and acceptance criteria):
 | Workstream | GitHub issue(s) | Note |
 |---|---|---|
 | WS-0 | #358, #359, #360, #361 | Estimator proven on sims (identifiability + bias-independence); residual is the real-frame reliability-vs-error coupling and PSF-coupling probes feeding WS-1. |
-| WS-1 | #225 (+ #558, #346, #476, #621, #622, #623, #639) | The agreement study. The statistics system reports metadata statistics and consumes WS-1's per-frame disagreement metric; it is not the agreement study. The trailing issues are confidently-wrong contributors that move the anchor before it is measured. |
+| WS-1 | #225 (+ #558, #346, #755, #621, #622, #623, #639) | The agreement study. The statistics system reports metadata statistics and consumes WS-1's per-frame disagreement metric; it is not the agreement study. The trailing issues are confidently-wrong contributors that move the anchor before it is measured. |
 | WS-1b | #226 | Reprojection consistency. |
 | WS-2 | #227 (+ #223, #309, #341, #377, #409, #625, #626, #627, #629, #630, #631, #632, #633, #641, #644, #750) | De-circularization done; #227 open only for the realism residual (realism-anchored calibration #309, terminator verdict #223, sim-fidelity gaps, the scene-coordinate convention split #409 where stars are the outlier, and the scene-authoring defects that make a rendered scene not the scene its keys describe). |
 | WS-17 | #355, #561 | Distortion measured from star fields; the residuals are the per-camera Voyager sim split and the single-sequence cohorts behind the twist verdicts (#561). |
