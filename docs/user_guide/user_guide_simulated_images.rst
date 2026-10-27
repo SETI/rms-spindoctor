@@ -97,7 +97,15 @@ on through exactly one key. The key's name says what its number means.
    The expected number of events per frame, such as lost lines, lost compression
    blocks, or spiked pixels. The simulator draws the actual number at random around this
    value, so ``missing_lines: {expected_events: 3.0}`` loses about three lines. Any
-   non-negative number is valid.
+   non-negative number is valid. Radiation hits (``radiation_transients``) are the one
+   exception to "per frame": their entry's ``environment_factor`` multiplies the number,
+   and a ``readout_dwell_sec`` adds hits in proportion to the extra time the frame waits
+   before readout.
+
+``expected_events_per_sec``
+   For Cassini's bright and dark pixel pairs (``bright_dark_pairs``) only: the expected
+   number of pairs per second of exposure. A frame exposed for 0.5 seconds with
+   ``expected_events_per_sec: 10`` carries about five pairs.
 
 ``probability``
    The chance, from 0 to 1, that a defect affecting the whole frame happens at all, such
@@ -109,7 +117,7 @@ on through exactly one key. The key's name says what its number means.
 
 Dead pixels and dead columns can also be given as a fixed ``count`` in place of
 ``expected_events``. An entry names one of the two keys, never both. Every key defaults
-to 0, and an entry whose key is 0 plants nothing.
+to 0, and an entry whose key, or whose ``count``, is 0 doesn't plant anything.
 
 .. code-block:: yaml
 
@@ -119,8 +127,9 @@ to 0, and an entry whose key is 0 plants nothing.
      dead_pixels: {count: 10}
      hot_pixels: {pixel_fraction: 0.002}
 
-A scene that still uses the retired ``incidence`` key is refused when it is loaded, and
-the message names the key that replaces it. The developer guide's
+A scene that still uses the retired ``incidence`` key is refused when it is loaded or
+rendered, and the message names the key that replaces it and what that key means for
+the defect. The developer guide's
 :doc:`/dev_guide/dev_guide_simulator` chapter lists every defect, the cameras each one
 is available on, and the key each one takes.
 

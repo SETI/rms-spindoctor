@@ -248,13 +248,21 @@ Each artifact mode in the artifacts block turns on through exactly one key, and
 the key's name says what the number means:
 
   expected_events  (float >= 0)      count modes: the expected number of events
-                                     per frame, drawn Poisson and capped at the
-                                     line or pixel count.  missing_lines,
+                                     per frame, drawn Poisson.  missing_lines,
                                      partial_lines, missing_blocks, line_garble,
-                                     pixel_spikes, dead_pixels, dead_columns,
-                                     radiation_transients (at environment_factor
-                                     1), bright_dark_pairs (per second of
-                                     exposure)
+                                     pixel_spikes, dead_pixels, dead_columns
+                                     (each capped at the lines, blocks, columns,
+                                     or pixels its events land on), and
+                                     radiation_transients (uncapped; per frame
+                                     at environment_factor 1 and
+                                     readout_dwell_sec 0, and scaled by
+                                     environment_factor * (exposure_sec +
+                                     readout_dwell_sec) / exposure_sec)
+  expected_events_per_sec (float >= 0)
+                                     bright_dark_pairs only: the expected number
+                                     of pairs per second of exposure, drawn
+                                     Poisson and uncapped; the frame expects
+                                     this times exposure_sec
   probability      (float in [0, 1]) every other mode except hot_pixels: the
                                      per-frame probability the mode fires at
                                      all (1.0 = always).  alternating_lines,
@@ -272,8 +280,9 @@ the key's name says what the number means:
 
 dead_pixels and dead_columns also take count (int >= 0), a fixed number of dead
 pixels or columns in place of the Poisson draw; a map may set count or
-expected_events, never both.  Every key defaults to 0, and a mode whose key is 0
-(or whose count is 0) renders nothing.  For example:
+expected_events, never both (a key set to null counts as unset).  Every key
+defaults to 0, and a mode whose key is 0 (or whose count is 0) renders as a
+no-op.  For example:
 
     artifacts:
       missing_lines: {expected_events: 3.0}
@@ -281,8 +290,9 @@ expected_events, never both.  Every key defaults to 0, and a mode whose key is 0
       dead_pixels: {count: 10}
       hot_pixels: {pixel_fraction: 0.002}
 
-The key that used to cover all three meanings, incidence, is refused by the
-validator with a message naming the mode's replacement.
+The key that used to cover all four meanings, incidence, is refused by the
+validator, and again at render time, with a message naming the mode's
+replacement and what that key holds on the mode.
 
 Adding a scene
 --------------

@@ -766,10 +766,19 @@ quantity it holds. The registry records which key each mode takes
 (``ArtifactMode.activation``):
 
 * **Count** modes draw a Poisson number of events per frame (lost lines, lost
-  blocks, spiked pixels, radiation hits). Their key is ``expected_events``, the
-  expected number of events per frame, any non-negative number. The draw is
-  capped at the array dimension the events land on (the line count for a line
-  loss, the pixel count for a pixel loss).
+  blocks, spiked pixels, dead pixels and columns, radiation hits). Their key is
+  ``expected_events``, the expected number of events per frame, any non-negative
+  number. A telemetry loss caps the draw at the number of places its events can
+  land: the frame's lines for a line loss, its columns for ``dead_columns``, its
+  pixels for a pixel loss, and the compression-block count for
+  ``missing_blocks``. ``radiation_transients`` is uncapped, and it scales the
+  expectation by its ``environment_factor`` and by
+  ``(exposure_sec + readout_dwell_sec) / exposure_sec``, so its key is the
+  expected count per frame at the defaults (factor 1, zero dwell).
+* **Rate** mode ``bright_dark_pairs`` takes ``expected_events_per_sec``, the
+  expected number of pairs per second of exposure, any non-negative number. The
+  frame's expected count is that rate times ``exposure_sec``, and the draw is
+  uncapped.
 * **Probability** modes are commanded or periodic (a frame edit, a cutout, a
   quantization sub-mode, most detector effects). Their key is ``probability``,
   the per-frame probability in [0, 1] that the mode activates at all.
@@ -779,18 +788,34 @@ quantity it holds. The registry records which key each mode takes
 ``dead_pixels`` and ``dead_columns`` also accept ``count``, a fixed number of
 dead pixels or columns in place of the Poisson draw. A static detector defect
 has a definite count, so ``count`` is the usual choice there. The two keys are
-mutually exclusive, and the validator refuses a map that sets both.
+mutually exclusive, and the validator refuses a map that sets both. A key set
+to null counts as unset, so ``{count: null, expected_events: 3}`` is valid. The
+sim editor keeps the two exclusive too: ``count`` carries a "set" box, setting
+it removes ``expected_events``, and editing ``expected_events`` removes the
+count.
 
 The stage-activation rule reads the same for every key: a mode is a no-op when
-its activation key is 0. The keys default to 0, also under
-``instrument_defaults``, so naming a mode without its key plants nothing. A
-``count`` of 0 is a no-op too.
+its activation key is 0, or its ``count`` where given is 0. The keys default to
+0, also under ``instrument_defaults``, so naming a mode without its activation
+key, or its ``count`` where given, doesn't plant anything.
 
-The validator refuses the retired ``incidence`` key with a message that names
-the mode's replacement (``RENAMED_MODE_PARAMS`` holds the table), for example::
+The retired ``incidence`` key is refused with a message that names the mode's
+replacement (``RENAMED_MODE_PARAMS`` holds the table) and what that key holds on
+the mode (its ``activation_semantics``), for example::
 
     artifacts.missing_lines: 'incidence' was renamed; use 'expected_events'
-    (a Poisson expected event count per frame)
+    (a Poisson expected count of whole lines lost per frame)
+
+    artifacts.bright_dark_pairs: 'incidence' was renamed; use
+    'expected_events_per_sec' (a Poisson expected count of bright/dark pairs per
+    second of exposure; the frame expects this times exposure_sec)
+
+The scene validator refuses it on load, and the render-time resolvers
+(``resolve_mode_config`` and ``resolve_mode_with_catalog``) refuse it again with
+the same message, so a scene built in memory or by a sweep step fails the same
+way instead of rendering a clean frame. The sweep harness also re-validates each
+step's ``artifacts`` block, so a sweep path naming an unknown or retired mode key
+fails when the sweep is built.
 
 Telemetry-stage modes
 ---------------------
@@ -928,7 +953,7 @@ which mode's truth record is written first.
    * - ``bright_dark_pairs``
      - anti-blooming-mode vertical bright / dark pixel pairs
      - nac, wac
-     - ``expected_events``
+     - ``expected_events_per_sec``
    * - ``frame_transfer_smear``
      - frame-transfer column smear
      - lorri
@@ -2949,12 +2974,14 @@ The artifact modes are registered once in
 each mode's rendering stage (``detector`` or ``telemetry``), per-instrument
 availability, and parameter schema. Every mode carries one activation key (see
 :ref:`sim-artifact-activation-keys`): ``expected_events`` for a count mode (the
-expected number of events per frame, drawn Poisson), ``probability`` for a
-commanded or periodic mode (the per-frame probability the mode fires), and
-``pixel_fraction`` for ``hot_pixels`` (the fraction of pixels that are hot).
-``dead_pixels`` and ``dead_columns`` take a fixed ``count`` instead of
-``expected_events`` when the scene gives one. An activation key of 0 is a
-no-op, so a scene plants exactly the defects it names. A
+expected number of events per frame, drawn Poisson), ``expected_events_per_sec``
+for ``bright_dark_pairs`` (the expected number of pairs per second of exposure),
+``probability`` for a commanded or periodic mode (the per-frame probability the
+mode fires), and ``pixel_fraction`` for ``hot_pixels`` (the fraction of pixels
+that are hot). ``dead_pixels`` and ``dead_columns`` take a fixed ``count``
+instead of ``expected_events`` when the scene gives one. An activation key of 0,
+or a ``count`` of 0 where given, is a no-op, so a scene plants exactly the
+defects it names. A
 mode named on an instrument it is unavailable on fails validation (for example
 ``hot_pixels`` and ``bloom`` on LORRI, which has neither). Each applied mode
 records its realized geometry into ``frame.truth['artifacts'][mode]`` for the
