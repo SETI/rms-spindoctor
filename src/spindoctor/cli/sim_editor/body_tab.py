@@ -143,6 +143,9 @@ class BodyTabMixin(SimEditorBase):
         mesh_n_lon.setToolTip('Mesh longitude divisions (resolution).')
         mesh_n_lon.valueChanged.connect(lambda v, i=idx: self._on_body_field(i, 'mesh_n_lon', v))
         fl.addRow('Mesh lon divisions:', mesh_n_lon)
+        w.mesh_seed_spin = mesh_seed  # type: ignore[attr-defined]
+        w.mesh_n_lat_spin = mesh_n_lat  # type: ignore[attr-defined]
+        w.mesh_n_lon_spin = mesh_n_lon  # type: ignore[attr-defined]
 
         pose = p.get('pose_euler_deg', [0.0, 0.0, 0.0])
         for axis_i, axis_name in enumerate(('X', 'Y', 'Z')):
@@ -371,11 +374,14 @@ class BodyTabMixin(SimEditorBase):
     def _on_body_field(
         self, idx: int, key: str, value: Any, *, trigger_validate: bool = False
     ) -> None:
-        """Write a scalar body field into the data model and re-render."""
+        """Write a scalar body field into the data model and re-render.
+
+        The value keeps the type its control emits: a ``QDoubleSpinBox`` writes a
+        float, and a ``QSpinBox`` (``mesh_seed``, ``mesh_n_lat``, ``mesh_n_lon``)
+        writes an int, because the scene validator refuses a float for those keys.
+        """
         if 0 <= idx < len(self.sim_params['bodies']):
-            self.sim_params['bodies'][idx][key] = (
-                float(value) if isinstance(value, (int, float)) else value
-            )
+            self.sim_params['bodies'][idx][key] = value
             self._updater.request_update()
             if trigger_validate and key == 'range_km':
                 self._validate_ranges()

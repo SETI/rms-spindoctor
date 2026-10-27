@@ -1,12 +1,15 @@
 """The sim editor cannot author a mesh body its scene validator refuses.
 
-The validator refuses every key in the schema's ``MESH_UNSUPPORTED_KEYS`` on a
-``shape_model: polyhedral_mesh`` body.  The editor reads the same table: switching
-a body to a mesh disables every control that writes one of those keys, gives each
-the validator's own sentence as its tooltip, and moves the keys the body carried
-out of the scene into the editor's stash, so the mesh rule never refuses what
-the editor saves.  Switching the body back to an ellipsoid restores the stashed
-keys and re-enables the controls.
+The validator refuses a non-null value of every key in the schema's
+``MESH_UNSUPPORTED_KEYS`` on a ``shape_model: polyhedral_mesh`` body.  The editor
+reads the same table: switching a body to a mesh disables every control that
+writes one of those keys, gives each the validator's own sentence as its
+tooltip, and moves the keys the body carried out of the scene into the editor's
+stash, so the mesh rule never refuses what the editor saves.  Switching the body
+back to an ellipsoid restores the stashed keys and re-enables the controls.
+
+The property itself is checked by operating every control a mesh body tab leaves
+enabled and validating the scene that results.
 
 Qt runs headless (offscreen platform).
 """
@@ -23,11 +26,17 @@ os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
 try:
     from PyQt6.QtWidgets import (
         QAbstractSlider,
+        QAbstractSpinBox,
         QApplication,
+        QCheckBox,
+        QComboBox,
         QDoubleSpinBox,
         QFileDialog,
         QGroupBox,
+        QLineEdit,
         QMessageBox,
+        QPushButton,
+        QSpinBox,
         QWidget,
     )
 except (ImportError, OSError) as exc:
@@ -285,3 +294,86 @@ def test_a_saved_mesh_scene_loads_back_unchanged(model: Any, tmp_path: Path) -> 
     path = tmp_path / 'mesh_scene.yaml'
     save_sim_scene(model.sim_params, path)
     assert load_sim_scene(path)['bodies'] == model.sim_params['bodies']
+
+
+def test_the_widget_table_covers_exactly_the_refused_keys() -> None:
+    """The editor's table names the validator's keys, each with at least one control."""
+    assert set(MESH_REFUSED_WIDGETS) == set(MESH_UNSUPPORTED_KEYS)
+    assert [key for key, attrs in MESH_REFUSED_WIDGETS.items() if not attrs] == []
+
+
+def _operate(widget: QWidget) -> bool:
+    """Operate one control the way an operator would; return whether it was one."""
+    if isinstance(widget, QGroupBox):
+        if not widget.isCheckable():
+            return False
+        # An odd number of toggles leaves it flipped, after writing both states.
+        for _ in range(3):
+            widget.setChecked(not widget.isChecked())
+    elif isinstance(widget, QCheckBox):
+        widget.setChecked(not widget.isChecked())
+    elif isinstance(widget, QComboBox):
+        for index in range(widget.count()):
+            widget.setCurrentIndex(index)
+    elif isinstance(widget, QAbstractSlider):
+        widget.setValue(widget.maximum() // 2 + 1)
+    elif isinstance(widget, QSpinBox):
+        widget.setValue(int(widget.minimum() + (widget.maximum() - widget.minimum()) * 0.37))
+    elif isinstance(widget, QDoubleSpinBox):
+        widget.setValue(widget.minimum() + (widget.maximum() - widget.minimum()) * 0.37)
+    elif isinstance(widget, QPushButton):
+        widget.click()
+    elif isinstance(widget, QLineEdit) and not isinstance(widget.parentWidget(), QAbstractSpinBox):
+        widget.setText(widget.text() + 'x')
+    else:
+        return False
+    return True
+
+
+@pytest.mark.parametrize(
+    'body',
+    [None, _FULL_ELLIPSOID],
+    ids=['default_new_body', 'every_refused_key_set'],
+)
+def test_operating_every_enabled_control_on_a_mesh_body_keeps_the_scene_valid(
+    model: Any, body: dict[str, Any] | None
+) -> None:
+    """Whatever an operator does with a mesh body's live controls, the scene validates.
+
+    Every control the tab leaves enabled is operated (each check box and checkable
+    group toggled, each combo stepped through its items, each slider and spin box
+    moved, each button pressed), except Delete and the shape combo, which would
+    end the mesh body.
+    """
+    model._add_body_tab(None if body is None else _full_ellipsoid())
+    _set_shape(model, 'polyhedral_mesh')
+    tab = _tab(model)
+    skip = {id(tab.shape_combo)}  # type: ignore[attr-defined]
+    operated = []
+    for widget in tab.findChildren(QWidget):
+        if not widget.isEnabled() or id(widget) in skip:
+            continue
+        if isinstance(widget, QPushButton) and widget.text() == 'Delete':
+            continue
+        if _operate(widget):
+            operated.append(widget)
+    assert operated != []
+    validate_sim_params(copy.deepcopy(model.sim_params))
+
+
+@pytest.mark.parametrize(
+    ('attr', 'key'),
+    [
+        ('mesh_seed_spin', 'mesh_seed'),
+        ('mesh_n_lat_spin', 'mesh_n_lat'),
+        ('mesh_n_lon_spin', 'mesh_n_lon'),
+    ],
+)
+def test_an_integer_mesh_spin_writes_an_integer(model: Any, attr: str, key: str) -> None:
+    """The mesh seed, lat bands, and lon divisions spins write ints the validator accepts."""
+    model._add_body_tab()
+    _set_shape(model, 'polyhedral_mesh')
+    spin = getattr(_tab(model), attr)
+    spin.setValue(spin.value() + 1)
+    assert type(model.sim_params['bodies'][0][key]) is int
+    validate_sim_params(copy.deepcopy(model.sim_params))
