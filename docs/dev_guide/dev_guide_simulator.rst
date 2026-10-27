@@ -1123,21 +1123,28 @@ The topographic path
 **The relief field.** Limb relief is a 2-D fractional-height field
 ``h(lat, lon)`` on the body surface, not a 1-D profile on the limb, so the
 limb perturbation and the terminator shadowing are two slices of one
-consistent surface (``relief.py``). The field is a periodic Gaussian random
-field synthesized by FFT: the spectral coefficients are independent complex
-Gaussians with variance ``S(k) proportional to exp(-(|k| corr_rad / 2)**2)``
-(``corr_rad`` the correlation length in radians of surface arc), band-limited
-at ``kmax = ceil(8 / corr_rad)`` where ``S`` has fallen to ~1e-7 of its peak.
-The field's poles sit on the observer axis, so the sub-observer horizon circle
--- the limb -- is the field's equator, where the grid metric is exact and the
-commanded RMS and correlation length hold with no map distortion.
+consistent surface (``relief.py``). The field is an isotropic Gaussian random
+field on the sphere, synthesized as a sum of real spherical harmonics whose
+coefficients are independent Gaussians with variance
+``C_l proportional to exp(-(l corr_rad / 2)**2)`` (``l`` the harmonic degree,
+``corr_rad`` the correlation length in radians of surface arc), band-limited at
+``lmax = ceil(8 / corr_rad)`` where ``C`` has fallen to ~1e-7 of its peak.
+Because it is built on the sphere, the field is single-valued everywhere and
+has the same statistics at every point. The ellipsoid renderer puts the
+field's poles on the observer axis, so the sub-observer horizon circle -- the
+limb -- is the field's equator and the disc center is a pole, which is as
+smooth as any other point of the surface.
 
-Modes with total wavenumber below **3** are zeroed before use: degree-1 radius
-content is, to first order, a translation of the body -- an untruthed center
-offset no limb fit could separate from the pointing error -- and degree-2
-content aliases ellipsoid shape error, which is a separate scene knob. After
-the cutoff the field is rescaled so the *limb slice's* standard deviation
-equals the commanded ``limb_relief_rms`` per realization.
+Harmonic degrees below **3** are zeroed before use: degree-1 radius content
+is, to first order, a translation of the body -- an untruthed center offset
+no limb fit could separate from the pointing error -- and degree-2 content
+aliases ellipsoid shape error, which is a separate scene knob. After the
+cutoff the field is rescaled so the *limb slice's* standard deviation equals
+the commanded ``limb_relief_rms`` per realization. That RMS is a fraction of
+the body radius: 0.02 moves the limb of a 100-pixel-radius body by 2 pixels
+RMS. The scene validator caps it at 0.1, because a realization's deepest
+valleys reach about six times the RMS, and above about 0.16 they could pass
+through the body's center.
 
 **Limb and terminator application.** The renderer's normalized ellipse radial
 function ``e(p)`` (1 exactly at the unperturbed limb) is divided by
@@ -1153,11 +1160,13 @@ disc shading is low-frequency; relief moves the edge, not the interior).
 Near-terminator disc points are then shadowed by a march against upstream
 terrain in absolute heights ``H = h R`` (pixels): a point is shadowed when some
 upstream sample at surface distance ``d`` toward the sun satisfies
-``H_up - H_pt > d / tan(i)``. The march is capped at
-``d_max = min((H_max - H_min) tan(i), sqrt(2 R H_max))`` -- the longest shadow
-the terrain can cast, and the horizon limit that bounds the tangent's
-divergence at the terminator -- so raggedness grows toward the terminator while
-the cost stays bounded. The march steps at ``max(1.0, field_cell_arc / 4)``
+``H_up - H_pt > d / tan(i) + d**2 / (2 R)``, that is, when the terrain rises
+above both the sun ray and the body's curvature drop. The march is capped at
+``d_max = min((H_max - H_pt) tan(i), sqrt(2 R (H_max - H_pt)))``, the
+distance beyond which that inequality cannot hold: the longest shadow the
+terrain can cast, and the horizon distance of the highest peak. Shadows
+therefore stay in the low-sun band along the terminator, where they grow
+ragged, and the cost stays bounded. The march steps at ``max(1.0, field_cell_arc / 4)``
 pixels of surface arc -- about 16 samples per shortest terrain wavelength,
 never finer than one render pixel -- which is why it is both accurate and
 cheap.
@@ -1673,8 +1682,9 @@ The panels below are rendered by ``python -m tests.integration.sim_doc_images``
    :width: 45%
    :align: center
 
-   A lit ellipsoid with a limb-relief field: the silhouette is visibly ragged
-   and relief pockets shadow near the limb, while the disc shading stays smooth.
+   A lit ellipsoid with a limb-relief field: the silhouette is visibly ragged,
+   relief shadows break up the terminator, and the rest of the disc shading
+   stays smooth.
 
 .. figure:: _sim_images/ragged_terminator.png
    :width: 45%
@@ -2183,9 +2193,10 @@ predicted body is always the smooth Lambert template.
      - Procedural crater terrain -- nature's surface, which the navigator's
        smooth predicted template does not know.
    * - ``limb_relief_rms``, ``limb_relief_corr_deg``
-     - The limb/terminator relief field: RMS of the limb slice and its
-       correlation length in degrees of surface arc. Ragged silhouette plus
-       terminator march shadows (ellipsoid and mesh bodies).
+     - The limb/terminator relief field: RMS of the limb slice as a fraction
+       of the body radius (at most 0.1), and its correlation length in degrees
+       of surface arc. Ragged silhouette plus terminator march shadows
+       (ellipsoid and mesh bodies).
    * - ``photometric_law``, ``minnaert_k``
      - The surface-scattering law (``lambert`` / ``lommel_seeliger`` /
        ``minnaert`` / ``lunar_lambert``) and its Minnaert exponent; ellipsoid
