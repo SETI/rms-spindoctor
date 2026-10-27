@@ -1397,7 +1397,7 @@ feature_emission:
         # catastrophically on all three; the annulus near-misses twice
         # and fails once), so the threshold stops where the evidence
         # stops, not where the edge fit is known good; the sub-25
-        # confident-wrong exposure remains open (#346, #476).  This
+        # confident-wrong exposure remains open (#346, #755).  This
         # threshold is Saturn-measured only; the default and other
         # planets' entries keep their geometric values because no
         # equivalent measurement exists for them.
