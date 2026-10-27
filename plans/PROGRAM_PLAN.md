@@ -814,9 +814,9 @@ library votes and the decision gates, not by any implementation.
 
 ## 7. Issue index (open work by track)
 
-Every open issue, listed exactly once by the track that owns it: 305 issues
-as of 2026-10-14, less #476, closed 2026-10-27. The count is given so a
-reader can tell a stale index from a current one at a glance.
+Every open issue, listed exactly once by the track that owns it: 306 issues
+as of 2026-10-14, less #476 (closed 2026-10-27): 305. The count is given so
+a reader can tell a stale index from a current one at a glance.
 
 | Track | Count | Issues |
 |---|---|---|
