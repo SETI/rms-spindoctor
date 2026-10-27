@@ -704,8 +704,9 @@ def refuse_renamed_params(
         source: The scene's label, prefixed to the message when given.
 
     Raises:
-        SimSceneValidationError: If ``config`` carries a key listed for the mode
-            in :data:`RENAMED_MODE_PARAMS`; the message is
+        spindoctor.sim.scene_schema.SimSceneValidationError: If ``config``
+            carries a key listed for the mode in :data:`RENAMED_MODE_PARAMS`;
+            the message is
             ``[<source>: ]artifacts.<mode>: <renamed_param_message>`` for the
             first retired key in sorted order.
     """
@@ -728,7 +729,8 @@ def resolve_mode_config(mode_name: str, raw_config: Mapping[str, Any]) -> dict[s
         A fresh dict carrying every parameter, scene value overriding default.
 
     Raises:
-        SimSceneValidationError: If ``raw_config`` carries a retired key (see
+        spindoctor.sim.scene_schema.SimSceneValidationError: If
+            ``raw_config`` carries a retired key (see
             :func:`refuse_renamed_params`).
     """
     refuse_renamed_params(mode_name, raw_config)

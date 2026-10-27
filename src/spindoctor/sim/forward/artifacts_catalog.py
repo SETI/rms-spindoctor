@@ -664,7 +664,8 @@ def resolve_mode_with_catalog(
         A fresh dict carrying every parameter at its resolved value.
 
     Raises:
-        SimSceneValidationError: If ``scene_cfg`` carries a retired key (see
+        spindoctor.sim.scene_schema.SimSceneValidationError: If
+            ``scene_cfg`` carries a retired key (see
             :func:`~spindoctor.sim.forward.artifact_modes.refuse_renamed_params`),
             so a scene that skipped validation still fails loudly.
     """
