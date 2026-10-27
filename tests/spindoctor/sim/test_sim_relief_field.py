@@ -12,6 +12,7 @@ by its inequality on a curved body
 ``d_max = min((H_max - H_pt) * tan(i), sqrt(2 * R * (H_max - H_pt)))``.
 """
 
+import functools
 import math
 from typing import Any
 
@@ -23,6 +24,7 @@ from spindoctor.sim.forward.relief import (
     march_shadows,
     synthesize_relief_field,
 )
+from spindoctor.support.types import NDArrayComplexType
 
 _RMS = 0.01
 _CORR_DEG = 15.0
@@ -46,28 +48,40 @@ def test_limb_slice_rms_matches_commanded_over_100_seeds() -> None:
     assert worst < 1e-9
 
 
-def _harmonic_coefficient_rms(rms: float, seed: int) -> dict[int, float]:
-    """RMS real spherical-harmonic coefficient per degree 0..6 of one realization.
+_PROJECTION_LAT = np.arcsin(np.polynomial.legendre.leggauss(96)[0])
+_PROJECTION_LON = np.arange(192) * (2.0 * np.pi / 192)
+_PROJECTION_WEIGHT = np.polynomial.legendre.leggauss(96)[1][:, np.newaxis] * (2.0 * np.pi / 192)
+
+
+@functools.cache
+def _projection_harmonic(ell: int, m: int) -> NDArrayComplexType:
+    """``Y_lm`` on the projection grid (Gauss-Legendre latitudes, uniform longitudes)."""
+    lat2, lon2 = np.meshgrid(_PROJECTION_LAT, _PROJECTION_LON, indexing='ij')
+    return np.asarray(special.sph_harm_y(ell, m, np.pi / 2.0 - lat2, lon2), dtype=np.complex128)
+
+
+def _harmonic_coefficient_power(rms: float, seed: int, degrees: list[int]) -> dict[int, float]:
+    """Mean squared real spherical-harmonic coefficient per degree of one realization.
 
     The field is sampled at Gauss-Legendre latitudes and uniform longitudes, so the
-    projection is exact up to the field's own bilinear sampling error.
+    projection is exact up to the field's own bilinear sampling error.  Orders
+    ``m >= 1`` are projected on ``sqrt(2)`` times the real and imaginary parts of
+    ``Y_lm``, the orthonormal real basis, so each coefficient's expected square is
+    the degree's variance.
     """
     field = synthesize_relief_field(rms, _CORR_DEG, seed)
-    nodes, weights = np.polynomial.legendre.leggauss(96)
-    lat = np.arcsin(nodes)
-    lon = np.arange(192) * (2.0 * np.pi / 192)
-    lat2, lon2 = np.meshgrid(lat, lon, indexing='ij')
-    h = field.sample(lat2, lon2)
-    weight = weights[:, np.newaxis] * (2.0 * np.pi / 192)
+    lat2, lon2 = np.meshgrid(_PROJECTION_LAT, _PROJECTION_LON, indexing='ij')
+    weighted = field.sample(lat2, lon2) * _PROJECTION_WEIGHT
     result: dict[int, float] = {}
-    for ell in range(7):
+    for ell in degrees:
         coeffs: list[float] = []
         for m in range(ell + 1):
-            harmonic = special.sph_harm_y(ell, m, np.pi / 2.0 - lat2, lon2)
-            coeffs.append(float(np.sum(h * harmonic.real * weight)))
-            if m > 0:
-                coeffs.append(float(np.sum(h * harmonic.imag * weight)))
-        result[ell] = float(np.sqrt(np.mean(np.square(coeffs))))
+            projection = complex(np.sum(weighted * _projection_harmonic(ell, m)))
+            if m == 0:
+                coeffs.append(projection.real)
+            else:
+                coeffs.extend([math.sqrt(2.0) * projection.real, math.sqrt(2.0) * projection.imag])
+        result[ell] = float(np.mean(np.square(coeffs)))
     return result
 
 
@@ -78,11 +92,28 @@ def test_low_degree_content_is_zero(seed: int) -> None:
     Each low-degree coefficient is compared with the typical coefficient of degrees
     3-6, which the field does carry; the residual is the bilinear sampling error.
     """
-    coeff = _harmonic_coefficient_rms(1.0, seed)
-    band = float(np.sqrt(np.mean([coeff[ell] ** 2 for ell in range(3, 7)])))
+    power = _harmonic_coefficient_power(1.0, seed, list(range(7)))
+    band = float(np.sqrt(np.mean([power[ell] for ell in range(3, 7)])))
     assert band > 0.0
     for ell in range(3):
-        assert coeff[ell] < 0.02 * band, f'degree {ell}'
+        assert math.sqrt(power[ell]) < 0.02 * band, f'degree {ell}'
+
+
+def test_degree_power_follows_the_gaussian_spectrum() -> None:
+    """Each degree's power falls as ``exp(-(l * corr_rad / 2)**2)`` across the band.
+
+    The mean squared real-harmonic coefficient of degrees 3 to 12, averaged over 16
+    realizations, is fit by ``log(power) = a + b * l**2``; the slope ``b`` must be
+    ``-(corr_rad / 2)**2`` within 10%.  A spectrum twice as steep, or flat, misses by
+    100%.
+    """
+    degrees = list(range(3, 13))
+    power = np.mean(
+        [list(_harmonic_coefficient_power(1.0, seed, degrees).values()) for seed in range(16)],
+        axis=0,
+    )
+    slope = float(np.polyfit(np.square(degrees), np.log(power), 1)[0])
+    assert slope == pytest.approx(-((math.radians(_CORR_DEG) / 2.0) ** 2), rel=0.1)
 
 
 def test_limb_slice_has_no_power_beyond_band_limit() -> None:
@@ -139,23 +170,29 @@ def _structure_function(field_seed: int, lat_band: tuple[float, float], lag: flo
 
 
 def test_field_is_as_rough_at_the_disc_center_as_at_the_limb() -> None:
-    """Height differences at a fixed arc match near the pole and near the equator.
+    """Height differences at a fixed arc match near the poles and near the equator.
 
     The renderer's disc center is the field's pole and its limb the equator.  A
     field built on a (lat, lon) map stretches its longitude wavelengths by
     ``1 / cos(lat)`` toward the pole, so the disc center would be far rougher than
-    the limb.  Averaged over 16 realizations the two regions agree within 25%.
+    the limb (about 4x).  A 20-degree cap holds only a few correlation lengths, so
+    one realization's cap estimate is noisy: the check reads both caps and averages
+    48 realizations, over which the caps and the limb band agree within 25%.
     """
     lag = math.radians(_CORR_DEG) / 2.0
-    cap = [
-        _structure_function(seed, (math.radians(70.0), math.radians(89.99)), lag)
-        for seed in range(16)
+    caps = [
+        _structure_function(seed, band, lag)
+        for seed in range(48)
+        for band in (
+            (math.radians(70.0), math.radians(89.99)),
+            (math.radians(-89.99), math.radians(-70.0)),
+        )
     ]
     limb = [
         _structure_function(seed, (math.radians(-20.0), math.radians(20.0)), lag)
-        for seed in range(16)
+        for seed in range(48)
     ]
-    ratio = float(np.mean(cap)) / float(np.mean(limb))
+    ratio = float(np.mean(caps)) / float(np.mean(limb))
     assert 0.8 < ratio < 1.25
 
 
