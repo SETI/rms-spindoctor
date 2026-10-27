@@ -136,7 +136,7 @@ def test_irregularity_sweep_starts_matched() -> None:
     The fused offset precision-weights the disc correlation (~0.03 px
     recovery here) against the limb DT fit (which carries the documented
     ~0.1 px-class gradient-peak/model offset and errs a few tenths on
-    this faceted mesh).  With the #210 model-error floors both report
+    this mesh).  With the #210 model-error floors both report
     comparable honest sigmas, so the fused value is their blend rather
     than whichever technique used to claim the tighter covariance; the
     bound reflects that blend, not a single technique's floor.
@@ -169,9 +169,9 @@ def test_irregularity_sweep_confidence_drops() -> None:
 def test_irregularity_sweep_extreme_mismatch_vetoed() -> None:
     """At extreme mismatch the shape-lock veto reports conflicted, not success.
 
-    The disc correlation and the limb fit both lock onto the mismatched shape
-    and agree at a multi-pixel wrong offset that would otherwise fuse to a
-    confident success.  The pose-free blob does not chase the shape, so the
+    At the extreme step the disc correlation and the limb fit both lock onto
+    the mismatched shape and agree at a multi-pixel wrong offset.  The pose-free
+    blob does not chase the shape, so the
     body-witness veto reports the extreme-mismatch step conflicted -- the
     offset error is large (see ``test_irregularity_sweep_bias_grows``) yet does
     not carry a confident-success tier.

@@ -7,7 +7,8 @@ random_seed: 42
 exposure_sec: 1.0
 # B7 scenario 2: mesh vs ellipsoid, same pose.  The frame renders an irregular
 # (lumpy) mesh body, but the navigator predicts a smooth body at the same pose,
-# axes, and center -- the only difference is shape.  The prediction is realized
+# axes, and center -- the only difference is shape.  mesh_lumpiness 0.1 is a
+# 1.25% RMS non-ellipsoidal relief (lumpiness / 8 of the radius).  The prediction is realized
 # through the body's nav_override mapping: the renderer draws the true geometry
 # (mesh_lumpiness 0.1) while NavModelBodySimulated predicts mesh_lumpiness 0.0,
 # the zero-relief (ellipsoidal) limit of the same mesh.  Realizing the
@@ -17,14 +18,20 @@ exposure_sec: 1.0
 #
 # The point is that the body still navigates despite the shape mismatch: the disc
 # correlation aligns the two filled silhouettes and the full ensemble recovers
-# the planted offset to well under a pixel.  The companion irregularity sweep
+# the planted offset to under a pixel (0.72 px).  The companion irregularity sweep
 # (sim_sweeps/irregularity_shape_mismatch.yaml) walks mesh_lumpiness up from this
-# base and shows the centroid bias growing with irregularity.
+# base and shows the centroid bias growing with irregularity.  mesh_seed 5 is a
+# shape whose walk ends in the shape lock the body-witness veto exists to catch;
+# the veto does not catch it on every seed (see the sweep).  The 64 x 128
+# tessellation keeps flat-shaded facets out of the frame and out of the
+# prediction alike.
 bodies:
   - name: HYPERION
     shape_model: polyhedral_mesh
     mesh_lumpiness: 0.1
-    mesh_seed: 11
+    mesh_seed: 5
+    mesh_n_lat: 64
+    mesh_n_lon: 128
     pose_euler_deg: [10.0, 35.0, 0.0]
     center_v: 110.0
     center_u: 110.0

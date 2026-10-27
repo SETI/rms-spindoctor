@@ -197,7 +197,10 @@ Fields
 
 Body params follow the renderer: shape_model (ellipsoid | polyhedral_mesh),
 center_v, center_u, axis1, axis2, axis3, illumination_angle, phase_angle,
-range_km, and -- for polyhedral_mesh -- mesh_lumpiness, mesh_seed,
+range_km, and -- for polyhedral_mesh -- mesh_lumpiness (the non-ellipsoidal
+relief's RMS is mesh_lumpiness / 8 of the radius), mesh_seed (which shape),
+mesh_n_lat / mesh_n_lon (tessellation, default 16 / 32; the catalog's mesh
+scenes use 64 / 128 so no facets show), mesh_detail_octaves, and
 pose_euler_deg.
 
 A body may also carry an optional nav_override mapping.  The renderer ignores it

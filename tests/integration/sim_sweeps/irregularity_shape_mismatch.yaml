@@ -5,16 +5,16 @@ sweep_name: irregularity_shape_mismatch
 # step widens the shape mismatch between the rendered (lumpy) body and the
 # predicted (smooth) one.  The recovered offset error -- the centroid bias the
 # ellipsoidal model cannot remove -- grows monotonically with irregularity, the
-# regime the phase_irregularity_factor term is meant to capture.  The walk runs
-# to 0.7 because the disc correlation and the limb fit both lock onto the
-# mismatched shape and agree at a multi-pixel wrong offset: the fused
-# confidence once re-saturated to 0.99 from lumpiness 0.5 despite a 10+ px
-# bias, a confident-wrong lock the correlation diagnostics carry no signal for.
-# The pose-free blob does not chase the shape, so the body-witness veto (see
-# the ensemble chapter) reports these mismatched steps conflicted; the
-# clean (zero-relief) step still recovers the planted offset sub-pixel and
-# stays a success, so the veto separates the shape lock from the legitimate
-# fit rather than blanketing the walk.
+# regime the phase_irregularity_factor term is meant to capture.  Lumpiness L is
+# a non-ellipsoidal relief of L / 8 of the radius RMS, so the walk runs to 8.75%.
+# Through 0.6 the error grows to ~6 px while the fused confidence falls to ~0.56,
+# every step a success.  At 0.7 the disc correlation and the limb fit both lock
+# onto the mismatched shape at a ~12 px wrong offset; the pose-free blob does
+# not chase the shape, so the body-witness veto (see the ensemble chapter)
+# reports that step conflicted.  The clean (zero-relief) step still recovers
+# the planted offset sub-pixel and stays a success, so the veto separates the
+# shape lock from the legitimate fit rather than blanketing the walk.  The veto
+# fires at 0.7 on some mesh seeds only; the base scene's seed is one of them.
 base_scene: algorithmic_invariants/planted_offset_shapemismatch.yaml
 parameters: [bodies.0.mesh_lumpiness]
 values: [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7]
