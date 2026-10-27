@@ -10,13 +10,13 @@ scene_tags:
 - ring_only_flat
 - keeler_gap
 ground_truth:
-  offset_dv_px: 0.0
-  offset_du_px: -20.4941
+  offset_dv_px: -13.3281
+  offset_du_px: -33.6287
   offset_uncertainty_px: 1.0
   constraint:
     type: rank_1
-    normal_angle_deg: 90.0
-    offset_along_normal_px: -20.4941
+    normal_angle_deg: 68.38
+    offset_along_normal_px: -36.1736
     uncertainty_px: 1.0
   source: operator_verified
   operator: rfrench
@@ -34,11 +34,13 @@ ground_truth:
     is the ensemble's representative point on the constraint line.
     normal_angle_deg comes from aggregate_edge_normal_angle_deg on the
     frame's two straight RING_EDGE features (Keeler-A Ring OE IER, Keeler
-    IEG): exactly 90.0 deg (edges run along v; only du is observable).
+    IEG), taken from the straight edge's own line: 68.38 deg
+    (re-pinned 2026-10-27; see below).
     Pipeline at review and at sidecar time: status=success,
     confidence=0.952, rank=high, status_reason=rank_1_only; RingEdgeNav
-    raw fit (-46.4616, -20.4941) projects to -20.4941 px along the normal,
-    identical to the voted representative point.
+    raw fit (-46.4616, -20.4941) projected to -20.4941 px along the
+    normal then recorded (90.0 deg), identical to the voted
+    representative point.
     The ring radial orbit-uncertainty channel prices each consumed edge's
     own catalog orbit-solution rms as a fully-correlated radial
     displacement.  This frame fuses the Keeler-A Ring OE IER (rms 1.006 km)
@@ -58,6 +60,17 @@ ground_truth:
     pricing only the m=0 part is the principled fix and is not
     implemented.  Five operator-verified ring_only_flat frames are priced
     low under this assumption.
+    Re-pinned 2026-10-27 (operator decision): the rank-1 constraint was
+    re-expressed along the straight edge's own normal, 68.38 deg /
+    -36.1736 px. The old value, 90.0 deg / -20.4941 px, used the rings
+    model's quantized per-vertex normal, which RingEdgeNav no longer
+    uses for a straight edge's rank-1 axis. The raw fit voted on is
+    unchanged: (-46.4616, -20.4941) projects to -36.1710 px along the
+    new normal, and (dv, du) is the foot of the new constraint line
+    (along * (cos, sin) of the angle). The original vote was cast on an
+    overlay rendered at the old representative point, 17.1 px across the
+    edge from the new constraint line, so a fresh operator look at the
+    raw fit is still welcome.
 expected:
   status: success
   confidence_tier: low
