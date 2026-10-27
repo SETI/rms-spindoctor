@@ -306,8 +306,14 @@ class ModeRow:
         )
 
     def _on_group_toggled(self, on: bool) -> None:
-        """Insert or remove the mode map when the row's enable box toggles."""
+        """Insert or remove the mode map when the row's enable box toggles.
+
+        Enabling the row resyncs its widgets, so they show the map it now
+        edits rather than values left over from before it was turned off.
+        """
         self._controller._set_mode_enabled(self.mode.name, on)
+        if on:
+            self.sync()
 
     # ---- Display sync ----
 
@@ -338,9 +344,14 @@ class ModeRow:
             self._count_check.blockSignals(False)
 
     def _sync_scalar(self, param: ModeParam, current: dict[str, Any]) -> None:
-        """Show one scalar parameter's scene value, or its registry default."""
+        """Show one scalar parameter's scene value, or its registry default.
+
+        A key set to null shows the default, as the renderer resolves it.
+        """
         widget = self._scalar_widgets[param.name]
-        value = current.get(param.name, param.default)
+        value = current.get(param.name)
+        if value is None:
+            value = param.default
         widget.blockSignals(True)
         if isinstance(widget, QCheckBox):
             widget.setChecked(bool(value))

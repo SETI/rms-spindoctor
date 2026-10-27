@@ -462,6 +462,44 @@ def test_loaded_count_checks_the_set_box(model: Any) -> None:
     assert (row._count_check.isChecked(), row._scalar_widgets['count'].value()) == (True, 7)
 
 
+def test_syncing_a_map_without_count_clears_the_set_box(model: Any) -> None:
+    """Syncing an expected_events map after a count map unchecks the count's set box."""
+    row = _dead_row(model)
+    model.sim_params['artifacts']['dead_pixels'] = {'count': 7}
+    row.sync()
+    model.sim_params['artifacts']['dead_pixels'] = {'expected_events': 3.0}
+    row.sync()
+    assert row._count_check.isChecked() is False
+
+
+def test_setting_count_resets_the_expected_events_display(model: Any) -> None:
+    """Setting the count shows expected_events at its default, since the key is gone."""
+    row = _dead_row(model)
+    row._scalar_widgets['expected_events'].setValue(5.0)
+    row._scalar_widgets['count'].setValue(10)
+    assert row._scalar_widgets['expected_events'].value() == 0.0
+
+
+def test_null_mode_parameter_shows_its_default(model: Any) -> None:
+    """A mode parameter set to null shows the registry default the renderer uses."""
+    model.sim_params['instrument'] = 'coiss_nac'
+    model._refresh_artifact_mode_availability()
+    row = model._mode_rows['missing_blocks']
+    model.sim_params.setdefault('artifacts', {})['missing_blocks'] = {'block_lines': None}
+    row.sync()
+    assert row._scalar_widgets['block_lines'].value() == 8
+
+
+def test_reenabling_a_mode_shows_its_empty_map(model: Any) -> None:
+    """Turning a mode off and on again shows the fresh map, with the count unset."""
+    row = _dead_row(model)
+    row._scalar_widgets['count'].setValue(10)
+    row.group.setChecked(False)
+    row.group.setChecked(True)
+    shown = (row._count_check.isChecked(), row._scalar_widgets['count'].value())
+    assert (model.sim_params['artifacts']['dead_pixels'], shown) == ({}, (False, 0))
+
+
 def test_pixel_fraction_spin_keeps_six_decimals(model: Any) -> None:
     """A small hot-pixel fraction survives the spin without rounding to 4 decimals."""
     model.sim_params['instrument'] = 'coiss_nac'
