@@ -1551,13 +1551,13 @@ render-level test asserting the effect is measurably present:
        direction a navigator predicts, so the true mirror plane is not the
        predicted one.
    * - ``ns_falloff_ratio``
-     - Scales the haze falloff length on one hemisphere only -- a genuinely
-       NON-affine difference between the two halves the mirror maps onto each
-       other, which is what actually probes a Pearson score's blindness to an
-       affine one.
+     - Scales the haze falloff length on one hemisphere only, blended across
+       the equator -- a genuinely NON-affine difference between the two halves
+       the mirror maps onto each other, which is what actually probes a Pearson
+       score's blindness to an affine one.
    * - ``ns_asymmetry_amplitude``
-     - Scales one hemisphere's brightness: the affine counterpart the Pearson
-       score is supposed to absorb.
+     - Scales one hemisphere's brightness, blended across the equator: the
+       affine counterpart the Pearson score is supposed to absorb.
    * - ``sector_sharpness_gradient``
      - Scales the falloff length with azimuth around the limb, walking the
        detected limb ridge radially as a function of ray angle -- the
@@ -1571,7 +1571,26 @@ render-level test asserting the effect is measurably present:
 
 The hemispheres are the two sides of the body's first semi-axis in the body
 frame, so a scene that wants the hemispheric split to be the one the mirror maps
-onto itself orients its illumination perpendicular to that axis. Every field is
+onto itself orients its illumination perpendicular to that axis.
+
+The two hemispheric keys blend across the equator instead of switching there,
+because a switch draws a seam across the halo along one image row and a real
+haze changes continuously with latitude. Each is weighted by a cubic smoothstep
+of the sine of latitude that is 0.5 on the equator and reaches 0 and 1 at
+``HEMISPHERE_BLEND_HALF_WIDTH_DEG`` (20 degrees) south and north of it. The
+latitude is that of the haze column a pixel sees: the pixel's own latitude on
+the disc, and the latitude of the limb point beneath the line of sight above
+it, so the weight is continuous across the silhouette. Poleward of 20 degrees
+each key applies at exactly its stated value: ``ns_falloff_ratio`` multiplies
+the falloff length by the full ratio over the positive-axis hemisphere, and
+``ns_asymmetry_amplitude`` scales that hemisphere's brightness by the full
+``1 + amplitude``, so there the two halves still differ by a pure scaling.
+Inside the band the multiplier is ``1 + (ratio - 1) * w`` or
+``1 + amplitude * w`` for the weight ``w``, so a ratio of one or an amplitude
+of zero leaves the haze untouched. The 20 degree half-width is a sim-side
+modeling choice: about 22 pixels each side of the equator at the limb of a
+64 pixel radius body, which spreads the change over many rows, while the stated
+contrast holds over the poleward 70 degrees of each hemisphere. Every field is
 optional and the whole module is bypassed when a block names none of them: the
 haze then renders through exactly the scalar arithmetic above. That gating is a
 performance contract, not only a tidiness one -- the per-pixel scale-height field
