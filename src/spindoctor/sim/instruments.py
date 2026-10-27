@@ -21,16 +21,31 @@ the resolved block, so a scene can:
 Overriding a key pins it to the scene, so a later change to the real camera's
 config cannot silently shift a sim test's behavior for that key; the non-overridden
 keys continue to track the instrument.
+
+The resolved block also fixes a rendered frame's unit class.  A ``raw_dn``
+instrument renders detector counts with a ``0`` missing-data marker.  A
+``calibrated_if`` instrument renders I/F, and its marker is whatever its block
+declares: ``NaN`` for the calibrated Cassini cameras, ``0`` for Voyager ISS,
+whose archived products fill lost pixels with zero.
+:func:`navigator_marker_value` reads the marker the way the navigator does, and
+:func:`frame_units_summary` states a rendered frame's units, range, and marker
+share for a scene author.
 """
 
+import math
 from collections.abc import Mapping
 from typing import Any
 
+import numpy as np
+
 from spindoctor.config import Config
+from spindoctor.support.types import NDArrayFloatType
 
 __all__ = [
     'GENERIC_INSTRUMENT_ALIASES',
     'SIM_INSTRUMENTS',
+    'frame_units_summary',
+    'navigator_marker_value',
     'navigator_matched_psf',
     'resolve_extfov_margin',
     'resolve_sim_inst_config',
@@ -49,6 +64,9 @@ SIM_INSTRUMENTS: dict[str, tuple[str, str | None]] = {
 
 # Names that resolve to the standalone, instrument-agnostic ``sim`` block.
 GENERIC_INSTRUMENT_ALIASES = frozenset({'generic', 'sim'})
+
+# The navigator's default for image_quality_thresholds.max_missing_frac_clean.
+_DEFAULT_MAX_MISSING_FRAC = 0.30
 
 
 def _deep_merge(base: Mapping[str, Any], overrides: Mapping[str, Any]) -> dict[str, Any]:
@@ -199,3 +217,75 @@ def resolve_extfov_margin(
             )
         return fallback_entry[size_v]
     return fallback_entry
+
+
+def navigator_marker_value(inst_config: Mapping[str, Any]) -> float:
+    """Return the missing-data marker the navigator applies to a frame of this block.
+
+    Reads ``noise.marker_value`` the way the navigator's instrument settings do: a
+    number is taken as is, the string ``'NaN'`` (any case) or ``None`` is NaN, and an
+    absent key defaults to ``0`` for a ``raw_dn`` block and to NaN for a
+    ``calibrated_if`` block.  The telemetry stage writes this value on a lost pixel,
+    so a simulated frame marks lost data exactly as the navigator expects.
+
+    Parameters:
+        inst_config: A resolved per-instrument config block.
+
+    Returns:
+        The marker value, possibly NaN.
+
+    Raises:
+        ValueError: If ``noise.marker_value`` is a string other than ``'NaN'``.
+    """
+    noise = inst_config.get('noise') or {}
+    raw_dn = str(inst_config.get('data_units', 'raw_dn')) == 'raw_dn'
+    value = noise.get('marker_value', 0 if raw_dn else None)
+    if value is None:
+        return math.nan
+    if isinstance(value, str):
+        if value.strip().lower() == 'nan':
+            return math.nan
+        raise ValueError(f'noise.marker_value string {value!r} must be "NaN" or numeric')
+    return float(value)
+
+
+def frame_units_summary(image: NDArrayFloatType, inst_config: Mapping[str, Any]) -> str:
+    """Describe a rendered frame's units, value range, and missing-data marker share.
+
+    The text names the units (``DN`` for a ``raw_dn`` block, ``I/F`` for a
+    ``calibrated_if`` block) and the finite value range, for example
+    ``'I/F 0 to 1.48'``.  When any pixel equals the navigator's marker (see
+    :func:`navigator_marker_value`; NaN pixels when the marker is NaN), it adds the
+    marker and the share of pixels carrying it, and, when that share exceeds the
+    block's ``image_quality_thresholds.max_missing_frac_clean`` (0.30 when absent),
+    it says that the navigator refuses the frame as missing-data dominant.  A
+    ``vgiss`` frame whose dark sky renders at exactly 0 I/F reads as missing data
+    this way.
+
+    Parameters:
+        image: The rendered frame.
+        inst_config: The resolved per-instrument config block the frame was
+            rendered with.
+
+    Returns:
+        One line of text for a status display.
+    """
+    arr = np.asarray(image, dtype=np.float64)
+    units = 'DN' if str(inst_config.get('data_units', 'raw_dn')) == 'raw_dn' else 'I/F'
+    finite = arr[np.isfinite(arr)]
+    if finite.size == 0:
+        text = f'{units}: no finite pixels'
+    else:
+        text = f'{units} {float(finite.min()):.4g} to {float(finite.max()):.4g}'
+    marker = navigator_marker_value(inst_config)
+    hits = np.isnan(arr) if math.isnan(marker) else arr == marker
+    share = float(hits.mean()) if arr.size else 0.0
+    if share == 0.0:
+        return text
+    marker_text = 'NaN' if math.isnan(marker) else f'{marker:g}'
+    text += f'; marker {marker_text} on {share * 100:.1f}% of pixels'
+    thresholds = inst_config.get('image_quality_thresholds') or {}
+    limit = float(thresholds.get('max_missing_frac_clean', _DEFAULT_MAX_MISSING_FRAC))
+    if share > limit:
+        text += f' (over {limit * 100:.0f}%: the navigator refuses it as missing data)'
+    return text

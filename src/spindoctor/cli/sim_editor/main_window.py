@@ -177,6 +177,8 @@ class CreateSimulatedImageModel(
         status_bar.addWidget(self._status_label)
         self._saturation_label = QLabel('')
         status_bar.addPermanentWidget(self._saturation_label)
+        self._units_label = QLabel('')
+        status_bar.addPermanentWidget(self._units_label)
         self._zoom_label = QLabel('Zoom: 1.00x')
         status_bar.addPermanentWidget(self._zoom_label)
         self.setStatusBar(status_bar)

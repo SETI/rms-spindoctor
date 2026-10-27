@@ -306,6 +306,14 @@ def test_saturation_overlay_off_clears_status(model: Any) -> None:
     assert model._saturation_label.text() == ''
 
 
+@pytest.mark.parametrize(('instrument', 'units'), [('coiss_nac', 'DN'), ('vgiss', 'I/F')])
+def test_units_label_names_the_rendered_units(model: Any, instrument: str, units: str) -> None:
+    """The status bar names the rendered frame's units after a render."""
+    model.sim_params['instrument'] = instrument
+    model._update_image()
+    assert model._units_label.text().split(' ')[0] == units
+
+
 def test_psf_preview_collapsed_by_default(model: Any) -> None:
     """The PSF preview pane starts collapsed with its inset hidden."""
     assert model._psf_group.isChecked() is False

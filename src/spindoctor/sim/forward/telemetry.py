@@ -57,7 +57,7 @@ from spindoctor.sim.forward.telemetry_artifacts import (
     apply_reseau_scars,
 )
 from spindoctor.sim.forward.telemetry_loss import LOSS_APPLIERS
-from spindoctor.sim.instruments import resolve_sim_inst_config
+from spindoctor.sim.instruments import navigator_marker_value, resolve_sim_inst_config
 from spindoctor.sim.seeds import derive_effect_seed
 
 __all__ = ['apply_telemetry']
@@ -100,7 +100,7 @@ def apply_telemetry(
     inst_config = resolve_sim_inst_config(
         DEFAULT_CONFIG, params.get('instrument'), params.get('instrument_config')
     )
-    marker_dn = _marker_value(inst_config)
+    marker_dn = navigator_marker_value(inst_config)
     dn_ceiling = _saturation_value(inst_config)
     random_seed = int(params.get('random_seed', 42))
     adversarial = bool(artifacts.get('adversarial', False))
@@ -160,12 +160,6 @@ def apply_telemetry(
 
     if records:
         frame.truth.setdefault('artifacts', {}).update(records)
-
-
-def _marker_value(inst_config: Mapping[str, Any]) -> float:
-    """The emulated instrument's missing-data marker DN (0, or NaN for calib)."""
-    inst_noise = inst_config.get('noise') or {}
-    return float(inst_noise.get('marker_value', 0))
 
 
 def _saturation_value(inst_config: Mapping[str, Any]) -> float:
@@ -228,8 +222,8 @@ def _apply_missing_data_markers(
     """Overwrite lost pixels with the missing-data marker (raw-DN path only).
 
     The generic per-pixel ``noise.missing_data_rate`` dropout stays as the
-    worst-case stress knob; it is applied only on the raw-DN path (the
-    calibrated path carries no marker convention at present fidelity).
+    worst-case stress knob, applied only on the raw-DN path.  The structured loss
+    modes write the marker on every path, calibrated frames included.
     """
     if inst_config.get('data_units', 'raw_dn') != 'raw_dn':
         return

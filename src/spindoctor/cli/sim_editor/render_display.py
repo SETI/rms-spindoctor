@@ -3,7 +3,10 @@
 Drives the live preview: it calls the renderer, stretches DN to a grayscale
 pixmap (with an optional saturation overlay and visual aids), applies the zoom
 scaling, hit-tests right-clicks to select and drag scene objects, renders the
-instrument PSF inset, and saves the current preview to PNG.
+instrument PSF inset, and saves the current preview to PNG.  The status bar
+names the frame's units and range and the share of pixels at the missing-data
+marker, because the preview stretch hides both: a ``vgiss`` frame in I/F looks
+the same as a ``coiss_nac`` frame in DN.
 """
 
 from typing import Any
@@ -15,7 +18,7 @@ from PyQt6.QtWidgets import QFileDialog, QFormLayout, QGroupBox, QLabel, QMessag
 
 from spindoctor.cli.sim_editor.base import SimEditorBase
 from spindoctor.config import DEFAULT_CONFIG
-from spindoctor.sim.instruments import resolve_sim_inst_config
+from spindoctor.sim.instruments import frame_units_summary, resolve_sim_inst_config
 from spindoctor.sim.render import render_combined_model
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 
@@ -126,6 +129,12 @@ class RenderDisplayMixin(SimEditorBase):
             return
         img_uint8 = _dn_to_display_uint8(self._current_image)
         height, width = img_uint8.shape
+        inst_config = resolve_sim_inst_config(
+            DEFAULT_CONFIG,
+            self.sim_params.get('instrument'),
+            self.sim_params.get('instrument_config'),
+        )
+        self._units_label.setText(frame_units_summary(self._current_image, inst_config))
         saturation_dn = self._current_saturation_dn()
         if self._show_saturation_overlay and saturation_dn is not None:
             rgb = np.repeat(img_uint8[:, :, np.newaxis], 3, axis=2)

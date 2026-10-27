@@ -63,6 +63,7 @@ class SimEditorBase(QMainWindow):
     _image_label: ImageLabel
     _status_label: QLabel
     _saturation_label: QLabel
+    _units_label: QLabel
     _zoom_label: QLabel
 
     # ---- Right tabs panel ----
