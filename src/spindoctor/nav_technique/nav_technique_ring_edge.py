@@ -27,6 +27,8 @@ from spindoctor.nav_technique.diagnostics import RingEdgeDiagnostics
 from spindoctor.nav_technique.dt_fit_gates import DTFitGateConfig, evaluate_dt_fit_gates
 from spindoctor.nav_technique.dt_fitting import (
     CoarseSearchResult,
+    _rotate_directions,
+    _rotate_vertices,
     build_polyline_mask,
     coarse_edge_strength_search_scored,
     coarse_ncc_search_scored,
@@ -534,12 +536,15 @@ class RingEdgeNav(NavTechnique):
             # strongest has found the faint contours of a smooth glow, not a
             # ring edge: the cataloged edges lie outside the frame at the true
             # pointing and the search dragged the model onto whatever the
-            # thresholded image offered.
+            # thresholded image offered.  The check reads the geometry the fit
+            # converged on: with rotation fitted, the model turns about
+            # ``pivot_vu`` (normals with it) before the offset applies.
+            fitted_rotation_rad = float(result.rotation_rad) if fit_rotation else 0.0
             edge_strength_fraction = _matched_edge_strength_fraction(
                 edge_dt,
                 gradient_vu,
-                vertices,
-                polarity_normals,
+                _rotate_vertices(vertices, pivot_vu, fitted_rotation_rad),
+                _rotate_directions(polarity_normals, fitted_rotation_rad),
                 (dv_final, du_final),
                 valid_mask=sensor_interior,
             )
