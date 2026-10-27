@@ -257,7 +257,7 @@ from.
 
    * - Instrument
      - hot_pixel_fraction
-     - cosmic_ray_rate_per_sec
+     - cosmic_ray_events_per_pixel_per_sec
      - Provenance
    * - ``coiss_calib_nac``
      - 1.6e-5
@@ -293,7 +293,8 @@ from.
      - n/a (vidicon path)
      - 0.0 (no chain stage)
      - The vidicon chain carries neither a hot-pixel nor a cosmic-ray stage, so
-       both are absent by construction.  The 3-frame GEOMED cohort measures a
+       both are absent by construction, and the scene validator refuses a
+       non-zero cosmic-ray rate on it.  The 3-frame GEOMED cohort measures a
        3.5e-5 transient fraction, mostly interpolated away by reseau-anchored
        resampling; unblocked by a DN-domain transient stage plus more Voyager
        frames.  (The vidicon read noise itself is tuned to the published
@@ -681,7 +682,7 @@ cannot close, it is recorded here rather than force-fitted:
 6. **Measured transients exceed what the cosmic-ray stage can express.**
    Every cohort measures a nonzero transient spike fraction (NAC 2.75e-4,
    WAC 4.89e-4, Galileo 1.17e-4, LORRI 3.36e-4 per frame), yet no
-   catalog entry adopts a ``cosmic_ray_rate_per_sec``: the Cassini
+   catalog entry adopts a ``cosmic_ray_events_per_pixel_per_sec``: the Cassini
    incidence is exposure-independent (readout-dominated) and
    modest-amplitude while the chain's stage scales event counts with
    exposure and deposits near full well -- an adoption attempt

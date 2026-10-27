@@ -153,8 +153,10 @@ Fields
                                      expected-outcome test machinery -- fed to
                                      neither the renderer nor the navigator
   noise            (mapping, opt)    poisson, read_noise_dn, bias_dn,
-                                     cosmic_ray_rate_per_sec, missing_data_rate,
-                                     bloom_length, signal_full_scale_frac, pixel_area_cm2,
+                                     cosmic_ray_events_per_pixel_per_sec (expected
+                                     events per pixel per second of exposure; CCD
+                                     chain only, refused non-zero on the vidicon),
+                                     missing_data_rate, bloom_length, signal_full_scale_frac,
                                      dark_current_e_per_sec, hot_pixel_fraction,
                                      hot_pixel_amplitude_e, hot_pixel_column_factor,
                                      banding_amplitude_e, banding_period_px,

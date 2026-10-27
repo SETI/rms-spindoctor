@@ -588,7 +588,8 @@ intensive signal passes through the electron unit chain in
    for Cassini), not from the ADC clip.
 5. **Cosmic rays and read noise.** Cosmic rays deposit above the well after the
    bloom cap, so they reach the ADC ceiling and land on the orchestrator's
-   masks. Gaussian read noise is added in electrons.
+   masks. The event count is a Poisson draw with mean
+   ``cosmic_ray_events_per_pixel_per_sec`` x ``exposure_sec`` x pixel count. Gaussian read noise is added in electrons.
 6. **Banding, gain to DN, bias structure.** Coherent banding is added in
    electrons; the image is divided by ``gain_e_per_dn`` and offset by the bias
    pedestal into DN; low-order bias structure (per-image pedestal jitter,
@@ -664,8 +665,9 @@ emulated camera's physical signal chain at catalog values: the whole-scene PSF
 kernel and the residual-distortion amplitude
 (:func:`~spindoctor.sim.forward.optics.instrument_defaults_on` gates the optics
 side), and the detector electron chain's Poisson shot noise, read noise, dark
-current, hot pixels, full-well bloom, banding, and bias structure (the
-detector side reads the same switch). An explicit ``noise`` key still wins in
+current, hot pixels, full-well bloom, banding, bias structure, and cosmic-ray
+rate (the detector side reads the same switch; every catalog entry records a
+cosmic-ray rate of zero, each with its reason). An explicit ``noise`` key still wins in
 either direction -- ``noise: {poisson: false}`` turns the shot term off under
 instrument defaults. It turns on only the *physical* chain: the artifact modes
 (whole-line telemetry loss, compression-block dropouts, radiation transients, and
@@ -2704,12 +2706,16 @@ key fails loudly.
      - instrument
      - Additive bias pedestal; lifts dark sky off zero so it is not confused with
        the missing-data marker.
-   * - ``cosmic_ray_rate_per_sec``
+   * - ``cosmic_ray_events_per_pixel_per_sec``
      - float
      - 0.0
-     - Cosmic-ray fluence (events / cm^2 / sec), scaled by ``exposure_sec``.
-       Stays 0 under ``instrument_defaults`` (a loss mode, not physical-chain
-       noise).
+     - Expected cosmic-ray events per pixel per second of exposure: a frame's
+       event count is a Poisson draw with mean rate x ``exposure_sec`` x pixel
+       count. ``instrument_defaults`` supplies the catalog rate (0.0 for every
+       instrument). The CCD chain alone has a cosmic-ray stage, so the
+       validator refuses a non-zero value when the detector model resolves to
+       ``vidicon`` (``vgiss``, or any scene that sets
+       ``detector.detector_model: vidicon``).
    * - ``missing_data_rate``
      - float
      - 0.0
@@ -2724,10 +2730,6 @@ key fails loudly.
      - float
      - instrument
      - Well fraction a signal of 1.0 fills at the reference exposure.
-   * - ``pixel_area_cm2``
-     - float
-     - 1.0
-     - Detector pixel area; scales the cosmic-ray count.
    * - ``dark_current_e_per_sec``
      - float
      - 0 (off)
@@ -2767,6 +2769,12 @@ key fails loudly.
      - Vidicon DN-noise sub-map (vidicon path only): ``read_noise_line_dn``,
        ``read_noise_pixel_dn``, ``coherent_amplitude_dn``,
        ``coherent_period_px``.
+
+The validator refuses two retired noise keys with a message that names what
+happened to each (``RENAMED_NOISE_KEYS`` in :mod:`spindoctor.sim.scene_checks`):
+``cosmic_ray_rate_per_sec`` was renamed to
+``cosmic_ray_events_per_pixel_per_sec``, and ``pixel_area_cm2`` was removed,
+because the rate is already per pixel.
 
 Physical saturation caps the electron image at the full well before gain (with
 ``bloom_length`` spreading the excess along the column); the ADC clip at
@@ -3042,8 +3050,9 @@ realism addition needs -- live in their own module:
      - Image size, planted offset and camera roll, exposure, seed, instrument
        selector, camera-rotation-fit override, midtime, closest planet.
    * - ``noise.py``
-     - Poisson, read noise, bias, cosmic-ray rate, missing-data rate, bloom,
-       signal full-scale fraction, pixel area (General tab).
+     - Poisson, read noise, bias, cosmic-ray rate (events per pixel per
+       second), missing-data rate, bloom, and signal full-scale fraction
+       (General tab).
    * - ``optics_tab.py``
      - The Optics tab: PSF, motion smear, distortion, ghosts, the stray-light
        panel, oversample, and the spacecraft-ephemeris error group. Each
