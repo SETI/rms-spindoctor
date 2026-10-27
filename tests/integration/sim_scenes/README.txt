@@ -327,9 +327,9 @@ the ascending node.
                         eccentricity times a_px), long_peri_deg,
                         rate_peri_deg_per_day
   orbit.modes[]         m (an integer of at least 2: mode 1 is the base
-                        ellipse), amp_px, long_peri_deg (the longitude of one
-                        of the mode's m pericenters); the edge radius is
-                        a_px - amp_px * cos(m * (lam - long_peri_deg))
+                        ellipse), amp_px, peri_deg (the longitude of one of
+                        the mode's m pericenters); the edge radius is
+                        a_px - amp_px * cos(m * (lam - peri_deg))
   orbit.edge_wave       amp_px, wavelength_px (an arc length along the orbit),
                         damping_rad (at most 2), lam0_deg (the launch
                         longitude)
@@ -341,6 +341,11 @@ the ascending node.
   azimuthal.spokes      count, r_inner_px, r_outer_px, contrast, width_deg
   moonlets[]            a_px, lam_deg, radius_px, amplitude, and a propeller
                         {length_deg, width_px, contrast}
+
+A mode's peri_deg is its own longitude, apart from mode 1's long_peri_deg.  It
+stays fixed in time (rate_peri_deg_per_day precesses mode 1 only),
+orbit_error.delta_long_peri_deg doesn't shift it, and
+declared_orbit_sigma.sigma_long_peri_deg doesn't describe it.
 
 A wave feature's damping_px and an edge wave's damping_rad are both the e-folding
 length of a damped wave's envelope.  The wave feature's runs radially, in

@@ -361,7 +361,7 @@ _GUI_GALLERY: list[tuple[str, dict[str, Any], dict[str, Any]]] = [
                         'navigable': True,
                         'orbit': {
                             'a_px': 70.0,
-                            'modes': [{'m': 2, 'amp_px': 5.0, 'long_peri_deg': 40.0}],
+                            'modes': [{'m': 2, 'amp_px': 5.0, 'peri_deg': 40.0}],
                         },
                     },
                 ],

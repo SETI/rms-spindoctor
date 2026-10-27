@@ -872,7 +872,7 @@ def test_validate_sim_params_accepts_orbit_modes_and_edge_wave() -> None:
         'ae_px': 1.0,
         'long_peri_deg': 10.0,
         'rate_peri_deg_per_day': 0.5,
-        'modes': [{'m': 2, 'amp_px': 1.5, 'long_peri_deg': 30.0}],
+        'modes': [{'m': 2, 'amp_px': 1.5, 'peri_deg': 30.0}],
         'edge_wave': {'amp_px': 1.0, 'wavelength_px': 8.0, 'damping_rad': 0.5, 'lam0_deg': 90.0},
     }
     assert validate_sim_params(params) is params
@@ -882,7 +882,7 @@ def test_validate_sim_params_rejects_mode_1_in_modes_list() -> None:
     """The modes list carries m >= 2 only (mode 1 is the base ellipse)."""
     params = _ring_system_params()
     params['ring_system']['features'][0]['orbit']['modes'] = [
-        {'m': 1, 'amp_px': 1.0, 'long_peri_deg': 0.0}
+        {'m': 1, 'amp_px': 1.0, 'peri_deg': 0.0}
     ]
     with pytest.raises(SimSceneValidationError, match=r'modes\[0\]\.m must be an integer >= 2'):
         validate_sim_params(params)
@@ -892,7 +892,7 @@ def test_validate_sim_params_rejects_unknown_mode_key() -> None:
     """An unmodeled m-mode key fails validation."""
     params = _ring_system_params()
     params['ring_system']['features'][0]['orbit']['modes'] = [
-        {'m': 2, 'amp_px': 1.0, 'long_peri_deg': 0.0, 'rate': 1.0}
+        {'m': 2, 'amp_px': 1.0, 'peri_deg': 0.0, 'rate': 1.0}
     ]
     with pytest.raises(SimSceneValidationError, match=r'modes\[0\].*rate'):
         validate_sim_params(params)

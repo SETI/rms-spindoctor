@@ -227,7 +227,7 @@ _FULL_SCENE: dict[str, Any] = {
                     'ae_px': 2.0,
                     'long_peri_deg': 10.0,
                     'rate_peri_deg_per_day': 0.5,
-                    'modes': [{'m': 2, 'amp_px': 1.5, 'long_peri_deg': 70.0}],
+                    'modes': [{'m': 2, 'amp_px': 1.5, 'peri_deg': 70.0}],
                     'edge_wave': {
                         'amp_px': 1.0,
                         'wavelength_px': 8.0,

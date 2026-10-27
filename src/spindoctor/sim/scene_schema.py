@@ -358,8 +358,9 @@ RENAMED_RING_KEYS: dict[str, dict[str, tuple[str, str]]] = {
     'ring_system.features.orbit.modes': {
         'amp': ('amp_px', 'the radial amplitude, in ring-plane pixels'),
         'peri': (
-            'long_peri_deg',
-            "the longitude of one of the mode's m pericenters, in degrees from the ascending node",
+            'peri_deg',
+            "the longitude of one of the mode's m pericenters, in degrees from the "
+            'ascending node; it stays fixed in time',
         ),
     },
     'ring_system.features.orbit.edge_wave': {

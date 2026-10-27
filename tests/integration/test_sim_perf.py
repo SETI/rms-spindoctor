@@ -209,7 +209,7 @@ def _ring_psf_detector_scene(size: int) -> dict[str, Any]:
                 'ae_px': 1.0 * scale,
                 'long_peri_deg': 10.0 * index,
                 'rate_peri_deg_per_day': 0.0,
-                'modes': [{'m': 3, 'amp_px': 1.5 * scale, 'long_peri_deg': 20.0}],
+                'modes': [{'m': 3, 'amp_px': 1.5 * scale, 'peri_deg': 20.0}],
             },
         }
         if kind in ('ringlet', 'gap'):

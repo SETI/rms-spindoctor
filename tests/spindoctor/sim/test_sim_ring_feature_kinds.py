@@ -71,7 +71,7 @@ def test_orbit_mapping_parses_modes_and_edge_wave() -> None:
     orbit = ring_orbit_from_mapping(
         {
             'a_px': 40.0,
-            'modes': [{'m': 2, 'amp_px': 1.5, 'long_peri_deg': 70.0}],
+            'modes': [{'m': 2, 'amp_px': 1.5, 'peri_deg': 70.0}],
             'edge_wave': {
                 'amp_px': 1.0,
                 'wavelength_px': 8.0,
@@ -93,7 +93,7 @@ def test_scaled_orbit_scales_radial_quantities_only() -> None:
             'a_px': 40.0,
             'ae_px': 2.0,
             'long_peri_deg': 15.0,
-            'modes': [{'m': 2, 'amp_px': 1.5, 'long_peri_deg': 70.0}],
+            'modes': [{'m': 2, 'amp_px': 1.5, 'peri_deg': 70.0}],
             'edge_wave': {
                 'amp_px': 1.0,
                 'wavelength_px': 8.0,
@@ -434,7 +434,7 @@ def test_m_mode_peri_lives_in_the_ring_plane_frame() -> None:
         'kind': 'ringlet',
         'tau': 1.5,
         'width_px': width,
-        'orbit': {'a_px': a, 'modes': [{'m': 2, 'amp_px': amp, 'long_peri_deg': peri}]},
+        'orbit': {'a_px': a, 'modes': [{'m': 2, 'amp_px': amp, 'peri_deg': peri}]},
     }
     maps = render_ring_system(
         (_SIZE, _SIZE),

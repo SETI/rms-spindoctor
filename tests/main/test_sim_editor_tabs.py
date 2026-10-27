@@ -965,7 +965,7 @@ def test_ring_mode_add_and_remove_row(model: Any) -> None:
     tab = _ring_tab(model)
     model._on_ring_add_mode(0)
     modes = _ring(model)['orbit']['modes']
-    assert set(modes[0]) == {'m', 'amp_px', 'long_peri_deg'}
+    assert set(modes[0]) == {'m', 'amp_px', 'peri_deg'}
     model._remove_ring_mode_row(0, tab.mode_rows[0])
     assert 'modes' not in _ring(model)['orbit']
 

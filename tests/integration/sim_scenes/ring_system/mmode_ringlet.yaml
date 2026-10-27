@@ -6,8 +6,8 @@ size_u: 220
 random_seed: 12
 exposure_sec: 1.0
 # A resonantly forced m = 2 ringlet (the B-ring outer-edge shape:
-# r = a_px - amp_px*cos(2*(lam - long_peri_deg)) with amp_px 5 at
-# long_peri_deg 40 in the ring-plane frame), viewed inclined at B = 65
+# r = a_px - amp_px*cos(2*(lam - peri_deg)) with amp_px 5 at
+# peri_deg 40 in the ring-plane frame), viewed inclined at B = 65
 # with a rotated node.  The mode is catalog knowledge in the navigable
 # feature's orbit, so both sides place the same two-lobed edges and the
 # planted offset is recoverable through the projection.
@@ -31,7 +31,7 @@ ring_system:
         long_peri_deg: 0.0
         rate_peri_deg_per_day: 0.0
         modes:
-          - {m: 2, amp_px: 5.0, long_peri_deg: 40.0}
+          - {m: 2, amp_px: 5.0, peri_deg: 40.0}
 noise:
   poisson: true
   read_noise_dn: 4.0

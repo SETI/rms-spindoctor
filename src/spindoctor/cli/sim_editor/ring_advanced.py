@@ -130,11 +130,11 @@ class RingAdvancedMixin(SimEditorBase):
     # ---- Orbit m-modes ----
 
     def _build_ring_modes_group(self, w: QWidget, idx: int, p: dict[str, Any]) -> QGroupBox:
-        """Build the orbit m-modes group (a list of ``{m, amp_px, long_peri_deg}`` rows)."""
+        """Build the orbit m-modes group (a list of ``{m, amp_px, peri_deg}`` rows)."""
         group = QGroupBox('Orbit m-modes')
         group.setToolTip(
             'Resonantly forced radial modes on the catalog orbit: '
-            'r = a_px - amp_px*cos(m*(lam - long_peri_deg)), with m >= 2 (mode 1 '
+            'r = a_px - amp_px*cos(m*(lam - peri_deg)), with m >= 2 (mode 1 '
             'is the base ellipse). No rows leaves the key absent.'
         )
         outer = QVBoxLayout(group)
@@ -174,11 +174,11 @@ class RingAdvancedMixin(SimEditorBase):
             maximum=360.0,
             decimals=1,
             step=5.0,
-            value=float(entry.get('long_peri_deg', 0.0)),
-            tooltip=_key_tooltip(block, 'long_peri_deg'),
+            value=float(entry.get('peri_deg', 0.0)),
+            tooltip=_key_tooltip(block, 'peri_deg'),
         )
         remove_btn = QPushButton('Remove')
-        for label, widget in (('m', m_spin), ('amp (px)', amp), ('long_peri (deg)', peri)):
+        for label, widget in (('m', m_spin), ('amp (px)', amp), ('peri (deg)', peri)):
             row.addWidget(QLabel(label))
             row.addWidget(widget)
         row.addWidget(remove_btn)
@@ -197,7 +197,7 @@ class RingAdvancedMixin(SimEditorBase):
             {
                 'm': int(r.m_spin.value()),
                 'amp_px': float(r.amp_spin.value()),
-                'long_peri_deg': float(r.peri_spin.value()),
+                'peri_deg': float(r.peri_spin.value()),
             }
             for r in rows
         ]

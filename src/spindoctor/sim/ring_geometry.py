@@ -190,7 +190,8 @@ class RingOrbitMode:
     the same radial units as the semimajor axis; ``peri`` is the longitude
     of one of the mode's ``m`` pericenters in degrees, in the ring-plane frame
     (the sky node angle never enters the orbit model).  The scene keys are
-    ``amp_px`` and ``long_peri_deg``.
+    ``amp_px`` and ``peri_deg``.  Unlike the mode-1 ``long_peri``, ``peri``
+    stays fixed in time: :func:`compute_orbit_radii` precesses only mode 1.
 
     Parameters:
         m: Mode number (2 or greater; the mode-1 shape is the base ellipse).
@@ -326,7 +327,7 @@ def ring_orbit_from_mapping(orbit: Mapping[str, Any]) -> RingOrbit:
         RingOrbitMode(
             m=int(mode['m']),
             amp=float(mode.get('amp_px', 0.0)),
-            peri=float(mode.get('long_peri_deg', 0.0)),
+            peri=float(mode.get('peri_deg', 0.0)),
         )
         for mode in orbit.get('modes') or []
     )

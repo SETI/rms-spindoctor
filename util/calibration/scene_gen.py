@@ -508,7 +508,7 @@ def _ring_feature(
                 {
                     'm': rng.randint(2, 7),
                     'amp_px': rng.uniform(0.5, 4.0),
-                    'long_peri_deg': rng.uniform(0.0, 360.0),
+                    'peri_deg': rng.uniform(0.0, 360.0),
                 }
             ]
     if rng.random() < _RING_EDGE_WAVE_FRAC:

@@ -1855,11 +1855,16 @@ otherwise. The base is the mode-1 precessing ellipse (``a_px``, ``ae_px``,
 ``time - ring_epoch``). Two perturbation families ride on it:
 
 - ``modes`` (m >= 2): resonantly forced radial modes,
-  ``r = a_px - amp_px cos(m (lam - long_peri_deg))``. An ``m = 2`` mode is the classic
+  ``r = a_px - amp_px cos(m (lam - peri_deg))``. An ``m = 2`` mode is the classic
   two-lobed outer-B-ring edge shape; higher m gives the scalloped
   multi-lobed edges of resonantly confined ringlets. The mode longitudes
   live in the ring-plane frame (measured from the ascending node), so the
-  lobes foreshorten correctly under an inclined view.
+  lobes foreshorten correctly under an inclined view. A mode's ``peri_deg``
+  is its own longitude, apart from mode 1's ``long_peri_deg``, and three
+  things that move or bound mode 1 leave it alone: it stays fixed in time
+  (``rate_peri_deg_per_day`` precesses mode 1 only), the planted
+  ``orbit_error.delta_long_peri_deg`` doesn't shift it, and
+  ``declared_orbit_sigma.sigma_long_peri_deg`` doesn't describe it.
 - ``edge_wave``: a satellite edge wave -- the Daphnis/Pan signature -- a
   radial sinusoid whose azimuthal wavelength is an arc length and whose
   amplitude decays exponentially *downstream* of the perturbing moon's
@@ -2686,11 +2691,12 @@ overlap, and the would-be annulus is only where tau doubles. A band is a
 The ``orbit`` map is the catalog orbit: the mode-1 precessing ellipse
 (``a_px``, ``ae_px`` (the eccentricity times ``a_px``), ``long_peri_deg``, and
 ``rate_peri_deg_per_day``, applied across the scene-level ``time`` minus
-``ring_epoch``), optional ``modes`` (``{m, amp_px, long_peri_deg}``:
-``r = a_px - amp_px*cos(m*(lam - long_peri_deg))``, the resonantly forced edge
+``ring_epoch``), optional ``modes`` (``{m, amp_px, peri_deg}``:
+``r = a_px - amp_px*cos(m*(lam - peri_deg))``, the resonantly forced edge
 shape, where ``m`` is an integer of at least 2 because mode 1 is the base
-ellipse and ``long_peri_deg`` is the longitude of one of the mode's ``m``
-pericenters), and an optional satellite ``edge_wave``
+ellipse and ``peri_deg`` is the longitude of one of the mode's ``m``
+pericenters, fixed in time and untouched by the mode-1 ``orbit_error`` and
+``declared_orbit_sigma`` keys), and an optional satellite ``edge_wave``
 (``{amp_px, wavelength_px, damping_rad, lam0_deg}``: a damped sinusoid
 downstream of the perturbing moon's longitude ``lam0_deg``, whose sine argument
 is the arc length along the orbit over ``wavelength_px``). The edge wave's

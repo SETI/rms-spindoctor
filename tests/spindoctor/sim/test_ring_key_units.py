@@ -55,7 +55,7 @@ _EXPECTED_RENAMES: dict[str, dict[str, str]] = {
         'long_peri': 'long_peri_deg',
         'rate_peri': 'rate_peri_deg_per_day',
     },
-    'ring_system.features.orbit.modes': {'amp': 'amp_px', 'peri': 'long_peri_deg'},
+    'ring_system.features.orbit.modes': {'amp': 'amp_px', 'peri': 'peri_deg'},
     'ring_system.features.orbit.edge_wave': {
         'amp': 'amp_px',
         'wavelength': 'wavelength_px',
@@ -135,7 +135,7 @@ def _full_scene() -> dict[str, Any]:
         'ae_px': 1.0,
         'long_peri_deg': 10.0,
         'rate_peri_deg_per_day': 0.5,
-        'modes': [{'m': 2, 'amp_px': 1.5, 'long_peri_deg': 30.0}],
+        'modes': [{'m': 2, 'amp_px': 1.5, 'peri_deg': 30.0}],
         'edge_wave': {'amp_px': 1.0, 'wavelength_px': 8.0, 'damping_rad': 0.5, 'lam0_deg': 90.0},
     }
     return _scene(

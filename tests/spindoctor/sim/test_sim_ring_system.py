@@ -153,7 +153,7 @@ def test_feature_annulus_bounding_matches_full_grid_evaluation() -> None:
         'ae_px': 1.5,
         'long_peri_deg': 40.0,
         'rate_peri_deg_per_day': 0.0,
-        'modes': [{'m': 3, 'amp_px': 0.8, 'long_peri_deg': 10.0}],
+        'modes': [{'m': 3, 'amp_px': 0.8, 'peri_deg': 10.0}],
         'edge_wave': {'amp_px': 0.6, 'wavelength_px': 9.0, 'damping_rad': 0.5, 'lam0_deg': 45.0},
     }
     system = _system([feature], b_obs=b_obs, node=node)

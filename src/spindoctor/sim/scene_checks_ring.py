@@ -49,7 +49,7 @@ _RING_FEATURE_KINDS: frozenset[str] = frozenset(RING_KIND_SHAPE_KEYS)
 _RING_FEATURE_ORBIT_KEYS: frozenset[str] = frozenset(
     {'a_px', 'ae_px', 'long_peri_deg', 'rate_peri_deg_per_day', 'modes', 'edge_wave'}
 )
-_RING_ORBIT_MODE_KEYS: frozenset[str] = frozenset({'m', 'amp_px', 'long_peri_deg'})
+_RING_ORBIT_MODE_KEYS: frozenset[str] = frozenset({'m', 'amp_px', 'peri_deg'})
 _RING_EDGE_WAVE_KEYS: frozenset[str] = frozenset(
     {'amp_px', 'wavelength_px', 'damping_rad', 'lam0_deg'}
 )
@@ -524,9 +524,10 @@ def _check_ring_feature_orbit(orbit: Any, *, label: str, source: str) -> None:
     """Validate one feature's ``orbit`` mapping (mode 1 + modes + edge wave).
 
     Every key names its unit.  Every orbital angle (``long_peri_deg``, a
-    mode's ``long_peri_deg``, the edge wave's ``lam0_deg``) is a ring-plane
+    mode's ``peri_deg``, the edge wave's ``lam0_deg``) is a ring-plane
     longitude in degrees measured from the ascending node, and
-    ``rate_peri_deg_per_day`` a precession rate.  The edge wave's
+    ``rate_peri_deg_per_day`` mode 1's precession rate (a mode's ``peri_deg``
+    stays fixed).  The edge wave's
     ``damping_rad`` is in radians of downstream longitude.  ``a_px``,
     ``ae_px``, and the ``amp_px`` amplitudes are radial distances, and the edge
     wave's ``wavelength_px`` an arc length, all in ring-plane pixels.  An
@@ -582,7 +583,7 @@ def _check_ring_feature_orbit(orbit: Any, *, label: str, source: str) -> None:
             mode.get('amp_px'), f'{mode_label}.amp_px', source=source
         )
         _check_optional_number(
-            mode.get('long_peri_deg'), f'{mode_label}.long_peri_deg', source=source
+            mode.get('peri_deg'), f'{mode_label}.peri_deg', source=source
         )
     wave = orbit.get('edge_wave')
     if wave is not None:
