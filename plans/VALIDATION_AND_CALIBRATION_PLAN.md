@@ -201,15 +201,26 @@ carry the methodology and acceptance criteria):
 > is a per-frame check that a run's own confidence cannot give, which is why it
 > is worth running where it reaches: `util/nav_verification/` holds the
 > comparison, and a second such answer -- the B ring spokes bundle -- is #637.
-> Any comparison against it separates the constant from the per-frame part
-> before quoting a number, because a pipeline-wide datum error appears there as
-> a constant common to every frame of every observation, a difference of pixel
-> datum rather than of pointing. On this comparison the constant is the
-> quantity to read and not the residual left after it is removed, which is why
-> `compare_pointing.py` gates it at `COMMON_OFFSET_TOLERANCE_PX` and names a
-> breach a coordinate defect rather than merely printing it. A run of fewer
-> than `MIN_FRAMES_FOR_COMMON_OFFSET` agreeing frames measures no constant at
-> all and folds it silently into every residual, so a small run is not a check.
+> A C-matrix is an absolute attitude, so every difference against it is a
+> pointing difference, and `compare_pointing.py` judges each frame on the
+> difference as measured: within 1 px it agrees, beyond 2 px it is wrong, and
+> between the two it is marginal. A pipeline-wide coordinate defect appears there
+> as a difference shared by every frame of every observation, so the median
+> signed difference over the agreeing frames is reported on its own line, gated
+> at `COMMON_OFFSET_TOLERANCE_PX`, and never subtracted from the per-frame
+> numbers. A run of fewer than `MIN_FRAMES_FOR_COMMON_OFFSET` agreeing frames
+> measures no shared difference, so a small run is not a check of it.
+> The bundle's WAC C-matrices leave out the WAC frame offset, `(-7, +4.4)` NAC
+> pixels, that oops applied until early 2025 (rms-oops 08066b302a and c725d6fc24)
+> and that most of the bundle's navigation offsets were measured with. The bundle
+> reader restores it before comparing, except on 21 named WAC frames whose offsets
+> were measured after the change: eleven of the twelve images f-ring commit 1895396
+> added to the mosaic lists in 2025, and ten manual offsets that, by the image
+> stars, were evidently entered after it. The report counts both kinds. Without the
+> restoration the WAC frames shared a 0.76 px difference that was the bundle's; with
+> it the star-navigated WAC frames share `+0.003, +0.001` px and 2270 of 2448 WAC
+> frames agree within 1 px rather than 1837 (#759). The cause is filed against the
+> bundle as rfrenchseti/f-ring#14.
 >
 > Therefore the strategy is: **measure absolute accuracy only in a simulation that
 > is (a) independent of the navigator and (b) proven realistic against real
