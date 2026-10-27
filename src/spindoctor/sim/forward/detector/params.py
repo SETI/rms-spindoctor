@@ -12,7 +12,7 @@ unconfigured scene renders a clean DN frame, per the stage-activation rule).
 ``instrument_defaults`` turns on the whole physical chain, including Poisson
 shot noise, the catalog's electron-domain full-well bloom, and the catalog's
 ``cosmic_ray_events_per_pixel_per_sec`` (radiation on the detector is physics
-of the environment, not a transmission defect; every entry records either a
+of the environment, not a transmission defect; every CCD entry records either a
 cohort-measured rate or a retained zero); the
 missing-data loss modes are transmission artifacts, not physical-chain noise,
 and stay off.

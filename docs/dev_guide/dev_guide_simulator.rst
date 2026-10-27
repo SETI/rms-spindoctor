@@ -626,7 +626,8 @@ intensive signal passes through the electron unit chain in
 5. **Cosmic rays and read noise.** Cosmic rays deposit above the well after the
    bloom cap, so they reach the ADC ceiling and land on the orchestrator's
    masks. The event count is a Poisson draw with mean
-   ``cosmic_ray_events_per_pixel_per_sec`` x ``exposure_sec`` x pixel count. Gaussian read noise is added in electrons.
+   ``cosmic_ray_events_per_pixel_per_sec`` x ``exposure_sec`` x pixel count.
+   Gaussian read noise is added in electrons.
 6. **Banding, gain to DN, bias structure.** Coherent banding is added in
    electrons; the image is divided by ``gain_e_per_dn`` and offset by the bias
    pedestal into DN; low-order bias structure (per-image pedestal jitter,
@@ -703,10 +704,10 @@ kernel and the residual-distortion amplitude
 (:func:`~spindoctor.sim.forward.optics.instrument_defaults_on` gates the optics
 side), and the detector electron chain's Poisson shot noise, read noise, dark
 current, hot pixels, full-well bloom, banding, bias structure, and cosmic-ray
-rate (the detector side reads the same switch; every catalog entry records a
-cosmic-ray rate of zero, each with its reason). An explicit ``noise`` key still wins in
-either direction -- ``noise: {poisson: false}`` turns the shot term off under
-instrument defaults. It turns on only the *physical* chain: the artifact modes
+rate (the detector side reads the same switch; every CCD entry records a
+cosmic-ray rate of zero, each with its reason). An explicit ``noise`` key still
+wins in either direction -- ``noise: {poisson: false}`` turns the shot term off
+under instrument defaults. It turns on only the *physical* chain: the artifact modes
 (whole-line telemetry loss, compression-block dropouts, radiation transients, and
 the like) keep their activation keys at zero, so a defaults scene is a
 clean-but-realistic frame, not a damaged one.
@@ -2837,7 +2838,11 @@ The validator refuses two retired noise keys with a message that names what
 happened to each (``RENAMED_NOISE_KEYS`` in :mod:`spindoctor.sim.scene_checks`):
 ``cosmic_ray_rate_per_sec`` was renamed to
 ``cosmic_ray_events_per_pixel_per_sec``, and ``pixel_area_cm2`` was removed,
-because the rate is already per pixel.
+because the rate is already per pixel. A scene names every retired key it
+carries in one message. The configuration's ``sim.noise`` section, which a user
+overlay can change and the scene validator never sees, is checked against the
+same table when a frame renders: a retired key there fails the render with a
+``DetectorParamError`` naming each one.
 
 Physical saturation caps the electron image at the full well before gain (with
 ``bloom_length`` spreading the excess along the column); the ADC clip at
@@ -2950,8 +2955,8 @@ chain: ``gain_state`` (the electron-chain gain state, which must be cataloged
 for the instrument), ``detector_model`` (``ccd`` electron chain or ``vidicon``
 DN chain), ``exposure_ref_sec`` (the exposure the signal full-scale fraction
 references), and ``quantization`` (the ADC sub-mode: ``exact``, ``8bit``,
-``uneven_12bit``, or ``sqrt_lut``). Omitted keys fall back to the instrument's
-catalog defaults.
+``uneven_12bit``, or ``sqrt_lut``). Omitted keys, and keys set to null, fall
+back to the instrument's catalog defaults.
 
 .. _sim-artifacts-block:
 

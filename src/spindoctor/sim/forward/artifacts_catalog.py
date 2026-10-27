@@ -284,7 +284,7 @@ DETECTOR_DEFAULTS: dict[str, dict[str, Any]] = {
         # But the measured incidence is exposure-INdependent -- mean
         # fraction ~2e-4 in every exposure band from <= 0.2 s to > 2 s,
         # and the 22 s frame measures 1.1e-4 where an exposure-scaling
-        # fluence fitted at the median frame predicts ~3e-3 -- while this
+        # rate fitted at the median frame predicts ~3e-3 -- while this
         # chain's cosmic-ray stage scales event counts with exposure_sec
         # and deposits near full well.  Adopting a fitted 1.5e-4
         # events/px/s (tried 2026-07-17) corrupted the matched frames'
