@@ -8,7 +8,11 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from util.nav_verification.bundle_cassini_fring import NAC_PLATE_SCALE_URAD, WAC_PLATE_SCALE_URAD
+from util.nav_verification.bundle_cassini_fring import (
+    NAC_PLATE_SCALE_URAD,
+    WAC_OFFSET_RESTORED,
+    WAC_PLATE_SCALE_URAD,
+)
 from util.nav_verification.compare_pointing import (
     COMMON_OFFSET_TOLERANCE_PX,
     FrameComparison,
@@ -380,7 +384,9 @@ def test_an_answer_behind_the_camera_is_still_measured(tmp_path: Path) -> None:
     assert rows[0].error_x_px is None
 
 
-def one_pixel_apart(tmp_path: Path, image: str, camera: str, columns: int) -> FrameComparison:
+def one_pixel_apart(
+    tmp_path: Path, image: str, camera: str, columns: int, *, header: str = ''
+) -> FrameComparison:
     """Compare a record against a bundle answer one microradian from it.
 
     Parameters:
@@ -388,6 +394,7 @@ def one_pixel_apart(tmp_path: Path, image: str, camera: str, columns: int) -> Fr
         image: The image name.
         camera: The camera the record names.
         columns: The frame's width in pixels.
+        header: Lines to put at the top of the bundle's supplementary file.
     """
     document = {
         'status': 'success',
@@ -408,7 +415,7 @@ def one_pixel_apart(tmp_path: Path, image: str, camera: str, columns: int) -> Fr
     (
         collection / OBSERVATION.lower() / f'{image[1:]}{image[0].lower()}_reproj_img_suppl.txt'
     ).write_text(
-        'Navigation Type = Stars\n'
+        f'{header}Navigation Type = Stars\n'
         'C-Matrix =\n'
         f'  {math.cos(angle):.15f} 0.0 {-math.sin(angle):.15f}\n'
         '  0.0 1.0 0.0\n'
@@ -431,3 +438,20 @@ def test_a_summed_frame_is_measured_in_its_own_pixels(tmp_path: Path) -> None:
     """A frame summed two by two has pixels twice as wide."""
     row = one_pixel_apart(tmp_path, 'N1000000001', 'NAC', 512)
     assert row.error_px == pytest.approx(1.0 / (2.0 * NAC_PLATE_SCALE_URAD), rel=1e-6)
+
+
+def test_the_bundle_readers_note_is_carried_to_the_comparison(tmp_path: Path) -> None:
+    """A WAC answer whose offset the reader restored says so in its row."""
+    row = one_pixel_apart(
+        tmp_path, 'W1000000001', 'WAC', 1024, header='Source Data Product ID = 1000000001w_calib\n'
+    )
+    assert row.bundle_note == WAC_OFFSET_RESTORED
+
+
+def test_the_report_counts_what_the_bundle_reader_did(capsys: pytest.CaptureFixture[str]) -> None:
+    """The frames whose bundle answer was changed before comparison are counted."""
+    rows = [comparison(0.1, 0.0, 0.1) for _ in range(3)]
+    for row in rows:
+        row.bundle_note = WAC_OFFSET_RESTORED
+    reported(rows)
+    assert f'    3  {WAC_OFFSET_RESTORED}' in capsys.readouterr().out
