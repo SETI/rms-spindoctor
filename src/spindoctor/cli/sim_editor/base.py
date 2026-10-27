@@ -46,6 +46,7 @@ class SimEditorBase(QMainWindow):
     _last_meta: dict[str, Any]
     _base_pixmap: QPixmap | None
     _mesh_key_stash: MeshKeyStash
+    _noise_key_stash: dict[str, Any]
 
     # ---- View / interaction state ----
     _zoom_factor: float
@@ -242,6 +243,10 @@ class SimEditorBase(QMainWindow):
 
     def _noise_value(self, key: str, default: Any) -> Any:
         """Read from the noise block (implemented in NoiseMixin)."""
+        raise NotImplementedError
+
+    def _sync_noise_refusals(self) -> None:
+        """Gate the refusable noise controls (implemented in NoiseMixin)."""
         raise NotImplementedError
 
     def _stray_value(self, key: str, default: Any) -> Any:

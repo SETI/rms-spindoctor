@@ -4,6 +4,15 @@ Poisson shot noise, a Gaussian read-noise floor, cosmic-ray rate, missing-data
 rate, bias pedestal, saturation bloom, and signal full-scale fraction.  These
 write the ``sim_params['noise']`` block the renderer consumes;
 physical defaults otherwise come from the selected instrument.
+
+The scene validator refuses a positive cosmic-ray rate on the vidicon detector
+and a positive missing-data rate on a calibrated frame.  The panel reads the
+validator's own predicates (:func:`~spindoctor.sim.scene_checks.cosmic_ray_rate_refusal`
+and :func:`~spindoctor.sim.scene_checks.missing_data_rate_refusal`): where one
+refuses, its control is disabled with the reason as the tooltip.  A change of
+instrument, detector model, or detector override that makes a set rate refused
+moves the rate out of the scene into a stash, with a status-bar message, and a
+change that lifts the refusal puts it back.
 """
 
 from typing import Any
@@ -11,6 +20,59 @@ from typing import Any
 from PyQt6.QtWidgets import QCheckBox, QDoubleSpinBox, QFormLayout, QSpinBox
 
 from spindoctor.cli.sim_editor.base import SimEditorBase
+from spindoctor.sim.scene_checks import cosmic_ray_rate_refusal, missing_data_rate_refusal
+
+_COSMIC_RAY_KEY = 'cosmic_ray_events_per_pixel_per_sec'
+_MISSING_DATA_KEY = 'missing_data_rate'
+
+# Each control's own tooltip, shown while the scene's detector path accepts a
+# positive value.
+_COSMIC_RAY_TOOLTIP = (
+    'Expected cosmic-ray events per pixel per second of exposure. CCD chain only: '
+    'on the vidicon detector (vgiss, or detector model vidicon) this control is '
+    'disabled, because validation refuses a non-zero rate there.'
+)
+_MISSING_DATA_TOOLTIP = (
+    'Fraction of pixels marked as missing data. Raw-DN frames only: on a calibrated '
+    'instrument (coiss_calib_nac, coiss_calib_wac, vgiss) this control is disabled, '
+    'because validation refuses a non-zero rate there.'
+)
+
+# How long the status bar shows the stash message, in milliseconds.
+NOISE_STASH_MESSAGE_MS = 15000
+
+
+def noise_refusal_tooltip(reason: str) -> str:
+    """The tooltip of a noise control the scene's detector path refuses.
+
+    Parameters:
+        reason: The validator's reason, from
+            :func:`~spindoctor.sim.scene_checks.cosmic_ray_rate_refusal` or
+            :func:`~spindoctor.sim.scene_checks.missing_data_rate_refusal`.
+
+    Returns:
+        ``Validation refuses a non-zero rate here: <reason>.``
+    """
+    return f'Validation refuses a non-zero rate here: {reason}.'
+
+
+def noise_stash_message(keys: list[str]) -> str:
+    """The status-bar sentence shown when a switch moves noise rates out of the scene.
+
+    Parameters:
+        keys: The ``noise`` keys the switch moved, at least one.
+
+    Returns:
+        A sentence naming the keys, saying that validation refuses them on the
+        scene's detector path, that switching back restores them in this editor
+        session, and that a saved scene file doesn't carry them.
+    """
+    names = ', '.join(f'noise.{key}' for key in keys)
+    return (
+        f'Moved {names} out of the scene, because validation refuses a non-zero rate '
+        'on this detector path (hover the disabled control for why). Switching back '
+        "restores it in this session; a saved scene file doesn't carry it."
+    )
 
 
 class NoiseMixin(SimEditorBase):
@@ -43,11 +105,7 @@ class NoiseMixin(SimEditorBase):
         self._cosmic_ray_spin.setValue(
             float(self._noise_value('cosmic_ray_events_per_pixel_per_sec', 0.0))
         )
-        self._cosmic_ray_spin.setToolTip(
-            'Expected cosmic-ray events per pixel per second of exposure. CCD chain '
-            'only: the vidicon (vgiss) lacks a cosmic-ray stage, so validation refuses '
-            'a non-zero rate there.'
-        )
+        self._cosmic_ray_spin.setToolTip(_COSMIC_RAY_TOOLTIP)
         self._cosmic_ray_spin.valueChanged.connect(self._on_cosmic_ray)
         gen_layout.addRow('Cosmic rays (/px/s):', self._cosmic_ray_spin)
 
@@ -56,11 +114,7 @@ class NoiseMixin(SimEditorBase):
         self._missing_data_spin.setDecimals(3)
         self._missing_data_spin.setSingleStep(0.005)
         self._missing_data_spin.setValue(float(self._noise_value('missing_data_rate', 0.0)))
-        self._missing_data_spin.setToolTip(
-            'Fraction of pixels marked as missing data. Raw-DN frames only: a calibrated '
-            'instrument (coiss_calib_nac, coiss_calib_wac, vgiss) ignores it, so validation '
-            'refuses a non-zero rate there.'
-        )
+        self._missing_data_spin.setToolTip(_MISSING_DATA_TOOLTIP)
         self._missing_data_spin.valueChanged.connect(self._on_missing_data)
         gen_layout.addRow('Missing data rate:', self._missing_data_spin)
 
@@ -89,6 +143,75 @@ class NoiseMixin(SimEditorBase):
         )
         self._signal_frac_spin.valueChanged.connect(self._on_signal_frac)
         gen_layout.addRow('Signal full-scale frac:', self._signal_frac_spin)
+        self._sync_noise_refusals()
+
+    def _refusable_noise_controls(self) -> list[tuple[str, QDoubleSpinBox, str, str | None]]:
+        """Each noise key a detector path can refuse, with its control and the verdict.
+
+        Returns:
+            ``(key, spin, own tooltip, reason)`` per key, where ``reason`` is the
+            validator's refusal of a positive value in the current scene, or None
+            when the scene accepts one.
+        """
+        instrument = str(self.sim_params.get('instrument') or 'generic')
+        return [
+            (
+                _COSMIC_RAY_KEY,
+                self._cosmic_ray_spin,
+                _COSMIC_RAY_TOOLTIP,
+                cosmic_ray_rate_refusal(self.sim_params.get('detector'), instrument=instrument),
+            ),
+            (
+                _MISSING_DATA_KEY,
+                self._missing_data_spin,
+                _MISSING_DATA_TOOLTIP,
+                missing_data_rate_refusal(
+                    self.sim_params.get('instrument_config'), instrument=instrument
+                ),
+            ),
+        ]
+
+    def _sync_noise_refusals(self) -> None:
+        """Gate the cosmic-ray and missing-data controls on the validator's rules.
+
+        Call after any change to the instrument, ``detector.detector_model`` (or
+        the detector override as a whole), or ``instrument_config``.  A control
+        whose rate the scene's detector path refuses is disabled, with the
+        validator's reason as its tooltip (:func:`noise_refusal_tooltip`); a
+        positive rate the scene carries there moves into the editor's noise stash
+        and the status bar names it (:func:`noise_stash_message`).  Where the path
+        accepts the rate again, the control is enabled with its own tooltip and a
+        stashed rate goes back into the scene, unless the scene set the key again.
+        Each control then shows the scene's value.
+        """
+        moved: list[str] = []
+        changed = False
+        for key, spin, own_tooltip, reason in self._refusable_noise_controls():
+            spin.setEnabled(reason is None)
+            spin.setToolTip(own_tooltip if reason is None else noise_refusal_tooltip(reason))
+            noise = self.sim_params.get('noise')
+            if reason is not None:
+                value = noise.get(key) if isinstance(noise, dict) else None
+                if isinstance(noise, dict) and value is not None and float(value) > 0.0:
+                    self._noise_key_stash[key] = noise.pop(key)
+                    moved.append(key)
+            elif key in self._noise_key_stash:
+                stashed = self._noise_key_stash.pop(key)
+                if not isinstance(noise, dict):
+                    noise = {}
+                    self.sim_params['noise'] = noise
+                if noise.get(key) is None:
+                    noise[key] = stashed
+                    changed = True
+            spin.blockSignals(True)
+            spin.setValue(float(self._noise_value(key, 0.0)))
+            spin.blockSignals(False)
+        if moved:
+            status_bar = self.statusBar()
+            if status_bar is not None:
+                status_bar.showMessage(noise_stash_message(moved), NOISE_STASH_MESSAGE_MS)
+        if moved or changed:
+            self._updater.request_update()
 
     def _noise_value(self, key: str, default: Any) -> Any:
         """Read a value from the sim_params noise block, or a default.

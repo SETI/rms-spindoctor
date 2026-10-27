@@ -340,6 +340,8 @@ class ArtifactsTabMixin(SimEditorBase):
                 self.sim_params['detector'] = {}
         else:
             self.sim_params.pop('detector', None)
+        # Dropping the override returns the detector model to the instrument's.
+        self._sync_noise_refusals()
         self._updater.request_update()
 
     def _on_detector_gain_state(self, value: int) -> None:
@@ -351,8 +353,13 @@ class ArtifactsTabMixin(SimEditorBase):
         self._set_detector_key('exposure_ref_sec', float(value))
 
     def _on_detector_model(self, text: str) -> None:
-        """Write the detector model on a combo edit."""
+        """Write the detector model on a combo edit, and re-gate the noise controls.
+
+        The vidicon refuses a cosmic-ray rate, so the noise panel follows the model.
+        """
         self._set_detector_key('detector_model', text or 'ccd')
+        if not self._syncing:
+            self._sync_noise_refusals()
 
     def _on_detector_quantization(self, text: str) -> None:
         """Write the quantization sub-mode on a combo edit."""
