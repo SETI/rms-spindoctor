@@ -77,20 +77,19 @@ reads:
   rotation-fitted answer that #560 retired, an operator decision in #744, and
   one, `N1530185128_1`, is owned by the star-centroid defect in #639. The
   eight re-pinned frames are five `ring_only_flat` frames whose pins recorded
-  the old quantized rank-1 axis of a straight ring edge, two of #346's
-  Encke gap frames, which land on operator truth and whose `medium` tier pins
-  became `low`, and `N1633925572_1`, whose `medium` tier pin became `low`
-  once it stopped running RingEdgeNav, leaving a limb answer and a one-star
-  answer whose fused sigma of about 2.49 px is a sigma-calibration matter
-  (#788). The other five are attributed rather than mysterious: one is
+  the old quantized rank-1 axis of a straight ring edge; two of #346's Encke
+  gap frames, which land on operator truth and whose `medium` tier pins
+  became `low`; and `N1633925572_1`, whose `medium` tier pin became `low`
+  after it stopped running RingEdgeNav, leaving a limb answer and a one-star
+  answer (whether their fused sigma of about 2.49 px is sized right is a
+  sigma-calibration matter, #788). The other five are attributed rather than mysterious: one is
   #346's remaining ring frame, red on a `failed` expectation predating a
   working ring fit, two pin `primary_technique` to a
   technique the code correctly declines to prefer and await an operator call
   (#483), one is the ~2.7 px `dv` limb bias on a partially overflowing limb arc
   that WS-10 owns, and one is the standing highly-irregular exclusion of
-  #338. The
-  16-frame measurement predates the pixel-convention corrections, so it wants re-measuring
-  before it is quoted again.
+  #338. The 16-frame measurement predates the pixel-convention corrections,
+  so it wants re-measuring before it is quoted again.
 
 It does not block writing methodology or building tooling. It blocks
 collecting the numbers.

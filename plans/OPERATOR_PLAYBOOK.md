@@ -155,8 +155,8 @@ instrument.
    eight frames re-pinned on 2026-10-27 (the five `ring_only_flat` rank-1
    constraints, the tiers of #346's two Encke gap frames, and the tier of
    `N1633925572_1`, all in Section 1) are expected to pass, but the library
-   has not been run since. Of the eight, two are the Galileo frames awaiting the #744 decision
-   (Section 0.1); one, `N1530185128_1`, belongs to the star-centroid defect of
+   has not been run since. Of the eight, two are the Galileo frames awaiting
+   the #744 decision (Section 0.1); one, `N1530185128_1`, belongs to the star-centroid defect of
    Group 2's #639; the other five are under #288. One is #346's
    `N1492091163`, now red on its pin rather than on a wrong ring lock (see
    the table below); one is
@@ -307,13 +307,14 @@ frame no longer navigates).
 | N1530185128_1 | dv error 17.472 px: StarUniqueMatchNav is spurious and StarRefineNav seeds on another source; red since the star datum correction (#643) | #639 |
 
 `N1633925572_1` left this table on 2026-10-27. It was held red on its
-`medium` tier pin while a wrong RingEdgeNav lock set its tier, but since the
-Saturn routing decision (150.6 km/px routes it to the annulus composite) it
-no longer runs RingEdgeNav. Its `low` tier now comes from BodyLimbNav and a
-one-star StarUniqueMatchNav, whose fused sigma is 2.49 px, so the operator
-re-pinned the tier to `low`; whether that sigma is sized right is a
-sigma-calibration matter (#788). It is expected to pass and has not been run
-since. The frames in the table are pins, not regressions; do not re-ratchet them until the owning issue
+`medium` tier pin on the reading that a wrong RingEdgeNav lock set its tier,
+but since the Saturn routing decision (150.6 km/px routes it to the annulus
+composite) it no longer runs RingEdgeNav. Its `low` tier now comes from
+BodyLimbNav and a one-star StarUniqueMatchNav, fused to a sigma of 2.49 px
+(2.50 px with the ring lock), so the operator re-pinned the tier to `low`;
+whether that sigma is sized right is a sigma-calibration matter (#788). It is
+expected to pass and has not been run since. The frames in the table are
+pins, not regressions; do not re-ratchet them until the owning issue
 closes.
 
 **Re-pins for the rank-1 axis fix (operator decision, applied 2026-10-27).**

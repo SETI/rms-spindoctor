@@ -459,8 +459,9 @@ than the fitter. Fix it before reading any number it produces.
   star techniques emitted. Four were left: three fused pins whose correction is
   the datum times a star weight that can only be reconstructed, and
   N1633925572, whose sidecar then carried an operator ruling not to
-  re-ratchet (lifted for its tier on 2026-10-27, when the tier was re-pinned
-  to `low`).
+  re-ratchet. That ruling ended on 2026-10-27, when the tier was re-pinned to
+  `low`, but the truth (the one-star match's own offset) still carries the
+  uncorrected datum, and correcting it is an open operator decision.
   W1444747627 was pinned by hand against an overlay the notes describe as star
   and body together, so which half the drag followed is not recorded. One
   consequence remains open: N1530185128 flips to a different star lock
