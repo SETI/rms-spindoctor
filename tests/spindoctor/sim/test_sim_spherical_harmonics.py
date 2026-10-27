@@ -11,11 +11,13 @@ import math
 
 import numpy as np
 import pytest
+from scipy import special
 
 from spindoctor.sim.spherical_harmonics import (
     degree_mean_square,
     draw_sh_coefficients,
     evaluate_at_directions,
+    legendre_order_sums,
 )
 from spindoctor.support.types import NDArrayFloatType
 
@@ -88,3 +90,23 @@ def test_zero_sigma_degree_draws_zero_coefficients() -> None:
     gapped = draw_sh_coefficients(np.random.default_rng(5), sigma)
     assert not np.any(gapped[2])
     np.testing.assert_array_equal(np.delete(gapped, 2, axis=0), np.delete(full, 2, axis=0))
+
+
+def test_order_sums_match_scipy_across_latitude_blocks() -> None:
+    """Every order's Legendre sum matches scipy's harmonics, block edges included.
+
+    The sums run over blocks of latitudes; at degree 60 a block holds a few
+    hundred latitudes, so 2001 latitudes span several blocks and end in a
+    partial one.  Each order ``m`` must equal ``sum over l of c[l, m] * Y_lm``
+    at longitude 0, the Condon-Shortley convention scipy uses.
+    """
+    lmax = 60
+    coeffs = draw_sh_coefficients(np.random.default_rng(11), np.ones(lmax + 1))
+    lat = np.linspace(-math.pi / 2.0, math.pi / 2.0, 2001)
+    sums = legendre_order_sums(coeffs, np.sin(lat), np.cos(lat))
+    expected = np.zeros_like(sums)
+    for ell in range(lmax + 1):
+        for m in range(ell + 1):
+            harmonic = special.sph_harm_y(ell, m, math.pi / 2.0 - lat, 0.0).real
+            expected[m] += coeffs[ell, m] * harmonic
+    np.testing.assert_allclose(sums, expected, rtol=0.0, atol=1e-11)

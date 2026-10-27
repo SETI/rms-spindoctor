@@ -32,6 +32,15 @@ import numpy as np
 
 from spindoctor.support.types import NDArrayComplexType, NDArrayFloatType
 
+# The Legendre sums run over blocks of latitudes sized so a block's scratch
+# arrays (_BLOCK_ARRAYS of them, each (lmax + 1) rows of float64) fit in about
+# _BLOCK_BYTES, the scale of a core's L2 cache.  Out of cache, the same
+# arithmetic over full-width rows runs several times slower; below about 32
+# columns the per-call overhead of the numpy operations dominates instead.
+_BLOCK_BYTES = 2**21
+_BLOCK_ARRAYS = 5
+_MIN_BLOCK_WIDTH = 32
+
 __all__ = [
     'degree_mean_square',
     'draw_sh_coefficients',
@@ -79,6 +88,11 @@ def legendre_order_sums(
     Legendre recurrence one degree at a time for all orders at once.  A degree
     whose coefficients are all zero is skipped.
 
+    The latitudes are processed in blocks narrow enough that a block's
+    working arrays stay in the CPU cache, and each block reuses the same
+    buffers for every degree.  The arithmetic per value is the same at any
+    block width, so the result does not depend on the blocking.
+
     Parameters:
         coeffs: The ``(lmax + 1, lmax + 1)`` coefficient array.
         sin_lat: ``(n,)`` sines of the latitudes.
@@ -91,30 +105,80 @@ def legendre_order_sums(
     lmax = coeffs.shape[0] - 1
     x = np.asarray(sin_lat, dtype=np.float64)
     s = np.asarray(cos_lat, dtype=np.float64)
-    orders = np.arange(lmax + 1, dtype=np.float64)
+    recurrence = _recurrence_factors(lmax)
+    by_order = np.empty((lmax + 1, x.size), dtype=np.complex128)
+    width = max(_MIN_BLOCK_WIDTH, _BLOCK_BYTES // (_BLOCK_ARRAYS * 8 * (lmax + 1)))
+    buffers = np.empty((_BLOCK_ARRAYS, lmax + 1, min(width, x.size)), dtype=np.float64)
+    for start in range(0, x.size, width):
+        block = slice(start, start + width)
+        _order_sums_block(coeffs, x[block], s[block], recurrence, buffers, by_order[:, block])
+    return by_order
 
-    # p_prev[m] is degree l-1, p_prev2[m] degree l-2.
-    zero = np.zeros((lmax + 1, x.size), dtype=np.float64)
-    p_prev2 = zero.copy()
-    p_prev = zero.copy()
-    p_diag = np.full(x.size, 1.0 / math.sqrt(4.0 * math.pi))
-    by_order = np.zeros((lmax + 1, x.size), dtype=np.complex128)
+
+def _recurrence_factors(lmax: int) -> list[tuple[NDArrayFloatType, NDArrayFloatType]]:
+    """The three-term recurrence's per-order factors ``(a, b)`` for each degree.
+
+    Entry ``l`` (for ``l >= 2``) holds ``(l - 1, 1)`` columns ``a[m]`` and
+    ``b[m]`` for the orders ``m < l - 1``, so that
+    ``P_lm = a * (x * P_(l-1)m - b * P_(l-2)m)``; entries 0 and 1 are empty.
+    """
+    orders = np.arange(lmax + 1, dtype=np.float64)
+    empty: NDArrayFloatType = np.zeros((0, 1), dtype=np.float64)
+    factors: list[tuple[NDArrayFloatType, NDArrayFloatType]] = [(empty, empty)] * min(lmax + 1, 2)
+    for ell in range(2, lmax + 1):
+        m = orders[: ell - 1]
+        a = np.sqrt((4.0 * ell * ell - 1.0) / (ell * ell - m * m))
+        b = np.sqrt(((ell - 1.0) ** 2 - m * m) / (4.0 * (ell - 1.0) ** 2 - 1.0))
+        factors.append((a[:, np.newaxis], b[:, np.newaxis]))
+    return factors
+
+
+def _order_sums_block(
+    coeffs: NDArrayComplexType,
+    x: NDArrayFloatType,
+    s: NDArrayFloatType,
+    recurrence: list[tuple[NDArrayFloatType, NDArrayFloatType]],
+    buffers: NDArrayFloatType,
+    out: NDArrayComplexType,
+) -> None:
+    """Fill ``out`` with :func:`legendre_order_sums` for one block of latitudes.
+
+    ``buffers`` holds :data:`_BLOCK_ARRAYS` scratch arrays at least as wide as
+    the block: the two previous degrees' Legendre values (the older one is
+    overwritten in place by the current degree), a product scratch, and the
+    real and imaginary running sums.
+    """
+    lmax = coeffs.shape[0] - 1
+    width = x.size
+    p_prev2, p_prev, scratch, sum_re, sum_im = (buf[:, :width] for buf in buffers)
+    sum_re[...] = 0.0
+    sum_im[...] = 0.0
+    c_re = coeffs.real
+    c_im = coeffs.imag
+    p_diag = np.full(width, 1.0 / math.sqrt(4.0 * math.pi))
     for ell in range(lmax + 1):
-        p_cur = zero.copy()
+        # The current degree overwrites degree l-2, which it reads first.
+        p_cur = p_prev2
         if ell > 0:
             p_diag = -math.sqrt((2.0 * ell + 1.0) / (2.0 * ell)) * s * p_diag
-            m = orders[: ell - 1]
-            a = np.sqrt((4.0 * ell * ell - 1.0) / (ell * ell - m * m))
-            b = np.sqrt(((ell - 1.0) ** 2 - m * m) / (4.0 * (ell - 1.0) ** 2 - 1.0))
-            p_cur[: ell - 1] = a[:, np.newaxis] * (
-                x * p_prev[: ell - 1] - b[:, np.newaxis] * p_prev2[: ell - 1]
-            )
-            p_cur[ell - 1] = x * math.sqrt(2.0 * ell + 1.0) * p_prev[ell - 1]
+            k = ell - 1
+            if k > 0:
+                a, b = recurrence[ell]
+                np.multiply(b, p_prev2[:k], out=scratch[:k])
+                np.multiply(x, p_prev[:k], out=p_cur[:k])
+                np.subtract(p_cur[:k], scratch[:k], out=p_cur[:k])
+                np.multiply(a, p_cur[:k], out=p_cur[:k])
+            p_cur[k] = x * math.sqrt(2.0 * ell + 1.0) * p_prev[k]
         p_cur[ell] = p_diag
         if np.any(coeffs[ell, : ell + 1]):
-            by_order[: ell + 1] += coeffs[ell, : ell + 1, np.newaxis] * p_cur[: ell + 1]
+            rows = slice(0, ell + 1)
+            np.multiply(c_re[ell, rows, np.newaxis], p_cur[rows], out=scratch[rows])
+            sum_re[rows] += scratch[rows]
+            np.multiply(c_im[ell, rows, np.newaxis], p_cur[rows], out=scratch[rows])
+            sum_im[rows] += scratch[rows]
         p_prev2, p_prev = p_prev, p_cur
-    return by_order
+    out.real[...] = sum_re
+    out.imag[...] = sum_im
 
 
 def evaluate_at_directions(
