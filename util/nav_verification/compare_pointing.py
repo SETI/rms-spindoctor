@@ -26,6 +26,13 @@ is therefore reported, and one larger than ``COMMON_OFFSET_TOLERANCE_PX`` in
 either axis is called out as a defect in one of the two pipelines.  It is never
 removed from the per-frame numbers, which would hide exactly that defect.
 
+The independent answer is read in the frame the standard kernels define for its
+camera.  Where the bundle is known to have been written in another one, its reader
+puts the difference back before anything is measured, from what the other frame was
+rather than from what this comparison finds, and the report counts the frames it
+did that to.  ``bundle_cassini_fring`` says which frames of its bundle that applies to
+and why.
+
 Run after ``source /seti/newnav/setup.sh``, from the repository root::
 
     python util/nav_verification/compare_pointing.py \\
@@ -129,6 +136,8 @@ class FrameComparison:
         bundle_navigation_type: How the independent answer was itself
             navigated, which says how much to believe it.
         bundle_from_cmatrix: Whether that answer was read at full precision.
+        bundle_note: What the bundle reader did to that answer before it was
+            compared, or None when it was compared as published with nothing to say.
     """
 
     image: str
@@ -150,6 +159,7 @@ class FrameComparison:
     error_y_px: float | None = None
     bundle_navigation_type: str | None = None
     bundle_from_cmatrix: bool | None = None
+    bundle_note: str | None = None
 
 
 def bare_image_name(record: NavRecord) -> str:
@@ -260,6 +270,7 @@ def compare_record(
         return row
     row.bundle_navigation_type = independent.navigation_type
     row.bundle_from_cmatrix = independent.from_cmatrix
+    row.bundle_note = independent.note
     cmatrix = (navigation.get('pointing') or {}).get('cmatrix')
     if cmatrix:
         observation = record.metadata['observation']
@@ -458,6 +469,12 @@ def report(
             f'  comparable      {len(compared)}'
             + (f' ({rounded} against a rounded boresight)' if rounded else '')
         )
+
+    notes = Counter(r.bundle_note for r in compared if r.bundle_note is not None)
+    if notes:
+        print('\nbundle answers as compared:')
+        for note, count in notes.most_common():
+            print(f'  {count:5d}  {note}')
 
     if common is not None and errors.size:
         print(f'\nshared difference {common[0]:+.3f}, {common[1]:+.3f} px along the camera axes')
