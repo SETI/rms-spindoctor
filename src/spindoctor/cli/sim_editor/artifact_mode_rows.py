@@ -6,10 +6,17 @@ in the registry, and each row builds its own widgets from the mode's
 :class:`~spindoctor.sim.forward.artifact_modes.ModeParam` specs.  A registered
 mode therefore acquires an editor row with no GUI change: the row's enable
 checkbox maps to the mode key's presence, the activation-key spin
-(``expected_events``, ``probability``, or ``pixel_fraction``, as the registry
-names it) and one widget per parameter map to that mode's map keys, and the
-parameter kinds pick the widget (a spin, a checkbox, an enum combo, or a group
-of spins for a rect/window list).
+(``expected_events``, ``expected_events_per_sec``, ``probability``, or
+``pixel_fraction``, as the registry names it) and one widget per parameter map
+to that mode's map keys, and the parameter kinds pick the widget (a spin, a
+checkbox, an enum combo, or a group of spins for a rect/window list).
+
+The fixed ``count`` that ``dead_pixels`` and ``dead_columns`` take in place of
+``expected_events`` carries a "set" box, like a list parameter, so a count of 0
+is authorable and an unset count stays absent.  The two keys are mutually
+exclusive in a scene, and the row keeps them so: setting the count removes
+``expected_events``, and editing ``expected_events`` removes the count, so the
+editor never authors a map the validator refuses.
 
 The row never touches ``sim_params`` itself: every edit calls back into the
 controller (the Artifacts-tab mixin), which owns the artifacts block and the
@@ -35,7 +42,7 @@ from PyQt6.QtWidgets import (
 )
 
 from spindoctor.sim.forward.artifact_modes import (
-    ACTIVATION_KEYS,
+    PIXEL_FRACTION,
     ArtifactMode,
     ModeParam,
     mode_available,
@@ -49,6 +56,9 @@ _NUMBER_MIN = -1.0e6
 _NUMBER_MAX = 1.0e6
 _INT_MAX = 1_000_000
 _NUMBER_DECIMALS = 4
+# A hot-pixel fraction is a small density (1.6e-5 on the calibrated Cassini
+# cameras, 2.75e-4 in the Titan truth scenes), so its spin keeps six decimals.
+_PIXEL_FRACTION_DECIMALS = 6
 
 
 class ArtifactModeController(Protocol):
@@ -91,6 +101,8 @@ class ModeRow:
         self._enum_choices: dict[str, tuple[Any, ...]] = {}
         self._list_checks: dict[str, QCheckBox] = {}
         self._list_spins: dict[str, list[QSpinBox]] = {}
+        self._count_check: QCheckBox | None = None
+        self._count_spin: QSpinBox | None = None
 
         self.group = QGroupBox(f'{mode.name}  ({mode.stage})')
         self.group.setCheckable(True)
@@ -110,15 +122,39 @@ class ModeRow:
         if param.kind == 'int_list':
             form.addRow(f'{param.name}:', self._build_int_list_widget(param))
             return
+        if param.name == self.mode.count_alternative:
+            form.addRow(f'{param.name}:', self._build_count_widget(param))
+            return
         widget = self._build_scalar_widget(param)
         if param.name == self.mode.activation:
-            widget.setToolTip(f'{ACTIVATION_KEYS[param.name]}: {self.mode.activation_semantics}')
-        elif param.name == self.mode.count_alternative:
-            widget.setToolTip(
-                f'a fixed event count in place of {self.mode.activation!r}; set one of the two'
-            )
+            widget.setToolTip(f'{param.name}: {self.mode.activation_semantics}')
         self._scalar_widgets[param.name] = widget
         form.addRow(f'{param.name}:', widget)
+
+    def _build_count_widget(self, param: ModeParam) -> QWidget:
+        """Build the "set" box and spin for the fixed-count alternative.
+
+        The count key stays absent until the box is checked, and a checked box
+        writes the spin's value, 0 included.
+        """
+        container = QWidget()
+        layout = QHBoxLayout(container)
+        layout.setContentsMargins(0, 0, 0, 0)
+        check = QCheckBox('set')
+        spin = QSpinBox()
+        spin.setRange(0, _INT_MAX)
+        tip = (
+            f'a fixed event count in place of {self.mode.activation!r}; setting one '
+            'removes the other'
+        )
+        check.setToolTip(tip)
+        spin.setToolTip(tip)
+        layout.addWidget(check)
+        layout.addWidget(spin)
+        self._count_check = check
+        self._count_spin = spin
+        self._scalar_widgets[param.name] = spin
+        return container
 
     def _build_scalar_widget(self, param: ModeParam) -> QWidget:
         """Build the single widget for a scalar (non-list) parameter kind."""
@@ -132,7 +168,9 @@ class ModeRow:
             return combo
         if param.kind in ('nonneg_number', 'unit_interval'):
             spin = QDoubleSpinBox()
-            spin.setDecimals(_NUMBER_DECIMALS)
+            spin.setDecimals(
+                _PIXEL_FRACTION_DECIMALS if param.name == PIXEL_FRACTION else _NUMBER_DECIMALS
+            )
             spin.setRange(0.0, 1.0 if param.kind == 'unit_interval' else _NUMBER_MAX)
             return spin
         # The integer kinds.
@@ -176,8 +214,13 @@ class ModeRow:
 
     def _connect_param_signals(self) -> None:
         """Connect every parameter widget's change signal to the controller."""
+        count_key = self.mode.count_alternative
+        if self._count_check is not None:
+            self._count_check.toggled.connect(self._on_count_toggled)
         for name, widget in self._scalar_widgets.items():
-            if isinstance(widget, QCheckBox):
+            if name == count_key and isinstance(widget, QSpinBox):
+                widget.valueChanged.connect(self._on_count_edited)
+            elif isinstance(widget, QCheckBox):
                 widget.toggled.connect(lambda checked, n=name: self._write_scalar(n, checked))
             elif isinstance(widget, QComboBox):
                 widget.currentTextChanged.connect(lambda text, n=name: self._write_enum(n, text))
@@ -194,8 +237,51 @@ class ModeRow:
                 spin.valueChanged.connect(lambda _value, n=name: self._write_list(n))
 
     def _write_scalar(self, name: str, value: Any) -> None:
-        """Write a scalar parameter through the controller."""
+        """Write a scalar parameter through the controller.
+
+        Writing the activation key of a mode with a fixed-count alternative
+        removes the count and clears its "set" box (the keys are exclusive).
+        """
         self._controller._set_mode_param(self.mode.name, name, value)
+        count_key = self.mode.count_alternative
+        if name == self.mode.activation and count_key is not None and self._count_check is not None:
+            self._controller._remove_mode_param(self.mode.name, count_key)
+            self._count_check.blockSignals(True)
+            self._count_check.setChecked(False)
+            self._count_check.blockSignals(False)
+
+    def _on_count_edited(self, _value: int) -> None:
+        """Editing the count spin sets the count (checking its box if needed)."""
+        if self._count_check is None:
+            return
+        if self._count_check.isChecked():
+            self._write_count()
+        else:
+            self._count_check.setChecked(True)  # its toggled handler writes the count
+
+    def _on_count_toggled(self, on: bool) -> None:
+        """Write or remove the fixed count when its "set" box toggles."""
+        count_key = self.mode.count_alternative
+        if count_key is None:
+            return
+        if on:
+            self._write_count()
+        else:
+            self._controller._remove_mode_param(self.mode.name, count_key)
+
+    def _write_count(self) -> None:
+        """Write the count and remove the activation key it replaces.
+
+        The activation spin returns to its default display, since the key it
+        shows is no longer in the map.
+        """
+        count_key = self.mode.count_alternative
+        if count_key is None or self._count_spin is None:
+            return
+        self._controller._set_mode_param(self.mode.name, count_key, int(self._count_spin.value()))
+        self._controller._remove_mode_param(self.mode.name, self.mode.activation)
+        activation_param = self.mode.param_map[self.mode.activation]
+        self._sync_scalar(activation_param, {})
 
     def _write_enum(self, name: str, text: str) -> None:
         """Write an enum parameter, mapping the display text back to its choice."""
@@ -245,6 +331,11 @@ class ModeRow:
                 self._sync_int_list(param, current)
             else:
                 self._sync_scalar(param, current)
+        count_key = self.mode.count_alternative
+        if self._count_check is not None and count_key is not None:
+            self._count_check.blockSignals(True)
+            self._count_check.setChecked(current.get(count_key) is not None)
+            self._count_check.blockSignals(False)
 
     def _sync_scalar(self, param: ModeParam, current: dict[str, Any]) -> None:
         """Show one scalar parameter's scene value, or its registry default."""

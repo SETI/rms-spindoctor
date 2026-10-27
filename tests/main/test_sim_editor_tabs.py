@@ -35,6 +35,7 @@ except Exception as exc:
     )
 
 from spindoctor.cli.sim_editor import CreateSimulatedImageModel
+from spindoctor.sim.scene import validate_sim_params
 
 
 @pytest.fixture
@@ -377,6 +378,83 @@ def test_mode_availability_enables_available_row(model: Any) -> None:
     row = model._mode_rows['hot_pixels']
     assert row.group.isEnabled() is True
     assert 'pixel_fraction' in row.group.toolTip()
+
+
+def _dead_row(model: Any, mode_name: str = 'dead_pixels') -> Any:
+    """Enable a dead-pixel or dead-column row on Cassini NAC and return it."""
+    model.sim_params['instrument'] = 'coiss_nac'
+    model._refresh_artifact_mode_availability()
+    row = model._mode_rows[mode_name]
+    row.group.setChecked(True)
+    return row
+
+
+def _validate_editor_scene(model: Any) -> None:
+    """Validate the editor's live scene as a file save would."""
+    validate_sim_params(dict(model.sim_params, schema_version=2, scene_name='probe'))
+
+
+@pytest.mark.parametrize('mode_name', ['dead_pixels', 'dead_columns'])
+def test_setting_count_removes_expected_events(model: Any, mode_name: str) -> None:
+    """Setting the fixed count removes expected_events, so the map stays savable."""
+    row = _dead_row(model, mode_name)
+    row._scalar_widgets['expected_events'].setValue(5.0)
+    row._scalar_widgets['count'].setValue(10)
+    assert model.sim_params['artifacts'][mode_name] == {'count': 10}
+    _validate_editor_scene(model)
+
+
+@pytest.mark.parametrize('mode_name', ['dead_pixels', 'dead_columns'])
+def test_editing_expected_events_removes_count(model: Any, mode_name: str) -> None:
+    """Editing expected_events removes the count and clears its set box."""
+    row = _dead_row(model, mode_name)
+    row._scalar_widgets['count'].setValue(10)
+    row._scalar_widgets['expected_events'].setValue(3.0)
+    assert model.sim_params['artifacts'][mode_name] == {'expected_events': 3.0}
+    assert row._count_check.isChecked() is False
+    _validate_editor_scene(model)
+
+
+def test_count_of_zero_is_authorable(model: Any) -> None:
+    """Checking the count's set box at 0 writes an explicit count of 0."""
+    row = _dead_row(model)
+    row._count_check.setChecked(True)
+    assert model.sim_params['artifacts']['dead_pixels'] == {'count': 0}
+
+
+def test_unsetting_count_removes_the_key(model: Any) -> None:
+    """Clearing the count's set box removes the count key."""
+    row = _dead_row(model)
+    row._scalar_widgets['count'].setValue(4)
+    row._count_check.setChecked(False)
+    assert model.sim_params['artifacts']['dead_pixels'] == {}
+
+
+def test_loaded_count_checks_the_set_box(model: Any) -> None:
+    """A scene map carrying a count shows it with the set box checked."""
+    row = _dead_row(model)
+    model.sim_params['artifacts']['dead_pixels'] = {'count': 7}
+    row.sync()
+    assert (row._count_check.isChecked(), row._scalar_widgets['count'].value()) == (True, 7)
+
+
+def test_pixel_fraction_spin_keeps_six_decimals(model: Any) -> None:
+    """A small hot-pixel fraction survives the spin without rounding to 4 decimals."""
+    model.sim_params['instrument'] = 'coiss_nac'
+    model._refresh_artifact_mode_availability()
+    row = model._mode_rows['hot_pixels']
+    row.group.setChecked(True)
+    row._scalar_widgets['pixel_fraction'].setValue(2.75e-4)
+    assert model.sim_params['artifacts']['hot_pixels']['pixel_fraction'] == pytest.approx(
+        2.75e-4, abs=1e-12
+    )
+
+
+def test_rate_mode_tooltip_says_per_second_of_exposure(model: Any) -> None:
+    """bright_dark_pairs' activation spin describes a rate per second of exposure."""
+    row = model._mode_rows['bright_dark_pairs']
+    tip = row._scalar_widgets['expected_events_per_sec'].toolTip()
+    assert 'per second of exposure' in tip
 
 
 # ---- Per-star information-asymmetry controls ----
