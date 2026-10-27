@@ -1501,6 +1501,15 @@ carry propagated shot and read noise and quantization texture in I/F units.
 The realism match above compares exactly that path against the real
 calibrated cohorts.
 
+``vgiss`` is the exception to unit-agnostic navigation. Its I/F frames keep the
+Voyager GEOMED products' ``0`` missing-data marker, and the calibration inverse
+puts a noise-free dark sky at exactly 0 I/F, so the navigator counts the sky as
+missing data. The same disc scene that recovers its planted offset on
+``coiss_nac`` and on ``coiss_calib_nac`` is refused on ``vgiss`` as
+``missing_data_dominant``, with 64% of the frame at the marker (50% under
+``instrument_defaults``). Real GEOMED frames keep their sky above 0, so this is a
+simulator limitation (see :doc:`/dev_guide/instruments/voyager_iss`).
+
 Model-mismatch sensitivity
 ==========================
 

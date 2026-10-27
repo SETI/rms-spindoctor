@@ -61,6 +61,30 @@ starting from an empty one.
 
    sd_create_simulated_image /path/to/scene.yaml
 
+Units of a simulated frame
+==========================
+
+A scene file's ``instrument`` names the camera a frame imitates, and the camera
+decides the frame's units and the value that marks a lost pixel. There are three
+cases.
+
+* ``coiss_nac``, ``coiss_wac``, ``gossi``, ``nhlorri``, and ``generic`` frames are in
+  raw counts (DN). A lost pixel reads 0, and the dark sky sits a little above 0.
+* ``coiss_calib_nac`` and ``coiss_calib_wac`` frames are in I/F, like the calibrated
+  Cassini products. A lost pixel reads NaN.
+* ``vgiss`` frames are in I/F, like the geometrically corrected Voyager products,
+  and a lost pixel reads 0, as it does in those products.
+
+An I/F frame spans roughly 0 to 1, where a DN frame of the same scene can reach
+4095, so a display or threshold scaled for counts shows an I/F frame as black. The
+editor's status bar names the units and value range of each render.
+
+A ``vgiss`` frame's dark sky is exactly 0, the same value that marks a lost pixel.
+The navigator therefore treats the dark sky as lost data, and it refuses a frame
+when more than 30% of the pixels are exactly 0. The editor's status bar warns
+when a render crosses that limit. Real Voyager frames are unaffected, because
+their dark sky sits slightly above 0.
+
 Planting defects in a scene
 ===========================
 

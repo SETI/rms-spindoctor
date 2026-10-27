@@ -70,9 +70,12 @@ The per-instrument YAML schema consumed by
 - ``noise.saturation_dn`` — float, optional. Per-instrument full-well DN. Required for
   ``raw_dn`` instruments; ``None`` for ``calibrated_if`` (where saturation cannot be
   identified post-CALIB).
-- ``noise.marker_value`` — int / float / str. Missing-data sentinel value. For raw
-  instruments typically 0; for calibrated-IF the literal ``"NaN"`` (or ``null``) becomes
-  :class:`float` ``NaN``.
+- ``noise.marker_value`` — int / float / str. Missing-data sentinel value. The literal
+  ``"NaN"`` (or ``null``) becomes :class:`float` ``NaN``. An absent key defaults to 0
+  for ``raw_dn`` and to ``NaN`` for ``calibrated_if``. The raw instruments use 0, and the
+  Cassini CALIB blocks declare ``NaN``. The Voyager ISS block is ``calibrated_if`` yet
+  declares 0, because its GEOMED products fill lost pixels with zero; on those frames a
+  pixel of exactly 0 I/F counts as missing.
 - ``image_quality_thresholds`` — block consumed by
   :class:`~spindoctor.nav_orchestrator.image_classifier.ImageQualityThresholds`. See
   :doc:`dev_guide_orchestrator_image_classifier` for the field-by-field schema.

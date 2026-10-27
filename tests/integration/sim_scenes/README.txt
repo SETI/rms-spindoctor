@@ -203,6 +203,23 @@ Fields
                                      instrument_config.noise for rendering.)
   fit_camera_rotation (bool, opt)    force whether navigation solves a camera roll
 
+The instrument fixes the frame's units and its missing-data marker, in one of
+three classes:
+
+  coiss_nac, coiss_wac, gossi,      DN, marker 0; the bias pedestal keeps the dark
+  nhlorri, generic                  sky above the marker
+  coiss_calib_nac, coiss_calib_wac  I/F, marker NaN
+  vgiss                             I/F, marker 0, as in the Voyager GEOMED products
+
+An I/F frame spans roughly 0 to 1 (a vgiss frame tops out at 1.84, a
+coiss_calib_nac frame near 2.0), so a display or threshold scaled for DN shows it
+as black.  A calibrated frame's noise-free dark sky is exactly 0 I/F.  On vgiss
+that equals the marker, so the navigator counts the sky as missing data and
+refuses the frame (missing_data_dominant) when more than 30% of its pixels are
+exactly 0.  Pin instrument_config.noise.marker_value to NaN to navigate such a
+scene; it then no longer exercises the Voyager marker.  The scene editor's status
+bar shows each render's units, range, and marker share.
+
 Body params follow the renderer: shape_model (ellipsoid | polyhedral_mesh),
 center_v, center_u, axis1, axis2, axis3, illumination_angle, phase_angle,
 range_km, and -- for polyhedral_mesh -- mesh_lumpiness (the non-ellipsoidal

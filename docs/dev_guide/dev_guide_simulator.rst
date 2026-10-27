@@ -507,13 +507,50 @@ configuration block drives the detector model and PSF
 (:mod:`spindoctor.sim.instruments`). The recognized names are ``coiss_nac``,
 ``coiss_wac``, ``coiss_calib_nac``, ``coiss_calib_wac``, ``gossi``, ``nhlorri``,
 and ``vgiss``, plus ``generic`` (alias ``sim``) for the instrument-agnostic
-defaults. Calibrated (``*_calib_*``) instruments are in I/F units with a NaN
-missing-data marker and no full-well; raw instruments are in DN with a 0 marker.
+defaults. A scene can pin or override individual instrument settings with
+``instrument_config`` (see :ref:`sim-instrument-config`).
+
+Each instrument renders into one of three unit classes, set by its block's
+``data_units`` and ``noise.marker_value``:
+
+* ``coiss_nac``, ``coiss_wac``, ``gossi``, ``nhlorri``, and ``generic`` render DN
+  with a ``0`` missing-data marker. The bias pedestal keeps the dark sky above the
+  marker.
+* ``coiss_calib_nac`` and ``coiss_calib_wac`` render I/F with a ``NaN`` marker,
+  the missing-pixel value of the Cassini CALIB products.
+* ``vgiss`` renders I/F with a ``0`` marker. Its block is the one real Voyager
+  navigation reads, and the Voyager GEOMED products it describes are scaled
+  integers that fill lost pixels and the resample border with zero.
+
+The telemetry stage writes the marker the navigator applies to the same frame
+(:func:`~spindoctor.sim.instruments.navigator_marker_value`), so a lost line
+reads as missing data in every class.
+
 Calibrated scenes render through the full DN chain and then invert the
 calibration transform, so they carry propagated shot/read noise and quantization
-texture in I/F units. A scene can pin or override individual instrument settings
-with
-``instrument_config`` (see :ref:`sim-instrument-config`).
+texture in I/F units. The chain's DN ceiling, the lower of the full well and the
+ADC clip, applies before the inverse, so a calibrated frame has an I/F ceiling as
+well: about 2.0 for ``coiss_calib_nac`` at the reference exposure, and 1.84 for
+``vgiss`` at any exposure. The navigator applies no saturation test to an I/F
+frame of either kind.
+
+The inverse also subtracts the bias pedestal, so a calibrated frame's noise-free
+dark sky is exactly 0 I/F. On ``vgiss`` that is the missing-data marker. The
+navigator counts the dark sky as missing data and refuses a frame where it covers
+more than 30% of the pixels, with the status reason ``missing_data_dominant``.
+Under ``instrument_defaults`` the DN quantization still leaves much of the sky at
+exactly 0. A real GEOMED frame's dark sky sits on a positive calibration
+residual, so only its fill border carries the marker. The simulator does not model
+that residual. A ``vgiss`` scene therefore navigates only when at most 30% of its
+pixels are exactly 0, or when it pins ``instrument_config.noise.marker_value`` to
+``NaN``, which stops it exercising the Voyager marker.
+
+The editor's status bar names a rendered frame's units and value range and the
+share of pixels at the marker, and warns when that share passes the navigator's
+limit (:func:`~spindoctor.sim.instruments.frame_units_summary`). Its preview
+stretch is relative to the frame, so the units are otherwise invisible: a
+``vgiss`` frame spanning 0 to 1 looks the same as a ``coiss_nac`` frame spanning
+20 to 4095.
 
 .. _sim-optics-stage:
 
@@ -2705,7 +2742,8 @@ key fails loudly.
      - float
      - instrument
      - Additive bias pedestal; lifts dark sky off zero so it is not confused with
-       the missing-data marker.
+       the missing-data marker. A calibrated frame subtracts it again in the
+       calibration inverse (see :ref:`Instruments <sim-instruments>`).
    * - ``cosmic_ray_events_per_pixel_per_sec``
      - float
      - 0.0

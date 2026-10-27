@@ -394,6 +394,25 @@ processing rather than a detector or transmission defect. ``edited_frame``
 defaults to a 440-pixel band, which is this instrument's commanded edited-mode
 band width, so a bare ``probability`` keeps a physical centered band.
 
+**Units.** A ``vgiss`` frame is in I/F, with a ``0`` missing-data marker. The
+simulator reads the same configuration block as real navigation, so a simulated
+frame carries the units and marker of the GEOMED product: the product stores I/F
+as scaled integers and fills lost pixels and its resample border with zero, about
+10% of each frame. No other simulated instrument pairs I/F with a ``0`` marker.
+The raw instruments render DN, and the calibrated Cassini instruments mark a lost
+pixel with ``NaN`` (see :ref:`Instruments <sim-instruments>`). An author should
+expect a frame to span 0 to about 1, up to the 1.84 I/F ceiling that the 255 DN
+clip sets before the calibration inverse. A tool scaled for a DN frame shows a
+``vgiss`` frame as black.
+
+The calibration inverse subtracts the bias pedestal, so the noise-free dark sky
+renders at exactly 0 I/F, the marker value. The navigator counts it as missing
+data and refuses a frame where it covers more than 30% of the pixels. Real GEOMED
+frames do not do this. In five archived frames, four Voyager 2 star frames from
+``VGISS_8210`` and one Voyager 1 dark frame from ``VGISS_5101``, the central 800
+by 800 pixels sit on a positive calibration residual: the first percentile is
+above zero in every frame, and at most 0.03% of those pixels are exactly 0.
+
 **Realism-match status.** The PSF is unverified and unverifiable through the
 resampling with the frames held locally. The distortion is measured, but on
 one of the four cameras.
@@ -481,5 +500,8 @@ Open items
   measurements, and the cohort holds one star frame.
 * The simulator uses one distortion and PSF key for four cameras across two
   spacecraft.
+* The simulator renders a ``vgiss`` frame's dark sky at exactly 0 I/F, the
+  missing-data marker, so the navigator refuses a simulated frame that is mostly
+  sky. Modeling the real products' positive sky residual would end that.
 * The Voyager 1 cameras have no twist or distortion measurement: no frame of
   the Voyager 1 cohort locked.
