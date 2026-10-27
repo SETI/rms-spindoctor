@@ -146,7 +146,7 @@ _IRREGULARITY_EXTREME_LUMPINESS = 0.7
 _IRREGULARITY_MIN_VETOED = 4
 # A "confident wrong" result: success at this confidence or above, this far off.
 _CONFIDENT = 0.9
-_CONFIDENT_WRONG_PX = 5.0
+_IRREGULARITY_CONFIDENT_WRONG_PX = 5.0
 # Every one of mesh seeds 0 to 12 dips at least this far below the clean step's
 # confidence somewhere on its walk (the smallest dip is seed 10's, 0.31).
 _IRREGULARITY_MIN_CONFIDENCE_DROP = 0.3
@@ -279,7 +279,7 @@ def test_irregularity_population_never_confidently_wrong() -> None:
         if row.status == 'success'
         and row.confidence >= _CONFIDENT
         and row.offset_error_px is not None
-        and row.offset_error_px > _CONFIDENT_WRONG_PX
+        and row.offset_error_px > _IRREGULARITY_CONFIDENT_WRONG_PX
     ]
     assert confident_wrong == []
 
