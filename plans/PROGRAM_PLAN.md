@@ -68,17 +68,18 @@ instruments (see Track D).
 Two facts about the evidence behind that health are worth stating plainly,
 because both are load-bearing and neither is comfortable. Suite coverage is
 79%, not the 90% two shipped plans' acceptance criteria claim, and nothing
-enforces any floor (#548). And 9 of 75 curated library frames are expected to
-disagree with their sidecars in the local integration environment: six under
+enforces any floor (#548). And 8 of 75 curated library frames are expected to
+disagree with their sidecars in the local integration environment: five under
 #288, the two Galileo frames whose recorded truth is the rotation-fitted
 answer that the change in #560 retired (#744), and `N1530185128_1`, whose
 star centroid lands on a neighbor (#639). The last library run found 16; the
-other seven were re-pinned on 2026-10-27 (five `ring_only_flat` frames whose
-pins recorded the old quantized rank-1 axis of a straight ring edge, and the
-tier pins of two Encke gap frames under #346) and are expected to pass, but
-the library has not been run since. Every one of the nine is attributed to an
+other eight were re-pinned on 2026-10-27 (five `ring_only_flat` frames whose
+pins recorded the old quantized rank-1 axis of a straight ring edge, the tier
+pins of two Encke gap frames under #346, and the tier pin of `N1633925572_1`,
+which no longer runs RingEdgeNav) and are expected to pass, but the library
+has not been run since. Every one of the eight is attributed to an
 open issue, so the regression instrument reads as a known state rather than
-an unknown one; but three of the six under #288 and both under #744 are
+an unknown one; but three of the five under #288 and both under #744 are
 judgments still owed rather than settled pins, so "no new failures against
 `main`" remains the only gate a navigation-affecting branch can honestly
 clear.
@@ -636,14 +637,15 @@ cannot follow.
 - Summary-PNG unit tests (#177).
 - The image-library regression reconciliation (#288). In the local
   integration environment it is not reduced to the deliberately-red pins:
-  9 of 75 frames are expected to disagree, each attributed to an open issue,
+  8 of 75 frames are expected to disagree, each attributed to an open issue,
   which is the state Track A's evidence has to be read against, and it is
   what blocks the only place a built product is compared between the results
-  tree and the index (#547). The last library run found 16; seven of those
+  tree and the index (#547). The last library run found 16; eight of those
   were re-pinned on 2026-10-27 (five `ring_only_flat` frames whose pins
-  recorded the old quantized rank-1 axis, and the tier pins of #346's two
-  Encke gap frames) and are expected to pass, but the library has not been
-  run since. Two are Galileo frames whose recorded truth is
+  recorded the old quantized rank-1 axis, the tier pins of #346's two Encke
+  gap frames, and the tier pin of `N1633925572_1`) and are expected to
+  pass, but the library has not been run since. Two are Galileo frames whose
+  recorded truth is
   the rotation-fitted answer that #560 retired; re-recording that truth from
   an outside measurement, or pinning both red under #434, is an operator
   decision (#744). One more, `N1530185128_1`, went red with the star datum

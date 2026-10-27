@@ -150,19 +150,16 @@ instrument.
 
 **Group 1 — evidence integrity.** Nothing above this in the whole project.
 
-1. **#288 resolution** — 9 of 75 frames are expected to be red on `main`, and
+1. **#288 resolution** — 8 of 75 frames are expected to be red on `main`, and
    every one is attributed and owned. The last library run found 16; the
-   seven frames re-pinned on 2026-10-27 (the five `ring_only_flat` rank-1
-   constraints and the tiers of #346's two Encke gap frames, Section 1) are
-   expected to pass, but the library has not been run since. Of the nine,
-   two are the Galileo frames awaiting the #744 decision
-   (Section 0.1); one, `N1530185128_1`, belongs to the star-centroid defect of
-   Group 2's #639; the other six are under #288. One is #346's
+   eight frames re-pinned on 2026-10-27 (the five `ring_only_flat` rank-1
+   constraints, the tiers of #346's two Encke gap frames, and the tier of
+   `N1633925572_1`, all in Section 1) are expected to pass, but the library
+   has not been run since. Of the eight, two are the Galileo frames awaiting
+   the #744 decision (Section 0.1); one, `N1530185128_1`, belongs to the star-centroid defect of
+   Group 2's #639; the other five are under #288. One is #346's
    `N1492091163`, now red on its pin rather than on a wrong ring lock (see
-   the table below); one is `N1633925572_1`, whose tier drops because the
-   fused sigma of its limb and one-star answers sits just past `max_sigma_px`
-   (it no longer runs RingEdgeNav at all, and #476, which it was attributed
-   to, has closed, so it wants a new owner); one is
+   the table below); one is
    `N1853392805`, held out by the highly-irregular-body policy and owned by
    the #338 decision; one is
    `N1484593951`, a real limb bias deliberately pinned red; and two are stale
@@ -280,14 +277,14 @@ is what makes Group 1 worth starting today.
 ## 1. The library regression, and the deliberately-red set
 
 **Read this before trusting a library run.** In the local integration
-environment 9 of 75 sidecars are expected to disagree on `main`: six under
+environment 8 of 75 sidecars are expected to disagree on `main`: five under
 #288, two under #744, and one under #639, exactly the first table below,
 entry for entry. That count is expected rather than measured. The last
-library run found 16; the other seven are the frames re-pinned on 2026-10-27
-(the five of the re-pin record below and #346's two Encke gap frames), which
-are expected to pass but have not been run since the re-pins. Every one of
-the nine is owned by an open issue. The two
-under #744 await your decision in Section 0.1. Three of the six are
+library run found 16; the other eight are the frames re-pinned on 2026-10-27
+(the five of the re-pin record below, #346's two Encke gap frames, and
+`N1633925572_1`), which are expected to pass but have not been run since the
+re-pins. Every one of the eight is owned by an open issue. The two
+under #744 await your decision in Section 0.1. Three of the five are
 unresolved judgments rather than settled pins — the two
 `primary_technique` flips on #483, and `N1484593951`'s limb bias — which
 is why #288 is open, and why the gate a navigation-affecting branch
@@ -308,14 +305,18 @@ frame no longer navigates).
 | N1484593951 | dv error 2.687 px, a limb bias pinned red on purpose | #350 |
 | N1487595731_1 | expects BodyDiscCorrelateNav primary, gets BodyLimbNav; the pin is stale | #483 |
 | N1686349893_1 | expects BodyLimbNav primary, gets BodyDiscCorrelateNav, which matches operator truth to 1e-4 px; the pin names the worse answer | #483 |
-| N1633925572_1 | expects the medium tier, gets low: fused sigma 2.49 px from BodyLimbNav and a one-star StarUniqueMatchNav; RingEdgeNav no longer runs here (150.6 km/px routes to the annulus composite) | #288 (was attributed to #476, now closed; wants a new owner) |
 | C0059894800R, C0059899900R | du error 5.594 px and dv error 3.620 px: the recorded truth is the rotation-fitted answer #560 retired | #744 |
 | N1530185128_1 | dv error 17.472 px: StarUniqueMatchNav is spurious and StarRefineNav seeds on another source; red since the star datum correction (#643) | #639 |
 
-`N1633925572_1` is not to be re-ratcheted; that is recorded in the sidecar
-itself. It was the acceptance test for #476, but since the Saturn routing
-decision it no longer runs RingEdgeNav, so it cannot test that fix. The rest
-are pins, not regressions; do not re-ratchet them until the owning issue
+`N1633925572_1` left this table on 2026-10-27. It was held red on its
+`medium` tier pin on the reading that a wrong RingEdgeNav lock set its tier,
+but since the Saturn routing decision (150.6 km/px routes it to the annulus
+composite) it no longer runs RingEdgeNav. Its `low` tier now comes from
+BodyLimbNav and a one-star StarUniqueMatchNav, fused to a sigma of 2.49 px
+(2.50 px with the ring lock), so the operator re-pinned the tier to `low`;
+whether that sigma is sized right is a sigma-calibration matter (#788). It is
+expected to pass and has not been run since. The frames in the table are
+pins, not regressions; do not re-ratchet them until the owning issue
 closes.
 
 **Re-pins for the rank-1 axis fix (operator decision, applied 2026-10-27).**
@@ -357,9 +358,10 @@ the filter pair, exposure, and gain state and reaches about 4 magnitudes
 deeper on the NAC and 4.5 on the WAC, so StarRefineNav joins answers it
 could not reach before. On `rf_ring_edge_along_755`, measured before the
 2026-10-27 re-pins, the library failed 34 of 75: the sixteen then red on
-`main` plus eighteen. Seven of those sixteen have since been re-pinned
-(Section 1 above) and are expected to pass on this branch too, but have not
-been run on it. Sixteen of the eighteen are tier or
+`main` plus eighteen. Eight of those sixteen have since been re-pinned
+(Section 1 above). Seven are expected to pass on this branch too, but have
+not been run on it; the eighth, N1633925572_1, reaches the high tier here
+against its new `low` pin (below). Sixteen of the eighteen are tier or
 primary-technique pins recorded when fewer stars were cataloged or detected,
 with the answer the same or closer to operator truth. Two move the answer, and the
 stars in the image say the recorded truth is off: on N1597846115_2 four stars
@@ -406,8 +408,9 @@ before that change.
 
 N1484688342_1 and N1489256001_1 drop to `low` because the glare detections
 that made their StarRefineNav answer are now refused; the answer is the limb
-fit, closer to truth, with a sigma of 2.6 px. Separately, N1633925572_1 (in
-the table above) moves from 0.13 to 0.61 px from its truth at the high tier:
+fit, closer to truth, with a sigma of 2.6 px. Separately, N1633925572_1 (re-pinned
+to `low` on 2026-10-27, Section 1) moves from 0.13 to 0.61 px from its truth
+at the high tier, so on this branch it stays red on its tier:
 the refined star now replaces the one-star match and sets the answer. The
 truth is exactly (0.5, 0.5) px from that star's position as the pipeline
 measures it, which looks like a pixel-corner versus pixel-center datum in the
@@ -419,7 +422,7 @@ against the table:**
 ```bash
 export OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 NUMEXPR_NUM_THREADS=1
 pytest tests/integration/test_autonomous_nav.py -m '' -n 4 --dist=loadfile
-# Expect, while #288 is open: the same red set as main — the nine frames
+# Expect, while #288 is open: the same red set as main — the eight frames
 # above. Any delta either way must be attributed in the merging PR.
 ```
 
@@ -681,12 +684,12 @@ with assignee rfrenchseti.
 
 **Evidence integrity (do first; everything else reads what these produce):**
 
-- **#288** 9 of 75 library sidecars are expected to disagree on `main`
-  locally (16 at the last run; the seven frames re-pinned on 2026-10-27 are
+- **#288** 8 of 75 library sidecars are expected to disagree on `main`
+  locally (16 at the last run; the eight frames re-pinned on 2026-10-27 are
   expected to pass and have not been run since), all attributed (two to
   #744, one to #639); what is left on it is two stale `primary_technique`
-  pins on #483, one limb bias that stays red, `N1633925572_1` (its owner
-  #476 has closed), and the frames owned by #346 and #338; blocks #483 and
+  pins on #483, one limb bias that stays red, and the frames owned by #346
+  and #338; blocks #483 and
   #547
 - **#744** two Galileo library frames record the rotation-fitted answer #560
   retired, so both are red; re-record their truth from an outside measurement

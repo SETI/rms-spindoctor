@@ -292,8 +292,10 @@ What remains of the family:
   measurement. The library failed 31 of 75 against the sixteen then red on
   `main`: the fifteen new are tier and primary-technique pins recorded with
   the shallower limit (re-pins proposed in the Operator Playbook). That was
-  measured before the 2026-10-27 re-pins of seven of the sixteen, which are
-  expected to pass but have not been run on this branch.
+  measured before the 2026-10-27 re-pins of eight of the sixteen. Seven are
+  expected to pass but have not been run on this branch; the eighth,
+  N1633925572_1, reaches the high tier here against its new `low` pin, so it
+  stays red on this branch (Operator Playbook).
   The full F ring bundle run on this branch combined with #754 (20,584
   frames, 2026-10-20) took NAC answers within 1 px of the bundle pointing
   from 6,726 to 14,934 and over 2 px from 4,299 to 679, and WAC within
@@ -572,7 +574,10 @@ than the fitter. Fix it before reading any number it produces.
   sidecar records as a star technique's own offset or as a run in which only
   star techniques emitted. Four were left: three fused pins whose correction is
   the datum times a star weight that can only be reconstructed, and
-  N1633925572, whose sidecar carries an operator ruling not to re-ratchet.
+  N1633925572, whose sidecar then carried an operator ruling not to
+  re-ratchet. That ruling ended on 2026-10-27, when the tier was re-pinned to
+  `low`, but the truth (the one-star match's own offset) still carries the
+  uncorrected datum, and correcting it is an open operator decision.
   W1444747627 was pinned by hand against an overlay the notes describe as star
   and body together, so which half the drag followed is not recorded. One
   consequence remains open: N1530185128 flips to a different star lock
@@ -710,8 +715,8 @@ than the fitter. Fix it before reading any number it produces.
   merge: `util/calibration/library_crosscheck.py` over the full library,
   every per-image delta accounted for; `sd_stats_report` over campaign
   outputs as the accuracy checkpoint. Note that the practice is currently
-  degraded: with 9 of 75 library frames expected red locally (#288, #744,
-  #639; 16 at the last run, before seven frames were re-pinned on
+  degraded: with 8 of 75 library frames expected red locally (#288, #744,
+  #639; 16 at the last run, before eight frames were re-pinned on
   2026-10-27 and not run since), a cross-check can only be read as "no
   *new* deltas against `main`".
 
@@ -1210,13 +1215,14 @@ asserts the generated half matches the registries.
   the broader sd_*-driver test effort. The backplane suite carries strict
   xfails for #251, #252, #253, ready to flip when each fix lands.
 - **#288** — image-library regression reconciliation, and the piece of test
-  debt with the widest blast radius. In the local integration environment 9
+  debt with the widest blast radius. In the local integration environment 8
   of 75 sidecars are expected to disagree, each one attributed and owned, but
   the set is still wider than the deliberately-pinned one below, so the
   regression instrument cannot yet be read as clean. The last library run
-  found 16; seven of those were re-pinned on 2026-10-27 (five
+  found 16; eight of those were re-pinned on 2026-10-27 (five
   `ring_only_flat` frames whose pins recorded the old quantized rank-1 axis,
-  and the tier pins of #346's two Encke gap frames; the values are recorded
+  the tier pins of #346's two Encke gap frames, and the tier pin of
+  `N1633925572_1`, which no longer runs RingEdgeNav; the values are recorded
   in the Operator Playbook) and are expected to pass, but the library has not
   been run since. Two, the Galileo
   frames `C0059894800R` and `C0059899900R`, record the rotation-fitted
