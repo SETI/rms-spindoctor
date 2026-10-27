@@ -21,7 +21,7 @@ fields to match current behavior.
 
 ## Track B — Navigation correctness
 
-Ordering within the track: the confidently-wrong defects (#346, #476, #350), because the agreement study consumes
+Ordering within the track: the confidently-wrong defects (#346, #755, #350), because the agreement study consumes
 ensemble output at scale and several curated library frames pin these as
 standing red regressions. Then the coarse-lock remainder (#373), then the
 investigation/design items (#25, #128/#150), with the smaller decision items
@@ -187,7 +187,8 @@ What the work filed
 rather than fixed: RingEdgeNav's planted-shift round trip (#476, same
 family as #346 and #373; measured across the edge normal the technique is at the DT
 floor, the ensemble's error there was the rank-1 axis quantization fixed
-below, and the along-edge part is reported honestly but not reduced); `BodyDiscCorrelateNav` still misses by
+below, and #476 closed on that across-edge criterion; the along-edge part
+is reported honestly but not reduced, under #755); `BodyDiscCorrelateNav` still misses by
 up to ~1 px on a weakly-constrained axis (#482); and the library pins the fix
 moves need re-ratcheting when it lands (#483, which cannot be done honestly
 until #288 is reconciled).
@@ -210,7 +211,7 @@ rendered-brightness template disambiguates. Below 25 km/px the trustworthy
 evidence is three frames on which neither technique is validated (the edge
 path re-locks catastrophically on all three; the annulus near-misses twice
 and fails once), so the threshold stops where the evidence stops and the
-sub-25 confident-wrong exposure stays open under #346/#476. The threshold is
+sub-25 confident-wrong exposure stays open under #346/#755. The threshold is
 Saturn-measured only. Two follow-ons are filed: recalibrating the annulus
 gates so more of its correct answers are accepted (#566 -- today they veto
 many right answers, which costs coverage, not correctness), and a hybrid in
@@ -252,9 +253,12 @@ What remains of the family:
   own vertices: the ensemble's planted-shift round trip across the edge fell
   from a median 0.39 px (worst 17 px) to 0.04 px (worst 0.31 px), and the two
   Encke gap frames of #346 navigate to their operator truth. Five
-  `ring_only_flat` sidecars record the quantized angle as their constraint
-  normal and go red until re-pinned (the proposed values are in the
-  Operator Playbook), and the two Encke gap frames miss only their tier pin.
+  `ring_only_flat` sidecars recorded the quantized angle as their constraint
+  normal and went red; on 2026-10-27 the operator re-pinned them along the
+  line's own normal (the values are recorded in the Operator Playbook), and
+  re-pinned the two Encke gap frames' tier from `medium` to `low`, the ring
+  orbit channel's. All seven are expected to pass; the library has not been
+  run since the re-pins.
 - **Along-edge position of gently curved edges (#755, open).**
   RingEdgeNav's covariance carries the weakness (several pixels along such
   an edge), so a star fix sets that component, a ring-only answer is
@@ -285,9 +289,11 @@ What remains of the family:
   the issue stays open. Stepping the fit along the radius-gradient
   normals (Jacobian and gradient-ridge pass) was measured and not
   shipped; a future attempt at the along-edge position starts from that
-  measurement. The library fails 31 of 75 against the sixteen on `main`:
-  the fifteen new are tier and primary-technique pins recorded with the
-  shallower limit (re-pins proposed in the Operator Playbook).
+  measurement. The library failed 31 of 75 against the sixteen then red on
+  `main`: the fifteen new are tier and primary-technique pins recorded with
+  the shallower limit (re-pins proposed in the Operator Playbook). That was
+  measured before the 2026-10-27 re-pins of seven of the sixteen, which are
+  expected to pass but have not been run on this branch.
   The full F ring bundle run on this branch combined with #754 (20,584
   frames, 2026-10-20) took NAC answers within 1 px of the bundle pointing
   from 6,726 to 14,934 and over 2 px from 4,299 to 679, and WAC within
@@ -399,31 +405,31 @@ What remains of the family:
   N1789926660, N1866222516). These belong with #621/#622/#623.
 
 - **#346** — three library frames (N1492091163, N1867601758, N1867602424),
-  all still red, none on a wrong lock. N1492091163's 94 px alias is gone:
+  none on a wrong lock. N1492091163's 94 px alias is gone:
   RingEdgeNav converges 1.1 px from operator truth, and a two-star
   StarRefineNav then moves the fused answer 0.7 px in du, to 1.70 px in du
   from truth at the medium tier (the sparse-star family's behavior); its
-  `failed` pin wants a decision. The two Encke gap frames are the rank-1 axis
-  above: their offsets now land on operator truth and only the `medium` tier
-  pin fails. The issue's three frames are therefore no longer wrong locks,
-  but none is green. Exposure is limited to the sub-25 km/px regime by the
-  routing decision above.
-- **#476** — its acceptance criterion reads: "any fix should drive the
-  RingEdgeNav rows of the shift-equivariance sweep toward the DT-technique
-  floor (~0.06 px) on the `ring_only_*` and `ring_plus_body` library sets,
-  using the committed baseline as the before-measurement". Across the edge it
-  is met: on those frames RingEdgeNav's round trip along the edge normal is a
-  median 0.03 px (worst 0.31 px), and the ensemble's 0.04 px (worst 0.31 px).
-  The raw rows are not: RingEdgeNav's median |residual| is still 4.2 / 1.7 px
-  (v/u), against 3.6 / 1.6 px on `main`. Every frame in those rows has a
-  straight or nearly straight edge set, and the remainder lies along the edge,
-  where a straight edge carries no information and a nearly straight one very
-  little. The criterion as written measures the whole residual, so the
-  along-edge part is within it even though the issue's diagnosis is
-  across-edge misassignment. The along-edge follow-up (#755) makes the
-  reported covariance honest along the edge but leaves the offsets, and so
-  these rows, unchanged; #476 stays open until the operator restates the
-  criterion as the across-edge component (which is met).
+  `failed` pin wants a decision, and the issue stays open on it. The two
+  Encke gap frames are the rank-1 axis above: their offsets now land on
+  operator truth at the `low` tier, and on 2026-10-27 the operator re-pinned
+  their tier from `medium` to `low`, so both are expected to pass (the
+  library has not been run since). Exposure is limited to the sub-25 km/px
+  regime by the routing decision above.
+- **#476** (closed) — its acceptance criterion read: "any fix should drive
+  the RingEdgeNav rows of the shift-equivariance sweep toward the
+  DT-technique floor (~0.06 px) on the `ring_only_*` and `ring_plus_body`
+  library sets, using the committed baseline as the before-measurement". On
+  2026-10-27 the operator restated it as the across-edge component, which is
+  met: on those frames RingEdgeNav's round trip along the edge normal is a
+  median 0.03 px (worst 0.31 px), and the ensemble's 0.04 px (worst
+  0.31 px). The raw rows still carry the along-edge part: RingEdgeNav's
+  median |residual| is 4.2 / 1.7 px (v/u), against 3.6 / 1.6 px on the
+  earlier `main`. Every frame in those rows has a straight or nearly
+  straight edge set, and the remainder lies along the edge, where a straight
+  edge carries no information and a nearly straight one very little. The
+  along-edge follow-up (#755) makes the reported covariance honest along
+  the edge but leaves the offsets, and so these rows, unchanged; that part
+  is #755's.
 
 ### #350 — post-recalibration resolved-body red
 
@@ -464,7 +470,7 @@ locks. What remains:
 `N1467344214_2` and the rest of the library are unchanged (75/75 identical
 offsets, statuses and per-technique results),
 and the planted-shift sweep's RingEdgeNav rows are identical row for row, so
-#476 is unaffected.
+the across-edge round trip on which #476 closed is unaffected.
 
 ### #621 / #622 / #623 — the star gates and what the ensemble counts
 
@@ -707,9 +713,10 @@ than the fitter. Fix it before reading any number it produces.
   merge: `util/calibration/library_crosscheck.py` over the full library,
   every per-image delta accounted for; `sd_stats_report` over campaign
   outputs as the accuracy checkpoint. Note that the practice is currently
-  degraded: with 16 of 75 library frames red locally (#288, #744, #639, and
-  five ring-edge pins awaiting the re-pin decision under #476),
-  a cross-check can only be read as "no *new* deltas against `main`".
+  degraded: with 9 of 75 library frames expected red locally (#288, #744,
+  #639; 16 at the last run, before seven frames were re-pinned on
+  2026-10-27 and not run since), a cross-check can only be read as "no
+  *new* deltas against `main`".
 
 ## Track D — Capability completion
 
@@ -1206,12 +1213,15 @@ asserts the generated half matches the registries.
   the broader sd_*-driver test effort. The backplane suite carries strict
   xfails for #251, #252, #253, ready to flip when each fix lands.
 - **#288** — image-library regression reconciliation, and the piece of test
-  debt with the widest blast radius. In the local integration environment 16
-  of 75 sidecars disagree, each one attributed and owned, but the set is
-  still wider than the deliberately-pinned one below, so the regression
-  instrument cannot yet be read as clean. Five are `ring_only_flat` frames
-  whose pins record the old quantized rank-1 axis; their proposed re-pins are
-  an operator decision in the Operator Playbook. Two, the Galileo
+  debt with the widest blast radius. In the local integration environment 9
+  of 75 sidecars are expected to disagree, each one attributed and owned, but
+  the set is still wider than the deliberately-pinned one below, so the
+  regression instrument cannot yet be read as clean. The last library run
+  found 16; seven of those were re-pinned on 2026-10-27 (five
+  `ring_only_flat` frames whose pins recorded the old quantized rank-1 axis,
+  and the tier pins of #346's two Encke gap frames; the values are recorded
+  in the Operator Playbook) and are expected to pass, but the library has not
+  been run since. Two, the Galileo
   frames `C0059894800R` and `C0059899900R`, record the rotation-fitted
   answer that the change in #560 retired; re-recording their truth from an
   outside measurement, or pinning them red under #434, is the operator

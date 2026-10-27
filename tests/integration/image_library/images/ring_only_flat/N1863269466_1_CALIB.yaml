@@ -10,13 +10,13 @@ scene_tags:
 - ring_only_flat
 - keeler_gap
 ground_truth:
-  offset_dv_px: 0.0
-  offset_du_px: 1.5777
+  offset_dv_px: -4.6419
+  offset_du_px: -11.9490
   offset_uncertainty_px: 1.0
   constraint:
     type: rank_1
-    normal_angle_deg: 90.0
-    offset_along_normal_px: 1.5777
+    normal_angle_deg: 68.77
+    offset_along_normal_px: -12.8190
     uncertainty_px: 1.0
   source: operator_verified
   operator: rfrench
@@ -34,13 +34,15 @@ ground_truth:
     is the ensemble's representative point on the constraint line.
     normal_angle_deg comes from aggregate_edge_normal_angle_deg on the
     frame's two straight RING_EDGE features (Keeler-A Ring OE IER, Keeler
-    IEG): exactly 90.0 deg (edges run along v; only du is observable).
+    IEG), taken from the straight edge's own line: 68.77 deg
+    (re-pinned 2026-10-27; see below).
     The 22 catalog stars in the FOV are all smear-skipped or gated, so no
     star technique contributes.
     Pipeline at review and at sidecar time: status=success,
     confidence=0.952, rank=high, status_reason=rank_1_only; RingEdgeNav
-    raw fit (-39.4646, 1.5777) projects to 1.5777 px along the normal,
-    identical to the voted representative point.
+    raw fit (-39.4646, 1.5777) projected to 1.5777 px along the normal
+    then recorded (90.0 deg), identical to the voted representative
+    point.
     The ring radial orbit-uncertainty channel prices each consumed edge's
     own catalog orbit-solution rms as a fully-correlated radial
     displacement.  This frame fuses the Keeler-A Ring OE IER (rms 1.006 km)
@@ -60,6 +62,17 @@ ground_truth:
     pricing only the m=0 part is the principled fix and is not
     implemented.  Five operator-verified ring_only_flat frames are priced
     low under this assumption.
+    Re-pinned 2026-10-27 (operator decision): the rank-1 constraint was
+    re-expressed along the straight edge's own normal, 68.77 deg /
+    -12.8190 px. The old value, 90.0 deg / 1.5777 px, used the rings
+    model's quantized per-vertex normal, which RingEdgeNav no longer
+    uses for a straight edge's rank-1 axis. The raw fit voted on is
+    unchanged: (-39.4646, 1.5777) projects to -12.8200 px along the new
+    normal, and (dv, du) is the foot of the new constraint line (along *
+    (cos, sin) of the angle). The original vote was cast on an overlay
+    rendered at the old representative point, 14.3 px across the edge
+    from the new constraint line, so a fresh operator look at the raw
+    fit is still welcome.
 expected:
   status: success
   confidence_tier: low
