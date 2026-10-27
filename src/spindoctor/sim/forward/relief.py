@@ -49,6 +49,7 @@ from functools import lru_cache
 import numpy as np
 from scipy import ndimage
 
+from spindoctor.sim.spherical_harmonics import draw_sh_coefficients, legendre_order_sums
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 
 __all__ = [
@@ -223,43 +224,12 @@ def _spherical_harmonic_field(corr_deg: float, seed: int) -> NDArrayFloatType:
     degrees = np.arange(lmax + 1, dtype=np.float64)
     sigma = np.exp(-((degrees * corr_rad / 2.0) ** 2) / 2.0)
     sigma[degrees < _LOW_DEGREE_CUTOFF] = 0.0
-    # Coefficient [l, m] multiplies cos(m lon) (real part) and sin(m lon)
-    # (imaginary part); entries with m > l are never read.
-    coeffs = (
-        rng.standard_normal((lmax + 1, lmax + 1)) - 1j * rng.standard_normal((lmax + 1, lmax + 1))
-    ) * sigma[:, np.newaxis]
-    coeffs[:, 1:] *= math.sqrt(2.0)
-    coeffs[:, 0] = coeffs[:, 0].real
+    coeffs = draw_sh_coefficients(rng, sigma)
 
     # Synthesized rows: latitudes -pi/2 .. pi/2 inclusive (n is a multiple of 4).
     rows = np.arange(n // 4, 3 * n // 4 + 1)
     lat = -np.pi + 2.0 * np.pi * rows / n
-    x = np.sin(lat)
-    s = np.cos(lat)
-    orders = np.arange(lmax + 1, dtype=np.float64)
-
-    # Orthonormal associated Legendre functions, advanced one degree at a time
-    # for every order at once: p_prev[m] is degree l-1, p_prev2[m] degree l-2.
-    zero = np.zeros((lmax + 1, rows.size), dtype=np.float64)
-    p_prev2 = zero.copy()
-    p_prev = zero.copy()
-    p_diag = np.full(rows.size, 1.0 / math.sqrt(4.0 * math.pi))
-    by_order = np.zeros((lmax + 1, rows.size), dtype=np.complex128)
-    for ell in range(lmax + 1):
-        p_cur = zero.copy()
-        if ell > 0:
-            p_diag = -math.sqrt((2.0 * ell + 1.0) / (2.0 * ell)) * s * p_diag
-            m = orders[: ell - 1]
-            a = np.sqrt((4.0 * ell * ell - 1.0) / (ell * ell - m * m))
-            b = np.sqrt(((ell - 1.0) ** 2 - m * m) / (4.0 * (ell - 1.0) ** 2 - 1.0))
-            p_cur[: ell - 1] = a[:, np.newaxis] * (
-                x * p_prev[: ell - 1] - b[:, np.newaxis] * p_prev2[: ell - 1]
-            )
-            p_cur[ell - 1] = x * math.sqrt(2.0 * ell + 1.0) * p_prev[ell - 1]
-        p_cur[ell] = p_diag
-        if sigma[ell] > 0.0:
-            by_order[: ell + 1] += coeffs[ell, : ell + 1, np.newaxis] * p_cur[: ell + 1]
-        p_prev2, p_prev = p_prev, p_cur
+    by_order = legendre_order_sums(coeffs, np.sin(lat), np.cos(lat))
 
     # Each row is sum_m Re(Z_m exp(i m lon)); irfft's 1/n and its doubling of
     # the positive orders are undone in the scaling.
