@@ -372,7 +372,8 @@ side out at 60 px and one with side in at 95 px overlap, and the would-be
 annulus is only the band where tau doubles.  Author a band as a ringlet (a_px 60,
 width_px 35), or carve it into a sheet with a gap.
 
-The validator refuses each retired ring key with a message naming its
+The validator refuses each retired ring key, and so does the ring renderer for
+an in-memory scene that skipped validation, with a message naming its
 replacement: a, ae, long_peri, and rate_peri in an orbit; width, wavelength, and
 damping on a feature; amp and peri in an m-mode; amp, wavelength, damp, and lam0
 in an edge wave; phase_deg in the brightness modulation; r_inner and r_outer in

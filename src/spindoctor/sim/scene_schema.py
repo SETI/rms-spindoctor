@@ -21,6 +21,9 @@ inventory for validation, builds the filtered navigator view from the
 classification, and re-exports the boundary names.
 """
 
+from collections.abc import Mapping
+from typing import Any
+
 
 class SimSceneValidationError(ValueError):
     """Raised when a sim scene YAML is missing or malformed."""
@@ -324,13 +327,14 @@ RING_KIND_SHAPE_KEYS: dict[str, dict[str, str]] = {
 RING_SIDE_DEFAULTS: dict[str, str] = {'edge': 'in', 'ramp': 'out'}
 
 # Retired ring keys, per block, mapped to (the key that replaced it, what the
-# key holds).  Every length and angle key in the ring_system block names its
-# unit; the validator refuses a retired key with a message naming its
-# replacement, nothing translates it, and the sim editor's tooltips read the
-# descriptions from here.  A ring-plane pixel is a ring-plane radial distance
-# in detector pixels: it projects to that many image pixels along the line of
-# nodes, and is foreshortened by sin(B) across it.  Block paths drop list
-# indices ('ring_system.features' covers every feature entry).
+# key holds).  Each ring-plane length and each angle in the ring_system block
+# names its unit.  The validator and the ring renderer refuse a retired key
+# (refuse_renamed_ring_keys) with a message naming its replacement, nothing
+# translates it, and the sim editor's tooltips read the descriptions from
+# here.  A ring-plane pixel is a distance in the ring plane in detector
+# pixels: it projects to that many image pixels along the line of nodes, and
+# is foreshortened by sin(B) across it.  Block paths drop list indices
+# ('ring_system.features' covers every feature entry).
 RENAMED_RING_KEYS: dict[str, dict[str, tuple[str, str]]] = {
     'ring_system.features': {
         'width': ('width_px', 'the radial width, in ring-plane pixels'),
@@ -411,6 +415,105 @@ def ring_key_description(block: str, key: str) -> str:
         if new_key == key:
             return description
     raise KeyError(f'{block}.{key} did not replace a retired ring key')
+
+
+def renamed_ring_key_message(block: str, old_key: str) -> str:
+    """The validation message for a retired ring key.
+
+    Parameters:
+        block: A block path that is a key of :data:`RENAMED_RING_KEYS`.
+        old_key: A retired key listed for that block.
+
+    Returns:
+        ``'<old>' was renamed; use '<new>' (<what it holds>)``.
+    """
+    new_key, description = RENAMED_RING_KEYS[block][old_key]
+    return f'{old_key!r} was renamed; use {new_key!r} ({description})'
+
+
+def _mapping_entries(value: Any) -> list[tuple[int, Mapping[str, Any]]]:
+    """The ``(index, entry)`` pairs of a list's mapping entries.
+
+    Parameters:
+        value: A scene value that should be a list of mappings.
+
+    Returns:
+        Each mapping entry with its list index; empty when ``value`` is not a
+        list.  Entries that are not mappings are left out.
+    """
+    if not isinstance(value, list):
+        return []
+    return [(index, entry) for index, entry in enumerate(value) if isinstance(entry, Mapping)]
+
+
+def _ring_blocks(ring_system: Mapping[str, Any]) -> list[tuple[str, str, Mapping[str, Any]]]:
+    """Every mapping in a ring system that :data:`RENAMED_RING_KEYS` covers.
+
+    Entries that are not mappings, and lists that are not lists, are skipped:
+    the validator reports those shapes itself.
+
+    Parameters:
+        ring_system: The scene's ``ring_system`` mapping.
+
+    Returns:
+        ``(block, label, mapping)`` triples in scene order, where ``block`` is
+        the mapping's path in :data:`RENAMED_RING_KEYS` and ``label`` its path
+        with list indices, such as ``'ring_system.features[0].orbit'``.
+    """
+    blocks: list[tuple[str, str, Mapping[str, Any]]] = []
+    for index, feature in _mapping_entries(ring_system.get('features')):
+        label = f'ring_system.features[{index}]'
+        blocks.append(('ring_system.features', label, feature))
+        orbit = feature.get('orbit')
+        if not isinstance(orbit, Mapping):
+            continue
+        blocks.append(('ring_system.features.orbit', f'{label}.orbit', orbit))
+        for mode_index, mode in _mapping_entries(orbit.get('modes')):
+            blocks.append(
+                ('ring_system.features.orbit.modes', f'{label}.orbit.modes[{mode_index}]', mode)
+            )
+        wave = orbit.get('edge_wave')
+        if isinstance(wave, Mapping):
+            blocks.append(
+                ('ring_system.features.orbit.edge_wave', f'{label}.orbit.edge_wave', wave)
+            )
+    azimuthal = ring_system.get('azimuthal')
+    if isinstance(azimuthal, Mapping):
+        for key in ('modulation', 'spokes'):
+            sub = azimuthal.get(key)
+            if isinstance(sub, Mapping):
+                path = f'ring_system.azimuthal.{key}'
+                blocks.append((path, path, sub))
+    for index, moonlet in _mapping_entries(ring_system.get('moonlets')):
+        blocks.append(('ring_system.moonlets', f'ring_system.moonlets[{index}]', moonlet))
+    return blocks
+
+
+def refuse_renamed_ring_keys(ring_system: Mapping[str, Any], *, source: str | None = None) -> None:
+    """Refuse a ring system that carries a retired key anywhere.
+
+    The scene validator and the ring renderer
+    (:func:`spindoctor.sim.forward.ring_system.render_ring_system`) both call
+    this, so a retired key fails the same way whether the scene came from a
+    file or an in-memory dict that skipped validation.
+
+    Parameters:
+        ring_system: The scene's ``ring_system`` mapping.
+        source: The scene's label, prefixed to the message when given.
+
+    Raises:
+        SimSceneValidationError: On the first mapping, in scene order, that
+            carries a key listed for its block in :data:`RENAMED_RING_KEYS`;
+            the message is ``[<source>: ]<label>: <renamed_ring_key_message>``
+            for every retired key in that mapping, in sorted order, joined by
+            semicolons.
+    """
+    prefix = '' if source is None else f'{source}: '
+    for block, label, mapping in _ring_blocks(ring_system):
+        retired = sorted(set(mapping) & set(RENAMED_RING_KEYS[block]))
+        if retired:
+            messages = '; '.join(renamed_ring_key_message(block, key) for key in retired)
+            raise SimSceneValidationError(f'{prefix}{label}: {messages}')
 
 
 # The machine-readable truth-key set the ObsSim boundary filter strips and

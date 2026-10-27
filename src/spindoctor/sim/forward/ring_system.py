@@ -81,7 +81,7 @@ from spindoctor.sim.ring_geometry import (
     ring_radial_scale,
     ring_sky_from_plane,
 )
-from spindoctor.sim.scene_schema import RING_SIDE_DEFAULTS
+from spindoctor.sim.scene_schema import RING_SIDE_DEFAULTS, refuse_renamed_ring_keys
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 
@@ -225,9 +225,15 @@ def render_ring_system(
         The rendered :class:`RingSystemMaps`.
 
     Raises:
+        spindoctor.sim.scene_schema.SimSceneValidationError: If the ring system
+            carries a retired key
+            (:func:`spindoctor.sim.scene_schema.refuse_renamed_ring_keys`), so
+            an in-memory scene that skipped validation fails the same way a
+            scene file does.
         ValueError: If a feature's kind is not a renderable profile (the
             validator rejects these; this guards direct callers).
     """
+    refuse_renamed_ring_keys(ring_system)
     size_v, size_u = shape
     geometry = ring_system.get('geometry') or {}
     b_obs = float(geometry.get('opening_deg_obs', 0.0))

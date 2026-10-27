@@ -30,10 +30,10 @@ from spindoctor.sim.scene_schema import (
     _RING_FEATURE_KEYS,
     _RING_SYSTEM_GEOMETRY_KEYS,
     _RING_SYSTEM_KEYS,
-    RENAMED_RING_KEYS,
     RING_KIND_SHAPE_KEYS,
     RING_SHAPE_KEYS,
     SimSceneValidationError,
+    refuse_renamed_ring_keys,
 )
 
 # The block, geometry, and feature key inventories are single-sourced from
@@ -82,42 +82,6 @@ _RING_MOONLET_KEYS: frozenset[str] = frozenset(
 _RING_PROPELLER_KEYS: frozenset[str] = frozenset({'length_deg', 'width_px', 'contrast'})
 
 
-def renamed_ring_key_message(block: str, old_key: str) -> str:
-    """The validation message for a retired ring key.
-
-    Parameters:
-        block: A block path that is a key of
-            :data:`~spindoctor.sim.scene_schema.RENAMED_RING_KEYS`.
-        old_key: A retired key listed for that block.
-
-    Returns:
-        ``'<old>' was renamed; use '<new>' (<what it holds>)``.
-    """
-    new_key, description = RENAMED_RING_KEYS[block][old_key]
-    return f'{old_key!r} was renamed; use {new_key!r} ({description})'
-
-
-def _refuse_renamed_ring_keys(obj: dict[str, Any], *, block: str, label: str, source: str) -> None:
-    """Refuse a ring mapping that carries a retired key.
-
-    Parameters:
-        obj: The mapping to check.
-        block: Its block path in
-            :data:`~spindoctor.sim.scene_schema.RENAMED_RING_KEYS`.
-        label: The mapping's label for error messages (with list indices).
-        source: Label used in error messages.
-
-    Raises:
-        SimSceneValidationError: If ``obj`` carries a retired key; the message
-            is ``<source>: <label>: <renamed_ring_key_message>`` for every
-            retired key in sorted order, joined by semicolons.
-    """
-    retired = sorted(set(obj) & set(RENAMED_RING_KEYS[block]))
-    if retired:
-        messages = '; '.join(renamed_ring_key_message(block, key) for key in retired)
-        raise SimSceneValidationError(f'{source}: {label}: {messages}')
-
-
 def _check_ring_system(value: Any, *, source: str) -> None:
     """Validate the scene-level ``ring_system`` block.
 
@@ -139,6 +103,7 @@ def _check_ring_system(value: Any, *, source: str) -> None:
         return
     if not isinstance(value, dict):
         raise SimSceneValidationError(f'{source}: ring_system must be a mapping when present')
+    refuse_renamed_ring_keys(value, source=source)
     unknown = set(value) - _RING_SYSTEM_KEYS
     if unknown:
         raise SimSceneValidationError(f'{source}: ring_system: unknown keys: {sorted(unknown)}')
@@ -218,9 +183,6 @@ def _check_ring_azimuthal(value: Any, *, source: str) -> None:
         label = 'ring_system.azimuthal.modulation'
         if not isinstance(modulation, dict):
             raise SimSceneValidationError(f'{source}: {label} must be a mapping when present')
-        _refuse_renamed_ring_keys(
-            modulation, block='ring_system.azimuthal.modulation', label=label, source=source
-        )
         unknown = set(modulation) - _RING_MODULATION_KEYS
         if unknown:
             raise SimSceneValidationError(f'{source}: {label}: unknown keys: {sorted(unknown)}')
@@ -264,9 +226,6 @@ def _check_ring_azimuthal(value: Any, *, source: str) -> None:
         label = 'ring_system.azimuthal.spokes'
         if not isinstance(spokes, dict):
             raise SimSceneValidationError(f'{source}: {label} must be a mapping when present')
-        _refuse_renamed_ring_keys(
-            spokes, block='ring_system.azimuthal.spokes', label=label, source=source
-        )
         unknown = set(spokes) - _RING_SPOKES_KEYS
         if unknown:
             raise SimSceneValidationError(f'{source}: {label}: unknown keys: {sorted(unknown)}')
@@ -339,7 +298,6 @@ def _check_ring_moonlet(obj: dict[str, Any], *, index: int, source: str) -> None
         SimSceneValidationError: On any unknown, missing, or invalid field.
     """
     label = f'ring_system.moonlets[{index}]'
-    _refuse_renamed_ring_keys(obj, block='ring_system.moonlets', label=label, source=source)
     unknown = set(obj) - _RING_MOONLET_KEYS
     if unknown:
         raise SimSceneValidationError(f'{source}: {label}: unknown keys: {sorted(unknown)}')
@@ -395,7 +353,6 @@ def _check_ring_feature(obj: dict[str, Any], *, index: int, source: str) -> None
         SimSceneValidationError: On any unknown, missing, or invalid field.
     """
     label = f'ring_system.features[{index}]'
-    _refuse_renamed_ring_keys(obj, block='ring_system.features', label=label, source=source)
     unknown = set(obj) - _RING_FEATURE_KEYS
     if unknown:
         raise SimSceneValidationError(f'{source}: {label}: unknown keys: {sorted(unknown)}')
@@ -544,9 +501,6 @@ def _check_ring_feature_orbit(orbit: Any, *, label: str, source: str) -> None:
     if not isinstance(orbit, dict):
         raise SimSceneValidationError(f'{source}: {label}.orbit is required (a mapping)')
     orbit_label = f'{label}.orbit'
-    _refuse_renamed_ring_keys(
-        orbit, block='ring_system.features.orbit', label=orbit_label, source=source
-    )
     unknown = set(orbit) - _RING_FEATURE_ORBIT_KEYS
     if unknown:
         raise SimSceneValidationError(f'{source}: {orbit_label}: unknown keys: {sorted(unknown)}')
@@ -566,9 +520,6 @@ def _check_ring_feature_orbit(orbit: Any, *, label: str, source: str) -> None:
     _check_optional_mapping_list(modes, f'{label}.orbit.modes', source=source)
     for mode_index, mode in enumerate(modes or []):
         mode_label = f'{label}.orbit.modes[{mode_index}]'
-        _refuse_renamed_ring_keys(
-            mode, block='ring_system.features.orbit.modes', label=mode_label, source=source
-        )
         unknown = set(mode) - _RING_ORBIT_MODE_KEYS
         if unknown:
             raise SimSceneValidationError(
@@ -582,17 +533,12 @@ def _check_ring_feature_orbit(orbit: Any, *, label: str, source: str) -> None:
         _check_optional_nonnegative_number(
             mode.get('amp_px'), f'{mode_label}.amp_px', source=source
         )
-        _check_optional_number(
-            mode.get('peri_deg'), f'{mode_label}.peri_deg', source=source
-        )
+        _check_optional_number(mode.get('peri_deg'), f'{mode_label}.peri_deg', source=source)
     wave = orbit.get('edge_wave')
     if wave is not None:
         wave_label = f'{label}.orbit.edge_wave'
         if not isinstance(wave, dict):
             raise SimSceneValidationError(f'{source}: {wave_label} must be a mapping when present')
-        _refuse_renamed_ring_keys(
-            wave, block='ring_system.features.orbit.edge_wave', label=wave_label, source=source
-        )
         unknown = set(wave) - _RING_EDGE_WAVE_KEYS
         if unknown:
             raise SimSceneValidationError(

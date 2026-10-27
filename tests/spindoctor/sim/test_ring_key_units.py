@@ -1,10 +1,11 @@
 """Ring scene keys name their units, and the per-kind shape-key rules are one table.
 
-Every length and angle key in the ``ring_system`` block carries its unit in its
-name (``a_px``, ``long_peri_deg``, ``rate_peri_deg_per_day``, ``damping_rad``,
-and so on).  Each retired name is refused with a message that names its
-replacement and what the replacement holds; nothing translates it.  The
-retired-to-current map is the schema's ``RENAMED_RING_KEYS``.
+Each ring-plane length and each angle in the ``ring_system`` block carries its
+unit in its name (``a_px``, ``long_peri_deg``, ``rate_peri_deg_per_day``,
+``damping_rad``, and so on).  Each retired name is refused, by the validator
+and again by the ring renderer, with a message that names its replacement and
+what the replacement holds; nothing translates it.  The retired-to-current map
+is the schema's ``RENAMED_RING_KEYS``.
 
 Which radial shape keys a feature kind takes is the schema's
 ``RING_KIND_SHAPE_KEYS``: the validator enforces exactly that table (a required
@@ -13,12 +14,14 @@ either way), and the per-kind tables in the developer guide and the scene
 README match it row for row.
 """
 
+import copy
 import re
 from pathlib import Path
 from typing import Any
 
 import pytest
 
+from spindoctor.sim.render import render_combined_model
 from spindoctor.sim.scene import SimSceneValidationError, validate_sim_params
 from spindoctor.sim.scene_checks_ring import (
     _RING_EDGE_WAVE_KEYS,
@@ -182,9 +185,12 @@ def test_the_full_scene_validates() -> None:
     assert validate_sim_params(scene) is scene
 
 
-@pytest.mark.parametrize(('block', 'old'), _RETIRED, ids=[f'{b}.{o}' for b, o in _RETIRED])
-def test_a_retired_ring_key_is_refused_with_its_replacement(block: str, old: str) -> None:
-    """A retired key fails validation with a message naming its replacement and unit."""
+def _scene_with_retired_key(block: str, old: str) -> tuple[dict[str, Any], str]:
+    """The full scene with ``old`` in place of its replacement, and the expected message.
+
+    The message is the refusal's text after any source prefix:
+    ``<label>: '<old>' was renamed; use '<new>' (<description>)``.
+    """
     scene = _full_scene()
     new, description = RENAMED_RING_KEYS[block][old]
     mapping = _block(scene, block)
@@ -193,8 +199,43 @@ def test_a_retired_ring_key_is_refused_with_its_replacement(block: str, old: str
     else:
         mapping[old] = 1.0
     label = _BLOCK_PATHS[block][1]
-    expected = f"{label}: '{old}' was renamed; use '{new}' ({description})"
+    return scene, f"{label}: '{old}' was renamed; use '{new}' ({description})"
+
+
+@pytest.mark.parametrize(('block', 'old'), _RETIRED, ids=[f'{b}.{o}' for b, o in _RETIRED])
+def test_a_retired_ring_key_is_refused_with_its_replacement(block: str, old: str) -> None:
+    """A retired key fails validation with a message naming its replacement and unit."""
+    scene, expected = _scene_with_retired_key(block, old)
     with pytest.raises(SimSceneValidationError, match=re.escape(expected)):
+        validate_sim_params(scene, source='probe')
+
+
+@pytest.mark.parametrize(('block', 'old'), _RETIRED, ids=[f'{b}.{o}' for b, o in _RETIRED])
+def test_an_unvalidated_scene_with_a_retired_ring_key_fails_to_render(block: str, old: str) -> None:
+    """An in-memory scene that skipped validation refuses a retired ring key at render.
+
+    Without the render-time refusal a retired feature key renders nothing (a
+    width read as 0) and a retired edge-wave key raises a bare KeyError, so the
+    renderer names the replacement exactly as the validator does.
+    """
+    scene, expected = _scene_with_retired_key(block, old)
+    with pytest.raises(SimSceneValidationError) as excinfo:
+        render_combined_model(copy.deepcopy(scene), ignore_offset=True)
+    assert str(excinfo.value) == expected
+
+
+def test_an_m_mode_refuses_the_mode_1_longitude_key() -> None:
+    """A mode's phase is peri_deg; mode 1's long_peri_deg is not a mode key.
+
+    The two longitudes differ: only mode 1's precesses, takes the planted
+    delta_long_peri_deg, and has a declared sigma.
+    """
+    scene = _full_scene()
+    mode = _block(scene, 'ring_system.features.orbit.modes')
+    mode['long_peri_deg'] = mode.pop('peri_deg')
+    with pytest.raises(
+        SimSceneValidationError, match=re.escape("modes[0]: unknown keys: ['long_peri_deg']")
+    ):
         validate_sim_params(scene)
 
 

@@ -2646,9 +2646,10 @@ unitless name (``a``, ``ae``, ``long_peri``, ``rate_peri``, ``width``,
 ``wavelength``, ``damping``, a mode's ``amp`` and ``peri``, an edge wave's
 ``amp``, ``wavelength``, ``damp``, and ``lam0``, the modulation's ``phase_deg``,
 the spokes' ``r_inner`` and ``r_outer``, and a moonlet's ``a``) with a message
-naming its replacement; ``RENAMED_RING_KEYS`` in
-:mod:`spindoctor.sim.scene_schema` holds the table, and the sim editor's
-tooltips read their descriptions from it.
+naming its replacement, and the ring renderer refuses it the same way in an
+in-memory scene that skipped validation (``refuse_renamed_ring_keys``).
+``RENAMED_RING_KEYS`` in :mod:`spindoctor.sim.scene_schema` holds the table,
+and the sim editor's tooltips read their descriptions from it.
 
 **Features.** Each entry of ``features`` carries ``name``, ``kind``, ``tau``
 (the normal optical depth), kind-specific shape keys, a catalog ``orbit``,
