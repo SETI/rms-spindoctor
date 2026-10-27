@@ -77,8 +77,10 @@ cases.
 
 An I/F frame spans roughly 0 to 1, where a DN frame of the same scene can reach
 4095, so a display or threshold scaled for counts shows an I/F frame as black.
-With ``instrument_defaults`` on, a few pixels of an I/F frame dip slightly below
-0. The editor's status bar names the units and value range of each render.
+With ``instrument_defaults`` on, read noise takes part of an I/F frame's dark sky
+slightly below 0: about 5% of the pixels of a ``vgiss`` disc scene, and more than
+a quarter of a ``coiss_calib_nac`` one. The editor's status bar names the units
+and value range of each render.
 
 A ``vgiss`` frame's dark sky is exactly 0, the same value that marks a lost pixel.
 The navigator therefore treats the dark sky as lost data, and it refuses a frame

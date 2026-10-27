@@ -1665,7 +1665,8 @@ Summary
 * A small camera roll is not separable from a translation: the field matcher
   recovers rolls only above ~0.75 deg (the two-star fit extends this to ~0.5 deg),
   and the small-body navigation floor (the 5 px ``BODY_BLOB`` emission floor) is
-  set by the feature-emission gate, not the centroid algorithm. Navigation is
+  set by the feature-emission gate, not the centroid algorithm. Apart from
+  ``vgiss``, whose dark sky sits at its missing-data marker, navigation is
   unit-agnostic: I/F frames navigate identically to raw DN.
 * The confidence column reflects the sim-calibrated per-technique formulas
   (seed-20260718 campaign: the limb-corroborated fuse ~0.99, disc ~0.62-0.75,

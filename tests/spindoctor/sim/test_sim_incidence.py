@@ -134,7 +134,7 @@ def test_marker_mask_matches_zero_marker() -> None:
 
 
 def test_marker_mask_matches_nan_marker() -> None:
-    """The marker mask flags NaN pixels on the calibrated path."""
+    """The marker mask flags NaN pixels on the Cassini CALIB path, whose marker is NaN."""
     image = np.array([[np.nan, 1.0], [2.0, np.nan]], dtype=np.float64)
     mask = marker_mask(image, float('nan'))
     assert mask.tolist() == [[True, False], [False, True]]
