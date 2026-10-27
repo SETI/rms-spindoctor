@@ -7,11 +7,11 @@ and again by the ring renderer, with a message that names its replacement and
 what the replacement holds; nothing translates it.  The retired-to-current map
 is the schema's ``RENAMED_RING_KEYS``.
 
-Which radial shape keys a feature kind takes is the schema's
-``RING_KIND_SHAPE_KEYS``: the validator enforces exactly that table (a required
-key's absence fails, a rejected key's presence fails, an optional key validates
-either way), and the per-kind tables in the developer guide and the scene
-README match it row for row.
+Which radial shape keys a feature kind takes is one table, written out here: the
+schema's ``RING_KIND_SHAPE_KEYS`` holds it, the validator enforces exactly it (a
+required key's absence fails, a rejected key's presence fails, an optional key
+validates either way), and the per-kind tables in the developer guide and the
+scene README match it row for row.
 """
 
 import copy
@@ -103,6 +103,42 @@ _BLOCK_PATHS: dict[str, tuple[tuple[str | int, ...], str]] = {
 
 _RETIRED = [(block, old) for block, renames in _EXPECTED_RENAMES.items() for old in renames]
 
+# The per-kind shape-key table, written out so the validator is checked against
+# the intended rules and not against the schema constant it reads.
+_EXPECTED_KIND_TABLE: dict[str, dict[str, str]] = {
+    'ringlet': {
+        'width_px': 'required',
+        'side': 'rejected',
+        'wavelength_px': 'rejected',
+        'damping_px': 'rejected',
+    },
+    'gap': {
+        'width_px': 'required',
+        'side': 'rejected',
+        'wavelength_px': 'rejected',
+        'damping_px': 'rejected',
+    },
+    'edge': {
+        'width_px': 'rejected',
+        'side': 'optional',
+        'wavelength_px': 'rejected',
+        'damping_px': 'rejected',
+    },
+    'ramp': {
+        'width_px': 'required',
+        'side': 'optional',
+        'wavelength_px': 'rejected',
+        'damping_px': 'rejected',
+    },
+    'wave': {
+        'width_px': 'rejected',
+        'side': 'rejected',
+        'wavelength_px': 'required',
+        'damping_px': 'required',
+    },
+}
+_EXPECTED_SIDE_DEFAULTS: dict[str, str] = {'edge': 'in', 'ramp': 'out'}
+
 
 def _feature(kind: str) -> dict[str, Any]:
     """A feature of ``kind`` carrying exactly the shape keys the kind requires."""
@@ -113,7 +149,7 @@ def _feature(kind: str) -> dict[str, Any]:
         'tau': 1.0,
         'orbit': {'a_px': 40.0},
     }
-    for key, rule in RING_KIND_SHAPE_KEYS[kind].items():
+    for key, rule in _EXPECTED_KIND_TABLE[kind].items():
         if rule == 'required':
             feature[key] = values[key]
     return feature
@@ -276,7 +312,7 @@ def test_ring_key_description_refuses_a_key_that_replaced_nothing() -> None:
 # The per-kind shape-key table
 # ---------------------------------------------------------------------------
 
-_KIND_KEY_CASES = [(kind, key) for kind in RING_KIND_SHAPE_KEYS for key in RING_SHAPE_KEYS]
+_KIND_KEY_CASES = [(kind, key) for kind, rules in _EXPECTED_KIND_TABLE.items() for key in rules]
 
 
 def _shape_value(key: str) -> Any:
@@ -284,7 +320,26 @@ def _shape_value(key: str) -> Any:
     return 'out' if key == 'side' else 5.0
 
 
-@pytest.mark.parametrize('kind', list(RING_KIND_SHAPE_KEYS))
+def test_the_schema_kind_table_is_the_expected_table() -> None:
+    """RING_KIND_SHAPE_KEYS lists each kind's required and optional keys, and nothing else."""
+    expected = {
+        kind: {key: rule for key, rule in rules.items() if rule != 'rejected'}
+        for kind, rules in _EXPECTED_KIND_TABLE.items()
+    }
+    assert expected == RING_KIND_SHAPE_KEYS
+
+
+def test_the_shape_keys_are_the_table_columns() -> None:
+    """RING_SHAPE_KEYS names exactly the keys the expected table rules on."""
+    assert set(RING_SHAPE_KEYS) == set(_EXPECTED_KIND_TABLE['ringlet'])
+
+
+def test_the_side_defaults_are_the_expected_defaults() -> None:
+    """An edge defaults to side 'in' and a ramp to side 'out'."""
+    assert _EXPECTED_SIDE_DEFAULTS == RING_SIDE_DEFAULTS
+
+
+@pytest.mark.parametrize('kind', list(_EXPECTED_KIND_TABLE))
 def test_a_feature_with_its_required_shape_keys_validates(kind: str) -> None:
     """Each kind validates with exactly its required shape keys."""
     scene = _scene({'geometry': {'opening_deg_obs': 30.0, 'opening_deg_sun': 20.0}})
@@ -300,7 +355,7 @@ def test_the_validator_enforces_the_kind_shape_table(kind: str, key: str) -> Non
     scene = _scene({'geometry': {'opening_deg_obs': 30.0, 'opening_deg_sun': 20.0}})
     feature = _feature(kind)
     scene['ring_system']['features'] = [feature]
-    rule = RING_KIND_SHAPE_KEYS[kind].get(key)
+    rule = _EXPECTED_KIND_TABLE[kind][key]
     if rule == 'required':
         del feature[key]
         with pytest.raises(
@@ -325,18 +380,18 @@ def test_every_side_default_belongs_to_a_kind_that_takes_side() -> None:
 
 
 def _expected_table_rows() -> list[list[str]]:
-    """The per-kind table's rows as whitespace-separated tokens, from the schema."""
-    kinds = list(RING_KIND_SHAPE_KEYS)
+    """The per-kind table's rows as whitespace-separated tokens."""
+    kinds = list(_EXPECTED_KIND_TABLE)
     rows = [['key', *kinds]]
-    for key in RING_SHAPE_KEYS:
-        rows.append([key, *(RING_KIND_SHAPE_KEYS[kind].get(key, 'rejected') for kind in kinds)])
-    rows.append(['default', 'side', *(RING_SIDE_DEFAULTS.get(kind, 'n/a') for kind in kinds)])
+    for key in _EXPECTED_KIND_TABLE['ringlet']:
+        rows.append([key, *(_EXPECTED_KIND_TABLE[kind][key] for kind in kinds)])
+    rows.append(['default', 'side', *(_EXPECTED_SIDE_DEFAULTS.get(kind, 'n/a') for kind in kinds)])
     return rows
 
 
 @pytest.mark.parametrize('path', [_DEV_GUIDE, _SCENE_README], ids=['dev_guide', 'scene_readme'])
-def test_the_documented_kind_table_matches_the_schema(path: Path) -> None:
-    """The developer guide and the scene README carry the schema's per-kind table."""
+def test_the_documented_kind_table_is_the_expected_table(path: Path) -> None:
+    """The developer guide and the scene README carry the expected per-kind table."""
     lines = [line.replace('``', '').split() for line in path.read_text().splitlines()]
     for row in _expected_table_rows():
         assert row in lines, f'{path.name} is missing the per-kind table row {row}'
