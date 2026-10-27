@@ -334,3 +334,28 @@ def test_a_brightness_modulation_takes_m_of_at_least_1(m: int, valid: bool) -> N
         return
     with pytest.raises(SimSceneValidationError, match=r'modulation\.m must be an integer >= 1'):
         validate_sim_params(scene)
+
+
+_BLOCK_LABELS: dict[str, str] = {
+    'ring_system.features': 'ring_system.features[0]',
+    'ring_system.features.orbit': 'ring_system.features[0].orbit',
+    'ring_system.features.orbit.modes': 'ring_system.features[0].orbit.modes[0]',
+    'ring_system.features.orbit.edge_wave': 'ring_system.features[0].orbit.edge_wave',
+    'ring_system.azimuthal.modulation': 'ring_system.azimuthal.modulation',
+    'ring_system.azimuthal.spokes': 'ring_system.azimuthal.spokes',
+    'ring_system.moonlets': 'ring_system.moonlets[0]',
+}
+
+
+@pytest.mark.parametrize('block', list(_BLOCK_PATHS))
+def test_every_ring_block_refuses_a_key_it_does_not_take(block: str) -> None:
+    """Every mapping in the ring system accepts only its own keys.
+
+    Parameters:
+        block: A key of :data:`_BLOCK_PATHS` naming the mapping to extend.
+    """
+    scene = _full_scene()
+    _block(scene, block)['not_a_key'] = 1.0
+    message = f"sim_params: {_BLOCK_LABELS[block]}: unknown keys: ['not_a_key']"
+    with pytest.raises(SimSceneValidationError, match=f'^{re.escape(message)}$'):
+        validate_sim_params(scene)
