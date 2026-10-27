@@ -118,7 +118,7 @@ def _paragraph(text: str, anchor: str) -> str:
     ('path', 'anchor'),
     [
         (_DEV_GUIDE, 'MESH_UNSUPPORTED_KEYS'),
-        (_SCENE_README, 'refuses the twelve'),
+        (_SCENE_README, 'ellipsoid-only appearance keys'),
     ],
     ids=['dev_guide', 'scene_readme'],
 )

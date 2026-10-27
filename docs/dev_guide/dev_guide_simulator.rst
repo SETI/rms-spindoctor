@@ -1564,17 +1564,19 @@ prediction consumes:
 The non-Lambert photometric laws, opposition surge, crater carving, the
 surface-texture and transit families, and the atmosphere halo are
 ellipsoid-path features; a mesh body carries the relief, shading, detail, and
-pose-scatter keys. The scene validator *rejects* twelve ellipsoid-only
-appearance keys on a ``polyhedral_mesh`` body: ``atmosphere``,
-``photometric_law``, ``minnaert_k``, ``opposition_surge``, ``albedo_texture``,
-``disc_texture``, ``transits``, ``crater_fill``, ``crater_min_radius``,
-``crater_max_radius``, ``crater_power_law_exponent``, and
-``crater_relief_scale``. The mesh renderer would silently ignore them, and a
-scene that names an effect must render it or fail loudly. The list is
-``MESH_UNSUPPORTED_KEYS`` in :mod:`spindoctor.sim.scene_schema`, and
-``mesh_unsupported_message`` there builds the refusal. The sim editor reads
-both: on a mesh body it disables every control that writes one of these keys
-and shows the refusal as the control's tooltip (see :ref:`sim-gui`).
+pose-scatter keys. The scene validator *rejects* a non-null value of any of
+twelve ellipsoid-only appearance keys on a ``polyhedral_mesh`` body:
+``atmosphere``, ``photometric_law``, ``minnaert_k``, ``opposition_surge``,
+``albedo_texture``, ``disc_texture``, ``transits``, ``crater_fill``,
+``crater_min_radius``, ``crater_max_radius``, ``crater_power_law_exponent``, and
+``crater_relief_scale``. A null value reads as an absent key. The mesh renderer
+would silently ignore these keys, and a scene that names an effect must render
+it or fail loudly. The list is ``MESH_UNSUPPORTED_KEYS`` in
+:mod:`spindoctor.sim.scene_schema`, and ``mesh_unsupported_message`` there
+builds the refusal. The sim editor reads both: on a mesh body it disables every
+control that writes one of these keys, and it shows the refusal as the tooltip
+of that control and of every control and label inside it, so hovering any of
+them explains why it is disabled (see :ref:`sim-gui`).
 
 Silhouette ``anti_aliasing`` is consumed at oversample 1 only, on both render
 paths (an oversampled scene already resolves the limb on its own grid).
@@ -2535,9 +2537,9 @@ resolution, defaults 16 / 32; 64 / 128 hides the facets on a large body),
 The truth-side body keys never reach the navigator. The relief, photometry,
 texture, and transit keys are consumed by the topographic path and the mesh
 extras by the mesh renderer (see :ref:`sim-body-renderer`); the navigator's
-predicted body is always the smooth Lambert template. The rows marked
-*ellipsoid only* are refused on a ``polyhedral_mesh`` body, as is the
-``atmosphere`` block (see :ref:`sim-mesh-appearance`).
+predicted body is always the smooth Lambert template. A non-null value of a
+key in a row marked *ellipsoid only*, or of the ``atmosphere`` block, is
+refused on a ``polyhedral_mesh`` body (see :ref:`sim-mesh-appearance`).
 
 .. list-table::
    :widths: 30 70
@@ -3292,10 +3294,14 @@ realism addition needs -- live in their own module:
      - The editor's side of the mesh rule (see :ref:`sim-mesh-appearance`).
        Switching a body to ``polyhedral_mesh`` disables every control that
        writes a key in ``MESH_UNSUPPORTED_KEYS``, with the validator's refusal
-       as its tooltip, and moves the keys the body carried out of the scene
-       into a stash held for the session, so a mesh body the editor holds or
-       saves never carries a refused key. Switching the body back to an
-       ellipsoid restores the stashed keys and re-enables the controls.
+       as the tooltip of that control and of every control and label inside
+       it. It also moves the keys the body carried out of the scene into a
+       stash held for the session, so a mesh body the editor holds or saves
+       never carries a refused key, and the status bar names the keys moved.
+       Switching the body back to an ellipsoid restores the stashed keys, the
+       controls, and their own tooltips. A saved mesh scene file doesn't
+       carry the stashed keys. Load Scene clears the stash, and deleting a
+       body drops its entry.
 
 The GUI exposes the full scene parameter surface, so any scene that can be
 written by hand in YAML can also be built in the GUI. Two exceptions are

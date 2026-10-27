@@ -240,13 +240,18 @@ mesh_n_lat / mesh_n_lon (tessellation, default 16 / 32; the catalog's mesh
 scenes use 64 / 128 so no facets show), mesh_detail_octaves, and
 pose_euler_deg.
 
-A polyhedral_mesh body refuses the twelve ellipsoid-only appearance keys, which
-the mesh renderer would silently ignore: atmosphere, photometric_law,
-minnaert_k, opposition_surge, albedo_texture, disc_texture, transits,
-crater_fill, crater_min_radius, crater_max_radius, crater_power_law_exponent,
-and crater_relief_scale.  A mesh body's appearance keys are shading,
+A polyhedral_mesh body refuses a non-null value of any of the twelve
+ellipsoid-only appearance keys, which the mesh renderer would silently ignore
+(a null reads as an absent key): atmosphere, photometric_law, minnaert_k,
+opposition_surge, albedo_texture, disc_texture, transits, crater_fill,
+crater_min_radius, crater_max_radius, crater_power_law_exponent, and
+crater_relief_scale.  A mesh body's appearance keys are shading,
 limb_relief_rms, limb_relief_corr_deg, mesh_detail_octaves, and pose_scatter.
 The scene editor disables the controls for the refused keys on a mesh body.
+Switching a body to polyhedral_mesh in the editor moves the refused keys it
+carries out of the scene, and the status bar names them; switching it back to
+ellipsoid in the same session restores them, and a saved mesh scene file
+doesn't carry them.
 
 A body may also carry an optional nav_override mapping.  The renderer ignores it
 (it always draws the true geometry), but the navigator builds its predicted body

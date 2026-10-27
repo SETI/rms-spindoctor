@@ -206,9 +206,10 @@ _BODY_KEYS: frozenset[str] = _BODY_IDEALIZED_KEYS | _BODY_TRUTH_KEYS
 # renderer's crater carving, the topographic path's photometric laws and
 # surface texture, and the ellipsoid-frame atmosphere halo (whose geometry is
 # built from rotation_z / rotation_tilt around the ellipse, which a mesh's
-# arbitrary Euler pose and lumpy limb do not follow).  A mesh body naming one
-# of these would silently render without it, so the validator refuses the
-# combination; a mesh body's appearance vocabulary is shading, limb_relief_*,
+# arbitrary Euler pose and lumpy limb do not follow).  A mesh body giving one
+# of these a value would silently render without it, so the validator refuses
+# a non-null value of any of them (a null reads as an absent key); a mesh
+# body's appearance vocabulary is shading, limb_relief_*,
 # mesh_detail_octaves, and pose_scatter.  The sim editor reads this table too:
 # a mesh body disables every control that writes one of these keys.
 MESH_UNSUPPORTED_KEYS: tuple[str, ...] = (
@@ -231,9 +232,10 @@ def mesh_unsupported_message(keys: Iterable[str]) -> str:
     """The sentence that refuses ellipsoid-only appearance keys on a mesh body.
 
     The scene validator raises it, prefixed with the scene source and the body's
-    label, when a ``polyhedral_mesh`` body carries keys from
-    :data:`MESH_UNSUPPORTED_KEYS`; the sim editor shows it as the tooltip of each
-    control it disables on a mesh body, so the two say the same thing.
+    label, when a ``polyhedral_mesh`` body gives keys from
+    :data:`MESH_UNSUPPORTED_KEYS` a non-null value; the sim editor shows it as the
+    tooltip of each control it disables on a mesh body, and of every control
+    inside one, so the two say the same thing.
 
     Parameters:
         keys: The refused keys to name; the sentence lists them sorted.
