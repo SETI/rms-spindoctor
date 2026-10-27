@@ -292,8 +292,10 @@ What remains of the family:
   measurement. The library failed 31 of 75 against the sixteen then red on
   `main`: the fifteen new are tier and primary-technique pins recorded with
   the shallower limit (re-pins proposed in the Operator Playbook). That was
-  measured before the 2026-10-27 re-pins of seven of the sixteen, which are
-  expected to pass but have not been run on this branch.
+  measured before the 2026-10-27 re-pins of eight of the sixteen. Seven are
+  expected to pass but have not been run on this branch; the eighth,
+  N1633925572_1, reaches the high tier here against its new `low` pin, so it
+  stays red on this branch (Operator Playbook).
   The full F ring bundle run on this branch combined with #754 (20,584
   frames, 2026-10-20) took NAC answers within 1 px of the bundle pointing
   from 6,726 to 14,934 and over 2 px from 4,299 to 679, and WAC within

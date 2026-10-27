@@ -358,9 +358,10 @@ the filter pair, exposure, and gain state and reaches about 4 magnitudes
 deeper on the NAC and 4.5 on the WAC, so StarRefineNav joins answers it
 could not reach before. On `rf_ring_edge_along_755`, measured before the
 2026-10-27 re-pins, the library failed 34 of 75: the sixteen then red on
-`main` plus eighteen. Seven of those sixteen have since been re-pinned
-(Section 1 above) and are expected to pass on this branch too, but have not
-been run on it. Sixteen of the eighteen are tier or
+`main` plus eighteen. Eight of those sixteen have since been re-pinned
+(Section 1 above). Seven are expected to pass on this branch too, but have
+not been run on it; the eighth, N1633925572_1, reaches the high tier here
+against its new `low` pin (below). Sixteen of the eighteen are tier or
 primary-technique pins recorded when fewer stars were cataloged or detected,
 with the answer the same or closer to operator truth. Two move the answer, and the
 stars in the image say the recorded truth is off: on N1597846115_2 four stars
@@ -407,8 +408,9 @@ before that change.
 
 N1484688342_1 and N1489256001_1 drop to `low` because the glare detections
 that made their StarRefineNav answer are now refused; the answer is the limb
-fit, closer to truth, with a sigma of 2.6 px. Separately, N1633925572_1 (in
-the table above) moves from 0.13 to 0.61 px from its truth at the high tier:
+fit, closer to truth, with a sigma of 2.6 px. Separately, N1633925572_1 (re-pinned
+to `low` on 2026-10-27, Section 1) moves from 0.13 to 0.61 px from its truth
+at the high tier, so on this branch it stays red on its tier:
 the refined star now replaces the one-star match and sets the answer. The
 truth is exactly (0.5, 0.5) px from that star's position as the pipeline
 measures it, which looks like a pixel-corner versus pixel-center datum in the
