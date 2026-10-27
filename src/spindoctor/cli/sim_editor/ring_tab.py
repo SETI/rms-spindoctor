@@ -375,13 +375,46 @@ class RingTabMixin(SimEditorBase):
         feature = features[idx]
         feature['kind'] = kind
         self._apply_ring_kind_constraints(feature)
-        # Enable exactly the shape widgets the new kind takes.
+        # Enable exactly the shape widgets the new kind takes, showing the
+        # values the renderer will use.
         tab_idx = self._find_tab_by_properties('ring', idx)
         if tab_idx is not None:
             tab_w = self._tabs.widget(tab_idx)
             if tab_w is not None:
                 self._sync_ring_shape_widgets(tab_w, kind)
+                self._show_ring_shape_values(tab_w, feature)
         self._updater.request_update()
+
+    def _show_ring_shape_values(self, w: QWidget, feature: dict[str, Any]) -> None:
+        """Show the shape values the renderer will use for ``feature``.
+
+        After a kind switch the feature holds exactly its kind's required
+        shape keys, and an absent ``side`` renders with the kind's default
+        from ``RING_SIDE_DEFAULTS``.  Each widget the kind takes shows that
+        value; a widget the kind rejects keeps its text.  Signals are blocked
+        while the widgets change, so showing a default never writes it into
+        the scene.
+
+        Parameters:
+            w: The feature's editing tab.
+            feature: The feature mapping, its kind already set.
+        """
+        kind = str(feature.get('kind', 'ringlet'))
+        spins: dict[str, QDoubleSpinBox] = {
+            'width_px': w.width_spin,  # type: ignore[attr-defined]
+            'wavelength_px': w.wavelength_spin,  # type: ignore[attr-defined]
+            'damping_px': w.damping_spin,  # type: ignore[attr-defined]
+        }
+        for key, spin in spins.items():
+            if key in feature:
+                spin.blockSignals(True)
+                spin.setValue(float(feature[key]))
+                spin.blockSignals(False)
+        if kind in RING_SIDE_DEFAULTS:
+            combo: QComboBox = w.side_combo  # type: ignore[attr-defined]
+            combo.blockSignals(True)
+            combo.setCurrentText(str(feature.get('side', RING_SIDE_DEFAULTS[kind])))
+            combo.blockSignals(False)
 
     def _sync_ring_shape_widgets(self, w: QWidget, kind: str) -> None:
         """Enable the shape widgets ``kind`` takes and say why the rest are gray."""

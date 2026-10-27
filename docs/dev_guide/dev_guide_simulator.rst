@@ -2670,8 +2670,11 @@ and ``navigable`` (default false). The kinds and their shape keys:
 Every kind requires ``kind``, ``tau``, and an ``orbit`` with ``orbit.a_px``.
 The shape keys follow one table, ``RING_KIND_SHAPE_KEYS`` in
 :mod:`spindoctor.sim.scene_schema`, which the validator enforces and the sim
-editor's kind switch follows (it grays out a widget the kind rejects, and the
-widget's tooltip says why). A rejected key fails validation.
+editor's kind switch follows. The switch grays out a widget the kind rejects,
+and the widget's tooltip says why. Each widget the kind takes shows the value
+the renderer will use: the stored value, or for an absent ``side`` the kind's
+default from ``RING_SIDE_DEFAULTS``, which the editor shows without writing it.
+A rejected key fails validation.
 
 ===================  ========  ========  ========  ========  ========
 key                  ringlet   gap       edge      ramp      wave

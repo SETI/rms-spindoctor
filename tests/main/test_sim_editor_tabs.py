@@ -155,6 +155,53 @@ def test_ring_kind_switch_rewrites_shape_keys(model: Any) -> None:
     assert feature['width_px'] > 0.0
 
 
+def test_a_kind_switch_shows_the_side_the_renderer_uses(model: Any) -> None:
+    """After a switch to a one-sided kind the side combo shows that kind's default.
+
+    The feature carries no side key, so the renderer uses the kind's default
+    (``RING_SIDE_DEFAULTS``); the combo shows it, and showing it writes nothing.
+    """
+    tab = _ring_tab(model)
+    feature = model.sim_params['ring_system']['features'][0]
+    shown: list[tuple[str, str, bool]] = []
+    for kind in ('edge', 'ramp', 'edge'):
+        model._on_ring_kind(0, kind)
+        shown.append((kind, tab.side_combo.currentText(), 'side' in feature))
+    assert shown == [('edge', 'in', False), ('ramp', 'out', False), ('edge', 'in', False)]
+
+
+def test_a_stored_side_is_shown_across_one_sided_kinds(model: Any) -> None:
+    """A side the author chose stays in the feature and in the combo when the kind changes."""
+    tab = _ring_tab(model)
+    feature = model.sim_params['ring_system']['features'][0]
+    model._on_ring_kind(0, 'edge')
+    tab.side_combo.setCurrentText('out')
+    model._on_ring_kind(0, 'ramp')
+    model._on_ring_kind(0, 'edge')
+    assert (tab.side_combo.currentText(), feature['side']) == ('out', 'out')
+
+
+def test_a_kind_switch_shows_the_stored_shape_values(model: Any) -> None:
+    """The shape spins show the values the feature holds after each switch.
+
+    A value typed into a disabled spin isn't written, so the spin must not keep
+    showing it once the kind takes the key again.
+    """
+    tab = _ring_tab(model)
+    feature = model.sim_params['ring_system']['features'][0]
+    model._on_ring_kind(0, 'edge')
+    tab.width_spin.setValue(33.0)
+    tab.wavelength_spin.setValue(44.0)
+    tab.damping_spin.setValue(55.0)
+    model._on_ring_kind(0, 'ringlet')
+    assert tab.width_spin.value() == feature['width_px']
+    model._on_ring_kind(0, 'wave')
+    assert (tab.wavelength_spin.value(), tab.damping_spin.value()) == (
+        feature['wavelength_px'],
+        feature['damping_px'],
+    )
+
+
 def test_a_grayed_shape_widget_says_which_kinds_take_its_key(model: Any) -> None:
     """A shape widget the kind rejects is disabled and its tooltip names the kinds that take it."""
     model._add_ring_tab()
