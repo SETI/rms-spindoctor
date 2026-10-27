@@ -312,7 +312,8 @@ which are #483's.
 positions, where the Cassini ISS configuration covers the scale and phase; the
 rule for airless bodies and the simulated model are untouched, so this does not
 pre-empt the redesign. The limb fit also leaves out vertices its coarse seed puts
-in or near the zero-padded frame margin, for every body.
+in or near the zero-padded frame margin, for every body, and its coarse-seed
+mis-lock gate refuses only a fit that the trust region was holding back.
 
 **#646 gates the measurement.** The harness that exists to calibrate the limb
 bias puts its simulated limb ridge in a different place from the catalog model
