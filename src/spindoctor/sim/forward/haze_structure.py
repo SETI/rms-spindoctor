@@ -21,7 +21,8 @@ through ``nav_params``:
   function of ray angle -- the sector-asymmetric edge-localization bias;
 - ``ns_asymmetry_amplitude`` scales one hemisphere's brightness, the affine
   counterpart the Pearson score is supposed to absorb -- affine only poleward
-  of the equatorial blend band described below;
+  of the equatorial blend band described below, and only where the scaled
+  half stays below saturation;
 - ``interior_ramp_amplitude`` adds a linear brightness ramp along the haze
   axis inside the disc, the seasonal north-south gradient;
 - ``cloud_blobs`` add Gaussian clouds on the disc.
@@ -62,6 +63,16 @@ it climbs to ``1 + amplitude`` only at the band edge.  Only a switch keeps
 the ratio constant, and a switch is the seam.  Where a scene puts the
 hemispheric split along the sun axis, the band covers the sunward limb a
 haze navigator scores on.
+
+Poleward of the band the amplitude is a pure scaling only where the scaled
+half stays below saturation.  The renderer clips the signal at 1, so a
+positive amplitude flattens the bright crescent wherever the base brightness
+times ``1 + ns_asymmetry_amplitude`` would pass 1.  Over the 26 clean Titan
+truth scenes that navigate both with and without an amplitude of +0.35, the
+amplitude shifts the recovered cross-track position by 0.063 pixels on
+average with a switch at the equator and 0.065 pixels with a 10 degree band,
+about four times what -0.35 costs with the band.  A switch carries nearly
+all of that cost too, so the clip sets it and the band does not.
 """
 
 import math
@@ -213,7 +224,8 @@ class HazeStructure:
             subtracted at the anti-sunward one, in the [0, 1] signal plane.
         ns_asymmetry_amplitude: Fractional brightness scaling applied to the
             positive-``v_rot`` hemisphere (an affine difference between the
-            two halves poleward of the equatorial blend band).
+            two halves poleward of the equatorial blend band, where the
+            scaled half stays below saturation).
         ns_falloff_ratio: Multiplier on the haze falloff length over that
             same hemisphere (a non-affine difference), blended across the
             equator the same way.
@@ -442,7 +454,10 @@ def apply_hemispheric_scaling(
     and leaves the other half alone, so there the two halves the mirror maps
     onto each other differ by a pure scaling -- the relation a Pearson
     symmetry score is invariant to, which is what makes this axis the
-    control against the non-affine ones.  Inside the band the scaling
+    control against the non-affine ones -- wherever the scaled half stays
+    below saturation.  The caller clips the result to [0, 1], so a positive
+    amplitude flattens the brightest pixels and the difference there is the
+    clip (see the module docstring for what that costs).  Inside the band the scaling
     changes continuously with latitude, so the brightness carries no seam
     at the equator, and the control is not affine there: a mirror pair's
     ratio falls from ``1 + ns_asymmetry_amplitude`` at the band edge to 1 on

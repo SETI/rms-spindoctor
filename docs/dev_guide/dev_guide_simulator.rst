@@ -1558,7 +1558,8 @@ render-level test asserting the effect is measurably present:
    * - ``ns_asymmetry_amplitude``
      - Scales one hemisphere's brightness, blended across the equator: the
        affine counterpart the Pearson score is supposed to absorb. It is
-       affine only poleward of the blend band described below.
+       affine only poleward of the blend band described below, and only where
+       the scaled half stays below saturation.
    * - ``sector_sharpness_gradient``
      - Scales the falloff length with azimuth around the limb, walking the
        detected limb ridge radially as a function of ray angle -- the
@@ -1585,10 +1586,21 @@ it, so the weight is continuous across the silhouette. Poleward of 10 degrees
 each key applies at exactly its stated value: ``ns_falloff_ratio`` multiplies
 the falloff length by the full ratio over the positive-axis hemisphere, and
 ``ns_asymmetry_amplitude`` scales that hemisphere's brightness by the full
-``1 + amplitude``, so there the two halves differ by a pure scaling.
-Inside the band the multiplier is ``1 + (ratio - 1) * w`` or
-``1 + amplitude * w`` for the weight ``w``, so a ratio of one or an amplitude
-of zero leaves the haze untouched.
+``1 + amplitude``, so there the two halves differ by a pure scaling wherever
+the scaled half stays below saturation. Inside the band the multiplier is
+``1 + (ratio - 1) * w`` or ``1 + amplitude * w`` for the weight ``w``, so a
+ratio of one or an amplitude of zero leaves the haze untouched.
+
+The render clips the signal at 1, so a positive amplitude flattens the bright
+crescent wherever the base brightness times ``1 + amplitude`` would pass 1, and
+there the two halves differ by the clip instead of a scaling, poleward of the
+band or not. Over the 26 clean Titan truth scenes that navigate both with and
+without an ``ns_asymmetry_amplitude`` of +0.35, the amplitude shifts the
+recovered cross-track position by 0.063 pixels on average with a switch at the
+equator and 0.065 pixels with the 10 degree band, about four times what an
+amplitude of -0.35 costs with the band (below). Nearly all of that cost is there
+with a switch too, where an amplitude of -0.35, which darkens and so never
+reaches the clip, costs 0.004 pixels, so the clip sets it and the band does not.
 
 Inside the band ``ns_asymmetry_amplitude`` is not an affine control, and no
 continuous blend can make it one. The mirror about the hemispheric split maps
@@ -1606,8 +1618,9 @@ the limb.
 The 10 degree half-width is a sim-side modeling choice set by that cost. Over
 the 27 of 40 clean Titan truth scenes that navigate both with and without an
 ``ns_asymmetry_amplitude`` of -0.35, the amplitude shifts the recovered
-cross-track position by 0.004 pixels on average with a switch, 0.016 pixels (largest 0.086) with a 10 degree band,
-and 0.031 pixels (largest 0.176) with a 20 degree band. At 10 degrees the
+cross-track position by 0.004 pixels on average with a switch, 0.016 pixels
+(largest 0.086) with a 10 degree band, and 0.031 pixels (largest 0.176) with a
+20 degree band. At 10 degrees the
 brightness change across the equator row of a 64 pixel radius haze is about the
 same as across the rows beside it, a ratio of 0.95 to 1.03 where a switch gives
 3 to 26; at 5 degrees the ratio for the brightness term rises to 1.24. The

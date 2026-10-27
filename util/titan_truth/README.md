@@ -56,18 +56,24 @@ provenance of every stress range.
 
 The sun direction is drawn uniformly over the circle, and the body's in-plane
 roll follows it at `rotation_z = illumination_angle - 90`. That roll is what
-puts the hemispheric split the structure keys use ACROSS the sun axis, which
-is what makes `ns_asymmetry_amplitude` the affine control the design intends:
-the mirror about the sun axis has to map one hemisphere onto the other for a
-pure brightness scaling to be the invariance being tested. The control is
-affine only poleward of the simulator's blend band, 10 degrees of latitude
-either side of the split. Inside the band the scaling fades continuously to
-half its value on the mirror line, where the two halves meet, so mirror pairs
-there differ by less than the full factor. No continuous blend can avoid that,
-and a switch would draw a seam. The band lies along the sun axis, over the
-sunward limb the technique scores on. On the
-structureless spheres every family renders, an in-plane roll changes no
-rendered pixel, so carrying it costs the campaign no angular coverage.
+puts the line of the hemispheric split the structure keys use along the sun
+axis, which is what makes `ns_asymmetry_amplitude` the affine control the
+design intends: the mirror about the sun axis has to map one hemisphere onto
+the other for a pure brightness scaling to be the invariance being tested. The
+control is affine only poleward of the simulator's blend band, 10 degrees of
+latitude either side of the split. Inside the band the scaling fades
+continuously to half its value on the mirror line, where the two halves meet,
+so mirror pairs there differ by less than the full factor. No continuous blend
+can avoid that, and a switch would draw a seam. The band lies along the sun
+axis, over the sunward limb the technique scores on. Poleward of the band the
+control is a pure scaling only where the scaled half stays below saturation:
+the simulator clips the signal at 1, so a positive amplitude flattens the
+bright crescent. Over the 26 clean scenes that navigate both with and without
+it, an amplitude of +0.35 moves the recovered cross-track position by 0.063
+pixels on average with a switch at the equator and 0.065 pixels with the band,
+about four times what -0.35 costs with the band. On the structureless spheres
+every family renders, an in-plane roll changes no rendered pixel, so carrying
+it costs the campaign no angular coverage.
 
 ## What the report says
 

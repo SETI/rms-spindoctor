@@ -674,10 +674,13 @@ def apply_atmosphere(
     # silhouette, then a hemispheric brightness scaling of everything --
     # disc radiance and halo glow alike -- so poleward of the equatorial
     # blend band the two halves the mirror maps onto each other differ by a
-    # pure scaling.  Transmission is opacity, not brightness, and is
-    # deliberately left alone.  The whole block is skipped for a
-    # structureless haze: not for tidiness but because every line of it is
-    # per-pixel work the cold-render budget does not carry.
+    # pure scaling wherever the scaled half stays below saturation.  The
+    # clip to [0, 1] that follows flattens a positive amplitude's brightest
+    # pixels (the haze_structure module docstring gives what that costs).
+    # Transmission is opacity, not brightness, and is deliberately left
+    # alone.  The whole block is skipped for a structureless haze: not for
+    # tidiness but because every line of it is per-pixel work the
+    # cold-render budget does not carry.
     if structure is not None:
         apply_disc_structure(
             out_box,
