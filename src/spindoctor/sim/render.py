@@ -11,6 +11,12 @@ Callers are ``ObsSim``, the scene-editor GUI, and ``sim/png_export.py``
 contract: scene parameters are JSON-serializable scalars/lists/maps, no
 wall-clock or global RNG state is consulted, and two renders of the same
 scene are bit-identical on one machine.
+
+A frame rendered for navigation (planted offset applied) inside an open image
+log scope, as ``ObsSim.from_file`` renders each scene it loads, is checked with
+:func:`~spindoctor.sim.instruments.sky_at_marker_warning`: a calibrated frame
+whose dark sky sits at a numeric missing-data marker (``vgiss``) logs a warning
+on the image logger before the navigator refuses it as missing data.
 """
 
 import copy
@@ -18,8 +24,10 @@ import json
 from functools import lru_cache
 from typing import Any
 
+from spindoctor.config import DEFAULT_CONFIG, IMAGE_LOGGER, image_scope_is_open
 from spindoctor.sim.forward.pipeline import run_pipeline
 from spindoctor.sim.forward.stages import new_sim_frame
+from spindoctor.sim.instruments import resolve_sim_inst_config, sky_at_marker_warning
 from spindoctor.support.types import NDArrayFloatType
 
 
@@ -42,7 +50,27 @@ def clear_render_caches() -> None:
     psf.psf_kernel.cache_clear()
 
 
-@lru_cache(maxsize=1)
+def _warn_sky_at_marker(image: NDArrayFloatType, sim_params: dict[str, Any]) -> None:
+    """Log :func:`~spindoctor.sim.instruments.sky_at_marker_warning` for a navigated frame.
+
+    Parameters:
+        image: The rendered frame, planted offset applied.
+        sim_params: The scene it was rendered from.
+    """
+    instrument = sim_params.get('instrument')
+    inst_config = resolve_sim_inst_config(
+        DEFAULT_CONFIG, instrument, sim_params.get('instrument_config')
+    )
+    warning = sky_at_marker_warning(image, inst_config, instrument=instrument)
+    if warning is not None:
+        # The text carries '%' signs, so it goes in as an argument, not a format.
+        IMAGE_LOGGER.warning('%s', warning)
+
+
+# Two entries: the scene editor renders a scene's offset-free preview and the
+# frame the navigator reads (planted offset applied), and an offset-only edit
+# then re-renders only the second.
+@lru_cache(maxsize=2)
 def _render_combined_model_cached(
     sim_params_json: str,
     *,
@@ -102,7 +130,10 @@ def render_combined_model(
     """Render stars then bodies from a full sim_params dict. Returns (img, meta).
 
     ignore_offset = True should be used when rendering the image in the GUI, but not
-    when creating the simulated image to navigate.
+    when creating the simulated image to navigate.  A navigated render inside an
+    open image log scope logs
+    :func:`~spindoctor.sim.instruments.sky_at_marker_warning`'s warning, when it
+    has one, on the image logger.
 
     Parameters:
         sim_params: The parameters describing the simulated model.
@@ -131,6 +162,8 @@ def render_combined_model(
     cached_img, cached_meta = _render_combined_model_cached(
         sim_params_json, ignore_offset=ignore_offset
     )
+    if not ignore_offset and image_scope_is_open():
+        _warn_sky_at_marker(cached_img, sim_params)
     # Return copies to avoid cache modification
     # Use deepcopy for meta to fully isolate nested mutable structures
     return cached_img.copy(), copy.deepcopy(cached_meta)

@@ -4,9 +4,11 @@ Drives the live preview: it calls the renderer, stretches DN to a grayscale
 pixmap (with an optional saturation overlay and visual aids), applies the zoom
 scaling, hit-tests right-clicks to select and drag scene objects, renders the
 instrument PSF inset, and saves the current preview to PNG.  The status bar
-names the frame's units and range and the share of pixels at the missing-data
-marker, because the preview stretch hides both: a ``vgiss`` frame in I/F looks
-the same as a ``coiss_nac`` frame in DN.
+names the frame's units and range, the share of pixels at the missing-data
+marker, and the navigator's verdict when it would not call the frame clean,
+because the preview stretch hides all of them: a ``vgiss`` frame in I/F looks
+the same as a ``coiss_nac`` frame in DN.  The preview is offset-free, but the
+status bar reads the frame the navigator reads, with the planted offset applied.
 """
 
 from typing import Any
@@ -18,7 +20,11 @@ from PyQt6.QtWidgets import QFileDialog, QFormLayout, QGroupBox, QLabel, QMessag
 
 from spindoctor.cli.sim_editor.base import SimEditorBase
 from spindoctor.config import DEFAULT_CONFIG
-from spindoctor.sim.instruments import frame_units_summary, resolve_sim_inst_config
+from spindoctor.sim.instruments import (
+    frame_units_summary,
+    has_planted_offset,
+    resolve_sim_inst_config,
+)
 from spindoctor.sim.render import render_combined_model
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 
@@ -102,10 +108,23 @@ class RenderDisplayMixin(SimEditorBase):
         try:
             # Render image (caching is handled in render.py)
             img, meta = render_combined_model(self.sim_params, ignore_offset=True)
+            # The navigator reads the frame with the planted offset applied, which
+            # moves the scene against the sky, so the marker share and verdict come
+            # from that frame; the preview stays offset-free.
+            navigated = img
+            if has_planted_offset(self.sim_params):
+                navigated, _ = render_combined_model(self.sim_params, ignore_offset=False)
             self._current_image = img
             self._last_meta = meta
+            inst_config = resolve_sim_inst_config(
+                DEFAULT_CONFIG,
+                self.sim_params.get('instrument'),
+                self.sim_params.get('instrument_config'),
+            )
+            self._units_label.setText(frame_units_summary(navigated, inst_config))
             self._display_image()
         except Exception as e:
+            self._units_label.setText('')
             QMessageBox.critical(self, 'Error', f'Failed to render image:\n{e!s}')
 
     def _toggle_saturation_overlay(self, checked: bool) -> None:
@@ -129,12 +148,6 @@ class RenderDisplayMixin(SimEditorBase):
             return
         img_uint8 = _dn_to_display_uint8(self._current_image)
         height, width = img_uint8.shape
-        inst_config = resolve_sim_inst_config(
-            DEFAULT_CONFIG,
-            self.sim_params.get('instrument'),
-            self.sim_params.get('instrument_config'),
-        )
-        self._units_label.setText(frame_units_summary(self._current_image, inst_config))
         saturation_dn = self._current_saturation_dn()
         if self._show_saturation_overlay and saturation_dn is not None:
             rgb = np.repeat(img_uint8[:, :, np.newaxis], 3, axis=2)

@@ -314,6 +314,65 @@ def test_units_label_names_the_rendered_units(model: Any, instrument: str, units
     assert model._units_label.text().split(' ')[0] == units
 
 
+def _vgiss_rhea(model: Any, *, axis: float, offset_vu: tuple[float, float]) -> None:
+    """Set the editor's scene to a 128 x 128 vgiss frame holding one full-phase Rhea."""
+    model.sim_params.pop('noise', None)
+    model.sim_params.update(
+        {
+            'size_v': 128,
+            'size_u': 128,
+            'instrument': 'vgiss',
+            'random_seed': 42,
+            'offset_v': offset_vu[0],
+            'offset_u': offset_vu[1],
+            'bodies': [
+                {
+                    'name': 'RHEA',
+                    'center_v': 64.0,
+                    'center_u': 64.0,
+                    'axis1': axis,
+                    'axis2': axis,
+                    'axis3': axis,
+                    'illumination_angle': 0.0,
+                    'phase_angle': 0.0,
+                }
+            ],
+        }
+    )
+
+
+def test_units_label_reads_the_navigated_frame(model: Any) -> None:
+    """The label warns when the planted offset pushes the dark sky over the limit."""
+    _vgiss_rhea(model, axis=123.0, offset_vu=(12.0, -12.0))
+    model._update_image()
+    assert '(over 30%: the navigator refuses it as missing data)' in model._units_label.text()
+
+
+def test_units_label_follows_a_scene_marker_override(model: Any) -> None:
+    """A scene that moves the vgiss marker to NaN keeps its sky, and the label stays quiet."""
+    _vgiss_rhea(model, axis=86.0, offset_vu=(0.0, 0.0))
+    model.sim_params['instrument_config'] = {'noise': {'marker_value': 'NaN'}}
+    model._update_image()
+    assert model._units_label.text() == 'I/F 0 to 0.9961'
+
+
+def test_units_label_clears_after_a_failed_render(
+    model: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A failed render leaves the label empty rather than describing the previous frame."""
+    model.sim_params['instrument'] = 'coiss_nac'
+    model._update_image()
+
+    def _fail(*args: Any, **kwargs: Any) -> Any:
+        raise RuntimeError('render failed')
+
+    render_display = importlib.import_module('spindoctor.cli.sim_editor.render_display')
+    monkeypatch.setattr(render_display, 'render_combined_model', _fail)
+    monkeypatch.setattr(QMessageBox, 'critical', lambda *args, **kwargs: None)
+    model._update_image()
+    assert model._units_label.text() == ''
+
+
 def test_psf_preview_collapsed_by_default(model: Any) -> None:
     """The PSF preview pane starts collapsed with its inset hidden."""
     assert model._psf_group.isChecked() is False

@@ -27,13 +27,17 @@ instrument renders detector counts with a ``0`` missing-data marker.  A
 ``calibrated_if`` instrument renders I/F, and its marker is whatever its block
 declares: ``NaN`` for the calibrated Cassini cameras, ``0`` for Voyager ISS,
 whose archived products fill lost pixels with zero.
-:func:`navigator_marker_value` reads the marker the way the navigator does, and
-:func:`frame_units_summary` states a rendered frame's units, range, and marker
-share for a scene author.
+:func:`navigator_marker_value` reads the marker the way the navigator does,
+:func:`read_frame_as_navigator` classifies a frame the way the navigator's image
+classifier does, and :func:`frame_units_summary` states a rendered frame's
+units, range, marker share, and that verdict for a scene author.
+:func:`sky_at_marker_warning` explains the one verdict a scene author is least
+likely to expect: a calibrated frame whose dark sky sits at a numeric marker.
 """
 
 import math
 from collections.abc import Mapping
+from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
@@ -44,11 +48,15 @@ from spindoctor.support.types import NDArrayFloatType
 __all__ = [
     'GENERIC_INSTRUMENT_ALIASES',
     'SIM_INSTRUMENTS',
+    'NavigatorFrameReading',
     'frame_units_summary',
+    'has_planted_offset',
     'navigator_marker_value',
     'navigator_matched_psf',
+    'read_frame_as_navigator',
     'resolve_extfov_margin',
     'resolve_sim_inst_config',
+    'sky_at_marker_warning',
 ]
 
 # Sim instrument name -> (config section, detector key or None for flat blocks).
@@ -65,8 +73,16 @@ SIM_INSTRUMENTS: dict[str, tuple[str, str | None]] = {
 # Names that resolve to the standalone, instrument-agnostic ``sim`` block.
 GENERIC_INSTRUMENT_ALIASES = frozenset({'generic', 'sim'})
 
-# The navigator's default for image_quality_thresholds.max_missing_frac_clean.
+# The navigator's defaults for the image_quality_thresholds keys its classifier
+# reads (nav_orchestrator.instrument_config and ImageQualityThresholds).  The
+# blank and saturation limits are required keys there; every shipped block sets
+# them, and the classifier's own defaults stand in for a block that omits them.
 _DEFAULT_MAX_MISSING_FRAC = 0.30
+_DEFAULT_MAX_OVEREXPOSED_FRAC = 0.80
+_DEFAULT_BLANK_MAX = 5.0
+_DEFAULT_SATURATION_THRESHOLD_DN = 4095.0
+# The offset keys a navigated frame applies and an editor preview zeroes.
+_PLANTED_OFFSET_KEYS = ('offset_v', 'offset_u', 'offset_rotation_deg')
 
 
 def _deep_merge(base: Mapping[str, Any], overrides: Mapping[str, Any]) -> dict[str, Any]:
@@ -249,18 +265,120 @@ def navigator_marker_value(inst_config: Mapping[str, Any]) -> float:
     return float(value)
 
 
+@dataclass(frozen=True)
+class NavigatorFrameReading:
+    """How the navigator's image classifier reads a frame's marker and peak.
+
+    Parameters:
+        units: ``'DN'`` for a ``raw_dn`` block, ``'I/F'`` for a ``calibrated_if`` one.
+        marker: The missing-data marker (see :func:`navigator_marker_value`).
+        missing_frac: Fraction of pixels carrying the marker (NaN pixels when the
+            marker is NaN).
+        image_class: The classifier's outcome: ``'blank'``, ``'fully_overexposed'``,
+            ``'mostly_missing_data'``, or ``'clean'``.
+        blank_max: The peak below which the frame is blank.
+        max_missing_frac: The marker share above which the frame is refused.
+        max_overexposed_frac: The saturated share above which the frame is
+            overexposed.
+    """
+
+    units: str
+    marker: float
+    missing_frac: float
+    image_class: str
+    blank_max: float
+    max_missing_frac: float
+    max_overexposed_frac: float
+
+
+def read_frame_as_navigator(
+    image: NDArrayFloatType, inst_config: Mapping[str, Any]
+) -> NavigatorFrameReading:
+    """Classify a frame's sensor pixels the way the navigator's image classifier does.
+
+    The navigator counts the pixels carrying the marker, fills them with 0, and
+    then decides in a fixed order: a frame whose peak is below the blank limit
+    (``image_quality_thresholds.blank_max_dn`` for a ``raw_dn`` block,
+    ``blank_max_if`` for a ``calibrated_if`` one) is ``blank``; else a frame
+    with more than ``max_overexposed_frac_clean`` (0.80) of its pixels at or
+    above ``saturation_threshold_dn`` is ``fully_overexposed`` (never for a
+    calibrated block, which has no saturation gate); else a frame with more than
+    ``max_missing_frac_clean`` (0.30) of its pixels at the marker is
+    ``mostly_missing_data``; else it is ``clean``.  ``image`` is the sensor
+    frame without extended-FOV padding, which the navigator masks out.
+
+    Parameters:
+        image: The frame the navigator reads, with the planted offset applied.
+        inst_config: The resolved per-instrument config block of that frame.
+
+    Returns:
+        The reading, with the class and the limits that decided it.
+    """
+    arr = np.asarray(image, dtype=np.float64)
+    raw_dn = str(inst_config.get('data_units', 'raw_dn')) == 'raw_dn'
+    thresholds = inst_config.get('image_quality_thresholds') or {}
+    marker = navigator_marker_value(inst_config)
+    missing = np.isnan(arr) if math.isnan(marker) else arr == marker
+    missing_frac = float(missing.mean()) if arr.size else 0.0
+    filled = np.where(missing, 0.0, arr)
+    finite = filled[np.isfinite(filled)]
+    peak = float(finite.max()) if finite.size else 0.0
+    blank_key = 'blank_max_dn' if raw_dn else 'blank_max_if'
+    blank_max = float(thresholds.get(blank_key, _DEFAULT_BLANK_MAX))
+    max_missing = float(thresholds.get('max_missing_frac_clean', _DEFAULT_MAX_MISSING_FRAC))
+    max_overexposed = float(
+        thresholds.get('max_overexposed_frac_clean', _DEFAULT_MAX_OVEREXPOSED_FRAC)
+    )
+    saturated_frac = 0.0
+    if raw_dn and arr.size:
+        limit = float(thresholds.get('saturation_threshold_dn', _DEFAULT_SATURATION_THRESHOLD_DN))
+        saturated_frac = float((filled >= limit).mean())
+    if peak < blank_max:
+        image_class = 'blank'
+    elif saturated_frac > max_overexposed:
+        image_class = 'fully_overexposed'
+    elif missing_frac > max_missing:
+        image_class = 'mostly_missing_data'
+    else:
+        image_class = 'clean'
+    return NavigatorFrameReading(
+        units='DN' if raw_dn else 'I/F',
+        marker=marker,
+        missing_frac=missing_frac,
+        image_class=image_class,
+        blank_max=blank_max,
+        max_missing_frac=max_missing,
+        max_overexposed_frac=max_overexposed,
+    )
+
+
+def has_planted_offset(sim_params: Mapping[str, Any]) -> bool:
+    """Whether a scene plants a pointing offset or roll the navigated frame applies.
+
+    Parameters:
+        sim_params: The scene mapping.
+
+    Returns:
+        True when any of ``offset_v``, ``offset_u``, or ``offset_rotation_deg``
+        is non-zero, so the navigated frame differs from an offset-free preview.
+    """
+    return any(float(sim_params.get(key) or 0.0) != 0.0 for key in _PLANTED_OFFSET_KEYS)
+
+
 def frame_units_summary(image: NDArrayFloatType, inst_config: Mapping[str, Any]) -> str:
-    """Describe a rendered frame's units, value range, and missing-data marker share.
+    """Describe a frame's units, value range, marker share, and the navigator's verdict.
 
     The text names the units (``DN`` for a ``raw_dn`` block, ``I/F`` for a
     ``calibrated_if`` block) and the finite value range, for example
     ``'I/F 0 to 1.48'``.  When any pixel equals the navigator's marker (see
     :func:`navigator_marker_value`; NaN pixels when the marker is NaN), it adds the
-    marker and the share of pixels carrying it, and, when that share exceeds the
-    block's ``image_quality_thresholds.max_missing_frac_clean`` (0.30 when absent),
-    it says that the navigator refuses the frame as missing-data dominant.  A
-    ``vgiss`` frame whose dark sky renders at exactly 0 I/F reads as missing data
-    this way.
+    marker and the share of pixels carrying it.  When the navigator's classifier
+    (see :func:`read_frame_as_navigator`) would not call the frame clean, it adds
+    the reason, in the classifier's order: below the blank limit, over the
+    overexposed share, or over ``max_missing_frac_clean``, in which case the
+    navigator refuses it as missing data.  A ``vgiss`` frame whose dark sky renders
+    at exactly 0 I/F reads as missing data this way.  Pass the frame the navigator
+    reads, with the planted offset applied, for the verdict to match it.
 
     Parameters:
         image: The rendered frame.
@@ -271,21 +389,61 @@ def frame_units_summary(image: NDArrayFloatType, inst_config: Mapping[str, Any])
         One line of text for a status display.
     """
     arr = np.asarray(image, dtype=np.float64)
-    units = 'DN' if str(inst_config.get('data_units', 'raw_dn')) == 'raw_dn' else 'I/F'
+    reading = read_frame_as_navigator(arr, inst_config)
     finite = arr[np.isfinite(arr)]
     if finite.size == 0:
-        text = f'{units}: no finite pixels'
+        text = f'{reading.units}: no finite pixels'
     else:
-        text = f'{units} {float(finite.min()):.4g} to {float(finite.max()):.4g}'
-    marker = navigator_marker_value(inst_config)
-    hits = np.isnan(arr) if math.isnan(marker) else arr == marker
-    share = float(hits.mean()) if arr.size else 0.0
-    if share == 0.0:
-        return text
-    marker_text = 'NaN' if math.isnan(marker) else f'{marker:g}'
-    text += f'; marker {marker_text} on {share * 100:.1f}% of pixels'
-    thresholds = inst_config.get('image_quality_thresholds') or {}
-    limit = float(thresholds.get('max_missing_frac_clean', _DEFAULT_MAX_MISSING_FRAC))
-    if share > limit:
-        text += f' (over {limit * 100:.0f}%: the navigator refuses it as missing data)'
+        text = f'{reading.units} {float(finite.min()):.4g} to {float(finite.max()):.4g}'
+    if reading.missing_frac > 0.0:
+        marker_text = 'NaN' if math.isnan(reading.marker) else f'{reading.marker:g}'
+        text += f'; marker {marker_text} on {reading.missing_frac * 100:.1f}% of pixels'
+    if reading.image_class == 'blank':
+        text += f' (peak below {reading.blank_max:g}: the navigator classifies it blank)'
+    elif reading.image_class == 'fully_overexposed':
+        text += (
+            f' (over {reading.max_overexposed_frac * 100:.0f}% saturated: '
+            'the navigator classifies it overexposed)'
+        )
+    elif reading.image_class == 'mostly_missing_data':
+        text += (
+            f' (over {reading.max_missing_frac * 100:.0f}%: '
+            'the navigator refuses it as missing data)'
+        )
     return text
+
+
+def sky_at_marker_warning(
+    image: NDArrayFloatType, inst_config: Mapping[str, Any], *, instrument: str | None
+) -> str | None:
+    """A warning for a calibrated frame whose dark sky sits at a numeric marker.
+
+    On a ``calibrated_if`` block whose marker is a number (``vgiss``: 0), a
+    noise-free dark sky renders at exactly the marker, so the navigator counts
+    the sky as missing data.  When that makes the navigator refuse the frame
+    (:func:`read_frame_as_navigator` returns ``mostly_missing_data``), this
+    returns a one-line explanation naming the share, the limit, and the
+    ``instrument_config.noise.marker_value: NaN`` override that keeps the sky.
+
+    Parameters:
+        image: The frame the navigator reads, with the planted offset applied.
+        inst_config: The resolved per-instrument config block of that frame.
+        instrument: The scene's instrument name, for the message.
+
+    Returns:
+        The warning text, or None when the block is ``raw_dn``, its marker is
+        NaN, or the navigator would not refuse the frame as missing data.
+    """
+    if str(inst_config.get('data_units', 'raw_dn')) == 'raw_dn':
+        return None
+    reading = read_frame_as_navigator(image, inst_config)
+    if math.isnan(reading.marker) or reading.image_class != 'mostly_missing_data':
+        return None
+    return (
+        f'Simulated {instrument} frame: the missing-data marker {reading.marker:g} is '
+        f'also the dark-sky level of this calibrated frame, so '
+        f'{reading.missing_frac * 100:.1f}% of its pixels read as missing data, over '
+        f'the {reading.max_missing_frac * 100:.0f}% limit; the navigator will refuse '
+        'it as mostly missing data.  Set instrument_config.noise.marker_value: NaN '
+        'in the scene to keep the sky.'
+    )
