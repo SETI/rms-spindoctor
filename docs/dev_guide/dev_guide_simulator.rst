@@ -1144,44 +1144,111 @@ the commanded ``limb_relief_rms`` per realization. That RMS is a fraction of
 the body radius: 0.02 moves the limb of a 100-pixel-radius body by 2 pixels
 RMS.
 
-The scene validator caps that RMS at 0.05, the point where the limb-only
-renderer stops approximating one surface. The renderer displaces only the
-limb. It draws the silhouette at the field's equator slice,
-``R (1 + h(0, phi))``, and it reads the terrain under each disc pixel at the
-smooth sphere's direction. The relief surface itself projects to the envelope
-``R max_lat (1 + h(lat, phi)) cos(lat)``. Under a pixel at elevation ``lat``
-it shows a point ``h cot(lat)`` radians away from the one the renderer reads.
-Both errors grow with the RMS and shrink with the correlation length. At the
-default 15-degree correlation length, averaged over 8 seeds:
+The scene validator caps that RMS at 0.05. The cap comes from the ellipsoid
+renderer, which displaces only the limb. It draws the silhouette at the field's
+equator slice, ``R (1 + h(0, phi))``, and it reads the terrain under each disc
+pixel at the smooth sphere's direction. The relief surface itself projects to
+the envelope ``R max_lat (1 + h(lat, phi)) cos(lat)``. Under a pixel at
+elevation ``lat`` it shows a point ``h cot(lat)`` radians away from the one the
+renderer reads. Both errors grow with the RMS and shrink with the correlation
+length. The table gives both, averaged over 64 seeds of the field:
 
 .. list-table::
-   :widths: 20 40 40
+   :widths: 20 20 30 30
    :header-rows: 1
 
-   * - RMS
+   * - Correlation length
+     - RMS
      - Drawn limb's RMS distance from the envelope, in units of the RMS
      - Disc read more than half a correlation length from the point shown
-   * - 0.01
-     - 0.37
-     - 0.6%
-   * - 0.02
-     - 0.65
-     - 2.5%
-   * - 0.05
-     - 1.03
+   * - 30 degrees
+     - 0.05
+     - 0.47
+     - 3.6%
+   * - 30 degrees
+     - 0.1
+     - 0.72
      - 12%
-   * - 0.1
-     - 1.28
-     - 30%
+   * - 15 degrees
+     - 0.01
+     - 0.31
+     - 0.6%
+   * - 15 degrees
+     - 0.02
+     - 0.54
+     - 2.5%
+   * - 15 degrees
+     - 0.05
+     - 0.88
+     - 12%
+   * - 15 degrees
+     - 0.1
+     - 1.12
+     - 28%
+   * - 10 degrees
+     - 0.02
+     - 0.81
+     - 4.7%
+   * - 10 degrees
+     - 0.035
+     - 1.02
+     - 12%
+   * - 10 degrees
+     - 0.05
+     - 1.14
+     - 20%
+   * - 5 degrees
+     - 0.01
+     - 1.03
+     - 4.8%
+   * - 5 degrees
+     - 0.02
+     - 1.27
+     - 14%
+   * - 5 degrees
+     - 0.05
+     - 1.54
+     - 39%
+   * - 2 degrees
+     - 0.005
+     - 1.37
+     - 6.8%
+   * - 2 degrees
+     - 0.01
+     - 1.57
+     - 19%
+   * - 2 degrees
+     - 0.05
+     - 1.97
+     - 66%
 
-At 0.05 the limb's error reaches the size of the relief itself. Shorter
-correlation lengths reach that point at lower RMS: at 5 degrees the limb's
-error is already 0.98 times the RMS at an RMS of 0.01.
+The cap of 0.05 is a conservative bound set by the disc share. At the default
+15-degree correlation length, the renderer reads the terrain under about 12% of
+the disc, one pixel in eight, more than half a correlation length from the
+point the pixel shows. The disc share follows the ratio of the RMS to the
+correlation length in radians. Wherever that ratio is 0.19, from 2 to
+30 degrees, the share is 11% to 12%. The limb's error does not follow the
+ratio: along the same line it falls from 1.46 times the RMS at 2 degrees to
+0.72 times at 30 degrees.
 
-The validator also requires ``limb_relief_corr_deg`` of at least 1 degree.
-The field's synthesis costs about the cube of ``1 / corr``: 0.5 s and 0.2 GB
-at 1 degree, 3.1 s and 0.5 GB at 0.5 degrees, and 26 s and 1.7 GB at
-0.25 degrees.
+Validity degrades at shorter correlation lengths, and the cap does not follow
+it. At 10 degrees and an RMS of 0.05, a fifth of the disc is misread. At
+5 degrees the limb's error exceeds the RMS from an RMS of 0.01 upward. At
+2 degrees it is at least 1.37 times the RMS at every RMS in the table.
+
+The validator holds mesh bodies to the same cap. A mesh body's relief displaces
+the mesh's vertices in 3-D, so its silhouette is the displaced surface's own
+outline, and the two errors above belong to the ellipsoid renderer.
+
+The validator also requires ``limb_relief_corr_deg`` of at least 1 degree. That
+floor bounds cost. It is not a validity bound: at 2 degrees validity is already
+poor at every RMS. The field's synthesis costs about the cube of ``1 / corr``:
+0.5 s and 0.2 GB at 1 degree, 3.1 s and 0.5 GB at 0.5 degrees, and 26 s and
+1.7 GB at 0.25 degrees. A realization is cached by its correlation length and
+seed and rescaled to the RMS, so a render, or the scene editor, pays that cost
+again only when the correlation length or the relief seed changes. The
+correlation length is checked even on a body whose relief is off, as every
+other key's range is checked on its own.
 
 **Limb and terminator application.** The renderer's normalized ellipse radial
 function ``e(p)`` (1 exactly at the unperturbed limb) is divided by

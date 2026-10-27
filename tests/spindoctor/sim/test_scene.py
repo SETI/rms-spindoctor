@@ -182,7 +182,10 @@ def test_validate_sim_params_rejects_negative_limb_relief_rms() -> None:
 def test_validate_sim_params_bounds_limb_relief_rms_as_a_fraction_of_the_radius(
     rms: float, accepted: bool
 ) -> None:
-    """Relief RMS above 5% of the radius fails: the limb-only render stops fitting one surface."""
+    """Relief RMS above 5% of the radius fails validation.
+
+    At the cap the ellipsoid renderer misreads the terrain under about 12% of the disc.
+    """
     params = _sim_params()
     params['bodies'][0]['limb_relief_rms'] = rms
     if accepted:
@@ -194,7 +197,11 @@ def test_validate_sim_params_bounds_limb_relief_rms_as_a_fraction_of_the_radius(
 
 @pytest.mark.parametrize(('corr_deg', 'accepted'), [(1.0, True), (0.99, False), (0.1, False)])
 def test_validate_sim_params_bounds_relief_corr_from_below(corr_deg: float, accepted: bool) -> None:
-    """A relief correlation length below 1 degree fails: its field takes too long to build."""
+    """A relief correlation length below 1 degree fails validation.
+
+    The floor bounds the field's synthesis cost.  The body in this scene does not set a
+    relief RMS: the floor applies with relief off too.
+    """
     params = _sim_params()
     params['bodies'][0]['limb_relief_corr_deg'] = corr_deg
     if accepted:

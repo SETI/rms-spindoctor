@@ -65,25 +65,35 @@ __all__ = [
 ]
 
 # The largest limb-relief RMS (a fraction of the body radius) a scene may
-# command.  The renderer displaces only the limb: it draws the silhouette at
-# the field's equator slice, R (1 + h(0, phi)), and reads the terrain under
-# each disc pixel at the smooth sphere's direction.  The relief surface itself
-# projects to the envelope R * max over lat of (1 + h(lat, phi)) * cos(lat),
-# and its point under a pixel at elevation lat lies h * cot(lat) radians from
-# the one the renderer reads.  Both errors grow with the RMS and shrink with
-# the correlation length.  At the default 15-degree correlation length (8
-# seeds each), the drawn limb's RMS distance from the envelope is 0.65 times
-# the RMS at an RMS of 0.02, 1.03 times at 0.05, and 1.28 times at 0.1.  The
-# terrain under 2.5%, 12%, and 30% of the disc is read more than half a
-# correlation length from the point the pixel shows.  At 0.05 the limb's
-# error reaches the size of the relief itself; above it, the limb and the
-# terminator shadows stop approximating one surface.
+# command.  The bound comes from the ellipsoid renderer, which displaces only
+# the limb: it draws the silhouette at the field's equator slice,
+# R (1 + h(0, phi)), and reads the terrain under each disc pixel at the smooth
+# sphere's direction.  The relief surface itself projects to the envelope
+# R * max over lat of (1 + h(lat, phi)) * cos(lat), and its point under a
+# pixel at elevation lat lies h * cot(lat) radians from the one the renderer
+# reads.  Both errors grow with the RMS and shrink with the correlation
+# length.  Averaged over 64 seeds at the default 15-degree correlation length,
+# the drawn limb's RMS distance from the envelope is 0.54 times the RMS at an
+# RMS of 0.02, 0.88 times at 0.05, and 1.12 times at 0.1, and the renderer
+# reads the terrain under 2.5%, 12%, and 28% of the disc more than half a
+# correlation length from the point the pixel shows.  0.05 is a conservative
+# bound set by that disc share, about one pixel in eight at 15 degrees.
+# Validity degrades at shorter correlation lengths, and this bound does not
+# follow it.  At 10 degrees and an RMS of 0.05 the share is 20% and the limb
+# error 1.14 times the RMS.  At 5 degrees the limb error is 1.03 times the RMS
+# already at an RMS of 0.01, and at 2 degrees it is at least 1.37 times the
+# RMS at every RMS.  The validator holds mesh bodies to the same bound.  Their
+# relief displaces the mesh's vertices in 3-D, so their silhouette is the
+# displaced surface's own outline; the two errors above are the ellipsoid
+# renderer's.
 MAX_LIMB_RELIEF_RMS = 0.05
 # The shortest relief correlation length (degrees of arc) a scene may command.
-# Synthesis costs about (1 / corr)**3: 0.5 s and 0.2 GB at 1 degree, 3.1 s and
-# 0.5 GB at 0.5 degrees, and 26 s and 1.7 GB at 0.25 degrees.  The renderer
-# synthesizes one field per body, and the scene editor re-renders on every
-# change.
+# It bounds cost.  It is not a validity bound: validity is already poor at
+# 2 degrees (above).  Synthesis costs about (1 / corr)**3: 0.5 s and 0.2 GB at
+# 1 degree, 3.1 s and 0.5 GB at 0.5 degrees, and 26 s and 1.7 GB at
+# 0.25 degrees.  A realization is cached by (corr, seed) and rescaled to the
+# RMS, so a render, or the scene editor, pays that cost again only when the
+# correlation length or the relief seed changes.
 MIN_LIMB_RELIEF_CORR_DEG = 1.0
 # Relief harmonic degrees below this are zeroed (degree 1 = body
 # translation, degree 2 = ellipsoid shape aliasing).
