@@ -257,6 +257,17 @@ def _resolve_detector_modes(
     return modes
 
 
+def _set_keys(block: Mapping[str, Any]) -> dict[str, Any]:
+    """Return a scene block's keys that carry a value, dropping every explicit null.
+
+    A null scene key reads as absent everywhere in the resolver, as a null
+    ``detector`` key does (see :func:`_scene_or_default`), so it falls through to
+    the catalog or configuration default instead of reaching ``float()`` or
+    ``bool()``.
+    """
+    return {key: value for key, value in block.items() if value is not None}
+
+
 def _scene_or_default(block: Mapping[str, Any], key: str, default: Any) -> Any:
     """Read a scene ``detector`` key, treating an explicit null as absent.
 
@@ -300,6 +311,10 @@ def _refuse_retired_config_keys(sim_noise: Mapping[str, Any]) -> None:
 def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
     """Collapse the scene, config, and catalog into a resolved detector view.
 
+    A scene ``noise`` or ``noise.vidicon`` key set to null reads as absent, as a
+    null ``detector`` key does: it resolves to the value the scene would get
+    without the key.
+
     Parameters:
         params: The full scene ``sim_params`` mapping.
 
@@ -320,7 +335,9 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
     catalog = resolve_detector_defaults(instrument)
 
     detector_block = params.get('detector') or {}
-    scene_noise = params.get('noise') or {}
+    # A null noise key reads as absent: it takes the catalog or configuration
+    # default, so noise: {poisson: null} keeps the instrument_defaults shot noise.
+    scene_noise = _set_keys(params.get('noise') or {})
     artifacts = params.get('artifacts') or {}
     instrument_defaults = bool(artifacts.get('instrument_defaults', False))
 
@@ -447,7 +464,7 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
     # like every physical-chain artifact stay disabled until instrument_defaults
     # is on or the scene sets them explicitly (the stage-activation floor).
     catalog_vidicon = dict(catalog.get('vidicon') or {}) if instrument_defaults else {}
-    scene_vidicon = dict(scene_noise.get('vidicon') or {})
+    scene_vidicon = _set_keys(scene_noise.get('vidicon') or {})
     vidicon = {**catalog_vidicon, **{k: float(v) for k, v in scene_vidicon.items()}}
 
     # Derived I/F calibration scale: a noise-free signal of 1.0 round-trips

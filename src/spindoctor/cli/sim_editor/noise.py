@@ -87,11 +87,13 @@ class NoiseMixin(SimEditorBase):
         gen_layout.addRow('Signal full-scale frac:', self._signal_frac_spin)
 
     def _noise_value(self, key: str, default: Any) -> Any:
-        """Read a value from the sim_params noise block, or a default."""
+        """Read a value from the sim_params noise block, or a default.
+
+        A key set to null reads as absent, as the renderer reads it.
+        """
         noise = self.sim_params.get('noise')
-        if isinstance(noise, dict) and key in noise:
-            return noise[key]
-        return default
+        value = noise.get(key) if isinstance(noise, dict) else None
+        return default if value is None else value
 
     def _set_noise(self, key: str, value: Any) -> None:
         """Write a value into the sim_params noise block and re-render."""

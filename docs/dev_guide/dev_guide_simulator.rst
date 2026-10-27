@@ -2811,9 +2811,11 @@ The optional ``noise`` dict (truth-side) pins the truth-side detector noise the
 scene plants. The detector stage consumes most of it; the missing-data markers
 are applied by the telemetry stage. Each field is off at the floor unless the
 block sets it (or ``artifacts.instrument_defaults`` turns on the catalog
-chain); an explicit noise key always wins over the catalog value. The
-validator checks the block against exactly this inventory, so an unknown noise
-key fails loudly.
+chain); an explicit noise key always wins over the catalog value. A key set to
+null, here or in ``noise.vidicon``, counts as unset and resolves as if it were
+absent, as a null ``detector`` key does, so ``noise: {poisson: null}`` keeps the
+shot noise ``instrument_defaults`` turns on. The validator checks the block
+against exactly this inventory, so an unknown noise key fails loudly.
 
 .. list-table::
    :widths: 30 12 12 46

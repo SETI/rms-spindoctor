@@ -314,6 +314,51 @@ def test_detector_quantization_is_authorable(model: Any) -> None:
     assert model.sim_params['detector'] == {'quantization': 'sqrt_lut'}
 
 
+def test_null_detector_keys_show_the_catalog_defaults(model: Any) -> None:
+    """A loaded detector block of nulls shows the catalog values, as the renderer reads it."""
+    from spindoctor.sim.forward.artifacts_catalog import resolve_detector_defaults
+
+    keys = ('gain_state', 'detector_model', 'exposure_ref_sec', 'quantization')
+    model._apply_params_dict({'instrument': 'coiss_nac', 'detector': dict.fromkeys(keys)})
+    catalog = resolve_detector_defaults('coiss_nac')
+    shown = (
+        model._detector_gain_state_spin.value(),
+        model._detector_model_combo.currentText(),
+        model._detector_exposure_ref_spin.value(),
+        model._detector_quantization_combo.currentText(),
+    )
+    assert shown == (
+        catalog.get('default_gain_state', 0),
+        catalog['detector_model'],
+        catalog.get('exposure_ref_sec', 1.0),
+        catalog.get('quantization', 'exact'),
+    )
+
+
+def test_null_noise_keys_show_the_panel_defaults(model: Any) -> None:
+    """A loaded noise block of nulls shows each control's default, as for absent keys."""
+    keys = (
+        'poisson',
+        'read_noise_dn',
+        'cosmic_ray_events_per_pixel_per_sec',
+        'missing_data_rate',
+        'bias_dn',
+        'bloom_length',
+        'signal_full_scale_frac',
+    )
+    model._apply_params_dict({'instrument': 'coiss_nac', 'noise': dict.fromkeys(keys)})
+    shown = (
+        model._poisson_check.isChecked(),
+        model._read_noise_spin.value(),
+        model._cosmic_ray_spin.value(),
+        model._missing_data_spin.value(),
+        model._bias_spin.value(),
+        model._bloom_spin.value(),
+        model._signal_frac_spin.value(),
+    )
+    assert shown == (True, 4.0, 0.0, 0.0, 20.0, 0, 0.5)
+
+
 # ---- Registry-driven artifact-mode rows ----
 
 

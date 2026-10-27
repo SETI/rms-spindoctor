@@ -165,7 +165,8 @@ Fields
                                      bias_pedestal_sigma_dn, bias_row_gradient_dn,
                                      bias_col_gradient_dn, vidicon {read_noise_line_dn,
                                      read_noise_pixel_dn, coherent_amplitude_dn,
-                                     coherent_period_px}; unknown keys fail validation
+                                     coherent_period_px}; unknown keys fail validation,
+                                     and a key set to null counts as unset
   oversample       (int, opt)        radiance oversampling factor (default 4 when a PSF
                                      is active, else 1)
   optics           (mapping, opt)    whole-scene optical effects: psf (sigma_v, sigma_u,
@@ -180,7 +181,7 @@ Fields
                                      cataloged for the instrument), detector_model
                                      (ccd | vidicon), exposure_ref_sec, quantization
                                      (exact | 8bit | uneven_12bit | sqrt_lut); omitted
-                                     keys track the instrument catalog
+                                     or null keys track the instrument catalog
   artifacts        (mapping, opt)    instrument_defaults (bool): opt into the emulated
                                      camera's physical signal chain at catalog values
                                      (PSF, distortion residual, shot noise, dark / hot /
