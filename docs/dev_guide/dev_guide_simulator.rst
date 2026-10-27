@@ -1557,7 +1557,8 @@ render-level test asserting the effect is measurably present:
        score's blindness to an affine one.
    * - ``ns_asymmetry_amplitude``
      - Scales one hemisphere's brightness, blended across the equator: the
-       affine counterpart the Pearson score is supposed to absorb.
+       affine counterpart the Pearson score is supposed to absorb. It is
+       affine only poleward of the blend band described below.
    * - ``sector_sharpness_gradient``
      - Scales the falloff length with azimuth around the limb, walking the
        detected limb ridge radially as a function of ray angle -- the
@@ -1577,23 +1578,45 @@ The two hemispheric keys blend across the equator instead of switching there,
 because a switch draws a seam across the halo along one image row and a real
 haze changes continuously with latitude. Each is weighted by a cubic smoothstep
 of the sine of latitude that is 0.5 on the equator and reaches 0 and 1 at
-``HEMISPHERE_BLEND_HALF_WIDTH_DEG`` (20 degrees) south and north of it. The
+``HEMISPHERE_BLEND_HALF_WIDTH_DEG`` (10 degrees) south and north of it. The
 latitude is that of the haze column a pixel sees: the pixel's own latitude on
 the disc, and the latitude of the limb point beneath the line of sight above
-it, so the weight is continuous across the silhouette. Poleward of 20 degrees
+it, so the weight is continuous across the silhouette. Poleward of 10 degrees
 each key applies at exactly its stated value: ``ns_falloff_ratio`` multiplies
 the falloff length by the full ratio over the positive-axis hemisphere, and
 ``ns_asymmetry_amplitude`` scales that hemisphere's brightness by the full
-``1 + amplitude``, so there the two halves still differ by a pure scaling.
+``1 + amplitude``, so there the two halves differ by a pure scaling.
 Inside the band the multiplier is ``1 + (ratio - 1) * w`` or
 ``1 + amplitude * w`` for the weight ``w``, so a ratio of one or an amplitude
-of zero leaves the haze untouched. The 20 degree half-width is a sim-side
-modeling choice: about 22 pixels each side of the equator at the limb of a
-64 pixel radius body, which spreads the change over many rows, while the stated
-contrast holds over the poleward 70 degrees of each hemisphere. Every field is
-optional and the whole module is bypassed when a block names none of them: the
-haze then renders through exactly the scalar arithmetic above. That gating is a
-performance contract, not only a tidiness one -- the per-pixel scale-height field
+of zero leaves the haze untouched.
+
+Inside the band ``ns_asymmetry_amplitude`` is not an affine control, and no
+continuous blend can make it one. The mirror about the hemispheric split maps
+latitude ``s`` onto ``-s``, and a pure scaling of one half needs every mirror
+pair to differ by the same factor ``1 + amplitude``. On the mirror line the two
+members of a pair are the same point, so a continuous multiplier gives them the
+same value and their ratio is 1; the ratio reaches ``1 + amplitude`` only at
+the band edge. Only a switch keeps the ratio constant, and a switch is the
+seam. Where a scene puts the split along the sun axis, as the Titan truth
+campaign does, the band covers the sunward limb a haze navigator scores on.
+For a sphere seen with its axis in the image plane the band covers 22% of the
+projected disc and 11% of the limb, together with the halo above that part of
+the limb.
+
+The 10 degree half-width is a sim-side modeling choice set by that cost. Over
+the 27 of 40 clean Titan truth scenes that navigate both with and without an
+``ns_asymmetry_amplitude`` of -0.35, the amplitude shifts the recovered
+cross-track position by 0.004 pixels on average with a switch, 0.016 pixels (largest 0.086) with a 10 degree band,
+and 0.031 pixels (largest 0.176) with a 20 degree band. At 10 degrees the
+brightness change across the equator row of a 64 pixel radius haze is about the
+same as across the rows beside it, a ratio of 0.95 to 1.03 where a switch gives
+3 to 26; at 5 degrees the ratio for the brightness term rises to 1.24. The
+band's pixel width scales with the body: about 0.17 of the radius each side of
+the equator, 10 pixels at a radius of 55 and 87 at a radius of 500.
+
+Every field is optional and the whole module is bypassed when a block names
+none of them: the haze then renders through exactly the scalar arithmetic above.
+That gating is a performance contract, not only a tidiness one -- the per-pixel scale-height field
 costs an array where the base haze costs a scalar, and ``test_sim_perf.py``
 carries cold-render budgets for the structureless path.
 

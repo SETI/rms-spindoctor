@@ -19,7 +19,8 @@ class of them:
 - asymmetry   : the rendered symmetry axis tilted off the geometric sun
                 direction, a NON-affine hemispheric falloff difference, a
                 hemispheric brightness scaling (the affine control the
-                Pearson score should absorb), an interior brightness ramp,
+                Pearson score should absorb, affine poleward of the
+                equatorial blend band), an interior brightness ramp,
                 and a limb sharpness gradient across the sunward sector.
 - stars       : a star field over the frame.  Stars fainter than the mask
                 limit are deliberately NOT masked, so this family is what
@@ -98,7 +99,12 @@ MAX_PLANTED_OFFSET_PX: float = 40.0
 # line along the sun axis -- which is what makes ``ns_asymmetry_amplitude``
 # the AFFINE control the design intends: the mirror about that axis maps one
 # hemisphere onto the other, so a pure brightness scaling of one of them is
-# exactly the relation the Pearson score is invariant to.  Leaving the roll
+# exactly the relation the Pearson score is invariant to.  It is affine only
+# poleward of the renderer's blend band, 10 degrees of latitude either side
+# of the split: a continuous blend must give the two members of a mirror pair
+# on the split line the same brightness, so inside the band the pair ratio
+# falls from the full factor to 1, and that band runs along the sun axis,
+# over the sunward limb the technique scores on.  Leaving the roll
 # at zero instead would let the split fall along the sun axis at most
 # illumination angles, and the control would be measuring an unrelated
 # gradient.
@@ -184,7 +190,9 @@ def _asymmetry_keys(rng: random.Random) -> dict[str, Any]:
     The tilt range brackets the few degrees Titan's atmospheric symmetry axis
     is known to sit off the spin axis; the falloff ratio and the sharpness
     gradient are the two shape (non-affine) axes, and the hemispheric
-    amplitude is the affine control the Pearson score is supposed to absorb.
+    amplitude is the affine control the Pearson score is supposed to absorb
+    (affine poleward of the renderer's 10 degree equatorial blend band; see
+    ``BODY_ROLL_FROM_SUN_DEG``).
 
     Parameters:
         rng: The scene's random source.

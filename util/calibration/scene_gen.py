@@ -813,7 +813,9 @@ def gen_titan(rng: random.Random) -> dict[str, Any]:
             # The structure keys split hemispheres on the body-frame first
             # axis; this roll puts that split line along the sun axis, which
             # is what makes ns_asymmetry_amplitude the affine control the
-            # Pearson score is meant to absorb.
+            # Pearson score is meant to absorb -- affine only poleward of the
+            # renderer's 10 degree equatorial blend band, since a continuous
+            # blend must match the two halves on the split line itself.
             'rotation_z': illumination_deg - 90.0,
             'phase_angle': rng.uniform(_TITAN_MIN_PHASE_DEG, _TITAN_MAX_PHASE_DEG),
             'km_per_pixel': _TITAN_RADIUS_KM / r_solid_px,

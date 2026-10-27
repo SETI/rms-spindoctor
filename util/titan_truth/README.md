@@ -59,7 +59,13 @@ roll follows it at `rotation_z = illumination_angle - 90`. That roll is what
 puts the hemispheric split the structure keys use ACROSS the sun axis, which
 is what makes `ns_asymmetry_amplitude` the affine control the design intends:
 the mirror about the sun axis has to map one hemisphere onto the other for a
-pure brightness scaling to be the invariance being tested. On the
+pure brightness scaling to be the invariance being tested. The control is
+affine only poleward of the simulator's blend band, 10 degrees of latitude
+either side of the split. Inside the band the scaling fades continuously to
+half its value on the mirror line, where the two halves meet, so mirror pairs
+there differ by less than the full factor. No continuous blend can avoid that,
+and a switch would draw a seam. The band lies along the sun axis, over the
+sunward limb the technique scores on. On the
 structureless spheres every family renders, an in-plane roll changes no
 rendered pixel, so carrying it costs the campaign no angular coverage.
 
