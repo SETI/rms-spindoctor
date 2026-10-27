@@ -55,7 +55,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
-from spindoctor.sim.scene_schema import SimSceneValidationError
+from spindoctor.sim.scene_schema import SimSceneValidationError, renamed_key_message
 
 __all__ = [
     'ACTIVATION_KEYS',
@@ -676,17 +676,17 @@ def renamed_param_message(mode_name: str, old_key: str) -> str:
         old_key: A retired key listed for the mode in :data:`RENAMED_MODE_PARAMS`.
 
     Returns:
-        A message naming the replacement key and, for the mode's activation key,
-        what that key holds on this mode (its :attr:`ArtifactMode.activation_semantics`),
-        e.g. ``'incidence' was renamed; use 'expected_events' (a Poisson expected
-        count of whole lines lost per frame)`` for ``missing_lines``.
+        A message naming the replacement key (every retired key's replacement is
+        the mode's activation key) and what that key holds on this mode (its
+        :attr:`ArtifactMode.activation_semantics`), e.g. ``'incidence' was
+        renamed; use 'expected_events' (a Poisson expected count of whole lines
+        lost per frame)`` for ``missing_lines``.
     """
-    mode = ARTIFACT_MODES[mode_name]
-    new_key = RENAMED_MODE_PARAMS[mode_name][old_key]
-    message = f'{old_key!r} was renamed; use {new_key!r}'
-    if new_key != mode.activation:
-        return message
-    return f'{message} ({mode.activation_semantics})'
+    return renamed_key_message(
+        old_key,
+        RENAMED_MODE_PARAMS[mode_name][old_key],
+        ARTIFACT_MODES[mode_name].activation_semantics,
+    )
 
 
 def refuse_renamed_params(

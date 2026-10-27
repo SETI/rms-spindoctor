@@ -27,7 +27,7 @@ from spindoctor.sim.forward.detector.params import DetectorParamError, resolve_d
 from spindoctor.sim.forward.stages import SimFrame
 from spindoctor.sim.instruments import SIM_INSTRUMENTS
 from spindoctor.sim.scene import SimSceneValidationError, validate_sim_params
-from spindoctor.sim.scene_checks import RENAMED_NOISE_KEYS
+from spindoctor.sim.scene_schema import RENAMED_NOISE_KEYS
 from spindoctor.sim.seeds import derive_effect_seed
 
 _KEY = 'cosmic_ray_events_per_pixel_per_sec'

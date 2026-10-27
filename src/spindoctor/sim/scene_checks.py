@@ -31,7 +31,7 @@ from spindoctor.sim.forward.artifact_modes import (
 )
 from spindoctor.sim.forward.artifacts_catalog import resolve_detector_defaults
 from spindoctor.sim.instruments import resolve_sim_inst_config
-from spindoctor.sim.scene_schema import SimSceneValidationError
+from spindoctor.sim.scene_schema import SimSceneValidationError, refuse_renamed_noise_keys
 from spindoctor.support.status_reason import NavStatusReason
 
 # The scene-level ``expected`` block's allowed vocabularies.  These mirror the
@@ -306,22 +306,6 @@ _NOISE_NUMBER_KEYS: frozenset[str] = frozenset(
 _NOISE_KEYS: frozenset[str] = (
     _NOISE_BOOL_KEYS | _NOISE_INT_KEYS | _NOISE_NUMBER_KEYS | frozenset({'vidicon'})
 )
-# Retired noise keys, mapped to (the key that replaced it or None when the key
-# was removed, a note for the message).  The validator refuses a retired key
-# with that message; nothing translates it.  The cosmic-ray rate was always
-# computed per pixel (the chain multiplied it by the pixel count and by a
-# pixel area that every configuration held at 1.0), so the area factor went
-# and the rate's name carries its unit.
-RENAMED_NOISE_KEYS: dict[str, tuple[str | None, str]] = {
-    'cosmic_ray_rate_per_sec': (
-        'cosmic_ray_events_per_pixel_per_sec',
-        'expected events per pixel per second of exposure',
-    ),
-    'pixel_area_cm2': (
-        None,
-        "the cosmic-ray rate 'cosmic_ray_events_per_pixel_per_sec' is already per pixel",
-    ),
-}
 _VIDICON_NOISE_KEYS: frozenset[str] = frozenset(
     {
         'read_noise_line_dn',
@@ -351,22 +335,6 @@ _ARTIFACTS_SWITCH_KEYS: frozenset[str] = frozenset({'instrument_defaults', 'adve
 _ARTIFACTS_KEYS: frozenset[str] = _ARTIFACTS_SWITCH_KEYS | MODE_KEYS
 
 
-def renamed_noise_key_message(old_key: str) -> str:
-    """The validation message for a retired ``noise`` key.
-
-    Parameters:
-        old_key: A key listed in :data:`RENAMED_NOISE_KEYS`.
-
-    Returns:
-        ``'<old>' was renamed; use '<new>' (<note>)`` for a renamed key, or
-        ``'<old>' was removed; <note>`` for a removed one.
-    """
-    new_key, note = RENAMED_NOISE_KEYS[old_key]
-    if new_key is None:
-        return f'{old_key!r} was removed; {note}'
-    return f'{old_key!r} was renamed; use {new_key!r} ({note})'
-
-
 def _check_noise(value: Any, *, source: str) -> None:
     """Validate the scene-level ``noise`` block against its full key inventory.
 
@@ -375,16 +343,15 @@ def _check_noise(value: Any, *, source: str) -> None:
         source: Label used in error messages.
 
     Raises:
-        SimSceneValidationError: On any unknown or mistyped noise field.
+        SimSceneValidationError: On any unknown, retired, or mistyped noise
+            field; a retired key's message names its replacement
+            (:func:`~spindoctor.sim.scene_schema.refuse_renamed_noise_keys`).
     """
     if value is None:
         return
     if not isinstance(value, dict):
         raise SimSceneValidationError(f'{source}: noise must be a mapping when present')
-    retired = sorted(set(value) & set(RENAMED_NOISE_KEYS))
-    if retired:
-        messages = '; '.join(renamed_noise_key_message(key) for key in retired)
-        raise SimSceneValidationError(f'{source}: noise: {messages}')
+    refuse_renamed_noise_keys(value, source=source)
     unknown = set(value) - _NOISE_KEYS
     if unknown:
         raise SimSceneValidationError(f'{source}: noise: unknown keys: {sorted(unknown)}')

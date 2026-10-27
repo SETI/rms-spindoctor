@@ -48,7 +48,7 @@ from spindoctor.sim.forward.artifacts_catalog import (
     resolve_mode_with_catalog,
 )
 from spindoctor.sim.instruments import resolve_sim_inst_config
-from spindoctor.sim.scene_checks import RENAMED_NOISE_KEYS, renamed_noise_key_message
+from spindoctor.sim.scene_schema import retired_noise_key_messages
 from spindoctor.sim.seeds import derive_effect_seed
 
 __all__ = ['DetectorParams', 'resolve_detector_params']
@@ -300,11 +300,10 @@ def _refuse_retired_config_keys(sim_noise: Mapping[str, Any]) -> None:
 
     Raises:
         DetectorParamError: If the section carries any key listed in
-            :data:`~spindoctor.sim.scene_checks.RENAMED_NOISE_KEYS`.
+            :data:`~spindoctor.sim.scene_schema.RENAMED_NOISE_KEYS`.
     """
-    retired = sorted(set(sim_noise) & set(RENAMED_NOISE_KEYS))
-    if retired:
-        messages = '; '.join(renamed_noise_key_message(key) for key in retired)
+    messages = retired_noise_key_messages(sim_noise)
+    if messages is not None:
         raise DetectorParamError(f'configuration sim.noise: {messages}')
 
 

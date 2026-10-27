@@ -375,6 +375,90 @@ RING_KIND_SHAPE_KEYS: dict[str, dict[str, str]] = {
 # edge); a ramp's default 'out' rises outward from zero at its orbit.
 RING_SIDE_DEFAULTS: dict[str, str] = {'edge': 'in', 'ramp': 'out'}
 
+
+def renamed_key_message(old_key: str, new_key: str | None, note: str) -> str:
+    """The sentence that refuses a retired scene key.
+
+    The noise, ring, and artifact-mode rename tables all build their refusals
+    here, so a retired key reads the same wherever it is caught.
+
+    Parameters:
+        old_key: The retired key.
+        new_key: The key that replaced it, or None when nothing replaced it.
+        note: What the replacement holds, or, for a key nothing replaced, why
+            the scene doesn't need it.
+
+    Returns:
+        ``'<old>' was renamed; use '<new>' (<note>)``, or ``'<old>' was
+        removed; <note>`` when ``new_key`` is None.
+    """
+    if new_key is None:
+        return f'{old_key!r} was removed; {note}'
+    return f'{old_key!r} was renamed; use {new_key!r} ({note})'
+
+
+# Retired noise keys, mapped to (the key that replaced it, or None when nothing
+# replaced it; a note for the message).  The validator, the detector resolver
+# (for both the scene's noise block and the configuration's sim.noise section),
+# and the sweep builder refuse a retired key (refuse_renamed_noise_keys); nothing
+# translates it.  The cosmic-ray rate is per pixel: the chain multiplies it by
+# the pixel count and the exposure and by no area, so its name carries that unit.
+RENAMED_NOISE_KEYS: dict[str, tuple[str | None, str]] = {
+    'cosmic_ray_rate_per_sec': (
+        'cosmic_ray_events_per_pixel_per_sec',
+        'expected events per pixel per second of exposure',
+    ),
+    'pixel_area_cm2': (
+        None,
+        "the cosmic-ray rate 'cosmic_ray_events_per_pixel_per_sec' is already per pixel",
+    ),
+}
+
+
+def retired_noise_key_messages(noise: Mapping[str, Any]) -> str | None:
+    """The refusal of every retired key a noise mapping carries.
+
+    Parameters:
+        noise: A scene ``noise`` block or the configuration's ``sim.noise``
+            section.
+
+    Returns:
+        The :func:`renamed_key_message` of each key listed in
+        :data:`RENAMED_NOISE_KEYS`, in sorted key order, joined by semicolons;
+        None when the mapping carries none of them.
+    """
+    retired = sorted(set(noise) & set(RENAMED_NOISE_KEYS))
+    if not retired:
+        return None
+    return '; '.join(renamed_key_message(key, *RENAMED_NOISE_KEYS[key]) for key in retired)
+
+
+def refuse_renamed_noise_keys(noise: Any, *, source: str | None = None) -> None:
+    """Refuse a scene ``noise`` block that carries a retired key.
+
+    The scene validator, the detector resolver
+    (:func:`spindoctor.sim.forward.detector.params.resolve_detector_params`), and
+    so every sweep step and every in-memory scene that skipped validation, call
+    this, so a retired key fails the same way wherever the scene came from.
+
+    Parameters:
+        noise: The scene's ``noise`` block.  A value that isn't a mapping passes
+            here; the validator reports that shape itself.
+        source: The scene's label, prefixed to the message when given.
+
+    Raises:
+        SimSceneValidationError: If the block carries a key listed in
+            :data:`RENAMED_NOISE_KEYS`; the message is
+            ``[<source>: ]noise: <retired_noise_key_messages>``.
+    """
+    if not isinstance(noise, Mapping):
+        return
+    messages = retired_noise_key_messages(noise)
+    if messages is not None:
+        prefix = '' if source is None else f'{source}: '
+        raise SimSceneValidationError(f'{prefix}noise: {messages}')
+
+
 # Retired ring keys, per block, mapped to (the key that replaced it, what the
 # key holds).  Each ring-plane length and each angle in the ring_system block
 # names its unit.  The validator and the ring renderer refuse a retired key
@@ -476,8 +560,7 @@ def renamed_ring_key_message(block: str, old_key: str) -> str:
     Returns:
         ``'<old>' was renamed; use '<new>' (<what it holds>)``.
     """
-    new_key, description = RENAMED_RING_KEYS[block][old_key]
-    return f'{old_key!r} was renamed; use {new_key!r} ({description})'
+    return renamed_key_message(old_key, *RENAMED_RING_KEYS[block][old_key])
 
 
 def _mapping_entries(value: Any) -> list[tuple[int, Mapping[str, Any]]]:
