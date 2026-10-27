@@ -38,9 +38,9 @@ __all__ = [
 # ``instrument_defaults`` -- naming an instrument selects a signal chain, not a
 # set of transmission defects -- so they are planted only by scenes that
 # configure them explicitly.  Cosmic rays are different: radiation on the
-# detector is environment physics, so each instrument entry carries a
-# ``cosmic_ray_rate_per_sec`` that is either cohort-measured or an explicit
-# retained zero with its reason (see the per-entry comments).
+# detector is environment physics, so each CCD instrument entry carries a
+# ``cosmic_ray_events_per_pixel_per_sec`` that is either cohort-measured or an
+# explicit retained zero with its reason (see the per-entry comments).
 
 # Whole-scene PSF kernel parameters per instrument, all radii in detector
 # pixels.  Wing parameters (w, r0, n) are expressed as wing energy fractions
@@ -231,12 +231,13 @@ def resolve_sky_pixel_scale_arcsec(instrument: str | None) -> float:
 # sized from the 5.2-5.6 descriptions; per-scene overrides ride in the
 # truth-side noise block.  instrument_defaults also turns on Poisson shot
 # noise (a property of the electron chain itself, not a per-camera number)
-# and the entry's cosmic_ray_rate_per_sec; the missing-data loss modes are
-# transmission artifacts and stay off.
+# and the entry's cosmic_ray_events_per_pixel_per_sec; the missing-data loss
+# modes are transmission artifacts and stay off.
 #
-# cosmic_ray_rate_per_sec is in events per pixel per second: the chain
-# multiplies it by exposure_sec, pixel_area_cm2 (default 1.0), and the pixel
-# count, so at the default unit pixel area the fluence reads per pixel.
+# cosmic_ray_events_per_pixel_per_sec is the expected number of events per
+# pixel per second of exposure: the chain multiplies it by exposure_sec and
+# the pixel count to get the frame's Poisson mean.  The CCD chain alone
+# applies it; the vidicon DN chain lacks a cosmic-ray stage.
 # The realism match's FOM 6 transient split (single-pixel spikes that do
 # NOT recur at fixed detector positions across the cohort) measures the
 # candidate rate per instrument.  Every current entry retains zero, each
@@ -288,7 +289,7 @@ DETECTOR_DEFAULTS: dict[str, dict[str, Any]] = {
         # fraction ~2x through the multi-pixel event morphology.
         # Unblocked by a per-readout (exposure-independent),
         # modest-amplitude transient term in the detector chain.
-        'cosmic_ray_rate_per_sec': 0.0,
+        'cosmic_ray_events_per_pixel_per_sec': 0.0,
         'banding_amplitude_e': 30.0,  # 5.2 interim (~30 e- NAC 2 Hz)
         'banding_period_px': 64.0,  # 5.2 interim (line-readout-rate period)
         'bias_pedestal_sigma_dn': 2.0,  # 5.2 interim (per-image pedestal jitter)
@@ -344,7 +345,7 @@ DETECTOR_DEFAULTS: dict[str, dict[str, Any]] = {
         # transient fraction comes entirely from the three star-bearing
         # frames while the one body frame measures zero.  Unblocked
         # together with the NAC's per-readout transient term.
-        'cosmic_ray_rate_per_sec': 0.0,
+        'cosmic_ray_events_per_pixel_per_sec': 0.0,
         'banding_amplitude_e': 6.0,  # 5.2 interim (~6 e- WAC 4 Hz)
         'banding_period_px': 64.0,
         'bias_pedestal_sigma_dn': 2.0,
@@ -405,7 +406,7 @@ DETECTOR_DEFAULTS: dict[str, dict[str, Any]] = {
         # the 1.2e-4 real.
         # Unblocked by a fixed-position per-detector hot-pixel map, which
         # would free the transient budget for a real radiation term.
-        'cosmic_ray_rate_per_sec': 0.0,
+        'cosmic_ray_events_per_pixel_per_sec': 0.0,
         'banding_amplitude_e': 65.0,  # 5.4 interim (~0.35 DN at gain 2 -> ~65 e-)
         'banding_period_px': 42.0,  # 5.4 (2400 Hz supply-noise comb every 42 px)
         'bias_pedestal_sigma_dn': 1.0,
@@ -466,7 +467,7 @@ DETECTOR_DEFAULTS: dict[str, dict[str, Any]] = {
         # contamination, so the measured rate is not adoptable.  Unblocked
         # by any non-star LORRI frame entering the library; scenes can
         # still plant the radiation_transients mode explicitly.
-        'cosmic_ray_rate_per_sec': 0.0,
+        'cosmic_ray_events_per_pixel_per_sec': 0.0,
         'banding_amplitude_e': 17.0,  # 5.5 interim (~0.8 DN vertical banding)
         'banding_period_px': 128.0,  # 5.5 interim
         'bias_pedestal_sigma_dn': 1.0,
@@ -571,7 +572,7 @@ DETECTOR_DEFAULTS: dict[str, dict[str, Any]] = {
         'hot_pixel_column_factor': 0.0,
         # The generic block is an ideal detector with no environment, so
         # there is no cosmic-ray flux to measure; explicitly zero.
-        'cosmic_ray_rate_per_sec': 0.0,
+        'cosmic_ray_events_per_pixel_per_sec': 0.0,
         'banding_amplitude_e': 0.0,
         'banding_period_px': 64.0,
         'bias_pedestal_sigma_dn': 0.0,

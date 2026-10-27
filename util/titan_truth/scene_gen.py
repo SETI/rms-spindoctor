@@ -288,7 +288,7 @@ def _artifact_blocks(rng: random.Random) -> tuple[dict[str, Any], dict[str, Any]
         },
     }
     noise_extras = {
-        'cosmic_ray_rate_per_sec': round(rng.uniform(5.0e-4, 5.0e-3), 6),
+        'cosmic_ray_events_per_pixel_per_sec': round(rng.uniform(5.0e-4, 5.0e-3), 6),
         'bloom_length': rng.randint(0, 3),
     }
     return artifacts, noise_extras

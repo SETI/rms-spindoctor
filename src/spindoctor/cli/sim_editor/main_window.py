@@ -94,7 +94,7 @@ class CreateSimulatedImageModel(
             'noise': {
                 'poisson': True,
                 'read_noise_dn': 4.0,
-                'cosmic_ray_rate_per_sec': 0.0,
+                'cosmic_ray_events_per_pixel_per_sec': 0.0,
                 'missing_data_rate': 0.0,
             },
             'stars': [],

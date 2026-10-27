@@ -94,7 +94,6 @@ class SimEditorBase(QMainWindow):
     _bias_spin: QDoubleSpinBox
     _bloom_spin: QSpinBox
     _signal_frac_spin: QDoubleSpinBox
-    _pixel_area_spin: QDoubleSpinBox
 
     # ---- Optics tab: stray-light panel ----
     _stray_amplitude_spin: QDoubleSpinBox

@@ -285,9 +285,8 @@ def _apply_ccd(frame: SimFrame, dp: DetectorParams, rng: np.random.Generator) ->
     # reach the ADC ceiling and land on the orchestrator's masks.
     add_cosmic_rays(
         electrons,
-        rate_per_sec=dp.cosmic_ray_rate_per_sec,
+        events_per_pixel_per_sec=dp.cosmic_ray_events_per_pixel_per_sec,
         exposure_sec=dp.exposure_sec,
-        pixel_area_cm2=dp.pixel_area_cm2,
         amplitude_e=dp.full_well_e,
         rng=_stage_rng(dp.random_seed, 'cosmic_rays'),
     )

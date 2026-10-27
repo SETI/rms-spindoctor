@@ -489,7 +489,7 @@ _GUI_GALLERY: list[tuple[str, dict[str, Any], dict[str, Any]]] = [
             noise={
                 'poisson': True,
                 'read_noise_dn': 8.0,
-                'cosmic_ray_rate_per_sec': 0.0006,
+                'cosmic_ray_events_per_pixel_per_sec': 0.0006,
                 'missing_data_rate': 0.01,
             },
             exposure_sec=2.0,

@@ -205,9 +205,8 @@ def add_bias_structure(
 def add_cosmic_rays(
     electrons: NDArrayFloatType,
     *,
-    rate_per_sec: float,
+    events_per_pixel_per_sec: float,
     exposure_sec: float,
-    pixel_area_cm2: float,
     amplitude_e: float,
     rng: np.random.Generator,
 ) -> None:
@@ -217,21 +216,22 @@ def add_cosmic_rays(
     streaks at a random angle whose length is drawn from an incidence-angle
     distribution, and rare multi-pixel splatters.  Each deposits a charge well
     above the full well so the digitized frame clips at the ADC ceiling and the
-    orchestrator's cosmic-ray/saturation masks catch it.  The event count scales
-    with the exposure.  A zero rate is a no-op.
+    orchestrator's cosmic-ray/saturation masks catch it.  The event count is a
+    Poisson draw whose mean is ``events_per_pixel_per_sec * exposure_sec`` times
+    the frame's pixel count.  A zero rate is a no-op.
 
     Parameters:
         electrons: The electron image, modified in place.
-        rate_per_sec: Cosmic-ray fluence in events / cm^2 / sec.
+        events_per_pixel_per_sec: Expected cosmic-ray events per pixel per second
+            of exposure.
         exposure_sec: Exposure time in seconds.
-        pixel_area_cm2: Detector pixel area in cm^2.
         amplitude_e: Charge-deposit scale in electrons (per pixel of an event).
         rng: The stage's seeded generator.
     """
-    if rate_per_sec <= 0.0 or amplitude_e <= 0.0:
+    if events_per_pixel_per_sec <= 0.0 or amplitude_e <= 0.0:
         return
     size_v, size_u = electrons.shape
-    expected = rate_per_sec * exposure_sec * pixel_area_cm2 * size_v * size_u
+    expected = events_per_pixel_per_sec * exposure_sec * size_v * size_u
     if expected <= 0.0:
         return
     n_events = int(rng.poisson(expected))

@@ -206,9 +206,9 @@ def test_read_noise_spin_updates_noise(model: Any) -> None:
 
 
 def test_cosmic_ray_spin_updates_noise(model: Any) -> None:
-    """The cosmic-ray spin writes cosmic_ray_rate_per_sec into the noise block."""
+    """The cosmic-ray spin writes cosmic_ray_events_per_pixel_per_sec into the noise block."""
     model._cosmic_ray_spin.setValue(0.002)
-    assert model.sim_params['noise']['cosmic_ray_rate_per_sec'] == 0.002
+    assert model.sim_params['noise']['cosmic_ray_events_per_pixel_per_sec'] == 0.002
 
 
 def test_missing_data_spin_updates_noise(model: Any) -> None:

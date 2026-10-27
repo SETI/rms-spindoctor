@@ -1,8 +1,8 @@
 """Detector-noise panel for the General tab.
 
 Poisson shot noise, a Gaussian read-noise floor, cosmic-ray rate, missing-data
-rate, bias pedestal, saturation bloom, signal full-scale fraction, and pixel
-area.  These write the ``sim_params['noise']`` block the renderer consumes;
+rate, bias pedestal, saturation bloom, and signal full-scale fraction.  These
+write the ``sim_params['noise']`` block the renderer consumes;
 physical defaults otherwise come from the selected instrument.
 """
 
@@ -40,10 +40,14 @@ class NoiseMixin(SimEditorBase):
         self._cosmic_ray_spin.setRange(0.0, 0.01)
         self._cosmic_ray_spin.setDecimals(5)
         self._cosmic_ray_spin.setSingleStep(0.0001)
-        self._cosmic_ray_spin.setValue(float(self._noise_value('cosmic_ray_rate_per_sec', 0.0)))
-        self._cosmic_ray_spin.setToolTip('Cosmic-ray fluence in events / cm^2 / sec.')
+        self._cosmic_ray_spin.setValue(
+            float(self._noise_value('cosmic_ray_events_per_pixel_per_sec', 0.0))
+        )
+        self._cosmic_ray_spin.setToolTip(
+            'Expected cosmic-ray events per pixel per second of exposure.'
+        )
         self._cosmic_ray_spin.valueChanged.connect(self._on_cosmic_ray)
-        gen_layout.addRow('Cosmic ray rate (/cm2/s):', self._cosmic_ray_spin)
+        gen_layout.addRow('Cosmic rays (/px/s):', self._cosmic_ray_spin)
 
         self._missing_data_spin = QDoubleSpinBox()
         self._missing_data_spin.setRange(0.0, 0.3)
@@ -80,14 +84,6 @@ class NoiseMixin(SimEditorBase):
         self._signal_frac_spin.valueChanged.connect(self._on_signal_frac)
         gen_layout.addRow('Signal full-scale frac:', self._signal_frac_spin)
 
-        self._pixel_area_spin = QDoubleSpinBox()
-        self._pixel_area_spin.setRange(0.0, 1000.0)
-        self._pixel_area_spin.setDecimals(4)
-        self._pixel_area_spin.setValue(float(self._noise_value('pixel_area_cm2', 1.0)))
-        self._pixel_area_spin.setToolTip('Detector pixel area (cm^2); scales the cosmic-ray count.')
-        self._pixel_area_spin.valueChanged.connect(self._on_pixel_area)
-        gen_layout.addRow('Pixel area (cm2):', self._pixel_area_spin)
-
     def _noise_value(self, key: str, default: Any) -> Any:
         """Read a value from the sim_params noise block, or a default."""
         noise = self.sim_params.get('noise')
@@ -113,8 +109,8 @@ class NoiseMixin(SimEditorBase):
         self._set_noise('read_noise_dn', float(value))
 
     def _on_cosmic_ray(self, value: float) -> None:
-        """Set the cosmic-ray fluence."""
-        self._set_noise('cosmic_ray_rate_per_sec', float(value))
+        """Set the expected cosmic-ray events per pixel per second."""
+        self._set_noise('cosmic_ray_events_per_pixel_per_sec', float(value))
 
     def _on_missing_data(self, value: float) -> None:
         """Set the missing-data pixel fraction."""
@@ -131,7 +127,3 @@ class NoiseMixin(SimEditorBase):
     def _on_signal_frac(self, value: float) -> None:
         """Set the signal full-scale fraction."""
         self._set_noise('signal_full_scale_frac', float(value))
-
-    def _on_pixel_area(self, value: float) -> None:
-        """Set the detector pixel area in cm^2."""
-        self._set_noise('pixel_area_cm2', float(value))

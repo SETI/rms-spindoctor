@@ -70,12 +70,11 @@ _FULL_SCENE: dict[str, Any] = {
     'noise': {
         'poisson': True,
         'read_noise_dn': 6.0,
-        'cosmic_ray_rate_per_sec': 0.001,
+        'cosmic_ray_events_per_pixel_per_sec': 0.001,
         'missing_data_rate': 0.01,
         'bias_dn': 18.0,
         'bloom_length': 4,
         'signal_full_scale_frac': 0.6,
-        'pixel_area_cm2': 1.5,
     },
     'oversample': 2,
     'optics': {

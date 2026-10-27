@@ -11,8 +11,9 @@ then the disabled floor (physical-chain artifacts default to zero so an
 unconfigured scene renders a clean DN frame, per the stage-activation rule).
 ``instrument_defaults`` turns on the whole physical chain, including Poisson
 shot noise, the catalog's electron-domain full-well bloom, and the catalog's
-cohort-measured cosmic-ray rate where one is recorded (radiation on the
-detector is physics of the environment, not a transmission defect); the
+``cosmic_ray_events_per_pixel_per_sec`` (radiation on the detector is physics
+of the environment, not a transmission defect; every entry records either a
+cohort-measured rate or a retained zero); the
 missing-data loss modes are transmission artifacts, not physical-chain noise,
 and stay off.
 
@@ -76,8 +77,9 @@ class DetectorParams:
         quantization: ADC quantization sub-mode.
         poisson: Whether shot noise is applied.
         bloom_length: Electron-domain full-well bloom half-length (0 disables).
-        cosmic_ray_rate_per_sec: Cosmic-ray fluence (events / cm^2 / sec).
-        pixel_area_cm2: Detector pixel area (scales the cosmic-ray count).
+        cosmic_ray_events_per_pixel_per_sec: Expected cosmic-ray events per pixel
+            per second of exposure (CCD path only; the vidicon path lacks a
+            cosmic-ray stage).
         dark_current_e_per_sec: Dark current (electrons / sec); 0 disables.
         hot_pixel_fraction: Fraction of pixels that are hot; 0 disables.
         hot_pixel_amplitude_e: Hot-pixel amplitude scale in electrons.
@@ -124,8 +126,7 @@ class DetectorParams:
     quantization: str
     poisson: bool
     bloom_length: int
-    cosmic_ray_rate_per_sec: float
-    pixel_area_cm2: float
+    cosmic_ray_events_per_pixel_per_sec: float
     dark_current_e_per_sec: float
     hot_pixel_fraction: float
     hot_pixel_amplitude_e: float
@@ -329,16 +330,15 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
         bloom_length = int(catalog.get('bloom_length', 0))
     else:
         bloom_length = int(sim_noise.get('bloom_length', 0))
-    # Cosmic rays: scene value, else the catalog's cohort-measured rate when
-    # instrument_defaults is on (the catalog records it per pixel per second
-    # at the chain's unit pixel area), else the config floor.
-    if 'cosmic_ray_rate_per_sec' in scene_noise:
-        cosmic_ray_rate = float(scene_noise['cosmic_ray_rate_per_sec'])
-    elif instrument_defaults and 'cosmic_ray_rate_per_sec' in catalog:
-        cosmic_ray_rate = float(catalog['cosmic_ray_rate_per_sec'])
+    # Cosmic rays (expected events per pixel per second): scene value, else the
+    # catalog's rate when instrument_defaults is on, else the config floor.
+    cr_key = 'cosmic_ray_events_per_pixel_per_sec'
+    if cr_key in scene_noise:
+        cosmic_ray_rate = float(scene_noise[cr_key])
+    elif instrument_defaults and cr_key in catalog:
+        cosmic_ray_rate = float(catalog[cr_key])
     else:
-        cosmic_ray_rate = float(sim_noise.get('cosmic_ray_rate_per_sec', 0.0))
-    pixel_area_cm2 = float(scene_noise.get('pixel_area_cm2', sim_noise.get('pixel_area_cm2', 1.0)))
+        cosmic_ray_rate = float(sim_noise.get(cr_key, 0.0))
 
     dark_current = _default_or_zero(
         scene_noise, catalog, 'dark_current_e_per_sec', instrument_defaults=instrument_defaults
@@ -471,8 +471,7 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
         quantization=quantization,
         poisson=poisson,
         bloom_length=bloom_length,
-        cosmic_ray_rate_per_sec=cosmic_ray_rate,
-        pixel_area_cm2=pixel_area_cm2,
+        cosmic_ray_events_per_pixel_per_sec=cosmic_ray_rate,
         dark_current_e_per_sec=dark_current,
         hot_pixel_fraction=hot_pixel_fraction,
         hot_pixel_amplitude_e=hot_pixel_amplitude,
