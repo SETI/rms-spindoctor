@@ -139,11 +139,18 @@ brings into the frame. Leaving the margin vertices out removes their bias, but i
 remove what made a wrong lock fail the quality gates (an unconverged fit pinned at the trust
 region converges once the boundary stops pulling on it), and the gates were calibrated on
 every vertex. When vertices were left out, the fit over every vertex is therefore run and
-judged as well, and if it fails the gates the cropped fit is flagged spurious too. On 855
-Cassini wide-angle Saturn limb fits at known pointing this kept every previously refused fit
-refused, refused 45 more that were all off by 1.8 px or more, and of the 247 answered both
-ways moved 147 closer to the reference by more than 0.1 px and 9 farther. The coarse search itself still scores every vertex, margin ones
-included; the seed it returns is an integer pixel, and the refinement starts from the
+judged as well, by the same gates as the cropped fit and the mis-lock refit described
+below; this is the full-arc check, and if the full arc fails it the cropped fit is flagged
+spurious too. On 845 Cassini ISS Saturn limb fits at known pointing (835 wide-angle, 10
+narrow-angle), with the limb already on its visible edge, the crop and the full-arc check
+together kept every refused fit refused and refused 33 more (29 off by more than 2 px and 4
+within 1 px). Of the 231 answered both ways, 59 moved closer to the reference by more than
+0.1 px and 19 farther. Without the full-arc check the crop would have turned 123 refused
+fits into answers off by more than 2 px, and 66 into answers within 2 px. The coarse search
+still scores every vertex, margin ones included, and it is not repeated on the cropped set.
+The shorter arc gives it less to hold on to along its length, and on these fits a second
+search slid the seed two or three pixels along the arc. The seed is an integer pixel, and
+the refinement starts there with the
 cropped set. The crop covers the frame boundary only: missing-data pixels inside the sensor
 are filled with zeros too and can still present an edge. The confidence term
 ``visible_arc_px`` counts the fitted vertices, while ``visible_limb_arc_fraction`` still
@@ -226,10 +233,33 @@ stays an inlier, so the RMS, inlier, and displacement guards all pass and the fi
 otherwise report a confident multi-pixel offset. The mis-lock test catches it by the joint
 signature: a fit that BOTH failed to converge AND ended at least
 ``spurious_unconverged_trust_boundary_fraction`` of the trust region away from the coarse
-seed is a wrong-basin lock and is flagged spurious. A healthy sub-pixel refinement lands
-within ~0.71 px of its integer seed and converges, so it clears the test on both counts; a
-converged fit that walked the full trust region to a good limb (common just outside the
-low-phase band) also clears it, because convergence is the discriminator.
+seed matches the signature of a wrong-basin lock. A fit that converged clears the test
+however far it walked, so a converged fit that walked the full trust region to a good limb
+(common just outside the low-phase band) is kept.
+
+The signature alone also catches good fits. The LM reports a fit unconverged whenever it
+reaches the iteration cap without a step under the step tolerance. That happens when the
+trust region keeps rejecting steps toward a minimum outside it, which is the mis-lock. It
+also happens when the fit wanders at a minimum just inside the boundary: on a limb that runs
+diagonally across the pixel grid the overlap peak can fall on an integer shift nearly a
+pixel from the sub-pixel minimum. So a fit with the signature is run once more from where it
+stopped (translation and rotation) with the trust region removed, and the Tikhonov anchor
+too when one is configured. The fit is flagged spurious if that refit ends more than
+``lm_trust_region_px`` plus ``spurious_mis_lock_escape_margin_px`` from the coarse seed, the
+trust region having held it back, or if the refit is degenerate, which is treated as an
+escape. Otherwise the fit is kept. The refit is used only for this decision. The reported
+offset is the trust-region fit's, and a kept fit still carries the confidence cap for an
+unconverged fit.
+
+The refit cannot recognize a wrong lock that has stalled at a local minimum inside the
+trust region, because there it stays put just as a good fit does. The signature alone
+refused such fits whenever they happened to stop near the boundary. On the 845 Cassini ISS
+Saturn limb fits above, with the full-arc check in place, the refit kept 44 fits that the
+signature alone refused: 28 within 1 px of the reference and 16 within 2 px, 31 of them from
+a single spoke movie. It also released one fit 4 px off, which the full-arc check had
+refused until its own refit stayed put. Seven other fits more than 2 px off that the refit
+cleared stayed refused by the full-arc check. A fit whose arc lies wholly on the sensor has
+no full-arc check behind it.
 
 Configuration
 =============
@@ -265,20 +295,24 @@ All numeric tunables for this technique live in ``techniques.BodyLimbNav.tuning`
   slightly larger than ``lm_trust_region_px``.
 - ``spurious_unconverged_trust_boundary_fraction`` — float, default ``0.9`` (dimensionless).
   Coarse-seed mis-lock gate. A fit that BOTH failed to converge AND ended at least this
-  fraction of the trust region away from the integer coarse seed was pinned against the
-  trust-region boundary trying to escape a wrong-basin seed; it is flagged spurious rather
-  than allowed to emit a confident multi-pixel offset. This is the low-phase
-  (below ~15 deg) under-conditioned failure where a false overlap peak seeds the wrong basin.
-  A healthy sub-pixel fit sits within ~0.71 px of its integer seed and converges, so it
-  is not flagged. Convergence is the decisive condition: a fit that legitimately walks to
-  the trust-region boundary but still converges is not flagged, because the test requires
-  both a failure to converge and a boundary-pinned displacement.
+  fraction of the trust region away from the integer coarse seed matches the signature of a
+  fit pinned against the trust-region boundary by a wrong-basin seed, the low-phase
+  (below ~15 deg) under-conditioned failure where a false overlap peak seeds the wrong
+  basin. Such a fit is refit from where it stopped without the trust region and flagged
+  spurious only if that refit escapes (see the mis-lock test above). A converged fit is not
+  flagged however far it walked.
+- ``spurious_mis_lock_escape_margin_px`` — float, default ``0.1`` px. How far past
+  ``lm_trust_region_px`` from the coarse seed the mis-lock refit must end to count as an
+  escape. A good minimum can lie a few hundredths of a pixel outside the trust region. The
+  value was chosen on the 845 Cassini ISS Saturn limb fits described above, where it kept 8
+  fits within 1 px of the reference and 2 within 2 px that a zero margin refused, and
+  released none farther off.
 - ``lm_trust_region_px`` — float, default ``1.0`` px. Maximum LM displacement from the
   integer coarse seed; the LM rejects any trial step that would land outside this
   radius without committing. The coarse search returns the integer-pixel polarity-weighted
-  match maximum, so the true sub-pixel optimum is within ~0.71 px of the seed — 1.0 px gives
-  legitimate sub-pixel refinement headroom while denying the LM the runway to reach a
-  2-4 px-away spurious minimum.
+  match maximum, which usually lies within ~0.71 px of the sub-pixel optimum but on a
+  diagonal limb can lie nearly a pixel from it. 1.0 px gives that refinement headroom while
+  denying the LM the runway to reach a 2-4 px-away spurious minimum.
 - ``lm_tikhonov_alpha`` — float, default ``0.0`` (dimensionless). Tikhonov anchor strength
   toward the coarse-NCC seed. Zero by default: an anchor strong enough to prevent
   multi-pixel walks on textured bodies also prevents legitimate sub-pixel refinement on

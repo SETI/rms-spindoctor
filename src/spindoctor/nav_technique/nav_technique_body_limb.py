@@ -11,6 +11,7 @@ mistakes by construction.
 from __future__ import annotations
 
 import math
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, cast
 
@@ -338,6 +339,9 @@ class BodyLimbNav(NavTechnique):
         self._spurious_unconverged_trust_boundary_fraction = float(
             self.tuning['spurious_unconverged_trust_boundary_fraction']
         )
+        self._spurious_mis_lock_escape_margin_px = float(
+            self.tuning['spurious_mis_lock_escape_margin_px']
+        )
         self._lm_trust_region_px = float(self.tuning['lm_trust_region_px'])
         self._lm_tikhonov_alpha = float(self.tuning['lm_tikhonov_alpha'])
         self._gradient_ridge_refine = bool(self.tuning['gradient_ridge_refine'])
@@ -550,7 +554,21 @@ class BodyLimbNav(NavTechnique):
                 or rotation_at_edge
             )
             sigma_min_px = float(sigmas.min()) if sigmas.size else 1.0
-            judged = self._judge(result, coarse, sigmas, log=True)
+            judged = self._judge(
+                result,
+                coarse,
+                sigmas,
+                log=True,
+                refit=lambda seed, rotation: self._refine(
+                    vertices,
+                    polarity_normals,
+                    sigmas,
+                    seed,
+                    context=context,
+                    initial_rotation_rad=rotation,
+                    free=True,
+                ),
+            )
             gate_verdict = judged.gate_verdict
             spurious = limb_off_sensor or judged.spurious
             if n_off_sensor and not spurious:
@@ -562,7 +580,22 @@ class BodyLimbNav(NavTechnique):
                 full = self._refine(
                     full_vertices, full_normals, full_sigmas, coarse.offset_vu, context=context
                 )
-                if self._judge(full, coarse, full_sigmas, log=False).spurious:
+                full_judged = self._judge(
+                    full,
+                    coarse,
+                    full_sigmas,
+                    log=False,
+                    refit=lambda seed, rotation: self._refine(
+                        full_vertices,
+                        full_normals,
+                        full_sigmas,
+                        seed,
+                        context=context,
+                        initial_rotation_rad=rotation,
+                        free=True,
+                    ),
+                )
+                if full_judged.spurious:
                     self.logger.info(
                         'The fit over every limb vertex, margin ones included, fails the '
                         'quality gates; flagging spurious'
@@ -662,18 +695,24 @@ class BodyLimbNav(NavTechnique):
         vertices: NDArrayFloatType,
         polarity_normals: NDArrayFloatType,
         sigmas: NDArrayFloatType,
-        seed_vu: tuple[int, int],
+        seed_vu: tuple[float, float],
         *,
         context: NavContext,
+        initial_rotation_rad: float = 0.0,
+        free: bool = False,
     ) -> LMRefineResult:
-        """Run the sub-pixel refinement from the coarse seed.
+        """Run the sub-pixel refinement from a seed.
 
         Parameters:
             vertices: ``(N, 2)`` vertices to fit.
             polarity_normals: ``(N, 2)`` polarity normals.
             sigmas: ``(N,)`` per-vertex normal sigmas.
-            seed_vu: The integer coarse seed.
+            seed_vu: The starting offset: the integer coarse seed, or for a free
+                refit the pose a refinement stopped at.
             context: The navigation context (edge DT, gradient, rotation settings).
+            initial_rotation_rad: The starting rotation, used when rotation is fitted.
+            free: Whether to drop the trust region and the Tikhonov anchor, so the
+                refinement can show where it goes when nothing holds it.
 
         Returns:
             The refinement result.
@@ -693,12 +732,13 @@ class BodyLimbNav(NavTechnique):
             image_edge_dt=context.image_edge_dt_ext,
             image_gradient_vu=context.image_gradient_vu_ext,
             initial_offset_vu=(float(seed_vu[0]), float(seed_vu[1])),
+            initial_rotation_rad=float(initial_rotation_rad),
             use_polarity=True,
             fit_rotation=fit_rotation,
             pivot_vu=pivot_vu if fit_rotation else None,
             pivot_distance_px=pivot_distance,
-            trust_region_px=self._lm_trust_region_px,
-            tikhonov_alpha=self._lm_tikhonov_alpha,
+            trust_region_px=None if free else self._lm_trust_region_px,
+            tikhonov_alpha=0.0 if free else self._lm_tikhonov_alpha,
             final_gradient_ridge=self._gradient_ridge_refine,
         )
 
@@ -709,6 +749,7 @@ class BodyLimbNav(NavTechnique):
         sigmas: NDArrayFloatType,
         *,
         log: bool,
+        refit: Callable[[tuple[float, float], float], LMRefineResult],
     ) -> _LimbJudgment:
         """Apply the limb fit's quality gates to a refinement result.
 
@@ -717,6 +758,10 @@ class BodyLimbNav(NavTechnique):
             coarse: The coarse search that seeded it.
             sigmas: The fitted vertices' normal sigmas.
             log: Whether to log the gates that fire.
+            refit: Refines the same vertices from a given offset and rotation with the
+                trust region removed.  A fit matching the mis-lock signature counts as
+                a mis-lock only if this refit ends more than the trust region plus the
+                escape margin from the coarse seed, or is degenerate.
 
         Returns:
             The gate verdict and whether the fit is spurious.
@@ -777,12 +822,33 @@ class BodyLimbNav(NavTechnique):
             lm_displacement_px
             >= self._spurious_unconverged_trust_boundary_fraction * self._lm_trust_region_px
         )
-        if log and unconverged_at_trust_boundary:
+        # The LM reports a fit unconverged whenever it reaches the iteration cap
+        # without a step under the step tolerance: when the trust region keeps
+        # rejecting steps toward a minimum outside it, and also when it wanders at
+        # a minimum just inside the boundary, which a limb running diagonally
+        # across the pixel grid can put nearly a pixel from the integer seed.
+        # Refit from where it stopped without the trust region: only a fit that
+        # then walks on past it was being held (#321).
+        free_distance_px: float | None = None
+        if unconverged_at_trust_boundary:
+            free = refit((float(dv_final), float(du_final)), float(result.rotation_rad))
+            free_dv, free_du = free.offset_vu
+            free_distance_px = math.hypot(free_dv - float(coarse_dv), free_du - float(coarse_du))
+            unconverged_at_trust_boundary = free.degenerate or free_distance_px > (
+                self._lm_trust_region_px + self._spurious_mis_lock_escape_margin_px
+            )
+        if log and free_distance_px is not None:
             self.logger.info(
-                'Coarse-seed mis-lock: LM unconverged and pinned %.3f px from the '
-                'coarse seed (trust region %.3f px); flagging spurious',
+                'LM unconverged %.3f px from the coarse seed; refit without the trust '
+                'region it ends %.3f px from the seed (trust region %.3f px, escape '
+                'margin %.3f px): %s',
                 lm_displacement_px,
+                free_distance_px,
                 self._lm_trust_region_px,
+                self._spurious_mis_lock_escape_margin_px,
+                'coarse-seed mis-lock, flagging spurious'
+                if unconverged_at_trust_boundary
+                else 'not a mis-lock',
             )
         spurious = (
             result.degenerate

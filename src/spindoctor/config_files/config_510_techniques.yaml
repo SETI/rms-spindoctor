@@ -316,10 +316,20 @@ techniques:
       # cap without ever meeting the step tolerance.  A fit that BOTH
       # failed to converge AND ended at least this fraction of the trust
       # region away from the integer coarse seed is that mis-lock; flag it
-      # spurious rather than emit a confident multi-pixel offset.  A
-      # healthy sub-pixel refinement lands within ~0.71 px of its integer
-      # seed and converges, so it clears this gate on both counts.
+      # spurious rather than emit a confident multi-pixel offset.  The
+      # LM also ends unconverged near the boundary at a good minimum that
+      # lies nearly a pixel from the integer seed, so a fit with this
+      # signature is refit from where it stopped without the trust region,
+      # and it is a mis-lock only if that refit ends more than
+      # ``lm_trust_region_px + spurious_mis_lock_escape_margin_px`` from
+      # the seed (or is degenerate).
       spurious_unconverged_trust_boundary_fraction: 0.9
+      # How far past the trust region (pixels) the refit above must end
+      # to count as an escape.  A good minimum can sit a few hundredths of
+      # a pixel outside the trust region; 0.1 px was chosen on 845 Cassini
+      # ISS Saturn limb fits at known pointing, where it kept 8 fits within
+      # 1 px of the reference and 2 within 2 px, and released none farther.
+      spurious_mis_lock_escape_margin_px: 0.1
       # Maximum LM displacement from the integer coarse-NCC seed
       # (pixels).  The LM rejects any trial step that would land
       # outside this radius without committing — preventing the

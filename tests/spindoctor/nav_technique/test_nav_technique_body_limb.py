@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import dataclasses
+from typing import Any
+
 import numpy as np
 import pytest
 from tests.spindoctor.nav_technique.conftest import (
@@ -521,6 +524,183 @@ def test_body_limb_nav_marks_spurious_when_unconverged_at_trust_boundary(
         inlier_count=int(vertices.shape[0] * 0.6),
         degenerate=False,
     )
+    # Released from the trust region, the refinement walks on past it.
+    escaped_result = dataclasses.replace(forged_result, offset_vu=(2.0 * LM_TRUST_REGION_PX, 0.0))
+    free_starts: list[tuple[float, float]] = []
+
+    def forged_refine(**kwargs: Any) -> Any:
+        """Return the pinned fit, or the escape for a refit without the trust region."""
+        if kwargs['trust_region_px'] is not None:
+            return forged_result
+        free_starts.append(tuple(kwargs['initial_offset_vu']))
+        return escaped_result
+
+    monkeypatch.setattr(nav_technique_body_limb, 'lm_subpixel_refine', forged_refine)
+
+    result = technique.navigate([feature], context)
+    # Sanity-check the test setup: the walk-off displacement guard would NOT fire.
+    assert boundary_displacement < SPURIOUS_MAX_LM_DISPLACEMENT_PX
+    assert result.spurious is True
+    assert free_starts == [(boundary_displacement, 0.0)]
+
+
+SPURIOUS_MIS_LOCK_ESCAPE_MARGIN_PX = BodyLimbNav.tuning['spurious_mis_lock_escape_margin_px']
+
+
+def _forged_signature_fit(n: int, *, rotation_rad: float = 0.0) -> Any:
+    """Return an unconverged fit stopped at the mis-lock signature's distance along v.
+
+    Parameters:
+        n: Number of vertices.
+        rotation_rad: The fit's rotation; a nonzero value carries a 3x3 covariance.
+    """
+    from spindoctor.nav_technique import dt_fitting
+
+    n_params = 3 if rotation_rad else 2
+    return dt_fitting.LMRefineResult(
+        offset_vu=(float(SPURIOUS_UNCONVERGED_TRUST_BOUNDARY_FRACTION * LM_TRUST_REGION_PX), 0.0),
+        rotation_rad=rotation_rad,
+        covariance=np.eye(n_params, dtype=np.float64) * 1.0e-6,
+        residuals_px=np.zeros(n, dtype=np.float64),
+        weights=np.ones(n, dtype=np.float64),
+        rms_px=0.4,
+        raw_rms_px=0.4,
+        iterations=30,
+        converged=False,
+        inlier_count=int(n * 0.6),
+        degenerate=False,
+    )
+
+
+@pytest.mark.parametrize(
+    ('free_end_past_escape_px', 'free_degenerate', 'expected_spurious', 'expected_log'),
+    [
+        # Past the escape radius measured from the coarse seed, though well within
+        # it measured from where the fit stopped.
+        (0.05, False, True, 'coarse-seed mis-lock'),
+        # Exactly at the escape radius: not past it.
+        (0.0, False, False, 'not a mis-lock'),
+        # Past the trust region but within the escape margin.
+        (-0.5 * SPURIOUS_MIS_LOCK_ESCAPE_MARGIN_PX, False, False, 'not a mis-lock'),
+        # A degenerate refit is treated as an escape wherever it ends.
+        (-0.2, True, True, 'coarse-seed mis-lock'),
+    ],
+)
+def test_body_limb_nav_mis_lock_refit_is_measured_from_the_coarse_seed(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    disc_image: DiscImageFactory,
+    circle_polyline: CirclePolylineFactory,
+    make_limb_feature: NavFeatureFactory,
+    make_nav_context: NavContextFactory,
+    free_end_past_escape_px: float,
+    free_degenerate: bool,
+    expected_spurious: bool,
+    expected_log: str,
+) -> None:
+    """The refit's end is measured from the coarse seed against the escape radius.
+
+    Parameters:
+        monkeypatch: Pytest fixture.
+        capsys: Pytest fixture.
+        disc_image: Disc image factory.
+        circle_polyline: Circle polyline factory.
+        make_limb_feature: Limb feature factory.
+        make_nav_context: Navigation context factory.
+        free_end_past_escape_px: How far past the escape radius (trust region plus
+            margin) the refit without the trust region ends, along v.
+        free_degenerate: Whether that refit is degenerate.
+        expected_spurious: The expected verdict.
+        expected_log: Text the verdict's log line carries.
+    """
+    from spindoctor.nav_technique import nav_technique_body_limb
+
+    image = disc_image((200, 200), (100.0, 100.0), 30.0)
+    vertices, outward = circle_polyline((100.0, 100.0), 30.0, 200)
+    feature = make_limb_feature('refit', vertices=vertices, outward_normals=outward)
+    forged_result = _forged_signature_fit(vertices.shape[0])
+    escape_px = LM_TRUST_REGION_PX + SPURIOUS_MIS_LOCK_ESCAPE_MARGIN_PX
+    free_result = dataclasses.replace(
+        forged_result,
+        offset_vu=(escape_px + free_end_past_escape_px, 0.0),
+        degenerate=free_degenerate,
+    )
+    monkeypatch.setattr(
+        nav_technique_body_limb,
+        'lm_subpixel_refine',
+        lambda **kwargs: forged_result if kwargs['trust_region_px'] is not None else free_result,
+    )
+    result = BodyLimbNav().navigate([feature], make_nav_context(image))
+    assert result.spurious is expected_spurious
+    assert expected_log in capsys.readouterr().out
+
+
+def test_body_limb_nav_mis_lock_refit_keeps_the_rotation_and_drops_the_anchor(
+    monkeypatch: pytest.MonkeyPatch,
+    disc_image: DiscImageFactory,
+    circle_polyline: CirclePolylineFactory,
+    make_limb_feature: NavFeatureFactory,
+    make_nav_context: NavContextFactory,
+) -> None:
+    """The refit starts at the stopped rotation, with no trust region and no anchor."""
+    from spindoctor.nav_technique import nav_technique_body_limb
+
+    image = disc_image((200, 200), (100.0, 100.0), 30.0)
+    vertices, outward = circle_polyline((100.0, 100.0), 30.0, 200)
+    feature = make_limb_feature('rotated', vertices=vertices, outward_normals=outward)
+    forged_result = _forged_signature_fit(vertices.shape[0], rotation_rad=1.0e-4)
+    calls: list[dict[str, Any]] = []
+
+    def forged_refine(**kwargs: Any) -> Any:
+        """Record each refinement's settings and return the stopped fit."""
+        calls.append(kwargs)
+        return forged_result
+
+    monkeypatch.setattr(nav_technique_body_limb, 'lm_subpixel_refine', forged_refine)
+    technique = BodyLimbNav()
+    technique._lm_tikhonov_alpha = 0.5
+    technique.navigate([feature], make_nav_context(image, fit_camera_rotation=True))
+    free = [c for c in calls if c['trust_region_px'] is None]
+    assert len(free) == 1
+    assert free[0]['initial_rotation_rad'] == pytest.approx(1.0e-4)
+    assert free[0]['tikhonov_alpha'] == 0.0
+
+
+def test_body_limb_nav_unconverged_at_an_interior_minimum_is_not_spurious(
+    monkeypatch: pytest.MonkeyPatch,
+    disc_image: DiscImageFactory,
+    circle_polyline: CirclePolylineFactory,
+    make_limb_feature: NavFeatureFactory,
+    make_nav_context: NavContextFactory,
+) -> None:
+    """An unconverged fit near the boundary whose minimum lies inside it is not spurious.
+
+    The integer seed can sit nearly a pixel from a sub-pixel minimum on a diagonal
+    edge.  Refit without the trust region from where it stopped, such a fit stays put,
+    so the trust region was not holding it and the mis-lock gate does not fire.
+    """
+    from spindoctor.nav_technique import dt_fitting, nav_technique_body_limb
+
+    shape = (200, 200)
+    image = disc_image(shape, (100.0, 100.0), 30.0)
+    vertices, outward = circle_polyline((100.0, 100.0), 30.0, 200)
+    feature = make_limb_feature('interior', vertices=vertices, outward_normals=outward)
+    technique = BodyLimbNav()
+    context = make_nav_context(image)
+    boundary_displacement = float(SPURIOUS_UNCONVERGED_TRUST_BOUNDARY_FRACTION * LM_TRUST_REGION_PX)
+    forged_result = dt_fitting.LMRefineResult(
+        offset_vu=(boundary_displacement, 0.0),
+        rotation_rad=0.0,
+        covariance=np.eye(2, dtype=np.float64) * 0.25,
+        residuals_px=np.zeros(vertices.shape[0], dtype=np.float64),
+        weights=np.ones(vertices.shape[0], dtype=np.float64),
+        rms_px=0.4,
+        raw_rms_px=0.4,
+        iterations=30,
+        converged=False,
+        inlier_count=int(vertices.shape[0] * 0.6),
+        degenerate=False,
+    )
     monkeypatch.setattr(
         nav_technique_body_limb,
         'lm_subpixel_refine',
@@ -528,9 +708,7 @@ def test_body_limb_nav_marks_spurious_when_unconverged_at_trust_boundary(
     )
 
     result = technique.navigate([feature], context)
-    # Sanity-check the test setup: the walk-off displacement guard would NOT fire.
-    assert boundary_displacement < SPURIOUS_MAX_LM_DISPLACEMENT_PX
-    assert result.spurious is True
+    assert result.spurious is False
 
 
 def test_body_limb_nav_unconverged_near_seed_is_not_spurious(

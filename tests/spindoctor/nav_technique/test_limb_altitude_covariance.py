@@ -367,14 +367,128 @@ def test_a_crop_does_not_rescue_a_fit_whose_full_arc_fails_the_gates(
     original = BodyLimbNav._judge
 
     def fail_full_arc(
-        self: BodyLimbNav, result: Any, coarse: Any, sigmas: Any, *, log: bool
+        self: BodyLimbNav, result: Any, coarse: Any, sigmas: Any, *, log: bool, refit: Any
     ) -> Any:
         """Judge as usual, but fail any fit over all 180 vertices."""
-        judged = original(self, result, coarse, sigmas, log=log)
+        judged = original(self, result, coarse, sigmas, log=log, refit=refit)
         return dataclasses.replace(judged, spurious=judged.spurious or sigmas.shape[0] == 180)
 
     monkeypatch.setattr(BodyLimbNav, '_judge', fail_full_arc)
     assert BodyLimbNav().navigate([feature], context).spurious is True
+
+
+@pytest.mark.parametrize(('free_end_fraction', 'expected_spurious'), [(2.0, True), (0.9, False)])
+def test_the_full_arc_check_refits_a_mis_lock_signature(
+    disc_image: DiscImageFactory,
+    arc_polyline: ArcPolylineFactory,
+    make_limb_feature: NavFeatureFactory,
+    make_nav_context: NavContextFactory,
+    monkeypatch: pytest.MonkeyPatch,
+    free_end_fraction: float,
+    expected_spurious: bool,
+) -> None:
+    """A full-arc fit with the mis-lock signature is refused only if its refit escapes.
+
+    Parameters:
+        disc_image: Disc image factory.
+        arc_polyline: Arc polyline factory.
+        make_limb_feature: Limb feature factory.
+        make_nav_context: Navigation context factory.
+        monkeypatch: Pytest fixture.
+        free_end_fraction: Where the full arc's refit without the trust region ends,
+            along v, as a fraction of the trust region.
+        expected_spurious: The expected verdict.
+    """
+    from spindoctor.nav_technique import dt_fitting, nav_technique_body_limb
+
+    image = disc_image((200, 200), (100.0, 130.0), 30.0)
+    sensor = np.zeros(image.shape, dtype=bool)
+    sensor[:, :145] = True
+    image = np.where(sensor, image, 0.0)
+    vertices, outward = arc_polyline((100.0, 130.0), 30.0, 180, -np.pi / 2, np.pi / 2)
+    feature = make_limb_feature('moonJ', vertices=vertices, outward_normals=outward)
+    context = dataclasses.replace(make_nav_context(image), sensor_mask_ext=sensor)
+    technique = BodyLimbNav()
+    trust_px = float(technique.tuning['lm_trust_region_px'])
+    stop_px = float(technique.tuning['spurious_unconverged_trust_boundary_fraction']) * trust_px
+    real_refine = dt_fitting.lm_subpixel_refine
+
+    def forged_refine(**kwargs: Any) -> Any:
+        """Refine the cropped arc for real; give the full arc the mis-lock signature."""
+        if kwargs['vertices_vu'].shape[0] != 180:
+            return real_refine(**kwargs)
+        n = 180
+        pinned = dt_fitting.LMRefineResult(
+            offset_vu=(stop_px, 0.0),
+            rotation_rad=0.0,
+            covariance=np.eye(2, dtype=np.float64) * 0.25,
+            residuals_px=np.zeros(n, dtype=np.float64),
+            weights=np.ones(n, dtype=np.float64),
+            rms_px=0.2,
+            raw_rms_px=0.2,
+            iterations=30,
+            converged=False,
+            inlier_count=n,
+            degenerate=False,
+        )
+        if kwargs['trust_region_px'] is not None:
+            return pinned
+        free_counts.append(n)
+        return dataclasses.replace(pinned, offset_vu=(free_end_fraction * trust_px, 0.0))
+
+    free_counts: list[int] = []
+    monkeypatch.setattr(nav_technique_body_limb, 'lm_subpixel_refine', forged_refine)
+    assert technique.navigate([feature], context).spurious is expected_spurious
+    assert free_counts == [180]
+
+
+def test_each_mis_lock_refit_uses_its_own_vertex_set(
+    disc_image: DiscImageFactory,
+    arc_polyline: ArcPolylineFactory,
+    make_limb_feature: NavFeatureFactory,
+    make_nav_context: NavContextFactory,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The cropped fit's refit uses the cropped vertices, the full arc's all of them."""
+    from spindoctor.nav_technique import dt_fitting, nav_technique_body_limb
+
+    image = disc_image((200, 200), (100.0, 130.0), 30.0)
+    sensor = np.zeros(image.shape, dtype=bool)
+    sensor[:, :145] = True
+    image = np.where(sensor, image, 0.0)
+    vertices, outward = arc_polyline((100.0, 130.0), 30.0, 180, -np.pi / 2, np.pi / 2)
+    feature = make_limb_feature('moonK', vertices=vertices, outward_normals=outward)
+    context = dataclasses.replace(make_nav_context(image), sensor_mask_ext=sensor)
+    technique = BodyLimbNav()
+    stop_px = float(technique.tuning['spurious_unconverged_trust_boundary_fraction']) * float(
+        technique.tuning['lm_trust_region_px']
+    )
+    free_counts: list[int] = []
+
+    def forged_refine(**kwargs: Any) -> Any:
+        """Give every fit the mis-lock signature; every refit stays where it started."""
+        n = int(kwargs['vertices_vu'].shape[0])
+        if kwargs['trust_region_px'] is None:
+            free_counts.append(n)
+        return dt_fitting.LMRefineResult(
+            offset_vu=(stop_px, 0.0),
+            rotation_rad=0.0,
+            covariance=np.eye(2, dtype=np.float64) * 0.25,
+            residuals_px=np.zeros(n, dtype=np.float64),
+            weights=np.ones(n, dtype=np.float64),
+            rms_px=0.2,
+            raw_rms_px=0.2,
+            iterations=30,
+            converged=False,
+            inlier_count=n,
+            degenerate=False,
+        )
+
+    monkeypatch.setattr(nav_technique_body_limb, 'lm_subpixel_refine', forged_refine)
+    technique.navigate([feature], context)
+    assert len(free_counts) == 2
+    assert free_counts[0] < 180
+    assert free_counts[1] == 180
 
 
 def test_an_arc_wholly_on_the_sensor_is_judged_once(
@@ -391,10 +505,12 @@ def test_an_arc_wholly_on_the_sensor_is_judged_once(
     calls: list[int] = []
     original = BodyLimbNav._judge
 
-    def counting(self: BodyLimbNav, result: Any, coarse: Any, sigmas: Any, *, log: bool) -> Any:
+    def counting(
+        self: BodyLimbNav, result: Any, coarse: Any, sigmas: Any, *, log: bool, refit: Any
+    ) -> Any:
         """Count the judgments."""
         calls.append(int(sigmas.shape[0]))
-        return original(self, result, coarse, sigmas, log=log)
+        return original(self, result, coarse, sigmas, log=log, refit=refit)
 
     monkeypatch.setattr(BodyLimbNav, '_judge', counting)
     BodyLimbNav().navigate([feature], make_nav_context(image))
