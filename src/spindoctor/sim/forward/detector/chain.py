@@ -383,9 +383,13 @@ def _apply_dark_ramp(
 def _apply_bright_dark_pairs(
     electrons: NDArrayFloatType, cfg: dict[str, Any], frame: SimFrame, dp: DetectorParams
 ) -> dict[str, Any]:
-    """Apply the bright_dark_pairs mode with exposure scaling and placement pool."""
+    """Apply the bright_dark_pairs mode with exposure scaling and placement pool.
+
+    ``expected_events_per_sec`` is a rate per second of exposure, so the frame's
+    expected pair count is that rate times the exposure time.
+    """
     rng = _mode_seed(dp, 'bright_dark_pairs')
-    expected = float(cfg['expected_events']) * dp.exposure_sec
+    expected = float(cfg['expected_events_per_sec']) * dp.exposure_sec
     count = int(rng.poisson(expected)) if expected > 0.0 else 0
     pool = _feature_pool(frame) if dp.artifacts_adversarial else None
     return add_bright_dark_pairs(
@@ -405,7 +409,8 @@ def _apply_radiation_transients(
     The expected spike count scales ``expected_events`` by the environment
     factor and by ``(exposure + readout dwell) / exposure`` -- the dwell adds
     transients proportionally, the regime that forced Galileo's faster summation
-    readout.
+    readout -- so ``expected_events`` is the per-frame count only at environment
+    factor 1 and zero dwell.  A non-positive exposure counts as 1 s.
     """
     expected_events = float(cfg['expected_events'])
     environment = float(cfg.get('environment_factor', 1.0))

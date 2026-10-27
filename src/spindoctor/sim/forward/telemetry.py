@@ -26,8 +26,8 @@ grid.  It applies its sub-effects in the physical order of transmission:
    applied on the raw-DN path only.
 
 Every structured loss mode is opt-in through the ``artifacts`` block, disabled
-when its activation key (``expected_events``, ``probability``, or a fixed
-``count``) is 0, and individually seeded via
+when its activation key (``expected_events`` or ``probability``), or its fixed
+``count`` where given, is 0, and individually seeded via
 ``derive_effect_seed(random_seed, 'telemetry/<mode>')`` so toggling one never
 perturbs another.  Each applied mode records its realized geometry into
 ``frame.truth['artifacts'][mode]`` for later planted-vs-measured comparison.

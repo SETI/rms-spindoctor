@@ -36,8 +36,8 @@ import numpy as np
 from spindoctor.config import DEFAULT_CONFIG
 from spindoctor.sim.forward.artifact_modes import (
     ARTIFACT_MODES,
+    COUNT_ACTIVATION_KEYS,
     DETECTOR_MODE_ORDER,
-    EXPECTED_EVENTS,
     PROBABILITY,
     mode_available,
     normalize_instrument,
@@ -203,16 +203,16 @@ def _mode_active(mode_name: str, cfg: Mapping[str, Any], random_seed: int) -> bo
     """Whether a detector artifact mode is active this frame.
 
     The registry names each mode's activation key.  A count mode
-    (``expected_events``) is active whenever its expected count is positive (the
-    mechanic draws the event count); a deterministic-shape mode activates with
-    per-frame ``probability``, drawn from the mode's own seeded stream so
-    toggling one never perturbs another.
+    (``expected_events`` or ``expected_events_per_sec``) is active whenever its
+    expected count is positive (the mechanic draws the event count); a
+    deterministic-shape mode activates with per-frame ``probability``, drawn from
+    the mode's own seeded stream so toggling one never perturbs another.
     """
     activation = ARTIFACT_MODES[mode_name].activation
     value = float(cfg.get(activation) or 0.0)
     if value <= 0.0:
         return False
-    if activation == EXPECTED_EVENTS:
+    if activation in COUNT_ACTIVATION_KEYS:
         return True
     rng = np.random.default_rng(derive_effect_seed(random_seed, f'detector/{mode_name}/activate'))
     return bool(rng.random() < value)

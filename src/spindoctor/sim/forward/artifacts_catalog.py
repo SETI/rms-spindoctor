@@ -13,7 +13,11 @@ import copy
 from collections.abc import Mapping
 from typing import Any
 
-from spindoctor.sim.forward.artifact_modes import ARTIFACT_MODES, MODE_KEYS
+from spindoctor.sim.forward.artifact_modes import (
+    ARTIFACT_MODES,
+    MODE_KEYS,
+    refuse_renamed_params,
+)
 
 __all__ = [
     'ARTIFACT_MODES',
@@ -645,11 +649,11 @@ def resolve_mode_with_catalog(
     The resolution precedence for a mode's shape parameters is scene value, then
     the instrument's catalog default block (``artifact_modes`` in
     ``DETECTOR_DEFAULTS``), then the registry default.  A mode's activation key
-    (``expected_events``, ``probability``, or ``pixel_fraction``) and the
-    fixed-count alternative ``count`` are never read from the catalog: a mode
-    activates only when a scene sets one (or, for the one physical-signal-chain
-    member LORRI turns on, when the detector resolver injects it under
-    ``instrument_defaults``).
+    (``expected_events``, ``expected_events_per_sec``, ``probability``, or
+    ``pixel_fraction``) and the fixed-count alternative ``count`` are never read
+    from the catalog: a mode activates only when a scene sets one (or, for the
+    one physical-signal-chain member LORRI turns on, when the detector resolver
+    injects it under ``instrument_defaults``).
 
     Parameters:
         mode_name: A registered artifact-mode name.
@@ -658,7 +662,13 @@ def resolve_mode_with_catalog(
 
     Returns:
         A fresh dict carrying every parameter at its resolved value.
+
+    Raises:
+        SimSceneValidationError: If ``scene_cfg`` carries a retired key (see
+            :func:`~spindoctor.sim.forward.artifact_modes.refuse_renamed_params`),
+            so a scene that skipped validation still fails loudly.
     """
+    refuse_renamed_params(mode_name, scene_cfg)
     catalog_modes = resolve_detector_defaults(instrument).get('artifact_modes') or {}
     catalog = catalog_modes.get(mode_name) or {}
     mode = ARTIFACT_MODES[mode_name]

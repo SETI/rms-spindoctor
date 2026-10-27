@@ -2,12 +2,15 @@
 
 Every artifact mode carries exactly one activation key, and the key names the
 quantity it holds: ``expected_events`` (a Poisson expected event count per
-frame), ``probability`` (a per-frame activation probability), or
-``pixel_fraction`` (the hot-pixel spatial density).  The retired ``incidence``
-key, which named all three, is refused with a message naming the mode's
-replacement.  ``dead_pixels`` and ``dead_columns`` take a fixed ``count`` in
-place of ``expected_events``, never both, and every mode is a no-op when its
-activation key is 0.
+frame), ``expected_events_per_sec`` (a Poisson expected event count per second of
+exposure, on ``bright_dark_pairs``), ``probability`` (a per-frame activation
+probability), or ``pixel_fraction`` (the hot-pixel spatial density).  The retired
+``incidence`` key, which named all four, is refused with a message naming the
+mode's replacement and what it holds on that mode, by the validator and again by
+the render-time resolvers, so an unvalidated in-memory scene fails the same way.
+``dead_pixels`` and ``dead_columns`` take a fixed ``count`` in place of
+``expected_events``, never both set, and every mode is a no-op when its
+activation key is 0, or its ``count`` where given is 0.
 """
 
 import re
@@ -20,18 +23,22 @@ from spindoctor.sim.forward.artifact_modes import (
     ACTIVATION_KEYS,
     ARTIFACT_MODES,
     EXPECTED_EVENTS,
+    EXPECTED_EVENTS_PER_SEC,
     PIXEL_FRACTION,
     PROBABILITY,
     RENAMED_MODE_PARAMS,
+    resolve_mode_config,
 )
+from spindoctor.sim.forward.artifacts_catalog import resolve_mode_with_catalog
 from spindoctor.sim.forward.detector.params import resolve_detector_params
 from spindoctor.sim.forward.stages import SimFrame
 from spindoctor.sim.forward.telemetry import apply_telemetry
+from spindoctor.sim.render import render_combined_model
 from spindoctor.sim.scene import SimSceneValidationError, validate_sim_params
 from spindoctor.support.types import NDArrayFloatType
 
-# The modes whose activation key is a Poisson expected event count: the line,
-# block, garble, spike, and dead-pixel losses, plus the two detector count modes.
+# The modes whose activation key is a Poisson expected event count per frame: the
+# line, block, garble, spike, and dead-pixel losses, plus radiation_transients.
 _COUNT_MODES = frozenset(
     {
         'missing_lines',
@@ -42,11 +49,13 @@ _COUNT_MODES = frozenset(
         'dead_pixels',
         'dead_columns',
         'radiation_transients',
-        'bright_dark_pairs',
     }
 )
+# The mode whose expected count is a rate per second of exposure.
+_RATE_MODES = frozenset({'bright_dark_pairs'})
+_POISSON_MODES = sorted(_COUNT_MODES | _RATE_MODES)
 _DENSITY_MODES = frozenset({'hot_pixels'})
-_PROBABILITY_MODES = sorted(set(ARTIFACT_MODES) - _COUNT_MODES - _DENSITY_MODES)
+_PROBABILITY_MODES = sorted(set(ARTIFACT_MODES) - _COUNT_MODES - _RATE_MODES - _DENSITY_MODES)
 _UNIT_INTERVAL_MODES = sorted(set(_PROBABILITY_MODES) | _DENSITY_MODES)
 _DEAD_MODES = ('dead_pixels', 'dead_columns')
 
@@ -68,6 +77,8 @@ def _expected_key(mode_name: str) -> str:
     """The activation key the mode's mechanic calls for."""
     if mode_name in _COUNT_MODES:
         return EXPECTED_EVENTS
+    if mode_name in _RATE_MODES:
+        return EXPECTED_EVENTS_PER_SEC
     if mode_name in _DENSITY_MODES:
         return PIXEL_FRACTION
     return PROBABILITY
@@ -78,7 +89,12 @@ def _expected_key(mode_name: str) -> str:
 
 @pytest.mark.parametrize('mode_name', sorted(ARTIFACT_MODES))
 def test_each_mode_activation_key_names_its_mechanic(mode_name: str) -> None:
-    """A count mode takes expected_events, hot_pixels pixel_fraction, the rest probability."""
+    """Each mode's activation key names the quantity its mechanic reads.
+
+    A per-frame count mode takes expected_events, bright_dark_pairs (whose count
+    scales with exposure) expected_events_per_sec, hot_pixels pixel_fraction, and
+    the rest probability.
+    """
     assert ARTIFACT_MODES[mode_name].activation == _expected_key(mode_name)
 
 
@@ -92,7 +108,7 @@ def test_each_mode_leads_with_its_activation_key_at_zero(mode_name: str) -> None
 
 @pytest.mark.parametrize('mode_name', sorted(ARTIFACT_MODES))
 def test_each_mode_carries_exactly_one_activation_key(mode_name: str) -> None:
-    """No mode carries two of the three activation keys."""
+    """No mode carries two of the activation keys."""
     names = {param.name for param in ARTIFACT_MODES[mode_name].params}
     assert names & set(ACTIVATION_KEYS) == {ARTIFACT_MODES[mode_name].activation}
 
@@ -106,16 +122,94 @@ def test_renamed_map_retires_incidence_on_every_mode() -> None:
 # --- validation: the retired key -----------------------------------------------
 
 
+def _retired_message(mode_name: str) -> str:
+    """The refusal of the retired key, without a source prefix."""
+    return (
+        f"artifacts.{mode_name}: 'incidence' was renamed; use '{_expected_key(mode_name)}' "
+        f'({ARTIFACT_MODES[mode_name].activation_semantics})'
+    )
+
+
 @pytest.mark.parametrize('mode_name', sorted(ARTIFACT_MODES))
 def test_retired_incidence_key_is_refused_naming_the_replacement(mode_name: str) -> None:
-    """A scene still writing incidence fails, and the message names the new key."""
-    new_key = _expected_key(mode_name)
-    message = (
-        f"artifacts.{mode_name}: 'incidence' was renamed; use '{new_key}' "
-        f'({ACTIVATION_KEYS[new_key]})'
-    )
-    with pytest.raises(SimSceneValidationError, match=re.escape(message)):
+    """A scene still writing incidence fails, naming the new key and its meaning here."""
+    with pytest.raises(SimSceneValidationError) as excinfo:
         validate_sim_params(_scene({mode_name: {'incidence': 0.5}}))
+    assert str(excinfo.value) == f'sim_params: {_retired_message(mode_name)}'
+
+
+@pytest.mark.parametrize(
+    ('mode_name', 'unit'),
+    [
+        ('missing_lines', 'per frame'),
+        ('dead_pixels', 'per frame'),
+        ('bright_dark_pairs', 'per second of exposure'),
+        ('truncated_frame', 'per-frame probability'),
+        ('hot_pixels', 'fraction of detector pixels'),
+    ],
+)
+def test_retired_key_message_states_the_mode_unit(mode_name: str, unit: str) -> None:
+    """The refusal says the unit of this mode's key, not a generic one."""
+    with pytest.raises(SimSceneValidationError, match=re.escape(unit)):
+        validate_sim_params(_scene({mode_name: {'incidence': 0.5}}))
+
+
+def test_rate_mode_message_never_claims_per_frame() -> None:
+    """bright_dark_pairs counts per second of exposure, so its refusal never says per frame."""
+    with pytest.raises(SimSceneValidationError) as excinfo:
+        validate_sim_params(_scene({'bright_dark_pairs': {'incidence': 0.5}}))
+    assert 'per frame' not in str(excinfo.value)
+
+
+def test_radiation_transients_semantics_state_its_scaling() -> None:
+    """radiation_transients names the environment factor and the dwell it scales by."""
+    semantics = ARTIFACT_MODES['radiation_transients'].activation_semantics
+    words = ('environment_factor', 'readout_dwell_sec', 'exposure_sec')
+    assert [word for word in words if word not in semantics] == []
+
+
+@pytest.mark.parametrize('mode_name', sorted(ARTIFACT_MODES))
+def test_catalog_resolver_refuses_the_retired_key(mode_name: str) -> None:
+    """The render-time resolver refuses incidence with the validator's message."""
+    with pytest.raises(SimSceneValidationError) as excinfo:
+        resolve_mode_with_catalog(mode_name, {'incidence': 0.5}, 'generic')
+    assert str(excinfo.value) == _retired_message(mode_name)
+
+
+@pytest.mark.parametrize('mode_name', sorted(ARTIFACT_MODES))
+def test_plain_resolver_refuses_the_retired_key(mode_name: str) -> None:
+    """The registry-default resolver refuses incidence with the validator's message."""
+    with pytest.raises(SimSceneValidationError) as excinfo:
+        resolve_mode_config(mode_name, {'incidence': 0.5})
+    assert str(excinfo.value) == _retired_message(mode_name)
+
+
+@pytest.mark.parametrize(
+    ('mode_name', 'instrument'),
+    [
+        ('missing_lines', 'coiss_nac'),
+        ('dead_pixels', 'coiss_nac'),
+        ('truth_window', 'gossi'),
+        ('hot_pixels', 'coiss_nac'),
+        ('bright_dark_pairs', 'coiss_nac'),
+        ('banding_coherent', 'coiss_nac'),
+        ('compression_dct', 'coiss_nac'),
+        ('reseau_scars', 'vgiss'),
+    ],
+)
+def test_unvalidated_scene_with_retired_key_fails_to_render(
+    mode_name: str, instrument: str
+) -> None:
+    """An in-memory scene that skipped validation still refuses incidence at render.
+
+    Each render path (the telemetry loss loop, the truth window, the flanking
+    telemetry modes, the detector modes, and the hot-pixel routing) fails the
+    same way, so a retired key can never render as a silently clean frame.
+    """
+    sim = _scene({mode_name: {'incidence': 50.0}}, instrument=instrument)
+    with pytest.raises(SimSceneValidationError) as excinfo:
+        render_combined_model(sim, ignore_offset=True)
+    assert str(excinfo.value) == _retired_message(mode_name)
 
 
 def test_retired_incidence_key_is_refused_beside_the_new_key() -> None:
@@ -141,17 +235,24 @@ def test_probability_and_pixel_fraction_of_one_validate(mode_name: str) -> None:
     validate_sim_params(_scene({mode_name: {_expected_key(mode_name): 1.0}}))
 
 
-@pytest.mark.parametrize('mode_name', sorted(_COUNT_MODES))
+@pytest.mark.parametrize('mode_name', _POISSON_MODES)
 def test_expected_events_above_one_validate(mode_name: str) -> None:
     """An expected event count is unbounded above (many lines may be lost)."""
-    validate_sim_params(_scene({mode_name: {EXPECTED_EVENTS: 25.0}}))
+    validate_sim_params(_scene({mode_name: {_expected_key(mode_name): 25.0}}))
 
 
-@pytest.mark.parametrize('mode_name', sorted(_COUNT_MODES))
+@pytest.mark.parametrize('mode_name', _POISSON_MODES)
 def test_negative_expected_events_are_refused(mode_name: str) -> None:
     """A negative expected event count fails validation."""
-    with pytest.raises(SimSceneValidationError, match=rf'{mode_name}\.expected_events'):
-        validate_sim_params(_scene({mode_name: {EXPECTED_EVENTS: -1.0}}))
+    key = _expected_key(mode_name)
+    with pytest.raises(SimSceneValidationError, match=rf'{mode_name}\.{key} '):
+        validate_sim_params(_scene({mode_name: {key: -1.0}}))
+
+
+def test_rate_mode_refuses_the_per_frame_key() -> None:
+    """bright_dark_pairs takes expected_events_per_sec; expected_events is unknown on it."""
+    with pytest.raises(SimSceneValidationError, match=r"unknown keys: \['expected_events'\]"):
+        validate_sim_params(_scene({'bright_dark_pairs': {EXPECTED_EVENTS: 5.0}}))
 
 
 # --- dead_pixels / dead_columns: count or expected_events ------------------------
@@ -169,6 +270,17 @@ def test_count_and_expected_events_together_are_refused(mode_name: str) -> None:
 def test_count_or_expected_events_alone_validates(mode_name: str, key: str) -> None:
     """Either activation quantity alone is a valid dead-pixel or dead-column map."""
     validate_sim_params(_scene({mode_name: {key: 3}}))
+
+
+@pytest.mark.parametrize('mode_name', _DEAD_MODES)
+@pytest.mark.parametrize(
+    'config',
+    [{'count': None, 'expected_events': 3.0}, {'count': 3, 'expected_events': None}],
+    ids=['null-count', 'null-expected'],
+)
+def test_a_null_key_beside_the_other_validates(mode_name: str, config: dict[str, Any]) -> None:
+    """A key set to null counts as unset, so it never conflicts with the other key."""
+    validate_sim_params(_scene({mode_name: config}))
 
 
 def _render_dead(mode_name: str, config: dict[str, Any]) -> tuple[NDArrayFloatType, dict[str, Any]]:
@@ -201,6 +313,52 @@ def test_dead_pixels_count_plants_exactly_that_many() -> None:
     assert int(np.count_nonzero(signal == 0.0)) == 10
 
 
+def test_dead_pixels_null_count_draws_from_expected_events() -> None:
+    """A null count leaves expected_events in charge of the draw."""
+    signal, record = _render_dead('dead_pixels', {'count': None, 'expected_events': 20.0})
+    assert len(record['pixels']) > 0
+    assert int(np.count_nonzero(signal == 0.0)) > 0
+
+
+def test_dead_pixels_expected_events_plants_its_pixels() -> None:
+    """A large expected_events plants dead pixels, each one dark in the frame."""
+    signal, record = _render_dead('dead_pixels', {'expected_events': 20.0})
+    planted = {(v, u) for v, u in record['pixels']}
+    dark = {(int(v), int(u)) for v, u in zip(*np.nonzero(signal == 0.0), strict=True)}
+    assert len(planted) >= 5
+    assert dark == planted
+
+
+def test_dead_columns_expected_events_plants_its_columns() -> None:
+    """A large expected_events plants dead columns, each one dark top to bottom."""
+    signal, record = _render_dead('dead_columns', {'expected_events': 20.0})
+    dark = [int(u) for u in np.nonzero(np.all(signal == 0.0, axis=0))[0]]
+    assert len(record['columns']) >= 5
+    assert dark == record['columns']
+
+
+# --- bright_dark_pairs: a rate per second of exposure -----------------------------
+
+
+def _pair_count(rate_per_sec: float, exposure_sec: float) -> int:
+    """Render bright_dark_pairs on Cassini NAC and count the planted pairs."""
+    sim = _scene({'bright_dark_pairs': {EXPECTED_EVENTS_PER_SEC: rate_per_sec}}, 'coiss_nac')
+    sim['exposure_sec'] = exposure_sec
+    validate_sim_params(sim)
+    _image, truth = render_combined_model(sim, ignore_offset=True)
+    return len(truth['artifacts']['bright_dark_pairs']['pairs'])
+
+
+def test_bright_dark_pairs_plant_pairs_at_a_large_rate() -> None:
+    """At 400 pairs per second over a 1 s exposure the frame carries about 400 pairs."""
+    assert 300 < _pair_count(400.0, 1.0) < 500
+
+
+def test_bright_dark_pairs_count_scales_with_exposure() -> None:
+    """The same rate over a 0.05 s exposure expects 20 pairs (Poisson), not 400."""
+    assert 5 < _pair_count(400.0, 0.05) < 40
+
+
 # --- detector activation reads the registry --------------------------------------
 
 
@@ -211,7 +369,15 @@ def test_detector_count_mode_is_active_at_any_positive_expected_events() -> None
     pass through a per-frame probability draw (which would almost always fail).
     """
     dp = resolve_detector_params(
-        _scene({'bright_dark_pairs': {'expected_events': 1.0e-9}}, instrument='coiss_nac')
+        _scene({'radiation_transients': {EXPECTED_EVENTS: 1.0e-9}}, instrument='coiss_nac')
+    )
+    assert 'radiation_transients' in dp.detector_modes
+
+
+def test_detector_rate_mode_is_active_at_any_positive_rate() -> None:
+    """bright_dark_pairs activates whenever its per-second rate is positive."""
+    dp = resolve_detector_params(
+        _scene({'bright_dark_pairs': {EXPECTED_EVENTS_PER_SEC: 1.0e-9}}, instrument='coiss_nac')
     )
     assert 'bright_dark_pairs' in dp.detector_modes
 

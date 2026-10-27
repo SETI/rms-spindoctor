@@ -23,11 +23,10 @@ from typing import Any
 from spindoctor.sim.forward.artifact_modes import (
     ARTIFACT_MODES,
     MODE_KEYS,
-    RENAMED_MODE_PARAMS,
     ModeParam,
     mode_available,
     mode_unavailable_message,
-    renamed_param_message,
+    refuse_renamed_params,
 )
 from spindoctor.sim.forward.artifacts_catalog import resolve_detector_defaults
 from spindoctor.sim.scene_schema import SimSceneValidationError
@@ -532,10 +531,11 @@ def _check_artifact_mode(mode_name: str, config: Any, *, instrument: str, source
     """Validate one artifact-mode map: availability, implementation, and params.
 
     A retired key (``incidence``) fails with a message naming the mode's
-    replacement activation key, and a map that sets both ``count`` and
-    ``expected_events`` (``dead_pixels``, ``dead_columns``) fails as ambiguous.
-    The ``probability`` and ``pixel_fraction`` keys must lie in [0, 1], and
-    ``expected_events`` must be non-negative.
+    replacement activation key and what it holds on this mode, and a map that
+    sets both ``count`` and ``expected_events`` to a value (``dead_pixels``,
+    ``dead_columns``) fails as ambiguous; a key set to null counts as unset.  The
+    ``probability`` and ``pixel_fraction`` keys must lie in [0, 1], and
+    ``expected_events`` and ``expected_events_per_sec`` must be non-negative.
     """
     label = f'artifacts.{mode_name}'
     if not isinstance(config, dict):
@@ -549,17 +549,17 @@ def _check_artifact_mode(mode_name: str, config: Any, *, instrument: str, source
         raise SimSceneValidationError(
             f'{source}: {mode_unavailable_message(mode_name, instrument)}'
         )
-    retired = sorted(set(config) & set(RENAMED_MODE_PARAMS[mode_name]))
-    if retired:
-        raise SimSceneValidationError(
-            f'{source}: {label}: {renamed_param_message(mode_name, retired[0])}'
-        )
+    refuse_renamed_params(mode_name, config, source=source)
     param_map = mode.param_map
     unknown = set(config) - set(param_map)
     if unknown:
         raise SimSceneValidationError(f'{source}: {label}: unknown keys: {sorted(unknown)}')
     count_key = mode.count_alternative
-    if count_key is not None and count_key in config and mode.activation in config:
+    if (
+        count_key is not None
+        and config.get(count_key) is not None
+        and config.get(mode.activation) is not None
+    ):
         raise SimSceneValidationError(
             f'{source}: {label}: {count_key!r} (a fixed event count) and '
             f'{mode.activation!r} (a Poisson expected event count) are mutually exclusive; '

@@ -21,22 +21,32 @@ accepts every mode, which keeps unit scenes free to exercise any shape.
 names the quantity it holds, so a scene line reads the same way on every mode:
 
 * ``expected_events`` (count modes: lost lines, lost blocks, spiked pixels,
-  radiation spikes): the expected number of events per frame, drawn Poisson and
-  capped at the array dimension the events land on.  It is a non-negative number.
+  dead pixels and columns, radiation spikes): the expected number of events per
+  frame, drawn Poisson.  It is a non-negative number.  A telemetry loss caps the
+  draw at the number of places its events can land (the frame's lines, columns,
+  or pixels, or ``missing_blocks``'s compression blocks); ``radiation_transients``
+  is uncapped, and it scales the expectation by its ``environment_factor`` and
+  by ``(exposure_sec + readout_dwell_sec) / exposure_sec``, so it is a per-frame
+  count only at the defaults (factor 1, zero dwell).
+* ``expected_events_per_sec`` (``bright_dark_pairs`` alone): the expected number
+  of events per second of exposure, drawn Poisson and uncapped; the frame's
+  expected count is this times ``exposure_sec``.
 * ``probability`` (commanded and periodic modes, and every deterministic-shape
   detector mode): the per-frame probability, in [0, 1], that the mode activates at
   all.
 * ``pixel_fraction`` (``hot_pixels`` alone): the fraction of detector pixels that
   are hot, a spatial density in [0, 1].
 
-The key defaults to 0, also under ``instrument_defaults``, and a mode whose
-activation key is 0 renders as a no-op (the stage-activation rule).
-``dead_pixels`` and ``dead_columns`` also accept ``count``, a fixed number of
-events in place of the Poisson draw; ``count`` and ``expected_events`` are
-mutually exclusive, so the rule reads the same with either: a count of 0 is a
-no-op too.  Each mode's :attr:`ArtifactMode.activation_semantics` says what its
-events are.  The retired ``incidence`` key is refused by the validator with a
-message naming the mode's replacement (:data:`RENAMED_MODE_PARAMS`).
+The key defaults to 0, also under ``instrument_defaults``.  A mode renders as a
+no-op when its activation key is 0, or, on ``dead_pixels`` and ``dead_columns``,
+when its ``count`` is 0 where given (the stage-activation rule).  Those two modes
+accept ``count``, a fixed number of events in place of the Poisson draw, and
+``count`` and ``expected_events`` are mutually exclusive: a map may set one of
+them (a key set to null counts as unset).  Each mode's
+:attr:`ArtifactMode.activation_semantics` says what its events are.  The retired
+``incidence`` key is refused, by the validator and again by the render-time
+resolvers (:func:`refuse_renamed_params`), with a message naming the mode's
+replacement (:data:`RENAMED_MODE_PARAMS`).
 """
 
 from __future__ import annotations
@@ -45,11 +55,15 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
+from spindoctor.sim.scene_schema import SimSceneValidationError
+
 __all__ = [
     'ACTIVATION_KEYS',
     'ARTIFACT_MODES',
+    'COUNT_ACTIVATION_KEYS',
     'DETECTOR_MODE_ORDER',
     'EXPECTED_EVENTS',
+    'EXPECTED_EVENTS_PER_SEC',
     'MODE_KEYS',
     'PIXEL_FRACTION',
     'PROBABILITY',
@@ -62,6 +76,7 @@ __all__ = [
     'mode_available',
     'mode_unavailable_message',
     'normalize_instrument',
+    'refuse_renamed_params',
     'renamed_param_message',
     'resolve_mode_config',
 ]
@@ -96,23 +111,30 @@ class ModeParam:
     length: int | None = None
 
 
-# The three activation keys.  Each mode carries exactly one of them as its first
+# The four activation keys.  Each mode carries exactly one of them as its first
 # parameter; which one is part of the mode's registry entry.
 EXPECTED_EVENTS = 'expected_events'
+EXPECTED_EVENTS_PER_SEC = 'expected_events_per_sec'
 PROBABILITY = 'probability'
 PIXEL_FRACTION = 'pixel_fraction'
 
-# Each activation key with the quantity it holds, as the validator and the sim
-# editor describe it.
+# Each activation key with the class of quantity it holds.  A mode's own
+# activation_semantics says what its events are and how its count scales.
 ACTIVATION_KEYS: dict[str, str] = {
     EXPECTED_EVENTS: 'a Poisson expected event count per frame',
+    EXPECTED_EVENTS_PER_SEC: 'a Poisson expected event count per second of exposure',
     PROBABILITY: 'a per-frame activation probability in [0, 1]',
     PIXEL_FRACTION: 'the fraction of detector pixels affected, in [0, 1]',
 }
 
+# The activation keys that hold a Poisson expectation: the mode's mechanic draws
+# the event count, so the mode is active whenever the key is positive.
+COUNT_ACTIVATION_KEYS: frozenset[str] = frozenset({EXPECTED_EVENTS, EXPECTED_EVENTS_PER_SEC})
+
 # The schema of each activation key, disabled at its default of 0.
 _ACTIVATION_PARAMS: dict[str, ModeParam] = {
     EXPECTED_EVENTS: ModeParam(EXPECTED_EVENTS, 'nonneg_number', 0.0),
+    EXPECTED_EVENTS_PER_SEC: ModeParam(EXPECTED_EVENTS_PER_SEC, 'nonneg_number', 0.0),
     PROBABILITY: ModeParam(PROBABILITY, 'unit_interval', 0.0),
     PIXEL_FRACTION: ModeParam(PIXEL_FRACTION, 'unit_interval', 0.0),
 }
@@ -165,7 +187,8 @@ class ArtifactMode:
         """The fixed-count key that replaces ``expected_events``, or None.
 
         Only ``dead_pixels`` and ``dead_columns`` carry one (``count``); the
-        validator refuses a scene map that sets both keys.
+        validator refuses a scene map that sets both keys to a value (a key
+        set to null counts as unset).
         """
         return _COUNT.name if _COUNT.name in self.param_map else None
 
@@ -222,14 +245,14 @@ _IMPLEMENTED_MODES: tuple[ArtifactMode, ...] = (
         ModeParam('contiguous_run', 'bool', False),
         availability=frozenset({'coiss_nac', 'coiss_wac', 'vgiss', 'gossi', 'nhlorri'}),
         activation=EXPECTED_EVENTS,
-        activation_semantics='expected number of whole lines lost per frame (Poisson)',
+        activation_semantics='a Poisson expected count of whole lines lost per frame',
     ),
     _telemetry_mode(
         'partial_lines',
         ModeParam('max_surviving_segments', 'positive_int', 1),
         availability=frozenset({'coiss_nac', 'coiss_wac', 'vgiss'}),
         activation=EXPECTED_EVENTS,
-        activation_semantics='expected number of truncated lines per frame (Poisson)',
+        activation_semantics='a Poisson expected count of truncated lines per frame',
     ),
     _telemetry_mode(
         'alternating_lines',
@@ -270,20 +293,20 @@ _IMPLEMENTED_MODES: tuple[ArtifactMode, ...] = (
         ModeParam('start_mid_line', 'bool', False),
         availability=frozenset({'gossi', 'coiss_nac', 'coiss_wac'}),
         activation=EXPECTED_EVENTS,
-        activation_semantics='expected number of compression blocks lost per frame (Poisson)',
+        activation_semantics='a Poisson expected count of compression blocks lost per frame',
     ),
     _telemetry_mode(
         'line_garble',
         availability=frozenset({'vgiss', 'gossi'}),
         activation=EXPECTED_EVENTS,
-        activation_semantics='expected number of garbled lines per frame (Poisson)',
+        activation_semantics='a Poisson expected count of garbled lines per frame',
     ),
     _telemetry_mode(
         'pixel_spikes',
         ModeParam('amplitude', 'enum', 'bitflip', choices=('bitflip', 'uniform')),
         availability=frozenset({'vgiss'}),
         activation=EXPECTED_EVENTS,
-        activation_semantics='expected number of spiked pixels per frame (Poisson)',
+        activation_semantics='a Poisson expected count of spiked pixels per frame',
     ),
     _telemetry_mode(
         'dead_pixels',
@@ -291,7 +314,10 @@ _IMPLEMENTED_MODES: tuple[ArtifactMode, ...] = (
         ModeParam('low_dn', 'nonneg_number', 0.0),
         availability=frozenset({'coiss_nac', 'coiss_wac', 'gossi', 'nhlorri'}),
         activation=EXPECTED_EVENTS,
-        activation_semantics='expected number of dead pixels per frame (Poisson), or a fixed count',
+        activation_semantics=(
+            "a Poisson expected count of dead pixels per frame; 'count' plants a fixed number "
+            'instead'
+        ),
     ),
     _telemetry_mode(
         'dead_columns',
@@ -300,7 +326,8 @@ _IMPLEMENTED_MODES: tuple[ArtifactMode, ...] = (
         availability=frozenset({'coiss_nac', 'coiss_wac', 'gossi', 'nhlorri'}),
         activation=EXPECTED_EVENTS,
         activation_semantics=(
-            'expected number of dead columns per frame (Poisson), or a fixed count'
+            "a Poisson expected count of dead columns per frame; 'count' plants a fixed number "
+            'instead'
         ),
     ),
     _telemetry_mode(
@@ -340,7 +367,9 @@ _IMPLEMENTED_MODES: tuple[ArtifactMode, ...] = (
         ),
         availability=frozenset({'coiss_nac', 'coiss_wac', 'gossi'}),
         activation=PIXEL_FRACTION,
-        activation_semantics='fraction of pixels that are hot (spatial density)',
+        activation_semantics=(
+            'the fraction of detector pixels that are hot, a spatial density in [0, 1]'
+        ),
         unavailable_reason={
             'nhlorri': 'explicitly disabled for LORRI, which has none',
         },
@@ -406,16 +435,19 @@ _DETECTOR_MODES: tuple[ArtifactMode, ...] = (
         availability=_ALL_CCD,
         activation=EXPECTED_EVENTS,
         activation_semantics=(
-            'expected radiation spikes per frame at environment_factor 1 (Poisson)'
+            'a Poisson expected count of radiation spikes per frame at environment_factor 1 '
+            'and readout_dwell_sec 0; the frame expects this times environment_factor times '
+            '(exposure_sec + readout_dwell_sec) / exposure_sec'
         ),
     ),
     _detector_mode(
         'bright_dark_pairs',
         ModeParam('amplitude_e', 'nonneg_number', None),
         availability=frozenset({'coiss_nac', 'coiss_wac'}),
-        activation=EXPECTED_EVENTS,
+        activation=EXPECTED_EVENTS_PER_SEC,
         activation_semantics=(
-            'expected bright/dark pairs per frame at unit exposure (Poisson; scales with exposure)'
+            'a Poisson expected count of bright/dark pairs per second of exposure; the frame '
+            'expects this times exposure_sec'
         ),
     ),
     _detector_mode(
@@ -527,10 +559,11 @@ ARTIFACT_MODES: dict[str, ArtifactMode] = {
 MODE_KEYS: frozenset[str] = frozenset(ARTIFACT_MODES)
 
 # Retired parameter keys, per mode, mapped to the key that replaced them.  The
-# validator refuses a retired key with a message naming its replacement; nothing
-# translates it.  ``incidence`` named three quantities (an expected event count,
-# a per-frame probability, and a pixel fraction), so its replacement is each
-# mode's activation key.
+# validator and the render-time resolvers refuse a retired key with a message
+# naming its replacement; nothing translates it.  ``incidence`` named four
+# quantities (an expected event count per frame or per second of exposure, a
+# per-frame probability, and a pixel fraction), so its replacement is each mode's
+# activation key.
 RENAMED_MODE_PARAMS: dict[str, dict[str, str]] = {
     name: {'incidence': mode.activation} for name, mode in ARTIFACT_MODES.items()
 }
@@ -643,14 +676,45 @@ def renamed_param_message(mode_name: str, old_key: str) -> str:
         old_key: A retired key listed for the mode in :data:`RENAMED_MODE_PARAMS`.
 
     Returns:
-        A message naming the replacement key and, for an activation key, the
-        quantity it holds, e.g. ``'incidence' was renamed; use 'expected_events'
-        (a Poisson expected event count per frame)``.
+        A message naming the replacement key and, for the mode's activation key,
+        what that key holds on this mode (its :attr:`ArtifactMode.activation_semantics`),
+        e.g. ``'incidence' was renamed; use 'expected_events' (a Poisson expected
+        count of whole lines lost per frame)`` for ``missing_lines``.
     """
+    mode = ARTIFACT_MODES[mode_name]
     new_key = RENAMED_MODE_PARAMS[mode_name][old_key]
     message = f'{old_key!r} was renamed; use {new_key!r}'
-    quantity = ACTIVATION_KEYS.get(new_key)
-    return message if quantity is None else f'{message} ({quantity})'
+    if new_key != mode.activation:
+        return message
+    return f'{message} ({mode.activation_semantics})'
+
+
+def refuse_renamed_params(
+    mode_name: str, config: Mapping[str, Any], *, source: str | None = None
+) -> None:
+    """Refuse a mode map that carries a retired parameter key.
+
+    The scene validator and both render-time resolvers (:func:`resolve_mode_config`
+    and ``resolve_mode_with_catalog``) call this, so a retired key fails the same
+    way whether the scene came from a file, a sweep step, or an in-memory dict.
+
+    Parameters:
+        mode_name: A registered mode name.
+        config: The scene's map for the mode.
+        source: The scene's label, prefixed to the message when given.
+
+    Raises:
+        SimSceneValidationError: If ``config`` carries a key listed for the mode
+            in :data:`RENAMED_MODE_PARAMS`; the message is
+            ``[<source>: ]artifacts.<mode>: <renamed_param_message>`` for the
+            first retired key in sorted order.
+    """
+    retired = sorted(set(config) & set(RENAMED_MODE_PARAMS[mode_name]))
+    if not retired:
+        return
+    label = f'artifacts.{mode_name}'
+    prefix = label if source is None else f'{source}: {label}'
+    raise SimSceneValidationError(f'{prefix}: {renamed_param_message(mode_name, retired[0])}')
 
 
 def resolve_mode_config(mode_name: str, raw_config: Mapping[str, Any]) -> dict[str, Any]:
@@ -662,7 +726,12 @@ def resolve_mode_config(mode_name: str, raw_config: Mapping[str, Any]) -> dict[s
 
     Returns:
         A fresh dict carrying every parameter, scene value overriding default.
+
+    Raises:
+        SimSceneValidationError: If ``raw_config`` carries a retired key (see
+            :func:`refuse_renamed_params`).
     """
+    refuse_renamed_params(mode_name, raw_config)
     mode = ARTIFACT_MODES[mode_name]
     resolved: dict[str, Any] = {}
     for param in mode.params:

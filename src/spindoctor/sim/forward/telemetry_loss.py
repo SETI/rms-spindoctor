@@ -4,10 +4,11 @@ Each function here renders one loss mode from the artifact-mode registry onto a
 detector-grid DN image in place, and returns the realized geometry (which lines,
 blocks, or pixels it touched) for the frame's truth record so a later
 measurement can compare planted against measured.  Every mode is a no-op when
-its activation key is 0 (the stage-activation rule): a count mode draws a
-Poisson number of events with mean ``expected_events`` (or plants a fixed
-``count``, on the dead-pixel and dead-column modes), and a commanded or periodic
-mode fires with per-frame ``probability``.  Each mode draws from its own seeded
+its activation key is 0, or its ``count`` where given is 0 (the stage-activation
+rule): a count mode draws a Poisson number of events with mean
+``expected_events`` (or plants a fixed ``count``, on the dead-pixel and
+dead-column modes), and a commanded or periodic mode fires with per-frame
+``probability``.  Each mode draws from its own seeded
 generator (so toggling one never perturbs another), and honors adversarial
 placement through the shared :mod:`~spindoctor.sim.forward.feature_loci` helpers:
 its stochastic placement biases onto the navigation features when adversarial is
