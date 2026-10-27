@@ -34,6 +34,7 @@ from spindoctor.sim.scene_schema import (
     RING_SHAPE_KEYS,
     SimSceneValidationError,
     refuse_renamed_ring_keys,
+    scene_value,
 )
 
 # The block, geometry, and feature key inventories are single-sourced from
@@ -456,9 +457,9 @@ def _check_ring_orbit_error_bounds(
         SimSceneValidationError: If the effective semimajor axis is not
             positive, or the effective eccentric amplitude reaches it.
     """
-    a = float(orbit.get('a_px', 0.0))
-    ae = float(orbit.get('ae_px', 0.0))
-    effective_a = a + float(orbit_error.get('delta_a_px', 0.0))
+    a = float(scene_value(orbit, 'a_px', 0.0))
+    ae = float(scene_value(orbit, 'ae_px', 0.0))
+    effective_a = a + float(scene_value(orbit_error, 'delta_a_px', 0.0))
     if effective_a <= 0.0:
         raise SimSceneValidationError(
             f'{source}: {label}.orbit_error.delta_a_px pushes the effective '
@@ -467,7 +468,7 @@ def _check_ring_orbit_error_bounds(
         )
     # The renderer clamps a negative effective ae at a circular edge, so only
     # the upper bound can go out of domain.
-    effective_ae = max(0.0, ae + float(orbit_error.get('delta_ae_px', 0.0)))
+    effective_ae = max(0.0, ae + float(scene_value(orbit_error, 'delta_ae_px', 0.0)))
     if effective_ae >= effective_a:
         raise SimSceneValidationError(
             f'{source}: {label}.orbit_error pushes the effective eccentric '

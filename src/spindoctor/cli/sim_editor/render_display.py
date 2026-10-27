@@ -26,6 +26,7 @@ from spindoctor.sim.instruments import (
     resolve_sim_inst_config,
 )
 from spindoctor.sim.render import render_combined_model
+from spindoctor.sim.scene_schema import scene_value
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 
 
@@ -203,8 +204,10 @@ class RenderDisplayMixin(SimEditorBase):
                 pen = QPen(QColor(0, 255, 255), 2)
                 painter.setPen(pen)
                 geometry = ring_system.get('geometry') or {}
-                center_u = float(geometry.get('center_u', 0.0))
-                center_v = float(geometry.get('center_v', 0.0))
+                # An absent or null center is the detector center, as the renderer
+                # reads it.
+                center_u = float(scene_value(geometry, 'center_u', self.sim_params['size_u'] / 2.0))
+                center_v = float(scene_value(geometry, 'center_v', self.sim_params['size_v'] / 2.0))
                 painter.drawEllipse(QRectF(center_u - 4.0, center_v - 4.0, 8.0, 8.0))
         painter.end()
         self._base_pixmap = pixmap
@@ -351,8 +354,10 @@ class RenderDisplayMixin(SimEditorBase):
         elif kind == 'ring' and isinstance(self.sim_params.get('ring_system'), dict):
             # Dragging any ring feature moves the whole system's shared center.
             geometry = self.sim_params['ring_system'].setdefault('geometry', {})
-            geometry['center_v'] = float(geometry.get('center_v', 0.0) + dv)
-            geometry['center_u'] = float(geometry.get('center_u', 0.0) + du)
+            center_v = scene_value(geometry, 'center_v', self.sim_params['size_v'] / 2.0)
+            center_u = scene_value(geometry, 'center_u', self.sim_params['size_u'] / 2.0)
+            geometry['center_v'] = float(center_v) + dv
+            geometry['center_u'] = float(center_u) + du
             # Sync the shared center spin boxes (they live on the first
             # feature's tab).
             tab_idx = self._find_tab_by_properties('ring', 0)

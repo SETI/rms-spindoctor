@@ -36,7 +36,7 @@ from PyQt6.QtWidgets import (
 
 from spindoctor.cli.sim_editor.base import SimEditorBase
 from spindoctor.cli.sim_editor.widgets import make_dspin as _dspin
-from spindoctor.sim.scene_schema import ring_key_description
+from spindoctor.sim.scene_schema import ring_key_description, scene_value
 
 
 def _key_tooltip(block: str, key: str) -> str:
@@ -159,14 +159,14 @@ class RingAdvancedMixin(SimEditorBase):
         block = 'ring_system.features.orbit.modes'
         m_spin = QSpinBox()
         m_spin.setRange(2, 50)
-        m_spin.setValue(int(entry.get('m', 2)))
+        m_spin.setValue(int(scene_value(entry, 'm', 2)))
         m_spin.setToolTip('m: the mode number, an integer of at least 2.')
         amp = _dspin(
             minimum=0.0,
             maximum=1000.0,
             decimals=2,
             step=0.5,
-            value=float(entry.get('amp_px', 2.0)),
+            value=float(scene_value(entry, 'amp_px', 2.0)),
             tooltip=_key_tooltip(block, 'amp_px'),
         )
         peri = _dspin(
@@ -174,7 +174,7 @@ class RingAdvancedMixin(SimEditorBase):
             maximum=360.0,
             decimals=1,
             step=5.0,
-            value=float(entry.get('peri_deg', 0.0)),
+            value=float(scene_value(entry, 'peri_deg', 0.0)),
             tooltip=_key_tooltip(block, 'peri_deg'),
         )
         remove_btn = QPushButton('Remove')
@@ -253,7 +253,7 @@ class RingAdvancedMixin(SimEditorBase):
             maximum=1000.0,
             decimals=2,
             step=0.5,
-            value=float(wave.get('amp_px', 1.0)),
+            value=float(scene_value(wave, 'amp_px', 1.0)),
             tooltip=_key_tooltip(block, 'amp_px'),
         )
         wavelength = _dspin(
@@ -261,7 +261,7 @@ class RingAdvancedMixin(SimEditorBase):
             maximum=10000.0,
             decimals=1,
             step=1.0,
-            value=float(wave.get('wavelength_px', 8.0)),
+            value=float(scene_value(wave, 'wavelength_px', 8.0)),
             tooltip=_key_tooltip(block, 'wavelength_px'),
         )
         damp = _dspin(
@@ -269,7 +269,7 @@ class RingAdvancedMixin(SimEditorBase):
             maximum=2.0,
             decimals=3,
             step=0.1,
-            value=float(wave.get('damping_rad', 0.5)),
+            value=float(scene_value(wave, 'damping_rad', 0.5)),
             tooltip=(
                 f'{_key_tooltip(block, "damping_rad")} The validator caps it at 2 '
                 'to keep the modular wrap seam small.'
@@ -280,7 +280,7 @@ class RingAdvancedMixin(SimEditorBase):
             maximum=360.0,
             decimals=1,
             step=5.0,
-            value=float(wave.get('lam0_deg', 0.0)),
+            value=float(scene_value(wave, 'lam0_deg', 0.0)),
             tooltip=f"{_key_tooltip(block, 'lam0_deg')} The perturbing moon's longitude.",
         )
         form.addRow('Amplitude (px):', amp)
@@ -350,7 +350,7 @@ class RingAdvancedMixin(SimEditorBase):
             maximum=1000.0,
             decimals=2,
             step=0.5,
-            value=float(error.get('delta_a_px', 0.0)),
+            value=float(scene_value(error, 'delta_a_px', 0.0)),
             tooltip='Semimajor-axis error in px (positive renders outward).',
         )
         delta_ae = _dspin(
@@ -358,7 +358,7 @@ class RingAdvancedMixin(SimEditorBase):
             maximum=1000.0,
             decimals=2,
             step=0.5,
-            value=float(error.get('delta_ae_px', 0.0)),
+            value=float(scene_value(error, 'delta_ae_px', 0.0)),
             tooltip='Radial-eccentricity-amplitude error in px.',
         )
         delta_peri = _dspin(
@@ -366,7 +366,7 @@ class RingAdvancedMixin(SimEditorBase):
             maximum=360.0,
             decimals=1,
             step=5.0,
-            value=float(error.get('delta_long_peri_deg', 0.0)),
+            value=float(scene_value(error, 'delta_long_peri_deg', 0.0)),
             tooltip='Pericenter-longitude error in degrees.',
         )
         form.addRow('delta a (px):', delta_a)
@@ -433,7 +433,7 @@ class RingAdvancedMixin(SimEditorBase):
             maximum=1000.0,
             decimals=2,
             step=0.5,
-            value=float(sigma.get('sigma_a_px', 0.0)),
+            value=float(scene_value(sigma, 'sigma_a_px', 0.0)),
             tooltip='One-sigma semimajor-axis uncertainty in px.',
         )
         sigma_ae = _dspin(
@@ -441,7 +441,7 @@ class RingAdvancedMixin(SimEditorBase):
             maximum=1000.0,
             decimals=2,
             step=0.5,
-            value=float(sigma.get('sigma_ae_px', 0.0)),
+            value=float(scene_value(sigma, 'sigma_ae_px', 0.0)),
             tooltip='One-sigma radial-eccentricity-amplitude uncertainty in px.',
         )
         sigma_peri = _dspin(
@@ -449,7 +449,7 @@ class RingAdvancedMixin(SimEditorBase):
             maximum=360.0,
             decimals=1,
             step=5.0,
-            value=float(sigma.get('sigma_long_peri_deg', 0.0)),
+            value=float(scene_value(sigma, 'sigma_long_peri_deg', 0.0)),
             tooltip='One-sigma pericenter-longitude uncertainty in degrees.',
         )
         form.addRow('sigma a (px):', sigma_a)
@@ -524,19 +524,19 @@ class RingAdvancedMixin(SimEditorBase):
             maximum=10.0,
             decimals=3,
             step=0.05,
-            value=float(modulation.get('amplitude', 0.2)),
+            value=float(scene_value(modulation, 'amplitude', 0.2)),
             tooltip='Fractional intensity modulation amplitude.',
         )
         mod_m = QSpinBox()
         mod_m.setRange(1, 50)
-        mod_m.setValue(int(modulation.get('m', 1)))
+        mod_m.setValue(int(scene_value(modulation, 'm', 1)))
         mod_m.setToolTip('Azimuthal wavenumber, an integer of at least 1 (1 = one bright arc).')
         mod_phase = _dspin(
             minimum=-360.0,
             maximum=360.0,
             decimals=1,
             step=5.0,
-            value=float(modulation.get('lam_peak_deg', 0.0)),
+            value=float(scene_value(modulation, 'lam_peak_deg', 0.0)),
             tooltip=_key_tooltip('ring_system.azimuthal.modulation', 'lam_peak_deg'),
         )
         mod_form.addRow('Amplitude:', mod_amplitude)
@@ -554,7 +554,7 @@ class RingAdvancedMixin(SimEditorBase):
             maximum=360.0,
             decimals=1,
             step=5.0,
-            value=float(shadow.get('start_deg', 0.0)),
+            value=float(scene_value(shadow, 'start_deg', 0.0)),
             tooltip='Leading edge of the shadow wedge, in ring-plane degrees.',
         )
         shadow_extent = _dspin(
@@ -562,7 +562,7 @@ class RingAdvancedMixin(SimEditorBase):
             maximum=360.0,
             decimals=1,
             step=5.0,
-            value=float(shadow.get('extent_deg', 30.0)),
+            value=float(scene_value(shadow, 'extent_deg', 30.0)),
             tooltip='Angular extent of the wedge in degrees.',
         )
         shadow_darkness = _dspin(
@@ -570,7 +570,7 @@ class RingAdvancedMixin(SimEditorBase):
             maximum=1.0,
             decimals=3,
             step=0.05,
-            value=float(shadow.get('darkness', 0.8)),
+            value=float(scene_value(shadow, 'darkness', 0.8)),
             tooltip='Fractional darkening inside the wedge (1 = fully dark).',
         )
         shadow_form.addRow('Start (deg):', shadow_start)
@@ -585,14 +585,14 @@ class RingAdvancedMixin(SimEditorBase):
         spokes_form = QFormLayout(spokes_group)
         spokes_count = QSpinBox()
         spokes_count.setRange(1, 100)
-        spokes_count.setValue(int(spokes.get('count', 5)))
+        spokes_count.setValue(int(scene_value(spokes, 'count', 5)))
         spokes_count.setToolTip('Number of seeded spoke wedges.')
         spokes_r_inner = _dspin(
             minimum=0.1,
             maximum=100000.0,
             decimals=1,
             step=5.0,
-            value=float(spokes.get('r_inner_px', 50.0)),
+            value=float(scene_value(spokes, 'r_inner_px', 50.0)),
             tooltip=(
                 f'{_key_tooltip("ring_system.azimuthal.spokes", "r_inner_px")} '
                 'It must be below r_outer_px.'
@@ -603,7 +603,7 @@ class RingAdvancedMixin(SimEditorBase):
             maximum=100000.0,
             decimals=1,
             step=5.0,
-            value=float(spokes.get('r_outer_px', 80.0)),
+            value=float(scene_value(spokes, 'r_outer_px', 80.0)),
             tooltip=(
                 f'{_key_tooltip("ring_system.azimuthal.spokes", "r_outer_px")} '
                 'It must exceed r_inner_px.'
@@ -614,7 +614,7 @@ class RingAdvancedMixin(SimEditorBase):
             maximum=360.0,
             decimals=1,
             step=1.0,
-            value=float(spokes.get('width_deg', 10.0)),
+            value=float(scene_value(spokes, 'width_deg', 10.0)),
             tooltip='Azimuthal full width of each spoke in degrees.',
         )
         spokes_contrast = _dspin(
@@ -622,7 +622,7 @@ class RingAdvancedMixin(SimEditorBase):
             maximum=5.0,
             decimals=3,
             step=0.05,
-            value=float(spokes.get('contrast', -0.5)),
+            value=float(scene_value(spokes, 'contrast', -0.5)),
             tooltip='Fractional intensity contrast (negative for dark low-phase spokes).',
         )
         spokes_form.addRow('Count:', spokes_count)
@@ -802,7 +802,7 @@ class RingAdvancedMixin(SimEditorBase):
             maximum=100000.0,
             decimals=1,
             step=5.0,
-            value=float(entry.get('a_px', 60.0)),
+            value=float(scene_value(entry, 'a_px', 60.0)),
             tooltip=_key_tooltip('ring_system.moonlets', 'a_px'),
         )
         lam_spin = _dspin(
@@ -810,7 +810,7 @@ class RingAdvancedMixin(SimEditorBase):
             maximum=360.0,
             decimals=1,
             step=5.0,
-            value=float(entry.get('lam_deg', 0.0)),
+            value=float(scene_value(entry, 'lam_deg', 0.0)),
             tooltip='Ring-plane longitude in degrees from the ascending node.',
         )
         radius_spin = _dspin(
@@ -818,7 +818,7 @@ class RingAdvancedMixin(SimEditorBase):
             maximum=1000.0,
             decimals=2,
             step=0.5,
-            value=float(entry.get('radius_px', 1.5)),
+            value=float(scene_value(entry, 'radius_px', 1.5)),
             tooltip=(
                 'radius_px: the disc radius, in image pixels (the disc is drawn on the '
                 "sky, so it isn't foreshortened)."
@@ -829,7 +829,7 @@ class RingAdvancedMixin(SimEditorBase):
             maximum=10.0,
             decimals=3,
             step=0.05,
-            value=float(entry.get('amplitude', 0.4)),
+            value=float(scene_value(entry, 'amplitude', 0.4)),
             tooltip='Emitted intensity in normalized signal units.',
         )
         form.addRow('a (px):', a_spin)
@@ -845,7 +845,7 @@ class RingAdvancedMixin(SimEditorBase):
             maximum=360.0,
             decimals=1,
             step=1.0,
-            value=float(propeller.get('length_deg', 20.0)),
+            value=float(scene_value(propeller, 'length_deg', 20.0)),
             tooltip='Azimuthal length of each tau lobe in degrees.',
         )
         prop_width = _dspin(
@@ -853,7 +853,7 @@ class RingAdvancedMixin(SimEditorBase):
             maximum=1000.0,
             decimals=2,
             step=0.5,
-            value=float(propeller.get('width_px', 2.0)),
+            value=float(scene_value(propeller, 'width_px', 2.0)),
             tooltip='Radial width of each tau lobe in px.',
         )
         prop_contrast = _dspin(
@@ -861,7 +861,7 @@ class RingAdvancedMixin(SimEditorBase):
             maximum=5.0,
             decimals=3,
             step=0.05,
-            value=float(propeller.get('contrast', -0.6)),
+            value=float(scene_value(propeller, 'contrast', -0.6)),
             tooltip='Fractional tau contrast of the lobes (negative carves partial gaps).',
         )
         propeller_form.addRow('length (deg):', prop_length)

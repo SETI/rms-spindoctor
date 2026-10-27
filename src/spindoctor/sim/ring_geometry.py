@@ -54,6 +54,7 @@ from typing import Any, cast
 
 import numpy as np
 
+from spindoctor.sim.scene_schema import scene_value
 from spindoctor.support.types import NDArrayFloatType
 
 __all__ = [
@@ -317,7 +318,8 @@ def ring_orbit_from_mapping(orbit: Mapping[str, Any]) -> RingOrbit:
 
     This is the single interpretation of the idealized orbit block, shared by
     the forward renderer and the navigator-side model so both sides apply
-    the same defaults to the same catalog values.
+    the same defaults to the same catalog values.  An optional key set to null
+    takes the default an absent key does, as the validator reads it.
 
     Parameters:
         orbit: The validated ``ring_system.features[].orbit`` mapping.
@@ -328,8 +330,8 @@ def ring_orbit_from_mapping(orbit: Mapping[str, Any]) -> RingOrbit:
     modes = tuple(
         RingOrbitMode(
             m=int(mode['m']),
-            amp=float(mode.get('amp_px', 0.0)),
-            peri=float(mode.get('peri_deg', 0.0)),
+            amp=float(scene_value(mode, 'amp_px', 0.0)),
+            peri=float(scene_value(mode, 'peri_deg', 0.0)),
         )
         for mode in orbit.get('modes') or []
     )
@@ -338,17 +340,17 @@ def ring_orbit_from_mapping(orbit: Mapping[str, Any]) -> RingOrbit:
         None
         if wave_map is None
         else RingEdgeWave(
-            amp=float(wave_map.get('amp_px', 0.0)),
+            amp=float(scene_value(wave_map, 'amp_px', 0.0)),
             wavelength=float(wave_map['wavelength_px']),
             damp=float(wave_map['damping_rad']),
-            lam0=float(wave_map.get('lam0_deg', 0.0)),
+            lam0=float(scene_value(wave_map, 'lam0_deg', 0.0)),
         )
     )
     return RingOrbit(
-        a=float(orbit.get('a_px', 0.0)),
-        ae=float(orbit.get('ae_px', 0.0)),
-        long_peri=float(orbit.get('long_peri_deg', 0.0)),
-        rate_peri=float(orbit.get('rate_peri_deg_per_day', 0.0)),
+        a=float(scene_value(orbit, 'a_px', 0.0)),
+        ae=float(scene_value(orbit, 'ae_px', 0.0)),
+        long_peri=float(scene_value(orbit, 'long_peri_deg', 0.0)),
+        rate_peri=float(scene_value(orbit, 'rate_peri_deg_per_day', 0.0)),
         modes=modes,
         edge_wave=edge_wave,
     )

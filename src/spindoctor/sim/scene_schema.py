@@ -376,6 +376,26 @@ RING_KIND_SHAPE_KEYS: dict[str, dict[str, str]] = {
 RING_SIDE_DEFAULTS: dict[str, str] = {'edge': 'in', 'ramp': 'out'}
 
 
+def scene_value(block: Mapping[str, Any], key: str, default: Any) -> Any:
+    """Read an optional scene key, treating an explicit null as unset.
+
+    The validator accepts null for every optional key and reads it as absent, so
+    a reader must too: ``float(block.get(key, default))`` would raise on a null
+    the validator passed.  The ring readers (renderer, navigator-side orbit
+    parser, validator bounds, and sim editor) read their optional keys here.
+
+    Parameters:
+        block: A scene mapping.
+        key: The key to read.
+        default: The value an absent key takes.
+
+    Returns:
+        ``block[key]``, or ``default`` when the key is absent or null.
+    """
+    value = block.get(key)
+    return default if value is None else value
+
+
 def renamed_key_message(old_key: str, new_key: str | None, note: str) -> str:
     """The sentence that refuses a retired scene key.
 
