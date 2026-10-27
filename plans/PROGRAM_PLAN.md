@@ -334,7 +334,7 @@ The known open defects:
   answer all four within 0.52 px, and a rerun shows none of 532 worse
   frames ours by stars, 150 undecidable. Open: #765 for the two smeared
   refusals, #767 for single results fused inside the pixel floor.
-  It also carries the along-edge part of the planted-shift sweep (raw
+  #755 also carries the along-edge part of the planted-shift sweep (raw
   RingEdgeNav rows median 4.2 / 1.7 px v/u on frames whose edge sets are
   straight or nearly so), which the along-edge covariance change leaves as
   it was. #476, the planted-shift round trip, closed on its criterion as
