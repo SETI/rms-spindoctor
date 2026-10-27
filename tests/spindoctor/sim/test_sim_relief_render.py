@@ -18,7 +18,12 @@ from spindoctor.sim import render
 from spindoctor.sim.forward import body_topo
 from spindoctor.sim.forward.body_topo import TopoBodySpec, create_topographic_body
 from spindoctor.sim.forward.photometry import DARK_SIDE_FLOOR
-from spindoctor.sim.forward.relief import march_shadows, shadow_reach, synthesize_relief_field
+from spindoctor.sim.forward.relief import (
+    ReliefField,
+    march_shadows,
+    shadow_reach,
+    synthesize_relief_field,
+)
 from spindoctor.support.types import NDArrayFloatType
 
 _RMS = 0.02
@@ -236,6 +241,11 @@ def test_shadow_maps_cover_every_candidates_reach(monkeypatch: pytest.MonkeyPatc
     valley point) would silently drop shadows its distant peaks cast.  Image distance
     never exceeds surface distance for an untilted body, so the image segment of
     length ``d_max`` toward the sun bounds where the march can sample.
+
+    The terrain is a real realization lowered so its highest peak sits just above
+    the reference sphere (``h_max`` 0.001): the same relief on a smaller mean
+    radius.  A reach sized from ``h_max`` alone, ``sqrt(2 R H_max)``, is then a
+    small fraction of a valley's reach, which is set by the full height range.
     """
     calls: list[dict[str, Any]] = []
     real_march = march_shadows
@@ -245,6 +255,19 @@ def test_shadow_maps_cover_every_candidates_reach(monkeypatch: pytest.MonkeyPatc
         return real_march(start_v, start_u, **kwargs)
 
     monkeypatch.setattr(body_topo, 'march_shadows', recording_march)
+    relief = synthesize_relief_field(0.05, _CORR_DEG, 3)
+    lowered = relief.grid - relief.h_max + 0.001
+    monkeypatch.setattr(
+        body_topo,
+        'synthesize_relief_field',
+        lambda *_args: ReliefField(
+            grid=lowered,
+            rms=relief.rms,
+            corr_deg=relief.corr_deg,
+            h_min=float(lowered.min()),
+            h_max=float(lowered.max()),
+        ),
+    )
     size = 256
     spec = TopoBodySpec(
         axis1=170.0,
