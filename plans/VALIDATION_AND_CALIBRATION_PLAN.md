@@ -66,8 +66,8 @@ on that baseline; each has a tracking issue (cross-map below).
 rather than methodology, and it silently corrupts what every workstream below
 reads:
 
-- **#288** — 9 of the 75 curated library sidecars are expected to disagree
-  with `main` in the local integration environment (16 at the last run; seven
+- **#288** — 8 of the 75 curated library sidecars are expected to disagree
+  with `main` in the local integration environment (16 at the last run; eight
   were re-pinned on 2026-10-27 and are expected to pass, but the library has
   not been run since), so the regression instrument that is supposed
   to detect a navigation change cannot currently do so. Until it is reconciled,
@@ -76,18 +76,19 @@ reads:
   expectations. Two are the Galileo frames whose recorded truth is the
   rotation-fitted answer that #560 retired, an operator decision in #744, and
   one, `N1530185128_1`, is owned by the star-centroid defect in #639. The
-  seven re-pinned frames are five `ring_only_flat` frames whose pins recorded
-  the old quantized rank-1 axis of a straight ring edge, and two of #346's
+  eight re-pinned frames are five `ring_only_flat` frames whose pins recorded
+  the old quantized rank-1 axis of a straight ring edge, two of #346's
   Encke gap frames, which land on operator truth and whose `medium` tier pins
-  became `low`. The other six are attributed rather than mysterious: one is
+  became `low`, and `N1633925572_1`, whose `medium` tier pin became `low`
+  once it stopped running RingEdgeNav, leaving a limb answer and a one-star
+  answer whose fused sigma of about 2.49 px is a sigma-calibration matter
+  (#788). The other five are attributed rather than mysterious: one is
   #346's remaining ring frame, red on a `failed` expectation predating a
   working ring fit, two pin `primary_technique` to a
   technique the code correctly declines to prefer and await an operator call
   (#483), one is the ~2.7 px `dv` limb bias on a partially overflowing limb arc
-  that WS-10 owns, one is the standing highly-irregular exclusion of #338, and
-  one is a tier move the operator has ruled is not to be re-ratcheted, once
-  routed to #476 (now closed) and wanting a new owner, since the frame no
-  longer runs RingEdgeNav after the Saturn routing decision. The
+  that WS-10 owns, and one is the standing highly-irregular exclusion of
+  #338. The
   16-frame measurement predates the pixel-convention corrections, so it wants re-measuring
   before it is quoted again.
 

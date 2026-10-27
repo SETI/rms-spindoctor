@@ -458,7 +458,9 @@ than the fitter. Fix it before reading any number it produces.
   sidecar records as a star technique's own offset or as a run in which only
   star techniques emitted. Four were left: three fused pins whose correction is
   the datum times a star weight that can only be reconstructed, and
-  N1633925572, whose sidecar carries an operator ruling not to re-ratchet.
+  N1633925572, whose sidecar then carried an operator ruling not to
+  re-ratchet (lifted for its tier on 2026-10-27, when the tier was re-pinned
+  to `low`).
   W1444747627 was pinned by hand against an overlay the notes describe as star
   and body together, so which half the drag followed is not recorded. One
   consequence remains open: N1530185128 flips to a different star lock
@@ -596,8 +598,8 @@ than the fitter. Fix it before reading any number it produces.
   merge: `util/calibration/library_crosscheck.py` over the full library,
   every per-image delta accounted for; `sd_stats_report` over campaign
   outputs as the accuracy checkpoint. Note that the practice is currently
-  degraded: with 9 of 75 library frames expected red locally (#288, #744,
-  #639; 16 at the last run, before seven frames were re-pinned on
+  degraded: with 8 of 75 library frames expected red locally (#288, #744,
+  #639; 16 at the last run, before eight frames were re-pinned on
   2026-10-27 and not run since), a cross-check can only be read as "no
   *new* deltas against `main`".
 
@@ -1096,13 +1098,14 @@ asserts the generated half matches the registries.
   the broader sd_*-driver test effort. The backplane suite carries strict
   xfails for #251, #252, #253, ready to flip when each fix lands.
 - **#288** — image-library regression reconciliation, and the piece of test
-  debt with the widest blast radius. In the local integration environment 9
+  debt with the widest blast radius. In the local integration environment 8
   of 75 sidecars are expected to disagree, each one attributed and owned, but
   the set is still wider than the deliberately-pinned one below, so the
   regression instrument cannot yet be read as clean. The last library run
-  found 16; seven of those were re-pinned on 2026-10-27 (five
+  found 16; eight of those were re-pinned on 2026-10-27 (five
   `ring_only_flat` frames whose pins recorded the old quantized rank-1 axis,
-  and the tier pins of #346's two Encke gap frames; the values are recorded
+  the tier pins of #346's two Encke gap frames, and the tier pin of
+  `N1633925572_1`, which no longer runs RingEdgeNav; the values are recorded
   in the Operator Playbook) and are expected to pass, but the library has not
   been run since. Two, the Galileo
   frames `C0059894800R` and `C0059899900R`, record the rotation-fitted
