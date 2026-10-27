@@ -118,14 +118,14 @@ EXPECTED_EVENTS_PER_SEC = 'expected_events_per_sec'
 PROBABILITY = 'probability'
 PIXEL_FRACTION = 'pixel_fraction'
 
-# Each activation key with the class of quantity it holds.  A mode's own
-# activation_semantics says what its events are and how its count scales.
-ACTIVATION_KEYS: dict[str, str] = {
-    EXPECTED_EVENTS: 'a Poisson expected event count per frame',
-    EXPECTED_EVENTS_PER_SEC: 'a Poisson expected event count per second of exposure',
-    PROBABILITY: 'a per-frame activation probability in [0, 1]',
-    PIXEL_FRACTION: 'the fraction of detector pixels affected, in [0, 1]',
-}
+# Every activation key.  ``expected_events`` and ``expected_events_per_sec`` hold
+# a Poisson expected event count, ``probability`` a per-frame activation
+# probability in [0, 1], and ``pixel_fraction`` the fraction of detector pixels
+# affected, in [0, 1].  A mode's own activation_semantics says what its events
+# are and how its count scales with the exposure.
+ACTIVATION_KEYS: frozenset[str] = frozenset(
+    {EXPECTED_EVENTS, EXPECTED_EVENTS_PER_SEC, PROBABILITY, PIXEL_FRACTION}
+)
 
 # The activation keys that hold a Poisson expectation: the mode's mechanic draws
 # the event count, so the mode is active whenever the key is positive.
