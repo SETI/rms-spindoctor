@@ -180,7 +180,13 @@ Fields
   artifacts        (mapping, opt)    instrument_defaults (bool): opt into the emulated
                                      camera's physical signal chain at catalog values
                                      (PSF, distortion residual, shot noise, dark / hot /
-                                     bloom / banding / bias); loss modes stay 0
+                                     bloom / banding / bias); artifact modes stay off.
+                                     adversarial (bool): bias each mode's placement onto
+                                     the navigation features.  Every other key is an
+                                     artifact mode (missing_lines, hot_pixels, ...)
+                                     whose map carries one activation key (see
+                                     "Artifact activation keys" below) plus the mode's
+                                     own shape parameters
   spk_error        (mapping, opt)    planted spacecraft-ephemeris parallax: dv_px, du_px,
                                      reference_range_km (needs range_km on each body
                                      and on the ring_system)
@@ -215,6 +221,49 @@ from.
 
 The planted offset_v/offset_u is applied as the rendered offset, so a navigator
 predicting the unshifted geometry must recover it.
+
+Artifact activation keys
+------------------------
+
+Each artifact mode in the artifacts block turns on through exactly one key, and
+the key's name says what the number means:
+
+  expected_events  (float >= 0)      count modes: the expected number of events
+                                     per frame, drawn Poisson and capped at the
+                                     line or pixel count.  missing_lines,
+                                     partial_lines, missing_blocks, line_garble,
+                                     pixel_spikes, dead_pixels, dead_columns,
+                                     radiation_transients (at environment_factor
+                                     1), bright_dark_pairs (per second of
+                                     exposure)
+  probability      (float in [0, 1]) every other mode except hot_pixels: the
+                                     per-frame probability the mode fires at
+                                     all (1.0 = always).  alternating_lines,
+                                     edited_frame, truncated_frame, cutout_window,
+                                     truth_window, embedded_header,
+                                     compression_dct, reseau_scars,
+                                     resample_texture, and the detector modes
+                                     (banding_coherent, bias_structure, dark_ramp,
+                                     bloom, frame_transfer_smear, serial_tail,
+                                     beam_bend, residual_image, quantization_lut,
+                                     quantization_ls8b, contouring_8bit,
+                                     fixed_pattern)
+  pixel_fraction   (float in [0, 1]) hot_pixels only: the fraction of detector
+                                     pixels that are hot
+
+dead_pixels and dead_columns also take count (int >= 0), a fixed number of dead
+pixels or columns in place of the Poisson draw; a map may set count or
+expected_events, never both.  Every key defaults to 0, and a mode whose key is 0
+(or whose count is 0) renders nothing.  For example:
+
+    artifacts:
+      missing_lines: {expected_events: 3.0}
+      truncated_frame: {probability: 1.0, fraction: 0.25}
+      dead_pixels: {count: 10}
+      hot_pixels: {pixel_fraction: 0.002}
+
+The key that used to cover all three meanings, incidence, is refused by the
+validator with a message naming the mode's replacement.
 
 Adding a scene
 --------------

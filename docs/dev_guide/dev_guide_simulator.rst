@@ -624,7 +624,7 @@ transients after the shot term, coherent banding in electrons before the gain
 divide, and the additive fixed pattern and serial tail on the digitized DN.
 Their mechanics live in
 :mod:`~spindoctor.sim.forward.detector.electronics_stages`, each drawn its own
-seeded stream and a no-op at zero incidence.
+seeded stream and a no-op when its activation key is 0.
 
 **The vidicon path.** The Voyager vidicon
 (:func:`~spindoctor.sim.forward.detector.chain.apply_detector`, vidicon branch)
@@ -667,9 +667,9 @@ side), and the detector electron chain's Poisson shot noise, read noise, dark
 current, hot pixels, full-well bloom, banding, and bias structure (the
 detector side reads the same switch). An explicit ``noise`` key still wins in
 either direction -- ``noise: {poisson: false}`` turns the shot term off under
-instrument defaults. It turns on only the *physical* chain: the per-mode loss
-incidences (cosmic rays, whole-line telemetry loss, compression-block
-dropouts, and the like) stay at zero, so a defaults scene is a
+instrument defaults. It turns on only the *physical* chain: the artifact modes
+(whole-line telemetry loss, compression-block dropouts, radiation transients, and
+the like) keep their activation keys at zero, so a defaults scene is a
 clean-but-realistic frame, not a damaged one.
 
 :mod:`spindoctor.sim.forward.artifacts_catalog` is the single home for those
@@ -679,9 +679,10 @@ per-instrument values: ``PSF_KERNELS`` (core sigma and wing parameters),
 vidicon numbers, plus an ``artifact_modes`` sub-map of per-mode shape defaults --
 banding amplitudes and periods, frame-transfer scrub/transfer times, fixed-
 pattern components, and the rest). A scene that names an artifact mode with only
-its incidence inherits these shapes (``resolve_mode_with_catalog`` resolves scene
-value over catalog default over registry default); ``incidence`` itself is never
-cataloged, so naming an instrument never plants a defect on its own. Every value
+its activation key inherits these shapes (``resolve_mode_with_catalog`` resolves
+scene value over catalog default over registry default). The activation keys
+themselves are never cataloged, so naming an instrument never plants a defect on
+its own. Every value
 is provenance-tagged in a comment beside it, and every value is interim -- sized
 from published FWHMs, gain tables, and documented residual-error bounds, pending
 the per-instrument measurement passes -- so the wing parameters and noise
@@ -703,8 +704,8 @@ one at a time. The modes are registered once in
 is their single source of truth. Each :class:`~spindoctor.sim.forward.artifact_modes.ArtifactMode`
 fixes the mode's name, its rendering stage (``telemetry`` or ``detector``), the
 :class:`~spindoctor.sim.forward.artifact_modes.ModeParam` schema of its
-parameters, the sim instruments it is available on, and the meaning of its
-``incidence``. Every consumer reads that description rather than carrying its
+parameters, the sim instruments it is available on, and its activation key with
+that key's meaning for the mode. Every consumer reads that description rather than carrying its
 own copy: the scene validator (:func:`spindoctor.sim.scene_checks._check_artifacts`),
 the telemetry and detector stages, and the scene-editor GUI all iterate the
 registry, so registering a mode is the whole job of adding one editor row, one
@@ -716,20 +717,41 @@ key must be a registered mode name; an unknown key, an unimplemented mode, or a
 mode named on an instrument it is unavailable on fails validation with the
 registry's message.
 
-Incidence semantics
--------------------
+.. _sim-artifact-activation-keys:
 
-Every mode carries an ``incidence`` parameter, and every mode is a no-op at
-incidence 0 (the stage-activation rule; 0 is also the default, so naming an
-instrument never plants a defect on its own). Its meaning is per-mode:
+Activation keys
+---------------
 
-* **count** modes draw a Poisson event count per frame (lost lines, lost blocks,
-  spiked pixels, radiation hits): incidence is the expected number of events.
-* **probability** modes are commanded or periodic (a frame edit, a cutout, a
-  quantization sub-mode, most detector effects): incidence is the per-frame
-  probability the mode activates at all.
-* **density** modes (``hot_pixels``) read incidence as a spatial fraction of
-  pixels affected, not a per-frame event count.
+Every mode carries exactly one activation key, and the key's name says what
+quantity it holds. The registry records which key each mode takes
+(``ArtifactMode.activation``):
+
+* **Count** modes draw a Poisson number of events per frame (lost lines, lost
+  blocks, spiked pixels, radiation hits). Their key is ``expected_events``, the
+  expected number of events per frame, any non-negative number. The draw is
+  capped at the array dimension the events land on (the line count for a line
+  loss, the pixel count for a pixel loss).
+* **Probability** modes are commanded or periodic (a frame edit, a cutout, a
+  quantization sub-mode, most detector effects). Their key is ``probability``,
+  the per-frame probability in [0, 1] that the mode activates at all.
+* **Density** mode ``hot_pixels`` takes ``pixel_fraction``, the fraction of
+  detector pixels that are hot, in [0, 1].
+
+``dead_pixels`` and ``dead_columns`` also accept ``count``, a fixed number of
+dead pixels or columns in place of the Poisson draw. A static detector defect
+has a definite count, so ``count`` is the usual choice there. The two keys are
+mutually exclusive, and the validator refuses a map that sets both.
+
+The stage-activation rule reads the same for every key: a mode is a no-op when
+its activation key is 0. The keys default to 0, also under
+``instrument_defaults``, so naming a mode without its key plants nothing. A
+``count`` of 0 is a no-op too.
+
+The validator refuses the retired ``incidence`` key with a message that names
+the mode's replacement (``RENAMED_MODE_PARAMS`` holds the table), for example::
+
+    artifacts.missing_lines: 'incidence' was renamed; use 'expected_events'
+    (a Poisson expected event count per frame)
 
 Telemetry-stage modes
 ---------------------
@@ -746,73 +768,73 @@ calibrated path); garble and spikes write *wrong* values instead.
    * - Mode
      - Shape
      - Availability
-     - Incidence
+     - Activation key
    * - ``missing_lines``
      - whole lines zeroed to the marker (a contiguous run or scattered)
      - all
-     - count
+     - ``expected_events``
    * - ``partial_lines``
      - a line truncated from a column to its end, or a middle segment lost
      - nac, wac, vgiss
-     - count
+     - ``expected_events``
    * - ``alternating_lines``
      - every Nth line dropped, or (``mode: keep``, the Galileo HMA / HCA
        catalog default) only every Nth line kept
      - nac, wac, gossi
-     - probability
+     - ``probability``
    * - ``edited_frame``
      - only a centered column band (440 px by default), or one half-height, kept
      - gossi, vgiss
-     - probability
+     - ``probability``
    * - ``truncated_frame``
      - a clean full-width band of lines (a quarter frame by default) cut from
        the top or bottom
      - nac, wac, gossi
-     - probability
+     - ``probability``
    * - ``missing_blocks``
      - compression-block-aligned bands zeroed
      - nac, wac, gossi
-     - count
+     - ``expected_events``
    * - ``line_garble``
      - a line's tail replaced with random DN, not the marker
      - gossi, vgiss
-     - count
+     - ``expected_events``
    * - ``pixel_spikes``
      - isolated pixels flipped to a wrong DN (a bit-flip or a uniform draw)
      - vgiss
-     - count
+     - ``expected_events``
    * - ``dead_pixels``
      - singleton pixels held at a low response
      - all CCD
-     - count
+     - ``expected_events``
    * - ``dead_columns``
      - whole columns held at a low response
      - all CCD
-     - count
+     - ``expected_events``
    * - ``embedded_header``
      - row 0 overwritten with binary housekeeping (the LORRI header)
      - lorri
-     - probability
+     - ``probability``
    * - ``truth_window``
      - a losslessly-clean carve-out the other losses must spare
      - gossi
-     - probability
+     - ``probability``
    * - ``cutout_window``
      - only a commanded rectangle survives; the border is blanked
      - gossi, lorri
-     - probability
+     - ``probability``
    * - ``compression_dct``
      - lossy DCT block quantization on the transmitted signal, before loss
      - all CCD
-     - probability
+     - ``probability``
    * - ``reseau_scars``
      - reseau-removal smudges on the vidicon lattice (archive processing)
      - vgiss
-     - probability
+     - ``probability``
    * - ``resample_texture``
      - GEOMED resample warp, blank border, and missing-line interpolation
      - vgiss
-     - probability
+     - ``probability``
 
 The telemetry sub-stage order is fixed: lossy compression runs first (a codec
 compresses, then packets drop), then the structured loss loop, then the Voyager
@@ -839,75 +861,76 @@ which mode's truth record is written first.
    * - Mode
      - Shape
      - Availability
-     - Incidence
+     - Activation key
    * - ``hot_pixels``
      - a fixed spatial population of high-dark-current pixels
      - nac, wac, gossi
-     - density
+     - ``pixel_fraction``
    * - ``banding_coherent``
      - a coherent electron-domain intensity ripple
      - all
-     - probability
+     - ``probability``
    * - ``bias_structure``
      - a bias pedestal with row and column gradients
      - all
-     - probability
+     - ``probability``
    * - ``dark_ramp``
      - a readout / shutter-shading dark ramp across the frame
      - all
-     - probability
+     - ``probability``
    * - ``bloom``
      - electron-domain column bleed from saturated wells
      - nac, wac, gossi
-     - probability
+     - ``probability``
    * - ``radiation_transients``
      - cosmic-ray hits during integration and readout dwell
      - all CCD
-     - count
+     - ``expected_events``
    * - ``bright_dark_pairs``
      - anti-blooming-mode vertical bright / dark pixel pairs
      - nac, wac
-     - count
+     - ``expected_events``
    * - ``frame_transfer_smear``
      - frame-transfer column smear
      - lorri
-     - probability
+     - ``probability``
    * - ``serial_tail``
      - a post-saturation serial-register tail
      - lorri
-     - probability
+     - ``probability``
    * - ``beam_bend``
      - a brightness-dependent vidicon limb bend
      - vgiss
-     - probability
+     - ``probability``
    * - ``residual_image``
      - a prior-frame ghost from incomplete erasure
      - vgiss
-     - probability
+     - ``probability``
    * - ``quantization_lut``
      - the Cassini sqrt-companding LUT quantization
      - nac, wac
-     - probability
+     - ``probability``
    * - ``quantization_ls8b``
      - the Cassini LS8B wraparound quantization
      - nac, wac
-     - probability
+     - ``probability``
    * - ``contouring_8bit``
      - 8-bit contouring quantization steps
      - gossi, vgiss
-     - probability
+     - ``probability``
    * - ``fixed_pattern``
      - a static PRNU / vignetting / stitch / jail-bar / dust composite
      - all
-     - probability
+     - ``probability``
 
 Precedence
 ----------
 
 A mode's parameter value is resolved scene value over catalog default over
 registry default (:func:`~spindoctor.sim.forward.artifacts_catalog.resolve_mode_with_catalog`),
-so a scene that names a mode with only its incidence inherits the instrument's
-cataloged shape. ``incidence`` itself is never cataloged. Where a mode shares a
+so a scene that names a mode with only its activation key inherits the
+instrument's cataloged shape. The activation keys and ``count`` are never
+cataloged. Where a mode shares a
 mechanic with a generic ``noise``-block knob (``hot_pixels`` versus
 ``noise.hot_pixel_fraction``, for instance), the explicit artifact mode wins.
 
@@ -923,8 +946,8 @@ the frame-level edits) ignore the switch: their geometry is fixed once active.
 The switch is one scene-level flag, so a scene is either adversarial for all its
 modes or none.
 
-Truth bookkeeping and incidence measurement
--------------------------------------------
+Truth bookkeeping and the planted-versus-measured match
+-------------------------------------------------------
 
 Each applied mode records its realized geometry -- which lines, blocks, or pixels
 it touched -- into ``frame.truth['artifacts'][<mode>]``, so a later measurement
@@ -952,8 +975,9 @@ lines per frame), in a uniform-placement and an adversarial-placement variant.
 The navigator must still reach success and recover the planted offset within
 tolerance -- the level at which realism does not break navigation. The companion
 ``artifact_missing_lines`` sweep (``tests/integration/sim_sweeps/``) drives the
-other end: it raises the missing-line incidence from a clean frame past the
-navigability cliff and records the navigation-quality-versus-incidence curve.
+other end: it raises the missing-line ``expected_events`` from a clean frame past
+the navigability cliff and records the curve of navigation quality against the
+number of lost lines.
 
 .. _sim-star-confounder:
 
@@ -2868,8 +2892,8 @@ switch ``instrument_defaults`` (see :ref:`sim-artifacts-catalog`), the
 ``adversarial`` placement flag, and one map per **artifact mode**. With
 ``instrument_defaults`` on, the emulated camera's catalog PSF, distortion
 residual, and detector noise chain render at their per-instrument values; the
-per-mode incidences stay at zero (naming an instrument selects a signal chain,
-not a set of defects), with the one exception that LORRI turns on
+artifact modes' activation keys stay at zero (naming an instrument selects a
+signal chain, not a set of defects), with the one exception that LORRI turns on
 ``frame_transfer_smear`` -- its defining artifact -- at the catalog's nominal
 scrub/transfer times. Leaving ``instrument_defaults`` off keeps those keys
 absent (the self-consistency floor).
@@ -2877,14 +2901,18 @@ absent (the self-consistency floor).
 The artifact modes are registered once in
 :mod:`spindoctor.sim.forward.artifact_modes` -- the single source of truth for
 each mode's rendering stage (``detector`` or ``telemetry``), per-instrument
-availability, and parameter schema. Every mode carries an ``incidence``: for a
-count mode it is the expected number of events per frame (drawn Poisson); for a
-commanded / periodic mode it is the per-frame probability the mode fires. An
-incidence of 0 is a no-op, so a scene plants exactly the defects it names. A
+availability, and parameter schema. Every mode carries one activation key (see
+:ref:`sim-artifact-activation-keys`): ``expected_events`` for a count mode (the
+expected number of events per frame, drawn Poisson), ``probability`` for a
+commanded or periodic mode (the per-frame probability the mode fires), and
+``pixel_fraction`` for ``hot_pixels`` (the fraction of pixels that are hot).
+``dead_pixels`` and ``dead_columns`` take a fixed ``count`` instead of
+``expected_events`` when the scene gives one. An activation key of 0 is a
+no-op, so a scene plants exactly the defects it names. A
 mode named on an instrument it is unavailable on fails validation (for example
 ``hot_pixels`` and ``bloom`` on LORRI, which has neither). Each applied mode
 records its realized geometry into ``frame.truth['artifacts'][mode]`` for the
-later planted-versus-measured incidence match.
+later planted-versus-measured match.
 
 **Detector / electronics modes** render inside the detector stage at the
 physically right point in the unit chain (see :ref:`sim-detector-stage`):
@@ -2922,7 +2950,7 @@ depend on where the features are.
 
 Per-instrument shape defaults for every mode live in ``artifacts_catalog.py``
 (see :ref:`sim-artifacts-catalog`); a scene inherits them by naming a mode with
-only its incidence, and overrides any parameter it spells out. The realized
+only its activation key, and overrides any parameter it spells out. The realized
 geometry each mode records is read back by
 :mod:`spindoctor.sim.forward.incidence` for the planted-versus-measured match;
 the conceptual overview, the full mode tables, and the ``artifact_sweep`` scene

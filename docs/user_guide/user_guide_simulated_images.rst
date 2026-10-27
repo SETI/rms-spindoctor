@@ -61,6 +61,45 @@ starting from an empty one.
 
    sd_create_simulated_image /path/to/scene.yaml
 
+Planting defects in a scene
+===========================
+
+A scene file's ``artifacts`` section plants the defects a real downlink or detector
+leaves in a frame: lost lines, truncated frames, hot pixels, compression blockiness, and
+many more. Each defect has its own entry, named after the defect, and each entry turns
+on through exactly one key. The key's name says what its number means.
+
+``expected_events``
+   The expected number of events per frame, such as lost lines, lost compression
+   blocks, or spiked pixels. The simulator draws the actual number at random around this
+   value, so ``missing_lines: {expected_events: 3.0}`` loses about three lines. Any
+   non-negative number is valid.
+
+``probability``
+   The chance, from 0 to 1, that a defect affecting the whole frame happens at all, such
+   as a truncated frame or a coherent banding pattern. ``1.0`` means every frame carries
+   it.
+
+``pixel_fraction``
+   For hot pixels only: the fraction of the detector's pixels that are hot, from 0 to 1.
+
+Dead pixels and dead columns can also be given as a fixed ``count`` in place of
+``expected_events``. An entry names one of the two keys, never both. Every key defaults
+to 0, and an entry whose key is 0 plants nothing.
+
+.. code-block:: yaml
+
+   artifacts:
+     missing_lines: {expected_events: 3.0}
+     truncated_frame: {probability: 1.0, fraction: 0.25}
+     dead_pixels: {count: 10}
+     hot_pixels: {pixel_fraction: 0.002}
+
+A scene that still uses the retired ``incidence`` key is refused when it is loaded, and
+the message names the key that replaces it. The developer guide's
+:doc:`/dev_guide/dev_guide_simulator` chapter lists every defect, the cameras each one
+is available on, and the key each one takes.
+
 Further reading
 ===============
 

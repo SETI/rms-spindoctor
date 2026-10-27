@@ -39,8 +39,8 @@ direction). The families differ only in what else is on the frame:
 | `clouds` | 1-4 Gaussian clouds on the disc |
 | `asymmetry` | tilted haze axis, hemispheric falloff and brightness differences, an interior ramp, a limb sharpness gradient |
 | `stars` | 3-12 stars, straddling the mask magnitude limit |
-| `artifacts` | cosmic rays and hot pixels at deliberate STRESS incidence |
-| `artifacts_nominal` | the same contamination class at the instrument's shipped, realism-matched incidence |
+| `artifacts` | cosmic rays and hot pixels at deliberate STRESS rates |
+| `artifacts_nominal` | the same contamination class at the instrument's shipped, realism-matched rates |
 | `combined` | all of the above together |
 
 `clean` is the family the published accuracy bound is stated on; the others
@@ -48,7 +48,7 @@ measure how far each broken assumption moves it. Everything the families add
 is a truth-side scene key, invisible to the navigator through `nav_params`.
 
 The two artifact families are a matched pair and must not be confused. The
-stress one draws hot-pixel incidence an order of magnitude wide and forces a
+stress one draws the hot-pixel fraction an order of magnitude wide and forces a
 nonzero cosmic-ray rate the realism recalibration deliberately retained at
 zero; it bounds the regime. `artifacts_nominal` overrides nothing and is the
 family an operational prediction reads from. `_artifact_blocks` states the

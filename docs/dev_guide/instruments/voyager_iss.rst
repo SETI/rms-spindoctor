@@ -392,7 +392,7 @@ pipeline's own input has been through). The last two are telemetry-stage modes
 applied after the structured-loss modes, because they emulate archive
 processing rather than a detector or transmission defect. ``edited_frame``
 defaults to a 440-pixel band, which is this instrument's commanded edited-mode
-band width, so a bare incidence keeps a physical centered band.
+band width, so a bare ``probability`` keeps a physical centered band.
 
 **Realism-match status.** The PSF is unverified and unverifiable through the
 resampling with the frames held locally. The distortion is measured, but on

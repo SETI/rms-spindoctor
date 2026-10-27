@@ -1597,7 +1597,7 @@ the dedicated sweep or the scene class that drives it:
      - not modeled
      - sweep ``noise_read_noise``
    * - Artifact stress
-     - structured loss incidence
+     - structured loss (``missing_lines`` ``expected_events``)
      - not modeled
      - sweep ``artifact_missing_lines`` and ``artifact_sweep`` scene class
 
