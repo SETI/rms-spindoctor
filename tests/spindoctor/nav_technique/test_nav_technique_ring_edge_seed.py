@@ -95,12 +95,13 @@ def test_ring_edge_nav_rejects_a_coarse_strength_keep_ratio_outside_unit_range(
         RingEdgeNav()
 
 
-def test_ring_edge_nav_rejects_a_negative_coarse_sensor_margin(
-    monkeypatch: pytest.MonkeyPatch,
+@pytest.mark.parametrize('margin', [-1, 2.5], ids=['negative', 'fractional'])
+def test_ring_edge_nav_rejects_a_coarse_sensor_margin_that_is_not_a_count(
+    margin: float, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A negative sensor margin fails at construction rather than eroding nothing."""
+    """A negative or fractional margin raises instead of being truncated."""
     bad_tuning = dict(RingEdgeNav.tuning)
-    bad_tuning['coarse_sensor_margin_px'] = -1
+    bad_tuning['coarse_sensor_margin_px'] = margin
     monkeypatch.setattr(RingEdgeNav, 'tuning', bad_tuning)
     with pytest.raises(ValueError, match='coarse_sensor_margin_px must be a non-negative'):
         RingEdgeNav()

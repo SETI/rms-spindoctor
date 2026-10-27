@@ -34,14 +34,14 @@ offsets lie within a few pixels of each other, or within their combined uncertai
 that are each uncertain by many pixels in the same direction can lie far apart and still
 be within their combined uncertainty. They agree only when, in every direction, one of
 them is precise enough that combining them lands within a pixel of it, since otherwise the
-combination would be a point between two answers that neither supports. SpinDoctor forms, around each technique, the group of
-techniques whose offsets agree with that one, and keeps the group whose confidences add up
-to the most. That is not always the group with the most members:
-one confident technique can outweigh several weaker ones that agree with each other. The
-techniques left outside the surviving group are set aside, and those inside it are
-combined by weighting each by how tightly its offset is determined. When a set-aside
-group is close enough in summed confidence to stand as a rival answer, the image is
-reported as ``conflicted``. Two further rules set techniques inside the group aside
+combination would be a point between two answers that neither supports. SpinDoctor forms,
+around each technique, the group of techniques whose offsets agree with that one, and
+keeps the group whose confidences add up to the most. That is not always the group with
+the most members: one confident technique can outweigh several weaker ones that agree with
+each other. The techniques left outside the surviving group are set aside, and those
+inside it are combined by weighting each by how tightly its offset is determined. When a
+set-aside group is close enough in summed confidence to stand as a rival answer, the image
+is reported as ``conflicted``. Two further rules set techniques inside the group aside
 before the combination, and neither makes the image conflicted. A technique that lies
 within a few pixels of techniques that measured the same thing, but well outside the
 uncertainty of every one of them, is not combined with them: whichever side is less

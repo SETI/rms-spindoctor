@@ -290,14 +290,17 @@ def _radial_outward_sign(
 def _radial_extent_px(vertices_vu: NDArrayFloatType, normals_vu: NDArrayFloatType) -> float:
     """Return the polyline's radial extent (max - min projection on mean normal).
 
-    The projection axis is the MEAN normal, so it is sign-sensitive.  Once the
-    normals are radially signed (see :func:`_polyline_from_edge_mask`) this
-    measures the extent along the polyline's genuine mean radial direction; a
-    half turn of arc then returns the ring radius, which is geometrically
-    right, where scan-order signs previously returned a larger number set by
-    the rasterizer's quadrant bias.  The values feed the annulus emission gate
-    (``radial_extent_px <= max_radial_px``), so a short curved edge can measure
-    roughly half what it used to.
+    The projection axis is the MEAN normal, so it is sign-sensitive.  The rings
+    model calls this for its annulus emission gate (``radial_extent_px <=
+    max_radial_px``) with the mask-neighbor normals of
+    :func:`_mask_neighbor_polyline`, signed toward increasing ring radius wherever
+    that helper's radius probes are usable, and the gate's threshold was set on
+    those values.  Each such normal is one of the eight pixel directions, so their
+    mean follows the radial direction only where the edge runs along a pixel axis
+    or diagonal; at other orientations it leans off it, and a long, gently curved
+    arc measures far more than the sagitta the radius-gradient normals of
+    :func:`_polyline_from_edge_mask` (the fit's normals) would measure.  Along those
+    radius-gradient normals a half turn of arc measures the ring radius.
 
     A closed or near-closed ring cancels the mean normal to numerical noise
     rather than exactly zero, so the degenerate case is caught by a relative

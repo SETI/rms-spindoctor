@@ -40,6 +40,7 @@ import spindoctor.nav_model.nav_model_body as nav_model_body_module
 from spindoctor.annotation import Annotations
 from spindoctor.config.config import Config
 from spindoctor.feature.feature import NavFeature
+from spindoctor.feature.flags import BodyBlobFlags
 from spindoctor.feature.geometry import (
     BodyBlobGeometry,
     BodyDiscGeometry,
@@ -856,7 +857,8 @@ def test_blob_carries_the_ephemeris_sigma_at_the_limb_scale(
     )
     shape = load_body_shape(model._body_name, config=model._config)
     expected = shape.spice_orbital_residual_km / model._km_per_pixel_at_limb
-    assert getattr(blob.flags, 'ephemeris_sigma_px', None) == pytest.approx(expected, rel=1e-12)
+    assert isinstance(blob.flags, BodyBlobFlags)
+    assert blob.flags.ephemeris_sigma_px == pytest.approx(expected, rel=1e-12)
 
 
 def test_no_features_for_subpixel_body(monkeypatch: pytest.MonkeyPatch) -> None:
