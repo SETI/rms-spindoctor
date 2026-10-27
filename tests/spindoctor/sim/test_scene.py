@@ -178,17 +178,29 @@ def test_validate_sim_params_rejects_negative_limb_relief_rms() -> None:
         validate_sim_params(params)
 
 
-@pytest.mark.parametrize(('rms', 'accepted'), [(0.1, True), (0.1001, False), (0.4, False)])
+@pytest.mark.parametrize(('rms', 'accepted'), [(0.05, True), (0.0501, False), (0.1, False)])
 def test_validate_sim_params_bounds_limb_relief_rms_as_a_fraction_of_the_radius(
     rms: float, accepted: bool
 ) -> None:
-    """Relief RMS above 10% of the radius fails: its valleys could reach the center."""
+    """Relief RMS above 5% of the radius fails: the limb-only render stops fitting one surface."""
     params = _sim_params()
     params['bodies'][0]['limb_relief_rms'] = rms
     if accepted:
         assert validate_sim_params(params) is params
         return
-    with pytest.raises(SimSceneValidationError, match=r'limb_relief_rms .*at most 0\.1'):
+    with pytest.raises(SimSceneValidationError, match=r'limb_relief_rms .*at most 0\.05'):
+        validate_sim_params(params)
+
+
+@pytest.mark.parametrize(('corr_deg', 'accepted'), [(1.0, True), (0.99, False), (0.1, False)])
+def test_validate_sim_params_bounds_relief_corr_from_below(corr_deg: float, accepted: bool) -> None:
+    """A relief correlation length below 1 degree fails: its field takes too long to build."""
+    params = _sim_params()
+    params['bodies'][0]['limb_relief_corr_deg'] = corr_deg
+    if accepted:
+        assert validate_sim_params(params) is params
+        return
+    with pytest.raises(SimSceneValidationError, match=r'limb_relief_corr_deg .*at least 1\.0'):
         validate_sim_params(params)
 
 

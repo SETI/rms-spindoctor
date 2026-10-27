@@ -23,7 +23,7 @@ from spindoctor.sim.forward.haze_structure import (
     SECTOR_REFERENCE_HALF_ANGLE_DEG,
 )
 from spindoctor.sim.forward.photometry import PHOTOMETRIC_LAWS
-from spindoctor.sim.forward.relief import MAX_LIMB_RELIEF_RMS
+from spindoctor.sim.forward.relief import MAX_LIMB_RELIEF_RMS, MIN_LIMB_RELIEF_CORR_DEG
 from spindoctor.sim.scene_checks import (
     _check_optional_mapping_list,
     _check_optional_nonnegative_int,
@@ -252,6 +252,10 @@ def _check_body_relief_and_photometry(obj: dict[str, Any], *, label: str, source
     _check_optional_nonnegative_number(
         obj.get('limb_relief_rms'), f'{label}.limb_relief_rms', source=source
     )
+    # The bounds and their reasons live with the constants in
+    # spindoctor.sim.forward.relief: above the RMS cap the limb-only renderer
+    # stops approximating one surface, and below the correlation floor the
+    # field's synthesis takes seconds to minutes.
     relief_rms = obj.get('limb_relief_rms')
     if relief_rms is not None and float(relief_rms) > MAX_LIMB_RELIEF_RMS:
         raise SimSceneValidationError(
@@ -261,6 +265,12 @@ def _check_body_relief_and_photometry(obj: dict[str, Any], *, label: str, source
     _check_optional_positive_number(
         obj.get('limb_relief_corr_deg'), f'{label}.limb_relief_corr_deg', source=source
     )
+    relief_corr = obj.get('limb_relief_corr_deg')
+    if relief_corr is not None and float(relief_corr) < MIN_LIMB_RELIEF_CORR_DEG:
+        raise SimSceneValidationError(
+            f'{source}: {label}.limb_relief_corr_deg must be at least '
+            f'{MIN_LIMB_RELIEF_CORR_DEG} degrees; got {relief_corr}'
+        )
     law = obj.get('photometric_law')
     if law is not None and law not in PHOTOMETRIC_LAWS:
         raise SimSceneValidationError(

@@ -37,7 +37,7 @@ from PyQt6.QtWidgets import (
 from spindoctor.cli.sim_editor.base import SimEditorBase
 from spindoctor.cli.sim_editor.widgets import make_dspin as _dspin
 from spindoctor.sim.forward.photometry import PHOTOMETRIC_LAWS
-from spindoctor.sim.forward.relief import MAX_LIMB_RELIEF_RMS
+from spindoctor.sim.forward.relief import MAX_LIMB_RELIEF_RMS, MIN_LIMB_RELIEF_CORR_DEG
 
 # The photometric-law vocabulary, Lambert first so the combo opens on the
 # navigator-matched default when a scene enables the group without a law.
@@ -138,7 +138,7 @@ class BodyAppearanceMixin(SimEditorBase):
             ),
         )
         corr = _dspin(
-            minimum=0.1,
+            minimum=MIN_LIMB_RELIEF_CORR_DEG,
             maximum=180.0,
             decimals=1,
             step=1.0,

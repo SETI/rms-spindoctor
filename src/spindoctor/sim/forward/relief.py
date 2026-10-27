@@ -35,11 +35,12 @@ fractional field (~0.01) and surface distances (pixels) are never compared
 directly.  A point is shadowed iff some upstream sample at surface distance
 ``d`` toward the sun satisfies ``H_up - H_pt > d / tan(i_pt) + d**2 / (2 R)``,
 with ``i_pt`` the point's incidence angle: the terrain must rise above both
-the sun ray and the body's curvature drop.  The march is capped at the
-distance beyond which that cannot happen (:func:`shadow_reach`),
+the sun ray and the body's curvature drop.  The march is capped at an upper
+bound on the distance at which that can happen (:func:`shadow_reach`),
 ``min((H_max - H_pt) * tan(i_pt), sqrt(2 * R * (H_max - H_pt)))``: the
-longest shadow the terrain can cast, and the horizon distance of the highest
-peak, so cost is bounded and the geometry stays physical.
+longest shadow the terrain could cast on a flat body, and the horizon
+distance of the highest peak, so cost is bounded and the geometry stays
+physical.
 """
 
 import math
@@ -54,6 +55,7 @@ from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 
 __all__ = [
     'MAX_LIMB_RELIEF_RMS',
+    'MIN_LIMB_RELIEF_CORR_DEG',
     'MarchStats',
     'ReliefField',
     'march_shadows',
@@ -63,10 +65,26 @@ __all__ = [
 ]
 
 # The largest limb-relief RMS (a fraction of the body radius) a scene may
-# command.  A realization's deepest valley reaches up to ~6x the RMS, so at
-# 0.1 the surface can already dip to 0.4 of the radius, and above ~0.16 it can
-# pass through the body's center, which a radial height field cannot describe.
-MAX_LIMB_RELIEF_RMS = 0.1
+# command.  The renderer displaces only the limb: it draws the silhouette at
+# the field's equator slice, R (1 + h(0, phi)), and reads the terrain under
+# each disc pixel at the smooth sphere's direction.  The relief surface itself
+# projects to the envelope R * max over lat of (1 + h(lat, phi)) * cos(lat),
+# and its point under a pixel at elevation lat lies h * cot(lat) radians from
+# the one the renderer reads.  Both errors grow with the RMS and shrink with
+# the correlation length.  At the default 15-degree correlation length (8
+# seeds each), the drawn limb's RMS distance from the envelope is 0.65 times
+# the RMS at an RMS of 0.02, 1.03 times at 0.05, and 1.28 times at 0.1.  The
+# terrain under 2.5%, 12%, and 30% of the disc is read more than half a
+# correlation length from the point the pixel shows.  At 0.05 the limb's
+# error reaches the size of the relief itself; above it, the limb and the
+# terminator shadows stop approximating one surface.
+MAX_LIMB_RELIEF_RMS = 0.05
+# The shortest relief correlation length (degrees of arc) a scene may command.
+# Synthesis costs about (1 / corr)**3: 0.5 s and 0.2 GB at 1 degree, 3.1 s and
+# 0.5 GB at 0.5 degrees, and 26 s and 1.7 GB at 0.25 degrees.  The renderer
+# synthesizes one field per body, and the scene editor re-renders on every
+# change.
+MIN_LIMB_RELIEF_CORR_DEG = 1.0
 # Relief harmonic degrees below this are zeroed (degree 1 = body
 # translation, degree 2 = ellipsoid shape aliasing).
 _LOW_DEGREE_CUTOFF = 3.0
@@ -376,13 +394,16 @@ def shadow_reach(
     *,
     h_max: float,
 ) -> NDArrayFloatType:
-    """The longest surface distance from which terrain can shadow each point.
+    """An upper bound on the surface distance from which terrain can shadow each point.
 
     Terrain at surface distance ``d`` toward the sun shadows a point only if it
     rises ``d / tan(i) + d**2 / (2 R)`` above it, and no terrain rises more than
-    ``(h_max - h_point) * R``.  Each term alone must fit under that rise, so the
-    reach is ``min(rise * tan(i), sqrt(2 * R * rise))``: the longest shadow the
-    terrain can cast, and the horizon distance of the highest peak.
+    ``(h_max - h_point) * R``.  Each term alone must fit under that rise, so
+    ``min(rise * tan(i), sqrt(2 * R * rise))`` bounds the distance: the longest
+    shadow the terrain could cast on a flat body, and the horizon distance of
+    the highest peak.  The bound is at most 1.62 times the exact distance, the
+    root of ``rise = d / tan(i) + d**2 / (2 R)``; the worst case is where the
+    two terms are equal.  Marching to the bound changes no shadow decision.
 
     Parameters:
         h_point: Fractional relief at each point.
@@ -391,7 +412,7 @@ def shadow_reach(
         h_max: Global field maximum (fractional).
 
     Returns:
-        The reach in pixels of surface arc, same shape as the inputs; 0 where
+        The bound in pixels of surface arc, same shape as the inputs; 0 where
         the point is the highest terrain.
     """
     radius = np.asarray(radius_px, dtype=np.float64)
@@ -427,8 +448,8 @@ def march_shadows(
     above the sun ray and above the body's curvature drop (``R`` the
     point's local radius, standing in for the radius of curvature).  The
     per-point cap ``d_max`` of :func:`shadow_reach`,
-    ``min((H_max - H_pt) * tan(i_pt), sqrt(2 * R * (H_max - H_pt)))``, is
-    exactly the distance beyond which that inequality cannot hold, so it
+    ``min((H_max - H_pt) * tan(i_pt), sqrt(2 * R * (H_max - H_pt)))``, is an
+    upper bound on the distance at which that inequality can hold, so it
     bounds the work without changing any decision.
 
     Parameters:
