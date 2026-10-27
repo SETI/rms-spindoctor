@@ -1295,9 +1295,11 @@ genuinely unknown orientation testable.
      - (1.46, -1.28) px
      - 0.67 px
 
-When the predicted geometry matches the rendered mesh, the mesh disc, mesh limb,
-and mesh crescent recover the planted offset to half a pixel or better
-(0.00-0.50 px; 2026-10-27 measurement). The limb row pins ``BodyLimbNav`` and
+When the predicted geometry matches the rendered mesh, these three scenes, the
+mesh disc, mesh limb, and mesh crescent, recover the planted offset to half a
+pixel or better (0.00-0.50 px; 2026-10-27 measurement). Each renders one mesh
+shape, and other shapes spread around these figures, as the limb and crescent
+seed ranges below show. The limb row pins ``BodyLimbNav`` and
 reports its own fix; the full ensemble on the same scene fuses it with the disc
 correlation and recovers (1.52, -0.58), 0.10 px off, the offset the scene's
 regression baseline holds. The limb's 0.27 px is the fit's error on a lumpy
@@ -1310,7 +1312,10 @@ typical. Tessellation matters too: at the default 16 by 32 the same fit errs
 mesh scenes use 64 by 128. The mesh crescent is the loosest at
 0.50 px, against 0.23 px for the ellipsoid crescent: its body is clearly
 irregular (``mesh_lumpiness`` 0.2), and only a thin lit sliver of it constrains
-the centroid. The fourth row is the shape-mismatch case: the frame renders a
+the centroid. Over mesh seeds 0 to 12 the same pinned blob errs 0.35 to 0.61 px
+(median 0.50 px), and 6 of the 13 shapes land above half a pixel, so this
+shape is typical and half a pixel is the crescent's typical error, not a bound.
+The fourth row is the shape-mismatch case: the frame renders a
 mildly irregular mesh (``mesh_lumpiness`` 0.1, a 1.25% RMS non-ellipsoidal
 relief) but the navigator predicts its smooth (ellipsoidal) limit at the same
 pose, and the body still navigates. The disc correlation aligns the two filled
@@ -1331,7 +1336,8 @@ term is meant to capture.
    Recovered-offset error (red) and fused confidence (blue) vs rendered mesh
    lumpiness for one mesh realization (``mesh_seed`` 4), with the prediction
    pinned to the zero-relief limit. On this shape the error grows from 0.00 px
-   to 5.2 px at lumpiness 0.7. The confidence holds at 0.99 through lumpiness
+   to 5.2 px at lumpiness 0.7 and never falls between steps, which holds for
+   only 4 of the 13 shapes below. The confidence holds at 0.99 through lumpiness
    0.2, dips to 0.72-0.79, returns to 0.99 at 0.6, and ends at 0.40, where the
    blob carries a success. The shape-lock veto doesn't fire on this shape. Which
    of these behaviors hold for other shapes is set out below the figure.
@@ -1351,12 +1357,15 @@ The same walk over mesh seeds 0 to 12 separates what holds for every shape from
 what belongs to one realization:
 
 - Every walk starts at 0.00 px and ends 2.7 to 12.9 px off at lumpiness 0.7.
-  The growth is monotone on only a few shapes. On most, the error rises and
-  falls between steps, often where the primary technique changes among the
-  disc, the limb, and the blob.
+  The error never falls from one step to the next on 4 of the 13 shapes
+  (seeds 4, 5, 9, and 10). On the other 9, it rises and falls between steps,
+  often where the primary technique changes among the disc, the limb, and the
+  blob.
 - Every walk's confidence dips at least 0.3 below the clean step's 0.99
-  somewhere. Ten of the 13 walks also report 0.99 at some mismatched step, up to
-  7.7 px off, so the confidence doesn't track the error step by step.
+  somewhere. Ten of the 13 walks also report 0.99 at some mismatched step, so
+  the confidence doesn't track the error step by step. On 6 of them every such
+  step is within 1.8 px of the planted offset. The other 4 (seeds 2, 3, 4, and
+  10) report 0.99 at a step 2.4 to 7.7 px off.
 - At lumpiness 0.7 the shape-lock veto reports 4 of the 13 shapes
   ``conflicted`` (see :doc:`/dev_guide/dev_guide_orchestrator_ensemble`). The
   other 9 end in a ``success``, all but one at 0.56 confidence or below. That
@@ -1618,16 +1627,18 @@ Summary
   detector artifacts, and five symmetry-breaking structure axes) puts the
   95th percentile of recovery error at
   0.17 px cross-track and 0.82 px along-track on clean scenes.
-* Irregular (mesh) bodies navigate to half a pixel or better when the predicted
-  geometry matches the rendered one (mesh disc 0.00 px, limb 0.27 px, and
-  crescent 0.50 px, against 0.23 px for the ellipsoid crescent). When the
-  navigator predicts the wrong shape, the error grows with the rendered relief:
-  over 13 mesh shapes it ends 2.7 to 12.9 px off at an 8.75% RMS
-  non-ellipsoidal relief. The confidence follows the error only loosely. Every
-  walk dips at least 0.3 below the clean confidence somewhere, but most also
-  report 0.99 at some step several pixels off. At the extreme step the
-  shape-lock veto declines 4 of the 13 shapes, and one shape ends a
-  0.91-confidence success 12.7 px off, a known gap in the veto. When it
+* On the three mesh scenes whose predicted geometry matches the rendered one,
+  irregular (mesh) bodies navigate to half a pixel or better (mesh disc
+  0.00 px, limb 0.27 px, and crescent 0.50 px, against 0.23 px for the
+  ellipsoid crescent). Over 13 mesh shapes the crescent's error ranges from
+  0.35 to 0.61 px. When the navigator predicts the wrong shape, the error grows
+  with the rendered relief: over 13 mesh shapes it ends 2.7 to 12.9 px off at an
+  8.75% RMS non-ellipsoidal relief. The confidence follows the error only
+  loosely. Every walk dips at least 0.3 below the clean confidence somewhere.
+  Ten of the 13 also report 0.99 at some mismatched step, but only 4 of them do
+  so 2 px or more off (2.4 to 7.7 px). At the extreme step the shape-lock veto
+  declines 4 of the 13 shapes, and one shape ends a 0.91-confidence success
+  12.7 px off, a known gap in the veto. When it
   predicts the wrong pose the limb degrades to a confidently-wrong fix (or, for a
   wrong in-plane roll, far enough that it self-flags) while the pose-free blob
   holds -- the demote-to-pose-free behavior a chaotic rotator needs.
