@@ -37,6 +37,7 @@ from PyQt6.QtWidgets import (
 from spindoctor.cli.sim_editor.base import SimEditorBase
 from spindoctor.cli.sim_editor.widgets import make_dspin as _dspin
 from spindoctor.sim.forward.photometry import PHOTOMETRIC_LAWS
+from spindoctor.sim.forward.relief import MAX_LIMB_RELIEF_RMS
 
 # The photometric-law vocabulary, Lambert first so the combo opens on the
 # navigator-matched default when a scene enables the group without a law.
@@ -127,11 +128,14 @@ class BodyAppearanceMixin(SimEditorBase):
         form = QFormLayout(group)
         rms = _dspin(
             minimum=0.0,
-            maximum=1.0,
+            maximum=MAX_LIMB_RELIEF_RMS,
             decimals=4,
             step=0.005,
             value=float(p.get('limb_relief_rms', 0.0)),
-            tooltip='Fractional relief amplitude (0 disables the field).',
+            tooltip=(
+                'Relief RMS as a fraction of the body radius: 0.02 moves the limb of a '
+                '100-pixel-radius body by 2 pixels RMS (0 disables the field).'
+            ),
         )
         corr = _dspin(
             minimum=0.1,

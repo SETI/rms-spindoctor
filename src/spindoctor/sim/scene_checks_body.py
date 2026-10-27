@@ -23,6 +23,7 @@ from spindoctor.sim.forward.haze_structure import (
     SECTOR_REFERENCE_HALF_ANGLE_DEG,
 )
 from spindoctor.sim.forward.photometry import PHOTOMETRIC_LAWS
+from spindoctor.sim.forward.relief import MAX_LIMB_RELIEF_RMS
 from spindoctor.sim.scene_checks import (
     _check_optional_mapping_list,
     _check_optional_nonnegative_int,
@@ -251,6 +252,12 @@ def _check_body_relief_and_photometry(obj: dict[str, Any], *, label: str, source
     _check_optional_nonnegative_number(
         obj.get('limb_relief_rms'), f'{label}.limb_relief_rms', source=source
     )
+    relief_rms = obj.get('limb_relief_rms')
+    if relief_rms is not None and float(relief_rms) > MAX_LIMB_RELIEF_RMS:
+        raise SimSceneValidationError(
+            f'{source}: {label}.limb_relief_rms is a fraction of the body radius and '
+            f'must be at most {MAX_LIMB_RELIEF_RMS}; got {relief_rms}'
+        )
     _check_optional_positive_number(
         obj.get('limb_relief_corr_deg'), f'{label}.limb_relief_corr_deg', source=source
     )

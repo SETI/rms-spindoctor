@@ -52,6 +52,7 @@ from scipy import ndimage
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 
 __all__ = [
+    'MAX_LIMB_RELIEF_RMS',
     'MarchStats',
     'ReliefField',
     'march_shadows',
@@ -60,6 +61,11 @@ __all__ = [
     'synthesize_relief_field',
 ]
 
+# The largest limb-relief RMS (a fraction of the body radius) a scene may
+# command.  A realization's deepest valley reaches up to ~6x the RMS, so at
+# 0.1 the surface can already dip to 0.4 of the radius, and above ~0.16 it can
+# pass through the body's center, which a radial height field cannot describe.
+MAX_LIMB_RELIEF_RMS = 0.1
 # Relief harmonic degrees below this are zeroed (degree 1 = body
 # translation, degree 2 = ellipsoid shape aliasing).
 _LOW_DEGREE_CUTOFF = 3.0

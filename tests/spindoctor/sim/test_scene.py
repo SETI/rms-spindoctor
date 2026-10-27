@@ -178,6 +178,20 @@ def test_validate_sim_params_rejects_negative_limb_relief_rms() -> None:
         validate_sim_params(params)
 
 
+@pytest.mark.parametrize(('rms', 'accepted'), [(0.1, True), (0.1001, False), (0.4, False)])
+def test_validate_sim_params_bounds_limb_relief_rms_as_a_fraction_of_the_radius(
+    rms: float, accepted: bool
+) -> None:
+    """Relief RMS above 10% of the radius fails: its valleys could reach the center."""
+    params = _sim_params()
+    params['bodies'][0]['limb_relief_rms'] = rms
+    if accepted:
+        assert validate_sim_params(params) is params
+        return
+    with pytest.raises(SimSceneValidationError, match=r'limb_relief_rms .*at most 0\.1'):
+        validate_sim_params(params)
+
+
 def test_validate_sim_params_rejects_nonpositive_relief_corr() -> None:
     """A non-positive relief correlation length fails validation."""
     params = _sim_params()
