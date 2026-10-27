@@ -163,7 +163,10 @@ class RingEdgeNav(NavTechnique):
                 number greater than zero (zero is physically meaningless
                 against a half-pixel-quantized edge mask, and a
                 non-numeric value would otherwise fail far from the
-                config that caused it).
+                config that caused it), if ``coarse_sensor_margin_px`` is
+                not a non-negative integer, or if
+                ``spurious_min_edge_strength_fraction`` or
+                ``coarse_strength_keep_ratio`` lies outside ``[0, 1]``.
         """
         super().__init__(config=config)
         self.config.read_config()  # ensure cls.tuning is populated
@@ -203,12 +206,13 @@ class RingEdgeNav(NavTechnique):
         self._lm_tikhonov_alpha = float(self.tuning['lm_tikhonov_alpha'])
         self._gradient_ridge_refine = bool(self.tuning['gradient_ridge_refine'])
         self._rotation_at_edge_fraction = float(self.tuning['rotation_at_edge_fraction'])
-        self._coarse_sensor_margin_px = int(self.tuning['coarse_sensor_margin_px'])
-        if self._coarse_sensor_margin_px < 0:
+        raw_margin = self.tuning['coarse_sensor_margin_px']
+        if isinstance(raw_margin, bool) or not isinstance(raw_margin, int) or raw_margin < 0:
             raise ValueError(
                 'RingEdgeNav.coarse_sensor_margin_px must be a non-negative integer; '
-                f'got {self._coarse_sensor_margin_px!r}'
+                f'got {raw_margin!r}'
             )
+        self._coarse_sensor_margin_px = raw_margin
         self._spurious_min_edge_strength_fraction = float(
             self.tuning['spurious_min_edge_strength_fraction']
         )
