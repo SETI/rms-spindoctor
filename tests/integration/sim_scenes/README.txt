@@ -117,17 +117,19 @@ Fields
                                      (modulation / spokes / shadow) and moonlets
                                      blocks.  Each feature carries kind (ringlet
                                      | gap | edge | ramp | wave), tau, the
-                                     kind-specific shape keys (width, side,
-                                     wavelength, damping), navigable (false by
-                                     default: non-navigable features render as
+                                     kind-specific shape keys (width_px, side,
+                                     wavelength_px, damping_px), navigable (false
+                                     by default: non-navigable features render as
                                      confounders the navigator never learns), a
-                                     catalog orbit (a, ae, long_peri, rate_peri,
-                                     m >= 2 modes, edge_wave), an idealized
+                                     catalog orbit (a_px, ae_px, long_peri_deg,
+                                     rate_peri_deg_per_day, m >= 2 modes,
+                                     edge_wave), an idealized
                                      declared_orbit_sigma, and truth-side
                                      orbit_error / albedo / phase_g -- the
                                      planted ephemeris error displaces only the
                                      RENDERED feature; the navigator predicts
-                                     from the catalog orbit
+                                     from the catalog orbit.  See "Ring system
+                                     keys" below for every key's unit
   stars            (list, optional)  explicit star dicts (name, v, u, vmag,
                                      navigable, catalog_error_v/u, companion,
                                      delta_mag, ...).  navigable=false renders the
@@ -297,6 +299,73 @@ no-op.  For example:
 The key that used to cover all four meanings, incidence, is refused by the
 validator, and again at render time, with a message naming the mode's
 replacement and what that key holds on the mode.
+
+Ring system keys
+----------------
+
+Every length and angle key in the ring_system block names its unit.  A length
+ending in _px is in ring-plane pixels: a radial distance in the ring plane,
+measured in detector pixels.  It projects to that many image pixels along the
+line of nodes and is foreshortened by sin(B) across it, so on a face-on ring
+(opening angle 90) it is a plain image distance.  An angle ends in _deg, except
+the edge wave's damping_rad.  Every longitude is measured in the ring plane from
+the ascending node.
+
+  ring_system           phase_deg (the solar phase angle), range_km,
+                        km_per_pixel
+  geometry              center_v, center_u (pixel corners), opening_deg_obs,
+                        opening_deg_sun, node_deg
+  features[]            width_px, side, wavelength_px, damping_px (the shape
+                        keys; see the table below), tau, albedo, phase_g
+  features[].orbit      a_px (the semimajor axis, required), ae_px (the
+                        eccentricity times a_px), long_peri_deg,
+                        rate_peri_deg_per_day
+  orbit.modes[]         m (an integer of at least 2: mode 1 is the base
+                        ellipse), amp_px, long_peri_deg (the longitude of one
+                        of the mode's m pericenters); the edge radius is
+                        a_px - amp_px * cos(m * (lam - long_peri_deg))
+  orbit.edge_wave       amp_px, wavelength_px (an arc length along the orbit),
+                        damping_rad (at most 2), lam0_deg (the launch
+                        longitude)
+  orbit_error           delta_a_px, delta_ae_px, delta_long_peri_deg
+  declared_orbit_sigma  sigma_a_px, sigma_ae_px, sigma_long_peri_deg
+  azimuthal.modulation  amplitude, m (an integer of at least 1, default 1),
+                        lam_peak_deg (the longitude of a brightness peak)
+  azimuthal.shadow      start_deg, extent_deg, darkness
+  azimuthal.spokes      count, r_inner_px, r_outer_px, contrast, width_deg
+  moonlets[]            a_px, lam_deg, radius_px, amplitude, and a propeller
+                        {length_deg, width_px, contrast}
+
+A wave feature's damping_px and an edge wave's damping_rad are both the e-folding
+length of a damped wave's envelope.  The wave feature's runs radially, in
+ring-plane pixels outward of its launch radius.  The edge wave's runs in
+longitude, in radians downstream of its launch longitude.
+
+Each kind of feature takes its own radial shape keys.  Every kind requires kind,
+tau, and an orbit with orbit.a_px.  The validator rejects a shape key on a kind
+that does not take it, so a stray key cannot silently author a different
+feature.
+
+  key            ringlet   gap       edge      ramp      wave
+  width_px       required  required  rejected  required  rejected
+  side           rejected  rejected  optional  optional  rejected
+  wavelength_px  rejected  rejected  rejected  rejected  required
+  damping_px     rejected  rejected  rejected  rejected  required
+  default side   n/a       n/a       in        out       n/a
+
+An edge is a half-plane, not a line.  The features compose into one shared
+optical-depth map, and an edge fills every radius on one side of its orbit:
+side in (the default) carries its tau everywhere inward of a_px, and side out
+everywhere outward.  Two edges therefore cannot bound an annulus.  An edge with
+side out at 60 px and one with side in at 95 px overlap, and the would-be
+annulus is only the band where tau doubles.  Author a band as a ringlet (a_px 60,
+width_px 35), or carve it into a sheet with a gap.
+
+The validator refuses each retired ring key with a message naming its
+replacement: a, ae, long_peri, and rate_peri in an orbit; width, wavelength, and
+damping on a feature; amp and peri in an m-mode; amp, wavelength, damp, and lam0
+in an edge wave; phase_deg in the brightness modulation; r_inner and r_outer in
+the spokes; and a moonlet's a.
 
 Adding a scene
 --------------

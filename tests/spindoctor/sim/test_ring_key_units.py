@@ -9,10 +9,12 @@ retired-to-current map is the schema's ``RENAMED_RING_KEYS``.
 Which radial shape keys a feature kind takes is the schema's
 ``RING_KIND_SHAPE_KEYS``: the validator enforces exactly that table (a required
 key's absence fails, a rejected key's presence fails, an optional key validates
-either way).
+either way), and the per-kind tables in the developer guide and the scene
+README match it row for row.
 """
 
 import re
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -34,6 +36,10 @@ from spindoctor.sim.scene_schema import (
     RING_SIDE_DEFAULTS,
     ring_key_description,
 )
+
+_REPO = Path(__file__).resolve().parents[3]
+_DEV_GUIDE = _REPO / 'docs' / 'dev_guide' / 'dev_guide_simulator.rst'
+_SCENE_README = _REPO / 'tests' / 'integration' / 'sim_scenes' / 'README.txt'
 
 # The full retired -> current map, pinned so a rename cannot slip in or out of
 # the table unnoticed.
@@ -275,6 +281,24 @@ def test_every_side_default_belongs_to_a_kind_that_takes_side() -> None:
     """A side default exists exactly for the kinds that take side."""
     takers = {kind for kind, rules in RING_KIND_SHAPE_KEYS.items() if 'side' in rules}
     assert set(RING_SIDE_DEFAULTS) == takers
+
+
+def _expected_table_rows() -> list[list[str]]:
+    """The per-kind table's rows as whitespace-separated tokens, from the schema."""
+    kinds = list(RING_KIND_SHAPE_KEYS)
+    rows = [['key', *kinds]]
+    for key in RING_SHAPE_KEYS:
+        rows.append([key, *(RING_KIND_SHAPE_KEYS[kind].get(key, 'rejected') for kind in kinds)])
+    rows.append(['default', 'side', *(RING_SIDE_DEFAULTS.get(kind, 'n/a') for kind in kinds)])
+    return rows
+
+
+@pytest.mark.parametrize('path', [_DEV_GUIDE, _SCENE_README], ids=['dev_guide', 'scene_readme'])
+def test_the_documented_kind_table_matches_the_schema(path: Path) -> None:
+    """The developer guide and the scene README carry the schema's per-kind table."""
+    lines = [line.replace('``', '').split() for line in path.read_text().splitlines()]
+    for row in _expected_table_rows():
+        assert row in lines, f'{path.name} is missing the per-kind table row {row}'
 
 
 def test_an_m_mode_takes_m_of_at_least_2() -> None:

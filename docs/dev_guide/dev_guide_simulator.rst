@@ -1809,8 +1809,8 @@ Every feature contributes a radial tau profile anchored at its orbit radius
 ``r_e(lam)`` (which varies with longitude once the orbit is perturbed) and
 the profiles compose by addition, clipped at zero:
 
-- A ``ringlet`` carries its ``tau`` across a band of radial ``width``
-  outward of the orbit radius; a ``gap`` is the same band as a suppression,
+- A ``ringlet`` carries its ``tau`` across a band of radial width
+  ``width_px`` outward of the orbit radius; a ``gap`` is the same band as a suppression,
   carving tau out of whatever it overlaps -- so a gap is authored *into* a
   sheet, and its edges are the sheet's material ending, not a painted dark
   band.
@@ -1832,21 +1832,22 @@ the profiles compose by addition, clipped at zero:
   not a wave. Physically the wave propagates away from the resonance that
   launches it; there is nothing upstream to draw.
 
-Kind-specific shape keys are validated strictly (a ``width`` on an ``edge``
-fails loudly) because a stray shape key would silently author a different
-feature than intended.
+Kind-specific shape keys are validated strictly (a ``width_px`` on an
+``edge`` fails loudly) because a stray shape key would silently author a
+different feature than intended. :ref:`sim-ring-system` tabulates which kind
+takes which key.
 
 The catalog orbit: m-modes and edge waves
 -----------------------------------------
 
 A feature's ``orbit`` is catalog knowledge -- the navigator predicts from
 exactly what the renderer draws, unless a planted error (below) says
-otherwise. The base is the mode-1 precessing ellipse (``a``, ``ae``,
-``long_peri``, ``rate_peri`` applied across ``time - ring_epoch``). Two
-perturbation families ride on it:
+otherwise. The base is the mode-1 precessing ellipse (``a_px``, ``ae_px``,
+``long_peri_deg``, and ``rate_peri_deg_per_day`` applied across
+``time - ring_epoch``). Two perturbation families ride on it:
 
 - ``modes`` (m >= 2): resonantly forced radial modes,
-  ``r = a - amp cos(m (lam - peri))``. An ``m = 2`` mode is the classic
+  ``r = a_px - amp_px cos(m (lam - long_peri_deg))``. An ``m = 2`` mode is the classic
   two-lobed outer-B-ring edge shape; higher m gives the scalloped
   multi-lobed edges of resonantly confined ringlets. The mode longitudes
   live in the ring-plane frame (measured from the ascending node), so the
@@ -1854,13 +1855,13 @@ perturbation families ride on it:
 - ``edge_wave``: a satellite edge wave -- the Daphnis/Pan signature -- a
   radial sinusoid whose azimuthal wavelength is an arc length and whose
   amplitude decays exponentially *downstream* of the perturbing moon's
-  longitude ``lam0``. The same upstream clamp as the radial wave applies,
+  longitude ``lam0_deg``. The same upstream clamp as the radial wave applies,
   for the same reason: the decay envelope written as an exponential in
   downstream longitude grows without bound if evaluated upstream of the
   moon, so the longitude difference is wrapped into one forward turn.
   Immediately upstream of the moon the wave has then wrapped nearly a full
-  orbit and carries a factor ``exp(-2 pi / damp)`` of its launch amplitude
-  -- the validator caps ``damp`` at 2 radians, bounding that wrap-seam
+  orbit and carries a factor ``exp(-2 pi / damping_rad)`` of its launch
+  amplitude -- the validator caps ``damping_rad`` at 2, bounding that wrap-seam
   residual at ``exp(-pi)``, about 4.3% of the launch amplitude -- which is
   the periodic statement of "the wave trails the moon, it does not lead
   it".
@@ -2206,9 +2207,9 @@ ring, a couple of stars, and a planted offset the navigator must recover -- read
        - name: RINGLET
          kind: ringlet
          tau: 1.2
-         width: 8.0
+         width_px: 8.0
          navigable: true
-         orbit: {a: 90.0, ae: 6.0}
+         orbit: {a_px: 90.0, ae_px: 6.0}
    sky_counts: {density_factor: 40.0}
    stars:
      - {name: S1, v: 30.0, u: 60.0, vmag: 6.0}
@@ -2340,7 +2341,8 @@ Top-level fields
      - 0.0
      - idealized
      - Observation time and orbit epoch for ring-edge precession
-       (``rate_peri`` applies across ``time - ring_epoch``); catalog knowledge
+       (``rate_peri_deg_per_day`` applies across ``time - ring_epoch``); catalog
+       knowledge
        both sides read.
    * - ``fit_camera_rotation``
      - bool
@@ -2620,28 +2622,74 @@ center's range and the far arm passes behind it, gaps reveal the background
 instead of erasing it, and stars behind the ring attenuate by
 ``exp(-tau/mu)`` (a scene whose system overlaps a body must range both).
 
+**Units.** Every length and angle key in the block names its unit. A key
+ending in ``_px`` is in *ring-plane pixels*: a radial distance in the ring
+plane, measured in detector pixels. It projects to that many image pixels along
+the line of nodes and is foreshortened by ``sin(B)`` across it, so on a face-on
+ring it is a plain image distance. A key ending in ``_deg`` is in degrees, and
+the edge wave's ``damping_rad`` is in radians. Every longitude is measured in
+the ring plane from the ascending node. The validator refuses each retired
+unitless name (``a``, ``ae``, ``long_peri``, ``rate_peri``, ``width``,
+``wavelength``, ``damping``, a mode's ``amp`` and ``peri``, an edge wave's
+``amp``, ``wavelength``, ``damp``, and ``lam0``, the modulation's ``phase_deg``,
+the spokes' ``r_inner`` and ``r_outer``, and a moonlet's ``a``) with a message
+naming its replacement; ``RENAMED_RING_KEYS`` in
+:mod:`spindoctor.sim.scene_schema` holds the table, and the sim editor's
+tooltips read their descriptions from it.
+
 **Features.** Each entry of ``features`` carries ``name``, ``kind``, ``tau``
 (the normal optical depth), kind-specific shape keys, a catalog ``orbit``,
 and ``navigable`` (default false). The kinds and their shape keys:
 
-- ``ringlet`` — ``tau`` between the orbit radius and orbit + ``width``
-  (required); a ``gap`` is the same band as a tau suppression.
+- ``ringlet`` — ``tau`` between the orbit radius and orbit + ``width_px``;
+  a ``gap`` is the same band as a tau suppression.
 - ``edge`` — a one-sided step; ``side: 'in'`` (default) carries tau inside
   the orbit radius (a sheet bounded by its outer edge), ``'out'`` outside.
-- ``ramp`` — a linear transition across ``width``; ``side: 'out'`` (default)
-  rises from 0 at the orbit radius to ``tau`` at orbit + ``width``.
-- ``wave`` — a damped radial sinusoid launched at the orbit radius
-  (``wavelength`` and ``damping``, both required, in radial px): a
-  density-wave train, typically non-navigable clutter riding on a sheet.
+- ``ramp`` — a linear transition across ``width_px``; ``side: 'out'``
+  (default) rises from 0 at the orbit radius to ``tau`` at orbit +
+  ``width_px``.
+- ``wave`` — a damped radial sinusoid launched at the orbit radius, with
+  radial wavelength ``wavelength_px`` and radial e-folding length
+  ``damping_px``: a density-wave train, typically non-navigable clutter riding
+  on a sheet.
+
+Every kind requires ``kind``, ``tau``, and an ``orbit`` with ``orbit.a_px``.
+The shape keys follow one table, ``RING_KIND_SHAPE_KEYS`` in
+:mod:`spindoctor.sim.scene_schema`, which the validator enforces and the sim
+editor's kind switch follows (it grays out a widget the kind rejects, and the
+widget's tooltip says why). A rejected key fails validation.
+
+===================  ========  ========  ========  ========  ========
+key                  ringlet   gap       edge      ramp      wave
+===================  ========  ========  ========  ========  ========
+``width_px``         required  required  rejected  required  rejected
+``side``             rejected  rejected  optional  optional  rejected
+``wavelength_px``    rejected  rejected  rejected  rejected  required
+``damping_px``       rejected  rejected  rejected  rejected  required
+default side         n/a       n/a       in        out       n/a
+===================  ========  ========  ========  ========  ========
+
+An ``edge`` is a semi-infinite sheet: features compose as a union of radial
+half-planes over one shared optical-depth map, so ``side: 'in'`` fills every
+radius inward of ``a_px``. Two edges therefore cannot bound an annulus. They
+overlap, and the would-be annulus is only where tau doubles. A band is a
+``ringlet``, or a ``gap`` carved into a sheet.
 
 The ``orbit`` map is the catalog orbit: the mode-1 precessing ellipse
-(``a``, ``ae``, ``long_peri``, ``rate_peri``, applied across the scene-level
-``time`` minus ``ring_epoch``), optional m >= 2 ``modes``
-(``{m, amp, peri}``: ``r = a - amp*cos(m*(lam - peri))``, the resonantly
-forced edge shape), and an optional satellite ``edge_wave``
-(``{amp, wavelength, damp, lam0}``: a damped sinusoid downstream of the
-perturbing moon's longitude ``lam0``, with ``damp`` in radians and the sine
-argument arc length over ``wavelength``).
+(``a_px``, ``ae_px`` (the eccentricity times ``a_px``), ``long_peri_deg``, and
+``rate_peri_deg_per_day``, applied across the scene-level ``time`` minus
+``ring_epoch``), optional ``modes`` (``{m, amp_px, long_peri_deg}``:
+``r = a_px - amp_px*cos(m*(lam - long_peri_deg))``, the resonantly forced edge
+shape, where ``m`` is an integer of at least 2 because mode 1 is the base
+ellipse and ``long_peri_deg`` is the longitude of one of the mode's ``m``
+pericenters), and an optional satellite ``edge_wave``
+(``{amp_px, wavelength_px, damping_rad, lam0_deg}``: a damped sinusoid
+downstream of the perturbing moon's longitude ``lam0_deg``, whose sine argument
+is the arc length along the orbit over ``wavelength_px``). The edge wave's
+``damping_rad`` and a ``wave`` feature's ``damping_px`` are both the e-folding
+length of a damped wave's envelope. The feature's runs radially, in ring-plane
+pixels outward of its launch radius. The edge wave's runs in longitude, in
+radians downstream of its launch longitude, and is at most 2.
 
 **Planted orbit error.** A feature's truth-side ``orbit_error`` map
 (``delta_a_px``, ``delta_ae_px``, ``delta_long_peri_deg``) displaces the
@@ -2657,14 +2705,16 @@ forward-scatters) are photometric truth.
 
 **Azimuthal clutter and moonlets (truth).** The ``azimuthal`` block scales
 the emitted intensity only, never tau: ``modulation``
-(``{amplitude, m, phase_deg}``, the self-gravity-wake asymmetry), ``shadow``
-(``{start_deg, extent_deg, darkness}``, a planet-shadow wedge -- a strong
-non-navigable edge crossing every feature), and ``spokes``
-(``{count, r_inner, r_outer, contrast, width_deg}``, a seeded field of
+(``{amplitude, m, lam_peak_deg}``, the self-gravity-wake asymmetry
+``1 + amplitude*cos(m*(lam - lam_peak_deg))``, where ``m`` is an integer of at
+least 1, default 1, and ``lam_peak_deg`` the longitude of a brightness peak),
+``shadow`` (``{start_deg, extent_deg, darkness}``, a planet-shadow wedge -- a
+strong non-navigable edge crossing every feature), and ``spokes``
+(``{count, r_inner_px, r_outer_px, contrast, width_deg}``, a seeded field of
 azimuthally sharp, radially broad wedges drawn from the
 ``scene_radiance/ring_system/spokes`` stream; negative contrast for the dark
 low-phase appearance). The ``moonlets`` list embeds opaque discs at the
-ring's depth (``{a, lam_deg, radius_px, amplitude}``), each optionally
+ring's depth (``{a_px, lam_deg, radius_px, amplitude}``), each optionally
 carrying a stylized ``propeller`` tau disturbance
 (``{length_deg, width_px, contrast}``): blob/star confounders sitting
 exactly on the navigable features.
