@@ -36,6 +36,21 @@ from PyQt6.QtWidgets import (
 
 from spindoctor.cli.sim_editor.base import SimEditorBase
 from spindoctor.cli.sim_editor.widgets import make_dspin as _dspin
+from spindoctor.sim.scene_schema import ring_key_description
+
+
+def _key_tooltip(block: str, key: str) -> str:
+    """A ring widget's tooltip: its scene key and what the key holds.
+
+    Parameters:
+        block: The key's block path in the schema's rename table.
+        key: The scene key the widget writes.
+
+    Returns:
+        ``'<key>: <description>.'``, the description read from the schema's
+        rename table, the same one the validator's rename messages use.
+    """
+    return f'{key}: {ring_key_description(block, key)}.'
 
 
 def _as_map(value: Any) -> dict[str, Any]:
@@ -115,11 +130,12 @@ class RingAdvancedMixin(SimEditorBase):
     # ---- Orbit m-modes ----
 
     def _build_ring_modes_group(self, w: QWidget, idx: int, p: dict[str, Any]) -> QGroupBox:
-        """Build the orbit m-modes group (a list of ``{m, amp, peri}`` rows)."""
+        """Build the orbit m-modes group (a list of ``{m, amp_px, long_peri_deg}`` rows)."""
         group = QGroupBox('Orbit m-modes')
         group.setToolTip(
             'Resonantly forced radial modes on the catalog orbit: '
-            'r = a - amp*cos(m*(lam - peri)). No rows leaves the key absent.'
+            'r = a_px - amp_px*cos(m*(lam - long_peri_deg)), with m >= 2 (mode 1 '
+            'is the base ellipse). No rows leaves the key absent.'
         )
         outer = QVBoxLayout(group)
         rows_layout = QVBoxLayout()
@@ -140,25 +156,29 @@ class RingAdvancedMixin(SimEditorBase):
         container = QWidget()
         row = QHBoxLayout(container)
         row.setContentsMargins(0, 0, 0, 0)
+        block = 'ring_system.features.orbit.modes'
         m_spin = QSpinBox()
         m_spin.setRange(2, 50)
         m_spin.setValue(int(entry.get('m', 2)))
+        m_spin.setToolTip('m: the mode number, an integer of at least 2.')
         amp = _dspin(
             minimum=0.0,
             maximum=1000.0,
             decimals=2,
             step=0.5,
-            value=float(entry.get('amp', 2.0)),
+            value=float(entry.get('amp_px', 2.0)),
+            tooltip=_key_tooltip(block, 'amp_px'),
         )
         peri = _dspin(
             minimum=-360.0,
             maximum=360.0,
             decimals=1,
             step=5.0,
-            value=float(entry.get('peri', 0.0)),
+            value=float(entry.get('long_peri_deg', 0.0)),
+            tooltip=_key_tooltip(block, 'long_peri_deg'),
         )
         remove_btn = QPushButton('Remove')
-        for label, widget in (('m', m_spin), ('amp', amp), ('peri', peri)):
+        for label, widget in (('m', m_spin), ('amp (px)', amp), ('long_peri (deg)', peri)):
             row.addWidget(QLabel(label))
             row.addWidget(widget)
         row.addWidget(remove_btn)
@@ -176,8 +196,8 @@ class RingAdvancedMixin(SimEditorBase):
         return [
             {
                 'm': int(r.m_spin.value()),
-                'amp': float(r.amp_spin.value()),
-                'peri': float(r.peri_spin.value()),
+                'amp_px': float(r.amp_spin.value()),
+                'long_peri_deg': float(r.peri_spin.value()),
             }
             for r in rows
         ]
@@ -217,14 +237,15 @@ class RingAdvancedMixin(SimEditorBase):
     # ---- Satellite edge wave ----
 
     def _build_ring_edge_wave_group(self, w: QWidget, idx: int, p: dict[str, Any]) -> QGroupBox:
-        """Build the satellite edge-wave group (amp, wavelength, damp, lam0)."""
+        """Build the edge-wave group (amp_px, wavelength_px, damping_rad, lam0_deg)."""
         orbit = _as_map(p.get('orbit'))
         wave = _as_map(orbit.get('edge_wave'))
+        block = 'ring_system.features.orbit.edge_wave'
         group = QGroupBox('Satellite edge wave')
         group.setCheckable(True)
         group.setToolTip(
             'A damped radial wave on the catalog orbit downstream of the '
-            'perturbing moon at lam0. Unchecked leaves the key absent.'
+            'perturbing moon at lam0_deg. Unchecked leaves the key absent.'
         )
         form = QFormLayout(group)
         amp = _dspin(
@@ -232,26 +253,26 @@ class RingAdvancedMixin(SimEditorBase):
             maximum=1000.0,
             decimals=2,
             step=0.5,
-            value=float(wave.get('amp', 1.0)),
-            tooltip='Radial amplitude at the launch longitude, in px.',
+            value=float(wave.get('amp_px', 1.0)),
+            tooltip=_key_tooltip(block, 'amp_px'),
         )
         wavelength = _dspin(
             minimum=0.1,
             maximum=10000.0,
             decimals=1,
             step=1.0,
-            value=float(wave.get('wavelength', 8.0)),
-            tooltip='Azimuthal wavelength as an arc length, in px.',
+            value=float(wave.get('wavelength_px', 8.0)),
+            tooltip=_key_tooltip(block, 'wavelength_px'),
         )
         damp = _dspin(
             minimum=0.01,
             maximum=2.0,
             decimals=3,
             step=0.1,
-            value=float(wave.get('damp', 0.5)),
+            value=float(wave.get('damping_rad', 0.5)),
             tooltip=(
-                'Azimuthal damping constant in RADIANS of downstream longitude '
-                '(the validator caps it at 2 to keep the modular wrap seam small).'
+                f'{_key_tooltip(block, "damping_rad")} The validator caps it at 2 '
+                'to keep the modular wrap seam small.'
             ),
         )
         lam0 = _dspin(
@@ -259,8 +280,8 @@ class RingAdvancedMixin(SimEditorBase):
             maximum=360.0,
             decimals=1,
             step=5.0,
-            value=float(wave.get('lam0', 0.0)),
-            tooltip='Launch longitude (the perturbing moon) in ring-plane degrees.',
+            value=float(wave.get('lam0_deg', 0.0)),
+            tooltip=f"{_key_tooltip(block, 'lam0_deg')} The perturbing moon's longitude.",
         )
         form.addRow('Amplitude (px):', amp)
         form.addRow('Wavelength (px):', wavelength)
@@ -268,12 +289,14 @@ class RingAdvancedMixin(SimEditorBase):
         form.addRow('Launch lam0 (deg):', lam0)
         group.setChecked('edge_wave' in orbit)
         group.toggled.connect(lambda on, i=idx: self._on_ring_edge_wave_toggled(i, on))
-        amp.valueChanged.connect(lambda v, i=idx: self._on_ring_edge_wave_value(i, 'amp', v))
+        amp.valueChanged.connect(lambda v, i=idx: self._on_ring_edge_wave_value(i, 'amp_px', v))
         wavelength.valueChanged.connect(
-            lambda v, i=idx: self._on_ring_edge_wave_value(i, 'wavelength', v)
+            lambda v, i=idx: self._on_ring_edge_wave_value(i, 'wavelength_px', v)
         )
-        damp.valueChanged.connect(lambda v, i=idx: self._on_ring_edge_wave_value(i, 'damp', v))
-        lam0.valueChanged.connect(lambda v, i=idx: self._on_ring_edge_wave_value(i, 'lam0', v))
+        damp.valueChanged.connect(
+            lambda v, i=idx: self._on_ring_edge_wave_value(i, 'damping_rad', v)
+        )
+        lam0.valueChanged.connect(lambda v, i=idx: self._on_ring_edge_wave_value(i, 'lam0_deg', v))
         w.edge_wave_group = group  # type: ignore[attr-defined]
         w.edge_wave_amp_spin = amp  # type: ignore[attr-defined]
         w.edge_wave_wavelength_spin = wavelength  # type: ignore[attr-defined]
@@ -290,10 +313,10 @@ class RingAdvancedMixin(SimEditorBase):
         orbit = feature.setdefault('orbit', {})
         if checked:
             orbit['edge_wave'] = {
-                'amp': float(w.edge_wave_amp_spin.value()),  # type: ignore[attr-defined]
-                'wavelength': float(w.edge_wave_wavelength_spin.value()),  # type: ignore[attr-defined]
-                'damp': float(w.edge_wave_damp_spin.value()),  # type: ignore[attr-defined]
-                'lam0': float(w.edge_wave_lam0_spin.value()),  # type: ignore[attr-defined]
+                'amp_px': float(w.edge_wave_amp_spin.value()),  # type: ignore[attr-defined]
+                'wavelength_px': float(w.edge_wave_wavelength_spin.value()),  # type: ignore[attr-defined]
+                'damping_rad': float(w.edge_wave_damp_spin.value()),  # type: ignore[attr-defined]
+                'lam0_deg': float(w.edge_wave_lam0_spin.value()),  # type: ignore[attr-defined]
             }
         else:
             orbit.pop('edge_wave', None)
@@ -507,18 +530,18 @@ class RingAdvancedMixin(SimEditorBase):
         mod_m = QSpinBox()
         mod_m.setRange(1, 50)
         mod_m.setValue(int(modulation.get('m', 1)))
-        mod_m.setToolTip('Azimuthal wavenumber (1 = one bright arc per orbit).')
+        mod_m.setToolTip('Azimuthal wavenumber, an integer of at least 1 (1 = one bright arc).')
         mod_phase = _dspin(
             minimum=-360.0,
             maximum=360.0,
             decimals=1,
             step=5.0,
-            value=float(modulation.get('phase_deg', 0.0)),
-            tooltip='Longitude of the modulation maximum, in ring-plane degrees.',
+            value=float(modulation.get('lam_peak_deg', 0.0)),
+            tooltip=_key_tooltip('ring_system.azimuthal.modulation', 'lam_peak_deg'),
         )
         mod_form.addRow('Amplitude:', mod_amplitude)
         mod_form.addRow('Wavenumber m:', mod_m)
-        mod_form.addRow('Phase (deg):', mod_phase)
+        mod_form.addRow('Peak longitude (deg):', mod_phase)
         mod_group.setChecked('modulation' in azimuthal)
         outer.addWidget(mod_group)
 
@@ -569,16 +592,22 @@ class RingAdvancedMixin(SimEditorBase):
             maximum=100000.0,
             decimals=1,
             step=5.0,
-            value=float(spokes.get('r_inner', 50.0)),
-            tooltip='Inner radial extent of the spokes in px (must be below r_outer).',
+            value=float(spokes.get('r_inner_px', 50.0)),
+            tooltip=(
+                f'{_key_tooltip("ring_system.azimuthal.spokes", "r_inner_px")} '
+                'It must be below r_outer_px.'
+            ),
         )
         spokes_r_outer = _dspin(
             minimum=0.1,
             maximum=100000.0,
             decimals=1,
             step=5.0,
-            value=float(spokes.get('r_outer', 80.0)),
-            tooltip='Outer radial extent of the spokes in px (must exceed r_inner).',
+            value=float(spokes.get('r_outer_px', 80.0)),
+            tooltip=(
+                f'{_key_tooltip("ring_system.azimuthal.spokes", "r_outer_px")} '
+                'It must exceed r_inner_px.'
+            ),
         )
         spokes_width = _dspin(
             minimum=0.1,
@@ -612,7 +641,7 @@ class RingAdvancedMixin(SimEditorBase):
             lambda v: self._on_ring_azimuthal_value('modulation', 'm', int(v))
         )
         mod_phase.valueChanged.connect(
-            lambda v: self._on_ring_azimuthal_value('modulation', 'phase_deg', float(v))
+            lambda v: self._on_ring_azimuthal_value('modulation', 'lam_peak_deg', float(v))
         )
         shadow_group.toggled.connect(self._on_ring_shadow_toggled)
         shadow_start.valueChanged.connect(
@@ -629,10 +658,10 @@ class RingAdvancedMixin(SimEditorBase):
             lambda v: self._on_ring_azimuthal_value('spokes', 'count', int(v))
         )
         spokes_r_inner.valueChanged.connect(
-            lambda v: self._on_ring_azimuthal_value('spokes', 'r_inner', float(v))
+            lambda v: self._on_ring_azimuthal_value('spokes', 'r_inner_px', float(v))
         )
         spokes_r_outer.valueChanged.connect(
-            lambda v: self._on_ring_azimuthal_value('spokes', 'r_outer', float(v))
+            lambda v: self._on_ring_azimuthal_value('spokes', 'r_outer_px', float(v))
         )
         spokes_width.valueChanged.connect(
             lambda v: self._on_ring_azimuthal_value('spokes', 'width_deg', float(v))
@@ -682,7 +711,7 @@ class RingAdvancedMixin(SimEditorBase):
             {
                 'amplitude': float(w.modulation_amplitude_spin.value()),  # type: ignore[attr-defined]
                 'm': int(w.modulation_m_spin.value()),  # type: ignore[attr-defined]
-                'phase_deg': float(w.modulation_phase_spin.value()),  # type: ignore[attr-defined]
+                'lam_peak_deg': float(w.modulation_phase_spin.value()),  # type: ignore[attr-defined]
             }
             if checked
             else None
@@ -713,8 +742,8 @@ class RingAdvancedMixin(SimEditorBase):
         block = (
             {
                 'count': int(w.spokes_count_spin.value()),  # type: ignore[attr-defined]
-                'r_inner': float(w.spokes_r_inner_spin.value()),  # type: ignore[attr-defined]
-                'r_outer': float(w.spokes_r_outer_spin.value()),  # type: ignore[attr-defined]
+                'r_inner_px': float(w.spokes_r_inner_spin.value()),  # type: ignore[attr-defined]
+                'r_outer_px': float(w.spokes_r_outer_spin.value()),  # type: ignore[attr-defined]
                 'width_deg': float(w.spokes_width_spin.value()),  # type: ignore[attr-defined]
                 'contrast': float(w.spokes_contrast_spin.value()),  # type: ignore[attr-defined]
             }
@@ -773,8 +802,8 @@ class RingAdvancedMixin(SimEditorBase):
             maximum=100000.0,
             decimals=1,
             step=5.0,
-            value=float(entry.get('a', 60.0)),
-            tooltip='Orbit radius in ring-plane px.',
+            value=float(entry.get('a_px', 60.0)),
+            tooltip=_key_tooltip('ring_system.moonlets', 'a_px'),
         )
         lam_spin = _dspin(
             minimum=-360.0,
@@ -872,7 +901,7 @@ class RingAdvancedMixin(SimEditorBase):
         entries: list[dict[str, Any]] = []
         for r in rows:
             entry: dict[str, Any] = {
-                'a': float(r.a_spin.value()),
+                'a_px': float(r.a_spin.value()),
                 'lam_deg': float(r.lam_spin.value()),
                 'radius_px': float(r.radius_spin.value()),
                 'amplitude': float(r.amplitude_spin.value()),

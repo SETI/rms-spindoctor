@@ -118,13 +118,19 @@ _TRUTH_SAMPLES: dict[str, Any] = {
         'delta_long_peri_deg': 10.0,
     },
     'ring_system.azimuthal': {
-        'modulation': {'amplitude': 0.2, 'm': 2, 'phase_deg': 30.0},
+        'modulation': {'amplitude': 0.2, 'm': 2, 'lam_peak_deg': 30.0},
         'shadow': {'start_deg': 100.0, 'extent_deg': 40.0, 'darkness': 0.9},
-        'spokes': {'count': 3, 'r_inner': 3.0, 'r_outer': 6.0, 'contrast': -0.4, 'width_deg': 12.0},
+        'spokes': {
+            'count': 3,
+            'r_inner_px': 3.0,
+            'r_outer_px': 6.0,
+            'contrast': -0.4,
+            'width_deg': 12.0,
+        },
     },
     'ring_system.moonlets': [
         {
-            'a': 6.0,
+            'a_px': 6.0,
             'lam_deg': 45.0,
             'radius_px': 1.0,
             'amplitude': 0.4,
@@ -231,9 +237,14 @@ def _truth_exercising_scene() -> dict[str, Any]:
                     'name': 'F1',
                     'kind': 'ringlet',
                     'tau': 1.2,
-                    'width': 3.0,
+                    'width_px': 3.0,
                     'navigable': True,
-                    'orbit': {'a': 4.0, 'ae': 0.0, 'long_peri': 0.0, 'rate_peri': 0.0},
+                    'orbit': {
+                        'a_px': 4.0,
+                        'ae_px': 0.0,
+                        'long_peri_deg': 0.0,
+                        'rate_peri_deg_per_day': 0.0,
+                    },
                     'declared_orbit_sigma': {'sigma_a_px': 0.5},
                     'albedo': _TRUTH_SAMPLES['ring_system.features.albedo'],
                     'phase_g': _TRUTH_SAMPLES['ring_system.features.phase_g'],
@@ -343,7 +354,7 @@ def test_idealized_keys_survive_the_filter() -> None:
     assert nav['bodies'][0]['range_km'] == 500000.0
     star = nav['stars'][0]
     assert star['vmag'] == 4.0
-    assert nav['ring_system']['features'][0]['orbit']['a'] == 4.0
+    assert nav['ring_system']['features'][0]['orbit']['a_px'] == 4.0
 
 
 def test_ring_system_geometry_crosses_with_the_navigable_feature() -> None:
@@ -366,7 +377,12 @@ def test_ring_system_geometry_crosses_with_the_navigable_feature() -> None:
     assert len(features) == 1
     assert features[0]['name'] == 'F1'
     assert features[0]['kind'] == 'ringlet'
-    assert features[0]['orbit'] == {'a': 4.0, 'ae': 0.0, 'long_peri': 0.0, 'rate_peri': 0.0}
+    assert features[0]['orbit'] == {
+        'a_px': 4.0,
+        'ae_px': 0.0,
+        'long_peri_deg': 0.0,
+        'rate_peri_deg_per_day': 0.0,
+    }
     assert features[0]['declared_orbit_sigma'] == {'sigma_a_px': 0.5}
     assert features[0]['navigable'] is True
 
@@ -384,8 +400,8 @@ def test_non_navigable_ring_feature_is_dropped_but_still_renders() -> None:
         'name': 'CONFOUNDER',
         'kind': 'ringlet',
         'tau': 2.0,
-        'width': 2.0,
-        'orbit': {'a': 8.0, 'ae': 0.0, 'long_peri': 0.0, 'rate_peri': 0.0},
+        'width_px': 2.0,
+        'orbit': {'a_px': 8.0, 'ae_px': 0.0, 'long_peri_deg': 0.0, 'rate_peri_deg_per_day': 0.0},
     }
     with_confounder = _truth_exercising_scene()
     with_confounder['ring_system']['features'] = [
@@ -510,6 +526,6 @@ def test_nav_params_values_are_isolated_copies() -> None:
     scene = _truth_exercising_scene()
     nav = build_nav_params(scene)
     nav['bodies'][0]['axis1'] = 999.0
-    nav['ring_system']['features'][0]['orbit']['a'] = 999.0
+    nav['ring_system']['features'][0]['orbit']['a_px'] = 999.0
     assert scene['bodies'][0]['axis1'] == 30.0
-    assert scene['ring_system']['features'][0]['orbit']['a'] == 4.0
+    assert scene['ring_system']['features'][0]['orbit']['a_px'] == 4.0

@@ -65,9 +65,9 @@ def _ringlet(**extra: Any) -> dict[str, Any]:
         'name': 'BAND',
         'kind': 'ringlet',
         'tau': 2.0,
-        'width': 12.0,
+        'width_px': 12.0,
         'navigable': True,
-        'orbit': {'a': 45.0, 'ae': 4.0, 'long_peri': 30.0, 'rate_peri': 0.0},
+        'orbit': {'a_px': 45.0, 'ae_px': 4.0, 'long_peri_deg': 30.0, 'rate_peri_deg_per_day': 0.0},
     }
     feature.update(extra)
     return feature
@@ -220,7 +220,7 @@ def test_edge_kind_predicts_a_single_boundary() -> None:
         'tau': 1.5,
         'side': 'in',
         'navigable': True,
-        'orbit': {'a': 45.0},
+        'orbit': {'a_px': 45.0},
     }
     features = _nav_features(_obs(_scene(feature)))
     kinds = [f.feature_type.name for f in features]

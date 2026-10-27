@@ -70,9 +70,14 @@ def test_orbit_mapping_parses_modes_and_edge_wave() -> None:
     """The shared parser reads the idealized orbit block with its defaults."""
     orbit = ring_orbit_from_mapping(
         {
-            'a': 40.0,
-            'modes': [{'m': 2, 'amp': 1.5, 'peri': 70.0}],
-            'edge_wave': {'amp': 1.0, 'wavelength': 8.0, 'damp': 0.5, 'lam0': 90.0},
+            'a_px': 40.0,
+            'modes': [{'m': 2, 'amp_px': 1.5, 'long_peri_deg': 70.0}],
+            'edge_wave': {
+                'amp_px': 1.0,
+                'wavelength_px': 8.0,
+                'damping_rad': 0.5,
+                'lam0_deg': 90.0,
+            },
         }
     )
     assert orbit.a == 40.0
@@ -85,11 +90,16 @@ def test_scaled_orbit_scales_radial_quantities_only() -> None:
     """Oversampling scales radii and radial amplitudes; angles are untouched."""
     orbit = ring_orbit_from_mapping(
         {
-            'a': 40.0,
-            'ae': 2.0,
-            'long_peri': 15.0,
-            'modes': [{'m': 2, 'amp': 1.5, 'peri': 70.0}],
-            'edge_wave': {'amp': 1.0, 'wavelength': 8.0, 'damp': 0.5, 'lam0': 90.0},
+            'a_px': 40.0,
+            'ae_px': 2.0,
+            'long_peri_deg': 15.0,
+            'modes': [{'m': 2, 'amp_px': 1.5, 'long_peri_deg': 70.0}],
+            'edge_wave': {
+                'amp_px': 1.0,
+                'wavelength_px': 8.0,
+                'damping_rad': 0.5,
+                'lam0_deg': 90.0,
+            },
         }
     ).scaled(4.0)
     assert orbit.a == 160.0
@@ -232,7 +242,7 @@ def _probe(tau_map: NDArrayFloatType, radius: int) -> float:
 
 def test_edge_kind_side_in_carries_tau_inside() -> None:
     """side 'in': tau for r <= r_edge, zero outside, one-pixel transition."""
-    tau_map = _tau_map([{'kind': 'edge', 'tau': 1.5, 'side': 'in', 'orbit': {'a': 20.0}}])
+    tau_map = _tau_map([{'kind': 'edge', 'tau': 1.5, 'side': 'in', 'orbit': {'a_px': 20.0}}])
     assert _probe(tau_map, 10) == pytest.approx(1.5, rel=1e-12)
     assert _probe(tau_map, 18) == pytest.approx(1.5, rel=1e-12)
     assert _probe(tau_map, 22) == 0.0
@@ -242,21 +252,21 @@ def test_edge_kind_side_in_carries_tau_inside() -> None:
 
 def test_edge_kind_side_out_carries_tau_outside() -> None:
     """side 'out': tau for r >= r_edge, zero inside."""
-    tau_map = _tau_map([{'kind': 'edge', 'tau': 0.8, 'side': 'out', 'orbit': {'a': 20.0}}])
+    tau_map = _tau_map([{'kind': 'edge', 'tau': 0.8, 'side': 'out', 'orbit': {'a_px': 20.0}}])
     assert _probe(tau_map, 30) == pytest.approx(0.8, rel=1e-12)
     assert _probe(tau_map, 10) == 0.0
 
 
 def test_edge_kind_defaults_to_side_in() -> None:
     """An unstated side is 'in' (a sheet bounded by its outer edge)."""
-    tau_map = _tau_map([{'kind': 'edge', 'tau': 0.8, 'orbit': {'a': 20.0}}])
+    tau_map = _tau_map([{'kind': 'edge', 'tau': 0.8, 'orbit': {'a_px': 20.0}}])
     assert _probe(tau_map, 10) == pytest.approx(0.8, rel=1e-12)
     assert _probe(tau_map, 30) == 0.0
 
 
 def test_ramp_rises_linearly_outward() -> None:
     """side 'out': tau * (r - a)/w across the band, zero outside it."""
-    feature = {'kind': 'ramp', 'tau': 1.0, 'width': 20.0, 'side': 'out', 'orbit': {'a': 10.0}}
+    feature = {'kind': 'ramp', 'tau': 1.0, 'width_px': 20.0, 'side': 'out', 'orbit': {'a_px': 10.0}}
     tau_map = _tau_map([feature])
     assert _probe(tau_map, 15) == pytest.approx(0.25, rel=1e-9)
     assert _probe(tau_map, 25) == pytest.approx(0.75, rel=1e-9)
@@ -266,7 +276,7 @@ def test_ramp_rises_linearly_outward() -> None:
 
 def test_ramp_side_in_mirrors_the_profile() -> None:
     """side 'in': tau at the orbit edge falling to zero across the band."""
-    feature = {'kind': 'ramp', 'tau': 1.0, 'width': 20.0, 'side': 'in', 'orbit': {'a': 10.0}}
+    feature = {'kind': 'ramp', 'tau': 1.0, 'width_px': 20.0, 'side': 'in', 'orbit': {'a_px': 10.0}}
     tau_map = _tau_map([feature])
     assert _probe(tau_map, 15) == pytest.approx(0.75, rel=1e-9)
     assert _probe(tau_map, 25) == pytest.approx(0.25, rel=1e-9)
@@ -277,9 +287,9 @@ def _wave_feature(tau: float, wavelength: float, damping: float) -> dict[str, An
     return {
         'kind': 'wave',
         'tau': tau,
-        'wavelength': wavelength,
-        'damping': damping,
-        'orbit': {'a': 12.0},
+        'wavelength_px': wavelength,
+        'damping_px': damping,
+        'orbit': {'a_px': 12.0},
     }
 
 
@@ -306,7 +316,7 @@ def test_wave_is_exactly_zero_upstream_of_the_launch_radius() -> None:
 
 def test_wave_negative_lobes_subtract_from_a_sheet() -> None:
     """A trough carved into a carrying sheet lowers the composed tau."""
-    sheet = {'kind': 'edge', 'tau': 1.0, 'side': 'out', 'orbit': {'a': 5.0}}
+    sheet = {'kind': 'edge', 'tau': 1.0, 'side': 'out', 'orbit': {'a_px': 5.0}}
     tau, wavelength, damping = 0.4, 8.0, 16.0
     tau_map = _tau_map([sheet, _wave_feature(tau, wavelength, damping)])
     # x = 6 px: sin(3*pi/2) = -1, a full trough.
@@ -330,7 +340,7 @@ def test_standalone_wave_clips_at_zero_tau() -> None:
 
 def test_orbit_error_displaces_the_rendered_feature() -> None:
     """delta_a_px moves the drawn band; the catalog orbit stays where it was."""
-    feature = {'kind': 'ringlet', 'tau': 1.0, 'width': 4.0, 'orbit': {'a': 15.0}}
+    feature = {'kind': 'ringlet', 'tau': 1.0, 'width_px': 4.0, 'orbit': {'a_px': 15.0}}
     planted = dict(feature, orbit_error={'delta_a_px': 5.0})
     catalog = _tau_map([feature])
     errored = _tau_map([planted])
@@ -345,8 +355,8 @@ def test_orbit_error_rotates_the_pericenter() -> None:
     feature = {
         'kind': 'ringlet',
         'tau': 1.0,
-        'width': 3.0,
-        'orbit': {'a': 15.0, 'ae': 6.0, 'long_peri': 0.0},
+        'width_px': 3.0,
+        'orbit': {'a_px': 15.0, 'ae_px': 6.0, 'long_peri_deg': 0.0},
     }
     rotated = dict(feature, orbit_error={'delta_long_peri_deg': 180.0})
     base = _tau_map([feature])
@@ -356,8 +366,8 @@ def test_orbit_error_rotates_the_pericenter() -> None:
             {
                 'kind': 'ringlet',
                 'tau': 1.0,
-                'width': 3.0,
-                'orbit': {'a': 15.0, 'ae': 6.0, 'long_peri': 180.0},
+                'width_px': 3.0,
+                'orbit': {'a_px': 15.0, 'ae_px': 6.0, 'long_peri_deg': 180.0},
             }
         ]
     )
@@ -370,11 +380,16 @@ def test_orbit_error_ae_clamps_at_a_circular_edge() -> None:
     feature = {
         'kind': 'ringlet',
         'tau': 1.0,
-        'width': 3.0,
-        'orbit': {'a': 15.0, 'ae': 2.0},
+        'width_px': 3.0,
+        'orbit': {'a_px': 15.0, 'ae_px': 2.0},
         'orbit_error': {'delta_ae_px': -5.0},
     }
-    circular = {'kind': 'ringlet', 'tau': 1.0, 'width': 3.0, 'orbit': {'a': 15.0, 'ae': 0.0}}
+    circular = {
+        'kind': 'ringlet',
+        'tau': 1.0,
+        'width_px': 3.0,
+        'orbit': {'a_px': 15.0, 'ae_px': 0.0},
+    }
     np.testing.assert_allclose(_tau_map([feature]), _tau_map([circular]), atol=1e-12)
 
 
@@ -418,8 +433,8 @@ def test_m_mode_peri_lives_in_the_ring_plane_frame() -> None:
     feature = {
         'kind': 'ringlet',
         'tau': 1.5,
-        'width': width,
-        'orbit': {'a': a, 'modes': [{'m': 2, 'amp': amp, 'peri': peri}]},
+        'width_px': width,
+        'orbit': {'a_px': a, 'modes': [{'m': 2, 'amp_px': amp, 'long_peri_deg': peri}]},
     }
     maps = render_ring_system(
         (_SIZE, _SIZE),

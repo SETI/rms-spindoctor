@@ -27,9 +27,9 @@ def _feature_params() -> dict[str, Any]:
         'name': 'SATURN',
         'kind': 'ringlet',
         'tau': 2.0,
-        'width': 25.0,
+        'width_px': 25.0,
         'navigable': True,
-        'orbit': {'a': 60.0, 'ae': 0.0, 'long_peri': 0.0, 'rate_peri': 0.0},
+        'orbit': {'a_px': 60.0, 'ae_px': 0.0, 'long_peri_deg': 0.0, 'rate_peri_deg_per_day': 0.0},
     }
 
 

@@ -142,17 +142,41 @@ def test_ring_kind_switch_rewrites_shape_keys(model: Any) -> None:
     """Switching a feature's kind swaps in exactly the kind's shape keys."""
     model._add_ring_tab()
     feature = model.sim_params['ring_system']['features'][0]
-    assert 'width' in feature
+    assert 'width_px' in feature
     tab_idx = model._find_tab_by_properties('ring', 0)
     assert tab_idx is not None
     model._on_ring_kind(0, 'wave')
-    assert 'width' not in feature
-    assert feature['wavelength'] > 0.0
-    assert feature['damping'] > 0.0
+    assert 'width_px' not in feature
+    assert feature['wavelength_px'] > 0.0
+    assert feature['damping_px'] > 0.0
     model._on_ring_kind(0, 'ringlet')
-    assert 'wavelength' not in feature
-    assert 'damping' not in feature
-    assert feature['width'] > 0.0
+    assert 'wavelength_px' not in feature
+    assert 'damping_px' not in feature
+    assert feature['width_px'] > 0.0
+
+
+def test_a_grayed_shape_widget_says_which_kinds_take_its_key(model: Any) -> None:
+    """A shape widget the kind rejects is disabled and its tooltip names the kinds that take it."""
+    model._add_ring_tab()
+    tab_idx = model._find_tab_by_properties('ring', 0)
+    assert tab_idx is not None
+    tab = model._tabs.widget(tab_idx)
+    model._on_ring_kind(0, 'wave')
+    assert not tab.width_spin.isEnabled()
+    assert (
+        "Disabled for a 'wave' feature: only ringlet, gap, and ramp features take width_px"
+        in tab.width_spin.toolTip()
+    )
+
+
+def test_an_enabled_shape_widget_describes_its_key(model: Any) -> None:
+    """A shape widget the kind takes is enabled and its tooltip names the key's unit."""
+    model._add_ring_tab()
+    tab_idx = model._find_tab_by_properties('ring', 0)
+    assert tab_idx is not None
+    tab = model._tabs.widget(tab_idx)
+    assert tab.width_spin.isEnabled()
+    assert tab.width_spin.toolTip() == 'width_px: the radial width, in ring-plane pixels.'
 
 
 def test_deleting_the_last_ring_feature_retires_the_block(model: Any) -> None:
@@ -858,7 +882,7 @@ def test_ring_mode_add_and_remove_row(model: Any) -> None:
     tab = _ring_tab(model)
     model._on_ring_add_mode(0)
     modes = _ring(model)['orbit']['modes']
-    assert set(modes[0]) == {'m', 'amp', 'peri'}
+    assert set(modes[0]) == {'m', 'amp_px', 'long_peri_deg'}
     model._remove_ring_mode_row(0, tab.mode_rows[0])
     assert 'modes' not in _ring(model)['orbit']
 
@@ -875,7 +899,12 @@ def test_ring_edge_wave_toggle_inserts_and_removes(model: Any) -> None:
     """The edge-wave group inserts the full map and removes it when disabled."""
     tab = _ring_tab(model)
     tab.edge_wave_group.setChecked(True)
-    assert set(_ring(model)['orbit']['edge_wave']) == {'amp', 'wavelength', 'damp', 'lam0'}
+    assert set(_ring(model)['orbit']['edge_wave']) == {
+        'amp_px',
+        'wavelength_px',
+        'damping_rad',
+        'lam0_deg',
+    }
     tab.edge_wave_group.setChecked(False)
     assert 'edge_wave' not in _ring(model)['orbit']
 
@@ -885,7 +914,7 @@ def test_ring_edge_wave_spin_writes_sub_key(model: Any) -> None:
     tab = _ring_tab(model)
     tab.edge_wave_group.setChecked(True)
     tab.edge_wave_amp_spin.setValue(2.5)
-    assert _ring(model)['orbit']['edge_wave']['amp'] == 2.5
+    assert _ring(model)['orbit']['edge_wave']['amp_px'] == 2.5
 
 
 def test_ring_orbit_error_toggle_inserts_and_removes(model: Any) -> None:
@@ -935,7 +964,7 @@ def test_ring_modulation_toggle_creates_and_prunes_azimuthal(model: Any) -> None
     tab = _ring_tab(model)
     tab.azimuthal_modulation_group.setChecked(True)
     modulation = model.sim_params['ring_system']['azimuthal']['modulation']
-    assert set(modulation) == {'amplitude', 'm', 'phase_deg'}
+    assert set(modulation) == {'amplitude', 'm', 'lam_peak_deg'}
     tab.azimuthal_modulation_group.setChecked(False)
     assert 'azimuthal' not in model.sim_params['ring_system']
 
@@ -953,7 +982,7 @@ def test_ring_spokes_toggle_inserts_sub_map(model: Any) -> None:
     tab = _ring_tab(model)
     tab.azimuthal_spokes_group.setChecked(True)
     spokes = model.sim_params['ring_system']['azimuthal']['spokes']
-    assert set(spokes) == {'count', 'r_inner', 'r_outer', 'width_deg', 'contrast'}
+    assert set(spokes) == {'count', 'r_inner_px', 'r_outer_px', 'width_deg', 'contrast'}
 
 
 def test_ring_spokes_value_edit_writes_own_key(model: Any) -> None:
@@ -982,7 +1011,7 @@ def test_ring_moonlets_toggle_and_add(model: Any) -> None:
     assert model.sim_params['ring_system']['moonlets'] == []
     model._on_ring_add_moonlet()
     moonlet = model.sim_params['ring_system']['moonlets'][0]
-    assert set(moonlet) == {'a', 'lam_deg', 'radius_px', 'amplitude'}
+    assert set(moonlet) == {'a_px', 'lam_deg', 'radius_px', 'amplitude'}
 
 
 def test_ring_moonlet_propeller_sub_group_writes_propeller(model: Any) -> None:

@@ -493,31 +493,36 @@ def _ring_feature(
       pericenter error of 5-25 deg.
     """
     tau = math.exp(rng.uniform(math.log(0.2), math.log(4.0)))
-    orbit: dict[str, Any] = {'a': a, 'ae': 0.0, 'long_peri': 0.0, 'rate_peri': 0.0}
+    orbit: dict[str, Any] = {
+        'a_px': a,
+        'ae_px': 0.0,
+        'long_peri_deg': 0.0,
+        'rate_peri_deg_per_day': 0.0,
+    }
     eccentric = rng.random() < _RING_ECCENTRIC_FRAC
     if eccentric:
-        orbit['ae'] = math.exp(rng.uniform(math.log(0.5), math.log(6.0)))
-        orbit['long_peri'] = rng.uniform(0.0, 360.0)
+        orbit['ae_px'] = math.exp(rng.uniform(math.log(0.5), math.log(6.0)))
+        orbit['long_peri_deg'] = rng.uniform(0.0, 360.0)
         if rng.random() < _RING_MMODE_FRAC:
             orbit['modes'] = [
                 {
                     'm': rng.randint(2, 7),
-                    'amp': rng.uniform(0.5, 4.0),
-                    'peri': rng.uniform(0.0, 360.0),
+                    'amp_px': rng.uniform(0.5, 4.0),
+                    'long_peri_deg': rng.uniform(0.0, 360.0),
                 }
             ]
     if rng.random() < _RING_EDGE_WAVE_FRAC:
         orbit['edge_wave'] = {
-            'amp': rng.uniform(0.5, 2.5),
-            'wavelength': rng.uniform(6.0, 20.0),
-            'damp': rng.uniform(0.3, 1.5),
-            'lam0': rng.uniform(0.0, 360.0),
+            'amp_px': rng.uniform(0.5, 2.5),
+            'wavelength_px': rng.uniform(6.0, 20.0),
+            'damping_rad': rng.uniform(0.3, 1.5),
+            'lam0_deg': rng.uniform(0.0, 360.0),
         }
     feature: dict[str, Any] = {
         'name': name,
         'kind': 'ringlet',
         'tau': tau,
-        'width': width,
+        'width_px': width,
         'navigable': navigable,
         'orbit': orbit,
     }

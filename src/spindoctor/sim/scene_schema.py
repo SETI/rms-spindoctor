@@ -284,12 +284,12 @@ _RING_FEATURE_IDEALIZED_KEYS: frozenset[str] = frozenset(
     {
         'name',
         'kind',
-        'width',
+        'width_px',
         'tau',
         'orbit',
         'side',
-        'wavelength',
-        'damping',
+        'wavelength_px',
+        'damping_px',
         'navigable',
         'declared_orbit_sigma',
     }
@@ -304,6 +304,113 @@ _RING_FEATURE_IDEALIZED_KEYS: frozenset[str] = frozenset(
 _RING_FEATURE_TRUTH_KEYS: frozenset[str] = frozenset({'albedo', 'phase_g', 'orbit_error'})
 
 _RING_FEATURE_KEYS: frozenset[str] = _RING_FEATURE_IDEALIZED_KEYS | _RING_FEATURE_TRUTH_KEYS
+
+# Which radial shape keys each feature kind takes: 'required', 'optional', or
+# absent from the kind's map, which means the validator rejects the key on
+# that kind (a stray shape key would silently author a different feature).
+# The validator, the sim editor's kind switch, and the per-kind tables in the
+# developer guide and the scene README all follow this one table.
+RING_SHAPE_KEYS: tuple[str, ...] = ('width_px', 'side', 'wavelength_px', 'damping_px')
+RING_KIND_SHAPE_KEYS: dict[str, dict[str, str]] = {
+    'ringlet': {'width_px': 'required'},
+    'gap': {'width_px': 'required'},
+    'edge': {'side': 'optional'},
+    'ramp': {'width_px': 'required', 'side': 'optional'},
+    'wave': {'wavelength_px': 'required', 'damping_px': 'required'},
+}
+# The 'side' an edge or ramp takes when the key is absent.  An edge's default
+# 'in' fills every radius inward of its orbit (the sheet bounded by its outer
+# edge); a ramp's default 'out' rises outward from zero at its orbit.
+RING_SIDE_DEFAULTS: dict[str, str] = {'edge': 'in', 'ramp': 'out'}
+
+# Retired ring keys, per block, mapped to (the key that replaced it, what the
+# key holds).  Every length and angle key in the ring_system block names its
+# unit; the validator refuses a retired key with a message naming its
+# replacement, nothing translates it, and the sim editor's tooltips read the
+# descriptions from here.  A ring-plane pixel is a ring-plane radial distance
+# in detector pixels: it projects to that many image pixels along the line of
+# nodes, and is foreshortened by sin(B) across it.  Block paths drop list
+# indices ('ring_system.features' covers every feature entry).
+RENAMED_RING_KEYS: dict[str, dict[str, tuple[str, str]]] = {
+    'ring_system.features': {
+        'width': ('width_px', 'the radial width, in ring-plane pixels'),
+        'wavelength': (
+            'wavelength_px',
+            "the 'wave' train's radial wavelength, in ring-plane pixels",
+        ),
+        'damping': (
+            'damping_px',
+            "the 'wave' train's radial e-folding length, in ring-plane pixels",
+        ),
+    },
+    'ring_system.features.orbit': {
+        'a': ('a_px', 'the semimajor axis, in ring-plane pixels'),
+        'ae': ('ae_px', 'the eccentricity times the semimajor axis, in ring-plane pixels'),
+        'long_peri': (
+            'long_peri_deg',
+            'the pericenter longitude, in degrees from the ascending node',
+        ),
+        'rate_peri': (
+            'rate_peri_deg_per_day',
+            'the pericenter precession rate, in degrees per day',
+        ),
+    },
+    'ring_system.features.orbit.modes': {
+        'amp': ('amp_px', 'the radial amplitude, in ring-plane pixels'),
+        'peri': (
+            'long_peri_deg',
+            "the longitude of one of the mode's m pericenters, in degrees from the ascending node",
+        ),
+    },
+    'ring_system.features.orbit.edge_wave': {
+        'amp': ('amp_px', 'the radial amplitude at the launch longitude, in ring-plane pixels'),
+        'wavelength': (
+            'wavelength_px',
+            'the azimuthal wavelength as an arc length along the orbit, in ring-plane pixels',
+        ),
+        'damp': (
+            'damping_rad',
+            'the azimuthal e-folding length, in radians of downstream longitude',
+        ),
+        'lam0': ('lam0_deg', 'the launch longitude, in degrees from the ascending node'),
+    },
+    'ring_system.azimuthal.modulation': {
+        'phase_deg': (
+            'lam_peak_deg',
+            'the longitude of a brightness peak, in degrees from the ascending node',
+        ),
+    },
+    'ring_system.azimuthal.spokes': {
+        'r_inner': ('r_inner_px', 'the inner radius of the spoke band, in ring-plane pixels'),
+        'r_outer': ('r_outer_px', 'the outer radius of the spoke band, in ring-plane pixels'),
+    },
+    'ring_system.moonlets': {
+        'a': ('a_px', "the moonlet's orbit radius, in ring-plane pixels"),
+    },
+}
+
+
+def ring_key_description(block: str, key: str) -> str:
+    """What a renamed ring key holds, read from :data:`RENAMED_RING_KEYS`.
+
+    Parameters:
+        block: A block path that is a key of :data:`RENAMED_RING_KEYS`, such as
+            ``'ring_system.features.orbit'``.
+        key: The current name of a key that replaced a retired one in that
+            block, such as ``'a_px'``.
+
+    Returns:
+        The description recorded beside the rename, such as ``'the semimajor
+        axis, in ring-plane pixels'``.
+
+    Raises:
+        KeyError: If ``key`` did not replace a retired key in ``block``.
+    """
+    for new_key, description in RENAMED_RING_KEYS[block].values():
+        if new_key == key:
+            return description
+    raise KeyError(f'{block}.{key} did not replace a retired ring key')
+
 
 # The machine-readable truth-key set the ObsSim boundary filter strips and
 # the structural boundary test iterates.  Per-object-block entries use dotted

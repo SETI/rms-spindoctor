@@ -25,7 +25,7 @@ _CENTER = 48.5
 
 def _sheet(tau: float = 1.0) -> dict[str, Any]:
     """A broad face-on sheet covering radii 5..40."""
-    return {'kind': 'ringlet', 'tau': tau, 'width': 35.0, 'orbit': {'a': 5.0}}
+    return {'kind': 'ringlet', 'tau': tau, 'width_px': 35.0, 'orbit': {'a_px': 5.0}}
 
 
 def _render(system_extra: dict[str, Any], *, spokes_seed: int = 0) -> RingSystemMaps:
@@ -60,7 +60,7 @@ def test_modulation_scales_intensity_by_the_cosine() -> None:
     """1 + amplitude * cos(m * (lam - phase)) at two probe longitudes."""
     base = _render({})
     modulated = _render(
-        {'azimuthal': {'modulation': {'amplitude': 0.25, 'm': 2, 'phase_deg': 0.0}}}
+        {'azimuthal': {'modulation': {'amplitude': 0.25, 'm': 2, 'lam_peak_deg': 0.0}}}
     )
     # m = 2, phase 0: factor 1.25 at lam = 0, 0.75 at lam = 90.
     assert modulated.intensity[_PIXEL_LAM_0] == pytest.approx(
@@ -91,8 +91,8 @@ def _spoked(seed: int) -> RingSystemMaps:
             'azimuthal': {
                 'spokes': {
                     'count': 5,
-                    'r_inner': 10.0,
-                    'r_outer': 35.0,
+                    'r_inner_px': 10.0,
+                    'r_outer_px': 35.0,
                     'contrast': -0.6,
                     'width_deg': 15.0,
                 }
@@ -121,15 +121,15 @@ def test_spokes_reseed_with_the_stream_seed() -> None:
 
 
 def test_spoke_field_respects_its_radial_band() -> None:
-    """Outside r_inner..r_outer the sheet is untouched."""
+    """Outside r_inner_px..r_outer_px the sheet is untouched."""
     base = _render({})
     spoked = _render(
         {
             'azimuthal': {
                 'spokes': {
                     'count': 8,
-                    'r_inner': 20.0,
-                    'r_outer': 30.0,
+                    'r_inner_px': 20.0,
+                    'r_outer_px': 30.0,
                     'contrast': -0.9,
                     'width_deg': 30.0,
                 }
@@ -137,13 +137,13 @@ def test_spoke_field_respects_its_radial_band() -> None:
         },
         spokes_seed=3,
     )
-    # 8 px along +u sits at ring radius 8, well inside r_inner.
+    # 8 px along +u sits at ring radius 8, well inside r_inner_px.
     assert spoked.intensity[48, 56] == pytest.approx(base.intensity[48, 56], rel=1e-12)
 
 
 def test_moonlet_disc_emits_and_occults() -> None:
     """The disc replaces ring emission with its own and zeroes the screen."""
-    moonlet = {'a': 20.0, 'lam_deg': 0.0, 'radius_px': 2.0, 'amplitude': 0.9}
+    moonlet = {'a_px': 20.0, 'lam_deg': 0.0, 'radius_px': 2.0, 'amplitude': 0.9}
     maps = _render({'moonlets': [moonlet]})
     assert maps.intensity[_PIXEL_LAM_0] == pytest.approx(0.9, rel=1e-12)
     assert maps.transmission[_PIXEL_LAM_0] == 0.0
@@ -152,7 +152,7 @@ def test_moonlet_disc_emits_and_occults() -> None:
 
 def test_moonlet_in_an_empty_gap_still_composites() -> None:
     """A moonlet with no tau under it joins the mask (it must composite)."""
-    moonlet = {'a': 20.0, 'lam_deg': 0.0, 'radius_px': 2.0, 'amplitude': 0.9}
+    moonlet = {'a_px': 20.0, 'lam_deg': 0.0, 'radius_px': 2.0, 'amplitude': 0.9}
     maps = _render({'features': [], 'moonlets': [moonlet]})
     assert bool(maps.mask[_PIXEL_LAM_0])
     assert maps.intensity[_PIXEL_LAM_0] == pytest.approx(0.9, rel=1e-12)
@@ -185,7 +185,9 @@ def test_moonlet_extinguishes_a_background_star() -> None:
                         'node_deg': 0.0,
                     },
                     'features': [],
-                    'moonlets': [{'a': 20.0, 'lam_deg': 0.0, 'radius_px': 3.0, 'amplitude': 0.0}],
+                    'moonlets': [
+                        {'a_px': 20.0, 'lam_deg': 0.0, 'radius_px': 3.0, 'amplitude': 0.0}
+                    ],
                 },
             }
         )
@@ -200,7 +202,7 @@ def test_moonlet_extinguishes_a_background_star() -> None:
 def test_propeller_carves_local_tau_dips() -> None:
     """Negative contrast opens partial gaps straddling the moonlet."""
     moonlet = {
-        'a': 20.0,
+        'a_px': 20.0,
         'lam_deg': 90.0,
         'radius_px': 1.0,
         'amplitude': 0.2,
@@ -238,8 +240,8 @@ def test_full_scene_with_spokes_renders_deterministically() -> None:
                 'azimuthal': {
                     'spokes': {
                         'count': 4,
-                        'r_inner': 10.0,
-                        'r_outer': 35.0,
+                        'r_inner_px': 10.0,
+                        'r_outer_px': 35.0,
                         'contrast': -0.5,
                         'width_deg': 12.0,
                     }

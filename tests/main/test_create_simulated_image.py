@@ -103,9 +103,9 @@ def test_load_ring_system_block_round_trips(
                 'name': 'R1',
                 'kind': 'ringlet',
                 'tau': 1.0,
-                'width': 10.0,
+                'width_px': 10.0,
                 'navigable': True,
-                'orbit': {'a': 30.0},
+                'orbit': {'a_px': 30.0},
             }
         ],
     }
