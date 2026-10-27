@@ -115,28 +115,45 @@ def _disc_scene(instrument: str) -> dict[str, Any]:
     }
 
 
-@pytest.mark.parametrize('instrument', _ALL_INSTRUMENTS)
-def test_lost_lines_carry_the_navigator_marker(instrument: str) -> None:
-    """Every instrument writes, on a lost line, the marker the navigator applies."""
+def _telemetry_frame(signal: np.ndarray, params: dict[str, Any]) -> SimFrame:
+    """Run the telemetry stage over ``signal`` and return the frame."""
     frame = SimFrame(
-        signal=np.full((64, 64), 0.5, dtype=np.float64),
-        point_e=np.zeros((64, 64), dtype=np.float64),
+        signal=signal,
+        point_e=np.zeros(signal.shape, dtype=np.float64),
         oversample=1,
         truth={},
     )
-    apply_telemetry(
-        frame,
-        params={
-            'instrument': instrument,
-            'random_seed': 7,
-            'artifacts': {'missing_lines': {'expected_events': 4.0}},
-        },
-        rng=np.random.default_rng(0),
-    )
+    apply_telemetry(frame, params=params, rng=np.random.default_rng(0))
+    return frame
+
+
+def _lost_line_value(instrument: str, overrides: dict[str, Any] | None = None) -> float:
+    """The value the telemetry stage writes on the first lost line of a flat frame."""
+    params: dict[str, Any] = {
+        'instrument': instrument,
+        'random_seed': 7,
+        'artifacts': {'missing_lines': {'expected_events': 4.0}},
+    }
+    if overrides is not None:
+        params['instrument_config'] = overrides
+    frame = _telemetry_frame(np.full((64, 64), 0.5, dtype=np.float64), params)
     lines = frame.truth['artifacts']['missing_lines']['lines']
     assert lines
-    written = float(frame.signal[lines[0], 0])
-    assert _same(written, _navigator_marker(instrument))
+    return float(frame.signal[lines[0], 0])
+
+
+@pytest.mark.parametrize('instrument', _ALL_INSTRUMENTS)
+def test_lost_lines_carry_the_navigator_marker(instrument: str) -> None:
+    """Every instrument writes, on a lost line, the marker the navigator applies."""
+    assert _same(_lost_line_value(instrument), _navigator_marker(instrument))
+
+
+@pytest.mark.parametrize('instrument', _ALL_INSTRUMENTS)
+def test_lost_lines_carry_a_null_marker_as_the_navigator_reads_it(instrument: str) -> None:
+    """A marker_value of null is NaN to the navigator, and on every lost line."""
+    overrides = {'noise': {'marker_value': None}}
+    written = _lost_line_value(instrument, overrides)
+    assert _same(written, _navigator_marker(instrument, overrides))
 
 
 @pytest.mark.parametrize('instrument', _ALL_INSTRUMENTS)
@@ -314,6 +331,37 @@ def test_reading_follows_the_classifier_precedence(
     settings = instrument_settings_from_obs(_InstConfigOnly(inst_config))
     expected = NavImageClassifier(thresholds=settings.thresholds).classify(img).image_class
     assert read_frame_as_navigator(img, inst_config).image_class == expected
+
+
+def _boundary_frames(thresholds: Any, *, raw: bool) -> dict[str, np.ndarray]:
+    """Frames that sit exactly on each of the classifier's limits."""
+    lit = 2.0 * thresholds.blank_max_dn
+    marker = thresholds.missing_data_marker_dn
+    frames = {'peak-at-blank-limit': np.full((100, 10), thresholds.blank_max_dn)}
+    at_missing = np.full((100, 10), lit)
+    at_missing[: round(thresholds.max_missing_frac_clean * 100), :] = marker
+    frames['marker-share-at-limit'] = at_missing
+    if raw:
+        at_saturation = np.full((100, 10), lit)
+        rows = round(thresholds.max_saturation_frac_clean * 100)
+        at_saturation[:rows, :] = thresholds.saturation_threshold_dn
+        frames['saturated-share-at-limit'] = at_saturation
+    return frames
+
+
+@pytest.mark.parametrize('instrument', _ALL_INSTRUMENTS)
+def test_reading_matches_the_classifier_exactly_at_each_limit(instrument: str) -> None:
+    """On each limit's exact value the reading and the navigator's classifier agree."""
+    inst_config = dict(resolve_sim_inst_config(DEFAULT_CONFIG, instrument))
+    thresholds = instrument_settings_from_obs(_InstConfigOnly(inst_config)).thresholds
+    classifier = NavImageClassifier(thresholds=thresholds)
+    raw = inst_config.get('data_units', 'raw_dn') == 'raw_dn'
+    frames = _boundary_frames(thresholds, raw=raw)
+    mirror = {
+        name: read_frame_as_navigator(img, inst_config).image_class for name, img in frames.items()
+    }
+    navigator = {name: classifier.classify(img).image_class for name, img in frames.items()}
+    assert mirror == navigator
 
 
 class _InstConfigOnly:
