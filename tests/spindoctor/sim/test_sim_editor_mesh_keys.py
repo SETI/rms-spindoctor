@@ -3,10 +3,11 @@
 The validator refuses a non-null value of every key in the schema's
 ``MESH_UNSUPPORTED_KEYS`` on a ``shape_model: polyhedral_mesh`` body.  The editor
 reads the same table: switching a body to a mesh disables every control that
-writes one of those keys, gives each the validator's own sentence as its
-tooltip, and moves the keys the body carried out of the scene into the editor's
-stash, so the mesh rule never refuses what the editor saves.  Switching the body
-back to an ellipsoid restores the stashed keys and re-enables the controls.
+writes one of those keys, gives each (and every control inside it) the
+validator's own sentence as its tooltip, and moves the keys the body carried out
+of the scene into the editor's stash, with a status-bar message naming them, so
+the mesh rule never refuses what the editor saves.  Switching the body back to an
+ellipsoid restores the stashed keys and re-enables the controls.
 
 The property itself is checked by operating every control a mesh body tab leaves
 enabled and validating the scene that results.
@@ -25,6 +26,7 @@ os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
 
 try:
     from PyQt6.QtWidgets import (
+        QAbstractButton,
         QAbstractSlider,
         QAbstractSpinBox,
         QApplication,
@@ -33,6 +35,7 @@ try:
         QDoubleSpinBox,
         QFileDialog,
         QGroupBox,
+        QLabel,
         QLineEdit,
         QMessageBox,
         QPushButton,
@@ -49,7 +52,11 @@ except Exception as exc:
     pytest.skip(f'PyQt6 QApplication init failed: {exc}', allow_module_level=True)
 
 from spindoctor.cli.sim_editor import CreateSimulatedImageModel
-from spindoctor.cli.sim_editor.body_mesh_keys import MESH_REFUSED_WIDGETS
+from spindoctor.cli.sim_editor.body_mesh_keys import (
+    MESH_REFUSED_WIDGETS,
+    MeshKeyStash,
+    stash_message,
+)
 from spindoctor.sim.scene import (
     SimSceneValidationError,
     load_sim_scene,
@@ -302,16 +309,17 @@ def test_the_widget_table_covers_exactly_the_refused_keys() -> None:
     assert [key for key, attrs in MESH_REFUSED_WIDGETS.items() if not attrs] == []
 
 
-def _operate(widget: QWidget) -> bool:
-    """Operate one control the way an operator would; return whether it was one."""
-    if isinstance(widget, QGroupBox):
+def _operate(widget: QWidget, checked: bool) -> bool:
+    """Operate one control the way an operator would; return whether it was one.
+
+    A check box or checkable group is put through both states and left at
+    ``checked``.
+    """
+    if isinstance(widget, (QGroupBox, QCheckBox)):
         if not widget.isCheckable():
             return False
-        # An odd number of toggles leaves it flipped, after writing both states.
-        for _ in range(3):
-            widget.setChecked(not widget.isChecked())
-    elif isinstance(widget, QCheckBox):
-        widget.setChecked(not widget.isChecked())
+        widget.setChecked(not checked)
+        widget.setChecked(checked)
     elif isinstance(widget, QComboBox):
         for index in range(widget.count()):
             widget.setCurrentIndex(index)
@@ -330,20 +338,21 @@ def _operate(widget: QWidget) -> bool:
     return True
 
 
+@pytest.mark.parametrize('checked', [True, False], ids=['boxes_checked', 'boxes_unchecked'])
 @pytest.mark.parametrize(
     'body',
     [None, _FULL_ELLIPSOID],
     ids=['default_new_body', 'every_refused_key_set'],
 )
 def test_operating_every_enabled_control_on_a_mesh_body_keeps_the_scene_valid(
-    model: Any, body: dict[str, Any] | None
+    model: Any, body: dict[str, Any] | None, checked: bool
 ) -> None:
     """Whatever an operator does with a mesh body's live controls, the scene validates.
 
     Every control the tab leaves enabled is operated (each check box and checkable
-    group toggled, each combo stepped through its items, each slider and spin box
-    moved, each button pressed), except Delete and the shape combo, which would
-    end the mesh body.
+    group put through both states and left checked or unchecked, each combo
+    stepped through its items, each slider and spin box moved, each button
+    pressed), except Delete and the shape combo, which would end the mesh body.
     """
     model._add_body_tab(None if body is None else _full_ellipsoid())
     _set_shape(model, 'polyhedral_mesh')
@@ -355,7 +364,7 @@ def test_operating_every_enabled_control_on_a_mesh_body_keeps_the_scene_valid(
             continue
         if isinstance(widget, QPushButton) and widget.text() == 'Delete':
             continue
-        if _operate(widget):
+        if _operate(widget, checked):
             operated.append(widget)
     assert operated != []
     validate_sim_params(copy.deepcopy(model.sim_params))
@@ -377,3 +386,128 @@ def test_an_integer_mesh_spin_writes_an_integer(model: Any, attr: str, key: str)
     spin.setValue(spin.value() + 1)
     assert type(model.sim_params['bodies'][0][key]) is int
     validate_sim_params(copy.deepcopy(model.sim_params))
+
+
+def test_a_key_removed_between_mesh_switches_stays_removed(model: Any) -> None:
+    """A key unchecked on the ellipsoid between two mesh switches doesn't come back."""
+    model._add_body_tab(_full_ellipsoid())
+    _set_shape(model, 'polyhedral_mesh')
+    _set_shape(model, 'ellipsoid')
+    _tab(model).photometry_group.setChecked(False)  # type: ignore[attr-defined]
+    _set_shape(model, 'polyhedral_mesh')
+    _set_shape(model, 'ellipsoid')
+    body = model.sim_params['bodies'][0]
+    assert 'photometric_law' not in body
+    assert 'minnaert_k' not in body
+
+
+def test_switching_to_a_mesh_names_the_moved_keys_in_the_status_bar(model: Any) -> None:
+    """The status bar names every key the switch moved and says how they come back."""
+    model._add_body_tab(_full_ellipsoid())
+    _set_shape(model, 'polyhedral_mesh')
+    message = model.statusBar().currentMessage()
+    assert message == stash_message('FULL', MESH_UNSUPPORTED_KEYS)
+    assert [key for key in MESH_UNSUPPORTED_KEYS if key not in message] == []
+    assert 'Switching back to ellipsoid restores them in this session' in message
+    assert "a saved mesh scene file doesn't carry them" in message
+
+
+def test_a_switch_that_moves_nothing_shows_no_message(model: Any) -> None:
+    """A body that carried no refused key switches to a mesh without a message."""
+    model._add_body_tab({'name': 'BARE', 'shape_model': 'ellipsoid', 'axis1': 40.0})
+    _set_shape(model, 'polyhedral_mesh')
+    assert model.statusBar().currentMessage() == ''
+
+
+_CONTROL_TYPES = (QAbstractButton, QAbstractSlider, QAbstractSpinBox, QComboBox, QLabel)
+
+
+def _controls_in(widget: QWidget) -> list[QWidget]:
+    """``widget`` and the controls and labels inside it, without a combo box's parts."""
+    inside = [
+        child
+        for child in widget.findChildren(QWidget)
+        if isinstance(child, _CONTROL_TYPES)
+        and not any(isinstance(a, QComboBox) for a in _ancestors(child, widget))
+    ]
+    return [widget, *inside]
+
+
+def _ancestors(child: QWidget, root: QWidget) -> list[QWidget]:
+    """The widgets between ``child`` and ``root``, ``root`` excluded."""
+    chain = []
+    parent = child.parentWidget()
+    while parent is not None and parent is not root:
+        chain.append(parent)
+        parent = parent.parentWidget()
+    return chain
+
+
+@pytest.mark.parametrize('key', MESH_UNSUPPORTED_KEYS)
+def test_every_control_inside_a_refused_control_explains_the_refusal(model: Any, key: str) -> None:
+    """Hovering any control or label inside a disabled group shows the refusal."""
+    model._add_body_tab(_full_ellipsoid())
+    _set_shape(model, 'polyhedral_mesh')
+    tab = _tab(model)
+    for attr in MESH_REFUSED_WIDGETS[key]:
+        backed = [k for k in MESH_UNSUPPORTED_KEYS if attr in MESH_REFUSED_WIDGETS[k]]
+        wrong = [
+            c.objectName() or type(c).__name__
+            for c in _controls_in(getattr(tab, attr))
+            if c.toolTip() != _refusal(backed)
+        ]
+        assert wrong == [], attr
+
+
+def test_an_ellipsoid_gives_every_control_its_own_tooltip_back(model: Any) -> None:
+    """After a mesh round trip each control inside a refused one shows its own tooltip."""
+    model._add_body_tab(_full_ellipsoid())
+    tab = _tab(model)
+    widgets = [
+        c
+        for attrs in MESH_REFUSED_WIDGETS.values()
+        for attr in attrs
+        for c in _controls_in(getattr(tab, attr))
+    ]
+    own = [c.toolTip() for c in widgets]
+    assert tab.minnaert_k_spin.toolTip() != ''  # type: ignore[attr-defined]
+    _set_shape(model, 'polyhedral_mesh')
+    _set_shape(model, 'ellipsoid')
+    assert [c.toolTip() for c in widgets] == own
+
+
+def test_loading_a_scene_forgets_the_stash(model: Any, tmp_path: Path) -> None:
+    """Load Scene drops the stash of the scene it replaces."""
+    model._add_body_tab(_full_ellipsoid())
+    _set_shape(model, 'polyhedral_mesh')
+    old_body = model.sim_params['bodies'][0]
+    path = tmp_path / 'mesh_scene.yaml'
+    save_sim_scene(model.sim_params, path)
+    model.load_scene_file(path)
+    assert model._mesh_key_stash.stashed(old_body) == {}
+
+
+def test_the_stash_forgets_on_clear_and_on_prune() -> None:
+    """``prune`` drops the entries of bodies outside the list; ``clear`` drops them all."""
+    stash = MeshKeyStash()
+    kept, dropped = _full_ellipsoid(), _full_ellipsoid()
+    assert stash.take(kept) == list(MESH_UNSUPPORTED_KEYS)
+    stash.take(dropped)
+    stash.prune([kept, _full_ellipsoid()])
+    assert stash.stashed(kept) != {}
+    assert stash.stashed(dropped) == {}
+    stash.clear()
+    assert stash.stashed(kept) == {}
+
+
+def test_deleting_a_mesh_body_forgets_its_stash(model: Any) -> None:
+    """Deleting a body drops its stash entry."""
+    model._add_body_tab(_full_ellipsoid())
+    second = _full_ellipsoid()
+    second.update(name='TWO', range_km=2.0)
+    model._add_body_tab(second)
+    _set_shape(model, 'polyhedral_mesh', idx=1)
+    mesh_body = model.sim_params['bodies'][1]
+    assert model._mesh_key_stash.stashed(mesh_body) != {}
+    model._delete_tab_by_index('body', 1)
+    assert model._mesh_key_stash.stashed(mesh_body) == {}

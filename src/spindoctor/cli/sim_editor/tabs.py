@@ -399,7 +399,11 @@ class TabsMixin(SimEditorBase):
         self._updater.request_update()
 
     def _rebuild_dynamic_tabs(self) -> None:
-        """Rebuild all object tabs from the data model in sorted order."""
+        """Rebuild all object tabs from the data model in sorted order.
+
+        Mesh-key stash entries of bodies no longer in the scene are dropped first.
+        """
+        self._mesh_key_stash.prune(self.sim_params['bodies'])
         # Save General and "+" tab widgets
         general_widget = None
         plus_widget = None

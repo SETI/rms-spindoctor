@@ -61,7 +61,12 @@ class SceneIoMixin(SimEditorBase):
             QMessageBox.critical(self, 'Error', f'Failed to load scene:\n{e!s}')
 
     def _apply_params_dict(self, params: dict[str, Any]) -> None:
-        """Rebuild sim_params from a loaded params dict and sync every widget."""
+        """Rebuild sim_params from a loaded params dict and sync every widget.
+
+        The mesh-key stash is cleared: its entries belong to the bodies of the scene
+        being replaced.
+        """
+        self._mesh_key_stash.clear()
         self.sim_params = {
             'size_v': int(params.get('size_v', 512)),
             'size_u': int(params.get('size_u', 512)),

@@ -30,6 +30,7 @@ from PyQt6.QtWidgets import (
 )
 
 from spindoctor.cli.sim_editor.base import SimEditorBase
+from spindoctor.cli.sim_editor.body_mesh_keys import STASH_MESSAGE_MS, stash_message
 
 # Tooltip for the center spin boxes, which write the scene value directly.
 _CENTER_TOOLTIP = (
@@ -390,14 +391,21 @@ class BodyTabMixin(SimEditorBase):
         """Set the shape model and gate the shape-specific controls and keys.
 
         A mesh body moves its ellipsoid-only keys (``MESH_UNSUPPORTED_KEYS``) into
-        the editor's stash, so the scene keeps validating; an ellipsoid body takes
-        them back.
+        the editor's stash, so the scene keeps validating, and the status bar names
+        the keys moved (:func:`~.body_mesh_keys.stash_message`); an ellipsoid body
+        takes them back.
         """
         if 0 <= idx < len(self.sim_params['bodies']):
             body = self.sim_params['bodies'][idx]
             body['shape_model'] = text
             if text == 'polyhedral_mesh':
-                self._mesh_key_stash.take(body)
+                taken = self._mesh_key_stash.take(body)
+                status_bar = self.statusBar()
+                if taken and status_bar is not None:
+                    status_bar.showMessage(
+                        stash_message(str(body.get('name', f'Body{idx + 1}')), taken),
+                        STASH_MESSAGE_MS,
+                    )
             else:
                 self._mesh_key_stash.give_back(body)
             tab_idx = self._find_tab_by_properties('body', idx)
