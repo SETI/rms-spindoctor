@@ -1313,19 +1313,30 @@ surface more finely.
 ``h`` has no degree 0 or degree 1 content. Degree 0 would only change the body's
 size and degree 1 would only move its center, and neither is irregularity. The
 mean radius therefore stays 1 at every lumpiness, and the body's center stays
-put to first order. Degree 2 is an ellipsoid-like elongation on top of the
-scene's axes. Degrees 3 to 5 are the lopsided lumps that a best-fit ellipsoid
-cannot absorb. Each seed's draw is scaled so that this non-ellipsoidal part has
-an RMS of exactly ``mesh_lumpiness / 8`` of the radius; the degree 2 part varies
-with the seed, at about two thirds of that on average. A lumpiness of 0.4
+put to first order. To second order a large lumpiness grows the volume slightly
+and shifts its centroid, both in proportion to the square of the lumpiness: at
+0.7 the volume-equivalent radius grows by about 1.1% and the volume centroid
+moves by about 1.1% of the radius (medians over 40 seeds). Degree 2 is an
+ellipsoid-like elongation on top of the scene's axes. Degrees 3 to 5 are the
+lopsided lumps that a best-fit ellipsoid cannot absorb. Each seed's draw is
+scaled so that this non-ellipsoidal part has an RMS of exactly
+``mesh_lumpiness / 8`` of the radius; the degree 2 part varies with the seed,
+at about two thirds of that on average. A lumpiness of 0.4
 therefore plants a non-ellipsoidal shape error of 5% of the radius RMS on every
-seed. The per-degree shares follow a measured potato-like spectrum, listed in
-``_BASE_DEGREE_RMS`` in the module.
+seed. The expected per-degree RMS shares, ``_BASE_DEGREE_RMS`` in the module
+(0.082, 0.092, 0.072, and 0.040 for degrees 2 to 5), are a convention for the
+simulator's bodies. They aren't fitted to any real body's shape spectrum.
 
 ``mesh_seed`` names a shape only through this synthesis: the same seed gives the
 same shape at every tessellation and every lumpiness, and a different relief
-synthesis would give it a different shape. A scene that needs a clearly
-irregular body picks its seed by looking at the rendered silhouette.
+synthesis would give it a different shape. When a test's verdict depends on
+which shape the seed draws, one realization can land anywhere in the
+population's spread. Such a scene picks its seed by a rule fixed before it
+navigates and states the rule in the scene file, its single-seed assertions are
+a tripwire on that realization, and any property claimed for irregular bodies in
+general is asserted over a population of seeds. ``planted_offset_shapemismatch``
+takes the seed with the median silhouette mismatch at its sweep's extreme step,
+and ``test_sim_sweeps`` asserts the veto's behavior over mesh seeds 0 to 12.
 
 Faceting is a sampling effect. At the default 16 by 32 tessellation a large body
 shows rings of flat-shaded quadrilaterals around the mesh pole and a polygonal
