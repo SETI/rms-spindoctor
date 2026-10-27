@@ -13,15 +13,16 @@ sweep_name: irregularity_shape_mismatch
 # 0.7; the confidence stays 0.99 through L 0.2, falls to 0.72-0.79 at L 0.3 to
 # 0.5, returns to 0.99 at L 0.6 (3.4 px off), and ends 0.40 at L 0.7, where the
 # disc and limb lock onto the shape and the pose-free blob carries a success.
-# Every step is a success; the shape-lock veto does not fire on this shape.
+# Every step is a success; the shape-lock veto does not fire on this shape.  The
+# error never falls between steps here, which holds on only 4 of the 13 seeds.
 #
 # Across mesh seeds 0 to 12 (2026-10-27): every walk starts sub-pixel and ends
-# 2.7 to 12.9 px off, but the growth is monotone on only a few shapes; every
-# walk dips at least 0.3 below the clean confidence somewhere; at L 0.7 the veto
-# reports 4 of the 13 conflicted (seeds 0, 2, 5, 12); and seed 10 ends a
-# 0.91-confidence success 12.7 px off, a confident wrong result the veto misses
-# (#790).  test_sim_sweeps asserts the single-seed walk as a tripwire and the
-# population's properties on its own.
+# 2.7 to 12.9 px off, but the error never falls between steps on only 4 of them
+# (seeds 4, 5, 9, 10); every walk dips at least 0.3 below the clean confidence
+# somewhere; at L 0.7 the veto reports 4 of the 13 conflicted (seeds 0, 2, 5,
+# 12); and seed 10 ends a 0.91-confidence success 12.7 px off, a confident wrong
+# result the veto misses (#790).  test_sim_sweeps asserts the single-seed walk
+# as a tripwire and the population's properties on its own.
 base_scene: algorithmic_invariants/planted_offset_shapemismatch.yaml
 parameters: [bodies.0.mesh_lumpiness]
 values: [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7]

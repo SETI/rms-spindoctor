@@ -194,8 +194,8 @@ def test_irregularity_sweep_bias_grows() -> None:
     """Shape mismatch grows the recovered centroid bias as relief increases.
 
     This realization ends 5.2 px off.  Every one of mesh seeds 0 to 12 ends
-    more than 2 px off (the least, seed 11, at 2.7 px), but the growth is
-    monotone on only some of them.
+    more than 2 px off (the least, seed 11, at 2.7 px), but the error never
+    falls between steps on only 4 of them (seeds 4, 5, 9, and 10).
     """
     rows = _rows('irregularity_shape_mismatch')
     assert rows[-1].offset_error_px is not None
@@ -208,7 +208,13 @@ def test_irregularity_sweep_confidence_drops() -> None:
     """Shape mismatch pulls the fused confidence well below the clean step's.
 
     Somewhere on the walk the confidence falls at least 0.3 below the clean
-    (zero-relief) step's 0.99.  That holds on every one of mesh seeds 0 to 12.
+    (zero-relief) step's 0.99.  That holds on every one of mesh seeds 0 to 12,
+    but it is asserted on this realization only, so the test is a tripwire on
+    this walk rather than a check of the population.  The bound is the
+    population's smallest dip (seed 10's, 0.31) less 0.01; this walk dips 0.59,
+    to 0.40 at lumpiness 0.7, so a failure here means the walk changed, and the
+    population is what to measure next.
+
     Falling below it at every mismatched step holds only on seeds 0, 8, and 11,
     and from lumpiness 0.2 on only on six of them, so neither is asserted: on
     many shapes a mismatched step still reports 0.99 (this realization does at
@@ -256,6 +262,7 @@ def test_irregularity_population_veto_rate_at_extreme_mismatch() -> None:
 
 @pytest.mark.xfail(
     strict=True,
+    raises=AssertionError,
     reason='#790: the shape-lock veto misses confident wrong solutions on irregular mesh '
     'bodies; mesh seed 10 ends a 0.91-confidence success 12.7 px off at lumpiness 0.7',
 )
