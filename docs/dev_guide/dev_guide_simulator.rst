@@ -842,8 +842,8 @@ The scene validator refuses it on load, and the render-time resolvers
 (``resolve_mode_config`` and ``resolve_mode_with_catalog``) refuse it again with
 the same message, so a scene built in memory or by a sweep step fails the same
 way instead of rendering a clean frame. The sweep harness also re-validates each
-step's ``artifacts`` block, so a sweep path naming an unknown or retired mode key
-fails when the sweep is built.
+step's ``artifacts`` and ``noise`` blocks, so a sweep path naming an unknown or
+retired mode or noise key fails when the sweep is built.
 
 Telemetry-stage modes
 ---------------------
@@ -2957,14 +2957,18 @@ against exactly this inventory, so an unknown noise key fails loudly.
        ``read_noise_pixel_dn``, ``coherent_amplitude_dn``,
        ``coherent_period_px``.
 
-The validator refuses two retired noise keys with a message that names what
-happened to each (``RENAMED_NOISE_KEYS`` in :mod:`spindoctor.sim.scene_checks`):
-``cosmic_ray_rate_per_sec`` was renamed to
-``cosmic_ray_events_per_pixel_per_sec``, and ``pixel_area_cm2`` was removed,
-because the rate is already per pixel. A scene names every retired key it
-carries in one message. The configuration's ``sim.noise`` section, which a user
-overlay can change and the scene validator never sees, is checked against the
-same table when a frame renders: a retired key there fails the render with a
+The validator refuses two retired noise keys, ``cosmic_ray_rate_per_sec`` and
+``pixel_area_cm2``. The message for the first names its replacement,
+``cosmic_ray_events_per_pixel_per_sec``, and the message for the second says the
+rate is already per pixel. ``RENAMED_NOISE_KEYS`` in
+:mod:`spindoctor.sim.scene_schema` holds the table. A scene names every retired
+key it carries in one message. The detector resolver refuses them in the scene's
+``noise`` block with the same message (``refuse_renamed_noise_keys``), so an
+in-memory scene that skipped validation fails at render, and the sweep harness
+re-validates each step's ``noise`` block, so a sweep that steps a retired key
+fails when the sweep is built. The configuration's ``sim.noise`` section, which a
+user overlay can change and the scene validator never sees, is checked against
+the same table when a frame renders: a retired key there fails the render with a
 ``DetectorParamError`` naming each one.
 
 Physical saturation caps the electron image at the full well before gain (with
@@ -3247,7 +3251,16 @@ realism addition needs -- live in their own module:
    * - ``noise.py``
      - Poisson, read noise, bias, cosmic-ray rate (events per pixel per
        second), missing-data rate, bloom, and signal full-scale fraction
-       (General tab).
+       (General tab). The cosmic-ray and missing-data controls follow the
+       validator's refusals through the same predicates
+       (``cosmic_ray_rate_refusal`` and ``missing_data_rate_refusal`` in
+       :mod:`spindoctor.sim.scene_checks`): on the vidicon detector the
+       cosmic-ray control is disabled, and on a ``calibrated_if`` frame the
+       missing-data control is, each with the validator's reason as its
+       tooltip. A change of instrument, detector model, or detector override
+       that makes a set rate refused moves the rate into a stash held for the
+       session, and the status bar names it. A change that lifts the refusal
+       puts it back. Load Scene clears the stash.
    * - ``optics_tab.py``
      - The Optics tab: PSF, motion smear, distortion, ghosts, the stray-light
        panel, oversample, and the spacecraft-ephemeris error group. Each

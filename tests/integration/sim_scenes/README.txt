@@ -168,7 +168,11 @@ Fields
                                      bias_col_gradient_dn, vidicon {read_noise_line_dn,
                                      read_noise_pixel_dn, coherent_amplitude_dn,
                                      coherent_period_px}; unknown keys fail validation,
-                                     and a key set to null counts as unset
+                                     and a key set to null counts as unset.  The
+                                     validator, the renderer, and a sweep step refuse
+                                     the retired cosmic_ray_rate_per_sec (use
+                                     cosmic_ray_events_per_pixel_per_sec) and
+                                     pixel_area_cm2 (the rate is already per pixel)
   oversample       (int, opt)        radiance oversampling factor (default 4 when a PSF
                                      is active, else 1)
   optics           (mapping, opt)    whole-scene optical effects: psf (sigma_v, sigma_u,
@@ -315,9 +319,9 @@ no-op.  For example:
       dead_pixels: {count: 10}
       hot_pixels: {pixel_fraction: 0.002}
 
-The key that used to cover all four meanings, incidence, is refused by the
-validator, and again at render time, with a message naming the mode's
-replacement and what that key holds on the mode.
+The retired key incidence is refused by the validator, and again at render
+time, with a message naming the mode's activation key and what that key holds
+on the mode.
 
 Ring system keys
 ----------------

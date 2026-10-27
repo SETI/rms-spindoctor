@@ -61,6 +61,22 @@ starting from an empty one.
 
    sd_create_simulated_image /path/to/scene.yaml
 
+The editor disables a control whose value the scene file would refuse, and the control's
+tooltip says why:
+
+* On a ``polyhedral_mesh`` body, the controls for the appearance keys a mesh doesn't
+  support: atmosphere, photometric law, opposition surge, albedo texture, disc texture,
+  transits, and the crater controls.
+* On the Voyager vidicon detector (``vgiss``, or a detector model of ``vidicon``), the
+  cosmic-ray rate.
+* On a calibrated frame (``coiss_calib_nac``, ``coiss_calib_wac``, or ``vgiss``), the
+  missing-data rate.
+
+When switching a body's shape, the camera, or the detector model makes a value the scene
+carries refused, the editor moves that value out of the scene, and the status bar names
+it. Switching back puts the value back during the same session. A scene saved in between
+doesn't carry it.
+
 Units of a simulated frame
 ==========================
 
@@ -136,11 +152,14 @@ to 0, and an entry whose key, or whose ``count``, is 0 doesn't plant anything.
      dead_pixels: {count: 10}
      hot_pixels: {pixel_fraction: 0.002}
 
-A scene that still uses the retired ``incidence`` key is refused when it is loaded or
+The ``incidence`` key is retired. A scene that uses it is refused when it is loaded or
 rendered, and the message names the key that replaces it and what that key means for
-the defect. The developer guide's
-:doc:`/dev_guide/dev_guide_simulator` chapter lists every defect, the cameras each one
-is available on, and the key each one takes.
+the defect. Two keys in a scene file's ``noise`` section are retired the same way.
+``cosmic_ray_rate_per_sec`` is replaced by ``cosmic_ray_events_per_pixel_per_sec``, the
+expected number of cosmic-ray hits per pixel per second of exposure.
+``pixel_area_cm2`` is refused because that rate is already per pixel. The developer
+guide's :doc:`/dev_guide/dev_guide_simulator` chapter lists every defect, the cameras
+each one is available on, and the key each one takes.
 
 Rings in a scene
 ================
