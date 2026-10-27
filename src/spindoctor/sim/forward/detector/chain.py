@@ -432,7 +432,9 @@ def _apply_vidicon(frame: SimFrame, dp: DetectorParams, rng: np.random.Generator
     The vidicon is not photon-noise dominated, so its signal maps straight to
     the 8-bit DN full scale and the noise is applied in DN: a line-correlated
     read-noise term (a per-line offset plus a within-line white component) and a
-    faint vertical coherent periodic component, then 8-bit quantization.
+    faint vertical coherent periodic component, then 8-bit quantization.  The
+    chain lacks a cosmic-ray stage, so the scene validator refuses a
+    non-zero ``noise.cosmic_ray_events_per_pixel_per_sec`` on this path.
     """
     modes = dp.detector_modes
     records: dict[str, Any] = {}

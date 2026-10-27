@@ -44,7 +44,9 @@ class NoiseMixin(SimEditorBase):
             float(self._noise_value('cosmic_ray_events_per_pixel_per_sec', 0.0))
         )
         self._cosmic_ray_spin.setToolTip(
-            'Expected cosmic-ray events per pixel per second of exposure.'
+            'Expected cosmic-ray events per pixel per second of exposure. CCD chain '
+            'only: the vidicon (vgiss) lacks a cosmic-ray stage, so validation refuses '
+            'a non-zero rate there.'
         )
         self._cosmic_ray_spin.valueChanged.connect(self._on_cosmic_ray)
         gen_layout.addRow('Cosmic rays (/px/s):', self._cosmic_ray_spin)

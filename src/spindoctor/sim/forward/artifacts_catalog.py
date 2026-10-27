@@ -509,7 +509,8 @@ DETECTOR_DEFAULTS: dict[str, dict[str, Any]] = {
         'bias_dn': 20.0,
         'quantization': '8bit',
         # Cosmic rays RETAINED at zero 2026-07-17 (no key: the vidicon DN
-        # path carries no cosmic-ray stage, so a rate here would be inert).
+        # path lacks a cosmic-ray stage, so a rate here would be inert,
+        # and the scene validator refuses a non-zero rate on this path).
         # The realism match measured a 3.5e-5 transient spike fraction over
         # the 3-frame GEOMED cohort -- GEOMED's reseau-anchored resampling
         # interpolates most single-pixel transients away.  Unblocked by a

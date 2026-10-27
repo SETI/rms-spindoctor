@@ -1,11 +1,13 @@
-"""The cosmic-ray rate: one unit and one name.
+"""The cosmic-ray rate: one unit, one name, and refused where the chain ignores it.
 
 ``noise.cosmic_ray_events_per_pixel_per_sec`` is the expected number of
 cosmic-ray events per pixel per second of exposure: a frame's Poisson mean is
 the rate times the exposure times the pixel count, with no other factor.  The
 retired ``cosmic_ray_rate_per_sec`` and ``pixel_area_cm2`` keys are refused with
-a message naming the replacement or the removal.  Under
-``artifacts.instrument_defaults`` the catalog's rate applies.
+a message naming the replacement or the removal.  The cosmic-ray stage exists
+only in the CCD electron chain, so the validator refuses a non-zero rate on a
+scene whose detector model resolves to the vidicon, and on no other scene.
+Under ``artifacts.instrument_defaults`` the catalog's rate applies.
 """
 
 import re
@@ -16,13 +18,18 @@ import pytest
 
 from spindoctor.config import DEFAULT_CONFIG
 from spindoctor.sim.forward.artifacts_catalog import DETECTOR_DEFAULTS
+from spindoctor.sim.forward.detector import apply_detector
 from spindoctor.sim.forward.detector.noise_stages import add_cosmic_rays
 from spindoctor.sim.forward.detector.params import resolve_detector_params
+from spindoctor.sim.forward.stages import SimFrame
+from spindoctor.sim.instruments import SIM_INSTRUMENTS
 from spindoctor.sim.scene import SimSceneValidationError, validate_sim_params
 from spindoctor.sim.scene_checks import RENAMED_NOISE_KEYS
+from spindoctor.sim.seeds import derive_effect_seed
 
 _KEY = 'cosmic_ray_events_per_pixel_per_sec'
 _RETIRED = ('cosmic_ray_rate_per_sec', 'pixel_area_cm2')
+_INSTRUMENTS = (*sorted(SIM_INSTRUMENTS), 'generic')
 
 
 class _RecordingRng:
@@ -55,6 +62,22 @@ def _scene(instrument: str, noise: dict[str, Any], **extra: Any) -> dict[str, An
     }
     scene.update(extra)
     return scene
+
+
+def _detector_dn(scene: dict[str, Any]) -> np.ndarray:
+    """Run the detector stage over a dark (zero-signal) frame of ``scene``'s size.
+
+    A dark frame keeps every instrument below its ADC ceiling, so a cosmic-ray
+    hit always changes the DN it lands on.
+    """
+    shape = (int(scene['size_v']), int(scene['size_u']))
+    frame = SimFrame(
+        signal=np.zeros(shape, dtype=np.float64),
+        point_e=np.zeros(shape, dtype=np.float64),
+    )
+    rng = np.random.default_rng(derive_effect_seed(int(scene['random_seed']), 'detector'))
+    apply_detector(frame, params=scene, rng=rng)
+    return frame.signal.copy()
 
 
 # ---- The unit ----
@@ -134,6 +157,58 @@ def test_sim_config_floor_uses_the_per_pixel_key() -> None:
 def test_catalog_entries_carry_only_the_per_pixel_key(entry: str) -> None:
     """No catalog entry carries a retired key."""
     assert set(DETECTOR_DEFAULTS[entry]) & set(_RETIRED) == set()
+
+
+# ---- The vidicon path ----
+
+
+@pytest.mark.parametrize(
+    ('instrument', 'detector', 'via'),
+    [
+        ('vgiss', None, ''),
+        ('coiss_nac', {'detector_model': 'vidicon'}, ' via detector.detector_model'),
+        ('generic', {'detector_model': 'vidicon'}, ' via detector.detector_model'),
+    ],
+    ids=['vgiss-default', 'coiss-nac-vidicon', 'generic-vidicon'],
+)
+def test_nonzero_rate_on_the_vidicon_is_refused(
+    instrument: str, detector: dict[str, str] | None, via: str
+) -> None:
+    """A positive rate on a vidicon-path scene fails, saying the chain would ignore it."""
+    extra = {} if detector is None else {'detector': detector}
+    scene = _scene(instrument, {_KEY: 0.01}, **extra)
+    message = (
+        f'scene: noise.{_KEY} is 0.01, but instrument {instrument!r} renders through '
+        f'the vidicon detector{via}, whose DN chain lacks a cosmic-ray stage, so the '
+        'rate would be silently ignored; set it to 0 or remove it'
+    )
+    with pytest.raises(SimSceneValidationError, match=re.escape(message)):
+        validate_sim_params(scene, source='scene')
+
+
+def test_zero_rate_on_vgiss_is_accepted() -> None:
+    """A zero rate on the vidicon is the floor and passes."""
+    scene = _scene('vgiss', {_KEY: 0.0})
+    assert validate_sim_params(scene) is scene
+
+
+@pytest.mark.parametrize('instrument', _INSTRUMENTS)
+@pytest.mark.parametrize('model', [None, 'ccd', 'vidicon'], ids=['default', 'ccd', 'vidicon'])
+def test_validator_refuses_exactly_the_paths_where_the_rate_is_inert(
+    instrument: str, model: str | None
+) -> None:
+    """The validator refuses a rate if and only if the detector output ignores it."""
+    extra = {} if model is None else {'detector': {'detector_model': model}}
+    without = _detector_dn(_scene(instrument, {_KEY: 0.0}, **extra))
+    with_rate = _detector_dn(_scene(instrument, {_KEY: 0.05}, **extra))
+    inert = bool(np.array_equal(without, with_rate))
+    try:
+        validate_sim_params(_scene(instrument, {_KEY: 0.05}, **extra))
+    except SimSceneValidationError:
+        refused = True
+    else:
+        refused = False
+    assert refused == inert
 
 
 # ---- instrument_defaults ----

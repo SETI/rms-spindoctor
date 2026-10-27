@@ -29,6 +29,7 @@ from spindoctor.sim.forward.artifact_modes import (
     mode_unavailable_message,
     renamed_param_message,
 )
+from spindoctor.sim.forward.artifacts_catalog import resolve_detector_defaults
 from spindoctor.sim.scene_schema import SimSceneValidationError
 from spindoctor.support.status_reason import NavStatusReason
 
@@ -431,8 +432,6 @@ def _check_detector(value: Any, *, instrument: str, source: str) -> None:
         # validation, with the cataloged alternatives in the message; the
         # render-time resolver keeps its own guard as a backstop for scenes
         # that bypass validation.
-        from spindoctor.sim.forward.artifacts_catalog import resolve_detector_defaults
-
         table = resolve_detector_defaults(instrument).get('gain_e_per_dn_by_state') or {0: 1.0}
         if gain_state not in table:
             raise SimSceneValidationError(
@@ -454,6 +453,44 @@ def _check_detector(value: Any, *, instrument: str, source: str) -> None:
             f'{source}: detector.quantization must be one of {sorted(_QUANTIZATION_MODES)}; '
             f'got {quantization!r}'
         )
+
+
+def _check_noise_on_detector_path(
+    noise: Any, detector: Any, *, instrument: str, source: str
+) -> None:
+    """Refuse a cosmic-ray rate the scene's detector path would ignore.
+
+    The cosmic-ray stage exists only in the CCD electron chain.  A scene whose
+    detector model resolves to ``vidicon`` (the ``vgiss`` default, or any
+    instrument with ``detector.detector_model: vidicon``) renders through the DN
+    chain, where a non-zero ``noise.cosmic_ray_events_per_pixel_per_sec`` would
+    change nothing, so it fails here.  A zero rate passes.  Run after
+    :func:`_check_noise` and :func:`_check_detector` have type-checked both
+    blocks.
+
+    Parameters:
+        noise: The scene's ``noise`` mapping, or None.
+        detector: The scene's ``detector`` mapping, or None.
+        instrument: The scene's (already validated) instrument name.
+        source: Label used in error messages.
+
+    Raises:
+        SimSceneValidationError: On a positive cosmic-ray rate on the vidicon path.
+    """
+    rate = (noise or {}).get('cosmic_ray_events_per_pixel_per_sec')
+    if rate is None or float(rate) <= 0.0:
+        return
+    scene_model = (detector or {}).get('detector_model')
+    model = scene_model or resolve_detector_defaults(instrument)['detector_model']
+    if model != 'vidicon':
+        return
+    via = ' via detector.detector_model' if scene_model is not None else ''
+    raise SimSceneValidationError(
+        f'{source}: noise.cosmic_ray_events_per_pixel_per_sec is {rate}, but instrument '
+        f'{instrument!r} renders through the vidicon detector{via}, whose DN chain '
+        'lacks a cosmic-ray stage, so the rate would be silently ignored; set it to 0 '
+        'or remove it'
+    )
 
 
 def _check_artifacts(value: Any, *, instrument: str, source: str) -> None:
