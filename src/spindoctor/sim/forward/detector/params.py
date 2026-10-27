@@ -48,6 +48,7 @@ from spindoctor.sim.forward.artifacts_catalog import (
     resolve_mode_with_catalog,
 )
 from spindoctor.sim.instruments import resolve_sim_inst_config
+from spindoctor.sim.scene_checks import RENAMED_NOISE_KEYS, renamed_noise_key_message
 from spindoctor.sim.seeds import derive_effect_seed
 
 __all__ = ['DetectorParams', 'resolve_detector_params']
@@ -276,6 +277,26 @@ def _scene_or_default(block: Mapping[str, Any], key: str, default: Any) -> Any:
     return default if value is None else value
 
 
+def _refuse_retired_config_keys(sim_noise: Mapping[str, Any]) -> None:
+    """Refuse a retired noise key in the configuration's ``sim.noise`` section.
+
+    Scenes are validated, but a user configuration overlay is not: a retired
+    key there (``cosmic_ray_rate_per_sec``, ``pixel_area_cm2``) would otherwise
+    be ignored without a word.  Every retired key present is named.
+
+    Parameters:
+        sim_noise: The resolved ``sim.noise`` configuration section.
+
+    Raises:
+        DetectorParamError: If the section carries any key listed in
+            :data:`~spindoctor.sim.scene_checks.RENAMED_NOISE_KEYS`.
+    """
+    retired = sorted(set(sim_noise) & set(RENAMED_NOISE_KEYS))
+    if retired:
+        messages = '; '.join(renamed_noise_key_message(key) for key in retired)
+        raise DetectorParamError(f'configuration sim.noise: {messages}')
+
+
 def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
     """Collapse the scene, config, and catalog into a resolved detector view.
 
@@ -286,7 +307,8 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
         The resolved :class:`DetectorParams`.
 
     Raises:
-        DetectorParamError: If the scene selects an unavailable gain state.
+        DetectorParamError: If the scene selects an unavailable gain state, or
+            the configuration's ``sim.noise`` section carries a retired key.
     """
     instrument = params.get('instrument')
     inst_config = resolve_sim_inst_config(
@@ -294,6 +316,7 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
     )
     inst_noise = inst_config.get('noise') or {}
     sim_noise = DEFAULT_CONFIG.category('sim')['noise']
+    _refuse_retired_config_keys(sim_noise)
     catalog = resolve_detector_defaults(instrument)
 
     detector_block = params.get('detector') or {}

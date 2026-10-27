@@ -7,9 +7,10 @@ retired ``cosmic_ray_rate_per_sec`` and ``pixel_area_cm2`` keys are refused with
 a message naming the replacement or the removal.  The cosmic-ray stage exists
 only in the CCD electron chain, so the validator refuses a non-zero rate on a
 scene whose detector model resolves to the vidicon, and on no other scene.
-Under ``artifacts.instrument_defaults`` the catalog's rate applies.  An explicit
-null ``detector.detector_model`` means the instrument's default model, to the
-renderer as to the validator.
+Under ``artifacts.instrument_defaults`` the catalog's rate applies, and below
+that the configuration's ``sim.noise`` floor, where a retired key fails the
+render.  An explicit null ``detector.detector_model`` means the instrument's
+default model, to the renderer as to the validator.
 """
 
 import re
@@ -22,7 +23,7 @@ from spindoctor.config import DEFAULT_CONFIG
 from spindoctor.sim.forward.artifacts_catalog import DETECTOR_DEFAULTS, resolve_detector_defaults
 from spindoctor.sim.forward.detector import apply_detector
 from spindoctor.sim.forward.detector.noise_stages import add_cosmic_rays
-from spindoctor.sim.forward.detector.params import resolve_detector_params
+from spindoctor.sim.forward.detector.params import DetectorParamError, resolve_detector_params
 from spindoctor.sim.forward.stages import SimFrame
 from spindoctor.sim.instruments import SIM_INSTRUMENTS
 from spindoctor.sim.scene import SimSceneValidationError, validate_sim_params
@@ -31,6 +32,14 @@ from spindoctor.sim.seeds import derive_effect_seed
 
 _KEY = 'cosmic_ray_events_per_pixel_per_sec'
 _RETIRED = ('cosmic_ray_rate_per_sec', 'pixel_area_cm2')
+_RENAMED_MESSAGE = (
+    "'cosmic_ray_rate_per_sec' was renamed; use 'cosmic_ray_events_per_pixel_per_sec' "
+    '(expected events per pixel per second of exposure)'
+)
+_REMOVED_MESSAGE = (
+    "'pixel_area_cm2' was removed; the cosmic-ray rate "
+    "'cosmic_ray_events_per_pixel_per_sec' is already per pixel"
+)
 # The detector block a property case uses: absent, an explicit null (which the
 # validator and the renderer must both read as the instrument's default), or a
 # named model.
@@ -129,23 +138,22 @@ def test_renamed_noise_keys_table() -> None:
 @pytest.mark.parametrize(
     ('old_key', 'message'),
     [
-        (
-            'cosmic_ray_rate_per_sec',
-            "noise: 'cosmic_ray_rate_per_sec' was renamed; use "
-            "'cosmic_ray_events_per_pixel_per_sec' "
-            '(expected events per pixel per second of exposure)',
-        ),
-        (
-            'pixel_area_cm2',
-            "noise: 'pixel_area_cm2' was removed; the cosmic-ray rate "
-            "'cosmic_ray_events_per_pixel_per_sec' is already per pixel",
-        ),
+        ('cosmic_ray_rate_per_sec', _RENAMED_MESSAGE),
+        ('pixel_area_cm2', _REMOVED_MESSAGE),
     ],
 )
 def test_retired_noise_key_is_refused_naming_its_fate(old_key: str, message: str) -> None:
     """Each retired key fails validation with a message naming its replacement or removal."""
-    with pytest.raises(SimSceneValidationError, match=re.escape(f'scene: {message}')):
+    with pytest.raises(SimSceneValidationError, match=re.escape(f'scene: noise: {message}')):
         validate_sim_params(_scene('coiss_nac', {old_key: 1.0}), source='scene')
+
+
+def test_scene_with_both_retired_keys_names_each() -> None:
+    """A scene carrying both retired keys is told about both in one message."""
+    scene = _scene('coiss_nac', dict.fromkeys(_RETIRED, 1.0))
+    message = f'scene: noise: {_RENAMED_MESSAGE}; {_REMOVED_MESSAGE}'
+    with pytest.raises(SimSceneValidationError, match=f'^{re.escape(message)}$'):
+        validate_sim_params(scene, source='scene')
 
 
 @pytest.mark.parametrize('old_key', _RETIRED)
@@ -157,6 +165,43 @@ def test_retired_key_is_absent_from_the_sim_config(old_key: str) -> None:
 def test_sim_config_floor_uses_the_per_pixel_key() -> None:
     """The packaged sim config's noise floor is the per-pixel key, at zero."""
     assert DEFAULT_CONFIG.category('sim')['noise'][_KEY] == 0.0
+
+
+def test_config_floor_rate_reaches_a_scene_that_leaves_it_unset(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A non-zero sim.noise floor is the rate of a scene that sets none."""
+    monkeypatch.setitem(DEFAULT_CONFIG.category('sim')['noise'], _KEY, 6.0e-4)
+    resolved = resolve_detector_params(_scene('coiss_nac', {}))
+    assert resolved.cosmic_ray_events_per_pixel_per_sec == pytest.approx(6.0e-4)
+
+
+def test_config_floor_rate_gives_way_to_the_scene(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A scene's own rate wins over a non-zero sim.noise floor."""
+    monkeypatch.setitem(DEFAULT_CONFIG.category('sim')['noise'], _KEY, 6.0e-4)
+    resolved = resolve_detector_params(_scene('coiss_nac', {_KEY: 1.0e-5}))
+    assert resolved.cosmic_ray_events_per_pixel_per_sec == pytest.approx(1.0e-5)
+
+
+@pytest.mark.parametrize(
+    ('present', 'message'),
+    [
+        (('cosmic_ray_rate_per_sec',), _RENAMED_MESSAGE),
+        (('pixel_area_cm2',), _REMOVED_MESSAGE),
+        (_RETIRED, f'{_RENAMED_MESSAGE}; {_REMOVED_MESSAGE}'),
+    ],
+    ids=['rate', 'area', 'both'],
+)
+def test_retired_key_in_the_config_floor_fails_the_render(
+    monkeypatch: pytest.MonkeyPatch, present: tuple[str, ...], message: str
+) -> None:
+    """A retired key in sim.noise (a user overlay) is refused, each one named."""
+    sim_noise = DEFAULT_CONFIG.category('sim')['noise']
+    for key in present:
+        monkeypatch.setitem(sim_noise, key, 1.0)
+    full = f'configuration sim.noise: {message}'
+    with pytest.raises(DetectorParamError, match=f'^{re.escape(full)}$'):
+        resolve_detector_params(_scene('coiss_nac', {}))
 
 
 @pytest.mark.parametrize('entry', sorted(DETECTOR_DEFAULTS))

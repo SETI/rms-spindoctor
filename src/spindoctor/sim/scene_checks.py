@@ -381,7 +381,8 @@ def _check_noise(value: Any, *, source: str) -> None:
         raise SimSceneValidationError(f'{source}: noise must be a mapping when present')
     retired = sorted(set(value) & set(RENAMED_NOISE_KEYS))
     if retired:
-        raise SimSceneValidationError(f'{source}: noise: {renamed_noise_key_message(retired[0])}')
+        messages = '; '.join(renamed_noise_key_message(key) for key in retired)
+        raise SimSceneValidationError(f'{source}: noise: {messages}')
     unknown = set(value) - _NOISE_KEYS
     if unknown:
         raise SimSceneValidationError(f'{source}: noise: unknown keys: {sorted(unknown)}')
