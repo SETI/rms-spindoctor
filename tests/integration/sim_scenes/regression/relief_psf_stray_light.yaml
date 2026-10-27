@@ -29,10 +29,11 @@ exposure_sec: 1.0
 # 2.5.  In u the maximum itself is biased, 1.06 px from the planted
 # -1.5, and a wider window would still miss by that much.  The surface
 # is flat: about 0.2% separates the window center from the maximum.
-# Both defects are tracked as #791.  The ensemble fuses the limb fit and the correlation as one witness and
-# takes the correlation's offset, so the scene pins a medium-confidence
-# success whose error is the correlation's.  The baseline is a tripwire
-# on that outcome; it makes no accuracy claim.
+# Both defects are tracked as #791.  The ensemble fuses the limb fit and
+# the correlation as one witness and takes the correlation's offset, so
+# the scene pins a medium-confidence success whose error is the
+# correlation's.  The baseline is a tripwire on that outcome; it makes
+# no accuracy claim.
 bodies:
   - name: RUGGED
     shape_model: ellipsoid

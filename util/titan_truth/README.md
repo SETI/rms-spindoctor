@@ -68,7 +68,8 @@ can avoid that, and a switch would draw a seam. The band lies along the sun
 axis, over the sunward limb the technique scores on. Poleward of the band the
 control is a pure scaling only where the scaled half stays below saturation:
 the simulator clips the signal at 1, so a positive amplitude flattens the
-bright crescent. Over the 26 clean scenes that navigate both with and without
+bright crescent. Over 26 of the 40 clean scenes that navigate both with and
+without
 it, an amplitude of +0.35 moves the recovered cross-track position by 0.063
 pixels on average with a switch at the equator and 0.065 pixels with the band,
 about four times what -0.35 costs with the band. On the structureless spheres

@@ -1410,7 +1410,8 @@ to the relief or the renderer moves the median away from the scene's seed.
 
 Faceting is a sampling effect. At the default 16 by 32 tessellation a large body
 shows rings of flat-shaded quadrilaterals around the mesh pole and a polygonal
-silhouette. The shipped mesh scenes and the gallery use 64 by 128, at which
+silhouette. The shipped mesh scenes and the gallery's other mesh panels use 64
+by 128, at which
 neither is visible on a body up to about 150 pixels across. Because
 ``mesh_n_lat`` and ``mesh_n_lon`` are idealized keys, the navigator's predicted
 mesh uses the same tessellation, so a finer mesh never plants a mismatch.
@@ -1594,8 +1595,8 @@ ratio of one or an amplitude of zero leaves the haze untouched.
 The render clips the signal at 1, so a positive amplitude flattens the bright
 crescent wherever the base brightness times ``1 + amplitude`` would pass 1, and
 there the two halves differ by the clip instead of a scaling, poleward of the
-band or not. Over the 26 clean Titan truth scenes that navigate both with and
-without an ``ns_asymmetry_amplitude`` of +0.35, the amplitude shifts the
+band or not. Over 26 of the 40 clean Titan truth scenes that navigate both with
+and without an ``ns_asymmetry_amplitude`` of +0.35, the amplitude shifts the
 recovered cross-track position by 0.063 pixels on average with a switch at the
 equator and 0.065 pixels with the 10 degree band, about four times what an
 amplitude of -0.35 costs with the band (below). Nearly all of that cost is there

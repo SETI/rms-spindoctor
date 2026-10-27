@@ -309,7 +309,8 @@ def test_pose_disagreement_limb_error_grows() -> None:
 def test_pose_disagreement_limb_is_confidently_wrong() -> None:
     """At the largest disagreement the limb is several pixels off yet still 'success'.
 
-    The pinned limb does not self-flag across this tumble range -- it returns a
+    Apart from the 55 deg step, where it self-flags spurious and the frame fails,
+    the pinned limb does not self-flag across this tumble range -- it returns a
     confidently-wrong fix (a multi-pixel error at unchanged confidence), which is
     why the per-technique demote decision (test_sim_irregular_pose) cannot rely on
     the limb's own status and compares it against the pose-free blob instead.

@@ -1374,6 +1374,8 @@ what belongs to one realization:
   confident wrong result is a known gap in the veto, held by a strict
   expected-failure test until the veto catches it.
 
+  .. The veto gap is tracked as issue #790.
+
 ``test_sim_sweeps`` asserts these population properties over the 13 seeds and
 keeps the single-seed walk as a tripwire on its realization.
 
@@ -1386,6 +1388,8 @@ disc diagnostics carry no mismatch signal, and only a cross-technique veto can
 catch the shape lock. Matching the published residuals takes ``mesh_lumpiness``
 = 8 x the residual over the mean radius; rerunning the campaign at that relief
 and recalibrating the formula is a follow-up issue.
+
+.. The campaign rerun is tracked as issue #793.
 
 Pose disagreement
 -----------------
@@ -1402,13 +1406,14 @@ limb fit:
    Pinned-limb recovered-offset error vs the predicted pose's disagreement with
    the true (rendered) pose (a tumble about the body's long axis). The limb's
    error climbs from 0.18 px at the true pose to 4.5 px at a 75 deg disagreement.
-   At 55 deg (the dashed line) the fused navigation fails with no fix, so the
-   curve breaks there.
+   At 55 deg (the dashed line) the pinned limb self-flags spurious and the frame
+   fails, so the curve breaks there.
 
 The limb error climbs from 0.18 px at the true pose through 1.00 px and 1.20 px
 at 10 and 20 deg of disagreement to 4.53 px at 75 deg (2026-10-27
 measurement), still reporting ``success`` at 0.51-0.63 confidence. At 55 deg of
-disagreement the frame fails without a fix, so the error there is not plotted.
+disagreement the limb self-flags spurious and the frame fails, so the error
+there is not plotted.
 A wrong in-plane roll degrades the limb far more
 sharply: a 20 deg roll puts it 20.8 px off, and there it does self-flag
 spurious. The pose-free blob centroid, by contrast, stays within 0.66 px on the

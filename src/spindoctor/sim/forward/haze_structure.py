@@ -67,8 +67,8 @@ haze navigator scores on.
 Poleward of the band the amplitude is a pure scaling only where the scaled
 half stays below saturation.  The renderer clips the signal at 1, so a
 positive amplitude flattens the bright crescent wherever the base brightness
-times ``1 + ns_asymmetry_amplitude`` would pass 1.  Over the 26 clean Titan
-truth scenes that navigate both with and without an amplitude of +0.35, the
+times ``1 + ns_asymmetry_amplitude`` would pass 1.  Over 26 of the 40 clean
+Titan truth scenes that navigate both with and without an amplitude of +0.35, the
 amplitude shifts the recovered cross-track position by 0.063 pixels on
 average with a switch at the equator and 0.065 pixels with a 10 degree band,
 about four times what -0.35 costs with the band.  A switch carries nearly
