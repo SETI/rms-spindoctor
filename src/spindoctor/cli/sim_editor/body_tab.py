@@ -43,7 +43,9 @@ class BodyTabMixin(SimEditorBase):
 
     def _build_body_tab(self, idx: int) -> QWidget:
         """Build the editing tab widget for the body at ``idx``."""
-        p = self.sim_params['bodies'][idx]
+        # Built from the stash-merged view, so a tab rebuilt while the body is a
+        # mesh shows the values switching it back to an ellipsoid restores.
+        p = self._mesh_key_stash.view(self.sim_params['bodies'][idx])
         w = QWidget()
         w.setProperty('kind', 'body')
         w.setProperty('data_index', idx)
@@ -112,6 +114,7 @@ class BodyTabMixin(SimEditorBase):
             shape_combo.setCurrentIndex(shape_index)
         shape_combo.currentTextChanged.connect(lambda t, i=idx: self._on_body_shape_model(i, t))
         fl.addRow('Shape model:', shape_combo)
+        w.shape_combo = shape_combo  # type: ignore[attr-defined]
 
         mesh_lump = QDoubleSpinBox()
         mesh_lump.setRange(0.0, 1.0)
@@ -241,6 +244,10 @@ class BodyTabMixin(SimEditorBase):
         crs.setValue(p.get('crater_relief_scale', 0.6))
         crs.valueChanged.connect(lambda v, i=idx: self._on_body_field(i, 'crater_relief_scale', v))
         fl.addRow('Crater relief scale:', crs)
+        w.crater_min_radius_spin = cmin  # type: ignore[attr-defined]
+        w.crater_max_radius_spin = cmax  # type: ignore[attr-defined]
+        w.crater_exponent_spin = cexp  # type: ignore[attr-defined]
+        w.crater_relief_scale_spin = crs  # type: ignore[attr-defined]
 
         # Anti-aliasing slider with min/max labels and spinbox
         aa_row = QHBoxLayout()
@@ -295,7 +302,8 @@ class BodyTabMixin(SimEditorBase):
         # true geometry), but the navigator predicts the body with these fields
         # overlaid, so a scene can render a mesh and predict a smooth ellipsoid or
         # a different pose.  Unchecking it removes the override.
-        override = p.get('nav_override') if isinstance(p.get('nav_override'), dict) else {}
+        raw_override = p.get('nav_override')
+        override: dict[str, Any] = raw_override if isinstance(raw_override, dict) else {}
         nav_group = QGroupBox('Navigation override (predicted geometry)')
         nav_group.setCheckable(True)
         nav_group.setChecked('nav_override' in p)
@@ -347,6 +355,7 @@ class BodyTabMixin(SimEditorBase):
         # mesh extras); each follows the absent-key discipline and stores its
         # widget refs on ``w``.
         self._build_body_appearance_groups(w, idx, main_layout)
+        self._sync_body_mesh_enabled(w, p.get('shape_model') == 'polyhedral_mesh')
 
         # Delete button at bottom
         delete_btn = QPushButton('Delete')
@@ -372,9 +381,19 @@ class BodyTabMixin(SimEditorBase):
                 self._validate_ranges()
 
     def _on_body_shape_model(self, idx: int, text: str) -> None:
-        """Set the shape model and gate the mesh-only appearance controls."""
+        """Set the shape model and gate the shape-specific controls and keys.
+
+        A mesh body moves its ellipsoid-only keys (``MESH_UNSUPPORTED_KEYS``) into
+        the editor's stash, so the scene keeps validating; an ellipsoid body takes
+        them back.
+        """
         if 0 <= idx < len(self.sim_params['bodies']):
-            self.sim_params['bodies'][idx]['shape_model'] = text
+            body = self.sim_params['bodies'][idx]
+            body['shape_model'] = text
+            if text == 'polyhedral_mesh':
+                self._mesh_key_stash.take(body)
+            else:
+                self._mesh_key_stash.give_back(body)
             tab_idx = self._find_tab_by_properties('body', idx)
             if tab_idx is not None:
                 tab_w = self._tabs.widget(tab_idx)

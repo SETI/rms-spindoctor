@@ -34,6 +34,7 @@ from spindoctor.cli.sim_editor.background_stars import BackgroundStarsMixin
 from spindoctor.cli.sim_editor.base import SimEditorBase
 from spindoctor.cli.sim_editor.body_appearance import BodyAppearanceMixin
 from spindoctor.cli.sim_editor.body_atmosphere import BodyAtmosphereMixin
+from spindoctor.cli.sim_editor.body_mesh_keys import MeshKeyStash
 from spindoctor.cli.sim_editor.body_tab import BodyTabMixin
 from spindoctor.cli.sim_editor.expected_outcome import ExpectedOutcomeMixin
 from spindoctor.cli.sim_editor.global_fields import GlobalFieldsMixin
@@ -105,6 +106,8 @@ class CreateSimulatedImageModel(
         self._current_image: np.ndarray | None = None
         self._last_meta: dict[str, Any] = {}
         self._base_pixmap = None
+        # Ellipsoid-only body keys held while their body is a polyhedral mesh.
+        self._mesh_key_stash = MeshKeyStash()
 
         # View state
         self._zoom_factor = 1.0

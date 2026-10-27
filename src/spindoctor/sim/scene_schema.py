@@ -21,7 +21,7 @@ inventory for validation, builds the filtered navigator view from the
 classification, and re-exports the boundary names.
 """
 
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from typing import Any
 
 
@@ -201,6 +201,53 @@ _BODY_TRUTH_KEYS: frozenset[str] = frozenset(
 )
 
 _BODY_KEYS: frozenset[str] = _BODY_IDEALIZED_KEYS | _BODY_TRUTH_KEYS
+
+# Body keys the polyhedral-mesh render path does not consume: the ellipsoid
+# renderer's crater carving, the topographic path's photometric laws and
+# surface texture, and the ellipsoid-frame atmosphere halo (whose geometry is
+# built from rotation_z / rotation_tilt around the ellipse, which a mesh's
+# arbitrary Euler pose and lumpy limb do not follow).  A mesh body naming one
+# of these would silently render without it, so the validator refuses the
+# combination; a mesh body's appearance vocabulary is shading, limb_relief_*,
+# mesh_detail_octaves, and pose_scatter.  The sim editor reads this table too:
+# a mesh body disables every control that writes one of these keys.
+MESH_UNSUPPORTED_KEYS: tuple[str, ...] = (
+    'atmosphere',
+    'photometric_law',
+    'minnaert_k',
+    'opposition_surge',
+    'albedo_texture',
+    'disc_texture',
+    'transits',
+    'crater_fill',
+    'crater_min_radius',
+    'crater_max_radius',
+    'crater_power_law_exponent',
+    'crater_relief_scale',
+)
+
+
+def mesh_unsupported_message(keys: Iterable[str]) -> str:
+    """The sentence that refuses ellipsoid-only appearance keys on a mesh body.
+
+    The scene validator raises it, prefixed with the scene source and the body's
+    label, when a ``polyhedral_mesh`` body carries keys from
+    :data:`MESH_UNSUPPORTED_KEYS`; the sim editor shows it as the tooltip of each
+    control it disables on a mesh body, so the two say the same thing.
+
+    Parameters:
+        keys: The refused keys to name; the sentence lists them sorted.
+
+    Returns:
+        The sentence, such as ``"['minnaert_k', 'photometric_law'] are not
+        supported on polyhedral_mesh bodies (...)"``.
+    """
+    return (
+        f'{sorted(keys)} are not supported on polyhedral_mesh bodies (the mesh '
+        f'renderer would silently ignore them); a mesh body carries the shading, '
+        f'limb_relief_*, mesh_detail_octaves, and pose_scatter appearance keys'
+    )
+
 
 # Per-star idealized keys: catalog identity, position, magnitude, spectral
 # class, the predicted smear vector (the pipeline computes it from attitude
