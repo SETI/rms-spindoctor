@@ -33,7 +33,6 @@ from spindoctor.sim.scene_schema import (
     RING_KIND_SHAPE_KEYS,
     RING_SHAPE_KEYS,
     SimSceneValidationError,
-    refuse_renamed_ring_keys,
     scene_value,
 )
 
@@ -104,7 +103,6 @@ def _check_ring_system(value: Any, *, source: str) -> None:
         return
     if not isinstance(value, dict):
         raise SimSceneValidationError(f'{source}: ring_system must be a mapping when present')
-    refuse_renamed_ring_keys(value, source=source)
     unknown = set(value) - _RING_SYSTEM_KEYS
     if unknown:
         raise SimSceneValidationError(f'{source}: ring_system: unknown keys: {sorted(unknown)}')

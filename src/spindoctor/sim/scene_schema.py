@@ -396,276 +396,71 @@ def scene_value(block: Mapping[str, Any], key: str, default: Any) -> Any:
     return default if value is None else value
 
 
-def renamed_key_message(old_key: str, new_key: str | None, note: str) -> str:
-    """The sentence that refuses a retired scene key.
-
-    The noise, ring, and artifact-mode rename tables all build their refusals
-    here, so a retired key reads the same wherever it is caught.
-
-    Parameters:
-        old_key: The retired key.
-        new_key: The key that replaced it, or None when nothing replaced it.
-        note: What the replacement holds, or, for a key nothing replaced, why
-            the scene doesn't need it.
-
-    Returns:
-        ``'<old>' was renamed; use '<new>' (<note>)``, or ``'<old>' was
-        removed; <note>`` when ``new_key`` is None.
-    """
-    if new_key is None:
-        return f'{old_key!r} was removed; {note}'
-    return f'{old_key!r} was renamed; use {new_key!r} ({note})'
-
-
-# Retired noise keys, mapped to (the key that replaced it, or None when nothing
-# replaced it; a note for the message).  The validator, the detector resolver
-# (for both the scene's noise block and the configuration's sim.noise section),
-# and the sweep builder refuse a retired key (refuse_renamed_noise_keys); nothing
-# translates it.  The cosmic-ray rate is per pixel: the chain multiplies it by
-# the pixel count and the exposure and by no area, so its name carries that unit.
-RENAMED_NOISE_KEYS: dict[str, tuple[str | None, str]] = {
-    'cosmic_ray_rate_per_sec': (
-        'cosmic_ray_events_per_pixel_per_sec',
-        'expected events per pixel per second of exposure',
-    ),
-    'pixel_area_cm2': (
-        None,
-        "the cosmic-ray rate 'cosmic_ray_events_per_pixel_per_sec' is already per pixel",
-    ),
-}
-
-
-def retired_noise_key_messages(noise: Mapping[str, Any]) -> str | None:
-    """The refusal of every retired key a noise mapping carries.
-
-    Parameters:
-        noise: A scene ``noise`` block or the configuration's ``sim.noise``
-            section.
-
-    Returns:
-        The :func:`renamed_key_message` of each key listed in
-        :data:`RENAMED_NOISE_KEYS`, in sorted key order, joined by semicolons;
-        None when the mapping carries none of them.
-    """
-    retired = sorted(set(noise) & set(RENAMED_NOISE_KEYS))
-    if not retired:
-        return None
-    return '; '.join(renamed_key_message(key, *RENAMED_NOISE_KEYS[key]) for key in retired)
-
-
-def refuse_renamed_noise_keys(noise: Any, *, source: str | None = None) -> None:
-    """Refuse a scene ``noise`` block that carries a retired key.
-
-    The scene validator, the detector resolver
-    (:func:`spindoctor.sim.forward.detector.params.resolve_detector_params`), and
-    so every sweep step and every in-memory scene that skipped validation, call
-    this, so a retired key fails the same way wherever the scene came from.
-
-    Parameters:
-        noise: The scene's ``noise`` block.  A value that isn't a mapping passes
-            here; the validator reports that shape itself.
-        source: The scene's label, prefixed to the message when given.
-
-    Raises:
-        SimSceneValidationError: If the block carries a key listed in
-            :data:`RENAMED_NOISE_KEYS`; the message is
-            ``[<source>: ]noise: <retired_noise_key_messages>``.
-    """
-    if not isinstance(noise, Mapping):
-        return
-    messages = retired_noise_key_messages(noise)
-    if messages is not None:
-        prefix = '' if source is None else f'{source}: '
-        raise SimSceneValidationError(f'{prefix}noise: {messages}')
-
-
-# Retired ring keys, per block, mapped to (the key that replaced it, what the
-# key holds).  Each ring-plane length and each angle in the ring_system block
-# names its unit.  The validator and the ring renderer refuse a retired key
-# (refuse_renamed_ring_keys) with a message naming its replacement, nothing
-# translates it, and the sim editor's tooltips read the descriptions from
-# here.  A ring-plane pixel is a distance in the ring plane in detector
-# pixels: it projects to that many image pixels along the line of nodes, and
-# is foreshortened by sin(B) across it.  Block paths drop list indices
-# ('ring_system.features' covers every feature entry).
-RENAMED_RING_KEYS: dict[str, dict[str, tuple[str, str]]] = {
+# What each ring-plane length and angle key the sim editor's tooltips describe
+# holds, per block.  Each of these keys names its unit.  A ring-plane pixel is
+# a distance in the ring plane in detector pixels: it projects to that many
+# image pixels along the line of nodes, and is foreshortened by sin(B) across
+# it.  Block paths drop list indices ('ring_system.features' covers every
+# feature entry).
+RING_KEY_DESCRIPTIONS: dict[str, dict[str, str]] = {
     'ring_system.features': {
-        'width': ('width_px', 'the radial width, in ring-plane pixels'),
-        'wavelength': (
-            'wavelength_px',
-            "the 'wave' train's radial wavelength, in ring-plane pixels",
-        ),
-        'damping': (
-            'damping_px',
-            "the 'wave' train's radial e-folding length, in ring-plane pixels",
-        ),
+        'width_px': 'the radial width, in ring-plane pixels',
+        'wavelength_px': "the 'wave' train's radial wavelength, in ring-plane pixels",
+        'damping_px': "the 'wave' train's radial e-folding length, in ring-plane pixels",
     },
     'ring_system.features.orbit': {
-        'a': ('a_px', 'the semimajor axis, in ring-plane pixels'),
-        'ae': ('ae_px', 'the eccentricity times the semimajor axis, in ring-plane pixels'),
-        'long_peri': (
-            'long_peri_deg',
-            'the pericenter longitude, in degrees from the ascending node',
-        ),
-        'rate_peri': (
-            'rate_peri_deg_per_day',
-            'the pericenter precession rate, in degrees per day',
-        ),
+        'a_px': 'the semimajor axis, in ring-plane pixels',
+        'ae_px': 'the eccentricity times the semimajor axis, in ring-plane pixels',
+        'long_peri_deg': 'the pericenter longitude, in degrees from the ascending node',
+        'rate_peri_deg_per_day': 'the pericenter precession rate, in degrees per day',
     },
     'ring_system.features.orbit.modes': {
-        'amp': ('amp_px', 'the radial amplitude, in ring-plane pixels'),
-        'peri': (
-            'peri_deg',
+        'amp_px': 'the radial amplitude, in ring-plane pixels',
+        'peri_deg': (
             "the longitude of one of the mode's m pericenters, in degrees from the "
-            'ascending node; it stays fixed in time',
+            'ascending node; it stays fixed in time'
         ),
     },
     'ring_system.features.orbit.edge_wave': {
-        'amp': ('amp_px', 'the radial amplitude at the launch longitude, in ring-plane pixels'),
-        'wavelength': (
-            'wavelength_px',
-            'the azimuthal wavelength as an arc length along the orbit, in ring-plane pixels',
+        'amp_px': 'the radial amplitude at the launch longitude, in ring-plane pixels',
+        'wavelength_px': (
+            'the azimuthal wavelength as an arc length along the orbit, in ring-plane pixels'
         ),
-        'damp': (
-            'damping_rad',
-            'the azimuthal e-folding length, in radians of downstream longitude',
-        ),
-        'lam0': ('lam0_deg', 'the launch longitude, in degrees from the ascending node'),
+        'damping_rad': 'the azimuthal e-folding length, in radians of downstream longitude',
+        'lam0_deg': 'the launch longitude, in degrees from the ascending node',
     },
     'ring_system.azimuthal.modulation': {
-        'phase_deg': (
-            'lam_peak_deg',
-            'the longitude of a brightness peak, in degrees from the ascending node',
-        ),
+        'lam_peak_deg': 'the longitude of a brightness peak, in degrees from the ascending node',
     },
     'ring_system.azimuthal.spokes': {
-        'r_inner': ('r_inner_px', 'the inner radius of the spoke band, in ring-plane pixels'),
-        'r_outer': ('r_outer_px', 'the outer radius of the spoke band, in ring-plane pixels'),
+        'r_inner_px': 'the inner radius of the spoke band, in ring-plane pixels',
+        'r_outer_px': 'the outer radius of the spoke band, in ring-plane pixels',
     },
     'ring_system.moonlets': {
-        'a': ('a_px', "the moonlet's orbit radius, in ring-plane pixels"),
+        'a_px': "the moonlet's orbit radius, in ring-plane pixels",
     },
 }
 
 
 def ring_key_description(block: str, key: str) -> str:
-    """What a renamed ring key holds, read from :data:`RENAMED_RING_KEYS`.
+    """What a ring key holds, read from :data:`RING_KEY_DESCRIPTIONS`.
 
     Parameters:
-        block: A block path that is a key of :data:`RENAMED_RING_KEYS`, such as
-            ``'ring_system.features.orbit'``.
-        key: The current name of a key that replaced a retired one in that
-            block, such as ``'a_px'``.
+        block: A block path that is a key of :data:`RING_KEY_DESCRIPTIONS`, such
+            as ``'ring_system.features.orbit'``.
+        key: A key the table describes in that block, such as ``'a_px'``.
 
     Returns:
-        The description recorded beside the rename, such as ``'the semimajor
-        axis, in ring-plane pixels'``.
+        The key's description, such as ``'the semimajor axis, in ring-plane
+        pixels'``.
 
     Raises:
-        KeyError: If ``key`` did not replace a retired key in ``block``.
+        KeyError: If the table doesn't describe ``key`` in ``block``.
     """
-    for new_key, description in RENAMED_RING_KEYS[block].values():
-        if new_key == key:
-            return description
-    raise KeyError(f'{block}.{key} did not replace a retired ring key')
-
-
-def renamed_ring_key_message(block: str, old_key: str) -> str:
-    """The validation message for a retired ring key.
-
-    Parameters:
-        block: A block path that is a key of :data:`RENAMED_RING_KEYS`.
-        old_key: A retired key listed for that block.
-
-    Returns:
-        ``'<old>' was renamed; use '<new>' (<what it holds>)``.
-    """
-    return renamed_key_message(old_key, *RENAMED_RING_KEYS[block][old_key])
-
-
-def _mapping_entries(value: Any) -> list[tuple[int, Mapping[str, Any]]]:
-    """The ``(index, entry)`` pairs of a list's mapping entries.
-
-    Parameters:
-        value: A scene value that should be a list of mappings.
-
-    Returns:
-        Each mapping entry with its list index; empty when ``value`` is not a
-        list.  Entries that are not mappings are left out.
-    """
-    if not isinstance(value, list):
-        return []
-    return [(index, entry) for index, entry in enumerate(value) if isinstance(entry, Mapping)]
-
-
-def _ring_blocks(ring_system: Mapping[str, Any]) -> list[tuple[str, str, Mapping[str, Any]]]:
-    """Every mapping in a ring system that :data:`RENAMED_RING_KEYS` covers.
-
-    Entries that are not mappings, and lists that are not lists, are skipped:
-    the validator reports those shapes itself.
-
-    Parameters:
-        ring_system: The scene's ``ring_system`` mapping.
-
-    Returns:
-        ``(block, label, mapping)`` triples in scene order, where ``block`` is
-        the mapping's path in :data:`RENAMED_RING_KEYS` and ``label`` its path
-        with list indices, such as ``'ring_system.features[0].orbit'``.
-    """
-    blocks: list[tuple[str, str, Mapping[str, Any]]] = []
-    for index, feature in _mapping_entries(ring_system.get('features')):
-        label = f'ring_system.features[{index}]'
-        blocks.append(('ring_system.features', label, feature))
-        orbit = feature.get('orbit')
-        if not isinstance(orbit, Mapping):
-            continue
-        blocks.append(('ring_system.features.orbit', f'{label}.orbit', orbit))
-        for mode_index, mode in _mapping_entries(orbit.get('modes')):
-            blocks.append(
-                ('ring_system.features.orbit.modes', f'{label}.orbit.modes[{mode_index}]', mode)
-            )
-        wave = orbit.get('edge_wave')
-        if isinstance(wave, Mapping):
-            blocks.append(
-                ('ring_system.features.orbit.edge_wave', f'{label}.orbit.edge_wave', wave)
-            )
-    azimuthal = ring_system.get('azimuthal')
-    if isinstance(azimuthal, Mapping):
-        for key in ('modulation', 'spokes'):
-            sub = azimuthal.get(key)
-            if isinstance(sub, Mapping):
-                path = f'ring_system.azimuthal.{key}'
-                blocks.append((path, path, sub))
-    for index, moonlet in _mapping_entries(ring_system.get('moonlets')):
-        blocks.append(('ring_system.moonlets', f'ring_system.moonlets[{index}]', moonlet))
-    return blocks
-
-
-def refuse_renamed_ring_keys(ring_system: Mapping[str, Any], *, source: str | None = None) -> None:
-    """Refuse a ring system that carries a retired key anywhere.
-
-    The scene validator and the ring renderer
-    (:func:`spindoctor.sim.forward.ring_system.render_ring_system`) both call
-    this, so a retired key fails the same way whether the scene came from a
-    file or an in-memory dict that skipped validation.
-
-    Parameters:
-        ring_system: The scene's ``ring_system`` mapping.
-        source: The scene's label, prefixed to the message when given.
-
-    Raises:
-        SimSceneValidationError: On the first mapping, in scene order, that
-            carries a key listed for its block in :data:`RENAMED_RING_KEYS`;
-            the message is ``[<source>: ]<label>: <renamed_ring_key_message>``
-            for every retired key in that mapping, in sorted order, joined by
-            semicolons.
-    """
-    prefix = '' if source is None else f'{source}: '
-    for block, label, mapping in _ring_blocks(ring_system):
-        retired = sorted(set(mapping) & set(RENAMED_RING_KEYS[block]))
-        if retired:
-            messages = '; '.join(renamed_ring_key_message(block, key) for key in retired)
-            raise SimSceneValidationError(f'{prefix}{label}: {messages}')
+    descriptions = RING_KEY_DESCRIPTIONS[block]
+    if key not in descriptions:
+        raise KeyError(f'{block}.{key} is not in RING_KEY_DESCRIPTIONS')
+    return descriptions[key]
 
 
 # The machine-readable truth-key set the ObsSim boundary filter strips and

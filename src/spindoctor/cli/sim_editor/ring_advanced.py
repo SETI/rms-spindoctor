@@ -43,12 +43,12 @@ def _key_tooltip(block: str, key: str) -> str:
     """A ring widget's tooltip: its scene key and what the key holds.
 
     Parameters:
-        block: The key's block path in the schema's rename table.
+        block: The key's block path in the schema's ring key descriptions.
         key: The scene key the widget writes.
 
     Returns:
-        ``'<key>: <description>.'``, the description read from the schema's
-        rename table, the same one the validator's rename messages use.
+        ``'<key>: <description>.'``, the description read from
+        :data:`~spindoctor.sim.scene_schema.RING_KEY_DESCRIPTIONS`.
     """
     return f'{key}: {ring_key_description(block, key)}.'
 

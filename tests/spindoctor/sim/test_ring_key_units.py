@@ -2,10 +2,8 @@
 
 Each ring-plane length and each angle in the ``ring_system`` block carries its
 unit in its name (``a_px``, ``long_peri_deg``, ``rate_peri_deg_per_day``,
-``damping_rad``, and so on).  Each retired name is refused, by the validator
-and again by the ring renderer, with a message that names its replacement and
-what the replacement holds; nothing translates it.  The retired-to-current map
-is the schema's ``RENAMED_RING_KEYS``.
+``damping_rad``, and so on), and the schema's ``RING_KEY_DESCRIPTIONS`` says
+what each of the keys the sim editor describes holds.
 
 Which radial shape keys a feature kind takes is one table, written out here: the
 schema's ``RING_KIND_SHAPE_KEYS`` holds it, the validator enforces exactly it (a
@@ -14,14 +12,12 @@ validates either way), and the per-kind tables in the developer guide and the
 scene README match it row for row.
 """
 
-import copy
 import re
 from pathlib import Path
 from typing import Any
 
 import pytest
 
-from spindoctor.sim.render import render_combined_model
 from spindoctor.sim.scene import SimSceneValidationError, validate_sim_params
 from spindoctor.sim.scene_checks_ring import (
     _RING_EDGE_WAVE_KEYS,
@@ -33,7 +29,7 @@ from spindoctor.sim.scene_checks_ring import (
 )
 from spindoctor.sim.scene_schema import (
     _RING_FEATURE_KEYS,
-    RENAMED_RING_KEYS,
+    RING_KEY_DESCRIPTIONS,
     RING_KIND_SHAPE_KEYS,
     RING_SHAPE_KEYS,
     RING_SIDE_DEFAULTS,
@@ -44,30 +40,20 @@ _REPO = Path(__file__).resolve().parents[3]
 _DEV_GUIDE = _REPO / 'docs' / 'dev_guide' / 'dev_guide_simulator.rst'
 _SCENE_README = _REPO / 'tests' / 'integration' / 'sim_scenes' / 'README.txt'
 
-# The full retired -> current map, pinned so a rename cannot slip in or out of
-# the table unnoticed.
-_EXPECTED_RENAMES: dict[str, dict[str, str]] = {
-    'ring_system.features': {
-        'width': 'width_px',
-        'wavelength': 'wavelength_px',
-        'damping': 'damping_px',
-    },
-    'ring_system.features.orbit': {
-        'a': 'a_px',
-        'ae': 'ae_px',
-        'long_peri': 'long_peri_deg',
-        'rate_peri': 'rate_peri_deg_per_day',
-    },
-    'ring_system.features.orbit.modes': {'amp': 'amp_px', 'peri': 'peri_deg'},
-    'ring_system.features.orbit.edge_wave': {
-        'amp': 'amp_px',
-        'wavelength': 'wavelength_px',
-        'damp': 'damping_rad',
-        'lam0': 'lam0_deg',
-    },
-    'ring_system.azimuthal.modulation': {'phase_deg': 'lam_peak_deg'},
-    'ring_system.azimuthal.spokes': {'r_inner': 'r_inner_px', 'r_outer': 'r_outer_px'},
-    'ring_system.moonlets': {'a': 'a_px'},
+# Each block's length and angle keys, each named with its unit, written out so
+# the validator's inventories are checked against the intended names.
+_UNIT_KEYS: dict[str, frozenset[str]] = {
+    'ring_system.features': frozenset({'width_px', 'wavelength_px', 'damping_px'}),
+    'ring_system.features.orbit': frozenset(
+        {'a_px', 'ae_px', 'long_peri_deg', 'rate_peri_deg_per_day'}
+    ),
+    'ring_system.features.orbit.modes': frozenset({'amp_px', 'peri_deg'}),
+    'ring_system.features.orbit.edge_wave': frozenset(
+        {'amp_px', 'wavelength_px', 'damping_rad', 'lam0_deg'}
+    ),
+    'ring_system.azimuthal.modulation': frozenset({'lam_peak_deg'}),
+    'ring_system.azimuthal.spokes': frozenset({'r_inner_px', 'r_outer_px', 'width_deg'}),
+    'ring_system.moonlets': frozenset({'a_px', 'lam_deg', 'radius_px'}),
 }
 
 # Each block's current key inventory, as the validator holds it.
@@ -81,27 +67,16 @@ _INVENTORIES: dict[str, frozenset[str]] = {
     'ring_system.moonlets': _RING_MOONLET_KEYS,
 }
 
-# Where each block sits in _full_scene(), and its label in validation messages.
-_BLOCK_PATHS: dict[str, tuple[tuple[str | int, ...], str]] = {
-    'ring_system.features': (('features', 0), 'ring_system.features[0]'),
-    'ring_system.features.orbit': (('features', 0, 'orbit'), 'ring_system.features[0].orbit'),
-    'ring_system.features.orbit.modes': (
-        ('features', 0, 'orbit', 'modes', 0),
-        'ring_system.features[0].orbit.modes[0]',
-    ),
-    'ring_system.features.orbit.edge_wave': (
-        ('features', 0, 'orbit', 'edge_wave'),
-        'ring_system.features[0].orbit.edge_wave',
-    ),
-    'ring_system.azimuthal.modulation': (
-        ('azimuthal', 'modulation'),
-        'ring_system.azimuthal.modulation',
-    ),
-    'ring_system.azimuthal.spokes': (('azimuthal', 'spokes'), 'ring_system.azimuthal.spokes'),
-    'ring_system.moonlets': (('moonlets', 0), 'ring_system.moonlets[0]'),
+# Where each block sits in _full_scene().
+_BLOCK_PATHS: dict[str, tuple[str | int, ...]] = {
+    'ring_system.features': ('features', 0),
+    'ring_system.features.orbit': ('features', 0, 'orbit'),
+    'ring_system.features.orbit.modes': ('features', 0, 'orbit', 'modes', 0),
+    'ring_system.features.orbit.edge_wave': ('features', 0, 'orbit', 'edge_wave'),
+    'ring_system.azimuthal.modulation': ('azimuthal', 'modulation'),
+    'ring_system.azimuthal.spokes': ('azimuthal', 'spokes'),
+    'ring_system.moonlets': ('moonlets', 0),
 }
-
-_RETIRED = [(block, old) for block, renames in _EXPECTED_RENAMES.items() for old in renames]
 
 # The per-kind shape-key table, written out so the validator is checked against
 # the intended rules and not against the schema constant it reads.
@@ -167,7 +142,7 @@ def _scene(ring_system: dict[str, Any]) -> dict[str, Any]:
 
 
 def _full_scene() -> dict[str, Any]:
-    """A valid scene whose ring system carries every block that had a renamed key."""
+    """A valid scene whose ring system carries every block in :data:`_BLOCK_PATHS`."""
     feature = _feature('ringlet')
     feature['orbit'] = {
         'a_px': 40.0,
@@ -200,64 +175,16 @@ def _full_scene() -> dict[str, Any]:
 def _block(scene: dict[str, Any], block: str) -> dict[str, Any]:
     """The mapping at ``block``'s path in a scene built by :func:`_full_scene`."""
     node: Any = scene['ring_system']
-    for step in _BLOCK_PATHS[block][0]:
+    for step in _BLOCK_PATHS[block]:
         node = node[step]
     assert isinstance(node, dict)
     return node
 
 
-def test_the_rename_table_is_the_expected_map() -> None:
-    """RENAMED_RING_KEYS maps exactly the retired ring keys to their unit-named keys."""
-    actual = {
-        block: {old: new for old, (new, _) in renames.items()}
-        for block, renames in RENAMED_RING_KEYS.items()
-    }
-    assert actual == _EXPECTED_RENAMES
-
-
 def test_the_full_scene_validates() -> None:
-    """The scene the refusal tests start from is valid with every current key."""
+    """The scene the block tests start from is valid."""
     scene = _full_scene()
     assert validate_sim_params(scene) is scene
-
-
-def _scene_with_retired_key(block: str, old: str) -> tuple[dict[str, Any], str]:
-    """The full scene with ``old`` in place of its replacement, and the expected message.
-
-    The message is the refusal's text after any source prefix:
-    ``<label>: '<old>' was renamed; use '<new>' (<description>)``.
-    """
-    scene = _full_scene()
-    new, description = RENAMED_RING_KEYS[block][old]
-    mapping = _block(scene, block)
-    if new in mapping:
-        mapping[old] = mapping.pop(new)
-    else:
-        mapping[old] = 1.0
-    label = _BLOCK_PATHS[block][1]
-    return scene, f"{label}: '{old}' was renamed; use '{new}' ({description})"
-
-
-@pytest.mark.parametrize(('block', 'old'), _RETIRED, ids=[f'{b}.{o}' for b, o in _RETIRED])
-def test_a_retired_ring_key_is_refused_with_its_replacement(block: str, old: str) -> None:
-    """A retired key fails validation with a message naming its replacement and unit."""
-    scene, expected = _scene_with_retired_key(block, old)
-    with pytest.raises(SimSceneValidationError, match=re.escape(expected)):
-        validate_sim_params(scene, source='probe')
-
-
-@pytest.mark.parametrize(('block', 'old'), _RETIRED, ids=[f'{b}.{o}' for b, o in _RETIRED])
-def test_an_unvalidated_scene_with_a_retired_ring_key_fails_to_render(block: str, old: str) -> None:
-    """An in-memory scene that skipped validation refuses a retired ring key at render.
-
-    Without the render-time refusal a retired feature key renders nothing (a
-    width read as 0) and a retired edge-wave key raises a bare KeyError, so the
-    renderer names the replacement exactly as the validator does.
-    """
-    scene, expected = _scene_with_retired_key(block, old)
-    with pytest.raises(SimSceneValidationError) as excinfo:
-        render_combined_model(copy.deepcopy(scene), ignore_offset=True)
-    assert str(excinfo.value) == expected
 
 
 def test_an_m_mode_refuses_the_mode_1_longitude_key() -> None:
@@ -275,37 +202,29 @@ def test_an_m_mode_refuses_the_mode_1_longitude_key() -> None:
         validate_sim_params(scene)
 
 
-@pytest.mark.parametrize(('block', 'old'), _RETIRED, ids=[f'{b}.{o}' for b, o in _RETIRED])
-def test_a_retired_name_is_absent_from_its_block_inventory(block: str, old: str) -> None:
-    """The validator's inventory holds the current name and drops the retired one."""
-    new = _EXPECTED_RENAMES[block][old]
-    assert old not in _INVENTORIES[block]
-    assert new in _INVENTORIES[block]
+@pytest.mark.parametrize('block', list(_UNIT_KEYS))
+def test_each_length_and_angle_key_names_its_unit(block: str) -> None:
+    """The validator's inventory for each block holds each unit-named length and angle key."""
+    assert _UNIT_KEYS[block] - _INVENTORIES[block] == set()
 
 
-def test_every_retired_key_in_one_mapping_is_reported() -> None:
-    """Two retired keys in one orbit are both named, in sorted order."""
-    scene = _full_scene()
-    orbit = _block(scene, 'ring_system.features.orbit')
-    orbit['a'] = orbit.pop('a_px')
-    orbit['long_peri'] = orbit.pop('long_peri_deg')
-    with pytest.raises(
-        SimSceneValidationError, match=r"'a' was renamed; use 'a_px' .*; 'long_peri' was renamed"
-    ):
-        validate_sim_params(scene)
-
-
-def test_ring_key_description_reads_the_rename_table() -> None:
-    """A current key's description is the one recorded beside its rename."""
+def test_ring_key_description_reads_the_description_table() -> None:
+    """A key's description is the one the table records for it."""
     assert ring_key_description('ring_system.features.orbit.edge_wave', 'damping_rad') == (
         'the azimuthal e-folding length, in radians of downstream longitude'
     )
 
 
-def test_ring_key_description_refuses_a_key_that_replaced_nothing() -> None:
-    """A key outside the rename table has no recorded description."""
+def test_ring_key_description_refuses_an_undescribed_key() -> None:
+    """A key outside the description table raises KeyError naming it."""
     with pytest.raises(KeyError, match=r'ring_system\.features\.orbit\.modes\.m '):
         ring_key_description('ring_system.features.orbit.modes', 'm')
+
+
+@pytest.mark.parametrize('block', list(RING_KEY_DESCRIPTIONS))
+def test_every_described_key_is_in_its_block_inventory(block: str) -> None:
+    """The description table describes only keys the validator accepts in that block."""
+    assert set(RING_KEY_DESCRIPTIONS[block]) - _INVENTORIES[block] == set()
 
 
 # ---------------------------------------------------------------------------

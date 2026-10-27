@@ -43,10 +43,7 @@ when its ``count`` is 0 where given (the stage-activation rule).  Those two mode
 accept ``count``, a fixed number of events in place of the Poisson draw, and
 ``count`` and ``expected_events`` are mutually exclusive: a map may set one of
 them (a key set to null counts as unset).  Each mode's
-:attr:`ArtifactMode.activation_semantics` says what its events are.  The retired
-``incidence`` key is refused, by the validator and again by the render-time
-resolvers (:func:`refuse_renamed_params`), with a message naming the mode's
-replacement (:data:`RENAMED_MODE_PARAMS`).
+:attr:`ArtifactMode.activation_semantics` says what its events are.
 """
 
 from __future__ import annotations
@@ -54,8 +51,6 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any
-
-from spindoctor.sim.scene_schema import SimSceneValidationError, renamed_key_message
 
 __all__ = [
     'ACTIVATION_KEYS',
@@ -67,7 +62,6 @@ __all__ = [
     'MODE_KEYS',
     'PIXEL_FRACTION',
     'PROBABILITY',
-    'RENAMED_MODE_PARAMS',
     'STRUCTURED_LOSS_ORDER',
     'TELEMETRY_POST_LOSS_ORDER',
     'TELEMETRY_PRE_LOSS_ORDER',
@@ -76,8 +70,6 @@ __all__ = [
     'mode_available',
     'mode_unavailable_message',
     'normalize_instrument',
-    'refuse_renamed_params',
-    'renamed_param_message',
     'resolve_mode_config',
 ]
 
@@ -558,16 +550,6 @@ ARTIFACT_MODES: dict[str, ArtifactMode] = {
 # keys.  The validator keys on this exact set.
 MODE_KEYS: frozenset[str] = frozenset(ARTIFACT_MODES)
 
-# Retired parameter keys, per mode, mapped to the key that replaced them.  The
-# validator and the render-time resolvers refuse a retired key with a message
-# naming its replacement; nothing translates it.  ``incidence`` named four
-# quantities (an expected event count per frame or per second of exposure, a
-# per-frame probability, and a pixel fraction), so its replacement is each mode's
-# activation key.
-RENAMED_MODE_PARAMS: dict[str, dict[str, str]] = {
-    name: {'incidence': mode.activation} for name, mode in ARTIFACT_MODES.items()
-}
-
 # The fixed order the telemetry stage applies its implemented loss modes in:
 # frame-level commanded shapes, then line losses, then block losses, then
 # garble, then per-pixel losses, then the row-0 header last.  ``truth_window``
@@ -668,56 +650,6 @@ def mode_unavailable_message(mode_name: str, instrument: str | None) -> str:
     )
 
 
-def renamed_param_message(mode_name: str, old_key: str) -> str:
-    """The validation message for a retired parameter key on a mode.
-
-    Parameters:
-        mode_name: A registered mode name.
-        old_key: A retired key listed for the mode in :data:`RENAMED_MODE_PARAMS`.
-
-    Returns:
-        A message naming the replacement key (every retired key's replacement is
-        the mode's activation key) and what that key holds on this mode (its
-        :attr:`ArtifactMode.activation_semantics`), e.g. ``'incidence' was
-        renamed; use 'expected_events' (a Poisson expected count of whole lines
-        lost per frame)`` for ``missing_lines``.
-    """
-    return renamed_key_message(
-        old_key,
-        RENAMED_MODE_PARAMS[mode_name][old_key],
-        ARTIFACT_MODES[mode_name].activation_semantics,
-    )
-
-
-def refuse_renamed_params(
-    mode_name: str, config: Mapping[str, Any], *, source: str | None = None
-) -> None:
-    """Refuse a mode map that carries a retired parameter key.
-
-    The scene validator and both render-time resolvers (:func:`resolve_mode_config`
-    and ``resolve_mode_with_catalog``) call this, so a retired key fails the same
-    way whether the scene came from a file, a sweep step, or an in-memory dict.
-
-    Parameters:
-        mode_name: A registered mode name.
-        config: The scene's map for the mode.
-        source: The scene's label, prefixed to the message when given.
-
-    Raises:
-        spindoctor.sim.scene_schema.SimSceneValidationError: If ``config``
-            carries a key listed for the mode in :data:`RENAMED_MODE_PARAMS`;
-            the message is
-            ``[<source>: ]artifacts.<mode>: <renamed_param_message>`` for the
-            first retired key in sorted order.
-    """
-    retired = sorted(set(config) & set(RENAMED_MODE_PARAMS[mode_name]))
-    if not retired:
-        return
-    label = f'artifacts.{mode_name}'
-    prefix = label if source is None else f'{source}: {label}'
-    raise SimSceneValidationError(f'{prefix}: {renamed_param_message(mode_name, retired[0])}')
-
-
 def resolve_mode_config(mode_name: str, raw_config: Mapping[str, Any]) -> dict[str, Any]:
     """Fill a mode's scene map with its parameter defaults for rendering.
 
@@ -729,13 +661,7 @@ def resolve_mode_config(mode_name: str, raw_config: Mapping[str, Any]) -> dict[s
         A fresh dict carrying every parameter, scene value overriding default.
         A key set to ``None`` reads as unset and takes the default, as in
         :func:`~spindoctor.sim.forward.artifacts_catalog.resolve_mode_with_catalog`.
-
-    Raises:
-        spindoctor.sim.scene_schema.SimSceneValidationError: If
-            ``raw_config`` carries a retired key (see
-            :func:`refuse_renamed_params`).
     """
-    refuse_renamed_params(mode_name, raw_config)
     mode = ARTIFACT_MODES[mode_name]
     resolved: dict[str, Any] = {}
     for param in mode.params:

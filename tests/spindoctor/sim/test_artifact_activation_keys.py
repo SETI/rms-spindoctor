@@ -4,16 +4,12 @@ Every artifact mode carries exactly one activation key, and the key names the
 quantity it holds: ``expected_events`` (a Poisson expected event count per
 frame), ``expected_events_per_sec`` (a Poisson expected event count per second of
 exposure, on ``bright_dark_pairs``), ``probability`` (a per-frame activation
-probability), or ``pixel_fraction`` (the hot-pixel spatial density).  The retired
-``incidence`` key, which named all four, is refused with a message naming the
-mode's replacement and what it holds on that mode, by the validator and again by
-the render-time resolvers, so an unvalidated in-memory scene fails the same way.
+probability), or ``pixel_fraction`` (the hot-pixel spatial density).
 ``dead_pixels`` and ``dead_columns`` take a fixed ``count`` in place of
 ``expected_events``, never both set, and every mode is a no-op when its
 activation key is 0, or its ``count`` where given is 0.
 """
 
-import re
 from typing import Any
 
 import numpy as np
@@ -26,10 +22,8 @@ from spindoctor.sim.forward.artifact_modes import (
     EXPECTED_EVENTS_PER_SEC,
     PIXEL_FRACTION,
     PROBABILITY,
-    RENAMED_MODE_PARAMS,
     resolve_mode_config,
 )
-from spindoctor.sim.forward.artifacts_catalog import resolve_mode_with_catalog
 from spindoctor.sim.forward.detector.params import resolve_detector_params
 from spindoctor.sim.forward.stages import SimFrame
 from spindoctor.sim.forward.telemetry import apply_telemetry
@@ -113,54 +107,6 @@ def test_each_mode_carries_exactly_one_activation_key(mode_name: str) -> None:
     assert names & set(ACTIVATION_KEYS) == {ARTIFACT_MODES[mode_name].activation}
 
 
-def test_renamed_map_retires_incidence_on_every_mode() -> None:
-    """The old -> new table maps incidence to each mode's activation key."""
-    expected = {name: {'incidence': mode.activation} for name, mode in ARTIFACT_MODES.items()}
-    assert expected == RENAMED_MODE_PARAMS
-
-
-# --- validation: the retired key -----------------------------------------------
-
-
-def _retired_message(mode_name: str) -> str:
-    """The refusal of the retired key, without a source prefix."""
-    return (
-        f"artifacts.{mode_name}: 'incidence' was renamed; use '{_expected_key(mode_name)}' "
-        f'({ARTIFACT_MODES[mode_name].activation_semantics})'
-    )
-
-
-@pytest.mark.parametrize('mode_name', sorted(ARTIFACT_MODES))
-def test_retired_incidence_key_is_refused_naming_the_replacement(mode_name: str) -> None:
-    """A scene still writing incidence fails, naming the new key and its meaning here."""
-    with pytest.raises(SimSceneValidationError) as excinfo:
-        validate_sim_params(_scene({mode_name: {'incidence': 0.5}}))
-    assert str(excinfo.value) == f'sim_params: {_retired_message(mode_name)}'
-
-
-@pytest.mark.parametrize(
-    ('mode_name', 'unit'),
-    [
-        ('missing_lines', 'per frame'),
-        ('dead_pixels', 'per frame'),
-        ('bright_dark_pairs', 'per second of exposure'),
-        ('truncated_frame', 'per-frame probability'),
-        ('hot_pixels', 'fraction of detector pixels'),
-    ],
-)
-def test_retired_key_message_states_the_mode_unit(mode_name: str, unit: str) -> None:
-    """The refusal says the unit of this mode's key, not a generic one."""
-    with pytest.raises(SimSceneValidationError, match=re.escape(unit)):
-        validate_sim_params(_scene({mode_name: {'incidence': 0.5}}))
-
-
-def test_rate_mode_message_never_claims_per_frame() -> None:
-    """bright_dark_pairs counts per second of exposure, so its refusal never says per frame."""
-    with pytest.raises(SimSceneValidationError) as excinfo:
-        validate_sim_params(_scene({'bright_dark_pairs': {'incidence': 0.5}}))
-    assert 'per frame' not in str(excinfo.value)
-
-
 def test_radiation_transients_semantics_state_its_scaling() -> None:
     """radiation_transients names the environment factor and the dwell it scales by."""
     semantics = ARTIFACT_MODES['radiation_transients'].activation_semantics
@@ -169,61 +115,11 @@ def test_radiation_transients_semantics_state_its_scaling() -> None:
 
 
 @pytest.mark.parametrize('mode_name', sorted(ARTIFACT_MODES))
-def test_catalog_resolver_refuses_the_retired_key(mode_name: str) -> None:
-    """The render-time resolver refuses incidence with the validator's message."""
-    with pytest.raises(SimSceneValidationError) as excinfo:
-        resolve_mode_with_catalog(mode_name, {'incidence': 0.5}, 'generic')
-    assert str(excinfo.value) == _retired_message(mode_name)
-
-
-@pytest.mark.parametrize('mode_name', sorted(ARTIFACT_MODES))
-def test_plain_resolver_refuses_the_retired_key(mode_name: str) -> None:
-    """The registry-default resolver refuses incidence with the validator's message."""
-    with pytest.raises(SimSceneValidationError) as excinfo:
-        resolve_mode_config(mode_name, {'incidence': 0.5})
-    assert str(excinfo.value) == _retired_message(mode_name)
-
-
-@pytest.mark.parametrize('mode_name', sorted(ARTIFACT_MODES))
 def test_plain_resolver_reads_a_null_parameter_as_unset(mode_name: str) -> None:
     """A parameter set to null resolves to its registry default, as the catalog resolver does."""
     params = ARTIFACT_MODES[mode_name].params
     resolved = resolve_mode_config(mode_name, {param.name: None for param in params})
     assert resolved == {param.name: param.default for param in params}
-
-
-@pytest.mark.parametrize(
-    ('mode_name', 'instrument'),
-    [
-        ('missing_lines', 'coiss_nac'),
-        ('dead_pixels', 'coiss_nac'),
-        ('truth_window', 'gossi'),
-        ('hot_pixels', 'coiss_nac'),
-        ('bright_dark_pairs', 'coiss_nac'),
-        ('banding_coherent', 'coiss_nac'),
-        ('compression_dct', 'coiss_nac'),
-        ('reseau_scars', 'vgiss'),
-    ],
-)
-def test_unvalidated_scene_with_retired_key_fails_to_render(
-    mode_name: str, instrument: str
-) -> None:
-    """An in-memory scene that skipped validation still refuses incidence at render.
-
-    Each render path (the telemetry loss loop, the truth window, the flanking
-    telemetry modes, the detector modes, and the hot-pixel routing) fails the
-    same way, so a retired key can never render as a silently clean frame.
-    """
-    sim = _scene({mode_name: {'incidence': 50.0}}, instrument=instrument)
-    with pytest.raises(SimSceneValidationError) as excinfo:
-        render_combined_model(sim, ignore_offset=True)
-    assert str(excinfo.value) == _retired_message(mode_name)
-
-
-def test_retired_incidence_key_is_refused_beside_the_new_key() -> None:
-    """Writing both the old and the new key still fails on the old one."""
-    with pytest.raises(SimSceneValidationError, match="'incidence' was renamed"):
-        validate_sim_params(_scene({'missing_lines': {'incidence': 1.0, 'expected_events': 1.0}}))
 
 
 # --- validation: ranges ----------------------------------------------------------

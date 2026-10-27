@@ -242,7 +242,7 @@ def build_sweep_params(spec: SweepSpec) -> list[tuple[float, dict[str, Any]]]:
     Each step deep-copies the base scene's sim params, applies the sweep's
     parameter override(s) for that value, and re-validates the step's
     ``artifacts`` and ``noise`` blocks against the base scene, so a sweep path
-    naming an unknown or retired artifact-mode or noise key, an out-of-range
+    naming an unknown artifact-mode or noise key, an out-of-range
     activation value, or a noise value the scene's detector path refuses, fails
     here rather than rendering a frame that silently ignores it.  Exposed so
     both :func:`run_sweep` (which navigates each step) and the image dump (which

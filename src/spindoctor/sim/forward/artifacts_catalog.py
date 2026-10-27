@@ -13,11 +13,7 @@ import copy
 from collections.abc import Mapping
 from typing import Any
 
-from spindoctor.sim.forward.artifact_modes import (
-    ARTIFACT_MODES,
-    MODE_KEYS,
-    refuse_renamed_params,
-)
+from spindoctor.sim.forward.artifact_modes import ARTIFACT_MODES, MODE_KEYS
 
 __all__ = [
     'ARTIFACT_MODES',
@@ -662,14 +658,7 @@ def resolve_mode_with_catalog(
 
     Returns:
         A fresh dict carrying every parameter at its resolved value.
-
-    Raises:
-        spindoctor.sim.scene_schema.SimSceneValidationError: If
-            ``scene_cfg`` carries a retired key (see
-            :func:`~spindoctor.sim.forward.artifact_modes.refuse_renamed_params`),
-            so a scene that skipped validation still fails loudly.
     """
-    refuse_renamed_params(mode_name, scene_cfg)
     catalog_modes = resolve_detector_defaults(instrument).get('artifact_modes') or {}
     catalog = catalog_modes.get(mode_name) or {}
     mode = ARTIFACT_MODES[mode_name]

@@ -1,16 +1,17 @@
-"""Each renamed ring key is read under its current name, on both sides of the boundary.
+"""Each unit-named ring key is read under its name, on both sides of the boundary.
 
-A key that a reader still looks up under its retired name reads as absent: the
+A reader that looks a key up under any other name reads it as absent: the
 reader falls back to its default and the scene renders as though the key were
-missing, with nothing to say so.  These tests perturb each key that replaced a
-retired one (every current key in ``RENAMED_RING_KEYS``), in a scene that
-carries all of them, and check that the change reaches every reader that
-should see it.  The rendered image must change for every key.  The navigator's
-prediction must change for each idealized key it reads, and stay identical
-for the rest: the truth-side clutter never crosses the information boundary,
-and the prediction is geometric, so a wave train's radial wavelength and
-damping and an inward ramp's width (its sharp end is the orbit itself) leave
-it alone.
+missing, with nothing to say so.  These tests perturb each ring-plane length
+and angle that sets a feature's radial shape, its catalog orbit, its m-modes
+and edge wave, the brightness modulation's peak, the spoke band, and a
+moonlet's orbit radius, in a scene that carries all of them, and check that the
+change reaches every reader that should see it.  The rendered image must
+change for every key.  The navigator's prediction must change for each
+idealized key it reads, and stay identical for the rest: the truth-side clutter
+never crosses the information boundary, and the prediction is geometric, so a
+wave train's radial wavelength and damping and an inward ramp's width (its
+sharp end is the orbit itself) leave it alone.
 """
 
 import copy
@@ -22,7 +23,6 @@ import pytest
 from spindoctor.nav_model.sim_ring import predict_ring_feature
 from spindoctor.sim.render import render_combined_model
 from spindoctor.sim.scene import build_nav_params, validate_sim_params
-from spindoctor.sim.scene_schema import RENAMED_RING_KEYS
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 
 _SIZE = 200
@@ -53,7 +53,7 @@ def _edge_wave(
 
 
 def _scene() -> dict[str, Any]:
-    """A scene whose ring system carries every key that replaced a retired one.
+    """A scene whose ring system carries every key the cases perturb.
 
     The scene time sits three days past the ring epoch, so the pericenter
     precession rate moves the orbit, and the render oversamples, so the
@@ -135,60 +135,28 @@ def _scene() -> dict[str, Any]:
 # Feature indices in _scene()'s feature list.
 _RL, _RAMPOUT, _RAMPIN, _WV = 1, 2, 3, 4
 
-# (block in RENAMED_RING_KEYS, current key, path under ring_system, whether the
-# navigator's prediction reads it).
-_CASES: list[tuple[str, str, tuple[str | int, ...], bool]] = [
-    ('ring_system.features', 'width_px', ('features', _RL, 'width_px'), True),
-    ('ring_system.features', 'width_px', ('features', _RAMPOUT, 'width_px'), True),
-    ('ring_system.features', 'width_px', ('features', _RAMPIN, 'width_px'), False),
-    ('ring_system.features', 'wavelength_px', ('features', _WV, 'wavelength_px'), False),
-    ('ring_system.features', 'damping_px', ('features', _WV, 'damping_px'), False),
-    ('ring_system.features.orbit', 'a_px', ('features', _RL, 'orbit', 'a_px'), True),
-    ('ring_system.features.orbit', 'ae_px', ('features', _RL, 'orbit', 'ae_px'), True),
-    (
-        'ring_system.features.orbit',
-        'long_peri_deg',
-        ('features', _RL, 'orbit', 'long_peri_deg'),
-        True,
-    ),
-    (
-        'ring_system.features.orbit',
-        'rate_peri_deg_per_day',
-        ('features', _RL, 'orbit', 'rate_peri_deg_per_day'),
-        True,
-    ),
-    (
-        'ring_system.features.orbit.modes',
-        'amp_px',
-        ('features', _RL, 'orbit', 'modes', 0, 'amp_px'),
-        True,
-    ),
-    (
-        'ring_system.features.orbit.modes',
-        'peri_deg',
-        ('features', _RL, 'orbit', 'modes', 0, 'peri_deg'),
-        True,
-    ),
+# (path under ring_system, whether the navigator's prediction reads the key).
+_CASES: list[tuple[tuple[str | int, ...], bool]] = [
+    (('features', _RL, 'width_px'), True),
+    (('features', _RAMPOUT, 'width_px'), True),
+    (('features', _RAMPIN, 'width_px'), False),
+    (('features', _WV, 'wavelength_px'), False),
+    (('features', _WV, 'damping_px'), False),
     *[
-        (
-            'ring_system.features.orbit.edge_wave',
-            key,
-            ('features', _RL, 'orbit', 'edge_wave', key),
-            True,
-        )
+        (('features', _RL, 'orbit', key), True)
+        for key in ('a_px', 'ae_px', 'long_peri_deg', 'rate_peri_deg_per_day')
+    ],
+    *[(('features', _RL, 'orbit', 'modes', 0, key), True) for key in ('amp_px', 'peri_deg')],
+    *[
+        (('features', _RL, 'orbit', 'edge_wave', key), True)
         for key in ('amp_px', 'wavelength_px', 'damping_rad', 'lam0_deg')
     ],
-    (
-        'ring_system.azimuthal.modulation',
-        'lam_peak_deg',
-        ('azimuthal', 'modulation', 'lam_peak_deg'),
-        False,
-    ),
-    ('ring_system.azimuthal.spokes', 'r_inner_px', ('azimuthal', 'spokes', 'r_inner_px'), False),
-    ('ring_system.azimuthal.spokes', 'r_outer_px', ('azimuthal', 'spokes', 'r_outer_px'), False),
-    ('ring_system.moonlets', 'a_px', ('moonlets', 0, 'a_px'), False),
+    (('azimuthal', 'modulation', 'lam_peak_deg'), False),
+    (('azimuthal', 'spokes', 'r_inner_px'), False),
+    (('azimuthal', 'spokes', 'r_outer_px'), False),
+    (('moonlets', 0, 'a_px'), False),
 ]
-_IDS = ['.'.join(str(step) for step in path) for _, _, path, _ in _CASES]
+_IDS = ['.'.join(str(step) for step in path) for path, _ in _CASES]
 
 
 def _render(scene: dict[str, Any]) -> NDArrayFloatType:
@@ -235,31 +203,19 @@ def baseline() -> tuple[NDArrayFloatType, list[NDArrayBoolType]]:
     return _render(scene), _predictions(scene)
 
 
-def test_the_cases_cover_every_key_that_replaced_a_retired_one() -> None:
-    """Each current key in RENAMED_RING_KEYS is perturbed by at least one case."""
-    expected = {
-        (block, new) for block, renames in RENAMED_RING_KEYS.items() for new, _ in renames.values()
-    }
-    assert {(block, key) for block, key, _, _ in _CASES} == expected
-
-
-@pytest.mark.parametrize(('block', 'key', 'path', 'navigator_reads'), _CASES, ids=_IDS)
-def test_perturbing_a_renamed_key_changes_the_render(
-    block: str,
-    key: str,
+@pytest.mark.parametrize(('path', 'navigator_reads'), _CASES, ids=_IDS)
+def test_perturbing_a_key_changes_the_render(
     path: tuple[str | int, ...],
     navigator_reads: bool,
     baseline: tuple[NDArrayFloatType, list[NDArrayBoolType]],
 ) -> None:
-    """The renderer reads the key under its current name, so changing it changes the image."""
+    """The renderer reads the key under its name, so changing it changes the image."""
     image = _render(_perturbed(path))
     assert not np.array_equal(image, baseline[0])
 
 
-@pytest.mark.parametrize(('block', 'key', 'path', 'navigator_reads'), _CASES, ids=_IDS)
-def test_perturbing_a_renamed_key_changes_the_prediction_exactly_when_the_navigator_reads_it(
-    block: str,
-    key: str,
+@pytest.mark.parametrize(('path', 'navigator_reads'), _CASES, ids=_IDS)
+def test_perturbing_a_key_changes_the_prediction_exactly_when_the_navigator_reads_it(
     path: tuple[str | int, ...],
     navigator_reads: bool,
     baseline: tuple[NDArrayFloatType, list[NDArrayBoolType]],

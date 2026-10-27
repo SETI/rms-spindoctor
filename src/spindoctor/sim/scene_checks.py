@@ -27,11 +27,10 @@ from spindoctor.sim.forward.artifact_modes import (
     ModeParam,
     mode_available,
     mode_unavailable_message,
-    refuse_renamed_params,
 )
 from spindoctor.sim.forward.artifacts_catalog import resolve_detector_defaults
 from spindoctor.sim.instruments import resolve_sim_inst_config
-from spindoctor.sim.scene_schema import SimSceneValidationError, refuse_renamed_noise_keys
+from spindoctor.sim.scene_schema import SimSceneValidationError
 from spindoctor.support.status_reason import NavStatusReason
 
 # The scene-level ``expected`` block's allowed vocabularies.  These mirror the
@@ -343,15 +342,12 @@ def _check_noise(value: Any, *, source: str) -> None:
         source: Label used in error messages.
 
     Raises:
-        SimSceneValidationError: On any unknown, retired, or mistyped noise
-            field; a retired key's message names its replacement
-            (:func:`~spindoctor.sim.scene_schema.refuse_renamed_noise_keys`).
+        SimSceneValidationError: On any unknown or mistyped noise field.
     """
     if value is None:
         return
     if not isinstance(value, dict):
         raise SimSceneValidationError(f'{source}: noise must be a mapping when present')
-    refuse_renamed_noise_keys(value, source=source)
     unknown = set(value) - _NOISE_KEYS
     if unknown:
         raise SimSceneValidationError(f'{source}: noise: unknown keys: {sorted(unknown)}')
@@ -593,11 +589,10 @@ def _check_artifacts(value: Any, *, instrument: str, source: str) -> None:
 def _check_artifact_mode(mode_name: str, config: Any, *, instrument: str, source: str) -> None:
     """Validate one artifact-mode map: availability, implementation, and params.
 
-    A retired key (``incidence``) fails with a message naming the mode's
-    replacement activation key and what it holds on this mode, and a map that
-    sets both ``count`` and ``expected_events`` to a value (``dead_pixels``,
-    ``dead_columns``) fails as ambiguous; a key set to null counts as unset.  The
-    ``probability`` and ``pixel_fraction`` keys must lie in [0, 1], and
+    An unknown key fails, and a map that sets both ``count`` and
+    ``expected_events`` to a value (``dead_pixels``, ``dead_columns``) fails as
+    ambiguous; a key set to null counts as unset.  The ``probability`` and
+    ``pixel_fraction`` keys must lie in [0, 1], and
     ``expected_events`` and ``expected_events_per_sec`` must be non-negative.
     """
     label = f'artifacts.{mode_name}'
@@ -612,7 +607,6 @@ def _check_artifact_mode(mode_name: str, config: Any, *, instrument: str, source
         raise SimSceneValidationError(
             f'{source}: {mode_unavailable_message(mode_name, instrument)}'
         )
-    refuse_renamed_params(mode_name, config, source=source)
     param_map = mode.param_map
     unknown = set(config) - set(param_map)
     if unknown:

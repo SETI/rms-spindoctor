@@ -3,13 +3,12 @@
 A sweep (``tests/integration/sim_sweeps/*.yaml``) varies one scene parameter
 across steps.  These checks load each spec and build each step's scene
 parameters, re-validating the stepped ``artifacts`` and ``noise`` blocks, so a
-sweep that addresses a retired or misspelled artifact-mode or noise key fails
+sweep that addresses a misspelled artifact-mode or noise key fails
 here instead of rendering a clean frame.  They navigate nothing, so they run
 with the unit suite; the sweeps' navigation invariants live in
 ``tests/integration/test_sim_sweeps.py``.
 """
 
-import re
 from pathlib import Path
 
 import pytest
@@ -43,14 +42,6 @@ def _artifact_sweep_on(tmp_path: Path, parameter: str) -> Path:
     return path
 
 
-def test_sweep_on_a_retired_key_is_refused(tmp_path: Path) -> None:
-    """A sweep path still naming incidence fails at build, naming the new key."""
-    spec = load_sweep(_artifact_sweep_on(tmp_path, 'artifacts.missing_lines.incidence'))
-    message = "artifacts.missing_lines: 'incidence' was renamed; use 'expected_events'"
-    with pytest.raises(SimSceneValidationError, match=re.escape(message)):
-        build_sweep_params(spec)
-
-
 def test_sweep_on_an_unknown_mode_key_is_refused(tmp_path: Path) -> None:
     """A misspelled artifact-mode key fails at build instead of rendering clean."""
     spec = load_sweep(_artifact_sweep_on(tmp_path, 'artifacts.missing_lines.expected_event'))
@@ -64,19 +55,6 @@ def _noise_sweep_on(tmp_path: Path, parameter: str) -> Path:
     path = tmp_path / 'noise_read_noise.yaml'
     path.write_text(text.replace('noise.read_noise_dn', parameter))
     return path
-
-
-def test_sweep_on_a_retired_noise_key_is_refused(tmp_path: Path) -> None:
-    """A sweep stepping the old cosmic-ray key fails at build, naming the new key.
-
-    Without the noise re-validation every step would render with the rate unset.
-    """
-    spec = load_sweep(_noise_sweep_on(tmp_path, 'noise.cosmic_ray_rate_per_sec'))
-    message = (
-        "noise: 'cosmic_ray_rate_per_sec' was renamed; use 'cosmic_ray_events_per_pixel_per_sec'"
-    )
-    with pytest.raises(SimSceneValidationError, match=re.escape(message)):
-        build_sweep_params(spec)
 
 
 def test_sweep_on_an_unknown_noise_key_is_refused(tmp_path: Path) -> None:
