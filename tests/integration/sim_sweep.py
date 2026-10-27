@@ -33,7 +33,7 @@ from ruamel.yaml import YAML
 from spindoctor.nav_model import build_models_for_obs
 from spindoctor.nav_orchestrator import NavOrchestrator
 from spindoctor.obs.obs_inst_sim import ObsSim
-from spindoctor.sim.scene import load_sim_scene
+from spindoctor.sim.scene import load_sim_scene, validate_sim_params
 
 _SCENES_ROOT = Path(__file__).parent / 'sim_scenes'
 
@@ -214,19 +214,44 @@ def _pinned_technique_result(result: Any, technique: str) -> Any | None:
     return None
 
 
+def _validate_step_artifacts(
+    base_params: dict[str, Any], step_params: dict[str, Any], *, source: str
+) -> None:
+    """Validate a sweep step's ``artifacts`` block in the context of its base scene.
+
+    The renderer reads each artifact mode's map by key and passes over a key it
+    does not know, so an artifact path is checked with the full scene validator.
+    The check covers the artifacts block alone: elsewhere a sweep may walk a
+    value onto a boundary the file validator refuses on purpose (the
+    ``atmosphere_haze`` sweep's haze-free floor is ``tau_ref`` 0), and the rest of
+    the step is the already-validated base scene.
+    """
+    artifacts = step_params.get('artifacts')
+    if artifacts is None:
+        return
+    validate_sim_params({**base_params, 'artifacts': artifacts}, source=source)
+
+
 def build_sweep_params(spec: SweepSpec) -> list[tuple[float, dict[str, Any]]]:
     """Return the per-step ``(value, sim_params)`` pairs a sweep navigates.
 
-    Each step deep-copies the base scene's sim params and applies the sweep's
-    parameter override(s) for that value.  Exposed so both :func:`run_sweep` (which
-    navigates each step) and the image dump (which renders each step) build the
-    exact same frames.
+    Each step deep-copies the base scene's sim params, applies the sweep's
+    parameter override(s) for that value, and re-validates the step's
+    ``artifacts`` block against the base scene, so a sweep path naming an
+    unknown or retired artifact-mode key, or an out-of-range activation value,
+    fails here rather than rendering a frame that silently ignores it.  Exposed
+    so both :func:`run_sweep` (which navigates each step) and the image dump
+    (which renders each step) build the exact same frames.
 
     Parameters:
         spec: The sweep specification.
 
     Returns:
         One ``(value, sim_params)`` pair per value, in sweep order.
+
+    Raises:
+        SimSceneValidationError: If a step's artifacts block fails validation;
+            the message names the sweep file and the step's value.
     """
     base_params = load_sim_scene(spec.base_scene)
     steps: list[tuple[float, dict[str, Any]]] = []
@@ -234,6 +259,7 @@ def build_sweep_params(spec: SweepSpec) -> list[tuple[float, dict[str, Any]]]:
         sim_params = copy.deepcopy(base_params)
         for parameter in spec.parameters:
             _set_dotted(sim_params, parameter, value)
+        _validate_step_artifacts(base_params, sim_params, source=f'{spec.path} (value {value!r})')
         steps.append((value, sim_params))
     return steps
 
