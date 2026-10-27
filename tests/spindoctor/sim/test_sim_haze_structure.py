@@ -11,6 +11,11 @@ with azimuth, the hemispheric amplitude scales one half's brightness, the
 interior ramp tilts the disc's brightness along the axis, and a cloud blob
 lands where it was placed.
 
+The two hemispheric keys blend across the equator rather than switching
+there, so their tests also assert that the rendered brightness changes no
+faster across the equator than beside it, and that the full stated value
+holds poleward of the blend band.
+
 The gating contract has its own tests: a block naming none of the structure
 keys leaves the spec's structure at None, which is what keeps the base haze
 on its original scalar arithmetic and inside the cold-render budget.
@@ -26,9 +31,12 @@ from spindoctor.sim.forward.atmosphere import atmosphere_spec_from_params
 from spindoctor.sim.forward.body import render_single_body
 from spindoctor.sim.forward.haze_structure import (
     HAZE_STRUCTURE_KEYS,
+    HEMISPHERE_BLEND_HALF_WIDTH_DEG,
     SECTOR_REFERENCE_HALF_ANGLE_DEG,
     HazeStructure,
     haze_structure_from_params,
+    hemisphere_weight,
+    latitude_sine,
     scale_height_field,
 )
 from spindoctor.sim.scene import validate_sim_params
@@ -44,6 +52,9 @@ _RADIUS = 55.0
 # hemispheres the ns_* keys split on.
 _ILLUMINATION_DEG = 90.0
 _BASE_ATMOSPHERE: dict[str, Any] = {'scale_height_px': 7.0, 'tau_ref': 3.0, 'g': 0.4}
+# Image-plane distance from the equator, in pixels, beyond which the
+# hemispheric keys apply at their full stated value on the disc.
+_BLEND_EDGE_PX = math.sin(math.radians(HEMISPHERE_BLEND_HALF_WIDTH_DEG)) * _RADIUS
 
 
 def _render(atmosphere: dict[str, Any], *, phase_deg: float = 35.0) -> NDArrayFloatType:
@@ -150,8 +161,9 @@ def _disc_mean(img: NDArrayFloatType, *, southern: bool) -> float:
     """Mean brightness over one hemisphere of the anti-sunward disc interior.
 
     Restricted well inside the limb so the anti-aliased rim and the halo
-    cannot contribute, away from the equator so the two samples do not share
-    pixels, and to the anti-sunward side so every sampled pixel has headroom
+    cannot contribute, poleward of the equatorial blend band so every
+    sampled pixel carries the hemispheric terms at their full value, and to
+    the anti-sunward side so every sampled pixel has headroom
     below the top of the [0, 1] signal plane -- a brightening measured where
     the render already saturates would report the clip, not the scaling.
 
@@ -164,7 +176,7 @@ def _disc_mean(img: NDArrayFloatType, *, southern: bool) -> float:
     """
     v_rel, u_rel = _offsets()
     rho = np.hypot(v_rel, u_rel)
-    half = v_rel > 0.25 * _RADIUS if southern else v_rel < -0.25 * _RADIUS
+    half = v_rel > _BLEND_EDGE_PX + 1.0 if southern else v_rel < -_BLEND_EDGE_PX - 1.0
     region = half & (rho < 0.8 * _RADIUS) & (u_rel < -0.3 * _RADIUS)
     return float(np.mean(img[region]))
 
@@ -243,11 +255,11 @@ def test_falloff_factor_bounds_contain_the_field(
     angles = np.linspace(0.0, math.pi, 37)
     u_ctr = np.cos(angles)[None, :]
     # Both hemispheres of the body-frame split, at every sampled azimuth.
-    v_rot = np.concatenate([np.sin(angles), -np.sin(angles)])[None, :]
+    sin_latitude = np.concatenate([np.sin(angles), -np.sin(angles)])[None, :]
     field = scale_height_field(
         structure,
         nominal,
-        v_rot=v_rot,
+        sin_latitude=sin_latitude,
         v_ctr=np.concatenate([np.sin(angles), -np.sin(angles)])[None, :],
         u_ctr=np.concatenate([u_ctr[0], u_ctr[0]])[None, :],
         illum_v=0.0,
@@ -343,6 +355,104 @@ def test_hemispheric_amplitude_scales_one_half_of_the_disc() -> None:
     northern_ratio = _disc_mean(scaled, southern=False) / _disc_mean(plain, southern=False)
     assert southern_ratio == pytest.approx(1.0 + amplitude, rel=0.02)
     assert northern_ratio == pytest.approx(1.0, rel=0.02)
+
+
+def _equator_jump_ratio(img: NDArrayFloatType) -> float:
+    """How abruptly the brightness changes across the equator.
+
+    The equator falls between rows ``_CENTER - 0.5`` and ``_CENTER + 0.5``.
+    Over every lit column of the six rows around it (disc and halo, less
+    the anti-aliased rim), this is the mean row-to-row change between the
+    two rows that straddle the equator, divided by the larger of the same
+    change one row to either side.  A hemispheric difference applied as a
+    switch puts all of its change into the straddling pair, so the ratio is
+    large; one that varies smoothly with latitude changes about as fast in
+    the neighboring pairs, so the ratio stays near one or below it.
+
+    Parameters:
+        img: A rendered image with the body centered at ``_CENTER``.
+
+    Returns:
+        The ratio of the straddling jump to the larger neighboring jump.
+    """
+    equator_row = int(_CENTER)
+    rows = slice(equator_row - 3, equator_row + 3)
+    v_rel, u_rel = _offsets()
+    off_rim = np.abs(np.hypot(v_rel, u_rel) - _RADIUS) > 1.5
+    columns = np.all((off_rim & (img > 1e-3))[rows], axis=0)
+    jumps = np.abs(np.diff(img[rows][:, columns], axis=0)).mean(axis=1)
+    return float(jumps[2] / max(float(jumps[1]), float(jumps[3]), 1e-12))
+
+
+@pytest.mark.parametrize(
+    'structure',
+    [
+        {'ns_asymmetry_amplitude': 0.3},
+        {'ns_asymmetry_amplitude': -0.3},
+        {'ns_falloff_ratio': 2.0},
+        {'ns_falloff_ratio': 1.1},
+        {'ns_falloff_ratio': 0.6},
+        {'interior_ramp_amplitude': 0.2},
+        {'axis_tilt_deg': 8.0},
+    ],
+    ids=lambda s: '{}={}'.format(*next(iter(s.items()))),
+)
+def test_structure_keys_draw_no_seam_at_the_equator(structure: dict[str, float]) -> None:
+    """The rendered haze stays continuous across the body's equator.
+
+    A real haze does not change its brightness or its scale height in one
+    step at the equator, so a key that does draws a seam along one image
+    row.  The two hemispheric keys must blend across the equator, and the
+    axial ramp and the axis tilt, which carry no equatorial boundary, must
+    stay clean.
+    """
+    img = _render(_with(**structure))
+    assert _equator_jump_ratio(img) < 2.0
+
+
+@pytest.mark.parametrize('key', ['ns_asymmetry_amplitude', 'ns_falloff_ratio'])
+def test_hemispheric_keys_at_their_identity_value_render_the_plain_haze(key: str) -> None:
+    """An amplitude of zero or a ratio of one changes nothing anywhere."""
+    identity = {'ns_asymmetry_amplitude': 0.0, 'ns_falloff_ratio': 1.0}[key]
+    plain = _render(dict(_BASE_ATMOSPHERE))
+    structured = _render(_with(**{key: identity}))
+    np.testing.assert_array_equal(structured, plain)
+
+
+def test_hemisphere_weight_blends_across_the_band_and_is_full_beyond_it() -> None:
+    """The weight is 0.5 on the equator and exactly 0 or 1 poleward of the band."""
+    edge = math.sin(math.radians(HEMISPHERE_BLEND_HALF_WIDTH_DEG))
+    sin_latitude = np.array([-1.0, -edge, 0.0, edge, 1.0])
+    np.testing.assert_array_equal(hemisphere_weight(sin_latitude), [0.0, 0.0, 0.5, 1.0, 1.0])
+
+
+def test_hemisphere_weight_rises_smoothly_and_antisymmetrically() -> None:
+    """Inside the band the weight rises monotonically, and w(-s) = 1 - w(s).
+
+    The largest step between closely spaced samples bounds the weight's
+    slope, so a weight that switched anywhere inside the band would fail it.
+    """
+    edge = math.sin(math.radians(HEMISPHERE_BLEND_HALF_WIDTH_DEG))
+    sin_latitude = np.linspace(-edge, edge, 2001)
+    weight = hemisphere_weight(sin_latitude)
+    steps = np.diff(weight)
+    assert float(steps.min()) >= 0.0
+    # A cubic smoothstep's slope peaks at 1.5 times the mean slope.
+    assert float(steps.max()) <= 1.5 / 2000.0 + 1e-12
+    np.testing.assert_allclose(hemisphere_weight(-sin_latitude), 1.0 - weight, atol=1e-12)
+
+
+def test_latitude_sine_is_continuous_across_the_limb() -> None:
+    """The disc and halo forms of the latitude coordinate meet on the limb.
+
+    Inside the limb it is ``v_rot / semi_a``; above it, the latitude of the
+    limb point beneath the line of sight, which stays fixed along a ray from
+    the center.
+    """
+    semi_a = 50.0
+    v_rot = np.array([30.0, 30.0, 45.0])
+    e2 = np.array([0.5, 1.0, (45.0 / 30.0) ** 2])
+    np.testing.assert_allclose(latitude_sine(v_rot, e2, semi_a=semi_a), [0.6, 0.6, 0.6])
 
 
 def test_interior_ramp_tilts_the_disc_brightness_along_the_axis() -> None:
