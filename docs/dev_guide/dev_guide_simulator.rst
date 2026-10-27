@@ -1261,8 +1261,45 @@ Mesh shading, detail, relief, and pose scatter
 ----------------------------------------------
 
 The mesh renderer builds the same irregular polyhedron the navigator predicts
-(the primitives live in the shared ``mesh_geometry`` module), then adds its own
-truth-key upgrades on top, none of which the prediction consumes:
+(the primitives live in the shared ``mesh_geometry`` module). The polyhedron is a
+latitude-longitude sphere of ``mesh_n_lat`` bands and ``mesh_n_lon`` divisions.
+Each vertex sits at radius ``1 + mesh_lumpiness * h(u)`` along its unit direction
+``u``, floored at 0.2. The relief ``h`` is a random sum of real spherical
+harmonics of degrees 2 to 5, drawn from ``mesh_seed`` with the same synthesis the
+limb-relief field uses (:mod:`spindoctor.sim.spherical_harmonics`). Because ``h``
+is a function on the sphere, the surface is smooth everywhere, including at the
+mesh's poles, and raising ``mesh_n_lat`` and ``mesh_n_lon`` samples the same
+surface more finely.
+
+``h`` has no degree 0 or degree 1 content. Degree 0 would only change the body's
+size and degree 1 would only move its center, and neither is irregularity. The
+mean radius therefore stays 1 at every lumpiness, and the body's center stays
+put to first order. Degree 2 is an ellipsoid-like elongation on top of the
+scene's axes. Degrees 3 to 5 are the lopsided lumps that a best-fit ellipsoid
+cannot absorb. Each seed's draw is scaled so that this non-ellipsoidal part has
+an RMS of exactly ``mesh_lumpiness / 8`` of the radius; the degree 2 part varies
+with the seed, at about two thirds of that on average. A lumpiness of 0.4
+therefore plants a non-ellipsoidal shape error of 5% of the radius RMS on every
+seed. The per-degree shares follow a measured potato-like spectrum, listed in
+``_BASE_DEGREE_RMS`` in the module.
+
+``mesh_seed`` names a shape only through this synthesis: the same seed gives the
+same shape at every tessellation and every lumpiness, and a different relief
+synthesis would give it a different shape. A scene that needs a clearly
+irregular body picks its seed by looking at the rendered silhouette.
+
+Faceting is a sampling effect. At the default 16 by 32 tessellation a large body
+shows rings of flat-shaded quadrilaterals around the mesh pole and a polygonal
+silhouette. The shipped mesh scenes and the gallery use 64 by 128, at which
+neither is visible on a body up to about 150 pixels across. Because
+``mesh_n_lat`` and ``mesh_n_lon`` are idealized keys, the navigator's predicted
+mesh uses the same tessellation, so a finer mesh never plants a mismatch.
+``gouraud`` shading also hides the facets inside the silhouette, but it is
+truth-side: it changes only the rendered image, and it leaves the silhouette a
+polygon.
+
+The renderer then adds its own truth-key upgrades on top, none of which the
+prediction consumes:
 
 - ``shading`` (truth) selects the shared rasterizer's mode for the *rendered*
   image: ``flat`` (default) or ``gouraud`` per-vertex smooth shading. The
@@ -1270,8 +1307,10 @@ truth-key upgrades on top, none of which the prediction consumes:
   navigator's predicted mesh keeps flat shading because the key never crosses
   the boundary. The gallery renders the same body flat and gouraud so the
   difference is visible.
-- ``mesh_detail_octaves`` (idealized) adds banks of higher-frequency shape
-  modes to the base relief spectrum (0 = base only). It is idealized because a
+- ``mesh_detail_octaves`` (idealized) adds bands of higher harmonic degrees to
+  the base relief (0 = base only). Octave ``k`` covers degrees ``5 * 2**(k-1) + 1``
+  to ``5 * 2**k`` at an RMS of ``0.5**k`` times the base's non-ellipsoidal RMS, so
+  ``mesh_n_lon`` should be at least ``20 * 2**k``. It is idealized because a
   published shape model carries its own detail.
 - ``limb_relief_rms`` / ``limb_relief_corr_deg`` (truth) apply the same relief
   machinery as a per-vertex radial perturbation of the unit mesh, sampled in
@@ -1663,8 +1702,10 @@ The panels below are rendered by ``python -m tests.integration.sim_doc_images``
    :width: 45%
    :align: center
 
-   The same mesh body under ``gouraud`` smooth shading, for comparison with the
-   flat-shaded panel above. The navigator's predicted mesh keeps flat shading.
+   The same mesh body at the default 16 by 32 tessellation under ``gouraud``
+   smooth shading. The shading hides the facets inside the silhouette, while the
+   silhouette itself stays a polygon. The panel above uses 64 by 128 and flat
+   shading. The navigator's predicted mesh keeps flat shading.
 
 .. figure:: _sim_images/body_craters.png
    :width: 45%
@@ -1858,7 +1899,9 @@ ring, a couple of stars, and a planted offset the navigator must recover -- read
      - name: HYPERION
        shape_model: polyhedral_mesh
        mesh_lumpiness: 0.4
-       mesh_seed: 7
+       mesh_seed: 3
+       mesh_n_lat: 64
+       mesh_n_lon: 128
        pose_euler_deg: [10.0, 35.0, 0.0]
        center_v: 110.0
        center_u: 110.0
@@ -2171,10 +2214,11 @@ Common fields:
 
 Ellipsoid bodies add ``rotation_z`` and ``rotation_tilt`` (degrees, idealized).
 Mesh bodies (``shape_model: polyhedral_mesh``) instead read the idealized mesh
-keys ``mesh_lumpiness`` (relief amplitude as a fraction of the unit radius,
-default 0.3), ``mesh_seed`` (which irregular shape is generated, default 0),
-``mesh_n_lat`` / ``mesh_n_lon`` (mesh resolution, defaults 16 / 32),
-``mesh_detail_octaves`` (higher-frequency shape-mode banks, default 0), and
+keys ``mesh_lumpiness`` (relief amplitude, default 0.3: the non-ellipsoidal
+relief has an RMS of ``mesh_lumpiness / 8`` of the radius), ``mesh_seed`` (which
+irregular shape is generated, default 0), ``mesh_n_lat`` / ``mesh_n_lon`` (mesh
+resolution, defaults 16 / 32; 64 / 128 hides the facets on a large body),
+``mesh_detail_octaves`` (bands of higher harmonic degrees, default 0), and
 ``pose_euler_deg`` (intrinsic X, Y, Z Euler angles, default ``[0, 0, 0]``).
 
 The truth-side body keys never reach the navigator. The relief, photometry,

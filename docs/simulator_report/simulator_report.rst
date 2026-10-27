@@ -1248,7 +1248,13 @@ Irregular-body navigation
 =========================
 
 Non-ellipsoidal bodies (Hyperion-like, Phoebe-like) are rendered from a
-procedurally generated polyhedral mesh at a chosen three-axis pose. By default the
+procedurally generated polyhedral mesh at a chosen three-axis pose. The mesh's
+relief is a random sum of spherical harmonics of degrees 2 to 5 whose
+non-ellipsoidal part (degrees 3 and up) has an RMS of ``mesh_lumpiness / 8`` of
+the radius, so a lumpiness of 0.4 is a 5% RMS shape error that no ellipsoid can
+absorb. The relief neither resizes nor moves the body. ``mesh_seed`` selects the
+realization, and the scenes below use a 64 by 128 tessellation so that no facets
+show (see :doc:`/dev_guide/dev_guide_simulator`). By default the
 navigator predicts the body from the same mesh and pose the renderer drew, so the
 recovery is exact by construction; the cases below also drive the navigator with a
 deliberately *wrong* shape or pose through the ``nav_override`` channel
@@ -1272,26 +1278,29 @@ genuinely unknown orientation testable.
    * - ``planted_offset_limb_mesh``
      - BodyLimbNav (mesh = mesh)
      - (1.43, -0.61) px
-     - (1.39, -0.60) px
-     - 0.04 px
+     - (1.66, -0.47) px
+     - 0.27 px
    * - ``planted_offset_blob_mesh_crescent``
      - BodyBlobNav (mesh, 120 deg)
      - (1.43, -0.61) px
-     - (1.24, -0.52) px
-     - 0.21 px
+     - (0.97, -0.42) px
+     - 0.50 px
    * - ``planted_offset_shapemismatch``
      - full ensemble (predict ellipsoid)
      - (1.43, -0.61) px
-     - (0.75, -0.61) px
-     - 0.68 px
+     - (1.93, -1.12) px
+     - 0.72 px
 
 When the predicted geometry matches the rendered mesh, the mesh disc, mesh limb,
-and mesh crescent recover the planted offset as tightly as their ellipsoid
-counterparts (0.00-0.21 px). The fourth row is the shape-mismatch case: the frame
-renders a mildly irregular mesh but the navigator predicts its smooth
-(ellipsoidal) limit at the same pose, and the body still navigates -- the disc
-correlation aligns the two filled silhouettes and recovers to about
-two-thirds of a pixel.
+and mesh crescent recover the planted offset to half a pixel or better
+(0.00-0.50 px; 2026-10-27 measurement). The mesh crescent is the loosest at
+0.50 px, against 0.23 px for the ellipsoid crescent: its body is clearly
+irregular (``mesh_lumpiness`` 0.2), and only a thin lit sliver of it constrains
+the centroid. The fourth row is the shape-mismatch case: the frame renders a
+mildly irregular mesh (``mesh_lumpiness`` 0.1, a 1.25% RMS non-ellipsoidal
+relief) but the navigator predicts its smooth (ellipsoidal) limit at the same
+pose, and the body still navigates. The disc correlation aligns the two filled
+silhouettes and recovers to about three quarters of a pixel.
 
 Shape mismatch vs irregularity
 ------------------------------
@@ -1307,24 +1316,34 @@ term is meant to capture.
 
    Recovered-offset error (red) and fused confidence (blue) vs rendered mesh
    lumpiness, with the prediction pinned to the zero-relief limit. The bias grows
-   from ~0.1 px (no mismatch) to ~17 px at extreme relief; the confidence dips
-   through the mid-range (0.70-0.81 at lumpiness 0.2-0.4) and then re-saturates
-   to 0.99 at the top of the walk -- a confidently-wrong regime.
+   from 0.00 px (no mismatch) to 11.8 px at lumpiness 0.7, and the confidence
+   falls from 0.99 to 0.56 by lumpiness 0.6. At 0.7 the shape-lock veto reports
+   the frame ``conflicted`` (confidence 0.17).
 
-The recovered error grows monotonically with relief (0.09, 0.68, 3.06, 5.28,
-8.44, 10.87, 13.98, 17.03 px at lumpiness 0.0 through 0.7; 2026-07-18
-measurement) while the fused confidence is non-monotonic: it dips to 0.70-0.81
-in the mid-range and re-saturates to 0.99 from lumpiness 0.5, where the
-correlation diagnostics on a heavily faceted silhouette look as sharp as a
-clean lock. The seed-20260718 calibration campaign renders every body at the
-relief its published shape residual implies (lumpiness up to ~0.15 for the
-catalog's irregulars), so the formula is calibrated only over that physical
-range; beyond it the diagnostics genuinely carry no mismatch signal and the
-sigmoid extrapolates anti-calibrated. This is standing ensemble-gap evidence in
-the same family as the ring's planted orbit error: no disc diagnostic can see
-a coherent shape mismatch, so closing the extreme-relief hole needs a
-cross-technique veto (the pose-free blob disagrees by several pixels here),
-not a refit. The body keeps navigating to a ``success`` status throughout.
+The recovered error grows monotonically with relief (0.00, 0.72, 1.60, 2.80,
+4.22, 5.63, 6.36, 11.75 px at lumpiness 0.0 through 0.7; 2026-10-27
+measurement). The fused confidence stays at 0.99 at lumpiness 0.1, a 0.72 px
+error, and then falls steadily (0.75, 0.70, 0.64, 0.57, 0.56) as the error
+grows. Every step through 0.6 reports ``success``, the last at a 6.4 px error
+and 0.56 confidence. At 0.7 the disc and limb lock onto the mismatched shape at
+an 11.8 px wrong offset, the pose-free blob disagrees, and the shape-lock veto
+reports the frame ``conflicted`` (see :doc:`/dev_guide/dev_guide_orchestrator_ensemble`).
+
+That veto does not fire on every shape. With ``mesh_seed`` swept over 13
+values at lumpiness 0.7, it reported ``conflicted`` for 4 of them. For the
+others the walk ended in a ``success``: one realization reached 12.7 px of
+error at 0.91 confidence, with the disc lock and the blob in agreement. The
+blob of a lopsided body is itself displaced, so it can agree with a
+shape-locked disc. The scene uses a seed whose walk shows the veto. The
+coverage of the veto across shapes is an open question for the ensemble.
+
+The seed-20260718 calibration campaign renders every irregular body at
+``mesh_lumpiness`` = 3 x its published ellipsoid residual over its mean radius
+(up to 0.22, for Hyperion). That is a non-ellipsoidal relief of 3/8 of the
+published residual, so the campaign's irregular bodies are smoother than the
+real ones, and the formula is calibrated only over that range. Beyond it the
+disc diagnostics carry no mismatch signal, and only a cross-technique veto can
+catch the shape lock.
 
 Pose disagreement
 -----------------
@@ -1339,18 +1358,20 @@ limb fit:
    :alt: Mesh-limb recovery error vs predicted-pose disagreement.
 
    Pinned-limb recovered-offset error vs the predicted pose's disagreement with
-   the true (rendered) pose (a tumble about the body's long axis). The limb keeps
-   returning a fix across the swept range, but its error climbs from 0.31 px at
-   a 35 deg disagreement to 4.8 px at 110 deg -- a confidently-wrong limb that
-   does not self-flag here.
+   the true (rendered) pose (a tumble about the body's long axis). The limb's
+   error climbs from 0.18 px at the true pose to 4.5 px at a 75 deg disagreement.
+   At 55 deg (the dashed line) the fused navigation fails with no fix.
 
-The limb error climbs monotonically from 0.31 px at a 35 deg tumble to 4.8 px at
-110 deg (2026-07-18 measurement), all the while still reporting ``success`` at
-0.55-0.61 confidence: it does not self-flag in this range. A wrong in-plane roll degrades it far more
-sharply -- tens of pixels, and there it does self-flag spurious. The pose-free
-blob centroid, by contrast, stays accurate on the same wrong-pose body, because a
-centrally-symmetric (low-relief triaxial) body's lit-weighted centroid barely
-moves under rotation. This is the behavior the ``test_sim_irregular_pose``
+The limb error climbs from 0.18 px at the true pose through 1.00 px and 1.20 px
+at 10 and 20 deg of disagreement to 4.53 px at 75 deg (2026-10-27
+measurement), still reporting ``success`` at 0.51-0.63 confidence. At 55 deg of
+disagreement the frame fails without a fix, so the error there is not plotted.
+A wrong in-plane roll degrades the limb far more
+sharply: a 20 deg roll puts it 20.8 px off, and there it does self-flag
+spurious. The pose-free blob centroid, by contrast, stays within 0.66 px on the
+same wrong-pose body. This body's relief is low (``mesh_lumpiness`` 0.1), so its
+shape is mostly the scene's triaxial ellipsoid, and its lit-weighted centroid
+barely moves under rotation. This is the behavior the ``test_sim_irregular_pose``
 per-technique test pins: on a wrong-pose body the
 system should demote from the confidently-wrong limb to the orientation-free
 blob.
@@ -1565,8 +1586,9 @@ Summary
   0.17 px cross-track and 0.82 px along-track on clean scenes.
 * Irregular (mesh) bodies navigate as accurately as ellipsoids when the predicted
   geometry matches the rendered one (mesh disc, limb, and crescent all recover to
-  0.00-0.21 px). When the navigator predicts the wrong shape the centroid bias
-  grows with the rendered relief (to ~4 px) and the confidence falls; when it
+  0.00-0.50 px). When the navigator predicts the wrong shape the centroid bias
+  grows with the rendered relief (to ~6 px at a 7.5% RMS non-ellipsoidal relief)
+  and the confidence falls; at 8.75% the shape-lock veto declines the frame. When it
   predicts the wrong pose the limb degrades to a confidently-wrong fix (or, for a
   wrong in-plane roll, far enough that it self-flags) while the pose-free blob
   holds -- the demote-to-pose-free behavior a chaotic rotator needs.

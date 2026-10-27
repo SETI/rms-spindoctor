@@ -314,15 +314,18 @@ The two modes below are the standing evidence that motivated the veto; each is
 caught and asserts its declined outcome as a regression:
 
 - ``tests/integration/sim_sweeps/irregularity_shape_mismatch.yaml`` -- at
-  mesh-vs-ellipsoid shape mismatch the disc correlation and the limb fit both
-  lock onto the mismatched model and agree at a multi-pixel wrong offset, and
-  the fused confidence re-saturates to ~0.99 at a 10-17 px error. The pose-free
-  blob, which does not chase the shape, disagrees by pixels. The shape-lock veto
-  reports those steps as ``conflicted``, because the blob's separation from the
-  consensus clears both the body-scaled pixel floor and the Mahalanobis
-  threshold. The clean (zero-relief) step recovers the planted offset
-  sub-pixel and stays a success, so the veto separates the shape lock from the
-  legitimate fit rather than blanketing the sweep.
+  extreme mesh-vs-ellipsoid shape mismatch (``mesh_lumpiness`` 0.7, a
+  non-ellipsoidal relief of 8.75% of the radius RMS) the disc correlation and
+  the limb fit both lock onto the mismatched model and agree at a ~12 px wrong
+  offset. The pose-free blob, which does not chase the shape, disagrees by
+  pixels. The shape-lock veto reports that step as ``conflicted``, because the
+  blob's separation from the consensus clears both the body-scaled pixel floor
+  and the Mahalanobis threshold. The clean (zero-relief) step recovers the
+  planted offset sub-pixel and stays a success, so the veto separates the shape
+  lock from the legitimate fit rather than blanketing the sweep. The veto does
+  not catch every shape: over 13 mesh seeds at lumpiness 0.7 it fired on 4, and
+  one realization ended a ``success`` at a 12.7 px error and 0.91 confidence,
+  its blob displaced along with the disc lock.
 - ``tests/integration/sim_scenes/atmosphere/titan_crescent_horns.yaml`` (and
   its noiseless twin) -- a 155-degree haze crescent drags the blob centroid to
   a ~30 px wrong offset while the disc correlation self-flags spurious. The
