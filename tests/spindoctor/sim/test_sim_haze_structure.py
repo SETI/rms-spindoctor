@@ -13,8 +13,10 @@ lands where it was placed.
 
 The two hemispheric keys blend across the equator rather than switching
 there, so their tests also assert that the rendered brightness changes no
-faster across the equator than beside it, and that the full stated value
-holds poleward of the blend band.
+faster across the equator than beside it, on an unrolled body and across a
+rolled body's own equator, that the blend is only partial at half the
+documented band edge, and that the full stated value holds poleward of the
+band.
 
 The gating contract has its own tests: a block naming none of the structure
 keys leaves the spec's structure at None, which is what keeps the base haze
@@ -55,14 +57,29 @@ _BASE_ATMOSPHERE: dict[str, Any] = {'scale_height_px': 7.0, 'tau_ref': 3.0, 'g':
 # Image-plane distance from the equator, in pixels, beyond which the
 # hemispheric keys apply at their full stated value on the disc.
 _BLEND_EDGE_PX = math.sin(math.radians(HEMISPHERE_BLEND_HALF_WIDTH_DEG)) * _RADIUS
+# The blend half-width the simulator guide documents, stated here rather than
+# read from the module so a change to the constant fails the test that pins it.
+_DOCUMENTED_BLEND_HALF_WIDTH_DEG = 10.0
+# A rolled body with the sun along its equator, the geometry the Titan truth
+# campaign uses (rotation_z = illumination_angle - 90).
+_ROLL_DEG = 30.0
+_ROLLED_ILLUMINATION_DEG = _ROLL_DEG + 90.0
 
 
-def _render(atmosphere: dict[str, Any], *, phase_deg: float = 35.0) -> NDArrayFloatType:
+def _render(
+    atmosphere: dict[str, Any],
+    *,
+    phase_deg: float = 35.0,
+    illumination_deg: float = _ILLUMINATION_DEG,
+    rotation_z_deg: float = 0.0,
+) -> NDArrayFloatType:
     """Render a centered hazy sphere and composite its halo over black.
 
     Parameters:
         atmosphere: The body's ``atmosphere`` block.
         phase_deg: Phase angle in degrees.
+        illumination_deg: The body's ``illumination_angle`` in degrees.
+        rotation_z_deg: The body's in-plane roll, ``rotation_z``, in degrees.
 
     Returns:
         The rendered signal image, halo included.
@@ -75,7 +92,8 @@ def _render(atmosphere: dict[str, Any], *, phase_deg: float = 35.0) -> NDArrayFl
         'axis1': 2.0 * _RADIUS,
         'axis2': 2.0 * _RADIUS,
         'axis3': 2.0 * _RADIUS,
-        'illumination_angle': _ILLUMINATION_DEG,
+        'illumination_angle': illumination_deg,
+        'rotation_z': rotation_z_deg,
         'phase_angle': phase_deg,
         'anti_aliasing': 1.0,
         'atmosphere': atmosphere,
@@ -385,19 +403,22 @@ def _equator_jump_ratio(img: NDArrayFloatType) -> float:
 
 
 @pytest.mark.parametrize(
-    'structure',
+    ('structure', 'illumination_deg'),
     [
-        {'ns_asymmetry_amplitude': 0.3},
-        {'ns_asymmetry_amplitude': -0.3},
-        {'ns_falloff_ratio': 2.0},
-        {'ns_falloff_ratio': 1.1},
-        {'ns_falloff_ratio': 0.6},
-        {'interior_ramp_amplitude': 0.2},
-        {'axis_tilt_deg': 8.0},
+        pytest.param({'ns_asymmetry_amplitude': 0.3}, 90.0, id='ns_asymmetry_amplitude=0.3'),
+        pytest.param({'ns_asymmetry_amplitude': -0.3}, 90.0, id='ns_asymmetry_amplitude=-0.3'),
+        pytest.param({'ns_falloff_ratio': 2.0}, 90.0, id='ns_falloff_ratio=2.0'),
+        pytest.param({'ns_falloff_ratio': 1.1}, 90.0, id='ns_falloff_ratio=1.1'),
+        pytest.param({'ns_falloff_ratio': 0.6}, 90.0, id='ns_falloff_ratio=0.6'),
+        # Lit from 30 degrees, so the ramp along the haze axis runs across the
+        # rows the equator divides; lit from 90 it would run along them.
+        pytest.param({'interior_ramp_amplitude': 0.2}, 30.0, id='interior_ramp_amplitude=0.2'),
+        pytest.param({'axis_tilt_deg': 8.0}, 90.0, id='axis_tilt_deg=8.0'),
     ],
-    ids=lambda s: '{}={}'.format(*next(iter(s.items()))),
 )
-def test_structure_keys_draw_no_seam_at_the_equator(structure: dict[str, float]) -> None:
+def test_structure_keys_draw_no_seam_at_the_equator(
+    structure: dict[str, float], illumination_deg: float
+) -> None:
     """The rendered haze stays continuous across the body's equator.
 
     A real haze does not change its brightness or its scale height in one
@@ -406,8 +427,185 @@ def test_structure_keys_draw_no_seam_at_the_equator(structure: dict[str, float])
     axial ramp and the axis tilt, which carry no equatorial boundary, must
     stay clean.
     """
-    img = _render(_with(**structure))
+    img = _render(_with(**structure), illumination_deg=illumination_deg)
     assert _equator_jump_ratio(img) < 2.0
+
+
+# Body-axis profiles of a rolled body run this far either side of its equator,
+# in pixels, in one-pixel bins.  The halo they sample lies 2 to 15 pixels
+# above the limb, so the documented band edge there is at most
+# sin(10 deg) * 70, about 12 pixels, from the equator; the plateau bins sit
+# beyond it, where each hemisphere carries its full value.
+_PROFILE_REACH_PX = 20
+_PROFILE_PLATEAU_PX = (14, 20)
+# Bins either side of the equator the line-plus-step fit uses.
+_STEP_FIT_HALF_PX = 6
+
+
+def _body_axis_profile(
+    structured: NDArrayFloatType,
+    plain: NDArrayFloatType,
+    *,
+    rotation_z_deg: float,
+    sunward: bool,
+) -> NDArrayFloatType:
+    """Sample the structured-to-plain ratio along a body's own first axis.
+
+    The body's equator is the line ``v_rot = 0`` of the body frame, which a
+    roll turns away from the image rows.  This profile follows ``v_rot``
+    across that line where it crosses the halo, on one side of the body:
+    halo pixels 2 to 15 pixels above the limb whose body-frame second
+    coordinate is positive (``sunward``, for a body lit along its equator)
+    or negative, binned in one-pixel steps of ``v_rot``, the median ratio in
+    each bin.
+
+    Parameters:
+        structured: The render with the structure key.
+        plain: The render of the base haze in the same geometry.
+        rotation_z_deg: The body's roll in degrees.
+        sunward: Which crossing of the equator with the halo to sample.
+
+    Returns:
+        The median ratio per bin; bin ``i`` covers ``v_rot`` from
+        ``i - _PROFILE_REACH_PX`` to one pixel more.
+    """
+    v_rel, u_rel = _offsets()
+    roll = math.radians(rotation_z_deg)
+    v_rot = v_rel * math.cos(roll) - u_rel * math.sin(roll)
+    u_rot = v_rel * math.sin(roll) + u_rel * math.cos(roll)
+    rho = np.hypot(v_rel, u_rel)
+    side = u_rot > 0.0 if sunward else u_rot < 0.0
+    sample = (rho > _RADIUS + 2.0) & (rho < _RADIUS + 15.0) & side & (plain > 1e-4)
+    ratio = structured[sample] / plain[sample]
+    bins = np.floor(v_rot[sample]).astype(int)
+    return np.array(
+        [
+            float(np.median(ratio[bins == edge]))
+            for edge in range(-_PROFILE_REACH_PX, _PROFILE_REACH_PX)
+        ]
+    )
+
+
+def _equator_step(profile: NDArrayFloatType) -> float:
+    """Fit a line plus a step at ``v_rot = 0`` to a profile; return the step.
+
+    A switch at the equator puts the whole hemispheric change into the step.
+    A blend is smooth there, so the line takes up the change and the step
+    stays near zero.  Fitting over several bins keeps the result steady
+    against the bin-to-bin scatter a rolled pixel grid gives the profile.
+
+    Parameters:
+        profile: A profile from :func:`_body_axis_profile`.
+
+    Returns:
+        The fitted step, in units of the profile.
+    """
+    centers = np.arange(-_STEP_FIT_HALF_PX, _STEP_FIT_HALF_PX) + 0.5
+    values = profile[_PROFILE_REACH_PX - _STEP_FIT_HALF_PX : _PROFILE_REACH_PX + _STEP_FIT_HALF_PX]
+    design = np.column_stack([np.ones_like(centers), centers, (centers > 0.0).astype(float)])
+    coefficients = np.linalg.lstsq(design, values, rcond=None)[0]
+    return float(coefficients[2])
+
+
+def _band_swing(profile: NDArrayFloatType) -> float:
+    """The change in a profile from one hemisphere's plateau to the other's.
+
+    Parameters:
+        profile: A profile from :func:`_body_axis_profile`.
+
+    Returns:
+        The mean over the positive plateau bins less the mean over the
+        negative ones.
+    """
+    near, far = _PROFILE_PLATEAU_PX
+    positive = profile[_PROFILE_REACH_PX + near : _PROFILE_REACH_PX + far]
+    negative = profile[_PROFILE_REACH_PX - far : _PROFILE_REACH_PX - near]
+    return float(np.mean(positive) - np.mean(negative))
+
+
+_ROLLED_CASES = [
+    pytest.param({'ns_asymmetry_amplitude': -0.3}, True, id='amplitude-sunward'),
+    pytest.param({'ns_asymmetry_amplitude': -0.3}, False, id='amplitude-anti-sunward'),
+    pytest.param({'ns_falloff_ratio': 2.0}, True, id='ratio-sunward'),
+    pytest.param({'ns_falloff_ratio': 2.0}, False, id='ratio-anti-sunward'),
+]
+
+
+@pytest.mark.parametrize(('structure', 'sunward'), _ROLLED_CASES)
+def test_rolled_body_draws_no_seam_across_its_own_equator(
+    structure: dict[str, float], sunward: bool
+) -> None:
+    """A rolled body's halo changes smoothly across the body's own equator.
+
+    With the body rolled 30 degrees and lit along its equator, the equator
+    runs diagonally across the image, so a row-based check cannot see it.
+    Along the body's own axis, a switch would put the whole hemispheric
+    change into one step at the equator; the blend leaves less than a
+    quarter of it there.
+    """
+    rolled = {'illumination_deg': _ROLLED_ILLUMINATION_DEG, 'rotation_z_deg': _ROLL_DEG}
+    plain = _render(dict(_BASE_ATMOSPHERE), **rolled)
+    structured = _render(_with(**structure), **rolled)
+    profile = _body_axis_profile(structured, plain, rotation_z_deg=_ROLL_DEG, sunward=sunward)
+    assert abs(_equator_step(profile)) < 0.25 * abs(_band_swing(profile))
+
+
+@pytest.mark.parametrize(('structure', 'sunward'), _ROLLED_CASES)
+def test_rolled_body_splits_its_hemispheres_on_its_own_axis(
+    structure: dict[str, float], sunward: bool
+) -> None:
+    """Rolling the body and its sun together rolls the hemispheric split too.
+
+    The hemispheres are those of the body frame, so the change across a
+    rolled body's equator, measured along its own axis, matches the change
+    across an unrolled body's equator in the same lighting.  Keying the
+    blend on image rows instead would put the rolled body's equator crossing
+    of the halo deep inside one hemisphere, with nothing to change across.
+    """
+    rolled = {'illumination_deg': _ROLLED_ILLUMINATION_DEG, 'rotation_z_deg': _ROLL_DEG}
+    rolled_swing = _band_swing(
+        _body_axis_profile(
+            _render(_with(**structure), **rolled),
+            _render(dict(_BASE_ATMOSPHERE), **rolled),
+            rotation_z_deg=_ROLL_DEG,
+            sunward=sunward,
+        )
+    )
+    unrolled_swing = _band_swing(
+        _body_axis_profile(
+            _render(_with(**structure)),
+            _render(dict(_BASE_ATMOSPHERE)),
+            rotation_z_deg=0.0,
+            sunward=sunward,
+        )
+    )
+    assert rolled_swing == pytest.approx(unrolled_swing, rel=0.1)
+
+
+@pytest.mark.parametrize('hemisphere', [1.0, -1.0], ids=['positive', 'negative'])
+def test_hemispheric_scaling_is_partial_at_half_the_documented_band_edge(
+    hemisphere: float,
+) -> None:
+    """Halfway to the documented band edge the scaling is only part applied.
+
+    The simulator guide documents a 10 degree half-width and a cubic
+    smoothstep weight.  On the disc row nearest half that latitude the
+    rendered brightness ratio gives the fraction of the full scaling the row
+    carries, and it must match that smoothstep: a narrower band would carry
+    nearly all of it there, and a wider one much less.
+    """
+    amplitude = -0.3
+    plain = _render(dict(_BASE_ATMOSPHERE))
+    scaled = _render(_with(ns_asymmetry_amplitude=amplitude))
+    target = hemisphere * _RADIUS * math.sin(math.radians(_DOCUMENTED_BLEND_HALF_WIDTH_DEG / 2.0))
+    v_rel, u_rel = _offsets()
+    row_v = float(v_rel[np.argmin(np.abs(v_rel[:, 0] - target)), 0])
+    on_row = (v_rel == row_v) & (np.hypot(v_rel, u_rel) < _RADIUS - 2.0) & (plain > 0.02)
+    fraction = float(np.median((scaled[on_row] / plain[on_row] - 1.0) / amplitude))
+    edge = math.sin(math.radians(_DOCUMENTED_BLEND_HALF_WIDTH_DEG))
+    step = min(max((row_v / _RADIUS + edge) / (2.0 * edge), 0.0), 1.0)
+    expected = step * step * (3.0 - 2.0 * step)
+    assert fraction == pytest.approx(expected, abs=0.01)
 
 
 @pytest.mark.parametrize('key', ['ns_asymmetry_amplitude', 'ns_falloff_ratio'])
@@ -426,8 +624,8 @@ def test_hemisphere_weight_blends_across_the_band_and_is_full_beyond_it() -> Non
     np.testing.assert_array_equal(hemisphere_weight(sin_latitude), [0.0, 0.0, 0.5, 1.0, 1.0])
 
 
-def test_hemisphere_weight_rises_smoothly_and_antisymmetrically() -> None:
-    """Inside the band the weight rises monotonically, and w(-s) = 1 - w(s).
+def test_hemisphere_weight_rises_smoothly_and_point_symmetrically() -> None:
+    """Inside the band the weight rises monotonically and w(-s) = 1 - w(s).
 
     The largest step between closely spaced samples bounds the weight's
     slope, so a weight that switched anywhere inside the band would fail it.

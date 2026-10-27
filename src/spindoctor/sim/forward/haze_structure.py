@@ -20,7 +20,8 @@ through ``nav_params``:
   around the limb, which walks the detected limb ridge radially as a
   function of ray angle -- the sector-asymmetric edge-localization bias;
 - ``ns_asymmetry_amplitude`` scales one hemisphere's brightness, the affine
-  counterpart the Pearson score is supposed to absorb;
+  counterpart the Pearson score is supposed to absorb -- affine only poleward
+  of the equatorial blend band described below;
 - ``interior_ramp_amplitude`` adds a linear brightness ramp along the haze
   axis inside the disc, the seasonal north-south gradient;
 - ``cloud_blobs`` add Gaussian clouds on the disc.
@@ -50,6 +51,17 @@ of that band each term applies at exactly its stated value, so
 ``ns_asymmetry_amplitude`` and ``ns_falloff_ratio`` keep their documented
 meaning there; inside it the haze changes continuously, as a real haze does,
 where a switch would draw a seam across the halo along one image row.
+
+The blend costs ``ns_asymmetry_amplitude`` its affine character inside the
+band, and no continuous blend can avoid that.  The mirror maps latitude
+``s`` onto ``-s``, so a pure scaling of one half needs the brightness ratio
+of each mirror pair to be the same ``1 + amplitude`` everywhere.  On the
+mirror line itself the two members of the pair are the same point, so a
+continuous term gives them the same multiplier and their ratio is 1 there;
+it climbs to ``1 + amplitude`` only at the band edge.  Only a switch keeps
+the ratio constant, and a switch is the seam.  Where a scene puts the
+hemispheric split along the sun axis, the band covers the sunward limb a
+haze navigator scores on.
 """
 
 import math
@@ -89,16 +101,32 @@ threshold is retuned.
 """
 
 
-HEMISPHERE_BLEND_HALF_WIDTH_DEG: float = 20.0
+HEMISPHERE_BLEND_HALF_WIDTH_DEG: float = 10.0
 """Latitude either side of the equator over which the hemispheric terms blend.
 
 ``ns_asymmetry_amplitude`` and ``ns_falloff_ratio`` apply in full poleward of
 this latitude in the positive-``v_rot`` hemisphere and not at all poleward of
 it in the other, rising smoothly in between (see :func:`hemisphere_weight`).
-A fixed sim-side modeling choice: wide enough that the change spreads over
-many rows of a resolved body (about 22 pixels each side of the equator at
-the limb of a 64 pixel radius), and narrow enough that the stated value holds
-over the poleward 70 degrees of each hemisphere.
+
+A fixed sim-side modeling choice, set by what the band costs.  Inside it
+``ns_asymmetry_amplitude`` stops being a pure scaling of one half (see the
+module docstring), and that cost grows with the width.  Over the 27 of 40
+clean Titan truth scenes (hemispheric split on the sun axis) that navigate
+both with and without an amplitude of -0.35, the amplitude shifts the
+recovered cross-track position by 0.004 pixels on average with a switch,
+0.016 pixels (largest 0.086) with a 10 degree band, and 0.031 pixels
+(largest 0.176) with a 20 degree band.  The band must still be wide enough
+to remove the seam.  At 10 degrees the brightness change across the
+equator row of a 64 pixel radius haze is about the same as across the rows
+beside it, a ratio of 0.95 to 1.03 where a switch gives 3 to 26; at 5
+degrees the ratio for the brightness term rises to 1.24.  The band's pixel
+width scales with the body, ``sin(10 deg)``, about 0.17, times the radius
+each side of the equator: 10 pixels at a radius of 55, and 87 at a radius
+of 500.
+
+The band is not small.  For a sphere seen with its axis in the image plane
+it covers 22% of the projected disc and 11% of the limb, together with the
+halo above that part of the limb.
 """
 
 
@@ -319,8 +347,8 @@ def hemisphere_weight(sin_latitude: NDArrayFloatType) -> NDArrayFloatType:
     hemisphere, 1 poleward of it in the positive one, and a cubic smoothstep
     of the sine of latitude in between: exactly 0.5 on the equator, and
     continuous with a continuous slope everywhere, so a hemispheric term
-    weighted by it can draw no seam.  The weight is antisymmetric about the
-    equator (``w(-s) = 1 - w(s)``).
+    weighted by it can draw no seam.  The weight is point-symmetric about
+    ``(0, 0.5)``: ``w(-s) = 1 - w(s)``.
 
     Parameters:
         sin_latitude: Sine of the latitude of each pixel's haze column (see
