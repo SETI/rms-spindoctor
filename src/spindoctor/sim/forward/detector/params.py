@@ -13,8 +13,8 @@ unconfigured scene renders a clean DN frame, per the stage-activation rule).
 shot noise, the catalog's electron-domain full-well bloom, and the catalog's
 cohort-measured cosmic-ray rate where one is recorded (radiation on the
 detector is physics of the environment, not a transmission defect); the
-missing-data loss modes are artifact incidences, not physical-chain noise,
-and stay at zero.
+missing-data loss modes are transmission artifacts, not physical-chain noise,
+and stay off.
 
 The ``noise.read_noise_dn`` key is a DN value, converted to electrons through
 the resolved gain, so a scene that pins a DN read-noise level gets exactly that
@@ -34,7 +34,10 @@ import numpy as np
 
 from spindoctor.config import DEFAULT_CONFIG
 from spindoctor.sim.forward.artifact_modes import (
+    ARTIFACT_MODES,
     DETECTOR_MODE_ORDER,
+    EXPECTED_EVENTS,
+    PROBABILITY,
     mode_available,
     normalize_instrument,
     resolve_mode_config,
@@ -193,25 +196,25 @@ def _resolve_gain(
 _ROUTED_ONLY_MODES: frozenset[str] = frozenset(
     {'bias_structure', 'bloom', 'quantization_lut', 'quantization_ls8b', 'contouring_8bit'}
 )
-# Detector modes whose incidence is an expected event count (drawn Poisson in
-# the mechanic), not a per-frame activation probability.
-_COUNT_DETECTOR_MODES: frozenset[str] = frozenset({'radiation_transients', 'bright_dark_pairs'})
 
 
-def _mode_active(mode_name: str, incidence: float, random_seed: int) -> bool:
+def _mode_active(mode_name: str, cfg: Mapping[str, Any], random_seed: int) -> bool:
     """Whether a detector artifact mode is active this frame.
 
-    Count modes are active whenever their incidence is positive (the mechanic
-    draws the event count); the deterministic-shape modes activate with
-    probability ``incidence``, drawn from the mode's own seeded stream so
+    The registry names each mode's activation key.  A count mode
+    (``expected_events``) is active whenever its expected count is positive (the
+    mechanic draws the event count); a deterministic-shape mode activates with
+    per-frame ``probability``, drawn from the mode's own seeded stream so
     toggling one never perturbs another.
     """
-    if incidence <= 0.0:
+    activation = ARTIFACT_MODES[mode_name].activation
+    value = float(cfg.get(activation) or 0.0)
+    if value <= 0.0:
         return False
-    if mode_name in _COUNT_DETECTOR_MODES:
+    if activation == EXPECTED_EVENTS:
         return True
     rng = np.random.default_rng(derive_effect_seed(random_seed, f'detector/{mode_name}/activate'))
-    return bool(rng.random() < incidence)
+    return bool(rng.random() < value)
 
 
 def _resolve_detector_modes(
@@ -227,7 +230,7 @@ def _resolve_detector_modes(
     catalog default over registry default) and returned keyed by name.  LORRI's
     ``frame_transfer_smear`` is the one physical-signal-chain member turned on
     under ``instrument_defaults``: when a LORRI scene has not set it, it is
-    injected at incidence 1 with the catalog's nominal scrub/transfer times.
+    injected at probability 1 with the catalog's nominal scrub/transfer times.
     The injection is LORRI-only; the instrument-agnostic generic block accepts
     every mode but emulates no frame-transfer camera, so it gets no injection.
     """
@@ -240,13 +243,13 @@ def _resolve_detector_modes(
                 and instrument_defaults
                 and normalize_instrument(instrument) == 'nhlorri'
             ):
-                raw = {'incidence': 1.0}
+                raw = {PROBABILITY: 1.0}
             else:
                 continue
         if not isinstance(raw, Mapping) or not mode_available(name, instrument):
             continue
         cfg = resolve_mode_with_catalog(name, raw, instrument)
-        if not _mode_active(name, float(cfg.get('incidence', 0.0)), random_seed):
+        if not _mode_active(name, cfg, random_seed):
             continue
         modes[name] = cfg
     return modes
@@ -369,17 +372,18 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
 
     # The hot_pixels artifact mode (routed here from the registry) wins over the
     # noise-block / instrument_defaults hot-pixel knobs: an explicit mode is a
-    # deliberate placement, so it overrides the generic stress path.  incidence
-    # is the hot-pixel fraction; amplitude and column factor fall back to the
-    # catalog when the mode leaves them unset.  The mode is honored only where
-    # it is available (validation already rejects it elsewhere, e.g. LORRI).
+    # deliberate placement, so it overrides the generic stress path.  Its
+    # pixel_fraction is the hot-pixel fraction; amplitude and column factor
+    # fall back to the catalog when the mode leaves them unset.  The mode is
+    # honored only where it is available (validation already rejects it
+    # elsewhere, e.g. LORRI).
     hot_pixel_adversarial = False
     hot_pixel_mode_active = False
     hot_cfg = artifacts.get('hot_pixels') if isinstance(artifacts, Mapping) else None
     if isinstance(hot_cfg, Mapping) and mode_available('hot_pixels', instrument):
         hot_pixel_mode_active = True
         resolved = resolve_mode_config('hot_pixels', hot_cfg)
-        hot_pixel_fraction = float(resolved['incidence'])
+        hot_pixel_fraction = float(resolved['pixel_fraction'])
         mode_amplitude = resolved.get('amplitude_e')
         if mode_amplitude is not None:
             hot_pixel_amplitude = float(mode_amplitude)

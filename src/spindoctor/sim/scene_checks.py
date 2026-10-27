@@ -23,9 +23,11 @@ from typing import Any
 from spindoctor.sim.forward.artifact_modes import (
     ARTIFACT_MODES,
     MODE_KEYS,
+    RENAMED_MODE_PARAMS,
     ModeParam,
     mode_available,
     mode_unavailable_message,
+    renamed_param_message,
 )
 from spindoctor.sim.scene_schema import SimSceneValidationError
 from spindoctor.support.status_reason import NavStatusReason
@@ -456,7 +458,14 @@ def _check_artifacts(value: Any, *, instrument: str, source: str) -> None:
 
 
 def _check_artifact_mode(mode_name: str, config: Any, *, instrument: str, source: str) -> None:
-    """Validate one artifact-mode map: availability, implementation, and params."""
+    """Validate one artifact-mode map: availability, implementation, and params.
+
+    A retired key (``incidence``) fails with a message naming the mode's
+    replacement activation key, and a map that sets both ``count`` and
+    ``expected_events`` (``dead_pixels``, ``dead_columns``) fails as ambiguous.
+    The ``probability`` and ``pixel_fraction`` keys must lie in [0, 1], and
+    ``expected_events`` must be non-negative.
+    """
     label = f'artifacts.{mode_name}'
     if not isinstance(config, dict):
         raise SimSceneValidationError(f'{source}: {label} must be a mapping when present')
@@ -469,10 +478,22 @@ def _check_artifact_mode(mode_name: str, config: Any, *, instrument: str, source
         raise SimSceneValidationError(
             f'{source}: {mode_unavailable_message(mode_name, instrument)}'
         )
+    retired = sorted(set(config) & set(RENAMED_MODE_PARAMS[mode_name]))
+    if retired:
+        raise SimSceneValidationError(
+            f'{source}: {label}: {renamed_param_message(mode_name, retired[0])}'
+        )
     param_map = mode.param_map
     unknown = set(config) - set(param_map)
     if unknown:
         raise SimSceneValidationError(f'{source}: {label}: unknown keys: {sorted(unknown)}')
+    count_key = mode.count_alternative
+    if count_key is not None and count_key in config and mode.activation in config:
+        raise SimSceneValidationError(
+            f'{source}: {label}: {count_key!r} (a fixed event count) and '
+            f'{mode.activation!r} (a Poisson expected event count) are mutually exclusive; '
+            'give one'
+        )
     for name, param in param_map.items():
         if name in config:
             _check_mode_param(config[name], param, key=f'{label}.{name}', source=source)

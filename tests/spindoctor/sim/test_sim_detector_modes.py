@@ -2,7 +2,7 @@
 
 Every registered detector-stage mode gets a geometry test here -- the structure
 it plants lands where commanded and is stable per seed -- plus a disabled test
-(a zero amplitude / incidence is a no-op) and, for the stochastic modes, an
+(a zero amplitude or activation key is a no-op) and, for the stochastic modes, an
 adversarial-placement and determinism check.  The mechanics are exercised
 directly on synthetic planes where the shape is easiest to assert, and the
 registry routing (an explicit mode wins over the generic knob; LORRI's
@@ -426,7 +426,7 @@ def _disc(instrument: str, **extra: Any) -> dict[str, Any]:
 def test_bloom_mode_overrides_bloom_length() -> None:
     """An explicit bloom mode sets the bloom length over the generic knob."""
     dp = resolve_detector_params(
-        _disc('coiss_nac', artifacts={'bloom': {'incidence': 1.0, 'bloom_length': 9}})
+        _disc('coiss_nac', artifacts={'bloom': {'probability': 1.0, 'bloom_length': 9}})
     )
     assert dp.bloom_length == 9
 
@@ -434,7 +434,7 @@ def test_bloom_mode_overrides_bloom_length() -> None:
 def test_quantization_ls8b_mode_routes_to_the_ls8b_submode() -> None:
     """The quantization_ls8b mode selects the LS8B ADC sub-mode."""
     dp = resolve_detector_params(
-        _disc('coiss_nac', artifacts={'quantization_ls8b': {'incidence': 1.0}})
+        _disc('coiss_nac', artifacts={'quantization_ls8b': {'probability': 1.0}})
     )
     assert dp.quantization == 'ls8b'
 
@@ -442,7 +442,7 @@ def test_quantization_ls8b_mode_routes_to_the_ls8b_submode() -> None:
 def test_quantization_lut_mode_routes_to_the_sqrt_lut_submode() -> None:
     """The quantization_lut mode selects the sqrt-companding ADC sub-mode."""
     dp = resolve_detector_params(
-        _disc('coiss_nac', artifacts={'quantization_lut': {'incidence': 1.0}})
+        _disc('coiss_nac', artifacts={'quantization_lut': {'probability': 1.0}})
     )
     assert dp.quantization == 'sqrt_lut'
 
@@ -453,19 +453,19 @@ def test_bias_structure_mode_overrides_the_generic_knob() -> None:
         _disc(
             'coiss_nac',
             noise={'bias_pedestal_sigma_dn': 5.0},
-            artifacts={'bias_structure': {'incidence': 1.0, 'pedestal_sigma_dn': 2.0}},
+            artifacts={'bias_structure': {'probability': 1.0, 'pedestal_sigma_dn': 2.0}},
         )
     )
     assert dp.bias_pedestal_sigma_dn == 2.0
 
 
-def test_bias_structure_mode_gates_on_its_incidence() -> None:
+def test_bias_structure_mode_gates_on_its_probability() -> None:
     """An inactive bias_structure mode leaves the generic noise-block knob in force."""
     dp = resolve_detector_params(
         _disc(
             'coiss_nac',
             noise={'bias_pedestal_sigma_dn': 5.0},
-            artifacts={'bias_structure': {'incidence': 0.0, 'pedestal_sigma_dn': 2.0}},
+            artifacts={'bias_structure': {'probability': 0.0, 'pedestal_sigma_dn': 2.0}},
         )
     )
     assert 'bias_structure' not in dp.detector_modes
@@ -477,7 +477,7 @@ def test_banding_mode_silences_the_generic_banding() -> None:
     dp = resolve_detector_params(
         _disc(
             'coiss_nac',
-            artifacts={'instrument_defaults': True, 'banding_coherent': {'incidence': 1.0}},
+            artifacts={'instrument_defaults': True, 'banding_coherent': {'probability': 1.0}},
         )
     )
     assert dp.banding_amplitude_e == 0.0
@@ -487,7 +487,7 @@ def test_banding_mode_silences_the_generic_banding() -> None:
 def test_detector_mode_records_truth() -> None:
     """A rendered detector mode records its realized geometry in the frame truth."""
     _img, truth = render_combined_model(
-        _disc('coiss_nac', artifacts={'fixed_pattern': {'incidence': 1.0, 'dust_donut_count': 3}})
+        _disc('coiss_nac', artifacts={'fixed_pattern': {'probability': 1.0, 'dust_donut_count': 3}})
     )
     artifacts = truth.get('artifacts', {})
     assert artifacts.get('fixed_pattern', {}).get('active') is True
@@ -502,7 +502,7 @@ def test_radiation_transients_expected_count_scales() -> None:
 
     dp = resolve_detector_params({'instrument': 'coiss_nac', 'random_seed': 5, 'exposure_sec': 2.0})
     cfg: dict[str, Any] = {
-        'incidence': 10.0,
+        'expected_events': 10.0,
         'environment_factor': 3.0,
         'readout_dwell_sec': 4.0,
         'amplitude_e': 1000.0,
@@ -512,13 +512,13 @@ def test_radiation_transients_expected_count_scales() -> None:
     assert record['expected'] == pytest.approx(10.0 * 3.0 * (2.0 + 4.0) / 2.0)
 
 
-def test_radiation_transients_baseline_expected_is_the_incidence() -> None:
-    """With unit environment and no dwell the expected count is the incidence."""
+def test_radiation_transients_baseline_expected_is_expected_events() -> None:
+    """With unit environment and no dwell the expected count is ``expected_events``."""
     from spindoctor.sim.forward.detector.chain import _apply_radiation_transients
 
     dp = resolve_detector_params({'instrument': 'coiss_nac', 'random_seed': 5, 'exposure_sec': 2.0})
     cfg: dict[str, Any] = {
-        'incidence': 10.0,
+        'expected_events': 10.0,
         'environment_factor': 1.0,
         'readout_dwell_sec': 0.0,
         'amplitude_e': 1000.0,
@@ -612,7 +612,9 @@ def test_hot_pixels_record_matches_planted_pixels() -> None:
 
 def test_hot_pixels_mode_records_truth_end_to_end() -> None:
     """The hot_pixels mode writes its planted population into the frame truth."""
-    scene = _disc('coiss_nac', artifacts={'hot_pixels': {'incidence': 0.002, 'amplitude_e': 4.0e4}})
+    scene = _disc(
+        'coiss_nac', artifacts={'hot_pixels': {'pixel_fraction': 0.002, 'amplitude_e': 4.0e4}}
+    )
     scene['bodies'] = []
     img, truth = render_combined_model(scene)
     record = truth['artifacts']['hot_pixels']

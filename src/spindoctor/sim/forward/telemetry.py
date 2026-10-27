@@ -26,7 +26,8 @@ grid.  It applies its sub-effects in the physical order of transmission:
    applied on the raw-DN path only.
 
 Every structured loss mode is opt-in through the ``artifacts`` block, disabled
-at incidence 0, and individually seeded via
+when its activation key (``expected_events``, ``probability``, or a fixed
+``count``) is 0, and individually seeded via
 ``derive_effect_seed(random_seed, 'telemetry/<mode>')`` so toggling one never
 perturbs another.  Each applied mode records its realized geometry into
 ``frame.truth['artifacts'][mode]`` for later planted-vs-measured comparison.
@@ -188,7 +189,7 @@ def _resolve_truth_window(
 
     The truth window is a losslessly-clean square that missing_blocks (and,
     later, compression) must leave untouched.  It is a commanded region:
-    activation is by its incidence, drawn from its own stream.  Returns the
+    activation is by its ``probability``, drawn from its own stream.  Returns the
     protected ``(v0, v1, u0, u1)`` rectangle, or None when it is not active, and
     records its geometry.
     """
@@ -197,8 +198,8 @@ def _resolve_truth_window(
         return None
     cfg = resolve_mode_config('truth_window', raw_cfg)
     rng = np.random.default_rng(derive_effect_seed(random_seed, 'telemetry/truth_window'))
-    incidence = float(cfg['incidence'])
-    if incidence <= 0.0 or not bool(rng.random() < incidence):
+    probability = float(cfg['probability'])
+    if probability <= 0.0 or not bool(rng.random() < probability):
         records['truth_window'] = {'active': False}
         return None
     size_v, size_u = shape

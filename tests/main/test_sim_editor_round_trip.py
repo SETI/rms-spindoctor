@@ -114,9 +114,9 @@ _FULL_SCENE: dict[str, Any] = {
         # a detector-electronics mode, and a routed quantization mode -- all
         # available on coiss_nac -- so the round-trip exercises the generated
         # mode rows, not only the two switches.
-        'missing_lines': {'incidence': 2.0, 'contiguous_run': True},
-        'banding_coherent': {'incidence': 0.5, 'amplitude_e': 3.0},
-        'quantization_lut': {'incidence': 1.0},
+        'missing_lines': {'expected_events': 2.0, 'contiguous_run': True},
+        'banding_coherent': {'probability': 0.5, 'amplitude_e': 3.0},
+        'quantization_lut': {'probability': 1.0},
     },
     'instrument_config': {'inherit': 'coiss_nac'},
     # The full body key inventory is split across the two render paths it
@@ -684,8 +684,8 @@ def test_load_full_scene_syncs_mode_rows(
     assert model._mode_rows['missing_lines'].group.isChecked() is True
     assert model._mode_rows['banding_coherent'].group.isChecked() is True
     assert model._mode_rows['quantization_lut'].group.isChecked() is True
-    incidence = model._mode_rows['missing_lines']._scalar_widgets['incidence'].value()
-    assert incidence == 2.0
+    expected_events = model._mode_rows['missing_lines']._scalar_widgets['expected_events'].value()
+    assert expected_events == 2.0
 
 
 def test_gui_authored_mode_scene_validates(
@@ -697,7 +697,7 @@ def test_gui_authored_mode_scene_validates(
     model.sim_params['size_u'] = 128
     row = model._mode_rows['missing_lines']
     row.group.setChecked(True)
-    row._scalar_widgets['incidence'].setValue(2.0)
+    row._scalar_widgets['expected_events'].setValue(2.0)
     model._adversarial_check.setChecked(True)
 
     out = tmp_path / 'modes.yaml'
@@ -707,7 +707,7 @@ def test_gui_authored_mode_scene_validates(
     _no_critical(monkeypatch)
     model._save_scene()
     loaded = load_sim_scene(out)
-    assert loaded['artifacts']['missing_lines'] == {'incidence': 2.0}
+    assert loaded['artifacts']['missing_lines'] == {'expected_events': 2.0}
     assert loaded['artifacts']['adversarial'] is True
 
 

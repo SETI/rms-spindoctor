@@ -82,8 +82,8 @@ def planted_incidence(truth: Mapping[str, Any]) -> dict[str, int]:
 
     Returns:
         A mapping from mode name to its realized event count, for every mode the
-        telemetry stage recorded.  A mode that rendered as a no-op (incidence 0)
-        leaves no record and does not appear.
+        telemetry stage recorded.  A mode that rendered as a no-op (activation
+        key 0) leaves no record and does not appear.
     """
     artifacts = truth.get('artifacts')
     if not isinstance(artifacts, Mapping):

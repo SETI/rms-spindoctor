@@ -50,8 +50,8 @@ _TRUTH_SAMPLES: dict[str, Any] = {
     'artifacts': {
         'instrument_defaults': True,
         'adversarial': True,
-        'missing_lines': {'incidence': 2.0, 'contiguous_run': True},
-        'hot_pixels': {'incidence': 0.001, 'amplitude_e': 40000.0},
+        'missing_lines': {'expected_events': 2.0, 'contiguous_run': True},
+        'hot_pixels': {'pixel_fraction': 0.001, 'amplitude_e': 40000.0},
     },
     'spk_error': {'dv_px': 0.8, 'du_px': -0.4, 'reference_range_km': 100000.0},
     'star_catalog_scatter_px': 3.0,

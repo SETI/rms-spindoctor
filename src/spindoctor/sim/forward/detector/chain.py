@@ -386,7 +386,7 @@ def _apply_bright_dark_pairs(
 ) -> dict[str, Any]:
     """Apply the bright_dark_pairs mode with exposure scaling and placement pool."""
     rng = _mode_seed(dp, 'bright_dark_pairs')
-    expected = float(cfg['incidence']) * dp.exposure_sec
+    expected = float(cfg['expected_events']) * dp.exposure_sec
     count = int(rng.poisson(expected)) if expected > 0.0 else 0
     pool = _feature_pool(frame) if dp.artifacts_adversarial else None
     return add_bright_dark_pairs(
@@ -403,15 +403,16 @@ def _apply_radiation_transients(
 ) -> dict[str, Any]:
     """Apply radiation_transients: cosmic morphology in the Galileo-scaled regime.
 
-    The expected spike count scales the incidence by the environment factor and
-    by ``(exposure + readout dwell) / exposure`` -- the dwell adds transients
-    proportionally, the regime that forced Galileo's faster summation readout.
+    The expected spike count scales ``expected_events`` by the environment
+    factor and by ``(exposure + readout dwell) / exposure`` -- the dwell adds
+    transients proportionally, the regime that forced Galileo's faster summation
+    readout.
     """
-    incidence = float(cfg['incidence'])
+    expected_events = float(cfg['expected_events'])
     environment = float(cfg.get('environment_factor', 1.0))
     dwell = float(cfg.get('readout_dwell_sec', 0.0))
     exposure = dp.exposure_sec if dp.exposure_sec > 0.0 else 1.0
-    expected = incidence * environment * (exposure + dwell) / exposure
+    expected = expected_events * environment * (exposure + dwell) / exposure
     amplitude = cfg.get('amplitude_e')
     amplitude_e = float(amplitude) if amplitude is not None else dp.full_well_e
     rng = _mode_seed(dp, 'radiation_transients')

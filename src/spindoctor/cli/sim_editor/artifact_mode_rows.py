@@ -5,9 +5,11 @@ one :class:`ModeRow` from each :class:`~spindoctor.sim.forward.artifact_modes.Ar
 in the registry, and each row builds its own widgets from the mode's
 :class:`~spindoctor.sim.forward.artifact_modes.ModeParam` specs.  A registered
 mode therefore acquires an editor row with no GUI change: the row's enable
-checkbox maps to the mode key's presence, the incidence spin and one widget per
-parameter map to that mode's map keys, and the parameter kinds pick the widget
-(a spin, a checkbox, an enum combo, or a group of spins for a rect/window list).
+checkbox maps to the mode key's presence, the activation-key spin
+(``expected_events``, ``probability``, or ``pixel_fraction``, as the registry
+names it) and one widget per parameter map to that mode's map keys, and the
+parameter kinds pick the widget (a spin, a checkbox, an enum combo, or a group
+of spins for a rect/window list).
 
 The row never touches ``sim_params`` itself: every edit calls back into the
 controller (the Artifacts-tab mixin), which owns the artifacts block and the
@@ -33,6 +35,7 @@ from PyQt6.QtWidgets import (
 )
 
 from spindoctor.sim.forward.artifact_modes import (
+    ACTIVATION_KEYS,
     ArtifactMode,
     ModeParam,
     mode_available,
@@ -108,6 +111,12 @@ class ModeRow:
             form.addRow(f'{param.name}:', self._build_int_list_widget(param))
             return
         widget = self._build_scalar_widget(param)
+        if param.name == self.mode.activation:
+            widget.setToolTip(f'{ACTIVATION_KEYS[param.name]}: {self.mode.activation_semantics}')
+        elif param.name == self.mode.count_alternative:
+            widget.setToolTip(
+                f'a fixed event count in place of {self.mode.activation!r}; set one of the two'
+            )
         self._scalar_widgets[param.name] = widget
         form.addRow(f'{param.name}:', widget)
 
@@ -274,11 +283,12 @@ class ModeRow:
         """Enable or disable the row for the scene's instrument.
 
         An unavailable mode is disabled with the registry's reason as its
-        tooltip; an available mode is enabled and carries its incidence semantics.
+        tooltip; an available mode is enabled and carries its activation key's
+        semantics.
         """
         available = mode_available(self.mode.name, instrument)
         self.group.setEnabled(available)
         if available:
-            self.group.setToolTip(f'incidence: {self.mode.incidence_semantics}')
+            self.group.setToolTip(f'{self.mode.activation}: {self.mode.activation_semantics}')
         else:
             self.group.setToolTip(mode_unavailable_message(self.mode.name, instrument))

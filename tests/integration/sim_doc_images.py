@@ -509,8 +509,8 @@ _GUI_GALLERY: list[tuple[str, dict[str, Any], dict[str, Any]]] = [
                 )
             ],
             artifacts={
-                'missing_lines': {'incidence': 10.0},
-                'partial_lines': {'incidence': 10.0},
+                'missing_lines': {'expected_events': 10.0},
+                'partial_lines': {'expected_events': 10.0},
             },
         ),
         {'gamma': 1.15},

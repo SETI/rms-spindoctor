@@ -232,7 +232,7 @@ def resolve_sky_pixel_scale_arcsec(instrument: str | None) -> float:
 # truth-side noise block.  instrument_defaults also turns on Poisson shot
 # noise (a property of the electron chain itself, not a per-camera number)
 # and the entry's cosmic_ray_rate_per_sec; the missing-data loss modes are
-# artifact incidences and stay at zero.
+# transmission artifacts and stay off.
 #
 # cosmic_ray_rate_per_sec is in events per pixel per second: the chain
 # multiplies it by exposure_sec, pixel_area_cm2 (default 1.0), and the pixel
@@ -296,8 +296,8 @@ DETECTOR_DEFAULTS: dict[str, dict[str, Any]] = {
         'bias_col_gradient_dn': 0.5,  # 5.2 interim
         'bloom_length': 4,  # 5.2 interim (no antiblooming; column bleed above the well)
         'quantization': 'exact',
-        # Per-mode shape defaults (interim, 5.2).  incidence is never cataloged:
-        # a mode activates only when a scene sets it.  Shapes here are the values
+        # Per-mode shape defaults (interim, 5.2).  An activation key is never
+        # cataloged: a mode activates only when a scene sets it.  Shapes here are the values
         # a scene inherits when it names a mode without spelling every parameter.
         'artifact_modes': {
             # ~30 e- NAC 2 Hz horizontal banding, line-readout-rate period.
@@ -479,7 +479,7 @@ DETECTOR_DEFAULTS: dict[str, dict[str, Any]] = {
         # LORRI artifact, per 15.7): the detector resolver injects it at these
         # nominal scrub/transfer times when instrument_defaults is on and the
         # scene has not overridden it.  Every other mode stays off until a scene
-        # sets its incidence.
+        # sets its activation key.
         'artifact_modes': {
             # ~12 ms pre-exposure scrub, ~11 ms post-exposure transfer.
             'frame_transfer_smear': {'t_scrub_sec': 0.012, 't_transfer_sec': 0.011},
@@ -642,10 +642,12 @@ def resolve_mode_with_catalog(
 
     The resolution precedence for a mode's shape parameters is scene value, then
     the instrument's catalog default block (``artifact_modes`` in
-    ``DETECTOR_DEFAULTS``), then the registry default.  ``incidence`` is never
-    read from the catalog: a mode activates only when a scene sets its incidence
-    (or, for the one physical-signal-chain member LORRI turns on, when the
-    detector resolver injects it under ``instrument_defaults``).
+    ``DETECTOR_DEFAULTS``), then the registry default.  A mode's activation key
+    (``expected_events``, ``probability``, or ``pixel_fraction``) and the
+    fixed-count alternative ``count`` are never read from the catalog: a mode
+    activates only when a scene sets one (or, for the one physical-signal-chain
+    member LORRI turns on, when the detector resolver injects it under
+    ``instrument_defaults``).
 
     Parameters:
         mode_name: A registered artifact-mode name.
@@ -657,12 +659,14 @@ def resolve_mode_with_catalog(
     """
     catalog_modes = resolve_detector_defaults(instrument).get('artifact_modes') or {}
     catalog = catalog_modes.get(mode_name) or {}
+    mode = ARTIFACT_MODES[mode_name]
+    scene_only = {mode.activation, mode.count_alternative}
     resolved: dict[str, Any] = {}
-    for param in ARTIFACT_MODES[mode_name].params:
+    for param in mode.params:
         name = param.name
         if name in scene_cfg and scene_cfg[name] is not None:
             resolved[name] = scene_cfg[name]
-        elif name != 'incidence' and name in catalog:
+        elif name not in scene_only and name in catalog:
             resolved[name] = catalog[name]
         else:
             resolved[name] = param.default

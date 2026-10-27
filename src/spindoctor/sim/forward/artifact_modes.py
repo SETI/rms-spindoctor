@@ -17,13 +17,26 @@ message (the LORRI hot-pixel case carries a bespoke one, since LORRI has no hot
 pixels by construction).  The instrument-agnostic ``generic`` / ``sim`` block
 accepts every mode, which keeps unit scenes free to exercise any shape.
 
-**Incidence.**  Every mode takes an ``incidence`` parameter, disabled at 0 (the
-stage-activation rule: an incidence of 0, which is also the default even under
-``instrument_defaults``, renders the mode as a no-op).  Its meaning is per-mode
-and documented in each mode's ``incidence_semantics``: for count modes it is the
-expected number of events (lost lines, blocks, spiked pixels) per frame, drawn
-Poisson; for commanded / periodic modes it is the per-frame probability that the
-mode activates at all.
+**Activation.**  Every mode carries exactly one activation key, and which one
+names the quantity it holds, so a scene line reads the same way on every mode:
+
+* ``expected_events`` (count modes: lost lines, lost blocks, spiked pixels,
+  radiation spikes): the expected number of events per frame, drawn Poisson and
+  capped at the array dimension the events land on.  It is a non-negative number.
+* ``probability`` (commanded and periodic modes, and every deterministic-shape
+  detector mode): the per-frame probability, in [0, 1], that the mode activates at
+  all.
+* ``pixel_fraction`` (``hot_pixels`` alone): the fraction of detector pixels that
+  are hot, a spatial density in [0, 1].
+
+The key defaults to 0, also under ``instrument_defaults``, and a mode whose
+activation key is 0 renders as a no-op (the stage-activation rule).
+``dead_pixels`` and ``dead_columns`` also accept ``count``, a fixed number of
+events in place of the Poisson draw; ``count`` and ``expected_events`` are
+mutually exclusive, so the rule reads the same with either: a count of 0 is a
+no-op too.  Each mode's :attr:`ArtifactMode.activation_semantics` says what its
+events are.  The retired ``incidence`` key is refused by the validator with a
+message naming the mode's replacement (:data:`RENAMED_MODE_PARAMS`).
 """
 
 from __future__ import annotations
@@ -33,9 +46,14 @@ from dataclasses import dataclass, field
 from typing import Any
 
 __all__ = [
+    'ACTIVATION_KEYS',
     'ARTIFACT_MODES',
     'DETECTOR_MODE_ORDER',
+    'EXPECTED_EVENTS',
     'MODE_KEYS',
+    'PIXEL_FRACTION',
+    'PROBABILITY',
+    'RENAMED_MODE_PARAMS',
     'STRUCTURED_LOSS_ORDER',
     'TELEMETRY_POST_LOSS_ORDER',
     'TELEMETRY_PRE_LOSS_ORDER',
@@ -44,6 +62,7 @@ __all__ = [
     'mode_available',
     'mode_unavailable_message',
     'normalize_instrument',
+    'renamed_param_message',
     'resolve_mode_config',
 ]
 
@@ -77,10 +96,30 @@ class ModeParam:
     length: int | None = None
 
 
-# The incidence parameter every mode carries: expected events per frame (count
-# modes) or per-frame activation probability (commanded / periodic modes),
-# disabled at 0.
-_INCIDENCE = ModeParam('incidence', 'nonneg_number', 0.0)
+# The three activation keys.  Each mode carries exactly one of them as its first
+# parameter; which one is part of the mode's registry entry.
+EXPECTED_EVENTS = 'expected_events'
+PROBABILITY = 'probability'
+PIXEL_FRACTION = 'pixel_fraction'
+
+# Each activation key with the quantity it holds, as the validator and the sim
+# editor describe it.
+ACTIVATION_KEYS: dict[str, str] = {
+    EXPECTED_EVENTS: 'a Poisson expected event count per frame',
+    PROBABILITY: 'a per-frame activation probability in [0, 1]',
+    PIXEL_FRACTION: 'the fraction of detector pixels affected, in [0, 1]',
+}
+
+# The schema of each activation key, disabled at its default of 0.
+_ACTIVATION_PARAMS: dict[str, ModeParam] = {
+    EXPECTED_EVENTS: ModeParam(EXPECTED_EVENTS, 'nonneg_number', 0.0),
+    PROBABILITY: ModeParam(PROBABILITY, 'unit_interval', 0.0),
+    PIXEL_FRACTION: ModeParam(PIXEL_FRACTION, 'unit_interval', 0.0),
+}
+
+# The fixed-count alternative to ``expected_events`` on the dead-pixel and
+# dead-column modes (a static detector defect has a definite count).
+_COUNT = ModeParam('count', 'nonneg_int', None)
 
 
 @dataclass(frozen=True)
@@ -96,11 +135,13 @@ class ArtifactMode:
             availability so the eventual implementation drops in without a
             schema change, and it fails validation with a clear message until
             its rendering code lands.
-        params: The mode's parameters (``incidence`` first, then mode-specific).
+        params: The mode's parameters (the activation key first, then
+            mode-specific).
         availability: The sim instruments the mode is available on (the generic
             block is always accepted, so it is never listed here).
-        incidence_semantics: Human-readable meaning of ``incidence`` for the
-            mode, for the validator's messages and the developer guide.
+        activation: The mode's activation key, one of :data:`ACTIVATION_KEYS`.
+        activation_semantics: Human-readable meaning of the activation key for
+            the mode, for the sim editor's tooltip and the developer guide.
         unavailable_reason: Per-instrument bespoke unavailability messages
             (e.g. LORRI hot pixels); other instruments get a generic message.
     """
@@ -110,7 +151,8 @@ class ArtifactMode:
     implemented: bool
     params: tuple[ModeParam, ...]
     availability: frozenset[str]
-    incidence_semantics: str
+    activation: str
+    activation_semantics: str
     unavailable_reason: Mapping[str, str] = field(default_factory=dict)
 
     @property
@@ -118,22 +160,33 @@ class ArtifactMode:
         """The mode's parameters keyed by name."""
         return {param.name: param for param in self.params}
 
+    @property
+    def count_alternative(self) -> str | None:
+        """The fixed-count key that replaces ``expected_events``, or None.
+
+        Only ``dead_pixels`` and ``dead_columns`` carry one (``count``); the
+        validator refuses a scene map that sets both keys.
+        """
+        return _COUNT.name if _COUNT.name in self.param_map else None
+
 
 def _telemetry_mode(
     name: str,
     *extra_params: ModeParam,
     availability: frozenset[str],
-    incidence_semantics: str,
+    activation: str,
+    activation_semantics: str,
     unavailable_reason: Mapping[str, str] | None = None,
 ) -> ArtifactMode:
-    """Build an implemented telemetry-stage loss mode with an incidence param."""
+    """Build an implemented telemetry-stage loss mode led by its activation key."""
     return ArtifactMode(
         name=name,
         stage='telemetry',
         implemented=True,
-        params=(_INCIDENCE, *extra_params),
+        params=(_ACTIVATION_PARAMS[activation], *extra_params),
         availability=availability,
-        incidence_semantics=incidence_semantics,
+        activation=activation,
+        activation_semantics=activation_semantics,
         unavailable_reason=unavailable_reason or {},
     )
 
@@ -142,17 +195,19 @@ def _detector_mode(
     name: str,
     *extra_params: ModeParam,
     availability: frozenset[str],
-    incidence_semantics: str,
+    activation: str,
+    activation_semantics: str,
     unavailable_reason: Mapping[str, str] | None = None,
 ) -> ArtifactMode:
-    """Build an implemented detector-stage electronics mode with an incidence param."""
+    """Build an implemented detector-stage electronics mode led by its activation key."""
     return ArtifactMode(
         name=name,
         stage='detector',
         implemented=True,
-        params=(_INCIDENCE, *extra_params),
+        params=(_ACTIVATION_PARAMS[activation], *extra_params),
         availability=availability,
-        incidence_semantics=incidence_semantics,
+        activation=activation,
+        activation_semantics=activation_semantics,
         unavailable_reason=unavailable_reason or {},
     )
 
@@ -166,13 +221,15 @@ _IMPLEMENTED_MODES: tuple[ArtifactMode, ...] = (
         'missing_lines',
         ModeParam('contiguous_run', 'bool', False),
         availability=frozenset({'coiss_nac', 'coiss_wac', 'vgiss', 'gossi', 'nhlorri'}),
-        incidence_semantics='expected number of whole lines lost per frame (Poisson)',
+        activation=EXPECTED_EVENTS,
+        activation_semantics='expected number of whole lines lost per frame (Poisson)',
     ),
     _telemetry_mode(
         'partial_lines',
         ModeParam('max_surviving_segments', 'positive_int', 1),
         availability=frozenset({'coiss_nac', 'coiss_wac', 'vgiss'}),
-        incidence_semantics='expected number of truncated lines per frame (Poisson)',
+        activation=EXPECTED_EVENTS,
+        activation_semantics='expected number of truncated lines per frame (Poisson)',
     ),
     _telemetry_mode(
         'alternating_lines',
@@ -182,94 +239,108 @@ _IMPLEMENTED_MODES: tuple[ArtifactMode, ...] = (
         # blanks all BUT every Nth line (Galileo HMA/HCA vertical decimation).
         ModeParam('mode', 'enum', 'drop', choices=('drop', 'keep')),
         availability=frozenset({'coiss_nac', 'coiss_wac', 'gossi'}),
-        incidence_semantics='per-frame probability the periodic line pattern is active',
+        activation=PROBABILITY,
+        activation_semantics='per-frame probability the periodic line pattern is active',
     ),
     _telemetry_mode(
         'edited_frame',
-        # The Voyager IM edited-mode band width, so a bare incidence keeps a
+        # The Voyager IM edited-mode band width, so a bare probability keeps a
         # physical centered band; an explicit half_frame wins over the band.
         ModeParam('band_width_px', 'positive_int', 440),
         ModeParam('half_frame', 'bool', False),
         ModeParam('half', 'enum', 'top', choices=('top', 'bottom')),
         availability=frozenset({'vgiss', 'gossi'}),
-        incidence_semantics='per-frame probability the commanded edit is applied',
+        activation=PROBABILITY,
+        activation_semantics='per-frame probability the commanded edit is applied',
     ),
     _telemetry_mode(
         'truncated_frame',
-        # A quarter-frame cut by default, so a bare incidence truncates; an
+        # A quarter-frame cut by default, so a bare probability truncates; an
         # explicit lines count wins over the fraction.
         ModeParam('fraction', 'unit_interval', 0.25),
         ModeParam('lines', 'nonneg_int', None),
         ModeParam('from', 'enum', 'bottom', choices=('bottom', 'top')),
         availability=frozenset({'coiss_nac', 'coiss_wac', 'gossi'}),
-        incidence_semantics='per-frame probability the frame is truncated',
+        activation=PROBABILITY,
+        activation_semantics='per-frame probability the frame is truncated',
     ),
     _telemetry_mode(
         'missing_blocks',
         ModeParam('block_lines', 'positive_int', 8),
         ModeParam('start_mid_line', 'bool', False),
         availability=frozenset({'gossi', 'coiss_nac', 'coiss_wac'}),
-        incidence_semantics='expected number of compression blocks lost per frame (Poisson)',
+        activation=EXPECTED_EVENTS,
+        activation_semantics='expected number of compression blocks lost per frame (Poisson)',
     ),
     _telemetry_mode(
         'line_garble',
         availability=frozenset({'vgiss', 'gossi'}),
-        incidence_semantics='expected number of garbled lines per frame (Poisson)',
+        activation=EXPECTED_EVENTS,
+        activation_semantics='expected number of garbled lines per frame (Poisson)',
     ),
     _telemetry_mode(
         'pixel_spikes',
         ModeParam('amplitude', 'enum', 'bitflip', choices=('bitflip', 'uniform')),
         availability=frozenset({'vgiss'}),
-        incidence_semantics='expected number of spiked pixels per frame (Poisson)',
+        activation=EXPECTED_EVENTS,
+        activation_semantics='expected number of spiked pixels per frame (Poisson)',
     ),
     _telemetry_mode(
         'dead_pixels',
-        ModeParam('count', 'nonneg_int', None),
+        _COUNT,
         ModeParam('low_dn', 'nonneg_number', 0.0),
         availability=frozenset({'coiss_nac', 'coiss_wac', 'gossi', 'nhlorri'}),
-        incidence_semantics='expected number of dead pixels per frame (Poisson) when count absent',
+        activation=EXPECTED_EVENTS,
+        activation_semantics='expected number of dead pixels per frame (Poisson), or a fixed count',
     ),
     _telemetry_mode(
         'dead_columns',
-        ModeParam('count', 'nonneg_int', None),
+        _COUNT,
         ModeParam('low_dn', 'nonneg_number', 0.0),
         availability=frozenset({'coiss_nac', 'coiss_wac', 'gossi', 'nhlorri'}),
-        incidence_semantics='expected number of dead columns per frame (Poisson) when count absent',
+        activation=EXPECTED_EVENTS,
+        activation_semantics=(
+            'expected number of dead columns per frame (Poisson), or a fixed count'
+        ),
     ),
     _telemetry_mode(
         'embedded_header',
         ModeParam('header_px', 'positive_int', 34),
         availability=frozenset({'nhlorri'}),
-        incidence_semantics='per-frame probability the row-0 housekeeping header is written',
+        activation=PROBABILITY,
+        activation_semantics='per-frame probability the row-0 housekeeping header is written',
     ),
     _telemetry_mode(
         'truth_window',
         ModeParam('size', 'positive_int', 96),
         ModeParam('position', 'int_list', None, length=2),
         availability=frozenset({'gossi'}),
-        incidence_semantics='per-frame probability the losslessly-clean carve-out is commanded',
+        activation=PROBABILITY,
+        activation_semantics='per-frame probability the losslessly-clean carve-out is commanded',
     ),
     _telemetry_mode(
         'cutout_window',
         ModeParam('rect', 'int_list', None, length=4),
         availability=frozenset({'gossi', 'nhlorri'}),
-        incidence_semantics='per-frame probability the commanded cut-out window is applied',
+        activation=PROBABILITY,
+        activation_semantics='per-frame probability the commanded cut-out window is applied',
     ),
     # hot_pixels is implemented, but on the DETECTOR stage: the registry routes
     # its parameters to the detector hot-pixel population (params.py) rather
-    # than to a telemetry applier.  incidence is the fraction of pixels that are
-    # hot (a spatial density, not a per-frame event count).
+    # than to a telemetry applier.  Its activation key is pixel_fraction, the
+    # fraction of pixels that are hot (a spatial density).
     ArtifactMode(
         name='hot_pixels',
         stage='detector',
         implemented=True,
         params=(
-            _INCIDENCE,
+            _ACTIVATION_PARAMS[PIXEL_FRACTION],
             ModeParam('amplitude_e', 'nonneg_number', None),
             ModeParam('column_factor', 'unit_interval', None),
         ),
         availability=frozenset({'coiss_nac', 'coiss_wac', 'gossi'}),
-        incidence_semantics='fraction of pixels that are hot (spatial density)',
+        activation=PIXEL_FRACTION,
+        activation_semantics='fraction of pixels that are hot (spatial density)',
         unavailable_reason={
             'nhlorri': 'explicitly disabled for LORRI, which has none',
         },
@@ -293,7 +364,8 @@ _DETECTOR_MODES: tuple[ArtifactMode, ...] = (
         ModeParam('freq_step_factor', 'nonneg_number', 1.0),
         ModeParam('dark_step_dn', 'nonneg_number', 0.0),
         availability=_ALL_INSTRUMENTS,
-        incidence_semantics='per-frame probability the coherent banding is active',
+        activation=PROBABILITY,
+        activation_semantics='per-frame probability the coherent banding is active',
     ),
     _detector_mode(
         'bias_structure',
@@ -301,7 +373,8 @@ _DETECTOR_MODES: tuple[ArtifactMode, ...] = (
         ModeParam('row_gradient_dn', 'nonneg_number', None),
         ModeParam('col_gradient_dn', 'nonneg_number', None),
         availability=_ALL_INSTRUMENTS,
-        incidence_semantics='per-frame probability the bias pedestal / gradients are active',
+        activation=PROBABILITY,
+        activation_semantics='per-frame probability the bias pedestal / gradients are active',
     ),
     _detector_mode(
         'dark_ramp',
@@ -312,13 +385,15 @@ _DETECTOR_MODES: tuple[ArtifactMode, ...] = (
         ModeParam('top_factor', 'nonneg_number', None),
         ModeParam('bottom_factor', 'nonneg_number', None),
         availability=_ALL_INSTRUMENTS,
-        incidence_semantics='per-frame probability the readout / shutter line ramp is active',
+        activation=PROBABILITY,
+        activation_semantics='per-frame probability the readout / shutter line ramp is active',
     ),
     _detector_mode(
         'bloom',
         ModeParam('bloom_length', 'positive_int', None),
         availability=frozenset({'coiss_nac', 'coiss_wac', 'gossi'}),
-        incidence_semantics='per-frame probability the electron-domain column bloom is active',
+        activation=PROBABILITY,
+        activation_semantics='per-frame probability the electron-domain column bloom is active',
         unavailable_reason={
             'nhlorri': 'explicitly disabled for LORRI, an antiblooming CCD with no column bloom',
         },
@@ -329,13 +404,17 @@ _DETECTOR_MODES: tuple[ArtifactMode, ...] = (
         ModeParam('readout_dwell_sec', 'nonneg_number', 0.0),
         ModeParam('amplitude_e', 'nonneg_number', None),
         availability=_ALL_CCD,
-        incidence_semantics='expected radiation spikes per frame at environment_factor 1 (Poisson)',
+        activation=EXPECTED_EVENTS,
+        activation_semantics=(
+            'expected radiation spikes per frame at environment_factor 1 (Poisson)'
+        ),
     ),
     _detector_mode(
         'bright_dark_pairs',
         ModeParam('amplitude_e', 'nonneg_number', None),
         availability=frozenset({'coiss_nac', 'coiss_wac'}),
-        incidence_semantics=(
+        activation=EXPECTED_EVENTS,
+        activation_semantics=(
             'expected bright/dark pairs per frame at unit exposure (Poisson; scales with exposure)'
         ),
     ),
@@ -344,7 +423,8 @@ _DETECTOR_MODES: tuple[ArtifactMode, ...] = (
         ModeParam('t_scrub_sec', 'nonneg_number', None),
         ModeParam('t_transfer_sec', 'nonneg_number', None),
         availability=frozenset({'nhlorri'}),
-        incidence_semantics='per-frame probability the frame-transfer smear is applied',
+        activation=PROBABILITY,
+        activation_semantics='per-frame probability the frame-transfer smear is applied',
     ),
     _detector_mode(
         'serial_tail',
@@ -353,13 +433,15 @@ _DETECTOR_MODES: tuple[ArtifactMode, ...] = (
         ModeParam('direction', 'enum', 'right', choices=('right', 'left')),
         ModeParam('saturation_frac', 'unit_interval', 0.99),
         availability=frozenset({'nhlorri'}),
-        incidence_semantics='per-frame probability the saturation serial tail is applied',
+        activation=PROBABILITY,
+        activation_semantics='per-frame probability the saturation serial tail is applied',
     ),
     _detector_mode(
         'beam_bend',
         ModeParam('amplitude_px', 'nonneg_number', 1.0),
         availability=frozenset({'vgiss'}),
-        incidence_semantics='per-frame probability the brightness-dependent limb bend is applied',
+        activation=PROBABILITY,
+        activation_semantics='per-frame probability the brightness-dependent limb bend is applied',
     ),
     _detector_mode(
         'residual_image',
@@ -367,23 +449,27 @@ _DETECTOR_MODES: tuple[ArtifactMode, ...] = (
         ModeParam('prior', 'enum', 'self_offset', choices=('self_offset', 'flat')),
         ModeParam('offset_px', 'int_list', None, length=2),
         availability=frozenset({'vgiss'}),
-        incidence_semantics='per-frame probability the prior-frame ghost is added',
+        activation=PROBABILITY,
+        activation_semantics='per-frame probability the prior-frame ghost is added',
     ),
     _detector_mode(
         'quantization_lut',
         availability=frozenset({'coiss_nac', 'coiss_wac'}),
-        incidence_semantics='per-frame probability the sqrt-companding LUT quantization is active',
+        activation=PROBABILITY,
+        activation_semantics='per-frame probability the sqrt-companding LUT quantization is active',
     ),
     _detector_mode(
         'quantization_ls8b',
         availability=frozenset({'coiss_nac', 'coiss_wac'}),
-        incidence_semantics='per-frame probability the LS8B wraparound quantization is active',
+        activation=PROBABILITY,
+        activation_semantics='per-frame probability the LS8B wraparound quantization is active',
     ),
     _detector_mode(
         'contouring_8bit',
         ModeParam('step', 'positive_int', 8),
         availability=frozenset({'gossi', 'vgiss'}),
-        incidence_semantics='per-frame probability the 8-bit contouring quantization is active',
+        activation=PROBABILITY,
+        activation_semantics='per-frame probability the 8-bit contouring quantization is active',
     ),
     _detector_mode(
         'fixed_pattern',
@@ -394,7 +480,8 @@ _DETECTOR_MODES: tuple[ArtifactMode, ...] = (
         ModeParam('jail_bar_dn', 'nonneg_number', None),
         ModeParam('dust_donut_count', 'nonneg_int', None),
         availability=_ALL_INSTRUMENTS,
-        incidence_semantics='per-frame probability the static fixed-pattern composite is applied',
+        activation=PROBABILITY,
+        activation_semantics='per-frame probability the static fixed-pattern composite is applied',
     ),
 )
 
@@ -409,14 +496,16 @@ _TELEMETRY_ARTIFACT_MODES: tuple[ArtifactMode, ...] = (
         ModeParam('scale_factor', 'nonneg_number', 8.0),
         ModeParam('block', 'positive_int', 8),
         availability=_ALL_CCD,
-        incidence_semantics='per-frame probability the lossy DCT compression is applied',
+        activation=PROBABILITY,
+        activation_semantics='per-frame probability the lossy DCT compression is applied',
     ),
     _telemetry_mode(
         'reseau_scars',
         ModeParam('spacing_px', 'positive_int', 46),
         ModeParam('patch_radius_px', 'positive_int', 4),
         availability=frozenset({'vgiss'}),
-        incidence_semantics='per-frame probability the reseau-removal scars are applied',
+        activation=PROBABILITY,
+        activation_semantics='per-frame probability the reseau-removal scars are applied',
     ),
     _telemetry_mode(
         'resample_texture',
@@ -424,7 +513,8 @@ _TELEMETRY_ARTIFACT_MODES: tuple[ArtifactMode, ...] = (
         ModeParam('blank_border_px', 'nonneg_int', 0),
         ModeParam('missing_line_interp', 'bool', False),
         availability=frozenset({'vgiss'}),
-        incidence_semantics='per-frame probability the GEOMED resample texture is applied',
+        activation=PROBABILITY,
+        activation_semantics='per-frame probability the GEOMED resample texture is applied',
     ),
 )
 
@@ -435,6 +525,15 @@ ARTIFACT_MODES: dict[str, ArtifactMode] = {
 # The complete key set the ``artifacts`` block may carry beyond the two switch
 # keys.  The validator keys on this exact set.
 MODE_KEYS: frozenset[str] = frozenset(ARTIFACT_MODES)
+
+# Retired parameter keys, per mode, mapped to the key that replaced them.  The
+# validator refuses a retired key with a message naming its replacement; nothing
+# translates it.  ``incidence`` named three quantities (an expected event count,
+# a per-frame probability, and a pixel fraction), so its replacement is each
+# mode's activation key.
+RENAMED_MODE_PARAMS: dict[str, dict[str, str]] = {
+    name: {'incidence': mode.activation} for name, mode in ARTIFACT_MODES.items()
+}
 
 # The fixed order the telemetry stage applies its implemented loss modes in:
 # frame-level commanded shapes, then line losses, then block losses, then
@@ -534,6 +633,24 @@ def mode_unavailable_message(mode_name: str, instrument: str | None) -> str:
         f'artifact mode {mode_name!r} is not available for instrument {instrument!r}; '
         f'available on: {available}'
     )
+
+
+def renamed_param_message(mode_name: str, old_key: str) -> str:
+    """The validation message for a retired parameter key on a mode.
+
+    Parameters:
+        mode_name: A registered mode name.
+        old_key: A retired key listed for the mode in :data:`RENAMED_MODE_PARAMS`.
+
+    Returns:
+        A message naming the replacement key and, for an activation key, the
+        quantity it holds, e.g. ``'incidence' was renamed; use 'expected_events'
+        (a Poisson expected event count per frame)``.
+    """
+    new_key = RENAMED_MODE_PARAMS[mode_name][old_key]
+    message = f'{old_key!r} was renamed; use {new_key!r}'
+    quantity = ACTIVATION_KEYS.get(new_key)
+    return message if quantity is None else f'{message} ({quantity})'
 
 
 def resolve_mode_config(mode_name: str, raw_config: Mapping[str, Any]) -> dict[str, Any]:

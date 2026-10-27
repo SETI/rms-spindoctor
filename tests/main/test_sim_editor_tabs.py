@@ -317,15 +317,15 @@ def test_mode_param_edit_writes_only_edited_key(model: Any) -> None:
     """Editing one mode parameter writes only that key into the mode map."""
     row = model._mode_rows['missing_lines']
     row.group.setChecked(True)
-    row._scalar_widgets['incidence'].setValue(3.0)
-    assert model.sim_params['artifacts']['missing_lines'] == {'incidence': 3.0}
+    row._scalar_widgets['expected_events'].setValue(3.0)
+    assert model.sim_params['artifacts']['missing_lines'] == {'expected_events': 3.0}
 
 
 def test_mode_disable_removes_key_and_prunes_block(model: Any) -> None:
     """Disabling the only enabled mode removes the artifacts block entirely."""
     row = model._mode_rows['missing_lines']
     row.group.setChecked(True)
-    row._scalar_widgets['incidence'].setValue(3.0)
+    row._scalar_widgets['expected_events'].setValue(3.0)
     row.group.setChecked(False)
     assert 'artifacts' not in model.sim_params
 
@@ -371,12 +371,12 @@ def test_mode_availability_disables_unavailable_row(model: Any) -> None:
 
 
 def test_mode_availability_enables_available_row(model: Any) -> None:
-    """An available mode is enabled and carries its incidence semantics tooltip."""
+    """An available mode is enabled and carries its activation key's semantics tooltip."""
     model.sim_params['instrument'] = 'coiss_nac'
     model._refresh_artifact_mode_availability()
     row = model._mode_rows['hot_pixels']
     assert row.group.isEnabled() is True
-    assert 'incidence' in row.group.toolTip()
+    assert 'pixel_fraction' in row.group.toolTip()
 
 
 # ---- Per-star information-asymmetry controls ----
