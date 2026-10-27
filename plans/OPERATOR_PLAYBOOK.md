@@ -154,8 +154,8 @@ instrument.
    every one is attributed and owned. The last library run found 16; the
    seven frames re-pinned on 2026-10-27 (the five `ring_only_flat` rank-1
    constraints and the tiers of #346's two Encke gap frames, Section 1) are
-   expected to pass, but the library has not been run since. Two are the
-   Galileo frames awaiting the #744 decision
+   expected to pass, but the library has not been run since. Of the nine,
+   two are the Galileo frames awaiting the #744 decision
    (Section 0.1); one, `N1530185128_1`, belongs to the star-centroid defect of
    Group 2's #639; the other six are under #288. One is #346's
    `N1492091163`, now red on its pin rather than on a wrong ring lock (see
