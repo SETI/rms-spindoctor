@@ -110,3 +110,12 @@ def test_order_sums_match_scipy_across_latitude_blocks() -> None:
             harmonic = special.sph_harm_y(ell, m, math.pi / 2.0 - lat, 0.0).real
             expected[m] += coeffs[ell, m] * harmonic
     np.testing.assert_allclose(sums, expected, rtol=0.0, atol=1e-11)
+
+
+def test_order_sums_read_a_scalar_latitude_as_one_latitude() -> None:
+    """A 0-d latitude gives the same ``(lmax + 1, 1)`` sums as a one-element array."""
+    coeffs = draw_sh_coefficients(np.random.default_rng(3), np.ones(_LMAX + 1))
+    lat = 0.4
+    scalar = legendre_order_sums(coeffs, np.array(math.sin(lat)), np.array(math.cos(lat)))
+    array = legendre_order_sums(coeffs, np.array([math.sin(lat)]), np.array([math.cos(lat)]))
+    np.testing.assert_array_equal(scalar, array)

@@ -95,16 +95,18 @@ def legendre_order_sums(
 
     Parameters:
         coeffs: The ``(lmax + 1, lmax + 1)`` coefficient array.
-        sin_lat: ``(n,)`` sines of the latitudes.
-        cos_lat: ``(n,)`` cosines of the same latitudes (passed separately so a
-            caller holding the latitude itself keeps full precision).
+        sin_lat: ``(n,)`` sines of the latitudes; a scalar counts as one
+            latitude (``n = 1``).
+        cos_lat: Cosines of the same latitudes, shaped like ``sin_lat`` (passed
+            separately so a caller holding the latitude itself keeps full
+            precision).
 
     Returns:
         The complex ``(lmax + 1, n)`` array ``Z[m, k]``.
     """
     lmax = coeffs.shape[0] - 1
-    x = np.asarray(sin_lat, dtype=np.float64)
-    s = np.asarray(cos_lat, dtype=np.float64)
+    x = np.atleast_1d(np.asarray(sin_lat, dtype=np.float64))
+    s = np.atleast_1d(np.asarray(cos_lat, dtype=np.float64))
     recurrence = _recurrence_factors(lmax)
     by_order = np.empty((lmax + 1, x.size), dtype=np.complex128)
     width = max(_MIN_BLOCK_WIDTH, _BLOCK_BYTES // (_BLOCK_ARRAYS * 8 * (lmax + 1)))
@@ -121,6 +123,12 @@ def _recurrence_factors(lmax: int) -> list[tuple[NDArrayFloatType, NDArrayFloatT
     Entry ``l`` (for ``l >= 2``) holds ``(l - 1, 1)`` columns ``a[m]`` and
     ``b[m]`` for the orders ``m < l - 1``, so that
     ``P_lm = a * (x * P_(l-1)m - b * P_(l-2)m)``; entries 0 and 1 are empty.
+
+    Parameters:
+        lmax: The highest degree; the list has ``lmax + 1`` entries.
+
+    Returns:
+        The ``(a, b)`` column pairs, indexed by degree.
     """
     orders = np.arange(lmax + 1, dtype=np.float64)
     empty: NDArrayFloatType = np.zeros((0, 1), dtype=np.float64)
@@ -147,6 +155,15 @@ def _order_sums_block(
     the block: the two previous degrees' Legendre values (the older one is
     overwritten in place by the current degree), a product scratch, and the
     real and imaginary running sums.
+
+    Parameters:
+        coeffs: The ``(lmax + 1, lmax + 1)`` coefficient array.
+        x: ``(w,)`` sines of the block's latitudes.
+        s: ``(w,)`` cosines of the same latitudes.
+        recurrence: :func:`_recurrence_factors` for ``lmax``.
+        buffers: ``(_BLOCK_ARRAYS, lmax + 1, >= w)`` scratch, overwritten.
+        out: The ``(lmax + 1, w)`` complex view of the caller's result that
+            receives ``Z[m, k]`` for this block.
     """
     lmax = coeffs.shape[0] - 1
     width = x.size
