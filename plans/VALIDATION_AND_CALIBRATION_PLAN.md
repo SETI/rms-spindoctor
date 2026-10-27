@@ -87,8 +87,8 @@ reads:
   that WS-10 owns, one is the standing highly-irregular exclusion of #338, and
   one is a tier move the operator has ruled is not to be re-ratcheted, once
   routed to #476 (now closed) and wanting a new owner, since the frame no
-  longer runs RingEdgeNav after the Saturn routing decision. That
-  count predates the pixel-convention corrections, so it wants re-measuring
+  longer runs RingEdgeNav after the Saturn routing decision. The
+  16-frame measurement predates the pixel-convention corrections, so it wants re-measuring
   before it is quoted again.
 
 It does not block writing methodology or building tooling. It blocks
