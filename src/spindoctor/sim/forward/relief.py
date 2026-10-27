@@ -3,42 +3,43 @@
 The relief is a 2-D field on the body surface, not a 1-D field on the limb,
 so the limb perturbation and the terminator shadowing are slices of one
 consistent surface.  ``h(lat, lon)`` is fractional relief (height / local
-radius): a periodic 2-D Gaussian random field synthesized by 2-D FFT on a
-(lat, lon) grid.  The spectral coefficients are independent complex
-Gaussians with variance ``S(k) proportional to exp(-(|k| * corr_rad / 2)**2)``,
-where ``|k|`` is the total angular wavenumber and ``corr_rad`` is the
-correlation length in radians of surface arc; the band limit is
-``kmax = ceil(8 / corr_rad)``, where S has fallen to ~1e-7 of its peak.
+radius): an isotropic Gaussian random field on the sphere, synthesized as a
+sum of real spherical harmonics ``Y_lm`` whose coefficients are independent
+Gaussians with variance ``C_l proportional to exp(-(l * corr_rad / 2)**2)``,
+where ``l`` is the harmonic degree and ``corr_rad`` is the correlation length
+in radians of surface arc; the band limit is ``lmax = ceil(8 / corr_rad)``,
+where C has fallen to ~1e-7 of its peak.  Because the field is built on the
+sphere, it is single-valued everywhere, its poles included, and it has the
+same statistics at every point: the disc center is as smooth as the limb.
 
-Modes with total wavenumber below 3 are zeroed: the degree-1 content of a
-radius perturbation is, to first order, a *translation* of the body -- a
-planted, untruthed center offset no limb fit could distinguish from the
-pointing error -- and degree-2 content aliases ellipsoid shape error, which
-is its own scene knob.  After zeroing, the field is rescaled so the *limb
-slice's* standard deviation equals the commanded RMS per-realization.
+Degrees below 3 are zeroed: the degree-1 content of a radius perturbation
+is, to first order, a *translation* of the body -- a planted, untruthed
+center offset no limb fit could distinguish from the pointing error -- and
+degree-2 content aliases ellipsoid shape error, which is its own scene knob.
+After zeroing, the field is rescaled so the *limb slice's* standard
+deviation equals the commanded RMS per-realization.  The RMS is a fraction
+of the body radius (``h = H / R``), so a body of radius R pixels gets a limb
+displacement of ``rms * R`` pixels RMS.
 
-**Coordinate convention.**  The field's poles sit on the observer axis, so
-the sub-observer horizon circle (the limb) is the field's equator: latitude
-is elevation out of the limb plane toward the observer, longitude is
-azimuth around the limb.  On the equator the (lat, lon) grid metric is
-exact, so the limb slice -- the statistic the scene commands -- carries the
-commanded RMS and correlation length with no map distortion.  The known
-cost is the standard lat-lon caveat: high field latitudes (near the disc
-center, and the terminator's approach to it at high phase) are
-over-corrugated in longitude by ``~cos(lat)``.  At the default 15-degree
-correlation length the affected caps are small; the contract fixes the
-spectrum and the limb-slice statistics, not the synthesis mesh.
+**Coordinate convention.**  The ellipsoid renderer puts the field's poles
+on the observer axis, so the sub-observer horizon circle (the limb) is the
+field's equator: latitude is elevation out of the limb plane toward the
+observer, longitude is azimuth around the limb.  The field is stored on a
+``(lat, lon)`` grid covering the torus ``[-pi, pi) x [0, 2*pi)``, the sphere
+twice over (``h(lat, lon) = h(pi - lat, lon + pi)``), so bilinear sampling
+wraps through the poles and the date line with no seam.
 
 The terminator shadow march (:func:`march_shadows`) works in *absolute*
 heights ``H = h * R`` in pixels (R the local body radius in pixels): the
 fractional field (~0.01) and surface distances (pixels) are never compared
 directly.  A point is shadowed iff some upstream sample at surface distance
-``d`` toward the sun satisfies ``H_up - H_pt > d / tan(i_pt)``, with
-``i_pt`` the point's incidence angle.  The march is capped at
-``d_max = min((H_max - H_min) * tan(i_pt), sqrt(2 * R * H_max))``: the
-first term is the longest shadow the terrain can cast, the second the
-horizon limit that bounds the tangent's divergence at the terminator
-itself, so cost is bounded and the geometry stays physical.
+``d`` toward the sun satisfies ``H_up - H_pt > d / tan(i_pt) + d**2 / (2 R)``,
+with ``i_pt`` the point's incidence angle: the terrain must rise above both
+the sun ray and the body's curvature drop.  The march is capped at the
+distance beyond which that cannot happen (:func:`shadow_reach`),
+``min((H_max - H_pt) * tan(i_pt), sqrt(2 * R * (H_max - H_pt)))``: the
+longest shadow the terrain can cast, and the horizon distance of the highest
+peak, so cost is bounded and the geometry stays physical.
 """
 
 import math
@@ -54,12 +55,13 @@ __all__ = [
     'MarchStats',
     'ReliefField',
     'march_shadows',
+    'shadow_reach',
     'synthesize_albedo_field',
     'synthesize_relief_field',
 ]
 
-# Spectral modes with total angular wavenumber below this are zeroed
-# (degree 1 = body translation, degree 2 = ellipsoid shape aliasing).
+# Relief harmonic degrees below this are zeroed (degree 1 = body
+# translation, degree 2 = ellipsoid shape aliasing).
 _LOW_DEGREE_CUTOFF = 3.0
 # The albedo field only zeroes the mean (k = 0): albedo texture multiplies
 # the shading and never moves the silhouette, so its low-degree content
@@ -144,7 +146,12 @@ class ReliefField:
 def _shaped_spectrum_field(
     corr_deg: float, seed: int, *, low_degree_cutoff: float
 ) -> NDArrayFloatType:
-    """Synthesize the raw band-limited field (no amplitude normalization).
+    """Synthesize the albedo texture's raw band-limited field (no normalization).
+
+    The field is periodic on the ``(lat, lon)`` torus and synthesized by 2-D FFT
+    with spectral variance ``exp(-(|k| * corr_rad / 2)**2)``.  It is not
+    single-valued at the torus's poles; the albedo texture puts those poles on
+    the body's axis-1 direction.
 
     Parameters:
         corr_deg: Correlation length in degrees of surface arc.
@@ -177,6 +184,92 @@ def _shaped_spectrum_field(
     return np.asarray(np.fft.irfft2(spectrum * amplitude, s=(n, n)), dtype=np.float64)
 
 
+def _spherical_harmonic_field(corr_deg: float, seed: int) -> NDArrayFloatType:
+    """Synthesize the raw relief field on the sphere (no amplitude normalization).
+
+    The field is a sum of real spherical harmonics ``Y_lm`` with independent
+    Gaussian coefficients of variance ``exp(-(l * corr_rad / 2)**2)``, so it is
+    isotropic on the sphere and single-valued at the poles.  Degrees below
+    :data:`_LOW_DEGREE_CUTOFF` and above ``lmax = ceil(8 / corr_rad)`` are zero.
+
+    It is returned on the same ``(n, n)`` torus grid the albedo field uses (row
+    ``i`` at latitude ``-pi + 2*pi*i/n``, column ``j`` at longitude
+    ``2*pi*j/n``).  The rows in ``[-pi/2, pi/2]`` are synthesized directly; the
+    others are filled from ``h(lat, lon) = h(pi - lat, lon + pi)``, the identity
+    that names one surface point twice, so bilinear sampling across a pole
+    reads the same surface from either side.
+
+    Parameters:
+        corr_deg: Correlation length in degrees of surface arc.
+        seed: The realization seed (fresh Gaussian coefficient draws per seed).
+
+    Returns:
+        The ``(n, n)`` un-normalized field grid.
+    """
+    corr_rad = math.radians(corr_deg)
+    kmax = math.ceil(_BAND_LIMIT_FACTOR / corr_rad)
+    n = int(min(_MAX_GRID, max(_MIN_GRID, 2 ** math.ceil(math.log2(max(4 * kmax, 1))))))
+    # A degenerate correlation length can ask for more degrees than the capped
+    # grid resolves in longitude; the band limit then follows the grid.
+    lmax = min(kmax, n // 2 - 1)
+
+    rng = np.random.default_rng(seed)
+    degrees = np.arange(lmax + 1, dtype=np.float64)
+    sigma = np.exp(-((degrees * corr_rad / 2.0) ** 2) / 2.0)
+    sigma[degrees < _LOW_DEGREE_CUTOFF] = 0.0
+    # Coefficient [l, m] multiplies cos(m lon) (real part) and sin(m lon)
+    # (imaginary part); entries with m > l are never read.
+    coeffs = (
+        rng.standard_normal((lmax + 1, lmax + 1)) - 1j * rng.standard_normal((lmax + 1, lmax + 1))
+    ) * sigma[:, np.newaxis]
+    coeffs[:, 1:] *= math.sqrt(2.0)
+    coeffs[:, 0] = coeffs[:, 0].real
+
+    # Synthesized rows: latitudes -pi/2 .. pi/2 inclusive (n is a multiple of 4).
+    rows = np.arange(n // 4, 3 * n // 4 + 1)
+    lat = -np.pi + 2.0 * np.pi * rows / n
+    x = np.sin(lat)
+    s = np.cos(lat)
+    orders = np.arange(lmax + 1, dtype=np.float64)
+
+    # Orthonormal associated Legendre functions, advanced one degree at a time
+    # for every order at once: p_prev[m] is degree l-1, p_prev2[m] degree l-2.
+    zero = np.zeros((lmax + 1, rows.size), dtype=np.float64)
+    p_prev2 = zero.copy()
+    p_prev = zero.copy()
+    p_diag = np.full(rows.size, 1.0 / math.sqrt(4.0 * math.pi))
+    by_order = np.zeros((lmax + 1, rows.size), dtype=np.complex128)
+    for ell in range(lmax + 1):
+        p_cur = zero.copy()
+        if ell > 0:
+            p_diag = -math.sqrt((2.0 * ell + 1.0) / (2.0 * ell)) * s * p_diag
+            m = orders[: ell - 1]
+            a = np.sqrt((4.0 * ell * ell - 1.0) / (ell * ell - m * m))
+            b = np.sqrt(((ell - 1.0) ** 2 - m * m) / (4.0 * (ell - 1.0) ** 2 - 1.0))
+            p_cur[: ell - 1] = a[:, np.newaxis] * (
+                x * p_prev[: ell - 1] - b[:, np.newaxis] * p_prev2[: ell - 1]
+            )
+            p_cur[ell - 1] = x * math.sqrt(2.0 * ell + 1.0) * p_prev[ell - 1]
+        p_cur[ell] = p_diag
+        if sigma[ell] > 0.0:
+            by_order[: ell + 1] += coeffs[ell, : ell + 1, np.newaxis] * p_cur[: ell + 1]
+        p_prev2, p_prev = p_prev, p_cur
+
+    # Each row is sum_m Re(Z_m exp(i m lon)); irfft's 1/n and its doubling of
+    # the positive orders are undone in the scaling.
+    spectrum = np.zeros((rows.size, n // 2 + 1), dtype=np.complex128)
+    spectrum[:, 0] = n * by_order[0]
+    spectrum[:, 1 : lmax + 1] = (n / 2.0) * by_order[1:].T
+    half = np.fft.irfft(spectrum, n=n, axis=1)
+
+    grid = np.empty((n, n), dtype=np.float64)
+    grid[rows] = half
+    other = np.setdiff1d(np.arange(n), rows)
+    # h(lat_i, lon) = h(pi - lat_i, lon + pi): row 3n/2 - i, shifted half a turn.
+    grid[other] = np.roll(grid[np.mod(3 * n // 2 - other, n)], -(n // 2), axis=1)
+    return grid
+
+
 @lru_cache(maxsize=8)
 def _unit_relief_grid(corr_deg: float, seed: int) -> NDArrayFloatType:
     """A field realization normalized to unit limb-slice standard deviation.
@@ -189,11 +282,11 @@ def _unit_relief_grid(corr_deg: float, seed: int) -> NDArrayFloatType:
         seed: The realization seed (fresh Gaussian coefficient draws per seed).
 
     Returns:
-        The ``(n, n)`` unit-normalized field grid.  All-zero when the band
-        ``[3, kmax]`` is empty (a correlation length so long that no mode
-        survives the low-degree zeroing).
+        The ``(n, n)`` unit-normalized field grid.  All-zero when the degree
+        band ``[3, lmax]`` is empty (a correlation length so long that no
+        degree survives the low-degree zeroing).
     """
-    field = _shaped_spectrum_field(corr_deg, seed, low_degree_cutoff=_LOW_DEGREE_CUTOFF)
+    field = _spherical_harmonic_field(corr_deg, seed)
     n = field.shape[0]
     limb_std = float(np.std(field[n // 2]))
     if limb_std <= 0.0:
@@ -250,12 +343,13 @@ def synthesize_relief_field(rms: float, corr_deg: float, seed: int) -> ReliefFie
 def synthesize_albedo_field(rms: float, corr_deg: float, seed: int) -> ReliefField:
     """Synthesize one multiplicative-albedo field realization.
 
-    The albedo texture reuses the relief field's spectral synthesis and its
-    :class:`ReliefField` sampling container, with two deliberate differences:
-    the commanded RMS is the field's *global* standard deviation (disc-wide
-    texture contrast rather than a limb statistic), and only the spectral
-    mean is zeroed -- albedo multiplies the shading and never moves the
-    silhouette, so low-degree content cannot alias pointing or shape error.
+    The albedo texture reuses the relief field's :class:`ReliefField` sampling
+    container and spectrum shape, synthesized on the flat ``(lat, lon)`` torus
+    rather than on the sphere.  The commanded RMS is the field's *global*
+    standard deviation (disc-wide texture contrast rather than a limb
+    statistic), and only the spectral mean is zeroed -- albedo multiplies the
+    shading and never moves the silhouette, so low-degree content cannot alias
+    pointing or shape error.
 
     Parameters:
         rms: Commanded global standard deviation of the fractional albedo
@@ -299,6 +393,37 @@ class MarchStats:
     max_steps: int
 
 
+def shadow_reach(
+    h_point: NDArrayFloatType,
+    tan_incidence: NDArrayFloatType,
+    radius_px: NDArrayFloatType,
+    *,
+    h_max: float,
+) -> NDArrayFloatType:
+    """The longest surface distance from which terrain can shadow each point.
+
+    Terrain at surface distance ``d`` toward the sun shadows a point only if it
+    rises ``d / tan(i) + d**2 / (2 R)`` above it, and no terrain rises more than
+    ``(h_max - h_point) * R``.  Each term alone must fit under that rise, so the
+    reach is ``min(rise * tan(i), sqrt(2 * R * rise))``: the longest shadow the
+    terrain can cast, and the horizon distance of the highest peak.
+
+    Parameters:
+        h_point: Fractional relief at each point.
+        tan_incidence: Tangent of each point's incidence angle (> 0).
+        radius_px: Local body radius at each point, in pixels.
+        h_max: Global field maximum (fractional).
+
+    Returns:
+        The reach in pixels of surface arc, same shape as the inputs; 0 where
+        the point is the highest terrain.
+    """
+    radius = np.asarray(radius_px, dtype=np.float64)
+    rise = np.maximum(h_max - np.asarray(h_point, dtype=np.float64), 0.0) * radius
+    tan_i = np.asarray(tan_incidence, dtype=np.float64)
+    return np.asarray(np.minimum(rise * tan_i, np.sqrt(2.0 * radius * rise)), dtype=np.float64)
+
+
 def march_shadows(
     start_v: NDArrayFloatType,
     start_u: NDArrayFloatType,
@@ -322,10 +447,13 @@ def march_shadows(
     current sample, so foreshortening near the limb is corrected: an image
     pixel there spans a large surface step).  A candidate is shadowed iff
     an upstream sample at surface distance ``d`` satisfies
-    ``H_up - H_pt > d / tan(i_pt)``.  The per-point cap
-    ``d_max = min((H_max - H_min) * tan(i_pt), sqrt(2 * R * H_max))``
-    bounds the work; ``H_max``/``H_min`` are the field's global extremes at
-    the point's local radius.
+    ``H_up - H_pt > d / tan(i_pt) + d**2 / (2 R)``: the terrain must rise
+    above the sun ray and above the body's curvature drop (``R`` the
+    point's local radius, standing in for the radius of curvature).  The
+    per-point cap ``d_max`` of :func:`shadow_reach`,
+    ``min((H_max - H_pt) * tan(i_pt), sqrt(2 * R * (H_max - H_pt)))``, is
+    exactly the distance beyond which that inequality cannot hold, so it
+    bounds the work without changing any decision.
 
     Parameters:
         start_v: Candidate image-row positions (work-grid pixels, float).
@@ -364,10 +492,7 @@ def march_shadows(
     tan_i = np.maximum(np.asarray(tan_incidence, dtype=np.float64), 1e-12)
     radius = np.asarray(radius_px, dtype=np.float64)
     height_pt = np.asarray(h_point, dtype=np.float64) * radius
-    d_max = np.minimum(
-        (h_max - h_min) * radius * tan_i,
-        radius * math.sqrt(max(2.0 * h_max, 0.0)),
-    )
+    d_max = shadow_reach(h_point, tan_i, radius, h_max=h_max)
     max_steps = math.ceil(float(d_max.max()) / step_arc) if d_max.size else 0
 
     # Live-set arrays, compressed as candidates resolve.
@@ -399,9 +524,11 @@ def march_shadows(
         # Samples beyond the point's cap cannot shadow it: the terrain term
         # makes such hits impossible algebraically, and the horizon term
         # excludes terrain the body's curvature hides.
-        hit = (
-            inside & (distance <= d_max) & (height_map[cur_v, cur_u] - height_pt > distance / tan_i)
-        )
+        # The body's curvature drops the upstream surface d**2 / (2 R) below
+        # the point's tangent plane, so the terrain must clear that drop as
+        # well as the sun ray's rise d / tan(i).
+        clearance = distance / tan_i + distance * distance / (2.0 * radius)
+        hit = inside & (distance <= d_max) & (height_map[cur_v, cur_u] - height_pt > clearance)
         shadow[index[hit]] = True
 
         keep = inside & ~hit & (distance < d_max)
@@ -414,6 +541,7 @@ def march_shadows(
             distance = distance[keep]
             tan_i = tan_i[keep]
             height_pt = height_pt[keep]
+            radius = radius[keep]
             d_max = d_max[keep]
 
     return shadow, MarchStats(candidate_count=n, steps_executed=steps, max_steps=max_steps)

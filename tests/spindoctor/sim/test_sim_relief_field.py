@@ -1,12 +1,15 @@
 """Statistics of the body relief field and the terminator shadow march.
 
 The relief-field contract pins the spectrum and the limb-slice statistics:
-the limb slice's standard deviation equals the commanded RMS
-per-realization, no spectral power sits below total wavenumber 3 (degree 1
-is a body translation, degree 2 aliases ellipsoid shape error) or above the
-band limit, and distinct seeds are distinct terrains.  The shadow march is
-pinned by its inequality (``H_up - H_pt > d / tan(i)``) and its work cap
-``d_max = min((H_max - H_min) * tan(i), sqrt(2 * R * H_max))``.
+the field is an isotropic random field on the sphere (single-valued at its
+poles, with the same statistics near the disc center as at the limb), the
+limb slice's standard deviation equals the commanded RMS per-realization,
+it has no content in spherical-harmonic degrees below 3 (degree 1 is a body
+translation, degree 2 aliases ellipsoid shape error) or above the band
+limit, and distinct seeds are distinct terrains.  The shadow march is pinned
+by its inequality on a curved body
+(``H_up - H_pt > d / tan(i) + d**2 / (2 R)``) and its work cap
+``d_max = min((H_max - H_pt) * tan(i), sqrt(2 * R * (H_max - H_pt)))``.
 """
 
 import math
@@ -14,6 +17,7 @@ from typing import Any
 
 import numpy as np
 import pytest
+from scipy import special
 
 from spindoctor.sim.forward.relief import (
     march_shadows,
@@ -42,35 +46,121 @@ def test_limb_slice_rms_matches_commanded_over_100_seeds() -> None:
     assert worst < 1e-9
 
 
-def test_low_degree_power_is_zero() -> None:
-    """Spectral power at total wavenumber below 3 is exactly zero."""
-    field = synthesize_relief_field(_RMS, _CORR_DEG, 7)
-    n = field.grid.shape[0]
-    spectrum = np.fft.rfft2(field.grid)
-    k_lat = np.fft.fftfreq(n, d=1.0 / n)
-    k_lon = np.fft.rfftfreq(n, d=1.0 / n)
-    k_total = np.hypot(k_lat[:, np.newaxis], k_lon[np.newaxis, :])
-    low = np.abs(spectrum[k_total < 3.0])
-    assert low.size > 0
-    assert float(low.max()) == pytest.approx(0.0, abs=1e-9 * float(np.abs(spectrum).max()))
+def _harmonic_coefficient_rms(rms: float, seed: int) -> dict[int, float]:
+    """RMS real spherical-harmonic coefficient per degree 0..6 of one realization.
+
+    The field is sampled at Gauss-Legendre latitudes and uniform longitudes, so the
+    projection is exact up to the field's own bilinear sampling error.
+    """
+    field = synthesize_relief_field(rms, _CORR_DEG, seed)
+    nodes, weights = np.polynomial.legendre.leggauss(96)
+    lat = np.arcsin(nodes)
+    lon = np.arange(192) * (2.0 * np.pi / 192)
+    lat2, lon2 = np.meshgrid(lat, lon, indexing='ij')
+    h = field.sample(lat2, lon2)
+    weight = weights[:, np.newaxis] * (2.0 * np.pi / 192)
+    result: dict[int, float] = {}
+    for ell in range(7):
+        coeffs: list[float] = []
+        for m in range(ell + 1):
+            harmonic = special.sph_harm_y(ell, m, np.pi / 2.0 - lat2, lon2)
+            coeffs.append(float(np.sum(h * harmonic.real * weight)))
+            if m > 0:
+                coeffs.append(float(np.sum(h * harmonic.imag * weight)))
+        result[ell] = float(np.sqrt(np.mean(np.square(coeffs))))
+    return result
 
 
-def test_power_beyond_band_limit_is_zero() -> None:
-    """Spectral power beyond kmax = ceil(8 / corr_rad) is exactly zero."""
+@pytest.mark.parametrize('seed', [0, 1, 2])
+def test_low_degree_content_is_zero(seed: int) -> None:
+    """Degrees 0, 1, and 2 carry no relief: no mean, no translation, no shape error.
+
+    Each low-degree coefficient is compared with the typical coefficient of degrees
+    3-6, which the field does carry; the residual is the bilinear sampling error.
+    """
+    coeff = _harmonic_coefficient_rms(1.0, seed)
+    band = float(np.sqrt(np.mean([coeff[ell] ** 2 for ell in range(3, 7)])))
+    assert band > 0.0
+    for ell in range(3):
+        assert coeff[ell] < 0.02 * band, f'degree {ell}'
+
+
+def test_limb_slice_has_no_power_beyond_band_limit() -> None:
+    """The limb slice carries no longitude wavenumber above lmax = ceil(8 / corr_rad).
+
+    On the equator every harmonic of degree l is a sinusoid of order m <= l, so the
+    band limit in degree is exactly a band limit of the limb slice.
+    """
     field = synthesize_relief_field(_RMS, _CORR_DEG, 7)
     n = field.grid.shape[0]
-    kmax = math.ceil(8.0 / math.radians(_CORR_DEG))
-    spectrum = np.fft.rfft2(field.grid)
-    k_lat = np.fft.fftfreq(n, d=1.0 / n)
-    k_lon = np.fft.rfftfreq(n, d=1.0 / n)
-    k_total = np.hypot(k_lat[:, np.newaxis], k_lon[np.newaxis, :])
-    high = np.abs(spectrum[k_total > kmax])
-    assert high.size > 0
-    assert float(high.max()) == pytest.approx(0.0, abs=1e-9 * float(np.abs(spectrum).max()))
+    lmax = math.ceil(8.0 / math.radians(_CORR_DEG))
+    spectrum = np.abs(np.fft.rfft(field.grid[n // 2]))
+    assert lmax + 1 < spectrum.size
+    assert float(spectrum[lmax + 1 :].max()) == pytest.approx(0.0, abs=1e-9 * float(spectrum.max()))
+
+
+@pytest.mark.parametrize('seed', [0, 1, 2, 3])
+def test_field_is_single_valued_at_its_poles(seed: int) -> None:
+    """Every longitude reaches the same height at a pole.
+
+    The ellipsoid renderer puts a pole at the disc center: a field that depended on
+    longitude there would cut radial cliffs through the middle of the disc.
+    """
+    field = synthesize_relief_field(_RMS, _CORR_DEG, seed)
+    lon = np.arange(64) * (2.0 * np.pi / 64)
+    for pole in (np.pi / 2.0, -np.pi / 2.0):
+        ring = field.sample(np.full(64, pole - math.copysign(1e-4, pole)), lon)
+        assert float(np.ptp(ring)) < 0.01 * _RMS
+
+
+def _structure_function(field_seed: int, lat_band: tuple[float, float], lag: float) -> float:
+    """Mean squared height difference of point pairs ``lag`` radians apart.
+
+    The first point of each pair is uniform over the latitude band (uniform in area);
+    the second lies ``lag`` away along a random direction on the sphere.
+    """
+    field = synthesize_relief_field(_RMS, _CORR_DEG, field_seed)
+    rng = np.random.default_rng(1000 + field_seed)
+    count = 4000
+    z = rng.uniform(math.sin(lat_band[0]), math.sin(lat_band[1]), count)
+    lon = rng.uniform(0.0, 2.0 * np.pi, count)
+    ring = np.sqrt(1.0 - z * z)
+    start = np.stack([ring * np.cos(lon), ring * np.sin(lon), z], axis=1)
+    tangent = rng.standard_normal((count, 3))
+    tangent -= np.sum(tangent * start, axis=1)[:, np.newaxis] * start
+    tangent /= np.linalg.norm(tangent, axis=1)[:, np.newaxis]
+    end = start * math.cos(lag) + tangent * math.sin(lag)
+
+    def height(points: np.ndarray) -> np.ndarray:
+        lat = np.arcsin(np.clip(points[:, 2], -1.0, 1.0))
+        return field.sample(lat, np.mod(np.arctan2(points[:, 1], points[:, 0]), 2.0 * np.pi))
+
+    return float(np.mean((height(start) - height(end)) ** 2))
+
+
+def test_field_is_as_rough_at_the_disc_center_as_at_the_limb() -> None:
+    """Height differences at a fixed arc match near the pole and near the equator.
+
+    The renderer's disc center is the field's pole and its limb the equator.  A
+    field built on a (lat, lon) map stretches its longitude wavelengths by
+    ``1 / cos(lat)`` toward the pole, so the disc center would be far rougher than
+    the limb.  Averaged over 16 realizations the two regions agree within 25%.
+    """
+    lag = math.radians(_CORR_DEG) / 2.0
+    cap = [
+        _structure_function(seed, (math.radians(70.0), math.radians(89.99)), lag)
+        for seed in range(16)
+    ]
+    limb = [
+        _structure_function(seed, (math.radians(-20.0), math.radians(20.0)), lag)
+        for seed in range(16)
+    ]
+    ratio = float(np.mean(cap)) / float(np.mean(limb))
+    assert 0.8 < ratio < 1.25
 
 
 def test_band_power_is_present() -> None:
-    """The surviving band [3, kmax] actually carries the field's power."""
+    """The surviving degrees [3, lmax] actually carry the field's power."""
     field = synthesize_relief_field(_RMS, _CORR_DEG, 7)
     assert float(np.std(field.grid)) > 0.0
     assert field.h_max > 0.0
@@ -127,6 +217,21 @@ def test_sample_wraps_periodically() -> None:
     )
 
 
+def test_sample_reads_one_surface_point_by_either_name() -> None:
+    """(lat, lon) and (pi - lat, lon + pi) name one point and sample one height.
+
+    The torus covers the sphere twice; past a pole the grid must continue onto the
+    far side of the same surface.
+    """
+    field = synthesize_relief_field(_RMS, _CORR_DEG, 9)
+    rng = np.random.default_rng(4)
+    lat = rng.uniform(-np.pi / 2.0, np.pi / 2.0, 200)
+    lon = rng.uniform(0.0, 2.0 * np.pi, 200)
+    np.testing.assert_allclose(
+        field.sample(np.pi - lat, lon + np.pi), field.sample(lat, lon), atol=1e-12
+    )
+
+
 # ---------------------------------------------------------------------------
 # Shadow march: inequality and cap.
 # ---------------------------------------------------------------------------
@@ -145,17 +250,16 @@ def _flat_maps(
 
 
 def test_march_shadow_inequality_both_sides() -> None:
-    """A ridge shadows a downstream point iff it is within (H_up - H_pt) * tan(i).
+    """A ridge shadows a downstream point iff it clears the sun ray and the curvature.
 
     The candidate sits at height 0 with the sun along +u; a ridge of height
-    H sits ``d`` pixels upstream.  The point is shadowed exactly when
-    ``H > d / tan(i)``, i.e. when ``d < H * tan(i)``.
+    H sits ``d`` pixels upstream on a body of radius R.  The point is shadowed
+    exactly when ``H > d / tan(i) + d**2 / (2 R)``.
     """
     ridge_h = 5.0
     tan_i = 4.0
-    # Shadow reach: H * tan(i) = 20 px.  Candidate at column 30 with the
-    # ridge at column 45 is 15 px downstream (shadowed); at column 60 the
-    # ridge is 30 px upstream (beyond reach, lit).
+    # R = 100.  The ridge 15 px upstream needs 3.75 + 1.125 = 4.875 px of rise
+    # (shadowed); 30 px upstream it needs 7.5 + 4.5 = 12 px (lit).
     height, arc, domain = _flat_maps(96, ridge_col=45, ridge_h=ridge_h)
     common: dict[str, Any] = {
         'h_point': np.array([0.0, 0.0]),
@@ -173,6 +277,60 @@ def test_march_shadow_inequality_both_sides() -> None:
     assert stats.candidate_count == 2
     assert bool(shadow[0])
     assert not bool(shadow[1])
+
+
+def test_march_curvature_drop_hides_a_ridge_the_flat_test_would_count() -> None:
+    """A ridge that clears the sun ray but not the body's curvature drop casts no shadow.
+
+    The ridge 15 px upstream rises 4.5 px: above the sun ray's 15 / 4 = 3.75 px, so a
+    flat-terrain test shadows the point, but below 3.75 + 15**2 / (2 * 100) = 4.875 px,
+    because the curved surface falls 1.125 px below the point's horizon there.
+    """
+    height, arc, domain = _flat_maps(96, ridge_col=45, ridge_h=4.5)
+    shadow, _stats = march_shadows(
+        np.array([48.0]),
+        np.array([30.5]),
+        h_point=np.array([0.0]),
+        tan_incidence=np.array([4.0]),
+        radius_px=np.array([100.0]),
+        height_map=height,
+        arc_per_px_map=arc,
+        domain_mask=domain,
+        h_max=0.045,
+        h_min=0.0,
+        sun_v=0.0,
+        sun_u=1.0,
+    )
+    assert not bool(shadow[0])
+
+
+def test_march_reaches_the_highest_peak_from_a_valley() -> None:
+    """A valley point sees the highest peak out to sqrt(2 R (H_max - H_pt)).
+
+    The point sits at H_min = -4 px and a peak of H_max = 4 px stands 48 px upstream
+    on a body of radius 200 with a grazing sun: the peak clears the curvature drop
+    (48**2 / 400 = 5.76 < 8 px), so the point is shadowed although the peak lies past
+    the horizon distance sqrt(2 R H_max) = 40 px of a point at height 0.
+    """
+    radius = 200.0
+    h_max = 0.02
+    height, arc, domain = _flat_maps(128, ridge_col=68, ridge_h=h_max * radius)
+    shadow, stats = march_shadows(
+        np.array([64.0]),
+        np.array([20.5]),
+        h_point=np.array([-h_max]),
+        tan_incidence=np.array([1e6]),
+        radius_px=np.array([radius]),
+        height_map=height,
+        arc_per_px_map=arc,
+        domain_mask=domain,
+        h_max=h_max,
+        h_min=-h_max,
+        sun_v=0.0,
+        sun_u=1.0,
+    )
+    assert bool(shadow[0])
+    assert stats.max_steps == math.ceil(radius * math.sqrt(2.0 * 2.0 * h_max))
 
 
 def test_march_cap_bounds_the_work() -> None:
