@@ -16,21 +16,26 @@ ellipsoid-like elongation, is about two thirds of that; it neither resizes the
 body (degree 0) nor moves it to first order (degree 1); its base shape stops at
 degree 5; each detail octave ``k`` adds an RMS of ``0.5**k`` times the base's
 degree >= 3 RMS in its own band of degrees; and it varies around every circle of
-latitude, so the body is not a body of revolution about the mesh's axis.  These
-are measured on the mesh itself, independent of how the relief is synthesized:
-a Fourier transform around each ring and a Clenshaw-Curtis rule over the rings
-project the vertex radii on SciPy's spherical harmonics, which is exact for a
-relief whose degree is at most half the ring count.
+latitude, so the body is not a body of revolution about the mesh's axis.  Over
+a population of seeds the relief is isotropic: its lumps split their power
+evenly between the sine and cosine terms around the mesh's axis and put only
+their isotropic share in the terms symmetric about it; each lump degree's median
+RMS follows the documented per-degree shares; and different seeds draw different
+shapes.  These are measured on the mesh itself, independent of how the relief
+is synthesized: a Fourier transform around each ring and a Clenshaw-Curtis rule
+over the rings project the vertex radii on SciPy's spherical harmonics, which is
+exact for a relief whose degree is at most half the ring count.
 """
 
+import itertools
 import math
 
 import numpy as np
 import pytest
 from scipy.special import sph_legendre_p
 
-from spindoctor.sim.mesh_geometry import Mesh, make_irregular_mesh
-from spindoctor.support.types import NDArrayFloatType
+from spindoctor.sim.mesh_geometry import Mesh, make_irregular_mesh, mesh_spec_from_params
+from spindoctor.support.types import NDArrayComplexType, NDArrayFloatType
 
 _CASES = [(0.08, 0), (0.3, 0), (0.45, 7), (0.52, 3)]
 _CASE_IDS = [f'lumpiness{lum}-seed{seed}' for lum, seed in _CASES]
@@ -52,6 +57,35 @@ _TOP_BASE_DEGREE = 5
 _DEGREE_2_PER_UNIT_RANGE = (0.015, 0.25)
 _DEGREE_2_MEDIAN_RANGE = (0.065, 0.10)
 _DEGREE_2_POPULATION_SEEDS = range(40)
+# Isotropy and per-degree shape over a population of seeds.  A 40-seed
+# statistic's spread was measured over 50 disjoint batches of seeds 0 to 1999,
+# and each band is set from that spread with margin.
+_POPULATION_SEEDS = range(40)
+# The share of the degree 3 to 5 power (orders >= 1) in the sine terms, averaged
+# over the seeds: 0.50 for an isotropic relief, 0.502 with an SD of 0.029 over
+# the batches (seeds 0 to 39: 0.531).  The band is 3.5 SDs either side.  A body
+# mirror-symmetric about the mesh's x-z plane has no sine terms and scores 0.
+_SINE_SHARE_RANGE = (0.40, 0.60)
+# The share of the degree 3 to 5 power in order 0 (the zonal terms), averaged
+# over the seeds.  Isotropy predicts 0.127 from the documented degree RMS shares
+# (each degree l puts 1 of its 2 l + 1 terms in order 0); the batches give 0.124
+# with an SD of 0.013 (seeds 0 to 39: 0.110).  A draw that leaves the sqrt(2)
+# off the orders >= 1 halves their power and scores 0.207 (SD 0.019).  The lower
+# bound is 3.5 SDs below the isotropic mean; the upper bound sits about 2.6 SDs
+# from both means.
+_ORDER_0_SHARE_RANGE = (0.08, 0.16)
+# The documented per-degree RMS shares of the lumps (the dev guide's simulator
+# chapter), before each seed's draw is scaled to a degree >= 3 RMS of exactly
+# 1/8 per unit lumpiness.  A degree's median RMS over the seeds lands on its
+# scaled share: over the batches the medians deviate from it by at most 8%, 10%,
+# and 13% for degrees 3, 4, and 5 (SDs 3%, 5%, and 5%), so the band is 20%,
+# 4 SDs for degree 5.  Seeds 0 to 39 deviate by 2%, 5%, and 4%.
+_DOCUMENTED_LUMP_RMS = {3: 0.092, 4: 0.072, 5: 0.040}
+_LUMP_MEDIAN_REL = 0.2
+# Two seeds' reliefs differ by at least half the non-ellipsoidal RMS.  The
+# smallest difference among seeds 0 to 39 is 0.130 per unit lumpiness, and among
+# seeds 0 to 199 it is 0.116, about the full RMS of 0.125.
+_MIN_SEED_DIFFERENCE_PER_UNIT = 0.5 / 8.0
 # Detail octaves: each band's RMS is 0.5**k of the base's degree >= 3 RMS.  The
 # fine mesh projects degrees up to 64 exactly, past octave 3's top degree 40.
 _OCTAVE_LAT, _OCTAVE_LON = 128, 256
@@ -103,7 +137,7 @@ def _clenshaw_curtis(n: int) -> tuple[NDArrayFloatType, NDArrayFloatType]:
     return colat, ends / n * weights
 
 
-def _relief_spectrum(
+def _relief_harmonics(
     lumpiness: float,
     seed: int,
     *,
@@ -111,8 +145,8 @@ def _relief_spectrum(
     n_lon: int = _SPECTRUM_LON,
     detail_octaves: int = 0,
     lmax: int = _TOP_BASE_DEGREE,
-) -> tuple[NDArrayFloatType, float]:
-    """Project a mesh's relief ``r - 1`` on the spherical harmonics, per degree.
+) -> tuple[NDArrayComplexType, float]:
+    """Project a mesh's relief ``r - 1`` on the spherical harmonics.
 
     The mesh's rings sit at colatitudes ``k pi / n_lat`` and equal steps of
     longitude, with a vertex at each pole.  A Fourier transform around each ring
@@ -122,9 +156,11 @@ def _relief_spectrum(
     ``n_lat``.
 
     Returns:
-        The relief's mean square over the sphere in each degree 0 to ``lmax``
-        (a degree's RMS squared), and its total mean square, which exceeds their
-        sum by the power above ``lmax``.
+        The coefficients ``c[l, m]`` for degrees and orders 0 to ``lmax``: around
+        a ring the relief's order-``m`` part (``m >= 1``) is
+        ``2 Re(c) cos(m lon) - 2 Im(c) sin(m lon)`` times the Legendre function,
+        so the real part carries the cosine terms and the imaginary part the
+        sine terms.  Also the relief's total mean square over the sphere.
     """
     mesh = make_irregular_mesh(
         n_lat=n_lat, n_lon=n_lon, lumpiness=lumpiness, seed=seed, detail_octaves=detail_octaves
@@ -139,14 +175,46 @@ def _relief_spectrum(
     )
     orders = np.fft.rfft(grid, axis=1) / n_lon
     colat, weights = _clenshaw_curtis(n_lat)
-    mean_square = np.zeros(lmax + 1)
+    coeffs = np.zeros((lmax + 1, lmax + 1), dtype=np.complex128)
     for degree in range(lmax + 1):
         for order in range(degree + 1):
             legendre = sph_legendre_p(degree, order, colat)
-            coeff = 2.0 * math.pi * np.sum(weights * orders[:, order] * legendre)
-            mean_square[degree] += (1.0 if order == 0 else 2.0) * abs(coeff) ** 2
+            coeffs[degree, order] = 2.0 * math.pi * np.sum(weights * orders[:, order] * legendre)
     total = 2.0 * math.pi * float(np.sum(weights * np.mean(grid * grid, axis=1)))
-    return mean_square / (4.0 * math.pi), total / (4.0 * math.pi)
+    return coeffs, total / (4.0 * math.pi)
+
+
+def _order_power(coeffs: NDArrayComplexType) -> NDArrayFloatType:
+    """Each ``(degree, order)`` term's mean square over the sphere, times ``4 pi``.
+
+    An order ``m >= 1`` stands for both its cosine and its sine function, hence
+    its factor of 2.
+    """
+    power = np.abs(coeffs) ** 2
+    power[:, 1:] *= 2.0
+    return np.asarray(power, dtype=np.float64)
+
+
+def _relief_spectrum(
+    lumpiness: float,
+    seed: int,
+    *,
+    n_lat: int = _SPECTRUM_LAT,
+    n_lon: int = _SPECTRUM_LON,
+    detail_octaves: int = 0,
+    lmax: int = _TOP_BASE_DEGREE,
+) -> tuple[NDArrayFloatType, float]:
+    """The relief's mean square per degree, from :func:`_relief_harmonics`.
+
+    Returns:
+        The relief's mean square over the sphere in each degree 0 to ``lmax``
+        (a degree's RMS squared), and its total mean square, which exceeds their
+        sum by the power above ``lmax``.
+    """
+    coeffs, total = _relief_harmonics(
+        lumpiness, seed, n_lat=n_lat, n_lon=n_lon, detail_octaves=detail_octaves, lmax=lmax
+    )
+    return _order_power(coeffs).sum(axis=1) / (4.0 * math.pi), total
 
 
 @pytest.mark.parametrize(('lumpiness', 'seed'), _CASES, ids=_CASE_IDS)
@@ -288,3 +356,82 @@ def test_radius_varies_around_circles_of_latitude(seed: int) -> None:
     rows = [round(colat / 180.0 * _FINE_LAT) - 1 for colat in _RING_COLATITUDES_DEG]
     spread = float(np.mean(radii[rows].std(axis=1)))
     assert spread >= 0.5 * _NON_ELLIPSOIDAL_RMS_PER_UNIT * _LUMPINESS
+
+
+def _population_harmonics() -> list[NDArrayComplexType]:
+    """The base relief's coefficients for each of the population's seeds.
+
+    Recomputed on every call: it is cheap, and a test run against a patched
+    relief must measure the patched relief.
+    """
+    return [_relief_harmonics(_LUMPINESS, seed)[0] for seed in _POPULATION_SEEDS]
+
+
+def test_lump_power_splits_evenly_between_sine_and_cosine_terms() -> None:
+    """The lumps put half their non-zonal power in sine terms, as isotropy requires.
+
+    Around a circle of latitude the order-``m`` relief is a cosine and a sine of
+    ``m`` times the longitude.  An isotropic relief has no preferred longitude,
+    so over many seeds the two carry equal power; a relief whose sine terms are
+    lost is mirror-symmetric about the plane of longitude 0.
+    """
+    shares = []
+    for coeffs in _population_harmonics():
+        lumps = coeffs[_NON_ELLIPSOIDAL_DEGREE:, 1:]
+        sine = float(np.sum(lumps.imag**2))
+        shares.append(sine / float(np.sum(np.abs(lumps) ** 2)))
+    low, high = _SINE_SHARE_RANGE
+    assert low <= float(np.mean(shares)) <= high
+
+
+def test_lumps_put_their_isotropic_share_in_the_zonal_terms() -> None:
+    """Order 0 carries about 1 in ``2 l + 1`` of each lump degree's power.
+
+    Isotropy spreads a degree's power evenly over its ``2 l + 1`` functions, so
+    the zonal (order 0) terms, symmetric about the mesh's axis, carry no more
+    than their share.  A synthesis that weights them more makes every body
+    banded along the mesh's axis.
+    """
+    shares = []
+    for coeffs in _population_harmonics():
+        power = _order_power(coeffs)[_NON_ELLIPSOIDAL_DEGREE:]
+        shares.append(float(power[:, 0].sum() / power.sum()))
+    low, high = _ORDER_0_SHARE_RANGE
+    assert low <= float(np.mean(shares)) <= high
+
+
+@pytest.mark.parametrize('degree', sorted(_DOCUMENTED_LUMP_RMS))
+def test_median_lump_rms_per_degree_follows_the_documented_shares(degree: int) -> None:
+    """Each lump degree's median RMS is its documented share, scaled to ``lumpiness / 8``.
+
+    The scaling keeps the shares' proportions, so a degree's median RMS per unit
+    lumpiness over many seeds is its documented share times
+    ``(1/8) / sqrt(sum of the squared degree 3 to 5 shares)``.  Moving the lumps'
+    power into one degree keeps the degree >= 3 total and fails here.
+    """
+    scale = _NON_ELLIPSOIDAL_RMS_PER_UNIT / math.sqrt(
+        sum(share**2 for share in _DOCUMENTED_LUMP_RMS.values())
+    )
+    per_unit = [
+        math.sqrt(float(_order_power(coeffs)[degree].sum()) / (4.0 * math.pi)) / _LUMPINESS
+        for coeffs in _population_harmonics()
+    ]
+    expected = _DOCUMENTED_LUMP_RMS[degree] * scale
+    assert float(np.median(per_unit)) == pytest.approx(expected, rel=_LUMP_MEDIAN_REL)
+
+
+def test_each_mesh_seed_draws_its_own_shape() -> None:
+    """Any two ``mesh_seed`` values give reliefs that differ by a fair share of the relief.
+
+    The seed is read from the body parameters the way a scene supplies it, and
+    two seeds' reliefs differ by an RMS of at least half the non-ellipsoidal RMS.
+    """
+    harmonics = [
+        _relief_harmonics(_LUMPINESS, mesh_spec_from_params({'mesh_seed': seed}).seed)[0]
+        for seed in _POPULATION_SEEDS
+    ]
+    smallest = min(
+        math.sqrt(float(_order_power(first - second).sum()) / (4.0 * math.pi))
+        for first, second in itertools.combinations(harmonics, 2)
+    )
+    assert smallest / _LUMPINESS >= _MIN_SEED_DIFFERENCE_PER_UNIT
