@@ -7,6 +7,7 @@ from typing import Any
 
 import pytest
 
+from spindoctor.config import Config
 from spindoctor.nav_orchestrator.image_classifier import ImageQualityThresholds
 from spindoctor.nav_orchestrator.instrument_config import (
     InstrumentSettings,
@@ -201,8 +202,6 @@ def test_calibrated_if_default_marker_is_nan() -> None:
 
 def test_shipped_inst_configs_load_cleanly() -> None:
     """Every shipped per-instrument config loads through the helper."""
-    from spindoctor.config import Config
-
     config = Config()
     config.read_config()
     blocks = [
@@ -220,8 +219,6 @@ def test_shipped_inst_configs_load_cleanly() -> None:
 
 def test_shipped_calibrated_if_configs_load_cleanly() -> None:
     """Every shipped calibrated-IF block loads and disables the saturation gate."""
-    from spindoctor.config import Config
-
     config = Config()
     config.read_config()
     blocks = [
@@ -273,8 +270,6 @@ def test_model_error_floors_reject_invalid_blocks(
 
 def test_shipped_cassini_wac_declares_annulus_floor() -> None:
     """Both Cassini WAC blocks carry the calibrated annulus floor; the NAC keeps the tuning's."""
-    from spindoctor.config import Config
-
     config = Config()
     config.read_config()
     floors = {

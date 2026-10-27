@@ -183,11 +183,28 @@ precision-weighted-merge result from
 Configuration
 =============
 
-The orchestrator's runtime knobs come from three places: per-instrument YAML
+The orchestrator's runtime knobs come from four places: per-instrument YAML
 (``config_4N0_inst_*.yaml`` via
-:class:`~spindoctor.nav_orchestrator.instrument_config.InstrumentSettings`), construction-time
-overrides on the constructor, and the per-image
+:class:`~spindoctor.nav_orchestrator.instrument_config.InstrumentSettings`), the
+``orchestrator`` section (``config_540_orchestrator.yaml``), construction-time overrides
+on the constructor, and the per-image
 :class:`~spindoctor.nav_orchestrator.nav_context.NavContext`'s default values.
+
+The ``orchestrator`` section holds three subsections, each read once at construction:
+
+- ``ensemble`` — the ensemble's thresholds; see :doc:`dev_guide_orchestrator_ensemble`.
+- ``reliability_gate`` — feature type name to the minimum reliability
+  :class:`~spindoctor.feature.reliability.FeatureReliabilityGate` lets through before
+  any technique runs; a type the mapping leaves out keeps its code default.
+- ``conflict_arbitration`` — read by
+  :meth:`~spindoctor.nav_orchestrator.conflict_arbitration.ConflictArbitrationConfig.from_mapping`
+  (see `Testing a conflicted pass 1`_):
+
+  - ``min_support`` — int, default ``4``. Smallest support an answer needs to be
+    confirmed. Must be a whole number at least zero; ``0`` disables the test.
+  - ``min_support_ratio`` — float, default ``2.0``. The confirmed answer's support must be
+    at least this many times the other answer's. Must be a finite number greater than
+    ``1``.
 
 Per-instrument YAML keys (read via
 :func:`~spindoctor.nav_orchestrator.instrument_config.instrument_settings_from_obs`):
@@ -201,6 +218,10 @@ Per-instrument YAML keys (read via
 - ``fit_camera_rotation`` — bool, top-level in the per-camera block; turns on 3-DoF
   technique fits.
 - ``max_rotation_deg`` — float, top-level in the per-camera block; rotation cap.
+- ``model_error_floor_px`` — optional mapping of technique name to a per-camera floor that
+  replaces that technique's own tuning value; techniques it does not name keep their own.
+  Schema and the techniques that read it are in
+  :doc:`dev_guide_orchestrator_instrument_config`.
 
 Constructor-level overrides:
 
