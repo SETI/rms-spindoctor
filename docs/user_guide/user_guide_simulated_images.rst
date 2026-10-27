@@ -152,11 +152,9 @@ to 0, and an entry whose key, or whose ``count``, is 0 doesn't plant anything.
      dead_pixels: {count: 10}
      hot_pixels: {pixel_fraction: 0.002}
 
-A key that a defect doesn't take is refused when the scene is loaded. In a scene file's
-``noise`` section, ``cosmic_ray_events_per_pixel_per_sec`` is the expected number of
-cosmic-ray hits per pixel per second of exposure. The developer guide's
-:doc:`/dev_guide/dev_guide_simulator` chapter lists every defect, the cameras each one is
-available on, and the key each one takes.
+A key that a defect doesn't take is refused when the scene is loaded. The developer
+guide's :doc:`/dev_guide/dev_guide_simulator` chapter lists every defect, the cameras
+each one is available on, and the key each one takes.
 
 Rings in a scene
 ================
