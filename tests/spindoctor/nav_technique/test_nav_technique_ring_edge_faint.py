@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import dataclasses
+import math
 
 import numpy as np
 import pytest
@@ -27,6 +28,40 @@ def _step_image(shape_vu: tuple[int, int], *, faint_step: float, bright_disc: fl
     image = np.where(rows < 100.0, faint_step, 0.0)
     image[np.hypot(rows - 30.0, cols - 170.0) <= 12.0] += bright_disc
     return image
+
+
+def _rotated_corner_scene(
+    tilt_deg: float, faint_half_width_px: float
+) -> tuple[np.ndarray, list[tuple[np.ndarray, np.ndarray]]]:
+    """Return a bright corner imaged turned by ``tilt_deg`` and the unturned model edges.
+
+    The model is a horizontal edge at row 60 and a vertical edge at column 580 meeting
+    in a corner; the image is that corner turned about the model's vertex centroid.
+    Each edge is a step of 10000 except within ``faint_half_width_px`` of the centroid
+    along it, where the step is 10, so most of what a translation-only overlay of the
+    model still matches, the stretch of each edge nearest the centroid, is faint.
+    """
+    h_u = np.linspace(20.0, 560.0, 541)
+    h_vertices = np.stack([np.full_like(h_u, 60.0), h_u], axis=-1)
+    v_v = np.linspace(80.0, 280.0, 201)
+    v_vertices = np.stack([v_v, np.full_like(v_v, 580.0)], axis=-1)
+    pivot = np.concatenate([h_vertices, v_vertices]).mean(axis=0)
+    rows, cols = np.meshgrid(
+        np.arange(300, dtype=np.float64), np.arange(600, dtype=np.float64), indexing='ij'
+    )
+    theta = -math.radians(tilt_deg)
+    model_v = pivot[0] + math.cos(theta) * (rows - pivot[0]) - math.sin(theta) * (cols - pivot[1])
+    model_u = pivot[1] + math.sin(theta) * (rows - pivot[0]) + math.cos(theta) * (cols - pivot[1])
+    faint = ((np.abs(model_u - pivot[1]) < faint_half_width_px) & (model_v < 100.0)) | (
+        (np.abs(model_v - pivot[0]) < faint_half_width_px) & (model_u > 540.0)
+    )
+    inside = (model_v > 60.0) & (model_u < 580.0)
+    image = np.where(inside, np.where(faint, 10.0, 10000.0), 0.0)
+    edges = [
+        (h_vertices, np.tile([-1.0, 0.0], (h_u.size, 1))),
+        (v_vertices, np.tile([0.0, 1.0], (v_v.size, 1))),
+    ]
+    return image, edges
 
 
 def test_ring_edge_nav_marks_a_fit_on_faint_edges_spurious(
@@ -217,3 +252,24 @@ def test_ring_edge_nav_rejects_an_edge_strength_floor_outside_unit_range(
     monkeypatch.setattr(RingEdgeNav, 'tuning', bad_tuning)
     with pytest.raises(ValueError, match='spurious_min_edge_strength_fraction must lie in'):
         RingEdgeNav()
+
+
+def test_ring_edge_nav_reads_edge_strength_on_the_rotated_fit(
+    make_ring_feature: NavFeatureFactory,
+    make_nav_context: NavContextFactory,
+) -> None:
+    """A fit that recovers a camera rotation is not vetoed for the edges it left behind.
+
+    The corner is imaged turned by half a degree.  Overlaid without that turn, the model
+    matches only the faint stretches near its centroid; turned as the fit found it, it
+    lies along the whole edge, which is mostly strong.
+    """
+    image, edges = _rotated_corner_scene(0.5, 110.0)
+    features = [
+        make_ring_feature(name, vertices=vertices, outward_normals=normals, is_straight_line=False)
+        for name, (vertices, normals) in zip(('horizontal', 'vertical'), edges, strict=True)
+    ]
+    context = make_nav_context(image, fit_camera_rotation=True, max_rotation_deg=5.0)
+    result = RingEdgeNav().navigate(features, context)
+    assert result.rotation_rad == pytest.approx(math.radians(0.5), abs=math.radians(0.05))
+    assert result.spurious is False

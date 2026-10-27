@@ -122,9 +122,12 @@ lattice of the scattered-light glow. No seed can be right there. The fit is inst
 rejected after convergence when the edges it matched are too faint to be a ring edge: the
 median of :math:`|g \cdot n|` over the vertices within 1.5 px of a detected edge, divided
 by the 99.9th percentile of the gradient magnitude inside the sensor, must reach
-``spurious_min_edge_strength_fraction``. Ten such F ring movie frames at 9.9 km/px, each
-wrong by 60 to 94 px, scored 0.0012 to 0.0022; fits on real ring edges scored from 0.0096
-(F ring movie frames) and from 0.050 (the library's ring frames) up to about 1.
+``spurious_min_edge_strength_fraction``. The check lays the model where the converged fit
+placed it: when the camera rotation is fit, the vertices and their normals are first
+turned by the fitted angle about the vertex centroid, then shifted by the fitted offset.
+Ten such F ring movie frames at 9.9 km/px, each wrong by 60 to 94 px, scored 0.0012 to
+0.0022; fits on real ring edges scored from 0.0096 (F ring movie frames) and from 0.050
+(the library's ring frames) up to about 1.
 
 The residual scale
 ------------------

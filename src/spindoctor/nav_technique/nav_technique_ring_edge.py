@@ -27,6 +27,8 @@ from spindoctor.nav_technique.diagnostics import RingEdgeDiagnostics
 from spindoctor.nav_technique.dt_fit_gates import DTFitGateConfig, evaluate_dt_fit_gates
 from spindoctor.nav_technique.dt_fitting import (
     CoarseSearchResult,
+    _rotate_directions,
+    _rotate_vertices,
     build_polyline_mask,
     coarse_edge_strength_search_scored,
     coarse_ncc_search_scored,
@@ -178,8 +180,11 @@ class RingEdgeNav(NavTechnique):
                 number greater than zero (zero is physically meaningless
                 against a half-pixel-quantized edge mask, and a
                 non-numeric value would otherwise fail far from the
-                config that caused it), or ``shape_sigma_px`` is not a finite
-                number of at least zero.
+                config that caused it), if ``shape_sigma_px`` is not a finite
+                number of at least zero, if ``coarse_sensor_margin_px`` is not
+                a non-negative integer, or if
+                ``spurious_min_edge_strength_fraction`` or
+                ``coarse_strength_keep_ratio`` lies outside ``[0, 1]``.
         """
         super().__init__(config=config)
         self.config.read_config()  # ensure cls.tuning is populated
@@ -219,12 +224,13 @@ class RingEdgeNav(NavTechnique):
         self._lm_tikhonov_alpha = float(self.tuning['lm_tikhonov_alpha'])
         self._gradient_ridge_refine = bool(self.tuning['gradient_ridge_refine'])
         self._rotation_at_edge_fraction = float(self.tuning['rotation_at_edge_fraction'])
-        self._coarse_sensor_margin_px = int(self.tuning['coarse_sensor_margin_px'])
-        if self._coarse_sensor_margin_px < 0:
+        raw_margin = self.tuning['coarse_sensor_margin_px']
+        if isinstance(raw_margin, bool) or not isinstance(raw_margin, int) or raw_margin < 0:
             raise ValueError(
                 'RingEdgeNav.coarse_sensor_margin_px must be a non-negative integer; '
-                f'got {self._coarse_sensor_margin_px!r}'
+                f'got {raw_margin!r}'
             )
+        self._coarse_sensor_margin_px = raw_margin
         self._spurious_min_edge_strength_fraction = float(
             self.tuning['spurious_min_edge_strength_fraction']
         )
@@ -563,12 +569,15 @@ class RingEdgeNav(NavTechnique):
             # strongest has found the faint contours of a smooth glow, not a
             # ring edge: the cataloged edges lie outside the frame at the true
             # pointing and the search dragged the model onto whatever the
-            # thresholded image offered.
+            # thresholded image offered.  The check reads the geometry the fit
+            # converged on: with rotation fitted, the model turns about
+            # ``pivot_vu`` (normals with it) before the offset applies.
+            fitted_rotation_rad = float(result.rotation_rad) if fit_rotation else 0.0
             edge_strength_fraction = _matched_edge_strength_fraction(
                 edge_dt,
                 gradient_vu,
-                vertices,
-                pixel_normals,
+                _rotate_vertices(vertices, pivot_vu, fitted_rotation_rad),
+                _rotate_directions(pixel_normals, fitted_rotation_rad),
                 (dv_final, du_final),
                 valid_mask=sensor_interior,
             )
