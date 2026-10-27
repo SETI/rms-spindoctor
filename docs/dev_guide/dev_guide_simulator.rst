@@ -2635,13 +2635,18 @@ center's range and the far arm passes behind it, gaps reveal the background
 instead of erasing it, and stars behind the ring attenuate by
 ``exp(-tau/mu)`` (a scene whose system overlaps a body must range both).
 
-**Units.** Every length and angle key in the block names its unit. A key
-ending in ``_px`` is in *ring-plane pixels*: a radial distance in the ring
-plane, measured in detector pixels. It projects to that many image pixels along
-the line of nodes and is foreshortened by ``sin(B)`` across it, so on a face-on
-ring it is a plain image distance. A key ending in ``_deg`` is in degrees, and
-the edge wave's ``damping_rad`` is in radians. Every longitude is measured in
-the ring plane from the ascending node. The validator refuses each retired
+**Units.** Each length and angle key in the block names its unit, apart from
+``geometry.center_v`` and ``center_u``, which are image-pixel positions (pixel
+corners). A key ending in ``_px`` is in *ring-plane pixels*: a distance in the
+ring plane, measured in detector pixels. It may run radially, as ``a_px`` and
+``width_px`` do, or along the orbit, as the edge wave's ``wavelength_px`` does.
+It projects to that many image pixels along the line of nodes and is
+foreshortened by ``sin(B)`` across it, so on a face-on ring it is a plain image
+distance. The one exception is a moonlet's ``radius_px``, the radius of its
+disc in image pixels: the disc is drawn on the sky, so it isn't foreshortened.
+A key ending in ``_deg`` is in degrees, and the edge wave's ``damping_rad`` is
+in radians. Every longitude is measured in the ring plane from the ascending
+node. The validator refuses each retired
 unitless name (``a``, ``ae``, ``long_peri``, ``rate_peri``, ``width``,
 ``wavelength``, ``damping``, a mode's ``amp`` and ``peri``, an edge wave's
 ``amp``, ``wavelength``, ``damp``, and ``lam0``, the modulation's ``phase_deg``,
@@ -2705,9 +2710,10 @@ pericenters, fixed in time and untouched by the mode-1 ``orbit_error`` and
 downstream of the perturbing moon's longitude ``lam0_deg``, whose sine argument
 is the arc length along the orbit over ``wavelength_px``). The edge wave's
 ``damping_rad`` and a ``wave`` feature's ``damping_px`` are both the e-folding
-length of a damped wave's envelope. The feature's runs radially, in ring-plane
-pixels outward of its launch radius. The edge wave's runs in longitude, in
-radians downstream of its launch longitude, and is at most 2.
+length of a damped wave's envelope. A ``wave`` feature's envelope decays
+radially, over ring-plane pixels outward of its launch radius. An edge wave's
+envelope decays in longitude, over radians downstream of its launch longitude,
+and its ``damping_rad`` is at most 2.
 
 **Planted orbit error.** A feature's truth-side ``orbit_error`` map
 (``delta_a_px``, ``delta_ae_px``, ``delta_long_peri_deg``) displaces the

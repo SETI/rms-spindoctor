@@ -30,12 +30,14 @@ edges land in projected positions by construction.  The conventions:
 
 Radial lengths are unit-agnostic: every function works in whatever radial
 unit its caller uses, consistently.  Scene values are ring-plane pixels (the
-``_px`` keys: a ring-plane radial distance in detector pixels, which projects
-to that many image pixels along the line of nodes and is foreshortened by
-``sin(B)`` across it); the renderer scales them by its oversampling factor
-onto the render grid (:meth:`RingOrbit.scaled`) and the navigator-side model
-uses them unscaled.  Angles are degrees, except the radian longitudes ``lam``
-and the edge wave's damping.
+``_px`` keys: a distance in the ring plane in detector pixels, radial or along
+the orbit, which projects to that many image pixels along the line of nodes
+and is foreshortened by ``sin(B)`` across it).  The one ``_px`` exception, a
+moonlet's ``radius_px``, is a radius on the sky in image pixels, and nothing
+here reads it.  The renderer scales the ring-plane values by its oversampling
+factor onto the render grid (:meth:`RingOrbit.scaled`) and the navigator-side
+model uses them unscaled.  Angles are degrees, except the radian longitudes
+``lam`` and the edge wave's damping.
 
 Every function takes explicit geometry arguments; the only scene fragment
 read here is the per-feature ``orbit`` mapping (via

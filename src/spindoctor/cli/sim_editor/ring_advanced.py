@@ -819,7 +819,10 @@ class RingAdvancedMixin(SimEditorBase):
             decimals=2,
             step=0.5,
             value=float(entry.get('radius_px', 1.5)),
-            tooltip='Disc radius in px.',
+            tooltip=(
+                'radius_px: the disc radius, in image pixels (the disc is drawn on the '
+                "sky, so it isn't foreshortened)."
+            ),
         )
         amplitude_spin = _dspin(
             minimum=0.0,

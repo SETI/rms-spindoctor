@@ -147,11 +147,15 @@ Rings in a scene
 
 A scene file's ``ring_system`` section draws a ring system: a list of features, each a
 ringlet, a gap, a one-sided edge, a ramp, or a density wave (``wave``), placed on an
-orbit. Every length and angle in the section carries its unit in its name.
+orbit. Each length and angle in the section carries its unit in its name, apart from
+the ring center ``center_v`` and ``center_u``, which are positions on the image in
+pixels.
 
 * A name ending in ``_px`` is a distance in the ring plane, measured in detector pixels.
   On a face-on ring it is the distance measured on the image. On a tilted ring it
-  shrinks across the line of nodes, as the ring does.
+  shrinks across the line of nodes, as the ring does. A moonlet's ``radius_px`` is the
+  exception: the moonlet is drawn as a disc on the image, so its radius is in image
+  pixels and doesn't shrink.
 * A name ending in ``_deg`` is in degrees. Every longitude is measured in the ring plane
   from the ascending node.
 * An edge wave's ``damping_rad`` is in radians of longitude.

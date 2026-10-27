@@ -309,13 +309,17 @@ replacement and what that key holds on the mode.
 Ring system keys
 ----------------
 
-Every length and angle key in the ring_system block names its unit.  A length
-ending in _px is in ring-plane pixels: a radial distance in the ring plane,
-measured in detector pixels.  It projects to that many image pixels along the
-line of nodes and is foreshortened by sin(B) across it, so on a face-on ring
-(opening angle 90) it is a plain image distance.  An angle ends in _deg, except
-the edge wave's damping_rad.  Every longitude is measured in the ring plane from
-the ascending node.
+Each length and angle key in the ring_system block names its unit, apart from
+geometry.center_v and center_u, which are image-pixel positions (pixel
+corners).  A length ending in _px is in ring-plane pixels: a distance in the
+ring plane, measured in detector pixels.  It may run radially (a_px, width_px)
+or along the orbit (the edge wave's wavelength_px).  It projects to that many
+image pixels along the line of nodes and is foreshortened by sin(B) across it,
+so on a face-on ring (opening angle 90) it is a plain image distance.  The one
+exception is a moonlet's radius_px, the radius of its disc in image pixels: the
+disc is drawn on the sky, so it isn't foreshortened.  An angle ends in _deg,
+except the edge wave's damping_rad.  Every longitude is measured in the ring
+plane from the ascending node.
 
   ring_system           phase_deg (the solar phase angle), range_km,
                         km_per_pixel
@@ -339,8 +343,8 @@ the ascending node.
                         lam_peak_deg (the longitude of a brightness peak)
   azimuthal.shadow      start_deg, extent_deg, darkness
   azimuthal.spokes      count, r_inner_px, r_outer_px, contrast, width_deg
-  moonlets[]            a_px, lam_deg, radius_px, amplitude, and a propeller
-                        {length_deg, width_px, contrast}
+  moonlets[]            a_px, lam_deg, radius_px (in image pixels), amplitude,
+                        and a propeller {length_deg, width_px, contrast}
 
 A mode's peri_deg is its own longitude, apart from mode 1's long_peri_deg.  It
 stays fixed in time (rate_peri_deg_per_day precesses mode 1 only),
@@ -348,9 +352,9 @@ orbit_error.delta_long_peri_deg doesn't shift it, and
 declared_orbit_sigma.sigma_long_peri_deg doesn't describe it.
 
 A wave feature's damping_px and an edge wave's damping_rad are both the e-folding
-length of a damped wave's envelope.  The wave feature's runs radially, in
-ring-plane pixels outward of its launch radius.  The edge wave's runs in
-longitude, in radians downstream of its launch longitude.
+length of a damped wave's envelope.  A wave feature's envelope decays
+radially, over ring-plane pixels outward of its launch radius.  An edge wave's
+envelope decays in longitude, over radians downstream of its launch longitude.
 
 Each kind of feature takes its own radial shape keys.  Every kind requires kind,
 tau, and an orbit with orbit.a_px.  The validator rejects a shape key on a kind
