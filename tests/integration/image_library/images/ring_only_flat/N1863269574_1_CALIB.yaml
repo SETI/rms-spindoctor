@@ -29,7 +29,8 @@ ground_truth:
     apparent curvature radius 149173 px (straight across the FOV), ring
     opening -14.59 deg, no body in FOV; CL1+CL2, texp 0.18 s, year 2017.
     Rank-1 scene: only the offset component along the edge normal is
-    operator-verified (vote y, 2026-07-13; per the batch instructions the
+    operator-verified (vote y, 2026-07-13, along the then-recorded
+    normal; per the batch instructions the
     along-edge component carries no alignment judgment). The (dv, du) pair
     is the ensemble's representative point on the constraint line.
     normal_angle_deg comes from aggregate_edge_normal_angle_deg on the
@@ -39,7 +40,7 @@ ground_truth:
     Pipeline at review and at sidecar time: status=success,
     confidence=0.952, rank=high, status_reason=rank_1_only; RingEdgeNav
     raw fit (-49.4562, 4.4777) projected to 4.4777 px along the normal
-    then recorded (90.0 deg), identical to the voted representative
+    recorded at the time (90.0 deg), identical to the voted representative
     point.
     The ring radial orbit-uncertainty channel prices each consumed edge's
     own catalog orbit-solution rms as a fully-correlated radial
@@ -48,9 +49,9 @@ ground_truth:
     km/px, giving an LM-weight-weighted effective sigma of 5.171 px along
     the edge normal (the fit is rank-1, so the term lands entirely on the
     observable normal axis); the fused sigma 5.17 px exceeds the medium
-    tier's 2 px cap.  The RingEdgeNav fit and its projection onto the
-    operator-verified normal are those recorded above; only the reported
-    uncertainty differs.
+    tier's 2 px cap.  The RingEdgeNav fit is the one
+    recorded above; its projection onto the pinned normal is given in the
+    2026-10-27 paragraph below; only the reported uncertainty differs.
     CONTESTED, not settled: catalog rms is an orbit-fit residual that mixes
     a coherent radius error with longitude-varying resonant wander, which
     does not displace an edge coherently (the A-ring outer edge measures
