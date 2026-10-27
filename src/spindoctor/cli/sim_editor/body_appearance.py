@@ -841,7 +841,7 @@ class BodyAppearanceMixin(SimEditorBase):
         octaves = QSpinBox()
         octaves.setRange(0, 6)
         octaves.setValue(int(p.get('mesh_detail_octaves', 0)))
-        octaves.setToolTip('Higher-frequency mesh detail banks; 0 leaves the key absent.')
+        octaves.setToolTip('Higher-degree relief bands; 0 leaves the key absent.')
         form.addRow('Detail octaves:', octaves)
 
         scatter = _as_map(p.get('pose_scatter'))
