@@ -28,7 +28,9 @@ exposure_sec: 1.0
 # mismatch with the predicted smooth silhouette (symmetric-difference area over
 # the predicted perimeter: 3.8 to 7.9 px over the 13 seeds, 5.5 px for seed 4).
 # That is seed 4, a typical shape rather than one picked for its navigation
-# outcome.  The 64 x 128 tessellation keeps flat-shaded facets out of the frame
+# outcome.  tests/integration/sim_mesh_seed_rule.py applies the rule, and
+# test_sim_mesh_seed_rule fails if a relief or renderer change moves the median.
+# The 64 x 128 tessellation keeps flat-shaded facets out of the frame
 # and out of the prediction alike.
 bodies:
   - name: HYPERION

@@ -1403,7 +1403,10 @@ navigates and states the rule in the scene file, its single-seed assertions are
 a tripwire on that realization, and any property claimed for irregular bodies in
 general is asserted over a population of seeds. ``planted_offset_shapemismatch``
 takes the seed with the median silhouette mismatch at its sweep's extreme step,
-and ``test_sim_sweeps`` asserts the veto's behavior over mesh seeds 0 to 12.
+and ``test_sim_sweeps`` asserts the veto's behavior over mesh seeds 0 to 12. The
+rule is ``tests/integration/sim_mesh_seed_rule.py``, which prints the ranking
+when run with ``python -m``, and ``test_sim_mesh_seed_rule`` fails when a change
+to the relief or the renderer moves the median away from the scene's seed.
 
 Faceting is a sampling effect. At the default 16 by 32 tessellation a large body
 shows rings of flat-shaded quadrilaterals around the mesh pole and a polygonal
