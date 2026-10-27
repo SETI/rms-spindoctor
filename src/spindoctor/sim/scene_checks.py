@@ -424,18 +424,80 @@ def _check_detector(value: Any, *, instrument: str, source: str) -> None:
         )
 
 
+def cosmic_ray_rate_refusal(detector: Any, *, instrument: str) -> str | None:
+    """Why the scene's detector path refuses a positive cosmic-ray rate, or None.
+
+    The cosmic-ray stage exists only in the CCD electron chain.  A scene whose
+    detector model resolves to ``vidicon`` (the ``vgiss`` default, or any
+    instrument with ``detector.detector_model: vidicon``) renders through the DN
+    chain, where a positive ``noise.cosmic_ray_events_per_pixel_per_sec`` would
+    change nothing.  The validator raises this sentence for a positive rate, and
+    the sim editor disables its cosmic-ray control with it as the tooltip.
+
+    Parameters:
+        detector: The scene's ``detector`` mapping, or None.  A null
+            ``detector_model`` reads as the instrument's default.
+        instrument: The scene's instrument name.
+
+    Returns:
+        ``instrument '<name>' renders through the vidicon detector[ via
+        detector.detector_model], whose DN chain lacks a cosmic-ray stage, so the
+        rate would be silently ignored`` on the vidicon path (the ``via`` clause
+        when the scene names the model), or None on the CCD chain.
+    """
+    scene_model = (detector or {}).get('detector_model')
+    model = scene_model or resolve_detector_defaults(instrument)['detector_model']
+    if model != 'vidicon':
+        return None
+    via = ' via detector.detector_model' if scene_model is not None else ''
+    return (
+        f'instrument {instrument!r} renders through the vidicon detector{via}, whose DN '
+        'chain lacks a cosmic-ray stage, so the rate would be silently ignored'
+    )
+
+
+def missing_data_rate_refusal(instrument_config: Any, *, instrument: str) -> str | None:
+    """Why the scene's data units refuse a positive missing-data rate, or None.
+
+    The generic per-pixel dropout ``noise.missing_data_rate`` runs on the raw-DN
+    path only.  A scene whose resolved instrument block renders ``calibrated_if``
+    (``coiss_calib_nac``, ``coiss_calib_wac``, and ``vgiss``, or any instrument
+    whose ``instrument_config`` sets that ``data_units``) renders no dropouts.
+    The validator raises this sentence for a positive rate, and the sim editor
+    disables its missing-data control with it as the tooltip.
+
+    Parameters:
+        instrument_config: The scene's ``instrument_config`` mapping, or None.
+        instrument: The scene's instrument name.
+
+    Returns:
+        ``instrument '<name>' renders <data_units>[ via
+        instrument_config.data_units], and the per-pixel dropout applies to raw-DN
+        frames only, so the rate would be silently ignored`` on a calibrated frame
+        (the ``via`` clause when the scene pins the units), or None on a raw-DN
+        frame.
+    """
+    inst_config = resolve_sim_inst_config(DEFAULT_CONFIG, instrument, instrument_config)
+    data_units = str(inst_config.get('data_units', 'raw_dn'))
+    if data_units == 'raw_dn':
+        return None
+    pinned = isinstance(instrument_config, dict) and 'data_units' in instrument_config
+    via = ' via instrument_config.data_units' if pinned else ''
+    return (
+        f'instrument {instrument!r} renders {data_units}{via}, and the per-pixel dropout '
+        'applies to raw-DN frames only, so the rate would be silently ignored'
+    )
+
+
 def _check_noise_on_detector_path(
     noise: Any, detector: Any, *, instrument: str, source: str
 ) -> None:
     """Refuse a cosmic-ray rate the scene's detector path would ignore.
 
-    The cosmic-ray stage exists only in the CCD electron chain.  A scene whose
-    detector model resolves to ``vidicon`` (the ``vgiss`` default, or any
-    instrument with ``detector.detector_model: vidicon``) renders through the DN
-    chain, where a non-zero ``noise.cosmic_ray_events_per_pixel_per_sec`` would
-    change nothing, so it fails here.  A zero rate passes.  Run after
-    :func:`_check_noise` and :func:`_check_detector` have type-checked both
-    blocks.
+    A positive ``noise.cosmic_ray_events_per_pixel_per_sec`` fails when
+    :func:`cosmic_ray_rate_refusal` gives a reason (the vidicon path).  A zero
+    rate passes.  Run after :func:`_check_noise` and :func:`_check_detector` have
+    type-checked both blocks.
 
     Parameters:
         noise: The scene's ``noise`` mapping, or None.
@@ -444,21 +506,19 @@ def _check_noise_on_detector_path(
         source: Label used in error messages.
 
     Raises:
-        SimSceneValidationError: On a positive cosmic-ray rate on the vidicon path.
+        SimSceneValidationError: On a positive cosmic-ray rate on the vidicon path;
+            the message is ``<source>: noise.cosmic_ray_events_per_pixel_per_sec
+            is <rate>, but <reason>; set it to 0 or remove it``.
     """
     rate = (noise or {}).get('cosmic_ray_events_per_pixel_per_sec')
     if rate is None or float(rate) <= 0.0:
         return
-    scene_model = (detector or {}).get('detector_model')
-    model = scene_model or resolve_detector_defaults(instrument)['detector_model']
-    if model != 'vidicon':
+    reason = cosmic_ray_rate_refusal(detector, instrument=instrument)
+    if reason is None:
         return
-    via = ' via detector.detector_model' if scene_model is not None else ''
     raise SimSceneValidationError(
-        f'{source}: noise.cosmic_ray_events_per_pixel_per_sec is {rate}, but instrument '
-        f'{instrument!r} renders through the vidicon detector{via}, whose DN chain '
-        'lacks a cosmic-ray stage, so the rate would be silently ignored; set it to 0 '
-        'or remove it'
+        f'{source}: noise.cosmic_ray_events_per_pixel_per_sec is {rate}, but {reason}; '
+        'set it to 0 or remove it'
     )
 
 
@@ -467,12 +527,9 @@ def _check_missing_data_rate_on_data_units(
 ) -> None:
     """Refuse a missing-data rate the scene's data units would ignore.
 
-    The generic per-pixel dropout ``noise.missing_data_rate`` runs on the
-    raw-DN path only.  A scene whose resolved instrument block renders
-    ``calibrated_if`` (``coiss_calib_nac``, ``coiss_calib_wac``, and ``vgiss``,
-    or any instrument whose ``instrument_config`` sets that ``data_units``)
-    renders no dropouts, so a non-zero rate fails here.  A zero rate passes.
-    Run after :func:`_check_noise` has type-checked the block.
+    A positive ``noise.missing_data_rate`` fails when
+    :func:`missing_data_rate_refusal` gives a reason (a calibrated frame).  A
+    zero rate passes.  Run after :func:`_check_noise` has type-checked the block.
 
     Parameters:
         noise: The scene's ``noise`` mapping, or None.
@@ -481,22 +538,20 @@ def _check_missing_data_rate_on_data_units(
         source: Label used in error messages.
 
     Raises:
-        SimSceneValidationError: On a positive rate on a calibrated frame.
+        SimSceneValidationError: On a positive rate on a calibrated frame; the
+            message is ``<source>: noise.missing_data_rate is <rate>, but
+            <reason>; set it to 0 or remove it, and plant loss ...``.
     """
     rate = (noise or {}).get('missing_data_rate')
     if rate is None or float(rate) <= 0.0:
         return
-    inst_config = resolve_sim_inst_config(DEFAULT_CONFIG, instrument, instrument_config)
-    data_units = str(inst_config.get('data_units', 'raw_dn'))
-    if data_units == 'raw_dn':
+    reason = missing_data_rate_refusal(instrument_config, instrument=instrument)
+    if reason is None:
         return
-    pinned = isinstance(instrument_config, dict) and 'data_units' in instrument_config
-    via = ' via instrument_config.data_units' if pinned else ''
     raise SimSceneValidationError(
-        f'{source}: noise.missing_data_rate is {rate}, but instrument {instrument!r} '
-        f'renders {data_units}{via}, and the per-pixel dropout applies to raw-DN frames '
-        'only, so the rate would be silently ignored; set it to 0 or remove it, and plant '
-        'loss on a calibrated frame with an artifact mode such as missing_lines'
+        f'{source}: noise.missing_data_rate is {rate}, but {reason}; set it to 0 or '
+        'remove it, and plant loss on a calibrated frame with an artifact mode such as '
+        'missing_lines'
     )
 
 
