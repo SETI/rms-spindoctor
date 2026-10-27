@@ -504,7 +504,9 @@ Open items
   spacecraft.
 * The simulator renders a ``vgiss`` frame's dark sky at exactly 0 I/F, the
   missing-data marker, so the navigator refuses a simulated frame that is mostly
-  sky. Modeling the real products' positive sky residual would end that; see the
-  linked issue, `#TBD <https://github.com/SETI/rms-spindoctor/issues/TBD>`__.
+  sky. Modeling the real products' positive sky residual would end that.
+
+  .. Modeling the positive sky residual is tracked as issue #792.
+
 * The Voyager 1 cameras have no twist or distortion measurement: no frame of
   the Voyager 1 cohort locked.
