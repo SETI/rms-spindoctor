@@ -60,7 +60,11 @@ def test_modulation_scales_intensity_by_the_cosine() -> None:
     """1 + amplitude * cos(m * (lam - phase)) at two probe longitudes."""
     base = _render({})
     modulated = _render(
-        {'azimuthal': {'modulation': {'amplitude': 0.25, 'm': 2, 'lam_peak_deg': 0.0}}}
+        {
+            'azimuthal': {
+                'modulation': {'amplitude': 0.25, 'm': 2, 'brightness_peak_longitude_deg': 0.0}
+            }
+        }
     )
     # m = 2, phase 0: factor 1.25 at lam = 0, 0.75 at lam = 90.
     assert modulated.intensity[_PIXEL_LAM_0] == pytest.approx(

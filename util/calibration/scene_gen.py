@@ -483,7 +483,8 @@ def _ring_feature(
       any drawn a) with a drawn pericenter; a sub-slice adds one m = 2-7
       mode at 0.5-4 px amplitude (B-ring-outer-edge-class shapes).
     - edge-wave slice: amplitude 0.5-2.5 px, arc wavelength 6-20 px,
-      damping 0.3-1.5 rad (inside the schema's 2.0 rad wrap-seam cap).
+      damping drawn uniformly in 0.3-1.5 rad and written in degrees (about
+      17.2-85.9 deg, inside the schema's 360/pi deg wrap-seam cap).
     - orbit-error slice (navigable features only): a planted render-side
       radial displacement delta_a_px of 0.5-3 px, either sign -- the
       published-ephemeris error scale for well-tracked ring features --
@@ -515,7 +516,7 @@ def _ring_feature(
         orbit['edge_wave'] = {
             'amp_px': rng.uniform(0.5, 2.5),
             'wavelength_px': rng.uniform(6.0, 20.0),
-            'damping_rad': rng.uniform(0.3, 1.5),
+            'edge_wave_damping_deg': math.degrees(rng.uniform(0.3, 1.5)),
             'lam0_deg': rng.uniform(0.0, 360.0),
         }
     feature: dict[str, Any] = {

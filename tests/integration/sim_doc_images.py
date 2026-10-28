@@ -329,7 +329,7 @@ _GUI_GALLERY: list[tuple[str, dict[str, Any], dict[str, Any]]] = [
                             'edge_wave': {
                                 'amp_px': 2.0,
                                 'wavelength_px': 10.0,
-                                'damping_rad': 0.6,
+                                'edge_wave_damping_deg': 34.37746770784939,
                                 'lam0_deg': 45.0,
                             },
                         },

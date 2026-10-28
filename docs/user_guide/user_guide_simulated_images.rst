@@ -170,9 +170,10 @@ pixels.
   shrinks across the line of nodes, as the ring does. A moonlet's ``radius_px`` is the
   exception: the moonlet is drawn as a disc on the image, so its radius is in image
   pixels and doesn't shrink.
-* A name ending in ``_deg`` is in degrees. Every longitude is measured in the ring plane
-  from the ascending node.
-* An edge wave's ``damping_rad`` is in radians of longitude.
+* Every angle is in degrees, and its name carries ``_deg``. Every longitude is measured
+  in the ring plane from the ascending node. An edge wave's damping length
+  ``edge_wave_damping_deg`` is in degrees of longitude, at most ``360 / pi``, about
+  114.59.
 
 .. code-block:: yaml
 
@@ -190,15 +191,19 @@ pixels.
          navigable: true
          orbit:
            a_px: 60.0
-           edge_wave: {amp_px: 2.0, wavelength_px: 10.0, damping_rad: 0.6, lam0_deg: 45.0}
+           edge_wave:
+             amp_px: 2.0
+             wavelength_px: 10.0
+             edge_wave_damping_deg: 34.4
+             lam0_deg: 45.0
 
 Every feature needs a ``kind``, an optical depth ``tau``, and an orbit with its radius
 ``a_px``. Each kind then takes its own shape keys. A ringlet, a gap, and a ramp need a
 radial width ``width_px``. An edge and a ramp may name the ``side`` of the orbit that
 carries the optical depth, ``in`` or ``out``. A wave needs a radial wavelength
-``wavelength_px`` and a radial damping length ``damping_px``. A shape key on a kind that
-doesn't take it is refused, because it would draw a different feature than the one
-intended.
+``wavelength_px`` and a radial damping length ``density_wave_damping_px``. A shape key on a
+kind that doesn't take it is refused, because it would draw a different feature than the
+one intended.
 
 An edge fills every radius on one side of its orbit, by default everything inward of
 ``a_px``. Two edges therefore can't bound a band. They overlap, and the band shows up only

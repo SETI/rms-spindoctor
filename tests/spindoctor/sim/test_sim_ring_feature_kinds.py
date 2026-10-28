@@ -75,7 +75,7 @@ def test_orbit_mapping_parses_modes_and_edge_wave() -> None:
             'edge_wave': {
                 'amp_px': 1.0,
                 'wavelength_px': 8.0,
-                'damping_rad': 0.5,
+                'edge_wave_damping_deg': 30.0,
                 'lam0_deg': 90.0,
             },
         }
@@ -83,7 +83,9 @@ def test_orbit_mapping_parses_modes_and_edge_wave() -> None:
     assert orbit.a == 40.0
     assert orbit.ae == 0.0
     assert orbit.modes == (RingOrbitMode(m=2, amp=1.5, peri=70.0),)
-    assert orbit.edge_wave == RingEdgeWave(amp=1.0, wavelength=8.0, damp=0.5, lam0=90.0)
+    assert orbit.edge_wave == RingEdgeWave(
+        amp=1.0, wavelength=8.0, damp=math.radians(30.0), lam0=90.0
+    )
 
 
 def test_scaled_orbit_scales_radial_quantities_only() -> None:
@@ -97,7 +99,7 @@ def test_scaled_orbit_scales_radial_quantities_only() -> None:
             'edge_wave': {
                 'amp_px': 1.0,
                 'wavelength_px': 8.0,
-                'damping_rad': 0.5,
+                'edge_wave_damping_deg': 30.0,
                 'lam0_deg': 90.0,
             },
         }
@@ -110,7 +112,7 @@ def test_scaled_orbit_scales_radial_quantities_only() -> None:
     assert orbit.edge_wave is not None
     assert orbit.edge_wave.amp == 4.0
     assert orbit.edge_wave.wavelength == 32.0
-    assert orbit.edge_wave.damp == 0.5
+    assert orbit.edge_wave.damp == math.radians(30.0)
     assert orbit.edge_wave.lam0 == 90.0
 
 
@@ -288,7 +290,7 @@ def _wave_feature(tau: float, wavelength: float, damping: float) -> dict[str, An
         'kind': 'wave',
         'tau': tau,
         'wavelength_px': wavelength,
-        'damping_px': damping,
+        'density_wave_damping_px': damping,
         'orbit': {'a_px': 12.0},
     }
 

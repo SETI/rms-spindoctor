@@ -221,15 +221,18 @@ class RingEdgeWave:
     form is chosen because rings are periodic and the wave physically wraps
     the full turn: immediately upstream of ``lam0`` it carries a wrap-seam
     residual of ``amp * exp(-2*pi/damp)`` of its launch amplitude.  The
-    scene keys are ``amp_px``, ``wavelength_px``, ``damping_rad``, and
-    ``lam0_deg``; the validator caps ``damping_rad`` at 2.0, bounding that
-    residual at ``exp(-pi)``, about 4.3% of ``amp``.
+    scene keys are ``amp_px``, ``wavelength_px``, ``edge_wave_damping_deg``,
+    and ``lam0_deg``; the scene gives the damping in degrees, the renderer
+    holds it in radians, and the validator caps ``edge_wave_damping_deg`` at
+    ``360 / pi`` (about 114.59 degrees, 2 radians), bounding that residual at
+    ``exp(-pi)``, about 4.3% of ``amp``.
 
     Parameters:
         amp: Radial amplitude in the orbit's radial units.
         wavelength: Azimuthal wavelength as an arc length, in the orbit's
             radial units (the sine argument is arc length over wavelength).
-        damp: Azimuthal damping constant in RADIANS of downstream longitude.
+        damp: Azimuthal damping constant in RADIANS of downstream longitude
+            (converted from the scene's ``edge_wave_damping_deg``).
         lam0: Launch longitude in degrees (ring-plane frame; the perturbing
             moon's longitude).
     """
@@ -342,7 +345,7 @@ def ring_orbit_from_mapping(orbit: Mapping[str, Any]) -> RingOrbit:
         else RingEdgeWave(
             amp=float(scene_value(wave_map, 'amp_px', 0.0)),
             wavelength=float(wave_map['wavelength_px']),
-            damp=float(wave_map['damping_rad']),
+            damp=math.radians(float(wave_map['edge_wave_damping_deg'])),
             lam0=float(scene_value(wave_map, 'lam0_deg', 0.0)),
         )
     )
@@ -414,8 +417,8 @@ def compute_edge_wave_dr(
     negative (evaluating the raw form for ``lam < lam0`` would grow without
     bound -- the clamp is load-bearing).  The wrapped wave carries an
     upstream residual of ``amp * exp(-2*pi/damp)`` just before ``lam0``;
-    the validator's cap of ``damping_rad <= 2.0`` bounds it at ``exp(-pi)``,
-    about 4.3% of ``amp``.  ``a`` is the feature's semimajor axis, making
+    the validator's cap of ``edge_wave_damping_deg <= 360 / pi`` (2 radians)
+    bounds it at ``exp(-pi)``, about 4.3% of ``amp``.  ``a`` is the feature's semimajor axis, making
     the sine argument arc length over wavelength (dimensionless).
 
     Parameters:

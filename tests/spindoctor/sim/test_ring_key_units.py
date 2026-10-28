@@ -2,7 +2,7 @@
 
 Each ring-plane length and each angle in the ``ring_system`` block carries its
 unit in its name (``a_px``, ``long_peri_deg``, ``rate_peri_deg_per_day``,
-``damping_rad``, and so on), and the schema's ``RING_KEY_DESCRIPTIONS`` says
+``edge_wave_damping_deg``, and so on), and the schema's ``RING_KEY_DESCRIPTIONS`` says
 what each of the keys the sim editor describes holds.
 
 Which radial shape keys a feature kind takes is one table, written out here: the
@@ -43,15 +43,15 @@ _SCENE_README = _REPO / 'tests' / 'integration' / 'sim_scenes' / 'README.txt'
 # Each block's length and angle keys, each named with its unit, written out so
 # the validator's inventories are checked against the intended names.
 _UNIT_KEYS: dict[str, frozenset[str]] = {
-    'ring_system.features': frozenset({'width_px', 'wavelength_px', 'damping_px'}),
+    'ring_system.features': frozenset({'width_px', 'wavelength_px', 'density_wave_damping_px'}),
     'ring_system.features.orbit': frozenset(
         {'a_px', 'ae_px', 'long_peri_deg', 'rate_peri_deg_per_day'}
     ),
     'ring_system.features.orbit.modes': frozenset({'amp_px', 'peri_deg'}),
     'ring_system.features.orbit.edge_wave': frozenset(
-        {'amp_px', 'wavelength_px', 'damping_rad', 'lam0_deg'}
+        {'amp_px', 'wavelength_px', 'edge_wave_damping_deg', 'lam0_deg'}
     ),
-    'ring_system.azimuthal.modulation': frozenset({'lam_peak_deg'}),
+    'ring_system.azimuthal.modulation': frozenset({'brightness_peak_longitude_deg'}),
     'ring_system.azimuthal.spokes': frozenset({'r_inner_px', 'r_outer_px', 'width_deg'}),
     'ring_system.moonlets': frozenset({'a_px', 'lam_deg', 'radius_px'}),
 }
@@ -85,31 +85,31 @@ _EXPECTED_KIND_TABLE: dict[str, dict[str, str]] = {
         'width_px': 'required',
         'side': 'rejected',
         'wavelength_px': 'rejected',
-        'damping_px': 'rejected',
+        'density_wave_damping_px': 'rejected',
     },
     'gap': {
         'width_px': 'required',
         'side': 'rejected',
         'wavelength_px': 'rejected',
-        'damping_px': 'rejected',
+        'density_wave_damping_px': 'rejected',
     },
     'edge': {
         'width_px': 'rejected',
         'side': 'optional',
         'wavelength_px': 'rejected',
-        'damping_px': 'rejected',
+        'density_wave_damping_px': 'rejected',
     },
     'ramp': {
         'width_px': 'required',
         'side': 'optional',
         'wavelength_px': 'rejected',
-        'damping_px': 'rejected',
+        'density_wave_damping_px': 'rejected',
     },
     'wave': {
         'width_px': 'rejected',
         'side': 'rejected',
         'wavelength_px': 'required',
-        'damping_px': 'required',
+        'density_wave_damping_px': 'required',
     },
 }
 _EXPECTED_SIDE_DEFAULTS: dict[str, str] = {'edge': 'in', 'ramp': 'out'}
@@ -117,7 +117,7 @@ _EXPECTED_SIDE_DEFAULTS: dict[str, str] = {'edge': 'in', 'ramp': 'out'}
 
 def _feature(kind: str) -> dict[str, Any]:
     """A feature of ``kind`` carrying exactly the shape keys the kind requires."""
-    values = {'width_px': 8.0, 'wavelength_px': 6.0, 'damping_px': 12.0}
+    values = {'width_px': 8.0, 'wavelength_px': 6.0, 'density_wave_damping_px': 12.0}
     feature: dict[str, Any] = {
         'name': 'F1',
         'kind': kind,
@@ -150,7 +150,12 @@ def _full_scene() -> dict[str, Any]:
         'long_peri_deg': 10.0,
         'rate_peri_deg_per_day': 0.5,
         'modes': [{'m': 2, 'amp_px': 1.5, 'peri_deg': 30.0}],
-        'edge_wave': {'amp_px': 1.0, 'wavelength_px': 8.0, 'damping_rad': 0.5, 'lam0_deg': 90.0},
+        'edge_wave': {
+            'amp_px': 1.0,
+            'wavelength_px': 8.0,
+            'edge_wave_damping_deg': 30.0,
+            'lam0_deg': 90.0,
+        },
     }
     return _scene(
         {
@@ -158,7 +163,7 @@ def _full_scene() -> dict[str, Any]:
             'phase_deg': 20.0,
             'features': [feature],
             'azimuthal': {
-                'modulation': {'amplitude': 0.2, 'm': 2, 'lam_peak_deg': 30.0},
+                'modulation': {'amplitude': 0.2, 'm': 2, 'brightness_peak_longitude_deg': 30.0},
                 'spokes': {
                     'count': 3,
                     'r_inner_px': 30.0,
@@ -210,9 +215,9 @@ def test_each_length_and_angle_key_names_its_unit(block: str) -> None:
 
 def test_ring_key_description_reads_the_description_table() -> None:
     """A key's description is the one the table records for it."""
-    assert ring_key_description('ring_system.features.orbit.edge_wave', 'damping_rad') == (
-        'the azimuthal e-folding length, in radians of downstream longitude'
-    )
+    assert ring_key_description(
+        'ring_system.features.orbit.edge_wave', 'edge_wave_damping_deg'
+    ) == ('the azimuthal e-folding length, in degrees of downstream longitude')
 
 
 def test_ring_key_description_refuses_an_undescribed_key() -> None:

@@ -1,5 +1,6 @@
 """Flat-schema validation, boundary classification, and save/load round-trip."""
 
+import math
 from pathlib import Path
 from typing import Any
 
@@ -797,7 +798,7 @@ def _wave_feature() -> dict[str, Any]:
         'kind': 'wave',
         'tau': 0.4,
         'wavelength_px': 6.0,
-        'damping_px': 12.0,
+        'density_wave_damping_px': 12.0,
         'orbit': {'a_px': 40.0},
     }
 
@@ -844,7 +845,7 @@ def test_validate_sim_params_rejects_bad_side_vocabulary() -> None:
         validate_sim_params(params)
 
 
-@pytest.mark.parametrize('key', ['wavelength_px', 'damping_px'])
+@pytest.mark.parametrize('key', ['wavelength_px', 'density_wave_damping_px'])
 def test_validate_sim_params_requires_wave_train_keys(key: str) -> None:
     """A wave feature needs both its radial train parameters."""
     params = _ring_system_params()
@@ -855,7 +856,7 @@ def test_validate_sim_params_requires_wave_train_keys(key: str) -> None:
         validate_sim_params(params)
 
 
-@pytest.mark.parametrize('key', ['wavelength_px', 'damping_px'])
+@pytest.mark.parametrize('key', ['wavelength_px', 'density_wave_damping_px'])
 def test_validate_sim_params_rejects_wave_keys_on_other_kinds(key: str) -> None:
     """The wave-train keys are rejected on kinds that ignore them."""
     params = _ring_system_params()
@@ -873,7 +874,12 @@ def test_validate_sim_params_accepts_orbit_modes_and_edge_wave() -> None:
         'long_peri_deg': 10.0,
         'rate_peri_deg_per_day': 0.5,
         'modes': [{'m': 2, 'amp_px': 1.5, 'peri_deg': 30.0}],
-        'edge_wave': {'amp_px': 1.0, 'wavelength_px': 8.0, 'damping_rad': 0.5, 'lam0_deg': 90.0},
+        'edge_wave': {
+            'amp_px': 1.0,
+            'wavelength_px': 8.0,
+            'edge_wave_damping_deg': 30.0,
+            'lam0_deg': 90.0,
+        },
     }
     assert validate_sim_params(params) is params
 
@@ -898,11 +904,16 @@ def test_validate_sim_params_rejects_unknown_mode_key() -> None:
         validate_sim_params(params)
 
 
-@pytest.mark.parametrize('key', ['wavelength_px', 'damping_rad'])
+@pytest.mark.parametrize('key', ['wavelength_px', 'edge_wave_damping_deg'])
 def test_validate_sim_params_requires_edge_wave_scales(key: str) -> None:
     """An edge wave needs its wavelength and damping constants."""
     params = _ring_system_params()
-    wave = {'amp_px': 1.0, 'wavelength_px': 8.0, 'damping_rad': 0.5, 'lam0_deg': 90.0}
+    wave = {
+        'amp_px': 1.0,
+        'wavelength_px': 8.0,
+        'edge_wave_damping_deg': 30.0,
+        'lam0_deg': 90.0,
+    }
     del wave[key]
     params['ring_system']['features'][0]['orbit']['edge_wave'] = wave
     with pytest.raises(SimSceneValidationError, match=f'edge_wave.{key} is required'):
@@ -910,27 +921,30 @@ def test_validate_sim_params_requires_edge_wave_scales(key: str) -> None:
 
 
 def test_validate_sim_params_accepts_edge_wave_damp_at_the_cap() -> None:
-    """An edge-wave damping_rad of exactly 2.0 (the cap) validates."""
+    """An edge-wave damping of exactly 360/pi degrees (2 radians, the cap) validates."""
     params = _ring_system_params()
     params['ring_system']['features'][0]['orbit']['edge_wave'] = {
         'amp_px': 1.0,
         'wavelength_px': 8.0,
-        'damping_rad': 2.0,
+        'edge_wave_damping_deg': 360.0 / math.pi,
         'lam0_deg': 90.0,
     }
     assert validate_sim_params(params) is params
 
 
 def test_validate_sim_params_rejects_edge_wave_damp_above_the_cap() -> None:
-    """damping_rad > 2.0 fails: the modular wrap seam would exceed exp(-pi)."""
+    """A damping just above 360/pi degrees fails: the wrap seam would exceed exp(-pi)."""
     params = _ring_system_params()
     params['ring_system']['features'][0]['orbit']['edge_wave'] = {
         'amp_px': 1.0,
         'wavelength_px': 8.0,
-        'damping_rad': 2.5,
+        'edge_wave_damping_deg': math.nextafter(360.0 / math.pi, math.inf),
         'lam0_deg': 90.0,
     }
-    with pytest.raises(SimSceneValidationError, match=r'damping_rad must be <= 2\.0 radians'):
+    with pytest.raises(
+        SimSceneValidationError,
+        match=r'edge_wave_damping_deg must be <= 360/pi, about 114\.59 degrees',
+    ):
         validate_sim_params(params)
 
 
@@ -940,7 +954,7 @@ def test_validate_sim_params_rejects_unknown_edge_wave_key() -> None:
     params['ring_system']['features'][0]['orbit']['edge_wave'] = {
         'amp_px': 1.0,
         'wavelength_px': 8.0,
-        'damping_rad': 0.5,
+        'edge_wave_damping_deg': 30.0,
         'lam0_deg': 90.0,
         'phase': 1.0,
     }

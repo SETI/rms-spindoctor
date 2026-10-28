@@ -1873,9 +1873,10 @@ otherwise. The base is the mode-1 precessing ellipse (``a_px``, ``ae_px``,
   downstream longitude grows without bound if evaluated upstream of the
   moon, so the longitude difference is wrapped into one forward turn.
   Immediately upstream of the moon the wave has then wrapped nearly a full
-  orbit and carries a factor ``exp(-2 pi / damping_rad)`` of its launch
-  amplitude -- the validator caps ``damping_rad`` at 2, bounding that wrap-seam
-  residual at ``exp(-pi)``, about 4.3% of the launch amplitude -- which is
+  orbit and carries a factor ``exp(-360 / edge_wave_damping_deg)`` of its
+  launch amplitude -- the validator caps ``edge_wave_damping_deg`` at
+  ``360 / pi``, about 114.59 degrees, bounding that wrap-seam residual at
+  ``exp(-pi)``, about 4.3% of the launch amplitude -- which is
   the periodic statement of "the wave trails the moon, it does not lead
   it".
 
@@ -2647,9 +2648,9 @@ It projects to that many image pixels along the line of nodes and is
 foreshortened by ``sin(B)`` across it, so on a face-on ring it is a plain image
 distance. The one exception is a moonlet's ``radius_px``, the radius of its
 disc in image pixels: the disc is drawn on the sky, so it isn't foreshortened.
-A key ending in ``_deg`` is in degrees, and the edge wave's ``damping_rad`` is
-in radians. Every longitude is measured in the ring plane from the ascending
-node. ``RING_KEY_DESCRIPTIONS`` in :mod:`spindoctor.sim.scene_schema` says
+Every angle is in degrees and carries ``_deg`` in its name, and the renderer
+converts to radians internally. Every longitude is measured in the ring plane
+from the ascending node. ``RING_KEY_DESCRIPTIONS`` in :mod:`spindoctor.sim.scene_schema` says
 what each length and angle key the sim editor's tooltips describe holds, and
 the tooltips read their descriptions from it. Every mapping in the block,
 down to each orbit, m-mode, edge wave, modulation, spokes, and moonlet entry,
@@ -2674,8 +2675,8 @@ and ``navigable`` (default false). The kinds and their shape keys:
   ``width_px``.
 - ``wave`` — a damped radial sinusoid launched at the orbit radius, with
   radial wavelength ``wavelength_px`` and radial e-folding length
-  ``damping_px``: a density-wave train, typically non-navigable clutter riding
-  on a sheet.
+  ``density_wave_damping_px``: a density-wave train, typically non-navigable
+  clutter riding on a sheet.
 
 Every kind requires ``kind``, ``tau``, and an ``orbit`` with ``orbit.a_px``.
 The shape keys follow one table, ``RING_KIND_SHAPE_KEYS`` in
@@ -2686,15 +2687,15 @@ the renderer will use: the stored value, or for an absent ``side`` the kind's
 default from ``RING_SIDE_DEFAULTS``, which the editor shows without writing it.
 A rejected key fails validation.
 
-===================  ========  ========  ========  ========  ========
-key                  ringlet   gap       edge      ramp      wave
-===================  ========  ========  ========  ========  ========
-``width_px``         required  required  rejected  required  rejected
-``side``             rejected  rejected  optional  optional  rejected
-``wavelength_px``    rejected  rejected  rejected  rejected  required
-``damping_px``       rejected  rejected  rejected  rejected  required
-default side         n/a       n/a       in        out       n/a
-===================  ========  ========  ========  ========  ========
+===========================  ========  ========  ========  ========  ========
+key                          ringlet   gap       edge      ramp      wave
+===========================  ========  ========  ========  ========  ========
+``width_px``                 required  required  rejected  required  rejected
+``side``                     rejected  rejected  optional  optional  rejected
+``wavelength_px``            rejected  rejected  rejected  rejected  required
+``density_wave_damping_px``  rejected  rejected  rejected  rejected  required
+default side                 n/a       n/a       in        out       n/a
+===========================  ========  ========  ========  ========  ========
 
 An ``edge`` is a semi-infinite sheet: features compose as a union of radial
 half-planes over one shared optical-depth map, so ``side: 'in'`` fills every
@@ -2711,14 +2712,15 @@ shape, where ``m`` is an integer of at least 2 because mode 1 is the base
 ellipse and ``peri_deg`` is the longitude of one of the mode's ``m``
 pericenters, fixed in time and untouched by the mode-1 ``orbit_error`` and
 ``declared_orbit_sigma`` keys), and an optional satellite ``edge_wave``
-(``{amp_px, wavelength_px, damping_rad, lam0_deg}``: a damped sinusoid
-downstream of the perturbing moon's longitude ``lam0_deg``, whose sine argument
-is the arc length along the orbit over ``wavelength_px``). The edge wave's
-``damping_rad`` and a ``wave`` feature's ``damping_px`` are both the e-folding
-length of a damped wave's envelope. A ``wave`` feature's envelope decays
-radially, over ring-plane pixels outward of its launch radius. An edge wave's
-envelope decays in longitude, over radians downstream of its launch longitude,
-and its ``damping_rad`` is at most 2.
+(``{amp_px, wavelength_px, edge_wave_damping_deg, lam0_deg}``: a damped
+sinusoid downstream of the perturbing moon's longitude ``lam0_deg``, whose sine
+argument is the arc length along the orbit over ``wavelength_px``). The edge
+wave's ``edge_wave_damping_deg`` and a ``wave`` feature's
+``density_wave_damping_px`` are both the e-folding length of a damped wave's
+envelope. A ``wave`` feature's envelope decays radially, over ring-plane pixels
+outward of its launch radius. An edge wave's envelope decays in longitude, over
+degrees downstream of its launch longitude, and its ``edge_wave_damping_deg``
+is at most ``360 / pi``, about 114.59 degrees (2 radians).
 
 **Planted orbit error.** A feature's truth-side ``orbit_error`` map
 (``delta_a_px``, ``delta_ae_px``, ``delta_long_peri_deg``) displaces the
@@ -2734,9 +2736,10 @@ forward-scatters) are photometric truth.
 
 **Azimuthal clutter and moonlets (truth).** The ``azimuthal`` block scales
 the emitted intensity only, never tau: ``modulation``
-(``{amplitude, m, lam_peak_deg}``, the self-gravity-wake asymmetry
-``1 + amplitude*cos(m*(lam - lam_peak_deg))``, where ``m`` is an integer of at
-least 1, default 1, and ``lam_peak_deg`` the longitude of a brightness peak),
+(``{amplitude, m, brightness_peak_longitude_deg}``, the self-gravity-wake
+asymmetry ``1 + amplitude*cos(m*(lam - brightness_peak_longitude_deg))``, where
+``m`` is an integer of at least 1, default 1, and
+``brightness_peak_longitude_deg`` the longitude of a brightness peak),
 ``shadow`` (``{start_deg, extent_deg, darkness}``, a planet-shadow wedge -- a
 strong non-navigable edge crossing every feature), and ``spokes``
 (``{count, r_inner_px, r_outer_px, contrast, width_deg}``, a seeded field of

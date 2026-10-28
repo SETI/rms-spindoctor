@@ -118,7 +118,7 @@ _TRUTH_SAMPLES: dict[str, Any] = {
         'delta_long_peri_deg': 10.0,
     },
     'ring_system.azimuthal': {
-        'modulation': {'amplitude': 0.2, 'm': 2, 'lam_peak_deg': 30.0},
+        'modulation': {'amplitude': 0.2, 'm': 2, 'brightness_peak_longitude_deg': 30.0},
         'shadow': {'start_deg': 100.0, 'extent_deg': 40.0, 'darkness': 0.9},
         'spokes': {
             'count': 3,

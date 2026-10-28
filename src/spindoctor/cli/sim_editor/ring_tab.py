@@ -50,12 +50,12 @@ _RING_KINDS = tuple(RING_KIND_SHAPE_KEYS)
 _SHAPE_KEY_DEFAULTS: dict[str, float] = {
     'width_px': 20.0,
     'wavelength_px': 8.0,
-    'damping_px': 16.0,
+    'density_wave_damping_px': 16.0,
 }
 # What each shape key holds, for its tooltip.
 _SHAPE_KEY_DESCRIPTIONS: dict[str, str] = {
     key: ring_key_description('ring_system.features', key)
-    for key in ('width_px', 'wavelength_px', 'damping_px')
+    for key in ('width_px', 'wavelength_px', 'density_wave_damping_px')
 } | {
     'side': (
         "which side of the orbit carries tau: 'in' fills inward of it, 'out' "
@@ -185,9 +185,15 @@ class RingTabMixin(SimEditorBase):
         damping_spin.setDecimals(1)
         damping_spin.setSuffix(' px')
         damping_spin.setValue(
-            float(scene_value(p, 'damping_px', _SHAPE_KEY_DEFAULTS['damping_px']))
+            float(
+                scene_value(
+                    p, 'density_wave_damping_px', _SHAPE_KEY_DEFAULTS['density_wave_damping_px']
+                )
+            )
         )
-        damping_spin.valueChanged.connect(lambda v, i=idx: self._on_ring_shape(i, 'damping_px', v))
+        damping_spin.valueChanged.connect(
+            lambda v, i=idx: self._on_ring_shape(i, 'density_wave_damping_px', v)
+        )
         fl.addRow('Wave damping (px):', damping_spin)
 
         w.width_spin = width_spin  # type: ignore[attr-defined]
@@ -406,7 +412,7 @@ class RingTabMixin(SimEditorBase):
         spins: dict[str, QDoubleSpinBox] = {
             'width_px': w.width_spin,  # type: ignore[attr-defined]
             'wavelength_px': w.wavelength_spin,  # type: ignore[attr-defined]
-            'damping_px': w.damping_spin,  # type: ignore[attr-defined]
+            'density_wave_damping_px': w.damping_spin,  # type: ignore[attr-defined]
         }
         for key, spin in spins.items():
             if key in feature:
@@ -425,7 +431,7 @@ class RingTabMixin(SimEditorBase):
             'width_px': w.width_spin,  # type: ignore[attr-defined]
             'side': w.side_combo,  # type: ignore[attr-defined]
             'wavelength_px': w.wavelength_spin,  # type: ignore[attr-defined]
-            'damping_px': w.damping_spin,  # type: ignore[attr-defined]
+            'density_wave_damping_px': w.damping_spin,  # type: ignore[attr-defined]
         }
         for key in RING_SHAPE_KEYS:
             widgets[key].setEnabled(_kind_takes(kind, key))

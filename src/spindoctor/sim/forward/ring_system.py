@@ -27,7 +27,7 @@ radial units: the scene's ring-plane pixels times the oversampling factor):
   ``side: 'in'`` mirrors it.  Zero outside the band; the sharp end is
   anti-aliased.
 - ``wave``: a damped radial sinusoid launched at ``r_e``:
-  ``dtau(x) = tau * exp(-x / damping_px) * sin(2*pi*x / wavelength_px)`` for
+  ``dtau(x) = tau * exp(-x / density_wave_damping_px) * sin(2*pi*x / wavelength_px)`` for
   ``x = r - r_e >= 0`` and exactly zero upstream (the clamp mirrors the
   azimuthal edge wave's: the envelope grows without bound for ``x < 0``).
   A density-wave train is visual clutter riding on a sheet; its negative
@@ -444,7 +444,7 @@ def _azimuthal_intensity_factor(
 ) -> NDArrayFloatType:
     """The truth-side azimuthal brightness factor (intensity only, never tau).
 
-    - ``modulation``: ``1 + amplitude * cos(m * (lam - lam_peak_deg))`` --
+    - ``modulation``: ``1 + amplitude * cos(m * (lam - brightness_peak_longitude_deg))`` --
       the self-gravity-wake quadrant asymmetry.
     - ``shadow``: a multiplicative ``1 - darkness`` wedge over
       ``[start_deg, start_deg + extent_deg)`` -- the planet-shadow boundary,
@@ -474,7 +474,7 @@ def _azimuthal_intensity_factor(
     if modulation:
         amplitude = float(scene_value(modulation, 'amplitude', 0.0))
         m = int(scene_value(modulation, 'm', 1))
-        phase = math.radians(float(scene_value(modulation, 'lam_peak_deg', 0.0)))
+        phase = math.radians(float(scene_value(modulation, 'brightness_peak_longitude_deg', 0.0)))
         factor = factor * (1.0 + amplitude * np.cos(m * (lam - phase)))
     shadow = azimuthal.get('shadow')
     if shadow:
@@ -699,7 +699,11 @@ def _feature_radial_bounds(
         else:
             hi = math.inf
     elif kind == 'wave':
-        hi += float(scene_value(feature, 'damping_px', 0.0)) * os * _WAVE_UNDERFLOW_DAMPINGS
+        hi += (
+            float(scene_value(feature, 'density_wave_damping_px', 0.0))
+            * os
+            * _WAVE_UNDERFLOW_DAMPINGS
+        )
     return max(lo - margin, 0.0), hi + margin
 
 
@@ -816,7 +820,7 @@ def _feature_tau_profile(
         return cast(NDArrayFloatType, tau * frac * sharp)
     if kind == 'wave':
         wavelength = float(scene_value(feature, 'wavelength_px', 0.0)) * os
-        damping = float(scene_value(feature, 'damping_px', 0.0)) * os
+        damping = float(scene_value(feature, 'density_wave_damping_px', 0.0)) * os
         # Clamp to the downstream (outward) side: clipping x at zero makes
         # the upstream profile exactly zero (sin(0) = 0) and keeps the
         # envelope from growing without bound inward of the launch radius.

@@ -218,7 +218,7 @@ def _ring_psf_detector_scene(size: int) -> dict[str, Any]:
             feature['side'] = 'in'
         if kind == 'wave':
             feature['wavelength_px'] = 12.0 * scale
-            feature['damping_px'] = 30.0 * scale
+            feature['density_wave_damping_px'] = 30.0 * scale
         features.append(feature)
     scene['ring_system'] = {
         'geometry': {

@@ -37,7 +37,7 @@ def _scene(name: str) -> dict[str, Any]:
         ring_system['azimuthal']['modulation'] = {
             'amplitude': 0.2,
             'm': 2,
-            'lam_peak_deg': 10.0,
+            'brightness_peak_longitude_deg': 10.0,
         }
         ring_system['azimuthal']['shadow'] = {
             'start_deg': 10.0,
@@ -90,7 +90,7 @@ _CASES: list[tuple[str, _Path, str]] = [
     ('orbit_error_ringlet', ('features', 0, 'orbit_error'), 'delta_ae_px'),
     ('orbit_error_ringlet', ('features', 0, 'orbit_error'), 'delta_long_peri_deg'),
     ('spoked_sheet', ('azimuthal', 'modulation'), 'm'),
-    ('spoked_sheet', ('azimuthal', 'modulation'), 'lam_peak_deg'),
+    ('spoked_sheet', ('azimuthal', 'modulation'), 'brightness_peak_longitude_deg'),
     ('spoked_sheet', ('azimuthal', 'shadow'), 'start_deg'),
 ]
 
@@ -126,12 +126,17 @@ def test_the_orbit_parser_reads_every_null_as_its_default() -> None:
         'long_peri_deg': None,
         'rate_peri_deg_per_day': None,
         'modes': [{'m': 2, 'amp_px': None, 'peri_deg': None}],
-        'edge_wave': {'amp_px': None, 'wavelength_px': 10.0, 'damping_rad': 0.6, 'lam0_deg': None},
+        'edge_wave': {
+            'amp_px': None,
+            'wavelength_px': 10.0,
+            'edge_wave_damping_deg': 34.0,
+            'lam0_deg': None,
+        },
     }
     bare = {
         'a_px': 60.0,
         'modes': [{'m': 2}],
-        'edge_wave': {'wavelength_px': 10.0, 'damping_rad': 0.6},
+        'edge_wave': {'wavelength_px': 10.0, 'edge_wave_damping_deg': 34.0},
     }
     assert ring_orbit_from_mapping(nulls) == ring_orbit_from_mapping(bare)
 

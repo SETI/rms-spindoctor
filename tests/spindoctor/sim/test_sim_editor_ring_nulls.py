@@ -59,7 +59,7 @@ def _null_scene() -> dict[str, Any]:
     for key in ('amp_px', 'peri_deg'):
         feature['orbit']['modes'][0][key] = None
     ring_system['azimuthal'] = {
-        'modulation': {'amplitude': 0.2, 'm': None, 'lam_peak_deg': None},
+        'modulation': {'amplitude': 0.2, 'm': None, 'brightness_peak_longitude_deg': None},
         'shadow': {'start_deg': None, 'extent_deg': 30.0, 'darkness': 0.5},
     }
     return validate_sim_params(scene, source='case')

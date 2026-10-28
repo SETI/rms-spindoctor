@@ -231,7 +231,7 @@ _FULL_SCENE: dict[str, Any] = {
                     'edge_wave': {
                         'amp_px': 1.0,
                         'wavelength_px': 8.0,
-                        'damping_rad': 0.5,
+                        'edge_wave_damping_deg': 30.0,
                         'lam0_deg': 90.0,
                     },
                 },
@@ -245,12 +245,12 @@ _FULL_SCENE: dict[str, Any] = {
                 'kind': 'wave',
                 'tau': 0.4,
                 'wavelength_px': 6.0,
-                'damping_px': 12.0,
+                'density_wave_damping_px': 12.0,
                 'orbit': {'a_px': 130.0},
             },
         ],
         'azimuthal': {
-            'modulation': {'amplitude': 0.2, 'm': 2, 'lam_peak_deg': 30.0},
+            'modulation': {'amplitude': 0.2, 'm': 2, 'brightness_peak_longitude_deg': 30.0},
             'shadow': {'start_deg': 100.0, 'extent_deg': 40.0, 'darkness': 0.9},
             'spokes': {
                 'count': 3,
@@ -817,7 +817,7 @@ def test_load_full_scene_syncs_ring_advanced_groups(
     assert len(tab.mode_rows) == 1
     assert tab.mode_rows[0].m_spin.value() == 2
     assert tab.edge_wave_group.isChecked() is True
-    assert tab.edge_wave_damp_spin.value() == 0.5
+    assert tab.edge_wave_damp_spin.value() == 30.0
     assert tab.orbit_error_group.isChecked() is True
     assert tab.orbit_error_a_spin.value() == 1.0
     assert tab.orbit_sigma_group.isChecked() is True

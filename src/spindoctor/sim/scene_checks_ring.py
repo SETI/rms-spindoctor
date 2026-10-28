@@ -16,6 +16,7 @@ once per scene.
 
 from __future__ import annotations
 
+import math
 from typing import Any
 
 from spindoctor.sim.scene_checks import (
@@ -51,14 +52,14 @@ _RING_FEATURE_ORBIT_KEYS: frozenset[str] = frozenset(
 )
 _RING_ORBIT_MODE_KEYS: frozenset[str] = frozenset({'m', 'amp_px', 'peri_deg'})
 _RING_EDGE_WAVE_KEYS: frozenset[str] = frozenset(
-    {'amp_px', 'wavelength_px', 'damping_rad', 'lam0_deg'}
+    {'amp_px', 'wavelength_px', 'edge_wave_damping_deg', 'lam0_deg'}
 )
 # The edge-wave longitude difference is taken modulo 2*pi, so just upstream
 # of the launch longitude the wave carries a wrap-seam residual of
-# amp_px * exp(-2*pi/damping_rad).  Capping damping_rad at 2.0 bounds that
-# residual at exp(-pi), about 4.3% of amp_px, keeping the seam visually
-# negligible.
-_RING_EDGE_WAVE_DAMPING_MAX_RAD: float = 2.0
+# amp_px * exp(-2*pi/damping) with the damping in radians.  Capping the
+# damping at 2 radians, 360/pi degrees (about 114.59), bounds that residual at
+# exp(-pi), about 4.3% of amp_px, keeping the seam visually negligible.
+_RING_EDGE_WAVE_DAMPING_MAX_DEG: float = 360.0 / math.pi
 # The planted per-feature ephemeris error (truth: render side only) and the
 # uncertainty the navigator is entitled to know (idealized error bars).
 _RING_ORBIT_ERROR_KEYS: frozenset[str] = frozenset(
@@ -71,7 +72,9 @@ _RING_FEATURE_SIDES: frozenset[str] = frozenset({'in', 'out'})
 # Truth-side azimuthal structure (intensity only, never tau) and embedded
 # moonlets (opaque discs at ring depth, with optional propeller lobes).
 _RING_AZIMUTHAL_KEYS: frozenset[str] = frozenset({'modulation', 'spokes', 'shadow'})
-_RING_MODULATION_KEYS: frozenset[str] = frozenset({'amplitude', 'm', 'lam_peak_deg'})
+_RING_MODULATION_KEYS: frozenset[str] = frozenset(
+    {'amplitude', 'm', 'brightness_peak_longitude_deg'}
+)
 _RING_SHADOW_KEYS: frozenset[str] = frozenset({'start_deg', 'extent_deg', 'darkness'})
 _RING_SPOKES_KEYS: frozenset[str] = frozenset(
     {'count', 'r_inner_px', 'r_outer_px', 'contrast', 'width_deg'}
@@ -153,7 +156,7 @@ def _check_ring_azimuthal(value: Any, *, source: str) -> None:
 
     ``modulation`` is a low-frequency brightness modulation
     (self-gravity-wake asymmetry) with an azimuthal wavenumber ``m`` of at
-    least 1 (default 1) and a brightness peak at ``lam_peak_deg``, ``shadow``
+    least 1 (default 1) and a brightness peak at ``brightness_peak_longitude_deg``, ``shadow``
     a planet-shadow darkening wedge, and ``spokes`` a seeded field of
     azimuthally sharp, radially broad albedo wedges between ``r_inner_px``
     and ``r_outer_px``.  All three modulate the emitted intensity only --
@@ -196,7 +199,9 @@ def _check_ring_azimuthal(value: Any, *, source: str) -> None:
                 f'{source}: {label}.m must be an integer >= 1 when present; got {m!r}'
             )
         _check_optional_number(
-            modulation.get('lam_peak_deg'), f'{label}.lam_peak_deg', source=source
+            modulation.get('brightness_peak_longitude_deg'),
+            f'{label}.brightness_peak_longitude_deg',
+            source=source,
         )
     shadow = value.get('shadow')
     if shadow is not None:
@@ -338,7 +343,7 @@ def _check_ring_feature(obj: dict[str, Any], *, index: int, source: str) -> None
     :data:`~spindoctor.sim.scene_schema.RING_KIND_SHAPE_KEYS`: ``width_px`` is
     required by the banded kinds (ringlet / gap / ramp) and rejected elsewhere,
     ``side`` is optional on the one-sided kinds (edge / ramp) and rejected
-    elsewhere, and ``wavelength_px`` / ``damping_px`` are the ``wave`` kind's
+    elsewhere, and ``wavelength_px`` / ``density_wave_damping_px`` are the ``wave`` kind's
     required radial train parameters, rejected elsewhere.  A stray shape key
     on a kind that ignores it fails loudly rather than silently authoring a
     different feature.
@@ -484,7 +489,7 @@ def _check_ring_feature_orbit(orbit: Any, *, label: str, source: str) -> None:
     longitude in degrees measured from the ascending node, and
     ``rate_peri_deg_per_day`` mode 1's precession rate (a mode's ``peri_deg``
     stays fixed).  The edge wave's
-    ``damping_rad`` is in radians of downstream longitude.  ``a_px``,
+    ``edge_wave_damping_deg`` is in degrees of downstream longitude.  ``a_px``,
     ``ae_px``, and the ``amp_px`` amplitudes are radial distances, and the edge
     wave's ``wavelength_px`` an arc length, all in ring-plane pixels.  An
     m-mode's ``m`` is an integer of at least 2 (mode 1 is the base ellipse).
@@ -546,16 +551,17 @@ def _check_ring_feature_orbit(orbit: Any, *, label: str, source: str) -> None:
         _check_optional_nonnegative_number(
             wave.get('amp_px'), f'{wave_label}.amp_px', source=source
         )
-        for key in ('wavelength_px', 'damping_rad'):
+        for key in ('wavelength_px', 'edge_wave_damping_deg'):
             value = wave.get(key)
             if value is None:
                 raise SimSceneValidationError(f'{source}: {wave_label}.{key} is required')
             _check_optional_positive_number(value, f'{wave_label}.{key}', source=source)
-        if float(wave['damping_rad']) > _RING_EDGE_WAVE_DAMPING_MAX_RAD:
+        if float(wave['edge_wave_damping_deg']) > _RING_EDGE_WAVE_DAMPING_MAX_DEG:
             raise SimSceneValidationError(
-                f'{source}: {wave_label}.damping_rad must be <= '
-                f'{_RING_EDGE_WAVE_DAMPING_MAX_RAD} radians (the modular longitude wrap '
-                f'leaves an upstream residual of amp_px * exp(-2*pi/damping_rad); the cap '
-                f'bounds it at exp(-pi), about 4.3% of amp_px); got {wave["damping_rad"]!r}'
+                f'{source}: {wave_label}.edge_wave_damping_deg must be <= 360/pi, about '
+                f'{_RING_EDGE_WAVE_DAMPING_MAX_DEG:.2f} degrees (the modular longitude wrap '
+                f'leaves an upstream residual of amp_px * exp(-360/edge_wave_damping_deg); '
+                f'the cap bounds it at exp(-pi), about 4.3% of amp_px); '
+                f'got {wave["edge_wave_damping_deg"]!r}'
             )
         _check_optional_number(wave.get('lam0_deg'), f'{wave_label}.lam0_deg', source=source)

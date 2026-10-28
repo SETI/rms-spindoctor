@@ -10,6 +10,7 @@ canonical value types.  The save / load / round-trip acceptance tests live in
 Qt runs headless (offscreen platform).
 """
 
+import math
 import os
 from typing import Any, cast
 
@@ -148,10 +149,10 @@ def test_ring_kind_switch_rewrites_shape_keys(model: Any) -> None:
     model._on_ring_kind(0, 'wave')
     assert 'width_px' not in feature
     assert feature['wavelength_px'] > 0.0
-    assert feature['damping_px'] > 0.0
+    assert feature['density_wave_damping_px'] > 0.0
     model._on_ring_kind(0, 'ringlet')
     assert 'wavelength_px' not in feature
-    assert 'damping_px' not in feature
+    assert 'density_wave_damping_px' not in feature
     assert feature['width_px'] > 0.0
 
 
@@ -198,7 +199,7 @@ def test_a_kind_switch_shows_the_stored_shape_values(model: Any) -> None:
     model._on_ring_kind(0, 'wave')
     assert (tab.wavelength_spin.value(), tab.damping_spin.value()) == (
         feature['wavelength_px'],
-        feature['damping_px'],
+        feature['density_wave_damping_px'],
     )
 
 
@@ -1032,7 +1033,7 @@ def test_ring_edge_wave_toggle_inserts_and_removes(model: Any) -> None:
     assert set(_ring(model)['orbit']['edge_wave']) == {
         'amp_px',
         'wavelength_px',
-        'damping_rad',
+        'edge_wave_damping_deg',
         'lam0_deg',
     }
     tab.edge_wave_group.setChecked(False)
@@ -1045,6 +1046,18 @@ def test_ring_edge_wave_spin_writes_sub_key(model: Any) -> None:
     tab.edge_wave_group.setChecked(True)
     tab.edge_wave_amp_spin.setValue(2.5)
     assert _ring(model)['orbit']['edge_wave']['amp_px'] == 2.5
+
+
+def test_ring_edge_wave_damping_spin_reaches_the_degree_cap(model: Any) -> None:
+    """The damping spin's maximum is in degrees and sits just inside the validator's cap."""
+    tab = _ring_tab(model)
+    tab.edge_wave_group.setChecked(True)
+    spin = tab.edge_wave_damp_spin
+    spin.setValue(spin.maximum())
+    assert _ring(model)['orbit']['edge_wave']['edge_wave_damping_deg'] == pytest.approx(
+        360.0 / math.pi, abs=0.01
+    )
+    _validate_editor_scene(model)
 
 
 def test_ring_orbit_error_toggle_inserts_and_removes(model: Any) -> None:
@@ -1094,7 +1107,7 @@ def test_ring_modulation_toggle_creates_and_prunes_azimuthal(model: Any) -> None
     tab = _ring_tab(model)
     tab.azimuthal_modulation_group.setChecked(True)
     modulation = model.sim_params['ring_system']['azimuthal']['modulation']
-    assert set(modulation) == {'amplitude', 'm', 'lam_peak_deg'}
+    assert set(modulation) == {'amplitude', 'm', 'brightness_peak_longitude_deg'}
     tab.azimuthal_modulation_group.setChecked(False)
     assert 'azimuthal' not in model.sim_params['ring_system']
 

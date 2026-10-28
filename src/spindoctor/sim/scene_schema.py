@@ -341,7 +341,7 @@ _RING_FEATURE_IDEALIZED_KEYS: frozenset[str] = frozenset(
         'orbit',
         'side',
         'wavelength_px',
-        'damping_px',
+        'density_wave_damping_px',
         'navigable',
         'declared_orbit_sigma',
     }
@@ -362,13 +362,13 @@ _RING_FEATURE_KEYS: frozenset[str] = _RING_FEATURE_IDEALIZED_KEYS | _RING_FEATUR
 # that kind (a stray shape key would silently author a different feature).
 # The validator, the sim editor's kind switch, and the per-kind tables in the
 # developer guide and the scene README all follow this one table.
-RING_SHAPE_KEYS: tuple[str, ...] = ('width_px', 'side', 'wavelength_px', 'damping_px')
+RING_SHAPE_KEYS: tuple[str, ...] = ('width_px', 'side', 'wavelength_px', 'density_wave_damping_px')
 RING_KIND_SHAPE_KEYS: dict[str, dict[str, str]] = {
     'ringlet': {'width_px': 'required'},
     'gap': {'width_px': 'required'},
     'edge': {'side': 'optional'},
     'ramp': {'width_px': 'required', 'side': 'optional'},
-    'wave': {'wavelength_px': 'required', 'damping_px': 'required'},
+    'wave': {'wavelength_px': 'required', 'density_wave_damping_px': 'required'},
 }
 # The 'side' an edge or ramp takes when the key is absent.  An edge's default
 # 'in' fills every radius inward of its orbit (the sheet bounded by its outer
@@ -406,7 +406,9 @@ RING_KEY_DESCRIPTIONS: dict[str, dict[str, str]] = {
     'ring_system.features': {
         'width_px': 'the radial width, in ring-plane pixels',
         'wavelength_px': "the 'wave' train's radial wavelength, in ring-plane pixels",
-        'damping_px': "the 'wave' train's radial e-folding length, in ring-plane pixels",
+        'density_wave_damping_px': (
+            "the 'wave' train's radial e-folding length, in ring-plane pixels"
+        ),
     },
     'ring_system.features.orbit': {
         'a_px': 'the semimajor axis, in ring-plane pixels',
@@ -426,11 +428,15 @@ RING_KEY_DESCRIPTIONS: dict[str, dict[str, str]] = {
         'wavelength_px': (
             'the azimuthal wavelength as an arc length along the orbit, in ring-plane pixels'
         ),
-        'damping_rad': 'the azimuthal e-folding length, in radians of downstream longitude',
+        'edge_wave_damping_deg': (
+            'the azimuthal e-folding length, in degrees of downstream longitude'
+        ),
         'lam0_deg': 'the launch longitude, in degrees from the ascending node',
     },
     'ring_system.azimuthal.modulation': {
-        'lam_peak_deg': 'the longitude of a brightness peak, in degrees from the ascending node',
+        'brightness_peak_longitude_deg': (
+            'the longitude of a brightness peak, in degrees from the ascending node'
+        ),
     },
     'ring_system.azimuthal.spokes': {
         'r_inner_px': 'the inner radius of the spoke band, in ring-plane pixels',

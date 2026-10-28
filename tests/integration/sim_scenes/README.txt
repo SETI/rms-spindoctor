@@ -118,8 +118,9 @@ Fields
                                      blocks.  Each feature carries kind (ringlet
                                      | gap | edge | ramp | wave), tau, the
                                      kind-specific shape keys (width_px, side,
-                                     wavelength_px, damping_px), navigable (false
-                                     by default: non-navigable features render as
+                                     wavelength_px, density_wave_damping_px),
+                                     navigable (false by default: non-navigable
+                                     features render as
                                      confounders the navigator never learns), a
                                      catalog orbit (a_px, ae_px, long_peri_deg,
                                      rate_peri_deg_per_day, m >= 2 modes,
@@ -328,16 +329,17 @@ or along the orbit (the edge wave's wavelength_px).  It projects to that many
 image pixels along the line of nodes and is foreshortened by sin(B) across it,
 so on a face-on ring (opening angle 90) it is a plain image distance.  The one
 exception is a moonlet's radius_px, the radius of its disc in image pixels: the
-disc is drawn on the sky, so it isn't foreshortened.  An angle ends in _deg,
-except the edge wave's damping_rad.  Every longitude is measured in the ring
+disc is drawn on the sky, so it isn't foreshortened.  Every angle is in
+degrees and carries _deg in its name.  Every longitude is measured in the ring
 plane from the ascending node.
 
   ring_system           phase_deg (the solar phase angle), range_km,
                         km_per_pixel
   geometry              center_v, center_u (pixel corners), opening_deg_obs,
                         opening_deg_sun, node_deg
-  features[]            width_px, side, wavelength_px, damping_px (the shape
-                        keys; see the table below), tau, albedo, phase_g
+  features[]            width_px, side, wavelength_px,
+                        density_wave_damping_px (the shape keys; see the
+                        table below), tau, albedo, phase_g
   features[].orbit      a_px (the semimajor axis, required), ae_px (the
                         eccentricity times a_px), long_peri_deg,
                         rate_peri_deg_per_day
@@ -346,12 +348,13 @@ plane from the ascending node.
                         the mode's m pericenters); the edge radius is
                         a_px - amp_px * cos(m * (lam - peri_deg))
   orbit.edge_wave       amp_px, wavelength_px (an arc length along the orbit),
-                        damping_rad (at most 2), lam0_deg (the launch
-                        longitude)
+                        edge_wave_damping_deg (at most 360/pi, about
+                        114.59), lam0_deg (the launch longitude)
   orbit_error           delta_a_px, delta_ae_px, delta_long_peri_deg
   declared_orbit_sigma  sigma_a_px, sigma_ae_px, sigma_long_peri_deg
   azimuthal.modulation  amplitude, m (an integer of at least 1, default 1),
-                        lam_peak_deg (the longitude of a brightness peak)
+                        brightness_peak_longitude_deg (the longitude of a
+                        brightness peak)
   azimuthal.shadow      start_deg, extent_deg, darkness
   azimuthal.spokes      count, r_inner_px, r_outer_px, contrast, width_deg
   moonlets[]            a_px, lam_deg, radius_px (in image pixels), amplitude,
@@ -362,22 +365,23 @@ stays fixed in time (rate_peri_deg_per_day precesses mode 1 only),
 orbit_error.delta_long_peri_deg doesn't shift it, and
 declared_orbit_sigma.sigma_long_peri_deg doesn't describe it.
 
-A wave feature's damping_px and an edge wave's damping_rad are both the e-folding
-length of a damped wave's envelope.  A wave feature's envelope decays
-radially, over ring-plane pixels outward of its launch radius.  An edge wave's
-envelope decays in longitude, over radians downstream of its launch longitude.
+A wave feature's density_wave_damping_px and an edge wave's
+edge_wave_damping_deg are both the e-folding length of a damped wave's
+envelope.  A wave feature's envelope decays radially, over ring-plane pixels
+outward of its launch radius.  An edge wave's envelope decays in longitude,
+over degrees downstream of its launch longitude.
 
 Each kind of feature takes its own radial shape keys.  Every kind requires kind,
 tau, and an orbit with orbit.a_px.  The validator rejects a shape key on a kind
 that does not take it, so a stray key cannot silently author a different
 feature.
 
-  key            ringlet   gap       edge      ramp      wave
-  width_px       required  required  rejected  required  rejected
-  side           rejected  rejected  optional  optional  rejected
-  wavelength_px  rejected  rejected  rejected  rejected  required
-  damping_px     rejected  rejected  rejected  rejected  required
-  default side   n/a       n/a       in        out       n/a
+  key                      ringlet   gap       edge      ramp      wave
+  width_px                 required  required  rejected  required  rejected
+  side                     rejected  rejected  optional  optional  rejected
+  wavelength_px            rejected  rejected  rejected  rejected  required
+  density_wave_damping_px  rejected  rejected  rejected  rejected  required
+  default side             n/a       n/a       in        out       n/a
 
 An edge is a half-plane, not a line.  The features compose into one shared
 optical-depth map, and an edge fills every radius on one side of its orbit:

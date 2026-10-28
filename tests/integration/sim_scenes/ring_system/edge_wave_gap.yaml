@@ -7,7 +7,8 @@ random_seed: 11
 exposure_sec: 1.0
 # A Keeler-style navigable gap carved into a broad sheet, viewed inclined
 # (B = 50, node 30), whose orbit carries a satellite edge wave (amp_px 2,
-# wavelength_px 10 of arc, damping_rad 0.6 downstream of lam0_deg = 45).
+# wavelength_px 10 of arc, edge_wave_damping_deg about 34.38, which is
+# 0.6 rad, downstream of lam0_deg = 45).
 # The wave is part of the catalog orbit, so the navigator predicts the same
 # scalloped edges the renderer draws and RingEdgeNav recovers the planted
 # offset from two curved, wave-perturbed arcs under projection.
@@ -35,7 +36,11 @@ ring_system:
         ae_px: 0.0
         long_peri_deg: 0.0
         rate_peri_deg_per_day: 0.0
-        edge_wave: {amp_px: 2.0, wavelength_px: 10.0, damping_rad: 0.6, lam0_deg: 45.0}
+        edge_wave:
+          amp_px: 2.0
+          wavelength_px: 10.0
+          edge_wave_damping_deg: 34.37746770784939
+          lam0_deg: 45.0
 noise:
   poisson: true
   read_noise_dn: 4.0

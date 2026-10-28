@@ -19,6 +19,7 @@ tests reach for is stored on the tab widget ``w`` (``w.edge_wave_group``,
 resulting ``sim_params`` edit.
 """
 
+import math
 from dataclasses import dataclass
 from typing import Any
 
@@ -237,7 +238,7 @@ class RingAdvancedMixin(SimEditorBase):
     # ---- Satellite edge wave ----
 
     def _build_ring_edge_wave_group(self, w: QWidget, idx: int, p: dict[str, Any]) -> QGroupBox:
-        """Build the edge-wave group (amp_px, wavelength_px, damping_rad, lam0_deg)."""
+        """Build the edge-wave group (amp_px, wavelength_px, edge_wave_damping_deg, lam0_deg)."""
         orbit = _as_map(p.get('orbit'))
         wave = _as_map(orbit.get('edge_wave'))
         block = 'ring_system.features.orbit.edge_wave'
@@ -264,15 +265,17 @@ class RingAdvancedMixin(SimEditorBase):
             value=float(scene_value(wave, 'wavelength_px', 8.0)),
             tooltip=_key_tooltip(block, 'wavelength_px'),
         )
+        # Qt rounds the maximum to the spin's two decimals (114.59), just
+        # inside the validator's 360/pi cap.
         damp = _dspin(
-            minimum=0.01,
-            maximum=2.0,
-            decimals=3,
-            step=0.1,
-            value=float(scene_value(wave, 'damping_rad', 0.5)),
+            minimum=0.5,
+            maximum=360.0 / math.pi,
+            decimals=2,
+            step=5.0,
+            value=float(scene_value(wave, 'edge_wave_damping_deg', 30.0)),
             tooltip=(
-                f'{_key_tooltip(block, "damping_rad")} The validator caps it at 2 '
-                'to keep the modular wrap seam small.'
+                f'{_key_tooltip(block, "edge_wave_damping_deg")} The validator caps it at '
+                '360/pi, about 114.59 degrees, to keep the modular wrap seam small.'
             ),
         )
         lam0 = _dspin(
@@ -285,7 +288,7 @@ class RingAdvancedMixin(SimEditorBase):
         )
         form.addRow('Amplitude (px):', amp)
         form.addRow('Wavelength (px):', wavelength)
-        form.addRow('Damping (rad):', damp)
+        form.addRow('Damping (deg):', damp)
         form.addRow('Launch lam0 (deg):', lam0)
         group.setChecked('edge_wave' in orbit)
         group.toggled.connect(lambda on, i=idx: self._on_ring_edge_wave_toggled(i, on))
@@ -294,7 +297,7 @@ class RingAdvancedMixin(SimEditorBase):
             lambda v, i=idx: self._on_ring_edge_wave_value(i, 'wavelength_px', v)
         )
         damp.valueChanged.connect(
-            lambda v, i=idx: self._on_ring_edge_wave_value(i, 'damping_rad', v)
+            lambda v, i=idx: self._on_ring_edge_wave_value(i, 'edge_wave_damping_deg', v)
         )
         lam0.valueChanged.connect(lambda v, i=idx: self._on_ring_edge_wave_value(i, 'lam0_deg', v))
         w.edge_wave_group = group  # type: ignore[attr-defined]
@@ -315,7 +318,7 @@ class RingAdvancedMixin(SimEditorBase):
             orbit['edge_wave'] = {
                 'amp_px': float(w.edge_wave_amp_spin.value()),  # type: ignore[attr-defined]
                 'wavelength_px': float(w.edge_wave_wavelength_spin.value()),  # type: ignore[attr-defined]
-                'damping_rad': float(w.edge_wave_damp_spin.value()),  # type: ignore[attr-defined]
+                'edge_wave_damping_deg': float(w.edge_wave_damp_spin.value()),  # type: ignore[attr-defined]
                 'lam0_deg': float(w.edge_wave_lam0_spin.value()),  # type: ignore[attr-defined]
             }
         else:
@@ -536,8 +539,10 @@ class RingAdvancedMixin(SimEditorBase):
             maximum=360.0,
             decimals=1,
             step=5.0,
-            value=float(scene_value(modulation, 'lam_peak_deg', 0.0)),
-            tooltip=_key_tooltip('ring_system.azimuthal.modulation', 'lam_peak_deg'),
+            value=float(scene_value(modulation, 'brightness_peak_longitude_deg', 0.0)),
+            tooltip=_key_tooltip(
+                'ring_system.azimuthal.modulation', 'brightness_peak_longitude_deg'
+            ),
         )
         mod_form.addRow('Amplitude:', mod_amplitude)
         mod_form.addRow('Wavenumber m:', mod_m)
@@ -641,7 +646,9 @@ class RingAdvancedMixin(SimEditorBase):
             lambda v: self._on_ring_azimuthal_value('modulation', 'm', int(v))
         )
         mod_phase.valueChanged.connect(
-            lambda v: self._on_ring_azimuthal_value('modulation', 'lam_peak_deg', float(v))
+            lambda v: self._on_ring_azimuthal_value(
+                'modulation', 'brightness_peak_longitude_deg', float(v)
+            )
         )
         shadow_group.toggled.connect(self._on_ring_shadow_toggled)
         shadow_start.valueChanged.connect(
@@ -711,7 +718,7 @@ class RingAdvancedMixin(SimEditorBase):
             {
                 'amplitude': float(w.modulation_amplitude_spin.value()),  # type: ignore[attr-defined]
                 'm': int(w.modulation_m_spin.value()),  # type: ignore[attr-defined]
-                'lam_peak_deg': float(w.modulation_phase_spin.value()),  # type: ignore[attr-defined]
+                'brightness_peak_longitude_deg': float(w.modulation_phase_spin.value()),  # type: ignore[attr-defined]
             }
             if checked
             else None

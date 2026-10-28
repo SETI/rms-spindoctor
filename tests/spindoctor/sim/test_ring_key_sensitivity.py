@@ -41,13 +41,13 @@ def _orbit(a_px: float, **extra: Any) -> dict[str, Any]:
 
 
 def _edge_wave(
-    amp_px: float, wavelength_px: float, damping_rad: float, lam0_deg: float
+    amp_px: float, wavelength_px: float, edge_wave_damping_deg: float, lam0_deg: float
 ) -> dict[str, float]:
     """An edge-wave mapping."""
     return {
         'amp_px': amp_px,
         'wavelength_px': wavelength_px,
-        'damping_rad': damping_rad,
+        'edge_wave_damping_deg': edge_wave_damping_deg,
         'lam0_deg': lam0_deg,
     }
 
@@ -87,7 +87,7 @@ def _scene() -> dict[str, Any]:
                     'orbit': _orbit(
                         60.0,
                         modes=[{'m': 3, 'amp_px': 2.5, 'peri_deg': 70.0}],
-                        edge_wave=_edge_wave(1.5, 9.0, 0.7, 110.0),
+                        edge_wave=_edge_wave(1.5, 9.0, 40.0, 110.0),
                     ),
                 },
                 {
@@ -112,13 +112,13 @@ def _scene() -> dict[str, Any]:
                     'kind': 'wave',
                     'tau': 0.3,
                     'wavelength_px': 5.0,
-                    'damping_px': 11.0,
+                    'density_wave_damping_px': 11.0,
                     'navigable': True,
                     'orbit': _orbit(75.0),
                 },
             ],
             'azimuthal': {
-                'modulation': {'amplitude': 0.3, 'm': 2, 'lam_peak_deg': 55.0},
+                'modulation': {'amplitude': 0.3, 'm': 2, 'brightness_peak_longitude_deg': 55.0},
                 'spokes': {
                     'count': 4,
                     'r_inner_px': 80.0,
@@ -141,7 +141,7 @@ _CASES: list[tuple[tuple[str | int, ...], bool]] = [
     (('features', _RAMPOUT, 'width_px'), True),
     (('features', _RAMPIN, 'width_px'), False),
     (('features', _WV, 'wavelength_px'), False),
-    (('features', _WV, 'damping_px'), False),
+    (('features', _WV, 'density_wave_damping_px'), False),
     *[
         (('features', _RL, 'orbit', key), True)
         for key in ('a_px', 'ae_px', 'long_peri_deg', 'rate_peri_deg_per_day')
@@ -149,9 +149,9 @@ _CASES: list[tuple[tuple[str | int, ...], bool]] = [
     *[(('features', _RL, 'orbit', 'modes', 0, key), True) for key in ('amp_px', 'peri_deg')],
     *[
         (('features', _RL, 'orbit', 'edge_wave', key), True)
-        for key in ('amp_px', 'wavelength_px', 'damping_rad', 'lam0_deg')
+        for key in ('amp_px', 'wavelength_px', 'edge_wave_damping_deg', 'lam0_deg')
     ],
-    (('azimuthal', 'modulation', 'lam_peak_deg'), False),
+    (('azimuthal', 'modulation', 'brightness_peak_longitude_deg'), False),
     (('azimuthal', 'spokes', 'r_inner_px'), False),
     (('azimuthal', 'spokes', 'r_outer_px'), False),
     (('moonlets', 0, 'a_px'), False),
