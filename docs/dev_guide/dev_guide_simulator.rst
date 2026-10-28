@@ -3345,7 +3345,7 @@ The verdict render's worker thread
 
 The status bar reports the navigator's verdict on the frame the navigator reads.
 For a scene with a planted offset that frame is a second render (see
-:ref:`sim-instruments`), which ``VerdictRunner`` in ``verdict.py`` runs on a
+:ref:`Instruments <sim-instruments>`), which ``VerdictRunner`` in ``verdict.py`` runs on a
 worker thread while the preview stays on the UI thread.
 
 - **Requests.** Each render of the preview with a planted offset asks for a
