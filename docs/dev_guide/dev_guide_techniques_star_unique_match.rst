@@ -355,11 +355,12 @@ Call path traced through
    - **1-star path.**  When fewer than two stars are usable (or the 2-star fallback
      fired), require the brightest to clear the brightness-margin floor over the stars
      that can fall in its window, slice a window around its prediction, extract the
-     sub-pixel centroid, pass the peak-to-runner-up ambiguity gate (plus the
-     ``one_star_max_residual_px`` residual gate when that ratio is the no-rival
-     sentinel), require the corroboration of other stars at the offset when another star
-     in the field is within the margin floor, and report the per-star residual as the
-     translation.
+     sub-pixel centroid, require the detection's background-subtracted peak-to-runner-up
+     ratio to be at least ``one_star_min_peak_ratio`` (and, when that ratio is the
+     no-rival sentinel, require the detection to lie within ``one_star_max_residual_px``
+     of the prediction), require the corroboration of other stars at the offset when
+     another star in the field is within the margin floor, and report the per-star
+     residual as the translation.
 
 4. Result-shape branches on the chosen path and
    :attr:`~spindoctor.nav_orchestrator.nav_context.NavContext.fit_camera_rotation`:

@@ -296,8 +296,8 @@ terms, and so is the body's ephemeris error, sized by
 :attr:`~spindoctor.feature.flags.BodyBlobFlags.ephemeris_sigma_px`; the centroid itself is
 not corrected for either. When the converged offset sits within
 :math:`\mathtt{at\_edge\_tolerance\_px}` of any axis bound, the result is flagged
-:attr:`~spindoctor.nav_technique.technique_result.NavTechniqueResult.at_edge` and the
-hard-zero gate forces confidence to zero.
+:attr:`~spindoctor.nav_technique.technique_result.NavTechniqueResult.at_edge`, and the
+confidence formula's ``hard_zero_if`` entry for that flag sets its confidence to zero.
 
 Configuration
 =============

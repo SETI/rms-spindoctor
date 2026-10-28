@@ -290,14 +290,14 @@ Call path traced through
    private ``_fail`` helper, with ``reason='no_prior_offset_on_context'``.
 3. Read the prior offset, the extfov image, and the per-image noise sigma off the context.
    Loop over the usable stars: for each, call ``local_centroid`` against the shifted
-   prediction; drop stars with no peak above the detection threshold (measured against the
-   median of a ring of pixels 2 px wide around the centroid box), whose centroid box
-   (``centroid_box_half_px`` either side of the unrounded centroid) does not lie wholly
-   inside the frame's data area (the extfov image less ``obs.extfov_margin_vu`` on each
-   side), or whose centroid sits more than ``max_per_star_residual_px`` from the shifted
-   prediction. The padding beyond the frame holds no starlight, so a box it cuts measures
-   a truncated star, or the frame's edge pixels when the star itself lies outside the
-   frame. Compute the per-star residuals and inverse-trace weights.
+   prediction; drop stars that have no peak above the detection threshold (measured
+   against the median of a ring of pixels 2 px wide around the centroid box), whose
+   centroid box (``centroid_box_half_px`` either side of the unrounded centroid) does not
+   lie wholly inside the frame's data area (the extfov image less ``obs.extfov_margin_vu``
+   on each side), or whose centroid sits more than ``max_per_star_residual_px`` from the
+   shifted prediction. The padding beyond the frame holds no starlight, so a box it cuts
+   measures a truncated star, or the frame's edge pixels when the star itself lies outside
+   the frame. Compute the per-star residuals and inverse-trace weights.
    With at least ``discordant_min_stars`` survivors, drop each star whose residual lies
    farther from the per-axis median residual than ``max(discordant_floor_px,
    discordant_median_factor * median distance)``: the average weights each star by its
