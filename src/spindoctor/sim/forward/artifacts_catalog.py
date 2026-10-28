@@ -428,7 +428,8 @@ DETECTOR_DEFAULTS: dict[str, dict[str, Any]] = {
             'dark_ramp': {'kind': 'exposure_shading', 'top_factor': 1.5, 'bottom_factor': 1.05},
             'bloom': {'bloom_length': 6},
             # Ganymede-distance regime: ~1e4 spikes/frame scale in the readout,
-            # amplitudes few DN steeply falling (near full well at the top).
+            # amplitudes few DN steeply falling (near full well at the top).  A scene
+            # plants the hits as a rate, with expected_events_per_sec.
             'radiation_transients': {'amplitude_e': 4.0e4},
             # 33-px photolithography stitch comb plus corner vignetting; the
             # 8-bit ADC contours worst at DN multiples of 8.
@@ -497,7 +498,8 @@ DETECTOR_DEFAULTS: dict[str, dict[str, Any]] = {
                 'jail_bar_dn': 0.5,
                 'dust_donut_count': 3,
             },
-            # ~16 hits per readout-dominated short exposure; mostly single px.
+            # ~16 hits per readout-dominated short exposure; mostly single px.  A
+            # scene plants the hits as a rate, with expected_events_per_sec.
             'radiation_transients': {'amplitude_e': 8.6e4},
         },
     },

@@ -2327,7 +2327,8 @@ Top-level fields
      - float
      - 1.0
      - idealized
-     - Exposure time; scales the cosmic-ray count.
+     - Exposure time; scales the cosmic-ray, ``radiation_transients``, and
+       ``bright_dark_pairs`` counts.
    * - ``offset_v`` / ``offset_u``
      - float
      - 0.0
