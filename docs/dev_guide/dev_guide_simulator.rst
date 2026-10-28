@@ -581,7 +581,7 @@ waits for it. The preview appears at once, and the status bar shows the units
 followed by ``verdict pending``. When the second render finishes, its summary
 replaces that line. A newer edit supersedes the verdict on its way, so the status
 bar never shows the verdict for an older scene. A failed second render puts its
-error on the status bar and its traceback in the log.
+error on the status bar and prints its traceback to standard error.
 :ref:`sim-editor-verdict-thread` describes the worker.
 
 .. _sim-optics-stage:
@@ -3346,7 +3346,7 @@ The verdict render's worker thread
 The status bar reports the navigator's verdict on the frame the navigator reads.
 For a scene with a planted offset that frame is a second render (see
 :ref:`sim-instruments`), which ``VerdictRunner`` in ``verdict.py`` runs on a
-daemon worker thread while the preview stays on the UI thread.
+worker thread while the preview stays on the UI thread.
 
 - **Requests.** Each render of the preview with a planted offset asks for a
   verdict, which takes the next generation number and an independent deep copy of
@@ -3360,10 +3360,17 @@ daemon worker thread while the preview stays on the UI thread.
   summary, or its error and traceback, into its job object and then sets the job's
   ``threading.Event``. While a render runs, a ``QTimer`` on the UI thread polls
   that event every 25 ms, and only the UI thread reads the job, writes the status
-  bar, and logs. Every Qt object is therefore created, used, and destroyed on the
-  UI thread. A worker that outlives the window writes only into a job that
-  nothing reads, because the poll timer is the runner's child and goes with the
-  window.
+  bar, and prints a failure's traceback. Every Qt object is therefore created,
+  used, and destroyed on the UI thread. A worker that outlives the window writes
+  only into a job that nothing reads, because the poll timer is the runner's child
+  and is destroyed with the window. A worker that can't start reports the failure
+  on the status bar.
+- **Exit.** The worker is an ordinary, non-daemon thread, so the interpreter
+  waits for it before it shuts down: quitting the editor mid-render waits for
+  that render to finish. A daemon thread would be killed at shutdown in the
+  middle of the render's numerical code, which aborts the process. Only the UI
+  thread's poll starts a waiting request, and closing the window drops it, so
+  exit waits for at most one render.
 - **Two renders at once.** The worker's render can overlap a preview render on
   the UI thread. That is safe because each render builds its own
   ``SimFrame``, its own parameter dict (decoded from the cache key), and its own
@@ -3376,10 +3383,14 @@ daemon worker thread while the preview stays on the UI thread.
   verdict is requested, and the render path only reads it. Two overlapping misses
   on one cache key compute the same value twice, which costs time and is
   otherwise harmless.
-- **The GIL.** The two renders share the interpreter lock, so the preview slows
-  while a verdict render runs. The UI thread still gets the lock at least every
-  switch interval during Python code. A long numerical call that holds the lock
-  can delay it for that call's duration, which is a fraction of a render.
+- **The GIL.** The two renders share the interpreter lock, so the UI thread can
+  wait for it while a verdict render runs. A render that rebuilds a shape holds
+  the UI longest: a mesh body's Python loop over its faces kept the UI waiting
+  for stretches of 90 to 140 ms when every cache was cleared first. In the editor
+  the stall stays short in practice, because the worker renders the scene whose
+  preview the UI thread has just drawn, so the shape, star, relief, and PSF caches
+  are warm and the navigated render reuses them; across the shipped offset scenes
+  the UI waited at most about 10 ms.
 
 Running navigation on a simulated image
 =======================================
