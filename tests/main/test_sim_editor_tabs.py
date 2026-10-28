@@ -10,6 +10,7 @@ canonical value types.  The save / load / round-trip acceptance tests live in
 Qt runs headless (offscreen platform).
 """
 
+import math
 import os
 from typing import Any, cast
 
@@ -35,6 +36,7 @@ except Exception as exc:
     )
 
 from spindoctor.cli.sim_editor import CreateSimulatedImageModel
+from spindoctor.sim.scene import validate_sim_params
 
 
 @pytest.fixture
@@ -141,17 +143,88 @@ def test_ring_kind_switch_rewrites_shape_keys(model: Any) -> None:
     """Switching a feature's kind swaps in exactly the kind's shape keys."""
     model._add_ring_tab()
     feature = model.sim_params['ring_system']['features'][0]
-    assert 'width' in feature
+    assert 'width_px' in feature
     tab_idx = model._find_tab_by_properties('ring', 0)
     assert tab_idx is not None
     model._on_ring_kind(0, 'wave')
-    assert 'width' not in feature
-    assert feature['wavelength'] > 0.0
-    assert feature['damping'] > 0.0
+    assert 'width_px' not in feature
+    assert feature['wavelength_px'] > 0.0
+    assert feature['density_wave_damping_px'] > 0.0
     model._on_ring_kind(0, 'ringlet')
-    assert 'wavelength' not in feature
-    assert 'damping' not in feature
-    assert feature['width'] > 0.0
+    assert 'wavelength_px' not in feature
+    assert 'density_wave_damping_px' not in feature
+    assert feature['width_px'] > 0.0
+
+
+def test_a_kind_switch_shows_the_side_the_renderer_uses(model: Any) -> None:
+    """After a switch to a one-sided kind the side combo shows that kind's default.
+
+    The feature carries no side key, so the renderer uses the kind's default
+    (``RING_SIDE_DEFAULTS``); the combo shows it, and showing it writes nothing.
+    """
+    tab = _ring_tab(model)
+    feature = model.sim_params['ring_system']['features'][0]
+    shown: list[tuple[str, str, bool]] = []
+    for kind in ('edge', 'ramp', 'edge'):
+        model._on_ring_kind(0, kind)
+        shown.append((kind, tab.side_combo.currentText(), 'side' in feature))
+    assert shown == [('edge', 'in', False), ('ramp', 'out', False), ('edge', 'in', False)]
+
+
+def test_a_stored_side_is_shown_across_one_sided_kinds(model: Any) -> None:
+    """A side the author chose stays in the feature and in the combo when the kind changes."""
+    tab = _ring_tab(model)
+    feature = model.sim_params['ring_system']['features'][0]
+    model._on_ring_kind(0, 'edge')
+    tab.side_combo.setCurrentText('out')
+    model._on_ring_kind(0, 'ramp')
+    model._on_ring_kind(0, 'edge')
+    assert (tab.side_combo.currentText(), feature['side']) == ('out', 'out')
+
+
+def test_a_kind_switch_shows_the_stored_shape_values(model: Any) -> None:
+    """The shape spins show the values the feature holds after each switch.
+
+    A value typed into a disabled spin isn't written, so the spin must not keep
+    showing it once the kind takes the key again.
+    """
+    tab = _ring_tab(model)
+    feature = model.sim_params['ring_system']['features'][0]
+    model._on_ring_kind(0, 'edge')
+    tab.width_spin.setValue(33.0)
+    tab.wavelength_spin.setValue(44.0)
+    tab.damping_spin.setValue(55.0)
+    model._on_ring_kind(0, 'ringlet')
+    assert tab.width_spin.value() == feature['width_px']
+    model._on_ring_kind(0, 'wave')
+    assert (tab.wavelength_spin.value(), tab.damping_spin.value()) == (
+        feature['wavelength_px'],
+        feature['density_wave_damping_px'],
+    )
+
+
+def test_a_grayed_shape_widget_says_which_kinds_take_its_key(model: Any) -> None:
+    """A shape widget the kind rejects is disabled and its tooltip names the kinds that take it."""
+    model._add_ring_tab()
+    tab_idx = model._find_tab_by_properties('ring', 0)
+    assert tab_idx is not None
+    tab = model._tabs.widget(tab_idx)
+    model._on_ring_kind(0, 'wave')
+    assert not tab.width_spin.isEnabled()
+    assert (
+        "Disabled for a 'wave' feature: only ringlet, gap, and ramp features take width_px"
+        in tab.width_spin.toolTip()
+    )
+
+
+def test_an_enabled_shape_widget_describes_its_key(model: Any) -> None:
+    """A shape widget the kind takes is enabled and its tooltip names the key's unit."""
+    model._add_ring_tab()
+    tab_idx = model._find_tab_by_properties('ring', 0)
+    assert tab_idx is not None
+    tab = model._tabs.widget(tab_idx)
+    assert tab.width_spin.isEnabled()
+    assert tab.width_spin.toolTip() == 'width_px: the radial width, in ring-plane pixels.'
 
 
 def test_deleting_the_last_ring_feature_retires_the_block(model: Any) -> None:
@@ -289,6 +362,51 @@ def test_detector_quantization_is_authorable(model: Any) -> None:
     assert model.sim_params['detector'] == {'quantization': 'sqrt_lut'}
 
 
+def test_null_detector_keys_show_the_catalog_defaults(model: Any) -> None:
+    """A loaded detector block of nulls shows the catalog values, as the renderer reads it."""
+    from spindoctor.sim.forward.artifacts_catalog import resolve_detector_defaults
+
+    keys = ('gain_state', 'detector_model', 'exposure_ref_sec', 'quantization')
+    model._apply_params_dict({'instrument': 'coiss_nac', 'detector': dict.fromkeys(keys)})
+    catalog = resolve_detector_defaults('coiss_nac')
+    shown = (
+        model._detector_gain_state_spin.value(),
+        model._detector_model_combo.currentText(),
+        model._detector_exposure_ref_spin.value(),
+        model._detector_quantization_combo.currentText(),
+    )
+    assert shown == (
+        catalog.get('default_gain_state', 0),
+        catalog['detector_model'],
+        catalog.get('exposure_ref_sec', 1.0),
+        catalog.get('quantization', 'exact'),
+    )
+
+
+def test_null_noise_keys_show_the_panel_defaults(model: Any) -> None:
+    """A loaded noise block of nulls shows each control's default, as for absent keys."""
+    keys = (
+        'poisson',
+        'read_noise_dn',
+        'cosmic_ray_events_per_pixel_per_sec',
+        'missing_data_rate',
+        'bias_dn',
+        'bloom_length',
+        'signal_full_scale_frac',
+    )
+    model._apply_params_dict({'instrument': 'coiss_nac', 'noise': dict.fromkeys(keys)})
+    shown = (
+        model._poisson_check.isChecked(),
+        model._read_noise_spin.value(),
+        model._cosmic_ray_spin.value(),
+        model._missing_data_spin.value(),
+        model._bias_spin.value(),
+        model._bloom_spin.value(),
+        model._signal_frac_spin.value(),
+    )
+    assert shown == (True, 4.0, 0.0, 0.0, 20.0, 0, 0.5)
+
+
 # ---- Registry-driven artifact-mode rows ----
 
 
@@ -317,15 +435,15 @@ def test_mode_param_edit_writes_only_edited_key(model: Any) -> None:
     """Editing one mode parameter writes only that key into the mode map."""
     row = model._mode_rows['missing_lines']
     row.group.setChecked(True)
-    row._scalar_widgets['incidence'].setValue(3.0)
-    assert model.sim_params['artifacts']['missing_lines'] == {'incidence': 3.0}
+    row._scalar_widgets['expected_events'].setValue(3.0)
+    assert model.sim_params['artifacts']['missing_lines'] == {'expected_events': 3.0}
 
 
 def test_mode_disable_removes_key_and_prunes_block(model: Any) -> None:
     """Disabling the only enabled mode removes the artifacts block entirely."""
     row = model._mode_rows['missing_lines']
     row.group.setChecked(True)
-    row._scalar_widgets['incidence'].setValue(3.0)
+    row._scalar_widgets['expected_events'].setValue(3.0)
     row.group.setChecked(False)
     assert 'artifacts' not in model.sim_params
 
@@ -371,12 +489,137 @@ def test_mode_availability_disables_unavailable_row(model: Any) -> None:
 
 
 def test_mode_availability_enables_available_row(model: Any) -> None:
-    """An available mode is enabled and carries its incidence semantics tooltip."""
+    """An available mode is enabled and carries its activation key's semantics tooltip."""
     model.sim_params['instrument'] = 'coiss_nac'
     model._refresh_artifact_mode_availability()
     row = model._mode_rows['hot_pixels']
     assert row.group.isEnabled() is True
-    assert 'incidence' in row.group.toolTip()
+    assert 'pixel_fraction' in row.group.toolTip()
+
+
+def _dead_row(model: Any, mode_name: str = 'dead_pixels') -> Any:
+    """Enable a dead-pixel or dead-column row on Cassini NAC and return it."""
+    model.sim_params['instrument'] = 'coiss_nac'
+    model._refresh_artifact_mode_availability()
+    row = model._mode_rows[mode_name]
+    row.group.setChecked(True)
+    return row
+
+
+def _validate_editor_scene(model: Any) -> None:
+    """Validate the editor's live scene as a file save would."""
+    validate_sim_params(dict(model.sim_params, schema_version=2, scene_name='probe'))
+
+
+@pytest.mark.parametrize('mode_name', ['dead_pixels', 'dead_columns'])
+def test_setting_count_removes_expected_events(model: Any, mode_name: str) -> None:
+    """Setting the fixed count removes expected_events, so the map stays savable."""
+    row = _dead_row(model, mode_name)
+    row._scalar_widgets['expected_events'].setValue(5.0)
+    row._scalar_widgets['count'].setValue(10)
+    assert model.sim_params['artifacts'][mode_name] == {'count': 10}
+    _validate_editor_scene(model)
+
+
+@pytest.mark.parametrize('mode_name', ['dead_pixels', 'dead_columns'])
+def test_editing_expected_events_removes_count(model: Any, mode_name: str) -> None:
+    """Editing expected_events removes the count and clears its set box."""
+    row = _dead_row(model, mode_name)
+    row._scalar_widgets['count'].setValue(10)
+    row._scalar_widgets['expected_events'].setValue(3.0)
+    assert model.sim_params['artifacts'][mode_name] == {'expected_events': 3.0}
+    assert row._count_check.isChecked() is False
+    _validate_editor_scene(model)
+
+
+def test_count_of_zero_is_authorable(model: Any) -> None:
+    """Checking the count's set box at 0 writes an explicit count of 0."""
+    row = _dead_row(model)
+    row._count_check.setChecked(True)
+    assert model.sim_params['artifacts']['dead_pixels'] == {'count': 0}
+
+
+def test_unsetting_count_removes_the_key(model: Any) -> None:
+    """Clearing the count's set box removes the count key."""
+    row = _dead_row(model)
+    row._scalar_widgets['count'].setValue(4)
+    row._count_check.setChecked(False)
+    assert model.sim_params['artifacts']['dead_pixels'] == {}
+
+
+def test_loaded_count_checks_the_set_box(model: Any) -> None:
+    """A scene map carrying a count shows it with the set box checked."""
+    row = _dead_row(model)
+    model.sim_params['artifacts']['dead_pixels'] = {'count': 7}
+    row.sync()
+    assert (row._count_check.isChecked(), row._scalar_widgets['count'].value()) == (True, 7)
+
+
+def test_syncing_a_map_without_count_clears_the_set_box(model: Any) -> None:
+    """Syncing an expected_events map after a count map unchecks the count's set box."""
+    row = _dead_row(model)
+    model.sim_params['artifacts']['dead_pixels'] = {'count': 7}
+    row.sync()
+    model.sim_params['artifacts']['dead_pixels'] = {'expected_events': 3.0}
+    row.sync()
+    assert row._count_check.isChecked() is False
+
+
+def test_setting_count_resets_the_expected_events_display(model: Any) -> None:
+    """Setting the count shows expected_events at its default, since the key is gone."""
+    row = _dead_row(model)
+    row._scalar_widgets['expected_events'].setValue(5.0)
+    row._scalar_widgets['count'].setValue(10)
+    assert row._scalar_widgets['expected_events'].value() == 0.0
+
+
+def test_null_mode_parameter_shows_its_default(model: Any) -> None:
+    """A mode parameter set to null shows the registry default the renderer uses."""
+    model.sim_params['instrument'] = 'coiss_nac'
+    model._refresh_artifact_mode_availability()
+    row = model._mode_rows['missing_blocks']
+    model.sim_params.setdefault('artifacts', {})['missing_blocks'] = {'block_lines': None}
+    row.sync()
+    assert row._scalar_widgets['block_lines'].value() == 8
+
+
+def test_reenabling_a_mode_shows_its_empty_map(model: Any) -> None:
+    """Turning a mode off and on again shows the fresh map, with the count unset."""
+    row = _dead_row(model)
+    row._scalar_widgets['count'].setValue(10)
+    row.group.setChecked(False)
+    row.group.setChecked(True)
+    shown = (row._count_check.isChecked(), row._scalar_widgets['count'].value())
+    assert (model.sim_params['artifacts']['dead_pixels'], shown) == ({}, (False, 0))
+
+
+def test_pixel_fraction_spin_keeps_six_decimals(model: Any) -> None:
+    """A small hot-pixel fraction survives the spin without rounding to 4 decimals."""
+    model.sim_params['instrument'] = 'coiss_nac'
+    model._refresh_artifact_mode_availability()
+    row = model._mode_rows['hot_pixels']
+    row.group.setChecked(True)
+    row._scalar_widgets['pixel_fraction'].setValue(2.75e-4)
+    assert model.sim_params['artifacts']['hot_pixels']['pixel_fraction'] == pytest.approx(
+        2.75e-4, abs=1e-12
+    )
+
+
+def test_rate_mode_tooltip_says_per_second_of_exposure(model: Any) -> None:
+    """bright_dark_pairs' activation spin describes a rate per second of exposure."""
+    row = model._mode_rows['bright_dark_pairs']
+    tip = row._scalar_widgets['expected_events_per_sec'].toolTip()
+    assert 'per second of exposure' in tip
+
+
+def test_radiation_rate_spin_writes_the_per_second_key(model: Any) -> None:
+    """radiation_transients' activation spin writes expected_events_per_sec on a CCD."""
+    model.sim_params['instrument'] = 'coiss_nac'
+    model._refresh_artifact_mode_availability()
+    row = model._mode_rows['radiation_transients']
+    row.group.setChecked(True)
+    row._scalar_widgets['expected_events_per_sec'].setValue(4.0)
+    assert model.sim_params['artifacts']['radiation_transients'] == {'expected_events_per_sec': 4.0}
 
 
 # ---- Per-star information-asymmetry controls ----
@@ -780,7 +1023,7 @@ def test_ring_mode_add_and_remove_row(model: Any) -> None:
     tab = _ring_tab(model)
     model._on_ring_add_mode(0)
     modes = _ring(model)['orbit']['modes']
-    assert set(modes[0]) == {'m', 'amp', 'peri'}
+    assert set(modes[0]) == {'m', 'amp_px', 'peri_deg'}
     model._remove_ring_mode_row(0, tab.mode_rows[0])
     assert 'modes' not in _ring(model)['orbit']
 
@@ -797,9 +1040,39 @@ def test_ring_edge_wave_toggle_inserts_and_removes(model: Any) -> None:
     """The edge-wave group inserts the full map and removes it when disabled."""
     tab = _ring_tab(model)
     tab.edge_wave_group.setChecked(True)
-    assert set(_ring(model)['orbit']['edge_wave']) == {'amp', 'wavelength', 'damp', 'lam0'}
+    assert set(_ring(model)['orbit']['edge_wave']) == {
+        'amp_px',
+        'wavelength_px',
+        'edge_wave_damping_deg',
+        'lam0_deg',
+    }
+    assert _ring(model)['orbit']['edge_wave']['edge_wave_damping_deg'] == 30.0
     tab.edge_wave_group.setChecked(False)
     assert 'edge_wave' not in _ring(model)['orbit']
+
+
+def test_ring_edge_wave_toggle_keeps_unrounded_values(model: Any) -> None:
+    """Turning the edge-wave group off and on restores values finer than the spins show."""
+    tab = _ring_tab(model)
+    tab.edge_wave_group.setChecked(True)
+    damping_deg = 34.37746770784939
+    _ring(model)['orbit']['edge_wave']['edge_wave_damping_deg'] = damping_deg
+    tab.edge_wave_damp_spin.blockSignals(True)
+    tab.edge_wave_damp_spin.setValue(damping_deg)
+    tab.edge_wave_damp_spin.blockSignals(False)
+    tab.edge_wave_group.setChecked(False)
+    tab.edge_wave_group.setChecked(True)
+    assert _ring(model)['orbit']['edge_wave']['edge_wave_damping_deg'] == damping_deg
+
+
+def test_ring_edge_wave_toggle_takes_a_spin_edited_while_off(model: Any) -> None:
+    """A spin edited while the edge-wave group is off wins over the removed value."""
+    tab = _ring_tab(model)
+    tab.edge_wave_group.setChecked(True)
+    tab.edge_wave_group.setChecked(False)
+    tab.edge_wave_damp_spin.setValue(45.0)
+    tab.edge_wave_group.setChecked(True)
+    assert _ring(model)['orbit']['edge_wave']['edge_wave_damping_deg'] == 45.0
 
 
 def test_ring_edge_wave_spin_writes_sub_key(model: Any) -> None:
@@ -807,7 +1080,19 @@ def test_ring_edge_wave_spin_writes_sub_key(model: Any) -> None:
     tab = _ring_tab(model)
     tab.edge_wave_group.setChecked(True)
     tab.edge_wave_amp_spin.setValue(2.5)
-    assert _ring(model)['orbit']['edge_wave']['amp'] == 2.5
+    assert _ring(model)['orbit']['edge_wave']['amp_px'] == 2.5
+
+
+def test_ring_edge_wave_damping_spin_reaches_the_degree_cap(model: Any) -> None:
+    """The damping spin's maximum is in degrees and sits just inside the validator's cap."""
+    tab = _ring_tab(model)
+    tab.edge_wave_group.setChecked(True)
+    spin = tab.edge_wave_damp_spin
+    spin.setValue(spin.maximum())
+    assert _ring(model)['orbit']['edge_wave']['edge_wave_damping_deg'] == pytest.approx(
+        360.0 / math.pi, abs=0.01
+    )
+    _validate_editor_scene(model)
 
 
 def test_ring_orbit_error_toggle_inserts_and_removes(model: Any) -> None:
@@ -857,7 +1142,7 @@ def test_ring_modulation_toggle_creates_and_prunes_azimuthal(model: Any) -> None
     tab = _ring_tab(model)
     tab.azimuthal_modulation_group.setChecked(True)
     modulation = model.sim_params['ring_system']['azimuthal']['modulation']
-    assert set(modulation) == {'amplitude', 'm', 'phase_deg'}
+    assert set(modulation) == {'amplitude', 'm', 'brightness_peak_longitude_deg'}
     tab.azimuthal_modulation_group.setChecked(False)
     assert 'azimuthal' not in model.sim_params['ring_system']
 
@@ -875,7 +1160,7 @@ def test_ring_spokes_toggle_inserts_sub_map(model: Any) -> None:
     tab = _ring_tab(model)
     tab.azimuthal_spokes_group.setChecked(True)
     spokes = model.sim_params['ring_system']['azimuthal']['spokes']
-    assert set(spokes) == {'count', 'r_inner', 'r_outer', 'width_deg', 'contrast'}
+    assert set(spokes) == {'count', 'r_inner_px', 'r_outer_px', 'width_deg', 'contrast'}
 
 
 def test_ring_spokes_value_edit_writes_own_key(model: Any) -> None:
@@ -904,7 +1189,7 @@ def test_ring_moonlets_toggle_and_add(model: Any) -> None:
     assert model.sim_params['ring_system']['moonlets'] == []
     model._on_ring_add_moonlet()
     moonlet = model.sim_params['ring_system']['moonlets'][0]
-    assert set(moonlet) == {'a', 'lam_deg', 'radius_px', 'amplitude'}
+    assert set(moonlet) == {'a_px', 'lam_deg', 'radius_px', 'amplitude'}
 
 
 def test_ring_moonlet_propeller_sub_group_writes_propeller(model: Any) -> None:

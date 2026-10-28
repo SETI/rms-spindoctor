@@ -95,7 +95,7 @@ def test_ring_line_clears_framed_body() -> None:
         body = params['bodies'][0]
         phi = math.radians(geometry['ring_radial_deg'])
         geom = params['ring_system']['geometry']
-        a = params['ring_system']['features'][0]['orbit']['a']
+        a = params['ring_system']['features'][0]['orbit']['a_px']
         # Mid-line point: ring center plus a along the radial direction.
         pv = geom['center_v'] + a * math.cos(phi)
         pu = geom['center_u'] + a * math.sin(phi)
@@ -114,7 +114,7 @@ def test_aniso_ring_line_clears_clipped_body() -> None:
             body = params['bodies'][0]
             phi = math.radians(geometry['ring_radial_deg'])
             geom = params['ring_system']['geometry']
-            a = params['ring_system']['features'][0]['orbit']['a']
+            a = params['ring_system']['features'][0]['orbit']['a_px']
             pv = geom['center_v'] + a * math.cos(phi)
             pu = geom['center_u'] + a * math.sin(phi)
             dist = abs(

@@ -7,10 +7,10 @@ random_seed: 7
 exposure_sec: 1.0
 # A well-resolved disc under modest structured telemetry loss: a few whole
 # missing lines and a few truncated (partial) lines per frame, the shapes a
-# downlink dropout plants.  At this incidence the loss is a small fraction of
+# downlink dropout plants.  At this expected count the loss is a small fraction of
 # the 220-line frame, so the disc correlation still recovers the planted offset
 # within tolerance -- the artifact stress axis at a survivable level.  The
-# adversarial sibling plants the same incidence biased onto the disc.
+# adversarial sibling plants the same expected count biased onto the disc.
 bodies:
   - name: RHEA
     center_v: 110.0
@@ -26,9 +26,9 @@ noise:
 artifacts:
   adversarial: false
   missing_lines:
-    incidence: 3.0
+    expected_events: 3.0
   partial_lines:
-    incidence: 3.0
+    expected_events: 3.0
 offset_v: 1.5
 offset_u: -0.5
 offset_rotation_deg: 0.0

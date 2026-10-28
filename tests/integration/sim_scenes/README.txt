@@ -117,17 +117,20 @@ Fields
                                      (modulation / spokes / shadow) and moonlets
                                      blocks.  Each feature carries kind (ringlet
                                      | gap | edge | ramp | wave), tau, the
-                                     kind-specific shape keys (width, side,
-                                     wavelength, damping), navigable (false by
-                                     default: non-navigable features render as
+                                     kind-specific shape keys (width_px, side,
+                                     wavelength_px, density_wave_damping_px),
+                                     navigable (false by default: non-navigable
+                                     features render as
                                      confounders the navigator never learns), a
-                                     catalog orbit (a, ae, long_peri, rate_peri,
-                                     m >= 2 modes, edge_wave), an idealized
+                                     catalog orbit (a_px, ae_px, long_peri_deg,
+                                     rate_peri_deg_per_day, m >= 2 modes,
+                                     edge_wave), an idealized
                                      declared_orbit_sigma, and truth-side
                                      orbit_error / albedo / phase_g -- the
                                      planted ephemeris error displaces only the
                                      RENDERED feature; the navigator predicts
-                                     from the catalog orbit
+                                     from the catalog orbit.  See "Ring system
+                                     keys" below for every key's unit
   stars            (list, optional)  explicit star dicts (name, v, u, vmag,
                                      navigable, catalog_error_v/u, companion,
                                      delta_mag, ...).  navigable=false renders the
@@ -153,15 +156,18 @@ Fields
                                      expected-outcome test machinery -- fed to
                                      neither the renderer nor the navigator
   noise            (mapping, opt)    poisson, read_noise_dn, bias_dn,
-                                     cosmic_ray_rate_per_sec, missing_data_rate,
-                                     bloom_length, signal_full_scale_frac, pixel_area_cm2,
-                                     dark_current_e_per_sec, hot_pixel_fraction,
+                                     cosmic_ray_events_per_pixel_per_sec (expected
+                                     events per pixel per second of exposure),
+                                     missing_data_rate, bloom_length,
+                                     signal_full_scale_frac, dark_current_e_per_sec,
+                                     hot_pixel_fraction,
                                      hot_pixel_amplitude_e, hot_pixel_column_factor,
                                      banding_amplitude_e, banding_period_px,
                                      bias_pedestal_sigma_dn, bias_row_gradient_dn,
                                      bias_col_gradient_dn, vidicon {read_noise_line_dn,
                                      read_noise_pixel_dn, coherent_amplitude_dn,
-                                     coherent_period_px}; unknown keys fail validation
+                                     coherent_period_px}; unknown keys fail validation,
+                                     and a key set to null counts as unset
   oversample       (int, opt)        radiance oversampling factor (default 4 when a PSF
                                      is active, else 1)
   optics           (mapping, opt)    whole-scene optical effects: psf (sigma_v, sigma_u,
@@ -176,11 +182,17 @@ Fields
                                      cataloged for the instrument), detector_model
                                      (ccd | vidicon), exposure_ref_sec, quantization
                                      (exact | 8bit | uneven_12bit | sqrt_lut); omitted
-                                     keys track the instrument catalog
+                                     or null keys track the instrument catalog
   artifacts        (mapping, opt)    instrument_defaults (bool): opt into the emulated
                                      camera's physical signal chain at catalog values
                                      (PSF, distortion residual, shot noise, dark / hot /
-                                     bloom / banding / bias); loss modes stay 0
+                                     bloom / banding / bias); artifact modes stay off.
+                                     adversarial (bool): bias each mode's placement onto
+                                     the navigation features.  Every other key is an
+                                     artifact mode (missing_lines, hot_pixels, ...)
+                                     whose map carries one activation key (see
+                                     "Artifact activation keys" below) plus the mode's
+                                     own shape parameters
   spk_error        (mapping, opt)    planted spacecraft-ephemeris parallax: dv_px, du_px,
                                      reference_range_km (needs range_km on each body
                                      and on the ring_system)
@@ -195,10 +207,48 @@ Fields
                                      instrument_config.noise for rendering.)
   fit_camera_rotation (bool, opt)    force whether navigation solves a camera roll
 
+The instrument fixes the frame's units, in one of two classes; both mark a
+lost pixel with 0, as the real products do:
+
+  coiss_nac, coiss_wac, gossi,      raw DN; the bias pedestal keeps the dark sky
+  nhlorri, generic                  above the marker
+  coiss_calib_nac,                  calibrated I/F, like the Cassini CALIB and
+  coiss_calib_wac, vgiss            Voyager GEOMED products; vgiss also keeps a
+                                    255 DN full well
+
+An I/F frame spans roughly 0 to 1 (a vgiss frame tops out at 1.85, a
+coiss_calib_nac frame near 2.0), so a display or threshold scaled for DN shows it
+as black.  The calibration inverse adds a calibrated sky residual, so no
+noise-free dark sky reads exactly 0: vgiss sits at 0.0118 I/F (1.5 DN), above 0
+as the GEOMED sky does, and a calibrated Cassini frame at 4.0e-5 I/F, the median
+real CALIB sky.  Under instrument_defaults a coiss_calib_nac sky scatters around
+0, more than a quarter of a disc scene's pixels slightly below it, and a vgiss
+sky stays above 0 on all but about 7 pixels in 100,000.  A pixel that still lands exactly on the marker moves to the
+next float above it, so only planted loss puts a pixel at the marker.  The scene
+editor's status bar shows each render's units, range, and marker share, counted
+on the frame the navigator reads (planted offset applied), and the navigator's
+verdict when it is blank, overexposed, or mostly missing data.
+
 Body params follow the renderer: shape_model (ellipsoid | polyhedral_mesh),
 center_v, center_u, axis1, axis2, axis3, illumination_angle, phase_angle,
-range_km, and -- for polyhedral_mesh -- mesh_lumpiness, mesh_seed,
+range_km, and -- for polyhedral_mesh -- mesh_lumpiness (the non-ellipsoidal
+relief's RMS is mesh_lumpiness / 8 of the radius), mesh_seed (which shape),
+mesh_n_lat / mesh_n_lon (tessellation, default 16 / 32; the catalog's mesh
+scenes use 64 / 128 so no facets show), mesh_detail_octaves, and
 pose_euler_deg.
+
+A polyhedral_mesh body refuses a non-null value of any of the twelve
+ellipsoid-only appearance keys, which the mesh renderer would silently ignore
+(a null reads as an absent key): atmosphere, photometric_law, minnaert_k,
+opposition_surge, albedo_texture, disc_texture, transits, crater_fill,
+crater_min_radius, crater_max_radius, crater_power_law_exponent, and
+crater_relief_scale.  A mesh body's appearance keys are shading,
+limb_relief_rms, limb_relief_corr_deg, mesh_detail_octaves, and pose_scatter.
+The scene editor disables the controls for the refused keys on a mesh body.
+Switching a body to polyhedral_mesh in the editor moves the refused keys it
+carries out of the scene, and the status bar names them; switching it back to
+ellipsoid in the same session restores them, and a saved mesh scene file
+doesn't carry them.
 
 A body may also carry an optional nav_override mapping.  The renderer ignores it
 (it always draws the true geometry), but the navigator builds its predicted body
@@ -212,6 +262,133 @@ from.
 
 The planted offset_v/offset_u is applied as the rendered offset, so a navigator
 predicting the unshifted geometry must recover it.
+
+Artifact activation keys
+------------------------
+
+Each artifact mode in the artifacts block turns on through exactly one key, and
+the key's name says what the number means:
+
+  expected_events  (float >= 0)      count modes: the expected number of events
+                                     per frame, drawn Poisson.  missing_lines,
+                                     partial_lines, missing_blocks, line_garble,
+                                     pixel_spikes, dead_pixels, dead_columns
+                                     (each capped at the lines, blocks, columns,
+                                     or pixels its events land on)
+  expected_events_per_sec (float >= 0)
+                                     rate modes: the expected number of events
+                                     per second, drawn Poisson and uncapped.
+                                     bright_dark_pairs expects this times
+                                     exposure_sec.  radiation_transients
+                                     expects this times environment_factor *
+                                     (exposure_sec + readout_dwell_sec): it
+                                     collects hits during the readout dwell
+                                     too
+  probability      (float in [0, 1]) every other mode except hot_pixels: the
+                                     per-frame probability the mode fires at
+                                     all (1.0 = always).  alternating_lines,
+                                     edited_frame, truncated_frame, cutout_window,
+                                     truth_window, embedded_header,
+                                     compression_dct, reseau_scars,
+                                     resample_texture, and the detector modes
+                                     (banding_coherent, bias_structure, dark_ramp,
+                                     bloom, frame_transfer_smear, serial_tail,
+                                     beam_bend, residual_image, quantization_lut,
+                                     quantization_ls8b, contouring_8bit,
+                                     fixed_pattern)
+  pixel_fraction   (float in [0, 1]) hot_pixels only: the fraction of detector
+                                     pixels that are hot
+
+dead_pixels and dead_columns also take count (int >= 0), a fixed number of dead
+pixels or columns in place of the Poisson draw; a map may set count or
+expected_events, never both (a key set to null counts as unset).  Every key
+defaults to 0, and a mode whose key is 0 (or whose count is 0) renders as a
+no-op.  For example:
+
+    artifacts:
+      missing_lines: {expected_events: 3.0}
+      truncated_frame: {probability: 1.0, fraction: 0.25}
+      dead_pixels: {count: 10}
+      hot_pixels: {pixel_fraction: 0.002}
+
+A mode's map accepts only that mode's keys, so an unknown key fails validation.
+
+Ring system keys
+----------------
+
+Each length and angle key in the ring_system block names its unit, apart from
+geometry.center_v and center_u, which are image-pixel positions (pixel
+corners).  A length ending in _px is in ring-plane pixels: a distance in the
+ring plane, measured in detector pixels.  It may run radially (a_px, width_px)
+or along the orbit (the edge wave's wavelength_px).  It projects to that many
+image pixels along the line of nodes and is foreshortened by sin(B) across it,
+so on a face-on ring (opening angle 90) it is a plain image distance.  The one
+exception is a moonlet's radius_px, the radius of its disc in image pixels: the
+disc is drawn on the sky, so it isn't foreshortened.  Every angle is in
+degrees and carries _deg in its name.  Every longitude is measured in the ring
+plane from the ascending node.
+
+  ring_system           phase_deg (the solar phase angle), range_km,
+                        km_per_pixel
+  geometry              center_v, center_u (pixel corners), opening_deg_obs,
+                        opening_deg_sun, node_deg
+  features[]            width_px, side, wavelength_px,
+                        density_wave_damping_px (the shape keys; see the
+                        table below), tau, albedo, phase_g
+  features[].orbit      a_px (the semimajor axis, required), ae_px (the
+                        eccentricity times a_px), long_peri_deg,
+                        rate_peri_deg_per_day
+  orbit.modes[]         m (an integer of at least 2: mode 1 is the base
+                        ellipse), amp_px, peri_deg (the longitude of one of
+                        the mode's m pericenters); the edge radius is
+                        a_px - amp_px * cos(m * (lam - peri_deg))
+  orbit.edge_wave       amp_px, wavelength_px (an arc length along the orbit),
+                        edge_wave_damping_deg (at most 360/pi, about
+                        114.59), lam0_deg (the launch longitude)
+  orbit_error           delta_a_px, delta_ae_px, delta_long_peri_deg
+  declared_orbit_sigma  sigma_a_px, sigma_ae_px, sigma_long_peri_deg
+  azimuthal.modulation  amplitude, m (an integer of at least 1, default 1),
+                        brightness_peak_longitude_deg (the longitude of a
+                        brightness peak)
+  azimuthal.shadow      start_deg, extent_deg, darkness
+  azimuthal.spokes      count, r_inner_px, r_outer_px, contrast, width_deg
+  moonlets[]            a_px, lam_deg, radius_px (in image pixels), amplitude,
+                        and a propeller {length_deg, width_px, contrast}
+
+A mode's peri_deg is its own longitude, apart from mode 1's long_peri_deg.  It
+stays fixed in time (rate_peri_deg_per_day precesses mode 1 only),
+orbit_error.delta_long_peri_deg doesn't shift it, and
+declared_orbit_sigma.sigma_long_peri_deg doesn't describe it.
+
+A wave feature's density_wave_damping_px and an edge wave's
+edge_wave_damping_deg are both the e-folding length of a damped wave's
+envelope.  A wave feature's envelope decays radially, over ring-plane pixels
+outward of its launch radius.  An edge wave's envelope decays in longitude,
+over degrees downstream of its launch longitude.
+
+Each kind of feature takes its own radial shape keys.  Every kind requires kind,
+tau, and an orbit with orbit.a_px.  The validator rejects a shape key on a kind
+that does not take it, so a stray key cannot silently author a different
+feature.
+
+  key                      ringlet   gap       edge      ramp      wave
+  width_px                 required  required  rejected  required  rejected
+  side                     rejected  rejected  optional  optional  rejected
+  wavelength_px            rejected  rejected  rejected  rejected  required
+  density_wave_damping_px  rejected  rejected  rejected  rejected  required
+  default side             n/a       n/a       in        out       n/a
+
+An edge is a half-plane, not a line.  The features compose into one shared
+optical-depth map, and an edge fills every radius on one side of its orbit:
+side in (the default) carries its tau everywhere inward of a_px, and side out
+everywhere outward.  Two edges therefore cannot bound an annulus.  An edge with
+side out at 60 px and one with side in at 95 px overlap, and the would-be
+annulus is only the band where tau doubles.  Author a band as a ringlet (a_px 60,
+width_px 35), or carve it into a sheet with a gap.
+
+Every mapping in the ring_system block accepts only its own keys, so an unknown
+key anywhere in it fails validation.  An optional ring key set to null counts as
+unset, to the validator, the renderer, and the editor alike.
 
 Adding a scene
 --------------

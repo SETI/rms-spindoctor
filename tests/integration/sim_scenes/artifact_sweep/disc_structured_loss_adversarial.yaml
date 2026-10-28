@@ -6,9 +6,9 @@ size_u: 220
 random_seed: 7
 exposure_sec: 1.0
 # The adversarial sibling of disc_structured_loss: the same missing-line and
-# partial-line incidence, but with adversarial placement on, so the loss biases
+# partial-line expected counts, but with adversarial placement on, so the loss biases
 # onto the disc's own rows rather than falling uniformly across the frame.  This
-# is the worst-case placement of a survivable incidence; the disc correlation
+# is the worst-case placement of a survivable loss; the disc correlation
 # still recovers the planted offset within tolerance because the surviving disc
 # edge remains well-conditioned.
 bodies:
@@ -26,9 +26,9 @@ noise:
 artifacts:
   adversarial: true
   missing_lines:
-    incidence: 3.0
+    expected_events: 3.0
   partial_lines:
-    incidence: 3.0
+    expected_events: 3.0
 offset_v: 1.5
 offset_u: -0.5
 offset_rotation_deg: 0.0

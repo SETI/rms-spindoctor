@@ -19,8 +19,10 @@ class of them:
 - asymmetry   : the rendered symmetry axis tilted off the geometric sun
                 direction, a NON-affine hemispheric falloff difference, a
                 hemispheric brightness scaling (the affine control the
-                Pearson score should absorb), an interior brightness ramp,
-                and a limb sharpness gradient across the sunward sector.
+                Pearson score should absorb, affine poleward of the
+                equatorial blend band and below saturation), an interior
+                brightness ramp, and a limb sharpness gradient across the
+                sunward sector.
 - stars       : a star field over the frame.  Stars fainter than the mask
                 limit are deliberately NOT masked, so this family is what
                 decides whether that policy is safe.
@@ -30,7 +32,7 @@ class of them:
                 Deliberately a STRESS condition; see ``_artifact_blocks``.
 - artifacts_nominal
               : the same contamination class at the shipped, realism-matched
-                incidence for the emulated instrument, nothing overridden.
+                rates for the emulated instrument, nothing overridden.
                 This is the family an operational prediction reads from;
                 ``artifacts`` bounds the regime rather than describing it.
 - combined    : every axis at once, at the same draw strengths.
@@ -89,7 +91,7 @@ MAX_SOLID_RADIUS_PX: float = 78.0
 MAX_PLANTED_OFFSET_PX: float = 40.0
 
 # Offset from the in-plane sun direction to the body roll that puts the
-# hemispheric split ACROSS the sun axis, degrees.
+# hemispheric split line along the sun axis, degrees.
 #
 # The structure keys split hemispheres on ``v_rot``, the body-frame first-axis
 # coordinate, whose zero line runs along ``(sin rotation_z, cos rotation_z)``
@@ -98,10 +100,20 @@ MAX_PLANTED_OFFSET_PX: float = 40.0
 # line along the sun axis -- which is what makes ``ns_asymmetry_amplitude``
 # the AFFINE control the design intends: the mirror about that axis maps one
 # hemisphere onto the other, so a pure brightness scaling of one of them is
-# exactly the relation the Pearson score is invariant to.  Leaving the roll
-# at zero instead would let the split fall along the sun axis at most
-# illumination angles, and the control would be measuring an unrelated
-# gradient.
+# exactly the relation the Pearson score is invariant to.  It is affine only
+# poleward of the renderer's blend band, 10 degrees of latitude either side
+# of the split: a continuous blend must give the two members of a mirror pair
+# on the split line the same brightness, so inside the band the pair ratio
+# falls from the full factor to 1, and that band runs along the sun axis,
+# over the sunward limb the technique scores on.  Poleward of the band it is
+# a pure scaling only where the scaled half stays below saturation: the
+# renderer clips the signal at 1, so a positive amplitude flattens the bright
+# crescent.  Over 26 of the 40 clean scenes that navigate both with and without
+# it, an amplitude of +0.35 moves the recovered cross-track position by 0.063
+# pixels on average with a switch at the equator and 0.065 with the band,
+# about four times what -0.35 costs with the band.  Leaving the roll at zero
+# instead would leave the split line off the sun axis at most illumination
+# angles, and the control would be measuring an unrelated gradient.
 #
 # Carrying the roll rather than pinning the sun to two directions is what
 # keeps the campaign's angular coverage complete: the sun is drawn uniformly
@@ -184,7 +196,9 @@ def _asymmetry_keys(rng: random.Random) -> dict[str, Any]:
     The tilt range brackets the few degrees Titan's atmospheric symmetry axis
     is known to sit off the spin axis; the falloff ratio and the sharpness
     gradient are the two shape (non-affine) axes, and the hemispheric
-    amplitude is the affine control the Pearson score is supposed to absorb.
+    amplitude is the affine control the Pearson score is supposed to absorb
+    (affine poleward of the renderer's 10 degree equatorial blend band where
+    the scaled half stays below saturation; see ``BODY_ROLL_FROM_SUN_DEG``).
 
     Parameters:
         rng: The scene's random source.
@@ -243,7 +257,7 @@ def _artifact_blocks(rng: random.Random) -> tuple[dict[str, Any], dict[str, Any]
     the instrument's realism-matched values and a reader would otherwise take
     them for an operational prediction:
 
-    - Hot-pixel incidence is drawn over 2e-4 to 2e-3.  The emulated
+    - The hot-pixel ``pixel_fraction`` is drawn over 2e-4 to 2e-3.  The emulated
       instrument's own catalog carries 2e-3 (its 5.2 interim figure) while
       the realism match measures a transient single-pixel spike fraction of
       2.75e-4 per frame on the CALIB NAC cohort, so the range spans from
@@ -263,18 +277,18 @@ def _artifact_blocks(rng: random.Random) -> tuple[dict[str, Any], dict[str, Any]
 
     Returns:
         ``(artifacts_block, noise_extras)``: the instrument defect population
-        plus an explicit hot-pixel incidence, and the cosmic-ray rate the
+        plus an explicit hot-pixel ``pixel_fraction``, and the cosmic-ray rate the
         noise block carries.
     """
     artifacts = {
         'instrument_defaults': True,
         'hot_pixels': {
-            'incidence': round(rng.uniform(2.0e-4, 2.0e-3), 6),
+            'pixel_fraction': round(rng.uniform(2.0e-4, 2.0e-3), 6),
             'amplitude_e': round(rng.uniform(2.0e4, 6.0e4), 1),
         },
     }
     noise_extras = {
-        'cosmic_ray_rate_per_sec': round(rng.uniform(5.0e-4, 5.0e-3), 6),
+        'cosmic_ray_events_per_pixel_per_sec': round(rng.uniform(5.0e-4, 5.0e-3), 6),
         'bloom_length': rng.randint(0, 3),
     }
     return artifacts, noise_extras

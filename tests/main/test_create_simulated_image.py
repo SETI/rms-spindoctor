@@ -103,9 +103,9 @@ def test_load_ring_system_block_round_trips(
                 'name': 'R1',
                 'kind': 'ringlet',
                 'tau': 1.0,
-                'width': 10.0,
+                'width_px': 10.0,
                 'navigable': True,
-                'orbit': {'a': 30.0},
+                'orbit': {'a_px': 30.0},
             }
         ],
     }
@@ -206,9 +206,9 @@ def test_read_noise_spin_updates_noise(model: Any) -> None:
 
 
 def test_cosmic_ray_spin_updates_noise(model: Any) -> None:
-    """The cosmic-ray spin writes cosmic_ray_rate_per_sec into the noise block."""
+    """The cosmic-ray spin writes cosmic_ray_events_per_pixel_per_sec into the noise block."""
     model._cosmic_ray_spin.setValue(0.002)
-    assert model.sim_params['noise']['cosmic_ray_rate_per_sec'] == 0.002
+    assert model.sim_params['noise']['cosmic_ray_events_per_pixel_per_sec'] == 0.002
 
 
 def test_missing_data_spin_updates_noise(model: Any) -> None:
@@ -304,6 +304,67 @@ def test_saturation_overlay_off_clears_status(model: Any) -> None:
     model._saturation_overlay_check.setChecked(True)
     model._saturation_overlay_check.setChecked(False)
     assert model._saturation_label.text() == ''
+
+
+@pytest.mark.parametrize(('instrument', 'units'), [('coiss_nac', 'DN'), ('vgiss', 'I/F')])
+def test_units_label_names_the_rendered_units(model: Any, instrument: str, units: str) -> None:
+    """The status bar names the rendered frame's units after a render."""
+    model.sim_params['instrument'] = instrument
+    model._update_image()
+    assert model._units_label.text().split(' ')[0] == units
+
+
+def _set_body_scene(
+    model: Any, *, instrument: str, axis: float, center_u: float, offset_u: float
+) -> None:
+    """Set the editor's scene to a 128 x 128 frame holding one full-phase Rhea."""
+    model.sim_params.pop('noise', None)
+    model.sim_params.update(
+        {
+            'size_v': 128,
+            'size_u': 128,
+            'instrument': instrument,
+            'random_seed': 42,
+            'offset_v': 0.0,
+            'offset_u': offset_u,
+            'bodies': [
+                {
+                    'name': 'RHEA',
+                    'center_v': 64.0,
+                    'center_u': center_u,
+                    'axis1': axis,
+                    'axis2': axis,
+                    'axis3': axis,
+                    'illumination_angle': 0.0,
+                    'phase_angle': 0.0,
+                }
+            ],
+        }
+    )
+
+
+def test_units_label_leaves_the_vgiss_sky_out_of_the_marker_count(model: Any) -> None:
+    """A vgiss frame's dark sky sits above the 0 marker, and the label stays quiet."""
+    _set_body_scene(model, instrument='vgiss', axis=86.0, center_u=64.0, offset_u=0.0)
+    model._update_image()
+    assert model._units_label.text() == 'I/F 0.01176 to 1.008'
+
+
+def test_units_label_clears_after_a_failed_render(
+    model: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A failed render leaves the label empty rather than describing the previous frame."""
+    model.sim_params['instrument'] = 'coiss_nac'
+    model._update_image()
+
+    def _fail(*args: Any, **kwargs: Any) -> Any:
+        raise RuntimeError('render failed')
+
+    render_display = importlib.import_module('spindoctor.cli.sim_editor.render_display')
+    monkeypatch.setattr(render_display, 'render_combined_model', _fail)
+    monkeypatch.setattr(QMessageBox, 'critical', lambda *args, **kwargs: None)
+    model._update_image()
+    assert model._units_label.text() == ''
 
 
 def test_psf_preview_collapsed_by_default(model: Any) -> None:
