@@ -23,6 +23,7 @@ from spindoctor.sim.forward.haze_structure import (
     SECTOR_REFERENCE_HALF_ANGLE_DEG,
 )
 from spindoctor.sim.forward.photometry import PHOTOMETRIC_LAWS
+from spindoctor.sim.forward.relief import MAX_LIMB_RELIEF_RMS, MIN_LIMB_RELIEF_CORR_DEG
 from spindoctor.sim.scene_checks import (
     _check_optional_mapping_list,
     _check_optional_nonnegative_int,
@@ -251,9 +252,29 @@ def _check_body_relief_and_photometry(obj: dict[str, Any], *, label: str, source
     _check_optional_nonnegative_number(
         obj.get('limb_relief_rms'), f'{label}.limb_relief_rms', source=source
     )
+    # The bounds and their reasons live with the constants in
+    # spindoctor.sim.forward.relief.  The RMS cap is a conservative validity
+    # bound for the limb-only ellipsoid renderer, set by the share of the disc
+    # whose terrain it misreads at the default correlation length (about 12% at
+    # the cap); validity degrades at shorter lengths, which the cap does not
+    # follow.  The correlation floor bounds the field's synthesis cost; it is
+    # not a validity bound.  Each key's range is checked on its own, as every
+    # other key's is, so the floor applies even to a body whose relief is off.
+    relief_rms = obj.get('limb_relief_rms')
+    if relief_rms is not None and float(relief_rms) > MAX_LIMB_RELIEF_RMS:
+        raise SimSceneValidationError(
+            f'{source}: {label}.limb_relief_rms is a fraction of the body radius and '
+            f'must be at most {MAX_LIMB_RELIEF_RMS}; got {relief_rms}'
+        )
     _check_optional_positive_number(
         obj.get('limb_relief_corr_deg'), f'{label}.limb_relief_corr_deg', source=source
     )
+    relief_corr = obj.get('limb_relief_corr_deg')
+    if relief_corr is not None and float(relief_corr) < MIN_LIMB_RELIEF_CORR_DEG:
+        raise SimSceneValidationError(
+            f'{source}: {label}.limb_relief_corr_deg must be at least '
+            f'{MIN_LIMB_RELIEF_CORR_DEG} degrees; got {relief_corr}'
+        )
     law = obj.get('photometric_law')
     if law is not None and law not in PHOTOMETRIC_LAWS:
         raise SimSceneValidationError(

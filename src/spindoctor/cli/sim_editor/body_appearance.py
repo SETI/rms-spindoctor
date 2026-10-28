@@ -37,6 +37,7 @@ from PyQt6.QtWidgets import (
 from spindoctor.cli.sim_editor.base import SimEditorBase
 from spindoctor.cli.sim_editor.widgets import make_dspin as _dspin
 from spindoctor.sim.forward.photometry import PHOTOMETRIC_LAWS
+from spindoctor.sim.forward.relief import MAX_LIMB_RELIEF_RMS, MIN_LIMB_RELIEF_CORR_DEG
 
 # The photometric-law vocabulary, Lambert first so the combo opens on the
 # navigator-matched default when a scene enables the group without a law.
@@ -127,14 +128,17 @@ class BodyAppearanceMixin(SimEditorBase):
         form = QFormLayout(group)
         rms = _dspin(
             minimum=0.0,
-            maximum=1.0,
+            maximum=MAX_LIMB_RELIEF_RMS,
             decimals=4,
             step=0.005,
             value=float(p.get('limb_relief_rms', 0.0)),
-            tooltip='Fractional relief amplitude (0 disables the field).',
+            tooltip=(
+                'Relief RMS as a fraction of the body radius: 0.02 moves the limb of a '
+                '100-pixel-radius body by 2 pixels RMS (0 disables the field).'
+            ),
         )
         corr = _dspin(
-            minimum=0.1,
+            minimum=MIN_LIMB_RELIEF_CORR_DEG,
             maximum=180.0,
             decimals=1,
             step=1.0,
@@ -837,7 +841,7 @@ class BodyAppearanceMixin(SimEditorBase):
         octaves = QSpinBox()
         octaves.setRange(0, 6)
         octaves.setValue(int(p.get('mesh_detail_octaves', 0)))
-        octaves.setToolTip('Higher-frequency mesh detail banks; 0 leaves the key absent.')
+        octaves.setToolTip('Higher-degree relief bands; 0 leaves the key absent.')
         form.addRow('Detail octaves:', octaves)
 
         scatter = _as_map(p.get('pose_scatter'))

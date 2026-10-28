@@ -178,6 +178,39 @@ def test_validate_sim_params_rejects_negative_limb_relief_rms() -> None:
         validate_sim_params(params)
 
 
+@pytest.mark.parametrize(('rms', 'accepted'), [(0.05, True), (0.0501, False), (0.1, False)])
+def test_validate_sim_params_bounds_limb_relief_rms_as_a_fraction_of_the_radius(
+    rms: float, accepted: bool
+) -> None:
+    """Relief RMS above 5% of the radius fails validation.
+
+    At the cap the ellipsoid renderer misreads the terrain under about 12% of the disc.
+    """
+    params = _sim_params()
+    params['bodies'][0]['limb_relief_rms'] = rms
+    if accepted:
+        assert validate_sim_params(params) is params
+        return
+    with pytest.raises(SimSceneValidationError, match=r'limb_relief_rms .*at most 0\.05'):
+        validate_sim_params(params)
+
+
+@pytest.mark.parametrize(('corr_deg', 'accepted'), [(1.0, True), (0.99, False), (0.1, False)])
+def test_validate_sim_params_bounds_relief_corr_from_below(corr_deg: float, accepted: bool) -> None:
+    """A relief correlation length below 1 degree fails validation.
+
+    The floor bounds the field's synthesis cost.  The body in this scene does not set a
+    relief RMS: the floor applies with relief off too.
+    """
+    params = _sim_params()
+    params['bodies'][0]['limb_relief_corr_deg'] = corr_deg
+    if accepted:
+        assert validate_sim_params(params) is params
+        return
+    with pytest.raises(SimSceneValidationError, match=r'limb_relief_corr_deg .*at least 1\.0'):
+        validate_sim_params(params)
+
+
 def test_validate_sim_params_rejects_nonpositive_relief_corr() -> None:
     """A non-positive relief correlation length fails validation."""
     params = _sim_params()

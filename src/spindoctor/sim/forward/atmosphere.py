@@ -78,6 +78,8 @@ from spindoctor.sim.forward.haze_structure import (
     apply_disc_structure,
     apply_hemispheric_scaling,
     haze_structure_from_params,
+    hemisphere_weight,
+    latitude_sine,
     scale_height_field,
     tilted_illumination_2d,
 )
@@ -553,6 +555,14 @@ def apply_atmosphere(
     # so the rendered mirror plane is not the one a navigator derives from
     # the predicted sub-solar point.  The body's own shading is untouched.
     structure = spec.structure
+    # The hemispheric structure terms blend across the equator by the latitude
+    # of the haze column each pixel sees.  Only those two terms read the
+    # weight, so every other haze skips building it.
+    weight = (
+        hemisphere_weight(latitude_sine(v_rot, e2, semi_a=semi_a))
+        if structure is not None and structure.splits_hemispheres
+        else None
+    )
     haze_illumination_angle = illumination_angle + (
         0.0 if structure is None else math.radians(structure.axis_tilt_deg)
     )
@@ -604,7 +614,7 @@ def apply_atmosphere(
         height_in = scale_height_field(
             structure,
             scale_height,
-            v_rot=v_rot[band_in],
+            weight=None if weight is None else weight[band_in],
             v_ctr=np.broadcast_to(v_ctr, e2.shape)[band_in],
             u_ctr=np.broadcast_to(u_ctr, e2.shape)[band_in],
             illum_v=axis_v,
@@ -634,7 +644,7 @@ def apply_atmosphere(
         height_out = scale_height_field(
             structure,
             scale_height,
-            v_rot=v_rot[band_out],
+            weight=None if weight is None else weight[band_out],
             v_ctr=v_out,
             u_ctr=u_out,
             illum_v=axis_v,
@@ -662,11 +672,15 @@ def apply_atmosphere(
     # The disc-side structure rides on top of the composited haze: an axial
     # brightness ramp and any clouds, both confined to the painted
     # silhouette, then a hemispheric brightness scaling of everything --
-    # disc radiance and halo glow alike -- so the two halves the mirror maps
-    # onto each other differ by a pure scaling.  Transmission is opacity,
-    # not brightness, and is deliberately left alone.  The whole block is
-    # skipped for a structureless haze: not for tidiness but because every
-    # line of it is per-pixel work the cold-render budget does not carry.
+    # disc radiance and halo glow alike -- so poleward of the equatorial
+    # blend band the two halves the mirror maps onto each other differ by a
+    # pure scaling wherever the scaled half stays below saturation.  The
+    # clip to [0, 1] that follows flattens a positive amplitude's brightest
+    # pixels (the haze_structure module docstring gives what that costs).
+    # Transmission is opacity, not brightness, and is deliberately left
+    # alone.  The whole block is skipped for a structureless haze: not for
+    # tidiness but because every line of it is per-pixel work the
+    # cold-render budget does not carry.
     if structure is not None:
         apply_disc_structure(
             out_box,
@@ -678,10 +692,10 @@ def apply_atmosphere(
             illum_v=axis_v,
             illum_u=axis_u,
         )
-        apply_hemispheric_scaling(out_box, structure, v_rot)
+        apply_hemispheric_scaling(out_box, structure, weight)
         np.clip(out_box, 0.0, 1.0, out=out_box)
         emission_box = emission[box_v, box_u]
-        apply_hemispheric_scaling(emission_box, structure, v_rot)
+        apply_hemispheric_scaling(emission_box, structure, weight)
         np.clip(emission_box, 0.0, 1.0, out=emission_box)
     return AtmosphereLayers(
         disc=out,

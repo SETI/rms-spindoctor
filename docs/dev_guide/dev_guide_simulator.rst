@@ -1123,21 +1123,132 @@ The topographic path
 **The relief field.** Limb relief is a 2-D fractional-height field
 ``h(lat, lon)`` on the body surface, not a 1-D profile on the limb, so the
 limb perturbation and the terminator shadowing are two slices of one
-consistent surface (``relief.py``). The field is a periodic Gaussian random
-field synthesized by FFT: the spectral coefficients are independent complex
-Gaussians with variance ``S(k) proportional to exp(-(|k| corr_rad / 2)**2)``
-(``corr_rad`` the correlation length in radians of surface arc), band-limited
-at ``kmax = ceil(8 / corr_rad)`` where ``S`` has fallen to ~1e-7 of its peak.
-The field's poles sit on the observer axis, so the sub-observer horizon circle
--- the limb -- is the field's equator, where the grid metric is exact and the
-commanded RMS and correlation length hold with no map distortion.
+consistent surface (``relief.py``). The field is an isotropic Gaussian random
+field on the sphere, synthesized as a sum of real spherical harmonics whose
+coefficients are independent Gaussians with variance
+``C_l proportional to exp(-(l corr_rad / 2)**2)`` (``l`` the harmonic degree,
+``corr_rad`` the correlation length in radians of surface arc), band-limited at
+``lmax = ceil(8 / corr_rad)`` where ``C`` has fallen to ~1e-7 of its peak.
+Because it is built on the sphere, the field is single-valued everywhere and
+has the same statistics at every point. The ellipsoid renderer puts the
+field's poles on the observer axis, so the sub-observer horizon circle -- the
+limb -- is the field's equator and the disc center is a pole, which is as
+smooth as any other point of the surface.
 
-Modes with total wavenumber below **3** are zeroed before use: degree-1 radius
-content is, to first order, a translation of the body -- an untruthed center
-offset no limb fit could separate from the pointing error -- and degree-2
-content aliases ellipsoid shape error, which is a separate scene knob. After
-the cutoff the field is rescaled so the *limb slice's* standard deviation
-equals the commanded ``limb_relief_rms`` per realization.
+Harmonic degrees below **3** are zeroed before use: degree-1 radius content
+is, to first order, a translation of the body -- an untruthed center offset
+no limb fit could separate from the pointing error -- and degree-2 content
+aliases ellipsoid shape error, which is a separate scene knob. After the
+cutoff the field is rescaled so the *limb slice's* standard deviation equals
+the commanded ``limb_relief_rms`` per realization. That RMS is a fraction of
+the body radius: 0.02 moves the limb of a 100-pixel-radius body by 2 pixels
+RMS.
+
+The scene validator caps that RMS at 0.05. The cap comes from the ellipsoid
+renderer, which displaces only the limb. It draws the silhouette at the field's
+equator slice, ``R (1 + h(0, phi))``, and it reads the terrain under each disc
+pixel at the smooth sphere's direction. The relief surface itself projects to
+the envelope ``R max_lat (1 + h(lat, phi)) cos(lat)``. Under a pixel at
+elevation ``lat`` it shows a point ``h cot(lat)`` radians away from the one the
+renderer reads. Both errors grow with the RMS and shrink with the correlation
+length. The table gives both, averaged over 64 seeds of the field:
+
+.. list-table::
+   :widths: 20 20 30 30
+   :header-rows: 1
+
+   * - Correlation length
+     - RMS
+     - Drawn limb's RMS distance from the envelope, in units of the RMS
+     - Disc read more than half a correlation length from the point shown
+   * - 30 degrees
+     - 0.05
+     - 0.47
+     - 3.6%
+   * - 30 degrees
+     - 0.1
+     - 0.72
+     - 12%
+   * - 15 degrees
+     - 0.01
+     - 0.31
+     - 0.6%
+   * - 15 degrees
+     - 0.02
+     - 0.54
+     - 2.5%
+   * - 15 degrees
+     - 0.05
+     - 0.88
+     - 12%
+   * - 15 degrees
+     - 0.1
+     - 1.12
+     - 28%
+   * - 10 degrees
+     - 0.02
+     - 0.81
+     - 4.7%
+   * - 10 degrees
+     - 0.035
+     - 1.02
+     - 12%
+   * - 10 degrees
+     - 0.05
+     - 1.14
+     - 20%
+   * - 5 degrees
+     - 0.01
+     - 1.03
+     - 4.8%
+   * - 5 degrees
+     - 0.02
+     - 1.27
+     - 14%
+   * - 5 degrees
+     - 0.05
+     - 1.54
+     - 39%
+   * - 2 degrees
+     - 0.005
+     - 1.37
+     - 6.8%
+   * - 2 degrees
+     - 0.01
+     - 1.57
+     - 19%
+   * - 2 degrees
+     - 0.05
+     - 1.97
+     - 66%
+
+The cap of 0.05 is a conservative bound set by the disc share. At the default
+15-degree correlation length, the renderer reads the terrain under about 12% of
+the disc, one pixel in eight, more than half a correlation length from the
+point the pixel shows. The disc share follows the ratio of the RMS to the
+correlation length in radians. Wherever that ratio is 0.19, from 2 to
+30 degrees, the share is 11% to 12%. The limb's error does not follow the
+ratio: along the same line it falls from 1.46 times the RMS at 2 degrees to
+0.72 times at 30 degrees.
+
+Validity degrades at shorter correlation lengths, and the cap does not follow
+it. At 10 degrees and an RMS of 0.05, a fifth of the disc is misread. At
+5 degrees the limb's error exceeds the RMS from an RMS of 0.01 upward. At
+2 degrees it is at least 1.37 times the RMS at every RMS in the table.
+
+The validator holds mesh bodies to the same cap. A mesh body's relief displaces
+the mesh's vertices in 3-D, so its silhouette is the displaced surface's own
+outline, and the two errors above belong to the ellipsoid renderer.
+
+The validator also requires ``limb_relief_corr_deg`` of at least 1 degree. That
+floor bounds cost. It is not a validity bound: at 2 degrees validity is already
+poor at every RMS. The field's synthesis costs about the cube of ``1 / corr``:
+0.5 s and 0.2 GB at 1 degree, 3.1 s and 0.5 GB at 0.5 degrees, and 26 s and
+1.7 GB at 0.25 degrees. A realization is cached by its correlation length and
+seed and rescaled to the RMS, so a render, or the scene editor, pays that cost
+again only when the correlation length or the relief seed changes. The
+correlation length is checked even on a body whose relief is off, as every
+other key's range is checked on its own.
 
 **Limb and terminator application.** The renderer's normalized ellipse radial
 function ``e(p)`` (1 exactly at the unperturbed limb) is divided by
@@ -1153,14 +1264,18 @@ disc shading is low-frequency; relief moves the edge, not the interior).
 Near-terminator disc points are then shadowed by a march against upstream
 terrain in absolute heights ``H = h R`` (pixels): a point is shadowed when some
 upstream sample at surface distance ``d`` toward the sun satisfies
-``H_up - H_pt > d / tan(i)``. The march is capped at
-``d_max = min((H_max - H_min) tan(i), sqrt(2 R H_max))`` -- the longest shadow
-the terrain can cast, and the horizon limit that bounds the tangent's
-divergence at the terminator -- so raggedness grows toward the terminator while
-the cost stays bounded. The march steps at ``max(1.0, field_cell_arc / 4)``
-pixels of surface arc -- about 16 samples per shortest terrain wavelength,
-never finer than one render pixel -- which is why it is both accurate and
-cheap.
+``H_up - H_pt > d / tan(i) + d**2 / (2 R)``, that is, when the terrain rises
+above both the sun ray and the body's curvature drop. The march is capped at
+``d_max = min((H_max - H_pt) tan(i), sqrt(2 R (H_max - H_pt)))``, an upper
+bound on the distance at which that inequality can hold: the longest shadow
+the terrain could cast on a flat body, and the horizon distance of the
+highest peak. The bound is at most 1.62 times the exact distance, so it keeps
+the cost bounded and changes no shadow decision. Shadows fall where the
+terrain's slope exceeds the sun's elevation, so at the RMS values the
+validator allows they gather in the low-sun band along the terminator, where
+they grow ragged. The march steps at ``max(1.0, field_cell_arc / 4)`` pixels
+of surface arc -- about 16 samples per shortest terrain wavelength, never
+finer than one render pixel -- which is why it is both accurate and cheap.
 
 Split-resolution performance
 ----------------------------
@@ -1252,8 +1367,60 @@ Mesh shading, detail, relief, and pose scatter
 ----------------------------------------------
 
 The mesh renderer builds the same irregular polyhedron the navigator predicts
-(the primitives live in the shared ``mesh_geometry`` module), then adds its own
-truth-key upgrades on top, none of which the prediction consumes:
+(the primitives live in the shared ``mesh_geometry`` module). The polyhedron is a
+latitude-longitude sphere of ``mesh_n_lat`` bands and ``mesh_n_lon`` divisions.
+Each vertex sits at radius ``1 + mesh_lumpiness * h(u)`` along its unit direction
+``u``, floored at 0.2. The relief ``h`` is a random sum of real spherical
+harmonics of degrees 2 to 5, drawn from ``mesh_seed`` with the same synthesis the
+limb-relief field uses (:mod:`spindoctor.sim.spherical_harmonics`). Because ``h``
+is a function on the sphere, the surface is smooth everywhere, including at the
+mesh's poles, and raising ``mesh_n_lat`` and ``mesh_n_lon`` samples the same
+surface more finely.
+
+``h`` has no degree 0 or degree 1 content. Degree 0 would only change the body's
+size and degree 1 would only move its center, and neither is irregularity. The
+mean radius therefore stays 1 at every lumpiness, and the body's center stays
+put to first order. To second order a large lumpiness grows the volume slightly
+and shifts its centroid, both in proportion to the square of the lumpiness: at
+0.7 the volume-equivalent radius grows by about 1.1% and the volume centroid
+moves by about 1.1% of the radius (medians over 40 seeds). Degree 2 is an
+ellipsoid-like elongation on top of the scene's axes. Degrees 3 to 5 are the
+lopsided lumps that a best-fit ellipsoid cannot absorb. Each seed's draw is
+scaled so that this non-ellipsoidal part has an RMS of exactly
+``mesh_lumpiness / 8`` of the radius; the degree 2 part varies with the seed,
+at about two thirds of that on average. A lumpiness of 0.4
+therefore plants a non-ellipsoidal shape error of 5% of the radius RMS on every
+seed. The expected per-degree RMS shares, ``_BASE_DEGREE_RMS`` in the module
+(0.082, 0.092, 0.072, and 0.040 for degrees 2 to 5), are a convention for the
+simulator's bodies. They aren't fitted to any real body's shape spectrum.
+
+``mesh_seed`` names a shape only through this synthesis: the same seed gives the
+same shape at every tessellation and every lumpiness, and a different relief
+synthesis would give it a different shape. When a test's verdict depends on
+which shape the seed draws, one realization can land anywhere in the
+population's spread. Such a scene picks its seed by a rule fixed before it
+navigates and states the rule in the scene file, its single-seed assertions are
+a tripwire on that realization, and any property claimed for irregular bodies in
+general is asserted over a population of seeds. ``planted_offset_shapemismatch``
+takes the seed with the median silhouette mismatch at its sweep's extreme step,
+and ``test_sim_sweeps`` asserts the veto's behavior over mesh seeds 0 to 12. The
+rule is ``tests/integration/sim_mesh_seed_rule.py``, which prints the ranking
+when run with ``python -m``, and ``test_sim_mesh_seed_rule`` fails when a change
+to the relief or the renderer moves the median away from the scene's seed.
+
+Faceting is a sampling effect. At the default 16 by 32 tessellation a large body
+shows rings of flat-shaded quadrilaterals around the mesh pole and a polygonal
+silhouette. The shipped mesh scenes and the gallery's other mesh panels use 64
+by 128, at which
+neither is visible on a body up to about 150 pixels across. Because
+``mesh_n_lat`` and ``mesh_n_lon`` are idealized keys, the navigator's predicted
+mesh uses the same tessellation, so a finer mesh never plants a mismatch.
+``gouraud`` shading also hides the facets inside the silhouette, but it is
+truth-side: it changes only the rendered image, and it leaves the silhouette a
+polygon.
+
+The renderer then adds its own truth-key upgrades on top, none of which the
+prediction consumes:
 
 - ``shading`` (truth) selects the shared rasterizer's mode for the *rendered*
   image: ``flat`` (default) or ``gouraud`` per-vertex smooth shading. The
@@ -1261,8 +1428,10 @@ truth-key upgrades on top, none of which the prediction consumes:
   navigator's predicted mesh keeps flat shading because the key never crosses
   the boundary. The gallery renders the same body flat and gouraud so the
   difference is visible.
-- ``mesh_detail_octaves`` (idealized) adds banks of higher-frequency shape
-  modes to the base relief spectrum (0 = base only). It is idealized because a
+- ``mesh_detail_octaves`` (idealized) adds bands of higher harmonic degrees to
+  the base relief (0 = base only). Octave ``k`` covers degrees ``5 * 2**(k-1) + 1``
+  to ``5 * 2**k`` at an RMS of ``0.5**k`` times the base's non-ellipsoidal RMS, so
+  ``mesh_n_lon`` should be at least ``20 * 2**k``. It is idealized because a
   published shape model carries its own detail.
 - ``limb_relief_rms`` / ``limb_relief_corr_deg`` (truth) apply the same relief
   machinery as a per-vertex radial perturbation of the unit mesh, sampled in
@@ -1383,13 +1552,15 @@ render-level test asserting the effect is measurably present:
        direction a navigator predicts, so the true mirror plane is not the
        predicted one.
    * - ``ns_falloff_ratio``
-     - Scales the haze falloff length on one hemisphere only -- a genuinely
-       NON-affine difference between the two halves the mirror maps onto each
-       other, which is what actually probes a Pearson score's blindness to an
-       affine one.
+     - Scales the haze falloff length on one hemisphere only, blended across
+       the equator -- a genuinely NON-affine difference between the two halves
+       the mirror maps onto each other, which is what actually probes a Pearson
+       score's blindness to an affine one.
    * - ``ns_asymmetry_amplitude``
-     - Scales one hemisphere's brightness: the affine counterpart the Pearson
-       score is supposed to absorb.
+     - Scales one hemisphere's brightness, blended across the equator: the
+       affine counterpart the Pearson score is supposed to absorb. It is
+       affine only poleward of the blend band described below, and only where
+       the scaled half stays below saturation.
    * - ``sector_sharpness_gradient``
      - Scales the falloff length with azimuth around the limb, walking the
        detected limb ridge radially as a function of ray angle -- the
@@ -1403,10 +1574,63 @@ render-level test asserting the effect is measurably present:
 
 The hemispheres are the two sides of the body's first semi-axis in the body
 frame, so a scene that wants the hemispheric split to be the one the mirror maps
-onto itself orients its illumination perpendicular to that axis. Every field is
-optional and the whole module is bypassed when a block names none of them: the
-haze then renders through exactly the scalar arithmetic above. That gating is a
-performance contract, not only a tidiness one -- the per-pixel scale-height field
+onto itself orients its illumination perpendicular to that axis.
+
+The two hemispheric keys blend across the equator instead of switching there,
+because a switch draws a seam across the halo along one image row and a real
+haze changes continuously with latitude. Each is weighted by a cubic smoothstep
+of the sine of latitude that is 0.5 on the equator and reaches 0 and 1 at
+``HEMISPHERE_BLEND_HALF_WIDTH_DEG`` (10 degrees) south and north of it. The
+latitude is that of the haze column a pixel sees: the pixel's own latitude on
+the disc, and the latitude of the limb point beneath the line of sight above
+it, so the weight is continuous across the silhouette. Poleward of 10 degrees
+each key applies at exactly its stated value: ``ns_falloff_ratio`` multiplies
+the falloff length by the full ratio over the positive-axis hemisphere, and
+``ns_asymmetry_amplitude`` scales that hemisphere's brightness by the full
+``1 + amplitude``, so there the two halves differ by a pure scaling wherever
+the scaled half stays below saturation. Inside the band the multiplier is
+``1 + (ratio - 1) * w`` or ``1 + amplitude * w`` for the weight ``w``, so a
+ratio of one or an amplitude of zero leaves the haze untouched.
+
+The render clips the signal at 1, so a positive amplitude flattens the bright
+crescent wherever the base brightness times ``1 + amplitude`` would pass 1, and
+there the two halves differ by the clip instead of a scaling, poleward of the
+band or not. Over 26 of the 40 clean Titan truth scenes that navigate both with
+and without an ``ns_asymmetry_amplitude`` of +0.35, the amplitude shifts the
+recovered cross-track position by 0.063 pixels on average with a switch at the
+equator and 0.065 pixels with the 10 degree band, about four times what an
+amplitude of -0.35 costs with the band (below). Nearly all of that cost is there
+with a switch too, where an amplitude of -0.35, which darkens and so never
+reaches the clip, costs 0.004 pixels, so the clip sets it and the band does not.
+
+Inside the band ``ns_asymmetry_amplitude`` is not an affine control, and no
+continuous blend can make it one. The mirror about the hemispheric split maps
+latitude ``s`` onto ``-s``, and a pure scaling of one half needs every mirror
+pair to differ by the same factor ``1 + amplitude``. On the mirror line the two
+members of a pair are the same point, so a continuous multiplier gives them the
+same value and their ratio is 1; the ratio reaches ``1 + amplitude`` only at
+the band edge. Only a switch keeps the ratio constant, and a switch is the
+seam. Where a scene puts the split along the sun axis, as the Titan truth
+campaign does, the band covers the sunward limb a haze navigator scores on.
+For a sphere seen with its axis in the image plane the band covers 22% of the
+projected disc and 11% of the limb, together with the halo above that part of
+the limb.
+
+The 10 degree half-width is a sim-side modeling choice set by that cost. Over
+the 27 of 40 clean Titan truth scenes that navigate both with and without an
+``ns_asymmetry_amplitude`` of -0.35, the amplitude shifts the recovered
+cross-track position by 0.004 pixels on average with a switch, 0.016 pixels
+(largest 0.086) with a 10 degree band, and 0.031 pixels (largest 0.176) with a
+20 degree band. At 10 degrees the
+brightness change across the equator row of a 64 pixel radius haze is about the
+same as across the rows beside it, a ratio of 0.95 to 1.03 where a switch gives
+3 to 26; at 5 degrees the ratio for the brightness term rises to 1.24. The
+band's pixel width scales with the body: about 0.17 of the radius each side of
+the equator, 10 pixels at a radius of 55 and 87 at a radius of 500.
+
+Every field is optional and the whole module is bypassed when a block names
+none of them: the haze then renders through exactly the scalar arithmetic above.
+That gating is a performance contract, not only a tidiness one -- the per-pixel scale-height field
 costs an array where the base haze costs a scalar, and ``test_sim_perf.py``
 carries cold-render budgets for the structureless path.
 
@@ -1654,8 +1878,10 @@ The panels below are rendered by ``python -m tests.integration.sim_doc_images``
    :width: 45%
    :align: center
 
-   The same mesh body under ``gouraud`` smooth shading, for comparison with the
-   flat-shaded panel above. The navigator's predicted mesh keeps flat shading.
+   The same mesh body at the default 16 by 32 tessellation under ``gouraud``
+   smooth shading. The shading hides the facets inside the silhouette, while the
+   silhouette itself stays a polygon. The panel above uses 64 by 128 and flat
+   shading. The navigator's predicted mesh keeps flat shading.
 
 .. figure:: _sim_images/body_craters.png
    :width: 45%
@@ -1673,8 +1899,9 @@ The panels below are rendered by ``python -m tests.integration.sim_doc_images``
    :width: 45%
    :align: center
 
-   A lit ellipsoid with a limb-relief field: the silhouette is visibly ragged
-   and relief pockets shadow near the limb, while the disc shading stays smooth.
+   A lit ellipsoid with a limb-relief field: the silhouette is visibly ragged,
+   relief shadows break up the terminator, and the rest of the disc shading
+   stays smooth.
 
 .. figure:: _sim_images/ragged_terminator.png
    :width: 45%
@@ -1848,7 +2075,9 @@ ring, a couple of stars, and a planted offset the navigator must recover -- read
      - name: HYPERION
        shape_model: polyhedral_mesh
        mesh_lumpiness: 0.4
-       mesh_seed: 7
+       mesh_seed: 3
+       mesh_n_lat: 64
+       mesh_n_lon: 128
        pose_euler_deg: [10.0, 35.0, 0.0]
        center_v: 110.0
        center_u: 110.0
@@ -2161,10 +2390,11 @@ Common fields:
 
 Ellipsoid bodies add ``rotation_z`` and ``rotation_tilt`` (degrees, idealized).
 Mesh bodies (``shape_model: polyhedral_mesh``) instead read the idealized mesh
-keys ``mesh_lumpiness`` (relief amplitude as a fraction of the unit radius,
-default 0.3), ``mesh_seed`` (which irregular shape is generated, default 0),
-``mesh_n_lat`` / ``mesh_n_lon`` (mesh resolution, defaults 16 / 32),
-``mesh_detail_octaves`` (higher-frequency shape-mode banks, default 0), and
+keys ``mesh_lumpiness`` (relief amplitude, default 0.3: the non-ellipsoidal
+relief has an RMS of ``mesh_lumpiness / 8`` of the radius), ``mesh_seed`` (which
+irregular shape is generated, default 0), ``mesh_n_lat`` / ``mesh_n_lon`` (mesh
+resolution, defaults 16 / 32; 64 / 128 hides the facets on a large body),
+``mesh_detail_octaves`` (bands of higher harmonic degrees, default 0), and
 ``pose_euler_deg`` (intrinsic X, Y, Z Euler angles, default ``[0, 0, 0]``).
 
 The truth-side body keys never reach the navigator. The relief, photometry,
@@ -2183,9 +2413,10 @@ predicted body is always the smooth Lambert template.
      - Procedural crater terrain -- nature's surface, which the navigator's
        smooth predicted template does not know.
    * - ``limb_relief_rms``, ``limb_relief_corr_deg``
-     - The limb/terminator relief field: RMS of the limb slice and its
-       correlation length in degrees of surface arc. Ragged silhouette plus
-       terminator march shadows (ellipsoid and mesh bodies).
+     - The limb/terminator relief field: RMS of the limb slice as a fraction
+       of the body radius (at most 0.05), and its correlation length in
+       degrees of surface arc (at least 1). Ragged silhouette plus terminator
+       march shadows (ellipsoid and mesh bodies).
    * - ``photometric_law``, ``minnaert_k``
      - The surface-scattering law (``lambert`` / ``lommel_seeliger`` /
        ``minnaert`` / ``lunar_lambert``) and its Minnaert exponent; ellipsoid

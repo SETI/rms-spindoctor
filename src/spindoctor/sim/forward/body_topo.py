@@ -55,7 +55,12 @@ from spindoctor.sim.forward.photometry import (
     incidence_cosines,
     shade_surface,
 )
-from spindoctor.sim.forward.relief import ReliefField, march_shadows, synthesize_relief_field
+from spindoctor.sim.forward.relief import (
+    ReliefField,
+    march_shadows,
+    shadow_reach,
+    synthesize_relief_field,
+)
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType, NDArrayIntType
 
@@ -577,8 +582,8 @@ def _apply_terminator_shadows(
     terminator: on the shading-grid incidence map, points whose sun
     elevation ``eps`` (surface distance to the terminator is ``R * eps``)
     lies within their own cap ``min((h_max - h_min) * cot(eps),
-    sqrt(2 * h_max))`` radians of arc, widened by the coarse-band margins
-    and refined per-pixel with exact incidence.  The relief and arc maps
+    sqrt(2 * (h_max - h_min)))`` radians of arc, widened by the coarse-band
+    margins and refined per-pixel with exact incidence.  The relief and arc maps
     are built only over the band dilated by the cap's reach, and the march
     itself is :func:`spindoctor.sim.forward.relief.march_shadows`, stepping
     at the relief field's own grid resolution (never finer than one
@@ -612,8 +617,10 @@ def _apply_terminator_shadows(
     # Coarse candidate band on the shading grid, refined exactly below: the
     # disc points within the march cap of the terminator.  The sun elevation
     # eps puts a point R * eps of surface arc from the terminator, so the
-    # cap condition is eps <= min((h_max - h_min) * cot(eps), sqrt(2 h_max))
-    # radians (the local radius cancels), widened by the band margins.
+    # cap condition is eps <= min((h_max - h_min) * cot(eps),
+    # sqrt(2 (h_max - h_min))) radians (the local radius cancels; the second
+    # term is the horizon of the highest peak seen from the lowest valley, the
+    # longest reach shadow_reach allows), widened by the band margins.
     h_range = field.h_max - field.h_min
     radius_min = min(grid.semi_a, grid.semi_b, grid.semi_c)
     pad_rad = _BAND_MARGIN_PAD_PX * up_factor / max(radius_min, 1.0)
@@ -621,7 +628,7 @@ def _apply_terminator_shadows(
     with np.errstate(divide='ignore'):
         cap_rad = np.minimum(
             h_range / np.maximum(np.tan(elevation), 1e-12),
-            math.sqrt(max(2.0 * field.h_max, 0.0)),
+            math.sqrt(2.0 * h_range),
         )
     coarse = (
         (shade_e2 < 1.0)
@@ -634,7 +641,7 @@ def _apply_terminator_shadows(
 
     # The maps must cover the longest capped march: d_max surface px, each
     # advancing at most 1 / cos(tilt) image px.
-    d_max_global = radius_max * math.sqrt(max(2.0 * field.h_max, 0.0))
+    d_max_global = radius_max * math.sqrt(2.0 * h_range)
     reach_work = d_max_global / max(cos_rt, 0.1) + 2.0
     reach_shade = math.ceil(reach_work / up_factor) + 1
     region_shade = ndimage.maximum_filter(coarse, size=2 * reach_shade + 1)
@@ -704,10 +711,7 @@ def _apply_terminator_shadows(
     cell_arc_px = 2.0 * np.pi / field.grid.shape[0] * radius_max
     step_arc = max(1.0, cell_arc_px / _MARCH_SAMPLES_PER_CELL)
     # A pixel is marchable only when the cap admits at least one sample.
-    d_max = np.minimum(
-        (field.h_max - field.h_min) * r_local_c * tan_i,
-        r_local_c * math.sqrt(max(2.0 * field.h_max, 0.0)),
-    )
+    d_max = shadow_reach(h_frac_c, tan_i, r_local_c, h_max=field.h_max)
     marchable = lit & (d_max >= step_arc)
     if not marchable.any():
         return

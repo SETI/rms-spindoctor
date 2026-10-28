@@ -68,8 +68,9 @@ FAMILIES = (
 # Body identities the campaign draws from, with mean radius and published
 # ellipsoid RMS residual pulled live from config_220_body_shape.yaml (so
 # the campaign always matches the shipped table).  Every rendered body is
-# a polyhedral mesh whose relief AMPLITUDE is ~3x the body's fractional
-# RMS residual (amplitude ~ 3 sigma of relief), while the navigator
+# a polyhedral mesh with mesh_lumpiness 3x the body's fractional RMS
+# residual; the mesh's non-ellipsoidal RMS is lumpiness / 8, so that plants
+# 3/8 of the published residual (8x would match it), while the navigator
 # predicts the smooth (zero-relief) limit -- so the rendered shape error,
 # and hence the recovered-offset error, physically tracks the
 # max_phase_irregularity_factor the confidence formula consumes.  The
@@ -201,11 +202,12 @@ def _catalog_body(
     """A named body whose rendered relief tracks its published shape residual.
 
     Draws the identity from the config_220-backed catalog (regular vs
-    irregular per ``irregular_fraction``), renders a polyhedral mesh whose
-    relief amplitude is ~3x the body's fractional RMS residual, and has
-    the navigator predict the smooth (zero-relief) limit -- so the shape
-    error the navigator cannot model scales with the same
-    residual-over-radius ratio the ``max_phase_irregularity_factor``
+    irregular per ``irregular_fraction``), renders a polyhedral mesh with
+    ``mesh_lumpiness`` 3x the body's fractional RMS residual (a
+    non-ellipsoidal RMS of ``lumpiness / 8``, so 3/8 of the residual; 8x
+    would match it), and has the navigator predict the smooth (zero-relief)
+    limit -- so the shape error the navigator cannot model scales with the
+    same residual-over-radius ratio the ``max_phase_irregularity_factor``
     confidence term consumes.  ``km_per_pixel`` gives the sim blob feature
     the physical scale that factor needs (it reports 0.0 without it).
     Every body also rolls the surface / photometric truth axes
@@ -811,7 +813,9 @@ def gen_titan(rng: random.Random) -> dict[str, Any]:
             # The structure keys split hemispheres on the body-frame first
             # axis; this roll puts that split line along the sun axis, which
             # is what makes ns_asymmetry_amplitude the affine control the
-            # Pearson score is meant to absorb.
+            # Pearson score is meant to absorb -- affine only poleward of the
+            # renderer's 10 degree equatorial blend band, since a continuous
+            # blend must match the two halves on the split line itself.
             'rotation_z': illumination_deg - 90.0,
             'phase_angle': rng.uniform(_TITAN_MIN_PHASE_DEG, _TITAN_MAX_PHASE_DEG),
             'km_per_pixel': _TITAN_RADIUS_KM / r_solid_px,

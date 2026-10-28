@@ -266,18 +266,46 @@ def run_sweep(spec: SweepSpec) -> list[SweepRow]:
         One :class:`SweepRow` per (value, seed) pair, values in sweep order and
         seeds in ascending order within each value.
     """
-    pinned = spec.technique != '*'
+    return run_sweep_steps(
+        build_sweep_params(spec), spec.technique, ensemble_seeds=spec.ensemble_seeds
+    )
+
+
+def run_sweep_steps(
+    steps: list[tuple[float, dict[str, Any]]],
+    technique: str,
+    *,
+    ensemble_seeds: int = 1,
+) -> list[SweepRow]:
+    """Navigate prepared ``(value, sim_params)`` steps and return their rows.
+
+    The engine behind :func:`run_sweep`, exposed so a test can navigate steps a
+    single-parameter sweep spec cannot express, such as a population of mesh
+    seeds at one fixed lumpiness.  Each row's ``value`` is the step's own value,
+    and the planted truth, technique pinning, and seed replication behave as in
+    :func:`run_sweep`.
+
+    Parameters:
+        steps: The ``(value, sim_params)`` pairs to navigate, in order.
+        technique: A technique name to pin, or ``'*'`` for the fused result.
+        ensemble_seeds: Number of noise seeds to replicate each step across.
+
+    Returns:
+        One :class:`SweepRow` per (step, seed) pair, steps in the given order and
+        seeds in ascending order within each step.
+    """
+    pinned = technique != '*'
     rows: list[SweepRow] = []
-    for value, sim_params in build_sweep_params(spec):
+    for value, sim_params in steps:
         planted_v = float(sim_params.get('offset_v', 0.0))
         planted_u = float(sim_params.get('offset_u', 0.0))
         planted_rot = float(sim_params.get('offset_rotation_deg', 0.0))
-        for seed in _ensemble_seeds(sim_params, spec.ensemble_seeds):
+        for seed in _ensemble_seeds(sim_params, ensemble_seeds):
             seeded_params = copy.deepcopy(sim_params)
             seeded_params['random_seed'] = seed
-            result = _navigate_params(seeded_params, spec.technique)
+            result = _navigate_params(seeded_params, technique)
             if pinned:
-                pin = _pinned_technique_result(result, spec.technique)
+                pin = _pinned_technique_result(result, technique)
                 recovered_offset = pin.offset_px if pin is not None else None
                 recovered_rot = (
                     math.degrees(pin.rotation_rad)

@@ -76,7 +76,10 @@ def _mesh(**over: Any) -> dict[str, Any]:
         {
             'shape_model': 'polyhedral_mesh',
             'mesh_lumpiness': 0.4,
-            'mesh_seed': 7,
+            'mesh_seed': 3,
+            # Fine enough that flat-shaded facets do not show at gallery size.
+            'mesh_n_lat': 64,
+            'mesh_n_lon': 128,
             'pose_euler_deg': [10.0, 35.0, 0.0],
         }
     )
@@ -129,7 +132,13 @@ def _scatter_stars(
 _GUI_GALLERY: list[tuple[str, dict[str, Any], dict[str, Any]]] = [
     ('ellipsoid_body', _scene([_ellipsoid()]), {'gamma': 1.1}),
     ('mesh_body', _scene([_mesh()]), {'gamma': 1.1}),
-    ('mesh_body_gouraud', _scene([_mesh(shading='gouraud')]), {'gamma': 1.1}),
+    # Gouraud shading on the coarse default tessellation: it smooths the facets
+    # inside the silhouette, while the silhouette itself stays a polygon.
+    (
+        'mesh_body_gouraud',
+        _scene([_mesh(shading='gouraud', mesh_n_lat=16, mesh_n_lon=32)]),
+        {'gamma': 1.1},
+    ),
     (
         'body_craters',
         _scene([_ellipsoid(axis2=150.0, crater_fill=0.5, crater_max_radius=0.3)]),
