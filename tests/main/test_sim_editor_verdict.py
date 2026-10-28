@@ -23,7 +23,7 @@ os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
 
 try:
     from PyQt6 import sip
-    from PyQt6.QtWidgets import QApplication
+    from PyQt6.QtWidgets import QApplication, QMessageBox
 except (ImportError, OSError) as exc:
     pytest.skip(
         f'PyQt6/QtWidgets not available: {exc}',
@@ -114,6 +114,16 @@ class _GatedSummary:
         """Let call ``index`` finish, running the event loop until it has started."""
         _process_until(lambda: len(self._gates) > index)
         self._gates[index].set()
+
+
+@pytest.fixture(autouse=True)
+def _no_error_dialog(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Fail on an error dialog, which would otherwise wait offscreen for a click."""
+
+    def _raise(*args: Any, **kwargs: Any) -> None:
+        raise AssertionError(f'error dialog raised: {args[1:]!r}')
+
+    monkeypatch.setattr(QMessageBox, 'critical', staticmethod(_raise))
 
 
 @pytest.fixture
@@ -367,15 +377,17 @@ def test_deleting_the_editor_mid_render_is_safe(
 ) -> None:
     """A render that finishes after the window was destroyed ends without an error.
 
-    The event loop runs well past the poll interval afterwards, so a poll timer
-    that outlived the window would fire on the deleted runner; PyQt reports an
-    exception in a slot through ``sys.excepthook``.
+    The poll timer must go with the window.  The event loop then runs well past the
+    poll interval, so a timer that outlived it and fired on the deleted runner
+    would report through ``sys.excepthook``, which PyQt uses for a slot's exception.
     """
     errors: list[str] = []
     monkeypatch.setattr(threading, 'excepthook', lambda args: errors.append(repr(args.exc_value)))
     monkeypatch.setattr(sys, 'excepthook', lambda *args: errors.append(repr(args[1])))
     _edit_offset(model, 5.0)
+    poll_timer = model._verdict_runner._poll
     sip.delete(model)
+    assert sip.isdeleted(poll_timer)
     gated.release(0)
     gated.threads[0].join(_TIMEOUT_SEC)
     deadline = time.monotonic() + 8 * verdict_module._POLL_INTERVAL_MS / 1000.0
@@ -389,6 +401,7 @@ def test_deleting_the_editor_mid_render_is_safe(
 _EXIT_MID_RENDER = """
 import os, sys
 os.environ['QT_QPA_PLATFORM'] = 'offscreen'
+import scipy.fft
 import numpy as np
 from PyQt6.QtCore import QTimer
 from PyQt6.QtWidgets import QApplication
@@ -396,11 +409,12 @@ app = QApplication([])
 from spindoctor.cli.sim_editor import CreateSimulatedImageModel, verdict
 real = verdict.navigated_frame_summary
 def slow(sim_params):
-    # Spend the render in numerical code that releases the GIL, where a daemon
-    # thread killed at shutdown aborts the process.
-    a = np.random.default_rng(0).random((1000, 1000))
-    for _ in range(6):
-        a = a @ a.T / 1000.0
+    # Spend the render in scipy's C++ FFT, which releases the GIL; a daemon
+    # thread killed there at shutdown aborts the process, as the review found
+    # inside the renderer's fftconvolve.
+    a = np.random.default_rng(0).random((1024, 1024))
+    for _ in range(40):
+        a = scipy.fft.ifft2(scipy.fft.fft2(a)).real
     return real(sim_params)
 verdict.navigated_frame_summary = slow
 window = CreateSimulatedImageModel()
