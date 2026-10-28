@@ -6,6 +6,7 @@ alike: a lost pixel takes the marker the navigator applies to the frame, 0 on
 every shipped instrument, and the validator accepts the rate everywhere.
 """
 
+import math
 from typing import Any
 
 import numpy as np
@@ -121,3 +122,14 @@ def test_the_validator_accepts_a_rate_everywhere(instrument: str, data_units: st
     """A positive rate validates on every instrument and unit class."""
     scene = _scene(instrument, _RATE, data_units)
     assert validate_sim_params(scene, source='scene') is scene
+
+
+@pytest.mark.parametrize('instrument', ['coiss_nac', 'coiss_calib_nac', 'vgiss'])
+def test_a_nan_marker_override_puts_nan_on_exactly_the_lost_pixels(instrument: str) -> None:
+    """Under a scene's NaN marker, the lost pixels read NaN, and no other pixel is NaN or 0."""
+    without, _ = render_combined_model(_scene(instrument, 0.0, None, marker=math.nan))
+    with_rate, _ = render_combined_model(_scene(instrument, _RATE, None, marker=math.nan))
+    lost = np.isnan(with_rate)
+    assert int(lost.sum()) > 0
+    assert np.array_equal(with_rate[~lost], without[~lost])
+    assert int((with_rate == 0.0).sum()) == 0
