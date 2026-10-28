@@ -78,7 +78,7 @@ Pipeline stages
    pass-1 context with the prior offset attached via
    :meth:`~spindoctor.nav_orchestrator.nav_context.NavContext.with_prior`).  After a
    conflicted pass 1 that the test resolved, the pass-2 results are those of the run
-   seeded at the confirmed answer; otherwise pass 2 runs with no prior.
+   seeded at the confirmed answer; otherwise pass 2 runs without a prior.
 8. **Final ensemble.**  Reconcile the union of pass-1 and pass-2 results into the final
    :class:`~spindoctor.nav_orchestrator.nav_result.NavResult`.
 
@@ -114,7 +114,7 @@ ensemble as *refuted*: they stay in ``per_technique``, are named in
 ``excluded_from_consensus``, and carry the disagreement penalty, but cast no vote and take
 no part in the combine (see :doc:`dev_guide_orchestrator_ensemble`).
 
-The test declines, and pass 2 runs with no prior as it does for any conflict, when no
+The test declines, and pass 2 runs without a prior as it does for any conflict, when no
 prior-required technique is feasible, when the support at the two answers is comparable,
 when neither reaches the minimum, when the runner-up group has no successful answer of its
 own, when the conflict is a body-witness veto rather than a consensus conflict, and when

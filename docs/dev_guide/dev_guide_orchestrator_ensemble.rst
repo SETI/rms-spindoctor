@@ -615,7 +615,7 @@ constructor accepts an :class:`~spindoctor.nav_orchestrator.ensemble.EnsembleCon
 - :attr:`~spindoctor.nav_orchestrator.ensemble.EnsembleConfig.confirming_axis_max_sigma_px` —
   float, default ``1.0``. Largest standard deviation (px) along a principal axis of a
   body, ring, or multi-star result for that axis to confirm a seeded single-star refine
-  that replaces a one-star match (see Step 5). A witness with no such axis confirms
+  that replaces a one-star match (see Step 5). A witness that has no such axis confirms
   nothing.
 - :attr:`~spindoctor.nav_orchestrator.ensemble.EnsembleConfig.agreement_gap` — float, default
   ``0.5``. Minimum summed-confidence gap between best and runner-up groups before

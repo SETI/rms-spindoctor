@@ -653,7 +653,7 @@ covariance and emission gates:
   at the limb's image scale, carried on each ``BODY_BLOB`` as
   :attr:`~spindoctor.feature.flags.BodyBlobFlags.ephemeris_sigma_px`. The fallback
   profiles set 0.5 km for the major Saturn moons, 2 km for very irregular moons, 2 km for
-  a body with no profile, and 10 km for the giant planets.
+  a body that has no profile, and 10 km for the giant planets.
 - :attr:`~spindoctor.nav_model.body_shape.BodyShape.min_blob_diameter_px` — predicted disc
   diameter (px) at which the extractor stops emitting
   :attr:`~spindoctor.feature.feature_type.NavFeatureType.LIMB_ARC` and switches to
