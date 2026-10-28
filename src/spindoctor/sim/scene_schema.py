@@ -21,6 +21,9 @@ inventory for validation, builds the filtered navigator view from the
 classification, and re-exports the boundary names.
 """
 
+from collections.abc import Iterable, Mapping
+from typing import Any
+
 
 class SimSceneValidationError(ValueError):
     """Raised when a sim scene YAML is missing or malformed."""
@@ -199,6 +202,55 @@ _BODY_TRUTH_KEYS: frozenset[str] = frozenset(
 
 _BODY_KEYS: frozenset[str] = _BODY_IDEALIZED_KEYS | _BODY_TRUTH_KEYS
 
+# Body keys the polyhedral-mesh render path does not consume: the ellipsoid
+# renderer's crater carving, the topographic path's photometric laws and
+# surface texture, and the ellipsoid-frame atmosphere halo (whose geometry is
+# built from rotation_z / rotation_tilt around the ellipse, which a mesh's
+# arbitrary Euler pose and lumpy limb do not follow).  A mesh body giving one
+# of these a value would silently render without it, so the validator refuses
+# a non-null value of any of them (a null reads as an absent key); a mesh
+# body's appearance vocabulary is shading, limb_relief_*,
+# mesh_detail_octaves, and pose_scatter.  The sim editor reads this table too:
+# a mesh body disables every control that writes one of these keys.
+MESH_UNSUPPORTED_KEYS: tuple[str, ...] = (
+    'atmosphere',
+    'photometric_law',
+    'minnaert_k',
+    'opposition_surge',
+    'albedo_texture',
+    'disc_texture',
+    'transits',
+    'crater_fill',
+    'crater_min_radius',
+    'crater_max_radius',
+    'crater_power_law_exponent',
+    'crater_relief_scale',
+)
+
+
+def mesh_unsupported_message(keys: Iterable[str]) -> str:
+    """The sentence that refuses ellipsoid-only appearance keys on a mesh body.
+
+    The scene validator raises it, prefixed with the scene source and the body's
+    label, when a ``polyhedral_mesh`` body gives keys from
+    :data:`MESH_UNSUPPORTED_KEYS` a non-null value; the sim editor shows it as the
+    tooltip of each control it disables on a mesh body, and of every control
+    inside one, so the two say the same thing.
+
+    Parameters:
+        keys: The refused keys to name; the sentence lists them sorted.
+
+    Returns:
+        The sentence, such as ``"['minnaert_k', 'photometric_law'] are not
+        supported on polyhedral_mesh bodies (...)"``.
+    """
+    return (
+        f'{sorted(keys)} are not supported on polyhedral_mesh bodies (the mesh '
+        f'renderer would silently ignore them); a mesh body carries the shading, '
+        f'limb_relief_*, mesh_detail_octaves, and pose_scatter appearance keys'
+    )
+
+
 # Per-star idealized keys: catalog identity, position, magnitude, spectral
 # class, the predicted smear vector (the pipeline computes it from attitude
 # telemetry), and the PSF fitting-window size (instrument configuration).
@@ -284,12 +336,12 @@ _RING_FEATURE_IDEALIZED_KEYS: frozenset[str] = frozenset(
     {
         'name',
         'kind',
-        'width',
+        'width_px',
         'tau',
         'orbit',
         'side',
-        'wavelength',
-        'damping',
+        'wavelength_px',
+        'density_wave_damping_px',
         'navigable',
         'declared_orbit_sigma',
     }
@@ -304,6 +356,118 @@ _RING_FEATURE_IDEALIZED_KEYS: frozenset[str] = frozenset(
 _RING_FEATURE_TRUTH_KEYS: frozenset[str] = frozenset({'albedo', 'phase_g', 'orbit_error'})
 
 _RING_FEATURE_KEYS: frozenset[str] = _RING_FEATURE_IDEALIZED_KEYS | _RING_FEATURE_TRUTH_KEYS
+
+# Which radial shape keys each feature kind takes: 'required', 'optional', or
+# absent from the kind's map, which means the validator rejects the key on
+# that kind (a stray shape key would silently author a different feature).
+# The validator, the sim editor's kind switch, and the per-kind tables in the
+# developer guide and the scene README all follow this one table.
+RING_SHAPE_KEYS: tuple[str, ...] = ('width_px', 'side', 'wavelength_px', 'density_wave_damping_px')
+RING_KIND_SHAPE_KEYS: dict[str, dict[str, str]] = {
+    'ringlet': {'width_px': 'required'},
+    'gap': {'width_px': 'required'},
+    'edge': {'side': 'optional'},
+    'ramp': {'width_px': 'required', 'side': 'optional'},
+    'wave': {'wavelength_px': 'required', 'density_wave_damping_px': 'required'},
+}
+# The 'side' an edge or ramp takes when the key is absent.  An edge's default
+# 'in' fills every radius inward of its orbit (the sheet bounded by its outer
+# edge); a ramp's default 'out' rises outward from zero at its orbit.
+RING_SIDE_DEFAULTS: dict[str, str] = {'edge': 'in', 'ramp': 'out'}
+
+
+def scene_value(block: Mapping[str, Any], key: str, default: Any) -> Any:
+    """Read an optional scene key, treating an explicit null as unset.
+
+    The validator accepts null for every optional key and reads it as absent, so
+    a reader must too: ``float(block.get(key, default))`` would raise on a null
+    the validator passed.  The ring readers (renderer, navigator-side orbit
+    parser, validator bounds, and sim editor) read their optional keys here.
+
+    Parameters:
+        block: A scene mapping.
+        key: The key to read.
+        default: The value an absent key takes.
+
+    Returns:
+        ``block[key]``, or ``default`` when the key is absent or null.
+    """
+    value = block.get(key)
+    return default if value is None else value
+
+
+# What each ring-plane length and angle key the sim editor's tooltips describe
+# holds, per block.  Each of these keys names its unit.  A ring-plane pixel is
+# a distance in the ring plane in detector pixels: it projects to that many
+# image pixels along the line of nodes, and is foreshortened by sin(B) across
+# it.  Block paths drop list indices ('ring_system.features' covers every
+# feature entry).
+RING_KEY_DESCRIPTIONS: dict[str, dict[str, str]] = {
+    'ring_system.features': {
+        'width_px': 'the radial width, in ring-plane pixels',
+        'wavelength_px': "the 'wave' train's radial wavelength, in ring-plane pixels",
+        'density_wave_damping_px': (
+            "the 'wave' train's radial e-folding length, in ring-plane pixels"
+        ),
+    },
+    'ring_system.features.orbit': {
+        'a_px': 'the semimajor axis, in ring-plane pixels',
+        'ae_px': 'the eccentricity times the semimajor axis, in ring-plane pixels',
+        'long_peri_deg': 'the pericenter longitude, in degrees from the ascending node',
+        'rate_peri_deg_per_day': 'the pericenter precession rate, in degrees per day',
+    },
+    'ring_system.features.orbit.modes': {
+        'amp_px': 'the radial amplitude, in ring-plane pixels',
+        'peri_deg': (
+            "the longitude of one of the mode's m pericenters, in degrees from the "
+            'ascending node; it stays fixed in time'
+        ),
+    },
+    'ring_system.features.orbit.edge_wave': {
+        'amp_px': 'the radial amplitude at the launch longitude, in ring-plane pixels',
+        'wavelength_px': (
+            'the azimuthal wavelength as an arc length along the orbit, in ring-plane pixels'
+        ),
+        'edge_wave_damping_deg': (
+            'the azimuthal e-folding length, in degrees of downstream longitude'
+        ),
+        'lam0_deg': 'the launch longitude, in degrees from the ascending node',
+    },
+    'ring_system.azimuthal.modulation': {
+        'brightness_peak_longitude_deg': (
+            'the longitude of a brightness peak, in degrees from the ascending node'
+        ),
+    },
+    'ring_system.azimuthal.spokes': {
+        'r_inner_px': 'the inner radius of the spoke band, in ring-plane pixels',
+        'r_outer_px': 'the outer radius of the spoke band, in ring-plane pixels',
+    },
+    'ring_system.moonlets': {
+        'a_px': "the moonlet's orbit radius, in ring-plane pixels",
+    },
+}
+
+
+def ring_key_description(block: str, key: str) -> str:
+    """What a ring key holds, read from :data:`RING_KEY_DESCRIPTIONS`.
+
+    Parameters:
+        block: A block path that is a key of :data:`RING_KEY_DESCRIPTIONS`, such
+            as ``'ring_system.features.orbit'``.
+        key: A key the table describes in that block, such as ``'a_px'``.
+
+    Returns:
+        The key's description, such as ``'the semimajor axis, in ring-plane
+        pixels'``.
+
+    Raises:
+        KeyError: If the table doesn't describe ``key`` in ``block``.
+    """
+    descriptions = RING_KEY_DESCRIPTIONS[block]
+    if key not in descriptions:
+        raise KeyError(f'{block}.{key} is not in RING_KEY_DESCRIPTIONS')
+    return descriptions[key]
+
 
 # The machine-readable truth-key set the ObsSim boundary filter strips and
 # the structural boundary test iterates.  Per-object-block entries use dotted

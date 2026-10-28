@@ -11,6 +11,14 @@ Callers are ``ObsSim``, the scene-editor GUI, and ``sim/png_export.py``
 contract: scene parameters are JSON-serializable scalars/lists/maps, no
 wall-clock or global RNG state is consulted, and two renders of the same
 scene are bit-identical on one machine.
+
+The scene editor renders on two threads at once (its preview on the UI thread,
+the frame the navigator reads on a worker), which relies on three properties of
+the render path: every render builds its own frame, parameter dict, and RNG
+streams; the ``lru_cache`` tables stay coherent under concurrent calls; and no
+caller writes into a cached value (this function hands out copies, and the stage
+caches' callers only read theirs).  A change that breaks one of them breaks the
+editor.
 """
 
 import copy
@@ -42,7 +50,10 @@ def clear_render_caches() -> None:
     psf.psf_kernel.cache_clear()
 
 
-@lru_cache(maxsize=1)
+# Two entries: the scene editor renders a scene's offset-free preview and the
+# frame the navigator reads (planted offset applied), and an offset-only edit
+# then re-renders only the second.
+@lru_cache(maxsize=2)
 def _render_combined_model_cached(
     sim_params_json: str,
     *,

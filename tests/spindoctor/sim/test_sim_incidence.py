@@ -66,40 +66,42 @@ def test_planted_incidence_empty_without_artifacts() -> None:
 
 def test_planted_missing_lines_counts_lost_lines() -> None:
     """The planted count is the number of recorded lost lines."""
-    _img, truth = _render_with({'missing_lines': {'incidence': 6.0}})
+    _img, truth = _render_with({'missing_lines': {'expected_events': 6.0}})
     recorded = len(truth['artifacts']['missing_lines']['lines'])
     assert planted_incidence(truth)['missing_lines'] == recorded
 
 
 def test_measured_missing_lines_matches_planted() -> None:
     """The image estimator recovers exactly the planted lost-line count."""
-    img, truth = _render_with({'missing_lines': {'incidence': 6.0}})
+    img, truth = _render_with({'missing_lines': {'expected_events': 6.0}})
     planted = planted_incidence(truth)['missing_lines']
     assert measured_missing_lines(img) == planted
 
 
 def test_measured_missing_lines_nonzero() -> None:
     """The rendered scene actually planted at least one missing line."""
-    img, _truth = _render_with({'missing_lines': {'incidence': 6.0}})
+    img, _truth = _render_with({'missing_lines': {'expected_events': 6.0}})
     assert measured_missing_lines(img) > 0
 
 
 def test_measured_partial_lines_matches_planted() -> None:
     """The image estimator recovers exactly the planted truncated-line count."""
-    img, truth = _render_with({'partial_lines': {'incidence': 6.0, 'max_surviving_segments': 2}})
+    img, truth = _render_with(
+        {'partial_lines': {'expected_events': 6.0, 'max_surviving_segments': 2}}
+    )
     planted = planted_incidence(truth)['partial_lines']
     assert measured_partial_lines(img) == planted
 
 
 def test_measured_partial_lines_nonzero() -> None:
     """The rendered scene actually planted at least one truncated line."""
-    img, _truth = _render_with({'partial_lines': {'incidence': 6.0}})
+    img, _truth = _render_with({'partial_lines': {'expected_events': 6.0}})
     assert measured_partial_lines(img) > 0
 
 
 def test_measured_missing_blocks_matches_planted() -> None:
     """The image estimator recovers exactly the planted lost-block count."""
-    img, truth = _render_with({'missing_blocks': {'incidence': 5.0, 'block_lines': 8}})
+    img, truth = _render_with({'missing_blocks': {'expected_events': 5.0, 'block_lines': 8}})
     record = truth['artifacts']['missing_blocks']
     planted = len(record['blocks'])
     assert measured_missing_blocks(img, block_lines=record['block_lines']) == planted
@@ -107,32 +109,32 @@ def test_measured_missing_blocks_matches_planted() -> None:
 
 def test_measured_pixel_dropouts_matches_planted() -> None:
     """The image estimator recovers exactly the planted dead-pixel count."""
-    img, truth = _render_with({'dead_pixels': {'incidence': 30.0}})
+    img, truth = _render_with({'dead_pixels': {'expected_events': 30.0}})
     planted = len(truth['artifacts']['dead_pixels']['pixels'])
     assert measured_pixel_dropouts(img) == planted
 
 
 def test_pixel_dropouts_excludes_missing_lines() -> None:
     """A whole missing line is not counted as isolated pixel dropouts."""
-    img, _truth = _render_with({'missing_lines': {'incidence': 4.0}})
+    img, _truth = _render_with({'missing_lines': {'expected_events': 4.0}})
     assert measured_pixel_dropouts(img) == 0
 
 
 def test_missing_lines_ignores_isolated_dropouts() -> None:
     """Scattered dead pixels do not register as whole missing lines."""
-    img, _truth = _render_with({'dead_pixels': {'incidence': 30.0}})
+    img, _truth = _render_with({'dead_pixels': {'expected_events': 30.0}})
     assert measured_missing_lines(img) == 0
 
 
 def test_marker_mask_matches_zero_marker() -> None:
-    """The marker mask flags exactly the zero-valued pixels on the raw-DN path."""
+    """The marker mask flags exactly the zero-valued pixels at the shipped 0 marker."""
     image = np.array([[0.0, 1.0], [2.0, 0.0]], dtype=np.float64)
     mask = marker_mask(image, 0.0)
     assert mask.tolist() == [[True, False], [False, True]]
 
 
 def test_marker_mask_matches_nan_marker() -> None:
-    """The marker mask flags NaN pixels on the calibrated path."""
+    """The marker mask flags NaN pixels when the marker is NaN (a scene override)."""
     image = np.array([[np.nan, 1.0], [2.0, np.nan]], dtype=np.float64)
     mask = marker_mask(image, float('nan'))
     assert mask.tolist() == [[True, False], [False, True]]

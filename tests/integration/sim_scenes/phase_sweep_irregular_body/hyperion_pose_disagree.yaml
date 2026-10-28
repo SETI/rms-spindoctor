@@ -15,15 +15,19 @@ exposure_sec: 1.0
 # (test_sim_irregular_pose) navigates this scene at an agreeing and a disagreeing
 # predicted pose to show the limb degrades while the pose-stable blob holds.
 #
-# The body is mildly irregular (mesh_lumpiness 0.1) but its bulk shape is a
-# triaxial ellipsoid, which is centrally symmetric: rotating the predicted pose
-# barely moves the lit-weighted centroid (so the blob stays accurate) while it
-# swings the silhouette boundary (so the limb distance-transform fit degrades).
+# The body is mildly irregular (mesh_lumpiness 0.1, a 1.25% RMS non-ellipsoidal
+# relief), so its bulk shape is close to its triaxial ellipsoid, which is
+# centrally symmetric: rotating the predicted pose barely moves the lit-weighted
+# centroid (so the blob stays accurate) while it swings the silhouette boundary
+# (so the limb distance-transform fit degrades).  The 64 x 128 tessellation keeps
+# flat-shaded facets out of the frame; the predicted mesh uses it too.
 bodies:
   - name: HYPERION
     shape_model: polyhedral_mesh
     mesh_lumpiness: 0.1
     mesh_seed: 7
+    mesh_n_lat: 64
+    mesh_n_lon: 128
     pose_euler_deg: [10.0, 35.0, 0.0]
     center_v: 110.0
     center_u: 110.0

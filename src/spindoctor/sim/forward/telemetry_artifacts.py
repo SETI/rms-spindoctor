@@ -5,8 +5,9 @@ the transmitted signal before any packet loss, and the Voyager GEOMED
 archive-processing scars (reseau-removal smudges and the resample texture) the
 ground pipeline leaves in the products the navigator consumes.  Each renders one
 registry mode onto a detector-grid DN image in place and returns its realized
-geometry for the frame's truth record; each is a no-op when its incidence does
-not fire (the stage-activation rule) and draws from its own seeded generator.
+geometry for the frame's truth record; each is a no-op when its per-frame
+``probability`` draw does not fire (the stage-activation rule) and draws from
+its own seeded generator.
 
 Order within the telemetry stage is physical: compression runs before the
 structured loss (a lossy codec compresses, then packets drop), and the GEOMED
@@ -22,6 +23,7 @@ import numpy as np
 from scipy import ndimage
 from scipy.fft import dctn, idctn
 
+from spindoctor.sim.forward.detector.params import CalibrationMap
 from spindoctor.support.types import NDArrayFloatType
 
 __all__ = [
@@ -36,11 +38,11 @@ __all__ = [
 _RESEAU_MARK_COUNT = 202
 
 
-def _activated(rng: np.random.Generator, incidence: float) -> bool:
-    """Whether a commanded / periodic telemetry mode fires this frame."""
-    if incidence <= 0.0:
+def _activated(rng: np.random.Generator, probability: float) -> bool:
+    """Whether a commanded / periodic telemetry mode fires this frame, with ``probability``."""
+    if probability <= 0.0:
         return False
-    return bool(rng.random() < incidence)
+    return bool(rng.random() < probability)
 
 
 def apply_compression_dct(
@@ -49,6 +51,7 @@ def apply_compression_dct(
     *,
     rng: np.random.Generator,
     protect: tuple[int, int, int, int] | None,
+    calibration: CalibrationMap | None = None,
 ) -> dict[str, Any]:
     """Quantize the frame's 8x8 DCT coefficients, planting blockiness and ringing.
 
@@ -58,19 +61,28 @@ def apply_compression_dct(
     block edges and ringing around high-contrast features.  Any commanded truth
     window (``protect``) is restored clean afterward, the losslessly-coded
     carve-out.  Frame rows/columns past the last whole block are left unchanged.
-    A non-firing incidence is a no-op.
+    A mode that does not fire is a no-op.
+
+    The codec runs on board, on the DN the spacecraft transmits.  On a
+    calibrated frame ``calibration`` maps the I/F image back to those DN, the
+    coefficients are quantized there, and the result maps back to I/F, so the
+    step is ``scale_factor`` DN on both kinds of frame and the pedestal the
+    calibration subtracts takes part in the quantization as it does on board.
 
     Parameters:
-        signal: The DN image, modified in place.
-        cfg: The resolved mode config (``incidence``, ``scale_factor``, ``block``).
-        rng: The mode's seeded generator (for the incidence draw).
+        signal: The image, modified in place: DN, or I/F when ``calibration`` is
+            given.
+        cfg: The resolved mode config (``probability``, ``scale_factor``, ``block``).
+        rng: The mode's seeded generator (for the activation draw).
         protect: The commanded truth-window rectangle to leave clean, or None.
+        calibration: The calibrated frame's DN-to-I/F map, or None for a raw-DN
+            frame.
 
     Returns:
         The realized compression summary for the truth record.
     """
-    incidence = float(cfg['incidence'])
-    if not _activated(rng, incidence):
+    probability = float(cfg['probability'])
+    if not _activated(rng, probability):
         return {'active': False}
     scale = float(cfg['scale_factor'])
     block = int(cfg['block'])
@@ -85,10 +97,12 @@ def apply_compression_dct(
         pv0, pv1, pu0, pu1 = protect
         saved = signal[pv0:pv1, pu0:pu1].copy()
     region = signal[: n_bv * block, : n_bu * block]
-    blocks = region.reshape(n_bv, block, n_bu, block)
+    dn = region if calibration is None else calibration.to_dn(region)
+    blocks = dn.reshape(n_bv, block, n_bu, block)
     coeffs = dctn(blocks, axes=(1, 3), norm='ortho')
     quantized = np.round(coeffs / scale) * scale
-    region[:] = idctn(quantized, axes=(1, 3), norm='ortho').reshape(region.shape)
+    restored = idctn(quantized, axes=(1, 3), norm='ortho').reshape(region.shape)
+    region[:] = restored if calibration is None else calibration.to_if(restored)
     if protect is not None and saved is not None:
         pv0, pv1, pu0, pu1 = protect
         signal[pv0:pv1, pu0:pu1] = saved
@@ -127,19 +141,19 @@ def apply_reseau_scars(
     anomalously smooth patch on the triangular lattice.  This blends the frame
     toward its locally-smoothed version inside a ``patch_radius_px`` disc at each
     lattice point, so a mark that sat on a limb or ring edge shows a smooth patch
-    there.  A non-firing incidence is a no-op.
+    there.  A mode that does not fire is a no-op.
 
     Parameters:
         signal: The DN image, modified in place.
-        cfg: The resolved mode config (``incidence``, ``spacing_px``,
+        cfg: The resolved mode config (``probability``, ``spacing_px``,
             ``patch_radius_px``).
-        rng: The mode's seeded generator (for the incidence draw).
+        rng: The mode's seeded generator (for the activation draw).
 
     Returns:
         The realized scar geometry for the truth record.
     """
-    incidence = float(cfg['incidence'])
-    if not _activated(rng, incidence):
+    probability = float(cfg['probability'])
+    if not _activated(rng, probability):
         return {'active': False, 'marks': 0}
     spacing = int(cfg['spacing_px'])
     radius = int(cfg['patch_radius_px'])
@@ -168,20 +182,20 @@ def apply_resample_texture(
     seeded subpixel displacement field of amplitude ``warp_amp_px`` (bilinear
     resample), optionally blanks an irregular ``blank_border_px`` border, and
     optionally replaces alternate lines by the mean of their neighbors
-    (``missing_line_interp``, the interpolate-across-lines banding).  A non-firing
-    incidence is a no-op.
+    (``missing_line_interp``, the interpolate-across-lines banding).  A mode that
+    does not fire is a no-op.
 
     Parameters:
         signal: The DN image, modified in place.
-        cfg: The resolved mode config (``incidence``, ``warp_amp_px``,
+        cfg: The resolved mode config (``probability``, ``warp_amp_px``,
             ``blank_border_px``, ``missing_line_interp``).
         rng: The mode's seeded generator.
 
     Returns:
         The realized resample summary for the truth record.
     """
-    incidence = float(cfg['incidence'])
-    if not _activated(rng, incidence):
+    probability = float(cfg['probability'])
+    if not _activated(rng, probability):
         return {'active': False}
     warp_amp = float(cfg['warp_amp_px'])
     border = int(cfg['blank_border_px'])
