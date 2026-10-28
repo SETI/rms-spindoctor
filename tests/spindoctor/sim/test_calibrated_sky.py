@@ -144,3 +144,15 @@ def test_raw_frames_carry_no_sky_residual() -> None:
     """A raw-DN frame's dark sky stays at the bias pedestal, in whole DN."""
     sky = _sky('coiss_nac', 'floor')
     assert set(np.unique(sky).tolist()) == {20.0}
+
+
+@pytest.mark.parametrize('instrument', ['coiss_calib_nac', 'coiss_calib_wac'])
+def test_cassini_calibrated_floor_sky_is_the_measured_residual(instrument: str) -> None:
+    """A noise-free Cassini CALIB sky reads 4.0e-5 I/F, the real dark-sky median."""
+    assert set(np.unique(_sky(instrument, 'floor')).tolist()) == {4.0e-5}
+
+
+def test_vgiss_floor_sky_is_one_and_a_half_dn() -> None:
+    """A noise-free vgiss sky reads 1.5 DN at 127.5 DN per unit I/F."""
+    sky = np.unique(_sky('vgiss', 'floor'))
+    assert sky.tolist() == [pytest.approx(1.5 / 127.5, rel=1e-12)]
