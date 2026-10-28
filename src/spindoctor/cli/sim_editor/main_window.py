@@ -108,8 +108,6 @@ class CreateSimulatedImageModel(
         self._base_pixmap = None
         # Ellipsoid-only body keys held while their body is a polyhedral mesh.
         self._mesh_key_stash = MeshKeyStash()
-        # Noise rates the scene's detector path refuses, held until it accepts them.
-        self._noise_key_stash = {}
 
         # View state
         self._zoom_factor = 1.0

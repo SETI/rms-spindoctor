@@ -79,8 +79,7 @@ class DetectorParams:
         poisson: Whether shot noise is applied.
         bloom_length: Electron-domain full-well bloom half-length (0 disables).
         cosmic_ray_events_per_pixel_per_sec: Expected cosmic-ray events per pixel
-            per second of exposure (CCD path only; the vidicon path lacks a
-            cosmic-ray stage).
+            per second of exposure, on the CCD and vidicon paths alike.
         dark_current_e_per_sec: Dark current (electrons / sec); 0 disables.
         hot_pixel_fraction: Fraction of pixels that are hot; 0 disables.
         hot_pixel_amplitude_e: Hot-pixel amplitude scale in electrons.

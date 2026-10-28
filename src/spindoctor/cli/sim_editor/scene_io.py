@@ -63,11 +63,10 @@ class SceneIoMixin(SimEditorBase):
     def _apply_params_dict(self, params: dict[str, Any]) -> None:
         """Rebuild sim_params from a loaded params dict and sync every widget.
 
-        The mesh-key and noise-key stashes are cleared: their entries belong to the
-        scene being replaced.
+        The mesh-key stash is cleared: its entries belong to the bodies of the scene
+        being replaced.
         """
         self._mesh_key_stash.clear()
-        self._noise_key_stash.clear()
         self.sim_params = {
             'size_v': int(params.get('size_v', 512)),
             'size_u': int(params.get('size_u', 512)),
@@ -169,7 +168,6 @@ class SceneIoMixin(SimEditorBase):
         self._signal_frac_spin.blockSignals(True)
         self._signal_frac_spin.setValue(float(self._noise_value('signal_full_scale_frac', 0.5)))
         self._signal_frac_spin.blockSignals(False)
-        self._sync_noise_refusals()
         # The Optics-tab controls (PSF, smear, distortion, ghosts, stray
         # light, oversample, spk_error) and the Artifacts-tab controls
         # (instrument defaults, detector override) sync from their own blocks.

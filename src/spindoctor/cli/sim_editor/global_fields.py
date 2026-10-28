@@ -218,9 +218,6 @@ class GlobalFieldsMixin(SimEditorBase):
         # enable or disable by the new instrument's availability.
         self._refresh_detector_catalog_defaults()
         self._refresh_artifact_mode_availability()
-        # The new instrument's detector model and data units may refuse a
-        # cosmic-ray or missing-data rate the scene carries, or accept one again.
-        self._sync_noise_refusals()
         self._updater.request_update()
 
     def _on_closest_planet(self, text: str) -> None:

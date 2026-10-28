@@ -237,15 +237,16 @@ def resolve_sky_pixel_scale_arcsec(instrument: str | None) -> float:
 #
 # cosmic_ray_events_per_pixel_per_sec is the expected number of events per
 # pixel per second of exposure: the chain multiplies it by exposure_sec and
-# the pixel count to get the frame's Poisson mean.  The CCD chain alone
-# applies it; the vidicon DN chain lacks a cosmic-ray stage.
+# the pixel count to get the frame's Poisson mean.  The CCD chain deposits
+# the events in electrons and the vidicon DN chain in DN, with the same
+# meaning.
 # The realism match's FOM 6 transient split (single-pixel spikes that do
 # NOT recur at fixed detector positions across the cohort) measures the
 # candidate rate per instrument.  Every current entry retains zero, each
 # with its measured rate, the specific reason adoption fails through this
 # chain (exposure-scaling / full-well-amplitude mismatch for Cassini,
 # double-counting against the tuned per-scene hot pixels for Galileo,
-# star-field contamination for LORRI, no vidicon stage for Voyager), and
+# star-field contamination for LORRI, GEOMED resampling for Voyager), and
 # the unblocking condition, recorded beside the value.
 #
 # The vidicon (Voyager) path skips the electron conversion; its noise is applied
@@ -527,13 +528,13 @@ DETECTOR_DEFAULTS: dict[str, dict[str, Any]] = {
         # median) would put about 10% of the noisy sky one step below 0.  The
         # value sits inside the cohort's range, 2.3x its median.
         'calibrated_sky_if': 1.5 / 127.5,
-        # Cosmic rays RETAINED at zero 2026-07-17 (no key: the vidicon DN
-        # path lacks a cosmic-ray stage, so a rate here would be inert,
-        # and the scene validator refuses a non-zero rate on this path).
-        # The realism match measured a 3.5e-5 transient spike fraction over
-        # the 3-frame GEOMED cohort -- GEOMED's reseau-anchored resampling
-        # interpolates most single-pixel transients away.  Unblocked by a
-        # DN-domain transient stage plus more Voyager frames.
+        # Cosmic rays RETAINED at zero 2026-07-17.  The realism match
+        # measured a 3.5e-5 transient spike fraction over the 3-frame
+        # GEOMED cohort -- GEOMED's reseau-anchored resampling interpolates
+        # most single-pixel transients away, so the cohort cannot say how
+        # many hits the target took.  Unblocked by more Voyager frames
+        # (raw or CALIB, ahead of the resampling).
+        'cosmic_ray_events_per_pixel_per_sec': 0.0,
         'vidicon': {
             # TUNED 2026-07-17 by the realism match: the 3-frame GEOMED
             # cohort's paired-difference sky sigma is ~0.22 DN equivalent

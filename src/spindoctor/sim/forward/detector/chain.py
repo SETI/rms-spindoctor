@@ -10,8 +10,8 @@ Cassini), not from the ADC clip.
 
 The Voyager vidicon skips the electron conversion and applies its noise directly
 in DN (line-correlated read noise plus a faint coherent component); its point
-sources (stars) are already DN and are added onto the converted signal before
-that DN noise.  A calibrated
+sources (stars) and its cosmic-ray hits are already DN and are added onto the
+converted signal before that DN noise.  A calibrated
 (I/F) scene renders through the full DN chain and then inverts the calibration
 transform, so calibrated products carry propagated shot/read noise and
 quantization texture in I/F units.
@@ -441,9 +441,18 @@ def _apply_vidicon(frame: SimFrame, dp: DetectorParams, rng: np.random.Generator
     The vidicon is not photon-noise dominated, so its signal maps straight to
     the 8-bit DN full scale and the noise is applied in DN: a line-correlated
     read-noise term (a per-line offset plus a within-line white component) and a
-    faint vertical coherent periodic component, then 8-bit quantization.  The
-    chain lacks a cosmic-ray stage, so the scene validator refuses a
-    non-zero ``noise.cosmic_ray_events_per_pixel_per_sec`` on this path.
+    faint vertical coherent periodic component, then 8-bit quantization.
+
+    Cosmic rays (``noise.cosmic_ray_events_per_pixel_per_sec``, with the CCD
+    chain's meaning: expected events per pixel per second of exposure) land on
+    the photoconductive target, which stores the image as charge until the
+    electron beam reads it.  A charged particle crossing the target discharges it
+    the way light does, so a hit joins the stored image: after the erase-cycle
+    residual (a ghost of the prior frame, which this frame's hits don't reach)
+    and before the readout, so the beam's read noise, coherent component, dark
+    ramp, banding, and bend all act on it.  Each hit deposits at least the DN full
+    scale (``full_well_dn``), so it digitizes at the ADC ceiling, as a CCD hit
+    does.
     """
     modes = dp.detector_modes
     records: dict[str, Any] = {}
@@ -466,6 +475,13 @@ def _apply_vidicon(frame: SimFrame, dp: DetectorParams, rng: np.random.Generator
             offset_v=int(offset[0]),
             offset_u=int(offset[1]),
         )
+    add_cosmic_rays(
+        dn,
+        events_per_pixel_per_sec=dp.cosmic_ray_events_per_pixel_per_sec,
+        exposure_sec=dp.exposure_sec,
+        amplitude_e=dp.full_well_dn,
+        rng=_stage_rng(dp.random_seed, 'cosmic_rays'),
+    )
     vidicon = dp.vidicon
     line_sigma = float(vidicon.get('read_noise_line_dn', 0.0))
     pixel_sigma = float(vidicon.get('read_noise_pixel_dn', 0.0))

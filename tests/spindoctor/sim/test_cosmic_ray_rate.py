@@ -1,17 +1,17 @@
-"""The cosmic-ray rate: one unit, one name, and refused where the chain ignores it.
+"""The cosmic-ray rate: one unit, one name, and honored on every detector path.
 
 ``noise.cosmic_ray_events_per_pixel_per_sec`` is the expected number of
 cosmic-ray events per pixel per second of exposure: a frame's Poisson mean is
 the rate times the exposure times the pixel count, with no other factor.  The
-cosmic-ray stage exists only in the CCD electron chain, so the validator refuses
-a non-zero rate on a scene whose detector model resolves to the vidicon, and on
-no other scene.  Under ``artifacts.instrument_defaults`` the catalog's rate
-applies, and below that the configuration's ``sim.noise`` floor.  An explicit
-null ``detector.detector_model`` means the instrument's default model, to the
-renderer as to the validator.
+CCD electron chain and the vidicon DN chain both deposit the hits, with that
+same meaning, and the validator accepts a rate on every scene.  On the vidicon
+the hits land on the stored target image: after the prior frame's residual
+image, which this frame's hits don't reach, and before the readout.  Under
+``artifacts.instrument_defaults`` the catalog's rate applies, and below that the
+configuration's ``sim.noise`` floor.  An explicit null ``detector.detector_model``
+means the instrument's default model.
 """
 
-import re
 from typing import Any, cast
 
 import numpy as np
@@ -19,12 +19,12 @@ import pytest
 
 from spindoctor.config import DEFAULT_CONFIG
 from spindoctor.sim.forward.artifacts_catalog import DETECTOR_DEFAULTS, resolve_detector_defaults
-from spindoctor.sim.forward.detector import apply_detector
+from spindoctor.sim.forward.detector import apply_detector, chain
 from spindoctor.sim.forward.detector.noise_stages import add_cosmic_rays
 from spindoctor.sim.forward.detector.params import resolve_detector_params
 from spindoctor.sim.forward.stages import SimFrame
 from spindoctor.sim.instruments import SIM_INSTRUMENTS
-from spindoctor.sim.scene import SimSceneValidationError, validate_sim_params
+from spindoctor.sim.scene import validate_sim_params
 from spindoctor.sim.seeds import derive_effect_seed
 
 _KEY = 'cosmic_ray_events_per_pixel_per_sec'
@@ -136,58 +136,96 @@ def test_config_floor_rate_gives_way_to_the_scene(monkeypatch: pytest.MonkeyPatc
     assert resolved.cosmic_ray_events_per_pixel_per_sec == pytest.approx(1.0e-5)
 
 
-# ---- The vidicon path ----
-
-
-@pytest.mark.parametrize(
-    ('instrument', 'detector', 'via'),
-    [
-        ('vgiss', None, ''),
-        ('coiss_nac', {'detector_model': 'vidicon'}, ' via detector.detector_model'),
-        ('generic', {'detector_model': 'vidicon'}, ' via detector.detector_model'),
-    ],
-    ids=['vgiss-default', 'coiss-nac-vidicon', 'generic-vidicon'],
-)
-def test_nonzero_rate_on_the_vidicon_is_refused(
-    instrument: str, detector: dict[str, str] | None, via: str
-) -> None:
-    """A positive rate on a vidicon-path scene fails, saying the chain would ignore it."""
-    extra = {} if detector is None else {'detector': detector}
-    scene = _scene(instrument, {_KEY: 0.01}, **extra)
-    message = (
-        f'scene: noise.{_KEY} is 0.01, but instrument {instrument!r} renders through '
-        f'the vidicon detector{via}, whose DN chain lacks a cosmic-ray stage, so the '
-        'rate would be silently ignored; set it to 0 or remove it'
-    )
-    with pytest.raises(SimSceneValidationError, match=re.escape(message)):
-        validate_sim_params(scene, source='scene')
-
-
-def test_zero_rate_on_vgiss_is_accepted() -> None:
-    """A zero rate on the vidicon is the floor and passes."""
-    scene = _scene('vgiss', {_KEY: 0.0})
-    assert validate_sim_params(scene) is scene
+# ---- Every detector path ----
 
 
 @pytest.mark.parametrize('instrument', _INSTRUMENTS)
 @pytest.mark.parametrize(
     'model', [_ABSENT, None, 'ccd', 'vidicon'], ids=['default', 'null', 'ccd', 'vidicon']
 )
-def test_validator_refuses_exactly_the_paths_where_the_rate_is_inert(
-    instrument: str, model: str | None
-) -> None:
-    """The validator refuses a rate if and only if the detector output ignores it."""
+def test_a_rate_deposits_hits_on_every_detector_path(instrument: str, model: str | None) -> None:
+    """A positive rate changes the detector output on every instrument and model."""
     extra = {} if model == _ABSENT else {'detector': {'detector_model': model}}
     without = _detector_dn(_scene(instrument, {_KEY: 0.0}, **extra))
     with_rate = _detector_dn(_scene(instrument, {_KEY: 0.05}, **extra))
-    inert = bool(np.array_equal(without, with_rate))
-    try:
-        validate_sim_params(_scene(instrument, {_KEY: 0.05}, **extra))
-    except SimSceneValidationError:
-        refused = True
-    else:
-        refused = False
-    assert refused == inert
+    assert not np.array_equal(without, with_rate)
+
+
+@pytest.mark.parametrize('instrument', _INSTRUMENTS)
+@pytest.mark.parametrize(
+    'model', [_ABSENT, None, 'ccd', 'vidicon'], ids=['default', 'null', 'ccd', 'vidicon']
+)
+def test_the_validator_accepts_a_rate_on_every_path(instrument: str, model: str | None) -> None:
+    """A positive rate validates on every instrument and detector model."""
+    extra = {} if model == _ABSENT else {'detector': {'detector_model': model}}
+    scene = _scene(instrument, {_KEY: 0.05}, **extra)
+    assert validate_sim_params(scene) is scene
+
+
+@pytest.mark.parametrize('detector_model', ['ccd', 'vidicon'])
+def test_both_chains_give_the_stage_the_rate_and_exposure(
+    monkeypatch: pytest.MonkeyPatch, detector_model: str
+) -> None:
+    """The CCD and vidicon chains call the stage with the scene's rate and exposure."""
+    calls: list[tuple[float, float]] = []
+
+    def _record(image: np.ndarray, **kwargs: Any) -> None:
+        calls.append((kwargs['events_per_pixel_per_sec'], kwargs['exposure_sec']))
+
+    monkeypatch.setattr(chain, 'add_cosmic_rays', _record)
+    scene = _scene('vgiss', {_KEY: 3.0e-4}, detector={'detector_model': detector_model})
+    scene['exposure_sec'] = 2.5
+    _detector_dn(scene)
+    assert calls == [(3.0e-4, 2.5)]
+
+
+def _vgiss_dn(noise: dict[str, Any], **extra: Any) -> np.ndarray:
+    """A dark 64 x 64 vgiss frame in raw DN (its unit class pinned to raw_dn)."""
+    scene = _scene('vgiss', noise, instrument_config={'data_units': 'raw_dn'}, **extra)
+    scene.update(size_v=64, size_u=64)
+    return _detector_dn(scene)
+
+
+def test_a_vidicon_hit_digitizes_at_the_adc_ceiling() -> None:
+    """Most vidicon hit pixels read 255 DN, the 8-bit ceiling, and none reads more.
+
+    A hit's core deposits at least the DN full scale; a splatter's neighbors take
+    a fraction of it, so a few hit pixels sit below the ceiling.
+    """
+    without = _vgiss_dn({_KEY: 0.0})
+    with_rate = _vgiss_dn({_KEY: 0.01})
+    hits = with_rate[with_rate != without]
+    assert float(hits.max()) == 255.0
+    assert float((hits == 255.0).mean()) > 0.5
+
+
+def test_the_vidicon_hit_count_follows_the_rate() -> None:
+    """A dark vidicon frame takes about rate * exposure * pixels events.
+
+    Each event marks at least one pixel and the morphology adds a few, so the
+    count of hit pixels sits between the event count's 4-sigma floor and four
+    times its 4-sigma ceiling.
+    """
+    rate = 2.0e-3
+    expected = rate * 1.0 * 64 * 64
+    hit = int((_vgiss_dn({_KEY: rate}) != _vgiss_dn({_KEY: 0.0})).sum())
+    assert expected - 4.0 * expected**0.5 < hit < 4.0 * (expected + 4.0 * expected**0.5)
+
+
+def test_this_frames_hits_stay_out_of_the_residual_image() -> None:
+    """The residual image ghosts the prior frame, so a hit gets no ghost at the offset.
+
+    The hits change a dark frame by the same amount with and without the
+    residual image; a hit the residual image copied would add a faint ghost five
+    pixels down and right.
+    """
+    residual = {'residual_image': {'probability': 1.0, 'amplitude': 0.05, 'offset_px': [5, 5]}}
+    plain = _vgiss_dn({_KEY: 0.01}) - _vgiss_dn({_KEY: 0.0})
+    ghosted = _vgiss_dn({_KEY: 0.01}, artifacts=residual) - _vgiss_dn(
+        {_KEY: 0.0}, artifacts=residual
+    )
+    assert int(np.count_nonzero(plain)) > 0
+    assert np.array_equal(ghosted, plain)
 
 
 @pytest.mark.parametrize('instrument', _INSTRUMENTS)

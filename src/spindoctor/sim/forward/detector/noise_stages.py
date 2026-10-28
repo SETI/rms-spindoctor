@@ -8,7 +8,8 @@ via ``derive_effect_seed(random_seed, 'detector/<effect>')`` so toggling one
 never perturbs another's realization, and each stage is a no-op when its gating
 amplitude/fraction/rate is zero (the stage-activation rule).
 
-Dark current, hot pixels, banding, and cosmic rays act in the electron domain;
+Dark current, hot pixels, banding, and cosmic rays act in the electron domain
+(the vidicon chain, which has no electron domain, deposits its cosmic rays in DN);
 bias structure acts in the DN domain (the amplifier pedestal and the read-out
 row/column gradients ride on the digitized signal).  Per-instrument
 parameterizations come with the catalog defaults; these are the generic shapes.
@@ -210,22 +211,24 @@ def add_cosmic_rays(
     amplitude_e: float,
     rng: np.random.Generator,
 ) -> None:
-    """Deposit morphological cosmic-ray events (electrons) in place.
+    """Deposit morphological cosmic-ray events in place.
 
     Events are point hits (the common case, a degenerate single pixel), short
     streaks at a random angle whose length is drawn from an incidence-angle
-    distribution, and rare multi-pixel splatters.  Each deposits a charge well
-    above the full well so the digitized frame clips at the ADC ceiling and the
-    orchestrator's cosmic-ray/saturation masks catch it.  The event count is a
-    Poisson draw whose mean is ``events_per_pixel_per_sec * exposure_sec`` times
-    the frame's pixel count.  A zero rate is a no-op.
+    distribution, and rare multi-pixel splatters.  Each deposits at least
+    ``amplitude_e`` (the full well) so the digitized frame clips at the ADC
+    ceiling and the orchestrator's cosmic-ray/saturation masks catch it.  The
+    event count is a Poisson draw whose mean is ``events_per_pixel_per_sec *
+    exposure_sec`` times the frame's pixel count.  A zero rate is a no-op.
 
     Parameters:
-        electrons: The electron image, modified in place.
+        electrons: The image, modified in place: electrons on the CCD chain, DN
+            on the vidicon chain.
         events_per_pixel_per_sec: Expected cosmic-ray events per pixel per second
             of exposure.
         exposure_sec: Exposure time in seconds.
-        amplitude_e: Charge-deposit scale in electrons (per pixel of an event).
+        amplitude_e: Deposit scale per pixel of an event, in the image's units
+            (the CCD's full well in electrons, the vidicon's DN full scale).
         rng: The stage's seeded generator.
     """
     if events_per_pixel_per_sec <= 0.0 or amplitude_e <= 0.0:

@@ -46,7 +46,6 @@ from spindoctor.sim.scene_checks import (
     _check_detector,
     _check_expected,
     _check_noise,
-    _check_noise_on_detector_path,
     _check_optics,
     _check_optional_bool,
     _check_optional_mapping,
@@ -272,9 +271,6 @@ def validate_sim_params(
     _check_ring_system(sim_params.get('ring_system'), source=source)
     _check_optics(sim_params.get('optics'), source=source)
     _check_detector(sim_params.get('detector'), instrument=instrument, source=source)
-    _check_noise_on_detector_path(
-        sim_params.get('noise'), sim_params.get('detector'), instrument=instrument, source=source
-    )
     _check_artifacts(sim_params.get('artifacts'), instrument=instrument, source=source)
     _check_spk_error(sim_params.get('spk_error'), source=source)
     _check_sky_counts(sim_params.get('sky_counts'), source=source)
