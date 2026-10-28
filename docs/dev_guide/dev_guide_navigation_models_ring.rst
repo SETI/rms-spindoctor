@@ -93,20 +93,21 @@ along this normal and prices the along-edge weakness of a gently curved edge fro
 normals turn (see :doc:`dev_guide_techniques_ring_edge`), and the orbit-uncertainty channel
 sums the normals, so their direction and their sense both matter. A vertex where the
 gradient cannot be formed, with both neighbors along an axis off the image or off the ring
-plane, keeps the normal its edge-mask pixel neighbors give: the side with no mask pixel,
-one of eight directions, signed toward the larger of the ring radii one pixel to either
-side.
+plane, keeps the normal its edge-mask pixel neighbors give: the side that has no mask
+pixel, one of eight directions, signed toward the larger of the ring radii one pixel to
+either side.
 
-Every vertex's pixel-neighbor normal is also computed and kept, because the emission gate
-and the ring-edge fit were measured with it. The annulus emission gate (the resolvability pass above)
-measures an edge's radial extent along those normals, by projecting onto their MEAN, which
-is sign-sensitive, so a half turn of arc returns the ring radius. Along the true radial
-normals a long, gently curved arc measures only its sagitta, a few pixels, and would route
-to the annulus composite, whose correlation is no better placed along such an arc than the
-edge fit. And the ring-edge fit reads them from
-:attr:`~spindoctor.feature.geometry.RingEdgePolyline.pixel_normals_vu` for its edge-strength
-scores, which check its coarse seed and reject a fit to faint edges, and for its
-gradient-ridge pass (see :doc:`dev_guide_techniques_ring_edge` for what that keeps
+Every vertex's pixel-neighbor normal is also computed and kept, because the resolvability
+test and the ring-edge fit were measured with it. The resolvability test (the third pass
+above) sends a curved edge to the annulus path when its radial extent is at most
+``max_radial_px``. It measures that extent along those normals by projecting onto their
+MEAN, which is sign-sensitive, so a half turn of arc returns the ring radius. Along the
+true radial normals a long, gently curved arc measures only its sagitta, a few pixels, and
+would route to the annulus composite, whose correlation is no better placed along such an
+arc than the edge fit. And the ring-edge fit reads them from
+:attr:`~spindoctor.feature.geometry.RingEdgePolyline.pixel_normals_vu` for its
+edge-strength scores, which check its coarse seed and reject a fit to faint edges, and for
+its gradient-ridge pass (see :doc:`dev_guide_techniques_ring_edge` for what that keeps
 unchanged).
 
 Each polyline vertex carries two per-vertex sigma values: a radial sigma along the
