@@ -95,7 +95,12 @@ render.
 The status bar also warns when the navigator would refuse a render: when more than
 30% of its pixels are lost, or when the frame would read as blank, as an empty
 calibrated Cassini frame does. It reads the frame the navigator sees, with the scene's
-planted offset applied, so its verdict can differ from what the preview shows.
+planted offset applied, so its verdict can differ from what the preview shows. When
+the scene plants an offset, the editor renders that frame a second time in the
+background. The preview appears immediately, the status bar shows the units followed
+by "verdict pending", and the verdict fills in a moment later, once the second render
+finishes. Each edit replaces the pending verdict, so a verdict on the status bar is
+always for the scene as it stands.
 
 The random pixel loss (the missing-data rate) and the cosmic-ray rate work on every
 camera, the Voyager vidicon included.

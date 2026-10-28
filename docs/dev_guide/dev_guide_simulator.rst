@@ -574,6 +574,16 @@ residual is below the blank limit, so the navigator calls it blank; an empty
 the units are otherwise invisible: a ``vgiss`` frame spanning about 0 to 1 looks
 the same as a ``coiss_nac`` frame spanning 20 to 4095.
 
+Without a planted offset, the preview is the frame the navigator reads, and the
+status bar describes it as soon as it renders. With one, the navigated frame is a
+second render, and the editor runs it on a worker thread so that an edit never
+waits for it. The preview appears at once, and the status bar shows the units
+followed by ``verdict pending``. When the second render finishes, its summary
+replaces that line. A newer edit supersedes the verdict on its way, so the status
+bar never shows the verdict for an older scene. A failed second render puts its
+error on the status bar and its traceback in the log.
+:ref:`sim-editor-verdict-thread` describes the worker.
+
 .. _sim-optics-stage:
 
 The optics stage
@@ -3293,7 +3303,11 @@ realism addition needs -- live in their own module:
    * - ``scene_io.py``
      - Load / Save Scene (YAML) via :mod:`spindoctor.sim.scene`.
    * - ``render_display.py``
-     - The live preview (render, stretch, zoom, saturation overlay).
+     - The live preview (render, stretch, zoom, saturation overlay) and the
+       units-and-verdict line of the status bar.
+   * - ``verdict.py``
+     - The navigated frame's verdict, rendered on a worker thread (see
+       :ref:`sim-editor-verdict-thread`).
    * - ``widgets.py`` / ``base.py``
      - Shared widget helpers and the mixin-facing protocol.
    * - ``body_mesh_keys.py``
@@ -3323,6 +3337,49 @@ back to edit; ``tests/main/test_sim_editor_round_trip.py`` asserts the
 round-trip is loss-free over the full key inventory. The GUI is one peer, not
 the sole control surface; the YAML and the Python API are equally
 authoritative.
+
+.. _sim-editor-verdict-thread:
+
+The verdict render's worker thread
+----------------------------------
+
+The status bar reports the navigator's verdict on the frame the navigator reads.
+For a scene with a planted offset that frame is a second render (see
+:ref:`sim-instruments`), which ``VerdictRunner`` in ``verdict.py`` runs on a
+daemon worker thread while the preview stays on the UI thread.
+
+- **Requests.** Each render of the preview with a planted offset asks for a
+  verdict, which takes the next generation number and an independent deep copy of
+  ``sim_params``. At most one verdict render runs. A request made while one runs
+  waits, and replaces any request already waiting. A render whose generation is
+  older than the latest request is discarded when it finishes. A preview without
+  an offset, a failed preview, and closing the window each cancel, by taking a
+  generation number with no request behind it. A running render can't be
+  interrupted, so a stale one runs to the end before the waiting request starts.
+- **Hand-back.** The worker touches no Qt object and no editor state. It writes its
+  summary, or its error and traceback, into its job object and then sets the job's
+  ``threading.Event``. While a render runs, a ``QTimer`` on the UI thread polls
+  that event every 25 ms, and only the UI thread reads the job, writes the status
+  bar, and logs. Every Qt object is therefore created, used, and destroyed on the
+  UI thread. A worker that outlives the window writes only into a job that
+  nothing reads, because the poll timer is the runner's child and goes with the
+  window.
+- **Two renders at once.** The worker's render can overlap a preview render on
+  the UI thread. That is safe because each render builds its own
+  ``SimFrame``, its own parameter dict (decoded from the cache key), and its own
+  per-stage ``numpy.random.Generator`` streams, and the sim package keeps no
+  other module state and does not log. Its ``lru_cache`` tables (the scene cache
+  in ``render.py`` and the star, body, mesh, relief, and PSF stage caches) stay
+  coherent under concurrent calls, and no caller writes into a cached value:
+  ``render_combined_model`` returns copies, and the stage caches' callers only
+  read theirs. The configuration is loaded by the first preview, before any
+  verdict is requested, and the render path only reads it. Two overlapping misses
+  on one cache key compute the same value twice, which costs time and is
+  otherwise harmless.
+- **The GIL.** The two renders share the interpreter lock, so the preview slows
+  while a verdict render runs. The UI thread still gets the lock at least every
+  switch interval during Python code. A long numerical call that holds the lock
+  can delay it for that call's duration, which is a fraction of a render.
 
 Running navigation on a simulated image
 =======================================
