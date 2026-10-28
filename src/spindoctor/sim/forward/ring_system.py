@@ -13,19 +13,21 @@ pixel, so low-tau features reveal the background instead of erasing it and
 stars behind the ring attenuate physically.
 
 Radial tau profiles by feature kind (``r_e(lam)`` the feature's perturbed
-orbit radius, ``w`` its radial width, distances in ring-plane radial units):
+orbit radius, ``w`` its radial width ``width_px``, distances in ring-plane
+radial units: the scene's ring-plane pixels times the oversampling factor):
 
 - ``ringlet``: ``tau`` between ``r_e`` and ``r_e + w`` (anti-aliased edges).
 - ``gap``: the same band as a tau suppression (subtracts, clipped at zero).
-- ``edge``: a one-sided step; ``side: 'in'`` carries ``tau`` for
-  ``r <= r_e`` (a sheet bounded by its outer edge, the B-ring-edge case),
-  ``side: 'out'`` for ``r >= r_e``.
+- ``edge``: a one-sided step; ``side: 'in'`` (the default) carries ``tau``
+  for ``r <= r_e`` (a sheet bounded by its outer edge, the B-ring-edge
+  case), ``side: 'out'`` for ``r >= r_e``.
 - ``ramp``: a linear transition across ``[r_e, r_e + w]``; ``side: 'out'``
-  rises from 0 at ``r_e`` to ``tau`` at ``r_e + w`` (compose with an
-  ``edge`` there for a sheet with a gradual inner boundary), ``side: 'in'``
-  mirrors it.  Zero outside the band; the sharp end is anti-aliased.
+  (the default) rises from 0 at ``r_e`` to ``tau`` at ``r_e + w`` (compose
+  with an ``edge`` there for a sheet with a gradual inner boundary),
+  ``side: 'in'`` mirrors it.  Zero outside the band; the sharp end is
+  anti-aliased.
 - ``wave``: a damped radial sinusoid launched at ``r_e``:
-  ``dtau(x) = tau * exp(-x / damping) * sin(2*pi*x / wavelength)`` for
+  ``dtau(x) = tau * exp(-x / density_wave_damping_px) * sin(2*pi*x / wavelength_px)`` for
   ``x = r - r_e >= 0`` and exactly zero upstream (the clamp mirrors the
   azimuthal edge wave's: the envelope grows without bound for ``x < 0``).
   A density-wave train is visual clutter riding on a sheet; its negative
@@ -79,6 +81,7 @@ from spindoctor.sim.ring_geometry import (
     ring_radial_scale,
     ring_sky_from_plane,
 )
+from spindoctor.sim.scene_schema import RING_SIDE_DEFAULTS, scene_value
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 
@@ -227,8 +230,8 @@ def render_ring_system(
     """
     size_v, size_u = shape
     geometry = ring_system.get('geometry') or {}
-    b_obs = float(geometry.get('opening_deg_obs', 0.0))
-    b_sun = float(geometry.get('opening_deg_sun', 0.0))
+    b_obs = float(scene_value(geometry, 'opening_deg_obs', 0.0))
+    b_sun = float(scene_value(geometry, 'opening_deg_sun', 0.0))
     zero_maps = RingSystemMaps(
         intensity=np.zeros(shape, dtype=np.float64),
         transmission=np.ones(shape, dtype=np.float64),
@@ -247,7 +250,7 @@ def render_ring_system(
     mu = abs(math.sin(math.radians(b_obs)))
     mu0 = abs(math.sin(math.radians(b_sun)))
     lit = (b_obs > 0.0) == (b_sun > 0.0)
-    alpha_deg = float(ring_system.get('phase_deg', 0.0))
+    alpha_deg = float(scene_value(ring_system, 'phase_deg', 0.0))
 
     # Pixel centers relative to the projected ring center, mapped back to the
     # ring plane through the shared inverse projection.  The grid starts as
@@ -323,8 +326,8 @@ def render_ring_system(
             tau_view[sel] -= contribution
         else:
             tau_view[sel] += contribution
-            albedo = float(feature.get('albedo', RING_ALBEDO_DEFAULT))
-            phase_g = float(feature.get('phase_g', RING_PHASE_G_DEFAULT))
+            albedo = float(scene_value(feature, 'albedo', RING_ALBEDO_DEFAULT))
+            phase_g = float(scene_value(feature, 'phase_g', RING_PHASE_G_DEFAULT))
             ap = albedo / 4.0 * henyey_greenstein_phase(phase_g, alpha_deg)
             positive = np.clip(contribution, 0.0, None)
             ap_weighted_view = ap_weighted[sub_v, sub_u]
@@ -343,8 +346,8 @@ def render_ring_system(
         propeller = moonlet.get('propeller')
         if not propeller:
             continue
-        a_m = float(moonlet.get('a', 0.0)) * os
-        width = float(propeller.get('width_px', 0.0)) * os
+        a_m = float(scene_value(moonlet, 'a_px', 0.0)) * os
+        width = float(scene_value(propeller, 'width_px', 0.0)) * os
         reach = width * (1.0 + _GAUSSIAN_UNDERFLOW_SIGMAS)
         slices = _annulus_bbox_slices(
             shape,
@@ -404,7 +407,7 @@ def render_ring_system(
         if disc is None:
             continue
         (sub_v, sub_u), coverage = disc
-        amplitude = float(moonlet.get('amplitude', 0.0))
+        amplitude = float(scene_value(moonlet, 'amplitude', 0.0))
         intensity[sub_v, sub_u] = intensity[sub_v, sub_u] * (1.0 - coverage) + amplitude * coverage
         transmission[sub_v, sub_u] = transmission[sub_v, sub_u] * (1.0 - coverage)
         mask[sub_v, sub_u] |= coverage > 0.0
@@ -414,7 +417,7 @@ def render_ring_system(
     if range_km is not None:
         # dlos is positive toward the observer on the render grid; divide by
         # the oversampling to return to detector pixels before the km scale.
-        km_per_pixel = float(ring_system.get('km_per_pixel', 1.0))
+        km_per_pixel = float(scene_value(ring_system, 'km_per_pixel', 1.0))
         dlos_km = ring_los_depth(y, opening_deg_obs=b_obs) / float(os) * km_per_pixel
         depth_km = float(range_km) - dlos_km
 
@@ -441,13 +444,14 @@ def _azimuthal_intensity_factor(
 ) -> NDArrayFloatType:
     """The truth-side azimuthal brightness factor (intensity only, never tau).
 
-    - ``modulation``: ``1 + amplitude * cos(m * (lam - phase_deg))`` -- the
-      self-gravity-wake quadrant asymmetry.
+    - ``modulation``: ``1 + amplitude * cos(m * (lam - brightness_peak_longitude_deg))`` --
+      the self-gravity-wake quadrant asymmetry.
     - ``shadow``: a multiplicative ``1 - darkness`` wedge over
       ``[start_deg, start_deg + extent_deg)`` -- the planet-shadow boundary,
       a strong non-navigable edge crossing every feature.
     - ``spokes``: ``count`` seeded wedges, azimuthally sharp (quartic wedge
-      profile) and radially broad (sin^2 envelope over ``r_inner..r_outer``),
+      profile) and radially broad (sin^2 envelope over
+      ``r_inner_px..r_outer_px``),
       each with a drawn contrast in ``[0.5, 1] * contrast`` (negative for
       the dark low-phase appearance) and a drawn width in ``[0.5, 1.5] *
       width_deg``.
@@ -468,25 +472,25 @@ def _azimuthal_intensity_factor(
     factor = np.ones_like(r)
     modulation = azimuthal.get('modulation')
     if modulation:
-        amplitude = float(modulation.get('amplitude', 0.0))
-        m = int(modulation.get('m', 1))
-        phase = math.radians(float(modulation.get('phase_deg', 0.0)))
+        amplitude = float(scene_value(modulation, 'amplitude', 0.0))
+        m = int(scene_value(modulation, 'm', 1))
+        phase = math.radians(float(scene_value(modulation, 'brightness_peak_longitude_deg', 0.0)))
         factor = factor * (1.0 + amplitude * np.cos(m * (lam - phase)))
     shadow = azimuthal.get('shadow')
     if shadow:
-        start = math.radians(float(shadow.get('start_deg', 0.0)))
-        extent = math.radians(float(shadow.get('extent_deg', 0.0)))
-        darkness = float(shadow.get('darkness', 0.0))
+        start = math.radians(float(scene_value(shadow, 'start_deg', 0.0)))
+        extent = math.radians(float(scene_value(shadow, 'extent_deg', 0.0)))
+        darkness = float(scene_value(shadow, 'darkness', 0.0))
         in_wedge = np.mod(lam - start, 2.0 * math.pi) < extent
         factor = factor * np.where(in_wedge, 1.0 - darkness, 1.0)
     spokes = azimuthal.get('spokes')
     if spokes:
         rng = np.random.default_rng(spokes_seed)
-        count = int(spokes.get('count', 0))
-        r_inner = float(spokes.get('r_inner', 0.0)) * os
-        r_outer = float(spokes.get('r_outer', 0.0)) * os
-        contrast = float(spokes.get('contrast', 0.0))
-        width_deg = float(spokes.get('width_deg', 0.0))
+        count = int(scene_value(spokes, 'count', 0))
+        r_inner = float(scene_value(spokes, 'r_inner_px', 0.0)) * os
+        r_outer = float(scene_value(spokes, 'r_outer_px', 0.0)) * os
+        contrast = float(scene_value(spokes, 'contrast', 0.0))
+        width_deg = float(scene_value(spokes, 'width_deg', 0.0))
         band = np.clip((r - r_inner) / max(r_outer - r_inner, 1e-12), 0.0, 1.0)
         radial_env = np.sin(math.pi * band) ** 2
         radial_env[(r < r_inner) | (r > r_outer)] = 0.0
@@ -531,11 +535,11 @@ def _propeller_tau_factor(
     Returns:
         The per-pixel multiplicative tau factor (non-negative).
     """
-    a_m = float(moonlet.get('a', 0.0)) * os
-    lam_m = math.radians(float(moonlet.get('lam_deg', 0.0)))
-    length = math.radians(float(propeller.get('length_deg', 0.0)))
-    width = float(propeller.get('width_px', 0.0)) * os
-    contrast = float(propeller.get('contrast', 0.0))
+    a_m = float(scene_value(moonlet, 'a_px', 0.0)) * os
+    lam_m = math.radians(float(scene_value(moonlet, 'lam_deg', 0.0)))
+    length = math.radians(float(scene_value(propeller, 'length_deg', 0.0)))
+    width = float(scene_value(propeller, 'width_px', 0.0)) * os
+    contrast = float(scene_value(propeller, 'contrast', 0.0))
     sigma_lam = length / 4.0
     disturbance = np.zeros_like(r)
     for radial_sign, azimuthal_sign in ((1.0, 1.0), (-1.0, -1.0)):
@@ -557,7 +561,7 @@ def _moonlet_disc_coverage(
 ) -> tuple[tuple[slice, slice], NDArrayFloatType] | None:
     """A moonlet's anti-aliased disc coverage, bounded to its sky box.
 
-    The moonlet sits in the ring plane at polar placement ``(a, lam_deg)``,
+    The moonlet sits in the ring plane at polar placement ``(a_px, lam_deg)``,
     projected to the sky through the shared projection; the disc is drawn in
     sky coordinates (a body, not a ring-plane band, so it does not
     foreshorten with the ring).  The coverage shade is exactly 0.0 wherever
@@ -582,9 +586,9 @@ def _moonlet_disc_coverage(
         coverage in [0, 1], or None when the box misses the grid entirely.
     """
     size_v, size_u = shape
-    a_m = float(moonlet.get('a', 0.0)) * os
-    lam_m = math.radians(float(moonlet.get('lam_deg', 0.0)))
-    radius = float(moonlet.get('radius_px', 1.0)) * os
+    a_m = float(scene_value(moonlet, 'a_px', 0.0)) * os
+    lam_m = math.radians(float(scene_value(moonlet, 'lam_deg', 0.0)))
+    radius = float(scene_value(moonlet, 'radius_px', 1.0)) * os
     dv, du = ring_sky_from_plane(
         np.asarray([a_m]), np.asarray([lam_m]), opening_deg_obs=b_obs, node_deg=node_deg
     )
@@ -616,7 +620,7 @@ def _orbit_with_error(orbit: RingOrbit, error: Mapping[str, Any] | None) -> Ring
     catalog orbit, so features are misplaced relative to the model (and to
     each other) exactly as real ring features are relative to their
     published orbit solutions.  A negative ``delta_ae_px`` larger than the
-    catalog ``ae`` clamps at a circular edge (a negative radial amplitude is
+    catalog ``ae_px`` clamps at a circular edge (a negative radial amplitude is
     not physical).
 
     Parameters:
@@ -630,9 +634,9 @@ def _orbit_with_error(orbit: RingOrbit, error: Mapping[str, Any] | None) -> Ring
         return orbit
     return replace(
         orbit,
-        a=orbit.a + float(error.get('delta_a_px', 0.0)),
-        ae=max(0.0, orbit.ae + float(error.get('delta_ae_px', 0.0))),
-        long_peri=orbit.long_peri + float(error.get('delta_long_peri_deg', 0.0)),
+        a=orbit.a + float(scene_value(error, 'delta_a_px', 0.0)),
+        ae=max(0.0, orbit.ae + float(scene_value(error, 'delta_ae_px', 0.0))),
+        long_peri=orbit.long_peri + float(scene_value(error, 'delta_long_peri_deg', 0.0)),
     )
 
 
@@ -688,14 +692,18 @@ def _feature_radial_bounds(
     kind = str(feature.get('kind'))
     lo, hi = _orbit_radial_bounds(orbit)
     if kind in ('ringlet', 'gap', 'ramp'):
-        hi += float(feature.get('width', 0.0)) * os
+        hi += float(scene_value(feature, 'width_px', 0.0)) * os
     elif kind == 'edge':
-        if str(feature.get('side', 'in')) == 'in':
+        if str(scene_value(feature, 'side', RING_SIDE_DEFAULTS['edge'])) == 'in':
             lo = -math.inf
         else:
             hi = math.inf
     elif kind == 'wave':
-        hi += float(feature.get('damping', 0.0)) * os * _WAVE_UNDERFLOW_DAMPINGS
+        hi += (
+            float(scene_value(feature, 'density_wave_damping_px', 0.0))
+            * os
+            * _WAVE_UNDERFLOW_DAMPINGS
+        )
     return max(lo - margin, 0.0), hi + margin
 
 
@@ -785,21 +793,21 @@ def _feature_tau_profile(
             validator rejects these; this guards direct callers).
     """
     kind = str(feature.get('kind'))
-    tau = float(feature.get('tau', 0.0))
+    tau = float(scene_value(feature, 'tau', 0.0))
     r_edge = compute_orbit_radii(lam, orbit, epoch=epoch, time=time)
     if kind in ('ringlet', 'gap'):
-        width = float(feature.get('width', 0.0)) * os
+        width = float(scene_value(feature, 'width_px', 0.0)) * os
         r_outer = compute_orbit_radii(lam, orbit.widened(width), epoch=epoch, time=time)
         inner_shade = compute_antialiasing_shade((r - r_edge) / radial_scale, float(os))
         outer_shade = compute_antialiasing_shade((r_outer - r) / radial_scale, float(os))
         return cast(NDArrayFloatType, tau * np.minimum(inner_shade, outer_shade))
     if kind == 'edge':
-        side = str(feature.get('side', 'in'))
+        side = str(scene_value(feature, 'side', RING_SIDE_DEFAULTS['edge']))
         signed = (r_edge - r) if side == 'in' else (r - r_edge)
         return tau * compute_antialiasing_shade(signed / radial_scale, float(os))
     if kind == 'ramp':
-        width = float(feature.get('width', 0.0)) * os
-        side = str(feature.get('side', 'out'))
+        width = float(scene_value(feature, 'width_px', 0.0)) * os
+        side = str(scene_value(feature, 'side', RING_SIDE_DEFAULTS['ramp']))
         r_outer = compute_orbit_radii(lam, orbit.widened(width), epoch=epoch, time=time)
         x = np.clip((r - r_edge) / width, 0.0, 1.0)
         frac = x if side == 'out' else 1.0 - x
@@ -811,8 +819,8 @@ def _feature_tau_profile(
             sharp = compute_antialiasing_shade((r - r_edge) / radial_scale, float(os))
         return cast(NDArrayFloatType, tau * frac * sharp)
     if kind == 'wave':
-        wavelength = float(feature.get('wavelength', 0.0)) * os
-        damping = float(feature.get('damping', 0.0)) * os
+        wavelength = float(scene_value(feature, 'wavelength_px', 0.0)) * os
+        damping = float(scene_value(feature, 'density_wave_damping_px', 0.0)) * os
         # Clamp to the downstream (outward) side: clipping x at zero makes
         # the upstream profile exactly zero (sin(0) = 0) and keeps the
         # envelope from growing without bound inward of the launch radius.

@@ -37,8 +37,13 @@ def _scene(ring_range_km: float | None) -> dict[str, Any]:
                 'name': 'R',
                 'kind': 'ringlet',
                 'tau': 1.5,
-                'width': 8.0,
-                'orbit': {'a': 8.0, 'ae': 0.0, 'long_peri': 0.0, 'rate_peri': 0.0},
+                'width_px': 8.0,
+                'orbit': {
+                    'a_px': 8.0,
+                    'ae_px': 0.0,
+                    'long_peri_deg': 0.0,
+                    'rate_peri_deg_per_day': 0.0,
+                },
             }
         ],
     }

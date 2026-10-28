@@ -9,18 +9,23 @@ underlying navigation carries sub-millipixel cross-process jitter.
 
 Run in-process; heavier than the algorithmic invariants (each sweep navigates
 several frames), so the module is ``@pytest.mark.integration`` -- the deliberate
-tier, alongside the baselines.
+tier, alongside the baselines.  The checks that only build and validate each sweep
+step navigate nothing and run with the unit suite, in
+``tests/spindoctor/sim/test_sim_sweep_build.py``.
 """
 
+import copy
+import functools
 from pathlib import Path
 
 import pytest
 
 from tests.integration.sim_sweep import (
     SweepRow,
-    iter_sweep_paths,
+    build_sweep_params,
     load_sweep,
     run_sweep,
+    run_sweep_steps,
 )
 
 pytestmark = pytest.mark.integration
@@ -32,14 +37,6 @@ _RECOVERY_TOLERANCE_PX = 0.5
 def _rows(sweep_name: str) -> list[SweepRow]:
     """Load and run a sweep by name."""
     return run_sweep(load_sweep(_SWEEPS_ROOT / f'{sweep_name}.yaml'))
-
-
-def test_every_sweep_validates() -> None:
-    """Every sweep spec parses and validates."""
-    paths = iter_sweep_paths(_SWEEPS_ROOT)
-    assert paths
-    for path in paths:
-        load_sweep(path)
 
 
 def test_noise_sweep_starts_clean() -> None:
@@ -130,13 +127,53 @@ def test_star_rotation_sweep_recovers_roll() -> None:
         assert row.rotation_error_deg < _ROLL_TOLERANCE_DEG
 
 
+# The irregularity walk navigates one mesh realization, the base scene's
+# mesh_seed (4, the median shape mismatch of mesh seeds 0 to 12; see the scene).
+# Its single-seed tests are tripwires on this realization.  The properties that
+# hold across shapes are asserted on the population of mesh seeds 0 to 12 at the
+# walk's extreme step, lumpiness 0.7, below.
+_IRREGULARITY_POPULATION_SEEDS = range(13)
+_IRREGULARITY_EXTREME_LUMPINESS = 0.7
+# Measured 2026-10-27: at lumpiness 0.7 the shape-lock veto reports 4 of the 13
+# seeds conflicted (mesh seeds 0, 2, 5, and 12).
+_IRREGULARITY_MIN_VETOED = 4
+# A "confident wrong" result: success at this confidence or above, this far off.
+_CONFIDENT = 0.9
+_IRREGULARITY_CONFIDENT_WRONG_PX = 5.0
+# Every one of mesh seeds 0 to 12 dips at least this far below the clean step's
+# confidence somewhere on its walk (the smallest dip is seed 10's, 0.31).
+_IRREGULARITY_MIN_CONFIDENCE_DROP = 0.3
+
+
+@functools.cache
+def _irregularity_population() -> tuple[SweepRow, ...]:
+    """Navigate the irregularity walk's extreme step once per mesh seed 0 to 12.
+
+    Each row's ``value`` is its mesh seed.  Cached, so the population's tests
+    share one set of navigations.
+    """
+    spec = load_sweep(_SWEEPS_ROOT / 'irregularity_shape_mismatch.yaml')
+    extreme = [
+        params
+        for value, params in build_sweep_params(spec)
+        if value == _IRREGULARITY_EXTREME_LUMPINESS
+    ]
+    assert len(extreme) == 1
+    steps = []
+    for mesh_seed in _IRREGULARITY_POPULATION_SEEDS:
+        params = copy.deepcopy(extreme[0])
+        params['bodies'][0]['mesh_seed'] = mesh_seed
+        steps.append((float(mesh_seed), params))
+    return tuple(run_sweep_steps(steps, spec.technique))
+
+
 def test_irregularity_sweep_starts_matched() -> None:
     """At zero relief the fused recovery stays sub-half-pixel.
 
     The fused offset precision-weights the disc correlation (~0.03 px
     recovery here) against the limb DT fit (which carries the documented
     ~0.1 px-class gradient-peak/model offset and errs a few tenths on
-    this faceted mesh).  With the #210 model-error floors both report
+    this mesh).  With the #210 model-error floors both report
     comparable honest sigmas, so the fused value is their blend rather
     than whichever technique used to claim the tighter covariance; the
     bound reflects that blend, not a single technique's floor.
@@ -147,7 +184,12 @@ def test_irregularity_sweep_starts_matched() -> None:
 
 
 def test_irregularity_sweep_bias_grows() -> None:
-    """Shape mismatch grows the recovered centroid bias as relief increases."""
+    """Shape mismatch grows the recovered centroid bias as relief increases.
+
+    This realization ends 5.2 px off.  Every one of mesh seeds 0 to 12 ends
+    more than 2 px off (the least, seed 11, at 2.7 px), but the error never
+    falls between steps on only 4 of them (seeds 4, 5, 9, and 10).
+    """
     rows = _rows('irregularity_shape_mismatch')
     assert rows[-1].offset_error_px is not None
     assert rows[0].offset_error_px is not None
@@ -156,34 +198,83 @@ def test_irregularity_sweep_bias_grows() -> None:
 
 
 def test_irregularity_sweep_confidence_drops() -> None:
-    """Shape mismatch drops the fused confidence below the clean baseline.
+    """Shape mismatch pulls the fused confidence well below the clean step's.
 
-    Introducing a predicted-shape mismatch pulls the fused confidence below the
-    clean (rows[0]) value somewhere in the sweep.  The clean step itself is a
-    confident success; every mismatched step sits below it.
+    Somewhere on the walk the confidence falls at least 0.3 below the clean
+    (zero-relief) step's 0.99.  That holds on every one of mesh seeds 0 to 12,
+    but it is asserted on this realization only, so the test is a tripwire on
+    this walk rather than a check of the population.  The bound is the
+    population's smallest dip (seed 10's, 0.31) less 0.01; this walk dips 0.59,
+    to 0.40 at lumpiness 0.7, so a failure here means the walk changed, and the
+    population is what to measure next.
+
+    Falling below it at every mismatched step holds only on seeds 0, 8, and 11,
+    and from lumpiness 0.2 on only on six of them, so neither is asserted: on
+    many shapes a mismatched step still reports 0.99 (this realization does at
+    lumpiness 0.1, 0.2, and 0.6).
     """
     rows = _rows('irregularity_shape_mismatch')
-    assert all(row.confidence < rows[0].confidence for row in rows[1:])
+    lowest = min(row.confidence for row in rows[1:])
+    assert lowest <= rows[0].confidence - _IRREGULARITY_MIN_CONFIDENCE_DROP
 
 
-def test_irregularity_sweep_extreme_mismatch_vetoed() -> None:
-    """At extreme mismatch the shape-lock veto reports conflicted, not success.
+def test_irregularity_sweep_extreme_step_is_not_a_confident_success() -> None:
+    """This realization's extreme step is not reported as a confident success.
 
-    The disc correlation and the limb fit both lock onto the mismatched shape
-    and agree at a multi-pixel wrong offset that would otherwise fuse to a
-    confident success.  The pose-free blob does not chase the shape, so the
-    body-witness veto reports the extreme-mismatch step conflicted -- the
-    offset error is large (see ``test_irregularity_sweep_bias_grows``) yet does
-    not carry a confident-success tier.
+    At lumpiness 0.7 this realization's disc and limb lock onto the mismatched
+    shape and the pose-free blob carries the result, a 0.40-confidence success
+    5.2 px off; the shape-lock veto does not fire here.  The veto's rate over
+    shapes is asserted on the population below, and so is the confident-wrong
+    case this tripwire guards on this one shape.
     """
     rows = _rows('irregularity_shape_mismatch')
-    assert rows[-1].status == 'conflicted'
+    extreme = rows[-1]
+    confident_success = extreme.status == 'success' and extreme.confidence >= _CONFIDENT
+    assert not confident_success
 
 
 def test_irregularity_sweep_clean_step_still_succeeds() -> None:
     """The zero-relief step navigates cleanly: the veto does not blanket the sweep."""
     rows = _rows('irregularity_shape_mismatch')
     assert rows[0].status == 'success'
+
+
+def test_irregularity_population_veto_rate_at_extreme_mismatch() -> None:
+    """At lumpiness 0.7 the shape-lock veto declines at least 4 of 13 mesh shapes.
+
+    Over mesh seeds 0 to 12 the disc correlation and the limb fit lock onto the
+    mismatched shape at the extreme step.  The veto reports a shape
+    ``conflicted`` when the pose-free blob disagrees with that lock; on the
+    other shapes the blob is displaced with the lock or carries the result
+    itself.  The bound is the measured rate, 4 of 13 (seeds 0, 2, 5, and 12), so
+    a change that weakens the veto on these shapes fails here.
+    """
+    vetoed = [row for row in _irregularity_population() if row.status == 'conflicted']
+    assert len(vetoed) >= _IRREGULARITY_MIN_VETOED
+
+
+@pytest.mark.xfail(
+    strict=True,
+    raises=AssertionError,
+    reason='#790: the shape-lock veto misses confident wrong solutions on irregular mesh '
+    'bodies; mesh seed 10 ends a 0.91-confidence success 12.7 px off at lumpiness 0.7',
+)
+def test_irregularity_population_never_confidently_wrong() -> None:
+    """No mesh shape at lumpiness 0.7 is a confident (>= 0.9) success more than 5 px off.
+
+    A frame whose fit is several pixels off must not report a confident success,
+    whatever the shape.  Mesh seed 10 does: its blob is displaced together with
+    the disc lock, so the body-witness disagreement the veto reads never appears.
+    """
+    confident_wrong = [
+        int(row.value)
+        for row in _irregularity_population()
+        if row.status == 'success'
+        and row.confidence >= _CONFIDENT
+        and row.offset_error_px is not None
+        and row.offset_error_px > _IRREGULARITY_CONFIDENT_WRONG_PX
+    ]
+    assert confident_wrong == []
 
 
 def test_pose_disagreement_starts_clean() -> None:
@@ -211,7 +302,8 @@ def test_pose_disagreement_limb_error_grows() -> None:
 def test_pose_disagreement_limb_is_confidently_wrong() -> None:
     """At the largest disagreement the limb is several pixels off yet still 'success'.
 
-    The pinned limb does not self-flag across this tumble range -- it returns a
+    Apart from the 55 deg step, where it self-flags spurious and the frame fails,
+    the pinned limb does not self-flag across this tumble range -- it returns a
     confidently-wrong fix (a multi-pixel error at unchanged confidence), which is
     why the per-technique demote decision (test_sim_irregular_pose) cannot rely on
     the limb's own status and compares it against the pose-free blob instead.
@@ -223,7 +315,7 @@ def test_pose_disagreement_limb_is_confidently_wrong() -> None:
 
 
 def test_artifact_sweep_starts_clean() -> None:
-    """At zero missing-line incidence the frame recovers the planted offset."""
+    """At zero missing-line expected_events the frame recovers the planted offset."""
     rows = _rows('artifact_missing_lines')
     assert rows[0].status == 'success'
     assert rows[0].offset_error_px is not None
@@ -233,7 +325,7 @@ def test_artifact_sweep_starts_clean() -> None:
 def test_artifact_sweep_confidence_degrades() -> None:
     """Structured loss drops the fused confidence below the clean baseline.
 
-    The deliverable curve is navigation quality versus artifact incidence: as
+    The deliverable curve is navigation quality versus artifact severity: as
     more lines are lost the fused confidence falls below its clean (rows[0])
     value.  The assertion is on the confidence dip (the render-robust signal that
     loss degrades the navigation), not a monotone step-by-step drop, because the
@@ -245,7 +337,7 @@ def test_artifact_sweep_confidence_degrades() -> None:
 
 
 def test_artifact_sweep_degrades_to_failure() -> None:
-    """At the highest incidence half the frame is gone and navigation fails."""
+    """At the highest expected count half the frame is gone and navigation fails."""
     rows = _rows('artifact_missing_lines')
     assert rows[-1].status == 'failed'
 

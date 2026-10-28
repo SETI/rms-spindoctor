@@ -32,6 +32,8 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from spindoctor.cli.sim_editor.body_mesh_keys import MeshKeyStash
+from spindoctor.cli.sim_editor.verdict import VerdictRunner
 from spindoctor.cli.sim_editor.widgets import ImageLabel, ParameterUpdater
 from spindoctor.ui.common import ZoomPanController
 
@@ -44,6 +46,7 @@ class SimEditorBase(QMainWindow):
     _current_image: np.ndarray | None
     _last_meta: dict[str, Any]
     _base_pixmap: QPixmap | None
+    _mesh_key_stash: MeshKeyStash
 
     # ---- View / interaction state ----
     _zoom_factor: float
@@ -56,6 +59,7 @@ class SimEditorBase(QMainWindow):
     _zoom_sharp: bool
     _syncing: bool
     _updater: ParameterUpdater
+    _verdict_runner: VerdictRunner
     _zoom_ctl: ZoomPanController
 
     # ---- Left image panel ----
@@ -63,6 +67,7 @@ class SimEditorBase(QMainWindow):
     _image_label: ImageLabel
     _status_label: QLabel
     _saturation_label: QLabel
+    _units_label: QLabel
     _zoom_label: QLabel
 
     # ---- Right tabs panel ----
@@ -94,7 +99,6 @@ class SimEditorBase(QMainWindow):
     _bias_spin: QDoubleSpinBox
     _bloom_spin: QSpinBox
     _signal_frac_spin: QDoubleSpinBox
-    _pixel_area_spin: QDoubleSpinBox
 
     # ---- Optics tab: stray-light panel ----
     _stray_amplitude_spin: QDoubleSpinBox
@@ -207,7 +211,7 @@ class SimEditorBase(QMainWindow):
         raise NotImplementedError
 
     def _sync_body_mesh_enabled(self, w: QWidget, is_mesh: bool) -> None:
-        """Gate the mesh-extras group by shape (BodyAppearanceMixin)."""
+        """Gate the shape-specific body controls (BodyAppearanceMixin)."""
         raise NotImplementedError
 
     def _body(self, idx: int) -> dict[str, Any] | None:

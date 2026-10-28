@@ -7,10 +7,10 @@ random_seed: 7
 exposure_sec: 1.0
 # A clean multi-star field under modest structured telemetry loss: a few whole
 # missing lines and a few truncated lines per frame.  A scattered loss knocks
-# out a star only when a lost line crosses it; at this incidence the field keeps
+# out a star only when a lost line crosses it; at this expected count the field keeps
 # enough surviving stars for the pattern matcher's triplet geometry, so the star
 # techniques recover the planted translation within tolerance.  The adversarial
-# sibling biases the same incidence onto the star rows.
+# sibling biases the same expected count onto the star rows.
 # Stars deposit as point masses; an explicit navigator-matched PSF gives them a
 # finite (floor-form) profile instead of a 1-pixel spike.
 optics:
@@ -30,9 +30,9 @@ noise:
 artifacts:
   adversarial: false
   missing_lines:
-    incidence: 3.0
+    expected_events: 3.0
   partial_lines:
-    incidence: 3.0
+    expected_events: 3.0
 offset_v: 1.43
 offset_u: -0.61
 offset_rotation_deg: 0.0
