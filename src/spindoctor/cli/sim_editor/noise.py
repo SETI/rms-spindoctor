@@ -3,8 +3,16 @@
 Poisson shot noise, a Gaussian read-noise floor, cosmic-ray rate, missing-data
 rate, bias pedestal, saturation bloom, and signal full-scale fraction.  These
 write the ``sim_params['noise']`` block the renderer consumes;
-physical defaults otherwise come from the selected instrument.  Every control
-applies on every instrument and detector model.
+physical defaults otherwise come from the selected instrument.
+
+The validator accepts every control on every instrument and detector model, but
+some change nothing on some detector paths.  On the vidicon detector (``vgiss``,
+or a detector model of ``vidicon``) the Poisson, read-noise, and bloom controls
+change nothing: the vidicon's DN-domain noise comes from the ``noise.vidicon``
+keys, and it has no electron well to bloom.  On a calibrated frame the bias
+control changes nothing on the Cassini cameras and only the pixels near the
+8-bit ceiling on ``vgiss``, because the calibration inverse subtracts the bias
+again.  The cosmic-ray and missing-data controls work everywhere.
 """
 
 from typing import Any
@@ -32,6 +40,8 @@ class NoiseMixin(SimEditorBase):
         Parameters:
             gen_layout: The General tab's form layout.
         """
+        # The controls that change nothing on some detector paths (see the module
+        # docstring) are tracked as #804.
         self._poisson_check = QCheckBox()
         self._poisson_check.setChecked(bool(self._noise_value('poisson', True)))
         self._poisson_check.setToolTip('Signal-dependent Poisson shot noise (usually on).')

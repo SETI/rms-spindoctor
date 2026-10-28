@@ -225,7 +225,7 @@ noise-free dark sky reads exactly 0: vgiss sits at 0.0118 I/F (1.5 DN), above 0
 as the GEOMED sky does, and a calibrated Cassini frame at 4.0e-5 I/F, the median
 real CALIB sky.  Under instrument_defaults a coiss_calib_nac sky scatters around
 0, more than a quarter of a disc scene's pixels slightly below it, and a vgiss
-sky stays above 0.  A pixel that still lands exactly on the marker moves to the
+sky stays above 0 on all but about 7 pixels in 100,000.  A pixel that still lands exactly on the marker moves to the
 next float above it, so only planted loss puts a pixel at the marker.  The scene
 editor's status bar shows each render's units, range, and marker share, counted
 on the frame the navigator reads (planted offset applied), and the navigator's

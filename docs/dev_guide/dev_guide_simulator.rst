@@ -3241,8 +3241,13 @@ realism addition needs -- live in their own module:
    * - ``noise.py``
      - Poisson, read noise, bias, cosmic-ray rate (events per pixel per
        second), missing-data rate, bloom, and signal full-scale fraction
-       (General tab). Every control applies on every instrument and detector
-       model.
+       (General tab). The validator accepts every control everywhere, but on
+       the vidicon detector the Poisson, read-noise, and bloom controls change
+       nothing (its DN-domain noise comes from ``noise.vidicon``), and on a
+       calibrated frame the bias control changes nothing on the Cassini cameras
+       and only the pixels near the 8-bit ceiling on ``vgiss``, because the
+       calibration inverse subtracts the bias again. The cosmic-ray and
+       missing-data controls work everywhere.
    * - ``optics_tab.py``
      - The Optics tab: PSF, motion smear, distortion, ghosts, the stray-light
        panel, oversample, and the spacecraft-ephemeris error group. Each

@@ -88,8 +88,9 @@ An I/F frame spans roughly 0 to 1, where a DN frame of the same scene can reach
 With ``instrument_defaults`` on, read noise moves the dark sky about. On a
 calibrated Cassini frame it scatters around 0, and more than a quarter of the
 pixels of a disc scene sit slightly below 0, as on the real frames. On a ``vgiss``
-frame it stays above 0, as it does in the real Voyager products. The editor's status
-bar names the units and value range of each render.
+frame it stays above 0 on all but about 7 pixels in 100,000, as the real Voyager
+sky stays above 0. The editor's status bar names the units and value range of each
+render.
 
 The status bar also warns when the navigator would refuse a render: when more than
 30% of its pixels are lost, or when the frame would read as blank, as an empty
