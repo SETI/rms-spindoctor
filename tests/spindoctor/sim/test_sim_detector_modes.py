@@ -10,6 +10,7 @@ frame-transfer smear under instrument_defaults) is exercised end to end through
 the detector resolver and a whole-scene render.
 """
 
+import dataclasses
 from typing import Any
 
 import numpy as np
@@ -496,36 +497,59 @@ def test_detector_mode_records_truth() -> None:
 # --- radiation_transients ----------------------------------------------------
 
 
-def test_radiation_transients_expected_count_scales() -> None:
-    """The expected count scales with environment factor and (t_exp + dwell) / t_exp."""
+def _radiation_expected(
+    exposure_sec: float, rate: float, environment_factor: float, readout_dwell_sec: float
+) -> float:
+    """The radiation_transients stage's expected hit count for one frame."""
     from spindoctor.sim.forward.detector.chain import _apply_radiation_transients
 
-    dp = resolve_detector_params({'instrument': 'coiss_nac', 'random_seed': 5, 'exposure_sec': 2.0})
+    dp = resolve_detector_params({'instrument': 'coiss_nac', 'random_seed': 5})
+    dp = dataclasses.replace(dp, exposure_sec=exposure_sec)
     cfg: dict[str, Any] = {
-        'expected_events': 10.0,
-        'environment_factor': 3.0,
-        'readout_dwell_sec': 4.0,
+        'expected_events_per_sec': rate,
+        'environment_factor': environment_factor,
+        'readout_dwell_sec': readout_dwell_sec,
         'amplitude_e': 1000.0,
     }
     electrons = np.zeros((_SIZE, _SIZE), dtype=np.float64)
-    record = _apply_radiation_transients(electrons, cfg, dp)
-    assert record['expected'] == pytest.approx(10.0 * 3.0 * (2.0 + 4.0) / 2.0)
+    return float(_apply_radiation_transients(electrons, cfg, dp)['expected'])
 
 
-def test_radiation_transients_baseline_expected_is_expected_events() -> None:
-    """With unit environment and no dwell the expected count is ``expected_events``."""
-    from spindoctor.sim.forward.detector.chain import _apply_radiation_transients
+@pytest.mark.parametrize(
+    ('exposure_sec', 'rate', 'environment_factor', 'readout_dwell_sec', 'expected'),
+    [
+        (2.0, 5.0, 1.0, 0.0, 10.0),
+        (0.5, 5.0, 1.0, 0.0, 2.5),
+        (2.0, 5.0, 3.0, 0.0, 30.0),
+        (2.0, 5.0, 3.0, 4.0, 90.0),
+        (0.0, 5.0, 1.0, 4.0, 20.0),
+        (-1.0, 5.0, 1.0, 4.0, 20.0),
+        (0.0, 5.0, 1.0, 0.0, 0.0),
+    ],
+    ids=[
+        'rate_times_exposure',
+        'short_exposure_expects_fewer',
+        'environment_scales',
+        'dwell_adds_its_seconds',
+        'zero_exposure_counts_only_the_dwell',
+        'negative_exposure_counts_only_the_dwell',
+        'zero_exposure_and_dwell_expect_none',
+    ],
+)
+def test_radiation_transients_expect_the_rate_times_the_exposed_seconds(
+    exposure_sec: float,
+    rate: float,
+    environment_factor: float,
+    readout_dwell_sec: float,
+    expected: float,
+) -> None:
+    """The expected count is rate * environment_factor * (exposure_sec + readout_dwell_sec).
 
-    dp = resolve_detector_params({'instrument': 'coiss_nac', 'random_seed': 5, 'exposure_sec': 2.0})
-    cfg: dict[str, Any] = {
-        'expected_events': 10.0,
-        'environment_factor': 1.0,
-        'readout_dwell_sec': 0.0,
-        'amplitude_e': 1000.0,
-    }
-    electrons = np.zeros((_SIZE, _SIZE), dtype=np.float64)
-    record = _apply_radiation_transients(electrons, cfg, dp)
-    assert record['expected'] == pytest.approx(10.0)
+    A non-positive exposure contributes zero seconds, leaving only the dwell.
+    """
+    assert _radiation_expected(
+        exposure_sec, rate, environment_factor, readout_dwell_sec
+    ) == pytest.approx(expected, rel=1e-12, abs=0.0)
 
 
 def test_radiation_amplitudes_fall_steeply() -> None:

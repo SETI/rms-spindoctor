@@ -406,17 +406,21 @@ def _apply_radiation_transients(
 ) -> dict[str, Any]:
     """Apply radiation_transients: cosmic morphology in the Galileo-scaled regime.
 
-    The expected spike count scales ``expected_events`` by the environment
-    factor and by ``(exposure + readout dwell) / exposure`` -- the dwell adds
-    transients proportionally, the regime that forced Galileo's faster summation
-    readout -- so ``expected_events`` is the per-frame count only at environment
-    factor 1 and zero dwell.  A non-positive exposure counts as 1 s.
+    ``expected_events_per_sec`` is a hit rate per second the detector is
+    exposed to the environment, scaled by the environment factor.  The detector
+    collects hits during the exposure and during the readout dwell -- the dwell
+    adds transients in proportion to its length, the regime that forced
+    Galileo's faster summation readout -- so the expected spike count is
+    ``expected_events_per_sec * environment_factor * (exposure_sec +
+    readout_dwell_sec)``.  A non-positive exposure contributes zero time, so
+    such a frame collects only the dwell's hits (the scene validator refuses a
+    non-positive ``exposure_sec``, so only a direct caller can pass one).
     """
-    expected_events = float(cfg['expected_events'])
+    rate = float(cfg['expected_events_per_sec'])
     environment = float(cfg.get('environment_factor', 1.0))
     dwell = float(cfg.get('readout_dwell_sec', 0.0))
-    exposure = dp.exposure_sec if dp.exposure_sec > 0.0 else 1.0
-    expected = expected_events * environment * (exposure + dwell) / exposure
+    exposure = max(dp.exposure_sec, 0.0)
+    expected = rate * environment * (exposure + dwell)
     amplitude = cfg.get('amplitude_e')
     amplitude_e = float(amplitude) if amplitude is not None else dp.full_well_e
     rng = _mode_seed(dp, 'radiation_transients')

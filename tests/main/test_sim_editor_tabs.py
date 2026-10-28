@@ -612,6 +612,16 @@ def test_rate_mode_tooltip_says_per_second_of_exposure(model: Any) -> None:
     assert 'per second of exposure' in tip
 
 
+def test_radiation_rate_spin_writes_the_per_second_key(model: Any) -> None:
+    """radiation_transients' activation spin writes expected_events_per_sec on a CCD."""
+    model.sim_params['instrument'] = 'coiss_nac'
+    model._refresh_artifact_mode_availability()
+    row = model._mode_rows['radiation_transients']
+    row.group.setChecked(True)
+    row._scalar_widgets['expected_events_per_sec'].setValue(4.0)
+    assert model.sim_params['artifacts']['radiation_transients'] == {'expected_events_per_sec': 4.0}
+
+
 # ---- Per-star information-asymmetry controls ----
 
 

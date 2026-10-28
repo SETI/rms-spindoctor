@@ -21,16 +21,17 @@ accepts every mode, which keeps unit scenes free to exercise any shape.
 names the quantity it holds, so a scene line reads the same way on every mode:
 
 * ``expected_events`` (count modes: lost lines, lost blocks, spiked pixels,
-  dead pixels and columns, radiation spikes): the expected number of events per
-  frame, drawn Poisson.  It is a non-negative number.  A telemetry loss caps the
-  draw at the number of places its events can land (the frame's lines, columns,
-  or pixels, or ``missing_blocks``'s compression blocks); ``radiation_transients``
-  is uncapped, and it scales the expectation by its ``environment_factor`` and
-  by ``(exposure_sec + readout_dwell_sec) / exposure_sec``, so it is a per-frame
-  count only at the defaults (factor 1, zero dwell).
-* ``expected_events_per_sec`` (``bright_dark_pairs`` alone): the expected number
-  of events per second of exposure, drawn Poisson and uncapped; the frame's
-  expected count is this times ``exposure_sec``.
+  dead pixels and columns): the expected number of events per frame, drawn
+  Poisson.  It is a non-negative number.  Each of these modes caps the draw at
+  the number of places its events can land (the frame's lines, columns, or
+  pixels, or ``missing_blocks``'s compression blocks).
+* ``expected_events_per_sec`` (rate modes: ``bright_dark_pairs`` and
+  ``radiation_transients``): the expected number of events per second, drawn
+  Poisson and uncapped.  ``bright_dark_pairs`` expects this times
+  ``exposure_sec``.  ``radiation_transients`` counts hits during the readout
+  dwell as well as the exposure, in an environment scaled by its
+  ``environment_factor``: it expects ``expected_events_per_sec *
+  environment_factor * (exposure_sec + readout_dwell_sec)``.
 * ``probability`` (commanded and periodic modes, and every deterministic-shape
   detector mode): the per-frame probability, in [0, 1], that the mode activates at
   all.
@@ -425,11 +426,10 @@ _DETECTOR_MODES: tuple[ArtifactMode, ...] = (
         ModeParam('readout_dwell_sec', 'nonneg_number', 0.0),
         ModeParam('amplitude_e', 'nonneg_number', None),
         availability=_ALL_CCD,
-        activation=EXPECTED_EVENTS,
+        activation=EXPECTED_EVENTS_PER_SEC,
         activation_semantics=(
-            'a Poisson expected count of radiation spikes per frame at environment_factor 1 '
-            'and readout_dwell_sec 0; the frame expects this times environment_factor times '
-            '(exposure_sec + readout_dwell_sec) / exposure_sec'
+            'a Poisson expected count of radiation spikes per second; the frame expects this '
+            'times environment_factor times (exposure_sec + readout_dwell_sec)'
         ),
     ),
     _detector_mode(

@@ -2,9 +2,10 @@
 
 Every artifact mode carries exactly one activation key, and the key names the
 quantity it holds: ``expected_events`` (a Poisson expected event count per
-frame), ``expected_events_per_sec`` (a Poisson expected event count per second of
-exposure, on ``bright_dark_pairs``), ``probability`` (a per-frame activation
-probability), or ``pixel_fraction`` (the hot-pixel spatial density).
+frame), ``expected_events_per_sec`` (a Poisson expected event count per second,
+on ``bright_dark_pairs`` and ``radiation_transients``), ``probability`` (a
+per-frame activation probability), or ``pixel_fraction`` (the hot-pixel spatial
+density).
 ``dead_pixels`` and ``dead_columns`` take a fixed ``count`` in place of
 ``expected_events``, never both set, and every mode is a no-op when its
 activation key is 0, or its ``count`` where given is 0.
@@ -32,7 +33,7 @@ from spindoctor.sim.scene import SimSceneValidationError, validate_sim_params
 from spindoctor.support.types import NDArrayFloatType
 
 # The modes whose activation key is a Poisson expected event count per frame: the
-# line, block, garble, spike, and dead-pixel losses, plus radiation_transients.
+# line, block, garble, spike, and dead-pixel losses.
 _COUNT_MODES = frozenset(
     {
         'missing_lines',
@@ -42,11 +43,10 @@ _COUNT_MODES = frozenset(
         'pixel_spikes',
         'dead_pixels',
         'dead_columns',
-        'radiation_transients',
     }
 )
-# The mode whose expected count is a rate per second of exposure.
-_RATE_MODES = frozenset({'bright_dark_pairs'})
+# The modes whose activation key is a Poisson expected event count per second.
+_RATE_MODES = frozenset({'bright_dark_pairs', 'radiation_transients'})
 _POISSON_MODES = sorted(_COUNT_MODES | _RATE_MODES)
 _DENSITY_MODES = frozenset({'hot_pixels'})
 _PROBABILITY_MODES = sorted(set(ARTIFACT_MODES) - _COUNT_MODES - _RATE_MODES - _DENSITY_MODES)
@@ -85,9 +85,9 @@ def _expected_key(mode_name: str) -> str:
 def test_each_mode_activation_key_names_its_mechanic(mode_name: str) -> None:
     """Each mode's activation key names the quantity its mechanic reads.
 
-    A per-frame count mode takes expected_events, bright_dark_pairs (whose count
-    scales with exposure) expected_events_per_sec, hot_pixels pixel_fraction, and
-    the rest probability.
+    A per-frame count mode takes expected_events, a rate mode (bright_dark_pairs
+    and radiation_transients, whose counts scale with time) expected_events_per_sec,
+    hot_pixels pixel_fraction, and the rest probability.
     """
     assert ARTIFACT_MODES[mode_name].activation == _expected_key(mode_name)
 
@@ -108,9 +108,9 @@ def test_each_mode_carries_exactly_one_activation_key(mode_name: str) -> None:
 
 
 def test_radiation_transients_semantics_state_its_scaling() -> None:
-    """radiation_transients names the environment factor and the dwell it scales by."""
+    """radiation_transients reads as a rate per second times the factor and the times."""
     semantics = ARTIFACT_MODES['radiation_transients'].activation_semantics
-    words = ('environment_factor', 'readout_dwell_sec', 'exposure_sec')
+    words = ('per second', 'environment_factor', 'exposure_sec + readout_dwell_sec')
     assert [word for word in words if word not in semantics] == []
 
 
@@ -266,24 +266,17 @@ def test_bright_dark_pairs_count_scales_with_exposure() -> None:
 # --- detector activation reads the registry --------------------------------------
 
 
-def test_detector_count_mode_is_active_at_any_positive_expected_events() -> None:
-    """A detector count mode activates whenever expected_events is positive.
+@pytest.mark.parametrize('mode_name', sorted(_RATE_MODES))
+def test_detector_rate_mode_is_active_at_any_positive_rate(mode_name: str) -> None:
+    """A detector rate mode activates whenever its per-second rate is positive.
 
     The mechanic draws the event count, so even a tiny expected count must not
     pass through a per-frame probability draw (which would almost always fail).
     """
     dp = resolve_detector_params(
-        _scene({'radiation_transients': {EXPECTED_EVENTS: 1.0e-9}}, instrument='coiss_nac')
+        _scene({mode_name: {EXPECTED_EVENTS_PER_SEC: 1.0e-9}}, instrument='coiss_nac')
     )
-    assert 'radiation_transients' in dp.detector_modes
-
-
-def test_detector_rate_mode_is_active_at_any_positive_rate() -> None:
-    """bright_dark_pairs activates whenever its per-second rate is positive."""
-    dp = resolve_detector_params(
-        _scene({'bright_dark_pairs': {EXPECTED_EVENTS_PER_SEC: 1.0e-9}}, instrument='coiss_nac')
-    )
-    assert 'bright_dark_pairs' in dp.detector_modes
+    assert mode_name in dp.detector_modes
 
 
 def test_detector_probability_mode_is_inactive_at_zero() -> None:
