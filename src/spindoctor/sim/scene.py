@@ -45,7 +45,6 @@ from spindoctor.sim.scene_checks import (
     _check_artifacts,
     _check_detector,
     _check_expected,
-    _check_missing_data_rate_on_data_units,
     _check_noise,
     _check_noise_on_detector_path,
     _check_optics,
@@ -275,12 +274,6 @@ def validate_sim_params(
     _check_detector(sim_params.get('detector'), instrument=instrument, source=source)
     _check_noise_on_detector_path(
         sim_params.get('noise'), sim_params.get('detector'), instrument=instrument, source=source
-    )
-    _check_missing_data_rate_on_data_units(
-        sim_params.get('noise'),
-        sim_params.get('instrument_config'),
-        instrument=instrument,
-        source=source,
     )
     _check_artifacts(sim_params.get('artifacts'), instrument=instrument, source=source)
     _check_spk_error(sim_params.get('spk_error'), source=source)

@@ -20,7 +20,6 @@ from __future__ import annotations
 import math
 from typing import Any
 
-from spindoctor.config import DEFAULT_CONFIG
 from spindoctor.sim.forward.artifact_modes import (
     ARTIFACT_MODES,
     MODE_KEYS,
@@ -29,7 +28,6 @@ from spindoctor.sim.forward.artifact_modes import (
     mode_unavailable_message,
 )
 from spindoctor.sim.forward.artifacts_catalog import resolve_detector_defaults
-from spindoctor.sim.instruments import resolve_sim_inst_config
 from spindoctor.sim.scene_schema import SimSceneValidationError
 from spindoctor.support.status_reason import NavStatusReason
 
@@ -452,39 +450,6 @@ def cosmic_ray_rate_refusal(detector: Any, *, instrument: str) -> str | None:
     )
 
 
-def missing_data_rate_refusal(instrument_config: Any, *, instrument: str) -> str | None:
-    """Why the scene's data units refuse a positive missing-data rate, or None.
-
-    The generic per-pixel dropout ``noise.missing_data_rate`` runs on the raw-DN
-    path only.  A scene whose resolved instrument block renders ``calibrated_if``
-    (``coiss_calib_nac``, ``coiss_calib_wac``, and ``vgiss``, or any instrument
-    whose ``instrument_config`` sets that ``data_units``) renders no dropouts.
-    The validator raises this sentence for a positive rate, and the sim editor
-    disables its missing-data control with it as the tooltip.
-
-    Parameters:
-        instrument_config: The scene's ``instrument_config`` mapping, or None.
-        instrument: The scene's instrument name.
-
-    Returns:
-        ``instrument '<name>' renders <data_units>[ via
-        instrument_config.data_units], and the per-pixel dropout applies to raw-DN
-        frames only, so the rate would be silently ignored`` on a calibrated frame
-        (the ``via`` clause when the scene pins the units), or None on a raw-DN
-        frame.
-    """
-    inst_config = resolve_sim_inst_config(DEFAULT_CONFIG, instrument, instrument_config)
-    data_units = str(inst_config.get('data_units', 'raw_dn'))
-    if data_units == 'raw_dn':
-        return None
-    pinned = isinstance(instrument_config, dict) and 'data_units' in instrument_config
-    via = ' via instrument_config.data_units' if pinned else ''
-    return (
-        f'instrument {instrument!r} renders {data_units}{via}, and the per-pixel dropout '
-        'applies to raw-DN frames only, so the rate would be silently ignored'
-    )
-
-
 def _check_noise_on_detector_path(
     noise: Any, detector: Any, *, instrument: str, source: str
 ) -> None:
@@ -515,39 +480,6 @@ def _check_noise_on_detector_path(
     raise SimSceneValidationError(
         f'{source}: noise.cosmic_ray_events_per_pixel_per_sec is {rate}, but {reason}; '
         'set it to 0 or remove it'
-    )
-
-
-def _check_missing_data_rate_on_data_units(
-    noise: Any, instrument_config: Any, *, instrument: str, source: str
-) -> None:
-    """Refuse a missing-data rate the scene's data units would ignore.
-
-    A positive ``noise.missing_data_rate`` fails when
-    :func:`missing_data_rate_refusal` gives a reason (a calibrated frame).  A
-    zero rate passes.  Run after :func:`_check_noise` has type-checked the block.
-
-    Parameters:
-        noise: The scene's ``noise`` mapping, or None.
-        instrument_config: The scene's ``instrument_config`` mapping, or None.
-        instrument: The scene's (already validated) instrument name.
-        source: Label used in error messages.
-
-    Raises:
-        SimSceneValidationError: On a positive rate on a calibrated frame; the
-            message is ``<source>: noise.missing_data_rate is <rate>, but
-            <reason>; set it to 0 or remove it, and plant loss ...``.
-    """
-    rate = (noise or {}).get('missing_data_rate')
-    if rate is None or float(rate) <= 0.0:
-        return
-    reason = missing_data_rate_refusal(instrument_config, instrument=instrument)
-    if reason is None:
-        return
-    raise SimSceneValidationError(
-        f'{source}: noise.missing_data_rate is {rate}, but {reason}; set it to 0 or '
-        'remove it, and plant loss on a calibrated frame with an artifact mode such as '
-        'missing_lines'
     )
 
 

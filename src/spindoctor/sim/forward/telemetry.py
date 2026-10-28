@@ -23,7 +23,7 @@ grid.  It applies its sub-effects in the physical order of transmission:
    missing-line interpolation banding).
 4. Missing-data markers: the generic per-pixel ``noise.missing_data_rate``
    dropout knob (a worst-case stress knob, not an instrument artifact),
-   applied on the raw-DN path only.
+   which writes the instrument's marker on raw and calibrated frames alike.
 
 Every structured loss mode is opt-in through the ``artifacts`` block, disabled
 when its activation key (``expected_events`` or ``probability``), or its fixed
@@ -155,8 +155,8 @@ def apply_telemetry(
         else:
             records[mode_name] = apply_resample_texture(frame.signal, cfg, rng=mode_rng)
 
-    # Sub-stage 4: the generic missing-data markers (raw-DN path only).
-    _apply_missing_data_markers(frame, params, inst_config, marker_dn, rng)
+    # Sub-stage 4: the generic missing-data markers.
+    _apply_missing_data_markers(frame, params, marker_dn, rng)
 
     if records:
         frame.truth.setdefault('artifacts', {}).update(records)
@@ -215,19 +215,17 @@ def _resolve_truth_window(
 def _apply_missing_data_markers(
     frame: SimFrame,
     params: Mapping[str, Any],
-    inst_config: Mapping[str, Any],
     marker_dn: float,
     rng: np.random.Generator,
 ) -> None:
-    """Overwrite lost pixels with the missing-data marker (raw-DN path only).
+    """Overwrite randomly lost pixels with the missing-data marker.
 
-    The generic per-pixel ``noise.missing_data_rate`` dropout stays as the
-    worst-case stress knob, applied only on the raw-DN path; the scene validator
-    refuses a non-zero rate on a calibrated frame.  The structured loss modes
-    write the marker on every path, calibrated frames included.
+    The generic per-pixel ``noise.missing_data_rate`` dropout is the worst-case
+    stress knob: each pixel is lost independently with that probability and
+    takes the marker the navigator applies to the frame (0 on every shipped
+    instrument, raw DN and calibrated I/F alike), as the structured loss modes
+    do.
     """
-    if inst_config.get('data_units', 'raw_dn') != 'raw_dn':
-        return
     sim_noise = DEFAULT_CONFIG.category('sim')['noise']
     scene_noise = params.get('noise') or {}
     # A null rate reads as absent and takes the configuration default.

@@ -1,13 +1,12 @@
 """The sim editor cannot author a noise rate its scene validator refuses.
 
 The validator refuses a positive ``noise.cosmic_ray_events_per_pixel_per_sec``
-when the detector model resolves to the vidicon, and a positive
-``noise.missing_data_rate`` on a ``calibrated_if`` frame.  The editor reads the
-validator's own predicates: where one refuses, its control is disabled with the
-reason as its tooltip.  A change of instrument, detector model, or detector
-override that makes a set rate refused moves the rate into the editor's stash
-with a status-bar message, so the scene keeps validating, and a change that lifts
-the refusal restores it.
+when the detector model resolves to the vidicon.  The editor reads the
+validator's own predicate: where it refuses, the control is disabled with the
+reason as its tooltip.  The missing-data control stays enabled everywhere.  A
+change of instrument, detector model, or detector override that makes a set rate
+refused moves the rate into the editor's stash with a status-bar message, so the
+scene keeps validating, and a change that lifts the refusal restores it.
 
 The property itself is checked by operating every noise control the panel leaves
 enabled and validating the scene that results.
@@ -124,9 +123,9 @@ def _operate(widget: QWidget) -> None:
     [
         ('coiss_nac', None, set()),
         ('coiss_nac', 'vidicon', {_CR}),
-        ('vgiss', None, {_CR, _MD}),
-        ('coiss_calib_nac', None, {_MD}),
-        ('coiss_calib_wac', None, {_MD}),
+        ('vgiss', None, {_CR}),
+        ('coiss_calib_nac', None, set()),
+        ('coiss_calib_wac', None, set()),
         ('generic', None, set()),
     ],
     ids=[
@@ -153,11 +152,9 @@ def test_exactly_the_refused_controls_are_disabled(
     ('instrument', 'detector_model', 'key'),
     [
         ('vgiss', None, _CR),
-        ('vgiss', None, _MD),
         ('coiss_nac', 'vidicon', _CR),
-        ('coiss_calib_nac', None, _MD),
     ],
-    ids=['vgiss-cosmic', 'vgiss-missing', 'coiss-nac-vidicon-cosmic', 'coiss-calib-nac-missing'],
+    ids=['vgiss-cosmic', 'coiss-nac-vidicon-cosmic'],
 )
 def test_a_disabled_control_carries_the_validators_reason(
     model: Any, instrument: str, detector_model: str | None, key: str
@@ -178,12 +175,12 @@ def test_an_accepting_instrument_gives_each_control_its_own_tooltip(model: Any) 
     assert [t for t in tooltips if t.startswith('Validation refuses')] == []
 
 
-def test_a_pinned_calibrated_frame_disables_the_missing_data_control(model: Any) -> None:
-    """A loaded scene whose instrument_config pins calibrated_if disables the control."""
+def test_a_pinned_calibrated_frame_keeps_the_missing_data_control(model: Any) -> None:
+    """A loaded scene whose instrument_config pins calibrated_if keeps the control."""
     model._apply_params_dict(
         {'instrument': 'coiss_nac', 'instrument_config': {'data_units': 'calibrated_if'}}
     )
-    assert not _spin(model, _MD).isEnabled()
+    assert _spin(model, _MD).isEnabled()
 
 
 # ---- The property: the editor's noise controls keep the scene valid ----
@@ -205,7 +202,7 @@ def test_operating_every_enabled_noise_control_keeps_the_scene_valid(
         if widget.isEnabled():
             _operate(widget)
             operated.append(attr)
-    assert len(operated) >= len(_NOISE_CONTROLS) - 2
+    assert len(operated) >= len(_NOISE_CONTROLS) - 1
     validate_sim_params(copy.deepcopy(model.sim_params))
 
 
@@ -214,8 +211,8 @@ def test_operating_every_enabled_noise_control_keeps_the_scene_valid(
 
 @pytest.mark.parametrize(
     ('key', 'value', 'refusing'),
-    [(_CR, 0.001, 'vgiss'), (_MD, 0.05, 'coiss_calib_nac'), (_MD, 0.05, 'vgiss')],
-    ids=['cosmic-to-vgiss', 'missing-to-coiss-calib-nac', 'missing-to-vgiss'],
+    [(_CR, 0.001, 'vgiss')],
+    ids=['cosmic-to-vgiss'],
 )
 def test_switching_to_a_refusing_instrument_moves_the_rate_out(
     model: Any, key: str, value: float, refusing: str
@@ -231,8 +228,8 @@ def test_switching_to_a_refusing_instrument_moves_the_rate_out(
 
 @pytest.mark.parametrize(
     ('key', 'value', 'refusing'),
-    [(_CR, 0.001, 'vgiss'), (_MD, 0.05, 'coiss_calib_nac')],
-    ids=['cosmic-via-vgiss', 'missing-via-coiss-calib-nac'],
+    [(_CR, 0.001, 'vgiss')],
+    ids=['cosmic-via-vgiss'],
 )
 def test_switching_back_restores_the_rate(
     model: Any, key: str, value: float, refusing: str
@@ -269,14 +266,14 @@ def test_dropping_the_detector_override_restores_the_rate(model: Any) -> None:
 
 
 def test_a_switch_that_moves_a_rate_names_it_in_the_status_bar(model: Any) -> None:
-    """The status bar names every rate the switch moved and says how it comes back."""
+    """The status bar names the rate the switch moved and says how it comes back."""
     _set_instrument(model, 'coiss_nac')
     _spin(model, _CR).setValue(0.001)
     _spin(model, _MD).setValue(0.05)
     _set_instrument(model, 'vgiss')
     message = model.statusBar().currentMessage()
-    assert message == noise_stash_message([_CR, _MD])
-    assert f'noise.{_CR}, noise.{_MD}' in message
+    assert message == noise_stash_message([_CR])
+    assert model.sim_params['noise'][_MD] == pytest.approx(0.05)
     assert 'Switching back restores it in this session' in message
 
 

@@ -5,14 +5,13 @@ rate, bias pedestal, saturation bloom, and signal full-scale fraction.  These
 write the ``sim_params['noise']`` block the renderer consumes;
 physical defaults otherwise come from the selected instrument.
 
-The scene validator refuses a positive cosmic-ray rate on the vidicon detector
-and a positive missing-data rate on a calibrated frame.  The panel reads the
-validator's own predicates (:func:`~spindoctor.sim.scene_checks.cosmic_ray_rate_refusal`
-and :func:`~spindoctor.sim.scene_checks.missing_data_rate_refusal`): where one
-refuses, its control is disabled with the reason as the tooltip.  A change of
-instrument, detector model, or detector override that makes a set rate refused
-moves the rate out of the scene into a stash, with a status-bar message, and a
-change that lifts the refusal puts it back.
+The scene validator refuses a positive cosmic-ray rate on the vidicon detector.
+The panel reads the validator's own predicate
+(:func:`~spindoctor.sim.scene_checks.cosmic_ray_rate_refusal`): where it refuses,
+its control is disabled with the reason as the tooltip.  A change of instrument,
+detector model, or detector override that makes a set rate refused moves the
+rate out of the scene into a stash, with a status-bar message, and a change that
+lifts the refusal puts it back.
 """
 
 from typing import Any
@@ -20,10 +19,9 @@ from typing import Any
 from PyQt6.QtWidgets import QCheckBox, QDoubleSpinBox, QFormLayout, QSpinBox
 
 from spindoctor.cli.sim_editor.base import SimEditorBase
-from spindoctor.sim.scene_checks import cosmic_ray_rate_refusal, missing_data_rate_refusal
+from spindoctor.sim.scene_checks import cosmic_ray_rate_refusal
 
 _COSMIC_RAY_KEY = 'cosmic_ray_events_per_pixel_per_sec'
-_MISSING_DATA_KEY = 'missing_data_rate'
 
 # Each control's own tooltip, shown while the scene's detector path accepts a
 # positive value.
@@ -33,9 +31,8 @@ _COSMIC_RAY_TOOLTIP = (
     'disabled, because validation refuses a non-zero rate there.'
 )
 _MISSING_DATA_TOOLTIP = (
-    'Fraction of pixels marked as missing data. Raw-DN frames only: on a calibrated '
-    'instrument (coiss_calib_nac, coiss_calib_wac, vgiss) this control is disabled, '
-    'because validation refuses a non-zero rate there.'
+    "Fraction of pixels lost at random, each set to the instrument's missing-data "
+    'marker (0 on every shipped instrument).'
 )
 
 # How long the status bar shows the stash message, in milliseconds.
@@ -47,8 +44,7 @@ def noise_refusal_tooltip(reason: str) -> str:
 
     Parameters:
         reason: The validator's reason, from
-            :func:`~spindoctor.sim.scene_checks.cosmic_ray_rate_refusal` or
-            :func:`~spindoctor.sim.scene_checks.missing_data_rate_refusal`.
+            :func:`~spindoctor.sim.scene_checks.cosmic_ray_rate_refusal`.
 
     Returns:
         ``Validation refuses a non-zero rate here: <reason>.``
@@ -161,18 +157,10 @@ class NoiseMixin(SimEditorBase):
                 _COSMIC_RAY_TOOLTIP,
                 cosmic_ray_rate_refusal(self.sim_params.get('detector'), instrument=instrument),
             ),
-            (
-                _MISSING_DATA_KEY,
-                self._missing_data_spin,
-                _MISSING_DATA_TOOLTIP,
-                missing_data_rate_refusal(
-                    self.sim_params.get('instrument_config'), instrument=instrument
-                ),
-            ),
         ]
 
     def _sync_noise_refusals(self) -> None:
-        """Gate the cosmic-ray and missing-data controls on the validator's rules.
+        """Gate the cosmic-ray control on the validator's rule.
 
         Call after any change to the instrument, ``detector.detector_model`` (or
         the detector override as a whole), or ``instrument_config``.  A control
