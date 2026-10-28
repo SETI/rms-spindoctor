@@ -70,12 +70,11 @@ _FULL_SCENE: dict[str, Any] = {
     'noise': {
         'poisson': True,
         'read_noise_dn': 6.0,
-        'cosmic_ray_rate_per_sec': 0.001,
+        'cosmic_ray_events_per_pixel_per_sec': 0.001,
         'missing_data_rate': 0.01,
         'bias_dn': 18.0,
         'bloom_length': 4,
         'signal_full_scale_frac': 0.6,
-        'pixel_area_cm2': 1.5,
     },
     'oversample': 2,
     'optics': {
@@ -114,9 +113,9 @@ _FULL_SCENE: dict[str, Any] = {
         # a detector-electronics mode, and a routed quantization mode -- all
         # available on coiss_nac -- so the round-trip exercises the generated
         # mode rows, not only the two switches.
-        'missing_lines': {'incidence': 2.0, 'contiguous_run': True},
-        'banding_coherent': {'incidence': 0.5, 'amplitude_e': 3.0},
-        'quantization_lut': {'incidence': 1.0},
+        'missing_lines': {'expected_events': 2.0, 'contiguous_run': True},
+        'banding_coherent': {'probability': 0.5, 'amplitude_e': 3.0},
+        'quantization_lut': {'probability': 1.0},
     },
     'instrument_config': {'inherit': 'coiss_nac'},
     # The full body key inventory is split across the two render paths it
@@ -221,15 +220,20 @@ _FULL_SCENE: dict[str, Any] = {
                 'name': 'RingA',
                 'kind': 'ringlet',
                 'tau': 1.2,
-                'width': 20.0,
+                'width_px': 20.0,
                 'navigable': True,
                 'orbit': {
-                    'a': 100.0,
-                    'ae': 2.0,
-                    'long_peri': 10.0,
-                    'rate_peri': 0.5,
-                    'modes': [{'m': 2, 'amp': 1.5, 'peri': 70.0}],
-                    'edge_wave': {'amp': 1.0, 'wavelength': 8.0, 'damp': 0.5, 'lam0': 90.0},
+                    'a_px': 100.0,
+                    'ae_px': 2.0,
+                    'long_peri_deg': 10.0,
+                    'rate_peri_deg_per_day': 0.5,
+                    'modes': [{'m': 2, 'amp_px': 1.5, 'peri_deg': 70.0}],
+                    'edge_wave': {
+                        'amp_px': 1.0,
+                        'wavelength_px': 8.0,
+                        'edge_wave_damping_deg': 30.0,
+                        'lam0_deg': 90.0,
+                    },
                 },
                 'declared_orbit_sigma': {'sigma_a_px': 0.5, 'sigma_ae_px': 0.2},
                 'orbit_error': {'delta_a_px': 1.0, 'delta_long_peri_deg': 5.0},
@@ -240,25 +244,25 @@ _FULL_SCENE: dict[str, Any] = {
                 'name': 'WaveTrain',
                 'kind': 'wave',
                 'tau': 0.4,
-                'wavelength': 6.0,
-                'damping': 12.0,
-                'orbit': {'a': 130.0},
+                'wavelength_px': 6.0,
+                'density_wave_damping_px': 12.0,
+                'orbit': {'a_px': 130.0},
             },
         ],
         'azimuthal': {
-            'modulation': {'amplitude': 0.2, 'm': 2, 'phase_deg': 30.0},
+            'modulation': {'amplitude': 0.2, 'm': 2, 'brightness_peak_longitude_deg': 30.0},
             'shadow': {'start_deg': 100.0, 'extent_deg': 40.0, 'darkness': 0.9},
             'spokes': {
                 'count': 3,
-                'r_inner': 90.0,
-                'r_outer': 120.0,
+                'r_inner_px': 90.0,
+                'r_outer_px': 120.0,
                 'contrast': -0.4,
                 'width_deg': 12.0,
             },
         },
         'moonlets': [
             {
-                'a': 110.0,
+                'a_px': 110.0,
                 'lam_deg': 45.0,
                 'radius_px': 1.5,
                 'amplitude': 0.4,
@@ -684,8 +688,8 @@ def test_load_full_scene_syncs_mode_rows(
     assert model._mode_rows['missing_lines'].group.isChecked() is True
     assert model._mode_rows['banding_coherent'].group.isChecked() is True
     assert model._mode_rows['quantization_lut'].group.isChecked() is True
-    incidence = model._mode_rows['missing_lines']._scalar_widgets['incidence'].value()
-    assert incidence == 2.0
+    expected_events = model._mode_rows['missing_lines']._scalar_widgets['expected_events'].value()
+    assert expected_events == 2.0
 
 
 def test_gui_authored_mode_scene_validates(
@@ -697,7 +701,7 @@ def test_gui_authored_mode_scene_validates(
     model.sim_params['size_u'] = 128
     row = model._mode_rows['missing_lines']
     row.group.setChecked(True)
-    row._scalar_widgets['incidence'].setValue(2.0)
+    row._scalar_widgets['expected_events'].setValue(2.0)
     model._adversarial_check.setChecked(True)
 
     out = tmp_path / 'modes.yaml'
@@ -707,7 +711,7 @@ def test_gui_authored_mode_scene_validates(
     _no_critical(monkeypatch)
     model._save_scene()
     loaded = load_sim_scene(out)
-    assert loaded['artifacts']['missing_lines'] == {'incidence': 2.0}
+    assert loaded['artifacts']['missing_lines'] == {'expected_events': 2.0}
     assert loaded['artifacts']['adversarial'] is True
 
 
@@ -813,11 +817,12 @@ def test_load_full_scene_syncs_ring_advanced_groups(
     assert len(tab.mode_rows) == 1
     assert tab.mode_rows[0].m_spin.value() == 2
     assert tab.edge_wave_group.isChecked() is True
-    assert tab.edge_wave_damp_spin.value() == 0.5
+    assert tab.edge_wave_damp_spin.value() == 30.0
     assert tab.orbit_error_group.isChecked() is True
     assert tab.orbit_error_a_spin.value() == 1.0
     assert tab.orbit_sigma_group.isChecked() is True
     assert tab.azimuthal_modulation_group.isChecked() is True
+    assert tab.modulation_phase_spin.value() == 30.0
     assert tab.azimuthal_shadow_group.isChecked() is True
     assert tab.azimuthal_spokes_group.isChecked() is True
     assert tab.moonlets_group.isChecked() is True

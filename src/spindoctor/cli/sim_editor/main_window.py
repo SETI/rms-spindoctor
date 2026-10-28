@@ -34,6 +34,7 @@ from spindoctor.cli.sim_editor.background_stars import BackgroundStarsMixin
 from spindoctor.cli.sim_editor.base import SimEditorBase
 from spindoctor.cli.sim_editor.body_appearance import BodyAppearanceMixin
 from spindoctor.cli.sim_editor.body_atmosphere import BodyAtmosphereMixin
+from spindoctor.cli.sim_editor.body_mesh_keys import MeshKeyStash
 from spindoctor.cli.sim_editor.body_tab import BodyTabMixin
 from spindoctor.cli.sim_editor.expected_outcome import ExpectedOutcomeMixin
 from spindoctor.cli.sim_editor.global_fields import GlobalFieldsMixin
@@ -46,6 +47,7 @@ from spindoctor.cli.sim_editor.scene_io import SceneIoMixin
 from spindoctor.cli.sim_editor.star_tab import StarTabMixin
 from spindoctor.cli.sim_editor.stray_light import StrayLightMixin
 from spindoctor.cli.sim_editor.tabs import TabsMixin
+from spindoctor.cli.sim_editor.verdict import VerdictRunner
 from spindoctor.cli.sim_editor.widgets import ImageLabel, ParameterUpdater
 from spindoctor.ui.common import ZoomPanController
 
@@ -94,7 +96,7 @@ class CreateSimulatedImageModel(
             'noise': {
                 'poisson': True,
                 'read_noise_dn': 4.0,
-                'cosmic_ray_rate_per_sec': 0.0,
+                'cosmic_ray_events_per_pixel_per_sec': 0.0,
                 'missing_data_rate': 0.0,
             },
             'stars': [],
@@ -105,6 +107,8 @@ class CreateSimulatedImageModel(
         self._current_image: np.ndarray | None = None
         self._last_meta: dict[str, Any] = {}
         self._base_pixmap = None
+        # Ellipsoid-only body keys held while their body is a polyhedral mesh.
+        self._mesh_key_stash = MeshKeyStash()
 
         # View state
         self._zoom_factor = 1.0
@@ -122,6 +126,10 @@ class CreateSimulatedImageModel(
 
         self._updater = ParameterUpdater(140)
         self._updater.update_requested.connect(self._update_image)
+        # The navigated frame's verdict renders off the UI thread (see verdict.py).
+        self._verdict_runner = VerdictRunner(self)
+        self._verdict_runner.ready.connect(self._show_verdict)
+        self._verdict_runner.failed.connect(self._show_verdict_failure)
 
         self._setup_ui()
         self._update_image()
@@ -177,6 +185,8 @@ class CreateSimulatedImageModel(
         status_bar.addWidget(self._status_label)
         self._saturation_label = QLabel('')
         status_bar.addPermanentWidget(self._saturation_label)
+        self._units_label = QLabel('')
+        status_bar.addPermanentWidget(self._units_label)
         self._zoom_label = QLabel('Zoom: 1.00x')
         status_bar.addPermanentWidget(self._zoom_label)
         self.setStatusBar(status_bar)

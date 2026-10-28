@@ -6,8 +6,8 @@ stationary hot pixels, and transient single-pixel spikes (cosmic rays and
 radiation hits).  The same detectors run on real cohort frames and matched
 sim frames, so a detector's bias cancels in the comparison; the absolute
 rates additionally document the cohort against the catalog's per-instrument
-defaults (loss modes default to zero incidence under instrument_defaults --
-FOM 6 is the evidence for keeping or replacing those zeros).
+defaults (loss modes stay off under instrument_defaults, their activation
+keys at zero -- FOM 6 is the evidence for keeping or replacing those zeros).
 
 The hot-pixel / transient-spike split needs more than one frame: a spike
 that recurs at one detector position across frames is a hot pixel, one that
