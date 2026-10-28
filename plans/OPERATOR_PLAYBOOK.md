@@ -320,8 +320,11 @@ scoped — read them before 2.2.
 - **Multi-body frames are not two independent measurements** (#322):
   cross-body limb errors correlate at +0.72 and the naive solve
   misattributes the coupling onto disc.
-- **A ~2 px inward bias on partial-arc limb fits** (#321) is a navigation
-  finding in its own right.
+- **The ~2 px inward bias on partial-arc limb fits** (#321) is the
+  simulator's Lambert limb at low phase; on real frames it was Saturn's haze
+  altitude and the frame margin, now handled for Cassini ISS at the measured
+  scales and for every limb fit respectively.  Narrow angle limbs and the
+  library moons' residual remain open.
 - The reliability gate *filters* rather than *shifts*, so its common-mode
   effect is a survivorship selection, not a bias — it can only make
   agreement look better, never worse, and cannot manufacture cross-technique
@@ -731,8 +734,9 @@ these are what it owes and what generalizes it):**
   PSF error the sim cannot render (Important)
 - **#361** disc-NCC sub-pixel resolution floors the smallest limb-disc coupling
   detectable (Important)
-- **#321** partial-arc limb fits carry an undiagnosed inward radial bias of
-  about 2 px (navigation finding)
+- **#321** partial-arc limb bias: diagnosed; Saturn's haze limb (Cassini ISS,
+  measured scales) and the frame margin handled; narrow angle limbs and the
+  library moons' ~0.7 px residual open (navigation finding)
 - **#322** cross-body limb errors correlate at +0.72; multi-body frames are
   not independent measurements
 - **#324** agreement estimator tests do not run in CI

@@ -15,6 +15,7 @@ from typing import Any
 
 from ruamel.yaml import YAML
 
+from spindoctor.config.visible_limb import validate_visible_limb_config
 from spindoctor.support.attrdict import AttrDict
 
 _BLOB_MAX_OVERFLOW_KEY = 'blob_max_overflow_fraction'
@@ -243,7 +244,8 @@ class Config:
             ValueError: If any registered NavTechnique's confidence spec
                 references an attribute the technique does not declare, or if
                 ``bodies.blob_max_overflow_fraction`` is not a finite number within
-                ``[0, 1]``.  Validation runs once per ``read_config`` invocation.
+                ``[0, 1]``, or if a per-camera ``visible_limb_altitude`` entry is
+                malformed.  Validation runs once per ``read_config`` invocation.
         """
 
         if not reread and self._config_dict:
@@ -263,6 +265,7 @@ class Config:
                 self.update_config(filename, read_default=False)
             self._validate_registered_techniques()
             self._validate_bodies_block()
+            validate_visible_limb_config(self._config_dict)
             return
 
         self._config_dict = self._load_yaml(config_path)
@@ -272,6 +275,7 @@ class Config:
         self._update_attrdicts()
         self._validate_registered_techniques()
         self._validate_bodies_block()
+        validate_visible_limb_config(self._config_dict)
 
     def _validate_bodies_block(self) -> None:
         """Reject a ``bodies.blob_max_overflow_fraction`` that is not a fraction.
@@ -388,6 +392,7 @@ class Config:
         if read_default:
             self._validate_registered_techniques()
             self._validate_bodies_block()
+            validate_visible_limb_config(self._config_dict)
 
     @property
     def override_paths(self) -> tuple[str, ...]:

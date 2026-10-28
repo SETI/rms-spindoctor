@@ -58,6 +58,7 @@ from oops.backplane import Backplane
 
 from spindoctor.annotation import Annotations
 from spindoctor.config import DEFAULT_CONFIG, IMAGE_LOGGER, Config
+from spindoctor.config.visible_limb import visible_limb_model_for
 from spindoctor.feature.constants import (
     INCIDENCE_FACTOR_ANGLE_CAP_DEG,
     INCIDENCE_FACTOR_CLIP_DEG,
@@ -76,6 +77,7 @@ from spindoctor.feature.geometry import (
     TerminatorPolyline,
 )
 from spindoctor.nav_model.body_shape import BodyShape, load_body_shape
+from spindoctor.nav_model.limb_placement import place_on_visible_limb
 from spindoctor.nav_model.nav_model import NavModel
 from spindoctor.nav_model.nav_model_body_base import (
     BODY_BLOB_MIN_DIAMETER_PX,
@@ -611,6 +613,15 @@ class _PolylineSampler:
     of the original ridge so :func:`_visible_arc_fraction` can report the
     surviving fraction rather than a constant.
     """
+    altitude_px_per_km: NDArrayFloatType | None = None
+    """Per-vertex pixels moved along the normal per kilometer of limb altitude.
+
+    Set on a limb placed on its visible edge (see
+    :mod:`spindoctor.nav_model.limb_placement`); None on a sampler whose
+    vertices are still the raw ridge pixel centers.
+    """
+    altitude_sigma_km: float = 0.0
+    """One-sigma uncertainty (km) of the altitude a placed limb was moved to."""
 
 
 class NavModelBody(NavModelBodyBase):
@@ -884,7 +895,9 @@ class NavModelBody(NavModelBodyBase):
         )
 
         self._km_per_pixel_at_limb = sampler_data['km_per_pixel_mean']
-        self._limb_sampler = sampler_data['limb_sampler']
+        self._limb_sampler = self._limb_on_visible_edge(
+            sampler_data['limb_sampler'], phase_angle_deg
+        )
         self._terminator_sampler = sampler_data['terminator_sampler']
         self._visible_lit_fraction = float(sampler_data['visible_lit_fraction'])
         self._lit_pixel_count = int(sampler_data['lit_pixel_count'])
@@ -893,6 +906,84 @@ class NavModelBody(NavModelBodyBase):
         self._metadata['predicted_diameter_px'] = self._predicted_diameter_px
         self._metadata['visible_lit_fraction'] = self._visible_lit_fraction
         self._metadata['overflow_fraction'] = self._overflow_fraction
+
+    def _limb_on_visible_edge(
+        self, sampler: _PolylineSampler, phase_deg: float
+    ) -> _PolylineSampler:
+        """Place the limb sampler on the visible limb where the instrument models it.
+
+        The raw ridge vertices are the centers of the outermost body pixels, between
+        zero and one pixel inside the silhouette. When the observation's instrument
+        configuration carries a visible-limb model for this body (a planet whose image
+        edge is haze above its ellipsoid) and the limb's scale and the phase angle lie
+        in the ranges the model was measured over, every vertex moves along its outward
+        normal to the silhouette raised by the model's altitude for this phase angle and
+        filter pair (see :mod:`spindoctor.nav_model.limb_placement`); a vertex the
+        geometry gives no position for is dropped and counted as lost. Otherwise the
+        sampler is returned unchanged: where an airless limb's image edge lies relative
+        to its silhouette depends on photometry the model does not predict.
+
+        Parameters:
+            sampler: The limb sampler from the silhouette extraction.
+            phase_deg: The body's center phase angle, in degrees.
+
+        Returns:
+            The placed sampler, carrying each vertex's sensitivity to the altitude and
+            the altitude's uncertainty, or ``sampler`` unchanged.
+        """
+        obs = self.obs
+        if sampler.vertices_vu.shape[0] == 0:
+            return sampler
+        model = visible_limb_model_for(obs.inst_config, self._body_name)
+        if model is None:
+            return sampler
+        filters = [str(f) for f in obs.get_public_metadata()['filters'] if f]
+        altitude_km = model.altitude_for_image_km(phase_deg, filters)
+        placement = place_on_visible_limb(
+            obs, self._body_name, sampler.vertices_vu, sampler.normals_vu, altitude_km=altitude_km
+        )
+        valid = placement.valid
+        if not np.any(valid):
+            self._logger.info(
+                'Limb of %s: no vertex has a visible-limb position; ridge kept', self._body_name
+            )
+            return sampler
+        km_per_px = 1.0 / float(np.median(placement.px_per_km[valid]))
+        if not model.applies_at(km_per_px, phase_deg):
+            self._logger.info(
+                'Limb of %s at %.1f km/px and %.1f deg phase lies outside the visible-limb '
+                "model's measured ranges (%.0f-%.0f km/px, %.0f-%.0f deg); ridge kept",
+                self._body_name,
+                km_per_px,
+                phase_deg,
+                *model.km_per_px_range,
+                *model.phase_deg_range,
+            )
+            return sampler
+        kept = np.flatnonzero(valid)
+        self._logger.info(
+            'Limb of %s placed %.1f +- %.1f km above the ellipsoid (phase %.2f deg, filters '
+            '%s, %.1f km/px): median move %.3f px along the normal, %d vertices without a '
+            'visible-limb position',
+            self._body_name,
+            altitude_km,
+            model.sigma_km,
+            phase_deg,
+            '+'.join(filters) or 'none',
+            km_per_px,
+            float(np.median(placement.offset_px[valid])),
+            int(np.count_nonzero(~valid)),
+        )
+        return _PolylineSampler(
+            vertices_vu=sampler.vertices_vu[kept]
+            + placement.offset_px[kept][:, None] * sampler.normals_vu[kept],
+            normals_vu=sampler.normals_vu[kept],
+            incidence_rad=sampler.incidence_rad[kept],
+            km_per_pixel=sampler.km_per_pixel[kept],
+            total_vertices=sampler.total_vertices,
+            altitude_px_per_km=placement.px_per_km[kept],
+            altitude_sigma_km=model.sigma_km,
+        )
 
     def _build_backplane_model(
         self,
@@ -1439,6 +1530,15 @@ def _build_limb_arc(
     )
     sigma_tangent_per_vertex_px = np.full_like(sigma_normal_per_vertex_px, 0.5)
     visible_arc_fraction = _visible_arc_fraction(sampler)
+    if sampler.vertices_vu.shape[0]:
+        # A limb placed on its visible edge can sit outside the body's box.
+        pix = np.floor(sampler.vertices_vu + PIXEL_CENTER_TO_CORNER_PX).astype(int)
+        bbox = (
+            min(bbox[0], int(pix[:, 0].min())),
+            min(bbox[1], int(pix[:, 1].min())),
+            max(bbox[2], int(pix[:, 0].max()) + 1),
+            max(bbox[3], int(pix[:, 1].max()) + 1),
+        )
     return NavFeature(
         feature_id=f'limb_arc:{body_name}',
         feature_type=NavFeatureType.LIMB_ARC,
@@ -1449,6 +1549,8 @@ def _build_limb_arc(
             sigma_normal_per_vertex_px=sigma_normal_per_vertex_px,
             sigma_tangent_per_vertex_px=sigma_tangent_per_vertex_px,
             bbox_extfov_vu=bbox,
+            altitude_px_per_km=sampler.altitude_px_per_km,
+            altitude_sigma_km=sampler.altitude_sigma_km,
         ),
         subject_range_km=subject_range_km,
         position_cov_px=None,

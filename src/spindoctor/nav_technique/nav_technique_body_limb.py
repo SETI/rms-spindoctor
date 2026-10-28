@@ -11,9 +11,13 @@ mistakes by construction.
 from __future__ import annotations
 
 import math
-from typing import TYPE_CHECKING
+from collections.abc import Callable
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, cast
 
 import numpy as np
+from scipy.linalg import pinvh
+from scipy.ndimage import binary_erosion
 
 from spindoctor.config import Config
 from spindoctor.feature.feature import NavFeature, body_names_from_features
@@ -21,11 +25,18 @@ from spindoctor.feature.feature_type import NavFeatureType
 from spindoctor.feature.geometry import LimbPolyline
 from spindoctor.nav_technique.confidence import evaluate_sigmoid_combination
 from spindoctor.nav_technique.diagnostics import BodyLimbDiagnostics
-from spindoctor.nav_technique.dt_fit_gates import DTFitGateConfig, evaluate_dt_fit_gates
+from spindoctor.nav_technique.dt_fit_gates import (
+    DTFitGateConfig,
+    DTFitGateVerdict,
+    evaluate_dt_fit_gates,
+)
 from spindoctor.nav_technique.dt_fitting import (
     coarse_polarity_search_scored,
     lm_subpixel_refine,
 )
+from spindoctor.nav_technique.dt_fitting.coarse import CoarseSearchResult
+from spindoctor.nav_technique.dt_fitting.constants import DEFAULT_PINVH_RCOND
+from spindoctor.nav_technique.dt_fitting.lm import LMRefineResult
 from spindoctor.nav_technique.feasibility import NavFeasibilityReport
 from spindoctor.nav_technique.nav_technique import (
     NavTechnique,
@@ -36,12 +47,12 @@ from spindoctor.nav_technique.nav_technique import (
     search_window_for_obs,
 )
 from spindoctor.nav_technique.technique_result import NavTechniqueResult
-from spindoctor.support.types import NDArrayFloatType
+from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 
 if TYPE_CHECKING:  # pragma: no cover - typing-only import
     from spindoctor.nav_orchestrator.nav_context import NavContext
 
-__all__ = ['BodyLimbNav']
+__all__ = ['BodyLimbNav', 'limb_altitude_covariance', 'vertices_on_sensor']
 
 # All numeric tunables for this technique live in
 # ``config_files/config_510_techniques.yaml`` under
@@ -91,6 +102,188 @@ def _aggregate_limb_features(
     return vertices, normals, sigmas, ids
 
 
+def _altitude_displacements(features: list[NavFeature]) -> list[NDArrayFloatType]:
+    """Return, per usable LIMB_ARC, each vertex's 1-sigma visible-limb displacement.
+
+    A limb placed at its body's visible-limb altitude moves every vertex together
+    when that altitude is wrong: vertex ``i`` moves ``altitude_px_per_km[i] *
+    altitude_sigma_km`` pixels along its normal for a one-sigma error.  One array
+    per feature, in the order :func:`_aggregate_limb_features` concatenates them,
+    each the length of its feature's vertices; all zeros for a feature that
+    carries no altitude sensitivity or a zero altitude uncertainty.
+
+    Parameters:
+        features: The technique's eligible features.
+
+    Returns:
+        One ``(N_feature,)`` array per LIMB_ARC with at least one vertex.
+    """
+    out: list[NDArrayFloatType] = []
+    for feat in features:
+        if not isinstance(feat.geometry, LimbPolyline):
+            continue
+        n = feat.geometry.vertices_vu.shape[0]
+        if n == 0:
+            continue
+        per_km = feat.geometry.altitude_px_per_km
+        sigma_km = float(feat.geometry.altitude_sigma_km)
+        if per_km is None or sigma_km <= 0.0:
+            out.append(np.zeros(n, np.float64))
+        else:
+            out.append(np.asarray(per_km, np.float64) * sigma_km)
+    return out
+
+
+def vertices_on_sensor(
+    vertices_vu: NDArrayFloatType,
+    offset_vu: tuple[float, float],
+    sensor_mask_ext: NDArrayBoolType,
+    *,
+    inset_px: int = 0,
+) -> NDArrayBoolType:
+    """Return which vertices land on a sensor pixel once shifted by ``offset_vu``.
+
+    Parameters:
+        vertices_vu: ``(N, 2)`` extended-frame, pixel-centric vertices.
+        offset_vu: The translation applied to them.
+        sensor_mask_ext: Extended-frame mask, True on sensor pixels.
+        inset_px: Also reject a vertex within this many pixels of a non-sensor
+            pixel (the blurred gradient of the zero padding reaches into the
+            sensor).
+
+    Returns:
+        ``(N,)`` boolean array; a vertex shifted off the extended frame is False.
+    """
+    mask = np.asarray(sensor_mask_ext, dtype=bool)
+    if inset_px > 0:
+        mask = binary_erosion(mask, iterations=int(inset_px), border_value=0)
+    pix = np.floor(np.asarray(vertices_vu, np.float64) + np.asarray(offset_vu) + 0.5).astype(int)
+    inside = (
+        (pix[:, 0] >= 0)
+        & (pix[:, 0] < mask.shape[0])
+        & (pix[:, 1] >= 0)
+        & (pix[:, 1] < mask.shape[1])
+    )
+    out = np.zeros(pix.shape[0], dtype=bool)
+    out[inside] = mask[pix[inside, 0], pix[inside, 1]]
+    return cast(NDArrayBoolType, out)
+
+
+def _split_like(
+    values: NDArrayFloatType, parts: list[NDArrayFloatType], keep: NDArrayBoolType
+) -> list[NDArrayFloatType]:
+    """Split kept concatenated values back into per-feature arrays.
+
+    Parameters:
+        values: The kept entries of ``np.concatenate(parts)``.
+        parts: The original per-feature arrays.
+        keep: The mask over ``np.concatenate(parts)`` that produced ``values``.
+
+    Returns:
+        One array per part holding its kept entries, in order.
+    """
+    counts = []
+    start = 0
+    for part in parts:
+        stop = start + part.shape[0]
+        counts.append(int(np.count_nonzero(keep[start:stop])))
+        start = stop
+    return list(np.split(values, np.cumsum(counts)[:-1]))
+
+
+def _rotation_lever(
+    vertices_vu: NDArrayFloatType, normals_vu: NDArrayFloatType, pivot_vu: tuple[float, float]
+) -> NDArrayFloatType:
+    """Return each vertex's normal displacement per radian of rotation about the pivot.
+
+    Parameters:
+        vertices_vu: ``(N, 2)`` vertices.
+        normals_vu: ``(N, 2)`` unit normals.
+        pivot_vu: The rotation pivot.
+
+    Returns:
+        ``(N,)`` pixels per radian: ``n . d(x)/d(theta)`` at zero rotation.
+    """
+    dv = vertices_vu[:, 0] - pivot_vu[0]
+    du = vertices_vu[:, 1] - pivot_vu[1]
+    return cast(NDArrayFloatType, normals_vu[:, 0] * (-du) + normals_vu[:, 1] * dv)
+
+
+def limb_altitude_covariance(
+    normals_vu: NDArrayFloatType,
+    weights: NDArrayFloatType,
+    displacements: list[NDArrayFloatType],
+    *,
+    rotation_lever_px: NDArrayFloatType | None = None,
+) -> NDArrayFloatType:
+    """Pose covariance contributed by the bodies' visible-limb altitude errors.
+
+    Each body's visible-limb altitude is one uncertain number shared by all of its
+    vertices, so its error displaces the whole arc along the arc's normals at once.
+    Linearizing the weighted fit with per-vertex Jacobian rows ``j_i`` (the normal
+    ``n_i``, plus the rotation lever when the fit solves for rotation), a displacement
+    ``d_i`` of vertex ``i`` along ``n_i`` moves the pose by
+    ``g = A^-1 sum_i w_i j_i d_i`` with ``A = sum_i w_i j_i j_i^T``, so a one-sigma
+    altitude error contributes ``g g^T``.  The bodies' altitudes are independent, so
+    their terms add.  On a full disc the normals cancel and the term vanishes; on a
+    partial arc it lies along the arc's mean normal.
+
+    Parameters:
+        normals_vu: ``(N, 2)`` unit normals of the concatenated vertices (either
+            sign).
+        weights: ``(N,)`` final fit weights of those vertices.
+        displacements: Per body, the 1-sigma displacement of its vertices, in the
+            concatenation order; their lengths sum to ``N``.
+        rotation_lever_px: Optional ``(N,)`` normal displacement per radian of
+            rotation (see the fit's pivot); when given the result is ``(3, 3)`` over
+            ``(dv, du, theta)``.
+
+    Returns:
+        The ``(2, 2)`` (or ``(3, 3)``) covariance, confined to the pose directions the
+        weighted normals constrain; zeros when every weight is zero or no body
+        carries an altitude uncertainty.
+    """
+    normals = np.asarray(normals_vu, np.float64)
+    columns = [normals[:, 0], normals[:, 1]]
+    if rotation_lever_px is not None:
+        columns.append(np.asarray(rotation_lever_px, np.float64))
+    jac = np.stack(columns, axis=-1) if normals.shape[0] else np.zeros((0, len(columns)))
+    size = jac.shape[1]
+    w = np.asarray(weights, np.float64)
+    total = np.zeros((size, size), np.float64)
+    if jac.shape[0] == 0 or not np.any(w > 0.0):
+        return total
+    info = (jac * w[:, None]).T @ jac
+    if not np.any(info != 0.0):
+        return total
+    # A pseudo-inverse, as the fit's own covariance uses: a circular arc makes
+    # rotation about the pivot indistinguishable from translation, and an arc of
+    # parallel normals leaves the tangent unconstrained; the term then lies in the
+    # directions the fit does constrain.
+    info_inv = pinvh(info, rtol=DEFAULT_PINVH_RCOND)
+    start = 0
+    for disp in displacements:
+        stop = start + disp.shape[0]
+        if np.any(disp != 0.0):
+            g = info_inv @ ((jac[start:stop] * (w[start:stop] * disp)[:, None]).sum(axis=0))
+            total += np.outer(g, g)
+        start = stop
+    return total
+
+
+@dataclass(frozen=True)
+class _LimbJudgment:
+    """The quality gates' verdict on one limb refinement.
+
+    Parameters:
+        gate_verdict: The shared DT fit-quality gates' verdict.
+        spurious: Whether any gate marks the fit spurious.
+    """
+
+    gate_verdict: DTFitGateVerdict
+    spurious: bool
+
+
 class BodyLimbNav(NavTechnique):
     """Body-limb DT-based translation fit.
 
@@ -135,6 +328,7 @@ class BodyLimbNav(NavTechnique):
         super().__init__(config=config)
         self.config.read_config()  # ensure cls.tuning is populated
         self._min_arc_vertices = float(self.tuning['min_arc_vertices'])
+        self._sensor_edge_inset_px = int(self.tuning['sensor_edge_inset_px'])
         self._spurious_dt_rms_factor = float(self.tuning['spurious_dt_rms_factor'])
         self._spurious_dt_floor_px = float(self.tuning['spurious_dt_floor_px'])
         self._spurious_min_inliers = int(self.tuning['spurious_min_inliers'])
@@ -144,6 +338,9 @@ class BodyLimbNav(NavTechnique):
         )
         self._spurious_unconverged_trust_boundary_fraction = float(
             self.tuning['spurious_unconverged_trust_boundary_fraction']
+        )
+        self._spurious_mis_lock_escape_margin_px = float(
+            self.tuning['spurious_mis_lock_escape_margin_px']
         )
         self._lm_trust_region_px = float(self.tuning['lm_trust_region_px'])
         self._lm_tikhonov_alpha = float(self.tuning['lm_tikhonov_alpha'])
@@ -277,25 +474,46 @@ class BodyLimbNav(NavTechnique):
                 coarse_du,
                 coarse.score,
             )
+            # The extended frame pads the sensor with zeros, so a vertex that the
+            # seed puts in the margin sees no limb, only the sensor boundary, an
+            # edge of the right polarity to pull a partial arc inward (#321).  Fit
+            # the vertices the seed puts on sensor pixels.
+            displacements = _altitude_displacements(eligible_features)
+            on_sensor = vertices_on_sensor(
+                vertices,
+                (float(coarse_dv), float(coarse_du)),
+                context.sensor_mask_ext,
+                inset_px=self._sensor_edge_inset_px,
+            )
+            n_off_sensor = int(np.count_nonzero(~on_sensor))
+            if n_off_sensor:
+                self.logger.info(
+                    '%d of %d limb vertices fall outside the sensor (or within %d px of '
+                    'its edge) at the coarse seed; fitting the other %d',
+                    n_off_sensor,
+                    int(vertices.shape[0]),
+                    self._sensor_edge_inset_px,
+                    int(vertices.shape[0]) - n_off_sensor,
+                )
+            limb_off_sensor = int(np.count_nonzero(on_sensor)) < self._min_arc_vertices
+            full_vertices, full_normals, full_sigmas = vertices, polarity_normals, sigmas
+            if not limb_off_sensor:
+                vertices = vertices[on_sensor]
+                polarity_normals = polarity_normals[on_sensor]
+                sigmas = sigmas[on_sensor]
+                displacements = _split_like(
+                    np.concatenate(displacements)[on_sensor], displacements, on_sensor
+                )
+            else:
+                self.logger.info(
+                    'Fewer than %d limb vertices lie on the sensor at the coarse seed; '
+                    'flagging spurious',
+                    int(self._min_arc_vertices),
+                )
             fit_rotation = bool(context.fit_camera_rotation)
             pivot_vu = (float(vertices[:, 0].mean()), float(vertices[:, 1].mean()))
-            pivot_distance = (
-                rotation_pivot_distance_px(pivot_vu, edge_dt.shape[:2]) if fit_rotation else 0.0
-            )
-            result = lm_subpixel_refine(
-                vertices_vu=vertices,
-                normals_vu=polarity_normals,
-                sigma_normal_per_vertex_px=sigmas,
-                image_edge_dt=edge_dt,
-                image_gradient_vu=gradient_vu,
-                initial_offset_vu=(float(coarse_dv), float(coarse_du)),
-                use_polarity=True,
-                fit_rotation=fit_rotation,
-                pivot_vu=pivot_vu if fit_rotation else None,
-                pivot_distance_px=pivot_distance,
-                trust_region_px=self._lm_trust_region_px,
-                tikhonov_alpha=self._lm_tikhonov_alpha,
-                final_gradient_ridge=self._gradient_ridge_refine,
+            result = self._refine(
+                vertices, polarity_normals, sigmas, coarse.offset_vu, context=context
             )
             dv_final, du_final = result.offset_vu
             max_rotation_rad = math.radians(context.max_rotation_deg)
@@ -336,78 +554,53 @@ class BodyLimbNav(NavTechnique):
                 or rotation_at_edge
             )
             sigma_min_px = float(sigmas.min()) if sigmas.size else 1.0
-            n_vertices = int(vertices.shape[0])
-            inlier_fraction = (
-                float(result.inlier_count) / float(n_vertices) if n_vertices > 0 else 0.0
-            )
-            # Distance the LM walked from the integer-precision coarse-NCC
-            # seed.  The coarse search returns the integer-pixel mask-overlap
-            # maximum, so a clean sub-pixel refinement should land within
-            # ~1 px of it; a multi-pixel walk means the LM followed a DT
-            # gradient out of the coarse basin into a different local
-            # minimum (typically a crater rim or terminator edge that
-            # happens to align with the rotated polyline).  The threshold
-            # is configured under ``tuning.spurious_max_lm_displacement_px``.
-            lm_displacement_px = float(
-                math.hypot(dv_final - float(coarse_dv), du_final - float(coarse_du))
-            )
-            # ``result.rms_px`` is the *Tukey-weighted* residual RMS; when
-            # the LM converges to a local minimum where one arc fits
-            # cleanly and another is wholly mis-aligned, Tukey rejects the
-            # bad-arc vertices and ``rms_px`` collapses to near zero, so
-            # the weighted ``rms_px > floor`` test cannot detect the
-            # mis-convergence.  ``result.raw_rms_px`` is the *unweighted*
-            # RMS over all vertices, so it retains those outliers; gate on
-            # it with the same DT residual threshold the weighted check
-            # uses (mirrors ``RingEdgeNav``).
-            dt_rms_threshold = max(
-                self._spurious_dt_floor_px,
-                self._spurious_dt_rms_factor * sigma_min_px,
-            )
-            gate_verdict = evaluate_dt_fit_gates(
+            judged = self._judge(
                 result,
-                self._dt_gate_config,
-                coarse_peak_fraction=coarse.score,
-                total_vertex_count=n_vertices,
-                use_polarity=True,
+                coarse,
+                sigmas,
+                log=True,
+                refit=lambda seed, rotation: self._refine(
+                    vertices,
+                    polarity_normals,
+                    sigmas,
+                    seed,
+                    context=context,
+                    initial_rotation_rad=rotation,
+                    free=True,
+                ),
             )
-            if gate_verdict.spurious_reasons:
-                self.logger.info(
-                    'DT fit-quality gate(s) fired: %s (polarity rejection %.3f, '
-                    'coarse peak %.3f, lm_converged=%s)',
-                    ', '.join(gate_verdict.spurious_reasons),
-                    gate_verdict.polarity_rejection_fraction,
-                    gate_verdict.coarse_peak_fraction,
-                    gate_verdict.lm_converged,
+            gate_verdict = judged.gate_verdict
+            spurious = limb_off_sensor or judged.spurious
+            if n_off_sensor and not spurious:
+                # Leaving the margin vertices out removes their bias, and it can
+                # also remove what made the fit fail its quality gates: a lock on
+                # the wrong edge that converges once the boundary no longer pulls
+                # on it.  The gates were calibrated on every vertex, so a fit whose
+                # full arc fails them stays refused.
+                full = self._refine(
+                    full_vertices, full_normals, full_sigmas, coarse.offset_vu, context=context
                 )
-            # Coarse-seed mis-lock gate: an unconverged LM pinned against
-            # the trust-region boundary tried to escape the coarse basin
-            # and never verified a minimum -- the low-phase under-conditioned
-            # failure where a false overlap peak seeds the wrong basin.  A
-            # healthy sub-pixel fit sits well inside the trust region and
-            # converges, so it clears both conditions.  See
-            # ``dev_guide_techniques_body_limb``.
-            unconverged_at_trust_boundary = not gate_verdict.lm_converged and (
-                lm_displacement_px
-                >= self._spurious_unconverged_trust_boundary_fraction * self._lm_trust_region_px
-            )
-            if unconverged_at_trust_boundary:
-                self.logger.info(
-                    'Coarse-seed mis-lock: LM unconverged and pinned %.3f px from the '
-                    'coarse seed (trust region %.3f px); flagging spurious',
-                    lm_displacement_px,
-                    self._lm_trust_region_px,
+                full_judged = self._judge(
+                    full,
+                    coarse,
+                    full_sigmas,
+                    log=False,
+                    refit=lambda seed, rotation: self._refine(
+                        full_vertices,
+                        full_normals,
+                        full_sigmas,
+                        seed,
+                        context=context,
+                        initial_rotation_rad=rotation,
+                        free=True,
+                    ),
                 )
-            spurious = (
-                result.degenerate
-                or result.rms_px > dt_rms_threshold
-                or result.raw_rms_px > dt_rms_threshold
-                or result.inlier_count < self._spurious_min_inliers
-                or inlier_fraction < self._spurious_min_inlier_fraction
-                or lm_displacement_px > self._spurious_max_lm_displacement_px
-                or unconverged_at_trust_boundary
-                or gate_verdict.spurious
-            )
+                if full_judged.spurious:
+                    self.logger.info(
+                        'The fit over every limb vertex, margin ones included, fails the '
+                        'quality gates; flagging spurious'
+                    )
+                    spurious = True
             visible_limb_arc_fraction = _aggregate_visible_arc_fraction(eligible_features)
             diagnostics = BodyLimbDiagnostics(
                 visible_limb_arc_fraction=visible_limb_arc_fraction,
@@ -462,6 +655,25 @@ class BodyLimbNav(NavTechnique):
                 sigma_min_px,
                 visible_limb_arc_fraction,
             )
+            # The visible-limb altitude is one uncertain number per body, so its
+            # error is a correlated displacement of the whole arc; it enters the
+            # translation covariance once, not as per-vertex noise (#321).
+            altitude_cov = limb_altitude_covariance(
+                polarity_normals,
+                result.weights,
+                displacements,
+                rotation_lever_px=(
+                    _rotation_lever(vertices, polarity_normals, pivot_vu) if fit_rotation else None
+                ),
+            )
+            if np.any(altitude_cov != 0.0):
+                self.logger.info(
+                    'Visible-limb altitude uncertainty adds %.3f px (1 sigma) along the arc normal',
+                    float(np.sqrt(max(float(np.trace(altitude_cov[:2, :2])), 0.0))),
+                )
+                covariance = covariance.copy()
+                size = altitude_cov.shape[0]
+                covariance[:size, :size] += altitude_cov
             # Model-error floor (#210); rationale on load_model_error_floor.
             covariance = add_model_error_floor(covariance, self._model_error_floor_px)
             return NavTechniqueResult(
@@ -477,6 +689,178 @@ class BodyLimbNav(NavTechnique):
                 sigma_rotation_rad=sigma_rotation_rad,
                 source_bodies=body_names_from_features(features),
             )
+
+    def _refine(
+        self,
+        vertices: NDArrayFloatType,
+        polarity_normals: NDArrayFloatType,
+        sigmas: NDArrayFloatType,
+        seed_vu: tuple[float, float],
+        *,
+        context: NavContext,
+        initial_rotation_rad: float = 0.0,
+        free: bool = False,
+    ) -> LMRefineResult:
+        """Run the sub-pixel refinement from a seed.
+
+        Parameters:
+            vertices: ``(N, 2)`` vertices to fit.
+            polarity_normals: ``(N, 2)`` polarity normals.
+            sigmas: ``(N,)`` per-vertex normal sigmas.
+            seed_vu: The starting offset: the integer coarse seed, or for a free
+                refit the pose a refinement stopped at.
+            context: The navigation context (edge DT, gradient, rotation settings).
+            initial_rotation_rad: The starting rotation, used when rotation is fitted.
+            free: Whether to drop the trust region and the Tikhonov anchor, so the
+                refinement can show where it goes when nothing holds it.
+
+        Returns:
+            The refinement result.
+        """
+        assert context.image_edge_dt_ext is not None  # checked in navigate
+        fit_rotation = bool(context.fit_camera_rotation)
+        pivot_vu = (float(vertices[:, 0].mean()), float(vertices[:, 1].mean()))
+        pivot_distance = (
+            rotation_pivot_distance_px(pivot_vu, context.image_edge_dt_ext.shape[:2])
+            if fit_rotation
+            else 0.0
+        )
+        return lm_subpixel_refine(
+            vertices_vu=vertices,
+            normals_vu=polarity_normals,
+            sigma_normal_per_vertex_px=sigmas,
+            image_edge_dt=context.image_edge_dt_ext,
+            image_gradient_vu=context.image_gradient_vu_ext,
+            initial_offset_vu=(float(seed_vu[0]), float(seed_vu[1])),
+            initial_rotation_rad=float(initial_rotation_rad),
+            use_polarity=True,
+            fit_rotation=fit_rotation,
+            pivot_vu=pivot_vu if fit_rotation else None,
+            pivot_distance_px=pivot_distance,
+            trust_region_px=None if free else self._lm_trust_region_px,
+            tikhonov_alpha=0.0 if free else self._lm_tikhonov_alpha,
+            final_gradient_ridge=self._gradient_ridge_refine,
+        )
+
+    def _judge(
+        self,
+        result: LMRefineResult,
+        coarse: CoarseSearchResult,
+        sigmas: NDArrayFloatType,
+        *,
+        log: bool,
+        refit: Callable[[tuple[float, float], float], LMRefineResult],
+    ) -> _LimbJudgment:
+        """Apply the limb fit's quality gates to a refinement result.
+
+        Parameters:
+            result: The refinement result.
+            coarse: The coarse search that seeded it.
+            sigmas: The fitted vertices' normal sigmas.
+            log: Whether to log the gates that fire.
+            refit: Refines the same vertices from a given offset and rotation with the
+                trust region removed.  A fit matching the mis-lock signature counts as
+                a mis-lock only if this refit ends more than the trust region plus the
+                escape margin from the coarse seed, or is degenerate.
+
+        Returns:
+            The gate verdict and whether the fit is spurious.
+        """
+        dv_final, du_final = result.offset_vu
+        coarse_dv, coarse_du = coarse.offset_vu
+        sigma_min_px = float(sigmas.min()) if sigmas.size else 1.0
+        n_vertices = int(sigmas.shape[0])
+        inlier_fraction = float(result.inlier_count) / float(n_vertices) if n_vertices > 0 else 0.0
+        # Distance the LM walked from the integer-precision coarse-NCC
+        # seed.  The coarse search returns the integer-pixel mask-overlap
+        # maximum, so a clean sub-pixel refinement should land within
+        # ~1 px of it; a multi-pixel walk means the LM followed a DT
+        # gradient out of the coarse basin into a different local
+        # minimum (typically a crater rim or terminator edge that
+        # happens to align with the rotated polyline).  The threshold
+        # is configured under ``tuning.spurious_max_lm_displacement_px``.
+        lm_displacement_px = float(
+            math.hypot(dv_final - float(coarse_dv), du_final - float(coarse_du))
+        )
+        # ``result.rms_px`` is the *Tukey-weighted* residual RMS; when
+        # the LM converges to a local minimum where one arc fits
+        # cleanly and another is wholly mis-aligned, Tukey rejects the
+        # bad-arc vertices and ``rms_px`` collapses to near zero, so
+        # the weighted ``rms_px > floor`` test cannot detect the
+        # mis-convergence.  ``result.raw_rms_px`` is the *unweighted*
+        # RMS over all vertices, so it retains those outliers; gate on
+        # it with the same DT residual threshold the weighted check
+        # uses (mirrors ``RingEdgeNav``).
+        dt_rms_threshold = max(
+            self._spurious_dt_floor_px,
+            self._spurious_dt_rms_factor * sigma_min_px,
+        )
+        gate_verdict = evaluate_dt_fit_gates(
+            result,
+            self._dt_gate_config,
+            coarse_peak_fraction=coarse.score,
+            total_vertex_count=n_vertices,
+            use_polarity=True,
+        )
+        if log and gate_verdict.spurious_reasons:
+            self.logger.info(
+                'DT fit-quality gate(s) fired: %s (polarity rejection %.3f, '
+                'coarse peak %.3f, lm_converged=%s)',
+                ', '.join(gate_verdict.spurious_reasons),
+                gate_verdict.polarity_rejection_fraction,
+                gate_verdict.coarse_peak_fraction,
+                gate_verdict.lm_converged,
+            )
+        # Coarse-seed mis-lock gate: an unconverged LM pinned against
+        # the trust-region boundary tried to escape the coarse basin
+        # and never verified a minimum -- the low-phase under-conditioned
+        # failure where a false overlap peak seeds the wrong basin.  A
+        # healthy sub-pixel fit sits well inside the trust region and
+        # converges, so it clears both conditions.  See
+        # ``dev_guide_techniques_body_limb``.
+        unconverged_at_trust_boundary = not gate_verdict.lm_converged and (
+            lm_displacement_px
+            >= self._spurious_unconverged_trust_boundary_fraction * self._lm_trust_region_px
+        )
+        # The LM reports a fit unconverged whenever it reaches the iteration cap
+        # without a step under the step tolerance: when the trust region keeps
+        # rejecting steps toward a minimum outside it, and also when it wanders at
+        # a minimum just inside the boundary, which a limb running diagonally
+        # across the pixel grid can put nearly a pixel from the integer seed.
+        # Refit from where it stopped without the trust region: only a fit that
+        # then walks on past it was being held (#321).
+        free_distance_px: float | None = None
+        if unconverged_at_trust_boundary:
+            free = refit((float(dv_final), float(du_final)), float(result.rotation_rad))
+            free_dv, free_du = free.offset_vu
+            free_distance_px = math.hypot(free_dv - float(coarse_dv), free_du - float(coarse_du))
+            unconverged_at_trust_boundary = free.degenerate or free_distance_px > (
+                self._lm_trust_region_px + self._spurious_mis_lock_escape_margin_px
+            )
+        if log and free_distance_px is not None:
+            self.logger.info(
+                'LM unconverged %.3f px from the coarse seed; refit without the trust '
+                'region it ends %.3f px from the seed (trust region %.3f px, escape '
+                'margin %.3f px): %s',
+                lm_displacement_px,
+                free_distance_px,
+                self._lm_trust_region_px,
+                self._spurious_mis_lock_escape_margin_px,
+                'coarse-seed mis-lock, flagging spurious'
+                if unconverged_at_trust_boundary
+                else 'not a mis-lock',
+            )
+        spurious = (
+            result.degenerate
+            or result.rms_px > dt_rms_threshold
+            or result.raw_rms_px > dt_rms_threshold
+            or result.inlier_count < self._spurious_min_inliers
+            or inlier_fraction < self._spurious_min_inlier_fraction
+            or lm_displacement_px > self._spurious_max_lm_displacement_px
+            or unconverged_at_trust_boundary
+            or gate_verdict.spurious
+        )
+        return _LimbJudgment(gate_verdict=gate_verdict, spurious=bool(spurious))
 
 
 class _LimbConfidenceContext:

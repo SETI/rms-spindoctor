@@ -307,6 +307,14 @@ never the planted truth); and the tier and primary-technique pins the fix
 moves (`N1572105349_1`, `N1488823805_1`, `N1855878123_1`, `N1487595731_1`),
 which are #483's.
 
+**Saturn's limb is already sub-pixel on Cassini ISS.** The partial-arc work
+(#321) places Saturn's limb vertices on its measured haze limb, at sub-pixel
+positions, where the Cassini ISS configuration covers the scale and phase; the
+rule for airless bodies and the simulated model are untouched, so this does not
+pre-empt the redesign. The limb fit also leaves out vertices its coarse seed puts
+in or near the zero-padded frame margin, for every body, and its coarse-seed
+mis-lock gate refuses only a fit that the trust region was holding back.
+
 **#646 gates the measurement.** The harness that exists to calibrate the limb
 bias puts its simulated limb ridge in a different place from the catalog model
 the real frames use, about half a pixel away, so it measures the harness rather
