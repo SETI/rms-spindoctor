@@ -455,7 +455,8 @@ def _apply_vidicon(frame: SimFrame, dp: DetectorParams, rng: np.random.Generator
     residual (a ghost of the prior frame, which this frame's hits don't reach)
     and before the readout, so the beam's read noise, coherent component, dark
     ramp, banding, and bend all act on it.  Each hit deposits at least the DN full
-    scale (``full_well_dn``), so it digitizes at the ADC ceiling, as a CCD hit
+    scale (``full_well_dn``) and the target saturates there, so the core of a hit
+    holds exactly the full scale and digitizes at the ADC ceiling, as a CCD hit
     does.
     """
     modes = dp.detector_modes
@@ -479,13 +480,18 @@ def _apply_vidicon(frame: SimFrame, dp: DetectorParams, rng: np.random.Generator
             offset_v=int(offset[0]),
             offset_u=int(offset[1]),
         )
+    hits = np.zeros_like(dn)
     add_cosmic_rays(
-        dn,
+        hits,
         events_per_pixel_per_sec=dp.cosmic_ray_events_per_pixel_per_sec,
         exposure_sec=dp.exposure_sec,
         amplitude_e=dp.full_well_dn,
         rng=_stage_rng(dp.random_seed, 'cosmic_rays'),
     )
+    # The target holds at most its full-scale charge, so a hit saturates the
+    # pixels it lands on.
+    hit = hits > 0.0
+    dn[hit] = np.minimum(dn[hit] + hits[hit], dp.full_well_dn)
     vidicon = dp.vidicon
     line_sigma = float(vidicon.get('read_noise_line_dn', 0.0))
     pixel_sigma = float(vidicon.get('read_noise_pixel_dn', 0.0))
@@ -527,7 +533,9 @@ def _apply_vidicon(frame: SimFrame, dp: DetectorParams, rng: np.random.Generator
     # The brightness-dependent beam bend warps the formed image before digitizing.
     if 'beam_bend' in modes:
         records['beam_bend'] = apply_beam_bend(
-            dn, amplitude_px=float(modes['beam_bend'].get('amplitude_px') or 0.0)
+            dn,
+            amplitude_px=float(modes['beam_bend'].get('amplitude_px') or 0.0),
+            full_brightness_dn=dp.signal_full_scale_frac * dp.full_well_dn,
         )
     dn = dn + dp.bias_dn
     dn = quantize_dn(

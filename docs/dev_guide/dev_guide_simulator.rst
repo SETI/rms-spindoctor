@@ -704,7 +704,11 @@ the hits join the stored image: after the stars and the erase-cycle residual
 image (a ghost of the prior frame, which this frame's hits never reach), and
 before the readout, whose read noise, coherent component, dark ramp, banding,
 and beam bend all act on them. Each hit deposits at least the DN full scale
-(``full_well_dn``), so its core digitizes at the 8-bit ceiling. The real target
+(``full_well_dn``) and the target saturates there, so a hit's core holds exactly
+the full scale and digitizes at the 8-bit ceiling. The beam bend reads local
+brightness against the charge a fully lit scene stores (signal 1.0), not
+against the frame's brightest spot, so a hit bends the beam only within about
+10 px of itself. The real target
 also takes hits while it waits to be read; the stage counts the exposure alone,
 as on a CCD.
 

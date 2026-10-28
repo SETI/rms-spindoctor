@@ -278,7 +278,7 @@ def test_beam_bend_displaces_a_bright_edge() -> None:
     signal = np.zeros((_SIZE, _SIZE), dtype=np.float64)
     signal[32:, :] = 1.0
     before = signal.copy()
-    apply_beam_bend(signal, amplitude_px=2.0)
+    apply_beam_bend(signal, amplitude_px=2.0, full_brightness_dn=1.0)
     # The vertical displacement field moves the limb; the frame changes near it.
     assert not np.array_equal(signal, before)
     assert float(np.abs(signal - before)[28:36, :].sum()) > 0.0
@@ -289,7 +289,7 @@ def test_beam_bend_disabled_at_zero_amplitude() -> None:
     signal = np.zeros((_SIZE, _SIZE), dtype=np.float64)
     signal[32:, :] = 1.0
     before = signal.copy()
-    apply_beam_bend(signal, amplitude_px=0.0)
+    apply_beam_bend(signal, amplitude_px=0.0, full_brightness_dn=1.0)
     assert np.array_equal(signal, before)
 
 

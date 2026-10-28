@@ -16,6 +16,7 @@ from typing import Any, cast
 
 import numpy as np
 import pytest
+from scipy import ndimage
 
 from spindoctor.config import DEFAULT_CONFIG
 from spindoctor.sim.forward.artifacts_catalog import DETECTOR_DEFAULTS, resolve_detector_defaults
@@ -24,6 +25,7 @@ from spindoctor.sim.forward.detector.noise_stages import add_cosmic_rays
 from spindoctor.sim.forward.detector.params import resolve_detector_params
 from spindoctor.sim.forward.stages import SimFrame
 from spindoctor.sim.instruments import SIM_INSTRUMENTS
+from spindoctor.sim.render import render_combined_model
 from spindoctor.sim.scene import validate_sim_params
 from spindoctor.sim.seeds import derive_effect_seed
 
@@ -226,6 +228,60 @@ def test_this_frames_hits_stay_out_of_the_residual_image() -> None:
     )
     assert int(np.count_nonzero(plain)) > 0
     assert np.array_equal(ghosted, plain)
+
+
+def test_a_vidicon_hit_core_holds_the_full_scale_under_the_readout_noise() -> None:
+    """A hit saturates the target at full scale, and the readout noise rides on it.
+
+    With the bias at 0 and 3 DN of pixel read noise, a hit core (255 DN on a
+    noise-free frame) reads 255 plus the noise, clipped at the ceiling, so some
+    cores read below 255.  A hit added after the readout would read 255 always.
+    """
+    clean = _vgiss_dn({_KEY: 0.01, 'bias_dn': 0.0})
+    noisy = _vgiss_dn({_KEY: 0.01, 'bias_dn': 0.0, 'vidicon': {'read_noise_pixel_dn': 3.0}})
+    cores = clean == 255.0
+    assert int(cores.sum()) > 0
+    assert float(noisy[cores].min()) < 255.0
+
+
+def _vgiss_bent_body(rate: float, seed: int) -> np.ndarray:
+    """A 128 x 128 vgiss frame of a full-phase body with the beam bend on."""
+    scene = {
+        'size_v': 128,
+        'size_u': 128,
+        'instrument': 'vgiss',
+        'random_seed': seed,
+        'noise': {_KEY: rate},
+        'artifacts': {'beam_bend': {'amplitude_px': 1.0, 'probability': 1.0}},
+        'bodies': [
+            {
+                'name': 'RHEA',
+                'center_v': 64.0,
+                'center_u': 64.0,
+                'axis1': 60.0,
+                'axis2': 60.0,
+                'axis3': 60.0,
+                'illumination_angle': 0.0,
+                'phase_angle': 0.0,
+            }
+        ],
+    }
+    img, _ = render_combined_model(scene)
+    return img
+
+
+@pytest.mark.parametrize('seed', [2, 7])
+def test_a_vidicon_hit_bends_the_beam_only_near_itself(seed: int) -> None:
+    """With the beam bend on, hits change no pixel beyond the bend's reach of a hit.
+
+    The bend reads the charge through a sigma-2 Gaussian (truncated at 8 px) and
+    moves a pixel by at most its 1 px amplitude, so a hit can reach 10 px.
+    """
+    base = _vgiss_bent_body(0.0, seed)
+    hit = _vgiss_bent_body(1.0e-3, seed)
+    near = ndimage.binary_dilation(hit > base + 0.5, iterations=10)
+    assert int((hit > base + 0.5).sum()) > 0
+    assert float(np.abs(hit - base)[~near].max()) == 0.0
 
 
 @pytest.mark.parametrize('instrument', _INSTRUMENTS)
