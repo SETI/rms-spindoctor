@@ -251,8 +251,8 @@ and about 10 to 20 degrees from the predicted direction, and whole sequences pre
 smear 6 px draw streaks shorter than 2 px. The model therefore measures the streak on the
 image when it emits its features:
 
-- The stars examined are the brightest that conflict with no body, ring, or other star. A
-  frame whose examined stars' median predicted smear is shorter than
+- The stars examined are the brightest that do not conflict with any body, ring, or other
+  star. A frame whose examined stars' median predicted smear is shorter than
   :data:`~spindoctor.nav_model.stars.streak.MIN_PREDICTED_SMEAR_PX` is not measured. The
   per-star smear is used because the frame-center smear vector reads zero on a frame
   rolling about its center. Of 2,011 F ring frames predicted below the floor, one draws a
