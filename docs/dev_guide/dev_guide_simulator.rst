@@ -867,7 +867,7 @@ Telemetry-stage modes
 Applied at the detector grid after readout, in the physical order of
 transmission (see :data:`~spindoctor.sim.forward.artifact_modes.STRUCTURED_LOSS_ORDER`).
 Loss modes write the instrument's missing-data marker, its ``noise.marker_value``:
-0 on every shipped instrument, raw and calibrated. Garble and spikes write *wrong*
+0 on every shipped instrument. Garble and spikes write *wrong*
 values instead.
 
 .. list-table::
@@ -2917,8 +2917,7 @@ against exactly this inventory, so an unknown noise key fails loudly.
      - float
      - 0.0
      - Fraction of pixels (0-1) set to the missing-data marker (telemetry
-       stage), on raw-DN and calibrated frames alike. Stays 0 under
-       ``instrument_defaults``.
+       stage). Stays 0 under ``instrument_defaults``.
    * - ``bloom_length``
      - int
      - 0 (off)

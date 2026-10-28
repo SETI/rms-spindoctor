@@ -157,10 +157,8 @@ Fields
                                      neither the renderer nor the navigator
   noise            (mapping, opt)    poisson, read_noise_dn, bias_dn,
                                      cosmic_ray_events_per_pixel_per_sec (expected
-                                     events per pixel per second of exposure, on the
-                                     CCD and vidicon chains alike),
-                                     missing_data_rate (raw and calibrated frames
-                                     alike), bloom_length,
+                                     events per pixel per second of exposure),
+                                     missing_data_rate, bloom_length,
                                      signal_full_scale_frac, dark_current_e_per_sec,
                                      hot_pixel_fraction,
                                      hot_pixel_amplitude_e, hot_pixel_column_factor,

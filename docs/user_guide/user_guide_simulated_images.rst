@@ -104,7 +104,7 @@ redraw replaces the pending verdict. Until that redraw, the status bar still des
 the scene as it was before the change.
 
 The random pixel loss (the missing-data rate) and the cosmic-ray rate work on every
-camera, the Voyager vidicon included.
+camera.
 
 Planting defects in a scene
 ===========================

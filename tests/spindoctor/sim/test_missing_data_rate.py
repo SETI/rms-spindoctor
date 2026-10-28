@@ -1,9 +1,8 @@
-"""The per-pixel missing-data rate works on every frame, raw and calibrated.
+"""The per-pixel missing-data rate works on every frame.
 
 ``noise.missing_data_rate`` drops random pixels to the missing-data marker in the
-telemetry stage.  It runs on raw-DN and calibrated (``calibrated_if``) frames
-alike: a lost pixel takes the marker the navigator applies to the frame, 0 on
-every shipped instrument, and the validator accepts the rate everywhere.
+telemetry stage.  A lost pixel takes the marker the navigator applies to the frame,
+0 on every shipped instrument, and the validator accepts the rate everywhere.
 """
 
 import math

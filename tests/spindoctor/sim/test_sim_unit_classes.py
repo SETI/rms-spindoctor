@@ -157,7 +157,7 @@ def test_lost_lines_carry_the_navigator_marker(instrument: str) -> None:
 
 @pytest.mark.parametrize('instrument', _ALL_INSTRUMENTS)
 def test_every_instrument_marks_a_lost_line_with_zero(instrument: str) -> None:
-    """Raw and calibrated alike, the configuration's marker for a lost pixel is 0."""
+    """Every instrument's configuration marks a lost pixel with 0."""
     assert _lost_line_value(instrument) == 0.0
 
 

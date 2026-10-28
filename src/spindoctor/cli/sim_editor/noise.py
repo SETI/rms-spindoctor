@@ -21,10 +21,7 @@ from PyQt6.QtWidgets import QCheckBox, QDoubleSpinBox, QFormLayout, QSpinBox
 
 from spindoctor.cli.sim_editor.base import SimEditorBase
 
-_COSMIC_RAY_TOOLTIP = (
-    'Expected cosmic-ray events per pixel per second of exposure, on the CCD and '
-    'vidicon detectors alike.'
-)
+_COSMIC_RAY_TOOLTIP = 'Expected cosmic-ray events per pixel per second of exposure.'
 _MISSING_DATA_TOOLTIP = (
     "Fraction of pixels lost at random, each set to the instrument's missing-data "
     'marker (0 on every shipped instrument).'

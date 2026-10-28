@@ -24,7 +24,7 @@ grid.  It applies its sub-effects in the physical order of transmission:
    missing-line interpolation banding).
 4. Missing-data markers: the generic per-pixel ``noise.missing_data_rate``
    dropout knob (a worst-case stress knob, not an instrument artifact),
-   which writes the instrument's marker on raw and calibrated frames alike.
+   which writes the instrument's marker.
 
 Every structured loss mode is opt-in through the ``artifacts`` block, disabled
 when its activation key (``expected_events`` or ``probability``), or its fixed
@@ -230,8 +230,7 @@ def _apply_missing_data_markers(
     The generic per-pixel ``noise.missing_data_rate`` dropout is the worst-case
     stress knob: each pixel is lost independently with that probability and
     takes the marker the navigator applies to the frame (0 on every shipped
-    instrument, raw DN and calibrated I/F alike), as the structured loss modes
-    do.
+    instrument), as the structured loss modes do.
     """
     sim_noise = DEFAULT_CONFIG.category('sim')['noise']
     scene_noise = params.get('noise') or {}
