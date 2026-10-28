@@ -8,8 +8,7 @@ the marker the navigator applies to the same frame, and
 :func:`~spindoctor.sim.instruments.read_frame_as_navigator` reads the frame the
 navigator reads (planted offset applied) to the verdict the navigator's
 classifier reaches, blank before missing data.
-:func:`~spindoctor.sim.instruments.frame_units_summary` states that verdict, and a
-navigated ``vgiss`` frame whose dark sky sits at the marker logs a warning.
+:func:`~spindoctor.sim.instruments.frame_units_summary` states that verdict.
 """
 
 import math
@@ -19,12 +18,10 @@ import numpy as np
 import pytest
 
 from spindoctor.config import DEFAULT_CONFIG
-from spindoctor.config.log_scope import image_scope
 from spindoctor.nav_orchestrator import NavOrchestrator
 from spindoctor.nav_orchestrator.image_classifier import NavImageClassifier
 from spindoctor.nav_orchestrator.instrument_config import instrument_settings_from_obs
 from spindoctor.obs.obs_inst_sim import ObsSim
-from spindoctor.sim import render as sim_render
 from spindoctor.sim.forward.stages import SimFrame
 from spindoctor.sim.forward.telemetry import apply_telemetry
 from spindoctor.sim.instruments import (
@@ -34,7 +31,6 @@ from spindoctor.sim.instruments import (
     navigator_marker_value,
     read_frame_as_navigator,
     resolve_sim_inst_config,
-    sky_at_marker_warning,
 )
 from spindoctor.sim.render import render_combined_model
 
@@ -56,14 +52,19 @@ def _same(a: float, b: float) -> bool:
     return (math.isnan(a) and math.isnan(b)) or a == b
 
 
-def _vgiss_body_scene(
-    axis: float, offset_vu: tuple[float, float], *, light: tuple[float, float] = (0.0, 0.0)
+def _body_scene(
+    instrument: str,
+    axis: float,
+    offset_vu: tuple[float, float],
+    *,
+    center_u: float = 64.0,
+    light: tuple[float, float] = (0.0, 0.0),
 ) -> dict[str, Any]:
-    """A 128 x 128 ``vgiss`` frame with one Rhea-like body and a planted offset."""
+    """A 128 x 128 frame with one Rhea-like body and a planted offset."""
     return {
         'size_v': 128,
         'size_u': 128,
-        'instrument': 'vgiss',
+        'instrument': instrument,
         'random_seed': 42,
         'offset_v': offset_vu[0],
         'offset_u': offset_vu[1],
@@ -71,7 +72,7 @@ def _vgiss_body_scene(
             {
                 'name': 'RHEA',
                 'center_v': 64.0,
-                'center_u': 64.0,
+                'center_u': center_u,
                 'axis1': axis,
                 'axis2': axis,
                 'axis3': axis,
@@ -80,6 +81,11 @@ def _vgiss_body_scene(
             }
         ],
     }
+
+
+def _with_lost_lines(params: dict[str, Any], expected_events: float) -> dict[str, Any]:
+    """``params`` with a ``missing_lines`` mode planting about that many lost lines."""
+    return {**params, 'artifacts': {'missing_lines': {'expected_events': expected_events}}}
 
 
 def _empty_scene(instrument: str) -> dict[str, Any]:
@@ -156,20 +162,6 @@ def test_lost_lines_carry_a_null_marker_as_the_navigator_reads_it(instrument: st
     assert _same(written, _navigator_marker(instrument, overrides))
 
 
-def test_rendered_marker_share_leaves_out_planted_loss() -> None:
-    """The telemetry truth counts the pixels already at the marker, not the lines it loses."""
-    signal = np.full((64, 64), 0.5, dtype=np.float64)
-    signal[:16, :] = 0.0
-    params = {
-        'instrument': 'vgiss',
-        'random_seed': 7,
-        'artifacts': {'missing_lines': {'expected_events': 20.0}},
-    }
-    frame = _telemetry_frame(signal, params)
-    lost_below = [line for line in frame.truth['artifacts']['missing_lines']['lines'] if line >= 16]
-    assert (len(lost_below) > 0, frame.truth['rendered_marker_frac']) == (True, 0.25)
-
-
 @pytest.mark.parametrize('instrument', _ALL_INSTRUMENTS)
 def test_marker_helper_agrees_with_the_navigator(instrument: str) -> None:
     """navigator_marker_value reads each instrument's marker as the navigator does."""
@@ -219,16 +211,19 @@ def test_summary_names_the_unit_class(instrument: str, units: str) -> None:
 
 
 # Scenes whose navigated frame lands on each side of the classifier's gates.  The
-# offset Rhea crosses the 30% limit only once its offset is applied (26.6% of the
-# offset-free preview, 32.1% of the navigated frame); an empty vgiss frame is
-# all marker but blank first; and a raw sky at a raised marker is blank only
-# because the navigator fills marker pixels with 0 before it reads the peak.
+# small body at the edge leaves the frame only once its offset is applied, so the
+# preview is clean and the navigated frame blank; the lost lines put about 46%
+# of the vgiss disc frame at the marker; an empty vgiss frame reads its sky
+# residual, above the blank limit, while an empty calibrated Cassini frame's
+# residual is below it; and a raw sky at a raised marker is blank only because
+# the navigator fills marker pixels with 0 before it reads the peak.
 _NAVIGATED_SCENES = {
     'coiss_nac-disc': _disc_scene('coiss_nac'),
     'coiss_calib_nac-disc': _disc_scene('coiss_calib_nac'),
     'vgiss-disc': _disc_scene('vgiss'),
-    'vgiss-offset-crosses-limit': _vgiss_body_scene(123.0, (12.0, -12.0)),
-    'vgiss-offset-under-limit': _vgiss_body_scene(160.0, (3.0, -2.0), light=(18.0, 30.0)),
+    'vgiss-disc-lost-lines': _with_lost_lines(_disc_scene('vgiss'), 40.0),
+    'calib-offset-leaves-frame': _body_scene('coiss_calib_nac', 6.0, (0.0, 20.0), center_u=118.0),
+    'vgiss-offset': _body_scene('vgiss', 160.0, (3.0, -2.0), light=(18.0, 30.0)),
     'vgiss-empty': _empty_scene('vgiss'),
     'coiss_calib_nac-empty': _empty_scene('coiss_calib_nac'),
     'coiss_nac-empty': _empty_scene('coiss_nac'),
@@ -258,10 +253,12 @@ def test_reading_matches_the_orchestrator_on_the_navigated_frame(name: str) -> N
 @pytest.mark.parametrize(
     ('name', 'image_class'),
     [
-        ('vgiss-disc', 'mostly_missing_data'),
-        ('vgiss-offset-crosses-limit', 'mostly_missing_data'),
-        ('vgiss-offset-under-limit', 'clean'),
-        ('vgiss-empty', 'blank'),
+        ('vgiss-disc', 'clean'),
+        ('vgiss-disc-lost-lines', 'mostly_missing_data'),
+        ('calib-offset-leaves-frame', 'blank'),
+        ('vgiss-offset', 'clean'),
+        ('vgiss-empty', 'clean'),
+        ('coiss_calib_nac-empty', 'blank'),
         ('coiss_nac-disc', 'clean'),
         ('generic-sky-at-raised-marker', 'blank'),
     ],
@@ -271,11 +268,11 @@ def test_navigated_scenes_land_where_the_comparison_needs_them(name: str, image_
     assert _orchestrator_class(_NAVIGATED_SCENES[name]) == image_class
 
 
-def test_offset_moves_the_rhea_scene_across_the_limit() -> None:
-    """The offset-free preview of the crossing scene stays under the 30% limit."""
-    params = _NAVIGATED_SCENES['vgiss-offset-crosses-limit']
+def test_offset_moves_the_edge_scene_across_the_blank_limit() -> None:
+    """The offset-free preview of the edge scene, its body still in the frame, is clean."""
+    params = _NAVIGATED_SCENES['calib-offset-leaves-frame']
     img, _ = render_combined_model(params, ignore_offset=True)
-    inst_config = resolve_sim_inst_config(DEFAULT_CONFIG, 'vgiss')
+    inst_config = resolve_sim_inst_config(DEFAULT_CONFIG, 'coiss_calib_nac')
     assert read_frame_as_navigator(img, inst_config).image_class == 'clean'
 
 
@@ -295,14 +292,11 @@ def test_summary_states_the_orchestrator_verdict(name: str, image_class: str, ph
     assert (phrase in summary) == (_orchestrator_class(params) == image_class)
 
 
-def test_empty_vgiss_summary_says_blank() -> None:
-    """An all-marker empty vgiss frame reads blank in the summary, as the classifier says."""
+def test_empty_vgiss_summary_reads_the_sky_residual() -> None:
+    """An empty vgiss frame reads its 1.5 DN sky residual and no marker pixel."""
     img, _ = render_combined_model(_empty_scene('vgiss'))
     summary = frame_units_summary(img, resolve_sim_inst_config(DEFAULT_CONFIG, 'vgiss'))
-    assert summary == (
-        'I/F 0 to 0; marker 0 on 100.0% of pixels '
-        '(peak below 0.0001: the navigator classifies it blank)'
-    )
+    assert summary == 'I/F 0.01176 to 0.01176'
 
 
 def _synthetic_inst_config(**thresholds: float) -> dict[str, Any]:
@@ -389,7 +383,7 @@ class _InstConfigOnly:
 def test_raised_missing_limit_from_the_scene_is_honored() -> None:
     """A scene's max_missing_frac_clean override moves the summary's limit with the navigator's."""
     params = {
-        **_disc_scene('vgiss'),
+        **_NAVIGATED_SCENES['vgiss-disc-lost-lines'],
         'instrument_config': {'image_quality_thresholds': {'max_missing_frac_clean': 0.70}},
     }
     img, _ = render_combined_model(params)
@@ -402,7 +396,7 @@ def test_raised_missing_limit_from_the_scene_is_honored() -> None:
 def test_lowered_missing_limit_from_the_scene_is_honored() -> None:
     """A lowered max_missing_frac_clean refuses a frame the default would accept."""
     params = {
-        **_NAVIGATED_SCENES['vgiss-offset-under-limit'],
+        **_with_lost_lines(_NAVIGATED_SCENES['vgiss-offset'], 6.0),
         'instrument_config': {'image_quality_thresholds': {'max_missing_frac_clean': 0.02}},
     }
     img, _ = render_combined_model(params)
@@ -430,146 +424,11 @@ def test_planted_offset_is_any_non_zero_offset_or_roll(
     assert has_planted_offset(params) is planted
 
 
-class _RecordingLogger:
-    """Records the warnings logged to it."""
-
-    def __init__(self) -> None:
-        """Start with no warnings."""
-        self.warnings: list[str] = []
-
-    def warning(self, message: str, *args: Any) -> None:
-        """Record ``message`` with its ``%`` arguments applied, as the logger would."""
-        self.warnings.append(message % args)
-
-
-@pytest.fixture
-def image_log(monkeypatch: pytest.MonkeyPatch) -> _RecordingLogger:
-    """Route the renderer's image-log warnings to a recorder."""
-    recorder = _RecordingLogger()
-    monkeypatch.setattr(sim_render, 'IMAGE_LOGGER', recorder)
-    return recorder
-
-
-def test_navigated_vgiss_render_warns_of_sky_at_the_marker(image_log: _RecordingLogger) -> None:
-    """A navigated vgiss frame refused for its dark sky logs one warning naming the fix."""
-    with image_scope():
-        render_combined_model(_disc_scene('vgiss'))
-    img, _ = render_combined_model(_disc_scene('vgiss'))
-    share = float((img == 0.0).mean()) * 100
-    assert image_log.warnings == [
-        f'Simulated vgiss frame: {share:.1f}% of its pixels read as missing data, over the '
-        '30% limit, so the navigator will refuse it as mostly missing data.  The dark sky '
-        'of this calibrated frame renders at exactly the missing-data marker 0 on '
-        f'{share:.1f}% of the pixels.  Set instrument_config.noise.marker_value: NaN in '
-        'the scene to keep the sky out of that count.'
-    ]
-
-
-def test_sky_warning_names_the_planted_share_beside_the_sky(
-    image_log: _RecordingLogger,
-) -> None:
-    """Sky under the limit plus planted lines over it warns, naming both shares."""
-    sky_only = _vgiss_body_scene(123.0, (0.0, 0.0), light=(18.0, 30.0))
-    params = {**sky_only, 'artifacts': {'missing_lines': {'expected_events': 10.0}}}
-    with image_scope():
-        img, _ = render_combined_model(params)
-    clean, _ = render_combined_model(sky_only)
-    sky = float((clean == 0.0).mean()) * 100
-    planted = float((img == 0.0).mean()) * 100 - sky
-    assert image_log.warnings == [
-        f'Simulated vgiss frame: {sky + planted:.1f}% of its pixels read as missing data, '
-        'over the 30% limit, so the navigator will refuse it as mostly missing data.  The '
-        'dark sky of this calibrated frame renders at exactly the missing-data marker 0 on '
-        f'{sky:.1f}% of the pixels, and planted data loss adds {planted:.1f}%.  Set '
-        'instrument_config.noise.marker_value: NaN in the scene to keep the sky out of '
-        'that count.'
-    ]
-
-
-# Refused frames whose sky is not what puts them over the limit: a frame the disc
-# fills, so every marker pixel is planted loss, and a frame whose planted lines
-# alone exceed the limit, so the NaN override would not change the verdict.
-_PLANTED_REFUSALS = {
-    'disc-fills-frame': {
-        **_vgiss_body_scene(400.0, (0.0, 0.0)),
-        'artifacts': {
-            'missing_blocks': {'expected_events': 40.0},
-            'missing_lines': {'expected_events': 60.0},
-        },
-    },
-    'planted-lines-over-limit': {
-        **_NAVIGATED_SCENES['vgiss-offset-under-limit'],
-        'artifacts': {'missing_lines': {'expected_events': 40.0}},
-    },
-}
-
-
-@pytest.mark.parametrize('name', sorted(_PLANTED_REFUSALS))
-def test_frame_refused_for_planted_loss_gets_no_sky_warning(
-    image_log: _RecordingLogger, name: str
-) -> None:
-    """A frame the navigator refuses for the loss it plants does not blame the sky."""
-    params = _PLANTED_REFUSALS[name]
-    with image_scope():
-        img, _ = render_combined_model(params)
-    reading = read_frame_as_navigator(img, _inst_config_of(params))
-    assert (reading.image_class, image_log.warnings) == ('mostly_missing_data', [])
-
-
-@pytest.mark.parametrize(
-    ('params', 'ignore_offset'),
-    [
-        (_disc_scene('coiss_calib_nac'), False),
-        (_disc_scene('coiss_nac'), False),
-        (_disc_scene('vgiss'), True),
-        (_NAVIGATED_SCENES['vgiss-offset-under-limit'], False),
-        (_empty_scene('vgiss'), False),
-        (
-            {**_disc_scene('vgiss'), 'instrument_config': {'noise': {'marker_value': 'NaN'}}},
-            False,
-        ),
-    ],
-    ids=['nan-marker', 'raw', 'preview', 'under-limit', 'blank', 'nan-override'],
-)
-def test_render_stays_quiet_unless_the_navigator_refuses_sky_at_the_marker(
-    image_log: _RecordingLogger, params: dict[str, Any], ignore_offset: bool
-) -> None:
-    """Only a navigated calibrated frame refused for sky at a numeric marker warns."""
-    with image_scope():
-        render_combined_model(params, ignore_offset=ignore_offset)
-    assert image_log.warnings == []
-
-
-def test_loading_a_vgiss_scene_logs_the_sky_warning(capsys: pytest.CaptureFixture[str]) -> None:
-    """Loading a vgiss scene for navigation writes the warning to the image log."""
-    ObsSim.from_file('/tmp/sim_unit_classes.json', sim_params=_disc_scene('vgiss'))
-    out = capsys.readouterr().out
-    assert 'over the 30% limit, so the navigator will refuse it as mostly missing data' in out
-
-
-def test_render_outside_an_image_scope_stays_quiet(image_log: _RecordingLogger) -> None:
-    """Outside an image log scope (the editor, a test) the renderer logs nothing."""
-    render_combined_model(_disc_scene('vgiss'))
-    assert image_log.warnings == []
-
-
-def test_sky_warning_needs_a_calibrated_block() -> None:
-    """A raw block's frame at its 0 marker is lost data, and gets no sky warning."""
-    img = np.zeros((10, 10))
-    img[0, 0] = 100.0
-    inst_config = resolve_sim_inst_config(DEFAULT_CONFIG, 'coiss_nac')
-    warning = sky_at_marker_warning(
-        img, inst_config, instrument='coiss_nac', rendered_marker_frac=0.99
-    )
-    assert warning is None
-
-
-def test_vgiss_dark_sky_reads_as_missing_data() -> None:
-    """A vgiss frame's exactly-zero dark sky is counted at the 0 marker and warned of."""
+def test_vgiss_dark_sky_stays_out_of_the_marker_count() -> None:
+    """A vgiss frame's dark sky sits above the 0 marker, so the summary names no marker."""
     img, _ = render_combined_model(_disc_scene('vgiss'), ignore_offset=True)
     summary = frame_units_summary(img, resolve_sim_inst_config(DEFAULT_CONFIG, 'vgiss'))
-    share = float((img == 0.0).mean()) * 100
-    assert f'marker 0 on {share:.1f}% of pixels (over 30%' in summary
+    assert summary == f'I/F {float(img.min()):.4g} to {float(img.max()):.4g}'
 
 
 def test_summary_counts_nan_markers_on_a_calibrated_frame() -> None:

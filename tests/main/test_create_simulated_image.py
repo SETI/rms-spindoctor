@@ -314,22 +314,24 @@ def test_units_label_names_the_rendered_units(model: Any, instrument: str, units
     assert model._units_label.text().split(' ')[0] == units
 
 
-def _vgiss_rhea(model: Any, *, axis: float, offset_vu: tuple[float, float]) -> None:
-    """Set the editor's scene to a 128 x 128 vgiss frame holding one full-phase Rhea."""
+def _set_body_scene(
+    model: Any, *, instrument: str, axis: float, center_u: float, offset_u: float
+) -> None:
+    """Set the editor's scene to a 128 x 128 frame holding one full-phase Rhea."""
     model.sim_params.pop('noise', None)
     model.sim_params.update(
         {
             'size_v': 128,
             'size_u': 128,
-            'instrument': 'vgiss',
+            'instrument': instrument,
             'random_seed': 42,
-            'offset_v': offset_vu[0],
-            'offset_u': offset_vu[1],
+            'offset_v': 0.0,
+            'offset_u': offset_u,
             'bodies': [
                 {
                     'name': 'RHEA',
                     'center_v': 64.0,
-                    'center_u': 64.0,
+                    'center_u': center_u,
                     'axis1': axis,
                     'axis2': axis,
                     'axis3': axis,
@@ -342,18 +344,17 @@ def _vgiss_rhea(model: Any, *, axis: float, offset_vu: tuple[float, float]) -> N
 
 
 def test_units_label_reads_the_navigated_frame(model: Any) -> None:
-    """The label warns when the planted offset pushes the dark sky over the limit."""
-    _vgiss_rhea(model, axis=123.0, offset_vu=(12.0, -12.0))
+    """The label says blank when the planted offset moves the only body out of the frame."""
+    _set_body_scene(model, instrument='coiss_calib_nac', axis=6.0, center_u=118.0, offset_u=20.0)
     model._update_image()
-    assert '(over 30%: the navigator refuses it as missing data)' in model._units_label.text()
+    assert '(peak below 0.0001: the navigator classifies it blank)' in model._units_label.text()
 
 
-def test_units_label_follows_a_scene_marker_override(model: Any) -> None:
-    """A scene that moves the vgiss marker to NaN keeps its sky, and the label stays quiet."""
-    _vgiss_rhea(model, axis=86.0, offset_vu=(0.0, 0.0))
-    model.sim_params['instrument_config'] = {'noise': {'marker_value': 'NaN'}}
+def test_units_label_leaves_the_vgiss_sky_out_of_the_marker_count(model: Any) -> None:
+    """A vgiss frame's dark sky sits above the 0 marker, and the label stays quiet."""
+    _set_body_scene(model, instrument='vgiss', axis=86.0, center_u=64.0, offset_u=0.0)
     model._update_image()
-    assert model._units_label.text() == 'I/F 0 to 0.9961'
+    assert model._units_label.text() == 'I/F 0.01176 to 1.008'
 
 
 def test_units_label_clears_after_a_failed_render(

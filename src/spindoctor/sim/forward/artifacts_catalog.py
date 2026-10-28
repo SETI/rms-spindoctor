@@ -17,6 +17,7 @@ from spindoctor.sim.forward.artifact_modes import ARTIFACT_MODES, MODE_KEYS
 
 __all__ = [
     'ARTIFACT_MODES',
+    'DEFAULT_CALIBRATED_SKY_IF',
     'DETECTOR_DEFAULTS',
     'DISTORTION_RESIDUAL_PARAMS',
     'MODE_KEYS',
@@ -510,6 +511,22 @@ DETECTOR_DEFAULTS: dict[str, dict[str, Any]] = {
         'exposure_ref_sec': 1.0,
         'bias_dn': 20.0,
         'quantization': '8bit',
+        # The calibrated sky residual in I/F, added after the calibration
+        # inverse (see DEFAULT_CALIBRATED_SKY_IF).  Real GEOMED sky sits above
+        # 0: inside the resample border of five archived frames (four VGISS_8210
+        # Voyager 2 star frames and one VGISS_5101 Voyager 1 dark frame) the
+        # sky's 1st percentile is positive, at most 0.03% of the pixels are
+        # exactly 0, and the sky level spans 6.6e-4 to 3.2e-2 I/F (median about
+        # 5e-3).  The vidicon's calibration scale is 127.5 DN per unit I/F
+        # (signal_full_scale_frac 0.5 of the 255 DN full scale), so this value
+        # is 1.5 DN: half a DN off the integer DN grid, so no digitized
+        # pixel lands on exactly 0, and one and a half steps up, so the
+        # instrument_defaults noise (0.40 DN rms from the three vidicon terms
+        # below) takes a -1.5 DN excursion (3.8 sigma, about 7e-5 of the pixels)
+        # to put a sky pixel below 0.  0.5 DN (3.9e-3 I/F, nearer the cohort
+        # median) would put about 10% of the noisy sky one step below 0.  The
+        # value sits inside the cohort's range, 2.3x its median.
+        'calibrated_sky_if': 1.5 / 127.5,
         # Cosmic rays RETAINED at zero 2026-07-17 (no key: the vidicon DN
         # path lacks a cosmic-ray stage, so a rate here would be inert,
         # and the scene validator refuses a non-zero rate on this path).
@@ -585,6 +602,20 @@ DETECTOR_DEFAULTS: dict[str, dict[str, Any]] = {
         'quantization': 'exact',
     },
 }
+
+# The calibrated sky residual (I/F) of every calibrated frame whose detector
+# entry doesn't set its own: the calibrated Cassini cameras, and any instrument
+# a scene pins to calibrated_if.  The calibration inverse adds it after
+# subtracting the bias and dark pedestals, so a noise-free (floor) calibrated
+# dark sky sits at this value instead of exactly 0 I/F, the missing-data marker
+# of every calibrated instrument.  MEASURED 2026-10-28 on 13 dark-sky Cassini
+# NAC CALIB frames (STAR targets with no missing lines, from COISS_2010, 2030,
+# 2050, and 2090): the per-frame sky median spans -5.8e-5 to 2.2e-4 I/F, median
+# 4.0e-5, against a median sky sigma of 1.9e-4 I/F, so the real sky scatters
+# around 0 (36-57% of it negative on the darkest frames) and no valid pixel is
+# exactly 0.  The two darkest WAC star frames measure 7.5e-5 and 7.8e-5, the
+# same order; the NAC value stands for both cameras.
+DEFAULT_CALIBRATED_SKY_IF = 4.0e-5
 
 # Calibrated Cassini products (CALIB, what the navigator's cassini_iss_calib
 # path consumes) run the same cameras through CISSCAL, whose bias/dark

@@ -94,8 +94,12 @@ def _predicted_edge_vertices(obs: ObsSim) -> dict[str, Any]:
 
 
 def _rendered_coverage(obs: ObsSim) -> NDArrayBoolType:
-    """The rendered annulus coverage mask (noise-free calibrated render)."""
-    coverage: NDArrayBoolType = np.asarray(obs.data) > 1e-9
+    """The rendered annulus coverage mask (noise-free calibrated render).
+
+    The background is the frame's minimum, the calibrated sky residual.
+    """
+    data = np.asarray(obs.data)
+    coverage: NDArrayBoolType = data > float(data.min()) + 1e-9
     return coverage
 
 

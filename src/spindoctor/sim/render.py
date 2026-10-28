@@ -11,13 +11,6 @@ Callers are ``ObsSim``, the scene-editor GUI, and ``sim/png_export.py``
 contract: scene parameters are JSON-serializable scalars/lists/maps, no
 wall-clock or global RNG state is consulted, and two renders of the same
 scene are bit-identical on one machine.
-
-A frame rendered for navigation (planted offset applied) inside an open image
-log scope, as ``ObsSim.from_file`` renders each scene it loads, is checked with
-:func:`~spindoctor.sim.instruments.sky_at_marker_warning`: a calibrated frame
-whose dark sky sits at a numeric missing-data marker (``vgiss``) logs a warning
-on the image logger when the sky's pixels put it over the navigator's
-missing-data limit.
 """
 
 import copy
@@ -25,10 +18,8 @@ import json
 from functools import lru_cache
 from typing import Any
 
-from spindoctor.config import DEFAULT_CONFIG, IMAGE_LOGGER, image_scope_is_open
 from spindoctor.sim.forward.pipeline import run_pipeline
 from spindoctor.sim.forward.stages import new_sim_frame
-from spindoctor.sim.instruments import resolve_sim_inst_config, sky_at_marker_warning
 from spindoctor.support.types import NDArrayFloatType
 
 
@@ -49,32 +40,6 @@ def clear_render_caches() -> None:
     body_mesh._render_mesh_shape_cached.cache_clear()
     relief.clear_relief_caches()
     psf.psf_kernel.cache_clear()
-
-
-def _warn_sky_at_marker(
-    image: NDArrayFloatType, truth: dict[str, Any], sim_params: dict[str, Any]
-) -> None:
-    """Log :func:`~spindoctor.sim.instruments.sky_at_marker_warning` for a navigated frame.
-
-    Parameters:
-        image: The rendered frame, planted offset applied.
-        truth: The frame's render truth, which carries the telemetry stage's
-            ``rendered_marker_frac``.
-        sim_params: The scene it was rendered from.
-    """
-    instrument = sim_params.get('instrument')
-    inst_config = resolve_sim_inst_config(
-        DEFAULT_CONFIG, instrument, sim_params.get('instrument_config')
-    )
-    warning = sky_at_marker_warning(
-        image,
-        inst_config,
-        instrument=instrument,
-        rendered_marker_frac=float(truth['rendered_marker_frac']),
-    )
-    if warning is not None:
-        # The text carries '%' signs, so it goes in as an argument, not a format.
-        IMAGE_LOGGER.warning('%s', warning)
 
 
 # Two entries: the scene editor renders a scene's offset-free preview and the
@@ -140,10 +105,7 @@ def render_combined_model(
     """Render stars then bodies from a full sim_params dict. Returns (img, meta).
 
     ignore_offset = True should be used when rendering the image in the GUI, but not
-    when creating the simulated image to navigate.  A navigated render inside an
-    open image log scope logs
-    :func:`~spindoctor.sim.instruments.sky_at_marker_warning`'s warning, when it
-    has one, on the image logger.
+    when creating the simulated image to navigate.
 
     Parameters:
         sim_params: The parameters describing the simulated model.
@@ -153,11 +115,9 @@ def render_combined_model(
         A tuple containing the image and metadata.  Metadata keys: ``stars``
         (rendered star records), ``bodies``, ``rings``, ``inventory``,
         ``star_info``, ``body_masks``, ``ring_masks``, ``order_near_to_far``,
-        ``body_index_map``, ``body_mask_map``, ``body_occlusion``
+        ``body_index_map``, ``body_mask_map``, and ``body_occlusion``
         (per-body mutual-event truth: ``visible_fraction`` and
-        ``occluded_limb_arc_deg`` against every nearer body), and
-        ``rendered_marker_frac`` (the share of pixels the scene renders at the
-        missing-data marker, apart from the loss it plants).
+        ``occluded_limb_arc_deg`` against every nearer body).
     """
     # Create cache key from parameters.  When ignore_offset is True the cached
     # function zeroes the planted offset AND roll, so all three keys are
@@ -174,8 +134,6 @@ def render_combined_model(
     cached_img, cached_meta = _render_combined_model_cached(
         sim_params_json, ignore_offset=ignore_offset
     )
-    if not ignore_offset and image_scope_is_open():
-        _warn_sky_at_marker(cached_img, cached_meta, sim_params)
     # Return copies to avoid cache modification
     # Use deepcopy for meta to fully isolate nested mutable structures
     return cached_img.copy(), copy.deepcopy(cached_meta)

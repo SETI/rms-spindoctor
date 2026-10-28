@@ -529,13 +529,28 @@ def _apply_calibration_inverse(frame: SimFrame, dp: DetectorParams) -> None:
     Matches the real pipeline: the bias pedestal and dark pedestal are subtracted
     before the exposure divide, so a calibrated frame carries no spurious 1/
     exposure pedestal.  The calibration scale is derived so a noise-free signal
-    of 1.0 at the reference exposure round-trips to I/F 1.0.
+    of 1.0 at the reference exposure round-trips to I/F 1.0.  The calibrated sky
+    residual (``calibrated_sky_if``) is then added to every pixel.  A real
+    calibrated product's dark sky keeps a residual level, and the residual keeps
+    the simulated dark sky off the missing-data marker, which is 0 on every
+    calibrated instrument: without it a noise-free dark sky would land on exactly
+    0 I/F, and the navigator would count it as missing data.
+
+    A pixel that still lands exactly on a numeric marker moves to the next float
+    above it, so no pixel the detector delivers reads as missing data.  The
+    digitized DN are integers, so the calibrated values fall on a lattice, and
+    for some exposures the subtracted dark pedestal puts a lattice point on the
+    marker; a real calibrated product is continuous (its flat field and per-pixel
+    dark model see to that) and never carries an exact 0 for a valid pixel.
     """
     exposure = dp.exposure_sec if dp.exposure_sec > 0.0 else 1.0
     denom = dp.calibration_scale_dn_per_s_per_if * exposure
     if denom <= 0.0:
         return
-    frame.signal[:] = (frame.signal - dp.bias_dn - dp.dark_dn) / denom
+    calibrated = (frame.signal - dp.bias_dn - dp.dark_dn) / denom + dp.calibrated_sky_if
+    if not np.isnan(dp.marker_value):
+        calibrated[calibrated == dp.marker_value] = np.nextafter(dp.marker_value, np.inf)
+    frame.signal[:] = calibrated
 
 
 def apply_detector(

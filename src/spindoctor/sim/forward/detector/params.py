@@ -44,10 +44,11 @@ from spindoctor.sim.forward.artifact_modes import (
     resolve_mode_config,
 )
 from spindoctor.sim.forward.artifacts_catalog import (
+    DEFAULT_CALIBRATED_SKY_IF,
     resolve_detector_defaults,
     resolve_mode_with_catalog,
 )
-from spindoctor.sim.instruments import resolve_sim_inst_config
+from spindoctor.sim.instruments import navigator_marker_value, resolve_sim_inst_config
 from spindoctor.sim.seeds import derive_effect_seed
 
 __all__ = ['DetectorParams', 'resolve_detector_params']
@@ -92,6 +93,12 @@ class DetectorParams:
         vidicon: The vidicon DN-noise sub-parameters (vidicon path only).
         calibration_scale_dn_per_s_per_if: Derived I/F calibration scale.
         dark_dn: Dark pedestal in DN subtracted before the I/F divide.
+        calibrated_sky_if: The calibrated sky residual in I/F, added after the
+            I/F divide on a calibrated frame: the instrument's catalog value,
+            else :data:`~spindoctor.sim.forward.artifacts_catalog.DEFAULT_CALIBRATED_SKY_IF`.
+        marker_value: The missing-data marker the navigator applies to the frame
+            (see :func:`~spindoctor.sim.instruments.navigator_marker_value`),
+            possibly NaN; the calibration inverse keeps every pixel off it.
         random_seed: The scene seed for the per-effect sub-streams.
         instrument_defaults: Whether the physical-chain opt-in is on.
         hot_pixel_adversarial: Whether the hot-pixel population is placed
@@ -139,6 +146,8 @@ class DetectorParams:
     vidicon: dict[str, float]
     calibration_scale_dn_per_s_per_if: float
     dark_dn: float
+    calibrated_sky_if: float
+    marker_value: float
     random_seed: int = 42
     instrument_defaults: bool = False
     hot_pixel_adversarial: bool = False
@@ -525,6 +534,8 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
         vidicon=vidicon,
         calibration_scale_dn_per_s_per_if=calibration_scale,
         dark_dn=dark_dn,
+        calibrated_sky_if=float(catalog.get('calibrated_sky_if', DEFAULT_CALIBRATED_SKY_IF)),
+        marker_value=navigator_marker_value(inst_config),
         random_seed=int(params.get('random_seed', 42)),
         instrument_defaults=instrument_defaults,
         hot_pixel_adversarial=hot_pixel_adversarial,
