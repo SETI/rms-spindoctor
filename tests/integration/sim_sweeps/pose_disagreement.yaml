@@ -9,8 +9,9 @@ sweep_name: pose_disagreement
 # confidently wrong.  This is a degradation sweep, not an exact-recovery
 # invariant.  The walk skips the 60-85 deg band: this mesh realization's
 # silhouette happens to re-align with the predicted boundary there (the error
-# curve dips before climbing again), which characterizes the mesh, not the
-# degradation mechanism the sweep exists to show.
+# dips to ~1 px at 65 and 75 deg, and the fit fails at 85 and 100 deg), which
+# characterizes the mesh, not the degradation mechanism the sweep exists to
+# show.  The 90 deg step fails too; the walk keeps it as the failed point.
 base_scene: phase_sweep_irregular_body/hyperion_pose_disagree.yaml
 parameters: [bodies.0.nav_override.pose_euler_deg.1]
 values: [35.0, 45.0, 55.0, 90.0, 110.0]

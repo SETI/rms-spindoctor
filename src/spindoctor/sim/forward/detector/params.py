@@ -11,10 +11,11 @@ then the disabled floor (physical-chain artifacts default to zero so an
 unconfigured scene renders a clean DN frame, per the stage-activation rule).
 ``instrument_defaults`` turns on the whole physical chain, including Poisson
 shot noise, the catalog's electron-domain full-well bloom, and the catalog's
-cohort-measured cosmic-ray rate where one is recorded (radiation on the
-detector is physics of the environment, not a transmission defect); the
-missing-data loss modes are artifact incidences, not physical-chain noise,
-and stay at zero.
+``cosmic_ray_events_per_pixel_per_sec`` (radiation on the detector is physics
+of the environment, not a transmission defect; every CCD entry records either a
+cohort-measured rate or a retained zero); the
+missing-data loss modes are transmission artifacts, not physical-chain noise,
+and stay off.
 
 The ``noise.read_noise_dn`` key is a DN value, converted to electrons through
 the resolved gain, so a scene that pins a DN read-noise level gets exactly that
@@ -34,19 +35,24 @@ import numpy as np
 
 from spindoctor.config import DEFAULT_CONFIG
 from spindoctor.sim.forward.artifact_modes import (
+    ARTIFACT_MODES,
+    COUNT_ACTIVATION_KEYS,
     DETECTOR_MODE_ORDER,
+    PROBABILITY,
     mode_available,
     normalize_instrument,
     resolve_mode_config,
 )
 from spindoctor.sim.forward.artifacts_catalog import (
+    DEFAULT_CALIBRATED_SKY_IF,
     resolve_detector_defaults,
     resolve_mode_with_catalog,
 )
-from spindoctor.sim.instruments import resolve_sim_inst_config
+from spindoctor.sim.instruments import navigator_marker_value, resolve_sim_inst_config
 from spindoctor.sim.seeds import derive_effect_seed
+from spindoctor.support.types import NDArrayFloatType
 
-__all__ = ['DetectorParams', 'resolve_detector_params']
+__all__ = ['CalibrationMap', 'DetectorParams', 'calibration_map', 'resolve_detector_params']
 
 
 class DetectorParamError(ValueError):
@@ -73,8 +79,8 @@ class DetectorParams:
         quantization: ADC quantization sub-mode.
         poisson: Whether shot noise is applied.
         bloom_length: Electron-domain full-well bloom half-length (0 disables).
-        cosmic_ray_rate_per_sec: Cosmic-ray fluence (events / cm^2 / sec).
-        pixel_area_cm2: Detector pixel area (scales the cosmic-ray count).
+        cosmic_ray_events_per_pixel_per_sec: Expected cosmic-ray events per pixel
+            per second of exposure.
         dark_current_e_per_sec: Dark current (electrons / sec); 0 disables.
         hot_pixel_fraction: Fraction of pixels that are hot; 0 disables.
         hot_pixel_amplitude_e: Hot-pixel amplitude scale in electrons.
@@ -87,6 +93,12 @@ class DetectorParams:
         vidicon: The vidicon DN-noise sub-parameters (vidicon path only).
         calibration_scale_dn_per_s_per_if: Derived I/F calibration scale.
         dark_dn: Dark pedestal in DN subtracted before the I/F divide.
+        calibrated_sky_if: The calibrated sky residual in I/F, added after the
+            I/F divide on a calibrated frame: the instrument's catalog value,
+            else :data:`~spindoctor.sim.forward.artifacts_catalog.DEFAULT_CALIBRATED_SKY_IF`.
+        marker_value: The missing-data marker the navigator applies to the frame
+            (see :func:`~spindoctor.sim.instruments.navigator_marker_value`),
+            possibly NaN; the calibration inverse keeps every pixel off it.
         random_seed: The scene seed for the per-effect sub-streams.
         instrument_defaults: Whether the physical-chain opt-in is on.
         hot_pixel_adversarial: Whether the hot-pixel population is placed
@@ -121,8 +133,7 @@ class DetectorParams:
     quantization: str
     poisson: bool
     bloom_length: int
-    cosmic_ray_rate_per_sec: float
-    pixel_area_cm2: float
+    cosmic_ray_events_per_pixel_per_sec: float
     dark_current_e_per_sec: float
     hot_pixel_fraction: float
     hot_pixel_amplitude_e: float
@@ -135,6 +146,8 @@ class DetectorParams:
     vidicon: dict[str, float]
     calibration_scale_dn_per_s_per_if: float
     dark_dn: float
+    calibrated_sky_if: float
+    marker_value: float
     random_seed: int = 42
     instrument_defaults: bool = False
     hot_pixel_adversarial: bool = False
@@ -142,6 +155,62 @@ class DetectorParams:
     quantization_contour_step: int = 8
     artifacts_adversarial: bool = False
     detector_modes: dict[str, dict[str, Any]] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class CalibrationMap:
+    """The affine map between a calibrated frame's DN and its I/F.
+
+    The calibration inverse applies :meth:`to_if` to the digitized frame; a
+    telemetry mode that acts on the DN the spacecraft transmitted (the lossy
+    codec) maps the I/F frame back with :meth:`to_dn` first, so it behaves on a
+    calibrated frame as it does on a raw one.
+
+    Parameters:
+        dn_per_if: DN per unit I/F at the scene exposure, the inverse's divisor.
+        bias_dn: The bias pedestal the inverse subtracts, in DN.
+        dark_dn: The dark pedestal the inverse subtracts, in DN.
+        sky_if: The calibrated sky residual the inverse adds, in I/F.
+    """
+
+    dn_per_if: float
+    bias_dn: float
+    dark_dn: float
+    sky_if: float
+
+    def to_if(self, dn: NDArrayFloatType) -> NDArrayFloatType:
+        """Map DN to I/F: subtract the pedestals, divide, add the sky residual."""
+        result: NDArrayFloatType = (dn - self.bias_dn - self.dark_dn) / self.dn_per_if
+        return result + self.sky_if
+
+    def to_dn(self, i_over_f: NDArrayFloatType) -> NDArrayFloatType:
+        """Map I/F back to DN, the inverse of :meth:`to_if`."""
+        result: NDArrayFloatType = (i_over_f - self.sky_if) * self.dn_per_if
+        return result + self.bias_dn + self.dark_dn
+
+
+def calibration_map(dp: DetectorParams) -> CalibrationMap | None:
+    """The DN-to-I/F map of a calibrated frame, or None for a raw-DN frame.
+
+    The divisor is the derived calibration scale times the scene exposure (a
+    non-positive exposure counts as 1 s).  A non-positive divisor also gives
+    None: the frame stays in DN.
+
+    Parameters:
+        dp: The resolved detector parameters of the frame.
+
+    Returns:
+        The map, or None when the frame is raw DN or the divisor is not positive.
+    """
+    if dp.data_units == 'raw_dn':
+        return None
+    exposure = dp.exposure_sec if dp.exposure_sec > 0.0 else 1.0
+    dn_per_if = dp.calibration_scale_dn_per_s_per_if * exposure
+    if dn_per_if <= 0.0:
+        return None
+    return CalibrationMap(
+        dn_per_if=dn_per_if, bias_dn=dp.bias_dn, dark_dn=dp.dark_dn, sky_if=dp.calibrated_sky_if
+    )
 
 
 def _default_or_zero(
@@ -193,25 +262,25 @@ def _resolve_gain(
 _ROUTED_ONLY_MODES: frozenset[str] = frozenset(
     {'bias_structure', 'bloom', 'quantization_lut', 'quantization_ls8b', 'contouring_8bit'}
 )
-# Detector modes whose incidence is an expected event count (drawn Poisson in
-# the mechanic), not a per-frame activation probability.
-_COUNT_DETECTOR_MODES: frozenset[str] = frozenset({'radiation_transients', 'bright_dark_pairs'})
 
 
-def _mode_active(mode_name: str, incidence: float, random_seed: int) -> bool:
+def _mode_active(mode_name: str, cfg: Mapping[str, Any], random_seed: int) -> bool:
     """Whether a detector artifact mode is active this frame.
 
-    Count modes are active whenever their incidence is positive (the mechanic
-    draws the event count); the deterministic-shape modes activate with
-    probability ``incidence``, drawn from the mode's own seeded stream so
-    toggling one never perturbs another.
+    The registry names each mode's activation key.  A count mode
+    (``expected_events`` or ``expected_events_per_sec``) is active whenever its
+    expected count is positive (the mechanic draws the event count); a
+    deterministic-shape mode activates with per-frame ``probability``, drawn from
+    the mode's own seeded stream so toggling one never perturbs another.
     """
-    if incidence <= 0.0:
+    activation = ARTIFACT_MODES[mode_name].activation
+    value = float(cfg.get(activation) or 0.0)
+    if value <= 0.0:
         return False
-    if mode_name in _COUNT_DETECTOR_MODES:
+    if activation in COUNT_ACTIVATION_KEYS:
         return True
     rng = np.random.default_rng(derive_effect_seed(random_seed, f'detector/{mode_name}/activate'))
-    return bool(rng.random() < incidence)
+    return bool(rng.random() < value)
 
 
 def _resolve_detector_modes(
@@ -227,7 +296,7 @@ def _resolve_detector_modes(
     catalog default over registry default) and returned keyed by name.  LORRI's
     ``frame_transfer_smear`` is the one physical-signal-chain member turned on
     under ``instrument_defaults``: when a LORRI scene has not set it, it is
-    injected at incidence 1 with the catalog's nominal scrub/transfer times.
+    injected at probability 1 with the catalog's nominal scrub/transfer times.
     The injection is LORRI-only; the instrument-agnostic generic block accepts
     every mode but emulates no frame-transfer camera, so it gets no injection.
     """
@@ -240,20 +309,55 @@ def _resolve_detector_modes(
                 and instrument_defaults
                 and normalize_instrument(instrument) == 'nhlorri'
             ):
-                raw = {'incidence': 1.0}
+                raw = {PROBABILITY: 1.0}
             else:
                 continue
         if not isinstance(raw, Mapping) or not mode_available(name, instrument):
             continue
         cfg = resolve_mode_with_catalog(name, raw, instrument)
-        if not _mode_active(name, float(cfg.get('incidence', 0.0)), random_seed):
+        if not _mode_active(name, cfg, random_seed):
             continue
         modes[name] = cfg
     return modes
 
 
+def _set_keys(block: Mapping[str, Any]) -> dict[str, Any]:
+    """Return a scene block's keys that carry a value, dropping every explicit null.
+
+    A null scene key reads as absent everywhere in the resolver, as a null
+    ``detector`` key does (see :func:`_scene_or_default`), so it falls through to
+    the catalog or configuration default instead of reaching ``float()`` or
+    ``bool()``.
+    """
+    return {key: value for key, value in block.items() if value is not None}
+
+
+def _scene_or_default(block: Mapping[str, Any], key: str, default: Any) -> Any:
+    """Read a scene ``detector`` key, treating an explicit null as absent.
+
+    The validator accepts ``detector_model: null`` (and the other detector keys
+    at null) as "use the instrument's default", so the resolver must read it
+    the same way; ``str(None)`` would otherwise select a model named ``'None'``
+    and fall through to the CCD chain.
+
+    Parameters:
+        block: The scene ``detector`` mapping.
+        key: The detector key to read.
+        default: The catalog value used when the key is absent or null.
+
+    Returns:
+        The scene's value, or ``default`` when the scene leaves it unset or null.
+    """
+    value = block.get(key)
+    return default if value is None else value
+
+
 def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
     """Collapse the scene, config, and catalog into a resolved detector view.
+
+    A scene ``noise`` or ``noise.vidicon`` key set to null reads as absent, as a
+    null ``detector`` key does: it resolves to the value the scene would get
+    without the key.
 
     Parameters:
         params: The full scene ``sim_params`` mapping.
@@ -273,17 +377,23 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
     catalog = resolve_detector_defaults(instrument)
 
     detector_block = params.get('detector') or {}
-    scene_noise = params.get('noise') or {}
+    # A null noise key reads as absent: it takes the catalog or configuration
+    # default, so noise: {poisson: null} keeps the instrument_defaults shot noise.
+    scene_noise = _set_keys(params.get('noise') or {})
     artifacts = params.get('artifacts') or {}
     instrument_defaults = bool(artifacts.get('instrument_defaults', False))
 
-    detector_model = str(detector_block.get('detector_model', catalog['detector_model']))
+    detector_model = str(
+        _scene_or_default(detector_block, 'detector_model', catalog['detector_model'])
+    )
     data_units = str(inst_config.get('data_units', 'raw_dn'))
     exposure_sec = float(params.get('exposure_sec', 1.0))
     exposure_ref_sec = float(
-        detector_block.get('exposure_ref_sec', catalog.get('exposure_ref_sec', 1.0))
+        _scene_or_default(detector_block, 'exposure_ref_sec', catalog.get('exposure_ref_sec', 1.0))
     )
-    quantization = str(detector_block.get('quantization', catalog.get('quantization', 'exact')))
+    quantization = str(
+        _scene_or_default(detector_block, 'quantization', catalog.get('quantization', 'exact'))
+    )
 
     signal_full_scale_frac = float(
         scene_noise.get(
@@ -326,16 +436,15 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
         bloom_length = int(catalog.get('bloom_length', 0))
     else:
         bloom_length = int(sim_noise.get('bloom_length', 0))
-    # Cosmic rays: scene value, else the catalog's cohort-measured rate when
-    # instrument_defaults is on (the catalog records it per pixel per second
-    # at the chain's unit pixel area), else the config floor.
-    if 'cosmic_ray_rate_per_sec' in scene_noise:
-        cosmic_ray_rate = float(scene_noise['cosmic_ray_rate_per_sec'])
-    elif instrument_defaults and 'cosmic_ray_rate_per_sec' in catalog:
-        cosmic_ray_rate = float(catalog['cosmic_ray_rate_per_sec'])
+    # Cosmic rays (expected events per pixel per second): scene value, else the
+    # catalog's rate when instrument_defaults is on, else the config floor.
+    cr_key = 'cosmic_ray_events_per_pixel_per_sec'
+    if cr_key in scene_noise:
+        cosmic_ray_rate = float(scene_noise[cr_key])
+    elif instrument_defaults and cr_key in catalog:
+        cosmic_ray_rate = float(catalog[cr_key])
     else:
-        cosmic_ray_rate = float(sim_noise.get('cosmic_ray_rate_per_sec', 0.0))
-    pixel_area_cm2 = float(scene_noise.get('pixel_area_cm2', sim_noise.get('pixel_area_cm2', 1.0)))
+        cosmic_ray_rate = float(sim_noise.get(cr_key, 0.0))
 
     dark_current = _default_or_zero(
         scene_noise, catalog, 'dark_current_e_per_sec', instrument_defaults=instrument_defaults
@@ -369,17 +478,18 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
 
     # The hot_pixels artifact mode (routed here from the registry) wins over the
     # noise-block / instrument_defaults hot-pixel knobs: an explicit mode is a
-    # deliberate placement, so it overrides the generic stress path.  incidence
-    # is the hot-pixel fraction; amplitude and column factor fall back to the
-    # catalog when the mode leaves them unset.  The mode is honored only where
-    # it is available (validation already rejects it elsewhere, e.g. LORRI).
+    # deliberate placement, so it overrides the generic stress path.  Its
+    # pixel_fraction is the hot-pixel fraction; amplitude and column factor
+    # fall back to the catalog when the mode leaves them unset.  The mode is
+    # honored only where it is available (validation already rejects it
+    # elsewhere, e.g. LORRI).
     hot_pixel_adversarial = False
     hot_pixel_mode_active = False
     hot_cfg = artifacts.get('hot_pixels') if isinstance(artifacts, Mapping) else None
     if isinstance(hot_cfg, Mapping) and mode_available('hot_pixels', instrument):
         hot_pixel_mode_active = True
         resolved = resolve_mode_config('hot_pixels', hot_cfg)
-        hot_pixel_fraction = float(resolved['incidence'])
+        hot_pixel_fraction = float(resolved['pixel_fraction'])
         mode_amplitude = resolved.get('amplitude_e')
         if mode_amplitude is not None:
             hot_pixel_amplitude = float(mode_amplitude)
@@ -396,7 +506,7 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
     # like every physical-chain artifact stay disabled until instrument_defaults
     # is on or the scene sets them explicitly (the stage-activation floor).
     catalog_vidicon = dict(catalog.get('vidicon') or {}) if instrument_defaults else {}
-    scene_vidicon = dict(scene_noise.get('vidicon') or {})
+    scene_vidicon = _set_keys(scene_noise.get('vidicon') or {})
     vidicon = {**catalog_vidicon, **{k: float(v) for k, v in scene_vidicon.items()}}
 
     # Derived I/F calibration scale: a noise-free signal of 1.0 round-trips
@@ -467,8 +577,7 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
         quantization=quantization,
         poisson=poisson,
         bloom_length=bloom_length,
-        cosmic_ray_rate_per_sec=cosmic_ray_rate,
-        pixel_area_cm2=pixel_area_cm2,
+        cosmic_ray_events_per_pixel_per_sec=cosmic_ray_rate,
         dark_current_e_per_sec=dark_current,
         hot_pixel_fraction=hot_pixel_fraction,
         hot_pixel_amplitude_e=hot_pixel_amplitude,
@@ -481,6 +590,8 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
         vidicon=vidicon,
         calibration_scale_dn_per_s_per_if=calibration_scale,
         dark_dn=dark_dn,
+        calibrated_sky_if=float(catalog.get('calibrated_sky_if', DEFAULT_CALIBRATED_SKY_IF)),
+        marker_value=navigator_marker_value(inst_config),
         random_seed=int(params.get('random_seed', 42)),
         instrument_defaults=instrument_defaults,
         hot_pixel_adversarial=hot_pixel_adversarial,

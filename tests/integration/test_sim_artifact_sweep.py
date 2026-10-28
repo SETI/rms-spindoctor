@@ -30,7 +30,7 @@ _SWEEP_DIR = Path(__file__).parent / 'sim_scenes' / 'artifact_sweep'
 _SCENE_PATHS = [p for p in iter_scene_paths(_SWEEP_DIR.parent) if p.parent.name == 'artifact_sweep']
 _SCENE_IDS = [p.stem for p in _SCENE_PATHS]
 
-# The loss is survivable at this incidence, but a lost line that crosses a
+# The loss is survivable at this expected count, but a lost line that crosses a
 # feature moves the recovered offset a few tenths of a pixel, so the tolerance is
 # looser than the clean-frame invariant bound.
 _OFFSET_TOLERANCE_PX = 0.5

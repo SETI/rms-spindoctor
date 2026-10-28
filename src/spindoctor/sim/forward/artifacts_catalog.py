@@ -17,6 +17,7 @@ from spindoctor.sim.forward.artifact_modes import ARTIFACT_MODES, MODE_KEYS
 
 __all__ = [
     'ARTIFACT_MODES',
+    'DEFAULT_CALIBRATED_SKY_IF',
     'DETECTOR_DEFAULTS',
     'DISTORTION_RESIDUAL_PARAMS',
     'MODE_KEYS',
@@ -38,9 +39,9 @@ __all__ = [
 # ``instrument_defaults`` -- naming an instrument selects a signal chain, not a
 # set of transmission defects -- so they are planted only by scenes that
 # configure them explicitly.  Cosmic rays are different: radiation on the
-# detector is environment physics, so each instrument entry carries a
-# ``cosmic_ray_rate_per_sec`` that is either cohort-measured or an explicit
-# retained zero with its reason (see the per-entry comments).
+# detector is environment physics, so each CCD instrument entry carries a
+# ``cosmic_ray_events_per_pixel_per_sec`` that is either cohort-measured or an
+# explicit retained zero with its reason (see the per-entry comments).
 
 # Whole-scene PSF kernel parameters per instrument, all radii in detector
 # pixels.  Wing parameters (w, r0, n) are expressed as wing energy fractions
@@ -231,19 +232,21 @@ def resolve_sky_pixel_scale_arcsec(instrument: str | None) -> float:
 # sized from the 5.2-5.6 descriptions; per-scene overrides ride in the
 # truth-side noise block.  instrument_defaults also turns on Poisson shot
 # noise (a property of the electron chain itself, not a per-camera number)
-# and the entry's cosmic_ray_rate_per_sec; the missing-data loss modes are
-# artifact incidences and stay at zero.
+# and the entry's cosmic_ray_events_per_pixel_per_sec; the missing-data loss
+# modes are transmission artifacts and stay off.
 #
-# cosmic_ray_rate_per_sec is in events per pixel per second: the chain
-# multiplies it by exposure_sec, pixel_area_cm2 (default 1.0), and the pixel
-# count, so at the default unit pixel area the fluence reads per pixel.
+# cosmic_ray_events_per_pixel_per_sec is the expected number of events per
+# pixel per second of exposure: the chain multiplies it by exposure_sec and
+# the pixel count to get the frame's Poisson mean.  The CCD chain deposits
+# the events in electrons and the vidicon DN chain in DN, with the same
+# meaning.
 # The realism match's FOM 6 transient split (single-pixel spikes that do
 # NOT recur at fixed detector positions across the cohort) measures the
 # candidate rate per instrument.  Every current entry retains zero, each
 # with its measured rate, the specific reason adoption fails through this
 # chain (exposure-scaling / full-well-amplitude mismatch for Cassini,
 # double-counting against the tuned per-scene hot pixels for Galileo,
-# star-field contamination for LORRI, no vidicon stage for Voyager), and
+# star-field contamination for LORRI, GEOMED resampling for Voyager), and
 # the unblocking condition, recorded beside the value.
 #
 # The vidicon (Voyager) path skips the electron conversion; its noise is applied
@@ -279,7 +282,7 @@ DETECTOR_DEFAULTS: dict[str, dict[str, Any]] = {
         # But the measured incidence is exposure-INdependent -- mean
         # fraction ~2e-4 in every exposure band from <= 0.2 s to > 2 s,
         # and the 22 s frame measures 1.1e-4 where an exposure-scaling
-        # fluence fitted at the median frame predicts ~3e-3 -- while this
+        # rate fitted at the median frame predicts ~3e-3 -- while this
         # chain's cosmic-ray stage scales event counts with exposure_sec
         # and deposits near full well.  Adopting a fitted 1.5e-4
         # events/px/s (tried 2026-07-17) corrupted the matched frames'
@@ -288,7 +291,7 @@ DETECTOR_DEFAULTS: dict[str, dict[str, Any]] = {
         # fraction ~2x through the multi-pixel event morphology.
         # Unblocked by a per-readout (exposure-independent),
         # modest-amplitude transient term in the detector chain.
-        'cosmic_ray_rate_per_sec': 0.0,
+        'cosmic_ray_events_per_pixel_per_sec': 0.0,
         'banding_amplitude_e': 30.0,  # 5.2 interim (~30 e- NAC 2 Hz)
         'banding_period_px': 64.0,  # 5.2 interim (line-readout-rate period)
         'bias_pedestal_sigma_dn': 2.0,  # 5.2 interim (per-image pedestal jitter)
@@ -296,8 +299,8 @@ DETECTOR_DEFAULTS: dict[str, dict[str, Any]] = {
         'bias_col_gradient_dn': 0.5,  # 5.2 interim
         'bloom_length': 4,  # 5.2 interim (no antiblooming; column bleed above the well)
         'quantization': 'exact',
-        # Per-mode shape defaults (interim, 5.2).  incidence is never cataloged:
-        # a mode activates only when a scene sets it.  Shapes here are the values
+        # Per-mode shape defaults (interim, 5.2).  An activation key is never
+        # cataloged: a mode activates only when a scene sets it.  Shapes here are the values
         # a scene inherits when it names a mode without spelling every parameter.
         'artifact_modes': {
             # ~30 e- NAC 2 Hz horizontal banding, line-readout-rate period.
@@ -344,7 +347,7 @@ DETECTOR_DEFAULTS: dict[str, dict[str, Any]] = {
         # transient fraction comes entirely from the three star-bearing
         # frames while the one body frame measures zero.  Unblocked
         # together with the NAC's per-readout transient term.
-        'cosmic_ray_rate_per_sec': 0.0,
+        'cosmic_ray_events_per_pixel_per_sec': 0.0,
         'banding_amplitude_e': 6.0,  # 5.2 interim (~6 e- WAC 4 Hz)
         'banding_period_px': 64.0,
         'bias_pedestal_sigma_dn': 2.0,
@@ -405,7 +408,7 @@ DETECTOR_DEFAULTS: dict[str, dict[str, Any]] = {
         # the 1.2e-4 real.
         # Unblocked by a fixed-position per-detector hot-pixel map, which
         # would free the transient budget for a real radiation term.
-        'cosmic_ray_rate_per_sec': 0.0,
+        'cosmic_ray_events_per_pixel_per_sec': 0.0,
         'banding_amplitude_e': 65.0,  # 5.4 interim (~0.35 DN at gain 2 -> ~65 e-)
         'banding_period_px': 42.0,  # 5.4 (2400 Hz supply-noise comb every 42 px)
         'bias_pedestal_sigma_dn': 1.0,
@@ -427,7 +430,8 @@ DETECTOR_DEFAULTS: dict[str, dict[str, Any]] = {
             'dark_ramp': {'kind': 'exposure_shading', 'top_factor': 1.5, 'bottom_factor': 1.05},
             'bloom': {'bloom_length': 6},
             # Ganymede-distance regime: ~1e4 spikes/frame scale in the readout,
-            # amplitudes few DN steeply falling (near full well at the top).
+            # amplitudes few DN steeply falling (near full well at the top).  A scene
+            # plants the hits as a rate, with expected_events_per_sec.
             'radiation_transients': {'amplitude_e': 4.0e4},
             # 33-px photolithography stitch comb plus corner vignetting; the
             # 8-bit ADC contours worst at DN multiples of 8.
@@ -466,7 +470,7 @@ DETECTOR_DEFAULTS: dict[str, dict[str, Any]] = {
         # contamination, so the measured rate is not adoptable.  Unblocked
         # by any non-star LORRI frame entering the library; scenes can
         # still plant the radiation_transients mode explicitly.
-        'cosmic_ray_rate_per_sec': 0.0,
+        'cosmic_ray_events_per_pixel_per_sec': 0.0,
         'banding_amplitude_e': 17.0,  # 5.5 interim (~0.8 DN vertical banding)
         'banding_period_px': 128.0,  # 5.5 interim
         'bias_pedestal_sigma_dn': 1.0,
@@ -479,7 +483,7 @@ DETECTOR_DEFAULTS: dict[str, dict[str, Any]] = {
         # LORRI artifact, per 15.7): the detector resolver injects it at these
         # nominal scrub/transfer times when instrument_defaults is on and the
         # scene has not overridden it.  Every other mode stays off until a scene
-        # sets its incidence.
+        # sets its activation key.
         'artifact_modes': {
             # ~12 ms pre-exposure scrub, ~11 ms post-exposure transfer.
             'frame_transfer_smear': {'t_scrub_sec': 0.012, 't_transfer_sec': 0.011},
@@ -496,7 +500,8 @@ DETECTOR_DEFAULTS: dict[str, dict[str, Any]] = {
                 'jail_bar_dn': 0.5,
                 'dust_donut_count': 3,
             },
-            # ~16 hits per readout-dominated short exposure; mostly single px.
+            # ~16 hits per readout-dominated short exposure; mostly single px.  A
+            # scene plants the hits as a rate, with expected_events_per_sec.
             'radiation_transients': {'amplitude_e': 8.6e4},
         },
     },
@@ -507,12 +512,29 @@ DETECTOR_DEFAULTS: dict[str, dict[str, Any]] = {
         'exposure_ref_sec': 1.0,
         'bias_dn': 20.0,
         'quantization': '8bit',
-        # Cosmic rays RETAINED at zero 2026-07-17 (no key: the vidicon DN
-        # path carries no cosmic-ray stage, so a rate here would be inert).
-        # The realism match measured a 3.5e-5 transient spike fraction over
-        # the 3-frame GEOMED cohort -- GEOMED's reseau-anchored resampling
-        # interpolates most single-pixel transients away.  Unblocked by a
-        # DN-domain transient stage plus more Voyager frames.
+        # The calibrated sky residual in I/F, added after the calibration
+        # inverse (see DEFAULT_CALIBRATED_SKY_IF).  Real GEOMED sky sits above
+        # 0: inside the resample border of five archived frames (four VGISS_8210
+        # Voyager 2 star frames and one VGISS_5101 Voyager 1 dark frame) the
+        # sky's 1st percentile is positive, at most 0.03% of the pixels are
+        # exactly 0, and the sky level spans 6.6e-4 to 3.2e-2 I/F (median about
+        # 5e-3).  The vidicon's calibration scale is 127.5 DN per unit I/F
+        # (signal_full_scale_frac 0.5 of the 255 DN full scale), so this value
+        # is 1.5 DN: half a DN off the integer DN grid, so no digitized
+        # pixel lands on exactly 0, and one and a half steps up, so the
+        # instrument_defaults noise (0.40 DN rms from the three vidicon terms
+        # below) takes a -1.5 DN excursion (3.8 sigma, about 7e-5 of the pixels)
+        # to put a sky pixel below 0.  0.5 DN (3.9e-3 I/F, nearer the cohort
+        # median) would put about 10% of the noisy sky one step below 0.  The
+        # value sits inside the cohort's range, 2.3x its median.
+        'calibrated_sky_if': 1.5 / 127.5,
+        # Cosmic rays RETAINED at zero 2026-07-17.  The realism match
+        # measured a 3.5e-5 transient spike fraction over the 3-frame
+        # GEOMED cohort -- GEOMED's reseau-anchored resampling interpolates
+        # most single-pixel transients away, so the cohort cannot say how
+        # many hits the target took.  Unblocked by more Voyager frames
+        # (raw or CALIB, ahead of the resampling).
+        'cosmic_ray_events_per_pixel_per_sec': 0.0,
         'vidicon': {
             # TUNED 2026-07-17 by the realism match: the 3-frame GEOMED
             # cohort's paired-difference sky sigma is ~0.22 DN equivalent
@@ -571,7 +593,7 @@ DETECTOR_DEFAULTS: dict[str, dict[str, Any]] = {
         'hot_pixel_column_factor': 0.0,
         # The generic block is an ideal detector with no environment, so
         # there is no cosmic-ray flux to measure; explicitly zero.
-        'cosmic_ray_rate_per_sec': 0.0,
+        'cosmic_ray_events_per_pixel_per_sec': 0.0,
         'banding_amplitude_e': 0.0,
         'banding_period_px': 64.0,
         'bias_pedestal_sigma_dn': 0.0,
@@ -581,6 +603,20 @@ DETECTOR_DEFAULTS: dict[str, dict[str, Any]] = {
         'quantization': 'exact',
     },
 }
+
+# The calibrated sky residual (I/F) of every calibrated frame whose detector
+# entry doesn't set its own: the calibrated Cassini cameras, and any instrument
+# a scene pins to calibrated_if.  The calibration inverse adds it after
+# subtracting the bias and dark pedestals, so a noise-free (floor) calibrated
+# dark sky sits at this value instead of exactly 0 I/F, the missing-data marker
+# of every calibrated instrument.  MEASURED 2026-10-28 on 13 dark-sky Cassini
+# NAC CALIB frames (STAR targets with no missing lines, from COISS_2010, 2030,
+# 2050, and 2090): the per-frame sky median spans -5.8e-5 to 2.2e-4 I/F, median
+# 4.0e-5, against a median sky sigma of 1.9e-4 I/F, so the real sky scatters
+# around 0 (36-57% of it negative on the darkest frames) and no valid pixel is
+# exactly 0.  The two darkest WAC star frames measure 7.5e-5 and 7.8e-5, the
+# same order; the NAC value stands for both cameras.
+DEFAULT_CALIBRATED_SKY_IF = 4.0e-5
 
 # Calibrated Cassini products (CALIB, what the navigator's cassini_iss_calib
 # path consumes) run the same cameras through CISSCAL, whose bias/dark
@@ -642,10 +678,12 @@ def resolve_mode_with_catalog(
 
     The resolution precedence for a mode's shape parameters is scene value, then
     the instrument's catalog default block (``artifact_modes`` in
-    ``DETECTOR_DEFAULTS``), then the registry default.  ``incidence`` is never
-    read from the catalog: a mode activates only when a scene sets its incidence
-    (or, for the one physical-signal-chain member LORRI turns on, when the
-    detector resolver injects it under ``instrument_defaults``).
+    ``DETECTOR_DEFAULTS``), then the registry default.  A mode's activation key
+    (``expected_events``, ``expected_events_per_sec``, ``probability``, or
+    ``pixel_fraction``) and the fixed-count alternative ``count`` are never read
+    from the catalog: a mode activates only when a scene sets one (or, for the
+    one physical-signal-chain member LORRI turns on, when the detector resolver
+    injects it under ``instrument_defaults``).
 
     Parameters:
         mode_name: A registered artifact-mode name.
@@ -657,12 +695,14 @@ def resolve_mode_with_catalog(
     """
     catalog_modes = resolve_detector_defaults(instrument).get('artifact_modes') or {}
     catalog = catalog_modes.get(mode_name) or {}
+    mode = ARTIFACT_MODES[mode_name]
+    scene_only = {mode.activation, mode.count_alternative}
     resolved: dict[str, Any] = {}
-    for param in ARTIFACT_MODES[mode_name].params:
+    for param in mode.params:
         name = param.name
         if name in scene_cfg and scene_cfg[name] is not None:
             resolved[name] = scene_cfg[name]
-        elif name != 'incidence' and name in catalog:
+        elif name not in scene_only and name in catalog:
             resolved[name] = catalog[name]
         else:
             resolved[name] = param.default

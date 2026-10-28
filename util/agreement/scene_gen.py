@@ -175,9 +175,14 @@ def _ring_system(radial_deg: float, h: float, a: float, rng: random.Random) -> d
                 'name': 'SATURN-1',
                 'kind': 'ringlet',
                 'tau': math.exp(rng.uniform(math.log(0.8), math.log(2.5))),
-                'width': rng.uniform(8.0, 16.0),
+                'width_px': rng.uniform(8.0, 16.0),
                 'navigable': True,
-                'orbit': {'a': a, 'ae': 0.0, 'long_peri': 0.0, 'rate_peri': 0.0},
+                'orbit': {
+                    'a_px': a,
+                    'ae_px': 0.0,
+                    'long_peri_deg': 0.0,
+                    'rate_peri_deg_per_day': 0.0,
+                },
             }
         ],
     }

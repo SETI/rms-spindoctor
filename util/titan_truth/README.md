@@ -39,8 +39,8 @@ direction). The families differ only in what else is on the frame:
 | `clouds` | 1-4 Gaussian clouds on the disc |
 | `asymmetry` | tilted haze axis, hemispheric falloff and brightness differences, an interior ramp, a limb sharpness gradient |
 | `stars` | 3-12 stars, straddling the mask magnitude limit |
-| `artifacts` | cosmic rays and hot pixels at deliberate STRESS incidence |
-| `artifacts_nominal` | the same contamination class at the instrument's shipped, realism-matched incidence |
+| `artifacts` | cosmic rays and hot pixels at deliberate STRESS rates |
+| `artifacts_nominal` | the same contamination class at the instrument's shipped, realism-matched rates |
 | `combined` | all of the above together |
 
 `clean` is the family the published accuracy bound is stated on; the others
@@ -48,7 +48,7 @@ measure how far each broken assumption moves it. Everything the families add
 is a truth-side scene key, invisible to the navigator through `nav_params`.
 
 The two artifact families are a matched pair and must not be confused. The
-stress one draws hot-pixel incidence an order of magnitude wide and forces a
+stress one draws the hot-pixel fraction an order of magnitude wide and forces a
 nonzero cosmic-ray rate the realism recalibration deliberately retained at
 zero; it bounds the regime. `artifacts_nominal` overrides nothing and is the
 family an operational prediction reads from. `_artifact_blocks` states the
@@ -56,12 +56,25 @@ provenance of every stress range.
 
 The sun direction is drawn uniformly over the circle, and the body's in-plane
 roll follows it at `rotation_z = illumination_angle - 90`. That roll is what
-puts the hemispheric split the structure keys use ACROSS the sun axis, which
-is what makes `ns_asymmetry_amplitude` the affine control the design intends:
-the mirror about the sun axis has to map one hemisphere onto the other for a
-pure brightness scaling to be the invariance being tested. On the
-structureless spheres every family renders, an in-plane roll changes no
-rendered pixel, so carrying it costs the campaign no angular coverage.
+puts the line of the hemispheric split the structure keys use along the sun
+axis, which is what makes `ns_asymmetry_amplitude` the affine control the
+design intends: the mirror about the sun axis has to map one hemisphere onto
+the other for a pure brightness scaling to be the invariance being tested. The
+control is affine only poleward of the simulator's blend band, 10 degrees of
+latitude either side of the split. Inside the band the scaling fades
+continuously to half its value on the mirror line, where the two halves meet,
+so mirror pairs there differ by less than the full factor. No continuous blend
+can avoid that, and a switch would draw a seam. The band lies along the sun
+axis, over the sunward limb the technique scores on. Poleward of the band the
+control is a pure scaling only where the scaled half stays below saturation:
+the simulator clips the signal at 1, so a positive amplitude flattens the
+bright crescent. Over 26 of the 40 clean scenes that navigate both with and
+without
+it, an amplitude of +0.35 moves the recovered cross-track position by 0.063
+pixels on average with a switch at the equator and 0.065 pixels with the band,
+about four times what -0.35 costs with the band. On the structureless spheres
+every family renders, an in-plane roll changes no rendered pixel, so carrying
+it costs the campaign no angular coverage.
 
 ## What the report says
 

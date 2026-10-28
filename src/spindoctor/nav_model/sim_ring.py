@@ -185,7 +185,7 @@ def predict_ring_feature(
     r_edge = compute_orbit_radii(lam, orbit, epoch=epoch, time=time)
 
     if kind in ('ringlet', 'gap'):
-        width = float(feature.get('width', 0.0))
+        width = float(feature.get('width_px', 0.0))
         r_outer = compute_orbit_radii(lam, orbit.widened(width), epoch=epoch, time=time)
         inner_shade = compute_antialiasing_shade((r - r_edge) / radial_scale, 1.0)
         outer_shade = compute_antialiasing_shade((r_outer - r) / radial_scale, 1.0)
@@ -203,7 +203,7 @@ def predict_ring_feature(
     if kind == 'ramp':
         # Only the ramp's sharp end is a fittable boundary; the linear end
         # fades into the background with no gradient to fit.
-        width = float(feature.get('width', 0.0))
+        width = float(feature.get('width_px', 0.0))
         side = str(feature.get('side', 'out'))
         if side == 'out':
             r_sharp = compute_orbit_radii(lam, orbit.widened(width), epoch=epoch, time=time)

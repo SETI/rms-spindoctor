@@ -10,8 +10,8 @@ Cassini), not from the ADC clip.
 
 The Voyager vidicon skips the electron conversion and applies its noise directly
 in DN (line-correlated read noise plus a faint coherent component); its point
-sources (stars) are already DN and are added onto the converted signal before
-that DN noise.  A calibrated
+sources (stars) and its cosmic-ray hits are already DN and are added onto the
+converted signal before that DN noise.  A calibrated
 (I/F) scene renders through the full DN chain and then inverts the calibration
 transform, so calibrated products carry propagated shot/read noise and
 quantization texture in I/F units.
@@ -51,13 +51,17 @@ from spindoctor.sim.forward.detector.noise_stages import (
     add_hot_pixels,
     deposit_morphological_events,
 )
-from spindoctor.sim.forward.detector.params import DetectorParams, resolve_detector_params
+from spindoctor.sim.forward.detector.params import (
+    DetectorParams,
+    calibration_map,
+    resolve_detector_params,
+)
 from spindoctor.sim.forward.feature_loci import dilated_pixels, extract_feature_loci
 from spindoctor.sim.forward.stages import SimFrame
 from spindoctor.sim.seeds import derive_effect_seed
 from spindoctor.support.types import NDArrayFloatType, NDArrayIntType
 
-__all__ = ['apply_detector', 'apply_saturation', 'quantize_dn']
+__all__ = ['apply_detector', 'apply_saturation', 'keep_off_marker', 'quantize_dn']
 
 
 def _stage_rng(seed: int, effect: str) -> np.random.Generator:
@@ -285,9 +289,8 @@ def _apply_ccd(frame: SimFrame, dp: DetectorParams, rng: np.random.Generator) ->
     # reach the ADC ceiling and land on the orchestrator's masks.
     add_cosmic_rays(
         electrons,
-        rate_per_sec=dp.cosmic_ray_rate_per_sec,
+        events_per_pixel_per_sec=dp.cosmic_ray_events_per_pixel_per_sec,
         exposure_sec=dp.exposure_sec,
-        pixel_area_cm2=dp.pixel_area_cm2,
         amplitude_e=dp.full_well_e,
         rng=_stage_rng(dp.random_seed, 'cosmic_rays'),
     )
@@ -384,9 +387,13 @@ def _apply_dark_ramp(
 def _apply_bright_dark_pairs(
     electrons: NDArrayFloatType, cfg: dict[str, Any], frame: SimFrame, dp: DetectorParams
 ) -> dict[str, Any]:
-    """Apply the bright_dark_pairs mode with exposure scaling and placement pool."""
+    """Apply the bright_dark_pairs mode with exposure scaling and placement pool.
+
+    ``expected_events_per_sec`` is a rate per second of exposure, so the frame's
+    expected pair count is that rate times the exposure time.
+    """
     rng = _mode_seed(dp, 'bright_dark_pairs')
-    expected = float(cfg['incidence']) * dp.exposure_sec
+    expected = float(cfg['expected_events_per_sec']) * dp.exposure_sec
     count = int(rng.poisson(expected)) if expected > 0.0 else 0
     pool = _feature_pool(frame) if dp.artifacts_adversarial else None
     return add_bright_dark_pairs(
@@ -403,15 +410,21 @@ def _apply_radiation_transients(
 ) -> dict[str, Any]:
     """Apply radiation_transients: cosmic morphology in the Galileo-scaled regime.
 
-    The expected spike count scales the incidence by the environment factor and
-    by ``(exposure + readout dwell) / exposure`` -- the dwell adds transients
-    proportionally, the regime that forced Galileo's faster summation readout.
+    ``expected_events_per_sec`` is a hit rate per second the detector is
+    exposed to the environment, scaled by the environment factor.  The detector
+    collects hits during the exposure and during the readout dwell -- the dwell
+    adds transients in proportion to its length, the regime that forced
+    Galileo's faster summation readout -- so the expected spike count is
+    ``expected_events_per_sec * environment_factor * (exposure_sec +
+    readout_dwell_sec)``.  A non-positive exposure contributes zero time, so
+    such a frame collects only the dwell's hits (the scene validator refuses a
+    non-positive ``exposure_sec``, so only a direct caller can pass one).
     """
-    incidence = float(cfg['incidence'])
+    rate = float(cfg['expected_events_per_sec'])
     environment = float(cfg.get('environment_factor', 1.0))
     dwell = float(cfg.get('readout_dwell_sec', 0.0))
-    exposure = dp.exposure_sec if dp.exposure_sec > 0.0 else 1.0
-    expected = incidence * environment * (exposure + dwell) / exposure
+    exposure = max(dp.exposure_sec, 0.0)
+    expected = rate * environment * (exposure + dwell)
     amplitude = cfg.get('amplitude_e')
     amplitude_e = float(amplitude) if amplitude is not None else dp.full_well_e
     rng = _mode_seed(dp, 'radiation_transients')
@@ -433,6 +446,18 @@ def _apply_vidicon(frame: SimFrame, dp: DetectorParams, rng: np.random.Generator
     the 8-bit DN full scale and the noise is applied in DN: a line-correlated
     read-noise term (a per-line offset plus a within-line white component) and a
     faint vertical coherent periodic component, then 8-bit quantization.
+
+    Cosmic rays (``noise.cosmic_ray_events_per_pixel_per_sec``, with the CCD
+    chain's meaning: expected events per pixel per second of exposure) land on
+    the photoconductive target, which stores the image as charge until the
+    electron beam reads it.  A charged particle crossing the target discharges it
+    the way light does, so a hit joins the stored image: after the erase-cycle
+    residual (a ghost of the prior frame, which this frame's hits don't reach)
+    and before the readout, so the beam's read noise, coherent component, dark
+    ramp, banding, and bend all act on it.  Each hit deposits at least the DN full
+    scale (``full_well_dn``) and the target saturates there, so the core of a hit
+    holds exactly the full scale and digitizes at the ADC ceiling, as a CCD hit
+    does.
     """
     modes = dp.detector_modes
     records: dict[str, Any] = {}
@@ -455,6 +480,18 @@ def _apply_vidicon(frame: SimFrame, dp: DetectorParams, rng: np.random.Generator
             offset_v=int(offset[0]),
             offset_u=int(offset[1]),
         )
+    hits = np.zeros_like(dn)
+    add_cosmic_rays(
+        hits,
+        events_per_pixel_per_sec=dp.cosmic_ray_events_per_pixel_per_sec,
+        exposure_sec=dp.exposure_sec,
+        amplitude_e=dp.full_well_dn,
+        rng=_stage_rng(dp.random_seed, 'cosmic_rays'),
+    )
+    # The target holds at most its full-scale charge, so a hit saturates the
+    # pixels it lands on.
+    hit = hits > 0.0
+    dn[hit] = np.minimum(dn[hit] + hits[hit], dp.full_well_dn)
     vidicon = dp.vidicon
     line_sigma = float(vidicon.get('read_noise_line_dn', 0.0))
     pixel_sigma = float(vidicon.get('read_noise_pixel_dn', 0.0))
@@ -496,7 +533,9 @@ def _apply_vidicon(frame: SimFrame, dp: DetectorParams, rng: np.random.Generator
     # The brightness-dependent beam bend warps the formed image before digitizing.
     if 'beam_bend' in modes:
         records['beam_bend'] = apply_beam_bend(
-            dn, amplitude_px=float(modes['beam_bend'].get('amplitude_px') or 0.0)
+            dn,
+            amplitude_px=float(modes['beam_bend'].get('amplitude_px') or 0.0),
+            full_brightness_dn=dp.signal_full_scale_frac * dp.full_well_dn,
         )
     dn = dn + dp.bias_dn
     dn = quantize_dn(
@@ -512,19 +551,49 @@ def _apply_vidicon(frame: SimFrame, dp: DetectorParams, rng: np.random.Generator
         frame.truth.setdefault('artifacts', {}).update(records)
 
 
+def keep_off_marker(values: NDArrayFloatType, marker: float) -> None:
+    """Move every value exactly on a numeric marker to the next float above it.
+
+    A calibrated frame's values come from whole DN through an affine map, so
+    they fall on a lattice that can cross the marker exactly; a real calibrated
+    product is continuous and never carries the marker on a valid pixel.  A NaN
+    marker never equals a value, so it leaves ``values`` unchanged.
+
+    Parameters:
+        values: The calibrated values, modified in place.
+        marker: The frame's missing-data marker, possibly NaN.
+    """
+    if np.isnan(marker):
+        return
+    values[values == marker] = np.nextafter(marker, np.inf)
+
+
 def _apply_calibration_inverse(frame: SimFrame, dp: DetectorParams) -> None:
     """Invert the calibration transform: DN to I/F, bias and dark subtracted first.
 
     Matches the real pipeline: the bias pedestal and dark pedestal are subtracted
     before the exposure divide, so a calibrated frame carries no spurious 1/
     exposure pedestal.  The calibration scale is derived so a noise-free signal
-    of 1.0 at the reference exposure round-trips to I/F 1.0.
+    of 1.0 at the reference exposure round-trips to I/F 1.0.  The calibrated sky
+    residual (``calibrated_sky_if``) is then added to every pixel.  A real
+    calibrated product's dark sky keeps a residual level, and the residual keeps
+    the simulated dark sky off the missing-data marker, which is 0 on every
+    calibrated instrument: without it a noise-free dark sky would land on exactly
+    0 I/F, and the navigator would count it as missing data.
+
+    A pixel that still lands exactly on a numeric marker moves to the next float
+    above it, so no pixel the detector delivers reads as missing data.  The
+    digitized DN are integers, so the calibrated values fall on a lattice, and
+    for some exposures the subtracted dark pedestal puts a lattice point on the
+    marker; a real calibrated product is continuous (its flat field and per-pixel
+    dark model see to that) and never carries an exact 0 for a valid pixel.
     """
-    exposure = dp.exposure_sec if dp.exposure_sec > 0.0 else 1.0
-    denom = dp.calibration_scale_dn_per_s_per_if * exposure
-    if denom <= 0.0:
+    calibration = calibration_map(dp)
+    if calibration is None:
         return
-    frame.signal[:] = (frame.signal - dp.bias_dn - dp.dark_dn) / denom
+    calibrated = calibration.to_if(frame.signal)
+    keep_off_marker(calibrated, dp.marker_value)
+    frame.signal[:] = calibrated
 
 
 def apply_detector(

@@ -23,6 +23,7 @@ float array in [0, 1], lit by the same Lambertian convention so a mesh body and
 an ellipsoid body can be compared directly (the B7 shape-mismatch fixture).
 """
 
+import math
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any
@@ -30,8 +31,13 @@ from typing import Any
 import numpy as np
 
 from spindoctor.sim.ellipsoid_geometry import DARK_SIDE_ILLUM_STRENGTH
+from spindoctor.sim.spherical_harmonics import (
+    degree_mean_square,
+    draw_sh_coefficients,
+    evaluate_at_directions,
+)
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
-from spindoctor.support.types import NDArrayFloatType, NDArrayIntType
+from spindoctor.support.types import NDArrayComplexType, NDArrayFloatType, NDArrayIntType
 
 # Lambertian floor for the visible-but-unlit side, shared with the ellipsoid
 # shading convention in spindoctor.sim.ellipsoid_geometry so the two paths
@@ -87,89 +93,137 @@ def _orient_faces_outward(vertices: NDArrayFloatType, faces: NDArrayIntType) -> 
     return oriented
 
 
+# The irregular shape's relief: a random sum of real spherical harmonics of
+# degrees 2 to 5 (index = degree).  Degrees 0 and 1 are zero by construction:
+# degree 0 would only resize the body and degree 1 would only move it, and
+# neither is irregularity.  The per-degree RMS shares match those of the
+# (latitude, longitude) Fourier relief this replaced, measured over 100 seeds
+# (#626), so the body keeps its balance of elongation (degree 2) and lopsided
+# lumps (degrees 3 to 5).
+_BASE_DEGREE_RMS = np.array([0.0, 0.0, 0.082, 0.092, 0.072, 0.040])
+# Lowest degree that counts as non-ellipsoidal: degree 2 is an ellipsoid-like
+# distortion, degrees 3 and up are what a best-fit ellipsoid leaves behind.
+_NON_ELLIPSOIDAL_DEGREE = 3
+# The relief's non-ellipsoidal (degree >= 3) RMS per unit lumpiness, as a
+# fraction of the unit radius: 1/8, the median of the Fourier relief it
+# replaced, so a scene's lumpiness keeps its irregularity (#626).
+LUMPINESS_RMS_PER_UNIT = 0.125
+# Radius floor, so an extreme lumpiness cannot fold the mesh through its center.
+_MIN_RADIUS = 0.2
+
+
+def _octave_degrees(octave: int) -> tuple[int, int]:
+    """The inclusive harmonic-degree band of detail octave ``octave`` (>= 1)."""
+    top = _BASE_DEGREE_RMS.size - 1
+    return top * 2 ** (octave - 1) + 1, top * 2**octave
+
+
+def _relief_coefficients(seed: int, detail_octaves: int) -> NDArrayComplexType:
+    """Draw the relief's harmonic coefficients for one mesh seed.
+
+    The base degrees are drawn with :data:`_BASE_DEGREE_RMS` as their expected
+    per-degree RMS, then the whole draw is scaled so its degree >= 3 RMS is
+    exactly :data:`LUMPINESS_RMS_PER_UNIT`.  Each detail octave is drawn with
+    equal expected power in every degree of its band and scaled to an RMS of
+    ``0.5**k`` times the base's degree >= 3 RMS.  Octaves draw from the
+    generator after the base, so adding octaves never changes the base shape.
+
+    Parameters:
+        seed: The mesh seed.
+        detail_octaves: Number of detail octaves (0 = base only).
+
+    Returns:
+        The complex coefficient array of :mod:`spindoctor.sim.spherical_harmonics`,
+        sized for the highest degree drawn.
+    """
+    rng = np.random.default_rng(seed)
+    base_sigma = _BASE_DEGREE_RMS * np.sqrt(
+        4.0 * np.pi / (2.0 * np.arange(_BASE_DEGREE_RMS.size) + 1.0)
+    )
+    base = draw_sh_coefficients(rng, base_sigma)
+    base_ge3 = math.sqrt(float(degree_mean_square(base)[_NON_ELLIPSOIDAL_DEGREE:].sum()))
+    banks = [base * (LUMPINESS_RMS_PER_UNIT / base_ge3)]
+    for octave in range(1, max(int(detail_octaves), 0) + 1):
+        low, high = _octave_degrees(octave)
+        degrees = np.arange(high + 1)
+        sigma = np.where(degrees >= low, np.sqrt(4.0 * np.pi / (2.0 * degrees + 1.0)), 0.0)
+        bank = draw_sh_coefficients(rng, sigma)
+        rms = math.sqrt(float(degree_mean_square(bank).sum()))
+        banks.append(bank * (0.5**octave * LUMPINESS_RMS_PER_UNIT / rms))
+    size = banks[-1].shape[0]
+    coeffs = np.zeros((size, size), dtype=np.complex128)
+    for bank in banks:
+        coeffs[: bank.shape[0], : bank.shape[0]] += bank
+    return coeffs
+
+
 def make_irregular_mesh(
     *,
     n_lat: int = 16,
     n_lon: int = 32,
     lumpiness: float = 0.3,
-    n_modes: int = 6,
     seed: int = 0,
     detail_octaves: int = 0,
 ) -> Mesh:
-    """Build a lumpy unit-radius mesh (a UV sphere with low-frequency relief).
+    """Build a lumpy unit-radius mesh (a UV sphere with low-degree relief).
 
-    The radius is modulated by a few random low-frequency angular modes, so the
-    body is smoothly irregular rather than spiky.  The same seed always yields
-    the same mesh.
+    The vertex radius is ``1 + lumpiness * h(u)``, floored at 0.2, where ``u`` is
+    the vertex's unit direction and ``h`` is a random sum of real spherical
+    harmonics of degrees 2 to 5.  Because ``h`` is a function on the sphere, the
+    relief is smooth everywhere, poles included, and independent of the mesh's
+    own (latitude, longitude) parametrization: refining ``n_lat`` / ``n_lon``
+    samples the same surface more finely.  ``h`` has no degree 0 or 1 content,
+    so the relief neither resizes the body (its mean radius stays 1) nor moves
+    it (its first-order center shift is zero).  Each seed's draw is scaled so
+    the non-ellipsoidal part (degrees 3 and up) has an RMS of exactly
+    ``lumpiness / 8`` of the radius; the degree 2 part, an ellipsoid-like
+    elongation, varies with the seed around two thirds of that.  The same seed
+    always yields the same mesh, and ``lumpiness`` 0 gives the unit sphere.
 
-    ``detail_octaves`` adds banks of higher-frequency modes with geometric
-    amplitude falloff: octave ``k`` draws ``n_modes`` fresh modes with angular
-    wavenumbers in ``[3 * 2**(k-1) + 1, 3 * 2**k]`` (the base modes occupy
-    1..3) at amplitude ``0.5**k`` relative to the base bank.  Octave draws
+    ``detail_octaves`` adds bands of higher degrees with geometric amplitude
+    falloff: octave ``k`` covers degrees ``5 * 2**(k-1) + 1`` to ``5 * 2**k``
+    at an RMS of ``0.5**k`` times the base's non-ellipsoidal RMS.  Octave draws
     consume the generator after the base draws, so ``detail_octaves = 0``
-    reproduces the base mesh bit-exactly and raising the count never changes
-    the base shape.  The mesh resolution must support the frequency content:
-    ``n_lat`` / ``n_lon`` should exceed roughly four samples per top-octave
-    cycle (``12 * 2**detail_octaves``) or the extra modes alias.
+    reproduces the base mesh and raising the count never changes the base
+    shape.  The mesh resolution must support the frequency content: ``n_lon``
+    should exceed roughly four samples per cycle of the top degree
+    (``20 * 2**detail_octaves``), and ``n_lat`` half that, or the extra
+    degrees alias.
 
     Parameters:
         n_lat: Number of latitude bands (>= 2).
         n_lon: Number of longitude divisions (>= 3).
-        lumpiness: Relief amplitude as a fraction of the unit radius.
-        n_modes: Number of random angular modes per bank.
-        seed: Seed for the relief modes.
-        detail_octaves: Number of higher-frequency mode banks (0 = base only).
+        lumpiness: Relief amplitude; the non-ellipsoidal RMS is ``lumpiness / 8``
+            of the unit radius.
+        seed: Seed selecting the relief.
+        detail_octaves: Number of higher-degree detail bands (0 = base only).
 
     Returns:
         An outward-wound :class:`Mesh`.
     """
-    rng = np.random.default_rng(seed)
-    banks: list[tuple[NDArrayFloatType, NDArrayIntType, NDArrayIntType, NDArrayFloatType, float]]
-    banks = []
-    amps = rng.uniform(-1.0, 1.0, size=n_modes)
-    m_lat = rng.integers(1, 4, size=n_modes)
-    m_lon = rng.integers(1, 4, size=n_modes)
-    phases = rng.uniform(0.0, 2.0 * np.pi, size=n_modes)
-    banks.append((amps, m_lat, m_lon, phases, 1.0))
-    for octave in range(1, max(int(detail_octaves), 0) + 1):
-        octave_amps = rng.uniform(-1.0, 1.0, size=n_modes)
-        low = 3 * 2 ** (octave - 1) + 1
-        high = 3 * 2**octave + 1
-        octave_m_lat = rng.integers(low, high, size=n_modes)
-        octave_m_lon = rng.integers(low, high, size=n_modes)
-        octave_phases = rng.uniform(0.0, 2.0 * np.pi, size=n_modes)
-        banks.append((octave_amps, octave_m_lat, octave_m_lon, octave_phases, 0.5**octave))
-
-    def radius(theta: float, phi: float) -> float:
-        relief = 0.0
-        for bank_amps, bank_m_lat, bank_m_lon, bank_phases, falloff in banks:
-            relief += falloff * sum(
-                bank_amps[k] * np.cos(bank_m_lat[k] * theta + bank_m_lon[k] * phi + bank_phases[k])
-                for k in range(n_modes)
-            )
-        # relief spans about [-n_modes, n_modes]; normalize so lumpiness is the
-        # fractional relief amplitude.
-        return float(max(1.0 + lumpiness * relief / max(n_modes, 1), 0.2))
-
-    verts: list[tuple[float, float, float]] = []
-    ring_lats = [np.pi * i / n_lat for i in range(1, n_lat)]
-    for theta in ring_lats:
-        for j in range(n_lon):
-            phi = 2.0 * np.pi * j / n_lon
-            r = radius(theta, phi)
-            verts.append(
-                (
-                    r * np.sin(theta) * np.cos(phi),
-                    r * np.sin(theta) * np.sin(phi),
-                    r * np.cos(theta),
-                )
-            )
-    north_idx = len(verts)
-    rn = radius(0.0, 0.0)
-    verts.append((0.0, 0.0, rn))
-    south_idx = len(verts)
-    rs = radius(np.pi, 0.0)
-    verts.append((0.0, 0.0, -rs))
+    # Unit directions of the ring vertices (row-major by ring, then longitude),
+    # then the north and south poles.  The relief is evaluated on these
+    # directions rather than on (theta, phi): a Fourier mode in the mesh's own
+    # angles takes every value around a pole as it approaches it, which pinches
+    # the poles into pits or spikes that refining the mesh only sharpens (#626).
+    theta = np.pi * np.arange(1, n_lat) / n_lat
+    phi = 2.0 * np.pi * np.arange(n_lon) / n_lon
+    theta_grid, phi_grid = np.meshgrid(theta, phi, indexing='ij')
+    ring_dirs = np.stack(
+        [
+            np.sin(theta_grid) * np.cos(phi_grid),
+            np.sin(theta_grid) * np.sin(phi_grid),
+            np.cos(theta_grid),
+        ],
+        axis=-1,
+    ).reshape(-1, 3)
+    poles = np.array([[0.0, 0.0, 1.0], [0.0, 0.0, -1.0]])
+    unit_dirs = np.concatenate([ring_dirs, poles])
+    relief = evaluate_at_directions(_relief_coefficients(seed, detail_octaves), unit_dirs)
+    radius = np.maximum(1.0 + lumpiness * relief, _MIN_RADIUS)
+    vertices = _as_float64(unit_dirs * radius[:, None])
+    north_idx = len(ring_dirs)
+    south_idx = north_idx + 1
 
     faces: list[tuple[int, int, int]] = []
 
@@ -188,7 +242,6 @@ def make_irregular_mesh(
         faces.append((north_idx, ring_vertex(0, col), ring_vertex(0, col + 1)))
         faces.append((south_idx, ring_vertex(n_lat - 2, col + 1), ring_vertex(n_lat - 2, col)))
 
-    vertices = np.array(verts, dtype=np.float64)
     face_arr = np.array(faces, dtype=np.int64)
     return Mesh(vertices=vertices, faces=_orient_faces_outward(vertices, face_arr))
 
@@ -354,13 +407,14 @@ class MeshBodySpec:
     two deliberately different specs).
 
     Parameters:
-        lumpiness: Surface-relief amplitude as a fraction of the unit radius.
+        lumpiness: Surface-relief amplitude; the non-ellipsoidal relief has an
+            RMS of ``lumpiness / 8`` of the unit radius.
         n_lat: Mesh latitude bands.
         n_lon: Mesh longitude divisions.
         seed: Seed selecting which irregular shape is generated.
         pose_euler_deg: Body orientation as intrinsic X, Y, Z Euler angles, deg.
-        detail_octaves: Higher-frequency mode banks added to the base relief
-            (see :func:`make_irregular_mesh`); part of the published shape.
+        detail_octaves: Bands of higher harmonic degrees added to the base
+            relief (see :func:`make_irregular_mesh`); part of the published shape.
     """
 
     lumpiness: float = 0.3
