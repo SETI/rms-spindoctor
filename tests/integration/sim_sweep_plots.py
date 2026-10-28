@@ -18,7 +18,10 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
+from spindoctor.sim.scene import load_sim_scene
+
 _RESULTS_ROOT = Path(__file__).parent / 'sim_sweeps' / 'results'
+_SCENES_ROOT = Path(__file__).parent / 'sim_scenes'
 _FIGURES_ROOT = Path(__file__).parent.parent.parent / 'docs' / 'simulator_report' / '_figures'
 
 # Technique -> (fine sweep, wide sweep, marker, label) for the offset figures.
@@ -38,6 +41,13 @@ def _load(name: str) -> list[dict[str, Any]]:
     if not path.is_file():
         return []
     return list(json.loads(path.read_text())['rows'])
+
+
+def _base_mesh_seed(name: str) -> int:
+    """Return the first body's ``mesh_seed`` in a sweep result's base scene."""
+    base = json.loads((_RESULTS_ROOT / f'{name}.json').read_text())['base_scene']
+    scene = load_sim_scene(_SCENES_ROOT / base)
+    return int(scene['bodies'][0]['mesh_seed'])
 
 
 def _xy(rows: list[dict[str, Any]], key: str) -> tuple[list[float], list[float]]:
@@ -118,10 +128,11 @@ def _mesh_irregularity_figure() -> None:
     """Plot the shape-mismatch centroid bias and confidence vs mesh relief.
 
     The navigator predicts the smooth (zero-relief) limit of the rendered mesh,
-    so each step widens a pure shape mismatch.  The recovered-offset error -- the
-    centroid bias the ellipsoidal model cannot remove -- grows with the rendered
-    relief while the fused confidence falls, the regime the
-    ``phase_irregularity_factor`` term is meant to capture.
+    so each step widens a pure shape mismatch, the regime the
+    ``phase_irregularity_factor`` term is meant to capture.  The sweep walks one
+    mesh realization (the base scene's ``mesh_seed``), so the curves are that
+    shape's recovered-offset error and fused confidence; the title names the
+    seed.
     """
     rows = _load('irregularity_shape_mismatch')
     xs, errs = _xy(rows, 'offset_error_px')
@@ -131,7 +142,7 @@ def _mesh_irregularity_figure() -> None:
     conf_y = [r['confidence'] for r in rows if r.get('confidence') is not None]
     fig, ax = plt.subplots(figsize=(7.5, 4.8))
     ax.plot(xs, errs, marker='o', ms=5, lw=1.3, color='tab:red', label='offset error')
-    ax.set_xlabel('rendered mesh lumpiness (relief fraction)')
+    ax.set_xlabel('rendered mesh lumpiness L (non-ellipsoidal RMS = L / 8 of the radius)')
     ax.set_ylabel('recovered-offset error (px)', color='tab:red')
     ax.tick_params(axis='y', labelcolor='tab:red')
     ax.grid(True, ls=':', alpha=0.5)
@@ -140,7 +151,8 @@ def _mesh_irregularity_figure() -> None:
         ax2.plot(conf_x, conf_y, marker='s', ms=5, lw=1.3, color='tab:blue', label='confidence')
         ax2.set_ylabel('fused confidence', color='tab:blue')
         ax2.tick_params(axis='y', labelcolor='tab:blue')
-    ax.set_title('Shape mismatch: centroid bias and confidence vs mesh relief')
+    seed = _base_mesh_seed('irregularity_shape_mismatch')
+    ax.set_title(f'Shape mismatch (one realization, mesh_seed {seed}): bias and confidence')
     fig.tight_layout()
     fig.savefig(_FIGURES_ROOT / 'mesh_irregularity.png', dpi=110)
     plt.close(fig)
@@ -158,18 +170,15 @@ def _mesh_pose_figure() -> None:
     if not rows:
         return
     true_pose = rows[0]['value']
-    solved = [
-        (r['value'] - true_pose, r['offset_error_px'])
-        for r in rows
-        if r.get('offset_error_px') is not None
-    ]
     failed = [r['value'] - true_pose for r in rows if r.get('offset_error_px') is None]
-    if not solved:
+    if len(failed) == len(rows):
         return
+    # A failed step is a NaN, which breaks the line there: no segment is drawn
+    # through a pose at which the limb returned no fix.
+    xs = [r['value'] - true_pose for r in rows]
+    ys = [float('nan') if r.get('offset_error_px') is None else r['offset_error_px'] for r in rows]
     fig, ax = plt.subplots(figsize=(7.5, 4.8))
-    ax.plot(
-        *zip(*solved, strict=True), marker='^', ms=6, lw=1.3, color='tab:green', label='limb solved'
-    )
+    ax.plot(xs, ys, marker='^', ms=6, lw=1.3, color='tab:green', label='limb solved')
     for x in failed:
         ax.axvline(x, color='tab:gray', ls='--', alpha=0.6)
     if failed:

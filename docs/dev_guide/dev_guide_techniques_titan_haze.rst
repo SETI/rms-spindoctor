@@ -214,7 +214,15 @@ Restrictions and assumptions
   and a symmetry axis tilted off the SPICE sun direction all violate it. The annulus
   restriction, the Pearson score's affine invariance, and the Tukey weighting are the designed
   mitigations, and the simulator's haze-structure keys (see :ref:`sim-atmosphere`) exist to
-  attack each of them separately.
+  attack each of them. The keys do not isolate the affine case completely: the hemispheric
+  brightness key is a pure scaling of one half only poleward of a band 10 degrees either side
+  of the hemispheric split, because a continuous blend has to match the two halves on the
+  mirror line. Where a scene puts that split along the sun axis, the band covers the sunward
+  limb this technique scores on, so a measured sensitivity to that key includes a small
+  non-affine part. Poleward of the band the key is a pure scaling only where the scaled half
+  stays below saturation: the simulator clips the signal at 1, so a positive amplitude
+  flattens the bright crescent, and that clip costs more than the band does (see
+  :ref:`sim-atmosphere`).
 - **The sunward limb arc is circular.** A real haze limb is not exactly a circle, which is why
   the inlier residual RMS is gated and why the reported covariance carries a model-error floor
   the statistical fit cannot see.

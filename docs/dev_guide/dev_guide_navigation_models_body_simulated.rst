@@ -171,8 +171,9 @@ irregular-body scenarios exercise:
 - **Pose disagreement** -- render the mesh at the true pose, predict the same
   mesh at a different ``pose_euler_deg``. The wrong-pose silhouette boundary
   drives the limb distance-transform fit to a confidently-wrong offset, while the
-  lit-weighted blob centroid -- which a centrally-symmetric (low-relief triaxial)
-  body keeps near the body center under rotation -- stays accurate.
+  lit-weighted blob centroid stays accurate. A low-relief mesh is close to its
+  triaxial ellipsoid, which is centrally symmetric, so its centroid stays near
+  the body center under rotation.
 
 The override never changes the center, so the predicted body stays at the
 unshifted position the planted offset is measured from.

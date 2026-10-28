@@ -81,7 +81,9 @@ def test_read_noise_dn_override_converts_through_gain() -> None:
 
 def test_cosmic_rays_reach_the_adc_ceiling() -> None:
     """A nonzero cosmic-ray rate plants events that clip at the ADC ceiling."""
-    dn = _run_detector(0.1, size=100, noise={'poisson': False, 'cosmic_ray_rate_per_sec': 0.01})
+    dn = _run_detector(
+        0.1, size=100, noise={'poisson': False, 'cosmic_ray_events_per_pixel_per_sec': 0.01}
+    )
     assert int((dn >= 4095.0).sum()) >= 1
 
 
@@ -279,9 +281,8 @@ def test_cosmic_rays_deposit_events() -> None:
     electrons = np.zeros((100, 100), dtype=np.float64)
     add_cosmic_rays(
         electrons,
-        rate_per_sec=0.01,
+        events_per_pixel_per_sec=0.01,
         exposure_sec=1.0,
-        pixel_area_cm2=1.0,
         amplitude_e=1.0e5,
         rng=np.random.default_rng(9),
     )
@@ -293,9 +294,8 @@ def test_cosmic_rays_disabled_at_zero_rate() -> None:
     electrons = np.zeros((100, 100), dtype=np.float64)
     add_cosmic_rays(
         electrons,
-        rate_per_sec=0.0,
+        events_per_pixel_per_sec=0.0,
         exposure_sec=1.0,
-        pixel_area_cm2=1.0,
         amplitude_e=1.0e5,
         rng=np.random.default_rng(9),
     )

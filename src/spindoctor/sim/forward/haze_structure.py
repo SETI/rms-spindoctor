@@ -20,7 +20,9 @@ through ``nav_params``:
   around the limb, which walks the detected limb ridge radially as a
   function of ray angle -- the sector-asymmetric edge-localization bias;
 - ``ns_asymmetry_amplitude`` scales one hemisphere's brightness, the affine
-  counterpart the Pearson score is supposed to absorb;
+  counterpart the Pearson score is supposed to absorb -- affine only poleward
+  of the equatorial blend band described below, and only where the scaled
+  half stays below saturation;
 - ``interior_ramp_amplitude`` adds a linear brightness ramp along the haze
   axis inside the disc, the seasonal north-south gradient;
 - ``cloud_blobs`` add Gaussian clouds on the disc.
@@ -41,6 +43,36 @@ mirror maps onto itself orients its illumination perpendicular to that axis
 scenes do).  Azimuth ``phi`` is measured in the image plane about the disc
 center and compared against the haze illumination direction, so the
 sharpness gradient is symmetric about the sunward axis.
+
+The two hemispheric terms do not switch at the equator.  Each is weighted by
+:func:`hemisphere_weight`, which rises smoothly from 0 to 1 across a band
+:data:`HEMISPHERE_BLEND_HALF_WIDTH_DEG` either side of it, keyed on the
+latitude of the haze column a pixel sees (:func:`latitude_sine`).  Poleward
+of that band each term applies at exactly its stated value, so
+``ns_asymmetry_amplitude`` and ``ns_falloff_ratio`` keep their documented
+meaning there; inside it the haze changes continuously, as a real haze does,
+where a switch would draw a seam across the halo along one image row.
+
+The blend costs ``ns_asymmetry_amplitude`` its affine character inside the
+band, and no continuous blend can avoid that.  The mirror maps latitude
+``s`` onto ``-s``, so a pure scaling of one half needs the brightness ratio
+of each mirror pair to be the same ``1 + amplitude`` everywhere.  On the
+mirror line itself the two members of the pair are the same point, so a
+continuous term gives them the same multiplier and their ratio is 1 there;
+it climbs to ``1 + amplitude`` only at the band edge.  Only a switch keeps
+the ratio constant, and a switch is the seam.  Where a scene puts the
+hemispheric split along the sun axis, the band covers the sunward limb a
+haze navigator scores on.
+
+Poleward of the band the amplitude is a pure scaling only where the scaled
+half stays below saturation.  The renderer clips the signal at 1, so a
+positive amplitude flattens the bright crescent wherever the base brightness
+times ``1 + ns_asymmetry_amplitude`` would pass 1.  Over 26 of the 40 clean
+Titan truth scenes that navigate both with and without an amplitude of +0.35, the
+amplitude shifts the recovered cross-track position by 0.063 pixels on
+average with a switch at the equator and 0.065 pixels with a 10 degree band,
+about four times what -0.35 costs with the band.  A switch carries nearly
+all of that cost too, so the clip sets it and the band does not.
 """
 
 import math
@@ -54,12 +86,15 @@ from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 __all__ = [
     'CLOUD_BLOB_KEYS',
     'HAZE_STRUCTURE_KEYS',
+    'HEMISPHERE_BLEND_HALF_WIDTH_DEG',
     'SECTOR_REFERENCE_HALF_ANGLE_DEG',
     'CloudBlob',
     'HazeStructure',
     'apply_disc_structure',
     'apply_hemispheric_scaling',
     'haze_structure_from_params',
+    'hemisphere_weight',
+    'latitude_sine',
     'scale_height_field',
     'tilted_illumination_2d',
 ]
@@ -74,6 +109,35 @@ a gradient of 1.0 doubles the falloff length there.  A fixed sim-side
 reference, deliberately not read from the navigator's sector configuration:
 the rendered scene is nature, and it must not move when a navigation
 threshold is retuned.
+"""
+
+
+HEMISPHERE_BLEND_HALF_WIDTH_DEG: float = 10.0
+"""Latitude either side of the equator over which the hemispheric terms blend.
+
+``ns_asymmetry_amplitude`` and ``ns_falloff_ratio`` apply in full poleward of
+this latitude in the positive-``v_rot`` hemisphere and not at all poleward of
+it in the other, rising smoothly in between (see :func:`hemisphere_weight`).
+
+A fixed sim-side modeling choice, set by what the band costs.  Inside it
+``ns_asymmetry_amplitude`` stops being a pure scaling of one half (see the
+module docstring), and that cost grows with the width.  Over the 27 of 40
+clean Titan truth scenes (hemispheric split on the sun axis) that navigate
+both with and without an amplitude of -0.35, the amplitude shifts the
+recovered cross-track position by 0.004 pixels on average with a switch,
+0.016 pixels (largest 0.086) with a 10 degree band, and 0.031 pixels
+(largest 0.176) with a 20 degree band.  The band must still be wide enough
+to remove the seam.  At 10 degrees the brightness change across the
+equator row of a 64 pixel radius haze is about the same as across the rows
+beside it, a ratio of 0.95 to 1.03 where a switch gives 3 to 26; at 5
+degrees the ratio for the brightness term rises to 1.24.  The band's pixel
+width scales with the body, ``sin(10 deg)``, about 0.17, times the radius
+each side of the equator: 10 pixels at a radius of 55, and 87 at a radius
+of 500.
+
+The band is not small.  For a sphere seen with its axis in the image plane
+it covers 22% of the projected disc and 11% of the limb, together with the
+halo above that part of the limb.
 """
 
 
@@ -160,9 +224,11 @@ class HazeStructure:
             subtracted at the anti-sunward one, in the [0, 1] signal plane.
         ns_asymmetry_amplitude: Fractional brightness scaling applied to the
             positive-``v_rot`` hemisphere (an affine difference between the
-            two halves).
+            two halves poleward of the equatorial blend band, where the
+            scaled half stays below saturation).
         ns_falloff_ratio: Multiplier on the haze falloff length over that
-            same hemisphere (a non-affine difference).
+            same hemisphere (a non-affine difference), blended across the
+            equator the same way.
         axis_tilt_deg: Rotation of the haze's illumination axis away from
             the body's geometric sun direction, in degrees.
         sector_sharpness_gradient: Fractional change in falloff length at
@@ -177,6 +243,11 @@ class HazeStructure:
     axis_tilt_deg: float = 0.0
     sector_sharpness_gradient: float = 0.0
     cloud_blobs: tuple[CloudBlob, ...] = ()
+
+    @property
+    def splits_hemispheres(self) -> bool:
+        """Whether either hemispheric term differs from its identity value."""
+        return self.ns_asymmetry_amplitude != 0.0 or self.ns_falloff_ratio != 1.0
 
     @property
     def scales_falloff(self) -> bool:
@@ -260,11 +331,60 @@ def haze_structure_from_params(
     )
 
 
+def latitude_sine(
+    v_rot: NDArrayFloatType, e2: NDArrayFloatType, *, semi_a: float
+) -> NDArrayFloatType:
+    """Return the sine of the latitude of the haze column each pixel sees.
+
+    On the disc that is the pixel's own normalized first-axis coordinate,
+    ``v_rot / semi_a``.  Above the limb the line of sight grazes the column
+    standing over the limb point at the pixel's azimuth, whose coordinate is
+    ``v_rot / (semi_a * sqrt(e2))``.  The two expressions agree on the limb
+    (``e2`` = 1), so the coordinate is continuous across the silhouette, and
+    for a sphere seen with its axis in the image plane it is exactly the
+    sine of latitude.  It lies in [-1, 1].
+
+    Parameters:
+        v_rot: Body-frame first-axis coordinate of each pixel, in grid pixels.
+        e2: Squared normalized ellipse radius of each pixel (1 on the limb).
+        semi_a: The first semi-axis in grid pixels, the one ``v_rot`` is
+            measured along.
+
+    Returns:
+        The sine of latitude, shaped like ``v_rot`` broadcast with ``e2``.
+    """
+    sin_lat: NDArrayFloatType = v_rot / (semi_a * np.sqrt(np.maximum(e2, 1.0)))
+    return sin_lat
+
+
+def hemisphere_weight(sin_latitude: NDArrayFloatType) -> NDArrayFloatType:
+    """Return how fully each pixel belongs to the positive-``v_rot`` hemisphere.
+
+    0 poleward of :data:`HEMISPHERE_BLEND_HALF_WIDTH_DEG` in the negative
+    hemisphere, 1 poleward of it in the positive one, and a cubic smoothstep
+    of the sine of latitude in between: exactly 0.5 on the equator, and
+    continuous with a continuous slope everywhere, so a hemispheric term
+    weighted by it can draw no seam.  The weight is point-symmetric about
+    ``(0, 0.5)``: ``w(-s) = 1 - w(s)``.
+
+    Parameters:
+        sin_latitude: Sine of the latitude of each pixel's haze column (see
+            :func:`latitude_sine`).
+
+    Returns:
+        The weight in [0, 1], shaped like ``sin_latitude``.
+    """
+    half_width = math.sin(math.radians(HEMISPHERE_BLEND_HALF_WIDTH_DEG))
+    t = np.clip((sin_latitude + half_width) / (2.0 * half_width), 0.0, 1.0)
+    weight: NDArrayFloatType = t * t * (3.0 - 2.0 * t)
+    return weight
+
+
 def scale_height_field(
     structure: HazeStructure | None,
     scale_height_px: float,
     *,
-    v_rot: NDArrayFloatType,
+    weight: NDArrayFloatType | None,
     v_ctr: NDArrayFloatType,
     u_ctr: NDArrayFloatType,
     illum_v: float,
@@ -274,19 +394,24 @@ def scale_height_field(
 
     A plain scalar when the structure varies nothing (the base haze, and the
     common case), so the caller's exponential stays scalar arithmetic; an
-    array of the same shape as ``v_rot`` when a hemispheric ratio or a
+    array of the same shape as ``v_ctr`` when a hemispheric ratio or a
     sharpness gradient applies.
 
-    The hemispheric term keys on the sign of ``v_rot`` (the body-frame
-    first-axis coordinate), and the sector term on the image-plane azimuth
-    between each pixel and the haze illumination direction, so a pixel on
-    the sunward axis keeps the nominal length and one
-    :data:`SECTOR_REFERENCE_HALF_ANGLE_DEG` away carries the full gradient.
+    The hemispheric term multiplies the length by
+    ``1 + (ns_falloff_ratio - 1) * w``, ``w`` the :func:`hemisphere_weight`
+    of the pixel's latitude, so the full ratio applies poleward of the blend
+    band in the positive-``v_rot`` hemisphere, the nominal length poleward of
+    it in the other, and the length changes continuously across the equator.
+    The sector term keys on the image-plane azimuth between each pixel and
+    the haze illumination direction, so a pixel on the sunward axis keeps
+    the nominal length and one :data:`SECTOR_REFERENCE_HALF_ANGLE_DEG` away
+    carries the full gradient.
 
     Parameters:
         structure: The haze structure, or None for the base haze.
         scale_height_px: Nominal falloff length in grid pixels.
-        v_rot: Body-frame first-axis coordinate of each pixel.
+        weight: The :func:`hemisphere_weight` of each pixel, or None when the
+            structure carries neither hemispheric term.
         v_ctr: Image-frame v offset of each pixel from the body center.
         u_ctr: Image-frame u offset of each pixel from the body center.
         illum_v: V component of the (tilted) in-plane illumination direction.
@@ -294,12 +419,18 @@ def scale_height_field(
 
     Returns:
         The nominal scale height, or the per-pixel field.
+
+    Raises:
+        ValueError: If the structure carries a falloff ratio and ``weight``
+            is None.
     """
     if structure is None or not structure.scales_falloff:
         return scale_height_px
-    factor: NDArrayFloatType = np.ones_like(v_rot)
+    factor: NDArrayFloatType = np.ones_like(v_ctr, dtype=np.float64)
     if structure.ns_falloff_ratio != 1.0:
-        factor = np.where(v_rot > 0.0, structure.ns_falloff_ratio, 1.0)
+        if weight is None:
+            raise ValueError('ns_falloff_ratio needs the hemisphere weight')
+        factor = 1.0 + (structure.ns_falloff_ratio - 1.0) * weight
     if structure.sector_sharpness_gradient != 0.0:
         rho = np.maximum(np.hypot(v_ctr, u_ctr), 1e-9)
         cos_phi = np.clip((v_ctr * illum_v + u_ctr * illum_u) / rho, -1.0, 1.0)
@@ -311,27 +442,47 @@ def scale_height_field(
 
 
 def apply_hemispheric_scaling(
-    values: NDArrayFloatType, structure: HazeStructure | None, v_rot: NDArrayFloatType
+    values: NDArrayFloatType,
+    structure: HazeStructure | None,
+    weight: NDArrayFloatType | None,
 ) -> NDArrayFloatType:
-    """Scale one hemisphere's brightness by the affine asymmetry amplitude.
+    """Scale one hemisphere's brightness by the asymmetry amplitude.
 
-    Multiplies the positive-``v_rot`` half by ``1 + ns_asymmetry_amplitude``
-    and leaves the other half alone, so the two halves the mirror maps onto
-    each other differ by a pure scaling -- the relation a Pearson symmetry
-    score is invariant to, which is exactly what makes this axis the control
-    against the non-affine ones.
+    Multiplies each pixel by ``1 + ns_asymmetry_amplitude * w``, ``w`` the
+    :func:`hemisphere_weight` of its latitude.  Poleward of the blend band
+    that scales the positive-``v_rot`` half by ``1 + ns_asymmetry_amplitude``
+    and leaves the other half alone, so there the two halves the mirror maps
+    onto each other differ by a pure scaling -- the relation a Pearson
+    symmetry score is invariant to, which is what makes this axis the
+    control against the non-affine ones -- wherever the scaled half stays
+    below saturation.  The caller clips the result to [0, 1], so a positive
+    amplitude flattens the brightest pixels and the difference there is the
+    clip (see the module docstring for what that costs).  Inside the band the scaling
+    changes continuously with latitude, so the brightness carries no seam
+    at the equator, and the control is not affine there: a mirror pair's
+    ratio falls from ``1 + ns_asymmetry_amplitude`` at the band edge to 1 on
+    the mirror line (see the module docstring for why every continuous blend
+    does this).
 
     Parameters:
         values: Brightness values to scale, modified in place and returned.
         structure: The haze structure, or None for the base haze.
-        v_rot: Body-frame first-axis coordinate of the same pixels.
+        weight: The :func:`hemisphere_weight` of each pixel, shaped like
+            ``values``, or None when the structure carries neither
+            hemispheric term.
 
     Returns:
         The scaled values (the input array).
+
+    Raises:
+        ValueError: If the structure carries an amplitude and ``weight`` is
+            None.
     """
     if structure is None or structure.ns_asymmetry_amplitude == 0.0:
         return values
-    values[v_rot > 0.0] *= 1.0 + structure.ns_asymmetry_amplitude
+    if weight is None:
+        raise ValueError('ns_asymmetry_amplitude needs the hemisphere weight')
+    values *= 1.0 + structure.ns_asymmetry_amplitude * weight
     return values
 
 

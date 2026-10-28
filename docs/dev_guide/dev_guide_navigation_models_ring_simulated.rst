@@ -85,9 +85,10 @@ in via the observation's filtered scene view (``obs.nav_params['ring_system']``,
 - ``range_km`` — the system's physical range (the emitted features' subject range).
 - ``features`` — the navigable subset only. Each entry carries ``name``, ``kind``
   (``ringlet`` / ``gap`` / ``edge`` / ``ramp`` / ``wave``), ``tau``, the kind-specific
-  shape keys (``width``, ``side``, ``wavelength``, ``damping``), the catalog ``orbit``
-  (``a``, ``ae``, ``long_peri``, ``rate_peri``, ``modes``, ``edge_wave``), and an optional
-  ``declared_orbit_sigma``.
+  shape keys (``width_px``, ``side``, ``wavelength_px``, ``density_wave_damping_px``), the
+  catalog ``orbit`` (``a_px``, ``ae_px``, ``long_peri_deg``, ``rate_peri_deg_per_day``,
+  ``modes``, ``edge_wave``), and an optional ``declared_orbit_sigma``. Every length is in
+  ring-plane pixels and every angle in degrees (see :ref:`sim-ring-system`).
 
 The scene-level ``time`` and ``ring_epoch`` drive the mode-1 pericenter precession on both
 sides.

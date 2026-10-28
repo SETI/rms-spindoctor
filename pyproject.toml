@@ -15,7 +15,7 @@ dependencies = [
   "lxml>=6.0.4",
   "matplotlib",
   "numpy>=2.2.0",
-  "PyQt6",
+  "PyQt6<6.12",  # 6.12.0 ships stubs that aren't valid Python, which stops mypy (#827)
   "rms-cloud-tasks>=0.2.0",
   "rms-filecache>=3.0.0",
   "rms-imgdisp",

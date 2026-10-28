@@ -30,6 +30,7 @@ from PyQt6.QtWidgets import (
 )
 
 from spindoctor.cli.sim_editor.base import SimEditorBase
+from spindoctor.cli.sim_editor.body_mesh_keys import STASH_MESSAGE_MS, stash_message
 
 # Tooltip for the center spin boxes, which write the scene value directly.
 _CENTER_TOOLTIP = (
@@ -43,7 +44,9 @@ class BodyTabMixin(SimEditorBase):
 
     def _build_body_tab(self, idx: int) -> QWidget:
         """Build the editing tab widget for the body at ``idx``."""
-        p = self.sim_params['bodies'][idx]
+        # Built from the stash-merged view, so a tab rebuilt while the body is a
+        # mesh shows the values switching it back to an ellipsoid restores.
+        p = self._mesh_key_stash.view(self.sim_params['bodies'][idx])
         w = QWidget()
         w.setProperty('kind', 'body')
         w.setProperty('data_index', idx)
@@ -112,6 +115,7 @@ class BodyTabMixin(SimEditorBase):
             shape_combo.setCurrentIndex(shape_index)
         shape_combo.currentTextChanged.connect(lambda t, i=idx: self._on_body_shape_model(i, t))
         fl.addRow('Shape model:', shape_combo)
+        w.shape_combo = shape_combo  # type: ignore[attr-defined]
 
         mesh_lump = QDoubleSpinBox()
         mesh_lump.setRange(0.0, 1.0)
@@ -140,6 +144,9 @@ class BodyTabMixin(SimEditorBase):
         mesh_n_lon.setToolTip('Mesh longitude divisions (resolution).')
         mesh_n_lon.valueChanged.connect(lambda v, i=idx: self._on_body_field(i, 'mesh_n_lon', v))
         fl.addRow('Mesh lon divisions:', mesh_n_lon)
+        w.mesh_seed_spin = mesh_seed  # type: ignore[attr-defined]
+        w.mesh_n_lat_spin = mesh_n_lat  # type: ignore[attr-defined]
+        w.mesh_n_lon_spin = mesh_n_lon  # type: ignore[attr-defined]
 
         pose = p.get('pose_euler_deg', [0.0, 0.0, 0.0])
         for axis_i, axis_name in enumerate(('X', 'Y', 'Z')):
@@ -241,6 +248,10 @@ class BodyTabMixin(SimEditorBase):
         crs.setValue(p.get('crater_relief_scale', 0.6))
         crs.valueChanged.connect(lambda v, i=idx: self._on_body_field(i, 'crater_relief_scale', v))
         fl.addRow('Crater relief scale:', crs)
+        w.crater_min_radius_spin = cmin  # type: ignore[attr-defined]
+        w.crater_max_radius_spin = cmax  # type: ignore[attr-defined]
+        w.crater_exponent_spin = cexp  # type: ignore[attr-defined]
+        w.crater_relief_scale_spin = crs  # type: ignore[attr-defined]
 
         # Anti-aliasing slider with min/max labels and spinbox
         aa_row = QHBoxLayout()
@@ -295,7 +306,8 @@ class BodyTabMixin(SimEditorBase):
         # true geometry), but the navigator predicts the body with these fields
         # overlaid, so a scene can render a mesh and predict a smooth ellipsoid or
         # a different pose.  Unchecking it removes the override.
-        override = p.get('nav_override') if isinstance(p.get('nav_override'), dict) else {}
+        raw_override = p.get('nav_override')
+        override: dict[str, Any] = raw_override if isinstance(raw_override, dict) else {}
         nav_group = QGroupBox('Navigation override (predicted geometry)')
         nav_group.setCheckable(True)
         nav_group.setChecked('nav_override' in p)
@@ -347,6 +359,7 @@ class BodyTabMixin(SimEditorBase):
         # mesh extras); each follows the absent-key discipline and stores its
         # widget refs on ``w``.
         self._build_body_appearance_groups(w, idx, main_layout)
+        self._sync_body_mesh_enabled(w, p.get('shape_model') == 'polyhedral_mesh')
 
         # Delete button at bottom
         delete_btn = QPushButton('Delete')
@@ -362,19 +375,39 @@ class BodyTabMixin(SimEditorBase):
     def _on_body_field(
         self, idx: int, key: str, value: Any, *, trigger_validate: bool = False
     ) -> None:
-        """Write a scalar body field into the data model and re-render."""
+        """Write a scalar body field into the data model and re-render.
+
+        The value keeps the type its control emits: a ``QDoubleSpinBox`` writes a
+        float, and a ``QSpinBox`` (``mesh_seed``, ``mesh_n_lat``, ``mesh_n_lon``)
+        writes an int, because the scene validator refuses a float for those keys.
+        """
         if 0 <= idx < len(self.sim_params['bodies']):
-            self.sim_params['bodies'][idx][key] = (
-                float(value) if isinstance(value, (int, float)) else value
-            )
+            self.sim_params['bodies'][idx][key] = value
             self._updater.request_update()
             if trigger_validate and key == 'range_km':
                 self._validate_ranges()
 
     def _on_body_shape_model(self, idx: int, text: str) -> None:
-        """Set the shape model and gate the mesh-only appearance controls."""
+        """Set the shape model and gate the shape-specific controls and keys.
+
+        A mesh body moves its ellipsoid-only keys (``MESH_UNSUPPORTED_KEYS``) into
+        the editor's stash, so the scene keeps validating, and the status bar names
+        the keys moved (:func:`~.body_mesh_keys.stash_message`); an ellipsoid body
+        takes them back.
+        """
         if 0 <= idx < len(self.sim_params['bodies']):
-            self.sim_params['bodies'][idx]['shape_model'] = text
+            body = self.sim_params['bodies'][idx]
+            body['shape_model'] = text
+            if text == 'polyhedral_mesh':
+                taken = self._mesh_key_stash.take(body)
+                status_bar = self.statusBar()
+                if taken and status_bar is not None:
+                    status_bar.showMessage(
+                        stash_message(str(body.get('name', f'Body{idx + 1}')), taken),
+                        STASH_MESSAGE_MS,
+                    )
+            else:
+                self._mesh_key_stash.give_back(body)
             tab_idx = self._find_tab_by_properties('body', idx)
             if tab_idx is not None:
                 tab_w = self._tabs.widget(tab_idx)

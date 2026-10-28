@@ -16,10 +16,24 @@ exposure_sec: 1.0
 # baseline pins -- a half-pixel shift of the bump leaves the fused
 # offset where it was.  All of relief, PSF, and stray light are truth-side: the
 # navigator fits its smooth sharp Lambert template against the blurred
-# ragged limb over a sloped background.  Measured behavior: the limb
-# fit and the disc correlation both survive the blur and the sloped
-# background and fuse to an accurate success (fused offset within
-# ~0.45 px of the planted value).
+# ragged limb over a sloped background.  Measured behavior: all three
+# body techniques survive the blur and the sloped background, but the
+# fused offset is (3.5, -0.5) against the planted (2.5, -1.5), a miss
+# of 1.4 px.  The limb fit lands at (2.65, -1.24), about 0.3 px from the
+# planted value.  The disc correlation reports (3.5, -0.5), and its two
+# axes miss for different reasons.  Its sub-pixel refinement searches
+# only +-0.5 px around the integer NCC peak, which sits at (4, -1), and
+# returns that window's corner.  Searched over +-3 px, the cross-power
+# maximum the refinement climbs toward lies at (2.5, -0.44).  So in v
+# the window causes the whole 1 px miss: the maximum is on the planted
+# 2.5.  In u the maximum itself is biased, 1.06 px from the planted
+# -1.5, and a wider window would still miss by that much.  The surface
+# is flat: about 0.2% separates the window center from the maximum.
+# Both defects are tracked as #791.  The ensemble fuses the limb fit and
+# the correlation as one witness and takes the correlation's offset, so
+# the scene pins a medium-confidence success whose error is the
+# correlation's.  The baseline is a tripwire on that outcome; it makes
+# no accuracy claim.
 bodies:
   - name: RUGGED
     shape_model: ellipsoid

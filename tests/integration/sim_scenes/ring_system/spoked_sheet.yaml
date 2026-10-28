@@ -23,14 +23,14 @@ ring_system:
     - name: BSHEET
       kind: ringlet
       tau: 1.5
-      width: 40.0
+      width_px: 40.0
       navigable: true
-      orbit: {a: 45.0, ae: 0.0, long_peri: 0.0, rate_peri: 0.0}
+      orbit: {a_px: 45.0, ae_px: 0.0, long_peri_deg: 0.0, rate_peri_deg_per_day: 0.0}
   azimuthal:
     spokes:
       count: 6
-      r_inner: 50.0
-      r_outer: 80.0
+      r_inner_px: 50.0
+      r_outer_px: 80.0
       contrast: -0.5
       width_deg: 14.0
 noise:

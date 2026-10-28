@@ -61,7 +61,12 @@ class SceneIoMixin(SimEditorBase):
             QMessageBox.critical(self, 'Error', f'Failed to load scene:\n{e!s}')
 
     def _apply_params_dict(self, params: dict[str, Any]) -> None:
-        """Rebuild sim_params from a loaded params dict and sync every widget."""
+        """Rebuild sim_params from a loaded params dict and sync every widget.
+
+        The mesh-key stash is cleared: its entries belong to the bodies of the scene
+        being replaced.
+        """
+        self._mesh_key_stash.clear()
         self.sim_params = {
             'size_v': int(params.get('size_v', 512)),
             'size_u': int(params.get('size_u', 512)),
@@ -147,7 +152,9 @@ class SceneIoMixin(SimEditorBase):
         self._read_noise_spin.setValue(float(self._noise_value('read_noise_dn', 4.0)))
         self._read_noise_spin.blockSignals(False)
         self._cosmic_ray_spin.blockSignals(True)
-        self._cosmic_ray_spin.setValue(float(self._noise_value('cosmic_ray_rate_per_sec', 0.0)))
+        self._cosmic_ray_spin.setValue(
+            float(self._noise_value('cosmic_ray_events_per_pixel_per_sec', 0.0))
+        )
         self._cosmic_ray_spin.blockSignals(False)
         self._missing_data_spin.blockSignals(True)
         self._missing_data_spin.setValue(float(self._noise_value('missing_data_rate', 0.0)))
@@ -161,9 +168,6 @@ class SceneIoMixin(SimEditorBase):
         self._signal_frac_spin.blockSignals(True)
         self._signal_frac_spin.setValue(float(self._noise_value('signal_full_scale_frac', 0.5)))
         self._signal_frac_spin.blockSignals(False)
-        self._pixel_area_spin.blockSignals(True)
-        self._pixel_area_spin.setValue(float(self._noise_value('pixel_area_cm2', 1.0)))
-        self._pixel_area_spin.blockSignals(False)
         # The Optics-tab controls (PSF, smear, distortion, ghosts, stray
         # light, oversample, spk_error) and the Artifacts-tab controls
         # (instrument defaults, detector override) sync from their own blocks.

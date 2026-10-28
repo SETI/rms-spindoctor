@@ -216,7 +216,7 @@ loader indexes the block by detector.
 
 ``cassini_iss`` is a full raw-DN block. ``cassini_iss_calib`` departs from the
 common schema by **omission**: its ``noise`` block carries only
-``marker_value: NaN``, and its ``image_quality_thresholds`` carry only the two
+``marker_value: 0``, and its ``image_quality_thresholds`` carry only the two
 ``_if`` thresholds and the two fractions. It has no ``saturation_dn``, no
 ``full_well_dn``, no ``expected_noise_dn``, no ``read_noise_dn``, no
 ``star_flux_dn_per_s_vmag0``, and -- the consequential one -- no
@@ -463,6 +463,15 @@ Simulator model
 ``coiss_calib_wac`` to the ``cassini_iss_calib`` block's. The artifact catalog
 aliases the calibrated keys onto the raw ones, so a calibrated scene gets the
 same artifact defaults as its raw counterpart.
+
+**Units.** A ``coiss_calib_*`` frame is in I/F with a ``0`` missing-data marker,
+as the CALIB products are: across 24 CALIB images from four volumes no pixel is
+``NaN``, and exact zeros appear only on the lines the index reports missing. A
+lost pixel reads 0, and the dark sky sits on the 4.0e-5 I/F calibrated sky
+residual, the median sky of 13 dark NAC CALIB frames, so it reads as dark and
+never as missing (see :ref:`Instruments <sim-instruments>`). Under
+``instrument_defaults`` the sky scatters around 0, with about 28% of a disc
+frame's pixels below it, as on the real frames.
 
 **PSF kernels.** ``coiss_nac`` is
 ``{sigma_v: 0.70, sigma_u: 0.70, w: 0.12, r0: 3.0, n: 4.0}``, tuned against the

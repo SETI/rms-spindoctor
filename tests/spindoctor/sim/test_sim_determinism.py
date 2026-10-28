@@ -135,7 +135,7 @@ def _full_stack_scene() -> dict[str, Any]:
         'noise': {
             'poisson': True,
             'read_noise_dn': 4.0,
-            'cosmic_ray_rate_per_sec': 0.001,
+            'cosmic_ray_events_per_pixel_per_sec': 0.001,
             'bloom_length': 2,
         },
         'bodies': [

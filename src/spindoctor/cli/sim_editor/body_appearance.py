@@ -35,8 +35,10 @@ from PyQt6.QtWidgets import (
 )
 
 from spindoctor.cli.sim_editor.base import SimEditorBase
+from spindoctor.cli.sim_editor.body_mesh_keys import sync_mesh_refused_widgets
 from spindoctor.cli.sim_editor.widgets import make_dspin as _dspin
 from spindoctor.sim.forward.photometry import PHOTOMETRIC_LAWS
+from spindoctor.sim.forward.relief import MAX_LIMB_RELIEF_RMS, MIN_LIMB_RELIEF_CORR_DEG
 
 # The photometric-law vocabulary, Lambert first so the combo opens on the
 # navigator-matched default when a scene enables the group without a law.
@@ -104,7 +106,7 @@ class BodyAppearanceMixin(SimEditorBase):
 
     def _build_body_appearance_groups(self, w: QWidget, idx: int, layout: QVBoxLayout) -> None:
         """Add every appearance group to a body tab, storing refs on ``w``."""
-        p = self.sim_params['bodies'][idx]
+        p = self._mesh_key_stash.view(self.sim_params['bodies'][idx])
         layout.addWidget(self._build_limb_relief_group(w, idx, p))
         layout.addWidget(self._build_photometry_group(w, idx, p))
         layout.addWidget(self._build_opposition_surge_group(w, idx, p))
@@ -115,8 +117,6 @@ class BodyAppearanceMixin(SimEditorBase):
         mesh_group = self._build_mesh_extras_group(w, idx, p)
         layout.addWidget(mesh_group)
         w.mesh_extras_group = mesh_group  # type: ignore[attr-defined]
-        is_mesh = str(p.get('shape_model', 'ellipsoid')) == 'polyhedral_mesh'
-        mesh_group.setEnabled(is_mesh)
 
     # ---- Limb relief ----
 
@@ -127,14 +127,17 @@ class BodyAppearanceMixin(SimEditorBase):
         form = QFormLayout(group)
         rms = _dspin(
             minimum=0.0,
-            maximum=1.0,
+            maximum=MAX_LIMB_RELIEF_RMS,
             decimals=4,
             step=0.005,
             value=float(p.get('limb_relief_rms', 0.0)),
-            tooltip='Fractional relief amplitude (0 disables the field).',
+            tooltip=(
+                'Relief RMS as a fraction of the body radius: 0.02 moves the limb of a '
+                '100-pixel-radius body by 2 pixels RMS (0 disables the field).'
+            ),
         )
         corr = _dspin(
-            minimum=0.1,
+            minimum=MIN_LIMB_RELIEF_CORR_DEG,
             maximum=180.0,
             decimals=1,
             step=1.0,
@@ -837,7 +840,7 @@ class BodyAppearanceMixin(SimEditorBase):
         octaves = QSpinBox()
         octaves.setRange(0, 6)
         octaves.setValue(int(p.get('mesh_detail_octaves', 0)))
-        octaves.setToolTip('Higher-frequency mesh detail banks; 0 leaves the key absent.')
+        octaves.setToolTip('Higher-degree relief bands; 0 leaves the key absent.')
         form.addRow('Detail octaves:', octaves)
 
         scatter = _as_map(p.get('pose_scatter'))
@@ -913,7 +916,13 @@ class BodyAppearanceMixin(SimEditorBase):
             self._updater.request_update()
 
     def _sync_body_mesh_enabled(self, w: QWidget, is_mesh: bool) -> None:
-        """Enable the mesh-extras group only for a polyhedral-mesh body."""
+        """Gate a body tab's shape-specific controls by its shape model.
+
+        The mesh-extras group is enabled only for a polyhedral-mesh body, and every
+        control writing a key the validator refuses on a mesh body is disabled
+        there, with the validator's sentence as its tooltip.
+        """
         group = getattr(w, 'mesh_extras_group', None)
         if group is not None:
             group.setEnabled(is_mesh)
+        sync_mesh_refused_widgets(w, is_mesh)

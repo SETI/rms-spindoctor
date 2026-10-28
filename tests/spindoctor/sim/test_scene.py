@@ -1,5 +1,6 @@
 """Flat-schema validation, boundary classification, and save/load round-trip."""
 
+import math
 from pathlib import Path
 from typing import Any
 
@@ -178,6 +179,39 @@ def test_validate_sim_params_rejects_negative_limb_relief_rms() -> None:
         validate_sim_params(params)
 
 
+@pytest.mark.parametrize(('rms', 'accepted'), [(0.05, True), (0.0501, False), (0.1, False)])
+def test_validate_sim_params_bounds_limb_relief_rms_as_a_fraction_of_the_radius(
+    rms: float, accepted: bool
+) -> None:
+    """Relief RMS above 5% of the radius fails validation.
+
+    At the cap the ellipsoid renderer misreads the terrain under about 12% of the disc.
+    """
+    params = _sim_params()
+    params['bodies'][0]['limb_relief_rms'] = rms
+    if accepted:
+        assert validate_sim_params(params) is params
+        return
+    with pytest.raises(SimSceneValidationError, match=r'limb_relief_rms .*at most 0\.05'):
+        validate_sim_params(params)
+
+
+@pytest.mark.parametrize(('corr_deg', 'accepted'), [(1.0, True), (0.99, False), (0.1, False)])
+def test_validate_sim_params_bounds_relief_corr_from_below(corr_deg: float, accepted: bool) -> None:
+    """A relief correlation length below 1 degree fails validation.
+
+    The floor bounds the field's synthesis cost.  The body in this scene does not set a
+    relief RMS: the floor applies with relief off too.
+    """
+    params = _sim_params()
+    params['bodies'][0]['limb_relief_corr_deg'] = corr_deg
+    if accepted:
+        assert validate_sim_params(params) is params
+        return
+    with pytest.raises(SimSceneValidationError, match=r'limb_relief_corr_deg .*at least 1\.0'):
+        validate_sim_params(params)
+
+
 def test_validate_sim_params_rejects_nonpositive_relief_corr() -> None:
     """A non-positive relief correlation length fails validation."""
     params = _sim_params()
@@ -265,22 +299,6 @@ def test_validate_sim_params_rejects_negative_catalog_scatter() -> None:
         validate_sim_params(params)
 
 
-def test_validate_sim_params_rejects_legacy_rings_key() -> None:
-    """The retired painted-annulus 'rings' list is an unknown key now."""
-    params = _sim_params()
-    params['rings'] = [{'name': 'R'}]
-    with pytest.raises(SimSceneValidationError, match=r'unknown scene keys.*rings'):
-        validate_sim_params(params)
-
-
-def test_validate_sim_params_rejects_legacy_shade_solid_rings_key() -> None:
-    """The retired 'shade_solid_rings' knob is an unknown key now."""
-    params = _sim_params()
-    params['shade_solid_rings'] = True
-    with pytest.raises(SimSceneValidationError, match=r'unknown scene keys.*shade_solid_rings'):
-        validate_sim_params(params)
-
-
 def test_validate_sim_params_rejects_unknown_noise_key() -> None:
     """An unmodeled noise key fails validation instead of silently doing nothing."""
     params = _sim_params()
@@ -296,10 +314,9 @@ def test_validate_sim_params_accepts_the_full_noise_inventory() -> None:
         'poisson': True,
         'read_noise_dn': 4.0,
         'bias_dn': 20.0,
-        'cosmic_ray_rate_per_sec': 0.001,
+        'cosmic_ray_events_per_pixel_per_sec': 0.001,
         'missing_data_rate': 0.01,
         'signal_full_scale_frac': 0.5,
-        'pixel_area_cm2': 1.0,
         'dark_current_e_per_sec': 5.0,
         'hot_pixel_fraction': 0.002,
         'hot_pixel_amplitude_e': 4.0e4,
@@ -600,8 +617,13 @@ def _ring_system_params() -> dict[str, Any]:
                 'name': 'F1',
                 'kind': 'ringlet',
                 'tau': 1.0,
-                'width': 10.0,
-                'orbit': {'a': 40.0, 'ae': 0.0, 'long_peri': 0.0, 'rate_peri': 0.0},
+                'width_px': 10.0,
+                'orbit': {
+                    'a_px': 40.0,
+                    'ae_px': 0.0,
+                    'long_peri_deg': 0.0,
+                    'rate_peri_deg_per_day': 0.0,
+                },
                 'albedo': 0.5,
                 'phase_g': -0.3,
             }
@@ -664,17 +686,17 @@ def test_validate_sim_params_accepts_distinct_ring_feature_names() -> None:
 
 
 def test_validate_sim_params_rejects_ring_orbit_ae_at_a() -> None:
-    """orbit.ae >= orbit.a fails at validation, not deep in the edge math."""
+    """orbit.ae_px >= orbit.a_px fails at validation, not deep in the edge math."""
     params = _ring_system_params()
-    params['ring_system']['features'][0]['orbit']['ae'] = 40.0
-    with pytest.raises(SimSceneValidationError, match=r'ae must be less than orbit\.a'):
+    params['ring_system']['features'][0]['orbit']['ae_px'] = 40.0
+    with pytest.raises(SimSceneValidationError, match=r'ae_px must be less than orbit\.a_px'):
         validate_sim_params(params)
 
 
 def test_validate_sim_params_accepts_subcritical_ring_orbit_ae() -> None:
-    """orbit.ae below orbit.a validates."""
+    """orbit.ae_px below orbit.a_px validates."""
     params = _ring_system_params()
-    params['ring_system']['features'][0]['orbit']['ae'] = 5.0
+    params['ring_system']['features'][0]['orbit']['ae_px'] = 5.0
     assert validate_sim_params(params) is params
 
 
@@ -689,7 +711,7 @@ def test_validate_sim_params_rejects_orbit_error_negating_a() -> None:
 def test_validate_sim_params_rejects_orbit_error_driving_ae_past_a() -> None:
     """A delta_ae_px that pushes the effective eccentricity to 1 fails."""
     params = _ring_system_params()
-    params['ring_system']['features'][0]['orbit']['ae'] = 5.0
+    params['ring_system']['features'][0]['orbit']['ae_px'] = 5.0
     params['ring_system']['features'][0]['orbit_error'] = {'delta_ae_px': 35.0}
     with pytest.raises(SimSceneValidationError, match='effective eccentric'):
         validate_sim_params(params)
@@ -698,7 +720,7 @@ def test_validate_sim_params_rejects_orbit_error_driving_ae_past_a() -> None:
 def test_validate_sim_params_accepts_bounded_orbit_error() -> None:
     """Orbit-error deltas that keep the effective orbit physical validate."""
     params = _ring_system_params()
-    params['ring_system']['features'][0]['orbit']['ae'] = 5.0
+    params['ring_system']['features'][0]['orbit']['ae_px'] = 5.0
     params['ring_system']['features'][0]['orbit_error'] = {
         'delta_a_px': -2.0,
         'delta_ae_px': 1.0,
@@ -755,9 +777,9 @@ def test_validate_sim_params_rejects_unknown_ring_feature_kind() -> None:
         validate_sim_params(params)
 
 
-@pytest.mark.parametrize('key', ['tau', 'width'])
+@pytest.mark.parametrize('key', ['tau', 'width_px'])
 def test_validate_sim_params_requires_ring_feature_scalars(key: str) -> None:
-    """tau (every kind) and width (the banded kinds) are required."""
+    """tau (every kind) and width_px (the banded kinds) are required."""
     params = _ring_system_params()
     del params['ring_system']['features'][0][key]
     with pytest.raises(SimSceneValidationError, match=f'{key} is required'):
@@ -766,7 +788,7 @@ def test_validate_sim_params_requires_ring_feature_scalars(key: str) -> None:
 
 def _edge_feature() -> dict[str, Any]:
     """A minimal one-sided edge feature."""
-    return {'name': 'E1', 'kind': 'edge', 'tau': 1.0, 'orbit': {'a': 40.0}}
+    return {'name': 'E1', 'kind': 'edge', 'tau': 1.0, 'orbit': {'a_px': 40.0}}
 
 
 def _wave_feature() -> dict[str, Any]:
@@ -775,9 +797,9 @@ def _wave_feature() -> dict[str, Any]:
         'name': 'W1',
         'kind': 'wave',
         'tau': 0.4,
-        'wavelength': 6.0,
-        'damping': 12.0,
-        'orbit': {'a': 40.0},
+        'wavelength_px': 6.0,
+        'density_wave_damping_px': 12.0,
+        'orbit': {'a_px': 40.0},
     }
 
 
@@ -790,9 +812,9 @@ def test_validate_sim_params_accepts_edge_ramp_wave_kinds() -> None:
             'name': 'R1',
             'kind': 'ramp',
             'tau': 0.8,
-            'width': 12.0,
+            'width_px': 12.0,
             'side': 'in',
-            'orbit': {'a': 60.0},
+            'orbit': {'a_px': 60.0},
         },
         _wave_feature(),
     ]
@@ -800,10 +822,10 @@ def test_validate_sim_params_accepts_edge_ramp_wave_kinds() -> None:
 
 
 def test_validate_sim_params_rejects_width_on_an_edge() -> None:
-    """A one-sided edge has no radial width; a stray width fails loudly."""
+    """A one-sided edge has no radial width; a stray width_px fails loudly."""
     params = _ring_system_params()
-    params['ring_system']['features'] = [dict(_edge_feature(), width=5.0)]
-    with pytest.raises(SimSceneValidationError, match=r"width is not allowed for kind 'edge'"):
+    params['ring_system']['features'] = [dict(_edge_feature(), width_px=5.0)]
+    with pytest.raises(SimSceneValidationError, match=r"width_px is not allowed for kind 'edge'"):
         validate_sim_params(params)
 
 
@@ -823,7 +845,7 @@ def test_validate_sim_params_rejects_bad_side_vocabulary() -> None:
         validate_sim_params(params)
 
 
-@pytest.mark.parametrize('key', ['wavelength', 'damping'])
+@pytest.mark.parametrize('key', ['wavelength_px', 'density_wave_damping_px'])
 def test_validate_sim_params_requires_wave_train_keys(key: str) -> None:
     """A wave feature needs both its radial train parameters."""
     params = _ring_system_params()
@@ -834,7 +856,7 @@ def test_validate_sim_params_requires_wave_train_keys(key: str) -> None:
         validate_sim_params(params)
 
 
-@pytest.mark.parametrize('key', ['wavelength', 'damping'])
+@pytest.mark.parametrize('key', ['wavelength_px', 'density_wave_damping_px'])
 def test_validate_sim_params_rejects_wave_keys_on_other_kinds(key: str) -> None:
     """The wave-train keys are rejected on kinds that ignore them."""
     params = _ring_system_params()
@@ -847,12 +869,17 @@ def test_validate_sim_params_accepts_orbit_modes_and_edge_wave() -> None:
     """An orbit with m-modes and an edge wave validates."""
     params = _ring_system_params()
     params['ring_system']['features'][0]['orbit'] = {
-        'a': 40.0,
-        'ae': 1.0,
-        'long_peri': 10.0,
-        'rate_peri': 0.5,
-        'modes': [{'m': 2, 'amp': 1.5, 'peri': 30.0}],
-        'edge_wave': {'amp': 1.0, 'wavelength': 8.0, 'damp': 0.5, 'lam0': 90.0},
+        'a_px': 40.0,
+        'ae_px': 1.0,
+        'long_peri_deg': 10.0,
+        'rate_peri_deg_per_day': 0.5,
+        'modes': [{'m': 2, 'amp_px': 1.5, 'peri_deg': 30.0}],
+        'edge_wave': {
+            'amp_px': 1.0,
+            'wavelength_px': 8.0,
+            'edge_wave_damping_deg': 30.0,
+            'lam0_deg': 90.0,
+        },
     }
     assert validate_sim_params(params) is params
 
@@ -860,7 +887,9 @@ def test_validate_sim_params_accepts_orbit_modes_and_edge_wave() -> None:
 def test_validate_sim_params_rejects_mode_1_in_modes_list() -> None:
     """The modes list carries m >= 2 only (mode 1 is the base ellipse)."""
     params = _ring_system_params()
-    params['ring_system']['features'][0]['orbit']['modes'] = [{'m': 1, 'amp': 1.0, 'peri': 0.0}]
+    params['ring_system']['features'][0]['orbit']['modes'] = [
+        {'m': 1, 'amp_px': 1.0, 'peri_deg': 0.0}
+    ]
     with pytest.raises(SimSceneValidationError, match=r'modes\[0\]\.m must be an integer >= 2'):
         validate_sim_params(params)
 
@@ -869,17 +898,22 @@ def test_validate_sim_params_rejects_unknown_mode_key() -> None:
     """An unmodeled m-mode key fails validation."""
     params = _ring_system_params()
     params['ring_system']['features'][0]['orbit']['modes'] = [
-        {'m': 2, 'amp': 1.0, 'peri': 0.0, 'rate': 1.0}
+        {'m': 2, 'amp_px': 1.0, 'peri_deg': 0.0, 'rate': 1.0}
     ]
     with pytest.raises(SimSceneValidationError, match=r'modes\[0\].*rate'):
         validate_sim_params(params)
 
 
-@pytest.mark.parametrize('key', ['wavelength', 'damp'])
+@pytest.mark.parametrize('key', ['wavelength_px', 'edge_wave_damping_deg'])
 def test_validate_sim_params_requires_edge_wave_scales(key: str) -> None:
     """An edge wave needs its wavelength and damping constants."""
     params = _ring_system_params()
-    wave = {'amp': 1.0, 'wavelength': 8.0, 'damp': 0.5, 'lam0': 90.0}
+    wave = {
+        'amp_px': 1.0,
+        'wavelength_px': 8.0,
+        'edge_wave_damping_deg': 30.0,
+        'lam0_deg': 90.0,
+    }
     del wave[key]
     params['ring_system']['features'][0]['orbit']['edge_wave'] = wave
     with pytest.raises(SimSceneValidationError, match=f'edge_wave.{key} is required'):
@@ -887,27 +921,30 @@ def test_validate_sim_params_requires_edge_wave_scales(key: str) -> None:
 
 
 def test_validate_sim_params_accepts_edge_wave_damp_at_the_cap() -> None:
-    """An edge-wave damp of exactly 2.0 radians (the cap) validates."""
+    """An edge-wave damping of exactly 360/pi degrees (2 radians, the cap) validates."""
     params = _ring_system_params()
     params['ring_system']['features'][0]['orbit']['edge_wave'] = {
-        'amp': 1.0,
-        'wavelength': 8.0,
-        'damp': 2.0,
-        'lam0': 90.0,
+        'amp_px': 1.0,
+        'wavelength_px': 8.0,
+        'edge_wave_damping_deg': 360.0 / math.pi,
+        'lam0_deg': 90.0,
     }
     assert validate_sim_params(params) is params
 
 
 def test_validate_sim_params_rejects_edge_wave_damp_above_the_cap() -> None:
-    """damp > 2.0 radians fails: the modular wrap seam would exceed exp(-pi)."""
+    """A damping just above 360/pi degrees fails: the wrap seam would exceed exp(-pi)."""
     params = _ring_system_params()
     params['ring_system']['features'][0]['orbit']['edge_wave'] = {
-        'amp': 1.0,
-        'wavelength': 8.0,
-        'damp': 2.5,
-        'lam0': 90.0,
+        'amp_px': 1.0,
+        'wavelength_px': 8.0,
+        'edge_wave_damping_deg': math.nextafter(360.0 / math.pi, math.inf),
+        'lam0_deg': 90.0,
     }
-    with pytest.raises(SimSceneValidationError, match=r'damp must be <= 2\.0 radians'):
+    with pytest.raises(
+        SimSceneValidationError,
+        match=r'edge_wave_damping_deg must be <= 360/pi, about 114\.59 degrees',
+    ):
         validate_sim_params(params)
 
 
@@ -915,10 +952,10 @@ def test_validate_sim_params_rejects_unknown_edge_wave_key() -> None:
     """An unmodeled edge-wave key fails validation."""
     params = _ring_system_params()
     params['ring_system']['features'][0]['orbit']['edge_wave'] = {
-        'amp': 1.0,
-        'wavelength': 8.0,
-        'damp': 0.5,
-        'lam0': 90.0,
+        'amp_px': 1.0,
+        'wavelength_px': 8.0,
+        'edge_wave_damping_deg': 30.0,
+        'lam0_deg': 90.0,
         'phase': 1.0,
     }
     with pytest.raises(SimSceneValidationError, match=r'edge_wave.*phase'):
@@ -926,7 +963,7 @@ def test_validate_sim_params_rejects_unknown_edge_wave_key() -> None:
 
 
 def test_validate_sim_params_requires_ring_feature_orbit() -> None:
-    """The catalog orbit map (with a) is required on every feature."""
+    """The catalog orbit map (with a_px) is required on every feature."""
     params = _ring_system_params()
     del params['ring_system']['features'][0]['orbit']
     with pytest.raises(SimSceneValidationError, match='orbit is required'):
