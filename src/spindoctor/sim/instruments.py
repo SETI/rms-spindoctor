@@ -24,9 +24,9 @@ keys continue to track the instrument.
 
 The resolved block also fixes a rendered frame's unit class.  A ``raw_dn``
 instrument renders detector counts with a ``0`` missing-data marker.  A
-``calibrated_if`` instrument renders I/F, and its marker is whatever its block
-declares: ``NaN`` for the calibrated Cassini cameras, ``0`` for Voyager ISS,
-whose archived products fill lost pixels with zero.
+``calibrated_if`` instrument (the calibrated Cassini cameras and Voyager ISS)
+renders I/F, also with a ``0`` marker, because the archived Cassini CALIB and
+Voyager GEOMED products fill lost pixels with zero.
 :func:`navigator_marker_value` reads the marker the way the navigator does,
 :func:`read_frame_as_navigator` classifies a frame the way the navigator's image
 classifier does, and :func:`frame_units_summary` states a rendered frame's

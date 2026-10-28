@@ -17,8 +17,6 @@ from spindoctor.sim.render import render_combined_model
 
 _CALIBRATED = ('coiss_calib_nac', 'coiss_calib_wac', 'vgiss')
 _RENDERS = {'floor': {}, 'instrument_defaults': {'artifacts': {'instrument_defaults': True}}}
-# The marker the configuration gives every calibrated instrument (#823).
-_MARKER_ZERO = {'noise': {'marker_value': 0}}
 
 
 def _disc(instrument: str, **extra: Any) -> dict[str, Any]:
@@ -58,9 +56,7 @@ def _sky(instrument: str, render: str) -> np.ndarray:
 @pytest.mark.parametrize('instrument', _CALIBRATED)
 def test_no_pixel_of_a_calibrated_frame_reads_zero(instrument: str, render: str) -> None:
     """A calibrated frame without planted loss carries no pixel at the 0 marker."""
-    img, _ = render_combined_model(
-        _disc(instrument, instrument_config=_MARKER_ZERO, **_RENDERS[render])
-    )
+    img, _ = render_combined_model(_disc(instrument, **_RENDERS[render]))
     assert int((img == 0.0).sum()) == 0
 
 
@@ -125,7 +121,6 @@ def test_no_pixel_reads_zero_where_the_lattice_crosses_it(
         'exposure_sec': exposure_sec,
         'detector': {'gain_state': gain_state},
         'artifacts': {'instrument_defaults': True},
-        'instrument_config': _MARKER_ZERO,
     }
     img, _ = render_combined_model(params)
     assert int((img == 0.0).sum()) == 0

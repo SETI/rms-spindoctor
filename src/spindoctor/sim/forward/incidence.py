@@ -12,9 +12,8 @@ detector could *measure* on the rendered frame.  This module carries both sides:
 * The ``measured_*`` estimators recover the same counts from the DN image alone,
   the way a detector run against a real archive frame would, with no access to
   the truth record.  They key on the missing-data marker (the instrument's
-  ``noise.marker_value``: 0 for the raw instruments, NaN for the Cassini CALIB
-  instruments, 0 for ``vgiss``), so they are exact for the marker-based
-  structural modes and only those.
+  ``noise.marker_value``: 0 for every shipped instrument, raw and calibrated), so
+  they are exact for the marker-based structural modes and only those.
 
 **Scope of the image estimators.**  A lost line, a truncated line, a lost block,
 and a dead pixel each overwrite pixels with the marker value, so a marker-run
@@ -104,9 +103,9 @@ def marker_mask(image: NDArrayFloatType, marker_value: float) -> NDArrayBoolType
 
     Parameters:
         image: The DN image.
-        marker_value: The instrument's ``noise.marker_value`` (0 for the raw
-            instruments, NaN for the Cassini CALIB instruments, 0 for ``vgiss``);
-            NaN is matched with :func:`numpy.isnan`.
+        marker_value: The instrument's ``noise.marker_value`` (0 for every
+            shipped instrument; a scene may override it to NaN, which is matched
+            with :func:`numpy.isnan`).
 
     Returns:
         A boolean array, True where the pixel equals the marker.

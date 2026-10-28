@@ -127,14 +127,14 @@ def test_missing_lines_ignores_isolated_dropouts() -> None:
 
 
 def test_marker_mask_matches_zero_marker() -> None:
-    """The marker mask flags exactly the zero-valued pixels on the raw-DN path."""
+    """The marker mask flags exactly the zero-valued pixels at the shipped 0 marker."""
     image = np.array([[0.0, 1.0], [2.0, 0.0]], dtype=np.float64)
     mask = marker_mask(image, 0.0)
     assert mask.tolist() == [[True, False], [False, True]]
 
 
 def test_marker_mask_matches_nan_marker() -> None:
-    """The marker mask flags NaN pixels on the Cassini CALIB path, whose marker is NaN."""
+    """The marker mask flags NaN pixels when the marker is NaN (a scene override)."""
     image = np.array([[np.nan, 1.0], [2.0, np.nan]], dtype=np.float64)
     mask = marker_mask(image, float('nan'))
     assert mask.tolist() == [[True, False], [False, True]]

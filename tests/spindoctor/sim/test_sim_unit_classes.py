@@ -1,10 +1,10 @@
 """The unit class of each sim instrument, and how a scene author is told about it.
 
-Three unit classes exist.  The raw instruments render DN with a ``0`` missing-data
-marker.  The calibrated Cassini instruments render I/F with a ``NaN`` marker.
-``vgiss`` renders I/F with a ``0`` marker, because the Voyager GEOMED products the
-navigator reads fill lost pixels with zero.  In every class the simulator writes
-the marker the navigator applies to the same frame, and
+Two unit classes exist.  The raw instruments render DN with a ``0`` missing-data
+marker.  The calibrated instruments (the calibrated Cassini cameras and ``vgiss``)
+render I/F with a ``0`` marker, because the Cassini CALIB and Voyager GEOMED
+products the navigator reads fill lost pixels with zero.  In every class the
+simulator writes the marker the navigator applies to the same frame, and
 :func:`~spindoctor.sim.instruments.read_frame_as_navigator` reads the frame the
 navigator reads (planted offset applied) to the verdict the navigator's
 classifier reaches, blank before missing data.
@@ -152,6 +152,12 @@ def _lost_line_value(instrument: str, overrides: dict[str, Any] | None = None) -
 def test_lost_lines_carry_the_navigator_marker(instrument: str) -> None:
     """Every instrument writes, on a lost line, the marker the navigator applies."""
     assert _same(_lost_line_value(instrument), _navigator_marker(instrument))
+
+
+@pytest.mark.parametrize('instrument', _ALL_INSTRUMENTS)
+def test_every_instrument_marks_a_lost_line_with_zero(instrument: str) -> None:
+    """Raw and calibrated alike, the configuration's marker for a lost pixel is 0."""
+    assert _lost_line_value(instrument) == 0.0
 
 
 @pytest.mark.parametrize('instrument', _ALL_INSTRUMENTS)
@@ -432,10 +438,13 @@ def test_vgiss_dark_sky_stays_out_of_the_marker_count() -> None:
 
 
 def test_summary_counts_nan_markers_on_a_calibrated_frame() -> None:
-    """On a NaN-marker instrument the summary counts the NaN pixels."""
+    """Under a scene's NaN marker override the summary counts the NaN pixels."""
     img = np.full((10, 10), 0.25)
     img[0, :] = np.nan
-    summary = frame_units_summary(img, resolve_sim_inst_config(DEFAULT_CONFIG, 'coiss_calib_nac'))
+    inst_config = resolve_sim_inst_config(
+        DEFAULT_CONFIG, 'coiss_calib_nac', {'noise': {'marker_value': 'NaN'}}
+    )
+    summary = frame_units_summary(img, inst_config)
     assert summary == 'I/F 0.25 to 0.25; marker NaN on 10.0% of pixels'
 
 

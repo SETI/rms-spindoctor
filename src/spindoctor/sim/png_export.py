@@ -40,8 +40,8 @@ def stretch_to_uint8(
     finite pixels (not the absolute min/max), so a handful of cosmic-ray or
     saturated pixels do not collapse the rest of the frame to black.  A ``gamma``
     above 1 brightens the midtones, which makes a dim crescent or a faint star
-    field legible alongside a bright disc.  Non-finite pixels (the NaN
-    missing-data marker of the Cassini CALIB frames) are mapped to the black
+    field legible alongside a bright disc.  Non-finite pixels (a NaN
+    missing-data marker, where a scene sets one) are mapped to the black
     point.
 
     Parameters:
