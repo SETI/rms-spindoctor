@@ -494,7 +494,7 @@ same way (background stars, cosmic rays, crater placement).
 **The driver.** :func:`spindoctor.sim.render.render_combined_model` takes a
 ``sim_params`` dict and returns ``(image, metadata)``. It normalizes the
 parameters into a deterministic JSON cache key, runs the pipeline on a fresh
-frame, and caches the result (``lru_cache(maxsize=1)``, plus small shape caches
+frame, and caches the result (``lru_cache(maxsize=2)``, plus small shape caches
 inside the body/mesh/star renderers; ``clear_render_caches`` drops them all for
 determinism tests). The caching contract: scene parameters are
 JSON-serializable scalars/lists/maps, no wall-clock or global RNG state is
@@ -510,73 +510,69 @@ and ``vgiss``, plus ``generic`` (alias ``sim``) for the instrument-agnostic
 defaults. A scene can pin or override individual instrument settings with
 ``instrument_config`` (see :ref:`sim-instrument-config`).
 
-Each instrument renders into one of three unit classes, set by its block's
-``data_units`` and ``noise.marker_value``:
+Each instrument renders into one of two unit classes, set by its block's
+``data_units``. Every shipped block marks a lost pixel with ``0``
+(``noise.marker_value``):
 
-* ``coiss_nac``, ``coiss_wac``, ``gossi``, ``nhlorri``, and ``generic`` render DN
-  with a ``0`` missing-data marker. The bias pedestal keeps the dark sky above the
-  marker.
-* ``coiss_calib_nac`` and ``coiss_calib_wac`` render I/F with a ``NaN`` marker,
-  the missing-pixel value of the Cassini CALIB products.
-* ``vgiss`` renders I/F with a ``0`` marker. Its block is the one real Voyager
-  navigation reads, and the Voyager GEOMED products it describes are scaled
-  integers that fill lost pixels and the resample border with zero.
+* ``coiss_nac``, ``coiss_wac``, ``gossi``, ``nhlorri``, and ``generic`` render raw
+  DN. The bias pedestal keeps the dark sky above the marker.
+* ``coiss_calib_nac``, ``coiss_calib_wac``, and ``vgiss`` render calibrated I/F.
+  The Cassini CALIB and Voyager GEOMED products these blocks describe fill lost
+  pixels with zero, and GEOMED fills its resample border with zero as well.
+  ``vgiss`` also keeps a full well: its block's 255 DN ceiling sets an I/F
+  ceiling.
 
 The telemetry stage writes the marker the navigator applies to the same frame
 (:func:`~spindoctor.sim.instruments.navigator_marker_value`), so a lost line
-reads as missing data in every class.
+reads as missing data in both classes.
 
 Calibrated scenes render through the full DN chain and then invert the
 calibration transform, so they carry propagated shot/read noise and quantization
 texture in I/F units. The chain's DN ceiling, the lower of the full well and the
 ADC clip, applies before the inverse, so a calibrated frame has an I/F ceiling as
-well: about 2.0 for ``coiss_calib_nac`` at the reference exposure, and 1.84 for
+well: about 2.0 for ``coiss_calib_nac`` at the reference exposure, and 1.85 for
 ``vgiss`` at any exposure. The navigator applies no saturation test to an I/F
-frame of either kind. At the other end, under ``instrument_defaults`` read noise
-around the subtracted pedestal takes part of the dark sky slightly below 0 I/F.
-On a disc scene a third of the frame across, ``vgiss`` reaches about -0.008 on 5%
-of its pixels, and ``coiss_calib_nac`` about -0.0006 on 28%. A real GEOMED product
-cannot hold a negative value.
+frame of either kind.
 
-The inverse also subtracts the bias pedestal, so a calibrated frame's noise-free
-dark sky is exactly 0 I/F. On ``vgiss`` that is the missing-data marker. The
-navigator counts the dark sky as missing data and refuses a frame where it covers
-more than 30% of the pixels, with the status reason ``missing_data_dominant``.
-Under ``instrument_defaults`` the DN quantization still leaves much of the sky at
-exactly 0. A real GEOMED frame's dark sky sits on a positive calibration
-residual, so only its fill border carries the marker. The simulator does not model
-that residual. A ``vgiss`` scene therefore navigates only when at most 30% of its
-pixels are exactly 0, or when it pins ``instrument_config.noise.marker_value`` to
-``NaN``, which stops it exercising the Voyager marker.
+The inverse subtracts the bias and dark pedestals, which would put a noise-free
+dark sky at exactly 0 I/F, the marker. A real calibrated product's dark sky keeps
+a residual level, so the inverse then adds the instrument's calibrated sky
+residual to every pixel: ``calibrated_sky_if`` in its detector catalog entry, or
+:data:`~spindoctor.sim.forward.artifacts_catalog.DEFAULT_CALIBRATED_SKY_IF` where
+the entry sets none.
+
+* ``vgiss`` uses 1.5 DN at the vidicon's 127.5 DN per unit I/F, 0.0118 I/F. Real
+  GEOMED sky sits above 0, between 6.6e-4 and 3.2e-2 I/F in five archived frames.
+  Half a DN off the whole-DN grid, the residual keeps every digitized pixel off 0
+  at any noise level. One and a half steps up, it keeps the sky's 1st percentile
+  positive under ``instrument_defaults``, as inside a real GEOMED border.
+* Every other calibrated frame (the Cassini CALIB cameras, and any instrument a
+  scene pins to ``calibrated_if``) uses 4.0e-5 I/F, the median sky of 13 dark
+  Cassini NAC CALIB frames. Their sky scatters around 0 with a sigma of 1.9e-4
+  I/F. Under ``instrument_defaults`` about 28% of the pixels of a disc scene a
+  third of the frame across sit below 0, down to about -0.0006.
+
+The simulator digitizes to whole DN, so a calibrated frame's values fall on a
+lattice, and at some exposures the subtracted dark pedestal puts a lattice point
+on 0 (10.7 s at the NAC's default gain state, under ``instrument_defaults``). The
+inverse moves a pixel that lands exactly on a numeric marker to the next float
+above it, so no pixel the detector delivers reads as missing data. Only planted
+loss puts a calibrated pixel at the marker: the artifact modes and
+``noise.missing_data_rate``, which work on both classes.
 
 The editor's status bar names a rendered frame's units and value range and the
 share of pixels at the marker (:func:`~spindoctor.sim.instruments.frame_units_summary`).
 It reads the frame the navigator reads, with the planted offset applied, although
-the preview beside it is offset-free: moving the scene against the frame changes
-how much sky it shows. When the navigator's image classifier would not call that
-frame clean, the status bar says why, in the classifier's order
-(:func:`~spindoctor.sim.instruments.read_frame_as_navigator`): a peak below the
-blank limit first, then the overexposed share, then a marker share above
-``max_missing_frac_clean``. An empty ``vgiss`` frame is all marker, but the
-navigator calls it blank. The preview stretch is relative to the frame, so the
-units are otherwise invisible: a ``vgiss`` frame spanning 0 to 1 looks the same
-as a ``coiss_nac`` frame spanning 20 to 4095.
-
-A scene loaded for navigation gets the same check without the editor:
-``ObsSim.from_file``, which ``sd_offset`` and the in-process integration runs
-call, renders inside an image log scope. When a calibrated frame with a
-numeric marker is refused as missing data,
-:func:`~spindoctor.sim.render.render_combined_model` separates the pixels the
-scene renders at the marker from the ones the telemetry stage's planted loss
-writes there. The telemetry stage records the first share in the render truth
-as ``rendered_marker_frac``: the pixels at the marker both before and after the
-stage. When the planted share alone is within the limit, the dark sky is what
-puts the frame over it, and the renderer logs a warning on the image logger
-(:func:`~spindoctor.sim.instruments.sky_at_marker_warning`) that names the
-marker share, the limit, the sky's share, the planted share, and the
-``marker_value: NaN`` override. A frame that its planted loss alone puts over
-the limit doesn't get the warning, since the override would not change the
-verdict.
+the preview beside it is offset-free: the offset moves the scene within the
+frame, and can take a body near the edge out of it. When the navigator's image
+classifier would not call that frame clean, the status bar says why, in the
+classifier's order (:func:`~spindoctor.sim.instruments.read_frame_as_navigator`):
+a peak below the blank limit first, then the overexposed share, then a marker
+share above ``max_missing_frac_clean``. An empty ``coiss_calib_nac`` frame's sky
+residual is below the blank limit, so the navigator calls it blank; an empty
+``vgiss`` frame's is above it. The preview stretch is relative to the frame, so
+the units are otherwise invisible: a ``vgiss`` frame spanning about 0 to 1 looks
+the same as a ``coiss_nac`` frame spanning 20 to 4095.
 
 .. _sim-optics-stage:
 
@@ -699,6 +695,19 @@ line-correlated read-noise term (a per-line offset plus a within-line white
 component) and a faint vertical coherent periodic component -- then 8-bit
 quantization.
 
+Cosmic rays work on the vidicon with the CCD's meaning: the event count is a
+Poisson draw with mean ``cosmic_ray_events_per_pixel_per_sec`` x
+``exposure_sec`` x pixel count, through the same stage. A vidicon stores the
+image as charge on its photoconductive target until the electron beam scans it,
+and a charged particle crossing the target discharges it the way light does. So
+the hits join the stored image: after the stars and the erase-cycle residual
+image (a ghost of the prior frame, which this frame's hits never reach), and
+before the readout, whose read noise, coherent component, dark ramp, banding,
+and beam bend all act on them. Each hit deposits at least the DN full scale
+(``full_well_dn``), so its core digitizes at the 8-bit ceiling. The real target
+also takes hits while it waits to be read; the stage counts the exposure alone,
+as on a CCD.
+
 **The calibrated-I/F path.** A calibrated instrument (``coiss_calib_*`` on the
 CCD chain, ``vgiss`` on the vidicon chain) renders through its DN chain and then
 inverts the calibration transform: the bias and dark pedestals are subtracted
@@ -706,7 +715,9 @@ before the exposure divide (matching the real pipeline; the vidicon has no dark
 pedestal), so a calibrated frame carries no spurious 1/exposure pedestal and
 comes out in I/F units with propagated shot / read noise and quantization
 texture. The calibration scale is derived so a noise-free signal of 1.0 at the
-reference exposure round-trips to I/F 1.0.
+reference exposure round-trips to I/F 1.0. The inverse then adds the calibrated
+sky residual and keeps every pixel off a numeric marker (see
+:ref:`Instruments <sim-instruments>`).
 
 :func:`~spindoctor.sim.forward.detector.params.resolve_detector_params`
 collapses the emulated instrument's config block, the per-instrument catalog
@@ -731,7 +742,7 @@ kernel and the residual-distortion amplitude
 (:func:`~spindoctor.sim.forward.optics.instrument_defaults_on` gates the optics
 side), and the detector electron chain's Poisson shot noise, read noise, dark
 current, hot pixels, full-well bloom, banding, bias structure, and cosmic-ray
-rate (the detector side reads the same switch; every CCD entry records a
+rate (the detector side reads the same switch; every entry records a
 cosmic-ray rate of zero, each with its reason). An explicit ``noise`` key still
 wins in either direction -- ``noise: {poisson: false}`` turns the shot term off
 under instrument defaults. It turns on only the *physical* chain: the artifact modes
@@ -842,8 +853,8 @@ Telemetry-stage modes
 Applied at the detector grid after readout, in the physical order of
 transmission (see :data:`~spindoctor.sim.forward.artifact_modes.STRUCTURED_LOSS_ORDER`).
 Loss modes write the instrument's missing-data marker, its ``noise.marker_value``:
-0 for the raw instruments, NaN for the Cassini CALIB instruments, and 0 for
-``vgiss``. Garble and spikes write *wrong* values instead.
+0 on every shipped instrument, raw and calibrated. Garble and spikes write *wrong*
+values instead.
 
 .. list-table::
    :header-rows: 1
@@ -2885,20 +2896,15 @@ against exactly this inventory, so an unknown noise key fails loudly.
      - Expected cosmic-ray events per pixel per second of exposure: a frame's
        event count is a Poisson draw with mean rate x ``exposure_sec`` x pixel
        count. ``instrument_defaults`` supplies the catalog rate (0.0 for every
-       instrument). The CCD chain alone has a cosmic-ray stage, so the
-       validator refuses a non-zero value when the detector model resolves to
-       ``vidicon`` (``vgiss``, or any scene that sets
-       ``detector.detector_model: vidicon``).
+       instrument). The CCD chain deposits the hits in electrons and the
+       vidicon chain in DN, with the same meaning (see
+       :ref:`sim-detector-stage`).
    * - ``missing_data_rate``
      - float
      - 0.0
      - Fraction of pixels (0-1) set to the missing-data marker (telemetry
-       stage). Stays 0 under ``instrument_defaults``. The dropout runs on
-       raw-DN frames only, so the validator refuses a non-zero value when the
-       resolved block renders ``calibrated_if`` (``coiss_calib_nac``,
-       ``coiss_calib_wac``, ``vgiss``, or any scene whose ``instrument_config``
-       sets that ``data_units``). Plant loss on a calibrated frame with an
-       artifact mode such as ``missing_lines``.
+       stage), on raw-DN and calibrated frames alike. Stays 0 under
+       ``instrument_defaults``.
    * - ``bloom_length``
      - int
      - 0 (off)
@@ -3229,16 +3235,8 @@ realism addition needs -- live in their own module:
    * - ``noise.py``
      - Poisson, read noise, bias, cosmic-ray rate (events per pixel per
        second), missing-data rate, bloom, and signal full-scale fraction
-       (General tab). The cosmic-ray and missing-data controls follow the
-       validator's refusals through the same predicates
-       (``cosmic_ray_rate_refusal`` and ``missing_data_rate_refusal`` in
-       :mod:`spindoctor.sim.scene_checks`): on the vidicon detector the
-       cosmic-ray control is disabled, and on a ``calibrated_if`` frame the
-       missing-data control is, each with the validator's reason as its
-       tooltip. A change of instrument, detector model, or detector override
-       that makes a set rate refused moves the rate into a stash held for the
-       session, and the status bar names it. A change that lifts the refusal
-       puts it back. Load Scene clears the stash.
+       (General tab). Every control applies on every instrument and detector
+       model.
    * - ``optics_tab.py``
      - The Optics tab: PSF, motion smear, distortion, ghosts, the stray-light
        panel, oversample, and the spacecraft-ephemeris error group. Each

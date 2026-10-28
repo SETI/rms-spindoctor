@@ -48,9 +48,9 @@ Restrictions and assumptions
   :exc:`ValueError` at config-load time so the failure surfaces during process startup.
 - Required numeric fields are coerced through a ``_required_float`` helper that rejects
   non-numeric, non-finite, or boolean values.
-- The marker-value field accepts the literal string ``"NaN"`` for calibrated-IF
-  instruments where the missing-data sentinel is :class:`float` ``NaN``; numeric values
-  are coerced through :class:`float`.
+- The marker-value field accepts the literal string ``"NaN"`` for an instrument whose
+  missing-data sentinel is :class:`float` ``NaN``; numeric values are coerced through
+  :class:`float`.
 - The dataclass is frozen; new instances are returned per observation rather than
   mutated.
 
@@ -72,10 +72,11 @@ The per-instrument YAML schema consumed by
   identified post-CALIB).
 - ``noise.marker_value`` — int / float / str. Missing-data sentinel value. The literal
   ``"NaN"`` (or ``null``) becomes :class:`float` ``NaN``. An absent key defaults to 0
-  for ``raw_dn`` and to ``NaN`` for ``calibrated_if``. The raw instruments use 0, and the
-  Cassini CALIB blocks declare ``NaN``. The Voyager ISS block is ``calibrated_if`` yet
-  declares 0, because its GEOMED products fill lost pixels with zero; on those frames a
-  pixel of exactly 0 I/F counts as missing.
+  for ``raw_dn`` and to ``NaN`` for ``calibrated_if``. Every shipped block declares 0:
+  the raw instruments, and the calibrated Cassini CALIB and Voyager ISS blocks, whose
+  CALIB and GEOMED products fill lost pixels with zero. On a calibrated frame a pixel of
+  exactly 0 I/F therefore counts as missing; a valid calibrated pixel is never exactly
+  0.
 - ``image_quality_thresholds`` — block consumed by
   :class:`~spindoctor.nav_orchestrator.image_classifier.ImageQualityThresholds`. See
   :doc:`dev_guide_orchestrator_image_classifier` for the field-by-field schema.
@@ -149,7 +150,7 @@ where they were read from.
 
 **Cassini ISS CALIB pipeline.**  When the operator runs the calibrated-IF pipeline,
 ``data_units: calibrated_if``, ``noise.saturation_dn: null``, and
-``noise.marker_value: NaN``. The orchestrator's saturation-mask helper returns an empty
+``noise.marker_value: 0``. The orchestrator's saturation-mask helper returns an empty
 mask (saturation cannot be identified post-CALIB), and the star navigation model screens
 catalog stars purely by magnitude against :meth:`obs.star_max_usable_vmag()
 <spindoctor.obs.obs_inst.ObsInst.star_max_usable_vmag>`, so the calibrated-IF units carry

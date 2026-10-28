@@ -19,11 +19,10 @@ detector could *measure* on the rendered frame.  This module carries both sides:
 and a dead pixel each overwrite pixels with the marker value, so a marker-run
 analysis recovers them exactly on a frame whose scene content is not itself at
 the marker level (a body or star frame with a non-zero bias floor).  The
-dark-sky floor of an unbiased frame sits at the marker and is indistinguishable
-from a dropout, and so does the part of a ``vgiss`` frame's calibrated dark sky
-that renders at exactly 0 I/F: all of it on a noise-free frame, and much of it
-under ``instrument_defaults``, where quantization leaves many sky pixels at 0.
-Modes that plant *wrong* values rather than the marker -- garble (random DN),
+dark-sky floor of an unbiased raw frame sits at the marker and is
+indistinguishable from a dropout.  A calibrated frame's dark sky sits on its
+calibrated sky residual, off the marker, so only planted loss reads as the marker
+there.  Modes that plant *wrong* values rather than the marker -- garble (random DN),
 pixel spikes (bit-flips), and every detector-electronics mode -- are not
 recoverable pixel-by-pixel from a single frame: distinguishing them from
 scene structure needs multi-frame or noise statistics, which is out of scope

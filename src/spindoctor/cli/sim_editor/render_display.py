@@ -110,8 +110,8 @@ class RenderDisplayMixin(SimEditorBase):
             # Render image (caching is handled in render.py)
             img, meta = render_combined_model(self.sim_params, ignore_offset=True)
             # The navigator reads the frame with the planted offset applied, which
-            # moves the scene against the sky, so the marker share and verdict come
-            # from that frame; the preview stays offset-free.
+            # moves the scene within the frame (a body near the edge can leave it),
+            # so the verdict comes from that frame; the preview stays offset-free.
             navigated = img
             if has_planted_offset(self.sim_params):
                 navigated, _ = render_combined_model(self.sim_params, ignore_offset=False)

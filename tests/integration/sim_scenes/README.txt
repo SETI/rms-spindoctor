@@ -157,10 +157,10 @@ Fields
                                      neither the renderer nor the navigator
   noise            (mapping, opt)    poisson, read_noise_dn, bias_dn,
                                      cosmic_ray_events_per_pixel_per_sec (expected
-                                     events per pixel per second of exposure; CCD
-                                     chain only, refused non-zero on the vidicon),
-                                     missing_data_rate (raw-DN frames only, refused
-                                     non-zero on a calibrated_if frame), bloom_length,
+                                     events per pixel per second of exposure, on the
+                                     CCD and vidicon chains alike),
+                                     missing_data_rate (raw and calibrated frames
+                                     alike), bloom_length,
                                      signal_full_scale_frac, dark_current_e_per_sec,
                                      hot_pixel_fraction,
                                      hot_pixel_amplitude_e, hot_pixel_column_factor,
@@ -209,29 +209,27 @@ Fields
                                      instrument_config.noise for rendering.)
   fit_camera_rotation (bool, opt)    force whether navigation solves a camera roll
 
-The instrument fixes the frame's units and its missing-data marker, in one of
-three classes:
+The instrument fixes the frame's units, in one of two classes; both mark a
+lost pixel with 0, as the real products do:
 
-  coiss_nac, coiss_wac, gossi,      DN, marker 0; the bias pedestal keeps the dark
-  nhlorri, generic                  sky above the marker
-  coiss_calib_nac, coiss_calib_wac  I/F, marker NaN
-  vgiss                             I/F, marker 0, as in the Voyager GEOMED products
+  coiss_nac, coiss_wac, gossi,      raw DN; the bias pedestal keeps the dark sky
+  nhlorri, generic                  above the marker
+  coiss_calib_nac,                  calibrated I/F, like the Cassini CALIB and
+  coiss_calib_wac, vgiss            Voyager GEOMED products; vgiss also keeps a
+                                    255 DN full well
 
-An I/F frame spans roughly 0 to 1 (a vgiss frame tops out at 1.84, a
-coiss_calib_nac frame near 2.0; under instrument_defaults read noise takes part
-of the dark sky slightly below 0, about 5% of a vgiss disc scene's pixels and
-more than a quarter of a coiss_calib_nac one's), so a display or threshold
-scaled for DN shows it as black.  A calibrated frame's noise-free dark sky is
-exactly 0 I/F.  On vgiss that equals the marker, so the navigator counts the sky
-as missing data and refuses the frame (missing_data_dominant) when more than 30%
-of its pixels are exactly 0.  Pin instrument_config.noise.marker_value to NaN to
-navigate such a scene; it then no longer exercises the Voyager marker.  The scene
+An I/F frame spans roughly 0 to 1 (a vgiss frame tops out at 1.85, a
+coiss_calib_nac frame near 2.0), so a display or threshold scaled for DN shows it
+as black.  The calibration inverse adds a calibrated sky residual, so no
+noise-free dark sky reads exactly 0: vgiss sits at 0.0118 I/F (1.5 DN), above 0
+as the GEOMED sky does, and a calibrated Cassini frame at 4.0e-5 I/F, the median
+real CALIB sky.  Under instrument_defaults a coiss_calib_nac sky scatters around
+0, more than a quarter of a disc scene's pixels slightly below it, and a vgiss
+sky stays above 0.  A pixel that still lands exactly on the marker moves to the
+next float above it, so only planted loss puts a pixel at the marker.  The scene
 editor's status bar shows each render's units, range, and marker share, counted
 on the frame the navigator reads (planted offset applied), and the navigator's
-verdict when it is blank, overexposed, or mostly missing data.  Loading a vgiss
-scene for navigation logs a warning on the image logger when the pixels the scene
-renders at the marker put the frame over the limit.  A frame that the scene's
-planted data loss alone puts over the limit doesn't get that warning.
+verdict when it is blank, overexposed, or mostly missing data.
 
 Body params follow the renderer: shape_model (ellipsoid | polyhedral_mesh),
 center_v, center_u, axis1, axis2, axis3, illumination_angle, phase_angle,

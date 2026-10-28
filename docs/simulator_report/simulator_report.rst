@@ -291,14 +291,15 @@ from.
        fixed-position per-detector hot-pixel map.
    * - ``vgiss``
      - n/a (vidicon path)
-     - 0.0 (no chain stage)
-     - The vidicon chain carries neither a hot-pixel nor a cosmic-ray stage, so
-       both are absent by construction, and the scene validator refuses a
-       non-zero cosmic-ray rate on it.  The 3-frame GEOMED cohort measures a
-       3.5e-5 transient fraction, mostly interpolated away by reseau-anchored
-       resampling; unblocked by a DN-domain transient stage plus more Voyager
-       frames.  (The vidicon read noise itself is tuned to the published
-       low-gain range against this cohort.)
+     - 0.0
+     - The vidicon chain carries no hot-pixel stage, so hot pixels are absent
+       by construction.  Its cosmic-ray stage deposits hits on the stored
+       target image with the CCD's per-pixel-per-second meaning, and the rate
+       is a retained zero: the 3-frame GEOMED cohort measures a 3.5e-5
+       transient fraction, mostly interpolated away by reseau-anchored
+       resampling, so it cannot say how many hits the target took.  Unblocked
+       by more Voyager frames.  (The vidicon read noise itself is tuned to the
+       published low-gain range against this cohort.)
    * - ``nhlorri``
      - 0.0
      - 0.0
@@ -690,7 +691,8 @@ cannot close, it is recorded here rather than force-fitted:
    and was reverted; the Galileo population is already carried by the
    tuned per-scene hot pixels, so a separate term double-counts it; the
    LORRI measurement is star-contaminated (both cohort frames are binned
-   star fields); and the Voyager vidicon path has no transient stage.
+   star fields); and the Voyager GEOMED resampling interpolates most
+   transients away.
    Each catalog entry records its measured rate and the unblocking
    condition beside the retained zero.
 
@@ -1501,14 +1503,14 @@ carry propagated shot and read noise and quantization texture in I/F units.
 The realism match above compares exactly that path against the real
 calibrated cohorts.
 
-``vgiss`` is the exception to unit-agnostic navigation. Its I/F frames keep the
-Voyager GEOMED products' ``0`` missing-data marker, and the calibration inverse
-puts a noise-free dark sky at exactly 0 I/F, so the navigator counts the sky as
-missing data. The same disc scene that recovers its planted offset on
-``coiss_nac`` and on ``coiss_calib_nac`` is refused on ``vgiss`` as
-``missing_data_dominant``, with 64% of the frame at the marker (50% under
-``instrument_defaults``). Real GEOMED frames keep their sky above 0, so this is a
-simulator limitation (see :doc:`/dev_guide/instruments/voyager_iss`).
+Every calibrated instrument marks a lost pixel with ``0``, as the Cassini CALIB
+and Voyager GEOMED products do, and the calibration inverse adds a calibrated sky
+residual so a dark sky never reads as missing data: 0.0118 I/F on ``vgiss``,
+above 0 as the GEOMED sky is, and 4.0e-5 I/F on the calibrated Cassini cameras,
+whose real sky scatters around 0. The disc scene with a planted (3, -2) px offset
+recovers it on ``coiss_nac``, ``coiss_calib_nac``, and ``vgiss`` alike: exactly
+on the noise-free floor, and to within 0.07 px under ``instrument_defaults`` (see
+:doc:`/dev_guide/instruments/voyager_iss`).
 
 Model-mismatch sensitivity
 ==========================
@@ -1665,8 +1667,7 @@ Summary
 * A small camera roll is not separable from a translation: the field matcher
   recovers rolls only above ~0.75 deg (the two-star fit extends this to ~0.5 deg),
   and the small-body navigation floor (the 5 px ``BODY_BLOB`` emission floor) is
-  set by the feature-emission gate, not the centroid algorithm. Apart from
-  ``vgiss``, whose dark sky sits at its missing-data marker, navigation is
+  set by the feature-emission gate, not the centroid algorithm. Navigation is
   unit-agnostic: I/F frames navigate identically to raw DN.
 * The confidence column reflects the sim-calibrated per-technique formulas
   (seed-20260718 campaign: the limb-corroborated fuse ~0.99, disc ~0.62-0.75,

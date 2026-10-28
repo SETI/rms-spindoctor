@@ -398,22 +398,23 @@ band width, so a bare ``probability`` keeps a physical centered band.
 simulator reads the same configuration block as real navigation, so a simulated
 frame carries the units and marker of the GEOMED product: the product stores I/F
 as scaled integers and fills lost pixels and its resample border with zero, about
-10% of each frame. No other simulated instrument pairs I/F with a ``0`` marker.
-The raw instruments render DN, and the calibrated Cassini instruments mark a lost
-pixel with ``NaN`` (see :ref:`Instruments <sim-instruments>`). An author should
-expect a frame to span 0 to about 1, up to the 1.84 I/F ceiling that the 255 DN
-clip sets before the calibration inverse. Under ``instrument_defaults`` the
-vidicon read noise takes a few percent of the pixels slightly below 0, to about
--0.008 I/F, which a real GEOMED frame cannot hold. A tool scaled for a DN frame
-shows a ``vgiss`` frame as black.
+10% of each frame. The calibrated Cassini instruments share the I/F units and the
+``0`` marker; ``vgiss`` alone also keeps a full well, the 255 DN clip that sets a
+1.85 I/F ceiling before the calibration inverse (see
+:ref:`Instruments <sim-instruments>`). An author should expect a frame to span
+about 0.012 to 1. A tool scaled for a DN frame shows a ``vgiss`` frame as black.
 
-The calibration inverse subtracts the bias pedestal, so the noise-free dark sky
-renders at exactly 0 I/F, the marker value. The navigator counts it as missing
-data and refuses a frame where it covers more than 30% of the pixels. Real GEOMED
-frames do not do this. In five archived frames, four Voyager 2 star frames from
+The calibration inverse subtracts the bias pedestal and then adds a calibrated
+sky residual of 1.5 DN, 0.0118 I/F, so the dark sky sits above the marker, as on
+the real products. In five archived frames, four Voyager 2 star frames from
 ``VGISS_8210`` and one Voyager 1 dark frame from ``VGISS_5101``, the central 800
-by 800 pixels sit on a positive calibration residual: the first percentile is
-above zero in every frame, and at most 0.03% of those pixels are exactly 0.
+by 800 pixels sit on a positive calibration residual between 6.6e-4 and 3.2e-2
+I/F: the first percentile is above zero in every frame, and at most 0.03% of
+those pixels are exactly 0. Half a DN off the whole-DN grid, the simulated
+residual keeps every digitized pixel off 0. Under ``instrument_defaults`` the
+vidicon read noise (0.40 DN rms) takes a sky pixel below 0 only on a 1.5 DN
+excursion, about 7 pixels in 100,000, so the sky's first percentile stays
+positive.
 
 **Realism-match status.** The PSF is unverified and unverifiable through the
 resampling with the frames held locally. The distortion is measured, but on
@@ -502,11 +503,7 @@ Open items
   measurements, and the cohort holds one star frame.
 * The simulator uses one distortion and PSF key for four cameras across two
   spacecraft.
-* The simulator renders a ``vgiss`` frame's dark sky at exactly 0 I/F, the
-  missing-data marker, so the navigator refuses a simulated frame that is mostly
-  sky. Modeling the real products' positive sky residual would end that.
-
-  .. Modeling the positive sky residual is tracked as issue #792.
-
+* The simulator's calibrated sky residual is one constant, 0.0118 I/F, where the
+  real GEOMED sky level varies about 50x between frames.
 * The Voyager 1 cameras have no twist or distortion measurement: no frame of
   the Voyager 1 cohort locked.

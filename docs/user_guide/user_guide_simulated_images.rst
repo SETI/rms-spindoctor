@@ -61,54 +61,43 @@ starting from an empty one.
 
    sd_create_simulated_image /path/to/scene.yaml
 
-The editor disables a control whose value the scene file would refuse, and the control's
-tooltip says why:
-
-* On a ``polyhedral_mesh`` body, the controls for the appearance keys a mesh doesn't
-  support: atmosphere, photometric law, opposition surge, albedo texture, disc texture,
-  transits, and the crater controls.
-* On the Voyager vidicon detector (``vgiss``, or a detector model of ``vidicon``), the
-  cosmic-ray rate.
-* On a calibrated frame (``coiss_calib_nac``, ``coiss_calib_wac``, or ``vgiss``), the
-  missing-data rate.
-
-When switching a body's shape, the camera, or the detector model makes a value the scene
-carries refused, the editor moves that value out of the scene, and the status bar names
-it. Switching back puts the value back during the same session. A scene saved in between
-doesn't carry it.
+On a ``polyhedral_mesh`` body the editor disables the controls for the appearance keys a
+mesh doesn't support, because the scene file would refuse them: atmosphere, photometric
+law, opposition surge, albedo texture, disc texture, transits, and the crater controls.
+Each disabled control's tooltip says why. When switching a body's shape makes a value the
+scene carries refused, the editor moves that value out of the scene, and the status bar
+names it. Switching back puts the value back during the same session. A scene saved in
+between doesn't carry it.
 
 Units of a simulated frame
 ==========================
 
 A scene file's ``instrument`` names the camera a frame imitates, and the camera
-decides the frame's units and the value that marks a lost pixel. There are three
-cases.
+decides the frame's units. There are two kinds of frame, and in both a lost pixel
+reads 0, as it does in the real products.
 
 * ``coiss_nac``, ``coiss_wac``, ``gossi``, ``nhlorri``, and ``generic`` frames are in
-  raw counts (DN). A lost pixel reads 0, and the dark sky sits a little above 0.
-* ``coiss_calib_nac`` and ``coiss_calib_wac`` frames are in I/F, like the calibrated
-  Cassini products. A lost pixel reads NaN.
-* ``vgiss`` frames are in I/F, like the geometrically corrected Voyager products,
-  and a lost pixel reads 0, as it does in those products.
+  raw counts (DN). The dark sky sits a little above 0.
+* ``coiss_calib_nac``, ``coiss_calib_wac``, and ``vgiss`` frames are in I/F, like the
+  calibrated Cassini products and the geometrically corrected Voyager products. The
+  dark sky never reads exactly 0: it sits at about 0.012 on a ``vgiss`` frame, and
+  at about 0.00004 on a calibrated Cassini frame.
 
 An I/F frame spans roughly 0 to 1, where a DN frame of the same scene can reach
 4095, so a display or threshold scaled for counts shows an I/F frame as black.
-With ``instrument_defaults`` on, read noise takes part of an I/F frame's dark sky
-slightly below 0: about 5% of the pixels of a ``vgiss`` disc scene, and more than
-a quarter of a ``coiss_calib_nac`` one. The editor's status bar names the units
-and value range of each render.
+With ``instrument_defaults`` on, read noise moves the dark sky about. On a
+calibrated Cassini frame it scatters around 0, and more than a quarter of the
+pixels of a disc scene sit slightly below 0, as on the real frames. On a ``vgiss``
+frame it stays above 0, as it does in the real Voyager products. The editor's status
+bar names the units and value range of each render.
 
-A ``vgiss`` frame's dark sky is exactly 0, the same value that marks a lost pixel.
-The navigator therefore treats the dark sky as lost data, and it refuses a frame
-when more than 30% of the pixels are exactly 0. The editor's status bar warns
-when a render crosses that limit. It counts the pixels of the frame the navigator
-sees, with the scene's planted offset applied, so the count can differ from what
-the preview shows. It also says when the navigator would call a frame blank, as
-it does an empty ``vgiss`` frame. A scene run through ``sd_offset`` gets a warning
-in its navigation log instead, when the dark sky is what puts the frame over the
-limit. A frame that the scene's planted data loss alone puts over the limit
-doesn't get that warning, because the scene asked for that loss. Real Voyager
-frames are unaffected, because their dark sky sits slightly above 0.
+The status bar also warns when the navigator would refuse a render: when more than
+30% of its pixels are lost, or when the frame would read as blank, as an empty
+calibrated Cassini frame does. It reads the frame the navigator sees, with the scene's
+planted offset applied, so its verdict can differ from what the preview shows.
+
+The random pixel loss (the missing-data rate) and the cosmic-ray rate work on every
+camera, the Voyager vidicon included.
 
 Planting defects in a scene
 ===========================
