@@ -90,8 +90,8 @@ least ``coarse_strength_keep_ratio`` of that maximum, and the strongest alignmen
 the fit otherwise. Edges within ``coarse_sensor_margin_px`` of the sensor boundary are left
 out of both scores: the step from the image onto the zero-padded margin of the extended
 frame is usually the strongest edge present, and a ring edge running near the frame border
-would otherwise lock onto it. The score reported to the coarse-acquisition gate is the
-plain match fraction at whichever shift was chosen.
+would otherwise lock onto it. A fit is marked spurious when the plain match fraction at
+the chosen shift is below ``spurious_min_coarse_peak_fraction``.
 
 Keeping the overlap seed whenever it sits on comparably strong edges is deliberate. On a
 straight or nearly straight edge the strength score is almost flat along the edge, so its

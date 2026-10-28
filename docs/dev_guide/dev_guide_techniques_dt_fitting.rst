@@ -413,8 +413,9 @@ Public surface (autodocumented at :doc:`/api_reference/api_nav_technique`):
   cross-correlation (offset-only convenience form).
 - :func:`~spindoctor.nav_technique.dt_fitting.coarse_ncc_search_scored` — the same search
   returning a :class:`~spindoctor.nav_technique.dt_fitting.CoarseSearchResult`, whose
-  ``score`` is the winning shift's per-vertex edge-pixel match fraction — the
-  acquisition-quality signal the fit-quality gates consume.
+  ``score`` is the winning shift's per-vertex edge-pixel match fraction. A fit is
+  marked spurious when this fraction is less than ``spurious_min_coarse_peak_fraction``
+  (see the shared fit-quality section below).
 - :func:`~spindoctor.nav_technique.dt_fitting.coarse_polarity_search_scored` — the
   polarity-weighted variant (Stage 1b): the same integer search and
   :class:`~spindoctor.nav_technique.dt_fitting.CoarseSearchResult` output, but each match is
