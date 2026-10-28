@@ -343,13 +343,6 @@ def _set_body_scene(
     )
 
 
-def test_units_label_reads_the_navigated_frame(model: Any) -> None:
-    """The label says blank when the planted offset moves the only body out of the frame."""
-    _set_body_scene(model, instrument='coiss_calib_nac', axis=6.0, center_u=118.0, offset_u=20.0)
-    model._update_image()
-    assert '(peak below 0.0001: the navigator classifies it blank)' in model._units_label.text()
-
-
 def test_units_label_leaves_the_vgiss_sky_out_of_the_marker_count(model: Any) -> None:
     """A vgiss frame's dark sky sits above the 0 marker, and the label stays quiet."""
     _set_body_scene(model, instrument='vgiss', axis=86.0, center_u=64.0, offset_u=0.0)

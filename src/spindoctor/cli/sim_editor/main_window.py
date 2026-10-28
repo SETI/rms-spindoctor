@@ -47,6 +47,7 @@ from spindoctor.cli.sim_editor.scene_io import SceneIoMixin
 from spindoctor.cli.sim_editor.star_tab import StarTabMixin
 from spindoctor.cli.sim_editor.stray_light import StrayLightMixin
 from spindoctor.cli.sim_editor.tabs import TabsMixin
+from spindoctor.cli.sim_editor.verdict import VerdictRunner
 from spindoctor.cli.sim_editor.widgets import ImageLabel, ParameterUpdater
 from spindoctor.ui.common import ZoomPanController
 
@@ -125,6 +126,10 @@ class CreateSimulatedImageModel(
 
         self._updater = ParameterUpdater(140)
         self._updater.update_requested.connect(self._update_image)
+        # The navigated frame's verdict renders off the UI thread (see verdict.py).
+        self._verdict_runner = VerdictRunner(self)
+        self._verdict_runner.ready.connect(self._show_verdict)
+        self._verdict_runner.failed.connect(self._show_verdict_failure)
 
         self._setup_ui()
         self._update_image()

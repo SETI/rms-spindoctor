@@ -47,6 +47,7 @@ __all__ = [
     'GENERIC_INSTRUMENT_ALIASES',
     'SIM_INSTRUMENTS',
     'NavigatorFrameReading',
+    'frame_units_name',
     'frame_units_summary',
     'has_planted_offset',
     'navigator_marker_value',
@@ -312,7 +313,8 @@ def read_frame_as_navigator(
         The reading, with the class and the limits that decided it.
     """
     arr = np.asarray(image, dtype=np.float64)
-    raw_dn = str(inst_config.get('data_units', 'raw_dn')) == 'raw_dn'
+    units = frame_units_name(inst_config)
+    raw_dn = units == 'DN'
     thresholds = inst_config.get('image_quality_thresholds') or {}
     marker = navigator_marker_value(inst_config)
     missing = np.isnan(arr) if math.isnan(marker) else arr == marker
@@ -339,7 +341,7 @@ def read_frame_as_navigator(
     else:
         image_class = 'clean'
     return NavigatorFrameReading(
-        units='DN' if raw_dn else 'I/F',
+        units=units,
         marker=marker,
         missing_frac=missing_frac,
         image_class=image_class,
@@ -347,6 +349,19 @@ def read_frame_as_navigator(
         max_missing_frac=max_missing,
         max_overexposed_frac=max_overexposed,
     )
+
+
+def frame_units_name(inst_config: Mapping[str, Any]) -> str:
+    """Name the units a frame of this block is written in.
+
+    Parameters:
+        inst_config: A resolved per-instrument config block.
+
+    Returns:
+        ``'DN'`` for a ``raw_dn`` block (the default when ``data_units`` is absent),
+        ``'I/F'`` for a ``calibrated_if`` one.
+    """
+    return 'DN' if str(inst_config.get('data_units', 'raw_dn')) == 'raw_dn' else 'I/F'
 
 
 def has_planted_offset(sim_params: Mapping[str, Any]) -> bool:

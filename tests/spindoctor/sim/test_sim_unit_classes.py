@@ -26,6 +26,7 @@ from spindoctor.sim.forward.stages import SimFrame
 from spindoctor.sim.forward.telemetry import apply_telemetry
 from spindoctor.sim.instruments import (
     SIM_INSTRUMENTS,
+    frame_units_name,
     frame_units_summary,
     has_planted_offset,
     navigator_marker_value,
@@ -428,6 +429,24 @@ def test_planted_offset_is_any_non_zero_offset_or_roll(
 ) -> None:
     """A scene plants an offset when any offset or roll key is non-zero."""
     assert has_planted_offset(params) is planted
+
+
+@pytest.mark.parametrize('instrument', _ALL_INSTRUMENTS)
+def test_units_name_matches_the_navigator_reading(instrument: str) -> None:
+    """The units the editor names before a verdict arrives are the reading's units."""
+    inst_config = resolve_sim_inst_config(DEFAULT_CONFIG, instrument)
+    reading = read_frame_as_navigator(np.ones((4, 4)), inst_config)
+    assert frame_units_name(inst_config) == reading.units
+
+
+@pytest.mark.parametrize(
+    ('inst_config', 'units'),
+    [({}, 'DN'), ({'data_units': 'raw_dn'}, 'DN'), ({'data_units': 'calibrated_if'}, 'I/F')],
+    ids=['absent', 'raw_dn', 'calibrated_if'],
+)
+def test_units_name_follows_the_data_units(inst_config: dict[str, Any], units: str) -> None:
+    """A raw_dn block (the default) is DN, a calibrated_if block is I/F."""
+    assert frame_units_name(inst_config) == units
 
 
 def test_vgiss_dark_sky_stays_out_of_the_marker_count() -> None:

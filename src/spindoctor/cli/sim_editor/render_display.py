@@ -9,18 +9,23 @@ marker, and the navigator's verdict when it would not call the frame clean,
 because the preview stretch hides all of them: a ``vgiss`` frame in I/F looks
 the same as a ``coiss_nac`` frame in DN.  The preview is offset-free, but the
 status bar reads the frame the navigator reads, with the planted offset applied.
+When a scene plants an offset, that frame is a second render, which runs off the UI
+thread (:mod:`spindoctor.cli.sim_editor.verdict`): the preview appears at once, the
+status bar says the verdict is pending, and the navigated frame's summary replaces
+that when the second render finishes.
 """
 
 from typing import Any
 
 import numpy as np
 from PyQt6.QtCore import QPointF, QRectF, Qt
-from PyQt6.QtGui import QColor, QImage, QPainter, QPen, QPixmap
+from PyQt6.QtGui import QCloseEvent, QColor, QImage, QPainter, QPen, QPixmap
 from PyQt6.QtWidgets import QFileDialog, QFormLayout, QGroupBox, QLabel, QMessageBox, QVBoxLayout
 
 from spindoctor.cli.sim_editor.base import SimEditorBase
 from spindoctor.config import DEFAULT_CONFIG
 from spindoctor.sim.instruments import (
+    frame_units_name,
     frame_units_summary,
     has_planted_offset,
     resolve_sim_inst_config,
@@ -105,16 +110,18 @@ class RenderDisplayMixin(SimEditorBase):
 
     # ---- Rendering ----
     def _update_image(self) -> None:
-        """Re-render the scene and refresh the display."""
+        """Re-render the preview, refresh the display, and update the status bar.
+
+        The preview renders on the UI thread.  Without a planted offset the status
+        bar describes the preview itself.  With one, the navigator reads a
+        different frame, since the offset moves the scene within the frame (a body
+        near the edge can leave it); the status bar then names the units with
+        ``verdict pending`` and asks the verdict runner for that frame, which
+        supersedes any verdict still on its way for an earlier edit.
+        """
         try:
             # Render image (caching is handled in render.py)
             img, meta = render_combined_model(self.sim_params, ignore_offset=True)
-            # The navigator reads the frame with the planted offset applied, which
-            # moves the scene within the frame (a body near the edge can leave it),
-            # so the verdict comes from that frame; the preview stays offset-free.
-            navigated = img
-            if has_planted_offset(self.sim_params):
-                navigated, _ = render_combined_model(self.sim_params, ignore_offset=False)
             self._current_image = img
             self._last_meta = meta
             inst_config = resolve_sim_inst_config(
@@ -122,11 +129,44 @@ class RenderDisplayMixin(SimEditorBase):
                 self.sim_params.get('instrument'),
                 self.sim_params.get('instrument_config'),
             )
-            self._units_label.setText(frame_units_summary(navigated, inst_config))
+            planted = has_planted_offset(self.sim_params)
+            if planted:
+                self._units_label.setText(f'{frame_units_name(inst_config)}: verdict pending')
+            else:
+                self._verdict_runner.cancel()
+                self._units_label.setText(frame_units_summary(img, inst_config))
             self._display_image()
+            if planted:
+                self._verdict_runner.request(self.sim_params)
         except Exception as e:
+            self._verdict_runner.cancel()
             self._units_label.setText('')
             QMessageBox.critical(self, 'Error', f'Failed to render image:\n{e!s}')
+
+    def _show_verdict(self, summary: str) -> None:
+        """Show the navigated frame's summary, delivered by the verdict runner.
+
+        Parameters:
+            summary: The status text for the latest scene's navigated frame.
+        """
+        self._units_label.setText(summary)
+
+    def _show_verdict_failure(self, error: str) -> None:
+        """Report a failed navigated-frame render in the status bar.
+
+        Parameters:
+            error: ``'<ExceptionType>: <message>'`` from the failed render.
+        """
+        self._units_label.setText(f'verdict render failed: {error}')
+
+    def closeEvent(self, event: QCloseEvent | None) -> None:
+        """Drop any verdict still on its way, then close the window.
+
+        Parameters:
+            event: The close event.
+        """
+        self._verdict_runner.cancel()
+        super().closeEvent(event)
 
     def _toggle_saturation_overlay(self, checked: bool) -> None:
         """Toggle the saturation overlay and re-display (no re-render)."""

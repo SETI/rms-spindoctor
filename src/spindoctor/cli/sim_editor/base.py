@@ -33,6 +33,7 @@ from PyQt6.QtWidgets import (
 )
 
 from spindoctor.cli.sim_editor.body_mesh_keys import MeshKeyStash
+from spindoctor.cli.sim_editor.verdict import VerdictRunner
 from spindoctor.cli.sim_editor.widgets import ImageLabel, ParameterUpdater
 from spindoctor.ui.common import ZoomPanController
 
@@ -58,6 +59,7 @@ class SimEditorBase(QMainWindow):
     _zoom_sharp: bool
     _syncing: bool
     _updater: ParameterUpdater
+    _verdict_runner: VerdictRunner
     _zoom_ctl: ZoomPanController
 
     # ---- Left image panel ----
