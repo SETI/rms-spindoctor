@@ -24,16 +24,16 @@ ring_system:
     - name: ASHEET
       kind: ringlet
       tau: 1.8
-      width: 45.0
+      width_px: 45.0
       navigable: true
-      orbit: {a: 40.0, ae: 0.0, long_peri: 0.0, rate_peri: 0.0}
+      orbit: {a_px: 40.0, ae_px: 0.0, long_peri_deg: 0.0, rate_peri_deg_per_day: 0.0}
     - name: ENCKE
       kind: gap
       tau: 1.8
-      width: 8.0
-      orbit: {a: 58.0, ae: 0.0, long_peri: 0.0, rate_peri: 0.0}
+      width_px: 8.0
+      orbit: {a_px: 58.0, ae_px: 0.0, long_peri_deg: 0.0, rate_peri_deg_per_day: 0.0}
   moonlets:
-    - a: 62.0
+    - a_px: 62.0
       lam_deg: 130.0
       radius_px: 1.5
       amplitude: 0.5

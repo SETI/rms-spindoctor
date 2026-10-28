@@ -28,6 +28,17 @@ edges land in projected positions by construction.  The conventions:
   ``dlos = -y * cos(B)``, positive toward the observer, so for ``B > 0`` the
   near arm is the ``y < 0`` half and the ansae have zero depth.
 
+Radial lengths are unit-agnostic: every function works in whatever radial
+unit its caller uses, consistently.  Scene values are ring-plane pixels (the
+``_px`` keys: a distance in the ring plane in detector pixels, radial or along
+the orbit, which projects to that many image pixels along the line of nodes
+and is foreshortened by ``sin(B)`` across it).  The one ``_px`` exception, a
+moonlet's ``radius_px``, is a radius on the sky in image pixels, and nothing
+here reads it.  The renderer scales the ring-plane values by its oversampling
+factor onto the render grid (:meth:`RingOrbit.scaled`) and the navigator-side
+model uses them unscaled.  Angles are degrees, except the radian longitudes
+``lam`` and the edge wave's damping.
+
 Every function takes explicit geometry arguments; the only scene fragment
 read here is the per-feature ``orbit`` mapping (via
 :func:`ring_orbit_from_mapping`), which is an idealized block both sides are
@@ -43,6 +54,7 @@ from typing import Any, cast
 
 import numpy as np
 
+from spindoctor.sim.scene_schema import scene_value
 from spindoctor.support.types import NDArrayFloatType
 
 __all__ = [
@@ -66,8 +78,8 @@ def _edge_eccentricity(*, a: float, ae: float) -> float:
     """Eccentricity of a mode 1 ring edge, validated against the ellipse limit.
 
     Parameters:
-        a: Semi-major axis in pixels.
-        ae: Eccentricity times semi-major axis in pixels.
+        a: Semimajor axis, in the caller's radial unit.
+        ae: Eccentricity times semimajor axis, in the same unit.
 
     Returns:
         The eccentricity ``ae / a`` (0.0 when ``a`` is not positive).
@@ -98,16 +110,16 @@ def compute_edge_radius_at_angle(
     """Compute edge radius at a specific angle using mode 1 parameters.
 
     Parameters:
-        angle: Angle in radians from center.
-        a: Semi-major axis in pixels.
-        ae: Eccentricity times semi-major axis in pixels.
+        angle: Ring-plane longitude from the ascending node, in radians.
+        a: Semimajor axis, in the caller's radial unit.
+        ae: Eccentricity times semimajor axis, in the same unit.
         long_peri: Longitude of pericenter in degrees.
         rate_peri: Rate of precession in degrees/day.
         epoch: Epoch time (TDB seconds).
         time: Current time (TDB seconds).
 
     Returns:
-        Edge radius in pixels at the given angle.
+        Edge radius at the given angle, in the unit of ``a``.
 
     Raises:
         ValueError: If ``ae / a`` is an eccentricity of 1 or more, which does
@@ -140,16 +152,16 @@ def compute_edge_radii_array(
     """Compute edge radii array for all angles using mode 1 parameters.
 
     Parameters:
-        angles: Array of angles in radians from center.
-        a: Semi-major axis in pixels.
-        ae: Eccentricity times semi-major axis in pixels.
+        angles: Ring-plane longitudes from the ascending node, in radians.
+        a: Semimajor axis, in the caller's radial unit.
+        ae: Eccentricity times semimajor axis, in the same unit.
         long_peri: Longitude of pericenter in degrees.
         rate_peri: Rate of precession in degrees/day.
         epoch: Epoch time (TDB seconds).
         time: Current time (TDB seconds).
 
     Returns:
-        Array of edge radii in pixels at the given angles.
+        Array of edge radii at the given angles, in the unit of ``a``.
 
     Raises:
         ValueError: If ``ae / a`` is an eccentricity of 1 or more, which does
@@ -178,9 +190,11 @@ class RingOrbitMode:
     with ``lam`` the ring-plane longitude from the ascending node, so for a
     pure m-mode on a circular base orbit ``r(lam) = a - amp * cos(m * (lam -
     peri))`` exactly (the normative closed form).  ``amp`` is ``a * e`` in
-    the same radial units as the semimajor axis; ``peri`` is the mode's
-    pericenter longitude in degrees, in the ring-plane frame (the sky node
-    angle never enters the orbit model).
+    the same radial units as the semimajor axis; ``peri`` is the longitude
+    of one of the mode's ``m`` pericenters in degrees, in the ring-plane frame
+    (the sky node angle never enters the orbit model).  The scene keys are
+    ``amp_px`` and ``peri_deg``.  Unlike the mode-1 ``long_peri``, ``peri``
+    stays fixed in time: :func:`compute_orbit_radii` precesses only mode 1.
 
     Parameters:
         m: Mode number (2 or greater; the mode-1 shape is the base ellipse).
@@ -207,14 +221,18 @@ class RingEdgeWave:
     form is chosen because rings are periodic and the wave physically wraps
     the full turn: immediately upstream of ``lam0`` it carries a wrap-seam
     residual of ``amp * exp(-2*pi/damp)`` of its launch amplitude.  The
-    scene validator caps ``damp`` at 2.0 radians, bounding that residual at
+    scene keys are ``amp_px``, ``wavelength_px``, ``edge_wave_damping_deg``,
+    and ``lam0_deg``; the scene gives the damping in degrees, the renderer
+    holds it in radians, and the validator caps ``edge_wave_damping_deg`` at
+    ``360 / pi`` (about 114.59 degrees, 2 radians), bounding that residual at
     ``exp(-pi)``, about 4.3% of ``amp``.
 
     Parameters:
         amp: Radial amplitude in the orbit's radial units.
         wavelength: Azimuthal wavelength as an arc length, in the orbit's
             radial units (the sine argument is arc length over wavelength).
-        damp: Azimuthal damping constant in RADIANS of downstream longitude.
+        damp: Azimuthal damping constant in RADIANS of downstream longitude
+            (converted from the scene's ``edge_wave_damping_deg``).
         lam0: Launch longitude in degrees (ring-plane frame; the perturbing
             moon's longitude).
     """
@@ -233,11 +251,13 @@ class RingOrbit:
     scene mapping: the image-side renderer draws through it (after applying
     its planted orbit error on its own side) and the navigator-side model
     predicts through it unmodified, so both sides interpret the same catalog
-    values identically by construction.
+    values identically by construction.  The radial fields hold the scene's
+    ring-plane pixels (``a_px``, ``ae_px``), or render-grid pixels after
+    :meth:`scaled`.
 
     Parameters:
-        a: Semimajor axis (pixels; any consistent radial unit).
-        ae: Eccentricity times semimajor axis, same units.
+        a: Semimajor axis, in the orbit's radial unit.
+        ae: Eccentricity times semimajor axis, same unit.
         long_peri: Mode-1 pericenter longitude in degrees (ring-plane frame).
         rate_peri: Mode-1 pericenter precession rate in degrees/day.
         modes: The m >= 2 radial modes.
@@ -301,19 +321,20 @@ def ring_orbit_from_mapping(orbit: Mapping[str, Any]) -> RingOrbit:
 
     This is the single interpretation of the idealized orbit block, shared by
     the forward renderer and the navigator-side model so both sides apply
-    the same defaults to the same catalog values.
+    the same defaults to the same catalog values.  An optional key set to null
+    takes the default an absent key does, as the validator reads it.
 
     Parameters:
         orbit: The validated ``ring_system.features[].orbit`` mapping.
 
     Returns:
-        The parsed orbit.
+        The parsed orbit, its radial fields in ring-plane pixels.
     """
     modes = tuple(
         RingOrbitMode(
             m=int(mode['m']),
-            amp=float(mode.get('amp', 0.0)),
-            peri=float(mode.get('peri', 0.0)),
+            amp=float(scene_value(mode, 'amp_px', 0.0)),
+            peri=float(scene_value(mode, 'peri_deg', 0.0)),
         )
         for mode in orbit.get('modes') or []
     )
@@ -322,17 +343,17 @@ def ring_orbit_from_mapping(orbit: Mapping[str, Any]) -> RingOrbit:
         None
         if wave_map is None
         else RingEdgeWave(
-            amp=float(wave_map.get('amp', 0.0)),
-            wavelength=float(wave_map['wavelength']),
-            damp=float(wave_map['damp']),
-            lam0=float(wave_map.get('lam0', 0.0)),
+            amp=float(scene_value(wave_map, 'amp_px', 0.0)),
+            wavelength=float(wave_map['wavelength_px']),
+            damp=math.radians(float(wave_map['edge_wave_damping_deg'])),
+            lam0=float(scene_value(wave_map, 'lam0_deg', 0.0)),
         )
     )
     return RingOrbit(
-        a=float(orbit.get('a', 0.0)),
-        ae=float(orbit.get('ae', 0.0)),
-        long_peri=float(orbit.get('long_peri', 0.0)),
-        rate_peri=float(orbit.get('rate_peri', 0.0)),
+        a=float(scene_value(orbit, 'a_px', 0.0)),
+        ae=float(scene_value(orbit, 'ae_px', 0.0)),
+        long_peri=float(scene_value(orbit, 'long_peri_deg', 0.0)),
+        rate_peri=float(scene_value(orbit, 'rate_peri_deg_per_day', 0.0)),
         modes=modes,
         edge_wave=edge_wave,
     )
@@ -396,8 +417,8 @@ def compute_edge_wave_dr(
     negative (evaluating the raw form for ``lam < lam0`` would grow without
     bound -- the clamp is load-bearing).  The wrapped wave carries an
     upstream residual of ``amp * exp(-2*pi/damp)`` just before ``lam0``;
-    the validator's cap of ``damp <= 2.0`` radians bounds it at ``exp(-pi)``,
-    about 4.3% of ``amp``.  ``a`` is the feature's semimajor axis, making
+    the validator's cap of ``edge_wave_damping_deg <= 360 / pi`` (2 radians)
+    bounds it at ``exp(-pi)``, about 4.3% of ``amp``.  ``a`` is the feature's semimajor axis, making
     the sine argument arc length over wavelength (dimensionless).
 
     Parameters:

@@ -11,8 +11,9 @@ asserts the *decision*, per technique, not an exact recovery:
   correct pose but lands far off at the wrong pose -- a wrong-pose limb the
   navigator should not trust (here it also self-flags spurious).
 * The orientation-free ``BodyBlobNav`` stays accurate at both poses, because the
-  body's bulk shape is a centrally-symmetric triaxial ellipsoid whose
-  lit-weighted centroid barely moves under rotation.
+  body's relief is low: its bulk shape is close to its triaxial ellipsoid, which
+  is centrally symmetric, so its lit-weighted centroid barely moves under
+  rotation.
 
 A wrong in-plane roll is used because it swings the elongated body's silhouette
 the most for the least centroid motion, giving the cleanest separation between

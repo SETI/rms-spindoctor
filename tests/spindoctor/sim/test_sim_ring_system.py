@@ -128,8 +128,8 @@ def _ringlet(a: float, width: float, tau: float, **extra: Any) -> dict[str, Any]
     feature: dict[str, Any] = {
         'kind': 'ringlet',
         'tau': tau,
-        'width': width,
-        'orbit': {'a': a, 'ae': 0.0, 'long_peri': 0.0, 'rate_peri': 0.0},
+        'width_px': width,
+        'orbit': {'a_px': a, 'ae_px': 0.0, 'long_peri_deg': 0.0, 'rate_peri_deg_per_day': 0.0},
     }
     feature.update(extra)
     return feature
@@ -149,12 +149,17 @@ def test_feature_annulus_bounding_matches_full_grid_evaluation() -> None:
     center_v, center_u = 40.0, 58.0
     feature = _ringlet(22.0, 6.0, 1.3)
     feature['orbit'] = {
-        'a': 22.0,
-        'ae': 1.5,
-        'long_peri': 40.0,
-        'rate_peri': 0.0,
-        'modes': [{'m': 3, 'amp': 0.8, 'peri': 10.0}],
-        'edge_wave': {'amp': 0.6, 'wavelength': 9.0, 'damp': 0.5, 'lam0': 45.0},
+        'a_px': 22.0,
+        'ae_px': 1.5,
+        'long_peri_deg': 40.0,
+        'rate_peri_deg_per_day': 0.0,
+        'modes': [{'m': 3, 'amp_px': 0.8, 'peri_deg': 10.0}],
+        'edge_wave': {
+            'amp_px': 0.6,
+            'wavelength_px': 9.0,
+            'edge_wave_damping_deg': 30.0,
+            'lam0_deg': 45.0,
+        },
     }
     system = _system([feature], b_obs=b_obs, node=node)
     system['geometry']['center_v'] = center_v

@@ -11,18 +11,20 @@ detector could *measure* on the rendered frame.  This module carries both sides:
 
 * The ``measured_*`` estimators recover the same counts from the DN image alone,
   the way a detector run against a real archive frame would, with no access to
-  the truth record.  They key on the missing-data marker (the DN a lost pixel
-  carries: 0 on the raw-DN path, NaN on the calibrated path), so they are exact
-  for the marker-based structural modes and only those.
+  the truth record.  They key on the missing-data marker (the instrument's
+  ``noise.marker_value``: 0 for every shipped instrument), so they are exact for
+  the marker-based structural modes and only those.
 
 **Scope of the image estimators.**  A lost line, a truncated line, a lost block,
 and a dead pixel each overwrite pixels with the marker value, so a marker-run
 analysis recovers them exactly on a frame whose scene content is not itself at
-the marker level (a body or star frame with a non-zero bias floor; the dark-sky
-floor of an unbiased frame sits at the marker and is indistinguishable from a
-dropout).  Modes that plant *wrong* values rather than the marker -- garble
-(random DN), pixel spikes (bit-flips), and every detector-electronics mode --
-are not recoverable pixel-by-pixel from a single frame: distinguishing them from
+the marker level (a body or star frame with a non-zero bias floor).  The
+dark-sky floor of an unbiased raw frame sits at the marker and is
+indistinguishable from a dropout.  A calibrated frame's dark sky sits on its
+calibrated sky residual, off the marker, so only planted loss reads as the marker
+there.  Modes that plant *wrong* values rather than the marker -- garble (random DN),
+pixel spikes (bit-flips), and every detector-electronics mode -- are not
+recoverable pixel-by-pixel from a single frame: distinguishing them from
 scene structure needs multi-frame or noise statistics, which is out of scope
 here.  For those modes, use :func:`planted_incidence` (the truth side) only.
 """
@@ -82,8 +84,8 @@ def planted_incidence(truth: Mapping[str, Any]) -> dict[str, int]:
 
     Returns:
         A mapping from mode name to its realized event count, for every mode the
-        telemetry stage recorded.  A mode that rendered as a no-op (incidence 0)
-        leaves no record and does not appear.
+        telemetry stage recorded.  A mode that rendered as a no-op (activation
+        key 0) leaves no record and does not appear.
     """
     artifacts = truth.get('artifacts')
     if not isinstance(artifacts, Mapping):
@@ -100,8 +102,9 @@ def marker_mask(image: NDArrayFloatType, marker_value: float) -> NDArrayBoolType
 
     Parameters:
         image: The DN image.
-        marker_value: The marker DN (0 on the raw-DN path, NaN on the
-            calibrated path); NaN is matched with :func:`numpy.isnan`.
+        marker_value: The instrument's ``noise.marker_value`` (0 for every
+            shipped instrument; a scene may override it to NaN, which is matched
+            with :func:`numpy.isnan`).
 
     Returns:
         A boolean array, True where the pixel equals the marker.

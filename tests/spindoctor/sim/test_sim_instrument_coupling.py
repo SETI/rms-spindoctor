@@ -14,6 +14,7 @@ import pytest
 from spindoctor.config import DEFAULT_CONFIG
 from spindoctor.nav_orchestrator.instrument_config import instrument_settings_from_obs
 from spindoctor.obs.obs_inst_sim import ObsSim
+from spindoctor.sim.forward.artifacts_catalog import resolve_detector_defaults
 from spindoctor.sim.instruments import resolve_sim_inst_config
 from spindoctor.sim.render import render_combined_model
 
@@ -121,9 +122,10 @@ def test_gossi_scales_to_8bit_well() -> None:
 
 
 def test_calibrated_if_render_stays_in_if_range() -> None:
-    """A calibrated_if instrument render leaves the signal in I/F [0, 1]."""
+    """A calibrated_if render stays in I/F: at most 1 above the calibrated sky residual."""
     img, _ = render_combined_model(_lit_body_scene('vgiss'))
-    assert float(img.max()) <= 1.0
+    residual = float(resolve_detector_defaults('vgiss')['calibrated_sky_if'])
+    assert float(img.max()) <= 1.0 + residual
 
 
 def test_overrides_pin_an_individual_key() -> None:

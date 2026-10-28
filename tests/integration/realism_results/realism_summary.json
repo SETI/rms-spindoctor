@@ -2,7 +2,7 @@
   "instruments": {
     "coiss_calib_nac": {
       "catalog_defaults": {
-        "cosmic_ray_rate_per_sec": 0.0,
+        "cosmic_ray_events_per_pixel_per_sec": 0.0,
         "hot_pixel_fraction": 1.6e-05,
         "read_noise_e": 12.0
       },
@@ -636,7 +636,7 @@
     },
     "coiss_calib_wac": {
       "catalog_defaults": {
-        "cosmic_ray_rate_per_sec": 0.0,
+        "cosmic_ray_events_per_pixel_per_sec": 0.0,
         "hot_pixel_fraction": 1.6e-05,
         "read_noise_e": 12.0
       },
@@ -1017,7 +1017,7 @@
     },
     "gossi": {
       "catalog_defaults": {
-        "cosmic_ray_rate_per_sec": 0.0,
+        "cosmic_ray_events_per_pixel_per_sec": 0.0,
         "hot_pixel_fraction": 0.0001,
         "read_noise_e": 31.0
       },
@@ -1180,7 +1180,7 @@
     },
     "nhlorri": {
       "catalog_defaults": {
-        "cosmic_ray_rate_per_sec": 0.0,
+        "cosmic_ray_events_per_pixel_per_sec": 0.0,
         "hot_pixel_fraction": 0.0,
         "read_noise_e": 23.0
       },
@@ -1404,7 +1404,7 @@
     },
     "vgiss": {
       "catalog_defaults": {
-        "cosmic_ray_rate_per_sec": 0.0,
+        "cosmic_ray_events_per_pixel_per_sec": 0.0,
         "hot_pixel_fraction": 0.0,
         "read_noise_e": null
       },

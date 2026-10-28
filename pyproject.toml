@@ -15,7 +15,7 @@ dependencies = [
   "lxml>=6.0.4",
   "matplotlib",
   "numpy>=2.2.0",
-  "PyQt6",
+  "PyQt6<6.12",  # 6.12.0 ships stubs that aren't valid Python, which stops mypy (#827)
   "rms-cloud-tasks>=0.2.0",
   "rms-filecache>=3.0.0",
   "rms-imgdisp",
@@ -192,6 +192,11 @@ filterwarnings = [
   # (pdstable/__init__.py). It is outside our control, so allow it through as
   # a non-fatal warning until a pdstable release adopts ``arr.view(dtype)``.
   "default:Setting the dtype on a NumPy array has been deprecated:DeprecationWarning",
+  # google-api-core (pulled in via pdslogger -> filecache -> google-cloud-storage)
+  # warns on import once a Python version is within a year of its end of life
+  # (3.11: 2027-10-24).  It is an environment notice, not a defect of ours;
+  # allow it through so it cannot fail conftest collection.
+  "default:You are using a Python version:FutureWarning:google.api_core",
 ]
 markers = [
   "integration: requires PDS3_HOLDINGS_DIR (real holdings on disk or via filecache)",

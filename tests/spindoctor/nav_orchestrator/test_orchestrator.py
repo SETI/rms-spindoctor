@@ -1255,12 +1255,13 @@ def test_orchestrator_runs_fallback_when_primary_is_spurious() -> None:
 # --- Calibrated-IF NaN missing-data sentinel regression tests (CODE-ORCH-003) ---
 
 
-def _ciss_calib_inst_config() -> dict[str, Any]:
-    """Return a CISS-CALIB-style inst_config: calibrated_if + NaN marker.
+def _nan_marker_calibrated_inst_config() -> dict[str, Any]:
+    """Return a calibrated_if inst_config whose missing-data marker is NaN.
 
     Mirrors the shape ``instrument_settings_from_obs`` expects for a
     calibrated-IF camera: ``data_units='calibrated_if'``,
-    ``noise.marker_value: NaN``, and the I/F-keyed
+    ``noise.marker_value: NaN`` (the marker a calibrated block gets when it
+    leaves the key out; the shipped blocks all set 0), and the I/F-keyed
     ``image_quality_thresholds`` block (no DN-keyed fields, no
     ``saturation_threshold_if``).
     """
@@ -1280,15 +1281,15 @@ def _ciss_calib_inst_config() -> dict[str, Any]:
 def test_orchestrator_calibrated_if_nan_pixels_do_not_raise() -> None:
     """A calibrated-IF image with NaN missing-data markers navigates without raising.
 
-    For ``calibrated_if`` instruments the missing-data sentinel is NaN.
-    The orchestrator must sanitize those NaN before the finite-only
+    When a ``calibrated_if`` block's missing-data marker is NaN, the
+    orchestrator must sanitize those NaN before the finite-only
     derivative path runs; otherwise ``_smooth_and_compute_gradients``
     raises a ValueError that would propagate out of ``navigate`` and
     violate the never-raise contract.
     """
     image = np.full((64, 64), 0.5, np.float64)
     image[:6, :] = np.nan  # ~9.4% NaN (missing) — below mostly_missing threshold
-    obs = _FakeObs(image=image, inst_config=_ciss_calib_inst_config())
+    obs = _FakeObs(image=image, inst_config=_nan_marker_calibrated_inst_config())
     model = _FakeStarModel(obs, feature_count=3)
     orch = NavOrchestrator([model], only_techniques=['_FakeStarTechnique'])
     result = orch.navigate(obs)  # type: ignore[arg-type]
@@ -1306,7 +1307,7 @@ def test_orchestrator_calibrated_if_missing_frac_reflects_nan() -> None:
     """
     image = np.full((64, 64), 0.5, np.float64)
     image[:6, :] = np.nan  # ~9.4% NaN
-    obs = _FakeObs(image=image, inst_config=_ciss_calib_inst_config())
+    obs = _FakeObs(image=image, inst_config=_nan_marker_calibrated_inst_config())
     model = _FakeStarModel(obs, feature_count=3)
     orch = NavOrchestrator([model], only_techniques=['_FakeStarTechnique'])
     prep = orch.prepare(obs)  # type: ignore[arg-type]
@@ -1323,7 +1324,7 @@ def test_orchestrator_calibrated_if_mostly_nan_short_circuits() -> None:
     """
     image = np.full((64, 64), 0.5, np.float64)
     image[:48, :] = np.nan  # 75% NaN, above the 0.30 clean threshold
-    obs = _FakeObs(image=image, inst_config=_ciss_calib_inst_config())
+    obs = _FakeObs(image=image, inst_config=_nan_marker_calibrated_inst_config())
     model = _FakeStarModel(obs, feature_count=3)
     orch = NavOrchestrator([model], only_techniques=['_FakeStarTechnique'])
     result = orch.navigate(obs)  # type: ignore[arg-type]
@@ -1393,7 +1394,7 @@ def test_mostly_missing_failure_emits_status_reason_info(
     """The hard-failure short-circuit (missing-data frame) emits the templated INFO lines."""
     image = np.full((64, 64), 0.5, np.float64)
     image[:48, :] = np.nan  # 75% NaN, above the 0.30 clean threshold
-    obs = _FakeObs(image=image, inst_config=_ciss_calib_inst_config())
+    obs = _FakeObs(image=image, inst_config=_nan_marker_calibrated_inst_config())
     model = _FakeStarModel(obs, feature_count=3)
     orch = NavOrchestrator([model], only_techniques=['_FakeStarTechnique'])
     result = orch.navigate(obs)  # type: ignore[arg-type]
