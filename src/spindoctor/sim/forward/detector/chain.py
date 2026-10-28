@@ -51,13 +51,17 @@ from spindoctor.sim.forward.detector.noise_stages import (
     add_hot_pixels,
     deposit_morphological_events,
 )
-from spindoctor.sim.forward.detector.params import DetectorParams, resolve_detector_params
+from spindoctor.sim.forward.detector.params import (
+    DetectorParams,
+    calibration_map,
+    resolve_detector_params,
+)
 from spindoctor.sim.forward.feature_loci import dilated_pixels, extract_feature_loci
 from spindoctor.sim.forward.stages import SimFrame
 from spindoctor.sim.seeds import derive_effect_seed
 from spindoctor.support.types import NDArrayFloatType, NDArrayIntType
 
-__all__ = ['apply_detector', 'apply_saturation', 'quantize_dn']
+__all__ = ['apply_detector', 'apply_saturation', 'keep_off_marker', 'quantize_dn']
 
 
 def _stage_rng(seed: int, effect: str) -> np.random.Generator:
@@ -539,6 +543,23 @@ def _apply_vidicon(frame: SimFrame, dp: DetectorParams, rng: np.random.Generator
         frame.truth.setdefault('artifacts', {}).update(records)
 
 
+def keep_off_marker(values: NDArrayFloatType, marker: float) -> None:
+    """Move every value exactly on a numeric marker to the next float above it.
+
+    A calibrated frame's values come from whole DN through an affine map, so
+    they fall on a lattice that can cross the marker exactly; a real calibrated
+    product is continuous and never carries the marker on a valid pixel.  A NaN
+    marker never equals a value, so it leaves ``values`` unchanged.
+
+    Parameters:
+        values: The calibrated values, modified in place.
+        marker: The frame's missing-data marker, possibly NaN.
+    """
+    if np.isnan(marker):
+        return
+    values[values == marker] = np.nextafter(marker, np.inf)
+
+
 def _apply_calibration_inverse(frame: SimFrame, dp: DetectorParams) -> None:
     """Invert the calibration transform: DN to I/F, bias and dark subtracted first.
 
@@ -559,13 +580,11 @@ def _apply_calibration_inverse(frame: SimFrame, dp: DetectorParams) -> None:
     marker; a real calibrated product is continuous (its flat field and per-pixel
     dark model see to that) and never carries an exact 0 for a valid pixel.
     """
-    exposure = dp.exposure_sec if dp.exposure_sec > 0.0 else 1.0
-    denom = dp.calibration_scale_dn_per_s_per_if * exposure
-    if denom <= 0.0:
+    calibration = calibration_map(dp)
+    if calibration is None:
         return
-    calibrated = (frame.signal - dp.bias_dn - dp.dark_dn) / denom + dp.calibrated_sky_if
-    if not np.isnan(dp.marker_value):
-        calibrated[calibrated == dp.marker_value] = np.nextafter(dp.marker_value, np.inf)
+    calibrated = calibration.to_if(frame.signal)
+    keep_off_marker(calibrated, dp.marker_value)
     frame.signal[:] = calibrated
 
 

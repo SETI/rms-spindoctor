@@ -50,8 +50,9 @@ from spindoctor.sim.forward.artifacts_catalog import (
 )
 from spindoctor.sim.instruments import navigator_marker_value, resolve_sim_inst_config
 from spindoctor.sim.seeds import derive_effect_seed
+from spindoctor.support.types import NDArrayFloatType
 
-__all__ = ['DetectorParams', 'resolve_detector_params']
+__all__ = ['CalibrationMap', 'DetectorParams', 'calibration_map', 'resolve_detector_params']
 
 
 class DetectorParamError(ValueError):
@@ -154,6 +155,62 @@ class DetectorParams:
     quantization_contour_step: int = 8
     artifacts_adversarial: bool = False
     detector_modes: dict[str, dict[str, Any]] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class CalibrationMap:
+    """The affine map between a calibrated frame's DN and its I/F.
+
+    The calibration inverse applies :meth:`to_if` to the digitized frame; a
+    telemetry mode that acts on the DN the spacecraft transmitted (the lossy
+    codec) maps the I/F frame back with :meth:`to_dn` first, so it behaves on a
+    calibrated frame as it does on a raw one.
+
+    Parameters:
+        dn_per_if: DN per unit I/F at the scene exposure, the inverse's divisor.
+        bias_dn: The bias pedestal the inverse subtracts, in DN.
+        dark_dn: The dark pedestal the inverse subtracts, in DN.
+        sky_if: The calibrated sky residual the inverse adds, in I/F.
+    """
+
+    dn_per_if: float
+    bias_dn: float
+    dark_dn: float
+    sky_if: float
+
+    def to_if(self, dn: NDArrayFloatType) -> NDArrayFloatType:
+        """Map DN to I/F: subtract the pedestals, divide, add the sky residual."""
+        result: NDArrayFloatType = (dn - self.bias_dn - self.dark_dn) / self.dn_per_if
+        return result + self.sky_if
+
+    def to_dn(self, i_over_f: NDArrayFloatType) -> NDArrayFloatType:
+        """Map I/F back to DN, the inverse of :meth:`to_if`."""
+        result: NDArrayFloatType = (i_over_f - self.sky_if) * self.dn_per_if
+        return result + self.bias_dn + self.dark_dn
+
+
+def calibration_map(dp: DetectorParams) -> CalibrationMap | None:
+    """The DN-to-I/F map of a calibrated frame, or None for a raw-DN frame.
+
+    The divisor is the derived calibration scale times the scene exposure (a
+    non-positive exposure counts as 1 s).  A non-positive divisor also gives
+    None: the frame stays in DN.
+
+    Parameters:
+        dp: The resolved detector parameters of the frame.
+
+    Returns:
+        The map, or None when the frame is raw DN or the divisor is not positive.
+    """
+    if dp.data_units == 'raw_dn':
+        return None
+    exposure = dp.exposure_sec if dp.exposure_sec > 0.0 else 1.0
+    dn_per_if = dp.calibration_scale_dn_per_s_per_if * exposure
+    if dn_per_if <= 0.0:
+        return None
+    return CalibrationMap(
+        dn_per_if=dn_per_if, bias_dn=dp.bias_dn, dark_dn=dp.dark_dn, sky_if=dp.calibrated_sky_if
+    )
 
 
 def _default_or_zero(

@@ -3125,8 +3125,10 @@ bloom, quantization), the precedence ``hot_pixels`` already uses.
 **Telemetry-artifact modes** flank the structured loss loop in the telemetry
 stage (:mod:`spindoctor.sim.forward.telemetry_artifacts`):
 ``compression_dct`` runs first (the lossy 8x8 DCT blockiness a codec plants
-before packets drop, leaving any commanded ``truth_window`` clean), and the
-Voyager GEOMED archive-processing scars run last -- ``reseau_scars``
+before packets drop, leaving any commanded ``truth_window`` clean; on a calibrated
+frame it quantizes the DN the spacecraft transmitted, pedestal included, and maps
+the result back to I/F, so its ``scale_factor`` step is in DN on every frame), and
+the Voyager GEOMED archive-processing scars run last -- ``reseau_scars``
 (reseau-removal smudges on the ~46-px lattice) then ``resample_texture`` (the
 GEOMED resample warp, blank border, and missing-line interpolation banding).
 

@@ -23,6 +23,7 @@ import numpy as np
 from scipy import ndimage
 from scipy.fft import dctn, idctn
 
+from spindoctor.sim.forward.detector.params import CalibrationMap
 from spindoctor.support.types import NDArrayFloatType
 
 __all__ = [
@@ -50,6 +51,7 @@ def apply_compression_dct(
     *,
     rng: np.random.Generator,
     protect: tuple[int, int, int, int] | None,
+    calibration: CalibrationMap | None = None,
 ) -> dict[str, Any]:
     """Quantize the frame's 8x8 DCT coefficients, planting blockiness and ringing.
 
@@ -61,11 +63,20 @@ def apply_compression_dct(
     carve-out.  Frame rows/columns past the last whole block are left unchanged.
     A mode that does not fire is a no-op.
 
+    The codec runs on board, on the DN the spacecraft transmits.  On a
+    calibrated frame ``calibration`` maps the I/F image back to those DN, the
+    coefficients are quantized there, and the result maps back to I/F, so the
+    step is ``scale_factor`` DN on both kinds of frame and the pedestal the
+    calibration subtracts takes part in the quantization as it does on board.
+
     Parameters:
-        signal: The DN image, modified in place.
+        signal: The image, modified in place: DN, or I/F when ``calibration`` is
+            given.
         cfg: The resolved mode config (``probability``, ``scale_factor``, ``block``).
         rng: The mode's seeded generator (for the activation draw).
         protect: The commanded truth-window rectangle to leave clean, or None.
+        calibration: The calibrated frame's DN-to-I/F map, or None for a raw-DN
+            frame.
 
     Returns:
         The realized compression summary for the truth record.
@@ -86,10 +97,12 @@ def apply_compression_dct(
         pv0, pv1, pu0, pu1 = protect
         saved = signal[pv0:pv1, pu0:pu1].copy()
     region = signal[: n_bv * block, : n_bu * block]
-    blocks = region.reshape(n_bv, block, n_bu, block)
+    dn = region if calibration is None else calibration.to_dn(region)
+    blocks = dn.reshape(n_bv, block, n_bu, block)
     coeffs = dctn(blocks, axes=(1, 3), norm='ortho')
     quantized = np.round(coeffs / scale) * scale
-    region[:] = idctn(quantized, axes=(1, 3), norm='ortho').reshape(region.shape)
+    restored = idctn(quantized, axes=(1, 3), norm='ortho').reshape(region.shape)
+    region[:] = restored if calibration is None else calibration.to_if(restored)
     if protect is not None and saved is not None:
         pv0, pv1, pu0, pu1 = protect
         signal[pv0:pv1, pu0:pu1] = saved

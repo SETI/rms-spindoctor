@@ -7,7 +7,8 @@ grid.  It applies its sub-effects in the physical order of transmission:
 
 1. Lossy DCT compression (``compression_dct``): the codec blockiness a lossy
    downlink plants on the transmitted signal before any packet loss, honoring
-   the commanded ``truth_window`` carve-out.
+   the commanded ``truth_window`` carve-out.  A calibrated frame is compressed in
+   the DN the spacecraft transmitted, then mapped back to I/F.
 2. Structured data loss: the registry loss modes in
    :data:`~spindoctor.sim.forward.artifact_modes.STRUCTURED_LOSS_ORDER`
    (commanded frame shapes, then line losses, then block losses, then garble,
@@ -49,6 +50,7 @@ from spindoctor.sim.forward.artifact_modes import (
     resolve_mode_config,
 )
 from spindoctor.sim.forward.artifacts_catalog import resolve_mode_with_catalog
+from spindoctor.sim.forward.detector.params import calibration_map, resolve_detector_params
 from spindoctor.sim.forward.feature_loci import FeatureLoci, extract_feature_loci
 from spindoctor.sim.forward.stages import SimFrame
 from spindoctor.sim.forward.telemetry_artifacts import (
@@ -113,14 +115,19 @@ def apply_telemetry(
     protect = _resolve_truth_window(artifacts, frame.signal.shape, random_seed, records)
 
     # Sub-stage 1: lossy DCT compression, on the transmitted signal before any
-    # packet loss (a lossy codec compresses, then packets drop).
+    # packet loss (a lossy codec compresses, then packets drop).  A calibrated
+    # frame is compressed in the DN the spacecraft sent, pedestal included, so a
+    # dark sky keeps its level instead of rounding onto the marker.
     for mode_name in TELEMETRY_PRE_LOSS_ORDER:
         raw_cfg = artifacts.get(mode_name)
         if raw_cfg is None or not mode_available(mode_name, instrument):
             continue
         cfg = resolve_mode_with_catalog(mode_name, raw_cfg, instrument)
         mode_rng = np.random.default_rng(derive_effect_seed(random_seed, f'telemetry/{mode_name}'))
-        records[mode_name] = apply_compression_dct(frame.signal, cfg, rng=mode_rng, protect=protect)
+        calibration = calibration_map(resolve_detector_params(params))
+        records[mode_name] = apply_compression_dct(
+            frame.signal, cfg, rng=mode_rng, protect=protect, calibration=calibration
+        )
 
     # Sub-stage 2: structured data loss.
     for mode_name in STRUCTURED_LOSS_ORDER:
