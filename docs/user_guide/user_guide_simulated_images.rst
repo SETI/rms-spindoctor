@@ -64,10 +64,10 @@ starting from an empty one.
 On a ``polyhedral_mesh`` body the editor disables the controls for the appearance keys a
 mesh doesn't support, because the scene file would refuse them: atmosphere, photometric
 law, opposition surge, albedo texture, disc texture, transits, and the crater controls.
-Each disabled control's tooltip says why. When switching a body's shape makes a value the
-scene carries refused, the editor moves that value out of the scene, and the status bar
-names it. Switching back puts the value back during the same session. A scene saved in
-between doesn't carry it.
+Each disabled control's tooltip says why. When you switch a body's ``shape_model`` to
+``polyhedral_mesh``, the editor moves the values a mesh refuses out of the scene, and the
+status bar names them. Switching back puts them back during the same session. A scene
+saved in between doesn't carry them.
 
 Units of a simulated frame
 ==========================
@@ -196,10 +196,10 @@ pixels.
              lam0_deg: 45.0
 
 Every feature needs a ``kind``, an optical depth ``tau``, and an orbit with its radius
-``a_px``. Each kind then takes its own shape keys. A ringlet, a gap, and a ramp need a
+``a_px``. Each kind then takes its own keys. A ringlet, a gap, and a ramp need a
 radial width ``width_px``. An edge and a ramp may name the ``side`` of the orbit that
 carries the optical depth, ``in`` or ``out``. A wave needs a radial wavelength
-``wavelength_px`` and a radial damping length ``density_wave_damping_px``. A shape key on a
+``wavelength_px`` and a radial damping length ``density_wave_damping_px``. A key on a
 kind that doesn't take it is refused, because it would draw a different feature than the
 one intended.
 
@@ -211,7 +211,7 @@ sheet as a gap.
 An unknown ring key is refused when the scene is loaded. An optional ring key set to
 ``null`` counts as unset: it takes the value it has when it is left out.
 The developer guide's :doc:`/dev_guide/dev_guide_simulator` chapter lists every ring key
-and tabulates which kind takes which shape key.
+and tabulates which kind takes which key.
 
 Further reading
 ===============

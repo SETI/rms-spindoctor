@@ -819,7 +819,7 @@ quantity it holds. The registry records which key each mode takes
 (``ArtifactMode.activation``):
 
 * **Count** modes draw a Poisson number of events per frame (lost lines, lost
-  blocks, spiked pixels, dead pixels and columns). Their key is
+  blocks, spiked pixels, dead pixels, and dead columns). Their key is
   ``expected_events``, the expected number of events per frame, any non-negative
   number. Each caps the draw at the number of places its events can land: the
   frame's lines for a line loss, its columns for ``dead_columns``, its pixels
