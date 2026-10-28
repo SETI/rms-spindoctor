@@ -27,6 +27,7 @@ from spindoctor.sim.forward.artifact_modes import (
     mode_available,
     mode_unavailable_message,
 )
+from spindoctor.sim.forward.artifacts_catalog import resolve_detector_defaults
 from spindoctor.sim.scene_schema import SimSceneValidationError
 from spindoctor.support.status_reason import NavStatusReason
 
@@ -285,10 +286,9 @@ _NOISE_NUMBER_KEYS: frozenset[str] = frozenset(
     {
         'read_noise_dn',
         'bias_dn',
-        'cosmic_ray_rate_per_sec',
+        'cosmic_ray_events_per_pixel_per_sec',
         'missing_data_rate',
         'signal_full_scale_frac',
-        'pixel_area_cm2',
         'dark_current_e_per_sec',
         'hot_pixel_fraction',
         'hot_pixel_amplitude_e',
@@ -395,8 +395,6 @@ def _check_detector(value: Any, *, instrument: str, source: str) -> None:
         # validation, with the cataloged alternatives in the message; the
         # render-time resolver keeps its own guard as a backstop for scenes
         # that bypass validation.
-        from spindoctor.sim.forward.artifacts_catalog import resolve_detector_defaults
-
         table = resolve_detector_defaults(instrument).get('gain_e_per_dn_by_state') or {0: 1.0}
         if gain_state not in table:
             raise SimSceneValidationError(
@@ -456,7 +454,14 @@ def _check_artifacts(value: Any, *, instrument: str, source: str) -> None:
 
 
 def _check_artifact_mode(mode_name: str, config: Any, *, instrument: str, source: str) -> None:
-    """Validate one artifact-mode map: availability, implementation, and params."""
+    """Validate one artifact-mode map: availability, implementation, and params.
+
+    An unknown key fails, and a map that sets both ``count`` and
+    ``expected_events`` to a value (``dead_pixels``, ``dead_columns``) fails as
+    ambiguous; a key set to null counts as unset.  The ``probability`` and
+    ``pixel_fraction`` keys must lie in [0, 1], and
+    ``expected_events`` and ``expected_events_per_sec`` must be non-negative.
+    """
     label = f'artifacts.{mode_name}'
     if not isinstance(config, dict):
         raise SimSceneValidationError(f'{source}: {label} must be a mapping when present')
@@ -473,6 +478,17 @@ def _check_artifact_mode(mode_name: str, config: Any, *, instrument: str, source
     unknown = set(config) - set(param_map)
     if unknown:
         raise SimSceneValidationError(f'{source}: {label}: unknown keys: {sorted(unknown)}')
+    count_key = mode.count_alternative
+    if (
+        count_key is not None
+        and config.get(count_key) is not None
+        and config.get(mode.activation) is not None
+    ):
+        raise SimSceneValidationError(
+            f'{source}: {label}: {count_key!r} (a fixed event count) and '
+            f'{mode.activation!r} (a Poisson expected event count) are mutually exclusive; '
+            'give one'
+        )
     for name, param in param_map.items():
         if name in config:
             _check_mode_param(config[name], param, key=f'{label}.{name}', source=source)

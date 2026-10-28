@@ -5,8 +5,8 @@
 # This block serves the instrument-agnostic ('generic') sim frame. When a
 # scene names an instrument, the physical parameters (read noise, saturation,
 # marker, units, thresholds) delegate to that instrument's config_4N0 block;
-# only the sim-only knobs here (signal_full_scale_frac, cosmic_ray_rate_per_sec,
-# pixel_area_cm2, missing_data_rate) continue to apply.
+# only the sim-only knobs here (signal_full_scale_frac,
+# cosmic_ray_events_per_pixel_per_sec, missing_data_rate) continue to apply.
 sim:
   data_units: raw_dn
   extfov_margin_vu: [50, 50]
@@ -36,8 +36,7 @@ sim:
     # Poisson shot noise is off at the floor and turns on with a scene's
     # noise block or artifacts.instrument_defaults; cosmic rays and
     # dropouts are off unless a scene asks for them.
-    cosmic_ray_rate_per_sec: 0.0   # events / cm^2 / sec
-    pixel_area_cm2: 1.0
+    cosmic_ray_events_per_pixel_per_sec: 0.0   # expected events / pixel / sec of exposure
     missing_data_rate: 0.0         # fraction of pixels marked missing
     bloom_length: 0                # column-bloom half-length, px (0 = no bloom)
   image_quality_thresholds:

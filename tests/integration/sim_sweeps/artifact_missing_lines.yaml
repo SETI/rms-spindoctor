@@ -1,12 +1,12 @@
 sweep_name: artifact_missing_lines
 # Structured telemetry loss rising from a clean frame to past the navigability
-# cliff.  The axis is the missing-line incidence (expected whole lines lost per
-# frame, scattered uniformly) on the resolved sphere: at 0 the frame is clean and
-# recovers the planted offset, the fused confidence falls as more lines are lost,
-# and at the highest incidence half the frame is gone and navigation fails.  This
-# is the navigation-quality-vs-artifact-incidence curve the realism work reads.
-# The base scene carries no artifacts block; the sweep creates the
-# artifacts.missing_lines map as it addresses the nested incidence key.
+# cliff.  The axis is the missing-line expected_events (expected whole lines lost
+# per frame, scattered uniformly) on the resolved sphere: at 0 the frame is clean
+# and recovers the planted offset, the fused confidence falls as more lines are
+# lost, and at the highest count half the frame is gone and navigation fails.
+# This is the navigation-quality-vs-artifact-severity curve the realism work
+# reads.  The base scene carries no artifacts block; the sweep creates the
+# artifacts.missing_lines map as it addresses the nested expected_events key.
 base_scene: phase_sweep_regular_body/regular_sphere_base.yaml
-parameters: [artifacts.missing_lines.incidence]
+parameters: [artifacts.missing_lines.expected_events]
 values: [0.0, 4.0, 8.0, 16.0, 32.0, 64.0, 130.0]

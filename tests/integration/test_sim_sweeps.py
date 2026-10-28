@@ -9,7 +9,9 @@ underlying navigation carries sub-millipixel cross-process jitter.
 
 Run in-process; heavier than the algorithmic invariants (each sweep navigates
 several frames), so the module is ``@pytest.mark.integration`` -- the deliberate
-tier, alongside the baselines.
+tier, alongside the baselines.  The checks that only build and validate each sweep
+step navigate nothing and run with the unit suite, in
+``tests/spindoctor/sim/test_sim_sweep_build.py``.
 """
 
 import copy
@@ -21,7 +23,6 @@ import pytest
 from tests.integration.sim_sweep import (
     SweepRow,
     build_sweep_params,
-    iter_sweep_paths,
     load_sweep,
     run_sweep,
     run_sweep_steps,
@@ -36,14 +37,6 @@ _RECOVERY_TOLERANCE_PX = 0.5
 def _rows(sweep_name: str) -> list[SweepRow]:
     """Load and run a sweep by name."""
     return run_sweep(load_sweep(_SWEEPS_ROOT / f'{sweep_name}.yaml'))
-
-
-def test_every_sweep_validates() -> None:
-    """Every sweep spec parses and validates."""
-    paths = iter_sweep_paths(_SWEEPS_ROOT)
-    assert paths
-    for path in paths:
-        load_sweep(path)
 
 
 def test_noise_sweep_starts_clean() -> None:
@@ -322,7 +315,7 @@ def test_pose_disagreement_limb_is_confidently_wrong() -> None:
 
 
 def test_artifact_sweep_starts_clean() -> None:
-    """At zero missing-line incidence the frame recovers the planted offset."""
+    """At zero missing-line expected_events the frame recovers the planted offset."""
     rows = _rows('artifact_missing_lines')
     assert rows[0].status == 'success'
     assert rows[0].offset_error_px is not None
@@ -332,7 +325,7 @@ def test_artifact_sweep_starts_clean() -> None:
 def test_artifact_sweep_confidence_degrades() -> None:
     """Structured loss drops the fused confidence below the clean baseline.
 
-    The deliverable curve is navigation quality versus artifact incidence: as
+    The deliverable curve is navigation quality versus artifact severity: as
     more lines are lost the fused confidence falls below its clean (rows[0])
     value.  The assertion is on the confidence dip (the render-robust signal that
     loss degrades the navigation), not a monotone step-by-step drop, because the
@@ -344,7 +337,7 @@ def test_artifact_sweep_confidence_degrades() -> None:
 
 
 def test_artifact_sweep_degrades_to_failure() -> None:
-    """At the highest incidence half the frame is gone and navigation fails."""
+    """At the highest expected count half the frame is gone and navigation fails."""
     rows = _rows('artifact_missing_lines')
     assert rows[-1].status == 'failed'
 

@@ -32,7 +32,7 @@ class of them:
                 Deliberately a STRESS condition; see ``_artifact_blocks``.
 - artifacts_nominal
               : the same contamination class at the shipped, realism-matched
-                incidence for the emulated instrument, nothing overridden.
+                rates for the emulated instrument, nothing overridden.
                 This is the family an operational prediction reads from;
                 ``artifacts`` bounds the regime rather than describing it.
 - combined    : every axis at once, at the same draw strengths.
@@ -257,7 +257,7 @@ def _artifact_blocks(rng: random.Random) -> tuple[dict[str, Any], dict[str, Any]
     the instrument's realism-matched values and a reader would otherwise take
     them for an operational prediction:
 
-    - Hot-pixel incidence is drawn over 2e-4 to 2e-3.  The emulated
+    - The hot-pixel ``pixel_fraction`` is drawn over 2e-4 to 2e-3.  The emulated
       instrument's own catalog carries 2e-3 (its 5.2 interim figure) while
       the realism match measures a transient single-pixel spike fraction of
       2.75e-4 per frame on the CALIB NAC cohort, so the range spans from
@@ -277,18 +277,18 @@ def _artifact_blocks(rng: random.Random) -> tuple[dict[str, Any], dict[str, Any]
 
     Returns:
         ``(artifacts_block, noise_extras)``: the instrument defect population
-        plus an explicit hot-pixel incidence, and the cosmic-ray rate the
+        plus an explicit hot-pixel ``pixel_fraction``, and the cosmic-ray rate the
         noise block carries.
     """
     artifacts = {
         'instrument_defaults': True,
         'hot_pixels': {
-            'incidence': round(rng.uniform(2.0e-4, 2.0e-3), 6),
+            'pixel_fraction': round(rng.uniform(2.0e-4, 2.0e-3), 6),
             'amplitude_e': round(rng.uniform(2.0e4, 6.0e4), 1),
         },
     }
     noise_extras = {
-        'cosmic_ray_rate_per_sec': round(rng.uniform(5.0e-4, 5.0e-3), 6),
+        'cosmic_ray_events_per_pixel_per_sec': round(rng.uniform(5.0e-4, 5.0e-3), 6),
         'bloom_length': rng.randint(0, 3),
     }
     return artifacts, noise_extras

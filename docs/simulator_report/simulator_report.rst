@@ -257,7 +257,7 @@ from.
 
    * - Instrument
      - hot_pixel_fraction
-     - cosmic_ray_rate_per_sec
+     - cosmic_ray_events_per_pixel_per_sec
      - Provenance
    * - ``coiss_calib_nac``
      - 1.6e-5
@@ -291,13 +291,15 @@ from.
        fixed-position per-detector hot-pixel map.
    * - ``vgiss``
      - n/a (vidicon path)
-     - 0.0 (no chain stage)
-     - The vidicon chain carries neither a hot-pixel nor a cosmic-ray stage, so
-       both are absent by construction.  The 3-frame GEOMED cohort measures a
-       3.5e-5 transient fraction, mostly interpolated away by reseau-anchored
-       resampling; unblocked by a DN-domain transient stage plus more Voyager
-       frames.  (The vidicon read noise itself is tuned to the published
-       low-gain range against this cohort.)
+     - 0.0
+     - The vidicon chain carries no hot-pixel stage, so hot pixels are absent
+       by construction.  Its cosmic-ray stage deposits hits on the stored
+       target image with the CCD's per-pixel-per-second meaning, and the rate
+       is a retained zero: the 3-frame GEOMED cohort measures a 3.5e-5
+       transient fraction, mostly interpolated away by reseau-anchored
+       resampling, so it cannot say how many hits the target took.  Unblocked
+       by more Voyager frames.  (The vidicon read noise itself is tuned to the
+       published low-gain range against this cohort.)
    * - ``nhlorri``
      - 0.0
      - 0.0
@@ -681,7 +683,7 @@ cannot close, it is recorded here rather than force-fitted:
 6. **Measured transients exceed what the cosmic-ray stage can express.**
    Every cohort measures a nonzero transient spike fraction (NAC 2.75e-4,
    WAC 4.89e-4, Galileo 1.17e-4, LORRI 3.36e-4 per frame), yet no
-   catalog entry adopts a ``cosmic_ray_rate_per_sec``: the Cassini
+   catalog entry adopts a ``cosmic_ray_events_per_pixel_per_sec``: the Cassini
    incidence is exposure-independent (readout-dominated) and
    modest-amplitude while the chain's stage scales event counts with
    exposure and deposits near full well -- an adoption attempt
@@ -689,7 +691,8 @@ cannot close, it is recorded here rather than force-fitted:
    and was reverted; the Galileo population is already carried by the
    tuned per-scene hot pixels, so a separate term double-counts it; the
    LORRI measurement is star-contaminated (both cohort frames are binned
-   star fields); and the Voyager vidicon path has no transient stage.
+   star fields); and the Voyager GEOMED resampling interpolates most
+   transients away.
    Each catalog entry records its measured rate and the unblocking
    condition beside the retained zero.
 
@@ -1500,6 +1503,15 @@ carry propagated shot and read noise and quantization texture in I/F units.
 The realism match above compares exactly that path against the real
 calibrated cohorts.
 
+Every calibrated instrument marks a lost pixel with ``0``, as the Cassini CALIB
+and Voyager GEOMED products do, and the calibration inverse adds a calibrated sky
+residual so a dark sky never reads as missing data: 0.0118 I/F on ``vgiss``,
+above 0 as the GEOMED sky is, and 4.0e-5 I/F on the calibrated Cassini cameras,
+whose real sky scatters around 0. The disc scene with a planted (3, -2) px offset
+recovers it on ``coiss_nac``, ``coiss_calib_nac``, and ``vgiss`` alike: exactly
+on the noise-free floor, and to within 0.07 px under ``instrument_defaults`` (see
+:doc:`/dev_guide/instruments/voyager_iss`).
+
 Model-mismatch sensitivity
 ==========================
 
@@ -1597,7 +1609,7 @@ the dedicated sweep or the scene class that drives it:
      - not modeled
      - sweep ``noise_read_noise``
    * - Artifact stress
-     - structured loss incidence
+     - structured loss (``missing_lines`` ``expected_events``)
      - not modeled
      - sweep ``artifact_missing_lines`` and ``artifact_sweep`` scene class
 

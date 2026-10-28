@@ -6,9 +6,9 @@ size_u: 128
 random_seed: 7
 exposure_sec: 1.0
 # The adversarial sibling of star_field_structured_loss: the same missing-line
-# and partial-line incidence, but with adversarial placement on, so the loss
+# and partial-line expected counts, but with adversarial placement on, so the loss
 # biases onto the star rows rather than the empty sky.  This is the worst-case
-# placement of a survivable incidence; enough stars survive that the field
+# placement of a survivable loss; enough stars survive that the field
 # matcher still recovers the planted translation within tolerance.
 # Stars deposit as point masses; an explicit navigator-matched PSF gives them a
 # finite (floor-form) profile instead of a 1-pixel spike.
@@ -29,9 +29,9 @@ noise:
 artifacts:
   adversarial: true
   missing_lines:
-    incidence: 3.0
+    expected_events: 3.0
   partial_lines:
-    incidence: 3.0
+    expected_events: 3.0
 offset_v: 1.43
 offset_u: -0.61
 offset_rotation_deg: 0.0

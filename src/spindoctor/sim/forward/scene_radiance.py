@@ -64,6 +64,7 @@ from spindoctor.sim.forward.scene_compositing import (
 from spindoctor.sim.forward.stages import SimFrame
 from spindoctor.sim.forward.star import faint_sky_cutoff_mag, render_sky_counts, render_stars
 from spindoctor.sim.instruments import resolve_sim_inst_config
+from spindoctor.sim.scene_schema import scene_value
 from spindoctor.sim.seeds import derive_effect_seed
 from spindoctor.sim.star_records import DEFAULT_PSF_SIZE
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType, NDArrayIntType
@@ -589,9 +590,9 @@ def _resolve_ring_system_maps(
         The rendered :class:`RingSystemMaps`.
     """
     geometry = ring_system.get('geometry') or {}
-    center_v = float(geometry.get('center_v', det_center_v))
-    center_u = float(geometry.get('center_u', det_center_u))
-    node_deg = float(geometry.get('node_deg', 0.0))
+    center_v = float(scene_value(geometry, 'center_v', det_center_v))
+    center_u = float(scene_value(geometry, 'center_u', det_center_u))
+    node_deg = float(scene_value(geometry, 'node_deg', 0.0))
     range_km = ring_system.get('range_km')
     if range_km is not None:
         shift_v, shift_u = spk_shift(float(range_km))

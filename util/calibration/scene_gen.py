@@ -483,7 +483,8 @@ def _ring_feature(
       any drawn a) with a drawn pericenter; a sub-slice adds one m = 2-7
       mode at 0.5-4 px amplitude (B-ring-outer-edge-class shapes).
     - edge-wave slice: amplitude 0.5-2.5 px, arc wavelength 6-20 px,
-      damping 0.3-1.5 rad (inside the schema's 2.0 rad wrap-seam cap).
+      damping drawn uniformly in 0.3-1.5 rad and written in degrees (about
+      17.2-85.9 deg, inside the schema's 360/pi deg wrap-seam cap).
     - orbit-error slice (navigable features only): a planted render-side
       radial displacement delta_a_px of 0.5-3 px, either sign -- the
       published-ephemeris error scale for well-tracked ring features --
@@ -493,31 +494,36 @@ def _ring_feature(
       pericenter error of 5-25 deg.
     """
     tau = math.exp(rng.uniform(math.log(0.2), math.log(4.0)))
-    orbit: dict[str, Any] = {'a': a, 'ae': 0.0, 'long_peri': 0.0, 'rate_peri': 0.0}
+    orbit: dict[str, Any] = {
+        'a_px': a,
+        'ae_px': 0.0,
+        'long_peri_deg': 0.0,
+        'rate_peri_deg_per_day': 0.0,
+    }
     eccentric = rng.random() < _RING_ECCENTRIC_FRAC
     if eccentric:
-        orbit['ae'] = math.exp(rng.uniform(math.log(0.5), math.log(6.0)))
-        orbit['long_peri'] = rng.uniform(0.0, 360.0)
+        orbit['ae_px'] = math.exp(rng.uniform(math.log(0.5), math.log(6.0)))
+        orbit['long_peri_deg'] = rng.uniform(0.0, 360.0)
         if rng.random() < _RING_MMODE_FRAC:
             orbit['modes'] = [
                 {
                     'm': rng.randint(2, 7),
-                    'amp': rng.uniform(0.5, 4.0),
-                    'peri': rng.uniform(0.0, 360.0),
+                    'amp_px': rng.uniform(0.5, 4.0),
+                    'peri_deg': rng.uniform(0.0, 360.0),
                 }
             ]
     if rng.random() < _RING_EDGE_WAVE_FRAC:
         orbit['edge_wave'] = {
-            'amp': rng.uniform(0.5, 2.5),
-            'wavelength': rng.uniform(6.0, 20.0),
-            'damp': rng.uniform(0.3, 1.5),
-            'lam0': rng.uniform(0.0, 360.0),
+            'amp_px': rng.uniform(0.5, 2.5),
+            'wavelength_px': rng.uniform(6.0, 20.0),
+            'edge_wave_damping_deg': math.degrees(rng.uniform(0.3, 1.5)),
+            'lam0_deg': rng.uniform(0.0, 360.0),
         }
     feature: dict[str, Any] = {
         'name': name,
         'kind': 'ringlet',
         'tau': tau,
-        'width': width,
+        'width_px': width,
         'navigable': navigable,
         'orbit': orbit,
     }

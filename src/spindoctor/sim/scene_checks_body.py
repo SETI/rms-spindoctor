@@ -33,7 +33,12 @@ from spindoctor.sim.scene_checks import (
     _check_optional_str,
     _require_int,
 )
-from spindoctor.sim.scene_schema import _BODY_IDEALIZED_KEYS, SimSceneValidationError
+from spindoctor.sim.scene_schema import (
+    _BODY_IDEALIZED_KEYS,
+    MESH_UNSUPPORTED_KEYS,
+    SimSceneValidationError,
+    mesh_unsupported_message,
+)
 
 
 def _check_body_names_unique(bodies: list[dict[str, Any]], *, source: str) -> None:
@@ -67,30 +72,6 @@ def _check_body_names_unique(bodies: list[dict[str, Any]], *, source: str) -> No
         seen[effective] = index
 
 
-# Body keys the polyhedral-mesh render path does not consume: the ellipsoid
-# renderer's crater carving, the topographic path's photometric laws and
-# surface texture, and the ellipsoid-frame atmosphere halo (whose geometry is
-# built from rotation_z / rotation_tilt around the ellipse, which a mesh's
-# arbitrary Euler pose and lumpy limb do not follow).  A mesh body naming one
-# of these would silently render without it, so the combination fails loudly;
-# a mesh body's appearance vocabulary is shading, limb_relief_*,
-# mesh_detail_octaves, and pose_scatter.
-_MESH_UNSUPPORTED_KEYS: tuple[str, ...] = (
-    'atmosphere',
-    'photometric_law',
-    'minnaert_k',
-    'opposition_surge',
-    'albedo_texture',
-    'disc_texture',
-    'transits',
-    'crater_fill',
-    'crater_min_radius',
-    'crater_max_radius',
-    'crater_power_law_exponent',
-    'crater_relief_scale',
-)
-
-
 def _check_body_object(obj: dict[str, Any], *, index: int, source: str) -> None:
     """Validate one ``bodies`` entry's field types."""
     label = f'bodies[{index}]'
@@ -102,13 +83,10 @@ def _check_body_object(obj: dict[str, Any], *, index: int, source: str) -> None:
             f'when present; got {shape_model!r}'
         )
     if shape_model == 'polyhedral_mesh':
-        unsupported = [key for key in _MESH_UNSUPPORTED_KEYS if obj.get(key) is not None]
+        unsupported = [key for key in MESH_UNSUPPORTED_KEYS if obj.get(key) is not None]
         if unsupported:
             raise SimSceneValidationError(
-                f'{source}: {label}: {sorted(unsupported)} are not supported on '
-                f'polyhedral_mesh bodies (the mesh renderer would silently ignore '
-                f'them); a mesh body carries the shading, limb_relief_*, '
-                f'mesh_detail_octaves, and pose_scatter appearance keys'
+                f'{source}: {label}: {mesh_unsupported_message(unsupported)}'
             )
     for key in (
         'center_v',

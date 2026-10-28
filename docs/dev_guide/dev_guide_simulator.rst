@@ -494,7 +494,7 @@ same way (background stars, cosmic rays, crater placement).
 **The driver.** :func:`spindoctor.sim.render.render_combined_model` takes a
 ``sim_params`` dict and returns ``(image, metadata)``. It normalizes the
 parameters into a deterministic JSON cache key, runs the pipeline on a fresh
-frame, and caches the result (``lru_cache(maxsize=1)``, plus small shape caches
+frame, and caches the result (``lru_cache(maxsize=2)``, plus small shape caches
 inside the body/mesh/star renderers; ``clear_render_caches`` drops them all for
 determinism tests). The caching contract: scene parameters are
 JSON-serializable scalars/lists/maps, no wall-clock or global RNG state is
@@ -507,13 +507,82 @@ configuration block drives the detector model and PSF
 (:mod:`spindoctor.sim.instruments`). The recognized names are ``coiss_nac``,
 ``coiss_wac``, ``coiss_calib_nac``, ``coiss_calib_wac``, ``gossi``, ``nhlorri``,
 and ``vgiss``, plus ``generic`` (alias ``sim``) for the instrument-agnostic
-defaults. Calibrated (``*_calib_*``) instruments are in I/F units with a NaN
-missing-data marker and no full-well; raw instruments are in DN with a 0 marker.
+defaults. A scene can pin or override individual instrument settings with
+``instrument_config`` (see :ref:`sim-instrument-config`).
+
+Each instrument renders into one of two unit classes, set by its block's
+``data_units``. Every shipped block marks a lost pixel with ``0``
+(``noise.marker_value``):
+
+* ``coiss_nac``, ``coiss_wac``, ``gossi``, ``nhlorri``, and ``generic`` render raw
+  DN. The bias pedestal keeps the dark sky above the marker.
+* ``coiss_calib_nac``, ``coiss_calib_wac``, and ``vgiss`` render calibrated I/F.
+  The Cassini CALIB and Voyager GEOMED products these blocks describe fill lost
+  pixels with zero, and GEOMED fills its resample border with zero as well.
+  ``vgiss`` also keeps a full well: its block's 255 DN ceiling sets an I/F
+  ceiling.
+
+The telemetry stage writes the marker the navigator applies to the same frame
+(:func:`~spindoctor.sim.instruments.navigator_marker_value`), so a lost line
+reads as missing data in both classes.
+
 Calibrated scenes render through the full DN chain and then invert the
 calibration transform, so they carry propagated shot/read noise and quantization
-texture in I/F units. A scene can pin or override individual instrument settings
-with
-``instrument_config`` (see :ref:`sim-instrument-config`).
+texture in I/F units. The chain's DN ceiling, the lower of the full well and the
+ADC clip, applies before the inverse, so a calibrated frame has an I/F ceiling as
+well: about 2.0 for ``coiss_calib_nac`` at the reference exposure, and 1.85 for
+``vgiss`` at any exposure. The navigator applies no saturation test to an I/F
+frame of either kind.
+
+The inverse subtracts the bias and dark pedestals, which would put a noise-free
+dark sky at exactly 0 I/F, the marker. A real calibrated product's dark sky keeps
+a residual level, so the inverse then adds the instrument's calibrated sky
+residual to every pixel: ``calibrated_sky_if`` in its detector catalog entry, or
+:data:`~spindoctor.sim.forward.artifacts_catalog.DEFAULT_CALIBRATED_SKY_IF` where
+the entry sets none.
+
+* ``vgiss`` uses 1.5 DN at the vidicon's 127.5 DN per unit I/F, 0.0118 I/F. Real
+  GEOMED sky sits above 0, between 6.6e-4 and 3.2e-2 I/F in five archived frames.
+  Half a DN off the whole-DN grid, the residual keeps every digitized pixel off 0
+  at any noise level. One and a half steps up, it keeps the sky's 1st percentile
+  positive under ``instrument_defaults``, as inside a real GEOMED border.
+* Every other calibrated frame (the Cassini CALIB cameras, and any instrument a
+  scene pins to ``calibrated_if``) uses 4.0e-5 I/F, the median sky of 13 dark
+  Cassini NAC CALIB frames. Their sky scatters around 0 with a sigma of 1.9e-4
+  I/F. Under ``instrument_defaults`` about 28% of the pixels of a disc scene a
+  third of the frame across sit below 0, down to about -0.0006.
+
+The simulator digitizes to whole DN, so a calibrated frame's values fall on a
+lattice, and at some exposures the subtracted dark pedestal puts a lattice point
+on 0 (10.7 s at the NAC's default gain state, under ``instrument_defaults``). The
+inverse moves a pixel that lands exactly on a numeric marker to the next float
+above it, so no pixel the detector delivers reads as missing data. Only planted
+loss puts a calibrated pixel at the marker: the artifact modes and
+``noise.missing_data_rate``, which work on both classes.
+
+The editor's status bar names a rendered frame's units and value range and the
+share of pixels at the marker (:func:`~spindoctor.sim.instruments.frame_units_summary`).
+It reads the frame the navigator reads, with the planted offset applied, although
+the preview beside it is offset-free: the offset moves the scene within the
+frame, and can take a body near the edge out of it. When the navigator's image
+classifier would not call that frame clean, the status bar says why, in the
+classifier's order (:func:`~spindoctor.sim.instruments.read_frame_as_navigator`):
+a peak below the blank limit first, then the overexposed share, then a marker
+share above ``max_missing_frac_clean``. An empty ``coiss_calib_nac`` frame's sky
+residual is below the blank limit, so the navigator calls it blank; an empty
+``vgiss`` frame's is above it. The preview stretch is relative to the frame, so
+the units are otherwise invisible: a ``vgiss`` frame spanning about 0 to 1 looks
+the same as a ``coiss_nac`` frame spanning 20 to 4095.
+
+Without a planted offset, the preview is the frame the navigator reads, and the
+status bar describes it as soon as it renders. With one, the navigated frame is a
+second render, and the editor runs it on a worker thread so that an edit never
+waits for it. The preview appears at once, and the status bar shows the units
+followed by ``verdict pending``. When the second render finishes, its summary
+replaces that line. A newer edit supersedes the verdict on its way, so the status
+bar never shows the verdict for an older scene. A failed second render puts its
+error on the status bar and prints its traceback to standard error.
+:ref:`sim-editor-verdict-thread` describes the worker.
 
 .. _sim-optics-stage:
 
@@ -588,7 +657,9 @@ intensive signal passes through the electron unit chain in
    for Cassini), not from the ADC clip.
 5. **Cosmic rays and read noise.** Cosmic rays deposit above the well after the
    bloom cap, so they reach the ADC ceiling and land on the orchestrator's
-   masks. Gaussian read noise is added in electrons.
+   masks. The event count is a Poisson draw with mean
+   ``cosmic_ray_events_per_pixel_per_sec`` x ``exposure_sec`` x pixel count.
+   Gaussian read noise is added in electrons.
 6. **Banding, gain to DN, bias structure.** Coherent banding is added in
    electrons; the image is divided by ``gain_e_per_dn`` and offset by the bias
    pedestal into DN; low-order bias structure (per-image pedestal jitter,
@@ -624,7 +695,7 @@ transients after the shot term, coherent banding in electrons before the gain
 divide, and the additive fixed pattern and serial tail on the digitized DN.
 Their mechanics live in
 :mod:`~spindoctor.sim.forward.detector.electronics_stages`, each drawn its own
-seeded stream and a no-op at zero incidence.
+seeded stream and a no-op when its activation key is 0.
 
 **The vidicon path.** The Voyager vidicon
 (:func:`~spindoctor.sim.forward.detector.chain.apply_detector`, vidicon branch)
@@ -634,13 +705,33 @@ line-correlated read-noise term (a per-line offset plus a within-line white
 component) and a faint vertical coherent periodic component -- then 8-bit
 quantization.
 
-**The calibrated-I/F path.** A calibrated (``coiss_calib_*``) instrument renders
-through the full DN chain and then inverts the calibration transform: the bias
-and dark pedestals are subtracted before the exposure divide (matching the real
-pipeline), so a calibrated frame carries no spurious 1/exposure pedestal and
+Cosmic rays work on the vidicon with the CCD's meaning: the event count is a
+Poisson draw with mean ``cosmic_ray_events_per_pixel_per_sec`` x
+``exposure_sec`` x pixel count, through the same stage. A vidicon stores the
+image as charge on its photoconductive target until the electron beam scans it,
+and a charged particle crossing the target discharges it the way light does. So
+the hits join the stored image: after the stars and the erase-cycle residual
+image (a ghost of the prior frame, which this frame's hits never reach), and
+before the readout, whose read noise, coherent component, dark ramp, banding,
+and beam bend all act on them. Each hit deposits at least the DN full scale
+(``full_well_dn``) and the target saturates there, so a hit's core holds exactly
+the full scale and digitizes at the 8-bit ceiling. The beam bend reads local
+brightness against the charge a fully lit scene stores (signal 1.0), not
+against the frame's brightest spot, so a hit bends the beam only within about
+10 px of itself. The real target
+also takes hits while it waits to be read; the stage counts the exposure alone,
+as on a CCD.
+
+**The calibrated-I/F path.** A calibrated instrument (``coiss_calib_*`` on the
+CCD chain, ``vgiss`` on the vidicon chain) renders through its DN chain and then
+inverts the calibration transform: the bias and dark pedestals are subtracted
+before the exposure divide (matching the real pipeline; the vidicon has no dark
+pedestal), so a calibrated frame carries no spurious 1/exposure pedestal and
 comes out in I/F units with propagated shot / read noise and quantization
 texture. The calibration scale is derived so a noise-free signal of 1.0 at the
-reference exposure round-trips to I/F 1.0.
+reference exposure round-trips to I/F 1.0. The inverse then adds the calibrated
+sky residual and keeps every pixel off a numeric marker (see
+:ref:`Instruments <sim-instruments>`).
 
 :func:`~spindoctor.sim.forward.detector.params.resolve_detector_params`
 collapses the emulated instrument's config block, the per-instrument catalog
@@ -664,12 +755,13 @@ emulated camera's physical signal chain at catalog values: the whole-scene PSF
 kernel and the residual-distortion amplitude
 (:func:`~spindoctor.sim.forward.optics.instrument_defaults_on` gates the optics
 side), and the detector electron chain's Poisson shot noise, read noise, dark
-current, hot pixels, full-well bloom, banding, and bias structure (the
-detector side reads the same switch). An explicit ``noise`` key still wins in
-either direction -- ``noise: {poisson: false}`` turns the shot term off under
-instrument defaults. It turns on only the *physical* chain: the per-mode loss
-incidences (cosmic rays, whole-line telemetry loss, compression-block
-dropouts, and the like) stay at zero, so a defaults scene is a
+current, hot pixels, full-well bloom, banding, bias structure, and cosmic-ray
+rate (the detector side reads the same switch; every entry records a
+cosmic-ray rate of zero, each with its reason). An explicit ``noise`` key still
+wins in either direction -- ``noise: {poisson: false}`` turns the shot term off
+under instrument defaults. It turns on only the *physical* chain: the artifact modes
+(whole-line telemetry loss, compression-block dropouts, radiation transients, and
+the like) keep their activation keys at zero, so a defaults scene is a
 clean-but-realistic frame, not a damaged one.
 
 :mod:`spindoctor.sim.forward.artifacts_catalog` is the single home for those
@@ -679,9 +771,10 @@ per-instrument values: ``PSF_KERNELS`` (core sigma and wing parameters),
 vidicon numbers, plus an ``artifact_modes`` sub-map of per-mode shape defaults --
 banding amplitudes and periods, frame-transfer scrub/transfer times, fixed-
 pattern components, and the rest). A scene that names an artifact mode with only
-its incidence inherits these shapes (``resolve_mode_with_catalog`` resolves scene
-value over catalog default over registry default); ``incidence`` itself is never
-cataloged, so naming an instrument never plants a defect on its own. Every value
+its activation key inherits these shapes (``resolve_mode_with_catalog`` resolves
+scene value over catalog default over registry default). The activation keys
+themselves are never cataloged, so naming an instrument never plants a defect on
+its own. Every value
 is provenance-tagged in a comment beside it, and every value is interim -- sized
 from published FWHMs, gain tables, and documented residual-error bounds, pending
 the per-instrument measurement passes -- so the wing parameters and noise
@@ -703,8 +796,8 @@ one at a time. The modes are registered once in
 is their single source of truth. Each :class:`~spindoctor.sim.forward.artifact_modes.ArtifactMode`
 fixes the mode's name, its rendering stage (``telemetry`` or ``detector``), the
 :class:`~spindoctor.sim.forward.artifact_modes.ModeParam` schema of its
-parameters, the sim instruments it is available on, and the meaning of its
-``incidence``. Every consumer reads that description rather than carrying its
+parameters, the sim instruments it is available on, and its activation key with
+that key's meaning for the mode. Every consumer reads that description rather than carrying its
 own copy: the scene validator (:func:`spindoctor.sim.scene_checks._check_artifacts`),
 the telemetry and detector stages, and the scene-editor GUI all iterate the
 registry, so registering a mode is the whole job of adding one editor row, one
@@ -716,28 +809,66 @@ key must be a registered mode name; an unknown key, an unimplemented mode, or a
 mode named on an instrument it is unavailable on fails validation with the
 registry's message.
 
-Incidence semantics
--------------------
+.. _sim-artifact-activation-keys:
 
-Every mode carries an ``incidence`` parameter, and every mode is a no-op at
-incidence 0 (the stage-activation rule; 0 is also the default, so naming an
-instrument never plants a defect on its own). Its meaning is per-mode:
+Activation keys
+---------------
 
-* **count** modes draw a Poisson event count per frame (lost lines, lost blocks,
-  spiked pixels, radiation hits): incidence is the expected number of events.
-* **probability** modes are commanded or periodic (a frame edit, a cutout, a
-  quantization sub-mode, most detector effects): incidence is the per-frame
-  probability the mode activates at all.
-* **density** modes (``hot_pixels``) read incidence as a spatial fraction of
-  pixels affected, not a per-frame event count.
+Every mode carries exactly one activation key, and the key's name says what
+quantity it holds. The registry records which key each mode takes
+(``ArtifactMode.activation``):
+
+* **Count** modes draw a Poisson number of events per frame (lost lines, lost
+  blocks, spiked pixels, dead pixels, and dead columns). Their key is
+  ``expected_events``, the expected number of events per frame, any non-negative
+  number. Each caps the draw at the number of places its events can land: the
+  frame's lines for a line loss, its columns for ``dead_columns``, its pixels
+  for a pixel loss, and the compression-block count for ``missing_blocks``.
+* **Rate** modes ``bright_dark_pairs`` and ``radiation_transients`` take
+  ``expected_events_per_sec``, the expected number of events per second, any
+  non-negative number, and their draws are uncapped. For ``bright_dark_pairs``
+  the frame's expected count is that rate times ``exposure_sec``. A radiation
+  hit also lands while the frame waits for readout, and the entry's
+  ``environment_factor`` scales the radiation environment, so
+  ``radiation_transients`` expects
+  ``expected_events_per_sec * environment_factor * (exposure_sec +
+  readout_dwell_sec)``. A non-positive exposure counts as zero seconds, so such
+  a frame collects only the dwell's hits. The scene validator refuses a
+  non-positive ``exposure_sec``, so only a direct caller of the detector stage
+  can pass one.
+* **Probability** modes are commanded or periodic (a frame edit, a cutout, a
+  quantization sub-mode, most detector effects). Their key is ``probability``,
+  the per-frame probability in [0, 1] that the mode activates at all.
+* **Density** mode ``hot_pixels`` takes ``pixel_fraction``, the fraction of
+  detector pixels that are hot, in [0, 1].
+
+``dead_pixels`` and ``dead_columns`` also accept ``count``, a fixed number of
+dead pixels or columns in place of the Poisson draw. A static detector defect
+has a definite count, so ``count`` is the usual choice there. The two keys are
+mutually exclusive, and the validator refuses a map that sets both. A key set
+to null counts as unset, so ``{count: null, expected_events: 3}`` is valid. The
+sim editor keeps the two exclusive too: ``count`` carries a "set" box, setting
+it removes ``expected_events``, and editing ``expected_events`` removes the
+count.
+
+The stage-activation rule reads the same for every key: a mode is a no-op when
+its activation key is 0, or its ``count`` where given is 0. The keys default to
+0, also under ``instrument_defaults``, so naming a mode without its activation
+key, or its ``count`` where given, doesn't plant anything.
+
+A mode's map accepts only that mode's parameters, so an unknown key in it fails
+validation. The sweep harness re-validates each step's ``artifacts`` and
+``noise`` blocks, so a sweep path naming an unknown mode or noise key fails when
+the sweep is built.
 
 Telemetry-stage modes
 ---------------------
 
 Applied at the detector grid after readout, in the physical order of
 transmission (see :data:`~spindoctor.sim.forward.artifact_modes.STRUCTURED_LOSS_ORDER`).
-Loss modes write the missing-data marker (0 on the raw-DN path, NaN on the
-calibrated path); garble and spikes write *wrong* values instead.
+Loss modes write the instrument's missing-data marker, its ``noise.marker_value``:
+0 on every shipped instrument. Garble and spikes write *wrong*
+values instead.
 
 .. list-table::
    :header-rows: 1
@@ -746,73 +877,73 @@ calibrated path); garble and spikes write *wrong* values instead.
    * - Mode
      - Shape
      - Availability
-     - Incidence
+     - Activation key
    * - ``missing_lines``
      - whole lines zeroed to the marker (a contiguous run or scattered)
      - all
-     - count
+     - ``expected_events``
    * - ``partial_lines``
      - a line truncated from a column to its end, or a middle segment lost
      - nac, wac, vgiss
-     - count
+     - ``expected_events``
    * - ``alternating_lines``
      - every Nth line dropped, or (``mode: keep``, the Galileo HMA / HCA
        catalog default) only every Nth line kept
      - nac, wac, gossi
-     - probability
+     - ``probability``
    * - ``edited_frame``
      - only a centered column band (440 px by default), or one half-height, kept
      - gossi, vgiss
-     - probability
+     - ``probability``
    * - ``truncated_frame``
      - a clean full-width band of lines (a quarter frame by default) cut from
        the top or bottom
      - nac, wac, gossi
-     - probability
+     - ``probability``
    * - ``missing_blocks``
      - compression-block-aligned bands zeroed
      - nac, wac, gossi
-     - count
+     - ``expected_events``
    * - ``line_garble``
      - a line's tail replaced with random DN, not the marker
      - gossi, vgiss
-     - count
+     - ``expected_events``
    * - ``pixel_spikes``
      - isolated pixels flipped to a wrong DN (a bit-flip or a uniform draw)
      - vgiss
-     - count
+     - ``expected_events``
    * - ``dead_pixels``
      - singleton pixels held at a low response
      - all CCD
-     - count
+     - ``expected_events``
    * - ``dead_columns``
      - whole columns held at a low response
      - all CCD
-     - count
+     - ``expected_events``
    * - ``embedded_header``
      - row 0 overwritten with binary housekeeping (the LORRI header)
      - lorri
-     - probability
+     - ``probability``
    * - ``truth_window``
      - a losslessly-clean carve-out the other losses must spare
      - gossi
-     - probability
+     - ``probability``
    * - ``cutout_window``
      - only a commanded rectangle survives; the border is blanked
      - gossi, lorri
-     - probability
+     - ``probability``
    * - ``compression_dct``
      - lossy DCT block quantization on the transmitted signal, before loss
      - all CCD
-     - probability
+     - ``probability``
    * - ``reseau_scars``
      - reseau-removal smudges on the vidicon lattice (archive processing)
      - vgiss
-     - probability
+     - ``probability``
    * - ``resample_texture``
      - GEOMED resample warp, blank border, and missing-line interpolation
      - vgiss
-     - probability
+     - ``probability``
 
 The telemetry sub-stage order is fixed: lossy compression runs first (a codec
 compresses, then packets drop), then the structured loss loop, then the Voyager
@@ -839,75 +970,76 @@ which mode's truth record is written first.
    * - Mode
      - Shape
      - Availability
-     - Incidence
+     - Activation key
    * - ``hot_pixels``
      - a fixed spatial population of high-dark-current pixels
      - nac, wac, gossi
-     - density
+     - ``pixel_fraction``
    * - ``banding_coherent``
      - a coherent electron-domain intensity ripple
      - all
-     - probability
+     - ``probability``
    * - ``bias_structure``
      - a bias pedestal with row and column gradients
      - all
-     - probability
+     - ``probability``
    * - ``dark_ramp``
      - a readout / shutter-shading dark ramp across the frame
      - all
-     - probability
+     - ``probability``
    * - ``bloom``
      - electron-domain column bleed from saturated wells
      - nac, wac, gossi
-     - probability
+     - ``probability``
    * - ``radiation_transients``
      - cosmic-ray hits during integration and readout dwell
      - all CCD
-     - count
+     - ``expected_events_per_sec``
    * - ``bright_dark_pairs``
      - anti-blooming-mode vertical bright / dark pixel pairs
      - nac, wac
-     - count
+     - ``expected_events_per_sec``
    * - ``frame_transfer_smear``
      - frame-transfer column smear
      - lorri
-     - probability
+     - ``probability``
    * - ``serial_tail``
      - a post-saturation serial-register tail
      - lorri
-     - probability
+     - ``probability``
    * - ``beam_bend``
      - a brightness-dependent vidicon limb bend
      - vgiss
-     - probability
+     - ``probability``
    * - ``residual_image``
      - a prior-frame ghost from incomplete erasure
      - vgiss
-     - probability
+     - ``probability``
    * - ``quantization_lut``
      - the Cassini sqrt-companding LUT quantization
      - nac, wac
-     - probability
+     - ``probability``
    * - ``quantization_ls8b``
      - the Cassini LS8B wraparound quantization
      - nac, wac
-     - probability
+     - ``probability``
    * - ``contouring_8bit``
      - 8-bit contouring quantization steps
      - gossi, vgiss
-     - probability
+     - ``probability``
    * - ``fixed_pattern``
      - a static PRNU / vignetting / stitch / jail-bar / dust composite
      - all
-     - probability
+     - ``probability``
 
 Precedence
 ----------
 
 A mode's parameter value is resolved scene value over catalog default over
 registry default (:func:`~spindoctor.sim.forward.artifacts_catalog.resolve_mode_with_catalog`),
-so a scene that names a mode with only its incidence inherits the instrument's
-cataloged shape. ``incidence`` itself is never cataloged. Where a mode shares a
+so a scene that names a mode with only its activation key inherits the
+instrument's cataloged shape. The activation keys and ``count`` are never
+cataloged. Where a mode shares a
 mechanic with a generic ``noise``-block knob (``hot_pixels`` versus
 ``noise.hot_pixel_fraction``, for instance), the explicit artifact mode wins.
 
@@ -923,8 +1055,8 @@ the frame-level edits) ignore the switch: their geometry is fixed once active.
 The switch is one scene-level flag, so a scene is either adversarial for all its
 modes or none.
 
-Truth bookkeeping and incidence measurement
--------------------------------------------
+Truth bookkeeping and the planted-versus-measured match
+-------------------------------------------------------
 
 Each applied mode records its realized geometry -- which lines, blocks, or pixels
 it touched -- into ``frame.truth['artifacts'][<mode>]``, so a later measurement
@@ -952,8 +1084,9 @@ lines per frame), in a uniform-placement and an adversarial-placement variant.
 The navigator must still reach success and recover the planted offset within
 tolerance -- the level at which realism does not break navigation. The companion
 ``artifact_missing_lines`` sweep (``tests/integration/sim_sweeps/``) drives the
-other end: it raises the missing-line incidence from a clean frame past the
-navigability cliff and records the navigation-quality-versus-incidence curve.
+other end: it raises the missing-line ``expected_events`` from a clean frame past
+the navigability cliff and records the curve of navigation quality against the
+number of lost lines.
 
 .. _sim-star-confounder:
 
@@ -1363,6 +1496,8 @@ the measured behavior is that the correlation and limb fit stay accurate
 against the smooth Lambert template, and the scene fails loudly if that stops
 being true.
 
+.. _sim-mesh-appearance:
+
 Mesh shading, detail, relief, and pose scatter
 ----------------------------------------------
 
@@ -1445,9 +1580,20 @@ prediction consumes:
 The non-Lambert photometric laws, opposition surge, crater carving, the
 surface-texture and transit families, and the atmosphere halo are
 ellipsoid-path features; a mesh body carries the relief, shading, detail, and
-pose-scatter keys. The scene validator *rejects* the ellipsoid-only appearance
-keys on a ``polyhedral_mesh`` body -- the mesh renderer would silently ignore
-them, and a scene that names an effect must render it or fail loudly.
+pose-scatter keys. The scene validator *rejects* a non-null value of any of
+twelve ellipsoid-only appearance keys on a ``polyhedral_mesh`` body:
+``atmosphere``, ``photometric_law``, ``minnaert_k``, ``opposition_surge``,
+``albedo_texture``, ``disc_texture``, ``transits``, ``crater_fill``,
+``crater_min_radius``, ``crater_max_radius``, ``crater_power_law_exponent``, and
+``crater_relief_scale``. A null value reads as an absent key. The mesh renderer
+would silently ignore these keys, and a scene that names an effect must render
+it or fail loudly. The list is ``MESH_UNSUPPORTED_KEYS`` in
+:mod:`spindoctor.sim.scene_schema`, and ``mesh_unsupported_message`` there
+builds the refusal. The sim editor reads both: on a mesh body it disables every
+control that writes one of these keys, and it shows the refusal as the tooltip
+of that control and of every control and label inside it, so hovering any of
+them explains why it is disabled (see :ref:`sim-gui`).
+
 Silhouette ``anti_aliasing`` is consumed at oversample 1 only, on both render
 paths (an oversampled scene already resolves the limb on its own grid).
 
@@ -1700,8 +1846,8 @@ Every feature contributes a radial tau profile anchored at its orbit radius
 ``r_e(lam)`` (which varies with longitude once the orbit is perturbed) and
 the profiles compose by addition, clipped at zero:
 
-- A ``ringlet`` carries its ``tau`` across a band of radial ``width``
-  outward of the orbit radius; a ``gap`` is the same band as a suppression,
+- A ``ringlet`` carries its ``tau`` across a band of radial width
+  ``width_px`` outward of the orbit radius; a ``gap`` is the same band as a suppression,
   carving tau out of whatever it overlaps -- so a gap is authored *into* a
   sheet, and its edges are the sheet's material ending, not a painted dark
   band.
@@ -1723,36 +1869,43 @@ the profiles compose by addition, clipped at zero:
   not a wave. Physically the wave propagates away from the resonance that
   launches it; there is nothing upstream to draw.
 
-Kind-specific shape keys are validated strictly (a ``width`` on an ``edge``
-fails loudly) because a stray shape key would silently author a different
-feature than intended.
+Kind-specific shape keys are validated strictly (a ``width_px`` on an
+``edge`` fails loudly) because a stray shape key would silently author a
+different feature than intended. :ref:`sim-ring-system` tabulates which kind
+takes which key.
 
 The catalog orbit: m-modes and edge waves
 -----------------------------------------
 
 A feature's ``orbit`` is catalog knowledge -- the navigator predicts from
 exactly what the renderer draws, unless a planted error (below) says
-otherwise. The base is the mode-1 precessing ellipse (``a``, ``ae``,
-``long_peri``, ``rate_peri`` applied across ``time - ring_epoch``). Two
-perturbation families ride on it:
+otherwise. The base is the mode-1 precessing ellipse (``a_px``, ``ae_px``,
+``long_peri_deg``, and ``rate_peri_deg_per_day`` applied across
+``time - ring_epoch``). Two perturbation families ride on it:
 
 - ``modes`` (m >= 2): resonantly forced radial modes,
-  ``r = a - amp cos(m (lam - peri))``. An ``m = 2`` mode is the classic
+  ``r = a_px - amp_px cos(m (lam - peri_deg))``. An ``m = 2`` mode is the classic
   two-lobed outer-B-ring edge shape; higher m gives the scalloped
   multi-lobed edges of resonantly confined ringlets. The mode longitudes
   live in the ring-plane frame (measured from the ascending node), so the
-  lobes foreshorten correctly under an inclined view.
+  lobes foreshorten correctly under an inclined view. A mode's ``peri_deg``
+  is its own longitude, apart from mode 1's ``long_peri_deg``, and three
+  things that move or bound mode 1 leave it alone: it stays fixed in time
+  (``rate_peri_deg_per_day`` precesses mode 1 only), the planted
+  ``orbit_error.delta_long_peri_deg`` doesn't shift it, and
+  ``declared_orbit_sigma.sigma_long_peri_deg`` doesn't describe it.
 - ``edge_wave``: a satellite edge wave -- the Daphnis/Pan signature -- a
   radial sinusoid whose azimuthal wavelength is an arc length and whose
   amplitude decays exponentially *downstream* of the perturbing moon's
-  longitude ``lam0``. The same upstream clamp as the radial wave applies,
+  longitude ``lam0_deg``. The same upstream clamp as the radial wave applies,
   for the same reason: the decay envelope written as an exponential in
   downstream longitude grows without bound if evaluated upstream of the
   moon, so the longitude difference is wrapped into one forward turn.
   Immediately upstream of the moon the wave has then wrapped nearly a full
-  orbit and carries a factor ``exp(-2 pi / damp)`` of its launch amplitude
-  -- the validator caps ``damp`` at 2 radians, bounding that wrap-seam
-  residual at ``exp(-pi)``, about 4.3% of the launch amplitude -- which is
+  orbit and carries a factor ``exp(-360 / edge_wave_damping_deg)`` of its
+  launch amplitude -- the validator caps ``edge_wave_damping_deg`` at
+  ``360 / pi``, about 114.59 degrees, bounding that wrap-seam residual at
+  ``exp(-pi)``, about 4.3% of the launch amplitude -- which is
   the periodic statement of "the wave trails the moon, it does not lead
   it".
 
@@ -2097,9 +2250,9 @@ ring, a couple of stars, and a planted offset the navigator must recover -- read
        - name: RINGLET
          kind: ringlet
          tau: 1.2
-         width: 8.0
+         width_px: 8.0
          navigable: true
-         orbit: {a: 90.0, ae: 6.0}
+         orbit: {a_px: 90.0, ae_px: 6.0}
    sky_counts: {density_factor: 40.0}
    stars:
      - {name: S1, v: 30.0, u: 60.0, vmag: 6.0}
@@ -2199,7 +2352,8 @@ Top-level fields
      - float
      - 1.0
      - idealized
-     - Exposure time; scales the cosmic-ray count.
+     - Exposure time; scales the cosmic-ray, ``radiation_transients``, and
+       ``bright_dark_pairs`` counts.
    * - ``offset_v`` / ``offset_u``
      - float
      - 0.0
@@ -2231,7 +2385,8 @@ Top-level fields
      - 0.0
      - idealized
      - Observation time and orbit epoch for ring-edge precession
-       (``rate_peri`` applies across ``time - ring_epoch``); catalog knowledge
+       (``rate_peri_deg_per_day`` applies across ``time - ring_epoch``); catalog
+       knowledge
        both sides read.
    * - ``fit_camera_rotation``
      - bool
@@ -2400,7 +2555,9 @@ resolution, defaults 16 / 32; 64 / 128 hides the facets on a large body),
 The truth-side body keys never reach the navigator. The relief, photometry,
 texture, and transit keys are consumed by the topographic path and the mesh
 extras by the mesh renderer (see :ref:`sim-body-renderer`); the navigator's
-predicted body is always the smooth Lambert template.
+predicted body is always the smooth Lambert template. A non-null value of a
+key in a row marked *ellipsoid only*, or of the ``atmosphere`` block, is
+refused on a ``polyhedral_mesh`` body (see :ref:`sim-mesh-appearance`).
 
 .. list-table::
    :widths: 30 70
@@ -2411,7 +2568,7 @@ predicted body is always the smooth Lambert template.
    * - ``crater_fill``, ``crater_min_radius``, ``crater_max_radius``,
        ``crater_power_law_exponent``, ``crater_relief_scale``
      - Procedural crater terrain -- nature's surface, which the navigator's
-       smooth predicted template does not know.
+       smooth predicted template does not know. *Ellipsoid only.*
    * - ``limb_relief_rms``, ``limb_relief_corr_deg``
      - The limb/terminator relief field: RMS of the limb slice as a fraction
        of the body radius (at most 0.05), and its correlation length in
@@ -2420,20 +2577,21 @@ predicted body is always the smooth Lambert template.
    * - ``photometric_law``, ``minnaert_k``
      - The surface-scattering law (``lambert`` / ``lommel_seeliger`` /
        ``minnaert`` / ``lunar_lambert``) and its Minnaert exponent; ellipsoid
-       topographic path.
+       topographic path. *Ellipsoid only.*
    * - ``opposition_surge``
      - ``{amplitude, width_deg}`` -- the normalized brightness surge near
-       opposition.
+       opposition. *Ellipsoid only.*
    * - ``albedo_texture``
      - ``{rms, corr_px, spots}`` -- a multiplicative noise field plus circular
-       albedo spots on the disc shading.
+       albedo spots on the disc shading. *Ellipsoid only.*
    * - ``disc_texture``
      - ``{band_amplitude, band_wavenumber, band_phase_deg, storms}`` -- a
-       giant-planet latitude band pattern plus storm ovals.
+       giant-planet latitude band pattern plus storm ovals. *Ellipsoid only.*
    * - ``transits``
      - A list of ``{moon, shadow}`` discs (each ``dv_px``, ``du_px``,
        ``radius_px``, and a brightness/darkness) on the parent disc; the cast
        shadow is the sharp *false crater* the disc techniques must not chase.
+       *Ellipsoid only.*
    * - ``shading``
      - Rendered mesh shading mode (``flat`` default, ``gouraud`` smooth); the
        predicted mesh always renders flat.
@@ -2511,28 +2669,88 @@ center's range and the far arm passes behind it, gaps reveal the background
 instead of erasing it, and stars behind the ring attenuate by
 ``exp(-tau/mu)`` (a scene whose system overlaps a body must range both).
 
+**Units.** Each length and angle key in the block names its unit, apart from
+``geometry.center_v`` and ``center_u``, which are image-pixel positions (pixel
+corners). A key ending in ``_px`` is in *ring-plane pixels*: a distance in the
+ring plane, measured in detector pixels. It may run radially, as ``a_px`` and
+``width_px`` do, or along the orbit, as the edge wave's ``wavelength_px`` does.
+It projects to that many image pixels along the line of nodes and is
+foreshortened by ``sin(B)`` across it, so on a face-on ring it is a plain image
+distance. The one exception is a moonlet's ``radius_px``, the radius of its
+disc in image pixels: the disc is drawn on the sky, so it isn't foreshortened.
+Every angle is in degrees and carries ``_deg`` in its name, and the renderer
+converts to radians internally. Every longitude is measured in the ring plane
+from the ascending node. ``RING_KEY_DESCRIPTIONS`` in :mod:`spindoctor.sim.scene_schema` says
+what each length and angle key the sim editor's tooltips describe holds, and
+the tooltips read their descriptions from it. Every mapping in the block,
+down to each orbit, m-mode, edge wave, modulation, spokes, and moonlet entry,
+accepts only its own keys, so an unknown key anywhere in it fails validation.
+
+**Null keys.** An optional key set to null anywhere in the block counts as unset:
+the validator, the renderer, the orbit parser the navigator-side model shares
+(``ring_orbit_from_mapping``), and the sim editor all read it as the absent key,
+through ``scene_value`` in :mod:`spindoctor.sim.scene_schema`. A required key
+set to null is refused as missing.
+
 **Features.** Each entry of ``features`` carries ``name``, ``kind``, ``tau``
 (the normal optical depth), kind-specific shape keys, a catalog ``orbit``,
 and ``navigable`` (default false). The kinds and their shape keys:
 
-- ``ringlet`` — ``tau`` between the orbit radius and orbit + ``width``
-  (required); a ``gap`` is the same band as a tau suppression.
+- ``ringlet`` — ``tau`` between the orbit radius and orbit + ``width_px``;
+  a ``gap`` is the same band as a tau suppression.
 - ``edge`` — a one-sided step; ``side: 'in'`` (default) carries tau inside
   the orbit radius (a sheet bounded by its outer edge), ``'out'`` outside.
-- ``ramp`` — a linear transition across ``width``; ``side: 'out'`` (default)
-  rises from 0 at the orbit radius to ``tau`` at orbit + ``width``.
-- ``wave`` — a damped radial sinusoid launched at the orbit radius
-  (``wavelength`` and ``damping``, both required, in radial px): a
-  density-wave train, typically non-navigable clutter riding on a sheet.
+- ``ramp`` — a linear transition across ``width_px``; ``side: 'out'``
+  (default) rises from 0 at the orbit radius to ``tau`` at orbit +
+  ``width_px``.
+- ``wave`` — a damped radial sinusoid launched at the orbit radius, with
+  radial wavelength ``wavelength_px`` and radial e-folding length
+  ``density_wave_damping_px``: a density-wave train, typically non-navigable
+  clutter riding on a sheet.
+
+Every kind requires ``kind``, ``tau``, and an ``orbit`` with ``orbit.a_px``.
+The shape keys follow one table, ``RING_KIND_SHAPE_KEYS`` in
+:mod:`spindoctor.sim.scene_schema`, which the validator enforces and the sim
+editor's kind switch follows. The switch grays out a widget the kind rejects,
+and the widget's tooltip says why. Each widget the kind takes shows the value
+the renderer will use: the stored value, or for an absent ``side`` the kind's
+default from ``RING_SIDE_DEFAULTS``, which the editor shows without writing it.
+A rejected key fails validation.
+
+===========================  ========  ========  ========  ========  ========
+key                          ringlet   gap       edge      ramp      wave
+===========================  ========  ========  ========  ========  ========
+``width_px``                 required  required  rejected  required  rejected
+``side``                     rejected  rejected  optional  optional  rejected
+``wavelength_px``            rejected  rejected  rejected  rejected  required
+``density_wave_damping_px``  rejected  rejected  rejected  rejected  required
+default side                 n/a       n/a       in        out       n/a
+===========================  ========  ========  ========  ========  ========
+
+An ``edge`` is a semi-infinite sheet: features compose as a union of radial
+half-planes over one shared optical-depth map, so ``side: 'in'`` fills every
+radius inward of ``a_px``. Two edges therefore cannot bound an annulus. They
+overlap, and the would-be annulus is only where tau doubles. A band is a
+``ringlet``, or a ``gap`` carved into a sheet.
 
 The ``orbit`` map is the catalog orbit: the mode-1 precessing ellipse
-(``a``, ``ae``, ``long_peri``, ``rate_peri``, applied across the scene-level
-``time`` minus ``ring_epoch``), optional m >= 2 ``modes``
-(``{m, amp, peri}``: ``r = a - amp*cos(m*(lam - peri))``, the resonantly
-forced edge shape), and an optional satellite ``edge_wave``
-(``{amp, wavelength, damp, lam0}``: a damped sinusoid downstream of the
-perturbing moon's longitude ``lam0``, with ``damp`` in radians and the sine
-argument arc length over ``wavelength``).
+(``a_px``, ``ae_px`` (the eccentricity times ``a_px``), ``long_peri_deg``, and
+``rate_peri_deg_per_day``, applied across the scene-level ``time`` minus
+``ring_epoch``), optional ``modes`` (``{m, amp_px, peri_deg}``:
+``r = a_px - amp_px*cos(m*(lam - peri_deg))``, the resonantly forced edge
+shape, where ``m`` is an integer of at least 2 because mode 1 is the base
+ellipse and ``peri_deg`` is the longitude of one of the mode's ``m``
+pericenters, fixed in time and untouched by the mode-1 ``orbit_error`` and
+``declared_orbit_sigma`` keys), and an optional satellite ``edge_wave``
+(``{amp_px, wavelength_px, edge_wave_damping_deg, lam0_deg}``: a damped
+sinusoid downstream of the perturbing moon's longitude ``lam0_deg``, whose sine
+argument is the arc length along the orbit over ``wavelength_px``). The edge
+wave's ``edge_wave_damping_deg`` and a ``wave`` feature's
+``density_wave_damping_px`` are both the e-folding length of a damped wave's
+envelope. A ``wave`` feature's envelope decays radially, over ring-plane pixels
+outward of its launch radius. An edge wave's envelope decays in longitude, over
+degrees downstream of its launch longitude, and its ``edge_wave_damping_deg``
+is at most ``360 / pi``, about 114.59 degrees (2 radians).
 
 **Planted orbit error.** A feature's truth-side ``orbit_error`` map
 (``delta_a_px``, ``delta_ae_px``, ``delta_long_peri_deg``) displaces the
@@ -2548,14 +2766,17 @@ forward-scatters) are photometric truth.
 
 **Azimuthal clutter and moonlets (truth).** The ``azimuthal`` block scales
 the emitted intensity only, never tau: ``modulation``
-(``{amplitude, m, phase_deg}``, the self-gravity-wake asymmetry), ``shadow``
-(``{start_deg, extent_deg, darkness}``, a planet-shadow wedge -- a strong
-non-navigable edge crossing every feature), and ``spokes``
-(``{count, r_inner, r_outer, contrast, width_deg}``, a seeded field of
+(``{amplitude, m, brightness_peak_longitude_deg}``, the self-gravity-wake
+asymmetry ``1 + amplitude*cos(m*(lam - brightness_peak_longitude_deg))``, where
+``m`` is an integer of at least 1, default 1, and
+``brightness_peak_longitude_deg`` the longitude of a brightness peak),
+``shadow`` (``{start_deg, extent_deg, darkness}``, a planet-shadow wedge -- a
+strong non-navigable edge crossing every feature), and ``spokes``
+(``{count, r_inner_px, r_outer_px, contrast, width_deg}``, a seeded field of
 azimuthally sharp, radially broad wedges drawn from the
 ``scene_radiance/ring_system/spokes`` stream; negative contrast for the dark
 low-phase appearance). The ``moonlets`` list embeds opaque discs at the
-ring's depth (``{a, lam_deg, radius_px, amplitude}``), each optionally
+ring's depth (``{a_px, lam_deg, radius_px, amplitude}``), each optionally
 carrying a stylized ``propeller`` tau disturbance
 (``{length_deg, width_px, contrast}``): blob/star confounders sitting
 exactly on the navigable features.
@@ -2652,9 +2873,11 @@ The optional ``noise`` dict (truth-side) pins the truth-side detector noise the
 scene plants. The detector stage consumes most of it; the missing-data markers
 are applied by the telemetry stage. Each field is off at the floor unless the
 block sets it (or ``artifacts.instrument_defaults`` turns on the catalog
-chain); an explicit noise key always wins over the catalog value. The
-validator checks the block against exactly this inventory, so an unknown noise
-key fails loudly.
+chain); an explicit noise key always wins over the catalog value. A key set to
+null, here or in ``noise.vidicon``, counts as unset and resolves as if it were
+absent, as a null ``detector`` key does, so ``noise: {poisson: null}`` keeps the
+shot noise ``instrument_defaults`` turns on. The validator checks the block
+against exactly this inventory, so an unknown noise key fails loudly.
 
 .. list-table::
    :widths: 30 12 12 46
@@ -2679,13 +2902,17 @@ key fails loudly.
      - float
      - instrument
      - Additive bias pedestal; lifts dark sky off zero so it is not confused with
-       the missing-data marker.
-   * - ``cosmic_ray_rate_per_sec``
+       the missing-data marker. A calibrated frame subtracts it again in the
+       calibration inverse (see :ref:`Instruments <sim-instruments>`).
+   * - ``cosmic_ray_events_per_pixel_per_sec``
      - float
      - 0.0
-     - Cosmic-ray fluence (events / cm^2 / sec), scaled by ``exposure_sec``.
-       Stays 0 under ``instrument_defaults`` (a loss mode, not physical-chain
-       noise).
+     - Expected cosmic-ray events per pixel per second of exposure: a frame's
+       event count is a Poisson draw with mean rate x ``exposure_sec`` x pixel
+       count. ``instrument_defaults`` supplies the catalog rate (0.0 for every
+       instrument). The CCD chain deposits the hits in electrons and the
+       vidicon chain in DN, with the same meaning (see
+       :ref:`sim-detector-stage`).
    * - ``missing_data_rate``
      - float
      - 0.0
@@ -2700,10 +2927,6 @@ key fails loudly.
      - float
      - instrument
      - Well fraction a signal of 1.0 fills at the reference exposure.
-   * - ``pixel_area_cm2``
-     - float
-     - 1.0
-     - Detector pixel area; scales the cosmic-ray count.
    * - ``dark_current_e_per_sec``
      - float
      - 0 (off)
@@ -2855,8 +3078,8 @@ chain: ``gain_state`` (the electron-chain gain state, which must be cataloged
 for the instrument), ``detector_model`` (``ccd`` electron chain or ``vidicon``
 DN chain), ``exposure_ref_sec`` (the exposure the signal full-scale fraction
 references), and ``quantization`` (the ADC sub-mode: ``exact``, ``8bit``,
-``uneven_12bit``, or ``sqrt_lut``). Omitted keys fall back to the instrument's
-catalog defaults.
+``uneven_12bit``, or ``sqrt_lut``). Omitted keys, and keys set to null, fall
+back to the instrument's catalog defaults.
 
 .. _sim-artifacts-block:
 
@@ -2868,8 +3091,8 @@ switch ``instrument_defaults`` (see :ref:`sim-artifacts-catalog`), the
 ``adversarial`` placement flag, and one map per **artifact mode**. With
 ``instrument_defaults`` on, the emulated camera's catalog PSF, distortion
 residual, and detector noise chain render at their per-instrument values; the
-per-mode incidences stay at zero (naming an instrument selects a signal chain,
-not a set of defects), with the one exception that LORRI turns on
+artifact modes' activation keys stay at zero (naming an instrument selects a
+signal chain, not a set of defects), with the one exception that LORRI turns on
 ``frame_transfer_smear`` -- its defining artifact -- at the catalog's nominal
 scrub/transfer times. Leaving ``instrument_defaults`` off keeps those keys
 absent (the self-consistency floor).
@@ -2877,14 +3100,21 @@ absent (the self-consistency floor).
 The artifact modes are registered once in
 :mod:`spindoctor.sim.forward.artifact_modes` -- the single source of truth for
 each mode's rendering stage (``detector`` or ``telemetry``), per-instrument
-availability, and parameter schema. Every mode carries an ``incidence``: for a
-count mode it is the expected number of events per frame (drawn Poisson); for a
-commanded / periodic mode it is the per-frame probability the mode fires. An
-incidence of 0 is a no-op, so a scene plants exactly the defects it names. A
+availability, and parameter schema. Every mode carries one activation key (see
+:ref:`sim-artifact-activation-keys`): ``expected_events`` for a count mode (the
+expected number of events per frame, drawn Poisson), ``expected_events_per_sec``
+for a rate mode, ``bright_dark_pairs`` or ``radiation_transients`` (the expected
+number of events per second, drawn Poisson),
+``probability`` for a commanded or periodic mode (the per-frame probability the
+mode fires), and ``pixel_fraction`` for ``hot_pixels`` (the fraction of pixels
+that are hot). ``dead_pixels`` and ``dead_columns`` take a fixed ``count``
+instead of ``expected_events`` when the scene gives one. An activation key of 0,
+or a ``count`` of 0 where given, is a no-op, so a scene plants exactly the
+defects it names. A
 mode named on an instrument it is unavailable on fails validation (for example
 ``hot_pixels`` and ``bloom`` on LORRI, which has neither). Each applied mode
 records its realized geometry into ``frame.truth['artifacts'][mode]`` for the
-later planted-versus-measured incidence match.
+later planted-versus-measured match.
 
 **Detector / electronics modes** render inside the detector stage at the
 physically right point in the unit chain (see :ref:`sim-detector-stage`):
@@ -2908,8 +3138,10 @@ bloom, quantization), the precedence ``hot_pixels`` already uses.
 **Telemetry-artifact modes** flank the structured loss loop in the telemetry
 stage (:mod:`spindoctor.sim.forward.telemetry_artifacts`):
 ``compression_dct`` runs first (the lossy 8x8 DCT blockiness a codec plants
-before packets drop, leaving any commanded ``truth_window`` clean), and the
-Voyager GEOMED archive-processing scars run last -- ``reseau_scars``
+before packets drop, leaving any commanded ``truth_window`` clean; on a calibrated
+frame it quantizes the DN the spacecraft transmitted, pedestal included, and maps
+the result back to I/F, so its ``scale_factor`` step is in DN on every frame), and
+the Voyager GEOMED archive-processing scars run last -- ``reseau_scars``
 (reseau-removal smudges on the ~46-px lattice) then ``resample_texture`` (the
 GEOMED resample warp, blank border, and missing-line interpolation banding).
 
@@ -2922,7 +3154,7 @@ depend on where the features are.
 
 Per-instrument shape defaults for every mode live in ``artifacts_catalog.py``
 (see :ref:`sim-artifacts-catalog`); a scene inherits them by naming a mode with
-only its incidence, and overrides any parameter it spells out. The realized
+only its activation key, and overrides any parameter it spells out. The realized
 geometry each mode records is read back by
 :mod:`spindoctor.sim.forward.incidence` for the planted-versus-measured match;
 the conceptual overview, the full mode tables, and the ``artifact_sweep`` scene
@@ -2986,6 +3218,8 @@ every gallery image into a temporary directory and fails, naming the stale
 files and the regeneration command, whenever a committed PNG no longer
 matches a fresh render.
 
+.. _sim-gui:
+
 The simulated-image GUI
 =======================
 
@@ -3014,8 +3248,15 @@ realism addition needs -- live in their own module:
      - Image size, planted offset and camera roll, exposure, seed, instrument
        selector, camera-rotation-fit override, midtime, closest planet.
    * - ``noise.py``
-     - Poisson, read noise, bias, cosmic-ray rate, missing-data rate, bloom,
-       signal full-scale fraction, pixel area (General tab).
+     - Poisson, read noise, bias, cosmic-ray rate (events per pixel per
+       second), missing-data rate, bloom, and signal full-scale fraction
+       (General tab). The validator accepts every control everywhere, but on
+       the vidicon detector the Poisson, read-noise, and bloom controls change
+       nothing (its DN-domain noise comes from ``noise.vidicon``), and on a
+       calibrated frame the bias control changes nothing on the Cassini cameras
+       and only the pixels near the 8-bit ceiling on ``vgiss``, because the
+       calibration inverse subtracts the bias again. The cosmic-ray and
+       missing-data controls work everywhere.
    * - ``optics_tab.py``
      - The Optics tab: PSF, motion smear, distortion, ghosts, the stray-light
        panel, oversample, and the spacecraft-ephemeris error group. Each
@@ -3061,9 +3302,25 @@ realism addition needs -- live in their own module:
    * - ``scene_io.py``
      - Load / Save Scene (YAML) via :mod:`spindoctor.sim.scene`.
    * - ``render_display.py``
-     - The live preview (render, stretch, zoom, saturation overlay).
+     - The live preview (render, stretch, zoom, saturation overlay) and the
+       units-and-verdict line of the status bar.
+   * - ``verdict.py``
+     - The navigated frame's verdict, rendered on a worker thread (see
+       :ref:`sim-editor-verdict-thread`).
    * - ``widgets.py`` / ``base.py``
      - Shared widget helpers and the mixin-facing protocol.
+   * - ``body_mesh_keys.py``
+     - The editor's side of the mesh rule (see :ref:`sim-mesh-appearance`).
+       Switching a body to ``polyhedral_mesh`` disables every control that
+       writes a key in ``MESH_UNSUPPORTED_KEYS``, with the validator's refusal
+       as the tooltip of that control and of every control and label inside
+       it. It also moves the keys the body carried out of the scene into a
+       stash held for the session, so a mesh body the editor holds or saves
+       never carries a refused key, and the status bar names the keys moved.
+       Switching the body back to an ellipsoid restores the stashed keys, the
+       controls, and their own tooltips. A saved mesh scene file doesn't
+       carry the stashed keys. Load Scene clears the stash, and deleting a
+       body drops its entry.
 
 The GUI exposes the full scene parameter surface, so any scene that can be
 written by hand in YAML can also be built in the GUI. Two exceptions are
@@ -3079,6 +3336,60 @@ back to edit; ``tests/main/test_sim_editor_round_trip.py`` asserts the
 round-trip is loss-free over the full key inventory. The GUI is one peer, not
 the sole control surface; the YAML and the Python API are equally
 authoritative.
+
+.. _sim-editor-verdict-thread:
+
+The verdict render's worker thread
+----------------------------------
+
+The status bar reports the navigator's verdict on the frame the navigator reads.
+For a scene with a planted offset that frame is a second render (see
+:ref:`Instruments <sim-instruments>`), which ``VerdictRunner`` in ``verdict.py`` runs on a
+worker thread while the preview stays on the UI thread.
+
+- **Requests.** Each render of the preview with a planted offset asks for a
+  verdict, which takes the next generation number and an independent deep copy of
+  ``sim_params``. At most one verdict render runs. A request made while one runs
+  waits, and replaces any request already waiting. A render whose generation is
+  older than the latest request is discarded when it finishes. A preview without
+  an offset, a failed preview, and closing the window each cancel, by taking a
+  generation number with no request behind it. A running render can't be
+  interrupted, so a stale one runs to the end before the waiting request starts.
+- **Hand-back.** The worker touches no Qt object and no editor state. It writes its
+  summary, or its error and traceback, into its job object and then sets the job's
+  ``threading.Event``. While a render runs, a ``QTimer`` on the UI thread polls
+  that event every 25 ms, and only the UI thread reads the job, writes the status
+  bar, and prints a failure's traceback. Every Qt object is therefore created,
+  used, and destroyed on the UI thread. A worker that outlives the window writes
+  only into a job that nothing reads, because the poll timer is the runner's child
+  and is destroyed with the window. A worker that can't start reports the failure
+  on the status bar.
+- **Exit.** The worker is an ordinary, non-daemon thread, so the interpreter
+  waits for it before it shuts down: quitting the editor mid-render waits for
+  that render to finish. A daemon thread would be killed at shutdown in the
+  middle of the render's numerical code, which aborts the process. Only the UI
+  thread's poll starts a waiting request, and closing the window drops it, so
+  exit waits for at most one render.
+- **Two renders at once.** The worker's render can overlap a preview render on
+  the UI thread. That is safe because each render builds its own
+  ``SimFrame``, its own parameter dict (decoded from the cache key), and its own
+  per-stage ``numpy.random.Generator`` streams, and the sim package keeps no
+  other module state and does not log. Its ``lru_cache`` tables (the scene cache
+  in ``render.py`` and the star, body, mesh, relief, and PSF stage caches) stay
+  coherent under concurrent calls, and no caller writes into a cached value:
+  ``render_combined_model`` returns copies, and the stage caches' callers only
+  read theirs. The configuration is loaded by the first preview, before any
+  verdict is requested, and the render path only reads it. Two overlapping misses
+  on one cache key compute the same value twice, which costs time and is
+  otherwise harmless.
+- **The GIL.** The two renders share the interpreter lock, so the UI thread can
+  wait for it while a verdict render runs. A render that rebuilds a shape holds
+  the UI longest: a mesh body's Python loop over its faces kept the UI waiting
+  for stretches of 90 to 140 ms when every cache was cleared first. In the editor
+  the stall stays short in practice, because the worker renders the scene whose
+  preview the UI thread has just drawn, so the shape, star, relief, and PSF caches
+  are warm and the navigated render reuses them; across the shipped offset scenes
+  the UI waited at most about 10 ms.
 
 Running navigation on a simulated image
 =======================================
