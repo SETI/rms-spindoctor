@@ -144,13 +144,14 @@ the seed cannot see, and texture within 2 px of almost every vertex is easy to f
 tolerant maximum lays the Cassini Division's edges on B ring texture 55 to 60 px off, yet
 on the vertices both keep on the sensor the seed earns 0.66 to 0.97 of its credit. Fewer
 than ``coarse_basin_min_shared_vertices`` such vertices leave nothing to compare, and the
-seed stands. The check only ever chooses the basin across the edge: where it keeps the seed, the overlap
-search and the edge-strength check still set the position along the edge, for the reason
-given above. Where the tolerant maximum replaces the seed, the coarse-acquisition gate
-reads the best plain match fraction within ``coarse_basin_tolerance_px`` of it
-(:meth:`~spindoctor.nav_technique.dt_fitting.TolerantEdgeStrength.best_match_fraction`):
-the maximum's own plain fraction is near zero by construction when every edge sits a
-pixel or two off its rounded vertices. The seed's tolerant ratio is reported as
+seed stands. The check only ever chooses the basin across the edge: where it keeps the
+seed, the overlap search and the edge-strength check still set the position along the
+edge, for the reason given above. Where the tolerant maximum replaces the seed, the match
+fraction compared against ``spurious_min_coarse_peak_fraction`` is the best plain match
+fraction within ``coarse_basin_tolerance_px`` of it
+(:meth:`~spindoctor.nav_technique.dt_fitting.TolerantEdgeStrength.best_match_fraction`).
+The maximum's own plain fraction is near zero by construction when every edge sits a pixel
+or two off its rounded vertices. The seed's tolerant ratio is reported as
 :attr:`~spindoctor.nav_technique.diagnostics.RingEdgeDiagnostics.coarse_basin_ratio`.
 
 Measured on Cassini NAC F ring movie frames at 5 to 10 km/px, against the published F ring
