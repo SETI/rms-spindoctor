@@ -12,7 +12,14 @@ touches neither a Qt object nor any editor state.  It hands its result back thro
 the job object itself, whose fields it writes before it sets the job's
 ``threading.Event``; a ``QTimer`` on the UI thread polls that event.  So every Qt
 object is created, used, and destroyed on the UI thread, and a worker that outlives
-the window (the editor closed mid-render) only writes into a job nobody reads.
+the window (the editor closed mid-render) only writes into a job nobody reads.  The
+worker is an ordinary (non-daemon) thread, so the interpreter waits for it before it
+shuts down: exiting the editor mid-render waits for that one render to finish.  A
+daemon thread would be killed in the middle of the render's numerical code at
+shutdown, which aborts the process.  A waiting request never starts once the event
+loop has stopped, because only the UI thread's poll starts one, so exit waits for at
+most one render.  A failure is printed to standard error on the UI thread, since the
+editor reports with ``print`` and carries no logger.
 
 Ordering: each request takes the next generation number.  At most one render runs
 at a time; a request made while one runs replaces any request already waiting, and
@@ -23,6 +30,7 @@ end before the waiting request starts.
 """
 
 import copy
+import sys
 import threading
 import traceback
 from dataclasses import dataclass, field
@@ -30,7 +38,7 @@ from typing import Any
 
 from PyQt6.QtCore import QObject, QTimer, pyqtSignal
 
-from spindoctor.config import DEFAULT_CONFIG, MAIN_LOGGER
+from spindoctor.config import DEFAULT_CONFIG
 from spindoctor.sim.instruments import frame_units_summary, resolve_sim_inst_config
 from spindoctor.sim.render import render_combined_model
 
@@ -74,7 +82,7 @@ class _VerdictJob:
         sim_params: An independent deep copy of the scene, owned by the job.
         summary: The status text, set by :meth:`run` on success.
         error: ``'<ExceptionType>: <message>'``, set by :meth:`run` on failure.
-        detail: The failure's formatted traceback, for the log.
+        detail: The failure's formatted traceback, printed to standard error.
         done: Set by :meth:`run` after it has written the outcome fields.
     """
 
@@ -88,12 +96,15 @@ class _VerdictJob:
     def run(self) -> None:
         """Render and summarize the scene; record the outcome; then set ``done``.
 
-        Runs on the worker thread.  Any exception becomes the ``error`` text, so a
-        failure reaches the status bar instead of ending the thread unreported.
+        Runs on the worker thread.  Any exception, ``BaseException`` included,
+        becomes the ``error`` text, so a failure always reaches the status bar
+        instead of leaving it blank.  Nothing is re-raised: the thread ends as soon
+        as this returns, Python delivers ``KeyboardInterrupt`` only to the main
+        thread, and a ``SystemExit`` raised here would only end this thread.
         """
         try:
             self.summary = navigated_frame_summary(self.sim_params)
-        except Exception as exc:
+        except BaseException as exc:
             self.error = f'{type(exc).__name__}: {exc}'
             self.detail = traceback.format_exc()
         finally:
@@ -158,16 +169,26 @@ class VerdictRunner(QObject):
         self._waiting = None
 
     def _start_waiting(self) -> None:
-        """Start the waiting request on a new worker thread, or stop polling if none."""
+        """Start the waiting request on a new worker thread, or stop polling if none.
+
+        A thread that fails to start reports the failure through ``failed`` (the
+        waiting request is always the latest one) and leaves the runner idle.
+        """
         job = self._waiting
         self._waiting = None
         if job is None:
             self._poll.stop()
             return
+        # Non-daemon: the interpreter joins it at exit, where a daemon thread would
+        # be killed mid-render and abort the process (see the module docstring).
+        thread = threading.Thread(target=job.run, name='sim-editor-verdict')
+        try:
+            thread.start()
+        except RuntimeError as exc:
+            self._poll.stop()
+            self.failed.emit(f'{type(exc).__name__}: {exc}')
+            return
         self._running = job
-        # A daemon thread, so a render still running when the editor exits doesn't
-        # hold the process open; its result was going to be discarded anyway.
-        threading.Thread(target=job.run, name='sim-editor-verdict', daemon=True).start()
         self._poll.start()
 
     def _collect(self) -> None:
@@ -178,7 +199,7 @@ class VerdictRunner(QObject):
         self._running = None
         self._start_waiting()
         if job.error:
-            MAIN_LOGGER.error('Navigated-frame verdict render failed:\n%s', job.detail)
+            print(f'Navigated-frame verdict render failed:\n{job.detail}', file=sys.stderr)
         if job.generation != self._generation:
             return
         if job.error:

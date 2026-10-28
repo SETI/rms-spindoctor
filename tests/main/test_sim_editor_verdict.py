@@ -9,9 +9,12 @@ Qt runs headless (offscreen platform).
 """
 
 import os
+import subprocess
+import sys
 import threading
 import time
 from collections.abc import Callable
+from pathlib import Path
 from typing import Any, cast
 
 import pytest
@@ -79,13 +82,15 @@ def _wait_for_verdict(model: Any) -> None:
 class _GatedSummary:
     """A stand-in for the worker's render that finishes only when released.
 
-    Each call records the scene's ``offset_u`` and blocks on its own gate; the
-    released call returns ``'summary of offset_u <value>'``, or raises ``error``.
+    Each call records the scene's ``offset_u`` and the scene itself, and blocks on
+    its own gate; the released call returns ``'summary of offset_u <value>'``, or
+    raises ``error``.
     """
 
-    def __init__(self, error: Exception | None = None) -> None:
+    def __init__(self, error: BaseException | None = None) -> None:
         """Create the stand-in, optionally failing every call with ``error``."""
         self.calls: list[float] = []
+        self.scenes: list[dict[str, Any]] = []
         self.threads: list[threading.Thread] = []
         self._gates: list[threading.Event] = []
         self._lock = threading.Lock()
@@ -96,6 +101,7 @@ class _GatedSummary:
         gate = threading.Event()
         with self._lock:
             self.calls.append(float(sim_params['offset_u']))
+            self.scenes.append(sim_params)
             self.threads.append(threading.current_thread())
             self._gates.append(gate)
         if not gate.wait(_TIMEOUT_SEC):
@@ -204,12 +210,21 @@ def test_rapid_edits_render_only_the_running_and_the_latest_scene(
 
 
 def test_the_worker_gets_its_own_copy_of_the_scene(model: Any, gated: _GatedSummary) -> None:
-    """An edit to the editor's scene after the request leaves the worker's copy alone."""
+    """Edits to the editor's scene after the request, nested ones included, miss the worker."""
     _edit_offset(model, 5.0)
     model.sim_params['offset_u'] = 9.0
+    model.sim_params['noise']['read_noise_dn'] = 77.0
+    model.sim_params['noise']['bias_dn'] = 3.0
     gated.release(0)
     _wait_for_verdict(model)
-    assert model._units_label.text() == 'summary of offset_u 5'
+    worker_scene = gated.scenes[0]
+    assert worker_scene['offset_u'] == 5.0
+    assert worker_scene['noise'] == {
+        'poisson': True,
+        'read_noise_dn': 4.0,
+        'cosmic_ray_events_per_pixel_per_sec': 0.0,
+        'missing_data_rate': 0.0,
+    }
 
 
 def test_the_render_runs_off_the_ui_thread(model: Any, gated: _GatedSummary) -> None:
@@ -252,18 +267,51 @@ def test_a_failed_verdict_render_reaches_the_label(
     assert model._units_label.text() == 'verdict render failed: RuntimeError: verdict boom'
 
 
-def test_a_failed_verdict_render_is_logged(
+def test_a_failed_verdict_render_prints_its_traceback(
     model: Any, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """An exception in the worker's render is logged with its traceback."""
+    """An exception in the worker's render is printed to standard error with its traceback."""
     failing = _GatedSummary(error=RuntimeError('verdict boom'))
     monkeypatch.setattr(verdict_module, 'navigated_frame_summary', failing)
     _edit_offset(model, 5.0)
     failing.release(0)
     _wait_for_verdict(model)
-    out = capsys.readouterr().out
-    assert 'Navigated-frame verdict render failed' in out
-    assert 'RuntimeError: verdict boom' in out
+    err = capsys.readouterr().err
+    assert 'Navigated-frame verdict render failed' in err
+    assert 'Traceback' in err
+    assert 'RuntimeError: verdict boom' in err
+
+
+def test_a_base_exception_in_the_worker_reaches_the_label(
+    model: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An exception outside Exception still reports, so the label never goes blank."""
+    failing = _GatedSummary(error=SystemExit('worker exit'))
+    monkeypatch.setattr(verdict_module, 'navigated_frame_summary', failing)
+    _edit_offset(model, 5.0)
+    failing.release(0)
+    _wait_for_verdict(model)
+    assert model._units_label.text() == 'verdict render failed: SystemExit: worker exit'
+
+
+class _UnstartableThread(threading.Thread):
+    """A thread whose start fails, as it does when the process can't make threads."""
+
+    def start(self) -> None:
+        """Fail the way ``threading.Thread.start`` does without a free thread."""
+        raise RuntimeError("can't start new thread")
+
+
+def test_a_thread_that_fails_to_start_reaches_the_label(
+    model: Any, gated: _GatedSummary, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A worker thread that can't start reports the failure and leaves the runner idle."""
+    monkeypatch.setattr(threading, 'Thread', _UnstartableThread)
+    _edit_offset(model, 5.0)
+    assert (
+        model._units_label.text() == "verdict render failed: RuntimeError: can't start new thread"
+    )
+    assert model._verdict_runner.is_busy is False
 
 
 def test_a_scene_without_an_offset_starts_no_verdict_render(
@@ -317,14 +365,70 @@ def test_closing_the_editor_drops_the_running_verdict(model: Any, gated: _GatedS
 def test_deleting_the_editor_mid_render_is_safe(
     model: Any, gated: _GatedSummary, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A render that finishes after the window was destroyed ends without an error."""
-    thread_errors: list[str] = []
-    monkeypatch.setattr(
-        threading, 'excepthook', lambda args: thread_errors.append(repr(args.exc_value))
-    )
+    """A render that finishes after the window was destroyed ends without an error.
+
+    The event loop runs well past the poll interval afterwards, so a poll timer
+    that outlived the window would fire on the deleted runner; PyQt reports an
+    exception in a slot through ``sys.excepthook``.
+    """
+    errors: list[str] = []
+    monkeypatch.setattr(threading, 'excepthook', lambda args: errors.append(repr(args.exc_value)))
+    monkeypatch.setattr(sys, 'excepthook', lambda *args: errors.append(repr(args[1])))
     _edit_offset(model, 5.0)
     sip.delete(model)
     gated.release(0)
     gated.threads[0].join(_TIMEOUT_SEC)
-    QApplication.processEvents()
-    assert thread_errors == []
+    deadline = time.monotonic() + 8 * verdict_module._POLL_INTERVAL_MS / 1000.0
+    while time.monotonic() < deadline:
+        QApplication.processEvents()
+        time.sleep(0.005)
+    assert errors == []
+
+
+# Exits the editor's event loop the way ``main`` does while a verdict render runs.
+_EXIT_MID_RENDER = """
+import os, sys
+os.environ['QT_QPA_PLATFORM'] = 'offscreen'
+import numpy as np
+from PyQt6.QtCore import QTimer
+from PyQt6.QtWidgets import QApplication
+app = QApplication([])
+from spindoctor.cli.sim_editor import CreateSimulatedImageModel, verdict
+real = verdict.navigated_frame_summary
+def slow(sim_params):
+    # Spend the render in numerical code that releases the GIL, where a daemon
+    # thread killed at shutdown aborts the process.
+    a = np.random.default_rng(0).random((1000, 1000))
+    for _ in range(6):
+        a = a @ a.T / 1000.0
+    return real(sim_params)
+verdict.navigated_frame_summary = slow
+window = CreateSimulatedImageModel()
+window.show()
+window.sim_params['offset_u'] = 3.0
+window._update_image()
+window.sim_params['offset_u'] = 4.0
+window._update_image()
+assert window._verdict_runner.is_busy
+QTimer.singleShot(50, window.close)
+sys.exit(app.exec())
+"""
+
+
+def test_exiting_the_editor_mid_render_exits_cleanly() -> None:
+    """Closing the editor and exiting while a verdict renders ends the process with status 0."""
+    src = Path(verdict_module.__file__).resolve().parents[3]
+    env = {
+        **os.environ,
+        'PYTHONPATH': os.pathsep.join([str(src), *filter(None, [os.environ.get('PYTHONPATH')])]),
+        'QT_QPA_PLATFORM': 'offscreen',
+    }
+    result = subprocess.run(
+        [sys.executable, '-c', _EXIT_MID_RENDER],
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=300,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr[-2000:]
