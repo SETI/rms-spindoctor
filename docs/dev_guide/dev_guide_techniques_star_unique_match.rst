@@ -63,7 +63,7 @@ shared helper ``local_centroid`` in ``_star_helpers`` does this for
   prediction instead is a pixel wider for a non-integer prediction and reaches farther on
   one side than the other, with the longer side flipping as the prediction crosses a
   pixel center, so a sub-pixel change of prediction admits or drops a whole row of
-  candidates. The peak-ratio gate below uses the same window.
+  candidates. The peak-to-runner-up ratio test below uses the same window.
 - **A detection is a peak inside the window**: a pixel whose response is the largest
   within the kernel's footprint, judged with the image outside the window in view, the
   local-maximum rule ``StarFieldFromCatalogNav`` uses. A window pixel on the flank of a
@@ -154,10 +154,10 @@ the brightest pixel of the rest of the window (outside the detection's own centr
 by the configured ratio, or the result is spurious with an ``ambiguous_detection`` reason.
 Because the detection is chosen by matched-filter response, the rest of the window can
 hold a single pixel brighter than the detection's peak; the ratio is then below 1 and the
-one-star match is refused, the safe answer for a match with no second star to check it. A
+one-star match is refused, the safe answer for a match that no second star can check. A
 real star detection towers over the window's noise order statistics while a matched spike
 sits within a few percent of its runner-up; the ratio is unit-free, so no DN-scale or
-photometric calibration enters the gate. The measured ratio is surfaced as the
+photometric calibration enters the ratio. The measured ratio is surfaced as the
 :attr:`~spindoctor.nav_technique.diagnostics.StarUniqueMatchDiagnostics.detection_peak_ratio`
 diagnostic.
 
@@ -168,14 +168,14 @@ stays matchable — but an infinite peak ratio also means the ambiguity gate mea
 nothing: on a real noisy background the runner-up is always finite, so the sentinel is the
 signature of a lone hot pixel or artifact on a flat or quantized frame. In that vacuous
 case the detection must additionally sit within ``one_star_max_residual_px`` of the
-prediction. The residual on this path is the claimed offset itself, and with no rival
+prediction. The residual on this path is the claimed offset itself, and without rival
 statistics to lean on, a no-rival detection far from the prediction is far more likely an
 unrelated artifact than a large pointing error; the default bound of 10 px is one third of
 the 30 px window it was set against, the ~1-sigma core of the pointing envelope that
-window was sized to bracket. A finite peak ratio leaves acceptance with the measured
-ambiguity gate: genuine one-star matches with offsets up to ~24 px exist in the
-operator-verified library, so the 10 px bound cannot hold every match. Every 1-star match
-is held instead to ``inner_search_window_px`` (30 px), above those offsets.
+window was sized to bracket. When the peak ratio is finite, the 10 px residual bound is
+not applied: genuine one-star matches with offsets up to ~24 px exist in the
+operator-verified library, so that bound cannot hold every match. Every 1-star match is
+held instead to ``inner_search_window_px`` (30 px), above those offsets.
 
 2-star path
 -----------
@@ -215,11 +215,11 @@ six-star field whose catalog positions each scatter by 6 or 8 px has two stars a
 answers in the F ring movies set aside for tuning, none has three such stars and 32 have
 two, all of them correct.
 
-The path applies no per-window ambiguity gate: a window won by something other than its
-star moves that star's offset away from the other's and the residual declines the pair,
-while the peak ratio would refuse correct pairs. On ``N1530185128_1`` the fainter star's
-window holds a single-pixel spike within 0.4 percent of the star's own peak, while the
-pair's residual is under half a pixel.
+The path does not apply the peak-to-runner-up ratio test to its stars' windows: a window
+won by something other than its star moves that star's offset away from the other's and
+the residual declines the pair, while the peak ratio would refuse correct pairs. On
+``N1530185128_1`` the fainter star's window holds a single-pixel spike within 0.4 percent
+of the star's own peak, while the pair's residual is under half a pixel.
 
 Trying more than the brightest two matters when the brightest predicted star is not in the
 image. A star predicted inside the extended field of view may fall off the detector once
@@ -229,8 +229,8 @@ whose brightness margin a field of comparable stars never clears. On
 ``ISS_006RI_LPHRLFMOV001_PRIME`` searching pairs among the brightest 3, 5, and 8 stars
 navigates 710, 771, and 777 of the 1030 frames, every one within 2 px of the published F
 ring bundle. The narrower window is searched as well because the strongest detection of
-the wider one is more often something brighter than the star; with no narrower window the
-technique navigates 750 frames, none wrong.
+the wider one is more often something brighter than the star; without the narrower window
+the technique navigates 750 frames, none wrong.
 
 Both paths draw only on stars whose search window holds at least one pixel of the image.
 The extended field of view pads the image, and the star catalog predicts stars across all
@@ -297,8 +297,8 @@ Restrictions and assumptions
   black-sky Galileo library frame ``C0164392700R`` a lone artifact lies 40 px from the one
   predicted star. On ``ISS_006RI``, windows of 30, 40, 50, and
   60 px navigate 753, 774, 771, and 762 frames, none wrong; the narrower ones leave the
-  stars of the frames whose error exceeds them out of reach, and the other gates refuse
-  those frames. Beyond the window is the regime where the multi-star
+  stars of the frames whose error exceeds them out of reach, and the technique's other
+  tests refuse those frames. Beyond the window is the regime where the multi-star
   :class:`~spindoctor.nav_technique.nav_technique_star_field.StarFieldFromCatalogNav` triplet
   matcher takes over.
 - Both paths assume the matched detection is unsaturated. A saturated star whose centroid
@@ -534,9 +534,11 @@ Call path traced through
      require the brightest to clear the brightness-margin floor, slice a window
      around its prediction, extract the sub-pixel
      centroid, refuse it when it is not an isolated point source or lies outside
-     ``inner_search_window_px``, pass the peak-to-runner-up ambiguity gate (plus the
-     ``one_star_max_residual_px`` residual gate when that ratio is the no-rival
-     sentinel), and report the per-star residual as the translation.
+     ``inner_search_window_px``, require the detection's background-subtracted
+     peak-to-runner-up ratio to be at least ``one_star_min_peak_ratio`` (and, when that
+     ratio is the no-rival sentinel, require the detection to lie within
+     ``one_star_max_residual_px`` of the prediction), and report the per-star residual as
+     the translation.
 
 4. Result-shape branches on the chosen path and
    :attr:`~spindoctor.nav_orchestrator.nav_context.NavContext.fit_camera_rotation`:

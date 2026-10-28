@@ -186,7 +186,7 @@ correcting four known correlations:
   non-star technique consumes a feature type no other technique reads, so the rule acts on
   the star family in practice; it is stated over features so that it holds for any
   technique that comes to share one. Fusing the pair as two witnesses is what reported
-  a 0.3 px sigma, with no spread between the techniques, on one-star frames that were 36
+  a 0.3 px sigma and no spread between the techniques on one-star frames that were 36
   and 54 px wrong.
 
 The representative of a collapsed set is its highest-positional-precision member (with a
