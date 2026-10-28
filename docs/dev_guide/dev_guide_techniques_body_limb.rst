@@ -136,14 +136,15 @@ coarse seed puts on a sensor pixel at least ``sensor_edge_inset_px`` from the se
 edge, and flags the fit spurious when fewer than ``min_arc_vertices`` remain. Deciding at the
 seed, rather than at the predicted position, keeps the vertices a large pointing error
 brings into the frame. Leaving the margin vertices out removes their bias, but it can also
-remove what made a wrong lock fail the quality gates (an unconverged fit pinned at the trust
-region converges once the boundary stops pulling on it), and the gates were calibrated on
-every vertex. When vertices were left out, the fit over every vertex is therefore run and
-judged as well, by the same gates as the cropped fit and the mis-lock refit described
-below; this is the full-arc check, and if the full arc fails it the cropped fit is flagged
-spurious too. On 845 Cassini ISS Saturn limb fits at known pointing (835 wide-angle, 10
-narrow-angle), with the limb already on its visible edge, the crop and the full-arc check
-together kept every refused fit refused and refused 33 more (29 off by more than 2 px and 4
+remove what made a wrong lock fail the tests that mark a fit spurious (an unconverged fit
+pinned at the trust region converges once the boundary stops pulling on it), and the
+thresholds of those tests were calibrated on every vertex. When vertices were left out,
+the fit over every vertex is therefore also run and judged by the same tests as the
+cropped fit, including the mis-lock test and its refit described below. This is the
+full-arc check. If the full arc fails it, the cropped fit is flagged spurious too. On 845
+Cassini ISS Saturn limb fits at known pointing (835 wide-angle, 10 narrow-angle), with the
+limb already on its visible edge, the crop and the full-arc check together kept every
+refused fit refused and refused 33 more (29 off by more than 2 px and 4
 within 1 px). Of the 231 answered both ways, 59 moved closer to the reference by more than
 0.1 px and 19 farther. Without the full-arc check the crop would have turned 123 refused
 fits into answers off by more than 2 px, and 66 into answers within 2 px. The coarse search
