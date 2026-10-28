@@ -634,8 +634,8 @@ def _compose_ring_system(range_km: float | None) -> dict[str, Any]:
                 'name': 'BAND',
                 'kind': 'ringlet',
                 'tau': 1.0,
-                'width': 4.0,
-                'orbit': {'a': 22.0},
+                'width_px': 4.0,
+                'orbit': {'a_px': 22.0},
             }
         ],
     }

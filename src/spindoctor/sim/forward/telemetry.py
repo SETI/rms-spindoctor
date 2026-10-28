@@ -7,7 +7,8 @@ grid.  It applies its sub-effects in the physical order of transmission:
 
 1. Lossy DCT compression (``compression_dct``): the codec blockiness a lossy
    downlink plants on the transmitted signal before any packet loss, honoring
-   the commanded ``truth_window`` carve-out.
+   the commanded ``truth_window`` carve-out.  A calibrated frame is compressed in
+   the DN the spacecraft transmitted, then mapped back to I/F.
 2. Structured data loss: the registry loss modes in
    :data:`~spindoctor.sim.forward.artifact_modes.STRUCTURED_LOSS_ORDER`
    (commanded frame shapes, then line losses, then block losses, then garble,
@@ -23,10 +24,11 @@ grid.  It applies its sub-effects in the physical order of transmission:
    missing-line interpolation banding).
 4. Missing-data markers: the generic per-pixel ``noise.missing_data_rate``
    dropout knob (a worst-case stress knob, not an instrument artifact),
-   applied on the raw-DN path only.
+   which writes the instrument's marker.
 
 Every structured loss mode is opt-in through the ``artifacts`` block, disabled
-at incidence 0, and individually seeded via
+when its activation key (``expected_events`` or ``probability``), or its fixed
+``count`` where given, is 0, and individually seeded via
 ``derive_effect_seed(random_seed, 'telemetry/<mode>')`` so toggling one never
 perturbs another.  Each applied mode records its realized geometry into
 ``frame.truth['artifacts'][mode]`` for later planted-vs-measured comparison.
@@ -48,6 +50,7 @@ from spindoctor.sim.forward.artifact_modes import (
     resolve_mode_config,
 )
 from spindoctor.sim.forward.artifacts_catalog import resolve_mode_with_catalog
+from spindoctor.sim.forward.detector.params import calibration_map, resolve_detector_params
 from spindoctor.sim.forward.feature_loci import FeatureLoci, extract_feature_loci
 from spindoctor.sim.forward.stages import SimFrame
 from spindoctor.sim.forward.telemetry_artifacts import (
@@ -56,7 +59,7 @@ from spindoctor.sim.forward.telemetry_artifacts import (
     apply_reseau_scars,
 )
 from spindoctor.sim.forward.telemetry_loss import LOSS_APPLIERS
-from spindoctor.sim.instruments import resolve_sim_inst_config
+from spindoctor.sim.instruments import navigator_marker_value, resolve_sim_inst_config
 from spindoctor.sim.seeds import derive_effect_seed
 
 __all__ = ['apply_telemetry']
@@ -99,7 +102,7 @@ def apply_telemetry(
     inst_config = resolve_sim_inst_config(
         DEFAULT_CONFIG, params.get('instrument'), params.get('instrument_config')
     )
-    marker_dn = _marker_value(inst_config)
+    marker_dn = navigator_marker_value(inst_config)
     dn_ceiling = _saturation_value(inst_config)
     random_seed = int(params.get('random_seed', 42))
     adversarial = bool(artifacts.get('adversarial', False))
@@ -112,14 +115,19 @@ def apply_telemetry(
     protect = _resolve_truth_window(artifacts, frame.signal.shape, random_seed, records)
 
     # Sub-stage 1: lossy DCT compression, on the transmitted signal before any
-    # packet loss (a lossy codec compresses, then packets drop).
+    # packet loss (a lossy codec compresses, then packets drop).  A calibrated
+    # frame is compressed in the DN the spacecraft sent, pedestal included, so a
+    # dark sky keeps its level instead of rounding onto the marker.
     for mode_name in TELEMETRY_PRE_LOSS_ORDER:
         raw_cfg = artifacts.get(mode_name)
         if raw_cfg is None or not mode_available(mode_name, instrument):
             continue
         cfg = resolve_mode_with_catalog(mode_name, raw_cfg, instrument)
         mode_rng = np.random.default_rng(derive_effect_seed(random_seed, f'telemetry/{mode_name}'))
-        records[mode_name] = apply_compression_dct(frame.signal, cfg, rng=mode_rng, protect=protect)
+        calibration = calibration_map(resolve_detector_params(params))
+        records[mode_name] = apply_compression_dct(
+            frame.signal, cfg, rng=mode_rng, protect=protect, calibration=calibration
+        )
 
     # Sub-stage 2: structured data loss.
     for mode_name in STRUCTURED_LOSS_ORDER:
@@ -154,17 +162,11 @@ def apply_telemetry(
         else:
             records[mode_name] = apply_resample_texture(frame.signal, cfg, rng=mode_rng)
 
-    # Sub-stage 4: the generic missing-data markers (raw-DN path only).
-    _apply_missing_data_markers(frame, params, inst_config, marker_dn, rng)
+    # Sub-stage 4: the generic missing-data markers.
+    _apply_missing_data_markers(frame, params, marker_dn, rng)
 
     if records:
         frame.truth.setdefault('artifacts', {}).update(records)
-
-
-def _marker_value(inst_config: Mapping[str, Any]) -> float:
-    """The emulated instrument's missing-data marker DN (0, or NaN for calib)."""
-    inst_noise = inst_config.get('noise') or {}
-    return float(inst_noise.get('marker_value', 0))
 
 
 def _saturation_value(inst_config: Mapping[str, Any]) -> float:
@@ -188,7 +190,7 @@ def _resolve_truth_window(
 
     The truth window is a losslessly-clean square that missing_blocks (and,
     later, compression) must leave untouched.  It is a commanded region:
-    activation is by its incidence, drawn from its own stream.  Returns the
+    activation is by its ``probability``, drawn from its own stream.  Returns the
     protected ``(v0, v1, u0, u1)`` rectangle, or None when it is not active, and
     records its geometry.
     """
@@ -197,8 +199,8 @@ def _resolve_truth_window(
         return None
     cfg = resolve_mode_config('truth_window', raw_cfg)
     rng = np.random.default_rng(derive_effect_seed(random_seed, 'telemetry/truth_window'))
-    incidence = float(cfg['incidence'])
-    if incidence <= 0.0 or not bool(rng.random() < incidence):
+    probability = float(cfg['probability'])
+    if probability <= 0.0 or not bool(rng.random() < probability):
         records['truth_window'] = {'active': False}
         return None
     size_v, size_u = shape
@@ -220,22 +222,22 @@ def _resolve_truth_window(
 def _apply_missing_data_markers(
     frame: SimFrame,
     params: Mapping[str, Any],
-    inst_config: Mapping[str, Any],
     marker_dn: float,
     rng: np.random.Generator,
 ) -> None:
-    """Overwrite lost pixels with the missing-data marker (raw-DN path only).
+    """Overwrite randomly lost pixels with the missing-data marker.
 
-    The generic per-pixel ``noise.missing_data_rate`` dropout stays as the
-    worst-case stress knob; it is applied only on the raw-DN path (the
-    calibrated path carries no marker convention at present fidelity).
+    The generic per-pixel ``noise.missing_data_rate`` dropout is the worst-case
+    stress knob: each pixel is lost independently with that probability and
+    takes the marker the navigator applies to the frame (0 on every shipped
+    instrument), as the structured loss modes do.
     """
-    if inst_config.get('data_units', 'raw_dn') != 'raw_dn':
-        return
     sim_noise = DEFAULT_CONFIG.category('sim')['noise']
     scene_noise = params.get('noise') or {}
+    # A null rate reads as absent and takes the configuration default.
+    scene_rate = scene_noise.get('missing_data_rate')
     missing_data_rate = float(
-        scene_noise.get('missing_data_rate', sim_noise.get('missing_data_rate', 0.0))
+        sim_noise.get('missing_data_rate', 0.0) if scene_rate is None else scene_rate
     )
     if missing_data_rate <= 0.0:
         return

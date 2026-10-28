@@ -2,8 +2,9 @@
 
 Every implemented artifact loss mode gets a geometry test here: the shape it
 plants is exact (whole lines, grid-aligned blocks, spikes that flip rather than
-zero), it is a no-op at incidence 0, its realized geometry is recorded in the
-frame truth, and its adversarial placement lands on the navigation features.
+zero), it is a no-op when its activation key is 0, its realized geometry is
+recorded in the frame truth, and its adversarial placement lands on the
+navigation features.
 The registry / validation surface is exercised alongside, since the two are one
 contract: a mode is available on an instrument, or it is not.
 """
@@ -101,7 +102,7 @@ def test_generic_instrument_accepts_every_mode() -> None:
 def test_missing_lines_zeroes_whole_lines() -> None:
     """A missing line is a full line: the whole row reads the marker."""
     frame = _frame()
-    record = _render(frame, {'missing_lines': {'incidence': 5.0}})
+    record = _render(frame, {'missing_lines': {'expected_events': 5.0}})
     lines = record['missing_lines']['lines']
     assert lines
     for row in lines:
@@ -111,7 +112,7 @@ def test_missing_lines_zeroes_whole_lines() -> None:
 def test_missing_lines_leaves_other_rows_untouched() -> None:
     """Rows not selected keep their original value."""
     frame = _frame()
-    record = _render(frame, {'missing_lines': {'incidence': 5.0}})
+    record = _render(frame, {'missing_lines': {'expected_events': 5.0}})
     lines = set(record['missing_lines']['lines'])
     for row in range(_SIZE):
         if row not in lines:
@@ -121,15 +122,15 @@ def test_missing_lines_leaves_other_rows_untouched() -> None:
 def test_missing_lines_contiguous_run_is_adjacent() -> None:
     """A contiguous run loses one band of adjacent lines."""
     frame = _frame()
-    record = _render(frame, {'missing_lines': {'incidence': 6.0, 'contiguous_run': True}})
+    record = _render(frame, {'missing_lines': {'expected_events': 6.0, 'contiguous_run': True}})
     lines = record['missing_lines']['lines']
     assert lines == list(range(lines[0], lines[0] + len(lines)))
 
 
-def test_missing_lines_disabled_at_zero_incidence() -> None:
-    """A zero incidence plants nothing."""
+def test_missing_lines_disabled_at_zero_expected_events() -> None:
+    """A zero expected_events plants nothing."""
     frame = _frame()
-    record = _render(frame, {'missing_lines': {'incidence': 0.0}})
+    record = _render(frame, {'missing_lines': {'expected_events': 0.0}})
     assert record['missing_lines']['lines'] == []
     assert np.all(frame.signal == 1.0)
 
@@ -137,7 +138,7 @@ def test_missing_lines_disabled_at_zero_incidence() -> None:
 def test_partial_lines_truncate_from_a_column_to_the_end() -> None:
     """A partial line is zero-filled from a column to the line end."""
     frame = _frame()
-    record = _render(frame, {'partial_lines': {'incidence': 5.0}}, instrument='coiss_nac')
+    record = _render(frame, {'partial_lines': {'expected_events': 5.0}}, instrument='coiss_nac')
     cuts = record['partial_lines']['cuts']
     assert cuts
     for cut in cuts:
@@ -151,7 +152,7 @@ def test_partial_lines_two_segments_keeps_a_trailing_segment() -> None:
     frame = _frame()
     record = _render(
         frame,
-        {'partial_lines': {'incidence': 30.0, 'max_surviving_segments': 2}},
+        {'partial_lines': {'expected_events': 30.0, 'max_surviving_segments': 2}},
         instrument='coiss_nac',
     )
     cuts = record['partial_lines']['cuts']
@@ -176,7 +177,7 @@ def test_partial_lines_two_column_frame_truncates_without_error() -> None:
     loci = FeatureLoci(rows=empty, pixel_v=empty, pixel_u=empty)
     record = apply_partial_lines(
         signal,
-        {'incidence': 8.0, 'max_surviving_segments': 2},
+        {'expected_events': 8.0, 'max_surviving_segments': 2},
         marker_dn=0.0,
         rng=np.random.default_rng(3),
         loci=loci,
@@ -193,7 +194,7 @@ def test_alternating_lines_blanks_every_period_line() -> None:
     frame = _frame()
     record = _render(
         frame,
-        {'alternating_lines': {'incidence': 1.0, 'period': 2, 'phase': 0}},
+        {'alternating_lines': {'probability': 1.0, 'period': 2, 'phase': 0}},
         instrument='coiss_nac',
     )
     assert record['alternating_lines']['active'] is True
@@ -207,7 +208,7 @@ def test_alternating_lines_period_four_phase_one() -> None:
     frame = _frame()
     record = _render(
         frame,
-        {'alternating_lines': {'incidence': 1.0, 'period': 4, 'phase': 1}},
+        {'alternating_lines': {'probability': 1.0, 'period': 4, 'phase': 1}},
         instrument='coiss_nac',
     )
     assert record['alternating_lines']['lines'] == list(range(1, _SIZE, 4))
@@ -218,7 +219,7 @@ def test_alternating_lines_drop_is_the_default_semantics() -> None:
     frame = _frame()
     record = _render(
         frame,
-        {'alternating_lines': {'incidence': 1.0, 'period': 4}},
+        {'alternating_lines': {'probability': 1.0, 'period': 4}},
         instrument='coiss_nac',
     )
     assert record['alternating_lines']['mode'] == 'drop'
@@ -230,7 +231,7 @@ def test_alternating_lines_keep_blanks_all_but_every_nth() -> None:
     frame = _frame()
     record = _render(
         frame,
-        {'alternating_lines': {'incidence': 1.0, 'period': 4, 'phase': 0, 'mode': 'keep'}},
+        {'alternating_lines': {'probability': 1.0, 'period': 4, 'phase': 0, 'mode': 'keep'}},
         instrument='coiss_nac',
     )
     assert record['alternating_lines']['mode'] == 'keep'
@@ -244,7 +245,7 @@ def test_gossi_catalog_defaults_alternating_lines_to_keep() -> None:
     """The Galileo catalog's HMA/HCA 'keep' default is honored by the loss loop."""
     frame = _frame()
     record = _render(
-        frame, {'alternating_lines': {'incidence': 1.0, 'period': 4}}, instrument='gossi'
+        frame, {'alternating_lines': {'probability': 1.0, 'period': 4}}, instrument='gossi'
     )
     assert record['alternating_lines']['mode'] == 'keep'
     assert len(record['alternating_lines']['lines']) == _SIZE * 3 // 4
@@ -254,7 +255,7 @@ def test_edited_frame_keeps_only_a_centered_band() -> None:
     """An edited frame keeps a centered vertical band and blanks the rest."""
     frame = _frame()
     record = _render(
-        frame, {'edited_frame': {'incidence': 1.0, 'band_width_px': 20}}, instrument='vgiss'
+        frame, {'edited_frame': {'probability': 1.0, 'band_width_px': 20}}, instrument='vgiss'
     )
     u0, u1 = record['edited_frame']['kept_band']
     assert np.all(frame.signal[:, u0:u1] == 1.0)
@@ -262,10 +263,10 @@ def test_edited_frame_keeps_only_a_centered_band() -> None:
     assert np.all(frame.signal[:, u1:] == 0.0)
 
 
-def test_edited_frame_bare_incidence_keeps_the_default_band() -> None:
-    """A bare incidence renders the default 440-px Voyager IM centered band."""
+def test_edited_frame_bare_probability_keeps_the_default_band() -> None:
+    """A bare probability renders the default 440-px Voyager IM centered band."""
     frame = _frame(size=512)
-    record = _render(frame, {'edited_frame': {'incidence': 1.0}}, instrument='vgiss')
+    record = _render(frame, {'edited_frame': {'probability': 1.0}}, instrument='vgiss')
     u0, u1 = record['edited_frame']['kept_band']
     assert u1 - u0 == 440
     assert np.all(frame.signal[:, :u0] == 0.0)
@@ -278,7 +279,7 @@ def test_edited_frame_explicit_half_frame_wins_over_the_band_default() -> None:
     frame = _frame()
     record = _render(
         frame,
-        {'edited_frame': {'incidence': 1.0, 'half_frame': True, 'half': 'bottom'}},
+        {'edited_frame': {'probability': 1.0, 'half_frame': True, 'half': 'bottom'}},
         instrument='vgiss',
     )
     assert record['edited_frame']['kept_rows'] == [_SIZE // 2, _SIZE]
@@ -291,7 +292,7 @@ def test_edited_frame_half_frame_keeps_one_half() -> None:
     frame = _frame()
     record = _render(
         frame,
-        {'edited_frame': {'incidence': 1.0, 'half_frame': True, 'half': 'top'}},
+        {'edited_frame': {'probability': 1.0, 'half_frame': True, 'half': 'top'}},
         instrument='vgiss',
     )
     assert record['edited_frame']['kept_rows'] == [0, _SIZE // 2]
@@ -304,7 +305,7 @@ def test_truncated_frame_cuts_the_bottom() -> None:
     frame = _frame()
     record = _render(
         frame,
-        {'truncated_frame': {'incidence': 1.0, 'lines': 10, 'from': 'bottom'}},
+        {'truncated_frame': {'probability': 1.0, 'lines': 10, 'from': 'bottom'}},
         instrument='gossi',
     )
     assert record['truncated_frame']['lines'] == 10
@@ -312,10 +313,10 @@ def test_truncated_frame_cuts_the_bottom() -> None:
     assert np.all(frame.signal[:-10] == 1.0)
 
 
-def test_truncated_frame_bare_incidence_cuts_a_quarter() -> None:
-    """A bare incidence renders the default quarter-frame bottom truncation."""
+def test_truncated_frame_bare_probability_cuts_a_quarter() -> None:
+    """A bare probability renders the default quarter-frame bottom truncation."""
     frame = _frame()
-    record = _render(frame, {'truncated_frame': {'incidence': 1.0}}, instrument='gossi')
+    record = _render(frame, {'truncated_frame': {'probability': 1.0}}, instrument='gossi')
     assert record['truncated_frame']['lines'] == _SIZE // 4
     assert np.all(frame.signal[-_SIZE // 4 :] == 0.0)
     assert np.all(frame.signal[: -_SIZE // 4] == 1.0)
@@ -326,7 +327,7 @@ def test_truncated_frame_fraction_from_top() -> None:
     frame = _frame()
     _render(
         frame,
-        {'truncated_frame': {'incidence': 1.0, 'fraction': 0.25, 'from': 'top'}},
+        {'truncated_frame': {'probability': 1.0, 'fraction': 0.25, 'from': 'top'}},
         instrument='gossi',
     )
     assert np.all(frame.signal[: _SIZE // 4] == 0.0)
@@ -340,7 +341,7 @@ def test_missing_blocks_align_to_the_block_grid() -> None:
     """Missing blocks start on the compression-block row grid."""
     frame = _frame()
     record = _render(
-        frame, {'missing_blocks': {'incidence': 4.0, 'block_lines': 8}}, instrument='gossi'
+        frame, {'missing_blocks': {'expected_events': 4.0, 'block_lines': 8}}, instrument='gossi'
     )
     blocks = record['missing_blocks']['blocks']
     assert blocks
@@ -354,7 +355,7 @@ def test_missing_blocks_start_mid_line_runs_right() -> None:
     frame = _frame()
     record = _render(
         frame,
-        {'missing_blocks': {'incidence': 40.0, 'block_lines': 8, 'start_mid_line': True}},
+        {'missing_blocks': {'expected_events': 40.0, 'block_lines': 8, 'start_mid_line': True}},
         instrument='gossi',
     )
     mid = next(b for b in record['missing_blocks']['blocks'] if b['start_col'] > 0)
@@ -370,8 +371,8 @@ def test_truth_window_is_untouched_by_missing_blocks() -> None:
     record = _render(
         frame,
         {
-            'missing_blocks': {'incidence': 60.0, 'block_lines': 8},
-            'truth_window': {'incidence': 1.0, 'size': 16, 'position': [24, 24]},
+            'missing_blocks': {'expected_events': 60.0, 'block_lines': 8},
+            'truth_window': {'probability': 1.0, 'size': 16, 'position': [24, 24]},
         },
         instrument='gossi',
     )
@@ -382,7 +383,7 @@ def test_truth_window_is_untouched_by_missing_blocks() -> None:
 def test_line_garble_replaces_with_nonmarker_values() -> None:
     """A garbled line carries garbage from a column, not the zero marker."""
     frame = _frame(fill=100.0)
-    record = _render(frame, {'line_garble': {'incidence': 6.0}}, instrument='vgiss')
+    record = _render(frame, {'line_garble': {'expected_events': 6.0}}, instrument='vgiss')
     garbled = record['line_garble']['lines']
     assert garbled
     entry = garbled[0]
@@ -394,7 +395,7 @@ def test_line_garble_replaces_with_nonmarker_values() -> None:
 def test_pixel_spikes_flip_pixels_without_zeroing() -> None:
     """A pixel spike changes a pixel to a wrong value, never zeroing it."""
     frame = _frame(fill=100.0)
-    record = _render(frame, {'pixel_spikes': {'incidence': 10.0}}, instrument='vgiss')
+    record = _render(frame, {'pixel_spikes': {'expected_events': 10.0}}, instrument='vgiss')
     pixels = record['pixel_spikes']['pixels']
     assert pixels
     for v, u in pixels:
@@ -405,7 +406,9 @@ def test_pixel_spikes_bitflip_shifts_by_a_power_of_two() -> None:
     """The bitflip model shifts a pixel by a power of two."""
     frame = _frame(fill=100.0)
     record = _render(
-        frame, {'pixel_spikes': {'incidence': 20.0, 'amplitude': 'bitflip'}}, instrument='vgiss'
+        frame,
+        {'pixel_spikes': {'expected_events': 20.0, 'amplitude': 'bitflip'}},
+        instrument='vgiss',
     )
     v, u = record['pixel_spikes']['pixels'][0]
     delta = abs(round(float(frame.signal[v, u])) - 100)
@@ -416,7 +419,7 @@ def test_pixel_spikes_bitflip_shifts_by_a_power_of_two() -> None:
 def test_vgiss_pixel_spikes_stay_inside_the_8bit_word() -> None:
     """Voyager bit-flip spikes never exceed the vidicon's 255 DN ceiling."""
     frame = _frame(fill=200.0)
-    record = _render(frame, {'pixel_spikes': {'incidence': 50.0}}, instrument='vgiss')
+    record = _render(frame, {'pixel_spikes': {'expected_events': 50.0}}, instrument='vgiss')
     assert record['pixel_spikes']['pixels']
     assert float(frame.signal.max()) <= 255.0
 
@@ -425,7 +428,9 @@ def test_vgiss_uniform_spikes_stay_inside_the_8bit_word() -> None:
     """Voyager uniform spikes draw inside the 255 DN word, not the 12-bit one."""
     frame = _frame(fill=200.0)
     record = _render(
-        frame, {'pixel_spikes': {'incidence': 50.0, 'amplitude': 'uniform'}}, instrument='vgiss'
+        frame,
+        {'pixel_spikes': {'expected_events': 50.0, 'amplitude': 'uniform'}},
+        instrument='vgiss',
     )
     assert record['pixel_spikes']['pixels']
     assert float(frame.signal.max()) <= 255.0
@@ -434,7 +439,7 @@ def test_vgiss_uniform_spikes_stay_inside_the_8bit_word() -> None:
 def test_vgiss_line_garble_stays_inside_the_8bit_word() -> None:
     """Voyager garbage fills stay inside the vidicon's 255 DN ceiling."""
     frame = _frame(fill=200.0)
-    record = _render(frame, {'line_garble': {'incidence': 20.0}}, instrument='vgiss')
+    record = _render(frame, {'line_garble': {'expected_events': 20.0}}, instrument='vgiss')
     assert record['line_garble']['lines']
     assert float(frame.signal.max()) <= 255.0
 
@@ -442,7 +447,7 @@ def test_vgiss_line_garble_stays_inside_the_8bit_word() -> None:
 def test_12bit_line_garble_keeps_the_deep_word() -> None:
     """A 12-bit detector's garbage still spans DN above 255 up to 4095."""
     frame = _frame(fill=200.0)
-    record = _render(frame, {'line_garble': {'incidence': 20.0}})
+    record = _render(frame, {'line_garble': {'expected_events': 20.0}})
     assert record['line_garble']['lines']
     assert float(frame.signal.max()) > 255.0
     assert float(frame.signal.max()) <= 4095.0
@@ -455,7 +460,7 @@ def test_unavailable_loss_mode_via_dict_path_is_skipped() -> None:
     validator, so the loss loop itself must honor the registry availability.
     """
     frame = _frame(fill=200.0)
-    record = _render(frame, {'pixel_spikes': {'incidence': 50.0}}, instrument='coiss_nac')
+    record = _render(frame, {'pixel_spikes': {'expected_events': 50.0}}, instrument='coiss_nac')
     assert 'pixel_spikes' not in record
     assert np.all(frame.signal == 200.0)
 
@@ -484,7 +489,7 @@ def test_embedded_header_overwrites_row_zero_prefix() -> None:
     """The embedded header overwrites the first header_px pixels of row 0."""
     frame = _frame(fill=200.0)
     record = _render(
-        frame, {'embedded_header': {'incidence': 1.0, 'header_px': 34}}, instrument='nhlorri'
+        frame, {'embedded_header': {'probability': 1.0, 'header_px': 34}}, instrument='nhlorri'
     )
     assert record['embedded_header']['header_px'] == 34
     assert np.all(frame.signal[0, 34:] == 200.0)
@@ -496,7 +501,7 @@ def test_cutout_window_hard_zeroes_the_border() -> None:
     frame = _frame(fill=50.0)
     record = _render(
         frame,
-        {'cutout_window': {'incidence': 1.0, 'rect': [10, 40, 12, 44]}},
+        {'cutout_window': {'probability': 1.0, 'rect': [10, 40, 12, 44]}},
         instrument='gossi',
     )
     v0, v1, u0, u1 = record['cutout_window']['rect']
@@ -512,14 +517,16 @@ def test_cutout_window_hard_zeroes_the_border() -> None:
 def test_adversarial_missing_line_intersects_the_limb_rows() -> None:
     """An adversarial missing line lands within the body's limb row range."""
     frame = _frame(truth=_body_truth(30, 51, 20, 44))
-    record = _render(frame, {'adversarial': True, 'missing_lines': {'incidence': 3.0}}, seed=9)
+    record = _render(
+        frame, {'adversarial': True, 'missing_lines': {'expected_events': 3.0}}, seed=9
+    )
     for line in record['missing_lines']['lines']:
         assert 30 <= line <= 50
 
 
 def test_adversarial_placement_is_deterministic_per_seed() -> None:
     """Adversarial placement is byte-identical for equal seeds."""
-    artifacts = {'adversarial': True, 'missing_lines': {'incidence': 3.0}}
+    artifacts = {'adversarial': True, 'missing_lines': {'expected_events': 3.0}}
     frame_a = _frame(truth=_body_truth(30, 51, 20, 44))
     frame_b = _frame(truth=_body_truth(30, 51, 20, 44))
     record_a = _render(frame_a, artifacts, seed=15)
@@ -530,7 +537,7 @@ def test_adversarial_placement_is_deterministic_per_seed() -> None:
 def test_uniform_placement_ignores_features() -> None:
     """Without adversarial, line placement is not confined to the feature rows."""
     frame = _frame(truth=_body_truth(30, 34, 20, 44))
-    record = _render(frame, {'missing_lines': {'incidence': 20.0}}, seed=3)
+    record = _render(frame, {'missing_lines': {'expected_events': 20.0}}, seed=3)
     lines = record['missing_lines']['lines']
     assert any(not (30 <= line <= 33) for line in lines)
 
@@ -595,34 +602,34 @@ def test_unknown_artifact_key_fails() -> None:
 
 def test_detector_mode_validates_when_available() -> None:
     """An implemented detector mode validates on an instrument it is available on."""
-    scene = {**_base_scene('coiss_nac'), 'artifacts': {'bloom': {'incidence': 0.5}}}
+    scene = {**_base_scene('coiss_nac'), 'artifacts': {'bloom': {'probability': 0.5}}}
     validate_sim_params(scene)
 
 
 def test_bloom_on_lorri_fails_with_bespoke_message() -> None:
     """bloom on LORRI fails: an antiblooming CCD has no column bloom."""
-    scene = {**_base_scene('nhlorri'), 'artifacts': {'bloom': {'incidence': 0.5}}}
+    scene = {**_base_scene('nhlorri'), 'artifacts': {'bloom': {'probability': 0.5}}}
     with pytest.raises(SimSceneValidationError, match='antiblooming'):
         validate_sim_params(scene)
 
 
 def test_hot_pixels_on_lorri_fails_with_bespoke_message() -> None:
     """hot_pixels on LORRI fails with the explicit LORRI message."""
-    scene = {**_base_scene('nhlorri'), 'artifacts': {'hot_pixels': {'incidence': 0.01}}}
+    scene = {**_base_scene('nhlorri'), 'artifacts': {'hot_pixels': {'pixel_fraction': 0.01}}}
     with pytest.raises(SimSceneValidationError, match='disabled for LORRI'):
         validate_sim_params(scene)
 
 
 def test_partial_lines_unavailable_on_galileo_fails() -> None:
     """A mode with no Galileo catalog entry fails on a Galileo scene."""
-    scene = {**_base_scene('gossi'), 'artifacts': {'partial_lines': {'incidence': 1.0}}}
+    scene = {**_base_scene('gossi'), 'artifacts': {'partial_lines': {'expected_events': 1.0}}}
     with pytest.raises(SimSceneValidationError, match='not available'):
         validate_sim_params(scene)
 
 
 def test_unknown_mode_param_fails() -> None:
     """An unknown parameter inside a mode map fails validation."""
-    scene = {**_base_scene(), 'artifacts': {'missing_lines': {'incidence': 1.0, 'bogus': 1}}}
+    scene = {**_base_scene(), 'artifacts': {'missing_lines': {'expected_events': 1.0, 'bogus': 1}}}
     with pytest.raises(SimSceneValidationError, match='unknown keys'):
         validate_sim_params(scene)
 
@@ -631,7 +638,7 @@ def test_enum_param_rejects_bad_value() -> None:
     """An out-of-set enum value fails validation."""
     scene = {
         **_base_scene('coiss_nac'),
-        'artifacts': {'alternating_lines': {'incidence': 1.0, 'period': 3}},
+        'artifacts': {'alternating_lines': {'probability': 1.0, 'period': 3}},
     }
     with pytest.raises(SimSceneValidationError, match='must be one of'):
         validate_sim_params(scene)
@@ -646,8 +653,8 @@ def test_adversarial_flag_is_a_boolean() -> None:
 
 def test_resolve_mode_config_fills_defaults() -> None:
     """Resolving a mode config fills unset parameters with their defaults."""
-    resolved = resolve_mode_config('missing_lines', {'incidence': 2.0})
-    assert resolved == {'incidence': 2.0, 'contiguous_run': False}
+    resolved = resolve_mode_config('missing_lines', {'expected_events': 2.0})
+    assert resolved == {'expected_events': 2.0, 'contiguous_run': False}
 
 
 # --- telemetry-artifact modes: compression and GEOMED scars -----------------
@@ -662,7 +669,7 @@ def test_compression_dct_changes_the_frame_and_is_blockwise() -> None:
     before = signal.copy()
     record = apply_compression_dct(
         signal,
-        {'incidence': 1.0, 'scale_factor': 40.0, 'block': 8},
+        {'probability': 1.0, 'scale_factor': 40.0, 'block': 8},
         rng=np.random.default_rng(1),
         protect=None,
     )
@@ -680,15 +687,15 @@ def test_compression_dct_leaves_the_truth_window_clean() -> None:
     saved = signal[16:32, 16:32].copy()
     apply_compression_dct(
         signal,
-        {'incidence': 1.0, 'scale_factor': 40.0, 'block': 8},
+        {'probability': 1.0, 'scale_factor': 40.0, 'block': 8},
         rng=np.random.default_rng(1),
         protect=protect,
     )
     assert np.array_equal(signal[16:32, 16:32], saved)
 
 
-def test_compression_dct_disabled_at_zero_incidence() -> None:
-    """A zero incidence leaves the frame untouched."""
+def test_compression_dct_disabled_at_zero_probability() -> None:
+    """A zero probability leaves the frame untouched."""
     from spindoctor.sim.forward.telemetry_artifacts import apply_compression_dct
 
     rng = np.random.default_rng(3)
@@ -696,7 +703,7 @@ def test_compression_dct_disabled_at_zero_incidence() -> None:
     before = signal.copy()
     record = apply_compression_dct(
         signal,
-        {'incidence': 0.0, 'scale_factor': 40.0, 'block': 8},
+        {'probability': 0.0, 'scale_factor': 40.0, 'block': 8},
         rng=np.random.default_rng(1),
         protect=None,
     )
@@ -712,7 +719,7 @@ def test_reseau_scars_smooth_lattice_patches() -> None:
     signal = rng.uniform(0.0, 100.0, size=(128, 128))
     record = apply_reseau_scars(
         signal,
-        {'incidence': 1.0, 'spacing_px': 46, 'patch_radius_px': 4},
+        {'probability': 1.0, 'spacing_px': 46, 'patch_radius_px': 4},
         rng=np.random.default_rng(1),
     )
     assert record['active'] is True
@@ -729,8 +736,8 @@ def test_reseau_lattice_spans_the_archive_frame() -> None:
     assert max(rows) - min(rows) >= 0.9 * 800
 
 
-def test_reseau_scars_disabled_at_zero_incidence() -> None:
-    """A zero incidence plants no scars."""
+def test_reseau_scars_disabled_at_zero_probability() -> None:
+    """A zero probability plants no scars."""
     from spindoctor.sim.forward.telemetry_artifacts import apply_reseau_scars
 
     rng = np.random.default_rng(5)
@@ -738,7 +745,7 @@ def test_reseau_scars_disabled_at_zero_incidence() -> None:
     before = signal.copy()
     record = apply_reseau_scars(
         signal,
-        {'incidence': 0.0, 'spacing_px': 46, 'patch_radius_px': 4},
+        {'probability': 0.0, 'spacing_px': 46, 'patch_radius_px': 4},
         rng=np.random.default_rng(1),
     )
     assert record['active'] is False
@@ -752,7 +759,12 @@ def test_resample_texture_blank_border_zeroes_the_edge() -> None:
     signal = np.full((_SIZE, _SIZE), 50.0, dtype=np.float64)
     record = apply_resample_texture(
         signal,
-        {'incidence': 1.0, 'warp_amp_px': 0.0, 'blank_border_px': 3, 'missing_line_interp': False},
+        {
+            'probability': 1.0,
+            'warp_amp_px': 0.0,
+            'blank_border_px': 3,
+            'missing_line_interp': False,
+        },
         rng=np.random.default_rng(1),
     )
     assert record['active'] is True
@@ -761,15 +773,15 @@ def test_resample_texture_blank_border_zeroes_the_edge() -> None:
     assert float(signal[_SIZE // 2, _SIZE // 2]) == 50.0
 
 
-def test_resample_texture_disabled_at_zero_incidence() -> None:
-    """A zero incidence leaves the frame untouched."""
+def test_resample_texture_disabled_at_zero_probability() -> None:
+    """A zero probability leaves the frame untouched."""
     from spindoctor.sim.forward.telemetry_artifacts import apply_resample_texture
 
     signal = np.full((_SIZE, _SIZE), 50.0, dtype=np.float64)
     before = signal.copy()
     record = apply_resample_texture(
         signal,
-        {'incidence': 0.0, 'warp_amp_px': 0.3, 'blank_border_px': 3, 'missing_line_interp': True},
+        {'probability': 0.0, 'warp_amp_px': 0.3, 'blank_border_px': 3, 'missing_line_interp': True},
         rng=np.random.default_rng(1),
     )
     assert record['active'] is False
@@ -781,7 +793,7 @@ def test_telemetry_artifact_modes_record_truth_end_to_end() -> None:
     frame = _frame(fill=80.0, size=96)
     record = _render(
         frame,
-        {'compression_dct': {'incidence': 1.0, 'scale_factor': 30.0}},
+        {'compression_dct': {'probability': 1.0, 'scale_factor': 30.0}},
         instrument='gossi',
     )
     assert record['compression_dct']['active'] is True

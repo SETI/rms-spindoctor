@@ -152,7 +152,7 @@ cassini_iss_calib:
     fit_camera_rotation: false
     max_rotation_deg: 5.0
     noise:
-      marker_value: NaN              # CISS CALIB missing-pixel sentinel
+      marker_value: 0                # CISS CALIB fills a missing pixel with 0.0
     image_quality_thresholds:
       blank_max_if: 1.0e-4            # PLACEHOLDER — calibrate in Phase 10
       noisy_threshold_if: 0.005       # PLACEHOLDER — calibrate in Phase 10
@@ -207,7 +207,7 @@ cassini_iss_calib:
     model_error_floor_px:
       RingAnnulusNav: 0.9
     noise:
-      marker_value: NaN
+      marker_value: 0
     image_quality_thresholds:
       blank_max_if: 1.0e-4
       noisy_threshold_if: 0.005

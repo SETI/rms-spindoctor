@@ -254,9 +254,14 @@ class TabsMixin(SimEditorBase):
                 'name': unique_name,
                 'kind': 'ringlet',
                 'tau': 1.0,
-                'width': 20.0,
+                'width_px': 20.0,
                 'navigable': True,
-                'orbit': {'a': 100.0, 'ae': 0.0, 'long_peri': 0.0, 'rate_peri': 0.0},
+                'orbit': {
+                    'a_px': 100.0,
+                    'ae_px': 0.0,
+                    'long_peri_deg': 0.0,
+                    'rate_peri_deg_per_day': 0.0,
+                },
             }
         else:
             p = params
@@ -394,7 +399,11 @@ class TabsMixin(SimEditorBase):
         self._updater.request_update()
 
     def _rebuild_dynamic_tabs(self) -> None:
-        """Rebuild all object tabs from the data model in sorted order."""
+        """Rebuild all object tabs from the data model in sorted order.
+
+        Mesh-key stash entries of bodies no longer in the scene are dropped first.
+        """
+        self._mesh_key_stash.prune(self.sim_params['bodies'])
         # Save General and "+" tab widgets
         general_widget = None
         plus_widget = None

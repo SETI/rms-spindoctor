@@ -142,7 +142,8 @@ a command-line option. Calibration is not a geometric reprojection, so the raw
 and calibrated frames share pixel coordinates and an offset measured on one
 applies to the other.
 
-**Missing pixels.** The raw marker is ``0``; the calibrated marker is ``NaN``.
+**Missing pixels.** The marker is ``0`` for the raw and the calibrated products
+alike: a missing pixel reads exactly 0.
 
 **Classification thresholds.** An image whose data stays below the blank
 threshold is classified blank and not navigated; one whose noise estimate

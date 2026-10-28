@@ -178,6 +178,11 @@ spindoctor.sim
    :undoc-members:
    :show-inheritance:
 
+.. automodule:: spindoctor.sim.spherical_harmonics
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 .. automodule:: spindoctor.sim.ring_geometry
    :members:
    :undoc-members:

@@ -281,7 +281,12 @@ class ArtifactsTabMixin(SimEditorBase):
         catalog.
         """
         detector = self.sim_params.get('detector')
-        block = detector if isinstance(detector, dict) else {}
+        # A key set to null reads as absent, as the renderer reads it.
+        block = (
+            {key: value for key, value in detector.items() if value is not None}
+            if isinstance(detector, dict)
+            else {}
+        )
         catalog = self._detector_catalog()
         self._detector_gain_state_spin.setValue(
             int(block.get('gain_state', catalog.get('default_gain_state', 0)))

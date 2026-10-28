@@ -452,7 +452,9 @@ def _summary_dict(results: RealismResults) -> dict[str, Any]:
             ],
             'catalog_defaults': {
                 'hot_pixel_fraction': float(defaults.get('hot_pixel_fraction', 0.0)),
-                'cosmic_ray_rate_per_sec': float(defaults.get('cosmic_ray_rate_per_sec', 0.0)),
+                'cosmic_ray_events_per_pixel_per_sec': float(
+                    defaults.get('cosmic_ray_events_per_pixel_per_sec', 0.0)
+                ),
                 'read_noise_e': float(defaults.get('read_noise_e', 0.0))
                 if 'read_noise_e' in defaults
                 else None,

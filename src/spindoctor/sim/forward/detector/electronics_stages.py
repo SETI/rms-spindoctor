@@ -289,6 +289,7 @@ def apply_beam_bend(
     signal: NDArrayFloatType,
     *,
     amplitude_px: float,
+    full_brightness_dn: float,
 ) -> dict[str, Any]:
     """Warp the image near bright boundaries by a brightness-dependent bias.
 
@@ -302,21 +303,25 @@ def apply_beam_bend(
     calibration pass fits, not a first-principles beam-physics solution.  A zero
     amplitude is a no-op.
 
+    Local brightness is the smoothed charge over ``full_brightness_dn``, the
+    charge a fully lit (signal 1.0) scene stores, capped at 1.  The reference is
+    fixed, so a bright spot -- a cosmic-ray hit, say -- bends the beam only
+    within reach of the smoothing kernel around it, and not across the frame.
+
     Parameters:
         signal: The DN image, warped in place.
         amplitude_px: Peak displacement, in pixels, at full local brightness.
+        full_brightness_dn: The DN of full local brightness; a non-positive value
+            makes the bend a no-op.
 
     Returns:
         The realized bend summary for the truth record.
     """
-    if amplitude_px <= 0.0:
+    if amplitude_px <= 0.0 or full_brightness_dn <= 0.0:
         return {'active': False}
     size_v, size_u = signal.shape
     smooth = ndimage.gaussian_filter(signal, sigma=2.0)
-    peak = float(smooth.max())
-    if peak <= 0.0:
-        return {'active': False}
-    brightness = smooth / peak
+    brightness = np.clip(smooth / full_brightness_dn, 0.0, 1.0)
     grad_v = np.gradient(brightness, axis=0)
     # Displace toward the brighter side, scaled by local brightness; the beam
     # bends most where the disc is brightest and the gradient steepest.
