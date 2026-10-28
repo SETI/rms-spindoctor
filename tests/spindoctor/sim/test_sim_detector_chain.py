@@ -130,7 +130,7 @@ def test_instrument_defaults_turns_on_poisson_and_catalog_bloom() -> None:
     # The Cassini entries retain a zero cosmic-ray rate (the chain's
     # exposure-scaling stage cannot represent the cohort's
     # exposure-independent transients; see the catalog comment).
-    assert resolved.cosmic_ray_rate_per_sec == 0.0
+    assert resolved.cosmic_ray_events_per_pixel_per_sec == 0.0
 
 
 def test_cosmic_ray_retained_zero_for_gossi() -> None:
@@ -139,7 +139,7 @@ def test_cosmic_ray_retained_zero_for_gossi() -> None:
     from spindoctor.sim.forward.detector.params import resolve_detector_params
 
     resolved = resolve_detector_params(_disc('gossi', artifacts={'instrument_defaults': True}))
-    assert resolved.cosmic_ray_rate_per_sec == 0.0
+    assert resolved.cosmic_ray_events_per_pixel_per_sec == 0.0
 
 
 def test_cosmic_ray_scene_value_activates_the_stage() -> None:
@@ -150,10 +150,10 @@ def test_cosmic_ray_scene_value_activates_the_stage() -> None:
         _disc(
             'gossi',
             artifacts={'instrument_defaults': True},
-            noise={'cosmic_ray_rate_per_sec': 2.0e-4},
+            noise={'cosmic_ray_events_per_pixel_per_sec': 2.0e-4},
         )
     )
-    assert resolved.cosmic_ray_rate_per_sec == pytest.approx(2.0e-4)
+    assert resolved.cosmic_ray_events_per_pixel_per_sec == pytest.approx(2.0e-4)
 
 
 def test_cosmic_ray_retained_zero_for_lorri() -> None:
@@ -161,7 +161,7 @@ def test_cosmic_ray_retained_zero_for_lorri() -> None:
     from spindoctor.sim.forward.detector.params import resolve_detector_params
 
     resolved = resolve_detector_params(_disc('nhlorri', artifacts={'instrument_defaults': True}))
-    assert resolved.cosmic_ray_rate_per_sec == 0.0
+    assert resolved.cosmic_ray_events_per_pixel_per_sec == 0.0
 
 
 def test_floor_resolves_poisson_off_and_no_bloom() -> None:
@@ -172,7 +172,7 @@ def test_floor_resolves_poisson_off_and_no_bloom() -> None:
     assert resolved.poisson is False
     assert resolved.bloom_length == 0
     # No instrument_defaults: the catalog cosmic-ray rate does not activate.
-    assert resolved.cosmic_ray_rate_per_sec == 0.0
+    assert resolved.cosmic_ray_events_per_pixel_per_sec == 0.0
 
 
 def test_explicit_noise_override_beats_instrument_defaults() -> None:

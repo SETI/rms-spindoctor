@@ -96,7 +96,7 @@ def _psf_detector_scene(size: int) -> dict[str, Any]:
         'noise': {
             'poisson': True,
             'read_noise_dn': 4.0,
-            'cosmic_ray_rate_per_sec': 0.001,
+            'cosmic_ray_events_per_pixel_per_sec': 0.001,
             'bloom_length': 2,
         },
         'sky_counts': {'density_factor': 200.0},
@@ -205,20 +205,20 @@ def _ring_psf_detector_scene(size: int) -> dict[str, Any]:
             'kind': kind,
             'tau': 0.8,
             'orbit': {
-                'a': a * scale,
-                'ae': 1.0 * scale,
-                'long_peri': 10.0 * index,
-                'rate_peri': 0.0,
-                'modes': [{'m': 3, 'amp': 1.5 * scale, 'peri': 20.0}],
+                'a_px': a * scale,
+                'ae_px': 1.0 * scale,
+                'long_peri_deg': 10.0 * index,
+                'rate_peri_deg_per_day': 0.0,
+                'modes': [{'m': 3, 'amp_px': 1.5 * scale, 'peri_deg': 20.0}],
             },
         }
         if kind in ('ringlet', 'gap'):
-            feature['width'] = width * scale
+            feature['width_px'] = width * scale
         if kind == 'edge':
             feature['side'] = 'in'
         if kind == 'wave':
-            feature['wavelength'] = 12.0 * scale
-            feature['damping'] = 30.0 * scale
+            feature['wavelength_px'] = 12.0 * scale
+            feature['density_wave_damping_px'] = 30.0 * scale
         features.append(feature)
     scene['ring_system'] = {
         'geometry': {

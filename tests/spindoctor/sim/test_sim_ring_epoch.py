@@ -1,14 +1,15 @@
 """Ring-edge precession: ``ring_epoch`` flows to both sides of the simulator.
 
-A mode-1 eccentric edge with nonzero ``rate_peri`` precesses by
-``rate_peri * (time - ring_epoch)``.  These tests render a precessing
-ring_system ringlet through ``ObsSim`` and check end to end that (a) the
-navigator-side predicted edges (``NavModelRingsSimulated``, which reads
-``time`` and ``ring_epoch`` from the filtered ``obs.nav_params`` and places
-edges through the shared orbit model) land on the rendered annulus boundary
-for a nonzero epoch -- both sides precess together -- and (b) changing
-``ring_epoch`` alone moves both the prediction and the render, so the
-epoch is not silently defaulted away on either side.
+A mode-1 eccentric edge with nonzero ``rate_peri_deg_per_day`` precesses by
+that rate times the days from ``ring_epoch`` to ``time`` (both TDB seconds).
+These tests render a precessing ring_system ringlet through ``ObsSim`` and
+check end to end that (a) the navigator-side predicted edges
+(``NavModelRingsSimulated``, which reads ``time`` and ``ring_epoch`` from the
+filtered ``obs.nav_params`` and places edges through the shared orbit model)
+land on the rendered annulus boundary for a nonzero epoch -- both sides
+precess together -- and (b) changing ``ring_epoch`` alone moves both the
+prediction and the render, so the epoch is not silently defaulted away on
+either side.
 """
 
 from typing import Any, cast
@@ -53,13 +54,13 @@ def _scene(ring_epoch: float) -> dict[str, Any]:
                     'name': 'PRECESSING',
                     'kind': 'ringlet',
                     'tau': 2.0,
-                    'width': 15.0,
+                    'width_px': 15.0,
                     'navigable': True,
                     'orbit': {
-                        'a': 40.0,
-                        'ae': 8.0,
-                        'long_peri': 20.0,
-                        'rate_peri': _RATE_PERI,
+                        'a_px': 40.0,
+                        'ae_px': 8.0,
+                        'long_peri_deg': 20.0,
+                        'rate_peri_deg_per_day': _RATE_PERI,
                     },
                 }
             ],
@@ -93,8 +94,12 @@ def _predicted_edge_vertices(obs: ObsSim) -> dict[str, Any]:
 
 
 def _rendered_coverage(obs: ObsSim) -> NDArrayBoolType:
-    """The rendered annulus coverage mask (noise-free calibrated render)."""
-    coverage: NDArrayBoolType = np.asarray(obs.data) > 1e-9
+    """The rendered annulus coverage mask (noise-free calibrated render).
+
+    The background is the frame's minimum, the calibrated sky residual.
+    """
+    data = np.asarray(obs.data)
+    coverage: NDArrayBoolType = data > float(data.min()) + 1e-9
     return coverage
 
 

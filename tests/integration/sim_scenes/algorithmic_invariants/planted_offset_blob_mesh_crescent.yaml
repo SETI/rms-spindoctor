@@ -22,7 +22,9 @@ bodies:
   - name: HYPERION
     shape_model: polyhedral_mesh
     mesh_lumpiness: 0.2
-    mesh_seed: 7
+    mesh_seed: 3
+    mesh_n_lat: 64
+    mesh_n_lon: 128
     pose_euler_deg: [10.0, 35.0, 0.0]
     center_v: 110.0
     center_u: 110.0

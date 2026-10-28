@@ -12,13 +12,16 @@ non-navigable features produce no model at all.
 from typing import Any, cast
 
 import numpy as np
+import pytest
 
 from spindoctor.feature.feature import NavFeature
 from spindoctor.feature.geometry import RingEdgePolyline
 from spindoctor.nav_model.nav_model_rings_simulated import NavModelRingsSimulated
 from spindoctor.nav_orchestrator.nav_context import NavContext
 from spindoctor.obs.obs_inst_sim import ObsSim
+from spindoctor.sim.ring_geometry import ring_plane_from_sky, ring_radial_scale
 from spindoctor.sim.scene import validate_sim_params
+from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 from spindoctor.support.types import NDArrayFloatType
 
 _SIZE = 160
@@ -65,9 +68,9 @@ def _ringlet(**extra: Any) -> dict[str, Any]:
         'name': 'BAND',
         'kind': 'ringlet',
         'tau': 2.0,
-        'width': 12.0,
+        'width_px': 12.0,
         'navigable': True,
-        'orbit': {'a': 45.0, 'ae': 4.0, 'long_peri': 30.0, 'rate_peri': 0.0},
+        'orbit': {'a_px': 45.0, 'ae_px': 4.0, 'long_peri_deg': 30.0, 'rate_peri_deg_per_day': 0.0},
     }
     feature.update(extra)
     return feature
@@ -220,12 +223,52 @@ def test_edge_kind_predicts_a_single_boundary() -> None:
         'tau': 1.5,
         'side': 'in',
         'navigable': True,
-        'orbit': {'a': 45.0},
+        'orbit': {'a_px': 45.0},
     }
     features = _nav_features(_obs(_scene(feature)))
     kinds = [f.feature_type.name for f in features]
     assert kinds == ['RING_EDGE']
     assert features[0].feature_id == 'ring_edge:SHEETEDGE:edge'
+
+
+@pytest.mark.parametrize(
+    ('side', 'edge_type', 'expected_radius_px'),
+    [('out', 'outer', 45.0 + 12.0), ('in', 'inner', 45.0)],
+    ids=['side-out-sharp-end-at-a-plus-width', 'side-in-sharp-end-at-a'],
+)
+def test_a_ramp_predicts_its_sharp_end(
+    side: str, edge_type: str, expected_radius_px: float
+) -> None:
+    """A ramp's one predicted edge sits on its sharp end, read through width_px.
+
+    A ``side: 'out'`` ramp rises from zero at ``a_px`` to ``tau`` at
+    ``a_px + width_px`` and drops there, so its fittable boundary is the outer
+    radius ``a_px + width_px``; a ``side: 'in'`` ramp's sharp end is the orbit
+    itself.  Each predicted vertex is a border pixel, so its center lies within
+    one image pixel of the boundary: its ring-plane radius differs from the
+    expected radius by at most the ring-plane distance one image pixel spans
+    there.  Reading the width under any other key would put the ``out`` edge
+    12 ring-plane pixels inward, at ``a_px``.
+    """
+    feature = {
+        'name': 'RAMP',
+        'kind': 'ramp',
+        'side': side,
+        'tau': 1.0,
+        'width_px': 12.0,
+        'navigable': True,
+        'orbit': {'a_px': 45.0},
+    }
+    edges = _edge_vertices_data(_obs(_scene(feature)))
+    assert set(edges) == {edge_type}
+    vertices = edges[edge_type]
+    assert len(vertices) > 50
+    dv = vertices[:, 0] + PIXEL_CENTER_TO_CORNER_PX - _CENTER
+    du = vertices[:, 1] + PIXEL_CENTER_TO_CORNER_PX - _CENTER
+    r, _lam, x, y = ring_plane_from_sky(dv, du, opening_deg_obs=35.0, node_deg=25.0)
+    pixel_span = ring_radial_scale(r, x, y, opening_deg_obs=35.0)
+    offsets_px = (r - expected_radius_px) / pixel_span
+    assert float(np.max(np.abs(offsets_px))) <= 1.0
 
 
 def test_ringlet_emits_annulus_template_and_two_edges() -> None:

@@ -33,7 +33,7 @@ from ruamel.yaml import YAML
 from spindoctor.nav_model import build_models_for_obs
 from spindoctor.nav_orchestrator import NavOrchestrator
 from spindoctor.obs.obs_inst_sim import ObsSim
-from spindoctor.sim.scene import load_sim_scene
+from spindoctor.sim.scene import load_sim_scene, validate_sim_params
 
 _SCENES_ROOT = Path(__file__).parent / 'sim_scenes'
 
@@ -153,7 +153,7 @@ def _set_dotted(params: dict[str, Any], dotted: str, value: float) -> None:
     Supports mapping keys and integer list indices, e.g. ``bodies.0.phase_angle``
     or ``noise.read_noise_dn``.  A missing intermediate mapping key is created
     (an empty map) as the path is walked, so a sweep can address a nested key the
-    base scene omits -- for example ``artifacts.missing_lines.incidence`` on a
+    base scene omits -- for example ``artifacts.missing_lines.expected_events`` on a
     base scene with no ``artifacts`` block.  A missing *list* index is an error:
     a sweep cannot invent a body or ring the base scene did not author.
     """
@@ -214,19 +214,49 @@ def _pinned_technique_result(result: Any, technique: str) -> Any | None:
     return None
 
 
+# The step blocks a sweep re-validates in the context of its base scene.  The
+# renderer reads each artifact mode's map and the noise block by key and passes
+# over a key it does not know, so a stepped artifact or noise path is checked
+# with the full scene validator.
+_REVALIDATED_STEP_BLOCKS: tuple[str, ...] = ('artifacts', 'noise')
+
+
+def _validate_step_blocks(
+    base_params: dict[str, Any], step_params: dict[str, Any], *, source: str
+) -> None:
+    """Validate a sweep step's ``artifacts`` and ``noise`` blocks against its base scene.
+
+    The check covers those two blocks alone: elsewhere a sweep may walk a value
+    onto a boundary the file validator refuses on purpose (the
+    ``atmosphere_haze`` sweep's haze-free floor is ``tau_ref`` 0), and the rest of
+    the step is the already-validated base scene.
+    """
+    blocks = {key: step_params[key] for key in _REVALIDATED_STEP_BLOCKS if key in step_params}
+    if blocks:
+        validate_sim_params({**base_params, **blocks}, source=source)
+
+
 def build_sweep_params(spec: SweepSpec) -> list[tuple[float, dict[str, Any]]]:
     """Return the per-step ``(value, sim_params)`` pairs a sweep navigates.
 
-    Each step deep-copies the base scene's sim params and applies the sweep's
-    parameter override(s) for that value.  Exposed so both :func:`run_sweep` (which
-    navigates each step) and the image dump (which renders each step) build the
-    exact same frames.
+    Each step deep-copies the base scene's sim params, applies the sweep's
+    parameter override(s) for that value, and re-validates the step's
+    ``artifacts`` and ``noise`` blocks against the base scene, so a sweep path
+    naming an unknown artifact-mode or noise key, an out-of-range
+    activation value, or a noise value the scene's detector path refuses, fails
+    here rather than rendering a frame that silently ignores it.  Exposed so
+    both :func:`run_sweep` (which navigates each step) and the image dump (which
+    renders each step) build the exact same frames.
 
     Parameters:
         spec: The sweep specification.
 
     Returns:
         One ``(value, sim_params)`` pair per value, in sweep order.
+
+    Raises:
+        SimSceneValidationError: If a step's artifacts or noise block fails
+            validation; the message names the sweep file and the step's value.
     """
     base_params = load_sim_scene(spec.base_scene)
     steps: list[tuple[float, dict[str, Any]]] = []
@@ -234,6 +264,7 @@ def build_sweep_params(spec: SweepSpec) -> list[tuple[float, dict[str, Any]]]:
         sim_params = copy.deepcopy(base_params)
         for parameter in spec.parameters:
             _set_dotted(sim_params, parameter, value)
+        _validate_step_blocks(base_params, sim_params, source=f'{spec.path} (value {value!r})')
         steps.append((value, sim_params))
     return steps
 
@@ -266,18 +297,46 @@ def run_sweep(spec: SweepSpec) -> list[SweepRow]:
         One :class:`SweepRow` per (value, seed) pair, values in sweep order and
         seeds in ascending order within each value.
     """
-    pinned = spec.technique != '*'
+    return run_sweep_steps(
+        build_sweep_params(spec), spec.technique, ensemble_seeds=spec.ensemble_seeds
+    )
+
+
+def run_sweep_steps(
+    steps: list[tuple[float, dict[str, Any]]],
+    technique: str,
+    *,
+    ensemble_seeds: int = 1,
+) -> list[SweepRow]:
+    """Navigate prepared ``(value, sim_params)`` steps and return their rows.
+
+    The engine behind :func:`run_sweep`, exposed so a test can navigate steps a
+    single-parameter sweep spec cannot express, such as a population of mesh
+    seeds at one fixed lumpiness.  Each row's ``value`` is the step's own value,
+    and the planted truth, technique pinning, and seed replication behave as in
+    :func:`run_sweep`.
+
+    Parameters:
+        steps: The ``(value, sim_params)`` pairs to navigate, in order.
+        technique: A technique name to pin, or ``'*'`` for the fused result.
+        ensemble_seeds: Number of noise seeds to replicate each step across.
+
+    Returns:
+        One :class:`SweepRow` per (step, seed) pair, steps in the given order and
+        seeds in ascending order within each step.
+    """
+    pinned = technique != '*'
     rows: list[SweepRow] = []
-    for value, sim_params in build_sweep_params(spec):
+    for value, sim_params in steps:
         planted_v = float(sim_params.get('offset_v', 0.0))
         planted_u = float(sim_params.get('offset_u', 0.0))
         planted_rot = float(sim_params.get('offset_rotation_deg', 0.0))
-        for seed in _ensemble_seeds(sim_params, spec.ensemble_seeds):
+        for seed in _ensemble_seeds(sim_params, ensemble_seeds):
             seeded_params = copy.deepcopy(sim_params)
             seeded_params['random_seed'] = seed
-            result = _navigate_params(seeded_params, spec.technique)
+            result = _navigate_params(seeded_params, technique)
             if pinned:
-                pin = _pinned_technique_result(result, spec.technique)
+                pin = _pinned_technique_result(result, technique)
                 recovered_offset = pin.offset_px if pin is not None else None
                 recovered_rot = (
                     math.degrees(pin.rotation_rad)

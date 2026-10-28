@@ -3,8 +3,12 @@
 Each function here renders one loss mode from the artifact-mode registry onto a
 detector-grid DN image in place, and returns the realized geometry (which lines,
 blocks, or pixels it touched) for the frame's truth record so a later
-incidence measurement can compare planted against measured.  Every mode is a
-no-op at incidence 0 (the stage-activation rule), draws from its own seeded
+measurement can compare planted against measured.  Every mode is a no-op when
+its activation key is 0, or its ``count`` where given is 0 (the stage-activation
+rule): a count mode draws a Poisson number of events with mean
+``expected_events`` (or plants a fixed ``count``, on the dead-pixel and
+dead-column modes), and a commanded or periodic mode fires with per-frame
+``probability``.  Each mode draws from its own seeded
 generator (so toggling one never perturbs another), and honors adversarial
 placement through the shared :mod:`~spindoctor.sim.forward.feature_loci` helpers:
 its stochastic placement biases onto the navigation features when adversarial is
@@ -47,18 +51,18 @@ __all__ = [
 ]
 
 
-def _poisson_count(rng: np.random.Generator, incidence: float, cap: int) -> int:
-    """Draw a Poisson event count from an incidence, capped at ``cap``."""
-    if incidence <= 0.0:
+def _poisson_count(rng: np.random.Generator, expected_events: float, cap: int) -> int:
+    """Draw a Poisson event count with mean ``expected_events``, capped at ``cap``."""
+    if expected_events <= 0.0:
         return 0
-    return int(min(cap, rng.poisson(incidence)))
+    return int(min(cap, rng.poisson(expected_events)))
 
 
-def _activated(rng: np.random.Generator, incidence: float) -> bool:
-    """Whether a commanded / periodic mode activates this frame (prob = incidence)."""
-    if incidence <= 0.0:
+def _activated(rng: np.random.Generator, probability: float) -> bool:
+    """Whether a commanded / periodic mode activates this frame, with ``probability``."""
+    if probability <= 0.0:
         return False
-    return bool(rng.random() < incidence)
+    return bool(rng.random() < probability)
 
 
 def _garbage_ceiling(signal: NDArrayFloatType, dn_ceiling: float) -> float:
@@ -89,10 +93,10 @@ def apply_missing_lines(
     feature (a run starts on a feature row; scattered lines are drawn from the
     feature rows).
     """
-    incidence = float(cfg['incidence'])
+    expected_events = float(cfg['expected_events'])
     contiguous = bool(cfg['contiguous_run'])
     size_v = signal.shape[0]
-    n = _poisson_count(rng, incidence, size_v)
+    n = _poisson_count(rng, expected_events, size_v)
     if n == 0:
         return {'lines': []}
     if contiguous:
@@ -124,10 +128,10 @@ def apply_partial_lines(
     segment, leaving two good segments -- the Cassini partial-line-segment
     shape, where one image line spans several telemetry packets.
     """
-    incidence = float(cfg['incidence'])
+    expected_events = float(cfg['expected_events'])
     max_segments = int(cfg['max_surviving_segments'])
     size_v, size_u = signal.shape
-    n = _poisson_count(rng, incidence, size_v)
+    n = _poisson_count(rng, expected_events, size_v)
     if n == 0 or size_u < 2:
         return {'cuts': []}
     rows = choose_rows(loci, n, size_v, rng, adversarial=adversarial)
@@ -166,16 +170,16 @@ def apply_alternating_lines(
     which loses one line per period), while ``keep`` blanks every line EXCEPT
     the Nth (the Galileo HMA / HCA vertical decimation, where only every Nth
     line carries valid data).  The pattern is periodic and deterministic once
-    active, so adversarial placement does not steer it; the incidence only
+    active, so adversarial placement does not steer it; the probability only
     decides whether the pattern fires this frame.
     """
     del loci, adversarial
-    incidence = float(cfg['incidence'])
+    probability = float(cfg['probability'])
     period = int(cfg['period'])
     phase = int(cfg['phase']) % period
     line_mode = str(cfg['mode'])
     size_v = signal.shape[0]
-    if not _activated(rng, incidence):
+    if not _activated(rng, probability):
         return {'active': False, 'lines': []}
     if line_mode == 'keep':
         lines = [row for row in range(size_v) if (row - phase) % period != 0]
@@ -198,11 +202,11 @@ def apply_edited_frame(
     An explicit ``half_frame`` keeps one half of the frame height (the 2:1
     scan modes); otherwise a band width keeps a centered column band and blanks
     the rest of every line (the Voyager edited modes, whose registry default
-    of 440 px matches the Voyager IM band widths, so a bare incidence renders
-    the band shape).  A commanded mode: activation is by incidence.
+    of 440 px matches the Voyager IM band widths, so a bare probability renders
+    the band shape).  A commanded mode: activation is by ``probability``.
     """
-    incidence = float(cfg['incidence'])
-    if not _activated(rng, incidence):
+    probability = float(cfg['probability'])
+    if not _activated(rng, probability):
         return {'active': False}
     size_v, size_u = signal.shape
     if bool(cfg.get('half_frame')):
@@ -235,10 +239,10 @@ def apply_truncated_frame(
     """Cut a clean full-width band of lines from the bottom or top of the frame.
 
     An explicit ``lines`` count wins over ``fraction``; the registry's fraction
-    default of 0.25 gives a bare incidence the common quarter-frame truncation.
+    default of 0.25 gives a bare probability the common quarter-frame truncation.
     """
-    incidence = float(cfg['incidence'])
-    if not _activated(rng, incidence):
+    probability = float(cfg['probability'])
+    if not _activated(rng, probability):
         return {'active': False}
     size_v = signal.shape[0]
     lines_param = cfg.get('lines')
@@ -281,12 +285,12 @@ def apply_missing_blocks(
     truth window) is left untouched.  Adversarial placement chooses blocks whose
     rows cross a feature.
     """
-    incidence = float(cfg['incidence'])
+    expected_events = float(cfg['expected_events'])
     block_lines = int(cfg['block_lines'])
     start_mid_line = bool(cfg['start_mid_line'])
     size_v, size_u = signal.shape
     n_grid = math.ceil(size_v / block_lines)
-    n = _poisson_count(rng, incidence, n_grid)
+    n = _poisson_count(rng, expected_events, n_grid)
     if n == 0:
         return {'blocks': [], 'block_lines': block_lines}
     if adversarial and loci.has_rows:
@@ -339,9 +343,9 @@ def apply_line_garble(
     Reed-Solomon overflow).  The garbage stays inside the instrument's ADC word
     (``dn_ceiling``), so an 8-bit camera never carries a 12-bit garbage value.
     """
-    incidence = float(cfg['incidence'])
+    expected_events = float(cfg['expected_events'])
     size_v, size_u = signal.shape
-    n = _poisson_count(rng, incidence, size_v)
+    n = _poisson_count(rng, expected_events, size_v)
     if n == 0 or size_u < 1:
         return {'lines': []}
     ceiling = _garbage_ceiling(signal, dn_ceiling)
@@ -372,10 +376,10 @@ def apply_pixel_spikes(
     the instrument's ADC word: the flipped bit positions and the uniform draw
     are bounded by ``dn_ceiling``, so an 8-bit camera never spikes above 255.
     """
-    incidence = float(cfg['incidence'])
+    expected_events = float(cfg['expected_events'])
     model = str(cfg['amplitude'])
     size_v, size_u = signal.shape
-    n = _poisson_count(rng, incidence, size_v * size_u)
+    n = _poisson_count(rng, expected_events, size_v * size_u)
     if n == 0:
         return {'pixels': []}
     vs, us = choose_pixels(loci, n, (size_v, size_u), rng, adversarial=adversarial)
@@ -401,13 +405,18 @@ def apply_dead_columns(
 ) -> dict[str, Any]:
     """Set a fixed per-seed set of whole columns to a low response.
 
-    A ``count`` fixes the number of dead columns; otherwise incidence is the
-    Poisson mean.  Adversarial placement prefers columns that cross a feature.
+    A ``count`` fixes the number of dead columns; otherwise ``expected_events``
+    is the Poisson mean (the validator refuses a map that sets both).  Either is
+    a no-op at 0.  Adversarial placement prefers columns that cross a feature.
     """
     _size_v, size_u = signal.shape
     count = cfg.get('count')
     low_dn = float(cfg['low_dn'])
-    n = int(count) if count is not None else _poisson_count(rng, float(cfg['incidence']), size_u)
+    n = (
+        int(count)
+        if count is not None
+        else _poisson_count(rng, float(cfg['expected_events']), size_u)
+    )
     n = min(n, size_u)
     if n == 0:
         return {'columns': []}
@@ -432,8 +441,9 @@ def apply_dead_pixels(
 ) -> dict[str, Any]:
     """Set a fixed per-seed set of singleton pixels to a low response.
 
-    A ``count`` fixes the number of dead pixels; otherwise incidence is the
-    Poisson mean.  Adversarial placement prefers pixels on or beside a feature.
+    A ``count`` fixes the number of dead pixels; otherwise ``expected_events``
+    is the Poisson mean (the validator refuses a map that sets both).  Either is
+    a no-op at 0.  Adversarial placement prefers pixels on or beside a feature.
     """
     size_v, size_u = signal.shape
     count = cfg.get('count')
@@ -441,7 +451,7 @@ def apply_dead_pixels(
     n = (
         int(count)
         if count is not None
-        else _poisson_count(rng, float(cfg['incidence']), size_v * size_u)
+        else _poisson_count(rng, float(cfg['expected_events']), size_v * size_u)
     )
     if n == 0:
         return {'pixels': []}
@@ -461,10 +471,10 @@ def apply_embedded_header(
     """Overwrite the first ``header_px`` pixels of row 0 with housekeeping values.
 
     The LORRI embedded header is binary housekeeping in row 0 of every image,
-    never scene data.  A commanded mode: activation is by incidence.
+    never scene data.  A commanded mode: activation is by ``probability``.
     """
-    incidence = float(cfg['incidence'])
-    if not _activated(rng, incidence):
+    probability = float(cfg['probability'])
+    if not _activated(rng, probability):
         return {'active': False}
     size_u = signal.shape[1]
     header_px = min(int(cfg['header_px']), size_u)
@@ -486,10 +496,10 @@ def apply_cutout_window(
 
     The Galileo / LORRI windowed-downlink shape: only pixels inside the rect
     survive, everything else is blanked.  A commanded mode: activation is by
-    incidence.
+    ``probability``.
     """
-    incidence = float(cfg['incidence'])
-    if not _activated(rng, incidence):
+    probability = float(cfg['probability'])
+    if not _activated(rng, probability):
         return {'active': False}
     size_v, size_u = signal.shape
     rect = cfg.get('rect')

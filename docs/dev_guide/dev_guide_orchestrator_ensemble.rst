@@ -507,19 +507,26 @@ consistent with agreement is not vetoed on scatter alone. Both checks apply
 only to single-body frames, where no companion body corrupts the centroid and
 the whole-frame verdict maps to one body.
 
-The two modes below are the standing evidence that motivated the veto; each is
-caught and asserts its declined outcome as a regression:
+The two modes below are the standing evidence that motivated the veto. Each has
+a regression test, and the first also shows where the veto's coverage ends:
 
 - ``tests/integration/sim_sweeps/irregularity_shape_mismatch.yaml`` -- at
-  mesh-vs-ellipsoid shape mismatch the disc correlation and the limb fit both
-  lock onto the mismatched model and agree at a multi-pixel wrong offset, and
-  the fused confidence re-saturates to ~0.99 at a 10-17 px error. The pose-free
-  blob, which does not chase the shape, disagrees by pixels. The shape-lock veto
-  reports those steps as ``conflicted``, because the blob's separation from the
-  consensus clears both the body-scaled pixel floor and the Mahalanobis
-  threshold. The clean (zero-relief) step recovers the planted offset
-  sub-pixel and stays a success, so the veto separates the shape lock from the
-  legitimate fit rather than blanketing the sweep.
+  extreme mesh-vs-ellipsoid shape mismatch (``mesh_lumpiness`` 0.7, a
+  non-ellipsoidal relief of 8.75% of the radius RMS) the disc correlation and
+  the limb fit lock onto the mismatched model. Over mesh seeds 0 to 12 the
+  veto reports 4 of the 13 shapes ``conflicted``. On those, the pose-free
+  blob, which does not chase the shape, sits pixels from the consensus, and its
+  separation clears both the body-scaled pixel floor and the Mahalanobis
+  threshold. ``test_sim_sweeps`` asserts that rate as a floor. On the other
+  shapes the blob either carries the result itself at low confidence or is
+  displaced together with the lock, so the disagreement the veto reads never
+  appears. One shape ends a 0.91-confidence success 12.7 px off. That
+  confident wrong result is a known gap, held by a strict expected-failure
+  test until the veto catches it. The sweep's own walk uses a typical shape
+  (``mesh_seed`` 4, chosen by its silhouette mismatch): its extreme step is a
+  0.40-confidence success 5.2 px off, carried by the blob, and the veto
+  doesn't fire. Its clean (zero-relief) step recovers the planted offset
+  sub-pixel and stays a success, so the veto doesn't blanket the walk.
 - ``tests/integration/sim_scenes/atmosphere/titan_crescent_horns.yaml`` (and
   its noiseless twin) -- a 155-degree haze crescent drags the blob centroid to
   a ~30 px wrong offset while the disc correlation self-flags spurious. The
