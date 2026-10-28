@@ -302,10 +302,10 @@ prediction to its host's ratio :math:`r`, with a floor of
 predicted shorter could record a streak long enough to centroid on only by exceeding the
 ratio). The instrument chapters give each host's ratio and its evidence.
 
-- The stars examined are the brightest that conflict with no body, ring, or other star. A
-  frame whose examined stars' median predicted smear is shorter than the floor is not
-  measured. The per-star smear is used because the frame-center smear vector reads zero
-  on a frame rolling about its center. For an unvouched prediction, of 2,011 F ring
+- The stars examined are the brightest that do not conflict with any body, ring, or other
+  star. A frame whose examined stars' median predicted smear is shorter than the floor is
+  not measured. The per-star smear is used because the frame-center smear vector reads
+  zero on a frame rolling about its center. For an unvouched prediction, of 2,011 F ring
   frames predicted from Cassini's reconstructed C-kernels below 2 px, one draws a streak
   long enough to be recorded.
 - Otherwise :func:`~spindoctor.nav_model.stars.streak.measure_streak` takes the brightest
