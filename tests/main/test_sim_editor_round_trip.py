@@ -822,6 +822,7 @@ def test_load_full_scene_syncs_ring_advanced_groups(
     assert tab.orbit_error_a_spin.value() == 1.0
     assert tab.orbit_sigma_group.isChecked() is True
     assert tab.azimuthal_modulation_group.isChecked() is True
+    assert tab.modulation_phase_spin.value() == 30.0
     assert tab.azimuthal_shadow_group.isChecked() is True
     assert tab.azimuthal_spokes_group.isChecked() is True
     assert tab.moonlets_group.isChecked() is True

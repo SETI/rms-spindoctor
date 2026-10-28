@@ -1046,8 +1046,33 @@ def test_ring_edge_wave_toggle_inserts_and_removes(model: Any) -> None:
         'edge_wave_damping_deg',
         'lam0_deg',
     }
+    assert _ring(model)['orbit']['edge_wave']['edge_wave_damping_deg'] == 30.0
     tab.edge_wave_group.setChecked(False)
     assert 'edge_wave' not in _ring(model)['orbit']
+
+
+def test_ring_edge_wave_toggle_keeps_unrounded_values(model: Any) -> None:
+    """Turning the edge-wave group off and on restores values finer than the spins show."""
+    tab = _ring_tab(model)
+    tab.edge_wave_group.setChecked(True)
+    damping_deg = 34.37746770784939
+    _ring(model)['orbit']['edge_wave']['edge_wave_damping_deg'] = damping_deg
+    tab.edge_wave_damp_spin.blockSignals(True)
+    tab.edge_wave_damp_spin.setValue(damping_deg)
+    tab.edge_wave_damp_spin.blockSignals(False)
+    tab.edge_wave_group.setChecked(False)
+    tab.edge_wave_group.setChecked(True)
+    assert _ring(model)['orbit']['edge_wave']['edge_wave_damping_deg'] == damping_deg
+
+
+def test_ring_edge_wave_toggle_takes_a_spin_edited_while_off(model: Any) -> None:
+    """A spin edited while the edge-wave group is off wins over the removed value."""
+    tab = _ring_tab(model)
+    tab.edge_wave_group.setChecked(True)
+    tab.edge_wave_group.setChecked(False)
+    tab.edge_wave_damp_spin.setValue(45.0)
+    tab.edge_wave_group.setChecked(True)
+    assert _ring(model)['orbit']['edge_wave']['edge_wave_damping_deg'] == 45.0
 
 
 def test_ring_edge_wave_spin_writes_sub_key(model: Any) -> None:

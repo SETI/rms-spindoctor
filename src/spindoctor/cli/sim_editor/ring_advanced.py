@@ -308,21 +308,41 @@ class RingAdvancedMixin(SimEditorBase):
         return group
 
     def _on_ring_edge_wave_toggled(self, idx: int, checked: bool) -> None:
-        """Insert or remove the orbit's edge_wave map."""
+        """Insert or remove the orbit's edge_wave map.
+
+        Removing the map keeps it on the tab, and re-enabling the group restores its
+        exact values for every key whose spin still shows that value, so turning the
+        group off and on leaves a loaded scene's values unrounded.  A key whose spin
+        was edited in between takes the spin's value.
+        """
         feature = self._ring_feature(idx)
         w = self._ring_tab_widget(idx)
         if feature is None or w is None:
             return
         orbit = feature.setdefault('orbit', {})
-        if checked:
-            orbit['edge_wave'] = {
-                'amp_px': float(w.edge_wave_amp_spin.value()),  # type: ignore[attr-defined]
-                'wavelength_px': float(w.edge_wave_wavelength_spin.value()),  # type: ignore[attr-defined]
-                'edge_wave_damping_deg': float(w.edge_wave_damp_spin.value()),  # type: ignore[attr-defined]
-                'lam0_deg': float(w.edge_wave_lam0_spin.value()),  # type: ignore[attr-defined]
-            }
-        else:
-            orbit.pop('edge_wave', None)
+        if not checked:
+            removed = orbit.pop('edge_wave', None)
+            if isinstance(removed, dict):
+                w.edge_wave_removed = removed  # type: ignore[attr-defined]
+            self._updater.request_update()
+            return
+        spins = {
+            'amp_px': w.edge_wave_amp_spin,  # type: ignore[attr-defined]
+            'wavelength_px': w.edge_wave_wavelength_spin,  # type: ignore[attr-defined]
+            'edge_wave_damping_deg': w.edge_wave_damp_spin,  # type: ignore[attr-defined]
+            'lam0_deg': w.edge_wave_lam0_spin,  # type: ignore[attr-defined]
+        }
+        # The tab carries a removed map only after the group was turned off once.
+        removed = getattr(w, 'edge_wave_removed', None) or {}
+        wave: dict[str, Any] = {}
+        for key, spin in spins.items():
+            shown = float(spin.value())
+            kept = removed.get(key)
+            if isinstance(kept, (int, float)) and round(float(kept), spin.decimals()) == shown:
+                wave[key] = float(kept)
+            else:
+                wave[key] = shown
+        orbit['edge_wave'] = wave
         self._updater.request_update()
 
     def _on_ring_edge_wave_value(self, idx: int, key: str, value: float) -> None:
