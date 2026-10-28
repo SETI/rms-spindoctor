@@ -278,17 +278,16 @@ the key's name says what the number means:
                                      partial_lines, missing_blocks, line_garble,
                                      pixel_spikes, dead_pixels, dead_columns
                                      (each capped at the lines, blocks, columns,
-                                     or pixels its events land on), and
-                                     radiation_transients (uncapped; per frame
-                                     at environment_factor 1 and
-                                     readout_dwell_sec 0, and scaled by
-                                     environment_factor * (exposure_sec +
-                                     readout_dwell_sec) / exposure_sec)
+                                     or pixels its events land on)
   expected_events_per_sec (float >= 0)
-                                     bright_dark_pairs only: the expected number
-                                     of pairs per second of exposure, drawn
-                                     Poisson and uncapped; the frame expects
-                                     this times exposure_sec
+                                     rate modes: the expected number of events
+                                     per second, drawn Poisson and uncapped.
+                                     bright_dark_pairs expects this times
+                                     exposure_sec.  radiation_transients
+                                     expects this times environment_factor *
+                                     (exposure_sec + readout_dwell_sec): it
+                                     collects hits during the readout dwell
+                                     too
   probability      (float in [0, 1]) every other mode except hot_pixels: the
                                      per-frame probability the mode fires at
                                      all (1.0 = always).  alternating_lines,

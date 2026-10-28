@@ -794,19 +794,23 @@ quantity it holds. The registry records which key each mode takes
 (``ArtifactMode.activation``):
 
 * **Count** modes draw a Poisson number of events per frame (lost lines, lost
-  blocks, spiked pixels, dead pixels and columns, radiation hits). Their key is
+  blocks, spiked pixels, dead pixels and columns). Their key is
   ``expected_events``, the expected number of events per frame, any non-negative
-  number. A telemetry loss caps the draw at the number of places its events can
-  land: the frame's lines for a line loss, its columns for ``dead_columns``, its
-  pixels for a pixel loss, and the compression-block count for
-  ``missing_blocks``. ``radiation_transients`` is uncapped, and it scales the
-  expectation by its ``environment_factor`` and by
-  ``(exposure_sec + readout_dwell_sec) / exposure_sec``, so its key is the
-  expected count per frame at the defaults (factor 1, zero dwell).
-* **Rate** mode ``bright_dark_pairs`` takes ``expected_events_per_sec``, the
-  expected number of pairs per second of exposure, any non-negative number. The
-  frame's expected count is that rate times ``exposure_sec``, and the draw is
-  uncapped.
+  number. Each caps the draw at the number of places its events can land: the
+  frame's lines for a line loss, its columns for ``dead_columns``, its pixels
+  for a pixel loss, and the compression-block count for ``missing_blocks``.
+* **Rate** modes ``bright_dark_pairs`` and ``radiation_transients`` take
+  ``expected_events_per_sec``, the expected number of events per second, any
+  non-negative number, and their draws are uncapped. For ``bright_dark_pairs``
+  the frame's expected count is that rate times ``exposure_sec``. A radiation
+  hit also lands while the frame waits for readout, and the entry's
+  ``environment_factor`` scales the radiation environment, so
+  ``radiation_transients`` expects
+  ``expected_events_per_sec * environment_factor * (exposure_sec +
+  readout_dwell_sec)``. A non-positive exposure counts as zero seconds, so such
+  a frame collects only the dwell's hits. The scene validator refuses a
+  non-positive ``exposure_sec``, so only a direct caller of the detector stage
+  can pass one.
 * **Probability** modes are commanded or periodic (a frame edit, a cutout, a
   quantization sub-mode, most detector effects). Their key is ``probability``,
   the per-frame probability in [0, 1] that the mode activates at all.
@@ -965,7 +969,7 @@ which mode's truth record is written first.
    * - ``radiation_transients``
      - cosmic-ray hits during integration and readout dwell
      - all CCD
-     - ``expected_events``
+     - ``expected_events_per_sec``
    * - ``bright_dark_pairs``
      - anti-blooming-mode vertical bright / dark pixel pairs
      - nac, wac
@@ -3079,7 +3083,8 @@ each mode's rendering stage (``detector`` or ``telemetry``), per-instrument
 availability, and parameter schema. Every mode carries one activation key (see
 :ref:`sim-artifact-activation-keys`): ``expected_events`` for a count mode (the
 expected number of events per frame, drawn Poisson), ``expected_events_per_sec``
-for ``bright_dark_pairs`` (the expected number of pairs per second of exposure),
+for a rate mode, ``bright_dark_pairs`` or ``radiation_transients`` (the expected
+number of events per second, drawn Poisson),
 ``probability`` for a commanded or periodic mode (the per-frame probability the
 mode fires), and ``pixel_fraction`` for ``hot_pixels`` (the fraction of pixels
 that are hot). ``dead_pixels`` and ``dead_columns`` take a fixed ``count``

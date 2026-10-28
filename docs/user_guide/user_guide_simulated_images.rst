@@ -122,15 +122,17 @@ on through exactly one key. The key's name says what its number means.
    The expected number of events per frame, such as lost lines, lost compression
    blocks, or spiked pixels. The simulator draws the actual number at random around this
    value, so ``missing_lines: {expected_events: 3.0}`` loses about three lines. Any
-   non-negative number is valid. Radiation hits (``radiation_transients``) are the one
-   exception to "per frame": their entry's ``environment_factor`` multiplies the number,
-   and a ``readout_dwell_sec`` adds hits in proportion to the extra time the frame waits
-   before readout.
+   non-negative number is valid.
 
 ``expected_events_per_sec``
-   For Cassini's bright and dark pixel pairs (``bright_dark_pairs``) only: the expected
-   number of pairs per second of exposure. A frame exposed for 0.5 seconds with
-   ``expected_events_per_sec: 10`` carries about five pairs.
+   The expected number of events per second, for Cassini's bright and dark pixel pairs
+   (``bright_dark_pairs``) and for radiation hits (``radiation_transients``). A frame
+   exposed for 0.5 seconds with ``bright_dark_pairs: {expected_events_per_sec: 10}``
+   carries about five pairs. Radiation hits also land while the frame waits for readout,
+   so their count is the rate times the entry's ``environment_factor`` times the
+   exposure plus the ``readout_dwell_sec``. A 0.5 second frame that waits 1.5 seconds,
+   with ``radiation_transients: {expected_events_per_sec: 10, readout_dwell_sec: 1.5}``,
+   carries about 20 hits.
 
 ``probability``
    The chance, from 0 to 1, that a defect affecting the whole frame happens at all, such
