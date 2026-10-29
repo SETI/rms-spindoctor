@@ -34,7 +34,7 @@ is untouched for three of the four instruments.
 | **B — triage** | Done, reusable | Nothing structural; the ten-glob-per-frame results-tree scan is the pain the results index does not yet serve (#465) |
 | **C — review** | Done, reusable | Batch 006's seven manual-nav follow-ups are still queued (`_work/cohort_curation/batch_006_followups.yaml`), with three class reassignments to apply during that pass |
 | **D — sidecars** | Partly done | 75 sidecars committed; `faint_stars` is empty and `body_mostly_offscreen` holds 1 of its 4 (#172), and the per-class minima are not enforced by any test (#240) |
-| **E — baselines and consumption** | Partly done | Baselines exist and are re-ratcheted per change, but eleven of the 75 frames disagree with their sidecars locally (#288, #744, #639); no consumer study has been run (#230, #225, #355) |
+| **E — baselines and consumption** | Partly done | Baselines exist and are re-ratcheted per change, but eight of the 75 frames are expected to disagree with their sidecars locally (#288, #744, #639; sixteen at the last run, before eight were re-pinned on 2026-10-27 and not run since); no consumer study has been run (#230, #225, #355) |
 
 **Library state.** `tests/integration/image_library/images/` holds 75
 sidecars. Per class against the first-stage budget in the appendix:
@@ -293,8 +293,10 @@ analyses never run per-PR.
    can be fully automated).
 
 A sixth stream runs alongside rather than after: the library that exists is
-red. Eleven of the 75 frames disagree with their sidecars in the local
-integration environment (#288, #744, #639), which makes "no new failures
+red. Eight of the 75 frames are expected to disagree with their sidecars in
+the local integration environment (#288, #744, #639; sixteen at the last
+run, before eight frames were re-pinned on 2026-10-27 and not run since),
+which makes "no new failures
 against `main`" the only gate a navigation-affecting branch can clear. Some of
 the reds are curation decisions: the pins awaiting the call in #483, and the
 Galileo truth in #744. Reconciling those is curation work and belongs to this

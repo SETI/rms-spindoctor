@@ -293,6 +293,11 @@ def test_ring_edge_nav_multi_edge_with_undetected_dominant_edges_not_spurious(
         'coarse_ncc_search_scored',
         lambda *_args, **_kwargs: CoarseSearchResult(offset_vu=(1, -1), score=1.0),
     )
+    monkeypatch.setattr(
+        nav_technique_ring_edge,
+        'coarse_edge_strength_search_scored',
+        lambda *_args, **_kwargs: CoarseSearchResult(offset_vu=(1, -1), score=1.0),
+    )
 
     result = technique.navigate([feat_a, feat_b, feat_c], context)
     assert isinstance(result.diagnostics, RingEdgeDiagnostics)
@@ -366,6 +371,11 @@ def test_ring_edge_nav_rejected_edge_on_detected_structure_stays_spurious(
         'coarse_ncc_search_scored',
         lambda *_args, **_kwargs: CoarseSearchResult(offset_vu=(1, -1), score=1.0),
     )
+    monkeypatch.setattr(
+        nav_technique_ring_edge,
+        'coarse_edge_strength_search_scored',
+        lambda *_args, **_kwargs: CoarseSearchResult(offset_vu=(1, -1), score=1.0),
+    )
 
     result = technique.navigate([feat_a, feat_b], context)
     assert result.spurious is True
@@ -432,6 +442,11 @@ def test_ring_edge_nav_rank1_well_fit_subset_stays_spurious(
     monkeypatch.setattr(
         nav_technique_ring_edge,
         'coarse_ncc_search_scored',
+        lambda *_args, **_kwargs: CoarseSearchResult(offset_vu=(1, -1), score=1.0),
+    )
+    monkeypatch.setattr(
+        nav_technique_ring_edge,
+        'coarse_edge_strength_search_scored',
         lambda *_args, **_kwargs: CoarseSearchResult(offset_vu=(1, -1), score=1.0),
     )
 
@@ -501,6 +516,11 @@ def test_ring_edge_nav_marks_spurious_when_every_edge_fits_poorly(
         'coarse_ncc_search_scored',
         lambda *_args, **_kwargs: CoarseSearchResult(offset_vu=(1, -1), score=1.0),
     )
+    monkeypatch.setattr(
+        nav_technique_ring_edge,
+        'coarse_edge_strength_search_scored',
+        lambda *_args, **_kwargs: CoarseSearchResult(offset_vu=(1, -1), score=1.0),
+    )
 
     result = technique.navigate(features, context)
     assert result.spurious is True
@@ -556,6 +576,11 @@ def test_ring_edge_nav_single_edge_low_inlier_fraction_stays_spurious(
     monkeypatch.setattr(
         nav_technique_ring_edge,
         'coarse_ncc_search_scored',
+        lambda *_args, **_kwargs: CoarseSearchResult(offset_vu=(1, -1), score=1.0),
+    )
+    monkeypatch.setattr(
+        nav_technique_ring_edge,
+        'coarse_edge_strength_search_scored',
         lambda *_args, **_kwargs: CoarseSearchResult(offset_vu=(1, -1), score=1.0),
     )
 
@@ -632,6 +657,11 @@ def test_ring_edge_nav_flat_parallel_edges_with_minority_snaps_not_spurious(
         'coarse_ncc_search_scored',
         lambda *_args, **_kwargs: CoarseSearchResult(offset_vu=(-2, 0), score=1.0),
     )
+    monkeypatch.setattr(
+        nav_technique_ring_edge,
+        'coarse_edge_strength_search_scored',
+        lambda *_args, **_kwargs: CoarseSearchResult(offset_vu=(-2, 0), score=1.0),
+    )
 
     result = technique.navigate(features, context)
     assert isinstance(result.diagnostics, RingEdgeDiagnostics)
@@ -695,6 +725,11 @@ def test_ring_edge_nav_rank1_tangent_slide_not_gated(
     monkeypatch.setattr(
         nav_technique_ring_edge,
         'coarse_ncc_search_scored',
+        lambda *_args, **_kwargs: CoarseSearchResult(offset_vu=(-2, 0), score=1.0),
+    )
+    monkeypatch.setattr(
+        nav_technique_ring_edge,
+        'coarse_edge_strength_search_scored',
         lambda *_args, **_kwargs: CoarseSearchResult(offset_vu=(-2, 0), score=1.0),
     )
 

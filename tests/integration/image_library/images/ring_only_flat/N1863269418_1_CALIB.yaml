@@ -10,13 +10,13 @@ scene_tags:
 - ring_only_flat
 - keeler_gap
 ground_truth:
-  offset_dv_px: 0.0
-  offset_du_px: -3.5032
+  offset_dv_px: -6.7504
+  offset_du_px: -17.8079
   offset_uncertainty_px: 1.0
   constraint:
     type: rank_1
-    normal_angle_deg: 90.0
-    offset_along_normal_px: -3.5032
+    normal_angle_deg: 69.24
+    offset_along_normal_px: -19.0444
     uncertainty_px: 1.0
   source: operator_verified
   operator: rfrench
@@ -29,18 +29,21 @@ ground_truth:
     apparent curvature radius 147384 px (straight across the FOV), ring
     opening -13.45 deg, no body in FOV; CL1+GRN, year 2017.
     Rank-1 scene: only the offset component along the edge normal is
-    operator-verified (vote y, 2026-07-13; per the batch instructions the
+    operator-verified (vote y, 2026-07-13, along the then-recorded
+    normal; per the batch instructions the
     along-edge component carries no alignment judgment). The (dv, du) pair
     is the ensemble's representative point on the constraint line.
     normal_angle_deg comes from aggregate_edge_normal_angle_deg on the
     frame's two straight RING_EDGE features (Keeler-A Ring OE IER, Keeler
-    IEG): exactly 90.0 deg (edges run along v; only du is observable).
+    IEG), taken from the straight edge's own line: 69.24 deg
+    (re-pinned 2026-10-27; see below).
     The two catalog stars in the FOV are gated (ring-occluded / below
     SNR), so no star technique contributes.
     Pipeline at review and at sidecar time: status=success,
     confidence=0.952, rank=high, status_reason=rank_1_only; RingEdgeNav
-    raw fit (-44.4916, -3.5032) projects to -3.5032 px along the normal,
-    identical to the voted representative point.
+    raw fit (-44.4916, -3.5032) projected to -3.5032 px along the normal
+    recorded at the time (90.0 deg), identical to the voted representative
+    point.
     The ring radial orbit-uncertainty channel prices each consumed edge's
     own catalog orbit-solution rms as a fully-correlated radial
     displacement.  This frame fuses the Keeler-A Ring OE IER (rms 1.006 km)
@@ -48,9 +51,9 @@ ground_truth:
     km/px, giving an LM-weight-weighted effective sigma of 5.478 px along
     the edge normal (the fit is rank-1, so the term lands entirely on the
     observable normal axis); the fused sigma 5.48 px exceeds the medium
-    tier's 2 px cap.  The RingEdgeNav fit and its projection onto the
-    operator-verified normal are those recorded above; only the reported
-    uncertainty differs.
+    tier's 2 px cap.  The RingEdgeNav fit is the one
+    recorded above; its projection onto the pinned normal is given in the
+    2026-10-27 paragraph below; only the reported uncertainty differs.
     CONTESTED, not settled: catalog rms is an orbit-fit residual that mixes
     a coherent radius error with longitude-varying resonant wander, which
     does not displace an edge coherently (the A-ring outer edge measures
@@ -60,6 +63,17 @@ ground_truth:
     pricing only the m=0 part is the principled fix and is not
     implemented.  Five operator-verified ring_only_flat frames are priced
     low under this assumption.
+    Re-pinned 2026-10-27 (operator decision): the rank-1 constraint was
+    re-expressed along the straight edge's own normal, 69.24 deg /
+    -19.0444 px. The old value, 90.0 deg / -3.5032 px, used the rings
+    model's quantized per-vertex normal, which RingEdgeNav no longer
+    uses for a straight edge's rank-1 axis. The raw fit voted on is
+    unchanged: (-44.4916, -3.5032) projects to -19.0460 px along the new
+    normal, and (dv, du) is the foot of the new constraint line (along *
+    (cos, sin) of the angle). The original vote was cast on an overlay
+    rendered at the old representative point, 15.8 px across the edge
+    from the new constraint line, so a fresh operator look at the raw
+    fit is still welcome.
 expected:
   status: success
   confidence_tier: low
