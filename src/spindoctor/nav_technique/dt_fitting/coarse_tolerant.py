@@ -121,6 +121,9 @@ class TolerantEdgeStrength:
         )
         self._edge_mask = edge_mask
         self._valid_mask = valid_mask
+        # The edge pixels a plain match fraction may count: a vertex on an excluded
+        # pixel stays in the denominator but never matches.
+        self._counted = edge_mask if valid_mask is None else edge_mask & valid_mask
         self._tolerance_px = tolerance_px
         self._base_v = terms.base_v
         self._base_u = terms.base_u
@@ -176,7 +179,8 @@ class TolerantEdgeStrength:
 
         The tolerant maximum is by construction a shift where vertices may sit a
         pixel or two off their edge pixels, so its own plain match fraction (the
-        fraction of in-bounds vertices exactly on a detected edge pixel) can be
+        fraction of in-bounds vertices exactly on a detected edge pixel that
+        ``valid_mask`` admits) can be
         near zero for a right alignment.  This is the largest plain fraction over
         the integer shifts within ``tolerance_px`` of ``offset_vu`` on each axis:
         what the best exact placement in the same basin achieves.
@@ -198,9 +202,7 @@ class TolerantEdgeStrength:
                 )
                 if not inside.any():
                     continue
-                best = max(
-                    best, float(self._edge_mask[shifted_v[inside], shifted_u[inside]].mean())
-                )
+                best = max(best, float(self._counted[shifted_v[inside], shifted_u[inside]].mean()))
         return best
 
     def compare(
@@ -261,7 +263,7 @@ class TolerantEdgeStrength:
         vertices to ``valid_mask``.  The reported
         :attr:`CoarseSearchResult.score` is the winning shift's plain
         per-vertex match fraction, the fraction of its in-bounds vertices on a
-        detected edge pixel, as
+        detected edge pixel that ``valid_mask`` admits, as
         :func:`~spindoctor.nav_technique.dt_fitting.coarse_edge_strength_search_scored`
         reports it.
 
@@ -319,5 +321,5 @@ class TolerantEdgeStrength:
         win_v = base_v + best_dv
         win_u = base_u + best_du
         in_bounds = (win_v >= 0) & (win_v < height) & (win_u >= 0) & (win_u < width)
-        match_fraction = float(self._edge_mask[win_v[in_bounds], win_u[in_bounds]].mean())
+        match_fraction = float(self._counted[win_v[in_bounds], win_u[in_bounds]].mean())
         return CoarseSearchResult(offset_vu=(best_dv, best_du), score=match_fraction)

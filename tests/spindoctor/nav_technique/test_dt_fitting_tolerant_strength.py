@@ -113,6 +113,18 @@ def test_tolerant_score_ignores_an_edge_outside_the_valid_mask() -> None:
     assert score == 0.0
 
 
+def test_best_match_fraction_ignores_an_edge_outside_the_valid_mask() -> None:
+    """A masked-out edge within the tolerance cannot lift the basin's match fraction."""
+    vertices, normals = _vertical_edges((20.0,))
+    edge_mask, gradient = _image_with_steps({21: 4.0})
+    valid = np.ones(edge_mask.shape, dtype=bool)
+    valid[:, 21] = False
+    fraction = TolerantEdgeStrength(
+        edge_mask, gradient, vertices, normals, tolerance_px=2, valid_mask=valid
+    ).best_match_fraction((0, 0))
+    assert fraction == 0.0
+
+
 @pytest.mark.parametrize(('edge_vu', 'expected'), [((11, 11), 3.0), ((10, 11), 0.0)])
 def test_tolerant_score_steps_along_the_diagonal_of_a_diagonal_normal(
     edge_vu: tuple[int, int], expected: float
