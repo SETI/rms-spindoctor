@@ -258,38 +258,34 @@ results only.
 A result joins the consensus by agreeing with the subset's sponsor, which can be one
 member of a collapsed set (a precise two-star match, say), while the combine fuses the set
 through its representative (the multi-star fit, perhaps less precise). Each other result
-is therefore held to the agreement test again against every collapsed set's
-representative
+is therefore held to the agreement test again against every collapsed set's representative
 (:func:`~spindoctor.nav_orchestrator.ensemble_consensus.leave_out_compromising_fusions`):
 a Mahalanobis agreement inside the pixel floor stands, and otherwise the pair must agree
 by either test and fuse with a compromise of at most ``agreement_compromise_px``. The
 result must also lie within ``agreement_sigma`` (Mahalanobis distance) of at least one
 member of the set. A result that agrees only through the pixel floor, several standard
 deviations from every member, contradicts the set: fused with it, the result drags the
-answer toward itself by up to the compromise limit when the two are about equally
-precise, and outweighs the set when it is the more precise. Any member counts, including
-a one-star match whose sigma is the size of its own offset. On F ring frame N1492083837
-that keeps a ring edge 5.3 standard deviations from the star refine, and the answer is
-0.55 px from the reference pointing rather than 0.08 px, while counting only members
-precise enough to resolve the separation loses other frames. The test is made against
-collapsed sets only, since the combine fuses a set through a member other than the one a
-result agreed with when the group formed. Two single techniques inside the pixel floor
-are combined however far apart statistically they lie, unless one seeded the other (the
-seeded-pair test of Step 3). When the pair fails, the side
-less precise along the pair's separation is left out of the combine and reported in
+answer toward itself by up to the compromise limit when the two are about equally precise,
+and outweighs the set when it is the more precise. Any member satisfies that part,
+including a one-star match whose sigma is the size of its own offset (a further test below
+holds the result to the set's sharper members). The test is made against collapsed sets
+only, since the combine fuses a set through a member other than the one a result agreed
+with when the group formed. Two single techniques inside the pixel floor are combined
+however far apart statistically they lie, unless one seeded the other (the seeded-pair
+test of Step 3). When the pair fails, the side less precise along the pair's separation is
+left out of the combine and reported in
 :attr:`~spindoctor.nav_orchestrator.nav_result.NavResult.excluded_from_consensus` (the
-disagreement penalty applies; it is not a runner-up): the result, or the whole set. A
-set is one measurement reported by several techniques, so its precision is its most
-precise member's along the separation (a member that does not observe that direction
-lends none). A pair in which either side seeded the other is left to the seeded-pair test
-of Step 3. On F ring frames N1492059417 and N1492059454 a ring-edge fit locked 3.5-3.8 px
-off radially (a 0.6 px sigma there, 4.3-4.7 sigma from the stars) joined through the
-0.09 px two-star match and was fused with the 0.5-0.75 px star representative, moving
-the answer 1.2-1.7 px toward the ring; the stars alone are within 0.25 px of the
-reference pointing. Over the 20,584 frames of the full F ring run, replayed offline from
-their recorded per-technique results with this branch combined with the sparse-star
-work, the check moves 65 answers (9 from 1-2 px and 4 from over 2 px to within 1 px;
-none past 1 px).
+disagreement penalty applies; it is not a runner-up): the result, or the whole set. A set
+is one measurement reported by several techniques, so its precision is its most precise
+member's along the separation (a member that does not observe that direction lends none).
+A pair in which either side seeded the other is left to the seeded-pair test of Step 3. On
+F ring frames N1492059417 and N1492059454 a ring-edge fit locked 3.5-3.8 px off radially
+(a 0.6 px sigma there, 4.3-4.7 sigma from the stars) joined through the 0.09 px two-star
+match and was fused with the 0.5-0.75 px star representative, moving the answer 1.2-1.7 px
+toward the ring; the stars alone are within 0.25 px of the reference pointing. Over the
+20,584 frames of the full F ring run, replayed offline from their recorded per-technique
+results with this branch combined with the sparse-star work, the check moves 65 answers (9
+from 1-2 px and 4 from over 2 px to within 1 px; none past 1 px).
 
 The test against every member catches a result that the compromise limit lets through.
 On F ring frame N1862514394 a ring edge 4.8 px from 39 agreeing stars, 4.6 standard
@@ -305,6 +301,35 @@ reference. A star set left
 standing alone earns no agreement boost and carries the disagreement penalty, so 351 of
 those answers are at the medium tier. 85% of them are within 0.5 px of the reference.
 
+A result that passes both tests must also lie within ``agreement_sigma`` of every member
+other than the representative that is more precise than the result along the line between
+them, whose precision its own features check, and which neither seeded the result nor was
+seeded by it (``_contradicts_a_sharper_member`` in
+:mod:`~spindoctor.nav_orchestrator.ensemble_consensus`). A star result needs at least
+three distinct stars to count: one star has no residual, so its sigma is the centroid
+precision the star predicts, and two stars check only each other (a two-star match reports
+that predicted bound). The representative is left to the fusion test above, which already
+judges the pair the combine fuses, and a seeded pair is left to the seeded-pair test of
+Step 3. When this test fails, the result is left out, since the member that refuses it is
+the more precise along the line between them. The test catches a result that agrees with a
+loose representative while contradicting a sharper member. On the NAC frames N1492059380,
+N1492059602, and N1492083763 of the Cassini observation ISS_006RI_LPHRLFMOV001_PRIME, a
+ring edge fit 1.7-2.0 px from the reference pointing lay 1.8-1.9 standard deviations from
+the star refine representing the set (0.57-0.70 px along the line to the edge) and 2.2-2.4
+from the star field fit in the same set (0.43-0.53 px, on seven, seven, and four stars).
+Fused through the refine it moved the answer from 0.1-0.4 px to 1.01-1.05 px from the
+reference pointing; left out, the answer is the stars'. On N1492083837 a ring edge 5.3
+standard deviations from the six-star refine, kept by the any-member test through the
+one-star match, is left out, and the answer moves from 0.55 px to 0.07 px. A test against
+the most precise member alone, a two-star match included, changes 300 of the validation
+answers described below. One that holds the representative to the test as well changes 57
+more of them (49 closer to the reference pointing, 8 farther) and 98 more of the full F
+ring run (81 closer, 16 farther). It also takes N1776095484 from 0.6 px to 1.4 px, where
+stars confirm the loss: the seven-star refine representing the set is 1.4 px from the
+reference pointing and the five-star fit in the same set 0.2 px. One that also tests a
+member the result seeded moves 16 answers on those two sets away from the reference
+pointing, each through a refine whose prior the result helped form.
+
 The same step settles two star results that consumed no star in common and whose
 translations lie more than ``agreement_sigma`` apart (Mahalanobis distance). Each places
 the whole star field, so they disagree about which detections are the catalog stars. When
@@ -318,6 +343,31 @@ standard deviations), which the selection's seeded-pair test, at a compromise of
 would fuse 1.06 px from the reference pointing. With the match left out the answer is 0.25
 px from it. Over the replayed full F ring run the rule acts on three frames, and each
 answer is about 0.3 px or less from the reference.
+
+Seeding does decide a closer count. A star result seeded by a star estimator it
+contradicts searched for its stars in windows that estimator placed, and found others; it
+is left out unless it matched at least twice as many distinct stars as that estimator, and
+this is decided before the outnumbering above, so a drifted refine never contests its seed
+there. A seeded pair that the selection keeps apart never reaches this step; the rule acts
+when a third result agrees with both and brings them into one group. On WAC frame
+W1614941856 the star field fit locked on five stars 0.26 px from the reference pointing,
+once that pointing's known offset on WAC frames is allowed for, and the refine it seeded
+moved 3.2 px (5.2 standard deviations) onto three ring peaks. A vague ring annulus agreed
+with both, so the group held all three, and the fused answer was 2.45 px from the
+reference pointing; with the refine left out it is 0.75 px. WAC frames W1604284464 and
+W1592123714 (three stars against two) move from 1.40 px and 0.86 px to 0.71 px and 0.62
+px.
+
+The sharper-member test and the seeded star rule were measured by replaying the ensemble
+on recorded per-technique results. On the 7,091 validation frames of the faint-star work
+combined with the sparse-star and ring seed work, they change 15 answers, each closer to
+the reference pointing: five move within 1 px (from 1.01-2.45 px) and ten stay within 1
+px. Over the 20,584 frames of the full F ring run they change 16 answers, each closer and
+none across the 1 px or 2 px line, and over the spokes run none. A navigation rerun of the
+28 frames an earlier form of the rules changed, and of 200 others, reproduced the replay
+on every frame, and a rerun of the 28 with the final rules did as well. A result left out
+carries the disagreement penalty, so 11 of the 15 answers drop from the high tier to
+medium.
 
 Step 6 — precision-weighted merge
 ---------------------------------

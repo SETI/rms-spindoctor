@@ -36,6 +36,10 @@ _FULLY_OBSERVED = 0.999
 #: are comparable evidence, and the combine weighs them by their covariances.
 _OUTNUMBERING_FACTOR = 2
 
+#: Fewest distinct stars on which a star result's precision is checked by its own
+#: residuals: one star has none, and two check only each other.
+_CHECKED_STAR_COUNT = 3
+
 __all__ = [
     'ConsensusSelection',
     'FusionPruning',
@@ -461,6 +465,17 @@ def leave_out_compromising_fusions(
     several standard deviations from every member, contradicts the set: fusing it
     moves the answer toward it by as much as the compromise limit when the two are
     about equally precise, and lets it outweigh the set when it is the more precise.
+    Nor may it lie more than ``agreement_sigma`` from any other member that measured
+    the set more precisely than the estimator along the line between them.  The
+    combine fuses the set through its representative, whose own covariance can be
+    the looser view, so an estimator that passes the fusion test against the
+    representative alone can still pull the answer away from what the set's
+    sharpest member measured.  Such a member counts only when its own features
+    check its precision: a star result on one or two stars reports a precision
+    nothing checks (see :func:`_precision_is_measured`).  Nor does a member that the
+    estimator seeded, or that seeded it, which is left to the seeded-pair test.  The
+    member that refuses the estimator is more precise than it along the line between
+    them, so the estimator is the side left out.
 
     When the pair fails, the side less precise along the pair's separation is left
     out: the estimator, or the whole set (its representative and every member).
@@ -481,7 +496,11 @@ def leave_out_compromising_fusions(
     Results are decided from the most stars down, so the outcome does not depend on
     their order.  Seeding does not exempt such a pair: a
     refine seeded at a two-star match that finds nine stars elsewhere has tested the
-    match and found the stars somewhere else.
+    match and found the stars somewhere else.  Seeding does decide a closer count.
+    A star result seeded by a star estimator it contradicts searched for its stars
+    where that estimator placed them and found others; unless it matched at least
+    ``_OUTNUMBERING_FACTOR`` times as many distinct stars as that estimator, and
+    provided the estimator's precision is checked by its own stars, it is left out.
 
     Parameters:
         estimators: The resolved independent estimators; each collapsed set's
@@ -530,6 +549,17 @@ def leave_out_compromising_fusions(
                 agreement_pixel_floor=agreement_pixel_floor,
                 rcond=rcond,
             ):
+                if _contradicts_a_sharper_member(
+                    est,
+                    group,
+                    agreement_sigma=agreement_sigma,
+                    agreement_pixel_floor=agreement_pixel_floor,
+                    rcond=rcond,
+                ):
+                    # The member that refuses the joiner is more precise than it along
+                    # the line between them, so the joiner is the side to leave out.
+                    dropped.add(k)
+                    left_out.append(est)
                 continue
             set_variance = min(_variance_along(member, terms.separation_vu) for member in group)
             if _variance_along(est, terms.separation_vu) >= set_variance:
@@ -576,6 +606,15 @@ def _outnumbered_star_results(
     contradicts it.  Estimators are decided from the most stars down, so the outcome
     does not depend on the order of ``estimators``.
 
+    Before that, an estimator seeded by a star estimator it contradicts (a name in its
+    ``prior_source_techniques`` is that estimator's, or a member's of the set that
+    estimator represents) is left out unless it matched at least
+    ``_OUTNUMBERING_FACTOR`` times as many distinct stars; it then takes no part in
+    the outnumbering.  The seed counts only when its precision is checked by its own
+    stars (:func:`_precision_is_measured`).  A collapsed set's representative carries
+    the seeds every member shares, so a set holding an unseeded member is never the
+    seeded side.
+
     Parameters:
         estimators: The resolved independent estimators.
         members: Each collapsed set's members keyed by ``id`` of its representative;
@@ -610,7 +649,27 @@ def _outnumbered_star_results(
         return terms.translation_mahalanobis > agreement_sigma
 
     order = sorted(stars, key=lambda k: (-len(stars[k]), k))
-    out: set[int] = set()
+    # A star result seeded by a star estimator it contradicts is left out first,
+    # unless it outnumbers that seed by the factor.  Its windows were placed where the
+    # seed put the stars, so landing outside the seed's agreement on fewer stars is a
+    # drift onto other detections (on W1614941856 a refine seeded at a 5-star field
+    # moved 3.2 px onto 3 ring peaks, #767).  The seed's own precision must be
+    # checked by its stars, or the contradiction rests on a predicted sigma.  Deciding
+    # these first keeps a drifted refine from contesting its seed below.
+    names = {
+        k: {member.technique_name for member in members.get(id(estimators[k]), [estimators[k]])}
+        for k in stars
+    }
+    out: set[int] = {
+        j
+        for j in order
+        for k in order
+        if j != k
+        and estimators[j].prior_source_techniques & names[k]
+        and _precision_is_measured(estimators[k])
+        and len(stars[j]) < _OUTNUMBERING_FACTOR * len(stars[k])
+        and contradicts(k, j)
+    }
     for i, k in enumerate(order):
         if k in out:
             continue
@@ -655,6 +714,71 @@ def _consistent_with_a_member(
         if terms.mahalanobis <= agreement_sigma:
             return True
     return False
+
+
+def _contradicts_a_sharper_member(
+    est: NavTechniqueResult,
+    group: list[NavTechniqueResult],
+    *,
+    agreement_sigma: float,
+    agreement_pixel_floor: float,
+    rcond: float,
+) -> bool:
+    """Return whether a result lies apart from a set member that measured more precisely.
+
+    A member counts when it is not the representative (the first member, which the
+    caller's fusion test judges), the result did not seed its prior (such a pair is
+    left to the selection's seeded-pair test; the caller already skips a result that
+    a member seeded), its precision is
+    checked by its own features (:func:`_precision_is_measured`), and it is more
+    precise than the result along the line between them.  A member that does not
+    observe that direction is not more precise along it.
+
+    Parameters:
+        est: The result tested against the set.
+        group: The collapsed set's members, representative first.
+        agreement_sigma: Maximum Mahalanobis distance (:func:`_pair_terms`) for
+            agreement.
+        agreement_pixel_floor: Translation distance (pixels) of the pixel-floor agreement,
+            passed through to :func:`_pair_terms`.
+        rcond: rcond passed to ``pinvh``.
+
+    Returns:
+        True when some counted member lies more than ``agreement_sigma`` from ``est``.
+    """
+    for member in group[1:]:
+        if est.technique_name in member.prior_source_techniques or not _precision_is_measured(
+            member
+        ):
+            continue
+        terms = _pair_terms(est, member, agreement_pixel_floor=agreement_pixel_floor, rcond=rcond)
+        if terms.mahalanobis > agreement_sigma and _variance_along(
+            member, terms.separation_vu
+        ) < _variance_along(est, terms.separation_vu):
+            return True
+    return False
+
+
+def _precision_is_measured(result: NavTechniqueResult) -> bool:
+    """Return whether a result's precision is checked by its own features.
+
+    A star result (:data:`STAR_CONSENSUS_TECHNIQUES`) on fewer than
+    ``_CHECKED_STAR_COUNT`` distinct stars reports a precision nothing checks: one
+    star has no residual, so its sigma is the centroid precision the star predicts,
+    and two stars check only each other.  Every other result's covariance comes from
+    the scatter of the features it fitted.
+
+    Parameters:
+        result: The result.
+
+    Returns:
+        False for a star result on fewer than ``_CHECKED_STAR_COUNT`` distinct stars;
+        True otherwise.
+    """
+    return (
+        result.technique_name not in STAR_CONSENSUS_TECHNIQUES
+        or len(set(result.feature_ids)) >= _CHECKED_STAR_COUNT
+    )
 
 
 def _seeded_either_way(est: NavTechniqueResult, group: list[NavTechniqueResult]) -> bool:
