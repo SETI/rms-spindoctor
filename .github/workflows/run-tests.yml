@@ -81,7 +81,23 @@ jobs:
         run: |
           python -m pip install -e ".[dev]"
 
+      # The PDS3 dataset tests read volume index files from the live archive,
+      # which times out under the suite's parallel load (#820). The navigator's
+      # index cache (FileCache 'nav_pds3_index') is kept between runs, so a run
+      # downloads only the index files the cache lacks. A published volume's index
+      # doesn't change; the key follows the dataset tests, and a cache is saved
+      # only by a job that succeeds, so it never holds a partial set.
+      - name: Cache PDS3 index files
+        uses: actions/cache@v6
+        with:
+          path: ${{ runner.temp }}/filecache/_filecache_nav_pds3_index
+          key: pds3-index-${{ hashFiles('tests/spindoctor/dataset/test_dataset_pds3_*.py') }}
+          restore-keys: |
+            pds3-index-
+
       - name: Test with coverage
+        env:
+          FILECACHE_CACHE_ROOT: ${{ runner.temp }}/filecache
         run: |
           export PDS3_HOLDINGS_DIR=https://pds-rings.seti.org/holdings
           export PDS4_HOLDINGS_DIR=https://pds-rings.seti.org/pds4
