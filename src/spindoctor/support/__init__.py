@@ -12,6 +12,12 @@ Modules:
     ``image``
         Two-dimensional array helpers: shifting, padding, cropping, normalization,
         and FFT-related image operations.
+    ``ck_type3``
+        ``ck_type3_attitudes`` -- the attitude a type 3 C-kernel gives, read without
+        furnishing the kernel, so the SPICE kernel pool is left as it was.
+    ``exposure_motion``
+        ``ExposureMotion`` -- a camera's turning during one exposure as two rotations
+        of J2000 -- and the helpers that derive it from attitudes or a mean rate.
     ``cmatrix``
         ``compute_pointing`` and its supporting types: the corrected and uncorrected
         C-matrices a navigated offset implies, in the SPICE camera-frame convention.

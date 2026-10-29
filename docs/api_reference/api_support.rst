@@ -13,6 +13,11 @@ spindoctor.support
    :undoc-members:
    :show-inheritance:
 
+.. automodule:: spindoctor.support.ck_type3
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 .. automodule:: spindoctor.support.cmatrix
    :members:
    :undoc-members:
@@ -39,6 +44,11 @@ spindoctor.support
    :show-inheritance:
 
 .. automodule:: spindoctor.support.exceptions
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: spindoctor.support.exposure_motion
    :members:
    :undoc-members:
    :show-inheritance:

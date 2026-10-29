@@ -230,10 +230,54 @@ sigma of 0.28 to 0.36 px is conservative.
 
 When the per-image smear length exceeds the anisotropic-smear threshold the PSF is
 replaced by a smear-aware kernel built from the per-image smear vector via
-:func:`~spindoctor.nav_model.stars.smeared_psf.compute_smear_vector_px`; the kernel has elongated
+:func:`~spindoctor.nav_model.stars.smeared_psf.compute_smear_vector_px` (see `Exposure
+motion`_ for where its ends come from); the kernel has elongated
 support, and the smear vector also rotates the CRLB covariance along the smear direction.
 Stars whose smear length exceeds the per-instrument ``max_smear`` cap are dropped from the
 emission set, as are stars fainter than the limiting magnitude.
+
+Exposure motion
+---------------
+
+A star's smear runs from where the star lands at the start of the exposure to where it
+lands at the end, and
+:func:`~spindoctor.nav_model.stars.smeared_psf.exposure_ends_uv` gives both ends for the
+catalog projection and for the frame-center smear vector alike. By default it projects
+the star's direction through the observation's own pointing at the two instants
+(``tfrac`` 0 and 1).
+
+An observation whose
+:meth:`~spindoctor.obs.obs_snapshot.ObsSnapshot.exposure_motion` returns an
+:class:`~spindoctor.support.exposure_motion.ExposureMotion` supplies the camera's turning
+from elsewhere. The motion is two rotations of J2000: a star whose direction is
+:math:`d` lands, at the start of the exposure, where the direction
+:math:`W_{\mathrm{start}}\,d` lands at mid-exposure, and at the end where
+:math:`W_{\mathrm{end}}\,d` does. With :math:`C(t)` the rotation from J2000 into the
+camera frame, :math:`W(t) = C(t_{\mathrm{mid}})^{\mathsf{T}} C(t)`, from which a constant
+rotation between the spacecraft bus and the camera cancels, so a bus attitude history
+serves every camera. The turned directions are projected through the pointing at
+mid-exposure, so a star's predicted position (its mid-exposure position) and the absolute
+pointing remain the observation's own and only the smear and the edge test on the
+smear's ends change. A host that needs this is one whose pointing kernels describe the
+camera's turning over an exposure poorly; the instrument chapters say which do and where
+their motion comes from (:doc:`instruments/cassini_iss`).
+
+:func:`~spindoctor.support.ck_type3.ck_type3_attitudes` reads such a motion from a type 3
+C-kernel without furnishing it. The file is opened through the DAF routines, the segments
+of one object are searched last first, and an attitude between two pointing instances of
+one interpolation interval turns from the first toward the second at a constant rate about
+the axis of the rotation between them, which is SPICE's own type 3 rule. It agrees with
+``ckgp`` within 1e-14 on the test kernels, which have up to three interpolation intervals,
+extend past the first time-tag directory entry, and carry angular velocity or not. Nothing
+enters the kernel pool, so every ``pxform`` and ``ckgp`` answers afterward exactly as
+before.
+
+A motion may also vouch for its predicted smear through
+:attr:`~spindoctor.support.exposure_motion.ExposureMotion.max_streak_to_predicted`, the
+largest ratio of a measured streak to the prediction its host has found; that sets the
+limits on the measured streak described under `Measured streak`_. The model records what
+the motion came from as ``smear_source`` in its metadata, and in the log line that
+reports the frame-center smear vector.
 
 Measured streak
 ---------------
@@ -245,18 +289,25 @@ box placed on that pixel measures a random point along the streak. On F ring fra
 ``N1605530694``, whose stars draw 6 px streaks along the lines, the brightest pixels of 22
 stars fall into two clusters 2.4 px apart along the streak.
 
-The predicted smear is a poor guide to the streak itself. On F ring frames predicted to
-smear 4.5 to 8 px, the streak the stars draw is a median 0.6 times the predicted length
-and about 10 to 20 degrees from the predicted direction, and whole sequences predicted to
-smear 6 px draw streaks shorter than 2 px. The model therefore measures the streak on the
-image when it emits its features:
+The streak a frame's stars draw is taken from the image wherever the image shows one, and
+the predicted smear (see `Exposure motion`_) decides whether to look and whether what is
+found can be the motion's. How far the prediction is trusted is
+:func:`~spindoctor.nav_model.stars.streak.streak_limits` of the motion's
+:attr:`~spindoctor.support.exposure_motion.ExposureMotion.max_streak_to_predicted`: a
+prediction no host vouches for (no motion, or a motion that sets no ratio) is held to
+:data:`~spindoctor.nav_model.stars.streak.MIN_PREDICTED_SMEAR_PX` (2 px) and
+:data:`~spindoctor.nav_model.stars.streak.MAX_STREAK_TO_PREDICTED` (2), and a vouched
+prediction to its host's ratio :math:`r`, with a floor of
+:data:`~spindoctor.nav_model.stars.streak.MIN_STREAK_PX` over :math:`r` (a frame
+predicted shorter could record a streak long enough to centroid on only by exceeding the
+ratio). The instrument chapters give each host's ratio and its evidence.
 
 - The stars examined are the brightest that do not conflict with any body, ring, or other
-  star. A frame whose examined stars' median predicted smear is shorter than
-  :data:`~spindoctor.nav_model.stars.streak.MIN_PREDICTED_SMEAR_PX` is not measured. The
-  per-star smear is used because the frame-center smear vector reads zero on a frame
-  rolling about its center. Of 2,011 F ring frames predicted below the floor, one draws a
-  streak long enough to be recorded.
+  star. A frame whose examined stars' median predicted smear is shorter than the floor is
+  not measured. The per-star smear is used because the frame-center smear vector reads
+  zero on a frame rolling about its center. For an unvouched prediction, of 2,011 F ring
+  frames predicted from Cassini's reconstructed C-kernels below 2 px, one draws a streak
+  long enough to be recorded.
 - Otherwise :func:`~spindoctor.nav_model.stars.streak.measure_streak` takes the brightest
   pixel within 30 px of each of the 12 brightest examined stars. Any star serves, since
   every star of a frame draws the same streak, and a window skips the boxes already
@@ -280,12 +331,19 @@ image when it emits its features:
   4.5 px or longer, the streak centroid gives the smaller star-to-star scatter along the
   streak on 76% of 21 frames, its median falling from 1.58 to 1.17 px. On frames whose
   streak is 2 to 4.5 px it is smaller on 52% of 86 frames, which is no gain.
-- The streak is not recorded when it is more than
-  :data:`~spindoctor.nav_model.stars.streak.MAX_STREAK_TO_PREDICTED` (2) times the median
-  predicted smear. On the 208 F ring frames whose streak could be measured it is at most
-  1.5 times the prediction, so a longer one is drawn by something other than the motion,
-  such as the blooms of saturated stars, which the saturation mask of a calibrated image
-  does not show.
+- The streak is not recorded when it is more than the ratio times the median predicted
+  smear: a longer one is drawn by something other than the motion, such as the blooms of
+  saturated stars, which the saturation mask of a calibrated image does not show. An
+  unvouched prediction may overstate the streak several times but rarely understates it
+  by much; Cassini's reconstructed C-kernels understate it by at most 1.5 times on the
+  208 F ring frames whose streak could be measured, hence the default of 2.
+- When no streak is measured that the stars agree on and the prediction is vouched for,
+  the stars are centroided on the predicted streak,
+  :func:`~spindoctor.nav_model.stars.streak.predicted_streak_vu` of the examined stars'
+  smears, when it is at least
+  :data:`~spindoctor.nav_model.stars.streak.MIN_STREAK_PX` long. A streak measured too
+  short or too long is not replaced by the prediction, and an unvouched prediction never
+  stands in, so such a frame's stars are centroided as points.
 
 Every STAR feature carries the measured streak as
 :attr:`~spindoctor.feature.flags.StarFlags.streak_vu`, which is ``(0, 0)`` when the
@@ -549,10 +607,14 @@ per-image log, whose final star list prints one line per surviving star:
   build.
 - ``star_count`` — int, number of stars that survived catalog reduction, conflict
   marking, and the magnitude detectability gate.
+- ``smear_source`` — str, what the camera's turning during the exposure was taken from:
+  the source the observation's motion names, or ``'pointing at the exposure start and
+  end'`` when it supplies none (see `Exposure motion`_).
 - ``predicted_smear_px`` — float or None, the examined stars' median predicted smear
   length (None when no star is examined); ``measured_streak_vu`` — the streak measured
   on the image, or None when none was measured; ``streak_vu`` — the streak recorded on the
-  STAR features, ``(0, 0)`` when the stars are centroided as points (see `Measured
+  STAR features, ``(0, 0)`` when the stars are centroided as points and the predicted
+  streak when ``measured_streak_vu`` is None but the prediction stands in (see `Measured
   streak`_). These three are set when the features are emitted.
 - ``stars`` — list[dict], one entry per surviving star. Each entry carries
   ``catalog_name``, ``unique_number``, ``pretty_name``, ``ra_deg``, ``dec_deg``,

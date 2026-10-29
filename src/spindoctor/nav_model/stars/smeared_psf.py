@@ -8,9 +8,13 @@ postage stamp returned by that call and choose a sensible
 ``movement_granularity`` from the smear amplitude.
 
 A second helper computes the per-image smear vector ``(my, mx)`` (in
-pixels) from the SPICE pointing brackets at the start and end of the
-exposure, exposed as a free function so the orchestrator can drive it
-from ``NavContext`` without subclassing the obs.
+pixels) between where the frame center's sky direction lands at the start
+and at the end of the exposure, exposed as a free function so the
+orchestrator can drive it from ``NavContext`` without subclassing the obs.
+Both ends come from :func:`exposure_ends_uv`, which takes the camera's
+turning from the observation's
+:meth:`~spindoctor.obs.ObsSnapshot.exposure_motion` when the host supplies
+one and from the observation's own pointing at the two instants otherwise.
 """
 
 from __future__ import annotations
@@ -19,6 +23,9 @@ import math
 from typing import TYPE_CHECKING
 
 import numpy as np
+import polymath
+
+from spindoctor.support.exposure_motion import rotate_ra_dec
 
 if TYPE_CHECKING:  # pragma: no cover - typing-only import
     from psfmodel import PSF
@@ -28,6 +35,7 @@ if TYPE_CHECKING:  # pragma: no cover - typing-only import
 
 __all__ = [
     'compute_smear_vector_px',
+    'exposure_ends_uv',
     'movement_granularity_px',
     'render_smeared_psf',
     'smear_length_px',
@@ -116,15 +124,51 @@ def render_smeared_psf(
     return np.asarray(stamp, dtype=np.float64)
 
 
+def exposure_ends_uv(
+    obs: ObsSnapshot, ra: polymath.Scalar, dec: polymath.Scalar
+) -> tuple[polymath.Pair, polymath.Pair]:
+    """Return where sky directions land at the start and at the end of the exposure.
+
+    When the observation supplies its camera's turning
+    (:meth:`~spindoctor.obs.ObsSnapshot.exposure_motion` is not None), each direction
+    is turned by the motion's start and end rotations and projected through the
+    pointing at mid-exposure, so the absolute pointing is the observation's own and only
+    the turning comes from the motion.  Otherwise each direction is projected through the
+    observation's pointing at the start (``tfrac=0``) and the end (``tfrac=1``).
+
+    Parameters:
+        obs: Observation snapshot.
+        ra: Apparent right ascensions in radians.
+        dec: Apparent declinations in radians, the same shape as ``ra``.
+
+    Returns:
+        The ``(u, v)`` pixel-corner positions at the start and at the end.
+    """
+    motion = obs.exposure_motion()
+    if motion is None:
+        return (
+            obs.uv_from_ra_and_dec(ra, dec, tfrac=0.0, apparent=True),
+            obs.uv_from_ra_and_dec(ra, dec, tfrac=1.0, apparent=True),
+        )
+    ra_vals = np.asarray(ra.vals, dtype=np.float64)
+    dec_vals = np.asarray(dec.vals, dtype=np.float64)
+    ends = []
+    for rotation in (motion.start_rotation, motion.end_rotation):
+        turned_ra, turned_dec = rotate_ra_dec(ra_vals, dec_vals, rotation)
+        ends.append(
+            obs.uv_from_ra_and_dec(
+                polymath.Scalar(turned_ra), polymath.Scalar(turned_dec), apparent=True
+            )
+        )
+    return ends[0], ends[1]
+
+
 def compute_smear_vector_px(obs: ObsSnapshot) -> tuple[float, float]:
     """Compute the per-image smear vector ``(my, mx)`` in pixels.
 
-    Implements the design's "smear from SPICE bracket" approach: project
-    the camera attitude at ``obs.time[0]`` and ``obs.time[1]`` into pixel
-    coordinates by re-evaluating the frame center's RA/DEC through the obs
-    FOV at both bracket times, and take the difference.  The result is
-    the total per-exposure displacement of a star at the center of the
-    FOV.
+    The frame center's sky direction is projected to where it lands at the start and
+    at the end of the exposure by :func:`exposure_ends_uv`, and the result is the
+    difference: the total per-exposure displacement of a star at the center of the FOV.
 
     Parameters:
         obs: Observation snapshot.
@@ -132,25 +176,12 @@ def compute_smear_vector_px(obs: ObsSnapshot) -> tuple[float, float]:
     Returns:
         Tuple ``(my, mx)`` in pixels (vertical, horizontal).
     """
-    # ``obs.uv_from_ra_and_dec`` accepts ``tfrac`` in [0, 1] mapping the
-    # exposure window onto a unit interval; tfrac=0 is the start ET and
-    # tfrac=1 is the end ET.  Differencing the two projections of one fixed
-    # sky direction gives the per-exposure pointing displacement at the FOV
-    # center.  The direction is the center's own, read off the snapshot's
-    # cached one-pixel center backplane.
+    # The direction is the center's own, read off the snapshot's cached one-pixel
+    # center backplane.
     center_ra, center_dec = obs.center_ra_dec(apparent=True)
-    center_uv0 = obs.uv_from_ra_and_dec(
-        center_ra,
-        center_dec,
-        tfrac=0.0,
-        apparent=True,
-    )
-    center_uv1 = obs.uv_from_ra_and_dec(
-        center_ra,
-        center_dec,
-        tfrac=1.0,
-        apparent=True,
+    center_uv0, center_uv1 = exposure_ends_uv(
+        obs, polymath.Scalar(center_ra), polymath.Scalar(center_dec)
     )
     u0, v0 = center_uv0.to_scalars()
     u1, v1 = center_uv1.to_scalars()
-    return float(v1.vals - v0.vals), float(u1.vals - u0.vals)
+    return float(v1.vals) - float(v0.vals), float(u1.vals) - float(u0.vals)
