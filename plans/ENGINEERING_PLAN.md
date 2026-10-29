@@ -421,6 +421,42 @@ What remains of the family:
   streak's half extent, so a streak of 12 px or more is not its own
   runner-up; in both reruns one streaked frame reached that test, and it
   passed either way.
+  StarFieldFromCatalogNav then counts a source only within reach of a
+  catalog star of its cohort: on each axis, no farther from the star's
+  prediction than that axis's search-window half-width plus the inlier
+  tolerance plus one pixel (#769). On WAC spoke frames crossed by ring
+  texture the 30 brightest sources were mostly not stars, so faint stars
+  measurable against the rings never reached the matcher: W1726706510 now
+  matches 21 inliers 0.04 px from the star consensus with #754's source
+  isolation test (20 inliers, 0.05 px without it), where it was refused.
+  The wide-offset false-lock model spreads the kept sources at the lower of
+  the reach's and the frame's source density, so a sparse field's own stars
+  do not set the density they are tested against. On a rerun of 7,091
+  frames (the 2,110 of a 3,544-frame study set whose star techniques
+  changed, the 4,962 of the ring-alias validation lists and 19 frames the
+  density rule moved), 289 verdicts improve and 33 worsen against the
+  bundles. Of the 631 refused WAC spoke frames, 95 now answer (70 within
+  1 px of the spokes bundle, 25 within 2 px) and none wrongly; the rest
+  hold no usable star. Of the 33 worse, 10 are bundle wrong by two or more
+  agreeing stars. Eighteen are WAC frames that go from within 1 px of the F
+  ring bundle to within 1.26 px: the star answers there sit about
+  (0.47, 0.69) px from that bundle on every WAC frame, and stars counted at
+  any signal side with the new answer or tie. Two NAC frames go from right
+  to 1.61 and 1.22 px (`N1735588543`, `N1786899933`), `N1735601719` from
+  1.62 to 2.47 px, and `W1619755013` from 1.68 to 2.08 px from the spokes
+  bundle; stars of any signal favor the new answer on all four (5 to 12
+  against none). `W1614941856` is the one loss: the star field locks
+  0.26 px from the bundle's star position, but pass-2 StarRefineNav moves
+  3.2 px onto ring peaks and is fused inside the 5 px grouping floor
+  (#767), right at 0.96 px to wrong at 2.45 px. `W1600577960` (two-star
+  consensus) stays refused. Of the 1,000 control frames no verdict changes.
+  On the combination no library frame changes status or tier, and seven
+  answers move closer to their verified offsets (by up to 0.35 px). On this
+  branch alone, without the sparse-star work, two library tiers rise to
+  high, `W1444747627` falls to its expected medium, and `N1571691490`
+  (Hyperion) locks 9.4 px from its operator-verified offset, where four
+  stars of signal 7 to 9 lie within 0.7 px of the new answer and none near
+  the verified one: that truth needs the operator's review.
 - **One strong step, two cataloged edges (open).** Where cataloged edges lie
   a few tens of pixels apart, the strongest alignment can lay the wrong one
   on the strong step: 5 of the 1,041 held-out frames, 7 to 49 px across the
