@@ -45,10 +45,17 @@ cassini_iss:
         'CL1+CL2': {default: 0.0}  # PLACEHOLDER — calibrate in Phase 10
   wac:
     data_units: raw_dn
+    # Every technique, the star searches among them, finds offsets only
+    # inside this margin.  98.7% of the 794 WAC star frames of the F ring
+    # movies set aside for tuning have each axis of their pointing error
+    # within 12.4 full-frame pixels (the error reaches 14), so a full frame
+    # reaches 13 px, a 2x2 summed frame 7 px, and a 4x4 summed frame 4 px
+    # (its 5 px is kept); no margin was narrowed.
+    # Provisional until full runs set every camera's window.
     extfov_margin_vu:
       256: [5, 10]
-      512: [5, 10]
-      1024: [5, 10]
+      512: [7, 10]
+      1024: [13, 13]
     star_psf_sigma: 0.77
     star_psf_sizes:
       7: [15, 15]
@@ -134,10 +141,11 @@ cassini_iss_calib:
         'CL1+CL2': {default: 0.0}  # PLACEHOLDER — calibrate in Phase 10
   wac:
     data_units: calibrated_if
+    # The same margin as the raw-image camera above.
     extfov_margin_vu:
       256: [5, 10]
-      512: [5, 10]
-      1024: [5, 10]
+      512: [7, 10]
+      1024: [13, 13]
     star_psf_sigma: 0.77
     star_psf_sizes:
       7: [15, 15]

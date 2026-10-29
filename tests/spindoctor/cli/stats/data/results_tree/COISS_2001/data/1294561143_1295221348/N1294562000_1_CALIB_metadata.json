@@ -111,6 +111,7 @@
     "covariance_px2": null,
     "techniques_used": [],
     "excluded_from_consensus": [],
+    "matched_star_count": null,
     "feature_count_by_type": {},
     "per_technique": [],
     "feature_inventory": [

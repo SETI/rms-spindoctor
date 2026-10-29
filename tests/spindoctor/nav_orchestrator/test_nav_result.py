@@ -353,3 +353,29 @@ def test_an_internal_error_cannot_be_reported_as_a_success() -> None:
                 exception_type='RuntimeError',
             ),
         )
+
+
+def test_a_negative_matched_star_count_is_refused() -> None:
+    """A count of matched stars cannot be negative."""
+    with pytest.raises(ValueError, match='matched_star_count must be non-negative'):
+        _success(matched_star_count=-1)
+
+
+def test_a_failed_result_carries_no_matched_star_count() -> None:
+    """A failed result reports no offset, so it reports no count of stars beneath one."""
+    with pytest.raises(ValueError, match='status=failed must have matched_star_count=None'):
+        NavResult(
+            status='failed',
+            offset_px=None,
+            sigma_px=None,
+            sigma_along_unobservable_px=None,
+            confidence_rank='failed',
+            confidence=0.0,
+            status_reason=NavStatusReason.NO_FEASIBLE_TECHNIQUES,
+            covariance_px2=None,
+            per_technique=[],
+            feature_inventory=[],
+            image_classifier=_classifier(),
+            provenance=_provenance(),
+            matched_star_count=0,
+        )

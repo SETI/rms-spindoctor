@@ -69,7 +69,9 @@ WAC_PLATE_SCALE_URAD = 59.7165
 # its summing factor: a summed frame's pixels are proportionally wider.
 _SUMMING_BY_COLUMNS = {1024: 1, 512: 2, 256: 4}
 
-DEFAULT_BUNDLE_DIR = FCPath('/data/fring-bundles/pds4/data_reproj_img')
+DEFAULT_BUNDLE_DIR = FCPath(
+    '/data/fring-bundles/cassini_iss_fring_mosaics_rsfrench2025/data_reproj_img'
+)
 
 # The wide angle camera frame of the geometry library the bundle was navigated with.
 #

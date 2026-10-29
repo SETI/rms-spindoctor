@@ -263,6 +263,14 @@ Degraded successes worth noticing
     like a failure; consumers projecting onto the observable direction
     (ring radial scans) can use it as-is.
 
+``single_star_only``
+    A success whose offset rests on one matched star (``matched_star_count``
+    is 1). The fit has no residual, so ``sigma_px`` is the precision the
+    star's predicted brightness implies rather than a measurement, and a
+    misidentified star looks the same as a correct one; the rank is capped at
+    ``low``. Consumers that cannot tolerate an occasional wrong frame should
+    exclude these or check them against neighboring frames.
+
 Low ``confidence_rank``
     ``low`` means the fused result cleared the floor but not the
     ``medium``/``high`` sigma requirements. The tiers are sim-calibrated

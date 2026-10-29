@@ -27,6 +27,12 @@ class NavStatusReason(StrEnum):
     - ``RANK_1_ONLY``: success with only one observable axis (e.g. flat-ring
       scene with no orthogonal feature); ``sigma_along_unobservable_px`` is
       set on the result.
+    - ``SINGLE_STAR_ONLY``: success whose offset rests on one matched star.
+      A star's two coordinates fix the two offset parameters exactly, so the
+      fit has no residual: its ``sigma_px`` is the predicted centroid
+      precision rather than a measured scatter, and nothing in the result can
+      tell a correctly identified star from a misidentified one.  The rank is
+      capped at ``low``.
     - ``CONFLICTED_TECHNIQUES``: multiple agreement groups exist after
       grouping and the best-vs-runner-up summed-confidence gap is below
       ``agreement_gap``; offset reported with reduced confidence.
@@ -84,6 +90,7 @@ class NavStatusReason(StrEnum):
 
     OK = 'ok'
     RANK_1_ONLY = 'rank_1_only'
+    SINGLE_STAR_ONLY = 'single_star_only'
     CONFLICTED_TECHNIQUES = 'conflicted_techniques'
     BODY_SHAPE_LOCK_SUSPECT = 'body_shape_lock_suspect'
     LONE_BLOB_IN_COLLAPSED_REGIME = 'lone_blob_in_collapsed_regime'

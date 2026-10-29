@@ -167,13 +167,13 @@ _CAPPED_OFFSETS: dict[str, tuple[float, float]] = {
 }
 """Three simultaneously shuttered Cassini pairs, every frame near its search limit.
 
-The configured CALIB limits are ``(50, 140)`` for the NAC and ``(5, 10)`` for
-the WAC, so every one of the six reaches at least 0.91 of a limit and no two of
-them reach the same fraction of one: the suspect table is six rows deep and its
-order is decided by the offsets rather than by a tie.  The third pair is the one
-that reaches its limit on the U axis alone, and it is also what makes the three
-BOTSIM residuals -- 2.000, 1.500 and 134.760 -- far enough apart that a
-percentile over them is not the smallest of them.
+The configured CALIB limits are ``(50, 140)`` for a 1024 px NAC frame and
+``(5, 10)`` for a 256 px WAC frame, so every one of the six reaches at least 0.91
+of a limit and no two of them reach the same fraction of one: the suspect table
+is six rows deep and its order is decided by the offsets rather than by a tie.
+The third pair is the one that reaches its limit on the U axis alone, and it is
+also what makes the three BOTSIM residuals -- 2.000, 1.500 and 134.760 -- far
+enough apart that a percentile over them is not the smallest of them.
 """
 
 _CAPPED_TOP_N = 2
@@ -192,7 +192,7 @@ def _capped_documents() -> dict[str, dict[str, Any]]:
         documents[stub] = metadata_document(
             image_name=f'{name}.IMG',
             camera='NAC' if name.startswith('N') else 'WAC',
-            image_shape=[1024, 1024],
+            image_shape=[1024, 1024] if name.startswith('N') else [256, 256],
             offset=list(offset),
         )
     return documents

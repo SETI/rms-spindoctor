@@ -42,6 +42,7 @@
       "BodyLimbNav"
     ],
     "excluded_from_consensus": [],
+    "matched_star_count": 0,
     "feature_count_by_type": {
       "LIMB_ARC": 1
     },

@@ -156,6 +156,7 @@ def test_run_manual_nav_returns_result_on_accept() -> None:
     assert result.status == 'success'
     assert result.offset_px == (3.0, -2.0)
     assert result.confidence_rank == 'high'
+    assert result.matched_star_count is None
     assert len(result.per_technique) == 1
     assert result.per_technique[0].technique_name == NavTechniqueManual.name
     assert len(instances) == 1
