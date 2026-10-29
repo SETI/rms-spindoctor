@@ -172,7 +172,7 @@ pointing itself still comes from the reconstructed C-kernels. The reconstructed
 kernels hold one attitude every 4 seconds and repeat the previous attitude on
 about a third of their intervals, so across an exposure of a second or so they
 show either no turning or about twice the real turning. On 1,796 narrow angle
-F ring frames whose star trails could be measured, trails worked out from the
+frames whose star trails could be measured, trails worked out from the
 as-flown kernels are a median 0.96 times the recorded length and within 1 pixel
 of the recorded trail on 99% of the frames; from the reconstructed kernels the
 figures are 0.58 times and 15%. An image taken before the as-flown kernels
