@@ -580,7 +580,9 @@ def coarse_edge_strength_search_scored(
     is skipped, and ties go to the smaller ``(|dv| + |du|, |dv|, dv, du)``.
     The reported :attr:`CoarseSearchResult.score` is the winning shift's
     plain per-vertex match fraction (the fraction of its in-bounds vertices
-    on a detected edge pixel).  It is not strength-weighted, so it measures
+    on a detected edge pixel that ``valid_mask`` admits; a vertex on an
+    excluded pixel stays in the denominator but never counts as a match).  It
+    is not strength-weighted, so it measures
     the same thing as :func:`coarse_ncc_search_scored`'s score, but over
     vertices rather than distinct rasterized pixels: the two differ where
     several vertices round to one pixel, so the shared coarse-peak gate reads
@@ -657,7 +659,8 @@ def coarse_edge_strength_search_scored(
     win_v = base_v + best_dv
     win_u = base_u + best_du
     in_bounds = (win_v >= 0) & (win_v < height) & (win_u >= 0) & (win_u < width)
-    match_fraction = float(edge_mask[win_v[in_bounds], win_u[in_bounds]].mean())
+    counted = edge_mask if valid_mask is None else edge_mask & valid_mask
+    match_fraction = float(counted[win_v[in_bounds], win_u[in_bounds]].mean())
     return CoarseSearchResult(offset_vu=(best_dv, best_du), score=match_fraction)
 
 
