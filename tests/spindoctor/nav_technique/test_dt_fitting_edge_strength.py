@@ -102,6 +102,24 @@ def test_edge_strength_search_ignores_edges_outside_the_valid_mask() -> None:
     assert masked.offset_vu == (0, -3)
 
 
+def test_edge_strength_match_fraction_excludes_masked_edges() -> None:
+    """Vertices on masked-out edge pixels stay in the denominator but never match."""
+    h, w = 40, 40
+    rows = np.arange(10, 30)
+    vertices, normals = _vertical_segment(20.0, rows)
+    edge_mask = np.zeros((h, w), dtype=bool)
+    gradient = np.zeros((h, w, 2), np.float64)
+    # A strong edge under the model whose lower half lies on masked-out pixels.
+    edge_mask[10:30, 20] = True
+    gradient[10:30, 20, 1] = 5.0
+    valid_mask = np.ones((h, w), dtype=bool)
+    valid_mask[20:, :] = False
+    result = coarse_edge_strength_search_scored(
+        edge_mask, gradient, vertices, normals, (0, 0), valid_mask=valid_mask
+    )
+    assert result.score == pytest.approx(0.5)
+
+
 def test_edge_strength_search_reports_the_plain_match_fraction() -> None:
     """The returned score is the binary per-vertex match fraction at the winner."""
     h, w = 40, 40

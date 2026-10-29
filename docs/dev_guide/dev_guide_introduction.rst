@@ -276,7 +276,11 @@ GitHub Actions defines three workflows under ``.github/workflows/``:
   - **Lint** — Python 3.13. ``ruff check``, ``ruff format --check``, ``mypy``.
   - **Test** — matrix across Python 3.11 / 3.12 / 3.13 / 3.14 on Ubuntu. Runs
     ``pytest -m "not integration and not postgres" -n auto --dist=loadfile``
-    with the holdings / catalog env vars exported. Uploads coverage to Codecov
+    with the holdings / catalog env vars exported. The PDS3 index files the
+    dataset tests download from the archive are kept between runs with
+    ``actions/cache`` (``FILECACHE_CACHE_ROOT`` points the navigator's
+    ``nav_pds3_index`` file cache at the cached directory), so a run downloads
+    only the index files the cache lacks. Uploads coverage to Codecov
     from the 3.13 job on pushes (PRs from forks are excluded for secrets
     reasons).
   - **Docs** — ``sphinx-build -W`` against the ``[docs]`` extra.
