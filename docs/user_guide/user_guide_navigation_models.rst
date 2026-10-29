@@ -208,6 +208,16 @@ version of the camera's point-spread function rather than a compact spot. A star
 trail exceeds ``stars.max_smear`` pixels is dropped as unmeasurable; the default of 100
 pixels is permissive enough that it rarely applies.
 
+A trail long enough to have a flat top makes its brightest pixel a poor guide to the
+star's position, because the noise decides where along the trail that pixel falls. The
+predicted trail is in turn a poor guide to the trail the camera recorded: on many frames
+the recorded trail is much shorter, or points in a somewhat different direction. So on a
+frame whose predicted trail is at least 2 pixels long, the model measures the trail that
+the frame's bright stars draw in the image. When at least three of them agree on a trail
+4.5 pixels long or longer, every star technique measures each star at the center of its
+trail. Shorter trails are measured as points, since a star's measurement box holds nearly
+all of such a trail.
+
 Finally the model checks each star's predicted pixel against the solid bodies in the
 frame, and against the opaque parts of the ring system. A star predicted to fall on a
 body, allowing ``stars.body_conflict_margin`` pixels of slop, is marked as hidden behind

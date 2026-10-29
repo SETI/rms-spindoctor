@@ -64,8 +64,13 @@ brightest pixel near its moved prediction stands
 ``detection_sigma`` times the local spread above the median of a ring around its centroid
 box, the spread being the larger of the ring's scaled median absolute deviation and the
 image noise, so a pixel of a body's limb or texture is not taken for a star, and its moment
-centroid above the plane background of the local centroid lies within the tolerance. A
-frame whose field has no such near-equal star keeps the uncorroborated match. The margin
+centroid above the plane background of the local centroid lies within the tolerance. On a
+streak frame the star is instead centroided as the local centroid takes a streak, about the
+streak's center within the tolerance of its moved prediction, since the brightest pixel
+lies anywhere along the streak, and the local centroid's acceptance of the streak is
+judged against the local spread, measured on a ring around the centroid box grown by the
+streak's half extent on each axis. A frame whose field has no such near-equal star keeps the
+uncorroborated match. The margin
 the diagnostics report, and the confidence formula scores, is the margin in the field; a
 corroborated match is scored as meeting the floor exactly.
 
@@ -85,6 +90,23 @@ more than three robust sigmas from the ring's median, and its level is the media
 less that slope. The box median alone leaves the upper half of a sloping glare in the
 moment's weights and pulls the centroid uphill; on F ring frame ``N1571454567`` a V 9.9 star
 on ring glare was measured 1.7 px from where a high-passed image puts it.
+
+On a frame whose stars draw a streak (the star model records one on every STAR feature as
+:attr:`~spindoctor.feature.flags.StarFlags.streak_vu` when it is at least 4.5 px long; see
+the measured streak in :doc:`dev_guide_navigation_models_star`), the brightest pixel falls
+wherever the noise puts it along the streak, so the centroid is taken about the streak's
+center instead. The candidate is the pixel of the window where a line kernel along the
+streak responds most. The kernel takes one sample every quarter pixel, spreads each over
+its pixels by bilinear interpolation, and has its mean taken out, so an even slope of
+glare draws no response. The centroid box grows on each axis by half the streak's extent
+along that axis, rounded up, so it holds the whole streak, and only the box's pixels
+within ``centroid_box_half_px`` of the streak's segment centered on the candidate count in
+the moment. The candidate is a detection when one of those pixels stands the same
+threshold above the plane background, so the uphill end of a sloping glare is no
+detection. On F ring frame ``N1605530694`` (a 6 px
+streak), over the 62 stars both centroids find, the robust spread of the residuals along
+the streak is 1.26 px for boxes on the brightest pixels and 0.44 px for streak centroids.
+
 A peak that fails the noise threshold collapses the candidate; on the 2-star path a
 best-assignment residual exceeding ``max_residual_px`` triggers the fall back to the 1-star
 path, and on the 1-star path a no-rival detection whose prediction-to-detection distance
@@ -105,8 +127,11 @@ maximum of the window's several thousand noise pixels sits at 3.5-4.5 sigma, so 
 marginal star the brightest pixel is routinely a noise spike that clears the threshold.
 The detection therefore also passes a peak-to-runner-up ambiguity gate
 (``one_star_min_peak_ratio``): the background-subtracted peak must exceed the window's
-runner-up (outside the detection's own centroid box) by the configured ratio, or the
-result is spurious with an ``ambiguous_detection`` reason. A real star detection towers
+runner-up (outside a box of half-width ``centroid_box_half_px`` plus 2 px around the
+detection, grown on a streak frame on each axis by the streak's half extent along it, so a
+long streak's far pixels are not its own runner-up while a rival beside the streak still
+counts) by the configured ratio, or the result is spurious with an
+``ambiguous_detection`` reason. A real star detection towers
 over the window's noise order statistics while a matched spike sits within a few percent
 of its runner-up; the ratio is unit-free, so no DN-scale or photometric calibration enters
 the gate. The measured ratio is surfaced as the
@@ -284,6 +309,8 @@ Source files:
 - ``src/spindoctor/nav_technique/_star_helpers.py`` — package-private helpers ``usable_stars``,
   ``local_centroid``, ``predicted_snr``, ``predicted_vu``, ``brightness_margin_mag``, and
   ``similarity_transform_fit``.
+- ``src/spindoctor/nav_technique/_star_presence.py`` — package-private ``found_at``, the
+  corroboration test of whether a star (a point source or a streak) is found at a position.
 - ``src/spindoctor/nav_technique/confidence.py`` — sigmoid-combination evaluator; documented at
   :doc:`dev_guide_techniques_confidence`.
 - ``src/spindoctor/nav_technique/diagnostics.py`` —

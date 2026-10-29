@@ -503,6 +503,7 @@ def _make_star_feature(
     in_body_silhouette: bool = False,
     in_saturation_or_cosmic_mask: bool = False,
     vmag: float | None = 5.0,
+    streak_vu: tuple[float, float] = (0.0, 0.0),
 ) -> NavFeature:
     """Build a STAR ``NavFeature`` with the supplied prediction + brightness."""
     pv, pu = predicted_vu
@@ -538,6 +539,7 @@ def _make_star_feature(
         flags=StarFlags(
             saturated=False,
             smear_length_px=0.0,
+            streak_vu=streak_vu,
             in_body_silhouette=in_body_silhouette,
             in_saturation_or_cosmic_mask=in_saturation_or_cosmic_mask,
             predicted_snr=predicted_snr,

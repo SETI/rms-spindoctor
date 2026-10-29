@@ -14,6 +14,7 @@ from tests.spindoctor.nav_technique.conftest import (
     NavContextFactory,
     NavFeatureFactory,
 )
+from tests.spindoctor.star_streak_images import draw_streak
 
 from spindoctor.feature.feature import NavFeature
 from spindoctor.feature.flags import StarFlags
@@ -157,6 +158,49 @@ def test_detect_image_sources_returns_empty_when_blank() -> None:
         psf_sharpness_sigma=4.0,
     ).sources
     assert detected == []
+
+
+def test_detect_image_sources_finds_a_streak_once_at_its_center() -> None:
+    """A noisy streak yields one detection, at its center."""
+    rng = np.random.default_rng(765)
+    image = rng.normal(0.0, 1.0, size=(80, 80))
+    draw_streak(image, (40.3, 39.6), (10.0, -1.2), flux=900.0)
+    detected = _detect_image_sources(
+        image,
+        image_noise_sigma=1.0,
+        sigma_px=1.0,
+        detection_sigma=4.0,
+        centroid_box_half_px=3,
+        max_sources=30,
+        psf_limits=None,
+        psf_sharpness_sigma=4.0,
+        streak_vu=(10.0, -1.2),
+    ).sources
+    near = [s for s in detected if math.hypot(s.v - 40.3, s.u - 39.6) < 6.0]
+    assert len(near) == 1
+    assert near[0].v == pytest.approx(40.3, abs=0.2)
+    assert near[0].u == pytest.approx(39.6, abs=0.2)
+
+
+def test_detect_image_sources_leaves_light_beside_a_streak_out_of_its_centroid() -> None:
+    """A source inside the streak's box but clear of the streak itself is left out."""
+    rng = np.random.default_rng(765)
+    image = rng.normal(0.0, 1.0, size=(80, 80))
+    draw_streak(image, (40.3, 39.6), (6.5, -0.8), flux=600.0)
+    draw_streak(image, (34.0, 44.0), (0.0, 0.0), flux=150.0)
+    detected = _detect_image_sources(
+        image,
+        image_noise_sigma=1.0,
+        sigma_px=1.0,
+        detection_sigma=4.0,
+        centroid_box_half_px=3,
+        max_sources=30,
+        psf_limits=None,
+        psf_sharpness_sigma=4.0,
+        streak_vu=(6.5, -0.8),
+    ).sources
+    assert detected[0].v == pytest.approx(40.3, abs=0.2)
+    assert detected[0].u == pytest.approx(39.6, abs=0.2)
 
 
 class _SharpnessObs:

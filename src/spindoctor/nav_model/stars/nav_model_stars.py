@@ -43,6 +43,12 @@ from spindoctor.nav_model.stars.predicted_snr import (
     psf_sigma_px,
 )
 from spindoctor.nav_model.stars.smeared_psf import compute_smear_vector_px, smear_length_px
+from spindoctor.nav_model.stars.streak import (
+    MAX_STREAK_TO_PREDICTED,
+    MIN_PREDICTED_SMEAR_PX,
+    MIN_STREAK_PX,
+    measure_streak,
+)
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX, containing_pixel
 from spindoctor.support.flux import clean_sclass
 from spindoctor.support.image import draw_rect
@@ -229,6 +235,7 @@ class NavModelStars(NavModel):
             max_smear,
         )
 
+        streak_vu = self._frame_streak_vu(context)
         features: list[NavFeature] = []
         skipped_faint = 0
         skipped_smear = 0
@@ -330,6 +337,7 @@ class NavModelStars(NavModel):
                     flags=StarFlags(
                         saturated=False,
                         smear_length_px=smear_len,
+                        streak_vu=streak_vu,
                         in_body_silhouette=in_body or in_ring,
                         in_saturation_or_cosmic_mask=False,
                         predicted_snr=float(snr_eff),
@@ -417,6 +425,85 @@ class NavModelStars(NavModel):
             )
         )
         return annotations
+
+    def _frame_streak_vu(self, context: NavContext) -> tuple[float, float]:
+        """Return the streak the frame's stars draw, or ``(0.0, 0.0)`` for points.
+
+        The stars examined are those that conflict with no body, ring, or other star,
+        brightest first.  A frame whose examined stars' median predicted smear length is
+        shorter than :data:`~spindoctor.nav_model.stars.streak.MIN_PREDICTED_SMEAR_PX`
+        is not measured; the per-star smear stands in for the frame-center smear vector,
+        which reads zero on a frame rolling about its center.  Otherwise
+        :func:`~spindoctor.nav_model.stars.streak.measure_streak` measures the streak
+        around those stars' predictions, and a streak is returned only when one is
+        measured at least :data:`~spindoctor.nav_model.stars.streak.MIN_STREAK_PX` long
+        and at most
+        :data:`~spindoctor.nav_model.stars.streak.MAX_STREAK_TO_PREDICTED` times the
+        median predicted smear.  The model's metadata records the median predicted smear
+        (``predicted_smear_px``, None when no star is examined), the measured streak
+        (``measured_streak_vu``, None when none was measured), and the streak returned
+        (``streak_vu``).
+
+        Parameters:
+            context: Per-image NavContext (the image, its noise sigma, and its
+                saturation mask).
+
+        Returns:
+            The streak ``(v, u)`` in pixels, or ``(0.0, 0.0)``.
+        """
+        clear = sorted(
+            (s for s in self._stars if not s.conflicts and s.vmag is not None),
+            key=lambda s: float(s.vmag),  # type: ignore[arg-type]  # None filtered above
+        )
+        self._metadata['predicted_smear_px'] = None
+        self._metadata['measured_streak_vu'] = None
+        self._metadata['streak_vu'] = (0.0, 0.0)
+        if len(clear) == 0:
+            return 0.0, 0.0
+        predicted_px = float(np.median([smear_length_px(s.move_v, s.move_u) for s in clear]))
+        self._metadata['predicted_smear_px'] = predicted_px
+        if predicted_px < MIN_PREDICTED_SMEAR_PX:
+            return 0.0, 0.0
+        measurement = measure_streak(
+            np.asarray(context.image_ext, np.float64),
+            [self._extfov_position_vu(s) for s in clear],
+            noise_sigma=float(context.image_noise_sigma),
+            saturation_mask=np.asarray(context.saturation_mask_ext, bool),
+        )
+        if measurement is None:
+            self._logger.info(
+                'Predicted smear %.3f px; no streak the bright stars agree on; '
+                'stars centroided as points',
+                predicted_px,
+            )
+            return 0.0, 0.0
+        streak_v, streak_u = measurement.streak_vu
+        length_px = math.hypot(streak_v, streak_u)
+        self._metadata['measured_streak_vu'] = measurement.streak_vu
+        self._logger.info(
+            'Predicted smear %.3f px; streak measured on %d of %d bright stars '
+            '(v, u) = (%.3f, %.3f) px (|streak| = %.3f)',
+            predicted_px,
+            measurement.n_agreeing,
+            measurement.n_measured,
+            streak_v,
+            streak_u,
+            length_px,
+        )
+        if length_px < MIN_STREAK_PX:
+            self._logger.info(
+                'Streak shorter than %.1f px; stars centroided as points', MIN_STREAK_PX
+            )
+            return 0.0, 0.0
+        if length_px > MAX_STREAK_TO_PREDICTED * predicted_px:
+            self._logger.info(
+                'Streak longer than %.1f times the predicted smear, so not drawn by the '
+                'motion; stars centroided as points',
+                MAX_STREAK_TO_PREDICTED,
+            )
+            return 0.0, 0.0
+        self._metadata['streak_vu'] = measurement.streak_vu
+        return measurement.streak_vu
 
     def _extfov_position_vu(self, star: MutableStar) -> tuple[float, float]:
         """Return ``(v, u)`` of ``star`` in extfov pixel-centric coordinates.

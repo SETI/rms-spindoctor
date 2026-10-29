@@ -24,7 +24,8 @@ Registered concrete subclasses:
 The :mod:`spindoctor.nav_model.stars` subpackage carries the catalog reduction
 (``catalog.py``), per-star body / ring conflict marking (``conflicts.py``), the raw-DN
 photometry diagnostic and B-V color mapping (``predicted_snr.py``), smear-aware PSF
-construction (``smeared_psf.py``), on-image source detection (``detection.py``), and the
+construction (``smeared_psf.py``), the measurement of the streak a smeared frame's stars
+draw (``streak.py``), on-image source detection (``detection.py``), and the
 simulated-scene model (``nav_model_stars_simulated.py``). Each helper is independently
 testable so the per-step assumptions can be exercised in isolation.
 

@@ -40,7 +40,9 @@ prior offset). The centroid is rejected when the brightest pixel in the window s
 than the detection threshold above its local background (the median of a ring of pixels
 2 px wide around its centroid box, so the floor of a body's glare or a ring, flat or
 sloping, is no detection) or when the implied per-star residual exceeds a configured cap;
-the surviving correspondences are the inlier set.
+the surviving correspondences are the inlier set. On a frame whose stars draw a streak the
+centroid is taken about the streak's center, as the local centroid of the star
+unique-match technique describes (:doc:`dev_guide_techniques_star_unique_match`).
 
 Translation-only fit
 --------------------

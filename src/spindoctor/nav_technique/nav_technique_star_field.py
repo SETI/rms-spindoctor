@@ -70,6 +70,13 @@ from spindoctor.nav_technique._star_sharpness import (
     psf_concentration,
     sharper_than_psf,
 )
+from spindoctor.nav_technique._star_streak import (
+    frame_streak_vu,
+    is_streak,
+    streak_aperture,
+    streak_half_extent_px,
+    streak_matched_kernel,
+)
 from spindoctor.nav_technique.confidence import evaluate_sigmoid_combination
 from spindoctor.nav_technique.diagnostics import StarFieldDiagnostics
 from spindoctor.nav_technique.dt_fitting import DEFAULT_TUKEY_C, tukey_biweight_weights
@@ -315,6 +322,7 @@ def _detect_image_sources(
     max_sources: int,
     psf_limits: PsfConcentration | None,
     psf_sharpness_sigma: float,
+    streak_vu: tuple[float, float] = (0.0, 0.0),
 ) -> _SourceDetections:
     """Detect bright local-max sources in ``image`` and return the brightest set.
 
@@ -322,12 +330,22 @@ def _detect_image_sources(
 
     1. Matched-filter the image against a Gaussian kernel sized by
        ``sigma_px``; the response peak amplitude at each pixel is the
-       maximum-likelihood signal estimate at that location.
+       maximum-likelihood signal estimate at that location.  For a streak
+       (``streak_vu`` at least
+       :data:`~spindoctor.nav_model.stars.streak.MIN_STREAK_PX` long) the kernel
+       is that Gaussian spread along the streak by
+       :func:`~spindoctor.nav_technique._star_streak.streak_matched_kernel`, so a streak
+       responds most at its center.
     2. Find pixels that are local maxima within a
        ``(2 * centroid_box_half_px + 1)`` window AND clear
        ``detection_sigma * image_noise_sigma``.
     3. For each surviving peak, fit a brightness-weighted moment in a
-       small box around the peak to pull a sub-pixel centroid.
+       small box around the peak to pull a sub-pixel centroid.  For a streak the box
+       grows on each axis by
+       :func:`~spindoctor.nav_technique._star_streak.streak_half_extent_px` to hold the
+       whole streak, and only the box's pixels within ``centroid_box_half_px`` of the
+       streak's segment centered on the peak count
+       (:func:`~spindoctor.nav_technique._star_streak.streak_aperture`).
     4. When ``psf_limits`` is given, set aside, in rank order until the
        cohort is full, every peak more concentrated than the instrument's
        point-spread function allows a star (see ``sharper_than_psf``):
@@ -354,6 +372,7 @@ def _detect_image_sources(
             None skips stage 4.
         psf_sharpness_sigma: Noise multiplier by which a candidate's light must
             exceed ``psf_limits`` to be set aside.
+        streak_vu: The streak ``(v, u)`` in pixels the frame's stars draw.
 
     Returns:
         The ``_DetectedSource`` records, ordered by brightness descending (empty
@@ -361,6 +380,15 @@ def _detect_image_sources(
     """
     kernel_size = 2 * centroid_box_half_px + 1
     kernel = _gaussian_kernel(sigma_px, size=kernel_size)
+    half_v = half_u = centroid_box_half_px
+    streak = is_streak(streak_vu)
+    if streak:
+        # A streak's brightest pixel lies wherever the noise puts it along the streak;
+        # the kernel spread along it responds most at its center (#765).
+        kernel = streak_matched_kernel(kernel, streak_vu)
+        ext_v, ext_u = streak_half_extent_px(streak_vu)
+        half_v += ext_v
+        half_u += ext_u
     response = matched_filter_image(image, kernel=kernel)
     threshold = detection_sigma * image_noise_sigma
     local_max = maximum_filter(response, size=kernel_size, mode='reflect')
@@ -371,13 +399,17 @@ def _detect_image_sources(
     for v_idx, u_idx in np.argwhere(candidate_mask):
         v_i = int(v_idx)
         u_i = int(u_idx)
-        v_lo = max(0, v_i - centroid_box_half_px)
-        u_lo = max(0, u_i - centroid_box_half_px)
-        v_hi = min(h, v_i + centroid_box_half_px + 1)
-        u_hi = min(w, u_i + centroid_box_half_px + 1)
+        v_lo = max(0, v_i - half_v)
+        u_lo = max(0, u_i - half_u)
+        v_hi = min(h, v_i + half_v + 1)
+        u_hi = min(w, u_i + half_u + 1)
         box = image[v_lo:v_hi, u_lo:u_hi].astype(np.float64)
         bg = float(np.median(box))
         weights = np.clip(box - bg, 0.0, None)
+        if streak:
+            weights *= streak_aperture(
+                (v_lo, u_lo, v_hi, u_hi), (v_i, u_i), streak_vu, centroid_box_half_px
+            )
         total = float(weights.sum())
         if total <= 0.0:
             continue
@@ -878,6 +910,13 @@ class StarFieldFromCatalogNav(NavTechnique):
                 obs.star_sharpness_psf() if isinstance(obs, _StarSharpnessProvider) else None
             )
             psf_limits = None if sharpness_psf is None else psf_concentration(sharpness_psf)
+            streak_vu = frame_streak_vu(features)
+            if is_streak(streak_vu):
+                self.logger.info(
+                    'Stars drawn as streaks of (%.2f, %.2f) px: detecting and centroiding streaks',
+                    streak_vu[0],
+                    streak_vu[1],
+                )
             detections = _detect_image_sources(
                 image_ext,
                 image_noise_sigma=noise_sigma,
@@ -887,6 +926,7 @@ class StarFieldFromCatalogNav(NavTechnique):
                 max_sources=self._max_sources,
                 psf_limits=psf_limits,
                 psf_sharpness_sigma=self._psf_sharpness_sigma,
+                streak_vu=streak_vu,
             )
             if detections.n_sharper_than_psf > 0:
                 self.logger.info(
@@ -1116,7 +1156,8 @@ class StarFieldFromCatalogNav(NavTechnique):
         n_inliers, correspondences, _coarse_offset = best
         det_inliers: NDArrayFloatType = det_points_arr[[d for d, _ in correspondences]]
         cat_inliers = cat_points_arr[[c for _, c in correspondences]]
-        if self._psf_refine_enabled:
+        # The PSF fit models an unsmeared star; a streak keeps its moment centroid.
+        if self._psf_refine_enabled and not is_streak(frame_streak_vu(features)):
             det_inliers = self._psf_refine_positions(det_inliers, context)
         fit_rotation = bool(context.fit_camera_rotation)
         if fit_rotation:

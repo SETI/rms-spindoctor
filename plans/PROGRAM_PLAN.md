@@ -333,8 +333,10 @@ The known open defects:
   A full run on the combination found three answers ours by stars and one
   wrong at the high tier; two ensemble fixes (and one proposed for #754)
   answer all four within 0.52 px, and a rerun shows none of 532 worse
-  frames ours by stars, 150 undecidable. Open: #765 for the two smeared
-  refusals, #767 for single results fused inside the pixel floor.
+  frames ours by stars, 150 undecidable. The two smeared refusals answer
+  within 0.2 px (N1605530694 0.01 px) once stars are centroided at their
+  streaks' centers (#765). Open: #767 for single results fused inside the
+  pixel floor.
   #755 also carries the along-edge part of the planted-shift sweep (raw
   RingEdgeNav rows median 4.2 / 1.7 px v/u on frames whose edge sets are
   straight or nearly so), which the along-edge covariance change leaves as

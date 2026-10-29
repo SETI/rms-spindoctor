@@ -235,6 +235,64 @@ support, and the smear vector also rotates the CRLB covariance along the smear d
 Stars whose smear length exceeds the per-instrument ``max_smear`` cap are dropped from the
 emission set, as are stars fainter than the limiting magnitude.
 
+Measured streak
+---------------
+
+A star that moves during the exposure is recorded as a streak. Its predicted position is
+the star at mid-exposure, the streak's center. Once a streak is long enough to have a flat
+top, its brightest pixel falls wherever the noise puts it along the streak, and a centroid
+box placed on that pixel measures a random point along the streak. On F ring frame
+``N1605530694``, whose stars draw 6 px streaks along the lines, the brightest pixels of 22
+stars fall into two clusters 2.4 px apart along the streak.
+
+The predicted smear is a poor guide to the streak itself. On F ring frames predicted to
+smear 4.5 to 8 px, the streak the stars draw is a median 0.6 times the predicted length
+and about 10 to 20 degrees from the predicted direction, and whole sequences predicted to
+smear 6 px draw streaks shorter than 2 px. The model therefore measures the streak on the
+image when it emits its features:
+
+- The stars examined are the brightest that do not conflict with any body, ring, or other
+  star. A frame whose examined stars' median predicted smear is shorter than
+  :data:`~spindoctor.nav_model.stars.streak.MIN_PREDICTED_SMEAR_PX` is not measured. The
+  per-star smear is used because the frame-center smear vector reads zero on a frame
+  rolling about its center. Of 2,011 F ring frames predicted below the floor, one draws a
+  streak long enough to be recorded.
+- Otherwise :func:`~spindoctor.nav_model.stars.streak.measure_streak` takes the brightest
+  pixel within 30 px of each of the 12 brightest examined stars. Any star serves, since
+  every star of a frame draws the same streak, and a window skips the boxes already
+  measured for earlier stars. :func:`~spindoctor.nav_model.stars.streak.star_streak_axis`
+  measures the light connected to that pixel above three noise sigmas and a tenth of the
+  peak, and turns its second moments into a streak along the major axis. A uniform segment
+  of length :math:`L` has variance :math:`L^2 / 12` along itself, and the point-spread
+  function adds the same variance across and along it, so
+  :math:`L = \sqrt{12 (\lambda_{\max} - \lambda_{\min})}`. A source is set aside when its
+  peak stands less than 20 noise sigmas above its background, when its light holds a
+  saturated pixel (a bloom runs along a column whatever the motion), or when its light
+  reaches the edge of its 31x31 box (the glare of a ring or a body).
+- The streak is the mean of the measurements that lie within 20 degrees and 30% in length
+  of the consensus, which is the major axis of the median outer product and the median
+  length. At least three stars, and at least half of those measured, must agree.
+- The streak is recorded only when it is at least
+  :data:`~spindoctor.nav_model.stars.streak.MIN_STREAK_PX` (4.5 px) long. Below that a 7x7
+  centroid box on the brightest pixel holds nearly the whole streak. On simulated Gaussian
+  streaks the two centroids' errors are equal at 4.5 px, and from 5 px the streak
+  centroid's is the smaller at every brightness. On F ring frames whose measured streak is
+  4.5 px or longer, the streak centroid gives the smaller star-to-star scatter along the
+  streak on 76% of 21 frames, its median falling from 1.58 to 1.17 px. On frames whose
+  streak is 2 to 4.5 px it is smaller on 52% of 86 frames, which is no gain.
+- The streak is not recorded when it is more than
+  :data:`~spindoctor.nav_model.stars.streak.MAX_STREAK_TO_PREDICTED` (2) times the median
+  predicted smear. On the 208 F ring frames whose streak could be measured it is at most
+  1.5 times the prediction, so a longer one is drawn by something other than the motion,
+  such as the blooms of saturated stars, which the saturation mask of a calibrated image
+  does not show.
+
+Every STAR feature carries the measured streak as
+:attr:`~spindoctor.feature.flags.StarFlags.streak_vu`, which is ``(0, 0)`` when the
+frame's stars are centroided as points. The star techniques centroid a star on a streak at
+the streak's center, as described under the local centroid in
+:doc:`dev_guide_techniques_star_unique_match`.
+
 :mod:`spindoctor.nav_model.stars.predicted_snr` retains a separate raw-DN ``predicted_snr``
 photometry helper for diagnostics; it is not the gate consulted by the navigator's star
 path.
@@ -418,6 +476,10 @@ Source files:
 - ``src/spindoctor/nav_model/stars/smeared_psf.py`` —
   :func:`~spindoctor.nav_model.stars.smeared_psf.compute_smear_vector_px` and
   :func:`~spindoctor.nav_model.stars.smeared_psf.smear_length_px`.
+- ``src/spindoctor/nav_model/stars/streak.py`` —
+  :func:`~spindoctor.nav_model.stars.streak.measure_streak`, which measures the streak a
+  smeared frame's stars draw, and the two lengths that decide whether it is measured and
+  recorded.
 - ``src/spindoctor/nav_model/stars/detection.py`` —
   :mod:`spindoctor.nav_model.stars.detection` matched-filter source detection plus the four
   :data:`~spindoctor.nav_model.stars.detection.DAOPHOT_DEFAULT_DETECTION_SIGMA`,
@@ -487,6 +549,11 @@ per-image log, whose final star list prints one line per surviving star:
   build.
 - ``star_count`` — int, number of stars that survived catalog reduction, conflict
   marking, and the magnitude detectability gate.
+- ``predicted_smear_px`` — float or None, the examined stars' median predicted smear
+  length (None when no star is examined); ``measured_streak_vu`` — the streak measured
+  on the image, or None when none was measured; ``streak_vu`` — the streak recorded on the
+  STAR features, ``(0, 0)`` when the stars are centroided as points (see `Measured
+  streak`_). These three are set when the features are emitted.
 - ``stars`` — list[dict], one entry per surviving star. Each entry carries
   ``catalog_name``, ``unique_number``, ``pretty_name``, ``ra_deg``, ``dec_deg``,
   ``vmag``, ``photometry_corrected``, ``photometry_saturated``, ``u``, ``v``, ``move_u``,
@@ -538,13 +605,14 @@ Call path traced through
 Call path traced through
 :meth:`~spindoctor.nav_model.stars.nav_model_stars.NavModelStars.to_features`:
 
-1. For each surviving star, build a :class:`~spindoctor.feature.geometry.StarGeometry` from the
-   predicted position and the per-feature CRLB covariance.
-2. Build a :class:`~spindoctor.feature.flags.StarFlags` carrying the magnitude-margin effective
-   SNR, the catalog magnitude, and the body / ring conflict flags. The saturation /
-   cosmic-ray-mask flags are left clear -- among the predictable stars, occlusion is the
-   only thing that makes one unusable.
-3. Construct one :data:`~spindoctor.feature.feature_type.NavFeatureType.STAR`
+1. Measure the streak the frame's stars draw (see `Measured streak`_), once for the frame.
+2. For each surviving star, build a :class:`~spindoctor.feature.geometry.StarGeometry`
+   from the predicted position and the per-feature CRLB covariance.
+3. Build a :class:`~spindoctor.feature.flags.StarFlags` carrying the magnitude-margin
+   effective SNR, the catalog magnitude, the measured streak, and the body / ring conflict
+   flags. The saturation / cosmic-ray-mask flags are left clear -- among the predictable
+   stars, occlusion is the only thing that makes one unusable.
+4. Construct one :data:`~spindoctor.feature.feature_type.NavFeatureType.STAR`
    :class:`~spindoctor.feature.feature.NavFeature` per star and return the list.
 
 Examples
