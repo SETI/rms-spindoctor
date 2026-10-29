@@ -71,14 +71,64 @@ Pipeline stages
 6. **Pass-1 ensemble.**  Reconcile the pass-1 results via
    :func:`~spindoctor.nav_orchestrator.ensemble.ensemble`. A ``'success'`` ensemble's
    offset and covariance become the pass-2 prior; a ``'conflicted'`` ensemble installs no
-   prior (pass 2 still runs); when the ensemble fails the
-   technique pipeline returns a failed
+   single prior and is tested instead (see `Testing a conflicted pass 1`_); when the
+   ensemble fails the technique pipeline returns a failed
    :class:`~spindoctor.nav_orchestrator.nav_result.NavResult` immediately.
 7. **Pass 2.**  Run every prior-required technique with the pass-2 context (a copy of the
    pass-1 context with the prior offset attached via
-   :meth:`~spindoctor.nav_orchestrator.nav_context.NavContext.with_prior`).
+   :meth:`~spindoctor.nav_orchestrator.nav_context.NavContext.with_prior`).  After a
+   conflicted pass 1 that the test resolved, the pass-2 results are those of the run
+   seeded at the confirmed answer; otherwise pass 2 runs without a prior.
 8. **Final ensemble.**  Reconcile the union of pass-1 and pass-2 results into the final
    :class:`~spindoctor.nav_orchestrator.nav_result.NavResult`.
+
+Testing a conflicted pass 1
+---------------------------
+
+A pass-1 ensemble reports ``conflicted_techniques`` when two answers of comparable vote
+stand apart. On a Cassini F ring frame that is typically a two-star
+:class:`~spindoctor.nav_technique.nav_technique_star_unique_match.StarUniqueMatchNav`
+match against a :class:`~spindoctor.nav_technique.nav_technique_ring_edge.RingEdgeNav`
+lock on a ring alias tens of pixels away. A prior-required technique is a test of an
+answer as well as a polish of it: a
+:class:`~spindoctor.nav_technique.nav_technique_star_refine.StarRefineNav` refine seeded
+at the right offset finds the catalog stars where that offset puts them, and one seeded at
+a wrong offset finds noise or nothing.
+
+:func:`~spindoctor.nav_orchestrator.conflict_arbitration.arbitrate_conflict` runs that
+test. The two answers are the pass-1 consensus group and the runner-up group: the excluded
+results are ensembled alone, and the members of that ensemble's consensus form the
+runner-up answer. An excluded result outside both was never tested; it reaches the final
+ensemble as an ordinary result and is rejected there as an outlier or not, as usual. Pass
+2 runs once seeded at each answer. An answer's *support* is the number of distinct
+features consumed by the non-spurious, interior pass-2 results seeded there. The stars an
+answer's own pass-1 star fit used are counted too: a pattern match often already holds
+every star the refine can find, and leaving them out would give a right answer no support
+against the few chance detections a refine makes at a wrong one. The minimum is set so
+that a two-star match needs stars beyond its own two. An answer is confirmed when its
+support is at least ``orchestrator.conflict_arbitration.min_support`` and at least
+``min_support_ratio`` times the other answer's. The confirmed answer's pass-2 results go
+on to the final ensemble, stamped with the techniques that formed that answer, exactly as
+after a successful pass 1. The other answer's pass-1 results are passed to the final
+ensemble as *refuted*: they stay in ``per_technique``, are named in
+``excluded_from_consensus``, and carry the disagreement penalty, but cast no vote and take
+no part in the combine (see :doc:`dev_guide_orchestrator_ensemble`).
+
+The test declines, and pass 2 runs without a prior as it does for any conflict, when no
+prior-required technique is feasible, when the support at the two answers is comparable,
+when neither reaches the minimum, when the runner-up group has no successful answer of its
+own, when the conflict is a body-witness veto rather than a consensus conflict, and when
+one technique name appears in both groups (the reported names cannot then say which of its
+results belongs where). ``min_support`` ``0`` disables the test. After a declined test,
+pass 2 still runs unseeded rather than being skipped: every prior-required technique
+returns at once without a prior, so the run costs nothing, and its no-prior results stay
+in ``per_technique`` as on any other conflicted frame.
+
+Whenever the test runs, what it found is stamped on the final
+:class:`~spindoctor.nav_orchestrator.nav_result.NavResult` as a
+:class:`~spindoctor.nav_orchestrator.nav_result.ConflictArbitrationRecord` (each answer's
+techniques, offset, and support, which one was confirmed, and the refuted techniques), and
+the curator writes it to the metadata document as the ``conflict_arbitration`` block.
 
 Exception-sandbox discipline
 ----------------------------
@@ -111,11 +161,11 @@ Restrictions and assumptions
   :class:`~spindoctor.nav_technique.nav_technique.NavTechnique` subclasses are well-formed and
   non-malicious — the exception sandbox catches programmer bugs but cannot recover from
   state-corrupting plugins.
-- The pass-2 prior is seeded only when the pass-1 ensemble's status is ``'success'``. A
-  conflicted pass 1 still runs pass 2 — but with no prior installed, since a conflicted
-  best-group offset would lock pass 2 toward one arbitrary mode instead of letting pass-2
-  evidence break the tie. When pass 1 fails, the orchestrator returns immediately and
-  pass 2 does not run.
+- The pass-2 prior is seeded from the pass-1 ensemble only when its status is
+  ``'success'``. A conflicted best-group offset would lock pass 2 toward one arbitrary
+  mode, so a conflicted pass 1 is tested at each of its answers instead (see
+  `Testing a conflicted pass 1`_). When pass 1 fails, the orchestrator returns
+  immediately and pass 2 does not run.
 - The image-quality classifier's hard-failure short-circuit fires before any model is
   constructed; a ``blank`` or ``fully_overexposed`` image never invokes a
   :class:`~spindoctor.nav_model.nav_model.NavModel`.
@@ -133,11 +183,28 @@ precision-weighted-merge result from
 Configuration
 =============
 
-The orchestrator's runtime knobs come from three places: per-instrument YAML
+The orchestrator's runtime knobs come from four places: per-instrument YAML
 (``config_4N0_inst_*.yaml`` via
-:class:`~spindoctor.nav_orchestrator.instrument_config.InstrumentSettings`), construction-time
-overrides on the constructor, and the per-image
+:class:`~spindoctor.nav_orchestrator.instrument_config.InstrumentSettings`), the
+``orchestrator`` section (``config_540_orchestrator.yaml``), construction-time overrides
+on the constructor, and the per-image
 :class:`~spindoctor.nav_orchestrator.nav_context.NavContext`'s default values.
+
+The ``orchestrator`` section holds three subsections, each read once at construction:
+
+- ``ensemble`` — the ensemble's thresholds; see :doc:`dev_guide_orchestrator_ensemble`.
+- ``reliability_gate`` — feature type name to the minimum reliability
+  :class:`~spindoctor.feature.reliability.FeatureReliabilityGate` lets through before
+  any technique runs; a type the mapping leaves out keeps its code default.
+- ``conflict_arbitration`` — read by
+  :meth:`~spindoctor.nav_orchestrator.conflict_arbitration.ConflictArbitrationConfig.from_mapping`
+  (see `Testing a conflicted pass 1`_):
+
+  - ``min_support`` — int, default ``4``. Smallest support an answer needs to be
+    confirmed. Must be a whole number at least zero; ``0`` disables the test.
+  - ``min_support_ratio`` — float, default ``2.0``. The confirmed answer's support must be
+    at least this many times the other answer's. Must be a finite number greater than
+    ``1``.
 
 Per-instrument YAML keys (read via
 :func:`~spindoctor.nav_orchestrator.instrument_config.instrument_settings_from_obs`):
@@ -151,6 +218,10 @@ Per-instrument YAML keys (read via
 - ``fit_camera_rotation`` — bool, top-level in the per-camera block; turns on 3-DoF
   technique fits.
 - ``max_rotation_deg`` — float, top-level in the per-camera block; rotation cap.
+- ``model_error_floor_px`` — optional mapping of technique name to a per-camera floor that
+  replaces that technique's own tuning value; techniques it does not name keep their own.
+  Schema and the techniques that read it are in
+  :doc:`dev_guide_orchestrator_instrument_config`.
 
 Constructor-level overrides:
 
@@ -264,8 +335,10 @@ Call path traced through
     :class:`~spindoctor.nav_orchestrator.nav_result.NavResult`.
 11. Build the pass-2 context via
     :meth:`~spindoctor.nav_orchestrator.nav_context.NavContext.with_prior` carrying the pass-1
-    ensemble's offset and covariance.
-12. **Pass 2.**  Run every prior-required technique against the pass-2 context.
+    ensemble's offset and covariance.  A conflicted pass-1 ensemble is tested instead
+    (`Testing a conflicted pass 1`_).
+12. **Pass 2.**  Run every prior-required technique against the pass-2 context, unless the
+    test of a conflicted pass 1 already ran it at the answer it confirmed.
 13. Reconcile the union of pass-1 and pass-2 results via
     :func:`~spindoctor.nav_orchestrator.ensemble.ensemble` to produce the final
     :class:`~spindoctor.nav_orchestrator.nav_result.NavResult`.

@@ -15,6 +15,7 @@ from typing import Any, cast
 import oops
 from filecache import FCPath
 from oops.observation.snapshot import Snapshot
+from psfmodel import PSF
 
 from spindoctor.config import DEFAULT_CONFIG, IMAGE_LOGGER, Config, logged_section
 from spindoctor.obs.obs_snapshot_inst import ObsSnapshotInst
@@ -170,6 +171,18 @@ class ObsSim(ObsSnapshotInst):
         new_obs.spice_kernels = ['fake_kernel1.txt', 'fake_kernel2.txt']
 
         return new_obs
+
+    def star_sharpness_psf(self) -> PSF | None:
+        """Return None: a simulated frame has no measured narrowest star.
+
+        A scene renders its stars at its own point-spread function, which can be narrower
+        than the narrowest star the emulated camera records, so that camera's bound does
+        not describe the frame and the star-field technique keeps every detection.
+
+        Returns:
+            None.
+        """
+        return None
 
     def star_min_usable_vmag(self) -> float:
         return 0.0

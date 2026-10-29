@@ -29,15 +29,26 @@ recognizing a star pattern, and so on. Each technique that runs reports its own 
 its own uncertainty, and its own confidence -- a number saying how much its answer should
 be trusted, described under `Confidence`_.
 
-Fourth, the results are reconciled into a single answer. SpinDoctor forms, around each
-technique, the group of techniques whose offsets agree with that one, and keeps the group
-whose confidences add up to the most. That is not always the group with the most members:
-one confident technique can outweigh several weaker ones that agree with each other. The
-techniques left outside the surviving group are set aside, and those inside it are
-combined by weighting each by how tightly its offset is determined. When a set-aside group
-is close enough in summed confidence to stand as a rival answer, the image is reported as
-``conflicted``. What comes out is one offset in pixels, one uncertainty, and one confidence
-for the image.
+Fourth, the results are reconciled into a single answer. Two techniques agree when their
+offsets lie within a few pixels of each other, or within their combined uncertainty. Two
+that are each uncertain by many pixels in the same direction can lie far apart and still
+be within their combined uncertainty. They agree only when, in every direction, one of
+them is precise enough that combining them lands within a pixel of it, since otherwise the
+combination would be a point between two answers that neither supports. SpinDoctor forms,
+around each technique, the group of techniques whose offsets agree with that one, and
+keeps the group whose confidences add up to the most. That is not always the group with
+the most members: one confident technique can outweigh several weaker ones that agree with
+each other. The techniques left outside the surviving group are set aside, and those
+inside it are combined by weighting each by how tightly its offset is determined. When a
+set-aside group is close enough in summed confidence to stand as a rival answer, the image
+is reported as ``conflicted``. Two further rules set techniques inside the group aside
+before the combination, and neither makes the image conflicted. A technique that lies
+within a few pixels of techniques that measured the same thing, but well outside the
+uncertainty of every one of them, is not combined with them: whichever side is less
+precisely determined is set aside. And when two star answers that share no star disagree
+and one rests on at least twice as many stars, the other is set aside, unless a star
+answer on still more stars contradicts the larger one. What comes out is one offset in
+pixels, one uncertainty, and one confidence for the image.
 
 The offset follows one convention throughout SpinDoctor: if the prediction puts something
 at row and column ``(v, u)``, the real thing is at ``(v + dv, u + du)``.
@@ -181,11 +192,12 @@ spacecraft's own velocity. Both corrections are on by default and can be turned 
 ``stars.proper_motion`` and ``stars.stellar_aberration``.
 
 How faint a star can be and still be used is not a setting. It is worked out for each
-image from the camera's aperture and detector and from the exposure time: each factor of
-2.512 more exposure buys one more magnitude of depth. A star fainter than that limit, or
-one that has no recorded magnitude, is dropped. How much brighter than the limit a star is
-determines its predicted signal-to-noise ratio, which in turn sets its reliability and how
-precisely its position can be measured.
+image from the camera's aperture and detector and from the exposure time, and on some
+cameras also from the filters and the detector gain, as the instrument chapters describe:
+each factor of 2.512 more exposure buys one more magnitude of depth. A star fainter than
+that limit, or one that has no recorded magnitude, is dropped. How much brighter than the
+limit a star is determines its predicted signal-to-noise ratio, which in turn sets its
+reliability and how precisely its position can be measured.
 
 If the spacecraft was turning during the exposure, stars are not points but short trails.
 The model computes each star's trail by projecting its direction through the camera at the
@@ -560,10 +572,14 @@ nothing to work with. This technique handles exactly that case, and needs only o
 star.
 
 With one star, it requires that star to be clearly the brightest thing the catalog
-predicts in the frame, by a margin over the next candidate of
+predicts near it, by a margin over the next candidate close enough to fall in its search
+window of
 ``techniques.StarUniqueMatchNav.tuning.brightness_margin_to_next_catalog_star_mag``
 magnitudes, 1.5 by default. Then the brightest peak inside a search window around the
-prediction can only be that star, and the offset is simply the difference. Confidence is
+prediction can only be that star, and the offset is simply the difference. When another
+star elsewhere in the frame is nearly as bright, at least two other stars (or every other
+star the offset puts in the frame, when fewer) must also be found where the offset places
+them. Confidence is
 capped at 0.7, because a single match has nothing to check itself against. Guards exist
 against locking onto a noise spike or a hot pixel: the peak must stand clear of the
 window's background, and where there is no rival peak at all to measure against, the match
@@ -586,12 +602,25 @@ after a first round has produced an offset. It shifts every predicted star posit
 that offset, looks for a peak in a small window around each shifted prediction, measures
 its center, and averages the leftover residuals, weighting each star by how precisely it
 can be located. A star whose peak is too far from the shifted prediction is dropped as a
-wrong identification.
+wrong identification, and so is one whose peak lies too close to the edge of the frame to
+be measured whole. With four or more stars, a star whose leftover residual disagrees with
+the others by much more than they disagree among themselves is dropped too, so a bright
+star measured on the wrong peak cannot outweigh the fainter ones.
 
 What it reports is a correction to the offset it was given. With two or more stars it
 reports the measured scatter as its uncertainty; with a single star it falls back to the
 theoretical best and caps its confidence at 0.5, deliberately below what a single unique
 match gets.
+
+A refinement that rests on one star usually measures nothing new: it looks again at the
+star the first round already used. Such a refinement is set aside when the final answer is
+combined, with one exception. When the first round found that star by itself, in a wide
+search around the predicted position, and a stronger technique in the same image that is
+certain to within a pixel in at least one direction, such as a ring edge across itself,
+agrees with the refined star, the refined star takes the place of the first-round match. A
+technique uncertain by more than a pixel in every direction cannot confirm the star this
+way. The first-round match reports an uncertainty as large as the offset it found, so only
+the refined star can fix the direction that the ring edge leaves open.
 
 Body Techniques
 ---------------
@@ -677,7 +706,30 @@ When a body is too small or too irregular to trace a limb on, all that can be me
 where its light is centered. This technique measures a brightness-weighted center for each
 ``BODY_BLOB`` feature inside its predicted box, and solves for the single shift that best
 maps the predicted centers onto the measured ones. With two or more bodies the problem is
-over-determined, which makes it tolerant of a poor center on any one of them.
+over-determined, and bodies whose centers disagree by more than their uncertainties allow
+widen the reported uncertainty.
+
+The predicted center already allows for the body's phase: a partly lit body's light is
+centered toward the Sun. How far it shifts depends on how the real surface scatters light
+and on the body's real shape, which the prediction knows only approximately, so the
+reported uncertainty grows with phase and with how irregular the body is, and it is
+larger along the direction toward the Sun than across it. A small, irregular moon seen as
+a crescent is uncertain by a large fraction of its radius: Atlas at 135 degrees phase,
+7.5 pixels across, carries an uncertainty of about 2 pixels. On a body more than about
+20 pixels across, the part that comes from phase and shape stops growing with size. The
+uncertainty also includes how far the body may lie from where its orbit puts it, converted
+to pixels at the image's scale; for Prometheus and Pandora that is 5 km. When several
+bodies are measured, each counts in proportion to how precisely its center is known. Part
+of the error is common to all of them, since they share the Sun's direction, the way the
+prediction renders them, and their orbit solutions, so a second body narrows the
+uncertainty less than two independent measurements would, and the combined answer always
+lies between the bodies' own answers.
+
+A brightness center can also lock onto something other than its body, such as a ring arc
+or the limb of a larger body that crosses the search window. Such a lock spreads its light
+across the whole predicted box, wider than the body could be, and that measurement is
+discarded. When every body in the frame is discarded this way, the technique reports no
+answer.
 
 Its confidence is capped at 0.4 by design. A brightness center is much weaker evidence
 than a fitted limb, so even a perfect blob match should not be allowed to outweigh a limb
@@ -768,13 +820,15 @@ there. First, the 4 locks left lie 4 to 45 pixels across the edge and are report
 ``medium`` tier. Second, the fit still assumes the cataloged edge is the strongest step in
 its neighborhood. Where two cataloged edges lie a few tens of pixels apart, the strong
 step can be matched by the wrong one of them, and the answer is then off by tens of pixels
-across the edge; 5 of the same 1,041 frames are wrong this way. Third, an edge that is
-nearly straight across the frame fixes the pointing across itself but only weakly along
-itself, and the reported uncertainty does not show that weakness. When such an answer is
-off along the edge, it is usually off by a few pixels and sometimes by tens of pixels,
-while it is still reported at the ``medium`` tier with an uncertainty under a pixel; 115
-of the same frames are wrong this way. A ring-edge answer at that resolution that no other
-technique corroborates deserves a look before you rely on it.
+across the edge; 5 of the same 1,041 frames are wrong this way. Third, an edge that
+curves only gently across the frame fixes the pointing across itself far better than
+along itself, and the reported uncertainty says so: such an answer carries an
+uncertainty of several pixels along the edge, and often tens. Where a star fix or another
+technique in the same image measures that direction, it sets the position along the edge
+and the ring edge sets the position across it. When the only other technique is as
+uncertain along the edge, such as a match to a single star, and the two lie far apart, the
+image is reported as ``conflicted``. An answer that rests on such an edge alone is usually
+off by a few pixels along it, and is reported at the ``low`` tier.
 
 **Straight edges and unmeasured directions.** When every edge the technique was given is a
 straight line, the answer is genuinely incomplete, and the reason is geometric. Sliding a

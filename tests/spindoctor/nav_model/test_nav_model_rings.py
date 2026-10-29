@@ -9,6 +9,8 @@ reliability sigmoids.
 
 from __future__ import annotations
 
+import math
+
 import numpy as np
 import pytest
 
@@ -32,6 +34,7 @@ from spindoctor.nav_model.ring_polyline import (
     _composite_ring_renderings,
     _is_straight_line,
     _mask_bbox,
+    _mask_neighbor_polyline,
     _polyline_from_edge_mask,
     _radial_extent_px,
 )
@@ -329,8 +332,7 @@ def test_polyline_normals_are_radially_signed_with_a_radius_backplane() -> None:
     true_radial = np.stack([vertices[:, 0] - center, vertices[:, 1] - center], axis=-1)
     true_radial /= np.linalg.norm(true_radial, axis=1, keepdims=True)
     dots = np.sum(normals * true_radial, axis=1)
-    # Every normal points outward: the signed mean matches the absolute mean
-    # (which is below 1 only because the axis is quantized to eight directions).
+    # Every normal points outward: the signed mean matches the absolute mean.
     assert float(np.mean(dots)) == pytest.approx(float(np.mean(np.abs(dots))), abs=1.0e-9)
     assert float(np.min(dots)) > 0.0
 
@@ -371,6 +373,34 @@ def test_polyline_normals_unsigned_without_a_radius_backplane() -> None:
     _signed_vertices, signed_normals = _polyline_from_edge_mask(mask, radius.astype(np.float64))
     signed_dots = np.sum(signed_normals * true_radial, axis=1)
     assert int(np.count_nonzero(signed_dots < 0.0)) == 0
+
+
+def _horizontal_edge_with_radius() -> tuple[np.ndarray, np.ndarray]:
+    """A horizontal edge at row 5 whose ring radius increases toward +v."""
+    mask = np.zeros((10, 10), dtype=bool)
+    mask[5, 2:8] = True
+    vs, _us = np.meshgrid(np.arange(10), np.arange(10), indexing='ij')
+    return mask, 1.0e5 + vs.astype(np.float64)
+
+
+def test_polyline_normal_uses_a_one_sided_radius_difference_at_the_ring_plane_edge() -> None:
+    """With one neighbor off the ring plane the other still gives the radial direction."""
+    mask, radius = _horizontal_edge_with_radius()
+    radius[6, 4] = np.nan
+    vertices, normals = _polyline_from_edge_mask(mask, radius)
+    at = int(np.flatnonzero((vertices[:, 0] == 5.0) & (vertices[:, 1] == 4.0))[0])
+    assert np.allclose(normals[at], [1.0, 0.0])
+
+
+def test_polyline_normal_falls_back_to_the_mask_neighbors_without_a_radius_gradient() -> None:
+    """With both neighbors along v off the ring plane the mask-neighbor normal is kept."""
+    mask, radius = _horizontal_edge_with_radius()
+    radius[4, 4] = np.nan
+    radius[6, 4] = np.nan
+    vertices, normals = _polyline_from_edge_mask(mask, radius)
+    _neighbor_vertices, neighbor_normals = _mask_neighbor_polyline(mask, radius)
+    at = int(np.flatnonzero((vertices[:, 0] == 5.0) & (vertices[:, 1] == 4.0))[0])
+    assert np.allclose(normals[at], neighbor_normals[at])
 
 
 def test_aggregate_annulus_orbit_terms_vertex_weighted_mean() -> None:
@@ -580,6 +610,32 @@ def test_emitted_edge_features_keep_all_vertices_without_mask() -> None:
     geometry = edge_features[0].geometry
     assert isinstance(geometry, RingEdgePolyline)
     assert geometry.vertices_vu.shape[0] == 20
+
+
+def test_gently_curved_arc_routes_to_the_edge_fit_on_its_pixel_normals() -> None:
+    """A long arc of radius 1200 px emits a RING_EDGE carrying both sets of normals.
+
+    Along its radius-gradient normals the arc spans only its sagitta, under 4 px,
+    which is below the annulus threshold; the emission gate measures it along the
+    mask's pixel-neighbor normals, where it spans tens of pixels, so it stays a
+    per-edge feature.
+    """
+    size = 160
+    radius_px = 1200.0
+    direction = np.array([math.cos(math.radians(20.0)), math.sin(math.radians(20.0))])
+    center = np.array([size / 2.0, size / 2.0]) - radius_px * direction
+    vs, us = np.meshgrid(np.arange(size), np.arange(size), indexing='ij')
+    ring_radius = np.hypot(vs - center[0], us - center[1])
+    edge = np.abs(ring_radius - radius_px) <= 0.5
+    model = _rings_model_for_to_features(None, [(edge, 'A ring', 'a_outer')])
+    model._ring_radius_ext = ring_radius
+    features = model.to_features(None)  # type: ignore[arg-type]
+    edge_features = [f for f in features if f.feature_type == NavFeatureType.RING_EDGE]
+    assert len(edge_features) == 1
+    geometry = edge_features[0].geometry
+    assert isinstance(geometry, RingEdgePolyline)
+    assert geometry.pixel_normals_vu is not None
+    assert not np.allclose(geometry.pixel_normals_vu, geometry.normals_vu)
 
 
 ###############################################################################

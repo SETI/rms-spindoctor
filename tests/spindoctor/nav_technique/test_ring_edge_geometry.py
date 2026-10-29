@@ -14,6 +14,7 @@ from spindoctor.nav_technique.ring_edge_geometry import (
     _absorbed_orbit_sensitivity,
     _aggregate_normal_orientation,
     _orbit_inflated_covariance,
+    _shape_tilt_covariance,
 )
 
 
@@ -214,3 +215,42 @@ def test_inflation_leaves_rotation_block_untouched() -> None:
     out = _orbit_inflated_covariance(cov, np.array([0.0, 1.0]), 2.0)
     assert out[2, 2] == pytest.approx(0.3)
     assert out[0, 2] == pytest.approx(0.0)
+
+
+# ---------------------------------------------------------------------------
+# The correlated-shape term
+# ---------------------------------------------------------------------------
+
+
+def _circle_arc(radius: float, chord_px: float, n: int = 400) -> tuple[np.ndarray, np.ndarray]:
+    """Vertices and outward normals of an arc of ``radius`` spanning ``chord_px`` along +v."""
+    half = chord_px / (2.0 * radius)
+    angles = np.linspace(-half, half, n)
+    normals = np.stack([np.sin(angles), np.cos(angles)], axis=-1)
+    return radius * normals, normals
+
+
+def test_shape_tilt_on_a_low_curvature_arc_lies_along_the_edge() -> None:
+    """A gently curved arc absorbs a tilt as an along-edge slide of about sqrt(12) R / L."""
+    vertices, normals = _circle_arc(3000.0, 300.0)
+    cov = _shape_tilt_covariance(vertices, normals, np.ones(len(normals)), 0.1)
+    # The arc runs along v (its normal is +u at the middle).
+    expected_along = 0.1 * np.sqrt(12.0) * 3000.0 / 300.0
+    assert float(np.sqrt(cov[0, 0])) == pytest.approx(expected_along, rel=0.02)
+    assert float(np.sqrt(cov[1, 1])) < 0.01
+
+
+def test_shape_tilt_on_a_full_ring_is_isotropic_at_sigma() -> None:
+    """A field that pushes one side of a ring out and the other in is a translation of sigma."""
+    angles = np.linspace(0.0, 2.0 * np.pi, 720, endpoint=False)
+    normals = np.stack([np.sin(angles), np.cos(angles)], axis=-1)
+    cov = _shape_tilt_covariance(80.0 * normals, normals, np.ones(len(normals)), 0.1)
+    assert np.allclose(cov, 0.01 * np.eye(2), atol=1.0e-6)
+
+
+def test_shape_tilt_on_a_straight_edge_is_zero() -> None:
+    """A tilt across a straight line is a rotation, which a translation cannot absorb."""
+    vertices = np.stack([np.linspace(0.0, 300.0, 300), np.full(300, 50.0)], axis=-1)
+    normals = np.tile(np.array([0.0, 1.0]), (300, 1))
+    cov = _shape_tilt_covariance(vertices, normals, np.ones(300), 0.1)
+    assert np.allclose(cov, 0.0, atol=1.0e-12)

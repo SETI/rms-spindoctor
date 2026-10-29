@@ -133,6 +133,16 @@ The navigation reports a conflicted result: ``conflicted_techniques``,
 measurements pointed at different offsets, or one measurement was contradicted by another
 on the same body.
 
+When two techniques, or two groups of agreeing techniques, give different answers, the
+catalog stars are first refined at each answer, and an answer at which clearly more
+stars are found is accepted. The metadata document records the test in its
+``conflict_arbitration`` block (see :doc:`user_guide_metadata`). A conflict is still
+reported when the image has too few catalog stars for the test to tell the answers
+apart, when one technique's measurements fall on both sides, when the runner-up
+measurements do not agree on an answer of their own, when the conflict is a body
+measurement contradicted on the same body, or when the measurements that remain after
+the test still disagree.
+
 The image's log names the competing measurements and their confidences. A conflict usually
 means one technique locked onto the wrong thing. Restricting the run to the techniques you
 trust for that kind of frame, with ``--nav-techniques``, will tell you which one.

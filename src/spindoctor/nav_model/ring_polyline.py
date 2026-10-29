@@ -10,10 +10,11 @@ size cap.
 from __future__ import annotations
 
 import math
+from typing import cast
 
 import numpy as np
 
-from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
+from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType, NDArrayIntType
 
 __all__: list[str] = []
 
@@ -79,24 +80,22 @@ def _polyline_from_edge_mask(
 ) -> tuple[NDArrayFloatType, NDArrayFloatType]:
     """Extract a polyline + per-vertex normal from a 1-pixel-wide edge mask.
 
-    Each True pixel becomes one polyline vertex.  The normal AXIS at each
-    vertex comes from the local mask-neighbor test: whichever side has no
-    mask pixel is the off-edge side.  That test alone fixes only the axis,
-    never a consistent sense -- it scans ``v - 1`` before ``v + 1`` and
-    ``u - 1`` before ``u + 1``, so on a closed ring the emitted signs follow
-    scan order and rasterization rather than geometry, and the eight
-    quantized directions come out biased toward one quadrant.
+    Each True pixel becomes one polyline vertex.
 
-    ``ring_radius`` fixes that: with the ring-radius backplane in hand each
-    normal is flipped to point toward INCREASING ring radius, which is the
-    outward-radial sense ``RingEdgePolyline.normals_vu`` documents and that
-    ``RingEdgeNav``'s orbit-uncertainty channel depends on (it sums the
-    normals, so a random sign per vertex fabricates coherence on geometry
-    that should cancel).  Vertices whose two radius probes are unusable
-    (off-image or masked) keep the unsigned axis.
+    With ``ring_radius`` in hand each vertex's normal is the direction of
+    increasing ring radius there: the normalized gradient of the ring-radius
+    backplane, which is the true outward radial direction of the edge however
+    the projection foreshortens it.  This is the outward-radial sense
+    ``RingEdgePolyline.normals_vu`` documents, which ``RingEdgeNav``'s
+    orbit-uncertainty channel depends on (it sums the normals, so a random sign
+    per vertex fabricates coherence on geometry that should cancel), and it is
+    the direction along which the fit measures and prices the edge.  A vertex
+    whose radius gradient cannot be formed (both neighbors along an axis
+    off-image or off the ring plane) keeps the normal of
+    :func:`_mask_neighbor_polyline`.
 
-    When ``ring_radius`` is None the historical unsigned behavior applies;
-    only stubbed callers in unit tests take that path.
+    When ``ring_radius`` is None every normal is the unsigned mask-neighbor
+    one; only stubbed callers in unit tests take that path.
 
     Parameters:
         mask: 2-D boolean ``(rows, cols)`` array of edge pixels in
@@ -108,6 +107,71 @@ def _polyline_from_edge_mask(
         ``(vertices_vu, normals_vu)`` arrays each of shape ``(N, 2)``.
         Normals are unit length, radially outward when ``ring_radius``
         allowed the sense to be determined.
+    """
+    vertices_vu, neighbor_normals = _mask_neighbor_polyline(mask, ring_radius)
+    return vertices_vu, _radial_normals(vertices_vu, neighbor_normals, ring_radius)
+
+
+def _radial_normals(
+    vertices_vu: NDArrayFloatType,
+    neighbor_normals: NDArrayFloatType,
+    ring_radius: NDArrayFloatType | None,
+) -> NDArrayFloatType:
+    """Return the radius-gradient normals of a mask-neighbor polyline's vertices.
+
+    The normals :func:`_polyline_from_edge_mask` documents, for vertices and
+    pixel-neighbor normals already taken from :func:`_mask_neighbor_polyline`, so a
+    caller that needs both sets computes the polyline once.
+
+    Parameters:
+        vertices_vu: ``(N, 2)`` integer-valued vertex positions.
+        neighbor_normals: ``(N, 2)`` mask-neighbor normals of those vertices.
+        ring_radius: Optional ext-FOV ring-radius array (km); None returns
+            ``neighbor_normals``.
+
+    Returns:
+        ``(N, 2)`` unit normals: the radius gradient's direction where it can be
+        formed, the mask-neighbor normal elsewhere.
+    """
+    if ring_radius is None or vertices_vu.shape[0] == 0:
+        return neighbor_normals
+    radial = _radius_gradient_normals(
+        ring_radius, vertices_vu[:, 0].astype(np.int64), vertices_vu[:, 1].astype(np.int64)
+    )
+    usable = np.isfinite(radial).all(axis=1)
+    return cast(NDArrayFloatType, np.where(usable[:, None], radial, neighbor_normals))
+
+
+def _mask_neighbor_polyline(
+    mask: NDArrayBoolType,
+    ring_radius: NDArrayFloatType | None = None,
+) -> tuple[NDArrayFloatType, NDArrayFloatType]:
+    """Extract a polyline whose normals come from the edge mask's pixel neighbors.
+
+    Each True pixel becomes one polyline vertex.  The normal AXIS at each
+    vertex comes from the local mask-neighbor test: whichever side has no
+    mask pixel is the off-edge side, so the axis can only point along one of
+    the eight directions a pixel's neighbors make.  That test alone fixes only
+    the axis, never a consistent sense -- it scans ``v - 1`` before ``v + 1``
+    and ``u - 1`` before ``u + 1``, so on a closed ring the emitted signs
+    follow scan order and rasterization rather than geometry.  With
+    ``ring_radius`` each normal is flipped to point toward increasing ring
+    radius; vertices whose two radius probes are unusable (off-image or
+    masked) keep the unsigned axis.
+
+    The rings model's emission gate measures an edge's radial extent along
+    these normals (see :func:`_radial_extent_px`); the fit itself uses the
+    radius-gradient normals of :func:`_polyline_from_edge_mask`.
+
+    Parameters:
+        mask: 2-D boolean ``(rows, cols)`` array of edge pixels in
+            extfov coordinates.
+        ring_radius: Optional ext-FOV ring-radius array (km) matching
+            ``mask``; non-finite entries mark pixels off the ring plane.
+
+    Returns:
+        ``(vertices_vu, normals_vu)`` arrays each of shape ``(N, 2)``, the
+        normals unit length.
     """
     if not mask.any():
         empty: NDArrayFloatType = np.empty((0, 2), dtype=np.float64)
@@ -139,6 +203,56 @@ def _polyline_from_edge_mask(
         normals_vu[i, 0] = nv
         normals_vu[i, 1] = nu
     return vertices_vu, normals_vu
+
+
+def _radius_gradient_normals(
+    ring_radius: NDArrayFloatType, vs: NDArrayIntType, us: NDArrayIntType
+) -> NDArrayFloatType:
+    """Return the unit direction of increasing ring radius at each pixel.
+
+    Each axis derivative is a central difference of the radius backplane where
+    both neighbors along that axis are on-image and on the ring plane, a
+    one-sided difference where only one is, and undefined where neither is.
+
+    Parameters:
+        ring_radius: Ext-FOV ring-radius array (km); non-finite off the plane.
+        vs: ``(N,)`` integer row of each pixel.
+        us: ``(N,)`` integer column of each pixel.
+
+    Returns:
+        ``(N, 2)`` unit ``(v, u)`` directions; a row is NaN where the gradient
+        is undefined or zero.
+    """
+    rows, cols = ring_radius.shape
+    center = ring_radius[vs, us]
+
+    def axis_derivative(step_v: int, step_u: int) -> NDArrayFloatType:
+        """Derivative of the radius along one image axis at every pixel."""
+        plus_v, plus_u = vs + step_v, us + step_u
+        minus_v, minus_u = vs - step_v, us - step_u
+        plus_in = (plus_v < rows) & (plus_u < cols)
+        minus_in = (minus_v >= 0) & (minus_u >= 0)
+        r_plus = np.full(center.shape, np.nan)
+        r_minus = np.full(center.shape, np.nan)
+        r_plus[plus_in] = ring_radius[plus_v[plus_in], plus_u[plus_in]]
+        r_minus[minus_in] = ring_radius[minus_v[minus_in], minus_u[minus_in]]
+        plus_ok = np.isfinite(r_plus)
+        minus_ok = np.isfinite(r_minus)
+        derivative = np.where(
+            plus_ok & minus_ok,
+            0.5 * (r_plus - r_minus),
+            np.where(plus_ok, r_plus - center, np.where(minus_ok, center - r_minus, np.nan)),
+        )
+        return cast(NDArrayFloatType, derivative)
+
+    grad_v = axis_derivative(1, 0)
+    grad_u = axis_derivative(0, 1)
+    magnitude = np.hypot(grad_v, grad_u)
+    usable = np.isfinite(magnitude) & (magnitude > 0.0)
+    normals = np.full((center.shape[0], 2), np.nan)
+    normals[usable, 0] = grad_v[usable] / magnitude[usable]
+    normals[usable, 1] = grad_u[usable] / magnitude[usable]
+    return cast(NDArrayFloatType, normals)
 
 
 def _radial_outward_sign(
@@ -176,14 +290,17 @@ def _radial_outward_sign(
 def _radial_extent_px(vertices_vu: NDArrayFloatType, normals_vu: NDArrayFloatType) -> float:
     """Return the polyline's radial extent (max - min projection on mean normal).
 
-    The projection axis is the MEAN normal, so it is sign-sensitive.  Once the
-    normals are radially signed (see :func:`_polyline_from_edge_mask`) this
-    measures the extent along the polyline's genuine mean radial direction; a
-    half turn of arc then returns the ring radius, which is geometrically
-    right, where scan-order signs previously returned a larger number set by
-    the rasterizer's quadrant bias.  The values feed the annulus emission gate
-    (``radial_extent_px <= max_radial_px``), so a short curved edge can measure
-    roughly half what it used to.
+    The projection axis is the MEAN normal, so it is sign-sensitive.  The rings
+    model calls this for its annulus emission gate (``radial_extent_px <=
+    max_radial_px``) with the mask-neighbor normals of
+    :func:`_mask_neighbor_polyline`, signed toward increasing ring radius wherever
+    that helper's radius probes are usable, and the gate's threshold was set on
+    those values.  Each such normal is one of the eight pixel directions, so their
+    mean follows the radial direction only where the edge runs along a pixel axis
+    or diagonal; at other orientations it leans off it, and a long, gently curved
+    arc measures far more than the sagitta the radius-gradient normals of
+    :func:`_polyline_from_edge_mask` (the fit's normals) would measure.  Along those
+    radius-gradient normals a half turn of arc measures the ring radius.
 
     A closed or near-closed ring cancels the mean normal to numerical noise
     rather than exactly zero, so the degenerate case is caught by a relative

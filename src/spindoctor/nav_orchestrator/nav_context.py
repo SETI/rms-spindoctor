@@ -12,7 +12,8 @@ from __future__ import annotations
 
 import dataclasses
 import math
-from dataclasses import dataclass
+from collections.abc import Mapping
+from dataclasses import dataclass, field
 
 import numpy as np
 
@@ -74,6 +75,10 @@ class NavContext:
             when ``fit_camera_rotation`` is True; rotation outside the
             bound triggers ``at_edge=True``.  Ignored when
             ``fit_camera_rotation`` is False.
+        model_error_floor_px: Per-camera model-error floors (px) keyed by
+            technique name, from the instrument config.  A technique named
+            here uses this floor in place of the ``model_error_floor_px`` in its
+            own tuning; an absent name keeps the tuning's floor.
     """
 
     obs: object
@@ -92,6 +97,7 @@ class NavContext:
     pre_filter_applied: NavFilterSpec | None = None
     fit_camera_rotation: bool = False
     max_rotation_deg: float = 5.0
+    model_error_floor_px: Mapping[str, float] = field(default_factory=dict)
 
     def with_prior(
         self,

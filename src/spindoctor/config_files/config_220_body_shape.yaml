@@ -7,6 +7,7 @@
 #     crater_scale_km: float | null
 #     albedo_mean: float | null
 #     albedo_variation: float | null  # relative albedo std on visible hemisphere
+#     spice_orbital_residual_km: float | null  # SPK position sigma (km)
 #     shape_class_hint: regular | irregular | highly_irregular | unknown
 #     _sources:                       # documentation-only; loader ignores `_` keys
 #       <field>: 'citation string'
@@ -215,6 +216,7 @@ body_shape:
     crater_scale_km: 2.0
     albedo_mean: null
     albedo_variation: 0.10
+    spice_orbital_residual_km: 5.0
     shape_class_hint: highly_irregular
     _sources:
       radii_km: 'Archinal et al. 2011, CMDA 109, Table 5 (mean 43.1 +- 2.7); PDF fetched in-session 2026-07-10'
@@ -222,6 +224,7 @@ body_shape:
       crater_scale_km: 'ESTIMATE — subdued craters, drift-covered'
       albedo_mean: 'PLACEHOLDER — no in-session source fetched; no runtime consumer'
       albedo_variation: 'ESTIMATE — smooth drift deposits'
+      spice_orbital_residual_km: 'MEASURED — BodyBlobNav centroids against star-confirmed pointing on F ring bundle frames (2026-10-19): per-observation mean offsets a median 9 km for Prometheus and Pandora, consistent in one observation and different between observations; maximum-likelihood fit of the blob covariance gives 4.9 km per axis'
       shape_class_hint: 'highly elongated F-ring shepherd'
 
   PANDORA:
@@ -230,6 +233,7 @@ body_shape:
     crater_scale_km: 2.0
     albedo_mean: null
     albedo_variation: 0.10
+    spice_orbital_residual_km: 5.0
     shape_class_hint: highly_irregular
     _sources:
       radii_km: 'Archinal et al. 2011, CMDA 109, Table 5 (mean 40.7 +- 1.5); PDF fetched in-session 2026-07-10'
@@ -237,6 +241,7 @@ body_shape:
       crater_scale_km: 'ESTIMATE — two large craters relative to body size'
       albedo_mean: 'PLACEHOLDER — no in-session source fetched; no runtime consumer'
       albedo_variation: 'ESTIMATE — smooth drift deposits'
+      spice_orbital_residual_km: 'MEASURED — BodyBlobNav centroids against star-confirmed pointing on F ring bundle frames (2026-10-19): per-observation mean offsets a median 9 km for Prometheus and Pandora, consistent in one observation and different between observations; maximum-likelihood fit of the blob covariance gives 4.9 km per axis'
       shape_class_hint: 'irregular F-ring shepherd'
 
   SATURN:

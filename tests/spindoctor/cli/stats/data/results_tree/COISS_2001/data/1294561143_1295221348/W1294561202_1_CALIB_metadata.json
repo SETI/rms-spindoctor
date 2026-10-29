@@ -163,7 +163,8 @@
           "is_rank_1": false,
           "lm_converged": true,
           "coarse_peak_fraction": 0.812,
-          "sigma_orbit_radial_px": 0.031
+          "sigma_orbit_radial_px": 0.031,
+          "sigma_shape_major_px": 0.27
         }
       }
     ],

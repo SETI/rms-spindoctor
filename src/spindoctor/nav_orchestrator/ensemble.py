@@ -9,8 +9,12 @@ estimates become one offset.  Every step is honest:
    that agree with it pairwise (Mahalanobis distance or pixel floor,
    both measured only in the intersection of the two results' observable
    subspaces, so a rank-1 flat-ring measurement and a full-rank absolute
-   fix that agree radially can group and fuse); the subset with the
-   highest summed confidence wins.
+   fix that agree radially can group and fuse); a Mahalanobis agreement
+   between results farther apart than the pixel floor counts only when
+   their fusion would take each axis from the member precise along it, so
+   two vague results tens of pixels apart are a disagreement rather than a
+   compromise; the subset
+   with the highest summed confidence wins.
 4. Exclude results outside the consensus from the combine.  A lone
    dissenter against a multi-technique consensus is outlier-rejected;
    only a genuine alternative can force the conflicted branch: a
@@ -25,7 +29,9 @@ estimates become one offset.  Every step is honest:
    casts no independent vote.
 5. Resolve the winning subset into mutually independent estimators before
    fusing (``resolve_independent_estimators``): drop a seeded single-star
-   refine that only re-observes its own prior, and collapse correlated
+   refine that only re-observes its own prior (or, when it polishes a
+   one-star match that every stronger witness confirms at the refine's
+   precision, let it replace that match), and collapse correlated
    witnesses that share one error source (two ring techniques on one
    catalog; disc and limb on one scattered-light gradient) to a single
    representative.  The information-form merge assumes independence, so
@@ -48,7 +54,7 @@ correctness here is what makes the rest of the pipeline trustworthy.
 
 import copy
 import math
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field, fields
 from typing import Any
 
@@ -68,6 +74,7 @@ from spindoctor.nav_orchestrator.ensemble_consensus import (
     consensus_selection,
     corroborating_confidence,
     corroborating_members,
+    leave_out_compromising_fusions,
     result_param_vector,
 )
 from spindoctor.nav_orchestrator.ensemble_independence import (
@@ -100,6 +107,18 @@ __all__ = [
 # Default constants used by the ensemble.  Configurable via ``EnsembleConfig``.
 DEFAULT_AGREEMENT_SIGMA = 2.0
 DEFAULT_AGREEMENT_PIXEL_FLOOR = 5.0
+# Largest compromise (px, see ``fusion_compromise_px``) the fusion of two
+# results that agree only statistically, from farther apart than the pixel
+# floor, may make.  One pixel is the scale at which an answer is right; a
+# fusion farther than that from what either member supports is a compromise
+# neither supports.  Mirrored in config_540_orchestrator.yaml.
+DEFAULT_AGREEMENT_COMPROMISE_PX = 1.0
+# Largest standard deviation (px) of a witness axis precise enough to confirm
+# a single-star refine replacing a one-star match (resolve_independent_
+# estimators): sub-pixel, so a ring edge confirms across itself and a witness
+# vague in every direction confirms nothing.  Mirrored in
+# config_540_orchestrator.yaml.
+DEFAULT_CONFIRMING_AXIS_MAX_SIGMA_PX = 1.0
 DEFAULT_AGREEMENT_GAP = 0.5
 DEFAULT_DISAGREEMENT_PENALTY = 0.7
 DEFAULT_CONFLICTED_CONFIDENCE_MULTIPLIER = 0.3
@@ -172,6 +191,26 @@ class EnsembleConfig:
             without the floor, results agreeing visually to a few px
             register as hundreds of sigmas apart and never group.
             Set to ``0.0`` to disable the floor.
+        agreement_compromise_px: Largest compromise (px) the information-form
+            fusion of two results that agree by Mahalanobis distance alone,
+            from farther apart than ``agreement_pixel_floor``, may make;
+            beyond it the pair is a disagreement.  Along each principal axis
+            of the pair the fusion should land on the member precise along
+            it; the compromise is how far it lies from that, over both axes
+            (see ``ensemble_consensus.fusion_compromise_px``).  Two results
+            each uncertain by tens of pixels along their separation are
+            statistically consistent however far apart they lie, but their
+            fusion is a point between two answers at most one of which is
+            right.  A precise result beside a vague one, or two that are each
+            precise where the other is vague, are unaffected.  Set to ``0.0``
+            to disable.
+        confirming_axis_max_sigma_px: Largest standard deviation (px) along a
+            principal axis of a non-single-star result for that axis to confirm
+            a seeded single-star ``StarRefineNav`` refine that replaces a
+            one-star ``StarUniqueMatchNav`` match on the same star (see
+            ``resolve_independent_estimators``).  At least one such axis must
+            agree with the refine within ``agreement_sigma`` of the pair's
+            combined standard deviation along it.
         agreement_gap: Minimum summed-confidence gap between best and
             runner-up groups before declaring a conflict.  Applied as an
             absolute gap when the runner-up has a quorum (two or more
@@ -229,6 +268,8 @@ class EnsembleConfig:
 
     agreement_sigma: float = DEFAULT_AGREEMENT_SIGMA
     agreement_pixel_floor: float = DEFAULT_AGREEMENT_PIXEL_FLOOR
+    agreement_compromise_px: float = DEFAULT_AGREEMENT_COMPROMISE_PX
+    confirming_axis_max_sigma_px: float = DEFAULT_CONFIRMING_AXIS_MAX_SIGMA_PX
     agreement_gap: float = DEFAULT_AGREEMENT_GAP
     disagreement_penalty: float = DEFAULT_DISAGREEMENT_PENALTY
     conflicted_confidence_multiplier: float = DEFAULT_CONFLICTED_CONFIDENCE_MULTIPLIER
@@ -257,16 +298,18 @@ class EnsembleConfig:
         ``blob_star_disagreement_floor_px`` would drop every blob.
 
         Raises:
-            ValueError: if any body-witness or blob/star tolerance is
-                non-finite or negative, a body-witness phase falls outside
-                ``[0, 180]``, or the shape-lock ceiling is not below the
-                collapse floor.
+            ValueError: if any body-witness or blob/star tolerance, the
+                compromise distance, or the confirming-axis sigma is non-finite
+                or negative, a body-witness phase falls outside ``[0, 180]``, or
+                the shape-lock ceiling is not below the collapse floor.
         """
         non_negative = {
             'body_witness_disagreement_floor_px': self.body_witness_disagreement_floor_px,
             'body_witness_disagreement_frac': self.body_witness_disagreement_frac,
             'body_witness_agreement_sigma': self.body_witness_agreement_sigma,
             'blob_star_disagreement_floor_px': self.blob_star_disagreement_floor_px,
+            'agreement_compromise_px': self.agreement_compromise_px,
+            'confirming_axis_max_sigma_px': self.confirming_axis_max_sigma_px,
         }
         for name, value in non_negative.items():
             if not math.isfinite(value):
@@ -762,6 +805,7 @@ def ensemble(
     config: EnsembleConfig | None = None,
     model_metadata: dict[str, dict[str, Any]] | None = None,
     annotations: Annotations | None = None,
+    refuted: Sequence[NavTechniqueResult] = (),
 ) -> NavResult:
     """Reconcile per-technique results into a single NavResult.
 
@@ -774,6 +818,11 @@ def ensemble(
         model_metadata: Optional per-NavModel diagnostic dict map.
         annotations: Optional pre-built annotation collection from the
             orchestrator's ``_collect_annotations`` pass.
+        refuted: Results, the same objects as in ``results``, whose answer a pass-2
+            test of a conflicted pass 1 refuted.  They stay in ``per_technique`` and
+            are named among the excluded techniques, and the disagreement penalty
+            applies, but they cast no vote and take no part in the combine or the
+            body-witness veto.
 
     Returns:
         A single NavResult — ok / conflicted / failed.
@@ -789,7 +838,9 @@ def ensemble(
             model_metadata=md,
             annotations=ann,
         )
-    viable = [r for r in results if not r.spurious]
+    refuted_ids = {id(r) for r in refuted}
+    refuted_names = [r.technique_name for r in results if id(r) in refuted_ids]
+    viable = [r for r in results if not r.spurious and id(r) not in refuted_ids]
     if not viable:
         IMAGE_LOGGER.info(
             'All %d technique result(s) returned spurious=True: %s',
@@ -815,8 +866,8 @@ def ensemble(
     # contradicts: it is a weaker position witness than a multi-star fix, so it
     # must not force a conflict against the star solution or incur the
     # multi-group disagreement penalty.  The body-witness veto below still
-    # reads the full ``results`` list, so a geometric body consensus the blob
-    # contradicts is unaffected.
+    # reads every result but the refuted ones, so a geometric body consensus
+    # the blob contradicts is unaffected.
     viable = _drop_blob_outlier_against_star_consensus(
         viable,
         disagreement_floor_px=cfg.blob_star_disagreement_floor_px,
@@ -828,6 +879,7 @@ def ensemble(
         viable,
         agreement_sigma=cfg.agreement_sigma,
         agreement_pixel_floor=cfg.agreement_pixel_floor,
+        agreement_compromise_px=cfg.agreement_compromise_px,
         rcond=cfg.pinvh_rcond,
         max_allowed_rotation_deg=cfg.max_allowed_rotation_deg,
     )
@@ -847,9 +899,19 @@ def ensemble(
         best_group,
         image_classifier=image_classifier,
         scattered_light_gradient_score=cfg.scattered_light_gradient_score,
+        agreement_sigma=cfg.agreement_sigma,
+        confirming_axis_max_sigma_px=cfg.confirming_axis_max_sigma_px,
         rcond=cfg.pinvh_rcond,
     )
     combine_set = resolution.estimators
+    for refine, match in resolution.replaced_matches:
+        IMAGE_LOGGER.info(
+            'Single-star refine %s replaces one-star match %s in the combine: '
+            'it centroids the star that match found, a stronger witness confirms '
+            'it to sub-pixel precision, and none contradicts it',
+            refine.technique_name,
+            match.technique_name,
+        )
     for dropped in resolution.dropped_descendants:
         IMAGE_LOGGER.info(
             'Dropping seeded single-star refine %s from the combine: it '
@@ -864,6 +926,27 @@ def ensemble(
             collapsed[0].technique_name,
             ', '.join(r.technique_name for r in collapsed),
         )
+    # A result fused with a collapsed set must not compromise with the set's
+    # representative; the less precise side of such a pair is left out.
+    pruning = leave_out_compromising_fusions(
+        resolution.estimators,
+        combine_set,
+        resolution.collapsed_groups,
+        best_group,
+        excluded,
+        agreement_sigma=cfg.agreement_sigma,
+        agreement_pixel_floor=cfg.agreement_pixel_floor,
+        agreement_compromise_px=cfg.agreement_compromise_px,
+        rcond=cfg.pinvh_rcond,
+    )
+    if pruning.left_out:
+        IMAGE_LOGGER.info(
+            'Leaving %s out of the combine: fusing it would compromise between answers',
+            ', '.join(r.technique_name for r in pruning.left_out),
+        )
+    combine_set, best_group, excluded = pruning.combine_set, pruning.best_group, pruning.excluded
+    excluded_names = [r.technique_name for r in excluded] + refuted_names
+    consensus_names = [r.technique_name for r in best_group]
     # Vote mass and quorum count independent witnesses only, so they are
     # measured over the resolved ``combine_set`` -- the same set the merge
     # fuses -- not the raw consensus.  This keeps the conflict logic consistent
@@ -875,7 +958,7 @@ def ensemble(
     # independent vote (issue #222).
     best_summed_conf = corroborating_confidence(combine_set)
     best_has_quorum = len(corroborating_members(combine_set)) >= 2
-    apply_disagreement_penalty = bool(excluded)
+    apply_disagreement_penalty = bool(excluded) or bool(refuted_names)
     try:
         combined = _combine_precision_weighted(
             combine_set,
@@ -964,7 +1047,7 @@ def ensemble(
             '(consensus %d member(s) summing %.3f; excluded runner-up %.3f, '
             'quorum: %s)',
             len(excluded),
-            ', '.join(excluded_names),
+            ', '.join(r.technique_name for r in excluded),
             len(best_group),
             best_summed_conf,
             selection.runner_up_confidence,
@@ -994,10 +1077,10 @@ def ensemble(
     # corroboration floor corroborates the geometry and suppresses the shape-lock
     # verdict: the blob, not the lock, is then the outlier (the geometric-side
     # mirror of the blob-drop above, sharing its blob_star_disagreement_floor_px
-    # knob).
+    # knob).  A refuted result is no witness here either.
     veto = evaluate_body_witness_veto(
         best_group,
-        results,
+        [r for r in results if id(r) not in refuted_ids],
         combined.offset_px,
         combined.covariance_px2,
         shape_lock_max_phase_deg=cfg.body_witness_shape_lock_max_phase_deg,

@@ -40,6 +40,10 @@ calls it once per observation in ``_make_context`` and the result is consumed by
 - The orchestrator's pre-filter selection (per-instrument ``source_image_filter`` block).
 - The :class:`~spindoctor.nav_orchestrator.nav_context.NavContext` rotation flags
   (``fit_camera_rotation``, ``max_rotation_deg``).
+- The :class:`~spindoctor.nav_orchestrator.nav_context.NavContext` per-camera
+  model-error floors
+  (:attr:`~spindoctor.nav_orchestrator.nav_context.NavContext.model_error_floor_px`),
+  which a technique named there uses in place of the floor in its own tuning.
 
 Restrictions and assumptions
 ----------------------------
@@ -87,6 +91,19 @@ The per-instrument YAML schema consumed by
   chapter under :doc:`instruments/instruments`, next to the reason for it.
 - ``max_rotation_deg`` — float, top-level in the per-camera block, default ``5.0`` deg.
   Maximum allowed rotation magnitude when ``fit_camera_rotation`` is ``True``.
+- ``model_error_floor_px`` — mapping of technique name to float px, top-level in the
+  per-camera block, optional. Each entry replaces the ``model_error_floor_px`` of that
+  technique's own tuning for this camera, for a camera whose model error differs from the
+  one the technique's floor was calibrated on (a template that matches one camera's
+  sampling can be biased on another's). Only the techniques in
+  :data:`~spindoctor.nav_orchestrator.instrument_config.MODEL_ERROR_FLOOR_TECHNIQUES` read
+  it, which is ``RingAnnulusNav`` alone; a key naming any other technique or a value that
+  is not a finite number at least zero raises ``ValueError``, and a block that is not a
+  mapping raises ``TypeError``, when
+  :func:`~spindoctor.nav_orchestrator.instrument_config.instrument_settings_from_obs`
+  reads the camera's block, so a misspelled technique name stops the first image of that
+  camera. Each instrument's own floors are stated in its
+  chapter under :doc:`instruments/instruments`.
 
 Implementation
 ==============
@@ -114,13 +131,16 @@ Public surface (autodocumented at :doc:`/api_reference/api_nav_orchestrator`):
     — bool.
   - :attr:`~spindoctor.nav_orchestrator.instrument_config.InstrumentSettings.max_rotation_deg` —
     float.
+  - :attr:`~spindoctor.nav_orchestrator.instrument_config.InstrumentSettings.model_error_floor_px`
+    — mapping of technique name to floor in px; empty when the instrument declares none.
 
 - :func:`~spindoctor.nav_orchestrator.instrument_config.instrument_settings_from_obs` — reads the
   per-camera YAML mapping off ``obs.inst_config`` and returns a populated
   :class:`~spindoctor.nav_orchestrator.instrument_config.InstrumentSettings`.
 
-The module's private helpers ``_coerce_marker_value`` and ``_required_float`` validate
-the YAML values; the public function is the only entry point external callers use.
+The module's private helpers ``_coerce_marker_value``, ``_required_float``, and
+``_model_error_floors`` validate the YAML values; the public function is the only entry
+point external callers use.
 
 Examples
 ========

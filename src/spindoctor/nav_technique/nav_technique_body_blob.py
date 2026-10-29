@@ -29,13 +29,19 @@ from spindoctor.config import Config
 from spindoctor.feature.feature import NavFeature, body_names_from_features
 from spindoctor.feature.feature_type import NavFeatureType
 from spindoctor.feature.geometry import BodyBlobGeometry
+from spindoctor.nav_technique.body_blob_covariance import (
+    BlobCentroidBiasModel,
+    _blob_bias_covariances,
+    _generalized_least_squares,
+    load_blob_bias_model,
+)
 from spindoctor.nav_technique.confidence import evaluate_sigmoid_combination
 from spindoctor.nav_technique.diagnostics import BodyBlobDiagnostics
 from spindoctor.nav_technique.feasibility import NavFeasibilityReport
 from spindoctor.nav_technique.nav_technique import (
     NavTechnique,
     embed_rotation_unobservable,
-    load_ncc_covariance_tuning,
+    load_model_error_floor,
     log_confidence_breakdown,
     reported_position_vu,
     rotation_unobservable_sigma_rad,
@@ -72,6 +78,8 @@ class _BlobResiduals:
     extents: list[float]
     phase_angles_deg: list[float]
     phase_irregularity_factors: list[float]
+    sun_dirs_vu: list[tuple[float, float]]
+    ephemeris_sigmas_px: list[float]
 
 
 @dataclass(frozen=True)
@@ -353,13 +361,32 @@ def _shift_bbox(
     return (v_min + dv, u_min + du, v_max + dv, u_max + du)
 
 
+@dataclass(frozen=True)
+class _BlobCentroid:
+    """A blob's brightness-weighted centroid and the shape of its lit region.
+
+    ``centroid_vu`` is ``None`` when the (shifted) box holds no signal above the
+    threshold; the other statistics are then zero.  ``gyration_radius_px`` is the
+    signal-weighted RMS distance of the lit pixels from the centroid, and
+    ``edge_signal_frac`` the fraction of the lit signal on the box's outermost rows and
+    columns.
+    """
+
+    centroid_vu: tuple[float, float] | None
+    mean_signal: float
+    n_lit: int
+    clamped_bbox: tuple[int, int, int, int]
+    gyration_radius_px: float = 0.0
+    edge_signal_frac: float = 0.0
+
+
 def _brightness_weighted_centroid(
     image_ext: NDArrayFloatType,
     image_noise_sigma: float,
     geometry: BodyBlobGeometry,
     background: float,
     coarse_offset_vu: tuple[int, int] = (0, 0),
-) -> tuple[tuple[float, float] | None, float, int, tuple[int, int, int, int]]:
+) -> _BlobCentroid:
     """Return the brightness-weighted centroid + signal stats for one blob.
 
     The centroid is computed over every above-background pixel inside the
@@ -381,34 +408,46 @@ def _brightness_weighted_centroid(
     joint fit and still log its bbox in the per-blob rejection line.
 
     Returns:
-        ``(centroid_vu, mean_signal_above_background, n_lit_pixels,
-        clamped_bbox)``.  ``centroid_vu`` is ``None`` when the blob has
-        no usable signal.  The centroid is in absolute extfov coordinates,
-        so the caller's ``observed - predicted`` residual already includes
-        the coarse offset.
+        The centroid, the mean signal above background over the lit pixels, the
+        lit-pixel count, the clamped box, and the lit region's gyration radius and
+        edge-signal fraction (see :class:`_BlobCentroid`).  ``centroid_vu`` is
+        ``None`` when the blob has no usable signal.  The centroid is in absolute
+        extfov coordinates, so the caller's ``observed - predicted`` residual
+        already includes the coarse offset.
     """
     extfov_shape = (image_ext.shape[0], image_ext.shape[1])
     shifted_bbox = _shift_bbox(geometry.bbox_extfov_vu, coarse_offset_vu[0], coarse_offset_vu[1])
     clamped_bbox = _clamp_bbox(shifted_bbox, extfov_shape)
     v_min, u_min, v_max, u_max = clamped_bbox
     if v_max <= v_min or u_max <= u_min:
-        return None, 0.0, 0, clamped_bbox
+        return _BlobCentroid(None, 0.0, 0, clamped_bbox)
     patch = image_ext[v_min:v_max, u_min:u_max]
     noise_threshold = background + _BLOB_NOISE_THRESHOLD_SIGMA * max(image_noise_sigma, 1e-9)
     signal_mask: NDArrayBoolType = patch > noise_threshold
     n_lit = int(signal_mask.sum())
     if n_lit == 0:
-        return None, 0.0, 0, clamped_bbox
+        return _BlobCentroid(None, 0.0, 0, clamped_bbox)
     signal = np.where(signal_mask, patch - background, 0.0)
     total_weight = float(signal.sum())
     if total_weight <= 0.0:
-        return None, 0.0, 0, clamped_bbox
+        return _BlobCentroid(None, 0.0, 0, clamped_bbox)
     vs = np.arange(v_min, v_max, dtype=np.float64)
     us = np.arange(u_min, u_max, dtype=np.float64)
     centroid_v = float(np.sum(signal * vs[:, None]) / total_weight)
     centroid_u = float(np.sum(signal * us[None, :]) / total_weight)
     mean_signal = float(signal[signal_mask].mean())
-    return (centroid_v, centroid_u), mean_signal, n_lit, clamped_bbox
+    spread_sq = (vs[:, None] - centroid_v) ** 2 + (us[None, :] - centroid_u) ** 2
+    gyration_radius_px = math.sqrt(float(np.sum(signal * spread_sq)) / total_weight)
+    interior = float(signal[1:-1, 1:-1].sum())
+    edge_signal_frac = (total_weight - interior) / total_weight
+    return _BlobCentroid(
+        (centroid_v, centroid_u),
+        mean_signal,
+        n_lit,
+        clamped_bbox,
+        gyration_radius_px=gyration_radius_px,
+        edge_signal_frac=edge_signal_frac,
+    )
 
 
 def _collect_per_blob_residuals(
@@ -421,6 +460,8 @@ def _collect_per_blob_residuals(
     image_signal: NDArrayFloatType,
     margin_vu: tuple[int, int],
     prior_offset_vu: tuple[float, float] | None,
+    max_gyration_radius_frac: float,
+    max_edge_signal_frac: float,
 ) -> _BlobResiduals:
     """Extract the per-blob ``observed - predicted`` residuals + weights.
 
@@ -434,7 +475,11 @@ def _collect_per_blob_residuals(
     bounding box (a few pixels) to the full extfov window; without it the
     centroid silently clips and biases once the body leaves the predicted
     box.  Blobs with no above-background signal in their (shifted) bbox are
-    dropped (and logged at DEBUG).  The remaining blobs contribute to the
+    dropped (and logged at DEBUG).  So is a blob whose lit region is larger than the
+    body it should be -- its gyration radius over ``max_gyration_radius_frac`` of the
+    predicted radius and over ``max_edge_signal_frac`` of its signal on the box edge
+    -- since the coarse stage then locked onto something bigger, such as a ring arc
+    or another body's limb (logged at INFO).  The remaining blobs contribute to the
     joint fit with weight ``N_lit * SNR^2 / radius_px^2`` per the BODY_BLOB
     centroid CRLB.
     """
@@ -446,6 +491,8 @@ def _collect_per_blob_residuals(
     extents: list[float] = []
     phase_angles_deg: list[float] = []
     phase_irregularity_factors: list[float] = []
+    sun_dirs_vu: list[tuple[float, float]] = []
+    ephemeris_sigmas_px: list[float] = []
     prior_coarse = (
         (round(prior_offset_vu[0]), round(prior_offset_vu[1]))
         if prior_offset_vu is not None
@@ -483,8 +530,14 @@ def _collect_per_blob_residuals(
             )
         else:
             coarse_offset = (0, 0)
-        centroid, mean_signal, n_lit, clamped_bbox = _brightness_weighted_centroid(
+        measured = _brightness_weighted_centroid(
             image_ext, image_noise_sigma, feature.geometry, background, coarse_offset
+        )
+        centroid, mean_signal, n_lit, clamped_bbox = (
+            measured.centroid_vu,
+            measured.mean_signal,
+            measured.n_lit,
+            measured.clamped_bbox,
         )
         if centroid is None:
             logger.debug(
@@ -494,6 +547,23 @@ def _collect_per_blob_residuals(
                 clamped_bbox,
                 background,
                 background + _BLOB_NOISE_THRESHOLD_SIGMA * max(image_noise_sigma, 1e-9),
+            )
+            continue
+        radius_px = feature.geometry.predicted_diameter_px / 2.0
+        if (
+            measured.gyration_radius_px > max_gyration_radius_frac * radius_px
+            and measured.edge_signal_frac > max_edge_signal_frac
+        ):
+            logger.info(
+                'Blob %s: lit region at coarse offset (%d, %d) spreads %.2f px from its '
+                'centroid (%.2f of the predicted radius) with %.2f of its signal on the box '
+                'edge; it is not this body, dropping',
+                feature.feature_id,
+                coarse_offset[0],
+                coarse_offset[1],
+                measured.gyration_radius_px,
+                measured.gyration_radius_px / radius_px,
+                measured.edge_signal_frac,
             )
             continue
         pred_v, pred_u = feature.geometry.predicted_center_vu
@@ -506,7 +576,6 @@ def _collect_per_blob_residuals(
         # emission gate guarantees ``predicted_diameter_px >= 8``,
         # so the radius_px denominator is bounded away from zero
         # and no floor is needed.
-        radius_px = feature.geometry.predicted_diameter_px / 2.0
         radius_sq = radius_px * radius_px
         weight = float(n_lit) * snr * snr / radius_sq
         consumed.append(feature)
@@ -523,6 +592,8 @@ def _collect_per_blob_residuals(
         flags_factor = float(getattr(feature.flags, 'phase_irregularity_factor', 0.0))
         phase_angles_deg.append(flags_phase)
         phase_irregularity_factors.append(max(0.0, flags_factor))
+        sun_dirs_vu.append((float(sub_solar_dir_vu[0]), float(sub_solar_dir_vu[1])))
+        ephemeris_sigmas_px.append(float(getattr(feature.flags, 'ephemeris_sigma_px', 0.0)))
         # The offsets are differences and stay as they are; the two
         # positions beside them are stated the way a person reads one.
         reported_pred = reported_position_vu((pred_v, pred_u), margin_vu)
@@ -551,137 +622,45 @@ def _collect_per_blob_residuals(
         extents=extents,
         phase_angles_deg=phase_angles_deg,
         phase_irregularity_factors=phase_irregularity_factors,
+        sun_dirs_vu=sun_dirs_vu,
+        ephemeris_sigmas_px=ephemeris_sigmas_px,
     )
 
 
 def _joint_offset_from_residuals(
     residuals: _BlobResiduals,
     *,
+    bias_model: BlobCentroidBiasModel,
     model_error_floor_px: float = 0.0,
-    centroid_model_error_frac: float = 0.0,
 ) -> _JointFit:
-    """Solve the precision-weighted joint translation across the per-blob residuals."""
-    offsets_v = residuals.offsets_v
-    offsets_u = residuals.offsets_u
-    weights = residuals.weights
-    total_weight = float(weights.sum())
-    dv = float(np.sum(weights * offsets_v) / total_weight)
-    du = float(np.sum(weights * offsets_u) / total_weight)
-    res_norms = np.hypot(offsets_v - dv, offsets_u - du)
+    """Combine the per-blob residuals by generalized least squares.
+
+    Each blob's error is its photon noise (the inverse of its CRLB weight) plus its
+    centroid bias (:func:`_blob_bias_covariances`): isotropic terms including the body's
+    ephemeris sigma, and a phase term along and across the blob's direction toward the
+    Sun.  The biases of different blobs are correlated (``bias_correlation``), and the
+    blobs are combined with the inverse of the full covariance, so the reported
+    covariance is that of the combination formed; ``model_error_floor_px`` is then added
+    in quadrature to both axes.
+    """
+    fit = _generalized_least_squares(
+        np.column_stack([residuals.offsets_v, residuals.offsets_u]),
+        1.0 / residuals.weights,
+        _blob_bias_covariances(
+            diameters_px=np.asarray(residuals.extents, np.float64),
+            phase_angles_deg=np.asarray(residuals.phase_angles_deg, np.float64),
+            irregularity_factors=np.asarray(residuals.phase_irregularity_factors, np.float64),
+            sun_dirs_vu=np.asarray(residuals.sun_dirs_vu, np.float64),
+            ephemeris_sigmas_px=np.asarray(residuals.ephemeris_sigmas_px, np.float64),
+            model=bias_model,
+        ),
+        bias_correlation=bias_model.bias_correlation,
+    )
+    dv, du = fit.offset_vu
+    res_norms = np.hypot(residuals.offsets_v - dv, residuals.offsets_u - du)
     rms = float(np.sqrt(float(np.mean(res_norms * res_norms))))
-    cov = _joint_covariance(
-        offsets_v=offsets_v,
-        offsets_u=offsets_u,
-        weights=weights,
-        dv=dv,
-        du=du,
-        extents_px=np.asarray(residuals.extents, np.float64),
-        model_error_floor_px=model_error_floor_px,
-        centroid_model_error_frac=centroid_model_error_frac,
-    )
-    return _JointFit(dv=dv, du=du, covariance=cov, residual_rms=rms)
-
-
-def _centroid_model_error_var(extents_px: NDArrayFloatType, frac: float) -> float:
-    """Return the size-scaled centroid-model-error variance for the joint fit.
-
-    A brightness-weighted centroid is a biased estimate of the geometric
-    center: the lit hemisphere and any shape irregularity shift it by a
-    roughly fixed *fraction* of the body radius, an error the photon-only
-    per-blob CRLB is blind to.  Each blob therefore carries a floor
-    variance ``(frac * R_i)**2`` with ``R_i`` its predicted radius.  These
-    combine by inverse-variance across blobs (the joint centroid is a
-    precision-weighted mean), so the joint size-error variance is
-    ``1 / sum_i 1 / (frac * R_i)**2`` -- for a single blob this is exactly
-    ``(frac * R)**2``, and it shrinks as more blobs constrain the fit.
-
-    Parameters:
-        extents_px: Per-blob predicted diameters in pixels.
-        frac: Fraction of the body radius taken as the centroid bias sigma;
-            ``0.0`` disables the term.
-
-    Returns:
-        The joint centroid-model-error variance in pixels squared (``0.0``
-        when disabled or no blob has a positive extent).
-    """
-    if frac <= 0.0:
-        return 0.0
-    radii = 0.5 * np.asarray(extents_px, np.float64)
-    per_blob_var = (frac * radii) ** 2
-    positive = per_blob_var[per_blob_var > 0.0]
-    if positive.size == 0:
-        return 0.0
-    return float(1.0 / np.sum(1.0 / positive))
-
-
-def _joint_covariance(
-    *,
-    offsets_v: NDArrayFloatType,
-    offsets_u: NDArrayFloatType,
-    weights: NDArrayFloatType,
-    dv: float,
-    du: float,
-    extents_px: NDArrayFloatType,
-    model_error_floor_px: float = 0.0,
-    centroid_model_error_frac: float = 0.0,
-) -> NDArrayFloatType:
-    """Return the per-axis reduced-chi-square covariance of the joint fit.
-
-    The covariance is diagonal.  With ``N`` blobs and ``p = 2`` fitted
-    translation parameters, the per-axis reduced chi-square is
-
-    ::
-
-        chi2_nu_axis = sum_i w_i * r_axis_i**2 / max(N - p, 1)
-
-    and the weighted-mean variance is ``chi2_nu_axis / sum(w_i)``.
-
-    NAV-005: a single blob (``N = 1``) cannot constrain a 2-D
-    translation -- ``N - p = -1`` so ``max(N - p, 1) = 1`` and there is
-    no residual scatter to estimate (the lone residual is zero by
-    construction).  The result therefore collapses to the
-    inverse-precision floor ``1 / sum(w_i)``, which for a single blob is
-    the (large) per-blob centroid CRLB variance -- correctly reflecting
-    that one point is near-unobservable for two parameters rather than
-    over-confident.  The previous ``sum(w r^2) / (sum w)^2`` form was the
-    wrong power of ``sum w`` and carried no degrees-of-freedom factor.
-
-    The positive-definite floor is ``1 / sum(w_i)`` (pure
-    inverse-precision), NOT ``1 / (sum w_i)^2``.  Two model-error terms
-    are then added in quadrature: the size-scaled centroid-bias variance
-    (see :func:`_centroid_model_error_var`), which makes the reported
-    sigma track body size the way the photon-only weights cannot, and the
-    absolute ``model_error_floor_px**2`` floor.
-
-    The cross-term ``cov(v, u)`` is intentionally zero -- per-axis
-    residuals are independent under the BODY_BLOB CRLB derivation,
-    and the precision-weighted ensemble combine downstream consumes
-    diagonals correctly.  Future readers tempted to add
-    ``cov_vu = sum(w * res_v * res_u) / sum(w)``: that term has no
-    physical interpretation here because the per-axis errors come
-    from independent moment integrals along orthogonal axes.
-    """
-    total_weight = float(weights.sum())
-    floor = 1.0 / max(total_weight, 1e-12)
-    model_error = model_error_floor_px * model_error_floor_px + _centroid_model_error_var(
-        extents_px, centroid_model_error_frac
-    )
-    n = int(offsets_v.size)
-    if n <= 1:
-        # Single blob: under-determined for 2 translation params.  Report
-        # the inverse-precision floor (the per-blob centroid CRLB variance),
-        # not a tiny over-confident value.
-        return float(floor) * np.eye(2, dtype=np.float64) + model_error * np.eye(
-            2, dtype=np.float64
-        )
-    residuals_v = offsets_v - dv
-    residuals_u = offsets_u - du
-    dof = max(n - 2, 1)
-    chi2_nu_v = float(np.sum(weights * residuals_v * residuals_v)) / dof
-    chi2_nu_u = float(np.sum(weights * residuals_u * residuals_u)) / dof
-    var_v = max(chi2_nu_v / total_weight, floor) + model_error
-    var_u = max(chi2_nu_u / total_weight, floor) + model_error
-    return np.diag([var_v, var_u]).astype(np.float64)
+    covariance = fit.covariance + model_error_floor_px * model_error_floor_px * np.eye(2)
+    return _JointFit(dv=dv, du=du, covariance=covariance, residual_rms=rms)
 
 
 class BodyBlobNav(NavTechnique):
@@ -721,12 +700,23 @@ class BodyBlobNav(NavTechnique):
         super().__init__(config=config)
         self.config.read_config()  # ensure cls.tuning is populated
         self._at_edge_tolerance_px = float(self.tuning['at_edge_tolerance_px'])
-        # Covariance model-error terms: the brightness-weighted centroid is a
-        # biased estimator of the geometric center (lit-hemisphere offset,
-        # shape irregularity), and that bias scales with the body radius --
-        # a term the photon-only per-blob CRLB cannot see.  ``model_error_size_frac``
-        # carries it; ``model_error_floor_px`` is the absolute floor.
-        self._cov_tuning = load_ncc_covariance_tuning(self.tuning, self.name)
+        # Covariance terms: the brightness-weighted centroid is a biased estimate of
+        # the geometric center (lit-hemisphere shift, shape irregularity), and the
+        # photon-only per-blob CRLB cannot see that bias.  ``model_error_floor_px``
+        # is the absolute floor on the joint fit; the per-blob bias terms are in
+        # :class:`BlobCentroidBiasModel`.
+        self._model_error_floor_px = load_model_error_floor(self.tuning, self.name)
+        self._bias_model = load_blob_bias_model(self.tuning)
+        # A blob whose lit region is wider than the body (it spills to the box edge)
+        # is a lock on something else; see _collect_per_blob_residuals.
+        self._max_gyration_radius_frac = float(self.tuning['max_gyration_radius_frac'])
+        self._max_edge_signal_frac = float(self.tuning['max_edge_signal_frac'])
+        for name, value in (
+            ('max_gyration_radius_frac', self._max_gyration_radius_frac),
+            ('max_edge_signal_frac', self._max_edge_signal_frac),
+        ):
+            if not math.isfinite(value) or value <= 0.0:
+                raise ValueError(f'BodyBlobNav.{name} must be finite and > 0; got {value!r}')
 
     def is_feasible(self, features: list[NavFeature]) -> NavFeasibilityReport:
         """Return whether the input set carries any usable BODY_BLOB feature.
@@ -835,6 +825,8 @@ class BodyBlobNav(NavTechnique):
                 image_signal=image_signal,
                 margin_vu=(margin_v, margin_u),
                 prior_offset_vu=prior_offset_vu,
+                max_gyration_radius_frac=self._max_gyration_radius_frac,
+                max_edge_signal_frac=self._max_edge_signal_frac,
             )
             if not residuals.consumed:
                 return self._fail_no_signal(
@@ -844,8 +836,8 @@ class BodyBlobNav(NavTechnique):
                 )
             fit = _joint_offset_from_residuals(
                 residuals,
-                model_error_floor_px=self._cov_tuning.model_error_floor_px,
-                centroid_model_error_frac=self._cov_tuning.model_error_size_frac,
+                bias_model=self._bias_model,
+                model_error_floor_px=self._model_error_floor_px,
             )
             at_edge = (
                 abs(fit.dv) >= margin_v - self._at_edge_tolerance_px
@@ -911,7 +903,10 @@ class BodyBlobNav(NavTechnique):
     def _fail_no_signal(
         self, *, features: list[NavFeature], noise_sigma: float, fit_rotation: bool
     ) -> NavTechniqueResult:
-        """Return a zero-confidence spurious result when no blob carries signal.
+        """Return a zero-confidence spurious result when no blob is left to fit.
+
+        Every candidate either carried no above-noise signal in its predicted box or
+        was dropped as a lock on something larger than its body.
 
         Parameters:
             features: Candidate BODY_BLOB features that all failed the
@@ -939,7 +934,7 @@ class BodyBlobNav(NavTechnique):
             residual_px=0.0,
         )
         self.logger.info(
-            'No BODY_BLOB feature carried above-noise signal in its predicted bbox '
+            'No BODY_BLOB feature carried above-noise signal of its own body '
             '(noise threshold = %.4f DN, %d candidate blob(s)); reporting spurious result',
             3.0 * noise_sigma,
             len(features),

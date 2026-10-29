@@ -1,3 +1,4 @@
+import math
 import re
 from collections.abc import Mapping
 from fractions import Fraction
@@ -8,6 +9,7 @@ import numpy as np
 from filecache import FCPath
 
 from spindoctor.config import DEFAULT_CONFIG, IMAGE_LOGGER, Config, logged_section
+from spindoctor.support.filter_combo import canonicalize
 from spindoctor.support.sclk import exposure_counts, fractional_count
 from spindoctor.support.time import et_to_utc
 from spindoctor.support.types import PathLike
@@ -18,6 +20,9 @@ from .obs_snapshot_inst import ObsSnapshotInst
 # $OOPS_RESOURCES/SPICE/Cassini/SCLK/cas00172.tsc: whole seconds, then 1/256-second ticks.
 _SCLK_MODULI = (4294967296, 256)
 _SCLK_OFFSETS = (0, 0)
+
+_STAR_PHOTOMETRY_SECTION = 'cassini_iss_star_photometry'
+"""The configuration section holding each camera's star photometry."""
 
 _SCLK_TICK_DIGITS = 3
 """Digits in the tick field of a spacecraft clock count as an image label writes it."""
@@ -340,28 +345,56 @@ class ObsCassiniISS(ObsSnapshotInst):
         return 0.0
 
     def star_max_usable_vmag(self) -> float:
-        """Returns the maximum usable magnitude for stars in this observation.
+        """Returns the faintest V magnitude of a catalog star the star model uses.
+
+        The limit is photometric.  A star of V magnitude ``m`` and the default spectral
+        class deposits ``rate * 10**(-0.4 * (m + offset)) * texp / gain`` DN in the
+        image, where ``rate`` is the camera's electron rate for a V = 0 star through
+        CL1+CL2, ``offset`` is the frame's filter pair's magnitude offset from CL1+CL2,
+        ``texp`` is the exposure in seconds and ``gain`` is the electrons per DN of the
+        frame's gain state.  The dimmest visible star deposits ``min_detectable_dn``,
+        and the limit is that star's magnitude plus ``search_depth_mag``.  Every
+        quantity but the exposure comes from the camera's entry in the
+        ``cassini_iss_star_photometry`` configuration section; the filter pair is
+        looked up in its canonical spelling (see
+        :func:`spindoctor.support.filter_combo.canonicalize`) and the gain state by the
+        label's ``GAIN_MODE_ID`` text.
 
         Returns:
-            The maximum usable magnitude for stars in this observation.
+            The limiting magnitude, or ``-inf`` for a non-positive exposure, which
+            records no starlight.
+
+        Raises:
+            ValueError: if the label states no ``GAIN_MODE_ID``, or the section has no
+                magnitude offset for the frame's filter pair or no electrons per DN for
+                its gain state.
         """
-
-        # A non-positive exposure time is invalid (np.log would give -inf/nan);
-        # fall back to the reference-exposure magnitude in that case.
-        if self.detector == 'WAC':
-            # This is based on star field image W1580760393 with texp 26 and clear filter.
-            # This image was not useful beyond mag 10.7.
-            # We don't try to compensate for non-clear filters.
-            if self.texp <= 0.0:
-                return 10.7
-            return cast(float, 10.7 + np.log(self.texp / 26) / np.log(2.512))
-
-        # This is based on star field image N1521881358 with texp 1 and clear filter.
-        # This image was not useful beyond mag 10.7.
-        # We don't try to compensate for non-clear filters.
         if self.texp <= 0.0:
-            return 10.5
-        return cast(float, 10.5 + np.log(self.texp) / np.log(2.512))
+            return -math.inf
+        photometry = self.config.category(_STAR_PHOTOMETRY_SECTION)[str(self.detector).lower()]
+        combo = canonicalize([self.filter1, self.filter2])
+        offsets = photometry['filter_mag_offset']
+        if combo not in offsets:
+            raise ValueError(
+                f'{_STAR_PHOTOMETRY_SECTION} has no filter_mag_offset for the '
+                f'{self.detector} filter pair {combo!r}'
+            )
+        if 'GAIN_MODE_ID' not in self.dict:
+            raise ValueError(f'{self.detector} label states no GAIN_MODE_ID')
+        gain_mode = self.dict['GAIN_MODE_ID']
+        electrons_per_dn = photometry['electrons_per_dn']
+        if gain_mode not in electrons_per_dn:
+            raise ValueError(
+                f'{_STAR_PHOTOMETRY_SECTION} has no electrons_per_dn for the '
+                f'{self.detector} gain state {gain_mode!r}'
+            )
+        dn_vmag0 = (
+            float(photometry['flux_electrons_per_s_vmag0'])
+            * self.texp
+            / float(electrons_per_dn[gain_mode])
+        )
+        dimmest_visible = 2.5 * math.log10(dn_vmag0 / float(photometry['min_detectable_dn']))
+        return dimmest_visible - float(offsets[combo]) + float(photometry['search_depth_mag'])
 
     @property
     def camera(self) -> str:

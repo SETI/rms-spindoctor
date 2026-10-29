@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import dataclasses
+
 import numpy as np
 import pytest
 from tests.spindoctor.nav_technique.conftest import NavContextFactory
@@ -657,3 +659,34 @@ def test_annulus_orbit_channel_empty_when_no_sigma() -> None:
     g, sigma = _annulus_orbit_channel([feat])
     assert sigma == 0.0
     assert float(np.linalg.norm(g)) == 0.0
+
+
+def test_ring_annulus_camera_floor_replaces_tuning_floor(
+    make_nav_context: NavContextFactory,
+) -> None:
+    """A camera floor on the context replaces the tuning floor rather than adding to it."""
+    shape = (180, 180)
+    image_center = (90.0, 90.0)
+    image = _render_annulus_image(shape, image_center, 14.0, 28.0)
+    feature = _make_annulus_feature(
+        'SATURN',
+        extfov_shape=shape,
+        image_center_vu=image_center,
+        inner_radius=14.0,
+        outer_radius=28.0,
+        planted_offset_vu=(2.0, -3.0),
+    )
+    context = make_nav_context(image, extfov_margin_vu=(16, 16))
+    camera_context = dataclasses.replace(context, model_error_floor_px={'RingAnnulusNav': 1.5})
+    bare = RingAnnulusNav()
+    bare._cov_tuning = NCCCovarianceTuning(
+        localization_uncertainty_scale=0.0, model_error_size_frac=0.0, model_error_floor_px=0.0
+    )
+    tuned = RingAnnulusNav()
+    tuned._cov_tuning = NCCCovarianceTuning(
+        localization_uncertainty_scale=0.0, model_error_size_frac=0.0, model_error_floor_px=0.5
+    )
+    cov_bare = bare.navigate([feature], context).covariance_px2
+    cov_camera = tuned.navigate([feature], camera_context).covariance_px2
+    for axis in (0, 1):
+        assert cov_camera[axis, axis] == pytest.approx(cov_bare[axis, axis] + 1.5**2, rel=1e-9)

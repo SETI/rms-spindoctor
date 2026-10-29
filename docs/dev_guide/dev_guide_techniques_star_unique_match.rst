@@ -9,8 +9,11 @@ Overview
 1-star or 2-star unique-match technique. It searches a small window around the prediction of
 the brightest predictable star (or the brightest two), takes the brightest peak above a
 noise threshold, and reports the implied translation (1-star path) or the implied similarity
-transform (2-star path); the 1-star path additionally requires the star to be a configured
-magnitude margin brighter than every other predictable star in the field. It runs without a prior — its job is to seed the pass-2
+transform (2-star path). The 1-star path additionally requires the star to be a configured
+magnitude margin brighter than every other predictable star that can fall in its search
+window; when a star elsewhere in the field is within that margin, the match must also be
+corroborated by other stars found at its offset. It runs without a prior — its job is to
+seed the pass-2
 :class:`~spindoctor.nav_technique.nav_technique_star_refine.StarRefineNav` on scenes where the SPICE
 pointing error is small enough that the brightest predictable star sits inside the
 per-instrument search window.
@@ -34,7 +37,7 @@ Brightness-margin gate
 ----------------------
 
 The matcher computes a magnitude difference between the brightest predictable star and the
-next-brightest predictable star in the FOV (using the standard relation
+next-brightest predictable star that can fall in its search window (using the standard relation
 :math:`\Delta m = 2.5 \log_{10}(\mathrm{SNR}_{1} / \mathrm{SNR}_{2})`). The margin floor
 (``brightness_margin_to_next_catalog_star_mag``) gates only the 1-star path: a star whose
 brightness margin falls below it is not "uniquely bright" and the 1-star path fails. The
@@ -42,13 +45,46 @@ brightness margin falls below it is not "uniquely bright" and the 1-star path fa
 margin; on that path the margin (to the next-brightest *unmatched* star) is computed as a
 diagnostic only.
 
+A pointing error moves every star by the same offset, at most the window's half-width on
+each axis, so a star predicted more than twice ``search_window_px`` (plus a pixel, since the
+window is cut on whole pixels) from the brightest star on either axis is outside its window
+at every allowed offset and cannot be the source the window detects. The 1-star margin
+counts only the stars within that reach. A deep star catalog predicts many stars across the extended FOV, and
+counting all of them would refuse a uniquely bright star for a rival hundreds of pixels
+away.
+
+Such a star is uniquely bright in its window but not in the frame, and the margin no longer
+protects the match from a wrong peak in the window. When any other usable star, wherever it
+is predicted, is within the margin floor of the matched one, the match must be
+corroborated: of the brightest ``one_star_corroboration_stars`` other
+stars that the offset puts inside the image, at least ``one_star_corroboration_min_stars``
+(all of them when fewer, and at least one) must be found within
+``one_star_corroboration_px`` of their moved predictions. A star counts as found when the
+brightest pixel near its moved prediction stands
+``detection_sigma`` times the local spread above the median of a ring around its centroid
+box, the spread being the larger of the ring's scaled median absolute deviation and the
+image noise, so a pixel of a body's limb or texture is not taken for a star, and its moment
+centroid above the plane background of the local centroid lies within the tolerance. A
+frame whose field has no such near-equal star keeps the uncorroborated match. The margin
+the diagnostics report, and the confidence formula scores, is the margin in the field; a
+corroborated match is scored as meeting the floor exactly.
+
 Local centroid
 --------------
 
 For each candidate match, the technique slices a window of half-width ``search_window_px``
-around the predicted position, takes the brightest pixel above
-``detection_sigma * image_noise_sigma``, and fits a brightness-weighted moment over a
-``centroid_box_half_px``-half-width box around that peak to recover the sub-pixel centroid.
+around the predicted position and takes its brightest pixel. That pixel is a detection
+when it stands at least ``detection_sigma * image_noise_sigma`` above its local
+background, the median of a ring of pixels 2 px wide around its centroid box. The floor of
+a bright extended region, flat or sloping (a body's glare or a ring), is then no
+detection: the brightest pixel of a slope stands no higher than the median of the ring
+around it. The technique fits a brightness-weighted moment over a
+``centroid_box_half_px``-half-width box around that peak to recover the sub-pixel centroid,
+above a plane background: the plane's slope is fitted to the same 2 px ring, less its pixels
+more than three robust sigmas from the ring's median, and its level is the median of the box
+less that slope. The box median alone leaves the upper half of a sloping glare in the
+moment's weights and pulls the centroid uphill; on F ring frame ``N1571454567`` a V 9.9 star
+on ring glare was measured 1.7 px from where a high-passed image puts it.
 A peak that fails the noise threshold collapses the candidate; on the 2-star path a
 best-assignment residual exceeding ``max_residual_px`` triggers the fall back to the 1-star
 path, and on the 1-star path a no-rival detection whose prediction-to-detection distance
@@ -160,8 +196,14 @@ All numeric tunables for this technique live in ``techniques.StarUniqueMatchNav.
 ``src/spindoctor/config_files/config_510_techniques.yaml``.
 
 - ``brightness_margin_to_next_catalog_star_mag`` — float, default ``1.5`` (mag). Minimum
-  magnitude difference between the brightest predictable star and the next-brightest for
-  the 1-star path to fire.
+  magnitude difference between the brightest predictable star and the next-brightest one
+  within twice ``search_window_px`` of it for the 1-star path to fire.
+- ``one_star_corroboration_px`` — float, default ``1.5`` px;
+  ``one_star_corroboration_stars`` — int, default ``8``;
+  ``one_star_corroboration_min_stars`` — int, default ``2``. The corroboration a 1-star
+  match needs when another star anywhere in the field is within the margin floor of it: how
+  close to its moved prediction another star must be found, how many of the brightest
+  other stars in the image are searched, and how many must be found.
 - ``search_window_px`` — float, default ``30.0`` px. Half-width of the search window
   around each prediction. Should bracket the per-instrument SPICE pointing-error
   envelope.
@@ -311,11 +353,14 @@ Call path traced through
      per-correspondence residual exceeds ``max_residual_px``, fall back to the 1-star
      path.
    - **1-star path.**  When fewer than two stars are usable (or the 2-star fallback
-     fired), require the brightest to clear the brightness-margin floor, slice a window
-     around its prediction, extract the sub-pixel
-     centroid, pass the peak-to-runner-up ambiguity gate (plus the
-     ``one_star_max_residual_px`` residual gate when that ratio is the no-rival
-     sentinel), and report the per-star residual as the translation.
+     fired), require the brightest to clear the brightness-margin floor over the stars
+     that can fall in its window, slice a window around its prediction, extract the
+     sub-pixel centroid, require the detection's background-subtracted peak-to-runner-up
+     ratio to be at least ``one_star_min_peak_ratio`` (and, when that ratio is the
+     no-rival sentinel, require the detection to lie within ``one_star_max_residual_px``
+     of the prediction), require the corroboration of other stars at the offset when
+     another star in the field is within the margin floor, and report the per-star
+     residual as the translation.
 
 4. Result-shape branches on the chosen path and
    :attr:`~spindoctor.nav_orchestrator.nav_context.NavContext.fit_camera_rotation`:

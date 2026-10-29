@@ -1135,7 +1135,10 @@ updates the affected chapters in the same change.
 **Closes:** "the numbers a scientist would quote are built on hand-picked
 constants," and the fabricated star SNR.
 **Tracked by:** #176 (constants into config) and #130 (star limiting-magnitude
-calibration).
+calibration). The Cassini ISS limit is photometric on the #755 branch, with
+its minimum detectable DN measured on F ring frames; `SNR_REF` at that limit
+corresponds to a peak near twice the dark-sky noise, as the simulator's limit
+does. The other instruments' anchors remain unmeasured.
 
 **Tasks.**
 - Inventory the load-bearing constants: `ROTATION_UNOBSERVABLE_VARIANCE = 1e15`

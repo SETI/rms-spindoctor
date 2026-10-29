@@ -7,6 +7,8 @@ scattered-light gradient (R3).
 
 # R1 / R2 / R3 correspond to issues #222, #317, #339 respectively.
 
+import dataclasses
+
 import numpy as np
 import pytest
 
@@ -72,6 +74,8 @@ def _resolve(
         group,
         image_classifier=_classifier(gradient=gradient),
         scattered_light_gradient_score=5.0,
+        agreement_sigma=2.0,
+        confirming_axis_max_sigma_px=1.0,
         rcond=RCOND,
     )
 
@@ -185,6 +189,163 @@ def test_r1_never_empties_the_group() -> None:
     assert res.dropped_descendants == []
 
 
+def _ring_edge_across(radial_sd: float, along_sd: float) -> np.ndarray:
+    """Covariance of a ring edge whose radial direction is (0.247, -0.969)."""
+    radial = np.array([0.247, -0.969])
+    radial = radial / np.linalg.norm(radial)
+    along = np.array([radial[1], -radial[0]])
+    return radial_sd**2 * np.outer(radial, radial) + along_sd**2 * np.outer(along, along)
+
+
+def _one_star_pair(
+    *,
+    refine_offset: tuple[float, float] = (2.21, 20.70),
+    refine_star: str = 'star:T1',
+    match_mode: str = 'one_star',
+    match_prior_sources: frozenset[str] = frozenset(),
+) -> tuple[NavTechniqueResult, NavTechniqueResult]:
+    """A one-star match and a single-star refine seeded by the ring and the match."""
+    match = NavTechniqueResult(
+        technique_name='StarUniqueMatchNav',
+        feature_ids=('star:T1',),
+        offset_px=(2.21, 20.70),
+        covariance_px2=np.eye(2, dtype=np.float64) * 20.8**2,
+        confidence=0.66,
+        spurious=False,
+        at_edge=False,
+        diagnostics=StarUniqueMatchDiagnostics(mode=match_mode),
+        prior_source_techniques=match_prior_sources,
+    )
+    refine = NavTechniqueResult(
+        technique_name='StarRefineNav',
+        feature_ids=(refine_star,),
+        offset_px=refine_offset,
+        covariance_px2=np.eye(2, dtype=np.float64) * 0.32**2,
+        confidence=0.47,
+        spurious=False,
+        at_edge=False,
+        diagnostics=StarRefineDiagnostics(n_stars_used=1),
+        prior_source_techniques=frozenset({'RingEdgeNav', 'StarUniqueMatchNav'}),
+    )
+    return match, refine
+
+
+def test_r1_refine_replaces_one_star_match_the_ring_confirms() -> None:
+    """A refine on the one-star match's star, confirmed across a ring edge, replaces it."""
+    ring = _result(
+        technique_name='RingEdgeNav',
+        offset=(-1.16, 19.91),
+        cov=_ring_edge_across(0.755, 11.33),
+        diagnostics=RingEdgeDiagnostics(),
+    )
+    match, refine = _one_star_pair()
+    res = _resolve([ring, match, refine])
+    assert res.replaced_matches == [(refine, match)]
+    assert res.dropped_descendants == []
+    assert [r.technique_name for r in res.estimators] == ['RingEdgeNav', 'StarRefineNav']
+    assert res.estimators[1].prior_source_techniques == frozenset()
+
+
+def test_r1_drops_refine_off_the_one_star_match_position() -> None:
+    """A refine that did not land on the one-star match's star is dropped as before."""
+    ring = _result(
+        technique_name='RingEdgeNav',
+        offset=(-1.16, 19.91),
+        cov=_ring_edge_across(0.755, 11.33),
+        diagnostics=RingEdgeDiagnostics(),
+    )
+    match, refine = _one_star_pair(refine_offset=(1.21, 20.45))
+    res = _resolve([ring, match, refine])
+    assert res.replaced_matches == []
+    assert res.dropped_descendants == [refine]
+    assert res.estimators == [ring, match]
+
+
+def test_r1_drops_refine_on_a_different_star() -> None:
+    """A refine on another star than the one-star match's is dropped as before."""
+    ring = _result(
+        technique_name='RingEdgeNav',
+        offset=(-1.16, 19.91),
+        cov=_ring_edge_across(0.755, 11.33),
+        diagnostics=RingEdgeDiagnostics(),
+    )
+    match, refine = _one_star_pair(refine_star='star:T2')
+    res = _resolve([ring, match, refine])
+    assert res.replaced_matches == []
+    assert res.dropped_descendants == [refine]
+
+
+def test_r1_drops_refine_the_ring_contradicts_across_the_edge() -> None:
+    """A refine the ring places 3 px off radially is not confirmed, so it is dropped."""
+    radial = np.array([0.247, -0.969]) / np.linalg.norm([0.247, -0.969])
+    ring_offset = np.array([2.21, 20.70]) - 3.0 * radial
+    ring = _result(
+        technique_name='RingEdgeNav',
+        offset=(float(ring_offset[0]), float(ring_offset[1])),
+        cov=_ring_edge_across(0.755, 11.33),
+        diagnostics=RingEdgeDiagnostics(),
+    )
+    match, refine = _one_star_pair()
+    res = _resolve([ring, match, refine])
+    assert res.replaced_matches == []
+    assert res.dropped_descendants == [refine]
+
+
+def _ring_across() -> NavTechniqueResult:
+    """A ring edge on the star across itself (0.755 px) and 3.4 px off it along itself."""
+    return _result(
+        technique_name='RingEdgeNav',
+        offset=(-1.16, 19.91),
+        cov=_ring_edge_across(0.755, 11.33),
+        diagnostics=RingEdgeDiagnostics(),
+    )
+
+
+def test_r1_vague_witness_does_not_confirm_a_refine() -> None:
+    """A blob 20 px off with sigma 15 px agrees statistically but confirms nothing."""
+    blob = _result(
+        technique_name='BodyBlobNav',
+        offset=(14.0, 35.0),
+        cov=np.eye(2, dtype=np.float64) * 15.0**2,
+    )
+    match, refine = _one_star_pair()
+    res = _resolve([blob, match, refine])
+    assert res.replaced_matches == []
+    assert res.dropped_descendants == [refine]
+
+
+def test_r1_refine_within_two_sigma_of_its_match_replaces_it() -> None:
+    """A refine 1.7 sigma (0.54 px) from its match's centroid still replaces the match."""
+    match, refine = _one_star_pair(refine_offset=(2.21 + 0.544, 20.70))
+    res = _resolve([_ring_across(), match, refine])
+    assert res.replaced_matches == [(refine, match)]
+
+
+def test_r1_refine_does_not_replace_a_seeded_match() -> None:
+    """A one-star match seeded by a groupmate is not the wide search, so it is not replaced."""
+    match, refine = _one_star_pair(match_prior_sources=frozenset({'RingEdgeNav'}))
+    res = _resolve([_ring_across(), match, refine])
+    assert res.replaced_matches == []
+    assert res.dropped_descendants == [match, refine]
+
+
+def test_r1_refine_does_not_replace_a_two_star_match() -> None:
+    """Only a one-star match is replaced, even when a two-star match lists the same star."""
+    match, refine = _one_star_pair(match_mode='two_star')
+    res = _resolve([_ring_across(), match, refine])
+    assert res.replaced_matches == []
+    assert res.dropped_descendants == [refine]
+
+
+def test_r1_two_refines_cannot_replace_one_match() -> None:
+    """When two refines qualify for one match, the first replaces it and the second is dropped."""
+    match, refine = _one_star_pair()
+    second = dataclasses.replace(refine, technique_name='StarRefineNavB')
+    res = _resolve([_ring_across(), match, refine, second])
+    assert res.replaced_matches == [(refine, match)]
+    assert res.dropped_descendants == [second]
+
+
 def test_r2_collapses_two_ring_techniques() -> None:
     """RingEdge and RingAnnulus collapse to one representative witness."""
     tight = np.eye(2, dtype=np.float64) * 0.04
@@ -203,6 +364,46 @@ def test_r2_collapses_two_ring_techniques() -> None:
     # One estimator; the higher-precision (tighter) edge result represents it.
     assert res.estimators == [edge]
     assert res.collapsed_groups == [[edge, annulus]]
+
+
+def _seeded_ring_pair(
+    annulus_sources: frozenset[str],
+) -> tuple[NavTechniqueResult, NavTechniqueResult, NavTechniqueResult]:
+    """A blob, and a ring pair whose tight edge and annulus carry the given seeds.
+
+    Ring techniques carry no seeds in the pipeline: only a pass-2 result does, and
+    only the shared-feature collapse of the star techniques puts one in a set beside
+    the pass-1 fits that seeded it.  The ring pair stands in for such a set, the
+    edge playing the seeded refine that represents it.
+    """
+    blob = _result(technique_name='BodyBlobNav', cov=np.eye(2, dtype=np.float64) * 4.0)
+    edge = _result(
+        technique_name='RingEdgeNav',
+        cov=np.eye(2, dtype=np.float64) * 0.04,
+        diagnostics=RingEdgeDiagnostics(),
+        prior_sources=frozenset({'BodyBlobNav'}),
+    )
+    annulus = _result(
+        technique_name='RingAnnulusNav',
+        cov=np.eye(2, dtype=np.float64) * 0.25,
+        diagnostics=RingAnnulusDiagnostics(),
+        prior_sources=annulus_sources,
+    )
+    return blob, edge, annulus
+
+
+def test_collapsed_set_with_a_prior_free_member_is_unseeded() -> None:
+    """A seeded representative of a set holding a prior-free member carries no seed."""
+    blob, edge, annulus = _seeded_ring_pair(frozenset())
+    res = _resolve([blob, edge, annulus])
+    assert res.estimators[1].prior_source_techniques == frozenset()
+
+
+def test_collapsed_set_seeded_throughout_keeps_its_seed() -> None:
+    """A set every member of which the same technique seeded keeps that seed."""
+    blob, edge, annulus = _seeded_ring_pair(frozenset({'BodyBlobNav'}))
+    res = _resolve([blob, edge, annulus])
+    assert res.estimators[1].prior_source_techniques == frozenset({'BodyBlobNav'})
 
 
 def test_r3_collapses_disc_and_limb_only_when_scattered() -> None:
