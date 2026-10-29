@@ -304,7 +304,8 @@ The known open defects:
   sample NAC answers within 1 px went from 554 to 805, and answers more than
   2 px off at medium or high from 313 to 28). The rest are 5 seeds on the
   neighboring cataloged edge (7 to 49 px), 4 alias locks across the edge
-  (3.8 to 45 px, under #373) and 5 answers carried by star techniques. A
+  (3.8 to 45 px, under #373; of these the tolerant seed check fixes
+  N1492064782 and leaves N1492091385) and 5 answers carried by star techniques. A
   same-code control on 150 of those frames reproduced `main` exactly, so the
   counts carry no run-to-run noise. The annulus-gate recalibration (accepting
   more of its correct answers, #566) and a correlation-picks-basin /
@@ -353,10 +354,12 @@ The known open defects:
   disagreement the measurement attributes to a stale pin on #483 instead.
 - **#373** — the RingEdgeNav coarse seed against competing edge
   populations (polarity-blind). The edge-strength seed check covers the
-  populations weaker than the cataloged edge (ring texture, glow contours).
-  Still open: a stronger competitor such as a body limb, the held-out frames
-  still wrong across the edge (5 neighboring-edge and 4 alias locks), and
-  `N1467344214_2`, not re-measured against the issue's gate.
+  populations weaker than the cataloged edge (ring texture, glow contours);
+  a check within 2 px across the edge covers a single model edge laid on one
+  strong step (622 of 825 F ring alias locks now within 1.5 px, 19 spurious).
+  Still open: a stronger competitor such as a body limb, frames whose edges
+  lie mostly outside the sensor at truth (most of 153 F ring frames, the 2007
+  NAC spoke movie). `N1467344214_2` and the library are unchanged.
 - **#128 / #150** — the strategic limb-navigation redesign and the ~0.1 px
   limb systematic (shared with Track A's WS-10; design first, validate
   against real images before touching). The measured bias attributes the

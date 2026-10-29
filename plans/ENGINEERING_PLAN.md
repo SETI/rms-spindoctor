@@ -378,14 +378,23 @@ What remains of the family:
   a few tens of pixels apart, the strongest alignment can lay the wrong one
   on the strong step: 5 of the 1,041 held-out frames, 7 to 49 px across the
   edge (N1851240381 at 49 px), all at the medium tier.
-- **Alias locks across the edge (open, #373).** Answers displaced across the
-  edge by a distance that matches no spacing between cataloged edges went
-  from 188 to 4 on the 1,041 held-out frames: N1492091385 (45.0 px),
-  N1851236541 (43.8 px), N1492064782 (34.4 px) and N1851226701 (3.8 px),
-  all at the medium tier. Of the 14 frames the along-edge diagnosis used,
-  two stay `conflicted` on a radial lock: N1492071146 (a 42 px alias of
-  this kind) and N1601496278 (6 px, the rev 087 A ring outer edge catalog
-  error, #761).
+- **Alias locks across the edge (#373).** The coarse seed is also checked
+  with each vertex credited with the strongest edge within 2 px across it,
+  the seed and that tolerant maximum compared on the vertices both keep on
+  the sensor (exact-pixel scores let one model edge laid squarely on one
+  strong step beat the true multi-edge alignment, typically the Keeler gap
+  edges on the A ring outer edge 30-50 px across). On the 825 F ring
+  final-run frames whose RingEdgeNav answer was more than 5 px off across the
+  edge, 622 are now within 1.5 px, 31 within 5 px, 19 spurious and 153 still
+  locked (mostly edges off the sensor at truth: 085rf, 168rf, 075rf, 081ri);
+  on 1,000 control frames with a right final answer no ring answer within
+  1.5 px moved beyond it (866 to 874 within). N1492064782 is fixed (0.27 px),
+  N1851240381's ring answer is 1.5 px across (the final still 7.4 px off),
+  N1492091385 is unchanged at 45 px. N1492071146 and N1601496278 are
+  right (0.64 and 0.33 px across the edge). The 2007 NAC spoke movie
+  ISS_037RI_SPKMRHPDF002 (33 answered frames, all wrong, ring 4-64 px across;
+  B ring outer edge at the frame border) is unchanged; a gap-brightness veto would catch it but fails at the
+  right pointing on ringlet-filled gaps and gaps seen against the planet.
 - **Few stars against a ring edge (for the sparse-star work).** With the
   along-edge covariance honest, N1746561771 and N1579830292 (F ring movie
   frames the bundle navigated on stars) land 0.08 and 0.44 px from the
@@ -445,17 +454,25 @@ whose matched edges are under 0.005 of the frame's strongest is spurious.
 That covers competing populations weaker than the cataloged edge -- a ring's
 interior texture and a scattered-light glow's faint contours -- which were
 most of the lattice locks (alias locks across the edge from 188 to 4 on the
-1,041 held-out frames). What remains:
+1,041 held-out frames). The seed is then checked within a 2 px tolerance
+across the edge (above), which leaves 153 of the 825 F ring final-run alias
+locks. What remains:
 
 - a competing population stronger than the cataloged edge, such as a body
-  limb in the search window: the check prefers the strongest step whatever
-  produced it, so it does not separate them;
-- the held-out frames still wrong across the edge: 5 neighboring-edge locks
-  (7 to 49 px) and 4 alias locks (N1492091385, N1851236541, N1492064782,
-  N1851226701; 3.8 to 45 px), all at the medium tier;
-- the issue's own calibration datapoint, `N1467344214_2`, has not been
-  re-measured against the issue's gate (the #179 no-net-new-failures gate
-  over the `ring_only_*` library set).
+  limb in the search window;
+- frames whose cataloged edges lie mostly or wholly outside the sensor at
+  the true pointing (most of the 153 F ring frames above; the 2007 NAC spoke
+  movie ISS_037RI_SPKMRHPDF002, 33 answered frames 4-64 px off across the
+  edge);
+- a catalog radius error passing into a fit that is in the right basin
+  (#761; three 2005 F ring frames move from 0.1-0.4 to 1.01-1.05 px of the
+  star-confirmed bundle pointing when the corrected ring answer joins the
+  stars).
+
+`N1467344214_2` and the rest of the library are unchanged (75/75 identical
+offsets, statuses and per-technique results),
+and the planted-shift sweep's RingEdgeNav rows are identical row for row, so
+the across-edge round trip on which #476 closed is unaffected.
 
 ### #621 / #622 / #623 — the star gates and what the ensemble counts
 

@@ -806,6 +806,17 @@ is used instead. Edges at the very border of the image are left out of that comp
 because the step from the image to the empty margin around it is the strongest edge in
 most frames.
 
+Edge strength is also measured with some tolerance. A cataloged edge rarely sits exactly
+on the pixel the catalog predicts: it is usually a pixel or two away, by a different
+amount for each edge. Counting only exact hits therefore favors a wrong shift that lays
+one cataloged edge squarely on one strong step over the right shift, where every cataloged
+edge lies a pixel or two from its own step. The fit checks its starting point again,
+crediting each part of each curve with the strongest edge within about two pixels across
+it, and starts from a better alignment when the first choice is clearly weaker by that
+measure. It compares the two only over the parts of the curves that both keep inside the
+image, so an alignment cannot win just by pulling more of the curves onto the ring's
+texture.
+
 The same measure rejects a fit outright when the edges it matched are only a tiny
 fraction as strong as the strongest edges in the frame. That happens when the cataloged
 edges lie just outside the image: the fit then finds nothing but faint scattered-light
@@ -815,20 +826,26 @@ This is the technique for close-range ring images. For Saturn it receives a fram
 when the radial resolution is finer than 25 kilometers per pixel; everything coarser goes
 to ``RingAnnulusNav``. Edge strength keeps the fit off most steps across the edge that are
 not cataloged edges: on 1,041 Cassini F ring movie frames finer than 25 kilometers per
-pixel, it takes the answers locked onto such a step from 188 to 4. Three cautions remain
-there. First, the 4 locks left lie 4 to 45 pixels across the edge and are reported at the
-``medium`` tier. Second, the fit still assumes the cataloged edge is the strongest step in
-its neighborhood. Where two cataloged edges lie a few tens of pixels apart, the strong
-step can be matched by the wrong one of them, and the answer is then off by tens of pixels
-across the edge; 5 of the same 1,041 frames are wrong this way. Third, an edge that
-curves only gently across the frame fixes the pointing across itself far better than
-along itself, and the reported uncertainty says so: such an answer carries an
-uncertainty of several pixels along the edge, and often tens. Where a star fix or another
-technique in the same image measures that direction, it sets the position along the edge
-and the ring edge sets the position across it. When the only other technique is as
-uncertain along the edge, such as a match to a single star, and the two lie far apart, the
-image is reported as ``conflicted``. An answer that rests on such an edge alone is usually
-off by a few pixels along it, and is reported at the ``low`` tier.
+pixel, it takes the answers locked onto such a step from 188 to 4. The tolerance check
+above covers a different failure, a fit that lays one cataloged edge on the step another
+one makes (most often the Keeler gap's edges on the A ring's outer edge): of 825 F ring
+movie frames whose answer was off by more than 5 pixels across the edge, 622 are now
+within 1.5 pixels and 153 are still off. Three cautions remain there. First, the fit needs
+the cataloged edges to be in the image at the true pointing; where they lie mostly outside
+it, the fit can lay the curves on whatever edges the frame offers, and such answers are
+reported at the ``medium`` or ``low`` tier. A 2007 Cassini spoke movie whose B ring outer
+edge runs along the frame border is wrong this way on every answered frame. Second, a
+catalog error in an edge's radius passes into the answer once the fit is on the right
+edge: the A ring's outer edge in 2005 is 11 to 17 kilometers off its catalog radius, and
+on three frames this moves the answer about 1 pixel from the stars. Third, an edge
+that curves only gently across the frame fixes the pointing across itself far better than
+along itself, and the reported uncertainty says so: such an answer carries an uncertainty
+of several pixels along the edge, and often tens. Where a star fix or another technique in
+the same image measures that direction, it sets the position along the edge and the ring
+edge sets the position across it. When the only other technique is as uncertain along the
+edge, such as a match to a single star, and the two lie far apart, the image is reported
+as ``conflicted``. An answer that rests on such an edge alone is usually off by a few
+pixels along it, and is reported at the ``low`` tier.
 
 **Straight edges and unmeasured directions.** When every edge the technique was given is a
 straight line, the answer is genuinely incomplete, and the reason is geometric. Sliding a
