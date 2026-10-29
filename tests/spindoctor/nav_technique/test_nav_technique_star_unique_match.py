@@ -717,6 +717,7 @@ def test_star_unique_match_believes_a_lone_star_inside_the_inner_ellipse(
     make_nav_context: NavContextFactory,
     make_star_feature: NavFeatureFactory,
     draw_gaussian_star: DrawGaussianStarFactory,
+    capsys: pytest.CaptureFixture[str],
     offset_vu: tuple[float, float],
     accepted: bool,
 ) -> None:
@@ -728,6 +729,8 @@ def test_star_unique_match_believes_a_lone_star_inside_the_inner_ellipse(
     context = make_nav_context(image, extfov_margin_vu=(10, 30))
     result = StarUniqueMatchNav().navigate([feature], context)
     assert (result.spurious is False) is accepted
+    refused = 'one_star_detection_beyond_inner_window' in capsys.readouterr().out
+    assert refused is not accepted
 
 
 @pytest.mark.parametrize(('offset_vu', 'passes'), [((0.0, 15.0), True), ((15.0, 0.0), False)])
@@ -1024,6 +1027,18 @@ def test_star_unique_match_a_source_votes_only_with_the_peak_the_star_should_sho
         image, star, (50.0, 50.0), 1.0, search_half_vu=(2.4, 2.4), peak_per_snr=10.0
     )
     assert (det is not None) is found
+
+
+@pytest.mark.parametrize('fraction', [0.0, 1.5])
+def test_star_unique_match_rejects_an_inner_window_fraction_outside_zero_to_one(
+    monkeypatch: pytest.MonkeyPatch, fraction: float
+) -> None:
+    """Construction rejects an ``inner_window_fraction`` outside ``(0, 1]``."""
+    tuning = dict(StarUniqueMatchNav.tuning)
+    tuning['inner_window_fraction'] = fraction
+    monkeypatch.setattr(StarUniqueMatchNav, 'tuning', tuning)
+    with pytest.raises(ValueError, match=r'inner_window_fraction must lie in \(0, 1\]'):
+        StarUniqueMatchNav()
 
 
 def test_star_unique_match_rejects_a_pair_vote_peak_factor_of_one(

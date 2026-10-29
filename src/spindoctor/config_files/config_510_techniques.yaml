@@ -718,13 +718,16 @@ techniques:
       # the ellipse whose semi-axes are the window's half-widths times
       # this fraction: nothing cross-checks a single detection, and the
       # wider the region it may come from, the likelier an artifact is
-      # the brightest thing in it.  The black-sky library frame
+      # the brightest thing in it.  The black-sky Galileo library frame
       # C0164392700R has a lone artifact 40 px from its one predicted
-      # star.  0.6 is the ratio of the 30 px lone-star radius to the
-      # 50 px search half-width on ISS_006RI_LPHRLFMOV001_PRIME, where
-      # radii of 30, 40, and 50 px navigated 771, 772, and 750 of 1030
-      # frames, none wrong.  It must lie in (0, 1], so the region never
-      # exceeds the window.
+      # star, inside the 210 px ellipse of Galileo's 350 px window.  0.6
+      # is the ratio of the 30 px lone-star radius to the 50 px search
+      # half-width on ISS_006RI_LPHRLFMOV001_PRIME, where radii of 30,
+      # 40, and 50 px navigated 771, 772, and 750 of 1030 frames, none
+      # wrong; those were measured with a square 50 px window, before
+      # stars took the NAC's (50, 140) px offset window, whose ellipse is
+      # (30, 84) px.  It must lie in (0, 1], so the region never exceeds
+      # the window.
       inner_window_fraction: 0.6
       # Gaussian PSF sigma (px) of the matched-filter kernel that picks the
       # detection inside each search window: the strongest local maximum

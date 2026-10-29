@@ -737,7 +737,9 @@ class StarUniqueMatchNav(NavTechnique):
             refusal = (
                 'window_peak_not_a_point_source (part of an extended source, or a cosmic-ray track)'
             )
-        elif math.hypot((det[0] - pred_v) / inner_v, (det[1] - pred_u) / inner_u) > 1.0:
+        elif ((det[0] - pred_v) * inner_u) ** 2 + ((det[1] - pred_u) * inner_v) ** 2 > (
+            inner_v * inner_u
+        ) ** 2:
             # The whole window is searched so that a brighter source in it vetoes
             # a fainter one near the prediction; a lone detection is accepted
             # only inside the inner ellipse, since nothing cross-checks it and the
@@ -745,7 +747,9 @@ class StarUniqueMatchNav(NavTechnique):
             # The instrument window is per axis, so the ellipse's semi-axes are its
             # half-widths scaled by inner_window_fraction: no single radius is
             # taken from the two, the ellipse is a circle when they are equal, and
-            # it never reaches past the window on either axis.
+            # it never reaches past the window on either axis.  The test is written
+            # without division, so a zero margin on an axis admits only a zero
+            # offset on it.
             refusal = (
                 f'one_star_detection_beyond_inner_window (offset '
                 f'({det[0] - pred_v:.3f}, {det[1] - pred_u:.3f}) px, outside the '
@@ -842,6 +846,9 @@ class StarUniqueMatchNav(NavTechnique):
             detection_peak_ratio=peak_ratio,
         )
         margin_v, margin_u = search_window_for_obs(context)
+        # The detection lies inside the inner ellipse, so this fires only when
+        # inner_window_fraction brings the ellipse within at_edge_tolerance_px of
+        # the window's edge.
         at_edge = (
             abs(offset_v) >= margin_v - self._at_edge_tolerance_px
             or abs(offset_u) >= margin_u - self._at_edge_tolerance_px

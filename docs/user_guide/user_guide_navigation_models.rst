@@ -608,9 +608,8 @@ catalog magnitudes (``techniques.StarUniqueMatchNav.tuning.pair_vote_peak_factor
 a faint field star or a small cosmic-ray hit lying there by chance does not count for the
 pair. A cross-checked pair caps confidence a little higher, at 0.8.
 
-The search never covers the whole frame. Each star is searched for over the camera's
-offset window, the same range every other technique searches, which the instrument
-chapters list: it reaches that many whole pixels along each axis from the pixel holding
+Each star is searched for over the camera's offset window around its prediction, the
+same range every other technique searches, which the instrument chapters list: it reaches that many whole pixels along each axis from the pixel holding
 each prediction. Pairs are also tried in a smaller window, 0.6 of it along each axis
 (``techniques.StarUniqueMatchNav.tuning.inner_window_fraction``). The offset window must
 be larger than the pointing error: a star whose center lies outside that reach is not

@@ -291,8 +291,9 @@ bundle's pointing:
 Stars get no search window of their own: the unique match searches each
 star over the instrument's offset window (`extfov_margin_vu`), axis by axis,
 as every technique does, and believes a lone star only inside the ellipse
-whose semi-axes are 0.6 of that window (`inner_window_fraction`; 30 of 50 px
-on the NAC, the radius measured on the tuning frames). The NAC's window
+whose semi-axes are 0.6 of that window (`inner_window_fraction`; 0.6 is the
+30 of 50 px radius measured on the tuning frames, and on a full NAC frame,
+whose window is (50, 140) px, the ellipse is (30, 84) px). The NAC's window
 already holds 98.7% of its tuning frames on each axis (50 full-frame px; its
 error reaches 82). The WAC's did not, so its margins for 512 and 1024 px
 images are widened from `[5, 10]` to `[7, 10]` and `[13, 13]`: 98.7% of its

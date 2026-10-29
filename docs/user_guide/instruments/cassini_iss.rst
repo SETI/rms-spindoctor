@@ -186,15 +186,16 @@ frames, and a margin that is right for one is wrong for the other:
      - ``[50, 140]``
      - ``[13, 13]``
 
-**Star search reach.** A star is searched for over the camera's extended-FOV margin above,
-the same range every other technique searches. A lone star with nothing to check it
-against is believed only within 0.6 of that margin along each axis. The wide angle
-camera's margins for 512 and 1024 pixel images were widened from ``[5, 10]`` to
-``[7, 10]`` and ``[13, 13]``. On each axis, 98.7% of wide angle star frames have a
-pointing error within 12.4 full-frame pixels, and the error reaches 14, so a full frame
-needs 13 pixels and a 2x2 summed frame 7. The narrow angle camera's margins already hold
-98.7% of its frames on each axis (50 full-frame pixels), and are unchanged; its error
-reaches 82 pixels. Every margin is provisional until full runs confirm it.
+**Margins and pointing error.** Every technique, the star searches among them, finds
+offsets only inside the margin above. A lone star with nothing to check it against is
+believed only inside the ellipse reaching 0.6 of the margin along each axis. On each
+axis, 98.7% of wide angle star frames have a pointing error within 12.4 full-frame
+pixels, and the error reaches 14, so the wide angle margin reaches 13 pixels on a full
+frame, 7 on a 2x2 summed frame, and 5 on a 4x4 summed frame. On each axis, 98.7% of
+narrow angle star frames have a pointing error within 50 full-frame pixels, which the
+narrow angle margins hold at every size; that error reaches 82 pixels. The wide angle
+margin was ``[5, 10]`` at every size before it was set from this measurement. Every
+margin is provisional until full runs confirm it.
 
 **Sharp narrow angle stars.** A narrow angle star's image (point-spread sigma 0.54
 pixels) is sharper than the footprint over which the star techniques weigh a source, so

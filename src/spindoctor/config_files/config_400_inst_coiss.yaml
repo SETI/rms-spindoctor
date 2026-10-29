@@ -49,7 +49,8 @@ cassini_iss:
     # inside this margin.  98.7% of the 794 WAC star frames of the F ring
     # movies set aside for tuning have each axis of their pointing error
     # within 12.4 full-frame pixels (the error reaches 14), so a full frame
-    # reaches 13 px and a 2x2 summed frame 7 px; no margin was narrowed.
+    # reaches 13 px, a 2x2 summed frame 7 px, and a 4x4 summed frame 4 px
+    # (its 5 px is kept); no margin was narrowed.
     # Provisional until full runs set every camera's window.
     extfov_margin_vu:
       256: [5, 10]

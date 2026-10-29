@@ -289,11 +289,15 @@ Restrictions and assumptions
   error reaches 43 px, and a 30 px window puts the stars of 191 of the 1030 frames out of
   reach. A 1-star match is accepted only inside the inner ellipse (the offset window's
   half-widths times ``inner_window_fraction``) around its prediction, while the whole
-  window is still searched so that a brighter source anywhere in it vetoes: nothing cross-checks a single detection, and the wider the
-  region it may come from, the likelier an artifact is the brightest thing in it. On the
-  black-sky Galileo library frame ``C0164392700R`` a lone artifact lies 40 px from the one
-  predicted star. On ``ISS_006RI``, windows of 30, 40, 50, and
-  60 px navigate 753, 774, 771, and 762 frames, none wrong; the narrower ones leave the
+  window is still searched so that a brighter source anywhere in it vetoes: nothing
+  cross-checks a single detection, and the wider the region it may come from, the likelier
+  an artifact is the brightest thing in it. On the black-sky Galileo library frame
+  ``C0164392700R`` a lone artifact lies 40 px from the one predicted star; the Galileo
+  offset window of 350 px puts it inside the 210 px ellipse, so the ellipse does not refuse
+  it there until the camera's window is set from its pointing error. On ``ISS_006RI``,
+  with a square window and a 30 px lone-star radius (the configuration before stars took
+  the offset window, whose NAC full frame is 140 px across samples), windows of 30, 40,
+  50, and 60 px navigate 753, 774, 771, and 762 frames, none wrong; the narrower ones leave the
   stars of the frames whose error exceeds them out of reach, and the technique's other
   tests refuse those frames. Beyond the window is the regime where the multi-star
   :class:`~spindoctor.nav_technique.nav_technique_star_field.StarFieldFromCatalogNav` triplet
