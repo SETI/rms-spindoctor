@@ -837,7 +837,7 @@ reported at the ``medium`` or ``low`` tier. A 2007 Cassini spoke movie whose B r
 edge runs along the frame border is wrong this way on every answered frame. Second, a
 catalog error in an edge's radius passes into the answer once the fit is on the right
 edge: the A ring's outer edge in 2005 is 11 to 17 kilometers off its catalog radius, and
-on three F ring frames this moves the answer about 1 pixel from the stars. Third, an edge
+on three frames this moves the answer about 1 pixel from the stars. Third, an edge
 that curves only gently across the frame fixes the pointing across itself far better than
 along itself, and the reported uncertainty says so: such an answer carries an uncertainty
 of several pixels along the edge, and often tens. Where a star fix or another technique in
