@@ -3,19 +3,16 @@
 from __future__ import annotations
 
 import math
-from typing import cast
 
 import numpy as np
 import pytest
 from tests.spindoctor.nav_technique.conftest import (
     DrawGaussianStarFactory,
-    FakeObs,
     NavContextFactory,
     NavFeatureFactory,
 )
 
 from spindoctor.feature.feature import NavFeature
-from spindoctor.nav_orchestrator.nav_context import NavContext
 from spindoctor.nav_technique._star_helpers import is_isolated_point_source
 from spindoctor.nav_technique.diagnostics import StarUniqueMatchDiagnostics
 from spindoctor.nav_technique.nav_technique import (
@@ -174,15 +171,23 @@ def test_star_unique_match_marks_at_edge_when_offset_hits_margin(
     make_nav_context: NavContextFactory,
     make_star_feature: NavFeatureFactory,
     draw_gaussian_star: DrawGaussianStarFactory,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """An offset that hits the search-window edge is flagged + zero confidence."""
+    """An offset within a pixel of the search-window edge is flagged + zero confidence.
+
+    The search window is the offset window, so a star exactly on its edge is cut by it;
+    the star is planted half a pixel inside.  A lone star is believed only inside the
+    inner ellipse, so the fraction is opened to the whole window for the edge to be met.
+    """
+    tuning = dict(StarUniqueMatchNav.tuning)
+    tuning['inner_window_fraction'] = 1.0
+    monkeypatch.setattr(StarUniqueMatchNav, 'tuning', tuning)
     shape = (220, 220)
     image = np.zeros(shape, dtype=np.float64)
     actual_vu = (110.0, 110.0)
     draw_gaussian_star(image, actual_vu, peak_dn=200.0, sigma=1.2)
     margin = (8, 8)
-    # Plant the offset exactly on the search-window edge.
-    pred_vu = (actual_vu[0] - float(margin[0]), actual_vu[1])
+    pred_vu = (actual_vu[0] - float(margin[0]) + 0.5, actual_vu[1])
     feature = make_star_feature('star:UCAC4:edge', predicted_vu=pred_vu, predicted_snr=40.0)
     technique = StarUniqueMatchNav()
     context = make_nav_context(image, extfov_margin_vu=margin)
@@ -577,11 +582,12 @@ def test_star_unique_match_refuses_the_cut_edge_of_a_source_outside_the_window(
     """
     image = np.zeros((300, 300), dtype=np.float64)
     technique = StarUniqueMatchNav()
-    window_px = float(technique.tuning['search_window_px'])
+    window_px = 50.0
     pred = (100.0, 150.0)
     draw_gaussian_star(image, (pred[0] + window_px + 3.0, pred[1]), peak_dn=500.0, sigma=2.0)
     feature = make_star_feature('star:UCAC4:A', predicted_vu=pred, predicted_snr=60.0)
-    result = technique.navigate([feature], make_nav_context(image))
+    context = make_nav_context(image, extfov_margin_vu=(50, 50))
+    result = technique.navigate([feature], context)
     assert result.spurious is True
     assert 'no_detection_above_threshold' in capsys.readouterr().out
 
@@ -611,10 +617,10 @@ def test_star_unique_match_refuses_a_lone_star_beyond_the_inner_window(
     draw_gaussian_star: DrawGaussianStarFactory,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """A lone detection inside the search window but beyond the inner window is refused."""
+    """A lone detection inside the 32 px search window but beyond the inner one is refused."""
     image = np.zeros((300, 300), dtype=np.float64)
     technique = StarUniqueMatchNav()
-    inner_px = float(technique.tuning['inner_search_window_px'])
+    inner_px = float(technique.tuning['inner_window_fraction']) * 32.0
     pred = (150.0, 150.0)
     draw_gaussian_star(image, (pred[0], pred[1] + inner_px + 5.0), peak_dn=200.0, sigma=1.2)
     draw_gaussian_star(image, (40.0, 40.0), peak_dn=20.0, sigma=1.2)
@@ -654,7 +660,8 @@ def test_star_unique_match_pairs_found_only_in_the_inner_window(
     draw_gaussian_star(image, (140.0, 100.0), peak_dn=400.0, sigma=1.2)
     feat_a = make_star_feature('star:UCAC4:A', predicted_vu=(100.0, 100.0), predicted_snr=60.0)
     feat_b = make_star_feature('star:UCAC4:B', predicted_vu=(200.0, 200.0), predicted_snr=58.0)
-    result = StarUniqueMatchNav().navigate([feat_a, feat_b], make_nav_context(image))
+    context = make_nav_context(image, extfov_margin_vu=(60, 60))
+    result = StarUniqueMatchNav().navigate([feat_a, feat_b], context)
     assert result.spurious is False
     assert result.offset_px[0] == pytest.approx(planted[0], abs=0.4)
     assert result.offset_px[1] == pytest.approx(planted[1], abs=0.4)
@@ -705,89 +712,44 @@ def test_star_unique_match_disagreeing_pairs_do_not_fall_back_to_one_star(
     assert result.spurious is True
 
 
-@pytest.mark.parametrize(
-    ('inst_config', 'accepted'), [(None, True), ({'star_one_star_radius_px': 9.0}, False)]
-)
-def test_star_unique_match_believes_a_lone_star_within_the_cameras_radius(
+@pytest.mark.parametrize(('offset_vu', 'accepted'), [((0.0, 9.0), True), ((9.0, 0.0), False)])
+def test_star_unique_match_believes_a_lone_star_inside_the_inner_ellipse(
     make_nav_context: NavContextFactory,
     make_star_feature: NavFeatureFactory,
     draw_gaussian_star: DrawGaussianStarFactory,
-    inst_config: dict[str, float] | None,
+    offset_vu: tuple[float, float],
     accepted: bool,
 ) -> None:
-    """A lone star 9.6 px off is believed under the technique's radius, not a 9 px camera's."""
+    """A (10, 30) px window's inner ellipse reaches 6 px along v and 18 px along u."""
     image = np.zeros((300, 300), dtype=np.float64)
-    draw_gaussian_star(image, (159.6, 150.0), peak_dn=200.0, sigma=1.2)
+    star_vu = (150.0 + offset_vu[0], 150.0 + offset_vu[1])
+    draw_gaussian_star(image, star_vu, peak_dn=200.0, sigma=1.2)
     feature = make_star_feature('star:UCAC4:A', predicted_vu=(150.0, 150.0), predicted_snr=60.0)
-    context = make_nav_context(image)
-    cast(FakeObs, context.obs).inst_config = inst_config
+    context = make_nav_context(image, extfov_margin_vu=(10, 30))
     result = StarUniqueMatchNav().navigate([feature], context)
     assert (result.spurious is False) is accepted
 
 
-def test_star_unique_match_searches_the_cameras_window(
+@pytest.mark.parametrize(('offset_vu', 'passes'), [((0.0, 15.0), True), ((15.0, 0.0), False)])
+def test_star_unique_match_searches_the_instrument_window_by_axis(
     make_nav_context: NavContextFactory,
     make_star_feature: NavFeatureFactory,
     draw_gaussian_star: DrawGaussianStarFactory,
-) -> None:
-    """A pair 20 px from its predictions lies beyond a camera's 13 px window."""
-    image = np.zeros((300, 300), dtype=np.float64)
-    draw_gaussian_star(image, (120.0, 100.0), peak_dn=200.0, sigma=1.2)
-    draw_gaussian_star(image, (220.0, 200.0), peak_dn=190.0, sigma=1.2)
-    feat_a = make_star_feature('star:UCAC4:A', predicted_vu=(100.0, 100.0), predicted_snr=60.0)
-    feat_b = make_star_feature('star:UCAC4:B', predicted_vu=(200.0, 200.0), predicted_snr=58.0)
-    context = make_nav_context(image)
-    cast(FakeObs, context.obs).inst_config = {
-        'star_search_window_px': 13.0,
-        'star_one_star_radius_px': 9.0,
-    }
-    result = StarUniqueMatchNav().navigate([feat_a, feat_b], context)
-    assert result.spurious is True
-
-
-def _camera(context: object, **inst_config: float) -> None:
-    """Give a test context's observation stand-in a camera configuration."""
-    cast(FakeObs, cast(NavContext, context).obs).inst_config = inst_config
-
-
-@pytest.mark.parametrize(('offset_px', 'passes'), [(11.0, True), (15.0, False)])
-def test_star_unique_match_window_only_camera_bounds_the_pair_search(
-    make_nav_context: NavContextFactory,
-    make_star_feature: NavFeatureFactory,
-    draw_gaussian_star: DrawGaussianStarFactory,
-    offset_px: float,
+    offset_vu: tuple[float, float],
     passes: bool,
 ) -> None:
-    """A camera that names only a 13 px window finds a pair 11 px out and not 15 px out."""
+    """A (13, 40) px window finds a pair 15 px out along u and not 15 px out along v."""
     image = np.zeros((300, 300), dtype=np.float64)
     preds = ((100.0, 100.0), (200.0, 200.0))
     for pv, pu in preds:
-        draw_gaussian_star(image, (pv + offset_px, pu), peak_dn=200.0, sigma=1.2)
+        draw_gaussian_star(image, (pv + offset_vu[0], pu + offset_vu[1]), peak_dn=200.0)
     features = [
         make_star_feature(f'star:UCAC4:{k}', predicted_vu=pred, predicted_snr=60.0 - k)
         for k, pred in enumerate(preds)
     ]
-    context = make_nav_context(image)
-    _camera(context, star_search_window_px=13.0)
+    context = make_nav_context(image, extfov_margin_vu=(13, 40))
     result = StarUniqueMatchNav().navigate(features, context)
     assert (result.spurious is False) is passes
-
-
-def test_star_unique_match_window_only_camera_keeps_the_default_radius(
-    make_nav_context: NavContextFactory,
-    make_star_feature: NavFeatureFactory,
-    draw_gaussian_star: DrawGaussianStarFactory,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    """A camera that widens only its window still believes a lone star within 30 px."""
-    image = np.zeros((300, 300), dtype=np.float64)
-    draw_gaussian_star(image, (175.0, 175.0), peak_dn=200.0, sigma=1.2)
-    feature = make_star_feature('star:UCAC4:A', predicted_vu=(150.0, 150.0), predicted_snr=60.0)
-    context = make_nav_context(image)
-    _camera(context, star_search_window_px=60.0)
-    result = StarUniqueMatchNav().navigate([feature], context)
-    assert result.spurious is True
-    assert 'one_star_detection_beyond_inner_window' in capsys.readouterr().out
 
 
 def test_star_unique_match_one_star_refuses_a_track(
@@ -960,7 +922,8 @@ def test_star_unique_match_refuses_a_pair_the_other_stars_contradict(
     for k, (pred, offset, snr) in enumerate(stars):
         draw_gaussian_star(image, (pred[0] + offset[0], pred[1] + offset[1]), peak_dn=200.0)
         features.append(make_star_feature(f'star:UCAC4:{k}', predicted_vu=pred, predicted_snr=snr))
-    result = StarUniqueMatchNav().navigate(features, make_nav_context(image))
+    context = make_nav_context(image, extfov_margin_vu=(50, 50))
+    result = StarUniqueMatchNav().navigate(features, context)
     assert result.spurious is spurious
     assert ('pair_contradicted' in capsys.readouterr().out) is spurious
 
@@ -1040,7 +1003,8 @@ def test_star_unique_match_a_source_unlike_the_star_does_not_vote_for_the_pair(
     else:
         image[round(at_v), round(at_u)] += hit_dn
         image[round(at_v), round(at_u) + 1] += hit_dn
-    result = StarUniqueMatchNav().navigate(features, make_nav_context(image))
+    context = make_nav_context(image, extfov_margin_vu=(50, 50))
+    result = StarUniqueMatchNav().navigate(features, context)
     assert result.spurious is True
     assert 'pair_contradicted' in capsys.readouterr().out
 
@@ -1057,7 +1021,7 @@ def test_star_unique_match_a_source_votes_only_with_the_peak_the_star_should_sho
     draw_gaussian_star(image, (50.0, 50.0), peak_dn=peak_dn)
     star = make_star_feature('star:UCAC4:0', predicted_vu=(50.0, 50.0), predicted_snr=10.0)
     det = StarUniqueMatchNav()._star_like_detection_at(
-        image, star, (50.0, 50.0), 1.0, search_window_px=2.4, peak_per_snr=10.0
+        image, star, (50.0, 50.0), 1.0, search_half_vu=(2.4, 2.4), peak_per_snr=10.0
     )
     assert (det is not None) is found
 
@@ -1073,16 +1037,16 @@ def test_star_unique_match_rejects_a_pair_vote_peak_factor_of_one(
         StarUniqueMatchNav()
 
 
-def test_star_unique_match_inner_window_is_a_radius(
+def test_star_unique_match_inner_window_is_an_ellipse(
     make_nav_context: NavContextFactory,
     make_star_feature: NavFeatureFactory,
     draw_gaussian_star: DrawGaussianStarFactory,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """A lone star 25 px off on both axes is 35 px away, beyond a 30 px inner limit."""
+    """A lone star inside the inner square of a 32 px window but past its ellipse is refused."""
     image = np.zeros((300, 300), dtype=np.float64)
     technique = StarUniqueMatchNav()
-    inner_px = float(technique.tuning['inner_search_window_px'])
+    inner_px = float(technique.tuning['inner_window_fraction']) * 32.0
     side = inner_px * 0.85
     pred = (150.0, 150.0)
     draw_gaussian_star(image, (pred[0] + side, pred[1] + side), peak_dn=200.0, sigma=1.2)
@@ -1093,50 +1057,10 @@ def test_star_unique_match_inner_window_is_a_radius(
     assert 'one_star_detection_beyond_inner_window' in capsys.readouterr().out
 
 
-# A 300 x 600 padded frame whose image spans columns 140 through 459, as a Cassini NAC
-# frame's padding is wider across samples than the 50 px search window.  A star predicted
-# at column 40 is 100 px outside the image, beyond the reach of any window.
+# A 300 x 600 padded frame whose image spans columns 140 through 459, as a 1024 px
+# Cassini NAC frame is padded by 50 px across lines and 140 px across samples.
 _WIDE_MARGIN_VU = (32, 140)
 _WIDE_MARGIN_SHAPE = (300, 600)
-
-
-def test_star_unique_match_pairs_stars_past_unreachable_brighter_ones(
-    make_nav_context: NavContextFactory,
-    make_star_feature: NavFeatureFactory,
-    draw_gaussian_star: DrawGaussianStarFactory,
-) -> None:
-    """Five brighter stars out of reach do not take every slot of the pair search.
-
-    The pair search tries the five brightest stars; here those five are predicted 100 px
-    outside the image, so only once they are set aside are the two visible stars paired.
-    """
-    stars: list[tuple[tuple[float, float], tuple[float, float] | None]] = [
-        ((60.0 + 40.0 * k, 40.0), None) for k in range(5)
-    ]
-    stars += [((100.0, 250.0), (2.0, -3.0)), ((200.0, 380.0), (2.0, -3.0))]
-    image, features = _star_field(make_star_feature, draw_gaussian_star, _WIDE_MARGIN_SHAPE, stars)
-    result = StarUniqueMatchNav().navigate(
-        features, make_nav_context(image, extfov_margin_vu=_WIDE_MARGIN_VU)
-    )
-    assert result.feature_ids == ('star:UCAC4:5', 'star:UCAC4:6')
-
-
-def test_star_unique_match_matches_a_lone_star_past_an_unreachable_brighter_one(
-    make_nav_context: NavContextFactory,
-    make_star_feature: NavFeatureFactory,
-    draw_gaussian_star: DrawGaussianStarFactory,
-) -> None:
-    """A star predicted out of reach is neither the one-star candidate nor its rival."""
-    image, features = _star_field(
-        make_star_feature,
-        draw_gaussian_star,
-        _WIDE_MARGIN_SHAPE,
-        [((150.0, 40.0), None), ((150.0, 300.0), (2.0, -3.0))],
-    )
-    result = StarUniqueMatchNav().navigate(
-        features, make_nav_context(image, extfov_margin_vu=_WIDE_MARGIN_VU)
-    )
-    assert result.feature_ids == ('star:UCAC4:1',)
 
 
 def test_star_unique_match_reaches_the_image_through_the_wide_window(
@@ -1144,10 +1068,10 @@ def test_star_unique_match_reaches_the_image_through_the_wide_window(
     make_star_feature: NavFeatureFactory,
     draw_gaussian_star: DrawGaussianStarFactory,
 ) -> None:
-    """A pair predicted beyond the inner window's reach but within the wide one's is kept.
+    """A pair predicted in the padding is found in the image through the window.
 
-    Both stars are predicted 40 px left of the image, farther than the 30 px inner window
-    and nearer than the 50 px wide window, and a 45 px pointing error puts them in it.
+    Both stars are predicted 40 px left of the image, in the 140 px padding across
+    samples, and a 45 px pointing error puts them in it.
     """
     image, features = _star_field(
         make_star_feature,
@@ -1160,23 +1084,3 @@ def test_star_unique_match_reaches_the_image_through_the_wide_window(
     )
     assert result.spurious is False
     assert result.offset_px[1] == pytest.approx(45.0, abs=0.4)
-
-
-def test_star_unique_match_refuses_when_no_star_is_in_reach(
-    make_nav_context: NavContextFactory,
-    make_star_feature: NavFeatureFactory,
-    draw_gaussian_star: DrawGaussianStarFactory,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    """Every star predicted out of reach of the image leaves nothing to search."""
-    image, features = _star_field(
-        make_star_feature,
-        draw_gaussian_star,
-        _WIDE_MARGIN_SHAPE,
-        [((100.0, 40.0), None), ((200.0, 560.0), None)],
-    )
-    result = StarUniqueMatchNav().navigate(
-        features, make_nav_context(image, extfov_margin_vu=_WIDE_MARGIN_VU)
-    )
-    assert result.spurious is True
-    assert 'no_usable_star_within_reach_of_the_image' in capsys.readouterr().out

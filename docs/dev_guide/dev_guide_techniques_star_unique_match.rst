@@ -11,7 +11,7 @@ prediction of each of the brightest predictable stars, takes the strongest detec
 a noise threshold, and reports the translation implied by a cross-checked pair of stars
 (2-star path) or, when no pair cross-checks, by the brightest star alone (1-star path);
 the 1-star path additionally requires the star to be a configured magnitude margin
-brighter than every other predictable star within reach of the image. It runs without a
+brighter than every other predictable star. It runs without a
 prior — its job is to seed the pass-2
 :class:`~spindoctor.nav_technique.nav_technique_star_refine.StarRefineNav` on scenes where
 the SPICE pointing error is small enough that the brightest predictable star sits inside
@@ -35,10 +35,9 @@ by Procrustes alignment.
 Brightness-margin gate
 ----------------------
 
-The matcher computes a magnitude difference between the brightest predictable star within
-reach of the image and the next-brightest one, using the standard relation
-:math:`\Delta m = 2.5 \log_{10}(\mathrm{SNR}_{1} / \mathrm{SNR}_{2})`; the 2-star path
-section below says which stars are within reach. The margin floor
+The matcher computes a magnitude difference between the brightest predictable star and the
+next-brightest one, using the standard relation
+:math:`\Delta m = 2.5 \log_{10}(\mathrm{SNR}_{1} / \mathrm{SNR}_{2})`. The margin floor
 (``brightness_margin_to_next_catalog_star_mag``) gates only the 1-star path: a star whose
 brightness margin falls below it is not "uniquely bright" and the 1-star path fails. The
 2-star path is attempted first whenever at least two usable stars exist, regardless of the
@@ -56,10 +55,14 @@ shared helper ``local_centroid`` in ``_star_helpers`` does this for
 :class:`~spindoctor.nav_technique.nav_technique_star_refine.StarRefineNav` as well.
 
 - **The window** is centered on the pixel that holds the prediction and reaches
-  ``floor(search_window_px)`` whole pixels either side of it
-  (``search_window_bounds``), so it is always
-  ``2 * floor(search_window_px) + 1`` pixels on a side and its center is never more than
-  half a pixel from the prediction. A window whose edges are rounded outward from the
+  ``floor(half)`` whole pixels either side of it along each axis
+  (``search_window_bounds``), so each side is always ``2 * floor(half) + 1`` pixels long
+  and its center is never more than half a pixel from the prediction.
+  :class:`~spindoctor.nav_technique.nav_technique_star_unique_match.StarUniqueMatchNav`
+  takes its half-widths from the instrument's offset window (``extfov_margin_vu``, read
+  through :func:`~spindoctor.nav_technique.nav_technique.search_window_for_obs`), axis by
+  axis, as every other technique searches it: pointing error is a property of the camera,
+  so stars get no window of their own. A window whose edges are rounded outward from the
   prediction instead is a pixel wider for a non-integer prediction and reaches farther on
   one side than the other, with the longer side flipping as the prediction crosses a
   pixel center, so a sub-pixel change of prediction admits or drops a whole row of
@@ -175,14 +178,16 @@ the 30 px window it was set against, the ~1-sigma core of the pointing envelope 
 window was sized to bracket. When the peak ratio is finite, the 10 px residual bound is
 not applied: genuine one-star matches with offsets up to ~24 px exist in the
 operator-verified library, so that bound cannot hold every match. Every 1-star match is
-held instead to ``inner_search_window_px`` (30 px), above those offsets.
+held instead to the inner ellipse, whose semi-axes are the offset window's half-widths
+times ``inner_window_fraction`` (0.6; 30 px for a window half-width of 50 px).
 
 2-star path
 -----------
 
 When at least two usable stars exist, the technique first attempts the 2-star path. Every
 pair among the ``pair_search_stars`` brightest usable stars is tried, brightest pairs
-first, in two windows: ``inner_search_window_px`` and then ``search_window_px``. For each
+first, in two windows: the offset window scaled by ``inner_window_fraction`` and then the
+whole offset window. For each
 pair both detection-to-prediction assignments are tried and the one with the smaller
 residual kept; the residual is half the difference between the two stars' offsets, and a
 pair passes only when it is within ``max_residual_px``. The first passing pair is the
@@ -232,21 +237,13 @@ ring bundle. The narrower window is searched as well because the strongest detec
 the wider one is more often something brighter than the star; without the narrower window
 the technique navigates 750 frames, none wrong.
 
-Both paths draw only on stars whose search window holds at least one pixel of the image.
-The extended field of view pads the image, and the star catalog predicts stars across all
-of it; the Cassini NAC's padding is 140 px across samples, wider than its 50 px window. A
-star predicted farther outside the image than the window reaches cannot be in the image at
-any offset the window allows, so it can neither be detected nor be confused with another
-star's detection. A photometric star limit deep enough to predict faint stars across the
-padding fills the brightest ranks with them. Under such a limit, the second through fifth
-brightest stars of F ring frame ``N1862698331`` all lie beyond the window's reach, no pair
-of the five has both stars in the image, and the frame is refused; with them set aside, a
-pair of stars in the image answers 0.15 px from the published F ring bundle. A star set
-aside this way is not the 1-star path's candidate either, and it does not count
-against that candidate's brightness margin. A frame whose every usable star is out of
-reach reports a spurious result.
+Every star is predicted inside the extended field of view, and its padding is the offset
+window, so every star's window holds at least one pixel of the image. A star predicted
+far into the padding is in the image only when the pointing error nearly fills the
+window; until then it still takes a place among the brightest stars the pair search draws
+on.
 
-.. Setting aside stars out of the window's reach: #763.
+.. A star search no wider than the offset window has no star out of reach: #763.
 
 The residual tolerance is measured. With it opened to 4 px, the 704 two-star matches on
 that observation that lie within 2 px of the bundle have residuals of median 0.10 px and
@@ -286,13 +283,13 @@ Restrictions and assumptions
   sits below the per-observation limiting magnitude, so the SNR ratio between two stars
   recovers their catalog magnitude difference. A wrong catalog magnitude shifts the
   brightness-margin computation and may erroneously accept or reject the match.
-- The search window assumes the SPICE pointing error is bounded by ``search_window_px``
-  (default 50 px). When the pointing error exceeds this width, the strongest detection in
-  the window is not the matched detection. On ``ISS_006RI_LPHRLFMOV001_PRIME`` the Cassini
-  NAC pointing error reaches 43 px, and a 30 px window puts the stars of 191 of the 1030
-  frames out of reach. A 1-star match is accepted only within ``inner_search_window_px``
-  (30 px) of its prediction, while the whole window is still searched so that a brighter
-  source anywhere in it vetoes: nothing cross-checks a single detection, and the wider the
+- The search window assumes the SPICE pointing error is bounded by the instrument's offset
+  window. When the pointing error exceeds it, the strongest detection in the window is not
+  the matched detection. On ``ISS_006RI_LPHRLFMOV001_PRIME`` the Cassini NAC pointing
+  error reaches 43 px, and a 30 px window puts the stars of 191 of the 1030 frames out of
+  reach. A 1-star match is accepted only inside the inner ellipse (the offset window's
+  half-widths times ``inner_window_fraction``) around its prediction, while the whole
+  window is still searched so that a brighter source anywhere in it vetoes: nothing cross-checks a single detection, and the wider the
   region it may come from, the likelier an artifact is the brightest thing in it. On the
   black-sky Galileo library frame ``C0164392700R`` a lone artifact lies 40 px from the one
   predicted star. On ``ISS_006RI``, windows of 30, 40, 50, and
@@ -332,23 +329,16 @@ All numeric tunables for this technique live in ``techniques.StarUniqueMatchNav.
 - ``brightness_margin_to_next_catalog_star_mag`` — float, default ``1.5`` (mag). Minimum
   magnitude difference between the brightest predictable star and the next-brightest for
   the 1-star path to fire.
-- ``search_window_px`` — float, default ``50.0`` px. Half-width of the search window
-  around each prediction. Must bracket the SPICE pointing error: a star whose own peak
-  lies outside the window is not measured. The window is
-  ``2 * floor(search_window_px) + 1`` pixels on a side, centered on the pixel holding the
-  prediction.
-- ``inner_search_window_px`` — float, default ``30.0`` px. A second, narrower window in
-  which the 2-star path also searches each pair. A 1-star detection farther than this from
-  its prediction is refused with a ``one_star_detection_beyond_inner_window`` reason.
-
-  Pointing error belongs to a camera, so both values are defaults: a camera whose instrument
-  configuration names ``star_search_window_px`` and ``star_one_star_radius_px`` uses its
-  own (:func:`~spindoctor.nav_technique.nav_technique.star_search_px_for_obs`). Cassini's
-  cameras name theirs from their pointing error against the published F ring bundle, on the
-  movies set aside for tuning: the NAC's 50 and 30 px hold 98.7% of its 10362 star frames on
-  each axis and 90.9% radially, and the WAC's 13 and 9 px hold the same fractions of its 794,
-  whose error reaches 14 px. With the NAC's values the WAC navigates 307 of those frames
-  within 2 px of the bundle; with its own, 386.
+- ``inner_window_fraction`` — float, default ``0.6``. The search window is the
+  instrument's offset window (``extfov_margin_vu``), axis by axis; this is the fraction of
+  it, per axis, that bounds two narrower regions. The 2-star path also searches each pair
+  in the window scaled by it. A 1-star detection outside the ellipse whose semi-axes are
+  the window's half-widths times it is refused with a
+  ``one_star_detection_beyond_inner_window`` reason. The ellipse is taken in place of a
+  single radius because the offset window is per axis: it is a circle for a square window
+  and never reaches past the window on either axis. 0.6 is the ratio of the 30 px lone-star
+  radius to the 50 px search half-width measured on the Cassini NAC. Values outside
+  ``(0, 1]`` are invalid.
 
 - ``psf_sigma_px`` — float, default ``1.0`` px. Gaussian sigma of the matched-filter
   kernel that chooses the detection in each window and measures its isolation; the same
@@ -394,9 +384,8 @@ All numeric tunables for this technique live in ``techniques.StarUniqueMatchNav.
 - ``one_star_max_residual_px`` — float, default ``10.0`` px. Maximum
   prediction-to-detection distance accepted by the 1-star path when the peak-ratio gate
   is vacuous (its no-rival ``inf`` sentinel); beyond it the result is spurious with a
-  ``no_rival_detection`` reason. Default is one third of the 30 px
-  ``inner_search_window_px`` it was set against (the ~1-sigma core of the pointing
-  envelope that window brackets).
+  ``no_rival_detection`` reason. Default is one third of the 30 px window half-width it
+  was set against (the ~1-sigma core of the pointing envelope that window brackets).
   Not consulted when the peak ratio is finite. Values at or below 0 are invalid.
 - ``at_edge_tolerance_px`` — float, default ``1.0`` px. A converged offset whose absolute
   distance from any search-window axis bound falls within this tolerance is flagged
@@ -514,8 +503,7 @@ Call path traced through
 :meth:`~spindoctor.nav_technique.nav_technique_star_unique_match.StarUniqueMatchNav.navigate`:
 
 1. Open a logged section. Filter the offered features down to ``usable_stars``
-   (predictable and not occluded by a body silhouette or ring annulus), then to
-   ``stars_in_reach`` (those whose search window overlaps the image).
+   (predictable and not occluded by a body silhouette or ring annulus).
 2. Sort the usable cohort by predicted SNR (brightest first) and compute the brightness
    margin between consecutive entries via ``brightness_margin_mag``.
 3. Branch on the usable-star count:
@@ -534,7 +522,7 @@ Call path traced through
      require the brightest to clear the brightness-margin floor, slice a window
      around its prediction, extract the sub-pixel
      centroid, refuse it when it is not an isolated point source or lies outside
-     ``inner_search_window_px``, require the detection's background-subtracted
+     the inner ellipse, require the detection's background-subtracted
      peak-to-runner-up ratio to be at least ``one_star_min_peak_ratio`` (and, when that
      ratio is the no-rival sentinel, require the detection to lie within
      ``one_star_max_residual_px`` of the prediction), and report the per-star residual as

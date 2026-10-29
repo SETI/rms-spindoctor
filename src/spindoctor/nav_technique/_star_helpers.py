@@ -46,7 +46,6 @@ __all__ = [
     'search_window_bounds',
     'similarity_transform_fit',
     'star_features',
-    'stars_in_reach',
     'usable_stars',
 ]
 
@@ -282,15 +281,15 @@ def gaussian_psf_kernel(sigma_px: float, *, size: int) -> NDArrayFloatType:
 
 def search_window_bounds(
     predicted_vu_pos: tuple[float, float],
-    search_window_px: float,
+    search_half_vu: tuple[float, float],
     shape: tuple[int, ...],
 ) -> tuple[int, int, int, int] | None:
     """Return the ``(v_lo, v_hi, u_lo, u_hi)`` slice bounds of a star search window.
 
     The window is centered on the pixel that contains the prediction (the working frame
     is pixel-centric, so that is the prediction rounded to the nearest integer, halves
-    rounding up) and reaches ``floor(search_window_px)`` whole pixels either side of it,
-    so it is always ``2 * floor(search_window_px) + 1`` pixels on a side before clamping
+    rounding up) and reaches ``floor(half)`` whole pixels either side of it along each
+    axis, so each side is always ``2 * floor(half) + 1`` pixels long before clamping
     and its center never sits more than half a pixel from the prediction.  A window
     built from ``floor(v - W)`` and ``ceil(v + W)`` instead is one pixel wider than that
     for a non-integer prediction and reaches farther on one side than the other, with
@@ -299,63 +298,25 @@ def search_window_bounds(
 
     Parameters:
         predicted_vu_pos: ``(v, u)`` prediction at the center of the window.
-        search_window_px: Half-width of the window in pixels.
+        search_half_vu: ``(v, u)`` half-widths of the window in pixels.
         shape: Shape of the image the window is cut from; the bounds are clamped to it.
 
     Returns:
         ``(v_lo, v_hi, u_lo, u_hi)`` half-open slice bounds, or ``None`` when the clamped
         window is empty (the prediction lies wholly off the image).
     """
-    half = math.floor(search_window_px)
+    half_v = math.floor(search_half_vu[0])
+    half_u = math.floor(search_half_vu[1])
     center_v = math.floor(predicted_vu_pos[0] + 0.5)
     center_u = math.floor(predicted_vu_pos[1] + 0.5)
     h, w = int(shape[0]), int(shape[1])
-    v_lo = max(0, center_v - half)
-    u_lo = max(0, center_u - half)
-    v_hi = min(h, center_v + half + 1)
-    u_hi = min(w, center_u + half + 1)
+    v_lo = max(0, center_v - half_v)
+    u_lo = max(0, center_u - half_u)
+    v_hi = min(h, center_v + half_v + 1)
+    u_hi = min(w, center_u + half_u + 1)
     if v_hi <= v_lo or u_hi <= u_lo:
         return None
     return v_lo, v_hi, u_lo, u_hi
-
-
-def stars_in_reach(
-    stars: list[NavFeature],
-    *,
-    image_shape: tuple[int, ...],
-    margin_vu: tuple[int, int],
-    search_window_px: float,
-) -> list[NavFeature]:
-    """Return the stars whose search window holds at least one pixel of the image.
-
-    The extended field of view pads the image by ``margin_vu`` on each side, and the star
-    catalog predicts stars across all of it.  A star is searched for only inside the
-    window :func:`search_window_bounds` cuts around its prediction, so a star whose window
-    holds nothing but padding is not in the image at any offset the search allows, and
-    can be neither detected nor confused with another star's detection.
-
-    Parameters:
-        stars: Star features, in any order; the order is kept.
-        image_shape: Shape of the extended-FOV image, ``(rows, columns)``.
-        margin_vu: ``(margin_v, margin_u)`` padding of the extended field of view in whole
-            pixels.
-        search_window_px: Half-width of the search window in pixels.
-
-    Returns:
-        The stars whose window overlaps the image.
-    """
-    margin_v, margin_u = margin_vu
-    image_only = (int(image_shape[0]) - 2 * margin_v, int(image_shape[1]) - 2 * margin_u)
-    out: list[NavFeature] = []
-    for star in stars:
-        pred_v, pred_u = predicted_vu(star)
-        # Shifting the prediction by the whole-pixel margin moves the window's center
-        # pixel by exactly the margin, so the window is cut in the image's own frame.
-        if search_window_bounds(
-            (pred_v - margin_v, pred_u - margin_u), search_window_px, image_only
-        ):
-            out.append(star)
-    return out
 
 
 def _window_peaks(
@@ -527,7 +488,7 @@ def local_centroid(
     image_ext: NDArrayFloatType,
     predicted_vu_pos: tuple[float, float],
     *,
-    search_window_px: float,
+    search_half_vu: tuple[float, float],
     centroid_box_half_px: int,
     psf_sigma_px: float,
     max_peak_sharpness: float,
@@ -583,7 +544,7 @@ def local_centroid(
         image_ext: 2-D extfov image array.
         predicted_vu_pos: ``(v, u)`` prediction at the center of the
             search window.
-        search_window_px: Half-width of the search window in pixels.
+        search_half_vu: ``(v, u)`` half-widths of the search window in pixels.
         centroid_box_half_px: Half-width of the centroid-fit box (and of
             the matched-filter kernel) in pixels.
         psf_sigma_px: PSF sigma in pixels for the matched-filter kernel.
@@ -610,7 +571,7 @@ def local_centroid(
         accepted (handy for diagnostics), the brightest DN in the window when
         the window holds no candidate, or 0.0 when the window is empty.
     """
-    bounds = search_window_bounds(predicted_vu_pos, search_window_px, image_ext.shape)
+    bounds = search_window_bounds(predicted_vu_pos, search_half_vu, image_ext.shape)
     if bounds is None:
         return None, 0.0
     v_lo, v_hi, u_lo, u_hi = bounds
@@ -676,7 +637,7 @@ def detection_peak_ratio(
     predicted_vu_pos: tuple[float, float],
     detection_vu: tuple[float, float],
     *,
-    search_window_px: float,
+    search_half_vu: tuple[float, float],
     exclude_half_px: int,
 ) -> float:
     """Return the detection's background-subtracted peak-to-runner-up ratio.
@@ -707,7 +668,7 @@ def detection_peak_ratio(
         detection_vu: The accepted detection centroid whose surrounding
             ``exclude_half_px`` box (the source's own pixels) is removed
             before the runner-up is taken.
-        search_window_px: Half-width of the search window in pixels.
+        search_half_vu: ``(v, u)`` half-widths of the search window in pixels.
         exclude_half_px: Half-width of the exclusion box around the
             detection; use at least the centroid-box half-width so the
             source's own wings do not masquerade as the runner-up.
@@ -718,7 +679,7 @@ def detection_peak_ratio(
         the runner-up does not exceed the background.  0.0 when the
         window is degenerate or the exclusion box misses it.
     """
-    bounds = search_window_bounds(predicted_vu_pos, search_window_px, image_ext.shape)
+    bounds = search_window_bounds(predicted_vu_pos, search_half_vu, image_ext.shape)
     if bounds is None:
         return 0.0
     v_lo, v_hi, u_lo, u_hi = bounds

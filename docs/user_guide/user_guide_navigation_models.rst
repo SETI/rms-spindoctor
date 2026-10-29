@@ -608,16 +608,16 @@ catalog magnitudes (``techniques.StarUniqueMatchNav.tuning.pair_vote_peak_factor
 a faint field star or a small cosmic-ray hit lying there by chance does not count for the
 pair. A cross-checked pair caps confidence a little higher, at 0.8.
 
-The search never covers the whole frame. It reaches
-``techniques.StarUniqueMatchNav.tuning.search_window_px`` whole pixels in each direction
-from the pixel holding each prediction, 50 by default, and pairs are also tried within 30
-pixels (``techniques.StarUniqueMatchNav.tuning.inner_search_window_px``). A camera's own
-configuration can set both to match that camera's pointing error, as the instrument
-chapters describe. The window must be larger than the pointing error: a star whose center
-lies outside that reach is not found, even when some of its light falls inside it. A
-single star, which nothing can check, is accepted only within 30 pixels of where it was
-predicted by default, although the whole window is still searched so that anything
-brighter in it stops the match. A detection counts only if it is a point source that
+The search never covers the whole frame. Each star is searched for over the camera's
+offset window, the same range every other technique searches, which the instrument
+chapters list: it reaches that many whole pixels along each axis from the pixel holding
+each prediction. Pairs are also tried in a smaller window, 0.6 of it along each axis
+(``techniques.StarUniqueMatchNav.tuning.inner_window_fraction``). The offset window must
+be larger than the pointing error: a star whose center lies outside that reach is not
+found, even when some of its light falls inside it. A single star, which nothing can
+check, is accepted only inside the ellipse that reaches the same 0.6 of the window along
+each axis from where it was predicted, although the whole window is still searched so
+that anything brighter in it stops the match. A detection counts only if it is a point source that
 stands alone, by the same test the star field uses, so a ridge of a ring or a cosmic-ray
 track is not taken for a star. Measuring a star's center moves a small box onto the star's
 light; a box that wanders farther than its own half-width, or out of the search window,

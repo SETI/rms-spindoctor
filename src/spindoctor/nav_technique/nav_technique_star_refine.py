@@ -372,7 +372,7 @@ class StarRefineNav(NavTechnique):
             det, peak = local_centroid(
                 image_ext,
                 shifted_pred,
-                search_window_px=self._refine_window_px,
+                search_half_vu=(self._refine_window_px, self._refine_window_px),
                 centroid_box_half_px=self._centroid_box_half_px,
                 psf_sigma_px=self._psf_sigma_px,
                 max_peak_sharpness=self._max_peak_sharpness,

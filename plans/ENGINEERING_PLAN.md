@@ -288,26 +288,30 @@ bundle's pointing:
 - 19 show two or more stars that the windows do find, refused for reasons not
   yet examined.
 
-The search window and the radius within which a lone star is believed are
-set per camera from that camera's pointing error on the tuning frames: the
-NAC's 50 and 30 px hold 98.7% of its frames on each axis and 90.9% radially,
-and the WAC's 13 and 9 px hold the same fractions of its frames, whose error
-reaches 14 px. The WAC navigates 386 of its 794 tuning frames within 2 px
-(340 on `main`) and 13 of its 113 held-out frames (8 on `main`); 97 of those
-113 have no usable catalog star, the same limiting-magnitude cause as above.
+Stars get no search window of their own: the unique match searches each
+star over the instrument's offset window (`extfov_margin_vu`), axis by axis,
+as every technique does, and believes a lone star only inside the ellipse
+whose semi-axes are 0.6 of that window (`inner_window_fraction`; 30 of 50 px
+on the NAC, the radius measured on the tuning frames). The NAC's window
+already holds 98.7% of its tuning frames on each axis (50 full-frame px; its
+error reaches 82). The WAC's did not, so its margins for 512 and 1024 px
+images are widened from `[5, 10]` to `[7, 10]` and `[13, 13]`: 98.7% of its
+frames lie within 12.4 full-frame px on each axis, and its error reaches 14.
+Every margin is provisional, and the change has not had a full run; #830
+sets one offset window per camera for every technique from full runs.
+Measured with per-camera star windows of 13 and 9 px, the WAC navigated 386
+of its 794 tuning frames within 2 px (340 on `main`) and 13 of its 113
+held-out frames (8 on `main`); 97 of those 113 have no usable catalog star,
+the same limiting-magnitude cause as above.
 
-The unique match searches only stars whose window reaches the image (#763).
-The star catalog predicts stars across the padded field of view, which for
-the NAC extends 140 px past the image across samples against its 50 px
-window. With the deeper photometric limit of #755, such stars filled the five
-brightest ranks the pair search draws on: F ring frame `N1862698331` had no
-pair with both stars in the image and was refused, and with them set aside it
-answers 0.15 px from the bundle. Of 87 F ring frames checked (37 that the
-full bundle run refused, or answered right with the unique match, and 50
-right controls), it is the only verdict that changes with #755 present. On this
-branch alone the same frames gain one answer (`N1654043744`, refused before,
-now 0.02 px from the bundle) and lose none, and the library is unchanged (74
-of 75 frames identical, the other within 0.02 px).
+Because the padding of the extended field of view is the offset window,
+every star the catalog predicts has a window that reaches the image, and the
+filter that set aside stars out of reach (#763) has nothing left to set
+aside. On F ring frame `N1862698331` with the deeper photometric limit of
+#755, the five brightest stars lay where the 50 px window of the time could
+not reach the image; the NAC's 140 px margin across samples now reaches
+them, so they take pair-search places again. Whether that frame and others
+like it are refused again is for the full runs of #830.
 
 A pair the other searched stars contradict is still refused, but a star now
 votes for the pair when an isolated point source about as bright as that star

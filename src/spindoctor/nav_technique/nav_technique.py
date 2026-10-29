@@ -46,7 +46,6 @@ __all__ = [
     'rotation_pivot_distance_px',
     'rotation_unobservable_sigma_rad',
     'search_window_for_obs',
-    'star_search_px_for_obs',
     'technique_tier',
     'validate_registered_confidence_specs',
 ]
@@ -138,34 +137,6 @@ def search_window_for_obs(context: NavContext) -> tuple[int, int]:
     """
     margin = context.obs.extfov_margin_vu  # type: ignore[attr-defined]
     return (int(margin[0]), int(margin[1]))
-
-
-def star_search_px_for_obs(
-    context: NavContext, *, window_px: float, one_star_px: float
-) -> tuple[float, float]:
-    """Return the camera's star search half-width and lone-star radius.
-
-    Pointing error is a property of the camera, so a camera whose instrument
-    configuration measures it names ``star_search_window_px`` (the half-width
-    a star's window must reach to hold the star) and ``star_one_star_radius_px``
-    (the distance from its prediction within which a lone, unchecked star is
-    believed).  A camera that names neither takes the technique's own values.
-
-    Parameters:
-        context: The navigation context; ``context.obs.inst_config`` is read.
-        window_px: The technique's search half-width, for a camera naming none.
-        one_star_px: The technique's lone-star radius, for a camera naming none.
-
-    Returns:
-        ``(window_px, one_star_px)`` for this observation's camera.
-    """
-    inst = context.obs.inst_config  # type: ignore[attr-defined]
-    if not inst:
-        return window_px, one_star_px
-    return (
-        float(inst.get('star_search_window_px', window_px)),
-        float(inst.get('star_one_star_radius_px', one_star_px)),
-    )
 
 
 def reported_position_vu(

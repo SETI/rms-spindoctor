@@ -702,37 +702,30 @@ techniques:
       # Minimum magnitude difference to the next-brightest predictable
       # star for the 1-star path to fire.
       brightness_margin_to_next_catalog_star_mag: 1.5
-      # Half-width of the search window around each prediction (px), for
-      # a camera whose instrument configuration names no
-      # star_search_window_px.  Must bracket the SPICE pointing
-      # error: when the star lies outside
-      # the window, the strongest peak inside it is something else and a
-      # one-star match is silently wrong.  On ISS_006RI_LPHRLFMOV001_PRIME
-      # the NAC pointing error reaches 43 px (published F ring bundle); a
-      # 30 px window puts the stars of 191 of its 1030 frames out of
-      # reach.  50 px brackets the error.  With inner_search_window_px
-      # below, 30, 40, 50, and 60 px navigate 753, 774, 771, and 762
-      # frames, none wrong; 30 and 40 px leave the stars of the frames
-      # whose error exceeds them outside the window, which the other
-      # gates then refuse.
-      search_window_px: 50.0
-      # A narrower window inside search_window_px, for a camera whose
-      # instrument configuration names no star_one_star_radius_px.  The
-      # 2-star path also
-      # searches each pair in it, because the strongest peak of the wider
-      # window is more often something brighter than the star (a ring, a
-      # bright neighbor); a pair found in either window must agree with
-      # every other pair found (see max_residual_px).  The 1-star path
-      # searches the wider window, so a brighter source anywhere in it
-      # vetoes, but accepts its lone detection only within this distance of
-      # the prediction (a radius, not the window's half-width): nothing
-      # cross-checks a single detection, and the wider the region it may
-      # come from, the likelier an artifact is the brightest thing in it.
-      # The black-sky library frame C0164392700R has a lone artifact
-      # 40 px from its one predicted star.  On ISS_006RI an inner window
-      # of 30, 40, and 50 px (the last meaning none) navigates 771, 772,
-      # and 750 frames, none wrong.
-      inner_search_window_px: 30.0
+      # Each star is searched for over the instrument's offset window
+      # (extfov_margin_vu in the instrument configuration), axis by axis,
+      # as every technique searches it: pointing error is a property of
+      # the camera, so stars get no window of their own.
+      #
+      # Fraction of that window, per axis, that bounds two narrower
+      # regions inside it.  The 2-star path also searches each pair in
+      # the window scaled by this fraction, because the strongest peak of
+      # the whole window is more often something brighter than the star
+      # (a ring, a bright neighbor); a pair found in either window must
+      # agree with every other pair found (see max_residual_px).  The
+      # 1-star path searches the whole window, so a brighter source
+      # anywhere in it vetoes, but accepts its lone detection only inside
+      # the ellipse whose semi-axes are the window's half-widths times
+      # this fraction: nothing cross-checks a single detection, and the
+      # wider the region it may come from, the likelier an artifact is
+      # the brightest thing in it.  The black-sky library frame
+      # C0164392700R has a lone artifact 40 px from its one predicted
+      # star.  0.6 is the ratio of the 30 px lone-star radius to the
+      # 50 px search half-width on ISS_006RI_LPHRLFMOV001_PRIME, where
+      # radii of 30, 40, and 50 px navigated 771, 772, and 750 of 1030
+      # frames, none wrong.  It must lie in (0, 1], so the region never
+      # exceeds the window.
+      inner_window_fraction: 0.6
       # Gaussian PSF sigma (px) of the matched-filter kernel that picks the
       # detection inside each search window: the strongest local maximum
       # of the response wins, not the brightest single pixel, so the flank
@@ -849,7 +842,7 @@ techniques:
       # finite peak ratio leaves acceptance to the measured #211 gate:
       # operator-verified library matches carry genuine one-star offsets
       # up to ~24 px, so this bound cannot hold every match; every one is
-      # held to inner_search_window_px instead.
+      # held to the inner ellipse of inner_window_fraction instead.
       one_star_max_residual_px: 10.0
       # Per-mode caps applied post-sigmoid; the 1-star path cannot
       # self-check, so its cap is lower than the 2-star path's.

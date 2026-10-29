@@ -15,7 +15,6 @@ from spindoctor.nav_technique._star_helpers import (
     isolation_radii,
     local_centroid,
     search_window_bounds,
-    stars_in_reach,
     third_star_votes,
 )
 
@@ -45,14 +44,14 @@ def test_the_search_window_is_centered_on_the_pixel_holding_the_prediction() -> 
     and columns 1072 through 1132.  Row 608, which a cosmic ray occupies in
     N1530185128_1, lies 30.717 px from the prediction and is outside it.
     """
-    bounds = search_window_bounds(_FRAME_PREDICTION_VU, 30.0, _FRAME_SHAPE)
+    bounds = search_window_bounds(_FRAME_PREDICTION_VU, (30.0, 30.0), _FRAME_SHAPE)
     assert bounds == (609, 670, 1072, 1133)
 
 
 @pytest.mark.parametrize('v_pred', [50.2, 50.7])
 def test_the_search_window_width_does_not_depend_on_the_fraction(v_pred: float) -> None:
     """A prediction either side of a pixel's center gets the same odd-width window."""
-    bounds = search_window_bounds((v_pred, 50.0), 10.0, (200, 200))
+    bounds = search_window_bounds((v_pred, 50.0), (10.0, 10.0), (200, 200))
     assert bounds is not None
     v_lo, v_hi, _u_lo, _u_hi = bounds
     assert v_hi - v_lo == 21
@@ -60,43 +59,19 @@ def test_the_search_window_width_does_not_depend_on_the_fraction(v_pred: float) 
 
 def test_the_search_window_reaches_whole_pixels_only() -> None:
     """A half-width of 10.5 px reaches 10 whole pixels either side, 21 in all."""
-    bounds = search_window_bounds((50.0, 50.0), 10.5, (200, 200))
+    bounds = search_window_bounds((50.0, 50.0), (10.5, 10.5), (200, 200))
     assert bounds == (40, 61, 40, 61)
+
+
+def test_the_search_window_reaches_each_axis_by_its_own_half_width() -> None:
+    """Half-widths of 5 and 10 px give a window 11 rows tall and 21 columns wide."""
+    bounds = search_window_bounds((50.0, 50.0), (5.0, 10.0), (200, 200))
+    assert bounds == (45, 56, 40, 61)
 
 
 def test_the_search_window_off_the_image_is_empty() -> None:
     """A prediction farther off the image than the half-width has no window."""
-    assert search_window_bounds((-50.0, 100.0), 10.0, (200, 200)) is None
-
-
-@pytest.mark.parametrize(
-    ('predicted_vu', 'in_reach'),
-    [
-        ((-18.0, 100.0), True),
-        ((-19.0, 100.0), False),
-        ((217.0, 100.0), True),
-        ((218.0, 100.0), False),
-        ((100.0, -18.0), True),
-        ((100.0, -19.0), False),
-    ],
-    ids=['top-edge', 'past-top', 'bottom-edge', 'past-bottom', 'left-edge', 'past-left'],
-)
-def test_a_star_is_in_reach_while_its_window_holds_an_image_pixel(
-    make_star_feature: NavFeatureFactory,
-    predicted_vu: tuple[float, float],
-    in_reach: bool,
-) -> None:
-    """A 50 px window on a 200 px image padded by 32 px reaches 18 px past either edge.
-
-    The image's pixels are rows and columns 32 through 167 of the padded frame, so a
-    window centered on row -18 reaches row 32, and one centered on row -19 reaches only
-    row 31, which is padding.
-    """
-    star = make_star_feature('star:UCAC4:1', predicted_vu=predicted_vu, predicted_snr=10.0)
-    reachable = stars_in_reach(
-        [star], image_shape=(200, 200), margin_vu=(32, 32), search_window_px=50.0
-    )
-    assert (reachable == [star]) is in_reach
+    assert search_window_bounds((-50.0, 100.0), (10.0, 10.0), (200, 200)) is None
 
 
 def test_a_brighter_single_pixel_does_not_win_the_stars_window(
@@ -106,7 +81,7 @@ def test_a_brighter_single_pixel_does_not_win_the_stars_window(
     centroid, _peak = local_centroid(
         _star_and_spike(draw_gaussian_star),
         (100.0, 100.0),
-        search_window_px=30.0,
+        search_half_vu=(30.0, 30.0),
         centroid_box_half_px=3,
         psf_sigma_px=1.0,
         max_peak_sharpness=8.0,
@@ -130,7 +105,7 @@ def test_a_brighter_single_pixel_elsewhere_makes_the_window_ambiguous(
         _star_and_spike(draw_gaussian_star),
         (100.0, 100.0),
         (110.0, 100.0),
-        search_window_px=30.0,
+        search_half_vu=(30.0, 30.0),
         exclude_half_px=5,
     )
     assert ratio == pytest.approx(15.0 / 27.0, rel=1e-6)
@@ -149,7 +124,7 @@ def test_a_star_outside_the_window_is_not_measured_through_its_flank(
     centroid, _peak = local_centroid(
         image,
         (100.0, 100.0),
-        search_window_px=30.0,
+        search_half_vu=(30.0, 30.0),
         centroid_box_half_px=3,
         psf_sigma_px=1.0,
         max_peak_sharpness=8.0,
@@ -171,7 +146,7 @@ def test_a_bump_on_a_bright_floor_is_no_detection() -> None:
     centroid, _peak = local_centroid(
         image,
         (100.0, 100.0),
-        search_window_px=30.0,
+        search_half_vu=(30.0, 30.0),
         centroid_box_half_px=3,
         psf_sigma_px=1.0,
         max_peak_sharpness=8.0,
@@ -193,7 +168,7 @@ def test_a_saturated_core_as_tall_as_the_box_is_measured_about_its_middle() -> N
     centroid, _peak = local_centroid(
         image,
         (98.0, 100.0),
-        search_window_px=30.0,
+        search_half_vu=(30.0, 30.0),
         centroid_box_half_px=3,
         psf_sigma_px=1.0,
         max_peak_sharpness=8.0,
@@ -220,7 +195,7 @@ def test_a_window_outshone_from_outside_is_refused_on_request(
     centroid, _peak = local_centroid(
         image,
         (20.0, 20.0),
-        search_window_px=6.0,
+        search_half_vu=(6.0, 6.0),
         centroid_box_half_px=3,
         psf_sigma_px=1.0,
         max_peak_sharpness=8.0,
@@ -234,7 +209,7 @@ def test_a_window_outshone_from_outside_is_refused_on_request(
 def _centroid(image: np.ndarray, prediction: tuple[float, float], **overrides: object) -> object:
     """Return :func:`local_centroid`'s centroid with the star techniques' defaults."""
     kwargs: dict[str, object] = {
-        'search_window_px': 30.0,
+        'search_half_vu': (30.0, 30.0),
         'centroid_box_half_px': 3,
         'psf_sigma_px': 1.0,
         'max_peak_sharpness': 8.0,
@@ -308,7 +283,7 @@ def test_a_box_that_walks_out_of_the_window_holds_no_detection(
     image = np.zeros((50, 50), dtype=np.float64)
     draw_gaussian_star(image, (25.0, 20.0), peak_dn=10.0, sigma=1.0)
     draw_gaussian_star(image, (31.0, 20.0), peak_dn=1000.0, sigma=1.0)
-    assert _centroid(image, (20.0, 20.0), search_window_px=6.0) is None
+    assert _centroid(image, (20.0, 20.0), search_half_vu=(6.0, 6.0)) is None
 
 
 def test_a_box_that_steps_just_out_of_the_window_holds_no_detection(
@@ -322,7 +297,7 @@ def test_a_box_that_steps_just_out_of_the_window_holds_no_detection(
     image = np.zeros((50, 50), dtype=np.float64)
     draw_gaussian_star(image, (25.0, 20.0), peak_dn=100.0, sigma=0.8)
     draw_gaussian_star(image, (28.0, 20.0), peak_dn=80.0, sigma=2.0)
-    assert _centroid(image, (20.0, 20.0), search_window_px=6.0) is None
+    assert _centroid(image, (20.0, 20.0), search_half_vu=(6.0, 6.0)) is None
 
 
 def test_a_star_on_the_last_row_of_the_image_is_measured(
@@ -367,7 +342,7 @@ def test_the_peak_ratio_of_a_detection_off_the_window_is_zero() -> None:
     """A detection whose exclusion box misses the window has no ratio."""
     image = np.ones((200, 200), dtype=np.float64)
     ratio = detection_peak_ratio(
-        image, (100.0, 100.0), (180.0, 180.0), search_window_px=30.0, exclude_half_px=5
+        image, (100.0, 100.0), (180.0, 180.0), search_half_vu=(30.0, 30.0), exclude_half_px=5
     )
     assert ratio == 0.0
 
@@ -407,7 +382,7 @@ def test_a_broad_source_just_past_the_window_leaves_it_no_peak() -> None:
     """
     vv, uu = np.mgrid[0:60, 0:60]
     image = 100.0 * np.exp(-((vv - 30.0) ** 2 + (uu - 43.0) ** 2) / (2.0 * 4.0 * 4.0))
-    bounds = search_window_bounds((30.0, 30.0), 12.0, image.shape)
+    bounds = search_window_bounds((30.0, 30.0), (12.0, 12.0), image.shape)
     assert bounds is not None
     peaks = _window_peaks(image, bounds, kernel=gaussian_psf_kernel(1.0, size=7))
     assert not np.isfinite(peaks).any()
