@@ -24,9 +24,14 @@ ground_truth:
     RED filter.
     The single-inlier tier cap holds this one-star, no-cross-check solution at success/medium (fused (2.577, -0.332), confidence 0.502); the operator confirmed Vega sits in its predicted box.
 
+    Re-pinned 2026-10-31 (operator decision): confidence_tier
+    medium -> low. The offset is unchanged or closer to truth;
+    the answer rests on a single star, and a one-star answer is
+    capped at low.
+
 expected:
   status: success                           # success | failed | conflicted
-  confidence_tier: medium             # high | medium | low | failed
+  confidence_tier: low             # high | medium | low | failed
   primary_technique: StarUniqueMatchNav  # e.g. BodyLimbNav
   techniques_must_run: [StarUniqueMatchNav]
   techniques_must_skip: []
