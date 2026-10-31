@@ -15,7 +15,8 @@
 #   -d, --docs       Run only documentation build (Sphinx + PyMarkdown lint)
 #   -m, --markdown   Run only Markdown lint (PyMarkdown)
 #   -i, --integration Include integration tests (slow; require PDS3_HOLDINGS_DIR
-#                    + SPICE kernels).  Default: skipped.
+#                    + SPICE kernels).  Default: skipped, except the
+#                    sim_integration tests, which need no external data.
 #   -P, --postgres   Include PostgreSQL results-index tests (require a server named
 #                    by SPINDOCTOR_TEST_POSTGRES_URL).  Default: skipped.
 #   -h, --help       Show this help message
@@ -206,7 +207,7 @@ fi
 if [ "$RUN_INTEGRATION" = true ]; then
     print_info "Integration tests: ENABLED (will run; require PDS3_HOLDINGS_DIR + SPICE)"
 else
-    print_info "Integration tests: SKIPPED (default; pass -i / --integration to include)"
+    print_info "Integration tests: SKIPPED except sim_integration (default; pass -i / --integration to include)"
 fi
 
 # An explicit -P with no server named would select the tier and then skip every
@@ -280,9 +281,11 @@ run_code_checks() {
     fi
 
     # Pytest.  ``addopts = ["-m", "not integration and not postgres"]`` in
-    # pyproject.toml excludes both opt-in tiers by default; -i and -P each
-    # override that filter by dropping their own term from it, and opting into
-    # both leaves an empty filter that accepts every test.
+    # pyproject.toml excludes both opt-in tiers by default.  This script runs
+    # what CI runs instead: the sim_integration tests, which need no external
+    # data, join the default tier.  -i and -P each override the filter by
+    # dropping their own term from it, and opting into both leaves an empty
+    # filter that accepts every test.
     # The render performance budgets assert single-core CPU time; the
     # parallel battery's workers contend for memory bandwidth and inflate
     # CPU time past the budgets, so the perf file is excluded from the
@@ -296,11 +299,12 @@ run_code_checks() {
         marker_expr="not postgres"
     elif [ "$RUN_POSTGRES" = true ]; then
         print_info "Running pytest (with PostgreSQL tests)..."
-        marker_expr="not integration"
+        marker_expr="not integration or sim_integration"
     else
-        print_info "Running pytest (integration and PostgreSQL tests skipped — pass -i / -P to include)..."
+        print_info "Running pytest (integration tests other than sim_integration, and PostgreSQL tests, skipped — pass -i / -P to include)..."
+        marker_expr="(not integration or sim_integration) and not postgres"
     fi
-    if [ "$RUN_INTEGRATION" = true ] || [ "$RUN_POSTGRES" = true ]; then
+    if [ -n "$marker_expr" ]; then
         pytest_marker_args=("-m" "$marker_expr")
     fi
     if [ "$RUN_INTEGRATION" = true ]; then

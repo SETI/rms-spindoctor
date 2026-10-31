@@ -111,7 +111,7 @@ jobs:
           # loadfile keeps each test file on one xdist worker; PyQt6 + default load
           # scheduling has caused worker crashes when tests from the same file ran
           # in different processes.
-          # The marker expression restates the default from addopts, because a
+          # The marker expression replaces the default from addopts, because a
           # -m flag replaces addopts' own rather than adding to it.  It skips
           # two tiers.  The integration tier reaches real archive holdings; the
           # operator-curated image-library regression tests are one part of it,
@@ -123,8 +123,13 @@ jobs:
           # container for one.  Run both locally before merging: the integration
           # tier against that environment, the postgres tier against a local
           # server.
+          # The integration tests marked sim_integration are the exception: they
+          # render and navigate simulated frames alone (the simulator baselines,
+          # sweeps, expected outcomes, and the render and gallery currency
+          # checks), so this job runs them.  The simulator performance budgets
+          # are integration-only, because they need a quiet host.
           python -m pytest --cov --cov-report=xml -n auto --dist=loadfile \
-            -m "not integration and not postgres"
+            -m "(not integration or sim_integration) and not postgres"
 
       - name: Print coverage report
         run: |

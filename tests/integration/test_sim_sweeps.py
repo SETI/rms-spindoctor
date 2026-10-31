@@ -28,7 +28,7 @@ from tests.integration.sim_sweep import (
     run_sweep_steps,
 )
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.integration, pytest.mark.sim_integration]
 
 _SWEEPS_ROOT = Path(__file__).parent / 'sim_sweeps'
 _RECOVERY_TOLERANCE_PX = 0.5

@@ -25,7 +25,7 @@ import pytest
 from spindoctor.sim.scene import load_sim_scene
 from tests.integration.sim_expected import navigate_scene
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.integration, pytest.mark.sim_integration]
 
 _SCENES_ROOT = Path(__file__).parent / 'sim_scenes' / 'star_confounder'
 

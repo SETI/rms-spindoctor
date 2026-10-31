@@ -16,7 +16,7 @@ import pytest
 
 from tests.integration.sim_mesh_seed_rule import rank_sweep_seeds
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.integration, pytest.mark.sim_integration]
 
 
 def test_shape_mismatch_scene_uses_the_median_mismatch_seed() -> None:

@@ -32,7 +32,7 @@ from spindoctor.sim.render import render_combined_model
 from spindoctor.sim.scene import iter_scene_paths, load_sim_scene, scene_class_for_path
 from tests.integration.render_contact_sheet import encode_current_png
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.integration, pytest.mark.sim_integration]
 
 _HERE = Path(__file__).parent
 _SCENES_ROOT = _HERE / 'sim_scenes'

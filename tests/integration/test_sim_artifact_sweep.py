@@ -24,7 +24,7 @@ from spindoctor.nav_orchestrator import NavOrchestrator
 from spindoctor.obs.obs_inst_sim import ObsSim
 from spindoctor.sim.scene import iter_scene_paths, load_sim_scene
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.integration, pytest.mark.sim_integration]
 
 _SWEEP_DIR = Path(__file__).parent / 'sim_scenes' / 'artifact_sweep'
 _SCENE_PATHS = [p for p in iter_scene_paths(_SWEEP_DIR.parent) if p.parent.name == 'artifact_sweep']

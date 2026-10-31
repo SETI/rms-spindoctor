@@ -10,9 +10,9 @@ fresh counterpart, failing with the list of stale files and the regeneration
 command to run.
 
 Regenerating both galleries renders a few dozen small frames, so the module
-is ``@pytest.mark.integration`` like the render budget -- the deliberate
-tier, not the fast unit suite.  Everything renders in-process (no holdings
-or SPICE).
+is ``@pytest.mark.integration`` -- the deliberate tier, not the fast unit
+suite.  Everything renders in-process (no holdings or SPICE), so it is also
+``@pytest.mark.sim_integration``, which CI runs.
 """
 
 from __future__ import annotations
@@ -23,7 +23,7 @@ import pytest
 
 from tests.integration import sim_doc_images
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.integration, pytest.mark.sim_integration]
 
 _DOCS = Path(__file__).parent.parent.parent / 'docs'
 # Committed gallery directory per gallery key; the keys index the freshly
