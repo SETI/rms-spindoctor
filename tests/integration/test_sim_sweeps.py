@@ -416,7 +416,9 @@ def test_star_catalog_scatter_zero_recovers() -> None:
 
 # On the x86-64 baseline NumPy path the test package pins, seed 8 reports
 # success at 4.9 px error under 6 px of scatter (#835).
-@pytest.mark.xfail(strict=True, reason='a 6 px scatter seed reports success (#835)')
+@pytest.mark.xfail(
+    strict=True, raises=AssertionError, reason='a 6 px scatter seed reports success (#835)'
+)
 def test_star_catalog_scatter_wholesale_error_never_succeeds() -> None:
     """In the wholesale-catalog-error regime no seed ever reports success.
 
@@ -427,10 +429,15 @@ def test_star_catalog_scatter_wholesale_error_never_succeeds() -> None:
     below for the confidence recalibration work.
     """
     rows = _rows('star_catalog_scatter')
-    wholesale = [row for row in rows if row.value >= 6.0]
-    assert wholesale
-    for row in wholesale:
-        assert row.status != 'success'
+    for row in rows:
+        if row.value >= 6.0:
+            assert row.status != 'success'
+
+
+def test_star_catalog_scatter_reaches_the_wholesale_error_regime() -> None:
+    """The scatter sweep has steps at 6 px or more for the never-succeeds check to read."""
+    rows = _rows('star_catalog_scatter')
+    assert [row.value for row in rows if row.value >= 6.0] != []
 
 
 # Measured star_catalog_scatter curve (2026-07-16, seeds 7-9), recorded for the

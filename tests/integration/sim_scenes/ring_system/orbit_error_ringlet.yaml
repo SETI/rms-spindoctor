@@ -33,8 +33,9 @@ exposure_sec: 1.0
 # low.  That covering error bar is the point: the frame reports a radial
 # precision consistent with how far it can actually be from truth.
 # NOTE ON WHAT THIS SCENE GUARDS: the recovered error staying in the
-# 3.2 +/- 1.0 band, the fused sigma covering it, and the tier staying at
-# low.  The error is still about the ~3 px the original confident-wrong
+# 3.2 +/- 1.0 band and the tier staying at low.  The expected-outcome test
+# doesn't read the fused sigma; the low tier is how a sigma that has
+# stopped covering the error would show.  The error is still about the ~3 px the original confident-wrong
 # recovery had; what changed is the confidence, so a future change that
 # reintroduced that behavior would show up as the tier rising above low.  The standing hazard it documents is that a
 # planted radial catalog error is still absorbed into the offset at all.

@@ -30,20 +30,42 @@ def _module_marks(path: Path) -> set[str]:
     return set()
 
 
+def _items_missing_the_ci_mark(path: Path) -> list[str]:
+    """Return the module's tests marked ``integration`` without ``sim_integration``.
+
+    A test's marks are the module's ``pytestmark`` plus the marks decorating the
+    test function or test class itself.
+    """
+    module_marks = _module_marks(path)
+    tree = ast.parse(path.read_text(encoding='utf-8'))
+    missing = []
+    for node in tree.body:
+        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            continue
+        if not node.name.lower().startswith('test'):
+            continue
+        decorator_marks = {
+            n.attr for d in node.decorator_list for n in ast.walk(d) if isinstance(n, ast.Attribute)
+        }
+        marks = module_marks | decorator_marks
+        if 'integration' in marks and 'sim_integration' not in marks:
+            missing.append(f'{path.name}::{node.name}')
+    return missing
+
+
 def _simulator_modules() -> list[Path]:
     """Return the simulator test modules under ``tests/integration``."""
     paths = sorted(_INTEGRATION_DIR.glob('test_sim_*.py'))
     return [*paths, _INTEGRATION_DIR / 'test_render_diffs.py']
 
 
-def test_integration_marked_simulator_modules_also_run_in_ci() -> None:
-    """Each integration-marked simulator module carries ``sim_integration`` too."""
+def test_integration_marked_simulator_tests_also_run_in_ci() -> None:
+    """Each integration-marked simulator test carries ``sim_integration`` too."""
     missing = [
-        p.name
+        item
         for p in _simulator_modules()
         if p.name not in _QUIET_HOST_MODULES
-        and 'integration' in (marks := _module_marks(p))
-        and 'sim_integration' not in marks
+        for item in _items_missing_the_ci_mark(p)
     ]
     assert missing == []
 
