@@ -462,6 +462,8 @@ Source files:
   ``usable_stars`` (filter), ``gaussian_psf_kernel`` (the matched-filter kernel every star
   technique detects with), ``local_centroid`` (per-source centroid), and
   ``similarity_transform_fit`` (Kabsch / Procrustes solve).
+- ``src/spindoctor/nav_technique/_star_isolation.py`` — package-private source isolation
+  test (``isolation_radii``, ``isolated_response``).
 - ``src/spindoctor/nav_technique/confidence.py`` — sigmoid-combination evaluator; documented at
   :doc:`dev_guide_techniques_confidence`.
 - ``src/spindoctor/nav_technique/diagnostics.py`` —

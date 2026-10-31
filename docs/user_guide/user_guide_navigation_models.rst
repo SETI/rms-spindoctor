@@ -606,16 +606,16 @@ is looked for where the pair puts it, and a source found there counts as the sta
 when its peak brightness is within a factor of 4 of what the pair's two stars predict
 from the catalog magnitudes
 (``techniques.StarUniqueMatchNav.tuning.pair_vote_peak_factor``), so a faint field star or
-a small cosmic-ray hit lying there by chance does not count for the pair. When none of
-them is found there, the pair is refused if at least three of them are found somewhere
+a small cosmic-ray hit lying there by chance does not count for the pair. The pair is
+refused if none of them is found there and at least three of them are found somewhere
 else, each as the one source in its window as bright as it should be
-(``techniques.StarUniqueMatchNav.tuning.pair_contradiction_stars``), or if at least two
-of them, each at least as bright as the fainter star of the pair, should appear on clear
-sky in the image and nothing is there
-(``techniques.StarUniqueMatchNav.tuning.pair_absent_stars``). A star that the pair puts
-on a ring, a limb, or beside a bright source is not counted as missing, since its light
-could be hidden there. A pair is refused too when its own two stars differ in brightness,
-for their catalog magnitudes, by more than 16 times, the square of that factor. When a
+(``techniques.StarUniqueMatchNav.tuning.pair_contradiction_stars``). It is refused too
+if at least two of them, each at least as bright as the fainter star of the pair, should
+appear on clear sky in the image and nothing is there, and they outnumber the stars found
+there (``techniques.StarUniqueMatchNav.tuning.pair_absent_stars``); one such star is enough
+when both of the pair's stars are predicted just outside the image. A star that the pair
+puts on a ring, a limb, or beside a bright source is not counted as missing, since its
+light could be hidden there. Two catalog entries for one star count as one star. When a
 pair is refused, the next best backed pair elsewhere is tried. If two pairs backed by
 equally many stars disagree about the offset, the brighter one, for the stars' catalog
 magnitudes, is the answer, since a faint copy of the stars or a coincidence among faint
