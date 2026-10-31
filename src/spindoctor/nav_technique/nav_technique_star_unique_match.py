@@ -299,6 +299,7 @@ class StarUniqueMatchNav(NavTechnique):
                     reason='no_usable_star_features',
                     fit_rotation=bool(context.fit_camera_rotation),
                 )
+            # One star listed twice (#836) or in two catalogs (#365) is searched once.
             ranked = distinct_stars(sorted(usable, key=predicted_snr, reverse=True))
             image_ext = np.asarray(context.image_ext, np.float64)
             noise_sigma = float(max(context.image_noise_sigma, 1e-9))
