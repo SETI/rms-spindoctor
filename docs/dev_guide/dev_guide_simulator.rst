@@ -3183,8 +3183,9 @@ change alters rendered output:
   validates, sits in a declared class, has a unique name, and renders.
 - **Regression baselines** (``tests/integration/sim_baselines/``): every
   catalog scene re-navigates to its recorded rounded outcome
-  (``test_sim_baselines.py``, integration tier); regenerate with
-  ``python -m tests.integration.update_sim_baselines`` and review the diff.
+  (``test_sim_baselines.py``, integration tier, run by CI); regenerate with
+  ``python -m tests.integration.update_sim_baselines`` and review the diff
+  (see :ref:`reproducing-sim-baselines`).
 - **The render-diff contact sheet**
   (``python -m tests.integration.render_contact_sheet``): one
   before / after / amplified-absolute-difference panel per scene, composed into one
@@ -3200,7 +3201,7 @@ change alters rendered output:
   only eyes on the render can.
 
   The regeneration rule is enforced mechanically by
-  ``tests/integration/test_render_diffs.py`` (integration tier): every
+  ``tests/integration/test_render_diffs.py`` (integration tier, run by CI): every
   catalog scene must have a committed ``current/`` PNG byte-identical to a
   fresh render, every scene class must have a committed sheet, and neither
   may outlive its scene or class. The sheets themselves are enforced for
@@ -3212,7 +3213,7 @@ The two documentation galleries (``docs/dev_guide/_sim_images/`` and
 ``docs/simulator_report/_scene_images/``, both written by
 ``python -m tests.integration.sim_doc_images``) are re-rendered under the same
 rule -- and the rule is enforced mechanically:
-``tests/integration/test_sim_doc_images.py`` (integration tier) regenerates
+``tests/integration/test_sim_doc_images.py`` (integration tier, run by CI) regenerates
 every gallery image into a temporary directory and fails, naming the stale
 files and the regeneration command, whenever a committed PNG no longer
 matches a fresh render.

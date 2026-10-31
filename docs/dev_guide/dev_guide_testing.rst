@@ -18,7 +18,11 @@ alone:
 - The **integration tier** is opted into with ``-m ""`` or ``-m integration``.
   It holds the slow and the archive-backed tests: the real-image
   regression cohort (which fetches PDS holdings and resolves SPICE geometry) and
-  the heavier or jitter-prone in-process simulator tests.
+  the heavier in-process simulator tests. The simulator tests carry a second
+  marker, ``sim_integration``: they need no holdings, SPICE kernels, or star
+  catalogs, so CI runs them on every pull request, and so does
+  ``./scripts/run-all-checks.sh`` without ``-i``. The one exception is the
+  simulator performance budgets, which measure CPU time and need a quiet host.
 - The **postgres tier** is opted into with ``-m postgres`` (or ``-m ""``). It
   re-asks the results-index questions against a real PostgreSQL server, because
   SQLite accepts spellings a server rejects: an integer compared against a
@@ -45,6 +49,7 @@ Running the suite
    pytest                              # default tier (fast, no holdings)
    pytest -m ""                        # full suite, every tier
    pytest -m integration               # only the integration tier
+   pytest -m sim_integration           # only its simulator tests
    pytest -m postgres                  # only the postgres tier
    pytest -n 4 --dist=loadfile         # parallel (loadfile avoids PyQt6
                                        #   worker crashes)
@@ -190,19 +195,19 @@ tests need none of the archive environment above.
      - nothing
      - Fast bug-specific scenes guarding defects the sweeps surfaced.
    * - Sim regression baselines (``test_sim_baselines.py``)
-     - integration
+     - integration (``sim_integration``)
      - nothing
      - Every catalog scene re-navigates to its recorded rounded outcome (a
-       tripwire). Integration-marked because the solvers carry sub-millipixel
-       cross-process jitter.
+       tripwire). Integration-marked because rendering and navigating every scene
+       takes minutes; see :ref:`reproducing-sim-baselines`.
    * - Sensitivity sweeps (``test_sim_sweeps.py``)
-     - integration
+     - integration (``sim_integration``)
      - nothing
      - Each single-variable sweep responds as expected (a technique transition, a
        degradation to failure, recovery within tolerance). Heavier -- each sweep
        navigates several frames.
    * - Pose behavioral (``test_sim_irregular_pose.py``)
-     - integration
+     - integration (``sim_integration``)
      - nothing
      - On a wrong-pose irregular body the limb degrades far off while the
        pose-free blob stays accurate (asserted per technique).
@@ -270,3 +275,35 @@ updater or runner and review the diff before committing -- the baselines are
 tripwires, so an unexpected change is a regression to investigate, not to bless
 blindly. A new invariant scene also needs a baseline (``update_sim_baselines``);
 verify no existing baseline shifts.
+
+.. _reproducing-sim-baselines:
+
+Reproducing the simulator baselines
+===================================
+
+A simulator baseline records a scene's rounded outcome: status, offset to
+0.01 px, and confidence to 0.01. The test compares them exactly, without a
+tolerance band, because a simulated navigation is deterministic. A scene gives
+the same result in a fresh process and in a long-lived ``pytest-xdist`` worker,
+whatever ran before it.
+
+The canonical environment is CI: GitHub's ``ubuntu-latest`` runner, at each
+supported Python version, with the dependencies ``pip`` resolves from
+``pyproject.toml``. Every pull request runs the baselines there, so a baseline
+that CI doesn't reproduce fails the pull request. A developer machine conforms
+when it reproduces the same baselines, which a local
+``./scripts/run-all-checks.sh`` shows.
+
+When a change moves a baseline, regenerate it in that change and say in the
+commit message why it moved. A baseline left stale fails CI and gets blamed on
+whatever change is in flight when somebody notices.
+
+Run the updaters against the checkout's own source. ``pytest`` puts ``src`` on
+the import path itself, but ``python -m`` imports ``spindoctor`` from the active
+environment, and in an environment that has a different checkout installed, it
+regenerates the baselines with that checkout's code. Unless this checkout is
+the one installed, run:
+
+.. code-block:: bash
+
+   PYTHONPATH=src python -m tests.integration.update_sim_baselines

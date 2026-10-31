@@ -31,7 +31,7 @@ from tests.integration.sim_realism import (
 )
 from tests.integration.sim_realism_scenes import matched_scene
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.integration, pytest.mark.sim_integration]
 
 _HAS_HOLDINGS = bool(os.environ.get('PDS3_HOLDINGS_DIR'))
 
