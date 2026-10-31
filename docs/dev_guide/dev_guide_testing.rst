@@ -283,16 +283,25 @@ Reproducing the simulator baselines
 
 A simulator baseline records a scene's rounded outcome: status, offset to
 0.01 px, and confidence to 0.01. The test compares them exactly, without a
-tolerance band, because a simulated navigation is deterministic. A scene gives
-the same result in a fresh process and in a long-lived ``pytest-xdist`` worker,
+tolerance band, and the render and gallery checks compare PNGs byte for byte.
+That works because a simulated navigation is deterministic. A scene gives the
+same result in a fresh process and in a long-lived ``pytest-xdist`` worker,
 whatever ran before it.
 
-The canonical environment is CI: GitHub's ``ubuntu-latest`` runner, at each
-supported Python version, with the dependencies ``pip`` resolves from
-``pyproject.toml``. Every pull request runs the baselines there, so a baseline
-that CI doesn't reproduce fails the pull request. A developer machine conforms
-when it reproduces the same baselines, which a local
-``./scripts/run-all-checks.sh`` shows.
+What does change the result is the CPU. NumPy picks vectorized code paths by CPU
+(AVX2, AVX-512, and so on), and they differ in the last bits of their results.
+That is enough to move a render's bytes, a baseline's rounding, or a sweep check
+that sits near its threshold. So the test package pins NumPy to the x86-64
+baseline path: ``tests/__init__.py`` sets ``NPY_DISABLE_CPU_FEATURES`` before
+NumPy is first imported, and ``tests/integration/test_numpy_simd_pin.py`` fails
+if the pin didn't take effect. Every x86-64 machine then reproduces the same
+files; they reproduced under NumPy 2.4 and 2.5, and under SciPy and
+``rms-psfmodel`` releases months apart. The pin covers ``pytest`` and the ``python -m tests.integration...`` tools alike. It
+doesn't cover an ARM machine, whose results may differ.
+
+CI is the reference environment: GitHub's ``ubuntu-latest`` runner, at each
+supported Python version. Every pull request runs the simulator checks there, so
+a baseline that CI doesn't reproduce fails the pull request.
 
 When a change moves a baseline, regenerate it in that change and say in the
 commit message why it moved. A baseline left stale fails CI and gets blamed on

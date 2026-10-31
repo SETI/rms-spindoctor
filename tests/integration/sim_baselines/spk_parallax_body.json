@@ -1,6 +1,6 @@
 {
   "confidence": 0.75,
-  "offset_du_px": -0.51,
+  "offset_du_px": -0.5,
   "offset_dv_px": 1.52,
   "scene_name": "spk_parallax_body",
   "status": "success"

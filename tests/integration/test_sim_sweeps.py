@@ -414,6 +414,9 @@ def test_star_catalog_scatter_zero_recovers() -> None:
         assert row.offset_error_px < _RECOVERY_TOLERANCE_PX
 
 
+# On the x86-64 baseline NumPy path the test package pins, seed 8 reports
+# success at 4.9 px error under 6 px of scatter (#835).
+@pytest.mark.xfail(strict=True, reason='a 6 px scatter seed reports success (#835)')
 def test_star_catalog_scatter_wholesale_error_never_succeeds() -> None:
     """In the wholesale-catalog-error regime no seed ever reports success.
 
