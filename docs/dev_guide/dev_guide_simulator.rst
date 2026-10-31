@@ -858,7 +858,8 @@ key, or its ``count`` where given, doesn't plant anything.
 
 A mode's map accepts only that mode's parameters, so an unknown key in it fails
 validation. The sweep harness validates each step as a whole scene, so a sweep
-path naming an unknown key, or stepping a value out of its range, fails when the
+path stepping a value out of its range, or naming an unknown key in a block the
+validator checks key by key (every artifact mode's map does), fails when the
 sweep is built.
 
 Telemetry-stage modes

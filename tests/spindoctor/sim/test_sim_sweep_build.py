@@ -2,9 +2,9 @@
 
 A sweep (``tests/integration/sim_sweeps/*.yaml``) varies one scene parameter
 across steps.  These checks load each spec and build each step's scene
-parameters, validating each whole step, so a sweep that addresses a misspelled
-key or steps a value out of its range fails here instead of rendering a frame
-that ignores it.  They navigate nothing, so they run
+parameters, validating each whole step, so a sweep that steps a value out of its
+range, or misspells a key in a block the validator checks key by key, fails here
+instead of rendering a frame that ignores it.  They navigate nothing, so they run
 with the unit suite; the sweeps' navigation invariants live in
 ``tests/integration/test_sim_sweeps.py``.
 """

@@ -219,10 +219,11 @@ def build_sweep_params(spec: SweepSpec) -> list[tuple[float, dict[str, Any]]]:
 
     Each step deep-copies the base scene's sim params, applies the sweep's
     parameter override(s) for that value, and validates the whole step with the
-    scene validator, so a sweep path naming an unknown key or stepping a value
-    out of its range fails here rather than rendering a frame that silently
-    ignores it.  Exposed so both :func:`run_sweep` (which navigates each step) and
-    the image dump (which renders each step) build the exact same frames.
+    scene validator, so a sweep path stepping a value out of its range, or naming
+    an unknown key in a block the validator checks key by key, fails here rather
+    than rendering a frame that silently ignores it.  Exposed so both
+    :func:`run_sweep` (which navigates each step) and the image dump (which renders
+    each step) build the exact same frames.
 
     Parameters:
         spec: The sweep specification.

@@ -1649,7 +1649,7 @@ Summary
   0.17 px cross-track and 0.82 px along-track on clean scenes.
 * On the three mesh scenes whose predicted geometry matches the rendered one,
   irregular (mesh) bodies navigate to half a pixel or better (mesh disc
-  0.00 px, limb 0.27 px, and crescent 0.50 px, against 0.23 px for the
+  0.00 px, limb 0.27 px, and crescent 0.50 px, against 0.24 px for the
   ellipsoid crescent). Over 13 mesh shapes the crescent's error ranges from
   0.35 to 0.61 px. When the navigator predicts the wrong shape, the error grows
   with the rendered relief: over 13 mesh shapes it ends 2.7 to 12.9 px off at an
