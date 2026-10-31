@@ -6,16 +6,17 @@ Overview
 ========
 
 :class:`~spindoctor.nav_technique.nav_technique_star_unique_match.StarUniqueMatchNav` is
-the pass-1 1-star or 2-star unique-match technique. It searches a window around the
-prediction of each of the brightest predictable stars, takes the strongest detection above
-a noise threshold, and reports the translation implied by a cross-checked pair of stars
-(2-star path) or, when no pair cross-checks, by the brightest star alone (1-star path);
+the pass-1 1-star or 2-star unique-match technique. It searches the instrument's offset
+window around the prediction of each of the brightest predictable stars for isolated
+point sources, and reports the translation that the most stars agree on through a
+cross-checked pair (2-star path) or, when no pair cross-checks, the one implied by the
+strongest detection around the brightest star alone (1-star path);
 the 1-star path additionally requires the star to be a configured magnitude margin
 brighter than every other predictable star. It runs without a
 prior — its job is to seed the pass-2
 :class:`~spindoctor.nav_technique.nav_technique_star_refine.StarRefineNav` on scenes where
-the SPICE pointing error is small enough that the brightest predictable star sits inside
-the per-instrument search window.
+the SPICE pointing error is small enough that the predictable stars sit inside the
+per-instrument offset window.
 
 Feasibility passes when at least one usable
 :data:`~spindoctor.feature.feature_type.NavFeatureType.STAR` feature is in the input set;
@@ -47,12 +48,14 @@ diagnostic only.
 Local centroid
 --------------
 
-For each candidate match, the technique cuts a square window around the predicted
-position, matched-filters it, takes the strongest response peak inside it as the
-detection, and fits a brightness-weighted moment over a
-``centroid_box_half_px``-half-width box around it to recover the sub-pixel centroid. The
-shared helper ``local_centroid`` in ``_star_helpers`` does this for
-:class:`~spindoctor.nav_technique.nav_technique_star_refine.StarRefineNav` as well.
+For each star, the technique cuts a window around the predicted position, matched-filters
+it, takes the strongest response peak inside it as the detection, and fits a
+brightness-weighted moment over a ``centroid_box_half_px``-half-width box around it to
+recover the sub-pixel centroid. The shared helper ``local_centroid`` in ``_star_helpers``
+does this for the 1-star path and for
+:class:`~spindoctor.nav_technique.nav_technique_star_refine.StarRefineNav`. The 2-star path
+measures each of several peaks of the window the same way (``window_sources``; see
+below).
 
 - **The window** is centered on the pixel that holds the prediction and reaches
   ``floor(half)`` whole pixels either side of it along each axis
@@ -133,8 +136,9 @@ shared helper ``local_centroid`` in ``_star_helpers`` does this for
   correct window: with a 30 px window, refusing here lost 26 correct solutions in the
   1030 frames of an F ring movie.
 
-A detection that fails the noise threshold or the isolation test collapses the candidate.
-On the 2-star path a best-assignment residual exceeding ``max_residual_px`` rejects the
+On the 1-star path a detection that fails the noise threshold or the isolation test
+leaves the window with no detection; on the 2-star path the peak is passed over and the
+next one measured. On the 2-star path a residual exceeding ``max_residual_px`` rejects a
 pair, and on the 1-star path a no-rival detection whose prediction-to-detection distance
 exceeds ``one_star_max_residual_px`` marks the result spurious.
 
@@ -178,53 +182,119 @@ the 30 px window it was set against, the ~1-sigma core of the pointing envelope 
 window was sized to bracket. When the peak ratio is finite, the 10 px residual bound is
 not applied: genuine one-star matches with offsets up to ~24 px exist in the
 operator-verified library, so that bound cannot hold every match. Every 1-star match is
-held instead to the inner ellipse, whose semi-axes are the offset window's half-widths
-times ``inner_window_fraction`` (0.6; 30 px for a window half-width of 50 px).
+held instead to the lone-star ellipse, whose semi-axes are the offset window's half-widths
+times ``one_star_ellipse_fraction`` (0.6; 30 px for a window half-width of 50 px), and is
+refused outside it with a ``one_star_detection_outside_ellipse`` reason. The whole window
+is still searched, so a brighter source anywhere in it vetoes the match.
 
 2-star path
 -----------
 
-When at least two usable stars exist, the technique first attempts the 2-star path. Every
-pair among the ``pair_search_stars`` brightest usable stars is tried, brightest pairs
-first, in two windows: the offset window scaled by ``inner_window_fraction`` and then the
-whole offset window. For each
-pair both detection-to-prediction assignments are tried and the one with the smaller
-residual kept; the residual is half the difference between the two stars' offsets, and a
-pair passes only when it is within ``max_residual_px``. The first passing pair is the
-answer, unless another passing pair puts the offset more than twice ``max_residual_px``
-from it. Two cross-checked answers that disagree mean at least one is a coincidence, and
-which one cannot be told, so the technique reports spurious with an ``ambiguous_pairs``
-reason. The first passing pair is refused in the same way, with a ``pair_contradicted``
-reason, when the other searched stars have at least ``pair_contradiction_stars`` distinct
-isolated detections in the pair's window and every one of those detections lies more than
-twice ``max_residual_px`` from the pair's offset. Overlapping windows can return one
-source for several stars, so detections within 1 px of one another count once. Two stars
-can agree by coincidence; three more stars that are in the image and found elsewhere say
-they did. Each other star
-is first sought where the pair's offset puts it, in a window of half-width twice
-``max_residual_px`` around its moved prediction. An isolated point source found there
-votes for the pair, whatever else the star's own window holds, when it is as bright as
-the star should be. The pair's two stars set the scale: each one's peak above its local
-background, divided by its predicted SNR, and the two quotients' geometric mean, times
-the other star's predicted SNR, is the peak that star should show. A source whose peak
-lies within a factor of ``pair_vote_peak_factor`` of that votes for the pair. A faint
-field star or a two-pixel cosmic-ray hit that lies there by chance is a small fraction
-of it, and the star is then sought in its own window as if nothing were found at the
-offset. Only a star that is absent at the pair's offset can vote against it. A frame
-taken in high cosmic-ray flux holds hits brighter than many of its stars: on F ring
-frame N1799563905 the brightest source in each of three other stars' windows is such a
-hit, and the stars at the pair's offset, with peaks 0.68 to 2.04 times what the pair
-predicts, keep the pair, 0.12 px from the answer four other stars confirm. A simulated
-six-star field whose catalog positions each scatter by 6 or 8 px has two stars agreeing to
-0.8 and 1.1 px, reported 5 and 7 px wrong without the refusal. Of the 6098 two-star
-answers in the F ring movies set aside for tuning, none has three such stars and 32 have
-two, all of them correct.
+When at least two usable stars exist, the technique first attempts the 2-star path. Each
+of the ``pair_search_stars`` brightest usable stars is searched for over the whole offset
+window, and the window yields the star's candidates: its ``pair_search_sources``
+strongest isolated point sources (``window_sources`` in ``_star_helpers``). Each is found
+as the 1-star path finds its detection (a matched-filter peak, not sharper than a star,
+above the noise threshold, re-centered without walking away, and isolated), but a peak
+that fails any test is passed over and the next one taken, where the 1-star path stops at
+the window's strongest peak. The isolation test for a whole window is built once
+(``isolation_lookup``), since a star smeared over tens of pixels widens its annulus enough
+to make a test per peak cost seconds. A wide window often holds something stronger than
+its star: the flank of a ring, a brighter star, or a cosmic-ray hit. Taking only each
+window's strongest peak, and nothing when that peak was not isolated, refused frames
+whose stars were plainly in the image once stars searched the Cassini NAC's (50, 140) px
+window: 219 of 1986 frames of the F ring and spokes movies that the search below answers,
+211 of them within 2 px of the published bundle's pointing and 7 more where stars confirm
+the answer over the bundle's, and library frame ``N1550270436``, whose body-centroid
+fallback is then 15 px wrong. Where a star's source is found at all, it is the strongest,
+second, or third isolated source of the star's window in all but 2 of 3108 Cassini NAC
+star windows on F ring frames (2835, 254, and 17 times; fourth twice), so three candidates
+per star hold it. Every further candidate is one more chance of a coincidence: with five,
+F ring frame ``N1616527595`` pairs two faint sources ranked fourth and fifth 97 px from the
+bundle's answer.
 
-The path does not apply the peak-to-runner-up ratio test to its stars' windows: a window
-won by something other than its star moves that star's offset away from the other's and
-the residual declines the pair, while the peak ratio would refuse correct pairs. On
-``N1530185128_1`` the fainter star's window holds a single-pixel spike within 0.4 percent
-of the star's own peak, while the pair's residual is under half a pixel.
+Every two candidates, belonging to two different stars, make a pair
+(``pair_hypotheses`` in ``_star_unique_two_star``): each candidate is assigned to its own
+star, the residual is half the difference between the two stars' offsets, and the pair
+passes only when it is within ``max_residual_px``. A candidate in two stars' windows is
+not paired with itself. A passing pair is backed by every searched star with a candidate
+within twice ``max_residual_px`` of where the pair's solution puts it, its own two stars
+among them; with a rotation fitted, the solution places each star with the fitted rotation
+as well as the translation, so a star far from a short pair is placed where the roll
+carries it. The true offset gathers every star whose source was found, while two
+unrelated sources that happen to agree gather only themselves.
+
+Pairs are judged best supported first. Of the pairs a set of agreeing stars forms, the one
+nearest all of them is judged first: a star 1.8 px off where the others put it still pairs
+with each of them, and a pair that includes it reports an offset 0.9 px off (on F ring
+frame ``N1546714862`` the brightest star is such a star). A pair is ruled out
+(``_ruled_out``) when:
+
+- its two stars' peaks above their local background, each divided by its predicted SNR,
+  differ by more than the square of ``pair_vote_peak_factor``, the most two stars can
+  differ when each lies within that factor of the scale they share. A star paired with a
+  faint field source or a cosmic-ray hit is not a pair of stars. Of 3267 correct pairs on
+  F ring and spokes frames, 6 differ by more than 16, and one frame among them keeps no
+  other correct pair: its two catalog stars blend into one source. This rules out the pair alone, and other pairs at its offset
+  are still judged.
+- the other searched stars contradict its offset. The pair's two stars set a brightness
+  scale: the geometric mean of their two quotients, times another star's predicted SNR, is
+  the peak that star should show. Each other star is first sought where the pair's
+  solution puts it, in a window of half-width twice ``max_residual_px``; an isolated point
+  source found there votes for the pair, whatever else the star's own window holds, when
+  its peak lies within a factor of ``pair_vote_peak_factor`` of the peak the star should
+  show. A faint field star or a two-pixel cosmic-ray hit that lies there by chance is a
+  small fraction of it and does not vote. A frame taken in high cosmic-ray flux holds hits
+  brighter than many of its stars: on F ring frame N1799563905 the brightest source in each
+  of three other stars' windows is such a hit, and the stars at the pair's offset, with
+  peaks 0.68 to 2.04 times what the pair predicts, keep the pair, 0.12 px from the answer
+  four other stars confirm. A star not found at the offset votes against the pair when
+  exactly one of its candidates is as bright as it should be (``star_like_source``), and
+  that one lies elsewhere; with no scale (a star of the pair whose catalog magnitude is only
+  a saturated lower bound) every candidate qualifies, so only a window holding one
+  candidate votes. A window that holds several sources the star could be does not locate
+  it at all: on the Galileo black-sky frame ``C0164958745R`` every window holds saturated
+  cosmic-ray hits as bright as its star. Overlapping windows can return one source for
+  several stars, so sources within 1 px of one another count once. With no vote for the
+  pair, its offset is refuted when at least ``pair_contradiction_stars`` distinct sources
+  vote against it. A simulated six-star field whose catalog positions each scatter by 6 or
+  8 px has two stars agreeing to 0.8 and 1.1 px, reported 5 and 7 px wrong without the
+  refusal.
+- more of the other searched stars are absent where the pair's solution puts them than are
+  found there, and at least ``pair_absent_stars`` of them (``absent_stars``). A star is
+  absent when it is at least as bright as the pair's fainter star, so it should be seen at
+  least as well as a star already found; the solution puts it inside the image, not the
+  padding; the pixels around that position are clear sky, their robust spread at most
+  twice the image noise, so no ring, limb, or bright neighbor can hide it; and the
+  brightest pixel there stands above its local background by less than its expected peak
+  divided by ``pair_vote_peak_factor``. On the library frame ``N1598093741`` every star is
+  smeared over 19 px, so no star is an isolated point source, and two sources that are not
+  stars agree 45 px from the body techniques' answer; the two brightest stars, 4.5 and 2
+  times as bright as the pair's brighter star, lie on clear sky there and show nothing. One
+  absent star is not enough: on a dozen frames of ``ISS_006RI_LPHRLFMOV001_PRIME`` one
+  catalog star brighter than the pair shows nothing at the right offset. Three faint
+  sources that agree with one another outnumber a bright pair, and the two bright stars,
+  absent where the faint three put them, refute that offset.
+
+A refuted offset sets aside every pair within twice ``max_residual_px`` of it, since the
+votes and absences speak to the offset, not to the pair. The answer is the best supported
+pair not set aside. When several pairs backed by equally many stars survive more than
+twice ``max_residual_px`` apart, the stars are the brightest of them, judged by the pair's
+peak per unit of predicted SNR: a ghost image of each star or a coincidence among faint
+sources shows far less light. On F ring frame ``N1600240376`` each star has a copy 15.5
+rows and 11 columns away, 35 times fainter, and the copies form a second pair backed by as
+many stars. Another surviving pair within a factor of ``pair_vote_peak_factor`` of the
+brightest one's peak per SNR leaves two answers the stars support equally, one of them a
+coincidence that cannot be told from the other, and the technique reports spurious with an
+``ambiguous_pairs`` reason. A frame whose every pair is ruled out reports spurious with a
+``pair_contradicted`` reason and does not fall back to the 1-star path.
+
+The path does not apply the peak-to-runner-up ratio test to its stars' windows: the star
+need not be the strongest source in its window, and a source that is not the star moves
+that star's offset away from the other's, where the residual declines the pair, while the
+peak ratio would refuse correct pairs. On ``N1530185128_1`` the fainter star's window
+holds a single-pixel spike within 0.4 percent of the star's own peak, while the pair's
+residual is under half a pixel.
 
 Trying more than the brightest two matters when the brightest predicted star is not in the
 image. A star predicted inside the extended field of view may fall off the detector once
@@ -233,9 +303,7 @@ its window holds no star, the pair fails, and the frame falls through to the 1-s
 whose brightness margin a field of comparable stars never clears. On
 ``ISS_006RI_LPHRLFMOV001_PRIME`` searching pairs among the brightest 3, 5, and 8 stars
 navigates 710, 771, and 777 of the 1030 frames, every one within 2 px of the published F
-ring bundle. The narrower window is searched as well because the strongest detection of
-the wider one is more often something brighter than the star; without the narrower window
-the technique navigates 750 frames, none wrong.
+ring bundle (measured with each window's strongest detection in a 50 px window).
 
 Every star is predicted inside the extended field of view, and its padding is the offset
 window, so every star's window holds at least one pixel of the image. A star predicted
@@ -284,22 +352,22 @@ Restrictions and assumptions
   recovers their catalog magnitude difference. A wrong catalog magnitude shifts the
   brightness-margin computation and may erroneously accept or reject the match.
 - The search window assumes the SPICE pointing error is bounded by the instrument's offset
-  window. When the pointing error exceeds it, the strongest detection in the window is not
-  the matched detection. On ``ISS_006RI_LPHRLFMOV001_PRIME`` the Cassini NAC pointing
-  error reaches 43 px, and a 30 px window puts the stars of 191 of the 1030 frames out of
-  reach. A 1-star match is accepted only inside the inner ellipse (the offset window's
-  half-widths times ``inner_window_fraction``) around its prediction, while the whole
-  window is still searched so that a brighter source anywhere in it vetoes: nothing
-  cross-checks a single detection, and the wider the region it may come from, the likelier
-  an artifact is the brightest thing in it. On the black-sky Galileo library frame
+  window. When the pointing error exceeds it, the star is not in its window. On
+  ``ISS_006RI_LPHRLFMOV001_PRIME`` the Cassini NAC pointing error reaches 43 px, and a
+  30 px window puts the stars of 191 of the 1030 frames out of reach. A 1-star match is
+  accepted only inside the lone-star ellipse (the offset window's half-widths times
+  ``one_star_ellipse_fraction``) around its prediction, while the whole window is still
+  searched so that a brighter source anywhere in it vetoes: nothing cross-checks a single
+  detection, and the wider the region it may come from, the likelier an artifact is the
+  brightest thing in it. On the 206 one-star answers on F ring frames the bundle
+  navigated on stars, the 195 correct ones reach the ellipse's edge (8 lie between 0.52
+  and 0.60 of the window) and the 7 wrong ones lie between 0.16 and 0.57 of it, so a
+  narrower ellipse would refuse correct lone stars before wrong ones. On the black-sky
+  Galileo library frame
   ``C0164392700R`` a lone artifact lies 40 px from the one predicted star; the Galileo
   offset window of 350 px puts it inside the 210 px ellipse, so the ellipse does not refuse
-  it there until the camera's window is set from its pointing error. On ``ISS_006RI``,
-  with a square window and a 30 px lone-star radius (the configuration before stars took
-  the offset window, whose NAC full frame is 140 px across samples), windows of 30, 40,
-  50, and 60 px navigate 753, 774, 771, and 762 frames, none wrong; the narrower ones leave the
-  stars of the frames whose error exceeds them out of reach, and the technique's other
-  tests refuse those frames. Beyond the window is the regime where the multi-star
+  it there until the camera's window is set from its pointing error. Beyond the window is
+  the regime where the multi-star
   :class:`~spindoctor.nav_technique.nav_technique_star_field.StarFieldFromCatalogNav` triplet
   matcher takes over.
 - Both paths assume the matched detection is unsaturated. A saturated star whose centroid
@@ -333,14 +401,11 @@ All numeric tunables for this technique live in ``techniques.StarUniqueMatchNav.
 - ``brightness_margin_to_next_catalog_star_mag`` — float, default ``1.5`` (mag). Minimum
   magnitude difference between the brightest predictable star and the next-brightest for
   the 1-star path to fire.
-- ``inner_window_fraction`` — float, default ``0.6``. The search window is the
-  instrument's offset window (``extfov_margin_vu``), axis by axis; this is the fraction of
-  it, per axis, that bounds two narrower regions. The 2-star path also searches each pair
-  in the window scaled by it. A 1-star detection outside the ellipse whose semi-axes are
-  the window's half-widths times it is refused with a
-  ``one_star_detection_beyond_inner_window`` reason. The ellipse is taken in place of a
-  single radius because the offset window is per axis: it is a circle for a square window
-  and never reaches past the window on either axis. 0.6 is the ratio of the 30 px lone-star
+- ``one_star_ellipse_fraction`` — float, default ``0.6``. A 1-star detection outside the
+  ellipse whose semi-axes are the offset window's half-widths times it is refused with a
+  ``one_star_detection_outside_ellipse`` reason. The ellipse is taken in place of a single
+  radius because the offset window is per axis: it is a circle for a square window and
+  never reaches past the window on either axis. 0.6 is the ratio of the 30 px lone-star
   radius to the 50 px search half-width measured on the Cassini NAC. Values outside
   ``(0, 1]`` are invalid.
 
@@ -355,12 +420,19 @@ All numeric tunables for this technique live in ``techniques.StarUniqueMatchNav.
 - ``source_isolation_max_ratio`` — float, default ``0.5``. Largest allowed excess of the
   annulus maximum over the annulus mean, as a fraction of the detection's own height above
   that mean.
-- ``pair_search_stars`` — int, default ``5``. The 2-star path tries every pair among this
-  many brightest usable stars.
-- ``pair_contradiction_stars`` — int, default ``3``. The 2-star path refuses its first
-  passing pair when at least this many distinct sources are detected for the other
-  searched stars, all away from the pair's offset, and none is found where the pair's
-  offset puts it.
+- ``pair_search_stars`` — int, default ``5``. The 2-star path searches this many
+  brightest usable stars and pairs their candidates.
+- ``pair_search_sources`` — int, default ``5``, at least 1. Number of strongest isolated
+  point sources in each searched star's window that are its candidates. The star's own
+  source ranked first, second, or third in every case measured on F ring frames.
+- ``pair_contradiction_stars`` — int, default ``3``. The 2-star path refuses its chosen
+  pair when at least this many distinct sources, each as bright as the other searched
+  star it was found for should be, lie away from the pair's offset, and none of those
+  stars is found where the pair's offset puts it.
+- ``pair_absent_stars`` — int, default ``2``, at least 1. The 2-star path refuses its
+  chosen pair when at least this many other searched stars, each at least as bright as
+  the pair's fainter star, lie on clear sky in the image at the pair's offset and show
+  nothing there, and none of the other stars is found there.
 - ``pair_vote_peak_factor`` — float, default ``4.0`` (dimensionless), finite and above
   1. A source found where the pair's offset puts another star counts as that star only
   when its peak above the local background lies within this factor of the peak the
@@ -444,12 +516,14 @@ Source files:
 - ``src/spindoctor/nav_technique/nav_technique_star_unique_match.py`` —
   :class:`~spindoctor.nav_technique.nav_technique_star_unique_match.StarUniqueMatchNav` and the
   brightness-margin / 1-star / 2-star helpers.
-- ``src/spindoctor/nav_technique/_star_unique_two_star.py`` — package-private pair geometry
-  of the 2-star path: the assignment solve (``solve_two_star_assignment``,
-  ``similarity_fit_assignment``) and the match covariances (``build_star_covariance``,
+- ``src/spindoctor/nav_technique/_star_unique_two_star.py`` — package-private pair
+  arithmetic of the 2-star path: the pair search and its support (``pair_hypotheses``,
+  ``solve_assigned_pair``, ``similarity_fit_assignment``), the other stars' votes
+  (``third_star_votes``, ``star_like_source``, ``absent_stars``, ``peak_per_snr``,
+  ``source_peak``), and the match covariances (``build_star_covariance``,
   ``two_star_covariance``, ``two_star_covariance_3dof``).
 - ``src/spindoctor/nav_technique/_star_helpers.py`` — package-private helpers ``usable_stars``,
-  ``search_window_bounds``, ``local_centroid``, ``detection_peak_ratio``,
+  ``search_window_bounds``, ``local_centroid``, ``window_sources``, ``detection_peak_ratio``,
   ``is_isolated_point_source``, ``isolated_response``, ``gaussian_psf_kernel``,
   ``predicted_snr``, ``predicted_vu``, ``brightness_margin_mag``, and
   ``similarity_transform_fit``.
@@ -513,20 +587,20 @@ Call path traced through
 3. Branch on the usable-star count:
 
    - **2-star path.** Attempted first whenever at least two usable stars exist (no
-     brightness-margin precondition). For every pair among the ``pair_search_stars``
-     brightest stars, in each of the two windows, slice the window around each prediction
-     in :attr:`~spindoctor.nav_orchestrator.nav_context.NavContext.image_ext` and call
-     ``local_centroid`` to extract the sub-pixel detection. When both detections clear the
-     noise threshold and are isolated point sources, run a Procrustes / similarity refit
-     via ``similarity_transform_fit`` to recover translation and rotation, and keep the
-     pair when its residual is within ``max_residual_px``. Report the first passing pair,
-     or a spurious result when passing pairs disagree; when none passes, fall back to the
-     1-star path.
+     brightness-margin precondition). For each of the ``pair_search_stars`` brightest
+     stars, call ``window_sources`` on its offset window in
+     :attr:`~spindoctor.nav_orchestrator.nav_context.NavContext.image_ext` for its
+     candidates. Pass them to ``pair_hypotheses``, which solves every pair of candidates
+     of two different stars (with ``similarity_transform_fit`` when rotation is fitted),
+     keeps the pairs whose residual is within ``max_residual_px``, and orders them by
+     support. Report the best supported pair, or a spurious result when an equally
+     supported pair disagrees with it or the other stars contradict it; when no pair
+     passes, fall back to the 1-star path.
    - **1-star path.**  When fewer than two stars are usable (or no pair passed),
      require the brightest to clear the brightness-margin floor, slice a window
      around its prediction, extract the sub-pixel
      centroid, refuse it when it is not an isolated point source or lies outside
-     the inner ellipse, require the detection's background-subtracted
+     the lone-star ellipse, require the detection's background-subtracted
      peak-to-runner-up ratio to be at least ``one_star_min_peak_ratio`` (and, when that
      ratio is the no-rival sentinel, require the detection to lie within
      ``one_star_max_residual_px`` of the prediction), and report the per-star residual as

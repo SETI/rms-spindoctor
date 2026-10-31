@@ -586,41 +586,57 @@ noise spike or a hot pixel: the star's peak must stand clear of the window's bac
 and of every other pixel in the window, and where there is no rival peak at all to measure
 against, the match is accepted only if it sits close to the predicted position.
 
-With two or more stars, the technique looks for a pair that checks itself. It tries every
-pair among the five brightest predicted stars
-(``techniques.StarUniqueMatchNav.tuning.pair_search_stars``), and for each pair both ways
-of assigning the two detections to the two predictions. A pair is accepted only when the
-two stars imply the same offset to within
-``techniques.StarUniqueMatchNav.tuning.max_residual_px``, 1.2 pixels by default; two
-correctly matched stars agree to a few tenths of a pixel. Trying more than the brightest
-two matters because the brightest predicted star is often not in the image at all: it can
-fall just off the detector once the pointing error is applied, or under a ring's glare. If
-two different pairs pass and disagree about the offset, the technique does not choose
-between them and reports no answer. Two stars can agree by coincidence when the catalog
-places each of them several pixels off. So each of the other stars searched is also
-looked for where the pair puts it. The pair is refused when none of them is found there
-and at least three distinct sources are found for them somewhere else
-(``techniques.StarUniqueMatchNav.tuning.pair_contradiction_stars``). A cosmic-ray hit
-brighter than a star near it therefore does not count against the pair while the star
-itself is where the pair puts it. A source found there counts as the star only when its
-peak brightness is within a factor of 4 of what the pair's two stars predict from the
-catalog magnitudes (``techniques.StarUniqueMatchNav.tuning.pair_vote_peak_factor``), so
-a faint field star or a small cosmic-ray hit lying there by chance does not count for the
-pair. A cross-checked pair caps confidence a little higher, at 0.8.
+With two or more stars, the technique looks for the offset the most stars agree on. Each
+of the five brightest predicted stars
+(``techniques.StarUniqueMatchNav.tuning.pair_search_stars``) is searched for over the
+camera's offset window, and the three strongest point sources in its window
+(``techniques.StarUniqueMatchNav.tuning.pair_search_sources``) are its candidates. The
+star need not be the strongest of them: a brighter star, a cosmic-ray hit, or the edge of
+a ring can be stronger, and the star is still among the candidates. Any two candidates,
+each in a different star's window, that imply the same offset to within
+``techniques.StarUniqueMatchNav.tuning.max_residual_px``, 1.2 pixels by default, form a
+pair that checks itself; two correctly matched stars agree to a few tenths of a pixel.
+Every other searched star with a candidate where the pair puts it backs the pair, and the
+pair backed by the most stars is the answer. Trying more than the brightest two stars
+matters because the brightest predicted star is often not in the image at all: it can
+fall just off the detector once the pointing error is applied, or under a ring's glare.
+
+Two stars can still agree by coincidence, and the other stars searched then say so. Each
+is looked for where the pair puts it, and a source found there counts as the star only
+when its peak brightness is within a factor of 4 of what the pair's two stars predict
+from the catalog magnitudes
+(``techniques.StarUniqueMatchNav.tuning.pair_vote_peak_factor``), so a faint field star or
+a small cosmic-ray hit lying there by chance does not count for the pair. When none of
+them is found there, the pair is refused if at least three of them are found somewhere
+else, each as the one source in its window as bright as it should be
+(``techniques.StarUniqueMatchNav.tuning.pair_contradiction_stars``), or if at least two
+of them, each at least as bright as the fainter star of the pair, should appear on clear
+sky in the image and nothing is there
+(``techniques.StarUniqueMatchNav.tuning.pair_absent_stars``). A star that the pair puts
+on a ring, a limb, or beside a bright source is not counted as missing, since its light
+could be hidden there. A pair is refused too when its own two stars differ in brightness,
+for their catalog magnitudes, by more than 16 times, the square of that factor. When a
+pair is refused, the next best backed pair elsewhere is tried. If two pairs backed by
+equally many stars disagree about the offset, the brighter one, for the stars' catalog
+magnitudes, is the answer, since a faint copy of the stars or a coincidence among faint
+sources shows far less light; when they are within a factor of 4 of each other, the
+technique does not choose between them and reports no answer. A cross-checked pair caps
+confidence a little higher, at 0.8.
 
 Each star is searched for over the camera's offset window around its prediction, the
-same range every other technique searches, which the instrument chapters list: it reaches that many whole pixels along each axis from the pixel holding
-each prediction. Pairs are also tried in a smaller window, 0.6 of it along each axis
-(``techniques.StarUniqueMatchNav.tuning.inner_window_fraction``). The offset window must
-be larger than the pointing error: a star whose center lies outside that reach is not
-found, even when some of its light falls inside it. A single star, which nothing can
-check, is accepted only inside the ellipse that reaches the same 0.6 of the window along
-each axis from where it was predicted, although the whole window is still searched so
-that anything brighter in it stops the match. A detection counts only if it is a point source that
-stands alone, by the same test the star field uses, so a ridge of a ring or a cosmic-ray
-track is not taken for a star. Measuring a star's center moves a small box onto the star's
-light; a box that wanders farther than its own half-width, or out of the search window,
-has found something else, and the window yields nothing.
+same range every other technique searches, which the instrument chapters list: it reaches
+that many whole pixels along each axis from the pixel holding each prediction. The offset
+window must be larger than the pointing error: a star whose center lies outside that
+reach is not found, even when some of its light falls inside it. A single star, which
+nothing can check, is accepted only inside the ellipse that reaches 0.6 of the window
+along each axis from where it was predicted
+(``techniques.StarUniqueMatchNav.tuning.one_star_ellipse_fraction``), although the whole
+window is still searched so that anything brighter in it stops the match. A detection
+counts only if it is a point source that stands alone, by the same test the star field
+uses, so a ridge of a ring or a cosmic-ray track is not taken for a star. Measuring a
+star's center moves a small box onto the star's light; a box that wanders farther than
+its own half-width, or out of the search window, has found something else, and the source
+is not counted.
 
 StarRefineNav
 ^^^^^^^^^^^^^

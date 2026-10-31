@@ -187,15 +187,14 @@ frames, and a margin that is right for one is wrong for the other:
      - ``[13, 13]``
 
 **Margins and pointing error.** Every technique, the star searches among them, finds
-offsets only inside the margin above. A lone star with nothing to check it against is
+offsets only inside the margin above. A lone star, which no other star checks, is
 believed only inside the ellipse reaching 0.6 of the margin along each axis. On each
 axis, 98.7% of wide angle star frames have a pointing error within 12.4 full-frame
 pixels, and the error reaches 14, so the wide angle margin reaches 13 pixels on a full
 frame, 7 on a 2x2 summed frame, and 5 on a 4x4 summed frame. On each axis, 98.7% of
 narrow angle star frames have a pointing error within 50 full-frame pixels, which the
-narrow angle margins hold at every size; that error reaches 82 pixels. The wide angle
-margin was ``[5, 10]`` at every size before it was set from this measurement. Every
-margin is provisional until full runs confirm it.
+narrow angle margins hold at every size; that error reaches 82 pixels. Every margin is
+provisional until full runs confirm it.
 
 **Sharp narrow angle stars.** A narrow angle star's image (point-spread sigma 0.54
 pixels) is sharper than the footprint over which the star techniques weigh a source, so
