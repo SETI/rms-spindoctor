@@ -288,22 +288,21 @@ That works because a simulated navigation is deterministic. A scene gives the
 same result in a fresh process and in a long-lived ``pytest-xdist`` worker,
 whatever ran before it.
 
-What does change the result is the CPU. NumPy and OpenBLAS pick vectorized code
-paths by CPU (AVX2, AVX-512, and so on), and the paths differ in the last bits of
-their results. That is enough to move a render's bytes, a baseline's rounding, or
-a sweep check that sits near its threshold. So the test package pins both to the
+What does change the result is the CPU. NumPy picks vectorized code paths by CPU
+(AVX2, AVX-512, and so on), and the paths differ in the last bits of their
+results. That is enough to move a render's bytes, a baseline's rounding, or a
+sweep check that sits near its threshold. So the test package pins NumPy to the
 x86-64-v2 baseline: before NumPy is first imported, ``tests/__init__.py`` sets
-``NPY_DISABLE_CPU_FEATURES`` to every NumPy dispatch group above the baseline,
-and ``OPENBLAS_CORETYPE`` to ``Nehalem``. ``tests/integration/test_simd_pin.py``
-fails if a pin didn't take effect. The pins cover ``pytest`` and the
-``python -m tests.integration...`` tools alike.
+``NPY_DISABLE_CPU_FEATURES`` to every dispatch group above it.
+``tests/integration/test_simd_pin.py`` fails if the pin didn't take effect. The
+pin covers ``pytest`` and the ``python -m tests.integration...`` tools alike.
 
-On x86-64, with NumPy 2.4 or later, and with neither variable already set, every
-machine then reproduces the same files. They reproduced under NumPy 2.4 and 2.5,
-and under SciPy and ``rms-psfmodel`` releases months apart. A value already in
-either variable overrides its pin, and the files it regenerates may then differ.
-The NumPy pin doesn't apply below NumPy 2.4, and neither pin applies on an ARM
-machine, whose results may differ.
+On x86-64, with NumPy 2.4 or later, and with ``NPY_DISABLE_CPU_FEATURES`` not
+already set, every machine then reproduces the same files. They reproduced under
+NumPy 2.4 and 2.5, and under SciPy and ``rms-psfmodel`` releases months apart. A
+value already in the variable overrides the pin, and the files it regenerates may
+then differ. The pin doesn't apply below NumPy 2.4, or on an ARM machine, whose
+results may differ.
 
 CI is the reference environment: GitHub's ``ubuntu-latest`` runner, at each
 supported Python version. Every pull request runs the simulator checks there, so

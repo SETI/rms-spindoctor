@@ -19,7 +19,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import numpy as np
 import pytest
+from PIL import Image
 
 from tests.integration import sim_doc_images
 
@@ -44,6 +46,25 @@ def regenerated_dirs(tmp_path_factory: pytest.TempPathFactory) -> dict[str, Path
     return dirs
 
 
+def _pixel_difference(committed: Path, fresh: Path) -> str:
+    """Describe how far a committed image is from its fresh render, for a message.
+
+    Gives the count of differing pixels and the largest per-channel difference, so
+    a last-bit change reads differently from a changed scene.
+    """
+    if not committed.is_file():
+        return 'not committed'
+    with Image.open(committed) as old_image, Image.open(fresh) as new_image:
+        old_pixels = np.asarray(old_image, dtype=np.int32)
+        new_pixels = np.asarray(new_image, dtype=np.int32)
+    if old_pixels.shape != new_pixels.shape:
+        return f'shape {old_pixels.shape} != {new_pixels.shape}'
+    diff = np.abs(old_pixels - new_pixels)
+    if diff.ndim == 3:
+        diff = diff.max(axis=2)
+    return f'{int(np.count_nonzero(diff))} of {diff.size} pixels differ, by up to {int(diff.max())}'
+
+
 def test_committed_gallery_images_are_current(regenerated_dirs: dict[str, Path]) -> None:
     """Every committed gallery PNG is byte-identical to a fresh render.
 
@@ -63,7 +84,8 @@ def test_committed_gallery_images_are_current(regenerated_dirs: dict[str, Path])
         for fresh in fresh_images:
             committed = committed_dir / fresh.name
             if not committed.is_file() or committed.read_bytes() != fresh.read_bytes():
-                stale.append(str(committed.relative_to(_DOCS.parent)))
+                name = str(committed.relative_to(_DOCS.parent))
+                stale.append(f'{name} ({_pixel_difference(committed, fresh)})')
     assert not empty, f'the generator produced no images for gallery/galleries: {empty}'
     assert not stale, (
         f'{len(stale)} committed doc image(s) no longer match a fresh render: '
