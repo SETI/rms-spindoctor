@@ -4,18 +4,20 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
-from tests.spindoctor.nav_technique.conftest import DrawGaussianStarFactory, NavFeatureFactory
+from tests.spindoctor.nav_technique.conftest import DrawGaussianStarFactory
 
 from spindoctor.nav_technique._star_helpers import (
     _flank_outshines,
     _window_peaks,
     detection_peak_ratio,
     gaussian_psf_kernel,
+    is_isolated_point_source,
     isolated_response,
+    isolation_lookup,
     isolation_radii,
     local_centroid,
     search_window_bounds,
-    third_star_votes,
+    window_sources,
 )
 
 # The library frame N1530185128_1 (Hyperion against stars): the prediction for its
@@ -401,107 +403,125 @@ def test_a_peak_on_a_raised_response_is_isolated() -> None:
     assert bool(isolated[10, 10])
 
 
-def test_a_star_with_no_detection_casts_no_vote(
-    make_star_feature: NavFeatureFactory,
-) -> None:
-    """Stars whose windows hold nothing neither agree nor disagree."""
-    others = [
-        make_star_feature(f'star:UCAC4:{k}', predicted_vu=(50.0 * k, 50.0), predicted_snr=10.0)
-        for k in range(3)
-    ]
-    votes = third_star_votes(
-        others,
-        (2.0, -3.0),
-        detect=lambda star: None,
-        detect_near=lambda star, target: None,
-        tolerance_px=2.4,
+def _sources(image: np.ndarray, *, max_sources: int = 5) -> list[tuple[float, float]]:
+    """Return the isolated point sources :func:`window_sources` finds around (100, 100)."""
+    found = window_sources(
+        image,
+        (100.0, 100.0),
+        search_half_vu=(40.0, 40.0),
+        centroid_box_half_px=3,
+        psf_sigma_px=1.0,
+        max_peak_sharpness=8.0,
+        image_noise_sigma=1.0,
+        detection_sigma=4.0,
+        accept=lambda c: is_isolated_point_source(
+            image, c, sigma_px=1.0, kernel_half_px=3, inner_px=4, outer_px=6, max_ratio=0.5
+        ),
+        max_sources=max_sources,
     )
-    assert votes == (0, 0)
+    return [s.centroid_vu for s in found]
 
 
-@pytest.mark.parametrize(
-    ('near', 'votes'),
-    [((52.1, 46.9), (1, 0)), (None, (0, 1))],
-    ids=['found-at-the-offset', 'absent-at-the-offset'],
-)
-def test_a_star_found_at_the_offset_agrees_whatever_else_its_window_holds(
-    make_star_feature: NavFeatureFactory,
-    near: tuple[float, float] | None,
-    votes: tuple[int, int],
+def test_window_sources_are_listed_strongest_first(
+    draw_gaussian_star: DrawGaussianStarFactory,
 ) -> None:
-    """A brighter source elsewhere in the window votes only when the star is absent."""
-    star = make_star_feature('star:UCAC4:0', predicted_vu=(50.0, 50.0), predicted_snr=10.0)
-    result = third_star_votes(
-        [star],
-        (2.0, -3.0),
-        detect=lambda feature: (70.0, 30.0),
-        detect_near=lambda feature, target: near,
-        tolerance_px=2.4,
+    """Three stars of 50, 200, and 100 DN are listed brightest first, at most two."""
+    image = np.zeros((200, 200))
+    for vu, peak in (((90.0, 90.0), 50.0), ((110.0, 120.0), 200.0), ((80.0, 120.0), 100.0)):
+        draw_gaussian_star(image, vu, peak_dn=peak)
+    found = _sources(image, max_sources=2)
+    assert len(found) == 2
+    assert found[0] == pytest.approx((110.0, 120.0), abs=0.1)
+    assert found[1] == pytest.approx((80.0, 120.0), abs=0.1)
+
+
+def test_window_sources_pass_over_a_ridge_to_the_star_beside_it(
+    draw_gaussian_star: DrawGaussianStarFactory,
+) -> None:
+    """A ridge brighter than the star holds no source; the star is the window's first."""
+    image = np.zeros((200, 200))
+    for u in np.arange(60.0, 140.0, 0.5):
+        draw_gaussian_star(image, (85.0, u), peak_dn=60.0, sigma=1.5)
+    draw_gaussian_star(image, (102.0, 97.0), peak_dn=40.0)
+    found = _sources(image)
+    assert found[0] == pytest.approx((102.0, 97.0), abs=0.1)
+
+
+def test_window_sources_pass_over_a_spike_too_sharp_for_a_star() -> None:
+    """A single hot pixel is no source."""
+    image = np.zeros((200, 200))
+    image[110, 95] = 500.0
+    assert _sources(image) == []
+
+
+def test_window_sources_off_the_image_are_none() -> None:
+    """A window wholly off the image holds no source."""
+    found = window_sources(
+        np.zeros((50, 50)),
+        (300.0, 300.0),
+        search_half_vu=(10.0, 10.0),
+        centroid_box_half_px=3,
+        psf_sigma_px=1.0,
+        max_peak_sharpness=8.0,
+        image_noise_sigma=1.0,
+        detection_sigma=4.0,
+        accept=lambda c: True,
+        max_sources=5,
     )
-    assert result == votes
+    assert found == []
 
 
-def test_a_star_is_sought_where_the_offset_puts_it(
-    make_star_feature: NavFeatureFactory,
+def test_window_sources_count_a_source_reached_from_two_peaks_once(
+    draw_gaussian_star: DrawGaussianStarFactory,
 ) -> None:
-    """The near search is centered on the prediction moved by the offset."""
-    star = make_star_feature('star:UCAC4:0', predicted_vu=(50.0, 50.0), predicted_snr=10.0)
-    targets: list[tuple[float, float]] = []
-
-    def detect_near(feature: object, target: tuple[float, float]) -> tuple[float, float] | None:
-        targets.append(target)
-        return None
-
-    third_star_votes(
-        [star],
-        (2.0, -3.0),
-        detect=lambda feature: None,
-        detect_near=detect_near,
-        tolerance_px=2.4,
+    """Two equal stars 4 px apart leave two response peaks whose boxes settle on one centroid."""
+    image = np.zeros((200, 200))
+    draw_gaussian_star(image, (100.0, 98.0), peak_dn=50.0, sigma=0.8)
+    draw_gaussian_star(image, (100.0, 102.0), peak_dn=50.0, sigma=0.8)
+    found = window_sources(
+        image,
+        (100.0, 100.0),
+        search_half_vu=(40.0, 40.0),
+        centroid_box_half_px=3,
+        psf_sigma_px=1.0,
+        max_peak_sharpness=8.0,
+        image_noise_sigma=1.0,
+        detection_sigma=4.0,
+        accept=lambda c: True,
+        max_sources=5,
     )
-    assert targets == [(52.0, 47.0)]
+    assert len(found) == 1
 
 
-@pytest.mark.parametrize('distance_px', [2.6, 3.3])
-def test_a_source_beyond_the_tolerance_of_the_offset_does_not_agree(
-    make_star_feature: NavFeatureFactory,
-    distance_px: float,
+@pytest.mark.parametrize('smear_px', [0.0, 40.0])
+def test_isolation_lookup_answers_as_the_single_detection_test(
+    draw_gaussian_star: DrawGaussianStarFactory, smear_px: float
 ) -> None:
-    """A near detection beyond the tolerance from the moved prediction casts no vote."""
-    star = make_star_feature('star:UCAC4:0', predicted_vu=(50.0, 50.0), predicted_snr=10.0)
-    result = third_star_votes(
-        [star],
-        (2.0, -3.0),
-        detect=lambda feature: None,
-        detect_near=lambda feature, target: (target[0] + distance_px, target[1]),
-        tolerance_px=2.4,
+    """At 300 points of a window the window-wide test agrees with the one-detection test."""
+    rng = np.random.default_rng(5)
+    image = rng.normal(0.0, 1.0, (160, 220))
+    for vu in rng.uniform((5.0, 5.0), (155.0, 215.0), (40, 2)):
+        draw_gaussian_star(image, (float(vu[0]), float(vu[1])), peak_dn=30.0)
+    image[60, 20:120] += 40.0
+    inner, outer = isolation_radii(4, 6, smear_px)
+    bounds = search_window_bounds((80.0, 110.0), (70.0, 100.0), image.shape)
+    assert bounds is not None
+    lookup = isolation_lookup(
+        image, bounds, sigma_px=1.0, kernel_half_px=3, inner_px=inner, outer_px=outer, max_ratio=0.5
     )
-    assert result == (0, 0)
-
-
-@pytest.mark.parametrize(
-    ('second_detection', 'votes'),
-    [((70.5, 30.4), (0, 1)), ((71.2, 30.0), (0, 2))],
-    ids=['same-source', 'distinct-sources'],
-)
-def test_one_source_in_two_windows_disagrees_once(
-    make_star_feature: NavFeatureFactory,
-    second_detection: tuple[float, float],
-    votes: tuple[int, int],
-) -> None:
-    """Two stars whose windows return one source cast one disagreeing vote between them."""
-    stars = [
-        make_star_feature(
-            f'star:UCAC4:{k}', predicted_vu=(50.0 + 20.0 * k, 50.0), predicted_snr=10.0
+    points = rng.uniform((bounds[0], bounds[2]), (bounds[1] - 1, bounds[3] - 1), (300, 2))
+    disagree = [
+        p
+        for p in points
+        if lookup((float(p[0]), float(p[1])))
+        != is_isolated_point_source(
+            image,
+            (float(p[0]), float(p[1])),
+            sigma_px=1.0,
+            kernel_half_px=3,
+            inner_px=inner,
+            outer_px=outer,
+            max_ratio=0.5,
         )
-        for k in range(2)
     ]
-    detections = {stars[0].feature_id: (70.0, 30.0), stars[1].feature_id: second_detection}
-    result = third_star_votes(
-        stars,
-        (2.0, -3.0),
-        detect=lambda feature: detections[feature.feature_id],
-        detect_near=lambda feature, target: None,
-        tolerance_px=2.4,
-    )
-    assert result == votes
+    assert disagree == []

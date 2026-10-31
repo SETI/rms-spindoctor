@@ -26,46 +26,44 @@ Two paths share one technique:
   acceptance to the measured ambiguity gate; genuine one-star matches with
   offsets up to ~24 px exist in the operator-verified library, so the
   10 px bound cannot hold every match.  Every one-star match is held
-  instead to the inner ellipse described below, above those offsets.
+  instead to the lone-star ellipse described below, above those offsets.
 
 - **Two-star path.**  Tried first whenever two or more stars are usable.
-  Every pair among the ``pair_search_stars`` brightest usable stars is
-  matched, in a narrow and a wide search window; for each pair the
-  technique tries both detection-to-prediction assignments and keeps the
-  one whose joint residual is smaller.  The residual cross-checks the
-  assignment, so a pair passes only when it is within
-  ``max_residual_px``; confidence is capped at the configured two-star
-  limit (default 0.8).  The first passing pair, brightest stars first,
-  is the answer, unless another passing pair disagrees with it, or three
-  other stars are found in the image and all of them away from the pair's
-  offset; either way the result is spurious.  Searching beyond the brightest two is what
-  lets a frame navigate when its brightest predicted star is not in the
-  image -- off the detector, or lost in a ring's glare.
+  Each of the ``pair_search_stars`` brightest usable stars is searched for
+  over the instrument's whole offset window, and its
+  ``pair_search_sources`` strongest isolated point sources are its
+  candidates: the star need not be the strongest thing in a wide window.
+  Every two candidates of two different stars that agree within
+  ``max_residual_px`` form a cross-checked pair, backed by every searched
+  star with a candidate where the pair's offset puts it.  The pair backed
+  by the most stars is the answer; confidence is capped at the configured
+  two-star limit (default 0.8).  It is spurious when another pair backed by
+  as many stars disagrees with it, when three other stars are found, as
+  bright as they should be, away from its offset and none at it, or when
+  two stars at least as bright as its fainter star lie on clear sky in the
+  image at its offset and show nothing there.  Searching beyond the
+  brightest two is what lets a frame navigate when its brightest predicted
+  star is not in the image -- off the detector, or lost in a ring's glare.
 
-Local-window detection is intentional: the search window is sized to
-bracket the SPICE pointing error, so the star lies inside it, and the
-detection is the strongest matched-filter peak inside the window.  A peak
-is a local maximum of the image's response, so the flank of a brighter
-source just outside the window is never taken.  A detection must also be
-an isolated point source: a ridge of a ring or a cosmic-ray track is a
-peak but not a star, and a window whose strongest peak is one holds no
-detection.  The two-star path needs no other per-window ambiguity test: a
-window won by something other than its star moves that star's offset away
-from the other's, and the joint residual declines the pair.  A one-star
-detection is searched for in the whole window, so a brighter source
-anywhere in it vetoes a fainter one, but is accepted only inside the
-ellipse whose semi-axes are the window's half-widths scaled by
-``inner_window_fraction``.  No global star-detection
-pass is needed (and this technique is feasible even on images where
-multi-star detection would fail because the rest of the field is too
-faint or too crowded).  Every star is predicted inside the extended field
-of view, whose padding is the instrument's offset window, so every star's
-window reaches the image.
+Local-window detection is intentional: the search window is the
+instrument's offset window, sized to bracket the SPICE pointing error, so
+the star lies inside it.  A detection is a matched-filter peak of the
+image, so the flank of a brighter source just outside the window is never
+taken, and it must be an isolated point source: a ridge of a ring or a
+cosmic-ray track is a peak but not a star.  The one-star path takes its
+window's strongest peak, so a brighter source anywhere in the window
+vetoes a fainter one, and accepts it only inside the ellipse whose
+semi-axes are the window's half-widths scaled by
+``one_star_ellipse_fraction``.  No global star-detection pass is needed
+(and this technique is feasible even on images where multi-star detection
+would fail because the rest of the field is too faint or too crowded).
+Every star is predicted inside the extended field of view, whose padding
+is the instrument's offset window, so every star's window reaches the
+image.
 """
 
 from __future__ import annotations
 
-import itertools
 import math
 from typing import TYPE_CHECKING
 
@@ -78,20 +76,27 @@ from spindoctor.nav_technique._star_helpers import (
     brightness_margin_mag,
     detection_peak_ratio,
     is_isolated_point_source,
+    isolation_lookup,
     isolation_radii,
     local_centroid,
     predicted_snr,
     predicted_vu,
+    search_window_bounds,
     smear_length_px,
-    third_star_votes,
     usable_stars,
+    window_sources,
 )
 from spindoctor.nav_technique._star_unique_two_star import (
+    PairHypothesis,
+    TwoStarAssignment,
+    absent_stars,
     build_star_covariance,
+    pair_hypotheses,
     peak_per_snr,
     photometry_saturated,
-    solve_two_star_assignment,
     source_peak,
+    star_like_source,
+    third_star_votes,
     two_star_covariance,
 )
 from spindoctor.nav_technique.confidence import evaluate_sigmoid_combination
@@ -173,9 +178,11 @@ class StarUniqueMatchNav(NavTechnique):
         self._max_peak_sharpness = float(self.tuning['max_peak_sharpness'])
         self._max_residual_px = float(self.tuning['max_residual_px'])
         self._pair_search_stars = int(self.tuning['pair_search_stars'])
+        self._pair_search_sources = int(self.tuning['pair_search_sources'])
         self._pair_contradiction_stars = int(self.tuning['pair_contradiction_stars'])
+        self._pair_absent_stars = int(self.tuning['pair_absent_stars'])
         self._pair_vote_peak_factor = float(self.tuning['pair_vote_peak_factor'])
-        self._inner_window_fraction = float(self.tuning['inner_window_fraction'])
+        self._one_star_ellipse_fraction = float(self.tuning['one_star_ellipse_fraction'])
         self._isolation_inner_px = int(self.tuning['source_isolation_inner_px'])
         self._isolation_outer_px = int(self.tuning['source_isolation_outer_px'])
         self._isolation_max_ratio = float(self.tuning['source_isolation_max_ratio'])
@@ -186,13 +193,17 @@ class StarUniqueMatchNav(NavTechnique):
         self._rotation_at_edge_fraction = float(self.tuning['rotation_at_edge_fraction'])
         self._one_star_min_peak_ratio = float(self.tuning['one_star_min_peak_ratio'])
         self._one_star_max_residual_px = float(self.tuning['one_star_max_residual_px'])
+        for key in ('pair_search_sources', 'pair_absent_stars'):
+            if int(self.tuning[key]) < 1:
+                raise ValueError(f'{key} must be >= 1; got {self.tuning[key]!r}')
         if not 1.0 < self._pair_vote_peak_factor < math.inf:
             raise ValueError(
                 f'pair_vote_peak_factor must be finite and > 1; got {self._pair_vote_peak_factor!r}'
             )
-        if not 0.0 < self._inner_window_fraction <= 1.0:
+        if not 0.0 < self._one_star_ellipse_fraction <= 1.0:
             raise ValueError(
-                f'inner_window_fraction must lie in (0, 1]; got {self._inner_window_fraction!r}'
+                'one_star_ellipse_fraction must lie in (0, 1]; '
+                f'got {self._one_star_ellipse_fraction!r}'
             )
         if self._one_star_min_peak_ratio < 1.0:
             raise ValueError(
@@ -302,21 +313,21 @@ class StarUniqueMatchNav(NavTechnique):
         noise_sigma: float,
         context: NavContext,
     ) -> NavTechniqueResult | None:
-        """Search pairs of the brightest usable stars for a cross-checked match.
+        """Find the offset the most of the brightest usable stars agree on.
 
-        Every pair among the ``pair_search_stars`` brightest usable stars is tried in each
-        search window (first the instrument's offset window scaled by
-        ``inner_window_fraction``, then the whole of it), brightest pairs first.  A pair
-        passes when both stars yield a detection that is an isolated peak of the image and
-        the best assignment's residual is within ``max_residual_px``.  The first passing
-        pair is the answer unless another passing pair puts the offset more than
-        ``2 * max_residual_px`` away from it: two cross-checked answers that disagree mean at
-        least one is a coincidence, and which one cannot be told, so the technique reports
-        spurious.  It is spurious too when the other searched stars' windows yield at
-        least ``pair_contradiction_stars`` distinct detections, every one of them away
-        from the pair's offset, and none of those stars is found as an isolated point
-        source within ``2 * max_residual_px`` of where the pair's offset puts it
-        (:func:`third_star_votes`).
+        Each of the ``pair_search_stars`` brightest usable stars is searched for over the
+        instrument's whole offset window, and its ``pair_search_sources`` strongest
+        isolated point sources are its candidates (:meth:`_star_sources`).  Every pair of
+        candidates, one in each of two stars' windows, whose residual is within
+        ``max_residual_px`` is a cross-checked pair (:func:`pair_hypotheses`), supported by
+        every searched star with a candidate within ``2 * max_residual_px`` of where the
+        pair's solution puts that star.  Pairs are judged best supported first, and a pair
+        is set aside when the other stars rule it out (:meth:`_ruled_out`).  The best
+        supported pair not set aside is the answer; of several equally supported pairs
+        more than ``2 * max_residual_px`` apart, the one whose sources are brightest for
+        the stars' predicted SNR (:meth:`_pair_brightness`).  It is spurious when another
+        of them is within ``pair_vote_peak_factor`` of that brightness: the stars back two
+        answers equally, one of them a coincidence that cannot be told from the other.
 
         Parameters:
             ranked: Usable star features, brightest predicted SNR first.
@@ -326,120 +337,318 @@ class StarUniqueMatchNav(NavTechnique):
             context: Per-image NavContext.
 
         Returns:
-            The first passing pair's result, a spurious result when passing pairs
-            disagree or the other stars contradict the pair, or ``None`` when no
-            pair passes (the caller then tries the 1-star path).
+            The best supported pair's result, a spurious result when it is ambiguous or
+            every pair is ruled out, or ``None`` when no pair passes the residual
+            cross-check (the caller then tries the 1-star path).
         """
-        n_search = min(len(ranked), self._pair_search_stars)
-        passing: list[tuple[NavTechniqueResult, tuple[float, float]]] = []
-        n_tried = 0
-        for window_vu in sorted(set(self._windows(context))):
-            for i, j in itertools.combinations(range(n_search), 2):
-                n_tried += 1
-                rest = [f for k, f in enumerate(ranked) if k not in (i, j)]
-                result = self._try_two_star(
-                    [ranked[i], ranked[j]],
-                    rest,
-                    image_ext,
-                    noise_sigma,
-                    context,
-                    search_half_vu=window_vu,
-                )
-                if result is not None:
-                    passing.append((result, window_vu))
-        self.logger.info(
-            'Two-star path: %d of %d star pair(s) passed the residual cross-check',
-            len(passing),
-            n_tried,
-        )
-        if not passing:
-            return None
-        chosen, chosen_window_vu = passing[0]
-        tolerance_px = 2.0 * self._max_residual_px
-        tolerance_vu = (tolerance_px, tolerance_px)
-        chosen_v, chosen_u = chosen.offset_px
-        rivals = [
-            r
-            for r, _ in passing[1:]
-            if math.hypot(r.offset_px[0] - chosen_v, r.offset_px[1] - chosen_u) > tolerance_px
+        searched = ranked[: self._pair_search_stars]
+        window_vu = self._search_window(context)
+        sources = [
+            self._star_sources(image_ext, star, noise_sigma, search_half_vu=window_vu)
+            for star in searched
         ]
-        reason = None
-        if rivals:
-            reason = (
-                f'ambiguous_pairs: {len(rivals)} passing star pair(s) put the offset '
-                f'more than {tolerance_px:.1f} px from the first passing pair'
+        hypotheses = pair_hypotheses(
+            [predicted_vu(star) for star in searched],
+            sources,
+            max_residual_px=self._max_residual_px,
+            fit_rotation=bool(context.fit_camera_rotation),
+        )
+        self.logger.info(
+            'Two-star path: %d cross-checked pair(s) among the sources of %d star(s) '
+            '(%s source(s) each)',
+            len(hypotheses),
+            len(searched),
+            '/'.join(str(len(s)) for s in sources),
+        )
+        if not hypotheses:
+            return None
+        tolerance_px = 2.0 * self._max_residual_px
+        reasons: list[str] = []
+        clusters: list[PairHypothesis] = []
+        refuted: list[tuple[float, float]] = []
+
+        def near(hyp: PairHypothesis, offsets: list[tuple[float, float]]) -> bool:
+            return any(
+                math.hypot(hyp.solved.offset_vu[0] - v, hyp.solved.offset_vu[1] - u) <= tolerance_px
+                for v, u in offsets
             )
-        else:
-            # A pair that agrees by coincidence is contradicted by the other stars
-            # that are in the image: each is found somewhere else.
-            others = [f for f in ranked[:n_search] if f.feature_id not in chosen.feature_ids]
-            pair = [f for f in ranked if f.feature_id in chosen.feature_ids]
-            scale = peak_per_snr(
-                image_ext,
-                pair,
-                chosen.offset_px,
-                detect_at=lambda star, target: self._isolated_detection_at(
-                    image_ext, star, target, noise_sigma, search_half_vu=tolerance_vu
-                ),
-                box_half_px=self._centroid_box_half_px,
-            )
-            agree, disagree = third_star_votes(
-                others,
-                chosen.offset_px,
-                detect=lambda star: self._isolated_detection(
-                    image_ext, star, noise_sigma, search_half_vu=chosen_window_vu
-                ),
-                detect_near=lambda star, target: self._star_like_detection_at(
-                    image_ext,
-                    star,
-                    target,
-                    noise_sigma,
-                    search_half_vu=tolerance_vu,
-                    peak_per_snr=scale,
-                ),
-                tolerance_px=tolerance_px,
-            )
-            if agree == 0 and disagree >= self._pair_contradiction_stars:
-                reason = (
-                    f'pair_contradicted: {disagree} distinct source(s) detected for other '
-                    f"stars away from the pair's offset and none at it"
-                )
-        if reason is not None:
+
+        for hyp in hypotheses:
+            if clusters and hyp.support < clusters[0].support:
+                break
+            if near(hyp, [c.solved.offset_vu for c in clusters]) or near(hyp, refuted):
+                continue
+            ruling = self._ruled_out(hyp, image_ext, searched, sources, noise_sigma, context)
+            if ruling is not None:
+                reason, offset_refuted = ruling
+                reasons.append(reason)
+                if offset_refuted:
+                    refuted.append(hyp.solved.offset_vu)
+                continue
+            clusters.append(hyp)
+        if not clusters:
             return self._fail(
                 features=features,
                 diagnostics=StarUniqueMatchDiagnostics(mode='two_star'),
-                reason=reason,
+                reason=f'pair_contradicted: every cross-checked pair is ruled out ({reasons[0]})',
                 fit_rotation=bool(context.fit_camera_rotation),
             )
-        return chosen
+        # Of equally supported answers, the stars are the brightest one: a ghost image or
+        # a coincidence among faint sources shows far less light per unit of predicted
+        # brightness.  An answer within pair_vote_peak_factor of the brightest is a rival.
+        brightness = [self._pair_brightness(image_ext, h, searched) for h in clusters]
+        known = [b for b in brightness if b is not None]
+        best_index = (
+            max(range(len(clusters)), key=lambda k: brightness[k] or 0.0)
+            if len(known) == len(clusters)
+            else 0
+        )
+        best = clusters[best_index]
+        best_brightness = brightness[best_index]
+        rivals = sum(
+            1
+            for k, b in enumerate(brightness)
+            if k != best_index
+            and (
+                b is None
+                or best_brightness is None
+                or b * self._pair_vote_peak_factor >= best_brightness
+            )
+        )
+        i, j = best.star_indices
+        self.logger.info(
+            'Two-star path: the pair is backed by %d of %d searched star(s); source ranks %s; '
+            '%d pair(s) ruled out',
+            best.support,
+            len(searched),
+            best.ranks,
+            len(reasons),
+        )
+        if rivals:
+            return self._fail(
+                features=features,
+                diagnostics=StarUniqueMatchDiagnostics(mode='two_star'),
+                reason=(
+                    f'ambiguous_pairs: {rivals} pair(s) backed by as many stars put the '
+                    f'offset more than {tolerance_px:.1f} px from the chosen pair'
+                ),
+                fit_rotation=bool(context.fit_camera_rotation),
+            )
+        return self._pair_result(
+            [searched[i], searched[j]],
+            [f for f in ranked if f is not searched[i] and f is not searched[j]],
+            best.solved,
+            context,
+        )
 
-    def _windows(self, context: NavContext) -> tuple[tuple[float, float], tuple[float, float]]:
-        """Return the search half-widths and the inner half-widths, each ``(v, u)``.
+    def _pair_brightness(
+        self, image_ext: NDArrayFloatType, hyp: PairHypothesis, searched: list[NavFeature]
+    ) -> float | None:
+        """Return a pair's sources' peak per unit of predicted SNR (geometric mean).
+
+        Parameters:
+            image_ext: The extended-FOV image.
+            hyp: The pair.
+            searched: The searched stars, brightest first.
+
+        Returns:
+            The brightness, or ``None`` when a star's predicted SNR or catalog magnitude
+            cannot say how bright it should be, or a source shows no peak.
+        """
+        log_sum = 0.0
+        for k, det in zip(hyp.star_indices, hyp.detections, strict=True):
+            star = searched[k]
+            snr = predicted_snr(star)
+            peak = source_peak(image_ext, det, box_half_px=self._centroid_box_half_px)
+            if snr <= 0.0 or peak <= 0.0 or photometry_saturated(star):
+                return None
+            log_sum += math.log(peak / snr)
+        return math.exp(log_sum / 2.0)
+
+    def _ruled_out(
+        self,
+        hyp: PairHypothesis,
+        image_ext: NDArrayFloatType,
+        searched: list[NavFeature],
+        sources: list[list[tuple[float, float]]],
+        noise_sigma: float,
+        context: NavContext,
+    ) -> tuple[str, bool] | None:
+        """Return why the stars rule out a cross-checked pair, or None when they do not.
+
+        The pair's two stars set the brightness scale (:func:`peak_per_snr`), the peak per
+        unit of predicted SNR, from the sources found where the pair's solution puts them.
+        The pair is ruled out when:
+
+        - its two stars' peaks per unit of predicted SNR differ by more than the square of
+          ``pair_vote_peak_factor``, the most two stars can differ when each lies within
+          that factor of the scale they share: a star paired with a faint field source
+          or a cosmic-ray hit is not a pair of stars;
+        - with no other searched star found as bright as it should be where the pair puts
+          it, at least ``pair_contradiction_stars`` distinct sources, each the one source
+          as bright as its star should be in that star's window, lie elsewhere
+          (:func:`third_star_votes`); two stars can agree by coincidence, and three found
+          elsewhere say they did; or
+        - more other searched stars are absent where the pair puts them than are found
+          there, and at least ``pair_absent_stars`` of them (:func:`absent_stars`): each is
+          at least as bright as the pair's fainter star and lies on clear sky in the image,
+          so it should be seen.
+
+        Parameters:
+            hyp: The pair.
+            image_ext: The extended-FOV image.
+            searched: The searched stars, brightest first.
+            sources: Each searched star's sources, strongest first.
+            noise_sigma: Image noise sigma used by the detection threshold.
+            context: Per-image NavContext.
+
+        Returns:
+            ``None``, or the reason and whether it refutes the pair's offset, not just the
+            pair: the other stars' votes and absences speak to the offset, so every pair
+            within ``2 * max_residual_px`` of a refuted offset is set aside with it, while
+            a pair refused for its own photometry leaves other pairs at its offset to be
+            judged.
+        """
+        tolerance_px = 2.0 * self._max_residual_px
+        tolerance_vu = (tolerance_px, tolerance_px)
+        i, j = hyp.star_indices
+        pair = [searched[i], searched[j]]
+        quotients = [
+            source_peak(image_ext, det, box_half_px=self._centroid_box_half_px)
+            / max(predicted_snr(star), 1e-30)
+            for star, det in zip(pair, hyp.detections, strict=True)
+        ]
+        limit = self._pair_vote_peak_factor**2
+        if (
+            not any(photometry_saturated(star) for star in pair)
+            and min(quotients) > 0.0
+            and max(quotients) > limit * min(quotients)
+        ):
+            return (
+                f'its stars show {quotients[0]:.3g} and {quotients[1]:.3g} per unit of '
+                f'predicted SNR, more than {limit:.0f} times apart',
+                False,
+            )
+        others = [f for k, f in enumerate(searched) if k not in (i, j)]
+        source_lists = {id(f): found for f, found in zip(searched, sources, strict=True)}
+        place = hyp.solved.place
+        scale = peak_per_snr(
+            image_ext,
+            pair,
+            place,
+            detect_at=lambda star, target: self._isolated_detection_at(
+                image_ext, star, target, noise_sigma, search_half_vu=tolerance_vu
+            ),
+            box_half_px=self._centroid_box_half_px,
+        )
+        agree, disagree = third_star_votes(
+            others,
+            place,
+            detect=lambda star: star_like_source(
+                image_ext,
+                star,
+                source_lists[id(star)],
+                peak_per_snr=scale,
+                peak_factor=self._pair_vote_peak_factor,
+                box_half_px=self._centroid_box_half_px,
+            ),
+            detect_near=lambda star, target: self._star_like_detection_at(
+                image_ext,
+                star,
+                target,
+                noise_sigma,
+                search_half_vu=tolerance_vu,
+                peak_per_snr=scale,
+            ),
+            tolerance_px=tolerance_px,
+        )
+        if agree == 0 and disagree >= self._pair_contradiction_stars:
+            return (
+                f'{disagree} distinct source(s) as bright as other stars should be lie away '
+                f"from the pair's offset and none at it",
+                True,
+            )
+        absent = absent_stars(
+            image_ext,
+            others,
+            place,
+            faint_snr=min(predicted_snr(f) for f in pair),
+            peak_per_snr=scale,
+            peak_factor=self._pair_vote_peak_factor,
+            margin_vu=search_window_for_obs(context),
+            noise_sigma=noise_sigma,
+            box_half_px=self._centroid_box_half_px,
+        )
+        if absent >= self._pair_absent_stars and absent > agree:
+            return (
+                f"{absent} star(s) at least as bright as the pair's fainter star show "
+                f'nothing where the pair puts them in the image, {agree} found there',
+                True,
+            )
+        return None
+
+    def _search_window(self, context: NavContext) -> tuple[float, float]:
+        """Return the ``(v, u)`` half-widths every star is searched for over.
 
         Pointing error is a property of the camera, so a star is searched for over the
         instrument's offset window (:func:`search_window_for_obs`), axis by axis, as every
-        other technique searches.  The inner half-widths are that window scaled by
-        ``inner_window_fraction`` (at most 1), so they never exceed it.
+        other technique searches.
+
+        Parameters:
+            context: Per-image NavContext.
+
+        Returns:
+            The offset window's ``(v, u)`` half-widths in pixels.
         """
         margin_v, margin_u = search_window_for_obs(context)
-        fraction = self._inner_window_fraction
-        return (
-            (float(margin_v), float(margin_u)),
-            (fraction * margin_v, fraction * margin_u),
-        )
+        return float(margin_v), float(margin_u)
 
-    def _isolated_detection(
+    def _star_sources(
         self,
         image_ext: NDArrayFloatType,
         star: NavFeature,
         noise_sigma: float,
         *,
         search_half_vu: tuple[float, float],
-    ) -> tuple[float, float] | None:
-        """Return a star's window detection if it is an isolated point source."""
-        return self._isolated_detection_at(
-            image_ext, star, predicted_vu(star), noise_sigma, search_half_vu=search_half_vu
+    ) -> list[tuple[float, float]]:
+        """Return the centroids of the strongest isolated point sources in a star's window.
+
+        Parameters:
+            image_ext: The extended-FOV image.
+            star: The star; its expected smear widens the isolation annulus.
+            noise_sigma: Image noise sigma used by the detection threshold.
+            search_half_vu: ``(v, u)`` half-widths of the window around its prediction.
+
+        Returns:
+            Up to ``pair_search_sources`` centroids, strongest first.
+        """
+        bounds = search_window_bounds(predicted_vu(star), search_half_vu, image_ext.shape)
+        if bounds is None:
+            return []
+        inner_px, outer_px = isolation_radii(
+            self._isolation_inner_px, self._isolation_outer_px, smear_length_px(star)
         )
+        found = window_sources(
+            image_ext,
+            predicted_vu(star),
+            search_half_vu=search_half_vu,
+            centroid_box_half_px=self._centroid_box_half_px,
+            psf_sigma_px=self._psf_sigma_px,
+            max_peak_sharpness=self._max_peak_sharpness,
+            image_noise_sigma=noise_sigma,
+            detection_sigma=self._detection_sigma,
+            accept=isolation_lookup(
+                image_ext,
+                bounds,
+                sigma_px=self._psf_sigma_px,
+                kernel_half_px=self._centroid_box_half_px,
+                inner_px=inner_px,
+                outer_px=outer_px,
+                max_ratio=self._isolation_max_ratio,
+            ),
+            max_sources=self._pair_search_sources,
+        )
+        return [s.centroid_vu for s in found]
 
     def _isolated_detection_at(
         self,
@@ -452,8 +661,8 @@ class StarUniqueMatchNav(NavTechnique):
     ) -> tuple[float, float] | None:
         """Return the isolated point source in a window around ``center_vu``, else None.
 
-        The window is searched as :meth:`_isolated_detection` searches a star's own
-        window; ``star`` supplies the expected smear the isolation test allows for.
+        The window's strongest peak is measured by :func:`local_centroid`, and it must be an
+        isolated point source; ``star`` supplies the expected smear the isolation test allows for.
         """
         det, _peak = local_centroid(
             image_ext,
@@ -519,86 +728,29 @@ class StarUniqueMatchNav(NavTechnique):
             return None
         return det
 
-    def _try_two_star(
+    def _pair_result(
         self,
         chosen: list[NavFeature],
         rest: list[NavFeature],
-        image_ext: NDArrayFloatType,
-        noise_sigma: float,
+        solved: TwoStarAssignment,
         context: NavContext,
-        *,
-        search_half_vu: tuple[float, float],
-    ) -> NavTechniqueResult | None:
-        """Attempt the 2-star path on one pair of stars.
+    ) -> NavTechniqueResult:
+        """Return the result of a pair whose sources passed the cross-check.
 
         Parameters:
-            chosen: The two star features to match.
-            rest: The other usable stars, brightest first, for the
-                brightness-margin diagnostic.
-            image_ext: The extended-FOV image.
-            noise_sigma: Image noise sigma used by the detection threshold.
+            chosen: The two star features matched, brighter first.
+            rest: The other usable stars, brightest first, for the brightness-margin
+                diagnostic.
+            solved: The pair solved with each source assigned to its own star.
             context: Per-image NavContext.
-            search_half_vu: ``(v, u)`` half-widths of the window searched around each
-                prediction.
 
         Returns:
-            The pair's result, or ``None`` when either star has no detection, a
-            detection is not an isolated point source, both stars resolve to one
-            detection, or the best assignment's residual exceeds
-            ``max_residual_px``.
+            The pair's result.
         """
-        det_a = self._isolated_detection(
-            image_ext, chosen[0], noise_sigma, search_half_vu=search_half_vu
-        )
-        det_b = self._isolated_detection(
-            image_ext, chosen[1], noise_sigma, search_half_vu=search_half_vu
-        )
-        if det_a is None or det_b is None:
-            self.logger.debug(
-                'Two-star path: a prediction has no detection that is an isolated point '
-                'source (none above the threshold, part of an extended source, or a '
-                'cosmic-ray track); pair rejected'
-            )
-            return None
-        # Overlapping search windows can return the SAME detection for
-        # both predictions (one bright peak shared between the
-        # ``[predicted - W, predicted + W]`` slabs of two close
-        # predictions).  Without this guard the 2-star math would fit
-        # both catalog stars to the same observation, fabricate a
-        # zero-residual cross-check, and report high confidence on a
-        # wrong offset.  Two centroids less than 1 pixel apart almost
-        # certainly came from the same matched-filter peak — fall
-        # back to the one-star path so the brightness-margin gate
-        # gets a chance to reject the ambiguous match.
-        det_separation_px = math.hypot(det_a[0] - det_b[0], det_a[1] - det_b[1])
-        if det_separation_px < 1.0:
-            self.logger.debug(
-                'Two-star path: both predictions resolved to the same '
-                'detection (separation %.4f px < 1.0); falling back to '
-                'one-star path',
-                det_separation_px,
-            )
-            return None
         fit_rotation = bool(context.fit_camera_rotation)
-        solved = solve_two_star_assignment(
-            det_a,
-            det_b,
-            predicted_vu(chosen[0]),
-            predicted_vu(chosen[1]),
-            fit_rotation=fit_rotation,
-        )
         offset_v, offset_u = solved.offset_vu
         residual_px = solved.residual_px
-        assignment = solved.assignment
         rotation_rad = solved.rotation_rad
-        if residual_px > self._max_residual_px:
-            self.logger.debug(
-                'Two-star path: best-assignment residual %.3f px exceeds '
-                'max_residual_px %.3f; falling back to one-star path',
-                residual_px,
-                self._max_residual_px,
-            )
-            return None
         # Brightness-margin diagnostic: magnitude difference to the
         # next-brightest *unmatched* predictable star.  When only two
         # predictable stars exist (no third star in ``rest``) the
@@ -631,9 +783,10 @@ class StarUniqueMatchNav(NavTechnique):
             cap=self._two_star_confidence_cap,
         )
         self.logger.info(
-            'Two-star path: assignment %s; offset (%.4f, %.4f) px; residual '
+            'Two-star path: stars %s and %s; offset (%.4f, %.4f) px; residual '
             '%.4f px; brightness margin %.3f mag; confidence %.4f',
-            assignment,
+            chosen[0].feature_id,
+            chosen[1].feature_id,
             offset_v,
             offset_u,
             residual_px,
@@ -687,7 +840,9 @@ class StarUniqueMatchNav(NavTechnique):
         there; a finite ratio was measured against real background
         statistics and acceptance stays with the ambiguity gate.
         """
-        search_half_vu, (inner_v, inner_u) = self._windows(context)
+        search_half_vu = self._search_window(context)
+        ellipse_v = self._one_star_ellipse_fraction * search_half_vu[0]
+        ellipse_u = self._one_star_ellipse_fraction * search_half_vu[1]
         brightest_snr = predicted_snr(brightest)
         next_snr = predicted_snr(rest[0]) if rest else 0.0
         margin_mag = brightness_margin_mag(brightest_snr, next_snr)
@@ -737,23 +892,23 @@ class StarUniqueMatchNav(NavTechnique):
             refusal = (
                 'window_peak_not_a_point_source (part of an extended source, or a cosmic-ray track)'
             )
-        elif ((det[0] - pred_v) * inner_u) ** 2 + ((det[1] - pred_u) * inner_v) ** 2 > (
-            inner_v * inner_u
+        elif ((det[0] - pred_v) * ellipse_u) ** 2 + ((det[1] - pred_u) * ellipse_v) ** 2 > (
+            ellipse_v * ellipse_u
         ) ** 2:
             # The whole window is searched so that a brighter source in it vetoes
             # a fainter one near the prediction; a lone detection is accepted
-            # only inside the inner ellipse, since nothing cross-checks it and the
+            # only inside the lone-star ellipse, since nothing cross-checks it and the
             # wider the region it may come from, the likelier it is an artifact.
             # The instrument window is per axis, so the ellipse's semi-axes are its
-            # half-widths scaled by inner_window_fraction: no single radius is
+            # half-widths scaled by one_star_ellipse_fraction: no single radius is
             # taken from the two, the ellipse is a circle when they are equal, and
             # it never reaches past the window on either axis.  The test is written
             # without division, so a zero margin on an axis admits only a zero
             # offset on it.
             refusal = (
-                f'one_star_detection_beyond_inner_window (offset '
+                f'one_star_detection_outside_ellipse (offset '
                 f'({det[0] - pred_v:.3f}, {det[1] - pred_u:.3f}) px, outside the '
-                f'({inner_v:.1f}, {inner_u:.1f}) px inner ellipse)'
+                f'({ellipse_v:.1f}, {ellipse_u:.1f}) px lone-star ellipse)'
             )
         if refusal is not None:
             diagnostics = StarUniqueMatchDiagnostics(
@@ -814,7 +969,7 @@ class StarUniqueMatchNav(NavTechnique):
         # ``one_star_max_residual_px``.  A finite ratio keeps the
         # measured #211 gate authoritative: genuine library matches
         # carry one-star offsets up to ~24 px, so this bound cannot hold
-        # every match; every one is held to the inner ellipse above.
+        # every match; every one is held to the lone-star ellipse above.
         if not math.isfinite(peak_ratio) and residual_px > self._one_star_max_residual_px:
             diagnostics = StarUniqueMatchDiagnostics(
                 mode='one_star',
@@ -846,8 +1001,8 @@ class StarUniqueMatchNav(NavTechnique):
             detection_peak_ratio=peak_ratio,
         )
         margin_v, margin_u = search_window_for_obs(context)
-        # The detection lies inside the inner ellipse, so this fires only when
-        # inner_window_fraction brings the ellipse within at_edge_tolerance_px of
+        # The detection lies inside the lone-star ellipse, so this fires only when
+        # one_star_ellipse_fraction brings the ellipse within at_edge_tolerance_px of
         # the window's edge.
         at_edge = (
             abs(offset_v) >= margin_v - self._at_edge_tolerance_px

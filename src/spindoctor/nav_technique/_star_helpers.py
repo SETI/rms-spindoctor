@@ -34,12 +34,15 @@ from spindoctor.nav_model.stars.detection import matched_filter_image
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 
 __all__ = [
+    'SAME_SOURCE_PX',
     'SimilarityFit',
+    'WindowSource',
     'brightness_margin_mag',
     'detection_peak_ratio',
     'gaussian_psf_kernel',
     'is_isolated_point_source',
     'isolated_response',
+    'isolation_lookup',
     'local_centroid',
     'predicted_snr',
     'predicted_vu',
@@ -47,6 +50,7 @@ __all__ = [
     'similarity_transform_fit',
     'star_features',
     'usable_stars',
+    'window_sources',
 ]
 
 
@@ -361,6 +365,8 @@ def _window_peaks(
 
 _MAX_RECENTER = 5
 _MAX_CANDIDATES = 16
+SAME_SOURCE_PX = 1.0
+"""Centroids closer than this (px) are one source."""
 
 
 def _box(image_ext: NDArrayFloatType, v: int, u: int, half: int) -> NDArrayFloatType:
@@ -608,15 +614,41 @@ def local_centroid(
         window = np.asarray(image_ext[v_lo:v_hi, u_lo:u_hi], np.float64)
         if _flank_outshines(window, peaks, peak_dn, half=half):
             return None, peak_dn
-    # Re-center the box on its own centroid until it stops moving, so a box that
-    # caught a source by its edge (the response peaks at the edge of a saturated
-    # core) moves over the source.  A box that walks farther than its own
-    # half-width, or out of the window, has left the candidate for another source.
+    return _recentered_centroid(image_ext, peak_v, peak_u, half=half, bounds=bounds), peak_dn
+
+
+def _recentered_centroid(
+    image_ext: NDArrayFloatType,
+    peak_v: int,
+    peak_u: int,
+    *,
+    half: int,
+    bounds: tuple[int, int, int, int],
+) -> tuple[float, float] | None:
+    """Return a candidate's centroid, its box re-centered until it stops moving.
+
+    A box that caught a source by its edge (the response peaks at the edge of a saturated
+    core) moves over the source.  A box that walks farther than its own half-width from
+    the candidate, or whose center leaves the window, has left the candidate for another
+    source, and the candidate has no centroid.
+
+    Parameters:
+        image_ext: 2-D extfov image array.
+        peak_v: Row of the candidate's response peak.
+        peak_u: Column of the candidate's response peak.
+        half: Centroid-box half-width in pixels.
+        bounds: ``(v_lo, v_hi, u_lo, u_hi)`` of the search window.
+
+    Returns:
+        The ``(v, u)`` centroid, or ``None`` when the box finds nothing above its median
+        or walks away.
+    """
+    v_lo, v_hi, u_lo, u_hi = bounds
     start_v, start_u = peak_v, peak_u
     centroid = _box_centroid(image_ext, peak_v, peak_u, half)
     for _ in range(_MAX_RECENTER):
         if centroid is None:
-            return None, peak_dn
+            return None
         next_v = math.floor(centroid[0] + 0.5)
         next_u = math.floor(centroid[1] + 0.5)
         if (next_v, next_u) == (peak_v, peak_u):
@@ -626,10 +658,113 @@ def local_centroid(
             or abs(next_u - start_u) > half
             or not (v_lo <= next_v < v_hi and u_lo <= next_u < u_hi)
         ):
-            return None, peak_dn
+            return None
         peak_v, peak_u = next_v, next_u
         centroid = _box_centroid(image_ext, peak_v, peak_u, half)
-    return centroid, peak_dn
+    return centroid
+
+
+@dataclass(frozen=True)
+class WindowSource:
+    """One star-like source found in a star's search window.
+
+    Parameters:
+        centroid_vu: ``(v, u)`` sub-pixel centroid in the extended frame.
+        response: Matched-filter response at the source's peak; sources are ranked by it.
+    """
+
+    centroid_vu: tuple[float, float]
+    response: float
+
+
+def window_sources(
+    image_ext: NDArrayFloatType,
+    predicted_vu_pos: tuple[float, float],
+    *,
+    search_half_vu: tuple[float, float],
+    centroid_box_half_px: int,
+    psf_sigma_px: float,
+    max_peak_sharpness: float,
+    image_noise_sigma: float,
+    detection_sigma: float,
+    accept: Callable[[tuple[float, float]], bool],
+    max_sources: int,
+) -> list[WindowSource]:
+    """Return the strongest star-like sources in a search window, strongest first.
+
+    The window and its matched-filter peaks are those of :func:`local_centroid`, and each
+    peak, taken in order of falling response, is measured as it measures its one
+    candidate: a peak sharper than a star is skipped, so is one whose box's brightest
+    pixel stands less than ``detection_sigma * image_noise_sigma`` above the box's
+    median, and so is one whose re-centered box walks away.  A peak that passes and
+    that ``accept`` takes (the caller's isolation test) is a source; one whose centroid
+    lies within a pixel of a source already found is that source again.  Every peak of
+    the window may be put to ``accept``, so it should be cheap: :func:`isolation_lookup`
+    builds the isolation test once for a whole window.  Where
+    :func:`local_centroid` measures only the window's strongest peak and reports no
+    detection when that peak is not a star, this keeps looking, so a ring's flank or
+    a brighter source elsewhere in a wide window does not hide the star.
+
+    Parameters:
+        image_ext: 2-D extfov image array.
+        predicted_vu_pos: ``(v, u)`` prediction at the center of the search window.
+        search_half_vu: ``(v, u)`` half-widths of the search window in pixels.
+        centroid_box_half_px: Half-width of the centroid-fit box (and of the
+            matched-filter kernel) in pixels.
+        psf_sigma_px: PSF sigma in pixels for the matched-filter kernel.
+        max_peak_sharpness: Largest ratio of a star's brightest-pixel excess to the mean
+            excess of its four edge neighbors (:func:`_too_sharp`).
+        image_noise_sigma: Robust per-pixel noise sigma in DN units.
+        detection_sigma: Threshold multiplier on ``image_noise_sigma``.
+        accept: Returns whether a centroid is a source the caller counts.
+        max_sources: Most sources returned.
+
+    Returns:
+        Up to ``max_sources`` sources, strongest response first; empty when the window
+        lies off the image or holds none.
+    """
+    bounds = search_window_bounds(predicted_vu_pos, search_half_vu, image_ext.shape)
+    if bounds is None or max_sources <= 0:
+        return []
+    v_lo, _v_hi, u_lo, _u_hi = bounds
+    half = centroid_box_half_px
+    kernel = gaussian_psf_kernel(psf_sigma_px, size=2 * half + 1)
+    peaks = _window_peaks(image_ext, bounds, kernel=kernel)
+    flat = peaks.ravel()
+    live = np.flatnonzero(np.isfinite(flat))
+    order = live[np.argsort(-flat[live], kind='stable')]
+    found: list[WindowSource] = []
+    for flat_idx in order:
+        pv, pu = (int(x) for x in np.unravel_index(int(flat_idx), peaks.shape))
+        peak_v, peak_u = v_lo + pv, u_lo + pu
+        box = _box(image_ext, peak_v, peak_u, half)
+        if float(box.max()) - float(np.median(box)) < detection_sigma * image_noise_sigma:
+            continue
+        if _too_sharp(
+            image_ext,
+            peak_v,
+            peak_u,
+            half=half,
+            max_sharpness=max_peak_sharpness,
+            noise_sigma=image_noise_sigma,
+            detection_sigma=detection_sigma,
+        ):
+            continue
+        centroid = _recentered_centroid(image_ext, peak_v, peak_u, half=half, bounds=bounds)
+        if centroid is None:
+            continue
+        if any(
+            math.hypot(centroid[0] - s.centroid_vu[0], centroid[1] - s.centroid_vu[1])
+            < SAME_SOURCE_PX
+            for s in found
+        ):
+            continue
+        if not accept(centroid):
+            continue
+        found.append(WindowSource(centroid_vu=centroid, response=float(flat[flat_idx])))
+        if len(found) >= max_sources:
+            break
+    return found
 
 
 def detection_peak_ratio(
@@ -727,67 +862,6 @@ def isolation_radii(inner_px: int, outer_px: int, smear_px: float) -> tuple[int,
     """
     margin = math.ceil(max(smear_px, 0.0) / 2.0)
     return inner_px + margin, outer_px + margin
-
-
-_SAME_SOURCE_PX = 1.0
-"""Detections of different stars closer than this (px) are one source in the pair votes."""
-
-
-def third_star_votes(
-    others: list[NavFeature],
-    offset_vu: tuple[float, float],
-    *,
-    detect: Callable[[NavFeature], tuple[float, float] | None],
-    detect_near: Callable[[NavFeature, tuple[float, float]], tuple[float, float] | None],
-    tolerance_px: float,
-) -> tuple[int, int]:
-    """Return how many other stars agree and disagree with an offset.
-
-    Each other star is first sought where the offset puts it, its prediction moved by
-    ``offset_vu``, with ``detect_near``; a detection there within ``tolerance_px`` of that
-    position agrees, whatever else the star's own search window holds.  Otherwise the star
-    is searched for around its own prediction with ``detect``: a detection whose offset
-    from the prediction lies within ``tolerance_px`` of ``offset_vu`` agrees, any other
-    detection disagrees, and a star with no detection casts no vote.  A brighter source
-    elsewhere in a star's window, such as a cosmic-ray hit, therefore outvotes the star
-    only when the star is not where the offset puts it.  Overlapping windows can return
-    one source for several stars; a disagreeing detection within ``_SAME_SOURCE_PX`` of
-    one already counted is that source again and is not counted twice.
-
-    Parameters:
-        others: Star features other than the two the offset rests on.
-        offset_vu: ``(dv, du)`` offset the votes are cast on.
-        detect: Returns the detection centroid for a star searched around its own
-            prediction, or ``None``.
-        detect_near: Returns the detection centroid for a star searched around the given
-            ``(v, u)`` position, or ``None``.
-        tolerance_px: Largest offset difference that agrees.
-
-    Returns:
-        ``(agree, disagree)`` counts.
-    """
-    agree = 0
-    disagreeing: list[tuple[float, float]] = []
-    for feature in others:
-        pred = predicted_vu(feature)
-        target = (pred[0] + offset_vu[0], pred[1] + offset_vu[1])
-        near = detect_near(feature, target)
-        if near is not None and math.hypot(near[0] - target[0], near[1] - target[1]) <= (
-            tolerance_px
-        ):
-            agree += 1
-            continue
-        det = detect(feature)
-        if det is None:
-            continue
-        if math.hypot(det[0] - target[0], det[1] - target[1]) <= tolerance_px:
-            agree += 1
-        elif all(
-            math.hypot(det[0] - seen[0], det[1] - seen[1]) >= _SAME_SOURCE_PX
-            for seen in disagreeing
-        ):
-            disagreeing.append(det)
-    return agree, len(disagreeing)
 
 
 def _annulus_footprint(inner_px: int, outer_px: int) -> NDArrayBoolType:
@@ -898,3 +972,68 @@ def is_isolated_point_source(
     core = response[reach - 1 : reach + 2, reach - 1 : reach + 2]
     dv, du = np.unravel_index(int(np.argmax(core)), core.shape)
     return bool(isolated[reach - 1 + int(dv), reach - 1 + int(du)])
+
+
+def isolation_lookup(
+    image_ext: NDArrayFloatType,
+    bounds: tuple[int, int, int, int],
+    *,
+    sigma_px: float,
+    kernel_half_px: int,
+    inner_px: int,
+    outer_px: int,
+    max_ratio: float,
+) -> Callable[[tuple[float, float]], bool]:
+    """Return :func:`is_isolated_point_source` for detections in one window, built once.
+
+    The matched-filter response and its isolation map are computed once over the window
+    grown by the reach the single-detection test reads, with the image completed by
+    reflection beyond its edges as that test completes it, so each lookup returns what
+    :func:`is_isolated_point_source` returns for a detection in the window, at the cost of
+    one array read instead of one filter pass per detection.
+
+    Parameters:
+        image_ext: 2-D extfov image array.
+        bounds: ``(v_lo, v_hi, u_lo, u_hi)`` of the window, from
+            :func:`search_window_bounds`.
+        sigma_px: PSF sigma of the matched-filter kernel, in pixels.
+        kernel_half_px: Half-width of the matched-filter kernel, in pixels.
+        inner_px: Inner annulus radius in pixels.
+        outer_px: Outer annulus radius in pixels.
+        max_ratio: Largest allowed ratio of the annulus maximum's excess over the annulus
+            mean to the peak's excess over it.
+
+    Returns:
+        A function of a detection's ``(v, u)`` centroid, which must lie in the window,
+        returning whether the detection is isolated.
+    """
+    reach = outer_px + kernel_half_px + 2
+    h, w = image_ext.shape
+    v_lo, v_hi, u_lo, u_hi = bounds
+    pv_lo, pv_hi = v_lo - reach - 1, v_hi + reach + 1
+    pu_lo, pu_hi = u_lo - reach - 1, u_hi + reach + 1
+    patch = np.pad(
+        np.asarray(
+            image_ext[max(0, pv_lo) : min(h, pv_hi), max(0, pu_lo) : min(w, pu_hi)], np.float64
+        ),
+        (
+            (max(0, pv_lo) - pv_lo, pv_hi - min(h, pv_hi)),
+            (max(0, pu_lo) - pu_lo, pu_hi - min(w, pu_hi)),
+        ),
+        mode='reflect',
+    )
+    response = matched_filter_image(
+        patch, kernel=gaussian_psf_kernel(sigma_px, size=2 * kernel_half_px + 1)
+    )
+    isolated = isolated_response(
+        response, inner_px=inner_px, outer_px=outer_px, max_ratio=max_ratio
+    )
+
+    def lookup(detection_vu: tuple[float, float]) -> bool:
+        v_c = min(max(round(detection_vu[0]), 0), h - 1) - pv_lo
+        u_c = min(max(round(detection_vu[1]), 0), w - 1) - pu_lo
+        core = response[v_c - 1 : v_c + 2, u_c - 1 : u_c + 2]
+        dv, du = np.unravel_index(int(np.argmax(core)), core.shape)
+        return bool(isolated[v_c - 1 + int(dv), u_c - 1 + int(du)])
+
+    return lookup

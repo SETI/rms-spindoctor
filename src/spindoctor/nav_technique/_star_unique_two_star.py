@@ -16,6 +16,7 @@ the package's public API.
 
 from __future__ import annotations
 
+import itertools
 import math
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -25,6 +26,7 @@ import numpy as np
 from spindoctor.feature.feature import NavFeature
 from spindoctor.feature.flags import StarFlags
 from spindoctor.nav_technique._star_helpers import (
+    SAME_SOURCE_PX,
     SimilarityFit,
     predicted_snr,
     predicted_vu,
@@ -34,13 +36,18 @@ from spindoctor.nav_technique.nav_technique import ROTATION_UNOBSERVABLE_VARIANC
 from spindoctor.support.types import NDArrayFloatType
 
 __all__ = [
+    'PairHypothesis',
     'TwoStarAssignment',
+    'absent_stars',
     'build_star_covariance',
+    'pair_hypotheses',
     'peak_per_snr',
     'photometry_saturated',
     'similarity_fit_assignment',
-    'solve_two_star_assignment',
+    'solve_assigned_pair',
     'source_peak',
+    'star_like_source',
+    'third_star_votes',
     'two_star_covariance',
     'two_star_covariance_3dof',
 ]
@@ -48,22 +55,130 @@ __all__ = [
 
 @dataclass(frozen=True)
 class TwoStarAssignment:
-    """The better of a pair's two detection-to-prediction assignments.
+    """Two detections solved against the two stars they are assigned to.
 
     Parameters:
         offset_vu: ``(dv, du)`` offset carrying the predictions onto the detections.
         residual_px: Residual of the assignment (the centroid-relative misfit of the
             first detection), the quantity the pair's cross-check bounds.
-        assignment: ``'a->1,b->2'`` when the first detection matches the first star,
-            ``'a->2,b->1'`` when the detections are swapped.
         rotation_rad: Fitted rotation in radians when a rotation was fitted, else
             ``None``.
     """
 
     offset_vu: tuple[float, float]
     residual_px: float
-    assignment: str
     rotation_rad: float | None
+
+    def place(self, predicted_vu_pos: tuple[float, float]) -> tuple[float, float]:
+        """Return where the solution puts a star predicted at ``predicted_vu_pos``.
+
+        Without a rotation that is the prediction moved by the offset.  With one it is the
+        Procrustes fit's rotation of the prediction plus its translation, so a star far
+        from the pair is placed where the rotation carries it.
+
+        Parameters:
+            predicted_vu_pos: The star's predicted ``(v, u)``.
+
+        Returns:
+            The star's ``(v, u)`` under the solution.
+        """
+        pv, pu = predicted_vu_pos
+        if self.rotation_rad is None:
+            return pv + self.offset_vu[0], pu + self.offset_vu[1]
+        cos_t, sin_t = math.cos(self.rotation_rad), math.sin(self.rotation_rad)
+        return (
+            cos_t * pv - sin_t * pu + self.offset_vu[0],
+            sin_t * pv + cos_t * pu + self.offset_vu[1],
+        )
+
+
+@dataclass(frozen=True)
+class PairHypothesis:
+    """Two sources, each in the window of a different star, that cross-check each other.
+
+    Parameters:
+        star_indices: Indices of the two stars among the searched stars.
+        ranks: Rank of each source among its star's sources, strongest first.
+        detections: The two sources, in the order of ``star_indices``.
+        solved: The pair solved with each source assigned to its own star.
+        support: Number of searched stars, the pair's own two among them, with a source
+            within the agreement tolerance of where the pair's solution puts them.
+        spread_px: Sum, over those stars, of the distance from where the pair's solution
+            puts the star to its nearest source.
+    """
+
+    star_indices: tuple[int, int]
+    ranks: tuple[int, int]
+    detections: tuple[tuple[float, float], tuple[float, float]]
+    solved: TwoStarAssignment
+    support: int
+    spread_px: float
+
+
+def pair_hypotheses(
+    predictions: list[tuple[float, float]],
+    sources: list[list[tuple[float, float]]],
+    *,
+    max_residual_px: float,
+    fit_rotation: bool,
+) -> list[PairHypothesis]:
+    """Return every cross-checked pair of sources, the best supported first.
+
+    For every pair of stars, every source in the first star's window is tried against
+    every source in the second star's, each assigned to its own star; two sources less
+    than ``SAME_SOURCE_PX`` apart are one source and are not paired.  A pair passes when
+    its residual is within ``max_residual_px``.  Its support counts the stars, among all
+    those searched, with a source within twice ``max_residual_px`` of where the pair's
+    solution puts them (:meth:`TwoStarAssignment.place`), so the true offset gathers every
+    star whose source was found while a coincidence between two unrelated sources gathers
+    few.  Pairs are ordered by support, most first; then by spread, so that of the pairs a
+    set of agreeing stars forms, the one nearest all of them comes first; then by the
+    sources' ranks and the stars' order.
+
+    Parameters:
+        predictions: Each searched star's predicted ``(v, u)``, brightest first.
+        sources: Each searched star's sources, strongest first.
+        max_residual_px: Largest residual a pair may have.
+        fit_rotation: Whether to fit a rotation as well as a translation.
+
+    Returns:
+        The passing pairs, best first; empty when none passes.
+    """
+    tolerance_px = 2.0 * max_residual_px
+    found: list[PairHypothesis] = []
+    for i, j in itertools.combinations(range(len(predictions)), 2):
+        for rank_a, det_a in enumerate(sources[i]):
+            for rank_b, det_b in enumerate(sources[j]):
+                if math.hypot(det_a[0] - det_b[0], det_a[1] - det_b[1]) < SAME_SOURCE_PX:
+                    continue
+                solved = solve_assigned_pair(
+                    det_a, det_b, predictions[i], predictions[j], fit_rotation=fit_rotation
+                )
+                if solved.residual_px > max_residual_px:
+                    continue
+                support = 0
+                spread = 0.0
+                for pred, star_sources in zip(predictions, sources, strict=True):
+                    tv, tu = solved.place(pred)
+                    nearest = min(
+                        (math.hypot(d[0] - tv, d[1] - tu) for d in star_sources),
+                        default=math.inf,
+                    )
+                    if nearest <= tolerance_px:
+                        support += 1
+                        spread += nearest
+                found.append(
+                    PairHypothesis(
+                        star_indices=(i, j),
+                        ranks=(rank_a, rank_b),
+                        detections=(det_a, det_b),
+                        solved=solved,
+                        support=support,
+                        spread_px=spread,
+                    )
+                )
+    found.sort(key=lambda h: (-h.support, h.spread_px, sum(h.ranks), h.star_indices))
+    return found
 
 
 def build_star_covariance(feature: NavFeature, *, residual_px: float) -> NDArrayFloatType:
@@ -96,7 +211,7 @@ def build_star_covariance(feature: NavFeature, *, residual_px: float) -> NDArray
     return base + inflation * np.eye(2, dtype=np.float64)
 
 
-def solve_two_star_assignment(
+def solve_assigned_pair(
     det_a: tuple[float, float],
     det_b: tuple[float, float],
     pred_a: tuple[float, float],
@@ -104,64 +219,36 @@ def solve_two_star_assignment(
     *,
     fit_rotation: bool,
 ) -> TwoStarAssignment:
-    """Solve both assignments of two detections to two predictions and keep the better.
+    """Solve the assignment of ``det_a`` to the first star and ``det_b`` to the second.
 
-    Without a rotation the offset of an assignment is the mean of its two
-    detection-minus-prediction differences.  With a rotation each assignment takes a
-    Procrustes (rotation plus translation) fit; with two points the rigid fit is exact,
-    so the residual compared is the same centroid-relative quantity.  Ties go to the
-    direct assignment.
+    The offset is the mean of the two detection-minus-prediction differences, or the
+    translation of a Procrustes fit when a rotation is fitted; the residual is half the
+    distance between the two differences either way.
 
     Parameters:
-        det_a: First detection ``(v, u)``.
-        det_b: Second detection ``(v, u)``.
+        det_a: Detection of the first star ``(v, u)``.
+        det_b: Detection of the second star ``(v, u)``.
         pred_a: Prediction of the first star ``(v, u)``.
         pred_b: Prediction of the second star ``(v, u)``.
         fit_rotation: Whether to fit a rotation as well as a translation.
 
     Returns:
-        The assignment with the smaller residual.
+        The pair's offset, residual, and fitted rotation.
     """
     if fit_rotation:
         det_arr = np.asarray([det_a, det_b], dtype=np.float64)
-        sim_1, residual_1 = similarity_fit_assignment(det_arr, pred_a, pred_b, swap=False)
-        sim_2, residual_2 = similarity_fit_assignment(det_arr, pred_a, pred_b, swap=True)
-        if residual_1 <= residual_2:
-            sim_chosen, residual_px, assignment = sim_1, residual_1, 'a->1,b->2'
-        else:
-            sim_chosen, residual_px, assignment = sim_2, residual_2, 'a->2,b->1'
-        offset_v, offset_u = sim_chosen.translation_vu
+        fit, residual_px = similarity_fit_assignment(det_arr, pred_a, pred_b)
         return TwoStarAssignment(
-            offset_vu=(offset_v, offset_u),
+            offset_vu=(float(fit.translation_vu[0]), float(fit.translation_vu[1])),
             residual_px=residual_px,
-            assignment=assignment,
-            rotation_rad=float(sim_chosen.rotation_rad),
+            rotation_rad=float(fit.rotation_rad),
         )
-    # Assignment 1: det_a -> pred_a, det_b -> pred_b.
-    offset_1_v = 0.5 * ((det_a[0] - pred_a[0]) + (det_b[0] - pred_b[0]))
-    offset_1_u = 0.5 * ((det_a[1] - pred_a[1]) + (det_b[1] - pred_b[1]))
-    residual_1 = math.hypot(
-        (det_a[0] - pred_a[0]) - offset_1_v,
-        (det_a[1] - pred_a[1]) - offset_1_u,
-    )
-    # Assignment 2: det_a -> pred_b, det_b -> pred_a.
-    offset_2_v = 0.5 * ((det_a[0] - pred_b[0]) + (det_b[0] - pred_a[0]))
-    offset_2_u = 0.5 * ((det_a[1] - pred_b[1]) + (det_b[1] - pred_a[1]))
-    residual_2 = math.hypot(
-        (det_a[0] - pred_b[0]) - offset_2_v,
-        (det_a[1] - pred_b[1]) - offset_2_u,
-    )
-    if residual_1 <= residual_2:
-        return TwoStarAssignment(
-            offset_vu=(offset_1_v, offset_1_u),
-            residual_px=residual_1,
-            assignment='a->1,b->2',
-            rotation_rad=None,
-        )
+    offset_v = 0.5 * ((det_a[0] - pred_a[0]) + (det_b[0] - pred_b[0]))
+    offset_u = 0.5 * ((det_a[1] - pred_a[1]) + (det_b[1] - pred_b[1]))
+    residual_px = math.hypot((det_a[0] - pred_a[0]) - offset_v, (det_a[1] - pred_a[1]) - offset_u)
     return TwoStarAssignment(
-        offset_vu=(offset_2_v, offset_2_u),
-        residual_px=residual_2,
-        assignment='a->2,b->1',
+        offset_vu=(offset_v, offset_u),
+        residual_px=residual_px,
         rotation_rad=None,
     )
 
@@ -170,46 +257,27 @@ def similarity_fit_assignment(
     det_arr: NDArrayFloatType,
     pred_a: tuple[float, float],
     pred_b: tuple[float, float],
-    *,
-    swap: bool,
 ) -> tuple[SimilarityFit, float]:
-    """Run a single-assignment Procrustes fit and report its residual.
+    """Run a Procrustes fit of two detections to two predictions and report its residual.
 
     Parameters:
-        det_arr: Ordered detection pair ``[det_a, det_b]`` shaped
-            ``(2, 2)``.
-        pred_a: Catalog prediction for the first chosen star.
-        pred_b: Catalog prediction for the second chosen star.
-        swap: When False the catalog cohort is ``[pred_a, pred_b]``;
-            when True the cohort is ``[pred_b, pred_a]`` (the
-            swapped detection-to-prediction assignment).
+        det_arr: Detection pair ``[det_a, det_b]`` shaped ``(2, 2)``, ``det_a`` matched
+            to ``pred_a`` and ``det_b`` to ``pred_b``.
+        pred_a: Catalog prediction for the first star.
+        pred_b: Catalog prediction for the second star.
 
     Returns:
-        ``(SimilarityFit, residual_px)`` where the residual is the
-        centroid-relative scalar used to compare assignments.
-        For a two-point rigid fit the Procrustes residuals are zero
-        by construction; the comparable scalar -- the same one the
-        translation-only path uses -- is computed directly
-        from the centroid-relative offset so the assignment-
-        selection criterion is the same with and without a rotation.
+        ``(SimilarityFit, residual_px)``.  The residuals of a two-point rigid fit are zero
+        by construction, so the residual reported is the one the translation-only solve
+        uses, half the distance between the two detection-minus-prediction differences,
+        and a pair is judged the same way with and without a rotation.
     """
-    if swap:
-        cat_arr = np.asarray([pred_b, pred_a], dtype=np.float64)
-    else:
-        cat_arr = np.asarray([pred_a, pred_b], dtype=np.float64)
-    weights = np.ones(2, dtype=np.float64)
-    fit = similarity_transform_fit(det_arr, cat_arr, weights)
-    # Residuals from a 2-point rigid fit are zero by construction; the
-    # comparable scalar for the assignment selection is the
-    # centroid-relative residual prior to rotation, computed directly from
-    # the assignment so the criterion is the same with and without a
-    # rotation.
-    det_a = det_arr[0]
-    cat_first = cat_arr[0]
+    cat_arr = np.asarray([pred_a, pred_b], dtype=np.float64)
+    fit = similarity_transform_fit(det_arr, cat_arr, np.ones(2, dtype=np.float64))
     offset = np.mean(det_arr - cat_arr, axis=0)
     residual = math.hypot(
-        (det_a[0] - cat_first[0]) - float(offset[0]),
-        (det_a[1] - cat_first[1]) - float(offset[1]),
+        (float(det_arr[0][0]) - pred_a[0]) - float(offset[0]),
+        (float(det_arr[0][1]) - pred_a[1]) - float(offset[1]),
     )
     return fit, residual
 
@@ -337,23 +405,24 @@ def photometry_saturated(feature: NavFeature) -> bool:
 def peak_per_snr(
     image_ext: NDArrayFloatType,
     stars: list[NavFeature],
-    offset_vu: tuple[float, float],
+    place: Callable[[tuple[float, float]], tuple[float, float]],
     *,
     detect_at: Callable[[NavFeature, tuple[float, float]], tuple[float, float] | None],
     box_half_px: int,
 ) -> float | None:
-    """Return the peak per unit of predicted SNR that stars found at an offset show.
+    """Return the peak per unit of predicted SNR that stars found at a solution show.
 
-    Each star is sought with ``detect_at`` where the offset puts it, its prediction moved
-    by ``offset_vu``, and its peak above the local background (:func:`source_peak`) is
-    divided by its predicted SNR, which is proportional to its catalog flux.  The result
-    is the geometric mean of the quotients, the scale that converts a star's predicted
-    SNR into the peak it should show in this image.
+    Each star is sought with ``detect_at`` where ``place`` puts its prediction, and its
+    peak above the local background (:func:`source_peak`) is divided by its predicted SNR,
+    which is proportional to its catalog flux.  The result is the geometric mean of the
+    quotients, the scale that converts a star's predicted SNR into the peak it should show
+    in this image.
 
     Parameters:
         image_ext: 2-D extfov image array.
         stars: The star features whose light sets the scale.
-        offset_vu: ``(dv, du)`` offset at which they are sought.
+        place: Maps a star's predicted ``(v, u)`` to where the solution puts it
+            (:meth:`TwoStarAssignment.place`).
         detect_at: Returns the detection centroid of a star sought around the given
             ``(v, u)`` position, or ``None``.
         box_half_px: Half-width of the box :func:`source_peak` searches.
@@ -368,8 +437,7 @@ def peak_per_snr(
         snr = predicted_snr(star)
         if snr <= 0.0 or photometry_saturated(star):
             return None
-        pred = predicted_vu(star)
-        det = detect_at(star, (pred[0] + offset_vu[0], pred[1] + offset_vu[1]))
+        det = detect_at(star, place(predicted_vu(star)))
         if det is None:
             return None
         peak = source_peak(image_ext, det, box_half_px=box_half_px)
@@ -379,3 +447,168 @@ def peak_per_snr(
     if not stars:
         return None
     return math.exp(log_sum / len(stars))
+
+
+def third_star_votes(
+    others: list[NavFeature],
+    place: Callable[[tuple[float, float]], tuple[float, float]],
+    *,
+    detect: Callable[[NavFeature], tuple[float, float] | None],
+    detect_near: Callable[[NavFeature, tuple[float, float]], tuple[float, float] | None],
+    tolerance_px: float,
+) -> tuple[int, int]:
+    """Return how many other stars agree and disagree with a solution.
+
+    Each other star is first sought with ``detect_near`` where ``place`` puts its
+    prediction; a detection there within ``tolerance_px`` of that position agrees,
+    whatever else the star's own search window holds.  Otherwise the star is searched for
+    around its own prediction with ``detect``: a detection within ``tolerance_px`` of where
+    the solution puts the star agrees, any other detection disagrees, and a star that
+    yields no detection casts no vote.  A brighter source elsewhere in a star's window,
+    such as a cosmic-ray hit, therefore outvotes the star only when the star is not where
+    the solution puts it.  Overlapping windows can return
+    one source for several stars; a disagreeing detection within ``SAME_SOURCE_PX`` of
+    one already counted is that source again and is not counted twice.
+
+    Parameters:
+        others: Star features other than the two the solution rests on.
+        place: Maps a star's predicted ``(v, u)`` to where the solution puts it.
+        detect: Returns the detection centroid for a star searched around its own
+            prediction, or ``None``.
+        detect_near: Returns the detection centroid for a star searched around the given
+            ``(v, u)`` position, or ``None``.
+        tolerance_px: Largest offset difference that agrees.
+
+    Returns:
+        ``(agree, disagree)`` counts.
+    """
+    agree = 0
+    disagreeing: list[tuple[float, float]] = []
+    for feature in others:
+        pred = predicted_vu(feature)
+        target = place(pred)
+        near = detect_near(feature, target)
+        if near is not None and math.hypot(near[0] - target[0], near[1] - target[1]) <= (
+            tolerance_px
+        ):
+            agree += 1
+            continue
+        det = detect(feature)
+        if det is None:
+            continue
+        if math.hypot(det[0] - target[0], det[1] - target[1]) <= tolerance_px:
+            agree += 1
+        elif all(
+            math.hypot(det[0] - seen[0], det[1] - seen[1]) >= SAME_SOURCE_PX for seen in disagreeing
+        ):
+            disagreeing.append(det)
+    return agree, len(disagreeing)
+
+
+def star_like_source(
+    image_ext: NDArrayFloatType,
+    star: NavFeature,
+    sources: list[tuple[float, float]],
+    *,
+    peak_per_snr: float | None,
+    peak_factor: float,
+    box_half_px: int,
+) -> tuple[float, float] | None:
+    """Return a star's one source that is as bright as the star should be, if just one is.
+
+    A source qualifies when its peak above the local background (:func:`source_peak`)
+    lies within a factor of ``peak_factor`` of ``peak_per_snr`` times the star's predicted
+    SNR; when that peak cannot be predicted (no scale, no predicted SNR, or a catalog
+    magnitude that is only a saturated lower bound) every source qualifies.  The star is
+    located only when exactly one source qualifies; a window holding several that could each
+    be the star (a field of saturated cosmic-ray hits) does not locate it.
+
+    Parameters:
+        image_ext: 2-D extfov image array.
+        star: The star.
+        sources: The star's sources, strongest first.
+        peak_per_snr: The scale from :func:`peak_per_snr`, or ``None``.
+        peak_factor: Largest factor between a source's peak and the star's expected peak.
+        box_half_px: Half-width of the box :func:`source_peak` searches.
+
+    Returns:
+        The source, or ``None`` when none or several qualify.
+    """
+    snr = predicted_snr(star)
+    if peak_per_snr is None or snr <= 0.0 or photometry_saturated(star):
+        qualifying = list(sources)
+    else:
+        expected = peak_per_snr * snr
+        qualifying = [
+            det
+            for det in sources
+            if 1.0 / peak_factor
+            <= source_peak(image_ext, det, box_half_px=box_half_px) / expected
+            <= peak_factor
+        ]
+    return qualifying[0] if len(qualifying) == 1 else None
+
+
+def absent_stars(
+    image_ext: NDArrayFloatType,
+    stars: list[NavFeature],
+    place: Callable[[tuple[float, float]], tuple[float, float]],
+    *,
+    faint_snr: float,
+    peak_per_snr: float | None,
+    peak_factor: float,
+    margin_vu: tuple[int, int],
+    noise_sigma: float,
+    box_half_px: int,
+) -> int:
+    """Count the stars a solution puts on clear sky in the image where nothing is seen.
+
+    A star counts when it is at least as bright (predicted SNR) as ``faint_snr``, the
+    fainter of two stars already found at the solution, so it should be seen at least as
+    well; its catalog magnitude is not a saturated lower bound; where ``place`` puts its
+    prediction lies inside the image, not the extended field of view's padding; the pixels
+    around that position are clear sky, their robust spread at most twice the image noise,
+    so a ring, a limb, or a bright neighbor that could hide the star rules it out; and the
+    brightest pixel of the box there stands above its local background
+    (:func:`source_peak`) by less than its expected peak, ``peak_per_snr`` times its
+    predicted SNR, divided by ``peak_factor``.
+
+    Parameters:
+        image_ext: 2-D extfov image array.
+        stars: The stars to judge.
+        place: Maps a star's predicted ``(v, u)`` to where the solution puts it.
+        faint_snr: Least predicted SNR of a star that is judged.
+        peak_per_snr: The scale from :func:`peak_per_snr`, or ``None`` (no star is then
+            judged absent).
+        peak_factor: Factor below the expected peak at which a star is absent.
+        margin_vu: ``(v, u)`` padding of the extended field of view, in pixels.
+        noise_sigma: Image noise sigma.
+        box_half_px: Half-width of the box :func:`source_peak` searches.
+
+    Returns:
+        The number of absent stars.
+    """
+    if peak_per_snr is None:
+        return 0
+    rows, cols = image_ext.shape
+    reach = box_half_px + 3
+    count = 0
+    for star in stars:
+        snr = predicted_snr(star)
+        if snr < faint_snr or photometry_saturated(star):
+            continue
+        target = place(predicted_vu(star))
+        v, u = round(target[0]), round(target[1])
+        if not (
+            margin_vu[0] + reach <= v < rows - margin_vu[0] - reach
+            and margin_vu[1] + reach <= u < cols - margin_vu[1] - reach
+        ):
+            continue
+        patch = np.asarray(image_ext[v - reach : v + reach + 1, u - reach : u + reach + 1])
+        spread = 1.4826 * float(np.median(np.abs(patch - np.median(patch))))
+        if spread > 2.0 * noise_sigma:
+            continue
+        seen = source_peak(image_ext, (v, u), box_half_px=box_half_px)
+        if seen * peak_factor < peak_per_snr * snr:
+            count += 1
+    return count
