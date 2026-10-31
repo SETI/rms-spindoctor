@@ -237,11 +237,16 @@ class RingEdgeDiagnostics:
             same meaning as on ``BodyLimbDiagnostics``.
         coarse_peak_fraction: Shared DT gate diagnostic.  Unlike the polarity
             techniques, ``RingEdgeNav`` runs polarity-blind (ring-edge
-            polarity is not predictable), so this is the plain mask-overlap
-            match fraction from
-            :func:`~spindoctor.nav_technique.dt_fitting.coarse_ncc_search_scored`
+            polarity is not predictable), so this is a plain match fraction
             rather than the polarity-weighted score described on
-            ``BodyLimbDiagnostics``.
+            ``BodyLimbDiagnostics``.  It comes from whichever search chose the
+            coarse seed: usually the overlap search
+            (:func:`~spindoctor.nav_technique.dt_fitting.coarse_ncc_search_scored`,
+            a fraction of distinct rasterized polyline pixels), and the
+            edge-strength search
+            (:func:`~spindoctor.nav_technique.dt_fitting.coarse_edge_strength_search_scored`,
+            a fraction of in-bounds vertices) only when the overlap seed's edge
+            strength falls below ``coarse_strength_keep_ratio`` of the strongest.
         sigma_orbit_radial_px: Effective fully-correlated radial
             orbit-uncertainty sigma (px) added in quadrature to the
             reported covariance along the fit's radial direction (the
