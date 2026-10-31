@@ -2,9 +2,9 @@
 
 A sweep (``tests/integration/sim_sweeps/*.yaml``) varies one scene parameter
 across steps.  These checks load each spec and build each step's scene
-parameters, re-validating the stepped ``artifacts`` and ``noise`` blocks, so a
-sweep that addresses a misspelled artifact-mode or noise key fails
-here instead of rendering a clean frame.  They navigate nothing, so they run
+parameters, validating each whole step, so a sweep that addresses a misspelled
+key or steps a value out of its range fails here instead of rendering a frame
+that ignores it.  They navigate nothing, so they run
 with the unit suite; the sweeps' navigation invariants live in
 ``tests/integration/test_sim_sweeps.py``.
 """
@@ -28,7 +28,7 @@ def test_every_sweep_validates() -> None:
 
 
 def test_every_sweep_step_builds_and_validates() -> None:
-    """Every step of every sweep builds, its artifacts and noise blocks re-validated."""
+    """Every step of every sweep builds and validates as a whole scene."""
     paths = iter_sweep_paths(_SWEEPS_ROOT)
     steps = [step for path in paths for step in build_sweep_params(load_sweep(path))]
     assert len(steps) >= 2 * len(paths)
@@ -62,3 +62,15 @@ def test_sweep_on_an_unknown_noise_key_is_refused(tmp_path: Path) -> None:
     spec = load_sweep(_noise_sweep_on(tmp_path, 'noise.read_noise'))
     with pytest.raises(SimSceneValidationError, match=r"noise: unknown keys: \['read_noise'\]"):
         build_sweep_params(spec)
+
+
+def test_sweep_stepping_a_body_value_out_of_range_is_refused(tmp_path: Path) -> None:
+    """A step outside a body key's range fails at build, not only artifact and noise keys."""
+    text = (_SWEEPS_ROOT / 'atmosphere_haze.yaml').read_text()
+    path = tmp_path / 'atmosphere_haze.yaml'
+    path.write_text(text.replace('values: [0.0,', 'values: [-1.0,'))
+    with pytest.raises(
+        SimSceneValidationError,
+        match=r'\(value -1\.0\).*atmosphere\.tau_ref must be a non-negative number',
+    ):
+        build_sweep_params(load_sweep(path))

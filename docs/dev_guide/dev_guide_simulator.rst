@@ -857,9 +857,9 @@ its activation key is 0, or its ``count`` where given is 0. The keys default to
 key, or its ``count`` where given, doesn't plant anything.
 
 A mode's map accepts only that mode's parameters, so an unknown key in it fails
-validation. The sweep harness re-validates each step's ``artifacts`` and
-``noise`` blocks, so a sweep path naming an unknown mode or noise key fails when
-the sweep is built.
+validation. The sweep harness validates each step as a whole scene, so a sweep
+path naming an unknown key, or stepping a value out of its range, fails when the
+sweep is built.
 
 Telemetry-stage modes
 ---------------------
