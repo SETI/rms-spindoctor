@@ -36,13 +36,17 @@ from spindoctor.nav_technique.nav_technique import ROTATION_UNOBSERVABLE_VARIANC
 from spindoctor.support.types import NDArrayFloatType
 
 __all__ = [
+    'PairChoice',
     'PairHypothesis',
     'TwoStarAssignment',
     'absent_stars',
     'build_star_covariance',
+    'choose_pair',
+    'pair_brightness',
     'pair_hypotheses',
     'peak_per_snr',
     'photometry_saturated',
+    'refute_pair',
     'similarity_fit_assignment',
     'solve_assigned_pair',
     'source_peak',
@@ -513,15 +517,18 @@ def star_like_source(
     peak_per_snr: float | None,
     peak_factor: float,
     box_half_px: int,
+    exclude: tuple[tuple[float, float], ...] = (),
 ) -> tuple[float, float] | None:
     """Return a star's one source that is as bright as the star should be, if just one is.
 
     A source qualifies when its peak above the local background (:func:`source_peak`)
     lies within a factor of ``peak_factor`` of ``peak_per_snr`` times the star's predicted
     SNR; when that peak cannot be predicted (no scale, no predicted SNR, or a catalog
-    magnitude that is only a saturated lower bound) every source qualifies.  The star is
-    located only when exactly one source qualifies; a window holding several that could each
-    be the star (a field of saturated cosmic-ray hits) does not locate it.
+    magnitude that is only a saturated lower bound) every source qualifies.  A source
+    within ``SAME_SOURCE_PX`` of one of ``exclude`` (the sources a pair's own stars were
+    found at) is already accounted for and does not qualify.  The star is located only
+    when exactly one source qualifies; a window holding several that could each be the
+    star (a field of saturated cosmic-ray hits) does not locate it.
 
     Parameters:
         image_ext: 2-D extfov image array.
@@ -530,18 +537,24 @@ def star_like_source(
         peak_per_snr: The scale from :func:`peak_per_snr`, or ``None``.
         peak_factor: Largest factor between a source's peak and the star's expected peak.
         box_half_px: Half-width of the box :func:`source_peak` searches.
+        exclude: Sources that are not this star's.
 
     Returns:
         The source, or ``None`` when none or several qualify.
     """
+    candidates = [
+        det
+        for det in sources
+        if all(math.hypot(det[0] - e[0], det[1] - e[1]) >= SAME_SOURCE_PX for e in exclude)
+    ]
     snr = predicted_snr(star)
     if peak_per_snr is None or snr <= 0.0 or photometry_saturated(star):
-        qualifying = list(sources)
+        qualifying = candidates
     else:
         expected = peak_per_snr * snr
         qualifying = [
             det
-            for det in sources
+            for det in candidates
             if 1.0 / peak_factor
             <= source_peak(image_ext, det, box_half_px=box_half_px) / expected
             <= peak_factor
@@ -612,3 +625,245 @@ def absent_stars(
         if seen * peak_factor < peak_per_snr * snr:
             count += 1
     return count
+
+
+def pair_brightness(
+    image_ext: NDArrayFloatType,
+    hyp: PairHypothesis,
+    searched: list[NavFeature],
+    *,
+    box_half_px: int,
+) -> float | None:
+    """Return a pair's sources' peak per unit of predicted SNR (geometric mean).
+
+    Parameters:
+        image_ext: 2-D extfov image array.
+        hyp: The pair.
+        searched: The searched stars, indexed by ``hyp.star_indices``.
+        box_half_px: Half-width of the box :func:`source_peak` searches.
+
+    Returns:
+        The brightness, or ``None`` when a star's predicted SNR or catalog magnitude cannot
+        say how bright it should be, or a source shows no peak.
+    """
+    log_sum = 0.0
+    for k, det in zip(hyp.star_indices, hyp.detections, strict=True):
+        star = searched[k]
+        snr = predicted_snr(star)
+        peak = source_peak(image_ext, det, box_half_px=box_half_px)
+        if snr <= 0.0 or peak <= 0.0 or photometry_saturated(star):
+            return None
+        log_sum += math.log(peak / snr)
+    return math.exp(log_sum / 2.0)
+
+
+def _outside_image(
+    predicted_vu_pos: tuple[float, float], margin_vu: tuple[int, int], shape: tuple[int, ...]
+) -> bool:
+    """Return whether a prediction lies in the extended field of view's padding."""
+    v, u = predicted_vu_pos
+    return not (
+        margin_vu[0] <= v < shape[0] - margin_vu[0] and margin_vu[1] <= u < shape[1] - margin_vu[1]
+    )
+
+
+def refute_pair(
+    image_ext: NDArrayFloatType,
+    hyp: PairHypothesis,
+    searched: list[NavFeature],
+    sources: list[list[tuple[float, float]]],
+    *,
+    detect_at: Callable[
+        [NavFeature, tuple[float, float], tuple[float, float]], tuple[float, float] | None
+    ],
+    detect_star_like_at: Callable[
+        [NavFeature, tuple[float, float], tuple[float, float], float | None],
+        tuple[float, float] | None,
+    ],
+    margin_vu: tuple[int, int],
+    noise_sigma: float,
+    max_residual_px: float,
+    peak_factor: float,
+    contradiction_stars: int,
+    absent_stars_needed: int,
+    box_half_px: int,
+) -> str | None:
+    """Return why the other searched stars refute a pair's offset, or None when they do not.
+
+    The pair's two stars set the brightness scale (:func:`peak_per_snr`), the peak per unit
+    of predicted SNR, from the sources found where the pair's solution puts them, so each
+    other star's expected peak is known.  The offset is refuted when:
+
+    - no other star is found where the pair puts it as bright as it should be, and at
+      least ``contradiction_stars`` distinct sources lie elsewhere, each the one source in
+      its star's window as bright as the star should be (:func:`third_star_votes`,
+      :func:`star_like_source`; the pair's own two sources are not counted); two stars can
+      agree by coincidence, and three found elsewhere say they did; or
+    - more other stars are absent where the pair puts them than are found there, and at
+      least ``absent_stars_needed`` of them (:func:`absent_stars`), or one when both of the
+      pair's stars are predicted in the padding, in the image only if the pointing error
+      carries both in.  Each absent star is at least as bright as the pair's fainter star
+      and lies on clear sky in the image, so it should be seen.
+
+    Parameters:
+        image_ext: 2-D extfov image array.
+        hyp: The pair.
+        searched: The searched stars, brightest first.
+        sources: Each searched star's sources, strongest first.
+        detect_at: Returns the isolated point source in a window of the given ``(v, u)``
+            half-widths around a position, or ``None``.
+        detect_star_like_at: As ``detect_at``, but only a source as bright as the star
+            should be at the given scale.
+        margin_vu: ``(v, u)`` padding of the extended field of view, in pixels.
+        noise_sigma: Image noise sigma.
+        max_residual_px: The pair search's residual tolerance; a star agrees within twice it.
+        peak_factor: Factor within which a source is as bright as a star should be.
+        contradiction_stars: Distinct sources elsewhere that refute an unsupported offset.
+        absent_stars_needed: Absent stars that refute an offset.
+        box_half_px: Half-width of the box :func:`source_peak` searches.
+
+    Returns:
+        The reason, or ``None``.
+    """
+    tolerance_px = 2.0 * max_residual_px
+    tolerance_vu = (tolerance_px, tolerance_px)
+    i, j = hyp.star_indices
+    pair = [searched[i], searched[j]]
+    others = [f for k, f in enumerate(searched) if k not in (i, j)]
+    source_lists = {id(f): found for f, found in zip(searched, sources, strict=True)}
+    place = hyp.solved.place
+    scale = peak_per_snr(
+        image_ext,
+        pair,
+        place,
+        detect_at=lambda star, target: detect_at(star, target, tolerance_vu),
+        box_half_px=box_half_px,
+    )
+    agree, disagree = third_star_votes(
+        others,
+        place,
+        detect=lambda star: star_like_source(
+            image_ext,
+            star,
+            source_lists[id(star)],
+            peak_per_snr=scale,
+            peak_factor=peak_factor,
+            box_half_px=box_half_px,
+            exclude=hyp.detections,
+        ),
+        detect_near=lambda star, target: detect_star_like_at(star, target, tolerance_vu, scale),
+        tolerance_px=tolerance_px,
+    )
+    if agree == 0 and disagree >= contradiction_stars:
+        return (
+            f'{disagree} distinct source(s) as bright as other stars should be lie away '
+            f"from the pair's offset and none at it"
+        )
+    absent = absent_stars(
+        image_ext,
+        others,
+        place,
+        faint_snr=min(predicted_snr(f) for f in pair),
+        peak_per_snr=scale,
+        peak_factor=peak_factor,
+        margin_vu=margin_vu,
+        noise_sigma=noise_sigma,
+        box_half_px=box_half_px,
+    )
+    needed = (
+        1
+        if all(_outside_image(predicted_vu(f), margin_vu, image_ext.shape) for f in pair)
+        else absent_stars_needed
+    )
+    if absent >= needed and absent > agree:
+        return (
+            f"{absent} star(s) at least as bright as the pair's fainter star show nothing "
+            f'where the pair puts them in the image, {agree} found there'
+        )
+    return None
+
+
+@dataclass(frozen=True)
+class PairChoice:
+    """The outcome of judging a frame's cross-checked pairs.
+
+    Parameters:
+        best: The chosen pair, or ``None`` when every pair is ruled out.
+        rivals: Surviving pairs as well supported as ``best``, elsewhere, and nearly as
+            bright, which make the choice ambiguous.
+        reasons: Why each refuted offset was refuted, in the order judged.
+    """
+
+    best: PairHypothesis | None
+    rivals: int
+    reasons: list[str]
+
+
+def choose_pair(
+    hypotheses: list[PairHypothesis],
+    *,
+    refute: Callable[[PairHypothesis], str | None],
+    brightness: Callable[[PairHypothesis], float | None],
+    tolerance_px: float,
+    rival_factor: float,
+) -> PairChoice:
+    """Judge cross-checked pairs, best supported first, and choose one.
+
+    Pairs are taken in the order :func:`pair_hypotheses` returns them.  A pair within
+    ``tolerance_px`` of an offset already judged (a surviving pair's or a refuted one's) is
+    that offset again and is skipped.  Otherwise ``refute`` judges it; a refuted offset
+    sets aside every later pair near it, since the other stars speak to the offset rather
+    than to the pair.  Judging stops at the first pair less supported than the first
+    survivor.  Of the survivors, all equally supported, the brightest per unit of predicted
+    SNR is chosen: a ghost image of each star or a coincidence among faint sources shows
+    far less light.  Every other survivor within ``rival_factor`` of that brightness, or
+    whose brightness is unknown (as is the chosen one's, making every other a rival), is a
+    rival.
+
+    Parameters:
+        hypotheses: The pairs, best supported first.
+        refute: Returns why a pair's offset is refuted, or ``None``.
+        brightness: Returns a pair's peak per unit of predicted SNR, or ``None``.
+        tolerance_px: Distance within which two offsets are one.
+        rival_factor: Brightness factor within which a survivor is a rival.
+
+    Returns:
+        The choice.
+    """
+    reasons: list[str] = []
+    survivors: list[PairHypothesis] = []
+    refuted: list[tuple[float, float]] = []
+
+    def near(hyp: PairHypothesis, offsets: list[tuple[float, float]]) -> bool:
+        return any(
+            math.hypot(hyp.solved.offset_vu[0] - v, hyp.solved.offset_vu[1] - u) <= tolerance_px
+            for v, u in offsets
+        )
+
+    for hyp in hypotheses:
+        if survivors and hyp.support < survivors[0].support:
+            break
+        if near(hyp, [c.solved.offset_vu for c in survivors]) or near(hyp, refuted):
+            continue
+        reason = refute(hyp)
+        if reason is not None:
+            reasons.append(reason)
+            refuted.append(hyp.solved.offset_vu)
+            continue
+        survivors.append(hyp)
+    if not survivors:
+        return PairChoice(best=None, rivals=0, reasons=reasons)
+    lights = [brightness(h) for h in survivors]
+    known = [b for b in lights if b is not None]
+    best_index = (
+        max(range(len(survivors)), key=lambda k: lights[k] or 0.0)
+        if len(known) == len(survivors)
+        else 0
+    )
+    best_light = lights[best_index]
+    rivals = sum(
+        1
+        for k, b in enumerate(lights)
+        if k != best_index and (b is None or best_light is None or b * rival_factor >= best_light)
+    )
+    return PairChoice(best=survivors[best_index], rivals=rivals, reasons=reasons)

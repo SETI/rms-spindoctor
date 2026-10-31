@@ -4,20 +4,23 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
-from tests.spindoctor.nav_technique.conftest import DrawGaussianStarFactory
+from tests.spindoctor.nav_technique.conftest import DrawGaussianStarFactory, NavFeatureFactory
 
 from spindoctor.nav_technique._star_helpers import (
     _flank_outshines,
     _window_peaks,
     detection_peak_ratio,
+    distinct_stars,
     gaussian_psf_kernel,
+    local_centroid,
+    search_window_bounds,
+    window_sources,
+)
+from spindoctor.nav_technique._star_isolation import (
     is_isolated_point_source,
     isolated_response,
     isolation_lookup,
     isolation_radii,
-    local_centroid,
-    search_window_bounds,
-    window_sources,
 )
 
 # The library frame N1530185128_1 (Hyperion against stars): the prediction for its
@@ -525,3 +528,52 @@ def test_isolation_lookup_answers_as_the_single_detection_test(
         )
     ]
     assert disagree == []
+
+
+def test_window_sources_pass_over_a_bump_below_the_threshold(
+    draw_gaussian_star: DrawGaussianStarFactory,
+) -> None:
+    """A smooth bump 3 noise sigmas high is no source at a 4-sigma threshold."""
+    image = np.zeros((200, 200))
+    draw_gaussian_star(image, (102.0, 97.0), peak_dn=3.0, sigma=1.2)
+    assert _sources(image) == []
+
+
+def test_distinct_stars_keep_the_first_of_two_entries_for_one_star(
+    make_star_feature: NavFeatureFactory,
+) -> None:
+    """Entries 0.5 px apart are one star; one 5 px away is another."""
+    stars = [
+        make_star_feature('star:YBSC:1', predicted_vu=(100.0, 100.0), predicted_snr=60.0),
+        make_star_feature('star:TYCHO2:1', predicted_vu=(100.3, 100.4), predicted_snr=59.0),
+        make_star_feature('star:TYCHO2:2', predicted_vu=(105.0, 100.0), predicted_snr=50.0),
+    ]
+    kept = distinct_stars(stars)
+    assert [s.feature_id for s in kept] == ['star:YBSC:1', 'star:TYCHO2:2']
+
+
+def test_isolation_lookup_answers_as_the_single_detection_test_at_the_image_corner(
+    draw_gaussian_star: DrawGaussianStarFactory,
+) -> None:
+    """At every star of a window that runs off the image's corner the two tests agree."""
+    rng = np.random.default_rng(9)
+    image = rng.normal(0.0, 0.2, (120, 140))
+    stars = [(float(v), float(u)) for v, u in rng.uniform((2.0, 2.0), (60.0, 70.0), (25, 2))]
+    for vu in stars:
+        draw_gaussian_star(image, vu, peak_dn=30.0)
+    bounds = search_window_bounds((20.0, 25.0), (40.0, 45.0), image.shape)
+    assert bounds is not None
+    lookup = isolation_lookup(
+        image, bounds, sigma_px=1.0, kernel_half_px=3, inner_px=4, outer_px=6, max_ratio=0.5
+    )
+    answers = [
+        (
+            lookup(vu),
+            is_isolated_point_source(
+                image, vu, sigma_px=1.0, kernel_half_px=3, inner_px=4, outer_px=6, max_ratio=0.5
+            ),
+        )
+        for vu in stars
+    ]
+    assert sum(single for _, single in answers) >= 5
+    assert [window for window, _ in answers] == [single for _, single in answers]

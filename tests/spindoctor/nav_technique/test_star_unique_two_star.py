@@ -2,14 +2,20 @@
 
 from __future__ import annotations
 
+import dataclasses
+
 import numpy as np
 import pytest
 from tests.spindoctor.nav_technique.conftest import DrawGaussianStarFactory, NavFeatureFactory
 
 from spindoctor.feature.feature import NavFeature
+from spindoctor.feature.flags import StarFlags
 from spindoctor.nav_technique._star_unique_two_star import (
+    PairChoice,
+    PairHypothesis,
     TwoStarAssignment,
     absent_stars,
+    choose_pair,
     pair_hypotheses,
     peak_per_snr,
     source_peak,
@@ -192,20 +198,32 @@ def test_absent_stars_count_a_star_missing_from_clear_sky(
 
 
 @pytest.mark.parametrize(
-    ('where', 'snr'), [('in-padding', 10.0), ('fainter-than-the-pair', 5.0), ('on-a-ring', 10.0)]
+    ('where', 'snr'),
+    [
+        ('in-padding', 10.0),
+        ('fainter-than-the-pair', 5.0),
+        ('on-a-ring', 10.0),
+        ('saturated-catalog-magnitude', 10.0),
+    ],
 )
 def test_absent_stars_judge_only_a_bright_star_on_clear_sky_in_the_image(
     make_star_feature: NavFeatureFactory,
     where: str,
     snr: float,
 ) -> None:
-    """A star in the padding, fainter than the pair, or on a textured ring is not judged."""
+    """A star in the padding, fainter than the pair, on a textured ring, or of saturated
+    catalog magnitude is not judged."""
     rng = np.random.default_rng(2)
     image = rng.normal(0.0, 1.0, (200, 200))
     pred = (8.0, 100.0) if where == 'in-padding' else (100.0, 100.0)
     if where == 'on-a-ring':
         image[80:120, :] += rng.normal(50.0, 10.0, (40, 200))
     star = make_star_feature('star:UCAC4:0', predicted_vu=pred, predicted_snr=snr)
+    if where == 'saturated-catalog-magnitude':
+        assert isinstance(star.flags, StarFlags)
+        star = dataclasses.replace(
+            star, flags=dataclasses.replace(star.flags, photometry_saturated=True)
+        )
     assert _absent_count(image, [star]) == 0
 
 
@@ -313,3 +331,73 @@ def test_one_source_in_two_windows_disagrees_once(
         tolerance_px=2.4,
     )
     assert result == votes
+
+
+def _hyp(offset_vu: tuple[float, float], support: int) -> PairHypothesis:
+    """Return a pair hypothesis at an offset with a given support."""
+    return PairHypothesis(
+        star_indices=(0, 1),
+        ranks=(0, 0),
+        detections=((0.0, 0.0), (10.0, 10.0)),
+        solved=TwoStarAssignment(offset_vu=offset_vu, residual_px=0.1, rotation_rad=None),
+        support=support,
+        spread_px=0.0,
+    )
+
+
+def _choose(
+    hypotheses: list[PairHypothesis],
+    lights: dict[tuple[float, float], float | None],
+    refuted: frozenset[tuple[float, float]] = frozenset(),
+) -> PairChoice:
+    """Choose among hypotheses whose brightness and refutation are looked up by offset."""
+    return choose_pair(
+        hypotheses,
+        refute=lambda h: 'refuted' if h.solved.offset_vu in refuted else None,
+        brightness=lambda h: lights[h.solved.offset_vu],
+        tolerance_px=2.4,
+        rival_factor=4.0,
+    )
+
+
+def test_choose_pair_takes_the_brightest_of_equally_backed_pairs() -> None:
+    """A pair ten times brighter wins though it comes second."""
+    choice = _choose(
+        [_hyp((0.0, 0.0), 2), _hyp((20.0, 0.0), 2)], {(0.0, 0.0): 1.0, (20.0, 0.0): 10.0}
+    )
+    assert choice.best is not None
+    assert choice.best.solved.offset_vu == (20.0, 0.0)
+    assert choice.rivals == 0
+
+
+@pytest.mark.parametrize(('light', 'rivals'), [(3.0, 1), (None, 1), (1.0, 0)])
+def test_choose_pair_counts_a_rival_within_the_factor_or_of_unknown_brightness(
+    light: float | None, rivals: int
+) -> None:
+    """A second pair at 3 of the first's 10 is a rival; so is one of unknown brightness."""
+    choice = _choose(
+        [_hyp((0.0, 0.0), 2), _hyp((20.0, 0.0), 2)], {(0.0, 0.0): 10.0, (20.0, 0.0): light}
+    )
+    assert choice.rivals == rivals
+
+
+def test_choose_pair_judges_no_pair_less_backed_than_the_first_survivor() -> None:
+    """A brighter pair backed by fewer stars is neither chosen nor a rival."""
+    choice = _choose(
+        [_hyp((0.0, 0.0), 3), _hyp((20.0, 0.0), 2)], {(0.0, 0.0): 1.0, (20.0, 0.0): 10.0}
+    )
+    assert choice.best is not None
+    assert choice.best.solved.offset_vu == (0.0, 0.0)
+    assert choice.rivals == 0
+
+
+def test_choose_pair_sets_aside_every_pair_near_a_refuted_offset() -> None:
+    """A pair 1 px from a refuted offset is set aside, and the next offset is chosen."""
+    choice = _choose(
+        [_hyp((0.0, 0.0), 3), _hyp((1.0, 0.0), 3), _hyp((20.0, 0.0), 2)],
+        {(0.0, 0.0): 1.0, (1.0, 0.0): 1.0, (20.0, 0.0): 1.0},
+        refuted=frozenset({(0.0, 0.0)}),
+    )
+    assert choice.best is not None
+    assert choice.best.solved.offset_vu == (20.0, 0.0)
+    assert choice.reasons == ['refuted']

@@ -24,14 +24,14 @@ from dataclasses import dataclass
 from typing import cast
 
 import numpy as np
-from scipy.ndimage import correlate, maximum_filter
+from scipy.ndimage import maximum_filter
 
 from spindoctor.feature.feature import NavFeature
 from spindoctor.feature.feature_type import NavFeatureType
 from spindoctor.feature.flags import StarFlags
 from spindoctor.feature.geometry import StarGeometry
 from spindoctor.nav_model.stars.detection import matched_filter_image
-from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
+from spindoctor.support.types import NDArrayFloatType
 
 __all__ = [
     'SAME_SOURCE_PX',
@@ -39,10 +39,8 @@ __all__ = [
     'WindowSource',
     'brightness_margin_mag',
     'detection_peak_ratio',
+    'distinct_stars',
     'gaussian_psf_kernel',
-    'is_isolated_point_source',
-    'isolated_response',
-    'isolation_lookup',
     'local_centroid',
     'predicted_snr',
     'predicted_vu',
@@ -52,6 +50,9 @@ __all__ = [
     'usable_stars',
     'window_sources',
 ]
+
+SAME_SOURCE_PX = 1.0
+"""Centroids closer than this (px) are one source."""
 
 
 def star_features(features: list[NavFeature]) -> list[NavFeature]:
@@ -83,6 +84,30 @@ def usable_stars(features: list[NavFeature]) -> list[NavFeature]:
             continue
         out.append(f)
     return out
+
+
+def distinct_stars(ranked: list[NavFeature]) -> list[NavFeature]:
+    """Return stars, brightest first, without the ones another star stands for.
+
+    Two catalog entries predicted within ``SAME_SOURCE_PX`` of each other (a star listed in
+    two catalogs, or listed twice) are one source in the image, and counting it twice would
+    count one detection, or one absence, as two.  The first of them in ``ranked`` is kept.
+
+    Parameters:
+        ranked: Star features, brightest predicted SNR first.
+
+    Returns:
+        The stars kept, in the same order.
+    """
+    kept: list[NavFeature] = []
+    for star in ranked:
+        pv, pu = predicted_vu(star)
+        if all(
+            math.hypot(pv - predicted_vu(k)[0], pu - predicted_vu(k)[1]) >= SAME_SOURCE_PX
+            for k in kept
+        ):
+            kept.append(star)
+    return kept
 
 
 def predicted_snr(feature: NavFeature) -> float:
@@ -365,8 +390,6 @@ def _window_peaks(
 
 _MAX_RECENTER = 5
 _MAX_CANDIDATES = 16
-SAME_SOURCE_PX = 1.0
-"""Centroids closer than this (px) are one source."""
 
 
 def _box(image_ext: NDArrayFloatType, v: int, u: int, half: int) -> NDArrayFloatType:
@@ -695,15 +718,16 @@ def window_sources(
     The window and its matched-filter peaks are those of :func:`local_centroid`, and each
     peak, taken in order of falling response, is measured as it measures its one
     candidate: a peak sharper than a star is skipped, so is one whose box's brightest
-    pixel stands less than ``detection_sigma * image_noise_sigma`` above the box's
-    median, and so is one whose re-centered box walks away.  A peak that passes and
-    that ``accept`` takes (the caller's isolation test) is a source; one whose centroid
-    lies within a pixel of a source already found is that source again.  Every peak of
-    the window may be put to ``accept``, so it should be cheap: :func:`isolation_lookup`
-    builds the isolation test once for a whole window.  Where
-    :func:`local_centroid` measures only the window's strongest peak and reports no
-    detection when that peak is not a star, this keeps looking, so a ring's flank or
-    a brighter source elsewhere in a wide window does not hide the star.
+    pixel stands less than ``detection_sigma * image_noise_sigma`` above the box's median,
+    and so is one whose re-centered box walks away.  A peak that passes and that
+    ``accept`` takes (the caller's isolation test) is a source; one whose centroid lies
+    within a pixel of a source already found is that source again.  Every peak of the
+    window may be put to ``accept``, so it should be cheap:
+    :func:`~spindoctor.nav_technique._star_isolation.isolation_lookup` builds the
+    isolation test once for a whole window.  Where :func:`local_centroid` measures only
+    the window's strongest peak and reports no detection when that peak is not a star,
+    this keeps looking, so a ring's flank or a brighter source elsewhere in a wide window
+    does not hide the star.
 
     Parameters:
         image_ext: 2-D extfov image array.
@@ -842,198 +866,3 @@ def smear_length_px(feature: NavFeature) -> float:
     """Return a STAR feature's expected smear length in pixels (0.0 without star flags)."""
     flags = feature.flags
     return float(flags.smear_length_px) if isinstance(flags, StarFlags) else 0.0
-
-
-def isolation_radii(inner_px: int, outer_px: int, smear_px: float) -> tuple[int, int]:
-    """Return the isolation annulus radii widened for a smeared star.
-
-    A star smeared over ``smear_px`` pixels reaches half that length either side of
-    its center, so the annulus moves out by that much: the star's own streak does not
-    cross it, while a ridge of a ring or a cosmic-ray track crosses an annulus of any
-    radius.
-
-    Parameters:
-        inner_px: Inner radius for an unsmeared star, in pixels.
-        outer_px: Outer radius for an unsmeared star, in pixels.
-        smear_px: Expected smear length in pixels.
-
-    Returns:
-        ``(inner, outer)`` radii in whole pixels.
-    """
-    margin = math.ceil(max(smear_px, 0.0) / 2.0)
-    return inner_px + margin, outer_px + margin
-
-
-def _annulus_footprint(inner_px: int, outer_px: int) -> NDArrayBoolType:
-    """Return a boolean annulus footprint of radii ``[inner_px, outer_px]``.
-
-    Parameters:
-        inner_px: Inner radius in pixels (inclusive).
-        outer_px: Outer radius in pixels (inclusive); the footprint is
-            ``2 * outer_px + 1`` pixels square.
-
-    Returns:
-        A ``(2 * outer_px + 1, 2 * outer_px + 1)`` boolean array, True on the
-        annulus.
-    """
-    grid_v, grid_u = np.mgrid[-outer_px : outer_px + 1, -outer_px : outer_px + 1]
-    radius = np.hypot(grid_v, grid_u)
-    footprint: NDArrayBoolType = (radius >= inner_px) & (radius <= outer_px)
-    return footprint
-
-
-def isolated_response(
-    response: NDArrayFloatType,
-    *,
-    inner_px: int,
-    outer_px: int,
-    max_ratio: float,
-) -> NDArrayBoolType:
-    """Return where a matched-filter response is an isolated peak.
-
-    Over an annulus of radii ``[inner_px, outer_px]`` around each pixel, the
-    brightest response may exceed the annulus mean by less than ``max_ratio``
-    of the pixel's own height above that mean.  A point source falls to the
-    background well inside the annulus, so its annulus is flat; a ridge along a
-    ring or a limb, or a cosmic-ray track, crosses the annulus and lifts its
-    maximum to nearly the peak.
-
-    Parameters:
-        response: Matched-filter response image.
-        inner_px: Inner annulus radius in pixels.
-        outer_px: Outer annulus radius in pixels.
-        max_ratio: Largest allowed ratio of the annulus maximum's excess over
-            the annulus mean to the pixel's excess over it.
-
-    Returns:
-        Boolean array of ``response``'s shape, True where the pixel is isolated.
-    """
-    annulus = _annulus_footprint(inner_px, outer_px)
-    annulus_mean = correlate(
-        response, annulus.astype(np.float64) / float(annulus.sum()), mode='reflect'
-    )
-    annulus_max = maximum_filter(response, footprint=annulus, mode='reflect')
-    isolated: NDArrayBoolType = annulus_max - annulus_mean < max_ratio * (response - annulus_mean)
-    return isolated
-
-
-def is_isolated_point_source(
-    image_ext: NDArrayFloatType,
-    detection_vu: tuple[float, float],
-    *,
-    sigma_px: float,
-    kernel_half_px: int,
-    inner_px: int,
-    outer_px: int,
-    max_ratio: float,
-) -> bool:
-    """Return whether a detection is an isolated point source.
-
-    Applies :func:`isolated_response` to the matched-filter response of a patch
-    of the image around the detection, at the brightest response within a pixel
-    of the detection's centroid.  This is the test the star field's source
-    detection applies to every source, applied to one detection.
-
-    Parameters:
-        image_ext: 2-D extfov image array the detection was made in.
-        detection_vu: ``(v, u)`` centroid of the detection.
-        sigma_px: PSF sigma of the matched-filter kernel, in pixels.
-        kernel_half_px: Half-width of the matched-filter kernel, in pixels.
-        inner_px: Inner annulus radius in pixels.
-        outer_px: Outer annulus radius in pixels.
-        max_ratio: Largest allowed ratio of the annulus maximum's excess over
-            the annulus mean to the peak's excess over it.
-
-    Returns:
-        True when the detection's peak is isolated.
-    """
-    reach = outer_px + kernel_half_px + 2
-    h, w = image_ext.shape
-    v_c = min(max(round(detection_vu[0]), 0), h - 1)
-    u_c = min(max(round(detection_vu[1]), 0), w - 1)
-    v_lo, v_hi = max(0, v_c - reach), min(h, v_c + reach + 1)
-    u_lo, u_hi = max(0, u_c - reach), min(w, u_c + reach + 1)
-    # A detection near the array edge gets a patch completed by reflection, as
-    # the whole-image filter in the star field's detection does.
-    patch = np.pad(
-        np.asarray(image_ext[v_lo:v_hi, u_lo:u_hi], np.float64),
-        (
-            (v_lo - (v_c - reach), (v_c + reach + 1) - v_hi),
-            (u_lo - (u_c - reach), (u_c + reach + 1) - u_hi),
-        ),
-        mode='reflect',
-    )
-    response = matched_filter_image(
-        patch, kernel=gaussian_psf_kernel(sigma_px, size=2 * kernel_half_px + 1)
-    )
-    isolated = isolated_response(
-        response, inner_px=inner_px, outer_px=outer_px, max_ratio=max_ratio
-    )
-    core = response[reach - 1 : reach + 2, reach - 1 : reach + 2]
-    dv, du = np.unravel_index(int(np.argmax(core)), core.shape)
-    return bool(isolated[reach - 1 + int(dv), reach - 1 + int(du)])
-
-
-def isolation_lookup(
-    image_ext: NDArrayFloatType,
-    bounds: tuple[int, int, int, int],
-    *,
-    sigma_px: float,
-    kernel_half_px: int,
-    inner_px: int,
-    outer_px: int,
-    max_ratio: float,
-) -> Callable[[tuple[float, float]], bool]:
-    """Return :func:`is_isolated_point_source` for detections in one window, built once.
-
-    The matched-filter response and its isolation map are computed once over the window
-    grown by the reach the single-detection test reads, with the image completed by
-    reflection beyond its edges as that test completes it, so each lookup returns what
-    :func:`is_isolated_point_source` returns for a detection in the window, at the cost of
-    one array read instead of one filter pass per detection.
-
-    Parameters:
-        image_ext: 2-D extfov image array.
-        bounds: ``(v_lo, v_hi, u_lo, u_hi)`` of the window, from
-            :func:`search_window_bounds`.
-        sigma_px: PSF sigma of the matched-filter kernel, in pixels.
-        kernel_half_px: Half-width of the matched-filter kernel, in pixels.
-        inner_px: Inner annulus radius in pixels.
-        outer_px: Outer annulus radius in pixels.
-        max_ratio: Largest allowed ratio of the annulus maximum's excess over the annulus
-            mean to the peak's excess over it.
-
-    Returns:
-        A function of a detection's ``(v, u)`` centroid, which must lie in the window,
-        returning whether the detection is isolated.
-    """
-    reach = outer_px + kernel_half_px + 2
-    h, w = image_ext.shape
-    v_lo, v_hi, u_lo, u_hi = bounds
-    pv_lo, pv_hi = v_lo - reach - 1, v_hi + reach + 1
-    pu_lo, pu_hi = u_lo - reach - 1, u_hi + reach + 1
-    patch = np.pad(
-        np.asarray(
-            image_ext[max(0, pv_lo) : min(h, pv_hi), max(0, pu_lo) : min(w, pu_hi)], np.float64
-        ),
-        (
-            (max(0, pv_lo) - pv_lo, pv_hi - min(h, pv_hi)),
-            (max(0, pu_lo) - pu_lo, pu_hi - min(w, pu_hi)),
-        ),
-        mode='reflect',
-    )
-    response = matched_filter_image(
-        patch, kernel=gaussian_psf_kernel(sigma_px, size=2 * kernel_half_px + 1)
-    )
-    isolated = isolated_response(
-        response, inner_px=inner_px, outer_px=outer_px, max_ratio=max_ratio
-    )
-
-    def lookup(detection_vu: tuple[float, float]) -> bool:
-        v_c = min(max(round(detection_vu[0]), 0), h - 1) - pv_lo
-        u_c = min(max(round(detection_vu[1]), 0), w - 1) - pu_lo
-        core = response[v_c - 1 : v_c + 2, u_c - 1 : u_c + 2]
-        dv, du = np.unravel_index(int(np.argmax(core)), core.shape)
-        return bool(isolated[v_c - 1 + int(dv), u_c - 1 + int(du)])
-
-    return lookup

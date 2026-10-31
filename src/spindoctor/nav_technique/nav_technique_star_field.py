@@ -61,13 +61,15 @@ from spindoctor.nav_technique._star_helpers import (
     SimilarityFit,
     brightness_margin_mag,
     gaussian_psf_kernel,
-    isolated_response,
-    isolation_radii,
     predicted_snr,
     predicted_vu,
     similarity_transform_fit,
     smear_length_px,
     usable_stars,
+)
+from spindoctor.nav_technique._star_isolation import (
+    isolated_response,
+    isolation_radii,
 )
 from spindoctor.nav_technique.confidence import evaluate_sigmoid_combination
 from spindoctor.nav_technique.diagnostics import StarFieldDiagnostics

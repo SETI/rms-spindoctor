@@ -807,9 +807,8 @@ techniques:
       # 1.2 px keeps 701 of the 704, and admits the correct 1.04 px pair
       # of library frame N1550270436, which 1.0 px refuses.  A star is
       # found at a pair's offset when one of its candidates lies within
-      # twice this of where the offset puts it; two pairs backed by as many
-      # stars whose offsets differ by more than twice this are ambiguous and
-      # the technique reports spurious.
+      # twice this of where the offset puts it; pairs whose offsets differ
+      # by more than twice this are different answers.
       max_residual_px: 1.2
       # Number of brightest usable stars whose candidates the 2-star path
       # pairs.  Searching only the brightest two refuses frames whose
@@ -826,9 +825,10 @@ techniques:
       # star's own source is the strongest, second, or third in all but 2
       # of 3108 Cassini NAC star windows on F ring frames (2835, 254, and 17
       # times; fourth twice).
-      # Each further candidate is one more chance of a coincidence: with 5,
-      # F ring frame N1616527595 pairs two faint sources ranked 4th and 5th
-      # 97 px from the bundle's answer.
+      # Each further candidate is one more chance of a coincidence: with 4
+      # or 5, two sources of F ring frame N1615481899 ranked 1st and 4th
+      # agree 128 px from the bundle's answer, within a factor of 4 of the
+      # right pair's brightness, and the frame is refused as ambiguous.
       pair_search_sources: 3
       # A pair's offset is refuted when at least this many of the other
       # searched stars are each located elsewhere and none is found at the
@@ -853,22 +853,24 @@ techniques:
       # clear sky inside the image where the pair puts them and show
       # nothing there (a peak below the pair's prediction for them divided
       # by pair_vote_peak_factor), and they outnumber the other stars found
-      # there.  On library frame N1598093741, whose stars are
-      # smeared over 19 px, two sources that are not stars agree 45 px from
-      # the answer and its two brightest stars show nothing there.  One
-      # absent star does not refuse: a catalog star brighter than the pair
-      # shows nothing at the right offset on a dozen ISS_006RI frames.
+      # there.  On library frame N1598093741, whose stars are smeared over
+      # 19 px, two sources that are not stars agree 45 px from the answer
+      # and its two brightest stars show nothing there.  One absent star
+      # does not refute: a catalog star brighter than the pair shows nothing
+      # at the right offset on a dozen ISS_006RI frames.  It does when both
+      # of the pair's stars are predicted in the padding, in the image only
+      # if the pointing error carries both in: on F ring frame N1755782055
+      # two such stars pair two unrelated sources 85 px from the bundle's
+      # answer, where the brightest star, on clear sky, shows nothing.
       pair_absent_stars: 2
       # Factor within which the peak above the local background of a source
       # found where the pair's offset puts another star must match the peak
       # the pair's two stars show per unit of predicted SNR, for the source
       # to vote for the pair.  A faint field star or a cosmic-ray hit lying
-      # there by chance is a small fraction of that and does not vote.  Two
-      # stars that each lie within this factor of a shared scale differ by
-      # at most its square, so a pair whose own two stars differ by more is
-      # ruled out; and of several pairs backed by equally many stars, the
-      # brightest per unit of predicted SNR is the answer unless another
-      # lies within this factor of it.  On 93
+      # there by chance is a small fraction of that and does not vote.  Of
+      # several pairs backed by equally many stars, the brightest per unit
+      # of predicted SNR is the answer unless another lies within this
+      # factor of it.  On 93
       # two-star answers from the F ring movies set aside for tuning, the
       # other stars found at the pair's offset had peaks 0.35 to 2.8 times
       # their expected value (2nd and 99th percentiles of the 492 stars at
