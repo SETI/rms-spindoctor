@@ -344,12 +344,11 @@ Three things, each impossible with real frames alone:
   the method's assumption does not describe.
 - **Failure modes real data cannot isolate become provable.** The worked
   example is the planted-radial-error family: ``orbit_error_ringlet`` plants
-  a 2.5 px radial catalog error and the fused result is a high-tier success
-  at confidence 0.89, roughly 3 px wrong. On a real frame this is
-  indistinguishable from a good lock -- only a frame whose truth is known by
-  construction can *prove* the ensemble confidently absorbs this error, and
-  keep proving it (the honest pin in :ref:`sim-expected`) until the gap is
-  closed.
+  a 2.5 px radial catalog error and the fused result is a success roughly
+  3 px wrong. On a real frame this is indistinguishable from a good lock --
+  only a frame whose truth is known by construction can *prove* the ensemble
+  absorbs this error into the offset, and keep proving it (the honest pin in
+  :ref:`sim-expected`) until the gap is closed.
 
 What it cannot do
 -----------------

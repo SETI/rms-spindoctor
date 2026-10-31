@@ -23,31 +23,25 @@ exposure_sec: 1.0
 # radial error dilates a full ring rather than translating it), yet the
 # nonlinear acquisition demonstrably does lock onto a translation, so the
 # term is reported isotropically -- the bound on every axis, since which
-# direction it locks is exactly what cannot be predicted.  Measured
-# outcome: success/MEDIUM at (-1.26, -1.95) px against the planted
-# (1.0, -1.5), fused error 2.31 px, fused sigma (1.79, 1.77) px -- above
-# the high tier's 0.5 px cap, so the tier demotes honestly, and the fused
-# sigma now COVERS the error at ~1.3 sigma (it was ~2.8 sigma when only
-# the edge inflated and the tight annulus carried the fused radial axis).
-# That covering error bar is the point: the frame reports a radial
+# direction it locks is exactly what cannot be predicted.  Because the
+# two ring techniques read one catalog model, the ensemble collapses them
+# to a single witness before the fuse, so the declared error bar isn't
+# shrunk by a second, correlated view of the same misplaced annulus.
+# Measured outcome: success/LOW at (-2.03, -2.41) px against the planted
+# (1.0, -1.5), fused error 3.2 px, fused sigma (2.50, 2.45) px, confidence
+# 0.89 -- the sigma covers the error at ~1.3 sigma and holds the tier at
+# low.  That covering error bar is the point: the frame reports a radial
 # precision consistent with how far it can actually be from truth.
-# The scalar confidence RISES to 0.99, which is the correlated-witness
-# artifact: both ring techniques observe the same misplaced
-# annulus, so inflating both isotropically re-couples their weights and
-# unlocks the two-member agreement boost.  The tier (governed by the
-# fused sigma, not the scalar) stays medium, and the scalar artifact is
-# tracked separately; it is documented here rather than masked.
 # NOTE ON WHAT THIS SCENE GUARDS: the recovered error staying in the
-# 2.3 +/- 1.0 band, the fused sigma covering it, and the tier staying out
-# of high.  It no longer guards the original ~3 px confident-wrong
-# recovery -- that behavior no longer occurs, and a future change that
-# reintroduced it would show up as the error leaving the band from ABOVE,
-# not as this pin passing.  The standing hazard it documents is that a
+# 3.2 +/- 1.0 band, the fused sigma covering it, and the tier staying at
+# low.  The error is still about the ~3 px the original confident-wrong
+# recovery had; what changed is the confidence, so a future change that
+# reintroduced that behavior would show up as the tier rising above low.  The standing hazard it documents is that a
 # planted radial catalog error is still absorbed into the offset at all.
 expected:
   status: success
-  confidence_tier: medium
-  known_offset_error_px: 2.3
+  confidence_tier: low
+  known_offset_error_px: 3.2
   known_offset_error_tol_px: 1.0
 bodies: []
 ring_system:
