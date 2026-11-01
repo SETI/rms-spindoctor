@@ -570,6 +570,25 @@ def test_validate_sim_params_accepts_ellipsoid_appearance_keys() -> None:
     assert validate_sim_params(params) is params
 
 
+@pytest.mark.parametrize(
+    ('key', 'value'),
+    [('shading', 'gouraud'), ('mesh_detail_octaves', 2), ('pose_scatter', {'sigma_deg': 1.0})],
+)
+@pytest.mark.parametrize('shape_model', ['ellipsoid', None])
+def test_validate_sim_params_rejects_mesh_only_key_on_ellipsoid(
+    key: str, value: Any, shape_model: str | None
+) -> None:
+    """A mesh-only key fails on an ellipsoid body, stated or by default."""
+    params = _sim_params()
+    params['bodies'][0][key] = value
+    if shape_model is not None:
+        params['bodies'][0]['shape_model'] = shape_model
+    with pytest.raises(
+        SimSceneValidationError, match=rf"\['{key}'\] are not supported on ellipsoid bodies"
+    ):
+        validate_sim_params(params)
+
+
 def test_validate_sim_params_accepts_a_clear_atmosphere() -> None:
     """A ``tau_ref`` of 0 validates: a clear atmosphere that leaves the limb hard."""
     params = _sim_params()

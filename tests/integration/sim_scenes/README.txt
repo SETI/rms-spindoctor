@@ -254,6 +254,11 @@ carries out of the scene, and the status bar names them; switching it back to
 ellipsoid in the same session restores them, and a saved mesh scene file
 doesn't carry them.
 
+The reverse holds too: an ellipsoid body, stated or by default, refuses a
+non-null shading, mesh_detail_octaves, or pose_scatter, which the ellipsoid
+renderer would silently ignore.  Switching a mesh body to ellipsoid in the
+editor moves those keys out the same way, and switching back restores them.
+
 A body may also carry an optional nav_override mapping.  The renderer ignores it
 (it always draws the true geometry), but the navigator builds its predicted body
 from the body params with nav_override overlaid -- the channel that makes the

@@ -251,6 +251,42 @@ def mesh_unsupported_message(keys: Iterable[str]) -> str:
     )
 
 
+# Body keys only the polyhedral-mesh render path consumes: the rasterizer's
+# smooth-shading mode, the higher-degree relief bands added to the mesh, and the
+# per-frame pose error.  The ellipsoid renderer never reads them, so the
+# validator refuses a non-null value of any of them on an ellipsoid body (a body
+# without a shape_model is one).  The navigator's own mesh, when a nav_override
+# makes it one, takes its geometry from that override.  The sim editor reads
+# this table too: switching a body to an ellipsoid moves these keys out of the
+# scene.
+ELLIPSOID_UNSUPPORTED_KEYS: tuple[str, ...] = (
+    'shading',
+    'mesh_detail_octaves',
+    'pose_scatter',
+)
+
+
+def ellipsoid_unsupported_message(keys: Iterable[str]) -> str:
+    """The sentence that refuses mesh-only keys on an ellipsoid body.
+
+    The scene validator raises it, prefixed with the scene source and the body's
+    label, when an ellipsoid body gives keys from
+    :data:`ELLIPSOID_UNSUPPORTED_KEYS` a non-null value.
+
+    Parameters:
+        keys: The refused keys to name; the sentence lists them sorted.
+
+    Returns:
+        The sentence, such as ``"['shading'] are not supported on ellipsoid
+        bodies (...)"``.
+    """
+    return (
+        f'{sorted(keys)} are not supported on ellipsoid bodies (the ellipsoid '
+        f'renderer would silently ignore them); set shape_model: polyhedral_mesh '
+        f'to use them'
+    )
+
+
 # Per-star idealized keys: catalog identity, position, magnitude, spectral
 # class, the predicted smear vector (the pipeline computes it from attitude
 # telemetry), and the PSF fitting-window size (instrument configuration).

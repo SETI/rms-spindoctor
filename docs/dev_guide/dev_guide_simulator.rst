@@ -1595,6 +1595,13 @@ control that writes one of these keys, and it shows the refusal as the tooltip
 of that control and of every control and label inside it, so hovering any of
 them explains why it is disabled (see :ref:`sim-gui`).
 
+The reverse rule holds too. The validator rejects a non-null value of the three
+mesh-only appearance keys, ``shading``, ``mesh_detail_octaves``, and
+``pose_scatter``, on an ellipsoid body, including a body that doesn't state a
+``shape_model``. The ellipsoid renderer would silently ignore them. That list is
+``ELLIPSOID_UNSUPPORTED_KEYS`` beside ``MESH_UNSUPPORTED_KEYS``. The editor
+keeps their controls in one group, which it disables on an ellipsoid body.
+
 Silhouette ``anti_aliasing`` is consumed at oversample 1 only, on both render
 paths (an oversampled scene already resolves the limb on its own grid).
 
@@ -3324,7 +3331,9 @@ realism addition needs -- live in their own module:
        stash held for the session, so a mesh body the editor holds or saves
        never carries a refused key, and the status bar names the keys moved.
        Switching the body back to an ellipsoid restores the stashed keys, the
-       controls, and their own tooltips. A saved mesh scene file doesn't
+       controls, and their own tooltips. The same switch moves the body's
+       mesh-only keys (``ELLIPSOID_UNSUPPORTED_KEYS``) into the stash, and
+       switching back to a mesh restores them. A saved scene file doesn't
        carry the stashed keys. Load Scene clears the stash, and deleting a
        body drops its entry.
 

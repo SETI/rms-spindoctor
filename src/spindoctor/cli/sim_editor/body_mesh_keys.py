@@ -1,9 +1,11 @@
-"""Keep a polyhedral-mesh body inside the keys the scene validator accepts.
+"""Keep each body inside the keys the scene validator accepts for its shape model.
 
 The scene validator refuses a non-null value of every key in
 :data:`spindoctor.sim.scene_schema.MESH_UNSUPPORTED_KEYS` on a
-``shape_model: polyhedral_mesh`` body.  This module is the editor's side of that
-rule, read from the same table so the two cannot drift:
+``shape_model: polyhedral_mesh`` body, and of every key in
+:data:`spindoctor.sim.scene_schema.ELLIPSOID_UNSUPPORTED_KEYS` on an ellipsoid
+body.  This module is the editor's side of those rules, read from the same
+tables so the two cannot drift:
 
 - :data:`MESH_REFUSED_WIDGETS` names, for each refused key, the body-tab widget
   attributes whose controls write it.  Every key in the table must have an entry;
@@ -11,10 +13,11 @@ rule, read from the same table so the two cannot drift:
 - :func:`sync_mesh_refused_widgets` disables those controls on a mesh body and
   gives each, and every control and label inside it, the validator's own
   sentence as its tooltip, then restores both on an ellipsoid.
-- :class:`MeshKeyStash` holds the refused keys a body carried when it was
-  switched to a mesh.  Switching moves them out of the scene, so a mesh body the
-  editor holds or saves never carries a refused key, and switching back to an
-  ellipsoid puts them back.  :func:`stash_message` is the status-bar sentence
+- :class:`MeshKeyStash` holds the refused keys a body carried when its shape
+  model was switched.  Switching moves them out of the scene, so a body the
+  editor holds or saves never carries a key its shape refuses, and switching
+  back puts them back.  The mesh-only controls sit in one group that an
+  ellipsoid body disables.  :func:`stash_message` is the status-bar sentence
   that tells the operator which keys moved.
 """
 
@@ -23,7 +26,11 @@ from typing import Any
 
 from PyQt6.QtWidgets import QAbstractSpinBox, QComboBox, QWidget
 
-from spindoctor.sim.scene_schema import MESH_UNSUPPORTED_KEYS, mesh_unsupported_message
+from spindoctor.sim.scene_schema import (
+    ELLIPSOID_UNSUPPORTED_KEYS,
+    MESH_UNSUPPORTED_KEYS,
+    mesh_unsupported_message,
+)
 
 # The body-tab widget attributes that write each refused key.  A key written by
 # a checkable group maps to the group: disabling it disables every control
@@ -53,23 +60,42 @@ _OWN_TOOLTIP = 'ellipsoid_tooltip'
 STASH_MESSAGE_MS = 15000
 
 
-def stash_message(body_name: str, keys: Iterable[str]) -> str:
-    """The status-bar sentence shown when a switch to a mesh stashes keys.
+def stash_message(body_name: str, keys: Iterable[str], shape_model: str) -> str:
+    """The status-bar sentence shown when a shape-model switch stashes keys.
 
     Parameters:
         body_name: The body's name, as its tab shows it.
         keys: The keys the switch moved out of the scene.
+        shape_model: The shape model switched to, ``'polyhedral_mesh'`` or
+            ``'ellipsoid'``.
 
     Returns:
-        A sentence naming the keys, saying that switching the body back to an
-        ellipsoid restores them in this editor session, and that a saved mesh scene
-        file doesn't carry them.
+        A sentence naming the keys, saying that switching the body back to the
+        other shape model restores them in this editor session, and that a saved
+        scene file doesn't carry them.
     """
+    other = 'ellipsoid' if shape_model == 'polyhedral_mesh' else 'polyhedral_mesh'
+    short = 'mesh' if shape_model == 'polyhedral_mesh' else 'ellipsoid'
     return (
         f'{body_name}: moved {", ".join(keys)} out of the scene, because a '
-        "polyhedral_mesh body doesn't support them. Switching back to ellipsoid "
-        "restores them in this session; a saved mesh scene file doesn't carry them."
+        f"{shape_model} body doesn't support them. Switching back to {other} "
+        f"restores them in this session; a saved {short} scene file doesn't carry them."
     )
+
+
+def refused_keys(shape_model: str) -> tuple[str, ...]:
+    """The keys the scene validator refuses on a body of ``shape_model``.
+
+    Parameters:
+        shape_model: ``'polyhedral_mesh'``, or anything else for an ellipsoid.
+
+    Returns:
+        :data:`~spindoctor.sim.scene_schema.MESH_UNSUPPORTED_KEYS` for a mesh, else
+        :data:`~spindoctor.sim.scene_schema.ELLIPSOID_UNSUPPORTED_KEYS`.
+    """
+    if shape_model == 'polyhedral_mesh':
+        return MESH_UNSUPPORTED_KEYS
+    return ELLIPSOID_UNSUPPORTED_KEYS
 
 
 def _refused_keys_by_widget() -> dict[str, list[str]]:
@@ -138,7 +164,7 @@ def sync_mesh_refused_widgets(w: QWidget, is_mesh: bool) -> None:
 
 
 class MeshKeyStash:
-    """The refused keys each body carried when the editor switched it to a mesh.
+    """The refused keys each body carried when the editor switched its shape model.
 
     Entries are keyed by the body dict's identity and keep the dict itself, so an
     entry follows its body through tab rebuilds and index shifts, and a deleted
@@ -164,33 +190,43 @@ class MeshKeyStash:
             return {}
         return entry[1]
 
-    def take(self, body: dict[str, Any]) -> list[str]:
-        """Move every refused key ``body`` carries into the stash.
+    def take(self, body: dict[str, Any], keys: Iterable[str]) -> list[str]:
+        """Move every one of ``keys`` that ``body`` carries into the stash.
 
         Parameters:
-            body: The scene's body dict, edited in place: afterwards it carries no
-                key from ``MESH_UNSUPPORTED_KEYS``.
+            body: The scene's body dict, edited in place: afterwards it carries none
+                of ``keys``.
+            keys: The keys to move, such as :func:`refused_keys` for the body's new
+                shape model.
 
         Returns:
-            The keys moved, in ``MESH_UNSUPPORTED_KEYS`` order; empty when the body
-            carried none.
+            The keys moved, in ``keys`` order; empty when the body carried none.
         """
-        taken = {key: body.pop(key) for key in MESH_UNSUPPORTED_KEYS if key in body}
+        taken = {key: body.pop(key) for key in keys if key in body}
         if taken:
             self._entries[id(body)] = (body, {**self.stashed(body), **taken})
         return list(taken)
 
-    def give_back(self, body: dict[str, Any]) -> None:
-        """Return ``body``'s stashed keys to it and forget them.
+    def give_back(self, body: dict[str, Any], keys: Iterable[str]) -> None:
+        """Return those of ``keys`` stashed for ``body`` to it and forget them.
 
-        A key the body carries again keeps its current value.
+        A key the body carries again keeps its current value.  Stashed keys outside
+        ``keys`` stay stashed.
 
         Parameters:
             body: The scene's body dict, edited in place.
+            keys: The keys to return, such as the keys the body's old shape model
+                refused.
         """
-        for key, value in self.stashed(body).items():
-            body.setdefault(key, value)
-        self._entries.pop(id(body), None)
+        stashed = self.stashed(body)
+        returned = [key for key in keys if key in stashed]
+        for key in returned:
+            body.setdefault(key, stashed[key])
+        rest = {key: value for key, value in stashed.items() if key not in returned}
+        if rest:
+            self._entries[id(body)] = (body, rest)
+        else:
+            self._entries.pop(id(body), None)
 
     def view(self, body: dict[str, Any]) -> dict[str, Any]:
         """``body`` with its stashed keys merged in, for building its controls.
