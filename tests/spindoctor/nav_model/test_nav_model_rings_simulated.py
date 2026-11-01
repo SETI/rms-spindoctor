@@ -202,3 +202,48 @@ def test_ring_edge_orbit_sigma_zero_when_undeclared() -> None:
         assert isinstance(geometry, RingEdgePolyline)
         assert geometry.sigma_orbit_radial_px == 0.0
         assert float(geometry.sigma_radial_per_vertex_px.min()) == 1.0
+
+
+def _eccentric_edges(declared: dict[str, float]) -> list[RingEdgePolyline]:
+    """The edge geometries of an eccentric ringlet (ae 6 px) declaring ``declared``."""
+    params = _feature_params()
+    params['orbit'] = {**params['orbit'], 'ae_px': 6.0, 'long_peri_deg': 30.0}
+    params['declared_orbit_sigma'] = declared
+    system = _ring_system()
+    system['features'] = [params]
+    model = NavModelRingsSimulated('rings', _obs(), 'SATURN', params, system)
+    model.create_model()
+    features = model.to_features(cast(NavContext, None))
+    geometries = [f.geometry for f in features if f.feature_type.name == 'RING_EDGE']
+    assert geometries
+    return [cast(RingEdgePolyline, g) for g in geometries]
+
+
+def test_a_declared_pericenter_sigma_widens_the_orbit_envelope() -> None:
+    """The envelope adds ``ae sigma_peri`` in quadrature where it beats sigma_ae."""
+    edges = _eccentric_edges({'sigma_a_px': 1.0, 'sigma_long_peri_deg': 10.0})
+    expected = float(np.sqrt(1.0 + (6.0 * np.radians(10.0)) ** 2))
+    assert [g.sigma_orbit_radial_px for g in edges] == pytest.approx([expected] * len(edges))
+
+
+def test_a_declared_pericenter_sigma_widens_the_vertices_off_the_apsides() -> None:
+    """Each vertex adds ``ae |sin(lam - peri)| sigma_peri``, most at quadrature, none at apsides."""
+    edges = _eccentric_edges({'sigma_a_px': 2.0, 'sigma_long_peri_deg': 10.0})
+    peri_term = 6.0 * np.radians(10.0)
+    sigmas = np.concatenate([g.sigma_radial_per_vertex_px for g in edges])
+    assert float(sigmas.max()) == pytest.approx(2.0 + peri_term, rel=0.02)
+    assert float(sigmas.min()) == pytest.approx(2.0, abs=0.02 * peri_term)
+
+
+def test_a_pericenter_sigma_on_a_circular_ring_changes_nothing() -> None:
+    """A circular edge has no pericenter, so its declared sigma leaves both sigmas alone."""
+    params = _feature_params()
+    params['declared_orbit_sigma'] = {'sigma_a_px': 2.0, 'sigma_long_peri_deg': 10.0}
+    model = NavModelRingsSimulated('rings', _obs(), 'SATURN', params, _ring_system())
+    model.create_model()
+    features = model.to_features(cast(NavContext, None))
+    edges = [
+        cast(RingEdgePolyline, f.geometry) for f in features if f.feature_type.name == 'RING_EDGE'
+    ]
+    assert [g.sigma_orbit_radial_px for g in edges] == [2.0] * len(edges)
+    assert {float(v) for g in edges for v in g.sigma_radial_per_vertex_px} == {2.0}

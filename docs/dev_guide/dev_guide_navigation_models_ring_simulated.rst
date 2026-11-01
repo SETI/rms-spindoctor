@@ -63,12 +63,18 @@ Sources of uncertainty
 
 The per-vertex radial sigma floors at the one-pixel polyline sampling resolution and rises
 with the feature's ``declared_orbit_sigma`` (the catalog error bars the navigator is
-entitled to know -- never the drawn error values). The along-edge sigma reflects the
-sampling resolution only.
+entitled to know -- never the drawn error values). It is ``sigma_a_px + sigma_ae_px``,
+plus, at each vertex, the radial shift a 1-sigma pericenter error makes there:
+``|dr/dperi| * sigma_long_peri_deg`` in radians, about ``ae_px * |sin(lam - peri)|`` times
+that sigma. So a declared pericenter uncertainty widens the vertices where the eccentric
+term moves the edge most, a quarter orbit from the apsides, and leaves the apsides and a
+circular edge alone. The along-edge sigma reflects the sampling resolution only.
 
 The declared orbit sigma is additionally carried, unfloored, on the emitted geometry's
 ``sigma_orbit_radial_px`` -- the fully-correlated 1-sigma radial displacement of the whole
-predicted edge. The per-vertex sigma is a statistical scale that averages down as the
+predicted edge. The three independent terms give a radial variance at longitude ``lam``
+of ``sigma_a**2 + cos**2 * sigma_ae**2 + sin**2 * (ae * sigma_peri)**2``, and the field
+holds its maximum over longitude, ``sqrt(sigma_a**2 + max(sigma_ae, ae * sigma_peri)**2)``. The per-vertex sigma is a statistical scale that averages down as the
 vertex count grows; a catalog-orbit error displaces every vertex coherently and does not,
 so the ring-edge technique consumes this separate field to widen its reported covariance
 along the fit's radial direction (see :doc:`dev_guide_techniques_ring_edge`).

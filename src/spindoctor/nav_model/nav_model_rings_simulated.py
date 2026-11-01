@@ -33,7 +33,12 @@ from spindoctor.feature.flags import RingAnnulusFlags, RingEdgeFlags
 from spindoctor.feature.geometry import RingAnnulusGeometry, RingEdgePolyline
 from spindoctor.nav_model.nav_model import NavModel
 from spindoctor.nav_model.nav_model_rings_base import NavModelRingsBase
-from spindoctor.nav_model.sim_ring import PredictedRingFeature, predict_ring_feature
+from spindoctor.nav_model.sim_ring import (
+    PredictedRingEdge,
+    PredictedRingFeature,
+    predict_ring_feature,
+)
+from spindoctor.sim.ring_geometry import ring_orbit_from_mapping
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 from spindoctor.support.filters import NavFilterKind, NavFilterSpec
 from spindoctor.support.time import now_dt
@@ -236,18 +241,23 @@ class NavModelRingsSimulated(NavModelRingsBase):
             ext_margin_u + data_size_u,
         )
 
+    def _declared_long_peri_sigma_rad(self) -> float:
+        """The declared 1-sigma pericenter-longitude uncertainty, in radians."""
+        sigma = self._feature_params.get('declared_orbit_sigma') or {}
+        return math.radians(float(sigma.get('sigma_long_peri_deg', 0.0)))
+
     def _declared_orbit_sigma_px(self) -> float:
         """The declared 1-sigma radial orbit uncertainty of this feature.
 
-        For ``r ~ a (1 - e cos(theta - peri))`` the radial displacement from
-        independent semimajor-axis and radial-amplitude errors is
-        ``delta_a - delta(ae) cos(theta - peri)``, so the two declared sigmas
-        combine in QUADRATURE: ``sqrt(sigma_a**2 + sigma_ae**2)`` is the
-        1-sigma at the longitude where the eccentric term is fully in phase,
-        i.e. the max-over-longitude 1-sigma envelope.  Adding them linearly
-        (the earlier form) overstates that envelope by up to ``sqrt(2)``, and
-        the value is squared straight into a tier-gating covariance, so the
-        linear form doubled the variance at equal terms.
+        For ``r ~ a - ae cos(theta - peri)`` the radial displacement from
+        independent semimajor-axis, radial-amplitude, and pericenter-longitude
+        errors is ``delta_a - delta(ae) cos(theta - peri) + ae sin(theta - peri)
+        delta(peri)``, so its variance at longitude ``theta`` is ``sigma_a**2 +
+        cos**2 sigma_ae**2 + sin**2 (ae sigma_peri)**2``.  The maximum over
+        longitude, ``sigma_a**2 + max(sigma_ae, ae sigma_peri)**2``, gives the
+        1-sigma envelope returned here.  Adding the terms linearly would
+        overstate that envelope by up to ``sqrt(2)``, and the value is squared
+        straight into a tier-gating covariance.
 
         Returns:
             The declared sigma in pixels; ``0.0`` when the scene declares no
@@ -256,13 +266,18 @@ class NavModelRingsSimulated(NavModelRingsBase):
         sigma = self._feature_params.get('declared_orbit_sigma') or {}
         sigma_a = float(sigma.get('sigma_a_px', 0.0))
         sigma_ae = float(sigma.get('sigma_ae_px', 0.0))
-        return float(math.hypot(sigma_a, sigma_ae))
+        ae_px = abs(ring_orbit_from_mapping(self._feature_params.get('orbit') or {}).ae)
+        sigma_peri = ae_px * self._declared_long_peri_sigma_rad()
+        return float(math.sqrt(sigma_a * sigma_a + max(sigma_ae, sigma_peri) ** 2))
 
-    def _declared_radial_sigma_px(self) -> float:
-        """The per-vertex radial sigma from the declared orbit uncertainty.
+    def _declared_radial_sigma_px(self, edge: PredictedRingEdge) -> NDArrayFloatType:
+        """The per-vertex radial sigma of one edge from the declared orbit uncertainty.
 
         The declared semimajor-axis and radial-amplitude sigmas are summed
-        LINEARLY here, floored at the one-pixel polyline sampling resolution.
+        LINEARLY here, and each vertex adds the radial displacement a 1-sigma
+        pericenter-longitude error makes there, ``|dr/dperi| sigma_peri``
+        (about ``ae |sin(theta - peri)| sigma_peri``).  The sum is floored at the
+        one-pixel polyline sampling resolution.
 
         This deliberately does NOT share the quadrature combine of
         :meth:`_declared_orbit_sigma_px`, which is the coherent displacement
@@ -271,12 +286,19 @@ class NavModelRingsSimulated(NavModelRingsBase):
         moves the recovered offset on every scene that declares a sigma.  The
         quadrature correction applies to the covariance term that is squared
         into a tier gate; carrying it into the fit's weighting would be an
-        unrelated behavior change, so the two combines are kept separate and
-        this one keeps its original form.
+        unrelated behavior change, so the two combines are kept separate.
+
+        Parameters:
+            edge: The predicted edge whose vertices get a sigma.
+
+        Returns:
+            One radial sigma per vertex, in pixels.
         """
         sigma = self._feature_params.get('declared_orbit_sigma') or {}
         declared = float(sigma.get('sigma_a_px', 0.0)) + float(sigma.get('sigma_ae_px', 0.0))
-        return max(_RING_EDGE_SIGMA_RADIAL_PX, declared)
+        peri = np.abs(edge.dr_dlong_peri_px_per_rad) * self._declared_long_peri_sigma_rad()
+        result: NDArrayFloatType = np.maximum(_RING_EDGE_SIGMA_RADIAL_PX, declared + peri)
+        return result
 
     def to_features(self, context: NavContext) -> list[NavFeature]:
         """Emit the ring features.
@@ -296,7 +318,6 @@ class NavModelRingsSimulated(NavModelRingsBase):
         if prediction is None:
             return []
         features: list[NavFeature] = []
-        sigma_radial_px = self._declared_radial_sigma_px()
         sigma_orbit_px = self._declared_orbit_sigma_px()
         if prediction.template is not None and prediction.mask.any():
             mask_vs, mask_us = np.where(prediction.mask)
@@ -360,7 +381,7 @@ class NavModelRingsSimulated(NavModelRingsBase):
                     geometry=RingEdgePolyline(
                         vertices_vu=edge.vertices_vu,
                         normals_vu=edge.normals_vu,
-                        sigma_radial_per_vertex_px=np.full(n, sigma_radial_px, dtype=np.float64),
+                        sigma_radial_per_vertex_px=self._declared_radial_sigma_px(edge),
                         sigma_along_edge_per_vertex_px=np.full(
                             n, _RING_EDGE_SIGMA_ALONG_PX, dtype=np.float64
                         ),
