@@ -74,3 +74,20 @@ def test_sweep_stepping_a_body_value_out_of_range_is_refused(tmp_path: Path) -> 
         match=r'\(value -1\.0\).*atmosphere\.tau_ref must be a non-negative number',
     ):
         build_sweep_params(load_sweep(path))
+
+
+def test_sweep_stepping_a_mesh_refused_key_on_a_mesh_body_is_refused(tmp_path: Path) -> None:
+    """A step giving a mesh body a key the mesh renderer ignores fails at build."""
+    path = tmp_path / 'probe_mesh.yaml'
+    path.write_text(
+        'sweep_name: probe_mesh\n'
+        'base_scene: algorithmic_invariants/planted_offset_limb_mesh.yaml\n'
+        'parameters: [bodies.0.minnaert_k]\n'
+        'values: [0.5, 0.7]\n'
+        "technique: '*'\n"
+    )
+    with pytest.raises(
+        SimSceneValidationError,
+        match=r"\(value 0\.5\).*\['minnaert_k'\] are not supported on polyhedral_mesh bodies",
+    ):
+        build_sweep_params(load_sweep(path))
