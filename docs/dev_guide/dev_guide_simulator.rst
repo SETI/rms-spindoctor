@@ -365,8 +365,7 @@ What it cannot do
 - **See outside its modeled axes.** A model error the renderer does not
   implement contributes nothing to any curve or fit. The main unmodeled axes
   today: pointing jitter within an exposure, image mid-time error, readout
-  shear, stars occulted by a dark limb (simulated star success is optimistic
-  where an unlit body should block the star), and body-on-body cast shadows
+  shear, and body-on-body cast shadows
   (mutual events render occlusion, not shadowing).
 - **Fix the gaps it exposes.** A confident-wrong pin is evidence, not
   mitigation; closing it requires ensemble work (consuming declared

@@ -639,13 +639,7 @@ Known gaps
 Where a figure of merit reveals a forward-model gap that parameter tuning
 cannot close, it is recorded here rather than force-fitted:
 
-1. **Stars shine through dark limbs.**  Star occlusion by bodies uses the
-   painted *lit* silhouette (the body mask is where the rendered body is
-   brighter than zero), so a star behind the un-lit part of a limb still
-   shines.  Simulated star-technique success on body-crossing fields is
-   therefore optimistic: real frames lose stars behind dark limbs that
-   simulated frames keep.
-2. **Calibrated-product quantization scars.**  The sim's calibrated path
+1. **Calibrated-product quantization scars.**  The sim's calibrated path
    retains full LSB quantization texture: its measured sky-noise floor is
    ~1 DN-equivalent at every exposure (Cassini CALIB and Voyager GEOMED
    paths alike).  Real calibrated products sit *below* the LSB (NAC CALIB
@@ -663,24 +657,24 @@ cannot close, it is recorded here rather than force-fitted:
    uncertainty at full size: its simulated sky sigma undershoots the
    real cohort by roughly 8x one-sidedly (2.4e-5 vs 1.9e-4 I/F; see the
    WAC subsection).
-3. **Hot pixels are per-scene, not per-detector.**  The simulated
+2. **Hot pixels are per-scene, not per-detector.**  The simulated
    hot-pixel population is drawn from each scene's seeded stream, so it
    never recurs at fixed detector positions across frames the way real
    hot pixels do.  The FOM 6 stationary/transient split therefore cannot
    match by construction; only the total incidence is comparable (and now
    tuned).
-4. **No per-readout-mode PSF.**  The catalog carries one kernel per
+3. **No per-readout-mode PSF.**  The catalog carries one kernel per
    instrument; the LORRI cohort's 4x4-binned frames (and any summed
    Cassini modes that enter the library later) see a different effective
    kernel that the catalog cannot express.
-5. **Matched-frame content limits.**  Simulated ring edges are sharp
+4. **Matched-frame content limits.**  Simulated ring edges are sharp
    optical-depth steps and simulated matched bodies are relief-free
    ellipsoids, so residual FOM 3/4 width differences fold in real edge
    structure (ring radial profiles, limb topography) beyond the PSF that
    FOM 2 pins independently.  The Galileo negative frames carry an
    extended background glow (scattered light) that matched sky frames do
    not model, which dominates that cohort's FOM 5 comparison.
-6. **Measured transients exceed what the cosmic-ray stage can express.**
+5. **Measured transients exceed what the cosmic-ray stage can express.**
    Every cohort measures a nonzero transient spike fraction (NAC 2.75e-4,
    WAC 4.89e-4, Galileo 1.17e-4, LORRI 3.36e-4 per frame), yet no
    catalog entry adopts a ``cosmic_ray_events_per_pixel_per_sec``: the Cassini

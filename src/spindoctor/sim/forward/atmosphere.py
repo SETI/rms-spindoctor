@@ -431,6 +431,7 @@ def apply_atmosphere(
     rotation_tilt: float,
     illumination_angle: float,
     phase_angle: float,
+    silhouette: NDArrayFloatType | None = None,
 ) -> AtmosphereLayers:
     """Evaluate the haze layer over a reference-centered body radiance.
 
@@ -457,6 +458,10 @@ def apply_atmosphere(
         rotation_tilt: Tilt toward/away from the viewer, radians.
         illumination_angle: In-plane light direction, radians (0 = top).
         phase_angle: Phase angle in radians (0 fully lit, pi backlit).
+        silhouette: The body's solid-outline pixel coverage at the reference
+            center, or None when ``body_shape > 0`` is the outline.  A pixel
+            the outline covers is disc, never halo, even where it renders
+            black.
 
     Returns:
         The :class:`AtmosphereLayers`: the opaque disc radiance (clipped to
@@ -590,6 +595,11 @@ def apply_atmosphere(
         return cast(NDArrayFloatType, _HAZE_ALBEDO * hg * illum_weight)
 
     out_box = out[box_v, box_u]
+    # The outline decides disc versus halo; it is read before any haze joins
+    # the paint.
+    outline_box = np.array(
+        out_box if silhouette is None else silhouette[box_v, box_u], dtype=np.float64, copy=True
+    )
 
     # On-disc annulus: the solar elevation comes from the surface incidence,
     # and the opacity is the grazing EXCESS over the nadir column:
@@ -655,7 +665,7 @@ def apply_atmosphere(
         haze_out = _source(mu0_out) * opacity_out
 
         shape_out = out_box[band_out]
-        solid = shape_out > 0.0
+        solid = outline_box[band_out] > 0.0
         halo = ~solid
         shape_out[solid] = np.clip(shape_out[solid] + haze_out[solid], 0.0, 1.0)
         out_box[band_out] = shape_out
@@ -686,7 +696,7 @@ def apply_atmosphere(
         apply_disc_structure(
             out_box,
             structure,
-            disc=out_box > 0.0,
+            disc=(out_box > 0.0) | (outline_box > 0.0),
             v_ctr=v_ctr,
             u_ctr=u_ctr,
             r_mean=r_mean,
