@@ -77,6 +77,13 @@ def _times_xyz(rows: NDArrayFloatType, other: NDArrayFloatType) -> NDArrayFloatT
     OpenBLAS, which picks its kernel by CPU, and the kernels round differently,
     so a mesh render would change in its last bits from one CPU to the next.
     Plain multiplies and adds give the same result on every CPU.
+
+    Parameters:
+        rows: The ``(N, 3)`` left operand.
+        other: The right operand, a 3-vector or a ``(3, K)`` matrix.
+
+    Returns:
+        The float64 product: ``(N,)`` for a vector, ``(N, K)`` for a matrix.
     """
     cols = rows.T
     if other.ndim == 1:
