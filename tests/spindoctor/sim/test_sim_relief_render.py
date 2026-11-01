@@ -1,10 +1,12 @@
 """Rendered-body acceptance checks for the limb-relief field.
 
 The relief contract at the rendered-image level: the silhouette radius at
-azimuth theta lands at ``r_ellipse * (1 + delta(theta))``, the terminator
-grows ragged with excursions concentrated at (and bounded near) the
-terminator, relief OFF reproduces the relief-free render bit-identically,
-and each body's terrain realization is seeded independently.
+azimuth theta lands on the relief surface's outline,
+``r_ellipse * (1 + delta(theta))``, the relief normals shade the disc, the
+terminator grows ragged with every shadow inside the field's slope band and
+concentrated against the terminator, relief OFF reproduces the relief-free
+render bit-identically, and each body's terrain realization is seeded
+independently.
 """
 
 import math
@@ -12,18 +14,12 @@ from typing import Any
 
 import numpy as np
 import pytest
-from scipy import ndimage
 
 from spindoctor.sim import render
 from spindoctor.sim.forward import body_topo
 from spindoctor.sim.forward.body_topo import TopoBodySpec, create_topographic_body
 from spindoctor.sim.forward.photometry import DARK_SIDE_FLOOR
-from spindoctor.sim.forward.relief import (
-    ReliefField,
-    march_shadows,
-    shadow_reach,
-    synthesize_relief_field,
-)
+from spindoctor.sim.forward.relief import synthesize_relief_field
 from spindoctor.support.types import NDArrayFloatType
 
 _RMS = 0.02
@@ -62,8 +58,12 @@ def _ray_edge_radius(mask: np.ndarray, center: float, angle: float) -> float:
     return radius
 
 
-def test_limb_lands_at_r_ellipse_times_one_plus_delta() -> None:
+@pytest.mark.parametrize('rms', [_RMS, 0.05])
+def test_limb_lands_on_the_relief_outline(rms: float) -> None:
     """Silhouette radius matches r_ellipse * (1 + delta(theta)) within 0.5 os px.
+
+    ``delta`` is the relief surface's outline envelope, which at 5% relief
+    departs from the equator slice by a sizable share of the RMS.
 
     Per-ray radii carry ~half-pixel staircase noise from the rasterized
     mask, so the acceptance is asserted on azimuth-window means (16 windows
@@ -73,17 +73,17 @@ def test_limb_lands_at_r_ellipse_times_one_plus_delta() -> None:
     seed = 42
     size = 256
     img = create_topographic_body(
-        (size, size), (size / 2.0, size / 2.0), _limb_spec(rms=_RMS, seed=seed)
+        (size, size), (size / 2.0, size / 2.0), _limb_spec(rms=rms, seed=seed)
     )
     mask = img > 0.0
-    field = synthesize_relief_field(_RMS, _CORR_DEG, seed)
+    field = synthesize_relief_field(rms, _CORR_DEG, seed)
 
     n_windows, rays_per_window = 16, 16
     angles = np.arange(n_windows * rays_per_window) * (2.0 * np.pi / (n_windows * rays_per_window))
     measured = np.array([_ray_edge_radius(mask, size / 2.0, a) for a in angles])
     # phi convention: atan2(u_rot / b, v_rot / a); for an unrotated sphere
     # this is the image azimuth of the ray itself.
-    predicted = 80.0 * (1.0 + field.limb_delta(angles))
+    predicted = 80.0 * (1.0 + field.outline_delta(angles))
 
     errors = measured - predicted
     window_means = errors.reshape(n_windows, rays_per_window).mean(axis=1)
@@ -122,13 +122,20 @@ def _terminator_spec(*, rms: float) -> TopoBodySpec:
     )
 
 
+def _band_elevation_deg(field_rms: float, seed: int) -> float:
+    """The sun elevation, in degrees, above which a realization casts no shadow."""
+    field = synthesize_relief_field(field_rms, _CORR_DEG, seed)
+    band = body_topo._SLOPE_BAND_MARGIN * field.slope_max / (1.0 + field.h_min)
+    return math.degrees(math.atan(band))
+
+
 def test_terminator_is_ragged_with_excursions_at_the_terminator() -> None:
-    """Relief shadows displace the terminator raggedly, bounded near it.
+    """Relief shadows displace the terminator raggedly, inside the slope band.
 
     Comparing the relief render against the smooth render of the same
-    geometry: newly dark pixels exist, they concentrate against the smooth
-    terminator (the shadowed fraction falls with distance into the lit
-    side), and none lies beyond the march cap's horizon bound.
+    geometry: newly dark pixels exist, every one lies where the smooth sun
+    elevation is inside the field's slope band, and they concentrate against
+    the smooth terminator (the shadowed fraction falls with elevation).
     """
     size = 320
     smooth = create_topographic_body(
@@ -143,29 +150,22 @@ def test_terminator_is_ragged_with_excursions_at_the_terminator() -> None:
     newly_dark = lit_smooth & dark_ragged
     assert int(newly_dark.sum()) > 50
 
-    # Distance of each lit pixel into the lit side, from the smooth
-    # terminator (the boundary of the smooth lit region).
-    distance_into_lit = ndimage.distance_transform_edt(lit_smooth)
-    shadow_distances = distance_into_lit[newly_dark]
-
-    # Bounded by the horizon cap: no shadow reaches beyond
-    # sqrt(2 * R * (H_max - H_min)) surface px of the terminator, the horizon
-    # of the highest peak seen from the deepest valley (image distance is
-    # never longer than surface distance here).
-    field = synthesize_relief_field(_RMS, _CORR_DEG, 5)
-    cap_px = 120.0 * math.sqrt(2.0 * (field.h_max - field.h_min))
-    assert float(shadow_distances.max()) <= cap_px + 2.0
+    spec = _terminator_spec(rms=_RMS)
+    elevation = _sun_elevation_deg(size, semi_axes=(120.0, 120.0), spec=spec)
+    band_deg = _band_elevation_deg(_RMS, 5)
+    # Half a pixel of smooth-elevation slack covers the shading upsample.
+    assert float(elevation[newly_dark].max()) <= band_deg + 0.5
 
     # Excursions grow toward the terminator: the shadowed fraction falls
-    # with distance from it.
+    # with the sun's elevation.
     def shadow_fraction(lo: float, hi: float) -> float:
-        band = lit_smooth & (distance_into_lit > lo) & (distance_into_lit <= hi)
+        band = lit_smooth & (elevation > lo) & (elevation <= hi)
         assert int(band.sum()) > 0
         return float(newly_dark[band].sum()) / float(band.sum())
 
-    near = shadow_fraction(0.0, cap_px / 3.0)
-    mid = shadow_fraction(cap_px / 3.0, 2.0 * cap_px / 3.0)
-    far = shadow_fraction(2.0 * cap_px / 3.0, cap_px)
+    near = shadow_fraction(0.0, 3.0)
+    mid = shadow_fraction(3.0, 6.0)
+    far = shadow_fraction(9.0, 15.0)
     assert near > mid
     assert near > 4.0 * far
 
@@ -192,110 +192,84 @@ def _sun_elevation_deg(
     return np.asarray(np.degrees(np.arcsin(np.clip(mu0, -1.0, 1.0))), dtype=np.float64)
 
 
-@pytest.mark.parametrize('seed', [1, 2, 3, 4, 5])
-def test_relief_leaves_the_high_sun_disc_untouched(seed: int) -> None:
-    """At 2% relief, every pixel the sun lights from above 24 degrees renders unchanged.
-
-    The geometry is the one that exposed radial wedges cut through the middle of the
-    disc (an 85 px moon at phase 58 degrees).  Relief of 2% of the radius with a
-    15-degree correlation length has slopes of ~9 degrees RMS, so its shadows stay in
-    the low-sun band along the terminator; the silhouette moves only near the limb,
-    which the inner-disc mask excludes.  The relief must still shadow something there.
-    """
-    size = 256
-    spec = TopoBodySpec(
+def _moon_spec(seed: int, *, rms: float = _RMS, **extra: Any) -> TopoBodySpec:
+    """An 85 px moon at phase 58 degrees, the geometry that once cut wedges through its disc."""
+    return TopoBodySpec(
         axis1=170.0,
         axis2=168.0,
         axis3=164.0,
         illumination_angle=math.radians(28.0),
         phase_angle=math.radians(58.0),
         photometric_law='lommel_seeliger',
-        limb_relief_rms=_RMS,
+        limb_relief_rms=rms,
         limb_relief_corr_deg=_CORR_DEG,
         relief_seed=seed,
+        **extra,
     )
-    smooth_spec = TopoBodySpec(
-        axis1=spec.axis1,
-        axis2=spec.axis2,
-        axis3=spec.axis3,
-        illumination_angle=spec.illumination_angle,
-        phase_angle=spec.phase_angle,
-        photometric_law=spec.photometric_law,
-    )
+
+
+@pytest.mark.parametrize('seed', [1, 2, 3, 4, 5])
+def test_relief_darkens_no_pixel_above_the_slope_band(seed: int) -> None:
+    """Every pixel the relief renders as night sits where the sun is inside the band.
+
+    The band is the field's own slope bound, ``atan(1.5 s_max / (1 + h_min))``; above
+    it no terrain can rise into the sun ray.  The relief must still shadow something.
+    """
+    size = 256
+    spec = _moon_spec(seed)
+    smooth_spec = _moon_spec(seed, rms=0.0)
     center = (size / 2.0, size / 2.0)
     smooth = create_topographic_body((size, size), center, smooth_spec)
     ragged = create_topographic_body((size, size), center, spec)
     elevation = _sun_elevation_deg(size, semi_axes=(85.0, 84.0), spec=spec)
     v, u = np.mgrid[0:size, 0:size].astype(float) + 0.5 - size / 2.0
     inner = np.hypot(v / 85.0, u / 84.0) < 0.85
-    changed = inner & (np.abs(ragged - smooth) > 1e-9)
-    assert int(changed.sum()) > 0
-    assert int(np.sum(changed & (elevation > 24.0))) == 0
+    newly_dark = inner & (smooth > DARK_SIDE_FLOOR * 1.2) & (ragged <= DARK_SIDE_FLOOR * 1.05)
+    assert int(newly_dark.sum()) > 0
+    assert float(elevation[newly_dark].max()) <= _band_elevation_deg(_RMS, seed) + 0.5
 
 
-def test_shadow_maps_cover_every_candidates_reach(monkeypatch: pytest.MonkeyPatch) -> None:
-    """The march domain contains each candidate's whole sunward reach on the disc.
+def test_relief_normals_shade_a_lambert_disc() -> None:
+    """On a Lambert disc the relief brightness is the relief normal's cosine of incidence.
 
-    The march stops where it leaves the domain, so a domain shorter than a
-    candidate's reach (``shadow_reach``: up to ``sqrt(2 R (H_max - H_min))`` for a
-    valley point) would silently drop shadows its distant peaks cast.  Image distance
-    never exceeds surface distance for an untilted body, so the image segment of
-    length ``d_max`` toward the sun bounds where the march can sample.
-
-    The terrain is a real realization lowered so its highest peak sits just above
-    the reference sphere (``h_max`` 0.001): the same relief on a smaller mean
-    radius.  A reach sized from ``h_max`` alone, ``sqrt(2 R H_max)``, is then a
-    small fraction of a valley's reach, which is set by the full height range.
+    At oversample 1 without supersampling the shading grid is the render grid, so a
+    lit, unshadowed pixel renders at ``n_relief . sun``; the relief must move the
+    brightness off the smooth disc's by a few percent somewhere.
     """
-    calls: list[dict[str, Any]] = []
-    real_march = march_shadows
-
-    def recording_march(start_v: Any, start_u: Any, **kwargs: Any) -> Any:
-        calls.append({'start_v': start_v, 'start_u': start_u, **kwargs})
-        return real_march(start_v, start_u, **kwargs)
-
-    monkeypatch.setattr(body_topo, 'march_shadows', recording_march)
-    relief = synthesize_relief_field(0.05, _CORR_DEG, 3)
-    lowered = relief.grid - relief.h_max + 0.001
-    monkeypatch.setattr(
-        body_topo,
-        'synthesize_relief_field',
-        lambda *_args: ReliefField(
-            grid=lowered,
-            rms=relief.rms,
-            corr_deg=relief.corr_deg,
-            h_min=float(lowered.min()),
-            h_max=float(lowered.max()),
-        ),
-    )
-    size = 256
+    size = 200
     spec = TopoBodySpec(
-        axis1=170.0,
-        axis2=170.0,
-        axis3=170.0,
-        illumination_angle=math.radians(28.0),
-        phase_angle=math.radians(58.0),
-        limb_relief_rms=0.05,
+        axis1=150.0,
+        axis2=150.0,
+        axis3=150.0,
+        illumination_angle=math.radians(40.0),
+        phase_angle=math.radians(35.0),
+        anti_aliasing=0.0,
+        limb_relief_rms=_RMS,
         limb_relief_corr_deg=_CORR_DEG,
         relief_seed=3,
     )
-    create_topographic_body((size, size), (size / 2.0, size / 2.0), spec)
-    assert len(calls) == 1
-    call = calls[0]
-    d_max = shadow_reach(
-        call['h_point'], call['tan_incidence'], call['radius_px'], h_max=call['h_max']
+    center = (size / 2.0, size / 2.0)
+    ragged = create_topographic_body((size, size), center, spec)
+    grid = body_topo._body_grid(
+        (size, size), center, (75.0, 75.0, 75.0), cos_rz=1.0, sin_rz=0.0, cos_rt=1.0
     )
-    v, u = np.mgrid[0:size, 0:size].astype(float) + 0.5 - size / 2.0
-    disc = np.hypot(v, u) < 85.0
-    steps = np.arange(0.0, float(d_max.max()) + 1.0, 0.5)
-    pos_v = call['start_v'][:, np.newaxis] + call['sun_v'] * steps[np.newaxis, :]
-    pos_u = call['start_u'][:, np.newaxis] + call['sun_u'] * steps[np.newaxis, :]
-    within = steps[np.newaxis, :] <= d_max[:, np.newaxis]
-    rows = np.clip(np.floor(pos_v).astype(int), 0, size - 1)
-    cols = np.clip(np.floor(pos_u).astype(int), 0, size - 1)
-    reachable = within & disc[rows, cols]
-    assert int(reachable.sum()) > 0
-    assert bool(np.all(call['domain_mask'][rows[reachable], cols[reachable]]))
+    field = synthesize_relief_field(_RMS, _CORR_DEG, 3)
+    near = grid.e2 < 0.8
+    normal_v, normal_u, normal_z, shadowed = body_topo._relief_shading(
+        grid, spec, field, near, cos_rz=1.0, sin_rz=0.0
+    )
+    sin_phase = math.sin(spec.phase_angle)
+    cos_i = (
+        -math.cos(spec.illumination_angle) * sin_phase * normal_v
+        + math.sin(spec.illumination_angle) * sin_phase * normal_u
+        + math.cos(spec.phase_angle) * normal_z
+    )
+    lit = (cos_i > 0.05) & ~shadowed[near]
+    np.testing.assert_allclose(ragged[near][lit], cos_i[lit], rtol=1e-9)
+    smooth = create_topographic_body(
+        (size, size), center, TopoBodySpec(**{**spec.__dict__, 'limb_relief_rms': 0.0})
+    )
+    assert float(np.max(np.abs(ragged[near][lit] - smooth[near][lit]))) > 0.03
 
 
 def _body_scene(*, oversample: int | None, body_extra: dict[str, Any]) -> dict[str, Any]:
