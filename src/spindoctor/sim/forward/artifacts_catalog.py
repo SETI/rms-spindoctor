@@ -384,30 +384,26 @@ DETECTOR_DEFAULTS: dict[str, dict[str, Any]] = {
         'read_noise_e': 31.0,  # 5.4 (full-res; 44 e- in summation mode)
         'bias_dn': 20.0,
         'dark_current_e_per_sec': 10.0,  # 5.4 interim (RTG-driven dark spikes)
-        # TUNED 2026-07-17 by the realism match: the 8-frame Galileo REDR
-        # cohort's median measured spike fraction is 1.2e-4 with a
-        # stationary component of only 1e-6 -- the REDR blemish correction
-        # removes most hot pixels -- so the interim 3e-3 overstated the
-        # products the navigator actually sees by ~25x.
-        'hot_pixel_fraction': 1.0e-4,
+        # TUNED 2026-11-01 by the realism match: the 8-frame Galileo REDR
+        # cohort's stationary spike fraction (single-pixel spikes recurring at
+        # fixed positions) is 1.4e-6 -- the REDR blemish correction removes
+        # most hot pixels.  The simulated hot pixels are a fixed per-detector
+        # map, so this fraction is the stationary population alone; the
+        # cohort's transient spikes are carried by the cosmic-ray rate below.
+        'hot_pixel_fraction': 1.4e-6,
         'hot_pixel_amplitude_e': 4.0e4,
         # 5.4 interim (early-blooming columns; total-charge fraction).
         'hot_pixel_column_factor': 0.5,
-        # RETAINED zero 2026-07-18 after an adoption attempt.  The realism
-        # match measures a real transient spike fraction of 1.17e-4 per
-        # frame (8-frame REDR cohort, all negative cases, so no scene
-        # point sources contaminate the split) -- but that population is
-        # already carried by the tuned hot_pixel_fraction above, which was
-        # sized to the cohort's TOTAL single-pixel incidence (1.2e-4;
-        # the truly stationary component is only 1e-6) and which the FOM 6
-        # split itself counts as transient because sim hot pixels reseed
-        # per scene.  Adding a separate cosmic-ray term double-counts the
-        # same measured spikes: two rates were tried 2026-07-18 (1.6e-3
-        # from the raw split, then 5.4e-4 refit excluding star frames);
-        # even the refit raised the simulated fraction to 2.3e-4 against
-        # the 1.2e-4 real.
-        # Unblocked by a fixed-position per-detector hot-pixel map, which
-        # would free the transient budget for a real radiation term.
+        # RETAINED zero 2026-11-01 after an adoption attempt.  The cohort
+        # measures a transient spike fraction of 1.17e-4 per frame (all
+        # negative cases, so no scene point sources contaminate the split).
+        # With the stationary population on its own fixed map, the matched
+        # frames' simulated transient fraction is linear in this rate:
+        # 5.5e-5 at 5.4e-4, 1.07e-4 at 1.0e-3, and 1.68e-4 at 1.6e-3, so
+        # 1.1e-3 reproduces the measured fraction.  But the chain deposits
+        # every event at full well, and at 1.1e-3 the matched frames'
+        # saturated fraction rose from 3.3e-5 to 2.3e-4 against 1.3e-5 real.
+        # Unblocked by a modest-amplitude transient term (#330).
         'cosmic_ray_events_per_pixel_per_sec': 0.0,
         'banding_amplitude_e': 65.0,  # 5.4 interim (~0.35 DN at gain 2 -> ~65 e-)
         'banding_period_px': 42.0,  # 5.4 (2400 Hz supply-noise comb every 42 px)

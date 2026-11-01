@@ -656,7 +656,14 @@ intensive signal passes through the electron unit chain in
    ``full_well_e`` spills along the column up to ``bloom_length`` pixels each
    way and the image is capped at the well. A camera's physical saturation
    therefore emerges from ``full_well_e / gain_e_per_dn`` (below the ADC ceiling
-   for Cassini), not from the ADC clip.
+   for Cassini), not from the ADC clip. The hot pixels belong to the detector:
+   a pixel is hot when a draw keyed only on the emulated detector and the
+   pixel's coordinates falls below ``hot_pixel_fraction``, so every scene
+   emulating that camera, whatever its seed, has the same hot pixels at the
+   same coordinates with the same amplitudes. A smaller frame sees the map's
+   corner from ``(0, 0)``, raising the fraction only adds pixels, and a
+   calibrated Cassini product shares its raw camera's map. An adversarial
+   placement onto the navigation features stays per scene.
 5. **Cosmic rays and read noise.** Cosmic rays deposit above the well after the
    bloom cap, so they reach the ADC ceiling and land on the orchestrator's
    masks. The event count is a Poisson draw with mean
@@ -2967,7 +2974,7 @@ against exactly this inventory, so an unknown noise key fails loudly.
    * - ``hot_pixel_fraction``
      - float
      - 0 (off)
-     - Fraction of pixels that are hot (a fixed per-seed population).
+     - Fraction of pixels that are hot (the emulated detector's fixed map).
    * - ``hot_pixel_amplitude_e``
      - float
      - catalog
