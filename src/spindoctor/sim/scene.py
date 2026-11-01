@@ -133,6 +133,20 @@ ALLOWED_INSTRUMENTS: frozenset[str] = frozenset(SIM_INSTRUMENTS) | GENERIC_INSTR
 
 CURRENT_SCHEMA_VERSION: int = 2
 
+# Top-level numbers every consumer reads with ``float(sim_params.get(key,
+# default))``, so a key present as null would reach float() as None.  A block or
+# a list set to null reads as unset, but these refuse null: the author leaves the
+# key out to take its default.
+_NON_NULL_TOP_LEVEL_NUMBERS: tuple[str, ...] = (
+    'exposure_sec',
+    'offset_v',
+    'offset_u',
+    'offset_rotation_deg',
+    'time',
+    'ring_epoch',
+    'star_catalog_scatter_px',
+)
+
 
 def iter_scene_paths(root: Path) -> list[Path]:
     """Return every ``<class>/<name>.yaml`` scene path under ``root``, sorted."""
@@ -251,6 +265,14 @@ def validate_sim_params(
     _require_positive_int(sim_params, 'size_v', source=source)
     _require_positive_int(sim_params, 'size_u', source=source)
     _require_int(sim_params, 'random_seed', source=source)
+    null_numbers = [
+        key for key in _NON_NULL_TOP_LEVEL_NUMBERS if key in sim_params and sim_params[key] is None
+    ]
+    if null_numbers:
+        raise SimSceneValidationError(
+            f'{source}: {null_numbers} must be numbers when present; leave a key out '
+            f'to take its default'
+        )
 
     _check_optional_positive_number(sim_params.get('exposure_sec'), 'exposure_sec', source=source)
     _check_optional_number(sim_params.get('offset_v'), 'offset_v', source=source)

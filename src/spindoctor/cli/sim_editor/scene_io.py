@@ -79,8 +79,8 @@ class SceneIoMixin(SimEditorBase):
             'time': float(params.get('time', 0.0)),
             'ring_epoch': float(params.get('ring_epoch', 0.0)),
             'closest_planet': params.get('closest_planet') or 'SATURN',
-            'bodies': list(params.get('bodies', [])),
-            'stars': list(params.get('stars', [])),
+            'bodies': list(params.get('bodies') or []),
+            'stars': list(params.get('stars') or []),
         }
         # Carry the block-valued schema keys through unchanged; the tab-specific
         # sync methods below then drive their widgets from these blocks (and the

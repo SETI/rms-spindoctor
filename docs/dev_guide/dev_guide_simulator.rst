@@ -2324,6 +2324,11 @@ Scene parameter reference
 Top-level fields
 ----------------
 
+A top-level number (``exposure_sec``, ``offset_v``, ``offset_u``,
+``offset_rotation_deg``, ``time``, ``ring_epoch``, and ``star_catalog_scatter_px``)
+can't be null: the validator refuses it, and the author leaves the key out to take its
+default. A top-level block or list set to null reads as unset.
+
 .. list-table::
    :widths: 22 11 11 10 46
    :header-rows: 1

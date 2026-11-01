@@ -6,6 +6,7 @@ from typing import Any
 
 import pytest
 
+from spindoctor.sim.render import render_combined_model
 from spindoctor.sim.scene import (
     _ALLOWED_KEYS,
     _OBJECT_BLOCKS,
@@ -584,6 +585,37 @@ def test_validate_sim_params_rejects_a_negative_tau_ref() -> None:
         SimSceneValidationError, match=r'atmosphere\.tau_ref must be a non-negative number'
     ):
         validate_sim_params(params)
+
+
+_TOP_LEVEL_NUMBERS = (
+    'exposure_sec',
+    'offset_v',
+    'offset_u',
+    'offset_rotation_deg',
+    'time',
+    'ring_epoch',
+    'star_catalog_scatter_px',
+)
+
+
+@pytest.mark.parametrize('key', _TOP_LEVEL_NUMBERS)
+def test_validate_sim_params_refuses_a_null_top_level_number(key: str) -> None:
+    """A top-level number set to null fails, since every reader takes it as a float."""
+    params = _sim_params()
+    params[key] = None
+    with pytest.raises(SimSceneValidationError, match=rf"\['{key}'\] must be numbers when present"):
+        validate_sim_params(params)
+
+
+@pytest.mark.parametrize('key', ['noise', 'optics', 'detector', 'artifacts', 'bodies', 'stars'])
+def test_a_null_top_level_block_validates_and_renders(key: str) -> None:
+    """A top-level block or list set to null reads as unset, through the renderer too."""
+    params = _sim_params()
+    params['bodies'][0].update(axis2=60.0, axis3=50.0)
+    params['stars'] = [{'name': 'S1', 'v': 20.0, 'u': 20.0, 'vmag': 8.0}]
+    params[key] = None
+    validate_sim_params(params)
+    assert render_combined_model(params)[0].shape == (128, 128)
 
 
 def test_validate_sim_params_rejects_duplicate_body_names() -> None:

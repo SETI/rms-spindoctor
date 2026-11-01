@@ -93,6 +93,10 @@ whatever the roll.
 Fields
 ------
 
+A top-level number (exposure_sec, offset_v, offset_u, offset_rotation_deg,
+time, ring_epoch, star_catalog_scatter_px) can't be null: leave it out to
+take its default.  A top-level block or list set to null reads as unset.
+
   schema_version   (int, required)   must be 2
   scene_name       (str, required)   must equal the filename stem
   instrument       (str, required)   a sim instrument (coiss_nac, coiss_wac,
