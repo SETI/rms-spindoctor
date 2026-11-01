@@ -119,7 +119,9 @@ class NavModelBodyBase(NavModel):
     Subclasses populate the attributes the helpers read: ``_model_img``,
     ``_body_mask``, ``_predicted_center_vu``, ``_predicted_diameter_px``,
     ``_km_per_pixel_at_limb``, ``_subject_range_km``, ``_bbox_extfov_vu``,
-    and ``_metadata['phase_angle_deg']``.
+    ``_overflow_fraction``, and ``_metadata['phase_angle_deg']``.  The
+    BODY_BLOB gate on the silhouette overflow lives here too, so both models
+    withhold a clipped body's blob at the same fraction.
     """
 
     _body_name: str
@@ -139,6 +141,20 @@ class NavModelBodyBase(NavModel):
     _km_per_pixel_at_limb: float
     _subject_range_km: float
     _bbox_extfov_vu: tuple[int, int, int, int]
+    _overflow_fraction: float
+    """Fraction of the whole predicted silhouette that falls outside the sensor."""
+
+    def _blob_max_overflow_fraction(self) -> float:
+        """Return the configured maximum overflow fraction for BODY_BLOB emission."""
+        return float(self._config.bodies.blob_max_overflow_fraction)
+
+    def _blob_overflow_ok(self) -> bool:
+        """Return True when the silhouette overflow permits BODY_BLOB emission.
+
+        The overflow fraction must be at or below the ``bodies`` configuration value
+        ``blob_max_overflow_fraction``.  A NaN on either side withholds the blob.
+        """
+        return self._overflow_fraction <= self._blob_max_overflow_fraction()
 
     def _compute_limb_mask_from_body_mask(self, body_mask: NDArrayBoolType) -> NDArrayBoolType:
         """Compute limb mask as body pixels adjacent to at least one non-body neighbor."""

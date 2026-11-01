@@ -31,6 +31,7 @@ from spindoctor.feature.geometry import BodyDiscGeometry, LimbPolyline, Terminat
 from spindoctor.nav_model.body_shape import load_body_shape
 from spindoctor.nav_model.nav_model import NavModel
 from spindoctor.nav_model.nav_model_body import (
+    BODY_DISC_MAX_OVERFLOW_FRACTION,
     LIMB_ARC_MIN_VERTICES,
     TERMINATOR_MIN_PHASE_FACTOR,
     TERMINATOR_MIN_VERTICES,
@@ -300,6 +301,7 @@ class NavModelBodySimulated(NavModelBodyBase):
         self._km_per_pixel_at_limb: float = 0.0
         self._subject_range_km: float = float('inf')
         self._bbox_extfov_vu: tuple[int, int, int, int] = (0, 0, 0, 0)
+        self._overflow_fraction: float = 1.0
 
     @classmethod
     def instances_for_obs(cls, obs: Observation, *, config: Config | None = None) -> list[NavModel]:
@@ -491,6 +493,10 @@ class NavModelBodySimulated(NavModelBodyBase):
         # Predicted disc diameter: the longer pixel extent of the rendered
         # silhouette.  Drives the BODY_BLOB emission gate and covariance.
         self._predicted_diameter_px = _silhouette_diameter_px(body_mask)
+        self._overflow_fraction = self._silhouette_overflow_fraction(
+            int(np.count_nonzero(body_mask)), phase_angle_rad, center_v, center_u
+        )
+        self._metadata['overflow_fraction'] = self._overflow_fraction
         # Tight extfov-coord bounding box around the body silhouette (plus
         # slop), matching the convention of the SPICE-backed ``NavModelBody``.
         # A whole-frame bbox would make ``BodyBlobNav`` integrate its observed
@@ -512,17 +518,63 @@ class NavModelBodySimulated(NavModelBodyBase):
         self._metadata['phase_angle_deg'] = float(p.get('phase_angle', 0.0))
         self._metadata['predicted_diameter_px'] = float(self._predicted_diameter_px)
 
+    def _silhouette_overflow_fraction(
+        self, in_sensor_pixels: int, phase_angle_rad: float, center_v: float, center_u: float
+    ) -> float:
+        """The fraction of the whole predicted silhouette outside the sensor.
+
+        The silhouette is rendered unclipped on a canvas comfortably larger
+        than the body, with the body's center on the same sub-pixel phase it
+        has in the frame, so a body wholly inside the frame renders the same
+        pixels on both canvases and its overflow is exactly 0.  The quantity
+        is the SPICE-backed model's: ``1 - in-sensor pixels / whole-silhouette
+        pixels``, from this model's own predicted geometry.
+
+        Parameters:
+            in_sensor_pixels: Silhouette pixels the frame-sized render holds.
+            phase_angle_rad: The prediction's phase angle in radians.
+            center_v: The predicted center v on the frame, pixel corner.
+            center_u: The predicted center u on the frame, pixel corner.
+
+        Returns:
+            The overflow fraction in [0, 1]; 1 for a silhouette too small to
+            cover a pixel.
+        """
+        p = self._sim_params
+        max_axis = max(
+            float(p.get('axis1', 0.0)),
+            float(p.get('axis2', 0.0)),
+            float(p.get('axis3', 0.0)),
+        )
+        # Half again the longest axis (mesh relief can push past the
+        # ellipsoid bound) plus a fixed margin, as the arc fractions use.
+        canvas = math.ceil(max_axis * 1.5) + 16
+        half = canvas // 2
+        full_img = self._render_body_image(
+            phase_angle_rad,
+            size=(canvas, canvas),
+            center=(half + center_v - math.floor(center_v), half + center_u - math.floor(center_u)),
+        )
+        total = int(np.count_nonzero(full_img > 0.0))
+        return max(0.0, 1.0 - in_sensor_pixels / max(total, 1))
+
     def to_features(self, context: NavContext) -> list[NavFeature]:
         """Emit the body's NavFeatures.
 
-        Always emits a ``BODY_DISC`` carrying the rendered template (for the
-        correlation technique).  Also emits a ``BODY_BLOB`` whenever the
-        predicted silhouette is large enough -- the lit-weighted centroid is
+        Emits a ``BODY_DISC`` carrying the rendered template (for the
+        correlation technique) unless more than
+        :data:`~spindoctor.nav_model.nav_model_body.BODY_DISC_MAX_OVERFLOW_FRACTION`
+        of the predicted silhouette falls outside the sensor.  Also emits a
+        ``BODY_BLOB`` whenever the predicted silhouette is large enough and its
+        overflow is at most the ``bodies`` configuration value
+        ``blob_max_overflow_fraction`` -- the lit-weighted centroid is
         orientation-independent, so it is the technique that navigates small,
         high-phase, or irregular bodies that the disc correlation cannot.  A
         well-resolved low-phase body adds a ``LIMB_ARC``; a body at appreciable
         phase adds a ``TERMINATOR_ARC`` (the lit/unlit boundary interior to the
-        disc), each matching the SPICE-backed body model's gate rules.
+        disc), each matching the SPICE-backed body model's gate rules.  Both
+        overflow gates are the SPICE-backed model's, read from this model's
+        own predicted silhouette.
         """
         if self._model_img is None or self._body_mask is None:
             return []
@@ -543,34 +595,55 @@ class NavModelBodySimulated(NavModelBodyBase):
             template_mask[occluded_bbox] = False
             visible_disc = int(np.count_nonzero(template_mask))
             disc_visible_fraction = visible_disc / max(total_disc, 1)
-        features: list[NavFeature] = [
-            NavFeature(
-                feature_id=f'body_disc:{self._body_name}',
-                feature_type=NavFeatureType.BODY_DISC,
-                source_model=self.name,
-                geometry=BodyDiscGeometry(
-                    bbox_extfov_vu=self._bbox_extfov_vu,
-                    predicted_center_vu=self._predicted_center_vu,
-                    overflow_fraction=0.0,
-                ),
-                subject_range_km=self._subject_range_km,
-                position_cov_px=None,
-                intensity_sigma_rel=0.0,
-                preferred_filter=NavFilterSpec(kind=NavFilterKind.NONE),
-                reliability=disc_visible_fraction,
-                reliability_reasons=NavReliabilityBreakdown(
-                    visible_lit_fraction=disc_visible_fraction, overflow_fraction=0.0
-                ),
-                usable_types=frozenset({NavFeatureType.BODY_DISC}),
-                flags=BodyDiscFlags(body_name=self._body_name, overflow_fov_fraction=0.0),
-                template_img=template_img,
-                template_mask=template_mask,
+        features: list[NavFeature] = []
+        if self._overflow_fraction <= BODY_DISC_MAX_OVERFLOW_FRACTION:
+            features.append(
+                NavFeature(
+                    feature_id=f'body_disc:{self._body_name}',
+                    feature_type=NavFeatureType.BODY_DISC,
+                    source_model=self.name,
+                    geometry=BodyDiscGeometry(
+                        bbox_extfov_vu=self._bbox_extfov_vu,
+                        predicted_center_vu=self._predicted_center_vu,
+                        overflow_fraction=self._overflow_fraction,
+                    ),
+                    subject_range_km=self._subject_range_km,
+                    position_cov_px=None,
+                    intensity_sigma_rel=0.0,
+                    preferred_filter=NavFilterSpec(kind=NavFilterKind.NONE),
+                    reliability=disc_visible_fraction,
+                    reliability_reasons=NavReliabilityBreakdown(
+                        visible_lit_fraction=disc_visible_fraction,
+                        overflow_fraction=self._overflow_fraction,
+                    ),
+                    usable_types=frozenset({NavFeatureType.BODY_DISC}),
+                    flags=BodyDiscFlags(
+                        body_name=self._body_name, overflow_fov_fraction=self._overflow_fraction
+                    ),
+                    template_img=template_img,
+                    template_mask=template_mask,
+                )
             )
-        ]
+        else:
+            self._logger.info(
+                'BODY_DISC withheld: silhouette overflow %.3f exceeds %.3f',
+                self._overflow_fraction,
+                BODY_DISC_MAX_OVERFLOW_FRACTION,
+            )
         shape = load_body_shape(self._body_name, config=self._config)
         blob_min_px = max(BODY_BLOB_MIN_DIAMETER_PX, shape.min_blob_diameter_px)
         if self._predicted_diameter_px >= blob_min_px:
-            features.append(self._build_blob_feature(shape, context=context))
+            if self._blob_overflow_ok():
+                features.append(self._build_blob_feature(shape, context=context))
+            else:
+                # A clipped body's predicted centroid spans the whole
+                # silhouette while the image holds only the in-sensor part, so
+                # its centroid is displaced before any pointing error (#746).
+                self._logger.info(
+                    'BODY_BLOB withheld: silhouette overflow %.3f exceeds %.3f',
+                    self._overflow_fraction,
+                    self._blob_max_overflow_fraction(),
+                )
         limb_feature = self._build_limb_arc_feature()
         if limb_feature is not None:
             features.append(limb_feature)
