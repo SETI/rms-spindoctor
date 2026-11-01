@@ -209,6 +209,14 @@ take its default.  A top-level block or list set to null reads as unset.
                                      camera-config change cannot shift the scene.  (The
                                      top-level noise block still wins over
                                      instrument_config.noise for rendering.)
+  published_equals_truth (list, opt) truth paths (noise.read_noise_dn,
+                                     optics.psf.sigma_v, ...) that instrument_config
+                                     repeats on purpose.  Without it, a planted
+                                     noise or PSF value that instrument_config
+                                     repeats warns, because instrument_config
+                                     reaches the navigator as published knowledge;
+                                     a listed path whose values differ fails
+                                     validation
   fit_camera_rotation (bool, opt)    force whether navigation solves a camera roll
 
 The instrument fixes the frame's units, in one of two classes; both mark a

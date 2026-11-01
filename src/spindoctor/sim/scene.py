@@ -87,6 +87,7 @@ from spindoctor.sim.scene_schema import (
     TRUTH_KEYS,
     SimSceneValidationError,
 )
+from spindoctor.sim.scene_truth_echo import SimSceneTruthEchoWarning, check_truth_echo
 
 __all__ = [
     'ALLOWED_INSTRUMENTS',
@@ -97,6 +98,7 @@ __all__ = [
     'TOP_LEVEL_TEST_ONLY_KEYS',
     'TOP_LEVEL_TRUTH_KEYS',
     'TRUTH_KEYS',
+    'SimSceneTruthEchoWarning',
     'SimSceneValidationError',
     'build_nav_params',
     'iter_scene_paths',
@@ -234,6 +236,12 @@ def validate_sim_params(
     concrete Gaussian when it builds the kernel), so an editor's live mapping
     and the persisted file both keep the author's intent.
 
+    A truth value that ``instrument_config`` repeats, such as the planted read
+    noise copied into ``instrument_config.noise``, isn't an error, but it warns
+    with :class:`~spindoctor.sim.scene_truth_echo.SimSceneTruthEchoWarning`
+    unless the scene lists its path in ``published_equals_truth`` (see
+    :mod:`spindoctor.sim.scene_truth_echo`).
+
     Parameters:
         sim_params: The flat scene parameter mapping.
         source: Label used in error messages (a path for file authors).
@@ -316,6 +324,7 @@ def validate_sim_params(
 
     if sim_params.get('spk_error') is not None:
         _require_ranges_for_spk_error(sim_params, source=source)
+    check_truth_echo(sim_params, source=source)
 
     return sim_params
 

@@ -156,9 +156,10 @@ opposition surge, the albedo and disc textures and transiting moons and their
 shadows, the mesh shading mode and per-frame pose scatter, the per-star PSF
 anomaly and planted catalog error, the background sky, and the ``nav_override``
 channel. **Test-only** keys are the
-scene's declared navigation outcome (the ``expected`` block): read only by the
-integration suite's assertion machinery, and by neither the renderer nor the
-navigator. :data:`spindoctor.sim.scene.TRUTH_KEYS` is the machine-readable truth
+scene's declared navigation outcome (the ``expected`` block), read only by the
+integration suite's assertion machinery, and the ``published_equals_truth``
+list, read only by the validator; neither the renderer nor the navigator reads
+them. :data:`spindoctor.sim.scene.TRUTH_KEYS` is the machine-readable truth
 inventory; an import-time assertion in :mod:`spindoctor.sim.scene` fails if any
 schema key is left unclassified or lands in two classes, so a schema change
 cannot dodge the classification. The boundary filter is default-deny, so the
@@ -2492,6 +2493,13 @@ default. A top-level block or list set to null reads as unset.
        ``confidence_tier``, ``status_reason``), asserted by the integration
        suite and read by neither the renderer nor the navigator (see
        :ref:`sim-expected`).
+   * - ``published_equals_truth``
+     - list
+     - none
+     - test-only
+     - Truth paths, such as ``noise.read_noise_dn``, that ``instrument_config``
+       repeats on purpose, read only by the validator (see
+       :ref:`sim-instrument-config`).
 
 .. _sim-body-params:
 
@@ -3184,6 +3192,21 @@ data units, extfov margin) without tracking later camera-config edits. Omit it t
 inherit everything; name ``generic`` and override everything to fully
 self-specify. The top-level ``noise`` block still wins over
 ``instrument_config.noise`` for rendering. See :doc:`dev_guide_observations`.
+
+``instrument_config`` is idealized and crosses the information boundary
+unfiltered. A planted value copied into it reaches the navigator as published
+knowledge: a scene whose ``instrument_config.noise.read_noise_dn`` equals its
+truth-side ``noise.read_noise_dn`` lets the navigator's SNR model adapt to the
+planted noise, and the recovery looks better than it should. Nothing can stop an
+author from doing that, so the validator warns instead, with
+:class:`~spindoctor.sim.scene_truth_echo.SimSceneTruthEchoWarning`, naming both
+sites. It compares each ``noise`` key, ``noise.vidicon`` included, with the
+``instrument_config.noise`` key of the same name, and ``optics.psf.sigma_v`` and
+``sigma_u`` with ``instrument_config.star_psf_sigma``. The ``detector`` block
+doesn't share a key with the instrument config and isn't compared. When the
+two are equal on purpose, the scene lists the truth paths in
+``published_equals_truth``, which silences those warnings. A listed path whose
+values differ fails validation, so an opt-out can't outlive its reason.
 
 .. _sim-catalog-workflow:
 

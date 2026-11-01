@@ -98,6 +98,7 @@ class SceneIoMixin(SimEditorBase):
             'instrument_config',
             'midtime_utc',
             'fit_camera_rotation',
+            'published_equals_truth',
             'sky_counts',
             'star_catalog_scatter_px',
             'expected',

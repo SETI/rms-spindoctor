@@ -66,6 +66,7 @@ _ALLOWED_KEYS: frozenset[str] = frozenset(
         'sky_counts',
         'star_catalog_scatter_px',
         'expected',
+        'published_equals_truth',
         'bodies',
         'ring_system',
         'stars',
@@ -118,13 +119,15 @@ TOP_LEVEL_TRUTH_KEYS: frozenset[str] = frozenset(
     }
 )
 
-# Top-level test-only keys: the scene's expected navigation outcome.  It is
-# read only by the sim integration suite's assertion machinery -- consumed by
-# neither the image-side renderer nor the navigator, so it is neither idealized
-# information the pipeline could know nor a planted truth the renderer draws.
-# It is a third, disjoint class; the boundary filter's default-deny keeps it
-# out of ``nav_params`` alongside the truth keys.
-TOP_LEVEL_TEST_ONLY_KEYS: frozenset[str] = frozenset({'expected'})
+# Top-level test-only keys: the scene's expected navigation outcome, read only
+# by the sim integration suite's assertion machinery, and the truth paths the
+# author declares equal to the published instrument_config on purpose, read
+# only by the validator's truth-echo check.  Neither the image-side renderer
+# nor the navigator consumes them, so they are neither idealized information
+# the pipeline could know nor planted truth the renderer draws.  They are a
+# third, disjoint class; the boundary filter's default-deny keeps them out of
+# ``nav_params`` alongside the truth keys.
+TOP_LEVEL_TEST_ONLY_KEYS: frozenset[str] = frozenset({'expected', 'published_equals_truth'})
 
 # Per-body idealized keys: the ellipsoid/mesh geometry, pose, lighting, and
 # physical scale the production pipeline knows from SPICE and shape catalogs.
