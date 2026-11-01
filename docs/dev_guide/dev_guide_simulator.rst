@@ -1233,6 +1233,9 @@ render departs from it. The sweeps and their floors:
   predicts as hard. The sweep drives a ``HAZEMOON`` body, so it measures
   haze-BLIND body navigation; the haze solar-symmetry fit has its own base scene
   and offset sweeps.
+- ``atmosphere_haze_albedo`` -- the same haze column at ``tau_ref`` 4 with the
+  haze ``albedo`` walked up from 0, where the haze adds no light, so a dim
+  Titan-like haze and a brighter one can be compared at one thickness.
 
 The remaining Section 8 axes are covered by pre-existing sweeps
 (``noise_read_noise``, ``artifact_missing_lines``, ``irregularity_shape_mismatch``,
@@ -1659,9 +1662,14 @@ line of sight grazing the body at tangent altitude ``h`` (pixels above the
 reference radius) accumulates a tangent optical depth
 ``tau(h) = tau_ref * exp(-(h - ref_altitude_px) / scale_height_px)``, so
 ``tau_ref`` is the tangent optical depth at ``ref_altitude_px``. The emergent
-haze brightness is a single-scattering source (a Henyey-Greenstein phase
-factor of asymmetry ``g``, times a wrapped illumination weight) multiplied by
-an opacity ``1 - exp(-tau)``. Three consequences follow:
+haze brightness is a single-scattering source (the haze ``albedo``, times a
+Henyey-Greenstein phase factor of asymmetry ``g``, times a wrapped
+illumination weight) multiplied by an opacity ``1 - exp(-tau)``. ``albedo``
+defaults to 0.6 and may be any number at least 0. It sets how bright the
+haze is against the disc and the sky, independently of how thick it is, so a
+dim Titan-like haze and a brighter Saturn-like one can share a column. At 0
+the haze adds no light: the halo still dims what lies behind it, and the
+limb renders as the bare surface. Three consequences follow:
 
 - **A soft limb.** Above the geometric limb the opacity fades as an
   exponential ramp, so the sharp edge becomes a soft glow whose apparent

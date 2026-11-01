@@ -1,0 +1,12 @@
+sweep_name: atmosphere_haze_albedo
+# Haze-brightness mismatch axis: the atmosphere_haze base scene's haze at its
+# full tau_ref 4 column, with the haze albedo walked up from 0.  At albedo 0 the
+# haze adds no light (its halo only dims the black sky behind it), so the limb
+# renders as the bare surface and that point is the self-consistency floor.  A
+# brighter haze lifts the limb farther above the reference radius the navigator
+# predicts, growing the recovered-offset error.  The 0.6 point is the base
+# scene's default albedo, the atmosphere_haze sweep's tau_ref 4 point.
+base_scene: model_mismatch/haze_limb_base.yaml
+parameters: [bodies.0.atmosphere.albedo]
+values: [0.0, 0.15, 0.3, 0.6, 1.0]
+technique: '*'

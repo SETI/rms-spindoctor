@@ -602,6 +602,23 @@ def test_atmosphere_haze_biases_limb() -> None:
     assert rows[-1].offset_error_px > rows[0].offset_error_px + 0.1
 
 
+def test_atmosphere_haze_albedo_floor_recovers() -> None:
+    """An albedo-0 haze adds no light, so the bare limb recovers the offset."""
+    rows = _rows('atmosphere_haze_albedo')
+    assert rows[0].value == 0.0
+    assert rows[0].status == 'success'
+    assert rows[0].offset_error_px is not None
+    assert rows[0].offset_error_px < _RECOVERY_TOLERANCE_PX
+
+
+def test_atmosphere_haze_albedo_biases_limb() -> None:
+    """A brighter haze of the same column lifts the limb, biasing the recovery."""
+    rows = _rows('atmosphere_haze_albedo')
+    assert rows[0].offset_error_px is not None
+    assert rows[-1].offset_error_px is not None
+    assert rows[-1].offset_error_px > rows[0].offset_error_px + 0.1
+
+
 # The per-technique dense and wide offset sweeps (``*_offset_fine`` /
 # ``*_offset_wide``) are characterization runs, not assertions: they are executed
 # by ``sim_sweep_runner`` to produce the report's figures, and the specific defect

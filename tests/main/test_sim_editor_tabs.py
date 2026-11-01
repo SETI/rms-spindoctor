@@ -36,6 +36,7 @@ except Exception as exc:
     )
 
 from spindoctor.cli.sim_editor import CreateSimulatedImageModel
+from spindoctor.sim.forward.atmosphere import DEFAULT_HAZE_ALBEDO
 from spindoctor.sim.scene import validate_sim_params
 
 
@@ -842,10 +843,16 @@ def test_body_surge_toggle_inserts_and_removes(model: Any) -> None:
 
 
 def test_body_atmosphere_toggle_inserts_and_removes(model: Any) -> None:
-    """The atmosphere group inserts the four core keys and removes the map."""
+    """The atmosphere group inserts the five core keys and removes the map."""
     tab = _body_tab(model)
     tab.atmosphere_group.setChecked(True)
-    assert set(_body(model)['atmosphere']) == {'scale_height_px', 'tau_ref', 'ref_altitude_px', 'g'}
+    assert set(_body(model)['atmosphere']) == {
+        'scale_height_px',
+        'tau_ref',
+        'ref_altitude_px',
+        'g',
+        'albedo',
+    }
     tab.atmosphere_group.setChecked(False)
     assert 'atmosphere' not in _body(model)
 
@@ -872,6 +879,19 @@ def test_body_atmosphere_g_spin_writes_key(model: Any) -> None:
     tab.atmosphere_group.setChecked(True)
     tab.atmosphere_g_spin.setValue(0.55)
     assert _body(model)['atmosphere']['g'] == 0.55
+
+
+def test_body_atmosphere_albedo_spin_writes_key(model: Any) -> None:
+    """A haze-albedo spin edit writes the albedo key once the group is enabled."""
+    tab = _body_tab(model)
+    tab.atmosphere_group.setChecked(True)
+    tab.atmosphere_albedo_spin.setValue(0.25)
+    assert _body(model)['atmosphere']['albedo'] == 0.25
+
+
+def test_body_atmosphere_albedo_spin_starts_at_the_default(model: Any) -> None:
+    """A body without a haze albedo shows the renderer's default in the spin."""
+    assert _body_tab(model).atmosphere_albedo_spin.value() == DEFAULT_HAZE_ALBEDO
 
 
 def test_body_atmosphere_ref_altitude_spin_writes_key(model: Any) -> None:

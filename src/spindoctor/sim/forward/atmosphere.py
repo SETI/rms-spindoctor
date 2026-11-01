@@ -30,7 +30,8 @@ thin shell projected against the disc adds negligible slant contrast), so
 the shell renders solely as a second band in the tangent glow.
 
 **Single scattering.**  The emergent haze brightness is a source term times
-an opacity term.  The source is a single-scattering albedo scaled by a
+an opacity term.  The source is the block's single-scattering ``albedo``
+(:data:`DEFAULT_HAZE_ALBEDO` when the scene leaves it out) scaled by a
 Henyey-Greenstein phase factor (forward-scattering when ``g`` > 0, which
 brightens the limb at high phase and, in the limit, produces the ring of
 light past phase 150 deg) and a wrapped illumination weight that stays
@@ -88,6 +89,7 @@ from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 
 __all__ = [
+    'DEFAULT_HAZE_ALBEDO',
     'AtmosphereLayers',
     'AtmosphereSpec',
     'HaloScreen',
@@ -96,11 +98,14 @@ __all__ = [
     'hg_phase_factor',
 ]
 
-# Single-scattering brightness scale of a fully lit, optically thick grazing
-# haze column (before the phase factor and illumination weight).  The haze
-# emergent intensity is clipped into the [0, 1] signal plane, so a strong
-# forward-scattering peak saturates by design.
-_HAZE_ALBEDO = 0.6
+DEFAULT_HAZE_ALBEDO: float = 0.6
+"""The haze ``albedo`` a scene's ``atmosphere`` block takes when it leaves the key out.
+
+The albedo is the single-scattering brightness scale of a fully lit, optically
+thick grazing haze column, before the phase factor and the illumination
+weight.  The haze's emergent intensity is clipped into the [0, 1] signal
+plane, so a strong forward-scattering peak saturates by design.
+"""
 
 # Amplitude of a detached shell's Gaussian tau bump, as a multiple of
 # tau_ref; the shell's radial width is one scale height.
@@ -197,6 +202,9 @@ class AtmosphereSpec:
             forward-scattering (bright limb at high phase).
         detached_px: Altitude of an optional detached haze shell above the
             surface, in pixels; None for no shell.
+        albedo: The haze's single-scattering brightness scale (at least 0);
+            0 is a purely absorbing haze, which still dims what lies behind
+            the halo but adds no light.
         structure: The optional symmetry-breaking structure (see
             :mod:`spindoctor.sim.forward.haze_structure`); None for the
             plain mirror-symmetric column, which is what every quantity
@@ -208,6 +216,7 @@ class AtmosphereSpec:
     ref_altitude_px: float = 0.0
     g: float = 0.0
     detached_px: float | None = None
+    albedo: float = DEFAULT_HAZE_ALBEDO
     structure: HazeStructure | None = None
 
 
@@ -238,6 +247,7 @@ def atmosphere_spec_from_params(
         ref_altitude_px=float(atmosphere.get('ref_altitude_px', 0.0)) * os_factor,
         g=float(atmosphere.get('g', 0.0)),
         detached_px=(float(detached) * os_factor if detached is not None else None),
+        albedo=float(atmosphere.get('albedo', DEFAULT_HAZE_ALBEDO)),
         structure=haze_structure_from_params(atmosphere, oversample=os_factor),
     )
 
@@ -592,7 +602,7 @@ def apply_atmosphere(
         """The single-scattering source from the solar elevation weight."""
         elevation = np.arcsin(np.clip(mu0, -1.0, 1.0))
         illum_weight = 0.5 * (1.0 + np.tanh(elevation / delta_wrap))
-        return cast(NDArrayFloatType, _HAZE_ALBEDO * hg * illum_weight)
+        return cast(NDArrayFloatType, spec.albedo * hg * illum_weight)
 
     out_box = out[box_v, box_u]
     # The outline decides disc versus halo; it is read before any haze joins

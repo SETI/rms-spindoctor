@@ -1593,6 +1593,10 @@ the dedicated sweep or the scene class that drives it:
      - ``atmosphere`` ``tau_ref`` haze
      - hard limb at reference radius (haze-blind body navigation)
      - sweep ``atmosphere_haze``
+   * - Haze brightness
+     - ``atmosphere`` ``albedo``
+     - hard limb at reference radius (haze-blind body navigation)
+     - sweep ``atmosphere_haze_albedo``
    * - Haze symmetry structure
      - ``atmosphere`` axis tilt, hemispheric and azimuthal falloff, interior
        ramp, cloud blobs
@@ -1607,10 +1611,10 @@ the dedicated sweep or the scene class that drives it:
      - not modeled
      - sweep ``artifact_missing_lines`` and ``artifact_sweep`` scene class
 
-Seven of these sweeps -- ``psf_limb_mismatch``, ``psf_limb_wings``,
+Eight of these sweeps -- ``psf_limb_mismatch``, ``psf_limb_wings``,
 ``photometric_minnaert_mismatch``, ``spk_parallax_error``,
-``differential_smear``, ``ring_orbit_error``, and ``atmosphere_haze`` -- each
-begin at a self-consistency floor: their first swept value plants no mismatch,
+``differential_smear``, ``ring_orbit_error``, ``atmosphere_haze``, and
+``atmosphere_haze_albedo`` -- each begin at a self-consistency floor: their first swept value plants no mismatch,
 so its recovery error is the floor (reproducibility), not accuracy, and the
 curve reads as accuracy only from the second point on.
 

@@ -24,6 +24,7 @@ import pytest
 
 from spindoctor.sim.ellipsoid_geometry import illumination_vector
 from spindoctor.sim.forward.atmosphere import (
+    DEFAULT_HAZE_ALBEDO,
     AtmosphereSpec,
     apply_atmosphere,
     atmosphere_spec_from_params,
@@ -320,6 +321,71 @@ def test_atmosphere_spec_keeps_tau_ref_dimensionless() -> None:
     spec = atmosphere_spec_from_params({'atmosphere': block}, oversample=4)
     assert spec is not None
     assert spec.tau_ref == pytest.approx(1.2)
+
+
+def test_atmosphere_spec_reads_the_haze_albedo() -> None:
+    """A stated haze albedo reaches the spec unscaled by oversample."""
+    block = {'scale_height_px': 4.0, 'tau_ref': 1.2, 'albedo': 0.25}
+    spec = atmosphere_spec_from_params({'atmosphere': block}, oversample=4)
+    assert spec is not None
+    assert spec.albedo == 0.25
+
+
+def test_atmosphere_spec_defaults_the_haze_albedo() -> None:
+    """A block without an albedo takes the renderer's default."""
+    spec = atmosphere_spec_from_params(
+        {'atmosphere': {'scale_height_px': 4.0, 'tau_ref': 1.2}}, oversample=1
+    )
+    assert spec is not None
+    assert spec.albedo == DEFAULT_HAZE_ALBEDO
+
+
+def test_the_halo_glow_scales_with_the_haze_albedo() -> None:
+    """Halving the albedo halves the glow above the limb, below saturation."""
+    probe = (int(_CENTER), int(_CENTER + _RADIUS + 3))
+    bright = _centered_layers(AtmosphereSpec(scale_height_px=8.0, tau_ref=1.5, albedo=0.4))
+    dim = _centered_layers(AtmosphereSpec(scale_height_px=8.0, tau_ref=1.5, albedo=0.2))
+    assert dim.halo.emission[probe] == pytest.approx(0.5 * bright.halo.emission[probe], rel=1e-12)
+
+
+def test_a_zero_albedo_haze_adds_no_light() -> None:
+    """An absorbing haze leaves the halo dark."""
+    layers = _centered_layers(AtmosphereSpec(scale_height_px=8.0, tau_ref=1.5, albedo=0.0))
+    assert float(layers.halo.emission.max()) == 0.0
+
+
+def test_a_zero_albedo_haze_still_extinguishes_the_background() -> None:
+    """An absorbing haze transmits the same exp(-tau) a bright one does."""
+    bright = _centered_layers(AtmosphereSpec(scale_height_px=8.0, tau_ref=1.5))
+    dark = _centered_layers(AtmosphereSpec(scale_height_px=8.0, tau_ref=1.5, albedo=0.0))
+    assert np.array_equal(dark.halo.transmission, bright.halo.transmission)
+
+
+def _albedo_scene(albedo: float) -> dict[str, Any]:
+    """A minimal scene whose one atmospheric body states ``albedo``."""
+    body = _compose_body()
+    body['atmosphere']['albedo'] = albedo
+    return {
+        'instrument': 'coiss_nac',
+        'size_v': _C_SIZE,
+        'size_u': _C_SIZE,
+        'random_seed': 3,
+        'exposure_sec': 1.0,
+        'bodies': [body],
+    }
+
+
+@pytest.mark.parametrize('albedo', [0.0, 0.4, 2.0])
+def test_a_nonnegative_haze_albedo_validates(albedo: float) -> None:
+    """Any haze albedo at least 0 validates and is kept as stated."""
+    scene = validate_sim_params(_albedo_scene(albedo))
+    assert scene['bodies'][0]['atmosphere']['albedo'] == albedo
+
+
+def test_a_negative_haze_albedo_is_refused() -> None:
+    """A negative haze albedo fails validation and names the key."""
+    with pytest.raises(SimSceneValidationError, match=r'atmosphere\.albedo'):
+        validate_sim_params(_albedo_scene(-0.1))
 
 
 def test_apply_atmosphere_does_not_mutate_input() -> None:

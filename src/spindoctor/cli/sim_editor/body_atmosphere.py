@@ -20,6 +20,7 @@ from PyQt6.QtWidgets import QCheckBox, QFormLayout, QGroupBox, QWidget
 
 from spindoctor.cli.sim_editor.base import SimEditorBase
 from spindoctor.cli.sim_editor.widgets import make_dspin as _dspin
+from spindoctor.sim.forward.atmosphere import DEFAULT_HAZE_ALBEDO
 
 
 def _as_map(value: Any) -> dict[str, Any]:
@@ -68,6 +69,14 @@ class BodyAtmosphereMixin(SimEditorBase):
             value=float(atmosphere.get('g', 0.0)),
             tooltip='Henyey-Greenstein asymmetry (positive is forward-scattering).',
         )
+        albedo = _dspin(
+            minimum=0.0,
+            maximum=5.0,
+            decimals=3,
+            step=0.05,
+            value=float(atmosphere.get('albedo', DEFAULT_HAZE_ALBEDO)),
+            tooltip='Haze brightness scale (0 adds no light; the halo still dims what is behind).',
+        )
         shell_check = QCheckBox('Detached shell')
         detached = _dspin(
             minimum=0.1,
@@ -83,6 +92,7 @@ class BodyAtmosphereMixin(SimEditorBase):
         form.addRow('Tau ref:', tau_ref)
         form.addRow('Ref altitude (px):', ref_altitude)
         form.addRow('Asymmetry g:', asymmetry)
+        form.addRow('Albedo:', albedo)
         form.addRow(shell_check)
         form.addRow('Detached (px):', detached)
         group.setChecked('atmosphere' in p)
@@ -97,6 +107,7 @@ class BodyAtmosphereMixin(SimEditorBase):
             lambda v, i=idx: self._on_body_atmosphere_value(i, 'ref_altitude_px', v)
         )
         asymmetry.valueChanged.connect(lambda v, i=idx: self._on_body_atmosphere_value(i, 'g', v))
+        albedo.valueChanged.connect(lambda v, i=idx: self._on_body_atmosphere_value(i, 'albedo', v))
         shell_check.toggled.connect(lambda on, i=idx: self._on_body_atmosphere_shell_toggled(i, on))
         detached.valueChanged.connect(
             lambda v, i=idx: self._on_body_atmosphere_value(i, 'detached_px', v)
@@ -106,6 +117,7 @@ class BodyAtmosphereMixin(SimEditorBase):
         w.atmosphere_tau_ref_spin = tau_ref  # type: ignore[attr-defined]
         w.atmosphere_ref_altitude_spin = ref_altitude  # type: ignore[attr-defined]
         w.atmosphere_g_spin = asymmetry  # type: ignore[attr-defined]
+        w.atmosphere_albedo_spin = albedo  # type: ignore[attr-defined]
         w.atmosphere_shell_check = shell_check  # type: ignore[attr-defined]
         w.atmosphere_detached_spin = detached  # type: ignore[attr-defined]
         return group
@@ -126,6 +138,11 @@ class BodyAtmosphereMixin(SimEditorBase):
                     float(w.atmosphere_ref_altitude_spin.value()) if w is not None else 0.0  # type: ignore[attr-defined]
                 ),
                 'g': float(w.atmosphere_g_spin.value()) if w is not None else 0.0,  # type: ignore[attr-defined]
+                'albedo': (
+                    float(w.atmosphere_albedo_spin.value())  # type: ignore[attr-defined]
+                    if w is not None
+                    else DEFAULT_HAZE_ALBEDO
+                ),
             }
             if w is not None and w.atmosphere_shell_check.isChecked():  # type: ignore[attr-defined]
                 atmosphere['detached_px'] = float(w.atmosphere_detached_spin.value())  # type: ignore[attr-defined]
