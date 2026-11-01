@@ -346,7 +346,11 @@ def _make_nav_context(
     gradient, edge_dt = build_image_edge_dt(image, image_noise_sigma=1.0)
     gradient_vu = compute_image_gradient_vu(image, sigma_px=DEFAULT_IMAGE_GRADIENT_SIGMA_PX)
     return NavContext(
-        obs=FakeObs(extfov_margin_vu=extfov_margin_vu),
+        # Every camera configuration sets a lone-star ellipse fraction; 0.6 is the
+        # Cassini NAC's.
+        obs=FakeObs(
+            extfov_margin_vu=extfov_margin_vu, inst_config={'one_star_ellipse_fraction': 0.6}
+        ),
         image_ext=image,
         sensor_mask_ext=sensor_mask,
         image_noise_sigma=1.0,

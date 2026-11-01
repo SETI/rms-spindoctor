@@ -159,17 +159,13 @@ def test_star_unique_match_marks_at_edge_when_offset_hits_margin(
     make_nav_context: NavContextFactory,
     make_star_feature: NavFeatureFactory,
     draw_gaussian_star: DrawGaussianStarFactory,
-    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """An offset within a pixel of the search-window edge is flagged + zero confidence.
 
     The search window is the offset window, so a star exactly on its edge is cut by it;
     the star is planted half a pixel inside.  A lone star is believed only inside its
-    ellipse, so the fraction is opened to the whole window for the edge to be met.
+    ellipse, so the camera's fraction is opened to the whole window for the edge to be met.
     """
-    tuning = dict(StarUniqueMatchNav.tuning)
-    tuning['one_star_ellipse_fraction'] = 1.0
-    monkeypatch.setattr(StarUniqueMatchNav, 'tuning', tuning)
     shape = (220, 220)
     image = np.zeros(shape, dtype=np.float64)
     actual_vu = (110.0, 110.0)
@@ -179,6 +175,7 @@ def test_star_unique_match_marks_at_edge_when_offset_hits_margin(
     feature = make_star_feature('star:UCAC4:edge', predicted_vu=pred_vu, predicted_snr=40.0)
     technique = StarUniqueMatchNav()
     context = make_nav_context(image, extfov_margin_vu=margin)
+    context.obs.inst_config['one_star_ellipse_fraction'] = 1.0  # type: ignore[attr-defined]
     result = technique.navigate([feature], context)
     assert result.at_edge is True
     assert result.confidence == pytest.approx(0.0)
@@ -583,7 +580,7 @@ def test_star_unique_match_refuses_a_lone_star_outside_the_ellipse(
     """A lone detection inside the 32 px search window but outside its ellipse is refused."""
     image = np.zeros((300, 300), dtype=np.float64)
     technique = StarUniqueMatchNav()
-    ellipse_px = float(technique.tuning['one_star_ellipse_fraction']) * 32.0
+    ellipse_px = 0.6 * 32.0
     pred = (150.0, 150.0)
     draw_gaussian_star(image, (pred[0], pred[1] + ellipse_px + 5.0), peak_dn=200.0, sigma=1.2)
     draw_gaussian_star(image, (40.0, 40.0), peak_dn=20.0, sigma=1.2)
@@ -686,7 +683,10 @@ def test_star_unique_match_believes_a_lone_star_inside_the_ellipse(
     offset_vu: tuple[float, float],
     accepted: bool,
 ) -> None:
-    """A (10, 30) px window's lone-star ellipse reaches 6 px along v and 18 px along u."""
+    """A (10, 30) px window's lone-star ellipse reaches 6 px along v and 18 px along u.
+
+    The context's camera sets a fraction of 0.6.
+    """
     image = np.zeros((300, 300), dtype=np.float64)
     star_vu = (150.0 + offset_vu[0], 150.0 + offset_vu[1])
     draw_gaussian_star(image, star_vu, peak_dn=200.0, sigma=1.2)
@@ -696,6 +696,44 @@ def test_star_unique_match_believes_a_lone_star_inside_the_ellipse(
     assert (result.spurious is False) is accepted
     refused = 'one_star_detection_outside_ellipse' in capsys.readouterr().out
     assert refused is not accepted
+
+
+@pytest.mark.parametrize(('fraction', 'accepted'), [(0.6, False), (0.7, True)])
+def test_star_unique_match_takes_the_lone_star_ellipse_from_the_camera(
+    make_nav_context: NavContextFactory,
+    make_star_feature: NavFeatureFactory,
+    draw_gaussian_star: DrawGaussianStarFactory,
+    fraction: float,
+    accepted: bool,
+) -> None:
+    """A lone star at 0.64 of a 14 px window is believed only by a camera whose fraction
+    reaches it.
+
+    Fails if the camera's ``one_star_ellipse_fraction`` is ignored for a fixed fraction:
+    0.6 refuses the 0.7 case and 0.7 believes the 0.6 one.
+    """
+    image = np.zeros((300, 300), dtype=np.float64)
+    draw_gaussian_star(image, (150.0, 159.0), peak_dn=200.0, sigma=1.2)
+    feature = make_star_feature('star:UCAC4:A', predicted_vu=(150.0, 150.0), predicted_snr=60.0)
+    context = make_nav_context(image, extfov_margin_vu=(14, 14))
+    context.obs.inst_config['one_star_ellipse_fraction'] = fraction  # type: ignore[attr-defined]
+    result = StarUniqueMatchNav().navigate([feature], context)
+    assert (result.spurious is False) is accepted
+
+
+def test_star_unique_match_requires_the_camera_to_set_a_lone_star_ellipse(
+    make_nav_context: NavContextFactory,
+    make_star_feature: NavFeatureFactory,
+    draw_gaussian_star: DrawGaussianStarFactory,
+) -> None:
+    """A camera that sets no lone-star ellipse fraction is refused, never given a default."""
+    image = np.zeros((200, 200), dtype=np.float64)
+    draw_gaussian_star(image, (100.0, 101.0), peak_dn=200.0, sigma=1.2)
+    feature = make_star_feature('star:UCAC4:A', predicted_vu=(100.0, 100.0), predicted_snr=60.0)
+    context = make_nav_context(image)
+    context.obs.inst_config = {}  # type: ignore[attr-defined]
+    with pytest.raises(ValueError, match='sets no one_star_ellipse_fraction'):
+        StarUniqueMatchNav().navigate([feature], context)
 
 
 @pytest.mark.parametrize(('offset_vu', 'passes'), [((0.0, 15.0), True), ((15.0, 0.0), False)])
@@ -966,18 +1004,6 @@ def test_star_unique_match_a_source_votes_only_with_the_peak_the_star_should_sho
     assert (det is not None) is found
 
 
-@pytest.mark.parametrize('fraction', [0.0, 1.5])
-def test_star_unique_match_rejects_a_one_star_ellipse_fraction_outside_zero_to_one(
-    monkeypatch: pytest.MonkeyPatch, fraction: float
-) -> None:
-    """Construction rejects an ``one_star_ellipse_fraction`` outside ``(0, 1]``."""
-    tuning = dict(StarUniqueMatchNav.tuning)
-    tuning['one_star_ellipse_fraction'] = fraction
-    monkeypatch.setattr(StarUniqueMatchNav, 'tuning', tuning)
-    with pytest.raises(ValueError, match=r'one_star_ellipse_fraction must lie in \(0, 1\]'):
-        StarUniqueMatchNav()
-
-
 def test_star_unique_match_rejects_a_pair_vote_peak_factor_of_one(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -998,7 +1024,7 @@ def test_star_unique_match_one_star_region_is_an_ellipse(
     """A lone star inside the scaled square of a 32 px window but past its ellipse is refused."""
     image = np.zeros((300, 300), dtype=np.float64)
     technique = StarUniqueMatchNav()
-    ellipse_px = float(technique.tuning['one_star_ellipse_fraction']) * 32.0
+    ellipse_px = 0.6 * 32.0
     side = ellipse_px * 0.85
     pred = (150.0, 150.0)
     draw_gaussian_star(image, (pred[0] + side, pred[1] + side), peak_dn=200.0, sigma=1.2)

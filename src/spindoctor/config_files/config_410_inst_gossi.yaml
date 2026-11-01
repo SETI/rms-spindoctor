@@ -5,6 +5,12 @@ galileo_ssi:
   data_units: raw_dn
   extfov_margin_vu: [350, 350]
   star_psf_sigma: 3.
+  # Fraction of the offset window, per axis, inside which
+  # StarUniqueMatchNav believes a lone star, in (0, 1].  Not measured on
+  # this camera: 0.6 is the Cassini NAC's value.  On the black-sky library
+  # frame C0164392700R a lone artifact lies 40 px from the one predicted
+  # star, inside the 210 px ellipse of the 350 px window.
+  one_star_ellipse_fraction: 0.6
   star_psf_sizes:
     100: [7, 7]
   # Galileo SSI carries non-negligible attitude rotation residuals, and they

@@ -12,12 +12,12 @@ Two paths share one technique:
   ``one_star_min_peak_ratio`` of its peak, another star's surviving hypothesis elsewhere is
   within ``pair_vote_peak_factor`` of its brightness, or another star within
   ``brightness_margin_to_next_catalog_star_mag`` of it has the source in its window.  The
-  answer must also lie inside the lone-star ellipse (``one_star_ellipse_fraction`` of the
-  window), and, when no pixel of the window outside the source clears the background,
-  within ``one_star_max_residual_px`` of the prediction: an infinite peak ratio is
-  the signature of a lone hot pixel on a flat or quantized frame.  Confidence is capped at
-  the configured one-star limit (default 0.7) because a single match cannot cross-check
-  itself.
+  answer must also lie inside the lone-star ellipse (the camera's
+  ``one_star_ellipse_fraction`` of the window), and, when no pixel of the window outside
+  the source clears the background, within ``one_star_max_residual_px`` of the
+  prediction: an infinite peak ratio is the signature of a lone hot pixel on a flat or
+  quantized frame.  Confidence is capped at the configured one-star limit (default 0.7)
+  because a single match cannot cross-check itself.
 
 - **Two-star path.**  Tried first whenever two or more stars are usable.
   Each of the ``pair_search_stars`` brightest usable stars is searched for
@@ -177,7 +177,6 @@ class StarUniqueMatchNav(NavTechnique):
         self._pair_contradiction_stars = int(self.tuning['pair_contradiction_stars'])
         self._pair_absent_stars = int(self.tuning['pair_absent_stars'])
         self._pair_vote_peak_factor = float(self.tuning['pair_vote_peak_factor'])
-        self._one_star_ellipse_fraction = float(self.tuning['one_star_ellipse_fraction'])
         self._isolation_inner_px = int(self.tuning['source_isolation_inner_px'])
         self._isolation_outer_px = int(self.tuning['source_isolation_outer_px'])
         self._isolation_max_ratio = float(self.tuning['source_isolation_max_ratio'])
@@ -196,11 +195,6 @@ class StarUniqueMatchNav(NavTechnique):
         if not 1.0 < self._pair_vote_peak_factor < math.inf:
             raise ValueError(
                 f'pair_vote_peak_factor must be finite and > 1; got {self._pair_vote_peak_factor!r}'
-            )
-        if not 0.0 < self._one_star_ellipse_fraction <= 1.0:
-            raise ValueError(
-                'one_star_ellipse_fraction must lie in (0, 1]; '
-                f'got {self._one_star_ellipse_fraction!r}'
             )
         if not 1.0 <= self._one_star_max_peak_sharpness < math.inf:
             raise ValueError(
@@ -777,8 +771,9 @@ class StarUniqueMatchNav(NavTechnique):
         margin_mag = brightness_margin_mag(star_snr, predicted_snr(rest[0]) if rest else 0.0)
         det = best.source_vu
         offset_v, offset_u = best.offset_vu
-        ellipse_v = self._one_star_ellipse_fraction * search_half_vu[0]
-        ellipse_u = self._one_star_ellipse_fraction * search_half_vu[1]
+        ellipse_fraction = self._ellipse_fraction(context)
+        ellipse_v = ellipse_fraction * search_half_vu[0]
+        ellipse_u = ellipse_fraction * search_half_vu[1]
         peak_ratio = detection_peak_ratio(
             image_ext,
             predicted_vu(star),
@@ -816,11 +811,11 @@ class StarUniqueMatchNav(NavTechnique):
             # Nothing cross-checks a lone detection, and the wider the region it may come
             # from, the likelier it is an artifact, so it is believed only inside the
             # lone-star ellipse.  The instrument window is per axis, so the ellipse's
-            # semi-axes are its half-widths scaled by one_star_ellipse_fraction: no single
-            # radius is taken from the two, the ellipse is a circle when they are equal,
-            # and it never reaches past the window on either axis.  The test is written
-            # without division, so a zero margin on an axis admits only a zero offset on
-            # it.
+            # semi-axes are its half-widths scaled by the camera's
+            # one_star_ellipse_fraction: no single radius is taken from the two, the
+            # ellipse is a circle when they are equal, and it never reaches past the
+            # window on either axis.  The test is written without division, so a zero
+            # margin on an axis admits only a zero offset on it.
             refusal = (
                 f'one_star_detection_outside_ellipse (offset '
                 f'({offset_v:.3f}, {offset_u:.3f}) px, outside the '
@@ -891,6 +886,29 @@ class StarUniqueMatchNav(NavTechnique):
             rotation_rad=0.0 if fit_rotation else None,
             sigma_rotation_rad=(rotation_unobservable_sigma_rad() if fit_rotation else None),
         )
+
+    @staticmethod
+    def _ellipse_fraction(context: NavContext) -> float:
+        """Return the camera's lone-star ellipse fraction.
+
+        The fraction is the camera's ``one_star_ellipse_fraction``.  Every camera sets
+        one, and loading the configuration holds it to ``(0, 1]``.
+
+        Parameters:
+            context: Per-image NavContext.
+
+        Returns:
+            The fraction of the offset window, per axis, inside which a lone star is
+            believed.
+
+        Raises:
+            ValueError: If the camera's configuration sets no fraction.
+        """
+        inst_config = context.obs.inst_config or {}  # type: ignore[attr-defined]
+        fraction = inst_config.get('one_star_ellipse_fraction')
+        if fraction is None:
+            raise ValueError('the instrument configuration sets no one_star_ellipse_fraction')
+        return float(fraction)
 
     @staticmethod
     def _max_peak_per_snr(context: NavContext, noise_sigma: float) -> float | None:
