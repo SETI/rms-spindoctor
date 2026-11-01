@@ -308,7 +308,14 @@ class StarUniqueMatchNav(NavTechnique):
                 )
                 if pair_result is not None:
                     return pair_result
-            return self._try_one_star(ranked, searched, sources, image_ext, noise_sigma, context)
+            return self._try_one_star(
+                ranked,
+                searched,
+                sources,
+                image_ext,
+                noise_sigma,
+                context,
+            )
 
     def _try_pairs(
         self,
@@ -771,6 +778,8 @@ class StarUniqueMatchNav(NavTechnique):
         margin_mag = brightness_margin_mag(star_snr, predicted_snr(rest[0]) if rest else 0.0)
         det = best.source_vu
         offset_v, offset_u = best.offset_vu
+        # Read only here: an observation without per-camera configuration (a test
+        # stand-in the orchestrator accepts) navigates every other path as before.
         ellipse_fraction = self._ellipse_fraction(context)
         ellipse_v = ellipse_fraction * search_half_vu[0]
         ellipse_u = ellipse_fraction * search_half_vu[1]
@@ -891,8 +900,11 @@ class StarUniqueMatchNav(NavTechnique):
     def _ellipse_fraction(context: NavContext) -> float:
         """Return the camera's lone-star ellipse fraction.
 
-        The fraction is the camera's ``one_star_ellipse_fraction``.  Every camera sets
-        one, and loading the configuration holds it to ``(0, 1]``.
+        The fraction is the camera's ``one_star_ellipse_fraction``.  Loading the
+        configuration requires one of every camera, within ``(0, 1]``; it is checked again
+        here because a simulated scene may override the camera's configuration.  A
+        fraction of 0 would admit every offset and one above 1 would reach past the
+        window.
 
         Parameters:
             context: Per-image NavContext.
@@ -902,12 +914,17 @@ class StarUniqueMatchNav(NavTechnique):
             believed.
 
         Raises:
-            ValueError: If the camera's configuration sets no fraction.
+            ValueError: If the camera's configuration sets no fraction, or one that is not
+                a number within ``(0, 1]``.
         """
         inst_config = context.obs.inst_config or {}  # type: ignore[attr-defined]
         fraction = inst_config.get('one_star_ellipse_fraction')
         if fraction is None:
             raise ValueError('the instrument configuration sets no one_star_ellipse_fraction')
+        is_number = isinstance(fraction, int | float) and not isinstance(fraction, bool)
+        # The chained comparison is False for NaN, so a NaN is refused with the rest.
+        if not is_number or not 0.0 < float(fraction) <= 1.0:
+            raise ValueError(f'one_star_ellipse_fraction must lie in (0, 1]; got {fraction!r}')
         return float(fraction)
 
     @staticmethod

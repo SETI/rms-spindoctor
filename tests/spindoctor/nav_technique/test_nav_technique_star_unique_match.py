@@ -736,6 +736,23 @@ def test_star_unique_match_requires_the_camera_to_set_a_lone_star_ellipse(
         StarUniqueMatchNav().navigate([feature], context)
 
 
+@pytest.mark.parametrize('fraction', [0.0, 1.5])
+def test_star_unique_match_refuses_a_lone_star_ellipse_outside_zero_to_one(
+    make_nav_context: NavContextFactory,
+    make_star_feature: NavFeatureFactory,
+    draw_gaussian_star: DrawGaussianStarFactory,
+    fraction: float,
+) -> None:
+    """A fraction outside (0, 1] that bypassed the load (a scene override) is refused."""
+    image = np.zeros((200, 200), dtype=np.float64)
+    draw_gaussian_star(image, (100.0, 101.0), peak_dn=200.0, sigma=1.2)
+    feature = make_star_feature('star:UCAC4:A', predicted_vu=(100.0, 100.0), predicted_snr=60.0)
+    context = make_nav_context(image)
+    context.obs.inst_config['one_star_ellipse_fraction'] = fraction  # type: ignore[attr-defined]
+    with pytest.raises(ValueError, match=r'one_star_ellipse_fraction must lie in \(0, 1\]'):
+        StarUniqueMatchNav().navigate([feature], context)
+
+
 @pytest.mark.parametrize(('offset_vu', 'passes'), [((0.0, 15.0), True), ((15.0, 0.0), False)])
 def test_star_unique_match_searches_the_instrument_window_by_axis(
     make_nav_context: NavContextFactory,

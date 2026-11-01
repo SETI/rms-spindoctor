@@ -293,9 +293,7 @@ class Config:
             self._override_paths = []
             for filename in sorted(config_dir.glob('*.yaml')):
                 self.update_config(filename, read_default=False)
-            self._validate_registered_techniques()
-            self._validate_bodies_block()
-            self._validate_camera_blocks()
+            self._validate()
             return
 
         self._config_dict = self._load_yaml(config_path)
@@ -303,6 +301,15 @@ class Config:
         # as the single applied override so provenance can reproduce the load.
         self._override_paths = [str(config_path)]
         self._update_attrdicts()
+        self._validate()
+
+    def _validate(self) -> None:
+        """Apply every load-time check to the merged configuration.
+
+        Every path that loads a configuration (:meth:`read_config` with or without a
+        path, and :meth:`update_config` with ``read_default``) calls this one method,
+        so no path can skip a check the others apply.
+        """
         self._validate_registered_techniques()
         self._validate_bodies_block()
         self._validate_camera_blocks()
@@ -334,9 +341,9 @@ class Config:
         """Require every camera block to set a lone-star ellipse fraction in ``(0, 1]``.
 
         ``one_star_ellipse_fraction`` is a property of the camera, so no technique-level
-        value stands in for a camera that sets none.  A fraction outside ``(0, 1]`` would
-        refuse every lone star or reach past the offset window, so it is refused when
-        the configuration is loaded.
+        value stands in for a camera that sets none.  A fraction of 0 would admit every
+        lone star's offset and one above 1 would reach past the offset window, so a
+        fraction outside ``(0, 1]`` is refused when the configuration is loaded.
 
         Raises:
             ValueError: If a camera block sets no fraction, or one that is not a number
@@ -443,9 +450,7 @@ class Config:
             self._override_paths.append(str(config_path))
         self._update_attrdicts()
         if read_default:
-            self._validate_registered_techniques()
-            self._validate_bodies_block()
-            self._validate_camera_blocks()
+            self._validate()
 
     @property
     def override_paths(self) -> tuple[str, ...]:

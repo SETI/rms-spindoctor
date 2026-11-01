@@ -112,9 +112,8 @@ def lone_star_hypotheses(
     nothing refutes it.
 
     A source is star-like when ``is_star_like`` says so and, given ``max_peak_per_snr``,
-    its peak per unit of the star's predicted SNR does not exceed it: a source far
-    brighter than any star of that catalog magnitude appears in the instrument's frames
-    (a small moon, a saturated blob) is not that star.
+    its peak per unit of the star's predicted SNR does not exceed it.  The bound is the
+    camera's measured one, from the brightest stars found on a sample of its frames.
 
     Parameters:
         image_ext: 2-D extfov image array.

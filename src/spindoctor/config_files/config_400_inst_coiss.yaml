@@ -189,10 +189,10 @@ cassini_iss_calib:
     star_psf_sigma: 0.77
     # As for the NAC, and measured the same way: of 191 stars found at the
     # published bundles' pointing on the F ring and spokes star frames the
-    # brightest is 20.8 (median 10.5); the bound is about twice that.
+    # brightest is 20.8 (median 10.6); the bound is about twice that.
     star_max_peak_per_predicted_snr: 40.0
-    # As for the NAC, but wider: the WAC's pointing error reaches nearly to
-    # the edge of its window (see extfov_margin_vu above).  At 0.6, 12 lone
+    # As for the NAC, but wider: the WAC's pointing error reaches the edge
+    # of its window (see extfov_margin_vu above).  At 0.6, 12 lone
     # stars of the spokes movie ISS_173RI_SPOKEMOV003_PRIME (W1728775362
     # through W1728801375) lie between 0.60 and 0.72 of the 13 px window of
     # a full frame and are refused.  At 0.7 the 11 within 0.70 are taken,

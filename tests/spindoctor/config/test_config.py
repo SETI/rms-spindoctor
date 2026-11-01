@@ -42,8 +42,8 @@ def test_a_camera_without_a_lone_star_ellipse_is_refused(
 
 @pytest.mark.parametrize(
     ('value', 'refused'),
-    [('0.0', True), ('1.5', True), ('.nan', True), ('abc', True), ('1.0', False)],
-    ids=['zero', 'above_one', 'nan', 'text', 'one'],
+    [('0.0', True), ('1.5', True), ('.nan', True), ('abc', True), ('true', True), ('1.0', False)],
+    ids=['zero', 'above_one', 'nan', 'text', 'boolean', 'one'],
 )
 def test_a_lone_star_ellipse_outside_zero_to_one_is_refused(
     tmp_path: Path, value: str, refused: bool
