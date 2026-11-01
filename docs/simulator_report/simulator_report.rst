@@ -280,15 +280,16 @@ from.
        4.89e-4 transient fraction comes entirely from the three star frames,
        the one body frame measuring zero).
    * - ``gossi``
-     - 1.0e-4
+     - 1.4e-6
      - 0.0
-     - Hot-pixel fraction tuned by the realism match to the 8-frame Galileo
-       REDR cohort (median measured single-pixel spike fraction 1.2e-4; the
-       truly stationary component is only 1e-6, as the REDR blemish correction
-       removes most hot pixels).  Cosmic-ray rate is a retained zero: the
-       measured 1.17e-4 transient population is already carried by the tuned
-       hot pixels, so a separate term double-counts it.  Unblocked by a
-       fixed-position per-detector hot-pixel map.
+     - Hot-pixel fraction measured on the 8-frame Galileo REDR cohort as its
+       stationary spike fraction, 1.4e-6: the REDR blemish correction removes
+       most hot pixels.  Cosmic-ray rate is a retained zero: the cohort's
+       1.17e-4 transient fraction is reproduced at 1.1e-3 events per pixel per
+       second, but the chain deposits every event at full well, and at that
+       rate the matched frames' saturated fraction rose from 3.3e-5 to 2.3e-4
+       against 1.3e-5 real.  Unblocked by a modest-amplitude transient term
+       (#330).
    * - ``vgiss``
      - n/a (vidicon path)
      - 0.0
@@ -316,8 +317,9 @@ Cassini match quality
 The tuning pass (2026-07-17) adjusted the forward-model defaults in
 ``sim/forward/artifacts_catalog.py`` against FOMs 1-6 -- the tuned values
 and their cohort statistics are recorded there -- and this table records
-the headline divergences before and after (normalized W1; smaller is
-better, ~1 means displaced by one real IQR):
+the headline divergences before that pass and in the current record
+(2026-11-01; normalized W1; smaller is better, ~1 means displaced by one
+real IQR):
 
 .. list-table::
    :header-rows: 1
@@ -334,43 +336,43 @@ better, ~1 means displaced by one real IQR):
      - 10.0
      - 5.0
      - 5263
-     - 2184
+     - 2214
    * - sky level above floor (FOM 1)
      - 3.8e-4 I/F
      - 13.9
      - 173 [#tail]_
      - 5263
-     - 2184
+     - 2214
    * - noise at signal (FOM 1)
      - 2.9e-4 I/F
      - 13.8
-     - 5.1
+     - 5.0
      - 15700
-     - 6440
+     - 6451
    * - star EE50 (FOM 2)
      - 0.91 px
      - 1.09
-     - 0.57
-     - 23
+     - 1.01
+     - 25
      - 79
    * - star EE80 (FOM 2)
      - 1.79 px
      - 1.28
-     - 0.23
-     - 23
+     - 0.59
+     - 25
      - 79
    * - limb rise width, co-populated strata (FOM 3)
      - 2.54 px
      - -- [#copop]_
-     - 0.16
-     - 3755
+     - 0.17
+     - 3742
      - 4338
    * - ring-edge rise width (FOM 4)
-     - 2.87 px
+     - 3.17 px
      - 0.47
-     - 0.43
-     - 8480
-     - 21858
+     - 0.49
+     - 3161
+     - 21918
    * - near-floor fraction, 0.05-0.5 s (FOM 5)
      - 0.107
      - 0.76
@@ -386,7 +388,7 @@ better, ~1 means displaced by one real IQR):
    * - spike fraction (FOM 6)
      - 1.1e-4
      - 11.0
-     - 1.2
+     - 1.3
      - 58
      - 58
 
@@ -414,7 +416,7 @@ better, ~1 means displaced by one real IQR):
    pixels sit within one sigma of the frame floor.  This statistic folds
    in scene content beyond the detector chain; see the known gaps.
 
-The FOM 3 strata behind the pooled number (2026-07-18; p = phase bin
+The FOM 3 strata behind the pooled number (2026-11-01; p = phase bin
 < 60 / 60-120 / > 120 deg, r = diameter bin < 100 / 100-400 / > 400 px):
 
 .. list-table::
@@ -428,66 +430,69 @@ The FOM 3 strata behind the pooled number (2026-07-18; p = phase bin
      - n real
      - n sim
    * - p0 r0
-     - 0.21
+     - 0.20
      - 2.87
      - 2.64
      - 522
      - 1408
    * - p0 r1
-     - 0.33
+     - 0.29
      - 2.75
-     - 2.75
+     - 2.73
      - 400
      - 400
    * - p0 r2
-     - 0.80
+     - 0.78
      - 3.09
-     - 2.62
+     - 2.61
      - 733
      - 780
    * - p1 r0
-     - 0.92
+     - 0.94
      - 2.18
-     - 2.45
+     - 2.46
      - 435
      - 398
    * - p1 r1
-     - 0.72
+     - 0.76
      - 2.24
      - 2.41
-     - 922
+     - 909
      - 796
    * - p1 r2
-     - 0.45
+     - 0.47
      - 2.58
-     - 2.39
+     - 2.37
      - 525
      - 200
    * - p2 r0
-     - 1.00
+     - 0.96
      - 1.75
-     - 2.29
+     - 2.33
      - 70
      - 156
    * - p2 r1
-     - 2.04
+     - 1.89
      - 1.71
-     - 2.18
+     - 2.16
      - 148
      - 200
 
-The headline reading: the star PSF now matches the cohort through the
-same estimator on both sides (EE50 0.90 sim vs 0.91 real; EE80 1.72 vs
-1.79); the stationary artifact incidence matches after the
-calibrated-chain hot-pixel retune, while the transient (cosmic-ray)
-share stays unmodeled on every chain -- each catalog entry retains an
-explicit zero beside its measured rate and the chain-model reason (see
-known gap 6); limb rise widths agree in the like-for-like pool
-(co-populated-strata medians 2.539 sim vs 2.539 px real, W1/IQR 0.16)
-with per-stratum divergences from 0.21 to 2.04 -- worst at high phase,
-where the simulated crescent limb measures *wider* than the real one
-(2.2-2.3 px vs 1.7 px medians); ring-edge widths agree at the
-few-tenths level (2.45 vs 2.87 px); and the sky-noise *level* matches
+The headline reading: the star PSF matches the cohort's medians through
+the same estimator on both sides (EE50 0.87 sim vs 0.91 real; EE80 1.70
+vs 1.79), though the 25 real cutouts spread wider than the simulated
+ones (EE50 W1/IQR 1.01); the stationary artifact incidence matches (1.8e-5
+of pixels sim vs 1.6e-5 real, hot pixels recurring at fixed detector
+positions on both sides), while the transient (cosmic-ray) share stays
+unmodeled on every chain -- each catalog entry retains an explicit zero
+beside its measured rate and the chain-model reason (see the
+measured-transients known gap); limb rise widths agree in the
+like-for-like pool (co-populated-strata medians 2.537 sim vs 2.540 px
+real, W1/IQR 0.17) with per-stratum divergences from 0.20 to 1.89 --
+worst at high phase, where the simulated crescent limb measures *wider*
+than the real one (2.2-2.3 px vs 1.7 px medians); ring-edge widths
+differ by 0.7 px (2.45 sim vs 3.17 px real, W1/IQR 0.49); and the
+sky-noise *level* matches
 at the median (2.2e-4 vs 2.1e-4 I/F) while the distributional
 divergence remains floored by the quantization-scar gap below.  The
 low-phase residual is not a PSF error -- FOM 2 pins the PSF
@@ -495,8 +500,8 @@ independently -- but limb content (real topography, the Lommel-Seeliger
 approximation); the high-phase excess runs the other way and points at
 the crescent shading model.  The curve *shapes* agree far tighter than
 the scalar samples: the density-W1 of the frame-averaged curves is
-0.06 for the sky power spectrum, 0.13 for the star radial profile,
-0.02 for the limb profile, and 0.02 for the ring radial profile (axis
+0.07 for the sky power spectrum, 0.14 for the star radial profile,
+0.02 for the limb profile, and 0.08 for the ring radial profile (axis
 units over the real IQR; ``curve_divergences`` in the summary).
 
 Two caveats apply to every FOM 2/3 width above.  First, a registration
@@ -557,16 +562,16 @@ The other instruments
 
 **Cassini WAC** (4 frames, limited).  The cohort's two star frames give
 9 usable star cutouts that pin the tuned WAC kernel: cohort EE50/EE80 =
-1.33/2.16 px against simulated 1.13/1.90 px, normalized W1 0.42 and 0.80
+1.30/2.00 px against simulated 1.14/1.89 px, normalized W1 0.35 and 1.25
 (from 1.32 and 3.16 before tuning).  The WAC *noise* comparison, though,
 diverges by two orders of magnitude one-sidedly: simulated sky sigma
-sits at 2.4e-5 I/F against 1.9e-4 real (W1/IQR 101), noise at signal
-likewise (101), and the sky level above floor at 3.7e-5 vs 3.2e-4
-(W1/IQR 2481).  A one-sided deficit of that size on the calibrated
+sits at 2.4e-5 I/F against 1.9e-4 real (W1/IQR 94), noise at signal
+likewise (98), and the sky level above floor at 3.7e-5 vs 3.2e-4
+(W1/IQR 2377).  A one-sided deficit of that size on the calibrated
 chain is a chain symptom, not a small-n artifact -- most plausibly the
 nominal DN-to-I/F calibration scale of the simulated chain (the
-per-filter CISSCAL scale is not modeled; the same family as known gap
-2), though the 4-frame cohort cannot close the attribution.  The
+per-filter CISSCAL scale is not modeled; the same family as the
+calibrated-product known gap), though the 4-frame cohort cannot close the attribution.  The
 remaining WAC statistics rest on 1-2 frames per stratum and are
 reported in the summary JSON without distributional claims.
 
@@ -574,14 +579,17 @@ reported in the summary JSON without distributional claims.
 negative case, so FOMs 2-4 are unsupported and *gossi sim accuracy is
 bounded by unverified forward-model fidelity* for PSF and shape rendering
 until the star-calibration frames land.  What the cohort does support:
-FOM 6 -- the measured spike rate matched the catalog after tuning
-(median measured 1.2e-4 of pixels vs simulated 1.7e-4; normalized W1 0.63, from 27.8 before tuning) -- and the observation that the real REDR sky floor
+FOM 6 -- the stationary spike fraction, 1.4e-6, is the catalog's
+hot-pixel fraction, while the transient fraction, 1.2e-4 of pixels, is
+unmodeled (the measured-transients known gap), so the simulated median
+spike fraction is 0 against 1.2e-4 real (normalized W1 1.21) -- and the
+observation that the real REDR sky floor
 is quantization-locked at exactly 1 LSB while the frames carry an extended
 background glow the matched sky frames do not model (see the known gaps).
 
-**Voyager ISS** (3 frames, limited).  The GEOMED star frame gives 8 real
-star cutouts (EE50 median 1.22 px) against two simulated ones (EE50
-median 3.46 px, after the plateau guard rejects the brightest simulated
+**Voyager ISS** (3 frames, limited).  The GEOMED star frame gives 6 real
+star cutouts (EE50 median 1.26 px) against two simulated ones (EE50
+median 4.12 px, after the plateau guard rejects the brightest simulated
 core, whose noise-free 8-bit quantization ties its central pixels at 1-2
 LSB -- a quantization plateau with no sub-pixel shape information, not a
 clipped core) -- one frame and two noise-dominated cutouts
@@ -657,24 +665,18 @@ cannot close, it is recorded here rather than force-fitted:
    uncertainty at full size: its simulated sky sigma undershoots the
    real cohort by roughly 8x one-sidedly (2.4e-5 vs 1.9e-4 I/F; see the
    WAC subsection).
-2. **Hot pixels are per-scene, not per-detector.**  The simulated
-   hot-pixel population is drawn from each scene's seeded stream, so it
-   never recurs at fixed detector positions across frames the way real
-   hot pixels do.  The FOM 6 stationary/transient split therefore cannot
-   match by construction; only the total incidence is comparable (and now
-   tuned).
-3. **No per-readout-mode PSF.**  The catalog carries one kernel per
+2. **No per-readout-mode PSF.**  The catalog carries one kernel per
    instrument; the LORRI cohort's 4x4-binned frames (and any summed
    Cassini modes that enter the library later) see a different effective
    kernel that the catalog cannot express.
-4. **Matched-frame content limits.**  Simulated ring edges are sharp
+3. **Matched-frame content limits.**  Simulated ring edges are sharp
    optical-depth steps and simulated matched bodies are relief-free
    ellipsoids, so residual FOM 3/4 width differences fold in real edge
    structure (ring radial profiles, limb topography) beyond the PSF that
    FOM 2 pins independently.  The Galileo negative frames carry an
    extended background glow (scattered light) that matched sky frames do
    not model, which dominates that cohort's FOM 5 comparison.
-5. **Measured transients exceed what the cosmic-ray stage can express.**
+4. **Measured transients exceed what the cosmic-ray stage can express.**
    Every cohort measures a nonzero transient spike fraction (NAC 2.75e-4,
    WAC 4.89e-4, Galileo 1.17e-4, LORRI 3.36e-4 per frame), yet no
    catalog entry adopts a ``cosmic_ray_events_per_pixel_per_sec``: the Cassini
@@ -682,8 +684,9 @@ cannot close, it is recorded here rather than force-fitted:
    modest-amplitude while the chain's stage scales event counts with
    exposure and deposits near full well -- an adoption attempt
    (2026-07-17) inflated the matched frames' sky-noise statistics ~5x
-   and was reverted; the Galileo population is already carried by the
-   tuned per-scene hot pixels, so a separate term double-counts it; the
+   and was reverted; the Galileo rate that reproduces its transients
+   (1.1e-3) raised the matched frames' saturated fraction from 3.3e-5 to
+   2.3e-4 against 1.3e-5 real, because every event lands at full well; the
    LORRI measurement is star-contaminated (both cohort frames are binned
    star fields); and the Voyager GEOMED resampling interpolates most
    transients away.
