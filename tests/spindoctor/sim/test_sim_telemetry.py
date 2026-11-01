@@ -26,6 +26,8 @@ from spindoctor.sim.forward.detector.params import (
     calibration_map,
     resolve_detector_params,
 )
+from spindoctor.sim.forward.feature_loci import FeatureLoci, choose_pixels, extract_feature_loci
+from spindoctor.sim.forward.incidence import planted_incidence
 from spindoctor.sim.forward.stages import SimFrame
 from spindoctor.sim.forward.telemetry import apply_telemetry
 from spindoctor.sim.render import render_combined_model
@@ -534,6 +536,50 @@ def test_dead_pixels_fixed_count_sets_low_response() -> None:
     assert len(pixels) == 12
     for v, u in pixels:
         assert frame.signal[v, u] == 0.0
+
+
+def _star_loci(v: int, u: int) -> FeatureLoci:
+    """Feature loci holding one star pixel, whose radius-3 neighborhood is 49 pixels."""
+    return FeatureLoci(
+        rows=np.array([v], dtype=np.int64),
+        pixel_v=np.array([v], dtype=np.int64),
+        pixel_u=np.array([u], dtype=np.int64),
+    )
+
+
+@pytest.mark.parametrize('adversarial', [False, True], ids=['uniform', 'adversarial'])
+def test_chosen_pixels_are_distinct(adversarial: bool) -> None:
+    """A draw of many pixels never repeats one, uniform or adversarial."""
+    vs, us = choose_pixels(
+        _star_loci(30, 30), 40, (_SIZE, _SIZE), np.random.default_rng(5), adversarial=adversarial
+    )
+    assert len(set(zip(vs.tolist(), us.tolist(), strict=True))) == 40
+
+
+def test_an_adversarial_draw_is_capped_at_the_feature_neighborhood() -> None:
+    """Asking for more pixels than the neighborhood holds returns each of them once."""
+    vs, us = choose_pixels(
+        _star_loci(30, 30), 200, (_SIZE, _SIZE), np.random.default_rng(5), adversarial=True
+    )
+    chosen = set(zip(vs.tolist(), us.tolist(), strict=True))
+    neighborhood = {(v, u) for v in range(27, 34) for u in range(27, 34)}
+    assert chosen == neighborhood
+
+
+def test_adversarial_dead_pixels_record_and_count_the_distinct_pixels() -> None:
+    """The truth record lists each dead pixel once, and the incidence counts those."""
+    star = {'star_info': [{'center_v': 30.0, 'center_u': 30.0}]}
+    frame = _frame(fill=50.0, truth=star)
+    loci = extract_feature_loci(frame.truth, frame.signal.shape)
+    assert loci.has_pixels
+    record = _render(
+        frame,
+        {'adversarial': True, 'dead_pixels': {'count': 60, 'low_dn': 0.0}},
+        instrument='coiss_nac',
+    )
+    pixels = [tuple(pixel) for pixel in record['dead_pixels']['pixels']]
+    assert len(pixels) == len(set(pixels))
+    assert planted_incidence(frame.truth)['dead_pixels'] == int(np.sum(frame.signal == 0.0))
 
 
 def test_dead_columns_blank_whole_columns() -> None:

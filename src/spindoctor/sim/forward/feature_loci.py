@@ -159,10 +159,14 @@ def choose_pixels(
     adversarial: bool,
     radius: int = 3,
 ) -> tuple[NDArrayIntType, NDArrayIntType]:
-    """Choose ``n`` pixels: near features when adversarial, else uniform.
+    """Choose up to ``n`` distinct pixels: near features when adversarial, else uniform.
 
-    An adversarial draw picks a feature pixel and jitters it within ``radius``
-    pixels, so the events land on or beside a limb arc or a star.
+    An adversarial draw weights each pixel by the number of feature pixels whose
+    ``radius`` square holds it, the distribution of picking a feature pixel and
+    jittering it within ``radius``, so the events land on or beside a limb arc or
+    a star.  Either draw is without replacement: the pixels are distinct, and
+    fewer than ``n`` come back only when the pool (the frame, or the feature
+    neighborhood) holds fewer than ``n`` pixels.
 
     Parameters:
         loci: The feature loci (feature pixels are the adversarial pool).
@@ -173,22 +177,24 @@ def choose_pixels(
         radius: The jitter radius, in pixels, around a chosen feature pixel.
 
     Returns:
-        The ``(v, u)`` coordinate arrays of the chosen pixels.
+        The ``(v, u)`` coordinate arrays of the chosen pixels, ``min(n, pool size)``
+        of them.
     """
     size_v, size_u = shape
     if n <= 0:
         empty = np.empty(0, dtype=np.int64)
         return empty, empty
     if adversarial and loci.has_pixels:
-        pick = rng.integers(0, loci.pixel_v.size, size=n)
-        jitter_v = rng.integers(-radius, radius + 1, size=n)
-        jitter_u = rng.integers(-radius, radius + 1, size=n)
-        vs = np.clip(loci.pixel_v[pick] + jitter_v, 0, size_v - 1)
-        us = np.clip(loci.pixel_u[pick] + jitter_u, 0, size_u - 1)
-        return vs.astype(np.int64), us.astype(np.int64)
-    vs = rng.integers(0, size_v, size=n)
-    us = rng.integers(0, size_u, size=n)
-    return vs.astype(np.int64), us.astype(np.int64)
+        features = np.zeros((size_v, size_u), dtype=np.float64)
+        np.add.at(features, (loci.pixel_v, loci.pixel_u), 1.0)
+        weight = ndimage.uniform_filter(features, size=2 * radius + 1, mode='constant')
+        pool = np.flatnonzero(weight > 1e-12)
+        p = weight.ravel()[pool]
+        flat = rng.choice(pool, size=min(n, pool.size), replace=False, p=p / p.sum())
+    else:
+        flat = rng.choice(size_v * size_u, size=min(n, size_v * size_u), replace=False)
+    vs, us = np.divmod(flat.astype(np.int64), size_u)
+    return vs, us
 
 
 def dilated_pixels(

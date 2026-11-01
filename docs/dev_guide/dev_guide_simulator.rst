@@ -1058,6 +1058,14 @@ the frame-level edits) ignore the switch: their geometry is fixed once active.
 The switch is one scene-level flag, so a scene is either adversarial for all its
 modes or none.
 
+The per-pixel modes (``pixel_spikes`` and ``dead_pixels``) draw distinct pixels,
+uniform or adversarial. An adversarial draw weights each pixel by the number of
+feature pixels within 3 px of it. Those are the odds of picking a feature pixel,
+then jittering it, and the draw is without replacement. The neighborhood can be small, such as a
+lone star's 49 pixels, and a draw asking for more pixels than it holds plants each
+of them once. The truth record then lists that smaller set, and
+:func:`~spindoctor.sim.forward.incidence.planted_incidence` counts it.
+
 Truth bookkeeping and the planted-versus-measured match
 -------------------------------------------------------
 
