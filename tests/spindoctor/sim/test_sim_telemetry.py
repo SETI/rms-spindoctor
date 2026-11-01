@@ -21,9 +21,16 @@ from spindoctor.sim.forward.artifact_modes import (
     mode_available,
     resolve_mode_config,
 )
+from spindoctor.sim.forward.detector.params import (
+    CalibrationMap,
+    calibration_map,
+    resolve_detector_params,
+)
 from spindoctor.sim.forward.stages import SimFrame
 from spindoctor.sim.forward.telemetry import apply_telemetry
+from spindoctor.sim.render import render_combined_model
 from spindoctor.sim.scene import SimSceneValidationError, validate_sim_params
+from spindoctor.support.types import NDArrayFloatType
 
 _SIZE = 64
 
@@ -402,46 +409,100 @@ def test_pixel_spikes_flip_pixels_without_zeroing() -> None:
         assert frame.signal[v, u] != 100.0
 
 
+def _vgiss_calibration() -> CalibrationMap:
+    """The DN-to-I/F map of a vgiss frame, which renders calibrated I/F."""
+    calibration = calibration_map(resolve_detector_params({'instrument': 'vgiss'}))
+    assert calibration is not None
+    return calibration
+
+
+def _vgiss_frame(dn: float) -> SimFrame:
+    """A vgiss detector-grid frame filled with the I/F that ``dn`` transmitted DN calibrate to."""
+    return _frame(fill=float(_vgiss_calibration().to_if(np.array([dn]))[0]))
+
+
 def test_pixel_spikes_bitflip_shifts_by_a_power_of_two() -> None:
-    """The bitflip model shifts a pixel by a power of two."""
-    frame = _frame(fill=100.0)
+    """The bitflip model shifts a pixel's transmitted DN by a power of two."""
+    frame = _vgiss_frame(100.0)
     record = _render(
         frame,
         {'pixel_spikes': {'expected_events': 20.0, 'amplitude': 'bitflip'}},
         instrument='vgiss',
     )
     v, u = record['pixel_spikes']['pixels'][0]
-    delta = abs(round(float(frame.signal[v, u])) - 100)
+    delta = abs(round(float(_vgiss_calibration().to_dn(frame.signal[v, u]))) - 100)
     assert delta > 0
     assert (delta & (delta - 1)) == 0  # a power of two
 
 
 def test_vgiss_pixel_spikes_stay_inside_the_8bit_word() -> None:
-    """Voyager bit-flip spikes never exceed the vidicon's 255 DN ceiling."""
-    frame = _frame(fill=200.0)
+    """Voyager bit-flip spikes never exceed the I/F of the vidicon's 255 DN ceiling."""
+    frame = _vgiss_frame(200.0)
     record = _render(frame, {'pixel_spikes': {'expected_events': 50.0}}, instrument='vgiss')
     assert record['pixel_spikes']['pixels']
-    assert float(frame.signal.max()) <= 255.0
+    assert float(_vgiss_calibration().to_dn(frame.signal).max()) <= 255.0 + 1e-9
 
 
 def test_vgiss_uniform_spikes_stay_inside_the_8bit_word() -> None:
     """Voyager uniform spikes draw inside the 255 DN word, not the 12-bit one."""
-    frame = _frame(fill=200.0)
+    frame = _vgiss_frame(200.0)
     record = _render(
         frame,
         {'pixel_spikes': {'expected_events': 50.0, 'amplitude': 'uniform'}},
         instrument='vgiss',
     )
     assert record['pixel_spikes']['pixels']
-    assert float(frame.signal.max()) <= 255.0
+    assert float(_vgiss_calibration().to_dn(frame.signal).max()) <= 255.0 + 1e-9
 
 
 def test_vgiss_line_garble_stays_inside_the_8bit_word() -> None:
-    """Voyager garbage fills stay inside the vidicon's 255 DN ceiling."""
-    frame = _frame(fill=200.0)
+    """Voyager garbage fills stay inside the I/F of the vidicon's 255 DN ceiling."""
+    frame = _vgiss_frame(200.0)
     record = _render(frame, {'line_garble': {'expected_events': 20.0}}, instrument='vgiss')
     assert record['line_garble']['lines']
-    assert float(frame.signal.max()) <= 255.0
+    assert float(_vgiss_calibration().to_dn(frame.signal).max()) <= 255.0 + 1e-9
+
+
+def _vgiss_render_with_garble_and_spikes() -> tuple[NDArrayFloatType, dict[str, Any]]:
+    """A real vgiss render of a lit body with garbled lines and bit-flip spikes."""
+    return render_combined_model(
+        {
+            'instrument': 'vgiss',
+            'size_v': 128,
+            'size_u': 128,
+            'random_seed': 3,
+            'bodies': [
+                {
+                    'name': 'B',
+                    'center_v': 64.0,
+                    'center_u': 64.0,
+                    'axis1': 40.0,
+                    'axis2': 40.0,
+                    'axis3': 40.0,
+                    'range_km': 1.0,
+                }
+            ],
+            'artifacts': {
+                'line_garble': {'expected_events': 4.0},
+                'pixel_spikes': {'expected_events': 40.0, 'amplitude': 'bitflip'},
+            },
+        }
+    )
+
+
+def test_a_vgiss_render_keeps_garble_and_spikes_on_the_calibrated_scale() -> None:
+    """On a real I/F render, garbled and spiked pixels stay inside the calibrated word."""
+    img, meta = _vgiss_render_with_garble_and_spikes()
+    garbled = [
+        float(value)
+        for line in meta['artifacts']['line_garble']['lines']
+        for value in img[line['row'], line['garble_from'] :]
+    ]
+    spiked = [float(img[v, u]) for v, u in meta['artifacts']['pixel_spikes']['pixels']]
+    ceiling = float(_vgiss_calibration().to_if(np.array([255.0]))[0])
+    assert garbled
+    assert spiked
+    assert max(garbled + spiked) <= ceiling + 1e-9
 
 
 def test_12bit_line_garble_keeps_the_deep_word() -> None:

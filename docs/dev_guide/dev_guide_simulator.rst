@@ -531,7 +531,11 @@ texture in I/F units. The chain's DN ceiling, the lower of the full well and the
 ADC clip, applies before the inverse, so a calibrated frame has an I/F ceiling as
 well: about 2.0 for ``coiss_calib_nac`` at the reference exposure, and 1.85 for
 ``vgiss`` at any exposure. The navigator applies no saturation test to an I/F
-frame of either kind.
+frame of either kind. The telemetry modes that act on transmitted DN work the same
+way on a calibrated frame. The lossy codec, ``line_garble``, and ``pixel_spikes``
+map the I/F back to DN, mangle it inside the ADC word, and write the result as I/F.
+So a garbled or spiked ``vgiss`` pixel stays at or below the 1.85 I/F that 255 DN
+calibrates to.
 
 The inverse subtracts the bias and dark pedestals, which would put a noise-free
 dark sky at exactly 0 I/F, the marker. A real calibrated product's dark sky keeps
