@@ -585,9 +585,9 @@ sources, and the other stars judge every try:
 - A source whose brightest pixel stands more than
   ``techniques.StarUniqueMatchNav.tuning.one_star_max_peak_sharpness`` times (7 by
   default) above its four neighbors is not taken for a lone star.
-- On a camera whose instrument chapter gives a brightness bound, a source far brighter
-  than any star of that catalog magnitude appears is not taken for a lone star either: a
-  small moon or a saturated blob can be the brightest source in the window.
+- On a camera whose instrument chapter gives a brightness bound, a source whose peak, per
+  unit of its star's predicted signal, exceeds that measured bound is not taken for a
+  lone star either.
 - A try is refused when another star, which it places on clear sky in the image and
   which should then be plainly visible, shows nothing there
   (``techniques.StarUniqueMatchNav.tuning.one_star_absent_stars``, 1 by default).
@@ -648,8 +648,8 @@ reach is not found, even when some of its light falls inside it. A single star, 
 nothing can check, is accepted only inside an ellipse that reaches a fixed fraction of the
 window along each axis from where it was predicted. Each camera sets its own fraction
 (``one_star_ellipse_fraction`` in the camera's configuration), and the instrument chapters
-give its value. The whole window is still searched, so that a source nearly as bright anywhere in it leaves the
-frame unanswered. A detection
+give its value. The whole window is still searched, so that a source nearly as bright
+anywhere in it leaves the frame unanswered. A detection
 counts only if it is a point source that stands alone, by the same test the star field
 uses, so a ridge of a ring or a cosmic-ray track is not taken for a star. Measuring a
 star's center moves a small box onto the star's light; a box that wanders farther than

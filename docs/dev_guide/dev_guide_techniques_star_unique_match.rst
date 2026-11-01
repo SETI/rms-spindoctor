@@ -228,13 +228,14 @@ than the noise-free CRLB floor. Rotation is unobservable on a single point match
 A star's predicted SNR is synthesized from how far its catalog magnitude sits below the
 frame's limiting magnitude, so it ranks the stars of a frame but says how bright a star
 appears only loosely, and differently for each camera. The peak above the local
-background per unit of predicted SNR of Cassini NAC stars found at the published F ring
-bundle's pointing has a median of 10 noise sigmas and ranges from 0.7 to 126. So no lower
-bound applies, and the only absolute test is an upper bound a camera may set in its
-instrument configuration (``star_max_peak_per_predicted_snr``, in noise sigmas): a source
-brighter than the bound is not taken for a lone star, though it still competes as a source
-of its window. Each bound is measured from the stars found on the F ring and spokes star
-frames, and nothing yet derives it from the camera's photometry. A camera that sets none has no bound; the instrument chapters give the
+background per unit of predicted SNR of Cassini NAC stars found at the published bundles'
+pointing on the F ring and spokes star frames has a median of 10 noise sigmas and ranges
+from 0.7 to 126. So no lower bound applies, and the only absolute test is an upper bound a
+camera may set in its instrument configuration (``star_max_peak_per_predicted_snr``, in
+noise sigmas): a source brighter than the bound is not taken for a lone star, though it
+still competes as a source of its window. Each bound is measured from the stars found on
+the F ring and spokes star frames, and nothing yet derives it from the camera's
+photometry. A camera that sets none has no bound; the instrument chapters give the
 values.
 
 2-star path
@@ -421,11 +422,9 @@ Restrictions and assumptions
   from, the likelier an artifact is the brightest thing in it. Replayed on the F ring and
   spokes star frames, the Cassini NAC's 334 one-star answers within 2 px of the published
   bundles' reach 0.55 of the window, and the 61 farther from them lie between 0.01 and 0.56
-  of it, so a narrower ellipse would not separate the two. The Cassini WAC's pointing
-  error reaches nearly to the edge of its 13 px window, and at 0.6 its ellipse refuses 12
-  lone stars of ``ISS_173RI_SPOKEMOV003_PRIME`` between 0.60 and 0.72 of the window; at
-  0.7 the 11 within 0.70 are taken, each confirmed by a star check, and no other replayed
-  answer changes. On the black-sky
+  of it, so a narrower ellipse would not separate the two. A camera whose pointing error
+  reaches the edge of its window sets a wider fraction; the instrument chapters give the
+  evidence. On the black-sky
   Galileo library frame
   ``C0164392700R`` a lone artifact lies 40 px from the one predicted star; the Galileo
   offset window of 350 px puts it inside the 210 px ellipse, so the ellipse does not refuse
@@ -437,10 +436,10 @@ Restrictions and assumptions
   nearly as bright anywhere in it refuses the match even where a window sized to the
   star's own reach would hold the star alone. On the 1986 F ring and spokes star frames,
   against star windows of 50 px (NAC) and 13 px (WAC) with lone stars believed within
-  30 and 9 px, 17 NAC and 10 WAC lone stars that those found are refused: on 15 of the
-  NAC frames a comparable source lies in the whole window outside the smaller one, or the
-  offset lies outside the lone-star ellipse, and the WAC offsets lie at 0.60 to 0.66 of
-  their window, just past the ellipse. In turn the whole window answers 310 NAC and 37
+  30 and 9 px, 17 NAC lone stars and 1 WAC lone star that those found are refused: on 15
+  of the NAC frames a comparable source lies in the whole window outside the smaller one,
+  or the offset lies outside the lone-star ellipse, and on the WAC frame another star
+  explains another source nearly as well. In turn the whole window answers 310 NAC and 38
   WAC frames within 1 px of the bundle that those windows refuse.
 - Both paths assume the matched detection is unsaturated. A saturated star whose centroid
   has been clipped will produce a biased centroid; in practice the brightest catalog stars
@@ -550,7 +549,7 @@ Per-instrument overrides
 
 Per-instrument YAML files in ``src/spindoctor/config_files/config_4N0_inst_*.yaml`` do not
 override any of these knobs. Two settings of the 1-star path are properties of the camera
-and live only there, with no technique-level value standing in:
+and live only there; the technique's own configuration sets neither:
 
 - ``one_star_ellipse_fraction`` — float, required of every camera block (every mapping
   that declares ``data_units``, the simulator's included). A 1-star detection outside the
@@ -558,10 +557,10 @@ and live only there, with no technique-level value standing in:
   ``one_star_detection_outside_ellipse`` reason. The ellipse is taken in place of a single
   radius because the offset window is per axis: it is a circle for a square window and
   never reaches past the window on either axis. Loading the configuration refuses a
-  camera block that sets none, or one outside ``(0, 1]``. The Cassini NAC's 0.6 is the
-  ratio of the 30 px lone-star radius to the 50 px search half-width it was measured
-  with, and the cameras not yet measured take that value; the Cassini WAC's is 0.7. The
-  instrument configuration carries the evidence for each.
+  camera block that sets none, or one outside ``(0, 1]``, and the technique checks the
+  value again when it reads it, since a simulated scene may override the camera's
+  configuration. The instrument chapters give each camera's value and the configuration
+  carries its evidence.
 - ``star_max_peak_per_predicted_snr`` — float, optional. Bounds a lone star's source's peak
   per unit of predicted SNR in noise sigmas (see the 1-star path above); a camera that
   sets none has no bound.

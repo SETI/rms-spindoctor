@@ -489,7 +489,7 @@ window, the 11 within 0.70 are taken, a star check finds the star at each
 answer, and no other answer of the 1986 frames changes. The pair search stays
 at 5 stars, a lone answer the other stars cannot confirm is accepted, capped
 at the low confidence tier, and a wide-sigma one-star answer can merge
-disagreeing witnesses in the ensemble (#841), which is fixed separately.
+disagreeing witnesses in the ensemble (#841), to be fixed separately.
 
 A pair the other searched stars contradict is still refused, but a star now
 votes for the pair when an isolated point source about as bright as that star

@@ -190,10 +190,10 @@ frames, and a margin that is right for one is wrong for the other:
 offsets only inside the margin above. A lone star, which no other star checks, is
 believed only inside the ellipse reaching 0.6 (narrow angle) or 0.7 (wide angle) of the
 margin along each axis: 9.1 pixels on a full wide angle frame. The wide angle ellipse is
-wider because that camera's pointing error reaches nearly to the edge of its margin. A
+wider because that camera's pointing error reaches the edge of its margin. A
 lone star's source must also peak no more than 150 (narrow angle) or 40 (wide angle) noise
-sigmas above its surroundings per unit of the star's predicted signal-to-noise ratio. Both
-bounds are measured values: on a sample of star frames the brightest stars these cameras
+sigmas above its surroundings per unit of the star's predicted signal-to-noise ratio. The
+two brightness bounds are measured values: on a sample of star frames the brightest stars these cameras
 show reach about 126 and 21. On each
 axis, 98.7% of wide angle star frames have a pointing error within 12.4 full-frame
 pixels, and the error reaches 14, so the wide angle margin reaches 13 pixels on a full

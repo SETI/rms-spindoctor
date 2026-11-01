@@ -272,13 +272,13 @@ values, and nothing yet derives them from the cameras' photometry. Of 3463 NAC s
 found at the published bundles' pointing on the F ring and spokes star frames the
 brightest is 126 (median 10), and two lone sources at 166 and 259, 88 and 48 px from the
 bundle's answer, are refused. Of 191 WAC stars found at the bundles' pointing on the same
-frames the brightest is 20.8 (median 10.5), and the bound is about twice that.
+frames the brightest is 20.8 (median 10.6), and the bound is about twice that.
 
 **Lone-star ellipse.** ``one_star_ellipse_fraction`` is 0.6 for the NAC and 0.7 for the
 WAC, for raw and calibrated images alike: a lone star is believed only inside the ellipse
 whose semi-axes are the offset window's half-widths times it, (30, 84) px on a full NAC
 frame and 9.1 px on a full WAC frame ((4.9, 7.0) px on a 2x2 summed one). The WAC's
-pointing error reaches nearly to the edge of its window, and at 0.6 the WAC refuses 12
+pointing error reaches the edge of its window, and at 0.6 the WAC refuses 12
 lone stars of ``ISS_173RI_SPOKEMOV003_PRIME`` (W1728775362 through W1728801375) lying
 between 0.60 and 0.72 of its 13 px window. At 0.7 the 11 within 0.70 are taken, a star
 check finds the star at each answer, and no other answer of the replayed F ring and
