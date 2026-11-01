@@ -569,22 +569,39 @@ Some frames have only one or two stars bright enough to see, and a pattern match
 nothing to work with. This technique handles exactly that case, and needs only one usable
 star.
 
-With one star, it requires that star to be clearly the brightest thing the catalog
-predicts in the frame, by a margin over the next candidate of
-``techniques.StarUniqueMatchNav.tuning.brightness_margin_to_next_catalog_star_mag``
-magnitudes, 1.5 by default. Then the strongest source inside a search window around the
-prediction can only be that star, and the offset is simply the difference. A source's
-strength is the light it spreads over a star's footprint (the width set by
+A source's strength is the light it spreads over a star's footprint (the width set by
 ``techniques.StarUniqueMatchNav.tuning.psf_sigma_px``, 1 pixel by default). A source whose
 brightest pixel stands far above its four neighbors, more than
 ``techniques.StarUniqueMatchNav.tuning.max_peak_sharpness`` times (8 by default), is a
 cosmic ray or hot pixel and is passed over, since no star concentrates its light that
 much; otherwise such a spike can outshine a star whose image is sharper than that
-footprint, as the instrument chapters describe. Confidence is capped at 0.7, because a
-single match has nothing to check itself against. Guards exist against locking onto a
-noise spike or a hot pixel: the star's peak must stand clear of the window's background
-and of every other pixel in the window, and where there is no rival peak at all to measure
-against, the match is accepted only if it sits close to the predicted position.
+footprint, as the instrument chapters describe.
+
+When no two stars agree on an offset, the technique looks for a single star. The offset
+window often holds point sources that are not stars: cosmic-ray hits, stars too faint for
+the catalog, or small moons. So each searched star is tried against each of its candidate
+sources, and the other stars judge every try:
+
+- A source whose brightest pixel stands more than
+  ``techniques.StarUniqueMatchNav.tuning.one_star_max_peak_sharpness`` times (7 by
+  default) above its four neighbors is not taken for a lone star.
+- On a camera whose instrument chapter gives a brightness bound, a source far brighter
+  than any star of that catalog magnitude appears is not taken for a lone star either: a
+  small moon or a saturated blob can be the brightest source in the window.
+- A try is refused when another star, which it places on clear sky in the image and
+  which should then be plainly visible, shows nothing there
+  (``techniques.StarUniqueMatchNav.tuning.one_star_absent_stars``, 1 by default).
+
+Of the tries left, the one whose source is brightest for its star's catalog magnitude is
+the answer. The frame has no answer when another source in that star's window is nearly
+as bright (within a factor of
+``techniques.StarUniqueMatchNav.tuning.one_star_min_peak_ratio``, 1.5 by default), when
+another star explains a different source nearly as well, or when another star within
+``techniques.StarUniqueMatchNav.tuning.brightness_margin_to_next_catalog_star_mag``
+magnitudes (1.5 by default) could be the same source. Confidence is capped at 0.7, because
+a single match has nothing to check itself against. Where no pixel of the window other
+than the star's own rises above the background at all, as around a lone hot pixel on a
+flat frame, the match is accepted only if it sits close to the predicted position.
 
 With two or more stars, the technique looks for the offset the most stars agree on. Each
 of the five brightest predicted stars
@@ -631,7 +648,8 @@ reach is not found, even when some of its light falls inside it. A single star, 
 nothing can check, is accepted only inside the ellipse that reaches 0.6 of the window
 along each axis from where it was predicted
 (``techniques.StarUniqueMatchNav.tuning.one_star_ellipse_fraction``), although the whole
-window is still searched so that anything brighter in it stops the match. A detection
+window is still searched, so that a source nearly as bright anywhere in it leaves the
+frame unanswered. A detection
 counts only if it is a point source that stands alone, by the same test the star field
 uses, so a ridge of a ring or a cosmic-ray track is not taken for a star. Measuring a
 star's center moves a small box onto the star's light; a box that wanders farther than

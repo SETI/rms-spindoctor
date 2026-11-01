@@ -264,6 +264,15 @@ bright-end cutoff, and saturated stars are handled downstream.
 15x15 cutout, brighter than 8 gives 13x13, brighter than 9 gives 11x11, and
 everything fainter gives 9x9.
 
+**Lone-star brightness bound.** ``star_max_peak_per_predicted_snr`` is 150 for the NAC
+and 40 for the WAC, for raw and calibrated images alike: a lone star's source may peak
+at most that many noise sigmas above its local background per unit of the star's
+predicted SNR (see :doc:`../dev_guide_techniques_star_unique_match`). Of 3463 NAC stars
+found at the published F ring bundle's pointing on its star frames the brightest is 126
+(median 10), and two lone sources at 166 and 259, 88 and 48 px from the bundle's answer,
+are refused. Of 191 WAC stars found at the bundles' pointing on the F ring and spokes
+star frames the brightest is 20.8 (median 10.5), and the bound is about twice that.
+
 **Magnitude offsets.** ``fallback_combo`` is ``'CL1+CL2'``, the two clear
 filter slots, and the table carries one entry with a default of 0.0. Both are
 placeholders.

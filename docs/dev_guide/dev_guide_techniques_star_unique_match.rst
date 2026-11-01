@@ -9,10 +9,9 @@ Overview
 the pass-1 1-star or 2-star unique-match technique. It searches the instrument's offset
 window around the prediction of each of the brightest predictable stars for isolated
 point sources, and reports the translation that the most stars agree on through a
-cross-checked pair (2-star path) or, when no pair cross-checks, the one implied by the
-strongest detection around the brightest star alone (1-star path);
-the 1-star path additionally requires the star to be a configured magnitude margin
-brighter than every other predictable star. It runs without a
+cross-checked pair (2-star path) or, when no pair cross-checks, the one implied by a
+single star whose source no other star contradicts and nothing else in its window rivals
+(1-star path). It runs without a
 prior — its job is to seed the pass-2
 :class:`~spindoctor.nav_technique.nav_technique_star_refine.StarRefineNav` on scenes where
 the SPICE pointing error is small enough that the predictable stars sit inside the
@@ -26,24 +25,23 @@ silhouette or ring annulus).
 Theory
 ======
 
-The technique exploits a structural fact: when one predictable star dominates the field's
-predicted SNR by a comfortable margin, the strongest detection inside a small search
-window around that star's prediction is almost certainly the matched detection — there is
-no other predictable source bright enough to be confused with it. Two stars dominating the
-field similarly support a 2-star unique-match path that recovers translation plus rotation
-by Procrustes alignment.
+The technique exploits two structural facts. Two stars whose candidate sources agree on
+one offset are unlikely to agree by chance, so a cross-checked pair recovers translation
+plus rotation by Procrustes alignment. A single star whose window holds one source clearly
+brighter than every other, at an offset where no other star should have been seen, is
+best explained by that source; nothing cross-checks it, so its confidence is capped lower.
 
-Brightness-margin gate
-----------------------
+Brightness margin
+-----------------
 
-The matcher computes a magnitude difference between the brightest predictable star and the
-next-brightest one, using the standard relation
-:math:`\Delta m = 2.5 \log_{10}(\mathrm{SNR}_{1} / \mathrm{SNR}_{2})`. The margin floor
-(``brightness_margin_to_next_catalog_star_mag``) gates only the 1-star path: a star whose
-brightness margin falls below it is not "uniquely bright" and the 1-star path fails. The
-2-star path is attempted first whenever at least two usable stars exist, regardless of the
-margin; on that path the margin (to the next-brightest *unmatched* star) is computed as a
-diagnostic only.
+The matcher computes a magnitude difference between two stars from their predicted SNRs,
+using the standard relation
+:math:`\Delta m = 2.5 \log_{10}(\mathrm{SNR}_{1} / \mathrm{SNR}_{2})`. On the 1-star path,
+another usable star within ``brightness_margin_to_next_catalog_star_mag`` of the matched
+star could be the matched source as well when its window holds it, and the match is
+refused (see below). On both paths the margin from the matched star (the brighter of a
+pair) to the brightest other usable star is reported as a diagnostic that the confidence
+formula consumes.
 
 Local centroid
 --------------
@@ -52,9 +50,10 @@ For each star, the technique cuts a window around the predicted position, matche
 it, takes the strongest response peak inside it as the detection, and fits a
 brightness-weighted moment over a ``centroid_box_half_px``-half-width box around it to
 recover the sub-pixel centroid. The shared helper ``local_centroid`` in ``_star_helpers``
-does this for the 1-star path and for
-:class:`~spindoctor.nav_technique.nav_technique_star_refine.StarRefineNav`. The 2-star path
-measures each of several peaks of the window the same way (``window_sources``; see
+does this for
+:class:`~spindoctor.nav_technique.nav_technique_star_refine.StarRefineNav`, and for this
+technique wherever it looks for a star at the position a solution puts it. Both paths
+measure each of several peaks of a star's window the same way (``window_sources``; see
 below).
 
 - **The window** is centered on the pixel that holds the prediction and reaches
@@ -136,56 +135,105 @@ below).
   correct window: with a 30 px window, refusing here lost 26 correct solutions in the
   1030 frames of an F ring movie.
 
-On the 1-star path a detection that fails the noise threshold or the isolation test
-leaves the window with no detection; on the 2-star path the peak is passed over and the
-next one measured. On the 2-star path a residual exceeding ``max_residual_px`` rejects a
+A peak that fails the noise threshold or the isolation test is passed over and the next
+one measured. On the 2-star path a residual exceeding ``max_residual_px`` rejects a
 pair, and on the 1-star path a no-rival detection whose prediction-to-detection distance
 exceeds ``one_star_max_residual_px`` marks the result spurious.
 
 1-star path
 -----------
 
-The 1-star path reports the per-star residual (observed centroid minus predicted position)
-as the translation. The reported covariance is the per-feature Cramer-Rao lower bound from
-:attr:`~spindoctor.feature.feature.NavFeature.position_cov_px`, inflated by ``residual_px**2``
-on the diagonal so a noisy match honestly reports its scatter rather than the noise-free
-CRLB floor. Rotation is unobservable on a single point match.
+The 1-star path runs when no two stars agree on an offset, or when only one star is
+usable. It searches the whole offset window, as the 2-star path does, and a window that
+wide often holds isolated point sources that are not the star: a cosmic-ray hit, a field
+star below the catalog's limit, or a small moon. Taking the window's strongest peak, and
+nothing when that peak is not isolated, refuses frames whose lone star is plainly in the
+image because the strongest peak is a ring's flank, and accepts cosmic rays and faint field
+stars tens of pixels from the answer when the star itself is not in the image.
 
-The path rests on the premise that the search window holds a *single unambiguous*
-detection, and the absolute ``detection_sigma`` threshold alone cannot enforce that: the
-maximum of the window's several thousand noise pixels sits at 3.5-4.5 sigma, so with a
-marginal star the brightest pixel is routinely a noise spike that clears the threshold.
-The detection therefore also passes a peak-to-runner-up ambiguity gate
-(``one_star_min_peak_ratio``): the detection's own background-subtracted peak must exceed
-the brightest pixel of the rest of the window (outside the detection's own centroid box)
-by the configured ratio, or the result is spurious with an ``ambiguous_detection`` reason.
-Because the detection is chosen by matched-filter response, the rest of the window can
-hold a single pixel brighter than the detection's peak; the ratio is then below 1 and the
-one-star match is refused, the safe answer for a match that no second star can check. A
-real star detection towers over the window's noise order statistics while a matched spike
-sits within a few percent of its runner-up; the ratio is unit-free, so no DN-scale or
-photometric calibration enters the ratio. The measured ratio is surfaced as the
+So each of the ``pair_search_stars`` brightest stars, paired with each of the candidates
+the pair search found for it, is a hypothesis about the offset (``lone_star_hypotheses`` in
+``_star_unique_one_star``), and the other stars judge it:
+
+- A source sharper than a star, allowing nothing for noise
+  (``one_star_max_peak_sharpness``) is no lone star. The ``max_peak_sharpness`` test that
+  decides what counts as a source allows for noise, and a cosmic-ray hit a little broader
+  than a hot pixel passes it. None of 3656 stars found at the published bundles' pointing
+  on the F ring and spokes star frames is sharper than 6.96; with a limit of 8, five lone
+  sources between 7.03 and 7.97, each 30 to 100 px from the bundle's answer, are taken.
+- An offset is refuted when ``one_star_absent_stars`` other usable stars that it puts
+  inside the image, on clear sky, show nothing there (``absent_stars``, the test the
+  2-star path applies). The lone source's peak per unit of predicted SNR says how bright
+  each should be, and a star whose peak there is below that divided by
+  ``pair_vote_peak_factor`` is absent. A star the offset puts in the padding, behind a ring
+  or a limb, or too faint to stand above the noise at that scale cannot be absent. One
+  absent star suffices, where a pair needs two, because a pair is two stars' agreement and
+  a lone star has none. On 978 one-star frames of the F ring and spokes movies, requiring
+  two answers 13 fewer frames within 1 px of the bundle's answer and one more 39 px from
+  it.
+
+Of the hypotheses left, the one brightest per unit of its star's predicted SNR is the
+answer (``choose_lone_star``), as the 2-star path chooses among equally supported pairs.
+A star whose window holds only sources far too faint for it so yields to a fainter star
+whose source matches it. The match is refused as ambiguous when, more than
+``2 * max_residual_px`` from the answer:
+
+- another source of the same star's window, whether or not it is star-like or refuted, has
+  a peak above the answer's divided by ``one_star_min_peak_ratio``
+  (``ambiguous_detection``). The star need not be the brightest source of a wide window,
+  but then nothing says which of the two it is. The sources are the window's isolated
+  point sources, so a hot pixel, a ring's flank, or a noise spike does not compete. The
+  brightest pixel of a wide window is often one of those: 162 of the 361 one-star answers
+  on F ring NAC frames have a pixel brighter than the star in the window. A ratio of 2.0
+  refuses 14 lone stars within 1 px of the bundle's answer that 1.5 keeps, and answers
+  none that 1.5 refuses.
+- another star's surviving hypothesis is within ``pair_vote_peak_factor`` of the answer's
+  brightness per unit of predicted SNR (``ambiguous_lone_stars``): two stars each explain a
+  source, and nothing contradicts either.
+
+The answer is then refused when another usable star within
+``brightness_margin_to_next_catalog_star_mag`` of the matched star has the source inside
+its own window (``ambiguous_identity``), since nothing in the image tells the two stars
+apart. On F ring frame ``N1492081691`` one source lies in the windows of two stars 0.2 mag
+apart, and taking it for the brighter gives an answer 7 px from the bundle's. A star whose
+window cannot reach the source does not compete. Refusing whenever any star of the extended
+field of view is that close in brightness refuses lone stars whenever a comparable star is
+predicted far in the padding.
+
+The answer must lie inside the lone-star ellipse, whose semi-axes are the offset window's
+half-widths times ``one_star_ellipse_fraction`` (0.6; 30 px for a window half-width of
+50 px), or it is refused with a ``one_star_detection_outside_ellipse`` reason.
+
+The path also keeps a no-rival residual bound. The source's background-subtracted peak
+over the brightest pixel of the rest of the window (outside the source's centroid box) is
+reported as the
 :attr:`~spindoctor.nav_technique.diagnostics.StarUniqueMatchDiagnostics.detection_peak_ratio`
-diagnostic.
+diagnostic. It is ``inf`` when no pixel of the rest of the window clears the background. On
+a real noisy background that pixel is always above it, so the sentinel is the signature of
+a lone hot pixel or artifact on a flat or quantized frame. In that case the source must
+additionally sit within ``one_star_max_residual_px`` of the prediction. The residual on
+this path is the claimed offset itself, and when nothing else in the window compares, a lone
+detection far from the prediction is far more likely an unrelated artifact than a large
+pointing error. The default bound of 10 px is one third of the 30 px window it was set
+against.
 
-The peak-ratio and brightness-margin gates both report an ``inf`` sentinel when no rival
-exists (no runner-up detection above the window background, no other predictable catalog
-star). The sentinels pass the ratio checks by design so a genuinely unique bright star
-stays matchable — but an infinite peak ratio also means the ambiguity gate measured
-nothing: on a real noisy background the runner-up is always finite, so the sentinel is the
-signature of a lone hot pixel or artifact on a flat or quantized frame. In that vacuous
-case the detection must additionally sit within ``one_star_max_residual_px`` of the
-prediction. The residual on this path is the claimed offset itself, and without rival
-statistics to lean on, a no-rival detection far from the prediction is far more likely an
-unrelated artifact than a large pointing error; the default bound of 10 px is one third of
-the 30 px window it was set against, the ~1-sigma core of the pointing envelope that
-window was sized to bracket. When the peak ratio is finite, the 10 px residual bound is
-not applied: genuine one-star matches with offsets up to ~24 px exist in the
-operator-verified library, so that bound cannot hold every match. Every 1-star match is
-held instead to the lone-star ellipse, whose semi-axes are the offset window's half-widths
-times ``one_star_ellipse_fraction`` (0.6; 30 px for a window half-width of 50 px), and is
-refused outside it with a ``one_star_detection_outside_ellipse`` reason. The whole window
-is still searched, so a brighter source anywhere in it vetoes the match.
+The path reports the per-star residual (observed centroid minus predicted position) as the
+translation. The reported covariance is the per-feature Cramer-Rao lower bound from
+:attr:`~spindoctor.feature.feature.NavFeature.position_cov_px`, inflated by
+``residual_px**2`` on the diagonal so a noisy match honestly reports its scatter rather
+than the noise-free CRLB floor. Rotation is unobservable on a single point match.
+
+A star's predicted SNR is synthesized from how far its catalog magnitude sits below the
+frame's limiting magnitude, so it ranks the stars of a frame but says how bright a star
+appears only loosely, and differently for each camera. The peak above the local
+background per unit of predicted SNR of Cassini NAC stars found at the published F ring
+bundle's pointing has a median of 10 noise sigmas and ranges from 0.7 to 126. So no lower
+bound applies, and the only absolute test is an upper bound a camera may set in its
+instrument configuration (``star_max_peak_per_predicted_snr``, in noise sigmas): a source
+brighter than any star of that catalog magnitude the camera shows, such as a small moon
+or a saturated blob, is not taken for a lone star, though it still competes as a source
+of its window. A camera that sets none has no bound; the instrument chapters give the
+values.
 
 2-star path
 -----------
@@ -193,11 +241,10 @@ is still searched, so a brighter source anywhere in it vetoes the match.
 When at least two usable stars exist, the technique first attempts the 2-star path. Each
 of the ``pair_search_stars`` brightest usable stars is searched for over the whole offset
 window, and the window yields the star's candidates: its ``pair_search_sources`` strongest
-isolated point sources (``window_sources`` in ``_star_helpers``). Each is found as the
-1-star path finds its detection (a matched-filter peak, not sharper than a star, above the
-noise threshold, re-centered without walking away, and isolated), but a peak that fails
-any test is passed over and the next one taken, where the 1-star path stops at the
-window's strongest peak. The isolation test for a whole window is built once
+isolated point sources (``window_sources`` in ``_star_helpers``). Each is a
+matched-filter peak no sharper than a star, above the noise threshold, re-centered
+without walking away, and isolated; a peak that fails any test is passed over and the
+next one taken. The isolation test for a whole window is built once
 (``isolation_lookup``), since a star smeared over tens of pixels widens its annulus enough
 to make a test per peak cost seconds. A wide window often holds something stronger than
 its star: the flank of a ring, a brighter star, or a cosmic-ray hit. Taking only each
@@ -308,7 +355,8 @@ Trying more than the brightest two matters when the brightest predicted star is 
 image. A star predicted inside the extended field of view may fall off the detector once
 the pointing error is applied, or under a ring's glare; with only the brightest two tried,
 its window holds no star, the pair fails, and the frame falls through to the 1-star path,
-whose brightness margin a field of comparable stars never clears. On
+where a field of comparable stars rarely leaves one source that only one of them could
+be. On
 ``ISS_006RI_LPHRLFMOV001_PRIME`` searching pairs among the brightest 3, 5, and 8 stars
 navigates 710, 771, and 777 of the 1030 frames, every one within 2 px of the published F
 ring bundle (measured with each window's strongest detection in a 50 px window).
@@ -354,20 +402,21 @@ two paths can share a single spec.
 Restrictions and assumptions
 ----------------------------
 
-- The brightness-margin gate is driven by the catalog visual magnitudes: each star's
+- The brightness comparisons are driven by the catalog visual magnitudes: each star's
   ``predicted_snr`` is the magnitude-margin effective SNR derived from how far the star
   sits below the per-observation limiting magnitude, so the SNR ratio between two stars
-  recovers their catalog magnitude difference. A wrong catalog magnitude shifts the
-  brightness-margin computation and may erroneously accept or reject the match.
+  recovers their catalog magnitude difference. A wrong catalog magnitude shifts which
+  star a lone source is taken for, how bright another star should be, and the brightness
+  margin, and may erroneously accept or reject the match.
 - The search window assumes the SPICE pointing error is bounded by the instrument's offset
   window. When the pointing error exceeds it, the star is not in its window. On
   ``ISS_006RI_LPHRLFMOV001_PRIME`` the Cassini NAC pointing error reaches 43 px, and a
   30 px window puts the stars of 191 of the 1030 frames out of reach. A 1-star match is
   accepted only inside the lone-star ellipse (the offset window's half-widths times
   ``one_star_ellipse_fraction``) around its prediction, while the whole window is still
-  searched so that a brighter source anywhere in it vetoes: nothing cross-checks a single
-  detection, and the wider the region it may come from, the likelier an artifact is the
-  brightest thing in it. On the 206 one-star answers on F ring frames the bundle
+  searched so that a source nearly as bright anywhere in it makes the match ambiguous:
+  nothing cross-checks a single detection, and the wider the region it may come from, the
+  likelier an artifact is the brightest thing in it. On the 206 one-star answers on F ring frames the bundle
   navigated on stars, the 195 correct ones reach the ellipse's edge (8 lie between 0.52
   and 0.60 of the window) and the 7 wrong ones lie between 0.16 and 0.57 of it, so a
   narrower ellipse would refuse correct lone stars before wrong ones. On the black-sky
@@ -378,6 +427,15 @@ Restrictions and assumptions
   the regime where the multi-star
   :class:`~spindoctor.nav_technique.nav_technique_star_field.StarFieldFromCatalogNav` triplet
   matcher takes over.
+- A lone star is judged against every source of the whole offset window, so a source
+  nearly as bright anywhere in it refuses the match even where a window sized to the
+  star's own reach would hold the star alone. On the 1986 F ring and spokes star frames,
+  against star windows of 50 px (NAC) and 13 px (WAC) with lone stars believed within
+  30 and 9 px, 17 NAC and 10 WAC lone stars that those found are refused: on 15 of the
+  NAC frames a comparable source lies in the whole window outside the smaller one, or the
+  offset lies outside the lone-star ellipse, and the WAC offsets lie at 0.60 to 0.66 of
+  their window, just past the ellipse. In turn the whole window answers 310 NAC and 37
+  WAC frames within 1 px of the bundle that those windows refuse.
 - Both paths assume the matched detection is unsaturated. A saturated star whose centroid
   has been clipped will produce a biased centroid; in practice the brightest catalog stars
   are held off by the magnitude gate. The predicted-position saturation / cosmic-ray mask is
@@ -406,9 +464,9 @@ Configuration
 All numeric tunables for this technique live in ``techniques.StarUniqueMatchNav.tuning`` in
 ``src/spindoctor/config_files/config_510_techniques.yaml``.
 
-- ``brightness_margin_to_next_catalog_star_mag`` — float, default ``1.5`` (mag). Minimum
-  magnitude difference between the brightest predictable star and the next-brightest for
-  the 1-star path to fire.
+- ``brightness_margin_to_next_catalog_star_mag`` — float, default ``1.5`` (mag). Another
+  usable star within this many magnitudes of a lone star, whose window holds the lone
+  star's source, could be that source as well, and the 1-star path refuses the match.
 - ``one_star_ellipse_fraction`` — float, default ``0.6``. A 1-star detection outside the
   ellipse whose semi-axes are the offset window's half-widths times it is refused with a
   ``one_star_detection_outside_ellipse`` reason. The ellipse is taken in place of a single
@@ -464,10 +522,16 @@ All numeric tunables for this technique live in ``techniques.StarUniqueMatchNav.
 - ``two_star_confidence_cap`` — float, default ``0.8`` (dimensionless). Post-sigmoid
   confidence cap when the 2-star path fires. Per-correspondence residual cross-checks the
   assignment.
-- ``one_star_min_peak_ratio`` — float, default ``1.5`` (dimensionless). Minimum
-  background-subtracted peak-to-runner-up ratio for a 1-star detection; below it the
-  result is spurious with an ``ambiguous_detection`` reason. Values below 1 are invalid:
-  a ratio below 1 means the window holds a pixel brighter than the detection's own peak.
+- ``one_star_min_peak_ratio`` — float, default ``1.5`` (dimensionless). Minimum ratio of
+  a lone star's source's peak above its local background to that of every other isolated
+  point source of the star's window; below it the result is spurious with an
+  ``ambiguous_detection`` reason. Values below 1 are invalid.
+- ``one_star_max_peak_sharpness`` — float, default ``7.0``, finite and at least 1. Largest
+  ratio of a lone star's brightest-pixel excess to the mean excess of its four edge
+  neighbors, allowing nothing for noise; a sharper source is no lone star.
+- ``one_star_absent_stars`` — int, default ``1``, at least 1. A lone star's offset is
+  refuted when at least this many other usable stars lie on clear sky in the image where
+  it puts them and show nothing there.
 - ``one_star_max_residual_px`` — float, default ``10.0`` px. Maximum
   prediction-to-detection distance accepted by the 1-star path when the peak-ratio gate
   is vacuous (its no-rival ``inf`` sentinel); beyond it the result is spurious with a
@@ -487,7 +551,9 @@ Per-instrument overrides
 ------------------------
 
 Per-instrument YAML files in ``src/spindoctor/config_files/config_4N0_inst_*.yaml`` do not
-override any of these knobs.
+override any of these knobs. A camera may set ``star_max_peak_per_predicted_snr`` there, which
+bounds a lone star's source's peak per unit of predicted SNR in noise sigmas (see the
+1-star path above); a camera that sets none has no bound.
 
 Confidence formula
 ------------------
@@ -505,10 +571,11 @@ sigmoid combination; see :doc:`dev_guide_techniques_confidence`. Spec is
   campaign raw p5/p50/p95 = 15/85/252 — the sim's flux-normalized star deposit brightens
   the healthy range, so the divisor spans it).
 - :attr:`~spindoctor.nav_technique.diagnostics.StarUniqueMatchDiagnostics.brightness_margin_mag`
-  — alpha = 1.002, offset = 1.5, divisor = 1.5, cap at 1.0. Magnitude margin to the
-  next-brightest predictable star in the extfov. Below the 1.5 mag floor the 1-star path
-  short-circuits before reaching the formula; above the floor, additional margin earns
-  confidence up to a 1.5 mag span.
+  — alpha = 1.002, offset = 1.5, divisor = 1.5, cap at 1.0. Magnitude margin from the
+  matched star to the brightest other usable star in the extfov. A margin below the
+  1.5 mag offset, negative when a brighter star is not seen, contributes nothing (the
+  term is clamped at 0); above it, additional margin earns confidence up to a 1.5 mag
+  span.
 - :attr:`~spindoctor.nav_technique.diagnostics.StarUniqueMatchDiagnostics.residual_px` —
   alpha = -0.112, offset = 0.0, divisor = 2.0, no cap. Detection-vs-prediction residual.
   Larger residuals pull confidence down.
@@ -536,8 +603,12 @@ Source files:
   ``two_star_covariance``, ``two_star_covariance_3dof``).
 - ``src/spindoctor/nav_technique/_star_helpers.py`` — package-private helpers ``usable_stars``,
   ``distinct_stars``, ``search_window_bounds``, ``local_centroid``, ``window_sources``,
-  ``detection_peak_ratio``, ``gaussian_psf_kernel``, ``predicted_snr``, ``predicted_vu``,
-  ``brightness_margin_mag``, and ``similarity_transform_fit``.
+  ``detection_peak_ratio``, ``too_sharp``, ``gaussian_psf_kernel``, ``predicted_snr``,
+  ``predicted_vu``, ``brightness_margin_mag``, and ``similarity_transform_fit``.
+- ``src/spindoctor/nav_technique/_star_unique_one_star.py`` — package-private lone-star
+  search of the 1-star path: ``lone_star_hypotheses`` (each searched star paired with
+  each of its candidates, judged by sharpness and by absent stars) and
+  ``choose_lone_star``.
 - ``src/spindoctor/nav_technique/_star_isolation.py`` — package-private source isolation
   test shared with the star field: ``isolation_radii``, ``isolated_response``,
   ``is_isolated_point_source``, and ``isolation_lookup``.
@@ -576,7 +647,8 @@ Diagnostics
   :meth:`~spindoctor.nav_technique.nav_technique_star_unique_match.StarUniqueMatchNav.navigate`
   read it.
 - :attr:`~spindoctor.nav_technique.diagnostics.StarUniqueMatchDiagnostics.predicted_snr` —
-  predicted SNR of the brightest catalog star. Consumed by the confidence formula.
+  predicted SNR of the matched catalog star (the brighter of a pair). Consumed by the
+  confidence formula.
 - :attr:`~spindoctor.nav_technique.diagnostics.StarUniqueMatchDiagnostics.brightness_margin_mag`
   — magnitude difference to the next-brightest unmatched catalog source predictable in
   extfov; ``+inf`` when no unmatched star exists. Consumed by the confidence formula.
@@ -584,9 +656,10 @@ Diagnostics
   detection-vs-prediction residual. Consumed by the confidence formula and by the
   spurious-detection gate.
 - :attr:`~spindoctor.nav_technique.diagnostics.StarUniqueMatchDiagnostics.detection_peak_ratio`
-  — background-subtracted peak over window runner-up for the 1-star path (``0.0`` when
-  not measured; ``inf`` when the runner-up sits at or below the background). Diagnostic
-  only; the ambiguity gate consumes it before the confidence formula runs.
+  — background-subtracted peak of the 1-star path's source over the brightest pixel of
+  the rest of its window (``0.0`` when not measured; ``inf`` when that pixel sits at or
+  below the background). Diagnostic; the no-rival residual bound applies when it is
+  ``inf``.
 
 Call path
 ---------
@@ -612,15 +685,16 @@ Call path traced through
      survivors. Report it, or a spurious result when another survivor is within
      ``pair_vote_peak_factor`` of its brightness or every pair is refuted; when no pair
      passes the residual cross-check, fall back to the 1-star path.
-   - **1-star path.**  When fewer than two stars are usable (or no pair passed),
-     require the brightest to clear the brightness-margin floor, slice a window
-     around its prediction, extract the sub-pixel
-     centroid, refuse it when it is not an isolated point source or lies outside
-     the lone-star ellipse, require the detection's background-subtracted
-     peak-to-runner-up ratio to be at least ``one_star_min_peak_ratio`` (and, when that
-     ratio is the no-rival sentinel, require the detection to lie within
-     ``one_star_max_residual_px`` of the prediction), and report the per-star residual as
-     the translation.
+   - **1-star path.**  When fewer than two stars are usable (or no pair passed), pair
+     each searched star with each of its candidates (``lone_star_hypotheses``), judge
+     each by its sharpness and by the other stars absent where it puts them, and choose
+     the survivor brightest per unit of predicted SNR (``choose_lone_star``). Refuse it
+     when another source of its window is within ``one_star_min_peak_ratio`` of its peak,
+     another star's survivor is within ``pair_vote_peak_factor`` of its brightness,
+     another comparable star's window holds its source, it lies outside the lone-star
+     ellipse, or, when the window's pixel-level peak ratio is the no-rival sentinel, it
+     lies beyond ``one_star_max_residual_px`` of the prediction; otherwise report the
+     per-star residual as the translation.
 
 4. Result-shape branches on the chosen path and
    :attr:`~spindoctor.nav_orchestrator.nav_context.NavContext.fit_camera_rotation`:
@@ -665,9 +739,9 @@ Examples
     Single star (Vega) in an otherwise empty FOV. The stars model emits a single ``STAR``
     feature with a brightness margin of ``+inf`` to the (nonexistent) next-brightest.
     :class:`~spindoctor.nav_technique.nav_technique_star_unique_match.StarUniqueMatchNav` runs the
-    1-star path: a small search window around Vega's prediction returns the brightest peak
-    above the noise threshold, the brightness-weighted moment recovers the centroid, and
-    the per-star residual is reported as the translation. The 1-star post-sigmoid cap of
+    1-star path: Vega's offset window holds one isolated source far brighter than any
+    other, the brightness-weighted moment recovers its centroid, and the per-star residual
+    is reported as the translation. The 1-star post-sigmoid cap of
     0.7 holds the technique's confidence below 0.7 even when every term saturates.
     Operator-verified offset is :math:`(\Delta v, \Delta u) = (3.06, -0.02)` px. The
     pass-2 :class:`~spindoctor.nav_technique.nav_technique_star_refine.StarRefineNav` consumes

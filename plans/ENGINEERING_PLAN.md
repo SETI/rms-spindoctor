@@ -452,10 +452,35 @@ controls), 61 F ring frames whose answer was wrong become `conflicted`, 60
 of them because the stars, right, disagree with a wrong ring answer; 21
 refused frames navigate, all within 2 px of the bundle; no frame's answer
 gets worse except spokes frame
-`N1547003113`, whose spokes-bundle pointing two stars contradict. The
-lone-star path is unchanged: its ellipse keeps correct lone stars out to its
-edge, and 7 of its 206 answers on star-navigated F ring frames are wrong at
-the low tier.
+`N1547003113`, whose spokes-bundle pointing two stars contradict.
+
+The lone-star path then failed the same way over the whole window: the
+window's strongest peak was often a ring's flank, a cosmic-ray hit, or a
+field star, so it refused lone stars the per-camera windows had found and
+accepted sources 30 to 100 px from the answer. It now treats each searched
+star paired with each of its three candidates as a hypothesis: a source
+sharper than a star with no noise allowance (`one_star_max_peak_sharpness`,
+7) or brighter per unit of predicted SNR than any star the camera shows
+(`star_max_peak_per_predicted_snr`, 150 NAC and 40 WAC) is not taken; an
+offset one other star contradicts by being absent on clear sky
+(`one_star_absent_stars`, 1) is refuted; the survivor brightest for its
+star's predicted SNR wins unless another source of its window is within 1.5
+of its peak, another star's survivor is within a factor of 4, or a star
+within 1.5 mag could be the same source. The 1.5 mag margin no longer
+refuses a lone star because a comparable star lies far in the padding.
+Replayed on the 1986 star frames against the head before it: 222 F ring NAC
+frames refused before answer within 1 px of the bundle and 12 within 2 px,
+none loses an answer, and 5 wrong answers (4 of them lone sources 47 to
+100 px off) are refused; 17 new F ring NAC answers lie 2 to 36 px from the
+bundle, of which stars favor ours on 13, and N1579804085 (36 px),
+N1739500982 (32 px), and N1741134965 (2.7 px) show no star at either offset
+and `N1848843999` is undecided. Against the per-camera windows (13 to 50 px)
+of the version before the ruling, 17 F ring NAC lone stars and 10 spokes WAC
+ones are refused: on 15 of the 17 a source nearly as bright lies in the
+whole window outside the smaller one, or the star's offset lies outside the
+lone-star ellipse; the 10 WAC frames lie at 0.60 to 0.66 of their window,
+just outside the ellipse. A wide-sigma one-star answer can merge disagreeing
+witnesses in the ensemble (#841).
 
 A pair the other searched stars contradict is still refused, but a star now
 votes for the pair when an isolated point source about as bright as that star
