@@ -1723,8 +1723,11 @@ render-level test asserting the effect is measurably present:
        detected limb ridge radially as a function of ray angle -- the
        sector-asymmetric edge-localization bias.
    * - ``interior_ramp_amplitude``
-     - Adds a linear brightness ramp along the haze axis inside the disc, the
-       seasonal north-south gradient.
+     - Adds a linear brightness ramp along the haze illumination axis inside the
+       disc: ``+amplitude`` at the sunward limb, ``-amplitude`` at the
+       anti-sunward one. In the committed Titan geometry, where the sun lies
+       perpendicular to the polar axis, the ramp runs east to west. The
+       north-south difference is a separate key, ``ns_asymmetry_amplitude``.
    * - ``cloud_blobs``
      - Adds Gaussian clouds on the disc, each ``{center_vu, sigma_px,
        amplitude}``.
