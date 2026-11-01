@@ -211,10 +211,16 @@ def quantize_dn(
 
 
 def _convert_to_electrons(signal: NDArrayFloatType, dp: DetectorParams) -> NDArrayFloatType:
-    """Convert the intensive [0, 1] signal to electrons through the exposure."""
+    """Convert the intensive [0, 1] signal to electrons through the exposure.
+
+    A signal of 1.0 fills ``signal_full_scale_frac`` of a native pixel's well at
+    the reference exposure; a binned frame pixel sums ``binning**2`` native
+    pixels of it.
+    """
     scale = (
         dp.signal_full_scale_frac
         * dp.full_well_e
+        * dp.binning**2
         * (dp.exposure_sec / dp.exposure_ref_sec if dp.exposure_ref_sec > 0.0 else 1.0)
     )
     return np.clip(signal, 0.0, 1.0) * scale
@@ -275,6 +281,7 @@ def _apply_ccd(frame: SimFrame, dp: DetectorParams, rng: np.random.Generator) ->
         detector_id=dp.detector_id,
         rng=_stage_rng(dp.random_seed, 'hot_pixels'),
         candidate_pool=_hot_pixel_pool(frame, dp),
+        binning=dp.binning,
     )
     # The hot_pixels artifact mode is routed through the resolver's flat knobs,
     # so the chain records its realized population here; the generic noise-block

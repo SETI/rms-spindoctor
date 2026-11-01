@@ -22,6 +22,7 @@ from __future__ import annotations
 import zlib
 from typing import Any
 
+from spindoctor.sim.forward.artifacts_catalog import binning_for_frame_size
 from spindoctor.sim.scene import validate_sim_params
 
 __all__ = [
@@ -66,8 +67,13 @@ def _seed_for(image_id: str) -> int:
 def _base_scene(
     scene_name: str, instrument: str, exposure_sec: float, seed: int, size_vu: tuple[int, int]
 ) -> dict[str, Any]:
-    """The shared scene skeleton: instrument chain on, zero offset."""
-    return {
+    """The shared scene skeleton: instrument chain on, zero offset.
+
+    A cohort frame smaller than its camera's native frame is a binned readout,
+    so the matched scene selects that binning and renders through its mode.
+    """
+    binning = binning_for_frame_size(instrument, size_vu)
+    scene: dict[str, Any] = {
         'schema_version': 2,
         'scene_name': scene_name,
         'instrument': instrument,
@@ -80,6 +86,9 @@ def _base_scene(
         'artifacts': {'instrument_defaults': True},
         'bodies': [],
     }
+    if binning > 1:
+        scene['detector'] = {'binning': binning}
+    return scene
 
 
 def _star_list(

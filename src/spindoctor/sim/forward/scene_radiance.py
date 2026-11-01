@@ -49,6 +49,7 @@ from spindoctor.sim.forward.artifacts_catalog import (
     resolve_detector_defaults,
     resolve_sky_pixel_scale_arcsec,
     resolve_star_flux_zero_point,
+    scene_binning,
 )
 from spindoctor.sim.forward.atmosphere import HaloScreen
 from spindoctor.sim.forward.body import render_single_body
@@ -707,7 +708,7 @@ def _render_sky(
         sigma_v_psf = float(scene_psf['sigma_v'])
         rendered_sigma_det = max(sigma_v_psf, float(scene_psf.get('sigma_u', sigma_v_psf)))
     else:
-        rendered_sigma_det = float(inst_config['star_psf_sigma'])
+        rendered_sigma_det = float(inst_config['star_psf_sigma']) / scene_binning(params)
     read_noise = _nominal_read_noise(instrument, domain)
     cutoff = faint_sky_cutoff_mag(
         zero_point=zero_point,
@@ -721,7 +722,8 @@ def _render_sky(
         a=float(sky.get('a', -3.1)),
         b=float(sky.get('b', 0.34)),
         density_factor=float(sky.get('density_factor', 1.0)),
-        pixel_scale_arcsec=resolve_sky_pixel_scale_arcsec(instrument),
+        # A binned frame pixel spans binning native pixels on a side.
+        pixel_scale_arcsec=resolve_sky_pixel_scale_arcsec(instrument) * scene_binning(params),
         faint_cutoff_mag=cutoff,
         zero_point=zero_point,
         exposure_sec=exposure_sec,

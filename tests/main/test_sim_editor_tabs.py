@@ -356,6 +356,13 @@ def test_detector_edit_writes_only_the_edited_key(model: Any) -> None:
     assert model.sim_params['detector'] == {'gain_state': 3}
 
 
+def test_detector_binning_is_authorable(model: Any) -> None:
+    """The binning spin writes the detector.binning key."""
+    model._detector_group.setChecked(True)
+    model._detector_binning_spin.setValue(2)
+    assert model.sim_params['detector'] == {'binning': 2}
+
+
 def test_detector_quantization_is_authorable(model: Any) -> None:
     """The quantization combo writes the detector.quantization key."""
     model._detector_group.setChecked(True)

@@ -238,6 +238,14 @@ class ArtifactsTabMixin(SimEditorBase):
         )
         form.addRow('Gain state:', self._detector_gain_state_spin)
 
+        self._detector_binning_spin = QSpinBox()
+        self._detector_binning_spin.setRange(1, 4)
+        self._detector_binning_spin.setToolTip(
+            'Readout-mode binning: each frame pixel sums a b-by-b block of native pixels; '
+            'must be cataloged for the instrument. Written to the scene only when edited.'
+        )
+        form.addRow('Binning:', self._detector_binning_spin)
+
         self._detector_model_combo = QComboBox()
         self._detector_model_combo.addItems(_DETECTOR_MODELS)
         self._detector_model_combo.setToolTip(
@@ -267,6 +275,7 @@ class ArtifactsTabMixin(SimEditorBase):
         group.setChecked(isinstance(detector, dict))
         # Connect after the initial values so the build does not write.
         self._detector_gain_state_spin.valueChanged.connect(self._on_detector_gain_state)
+        self._detector_binning_spin.valueChanged.connect(self._on_detector_binning)
         self._detector_exposure_ref_spin.valueChanged.connect(self._on_detector_exposure_ref)
         self._detector_model_combo.currentTextChanged.connect(self._on_detector_model)
         self._detector_quantization_combo.currentTextChanged.connect(self._on_detector_quantization)
@@ -291,6 +300,7 @@ class ArtifactsTabMixin(SimEditorBase):
         self._detector_gain_state_spin.setValue(
             int(block.get('gain_state', catalog.get('default_gain_state', 0)))
         )
+        self._detector_binning_spin.setValue(int(block.get('binning', 1)))
         model = str(block.get('detector_model', catalog.get('detector_model', 'ccd')))
         model_index = self._detector_model_combo.findText(model)
         if model_index >= 0:
@@ -345,6 +355,10 @@ class ArtifactsTabMixin(SimEditorBase):
     def _on_detector_gain_state(self, value: int) -> None:
         """Write the gain state on a spin edit."""
         self._set_detector_key('gain_state', int(value))
+
+    def _on_detector_binning(self, value: int) -> None:
+        """Write the readout-mode binning on a spin edit."""
+        self._set_detector_key('binning', int(value))
 
     def _on_detector_exposure_ref(self, value: float) -> None:
         """Write the reference exposure on a spin edit."""

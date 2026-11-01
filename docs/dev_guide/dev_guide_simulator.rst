@@ -3110,11 +3110,52 @@ Detector block
 
 The optional ``detector`` dict (truth-side) overrides the resolved detector
 chain: ``gain_state`` (the electron-chain gain state, which must be cataloged
-for the instrument), ``detector_model`` (``ccd`` electron chain or ``vidicon``
-DN chain), ``exposure_ref_sec`` (the exposure the signal full-scale fraction
-references), and ``quantization`` (the ADC sub-mode: ``exact``, ``8bit``,
-``uneven_12bit``, or ``sqrt_lut``). Omitted keys, and keys set to null, fall
-back to the instrument's catalog defaults.
+for the instrument), ``binning`` (the readout mode, below), ``detector_model``
+(``ccd`` electron chain or ``vidicon`` DN chain), ``exposure_ref_sec`` (the
+exposure the signal full-scale fraction references), and ``quantization`` (the
+ADC sub-mode: ``exact``, ``8bit``, ``uneven_12bit``, or ``sqrt_lut``). Omitted
+keys, and keys set to null, fall back to the instrument's catalog defaults.
+
+``binning`` selects a binned or summed readout mode, 1 by default: each frame
+pixel sums a ``b`` by ``b`` block of native pixels. The catalog's
+``READOUT_MODES`` lists each camera's modes, and a mode it doesn't list is a
+validation error:
+
+.. list-table::
+   :widths: 25 20 55
+   :header-rows: 1
+
+   * - Instrument
+     - Binnings
+     - Published values the binned mode changes
+   * - ``coiss_nac``, ``coiss_wac`` (and their calibrated products)
+     - 1, 2, 4
+     - None in the catalog's sources; the SUM2 and SUM4 modes keep the 1x1
+       gain, read noise, and well.
+   * - ``gossi``
+     - 1, 2
+     - The summation mode reads 44 e- (31 e- at full resolution).
+   * - ``nhlorri``
+     - 1, 4
+     - The 4x4 mode reads about 19.4 e-/DN (21 at 1x1).
+   * - ``vgiss``
+     - 1
+     - The vidicon has no binned readout.
+
+Whatever the mode, a binned pixel is the sum of its native pixels. An extended
+source deposits ``b**2`` times a native pixel's charge, and so do the catalog's
+dark current and cosmic-ray rate (a ``noise`` key the scene sets states the
+frame pixel's own value). A calibrated product's DN-to-I/F scale grows by the
+same factor, so a summed frame calibrates to the same I/F. A star's total
+charge is unchanged, and the instrument PSF kernel, which the catalog states in
+native pixels, shrinks by ``b``, so the star lands in fewer, brighter pixels.
+The hot pixels are the detector's native map summed into each binned pixel, the
+residual distortion's non-radial wander shrinks by ``b`` (``k1`` and ``k2`` act
+on the radius normalized to the frame), and the background sky's plate scale
+grows by ``b``. Positions and sizes the scene states are in frame pixels
+whatever the mode. The realism match reads a cohort frame's mode
+from its size: a camera's full frame binned by ``b`` is its native size over
+``b`` (``NATIVE_FRAME_SIZE_PX``).
 
 .. _sim-artifacts-block:
 

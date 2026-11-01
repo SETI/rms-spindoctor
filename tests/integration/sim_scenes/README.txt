@@ -179,7 +179,9 @@ Fields
                                      (amplitude, direction_deg, center_v, center_u,
                                      model linear|radial)
   detector         (mapping, opt)    detector-chain override: gain_state (must be
-                                     cataloged for the instrument), detector_model
+                                     cataloged for the instrument), binning (a
+                                     cataloged readout mode; each frame pixel sums
+                                     a b-by-b native block), detector_model
                                      (ccd | vidicon), exposure_ref_sec, quantization
                                      (exact | 8bit | uneven_12bit | sqrt_lut); omitted
                                      or null keys track the instrument catalog
