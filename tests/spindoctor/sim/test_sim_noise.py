@@ -8,6 +8,7 @@ structured noise stage in isolation for its shape and its disabled floor.
 from typing import Any
 
 import numpy as np
+import pytest
 
 from spindoctor.sim.forward.detector import (
     apply_detector,
@@ -20,6 +21,7 @@ from spindoctor.sim.forward.detector.noise_stages import (
     add_cosmic_rays,
     add_dark_current,
     add_hot_pixels,
+    detector_hot_pixel_map,
 )
 from spindoctor.sim.forward.stages import SimFrame
 from spindoctor.sim.seeds import derive_effect_seed
@@ -177,6 +179,7 @@ def test_hot_pixels_elevate_a_sparse_population() -> None:
         fraction=0.01,
         amplitude_e=1.0e4,
         column_factor=0.0,
+        detector_id='coiss_nac',
         rng=np.random.default_rng(3),
     )
     assert int((electrons > 0.0).sum()) > 0
@@ -193,10 +196,12 @@ def test_hot_pixel_warm_column_is_a_total_charge_fraction() -> None:
     column_factor = 0.3
     add_hot_pixels(
         electrons,
-        fraction=1.0 / (512 * 512),  # exactly one hot pixel
+        fraction=1.0 / (512 * 512),  # exactly one hot pixel, drawn from a one-pixel pool
         amplitude_e=4.0e4,
         column_factor=column_factor,
+        detector_id='coiss_nac',
         rng=np.random.default_rng(7),
+        candidate_pool=(np.array([300]), np.array([200])),
     )
     hot_v, hot_u = np.unravel_index(int(np.argmax(electrons)), electrons.shape)
     hot_charge = float(electrons[hot_v, hot_u])
@@ -216,7 +221,9 @@ def test_hot_pixel_warm_column_is_frame_size_invariant() -> None:
             fraction=1.0 / (size * size),
             amplitude_e=4.0e4,
             column_factor=0.3,
+            detector_id='coiss_nac',
             rng=np.random.default_rng(7),
+            candidate_pool=(np.array([100]), np.array([50])),
         )
         hot_v, hot_u = np.unravel_index(int(np.argmax(electrons)), electrons.shape)
         hot_charge = float(electrons[hot_v, hot_u])
@@ -228,9 +235,71 @@ def test_hot_pixels_disabled_at_zero_fraction() -> None:
     """A zero hot-pixel fraction is a no-op."""
     electrons = np.zeros((100, 100), dtype=np.float64)
     add_hot_pixels(
-        electrons, fraction=0.0, amplitude_e=1.0e4, column_factor=0.5, rng=np.random.default_rng(3)
+        electrons,
+        fraction=0.0,
+        amplitude_e=1.0e4,
+        column_factor=0.5,
+        detector_id='coiss_nac',
+        rng=np.random.default_rng(3),
     )
     assert np.all(electrons == 0.0)
+
+
+def _hot_set(shape: tuple[int, int], fraction: float, detector_id: str) -> set[tuple[int, int]]:
+    """The detector map's hot pixels over ``shape`` as a coordinate set."""
+    hot_v, hot_u, _amps = detector_hot_pixel_map(shape, fraction=fraction, detector_id=detector_id)
+    return set(zip(hot_v.tolist(), hot_u.tolist(), strict=True))
+
+
+def test_the_detector_map_ignores_the_scene_seed() -> None:
+    """Two populations on one detector share every pixel and amplitude, whatever the rng."""
+    planted = []
+    for seed in (1, 99):
+        electrons = np.zeros((256, 256), dtype=np.float64)
+        add_hot_pixels(
+            electrons,
+            fraction=0.002,
+            amplitude_e=1.0e4,
+            column_factor=0.0,
+            detector_id='gossi',
+            rng=np.random.default_rng(seed),
+        )
+        planted.append(electrons)
+    assert np.array_equal(planted[0], planted[1])
+
+
+def test_a_smaller_frame_sees_the_corner_of_the_detector_map() -> None:
+    """The 128 px map is the 512 px map's top-left corner."""
+    big = _hot_set((512, 512), 0.002, 'coiss_nac')
+    corner = {(v, u) for v, u in big if v < 128 and u < 128}
+    assert _hot_set((128, 128), 0.002, 'coiss_nac') == corner
+
+
+def test_a_higher_fraction_only_adds_hot_pixels() -> None:
+    """The map at a higher fraction contains the map at a lower one."""
+    low = _hot_set((256, 256), 0.001, 'coiss_nac')
+    high = _hot_set((256, 256), 0.004, 'coiss_nac')
+    assert low < high
+
+
+def test_two_detectors_have_different_maps() -> None:
+    """The NAC and WAC maps differ."""
+    assert _hot_set((256, 256), 0.002, 'coiss_nac') != _hot_set((256, 256), 0.002, 'coiss_wac')
+
+
+def test_the_detector_map_count_follows_the_fraction() -> None:
+    """A 1024 px map holds the expected count within five binomial sigmas."""
+    fraction = 1.0e-3
+    n = 1024 * 1024
+    count = len(_hot_set((1024, 1024), fraction, 'coiss_nac'))
+    sigma = (n * fraction * (1.0 - fraction)) ** 0.5
+    assert abs(count - n * fraction) < 5.0 * sigma
+
+
+def test_the_detector_map_amplitudes_average_one() -> None:
+    """The relative amplitudes are exponential with mean 1 (within 10 percent on ~1000)."""
+    _v, _u, amps = detector_hot_pixel_map((1024, 1024), fraction=1.0e-3, detector_id='gossi')
+    assert float(amps.mean()) == pytest.approx(1.0, rel=0.1)
 
 
 def test_banding_is_row_correlated() -> None:
