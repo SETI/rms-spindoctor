@@ -297,13 +297,17 @@ x86-64-v2 baseline: before NumPy is first imported, ``tests/__init__.py`` sets
 ``tests/integration/test_simd_pin.py`` fails if the pin didn't take effect. The
 pin covers ``pytest`` and the ``python -m tests.integration...`` tools alike.
 
-OpenBLAS, which runs NumPy's ``@``, picks its kernel by CPU too, and the kernels
-round differently. The simulator's render path doesn't use ``@``: the mesh
-renderer sums its 3-vector products itself, in a fixed order. A last-bit change
-there wouldn't stay small. The PSF's FFT convolution spreads it to every pixel,
-and a Poisson draw whose mean changes can take a different number of random
-values, which changes the noise in every pixel after it. Keep matrix products
-out of the render path, or sum them the same way.
+The pin doesn't reach two other libraries that NumPy calls. OpenBLAS, which runs
+``@``, picks its kernel by CPU, and the C library's ``hypot``, which runs
+``np.hypot``, differs between CPUs in its last bit. So the simulator's render
+path uses neither. The mesh renderer sums its 3-vector products itself, in a
+fixed order, and the simulator calls
+:func:`spindoctor.sim.stable_math.stable_hypot` in place of ``np.hypot``.
+``tests/spindoctor/sim/test_stable_math.py`` fails if ``np.hypot`` comes back.
+A last-bit change in the render path wouldn't stay small. The PSF's FFT
+convolution spreads it to every pixel, and a Poisson draw whose mean changes can
+take a different number of random values, which changes the noise in every pixel
+after it.
 
 On x86-64, with NumPy 2.4 or later, and with ``NPY_DISABLE_CPU_FEATURES`` not
 already set, every machine then reproduces the same files. They reproduced under

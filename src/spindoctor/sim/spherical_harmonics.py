@@ -30,6 +30,7 @@ import math
 
 import numpy as np
 
+from spindoctor.sim.stable_math import stable_hypot
 from spindoctor.support.types import NDArrayComplexType, NDArrayFloatType
 
 # The Legendre sums run over blocks of latitudes sized so a block's scratch
@@ -216,7 +217,7 @@ def evaluate_at_directions(
     """
     dirs = np.asarray(directions, dtype=np.float64)
     sin_lat = np.clip(dirs[:, 2], -1.0, 1.0)
-    cos_lat = np.hypot(dirs[:, 0], dirs[:, 1])
+    cos_lat = stable_hypot(dirs[:, 0], dirs[:, 1])
     lon = np.arctan2(dirs[:, 1], dirs[:, 0])
     by_order = legendre_order_sums(coeffs, sin_lat, cos_lat)
     orders = np.arange(coeffs.shape[0], dtype=np.float64)

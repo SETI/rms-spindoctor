@@ -81,6 +81,7 @@ from typing import Any
 
 import numpy as np
 
+from spindoctor.sim.stable_math import stable_hypot
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 
 __all__ = [
@@ -432,7 +433,7 @@ def scale_height_field(
             raise ValueError('ns_falloff_ratio needs the hemisphere weight')
         factor = 1.0 + (structure.ns_falloff_ratio - 1.0) * weight
     if structure.sector_sharpness_gradient != 0.0:
-        rho = np.maximum(np.hypot(v_ctr, u_ctr), 1e-9)
+        rho = np.maximum(stable_hypot(v_ctr, u_ctr), 1e-9)
         cos_phi = np.clip((v_ctr * illum_v + u_ctr * illum_u) / rho, -1.0, 1.0)
         angle = np.arccos(cos_phi)
         reference = math.radians(SECTOR_REFERENCE_HALF_ANGLE_DEG)

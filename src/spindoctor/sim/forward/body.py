@@ -39,6 +39,7 @@ from spindoctor.sim.forward.body_texture import (
 )
 from spindoctor.sim.forward.body_topo import TopoBodySpec, create_topographic_body
 from spindoctor.sim.seeds import derive_effect_seed, stable_param_seed
+from spindoctor.sim.stable_math import stable_hypot
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType, NDArrayIntType
 
@@ -663,8 +664,8 @@ def render_single_body(
     semi_2 = axis2 / 2.0
     cos_rz = float(np.cos(rotation_z))
     sin_rz = float(np.sin(rotation_z))
-    half_extent_v = float(np.hypot(semi_1 * cos_rz, semi_2 * sin_rz))
-    half_extent_u = float(np.hypot(semi_1 * sin_rz, semi_2 * cos_rz))
+    half_extent_v = float(stable_hypot(semi_1 * cos_rz, semi_2 * sin_rz))
+    half_extent_u = float(stable_hypot(semi_1 * sin_rz, semi_2 * cos_rz))
 
     # Get cached body shape (at reference center).  An irregular body renders
     # from a polyhedral mesh at a scene-supplied pose; otherwise an ellipsoid.

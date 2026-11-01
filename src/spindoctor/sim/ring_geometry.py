@@ -55,6 +55,7 @@ from typing import Any, cast
 import numpy as np
 
 from spindoctor.sim.scene_schema import scene_value
+from spindoctor.sim.stable_math import stable_hypot
 from spindoctor.support.types import NDArrayFloatType
 
 __all__ = [
@@ -511,10 +512,10 @@ def ring_plane_from_sky(
     q = -dv
     x = p * math.cos(node) + q * math.sin(node)
     y = (-p * math.sin(node) + q * math.cos(node)) / sin_b
-    r = np.hypot(x, y)
+    r = stable_hypot(x, y)
     lam = np.mod(np.arctan2(y, x), 2.0 * math.pi)
     return (
-        cast(NDArrayFloatType, r),
+        r,
         cast(NDArrayFloatType, lam),
         cast(NDArrayFloatType, x),
         cast(NDArrayFloatType, y),
