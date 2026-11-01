@@ -12,6 +12,11 @@ cassini_iss:
       512: [25, 50]
       1024: [50, 140]
     star_psf_sigma: 0.54
+    # Largest peak above the local background, in noise sigmas per unit of
+    # predicted SNR, of a source a lone star can be (see the calibrated
+    # camera below; the ratio is in noise sigmas, so it does not depend on
+    # the image's units).
+    star_max_peak_per_predicted_snr: 150.0
     star_psf_sizes:
       7: [15, 15]
       8: [13, 13]
@@ -57,6 +62,8 @@ cassini_iss:
       512: [7, 10]
       1024: [13, 13]
     star_psf_sigma: 0.77
+    # As for the NAC; see the calibrated camera below.
+    star_max_peak_per_predicted_snr: 40.0
     star_psf_sizes:
       7: [15, 15]
       8: [13, 13]
@@ -116,6 +123,14 @@ cassini_iss_calib:
       512: [25, 50]
       1024: [50, 140]
     star_psf_sigma: 0.54
+    # Largest peak above the local background, in noise sigmas per unit of
+    # predicted SNR, of a source a lone star can be; a brighter source (a
+    # small moon, a saturated blob) is not a star of that catalog
+    # magnitude.  Of 3463 stars found at the published bundle's pointing on
+    # the F ring star frames the brightest is 126 (median 10); two lone
+    # sources at 166 and 259, 88 and 48 px from the bundle's answer, are
+    # not taken.
+    star_max_peak_per_predicted_snr: 150.0
     star_psf_sizes:
       7: [15, 15]
       8: [13, 13]
@@ -147,6 +162,10 @@ cassini_iss_calib:
       512: [7, 10]
       1024: [13, 13]
     star_psf_sigma: 0.77
+    # As for the NAC.  Of 191 stars found at the published bundles'
+    # pointing on the F ring and spokes star frames the brightest is 20.8
+    # (median 10.5); the bound is about twice that.
+    star_max_peak_per_predicted_snr: 40.0
     star_psf_sizes:
       7: [15, 15]
       8: [13, 13]

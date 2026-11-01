@@ -712,17 +712,20 @@ techniques:
         alpha: 0.809
         divisor: 250.0
         cap_at: 1.0
-      # Magnitude margin to the next-brightest predictable star in the
-      # extfov.  Below the 1.5 mag floor the technique short-circuits
-      # before reaching the formula; above the floor, additional margin
-      # earns confidence up to a 1.5 mag span.
+      # Magnitude margin from the matched star (the brighter of a pair) to
+      # the brightest other usable star in the extfov.  A margin below 1.5
+      # mag, negative when a brighter star is not seen, contributes nothing
+      # (the term is clamped at 0); additional margin earns confidence up to
+      # a 1.5 mag span.
       - feature: brightness_margin_mag
         alpha: 1.002
         offset: 1.5
         divisor: 1.5
         cap_at: 1.0
       # Larger residuals between the matched detection and the prediction
-      # pull confidence down.
+      # pull confidence down.  On the one-star path the residual is the
+      # offset itself, so a lone star far from its prediction gets little
+      # confidence.
       - feature: residual_px
         alpha: -0.112
         divisor: 2.0
@@ -730,8 +733,17 @@ techniques:
       at_edge: true
       spurious: true
     tuning:
-      # Minimum magnitude difference to the next-brightest predictable
-      # star for the 1-star path to fire.
+      # Magnitude difference within which another usable star could be a
+      # lone star's source: when such a star's window holds the source, the
+      # 1-star path refuses the match, since nothing tells the two stars
+      # apart.  A star whose window cannot reach the source, or that the
+      # offset puts on clear sky in the image where it shows nothing, does
+      # not compete (the 1-star path once refused whenever any star in the
+      # extended field of view was this close in brightness).  On F ring
+      # frame N1492081691 one source lies in the windows of two stars 0.2
+      # mag apart; taking it for the brighter gives an answer 7 px from the
+      # bundle's, and the fainter is the right one.  Also the floor of the
+      # brightness-margin diagnostic's confidence term.
       brightness_margin_to_next_catalog_star_mag: 1.5
       # Each star is searched for over the instrument's offset window
       # (extfov_margin_vu in the instrument configuration), axis by axis,
@@ -741,9 +753,10 @@ techniques:
       # Fraction of that window, per axis, inside which the 1-star path
       # believes its lone detection: the ellipse whose semi-axes are the
       # window's half-widths times this fraction.  The whole window is
-      # searched, so a brighter source anywhere in it vetoes, but nothing
-      # cross-checks a single detection, and the wider the region it may
-      # come from, the likelier an artifact is the brightest thing in it.
+      # searched, so a source nearly as bright anywhere in it makes the
+      # match ambiguous, but nothing cross-checks a single detection, and
+      # the wider the region it may come from, the likelier an artifact is
+      # the brightest thing in it.
       # On 206 one-star answers on F ring frames the bundle navigated on
       # stars, the 195 correct ones reach the ellipse's edge (8 between
       # 0.52 and 0.60 of the window) and the 7 wrong ones lie between 0.16
@@ -882,16 +895,18 @@ techniques:
       # whose brightest pixel stands less than this many noise sigmas
       # above the median of its centroid box is considered noise.
       detection_sigma: 4.0
-      # Minimum background-subtracted peak-to-runner-up ratio for the
-      # 1-star detection (#211).  The absolute detection_sigma test
-      # cannot reject a noise spike: the maximum of a search window of
-      # several thousand pixels sits at 3.5-4.5 sigma for pure noise, so a
-      # marginal star routinely loses to a spike that clears 4 sigma.
-      # A real star detection towers over the window's noise order
-      # statistics (sim: ratio >= ~2 for every good match) while a
-      # matched spike sits within ~30% of its runner-up; below this
-      # ratio the single-detection premise of the 1-star path fails and
-      # the result is spurious.  Unit-free (no DN-scale dependence).
+      # Minimum ratio of a lone star's source's peak above its local
+      # background to that of every other source in the star's window
+      # (#211), whether or not that source is star-like or refuted: below
+      # it the window holds two sources the star could be, and the result
+      # is spurious.  The sources are the window's isolated point sources,
+      # so a hot pixel, a ring's flank, or a noise spike does not compete;
+      # the brightest pixel of a wide window is often one of those (162 of
+      # the 361 one-star answers on F ring NAC frames have a pixel brighter
+      # than the star in the window).  On 978 one-star frames of the F ring
+      # and spokes movies, 2.0 refuses 14 lone stars within 1 px of the
+      # bundle's answer that 1.5 keeps, and answers none that 1.5 refuses.
+      # Unit-free.
       one_star_min_peak_ratio: 1.5
       # Maximum prediction-to-detection distance (px) accepted by the
       # 1-star path when the peak-ratio gate above is vacuous (#259).
@@ -911,6 +926,27 @@ techniques:
       # up to ~24 px, so this bound cannot hold every match; every one is
       # held to the inner ellipse of one_star_ellipse_fraction instead.
       one_star_max_residual_px: 10.0
+      # Largest ratio of a lone star's brightest-pixel excess to the mean
+      # excess of its four edge neighbors, allowing nothing for noise; a
+      # sharper source is no lone star (max_peak_sharpness, which allows
+      # for noise, still decides what counts as a source).  Nothing
+      # cross-checks a lone source, and a cosmic-ray hit a little broader
+      # than a hot pixel passes the noise allowance.  Of 3656 stars found at
+      # the published bundles' pointing on the F ring and spokes star
+      # frames, none exceeds 6.96; five lone sources between 7.03 and 7.97,
+      # each 30 to 100 px from the bundle's answer, are refused at 7 and
+      # taken at 8.  Must be finite and at least 1.
+      one_star_max_peak_sharpness: 7.0
+      # A lone star's offset is refuted when at least this many other usable
+      # stars lie where it puts them inside the image, on clear sky (robust
+      # spread at most twice the noise), and show a peak below their expected
+      # one divided by pair_vote_peak_factor, the expected peak being the
+      # lone source's peak scaled by the ratio of the stars' predicted SNRs.
+      # The pair search needs two (pair_absent_stars): a pair is two stars'
+      # agreement, a lone star nobody's.  On 978 one-star frames of the F
+      # ring and spokes movies, 2 answers 13 fewer frames within 1 px of the
+      # bundle's answer than 1 and one more 39 px from it.  At least 1.
+      one_star_absent_stars: 1
       # Per-mode caps applied post-sigmoid; the 1-star path cannot
       # self-check, so its cap is lower than the 2-star path's.
       one_star_confidence_cap: 0.7

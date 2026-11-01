@@ -31,6 +31,7 @@ optical axis ``oops`` reports.
 from __future__ import annotations
 
 from collections.abc import Callable
+from typing import Any
 
 import numpy as np
 import pytest
@@ -99,18 +100,24 @@ class FakeObs:
     """Minimal observation stand-in matching the obs.* attribute access used by
     the DT techniques.
 
-    The technique implementations only read ``obs.extfov_margin_vu`` (via the
+    The technique implementations read ``obs.extfov_margin_vu`` (via the
     shared :func:`spindoctor.nav_technique.nav_technique.search_window_for_obs`
-    helper); the rest of the obs surface is irrelevant once a
-    fully-populated ``NavContext`` is supplied directly.
+    helper) and ``obs.inst_config``; the rest of the obs surface is irrelevant
+    once a fully-populated ``NavContext`` is supplied directly.
 
     Parameters:
         extfov_margin_vu: ``(margin_v, margin_u)`` extfov margin tuple
             returned to callers; defaults to ``(32, 32)``.
+        inst_config: The camera's instrument configuration; defaults to ``None``.
     """
 
-    def __init__(self, extfov_margin_vu: tuple[int, int] = (32, 32)) -> None:
+    def __init__(
+        self,
+        extfov_margin_vu: tuple[int, int] = (32, 32),
+        inst_config: dict[str, Any] | None = None,
+    ) -> None:
         self.extfov_margin_vu = extfov_margin_vu
+        self.inst_config = inst_config
 
 
 # ---------------------------------------------------------------------------

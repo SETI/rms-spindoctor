@@ -47,6 +47,7 @@ __all__ = [
     'search_window_bounds',
     'similarity_transform_fit',
     'star_features',
+    'too_sharp',
     'usable_stars',
     'window_sources',
 ]
@@ -401,7 +402,7 @@ def _box(image_ext: NDArrayFloatType, v: int, u: int, half: int) -> NDArrayFloat
     )
 
 
-def _too_sharp(
+def too_sharp(
     image_ext: NDArrayFloatType,
     v: int,
     u: int,
@@ -542,7 +543,7 @@ def local_centroid(
        spreads over a PSF footprint and gives a uniform bright region no
        response at all.
     3. Take the strongest peak that is not sharper than a star
-       (``max_peak_sharpness``, see :func:`_too_sharp`).  The response alone
+       (``max_peak_sharpness``, see :func:`too_sharp`).  The response alone
        does not keep a single-pixel spike (a cosmic ray or hot pixel) from
        outranking a star whose point-spread function is narrower than the
        kernel: against a star of sigma 0.54 px a spike wins once it exceeds
@@ -613,7 +614,7 @@ def local_centroid(
         pv, pu = (int(x) for x in np.unravel_index(int(flat_idx), peaks.shape))
         if not math.isfinite(float(peaks[pv, pu])):
             break
-        if not _too_sharp(
+        if not too_sharp(
             image_ext,
             v_lo + pv,
             u_lo + pu,
@@ -737,7 +738,7 @@ def window_sources(
             matched-filter kernel) in pixels.
         psf_sigma_px: PSF sigma in pixels for the matched-filter kernel.
         max_peak_sharpness: Largest ratio of a star's brightest-pixel excess to the mean
-            excess of its four edge neighbors (:func:`_too_sharp`).
+            excess of its four edge neighbors (:func:`too_sharp`).
         image_noise_sigma: Robust per-pixel noise sigma in DN units.
         detection_sigma: Threshold multiplier on ``image_noise_sigma``.
         accept: Returns whether a centroid is a source the caller counts.
@@ -764,7 +765,7 @@ def window_sources(
         box = _box(image_ext, peak_v, peak_u, half)
         if float(box.max()) - float(np.median(box)) < detection_sigma * image_noise_sigma:
             continue
-        if _too_sharp(
+        if too_sharp(
             image_ext,
             peak_v,
             peak_u,
