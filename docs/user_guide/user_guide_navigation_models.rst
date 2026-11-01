@@ -645,10 +645,10 @@ same range every other technique searches, which the instrument chapters list: i
 that many whole pixels along each axis from the pixel holding each prediction. The offset
 window must be larger than the pointing error: a star whose center lies outside that
 reach is not found, even when some of its light falls inside it. A single star, which
-nothing can check, is accepted only inside the ellipse that reaches 0.6 of the window
-along each axis from where it was predicted
-(``techniques.StarUniqueMatchNav.tuning.one_star_ellipse_fraction``), although the whole
-window is still searched, so that a source nearly as bright anywhere in it leaves the
+nothing can check, is accepted only inside an ellipse that reaches a fixed fraction of the
+window along each axis from where it was predicted. Each camera sets its own fraction
+(``one_star_ellipse_fraction`` in the camera's configuration), and the instrument chapters
+give its value. The whole window is still searched, so that a source nearly as bright anywhere in it leaves the
 frame unanswered. A detection
 counts only if it is a point source that stands alone, by the same test the star field
 uses, so a ridge of a ring or a cosmic-ray track is not taken for a star. Measuring a

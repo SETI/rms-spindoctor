@@ -137,7 +137,8 @@ Field of view and geometry
 **Extended-FOV margins.** A single margin of ``[350, 350]`` pixels applies at
 every image size, rather than a table keyed by size. It is generous because the
 reconstructed attitude carries real per-frame error, and it is the largest
-offset a search can find.
+offset a search can find. A lone star, which no other star checks, is believed only
+inside the ellipse reaching 0.6 of the margin along each axis.
 
 **Camera rotation.** Rotation fitting is **off** for this instrument. Every
 technique works in two degrees of freedom, ``(dv, du)``, and the twist these

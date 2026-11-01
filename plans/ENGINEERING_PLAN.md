@@ -404,9 +404,11 @@ bundle's pointing:
 Stars get no search window of their own: the unique match searches each
 star over the instrument's offset window (`extfov_margin_vu`), axis by axis,
 as every technique does, and believes a lone star only inside the ellipse
-whose semi-axes are 0.6 of that window (`one_star_ellipse_fraction`; 0.6 is the
-30 of 50 px radius measured on the tuning frames, and on a full NAC frame,
-whose window is (50, 140) px, the ellipse is (30, 84) px). The NAC's window
+whose semi-axes are a fraction of that window that each camera sets
+(`one_star_ellipse_fraction` in the instrument configuration, required of
+every camera). The NAC's 0.6 is the 30 of 50 px radius measured on the tuning
+frames, and on a full NAC frame, whose window is (50, 140) px, the ellipse is
+(30, 84) px; the WAC's is 0.7, 9.1 px of its 13 px window. The NAC's window
 already holds 98.7% of its tuning frames on each axis (50 full-frame px; its
 error reaches 82). The WAC's did not, so its margins for 512 and 1024 px
 images are widened from `[5, 10]` to `[7, 10]` and `[13, 13]`: 98.7% of its
@@ -460,8 +462,10 @@ field star, so it refused lone stars the per-camera windows had found and
 accepted sources 30 to 100 px from the answer. It now treats each searched
 star paired with each of its three candidates as a hypothesis: a source
 sharper than a star with no noise allowance (`one_star_max_peak_sharpness`,
-7) or brighter per unit of predicted SNR than any star the camera shows
-(`star_max_peak_per_predicted_snr`, 150 NAC and 40 WAC) is not taken; an
+7) or brighter per unit of predicted SNR than the camera's bound
+(`star_max_peak_per_predicted_snr`, 150 NAC and 40 WAC, measured from the
+stars of the F ring and spokes star frames; #844 grounds it in photometry) is
+not taken; an
 offset one other star contradicts by being absent on clear sky
 (`one_star_absent_stars`, 1) is refuted; the survivor brightest for its
 star's predicted SNR wins unless another source of its window is within 1.5
@@ -479,8 +483,13 @@ of the version before the ruling, 17 F ring NAC lone stars and 10 spokes WAC
 ones are refused: on 15 of the 17 a source nearly as bright lies in the
 whole window outside the smaller one, or the star's offset lies outside the
 lone-star ellipse; the 10 WAC frames lie at 0.60 to 0.66 of their window,
-just outside the ellipse. A wide-sigma one-star answer can merge disagreeing
-witnesses in the ensemble (#841).
+just outside the ellipse. The operator then widened the WAC's ellipse to 0.7
+(2026-11-01): of 12 spokes WAC lone stars refused at 0.60 to 0.72 of the
+window, the 11 within 0.70 are taken, a star check finds the star at each
+answer, and no other answer of the 1986 frames changes. The pair search stays
+at 5 stars, a lone answer the other stars cannot confirm is accepted, capped
+at the low confidence tier, and a wide-sigma one-star answer can merge
+disagreeing witnesses in the ensemble (#841), which is fixed separately.
 
 A pair the other searched stars contradict is still refused, but a star now
 votes for the pair when an isolated point source about as bright as that star
