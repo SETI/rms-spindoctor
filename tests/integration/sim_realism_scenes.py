@@ -33,8 +33,8 @@ __all__ = [
     'star_field_scene',
 ]
 
-# Fallback matched-frame size when the caller supplies no real frame shape:
-# large enough for 32-px sky patches and the PSD's 64-px tiles.
+# The frame size the ring scene's geometry is laid out for; a matched ring
+# scene scales it to the real frame's size.
 _DEFAULT_SCENE_SIZE = 512
 
 # Star classes place this many stars; magnitudes ladder from bright to the
@@ -315,7 +315,7 @@ def matched_scene(
     instrument: str,
     exposure_sec: float,
     *,
-    size_vu: tuple[int, int] = (_DEFAULT_SCENE_SIZE, _DEFAULT_SCENE_SIZE),
+    size_vu: tuple[int, int],
     diameter_px: float = 150.0,
     phase_angle_deg: float = 45.0,
 ) -> dict[str, Any]:

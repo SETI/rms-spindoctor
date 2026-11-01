@@ -334,7 +334,7 @@ real IQR):
    * - sky noise sigma (FOM 1)
      - 2.1e-4 I/F
      - 10.0
-     - 5.0
+     - 4.9
      - 5263
      - 2214
    * - sky level above floor (FOM 1)
@@ -348,7 +348,7 @@ real IQR):
      - 13.8
      - 5.0
      - 15700
-     - 6451
+     - 6448
    * - star EE50 (FOM 2)
      - 0.91 px
      - 1.09
@@ -376,7 +376,7 @@ real IQR):
    * - near-floor fraction, 0.05-0.5 s (FOM 5)
      - 0.107
      - 0.76
-     - 1.84 [#floor]_
+     - 1.97 [#floor]_
      - 27
      - 27
    * - p99 - p50 stretch, 0.05-0.5 s (FOM 5)
@@ -481,7 +481,7 @@ The FOM 3 strata behind the pooled number (2026-11-01; p = phase bin
 The headline reading: the star PSF matches the cohort's medians through
 the same estimator on both sides (EE50 0.87 sim vs 0.91 real; EE80 1.70
 vs 1.79), though the 25 real cutouts spread wider than the simulated
-ones (EE50 W1/IQR 1.01); the stationary artifact incidence matches (1.8e-5
+ones (EE50 W1/IQR 1.01); the stationary artifact incidence matches (1.9e-5
 of pixels sim vs 1.6e-5 real, hot pixels recurring at fixed detector
 positions on both sides), while the transient (cosmic-ray) share stays
 unmodeled on every chain -- each catalog entry retains an explicit zero
@@ -600,10 +600,16 @@ high-gain interim value (see the catalog); the sky-noise floor itself is
 quantization-limited on the sim side (known gaps).
 
 **New Horizons LORRI** (2 frames, limited).  Both frames are 4x4-binned
-star fields; their binned-pixel EE50 (median 0.59 px) cannot constrain the
-1x1-mode kernel the catalog carries, so the LORRI kernel is retained and
-LORRI sim accuracy for the PSF is bounded by unverified per-mode
-fidelity.  The sky statistics are pedestal-invariant by construction (the
+star fields, and the matched frames render through the 4x4 readout mode,
+where the catalog's native kernel is rescaled to binned pixels.  The core
+lands near the cohort (EE50 0.50 sim vs 0.59 px real), but the wing does
+not (EE80 0.66 vs 1.23 px; normalized W1 3.2 and 2.4 over 16 cutouts a
+side): the real profile carries far more energy between the two radii
+than the kernel's interim 1.2% wing allows, the signature the NAC kernel
+showed before its wing was tuned, and the frames' bright tail is short by
+the same mechanism (p99 - p50 stretch 3.5 vs 26.8 DN).  The 4x4 frames
+test the native kernel only through the rescaling, and say its wing is too
+weak (#848); they say nothing separate about a 1x1 frame.  The sky statistics are pedestal-invariant by construction (the
 sci products are bias-subtracted; the sim raw chain is not).
 
 Technique diagnostics (read-only)
@@ -665,18 +671,14 @@ cannot close, it is recorded here rather than force-fitted:
    uncertainty at full size: its simulated sky sigma undershoots the
    real cohort by roughly 8x one-sidedly (2.4e-5 vs 1.9e-4 I/F; see the
    WAC subsection).
-2. **No per-readout-mode PSF.**  The catalog carries one kernel per
-   instrument; the LORRI cohort's 4x4-binned frames (and any summed
-   Cassini modes that enter the library later) see a different effective
-   kernel that the catalog cannot express.
-3. **Matched-frame content limits.**  Simulated ring edges are sharp
+2. **Matched-frame content limits.**  Simulated ring edges are sharp
    optical-depth steps and simulated matched bodies are relief-free
    ellipsoids, so residual FOM 3/4 width differences fold in real edge
    structure (ring radial profiles, limb topography) beyond the PSF that
    FOM 2 pins independently.  The Galileo negative frames carry an
    extended background glow (scattered light) that matched sky frames do
    not model, which dominates that cohort's FOM 5 comparison.
-4. **Measured transients exceed what the cosmic-ray stage can express.**
+3. **Measured transients exceed what the cosmic-ray stage can express.**
    Every cohort measures a nonzero transient spike fraction (NAC 2.75e-4,
    WAC 4.89e-4, Galileo 1.17e-4, LORRI 3.36e-4 per frame), yet no
    catalog entry adopts a ``cosmic_ray_events_per_pixel_per_sec``: the Cassini

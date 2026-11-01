@@ -86,7 +86,9 @@ __all__ = [
 #   1x1 mode).  The cohort's two star frames are 4x4-binned; a binned frame
 #   renders with this kernel rescaled to binned pixels
 #   (:func:`binned_psf_kernel`), so those frames test the 1x1 kernel only
-#   through the 4x4 rescaling.
+#   through the 4x4 rescaling.  Rendered that way the core matches the
+#   cohort (EE50 0.50 vs 0.59 binned px) and the wing is too weak (EE80 0.66
+#   vs 1.23; #848).
 #
 # Every kernel is the native (unbinned) one, in native detector pixels.
 PSF_KERNELS: dict[str, dict[str, float]] = {

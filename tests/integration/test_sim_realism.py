@@ -21,6 +21,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+from spindoctor.sim.forward.artifacts_catalog import NATIVE_FRAME_SIZE_PX
 from spindoctor.sim.scene import validate_sim_params
 from tests.integration.sim_realism import (
     INSTRUMENT_FOR,
@@ -53,32 +54,49 @@ _ALL_CLASSES = (
 )
 
 
+_NAC_FULL = (1024, 1024)
+
+
+def _full_frame(instrument: str) -> tuple[int, int]:
+    """A full unbinned frame's shape for ``instrument`` (Voyager's GEOMED for the vidicon)."""
+    size = NATIVE_FRAME_SIZE_PX.get(instrument, 1000)
+    return (size, size)
+
+
 @pytest.mark.parametrize('instrument', sorted(set(INSTRUMENT_FOR.values())))
 def test_matched_scenes_validate_per_instrument(instrument: str) -> None:
     """Every scene class builds a schema-valid scene for every instrument."""
     for scene_class in _ALL_CLASSES:
-        scene = matched_scene(f'TEST_{scene_class}', scene_class, instrument, 0.68)
+        scene = matched_scene(
+            f'TEST_{scene_class}', scene_class, instrument, 0.68, size_vu=_full_frame(instrument)
+        )
         validate_sim_params(scene)
 
 
 def test_matched_scene_is_deterministic() -> None:
     """The same image_id yields byte-identical scene dicts."""
-    a = matched_scene('N123', 'star_dominated', 'coiss_calib_nac', 1.2)
-    b = matched_scene('N123', 'star_dominated', 'coiss_calib_nac', 1.2)
+    a = matched_scene('N123', 'star_dominated', 'coiss_calib_nac', 1.2, size_vu=_NAC_FULL)
+    b = matched_scene('N123', 'star_dominated', 'coiss_calib_nac', 1.2, size_vu=_NAC_FULL)
     assert a == b
 
 
 def test_matched_scene_seed_varies_with_image_id() -> None:
     """Different frames draw different seeds (independent realizations)."""
-    a = matched_scene('N123', 'star_dominated', 'coiss_calib_nac', 1.2)
-    b = matched_scene('N456', 'star_dominated', 'coiss_calib_nac', 1.2)
+    a = matched_scene('N123', 'star_dominated', 'coiss_calib_nac', 1.2, size_vu=_NAC_FULL)
+    b = matched_scene('N456', 'star_dominated', 'coiss_calib_nac', 1.2, size_vu=_NAC_FULL)
     assert a['random_seed'] != b['random_seed']
 
 
 def test_matched_limb_scene_tracks_diameter_and_phase() -> None:
     """The matched body mirrors the real body's scale and phase."""
     scene = matched_scene(
-        'N1', 'body_full_fov', 'coiss_calib_nac', 0.18, diameter_px=155.0, phase_angle_deg=17.7
+        'N1',
+        'body_full_fov',
+        'coiss_calib_nac',
+        0.18,
+        size_vu=_NAC_FULL,
+        diameter_px=155.0,
+        phase_angle_deg=17.7,
     )
     body = scene['bodies'][0]
     assert body['axis1'] == pytest.approx(155.0)
@@ -93,7 +111,13 @@ def test_matched_ring_body_tracks_diameter_and_phase() -> None:
     FOM 3 stratum than the matched real body's.
     """
     scene = matched_scene(
-        'N2', 'ring_plus_body', 'coiss_calib_nac', 0.68, diameter_px=55.0, phase_angle_deg=126.3
+        'N2',
+        'ring_plus_body',
+        'coiss_calib_nac',
+        0.68,
+        size_vu=_NAC_FULL,
+        diameter_px=55.0,
+        phase_angle_deg=126.3,
     )
     body = scene['bodies'][0]
     assert body['axis1'] == pytest.approx(55.0)
