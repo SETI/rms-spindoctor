@@ -238,10 +238,12 @@ Call path traced through
    arrays (zero-padded for the extfov margin).
 7. Record the predicted center, the subject range, and the bounding box on the model's
    internal state for downstream feature emission.
-8. Render the same predicted silhouette unclipped, on a canvas larger than the body with
-   the body's center on the same sub-pixel phase, and record the overflow fraction
-   ``1 - in-sensor pixels / whole-silhouette pixels``: the SPICE-backed model's quantity,
-   from this model's own predicted geometry, exactly 0 for a body wholly in frame.
+8. Record the overflow fraction ``1 - in-sensor pixels / whole-silhouette pixels``: the
+   SPICE-backed model's quantity, from this model's own predicted geometry. A body whose
+   bounding square lies inside the frame overflows by exactly 0 with no render. Any
+   other body's silhouette is rendered unclipped on a canvas larger than the body, with
+   its center on the same sub-pixel phase; a canvas over 2048 px on a side renders
+   downsampled by a whole factor and its count is scaled back, so memory stays bounded.
 
 Call path traced through
 :meth:`~spindoctor.nav_model.nav_model_body_simulated.NavModelBodySimulated.to_features`:

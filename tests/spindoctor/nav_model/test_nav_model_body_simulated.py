@@ -888,3 +888,32 @@ def test_the_disc_reports_its_overflow() -> None:
         f for f in model.to_features(bare_nav_context(_obs())) if f.feature_type.name == 'BODY_DISC'
     )
     assert disc.geometry.overflow_fraction == model._overflow_fraction  # type: ignore[union-attr]
+
+
+def test_a_frame_filling_body_counts_its_overflow_on_a_bounded_canvas(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A body wider than the overflow canvas cap counts on a downsampled canvas.
+
+    The cap is lowered so a 300 px sphere on the 96 px frame needs downsampling;
+    its overflow then matches the full-resolution count to within a percent, and
+    no render exceeds the cap.
+    """
+    from spindoctor.nav_model import nav_model_body_simulated as module
+
+    body = _sphere(_SIZE / 2.0) | {'axis1': 300.0, 'axis2': 300.0, 'axis3': 300.0}
+    full = _overflow_model(body)._overflow_fraction
+    sizes: list[int] = []
+    original = NavModelBodySimulated._render_body_image
+
+    def recording(self: NavModelBodySimulated, *args: Any, **kwargs: Any) -> Any:
+        size = kwargs.get('size')
+        if size is not None:
+            sizes.append(max(size))
+        return original(self, *args, **kwargs)
+
+    monkeypatch.setattr(module, '_OVERFLOW_CANVAS_MAX_PX', 128)
+    monkeypatch.setattr(NavModelBodySimulated, '_render_body_image', recording)
+    bounded = _overflow_model(body)._overflow_fraction
+    assert bounded == pytest.approx(full, abs=0.01)
+    assert max(sizes) <= 128

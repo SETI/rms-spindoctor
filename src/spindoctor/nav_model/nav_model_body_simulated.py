@@ -78,6 +78,12 @@ _LIMB_SIGMA_TANGENT_PX: float = 0.5
 # Gating emission here keeps LIMB_ARC off the high-phase scenes and matches the
 # catalog body model's limb/blob handoff.
 _LIMB_MAX_PHASE_DEG: float = 60.0
+
+# The largest canvas, in pixels on a side, the silhouette-overflow count
+# renders at full resolution.  A larger body is counted on a canvas
+# downsampled by a whole factor and scaled back by its square, which keeps
+# memory bounded at about 32 MB of float64 however large the body is.
+_OVERFLOW_CANVAS_MAX_PX: int = 2048
 # Per-vertex terminator uncertainty for a simulated body.  The terminator is a
 # soft photometric boundary (a shading ramp crossing zero) rather than a sharp
 # silhouette edge, so its normal sigma is one pixel wider than the limb's; the
@@ -523,12 +529,16 @@ class NavModelBodySimulated(NavModelBodyBase):
     ) -> float:
         """The fraction of the whole predicted silhouette outside the sensor.
 
-        The silhouette is rendered unclipped on a canvas comfortably larger
-        than the body, with the body's center on the same sub-pixel phase it
-        has in the frame, so a body wholly inside the frame renders the same
-        pixels on both canvases and its overflow is exactly 0.  The quantity
-        is the SPICE-backed model's: ``1 - in-sensor pixels / whole-silhouette
-        pixels``, from this model's own predicted geometry.
+        A body whose bounding square (half again its longest axis, as mesh
+        relief can push past the ellipsoid bound) lies inside the frame
+        overflows by exactly 0, with no render.  Otherwise the silhouette is
+        rendered unclipped on a canvas comfortably larger than the body, with
+        the body's center on the same sub-pixel phase it has in the frame.  A
+        canvas wider than ``_OVERFLOW_CANVAS_MAX_PX`` is rendered downsampled
+        by a whole factor and its pixel count scaled back, so memory stays
+        bounded for a frame-filling body.  The quantity is the SPICE-backed
+        model's: ``1 - in-sensor pixels / whole-silhouette pixels``, from this
+        model's own predicted geometry.
 
         Parameters:
             in_sensor_pixels: Silhouette pixels the frame-sized render holds.
@@ -548,15 +558,41 @@ class NavModelBodySimulated(NavModelBodyBase):
         )
         # Half again the longest axis (mesh relief can push past the
         # ellipsoid bound) plus a fixed margin, as the arc fractions use.
+        reach = max_axis * 0.75
+        if (
+            center_v - reach >= 0.0
+            and center_u - reach >= 0.0
+            and center_v + reach <= float(self.obs.data_shape_v)
+            and center_u + reach <= float(self.obs.data_shape_u)
+        ):
+            return 0.0
         canvas = math.ceil(max_axis * 1.5) + 16
-        half = canvas // 2
-        full_img = self._render_body_image(
-            phase_angle_rad,
-            size=(canvas, canvas),
-            center=(half + center_v - math.floor(center_v), half + center_u - math.floor(center_u)),
-        )
-        total = int(np.count_nonzero(full_img > 0.0))
-        return max(0.0, 1.0 - in_sensor_pixels / max(total, 1))
+        factor = max(1, math.ceil(canvas / _OVERFLOW_CANVAS_MAX_PX))
+        if factor == 1:
+            half = canvas // 2
+            full_img = self._render_body_image(
+                phase_angle_rad,
+                size=(canvas, canvas),
+                center=(
+                    half + center_v - math.floor(center_v),
+                    half + center_u - math.floor(center_u),
+                ),
+            )
+            total = float(np.count_nonzero(full_img > 0.0))
+        else:
+            small = math.ceil(canvas / factor)
+            scaled = dict(p)
+            for axis in ('axis1', 'axis2', 'axis3'):
+                if axis in scaled:
+                    scaled[axis] = float(scaled[axis]) / factor
+            small_img = self._render_body_image(
+                phase_angle_rad,
+                size=(small, small),
+                center=(small / 2.0, small / 2.0),
+                params=scaled,
+            )
+            total = float(np.count_nonzero(small_img > 0.0)) * factor * factor
+        return max(0.0, 1.0 - in_sensor_pixels / max(total, 1.0))
 
     def to_features(self, context: NavContext) -> list[NavFeature]:
         """Emit the body's NavFeatures.
