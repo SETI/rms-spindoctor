@@ -179,20 +179,18 @@ Coverage taxonomy
 
 The directory names under ``tests/integration/image_library/images/``
 constitute the scene-class taxonomy. Each name encodes one
-information-bearing regime the orchestrator must handle. The shipping
-classes (mirrored in
-:data:`tests.integration.sidecar.DECLARED_SCENE_CLASSES`) include:
+information-bearing regime the orchestrator must handle. The classes
+(declared in :data:`tests.integration.sidecar.DECLARED_SCENE_CLASSES`) are:
 
 - **Body geometry** — ``body_full_fov``, ``body_partial_overflow``,
-  ``body_mostly_offscreen``, ``body_overlapping``,
-  ``below_resolution_body``, ``multi_body``,
-  ``high_phase_terminator``.
-- **Ring geometry** — ``ring_only_curved``, ``ring_only_straight``,
-  ``ring_with_body``, ``ring_below_resolution`` (annulus regime).
-- **Star regimes** — ``one_bright_star_no_body``, ``star_dominated``,
-  ``star_field_with_body``, ``star_field_with_ring``.
-- **Failure regimes** — ``empty_fov``, ``saturated``,
-  ``mostly_dropouts``, ``cosmic_ray_dense``.
+  ``body_mostly_offscreen``, ``body_irregular``, ``below_resolution_body``,
+  ``multi_body``, ``high_phase_terminator``.
+- **Ring geometry** — ``ring_only_curved``, ``ring_only_flat``,
+  ``ring_plus_body``.
+- **Star regimes** — ``one_bright_star_no_body``,
+  ``two_bright_stars_no_body``, ``star_dominated``, ``stars_plus_body``,
+  ``faint_stars``.
+- **Hard frames** — ``scattered_light``, ``negative_cases``.
 
 A regime with **zero** library entries is a regime where the
 orchestrator's behavior is unverified. When a code path is added —
@@ -200,6 +198,15 @@ say, a new technique — the contributor adds at least one library image
 per regime that exercises the path. The
 :doc:`dev_guide_extending` chapter's checklist enumerates which regimes
 each subsystem needs.
+
+``tests/integration/test_image_library_coverage.py`` checks the library as a
+whole: every class holds at least two sidecars, and every shipped autonomous
+technique is the expected primary technique of at least one sidecar. The library
+is still being filled, so each check names its known gaps. While a gap list isn't
+empty, the check reports an expected failure whose reason lists the gaps (``pytest
+-rx`` prints it). A new gap fails it, and so does a filled gap still on the list,
+so the list can only shrink. The check is in the integration tier, so CI doesn't
+run it while the classes are filling.
 
 Confidence-tier semantics
 -------------------------

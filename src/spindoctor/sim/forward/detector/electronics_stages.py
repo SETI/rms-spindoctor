@@ -26,7 +26,7 @@ from typing import Any
 import numpy as np
 from scipy import ndimage
 
-from spindoctor.sim.stable_math import stable_hypot
+from spindoctor.support.stable_math import stable_hypot
 from spindoctor.support.types import NDArrayFloatType, NDArrayIntType
 
 __all__ = [

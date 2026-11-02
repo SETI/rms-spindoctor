@@ -83,8 +83,8 @@ from spindoctor.sim.forward.haze_structure import (
     scale_height_field,
     tilted_illumination_2d,
 )
-from spindoctor.sim.stable_math import stable_hypot
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
+from spindoctor.support.stable_math import stable_hypot
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 
 __all__ = [
@@ -190,7 +190,8 @@ class AtmosphereSpec:
 
     Parameters:
         scale_height_px: Haze e-folding scale height in pixels (> 0).
-        tau_ref: Tangent optical depth at ``ref_altitude_px`` (> 0).
+        tau_ref: Tangent optical depth at ``ref_altitude_px`` (>= 0; 0 is a clear
+            atmosphere that adds no haze).
         ref_altitude_px: Altitude above the reference radius at which the
             tangent optical depth equals ``tau_ref``, in pixels.
         g: Henyey-Greenstein asymmetry parameter in (-1, 1); positive is
