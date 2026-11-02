@@ -4,6 +4,7 @@ import math
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 import pytest
 
 from spindoctor.sim.render import render_combined_model
@@ -628,13 +629,16 @@ def test_validate_sim_params_refuses_a_null_top_level_number(key: str) -> None:
 
 @pytest.mark.parametrize('key', ['noise', 'optics', 'detector', 'artifacts', 'bodies', 'stars'])
 def test_a_null_top_level_block_validates_and_renders(key: str) -> None:
-    """A top-level block or list set to null reads as unset, through the renderer too."""
+    """A top-level block or list set to null renders exactly as the scene without it."""
     params = _sim_params()
     params['bodies'][0].update(axis2=60.0, axis3=50.0)
     params['stars'] = [{'name': 'S1', 'v': 20.0, 'u': 20.0, 'vmag': 8.0}]
+    absent = {name: value for name, value in params.items() if name != key}
     params[key] = None
     validate_sim_params(params)
-    assert render_combined_model(params)[0].shape == (128, 128)
+    np.testing.assert_array_equal(
+        render_combined_model(params)[0], render_combined_model(absent)[0]
+    )
 
 
 def test_validate_sim_params_rejects_duplicate_body_names() -> None:

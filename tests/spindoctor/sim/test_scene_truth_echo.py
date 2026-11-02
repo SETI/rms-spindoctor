@@ -44,6 +44,20 @@ def test_copying_the_planted_read_noise_warns_naming_both_sites() -> None:
         validate_sim_params(scene, source='echo.yaml')
 
 
+def test_a_vidicon_echo_warns_without_claiming_the_navigator_reads_it() -> None:
+    """The navigator doesn't read vidicon keys, so their warning says what the copy does."""
+    scene = _scene(instrument_config={'noise': {'vidicon': {'read_noise_line_dn': 2.0}}})
+    scene['noise']['vidicon'] = {'read_noise_line_dn': 2.0}
+    with pytest.warns(SimSceneTruthEchoWarning) as caught:
+        validate_sim_params(scene, source='echo.yaml')
+    assert [str(warning.message) for warning in caught] == [
+        'echo.yaml: instrument_config.noise.vidicon.read_noise_line_dn repeats the planted '
+        "noise.vidicon.read_noise_line_dn, so the published config carries the scene's "
+        "realization instead of the camera's; list 'noise.vidicon.read_noise_line_dn' in "
+        'published_equals_truth if they are equal on purpose'
+    ]
+
+
 def test_each_repeated_value_is_listed() -> None:
     """Noise keys, vidicon keys, and the PSF sigma each count as an echo."""
     scene = _scene(

@@ -13,6 +13,10 @@ from PyQt6.QtWidgets import QFileDialog, QMessageBox
 
 from spindoctor.cli.sim_editor.base import SimEditorBase
 from spindoctor.sim.scene import load_sim_scene, save_sim_scene
+from spindoctor.sim.scene_truth_echo import stale_truth_declarations
+
+# How long the status bar shows the dropped-declaration notice, in milliseconds.
+_STALE_DECLARATION_MESSAGE_MS = 10000
 
 
 class SceneIoMixin(SimEditorBase):
@@ -29,9 +33,34 @@ class SceneIoMixin(SimEditorBase):
         if not filename:
             return
         try:
+            self._drop_stale_truth_declarations()
             save_sim_scene(self.sim_params, Path(filename))
         except Exception as e:
             QMessageBox.critical(self, 'Error', f'Failed to save scene:\n{e!s}')
+
+    def _drop_stale_truth_declarations(self) -> None:
+        """Remove the ``published_equals_truth`` paths an edit has made differ.
+
+        Listing a path says its truth and published values are equal on purpose.
+        An edit such as a read-noise change ends that, and the editor doesn't have a
+        control for the list, so the stale paths are removed and the status bar
+        names them.  The key goes when the list empties.
+        """
+        stale = stale_truth_declarations(self.sim_params, source='editor')
+        if len(stale) == 0:
+            return
+        kept = [path for path in self.sim_params['published_equals_truth'] if path not in stale]
+        if kept:
+            self.sim_params['published_equals_truth'] = kept
+        else:
+            del self.sim_params['published_equals_truth']
+        status_bar = self.statusBar()
+        if status_bar is not None:
+            status_bar.showMessage(
+                f'Removed {", ".join(stale)} from published_equals_truth: an edit made '
+                f'the published value differ from the planted one.',
+                _STALE_DECLARATION_MESSAGE_MS,
+            )
 
     def _load_scene(self) -> None:
         """Prompt for a path and load a scene YAML into the editor."""

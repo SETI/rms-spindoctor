@@ -3203,10 +3203,15 @@ author from doing that, so the validator warns instead, with
 sites. It compares each ``noise`` key, ``noise.vidicon`` included, with the
 ``instrument_config.noise`` key of the same name, and ``optics.psf.sigma_v`` and
 ``sigma_u`` with ``instrument_config.star_psf_sigma``. The ``detector`` block
-doesn't share a key with the instrument config and isn't compared. When the
-two are equal on purpose, the scene lists the truth paths in
+doesn't share a key with the instrument config and isn't compared. The
+navigator doesn't read the vidicon keys, so a ``noise.vidicon`` warning says
+only that the published config carries the scene's realization. When the two
+are equal on purpose, the scene lists the truth paths in
 ``published_equals_truth``, which silences those warnings. A listed path whose
-values differ fails validation, so an opt-out can't outlive its reason.
+values differ fails validation, so an opt-out can't outlive its reason. The
+scene editor carries the list through but doesn't edit it. When an edit
+separates a listed pair, Save Scene removes that path from the list, and the
+status bar names it.
 
 .. _sim-catalog-workflow:
 

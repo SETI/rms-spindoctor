@@ -458,6 +458,47 @@ def test_save_scene_writes_valid_yaml(
     assert scene['size_u'] == 128
 
 
+def _declare_then_edit_read_noise(model: Any) -> None:
+    """Give the model a declared read-noise coincidence, then edit the planted value."""
+    model.sim_params['instrument'] = 'coiss_nac'
+    model.sim_params['noise'] = {'read_noise_dn': 5.0, 'bias_dn': 20.0}
+    model.sim_params['instrument_config'] = {'noise': {'read_noise_dn': 4.0, 'bias_dn': 20.0}}
+    model.sim_params['published_equals_truth'] = ['noise.bias_dn', 'noise.read_noise_dn']
+
+
+def test_save_scene_removes_a_declaration_an_edit_made_stale(
+    monkeypatch: pytest.MonkeyPatch, model: Any, tmp_path: Path
+) -> None:
+    """A declared path whose values an edit separated leaves the saved list; the rest stay."""
+    from spindoctor.sim.scene import load_sim_scene
+
+    _declare_then_edit_read_noise(model)
+    out = tmp_path / 'stale.yaml'
+    monkeypatch.setattr(
+        QFileDialog, 'getSaveFileName', staticmethod(lambda *a, **k: (str(out), 'YAML'))
+    )
+    _no_critical(monkeypatch)
+    model._save_scene()
+    assert load_sim_scene(out)['published_equals_truth'] == ['noise.bias_dn']
+
+
+def test_save_scene_names_the_removed_declaration_in_the_status_bar(
+    monkeypatch: pytest.MonkeyPatch, model: Any, tmp_path: Path
+) -> None:
+    """The status bar names each declared path the save removed."""
+    _declare_then_edit_read_noise(model)
+    out = tmp_path / 'stale.yaml'
+    monkeypatch.setattr(
+        QFileDialog, 'getSaveFileName', staticmethod(lambda *a, **k: (str(out), 'YAML'))
+    )
+    _no_critical(monkeypatch)
+    model._save_scene()
+    assert model.statusBar().currentMessage() == (
+        'Removed noise.read_noise_dn from published_equals_truth: an edit made the '
+        'published value differ from the planted one.'
+    )
+
+
 def test_load_scene_populates_model(
     monkeypatch: pytest.MonkeyPatch, model: Any, tmp_path: Path
 ) -> None:

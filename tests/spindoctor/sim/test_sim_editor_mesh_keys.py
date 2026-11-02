@@ -540,11 +540,14 @@ def test_switching_a_mesh_to_an_ellipsoid_moves_its_mesh_only_keys(model: Any) -
 
 
 def test_switching_to_an_ellipsoid_names_the_moved_keys_in_the_status_bar(model: Any) -> None:
-    """The status bar names the mesh-only keys the switch moved."""
+    """The status bar names the moved keys, how to restore them, and the saved-file limit."""
     model._add_body_tab(_gouraud_mesh())
     _set_shape(model, 'ellipsoid')
-    expected = stash_message('LUMPY', ELLIPSOID_UNSUPPORTED_KEYS, 'ellipsoid')
-    assert model.statusBar().currentMessage() == expected
+    assert model.statusBar().currentMessage() == (
+        'LUMPY: moved shading, mesh_detail_octaves, pose_scatter out of the scene, because '
+        "an ellipsoid body doesn't support them. Switching back to polyhedral_mesh restores "
+        "them in this session; a saved ellipsoid scene file doesn't carry them."
+    )
 
 
 def test_switching_back_to_a_mesh_restores_its_mesh_only_keys(model: Any) -> None:

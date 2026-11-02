@@ -29,7 +29,12 @@ from typing import Any
 
 from spindoctor.sim.scene_schema import SimSceneValidationError
 
-__all__ = ['SimSceneTruthEchoWarning', 'check_truth_echo', 'truth_echoes']
+__all__ = [
+    'SimSceneTruthEchoWarning',
+    'check_truth_echo',
+    'stale_truth_declarations',
+    'truth_echoes',
+]
 
 
 class SimSceneTruthEchoWarning(UserWarning):
@@ -81,8 +86,58 @@ def truth_echoes(sim_params: Mapping[str, Any]) -> list[tuple[str, str]]:
     return echoes
 
 
+def _declared_paths(sim_params: Mapping[str, Any], source: str) -> list[str]:
+    """Return the scene's ``published_equals_truth`` list, empty when the key is unset.
+
+    Raises:
+        spindoctor.sim.scene_schema.SimSceneValidationError: If the value isn't a
+            list of strings.
+    """
+    declared = sim_params.get('published_equals_truth')
+    if declared is None:
+        return []
+    if not isinstance(declared, list) or not all(isinstance(path, str) for path in declared):
+        raise SimSceneValidationError(
+            f'{source}: published_equals_truth must be a list of truth paths such as '
+            f"'noise.read_noise_dn'; got {declared!r}"
+        )
+    return declared
+
+
+def stale_truth_declarations(sim_params: Mapping[str, Any], *, source: str) -> list[str]:
+    """List the ``published_equals_truth`` paths whose two values don't coincide.
+
+    Parameters:
+        sim_params: A scene mapping whose block types have been validated.
+        source: Label used in the error message.
+
+    Returns:
+        The listed truth paths that ``instrument_config`` doesn't repeat, sorted.
+        Empty when every listed path coincides or the key is unset.
+
+    Raises:
+        spindoctor.sim.scene_schema.SimSceneValidationError: If
+            ``published_equals_truth`` isn't a list of strings.
+    """
+    declared = _declared_paths(sim_params, source)
+    return sorted(set(declared) - {truth for truth, _ in truth_echoes(sim_params)})
+
+
+def _echo_consequence(truth: str) -> str:
+    """Say what a published copy of ``truth`` does, for the echo warning."""
+    # The navigator doesn't read the vidicon keys, so a vidicon echo only
+    # mislabels the published config; every other compared key feeds it.
+    if truth.startswith('noise.vidicon.'):
+        return "the published config carries the scene's realization instead of the camera's"
+    return 'the navigator reads the scene truth as published knowledge'
+
+
 def check_truth_echo(sim_params: Mapping[str, Any], *, source: str) -> None:
     """Warn for each truth value that ``instrument_config`` repeats unannounced.
+
+    A ``noise.vidicon`` echo's warning says the published config carries the
+    scene's realization; every other echo's warning says the navigator reads the
+    scene truth as published knowledge.
 
     Parameters:
         sim_params: A scene mapping whose block types have been validated.
@@ -93,27 +148,19 @@ def check_truth_echo(sim_params: Mapping[str, Any], *, source: str) -> None:
             ``published_equals_truth`` isn't a list of strings, or lists a path
             whose values don't coincide.
     """
-    declared = sim_params.get('published_equals_truth')
-    if declared is None:
-        declared = []
-    if not isinstance(declared, list) or not all(isinstance(path, str) for path in declared):
-        raise SimSceneValidationError(
-            f'{source}: published_equals_truth must be a list of truth paths such as '
-            f"'noise.read_noise_dn'; got {declared!r}"
-        )
-    echoes = truth_echoes(sim_params)
-    stale = sorted(set(declared) - {truth for truth, _ in echoes})
+    declared = _declared_paths(sim_params, source)
+    stale = stale_truth_declarations(sim_params, source=source)
     if stale:
         raise SimSceneValidationError(
             f"{source}: published_equals_truth lists {stale}, but instrument_config doesn't "
             f'repeat those truth values; remove them from the list'
         )
-    for truth, published in echoes:
+    for truth, published in truth_echoes(sim_params):
         if truth in declared:
             continue
         warnings.warn(
-            f'{source}: {published} repeats the planted {truth}, so the navigator '
-            f'reads the scene truth as published knowledge; list {truth!r} in '
+            f'{source}: {published} repeats the planted {truth}, so '
+            f'{_echo_consequence(truth)}; list {truth!r} in '
             f'published_equals_truth if they are equal on purpose',
             SimSceneTruthEchoWarning,
             stacklevel=3,

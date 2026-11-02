@@ -76,8 +76,9 @@ def stash_message(body_name: str, keys: Iterable[str], shape_model: str) -> str:
     """
     other = 'ellipsoid' if shape_model == 'polyhedral_mesh' else 'polyhedral_mesh'
     short = 'mesh' if shape_model == 'polyhedral_mesh' else 'ellipsoid'
+    article = 'an' if shape_model == 'ellipsoid' else 'a'
     return (
-        f'{body_name}: moved {", ".join(keys)} out of the scene, because a '
+        f'{body_name}: moved {", ".join(keys)} out of the scene, because {article} '
         f"{shape_model} body doesn't support them. Switching back to {other} "
         f"restores them in this session; a saved {short} scene file doesn't carry them."
     )
