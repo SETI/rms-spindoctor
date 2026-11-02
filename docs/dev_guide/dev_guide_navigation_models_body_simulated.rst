@@ -11,12 +11,16 @@ operator-supplied ellipsoid (or polyhedral-mesh) parameters -- center, axes, rot
 lighting -- instead of from SPICE prediction, then emits the body features the navigation
 techniques consume:
 
-- always a :data:`~spindoctor.feature.feature_type.NavFeatureType.BODY_DISC` carrying the
-  rendered template, for :class:`~spindoctor.nav_technique.nav_technique_body_disc.BodyDiscCorrelateNav`;
+- a :data:`~spindoctor.feature.feature_type.NavFeatureType.BODY_DISC` carrying the
+  rendered template, for :class:`~spindoctor.nav_technique.nav_technique_body_disc.BodyDiscCorrelateNav`,
+  unless more than
+  :data:`~spindoctor.nav_model.nav_model_body.BODY_DISC_MAX_OVERFLOW_FRACTION` of the
+  predicted silhouette falls outside the sensor;
 - a :data:`~spindoctor.feature.feature_type.NavFeatureType.BODY_BLOB` (the orientation-free
   lit-weighted centroid, built by the shared
   :class:`~spindoctor.nav_model.nav_model_body_base.NavModelBodyBase`) when the predicted
-  diameter clears the blob floor, for
+  diameter clears the blob floor and the silhouette overflow is at most the ``bodies``
+  configuration value ``blob_max_overflow_fraction``, for
   :class:`~spindoctor.nav_technique.nav_technique_body_blob.BodyBlobNav`;
 - a :data:`~spindoctor.feature.feature_type.NavFeatureType.LIMB_ARC` (the silhouette boundary as
   a vertex polyline with outward normals) when the body is well resolved (diameter at
@@ -200,10 +204,11 @@ Public methods (autodocumented at :doc:`/api_reference/api_nav_model`):
   :func:`~spindoctor.nav_model.sim_body.create_simulated_body`, or a mesh via
   :func:`~spindoctor.sim.mesh_geometry.render_mesh_body_image`), computes the limb mask via
   the shared :class:`~spindoctor.nav_model.nav_model_body_base.NavModelBodyBase` helper, and
-  records the predicted diameter and tight bounding box used to gate and emit features.
+  records the predicted diameter, tight bounding box, and silhouette overflow fraction
+  that decide which features it emits.
 - :meth:`~spindoctor.nav_model.nav_model_body_simulated.NavModelBodySimulated.to_features` — emits
-  the BODY_DISC plus, when the resolution and phase gates pass, the BODY_BLOB, LIMB_ARC, and
-  TERMINATOR_ARC features described under *Overview*.
+  the BODY_DISC, BODY_BLOB, LIMB_ARC, and TERMINATOR_ARC features described under
+  *Overview*, each under the conditions listed there.
 - :meth:`~spindoctor.nav_model.nav_model_body_simulated.NavModelBodySimulated.to_annotations` —
   reuses the shared body annotation helper on
   :class:`~spindoctor.nav_model.nav_model_body_base.NavModelBodyBase` to render body silhouette
@@ -233,6 +238,12 @@ Call path traced through
    arrays (zero-padded for the extfov margin).
 7. Record the predicted center, the subject range, and the bounding box on the model's
    internal state for downstream feature emission.
+8. Record the overflow fraction ``1 - in-sensor pixels / whole-silhouette pixels``: the
+   SPICE-backed model's quantity, from this model's own predicted geometry. A body whose
+   bounding square lies inside the frame overflows by exactly 0 with no render. Any
+   other body's silhouette is rendered unclipped on a canvas larger than the body, with
+   its center on the same sub-pixel phase; a canvas over 2048 px on a side renders
+   downsampled by a whole factor and its count is scaled back, so memory stays bounded.
 
 Call path traced through
 :meth:`~spindoctor.nav_model.nav_model_body_simulated.NavModelBodySimulated.to_features`:
@@ -240,15 +251,17 @@ Call path traced through
 1. Crop the rendered template image and mask to the per-instance tight bounding box (the
    silhouette bbox plus slop, matching the SPICE-backed model, so a downstream moment
    stays local to the body rather than integrating over the whole frame).
-2. Construct one
-   :data:`~spindoctor.feature.feature_type.NavFeatureType.BODY_DISC`
+2. When the overflow fraction is at most
+   :data:`~spindoctor.nav_model.nav_model_body.BODY_DISC_MAX_OVERFLOW_FRACTION`, construct
+   one :data:`~spindoctor.feature.feature_type.NavFeatureType.BODY_DISC`
    :class:`~spindoctor.feature.feature.NavFeature` carrying the cropped template image, the
-   cropped mask, the predicted center, the subject range, and a
-   :class:`~spindoctor.feature.flags.BodyDiscFlags` with the operator-supplied body name plus
-   ``overflow_fov_fraction = 0.0``.
-3. When the predicted diameter clears the blob floor, append a BODY_BLOB built by the
-   shared blob-feature helper on
-   :class:`~spindoctor.nav_model.nav_model_body_base.NavModelBodyBase`.
+   cropped mask, the predicted center, the subject range, the overflow fraction, and a
+   :class:`~spindoctor.feature.flags.BodyDiscFlags` with the operator-supplied body name
+   and that overflow.
+3. When the predicted diameter clears the blob floor and the overflow fraction is at most
+   ``blob_max_overflow_fraction``, append a BODY_BLOB built by the shared blob-feature
+   helper on :class:`~spindoctor.nav_model.nav_model_body_base.NavModelBodyBase`, which
+   also holds the blob's overflow test for both models.
 4. When the diameter and phase gates pass, append a LIMB_ARC scored honestly: the
    silhouette boundary is sampled into a vertex polyline with outward normals and a
    fixed per-vertex sigma, vertices hidden behind an explicitly nearer sibling body are
