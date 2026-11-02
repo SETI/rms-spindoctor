@@ -66,6 +66,7 @@ _ALLOWED_KEYS: frozenset[str] = frozenset(
         'sky_counts',
         'star_catalog_scatter_px',
         'expected',
+        'published_equals_truth',
         'bodies',
         'ring_system',
         'stars',
@@ -118,13 +119,15 @@ TOP_LEVEL_TRUTH_KEYS: frozenset[str] = frozenset(
     }
 )
 
-# Top-level test-only keys: the scene's expected navigation outcome.  It is
-# read only by the sim integration suite's assertion machinery -- consumed by
-# neither the image-side renderer nor the navigator, so it is neither idealized
-# information the pipeline could know nor a planted truth the renderer draws.
-# It is a third, disjoint class; the boundary filter's default-deny keeps it
-# out of ``nav_params`` alongside the truth keys.
-TOP_LEVEL_TEST_ONLY_KEYS: frozenset[str] = frozenset({'expected'})
+# Top-level test-only keys: the scene's expected navigation outcome, read only
+# by the sim integration suite's assertion machinery, and the truth paths the
+# author declares equal to the published instrument_config on purpose, read
+# only by the validator's truth-echo check.  Neither the image-side renderer
+# nor the navigator consumes them, so they are neither idealized information
+# the pipeline could know nor planted truth the renderer draws.  They are a
+# third, disjoint class; the boundary filter's default-deny keeps them out of
+# ``nav_params`` alongside the truth keys.
+TOP_LEVEL_TEST_ONLY_KEYS: frozenset[str] = frozenset({'expected', 'published_equals_truth'})
 
 # Per-body idealized keys: the ellipsoid/mesh geometry, pose, lighting, and
 # physical scale the production pipeline knows from SPICE and shape catalogs.
@@ -248,6 +251,42 @@ def mesh_unsupported_message(keys: Iterable[str]) -> str:
         f'{sorted(keys)} are not supported on polyhedral_mesh bodies (the mesh '
         f'renderer would silently ignore them); a mesh body carries the shading, '
         f'limb_relief_*, mesh_detail_octaves, and pose_scatter appearance keys'
+    )
+
+
+# Body keys only the polyhedral-mesh render path consumes: the rasterizer's
+# smooth-shading mode, the higher-degree relief bands added to the mesh, and the
+# per-frame pose error.  The ellipsoid renderer never reads them, so the
+# validator refuses a non-null value of any of them on an ellipsoid body (a body
+# without a shape_model is one).  The navigator's own mesh, when a nav_override
+# makes it one, takes its geometry from that override.  The sim editor reads
+# this table too: switching a body to an ellipsoid moves these keys out of the
+# scene.
+ELLIPSOID_UNSUPPORTED_KEYS: tuple[str, ...] = (
+    'shading',
+    'mesh_detail_octaves',
+    'pose_scatter',
+)
+
+
+def ellipsoid_unsupported_message(keys: Iterable[str]) -> str:
+    """The sentence that refuses mesh-only keys on an ellipsoid body.
+
+    The scene validator raises it, prefixed with the scene source and the body's
+    label, when an ellipsoid body gives keys from
+    :data:`ELLIPSOID_UNSUPPORTED_KEYS` a non-null value.
+
+    Parameters:
+        keys: The refused keys to name; the sentence lists them sorted.
+
+    Returns:
+        The sentence, such as ``"['shading'] are not supported on ellipsoid
+        bodies (...)"``.
+    """
+    return (
+        f'{sorted(keys)} are not supported on ellipsoid bodies (the ellipsoid '
+        f'renderer would silently ignore them); set shape_model: polyhedral_mesh '
+        f'to use them'
     )
 
 

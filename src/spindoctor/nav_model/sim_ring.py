@@ -41,9 +41,11 @@ __all__ = [
     'predict_ring_feature',
 ]
 
-# Half-step of the central difference that measures an edge's sensitivity to its
-# pericenter longitude, in degrees: small next to any declared pericenter sigma,
-# large enough that the radius difference stays well above float64 rounding.
+# Half-steps of the central differences that measure an edge's sensitivity to
+# its orbit elements (semimajor axis and radial amplitude in pixels, pericenter
+# longitude in degrees): small next to any declared sigma, large enough that the
+# radius difference stays well above float64 rounding.
+_ORBIT_STEP_PX = 1e-3
 _LONG_PERI_STEP_DEG = 1e-3
 
 
@@ -58,17 +60,22 @@ class PredictedRingEdge:
         vertices_vu: ``(N, 2)`` border-pixel positions.
         normals_vu: ``(N, 2)`` unit normals pointing radially outward in the
             ring plane (the direction of increasing ring radius on the sky).
-        dr_dlong_peri_px_per_rad: ``(N,)`` derivative of the edge's radius with
-            respect to its mode-1 pericenter longitude at each vertex, in
-            ring-plane pixels per radian: about ``-ae sin(lam - peri)``, zero
-            on a circular edge.
+        orbit_partials_px: ``(N, 3)`` image-plane distance each vertex moves
+            along its normal per unit change of the orbit's semimajor axis (px
+            per px), radial amplitude ``ae`` (px per px), and mode-1 pericenter
+            longitude (px per radian).  Each column is the derivative of the
+            exact orbit radius divided by the gradient magnitude of the signed
+            distance field at the vertex, which is how far the edge's zero
+            level moves along the normal, so on a face-on circular ring it is
+            about ``(1, -cos(lam - peri), -ae sin(lam - peri))``, and an
+            inclined ring's foreshortening shrinks it.
     """
 
     edge_type: str
     mask: NDArrayBoolType
     vertices_vu: NDArrayFloatType
     normals_vu: NDArrayFloatType
-    dr_dlong_peri_px_per_rad: NDArrayFloatType
+    orbit_partials_px: NDArrayFloatType
 
 
 @dataclass(frozen=True)
@@ -113,14 +120,16 @@ def _border_from_signed_distance(diff: NDArrayFloatType) -> NDArrayBoolType:
     return border
 
 
-def _dr_dlong_peri(
+def _orbit_partials(
     lam: NDArrayFloatType, orbit: RingOrbit, *, epoch: float, time: float
 ) -> NDArrayFloatType:
-    """The derivative of an orbit's radius with respect to its pericenter longitude.
+    """The derivatives of an orbit's radius with respect to its mode-1 elements.
 
-    A central difference of :func:`compute_orbit_radii` over the mode-1
-    pericenter longitude, so it follows the full orbit model; the m >= 2 modes
-    and the edge wave carry their own longitudes and don't move with it.
+    Central differences of :func:`compute_orbit_radii` over the semimajor axis,
+    the radial amplitude ``ae``, and the pericenter longitude, so they follow the
+    exact conic and the full orbit model; the m >= 2 modes and the edge wave keep
+    their own amplitudes and longitudes.  The axis and amplitude step shrinks on a
+    nearly parabolic orbit so neither side of the difference reaches ``e = 1``.
 
     Parameters:
         lam: Ring-plane longitudes from the ascending node, in radians.
@@ -129,14 +138,30 @@ def _dr_dlong_peri(
         time: Scene time in TDB seconds.
 
     Returns:
-        The derivative at each longitude, in the orbit's radial unit per radian.
+        An ``(N, 3)`` array: the derivatives with respect to ``a`` and ``ae``
+        (radial unit per radial unit) and to the pericenter longitude (radial
+        unit per radian).
     """
-    step_deg = _LONG_PERI_STEP_DEG
-    ahead = replace(orbit, long_peri=orbit.long_peri + step_deg)
-    behind = replace(orbit, long_peri=orbit.long_peri - step_deg)
-    r_ahead = compute_orbit_radii(lam, ahead, epoch=epoch, time=time)
-    r_behind = compute_orbit_radii(lam, behind, epoch=epoch, time=time)
-    result: NDArrayFloatType = (r_ahead - r_behind) / (2.0 * math.radians(step_deg))
+    step = min(_ORBIT_STEP_PX, 0.25 * (orbit.a - orbit.ae))
+    peri_step = _LONG_PERI_STEP_DEG
+    pairs = (
+        (replace(orbit, a=orbit.a + step), replace(orbit, a=orbit.a - step), 2.0 * step),
+        (replace(orbit, ae=orbit.ae + step), replace(orbit, ae=orbit.ae - step), 2.0 * step),
+        (
+            replace(orbit, long_peri=orbit.long_peri + peri_step),
+            replace(orbit, long_peri=orbit.long_peri - peri_step),
+            2.0 * math.radians(peri_step),
+        ),
+    )
+    columns = [
+        (
+            compute_orbit_radii(lam, ahead, epoch=epoch, time=time)
+            - compute_orbit_radii(lam, behind, epoch=epoch, time=time)
+        )
+        / span
+        for ahead, behind, span in pairs
+    ]
+    result: NDArrayFloatType = np.stack(columns, axis=1)
     return result
 
 
@@ -154,13 +179,16 @@ def _edge_from_diff(
     The normal at each border pixel is the normalized gradient of the
     signed radial distance field: the sky-plane direction of increasing
     ring-plane radius, which is the outward radial direction however the
-    projection foreshortens the edge.
+    projection foreshortens the edge.  A change ``dr`` in the edge radius
+    moves the field's zero level by ``dr / |grad|`` along that normal, so the
+    same gradient magnitude converts the orbit partials to image pixels.
 
     Parameters:
         diff: Per-pixel ``r - r_edge(lam)`` signed distance field.
         edge_type: The edge label ('inner' / 'outer' / 'edge').
         lam: Per-pixel ring-plane longitudes, in radians.
-        orbit: The edge's orbit, for its pericenter sensitivity at each vertex.
+        orbit: The edge's orbit, for its sensitivity to its elements at each
+            vertex.
         epoch: Ring epoch in TDB seconds.
         time: Scene time in TDB seconds.
 
@@ -175,7 +203,7 @@ def _edge_from_diff(
             mask=mask,
             vertices_vu=empty,
             normals_vu=empty,
-            dr_dlong_peri_px_per_rad=np.empty(0, dtype=np.float64),
+            orbit_partials_px=np.empty((0, 3), dtype=np.float64),
         )
     grads = np.gradient(diff)
     grad_v = cast(NDArrayFloatType, grads[0])
@@ -186,12 +214,13 @@ def _edge_from_diff(
     norms = np.hypot(normals[:, 0], normals[:, 1])
     norms[norms == 0.0] = 1.0
     normals_vu = normals / norms[:, None]
+    partials = _orbit_partials(lam[vs, us], orbit, epoch=epoch, time=time) / norms[:, None]
     return PredictedRingEdge(
         edge_type=edge_type,
         mask=mask,
         vertices_vu=vertices_vu,
         normals_vu=normals_vu,
-        dr_dlong_peri_px_per_rad=_dr_dlong_peri(lam[vs, us], orbit, epoch=epoch, time=time),
+        orbit_partials_px=partials,
     )
 
 
@@ -294,6 +323,11 @@ def predict_ring_feature(
     # 'edge' (a one-sided step) and 'wave' (a train launched at the orbit
     # radius) each predict the single catalog boundary.
     edge = _edge_from_diff(
-        cast(NDArrayFloatType, r - r_edge), 'edge', lam=lam, orbit=orbit, epoch=epoch, time=time
+        cast(NDArrayFloatType, r - r_edge),
+        'edge',
+        lam=lam,
+        orbit=orbit,
+        epoch=epoch,
+        time=time,
     )
     return PredictedRingFeature(template=None, mask=edge.mask, edges=[edge])

@@ -34,9 +34,9 @@ from typing import Any
 
 import numpy as np
 
-from spindoctor.sim.stable_math import stable_hypot
 from spindoctor.sim.star_records import star_record_from_params
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
+from spindoctor.support.stable_math import stable_hypot
 from spindoctor.support.types import MutableStar, NDArrayFloatType
 
 __all__ = [

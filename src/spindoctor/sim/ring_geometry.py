@@ -55,7 +55,7 @@ from typing import Any, cast
 import numpy as np
 
 from spindoctor.sim.scene_schema import scene_value
-from spindoctor.sim.stable_math import stable_hypot
+from spindoctor.support.stable_math import stable_hypot
 from spindoctor.support.types import NDArrayFloatType
 
 __all__ = [

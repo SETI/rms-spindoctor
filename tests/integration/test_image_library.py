@@ -10,10 +10,9 @@ shape of ``tests/integration/image_library/images/<class>/<image_id>.yaml``:
 - The primary scene-tag in each sidecar matches the containing directory.
 - ``image_id`` is unique across the whole library.
 
-Coverage-matrix and per-class-minimum invariants (every technique exercised
-on >=1 sidecar; >=2 sidecars per class) are deferred to Phase 10 once the
-~50-image library is fully populated; today's tree may legitimately contain
-only the 1-3 Phase 4 entries.
+The library-wide coverage checks (at least two sidecars per class, every
+technique the primary technique of some sidecar) are in
+``test_image_library_coverage``.
 """
 
 from __future__ import annotations
@@ -47,9 +46,9 @@ def test_class_subdirectories_are_subset_of_declared(library: LibraryRoot) -> No
 
     This catches typos like ``body_overflow`` vs ``body_partial_overflow``
     immediately, before any per-sidecar test runs with a confusing error.
-    The structural test allows a *subset* of declared classes to be present
-    so Phase-4 entries (only the DT classes) do not require the full Phase-10
-    library to be populated; the *equality* invariant is added in Phase 10.
+    The structural test allows a *subset* of declared classes to be present,
+    so an empty class doesn't fail it; ``test_image_library_coverage`` checks
+    that every class holds enough sidecars.
     """
     actual = {p.name for p in library.discover_class_directories()}
     unknown = actual - DECLARED_SCENE_CLASSES

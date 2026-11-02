@@ -82,8 +82,8 @@ from spindoctor.sim.ring_geometry import (
     ring_sky_from_plane,
 )
 from spindoctor.sim.scene_schema import RING_SIDE_DEFAULTS, scene_value
-from spindoctor.sim.stable_math import stable_hypot
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
+from spindoctor.support.stable_math import stable_hypot
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 
 __all__ = [
