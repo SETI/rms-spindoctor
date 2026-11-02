@@ -2315,6 +2315,15 @@ in it in **pixel-corner coordinates**: a star's ``v`` / ``u``, a body's
 ``center_u``. The conversion happens where the renderer deposits into an array
 cell, and a scene author never applies it.
 
+``tests/spindoctor/sim/test_scene_position_contract.py`` holds the whole chain to
+that rule. A star, a lit body, a Titan with its haze, and a face-on ringlet, each
+stated at ``(60.5, 60.5)``, must render centered on array pixel ``(60, 60)``. Each
+simulated navigation model must also predict its object on that pixel: the body's
+``BODY_DISC`` and ``BODY_BLOB`` centers, the Titan limb center, and the ring
+annulus center, all pixel centric in the extended FOV. The body disc and ring
+annulus templates must be painted there too: each template's centroid, placed at
+its bounding box, lands on the rendered centroid.
+
 The scene's displacements need no conversion: the planted ``offset_v`` /
 ``offset_u``, a star's ``move_v`` / ``move_u`` smear vector, a planted
 ``catalog_error_v`` / ``catalog_error_u``, and a companion's ``sep_px``.
