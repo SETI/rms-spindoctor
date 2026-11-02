@@ -14,9 +14,10 @@ Registered concrete subclasses:
   one instance per planet whose ring system has any radius inside the extended FOV.
   Documented at :doc:`dev_guide_navigation_models_ring`.
 - :class:`~spindoctor.nav_model.nav_model_rings_simulated.NavModelRingsSimulated` —
-  simulated-image GUI variant; emits a single
-  :data:`~spindoctor.feature.feature_type.NavFeatureType.RING_ANNULUS` feature carrying the
-  rendered template. Documented at
+  the simulated-frame variant, predicted from the scene's ring system; emits a
+  :data:`~spindoctor.feature.feature_type.NavFeatureType.RING_ANNULUS` template for a ringlet
+  and one :data:`~spindoctor.feature.feature_type.NavFeatureType.RING_EDGE` polyline per
+  predicted edge. Documented at
   :doc:`dev_guide_navigation_models_ring_simulated`.
 
 The :mod:`spindoctor.nav_model.rings` subpackage holds the catalog-driven ring data model —
