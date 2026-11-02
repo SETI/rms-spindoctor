@@ -93,6 +93,10 @@ whatever the roll.
 Fields
 ------
 
+A top-level number (exposure_sec, offset_v, offset_u, offset_rotation_deg,
+time, ring_epoch, star_catalog_scatter_px) can't be null: leave it out to
+take its default.  A top-level block or list set to null reads as unset.
+
   schema_version   (int, required)   must be 2
   scene_name       (str, required)   must equal the filename stem
   instrument       (str, required)   a sim instrument (coiss_nac, coiss_wac,
@@ -205,6 +209,14 @@ Fields
                                      camera-config change cannot shift the scene.  (The
                                      top-level noise block still wins over
                                      instrument_config.noise for rendering.)
+  published_equals_truth (list, opt) truth paths (noise.read_noise_dn,
+                                     optics.psf.sigma_v, ...) that instrument_config
+                                     repeats on purpose.  Without it, a planted
+                                     noise or PSF value that instrument_config
+                                     repeats warns, because instrument_config
+                                     reaches the navigator as published knowledge;
+                                     a listed path whose values differ fails
+                                     validation
   fit_camera_rotation (bool, opt)    force whether navigation solves a camera roll
 
 The instrument fixes the frame's units, in one of two classes; both mark a
@@ -249,6 +261,11 @@ Switching a body to polyhedral_mesh in the editor moves the refused keys it
 carries out of the scene, and the status bar names them; switching it back to
 ellipsoid in the same session restores them, and a saved mesh scene file
 doesn't carry them.
+
+The reverse holds too: an ellipsoid body, stated or by default, refuses a
+non-null shading, mesh_detail_octaves, or pose_scatter, which the ellipsoid
+renderer would silently ignore.  Switching a mesh body to ellipsoid in the
+editor moves those keys out the same way, and switching back restores them.
 
 A body may also carry an optional nav_override mapping.  The renderer ignores it
 (it always draws the true geometry), but the navigator builds its predicted body
