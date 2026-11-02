@@ -569,6 +569,23 @@ def test_validate_sim_params_accepts_ellipsoid_appearance_keys() -> None:
     assert validate_sim_params(params) is params
 
 
+def test_validate_sim_params_accepts_a_clear_atmosphere() -> None:
+    """A ``tau_ref`` of 0 validates: a clear atmosphere that leaves the limb hard."""
+    params = _sim_params()
+    params['bodies'][0]['atmosphere'] = {'scale_height_px': 4.0, 'tau_ref': 0.0}
+    assert validate_sim_params(params) is params
+
+
+def test_validate_sim_params_rejects_a_negative_tau_ref() -> None:
+    """A negative ``tau_ref`` fails: an optical depth can't be negative."""
+    params = _sim_params()
+    params['bodies'][0]['atmosphere'] = {'scale_height_px': 4.0, 'tau_ref': -0.5}
+    with pytest.raises(
+        SimSceneValidationError, match=r'atmosphere\.tau_ref must be a non-negative number'
+    ):
+        validate_sim_params(params)
+
+
 def test_validate_sim_params_rejects_duplicate_body_names() -> None:
     """Two bodies with the same name fail (name-keyed truth would collide)."""
     params = _sim_params()

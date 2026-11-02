@@ -280,8 +280,9 @@ def _check_body_relief_and_photometry(obj: dict[str, Any], *, label: str, source
     )
 
 
-# The exponential haze layer: scale height and reference-altitude tangent
-# optical depth (both required and positive) define the column; the
+# The exponential haze layer: scale height (required, positive) and
+# reference-altitude tangent optical depth (required, non-negative; zero is a
+# clear atmosphere that leaves the limb hard) define the column; the
 # reference altitude, the Henyey-Greenstein asymmetry (forward-scattering
 # when positive), and an optional detached-shell altitude are optional.  The
 # structure keys folded in from the forward model break the column's mirror
@@ -328,7 +329,7 @@ def _check_atmosphere(value: Any, *, label: str, source: str) -> None:
     _check_optional_positive_number(
         value.get('scale_height_px'), f'{label}.atmosphere.scale_height_px', source=source
     )
-    _check_optional_positive_number(
+    _check_optional_nonnegative_number(
         value.get('tau_ref'), f'{label}.atmosphere.tau_ref', source=source
     )
     _check_optional_nonnegative_number(
