@@ -62,6 +62,9 @@ Modules:
     ``distance_transform``
         ``apply_translation`` and ``sample_dt_bilinear`` -- chamfer-matching
         helpers built on top of an externally-computed distance transform.
+    ``stable_math``
+        ``stable_hypot`` -- a hypotenuse that rounds the same on every CPU, for
+        code compared exactly against committed results.
 """
 
 __all__ = [
@@ -81,6 +84,7 @@ __all__ = [
     'misc',
     'nav_base',
     'noise_estimate',
+    'stable_math',
     'status_reason',
     'time',
     'types',

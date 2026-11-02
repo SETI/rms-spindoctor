@@ -83,8 +83,8 @@ from spindoctor.sim.forward.haze_structure import (
     scale_height_field,
     tilted_illumination_2d,
 )
-from spindoctor.sim.stable_math import stable_hypot
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
+from spindoctor.support.stable_math import stable_hypot
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 
 __all__ = [

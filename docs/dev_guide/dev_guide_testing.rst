@@ -302,8 +302,8 @@ The pin doesn't reach two other libraries that NumPy calls. OpenBLAS, which runs
 ``np.hypot``, differs between CPUs in its last bit. So the simulator's render
 path uses neither. The mesh renderer sums its 3-vector products itself, in a
 fixed order, and the simulator calls
-:func:`spindoctor.sim.stable_math.stable_hypot` in place of ``np.hypot``.
-``tests/spindoctor/sim/test_stable_math.py`` fails if ``np.hypot`` comes back.
+:func:`spindoctor.support.stable_math.stable_hypot` in place of ``np.hypot``.
+``tests/spindoctor/sim/test_sim_hypot_guard.py`` fails if ``np.hypot`` comes back.
 A last-bit change in the render path wouldn't stay small. The PSF's FFT
 convolution spreads it to every pixel, and a Poisson draw whose mean changes can
 take a different number of random values, which changes the noise in every pixel

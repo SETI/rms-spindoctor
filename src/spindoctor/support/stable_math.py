@@ -1,11 +1,11 @@
-"""Arithmetic that rounds the same on every CPU, for the simulator's render path.
+"""Arithmetic that rounds the same on every CPU.
 
-The committed simulator renders and baselines are compared exactly, so the
-render path keeps to operations whose results don't depend on the CPU.  Plain
-IEEE arithmetic (``+``, ``-``, ``*``, ``/``, and ``sqrt``) qualifies.  NumPy's
-``hypot`` doesn't: it calls the C library's ``hypot``, whose last bit differs
-between CPUs, and in a noisy scene one changed bit can change every pixel's
-noise.
+Code whose output is compared exactly against committed results, such as the
+simulator's render path, has to keep to operations whose results don't depend
+on the CPU.  Plain IEEE arithmetic (``+``, ``-``, ``*``, ``/``, and ``sqrt``)
+qualifies.  NumPy's ``hypot`` doesn't: it calls the C library's ``hypot``, whose
+last bit differs between CPUs.  In a noisy simulated scene one changed bit can
+change every pixel's noise.
 """
 
 import numpy as np
@@ -18,8 +18,8 @@ __all__ = ['stable_hypot']
 def stable_hypot(a: NDArrayFloatType | float, b: NDArrayFloatType | float) -> NDArrayFloatType:
     """Return ``sqrt(a**2 + b**2)`` elementwise, rounded the same on every CPU.
 
-    Unlike ``np.hypot`` it doesn't guard against overflow, so it's meant for the
-    pixel-scale and unit-scale values the simulator works with.
+    Unlike ``np.hypot`` it doesn't guard against overflow, so it's meant for
+    pixel-scale and unit-scale values.
 
     Parameters:
         a: The first leg; an array or a scalar.

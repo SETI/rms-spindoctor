@@ -233,11 +233,6 @@ spindoctor.sim
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: spindoctor.sim.stable_math
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
 .. automodule:: spindoctor.sim.png_export
    :members:
    :undoc-members:
