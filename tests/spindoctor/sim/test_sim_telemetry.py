@@ -30,7 +30,7 @@ from spindoctor.sim.forward.feature_loci import FeatureLoci, choose_pixels, extr
 from spindoctor.sim.forward.incidence import planted_incidence
 from spindoctor.sim.forward.stages import SimFrame
 from spindoctor.sim.forward.telemetry import apply_telemetry
-from spindoctor.sim.forward.telemetry_loss import apply_pixel_spikes
+from spindoctor.sim.forward.telemetry_loss import apply_line_garble, apply_pixel_spikes
 from spindoctor.sim.render import render_combined_model
 from spindoctor.sim.scene import SimSceneValidationError, validate_sim_params
 from spindoctor.support.types import NDArrayFloatType
@@ -535,6 +535,42 @@ def test_a_calibrated_bitflip_onto_the_marker_moves_off_it() -> None:
     spiked = np.array([signal[v, u] for v, u in record['pixels']])
     assert np.any(spiked < 1e-300)
     assert not np.any(spiked == 0.0)
+
+
+@pytest.mark.parametrize('mode', ['line_garble', 'uniform_spikes'])
+def test_garbage_stays_inside_the_word_when_the_frame_peaks_above_it(mode: str) -> None:
+    """A frame already above its 255 DN word still gets garbage drawn inside the word.
+
+    Compression overshoot can lift a frame's peak past the ADC word before the
+    telemetry stage runs, and the garbage must not follow the peak up.
+    """
+    signal = np.full((32, 32), 300.0, dtype=np.float64)
+    loci = FeatureLoci(
+        rows=np.empty(0, dtype=np.int64),
+        pixel_v=np.empty(0, dtype=np.int64),
+        pixel_u=np.empty(0, dtype=np.int64),
+    )
+    common: dict[str, Any] = {
+        'marker_dn': 0.0,
+        'dn_ceiling': 255.0,
+        'rng': np.random.default_rng(6),
+        'loci': loci,
+        'adversarial': False,
+    }
+    if mode == 'line_garble':
+        record = apply_line_garble(signal, {'expected_events': 20.0}, **common)
+        drawn = [
+            float(value)
+            for line in record['lines']
+            for value in signal[line['row'], line['garble_from'] :]
+        ]
+    else:
+        record = apply_pixel_spikes(
+            signal, {'expected_events': 200.0, 'amplitude': 'uniform'}, **common
+        )
+        drawn = [float(signal[v, u]) for v, u in record['pixels']]
+    assert drawn
+    assert max(drawn) <= 255.0
 
 
 def test_12bit_line_garble_keeps_the_deep_word() -> None:

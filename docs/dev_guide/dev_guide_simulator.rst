@@ -536,12 +536,11 @@ frame of either kind. The telemetry modes that act on transmitted DN work the sa
 way on a calibrated frame. The lossy codec, ``line_garble``, and ``pixel_spikes``
 map the I/F back to DN, alter it there, and write the result as I/F. A bit-flip
 spike is capped at the ADC word: on ``vgiss`` that is 255 DN, which calibrates to
-1.85 I/F. A garbled line and a uniform spike draw up to the
-frame's peak, or the ADC word when that is higher. The codec doesn't clip what it
-rebuilds, so a saturated block can come back above the word, and a garbled line or
-a uniform spike drawn after it can follow it there. A calibrated value that lands
-exactly on the 0 I/F marker moves to the next float above it, as the calibration
-inverse does.
+1.85 I/F. A garbled line and a uniform spike draw anywhere in the ADC word. The
+codec doesn't clip what it rebuilds, so a saturated block can come back above the
+word, but a garbled line or a uniform spike drawn after it stays inside the word.
+A calibrated value that lands exactly on the 0 I/F marker moves to the next float
+above it, as the calibration inverse does.
 
 The inverse subtracts the bias and dark pedestals, which would put a noise-free
 dark sky at exactly 0 I/F, the marker. A real calibrated product's dark sky keeps
