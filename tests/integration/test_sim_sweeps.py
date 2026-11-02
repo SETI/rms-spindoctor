@@ -414,11 +414,10 @@ def test_star_catalog_scatter_zero_recovers() -> None:
         assert row.offset_error_px < _RECOVERY_TOLERANCE_PX
 
 
-# On the x86-64 baseline NumPy path the test package pins, seed 8 reports
-# success at 4.9 px error under 6 px of scatter (#835).
-@pytest.mark.xfail(
-    strict=True, raises=AssertionError, reason='a 6 px scatter seed reports success (#835)'
-)
+# The scatter of the wrong_catalog expected_fail scene the sweep starts from.
+_WHOLESALE_CATALOG_ERROR_PX = 8.0
+
+
 def test_star_catalog_scatter_wholesale_error_never_succeeds() -> None:
     """In the wholesale-catalog-error regime no seed ever reports success.
 
@@ -430,14 +429,28 @@ def test_star_catalog_scatter_wholesale_error_never_succeeds() -> None:
     """
     rows = _rows('star_catalog_scatter')
     for row in rows:
-        if row.value >= 6.0:
+        if row.value >= _WHOLESALE_CATALOG_ERROR_PX:
+            assert row.status != 'success'
+
+
+# On the x86-64 baseline NumPy path the test package pins, seed 8 reports
+# success at 4.9 px error under 6 px of scatter (#835).  Only the 6 px step is
+# excused, so a success at 8 px still fails the test above.
+@pytest.mark.xfail(
+    strict=True, raises=AssertionError, reason='a 6 px scatter seed reports success (#835)'
+)
+def test_star_catalog_scatter_six_px_never_succeeds() -> None:
+    """At 6 px of scatter, short of the wholesale regime, no seed reports success."""
+    rows = _rows('star_catalog_scatter')
+    for row in rows:
+        if row.value == 6.0:
             assert row.status != 'success'
 
 
 def test_star_catalog_scatter_reaches_the_wholesale_error_regime() -> None:
-    """The scatter sweep has steps at 6 px or more for the never-succeeds check to read."""
+    """The scatter sweep has steps at 8 px or more for the never-succeeds check to read."""
     rows = _rows('star_catalog_scatter')
-    assert [row.value for row in rows if row.value >= 6.0] != []
+    assert [row.value for row in rows if row.value >= _WHOLESALE_CATALOG_ERROR_PX] != []
 
 
 # Measured star_catalog_scatter curve (2026-07-16, seeds 7-9), recorded for the
@@ -453,7 +466,8 @@ def test_star_catalog_scatter_reaches_the_wholesale_error_regime() -> None:
 #   scatter 4.0 px:     population splits -- 2 of 3 seeds fail, one seed still
 #                       reports a medium-tier (0.66) success at 2.8 px error,
 #                       which is why the never-succeeds assertion starts at 6;
-#   scatter 6.0-8.0 px: every seed fails (all techniques spurious).
+#   scatter 6.0-8.0 px: every seed fails (all techniques spurious), except
+#                       seed 8 at 6 px on the pinned baseline path (#835).
 
 
 # ---------------------------------------------------------------------------
