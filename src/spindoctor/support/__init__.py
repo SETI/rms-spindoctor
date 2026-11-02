@@ -63,8 +63,9 @@ Modules:
         ``apply_translation`` and ``sample_dt_bilinear`` -- chamfer-matching
         helpers built on top of an externally-computed distance transform.
     ``stable_math``
-        ``stable_hypot`` -- a hypotenuse that rounds the same on every CPU, for
-        code compared exactly against committed results.
+        ``stable_hypot`` and ``stable_matmul3`` -- a hypotenuse and a 3-column
+        matrix product that round the same on every CPU, for code compared exactly
+        against committed results.
 """
 
 __all__ = [

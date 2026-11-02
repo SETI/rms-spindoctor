@@ -300,8 +300,9 @@ pin covers ``pytest`` and the ``python -m tests.integration...`` tools alike.
 The pin doesn't reach two other libraries that NumPy calls. OpenBLAS, which runs
 ``@``, picks its kernel by CPU, and the C library's ``hypot``, which runs
 ``np.hypot``, differs between CPUs in its last bit. So the simulator's render
-path uses neither. The mesh renderer sums its 3-vector products itself, in a
-fixed order, and the simulator calls
+path uses neither. The mesh renderer calls
+:func:`spindoctor.support.stable_math.stable_matmul3`, which sums its 3-vector
+products in a fixed order, in place of ``@``, and the simulator calls
 :func:`spindoctor.support.stable_math.stable_hypot` in place of ``np.hypot``.
 ``tests/spindoctor/sim/test_sim_hypot_guard.py`` fails if ``np.hypot`` comes back.
 A last-bit change in the render path wouldn't stay small. The PSF's FFT
