@@ -107,11 +107,29 @@ below).
 - **The centroid** is the background-subtracted moment of the box, with the box
   re-centered on its own centroid until it stops moving (at most five times). The
   response peaks at the edge of a saturated core, where a box first straddles it; the
-  re-centering moves the box over the core. A core longer than the box is measured
-  wherever the box comes to rest inside it. A box that moves more than
+  re-centering moves the box over the core. A box that moves more than
   ``centroid_box_half_px`` from the candidate, or whose center leaves the window, has
   walked onto another source, often a brighter one beyond the window, and the window holds
   no detection.
+- **A clipped core as long as the box** is measured whole. A clipped core and its
+  column bleed are flat. A box lying wholly on them is centered on its own centroid
+  wherever it lies, so re-centering stops a half-width in from the end it started at. On
+  the simulated ``saturated_star`` scene a vmag -1 star bled over 11 rows was measured
+  1.8 px off that way, and ``StarRefineNav``, which weights stars by predicted SNR,
+  followed it 1.6 px off. The flat top is the 4-connected set of pixels at or above the
+  brightest pixel of the candidate's box less ``detection_sigma * image_noise_sigma``.
+  It is a clipped core when four things hold: it is at least as long as the box along
+  one axis; it is no wider than the box along the other; the candidate lies on it or
+  beside it; and the median of the pixels bordering it lies at least 10 tolerances below
+  it. A ring's crest or a limb is flat within the tolerance over long stretches, but its
+  sides slope away gently. On Cassini NAC frame ``N1737165983`` a crest measured whole
+  pulled a lone star's centroid 1.95 px onto the ring, and its bordering pixels lie only
+  4.3 tolerances below it. The moment is taken over the core padded by
+  ``centroid_box_half_px`` on every side; the scene's fused offset then lies 0.03 px from
+  the planted one. A core that reaches the edge of the window padded by
+  ``centroid_box_half_px``, or whose moment lies outside the window, is no point source
+  of the window. A clipped core in a calibrated (I/F) image is divided by the flat field
+  and is no longer flat within the tolerance; the re-centered box measures it.
 - **The detection must be isolated**, by the test
   :class:`~spindoctor.nav_technique.nav_technique_star_field.StarFieldFromCatalogNav`
   applies to its sources (``source_isolation_inner_px``, ``source_isolation_outer_px``,

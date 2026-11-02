@@ -8,6 +8,7 @@ from tests.spindoctor.nav_technique.conftest import DrawGaussianStarFactory, Nav
 
 from spindoctor.nav_technique._star_helpers import (
     _flank_outshines,
+    _flat_top_region,
     _window_peaks,
     detection_peak_ratio,
     distinct_stars,
@@ -165,8 +166,8 @@ def test_a_bump_on_a_bright_floor_is_no_detection() -> None:
 def test_a_saturated_core_as_tall_as_the_box_is_measured_about_its_middle() -> None:
     """A flat core 7 rows tall and 3 wide centroids to its middle row.
 
-    The response peaks near an end of a flat core, and a box placed there first
-    straddles that end.
+    The response peaks near an end of a flat core, where a box first straddles it; the
+    core is as long as the box, so it is measured whole.
     """
     image = np.zeros((200, 200), dtype=np.float64)
     image[97:104, 99:102] = 1000.0
@@ -183,6 +184,77 @@ def test_a_saturated_core_as_tall_as_the_box_is_measured_about_its_middle() -> N
     )
     assert centroid is not None
     assert centroid[0] == pytest.approx(100.0, abs=0.1)
+
+
+def test_a_saturated_core_longer_than_the_box_is_measured_about_its_middle() -> None:
+    """A core 13 rows tall and 4 wide, flat within the tolerance, centroids to its middle.
+
+    A box re-centered on it stops wherever it lies wholly on the flat top, so the
+    centroid is measured over the whole flat top instead.  The core's pixels differ by
+    3 DN, so a flat top taken without the tolerance breaks into single pixels.
+    """
+    image = np.zeros((200, 200), dtype=np.float64)
+    image[94:107, 99:103] = 1000.0
+    image[94:107:2, 99:103:2] -= 3.0
+    image[95:107:2, 100:103:2] -= 3.0
+    centroid = _centroid(image, (95.0, 100.0))
+    assert centroid == pytest.approx((100.0, 100.5), abs=0.01)
+
+
+def test_a_flat_streak_across_the_window_is_no_source() -> None:
+    """A flat streak that runs out of the window is no point source of it."""
+    image = np.zeros((200, 200), dtype=np.float64)
+    image[99:102, :] = 1000.0
+    assert _centroid(image, (100.0, 100.0)) is None
+
+
+def test_a_flat_core_centered_outside_the_window_is_no_source() -> None:
+    """A flat core wider than the box whose middle lies past the window's edge is refused."""
+    image = np.zeros((200, 200), dtype=np.float64)
+    image[105:109, 93:108] = 1000.0
+    assert _centroid(image, (100.0, 100.0), search_half_vu=(6.0, 6.0)) is None
+
+
+def _clipped_core_region(image: np.ndarray, candidate: tuple[int, int]) -> object:
+    """Return :func:`_flat_top_region` for a candidate in a 61 px window around (100, 100)."""
+    bounds = search_window_bounds((100.0, 100.0), (30.0, 30.0), image.shape)
+    assert bounds is not None
+    return _flat_top_region(
+        image, candidate[0], candidate[1], half=3, tolerance_dn=4.0, bounds=bounds
+    )
+
+
+def test_a_flat_core_as_wide_as_the_box_is_a_clipped_core() -> None:
+    """A flat core 13 rows tall and 7 wide, as wide as the box, is a clipped core."""
+    image = np.zeros((200, 200), dtype=np.float64)
+    image[94:107, 97:104] = 1000.0
+    assert _clipped_core_region(image, (94, 97)) == (91, 110, 94, 107)
+
+
+def test_a_flat_ridge_with_gentle_sides_is_no_clipped_core() -> None:
+    """A flat line 9 px long whose neighbors lie 6 tolerances (24 DN) below it is no core.
+
+    A ring or a limb is flat within the tolerance along its crest, but its sides slope
+    away gently, where a clipped core stands on the steep wall of a star's profile.
+    """
+    image = np.zeros((200, 200), dtype=np.float64)
+    image[96:105, 99:102] = 976.0
+    image[96:105, 100] = 1000.0
+    assert _clipped_core_region(image, (96, 100)) is None
+
+
+def test_a_clipped_core_beside_the_candidate_is_not_its_own() -> None:
+    """A core whose nearest column is 3 px from the candidate belongs to another source."""
+    image = np.zeros((200, 200), dtype=np.float64)
+    image[94:107, 103:106] = 1000.0
+    assert _clipped_core_region(image, (100, 100)) is None
+
+
+def test_a_flat_block_wider_than_the_box_both_ways_is_no_clipped_core() -> None:
+    """A flat 12 by 12 px block, a saturated body rather than a star, is no clipped core."""
+    image = np.zeros((200, 200), dtype=np.float64)
+    image[94:106, 94:106] = 1000.0
+    assert _clipped_core_region(image, (94, 94)) is None
 
 
 @pytest.mark.parametrize(('refuse', 'expect_none'), [(True, True), (False, False)])
@@ -423,6 +495,25 @@ def _sources(image: np.ndarray, *, max_sources: int = 5) -> list[tuple[float, fl
         max_sources=max_sources,
     )
     return [s.centroid_vu for s in found]
+
+
+def test_a_saturated_core_longer_than_the_box_is_one_source() -> None:
+    """A flat core 13 rows tall is one source at its middle, not one near an end."""
+    image = np.zeros((200, 200), dtype=np.float64)
+    image[94:107, 99:103] = 1000.0
+    found = window_sources(
+        image,
+        (100.0, 100.0),
+        search_half_vu=(40.0, 40.0),
+        centroid_box_half_px=3,
+        psf_sigma_px=1.0,
+        max_peak_sharpness=8.0,
+        image_noise_sigma=1.0,
+        detection_sigma=4.0,
+        accept=lambda _c: True,
+        max_sources=5,
+    )
+    assert [s.centroid_vu for s in found] == [pytest.approx((100.0, 100.5), abs=0.01)]
 
 
 def test_window_sources_are_listed_strongest_first(

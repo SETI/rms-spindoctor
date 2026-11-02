@@ -21,10 +21,10 @@ from __future__ import annotations
 import math
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import cast
+from typing import Literal, cast
 
 import numpy as np
-from scipy.ndimage import maximum_filter
+from scipy.ndimage import binary_dilation, label, maximum_filter
 
 from spindoctor.feature.feature import NavFeature
 from spindoctor.feature.feature_type import NavFeatureType
@@ -463,8 +463,21 @@ def _box_centroid(
     above it.
     """
     h, w = image_ext.shape
-    v_lo, u_lo = max(0, v - half), max(0, u - half)
-    v_hi, u_hi = min(h, v + half + 1), min(w, u + half + 1)
+    return _region_centroid(
+        image_ext, (max(0, v - half), min(h, v + half + 1), max(0, u - half), min(w, u + half + 1))
+    )
+
+
+def _region_centroid(
+    image_ext: NDArrayFloatType, region: tuple[int, int, int, int]
+) -> tuple[float, float] | None:
+    """Return the background-subtracted brightness-weighted centroid of a region.
+
+    ``region`` is ``(v_lo, v_hi, u_lo, u_hi)``, upper bounds exclusive, inside the image.
+    The background is the region's median.  Returns ``None`` when nothing in the region
+    rises above it.
+    """
+    v_lo, v_hi, u_lo, u_hi = region
     box = np.asarray(image_ext[v_lo:v_hi, u_lo:u_hi], np.float64)
     weights = np.clip(box - float(np.median(box)), 0.0, None)
     total = float(weights.sum())
@@ -638,7 +651,94 @@ def local_centroid(
         window = np.asarray(image_ext[v_lo:v_hi, u_lo:u_hi], np.float64)
         if _flank_outshines(window, peaks, peak_dn, half=half):
             return None, peak_dn
-    return _recentered_centroid(image_ext, peak_v, peak_u, half=half, bounds=bounds), peak_dn
+    centroid = _recentered_centroid(
+        image_ext,
+        peak_v,
+        peak_u,
+        half=half,
+        bounds=bounds,
+        flat_tolerance_dn=detection_sigma * image_noise_sigma,
+    )
+    return centroid, peak_dn
+
+
+_FLAT_TOP_WALL = 10.0
+"""Least drop, in flat-top tolerances, from a clipped core to the median of its neighbors."""
+
+
+def _flat_top_region(
+    image_ext: NDArrayFloatType,
+    peak_v: int,
+    peak_u: int,
+    *,
+    half: int,
+    tolerance_dn: float,
+    bounds: tuple[int, int, int, int],
+) -> tuple[int, int, int, int] | None | Literal[False]:
+    """Return the region that holds a clipped core as long as the candidate's box.
+
+    The flat top is the 4-connected set of pixels at or above the brightest pixel of the
+    candidate's box less ``tolerance_dn``, grown from that pixel over the window padded by
+    ``half``: a single pixel for most stars, and the clipped core and its column bleed for
+    a saturated one.  It is such a core when it is at least as long as the box
+    (``2 * half + 1`` pixels) along one axis and no wider than the box along the other,
+    the candidate lies on it or beside it (the response peaks at a core's edge), and it
+    stands on a steep wall: the median of the pixels bordering it lies at least
+    ``_FLAT_TOP_WALL`` times ``tolerance_dn`` below its brightest pixel.  A smooth bright
+    region (a ring, a limb, a saturated body) is flat within the tolerance over larger
+    areas, but slopes away gently or is wider than a star in both axes; a core that
+    another source's box only catches at its edge is that source's, not the candidate's.
+    The brightest pixel of the box must stand that far above the box's median before the
+    flat top is grown at all, which skips the search around every faint peak.
+
+    Parameters:
+        image_ext: 2-D extfov image array.
+        peak_v: Row of the candidate.
+        peak_u: Column of the candidate.
+        half: Centroid-box half-width in pixels.
+        tolerance_dn: Largest step below the brightest pixel that is still the flat top.
+        bounds: ``(v_lo, v_hi, u_lo, u_hi)`` of the search window.
+
+    Returns:
+        ``None`` when the candidate's box holds no such clipped core;
+        ``False`` when it does and the core reaches the edge of the padded window, so it
+        is no point source of the window; otherwise ``(v_lo, v_hi, u_lo, u_hi)``, upper
+        bounds exclusive, of the core padded by ``half`` on every side and clamped to the
+        image.
+    """
+    h, w = image_ext.shape
+    side = 2 * half + 1
+    box_v_lo, box_u_lo = max(0, peak_v - half), max(0, peak_u - half)
+    box = _box(image_ext, peak_v, peak_u, half)
+    top = float(box.max())
+    if top - float(np.median(box)) < _FLAT_TOP_WALL * tolerance_dn:
+        return None
+    bv, bu = (int(x) for x in np.unravel_index(int(np.argmax(box)), box.shape))
+    v_lo, v_hi, u_lo, u_hi = bounds
+    r_v_lo, r_v_hi = max(0, v_lo - half), min(h, v_hi + half)
+    r_u_lo, r_u_hi = max(0, u_lo - half), min(w, u_hi + half)
+    region = np.asarray(image_ext[r_v_lo:r_v_hi, r_u_lo:r_u_hi])
+    labels, _count = label(region >= top - tolerance_dn)
+    flat = labels == labels[box_v_lo + bv - r_v_lo, box_u_lo + bu - r_u_lo]
+    rows, cols = np.nonzero(flat)
+    f_v_lo, f_v_hi = int(rows.min()), int(rows.max())
+    f_u_lo, f_u_hi = int(cols.min()), int(cols.max())
+    extents = sorted((f_v_hi - f_v_lo + 1, f_u_hi - f_u_lo + 1))
+    cand_v, cand_u = peak_v - r_v_lo, peak_u - r_u_lo
+    off_core = max(f_v_lo - cand_v, cand_v - f_v_hi, f_u_lo - cand_u, cand_u - f_u_hi) > 1
+    if extents[1] < side or extents[0] > side or off_core:
+        return None
+    wall = binary_dilation(flat) & ~flat
+    if top - float(np.median(region[wall])) < _FLAT_TOP_WALL * tolerance_dn:
+        return None
+    if f_v_lo == 0 or f_u_lo == 0 or f_v_hi == flat.shape[0] - 1 or f_u_hi == flat.shape[1] - 1:
+        return False
+    return (
+        max(0, f_v_lo + r_v_lo - half),
+        min(h, f_v_hi + r_v_lo + half + 1),
+        max(0, f_u_lo + r_u_lo - half),
+        min(w, f_u_hi + r_u_lo + half + 1),
+    )
 
 
 def _recentered_centroid(
@@ -648,6 +748,7 @@ def _recentered_centroid(
     *,
     half: int,
     bounds: tuple[int, int, int, int],
+    flat_tolerance_dn: float,
 ) -> tuple[float, float] | None:
     """Return a candidate's centroid, its box re-centered until it stops moving.
 
@@ -656,18 +757,40 @@ def _recentered_centroid(
     the candidate, or whose center leaves the window, has left the candidate for another
     source, and the candidate has no centroid.
 
+    A saturated star's clipped core, with its column bleed, is a flat top that can be
+    longer than the box.  Re-centering has no single resting place on it: a box wholly on
+    the flat top is centered on its own centroid wherever it lies, so the box stops a
+    half-width in from the end it started at.  When the candidate's box holds such a
+    core (:func:`_flat_top_region`), the centroid is instead measured over the core padded
+    by the box's half-width on every side; when the core reaches the edge of the window
+    padded by that half-width, or that centroid lies outside the window, the candidate is
+    no point source of the window and has none.
+
     Parameters:
         image_ext: 2-D extfov image array.
         peak_v: Row of the candidate's response peak.
         peak_u: Column of the candidate's response peak.
         half: Centroid-box half-width in pixels.
         bounds: ``(v_lo, v_hi, u_lo, u_hi)`` of the search window.
+        flat_tolerance_dn: Largest step below the brightest pixel of the candidate's box
+            that is still its flat top.
 
     Returns:
-        The ``(v, u)`` centroid, or ``None`` when the box finds nothing above its median
-        or walks away.
+        The ``(v, u)`` centroid, or ``None`` when the box finds nothing above its median,
+        walks away, or holds a clipped core that is no point source of the window.
     """
     v_lo, v_hi, u_lo, u_hi = bounds
+    flat = _flat_top_region(
+        image_ext, peak_v, peak_u, half=half, tolerance_dn=flat_tolerance_dn, bounds=bounds
+    )
+    if flat is False:
+        return None
+    if isinstance(flat, tuple):
+        centroid = _region_centroid(image_ext, flat)
+        if centroid is None:
+            return None
+        cv, cu = math.floor(centroid[0] + 0.5), math.floor(centroid[1] + 0.5)
+        return centroid if v_lo <= cv < v_hi and u_lo <= cu < u_hi else None
     start_v, start_u = peak_v, peak_u
     centroid = _box_centroid(image_ext, peak_v, peak_u, half)
     for _ in range(_MAX_RECENTER):
@@ -775,7 +898,14 @@ def window_sources(
             detection_sigma=detection_sigma,
         ):
             continue
-        centroid = _recentered_centroid(image_ext, peak_v, peak_u, half=half, bounds=bounds)
+        centroid = _recentered_centroid(
+            image_ext,
+            peak_v,
+            peak_u,
+            half=half,
+            bounds=bounds,
+            flat_tolerance_dn=detection_sigma * image_noise_sigma,
+        )
         if centroid is None:
             continue
         if any(

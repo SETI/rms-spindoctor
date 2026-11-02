@@ -9,12 +9,11 @@ exposure_sec: 1.0
 # Five clean stars plus one very bright star (F5, vmag -1.0) whose core drives
 # the coiss_nac well past full scale; instrument_defaults switches on the
 # physical signal chain, so the bright core clips and blooms.  The clipped core
-# biases F5's centroid, and the six-star similarity fit carries that bias into
-# the recovered offset -- yet the navigation still succeeds at the high tier and
-# recovers the planted offset inside a tolerance that absorbs the bias.
-# Measured recovered-vs-planted error at this geometry and seed: ~0.67 px
-# under the cohort-tuned coiss_nac PSF kernel (dominated by the clipped-core
-# centroid shift on F5); the test tolerance is 1.0 px.
+# leaves a flat top longer than the centroid box.  The star techniques centroid
+# F5 over its whole flat top, so the navigation succeeds and recovers the planted
+# offset to about 0.03 px (the test tolerance is 1.0 px).  The three star
+# techniques measure the same stars, so they count as one witness and the tier
+# is medium.
 artifacts:
   instrument_defaults: true
 bodies: []
@@ -33,4 +32,4 @@ offset_u: -0.61
 offset_rotation_deg: 0.0
 expected:
   status: success
-  confidence_tier: high
+  confidence_tier: medium
