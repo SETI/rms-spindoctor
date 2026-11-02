@@ -1270,18 +1270,6 @@ class NavModelBody(NavModelBodyBase):
             return float('inf')
         return shape.ellipsoid_rms_residual_km / self._km_per_pixel_at_limb
 
-    def _blob_max_overflow_fraction(self) -> float:
-        """Return the configured maximum overflow fraction for BODY_BLOB emission."""
-        return float(self._config.bodies.blob_max_overflow_fraction)
-
-    def _blob_overflow_ok(self) -> bool:
-        """Return True when the silhouette overflow permits BODY_BLOB emission.
-
-        The overflow fraction must be at or below the ``bodies`` configuration value
-        ``blob_max_overflow_fraction``.  A NaN on either side withholds the blob.
-        """
-        return self._overflow_fraction <= self._blob_max_overflow_fraction()
-
     def _should_emit_disc(self, limb_arc_emitted: bool) -> bool:
         """Return True when BODY_DISC should be emitted alongside other features."""
         if not limb_arc_emitted:
