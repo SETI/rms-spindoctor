@@ -35,8 +35,10 @@ from spindoctor.sim.scene_checks import (
 )
 from spindoctor.sim.scene_schema import (
     _BODY_IDEALIZED_KEYS,
+    ELLIPSOID_UNSUPPORTED_KEYS,
     MESH_UNSUPPORTED_KEYS,
     SimSceneValidationError,
+    ellipsoid_unsupported_message,
     mesh_unsupported_message,
 )
 
@@ -87,6 +89,12 @@ def _check_body_object(obj: dict[str, Any], *, index: int, source: str) -> None:
         if unsupported:
             raise SimSceneValidationError(
                 f'{source}: {label}: {mesh_unsupported_message(unsupported)}'
+            )
+    else:
+        unsupported = [key for key in ELLIPSOID_UNSUPPORTED_KEYS if obj.get(key) is not None]
+        if unsupported:
+            raise SimSceneValidationError(
+                f'{source}: {label}: {ellipsoid_unsupported_message(unsupported)}'
             )
     for key in (
         'center_v',
@@ -280,8 +288,9 @@ def _check_body_relief_and_photometry(obj: dict[str, Any], *, label: str, source
     )
 
 
-# The exponential haze layer: scale height and reference-altitude tangent
-# optical depth (both required and positive) define the column; the
+# The exponential haze layer: scale height (required, positive) and
+# reference-altitude tangent optical depth (required, non-negative; zero is a
+# clear atmosphere that leaves the limb hard) define the column; the
 # reference altitude, the Henyey-Greenstein asymmetry (forward-scattering
 # when positive), and an optional detached-shell altitude are optional.  The
 # structure keys folded in from the forward model break the column's mirror
@@ -328,7 +337,7 @@ def _check_atmosphere(value: Any, *, label: str, source: str) -> None:
     _check_optional_positive_number(
         value.get('scale_height_px'), f'{label}.atmosphere.scale_height_px', source=source
     )
-    _check_optional_positive_number(
+    _check_optional_nonnegative_number(
         value.get('tau_ref'), f'{label}.atmosphere.tau_ref', source=source
     )
     _check_optional_nonnegative_number(
