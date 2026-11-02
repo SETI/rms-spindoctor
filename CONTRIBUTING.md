@@ -113,13 +113,17 @@ We use pytest for testing. To run the tests:
 pytest
 ```
 
-The default `addopts = ["-m", "not integration"]` skips integration
-tests (they need real PDS3 holdings + SPICE kernels and are slow).
+The default `addopts = ["-m", "not integration and not postgres"]` skips
+integration tests (most need real PDS3 holdings + SPICE kernels and are
+slow). The simulator integration tests, which also carry the
+`sim_integration` marker, need no external data, and CI runs them on
+every pull request.
 To include them, override the marker filter:
 
 ```bash
 pytest -m ""              # full suite, including integration
 pytest -m integration     # only integration
+pytest -m sim_integration # only the simulator integration tests
 ```
 
 `scripts/run-all-checks.sh -i` (or `--integration`) does the same for

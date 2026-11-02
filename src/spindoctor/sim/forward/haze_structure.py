@@ -24,7 +24,8 @@ through ``nav_params``:
   of the equatorial blend band described below, and only where the scaled
   half stays below saturation;
 - ``interior_ramp_amplitude`` adds a linear brightness ramp along the haze
-  axis inside the disc, the seasonal north-south gradient;
+  illumination axis inside the disc, brighter at the sunward limb and darker at
+  the anti-sunward one (a north-south difference is ``ns_asymmetry_amplitude``);
 - ``cloud_blobs`` add Gaussian clouds on the disc.
 
 Every field is optional and the whole module is bypassed when a body's
@@ -81,6 +82,7 @@ from typing import Any
 
 import numpy as np
 
+from spindoctor.support.stable_math import stable_hypot
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 
 __all__ = [
@@ -432,7 +434,7 @@ def scale_height_field(
             raise ValueError('ns_falloff_ratio needs the hemisphere weight')
         factor = 1.0 + (structure.ns_falloff_ratio - 1.0) * weight
     if structure.sector_sharpness_gradient != 0.0:
-        rho = np.maximum(np.hypot(v_ctr, u_ctr), 1e-9)
+        rho = np.maximum(stable_hypot(v_ctr, u_ctr), 1e-9)
         cos_phi = np.clip((v_ctr * illum_v + u_ctr * illum_u) / rho, -1.0, 1.0)
         angle = np.arccos(cos_phi)
         reference = math.radians(SECTOR_REFERENCE_HALF_ANGLE_DEG)
@@ -501,7 +503,7 @@ def apply_disc_structure(
 
     Both are painted only where the disc render already painted, so neither
     can create light outside the silhouette (a cloud is on the body, and the
-    seasonal ramp is a property of the illuminated disc).  The result is
+    sunward ramp is a property of the illuminated disc).  The result is
     clipped back into the [0, 1] signal plane.
 
     Parameters:

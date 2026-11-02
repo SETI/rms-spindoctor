@@ -113,6 +113,9 @@ def apply_telemetry(
     # The commanded truth window is resolved first so both compression and
     # missing_blocks can leave it clean.
     protect = _resolve_truth_window(artifacts, frame.signal.shape, random_seed, records)
+    # A calibrated frame holds I/F; the modes that act on the transmitted DN map
+    # it back first (None on a raw-DN frame).
+    calibration = calibration_map(resolve_detector_params(params))
 
     # Sub-stage 1: lossy DCT compression, on the transmitted signal before any
     # packet loss (a lossy codec compresses, then packets drop).  A calibrated
@@ -124,7 +127,6 @@ def apply_telemetry(
             continue
         cfg = resolve_mode_with_catalog(mode_name, raw_cfg, instrument)
         mode_rng = np.random.default_rng(derive_effect_seed(random_seed, f'telemetry/{mode_name}'))
-        calibration = calibration_map(resolve_detector_params(params))
         records[mode_name] = apply_compression_dct(
             frame.signal, cfg, rng=mode_rng, protect=protect, calibration=calibration
         )
@@ -141,6 +143,7 @@ def apply_telemetry(
             cfg,
             marker_dn=marker_dn,
             dn_ceiling=dn_ceiling,
+            calibration=calibration,
             rng=mode_rng,
             loci=loci,
             adversarial=adversarial,

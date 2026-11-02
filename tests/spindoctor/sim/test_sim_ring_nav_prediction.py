@@ -281,12 +281,16 @@ def test_ringlet_emits_annulus_template_and_two_edges() -> None:
     assert float(annulus.template_img.max()) == 1.0
 
 
-def test_declared_orbit_sigma_raises_the_radial_sigma() -> None:
-    """declared_orbit_sigma widens the per-vertex radial error bars."""
-    features = _nav_features(
-        _obs(_scene(_ringlet(declared_orbit_sigma={'sigma_a_px': 2.0, 'sigma_ae_px': 0.5})))
-    )
-    edge = next(f for f in features if f.feature_type.name == 'RING_EDGE')
-    geometry = edge.geometry
-    assert isinstance(geometry, RingEdgePolyline)
-    assert float(geometry.sigma_radial_per_vertex_px[0]) == 2.5
+def test_declared_orbit_sigma_shrinks_where_the_ring_is_foreshortened() -> None:
+    """On a ring opened 35 degrees a declared sigma_a is image-plane at every vertex.
+
+    Along the line of nodes a radial error moves the edge its full size; across
+    it the projection shrinks the move by sin(35 deg), and so does the sigma.
+    """
+    features = _nav_features(_obs(_scene(_ringlet(declared_orbit_sigma={'sigma_a_px': 3.0}))))
+    edges = [
+        cast(RingEdgePolyline, f.geometry) for f in features if f.feature_type.name == 'RING_EDGE'
+    ]
+    sigmas = np.concatenate([g.sigma_radial_per_vertex_px for g in edges])
+    assert float(sigmas.max()) == pytest.approx(3.0, rel=0.02)
+    assert float(sigmas.min()) == pytest.approx(3.0 * np.sin(np.radians(35.0)), rel=0.02)

@@ -179,6 +179,7 @@ postgres"]``, so a plain ``pytest`` runs the default tier alone; pass ``-m ""``
    pytest                                      # default tier (fast)
    pytest -m ""                                # full suite, every tier
    pytest -m integration                       # only integration
+   pytest -m sim_integration                   # only its simulator tests
    pytest -m postgres                          # only the postgres tier
    pytest -n 4 --dist=loadfile                 # parallel
    pytest tests/spindoctor/reproj/test_bodies.py      # one file
@@ -211,9 +212,9 @@ Test markers and layout
 - Unit tests live under ``tests/spindoctor/`` and mirror ``src/spindoctor/`` directory by
   directory (``tests/spindoctor/reproj/test_bodies.py`` ↔ ``src/spindoctor/reproj/bodies.py``).
 - Integration tests live under ``tests/integration/`` and carry the
-  ``integration`` marker. Two sub-layers: the structural-invariants test
-  (fast, no holdings needed) and the per-image regression test (slow, needs
-  holdings).
+  ``integration`` marker. Two sub-layers: the per-image regression test (slow,
+  needs holdings), and the simulator tests, which need no holdings and also
+  carry the ``sim_integration`` marker that CI runs.
 - The image library (operator-curated regression cohort) lives at
   ``tests/integration/image_library/``. See :doc:`dev_guide_image_library`
   for the calibration workflow, sidecar schema, and baseline tooling.
@@ -275,8 +276,8 @@ GitHub Actions defines three workflows under ``.github/workflows/``:
 
   - **Lint** — Python 3.13. ``ruff check``, ``ruff format --check``, ``mypy``.
   - **Test** — matrix across Python 3.11 / 3.12 / 3.13 / 3.14 on Ubuntu. Runs
-    ``pytest -m "not integration and not postgres" -n auto --dist=loadfile``
-    with the holdings / catalog env vars exported. The PDS3 index files the
+    ``pytest -m "(not integration or sim_integration) and not postgres" -n auto
+    --dist=loadfile`` with the holdings / catalog env vars exported. The PDS3 index files the
     dataset tests download from the archive are kept between runs with
     ``actions/cache`` (``FILECACHE_CACHE_ROOT`` points the navigator's
     ``nav_pds3_index`` file cache at the cached directory), so a run downloads
@@ -285,11 +286,14 @@ GitHub Actions defines three workflows under ``.github/workflows/``:
     reasons).
   - **Docs** — ``sphinx-build -W`` against the ``[docs]`` extra.
 
-  Both opt-in tiers are excluded in CI, and the marker expression restates the
-  exclusion that ``addopts`` already carries, because a ``-m`` flag replaces
-  that expression rather than adding to it. The integration tier — of which the
-  operator-curated image-library regression tests are one part — needs real
-  PDS3 holdings, SPICE kernels and the star catalogs, and is slow. The postgres
+  Both opt-in tiers are excluded in CI, apart from the integration tier's
+  ``sim_integration`` tests. The marker expression restates the exclusion that
+  ``addopts`` already carries, because a ``-m`` flag replaces that expression
+  rather than adding to it. The simulator tests render and navigate simulated
+  frames alone, so CI runs them on every pull request; the rest of the
+  integration tier — of which the operator-curated image-library regression
+  tests are one part — needs real PDS3 holdings, SPICE kernels and the star
+  catalogs, and is slow. The postgres
   tier needs a server named by ``SPINDOCTOR_TEST_POSTGRES_URL``, and CI runs no
   service container for one. Maintainers run both locally before merging
   anything that could plausibly regress navigation accuracy or the index.
