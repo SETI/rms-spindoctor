@@ -407,6 +407,12 @@ def test_null_noise_keys_show_the_panel_defaults(model: Any) -> None:
     assert shown == (True, 4.0, 0.0, 0.0, 20.0, 0, 0.5)
 
 
+def test_null_body_and_star_lists_load_as_empty(model: Any) -> None:
+    """A loaded scene with null bodies and stars opens with neither, as the renderer reads it."""
+    model._apply_params_dict({'instrument': 'coiss_nac', 'bodies': None, 'stars': None})
+    assert (model.sim_params['bodies'], model.sim_params['stars']) == ([], [])
+
+
 # ---- Registry-driven artifact-mode rows ----
 
 

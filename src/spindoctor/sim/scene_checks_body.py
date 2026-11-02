@@ -35,8 +35,10 @@ from spindoctor.sim.scene_checks import (
 )
 from spindoctor.sim.scene_schema import (
     _BODY_IDEALIZED_KEYS,
+    ELLIPSOID_UNSUPPORTED_KEYS,
     MESH_UNSUPPORTED_KEYS,
     SimSceneValidationError,
+    ellipsoid_unsupported_message,
     mesh_unsupported_message,
 )
 
@@ -87,6 +89,12 @@ def _check_body_object(obj: dict[str, Any], *, index: int, source: str) -> None:
         if unsupported:
             raise SimSceneValidationError(
                 f'{source}: {label}: {mesh_unsupported_message(unsupported)}'
+            )
+    else:
+        unsupported = [key for key in ELLIPSOID_UNSUPPORTED_KEYS if obj.get(key) is not None]
+        if unsupported:
+            raise SimSceneValidationError(
+                f'{source}: {label}: {ellipsoid_unsupported_message(unsupported)}'
             )
     for key in (
         'center_v',
