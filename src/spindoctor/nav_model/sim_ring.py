@@ -19,12 +19,13 @@ catalog edge with outward radial normals for the distance-transform fit.
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any, cast
 
 import numpy as np
 
 from spindoctor.sim.ring_geometry import (
+    RingOrbit,
     compute_antialiasing_shade,
     compute_orbit_radii,
     ring_orbit_from_mapping,
@@ -40,6 +41,13 @@ __all__ = [
     'predict_ring_feature',
 ]
 
+# Half-steps of the central differences that measure an edge's sensitivity to
+# its orbit elements (semimajor axis and radial amplitude in pixels, pericenter
+# longitude in degrees): small next to any declared sigma, large enough that the
+# radius difference stays well above float64 rounding.
+_ORBIT_STEP_PX = 1e-3
+_LONG_PERI_STEP_DEG = 1e-3
+
 
 @dataclass(frozen=True)
 class PredictedRingEdge:
@@ -52,12 +60,22 @@ class PredictedRingEdge:
         vertices_vu: ``(N, 2)`` border-pixel positions.
         normals_vu: ``(N, 2)`` unit normals pointing radially outward in the
             ring plane (the direction of increasing ring radius on the sky).
+        orbit_partials_px: ``(N, 3)`` image-plane distance each vertex moves
+            along its normal per unit change of the orbit's semimajor axis (px
+            per px), radial amplitude ``ae`` (px per px), and mode-1 pericenter
+            longitude (px per radian).  Each column is the derivative of the
+            exact orbit radius divided by the gradient magnitude of the signed
+            distance field at the vertex, which is how far the edge's zero
+            level moves along the normal, so on a face-on circular ring it is
+            about ``(1, -cos(lam - peri), -ae sin(lam - peri))``, and an
+            inclined ring's foreshortening shrinks it.
     """
 
     edge_type: str
     mask: NDArrayBoolType
     vertices_vu: NDArrayFloatType
     normals_vu: NDArrayFloatType
+    orbit_partials_px: NDArrayFloatType
 
 
 @dataclass(frozen=True)
@@ -102,17 +120,77 @@ def _border_from_signed_distance(diff: NDArrayFloatType) -> NDArrayBoolType:
     return border
 
 
-def _edge_from_diff(diff: NDArrayFloatType, edge_type: str) -> PredictedRingEdge:
+def _orbit_partials(
+    lam: NDArrayFloatType, orbit: RingOrbit, *, epoch: float, time: float
+) -> NDArrayFloatType:
+    """The derivatives of an orbit's radius with respect to its mode-1 elements.
+
+    Central differences of :func:`compute_orbit_radii` over the semimajor axis,
+    the radial amplitude ``ae``, and the pericenter longitude, so they follow the
+    exact conic and the full orbit model; the m >= 2 modes and the edge wave keep
+    their own amplitudes and longitudes.  The axis and amplitude step shrinks on a
+    nearly parabolic orbit so neither side of the difference reaches ``e = 1``.
+
+    Parameters:
+        lam: Ring-plane longitudes from the ascending node, in radians.
+        orbit: The edge's orbit.
+        epoch: Ring epoch in TDB seconds.
+        time: Scene time in TDB seconds.
+
+    Returns:
+        An ``(N, 3)`` array: the derivatives with respect to ``a`` and ``ae``
+        (radial unit per radial unit) and to the pericenter longitude (radial
+        unit per radian).
+    """
+    step = min(_ORBIT_STEP_PX, 0.25 * (orbit.a - orbit.ae))
+    peri_step = _LONG_PERI_STEP_DEG
+    pairs = (
+        (replace(orbit, a=orbit.a + step), replace(orbit, a=orbit.a - step), 2.0 * step),
+        (replace(orbit, ae=orbit.ae + step), replace(orbit, ae=orbit.ae - step), 2.0 * step),
+        (
+            replace(orbit, long_peri=orbit.long_peri + peri_step),
+            replace(orbit, long_peri=orbit.long_peri - peri_step),
+            2.0 * math.radians(peri_step),
+        ),
+    )
+    columns = [
+        (
+            compute_orbit_radii(lam, ahead, epoch=epoch, time=time)
+            - compute_orbit_radii(lam, behind, epoch=epoch, time=time)
+        )
+        / span
+        for ahead, behind, span in pairs
+    ]
+    result: NDArrayFloatType = np.stack(columns, axis=1)
+    return result
+
+
+def _edge_from_diff(
+    diff: NDArrayFloatType,
+    edge_type: str,
+    *,
+    lam: NDArrayFloatType,
+    orbit: RingOrbit,
+    epoch: float,
+    time: float,
+) -> PredictedRingEdge:
     """Build a predicted edge (border mask, vertices, outward normals).
 
     The normal at each border pixel is the normalized gradient of the
     signed radial distance field: the sky-plane direction of increasing
     ring-plane radius, which is the outward radial direction however the
-    projection foreshortens the edge.
+    projection foreshortens the edge.  A change ``dr`` in the edge radius
+    moves the field's zero level by ``dr / |grad|`` along that normal, so the
+    same gradient magnitude converts the orbit partials to image pixels.
 
     Parameters:
         diff: Per-pixel ``r - r_edge(lam)`` signed distance field.
         edge_type: The edge label ('inner' / 'outer' / 'edge').
+        lam: Per-pixel ring-plane longitudes, in radians.
+        orbit: The edge's orbit, for its sensitivity to its elements at each
+            vertex.
+        epoch: Ring epoch in TDB seconds.
+        time: Scene time in TDB seconds.
 
     Returns:
         The predicted edge.
@@ -121,7 +199,11 @@ def _edge_from_diff(diff: NDArrayFloatType, edge_type: str) -> PredictedRingEdge
     if not mask.any():
         empty: NDArrayFloatType = np.empty((0, 2), dtype=np.float64)
         return PredictedRingEdge(
-            edge_type=edge_type, mask=mask, vertices_vu=empty, normals_vu=empty
+            edge_type=edge_type,
+            mask=mask,
+            vertices_vu=empty,
+            normals_vu=empty,
+            orbit_partials_px=np.empty((0, 3), dtype=np.float64),
         )
     grads = np.gradient(diff)
     grad_v = cast(NDArrayFloatType, grads[0])
@@ -132,8 +214,13 @@ def _edge_from_diff(diff: NDArrayFloatType, edge_type: str) -> PredictedRingEdge
     norms = np.hypot(normals[:, 0], normals[:, 1])
     norms[norms == 0.0] = 1.0
     normals_vu = normals / norms[:, None]
+    partials = _orbit_partials(lam[vs, us], orbit, epoch=epoch, time=time) / norms[:, None]
     return PredictedRingEdge(
-        edge_type=edge_type, mask=mask, vertices_vu=vertices_vu, normals_vu=normals_vu
+        edge_type=edge_type,
+        mask=mask,
+        vertices_vu=vertices_vu,
+        normals_vu=normals_vu,
+        orbit_partials_px=partials,
     )
 
 
@@ -186,14 +273,29 @@ def predict_ring_feature(
 
     if kind in ('ringlet', 'gap'):
         width = float(feature.get('width_px', 0.0))
-        r_outer = compute_orbit_radii(lam, orbit.widened(width), epoch=epoch, time=time)
+        outer_orbit = orbit.widened(width)
+        r_outer = compute_orbit_radii(lam, outer_orbit, epoch=epoch, time=time)
         inner_shade = compute_antialiasing_shade((r - r_edge) / radial_scale, 1.0)
         outer_shade = compute_antialiasing_shade((r_outer - r) / radial_scale, 1.0)
         coverage = cast(NDArrayFloatType, np.minimum(inner_shade, outer_shade))
         band_mask: NDArrayBoolType = coverage > 0.0
         edges = [
-            _edge_from_diff(cast(NDArrayFloatType, r - r_edge), 'inner'),
-            _edge_from_diff(cast(NDArrayFloatType, r - r_outer), 'outer'),
+            _edge_from_diff(
+                cast(NDArrayFloatType, r - r_edge),
+                'inner',
+                lam=lam,
+                orbit=orbit,
+                epoch=epoch,
+                time=time,
+            ),
+            _edge_from_diff(
+                cast(NDArrayFloatType, r - r_outer),
+                'outer',
+                lam=lam,
+                orbit=outer_orbit,
+                epoch=epoch,
+                time=time,
+            ),
         ]
         # A gap reveals the background rather than emitting, so it carries
         # no correlation template; its edges are still fittable boundaries.
@@ -205,16 +307,27 @@ def predict_ring_feature(
         # fades into the background with no gradient to fit.
         width = float(feature.get('width_px', 0.0))
         side = str(feature.get('side', 'out'))
-        if side == 'out':
-            r_sharp = compute_orbit_radii(lam, orbit.widened(width), epoch=epoch, time=time)
-            edge_type = 'outer'
-        else:
-            r_sharp = r_edge
-            edge_type = 'inner'
-        edge = _edge_from_diff(cast(NDArrayFloatType, r - r_sharp), edge_type)
+        sharp_orbit = orbit.widened(width) if side == 'out' else orbit
+        r_sharp = compute_orbit_radii(lam, sharp_orbit, epoch=epoch, time=time)
+        edge_type = 'outer' if side == 'out' else 'inner'
+        edge = _edge_from_diff(
+            cast(NDArrayFloatType, r - r_sharp),
+            edge_type,
+            lam=lam,
+            orbit=sharp_orbit,
+            epoch=epoch,
+            time=time,
+        )
         return PredictedRingFeature(template=None, mask=edge.mask, edges=[edge])
 
     # 'edge' (a one-sided step) and 'wave' (a train launched at the orbit
     # radius) each predict the single catalog boundary.
-    edge = _edge_from_diff(cast(NDArrayFloatType, r - r_edge), 'edge')
+    edge = _edge_from_diff(
+        cast(NDArrayFloatType, r - r_edge),
+        'edge',
+        lam=lam,
+        orbit=orbit,
+        epoch=epoch,
+        time=time,
+    )
     return PredictedRingFeature(template=None, mask=edge.mask, edges=[edge])

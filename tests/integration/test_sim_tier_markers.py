@@ -3,8 +3,9 @@
 CI runs the ``sim_integration`` tests and skips the rest of the integration tier,
 which needs archive holdings.  A simulator module (``test_sim_*.py`` or
 ``test_render_diffs.py``) needs none, so one marked ``integration`` without
-``sim_integration`` would drop out of CI unnoticed.  The performance budgets are
-the one exception, because they need a quiet host.
+``sim_integration`` would drop out of CI unnoticed.  Two modules are the
+exceptions: the performance budgets, because they need a quiet host, and the
+realism smoke, because it reads real frames.
 """
 
 from __future__ import annotations
@@ -16,6 +17,9 @@ _INTEGRATION_DIR = Path(__file__).parent
 
 _QUIET_HOST_MODULES: frozenset[str] = frozenset({'test_sim_perf.py'})
 """Simulator modules kept out of CI because they time themselves."""
+
+_REAL_DATA_MODULES: frozenset[str] = frozenset({'test_sim_realism_smoke.py'})
+"""Simulator modules kept out of CI because they read archive holdings and SPICE."""
 
 
 def _module_marks(path: Path) -> set[str]:
@@ -64,7 +68,7 @@ def test_integration_marked_simulator_tests_also_run_in_ci() -> None:
     missing = [
         item
         for p in _simulator_modules()
-        if p.name not in _QUIET_HOST_MODULES
+        if p.name not in _QUIET_HOST_MODULES | _REAL_DATA_MODULES
         for item in _items_missing_the_ci_mark(p)
     ]
     assert missing == []
@@ -73,4 +77,10 @@ def test_integration_marked_simulator_tests_also_run_in_ci() -> None:
 def test_the_performance_budgets_stay_out_of_ci() -> None:
     """The performance budgets are integration-only, so CI's shared runners skip them."""
     marks = _module_marks(_INTEGRATION_DIR / 'test_sim_perf.py')
+    assert marks == {'integration'}
+
+
+def test_the_real_frame_realism_smoke_stays_out_of_ci() -> None:
+    """The realism smoke reads real frames, so it is integration-only."""
+    marks = _module_marks(_INTEGRATION_DIR / 'test_sim_realism_smoke.py')
     assert marks == {'integration'}

@@ -24,7 +24,8 @@ through ``nav_params``:
   of the equatorial blend band described below, and only where the scaled
   half stays below saturation;
 - ``interior_ramp_amplitude`` adds a linear brightness ramp along the haze
-  axis inside the disc, the seasonal north-south gradient;
+  illumination axis inside the disc, brighter at the sunward limb and darker at
+  the anti-sunward one (a north-south difference is ``ns_asymmetry_amplitude``);
 - ``cloud_blobs`` add Gaussian clouds on the disc.
 
 Every field is optional and the whole module is bypassed when a body's
@@ -502,7 +503,7 @@ def apply_disc_structure(
 
     Both are painted only where the disc render already painted, so neither
     can create light outside the silhouette (a cloud is on the body, and the
-    seasonal ramp is a property of the illuminated disc).  The result is
+    sunward ramp is a property of the illuminated disc).  The result is
     clipped back into the [0, 1] signal plane.
 
     Parameters:

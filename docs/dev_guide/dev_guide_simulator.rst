@@ -532,7 +532,16 @@ texture in I/F units. The chain's DN ceiling, the lower of the full well and the
 ADC clip, applies before the inverse, so a calibrated frame has an I/F ceiling as
 well: about 2.0 for ``coiss_calib_nac`` at the reference exposure, and 1.85 for
 ``vgiss`` at any exposure. The navigator applies no saturation test to an I/F
-frame of either kind.
+frame of either kind. The telemetry modes that act on transmitted DN work the same
+way on a calibrated frame. The lossy codec, ``line_garble``, and ``pixel_spikes``
+map the I/F back to DN, alter it there, and write the result as I/F. A bit-flip
+spike is capped at the ADC word: on ``vgiss`` that is 255 DN, which calibrates to
+1.85 I/F. A garbled line and a uniform spike draw up to the
+frame's peak, or the ADC word when that is higher. The codec doesn't clip what it
+rebuilds, so a saturated block can come back above the word, and a garbled line or
+a uniform spike drawn after it can follow it there. A calibrated value that lands
+exactly on the 0 I/F marker moves to the next float above it, as the calibration
+inverse does.
 
 The inverse subtracts the bias and dark pedestals, which would put a noise-free
 dark sky at exactly 0 I/F, the marker. A real calibrated product's dark sky keeps
@@ -1055,6 +1064,14 @@ switch is off or absent. Purely periodic or commanded shapes (``alternating_line
 the frame-level edits) ignore the switch: their geometry is fixed once active.
 The switch is one scene-level flag, so a scene is either adversarial for all its
 modes or none.
+
+The per-pixel modes (``pixel_spikes`` and ``dead_pixels``) draw distinct pixels,
+uniform or adversarial. An adversarial draw weights each pixel by the number of
+feature pixels within 3 px of it. Those are the odds of picking a feature pixel,
+then jittering it, and the draw is without replacement. The neighborhood can be small, such as a
+lone star's 49 pixels, and a draw asking for more pixels than it holds plants each
+of them once. The truth record then lists that smaller set, and
+:func:`~spindoctor.sim.forward.incidence.planted_incidence` counts it.
 
 Truth bookkeeping and the planted-versus-measured match
 -------------------------------------------------------
@@ -1720,8 +1737,11 @@ render-level test asserting the effect is measurably present:
        detected limb ridge radially as a function of ray angle -- the
        sector-asymmetric edge-localization bias.
    * - ``interior_ramp_amplitude``
-     - Adds a linear brightness ramp along the haze axis inside the disc, the
-       seasonal north-south gradient.
+     - Adds a linear brightness ramp along the haze illumination axis inside the
+       disc: ``+amplitude`` at the sunward limb, ``-amplitude`` at the
+       anti-sunward one. In the committed Titan geometry, where the sun lies
+       perpendicular to the polar axis, the ramp runs east to west. The
+       north-south difference is a separate key, ``ns_asymmetry_amplitude``.
    * - ``cloud_blobs``
      - Adds Gaussian clouds on the disc, each ``{center_vu, sigma_px,
        amplitude}``.
@@ -3651,9 +3671,13 @@ the recorded 2026-07-17/18 runs); the cost is dominated by the
 navigator's feature extraction on the real frames and the full-size
 matched renders.  ``--skip-fom7`` saves about 17% -- the navigation
 pairs are a handful of frames per instrument, not a large share of the
-cost.  ``tests/integration/test_sim_realism.py`` carries
-the integration-tier tests: matched-scene validity per instrument,
-sim-side determinism, and an end-to-end smoke on the smallest cohort.
+cost.  ``tests/integration/test_sim_realism.py`` carries the
+``sim_integration`` tests, which the default selection runs. They check that the
+matched scenes are valid for every instrument and that the sim side is
+deterministic.
+``tests/integration/test_sim_realism_smoke.py`` carries the end-to-end smoke on
+the smallest cohort. It reads real frames and carries only the ``integration``
+marker.
 
 The per-instrument match quality, the figures, and the known-gaps list
 live in the simulator report's realism section

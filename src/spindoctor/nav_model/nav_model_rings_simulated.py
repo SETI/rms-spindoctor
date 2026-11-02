@@ -33,7 +33,11 @@ from spindoctor.feature.flags import RingAnnulusFlags, RingEdgeFlags
 from spindoctor.feature.geometry import RingAnnulusGeometry, RingEdgePolyline
 from spindoctor.nav_model.nav_model import NavModel
 from spindoctor.nav_model.nav_model_rings_base import NavModelRingsBase
-from spindoctor.nav_model.sim_ring import PredictedRingFeature, predict_ring_feature
+from spindoctor.nav_model.sim_ring import (
+    PredictedRingEdge,
+    PredictedRingFeature,
+    predict_ring_feature,
+)
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 from spindoctor.support.filters import NavFilterKind, NavFilterSpec
 from spindoctor.support.time import now_dt
@@ -236,47 +240,76 @@ class NavModelRingsSimulated(NavModelRingsBase):
             ext_margin_u + data_size_u,
         )
 
-    def _declared_orbit_sigma_px(self) -> float:
-        """The declared 1-sigma radial orbit uncertainty of this feature.
-
-        For ``r ~ a (1 - e cos(theta - peri))`` the radial displacement from
-        independent semimajor-axis and radial-amplitude errors is
-        ``delta_a - delta(ae) cos(theta - peri)``, so the two declared sigmas
-        combine in QUADRATURE: ``sqrt(sigma_a**2 + sigma_ae**2)`` is the
-        1-sigma at the longitude where the eccentric term is fully in phase,
-        i.e. the max-over-longitude 1-sigma envelope.  Adding them linearly
-        (the earlier form) overstates that envelope by up to ``sqrt(2)``, and
-        the value is squared straight into a tier-gating covariance, so the
-        linear form doubled the variance at equal terms.
+    def _declared_sigmas(self) -> NDArrayFloatType:
+        """The declared 1-sigma orbit uncertainties of this feature.
 
         Returns:
-            The declared sigma in pixels; ``0.0`` when the scene declares no
-            orbit uncertainty.
+            ``(sigma_a_px, sigma_ae_px, sigma_long_peri)`` with the pericenter
+            sigma in radians, ordered like a predicted edge's
+            ``orbit_partials_px`` columns.  A key the scene omits or sets to
+            null contributes zero.
         """
         sigma = self._feature_params.get('declared_orbit_sigma') or {}
-        sigma_a = float(sigma.get('sigma_a_px', 0.0))
-        sigma_ae = float(sigma.get('sigma_ae_px', 0.0))
-        return float(math.hypot(sigma_a, sigma_ae))
+        return np.array(
+            [
+                float(sigma.get('sigma_a_px') or 0.0),
+                float(sigma.get('sigma_ae_px') or 0.0),
+                math.radians(float(sigma.get('sigma_long_peri_deg') or 0.0)),
+            ],
+            dtype=np.float64,
+        )
 
-    def _declared_radial_sigma_px(self) -> float:
-        """The per-vertex radial sigma from the declared orbit uncertainty.
+    def _declared_orbit_sigma_px(self, edges: list[PredictedRingEdge]) -> float:
+        """The declared 1-sigma radial orbit uncertainty of this feature, in image pixels.
 
-        The declared semimajor-axis and radial-amplitude sigmas are summed
-        LINEARLY here, floored at the one-pixel polyline sampling resolution.
+        The semimajor-axis, radial-amplitude, and pericenter-longitude errors are
+        independent, so a vertex's 1-sigma radial displacement is the quadrature
+        sum of each sigma times the vertex's partial for that element.  For
+        ``r ~ a - ae cos(theta - peri)`` on a face-on ring that variance is
+        ``sigma_a**2 + cos**2 sigma_ae**2 + sin**2 (ae sigma_peri)**2``.  The
+        value returned is its maximum over the feature's predicted vertices, the
+        1-sigma envelope of a coherent orbit error over the visible edges.
+        Adding the terms linearly would overstate that envelope by up to
+        ``sqrt(2)``, and the value is squared straight into a tier-gating
+        covariance.
+
+        Parameters:
+            edges: The feature's predicted edges.
+
+        Returns:
+            The declared sigma in image pixels; ``0.0`` when the scene declares
+            no orbit uncertainty or no edge has vertices.
+        """
+        partials = [edge.orbit_partials_px for edge in edges if edge.vertices_vu.shape[0] > 0]
+        if not partials:
+            return 0.0
+        displacement = np.concatenate(partials, axis=0) * self._declared_sigmas()
+        return float(np.sqrt(np.sum(displacement * displacement, axis=1)).max())
+
+    def _declared_radial_sigma_px(self, edge: PredictedRingEdge) -> NDArrayFloatType:
+        """The per-vertex radial sigma of one edge from the declared orbit uncertainty.
+
+        Each vertex adds, LINEARLY, the image-plane distance each declared
+        1-sigma element error moves it: ``|dr/da| sigma_a + |dr/d(ae)| sigma_ae +
+        |dr/dperi| sigma_peri``, about ``sigma_a + |cos(theta - peri)| sigma_ae +
+        ae |sin(theta - peri)| sigma_peri`` on a face-on ring.  The sum is floored
+        at the one-pixel polyline sampling resolution.
 
         This deliberately does NOT share the quadrature combine of
         :meth:`_declared_orbit_sigma_px`, which is the coherent displacement
         bound.  This value is the per-vertex prior the robust fit weights by
-        ``1 / sigma**2``, so changing it changes the LM's inlier weighting and
-        moves the recovered offset on every scene that declares a sigma.  The
-        quadrature correction applies to the covariance term that is squared
-        into a tier gate; carrying it into the fit's weighting would be an
-        unrelated behavior change, so the two combines are kept separate and
-        this one keeps its original form.
+        ``1 / sigma**2``, so it only sets how the vertices weigh against one
+        another; the quadrature value is the one squared into a tier gate.
+
+        Parameters:
+            edge: The predicted edge whose vertices get a sigma.
+
+        Returns:
+            One radial sigma per vertex, in pixels.
         """
-        sigma = self._feature_params.get('declared_orbit_sigma') or {}
-        declared = float(sigma.get('sigma_a_px', 0.0)) + float(sigma.get('sigma_ae_px', 0.0))
-        return max(_RING_EDGE_SIGMA_RADIAL_PX, declared)
+        declared = np.sum(np.abs(edge.orbit_partials_px) * self._declared_sigmas(), axis=1)
+        result: NDArrayFloatType = np.maximum(_RING_EDGE_SIGMA_RADIAL_PX, declared)
+        return result
 
     def to_features(self, context: NavContext) -> list[NavFeature]:
         """Emit the ring features.
@@ -296,8 +329,7 @@ class NavModelRingsSimulated(NavModelRingsBase):
         if prediction is None:
             return []
         features: list[NavFeature] = []
-        sigma_radial_px = self._declared_radial_sigma_px()
-        sigma_orbit_px = self._declared_orbit_sigma_px()
+        sigma_orbit_px = self._declared_orbit_sigma_px(prediction.edges)
         if prediction.template is not None and prediction.mask.any():
             mask_vs, mask_us = np.where(prediction.mask)
             bbox = (
@@ -360,7 +392,7 @@ class NavModelRingsSimulated(NavModelRingsBase):
                     geometry=RingEdgePolyline(
                         vertices_vu=edge.vertices_vu,
                         normals_vu=edge.normals_vu,
-                        sigma_radial_per_vertex_px=np.full(n, sigma_radial_px, dtype=np.float64),
+                        sigma_radial_per_vertex_px=self._declared_radial_sigma_px(edge),
                         sigma_along_edge_per_vertex_px=np.full(
                             n, _RING_EDGE_SIGMA_ALONG_PX, dtype=np.float64
                         ),
