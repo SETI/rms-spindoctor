@@ -1678,8 +1678,12 @@ on-disc haze joins the body's opaque paint, while the above-limb glow is a
 translucent halo screen composited like the ring system's -- background,
 rings, and stars behind it show through scaled by ``exp(-tau)`` with the glow
 added, and the body's mask / depth / occlusion truth sees only the solid
-silhouette. A
-line of sight grazing the body at tangent altitude ``h`` (pixels above the
+silhouette. Where limb relief dips inside the reference ellipse, the uncovered
+pixels are sky seen through the haze column and join the halo screen. The
+halo reaches out until its glow, and its dimming of a full-scale background,
+both fall below 1e-5 of full scale, under a twentieth of a 12-bit DN. So a
+bright forward-scattering haze fades into the sky instead of ending in a step.
+A line of sight grazing the body at tangent altitude ``h`` (pixels above the
 reference radius) accumulates a tangent optical depth
 ``tau(h) = tau_ref * exp(-(h - ref_altitude_px) / scale_height_px)``, so
 ``tau_ref`` is the tangent optical depth at ``ref_altitude_px``. The emergent
