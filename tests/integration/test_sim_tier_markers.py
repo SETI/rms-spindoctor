@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import ast
 from pathlib import Path
+from typing import TypeGuard
 
 _INTEGRATION_DIR = Path(__file__).parent
 
@@ -22,39 +23,76 @@ _REAL_DATA_MODULES: frozenset[str] = frozenset({'test_sim_realism_smoke.py'})
 """Simulator modules kept out of CI because they read archive holdings and SPICE."""
 
 
-def _module_marks(path: Path) -> set[str]:
-    """Return the marker names a module's ``pytestmark`` assignment applies."""
-    tree = ast.parse(path.read_text(encoding='utf-8'))
-    for node in tree.body:
+_TestDef = ast.FunctionDef | ast.AsyncFunctionDef
+
+
+def _pytestmark_marks(body: list[ast.stmt]) -> set[str]:
+    """Return the marker names the last ``pytestmark`` assignment in ``body`` applies.
+
+    Python binds the last assignment, so that is the one pytest reads.  A body
+    without one applies none.
+    """
+    marks: set[str] = set()
+    for node in body:
         if not isinstance(node, ast.Assign):
             continue
         if not any(isinstance(t, ast.Name) and t.id == 'pytestmark' for t in node.targets):
             continue
-        return {n.attr for n in ast.walk(node.value) if isinstance(n, ast.Attribute)} - {'mark'}
-    return set()
+        marks = {n.attr for n in ast.walk(node.value) if isinstance(n, ast.Attribute)} - {'mark'}
+    return marks
+
+
+def _decorator_marks(node: _TestDef | ast.ClassDef) -> set[str]:
+    """Return the attribute names in the decorators of a test function or class."""
+    return {
+        n.attr for d in node.decorator_list for n in ast.walk(d) if isinstance(n, ast.Attribute)
+    }
+
+
+def _module_marks(path: Path) -> set[str]:
+    """Return the marker names a module's ``pytestmark`` assignment applies."""
+    return _pytestmark_marks(ast.parse(path.read_text(encoding='utf-8')).body)
+
+
+def _test_items(path: Path) -> list[tuple[str, set[str]]]:
+    """Return each test in a module with the marks pytest applies to it.
+
+    A test function's marks are the module's ``pytestmark`` plus its own
+    decorators.  A test method's are the module's, plus its class's decorators
+    and class-body ``pytestmark``, plus its own decorators.
+    """
+    tree = ast.parse(path.read_text(encoding='utf-8'))
+    module_marks = _pytestmark_marks(tree.body)
+    items = []
+    for node in tree.body:
+        if not _is_test(node):
+            continue
+        if isinstance(node, ast.ClassDef):
+            class_marks = module_marks | _decorator_marks(node) | _pytestmark_marks(node.body)
+            items += [
+                (f'{path.name}::{node.name}::{m.name}', class_marks | _decorator_marks(m))
+                for m in node.body
+                if isinstance(m, _TestDef) and _is_test(m)
+            ]
+        else:
+            items.append((f'{path.name}::{node.name}', module_marks | _decorator_marks(node)))
+    return items
+
+
+def _is_test(node: ast.stmt) -> TypeGuard[_TestDef | ast.ClassDef]:
+    """Whether a statement defines a test function or class, by pytest's name prefix."""
+    if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+        return False
+    return node.name.lower().startswith('test')
 
 
 def _items_missing_the_ci_mark(path: Path) -> list[str]:
-    """Return the module's tests marked ``integration`` without ``sim_integration``.
-
-    A test's marks are the module's ``pytestmark`` plus the marks decorating the
-    test function or test class itself.
-    """
-    module_marks = _module_marks(path)
-    tree = ast.parse(path.read_text(encoding='utf-8'))
-    missing = []
-    for node in tree.body:
-        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
-            continue
-        if not node.name.lower().startswith('test'):
-            continue
-        decorator_marks = {
-            n.attr for d in node.decorator_list for n in ast.walk(d) if isinstance(n, ast.Attribute)
-        }
-        marks = module_marks | decorator_marks
-        if 'integration' in marks and 'sim_integration' not in marks:
-            missing.append(f'{path.name}::{node.name}')
-    return missing
+    """Return the module's tests marked ``integration`` without ``sim_integration``."""
+    return [
+        name
+        for name, marks in _test_items(path)
+        if 'integration' in marks and 'sim_integration' not in marks
+    ]
 
 
 def _simulator_modules() -> list[Path]:
@@ -76,11 +114,46 @@ def test_integration_marked_simulator_tests_also_run_in_ci() -> None:
 
 def test_the_performance_budgets_stay_out_of_ci() -> None:
     """The performance budgets are integration-only, so CI's shared runners skip them."""
-    marks = _module_marks(_INTEGRATION_DIR / 'test_sim_perf.py')
-    assert marks == {'integration'}
+    path = _INTEGRATION_DIR / 'test_sim_perf.py'
+    assert _module_marks(path) == {'integration'}
+    assert [name for name, marks in _test_items(path) if 'sim_integration' in marks] == []
 
 
 def test_the_real_frame_realism_smoke_stays_out_of_ci() -> None:
     """The realism smoke reads real frames, so it is integration-only."""
-    marks = _module_marks(_INTEGRATION_DIR / 'test_sim_realism_smoke.py')
-    assert marks == {'integration'}
+    path = _INTEGRATION_DIR / 'test_sim_realism_smoke.py'
+    assert _module_marks(path) == {'integration'}
+    assert [name for name, marks in _test_items(path) if 'sim_integration' in marks] == []
+
+
+def test_a_test_method_marked_integration_alone_is_missing_the_ci_mark(tmp_path: Path) -> None:
+    """The guard reads a class's methods, its decorators, and its class-body ``pytestmark``."""
+    module = tmp_path / 'test_sim_probe.py'
+    module.write_text(
+        'import pytest\n'
+        '\n'
+        'class TestProbe:\n'
+        '    pytestmark = pytest.mark.slow\n'
+        '\n'
+        '    @pytest.mark.integration\n'
+        '    def test_alone(self) -> None: ...\n'
+        '\n'
+        '    @pytest.mark.integration\n'
+        '    @pytest.mark.sim_integration\n'
+        '    def test_both(self) -> None: ...\n',
+        encoding='utf-8',
+    )
+    assert _items_missing_the_ci_mark(module) == ['test_sim_probe.py::TestProbe::test_alone']
+
+
+def test_the_last_pytestmark_assignment_is_the_one_read(tmp_path: Path) -> None:
+    """A reassigned ``pytestmark`` applies its last value, as Python binds it."""
+    module = tmp_path / 'test_sim_probe.py'
+    module.write_text(
+        'import pytest\n'
+        '\n'
+        'pytestmark = [pytest.mark.integration, pytest.mark.sim_integration]\n'
+        'pytestmark = pytest.mark.integration\n',
+        encoding='utf-8',
+    )
+    assert _module_marks(module) == {'integration'}
