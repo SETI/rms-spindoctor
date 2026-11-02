@@ -242,13 +242,18 @@ def atmosphere_spec_from_params(
         return None
     os_factor = max(1, int(oversample))
     detached = atmosphere.get('detached_px')
+    ref_altitude = atmosphere.get('ref_altitude_px')
+    g = atmosphere.get('g')
+    albedo = atmosphere.get('albedo')
+    # The validator accepts an optional key written as null, which means the
+    # same as leaving it out.
     return AtmosphereSpec(
         scale_height_px=float(atmosphere['scale_height_px']) * os_factor,
         tau_ref=float(atmosphere['tau_ref']),
-        ref_altitude_px=float(atmosphere.get('ref_altitude_px', 0.0)) * os_factor,
-        g=float(atmosphere.get('g', 0.0)),
+        ref_altitude_px=(0.0 if ref_altitude is None else float(ref_altitude)) * os_factor,
+        g=0.0 if g is None else float(g),
         detached_px=(float(detached) * os_factor if detached is not None else None),
-        albedo=float(atmosphere.get('albedo', DEFAULT_HAZE_ALBEDO)),
+        albedo=DEFAULT_HAZE_ALBEDO if albedo is None else float(albedo),
         structure=haze_structure_from_params(atmosphere, oversample=os_factor),
     )
 

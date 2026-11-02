@@ -69,12 +69,15 @@ class BodyAtmosphereMixin(SimEditorBase):
             value=float(atmosphere.get('g', 0.0)),
             tooltip='Henyey-Greenstein asymmetry (positive is forward-scattering).',
         )
+        # The validator sets no upper bound on the albedo, so neither does the
+        # spin: a loaded scene's value is shown and written back unclamped.
+        stated_albedo = atmosphere.get('albedo')
         albedo = _dspin(
             minimum=0.0,
-            maximum=5.0,
+            maximum=1.0e9,
             decimals=3,
             step=0.05,
-            value=float(atmosphere.get('albedo', DEFAULT_HAZE_ALBEDO)),
+            value=DEFAULT_HAZE_ALBEDO if stated_albedo is None else float(stated_albedo),
             tooltip='Haze brightness scale (0 adds no light; the halo still dims what is behind).',
         )
         shell_check = QCheckBox('Detached shell')

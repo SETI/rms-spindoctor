@@ -19,7 +19,7 @@ import pytest
 os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
 
 try:
-    from PyQt6.QtWidgets import QApplication
+    from PyQt6.QtWidgets import QApplication, QWidget
 except (ImportError, OSError) as exc:
     pytest.skip(
         f'PyQt6/QtWidgets not available: {exc}',
@@ -898,6 +898,19 @@ def test_body_atmosphere_albedo_spin_writes_key(model: Any) -> None:
 def test_body_atmosphere_albedo_spin_starts_at_the_default(model: Any) -> None:
     """A body without a haze albedo shows the renderer's default in the spin."""
     assert _body_tab(model).atmosphere_albedo_spin.value() == DEFAULT_HAZE_ALBEDO
+
+
+@pytest.mark.parametrize(
+    ('stated', 'shown'), [(7.5, 7.5), (None, DEFAULT_HAZE_ALBEDO)], ids=['large', 'null']
+)
+def test_body_atmosphere_albedo_spin_shows_the_stated_albedo(
+    model: Any, stated: float | None, shown: float
+) -> None:
+    """A loaded albedo shows unclamped, and a null one shows the renderer's default."""
+    widget = QWidget()
+    body = {'atmosphere': {'scale_height_px': 8.0, 'tau_ref': 1.0, 'albedo': stated}}
+    model._build_atmosphere_group(widget, 0, body)
+    assert widget.atmosphere_albedo_spin.value() == shown  # type: ignore[attr-defined]
 
 
 def test_body_atmosphere_ref_altitude_spin_writes_key(model: Any) -> None:

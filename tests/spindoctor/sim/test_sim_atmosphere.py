@@ -340,6 +340,15 @@ def test_atmosphere_spec_defaults_the_haze_albedo() -> None:
     assert spec.albedo == DEFAULT_HAZE_ALBEDO
 
 
+@pytest.mark.parametrize('key', ['ref_altitude_px', 'g', 'albedo'])
+def test_a_null_atmosphere_key_reads_as_omitted(key: str) -> None:
+    """An optional key written as null builds the same spec as leaving it out."""
+    block = {'scale_height_px': 4.0, 'tau_ref': 1.2}
+    stated = atmosphere_spec_from_params({'atmosphere': {**block, key: None}}, oversample=2)
+    omitted = atmosphere_spec_from_params({'atmosphere': block}, oversample=2)
+    assert stated == omitted
+
+
 def test_the_halo_glow_scales_with_the_haze_albedo() -> None:
     """Halving the albedo halves the glow above the limb, below saturation."""
     probe = (int(_CENTER), int(_CENTER + _RADIUS + 3))
