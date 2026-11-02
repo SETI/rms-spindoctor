@@ -3671,9 +3671,13 @@ the recorded 2026-07-17/18 runs); the cost is dominated by the
 navigator's feature extraction on the real frames and the full-size
 matched renders.  ``--skip-fom7`` saves about 17% -- the navigation
 pairs are a handful of frames per instrument, not a large share of the
-cost.  ``tests/integration/test_sim_realism.py`` carries
-the integration-tier tests: matched-scene validity per instrument,
-sim-side determinism, and an end-to-end smoke on the smallest cohort.
+cost.  ``tests/integration/test_sim_realism.py`` carries the
+``sim_integration`` tests, which the default selection runs. They check that the
+matched scenes are valid for every instrument and that the sim side is
+deterministic.
+``tests/integration/test_sim_realism_smoke.py`` carries the end-to-end smoke on
+the smallest cohort. It reads real frames and carries only the ``integration``
+marker.
 
 The per-instrument match quality, the figures, and the known-gaps list
 live in the simulator report's realism section

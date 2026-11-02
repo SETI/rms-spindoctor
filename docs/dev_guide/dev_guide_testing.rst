@@ -21,8 +21,9 @@ alone:
   the heavier in-process simulator tests. The simulator tests carry a second
   marker, ``sim_integration``: they need no holdings, SPICE kernels, or star
   catalogs, so CI runs them on every pull request, and so does
-  ``./scripts/run-all-checks.sh`` without ``-i``. The one exception is the
-  simulator performance budgets, which measure CPU time and need a quiet host.
+  ``./scripts/run-all-checks.sh`` without ``-i``. There are two exceptions. The
+  simulator performance budgets measure CPU time and need a quiet host, and the
+  realism smoke (``test_sim_realism_smoke.py``) reads real frames.
 - The **postgres tier** is opted into with ``-m postgres`` (or ``-m ""``). It
   re-asks the results-index questions against a real PostgreSQL server, because
   SQLite accepts spellings a server rejects: an integer compared against a
