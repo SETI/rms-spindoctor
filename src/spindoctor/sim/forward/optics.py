@@ -36,6 +36,7 @@ from spindoctor.sim.forward.smear import apply_smear
 from spindoctor.sim.forward.stages import SimFrame
 from spindoctor.sim.instruments import navigator_matched_psf
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
+from spindoctor.support.stable_math import stable_hypot
 from spindoctor.support.types import NDArrayFloatType
 
 __all__ = ['apply_optics', 'apply_stray_light', 'effective_psf', 'instrument_defaults_on']
@@ -163,7 +164,7 @@ def apply_stray_light(
         v_lo, v_hi = -half, size_v - half
         u_lo, u_hi = -half, size_u - half
         corners = [(v_lo, u_lo), (v_lo, u_hi), (v_hi, u_lo), (v_hi, u_hi)]
-        r_max = max(np.hypot(cv - c[0], cu - c[1]) for c in corners)
+        r_max = max(float(stable_hypot(cv - c[0], cu - c[1])) for c in corners)
         if r_max <= 0.0:
             return
         field = amplitude * np.clip(1.0 - radius / r_max, 0.0, 1.0)

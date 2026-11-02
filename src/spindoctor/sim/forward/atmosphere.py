@@ -84,6 +84,7 @@ from spindoctor.sim.forward.haze_structure import (
     tilted_illumination_2d,
 )
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
+from spindoctor.support.stable_math import stable_hypot
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 
 __all__ = [
@@ -638,7 +639,7 @@ def apply_atmosphere(
     if band_out.any():
         v_out = np.broadcast_to(v_ctr, e2.shape)[band_out]
         u_out = np.broadcast_to(u_ctr, e2.shape)[band_out]
-        rho = np.hypot(v_out, u_out)
+        rho = stable_hypot(v_out, u_out)
         rho = np.maximum(rho, 1e-9)
         mu0_out = (v_out * illum_v + u_out * illum_u) / rho
         h_out = (np.sqrt(e2[band_out]) - 1.0) * r_mean

@@ -27,7 +27,7 @@ from tests.integration.sim_expected import (
     navigate_scene,
 )
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.integration, pytest.mark.sim_integration]
 
 _SCENES_ROOT = Path(__file__).parent / 'sim_scenes'
 _EXPECTED_PATHS = iter_expected_scene_paths(_SCENES_ROOT)

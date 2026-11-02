@@ -31,9 +31,13 @@ from tests.integration.sim_realism import (
 )
 from tests.integration.sim_realism_scenes import matched_scene
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.integration, pytest.mark.sim_integration]
 
-_HAS_HOLDINGS = bool(os.environ.get('PDS3_HOLDINGS_DIR'))
+# The real-frame smoke test reads holdings and resolves SPICE geometry, so it
+# needs both; CI sets PDS3_HOLDINGS_DIR but not OOPS_RESOURCES.
+_HAS_REAL_DATA = bool(os.environ.get('PDS3_HOLDINGS_DIR')) and bool(
+    os.environ.get('OOPS_RESOURCES')
+)
 
 _ALL_CLASSES = (
     'star_dominated',
@@ -178,7 +182,7 @@ def test_cohort_discovery_covers_known_instruments() -> None:
         assert sidecars == sorted(sidecars, key=lambda s: s.image_id)
 
 
-@pytest.mark.skipif(not _HAS_HOLDINGS, reason='PDS3_HOLDINGS_DIR unset')
+@pytest.mark.skipif(not _HAS_REAL_DATA, reason='PDS3_HOLDINGS_DIR or OOPS_RESOURCES unset')
 def test_realism_smoke_lorri(tmp_path: Path) -> None:
     """End-to-end smoke on the smallest cohort, writing to a temp root.
 

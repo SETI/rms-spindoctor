@@ -36,6 +36,7 @@ import numpy as np
 
 from spindoctor.sim.star_records import star_record_from_params
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
+from spindoctor.support.stable_math import stable_hypot
 from spindoctor.support.types import MutableStar, NDArrayFloatType
 
 __all__ = [
@@ -122,7 +123,7 @@ def _deposit_point_mass(
         move_v: Total drift along v over the exposure, in grid pixels.
         move_u: Total drift along u over the exposure, in grid pixels.
     """
-    track = float(np.hypot(move_v, move_u))
+    track = float(stable_hypot(move_v, move_u))
     n_samples = 1 if track < 1e-9 else max(2, int(np.ceil(track)) + 1)
     offsets = [0.0] if n_samples == 1 else list(np.linspace(-0.5, 0.5, n_samples))
     weight = total / n_samples

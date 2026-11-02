@@ -27,6 +27,7 @@ import numpy as np
 from scipy.signal import fftconvolve
 
 from spindoctor.sim.forward.stages import SimFrame
+from spindoctor.support.stable_math import stable_hypot
 from spindoctor.support.types import NDArrayFloatType
 
 __all__ = ['apply_smear', 'smear_kernel']
@@ -52,7 +53,7 @@ def smear_kernel(dv_px: float, du_px: float) -> NDArrayFloatType | None:
     Returns:
         A normalized 2-D kernel, or None when the drift is negligible.
     """
-    length = float(np.hypot(dv_px, du_px))
+    length = float(stable_hypot(dv_px, du_px))
     if length < 1e-9:
         return None
     radius = int(np.ceil(max(abs(dv_px), abs(du_px)) / 2.0)) + 1
