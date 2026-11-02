@@ -305,7 +305,9 @@ path uses neither. The mesh renderer calls
 :func:`spindoctor.support.stable_math.stable_matmul3`, which sums its 3-vector
 products in a fixed order, in place of ``@``, and the simulator calls
 :func:`spindoctor.support.stable_math.stable_hypot` in place of ``np.hypot``.
-``tests/spindoctor/sim/test_sim_hypot_guard.py`` fails if ``np.hypot`` comes back.
+``tests/spindoctor/sim/test_sim_stable_math_guard.py`` fails if a simulator module
+takes a matrix product with ``@``, ``.dot``, or a NumPy matrix-product function, or
+calls ``np.hypot``.
 A last-bit change in the render path wouldn't stay small. The PSF's FFT
 convolution spreads it to every pixel, and a Poisson draw whose mean changes can
 take a different number of random values, which changes the noise in every pixel

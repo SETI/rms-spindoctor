@@ -264,9 +264,12 @@ def test_a_declared_pericenter_sigma_widens_the_vertices_off_the_apsides() -> No
     """Each vertex adds ``ae |sin(lam - peri)| sigma_peri``, most at quadrature, none at apsides."""
     edges = _eccentric_edges({'sigma_a_px': 2.0, 'sigma_long_peri_deg': 10.0})
     peri_term = 6.0 * np.radians(10.0)
-    sigmas = np.concatenate([g.sigma_radial_per_vertex_px for g in edges])
-    assert float(sigmas.max()) == pytest.approx(2.0 + peri_term, rel=0.02)
-    assert float(sigmas.min()) == pytest.approx(2.0, abs=0.02 * peri_term)
+    assert [float(g.sigma_radial_per_vertex_px.max()) for g in edges] == pytest.approx(
+        [2.0 + peri_term] * len(edges), rel=0.02
+    )
+    assert [float(g.sigma_radial_per_vertex_px.min()) for g in edges] == pytest.approx(
+        [2.0] * len(edges), abs=0.02 * peri_term
+    )
 
 
 def test_a_pericenter_sigma_on_a_circular_ring_changes_nothing() -> None:
