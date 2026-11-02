@@ -830,10 +830,11 @@ techniques:
       # (see pair_vote_peak_factor) and that one lies more than twice
       # max_residual_px from where the pair puts it.  A window holding
       # several sources the star could be (a field of saturated cosmic-ray
-      # hits) does not locate it.  A simulated six-star
-      # field whose catalog positions each scatter by 6 or 8 px has two
-      # stars agreeing to 0.8 and 1.1 px, reported 5 and 7 px wrong without
-      # this.  A star found within twice max_residual_px of where the pair
+      # hits) does not locate it.  When this rule was added (2026-10-15), a
+      # simulated six-star field whose catalog positions each scatter by 6
+      # or 8 px had two stars agreeing to 0.8 and 1.1 px, reported 5 and 7
+      # px wrong without it; as of 2026-11-02 it changes no answer on that
+      # field.  A star found within twice max_residual_px of where the pair
       # puts it votes for the pair whatever else its window holds, so a
       # brighter cosmic-ray hit nearby does not count against it, provided
       # the source found there is as bright as the star should be.  One
