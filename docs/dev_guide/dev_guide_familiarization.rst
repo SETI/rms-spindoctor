@@ -368,7 +368,6 @@ sibling of each model family. These are used both by
     geometry/record helpers both sides share
   - :mod:`spindoctor.sim.instruments`
   - :mod:`spindoctor.sim.seeds`
-  - :mod:`spindoctor.sim.stable_math`
   - :mod:`spindoctor.sim.png_export`
 
 - :mod:`spindoctor.nav_model.sim_body` and :mod:`spindoctor.nav_model.sim_ring` —

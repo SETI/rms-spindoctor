@@ -5,182 +5,264 @@ Simulated Ring Navigation Model
 Overview
 ========
 
-:class:`~spindoctor.nav_model.nav_model_rings_simulated.NavModelRingsSimulated` is the
-simulated-image variant of the ring navigation model. It predicts a scene's ring features
-from the idealized ``ring_system`` view the information boundary exposes
-(``obs.nav_params['ring_system']``, see :doc:`dev_guide_simulator`) instead of from a
-SPICE-driven catalog, then emits two feature kinds:
+:class:`~spindoctor.nav_model.nav_model_rings_simulated.NavModelRingsSimulated` predicts the
+rings of a simulated frame. The SPICE-backed
+:class:`~spindoctor.nav_model.nav_model_rings.NavModelRings` predicts a real frame's rings
+from a ring catalog and the spacecraft's pointing. A simulated frame has neither, so this
+model predicts from the scene's own ``ring_system`` block instead, as the information
+boundary exposes it in ``obs.nav_params['ring_system']`` (see :doc:`dev_guide_simulator`).
 
-- a :data:`~spindoctor.feature.feature_type.NavFeatureType.RING_ANNULUS` carrying the predicted
-  coverage template, for
-  :class:`~spindoctor.nav_technique.nav_technique_ring_annulus.RingAnnulusNav`;
-- one :data:`~spindoctor.feature.feature_type.NavFeatureType.RING_EDGE` per predicted catalog
-  boundary -- a per-vertex polyline with outward radial normals -- for
-  :class:`~spindoctor.nav_technique.nav_technique_ring_edge.RingEdgeNav`.
+Each feature the scene marks navigable becomes one model instance, and each instance emits
+two kinds of navigation feature:
 
-The model overrides :meth:`~spindoctor.nav_model.nav_model.NavModel.instances_for_obs` to build
-one instance per *navigable* feature of a simulated observation's ring system; the parent
-:class:`~spindoctor.nav_model.nav_model_rings.NavModelRings` declines simulated observations, so
-the autonomous registry routes simulated frames here. Non-navigable features never reach this
-model: the boundary filter drops them from ``nav_params`` entirely, so the rendered frame is
-full of ring structure the navigator was never told about -- the false-lock / distractor
-regime the ring system exists to produce.
+- A ringlet emits a :data:`~spindoctor.feature.feature_type.NavFeatureType.RING_ANNULUS`
+  carrying its predicted coverage template, for
+  :class:`~spindoctor.nav_technique.nav_technique_ring_annulus.RingAnnulusNav`.
+- Every feature emits one :data:`~spindoctor.feature.feature_type.NavFeatureType.RING_EDGE`
+  per predicted catalog edge, as a polyline of border pixels with outward radial normals,
+  for :class:`~spindoctor.nav_technique.nav_technique_ring_edge.RingEdgeNav`.
+
+The navigator sees only the navigable features. The boundary filter drops every other
+feature from ``nav_params``, so the rendered frame holds ring structure the navigator was
+never told about. That clutter is deliberate: it is the distractor and false-lock regime the
+ring system exists to test.
 
 Theory
 ======
 
-The prediction is geometric, not photometric. For each navigable feature the model
-inverse-projects every extended-FOV pixel into the ring plane through the shared
-opening-angle projection (:mod:`spindoctor.sim.ring_geometry`), evaluates the feature's
-catalog orbit -- the mode-1 precessing ellipse plus any m >= 2 modes and satellite edge
-wave -- at each pixel's ring-plane longitude, and rasterizes the signed radial distance
-field. A banded kind (ringlet) yields a solid anti-aliased coverage template (the
-navigator's opaque-annulus convention; the tau photometry is truth the navigator cannot
-see); every kind yields one border polyline per catalog boundary, with normals taken from
-the gradient of the distance field so they point radially outward however the projection
-foreshortens the edge.
+The prediction is purely geometric. For each pixel of the extended field of view, the model
+runs the sky-to-ring-plane projection backward to find the ring-plane radius :math:`r` and
+the longitude :math:`\lambda` measured from the ascending node. It then evaluates the
+feature's catalog orbit at that longitude, giving the edge radius
+:math:`r_{\mathrm{edge}}(\lambda)`. The orbit is a precessing ellipse plus any
+:math:`m \ge 2` normal modes and a satellite edge wave. To first order in eccentricity the
+ellipse is
 
-The projection and orbit math are shared with the image-side renderer by design (the
-independence guarantee is informational, not code-level): a predicted edge lands where the
-rendered edge would land if the scene planted no error, so the planted pointing offset and
-the planted per-feature ``orbit_error`` are the only discrepancies in a recovery
-measurement, by construction.
+.. math::
+
+    r_{\mathrm{edge}}(\lambda) \approx a - ae \cos(\lambda - \varpi),
+
+where :math:`a` is the semimajor axis, :math:`ae` the radial amplitude, and :math:`\varpi`
+the pericenter longitude, precessed from the ring epoch to the scene time. The code
+evaluates the exact conic.
+
+The difference :math:`d = r - r_{\mathrm{edge}}(\lambda)` is a signed radial distance field
+over the grid, and everything the model emits comes from it:
+
+- **Edges.** An edge is the one-pixel border where :math:`d` changes sign. Each border pixel
+  becomes a polyline vertex, and its normal is the normalized gradient of :math:`d` there.
+  That gradient points toward increasing ring radius, so the normal points radially outward
+  however the projection foreshortens the ring.
+- **Coverage.** A ringlet or a gap has an inner edge at the orbit and an outer edge at the
+  orbit widened by ``width_px``. Between the two the model rasterizes an anti-aliased
+  coverage template in [0, 1]. A ringlet's template is solid: the navigator treats the band
+  as opaque and ignores its optical depth, which is photometric truth. A gap shows the
+  background instead of emitting light. It doesn't carry a template, but its two edges are
+  still fitted.
+
+The projection and the orbit evaluation come from :mod:`spindoctor.sim.ring_geometry`, the
+same code the renderer uses to draw the ring. So a predicted edge lands exactly where the
+rendered edge would land if the scene planted no error. In a recovery measurement, the only
+differences between prediction and image are the planted pointing offset and each
+feature's planted ``orbit_error``. The independence guarantee concerns what the navigator
+knows, not which code it runs: the navigator never sees ``orbit_error`` or the photometric
+truth.
 
 Restrictions and assumptions
 ----------------------------
 
-- The prediction consumes only idealized keys: the shared ``geometry`` block, the catalog
-  ``orbit``, the kind-specific shape keys, ``tau``, and ``declared_orbit_sigma``. The drawn
-  ``orbit_error`` values and the photometric truth (``albedo``, ``phase_g``) are stripped by
-  the boundary filter before this code runs.
-- A ramp's linear end fades into the background with no gradient to fit, so only its sharp
-  end emits an edge; a wave train emits its launch-radius boundary only.
-- An exactly edge-on geometry (``opening_deg_obs`` of 0) predicts nothing, matching the
-  renderer, which draws nothing.
+- The prediction reads only idealized keys: the shared ``geometry`` block, the catalog
+  ``orbit``, the kind's shape keys, and ``declared_orbit_sigma``. ``tau`` also crosses the
+  boundary, but the prediction ignores it. The filter strips the planted ``orbit_error`` and
+  the photometric truth (``albedo`` and ``phase_g``) before this model runs.
+- A ramp fades linearly into the background at one end, which leaves nothing sharp to fit.
+  Only its sharp end emits an edge: the outer edge when ``side`` is ``out``, the inner edge
+  otherwise.
+- A density wave train emits one edge at its launch radius, the orbit radius. A one-sided
+  ``edge`` emits its single boundary.
+- An exactly edge-on geometry (``opening_deg_obs`` of 0) predicts nothing, because the
+  renderer draws nothing there either.
 
 Sources of uncertainty
 ----------------------
 
-The per-vertex radial sigma floors at the one-pixel polyline sampling resolution and rises
-with the feature's ``declared_orbit_sigma`` (the catalog error bars the navigator is
-entitled to know -- never the drawn error values). It is ``sigma_a_px + sigma_ae_px``,
-plus, at each vertex, the radial shift a 1-sigma pericenter error makes there:
-``|dr/dperi| * sigma_long_peri_deg`` in radians, about ``ae_px * |sin(lam - peri)|`` times
-that sigma. So a declared pericenter uncertainty widens the vertices where the eccentric
-term moves the edge most, a quarter orbit from the apsides, and leaves the apsides and a
-circular edge alone. The along-edge sigma reflects the sampling resolution only.
+The rendered edge is sharp and noiseless, so the only measurement uncertainty is the
+one-pixel sampling of the polyline. The scene can also declare how well its catalog knows
+each orbit, with ``declared_orbit_sigma``: :math:`\sigma_a` (``sigma_a_px``),
+:math:`\sigma_{ae}` (``sigma_ae_px``), and :math:`\sigma_\varpi` (``sigma_long_peri_deg``,
+converted to radians). A key the scene omits or sets to null counts as zero. These are the
+catalog's error bars, which a navigator is entitled to know. The values the scene drew from
+them stay behind the boundary.
 
-The declared orbit sigma is additionally carried, unfloored, on the emitted geometry's
-``sigma_orbit_radial_px`` -- the fully-correlated 1-sigma radial displacement of the whole
-predicted edge. The three independent terms give a radial variance at longitude ``lam``
-of ``sigma_a**2 + cos**2 * sigma_ae**2 + sin**2 * (ae * sigma_peri)**2``, and the field
-holds its maximum over longitude, ``sqrt(sigma_a**2 + max(sigma_ae, ae * sigma_peri)**2)``. The per-vertex sigma is a statistical scale that averages down as the
-vertex count grows; a catalog-orbit error displaces every vertex coherently and does not,
-so the ring-edge technique consumes this separate field to widen its reported covariance
-along the fit's radial direction (see :doc:`dev_guide_techniques_ring_edge`).
+Both uses below start from how far each orbit element moves each vertex. A change
+:math:`\delta r_{\mathrm{edge}}` in the edge radius moves the zero level of :math:`d` by
+:math:`\delta r_{\mathrm{edge}} / \lVert \nabla d \rVert` along the vertex normal, so the
+image-plane shift of vertex :math:`i` per unit change of element :math:`q` is
+
+.. math::
+
+    p_{q,i} = \frac{\partial r_{\mathrm{edge}} / \partial q}{\lVert \nabla d \rVert}
+    \bigg|_i, \qquad q \in \{a,\ ae,\ \varpi\}.
+
+The model takes each derivative by a central difference over the full orbit model, so it
+follows the exact conic, and divides by the same gradient that gives the normal. On a
+face-on ring with a small eccentricity, :math:`p \approx (1,\ -\cos(\lambda - \varpi),\
+-ae \sin(\lambda - \varpi))`. On an inclined ring the gradient is steeper where the
+projection foreshortens the ring, so the same orbit error moves the edge fewer image pixels
+there.
+
+**Per-vertex radial sigma.** Each vertex gets
+
+.. math::
+
+    \sigma_{r,i} = \max\!\left(1\ \mathrm{px},\;
+        |p_{a,i}|\,\sigma_a + |p_{ae,i}|\,\sigma_{ae} + |p_{\varpi,i}|\,\sigma_\varpi\right).
+
+A pericenter error moves an eccentric edge most a quarter orbit from the apsides, so it
+widens the sigma there and leaves the apsides and a circular edge alone. A radial-amplitude
+error does the opposite: it moves the apsides most. The along-edge sigma is a fixed 0.5 px,
+the sampling resolution. These sigmas weight the vertices in the technique's robust fit.
+
+**Coherent orbit sigma.** A catalog-orbit error moves every vertex of an edge together. So
+it doesn't average down as the vertex count grows, the way the per-vertex sigma does. The
+model therefore also carries a single value, without the 1 px floor, on the emitted
+geometry's ``sigma_orbit_radial_px``. The three errors are independent, so a vertex's
+1-sigma shift is their quadrature sum, and the value is its largest over every predicted
+vertex of the feature:
+
+.. math::
+
+    \sigma_{\mathrm{orbit}} = \max_i \sqrt{(p_{a,i}\,\sigma_a)^2 + (p_{ae,i}\,\sigma_{ae})^2
+        + (p_{\varpi,i}\,\sigma_\varpi)^2}.
+
+On a face-on ring with a small eccentricity this is close to
+:math:`\sqrt{\sigma_a^2 + \max(\sigma_{ae},\ ae\,\sigma_\varpi)^2}`. At larger
+eccentricity the exact conic moves the edge more than :math:`ae\,\sigma_\varpi`, about 27%
+more at :math:`e = 0.5`.
+
+Both ring techniques add this term to their reported covariance along the radial
+direction, which keeps a misplaced orbit from passing as a confident fix. The per-vertex
+sum is linear and the coherent value is in quadrature. They differ on purpose: the first
+only weights vertices against one another, while the second is squared into the covariance
+that sets the confidence tier, where a linear sum would overstate it by up to
+:math:`\sqrt{2}`. See :doc:`dev_guide_techniques_ring_edge` and
+:doc:`dev_guide_techniques_ring_annulus` for how each technique uses it.
 
 Configuration
 =============
 
-The simulated ring model consumes no YAML configuration of its own; every parameter comes
-in via the observation's filtered scene view (``obs.nav_params['ring_system']``, see
-:doc:`dev_guide_simulator`). Expected keys:
+The model doesn't have YAML configuration of its own. Everything it reads comes from the
+observation's filtered scene view, ``obs.nav_params``:
 
-- ``geometry`` — the shared projection block: ``center_v`` / ``center_u``,
-  ``opening_deg_obs`` / ``opening_deg_sun``, ``node_deg``.
-- ``range_km`` — the system's physical range (the emitted features' subject range).
-- ``features`` — the navigable subset only. Each entry carries ``name``, ``kind``
-  (``ringlet`` / ``gap`` / ``edge`` / ``ramp`` / ``wave``), ``tau``, the kind-specific
-  shape keys (``width_px``, ``side``, ``wavelength_px``, ``density_wave_damping_px``), the
-  catalog ``orbit`` (``a_px``, ``ae_px``, ``long_peri_deg``, ``rate_peri_deg_per_day``,
-  ``modes``, ``edge_wave``), and an optional ``declared_orbit_sigma``. Every length is in
-  ring-plane pixels and every angle in degrees (see :ref:`sim-ring-system`).
+- ``ring_system.geometry``: the shared projection block. The model reads ``center_v`` and
+  ``center_u`` (the projected ring center, in pixel-corner coordinates),
+  ``opening_deg_obs`` (the observer's ring opening angle), and ``node_deg`` (the sky
+  position angle of the ascending node). ``opening_deg_sun`` lights the rendered ring and
+  doesn't affect the prediction.
+- ``ring_system.range_km``: the ring system's distance, which becomes each emitted
+  feature's subject range. When it is absent the range is infinite.
+- ``ring_system.features``: the navigable features only. Each carries ``name``, ``kind``
+  (``ringlet``, ``gap``, ``edge``, ``ramp``, or ``wave``), the kind's shape keys
+  (``width_px``, ``side``, ``wavelength_px``, and ``density_wave_damping_px``), the catalog
+  ``orbit`` (``a_px``, ``ae_px``, ``long_peri_deg``, ``rate_peri_deg_per_day``, ``modes``,
+  and ``edge_wave``), and an optional ``declared_orbit_sigma``.
+- ``time`` and ``ring_epoch``: the scene time and the ring epoch, which set how far the
+  pericenter has precessed. Both default to 0, the same default the renderer uses.
 
-The scene-level ``time`` and ``ring_epoch`` drive the mode-1 pericenter precession on both
-sides.
+Every length is in ring-plane pixels and every angle in degrees (see
+:ref:`sim-ring-system`). The block's ``km_per_pixel`` and ``phase_deg`` also cross the
+boundary, but this model doesn't read them.
 
 Implementation
 ==============
 
-Source file: ``src/spindoctor/nav_model/nav_model_rings_simulated.py`` —
-:class:`~spindoctor.nav_model.nav_model_rings_simulated.NavModelRingsSimulated`.
+Source files: ``src/spindoctor/nav_model/nav_model_rings_simulated.py`` holds
+:class:`~spindoctor.nav_model.nav_model_rings_simulated.NavModelRingsSimulated`, and
+``src/spindoctor/nav_model/sim_ring.py`` holds the prediction,
+:func:`~spindoctor.nav_model.sim_ring.predict_ring_feature`.
 
-Public class :class:`~spindoctor.nav_model.nav_model_rings_simulated.NavModelRingsSimulated`,
-base :class:`~spindoctor.nav_model.nav_model_rings_base.NavModelRingsBase`. The class overrides
-:meth:`~spindoctor.nav_model.nav_model.NavModel.instances_for_obs` to build one instance per
-navigable ring_system feature of a simulated observation; the parent
-:class:`~spindoctor.nav_model.nav_model_rings.NavModelRings` returns an empty list for a simulated
-observation, so the orchestrator's
-:func:`~spindoctor.nav_model.nav_model.build_models_for_obs` driver routes simulated frames to
-this subclass.
+The class derives from :class:`~spindoctor.nav_model.nav_model_rings_base.NavModelRingsBase`.
+It overrides :meth:`~spindoctor.nav_model.nav_model.NavModel.instances_for_obs` to return one
+instance per navigable feature of a simulated observation, named ``rings_sim:<feature
+name>``, and an empty list for a real one. The parent
+:class:`~spindoctor.nav_model.nav_model_rings.NavModelRings` does the reverse, so the
+orchestrator's :func:`~spindoctor.nav_model.nav_model.build_models_for_obs` driver gets
+simulated frames from this class and real frames from the parent.
 
 Public methods (autodocumented at :doc:`/api_reference/api_nav_model`):
 
-- :meth:`~spindoctor.nav_model.nav_model_rings_simulated.NavModelRingsSimulated.create_model` —
-  invokes :func:`~spindoctor.nav_model.sim_ring.predict_ring_feature` to rasterize the
-  feature's template and catalog boundaries on the extended-FOV grid.
-- :meth:`~spindoctor.nav_model.nav_model_rings_simulated.NavModelRingsSimulated.to_features` —
-  emits the RING_ANNULUS (banded kinds with coverage) plus one RING_EDGE per predicted
-  boundary.
+- :meth:`~spindoctor.nav_model.nav_model_rings_simulated.NavModelRingsSimulated.create_model`
+  predicts the feature's template and edges on the extended-FOV grid.
+- :meth:`~spindoctor.nav_model.nav_model_rings_simulated.NavModelRingsSimulated.to_features`
+  emits the RING_ANNULUS for a ringlet and one RING_EDGE per predicted edge.
 - :meth:`~spindoctor.nav_model.nav_model_rings_simulated.NavModelRingsSimulated.to_annotations`
-  — reuses the shared ring annotation helper on
-  :class:`~spindoctor.nav_model.nav_model_rings_base.NavModelRingsBase` to render per-edge
-  polylines and labels onto the summary PNG.
+  draws each edge and its label (``SATURN INNER EDGE``, or ``NAME EDGE`` for a
+  single-boundary kind) onto the summary PNG through the annotation helper on
+  :class:`~spindoctor.nav_model.nav_model_rings_base.NavModelRingsBase`.
 
 Inherited :class:`~spindoctor.nav_model.nav_model.NavModel` properties:
 :attr:`~spindoctor.nav_model.nav_model.NavModel.name`,
-:attr:`~spindoctor.nav_model.nav_model.NavModel.obs`,
+:attr:`~spindoctor.nav_model.nav_model.NavModel.obs`, and
 :attr:`~spindoctor.nav_model.nav_model.NavModel.metadata`.
 
 Call path
 ---------
 
-Call path traced through
 :meth:`~spindoctor.nav_model.nav_model_rings_simulated.NavModelRingsSimulated.create_model`:
 
-1. Open a logged section. Read the feature's idealized mapping and the shared
-   ``geometry`` block off the per-instance state; offset the projected center by the
-   extended-FOV margins.
-2. Call :func:`~spindoctor.nav_model.sim_ring.predict_ring_feature`, which inverse-projects
-   the pixel grid to ring-plane ``(r, lam)`` through
-   :func:`~spindoctor.sim.ring_geometry.ring_plane_from_sky`, evaluates the catalog orbit via
-   :func:`~spindoctor.sim.ring_geometry.compute_orbit_radii`, and rasterizes the coverage
-   template plus one sign-transition border mask per boundary, with gradient-derived
-   outward normals.
-3. Record the predicted center, the subject range, and the bounding box on the model's
-   internal state for downstream feature emission.
+1. Opens a logged section and reads the feature's mapping and the shared ``geometry``
+   block. It shifts the projected center by the extended-FOV margins.
+2. Calls :func:`~spindoctor.nav_model.sim_ring.predict_ring_feature`. That function builds
+   the pixel grid in pixel-corner coordinates, projects it to ring-plane
+   :math:`(r, \lambda)` with :func:`~spindoctor.sim.ring_geometry.ring_plane_from_sky`, and
+   evaluates the orbit with :func:`~spindoctor.sim.ring_geometry.compute_orbit_radii`. It
+   then rasterizes the coverage template and one border mask per edge, with each vertex's
+   outward normal and its shifts :math:`p_{a}`, :math:`p_{ae}`, and :math:`p_{\varpi}`.
+3. Records the prediction, the predicted center, and the extended-FOV bounding box for
+   ``to_features``. The grid is in pixel-corner coordinates and the feature payload is
+   pixel-centered, so the half pixel comes off the center here.
 
-Call path traced through
 :meth:`~spindoctor.nav_model.nav_model_rings_simulated.NavModelRingsSimulated.to_features`:
 
-1. For a banded feature with coverage, construct one
+1. Computes :math:`\sigma_{\mathrm{orbit}}` once over every predicted vertex of the
+   feature.
+2. For a ringlet with coverage, emits a
    :data:`~spindoctor.feature.feature_type.NavFeatureType.RING_ANNULUS`
-   :class:`~spindoctor.feature.feature.NavFeature` carrying the coverage template cropped to
-   its tight bounding box, the predicted center, a
-   :class:`~spindoctor.feature.flags.RingAnnulusFlags` with the feature's name, and the
-   orbit-uncertainty channel: the predicted edges' outward normals concatenated onto
-   :attr:`~spindoctor.feature.geometry.RingAnnulusGeometry.orbit_normals_vu` with the feature's
-   single declared orbit sigma as
-   :attr:`~spindoctor.feature.geometry.RingAnnulusGeometry.sigma_orbit_radial_px`, so
-   :class:`~spindoctor.nav_technique.nav_technique_ring_annulus.RingAnnulusNav` prices a
-   misplaced orbit exactly as the ring-edge technique does.
-2. For each predicted boundary, sample its border mask into a vertex polyline with outward
-   radial normals, classify it straight or curved, widen the radial sigma by the declared
-   orbit uncertainty, and append a
-   :data:`~spindoctor.feature.feature_type.NavFeatureType.RING_EDGE` carrying a
-   :class:`~spindoctor.feature.geometry.RingEdgePolyline`.
-3. Reliability on each feature is fixed at ``1.0``.
+   :class:`~spindoctor.feature.feature.NavFeature` with id ``ring_annulus:<NAME>``. It
+   carries the coverage template cropped to its tight bounding box, the predicted center,
+   and a :class:`~spindoctor.feature.flags.RingAnnulusFlags` with the feature's name. Its
+   :class:`~spindoctor.feature.geometry.RingAnnulusGeometry` also carries the outward
+   normals of both edges, concatenated into
+   :attr:`~spindoctor.feature.geometry.RingAnnulusGeometry.orbit_normals_vu`, and
+   :math:`\sigma_{\mathrm{orbit}}` in
+   :attr:`~spindoctor.feature.geometry.RingAnnulusGeometry.sigma_orbit_radial_px`. That
+   lets :class:`~spindoctor.nav_technique.nav_technique_ring_annulus.RingAnnulusNav` add a
+   misplaced orbit to its covariance the same way the edge technique does.
+3. For each predicted edge with vertices, emits a
+   :data:`~spindoctor.feature.feature_type.NavFeatureType.RING_EDGE` with id
+   ``ring_edge:<NAME>:<inner|outer|edge>``, carrying a
+   :class:`~spindoctor.feature.geometry.RingEdgePolyline`: the vertices, their normals, the
+   per-vertex radial and along-edge sigmas, and :math:`\sigma_{\mathrm{orbit}}`. The edge
+   is marked straight when every vertex lies within 1 px of the best-fit line through
+   them. A straight edge constrains only the offset along its normal, while a curved arc
+   constrains both axes.
+4. Sets every feature's reliability to ``1.0``.
 
 Examples
 ========
 
-The catalog scene ``algorithmic_invariants/planted_offset_ring.yaml`` plants a
-``(1.43, -0.61)`` px pointing offset under a centered face-on ringlet (``tau = 2``,
-radii 60-85 px) flagged navigable. The model predicts both catalog edges at the unshifted
-position; :class:`~spindoctor.nav_technique.nav_technique_ring_edge.RingEdgeNav` fits the
-two curved polylines against the rendered image's edge distance transform and recovers the
-planted offset to a few hundredths of a pixel. A scene that additionally plants
-``orbit_error: {delta_a_px: 3.0}`` renders the band 3 px out from the prediction: the
-navigator (correctly) cannot distinguish the ephemeris error from pointing error along the
-radial direction, which is exactly the honest-degradation regime the planted-error axis
-exists to measure.
+``algorithmic_invariants/planted_offset_ring.yaml`` renders a face-on (``opening_deg_obs``
+of 90) navigable ringlet centered in a 220 px frame, with radii from 60 to 85 px and
+``tau`` of 2, and plants a pointing offset of (1.43, −0.61) px. The model predicts both
+edges at their catalog position. RingEdgeNav fits the two curved polylines against the
+image's edge distance transform, and ``test_sim_algorithmic_invariants.py`` requires its
+offset to land within 1 px of the planted one on each axis. The scene's baseline pins the
+fused ensemble result at (1.42, −0.62) px.
+
+``ring_system/orbit_error_ringlet.yaml`` is the same kind of ringlet, but it plants
+``orbit_error: {delta_a_px: 2.5}`` and declares ``declared_orbit_sigma: {sigma_a_px: 2.5}``.
+The image shows the band 2.5 px outside the prediction. A uniform radial error dilates a
+closed ring rather than translating it, yet the robust fit still locks onto one side and
+absorbs part of the error into the offset. The declared sigma reaches both techniques'
+covariance, so the scene expects a success at the low confidence tier with an offset error
+of 3.2 ± 1.0 px. That error bar covers how far the fix can be from the truth.

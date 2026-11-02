@@ -51,7 +51,7 @@ import numpy as np
 from scipy import ndimage
 
 from spindoctor.sim.spherical_harmonics import draw_sh_coefficients, legendre_order_sums
-from spindoctor.sim.stable_math import stable_hypot
+from spindoctor.support.stable_math import stable_hypot
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 
 __all__ = [

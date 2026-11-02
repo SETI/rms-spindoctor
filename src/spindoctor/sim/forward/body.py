@@ -39,8 +39,8 @@ from spindoctor.sim.forward.body_texture import (
 )
 from spindoctor.sim.forward.body_topo import TopoBodyRender, TopoBodySpec, render_topographic_body
 from spindoctor.sim.seeds import derive_effect_seed, stable_param_seed
-from spindoctor.sim.stable_math import stable_hypot
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
+from spindoctor.support.stable_math import stable_hypot
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType, NDArrayIntType
 
 __all__ = ['create_simulated_body', 'render_single_body']

@@ -30,7 +30,7 @@ import math
 
 import numpy as np
 
-from spindoctor.sim.stable_math import stable_hypot
+from spindoctor.support.stable_math import stable_hypot
 from spindoctor.support.types import NDArrayComplexType, NDArrayFloatType
 
 # The Legendre sums run over blocks of latitudes sized so a block's scratch

@@ -27,7 +27,7 @@ import numpy as np
 from scipy.signal import fftconvolve
 
 from spindoctor.sim.forward.stages import SimFrame
-from spindoctor.sim.stable_math import stable_hypot
+from spindoctor.support.stable_math import stable_hypot
 from spindoctor.support.types import NDArrayFloatType
 
 __all__ = ['apply_smear', 'smear_kernel']
