@@ -931,6 +931,42 @@ def test_body_atmosphere_toggle_keeps_a_loaded_map_exactly(model: Any) -> None:
     assert model.sim_params['bodies'][1]['atmosphere'] == atmosphere
 
 
+@pytest.mark.parametrize(
+    ('key', 'shown'),
+    [('ref_altitude_px', 0.0), ('g', 0.0), ('albedo', DEFAULT_HAZE_ALBEDO)],
+    ids=['ref_altitude_px', 'g', 'albedo'],
+)
+def test_body_atmosphere_null_key_shows_the_default_and_survives_a_toggle(
+    model: Any, key: str, shown: float
+) -> None:
+    """A null key shows the renderer's default, and turning the group off and on keeps it null."""
+    _body_tab(model)
+    atmosphere = {'scale_height_px': 8.0, 'tau_ref': 1.0, key: None}
+    model._add_body_tab({**_body(model), 'name': 'Hazy', 'atmosphere': dict(atmosphere)})
+    tab = model._tabs.widget(model._find_tab_by_properties('body', 1))
+    spin = {
+        'ref_altitude_px': tab.atmosphere_ref_altitude_spin,
+        'g': tab.atmosphere_g_spin,
+        'albedo': tab.atmosphere_albedo_spin,
+    }[key]
+    assert spin.value() == shown
+    tab.atmosphere_group.setChecked(False)
+    tab.atmosphere_group.setChecked(True)
+    assert model.sim_params['bodies'][1]['atmosphere'][key] is None
+
+
+def test_body_atmosphere_an_edited_null_key_takes_the_spin_value(model: Any) -> None:
+    """A null key edited while the group is off takes the spin's value when it is turned on."""
+    _body_tab(model)
+    atmosphere = {'scale_height_px': 8.0, 'tau_ref': 1.0, 'albedo': None}
+    model._add_body_tab({**_body(model), 'name': 'Hazy', 'atmosphere': dict(atmosphere)})
+    tab = model._tabs.widget(model._find_tab_by_properties('body', 1))
+    tab.atmosphere_group.setChecked(False)
+    tab.atmosphere_albedo_spin.setValue(0.25)
+    tab.atmosphere_group.setChecked(True)
+    assert model.sim_params['bodies'][1]['atmosphere']['albedo'] == 0.25
+
+
 def test_body_atmosphere_ref_altitude_spin_writes_key(model: Any) -> None:
     """A reference-altitude spin edit writes its own key once enabled."""
     tab = _body_tab(model)

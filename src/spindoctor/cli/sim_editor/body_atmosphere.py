@@ -23,10 +23,23 @@ from spindoctor.cli.sim_editor.widgets import kept_or_shown
 from spindoctor.cli.sim_editor.widgets import make_dspin as _dspin
 from spindoctor.sim.forward.atmosphere import DEFAULT_HAZE_ALBEDO
 
+_NULL_SHOWS: dict[str, float] = {
+    'ref_altitude_px': 0.0,
+    'g': 0.0,
+    'albedo': DEFAULT_HAZE_ALBEDO,
+}
+"""The value the renderer reads for each atmosphere key a scene may leave null."""
+
 
 def _as_map(value: Any) -> dict[str, Any]:
     """Return ``value`` when it is a mapping, else an empty dict."""
     return value if isinstance(value, dict) else {}
+
+
+def _shown(atmosphere: dict[str, Any], key: str) -> float:
+    """Return the value a spin shows for a null-able key: the stated one, or the default."""
+    value = atmosphere.get(key)
+    return _NULL_SHOWS[key] if value is None else float(value)
 
 
 class BodyAtmosphereMixin(SimEditorBase):
@@ -59,7 +72,7 @@ class BodyAtmosphereMixin(SimEditorBase):
             maximum=200.0,
             decimals=2,
             step=0.5,
-            value=float(atmosphere.get('ref_altitude_px', 0.0)),
+            value=_shown(atmosphere, 'ref_altitude_px'),
             tooltip='Altitude where the tangent optical depth equals tau_ref, in pixels.',
         )
         asymmetry = _dspin(
@@ -67,16 +80,15 @@ class BodyAtmosphereMixin(SimEditorBase):
             maximum=0.99,
             decimals=3,
             step=0.05,
-            value=float(atmosphere.get('g', 0.0)),
+            value=_shown(atmosphere, 'g'),
             tooltip='Henyey-Greenstein asymmetry (positive is forward-scattering).',
         )
-        stated_albedo = atmosphere.get('albedo')
         albedo = _dspin(
             minimum=0.0,
             maximum=1.0,
             decimals=3,
             step=0.05,
-            value=DEFAULT_HAZE_ALBEDO if stated_albedo is None else float(stated_albedo),
+            value=_shown(atmosphere, 'albedo'),
             tooltip='Haze brightness scale (0 adds no light; the halo still dims what is behind).',
         )
         shell_check = QCheckBox('Detached shell')
@@ -130,8 +142,8 @@ class BodyAtmosphereMixin(SimEditorBase):
         Removing the map keeps it on the tab.  Re-enabling the group restores its
         keys without spins, such as the haze structure, and the exact value of
         every key whose spin still shows it, so turning the group off and on
-        leaves a loaded scene's values unrounded.  A key whose spin was edited in
-        between takes the spin's value.
+        leaves a loaded scene's values unrounded and its null keys null.  A key
+        whose spin was edited in between takes the spin's value.
         """
         body = self._body(idx)
         if body is None:
@@ -160,7 +172,7 @@ class BodyAtmosphereMixin(SimEditorBase):
                 for key, value in removed.items()
                 if key not in spins and key != 'detached_px'
             }
-            body['atmosphere'] = restored | kept_or_shown(spins, removed)
+            body['atmosphere'] = restored | kept_or_shown(spins, removed, null_shows=_NULL_SHOWS)
         else:
             body['atmosphere'] = {
                 'scale_height_px': 8.0,

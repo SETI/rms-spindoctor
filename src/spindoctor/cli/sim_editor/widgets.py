@@ -50,31 +50,42 @@ def make_dspin(
 
 
 def kept_or_shown(
-    spins: Mapping[str, QDoubleSpinBox], removed: Mapping[str, Any]
-) -> dict[str, float]:
+    spins: Mapping[str, QDoubleSpinBox],
+    removed: Mapping[str, Any],
+    *,
+    null_shows: Mapping[str, float] | None = None,
+) -> dict[str, float | None]:
     """Return each spin's key with its value from a removed map, or from the spin.
 
     A group that is turned off keeps the map it removed, and turning it back on
     rebuilds the map from its spins.  A spin rounds to its displayed decimals and
     stops at its range, so each key takes the removed map's exact value while the
-    spin still shows that value, and the spin's own value once it was edited.
+    spin still shows that value, and the spin's own value once it was edited.  A
+    key in ``null_shows`` may be null in the removed map, and stays null while its
+    spin still shows the value given there.
 
     Parameters:
         spins: The group's spin boxes by map key.
         removed: The map the group removed when it was turned off, or an empty
             mapping when it never was.
+        null_shows: The value each spin shows for a null key, by map key.
 
     Returns:
         The rebuilt values by map key.
     """
-    values: dict[str, float] = {}
+    values: dict[str, float | None] = {}
     for key, spin in spins.items():
         shown = float(spin.value())
         kept = removed.get(key)
-        if isinstance(kept, (int, float)) and round(float(kept), spin.decimals()) == shown:
-            values[key] = float(kept)
+        kept_value: float | None
+        if isinstance(kept, (int, float)):
+            kept_value, kept_shows = float(kept), float(kept)
+        elif kept is None and key in removed and null_shows is not None and key in null_shows:
+            kept_value, kept_shows = None, null_shows[key]
         else:
             values[key] = shown
+            continue
+        values[key] = kept_value if round(kept_shows, spin.decimals()) == shown else shown
     return values
 
 
