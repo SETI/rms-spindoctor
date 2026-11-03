@@ -61,6 +61,7 @@ import numpy as np
 from scipy import ndimage
 
 from spindoctor.sim.spherical_harmonics import draw_sh_coefficients, legendre_order_sums
+from spindoctor.support.stable_math import stable_matmul3
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 
 __all__ = [
@@ -541,7 +542,7 @@ def cast_shadows(
     sun_hat = np.asarray(sun, dtype=np.float64) / float(np.linalg.norm(sun))
     start = p_hat * (1.0 + field.sample_points(p_hat))[:, np.newaxis]
     # The ray leaves the shell at the positive root of |P + t s| = 1 + h_max.
-    along = start @ sun_hat
+    along = stable_matmul3(start, sun_hat)
     reach = -along + np.sqrt(
         np.maximum(along**2 - (np.sum(start**2, axis=1) - (1.0 + field.h_max) ** 2), 0.0)
     )

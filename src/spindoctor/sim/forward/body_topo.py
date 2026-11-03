@@ -55,6 +55,7 @@ from spindoctor.sim.forward.body_texture import (
 from spindoctor.sim.forward.photometry import incidence_cosines, shade_surface
 from spindoctor.sim.forward.relief import ReliefField, cast_shadows, synthesize_relief_field
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
+from spindoctor.support.stable_math import stable_matmul3
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType, NDArrayIntType
 
 __all__ = ['TopoBodyRender', 'TopoBodySpec', 'create_topographic_body', 'render_topographic_body']
@@ -531,7 +532,7 @@ def _relief_shading(
     sun /= float(np.linalg.norm(sun))
 
     on_body = e2 < (1.0 + max(field.h_max, 0.0)) ** 2
-    cos_beta = p @ sun
+    cos_beta = stable_matmul3(p.reshape(-1, 3), sun).reshape(p.shape[:-1])
     tan_elevation = cos_beta / np.sqrt(np.maximum(1.0 - cos_beta**2, 1e-24))
     band = _SLOPE_BAND_MARGIN * field.slope_max / (1.0 + field.h_min)
     shadowed_near = on_body & (tan_elevation <= -band)
