@@ -504,10 +504,9 @@ def _aggregate(comparison: InstrumentComparison) -> None:
     comparison.fom_support['fom7_diagnostics'] = cohort_support(
         n_pairs, supported_min=3, limited_min=1
     ).value
-    # FOM 6 cross-frame split: real hot pixels recur at fixed detector
-    # positions; sim hot pixels are reseeded per scene, so a near-zero sim
-    # stationary fraction against a nonzero real one is expected and is
-    # reported as a known forward-model limitation.
+    # FOM 6 cross-frame split: real and sim hot pixels alike recur at fixed
+    # detector positions (the sim's map is keyed on the emulated detector), so
+    # the stationary fractions compare directly.
     comparison.spike_split_real = split_stationary_spikes(comparison.real_incidences)
     comparison.spike_split_sim = split_stationary_spikes(comparison.sim_incidences)
 

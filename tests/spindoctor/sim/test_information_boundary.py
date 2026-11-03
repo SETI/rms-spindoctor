@@ -93,6 +93,7 @@ _TRUTH_SAMPLES: dict[str, Any] = {
         'ref_altitude_px': 1.0,
         'g': 0.6,
         'detached_px': 5.0,
+        'albedo': 0.4,
         'interior_ramp_amplitude': 0.2,
         'ns_asymmetry_amplitude': 0.3,
         'ns_falloff_ratio': 1.8,

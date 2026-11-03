@@ -9,21 +9,26 @@ scene_tags:
   - ring_only_curved
 
 ground_truth:
-  offset_dv_px: 4.9190
-  offset_du_px: -24.3240
+  offset_dv_px: 5.2074
+  offset_du_px: -26.0260
   offset_uncertainty_px: 1.0
   source: operator_verified
   operator: rfrench
-  verified_date: 2026-04-28
+  verified_date: 2026-10-31
   ui_version: 'spindoctor 0.1.dev25'
   notes: |
     A ring edge with no other ring features at right edge of FOV. High curvature.
 
     RingEdgeNav's DT fit converges at offset (5.00, -25.00) — within 0.08 px in dv and 0.68 px in du of the operator's ground truth, with a sub-pixel RMS of 0.70. The fit is excellent. The current confidence formula sums per-edge DT RMS across edges (per_edge_dt_rms_summed = 119) and the alpha=-2.0 calibration constant was tuned for ~1 px expected per-edge values, so the sigmoid argument collapses to -238 and the formula returns confidence=0.0. The orchestrator therefore reports status=failed (combined confidence below min_confidence) even though the answer is correct.
 
+    Re-pinned 2026-10-31 (operator decision): success at the
+    stars' offset, StarRefineNav at (5.207, -26.026), where two
+    bright catalog stars confirm it. This supersedes the failed
+    pin above and the earlier ring-edge truth (4.919, -24.324).
+
 expected:
-  status: failed
-  confidence_tier: failed
-  primary_technique: RingEdgeNav
+  status: success
+  confidence_tier: medium
+  primary_technique: StarRefineNav
   techniques_must_run: []
   techniques_must_skip: []

@@ -1,6 +1,7 @@
 """Tests for ``spindoctor.nav_orchestrator.ensemble.ensemble`` and helpers."""
 
 import dataclasses
+import math
 
 import numpy as np
 import pytest
@@ -22,6 +23,7 @@ from spindoctor.nav_technique.diagnostics import (
     NavTechniqueDiagnostics,
     RingAnnulusDiagnostics,
     RingEdgeDiagnostics,
+    StarFieldDiagnostics,
     StarRefineDiagnostics,
     StarUniqueMatchDiagnostics,
 )
@@ -31,6 +33,7 @@ from spindoctor.nav_technique.nav_technique import (
 )
 from spindoctor.nav_technique.technique_result import NavTechniqueResult
 from spindoctor.support.exceptions import NavContractError
+from spindoctor.support.status_reason import NavStatusReason
 
 
 def _classifier(*, background_gradient_score: float | None = None) -> NavImageClassifierResult:
@@ -1049,13 +1052,36 @@ def test_ensemble_lone_vs_lone_comparable_confidence_still_conflicts() -> None:
     assert result.confidence_rank == 'conflicted'
 
 
-def test_ensemble_single_inlier_refine_tier_caps_at_medium() -> None:
-    """A lone one-inlier refine never earns the high tier.
+def test_ensemble_conflicted_result_records_its_star_count() -> None:
+    """A conflict still says how many stars its best-supported group matched."""
+    cov = np.eye(2, dtype=np.float64) * 0.25
+    stars = dataclasses.replace(
+        _make_result(
+            technique_name='StarUniqueMatchNav',
+            offset=(0.0, 0.0),
+            cov=cov,
+            confidence=0.5,
+            diagnostics=StarUniqueMatchDiagnostics(mode='two_star'),
+        ),
+        feature_ids=('star:UCAC4:1', 'star:UCAC4:2'),
+    )
+    body = _make_result(technique_name='BodyLimbNav', offset=(30.0, 30.0), cov=cov, confidence=0.45)
+    result = ensemble(
+        [stars, body],
+        feature_inventory=[],
+        image_classifier=_classifier(),
+        provenance=_provenance(),
+    )
+    assert result.status == 'conflicted'
+    assert result.matched_star_count == 2
 
-    The confidence is set above the high tier's min_confidence boundary
-    and the refine's localization sigma is CRLB-tight, so without the
-    single-inlier guard the result would earn high; the guard alone
-    holds it at medium.
+
+def test_ensemble_single_inlier_refine_is_single_star_only() -> None:
+    """A lone one-inlier refine is marked single_star_only and capped at low.
+
+    The confidence is set above the high tier's min_confidence boundary and
+    the refine's localization sigma is CRLB-tight, so without the mark the
+    result would earn high.
     """
     res = _make_result(
         technique_name='StarRefineNav',
@@ -1071,15 +1097,12 @@ def test_ensemble_single_inlier_refine_tier_caps_at_medium() -> None:
         provenance=_provenance(),
     )
     assert result.status == 'success'
-    assert result.confidence_rank == 'medium'
+    assert result.status_reason == NavStatusReason.SINGLE_STAR_ONLY
+    assert result.confidence_rank == 'low'
 
 
-def test_ensemble_one_star_unique_match_tier_caps_at_medium() -> None:
-    """A lone one-star unique match with tight sigma also tops out at medium.
-
-    The confidence clears the high tier's 0.85 boundary, so the medium
-    outcome isolates the single-star cap rather than the boundary.
-    """
+def test_ensemble_one_star_unique_match_is_single_star_only() -> None:
+    """A lone one-star unique match with tight sigma is single_star_only at low."""
     res = _make_result(
         technique_name='StarUniqueMatchNav',
         offset=(3.06, -0.02),
@@ -1093,26 +1116,39 @@ def test_ensemble_one_star_unique_match_tier_caps_at_medium() -> None:
         image_classifier=_classifier(),
         provenance=_provenance(),
     )
-    assert result.status == 'success'
-    assert result.confidence_rank == 'medium'
+    assert result.status_reason == NavStatusReason.SINGLE_STAR_ONLY
+    assert result.confidence_rank == 'low'
+    assert result.matched_star_count == 1
 
 
-def test_ensemble_two_single_star_members_still_cap_at_medium() -> None:
-    """Two agreeing single-star results are not an independent cross-check."""
-    cov = np.eye(2, dtype=np.float64) * 0.01
-    match = _make_result(
-        technique_name='StarUniqueMatchNav',
-        offset=(3.06, -0.02),
-        cov=cov,
-        confidence=0.9,
-        diagnostics=StarUniqueMatchDiagnostics(mode='one_star'),
+def test_ensemble_two_results_on_one_star_are_one_witness() -> None:
+    """A one-star match and the refine of the same star are one witness, not two.
+
+    They share the star, so they are collapsed: the fused sigma is the refine's
+    own, not the tighter sigma an independent pair would earn, the confidence is
+    the members' precision-weighted blend with no agreement boost, and the result
+    is single_star_only.
+    """
+    match = dataclasses.replace(
+        _make_result(
+            technique_name='StarUniqueMatchNav',
+            offset=(3.06, -0.02),
+            cov=np.eye(2, dtype=np.float64) * 900.0,
+            confidence=0.58,
+            diagnostics=StarUniqueMatchDiagnostics(mode='one_star'),
+        ),
+        feature_ids=('star:UCAC4:1',),
     )
-    refine = _make_result(
-        technique_name='StarRefineNav',
-        offset=(3.10, -0.05),
-        cov=cov,
-        confidence=0.9,
-        diagnostics=StarRefineDiagnostics(n_stars_used=1),
+    refine = dataclasses.replace(
+        _make_result(
+            technique_name='StarRefineNav',
+            offset=(3.06, -0.02),
+            cov=np.eye(2, dtype=np.float64) * 0.08,
+            confidence=0.5,
+            diagnostics=StarRefineDiagnostics(n_stars_used=1),
+        ),
+        feature_ids=('star:UCAC4:1',),
+        prior_source_techniques=frozenset({'StarUniqueMatchNav'}),
     )
     result = ensemble(
         [match, refine],
@@ -1120,8 +1156,157 @@ def test_ensemble_two_single_star_members_still_cap_at_medium() -> None:
         image_classifier=_classifier(),
         provenance=_provenance(),
     )
-    assert result.status == 'success'
+    assert result.status_reason == NavStatusReason.SINGLE_STAR_ONLY
+    assert result.confidence_rank == 'low'
+    assert result.sigma_px == pytest.approx((math.sqrt(0.08), math.sqrt(0.08)))
+    blend = (0.58 / 900.0 + 0.5 / 0.08) / (1 / 900.0 + 1 / 0.08)
+    assert result.confidence == pytest.approx(blend)
+    assert result.matched_star_count == 1
+
+
+@pytest.mark.parametrize(('n_refined', 'rank'), [(2, 'medium'), (3, 'high')])
+def test_ensemble_star_results_on_two_stars_top_out_at_medium(n_refined: int, rank: str) -> None:
+    """A one-star match and a sharp refine of two stars are not high; three stars are.
+
+    The one-star match (sigma 25 px) and the refine that consumed its star share it, so
+    they collapse to the refine, whose own confidence (0.91) and sigma (0.27 px) would
+    earn high; with two matched stars nothing checks the pair, so it is capped at
+    medium.
+    """
+    match = dataclasses.replace(
+        _make_result(
+            technique_name='StarUniqueMatchNav',
+            offset=(3.06, -0.02),
+            cov=np.eye(2, dtype=np.float64) * 25.3**2,
+            confidence=0.7,
+            diagnostics=StarUniqueMatchDiagnostics(mode='one_star'),
+        ),
+        feature_ids=('star:UCAC4:1',),
+    )
+    refine = dataclasses.replace(
+        _make_result(
+            technique_name='StarRefineNav',
+            offset=(3.06, -0.02),
+            cov=np.eye(2, dtype=np.float64) * 0.27**2,
+            confidence=0.91,
+            diagnostics=StarRefineDiagnostics(n_stars_used=n_refined),
+        ),
+        feature_ids=tuple(f'star:UCAC4:{k}' for k in range(1, n_refined + 1)),
+        prior_source_techniques=frozenset({'StarUniqueMatchNav'}),
+    )
+    result = ensemble(
+        [match, refine],
+        feature_inventory=[],
+        image_classifier=_classifier(),
+        provenance=_provenance(),
+    )
+    assert result.matched_star_count == n_refined
+    assert result.confidence_rank == rank
+
+
+def test_ensemble_two_single_star_results_on_different_stars_are_two_stars() -> None:
+    """Single-star results on two different stars are not single_star_only but stay medium."""
+    cov = np.eye(2, dtype=np.float64) * 0.01
+    first = dataclasses.replace(
+        _make_result(
+            technique_name='StarUniqueMatchNav',
+            offset=(3.06, -0.02),
+            cov=cov,
+            confidence=0.9,
+            diagnostics=StarUniqueMatchDiagnostics(mode='one_star'),
+        ),
+        feature_ids=('star:UCAC4:1',),
+    )
+    second = dataclasses.replace(
+        _make_result(
+            technique_name='StarRefineNav',
+            offset=(3.10, -0.05),
+            cov=cov,
+            confidence=0.9,
+            diagnostics=StarRefineDiagnostics(n_stars_used=1),
+        ),
+        feature_ids=('star:UCAC4:2',),
+    )
+    result = ensemble(
+        [first, second],
+        feature_inventory=[],
+        image_classifier=_classifier(),
+        provenance=_provenance(),
+    )
+    assert result.status_reason == NavStatusReason.OK
+    assert result.matched_star_count == 2
     assert result.confidence_rank == 'medium'
+
+
+def test_ensemble_three_single_star_results_on_different_stars_stay_medium() -> None:
+    """Three single-star results on three stars match three stars but still stay medium.
+
+    Each rests on one detection whose sigma is predicted; however many of them agree,
+    none is a measured fit.
+    """
+    cov = np.eye(2, dtype=np.float64) * 0.01
+    diagnostics: dict[str, NavTechniqueDiagnostics] = {
+        'StarUniqueMatchNav': StarUniqueMatchDiagnostics(mode='one_star'),
+        'StarRefineNav': StarRefineDiagnostics(n_stars_used=1),
+        'StarFieldFromCatalogNav': StarFieldDiagnostics(n_inliers=1),
+    }
+    results = [
+        dataclasses.replace(
+            _make_result(
+                technique_name=name,
+                offset=(3.06 + 0.02 * k, -0.02),
+                cov=cov,
+                confidence=0.95,
+                diagnostics=diag,
+            ),
+            feature_ids=(f'star:UCAC4:{k}',),
+        )
+        for k, (name, diag) in enumerate(diagnostics.items())
+    ]
+    result = ensemble(
+        results,
+        feature_inventory=[],
+        image_classifier=_classifier(),
+        provenance=_provenance(),
+    )
+    assert result.matched_star_count == 3
+    assert result.confidence_rank == 'medium'
+
+
+def test_ensemble_star_results_sharing_a_star_disagree_beyond_tolerance() -> None:
+    """Two star results on one star 4 px apart are not fused by the general pixel floor.
+
+    They found different detections of the same star, so one of them
+    misidentified it; the frame is reported conflicted rather than fused.
+    """
+    cov = np.eye(2, dtype=np.float64) * 0.09
+    field = dataclasses.replace(
+        _make_result(
+            technique_name='StarFieldFromCatalogNav',
+            offset=(3.85, -35.14),
+            cov=cov,
+            confidence=0.6,
+            diagnostics=StarFieldDiagnostics(n_inliers=3),
+        ),
+        feature_ids=('star:a', 'star:b', 'star:c'),
+    )
+    match = dataclasses.replace(
+        _make_result(
+            technique_name='StarUniqueMatchNav',
+            offset=(4.63, -30.68),
+            cov=cov,
+            confidence=0.69,
+            diagnostics=StarUniqueMatchDiagnostics(mode='two_star'),
+        ),
+        feature_ids=('star:b', 'star:c'),
+    )
+    result = ensemble(
+        [field, match],
+        feature_inventory=[],
+        image_classifier=_classifier(),
+        provenance=_provenance(),
+    )
+    assert result.status == 'conflicted'
 
 
 def test_ensemble_single_star_plus_body_technique_keeps_high() -> None:
@@ -1157,12 +1342,15 @@ def test_ensemble_multi_star_refine_keeps_high() -> None:
     The confidence sits above the high tier's 0.85 boundary so the tier
     outcome isolates the multi-inlier gate, not the boundary.
     """
-    res = _make_result(
-        technique_name='StarRefineNav',
-        offset=(3.06, -0.02),
-        cov=np.eye(2, dtype=np.float64) * 0.01,
-        confidence=0.9,
-        diagnostics=StarRefineDiagnostics(n_stars_used=4),
+    res = dataclasses.replace(
+        _make_result(
+            technique_name='StarRefineNav',
+            offset=(3.06, -0.02),
+            cov=np.eye(2, dtype=np.float64) * 0.01,
+            confidence=0.9,
+            diagnostics=StarRefineDiagnostics(n_stars_used=4),
+        ),
+        feature_ids=tuple(f'star:UCAC4:{k}' for k in range(4)),
     )
     result = ensemble(
         [res],
@@ -1865,3 +2053,53 @@ def test_config_rejects_inverted_phase_window() -> None:
             body_witness_shape_lock_max_phase_deg=95.0,
             body_witness_collapse_min_phase_deg=90.0,
         )
+
+
+def test_ensemble_collapsed_star_set_reports_the_blended_confidence() -> None:
+    """Collapsing results on shared stars cannot raise the tier above the members' blend.
+
+    The seven-star refine represents the set, but the set's confidence is the
+    precision-weighted mean of the members' confidences, as the fusion of the members
+    would give before any agreement boost; the refine's own 0.95 alone would earn high.
+    """
+    stars = tuple(f'star:{i}' for i in range(7))
+    field = dataclasses.replace(
+        _make_result(
+            technique_name='StarFieldFromCatalogNav',
+            offset=(3.0, -1.0),
+            cov=np.eye(2, dtype=np.float64) * 0.09,
+            confidence=0.6,
+            diagnostics=StarFieldDiagnostics(n_inliers=7),
+        ),
+        feature_ids=stars,
+    )
+    match = dataclasses.replace(
+        _make_result(
+            technique_name='StarUniqueMatchNav',
+            offset=(3.1, -1.1),
+            cov=np.eye(2, dtype=np.float64) * 0.05,
+            confidence=0.8,
+            diagnostics=StarUniqueMatchDiagnostics(mode='two_star'),
+        ),
+        feature_ids=stars[:2],
+    )
+    refine = dataclasses.replace(
+        _make_result(
+            technique_name='StarRefineNav',
+            offset=(3.05, -1.05),
+            cov=np.eye(2, dtype=np.float64) * 0.09,
+            confidence=0.95,
+            diagnostics=StarRefineDiagnostics(n_stars_used=7),
+        ),
+        feature_ids=stars,
+    )
+    result = ensemble(
+        [field, match, refine],
+        feature_inventory=[],
+        image_classifier=_classifier(),
+        provenance=_provenance(),
+    )
+    weights = (1 / 0.09, 1 / 0.05, 1 / 0.09)
+    blend = (weights[0] * 0.6 + weights[1] * 0.8 + weights[2] * 0.95) / sum(weights)
+    assert result.confidence == pytest.approx(blend)
+    assert result.confidence_rank == 'medium'

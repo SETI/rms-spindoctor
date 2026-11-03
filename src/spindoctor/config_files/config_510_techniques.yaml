@@ -712,17 +712,20 @@ techniques:
         alpha: 0.809
         divisor: 250.0
         cap_at: 1.0
-      # Magnitude margin to the next-brightest predictable star in the
-      # extfov.  Below the 1.5 mag floor the technique short-circuits
-      # before reaching the formula; above the floor, additional margin
-      # earns confidence up to a 1.5 mag span.
+      # Magnitude margin from the matched star (the brighter of a pair) to
+      # the brightest other usable star in the extfov.  A margin below 1.5
+      # mag, negative when a brighter star is not seen, contributes nothing
+      # (the term is clamped at 0); additional margin earns confidence up to
+      # a 1.5 mag span.
       - feature: brightness_margin_mag
         alpha: 1.002
         offset: 1.5
         divisor: 1.5
         cap_at: 1.0
       # Larger residuals between the matched detection and the prediction
-      # pull confidence down.
+      # pull confidence down.  On the one-star path the residual is the
+      # offset itself, so a lone star far from its prediction gets little
+      # confidence.
       - feature: residual_px
         alpha: -0.112
         divisor: 2.0
@@ -730,31 +733,160 @@ techniques:
       at_edge: true
       spurious: true
     tuning:
-      # Minimum magnitude difference to the next-brightest predictable
-      # star for the 1-star path to fire.
+      # Magnitude difference within which another usable star could be a
+      # lone star's source: when such a star's window holds the source, the
+      # 1-star path refuses the match, since nothing tells the two stars
+      # apart.  A star whose window cannot reach the source, or that the
+      # offset puts on clear sky in the image where it shows nothing, does
+      # not compete (the 1-star path once refused whenever any star in the
+      # extended field of view was this close in brightness).  On F ring
+      # frame N1492081691 one source lies in the windows of two stars 0.2
+      # mag apart; taking it for the brighter gives an answer 7 px from the
+      # bundle's, and the fainter is the right one.  Also the floor of the
+      # brightness-margin diagnostic's confidence term.
       brightness_margin_to_next_catalog_star_mag: 1.5
-      # Half-width of the search window around each prediction (px).
-      # Should bracket the per-instrument SPICE pointing-error envelope
-      # so the brightest peak in the window is the matched detection.
-      search_window_px: 30.0
-      # Centroid box half-width around the brightness peak (px).
+      # Each star is searched for over the instrument's offset window
+      # (extfov_margin_vu in the instrument configuration), axis by axis,
+      # as every technique searches it: pointing error is a property of
+      # the camera, so stars get no window of their own.
+      # The lone-star ellipse inside it is the camera's as well:
+      # one_star_ellipse_fraction in the instrument configuration.
+      #
+      # Gaussian PSF sigma (px) of the matched-filter kernel that picks the
+      # detection inside each search window: the strongest local maximum
+      # of the response wins, not the brightest single pixel, so the flank
+      # of a brighter source cut by the window edge is never taken.  The
+      # response favors a star over a single-pixel spike of the same peak,
+      # but not one much brighter (see max_peak_sharpness).
+      # Same value as StarFieldFromCatalogNav's, so every star technique
+      # measures a source the same way.
+      psf_sigma_px: 1.0
+      # Largest ratio of a detection's brightest-pixel excess to the mean
+      # excess of its four edge neighbors (both above the centroid box's
+      # median); a sharper peak, by more than detection_sigma times the
+      # noise of that difference, is a cosmic ray or hot pixel and the next
+      # strongest peak is taken.  The response alone does not protect a
+      # star narrower than the kernel: a single pixel outranks a Cassini
+      # NAC star (PSF sigma 0.54 px) once it exceeds about 1.7 times the
+      # star's peak.  Of 6322 sources at catalog stars' positions under the
+      # published bundle's pointing, in 2500 frames of the F ring movies set
+      # aside for tuning, this limit skips two: a hot pixel (ratio over 10^5) and a
+      # star of ratio 8.4.
+      max_peak_sharpness: 8.0
+      # Source isolation, as StarFieldFromCatalogNav: a detection counts
+      # only when, over an annulus of these radii (px) around it, the
+      # brightest matched-filter response exceeds the annulus mean by less
+      # than source_isolation_max_ratio of the detection's own height
+      # above that mean.  A ring ridge or a cosmic-ray track fails; on the
+      # black-sky library frame C0164958500R two such tracks formed a
+      # consistent pair.  Without it 3 more of the 1030 ISS_006RI frames
+      # navigate, none wrong.  Both
+      # radii move out by half a star's expected smear length, so a star
+      # streaked by the spacecraft's motion (8.5 px on the library frame
+      # N1530185128_1) does not cross its own annulus.
+      source_isolation_inner_px: 4
+      source_isolation_outer_px: 6
+      source_isolation_max_ratio: 0.5
+      # Centroid box half-width around the detection's peak (px); also the
+      # half-width of the matched-filter kernel.
       centroid_box_half_px: 3
-      # Maximum allowed best-assignment residual in the 2-star path
-      # before falling back to the 1-star path.
-      max_residual_px: 4.0
-      # Detection-threshold multiplier on image_noise_sigma; below this
-      # the brightest pixel inside the search window is considered noise.
+      # Maximum allowed residual of a pair in the 2-star path (px).
+      # The residual is half the difference between the two stars'
+      # offsets.  On ISS_006RI_LPHRLFMOV001_PRIME, with the tolerance
+      # opened to 4 px, the 704 two-star matches within 2 px of the
+      # published bundle have residuals of median 0.10 px and 95th
+      # percentile 0.30 px, and no star is paired with the wrong source.
+      # 1.2 px keeps 701 of the 704, and admits the correct 1.04 px pair
+      # of library frame N1550270436, which 1.0 px refuses.  A star is
+      # found at a pair's offset when one of its candidates lies within
+      # twice this of where the offset puts it; pairs whose offsets differ
+      # by more than twice this are different answers.
+      max_residual_px: 1.2
+      # Number of brightest usable stars whose candidates the 2-star path
+      # pairs.  Searching only the brightest two refuses frames whose
+      # brightest predicted star is not in the image (outside the detector,
+      # behind ring glare).  On ISS_006RI, with each window's strongest
+      # detection in a 50 px window: 3 stars navigate 710 frames, 5
+      # navigate 771, 8 navigate 777, all within 2 px of the bundle.
+      pair_search_stars: 5
+      # Number of strongest isolated point sources in each searched star's
+      # window that are its candidates; every two candidates of two
+      # different stars are tried as a pair.  The star itself need not be
+      # the strongest source in a window as wide as the offset window: a
+      # ring's flank, a brighter star, or a cosmic-ray hit can be.  The
+      # star's own source is the strongest, second, or third in all but 2
+      # of 3108 Cassini NAC star windows on F ring frames (2835, 254, and 17
+      # times; fourth twice).
+      # Each further candidate is one more chance of a coincidence: with 4
+      # or 5, two sources of F ring frame N1615481899 ranked 1st and 4th
+      # agree 128 px from the bundle's answer, within a factor of 4 of the
+      # right pair's brightness, and the frame is refused as ambiguous.
+      pair_search_sources: 3
+      # A pair's offset is refuted when at least this many of the other
+      # searched stars are each located elsewhere and none is found at the
+      # offset: two stars can agree by coincidence, three that are in the
+      # image and found elsewhere say they did.  A star is located elsewhere
+      # when exactly one of its candidates is as bright as it should be
+      # (see pair_vote_peak_factor) and that one lies more than twice
+      # max_residual_px from where the pair puts it.  A window holding
+      # several sources the star could be (a field of saturated cosmic-ray
+      # hits) does not locate it.  When this rule was added (2026-10-15), a
+      # simulated six-star field whose catalog positions each scatter by 6
+      # or 8 px had two stars agreeing to 0.8 and 1.1 px, reported 5 and 7
+      # px wrong without it; as of 2026-11-02 it changes no answer on that
+      # field.  A star found within twice max_residual_px of where the pair
+      # puts it votes for the pair whatever else its window holds, so a
+      # brighter cosmic-ray hit nearby does not count against it, provided
+      # the source found there is as bright as the star should be.  One
+      # source detected for several stars whose windows overlap counts once.
+      # A refuted offset sets aside every pair within twice max_residual_px.
+      pair_contradiction_stars: 3
+      # A pair's offset is refuted when at least this many other searched
+      # stars, each at least as bright as the pair's fainter star, lie on
+      # clear sky inside the image where the pair puts them and show
+      # nothing there (a peak below the pair's prediction for them divided
+      # by pair_vote_peak_factor), and they outnumber the other stars found
+      # there.  On library frame N1598093741, whose stars are smeared over
+      # 19 px, two sources that are not stars agree 45 px from the answer
+      # and its two brightest stars show nothing there.  One absent star
+      # does not refute: a catalog star brighter than the pair shows nothing
+      # at the right offset on a dozen ISS_006RI frames.  It does when both
+      # of the pair's stars are predicted in the padding, in the image only
+      # if the pointing error carries both in: on F ring frame N1755782055
+      # two such stars pair two unrelated sources 85 px from the bundle's
+      # answer, where the brightest star, on clear sky, shows nothing.
+      pair_absent_stars: 2
+      # Factor within which the peak above the local background of a source
+      # found where the pair's offset puts another star must match the peak
+      # the pair's two stars show per unit of predicted SNR, for the source
+      # to vote for the pair.  A faint field star or a cosmic-ray hit lying
+      # there by chance is a small fraction of that and does not vote.  Of
+      # several pairs backed by equally many stars, the brightest per unit
+      # of predicted SNR is the answer unless another lies within this
+      # factor of it.  On 93
+      # two-star answers from the F ring movies set aside for tuning, the
+      # other stars found at the pair's offset had peaks 0.35 to 2.8 times
+      # their expected value (2nd and 99th percentiles of the 492 stars at
+      # least a quarter as bright as the pair's fainter star); 4 sets aside
+      # 9 of them (1.8 percent), and N1799563905's 15 stars lie within 0.68
+      # to 2.04.
+      pair_vote_peak_factor: 4.0
+      # Detection-threshold multiplier on image_noise_sigma; a detection
+      # whose brightest pixel stands less than this many noise sigmas
+      # above the median of its centroid box is considered noise.
       detection_sigma: 4.0
-      # Minimum background-subtracted peak-to-runner-up ratio for the
-      # 1-star detection (#211).  The absolute detection_sigma test
-      # cannot reject a noise spike: the maximum of the ~3700-pixel
-      # search window sits at 3.5-4.5 sigma for pure noise, so a
-      # marginal star routinely loses to a spike that clears 4 sigma.
-      # A real star detection towers over the window's noise order
-      # statistics (sim: ratio >= ~2 for every good match) while a
-      # matched spike sits within ~30% of its runner-up; below this
-      # ratio the single-detection premise of the 1-star path fails and
-      # the result is spurious.  Unit-free (no DN-scale dependence).
+      # Minimum ratio of a lone star's source's peak above its local
+      # background to that of every other source in the star's window
+      # (#211), whether or not that source is star-like or refuted: below
+      # it the window holds two sources the star could be, and the result
+      # is spurious.  The sources are the window's isolated point sources,
+      # so a hot pixel, a ring's flank, or a noise spike does not compete;
+      # the brightest pixel of a wide window is often one of those (162 of
+      # the 361 one-star answers on F ring NAC frames have a pixel brighter
+      # than the star in the window).  On 978 one-star frames of the F ring
+      # and spokes movies, 2.0 refuses 14 lone stars within 1 px of the
+      # bundle's answer that 1.5 keeps, and answers none that 1.5 refuses.
+      # Unit-free.
       one_star_min_peak_ratio: 1.5
       # Maximum prediction-to-detection distance (px) accepted by the
       # 1-star path when the peak-ratio gate above is vacuous (#259).
@@ -765,16 +897,36 @@ techniques:
       # runner-up, so the sentinel case is exactly where a lone hot
       # pixel or artifact would otherwise auto-pass every check.  In
       # that case the residual (which on this path IS the reported
-      # offset) must stay inside the pointing-prior core: default is
-      # one third of search_window_px, since the window half-width
-      # brackets the per-instrument SPICE pointing-error envelope (a
-      # ~3-sigma budget) and an uncorroborated no-rival detection far
-      # from the prediction is far more likely an artifact than a
-      # 2-3-sigma pointing error.  A finite peak ratio leaves
-      # acceptance to the measured #211 gate: operator-verified
-      # library matches carry genuine one-star offsets up to ~24 px,
-      # so no uniform residual cut can sit below the search window.
+      # offset) must stay inside the pointing-prior core: 10 px, a third
+      # of the 30 px window half-width it was set against, since an
+      # uncorroborated no-rival detection far from the prediction is far
+      # more likely an artifact than a 2-3-sigma pointing error.  A
+      # finite peak ratio leaves acceptance to the measured #211 gate:
+      # operator-verified library matches carry genuine one-star offsets
+      # up to ~24 px, so this bound cannot hold every match; every one is
+      # held to the camera's lone-star ellipse instead.
       one_star_max_residual_px: 10.0
+      # Largest ratio of a lone star's brightest-pixel excess to the mean
+      # excess of its four edge neighbors, allowing nothing for noise; a
+      # sharper source is no lone star (max_peak_sharpness, which allows
+      # for noise, still decides what counts as a source).  Nothing
+      # cross-checks a lone source, and a cosmic-ray hit a little broader
+      # than a hot pixel passes the noise allowance.  Of 3656 stars found at
+      # the published bundles' pointing on the F ring and spokes star
+      # frames, none exceeds 6.96; five lone sources between 7.03 and 7.97,
+      # each 30 to 100 px from the bundle's answer, are refused at 7 and
+      # taken at 8.  Must be finite and at least 1.
+      one_star_max_peak_sharpness: 7.0
+      # A lone star's offset is refuted when at least this many other usable
+      # stars lie where it puts them inside the image, on clear sky (robust
+      # spread at most twice the noise), and show a peak below their expected
+      # one divided by pair_vote_peak_factor, the expected peak being the
+      # lone source's peak scaled by the ratio of the stars' predicted SNRs.
+      # The pair search needs two (pair_absent_stars): a pair is two stars'
+      # agreement, a lone star nobody's.  On 978 one-star frames of the F
+      # ring and spokes movies, 2 answers 13 fewer frames within 1 px of the
+      # bundle's answer than 1 and one more 39 px from it.  At least 1.
+      one_star_absent_stars: 1
       # Per-mode caps applied post-sigmoid; the 1-star path cannot
       # self-check, so its cap is lower than the 2-star path's.
       one_star_confidence_cap: 0.7
@@ -823,12 +975,21 @@ techniques:
       # unique-match search window because the pass-1 prior already put
       # us within a few pixels of the right answer.
       refine_window_px: 6.0
-      # Centroid box half-width around the brightness peak (px).
+      # Centroid box half-width around the brightness peak (px); also the
+      # half-width of the matched-filter kernel.
       centroid_box_half_px: 3
+      # Gaussian PSF sigma (px) of the matched-filter kernel that picks the
+      # detection inside each refine window; see StarUniqueMatchNav.
+      psf_sigma_px: 1.0
+      # Largest peak-to-neighbor sharpness of a star; see StarUniqueMatchNav.
+      max_peak_sharpness: 8.0
       # Drop a star whose detection sits more than this many pixels from
       # the prior-shifted prediction; almost certainly a wrong peak.
       max_per_star_residual_px: 4.0
-      # Detection-threshold multiplier on image_noise_sigma.
+      # Detection-threshold multiplier on image_noise_sigma; a detection
+      # must stand this many noise sigmas above the median of its centroid
+      # box.  A refine window whose brightest pixel is the edge-cut flank
+      # of a brighter source outside it is refused outright.
       detection_sigma: 4.0
       # Below this many surviving inliers the technique reports spurious.
       min_inliers: 1
@@ -908,6 +1069,21 @@ techniques:
       psf_sigma_px: 1.0
       # Centroid box half-width around each detection peak (px).
       centroid_box_half_px: 3
+      # Source isolation.  A detection is kept only when, over an annulus
+      # of these radii (px) around it, the brightest matched-filter
+      # response exceeds the annulus mean by less than
+      # source_isolation_max_ratio of the detection's own height above
+      # that mean.  The response to a star of sigma ~1 px is under 2% of
+      # its peak by 4 px, while a ridge of a ring or a limb runs through
+      # the annulus at nearly the peak's height.  Without it the brightest
+      # sources on a frame crossed by a ring are all ring pixels: on
+      # ISS_006RI_LPHRLFMOV001_PRIME the stars rank 300th to 500th, the
+      # technique answers on none of 777 frames, and with it on 479.  The
+      # outcome barely moves with the ratio: 0.3, 0.5, and 0.7 navigate
+      # 741, 744, and 743 of the 1030 frames, none wrong.
+      source_isolation_inner_px: 4
+      source_isolation_outer_px: 6
+      source_isolation_max_ratio: 0.5
       # Match radius in the (ratio, ratio, angle_rad) hash
       # space; weighted Euclidean.  0.05 is the empirical default for
       # centroid sigma ~0.1 px against typical triplet scales (Part 3

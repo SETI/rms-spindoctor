@@ -31,6 +31,9 @@ noise:
 offset_v: 1.43
 offset_u: -0.61
 offset_rotation_deg: 0.0
+# A one-star answer is capped at the low tier: one star has no independent
+# cross-check.
 expected:
   status: success
-  confidence_tier: medium
+  confidence_tier: low
+  status_reason: single_star_only

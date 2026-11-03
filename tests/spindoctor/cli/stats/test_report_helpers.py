@@ -117,7 +117,7 @@ def test_resolve_offset_limit_coiss_nac_by_size() -> None:
 
 def test_resolve_offset_limit_coiss_wac() -> None:
     """Cassini WAC limits use the wac detector block."""
-    assert resolve_offset_limit('coiss', 'W1454725799_1_CALIB.IMG', 512) == (5.0, 10.0)
+    assert resolve_offset_limit('coiss', 'W1454725799_1_CALIB.IMG', 512) == (7.0, 10.0)
 
 
 def test_resolve_offset_limit_requires_shape_for_size_tables() -> None:

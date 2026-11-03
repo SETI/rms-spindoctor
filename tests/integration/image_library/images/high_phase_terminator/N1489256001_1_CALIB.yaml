@@ -22,9 +22,14 @@ ground_truth:
     Pipeline at curation: status=success, confidence=0.841, rank=high, techniques=['BodyLimbNav', 'StarFieldFromCatalogNav', 'StarRefineNav', 'StarUniqueMatchNav'], per-technique offsets={"BodyLimbNav": [5.5269, -0.8399], "StarFieldFromCatalogNav": [0.0, 0.0], "StarUniqueMatchNav": [0.0, 0.0], "StarRefineNav": [4.8156, -0.4015]}.
 
     The expected pins follow the seed-20260718 recalibration (attribution basis util/calibration/CAMPAIGN_20260718.md). The primary is BodyLimbNav: BodyTerminatorNav emits no result on this frame, so BodyLimbNav carries it.
+
+    Re-pinned 2026-10-31 (operator decision): confidence_tier
+    medium -> low. The offset is unchanged or closer to truth;
+    the fused sigma is over the medium tier's 2 px cap.
+
 expected:
   status: success
-  confidence_tier: medium
+  confidence_tier: low
   primary_technique: BodyLimbNav
   techniques_must_run:
   - BodyLimbNav

@@ -37,7 +37,7 @@ from spindoctor.sim.forward.body_texture import (
     disc_texture_spec_from_params,
     transit_specs_from_params,
 )
-from spindoctor.sim.forward.body_topo import TopoBodySpec, create_topographic_body
+from spindoctor.sim.forward.body_topo import TopoBodyRender, TopoBodySpec, render_topographic_body
 from spindoctor.sim.seeds import derive_effect_seed, stable_param_seed
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 from spindoctor.support.stable_math import stable_hypot
@@ -565,14 +565,15 @@ def _render_body_shape_cached(
 
 
 @lru_cache(maxsize=30)
-def _render_topo_shape_cached(size_v: int, size_u: int, spec: TopoBodySpec) -> NDArrayFloatType:
+def _render_topo_shape_cached(size_v: int, size_u: int, spec: TopoBodySpec) -> TopoBodyRender:
     """Cache topographic body shapes at the reference center (image center).
 
     The frozen spec is the cache key, so bodies differing in any geometry,
     texture, relief, or photometry knob occupy distinct entries; the caller
-    translates the shape into place exactly as the classic path does.
+    translates the shape and its silhouette into place exactly as the classic
+    path translates its shape.
     """
-    return create_topographic_body((size_v, size_u), (size_v / 2.0, size_u / 2.0), spec)
+    return render_topographic_body((size_v, size_u), (size_v / 2.0, size_u / 2.0), spec)
 
 
 def render_single_body(
@@ -713,6 +714,12 @@ def render_single_body(
         or surge_amplitude > 0.0
         or has_texture
     )
+    # The classic path never renders a pixel inside the body at zero (every
+    # visible-hemisphere pixel sits at or above the dark-side floor), so its
+    # painted pixels are its silhouette.  The topographic path returns its
+    # silhouette separately: a transit umbra or a zero-albedo spot renders
+    # black but still belongs to the body.
+    silhouette: NDArrayFloatType | None = None
     if use_topo:
         # The relief terrain and the albedo noise field each draw from their
         # own named stream of the per-body identity seed, so they are
@@ -758,7 +765,9 @@ def render_single_body(
             disc_texture=disc_texture_spec_from_params(body_params),
             transits=transit_specs_from_params(body_params),
         )
-        body_shape = _render_topo_shape_cached(size_v, size_u, spec)
+        topo_render = _render_topo_shape_cached(size_v, size_u, spec)
+        body_shape = topo_render.intensity
+        silhouette = topo_render.silhouette
     else:
         body_shape = _render_body_shape_cached(
             size_v,
@@ -801,6 +810,7 @@ def render_single_body(
             rotation_tilt=float(rotation_tilt),
             illumination_angle=float(illumination_angle),
             phase_angle=float(phase_angle),
+            silhouette=silhouette,
         )
         body_shape = layers.disc
         halo = layers.halo
@@ -817,6 +827,7 @@ def render_single_body(
         ref_center_v=ref_center_v,
         ref_center_u=ref_center_u,
         halo=halo,
+        silhouette=silhouette,
     )
 
 
@@ -855,6 +866,7 @@ def finish_single_body(
     ref_center_v: float,
     ref_center_u: float,
     halo: HaloScreen | None = None,
+    silhouette: NDArrayFloatType | None = None,
 ) -> tuple[NDArrayBoolType, dict[str, Any]]:
     """Translate a reference-centered body shape into place and composite it.
 
@@ -862,7 +874,9 @@ def finish_single_body(
     body's translucent halo is translated alongside it and returned on the
     info dict (key ``'halo'``) for the radiance stage to composite as a
     transmission screen, so the returned mask and the painted pixels are the
-    solid silhouette only.
+    solid silhouette only.  The mask is every pixel the silhouette touches,
+    so the body paints, occludes stars and farther bodies, and claims its
+    pixels in the truth maps there even where it renders black.
 
     Parameters:
         img: Image array to modify in-place.
@@ -877,6 +891,9 @@ def finish_single_body(
         ref_center_u: Reference center U the shape was rendered at.
         halo: The body's translucent halo screen at the reference center, or
             None for a body without an atmosphere.
+        silhouette: The body's solid-outline pixel coverage at the reference
+            center, or None when every pixel inside the body renders above
+            zero, so ``body_shape > 0`` is the outline.
 
     Returns:
         Tuple of (body_mask, body_info_dict) where body_info_dict contains
@@ -890,9 +907,15 @@ def finish_single_body(
     # interpolation (the shape is only read, never written).
     if dv == 0.0 and du == 0.0:
         positioned_body = body_shape
+        positioned_outline = body_shape if silhouette is None else silhouette
     else:
         positioned_body = ndimage.shift(body_shape, (dv, du), order=1, mode='constant', cval=0.0)
-    mask = positioned_body > 0
+        positioned_outline = (
+            positioned_body
+            if silhouette is None
+            else ndimage.shift(silhouette, (dv, du), order=1, mode='constant', cval=0.0)
+        )
+    mask = positioned_outline > 0
     img[mask] = positioned_body[mask]
 
     positioned_halo: HaloScreen | None = None

@@ -151,6 +151,9 @@ margin that is right for one is wrong for the other:
    * - 1024
      - ``[60, 60]``
 
+A lone star, which no other star checks, is believed only inside the ellipse reaching 0.6
+of the margin along each axis.
+
 **Camera rotation.** Rotation fitting is off. Offsets are two degrees of
 freedom, ``(dv, du)``, and no rotation is reported.
 
