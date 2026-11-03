@@ -674,7 +674,7 @@ def _flat_top_region(
     half: int,
     tolerance_dn: float,
     bounds: tuple[int, int, int, int],
-) -> tuple[int, int, int, int] | None | Literal[False]:
+) -> tuple[int, int, int, int] | Literal[False] | None:
     """Return the region that holds a clipped core as long as the candidate's box.
 
     The flat top is the 4-connected set of pixels at or above the brightest pixel of the
