@@ -29,9 +29,8 @@ against the bodies (``img = I_ring + exp(-tau/mu) * img_behind``); the halo
 screens composite in the same far-to-near depth order, interleaved with the
 ring by each halo's body range.  Point sources sit at infinity: every
 translucent screen (ring, halo) attenuates them and an opaque body's
-silhouette extinguishes them (the painted, lit silhouette -- a fully dark
-night side does not occult, a stated approximation of the mask-based body
-renderers).
+solid silhouette extinguishes them, its unlit side and any pixel it renders
+black included.
 
 The translucent-screen machinery itself -- the far-to-near screen ordering
 and the depth-ambiguity checks behind every stacking decision -- lives in

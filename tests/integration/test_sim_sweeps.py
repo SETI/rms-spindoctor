@@ -16,10 +16,12 @@ step navigate nothing and run with the unit suite, in
 
 import copy
 import functools
+import itertools
 from pathlib import Path
 
 import pytest
 
+from spindoctor.sim.forward.atmosphere import DEFAULT_HAZE_ALBEDO
 from tests.integration.sim_sweep import (
     SweepRow,
     build_sweep_params,
@@ -638,6 +640,46 @@ def test_atmosphere_haze_biases_limb() -> None:
     assert rows[0].offset_error_px is not None
     assert rows[-1].offset_error_px is not None
     assert rows[-1].offset_error_px > rows[0].offset_error_px + 0.1
+
+
+def test_atmosphere_haze_albedo_floor_recovers() -> None:
+    """An albedo-0 haze adds no light, so the bare limb recovers the offset."""
+    rows = _rows('atmosphere_haze_albedo')
+    assert rows[0].value == 0.0
+    assert rows[0].status == 'success'
+    assert rows[0].offset_error_px is not None
+    assert rows[0].offset_error_px < _RECOVERY_TOLERANCE_PX
+
+
+def test_atmosphere_haze_albedo_biases_limb() -> None:
+    """A brighter haze of the same column lifts the limb, biasing the recovery."""
+    rows = _rows('atmosphere_haze_albedo')
+    assert rows[0].offset_error_px is not None
+    assert rows[-1].offset_error_px is not None
+    assert rows[-1].offset_error_px > rows[0].offset_error_px + 0.1
+
+
+# The smallest rise in recovered-offset error between successive albedo steps up
+# to the scene default.  The steps measure 0.06, 0.12, and 0.21 px.
+_ALBEDO_STEP_RISE_PX = 0.05
+
+
+def test_atmosphere_haze_albedo_bias_grows_up_to_the_default_albedo() -> None:
+    """Each brighter haze up to the default albedo lifts the limb farther.
+
+    Past the default the error levels off (0.42 px at 0.6, 0.40 px at 1.0), so
+    the brighter rows are left unordered.
+    """
+    rows = [row for row in _rows('atmosphere_haze_albedo') if row.value <= DEFAULT_HAZE_ALBEDO]
+    errors = [row.offset_error_px for row in rows]
+    assert [row.value for row in rows] == [0.0, 0.15, 0.3, 0.6]
+    rises = [
+        later - earlier
+        for earlier, later in itertools.pairwise(errors)
+        if earlier is not None and later is not None
+    ]
+    assert len(rises) == len(rows) - 1
+    assert min(rises) > _ALBEDO_STEP_RISE_PX
 
 
 # The per-technique dense and wide offset sweeps (``*_offset_fine`` /

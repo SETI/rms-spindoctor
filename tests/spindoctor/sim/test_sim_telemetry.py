@@ -449,12 +449,14 @@ def test_vgiss_pixel_spikes_stay_inside_the_8bit_word() -> None:
 def test_vgiss_uniform_spikes_stay_inside_the_8bit_word() -> None:
     """Voyager uniform spikes draw inside the 255 DN word, not the 12-bit one."""
     frame = _vgiss_frame(200.0)
+    initial = frame.signal.copy()
     record = _render(
         frame,
         {'pixel_spikes': {'expected_events': 50.0, 'amplitude': 'uniform'}},
         instrument='vgiss',
     )
-    assert record['pixel_spikes']['pixels']
+    changed = [frame.signal[v, u] != initial[v, u] for v, u in record['pixel_spikes']['pixels']]
+    assert any(changed)
     assert float(_vgiss_calibration().to_dn(frame.signal).max()) <= 255.0 + 1e-9
 
 
@@ -694,6 +696,7 @@ def test_adversarial_hot_pixels_concentrate_on_features() -> None:
         fraction=0.02,
         amplitude_e=1.0e4,
         column_factor=0.0,
+        detector_id='coiss_nac',
         rng=np.random.default_rng(4),
         candidate_pool=pool,
     )

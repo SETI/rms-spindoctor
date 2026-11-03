@@ -205,6 +205,7 @@ _MISMATCH_AXES = [
     ('differential_smear', 'star trail length (px)', 'Differential smear (stars)'),
     ('ring_orbit_error', 'planted ring radial error (px)', 'Ring ephemeris (edge)'),
     ('atmosphere_haze', 'haze reference optical depth', 'Atmosphere (limb)'),
+    ('atmosphere_haze_albedo', 'haze albedo', 'Haze brightness (limb)'),
 ]
 
 
