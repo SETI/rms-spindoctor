@@ -6,7 +6,11 @@ morphological cosmic-ray model.  The chain orchestrator
 (:mod:`spindoctor.sim.forward.detector.chain`) draws each one an independent RNG
 via ``derive_effect_seed(random_seed, 'detector/<effect>')`` so toggling one
 never perturbs another's realization, and each stage is a no-op when its gating
-amplitude/fraction/rate is zero (the stage-activation rule).
+amplitude/fraction/rate is zero (the stage-activation rule).  The one exception
+is the uniform hot-pixel population, which belongs to the detector rather than
+the scene: it is a fixed map keyed on the emulated detector
+(:func:`detector_hot_pixel_map`), so the same pixels recur in every scene that
+emulates that camera.
 
 Dark current, hot pixels, banding, and cosmic rays act in the electron domain
 (the vidicon chain, which has no electron domain, deposits its cosmic rays in DN);
@@ -17,6 +21,7 @@ parameterizations come with the catalog defaults; these are the generic shapes.
 
 from __future__ import annotations
 
+import hashlib
 from typing import Any
 
 import numpy as np
@@ -30,7 +35,19 @@ __all__ = [
     'add_dark_current',
     'add_hot_pixels',
     'deposit_morphological_events',
+    'detector_hot_pixel_map',
 ]
+
+# The hot-pixel map hashes each pixel's (v, u) as v * stride + u, so the stride
+# bounds the detector width it keys uniquely; every emulated camera is far
+# narrower.
+_DETECTOR_STRIDE = 1 << 20
+# SplitMix64 constants (Steele, Lea, and Flood 2014): a fast, well-mixed
+# bijection on 64-bit words, applied element-wise to the pixel keys.
+_SPLITMIX_GAMMA = np.uint64(0x9E3779B97F4A7C15)
+_SPLITMIX_MUL1 = np.uint64(0xBF58476D1CE4E5B9)
+_SPLITMIX_MUL2 = np.uint64(0x94D049BB133111EB)
+_UNIT_BITS = 53
 
 
 def add_dark_current(
@@ -56,22 +73,72 @@ def add_dark_current(
     electrons += rate_e_per_sec * exposure_sec
 
 
+def _splitmix64(words: NDArrayIntType) -> NDArrayIntType:
+    """One SplitMix64 step on each 64-bit word (wrapping unsigned arithmetic)."""
+    z = words + _SPLITMIX_GAMMA
+    z = (z ^ (z >> np.uint64(30))) * _SPLITMIX_MUL1
+    z = (z ^ (z >> np.uint64(27))) * _SPLITMIX_MUL2
+    return z ^ (z >> np.uint64(31))
+
+
+def _unit_interval(words: NDArrayIntType) -> NDArrayFloatType:
+    """Map 64-bit words to uniform floats in [0, 1) from their top 53 bits."""
+    return (words >> np.uint64(64 - _UNIT_BITS)).astype(np.float64) * 2.0**-_UNIT_BITS
+
+
+def detector_hot_pixel_map(
+    shape: tuple[int, int], *, fraction: float, detector_id: str
+) -> tuple[NDArrayIntType, NDArrayIntType, NDArrayFloatType]:
+    """The emulated detector's fixed hot-pixel population over a frame.
+
+    Each detector pixel ``(v, u)`` is hot when a uniform draw keyed on the
+    detector and the pixel, never on a scene seed, falls below ``fraction``, so
+    every scene emulating the detector sees the same hot pixels at the same
+    coordinates, at any frame size (a smaller frame sees the corner of the
+    map from ``(0, 0)``).  The count is binomial with mean ``fraction`` times
+    the pixel count, and raising ``fraction`` only adds pixels.  Each hot
+    pixel's relative amplitude is a fixed exponential draw keyed the same way.
+
+    Parameters:
+        shape: The frame's ``(size_v, size_u)`` in detector pixels.
+        fraction: Fraction of detector pixels that are hot.
+        detector_id: The emulated detector's name; the calibrated and raw
+            products of one camera share it.
+
+    Returns:
+        ``(hot_v, hot_u, relative_amplitudes)`` in row-major order, the
+        amplitudes exponentially distributed with mean 1.
+    """
+    size_v, size_u = shape
+    key = int.from_bytes(hashlib.sha256(f'hot_pixels:{detector_id}'.encode()).digest()[:8], 'big')
+    vs, us = np.indices((size_v, size_u), dtype=np.uint64)
+    words = _splitmix64((vs * np.uint64(_DETECTOR_STRIDE) + us) ^ np.uint64(key))
+    hot_v, hot_u = np.nonzero(_unit_interval(words) < fraction)
+    amp_words = _splitmix64(words[hot_v, hot_u])
+    relative = -np.log1p(-_unit_interval(amp_words))
+    return hot_v.astype(np.intp), hot_u.astype(np.intp), relative
+
+
 def add_hot_pixels(
     electrons: NDArrayFloatType,
     *,
     fraction: float,
     amplitude_e: float,
     column_factor: float,
+    detector_id: str,
     rng: np.random.Generator,
     candidate_pool: tuple[NDArrayIntType, NDArrayIntType] | None = None,
 ) -> dict[str, Any]:
-    """Add a fixed per-seed hot-pixel population (electrons) in place.
+    """Add a hot-pixel population (electrons) in place.
 
     A hot pixel holds a large fixed charge; on CCDs read through it, a fraction
     of that charge contaminates the column above it (a warm streak).  The
-    population is drawn from the stage's own seeded stream, so it is the same
-    set of pixels every render of the scene.  A zero fraction or amplitude is a
-    no-op.
+    uniform population is the detector's fixed map
+    (:func:`detector_hot_pixel_map`), the same pixels and amplitudes in every
+    scene that emulates the detector.  An adversarial population drawn onto
+    the navigation features comes from ``candidate_pool`` instead: ``round(
+    fraction * size)`` draws from the scene's seeded ``rng``.  A zero fraction
+    or amplitude is a no-op.
 
     Parameters:
         electrons: The electron image, modified in place.
@@ -81,10 +148,11 @@ def add_hot_pixels(
         column_factor: Fraction of a hot pixel's TOTAL charge bled up its
             column: the warm streak's integral is ``column_factor`` times the
             hot pixel's charge, independent of the frame height.
-        rng: The stage's seeded generator.
-        candidate_pool: Optional ``(v, u)`` coordinate pool the population is
-            drawn from (adversarial placement onto the navigation features).
-            When None or empty, the placement is uniform over the frame.
+        detector_id: The emulated detector the uniform population belongs to.
+        rng: The stage's seeded generator, read only by an adversarial draw.
+        candidate_pool: Optional ``(v, u)`` coordinate pool an adversarial
+            population is drawn from.  When None or empty, the population is
+            the detector's map.
 
     Returns:
         The realized population for the truth record: the planted ``pixels``
@@ -93,18 +161,20 @@ def add_hot_pixels(
     if fraction <= 0.0 or amplitude_e <= 0.0:
         return {'pixels': [], 'amplitudes_e': []}
     size_v, size_u = electrons.shape
-    n_hot = round(fraction * size_v * size_u)
-    if n_hot <= 0:
-        return {'pixels': [], 'amplitudes_e': []}
     if candidate_pool is not None and candidate_pool[0].size > 0:
+        n_hot = round(fraction * size_v * size_u)
+        if n_hot <= 0:
+            return {'pixels': [], 'amplitudes_e': []}
         pool_v, pool_u = candidate_pool
         pick = rng.integers(0, pool_v.size, size=n_hot)
         hot_v = pool_v[pick]
         hot_u = pool_u[pick]
+        amps = amplitude_e * rng.exponential(1.0, size=n_hot)
     else:
-        hot_v = rng.integers(0, size_v, size=n_hot)
-        hot_u = rng.integers(0, size_u, size=n_hot)
-    amps = amplitude_e * rng.exponential(1.0, size=n_hot)
+        hot_v, hot_u, relative = detector_hot_pixel_map(
+            (size_v, size_u), fraction=fraction, detector_id=detector_id
+        )
+        amps = amplitude_e * relative
     np.add.at(electrons, (hot_v, hot_u), amps)
     record = {
         'pixels': [[int(v), int(u)] for v, u in zip(hot_v.tolist(), hot_u.tolist(), strict=True)],

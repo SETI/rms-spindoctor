@@ -366,8 +366,7 @@ What it cannot do
 - **See outside its modeled axes.** A model error the renderer does not
   implement contributes nothing to any curve or fit. The main unmodeled axes
   today: pointing jitter within an exposure, image mid-time error, readout
-  shear, stars occulted by a dark limb (simulated star success is optimistic
-  where an unlit body should block the star), and body-on-body cast shadows
+  shear, and body-on-body cast shadows
   (mutual events render occlusion, not shadowing).
 - **Fix the gaps it exposes.** A confident-wrong pin is evidence, not
   mitigation; closing it requires ensemble work (consuming declared
@@ -663,7 +662,14 @@ intensive signal passes through the electron unit chain in
    ``full_well_e`` spills along the column up to ``bloom_length`` pixels each
    way and the image is capped at the well. A camera's physical saturation
    therefore emerges from ``full_well_e / gain_e_per_dn`` (below the ADC ceiling
-   for Cassini), not from the ADC clip.
+   for Cassini), not from the ADC clip. The hot pixels belong to the detector:
+   a pixel is hot when a draw keyed only on the emulated detector and the
+   pixel's coordinates falls below ``hot_pixel_fraction``, so every scene
+   emulating that camera, whatever its seed, has the same hot pixels at the
+   same coordinates with the same amplitudes. A smaller frame sees the map's
+   corner from ``(0, 0)``, raising the fraction only adds pixels, and a
+   calibrated Cassini product shares its raw camera's map. An adversarial
+   placement onto the navigation features stays per scene.
 5. **Cosmic rays and read noise.** Cosmic rays deposit above the well after the
    bloom cap, so they reach the ADC ceiling and land on the orchestrator's
    masks. The event count is a Poisson draw with mean
@@ -1241,6 +1247,9 @@ render departs from it. The sweeps and their floors:
   predicts as hard. The sweep drives a ``HAZEMOON`` body, so it measures
   haze-BLIND body navigation; the haze solar-symmetry fit has its own base scene
   and offset sweeps.
+- ``atmosphere_haze_albedo`` -- the same haze column at ``tau_ref`` 4 with the
+  haze ``albedo`` walked up from 0, where the haze adds no light, so a dim
+  Titan-like haze and a brighter one can be compared at one thickness.
 
 The remaining Section 8 axes are covered by pre-existing sweeps
 (``noise_read_noise``, ``artifact_missing_lines``, ``irregularity_shape_mismatch``,
@@ -1669,14 +1678,24 @@ on-disc haze joins the body's opaque paint, while the above-limb glow is a
 translucent halo screen composited like the ring system's -- background,
 rings, and stars behind it show through scaled by ``exp(-tau)`` with the glow
 added, and the body's mask / depth / occlusion truth sees only the solid
-silhouette. A
-line of sight grazing the body at tangent altitude ``h`` (pixels above the
+silhouette. Where limb relief dips inside the reference ellipse, the uncovered
+pixels are sky seen through the haze column and join the halo screen. The
+halo reaches out until its glow, and its dimming of a full-scale background,
+both fall below 1e-5 of full scale, under a twentieth of a 12-bit DN. So a
+bright forward-scattering haze fades into the sky instead of ending in a step.
+A line of sight grazing the body at tangent altitude ``h`` (pixels above the
 reference radius) accumulates a tangent optical depth
 ``tau(h) = tau_ref * exp(-(h - ref_altitude_px) / scale_height_px)``, so
 ``tau_ref`` is the tangent optical depth at ``ref_altitude_px``. The emergent
-haze brightness is a single-scattering source (a Henyey-Greenstein phase
-factor of asymmetry ``g``, times a wrapped illumination weight) multiplied by
-an opacity ``1 - exp(-tau)``. Three consequences follow:
+haze brightness is a single-scattering source (the haze ``albedo``, times a
+Henyey-Greenstein phase factor of asymmetry ``g``, times a wrapped
+illumination weight) multiplied by an opacity ``1 - exp(-tau)``. ``albedo``
+defaults to 0.6 and lies in [0, 1], as a single-scattering albedo does. It
+sets how bright the
+haze is against the disc and the sky, independently of how thick it is, so a
+dim Titan-like haze and a brighter Saturn-like one can share a column. At 0
+the haze adds no light: the halo still dims what lies behind it, and the
+limb renders as the bare surface. Three consequences follow:
 
 - **A soft limb.** Above the geometric limb the opacity fades as an
   exponential ramp, so the sharp edge becomes a soft glow whose apparent
@@ -2983,7 +3002,7 @@ against exactly this inventory, so an unknown noise key fails loudly.
    * - ``hot_pixel_fraction``
      - float
      - 0 (off)
-     - Fraction of pixels that are hot (a fixed per-seed population).
+     - Fraction of pixels that are hot (the emulated detector's fixed map).
    * - ``hot_pixel_amplitude_e``
      - float
      - catalog

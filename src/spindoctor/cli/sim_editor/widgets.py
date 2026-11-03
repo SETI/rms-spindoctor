@@ -3,11 +3,14 @@
 ``ImageLabel`` forwards raw mouse and wheel events to caller-supplied
 callbacks so the main window can own the pan / zoom / selection logic,
 ``ParameterUpdater`` coalesces rapid parameter edits into a single debounced
-re-render request, and ``make_dspin`` builds a fully configured double spin
-box in one call for the mixins that lay out many numeric fields.
+re-render request, ``make_dspin`` builds a fully configured double spin box in
+one call for the mixins that lay out many numeric fields, and
+``kept_or_shown`` rebuilds a toggled group's map from its spins without
+rounding a loaded value.
 """
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
+from typing import Any
 
 from PyQt6.QtCore import QObject, QTimer, pyqtSignal
 from PyQt6.QtGui import QMouseEvent, QWheelEvent
@@ -44,6 +47,48 @@ def make_dspin(
     if tooltip:
         spin.setToolTip(tooltip)
     return spin
+
+
+def kept_or_shown(
+    spins: Mapping[str, QDoubleSpinBox],
+    removed: Mapping[str, Any],
+    *,
+    null_shows: Mapping[str, float] | None = None,
+) -> dict[str, float | None]:
+    """Return each spin's key with its value from a removed map, or from the spin.
+
+    A group that is turned off keeps the map it removed, and turning it back on
+    rebuilds the map from its spins.  A spin rounds to its displayed decimals and
+    stops at its range, so each key takes the removed map's exact value while the
+    spin still shows that value, and the spin's own value once it was edited.  A
+    key in ``null_shows`` may be null in the removed map, and stays null while its
+    spin still shows the value given there.
+
+    Parameters:
+        spins: The group's spin boxes by map key.
+        removed: The map the group removed when it was turned off, or an empty
+            mapping when it never was.
+        null_shows: The value each spin shows for a null key, by map key.
+
+    Returns:
+        The rebuilt values by map key.
+    """
+    values: dict[str, float | None] = {}
+    for key, spin in spins.items():
+        shown = float(spin.value())
+        kept = removed.get(key)
+        kept_value: float | None
+        if isinstance(kept, (int, float)):
+            kept_value, kept_shows = float(kept), float(kept)
+        elif kept is None and key in removed and null_shows is not None and key in null_shows:
+            kept_value, kept_shows = None, null_shows[key]
+        else:
+            values[key] = shown
+            continue
+        # Compare as the spin displays both: Qt rounds an exact tie half-up, round() to even.
+        still_shown = spin.textFromValue(kept_shows) == spin.textFromValue(shown)
+        values[key] = kept_value if still_shown else shown
+    return values
 
 
 class ImageLabel(QLabel):

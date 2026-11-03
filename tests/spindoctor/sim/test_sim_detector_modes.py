@@ -11,7 +11,7 @@ the detector resolver and a whole-scene render.
 """
 
 import dataclasses
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 import pytest
@@ -627,7 +627,12 @@ def test_hot_pixels_record_matches_planted_pixels() -> None:
 
     electrons = np.zeros((_SIZE, _SIZE), dtype=np.float64)
     record = add_hot_pixels(
-        electrons, fraction=0.01, amplitude_e=1.0e4, column_factor=0.0, rng=_rng(4)
+        electrons,
+        fraction=0.01,
+        amplitude_e=1.0e4,
+        column_factor=0.0,
+        detector_id='coiss_nac',
+        rng=_rng(4),
     )
     assert record['pixels']
     for (v, u), amp in zip(record['pixels'], record['amplitudes_e'], strict=True):
@@ -648,6 +653,25 @@ def test_hot_pixels_mode_records_truth_end_to_end() -> None:
     idx = int(np.argmax(record['amplitudes_e']))
     v, u = record['pixels'][idx]
     assert float(img[v, u]) > float(np.median(img))
+
+
+def _hot_pixels_of(instrument: str, seed: int) -> list[list[int]]:
+    """The hot pixels an empty ``instrument`` frame plants at scene seed ``seed``."""
+    scene = _disc(instrument, artifacts={'hot_pixels': {'pixel_fraction': 0.002}})
+    scene['bodies'] = []
+    scene['random_seed'] = seed
+    _img, truth = render_combined_model(scene)
+    return cast(list[list[int]], truth['artifacts']['hot_pixels']['pixels'])
+
+
+def test_hot_pixels_recur_across_scene_seeds() -> None:
+    """Two scenes on one instrument with different seeds plant the same hot pixels."""
+    assert _hot_pixels_of('coiss_nac', 1) == _hot_pixels_of('coiss_nac', 2)
+
+
+def test_a_calibrated_product_shares_its_cameras_hot_pixels() -> None:
+    """The calibrated NAC frame carries the raw NAC detector's hot pixels."""
+    assert _hot_pixels_of('coiss_calib_nac', 1) == _hot_pixels_of('coiss_nac', 5)
 
 
 def test_generic_hot_pixel_knob_records_no_truth() -> None:

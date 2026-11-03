@@ -100,6 +100,9 @@ class DetectorParams:
             (see :func:`~spindoctor.sim.instruments.navigator_marker_value`),
             possibly NaN; the calibration inverse keeps every pixel off it.
         random_seed: The scene seed for the per-effect sub-streams.
+        detector_id: The emulated detector the fixed hot-pixel map belongs to:
+            the instrument name with the calibrated Cassini products folded
+            onto their raw cameras, and ``generic`` for a generic scene.
         instrument_defaults: Whether the physical-chain opt-in is on.
         hot_pixel_adversarial: Whether the hot-pixel population is placed
             adversarially (biased onto the navigation features) rather than
@@ -149,6 +152,7 @@ class DetectorParams:
     calibrated_sky_if: float
     marker_value: float
     random_seed: int = 42
+    detector_id: str = 'generic'
     instrument_defaults: bool = False
     hot_pixel_adversarial: bool = False
     hot_pixel_mode_active: bool = False
@@ -593,6 +597,7 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
         calibrated_sky_if=float(catalog.get('calibrated_sky_if', DEFAULT_CALIBRATED_SKY_IF)),
         marker_value=navigator_marker_value(inst_config),
         random_seed=int(params.get('random_seed', 42)),
+        detector_id=normalize_instrument(instrument),
         instrument_defaults=instrument_defaults,
         hot_pixel_adversarial=hot_pixel_adversarial,
         hot_pixel_mode_active=hot_pixel_mode_active,

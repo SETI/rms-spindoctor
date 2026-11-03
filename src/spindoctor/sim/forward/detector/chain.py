@@ -272,6 +272,7 @@ def _apply_ccd(frame: SimFrame, dp: DetectorParams, rng: np.random.Generator) ->
         fraction=dp.hot_pixel_fraction,
         amplitude_e=dp.hot_pixel_amplitude_e,
         column_factor=dp.hot_pixel_column_factor,
+        detector_id=dp.detector_id,
         rng=_stage_rng(dp.random_seed, 'hot_pixels'),
         candidate_pool=_hot_pixel_pool(frame, dp),
     )

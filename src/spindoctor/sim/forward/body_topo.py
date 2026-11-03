@@ -64,7 +64,7 @@ from spindoctor.sim.forward.relief import (
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType, NDArrayIntType
 
-__all__ = ['TopoBodySpec', 'create_topographic_body']
+__all__ = ['TopoBodyRender', 'TopoBodySpec', 'create_topographic_body', 'render_topographic_body']
 
 # Coarse terminator-band margins: the candidate band on the
 # detector-resolution incidence map is widened by this factor plus a
@@ -259,6 +259,22 @@ def _bilinear_upsample(field: NDArrayFloatType, factor: int) -> NDArrayFloatType
     return rows[:, col_lo] * (1.0 - col_w) + rows[:, col_hi] * col_w
 
 
+@dataclass(frozen=True)
+class TopoBodyRender:
+    """One topographic body render: its radiance and its solid silhouette.
+
+    Parameters:
+        intensity: The intensity image in [0, 1], 0 outside the body.  A
+            surface stage can also leave a pixel inside the body at 0, such
+            as a transit's full umbra.
+        silhouette: The fraction of each pixel the body's solid outline
+            covers, in [0, 1], independent of how bright the pixel renders.
+    """
+
+    intensity: NDArrayFloatType
+    silhouette: NDArrayFloatType
+
+
 def create_topographic_body(
     size: tuple[int, int],
     center: tuple[float, float],
@@ -272,7 +288,33 @@ def create_topographic_body(
         spec: The body's geometry, texture, relief, and photometry.
 
     Returns:
-        The ``size`` intensity image in [0, 1] (0 outside the body).
+        The ``size`` intensity image in [0, 1] (0 outside the body); the
+        intensity of :func:`render_topographic_body`.
+
+    Raises:
+        ValueError: If the frame size is not divisible by the oversample.
+    """
+    return render_topographic_body(size, center, spec).intensity
+
+
+def render_topographic_body(
+    size: tuple[int, int],
+    center: tuple[float, float],
+    spec: TopoBodySpec,
+) -> TopoBodyRender:
+    """Render one topographic ellipsoid body and its solid silhouette.
+
+    The silhouette is the relief-perturbed outline's pixel coverage, taken
+    before any shading, so a pixel that renders black inside the body (a
+    transit umbra, a zero-albedo spot) still belongs to it.
+
+    Parameters:
+        size: Frame dimensions (rows, columns) on the incoming render grid.
+        center: Body center (v, u) in incoming-grid pixels.
+        spec: The body's geometry, texture, relief, and photometry.
+
+    Returns:
+        The :class:`TopoBodyRender` on the ``size`` grid.
 
     Raises:
         ValueError: If the frame size is not divisible by the oversample.
@@ -343,7 +385,8 @@ def create_topographic_body(
         intensity_work = intensity_work.reshape(size_v, aa_scale, size_u, aa_scale).mean(
             axis=(1, 3)
         )
-    return np.clip(intensity_work, 0.0, 1.0)
+        mask = mask.reshape(size_v, aa_scale, size_u, aa_scale).mean(axis=(1, 3))
+    return TopoBodyRender(intensity=np.clip(intensity_work, 0.0, 1.0), silhouette=mask)
 
 
 def _shade_disc(
