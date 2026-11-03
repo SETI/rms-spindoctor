@@ -103,8 +103,9 @@ DEFAULT_HAZE_ALBEDO: float = 0.6
 
 The albedo is the single-scattering brightness scale of a fully lit, optically
 thick grazing haze column, before the phase factor and the illumination
-weight.  The haze's emergent intensity is clipped into the [0, 1] signal
-plane, so a strong forward-scattering peak saturates by design.
+weight, and lies in [0, 1] as a single-scattering albedo does.  The haze's
+emergent intensity is clipped into the [0, 1] signal plane, so a strong
+forward-scattering peak saturates by design.
 """
 
 # Amplitude of a detached shell's Gaussian tau bump, as a multiple of

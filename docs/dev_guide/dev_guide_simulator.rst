@@ -1690,7 +1690,8 @@ reference radius) accumulates a tangent optical depth
 haze brightness is a single-scattering source (the haze ``albedo``, times a
 Henyey-Greenstein phase factor of asymmetry ``g``, times a wrapped
 illumination weight) multiplied by an opacity ``1 - exp(-tau)``. ``albedo``
-defaults to 0.6 and may be any number at least 0. It sets how bright the
+defaults to 0.6 and lies in [0, 1], as a single-scattering albedo does. It
+sets how bright the
 haze is against the disc and the sky, independently of how thick it is, so a
 dim Titan-like haze and a brighter Saturn-like one can share a column. At 0
 the haze adds no light: the halo still dims what lies behind it, and the

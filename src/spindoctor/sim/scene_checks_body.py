@@ -293,7 +293,7 @@ def _check_body_relief_and_photometry(obj: dict[str, Any], *, label: str, source
 # clear atmosphere that leaves the limb hard) define the column; the
 # reference altitude, the Henyey-Greenstein asymmetry (forward-scattering
 # when positive), an optional detached-shell altitude, and the haze's
-# brightness scale (albedo, at least 0) are optional.  The
+# single-scattering albedo (in [0, 1]) are optional.  The
 # structure keys folded in from the forward model break the column's mirror
 # symmetry (axis tilt, hemispheric and azimuthal falloff scaling, hemispheric
 # brightness, an axial interior ramp, and clouds); all are optional.
@@ -347,9 +347,12 @@ def _check_atmosphere(value: Any, *, label: str, source: str) -> None:
     _check_optional_positive_number(
         value.get('detached_px'), f'{label}.atmosphere.detached_px', source=source
     )
-    _check_optional_nonnegative_number(
-        value.get('albedo'), f'{label}.atmosphere.albedo', source=source
-    )
+    albedo = value.get('albedo')
+    _check_optional_nonnegative_number(albedo, f'{label}.atmosphere.albedo', source=source)
+    if albedo is not None and float(albedo) > 1.0:
+        raise SimSceneValidationError(
+            f'{source}: {label}.atmosphere.albedo must lie in [0, 1]; got {albedo!r}'
+        )
     g = value.get('g')
     _check_optional_number(g, f'{label}.atmosphere.g', source=source)
     if g is not None and not -1.0 < float(g) < 1.0:

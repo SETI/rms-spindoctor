@@ -385,17 +385,18 @@ def _albedo_scene(albedo: float) -> dict[str, Any]:
     }
 
 
-@pytest.mark.parametrize('albedo', [0.0, 0.4, 2.0])
-def test_a_nonnegative_haze_albedo_validates(albedo: float) -> None:
-    """Any haze albedo at least 0 validates and is kept as stated."""
+@pytest.mark.parametrize('albedo', [0.0, 0.4, 1.0])
+def test_a_haze_albedo_in_the_unit_interval_validates(albedo: float) -> None:
+    """Any haze albedo in [0, 1] validates and is kept as stated."""
     scene = validate_sim_params(_albedo_scene(albedo))
     assert scene['bodies'][0]['atmosphere']['albedo'] == albedo
 
 
-def test_a_negative_haze_albedo_is_refused() -> None:
-    """A negative haze albedo fails validation and names the key."""
+@pytest.mark.parametrize('albedo', [-0.1, 1.5])
+def test_a_haze_albedo_outside_the_unit_interval_is_refused(albedo: float) -> None:
+    """A haze albedo below 0 or above 1 fails validation and names the key."""
     with pytest.raises(SimSceneValidationError, match=r'atmosphere\.albedo'):
-        validate_sim_params(_albedo_scene(-0.1))
+        validate_sim_params(_albedo_scene(albedo))
 
 
 def test_apply_atmosphere_does_not_mutate_input() -> None:
