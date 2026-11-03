@@ -97,3 +97,34 @@ def test_a_star_behind_a_crescents_unlit_side_is_hidden(extra: dict[str, Any]) -
     """A star behind the dark side of a 150 degree crescent adds no light."""
     crescent = _body(phase_angle=150.0, **extra)
     assert _star_light(_scene(crescent), 76.5, 64.5) == 0.0
+
+
+def _relief_outline_pixel(kind: str) -> tuple[int, int]:
+    """A pixel where the relief outline departs from the sphere's 30 px ellipse.
+
+    A ``notch`` lies more than half a pixel inside the ellipse but outside the
+    relief outline; a ``bump`` lies more than half a pixel outside the ellipse
+    but inside the outline.
+    """
+    _image, meta = render_combined_model(_scene(_body(limb_relief_rms=0.03)))
+    mask = meta['body_masks'][0]
+    offsets = np.arange(_SIZE) + 0.5 - _CENTER
+    radius = np.sqrt(offsets[:, None] ** 2 + offsets[None, :] ** 2)
+    found = np.argwhere(~mask & (radius < 29.5) if kind == 'notch' else mask & (radius > 30.5))
+    assert len(found) > 0
+    return int(found[0][0]), int(found[0][1])
+
+
+@pytest.mark.parametrize(('kind', 'visible'), [('notch', True), ('bump', False)])
+def test_relief_moves_the_occluding_outline_off_the_ellipse(kind: str, visible: bool) -> None:
+    """A star in a relief notch shows, and one behind a relief bump is hidden."""
+    scene = _scene(_body(limb_relief_rms=0.03))
+    v, u = _relief_outline_pixel(kind)
+    without, _meta = render_combined_model(scene)
+    with_star, _meta = render_combined_model(
+        {
+            **scene,
+            'stars': [{'name': 'S', 'v': v + 0.5, 'u': u + 0.5, 'vmag': 2.0, 'psf_sigma': 1.0}],
+        }
+    )
+    assert bool(with_star[v, u] > without[v, u]) == visible

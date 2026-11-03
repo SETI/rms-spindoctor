@@ -1,22 +1,18 @@
 """Integration tests for the Section 7 realism-match runner.
 
-Three layers, all under the deliberate ``integration`` tier because they
-render frames (and, for the smoke test, read holdings-scale data):
+Two layers, under the ``sim_integration`` tier because they render simulated
+frames and need no holdings, SPICE, or catalogs:
 
 - matched-scene construction: every cohort scene class produces a valid,
   deterministic scene for every cohort instrument;
 - sim-side determinism: the same record yields identical pooled samples
   across two extractions (the whole match is reproducible given the
-  cohort);
-- a holdings-gated end-to-end smoke on the smallest cohort (LORRI), plus
-  figure/summary writing into a temp directory.
+  cohort).
+
+The end-to-end smoke on real frames lives in ``test_sim_realism_smoke.py``.
 """
 
 from __future__ import annotations
-
-import json
-import os
-from pathlib import Path
 
 import numpy as np
 import pytest
@@ -28,17 +24,10 @@ from tests.integration.sim_realism import (
     FrameRecord,
     _frame_samples_sim,
     discover_cohort,
-    run_realism_match,
 )
 from tests.integration.sim_realism_scenes import matched_scene
 
 pytestmark = [pytest.mark.integration, pytest.mark.sim_integration]
-
-# The real-frame smoke test reads holdings and resolves SPICE geometry, so it
-# needs both; CI sets PDS3_HOLDINGS_DIR but not OOPS_RESOURCES.
-_HAS_REAL_DATA = bool(os.environ.get('PDS3_HOLDINGS_DIR')) and bool(
-    os.environ.get('OOPS_RESOURCES')
-)
 
 _ALL_CLASSES = (
     'star_dominated',
@@ -204,30 +193,3 @@ def test_cohort_discovery_covers_known_instruments() -> None:
     assert 'nhlorri' in cohort
     for sidecars in cohort.values():
         assert sidecars == sorted(sidecars, key=lambda s: s.image_id)
-
-
-@pytest.mark.skipif(not _HAS_REAL_DATA, reason='PDS3_HOLDINGS_DIR or OOPS_RESOURCES unset')
-def test_realism_smoke_lorri(tmp_path: Path) -> None:
-    """End-to-end smoke on the smallest cohort, writing to a temp root.
-
-    LORRI has two star frames, so this exercises the real-frame load, the
-    feature FOMs, aggregation, support labeling, and both writers without
-    the full-cohort runtime.
-    """
-    from tests.integration.sim_realism_report import write_figures, write_summary
-
-    results = run_realism_match(instruments=['nhlorri'], skip_fom7=True)
-    comparison = results.comparisons['nhlorri']
-    assert len(comparison.records) == 2
-    assert 'star_ee50' in comparison.real.samples
-    assert 'star_ee50' in comparison.sim.samples
-    assert comparison.fom_support['fom3_limb'] == 'unsupported'
-    assert comparison.fom_support['fom4_ring'] == 'unsupported'
-    figures = write_figures(results, figures_root=tmp_path / 'figures')
-    assert any('nhlorri_psf' in p.name for p in figures)
-    summary_path = write_summary(results, results_root=tmp_path / 'results')
-    payload = json.loads(summary_path.read_text())
-    inst = payload['instruments']['nhlorri']
-    assert inst['n_frames'] == 2
-    assert 'star_ee50' in inst['divergences']
-    assert inst['divergences']['star_ee50']['w1_normalized'] is not None

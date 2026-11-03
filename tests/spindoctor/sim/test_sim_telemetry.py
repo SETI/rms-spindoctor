@@ -30,6 +30,7 @@ from spindoctor.sim.forward.feature_loci import FeatureLoci, choose_pixels, extr
 from spindoctor.sim.forward.incidence import planted_incidence
 from spindoctor.sim.forward.stages import SimFrame
 from spindoctor.sim.forward.telemetry import apply_telemetry
+from spindoctor.sim.forward.telemetry_loss import apply_pixel_spikes
 from spindoctor.sim.render import render_combined_model
 from spindoctor.sim.scene import SimSceneValidationError, validate_sim_params
 from spindoctor.support.types import NDArrayFloatType
@@ -448,12 +449,14 @@ def test_vgiss_pixel_spikes_stay_inside_the_8bit_word() -> None:
 def test_vgiss_uniform_spikes_stay_inside_the_8bit_word() -> None:
     """Voyager uniform spikes draw inside the 255 DN word, not the 12-bit one."""
     frame = _vgiss_frame(200.0)
+    initial = frame.signal.copy()
     record = _render(
         frame,
         {'pixel_spikes': {'expected_events': 50.0, 'amplitude': 'uniform'}},
         instrument='vgiss',
     )
-    assert record['pixel_spikes']['pixels']
+    changed = [frame.signal[v, u] != initial[v, u] for v, u in record['pixel_spikes']['pixels']]
+    assert any(changed)
     assert float(_vgiss_calibration().to_dn(frame.signal).max()) <= 255.0 + 1e-9
 
 
@@ -505,6 +508,33 @@ def test_a_vgiss_render_keeps_garble_and_spikes_on_the_calibrated_scale() -> Non
     assert garbled
     assert spiked
     assert max(garbled + spiked) <= ceiling + 1e-9
+
+
+def test_a_calibrated_bitflip_onto_the_marker_moves_off_it() -> None:
+    """A spike whose flipped DN calibrates to exactly the marker stays a valid pixel.
+
+    With I/F equal to DN, a pixel at 1 DN that loses its lowest bit flips to
+    0 DN, which calibrates to the 0.0 marker.
+    """
+    signal = np.ones((32, 32), dtype=np.float64)
+    loci = FeatureLoci(
+        rows=np.empty(0, dtype=np.int64),
+        pixel_v=np.empty(0, dtype=np.int64),
+        pixel_u=np.empty(0, dtype=np.int64),
+    )
+    record = apply_pixel_spikes(
+        signal,
+        {'expected_events': 200.0, 'amplitude': 'bitflip'},
+        marker_dn=0.0,
+        dn_ceiling=255.0,
+        calibration=CalibrationMap(dn_per_if=1.0, bias_dn=0.0, dark_dn=0.0, sky_if=0.0),
+        rng=np.random.default_rng(5),
+        loci=loci,
+        adversarial=False,
+    )
+    spiked = np.array([signal[v, u] for v, u in record['pixels']])
+    assert np.any(spiked < 1e-300)
+    assert not np.any(spiked == 0.0)
 
 
 def test_12bit_line_garble_keeps_the_deep_word() -> None:

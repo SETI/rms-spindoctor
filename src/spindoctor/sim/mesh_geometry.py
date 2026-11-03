@@ -37,6 +37,7 @@ from spindoctor.sim.spherical_harmonics import (
     evaluate_at_directions,
 )
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
+from spindoctor.support.stable_math import stable_matmul3
 from spindoctor.support.types import NDArrayComplexType, NDArrayFloatType, NDArrayIntType
 
 # Lambertian floor for the visible-but-unlit side, shared with the ellipsoid
@@ -67,30 +68,7 @@ def _rotation_matrix(euler_deg: tuple[float, float, float]) -> NDArrayFloatType:
     rx = np.array([[1, 0, 0], [0, cx, -sx], [0, sx, cx]], dtype=np.float64)
     ry = np.array([[cy, 0, sy], [0, 1, 0], [-sy, 0, cy]], dtype=np.float64)
     rz = np.array([[cz, -sz, 0], [sz, cz, 0], [0, 0, 1]], dtype=np.float64)
-    return _as_float64(_times_xyz(_times_xyz(rz, ry), rx))
-
-
-def _times_xyz(rows: NDArrayFloatType, other: NDArrayFloatType) -> NDArrayFloatType:
-    """Return ``rows @ other`` for ``(N, 3)`` rows, summed in a fixed order.
-
-    ``other`` is a 3-vector or a ``(3, K)`` matrix.  NumPy hands ``@`` to
-    OpenBLAS, which picks its kernel by CPU, and the kernels round differently,
-    so a mesh render would change in its last bits from one CPU to the next.
-    Plain multiplies and adds give the same result on every CPU.
-
-    Parameters:
-        rows: The ``(N, 3)`` left operand.
-        other: The right operand, a 3-vector or a ``(3, K)`` matrix.
-
-    Returns:
-        The float64 product: ``(N,)`` for a vector, ``(N, K)`` for a matrix.
-    """
-    cols = rows.T
-    if other.ndim == 1:
-        return _as_float64(cols[0] * other[0] + cols[1] * other[1] + cols[2] * other[2])
-    return _as_float64(
-        cols[0][:, None] * other[0] + cols[1][:, None] * other[1] + cols[2][:, None] * other[2]
-    )
+    return stable_matmul3(stable_matmul3(rz, ry), rx)
 
 
 def _as_float64(arr: NDArrayFloatType) -> NDArrayFloatType:
@@ -343,7 +321,7 @@ def render_polyhedral_body(
     axis1_semi, axis2_semi, axis3_semi = np.array(semi_axes_px, dtype=np.float64) * aa_scale
     semi = np.array([axis2_semi, axis1_semi, axis3_semi])
     rot = _rotation_matrix(pose_euler_deg)
-    verts_cam = _times_xyz(mesh.vertices * semi, rot.T)
+    verts_cam = stable_matmul3(mesh.vertices * semi, rot.T)
     px = center[1] * aa_scale + verts_cam[:, 0]
     py = center[0] * aa_scale + verts_cam[:, 1]
     depth = verts_cam[:, 2]
@@ -356,7 +334,7 @@ def render_polyhedral_body(
     norm_mag = np.maximum(norm_mag, 1e-12)
     unit_normals = normals / norm_mag[:, None]
     light = _light_direction(illumination_angle, phase_angle)
-    face_intensity = np.clip(_times_xyz(unit_normals, light), _DARK_SIDE_ILLUM, 1.0)
+    face_intensity = np.clip(stable_matmul3(unit_normals, light), _DARK_SIDE_ILLUM, 1.0)
 
     vertex_intensity: NDArrayFloatType | None = None
     if shading == 'gouraud':
@@ -368,7 +346,7 @@ def render_polyhedral_body(
             np.add.at(vertex_normals, mesh.faces[:, corner], normals)
         vn_mag = np.maximum(np.linalg.norm(vertex_normals, axis=1), 1e-12)
         vertex_normals = vertex_normals / vn_mag[:, None]
-        vertex_intensity = np.clip(_times_xyz(vertex_normals, light), _DARK_SIDE_ILLUM, 1.0)
+        vertex_intensity = np.clip(stable_matmul3(vertex_normals, light), _DARK_SIDE_ILLUM, 1.0)
 
     front = (unit_normals[:, 2] > 0.0) & (norm_mag > 1e-9)
 

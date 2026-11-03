@@ -63,7 +63,7 @@ from spindoctor.sim.scene import (
     save_sim_scene,
     validate_sim_params,
 )
-from spindoctor.sim.scene_schema import MESH_UNSUPPORTED_KEYS
+from spindoctor.sim.scene_schema import ELLIPSOID_UNSUPPORTED_KEYS, MESH_UNSUPPORTED_KEYS
 
 # An ellipsoid body carrying every refused key with a non-default value, so a
 # lost or defaulted key is visible after a round trip.
@@ -406,7 +406,7 @@ def test_switching_to_a_mesh_names_the_moved_keys_in_the_status_bar(model: Any) 
     model._add_body_tab(_full_ellipsoid())
     _set_shape(model, 'polyhedral_mesh')
     message = model.statusBar().currentMessage()
-    assert message == stash_message('FULL', MESH_UNSUPPORTED_KEYS)
+    assert message == stash_message('FULL', MESH_UNSUPPORTED_KEYS, 'polyhedral_mesh')
     assert [key for key in MESH_UNSUPPORTED_KEYS if key not in message] == []
     assert 'Switching back to ellipsoid restores them in this session' in message
     assert "a saved mesh scene file doesn't carry them" in message
@@ -491,8 +491,8 @@ def test_the_stash_forgets_on_clear_and_on_prune() -> None:
     """``prune`` drops the entries of bodies outside the list; ``clear`` drops them all."""
     stash = MeshKeyStash()
     kept, dropped = _full_ellipsoid(), _full_ellipsoid()
-    assert stash.take(kept) == list(MESH_UNSUPPORTED_KEYS)
-    stash.take(dropped)
+    assert stash.take(kept, MESH_UNSUPPORTED_KEYS) == list(MESH_UNSUPPORTED_KEYS)
+    stash.take(dropped, MESH_UNSUPPORTED_KEYS)
     stash.prune([kept, _full_ellipsoid()])
     assert stash.stashed(kept) != {}
     assert stash.stashed(dropped) == {}
@@ -511,3 +511,63 @@ def test_deleting_a_mesh_body_forgets_its_stash(model: Any) -> None:
     assert model._mesh_key_stash.stashed(mesh_body) != {}
     model._delete_tab_by_index('body', 1)
     assert model._mesh_key_stash.stashed(mesh_body) == {}
+
+
+def _gouraud_mesh() -> dict[str, Any]:
+    """A mesh body carrying every mesh-only key the ellipsoid renderer ignores."""
+    return {
+        'name': 'LUMPY',
+        'center_v': 256.0,
+        'center_u': 256.0,
+        'range_km': 1.0,
+        'shape_model': 'polyhedral_mesh',
+        'axis1': 100.0,
+        'axis2': 80.0,
+        'axis3': 80.0,
+        'shading': 'gouraud',
+        'mesh_detail_octaves': 2,
+        'pose_scatter': {'sigma_deg': 1.5},
+    }
+
+
+def test_switching_a_mesh_to_an_ellipsoid_moves_its_mesh_only_keys(model: Any) -> None:
+    """The switch moves the mesh-only keys out, so the ellipsoid scene validates."""
+    model._add_body_tab(_gouraud_mesh())
+    _set_shape(model, 'ellipsoid')
+    body = model.sim_params['bodies'][0]
+    assert [key for key in ELLIPSOID_UNSUPPORTED_KEYS if key in body] == []
+    validate_sim_params(copy.deepcopy(model.sim_params))
+
+
+def test_switching_to_an_ellipsoid_names_the_moved_keys_in_the_status_bar(model: Any) -> None:
+    """The status bar names the moved keys, how to restore them, and the saved-file limit."""
+    model._add_body_tab(_gouraud_mesh())
+    _set_shape(model, 'ellipsoid')
+    assert model.statusBar().currentMessage() == (
+        'LUMPY: moved shading, mesh_detail_octaves, pose_scatter out of the scene, because '
+        "an ellipsoid body doesn't support them. Switching back to polyhedral_mesh restores "
+        "them in this session; a saved ellipsoid scene file doesn't carry them."
+    )
+
+
+def test_switching_back_to_a_mesh_restores_its_mesh_only_keys(model: Any) -> None:
+    """A mesh-to-ellipsoid-to-mesh round trip gives the body its mesh keys back."""
+    model._add_body_tab(_gouraud_mesh())
+    _set_shape(model, 'ellipsoid')
+    _set_shape(model, 'polyhedral_mesh')
+    body = model.sim_params['bodies'][0]
+    restored = {key: body[key] for key in ELLIPSOID_UNSUPPORTED_KEYS}
+    assert restored == {key: _gouraud_mesh()[key] for key in ELLIPSOID_UNSUPPORTED_KEYS}
+
+
+def test_a_round_trip_restores_each_shapes_keys(model: Any) -> None:
+    """Each shape model gets back the keys the other one moved out."""
+    model._add_body_tab(_full_ellipsoid())
+    _set_shape(model, 'polyhedral_mesh')
+    model.sim_params['bodies'][0]['shading'] = 'gouraud'
+    _set_shape(model, 'ellipsoid')
+    body = model.sim_params['bodies'][0]
+    assert [key for key in MESH_UNSUPPORTED_KEYS if key not in body] == []
+    assert 'shading' not in body
+    _set_shape(model, 'polyhedral_mesh')
+    assert model.sim_params['bodies'][0]['shading'] == 'gouraud'

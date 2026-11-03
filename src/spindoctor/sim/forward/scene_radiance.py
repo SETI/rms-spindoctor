@@ -66,8 +66,8 @@ from spindoctor.sim.forward.star import faint_sky_cutoff_mag, render_sky_counts,
 from spindoctor.sim.instruments import resolve_sim_inst_config
 from spindoctor.sim.scene_schema import scene_value
 from spindoctor.sim.seeds import derive_effect_seed
-from spindoctor.sim.stable_math import stable_hypot
 from spindoctor.sim.star_records import DEFAULT_PSF_SIZE
+from spindoctor.support.stable_math import stable_hypot
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType, NDArrayIntType
 
 __all__ = ['compose_scene_radiance']

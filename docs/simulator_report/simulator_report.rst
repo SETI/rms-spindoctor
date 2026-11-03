@@ -288,8 +288,9 @@ from.
        1.17e-4 transient fraction is reproduced at 1.1e-3 events per pixel per
        second, but the chain deposits every event at full well, and at that
        rate the matched frames' saturated fraction rose from 3.3e-5 to 2.3e-4
-       against 1.3e-5 real.  Unblocked by a modest-amplitude transient term
-       (#330).
+       against 1.3e-5 real.  Unblocked by a modest-amplitude transient term.
+
+       .. The transient term is tracked as issue #330.
    * - ``vgiss``
      - n/a (vidicon path)
      - 0.0
@@ -619,12 +620,12 @@ For a handful of matched pairs per instrument (at most three: one star
 field, one limb frame, one ring frame) the full navigator ran on both the
 real frame and its matched simulated frame; the per-technique diagnostics
 are recorded in the summary JSON (``fom7_rows``).  Headline reading of the
-2026-07-18 pairs:
+2026-11-01 pairs:
 
 - Star-field pairs behave comparably where both sides lock:
   ``StarFieldFromCatalogNav`` reports 0.95 confidence on both sides of the
   WAC and LORRI star pairs, with the simulated inlier residuals tighter
-  than the real ones (0.02-0.05 px vs 0.09-0.33 px) -- the sim errs
+  than the real ones (0.01-0.02 px vs 0.06-0.32 px) -- the sim errs
   optimistic on star sharpness.
 - The Cassini ring pair separates on residual texture: ``RingEdgeNav``
   reports 0.71 on the real frame versus 0.94 on its matched render.
@@ -636,10 +637,11 @@ are recorded in the summary JSON (``fom7_rows``).  Headline reading of the
   0.65 sim) with the simulated DT residual three times the real one;
   on the WAC pair the real limb fit succeeds at 0.76 while the matched
   simulated result is discarded by its own ensemble.
-- The NAC star pair inverts: the real frame's field lock fails (3
-  inliers; a known caveat of that cohort frame) while its matched render
-  locks at 0.95 -- the painted-silhouette star occlusion gap and the
-  clean simulated field both push in the optimistic direction.
+- The NAC star pair separates on star count: the real frame predicts 4
+  catalog stars and locks at only 0.6, a wide-offset lock on 3 inliers (a
+  known caveat of that cohort frame), while its matched render predicts 25
+  and locks at 0.95 on 16 inliers.  The clean simulated field pushes in the
+  optimistic direction.
 
 These rows are the evidence a human reads to judge whether the techniques
 *behave* comparably on matched frames.  They were not consulted during
@@ -776,7 +778,8 @@ one arbitrary phase, while per-technique sub-pixel precision across many offsets
 characterized in the offset-accuracy section below. The technique column names the
 load-bearing technique -- pinned for the single-technique scenes (blob, limb,
 ring, roll) so each is characterized in isolation, and the full ensemble for the
-disc and star scenes.
+disc and star scenes. On the two disc scenes the pinned disc correlation
+recovers the same offset as the full ensemble.
 
 .. list-table:: Planted-transform recovery by technique
    :header-rows: 1
@@ -800,13 +803,13 @@ disc and star scenes.
    * - ``planted_offset_blob``
      - BodyBlobNav
      - (1.43, -0.61) px
-     - (1.50, -0.60) px
-     - 0.07 px
+     - (1.43, -0.61) px
+     - 0.01 px
    * - ``planted_offset_blob_crescent``
      - BodyBlobNav (120 deg)
      - (1.43, -0.61) px
      - (1.21, -0.53) px
-     - 0.23 px
+     - 0.24 px
    * - ``planted_offset_star_field``
      - StarField + UniqueMatch + Refine
      - (1.43, -0.61) px
@@ -815,8 +818,8 @@ disc and star scenes.
    * - ``planted_offset_limb``
      - BodyLimbNav
      - (1.43, -0.61) px
-     - (1.50, -0.60) px
-     - 0.07 px
+     - (1.53, -0.69) px
+     - 0.13 px
    * - ``planted_offset_ring``
      - RingEdgeNav
      - (1.43, -0.61) px
@@ -825,18 +828,20 @@ disc and star scenes.
    * - ``planted_rotation_star_field``
      - StarFieldFromCatalogNav (roll)
      - (1.43, -0.61) px, 1.37 deg
-     - 1.356 deg
-     - 0.01 deg
+     - 1.351 deg
+     - 0.02 deg
 
 Observations:
 
 * All scenes plant the **same** off-grid offset ``(1.43, -0.61)`` px, so the
   per-technique errors are at one common sub-pixel phase and directly comparable.
   Every technique recovers well within the 1.0 px (and third-of-a-degree) bound.
-* At this phase (2026-07-18 measurement) the mesh disc recovers exactly, the
-  ring edge to ~0.01 px, the fused star field to ~0.04 px, and the disc, blob,
-  and limb scenes to ~0.07 px.
-* The high-phase blob crescent (~0.23 px at 120 deg) is the hardest case: only a
+* At this phase (2026-10-31 measurement) the mesh disc recovers exactly, the
+  blob and the ring edge to ~0.01 px, the fused star field to ~0.04 px, the
+  disc to ~0.07 px, and the limb to ~0.13 px. The limb's own fix is the
+  loosest of the full-disc scenes; the full ensemble on the same scene fuses it
+  with the disc correlation and recovers (1.50, -0.60), 0.07 px off.
+* The high-phase blob crescent (~0.24 px at 120 deg) is the hardest case: only a
   thin lit crescent constrains the centroid. It still recovers sub-pixel.
 * These are single-phase samples, so a given technique can sit above or below its
   multi-offset median in the offset-accuracy section (e.g. the disc's ~0.07 px here
@@ -1312,7 +1317,7 @@ seeds 0 to 12 it ranges from 0.11 to 0.47 px (median 0.26 px), so this shape is
 typical. Tessellation matters too: at the default 16 by 32 the same fit errs
 0.50 px on this shape and 0.75 px on the smooth mesh, which is one reason the
 mesh scenes use 64 by 128. The mesh crescent is the loosest at
-0.50 px, against 0.23 px for the ellipsoid crescent: its body is clearly
+0.50 px, against 0.24 px for the ellipsoid crescent: its body is clearly
 irregular (``mesh_lumpiness`` 0.2), and only a thin lit sliver of it constrains
 the centroid. Over mesh seeds 0 to 12 the same pinned blob errs 0.35 to 0.61 px
 (median 0.50 px), and 6 of the 13 shapes land above half a pixel, so this
@@ -1649,7 +1654,7 @@ Summary
   0.17 px cross-track and 0.82 px along-track on clean scenes.
 * On the three mesh scenes whose predicted geometry matches the rendered one,
   irregular (mesh) bodies navigate to half a pixel or better (mesh disc
-  0.00 px, limb 0.27 px, and crescent 0.50 px, against 0.23 px for the
+  0.00 px, limb 0.27 px, and crescent 0.50 px, against 0.24 px for the
   ellipsoid crescent). Over 13 mesh shapes the crescent's error ranges from
   0.35 to 0.61 px. When the navigator predicts the wrong shape, the error grows
   with the rendered relief: over 13 mesh shapes it ends 2.7 to 12.9 px off at an

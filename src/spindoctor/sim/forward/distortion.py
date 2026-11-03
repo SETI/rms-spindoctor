@@ -24,8 +24,8 @@ from scipy import ndimage
 
 from spindoctor.sim.forward.stages import SimFrame
 from spindoctor.sim.seeds import derive_effect_seed
-from spindoctor.sim.stable_math import stable_hypot
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
+from spindoctor.support.stable_math import stable_hypot
 from spindoctor.support.types import NDArrayFloatType
 
 __all__ = ['apply_distortion']

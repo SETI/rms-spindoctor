@@ -19,13 +19,27 @@ from typing import Any
 from PyQt6.QtWidgets import QCheckBox, QFormLayout, QGroupBox, QWidget
 
 from spindoctor.cli.sim_editor.base import SimEditorBase
+from spindoctor.cli.sim_editor.widgets import kept_or_shown
 from spindoctor.cli.sim_editor.widgets import make_dspin as _dspin
 from spindoctor.sim.forward.atmosphere import DEFAULT_HAZE_ALBEDO
+
+_NULL_SHOWS: dict[str, float] = {
+    'ref_altitude_px': 0.0,
+    'g': 0.0,
+    'albedo': DEFAULT_HAZE_ALBEDO,
+}
+"""The value the renderer reads for each atmosphere key a scene may leave null."""
 
 
 def _as_map(value: Any) -> dict[str, Any]:
     """Return ``value`` when it is a mapping, else an empty dict."""
     return value if isinstance(value, dict) else {}
+
+
+def _shown(atmosphere: dict[str, Any], key: str) -> float:
+    """Return the value a spin shows for a null-able key: the stated one, or the default."""
+    value = atmosphere.get(key)
+    return _NULL_SHOWS[key] if value is None else float(value)
 
 
 class BodyAtmosphereMixin(SimEditorBase):
@@ -58,7 +72,7 @@ class BodyAtmosphereMixin(SimEditorBase):
             maximum=200.0,
             decimals=2,
             step=0.5,
-            value=float(atmosphere.get('ref_altitude_px', 0.0)),
+            value=_shown(atmosphere, 'ref_altitude_px'),
             tooltip='Altitude where the tangent optical depth equals tau_ref, in pixels.',
         )
         asymmetry = _dspin(
@@ -66,15 +80,15 @@ class BodyAtmosphereMixin(SimEditorBase):
             maximum=0.99,
             decimals=3,
             step=0.05,
-            value=float(atmosphere.get('g', 0.0)),
+            value=_shown(atmosphere, 'g'),
             tooltip='Henyey-Greenstein asymmetry (positive is forward-scattering).',
         )
         albedo = _dspin(
             minimum=0.0,
-            maximum=5.0,
+            maximum=1.0,
             decimals=3,
             step=0.05,
-            value=float(atmosphere.get('albedo', DEFAULT_HAZE_ALBEDO)),
+            value=_shown(atmosphere, 'albedo'),
             tooltip='Haze brightness scale (0 adds no light; the halo still dims what is behind).',
         )
         shell_check = QCheckBox('Detached shell')
@@ -123,32 +137,50 @@ class BodyAtmosphereMixin(SimEditorBase):
         return group
 
     def _on_body_atmosphere_toggled(self, idx: int, checked: bool) -> None:
-        """Insert or remove the body's atmosphere map."""
+        """Insert or remove the body's atmosphere map.
+
+        Removing the map keeps it on the tab.  Re-enabling the group restores its
+        keys without spins, such as the haze structure, and the exact value of
+        every key whose spin still shows it, so turning the group off and on
+        leaves a loaded scene's values unrounded and its null keys null.  A key
+        whose spin was edited in between takes the spin's value.
+        """
         body = self._body(idx)
         if body is None:
             return
-        if checked:
-            w = self._body_tab_widget(idx)
-            atmosphere: dict[str, float] = {
-                'scale_height_px': (
-                    float(w.atmosphere_scale_height_spin.value()) if w is not None else 8.0  # type: ignore[attr-defined]
-                ),
-                'tau_ref': float(w.atmosphere_tau_ref_spin.value()) if w is not None else 1.0,  # type: ignore[attr-defined]
-                'ref_altitude_px': (
-                    float(w.atmosphere_ref_altitude_spin.value()) if w is not None else 0.0  # type: ignore[attr-defined]
-                ),
-                'g': float(w.atmosphere_g_spin.value()) if w is not None else 0.0,  # type: ignore[attr-defined]
-                'albedo': (
-                    float(w.atmosphere_albedo_spin.value())  # type: ignore[attr-defined]
-                    if w is not None
-                    else DEFAULT_HAZE_ALBEDO
-                ),
+        w = self._body_tab_widget(idx)
+        if not checked:
+            removed = body.pop('atmosphere', None)
+            if w is not None and isinstance(removed, dict):
+                w.atmosphere_removed = removed  # type: ignore[attr-defined]
+            self._updater.request_update()
+            return
+        if w is not None:
+            spins = {
+                'scale_height_px': w.atmosphere_scale_height_spin,  # type: ignore[attr-defined]
+                'tau_ref': w.atmosphere_tau_ref_spin,  # type: ignore[attr-defined]
+                'ref_altitude_px': w.atmosphere_ref_altitude_spin,  # type: ignore[attr-defined]
+                'g': w.atmosphere_g_spin,  # type: ignore[attr-defined]
+                'albedo': w.atmosphere_albedo_spin,  # type: ignore[attr-defined]
             }
-            if w is not None and w.atmosphere_shell_check.isChecked():  # type: ignore[attr-defined]
-                atmosphere['detached_px'] = float(w.atmosphere_detached_spin.value())  # type: ignore[attr-defined]
-            body['atmosphere'] = atmosphere
+            if w.atmosphere_shell_check.isChecked():  # type: ignore[attr-defined]
+                spins['detached_px'] = w.atmosphere_detached_spin  # type: ignore[attr-defined]
+            # The tab carries a removed map only after the group was turned off once.
+            removed = getattr(w, 'atmosphere_removed', None) or {}
+            restored: dict[str, Any] = {
+                key: value
+                for key, value in removed.items()
+                if key not in spins and key != 'detached_px'
+            }
+            body['atmosphere'] = restored | kept_or_shown(spins, removed, null_shows=_NULL_SHOWS)
         else:
-            body.pop('atmosphere', None)
+            body['atmosphere'] = {
+                'scale_height_px': 8.0,
+                'tau_ref': 1.0,
+                'ref_altitude_px': 0.0,
+                'g': 0.0,
+                'albedo': DEFAULT_HAZE_ALBEDO,
+            }
         self._updater.request_update()
 
     def _on_body_atmosphere_value(self, idx: int, key: str, value: float) -> None:

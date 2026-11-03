@@ -21,8 +21,9 @@ alone:
   the heavier in-process simulator tests. The simulator tests carry a second
   marker, ``sim_integration``: they need no holdings, SPICE kernels, or star
   catalogs, so CI runs them on every pull request, and so does
-  ``./scripts/run-all-checks.sh`` without ``-i``. The one exception is the
-  simulator performance budgets, which measure CPU time and need a quiet host.
+  ``./scripts/run-all-checks.sh`` without ``-i``. There are two exceptions. The
+  simulator performance budgets measure CPU time and need a quiet host, and the
+  realism smoke (``test_sim_realism_smoke.py``) reads real frames.
 - The **postgres tier** is opted into with ``-m postgres`` (or ``-m ""``). It
   re-asks the results-index questions against a real PostgreSQL server, because
   SQLite accepts spellings a server rejects: an integer compared against a
@@ -300,10 +301,13 @@ pin covers ``pytest`` and the ``python -m tests.integration...`` tools alike.
 The pin doesn't reach two other libraries that NumPy calls. OpenBLAS, which runs
 ``@``, picks its kernel by CPU, and the C library's ``hypot``, which runs
 ``np.hypot``, differs between CPUs in its last bit. So the simulator's render
-path uses neither. The mesh renderer sums its 3-vector products itself, in a
-fixed order, and the simulator calls
-:func:`spindoctor.sim.stable_math.stable_hypot` in place of ``np.hypot``.
-``tests/spindoctor/sim/test_stable_math.py`` fails if ``np.hypot`` comes back.
+path uses neither. The mesh renderer calls
+:func:`spindoctor.support.stable_math.stable_matmul3`, which sums its 3-vector
+products in a fixed order, in place of ``@``, and the simulator calls
+:func:`spindoctor.support.stable_math.stable_hypot` in place of ``np.hypot``.
+``tests/spindoctor/sim/test_sim_stable_math_guard.py`` fails if a simulator module
+takes a matrix product with ``@``, ``.dot``, or a NumPy matrix-product function, or
+calls ``np.hypot``.
 A last-bit change in the render path wouldn't stay small. The PSF's FFT
 convolution spreads it to every pixel, and a Poisson draw whose mean changes can
 take a different number of random values, which changes the noise in every pixel

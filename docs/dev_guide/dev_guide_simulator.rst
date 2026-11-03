@@ -156,9 +156,10 @@ opposition surge, the albedo and disc textures and transiting moons and their
 shadows, the mesh shading mode and per-frame pose scatter, the per-star PSF
 anomaly and planted catalog error, the background sky, and the ``nav_override``
 channel. **Test-only** keys are the
-scene's declared navigation outcome (the ``expected`` block): read only by the
-integration suite's assertion machinery, and by neither the renderer nor the
-navigator. :data:`spindoctor.sim.scene.TRUTH_KEYS` is the machine-readable truth
+scene's declared navigation outcome (the ``expected`` block), read only by the
+integration suite's assertion machinery, and the ``published_equals_truth``
+list, read only by the validator; neither the renderer nor the navigator reads
+them. :data:`spindoctor.sim.scene.TRUTH_KEYS` is the machine-readable truth
 inventory; an import-time assertion in :mod:`spindoctor.sim.scene` fails if any
 schema key is left unclassified or lands in two classes, so a schema change
 cannot dodge the classification. The boundary filter is default-deny, so the
@@ -532,9 +533,14 @@ well: about 2.0 for ``coiss_calib_nac`` at the reference exposure, and 1.85 for
 ``vgiss`` at any exposure. The navigator applies no saturation test to an I/F
 frame of either kind. The telemetry modes that act on transmitted DN work the same
 way on a calibrated frame. The lossy codec, ``line_garble``, and ``pixel_spikes``
-map the I/F back to DN, mangle it inside the ADC word, and write the result as I/F.
-So a garbled or spiked ``vgiss`` pixel stays at or below the 1.85 I/F that 255 DN
-calibrates to.
+map the I/F back to DN, alter it there, and write the result as I/F. A bit-flip
+spike is capped at the ADC word: on ``vgiss`` that is 255 DN, which calibrates to
+1.85 I/F. A garbled line and a uniform spike draw up to the
+frame's peak, or the ADC word when that is higher. The codec doesn't clip what it
+rebuilds, so a saturated block can come back above the word, and a garbled line or
+a uniform spike drawn after it can follow it there. A calibrated value that lands
+exactly on the 0 I/F marker moves to the next float above it, as the calibration
+inverse does.
 
 The inverse subtracts the bias and dark pedestals, which would put a noise-free
 dark sky at exactly 0 I/F, the marker. A real calibrated product's dark sky keeps
@@ -866,9 +872,10 @@ its activation key is 0, or its ``count`` where given is 0. The keys default to
 key, or its ``count`` where given, doesn't plant anything.
 
 A mode's map accepts only that mode's parameters, so an unknown key in it fails
-validation. The sweep harness re-validates each step's ``artifacts`` and
-``noise`` blocks, so a sweep path naming an unknown mode or noise key fails when
-the sweep is built.
+validation. The sweep harness validates each step as a whole scene, so a sweep
+path stepping a value out of its range, or naming an unknown key in a block the
+validator checks key by key (every artifact mode's map does), fails when the
+sweep is built.
 
 Telemetry-stage modes
 ---------------------
@@ -1614,6 +1621,13 @@ control that writes one of these keys, and it shows the refusal as the tooltip
 of that control and of every control and label inside it, so hovering any of
 them explains why it is disabled (see :ref:`sim-gui`).
 
+The reverse rule holds too. The validator rejects a non-null value of the three
+mesh-only appearance keys, ``shading``, ``mesh_detail_octaves``, and
+``pose_scatter``, on an ellipsoid body, including a body that doesn't state a
+``shape_model``. The ellipsoid renderer would silently ignore them. That list is
+``ELLIPSOID_UNSUPPORTED_KEYS`` beside ``MESH_UNSUPPORTED_KEYS``. The editor
+keeps their controls in one group, which it disables on an ellipsoid body.
+
 Silhouette ``anti_aliasing`` is consumed at oversample 1 only, on both render
 paths (an oversampled scene already resolves the limb on its own grid).
 
@@ -1664,15 +1678,20 @@ on-disc haze joins the body's opaque paint, while the above-limb glow is a
 translucent halo screen composited like the ring system's -- background,
 rings, and stars behind it show through scaled by ``exp(-tau)`` with the glow
 added, and the body's mask / depth / occlusion truth sees only the solid
-silhouette. A
-line of sight grazing the body at tangent altitude ``h`` (pixels above the
+silhouette. Where limb relief dips inside the reference ellipse, the uncovered
+pixels are sky seen through the haze column and join the halo screen. The
+halo reaches out until its glow, and its dimming of a full-scale background,
+both fall below 1e-5 of full scale, under a twentieth of a 12-bit DN. So a
+bright forward-scattering haze fades into the sky instead of ending in a step.
+A line of sight grazing the body at tangent altitude ``h`` (pixels above the
 reference radius) accumulates a tangent optical depth
 ``tau(h) = tau_ref * exp(-(h - ref_altitude_px) / scale_height_px)``, so
 ``tau_ref`` is the tangent optical depth at ``ref_altitude_px``. The emergent
 haze brightness is a single-scattering source (the haze ``albedo``, times a
 Henyey-Greenstein phase factor of asymmetry ``g``, times a wrapped
 illumination weight) multiplied by an opacity ``1 - exp(-tau)``. ``albedo``
-defaults to 0.6 and may be any number at least 0. It sets how bright the
+defaults to 0.6 and lies in [0, 1], as a single-scattering albedo does. It
+sets how bright the
 haze is against the disc and the sky, independently of how thick it is, so a
 dim Titan-like haze and a brighter Saturn-like one can share a column. At 0
 the haze adds no light: the halo still dims what lies behind it, and the
@@ -2320,7 +2339,9 @@ that rule. A star, a lit body, a Titan with its haze, and a face-on ringlet, eac
 stated at ``(60.5, 60.5)``, must render centered on array pixel ``(60, 60)``. Each
 simulated navigation model must also predict its object on that pixel: the body's
 ``BODY_DISC`` and ``BODY_BLOB`` centers, the Titan limb center, and the ring
-annulus center, all pixel centric in the extended FOV.
+annulus center, all pixel centric in the extended FOV. The body disc and ring
+annulus templates must be painted there too: each template's centroid, placed at
+its bounding box, lands on the rendered centroid.
 
 The scene's displacements need no conversion: the planted ``offset_v`` /
 ``offset_u``, a star's ``move_v`` / ``move_u`` smear vector, a planted
@@ -2357,6 +2378,11 @@ Scene parameter reference
 
 Top-level fields
 ----------------
+
+A top-level number (``exposure_sec``, ``offset_v``, ``offset_u``,
+``offset_rotation_deg``, ``time``, ``ring_epoch``, and ``star_catalog_scatter_px``)
+can't be null: the validator refuses it, and the author leaves the key out to take its
+default. A top-level block or list set to null reads as unset.
 
 .. list-table::
    :widths: 22 11 11 10 46
@@ -2514,6 +2540,13 @@ Top-level fields
        ``confidence_tier``, ``status_reason``), asserted by the integration
        suite and read by neither the renderer nor the navigator (see
        :ref:`sim-expected`).
+   * - ``published_equals_truth``
+     - list
+     - none
+     - test-only
+     - Truth paths, such as ``noise.read_noise_dn``, that ``instrument_config``
+       repeats on purpose, read only by the validator (see
+       :ref:`sim-instrument-config`).
 
 .. _sim-body-params:
 
@@ -3248,6 +3281,26 @@ inherit everything; name ``generic`` and override everything to fully
 self-specify. The top-level ``noise`` block still wins over
 ``instrument_config.noise`` for rendering. See :doc:`dev_guide_observations`.
 
+``instrument_config`` is idealized and crosses the information boundary
+unfiltered. A planted value copied into it reaches the navigator as published
+knowledge: a scene whose ``instrument_config.noise.read_noise_dn`` equals its
+truth-side ``noise.read_noise_dn`` lets the navigator's SNR model adapt to the
+planted noise, and the recovery looks better than it should. Nothing can stop an
+author from doing that, so the validator warns instead, with
+:class:`~spindoctor.sim.scene_truth_echo.SimSceneTruthEchoWarning`, naming both
+sites. It compares each ``noise`` key, ``noise.vidicon`` included, with the
+``instrument_config.noise`` key of the same name, and ``optics.psf.sigma_v`` and
+``sigma_u`` with ``instrument_config.star_psf_sigma``. The ``detector`` block
+doesn't share a key with the instrument config and isn't compared. The
+navigator doesn't read the vidicon keys, so a ``noise.vidicon`` warning says
+only that the published config carries the scene's realization. When the two
+are equal on purpose, the scene lists the truth paths in
+``published_equals_truth``, which silences those warnings. A listed path whose
+values differ fails validation, so an opt-out can't outlive its reason. The
+scene editor carries the list through but doesn't edit it. When an edit
+separates a listed pair, Save Scene removes that path from the list, and the
+status bar names it.
+
 .. _sim-catalog-workflow:
 
 Catalog, baselines, and the render-diff sheet
@@ -3395,7 +3448,9 @@ realism addition needs -- live in their own module:
        stash held for the session, so a mesh body the editor holds or saves
        never carries a refused key, and the status bar names the keys moved.
        Switching the body back to an ellipsoid restores the stashed keys, the
-       controls, and their own tooltips. A saved mesh scene file doesn't
+       controls, and their own tooltips. The same switch moves the body's
+       mesh-only keys (``ELLIPSOID_UNSUPPORTED_KEYS``) into the stash, and
+       switching back to a mesh restores them. A saved scene file doesn't
        carry the stashed keys. Load Scene clears the stash, and deleting a
        body drops its entry.
 
@@ -3685,9 +3740,13 @@ the recorded 2026-07-17/18 runs); the cost is dominated by the
 navigator's feature extraction on the real frames and the full-size
 matched renders.  ``--skip-fom7`` saves about 17% -- the navigation
 pairs are a handful of frames per instrument, not a large share of the
-cost.  ``tests/integration/test_sim_realism.py`` carries
-the integration-tier tests: matched-scene validity per instrument,
-sim-side determinism, and an end-to-end smoke on the smallest cohort.
+cost.  ``tests/integration/test_sim_realism.py`` carries the
+``sim_integration`` tests, which the default selection runs. They check that the
+matched scenes are valid for every instrument and that the sim side is
+deterministic.
+``tests/integration/test_sim_realism_smoke.py`` carries the end-to-end smoke on
+the smallest cohort. It reads real frames and carries only the ``integration``
+marker.
 
 The per-instrument match quality, the figures, and the known-gaps list
 live in the simulator report's realism section
