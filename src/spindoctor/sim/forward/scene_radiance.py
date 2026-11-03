@@ -29,9 +29,8 @@ against the bodies (``img = I_ring + exp(-tau/mu) * img_behind``); the halo
 screens composite in the same far-to-near depth order, interleaved with the
 ring by each halo's body range.  Point sources sit at infinity: every
 translucent screen (ring, halo) attenuates them and an opaque body's
-silhouette extinguishes them (the painted, lit silhouette -- a fully dark
-night side does not occult, a stated approximation of the mask-based body
-renderers).
+solid silhouette extinguishes them, its unlit side and any pixel it renders
+black included.
 
 The translucent-screen machinery itself -- the far-to-near screen ordering
 and the depth-ambiguity checks behind every stacking decision -- lives in
@@ -67,6 +66,7 @@ from spindoctor.sim.instruments import resolve_sim_inst_config
 from spindoctor.sim.scene_schema import scene_value
 from spindoctor.sim.seeds import derive_effect_seed
 from spindoctor.sim.star_records import DEFAULT_PSF_SIZE
+from spindoctor.support.stable_math import stable_hypot
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType, NDArrayIntType
 
 __all__ = ['compose_scene_radiance']
@@ -91,7 +91,7 @@ def _nominal_read_noise(instrument: str | None, domain: str) -> float:
         vidicon = catalog.get('vidicon') or {}
         line = float(vidicon.get('read_noise_line_dn', 1.0))
         pixel = float(vidicon.get('read_noise_pixel_dn', 1.0))
-        return float(np.hypot(line, pixel))
+        return float(stable_hypot(line, pixel))
     return float(catalog.get('read_noise_e', 1.0))
 
 

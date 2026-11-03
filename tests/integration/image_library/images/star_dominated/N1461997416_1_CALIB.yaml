@@ -23,9 +23,15 @@ ground_truth:
     Operator comment: rescued with relaxed gates
 
     The expected pins follow the seed-20260718 recalibration (attribution basis util/calibration/CAMPAIGN_20260718.md). The tier is medium under the 0.85 high-tier boundary: fused confidence sits in the 0.55-0.85 band. The primary is StarUniqueMatchNav, the highest-confidence contributor. StarFieldFromCatalogNav emits no result on this frame (below the RANSAC inlier floor).
+
+    Re-pinned 2026-10-31 (operator decision): confidence_tier
+    medium -> low. The offset is unchanged or closer to truth;
+    the answer rests on a single star, and a one-star answer is
+    capped at low.
+
 expected:
   status: success
-  confidence_tier: medium
+  confidence_tier: low
   primary_technique: StarUniqueMatchNav
   techniques_must_run:
   - StarUniqueMatchNav

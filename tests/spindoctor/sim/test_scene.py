@@ -4,8 +4,10 @@ import math
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 import pytest
 
+from spindoctor.sim.render import render_combined_model
 from spindoctor.sim.scene import (
     _ALLOWED_KEYS,
     _OBJECT_BLOCKS,
@@ -567,6 +569,76 @@ def test_validate_sim_params_accepts_ellipsoid_appearance_keys() -> None:
         }
     )
     assert validate_sim_params(params) is params
+
+
+@pytest.mark.parametrize(
+    ('key', 'value'),
+    [('shading', 'gouraud'), ('mesh_detail_octaves', 2), ('pose_scatter', {'sigma_deg': 1.0})],
+)
+@pytest.mark.parametrize('shape_model', ['ellipsoid', None])
+def test_validate_sim_params_rejects_mesh_only_key_on_ellipsoid(
+    key: str, value: Any, shape_model: str | None
+) -> None:
+    """A mesh-only key fails on an ellipsoid body, stated or by default."""
+    params = _sim_params()
+    params['bodies'][0][key] = value
+    if shape_model is not None:
+        params['bodies'][0]['shape_model'] = shape_model
+    with pytest.raises(
+        SimSceneValidationError, match=rf"\['{key}'\] are not supported on ellipsoid bodies"
+    ):
+        validate_sim_params(params)
+
+
+def test_validate_sim_params_accepts_a_clear_atmosphere() -> None:
+    """A ``tau_ref`` of 0 validates: a clear atmosphere that leaves the limb hard."""
+    params = _sim_params()
+    params['bodies'][0]['atmosphere'] = {'scale_height_px': 4.0, 'tau_ref': 0.0}
+    assert validate_sim_params(params) is params
+
+
+def test_validate_sim_params_rejects_a_negative_tau_ref() -> None:
+    """A negative ``tau_ref`` fails: an optical depth can't be negative."""
+    params = _sim_params()
+    params['bodies'][0]['atmosphere'] = {'scale_height_px': 4.0, 'tau_ref': -0.5}
+    with pytest.raises(
+        SimSceneValidationError, match=r'atmosphere\.tau_ref must be a non-negative number'
+    ):
+        validate_sim_params(params)
+
+
+_TOP_LEVEL_NUMBERS = (
+    'exposure_sec',
+    'offset_v',
+    'offset_u',
+    'offset_rotation_deg',
+    'time',
+    'ring_epoch',
+    'star_catalog_scatter_px',
+)
+
+
+@pytest.mark.parametrize('key', _TOP_LEVEL_NUMBERS)
+def test_validate_sim_params_refuses_a_null_top_level_number(key: str) -> None:
+    """A top-level number set to null fails, since every reader takes it as a float."""
+    params = _sim_params()
+    params[key] = None
+    with pytest.raises(SimSceneValidationError, match=rf"\['{key}'\] must be numbers when present"):
+        validate_sim_params(params)
+
+
+@pytest.mark.parametrize('key', ['noise', 'optics', 'detector', 'artifacts', 'bodies', 'stars'])
+def test_a_null_top_level_block_validates_and_renders(key: str) -> None:
+    """A top-level block or list set to null renders exactly as the scene without it."""
+    params = _sim_params()
+    params['bodies'][0].update(axis2=60.0, axis3=50.0)
+    params['stars'] = [{'name': 'S1', 'v': 20.0, 'u': 20.0, 'vmag': 8.0}]
+    absent = {name: value for name, value in params.items() if name != key}
+    params[key] = None
+    validate_sim_params(params)
+    np.testing.assert_array_equal(
+        render_combined_model(params)[0], render_combined_model(absent)[0]
+    )
 
 
 def test_validate_sim_params_rejects_duplicate_body_names() -> None:

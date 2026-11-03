@@ -25,6 +25,14 @@ cassini_iss:
       256: 0.22
       512: 0.3
       1024: 0.5
+    # Largest peak above the local background, in noise sigmas per unit of
+    # predicted SNR, of a source a lone star can be, as measured on the
+    # calibrated camera below (the ratio is in noise sigmas, so it does not
+    # depend on the image's units).
+    star_max_peak_per_predicted_snr: 150.0
+    # Fraction of the offset window, per axis, inside which a lone star is
+    # believed; see the calibrated camera below.
+    one_star_ellipse_fraction: 0.6
     star_psf_sizes:
       7: [15, 15]
       8: [13, 13]
@@ -58,10 +66,17 @@ cassini_iss:
         'CL1+CL2': {default: 0.0}  # PLACEHOLDER — calibrate in Phase 10
   wac:
     data_units: raw_dn
+    # Every technique, the star searches among them, finds offsets only
+    # inside this margin.  98.7% of the 794 WAC star frames of the F ring
+    # movies set aside for tuning have each axis of their pointing error
+    # within 12.4 full-frame pixels (the error reaches 14), so a full frame
+    # reaches 13 px, a 2x2 summed frame 7 px, and a 4x4 summed frame 4 px
+    # (its 5 px is kept); no margin was narrowed.
+    # Provisional until full runs set every camera's window.
     extfov_margin_vu:
       256: [5, 10]
-      512: [5, 10]
-      1024: [5, 10]
+      512: [7, 10]
+      1024: [13, 13]
     star_psf_sigma: 0.77
     # As for the NAC: 18 stars on 6 full-size F ring frames (narrowest
     # sigma 0.78) and 1020 stars on 17 SUM2 frames (0.46).  No SUM4 frame
@@ -69,6 +84,10 @@ cassini_iss:
     star_sharpness_psf_sigma:
       512: 0.4
       1024: 0.7
+    # As for the NAC; see the calibrated camera below.
+    star_max_peak_per_predicted_snr: 40.0
+    # Wider than the NAC's; see the calibrated camera below.
+    one_star_ellipse_fraction: 0.7
     star_psf_sizes:
       7: [15, 15]
       8: [13, 13]
@@ -144,6 +163,34 @@ cassini_iss_calib:
       256: 0.22
       512: 0.3
       1024: 0.5
+    # Largest peak above the local background, in noise sigmas per unit of
+    # predicted SNR, of a source a lone star can be.  The value is measured
+    # from a sample, and nothing derives it from the camera's photometry: of
+    # 3463 stars found at the published bundles' pointing on the F ring and
+    # spokes star frames the brightest is 126 (median 10).  Two lone
+    # sources at 166 and 259, 88 and 48 px from the bundle's answer, are
+    # not taken.
+    # Grounding the bound in photometry is issue #844.
+    star_max_peak_per_predicted_snr: 150.0
+    # Fraction of the offset window, per axis, inside which
+    # StarUniqueMatchNav believes a lone star: the ellipse whose semi-axes
+    # are the window's half-widths times this fraction.  The whole window is
+    # searched, so a source nearly as bright anywhere in it makes the match
+    # ambiguous, but nothing cross-checks a single detection, and the wider
+    # the region it may come from, the likelier an artifact is the brightest
+    # thing in it.  Every camera sets its own fraction, in (0, 1], so the
+    # ellipse never reaches past the window.
+    # Replayed on the F ring and spokes star frames, the NAC's 334
+    # one-star answers within 2 px of the published bundles' reach 0.55 of
+    # the window, and the 61 farther from them lie between 0.01 and 0.56 of
+    # it, so a narrower ellipse would not separate the two.
+    # 0.6 is the ratio of the 30 px lone-star radius to the 50 px search
+    # half-width on ISS_006RI_LPHRLFMOV001_PRIME, where radii of 30, 40,
+    # and 50 px navigated 771, 772, and 750 of 1030 frames, none wrong;
+    # those were measured with a square 50 px window and the earlier pair
+    # search, before stars took the NAC's (50, 140) px offset window of a
+    # full frame, whose ellipse is (30, 84) px.
+    one_star_ellipse_fraction: 0.6
     star_psf_sizes:
       7: [15, 15]
       8: [13, 13]
@@ -169,10 +216,11 @@ cassini_iss_calib:
         'CL1+CL2': {default: 0.0}  # PLACEHOLDER — calibrate in Phase 10
   wac:
     data_units: calibrated_if
+    # The same margin as the raw-image camera above.
     extfov_margin_vu:
       256: [5, 10]
-      512: [5, 10]
-      1024: [5, 10]
+      512: [7, 10]
+      1024: [13, 13]
     star_psf_sigma: 0.77
     # As for the NAC: 18 stars on 6 full-size F ring frames (narrowest
     # sigma 0.78) and 1020 stars on 17 SUM2 frames (0.46).  No SUM4 frame
@@ -180,6 +228,21 @@ cassini_iss_calib:
     star_sharpness_psf_sigma:
       512: 0.4
       1024: 0.7
+    # As for the NAC, and measured the same way: of 191 stars found at the
+    # published bundles' pointing on the F ring and spokes star frames the
+    # brightest is 20.8 (median 10.6); the bound is about twice that.
+    star_max_peak_per_predicted_snr: 40.0
+    # As for the NAC, but wider: the WAC's pointing error reaches the edge
+    # of its window (see extfov_margin_vu above).  At 0.6, 12 lone
+    # stars of the spokes movie ISS_173RI_SPOKEMOV003_PRIME (W1728775362
+    # through W1728801375) lie between 0.60 and 0.72 of the 13 px window of
+    # a full frame and are refused.  At 0.7 the 11 within 0.70 are taken,
+    # and a star check finds the star at each answer; on W1728776493 it
+    # finds nothing at the published bundle's answer, 3.8 px away.  No
+    # other answer of the replayed F ring and spokes star frames changes.
+    # 0.7 is 9.1 px of a full frame's (13, 13) px window and (4.9, 7.0) px
+    # of a 2x2 summed frame's (7, 10) px one.
+    one_star_ellipse_fraction: 0.7
     star_psf_sizes:
       7: [15, 15]
       8: [13, 13]

@@ -31,11 +31,16 @@ ground_truth:
 
     The expected pins follow the seed-20260718 recalibration (attribution basis util/calibration/CAMPAIGN_20260718.md). The primary is StarRefineNav: the 95-star refine (0.9513) edges the field matcher's 0.95 hard cap, so a multi-star refine legitimately carries the pick.
 
+    Re-pinned 2026-10-31 (operator decision): confidence_tier
+    high -> medium. The offset is unchanged or closer to truth;
+    a star listed twice in the catalog counts once, so the
+    star-confirmed answer carries fewer independent stars.
+
 expected:
   # success | failed | conflicted
   status: success
   # high | medium | low | failed
-  confidence_tier: high
+  confidence_tier: medium
   # e.g. BodyLimbNav
   primary_technique: StarRefineNav
   techniques_must_run: [StarFieldFromCatalogNav]

@@ -18,7 +18,12 @@ alone:
 - The **integration tier** is opted into with ``-m ""`` or ``-m integration``.
   It holds the slow and the archive-backed tests: the real-image
   regression cohort (which fetches PDS holdings and resolves SPICE geometry) and
-  the heavier or jitter-prone in-process simulator tests.
+  the heavier in-process simulator tests. The simulator tests carry a second
+  marker, ``sim_integration``: they need no holdings, SPICE kernels, or star
+  catalogs, so CI runs them on every pull request, and so does
+  ``./scripts/run-all-checks.sh`` without ``-i``. There are two exceptions. The
+  simulator performance budgets measure CPU time and need a quiet host, and the
+  realism smoke (``test_sim_realism_smoke.py``) reads real frames.
 - The **postgres tier** is opted into with ``-m postgres`` (or ``-m ""``). It
   re-asks the results-index questions against a real PostgreSQL server, because
   SQLite accepts spellings a server rejects: an integer compared against a
@@ -45,6 +50,7 @@ Running the suite
    pytest                              # default tier (fast, no holdings)
    pytest -m ""                        # full suite, every tier
    pytest -m integration               # only the integration tier
+   pytest -m sim_integration           # only its simulator tests
    pytest -m postgres                  # only the postgres tier
    pytest -n 4 --dist=loadfile         # parallel (loadfile avoids PyQt6
                                        #   worker crashes)
@@ -190,19 +196,19 @@ tests need none of the archive environment above.
      - nothing
      - Fast bug-specific scenes guarding defects the sweeps surfaced.
    * - Sim regression baselines (``test_sim_baselines.py``)
-     - integration
+     - integration (``sim_integration``)
      - nothing
      - Every catalog scene re-navigates to its recorded rounded outcome (a
-       tripwire). Integration-marked because the solvers carry sub-millipixel
-       cross-process jitter.
+       tripwire). Integration-marked because rendering and navigating every scene
+       takes minutes; see :ref:`reproducing-sim-baselines`.
    * - Sensitivity sweeps (``test_sim_sweeps.py``)
-     - integration
+     - integration (``sim_integration``)
      - nothing
      - Each single-variable sweep responds as expected (a technique transition, a
        degradation to failure, recovery within tolerance). Heavier -- each sweep
        navigates several frames.
    * - Pose behavioral (``test_sim_irregular_pose.py``)
-     - integration
+     - integration (``sim_integration``)
      - nothing
      - On a wrong-pose irregular body the limb degrades far off while the
        pose-free blob stays accurate (asserted per technique).
@@ -270,3 +276,64 @@ updater or runner and review the diff before committing -- the baselines are
 tripwires, so an unexpected change is a regression to investigate, not to bless
 blindly. A new invariant scene also needs a baseline (``update_sim_baselines``);
 verify no existing baseline shifts.
+
+.. _reproducing-sim-baselines:
+
+Reproducing the simulator baselines
+===================================
+
+A simulator baseline records a scene's rounded outcome: status, offset to
+0.01 px, and confidence to 0.01. The test compares them exactly, without a
+tolerance band, and the render and gallery checks compare PNGs byte for byte.
+That works because a simulated navigation is deterministic. A scene gives the
+same result in a fresh process and in a long-lived ``pytest-xdist`` worker,
+whatever ran before it.
+
+What does change the result is the CPU. NumPy picks vectorized code paths by CPU
+(AVX2, AVX-512, and so on), and the paths differ in the last bits of their
+results. That is enough to move a render's bytes, a baseline's rounding, or a
+sweep check that sits near its threshold. So the test package pins NumPy to the
+x86-64-v2 baseline: before NumPy is first imported, ``tests/__init__.py`` sets
+``NPY_DISABLE_CPU_FEATURES`` to every dispatch group above it.
+``tests/integration/test_simd_pin.py`` fails if the pin didn't take effect. The
+pin covers ``pytest`` and the ``python -m tests.integration...`` tools alike.
+
+The pin doesn't reach two other libraries that NumPy calls. OpenBLAS, which runs
+``@``, picks its kernel by CPU, and the C library's ``hypot``, which runs
+``np.hypot``, differs between CPUs in its last bit. So the simulator's render
+path uses neither. The mesh renderer calls
+:func:`spindoctor.support.stable_math.stable_matmul3`, which sums its 3-vector
+products in a fixed order, in place of ``@``, and the simulator calls
+:func:`spindoctor.support.stable_math.stable_hypot` in place of ``np.hypot``.
+``tests/spindoctor/sim/test_sim_stable_math_guard.py`` fails if a simulator module
+takes a matrix product with ``@``, ``.dot``, or a NumPy matrix-product function, or
+calls ``np.hypot``.
+A last-bit change in the render path wouldn't stay small. The PSF's FFT
+convolution spreads it to every pixel, and a Poisson draw whose mean changes can
+take a different number of random values, which changes the noise in every pixel
+after it.
+
+On x86-64, with NumPy 2.4 or later, and with ``NPY_DISABLE_CPU_FEATURES`` not
+already set, every machine then reproduces the same files. They reproduced under
+NumPy 2.4 and 2.5, and under SciPy and ``rms-psfmodel`` releases months apart. A
+value already in the variable overrides the pin, and the files it regenerates may
+then differ. The pin doesn't apply below NumPy 2.4, or on an ARM machine, whose
+results may differ.
+
+CI is the reference environment: GitHub's ``ubuntu-latest`` runner, at each
+supported Python version. Every pull request runs the simulator checks there, so
+a baseline that CI doesn't reproduce fails the pull request.
+
+When a change moves a baseline, regenerate it in that change and say in the
+commit message why it moved. A baseline left stale fails CI and gets blamed on
+whatever change is in flight when somebody notices.
+
+Run the updaters against the checkout's own source. ``pytest`` puts ``src`` on
+the import path itself, but ``python -m`` imports ``spindoctor`` from the active
+environment, and in an environment that has a different checkout installed, it
+regenerates the baselines with that checkout's code. Unless this checkout is
+the one installed, run:
+
+.. code-block:: bash
+
+   PYTHONPATH=src python -m tests.integration.update_sim_baselines

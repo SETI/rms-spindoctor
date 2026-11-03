@@ -21,9 +21,19 @@ from spindoctor.sim.forward.artifact_modes import (
     mode_available,
     resolve_mode_config,
 )
+from spindoctor.sim.forward.detector.params import (
+    CalibrationMap,
+    calibration_map,
+    resolve_detector_params,
+)
+from spindoctor.sim.forward.feature_loci import FeatureLoci, choose_pixels, extract_feature_loci
+from spindoctor.sim.forward.incidence import planted_incidence
 from spindoctor.sim.forward.stages import SimFrame
 from spindoctor.sim.forward.telemetry import apply_telemetry
+from spindoctor.sim.forward.telemetry_loss import apply_pixel_spikes
+from spindoctor.sim.render import render_combined_model
 from spindoctor.sim.scene import SimSceneValidationError, validate_sim_params
+from spindoctor.support.types import NDArrayFloatType
 
 _SIZE = 64
 
@@ -402,46 +412,129 @@ def test_pixel_spikes_flip_pixels_without_zeroing() -> None:
         assert frame.signal[v, u] != 100.0
 
 
+def _vgiss_calibration() -> CalibrationMap:
+    """The DN-to-I/F map of a vgiss frame, which renders calibrated I/F."""
+    calibration = calibration_map(resolve_detector_params({'instrument': 'vgiss'}))
+    assert calibration is not None
+    return calibration
+
+
+def _vgiss_frame(dn: float) -> SimFrame:
+    """A vgiss detector-grid frame filled with the I/F that ``dn`` transmitted DN calibrate to."""
+    return _frame(fill=float(_vgiss_calibration().to_if(np.array([dn]))[0]))
+
+
 def test_pixel_spikes_bitflip_shifts_by_a_power_of_two() -> None:
-    """The bitflip model shifts a pixel by a power of two."""
-    frame = _frame(fill=100.0)
+    """The bitflip model shifts a pixel's transmitted DN by a power of two."""
+    frame = _vgiss_frame(100.0)
     record = _render(
         frame,
         {'pixel_spikes': {'expected_events': 20.0, 'amplitude': 'bitflip'}},
         instrument='vgiss',
     )
     v, u = record['pixel_spikes']['pixels'][0]
-    delta = abs(round(float(frame.signal[v, u])) - 100)
+    delta = abs(round(float(_vgiss_calibration().to_dn(frame.signal[v, u]))) - 100)
     assert delta > 0
     assert (delta & (delta - 1)) == 0  # a power of two
 
 
 def test_vgiss_pixel_spikes_stay_inside_the_8bit_word() -> None:
-    """Voyager bit-flip spikes never exceed the vidicon's 255 DN ceiling."""
-    frame = _frame(fill=200.0)
+    """Voyager bit-flip spikes never exceed the I/F of the vidicon's 255 DN ceiling."""
+    frame = _vgiss_frame(200.0)
     record = _render(frame, {'pixel_spikes': {'expected_events': 50.0}}, instrument='vgiss')
     assert record['pixel_spikes']['pixels']
-    assert float(frame.signal.max()) <= 255.0
+    assert float(_vgiss_calibration().to_dn(frame.signal).max()) <= 255.0 + 1e-9
 
 
 def test_vgiss_uniform_spikes_stay_inside_the_8bit_word() -> None:
     """Voyager uniform spikes draw inside the 255 DN word, not the 12-bit one."""
-    frame = _frame(fill=200.0)
+    frame = _vgiss_frame(200.0)
+    initial = frame.signal.copy()
     record = _render(
         frame,
         {'pixel_spikes': {'expected_events': 50.0, 'amplitude': 'uniform'}},
         instrument='vgiss',
     )
-    assert record['pixel_spikes']['pixels']
-    assert float(frame.signal.max()) <= 255.0
+    changed = [frame.signal[v, u] != initial[v, u] for v, u in record['pixel_spikes']['pixels']]
+    assert any(changed)
+    assert float(_vgiss_calibration().to_dn(frame.signal).max()) <= 255.0 + 1e-9
 
 
 def test_vgiss_line_garble_stays_inside_the_8bit_word() -> None:
-    """Voyager garbage fills stay inside the vidicon's 255 DN ceiling."""
-    frame = _frame(fill=200.0)
+    """Voyager garbage fills stay inside the I/F of the vidicon's 255 DN ceiling."""
+    frame = _vgiss_frame(200.0)
     record = _render(frame, {'line_garble': {'expected_events': 20.0}}, instrument='vgiss')
     assert record['line_garble']['lines']
-    assert float(frame.signal.max()) <= 255.0
+    assert float(_vgiss_calibration().to_dn(frame.signal).max()) <= 255.0 + 1e-9
+
+
+def _vgiss_render_with_garble_and_spikes() -> tuple[NDArrayFloatType, dict[str, Any]]:
+    """A real vgiss render of a lit body with garbled lines and bit-flip spikes."""
+    return render_combined_model(
+        {
+            'instrument': 'vgiss',
+            'size_v': 128,
+            'size_u': 128,
+            'random_seed': 3,
+            'bodies': [
+                {
+                    'name': 'B',
+                    'center_v': 64.0,
+                    'center_u': 64.0,
+                    'axis1': 40.0,
+                    'axis2': 40.0,
+                    'axis3': 40.0,
+                    'range_km': 1.0,
+                }
+            ],
+            'artifacts': {
+                'line_garble': {'expected_events': 4.0},
+                'pixel_spikes': {'expected_events': 40.0, 'amplitude': 'bitflip'},
+            },
+        }
+    )
+
+
+def test_a_vgiss_render_keeps_garble_and_spikes_on_the_calibrated_scale() -> None:
+    """On a real I/F render, garbled and spiked pixels stay inside the calibrated word."""
+    img, meta = _vgiss_render_with_garble_and_spikes()
+    garbled = [
+        float(value)
+        for line in meta['artifacts']['line_garble']['lines']
+        for value in img[line['row'], line['garble_from'] :]
+    ]
+    spiked = [float(img[v, u]) for v, u in meta['artifacts']['pixel_spikes']['pixels']]
+    ceiling = float(_vgiss_calibration().to_if(np.array([255.0]))[0])
+    assert garbled
+    assert spiked
+    assert max(garbled + spiked) <= ceiling + 1e-9
+
+
+def test_a_calibrated_bitflip_onto_the_marker_moves_off_it() -> None:
+    """A spike whose flipped DN calibrates to exactly the marker stays a valid pixel.
+
+    With I/F equal to DN, a pixel at 1 DN that loses its lowest bit flips to
+    0 DN, which calibrates to the 0.0 marker.
+    """
+    signal = np.ones((32, 32), dtype=np.float64)
+    loci = FeatureLoci(
+        rows=np.empty(0, dtype=np.int64),
+        pixel_v=np.empty(0, dtype=np.int64),
+        pixel_u=np.empty(0, dtype=np.int64),
+    )
+    record = apply_pixel_spikes(
+        signal,
+        {'expected_events': 200.0, 'amplitude': 'bitflip'},
+        marker_dn=0.0,
+        dn_ceiling=255.0,
+        calibration=CalibrationMap(dn_per_if=1.0, bias_dn=0.0, dark_dn=0.0, sky_if=0.0),
+        rng=np.random.default_rng(5),
+        loci=loci,
+        adversarial=False,
+    )
+    spiked = np.array([signal[v, u] for v, u in record['pixels']])
+    assert np.any(spiked < 1e-300)
+    assert not np.any(spiked == 0.0)
 
 
 def test_12bit_line_garble_keeps_the_deep_word() -> None:
@@ -473,6 +566,50 @@ def test_dead_pixels_fixed_count_sets_low_response() -> None:
     assert len(pixels) == 12
     for v, u in pixels:
         assert frame.signal[v, u] == 0.0
+
+
+def _star_loci(v: int, u: int) -> FeatureLoci:
+    """Feature loci holding one star pixel, whose radius-3 neighborhood is 49 pixels."""
+    return FeatureLoci(
+        rows=np.array([v], dtype=np.int64),
+        pixel_v=np.array([v], dtype=np.int64),
+        pixel_u=np.array([u], dtype=np.int64),
+    )
+
+
+@pytest.mark.parametrize('adversarial', [False, True], ids=['uniform', 'adversarial'])
+def test_chosen_pixels_are_distinct(adversarial: bool) -> None:
+    """A draw of many pixels never repeats one, uniform or adversarial."""
+    vs, us = choose_pixels(
+        _star_loci(30, 30), 40, (_SIZE, _SIZE), np.random.default_rng(5), adversarial=adversarial
+    )
+    assert len(set(zip(vs.tolist(), us.tolist(), strict=True))) == 40
+
+
+def test_an_adversarial_draw_is_capped_at_the_feature_neighborhood() -> None:
+    """Asking for more pixels than the neighborhood holds returns each of them once."""
+    vs, us = choose_pixels(
+        _star_loci(30, 30), 200, (_SIZE, _SIZE), np.random.default_rng(5), adversarial=True
+    )
+    chosen = set(zip(vs.tolist(), us.tolist(), strict=True))
+    neighborhood = {(v, u) for v in range(27, 34) for u in range(27, 34)}
+    assert chosen == neighborhood
+
+
+def test_adversarial_dead_pixels_record_and_count_the_distinct_pixels() -> None:
+    """The truth record lists each dead pixel once, and the incidence counts those."""
+    star = {'star_info': [{'center_v': 30.0, 'center_u': 30.0}]}
+    frame = _frame(fill=50.0, truth=star)
+    loci = extract_feature_loci(frame.truth, frame.signal.shape)
+    assert loci.has_pixels
+    record = _render(
+        frame,
+        {'adversarial': True, 'dead_pixels': {'count': 60, 'low_dn': 0.0}},
+        instrument='coiss_nac',
+    )
+    pixels = [tuple(pixel) for pixel in record['dead_pixels']['pixels']]
+    assert len(pixels) == len(set(pixels))
+    assert planted_incidence(frame.truth)['dead_pixels'] == int(np.sum(frame.signal == 0.0))
 
 
 def test_dead_columns_blank_whole_columns() -> None:
@@ -559,6 +696,7 @@ def test_adversarial_hot_pixels_concentrate_on_features() -> None:
         fraction=0.02,
         amplitude_e=1.0e4,
         column_factor=0.0,
+        detector_id='coiss_nac',
         rng=np.random.default_rng(4),
         candidate_pool=pool,
     )

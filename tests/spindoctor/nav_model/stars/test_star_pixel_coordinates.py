@@ -195,10 +195,13 @@ def test_boresight_star_predicts_the_position_its_image_centroids_to() -> None:
     measured, _peak = local_centroid(
         image,
         predicted,
-        search_window_px=4.0,
+        search_half_vu=(4.0, 4.0),
         centroid_box_half_px=4,
+        psf_sigma_px=1.0,
+        max_peak_sharpness=8.0,
         image_noise_sigma=1.0,
         detection_sigma=5.0,
+        refuse_outshone=False,
     )
     assert measured is not None
     assert measured[0] == pytest.approx(_boresight_centric(), abs=1e-9)
@@ -227,10 +230,13 @@ def test_the_margin_does_not_disturb_the_conversion() -> None:
     measured, _peak = local_centroid(
         padded,
         predicted,
-        search_window_px=4.0,
+        search_half_vu=(4.0, 4.0),
         centroid_box_half_px=4,
+        psf_sigma_px=1.0,
+        max_peak_sharpness=8.0,
         image_noise_sigma=1.0,
         detection_sigma=5.0,
+        refuse_outshone=False,
     )
     assert measured is not None
     assert measured[0] == pytest.approx(_boresight_centric() + margin, abs=1e-9)
@@ -301,10 +307,13 @@ def test_a_scene_star_predicts_where_the_renderer_draws_it() -> None:
     measured, _peak = local_centroid(
         _rendered_scene_star(entry),
         predicted,
-        search_window_px=4.0,
+        search_half_vu=(4.0, 4.0),
         centroid_box_half_px=4,
+        psf_sigma_px=1.0,
+        max_peak_sharpness=8.0,
         image_noise_sigma=1.0,
         detection_sigma=5.0,
+        refuse_outshone=False,
     )
     assert measured is not None
     assert predicted[0] == pytest.approx(measured[0], abs=_RENDER_CENTROID_TOL_PX)

@@ -8,12 +8,12 @@ scene_tags:
 - body_irregular
 - hyperion
 ground_truth:
-  offset_dv_px: 8.091
-  offset_du_px: -25.1623
-  offset_uncertainty_px: 2.0
+  offset_dv_px: 2.358
+  offset_du_px: -17.6824
+  offset_uncertainty_px: 1.0
   source: operator_verified
   operator: rfrench
-  verified_date: 2026-07-09
+  verified_date: 2026-10-31
   ui_version: spindoctor 0.1.dev24 (cohort review batch 001)
   notes: |
     body_irregular exemplar from cohort-curation review batch 001 (seq 005).
@@ -21,10 +21,16 @@ ground_truth:
     Operator verified the pipeline overlay alignment at the proposed offset during batch review (summary PNG plus, for star classes, a hard-stretch star-check PNG with circled catalog positions).
     Pipeline at curation: status=success, confidence=0.4, rank=low, techniques=['BodyBlobNav', 'BodyTerminatorNav', 'StarFieldFromCatalogNav', 'StarRefineNav', 'StarUniqueMatchNav'], per-technique offsets={"StarFieldFromCatalogNav": [0.0, 0.0], "StarUniqueMatchNav": [0.0, 0.0], "BodyBlobNav": [8.091, -25.1623], "BodyTerminatorNav": [2.6409, -77.0677], "StarRefineNav": [0.0, 0.0]}.
     The NCC/blob covariance carries a size-scaled centroid-model-error term, so the sigma-based tier gate rates the ground-truth-consistent BodyBlobNav solution low.
+
+    Re-recorded 2026-10-31 (operator decision): truth taken from
+    the stars, StarRefineNav at (2.358, -17.682). Three catalog
+    stars sit 0.24 to 0.75 px from it and show nothing at the
+    earlier body-blob truth (8.091, -25.162), 9.4 px away.
+
 expected:
   status: success
-  confidence_tier: low
-  primary_technique: BodyBlobNav
+  confidence_tier: medium
+  primary_technique: StarRefineNav
   techniques_must_run:
-  - BodyBlobNav
+  - StarRefineNav
   techniques_must_skip: []

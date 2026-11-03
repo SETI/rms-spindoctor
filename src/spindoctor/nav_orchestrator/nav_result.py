@@ -179,6 +179,12 @@ class NavResult:
         internal_error: Which NavModel or NavTechnique raised, and what it
             raised.  Set when and only when ``status_reason`` is
             ``NavStatusReason.INTERNAL_ERROR``.
+        matched_star_count: How many distinct catalog stars the star
+            techniques among ``consensus_techniques`` matched to the image,
+            counted over every consensus result and so over every star the
+            reported offset rests on.  ``0`` when the offset rests on no star;
+            ``None`` when no offset was reported, or when the offset was not
+            formed by the navigation techniques (a manual alignment).
         conflict_arbitration: What the pass-2 test of a conflicted pass 1 found;
             ``None`` when the test did not run.  Stamped by the orchestrator.
     """
@@ -203,6 +209,7 @@ class NavResult:
     sigma_rotation_rad: float | None = None
     pointing: PointingSolution | None = None
     internal_error: NavInternalErrorRecord | None = None
+    matched_star_count: int | None = None
     conflict_arbitration: ConflictArbitrationRecord | None = None
 
     def __post_init__(self) -> None:
@@ -248,6 +255,12 @@ class NavResult:
         if self.status_reason is NavStatusReason.INTERNAL_ERROR and self.status != 'failed':
             raise ValueError(
                 f'status_reason=internal_error requires status=failed; got status={self.status!r}'
+            )
+        if self.status == 'failed' and self.matched_star_count is not None:
+            raise ValueError('status=failed must have matched_star_count=None')
+        if self.matched_star_count is not None and self.matched_star_count < 0:
+            raise ValueError(
+                f'matched_star_count must be non-negative; got {self.matched_star_count!r}'
             )
         if self.confidence_rank == 'failed' and self.status != 'failed':
             raise ValueError('confidence_rank=failed requires status=failed')
@@ -336,6 +349,7 @@ class NavResult:
         annotations: Annotations | None = None,
         rotation_rad: float | None = None,
         sigma_rotation_rad: float | None = None,
+        matched_star_count: int | None = 0,
     ) -> 'NavResult':
         """Construct a NavResult for a successful navigation.
 
@@ -364,6 +378,7 @@ class NavResult:
             annotations=annotations if annotations is not None else Annotations(),
             rotation_rad=rotation_rad,
             sigma_rotation_rad=sigma_rotation_rad,
+            matched_star_count=matched_star_count,
         )
 
     @classmethod
@@ -382,6 +397,7 @@ class NavResult:
         status_reason: NavStatusReason = NavStatusReason.CONFLICTED_TECHNIQUES,
         model_metadata: dict[str, dict[str, Any]] | None = None,
         annotations: Annotations | None = None,
+        matched_star_count: int = 0,
     ) -> 'NavResult':
         """Construct a NavResult for a conflicted (best-group reported) navigation.
 
@@ -411,4 +427,5 @@ class NavResult:
             consensus_techniques=consensus_techniques or [],
             model_metadata=model_metadata or {},
             annotations=annotations if annotations is not None else Annotations(),
+            matched_star_count=matched_star_count,
         )

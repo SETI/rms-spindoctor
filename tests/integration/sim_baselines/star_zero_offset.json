@@ -1,6 +1,6 @@
 {
   "confidence": 0.8,
-  "offset_du_px": -0.0,
+  "offset_du_px": 0.0,
   "offset_dv_px": -0.0,
   "scene_name": "star_zero_offset",
   "status": "success"

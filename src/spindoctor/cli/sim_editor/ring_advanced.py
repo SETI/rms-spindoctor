@@ -36,6 +36,7 @@ from PyQt6.QtWidgets import (
 )
 
 from spindoctor.cli.sim_editor.base import SimEditorBase
+from spindoctor.cli.sim_editor.widgets import kept_or_shown
 from spindoctor.cli.sim_editor.widgets import make_dspin as _dspin
 from spindoctor.sim.scene_schema import ring_key_description, scene_value
 
@@ -334,15 +335,7 @@ class RingAdvancedMixin(SimEditorBase):
         }
         # The tab carries a removed map only after the group was turned off once.
         removed = getattr(w, 'edge_wave_removed', None) or {}
-        wave: dict[str, Any] = {}
-        for key, spin in spins.items():
-            shown = float(spin.value())
-            kept = removed.get(key)
-            if isinstance(kept, (int, float)) and round(float(kept), spin.decimals()) == shown:
-                wave[key] = float(kept)
-            else:
-                wave[key] = shown
-        orbit['edge_wave'] = wave
+        orbit['edge_wave'] = kept_or_shown(spins, removed)
         self._updater.request_update()
 
     def _on_ring_edge_wave_value(self, idx: int, key: str, value: float) -> None:

@@ -164,6 +164,7 @@ def _agreement_adjacency(
     agreement_sigma: float,
     agreement_pixel_floor: float,
     agreement_compromise_px: float,
+    shared_feature_agreement_px: float,
     rcond: float,
 ) -> tuple[NDArrayBoolType, NDArrayBoolType]:
     """Pairwise agreement matrix: Mahalanobis threshold with a pixel-floor fallback.
@@ -193,6 +194,16 @@ def _agreement_adjacency(
     principal axes can slide along one's weak axis to several pixels from both.
     Seeds are recorded by technique name, so a seeded pair is recognized by name.
 
+    Two results that consumed a common feature are held to a stricter test:
+    they agree iff their translation distance is at most
+    ``shared_feature_agreement_px``, whatever their covariances say.  Both
+    located the same feature in the same image, so if they found the same
+    detection of it their answers coincide to the centroid precision, and if
+    they did not, one of them has misidentified it.  Neither covariance can
+    tell those apart -- a one-star match reports its travel distance as its
+    uncertainty -- and the general pixel floor is wide enough to let a
+    misidentified star fuse with the correct one.
+
     The Mahalanobis distance differences the rotation component of two
     3-DoF results linearly; that is correct here because every input
     rotation is bounded to the small-angle window enforced by the caller,
@@ -212,6 +223,8 @@ def _agreement_adjacency(
         agreement_compromise_px: Largest compromise (pixels, see
             :func:`fusion_compromise_px`) the fusion of a Mahalanobis-agreeing
             pair past the pixel floor may make; ``0.0`` disables the test.
+        shared_feature_agreement_px: Maximum translation distance (pixels)
+            at which two results sharing a consumed feature agree.
         rcond: rcond passed to ``pinvh``.
 
     Returns:
@@ -241,6 +254,12 @@ def _agreement_adjacency(
                     f'{results[i].technique_name} produced {mu_i.shape} parameters; '
                     f'{results[j].technique_name} produced {mu_j.shape}.'
                 )
+            if set(results[i].feature_ids) & set(results[j].feature_ids):
+                shared_dist = float(np.linalg.norm(mu_i[:2] - mu_j[:2]))
+                if shared_dist <= shared_feature_agreement_px:
+                    adj[i, j] = True
+                    adj[j, i] = True
+                continue
             dist = mahalanobis_distance(mu_i, cov_i, mu_j, cov_j, rcond=rcond)
             mahal_match = dist <= agreement_sigma
             # The pixel floor is likewise measured only in the translation
@@ -315,6 +334,7 @@ def consensus_selection(
     agreement_sigma: float,
     agreement_pixel_floor: float,
     agreement_compromise_px: float,
+    shared_feature_agreement_px: float,
     rcond: float,
     max_allowed_rotation_deg: float,
 ) -> ConsensusSelection:
@@ -345,6 +365,9 @@ def consensus_selection(
             :func:`fusion_compromise_px`) a Mahalanobis-agreeing pair's fusion
             may make when they are farther apart than the pixel floor;
             ``0.0`` disables.
+        shared_feature_agreement_px: Maximum translation distance (pixels)
+            at which two results that consumed a common feature agree; such a
+            pair is judged by this alone.
         rcond: rcond passed to ``pinvh``.
         max_allowed_rotation_deg: Small-angle bound; each 3-DoF input's
             ``rotation_rad`` magnitude must stay strictly below this many
@@ -391,6 +414,7 @@ def consensus_selection(
         agreement_sigma=agreement_sigma,
         agreement_pixel_floor=agreement_pixel_floor,
         agreement_compromise_px=agreement_compromise_px,
+        shared_feature_agreement_px=shared_feature_agreement_px,
         rcond=rcond,
     )
     best_indices = _best_neighborhood(results, adj, list(range(n)))

@@ -128,6 +128,7 @@
       "RingEdgeNav"
     ],
     "excluded_from_consensus": [],
+    "matched_star_count": 0,
     "feature_count_by_type": {
       "RING_EDGE": 1
     },
