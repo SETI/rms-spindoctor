@@ -218,17 +218,17 @@ spindoctor.sim
    :undoc-members:
    :show-inheritance:
 
+.. automodule:: spindoctor.sim.scene_truth_echo
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 .. automodule:: spindoctor.sim.instruments
    :members:
    :undoc-members:
    :show-inheritance:
 
 .. automodule:: spindoctor.sim.seeds
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-.. automodule:: spindoctor.sim.stable_math
    :members:
    :undoc-members:
    :show-inheritance:

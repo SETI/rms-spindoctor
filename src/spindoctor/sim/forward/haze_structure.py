@@ -82,7 +82,7 @@ from typing import Any
 
 import numpy as np
 
-from spindoctor.sim.stable_math import stable_hypot
+from spindoctor.support.stable_math import stable_hypot
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 
 __all__ = [

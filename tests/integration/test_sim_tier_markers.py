@@ -3,54 +3,69 @@
 CI runs the ``sim_integration`` tests and skips the rest of the integration tier,
 which needs archive holdings.  A simulator module (``test_sim_*.py`` or
 ``test_render_diffs.py``) needs none, so one marked ``integration`` without
-``sim_integration`` would drop out of CI unnoticed.  The performance budgets are
-the one exception, because they need a quiet host.
+``sim_integration`` would drop out of CI unnoticed.  Two modules are the
+exceptions: the performance budgets, because they need a quiet host, and the
+realism smoke, because it reads real frames.
+
+The guard asks pytest itself which tests a marker expression selects, with
+``--collect-only``.  Pytest's own collection applies every way a mark can
+reach a test: a module or class ``pytestmark``, a decorator, an inherited
+method, and a ``pytest.param`` case.
 """
 
 from __future__ import annotations
 
-import ast
+import subprocess
+import sys
 from pathlib import Path
 
 _INTEGRATION_DIR = Path(__file__).parent
+_REPO_ROOT = _INTEGRATION_DIR.parents[1]
+
+_CI_MARKER_EXPR = '(not integration or sim_integration) and not postgres'
+"""The marker expression CI's test job selects with (``run-tests.yml``)."""
 
 _QUIET_HOST_MODULES: frozenset[str] = frozenset({'test_sim_perf.py'})
 """Simulator modules kept out of CI because they time themselves."""
 
+_REAL_DATA_MODULES: frozenset[str] = frozenset({'test_sim_realism_smoke.py'})
+"""Simulator modules kept out of CI because they read archive holdings and SPICE."""
 
-def _module_marks(path: Path) -> set[str]:
-    """Return the marker names a module's ``pytestmark`` assignment applies."""
-    tree = ast.parse(path.read_text(encoding='utf-8'))
-    for node in tree.body:
-        if not isinstance(node, ast.Assign):
-            continue
-        if not any(isinstance(t, ast.Name) and t.id == 'pytestmark' for t in node.targets):
-            continue
-        return {n.attr for n in ast.walk(node.value) if isinstance(n, ast.Attribute)} - {'mark'}
-    return set()
+_NO_TESTS_COLLECTED = 5
+"""Pytest's exit status when the expression selects no test."""
 
 
-def _items_missing_the_ci_mark(path: Path) -> list[str]:
-    """Return the module's tests marked ``integration`` without ``sim_integration``.
+def _collected(marker_expr: str, paths: list[Path], *, rootdir: Path = _REPO_ROOT) -> list[str]:
+    """Return the node ids pytest selects from ``paths`` under ``-m marker_expr``.
 
-    A test's marks are the module's ``pytestmark`` plus the marks decorating the
-    test function or test class itself.
+    The run uses the repository's ``pyproject.toml``, so its registered markers
+    and strict-marker check apply, and the given ``-m`` replaces the ``addopts``
+    one.  A collection error fails the calling test with pytest's output.
     """
-    module_marks = _module_marks(path)
-    tree = ast.parse(path.read_text(encoding='utf-8'))
-    missing = []
-    for node in tree.body:
-        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
-            continue
-        if not node.name.lower().startswith('test'):
-            continue
-        decorator_marks = {
-            n.attr for d in node.decorator_list for n in ast.walk(d) if isinstance(n, ast.Attribute)
-        }
-        marks = module_marks | decorator_marks
-        if 'integration' in marks and 'sim_integration' not in marks:
-            missing.append(f'{path.name}::{node.name}')
-    return missing
+    result = subprocess.run(
+        [
+            sys.executable,
+            '-m',
+            'pytest',
+            '--collect-only',
+            '-q',
+            '-p',
+            'no:cacheprovider',
+            '-c',
+            str(_REPO_ROOT / 'pyproject.toml'),
+            '--rootdir',
+            str(rootdir),
+            '-m',
+            marker_expr,
+            *(str(p) for p in paths),
+        ],
+        capture_output=True,
+        text=True,
+        cwd=rootdir,
+        check=False,
+    )
+    assert result.returncode in (0, _NO_TESTS_COLLECTED), result.stdout + result.stderr
+    return [line for line in result.stdout.splitlines() if '::' in line]
 
 
 def _simulator_modules() -> list[Path]:
@@ -59,18 +74,48 @@ def _simulator_modules() -> list[Path]:
     return [*paths, _INTEGRATION_DIR / 'test_render_diffs.py']
 
 
+def _exempt_modules() -> list[Path]:
+    """Return the simulator modules deliberately kept out of CI."""
+    return [_INTEGRATION_DIR / name for name in sorted(_QUIET_HOST_MODULES | _REAL_DATA_MODULES)]
+
+
 def test_integration_marked_simulator_tests_also_run_in_ci() -> None:
-    """Each integration-marked simulator test carries ``sim_integration`` too."""
-    missing = [
-        item
-        for p in _simulator_modules()
-        if p.name not in _QUIET_HOST_MODULES
-        for item in _items_missing_the_ci_mark(p)
+    """Outside the exempt modules, no simulator test is marked ``integration`` alone."""
+    ci_modules = [p for p in _simulator_modules() if p not in _exempt_modules()]
+    assert _collected('integration and not sim_integration', ci_modules) == []
+
+
+def test_the_exempt_modules_stay_out_of_ci() -> None:
+    """CI's expression selects none of the performance budgets or the realism smoke."""
+    assert _collected(_CI_MARKER_EXPR, _exempt_modules()) == []
+
+
+def test_the_guard_sees_every_way_a_mark_reaches_a_test(tmp_path: Path) -> None:
+    """Inherited methods, ``pytest.param`` cases, and a reassigned ``pytestmark`` all count."""
+    module = tmp_path / 'test_sim_probe.py'
+    module.write_text(
+        'import pytest\n'
+        '\n'
+        'pytestmark = [pytest.mark.integration, pytest.mark.sim_integration]\n'
+        'pytestmark = pytest.mark.integration\n'
+        '\n'
+        'class _Base:\n'
+        '    def test_inherited(self) -> None: ...\n'
+        '\n'
+        '@pytest.mark.sim_integration\n'
+        'class TestBoth(_Base):\n'
+        '    pass\n'
+        '\n'
+        'class TestAlone(_Base):\n'
+        '    pass\n'
+        '\n'
+        '@pytest.mark.parametrize(\n'
+        "    'x', [1, pytest.param(2, marks=pytest.mark.sim_integration)]\n"
+        ')\n'
+        'def test_cases(x: int) -> None: ...\n',
+        encoding='utf-8',
+    )
+    assert _collected('integration and not sim_integration', [module], rootdir=tmp_path) == [
+        'test_sim_probe.py::TestAlone::test_inherited',
+        'test_sim_probe.py::test_cases[1]',
     ]
-    assert missing == []
-
-
-def test_the_performance_budgets_stay_out_of_ci() -> None:
-    """The performance budgets are integration-only, so CI's shared runners skip them."""
-    marks = _module_marks(_INTEGRATION_DIR / 'test_sim_perf.py')
-    assert marks == {'integration'}

@@ -35,8 +35,10 @@ from spindoctor.sim.scene_checks import (
 )
 from spindoctor.sim.scene_schema import (
     _BODY_IDEALIZED_KEYS,
+    ELLIPSOID_UNSUPPORTED_KEYS,
     MESH_UNSUPPORTED_KEYS,
     SimSceneValidationError,
+    ellipsoid_unsupported_message,
     mesh_unsupported_message,
 )
 
@@ -87,6 +89,12 @@ def _check_body_object(obj: dict[str, Any], *, index: int, source: str) -> None:
         if unsupported:
             raise SimSceneValidationError(
                 f'{source}: {label}: {mesh_unsupported_message(unsupported)}'
+            )
+    else:
+        unsupported = [key for key in ELLIPSOID_UNSUPPORTED_KEYS if obj.get(key) is not None]
+        if unsupported:
+            raise SimSceneValidationError(
+                f'{source}: {label}: {ellipsoid_unsupported_message(unsupported)}'
             )
     for key in (
         'center_v',
@@ -280,11 +288,12 @@ def _check_body_relief_and_photometry(obj: dict[str, Any], *, label: str, source
     )
 
 
-# The exponential haze layer: scale height and reference-altitude tangent
-# optical depth (both required and positive) define the column; the
+# The exponential haze layer: scale height (required, positive) and
+# reference-altitude tangent optical depth (required, non-negative; zero is a
+# clear atmosphere that leaves the limb hard) define the column; the
 # reference altitude, the Henyey-Greenstein asymmetry (forward-scattering
 # when positive), an optional detached-shell altitude, and the haze's
-# brightness scale (albedo, at least 0) are optional.  The
+# single-scattering albedo (in [0, 1]) are optional.  The
 # structure keys folded in from the forward model break the column's mirror
 # symmetry (axis tilt, hemispheric and azimuthal falloff scaling, hemispheric
 # brightness, an axial interior ramp, and clouds); all are optional.
@@ -329,7 +338,7 @@ def _check_atmosphere(value: Any, *, label: str, source: str) -> None:
     _check_optional_positive_number(
         value.get('scale_height_px'), f'{label}.atmosphere.scale_height_px', source=source
     )
-    _check_optional_positive_number(
+    _check_optional_nonnegative_number(
         value.get('tau_ref'), f'{label}.atmosphere.tau_ref', source=source
     )
     _check_optional_nonnegative_number(
@@ -338,9 +347,12 @@ def _check_atmosphere(value: Any, *, label: str, source: str) -> None:
     _check_optional_positive_number(
         value.get('detached_px'), f'{label}.atmosphere.detached_px', source=source
     )
-    _check_optional_nonnegative_number(
-        value.get('albedo'), f'{label}.atmosphere.albedo', source=source
-    )
+    albedo = value.get('albedo')
+    _check_optional_nonnegative_number(albedo, f'{label}.atmosphere.albedo', source=source)
+    if albedo is not None and float(albedo) > 1.0:
+        raise SimSceneValidationError(
+            f'{source}: {label}.atmosphere.albedo must lie in [0, 1]; got {albedo!r}'
+        )
     g = value.get('g')
     _check_optional_number(g, f'{label}.atmosphere.g', source=source)
     if g is not None and not -1.0 < float(g) < 1.0:

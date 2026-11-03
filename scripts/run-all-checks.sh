@@ -285,13 +285,13 @@ run_code_checks() {
     # what CI runs instead: the sim_integration tests, which need no external
     # data, join the default tier.  -i and -P each override the filter by
     # dropping their own term from it, and opting into both leaves an empty
-    # filter that accepts every test.
+    # filter that accepts every test.  The -m is passed even when empty,
+    # because only an explicit -m replaces the addopts one.
     # The render performance budgets assert single-core CPU time; the
     # parallel battery's workers contend for memory bandwidth and inflate
     # CPU time past the budgets, so the perf file is excluded from the
     # parallel run and executed as its own serial step afterwards.
     marker_expr=""
-    pytest_marker_args=()
     if [ "$RUN_INTEGRATION" = true ] && [ "$RUN_POSTGRES" = true ]; then
         print_info "Running pytest (with integration and PostgreSQL tests)..."
     elif [ "$RUN_INTEGRATION" = true ]; then
@@ -304,9 +304,7 @@ run_code_checks() {
         print_info "Running pytest (integration tests other than sim_integration, and PostgreSQL tests, skipped — pass -i / -P to include)..."
         marker_expr="(not integration or sim_integration) and not postgres"
     fi
-    if [ -n "$marker_expr" ]; then
-        pytest_marker_args=("-m" "$marker_expr")
-    fi
+    pytest_marker_args=("-m" "$marker_expr")
     if [ "$RUN_INTEGRATION" = true ]; then
         pytest_marker_args+=("--ignore=tests/integration/test_sim_perf.py")
     fi

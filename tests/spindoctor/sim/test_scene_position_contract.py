@@ -5,7 +5,9 @@ center of array pixel ``(60, 60)``.  A star, a lit body, a Titan with its haze,
 and a face-on ringlet each stated there must render centered on that pixel, and
 each simulated navigation model must predict its object there too: the body's
 disc and blob payloads, the Titan limb payload, and the ring annulus payload,
-all in pixel centric extfov coordinates less the margin.  The rendered
+all in pixel centric extfov coordinates less the margin.  The body disc and
+ring annulus templates must also be painted there: each template's masked
+centroid, placed at its bbox origin, lands on the rendered centroid.  The rendered
 centroids are the anchor, so a renderer or a model that read the scene's corner
 coordinate pixel centric fails by the half pixel between the two systems.
 """
@@ -17,6 +19,7 @@ import numpy as np
 import pytest
 from tests.shims import bare_nav_context
 
+from spindoctor.feature.feature import NavFeature
 from spindoctor.feature.feature_type import NavFeatureType
 from spindoctor.nav_model.nav_model import NavModel
 from spindoctor.nav_model.nav_model_body_simulated import NavModelBodySimulated
@@ -104,7 +107,12 @@ _SCENES: dict[str, Callable[[], dict[str, Any]]] = {
 
 def _centroid(image: NDArrayFloatType) -> tuple[float, float]:
     """The light-weighted centroid of everything above the frame's median, in array indices."""
-    weights = np.clip(np.asarray(image, dtype=np.float64) - float(np.median(image)), 0.0, None)
+    return _centroid_of_weights(np.clip(np.asarray(image) - float(np.median(image)), 0.0, None))
+
+
+def _centroid_of_weights(weights: NDArrayFloatType) -> tuple[float, float]:
+    """The ``weights``-weighted centroid of an array, in its own indices."""
+    weights = np.asarray(weights, dtype=np.float64)
     vs, us = np.indices(weights.shape, dtype=np.float64)
     total = float(weights.sum())
     return float((vs * weights).sum() / total), float((us * weights).sum() / total)
@@ -136,6 +144,30 @@ _PAYLOADS: list[tuple[str, NavFeatureType]] = [
 ]
 
 
+def _payloads(kind: str, feature_type: NavFeatureType) -> tuple[list[NavFeature], int, int]:
+    """The ``feature_type`` features a scene's models emit, and the extfov margins."""
+    obs = ObsSim.from_file('/tmp/position_contract.json', sim_params=_SCENES[kind]())
+    margin_v = int(obs.extfov_margin_v)
+    margin_u = int(obs.extfov_margin_u)
+    image_ext = np.zeros(obs.extdata_shape_vu, dtype=np.float64)
+    image_ext[margin_v : margin_v + _SIZE, margin_u : margin_u + _SIZE] = np.asarray(obs.data)
+    features = []
+    for model in _models(kind, obs):
+        model.create_model()
+        features += [
+            f
+            for f in model.to_features(bare_nav_context(obs, image_ext))
+            if f.feature_type == feature_type
+        ]
+    return features, margin_v, margin_u
+
+
+def _rendered_centroid(kind: str) -> tuple[float, float]:
+    """The rendered centroid of a scene of ``kind``, in array indices."""
+    image, _meta = render_combined_model(_SCENES[kind]())
+    return _centroid(image)
+
+
 @pytest.mark.parametrize(
     ('kind', 'feature_type'), _PAYLOADS, ids=[f'{k}-{t.name}' for k, t in _PAYLOADS]
 )
@@ -143,19 +175,41 @@ def test_each_simulated_model_predicts_its_object_where_it_renders(
     kind: str, feature_type: NavFeatureType
 ) -> None:
     """A model's predicted center, less the extfov margin, is the rendered centroid."""
-    obs = ObsSim.from_file('/tmp/position_contract.json', sim_params=_SCENES[kind]())
-    margin_v = int(obs.extfov_margin_v)
-    margin_u = int(obs.extfov_margin_u)
-    image_ext = np.zeros(obs.extdata_shape_vu, dtype=np.float64)
-    image_ext[margin_v : margin_v + _SIZE, margin_u : margin_u + _SIZE] = np.asarray(obs.data)
-    rendered_v, rendered_u = _centroid(np.asarray(obs.data))
+    features, margin_v, margin_u = _payloads(kind, feature_type)
+    rendered_v, rendered_u = _rendered_centroid(kind)
     centers = []
-    for model in _models(kind, obs):
-        model.create_model()
-        for feature in model.to_features(bare_nav_context(obs, image_ext)):
-            if feature.feature_type == feature_type:
-                center_v, center_u = feature.geometry.predicted_center_vu  # type: ignore[union-attr]
-                centers.append((center_v - margin_v, center_u - margin_u))
+    for feature in features:
+        center_v, center_u = feature.geometry.predicted_center_vu  # type: ignore[union-attr]
+        centers.append((center_v - margin_v, center_u - margin_u))
     assert centers == [
         (pytest.approx(rendered_v, abs=_TOLERANCE_PX), pytest.approx(rendered_u, abs=_TOLERANCE_PX))
     ]
+
+
+_TEMPLATE_PAYLOADS: list[tuple[str, NavFeatureType]] = [
+    ('body', NavFeatureType.BODY_DISC),
+    ('ringlet', NavFeatureType.RING_ANNULUS),
+]
+
+
+@pytest.mark.parametrize(
+    ('kind', 'feature_type'),
+    _TEMPLATE_PAYLOADS,
+    ids=[f'{k}-{t.name}' for k, t in _TEMPLATE_PAYLOADS],
+)
+def test_each_painted_template_lands_where_its_object_renders(
+    kind: str, feature_type: NavFeatureType
+) -> None:
+    """A template's masked centroid, placed at its bbox and less the margin, is the render's."""
+    features, margin_v, margin_u = _payloads(kind, feature_type)
+    rendered_v, rendered_u = _rendered_centroid(kind)
+    centroids = []
+    for feature in features:
+        assert feature.template_img is not None
+        assert feature.template_mask is not None
+        weights = np.where(feature.template_mask, feature.template_img, 0.0)
+        centroid_v, centroid_u = _centroid_of_weights(weights)
+        bbox_v, bbox_u = feature.geometry.bbox_extfov_vu[:2]
+        centroids.append((centroid_v + bbox_v - margin_v, centroid_u + bbox_u - margin_u))
+    assert len(centroids) == 1
+    assert centroids[0] == pytest.approx((rendered_v, rendered_u), abs=_TOLERANCE_PX)
