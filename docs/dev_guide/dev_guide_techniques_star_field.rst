@@ -496,8 +496,6 @@ Source files:
   test (``isolation_radii``, ``isolated_response``).
 - ``src/spindoctor/nav_technique/_star_sharpness.py`` — package-private bound on how
   concentrated a star can be (``psf_concentration``, ``sharper_than_psf``).
-- ``src/spindoctor/nav_technique/_star_background.py`` — package-private plane background
-  under a centroid box (``box_background``, ``region_centroid``).
 - ``src/spindoctor/nav_technique/confidence.py`` — sigmoid-combination evaluator; documented at
   :doc:`dev_guide_techniques_confidence`.
 - ``src/spindoctor/nav_technique/diagnostics.py`` —

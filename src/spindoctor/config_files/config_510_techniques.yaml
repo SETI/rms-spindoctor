@@ -942,7 +942,8 @@ techniques:
       pair_vote_peak_factor: 4.0
       # Detection-threshold multiplier on image_noise_sigma; a detection
       # whose brightest pixel stands less than this many noise sigmas
-      # above the median of its centroid box is considered noise.
+      # above the median of its centroid box, or above the box's plane
+      # background, is considered noise.
       detection_sigma: 4.0
       # Minimum ratio of a lone star's source's peak above its local
       # background to that of every other source in the star's window
@@ -1079,7 +1080,7 @@ techniques:
       discordant_median_factor: 3.0
       # Detection-threshold multiplier on image_noise_sigma; a detection
       # must stand this many noise sigmas above the median of its centroid
-      # box.  A refine window whose brightest pixel is the edge-cut flank
+      # box and above the box's plane background.  A refine window whose brightest pixel is the edge-cut flank
       # of a brighter source outside it is refused outright.
       detection_sigma: 4.0
       # Below this many surviving inliers the technique reports spurious.

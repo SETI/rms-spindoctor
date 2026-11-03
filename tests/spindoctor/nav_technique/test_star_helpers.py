@@ -711,3 +711,30 @@ def test_the_background_level_is_the_box_floor_not_the_ring() -> None:
     centroid = _centroid(image, (22.0, 18.0), search_half_vu=(2.0, 2.0))
     assert isinstance(centroid, tuple)
     assert centroid[0] == pytest.approx(22.4, abs=0.15)
+
+
+def test_the_brightest_pixel_of_a_sloping_floor_holds_no_detection() -> None:
+    """Glare that rises across the window peaks at its edge but stands above nothing."""
+    columns = np.mgrid[0:41, 0:41][1]
+    image = _bright_floor() + 2.0 * columns
+    assert _centroid(image, (20.0, 20.0), search_half_vu=(6.0, 6.0)) is None
+
+
+def test_window_sources_on_a_sloping_floor_are_none() -> None:
+    """No peak of a glare slope is a source, however far the slope rises across the box."""
+    columns = np.mgrid[0:81, 0:81][1]
+    rng = np.random.default_rng(7)
+    image = _FLOOR_DN + rng.normal(0.0, 1.0, size=(81, 81)) + 2.0 * columns
+    sources = window_sources(
+        image,
+        (40.0, 40.0),
+        search_half_vu=(30.0, 30.0),
+        centroid_box_half_px=3,
+        psf_sigma_px=1.0,
+        max_peak_sharpness=8.0,
+        image_noise_sigma=1.0,
+        detection_sigma=5.0,
+        accept=lambda vu: True,
+        max_sources=10,
+    )
+    assert sources == []

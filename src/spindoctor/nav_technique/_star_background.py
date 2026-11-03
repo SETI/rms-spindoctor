@@ -3,7 +3,7 @@
 A star often sits on the sloping glare of a ring or a body.  A centroid weighted above the
 median of its box leaves the slope's upper half in the weights and is pulled uphill, so the
 star techniques subtract a plane fitted to the ring of pixels around the box instead.  The
-submodule is private; its functions carry no underscore prefix because the star helpers
+submodule is private; its public names carry no underscore prefix because the star helpers
 import them.
 """
 
@@ -14,33 +14,32 @@ import numpy as np
 from spindoctor.support.types import NDArrayFloatType
 
 __all__ = [
-    'MAD_TO_SIGMA',
     'box_background',
+    'peak_excess',
     'region_centroid',
-    'robust_center_spread',
 ]
 
 _BACKGROUND_ANNULUS_WIDTH_PX = 2
 """Width of the ring around a centroid box to which the plane background is fitted."""
 
-MAD_TO_SIGMA = 1.4826
+_MAD_TO_SIGMA = 1.4826
 """Scale from a median absolute deviation to a Gaussian standard deviation."""
 
 _BACKGROUND_CLIP_SIGMAS = 3.0
 """Robust sigmas from the ring's median past which a ring pixel leaves the plane fit."""
 
 
-def robust_center_spread(values: NDArrayFloatType) -> tuple[float, float]:
+def _robust_center_spread(values: NDArrayFloatType) -> tuple[float, float]:
     """Return the median of ``values`` and their spread as a Gaussian sigma.
 
     Parameters:
         values: Pixel values (any shape).
 
     Returns:
-        ``(median, MAD_TO_SIGMA * median absolute deviation from it)``.
+        ``(median, _MAD_TO_SIGMA * median absolute deviation from it)``.
     """
     center = float(np.median(values))
-    return center, MAD_TO_SIGMA * float(np.median(np.abs(values - center)))
+    return center, _MAD_TO_SIGMA * float(np.median(np.abs(values - center)))
 
 
 def box_background(
@@ -82,7 +81,7 @@ def box_background(
     ring = ~((vv >= v_lo) & (vv < v_hi) & (uu >= u_lo) & (uu < u_hi))
     box = np.asarray(image_ext[v_lo:v_hi, u_lo:u_hi], np.float64)
     values = np.asarray(image_ext[r_lo:r_hi, c_lo:c_hi], np.float64)[ring]
-    center, spread = robust_center_spread(values)
+    center, spread = _robust_center_spread(values)
     sky = np.abs(values - center) <= _BACKGROUND_CLIP_SIGMAS * spread
     design = np.column_stack(
         [np.ones(int(sky.sum())), vv[ring][sky] - v_mid, uu[ring][sky] - u_mid]
@@ -100,9 +99,15 @@ def region_centroid(
 ) -> tuple[float, float] | None:
     """Return the background-subtracted brightness-weighted centroid of a region.
 
-    ``region`` is ``(v_lo, v_hi, u_lo, u_hi)``, upper bounds exclusive, inside the image.
-    The background is the plane of :func:`box_background` over the region.  Returns
-    ``None`` when nothing in the region rises above it.
+    The background is the plane of :func:`box_background` over the region.
+
+    Parameters:
+        image_ext: 2-D extfov image array.
+        region: ``(v_lo, v_hi, u_lo, u_hi)``, upper bounds exclusive, inside the image.
+
+    Returns:
+        The ``(v, u)`` centroid, or ``None`` when nothing in the region rises above the
+        background.
     """
     v_lo, v_hi, u_lo, u_hi = region
     box = np.asarray(image_ext[v_lo:v_hi, u_lo:u_hi], np.float64)
@@ -116,3 +121,27 @@ def region_centroid(
         float(np.sum(vs[:, None] * weights) / total),
         float(np.sum(us[None, :] * weights) / total),
     )
+
+
+def peak_excess(image_ext: NDArrayFloatType, v: int, u: int, half: int) -> float:
+    """Return how far the brightest pixel of a box stands above its plane background.
+
+    The box is the ``(2 * half + 1)`` square around ``(v, u)``, clamped to the image, and
+    the background is :func:`box_background`.  On a flat floor this is the brightest
+    pixel's height above the box median; on a sloping glare the slope is removed, so the
+    upper edge of a box on a slope stands no higher than the noise.
+
+    Parameters:
+        image_ext: 2-D extfov image array.
+        v: Row of the box's center.
+        u: Column of the box's center.
+        half: Half-width of the box in pixels.
+
+    Returns:
+        The largest excess of a box pixel over the plane, in the image's units.
+    """
+    h, w = image_ext.shape
+    v_lo, v_hi = max(0, v - half), min(h, v + half + 1)
+    u_lo, u_hi = max(0, u - half), min(w, u + half + 1)
+    box = np.asarray(image_ext[v_lo:v_hi, u_lo:u_hi], np.float64)
+    return float(np.max(box - box_background(image_ext, v_lo, v_hi, u_lo, u_hi)))

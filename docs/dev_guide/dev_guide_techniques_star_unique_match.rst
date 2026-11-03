@@ -101,9 +101,12 @@ below).
   hot pixel whose neighbors hold none of its light, and a star of ratio 8.4. A pixel on
   the image's edge has no complete set of neighbors and is never passed over.
 - **The threshold** applies to the brightest pixel of the detection's centroid box, which
-  must stand ``detection_sigma * image_noise_sigma`` above the box's median. A noise
-  bump on the floor of a saturated ring or body, which the response can make a peak,
-  stands nowhere near that far above its own surroundings and is no detection.
+  must stand ``detection_sigma * image_noise_sigma`` above the box's median and above the
+  box's plane background (below). A noise bump on the floor of a saturated ring or body,
+  which the response can make a peak, stands nowhere near that far above its own
+  surroundings and is no detection. On a sloping glare the upper edge of a box stands
+  half the slope's rise across the box above the box's median, but no higher than the
+  noise above the plane.
 - **The centroid** is the moment of the box above a plane background, with the box
   re-centered on its own centroid until it stops moving (at most five times). The plane's
   slope is fitted to the ring of pixels 2 px wide around the box, less its pixels more
@@ -638,6 +641,8 @@ Source files:
   ``distinct_stars``, ``search_window_bounds``, ``local_centroid``, ``window_sources``,
   ``detection_peak_ratio``, ``too_sharp``, ``gaussian_psf_kernel``, ``predicted_snr``,
   ``predicted_vu``, ``brightness_margin_mag``, and ``similarity_transform_fit``.
+- ``src/spindoctor/nav_technique/_star_background.py`` — package-private plane background
+  under a centroid box (``box_background``, ``peak_excess``, ``region_centroid``).
 - ``src/spindoctor/nav_technique/_star_unique_one_star.py`` — package-private lone-star
   search of the 1-star path: ``lone_star_hypotheses`` (each searched star paired with
   each of its candidates, judged by sharpness and by absent stars) and

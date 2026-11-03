@@ -42,7 +42,8 @@ Window and detection rule are the ones
 (see its "Local centroid" section): a centered window ``2 * floor(refine_window_px) + 1``
 pixels on a side, the Gaussian matched-filter response, and the sharpness limit that
 passes over a single-pixel spike. The centroid is rejected when the brightest pixel of the
-detection's centroid box does not stand the detection threshold above the box's median,
+detection's centroid box does not stand the detection threshold above the box's median
+and its plane background,
 when the window's brightest pixel is the edge-cut flank of a brighter source outside it
 (the star has left the window, and anything chosen inside it is noise), or when the
 implied per-star residual exceeds a configured cap; the surviving correspondences are the
@@ -185,8 +186,8 @@ All numeric tunables for this technique live in ``techniques.StarRefineNav.tunin
   answer 1.1 px off seven stars that agree with each other to 0.4 px.
 - ``detection_sigma`` — float, default ``4.0`` (dimensionless). Detection-threshold
   multiplier on the per-image noise sigma; the brightest pixel of the detection's centroid
-  box must stand ``detection_sigma * image_noise_sigma`` above the box's median to be
-  accepted.
+  box must stand ``detection_sigma * image_noise_sigma`` above the box's median and its
+  plane background to be accepted.
 - ``min_inliers`` — int, default ``1`` (count). Below this many surviving inliers the
   technique reports a spurious zero-confidence result instead of attempting the average.
 - ``at_edge_tolerance_px`` — float, default ``1.0`` px. The reported absolute translation

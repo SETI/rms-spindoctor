@@ -8,6 +8,7 @@ import pytest
 from spindoctor.nav_orchestrator.ensemble import EnsembleConfig, ensemble
 from spindoctor.nav_orchestrator.ensemble_consensus import (
     FusionPruning,
+    _agreement_adjacency,
     fusion_compromise_px,
     leave_out_compromising_fusions,
 )
@@ -574,3 +575,62 @@ def test_ensemble_config_rejects_a_negative_confirming_axis_sigma() -> None:
     """A negative confirming-axis sigma fails at construction."""
     with pytest.raises(ValueError, match='confirming_axis_max_sigma_px must be non-negative'):
         EnsembleConfig(confirming_axis_max_sigma_px=-1.0)
+
+
+def _crossed_pair(*, shared: bool) -> list[NavTechniqueResult]:
+    """A two-star match and the refine it seeded, 1.4 px apart with crossed weak axes.
+
+    Each is precise to 0.05 px along one direction and 3 px across it, the two directions
+    5 degrees apart, so the pair lies 7 standard deviations apart and their fusion would
+    slide about 14 px along the weak axes.  With ``shared`` the refine fits one of the
+    match's stars.
+    """
+
+    def turned(deg: float) -> np.ndarray:
+        t = np.radians(deg)
+        rot = np.array([[np.cos(t), -np.sin(t)], [np.sin(t), np.cos(t)]])
+        return np.asarray(rot @ np.diag([9.0, 0.0025]) @ rot.T)
+
+    match = NavTechniqueResult(
+        technique_name='StarUniqueMatchNav',
+        feature_ids=('star:UCAC4:1', 'star:UCAC4:2'),
+        offset_px=(0.0, 0.0),
+        covariance_px2=turned(90.0),
+        confidence=0.8,
+        spurious=False,
+        at_edge=False,
+        diagnostics=StarUniqueMatchDiagnostics(mode='two_star'),
+    )
+    refine = NavTechniqueResult(
+        technique_name='StarRefineNav',
+        feature_ids=('star:UCAC4:1' if shared else 'star:UCAC4:9', 'star:UCAC4:3'),
+        offset_px=(1.4, 0.0),
+        covariance_px2=turned(85.0),
+        confidence=0.8,
+        spurious=False,
+        at_edge=False,
+        diagnostics=StarRefineDiagnostics(n_stars_used=2),
+        prior_source_techniques=frozenset({'StarUniqueMatchNav'}),
+    )
+    return [match, refine]
+
+
+@pytest.mark.parametrize(('shared', 'agree'), [(True, True), (False, False)])
+def test_a_shared_feature_pair_is_judged_by_distance_before_the_compromise_test(
+    shared: bool, agree: bool
+) -> None:
+    """Within the shared-feature distance a pair agrees, whatever its fusion would compromise.
+
+    The same pair consuming no common feature takes the seeded-pair compromise test and
+    disagrees.
+    """
+    adj, seed_split = _agreement_adjacency(
+        _crossed_pair(shared=shared),
+        agreement_sigma=2.0,
+        agreement_pixel_floor=5.0,
+        agreement_compromise_px=1.0,
+        shared_feature_agreement_px=1.5,
+        rcond=1e-12,
+    )
+    assert bool(adj[0, 1]) is agree
+    assert bool(seed_split[1, 0]) is not agree

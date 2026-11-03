@@ -35,9 +35,9 @@ that are each uncertain by many pixels in the same direction can lie far apart a
 be within their combined uncertainty. They agree only when, in every direction, one of
 them is precise enough that combining them lands within a pixel of it, since otherwise the
 combination would be a point between two answers that neither supports. Two techniques
-that measured the same feature -- two star techniques locating the same star -- count as
-one witness, not two, and they agree only if they found it in the same place to within
-1.5 pixels (``orchestrator.ensemble.shared_feature_agreement_px``). SpinDoctor forms,
+that measured the same feature -- two star techniques locating the same star -- count as a
+single witness, and they agree only if they found it in the same place to within 1.5
+pixels (``orchestrator.ensemble.shared_feature_agreement_px``). SpinDoctor forms,
 around each technique, the group of techniques whose offsets agree with that one, and
 keeps the group whose confidences add up to the most. That is not always the group with
 the most members: one confident technique can outweigh several weaker ones that agree with
