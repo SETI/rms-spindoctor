@@ -180,7 +180,8 @@ Field of view and geometry
 image size of 1000, which is what a GEOMED product is. It is generous because
 the reconstructed attitude carries real per-frame error, and it is the largest
 offset a search can find. The margin table has no entry for any other image
-size, so an image of another size cannot be loaded.
+size, so an image of another size cannot be loaded. A lone star, which no other star
+checks, is believed only inside the ellipse reaching 0.6 of the margin along each axis.
 
 **Camera rotation.** Rotation fitting is **off**, and that is a cost decision
 rather than a statement that there is nothing to fit. These cameras do carry
