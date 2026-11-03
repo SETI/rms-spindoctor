@@ -24,6 +24,7 @@ import pytest
 
 from spindoctor.sim.ellipsoid_geometry import illumination_vector
 from spindoctor.sim.forward.atmosphere import (
+    DEFAULT_HAZE_ALBEDO,
     AtmosphereSpec,
     apply_atmosphere,
     atmosphere_spec_from_params,
@@ -35,6 +36,7 @@ from spindoctor.sim.forward.scene_radiance import compose_scene_radiance
 from spindoctor.sim.forward.stages import new_sim_frame
 from spindoctor.sim.scene import validate_sim_params
 from spindoctor.sim.scene_schema import SimSceneValidationError
+from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 from spindoctor.support.types import NDArrayFloatType
 
 _SIZE = 256
@@ -322,6 +324,81 @@ def test_atmosphere_spec_keeps_tau_ref_dimensionless() -> None:
     assert spec.tau_ref == pytest.approx(1.2)
 
 
+def test_atmosphere_spec_reads_the_haze_albedo() -> None:
+    """A stated haze albedo reaches the spec unscaled by oversample."""
+    block = {'scale_height_px': 4.0, 'tau_ref': 1.2, 'albedo': 0.25}
+    spec = atmosphere_spec_from_params({'atmosphere': block}, oversample=4)
+    assert spec is not None
+    assert spec.albedo == 0.25
+
+
+def test_atmosphere_spec_defaults_the_haze_albedo() -> None:
+    """A block without an albedo takes the renderer's default."""
+    spec = atmosphere_spec_from_params(
+        {'atmosphere': {'scale_height_px': 4.0, 'tau_ref': 1.2}}, oversample=1
+    )
+    assert spec is not None
+    assert spec.albedo == DEFAULT_HAZE_ALBEDO
+
+
+@pytest.mark.parametrize('key', ['ref_altitude_px', 'g', 'albedo'])
+def test_a_null_atmosphere_key_reads_as_omitted(key: str) -> None:
+    """An optional key written as null builds the same spec as leaving it out."""
+    block = {'scale_height_px': 4.0, 'tau_ref': 1.2}
+    stated = atmosphere_spec_from_params({'atmosphere': {**block, key: None}}, oversample=2)
+    omitted = atmosphere_spec_from_params({'atmosphere': block}, oversample=2)
+    assert stated == omitted
+
+
+def test_the_halo_glow_scales_with_the_haze_albedo() -> None:
+    """Halving the albedo halves the glow above the limb, below saturation."""
+    probe = (int(_CENTER), int(_CENTER + _RADIUS + 3))
+    bright = _centered_layers(AtmosphereSpec(scale_height_px=8.0, tau_ref=1.5, albedo=0.4))
+    dim = _centered_layers(AtmosphereSpec(scale_height_px=8.0, tau_ref=1.5, albedo=0.2))
+    assert dim.halo.emission[probe] == pytest.approx(0.5 * bright.halo.emission[probe], rel=1e-12)
+
+
+def test_a_zero_albedo_haze_adds_no_light() -> None:
+    """An absorbing haze leaves the halo dark."""
+    layers = _centered_layers(AtmosphereSpec(scale_height_px=8.0, tau_ref=1.5, albedo=0.0))
+    assert float(layers.halo.emission.max()) == 0.0
+
+
+def test_a_zero_albedo_haze_still_extinguishes_the_background() -> None:
+    """An absorbing haze transmits the same exp(-tau) a bright one does."""
+    bright = _centered_layers(AtmosphereSpec(scale_height_px=8.0, tau_ref=1.5))
+    dark = _centered_layers(AtmosphereSpec(scale_height_px=8.0, tau_ref=1.5, albedo=0.0))
+    assert np.array_equal(dark.halo.transmission, bright.halo.transmission)
+
+
+def _albedo_scene(albedo: float) -> dict[str, Any]:
+    """A minimal scene whose one atmospheric body states ``albedo``."""
+    body = _compose_body()
+    body['atmosphere']['albedo'] = albedo
+    return {
+        'instrument': 'coiss_nac',
+        'size_v': _C_SIZE,
+        'size_u': _C_SIZE,
+        'random_seed': 3,
+        'exposure_sec': 1.0,
+        'bodies': [body],
+    }
+
+
+@pytest.mark.parametrize('albedo', [0.0, 0.4, 1.0])
+def test_a_haze_albedo_in_the_unit_interval_validates(albedo: float) -> None:
+    """Any haze albedo in [0, 1] validates and is kept as stated."""
+    scene = validate_sim_params(_albedo_scene(albedo))
+    assert scene['bodies'][0]['atmosphere']['albedo'] == albedo
+
+
+@pytest.mark.parametrize('albedo', [-0.1, 1.5])
+def test_a_haze_albedo_outside_the_unit_interval_is_refused(albedo: float) -> None:
+    """A haze albedo below 0 or above 1 fails validation and names the key."""
+    with pytest.raises(SimSceneValidationError, match=r'atmosphere\.albedo'):
+        validate_sim_params(_albedo_scene(albedo))
+
+
 def test_apply_atmosphere_does_not_mutate_input() -> None:
     """The haze compositor returns fresh arrays, leaving the cache entry intact."""
     body = np.zeros((_SIZE, _SIZE), dtype=np.float64)
@@ -344,11 +421,27 @@ def test_apply_atmosphere_does_not_mutate_input() -> None:
     assert np.array_equal(body, original)
 
 
-def _centered_layers(spec: AtmosphereSpec) -> Any:
-    """Evaluate the haze layers of a centered dark sphere of radius ``_RADIUS``.
+def _sphere_outline() -> NDArrayFloatType:
+    """The solid outline of the centered sphere of radius ``_RADIUS``."""
+    offsets = np.arange(_SIZE, dtype=np.float64) + (PIXEL_CENTER_TO_CORNER_PX - _CENTER)
+    radius2 = offsets[:, None] ** 2 + offsets[None, :] ** 2
+    return (radius2 < _RADIUS * _RADIUS).astype(np.float64)
+
+
+def _centered_layers(
+    spec: AtmosphereSpec,
+    *,
+    outline: NDArrayFloatType | None = None,
+    phase_deg: float = 30.0,
+) -> Any:
+    """Evaluate the haze layers of a centered black sphere of radius ``_RADIUS``.
+
+    The sphere renders black, so its solid outline is passed as the silhouette.
 
     Parameters:
         spec: Atmosphere specification to evaluate over the sphere.
+        outline: The silhouette to pass, or None for the sphere's own outline.
+        phase_deg: The phase angle in degrees.
 
     Returns:
         The ``AtmosphereLayers`` ``apply_atmosphere`` produces for it.
@@ -365,7 +458,8 @@ def _centered_layers(spec: AtmosphereSpec) -> Any:
         rotation_z=0.0,
         rotation_tilt=0.0,
         illumination_angle=math.radians(90.0),
-        phase_angle=math.radians(30.0),
+        phase_angle=math.radians(phase_deg),
+        silhouette=_sphere_outline() if outline is None else outline,
     )
 
 
@@ -426,6 +520,36 @@ def test_haze_layers_invariant_under_reference_altitude_shift() -> None:
     np.testing.assert_allclose(
         layers_referenced.halo.transmission, layers_surface.halo.transmission, rtol=1e-9
     )
+
+
+@pytest.mark.parametrize('layer', ['glow', 'dimming'])
+def test_a_bright_forward_scattering_halo_fades_out_before_it_ends(layer: str) -> None:
+    """At high phase a bright halo's outermost pixel carries under half a 12-bit DN.
+
+    The forward-scattering peak multiplies the glow about 27-fold here, so a
+    halo cut off at a fixed optical depth would end in a bright step.
+    """
+    spec = AtmosphereSpec(scale_height_px=4.0, tau_ref=2.0, g=0.9, albedo=1.0)
+    layers = _centered_layers(spec, phase_deg=170.0)
+    row = int(_CENTER)
+    emission = layers.halo.emission[row, int(_CENTER + _RADIUS) :]
+    dimming = 1.0 - layers.halo.transmission[row, int(_CENTER + _RADIUS) :]
+    values = emission if layer == 'glow' else dimming
+    outermost = float(values[np.flatnonzero(values > 0.0)[-1]])
+    assert outermost < 1.0e-4
+
+
+@pytest.mark.parametrize('layer', ['glow', 'dimming'])
+def test_a_relief_notch_inside_the_ellipse_takes_the_halo(layer: str) -> None:
+    """A pixel inside the ellipse that the outline leaves uncovered is seen through haze."""
+    outline = _sphere_outline()
+    notch = (int(_CENTER), int(_CENTER + _RADIUS - 1))
+    outline[notch] = 0.0
+    layers = _centered_layers(AtmosphereSpec(scale_height_px=8.0, tau_ref=1.5), outline=outline)
+    value = (
+        layers.halo.emission[notch] if layer == 'glow' else 1.0 - layers.halo.transmission[notch]
+    )
+    assert value > 0.0
 
 
 def test_on_disc_haze_is_continuous_across_the_limb() -> None:

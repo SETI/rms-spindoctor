@@ -30,7 +30,8 @@ thin shell projected against the disc adds negligible slant contrast), so
 the shell renders solely as a second band in the tangent glow.
 
 **Single scattering.**  The emergent haze brightness is a source term times
-an opacity term.  The source is a single-scattering albedo scaled by a
+an opacity term.  The source is the block's single-scattering ``albedo``
+(:data:`DEFAULT_HAZE_ALBEDO` when the scene leaves it out) scaled by a
 Henyey-Greenstein phase factor (forward-scattering when ``g`` > 0, which
 brightens the limb at high phase and, in the limit, produces the ring of
 light past phase 150 deg) and a wrapped illumination weight that stays
@@ -84,9 +85,11 @@ from spindoctor.sim.forward.haze_structure import (
     tilted_illumination_2d,
 )
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
+from spindoctor.support.stable_math import stable_hypot
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 
 __all__ = [
+    'DEFAULT_HAZE_ALBEDO',
     'AtmosphereLayers',
     'AtmosphereSpec',
     'HaloScreen',
@@ -95,21 +98,31 @@ __all__ = [
     'hg_phase_factor',
 ]
 
-# Single-scattering brightness scale of a fully lit, optically thick grazing
-# haze column (before the phase factor and illumination weight).  The haze
-# emergent intensity is clipped into the [0, 1] signal plane, so a strong
-# forward-scattering peak saturates by design.
-_HAZE_ALBEDO = 0.6
+DEFAULT_HAZE_ALBEDO: float = 0.6
+"""The haze ``albedo`` a scene's ``atmosphere`` block takes when it leaves the key out.
+
+The albedo is the single-scattering brightness scale of a fully lit, optically
+thick grazing haze column, before the phase factor and the illumination
+weight, and lies in [0, 1] as a single-scattering albedo does.  The haze's
+emergent intensity is clipped into the [0, 1] signal plane, so a strong
+forward-scattering peak saturates by design.
+"""
 
 # Amplitude of a detached shell's Gaussian tau bump, as a multiple of
 # tau_ref; the shell's radial width is one scale height.
 _SHELL_AMPLITUDE = 1.0
 
-# The tangent optical depth below which the above-limb glow is treated as
-# black: it bounds the rendered halo to a limb band a few scale heights deep
-# (and, with the on-disc annulus, sets the bounding box the haze cost scales
-# with) rather than the whole frame.
+# The grazing-excess optical depth below which the on-disc haze is treated as
+# absent: it sets how deep into the disc the haze annulus reaches.
 _TAU_EPS = 1e-3
+
+# The faintest glow, and the faintest dimming of a full-scale background, the
+# halo carries before it ends.  It bounds the rendered halo to a limb band
+# several scale heights deep (the bounding box the haze cost scales with)
+# rather than the whole frame, and it sits far below one DN of the finest
+# emulated ADC word (12 bits, 2.4e-4 of full scale), so the halo's outer edge
+# doesn't show as a step however bright a forward-scattering haze makes it.
+_HALO_EPS = 1e-5
 
 # Floor on cos(emission) for the on-disc slant path, so the limb (where the
 # emergent-cosine vanishes) saturates smoothly instead of dividing by zero.
@@ -189,13 +202,17 @@ class AtmosphereSpec:
 
     Parameters:
         scale_height_px: Haze e-folding scale height in pixels (> 0).
-        tau_ref: Tangent optical depth at ``ref_altitude_px`` (> 0).
+        tau_ref: Tangent optical depth at ``ref_altitude_px`` (>= 0; 0 is a clear
+            atmosphere that adds no haze).
         ref_altitude_px: Altitude above the reference radius at which the
             tangent optical depth equals ``tau_ref``, in pixels.
         g: Henyey-Greenstein asymmetry parameter in (-1, 1); positive is
             forward-scattering (bright limb at high phase).
         detached_px: Altitude of an optional detached haze shell above the
             surface, in pixels; None for no shell.
+        albedo: The haze's single-scattering brightness scale (at least 0);
+            0 is a purely absorbing haze, which still dims what lies behind
+            the halo but adds no light.
         structure: The optional symmetry-breaking structure (see
             :mod:`spindoctor.sim.forward.haze_structure`); None for the
             plain mirror-symmetric column, which is what every quantity
@@ -207,6 +224,7 @@ class AtmosphereSpec:
     ref_altitude_px: float = 0.0
     g: float = 0.0
     detached_px: float | None = None
+    albedo: float = DEFAULT_HAZE_ALBEDO
     structure: HazeStructure | None = None
 
 
@@ -231,12 +249,18 @@ def atmosphere_spec_from_params(
         return None
     os_factor = max(1, int(oversample))
     detached = atmosphere.get('detached_px')
+    ref_altitude = atmosphere.get('ref_altitude_px')
+    g = atmosphere.get('g')
+    albedo = atmosphere.get('albedo')
+    # The validator accepts an optional key written as null, which means the
+    # same as leaving it out.
     return AtmosphereSpec(
         scale_height_px=float(atmosphere['scale_height_px']) * os_factor,
         tau_ref=float(atmosphere['tau_ref']),
-        ref_altitude_px=float(atmosphere.get('ref_altitude_px', 0.0)) * os_factor,
-        g=float(atmosphere.get('g', 0.0)),
+        ref_altitude_px=(0.0 if ref_altitude is None else float(ref_altitude)) * os_factor,
+        g=0.0 if g is None else float(g),
         detached_px=(float(detached) * os_factor if detached is not None else None),
+        albedo=DEFAULT_HAZE_ALBEDO if albedo is None else float(albedo),
         structure=haze_structure_from_params(atmosphere, oversample=os_factor),
     )
 
@@ -322,25 +346,34 @@ def _scale_height_bounds(spec: AtmosphereSpec) -> tuple[float, float]:
     )
 
 
-def _outer_altitude(spec: AtmosphereSpec) -> float:
-    """The tangent altitude beyond which the above-limb glow is negligible.
+def _outer_altitude(spec: AtmosphereSpec, *, peak_glow: float) -> float:
+    """The tangent altitude beyond which the above-limb halo is negligible.
 
-    Where the smooth column has fallen to :data:`_TAU_EPS`, plus a detached
-    shell's reach (its center and three scale heights).  Evaluated at the
-    longest falloff length the spec produces, so a structured haze's
-    extended hemisphere is bounded rather than clipped at an artificial
-    edge.
+    The halo's glow is about ``source * tau`` where the column is thin, and it
+    dims a background by about ``tau``, so both stay below :data:`_HALO_EPS`
+    once the smooth column falls to ``_HALO_EPS / max(peak_glow, 1)``.  A
+    brighter haze therefore reaches farther out, and its glow fades into the
+    sky instead of ending at a bright edge.  A detached shell extends that to
+    where its Gaussian bump falls to the same depth.  Evaluated at the longest
+    falloff length the spec produces, so a structured haze's extended
+    hemisphere is bounded rather than clipped at an artificial edge.
 
     Parameters:
         spec: The haze spec.
+        peak_glow: The largest single-scattering source the halo can carry:
+            the albedo times the phase factor times any hemispheric
+            brightening.
 
     Returns:
         The bounding tangent altitude in pixels.
     """
     _, scale_height = _scale_height_bounds(spec)
-    reach = spec.ref_altitude_px + scale_height * math.log(max(spec.tau_ref / _TAU_EPS, 1.0))
+    tau_cut = _HALO_EPS / max(peak_glow, 1.0)
+    reach = spec.ref_altitude_px + scale_height * math.log(max(spec.tau_ref / tau_cut, 1.0))
     if spec.detached_px is not None:
-        reach = max(reach, spec.detached_px + 3.0 * scale_height)
+        shell_peak = spec.tau_ref * _SHELL_AMPLITUDE
+        half_width = math.sqrt(2.0 * math.log(max(shell_peak / tau_cut, 1.0)))
+        reach = max(reach, spec.detached_px + half_width * scale_height)
     return max(reach, scale_height)
 
 
@@ -430,6 +463,7 @@ def apply_atmosphere(
     rotation_tilt: float,
     illumination_angle: float,
     phase_angle: float,
+    silhouette: NDArrayFloatType | None = None,
 ) -> AtmosphereLayers:
     """Evaluate the haze layer over a reference-centered body radiance.
 
@@ -456,6 +490,10 @@ def apply_atmosphere(
         rotation_tilt: Tilt toward/away from the viewer, radians.
         illumination_angle: In-plane light direction, radians (0 = top).
         phase_angle: Phase angle in radians (0 fully lit, pi backlit).
+        silhouette: The body's solid-outline pixel coverage at the reference
+            center, or None when ``body_shape > 0`` is the outline.  A pixel
+            the outline covers is disc, never halo, even where it renders
+            black.
 
     Returns:
         The :class:`AtmosphereLayers`: the opaque disc radiance (clipped to
@@ -501,7 +539,10 @@ def apply_atmosphere(
         float(_vertical_optical_depth(spec, r_mean, height_min)),
         float(_vertical_optical_depth(spec, r_mean, height_max)),
     )
-    e_outer = 1.0 + _outer_altitude(spec) / r_mean
+    structure = spec.structure
+    hg = hg_phase_factor(spec.g, phase_angle)
+    brightening = 1.0 + max(0.0, 0.0 if structure is None else structure.ns_asymmetry_amplitude)
+    e_outer = 1.0 + _outer_altitude(spec, peak_glow=spec.albedo * hg * brightening) / r_mean
     # Inside, the excess column tau_vert * (1 / mu - 1) drops below _TAU_EPS
     # once cos(emission) exceeds mu_cut; that sets the inner edge of the band.
     mu_cut = 1.0 / (1.0 + _TAU_EPS / max(tau_vert_max, 1e-12))
@@ -542,11 +583,21 @@ def apply_atmosphere(
     u_rot = v_ctr * sin_rz + u_ctr * cos_rz
     e2 = (v_rot / semi_a) ** 2 + (u_rot / semi_b) ** 2
 
-    # The band splits at the silhouette: the on-disc annulus (added to the
-    # opaque paint) and the above-limb halo band, each evaluated on its own
-    # gathered pixels.
-    band_in = (e2 >= e_inner2) & (e2 < 1.0)
-    band_out = (e2 >= 1.0) & (e2 <= e_outer * e_outer)
+    # The outline decides disc versus halo; it is read before any haze joins
+    # the paint.
+    out_box = out[box_v, box_u]
+    outline_box = np.array(
+        out_box if silhouette is None else silhouette[box_v, box_u], dtype=np.float64, copy=True
+    )
+
+    # The band splits into the on-disc annulus (added to the opaque paint) and
+    # the above-limb band, each evaluated on its own gathered pixels.  A pixel
+    # inside the reference ellipse that the outline leaves uncovered (a notch
+    # where the limb relief dips below the ellipse) is sky seen through the
+    # haze column, so it joins the above-limb band.
+    inside = (e2 >= e_inner2) & (e2 < 1.0)
+    band_in = inside & (outline_box > 0.0)
+    band_out = (inside & ~band_in) | ((e2 >= 1.0) & (e2 <= e_outer * e_outer))
     if not band_in.any() and not band_out.any():
         return empty
 
@@ -554,7 +605,6 @@ def apply_atmosphere(
     # axis_tilt_deg rotates away from the body's geometric sun direction --
     # so the rendered mirror plane is not the one a navigator derives from
     # the predicted sub-solar point.  The body's own shading is untouched.
-    structure = spec.structure
     # The hemispheric structure terms blend across the equator by the latitude
     # of the haze column each pixel sees.  Only those two terms read the
     # weight, so every other haze skips building it.
@@ -574,7 +624,6 @@ def apply_atmosphere(
     # is sunward on the disc), not illumination strength, so they must not
     # collapse with sin(phase) the way the 3-D vector above does.
     axis_v, axis_u = tilted_illumination_2d(structure, illumination_angle)
-    hg = hg_phase_factor(spec.g, phase_angle)
     # Terminator-wrap width: the horizon-dip angle sqrt(2 H / R), the solar
     # depression at which a point one scale height above the surface loses
     # direct sunlight.  A modeling choice (a physical wrap would integrate
@@ -586,9 +635,7 @@ def apply_atmosphere(
         """The single-scattering source from the solar elevation weight."""
         elevation = np.arcsin(np.clip(mu0, -1.0, 1.0))
         illum_weight = 0.5 * (1.0 + np.tanh(elevation / delta_wrap))
-        return cast(NDArrayFloatType, _HAZE_ALBEDO * hg * illum_weight)
-
-    out_box = out[box_v, box_u]
+        return cast(NDArrayFloatType, spec.albedo * hg * illum_weight)
 
     # On-disc annulus: the solar elevation comes from the surface incidence,
     # and the opacity is the grazing EXCESS over the nadir column:
@@ -628,16 +675,16 @@ def apply_atmosphere(
     # Above-limb band: the solar elevation comes from the limb-azimuth
     # incidence (there is no surface, only the atmospheric column standing
     # above the limb at that azimuth) and the opacity from the tangent
-    # column.  Band pixels the disc render painted (its anti-aliased rim)
-    # stay opaque paint and take their haze additively, so the painted
-    # silhouette is exactly the no-atmosphere one; the rest become the
-    # translucent halo screen the radiance stage composites over whatever
-    # lies behind.
+    # column.  Band pixels the outline covers (its anti-aliased rim, or relief
+    # standing above the ellipse) stay opaque paint and take their haze
+    # additively, so the painted silhouette is exactly the no-atmosphere one;
+    # the rest, a relief notch's pixels included, become the translucent halo
+    # screen the radiance stage composites over whatever lies behind.
     halo_mask = np.zeros_like(band_out)
     if band_out.any():
         v_out = np.broadcast_to(v_ctr, e2.shape)[band_out]
         u_out = np.broadcast_to(u_ctr, e2.shape)[band_out]
-        rho = np.hypot(v_out, u_out)
+        rho = stable_hypot(v_out, u_out)
         rho = np.maximum(rho, 1e-9)
         mu0_out = (v_out * illum_v + u_out * illum_u) / rho
         h_out = (np.sqrt(e2[band_out]) - 1.0) * r_mean
@@ -654,7 +701,7 @@ def apply_atmosphere(
         haze_out = _source(mu0_out) * opacity_out
 
         shape_out = out_box[band_out]
-        solid = shape_out > 0.0
+        solid = outline_box[band_out] > 0.0
         halo = ~solid
         shape_out[solid] = np.clip(shape_out[solid] + haze_out[solid], 0.0, 1.0)
         out_box[band_out] = shape_out
@@ -685,7 +732,7 @@ def apply_atmosphere(
         apply_disc_structure(
             out_box,
             structure,
-            disc=out_box > 0.0,
+            disc=(out_box > 0.0) | (outline_box > 0.0),
             v_ctr=v_ctr,
             u_ctr=u_ctr,
             r_mean=r_mean,

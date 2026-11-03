@@ -16,10 +16,12 @@ step navigate nothing and run with the unit suite, in
 
 import copy
 import functools
+import itertools
 from pathlib import Path
 
 import pytest
 
+from spindoctor.sim.forward.atmosphere import DEFAULT_HAZE_ALBEDO
 from tests.integration.sim_sweep import (
     SweepRow,
     build_sweep_params,
@@ -28,7 +30,7 @@ from tests.integration.sim_sweep import (
     run_sweep_steps,
 )
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.integration, pytest.mark.sim_integration]
 
 _SWEEPS_ROOT = Path(__file__).parent / 'sim_sweeps'
 _RECOVERY_TOLERANCE_PX = 0.5
@@ -414,36 +416,84 @@ def test_star_catalog_scatter_zero_recovers() -> None:
         assert row.offset_error_px < _RECOVERY_TOLERANCE_PX
 
 
-def test_star_catalog_scatter_wholesale_error_never_succeeds() -> None:
-    """In the wholesale-catalog-error regime no seed ever reports success.
+# The scatter of the wrong_catalog expected_fail scene the sweep starts from.
+_WHOLESALE_CATALOG_ERROR_PX = 8.0
+
+# A success farther than this from the planted offset is a wrong answer.  Large
+# scatter can still leave two stars near their catalog positions: at seed 8 the
+# draws of stars 4 and 6 are 0.9 and 1.2 px at 6 px of scatter and 1.2 and
+# 1.6 px at 8 px, the pair search pairs them, and the answer lands 0.66 and
+# 0.83 px from the planted offset with a reported sigma near 0.9 px.  A
+# coincidence between unrelated sources lands at the scatter's own scale, as
+# the 4.9 px answer of #835 did.
+_SCATTER_OFF_TARGET_PX = 2.0
+
+
+def _off_target_successes(rows: list[SweepRow], *, min_scatter_px: float) -> list[SweepRow]:
+    """Return the successes at ``min_scatter_px`` or more that miss the planted offset."""
+    return [
+        row
+        for row in rows
+        if row.value >= min_scatter_px
+        and row.status == 'success'
+        and (row.offset_error_px is None or row.offset_error_px > _SCATTER_OFF_TARGET_PX)
+    ]
+
+
+def test_star_catalog_scatter_wholesale_error_never_succeeds_off_target() -> None:
+    """In the wholesale-catalog-error regime no seed reports a wrong success.
 
     Only the safety envelope is asserted: clean recovery at scatter 0 (above)
-    and no success once the scatter reaches the wholesale-error regime the
-    wrong_catalog expected_fail scene pins at 8 px.  The intermediate region is
-    deliberately NOT asserted -- it is characterization raw material, recorded
-    below for the confidence recalibration work.
+    and no success off the planted offset once the scatter reaches the
+    wholesale-error regime the wrong_catalog expected_fail scene pins at 8 px.
+    The intermediate region is deliberately NOT asserted -- it is
+    characterization raw material, recorded below for the confidence
+    recalibration work.
     """
     rows = _rows('star_catalog_scatter')
-    wholesale = [row for row in rows if row.value >= 6.0]
-    assert wholesale
-    for row in wholesale:
-        assert row.status != 'success'
+    assert _off_target_successes(rows, min_scatter_px=_WHOLESALE_CATALOG_ERROR_PX) == []
 
 
-# Measured star_catalog_scatter curve (2026-07-16, seeds 7-9), recorded for the
+def test_star_catalog_scatter_six_px_never_succeeds_off_target() -> None:
+    """At 6 px of scatter, short of the wholesale regime, no seed reports a wrong success."""
+    rows = _rows('star_catalog_scatter')
+    six_px = [row for row in rows if row.value == 6.0]
+    assert six_px != []
+    assert _off_target_successes(six_px, min_scatter_px=6.0) == []
+
+
+# At 4 px of scatter, seed 9 pairs two stars whose draws agree and reports a
+# medium-tier success 3.65 px from the planted offset (#835).
+@pytest.mark.xfail(
+    strict=True, raises=AssertionError, reason='a 4 px scatter seed succeeds 3.65 px off (#835)'
+)
+def test_star_catalog_scatter_four_px_never_succeeds_off_target() -> None:
+    """At 4 px of scatter no seed reports a success off the planted offset."""
+    rows = _rows('star_catalog_scatter')
+    four_px = [row for row in rows if row.value == 4.0]
+    assert four_px != []
+    assert _off_target_successes(four_px, min_scatter_px=4.0) == []
+
+
+def test_star_catalog_scatter_reaches_the_wholesale_error_regime() -> None:
+    """The scatter sweep has steps at 8 px or more for the never-succeeds check to read."""
+    rows = _rows('star_catalog_scatter')
+    assert [row.value for row in rows if row.value >= _WHOLESALE_CATALOG_ERROR_PX] != []
+
+
+# Measured star_catalog_scatter curve (2026-11-02, seeds 7-9), recorded for the
 # astrometric-residual characterization: this is observed behavior, not asserted
-# correctness (#291).  The intermediate region degrades gracefully but the
-# navigator does not yet self-flag the growing astrometric residual:
-#   scatter 0.5-1.0 px: all seeds success, errors 0.16-0.67 px, high tiers;
-#   scatter 1.5 px:     first outright failure (1 of 3 seeds);
-#   scatter 2.0 px:     all seeds "success" at 0.6-1.3 px error (a medium-tier
-#                       success at ~1.2 px error is the currently-observed
-#                       behavior, never asserted as correct);
-#   scatter 3.0 px:     2 of 3 seeds fail; the surviving success errs 0.7 px;
-#   scatter 4.0 px:     population splits -- 2 of 3 seeds fail, one seed still
-#                       reports a medium-tier (0.66) success at 2.8 px error,
-#                       which is why the never-succeeds assertion starts at 6;
-#   scatter 6.0-8.0 px: every seed fails (all techniques spurious).
+# correctness (#291).  The navigator does not yet self-flag the growing
+# astrometric residual:
+#   scatter 0.0-1.0 px: all seeds success, errors 0.04-0.70 px, medium/high;
+#   scatter 1.5 px:     seed 7 conflicted, seeds 8-9 success at 1.08/0.52 px;
+#   scatter 2.0 px:     seed 7 fails, seed 9 conflicted, seed 8 success 1.39 px;
+#   scatter 3.0 px:     2 of 3 seeds fail; seed 9 success at 2.0 px (medium);
+#   scatter 4.0 px:     2 of 3 seeds fail; seed 9 reports a medium-tier (0.81)
+#                       success 3.65 px from the planted offset, a pair of
+#                       stars whose draws agree (#835, pinned below);
+#   scatter 6.0-8.0 px: seeds 7 and 9 fail; seed 8 succeeds 0.66 and 0.83 px
+#                       from the planted offset (see _SCATTER_OFF_TARGET_PX).
 
 
 # ---------------------------------------------------------------------------
@@ -590,6 +640,46 @@ def test_atmosphere_haze_biases_limb() -> None:
     assert rows[0].offset_error_px is not None
     assert rows[-1].offset_error_px is not None
     assert rows[-1].offset_error_px > rows[0].offset_error_px + 0.1
+
+
+def test_atmosphere_haze_albedo_floor_recovers() -> None:
+    """An albedo-0 haze adds no light, so the bare limb recovers the offset."""
+    rows = _rows('atmosphere_haze_albedo')
+    assert rows[0].value == 0.0
+    assert rows[0].status == 'success'
+    assert rows[0].offset_error_px is not None
+    assert rows[0].offset_error_px < _RECOVERY_TOLERANCE_PX
+
+
+def test_atmosphere_haze_albedo_biases_limb() -> None:
+    """A brighter haze of the same column lifts the limb, biasing the recovery."""
+    rows = _rows('atmosphere_haze_albedo')
+    assert rows[0].offset_error_px is not None
+    assert rows[-1].offset_error_px is not None
+    assert rows[-1].offset_error_px > rows[0].offset_error_px + 0.1
+
+
+# The smallest rise in recovered-offset error between successive albedo steps up
+# to the scene default.  The steps measure 0.06, 0.12, and 0.21 px.
+_ALBEDO_STEP_RISE_PX = 0.05
+
+
+def test_atmosphere_haze_albedo_bias_grows_up_to_the_default_albedo() -> None:
+    """Each brighter haze up to the default albedo lifts the limb farther.
+
+    Past the default the error levels off (0.42 px at 0.6, 0.40 px at 1.0), so
+    the brighter rows are left unordered.
+    """
+    rows = [row for row in _rows('atmosphere_haze_albedo') if row.value <= DEFAULT_HAZE_ALBEDO]
+    errors = [row.offset_error_px for row in rows]
+    assert [row.value for row in rows] == [0.0, 0.15, 0.3, 0.6]
+    rises = [
+        later - earlier
+        for earlier, later in itertools.pairwise(errors)
+        if earlier is not None and later is not None
+    ]
+    assert len(rises) == len(rows) - 1
+    assert min(rises) > _ALBEDO_STEP_RISE_PX
 
 
 # The per-technique dense and wide offset sweeps (``*_offset_fine`` /

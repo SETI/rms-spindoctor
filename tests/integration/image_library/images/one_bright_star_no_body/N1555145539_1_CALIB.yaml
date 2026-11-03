@@ -30,9 +30,15 @@ ground_truth:
     StarRefineNav (4.0251, -12.46) conf 0.50 (single-inlier refine cap).
 
     The expected pins follow the seed-20260718 recalibration (attribution basis util/calibration/CAMPAIGN_20260718.md). The primary is StarUniqueMatchNav: the one-star match rides its 0.70 cap above the single-inlier refine 0.50 cap.
+
+    Re-pinned 2026-10-31 (operator decision): confidence_tier
+    medium -> low. The offset is unchanged or closer to truth;
+    the answer rests on a single star, and a one-star answer is
+    capped at low.
+
 expected:
   status: success
-  confidence_tier: medium
+  confidence_tier: low
   primary_technique: StarUniqueMatchNav
   techniques_must_run:
   - StarUniqueMatchNav

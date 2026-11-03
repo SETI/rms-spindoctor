@@ -68,11 +68,16 @@ def test_voyager_iss_yield_img_end_num(
     ds_voyager_iss: dsvgiss.DataSetPDS3VoyagerISS,
 ) -> None:
     # FDS counts are not monotonic across volumes: VG2's Neptune counts (VGISS_8xxx)
-    # roll over below VG1's Jupiter counts, so this range matches 117 VG1 Jupiter
-    # frames plus 9835 VG2 Neptune frames. Every volume is scanned; a number range
-    # alone does not bound the scan for Voyager.
-    ret = list(ds_voyager_iss.yield_image_files_index(img_end_num=1469550))
-    assert len(ret) == 9952
+    # roll over below VG1's Jupiter counts, so a number range alone does not bound
+    # the scan for Voyager. This range matches 117 VG1 Jupiter frames in VGISS_5101
+    # and every one of VGISS_8201's 792 Neptune frames. Two volumes keep the index
+    # download small; every volume's index together is about 360 MB (#820).
+    ret = list(
+        ds_voyager_iss.yield_image_files_index(
+            img_end_num=1469550, volumes=['VGISS_5101', 'VGISS_8201']
+        )
+    )
+    assert len(ret) == 909
     specs = [g.image_files[0].label_file_url.as_posix() for g in ret]
     vg1_jupiter = [s for s in specs if '/VGISS_5xxx/' in s]
     assert len(vg1_jupiter) == 117
@@ -83,7 +88,7 @@ def test_voyager_iss_yield_img_end_num(
         'volumes/VGISS_5xxx/VGISS_5101/DATA/C14695XX/C1469550_GEOMED.LBL'
     )
     vg2_neptune = [s for s in specs if '/VGISS_8xxx/' in s]
-    assert len(vg2_neptune) == 9835
+    assert len(vg2_neptune) == 792
 
 
 def test_voyager_iss_yield_volumes(

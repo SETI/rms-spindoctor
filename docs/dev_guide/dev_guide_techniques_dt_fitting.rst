@@ -114,7 +114,9 @@ run the LM with ``use_polarity=True`` (``BodyLimbNav`` and ``BodyTerminatorNav``
 normals carry a predictable expected gradient direction. ``RingEdgeNav`` runs
 ``use_polarity=False`` — a ring edge may be bright-inside or dark-inside depending on the
 lighting and gap-versus-ringlet context the catalog does not encode — so it keeps the
-polarity-blind Stage 1 search; making its coarse seed robust is separate work.
+polarity-blind Stage 1 seed and checks it against a polarity-blind search weighted by edge
+strength (:func:`~spindoctor.nav_technique.dt_fitting.coarse_edge_strength_search_scored`),
+for the reasons given in :doc:`dev_guide_techniques_ring_edge`.
 
 Stage 2 — sub-pixel Levenberg-Marquardt refinement
 --------------------------------------------------
@@ -318,7 +320,9 @@ Restrictions and assumptions
   wrong minimum. The polarity-weighted coarse acquisition (Stage 1b) reduces this for the
   polarity techniques by down-weighting wrong-direction edges before the seed is chosen; a
   seed that still lands in a wrong basin is caught by the per-technique spurious gates.
-  ``RingEdgeNav``, which cannot use polarity, relies on the seed and the gates alone.
+  ``RingEdgeNav``, which cannot use polarity, checks its seed against edge strength
+  instead, which keeps a dense population of faint parallel ring edges from outscoring the
+  cataloged step.
 - Bilinear DT sampling assumes the DT is differentiable almost everywhere. Pixel-grid
   pathologies (a perfectly flat plateau across the entire search window) collapse the
   Jacobian and the LM step has no preferred direction; the refiner returns the seed unchanged
@@ -409,14 +413,24 @@ Public surface (autodocumented at :doc:`/api_reference/api_nav_technique`):
   cross-correlation (offset-only convenience form).
 - :func:`~spindoctor.nav_technique.dt_fitting.coarse_ncc_search_scored` — the same search
   returning a :class:`~spindoctor.nav_technique.dt_fitting.CoarseSearchResult`, whose
-  ``score`` is the winning shift's per-vertex edge-pixel match fraction — the
-  acquisition-quality signal the fit-quality gates consume. ``RingEdgeNav`` calls this form.
+  ``score`` is the winning shift's per-vertex edge-pixel match fraction. A fit is
+  marked spurious when this fraction is less than ``spurious_min_coarse_peak_fraction``
+  (see the shared fit-quality section below).
 - :func:`~spindoctor.nav_technique.dt_fitting.coarse_polarity_search_scored` — the
   polarity-weighted variant (Stage 1b): the same integer search and
   :class:`~spindoctor.nav_technique.dt_fitting.CoarseSearchResult` output, but each match is
   weighted by the agreement between the model's per-vertex normal and the sampled image
   gradient direction, so a competing wrong-polarity edge population cannot mis-seed the fit.
   The polarity techniques (``BodyLimbNav``, ``BodyTerminatorNav``) call this form.
+- :func:`~spindoctor.nav_technique.dt_fitting.coarse_edge_strength_search_scored` — the
+  polarity-blind variant scored by edge strength: each vertex that lands on a detected edge
+  pixel is weighted by the image gradient there projected onto its normal, so one strong
+  cataloged step outweighs a dense population of faint parallel edges, and an optional
+  valid-pixel mask keeps the sensor border out of the score. The reported score is the
+  plain match fraction at the chosen shift. ``RingEdgeNav`` uses it as a second opinion on
+  the mask-overlap seed; see :doc:`dev_guide_techniques_ring_edge`.
+- :func:`~spindoctor.nav_technique.dt_fitting.edge_strength_score` — the edge-strength
+  score of a single integer shift, the quantity the search above maximizes.
 - :func:`~spindoctor.nav_technique.dt_fitting.polarity_filter` — per-vertex polarity acceptance from
   the gradient vector image.
 - :func:`~spindoctor.nav_technique.dt_fitting.tukey_biweight_weights` — Holland-Welsch redescender
@@ -445,7 +459,9 @@ example documented at :doc:`dev_guide_techniques_body_limb`):
 4. Call the coarse search to obtain the integer seed and its acquisition score:
    :func:`~spindoctor.nav_technique.dt_fitting.coarse_polarity_search_scored` for the polarity
    techniques (``BodyLimbNav``, ``BodyTerminatorNav``), or
-   :func:`~spindoctor.nav_technique.dt_fitting.coarse_ncc_search_scored` for ``RingEdgeNav``.
+   :func:`~spindoctor.nav_technique.dt_fitting.coarse_ncc_search_scored` checked against
+   :func:`~spindoctor.nav_technique.dt_fitting.coarse_edge_strength_search_scored` for
+   ``RingEdgeNav``.
 5. Decide whether to fit camera rotation; when rotation is fit, set the rotation pivot to the
    vertex centroid and read the pivot-to-image-center distance via
    :func:`~spindoctor.nav_technique.nav_technique.rotation_pivot_distance_px`.

@@ -30,7 +30,11 @@ from PyQt6.QtWidgets import (
 )
 
 from spindoctor.cli.sim_editor.base import SimEditorBase
-from spindoctor.cli.sim_editor.body_mesh_keys import STASH_MESSAGE_MS, stash_message
+from spindoctor.cli.sim_editor.body_mesh_keys import (
+    STASH_MESSAGE_MS,
+    refused_keys,
+    stash_message,
+)
 
 # Tooltip for the center spin boxes, which write the scene value directly.
 _CENTER_TOOLTIP = (
@@ -390,24 +394,26 @@ class BodyTabMixin(SimEditorBase):
     def _on_body_shape_model(self, idx: int, text: str) -> None:
         """Set the shape model and gate the shape-specific controls and keys.
 
-        A mesh body moves its ellipsoid-only keys (``MESH_UNSUPPORTED_KEYS``) into
-        the editor's stash, so the scene keeps validating, and the status bar names
-        the keys moved (:func:`~.body_mesh_keys.stash_message`); an ellipsoid body
-        takes them back.
+        The body moves the keys its new shape model refuses
+        (:func:`~.body_mesh_keys.refused_keys`) into the editor's stash, so the
+        scene keeps validating, and the status bar names the keys moved
+        (:func:`~.body_mesh_keys.stash_message`); it takes back the keys its old
+        shape model refused.
         """
         if 0 <= idx < len(self.sim_params['bodies']):
             body = self.sim_params['bodies'][idx]
+            old_refused = refused_keys(str(body.get('shape_model', 'ellipsoid')))
             body['shape_model'] = text
-            if text == 'polyhedral_mesh':
-                taken = self._mesh_key_stash.take(body)
+            new_refused = refused_keys(text)
+            if new_refused != old_refused:
+                self._mesh_key_stash.give_back(body, old_refused)
+                taken = self._mesh_key_stash.take(body, new_refused)
                 status_bar = self.statusBar()
                 if taken and status_bar is not None:
                     status_bar.showMessage(
-                        stash_message(str(body.get('name', f'Body{idx + 1}')), taken),
+                        stash_message(str(body.get('name', f'Body{idx + 1}')), taken, text),
                         STASH_MESSAGE_MS,
                     )
-            else:
-                self._mesh_key_stash.give_back(body)
             tab_idx = self._find_tab_by_properties('body', idx)
             if tab_idx is not None:
                 tab_w = self._tabs.widget(tab_idx)

@@ -25,6 +25,7 @@ from scipy import ndimage
 from spindoctor.sim.forward.stages import SimFrame
 from spindoctor.sim.seeds import derive_effect_seed
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
+from spindoctor.support.stable_math import stable_hypot
 from spindoctor.support.types import NDArrayFloatType
 
 __all__ = ['apply_distortion']
@@ -111,7 +112,7 @@ def apply_distortion(
         float(distortion.get('center_u', (size_u / oversample) / 2.0)) * oversample
         - PIXEL_CENTER_TO_CORNER_PX
     )
-    rho_ref = 0.5 * float(np.hypot(size_v, size_u))
+    rho_ref = 0.5 * float(stable_hypot(size_v, size_u))
 
     vv, uu = np.mgrid[0:size_v, 0:size_u].astype(np.float64)
     rv = vv - center_v

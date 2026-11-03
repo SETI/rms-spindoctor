@@ -83,6 +83,7 @@ from spindoctor.sim.ring_geometry import (
 )
 from spindoctor.sim.scene_schema import RING_SIDE_DEFAULTS, scene_value
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
+from spindoctor.support.stable_math import stable_hypot
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 
 __all__ = [
@@ -607,7 +608,7 @@ def _moonlet_disc_coverage(
     v_centers = np.arange(v0, v1, dtype=np.float64) + PIXEL_CENTER_TO_CORNER_PX
     u_centers = np.arange(u0, u1, dtype=np.float64) + PIXEL_CENTER_TO_CORNER_PX
     box_v, box_u = np.meshgrid(v_centers, u_centers, indexing='ij')
-    dist = np.hypot(box_v - pos_v, box_u - pos_u)
+    dist = stable_hypot(box_v - pos_v, box_u - pos_u)
     coverage = compute_antialiasing_shade(radius - dist, float(os))
     return (slice(v0, v1), slice(u0, u1)), coverage
 

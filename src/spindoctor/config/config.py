@@ -21,6 +21,12 @@ from spindoctor.support.attrdict import AttrDict
 _BLOB_MAX_OVERFLOW_KEY = 'blob_max_overflow_fraction'
 """``bodies`` key holding the overflow limit for BODY_BLOB emission."""
 
+_CAMERA_MARKER_KEY = 'data_units'
+"""Key every camera block of the instrument configuration declares."""
+
+_ONE_STAR_ELLIPSE_KEY = 'one_star_ellipse_fraction'
+"""Camera key: the fraction of the offset window inside which a lone star is believed."""
+
 
 def _strip_underscore_keys(value: Any) -> Any:
     """Recursively drop mapping keys whose name starts with ``_``.
@@ -117,6 +123,31 @@ def _stringify_keys(value: Any) -> Any:
     if isinstance(value, list):
         return [_stringify_keys(v) for v in value]
     return value
+
+
+def _camera_blocks(config_dict: dict[str, Any]) -> list[tuple[str, dict[str, Any]]]:
+    """Return every camera block of a configuration with its dotted path.
+
+    A camera block is a mapping that declares ``data_units``: a top-level section for a
+    single camera, or a mapping one level inside a section that holds several cameras.
+
+    Parameters:
+        config_dict: The merged configuration.
+
+    Returns:
+        ``(path, block)`` for each camera block, in the configuration's order.
+    """
+    blocks: list[tuple[str, dict[str, Any]]] = []
+    for name, section in config_dict.items():
+        if not isinstance(section, dict):
+            continue
+        if _CAMERA_MARKER_KEY in section:
+            blocks.append((str(name), section))
+            continue
+        for camera, block in section.items():
+            if isinstance(block, dict) and _CAMERA_MARKER_KEY in block:
+                blocks.append((f'{name}.{camera}', block))
+    return blocks
 
 
 def _as_str_list(value: Any, *, location: str) -> list[str]:
@@ -242,10 +273,12 @@ class Config:
 
         Raises:
             ValueError: If any registered NavTechnique's confidence spec
-                references an attribute the technique does not declare, or if
+                references an attribute the technique does not declare, if
                 ``bodies.blob_max_overflow_fraction`` is not a finite number within
-                ``[0, 1]``, or if a per-camera ``visible_limb_altitude`` entry is
-                malformed.  Validation runs once per ``read_config`` invocation.
+                ``[0, 1]``, if a per-camera ``visible_limb_altitude`` entry is
+                malformed, or if a camera block sets no
+                ``one_star_ellipse_fraction`` within ``(0, 1]``.  Validation runs
+                once per ``read_config`` invocation.
         """
 
         if not reread and self._config_dict:
@@ -263,9 +296,7 @@ class Config:
             self._override_paths = []
             for filename in sorted(config_dir.glob('*.yaml')):
                 self.update_config(filename, read_default=False)
-            self._validate_registered_techniques()
-            self._validate_bodies_block()
-            validate_visible_limb_config(self._config_dict)
+            self._validate()
             return
 
         self._config_dict = self._load_yaml(config_path)
@@ -273,9 +304,19 @@ class Config:
         # as the single applied override so provenance can reproduce the load.
         self._override_paths = [str(config_path)]
         self._update_attrdicts()
+        self._validate()
+
+    def _validate(self) -> None:
+        """Apply every load-time check to the merged configuration.
+
+        Every path that loads a configuration (:meth:`read_config` with or without a
+        path, and :meth:`update_config` with ``read_default``) calls this one method,
+        so no path can skip a check the others apply.
+        """
         self._validate_registered_techniques()
         self._validate_bodies_block()
         validate_visible_limb_config(self._config_dict)
+        self._validate_camera_blocks()
 
     def _validate_bodies_block(self) -> None:
         """Reject a ``bodies.blob_max_overflow_fraction`` that is not a fraction.
@@ -299,6 +340,29 @@ class Config:
             raise ValueError(
                 f'bodies.{_BLOB_MAX_OVERFLOW_KEY} must be finite and within [0, 1]; got {value!r}'
             )
+
+    def _validate_camera_blocks(self) -> None:
+        """Require every camera block to set a lone-star ellipse fraction in ``(0, 1]``.
+
+        ``one_star_ellipse_fraction`` is a property of the camera, so no technique-level
+        value stands in for a camera that sets none.  A fraction of 0 would admit every
+        lone star's offset and one above 1 would reach past the offset window, so a
+        fraction outside ``(0, 1]`` is refused when the configuration is loaded.
+
+        Raises:
+            ValueError: If a camera block sets no fraction, or one that is not a number
+                within ``(0, 1]``; the message names the block and the key.
+        """
+        for path, block in _camera_blocks(self._config_dict):
+            if _ONE_STAR_ELLIPSE_KEY not in block:
+                raise ValueError(f'{path} sets no {_ONE_STAR_ELLIPSE_KEY}')
+            value = block[_ONE_STAR_ELLIPSE_KEY]
+            is_number = isinstance(value, int | float) and not isinstance(value, bool)
+            # The chained comparison is False for NaN, so a NaN is refused with the rest.
+            if not is_number or not 0.0 < float(value) <= 1.0:
+                raise ValueError(
+                    f'{path}.{_ONE_STAR_ELLIPSE_KEY} must lie in (0, 1]; got {value!r}'
+                )
 
     def _validate_registered_techniques(self) -> None:
         """Load + validate every registered NavTechnique's confidence spec.
@@ -390,9 +454,7 @@ class Config:
             self._override_paths.append(str(config_path))
         self._update_attrdicts()
         if read_default:
-            self._validate_registered_techniques()
-            self._validate_bodies_block()
-            validate_visible_limb_config(self._config_dict)
+            self._validate()
 
     @property
     def override_paths(self) -> tuple[str, ...]:

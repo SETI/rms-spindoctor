@@ -18,6 +18,10 @@ STATUS_REASON_INFO_TEMPLATE: dict[NavStatusReason, list[str]] = {
         'Final: status=ok',
         'Result is rank-1: one axis unobservable',
     ],
+    NavStatusReason.SINGLE_STAR_ONLY: [
+        'Final: status=ok',
+        'Result rests on one matched star: its sigma is predicted, not measured',
+    ],
     NavStatusReason.CONFLICTED_TECHNIQUES: [
         'Final: status=conflicted',
         'Best-vs-runner-up confidence gap below threshold',

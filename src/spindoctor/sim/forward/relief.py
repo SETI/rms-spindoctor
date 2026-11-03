@@ -51,6 +51,7 @@ import numpy as np
 from scipy import ndimage
 
 from spindoctor.sim.spherical_harmonics import draw_sh_coefficients, legendre_order_sums
+from spindoctor.support.stable_math import stable_hypot
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 
 __all__ = [
@@ -211,7 +212,7 @@ def _shaped_spectrum_field(
 
     k_lat = np.fft.fftfreq(n, d=1.0 / n)
     k_lon = np.fft.rfftfreq(n, d=1.0 / n)
-    k_total = np.hypot(k_lat[:, np.newaxis], k_lon[np.newaxis, :])
+    k_total = stable_hypot(k_lat[:, np.newaxis], k_lon[np.newaxis, :])
     amplitude = np.exp(-((k_total * corr_rad / 2.0) ** 2) / 2.0)
     amplitude[k_total < low_degree_cutoff] = 0.0
     amplitude[k_total > kmax] = 0.0

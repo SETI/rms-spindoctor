@@ -21,7 +21,11 @@ The appliers share one keyword signature so the telemetry stage can dispatch
 them from the registry's order list; each uses the arguments its shape needs.
 The stage passes each applier the emulated instrument's ADC ceiling
 (``dn_ceiling``), so the wrong values a garble or spike writes stay inside the
-camera's word depth (255 on an 8-bit camera, 4095 on a 12-bit one).
+camera's word depth (255 on an 8-bit camera, 4095 on a 12-bit one).  On a
+calibrated frame, which holds I/F, it also passes the frame's
+:class:`~spindoctor.sim.forward.detector.params.CalibrationMap`: garble and
+spikes mangle the DN the spacecraft transmitted and write their I/F, so a
+garbled Voyager pixel lands inside the I/F range an 8-bit word can calibrate to.
 """
 
 from __future__ import annotations
@@ -31,6 +35,8 @@ from typing import Any
 
 import numpy as np
 
+from spindoctor.sim.forward.detector.chain import keep_off_marker
+from spindoctor.sim.forward.detector.params import CalibrationMap
 from spindoctor.sim.forward.feature_loci import FeatureLoci, choose_pixels, choose_rows
 from spindoctor.support.types import NDArrayFloatType
 
@@ -69,6 +75,34 @@ def _garbage_ceiling(signal: NDArrayFloatType, dn_ceiling: float) -> float:
     """A plausible DN ceiling for garbage fills: the frame's peak, or the ADC word."""
     peak = float(signal.max()) if signal.size else 0.0
     return max(peak, dn_ceiling)
+
+
+def _as_dn(values: NDArrayFloatType, calibration: CalibrationMap | None) -> NDArrayFloatType:
+    """The transmitted DN of frame values: themselves on a raw frame, mapped back from I/F."""
+    return values if calibration is None else calibration.to_dn(values)
+
+
+def _as_frame(dn: NDArrayFloatType, calibration: CalibrationMap | None) -> NDArrayFloatType:
+    """Frame values for transmitted DN: themselves on a raw frame, their I/F otherwise."""
+    return dn if calibration is None else calibration.to_if(dn)
+
+
+def _as_valid_frame(
+    dn: NDArrayFloatType, calibration: CalibrationMap | None, marker_dn: float
+) -> NDArrayFloatType:
+    """Frame values for transmitted DN that a calibrated frame keeps off its marker.
+
+    Whole DN calibrate to a lattice of I/F values that can cross the numeric
+    marker exactly, which a real calibrated product never does on a valid
+    pixel, so the detector's calibration inverse moves such values off it.  A
+    garbled or spiked value is a valid pixel too and gets the same step.  A raw
+    frame's value is the transmitted DN itself, so a flip to the marker DN stays
+    there, as it would in a real raw product.
+    """
+    values = _as_frame(dn, calibration)
+    if calibration is not None:
+        keep_off_marker(values, marker_dn)
+    return values
 
 
 def _word_bits(dn_ceiling: float) -> int:
@@ -330,7 +364,9 @@ def apply_line_garble(
     signal: NDArrayFloatType,
     cfg: dict[str, Any],
     *,
+    marker_dn: float,
     dn_ceiling: float,
+    calibration: CalibrationMap | None = None,
     rng: np.random.Generator,
     loci: FeatureLoci,
     adversarial: bool,
@@ -342,18 +378,21 @@ def apply_line_garble(
     carries garbage values rather than the zero marker (Voyager IDC / Galileo
     Reed-Solomon overflow).  The garbage stays inside the instrument's ADC word
     (``dn_ceiling``), so an 8-bit camera never carries a 12-bit garbage value.
+    The garbage is drawn in transmitted DN; on a calibrated frame
+    (``calibration`` given) it is written as its I/F, kept off ``marker_dn``.
     """
     expected_events = float(cfg['expected_events'])
     size_v, size_u = signal.shape
     n = _poisson_count(rng, expected_events, size_v)
     if n == 0 or size_u < 1:
         return {'lines': []}
-    ceiling = _garbage_ceiling(signal, dn_ceiling)
+    ceiling = _garbage_ceiling(_as_dn(signal, calibration), dn_ceiling)
     rows = choose_rows(loci, n, size_v, rng, adversarial=adversarial)
     garbled: list[dict[str, int]] = []
     for row in rows.tolist():
         k = int(rng.integers(0, size_u))
-        signal[row, k:] = rng.uniform(0.0, ceiling, size=size_u - k)
+        garbage = rng.uniform(0.0, ceiling, size=size_u - k)
+        signal[row, k:] = _as_valid_frame(garbage, calibration, marker_dn)
         garbled.append({'row': int(row), 'garble_from': k})
     return {'lines': garbled}
 
@@ -362,7 +401,9 @@ def apply_pixel_spikes(
     signal: NDArrayFloatType,
     cfg: dict[str, Any],
     *,
+    marker_dn: float,
     dn_ceiling: float,
+    calibration: CalibrationMap | None = None,
     rng: np.random.Generator,
     loci: FeatureLoci,
     adversarial: bool,
@@ -375,6 +416,9 @@ def apply_pixel_spikes(
     2); the ``uniform`` model replaces it with a random DN.  Both stay inside
     the instrument's ADC word: the flipped bit positions and the uniform draw
     are bounded by ``dn_ceiling``, so an 8-bit camera never spikes above 255.
+    Both act on the transmitted DN; on a calibrated frame (``calibration``
+    given) the pixel's I/F is mapped back to DN first and the result written as
+    its I/F, kept off ``marker_dn``.
     """
     expected_events = float(cfg['expected_events'])
     model = str(cfg['amplitude'])
@@ -385,11 +429,13 @@ def apply_pixel_spikes(
     vs, us = choose_pixels(loci, n, (size_v, size_u), rng, adversarial=adversarial)
     if model == 'bitflip':
         bits = (1 << rng.integers(0, _word_bits(dn_ceiling), size=vs.size)).astype(np.int64)
-        current = np.rint(signal[vs, us]).astype(np.int64)
+        current = np.rint(_as_dn(signal[vs, us], calibration)).astype(np.int64)
         flipped = np.minimum((current ^ bits).astype(np.float64), dn_ceiling)
-        signal[vs, us] = flipped
+        signal[vs, us] = _as_valid_frame(flipped, calibration, marker_dn)
     else:
-        signal[vs, us] = rng.uniform(0.0, _garbage_ceiling(signal, dn_ceiling), size=vs.size)
+        ceiling = _garbage_ceiling(_as_dn(signal, calibration), dn_ceiling)
+        draws = rng.uniform(0.0, ceiling, size=vs.size)
+        signal[vs, us] = _as_valid_frame(draws, calibration, marker_dn)
     pixels = [[int(v), int(u)] for v, u in zip(vs.tolist(), us.tolist(), strict=True)]
     return {'pixels': pixels}
 

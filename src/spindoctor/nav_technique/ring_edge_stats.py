@@ -14,9 +14,15 @@ import numpy as np
 
 from spindoctor.feature.feature import NavFeature
 from spindoctor.feature.geometry import RingEdgePolyline
-from spindoctor.support.types import NDArrayFloatType
+from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 
 __all__: list[str] = []
+
+# Distance (px) within which a model vertex counts as on a detected edge pixel when
+# measuring matched edge strength.
+_EDGE_STRENGTH_MATCH_RADIUS_PX = 1.5
+# Percentile of the in-frame gradient magnitude taken as the frame's strongest structure.
+_EDGE_STRENGTH_REFERENCE_PERCENTILE = 99.9
 
 
 def _per_edge_rms_summed(features: list[NavFeature], residuals: NDArrayFloatType) -> float:
@@ -176,3 +182,66 @@ def _per_edge_median_max(features: list[NavFeature], residuals: NDArrayFloatType
             continue
         worst = max(worst, float(np.median(np.abs(slice_residuals))))
     return worst
+
+
+def _matched_edge_strength_fraction(
+    edge_dt: NDArrayFloatType,
+    gradient_vu: NDArrayFloatType,
+    vertices: NDArrayFloatType,
+    normals: NDArrayFloatType,
+    offset_vu: tuple[float, float],
+    *,
+    valid_mask: NDArrayBoolType,
+    match_radius_px: float = _EDGE_STRENGTH_MATCH_RADIUS_PX,
+) -> float:
+    """Return how strong the edges under a fit are, relative to the frame's strongest.
+
+    The model is laid at ``offset_vu`` and each vertex rounded to its pixel.
+    Over the vertices within ``match_radius_px`` of a detected edge pixel and
+    inside ``valid_mask``, the image gradient projected onto each vertex's
+    normal gives the strength of the edge it matched (the gradient is smoothed
+    over more than a pixel, so it still reads the edge from a pixel away); the
+    median of those is divided by the 99.9th
+    percentile of the gradient magnitude over ``valid_mask``, the strength of
+    the frame's own strongest structure.
+
+    A cataloged ring edge is a large brightness step, so a fit that found one
+    scores a sizable fraction of the frame's strongest edges.  A fit that found
+    only the faint contours a thresholded smooth glow leaves behind scores a
+    fraction of a percent.
+
+    Parameters:
+        edge_dt: Distance transform of the image edge mask, in pixels.
+        gradient_vu: ``(H, W, 2)`` image gradient.
+        vertices: ``(N, 2)`` model vertices.
+        normals: ``(N, 2)`` model normals, either sign.
+        offset_vu: The fitted ``(dv, du)`` offset.
+        valid_mask: Pixels whose edges may count; the sensor interior.
+        match_radius_px: Largest distance to a detected edge at which a vertex
+            counts as having matched it.
+
+    Returns:
+        The fraction, ``0.0`` when no vertex lands on a counted edge pixel or
+        the frame carries no gradient at all.
+    """
+    height, width = edge_dt.shape
+    vs = np.rint(vertices[:, 0] + offset_vu[0]).astype(np.int64)
+    us = np.rint(vertices[:, 1] + offset_vu[1]).astype(np.int64)
+    inside = (vs >= 0) & (vs < height) & (us >= 0) & (us < width)
+    vs, us = vs[inside], us[inside]
+    unit = (
+        normals[inside]
+        / np.maximum(np.hypot(normals[inside, 0], normals[inside, 1]), 1e-300)[:, None]
+    )
+    matched = (edge_dt[vs, us] <= match_radius_px) & valid_mask[vs, us]
+    magnitude = np.hypot(gradient_vu[:, :, 0], gradient_vu[:, :, 1])[valid_mask]
+    if not matched.any() or magnitude.size == 0:
+        return 0.0
+    reference = float(np.percentile(magnitude, _EDGE_STRENGTH_REFERENCE_PERCENTILE))
+    if reference <= 0.0:
+        return 0.0
+    projected = np.abs(
+        gradient_vu[vs[matched], us[matched], 0] * unit[matched, 0]
+        + gradient_vu[vs[matched], us[matched], 1] * unit[matched, 1]
+    )
+    return float(np.median(projected)) / reference

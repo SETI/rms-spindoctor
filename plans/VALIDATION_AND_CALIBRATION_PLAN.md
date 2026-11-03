@@ -66,23 +66,29 @@ on that baseline; each has a tracking issue (cross-map below).
 rather than methodology, and it silently corrupts what every workstream below
 reads:
 
-- **#288** — 11 of the 75 curated library sidecars disagree with `main` in the
-  local integration environment, so the regression instrument that is supposed
-  to detect a navigation change cannot currently do so. Until it is reconciled,
-  a navigation-affecting change can only be gated on *no new failures against
-  `main`*, and the library's own tiers cannot be read as verified
-  expectations. Two are the Galileo frames whose recorded truth is the
-  rotation-fitted answer that #560 retired, an operator decision in #744, and
-  one, `N1530185128_1`, is owned by the star-centroid defect in #639. The
-  other eight are attributed rather than mysterious: three are the
-  confidently-wrong ring locks (#346), two pin `primary_technique` to a
-  technique the code correctly declines to prefer and await an operator call
-  (#483), one is the ~2.7 px `dv` limb bias on a partially overflowing limb arc
-  that WS-10 owns, one is the standing highly-irregular exclusion of #338, and
-  one is a tier move the operator has ruled is not to be re-ratcheted, routed
-  to #476 as an acceptance test. That
-  count predates the pixel-convention corrections, so it wants re-measuring
-  before it is quoted again.
+- **#288** — 19 of the 75 curated library sidecars disagree in the local
+  integration environment (measured 2026-10-31), so the regression instrument
+  that is supposed to detect a navigation change cannot currently do so.
+  Until it is reconciled, a navigation-affecting change can only be gated on
+  *no new failures against `main`*, and the library's own tiers cannot be
+  read as verified expectations. Two are the Galileo frames whose recorded
+  truth is the rotation-fitted answer that #560 retired, an operator decision
+  in #744, and ten are star frames whose pins the sparse-star-field fixes
+  moved, awaiting the operator's ratification. Of the eight frames re-pinned
+  on 2026-10-27 (five `ring_only_flat` frames whose pins recorded the old
+  quantized rank-1 axis of a straight ring edge; two of #346's Encke gap
+  frames, which land on operator truth and whose `medium` tier pins became
+  `low`; and `N1633925572_1`, whose `medium` tier pin became `low` after it
+  stopped running RingEdgeNav, leaving a limb answer and a one-star answer,
+  whose fused sigma of about 2.49 px is a sigma-calibration matter, #788),
+  the two Encke gap frames are still red on `primary_technique` pins that
+  name BodyBlobNav where RingEdgeNav now carries the answer. The other five
+  are attributed rather than mysterious: one is #346's remaining ring frame,
+  red on a `failed` expectation predating a working ring fit, two pin
+  `primary_technique` to a technique the code correctly declines to prefer
+  and await an operator call (#483), one is the ~2.7 px `dv` limb bias on a
+  partially overflowing limb arc that WS-10 owns, and one is the standing
+  highly-irregular exclusion of #338.
 
 It does not block writing methodology or building tooling. It blocks
 collecting the numbers.
@@ -149,11 +155,11 @@ carry the methodology and acceptance criteria):
 | Workstream | GitHub issue(s) | Note |
 |---|---|---|
 | WS-0 | #358, #359, #360, #361 | Estimator proven on sims (identifiability + bias-independence); residual is the real-frame reliability-vs-error coupling and PSF-coupling probes feeding WS-1. |
-| WS-1 | #225 (+ #558, #346, #476, #621, #622, #623, #639) | The agreement study. The statistics system reports metadata statistics and consumes WS-1's per-frame disagreement metric; it is not the agreement study. The trailing issues are confidently-wrong contributors that move the anchor before it is measured. |
+| WS-1 | #225 (+ #558, #346, #755, #621) | The agreement study. The statistics system reports metadata statistics and consumes WS-1's per-frame disagreement metric; it is not the agreement study. The trailing issues are confidently-wrong contributors that move the anchor before it is measured. |
 | WS-1b | #226 | Reprojection consistency. |
 | WS-2 | #227 (+ #223, #309, #341, #377, #409, #625, #626, #627, #629, #630, #631, #632, #633, #641, #644, #750) | De-circularization done; #227 open only for the realism residual (realism-anchored calibration #309, terminator verdict #223, sim-fidelity gaps, the scene-coordinate convention split #409 where stars are the outlier, and the scene-authoring defects that make a rendered scene not the scene its keys describe). |
 | WS-17 | #355, #561 | Distortion measured from star fields; the residuals are the per-camera Voyager sim split and the single-sequence cohorts behind the twist verdicts (#561). |
-| WS-3 | #172, #174, #235, #288, #483 | 47-image stage first (#172), then the >=120 growth target (#235); discovery/review workflow in `plans/COHORT_CURATION_PLAN.md`. #288 is the standing regression: 11 of the 75 sidecars disagree with `main` locally (two of them the Galileo frames of #744, and one owned by #639), so the library's tiers are not currently verified expectations, and two of the eight under #288 are pins awaiting the operator call in #483. |
+| WS-3 | #172, #174, #235, #288, #483 | 47-image stage first (#172), then the >=120 growth target (#235); discovery/review workflow in `plans/COHORT_CURATION_PLAN.md`. #288 is the standing regression: 19 of the 75 sidecars disagree locally (two of them the Galileo frames of #744, and ten star-frame pins awaiting ratification), so the library's tiers are not currently verified expectations, and two of the five under #288 are pins awaiting the operator call in #483. |
 | WS-4 | #229, #426, #324, #336, #335, #340, #548 | CI integration tiers, plus what does not run in Actions today: the agreement-estimator tests (#324), the data-independent simulator suites (#336), the committed sim baselines that have no canonical environment (#335), the cross-check's yes/no primary-technique flag (#340), and the measured 79% line coverage that nothing enforces (#548). |
 | WS-5 | #230, #176, #557, #558, #751 | Real-anchored recalibration once WS-1 anchors exist; the confidence axis is censored from above (#557), the anchor is contaminated until #558 is closed, and whether the low tier carries a sigma ceiling is an operator decision (#751). |
 | WS-6 | #231 | Capability matrix. |
@@ -566,7 +572,7 @@ need.
 workstream's product is cross-technique *disagreement*, and a technique that
 reports a confidently wrong answer contributes a disagreement that is a property of
 the defect rather than of the scene. The confidently-wrong ring locks
-(#346, #476) are the measured case: on `N1633925572_1_CALIB`, measured 2026-08-26, a body fit
+(#346, #476) were the measured case: on `N1633925572_1_CALIB`, measured 2026-08-26, a body fit
 and a star fit agree to 0.08 px while `RingEdgeNav` converges 39 px away on 452 of
 6786 inliers, is not flagged spurious, and enters the combine. Feeding that frame to
 this workstream does not merely add noise -- it moves the anchor WS-5 then
@@ -578,14 +584,12 @@ which was chosen.
 
 The ring locks are not the only contributor of that shape, and the star side
 matters more here than the ring side because Route 3 spends stars as the
-inertial anchor. A two-star or one-star solution is accepted as success and
-lands up to 23 px wrong (#622); the gates refuse about half the F ring frames
-that carry enough stars to solve (#621), which selects the star cohort on
-something other than the scene; a star centroid takes the brightest pixel in
-its window, so a neighbor can win it (#639); and the ensemble counts two
-techniques sharing one feature as independent corroboration (#623), which is
-exactly the agreement-masking-bias this workstream exists to measure, wired
-into the product it measures. Each is a reason a frame's disagreement describes
+inertial anchor. Star navigation still refuses 25% of the F ring frames in
+the runs where it was first measured (#621), so a cohort drawn from the frames
+star navigation accepts is selected on something other than the scene. An offset that rests on one
+star carries the status reason `single_star_only` and `matched_star_count` 1:
+its sigma is predicted rather than measured, so a cohort that reads sigma as a
+measurement must exclude it. Each is a reason a frame's disagreement describes
 the defect rather than the scene, and the cohort's admission rule must name
 which of them it excludes.
 

@@ -181,10 +181,34 @@ frames, and a margin that is right for one is wrong for the other:
      - ``[5, 10]``
    * - 512
      - ``[25, 50]``
-     - ``[5, 10]``
+     - ``[7, 10]``
    * - 1024
      - ``[50, 140]``
-     - ``[5, 10]``
+     - ``[13, 13]``
+
+**Margins and pointing error.** Every technique, the star searches among them, finds
+offsets only inside the margin above. A lone star, which no other star checks, is
+believed only inside the ellipse reaching 0.6 (narrow angle) or 0.7 (wide angle) of the
+margin along each axis: 9.1 pixels on a full wide angle frame. The wide angle ellipse is
+wider because that camera's pointing error reaches the edge of its margin. A
+lone star's source must also peak no more than 150 (narrow angle) or 40 (wide angle) noise
+sigmas above its surroundings per unit of the star's predicted signal-to-noise ratio. The
+two brightness bounds are measured values: on a sample of star frames the brightest stars these cameras
+show reach about 126 and 21. On each
+axis, 98.7% of wide angle star frames have a pointing error within 12.4 full-frame
+pixels, and the error reaches 14, so the wide angle margin reaches 13 pixels on a full
+frame, 7 on a 2x2 summed frame, and 5 on a 4x4 summed frame. On each axis, 98.7% of
+narrow angle star frames have a pointing error within 50 full-frame pixels, which the
+narrow angle margins hold at every size; that error reaches 82 pixels. Every margin is
+provisional until full runs confirm it.
+
+**Sharp narrow angle stars.** A narrow angle star's image (point-spread sigma 0.54
+pixels) is sharper than the footprint over which the star techniques weigh a source, so
+a single-pixel cosmic ray or hot pixel outshines it once the spike reaches about 1.7
+times the star's peak, or 2.5 times when the star sits on a pixel corner. The
+techniques pass over a peak sharper than any star; at the positions of 6322 catalog
+stars in narrow angle frames, that limit passed over two sources, one of them a hot
+pixel.
 
 **Camera rotation.** Rotation fitting is off for both cameras. Offsets are
 two degrees of freedom, ``(dv, du)``, and no rotation is reported. That is a

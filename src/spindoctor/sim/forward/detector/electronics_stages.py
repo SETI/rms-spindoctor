@@ -26,6 +26,7 @@ from typing import Any
 import numpy as np
 from scipy import ndimage
 
+from spindoctor.support.stable_math import stable_hypot
 from spindoctor.support.types import NDArrayFloatType, NDArrayIntType
 
 __all__ = [
@@ -414,7 +415,7 @@ def add_fixed_pattern_response(
         du = int(rng.integers(0, size_u))
         radius = float(rng.uniform(3.0, 8.0))
         vv, uu = np.mgrid[0:size_v, 0:size_u].astype(np.float64)
-        ring = np.exp(-(((np.hypot(vv - dv, uu - du) - radius) / 1.5) ** 2))
+        ring = np.exp(-(((stable_hypot(vv - dv, uu - du) - radius) / 1.5) ** 2))
         response *= 1.0 - 0.05 * ring
         donuts += 1
     np.maximum(response, 0.0, out=response)

@@ -19,7 +19,7 @@ import pytest
 os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
 
 try:
-    from PyQt6.QtWidgets import QApplication
+    from PyQt6.QtWidgets import QApplication, QWidget
 except (ImportError, OSError) as exc:
     pytest.skip(
         f'PyQt6/QtWidgets not available: {exc}',
@@ -36,6 +36,7 @@ except Exception as exc:
     )
 
 from spindoctor.cli.sim_editor import CreateSimulatedImageModel
+from spindoctor.sim.forward.atmosphere import DEFAULT_HAZE_ALBEDO
 from spindoctor.sim.scene import validate_sim_params
 
 
@@ -405,6 +406,12 @@ def test_null_noise_keys_show_the_panel_defaults(model: Any) -> None:
         model._signal_frac_spin.value(),
     )
     assert shown == (True, 4.0, 0.0, 0.0, 20.0, 0, 0.5)
+
+
+def test_null_body_and_star_lists_load_as_empty(model: Any) -> None:
+    """A loaded scene with null bodies and stars opens with neither, as the renderer reads it."""
+    model._apply_params_dict({'instrument': 'coiss_nac', 'bodies': None, 'stars': None})
+    assert (model.sim_params['bodies'], model.sim_params['stars']) == ([], [])
 
 
 # ---- Registry-driven artifact-mode rows ----
@@ -842,10 +849,16 @@ def test_body_surge_toggle_inserts_and_removes(model: Any) -> None:
 
 
 def test_body_atmosphere_toggle_inserts_and_removes(model: Any) -> None:
-    """The atmosphere group inserts the four core keys and removes the map."""
+    """The atmosphere group inserts the five core keys and removes the map."""
     tab = _body_tab(model)
     tab.atmosphere_group.setChecked(True)
-    assert set(_body(model)['atmosphere']) == {'scale_height_px', 'tau_ref', 'ref_altitude_px', 'g'}
+    assert set(_body(model)['atmosphere']) == {
+        'scale_height_px',
+        'tau_ref',
+        'ref_altitude_px',
+        'g',
+        'albedo',
+    }
     tab.atmosphere_group.setChecked(False)
     assert 'atmosphere' not in _body(model)
 
@@ -872,6 +885,97 @@ def test_body_atmosphere_g_spin_writes_key(model: Any) -> None:
     tab.atmosphere_group.setChecked(True)
     tab.atmosphere_g_spin.setValue(0.55)
     assert _body(model)['atmosphere']['g'] == 0.55
+
+
+def test_body_atmosphere_albedo_spin_writes_key(model: Any) -> None:
+    """A haze-albedo spin edit writes the albedo key once the group is enabled."""
+    tab = _body_tab(model)
+    tab.atmosphere_group.setChecked(True)
+    tab.atmosphere_albedo_spin.setValue(0.25)
+    assert _body(model)['atmosphere']['albedo'] == 0.25
+
+
+def test_body_atmosphere_albedo_spin_starts_at_the_default(model: Any) -> None:
+    """A body without a haze albedo shows the renderer's default in the spin."""
+    assert _body_tab(model).atmosphere_albedo_spin.value() == DEFAULT_HAZE_ALBEDO
+
+
+@pytest.mark.parametrize(
+    ('stated', 'shown'), [(0.95, 0.95), (None, DEFAULT_HAZE_ALBEDO)], ids=['stated', 'null']
+)
+def test_body_atmosphere_albedo_spin_shows_the_stated_albedo(
+    model: Any, stated: float | None, shown: float
+) -> None:
+    """A loaded albedo shows as stated, and a null one shows the renderer's default."""
+    widget = QWidget()
+    body = {'atmosphere': {'scale_height_px': 8.0, 'tau_ref': 1.0, 'albedo': stated}}
+    model._build_atmosphere_group(widget, 0, body)
+    assert widget.atmosphere_albedo_spin.value() == shown  # type: ignore[attr-defined]
+
+
+def test_body_atmosphere_toggle_keeps_a_loaded_map_exactly(model: Any) -> None:
+    """Turning the group off and on restores unrounded values and keys without spins."""
+    _body_tab(model)
+    atmosphere = {
+        'scale_height_px': 8.0,
+        'tau_ref': 1.23456,
+        'ref_altitude_px': 0.0,
+        'g': 0.0,
+        'albedo': 0.0004,
+        'axis_tilt_deg': 5.0,
+    }
+    model._add_body_tab({**_body(model), 'name': 'Hazy', 'atmosphere': dict(atmosphere)})
+    tab = model._tabs.widget(model._find_tab_by_properties('body', 1))
+    tab.atmosphere_group.setChecked(False)
+    tab.atmosphere_group.setChecked(True)
+    assert model.sim_params['bodies'][1]['atmosphere'] == atmosphere
+
+
+@pytest.mark.parametrize(
+    ('key', 'shown'),
+    [('ref_altitude_px', 0.0), ('g', 0.0), ('albedo', DEFAULT_HAZE_ALBEDO)],
+    ids=['ref_altitude_px', 'g', 'albedo'],
+)
+def test_body_atmosphere_null_key_shows_the_default_and_survives_a_toggle(
+    model: Any, key: str, shown: float
+) -> None:
+    """A null key shows the renderer's default, and turning the group off and on keeps it null."""
+    _body_tab(model)
+    atmosphere = {'scale_height_px': 8.0, 'tau_ref': 1.0, key: None}
+    model._add_body_tab({**_body(model), 'name': 'Hazy', 'atmosphere': dict(atmosphere)})
+    tab = model._tabs.widget(model._find_tab_by_properties('body', 1))
+    spin = {
+        'ref_altitude_px': tab.atmosphere_ref_altitude_spin,
+        'g': tab.atmosphere_g_spin,
+        'albedo': tab.atmosphere_albedo_spin,
+    }[key]
+    assert spin.value() == shown
+    tab.atmosphere_group.setChecked(False)
+    tab.atmosphere_group.setChecked(True)
+    assert model.sim_params['bodies'][1]['atmosphere'][key] is None
+
+
+def test_body_atmosphere_toggle_keeps_a_value_qt_rounds_up_on_a_tie(model: Any) -> None:
+    """A loaded 0.125 shows as 0.13 and still survives a toggle unrounded."""
+    _body_tab(model)
+    atmosphere = {'scale_height_px': 0.125, 'tau_ref': 1.0}
+    model._add_body_tab({**_body(model), 'name': 'Hazy', 'atmosphere': dict(atmosphere)})
+    tab = model._tabs.widget(model._find_tab_by_properties('body', 1))
+    tab.atmosphere_group.setChecked(False)
+    tab.atmosphere_group.setChecked(True)
+    assert model.sim_params['bodies'][1]['atmosphere']['scale_height_px'] == 0.125
+
+
+def test_body_atmosphere_an_edited_null_key_takes_the_spin_value(model: Any) -> None:
+    """A null key edited while the group is off takes the spin's value when it is turned on."""
+    _body_tab(model)
+    atmosphere = {'scale_height_px': 8.0, 'tau_ref': 1.0, 'albedo': None}
+    model._add_body_tab({**_body(model), 'name': 'Hazy', 'atmosphere': dict(atmosphere)})
+    tab = model._tabs.widget(model._find_tab_by_properties('body', 1))
+    tab.atmosphere_group.setChecked(False)
+    tab.atmosphere_albedo_spin.setValue(0.25)
+    tab.atmosphere_group.setChecked(True)
+    assert model.sim_params['bodies'][1]['atmosphere']['albedo'] == 0.25
 
 
 def test_body_atmosphere_ref_altitude_spin_writes_key(model: Any) -> None:

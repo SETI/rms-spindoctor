@@ -26,7 +26,7 @@ from tests.integration.sim_baseline import (
 # reason the real-image baseline test is integration-marked), so this runs in
 # the deliberate integration layer rather than the fast default suite.  It needs
 # no holdings -- everything is rendered and navigated in-process.
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.integration, pytest.mark.sim_integration]
 
 _SCENES_ROOT = Path(__file__).parent / 'sim_scenes'
 _BASELINES_DIR = Path(__file__).parent / 'sim_baselines'

@@ -26,9 +26,14 @@ ground_truth:
     RingEdgeNav is pinned into techniques_must_skip to hold that routing.
     BodyLimbNav is the primary and the fused offset (9.620, -18.511) is
     within slack of ground truth.
+
+    Re-pinned 2026-10-31 (operator decision): confidence_tier
+    medium -> low. The offset is unchanged or closer to truth;
+    the fused sigma is over the medium tier's 2 px cap.
+
 expected:
   status: success
-  confidence_tier: medium
+  confidence_tier: low
   primary_technique: BodyLimbNav
   techniques_must_run:
   - BodyLimbNav

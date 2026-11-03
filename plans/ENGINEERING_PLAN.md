@@ -21,9 +21,9 @@ fields to match current behavior.
 
 ## Track B — Navigation correctness
 
-Ordering within the track: the confidently-wrong defects (#346, #476, #350), because the agreement study consumes
+Ordering within the track: the confidently-wrong defects (#346, #755, #350), because the agreement study consumes
 ensemble output at scale and several curated library frames pin these as
-standing red regressions. Then the coarse-lock calibration (#373), then the
+standing red regressions. Then the coarse-lock remainder (#373), then the
 investigation/design items (#25, #128/#150), with the smaller decision items
 (#130, #239, #338) as fill.
 
@@ -184,13 +184,11 @@ bias into every limb answer and product, so it lands with #128 (below). The
 measurements are on #447, which stays open until then.
 
 What the work filed
-rather than fixed: RingEdgeNav is not
-shift-equivariant either and a planted shift re-locks it onto the wrong ring
-edge (#476, same family as #346 and #373 seen from the round-trip side, and
-now measured down to an alias lattice whose members score within 1% of each
-other and which polarity does not separate -- with exposure reduced to
-sub-25 km/px Saturn scenes now that coarser ones route to the annulus
-composite); `BodyDiscCorrelateNav` still misses by
+rather than fixed: RingEdgeNav's planted-shift round trip (#476, same
+family as #346 and #373; measured across the edge normal the technique is at the DT
+floor, the ensemble's error there was the rank-1 axis quantization fixed
+below, and #476 closed on that across-edge criterion, leaving the along-edge
+part to #755); `BodyDiscCorrelateNav` still misses by
 up to ~1 px on a weakly-constrained axis (#482); and the library pins the fix
 moves need re-ratcheting when it lands (#483, which cannot be done honestly
 until #288 is reconciled).
@@ -213,17 +211,121 @@ rendered-brightness template disambiguates. Below 25 km/px the trustworthy
 evidence is three frames on which neither technique is validated (the edge
 path re-locks catastrophically on all three; the annulus near-misses twice
 and fails once), so the threshold stops where the evidence stops and the
-sub-25 confident-wrong exposure stays open under #346/#476. The threshold is
+sub-25 confident-wrong exposure stays open under #346/#755. The threshold is
 Saturn-measured only. Two follow-ons are filed: recalibrating the annulus
 gates so more of its correct answers are accepted (#566 -- today they veto
 many right answers, which costs coverage, not correctness), and a hybrid in
 which the correlation fit picks the basin and the edge fit polishes within
-it (#567).
+it (#567). Measured as a basin selector below 25 km/px, the annulus
+correlation was right across the edge on F ring movie frames but 30 to 115 px
+wrong on N1492091163, N1467344214, N1867602424 and the Keeler gap frames,
+where the edge fit is right, so the hybrid as filed would regress them.
 
-- **#346** — three library frames (N1492091163, N1867601758, N1867602424)
-  lock confidently onto the wrong ring feature; standing library reds, tied
-  to the coarse-lock calibration (#373). Exposure is reduced to the
-  sub-25 km/px regime by the routing decision above.
+The lattice lock itself is addressed in the coarse seed. The mask-overlap
+seed counts every detected edge pixel alike, so where a ring's interior
+texture or a scattered-light glow's faint contours run parallel to the
+cataloged edge it settles on an alias; the seed is now checked against the
+strength of the edges under it, and the strongest alignment replaces it when
+the overlap seed sits on edges below 0.8 of that strength. A converged fit
+whose matched edges are under 0.005 of the frame's strongest is rejected as
+spurious, which catches frames whose cataloged edges lie outside the sensor at
+the true pointing. Measured against the published F ring bundle's per-frame
+pointing on 1,041 held-out frames below 25 km/px: right answers (within 2 px)
+went from 692 to 877, wrong answers from 283 to 129 (alias locks across the
+edge from 188 to 4), refusals from 66 to 35, and the median error from 0.84
+to 0.69 px. A same-code control, `main` rerun on 150 of those frames,
+reproduced the earlier `main` run exactly (status, tier and every fused and
+per-technique offset identical on all 150), so these counts carry no
+run-to-run noise. No frame `main` answers right is
+answered wrong; six frames `main` refuses are answered wrong, all of them
+along the edge (2.0 to 19 px). On the 263-frame tuning sample the counts went
+from 147 right and 94 wrong to 179 and 68. The axis fix below changes none of
+those answers (no held-out frame has an all-straight edge set). On the
+library the seed check alone leaves the ring frames' answers where they were
+except N1492091163 (below); the axis fix is what moves seven of them.
+
+What remains of the family:
+
+- **The rank-1 axis (fixed).** The rings model signs edge normals radially
+  but quantizes their direction to multiples of 45 degrees, and the rank-1
+  axis was the dominant direction of those normals, off by up to 22.5 degrees
+  for a straight edge at any other orientation. It now comes from the line's
+  own vertices: the ensemble's planted-shift round trip across the edge fell
+  from a median 0.39 px (worst 17 px) to 0.04 px (worst 0.31 px), and the two
+  Encke gap frames of #346 navigate to their operator truth. Five
+  `ring_only_flat` sidecars recorded the quantized angle as their constraint
+  normal and went red; on 2026-10-27 the operator re-pinned them along the
+  line's own normal (the values are recorded in the Operator Playbook), and
+  re-pinned the two Encke gap frames' tier from `medium` to `low`, the ring
+  orbit channel's. All seven are expected to pass; the library has not been
+  run since the re-pins.
+- **Along-edge error on nearly straight edges (open).** An edge that is not
+  flagged straight but barely curves across the frame constrains the
+  along-edge component only weakly, and the reported covariance does not show
+  it. On the 1,041 held-out frames, 115 RingEdgeNav-carried answers are within
+  1.4 px of the published pointing across the edge and more than 2 px off
+  along it: median 3.0 px, 90th percentile 12 px, worst 36 px
+  (N1851237981). 113 of them are reported at the medium tier and 107 with a
+  sigma under 1 px. Two remedies were measured on the tuning sample and
+  failed, so neither is shipped. Choosing, on a reseed, the member of the
+  strength band nearest the prediction instead of the strongest cost
+  RingEdgeNav right answers on the 60 reseeded frames (34 to 28; 11 right to
+  wrong against 5 wrong to right). Inflating the along-edge variance by the
+  vertex-scatter eigenvalue ratio in the covariance the ensemble fuses cut
+  wrong answers at medium or high from 66 to 20, but demoted 75 answers that
+  were right on both runs to low (right answers at medium or high fell from
+  178 to 91), and turned 8 right answers wrong where a star or body-blob
+  answer took over the along-edge component (5 went wrong to right).
+  Together the sample went from 179 right and 68 wrong to 170 and 80. The
+  untried design keeps the ensemble covariance as it is and lowers only
+  RingEdgeNav's own confidence on a nearly straight edge, and is tracked
+  as #755.
+- **One strong step, two cataloged edges (open).** Where cataloged edges lie
+  a few tens of pixels apart, the strongest alignment can lay the wrong one
+  on the strong step: 5 of the 1,041 held-out frames, 7 to 49 px across the
+  edge (N1851240381 at 49 px), all at the medium tier.
+- **Alias locks across the edge (open, #373).** Answers displaced across the
+  edge by a distance that matches no spacing between cataloged edges went
+  from 188 to 4 on the 1,041 held-out frames: N1492091385 (45.0 px),
+  N1851236541 (43.8 px), N1492064782 (34.4 px) and N1851226701 (3.8 px),
+  all at the medium tier. With the 115 along-edge answers, the 5
+  neighboring-edge locks and 5 answers carried by star techniques, they are
+  all 129 wrong answers.
+- **Few stars against a ring edge (for the sparse-star work).** Three F ring
+  movie frames the published bundle navigated on stars (N1746561771,
+  N1538201454, N1579830292, from a separate reviewer sample) are
+  `conflicted` on `main`, where the one- or two-star answer is 0.04 to
+  0.26 px from the published pointing. With the seed check RingEdgeNav
+  returns an answer 2.6 to 4.6 px from the star answer instead of an alias,
+  and the ensemble reports a success 2.7 to 4.7 px from the published
+  pointing, N1746561771 at the high tier: one or two stars do not outweigh
+  the ring-edge answer. This belongs with #621 and with the
+  along-edge item above.
+
+- **#346** — three library frames (N1492091163, N1867601758, N1867602424),
+  none on a wrong lock. N1492091163's 94 px alias is gone:
+  RingEdgeNav converges 1.1 px from operator truth, and a two-star
+  StarRefineNav then moves the fused answer 0.7 px in du, to 1.70 px in du
+  from truth at the medium tier (the sparse-star family's behavior); its
+  `failed` pin wants a decision, and the issue stays open on it. The two
+  Encke gap frames are the rank-1 axis above: their offsets now land on
+  operator truth at the `low` tier, and on 2026-10-27 the operator re-pinned
+  their tier from `medium` to `low`, so both are expected to pass (the
+  library has not been run since). Exposure is limited to the sub-25 km/px
+  regime by the routing decision above.
+- **#476** (closed) — its acceptance criterion read: "any fix should drive
+  the RingEdgeNav rows of the shift-equivariance sweep toward the
+  DT-technique floor (~0.06 px) on the `ring_only_*` and `ring_plus_body`
+  library sets, using the committed baseline as the before-measurement". On
+  2026-10-27 the operator restated it as the across-edge component, which is
+  met: on those frames RingEdgeNav's round trip along the edge normal is a
+  median 0.03 px (worst 0.31 px), and the ensemble's 0.04 px (worst
+  0.31 px). The raw rows still carry the along-edge part: RingEdgeNav's
+  median |residual| is 4.2 / 1.7 px (v/u), against 3.6 / 1.6 px on the
+  earlier `main`. Every frame in those rows has a straight or nearly
+  straight edge set, and the remainder lies along the edge, where a straight
+  edge carries no information and a nearly straight one very little; that
+  part is #755's.
 
 ### #350 — post-recalibration resolved-body red
 
@@ -236,40 +338,204 @@ it (#567).
 ### #373 — DT coarse-prior search vs competing edge populations
 
 The coarse NCC search over the distance-transform image can lock onto the
-wrong edge population (e.g. a ring edge when fitting a limb) and hand the
-Levenberg-Marquardt refine an unrecoverable prior.
-`src/spindoctor/nav_technique/dt_fitting/coarse.py` (`coarse_ncc_search`). The
-polarity-weighted coarse seed already landed; what remains (#373) is making
-the RingEdgeNav coarse seed robust against competing edge populations even
-when polarity is blind — a calibration pass over the library that
-characterizes when the coarse search's top basins are ambiguous, and either
-widens the second-opinion gate to the other DT techniques or adds
-per-feature-type edge masking. Needs the library cohort; coordinate with
-Track A so the fix is measured, not guessed. #346 supplies the concrete
-wrong-lock datapoints.
+wrong edge population and hand the Levenberg-Marquardt refine an
+unrecoverable prior (`src/spindoctor/nav_technique/dt_fitting/coarse.py`).
+The polarity-weighted seed serves the techniques whose polarity is
+predictable; RingEdgeNav stays polarity-blind. Its seed is checked
+against edge strength (above): the mask-overlap seed is kept unless the edges
+under it are below 0.8 of the strongest alignment in the window, and a fit
+whose matched edges are under 0.005 of the frame's strongest is spurious.
+That covers competing populations weaker than the cataloged edge -- a ring's
+interior texture and a scattered-light glow's faint contours -- which were
+most of the lattice locks (alias locks across the edge from 188 to 4 on the
+1,041 held-out frames). What remains:
 
-### #621 / #622 / #623 — the star gates and what the ensemble counts
+- a competing population stronger than the cataloged edge, such as a body
+  limb in the search window: the check prefers the strongest step whatever
+  produced it, so it does not separate them;
+- the held-out frames still wrong across the edge: 5 neighboring-edge locks
+  (7 to 49 px) and 4 alias locks (N1492091385, N1851236541, N1492064782,
+  N1851226701; 3.8 to 45 px), all at the medium tier;
+- the issue's own calibration datapoint, `N1467344214_2`, has not been
+  re-measured against the issue's gate (the #179 no-net-new-failures gate
+  over the `ring_only_*` library set).
 
-Three defects measured on the 1030-frame `ISS_006RI_LPHRLFMOV001_PRIME` F ring
-block, where stars are the only technique that can navigate at all -- the ring
-catalogs carry no F ring, so RingEdgeNav has no feature to fit there. They are
-one family: what the star techniques accept, and what the ensemble does with
-what they return.
+### #621 — the sparse star frames still refused
 
-- **#621** — star navigation refuses about half the frames that are
-  demonstrably navigable by stars, and not for want of stars: the acceptance
-  gates refuse sparse fields. The cost is coverage.
-- **#622** — the converse, and the more serious of the two: a solution built
-  on one or two matched stars is accepted as `success` and lands five to
-  twenty-three pixels wrong. Two stars cannot constrain a two-dimensional
-  offset against misidentification, so an accepted two-star answer is a
-  confident-wrong exposure. Fix #622 before widening #621's gates.
-- **#623** — the ensemble counts two techniques consuming one feature as two
-  witnesses agreeing, when they are one measurement reported twice. Same shape
-  as the family `resolve_independent_estimators` already handles for seeded
-  refines and paired ring techniques; the shared-feature case is the one it
-  does not cover. #557 (combined confidence saturating at 0.99 whenever two
-  techniques agree) is the same arithmetic seen from the confidence side.
+Measured on all 1030 frames of the `ISS_006RI_LPHRLFMOV001_PRIME` F ring
+movie, where stars are the only technique that can navigate at all (the ring
+catalogs carry no F ring), against the published F ring bundle's per-frame
+pointing. Star navigation navigates 771 frames (74.9%, from 424), every one
+within 2 px of the bundle, against the bundle's 96.6%. The causes of refusal
+fixed so far: the star field's detections were ring pixels until isolated
+sources were required; the unique match tried only the brightest two
+predictions inside a window smaller than the 43 px pointing error; and its
+centroid took the brightest pixel of the window, so a ring, a neighbor, or a
+cosmic ray won the star's window (#639). A one-star solution is marked
+`single_star_only` and capped at the low tier, and a shared star counts as one
+witness (#622, #623).
+
+The same code was measured on every star-navigated frame of the published F
+ring bundle (305 observations), with one third of the observations held out
+before any tuning. Every parameter was derived on the other two thirds; the
+held-out numbers below are the last of four looks at the held-out third
+during development, so they are not a single blind test. On the held-out Cassini NAC frames it navigates 2595 of
+4205 within 2 px (from 1744 on `main`) and 16 more than 2 px wrong (from 64);
+on the frames tuning was done on, 6945 of 10362 (from 4206) and 66 wrong (from
+231); 49 of those 66 rest on one star and carry the low tier.
+The refused held-out NAC frames divide by what the image holds at the
+bundle's pointing:
+
+- 590 have no catalog star brighter than the limiting magnitude at all. The
+  limit (`star_max_usable_vmag`) is conservative for short exposures: a
+  0.26 s NAC frame gets a limit of 9.0, where stars 3 mag fainter are visible
+  (#130).
+- 575 show one usable star as an isolated point source and 270 none. A single
+  star cannot check its own identification, so the unique match refuses it
+  unless it outshines every other predicted star by 1.5 mag and lies within
+  30 px of its prediction. These frames need evidence beyond one frame: the
+  fainter stars above, or a prior from neighboring frames.
+- 156 show two or more stars, but a window's strongest detection is not one
+  of them. The pair search now takes each window's three strongest isolated
+  sources and the offset the most stars back (below).
+- 19 show two or more stars that the windows do find, refused for reasons not
+  yet examined.
+
+Stars get no search window of their own: the unique match searches each
+star over the instrument's offset window (`extfov_margin_vu`), axis by axis,
+as every technique does, and believes a lone star only inside the ellipse
+whose semi-axes are a fraction of that window that each camera sets
+(`one_star_ellipse_fraction` in the instrument configuration, required of
+every camera). The NAC's 0.6 is the 30 of 50 px radius measured on the tuning
+frames, and on a full NAC frame, whose window is (50, 140) px, the ellipse is
+(30, 84) px; the WAC's is 0.7, 9.1 px of its 13 px window. The NAC's window
+already holds 98.7% of its tuning frames on each axis (50 full-frame px; its
+error reaches 82). The WAC's did not, so its margins for 512 and 1024 px
+images are widened from `[5, 10]` to `[7, 10]` and `[13, 13]`: 98.7% of its
+frames lie within 12.4 full-frame px on each axis, and its error reaches 14.
+Every margin is provisional; #830 sets one offset window per camera for
+every technique from full runs.
+Measured with per-camera star windows of 13 and 9 px, the WAC navigated 386
+of its 794 tuning frames within 2 px (340 on `main`) and 13 of its 113
+held-out frames (8 on `main`); 97 of those 113 have no usable catalog star,
+the same limiting-magnitude cause as above.
+
+Because the padding of the extended field of view is the offset window,
+every star the catalog predicts has a window that reaches the image, and the
+filter that set aside stars out of reach (#763) has nothing left to set
+aside. On F ring frame `N1862698331` with the deeper photometric limit of
+#755, the five brightest stars lay where the 50 px window of the time could
+not reach the image; the NAC's 140 px margin across samples now reaches
+them, so they take pair-search places again. Whether that frame and others
+like it are refused again is for the full runs of #830.
+
+Searching the whole offset window broke the pair search as it was: each
+star's detection was its window's strongest matched-filter peak, and a
+(50, 140) px window is often won by a ring's flank, a brighter star, or a
+cosmic-ray hit, so frames whose stars were plainly visible were refused
+(library frame `N1550270436` then fell back to a body centroid 15 px wrong).
+The operator ruled that windows are not narrowed to hide that, so the
+matching was made robust over the whole window instead. Each window yields
+its three strongest isolated point sources; every two of them in two stars'
+windows that agree within `max_residual_px` form a pair, backed by every
+searched star with a source where the pair puts it; the best backed pair the
+other stars do not refute is the answer, and of equally backed ones the
+brightest for its stars' catalog magnitudes. An offset is refuted when
+three other stars are each found elsewhere as the one source as bright as
+they should be and none at it, or when brighter stars that the offset puts
+on clear sky in the image show nothing there and outnumber those found.
+Replayed on the star inputs of 1986 F ring and spokes frames (a 3186-frame
+star set run on the branch's earlier head), the search answers 222 frames
+that the strongest-detection rule refused, 215 within 2 px of the bundle
+and the other 7 confirmed by stars over the bundle's pointing, and loses
+none; one 36 px coincidence (`N1760833094`) is now refused. Rerun through
+the whole pipeline (620 frames: the 470 the replay changed and 150
+controls), 61 F ring frames whose answer was wrong become `conflicted`, 60
+of them because the stars, right, disagree with a wrong ring answer; 21
+refused frames navigate, all within 2 px of the bundle; no frame's answer
+gets worse except spokes frame
+`N1547003113`, whose spokes-bundle pointing two stars contradict.
+
+The lone-star path then failed the same way over the whole window: the
+window's strongest peak was often a ring's flank, a cosmic-ray hit, or a
+field star, so it refused lone stars the per-camera windows had found and
+accepted sources 30 to 100 px from the answer. It now treats each searched
+star paired with each of its three candidates as a hypothesis: a source
+sharper than a star with no noise allowance (`one_star_max_peak_sharpness`,
+7) or brighter per unit of predicted SNR than the camera's bound
+(`star_max_peak_per_predicted_snr`, 150 NAC and 40 WAC, measured from the
+stars of the F ring and spokes star frames; #844 grounds it in photometry) is
+not taken; an
+offset one other star contradicts by being absent on clear sky
+(`one_star_absent_stars`, 1) is refuted; the survivor brightest for its
+star's predicted SNR wins unless another source of its window is within 1.5
+of its peak, another star's survivor is within a factor of 4, or a star
+within 1.5 mag could be the same source. The 1.5 mag margin no longer
+refuses a lone star because a comparable star lies far in the padding.
+Replayed on the 1986 star frames against the head before it: 222 F ring NAC
+frames refused before answer within 1 px of the bundle and 12 within 2 px,
+none loses an answer, and 5 wrong answers (4 of them lone sources 47 to
+100 px off) are refused; 17 new F ring NAC answers lie 2 to 36 px from the
+bundle, of which stars favor ours on 13, and N1579804085 (36 px),
+N1739500982 (32 px), and N1741134965 (2.7 px) show no star at either offset
+and `N1848843999` is undecided. Against the per-camera windows (13 to 50 px)
+of the version before the ruling, 17 F ring NAC lone stars and 10 spokes WAC
+ones are refused: on 15 of the 17 a source nearly as bright lies in the
+whole window outside the smaller one, or the star's offset lies outside the
+lone-star ellipse; the 10 WAC frames lie at 0.60 to 0.66 of their window,
+just outside the ellipse. The operator then widened the WAC's ellipse to 0.7
+(2026-11-01): of 12 spokes WAC lone stars refused at 0.60 to 0.72 of the
+window, the 11 within 0.70 are taken, a star check finds the star at each
+answer, and no other answer of the 1986 frames changes. The pair search stays
+at 5 stars, a lone answer the other stars cannot confirm is accepted, capped
+at the low confidence tier, and a wide-sigma one-star answer can merge
+disagreeing witnesses in the ensemble (#841), to be fixed separately.
+
+A pair the other searched stars contradict is still refused, but a star now
+votes for the pair when an isolated point source about as bright as that star
+should be sits where the pair's offset puts it, whatever brighter source its
+window also holds. With every star represented by its window's brightest
+source, cosmic-ray hits outvoted the stars of F ring frame `N1799563905` once
+#763 let its pair search run, and the frame, right in the #755 rerun, was
+refused; it now answers 0.08 px from the bundle. The brightness test (a peak
+within a factor of 4 of the pair's peak per unit predicted SNR, which holds
+98% of 492 stars measured on 93 two-star frames) keeps a faint field source or
+a two-pixel hit at the moved prediction from canceling the contradiction. Of
+287 F ring frames rerun with the pair path, no verdict changes, and the
+library is unchanged. One source that overlapping windows return for several
+stars now counts once against the pair; no pair was refused as contradicted in
+the 2,570-frame #755 rerun, so none of those frames can change.
+
+The Galileo SSI black-sky frames (507 star-calibration frames of `GO_0008`
+and `GO_0009`) have no outside pointing, so each answer was tested directly:
+at its offset, how many catalog stars sit on an isolated point source found
+with a filter sized to the SSI point-spread function (sigma 3 px). `main`
+navigates 265 of them, of which 49 are supported by two or more stars, 197 by
+one and 19 by none; this code navigates 206, of which 51 are supported by two
+or more and 155 by one (capped at the low tier), and the two agree within
+0.64 px wherever both have a well-supported answer. Of the 71 frames `main`
+navigates and this code does not, 65 rest on one star or none. The other six
+are well-supported answers lost to detection scales measured on Cassini:
+Galileo's stars are broad (sigma 3 px) and often saturated, so the 4-6 px
+isolation annulus crosses the star's own light, the box-median threshold
+finds no contrast inside a flat saturated core, and two techniques measuring
+the same broad star land up to 1.8 px apart, beyond the 1.5 px the ensemble
+allows (two of the six report conflicted rather than an answer). Eight
+well-supported answers are gained that `main` misses. Sizing the detection
+filter, centroid box, isolation annulus and shared-star agreement to each
+instrument's point-spread function is the fix, and it needs Galileo frames
+with an outside answer to set and check it (#753).
+
+One residual is known: a coincidental pair among few stars. On the held-out
+frame `N1760833094` two of four predicted stars agree to 0.75 px at an offset
+35.7 px wrong, reported at the medium tier; the brightest star is detected
+elsewhere and the fourth not at all, so no rule that refuses a pair the other
+stars contradict can see it without also refusing correct pairs. Requiring
+every other searched star to be found and to disagree costs 8 correct
+two-star answers on the tuning frames and catches none there; capping
+two-star answers over a 0.7 px residual at the low tier lowers 43 correct
+ones and catches one answer 2.7 px wrong. It is the only answer more than
+3 px wrong among the 2338 two-star answers measured, tuning and held-out.
 
 ### #128 / #150 — Limb navigation redesign and the ~0.1 px systematic
 
@@ -354,14 +620,20 @@ than the fitter. Fix it before reading any number it produces.
   sidecar records as a star technique's own offset or as a run in which only
   star techniques emitted. Four were left: three fused pins whose correction is
   the datum times a star weight that can only be reconstructed, and
-  N1633925572, whose sidecar carries an operator ruling not to re-ratchet.
+  N1633925572, whose sidecar then carried an operator ruling not to
+  re-ratchet. That ruling ended on 2026-10-27, when the tier was re-pinned to
+  `low`, but the truth (the one-star match's own offset) still carries the
+  uncorrected datum, and correcting it is an open operator decision.
   W1444747627 was pinned by hand against an overlay the notes describe as star
-  and body together, so which half the drag followed is not recorded. One
-  consequence remains open: N1530185128 flips to a different star lock
-  (18.2 px -> 1.2 px, confidence 0.72 -> 0.40) because
-  `StarUniqueMatchNav`'s 30-px search window takes the brightest peak inside a
-  slab whose integer bounds move with the prediction — a fragility the datum
-  change tips rather than causes.
+  and body together, so which half the drag followed is not recorded.
+  N1530185128 flipped to a different lock (18.2 px -> 1.2 px, confidence
+  0.72 -> 0.40) because `StarUniqueMatchNav`'s search window took the
+  brightest pixel inside a slab whose integer bounds moved with the
+  prediction, and a single-pixel cosmic ray on the row the datum added won it
+  -- a fragility the datum change tipped rather than caused. The window is
+  now centered and odd-width, its detection is the strongest matched-filter
+  peak that is not sharper than a star, and the isolation test allows for a
+  star's smear; the frame commits its two-star fix 0.1 px from truth again.
 - **#641** — a simulator scene states every position that places something in
   it as a pixel corner, which is the same oops uv a star record carries, so
   the record builder copies a scene position through. The shipped scenes moved
@@ -376,8 +648,9 @@ than the fitter. Fix it before reading any number it produces.
   center as far from it, so the one shipped scene with a roll moved its whole
   star field by 0.0169 px and the other 63 render byte-identical. That scene's
   baseline flipped from `conflicted` to `success`: `StarUniqueMatchNav` had been
-  confidently answering it 11 px wrong and now declines, which is the #639
-  window fragility tipping on a 0.01 px render change in either direction, not a
+  confidently answering it 11 px wrong and now declines, which is the
+  brightest-pixel window fragility (#639) tipping on a 0.01 px render change in
+  either direction, not a
   navigation improvement this earned. One finding from the same audit is filed
   and left out of that change: a roll rotates positions and poses but not a
   star's smear vector, a companion's position angle, or the background sky field
@@ -492,8 +765,9 @@ than the fitter. Fix it before reading any number it produces.
   merge: `util/calibration/library_crosscheck.py` over the full library,
   every per-image delta accounted for; `sd_stats_report` over campaign
   outputs as the accuracy checkpoint. Note that the practice is currently
-  degraded: with 11 of 75 library frames red locally (#288, #744, #639),
-  a cross-check can only be read as "no *new* deltas against `main`".
+  degraded: with 19 of 75 library frames red locally (#288, #744, and ten
+  star-frame pins awaiting ratification), a cross-check can only be read
+  as "no *new* deltas against `main`".
 
 ## Track D — Capability completion
 
@@ -990,16 +1264,22 @@ asserts the generated half matches the registries.
   the broader sd_*-driver test effort. The backplane suite carries strict
   xfails for #251, #252, #253, ready to flip when each fix lands.
 - **#288** — image-library regression reconciliation, and the piece of test
-  debt with the widest blast radius. In the local integration environment 11
-  of 75 sidecars disagree, each one attributed and owned, but the set is
-  still wider than the deliberately-pinned one below, so the regression
-  instrument cannot yet be read as clean. Two of the eleven, the Galileo
+  debt with the widest blast radius. In the local integration environment 19
+  of 75 sidecars disagree (measured 2026-10-31), each one attributed and
+  owned, but the set is still wider than the deliberately-pinned one below,
+  so the regression instrument cannot yet be read as clean. Of the eight
+  frames re-pinned on 2026-10-27 (five `ring_only_flat` frames whose pins
+  recorded the old quantized rank-1 axis, the tier pins of #346's two Encke
+  gap frames, and the tier pin of `N1633925572_1`, which no longer runs
+  RingEdgeNav; the values are recorded in the Operator Playbook), the two
+  Encke gap frames are still red on their `primary_technique` pins, which
+  name BodyBlobNav where RingEdgeNav now carries the answer. Two, the Galileo
   frames `C0059894800R` and `C0059899900R`, record the rotation-fitted
   answer that the change in #560 retired; re-recording their truth from an
   outside measurement, or pinning them red under #434, is the operator
-  decision in #744. Another, `N1530185128_1`, is owned by the star-centroid
-  defect in #639. Two consequences to hold onto: a navigation-affecting
-  branch can only be gated on *no new failures against `main`*, and #547
+  decision in #744. Ten are star-frame pins the sparse-star-field and
+  star-centroid fixes moved, awaiting the operator's ratification. Two consequences to hold
+  onto: a navigation-affecting branch can only be gated on *no new failures against `main`*, and #547
   (the one place a built product is compared between the results tree and
   the results index) is blocked because the frame it needs no longer
   navigates. Reconciling this is prerequisite to #483's re-ratchet and to
@@ -1010,9 +1290,10 @@ asserts the generated half matches the registries.
   open navigation issue (#338, #346, #350). W1444747627 (#352) is re-ratcheted
   to success/medium and green: the star-navigation hardening locks it.
   N1530185128 was re-ratcheted to success/medium under #351, once the ensemble
-  blob-outlier drop let the multi-star fix commit, but it has been red since
-  the star datum correction (#643), with a dv error of 17.472 px, and is owned
-  by the star-centroid defect in #639. N1806609736 (#392) is green as well:
+  blob-outlier drop let the multi-star fix commit; the star datum correction
+  (#643) turned it red with a dv error of 17.472 px, and it is green again
+  since the star centroid measures the star its window asks for (#639) and
+  the isolation test allows for its 8.5 px smear. N1806609736 (#392) is green as well:
   the shape-lock veto no longer misfires when a star fix corroborates the
   limb. N1572105349's pin was owned by #222 (now closed by the independence
   resolution); its autonomous regression should flip green on the next

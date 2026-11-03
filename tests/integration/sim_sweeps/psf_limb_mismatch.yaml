@@ -6,9 +6,11 @@ sweep_name: psf_limb_mismatch
 # softening the limb edge the distance-transform fit aligns to: the recovered
 # offset error rises through a few tenths of a pixel and then the fit fails as
 # the limb gradient washes out past a few pixels of blur (the navigability
-# cliff).  Pinned to BodyLimbNav; a bright star centroid is by contrast unbiased
+# cliff).  The cliff falls between sigma 3 and 4: at 3 and 3.5 the fit still
+# succeeds or fails depending on NumPy's SIMD code path, and from 4 it fails
+# on every one, so the sweep ends there.  Pinned to BodyLimbNav; a bright star centroid is by contrast unbiased
 # under a symmetric PSF.
 base_scene: model_mismatch/psf_limb_body.yaml
 parameters: [optics.psf.sigma_v, optics.psf.sigma_u]
-values: [0.54, 1.0, 1.5, 2.0, 2.5, 3.0]
+values: [0.54, 1.0, 1.5, 2.0, 2.5, 3.0, 4.0]
 technique: BodyLimbNav

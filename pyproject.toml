@@ -200,6 +200,7 @@ filterwarnings = [
 ]
 markers = [
   "integration: requires PDS3_HOLDINGS_DIR (real holdings on disk or via filecache)",
+  "sim_integration: an integration test that renders and navigates simulated frames alone, needing no holdings, SPICE, or catalogs; CI runs it",
   "postgres: requires a PostgreSQL server named by SPINDOCTOR_TEST_POSTGRES_URL",
   "slow: per-image library regression test",
 ]
