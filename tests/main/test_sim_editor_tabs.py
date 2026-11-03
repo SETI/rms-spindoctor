@@ -955,6 +955,17 @@ def test_body_atmosphere_null_key_shows_the_default_and_survives_a_toggle(
     assert model.sim_params['bodies'][1]['atmosphere'][key] is None
 
 
+def test_body_atmosphere_toggle_keeps_a_value_qt_rounds_up_on_a_tie(model: Any) -> None:
+    """A loaded 0.125 shows as 0.13 and still survives a toggle unrounded."""
+    _body_tab(model)
+    atmosphere = {'scale_height_px': 0.125, 'tau_ref': 1.0}
+    model._add_body_tab({**_body(model), 'name': 'Hazy', 'atmosphere': dict(atmosphere)})
+    tab = model._tabs.widget(model._find_tab_by_properties('body', 1))
+    tab.atmosphere_group.setChecked(False)
+    tab.atmosphere_group.setChecked(True)
+    assert model.sim_params['bodies'][1]['atmosphere']['scale_height_px'] == 0.125
+
+
 def test_body_atmosphere_an_edited_null_key_takes_the_spin_value(model: Any) -> None:
     """A null key edited while the group is off takes the spin's value when it is turned on."""
     _body_tab(model)

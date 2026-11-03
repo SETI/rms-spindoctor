@@ -85,7 +85,9 @@ def kept_or_shown(
         else:
             values[key] = shown
             continue
-        values[key] = kept_value if round(kept_shows, spin.decimals()) == shown else shown
+        # Compare as the spin displays both: Qt rounds an exact tie half-up, round() to even.
+        still_shown = spin.textFromValue(kept_shows) == spin.textFromValue(shown)
+        values[key] = kept_value if still_shown else shown
     return values
 
 
