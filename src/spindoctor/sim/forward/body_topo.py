@@ -451,8 +451,9 @@ def _shade_disc(
         # terminator.
         cos_i = np.where(shadowed, -1.0, cos_i)
 
-    # The clamped-depth parametrization has no far hemisphere (normal_z >= 0
-    # everywhere; night still floors through mu0 <= 0), so the emission
+    # The clamped-depth parametrization has no far hemisphere, and relief
+    # normals are mirrored onto the near one (normal_z >= 0 everywhere; night
+    # still floors through mu0 <= 0), so the emission
     # cosine is kept strictly positive: the visibility gate must not zero
     # the exact-limb ring, whose values the upsample continues across the
     # sharper silhouette boundary.
@@ -488,7 +489,9 @@ def _relief_shading(
     normals.  The sun direction goes to parameter space by the same affine
     map, where :func:`~spindoctor.sim.forward.relief.cast_shadows` marches the
     pixels whose sun elevation lies within the field's slope band; a pixel
-    below the band always lies in shadow.
+    below the band always lies in shadow.  A normal that faces away from the
+    observer is mirrored through the sky plane, so every returned
+    ``normal_z`` is at least 0.
 
     Parameters:
         grid: The shading-resolution geometry.
@@ -514,7 +517,12 @@ def _relief_shading(
     normal_body /= np.linalg.norm(normal_body, axis=-1, keepdims=True)
     normal_v = normal_body[..., 0] * cos_rz + normal_body[..., 1] * sin_rz
     normal_u = -normal_body[..., 0] * sin_rz + normal_body[..., 1] * cos_rz
-    normal_z = normal_body[..., 2]
+    # Near the limb a pixel's smooth-surface direction can land on a slope tilted
+    # away from the observer, which the line of sight can't see: it meets the near
+    # side of the relief first.  Mirroring the normal through the sky plane stands
+    # in for that slope, as steep but facing the observer, so the law never shades
+    # a back-facing facet as lit.
+    normal_z = np.abs(normal_body[..., 2])
 
     # The sun in the body frame (the inverse of the normals' in-plane
     # rotation), then in parameter space, where directions scale by 1 / semi.

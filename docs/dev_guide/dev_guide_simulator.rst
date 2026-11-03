@@ -1415,7 +1415,10 @@ space, where the smooth ellipsoid is the unit sphere, the relief surface
 field's surface gradient. The normal goes to the body frame through the
 ellipsoid's inverse semi-axes and into the image like the smooth normals, so a
 slope facing the sun brightens and one facing away darkens, across the whole
-lit disc and not only at the terminator.
+lit disc and not only at the terminator. Near the limb a pixel can read a slope
+tilted away from the observer, which the line of sight doesn't see: it meets
+the near side of the relief first. The renderer mirrors such a normal through
+the sky plane, which gives an equally steep slope facing the observer.
 
 The terrain also casts shadows. The map from the body frame to parameter space
 is affine, and an affine map carries a ray to a ray and a surface to a surface,

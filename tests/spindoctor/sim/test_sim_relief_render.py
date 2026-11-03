@@ -10,7 +10,7 @@ independently.
 """
 
 import math
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 import pytest
@@ -19,7 +19,7 @@ from spindoctor.sim import render
 from spindoctor.sim.forward import body_topo
 from spindoctor.sim.forward.body_topo import TopoBodySpec, create_topographic_body
 from spindoctor.sim.forward.photometry import DARK_SIDE_FLOOR
-from spindoctor.sim.forward.relief import synthesize_relief_field
+from spindoctor.sim.forward.relief import ReliefField, synthesize_relief_field
 from spindoctor.support.types import NDArrayFloatType
 
 _RMS = 0.02
@@ -229,14 +229,34 @@ def test_relief_darkens_no_pixel_above_the_slope_band(seed: int) -> None:
     assert float(elevation[newly_dark].max()) <= _band_elevation_deg(_RMS, seed) + 0.5
 
 
-def test_relief_normals_shade_a_lambert_disc() -> None:
-    """On a Lambert disc the relief brightness is the relief normal's cosine of incidence.
+def _surface_normals(field: ReliefField, points: NDArrayFloatType) -> NDArrayFloatType:
+    """Outward normals of the relief surface ``(1 + h) p``, from its own height samples.
 
-    At oversample 1 without supersampling the shading grid is the render grid, so a
-    lit, unshadowed pixel renders at ``n_relief . sun``; the relief must move the
-    brightness off the smooth disc's by a few percent somewhere.
+    The cross product of the surface's central differences along east and north,
+    half a field grid cell apart, so it shares nothing with the renderer's
+    gradient formula but the field's samples.
     """
-    size = 200
+    step = math.pi / field.grid.shape[0]
+    east = np.stack([-points[:, 1], points[:, 0], np.zeros(len(points))], axis=-1)
+    east /= np.linalg.norm(east, axis=-1, keepdims=True)
+    north = np.cross(points, east)
+
+    def chord(tangent: NDArrayFloatType) -> NDArrayFloatType:
+        ahead = points * math.cos(step) + tangent * math.sin(step)
+        behind = points * math.cos(step) - tangent * math.sin(step)
+        return cast(
+            NDArrayFloatType,
+            ahead * (1.0 + field.sample_points(ahead))[:, np.newaxis]
+            - behind * (1.0 + field.sample_points(behind))[:, np.newaxis],
+        )
+
+    normals = np.cross(chord(east), chord(north))
+    normals /= np.linalg.norm(normals, axis=-1, keepdims=True)
+    return cast(NDArrayFloatType, normals * np.sign(np.sum(normals * points, axis=-1))[:, None])
+
+
+def _lambert_relief_disc(*, rms: float, corr_deg: float) -> tuple[TopoBodySpec, Any, ReliefField]:
+    """A 75 px Lambert sphere with relief, shaded at the render grid, and its grid and field."""
     spec = TopoBodySpec(
         axis1=150.0,
         axis2=150.0,
@@ -244,32 +264,75 @@ def test_relief_normals_shade_a_lambert_disc() -> None:
         illumination_angle=math.radians(40.0),
         phase_angle=math.radians(35.0),
         anti_aliasing=0.0,
-        limb_relief_rms=_RMS,
-        limb_relief_corr_deg=_CORR_DEG,
+        limb_relief_rms=rms,
+        limb_relief_corr_deg=corr_deg,
         relief_seed=3,
     )
-    center = (size / 2.0, size / 2.0)
-    ragged = create_topographic_body((size, size), center, spec)
     grid = body_topo._body_grid(
-        (size, size), center, (75.0, 75.0, 75.0), cos_rz=1.0, sin_rz=0.0, cos_rt=1.0
+        (200, 200), (100.0, 100.0), (75.0, 75.0, 75.0), cos_rz=1.0, sin_rz=0.0, cos_rt=1.0
     )
-    field = synthesize_relief_field(_RMS, _CORR_DEG, 3)
+    return spec, grid, synthesize_relief_field(rms, corr_deg, 3)
+
+
+def test_relief_normals_shade_a_lambert_disc() -> None:
+    """On a Lambert disc the relief brightness is the relief surface's cosine of incidence.
+
+    At oversample 1 without supersampling the shading grid is the render grid, so a
+    lit, unshadowed pixel renders at ``n . sun`` for the surface's own normal, to the
+    0.02 the two difference schemes differ by (a sign-flipped relief misses by about
+    0.5).  Where the relief moves a pixel by more than 0.03, it moves it the same way.
+    """
+    spec, grid, field = _lambert_relief_disc(rms=_RMS, corr_deg=_CORR_DEG)
+    ragged = create_topographic_body((200, 200), (100.0, 100.0), spec)
+    smooth = create_topographic_body(
+        (200, 200), (100.0, 100.0), TopoBodySpec(**{**spec.__dict__, 'limb_relief_rms': 0.0})
+    )
     near = grid.e2 < 0.8
-    normal_v, normal_u, normal_z, shadowed = body_topo._relief_shading(
-        grid, spec, field, near, cos_rz=1.0, sin_rz=0.0
+    points = np.stack(
+        [grid.v_rot[near] / 75.0, grid.u_rot[near] / 75.0, np.sqrt(1.0 - grid.e2[near])], axis=-1
     )
     sin_phase = math.sin(spec.phase_angle)
-    cos_i = (
-        -math.cos(spec.illumination_angle) * sin_phase * normal_v
-        + math.sin(spec.illumination_angle) * sin_phase * normal_u
-        + math.cos(spec.phase_angle) * normal_z
+    sun = np.array(
+        [
+            -math.cos(spec.illumination_angle) * sin_phase,
+            math.sin(spec.illumination_angle) * sin_phase,
+            math.cos(spec.phase_angle),
+        ]
     )
+    cos_i = np.sum(_surface_normals(field, points) * sun, axis=-1)
+    shadowed = body_topo._relief_shading(grid, spec, field, near, cos_rz=1.0, sin_rz=0.0)[3]
     lit = (cos_i > 0.05) & ~shadowed[near]
-    np.testing.assert_allclose(ragged[near][lit], cos_i[lit], rtol=1e-9)
-    smooth = create_topographic_body(
-        (size, size), center, TopoBodySpec(**{**spec.__dict__, 'limb_relief_rms': 0.0})
+    np.testing.assert_allclose(ragged[near][lit], cos_i[lit], rtol=0.0, atol=0.02)
+    expected_change = cos_i[lit] - smooth[near][lit]
+    moved = np.abs(expected_change) > 0.03
+    assert int(moved.sum()) > 1000
+    rendered_change = ragged[near][lit][moved] - smooth[near][lit][moved]
+    np.testing.assert_array_equal(np.sign(rendered_change), np.sign(expected_change[moved]))
+
+
+def test_relief_normals_near_the_limb_face_the_observer() -> None:
+    """A slope tilted away from the observer near the limb is shaded as its mirror.
+
+    Rough relief tilts some of the surface's own normals away from the observer
+    inside the outline; every normal the renderer shades has ``normal_z >= 0``.
+    """
+    spec, grid, field = _lambert_relief_disc(rms=0.035, corr_deg=5.0)
+    reach = 1.0 + field.h_max + 2.0 / 75.0
+    near = grid.e2 < reach * reach
+    inside = body_topo._silhouette_mask(grid, field)[near] > 0.0
+    radial = np.sqrt(np.maximum(grid.e2[near], 1.0))
+    points = np.stack(
+        [
+            grid.v_rot[near] / 75.0 / radial,
+            grid.u_rot[near] / 75.0 / radial,
+            np.sqrt(np.maximum(0.0, 1.0 - grid.e2[near])),
+        ],
+        axis=-1,
     )
-    assert float(np.max(np.abs(ragged[near][lit] - smooth[near][lit]))) > 0.03
+    away = inside & (_surface_normals(field, points)[:, 2] < -0.05)
+    assert int(away.sum()) > 100
+    normal_z = body_topo._relief_shading(grid, spec, field, near, cos_rz=1.0, sin_rz=0.0)[2]
+    assert float(normal_z.min()) >= 0.0
 
 
 def _body_scene(*, oversample: int | None, body_extra: dict[str, Any]) -> dict[str, Any]:
