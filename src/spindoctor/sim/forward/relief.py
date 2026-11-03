@@ -532,7 +532,13 @@ def cast_shadows(
 
     Returns:
         ``(N,)`` booleans, True where the point is in a cast shadow.
+
+    Raises:
+        ValueError: If ``step`` is not a finite positive number, since the
+            march would then never leave the shell.
     """
+    if not (math.isfinite(step) and step > 0.0):
+        raise ValueError(f'cast_shadows step must be finite and positive, got {step!r}')
     p_hat = np.asarray(points, dtype=np.float64)
     p_hat = p_hat / np.maximum(np.linalg.norm(p_hat, axis=1, keepdims=True), 1e-300)
     count = p_hat.shape[0]

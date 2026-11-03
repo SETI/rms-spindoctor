@@ -387,6 +387,17 @@ def test_flat_terrain_casts_no_shadow() -> None:
     assert not cast_shadows(_random_directions(50, 3), sun, flat, step=0.01).any()
 
 
+@pytest.mark.parametrize(
+    'step', [0.0, -0.01, math.nan, math.inf], ids=['zero', 'negative', 'nan', 'inf']
+)
+def test_cast_shadows_refuses_a_step_that_never_leaves_the_shell(step: float) -> None:
+    """A step that isn't finite and positive raises instead of marching forever."""
+    field = synthesize_relief_field(0.035, 12.0, 2)
+    sun = np.array([0.1, 0.995, 0.0])
+    with pytest.raises(ValueError, match='step must be finite and positive'):
+        cast_shadows(_random_directions(5, 3), sun, field, step=step)
+
+
 def test_a_finer_step_changes_few_shadow_decisions() -> None:
     """Halving an eighth-cell step flips under 3% of a realization's cast shadows."""
     field = synthesize_relief_field(0.035, 12.0, 2)
