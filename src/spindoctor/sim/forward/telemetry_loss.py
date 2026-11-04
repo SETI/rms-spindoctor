@@ -71,12 +71,6 @@ def _activated(rng: np.random.Generator, probability: float) -> bool:
     return bool(rng.random() < probability)
 
 
-def _garbage_ceiling(signal: NDArrayFloatType, dn_ceiling: float) -> float:
-    """A plausible DN ceiling for garbage fills: the frame's peak, or the ADC word."""
-    peak = float(signal.max()) if signal.size else 0.0
-    return max(peak, dn_ceiling)
-
-
 def _as_dn(values: NDArrayFloatType, calibration: CalibrationMap | None) -> NDArrayFloatType:
     """The transmitted DN of frame values: themselves on a raw frame, mapped back from I/F."""
     return values if calibration is None else calibration.to_dn(values)
@@ -386,12 +380,11 @@ def apply_line_garble(
     n = _poisson_count(rng, expected_events, size_v)
     if n == 0 or size_u < 1:
         return {'lines': []}
-    ceiling = _garbage_ceiling(_as_dn(signal, calibration), dn_ceiling)
     rows = choose_rows(loci, n, size_v, rng, adversarial=adversarial)
     garbled: list[dict[str, int]] = []
     for row in rows.tolist():
         k = int(rng.integers(0, size_u))
-        garbage = rng.uniform(0.0, ceiling, size=size_u - k)
+        garbage = rng.uniform(0.0, dn_ceiling, size=size_u - k)
         signal[row, k:] = _as_valid_frame(garbage, calibration, marker_dn)
         garbled.append({'row': int(row), 'garble_from': k})
     return {'lines': garbled}
@@ -433,8 +426,7 @@ def apply_pixel_spikes(
         flipped = np.minimum((current ^ bits).astype(np.float64), dn_ceiling)
         signal[vs, us] = _as_valid_frame(flipped, calibration, marker_dn)
     else:
-        ceiling = _garbage_ceiling(_as_dn(signal, calibration), dn_ceiling)
-        draws = rng.uniform(0.0, ceiling, size=vs.size)
+        draws = rng.uniform(0.0, dn_ceiling, size=vs.size)
         signal[vs, us] = _as_valid_frame(draws, calibration, marker_dn)
     pixels = [[int(v), int(u)] for v, u in zip(vs.tolist(), us.tolist(), strict=True)]
     return {'pixels': pixels}

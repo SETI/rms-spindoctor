@@ -150,9 +150,10 @@ def add_hot_pixels(
     uniform population is the detector's fixed map
     (:func:`detector_hot_pixel_map`), the same pixels and amplitudes in every
     scene that emulates the detector.  An adversarial population drawn onto
-    the navigation features comes from ``candidate_pool`` instead: ``round(
-    fraction * size)`` draws from the scene's seeded ``rng``.  A zero fraction
-    or amplitude is a no-op.
+    the navigation features comes from ``candidate_pool`` instead:
+    ``round(fraction * size)`` distinct pool pixels, or the whole pool when it
+    holds fewer, drawn without replacement from the scene's seeded ``rng``.  A
+    zero fraction or amplitude is a no-op.
 
     Parameters:
         electrons: The electron image, modified in place.
@@ -181,10 +182,10 @@ def add_hot_pixels(
         if n_hot <= 0:
             return {'pixels': [], 'amplitudes_e': []}
         pool_v, pool_u = candidate_pool
-        pick = rng.integers(0, pool_v.size, size=n_hot)
+        pick = rng.choice(pool_v.size, size=min(n_hot, pool_v.size), replace=False)
         hot_v = pool_v[pick]
         hot_u = pool_u[pick]
-        amps = amplitude_e * rng.exponential(1.0, size=n_hot)
+        amps = amplitude_e * rng.exponential(1.0, size=pick.size)
     else:
         hot_v, hot_u, relative = detector_hot_pixel_map(
             (size_v, size_u), fraction=fraction, detector_id=detector_id, binning=binning

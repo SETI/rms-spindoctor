@@ -67,10 +67,10 @@ def test_lock_single_dense_recovers_offset() -> None:
 
 
 def test_saturated_star_recovers_within_bias_tolerance() -> None:
-    """A clipped bright star navigates; the tolerance absorbs its centroid bias.
+    """A clipped bright star navigates close to the planted offset.
 
-    The measured recovered-vs-planted error at this geometry is ~0.61 px,
-    dominated by the clipped-core centroid shift; the tolerance is 1.0 px.
+    The clipped core is centroided over its whole flat top, and the measured
+    recovered-vs-planted error at this geometry is ~0.03 px; the tolerance is 1.0 px.
     """
     assert _offset_error('saturated_star') < 1.0
 

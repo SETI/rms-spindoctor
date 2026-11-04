@@ -43,6 +43,11 @@ def _load(name: str) -> list[dict[str, Any]]:
     return list(json.loads(path.read_text())['rows'])
 
 
+def _all_ran(names: list[str]) -> bool:
+    """Whether every named sweep has a result, so a figure drawing them is whole."""
+    return all((_RESULTS_ROOT / f'{name}.json').is_file() for name in names)
+
+
 def _base_mesh_seed(name: str) -> int:
     """Return the first body's ``mesh_seed`` in a sweep result's base scene."""
     base = json.loads((_RESULTS_ROOT / f'{name}.json').read_text())['base_scene']
@@ -59,9 +64,11 @@ def _xy(rows: list[dict[str, Any]], key: str) -> tuple[list[float], list[float]]
 
 def _offset_figure(which: str, title: str, out_name: str) -> None:
     """Plot offset error vs planted offset for every technique's ``which`` sweep."""
+    names = [fine if which == 'fine' else wide for _key, fine, wide, _m, _l in _OFFSET_TECHNIQUES]
+    if not _all_ran(names):
+        return
     fig, ax = plt.subplots(figsize=(8.0, 5.0))
-    for _key, fine, wide, marker, label in _OFFSET_TECHNIQUES:
-        name = fine if which == 'fine' else wide
+    for name, (_key, _fine, _wide, marker, label) in zip(names, _OFFSET_TECHNIQUES, strict=True):
         xs, ys = _xy(_load(name), 'offset_error_px')
         if xs:
             ax.plot(xs, ys, marker=marker, ms=4, lw=1.2, label=label)
@@ -84,10 +91,10 @@ def _star_regime_figure() -> None:
     keeps the moment centroid (above the configured SNR ceiling) and reaches a
     far smaller error -- the visible payoff of the per-star moment/PSF choice.
     """
+    if not _all_ran(['star_offset_fine', 'star_offset_fine_bright']):
+        return
     dim = _load('star_offset_fine')
     bright = _load('star_offset_fine_bright')
-    if not dim and not bright:
-        return
     fig, ax = plt.subplots(figsize=(8.0, 5.0))
     for rows, marker, label in [
         (dim, 'v', 'dim field (PSF-refined, vmag 3-4)'),
@@ -219,6 +226,8 @@ def _mismatch_axes_figure() -> None:
     is annotated on the axis rather than plotted.  The grid is sized to the
     axis count; any unused trailing panel is hidden.
     """
+    if not _all_ran([name for name, _xlabel, _title in _MISMATCH_AXES]):
+        return
     n_cols = 3
     n_rows = -(-len(_MISMATCH_AXES) // n_cols)
     fig, axes = plt.subplots(n_rows, n_cols, figsize=(13.5, 4.0 * n_rows))
@@ -263,7 +272,12 @@ def _mismatch_axes_figure() -> None:
 
 
 def generate_plots() -> list[Path]:
-    """Render all report figures from the sweep results; return their paths."""
+    """Render the report figures from the sweep results; return every figure's path.
+
+    A figure is drawn only when each sweep it plots has a result, so a partial
+    run (``sim_sweep_runner --only NAME``) leaves the figures of the sweeps it
+    skipped as they are, not redrawn with empty panels.
+    """
     _FIGURES_ROOT.mkdir(parents=True, exist_ok=True)
     _offset_figure(
         'fine',

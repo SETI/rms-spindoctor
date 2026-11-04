@@ -35,8 +35,9 @@ noise:
 offset_v: 1.43
 offset_u: -0.61
 offset_rotation_deg: 0.0
-# The one-star path caps at the medium tier (no independent cross-check); the
+# A one-star answer is capped at the low tier (no independent cross-check); the
 # planted offset is recovered to a few hundredths of a pixel.
 expected:
   status: success
-  confidence_tier: medium
+  confidence_tier: low
+  status_reason: single_star_only

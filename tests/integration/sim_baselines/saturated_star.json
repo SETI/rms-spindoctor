@@ -1,7 +1,7 @@
 {
-  "confidence": 0.99,
-  "offset_du_px": -0.38,
-  "offset_dv_px": 1.37,
+  "confidence": 0.8,
+  "offset_du_px": -0.6,
+  "offset_dv_px": 1.41,
   "scene_name": "saturated_star",
   "status": "success"
 }

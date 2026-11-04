@@ -78,6 +78,18 @@ def test_split_stationary_identifies_recurring_position() -> None:
     assert transient == pytest.approx(1.0 / (64 * 64), rel=0.01)
 
 
+def test_split_stationary_keeps_frames_of_different_shapes_apart() -> None:
+    """A position shared by frames of two shapes isn't a recurring hot pixel."""
+    frames = []
+    for seed, shape in ((45, (64, 64)), (46, (48, 48))):
+        frame = _noise_frame(seed, shape=shape)
+        frame[5, 5] += 500.0
+        frames.append(measure_artifact_incidence(frame))
+    stationary, transient = split_stationary_spikes(frames)
+    assert stationary == 0.0
+    assert transient == pytest.approx((1.0 / (64 * 64) + 1.0 / (48 * 48)) / 2.0)
+
+
 def test_split_stationary_single_frame_is_nan() -> None:
     """One frame cannot split hot pixels from transients."""
     stationary, transient = split_stationary_spikes([measure_artifact_incidence(_noise_frame(44))])

@@ -132,13 +132,16 @@ jobs:
             -m "(not integration or sim_integration) and not postgres"
 
       # When a render or gallery currency check fails, the fresh renders it
-      # compared against show what CI produced, for review or to diff locally.
+      # compared against show what CI produced, for review or to diff locally:
+      # the regenerated galleries, and each stale render-diff scene.
       - name: Upload fresh simulator renders
         if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: sim-renders-${{ matrix.python-version }}
-          path: /tmp/pytest-of-*/pytest-*/popen-*/sim_doc_images*/
+          path: |
+            /tmp/pytest-of-*/pytest-*/popen-*/sim_doc_images*/
+            /tmp/pytest-of-*/pytest-*/popen-*/sim_render_diffs*/
           if-no-files-found: ignore
           retention-days: 7
 
