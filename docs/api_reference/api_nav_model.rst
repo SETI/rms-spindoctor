@@ -13,6 +13,11 @@ spindoctor.nav_model
    :undoc-members:
    :show-inheritance:
 
+.. automodule:: spindoctor.nav_model.limb_placement
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 .. automodule:: spindoctor.nav_model.nav_model_body
    :members:
    :undoc-members:
