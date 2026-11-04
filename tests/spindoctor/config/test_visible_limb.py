@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any
 
@@ -168,16 +169,16 @@ def test_model_for_is_none_without_an_entry(inst_config: dict[str, Any] | None) 
 
 
 def test_validation_names_the_camera() -> None:
-    """A malformed entry anywhere in the configuration fails, naming section and camera."""
-    config = {'inst_x': {'cam': {'visible_limb_altitude': {'SATURN': {**_ENTRY, 'sigma_km': -1}}}}}
+    """A malformed entry fails, naming the camera block that carries it."""
+    block = {'visible_limb_altitude': {'SATURN': {**_ENTRY, 'sigma_km': -1}}}
     with pytest.raises(ValueError, match=r'inst_x\.cam\.visible_limb_altitude: SATURN'):
-        validate_visible_limb_config(config)
+        validate_visible_limb_config([('inst_x.cam', block)])
 
 
 def test_validation_rejects_a_non_mapping_block() -> None:
     """A visible-limb block that is not a mapping fails."""
     with pytest.raises(ValueError, match='must be a mapping'):
-        validate_visible_limb_config({'inst_x': {'cam': {'visible_limb_altitude': [1]}}})
+        validate_visible_limb_config([('inst_x.cam', {'visible_limb_altitude': [1]})])
 
 
 def test_validation_accepts_the_packaged_configuration() -> None:
@@ -196,5 +197,25 @@ def test_a_malformed_override_fails_when_loaded(tmp_path: Path) -> None:
     )
     config = Config()
     config.read_config()
-    with pytest.raises(ValueError, match='sigma_km must be finite'):
+    with pytest.raises(
+        ValueError,
+        match=r'^cassini_iss\.wac\.visible_limb_altitude: SATURN: sigma_km must be finite',
+    ):
+        config.update_config(override)
+
+
+def test_a_malformed_entry_in_a_single_camera_section_fails_when_loaded(tmp_path: Path) -> None:
+    """A section that is itself the camera block has its entry checked when loaded."""
+    entry = {**_ENTRY, 'sigma_km': -5.0}
+    override = tmp_path / 'override.yaml'
+    override.write_text(
+        # JSON is YAML, so the entry is written without a YAML library.
+        json.dumps({'newhorizons_lorri': {'visible_limb_altitude': {'PLUTO': entry}}})
+    )
+    config = Config()
+    config.read_config()
+    with pytest.raises(
+        ValueError,
+        match=r'^newhorizons_lorri\.visible_limb_altitude: PLUTO: sigma_km must be finite',
+    ):
         config.update_config(override)

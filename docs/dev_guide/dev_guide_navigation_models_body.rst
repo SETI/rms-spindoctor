@@ -124,50 +124,50 @@ emission gates skip the corresponding feature without special-case handling.
 Placing the limb on the visible edge
 ------------------------------------
 
-The limb mask marks the outermost pixel whose center lies on the body, so a raw limb vertex
-is a pixel center between zero and one pixel inside the silhouette: on real Cassini frames
-the ridge sits 0.4 to 0.5 px inside on average. For a planet with an atmosphere the image
-edge a limb fit aligns to is not that silhouette at all but the haze above the 1-bar
+The limb mask marks the outermost pixel whose center lies on the body, so a raw limb
+vertex is a pixel center between zero and one pixel inside the silhouette: on real Cassini
+frames the ridge sits 0.4 to 0.5 px inside on average. For a planet with an atmosphere the
+image edge a limb fit aligns to is not that silhouette at all but the haze above the 1-bar
 ellipsoid. A partial arc gives
-:class:`~spindoctor.nav_technique.nav_technique_body_limb.BodyLimbNav` no radial freedom to
-absorb the difference, so it turns into translation along the arc's normal, about 4/pi of
-the radial difference on a half disc.
+:class:`~spindoctor.nav_technique.nav_technique_body_limb.BodyLimbNav` no radial freedom
+to absorb the difference, so it turns into translation along the arc's normal, about 4/pi
+of the radial difference on a half disc.
 
 ``NavModelBody._limb_on_visible_edge`` therefore places the limb on its visible edge when
 the observation's per-camera instrument configuration carries a visible-limb model for the
 body (a ``visible_limb_altitude`` entry, read by
 :func:`~spindoctor.config.visible_limb.visible_limb_model_for` into a
 :class:`~spindoctor.config.visible_limb.VisibleLimbModel`, and validated when the
-configuration is loaded). :func:`~spindoctor.nav_model.limb_placement.place_on_visible_limb`
-evaluates the geometry layer's limb-altitude backplane (the height above the ellipsoid of
-the line of sight's closest approach, negative on the body) at each vertex and one pixel out
-along its normal. The altitude is linear between the two, so the vertex reaches altitude
-:math:`h` after :math:`(h - a_{0}) / (a_{1} - a_{0})` pixels, and
-:math:`1 / (a_{1} - a_{0})` is its sensitivity in pixels per kilometer of altitude. A vertex
-whose altitude does not rise outward, or is masked, is dropped and counted as lost. The
-median of :math:`a_{1} - a_{0}` is the limb's scale in kilometers per pixel; a limb whose
-scale or phase angle lies outside the ranges the model was measured over keeps its raw
-ridge.
+configuration is loaded).
+:func:`~spindoctor.nav_model.limb_placement.place_on_visible_limb` evaluates the geometry
+layer's limb-altitude backplane (the height above the ellipsoid of the line of sight's
+closest approach, negative on the body) at each vertex and one pixel out along its normal.
+The altitude is linear between the two, so the vertex reaches altitude :math:`h` after
+:math:`(h - a_{0}) / (a_{1} - a_{0})` pixels, and :math:`1 / (a_{1} - a_{0})` is its
+sensitivity in pixels per kilometer of altitude. A vertex whose altitude does not rise
+outward, or is masked, is dropped and counted as lost. The median of :math:`a_{1} - a_{0}`
+is the limb's scale in kilometers per pixel; a limb whose scale or phase angle lies
+outside the ranges the model was measured over keeps its raw ridge.
 
 The model's altitude is a phase-angle table for broadband and continuum filters plus
-per-filter offsets for absorption bands. Which instruments carry one, for which bodies, and
-how it was measured is stated in each instrument's chapter under
+per-filter offsets for absorption bands. Which instruments carry one, for which bodies,
+and how it was measured is stated in each instrument's chapter under
 :doc:`instruments/instruments`. A placed limb sits on the haze while the disc correlation
 and blob templates still use the ellipsoid's silhouette, so on a partial frame of such a
 body the limb and the disc locate slightly different edges.
 
-Every other body keeps the raw ridge pixel centers. Where an airless body's image edge lies
-relative to its silhouette depends on its photometry, which the model does not yet predict:
-fit for translation and altitude together on full discs, the icy moons' edges sit within
-about half a pixel of the silhouette, inside it at low phase and outside at high phase,
-and Tethys's sits 2 to 3 km inside its ellipsoid on most frames. Moving their vertices onto
-the silhouette without that photometric prediction would trade the pixel-center inset for an
-error of the same size and the opposite sign at low phase.
+Every other body keeps the raw ridge pixel centers. Where an airless body's image edge
+lies relative to its silhouette depends on its photometry, which the model does not yet
+predict: fit for translation and altitude together on full discs, the icy moons' edges sit
+within about half a pixel of the silhouette, inside it at low phase and outside at high
+phase, and Tethys's sits 2 to 3 km inside its ellipsoid on most frames. Moving their
+vertices onto the silhouette without that photometric prediction would trade the
+pixel-center inset for an error of the same size and the opposite sign at low phase.
 
 A placed polyline carries each vertex's altitude sensitivity and the model's altitude
 uncertainty on its :class:`~spindoctor.feature.geometry.LimbPolyline`, for the limb fit's
-covariance (see :doc:`dev_guide_techniques_body_limb`), and its bounding box grows to cover
-vertices moved outside the body's box. The terminator polyline is not moved.
+covariance (see :doc:`dev_guide_techniques_body_limb`), and its bounding box grows to
+cover vertices moved outside the body's box. The terminator polyline is not moved.
 
 Per-vertex position covariance
 ------------------------------

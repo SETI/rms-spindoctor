@@ -337,6 +337,24 @@ def test_rotation_fit_term_matches_a_planted_altitude_shift(
     assert np.sqrt(added[2, 2]) == pytest.approx(abs(shift[2]), rel=0.5)
 
 
+def test_rotation_sigma_includes_the_altitude_term(
+    make_limb_feature: NavFeatureFactory,
+    make_nav_context: NavContextFactory,
+) -> None:
+    """The reported rotation sigma is read from the covariance the altitude term widened."""
+    vv, uu = np.mgrid[0:200, 0:200]
+    inside = ((vv - 100.0) / 25.0) ** 2 + ((uu - 100.0) / 45.0) ** 2 <= 1.0
+    image = gaussian_filter(np.where(inside, 100.0, 0.0), 0.7)
+    vertices, outward = _ellipse_arc((100.0, 100.0), (25.0, 45.0), -np.pi / 2, np.pi / 4, 150)
+    plain = make_limb_feature('moonG', vertices=vertices, outward_normals=outward)
+    context = make_nav_context(image, fit_camera_rotation=True)
+    base = BodyLimbNav().navigate([plain], context)
+    priced = BodyLimbNav().navigate([_with_altitude(plain, np.full(150, 0.03), 10.0)], context)
+    # The term must widen the rotation variance for the test to tell the two reads apart.
+    assert priced.covariance_px2[2, 2] > 1.5 * base.covariance_px2[2, 2]
+    assert priced.sigma_rotation_rad == pytest.approx(math.sqrt(priced.covariance_px2[2, 2]))
+
+
 def test_cropped_displacements_stay_with_their_bodies() -> None:
     """Cropping two bodies' concatenated displacements keeps each body's survivors."""
     parts = [np.array([1.0, 2.0, 3.0]), np.array([4.0, 5.0, 6.0, 7.0])]

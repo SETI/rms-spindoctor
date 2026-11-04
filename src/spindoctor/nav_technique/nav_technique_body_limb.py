@@ -398,7 +398,10 @@ class BodyLimbNav(NavTechnique):
         Returns:
             A :class:`NavTechniqueResult` with the recovered offset,
             calibrated confidence, and a populated
-            :class:`BodyLimbDiagnostics`.  The covariance shape and the
+            :class:`BodyLimbDiagnostics`.  ``covariance_px2`` is the LM
+            M-estimator's covariance plus the visible-limb altitude term,
+            with the model-error floor added to the translation diagonal.
+            The covariance shape and the
             ``rotation_rad`` / ``sigma_rotation_rad`` fields depend on
             ``context.fit_camera_rotation``:
 
@@ -408,11 +411,11 @@ class BodyLimbNav(NavTechnique):
               :func:`~spindoctor.nav_technique.dt_fitting.lm_subpixel_refine`
               is logged at WARNING and truncated to the 2x2 translation
               block.
-            - ``True`` (VGISS / GOSSI): ``covariance_px2`` is the LM
-              M-estimator's ``(3, 3)`` translation + rotation
-              information matrix; ``rotation_rad`` is the converged
-              ``theta`` (radians) and ``sigma_rotation_rad`` is the
-              square root of the rotation diagonal.  An unexpected
+            - ``True`` (VGISS / GOSSI): ``covariance_px2`` is the
+              ``(3, 3)`` translation + rotation covariance;
+              ``rotation_rad`` is the converged ``theta`` (radians) and
+              ``sigma_rotation_rad`` is the square root of the rotation
+              diagonal.  An unexpected
               covariance shape is treated as a programmer error and
               raises ``RuntimeError``.
         """
@@ -522,7 +525,6 @@ class BodyLimbNav(NavTechnique):
             )
             covariance = result.covariance
             rotation_rad: float | None
-            sigma_rotation_rad: float | None
             if fit_rotation:
                 if covariance.shape != (3, 3):
                     raise RuntimeError(
@@ -530,7 +532,6 @@ class BodyLimbNav(NavTechnique):
                         f'got {covariance.shape}'
                     )
                 rotation_rad = float(result.rotation_rad)
-                sigma_rotation_rad = float(np.sqrt(max(float(covariance[2, 2]), 0.0)))
             else:
                 if covariance.shape != (2, 2):
                     self.logger.warning(
@@ -540,7 +541,6 @@ class BodyLimbNav(NavTechnique):
                     )
                     covariance = covariance[:2, :2]
                 rotation_rad = None
-                sigma_rotation_rad = None
             # ``at_edge`` fires when the converged offset reaches or passes
             # the search-window boundary along either axis.  ``>=`` covers
             # both the "just inside the boundary within tolerance" case and
@@ -640,13 +640,6 @@ class BodyLimbNav(NavTechnique):
                 int(vertices.shape[0]),
                 float(confidence),
             )
-            if fit_rotation and sigma_rotation_rad is not None and rotation_rad is not None:
-                self.logger.info(
-                    'Rotation = %+.4f deg (sigma %.4f deg)%s',
-                    math.degrees(rotation_rad),
-                    math.degrees(sigma_rotation_rad),
-                    ', AT_EDGE' if rotation_at_edge else '',
-                )
             if spurious or at_edge:
                 self.logger.info('Diagnostic flags: spurious=%s, at_edge=%s', spurious, at_edge)
             self.logger.debug(
@@ -676,6 +669,17 @@ class BodyLimbNav(NavTechnique):
                 covariance[:size, :size] += altitude_cov
             # Model-error floor (#210); rationale on load_model_error_floor.
             covariance = add_model_error_floor(covariance, self._model_error_floor_px)
+            # Read after the altitude term, which can widen the rotation variance, so
+            # the reported sigma is the returned covariance's.
+            sigma_rotation_rad: float | None = None
+            if rotation_rad is not None:
+                sigma_rotation_rad = float(np.sqrt(max(float(covariance[2, 2]), 0.0)))
+                self.logger.info(
+                    'Rotation = %+.4f deg (sigma %.4f deg)%s',
+                    math.degrees(rotation_rad),
+                    math.degrees(sigma_rotation_rad),
+                    ', AT_EDGE' if rotation_at_edge else '',
+                )
             return NavTechniqueResult(
                 technique_name=self.name,
                 feature_ids=tuple(feature_ids),

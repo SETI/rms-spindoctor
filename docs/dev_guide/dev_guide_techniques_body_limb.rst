@@ -115,16 +115,16 @@ altitude (see :doc:`dev_guide_navigation_models_body`), that altitude is one unc
 number shared by every vertex of the body's polyline. Its error therefore moves the whole
 arc at once and is not per-vertex noise.
 :func:`~spindoctor.nav_technique.nav_technique_body_limb.limb_altitude_covariance`
-linearizes the weighted fit with Jacobian rows :math:`j_{i}` (the normal :math:`n_{i}`, plus
-the rotation lever :math:`n_{i} \cdot \partial x_{i} / \partial \theta` when the fit solves
-for rotation): a displacement :math:`d_{i}` of vertex :math:`i` along its normal moves the
-pose by :math:`g = A^{+} \sum_{i} w_{i} j_{i} d_{i}` with
+linearizes the weighted fit with Jacobian rows :math:`j_{i}` (the normal :math:`n_{i}`,
+plus the rotation lever :math:`n_{i} \cdot \partial x_{i} / \partial \theta` when the fit
+solves for rotation): a displacement :math:`d_{i}` of vertex :math:`i` along its normal
+moves the pose by :math:`g = A^{+} \sum_{i} w_{i} j_{i} d_{i}` with
 :math:`A = \sum_{i} w_{i} j_{i} j_{i}^{T}` and :math:`A^{+}` its pseudo-inverse, where
 :math:`w_{i}` are the final fit weights of the fitted vertices and :math:`d_{i}` is the
 vertex's altitude sensitivity times the one-sigma altitude uncertainty. The pseudo-inverse
 keeps the term in the directions the arc constrains: on a circular arc rotation about the
-pivot is indistinguishable from translation, and on a straight arc the tangent is free. Each
-body contributes :math:`g g^{T}`, the bodies' terms add, and the sum joins the pose
+pivot is indistinguishable from translation, and on a straight arc the tangent is free.
+Each body contributes :math:`g g^{T}`, the bodies' terms add, and the sum joins the pose
 covariance before the floor. A full disc cancels the term; a half disc carries 4/pi of the
 radial displacement along its mean normal.
 
@@ -133,8 +133,8 @@ limb runs off the frame the sensor boundary is a sharp edge, of the polarity a l
 expects, and the navigation blur (1.2 px) carries its gradient about three pixels into the
 sensor. After the coarse search the technique therefore fits only the vertices that the
 coarse seed puts on a sensor pixel at least ``sensor_edge_inset_px`` from the sensor's
-edge, and flags the fit spurious when fewer than ``min_arc_vertices`` remain. Deciding at the
-seed, rather than at the predicted position, keeps the vertices a large pointing error
+edge, and flags the fit spurious when fewer than ``min_arc_vertices`` remain. Deciding at
+the seed, rather than at the predicted position, keeps the vertices a large pointing error
 brings into the frame. Leaving the margin vertices out removes their bias, but it can also
 remove what made a wrong lock fail the tests that mark a fit spurious (an unconverged fit
 pinned at the trust region converges once the boundary stops pulling on it), and the
@@ -144,26 +144,25 @@ cropped fit, including the mis-lock test and its refit described below. This is 
 full-arc check. If the full arc fails it, the cropped fit is flagged spurious too. On 845
 Cassini ISS Saturn limb fits at known pointing (835 wide-angle, 10 narrow-angle), with the
 limb already on its visible edge, the crop and the full-arc check together kept every
-refused fit refused and refused 33 more (29 off by more than 2 px and 4
-within 1 px). Of the 231 answered both ways, 59 moved closer to the reference by more than
-0.1 px and 19 farther. Without the full-arc check the crop would have turned 123 refused
-fits into answers off by more than 2 px, and 66 into answers within 2 px. The coarse search
-still scores every vertex, margin ones included, and it is not repeated on the cropped set.
-The shorter arc gives it less to hold on to along its length, and on these fits a second
+refused fit refused and refused 33 more (29 off by more than 2 px and 4 within 1 px). Of
+the 231 answered both ways, 59 moved closer to the reference by more than 0.1 px and 19
+farther. Without the full-arc check the crop would have turned 123 refused fits into
+answers off by more than 2 px, and 66 into answers within 2 px. The coarse search still
+scores every vertex, margin ones included, and it is not repeated on the cropped set. The
+shorter arc gives it less to hold on to along its length, and on these fits a second
 search slid the seed two or three pixels along the arc. The seed is an integer pixel, and
-the refinement starts there with the
-cropped set. The crop covers the frame boundary only: missing-data pixels inside the sensor
-are filled with zeros too and can still present an edge. The confidence term
-``visible_arc_px`` counts the fitted vertices, while ``visible_limb_arc_fraction`` still
-counts the whole predicted ridge.
+the refinement starts there with the cropped set. The crop covers the frame boundary only:
+missing-data pixels inside the sensor are filled with zeros too and can still present an
+edge. The confidence term ``visible_arc_px`` counts the fitted vertices, while
+``visible_limb_arc_fraction`` still counts the whole predicted ridge.
 
 **Partial-arc radial bias.** On a partial arc the translation-only fit has no radial
 freedom, so any radial difference between the predicted vertices and the image edge
 becomes translation along the arc's normal. The differences measured so far:
 
 - The limb mask's pixel centers sit 0.4 to 0.5 px inside the silhouette. A limb placed on
-  its visible edge moves off them; any other limb keeps them, and for an airless body their
-  inset roughly offsets the photometric inset of its image edge at low phase.
+  its visible edge moves off them; any other limb keeps them, and for an airless body
+  their inset roughly offsets the photometric inset of its image edge at low phase.
 - Vertices in the zero-padded margin, or within a few pixels of the sensor's edge, see the
   sensor boundary; they are left out of the fit as above.
 - A planet's image limb is its haze, tens to hundreds of kilometers above the reference
@@ -171,9 +170,9 @@ becomes translation along the arc's normal. The differences measured so far:
   placed there; the measurements are in the instrument chapters.
 
 Library moon frames with independent star answers still put the limb answer about 0.7 px
-inward of the star answer along the arc normal on average, over 11 frames with a standard error of
-about 0.5 px. Neither the haze nor the margin explains that; it belongs to the photometric
-limb below.
+inward of the star answer along the arc normal on average, over 11 frames with a standard
+error of about 0.5 px. Neither the haze nor the margin explains that; it belongs to the
+photometric limb below.
 
 The simulator's clipped-body cohorts showed a further one: a mean radial error of about
 -2 px on half-visible bodies at 8 to 14 degrees phase. In the twelve scenes examined it is
@@ -182,45 +181,47 @@ puts the gradient peak 1 to 4 px inside the silhouette in both the rendered imag
 rendered model. Fit for translation and altitude together on full discs, the icy moons in
 real frames show their image edge within about half a pixel of the silhouette.
 
-One further systematic is a **model-vs-image edge-localization bias floor of ~0.1 px** in the
-recovered offset (median ~0.09-0.14 px over a dense sub-pixel sweep depending on the cross-axis
-phase, up to ~0.25 px at the worst two-axis phase). It is *independent of SNR* -- it persists
-on a clean, high-signal frame -- so it is not a noise effect. Its origin is the mismatch
-between what the ``LIMB_ARC`` model predicts and what the image edge actually is: the model
-predicts the *geometric silhouette*, but a body limb is a one-sided brightness transition
-(sky outside, limb-darkened surface rising from ~0 at the silhouette inside), so after PSF
-convolution the gradient-magnitude peak -- the feature any edge-fit locks onto -- sits a
-fraction of the PSF width *inside* the silhouette. On a clean, zero-planted-offset render the
-limb fit therefore recovers ~(0.06, 0.08) px instead of (0, 0), and a direct measurement of
-the signed normal distance from the model silhouette to the gradient peak gives a median of
-~+0.10 px inward.
+One further systematic is a **model-vs-image edge-localization bias floor of ~0.1 px** in
+the recovered offset (median ~0.09-0.14 px over a dense sub-pixel sweep depending on the
+cross-axis phase, up to ~0.25 px at the worst two-axis phase). It is *independent of SNR*
+-- it persists on a clean, high-signal frame -- so it is not a noise effect. Its origin is
+the mismatch between what the ``LIMB_ARC`` model predicts and what the image edge actually
+is: the model predicts the *geometric silhouette*, but a body limb is a one-sided
+brightness transition (sky outside, limb-darkened surface rising from ~0 at the silhouette
+inside), so after PSF convolution the gradient-magnitude peak -- the feature any edge-fit
+locks onto -- sits a fraction of the PSF width *inside* the silhouette. On a clean,
+zero-planted-offset render the limb fit therefore recovers ~(0.06, 0.08) px instead of (0,
+0), and a direct measurement of the signed normal distance from the model silhouette to
+the gradient peak gives a median of ~+0.10 px inward.
 
-The integer-quantized distance transform (see :doc:`dev_guide_techniques_dt_fitting`) adds its
-own sub-pixel-phase jitter on top, and its quantization + Tukey + trust-region machinery
-*accidentally* pulls the fit ~0.1 px back toward truth, so the observed ~0.1 px floor is the
-partial cancellation of a larger (~0.16 px) inward model-image offset against that pull. This
-matters for the remedy: fitting the final sub-pixel offset against the *continuous* gradient
-field (the ``gradient_ridge_refine`` stage in :doc:`dev_guide_techniques_dt_fitting`, wired but
-held off via the ``gradient_ridge_refine`` tuning flag) converges precisely onto the gradient
-peak, which removes the lucky cancellation and *sharpens* the bias rather than removing it --
-clean planted-(0,0) recovery worsens from ~0.10 px to ~0.17 px. The ring edge, being a
-symmetric transition whose gradient peak coincides with the geometric edge, does not have this
+The integer-quantized distance transform (see :doc:`dev_guide_techniques_dt_fitting`) adds
+its own sub-pixel-phase jitter on top, and its quantization + Tukey + trust-region
+machinery *accidentally* pulls the fit ~0.1 px back toward truth, so the observed ~0.1 px
+floor is the partial cancellation of a larger (~0.16 px) inward model-image offset against
+that pull. This matters for the remedy: fitting the final sub-pixel offset against the
+*continuous* gradient field (the ``gradient_ridge_refine`` stage in
+:doc:`dev_guide_techniques_dt_fitting`, wired but held off via the
+``gradient_ridge_refine`` tuning flag) converges precisely onto the gradient peak, which
+removes the lucky cancellation and *sharpens* the bias rather than removing it -- clean
+planted-(0,0) recovery worsens from ~0.10 px to ~0.17 px. The ring edge, being a symmetric
+transition whose gradient peak coincides with the geometric edge, does not have this
 offset and is already at its floor (~0.016 px) without the refine. The genuine remedy is a
 *model-side* fix that predicts the limb at the gradient-peak location (limb-darkening- and
 PSF-aware); the visible-limb placement is the geometric part of that fix for planets an
-instrument models, and the photometric part has not been made. Until then the limb fit is the least precise of
-the point-feature techniques on a well-resolved body, though it stays well inside the
-navigability bound. When the converged offset
-sits within a small tolerance of any axis bound of the search window, or when the rotation
-parameter is at the configured fraction of its cap, the result is flagged :attr:`~spindoctor.nav_technique.technique_result.NavTechniqueResult.at_edge` and the
+instrument models, and the photometric part has not been made. Until then the limb fit is
+the least precise of the point-feature techniques on a well-resolved body, though it stays
+well inside the navigability bound. When the converged offset sits within a small
+tolerance of any axis bound of the search window, or when the rotation parameter is at the
+configured fraction of its cap, the result is flagged
+:attr:`~spindoctor.nav_technique.technique_result.NavTechniqueResult.at_edge` and the
 confidence formula's hard-zero gate forces confidence to zero. The spurious tests key on
 the Tukey-weighted DT residual RMS, the unweighted (raw) DT residual RMS against the same
 threshold (so a fit where Tukey rejects a wholly mis-aligned arc cannot pass on its
 collapsed weighted RMS), the degenerate flag, the inlier count and fraction, the LM
 displacement from the coarse seed, and a coarse-seed mis-lock test; when any of these
 fails, the result is flagged
-:attr:`~spindoctor.nav_technique.technique_result.NavTechniqueResult.spurious` and similarly
-forced to zero.
+:attr:`~spindoctor.nav_technique.technique_result.NavTechniqueResult.spurious` and
+similarly forced to zero.
 
 The mis-lock test targets a distinct low-phase failure. Near zero phase (below ~15 deg) the
 lit arc spans almost the whole silhouette and the limb-darkening roll-off is nearly
@@ -241,26 +242,26 @@ however far it walked, so a converged fit that walked the full trust region to a
 The signature alone also catches good fits. The LM reports a fit unconverged whenever it
 reaches the iteration cap without a step under the step tolerance. That happens when the
 trust region keeps rejecting steps toward a minimum outside it, which is the mis-lock. It
-also happens when the fit wanders at a minimum just inside the boundary: on a limb that runs
-diagonally across the pixel grid the overlap peak can fall on an integer shift nearly a
-pixel from the sub-pixel minimum. So a fit with the signature is run once more from where it
-stopped (translation and rotation) with the trust region removed, and the Tikhonov anchor
-too when one is configured. The fit is flagged spurious if that refit ends more than
-``lm_trust_region_px`` plus ``spurious_mis_lock_escape_margin_px`` from the coarse seed, the
-trust region having held it back, or if the refit is degenerate, which is treated as an
-escape. Otherwise the fit is kept. The refit is used only for this decision. The reported
-offset is the trust-region fit's, and a kept fit still carries the confidence cap for an
-unconverged fit.
+also happens when the fit wanders at a minimum just inside the boundary: on a limb that
+runs diagonally across the pixel grid the overlap peak can fall on an integer shift nearly
+a pixel from the sub-pixel minimum. So a fit with the signature is run once more from
+where it stopped (translation and rotation) with the trust region removed, and the
+Tikhonov anchor too when one is configured. The fit is flagged spurious if that refit ends
+more than ``lm_trust_region_px`` plus ``spurious_mis_lock_escape_margin_px`` from the
+coarse seed, the trust region having held it back, or if the refit is degenerate, which is
+treated as an escape. Otherwise the fit is kept. The refit is used only for this decision.
+The reported offset is the trust-region fit's, and a kept fit still carries the confidence
+cap for an unconverged fit.
 
 The refit cannot recognize a wrong lock that has stalled at a local minimum inside the
 trust region, because there it stays put just as a good fit does. The signature alone
 refused such fits whenever they happened to stop near the boundary. On the 845 Cassini ISS
 Saturn limb fits above, with the full-arc check in place, the refit kept 44 fits that the
-signature alone refused: 28 within 1 px of the reference and 16 within 2 px, 31 of them from
-a single spoke movie. It also released one fit 4 px off, which the full-arc check had
+signature alone refused: 28 within 1 px of the reference and 16 within 2 px, 31 of them
+from a single spoke movie. It also released one fit 4 px off, which the full-arc check had
 refused until its own refit stayed put. Seven other fits more than 2 px off that the refit
-cleared stayed refused by the full-arc check. A fit whose arc lies wholly on the sensor has
-no full-arc check behind it.
+cleared stayed refused by the full-arc check. A fit whose arc lies wholly on the sensor
+has no full-arc check behind it.
 
 Configuration
 =============
@@ -294,26 +295,26 @@ All numeric tunables for this technique live in ``techniques.BodyLimbNav.tuning`
   the trust region below the LM cannot leave the coarse basin, so this guard normally
   never fires; it catches any future regression that bypasses the trust region. Set
   slightly larger than ``lm_trust_region_px``.
-- ``spurious_unconverged_trust_boundary_fraction`` — float, default ``0.9`` (dimensionless).
-  Coarse-seed mis-lock gate. A fit that BOTH failed to converge AND ended at least this
-  fraction of the trust region away from the integer coarse seed matches the signature of a
-  fit pinned against the trust-region boundary by a wrong-basin seed, the low-phase
-  (below ~15 deg) under-conditioned failure where a false overlap peak seeds the wrong
-  basin. Such a fit is refit from where it stopped without the trust region and flagged
-  spurious only if that refit escapes (see the mis-lock test above). A converged fit is not
-  flagged however far it walked.
+- ``spurious_unconverged_trust_boundary_fraction`` — float, default ``0.9``
+  (dimensionless). Coarse-seed mis-lock test. A fit that BOTH failed to converge AND ended
+  at least this fraction of the trust region away from the integer coarse seed matches the
+  signature of a fit pinned against the trust-region boundary by a wrong-basin seed, the
+  low-phase (below ~15 deg) under-conditioned failure where a false overlap peak seeds the
+  wrong basin. Such a fit is refit from where it stopped without the trust region and
+  flagged spurious only if that refit escapes (see the mis-lock test above). A converged
+  fit is not flagged however far it walked.
 - ``spurious_mis_lock_escape_margin_px`` — float, default ``0.1`` px. How far past
   ``lm_trust_region_px`` from the coarse seed the mis-lock refit must end to count as an
   escape. A good minimum can lie a few hundredths of a pixel outside the trust region. The
-  value was chosen on the 845 Cassini ISS Saturn limb fits described above, where it kept 8
-  fits within 1 px of the reference and 2 within 2 px that a zero margin refused, and
+  value was chosen on the 845 Cassini ISS Saturn limb fits described above, where it kept
+  8 fits within 1 px of the reference and 2 within 2 px that a zero margin refused, and
   released none farther off.
 - ``lm_trust_region_px`` — float, default ``1.0`` px. Maximum LM displacement from the
-  integer coarse seed; the LM rejects any trial step that would land outside this
-  radius without committing. The coarse search returns the integer-pixel polarity-weighted
-  match maximum, which usually lies within ~0.71 px of the sub-pixel optimum but on a
-  diagonal limb can lie nearly a pixel from it. 1.0 px gives that refinement headroom while
-  denying the LM the runway to reach a 2-4 px-away spurious minimum.
+  integer coarse seed; the LM rejects any trial step that would land outside this radius
+  without committing. The coarse search returns the integer-pixel polarity-weighted match
+  maximum, which usually lies within ~0.71 px of the sub-pixel optimum but on a diagonal
+  limb can lie nearly a pixel from it. 1.0 px gives that refinement headroom while denying
+  the LM the runway to reach a 2-4 px-away spurious minimum.
 - ``lm_tikhonov_alpha`` — float, default ``0.0`` (dimensionless). Tikhonov anchor strength
   toward the coarse-NCC seed. Zero by default: an anchor strong enough to prevent
   multi-pixel walks on textured bodies also prevents legitimate sub-pixel refinement on

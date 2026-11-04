@@ -315,7 +315,7 @@ class Config:
         """
         self._validate_registered_techniques()
         self._validate_bodies_block()
-        validate_visible_limb_config(self._config_dict)
+        validate_visible_limb_config(_camera_blocks(self._config_dict))
         self._validate_camera_blocks()
 
     def _validate_bodies_block(self) -> None:

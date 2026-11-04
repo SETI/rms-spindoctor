@@ -4,7 +4,7 @@ A per-camera instrument block may carry ``visible_limb_altitude``: a mapping fro
 upper-case SPICE body name to the measured height of that body's visible limb above
 its reference ellipsoid.  :class:`VisibleLimbModel` is one validated entry;
 :func:`visible_limb_model_for` reads the entry for one body from an instrument block;
-:func:`validate_visible_limb_config` checks every entry in a merged configuration so a
+:func:`validate_visible_limb_config` checks every entry of every camera block so a
 malformed one fails when the configuration is loaded rather than when an image is
 navigated.
 """
@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import itertools
 import math
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from typing import Any
 
@@ -206,30 +206,29 @@ def visible_limb_model_for(
     return VisibleLimbModel.from_mapping(upper, entries[upper])
 
 
-def validate_visible_limb_config(config_dict: Mapping[str, Any]) -> None:
-    """Check every ``visible_limb_altitude`` block in a merged configuration.
-
-    A block is looked for in each per-camera mapping of each top-level section (an
-    instrument section maps camera names to blocks).
+def validate_visible_limb_config(
+    camera_blocks: Iterable[tuple[str, Mapping[str, Any]]],
+) -> None:
+    """Check the ``visible_limb_altitude`` block of every camera block.
 
     Parameters:
-        config_dict: The merged configuration.
+        camera_blocks: ``(path, block)`` for each camera block of the merged
+            configuration, whether a top-level section for a single camera or a
+            mapping inside a section that holds several; ``path`` is the block's
+            dotted location, used in the error message.
 
     Raises:
         ValueError: If a block is not a mapping or one of its entries is malformed;
-            the message names the section and camera.
+            the message names the camera block.
     """
-    for section, cameras in config_dict.items():
-        if not isinstance(cameras, Mapping):
+    for path, block in camera_blocks:
+        if VISIBLE_LIMB_KEY not in block:
             continue
-        for camera, block in cameras.items():
-            if not isinstance(block, Mapping) or VISIBLE_LIMB_KEY not in block:
-                continue
-            entries = block[VISIBLE_LIMB_KEY] or {}
-            if not isinstance(entries, Mapping):
-                raise ValueError(f'{section}.{camera}.{VISIBLE_LIMB_KEY} must be a mapping')
-            for body, entry in entries.items():
-                try:
-                    VisibleLimbModel.from_mapping(str(body).upper(), entry)
-                except ValueError as exc:
-                    raise ValueError(f'{section}.{camera}.{VISIBLE_LIMB_KEY}: {exc}') from exc
+        entries = block[VISIBLE_LIMB_KEY] or {}
+        if not isinstance(entries, Mapping):
+            raise ValueError(f'{path}.{VISIBLE_LIMB_KEY} must be a mapping')
+        for body, entry in entries.items():
+            try:
+                VisibleLimbModel.from_mapping(str(body).upper(), entry)
+            except ValueError as exc:
+                raise ValueError(f'{path}.{VISIBLE_LIMB_KEY}: {exc}') from exc
