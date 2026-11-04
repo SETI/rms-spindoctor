@@ -345,7 +345,17 @@ def render_topographic_body(
         sin_rz=sin_rz,
         cos_rt=cos_rt,
     )
-    intensity_shade, cos_i_smooth = _shade_disc(shade_grid, spec, cos_rz=cos_rz, sin_rz=sin_rz)
+    field: ReliefField | None = None
+    if spec.limb_relief_rms > 0.0:
+        field = synthesize_relief_field(
+            spec.limb_relief_rms, spec.limb_relief_corr_deg, spec.relief_seed
+        )
+        if field.h_max <= field.h_min:
+            field = None
+
+    intensity_shade, cos_i_smooth = _shade_disc(
+        shade_grid, spec, field, cos_rz=cos_rz, sin_rz=sin_rz
+    )
 
     work_grid = _body_grid(
         work_dims,
@@ -355,14 +365,6 @@ def render_topographic_body(
         sin_rz=sin_rz,
         cos_rt=cos_rt,
     )
-
-    field: ReliefField | None = None
-    if spec.limb_relief_rms > 0.0:
-        field = synthesize_relief_field(
-            spec.limb_relief_rms, spec.limb_relief_corr_deg, spec.relief_seed
-        )
-        if field.h_max <= field.h_min:
-            field = None
 
     mask = _silhouette_mask(work_grid, field)
     intensity_work = _bilinear_upsample(intensity_shade, up_factor)
@@ -392,6 +394,7 @@ def render_topographic_body(
 def _shade_disc(
     grid: _Grid,
     spec: TopoBodySpec,
+    field: ReliefField | None,
     *,
     cos_rz: float,
     sin_rz: float,
@@ -406,6 +409,8 @@ def _shade_disc(
     Parameters:
         grid: The shading-resolution geometry.
         spec: The body spec (crater texture and photometric law are read).
+        field: The relief realization, or None for the smooth limb; it sets
+            the outline the transits reach.
         cos_rz: Cosine of the in-plane rotation.
         sin_rz: Sine of the in-plane rotation.
 
@@ -467,13 +472,14 @@ def _shade_disc(
         surge_amplitude=spec.surge_amplitude,
         surge_width_deg=spec.surge_width_deg,
     )
-    return _apply_surface_textures(intensity, grid, spec), cos_i_smooth
+    return _apply_surface_textures(intensity, grid, spec, field), cos_i_smooth
 
 
 def _apply_surface_textures(
     intensity: NDArrayFloatType,
     grid: _Grid,
     spec: TopoBodySpec,
+    field: ReliefField | None,
 ) -> NDArrayFloatType:
     """Apply the spec's multiplicative textures and transits to the shading.
 
@@ -482,12 +488,15 @@ def _apply_surface_textures(
     transiting moon discs overwrite on top (from the pre-texture smooth-law
     shading -- a foreground moon does not inherit the parent's texture).
     Everything happens on the shading grid, so the silhouette (rasterized
-    separately on the working grid) is untouched by construction.
+    separately on the working grid) is untouched by construction.  Transits
+    reach the body's outline: the relief outline when the body has relief,
+    else the smooth limb.
 
     Parameters:
         intensity: The law-shaded intensity on the shading grid.
         grid: The shading-resolution geometry.
         spec: The body spec (texture and transit fields are read).
+        field: The relief realization, or None for the smooth limb.
 
     Returns:
         The textured intensity (the input array, unchanged, when the spec
@@ -516,7 +525,7 @@ def _apply_surface_textures(
             base_intensity=intensity,
             v_ctr=grid.v_ctr,
             u_ctr=grid.u_ctr,
-            disc_mask=grid.e2 < 1.0,
+            disc_mask=grid.e2 < 1.0 if field is None else _silhouette_mask(grid, field) > 0.0,
         )
     return textured
 

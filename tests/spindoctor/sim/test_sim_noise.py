@@ -231,6 +231,26 @@ def test_hot_pixel_warm_column_is_frame_size_invariant() -> None:
     assert abs(integrals[0] - integrals[1]) < 1e-9
 
 
+def test_adversarial_hot_pixels_are_distinct_and_capped_at_the_pool() -> None:
+    """A request beyond the pool plants each pool pixel once, at its recorded charge."""
+    electrons = np.zeros((64, 64), dtype=np.float64)
+    pool_v, pool_u = np.divmod(np.arange(10, dtype=np.intp) * 37, 64)
+    record = add_hot_pixels(
+        electrons,
+        fraction=25.0 / (64 * 64),
+        amplitude_e=1.0e4,
+        column_factor=0.0,
+        detector_id='coiss_nac',
+        rng=np.random.default_rng(11),
+        candidate_pool=(pool_v, pool_u),
+    )
+    assert sorted(map(tuple, record['pixels'])) == sorted(
+        zip(pool_v.tolist(), pool_u.tolist(), strict=True)
+    )
+    planted = [float(electrons[v, u]) for v, u in record['pixels']]
+    assert planted == pytest.approx(record['amplitudes_e'])
+
+
 def test_hot_pixels_disabled_at_zero_fraction() -> None:
     """A zero hot-pixel fraction is a no-op."""
     electrons = np.zeros((100, 100), dtype=np.float64)

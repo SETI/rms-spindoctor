@@ -6,9 +6,11 @@ the predicted body from a divergent geometry (the render-vs-navigation
 separation the shape-mismatch and pose-disagreement scenarios rely on).
 """
 
+import math
 from typing import Any
 
 import numpy as np
+import pytest
 from scipy import ndimage
 
 from spindoctor.nav_model import build_models_for_obs
@@ -191,3 +193,25 @@ def test_nav_override_predicts_the_overridden_shape() -> None:
     assert lumpy is not None
     assert np.array_equal(overridden, smooth)
     assert not np.array_equal(overridden, lumpy)
+
+
+@pytest.mark.parametrize('yaw_deg', [30.0, -30.0])
+def test_a_posed_mesh_turns_its_long_axis_by_the_stated_yaw(yaw_deg: float) -> None:
+    """A rotation about the view axis turns the silhouette's long axis by that angle.
+
+    The body x axis, stretched to 30 px, projects onto +u, and a Z rotation
+    turns it toward +v, so the long axis lies at ``yaw_deg`` from +u toward +v.
+    A transposed pose rotation would turn it the other way.
+    """
+    image = render_polyhedral_body(
+        size=(128, 128),
+        center=(64.0, 64.0),
+        mesh=make_irregular_mesh(n_lat=32, n_lon=64, lumpiness=0.0),
+        semi_axes_px=(10.0, 30.0, 10.0),
+        pose_euler_deg=(0.0, 0.0, yaw_deg),
+    )
+    v, u = np.nonzero(image > 0.0)
+    dv = v - v.mean()
+    du = u - u.mean()
+    angle = 0.5 * math.atan2(2.0 * float(np.mean(du * dv)), float(np.mean(du * du - dv * dv)))
+    assert math.degrees(angle) == pytest.approx(yaw_deg, abs=0.5)

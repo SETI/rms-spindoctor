@@ -30,7 +30,7 @@ from spindoctor.sim.forward.feature_loci import FeatureLoci, choose_pixels, extr
 from spindoctor.sim.forward.incidence import planted_incidence
 from spindoctor.sim.forward.stages import SimFrame
 from spindoctor.sim.forward.telemetry import apply_telemetry
-from spindoctor.sim.forward.telemetry_loss import apply_pixel_spikes
+from spindoctor.sim.forward.telemetry_loss import apply_line_garble, apply_pixel_spikes
 from spindoctor.sim.render import render_combined_model
 from spindoctor.sim.scene import SimSceneValidationError, validate_sim_params
 from spindoctor.support.types import NDArrayFloatType
@@ -468,31 +468,36 @@ def test_vgiss_line_garble_stays_inside_the_8bit_word() -> None:
     assert float(_vgiss_calibration().to_dn(frame.signal).max()) <= 255.0 + 1e-9
 
 
-def _vgiss_render_with_garble_and_spikes() -> tuple[NDArrayFloatType, dict[str, Any]]:
-    """A real vgiss render of a lit body with garbled lines and bit-flip spikes."""
-    return render_combined_model(
-        {
-            'instrument': 'vgiss',
-            'size_v': 128,
-            'size_u': 128,
-            'random_seed': 3,
-            'bodies': [
-                {
-                    'name': 'B',
-                    'center_v': 64.0,
-                    'center_u': 64.0,
-                    'axis1': 40.0,
-                    'axis2': 40.0,
-                    'axis3': 40.0,
-                    'range_km': 1.0,
-                }
-            ],
-            'artifacts': {
-                'line_garble': {'expected_events': 4.0},
-                'pixel_spikes': {'expected_events': 40.0, 'amplitude': 'bitflip'},
-            },
+def _vgiss_render_with_garble_and_spikes(
+    *, corrupted: bool = True
+) -> tuple[NDArrayFloatType, dict[str, Any]]:
+    """A real vgiss render of a lit body with garbled lines and bit-flip spikes.
+
+    With ``corrupted`` False the scene leaves out its artifacts block.
+    """
+    scene: dict[str, Any] = {
+        'instrument': 'vgiss',
+        'size_v': 128,
+        'size_u': 128,
+        'random_seed': 3,
+        'bodies': [
+            {
+                'name': 'B',
+                'center_v': 64.0,
+                'center_u': 64.0,
+                'axis1': 40.0,
+                'axis2': 40.0,
+                'axis3': 40.0,
+                'range_km': 1.0,
+            }
+        ],
+    }
+    if corrupted:
+        scene['artifacts'] = {
+            'line_garble': {'expected_events': 4.0},
+            'pixel_spikes': {'expected_events': 40.0, 'amplitude': 'bitflip'},
         }
-    )
+    return render_combined_model(scene)
 
 
 def test_a_vgiss_render_keeps_garble_and_spikes_on_the_calibrated_scale() -> None:
@@ -508,6 +513,20 @@ def test_a_vgiss_render_keeps_garble_and_spikes_on_the_calibrated_scale() -> Non
     assert garbled
     assert spiked
     assert max(garbled + spiked) <= ceiling + 1e-9
+
+
+def test_a_vgiss_render_corrupts_exactly_the_recorded_pixels() -> None:
+    """Every garbled and spiked pixel differs from the clean render, and no other does."""
+    img, meta = _vgiss_render_with_garble_and_spikes()
+    clean, _ = _vgiss_render_with_garble_and_spikes(corrupted=False)
+    touched = np.zeros(img.shape, dtype=bool)
+    for line in meta['artifacts']['line_garble']['lines']:
+        touched[line['row'], line['garble_from'] :] = True
+    for v, u in meta['artifacts']['pixel_spikes']['pixels']:
+        touched[v, u] = True
+    assert int(touched.sum()) > 0
+    np.testing.assert_array_equal(img[~touched], clean[~touched])
+    assert int(np.count_nonzero(img[touched] != clean[touched])) == int(touched.sum())
 
 
 def test_a_calibrated_bitflip_onto_the_marker_moves_off_it() -> None:
@@ -535,6 +554,42 @@ def test_a_calibrated_bitflip_onto_the_marker_moves_off_it() -> None:
     spiked = np.array([signal[v, u] for v, u in record['pixels']])
     assert np.any(spiked < 1e-300)
     assert not np.any(spiked == 0.0)
+
+
+@pytest.mark.parametrize('mode', ['line_garble', 'uniform_spikes'])
+def test_garbage_stays_inside_the_word_when_the_frame_peaks_above_it(mode: str) -> None:
+    """A frame already above its 255 DN word still gets garbage drawn inside the word.
+
+    Compression overshoot can lift a frame's peak past the ADC word before the
+    telemetry stage runs, and the garbage must not follow the peak up.
+    """
+    signal = np.full((32, 32), 300.0, dtype=np.float64)
+    loci = FeatureLoci(
+        rows=np.empty(0, dtype=np.int64),
+        pixel_v=np.empty(0, dtype=np.int64),
+        pixel_u=np.empty(0, dtype=np.int64),
+    )
+    common: dict[str, Any] = {
+        'marker_dn': 0.0,
+        'dn_ceiling': 255.0,
+        'rng': np.random.default_rng(6),
+        'loci': loci,
+        'adversarial': False,
+    }
+    if mode == 'line_garble':
+        record = apply_line_garble(signal, {'expected_events': 20.0}, **common)
+        drawn = [
+            float(value)
+            for line in record['lines']
+            for value in signal[line['row'], line['garble_from'] :]
+        ]
+    else:
+        record = apply_pixel_spikes(
+            signal, {'expected_events': 200.0, 'amplitude': 'uniform'}, **common
+        )
+        drawn = [float(signal[v, u]) for v, u in record['pixels']]
+    assert drawn
+    assert max(drawn) <= 255.0
 
 
 def test_12bit_line_garble_keeps_the_deep_word() -> None:
@@ -608,6 +663,8 @@ def test_adversarial_dead_pixels_record_and_count_the_distinct_pixels() -> None:
         instrument='coiss_nac',
     )
     pixels = [tuple(pixel) for pixel in record['dead_pixels']['pixels']]
+    # One star's 7 by 7 neighborhood caps the request of 60 at its 49 pixels.
+    assert len(pixels) == 49
     assert len(pixels) == len(set(pixels))
     assert planted_incidence(frame.truth)['dead_pixels'] == int(np.sum(frame.signal == 0.0))
 
