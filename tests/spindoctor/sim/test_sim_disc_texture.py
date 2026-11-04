@@ -139,6 +139,22 @@ def test_transits_render_only_on_the_parent_disc() -> None:
     assert np.array_equal(transit[off_disc], smooth[off_disc])
 
 
+def test_a_transit_shadow_reaches_the_relief_outline() -> None:
+    """With limb relief, a shadow at the limb darkens the terrain past the smooth limb too."""
+    shadow = TransitSpec(shadow=(0.0, _RADIUS, 10.0, 0.8))
+    relief = dataclasses.replace(
+        _spec(None), anti_aliasing=0.0, limb_relief_rms=0.03, limb_relief_corr_deg=15.0
+    )
+    lit = _render(relief)
+    shadowed = _render(dataclasses.replace(relief, transits=(shadow,)))
+    v, u = np.mgrid[0:_SIZE, 0:_SIZE] + 0.5
+    past_limb = (v - _CENTER) ** 2 + (u - _CENTER) ** 2 > _RADIUS**2
+    under = (v - _CENTER) ** 2 + (u - _CENTER - _RADIUS) ** 2 <= 8.0**2
+    probe = past_limb & under & (lit > 0.0)
+    assert int(probe.sum()) > 0
+    np.testing.assert_allclose(shadowed[probe], 0.2 * lit[probe], rtol=1e-12)
+
+
 def test_silhouette_is_untouched_by_disc_texture_and_transits() -> None:
     """Texture and transits never move the silhouette."""
     spec = _spec(
