@@ -6,24 +6,20 @@ poles, with the same statistics near the disc center as at the limb), the
 limb slice's standard deviation equals the commanded RMS per-realization,
 it has no content in spherical-harmonic degrees below 3 (degree 1 is a body
 translation, degree 2 aliases ellipsoid shape error) or above the band
-limit, and distinct seeds are distinct terrains.  The shadow march is pinned
-by its inequality on a curved body
-(``H_up - H_pt > d / tan(i) + d**2 / (2 R)``) and its work cap
-``d_max = min((H_max - H_pt) * tan(i), sqrt(2 * R * (H_max - H_pt)))``.
+limit, and distinct seeds are distinct terrains.  The outline envelope, the
+slope bound, and the surface gradient are pinned against brute-force
+evaluations of the same field, and the cast-shadow ray march against the
+exact geometry of a ray grazing a ridge.
 """
 
 import functools
 import math
-from typing import Any
 
 import numpy as np
 import pytest
 from scipy import special
 
-from spindoctor.sim.forward.relief import (
-    march_shadows,
-    synthesize_relief_field,
-)
+from spindoctor.sim.forward.relief import ReliefField, cast_shadows, synthesize_relief_field
 from spindoctor.support.types import NDArrayComplexType
 
 _RMS = 0.01
@@ -236,12 +232,79 @@ def test_rms_zero_is_the_zero_field() -> None:
     assert float(np.abs(field.grid).max()) == 0.0
 
 
-def test_limb_delta_interpolates_the_equator_row() -> None:
-    """limb_delta at node longitudes returns the equator row values exactly."""
-    field = synthesize_relief_field(_RMS, _CORR_DEG, 9)
+@pytest.mark.parametrize('rms', [0.02, 0.05])
+def test_the_outline_reaches_at_least_the_equator_slice(rms: float) -> None:
+    """At every node longitude the outline is at or beyond the equator slice."""
+    field = synthesize_relief_field(rms, _CORR_DEG, 9)
     n = field.grid.shape[0]
     phi = np.arange(n) * (2.0 * np.pi / n)
-    np.testing.assert_allclose(field.limb_delta(phi), field.grid[n // 2], atol=1e-12)
+    assert bool(np.all(field.outline_delta(phi) >= field.grid[n // 2] - 1e-12))
+
+
+def test_the_outline_is_the_envelope_over_latitude() -> None:
+    """The outline matches a brute-force maximum of (1 + h) cos(lat) over latitude."""
+    field = synthesize_relief_field(0.05, _CORR_DEG, 9)
+    phi = np.linspace(0.0, 2.0 * np.pi, 97)[:-1]
+    lats = np.linspace(-0.8, 0.8, 4001)
+    lat_grid, phi_grid = np.meshgrid(lats, phi, indexing='ij')
+    brute = ((1.0 + field.sample(lat_grid, phi_grid)) * np.cos(lat_grid)).max(axis=0) - 1.0
+    np.testing.assert_allclose(field.outline_delta(phi), brute, atol=5e-4)
+
+
+def test_the_outline_departs_from_the_equator_slice_at_high_rms() -> None:
+    """At 5% relief the outline differs from the equator slice by a sizable share of the RMS."""
+    field = synthesize_relief_field(0.05, _CORR_DEG, 9)
+    n = field.grid.shape[0]
+    phi = np.arange(n) * (2.0 * np.pi / n)
+    gap = field.outline_delta(phi) - field.grid[n // 2]
+    assert float(np.sqrt(np.mean(gap**2))) > 0.3 * field.rms
+
+
+def test_an_albedo_field_draws_no_outline() -> None:
+    """Asking a field without an outline for one fails loudly."""
+    field = ReliefField(grid=np.zeros((64, 64)), rms=0.0, corr_deg=15.0, h_min=0.0, h_max=0.0)
+    with pytest.raises(ValueError, match='no outline envelope'):
+        field.outline_delta(np.zeros(3))
+
+
+def _random_directions(count: int, seed: int) -> np.ndarray:
+    """Uniform random unit vectors."""
+    points = np.random.default_rng(seed).normal(size=(count, 3))
+    return points / np.linalg.norm(points, axis=1, keepdims=True)
+
+
+def test_the_slope_bound_covers_every_measured_gradient() -> None:
+    """No surface gradient anywhere on the sphere exceeds the field's slope bound."""
+    field = synthesize_relief_field(0.05, _CORR_DEG, 9)
+    gradient = field.surface_gradient(_random_directions(20000, 1))
+    assert float(np.linalg.norm(gradient, axis=1).max()) <= field.slope_max
+
+
+def test_the_slope_bound_scales_with_the_rms() -> None:
+    """Doubling the RMS doubles the slope bound."""
+    single = synthesize_relief_field(0.02, _CORR_DEG, 9).slope_max
+    double = synthesize_relief_field(0.04, _CORR_DEG, 9).slope_max
+    assert double == pytest.approx(2.0 * single, rel=1e-12)
+
+
+def test_the_surface_gradient_matches_finite_differences_in_latitude_and_longitude() -> None:
+    """Away from the poles the gradient's components are the field's lat and lon slopes."""
+    field = synthesize_relief_field(0.05, _CORR_DEG, 9)
+    rng = np.random.default_rng(2)
+    lat = rng.uniform(-1.0, 1.0, 200)
+    lon = rng.uniform(0.0, 2.0 * np.pi, 200)
+    points = np.stack([np.cos(lat) * np.cos(lon), np.cos(lat) * np.sin(lon), np.sin(lat)], axis=1)
+    east = np.stack([-np.sin(lon), np.cos(lon), np.zeros_like(lon)], axis=1)
+    north = np.stack([-np.sin(lat) * np.cos(lon), -np.sin(lat) * np.sin(lon), np.cos(lat)], axis=1)
+    gradient = field.surface_gradient(points)
+    delta = 1e-4
+    d_lat = (field.sample(lat + delta, lon) - field.sample(lat - delta, lon)) / (2.0 * delta)
+    d_lon = (field.sample(lat, lon + delta) - field.sample(lat, lon - delta)) / (
+        2.0 * delta * np.cos(lat)
+    )
+    scale = field.slope_max
+    np.testing.assert_allclose(np.sum(gradient * north, axis=1), d_lat, atol=0.15 * scale)
+    np.testing.assert_allclose(np.sum(gradient * east, axis=1), d_lon, atol=0.15 * scale)
 
 
 def test_sample_wraps_periodically() -> None:
@@ -270,211 +333,80 @@ def test_sample_reads_one_surface_point_by_either_name() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Shadow march: inequality and cap.
+# Cast shadows: the exact ray march.
 # ---------------------------------------------------------------------------
 
-
-def _flat_maps(
-    size: int, *, ridge_col: int | None, ridge_h: float
-) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Flat unit-arc terrain maps with an optional tall ridge column."""
-    height = np.zeros((size, size), dtype=np.float64)
-    if ridge_col is not None:
-        height[:, ridge_col] = ridge_h
-    arc = np.ones((size, size), dtype=np.float64)
-    domain = np.ones((size, size), dtype=np.bool_)
-    return height, arc, domain
+_RIDGE_GRID = 512
 
 
-def test_march_shadow_inequality_both_sides() -> None:
-    """A ridge shadows a downstream point iff it clears the sun ray and the curvature.
-
-    The candidate sits at height 0 with the sun along +u; a ridge of height
-    H sits ``d`` pixels upstream on a body of radius R.  The point is shadowed
-    exactly when ``H > d / tan(i) + d**2 / (2 R)``.
-    """
-    ridge_h = 5.0
-    tan_i = 4.0
-    # R = 100.  The ridge 15 px upstream needs 3.75 + 1.125 = 4.875 px of rise
-    # (shadowed); 30 px upstream it needs 7.5 + 4.5 = 12 px (lit).
-    height, arc, domain = _flat_maps(96, ridge_col=45, ridge_h=ridge_h)
-    common: dict[str, Any] = {
-        'h_point': np.array([0.0, 0.0]),
-        'tan_incidence': np.array([tan_i, tan_i]),
-        'radius_px': np.array([100.0, 100.0]),
-        'height_map': height,
-        'arc_per_px_map': arc,
-        'domain_mask': domain,
-        'h_max': ridge_h / 100.0,
-        'h_min': 0.0,
-        'sun_v': 0.0,
-        'sun_u': 1.0,
-    }
-    shadow, stats = march_shadows(np.array([48.0, 48.0]), np.array([30.5, 15.5]), **common)
-    assert stats.candidate_count == 2
-    assert bool(shadow[0])
-    assert not bool(shadow[1])
-
-
-def test_march_curvature_drop_hides_a_ridge_the_flat_test_would_count() -> None:
-    """A ridge that clears the sun ray but not the body's curvature drop casts no shadow.
-
-    The ridge 15 px upstream rises 4.5 px: above the sun ray's 15 / 4 = 3.75 px, so a
-    flat-terrain test shadows the point, but below 3.75 + 15**2 / (2 * 100) = 4.875 px,
-    because the curved surface falls 1.125 px below the point's horizon there.
-    """
-    height, arc, domain = _flat_maps(96, ridge_col=45, ridge_h=4.5)
-    shadow, _stats = march_shadows(
-        np.array([48.0]),
-        np.array([30.5]),
-        h_point=np.array([0.0]),
-        tan_incidence=np.array([4.0]),
-        radius_px=np.array([100.0]),
-        height_map=height,
-        arc_per_px_map=arc,
-        domain_mask=domain,
-        h_max=0.045,
-        h_min=0.0,
-        sun_v=0.0,
-        sun_u=1.0,
+def _ridge_field(height: float) -> ReliefField:
+    """Flat terrain with a ``height`` ridge from longitude 9 to 11 degrees."""
+    grid = np.zeros((_RIDGE_GRID, _RIDGE_GRID), dtype=np.float64)
+    lon = np.arange(_RIDGE_GRID) * (360.0 / _RIDGE_GRID)
+    grid[:, (lon >= 9.0) & (lon <= 11.0)] = height
+    return ReliefField(
+        grid=grid, rms=height, corr_deg=1.0, h_min=0.0, h_max=height, slope_max=100.0
     )
-    assert not bool(shadow[0])
 
 
-def test_march_reaches_the_highest_peak_from_a_valley() -> None:
-    """A valley point sees the highest peak out to sqrt(2 R (H_max - H_pt)).
+def _equator_point_shadowed(height: float, elevation_deg: float) -> bool:
+    """Whether the ridge shadows the equator point at longitude 0, sun toward +lon.
 
-    The point sits at H_min = -4 px and a peak of H_max = 4 px stands 48 px upstream
-    on a body of radius 200 with a grazing sun: the peak clears the curvature drop
-    (48**2 / 400 = 5.76 < 8 px), so the point is shadowed although the peak lies past
-    the horizon distance sqrt(2 R H_max) = 40 px of a point at height 0.
+    The point sits on flat ground, so its ray toward the sun is the line through
+    ``(1, 0)`` at ``elevation_deg`` above the tangent; in polar form it lies at
+    radius ``cos(e) / cos(lon + e)``, 1.0267 at the ridge's near edge for
+    ``e`` = 5 degrees.
     """
-    radius = 200.0
-    h_max = 0.02
-    height, arc, domain = _flat_maps(128, ridge_col=68, ridge_h=h_max * radius)
-    shadow, stats = march_shadows(
-        np.array([64.0]),
-        np.array([20.5]),
-        h_point=np.array([-h_max]),
-        tan_incidence=np.array([1e6]),
-        radius_px=np.array([radius]),
-        height_map=height,
-        arc_per_px_map=arc,
-        domain_mask=domain,
-        h_max=h_max,
-        h_min=-h_max,
-        sun_v=0.0,
-        sun_u=1.0,
+    e = math.radians(elevation_deg)
+    sun = np.array([math.sin(e), math.cos(e), 0.0])
+    shadowed = cast_shadows(
+        np.array([[1.0, 0.0, 0.0]]), sun, _ridge_field(height), step=2.0 * np.pi / 8192
     )
-    assert bool(shadow[0])
-    assert stats.max_steps == math.ceil(radius * math.sqrt(2.0 * 2.0 * h_max))
+    return bool(shadowed[0])
 
 
-def test_march_cap_bounds_the_work() -> None:
-    """The march never exceeds the cap even when the domain invites it.
-
-    A near-terminator candidate (tan(i) enormous) on a huge flat domain
-    would march thousands of steps naively; the horizon term
-    ``sqrt(2 * R * H_max)`` caps the step count at its predicted bound.
-    """
-    size = 4096
-    height = np.zeros((8, size), dtype=np.float64)
-    arc = np.ones((8, size), dtype=np.float64)
-    domain = np.ones((8, size), dtype=np.bool_)
-    radius = 200.0
-    h_max = 0.02
-    # Horizon cap: R * sqrt(2 * h_max) = 40 px; the terrain term
-    # (h_max - h_min) * R * tan(i) = 4 * 1e6 px would run off the domain.
-    shadow, stats = march_shadows(
-        np.array([4.0]),
-        np.array([2.0]),
-        h_point=np.array([0.0]),
-        tan_incidence=np.array([1e6]),
-        radius_px=np.array([radius]),
-        height_map=height,
-        arc_per_px_map=arc,
-        domain_mask=domain,
-        h_max=h_max,
-        h_min=-h_max,
-        sun_v=0.0,
-        sun_u=1.0,
-    )
-    predicted_cap = radius * math.sqrt(2.0 * h_max)
-    assert stats.max_steps == math.ceil(predicted_cap)
-    assert stats.steps_executed <= stats.max_steps
-    assert not bool(shadow[0])
+def test_a_ridge_above_the_ray_casts_a_shadow() -> None:
+    """A 4% ridge rises above the 5 degree ray's 2.67% at its near edge."""
+    assert _equator_point_shadowed(0.04, 5.0)
 
 
-def test_march_ignores_terrain_beyond_the_horizon_cap() -> None:
-    """A ridge past the horizon cap cannot shadow, however tall the tangent says.
-
-    With tan(i) huge the terrain term alone would let a 60-px-distant ridge
-    shadow the point; the horizon term (40 px here) excludes it.
-    """
-    radius = 200.0
-    h_max = 0.02
-    height, arc, domain = _flat_maps(128, ridge_col=80, ridge_h=h_max * radius)
-    shadow, _stats = march_shadows(
-        np.array([64.0]),
-        np.array([20.5]),
-        h_point=np.array([0.0]),
-        tan_incidence=np.array([1e6]),
-        radius_px=np.array([radius]),
-        height_map=height,
-        arc_per_px_map=arc,
-        domain_mask=domain,
-        h_max=h_max,
-        h_min=0.0,
-        sun_v=0.0,
-        sun_u=1.0,
-    )
-    assert not bool(shadow[0])
+def test_a_ridge_below_the_ray_casts_none() -> None:
+    """A 2% ridge stays under the same ray."""
+    assert not _equator_point_shadowed(0.02, 5.0)
 
 
-def test_march_foreshortening_scales_surface_distance() -> None:
-    """Where one image px spans two surface px, the shadow reach halves in image px.
-
-    With ``arc_per_px = 2`` everywhere, a ridge 15 image px upstream lies 30
-    surface px away, beyond the 20-surface-px shadow reach that shadowed the
-    same layout at unit arc.
-    """
-    ridge_h = 5.0
-    tan_i = 4.0
-    height, arc, domain = _flat_maps(96, ridge_col=45, ridge_h=ridge_h)
-    arc *= 2.0
-    shadow, _stats = march_shadows(
-        np.array([48.0]),
-        np.array([30.5]),
-        h_point=np.array([0.0]),
-        tan_incidence=np.array([tan_i]),
-        radius_px=np.array([100.0]),
-        height_map=height,
-        arc_per_px_map=arc,
-        domain_mask=domain,
-        h_max=ridge_h / 100.0,
-        h_min=0.0,
-        sun_v=0.0,
-        sun_u=1.0,
-    )
-    assert not bool(shadow[0])
+def test_a_higher_sun_clears_the_ridge() -> None:
+    """At 15 degrees the ray stands at 6.3% over the ridge, clearing the 4% one."""
+    assert not _equator_point_shadowed(0.04, 15.0)
 
 
-def test_march_empty_candidates_is_a_noop() -> None:
-    """No candidates: no work, no shadow flags."""
-    height, arc, domain = _flat_maps(8, ridge_col=None, ridge_h=0.0)
-    shadow, stats = march_shadows(
-        np.zeros(0),
-        np.zeros(0),
-        h_point=np.zeros(0),
-        tan_incidence=np.zeros(0),
-        radius_px=np.zeros(0),
-        height_map=height,
-        arc_per_px_map=arc,
-        domain_mask=domain,
-        h_max=0.01,
-        h_min=-0.01,
-        sun_v=0.0,
-        sun_u=1.0,
-    )
-    assert shadow.size == 0
-    assert stats.steps_executed == 0
+def test_flat_terrain_casts_no_shadow() -> None:
+    """A field with no height range shadows nothing."""
+    flat = ReliefField(grid=np.full((64, 64), 0.01), rms=0.0, corr_deg=15.0, h_min=0.01, h_max=0.01)
+    sun = np.array([0.1, 0.995, 0.0])
+    assert not cast_shadows(_random_directions(50, 3), sun, flat, step=0.01).any()
+
+
+@pytest.mark.parametrize(
+    'step', [0.0, -0.01, math.nan, math.inf], ids=['zero', 'negative', 'nan', 'inf']
+)
+def test_cast_shadows_refuses_a_step_that_never_leaves_the_shell(step: float) -> None:
+    """A step that isn't finite and positive raises instead of marching forever."""
+    field = synthesize_relief_field(0.035, 12.0, 2)
+    sun = np.array([0.1, 0.995, 0.0])
+    with pytest.raises(ValueError, match='step must be finite and positive'):
+        cast_shadows(_random_directions(5, 3), sun, field, step=step)
+
+
+def test_a_finer_step_changes_few_shadow_decisions() -> None:
+    """Halving an eighth-cell step flips under 3% of a realization's cast shadows."""
+    field = synthesize_relief_field(0.035, 12.0, 2)
+    points = _random_directions(20000, 4)
+    points[:, 2] = np.abs(points[:, 2])
+    sun = np.array([0.5, 0.2, 0.84])
+    sun /= np.linalg.norm(sun)
+    cell = 2.0 * np.pi / field.grid.shape[0]
+    coarse = cast_shadows(points, sun, field, step=cell / 8.0)
+    fine = cast_shadows(points, sun, field, step=cell / 16.0)
+    assert int(fine.sum()) > 200
+    assert int((coarse != fine).sum()) < 0.03 * int(fine.sum())
