@@ -255,13 +255,12 @@ A star's predicted SNR is synthesized from how far its catalog magnitude sits be
 frame's limiting magnitude, so it ranks the stars of a frame but says how bright a star
 appears only loosely, and differently for each camera. The peak above the local
 background per unit of predicted SNR of Cassini NAC stars found at the published bundles'
-pointing on the F ring and spokes star frames has a median of 10 noise sigmas and ranges
-from 0.7 to 126. So no lower bound applies, and the only absolute test is an upper bound a
+pointing on the F ring and spokes star frames has a median of 0.17 noise sigmas and ranges
+from 0.008 to 2.5. So no lower bound applies, and the only absolute test is an upper bound a
 camera may set in its instrument configuration (``star_max_peak_per_predicted_snr``, in
 noise sigmas): a source brighter than the bound is not taken for a lone star, though it
 still competes as a source of its window. Each bound is measured from the stars found on
-the F ring and spokes star frames, and nothing yet derives it from the camera's
-photometry. A camera that sets none has no bound; the instrument chapters give the
+the F ring and spokes star frames. A camera that sets none has no bound; the instrument chapters give the
 values.
 
 2-star path

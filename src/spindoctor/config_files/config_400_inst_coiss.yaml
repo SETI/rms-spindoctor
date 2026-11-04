@@ -29,7 +29,7 @@ cassini_iss:
     # predicted SNR, of a source a lone star can be, as measured on the
     # calibrated camera below (the ratio is in noise sigmas, so it does not
     # depend on the image's units).
-    star_max_peak_per_predicted_snr: 150.0
+    star_max_peak_per_predicted_snr: 3.0
     # Fraction of the offset window, per axis, inside which a lone star is
     # believed; see the calibrated camera below.
     one_star_ellipse_fraction: 0.6
@@ -85,7 +85,7 @@ cassini_iss:
       512: 0.4
       1024: 0.7
     # As for the NAC; see the calibrated camera below.
-    star_max_peak_per_predicted_snr: 40.0
+    star_max_peak_per_predicted_snr: 5.0
     # Wider than the NAC's; see the calibrated camera below.
     one_star_ellipse_fraction: 0.7
     star_psf_sizes:
@@ -165,13 +165,14 @@ cassini_iss_calib:
       1024: 0.5
     # Largest peak above the local background, in noise sigmas per unit of
     # predicted SNR, of a source a lone star can be.  The value is measured
-    # from a sample, and nothing derives it from the camera's photometry: of
-    # 3463 stars found at the published bundles' pointing on the F ring and
-    # spokes star frames the brightest is 126 (median 10).  Two lone
-    # sources at 166 and 259, 88 and 48 px from the bundle's answer, are
-    # not taken.
+    # from a sample: of 8453 stars found at the published bundles' pointing
+    # on 1785 F ring and spokes star frames the brightest is 2.51 (median
+    # 0.17).  Two lone sources at 3.3 and 5.2, 88 and 48 px from the
+    # bundle's answer, are not taken.  The predicted SNR is derived from the
+    # photometric star limit (cassini_iss_star_photometry below), so a change
+    # to that limit changes the scale of this bound.
     # Grounding the bound in photometry is issue #844.
-    star_max_peak_per_predicted_snr: 150.0
+    star_max_peak_per_predicted_snr: 3.0
     # Fraction of the offset window, per axis, inside which
     # StarUniqueMatchNav believes a lone star: the ellipse whose semi-axes
     # are the window's half-widths times this fraction.  The whole window is
@@ -228,10 +229,10 @@ cassini_iss_calib:
     star_sharpness_psf_sigma:
       512: 0.4
       1024: 0.7
-    # As for the NAC, and measured the same way: of 191 stars found at the
-    # published bundles' pointing on the F ring and spokes star frames the
-    # brightest is 20.8 (median 10.6); the bound is about twice that.
-    star_max_peak_per_predicted_snr: 40.0
+    # As for the NAC, and measured the same way: of 3014 stars found at the
+    # published bundles' pointing on 668 F ring and spokes star frames the
+    # brightest is 2.48 (median 0.27); the bound is about twice that.
+    star_max_peak_per_predicted_snr: 5.0
     # As for the NAC, but wider: the WAC's pointing error reaches the edge
     # of its window (see extfov_margin_vu above).  At 0.6, 12 lone
     # stars of the spokes movie ISS_173RI_SPOKEMOV003_PRIME (W1728775362
