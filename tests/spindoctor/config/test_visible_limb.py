@@ -175,10 +175,18 @@ def test_validation_names_the_camera() -> None:
         validate_visible_limb_config([('inst_x.cam', block)])
 
 
-def test_validation_rejects_a_non_mapping_block() -> None:
-    """A visible-limb block that is not a mapping fails."""
+@pytest.mark.parametrize('value', [[1], []])
+def test_validation_rejects_a_non_mapping_block(value: list[int]) -> None:
+    """A visible-limb block that is not a mapping fails, even an empty one."""
     with pytest.raises(ValueError, match='must be a mapping'):
-        validate_visible_limb_config([('inst_x.cam', {'visible_limb_altitude': [1]})])
+        validate_visible_limb_config([('inst_x.cam', {'visible_limb_altitude': value})])
+
+
+def test_validation_rejects_a_lower_case_body_key() -> None:
+    """A body key that is not upper case fails rather than being silently ignored."""
+    block = {'visible_limb_altitude': {'saturn': _ENTRY}}
+    with pytest.raises(ValueError, match="body key 'saturn' must be an upper-case"):
+        validate_visible_limb_config([('inst_x.cam', block)])
 
 
 def test_validation_accepts_the_packaged_configuration() -> None:

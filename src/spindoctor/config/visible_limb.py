@@ -218,17 +218,25 @@ def validate_visible_limb_config(
             dotted location, used in the error message.
 
     Raises:
-        ValueError: If a block is not a mapping or one of its entries is malformed;
-            the message names the camera block.
+        ValueError: If a block is neither empty nor a mapping, a body key is not an
+            upper-case name, or an entry is malformed; the message names the camera
+            block.
     """
     for path, block in camera_blocks:
         if VISIBLE_LIMB_KEY not in block:
             continue
-        entries = block[VISIBLE_LIMB_KEY] or {}
+        entries = block[VISIBLE_LIMB_KEY]
+        if entries is None:
+            continue
         if not isinstance(entries, Mapping):
             raise ValueError(f'{path}.{VISIBLE_LIMB_KEY} must be a mapping')
         for body, entry in entries.items():
+            if not isinstance(body, str) or body != body.upper():
+                raise ValueError(
+                    f'{path}.{VISIBLE_LIMB_KEY}: body key {body!r} must be an upper-case '
+                    'SPICE body name'
+                )
             try:
-                VisibleLimbModel.from_mapping(str(body).upper(), entry)
+                VisibleLimbModel.from_mapping(body, entry)
             except ValueError as exc:
                 raise ValueError(f'{path}.{VISIBLE_LIMB_KEY}: {exc}') from exc
