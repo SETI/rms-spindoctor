@@ -283,8 +283,8 @@ Stars (model + star techniques)
 - :mod:`spindoctor.nav_technique.nav_technique_star_unique_match`
 - :mod:`spindoctor.nav_technique.nav_technique_star_refine`
 - :mod:`spindoctor.nav_technique.nav_technique_star_field`
-- The shared ``_star_helpers`` module is internal and not part of the
-  autodoc API.
+- The shared ``_star_helpers``, ``_star_isolation``, and ``_star_unique_two_star``
+  modules are internal and not part of the autodoc API.
 
 Body (additional techniques) and Titan
 --------------------------------------

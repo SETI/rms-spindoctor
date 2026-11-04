@@ -32,12 +32,20 @@ Per-star centroid model
 -----------------------
 
 For a single predicted catalog star at position :math:`x_{\mathrm{pred}}` with covariance
-:math:`\Sigma_{i}` (the Cramer-Rao lower bound carried on the feature), the refinement step
-takes the brightness-weighted moment of a small box around the predicted brightness peak in a
-search window centered on :math:`x_{\mathrm{pred}} + \mathbf{p}` (where :math:`\mathbf{p}` is the
-prior offset). The centroid is rejected when the brightest pixel in the window is below the
-detection threshold or the implied per-star residual exceeds a configured cap; the surviving
-correspondences are the inlier set.
+:math:`\Sigma_{i}` (the Cramer-Rao lower bound carried on the feature), the refinement
+step takes the brightness-weighted moment of a small box around the strongest
+matched-filter detection in a search window centered on
+:math:`x_{\mathrm{pred}} + \mathbf{p}` (where :math:`\mathbf{p}` is the prior offset).
+Window and detection rule are the ones
+:class:`~spindoctor.nav_technique.nav_technique_star_unique_match.StarUniqueMatchNav` uses
+(see its "Local centroid" section): a centered window ``2 * floor(refine_window_px) + 1``
+pixels on a side, the Gaussian matched-filter response, and the sharpness limit that
+passes over a single-pixel spike. The centroid is rejected when the brightest pixel of the
+detection's centroid box does not stand the detection threshold above the box's median,
+when the window's brightest pixel is the edge-cut flank of a brighter source outside it
+(the star has left the window, and anything chosen inside it is noise), or when the
+implied per-star residual exceeds a configured cap; the surviving correspondences are the
+inlier set.
 
 Translation-only fit
 --------------------
@@ -141,13 +149,20 @@ All numeric tunables for this technique live in ``techniques.StarRefineNav.tunin
   because the pass-1 prior already put the prediction within a few pixels of the brightness
   peak.
 - ``centroid_box_half_px`` — int, default ``3`` px. Half-width of the
-  brightness-weighted-moment box around each accepted peak.
+  brightness-weighted-moment box around each accepted peak, and of the matched-filter
+  kernel.
+- ``psf_sigma_px`` — float, default ``1.0`` px. Gaussian sigma of the matched-filter
+  kernel that chooses the detection in each refinement window.
+- ``max_peak_sharpness`` — float, default ``8.0``. Largest ratio of a detection's
+  brightest-pixel excess to the mean excess of its four edge neighbors; see
+  :class:`~spindoctor.nav_technique.nav_technique_star_unique_match.StarUniqueMatchNav`.
 - ``max_per_star_residual_px`` — float, default ``4.0`` px. A star whose detected centroid
   sits more than this many pixels from the shifted prediction is dropped before the average;
   almost certainly a wrong peak.
 - ``detection_sigma`` — float, default ``4.0`` (dimensionless). Detection-threshold
-  multiplier on the per-image noise sigma; the brightest pixel in the refinement window must
-  clear ``detection_sigma * image_noise_sigma`` to be accepted.
+  multiplier on the per-image noise sigma; the brightest pixel of the detection's centroid
+  box must stand ``detection_sigma * image_noise_sigma`` above the box's median to be
+  accepted.
 - ``min_inliers`` — int, default ``1`` (count). Below this many surviving inliers the
   technique reports a spurious zero-confidence result instead of attempting the average.
 - ``at_edge_tolerance_px`` — float, default ``1.0`` px. The reported absolute translation
@@ -212,6 +227,7 @@ Source files:
   collect-residuals / build-covariance / Procrustes-refit / fail-shape helpers.
 - ``src/spindoctor/nav_technique/_star_helpers.py`` — shared star-feature helpers
   (``usable_stars``,
+  ``search_window_bounds``,
   ``local_centroid``,
   ``similarity_transform_fit``). The leading underscore
   marks the module as package-private; every star technique imports it.

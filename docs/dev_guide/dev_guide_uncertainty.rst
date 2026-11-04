@@ -127,6 +127,14 @@ rather than the noise-free lower bound.
 reports the precision-weighted residual scatter of its refined inliers,
 collapsing to the single feature's bound when only one inlier survives.
 
+A one-star fit is the exception to "measured". One star's two coordinates fix the two
+offset parameters exactly, so nothing is left over to measure a scatter from: the sigma
+such a result carries is the bound the star's predicted brightness implies, and it is
+equally small whether the star was identified correctly or not. The ensemble therefore
+reports an offset that rests on one matched star with ``status_reason``
+``single_star_only`` and caps its tier at ``low``; see
+:doc:`dev_guide_orchestrator_ensemble`.
+
 Titan haze
 ----------
 

@@ -8,6 +8,10 @@ newhorizons_lorri:
     512: [30, 30]
     1024: [60, 60]
   star_psf_sigma: 3.
+  # Fraction of the offset window, per axis, inside which
+  # StarUniqueMatchNav believes a lone star, in (0, 1].  Not measured on
+  # this camera: 0.6 is the Cassini NAC's value.
+  one_star_ellipse_fraction: 0.6
   star_psf_sizes:
     100: [7, 7]
   fit_camera_rotation: false

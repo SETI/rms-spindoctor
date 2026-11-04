@@ -110,6 +110,7 @@ def test_metadata_dict_contains_top_level_keys() -> None:
         'covariance_px2',
         'techniques_used',
         'excluded_from_consensus',
+        'matched_star_count',
         'feature_count_by_type',
         'per_technique',
         'feature_inventory',

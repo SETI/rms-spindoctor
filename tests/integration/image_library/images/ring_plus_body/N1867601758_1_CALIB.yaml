@@ -28,10 +28,16 @@ ground_truth:
     sigma just over the medium tier's 2 px cap. Same contested
     fully-correlated severity assumption as the ring_only_flat Keeler
     frames.
+
+    Re-pinned 2026-10-31 (operator decision): primary_technique
+    BodyBlobNav -> RingEdgeNav, completing the 2026-10-27 tier
+    re-pin. RingEdgeNav carries the highest confidence while the
+    fused offset stays on operator truth.
+
 expected:
   status: success
   confidence_tier: low
-  primary_technique: BodyBlobNav
+  primary_technique: RingEdgeNav
   techniques_must_run:
   - BodyBlobNav
   techniques_must_skip: []

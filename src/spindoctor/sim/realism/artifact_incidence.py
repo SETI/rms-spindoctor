@@ -43,11 +43,14 @@ class ArtifactIncidence:
             :func:`split_stationary_spikes`).
         spike_positions_vu: ``(K, 2)`` integer positions of the flagged
             spikes, for the cross-frame stationary split.
+        frame_shape_vu: The frame's ``(rows, columns)``; a position recurs
+            only among frames of one shape.
     """
 
     missing_line_fraction: float
     spike_fraction: float
     spike_positions_vu: NDArrayFloatType
+    frame_shape_vu: tuple[int, int]
 
 
 def _row_is_lost(row: NDArrayFloatType, above: NDArrayFloatType, below: NDArrayFloatType) -> bool:
@@ -95,6 +98,7 @@ def measure_artifact_incidence(
             missing_line_fraction=float('nan'),
             spike_fraction=float('nan'),
             spike_positions_vu=np.empty((0, 2)),
+            frame_shape_vu=(int(arr.shape[0]), int(arr.shape[1])),
         )
     # --- line loss ---
     lost_rows = 0
@@ -119,6 +123,7 @@ def measure_artifact_incidence(
         missing_line_fraction=missing_line_fraction,
         spike_fraction=spike_fraction,
         spike_positions_vu=positions,
+        frame_shape_vu=(int(arr.shape[0]), int(arr.shape[1])),
     )
 
 
@@ -128,8 +133,9 @@ def split_stationary_spikes(
     """Split measured spikes into stationary (hot pixels) and transients.
 
     Parameters:
-        per_frame: Incidence measurements from frames sharing a detector
-            (same instrument, same frame shape).
+        per_frame: Incidence measurements from one instrument's frames.  A
+            position recurs only among frames of one shape, so a summed or
+            binned frame doesn't share hot pixels with a full-resolution one.
         min_recurrence: Number of frames a position must recur in to count
             as stationary.
 
@@ -141,10 +147,11 @@ def split_stationary_spikes(
     """
     if len(per_frame) < min_recurrence:
         return float('nan'), float('nan')
-    counts: dict[tuple[int, int], int] = {}
+    counts: dict[tuple[tuple[int, int], int, int], int] = {}
     for frame in per_frame:
         for v, u in frame.spike_positions_vu.astype(int):
-            counts[(int(v), int(u))] = counts.get((int(v), int(u)), 0) + 1
+            key = (frame.frame_shape_vu, int(v), int(u))
+            counts[key] = counts.get(key, 0) + 1
     stationary = {pos for pos, n in counts.items() if n >= min_recurrence}
     stationary_fracs: list[float] = []
     transient_fracs: list[float] = []
@@ -155,7 +162,9 @@ def split_stationary_spikes(
             transient_fracs.append(0.0)
             continue
         n_stationary = sum(
-            1 for v, u in frame.spike_positions_vu.astype(int) if (int(v), int(u)) in stationary
+            1
+            for v, u in frame.spike_positions_vu.astype(int)
+            if (frame.frame_shape_vu, int(v), int(u)) in stationary
         )
         # Convert counts back to per-pixel fractions via the frame's own rate.
         scale = frame.spike_fraction / total if total else 0.0

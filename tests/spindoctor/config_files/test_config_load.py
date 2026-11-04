@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import pathlib
 
+import pytest
 from ruamel.yaml import YAML
 
 import spindoctor.config.config
@@ -108,6 +109,31 @@ def test_per_instrument_required_fields_present() -> None:
     assert nhlorri['fit_camera_rotation'] is False
     assert nhlorri['max_rotation_deg'] == 5.0
     assert nhlorri['mag_offset']['fallback_combo'] == '1'
+
+
+@pytest.mark.parametrize(
+    ('section', 'camera', 'fraction'),
+    [
+        ('cassini_iss', 'nac', 0.6),
+        ('cassini_iss', 'wac', 0.7),
+        ('cassini_iss_calib', 'nac', 0.6),
+        ('cassini_iss_calib', 'wac', 0.7),
+        ('galileo_ssi', None, 0.6),
+        ('newhorizons_lorri', None, 0.6),
+        ('voyager_iss', None, 0.6),
+        ('sim', None, 0.6),
+    ],
+)
+def test_each_camera_sets_its_lone_star_ellipse(
+    section: str, camera: str | None, fraction: float
+) -> None:
+    """The Cassini WAC believes a lone star out to 0.7 of its window; every other camera 0.6."""
+    config = Config()
+    config.read_config()
+    block = config.category(section)
+    if camera is not None:
+        block = block[camera]
+    assert block['one_star_ellipse_fraction'] == fraction
 
 
 def test_body_shape_section_loaded() -> None:

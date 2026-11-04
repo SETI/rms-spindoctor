@@ -21,9 +21,15 @@ ground_truth:
     Pipeline at curation: status=success, confidence=0.263, rank=low, techniques=['StarFieldFromCatalogNav', 'StarRefineNav', 'StarUniqueMatchNav'], per-technique offsets={"StarFieldFromCatalogNav": [0.0, 0.0], "StarUniqueMatchNav": [3.3482, -33.6334], "StarRefineNav": [2.9437, -34.1868]}.
 
     The expected pins follow the seed-20260718 recalibration (attribution basis util/calibration/CAMPAIGN_20260718.md). The primary is StarRefineNav: a multi-star refine (uncapped, confidence >0.50) is the highest-confidence contributor, and the single-inlier 0.50 confidence cap does not apply to multi-star refines.
+
+    Re-pinned 2026-10-31 (operator decision): confidence_tier
+    high -> medium. The offset is unchanged or closer to truth;
+    a star listed twice in the catalog counts once, so the
+    star-confirmed answer carries fewer independent stars.
+
 expected:
   status: success
-  confidence_tier: high
+  confidence_tier: medium
   primary_technique: StarRefineNav
   techniques_must_run:
   - StarFieldFromCatalogNav
