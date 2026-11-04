@@ -66,9 +66,9 @@ __all__ = ['TopoBodyRender', 'TopoBodySpec', 'create_topographic_body', 'render_
 # between grid nodes.
 _SLOPE_BAND_MARGIN = 1.5
 # The march samples the terrain at its own resolution: this many samples
-# per relief-field grid cell (the field is band-limited well above the
-# cell scale, so finer sampling changes no shadow decision), never finer
-# than one shading pixel.
+# per relief-field grid cell, whatever the body's size in pixels.  A step
+# tied to the shading pixel would skip ridge tips on a small body with fine
+# relief and leave their shadows lit.
 _MARCH_SAMPLES_PER_CELL = 8.0
 
 
@@ -547,10 +547,10 @@ def _relief_shading(
     shadowed_near = on_body & (tan_elevation <= -band)
     marched = on_body & (np.abs(tan_elevation) < band)
     if marched.any():
-        radius_max = float(semi.max())
         cell = 2.0 * np.pi / field.grid.shape[0]
-        step = max(cell / _MARCH_SAMPLES_PER_CELL, 1.0 / max(radius_max, 1.0))
-        shadowed_near[marched] = cast_shadows(p[marched], sun, field, step=step)
+        shadowed_near[marched] = cast_shadows(
+            p[marched], sun, field, step=cell / _MARCH_SAMPLES_PER_CELL
+        )
     shadowed = np.zeros(grid.e2.shape, dtype=np.bool_)
     shadowed[near] = shadowed_near
     return normal_v, normal_u, normal_z, shadowed

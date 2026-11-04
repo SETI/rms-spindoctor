@@ -19,7 +19,7 @@ from spindoctor.sim import render
 from spindoctor.sim.forward import body_topo
 from spindoctor.sim.forward.body_topo import TopoBodySpec, create_topographic_body
 from spindoctor.sim.forward.photometry import DARK_SIDE_FLOOR
-from spindoctor.sim.forward.relief import ReliefField, synthesize_relief_field
+from spindoctor.sim.forward.relief import ReliefField, cast_shadows, synthesize_relief_field
 from spindoctor.support.types import NDArrayFloatType
 
 _RMS = 0.02
@@ -333,6 +333,47 @@ def test_relief_normals_near_the_limb_face_the_observer() -> None:
     assert int(away.sum()) > 100
     normal_z = body_topo._relief_shading(grid, spec, field, near, cos_rz=1.0, sin_rz=0.0)[2]
     assert float(normal_z.min()) >= 0.0
+
+
+def test_shadow_march_resolves_fine_relief_on_a_small_body(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The march steps at the terrain's resolution, not the body's pixel size.
+
+    On a 30 px body with 1 degree relief one shading pixel spans several field
+    cells, so a pixel-sized step skips ridge tips.  The renderer's shadow
+    decisions match a march at a quarter of its step on all but 1% of the
+    shadowed pixels.
+    """
+    spec = TopoBodySpec(
+        axis1=60.0,
+        axis2=60.0,
+        axis3=60.0,
+        illumination_angle=math.radians(80.0),
+        phase_angle=math.radians(70.0),
+        anti_aliasing=0.0,
+        limb_relief_rms=0.03,
+        limb_relief_corr_deg=1.0,
+        relief_seed=3,
+    )
+    grid = body_topo._body_grid(
+        (80, 80), (40.0, 40.0), (30.0, 30.0, 30.0), cos_rz=1.0, sin_rz=0.0, cos_rt=1.0
+    )
+    field = synthesize_relief_field(0.03, 1.0, 3)
+    near = grid.e2 < (1.0 + field.h_max + 2.0 / 30.0) ** 2
+    shadowed = body_topo._relief_shading(grid, spec, field, near, cos_rz=1.0, sin_rz=0.0)[3]
+
+    cell = 2.0 * np.pi / field.grid.shape[0]
+
+    def fine_march(
+        points: NDArrayFloatType, sun: NDArrayFloatType, relief: ReliefField, *, step: float
+    ) -> Any:
+        return cast_shadows(points, sun, relief, step=min(step, cell / 32.0))
+
+    monkeypatch.setattr(body_topo, 'cast_shadows', fine_march)
+    reference = body_topo._relief_shading(grid, spec, field, near, cos_rz=1.0, sin_rz=0.0)[3]
+    assert int(reference.sum()) > 100
+    assert int((shadowed != reference).sum()) <= 0.01 * int(reference.sum())
 
 
 def _body_scene(*, oversample: int | None, body_extra: dict[str, Any]) -> dict[str, Any]:

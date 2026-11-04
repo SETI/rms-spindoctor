@@ -1433,9 +1433,11 @@ rise. A pixel whose sun elevation has ``tan(elevation)`` at or above that bound
 is never shadowed, and one at or below its negative always is. The march
 visits the pixels inside that band, widened by half again because ``s_max`` is
 taken from the field grid's own differences. The steps are an eighth of a field
-grid cell, never finer than one shading pixel. Against a march at half that
-step the decisions differ on under 3% of the shadowed pixels, all at grazing
-rays.
+grid cell, whatever the body's size in pixels. A step tied to the shading pixel
+would skip ridge tips on a small body with fine relief and leave their shadows
+lit. Against a march at a quarter of that step, the decisions differ on under
+0.3% of the shadowed pixels, for bodies from 30 to 300 pixels in radius with
+relief from 1 to 12 degrees across.
 
 Shading and shadows are evaluated per shading pixel and upsampled with the
 rest of the shading, so a shadow's edge is as soft as the shading grid.
