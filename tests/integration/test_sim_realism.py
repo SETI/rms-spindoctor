@@ -47,7 +47,11 @@ _NAC_FULL = (1024, 1024)
 
 
 def _full_frame(instrument: str) -> tuple[int, int]:
-    """A full unbinned frame's shape for ``instrument`` (Voyager's GEOMED for the vidicon)."""
+    """A full unbinned frame's shape for ``instrument``.
+
+    The shape is ``NATIVE_FRAME_SIZE_PX`` on a side, or 1000 by 1000 (Voyager's
+    GEOMED frame) for an instrument that table doesn't list.
+    """
     size = NATIVE_FRAME_SIZE_PX.get(instrument, 1000)
     return (size, size)
 

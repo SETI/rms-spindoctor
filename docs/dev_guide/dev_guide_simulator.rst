@@ -2935,7 +2935,8 @@ explicit ``optics.psf`` block.
 The faint sky-count integral is truncated at the magnitude where a star's
 matched-filter signal drops to the read-noise floor over its PSF core
 (:func:`spindoctor.sim.forward.star.faint_sky_cutoff_mag`): fainter draws add
-nothing above the noise. That cutoff is an image-side rendering economy and is
+nothing above the noise. The core counts as at least one pixel, since a core
+narrower than a pixel, as in a binned frame, still lands in one. That cutoff is an image-side rendering economy and is
 distinct from the navigator's own published-config detection limit
 (:meth:`~spindoctor.obs.obs_inst_sim.ObsSim.star_max_usable_vmag`), which is
 derived from the emulated instrument's configuration and bounds which stars the

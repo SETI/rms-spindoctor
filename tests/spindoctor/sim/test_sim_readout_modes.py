@@ -14,6 +14,7 @@ from typing import Any
 import numpy as np
 import pytest
 
+from spindoctor.sim.forward import scene_radiance
 from spindoctor.sim.forward.artifacts_catalog import (
     PSF_KERNELS,
     binned_psf_kernel,
@@ -24,7 +25,8 @@ from spindoctor.sim.forward.detector.noise_stages import detector_hot_pixel_map
 from spindoctor.sim.forward.detector.params import DetectorParamError, resolve_detector_params
 from spindoctor.sim.forward.optics import effective_psf
 from spindoctor.sim.forward.scene_radiance import _nominal_read_noise
-from spindoctor.sim.render import render_combined_model
+from spindoctor.sim.forward.star import faint_sky_cutoff_mag
+from spindoctor.sim.render import clear_render_caches, render_combined_model
 from spindoctor.sim.scene import validate_sim_params
 from spindoctor.sim.scene_schema import SimSceneValidationError
 
@@ -142,6 +144,22 @@ def test_a_summed_galileo_frame_reads_its_published_read_noise() -> None:
 def test_the_sky_cutoff_reads_the_summed_mode_read_noise() -> None:
     """The faint-sky cutoff uses the readout mode's noise floor: 44 e- for Galileo 2x2."""
     assert _nominal_read_noise('gossi', 'electrons', binning=2) == 44.0
+
+
+def test_a_summed_sky_scene_passes_its_mode_read_noise_to_the_cutoff(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Rendering a Galileo 2x2 sky asks the cutoff about the 44 e- floor."""
+    seen: list[float] = []
+
+    def spy(**kwargs: float) -> float:
+        seen.append(kwargs['read_noise'])
+        return faint_sky_cutoff_mag(**kwargs)
+
+    monkeypatch.setattr(scene_radiance, 'faint_sky_cutoff_mag', spy)
+    clear_render_caches()
+    render_combined_model(_scene('gossi', 2, sky_counts={'density_factor': 1.0}))
+    assert seen == [44.0]
 
 
 def test_binning_scales_the_native_dark_current() -> None:

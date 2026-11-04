@@ -143,7 +143,7 @@ class SimEditorBase(QMainWindow):
     _adversarial_check: QCheckBox
     _detector_group: QGroupBox
     _detector_gain_state_spin: QSpinBox
-    _detector_binning_spin: QSpinBox
+    _detector_binning_combo: QComboBox
     _detector_model_combo: QComboBox
     _detector_exposure_ref_spin: QDoubleSpinBox
     _detector_quantization_combo: QComboBox
