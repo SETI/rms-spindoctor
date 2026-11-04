@@ -46,13 +46,16 @@ def _scene_paths() -> list[Path]:
     return iter_scene_paths(_SCENES_ROOT)
 
 
-def test_every_scene_has_a_current_render() -> None:
+def test_every_scene_has_a_current_render(tmp_path_factory: pytest.TempPathFactory) -> None:
     """Every catalog scene has a committed, byte-current ``current/`` PNG.
 
     A missing or stale PNG means a scene (or a rendering change) landed
     without regenerating the review artifacts; rerun the generator and
-    review the sheet before committing.
+    review the sheet before committing.  Each stale scene's fresh render is
+    written to a ``sim_render_diffs`` temporary directory, which CI uploads
+    when the test fails.
     """
+    fresh_dir = tmp_path_factory.mktemp('sim_render_diffs')
     stale: list[str] = []
     examined = 0
     for path in _scene_paths():
@@ -62,11 +65,12 @@ def test_every_scene_has_a_current_render() -> None:
         fresh = encode_current_png(stretch_to_uint8(img))
         if not committed.is_file() or committed.read_bytes() != fresh:
             stale.append(path.stem)
+            (fresh_dir / f'{path.stem}.png').write_bytes(fresh)
     assert examined > 0, 'no scenes were examined; the catalog is empty or unreachable'
     assert not stale, (
         f'{len(stale)} committed current render(s) missing or no longer matching a '
-        f'fresh render: {stale}; regenerate with `{_REGEN_COMMAND}` and review the '
-        f'sheets before committing'
+        f'fresh render: {stale}; the fresh renders are in {fresh_dir}.  Regenerate '
+        f'with `{_REGEN_COMMAND}` and review the sheets before committing'
     )
 
 

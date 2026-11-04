@@ -3304,7 +3304,9 @@ rule -- and the rule is enforced mechanically:
 ``tests/integration/test_sim_doc_images.py`` (integration tier, run by CI) regenerates
 every gallery image into a temporary directory and fails, naming the stale
 files and the regeneration command, whenever a committed PNG no longer
-matches a fresh render.
+matches a fresh render. When either check fails in CI, the job uploads the
+fresh renders as a ``sim-renders`` artifact: the regenerated galleries, and
+each stale render-diff scene's fresh ``current/`` PNG.
 
 .. _sim-gui:
 
