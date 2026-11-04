@@ -334,6 +334,11 @@ The known open defects:
   answer all four within 0.52 px, and a rerun shows none of 532 worse
   frames ours by stars, 150 undecidable. Open: #765 for the two smeared
   refusals, #767 for single results fused inside the pixel floor.
+  Merged with `main` after #754: on 3,186 F ring and spokes star frames F
+  ring NAC answers within 1 px rise from 798 to 1,667 and over 2 px fall
+  from 430 to 100; none of 178 worse frames is ours by stars, but 3 lone-star
+  answers `main` gives are refused (the lone-star absent-star test over the
+  deeper star list, an operator decision on #766).
   #755 also carries the along-edge part of the planted-shift sweep (raw
   RingEdgeNav rows median 4.2 / 1.7 px v/u on frames whose edge sets are
   straight or nearly so), which the along-edge covariance change leaves as

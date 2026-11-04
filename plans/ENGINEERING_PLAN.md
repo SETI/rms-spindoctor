@@ -303,7 +303,8 @@ What remains of the family:
   pointing wrong on 383, 162 could not be decided, and 11 were ours. Five
   fixes followed: the one-star brightness margin counts only stars that can
   enter the star's search window, and a match whose star is uniquely bright
-  only there must be corroborated by two other stars at its offset; a
+  only there must be corroborated by two other stars at its offset (both
+  later replaced by #754's one-star search, below); a
   collapsed set of star witnesses keeps its vote when one member is a
   seeded refine; a result fused with a collapsed set is held to the
   compromise test against the set's representative, the side less precise
@@ -363,6 +364,25 @@ What remains of the family:
   decided (148 already undecided). The four losses above answer within
   0.52 px. The symmetric star check, which also looks for stars at the
   bundle's answer, changes no verdict of the full run's worse frames.
+  Merged with `main` after #754 (2026-11-03): #754's one-star search, which
+  counts a rival star only when its window holds the source and refutes a
+  lone star that other stars contradict, replaces this branch's window-rival
+  margin and corroboration rule; a star centroid sits above the plane
+  background, and a detection must clear the threshold above that plane too,
+  so a glare slope is no star; and the lone-star brightness bound was
+  re-measured on the photometric limit's predicted SNR (Cassini NAC 3.0, WAC
+  5.0, from 150 and 40). On 3,186 F ring and spokes star frames against
+  `main`: F ring NAC within 1 px of the bundle pointing 798 -> 1,667, over
+  2 px 430 -> 100, refused 401 -> 37; spokes WAC within 1 px 224 -> 489,
+  refused 321 -> 29. Of the 178 frames that got worse, stars show the
+  pointing wrong on 126 and side with it on none, 49 cannot be decided, and
+  3 F ring frames (N1748768795, N1748785816, N1799563905) that `main`
+  answers within 0.1 px on one star are refused: with the deeper star list
+  #754's lone-star test judges every usable star, and on N1748768795 23 faint
+  stars fall below a quarter of their expected peak at the right offset. The
+  library fails 26 of 75 against 6 on `main`: tier and primary-technique pins,
+  three truths the stars contradict, and N1555145539_1 refused the same way
+  (Operator Playbook).
   Still refused: `N1543177345` and `N1743090421` (the previous answers are
   5 px off the stars), `N1493641551` (no usable star either way), and the
   smeared `N1605530694` and `N1605536089`, which #765 resolves

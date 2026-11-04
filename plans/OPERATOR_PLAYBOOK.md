@@ -426,6 +426,47 @@ truth is exactly (0.5, 0.5) px from that star's position as the pipeline
 measures it, which looks like a pixel-corner versus pixel-center datum in the
 truth rather than an error in the answer.
 
+**The same proposal after merging `main` with #754 (2026-11-03; operator
+decision; no sidecar has been edited).** On the merged branch the library fails
+26 of 75 against 6 on `main` (all six still fail). Of the 20 new, the table
+gives what the branch reports against each pin. Sixteen are tier or
+primary-technique pins with the answer within its tolerance, closer to truth
+on six, the same on two, and at most 0.16 px farther on the rest: re-pin to the
+merged values once this branch merges. N1597846115_2 and N1633925572_1 are the
+contradicted truth and the half-pixel datum above. On N1669606966_1 the truth is
+the body brightness center's own answer (sigma 18 px) and a two-star match with
+its refine lands 24 px from it; one catalog star sits at the new answer and none
+at the truth, too few to decide. N1555145539_1 is refused: with the deeper star
+list StarUniqueMatchNav's lone-star test refutes every lone-star offset, the right
+one included, because some of the other 20 stars fall below a quarter of their
+expected peak there (judging only the five searched stars answers it at the truth
+to 0.01 px). N1853392805_1, red on `main` as
+`conflicted`, is now answered 16.8 px from its truth at the medium tier, where
+three stars sit at the new answer and none at the truth: re-verify that truth.
+
+| frame | merged branch against its pins | distance to truth, main -> merged |
+|---|---|---|
+| N1459509270_1_CALIB | primary StarFieldFromCatalogNav != StarRefineNav | 0.01 -> 0.03 px |
+| N1465178827_2_CALIB | tier high != medium; primary StarRefineNav != BodyBlobNav | 0.26 -> 0.07 px |
+| N1483174087_1_CALIB | primary StarFieldFromCatalogNav != StarRefineNav | 0.01 -> 0.03 px |
+| N1486991973_1_CALIB | primary StarFieldFromCatalogNav != StarRefineNav | 1.09 -> 1.13 px |
+| N1489603610_2_CALIB | tier high != medium | 0.41 -> 0.34 px |
+| N1492091163_1_CALIB | primary StarFieldFromCatalogNav != StarRefineNav | 0.00 -> 0.01 px |
+| N1503576135_2_CALIB | tier high != medium; primary StarRefineNav != BodyDiscCorrelateNav | 0.01 -> 0.11 px |
+| N1506004925_1_CALIB | primary StarFieldFromCatalogNav != StarRefineNav | 0.00 -> 0.01 px |
+| N1519300016_2_CALIB | tier high != medium; primary StarRefineNav != BodyDiscCorrelateNav | 0.01 -> 0.17 px |
+| N1555145539_1_CALIB | status failed != success; tier failed != low; primary StarFieldFromCatalogNav != StarUniqueMatchNav | 0.00 -> - px |
+| N1572105349_1_CALIB | primary StarRefineNav != BodyLimbNav | 0.72 -> 0.15 px |
+| N1572472169_1_CALIB | tier high != medium | 0.29 -> 0.28 px |
+| N1597846115_2_CALIB | tier medium != low; dv err 3.09 > 1.5; primary StarRefineNav != BodyLimbNav | 0.47 -> 3.09 px |
+| N1598065103_1_CALIB | tier high != medium; primary StarRefineNav != BodyDiscCorrelateNav | 0.01 -> 0.06 px |
+| N1633925572_1_CALIB | tier medium != low; primary StarRefineNav != BodyLimbNav | 0.08 -> 0.61 px |
+| N1669606966_1_CALIB | tier medium != low; dv err 16.64 > 2.5; du err 18.01 > 2.5; primary StarRefineNav != BodyBlobNav | 0.00 -> 24.53 px |
+| N1777325846_1_CALIB | tier medium != low; primary StarRefineNav != BodyLimbNav | 0.48 -> 0.43 px |
+| N1828122657_1_CALIB | primary StarRefineNav != BodyBlobNav | 0.00 -> 0.00 px |
+| N1855878123_1_CALIB | primary StarUniqueMatchNav != BodyDiscCorrelateNav | 0.38 -> 0.38 px |
+| W1449079117_1_CALIB | tier high != low; primary StarRefineNav != StarUniqueMatchNav | 0.57 -> 0.55 px |
+
 **After any navigation-affecting merge, compare against `main` rather than
 against the table:**
 
