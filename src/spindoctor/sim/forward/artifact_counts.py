@@ -1,9 +1,9 @@
-"""Artifact-incidence measurement: planted truth vs image-measured counts.
+"""Artifact counts: planted truth vs image-measured counts.
 
 The realism match compares how many defects a scene *planted* against how many a
 detector could *measure* on the rendered frame.  This module carries both sides:
 
-* :func:`planted_incidence` reads the realized geometry the telemetry stage
+* :func:`planted_artifact_counts` reads the realized geometry the telemetry stage
   wrote into ``frame.truth['artifacts']`` and returns a realized event count per
   mode (lost lines, truncated lines, lost blocks, dropped or spiked pixels, dead
   columns, or a commanded on/off).  This is ground truth: it is exact by
@@ -26,7 +26,7 @@ there.  Modes that plant *wrong* values rather than the marker -- garble (random
 pixel spikes (bit-flips), and every detector-electronics mode -- are not
 recoverable pixel-by-pixel from a single frame: distinguishing them from
 scene structure needs multi-frame or noise statistics, which is out of scope
-here.  For those modes, use :func:`planted_incidence` (the truth side) only.
+here.  For those modes, use :func:`planted_artifact_counts` (the truth side) only.
 """
 
 from __future__ import annotations
@@ -45,7 +45,7 @@ __all__ = [
     'measured_missing_lines',
     'measured_partial_lines',
     'measured_pixel_dropouts',
-    'planted_incidence',
+    'planted_artifact_counts',
 ]
 
 # The per-mode truth-record fields whose list length is the realized event
@@ -74,7 +74,7 @@ def _realized_count(record: Mapping[str, Any]) -> int:
     return 0
 
 
-def planted_incidence(truth: Mapping[str, Any]) -> dict[str, int]:
+def planted_artifact_counts(truth: Mapping[str, Any]) -> dict[str, int]:
     """Realized per-mode event counts from a rendered frame's truth record.
 
     Parameters:

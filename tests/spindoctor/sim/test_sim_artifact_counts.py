@@ -1,4 +1,4 @@
-"""Artifact-incidence measurement: planted truth equals image-measured count.
+"""Artifact counts: planted truth equals image-measured count.
 
 Each structural marker-based loss mode is rendered in isolation onto a biased
 disc frame (a non-zero floor so the marker stands out from the sky), and the
@@ -6,7 +6,7 @@ image-only estimator is asserted to recover exactly the count the telemetry
 stage recorded in the frame truth.  The planted side is exact by construction;
 these tests pin the image side to it.  Modes that plant wrong values rather than
 the marker (garble, spikes, detector electronics) are out of scope for the
-image estimators and are covered only through :func:`planted_incidence`.
+image estimators and are covered only through :func:`planted_artifact_counts`.
 """
 
 import copy
@@ -15,13 +15,13 @@ from typing import Any
 import numpy as np
 import pytest
 
-from spindoctor.sim.forward.incidence import (
+from spindoctor.sim.forward.artifact_counts import (
     marker_mask,
     measured_missing_blocks,
     measured_missing_lines,
     measured_partial_lines,
     measured_pixel_dropouts,
-    planted_incidence,
+    planted_artifact_counts,
 )
 from spindoctor.sim.render import render_combined_model
 
@@ -29,7 +29,7 @@ from spindoctor.sim.render import render_combined_model
 # marker so a dropped pixel is exactly distinguishable from dark sky.
 _BASE_SCENE: dict[str, Any] = {
     'schema_version': 2,
-    'scene_name': 'incidence_base',
+    'scene_name': 'artifact_counts_base',
     'instrument': 'coiss_nac',
     'size_v': 200,
     'size_u': 200,
@@ -58,23 +58,23 @@ def _render_with(artifacts: dict[str, Any]) -> tuple[np.ndarray, dict[str, Any]]
     return render_combined_model(scene)
 
 
-def test_planted_incidence_empty_without_artifacts() -> None:
-    """A frame with no artifacts records no planted incidence."""
+def test_planted_artifact_counts_empty_without_artifacts() -> None:
+    """A frame with no artifacts records no planted artifacts."""
     _img, truth = render_combined_model(copy.deepcopy(_BASE_SCENE))
-    assert planted_incidence(truth) == {}
+    assert planted_artifact_counts(truth) == {}
 
 
 def test_planted_missing_lines_counts_lost_lines() -> None:
     """The planted count is the number of recorded lost lines."""
     _img, truth = _render_with({'missing_lines': {'expected_events': 6.0}})
     recorded = len(truth['artifacts']['missing_lines']['lines'])
-    assert planted_incidence(truth)['missing_lines'] == recorded
+    assert planted_artifact_counts(truth)['missing_lines'] == recorded
 
 
 def test_measured_missing_lines_matches_planted() -> None:
     """The image estimator recovers exactly the planted lost-line count."""
     img, truth = _render_with({'missing_lines': {'expected_events': 6.0}})
-    planted = planted_incidence(truth)['missing_lines']
+    planted = planted_artifact_counts(truth)['missing_lines']
     assert measured_missing_lines(img) == planted
 
 
@@ -89,7 +89,7 @@ def test_measured_partial_lines_matches_planted() -> None:
     img, truth = _render_with(
         {'partial_lines': {'expected_events': 6.0, 'max_surviving_segments': 2}}
     )
-    planted = planted_incidence(truth)['partial_lines']
+    planted = planted_artifact_counts(truth)['partial_lines']
     assert measured_partial_lines(img) == planted
 
 
@@ -147,13 +147,13 @@ def test_measured_missing_blocks_rejects_nonpositive_block_lines() -> None:
         measured_missing_blocks(image, block_lines=0)
 
 
-def test_planted_incidence_commanded_mode_counts_activation() -> None:
+def test_planted_artifact_counts_commanded_mode_counts_activation() -> None:
     """A commanded on/off mode reports 1 when active, via its truth flag."""
     truth = {'artifacts': {'cutout_window': {'active': True, 'rect': [0, 4, 0, 4]}}}
-    assert planted_incidence(truth)['cutout_window'] == 1
+    assert planted_artifact_counts(truth)['cutout_window'] == 1
 
 
-def test_planted_incidence_commanded_mode_inactive_is_zero() -> None:
+def test_planted_artifact_counts_commanded_mode_inactive_is_zero() -> None:
     """An inactive commanded mode reports 0."""
     truth = {'artifacts': {'cutout_window': {'active': False}}}
-    assert planted_incidence(truth)['cutout_window'] == 0
+    assert planted_artifact_counts(truth)['cutout_window'] == 0

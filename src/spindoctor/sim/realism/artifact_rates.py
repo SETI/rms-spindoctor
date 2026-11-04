@@ -1,4 +1,4 @@
-"""Measured artifact incidence rates for realism FOM 6.
+"""Measured artifact rates for realism FOM 6.
 
 These detectors measure, per frame, the rates of the artifact classes the
 catalog defaults describe: line loss (missing / interpolated rows),
@@ -11,7 +11,7 @@ keys at zero -- FOM 6 is the evidence for keeping or replacing those zeros).
 
 The hot-pixel / transient-spike split needs more than one frame: a spike
 that recurs at one detector position across frames is a hot pixel, one that
-does not is a transient.  ``measure_artifact_incidence`` therefore reports
+does not is a transient.  ``measure_artifact_rates`` therefore reports
 per-frame spike candidates, and ``split_stationary_spikes`` performs the
 cross-frame split.
 """
@@ -25,14 +25,14 @@ import scipy.ndimage
 from spindoctor.support.types import NDArrayFloatType
 
 __all__ = [
-    'ArtifactIncidence',
-    'measure_artifact_incidence',
+    'ArtifactRates',
+    'measure_artifact_rates',
     'split_stationary_spikes',
 ]
 
 
 @dataclass(frozen=True)
-class ArtifactIncidence:
+class ArtifactRates:
     """Per-frame artifact measurements.
 
     Parameters:
@@ -61,9 +61,9 @@ def _row_is_lost(row: NDArrayFloatType, above: NDArrayFloatType, below: NDArrayF
     return bool(np.allclose(row, interpolated, rtol=0.0, atol=1e-12))
 
 
-def measure_artifact_incidence(
+def measure_artifact_rates(
     image: NDArrayFloatType, *, spike_q99_factor: float = 10.0
-) -> ArtifactIncidence:
+) -> ArtifactRates:
     """Measure line loss and single-pixel spikes on one frame.
 
     Line loss: a row counts as lost when it is constant while its
@@ -94,7 +94,7 @@ def measure_artifact_incidence(
     arr = np.asarray(image, dtype=np.float64)
     n_rows = arr.shape[0]
     if n_rows < 3 or arr.shape[1] < 3:
-        return ArtifactIncidence(
+        return ArtifactRates(
             missing_line_fraction=float('nan'),
             spike_fraction=float('nan'),
             spike_positions_vu=np.empty((0, 2)),
@@ -119,7 +119,7 @@ def measure_artifact_incidence(
         spikes = residual > spike_q99_factor * q99
     positions = np.argwhere(spikes).astype(np.float64)
     spike_fraction = float(np.count_nonzero(spikes)) / arr.size
-    return ArtifactIncidence(
+    return ArtifactRates(
         missing_line_fraction=missing_line_fraction,
         spike_fraction=spike_fraction,
         spike_positions_vu=positions,
@@ -128,12 +128,12 @@ def measure_artifact_incidence(
 
 
 def split_stationary_spikes(
-    per_frame: Sequence[ArtifactIncidence], *, min_recurrence: int = 2
+    per_frame: Sequence[ArtifactRates], *, min_recurrence: int = 2
 ) -> tuple[float, float]:
     """Split measured spikes into stationary (hot pixels) and transients.
 
     Parameters:
-        per_frame: Incidence measurements from one instrument's frames.  A
+        per_frame: Rate measurements from one instrument's frames.  A
             position recurs only among frames of one shape, so a summed or
             binned frame doesn't share hot pixels with a full-resolution one.
         min_recurrence: Number of frames a position must recur in to count

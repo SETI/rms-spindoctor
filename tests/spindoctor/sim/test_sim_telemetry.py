@@ -14,6 +14,7 @@ from typing import Any
 import numpy as np
 import pytest
 
+from spindoctor.sim.forward.artifact_counts import planted_artifact_counts
 from spindoctor.sim.forward.artifact_modes import (
     ARTIFACT_MODES,
     MODE_KEYS,
@@ -27,7 +28,6 @@ from spindoctor.sim.forward.detector.params import (
     resolve_detector_params,
 )
 from spindoctor.sim.forward.feature_loci import FeatureLoci, choose_pixels, extract_feature_loci
-from spindoctor.sim.forward.incidence import planted_incidence
 from spindoctor.sim.forward.stages import SimFrame
 from spindoctor.sim.forward.telemetry import apply_telemetry
 from spindoctor.sim.forward.telemetry_loss import apply_line_garble, apply_pixel_spikes
@@ -652,7 +652,7 @@ def test_an_adversarial_draw_is_capped_at_the_feature_neighborhood() -> None:
 
 
 def test_adversarial_dead_pixels_record_and_count_the_distinct_pixels() -> None:
-    """The truth record lists each dead pixel once, and the incidence counts those."""
+    """The truth record lists each dead pixel once, and the planted count matches it."""
     star = {'star_info': [{'center_v': 30.0, 'center_u': 30.0}]}
     frame = _frame(fill=50.0, truth=star)
     loci = extract_feature_loci(frame.truth, frame.signal.shape)
@@ -666,7 +666,7 @@ def test_adversarial_dead_pixels_record_and_count_the_distinct_pixels() -> None:
     # One star's 7 by 7 neighborhood caps the request of 60 at its 49 pixels.
     assert len(pixels) == 49
     assert len(pixels) == len(set(pixels))
-    assert planted_incidence(frame.truth)['dead_pixels'] == int(np.sum(frame.signal == 0.0))
+    assert planted_artifact_counts(frame.truth)['dead_pixels'] == int(np.sum(frame.signal == 0.0))
 
 
 def test_dead_columns_blank_whole_columns() -> None:
