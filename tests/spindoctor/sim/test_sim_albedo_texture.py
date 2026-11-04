@@ -42,16 +42,36 @@ def _render(albedo: AlbedoTextureSpec | None) -> NDArrayFloatType:
     return create_topographic_body((_SIZE, _SIZE), (_CENTER, _CENTER), _spec(albedo))
 
 
+def _sphere_moments(grid: NDArrayFloatType) -> tuple[float, float]:
+    """Area-weighted mean and RMS of a torus-stored field over the sphere it covers once."""
+    n = grid.shape[0]
+    rows = np.arange(n // 4, 3 * n // 4 + 1)
+    weights = np.cos(-np.pi + 2.0 * np.pi * rows / n)[:, np.newaxis]
+    total = float(np.sum(weights)) * n
+    mean = float(np.sum(weights * grid[rows])) / total
+    return mean, float(np.sqrt(np.sum(weights * grid[rows] ** 2) / total))
+
+
 def test_albedo_field_rms_matches_commanded() -> None:
-    """The synthesized field's global standard deviation equals the commanded RMS."""
+    """The field's area-weighted RMS over the sphere equals the commanded RMS."""
     field = synthesize_albedo_field(0.15, 10.0, 42)
-    assert float(np.std(field.grid)) == pytest.approx(0.15, abs=1e-12)
+    assert _sphere_moments(field.grid)[1] == pytest.approx(0.15, abs=1e-12)
 
 
 def test_albedo_field_mean_is_zero() -> None:
-    """The spectral mean is zeroed, so the field is a pure perturbation."""
+    """The degree-0 term is zeroed, so the field averages 0 over the sphere."""
     field = synthesize_albedo_field(0.15, 10.0, 42)
-    assert abs(float(np.mean(field.grid))) < 1e-12
+    assert abs(_sphere_moments(field.grid)[0]) < 1e-5
+
+
+@pytest.mark.parametrize('seed', [3, 11])
+def test_albedo_field_is_single_valued_at_its_poles(seed: int) -> None:
+    """Around each pole the field closes on one value, so no pinwheel shows on the limb."""
+    field = synthesize_albedo_field(0.15, 10.0, seed)
+    lons = np.linspace(0.0, 2.0 * np.pi, 64, endpoint=False)
+    for pole in (np.pi / 2.0, -np.pi / 2.0):
+        ring = field.sample(np.full_like(lons, pole - np.sign(pole) * 1e-6), lons)
+        assert float(np.ptp(ring)) < 1e-4 * field.rms
 
 
 def test_albedo_field_correlation_scales_with_corr() -> None:
