@@ -292,7 +292,11 @@ def _apply_ccd(frame: SimFrame, dp: DetectorParams, rng: np.random.Generator) ->
         records['radiation_transients'] = _apply_radiation_transients(
             electrons, modes['radiation_transients'], dp
         )
-    apply_saturation(electrons, full_well_e=dp.full_well_e, bloom_length=dp.bloom_length)
+    # A binned pixel holds its block's binning**2 native wells, the charge the
+    # signal scale and the I/F calibration both assume.
+    apply_saturation(
+        electrons, full_well_e=dp.full_well_e * dp.binning**2, bloom_length=dp.bloom_length
+    )
     # Cosmic rays deposit well above the full well AFTER the bloom cap, so they
     # reach the ADC ceiling and land on the orchestrator's masks.
     add_cosmic_rays(

@@ -108,8 +108,8 @@ class DetectorParams:
         binning: The readout mode's binning factor ``b``: each frame pixel
             sums a ``b`` by ``b`` block of native pixels.  The catalog's
             native dark current and cosmic-ray rate are already scaled by
-            ``b**2`` here, and the chain scales the extended signal the same
-            way.
+            ``b**2`` here, and the chain scales the extended signal and the
+            saturation well the same way.
         instrument_defaults: Whether the physical-chain opt-in is on.
         hot_pixel_adversarial: Whether the hot-pixel population is placed
             adversarially (biased onto the navigation features) rather than
@@ -251,12 +251,16 @@ def _resolve_binning(detector_block: Mapping[str, Any], *, instrument: str | Non
         The binning factor, 1 when the scene leaves it out.
 
     Raises:
-        DetectorParamError: If the instrument doesn't catalog that binning.
+        DetectorParamError: If the binning isn't an integer (a bool counts as
+            neither), or the instrument doesn't catalog it.
     """
     binning = detector_block.get('binning')
     if binning is None:
         return 1
-    binning = int(binning)
+    if isinstance(binning, bool) or not isinstance(binning, int):
+        raise DetectorParamError(
+            f'sim instrument {instrument!r}: detector.binning must be an integer, got {binning!r}'
+        )
     available = cataloged_binnings(instrument)
     if binning not in available:
         raise DetectorParamError(
@@ -428,6 +432,11 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
     detector_model = str(
         _scene_or_default(detector_block, 'detector_model', catalog['detector_model'])
     )
+    if detector_model == 'vidicon' and binning != 1:
+        raise DetectorParamError(
+            f'sim instrument {instrument!r} cannot use detector_model vidicon with '
+            f'binning {binning}; the vidicon DN path has no binned readout'
+        )
     data_units = str(inst_config.get('data_units', 'raw_dn'))
     exposure_sec = float(params.get('exposure_sec', 1.0))
     exposure_ref_sec = float(

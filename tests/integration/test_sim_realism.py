@@ -62,6 +62,13 @@ def test_matched_scenes_validate_per_instrument(instrument: str) -> None:
         validate_sim_params(scene)
 
 
+def test_a_binned_cohort_frame_renders_through_its_readout_mode() -> None:
+    """A 256 px LORRI frame is a 4x4 full frame: the scene selects that mode at that size."""
+    scene = matched_scene('L1', 'star_dominated', 'nhlorri', 1.0, size_vu=(256, 256))
+    assert scene['detector']['binning'] == 4
+    assert (scene['size_v'], scene['size_u']) == (256, 256)
+
+
 def test_matched_scene_is_deterministic() -> None:
     """The same image_id yields byte-identical scene dicts."""
     a = matched_scene('N123', 'star_dominated', 'coiss_calib_nac', 1.2, size_vu=_NAC_FULL)

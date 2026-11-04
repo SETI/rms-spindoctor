@@ -670,10 +670,11 @@ _coiss_alias(DETECTOR_DEFAULTS)
 # characterization overrides; the keys it leaves out keep the 1x1 values.
 # Whatever the mode, the forward model treats a binned pixel as the sum of
 # its b**2 native pixels: an extended source, the dark current, and the
-# cosmic-ray rate deposit b**2 times the native charge, the hot pixels are the
-# native map summed into each binned pixel, the PSF kernel and the
-# non-radial distortion shrink by b, and the sky's plate scale grows by b.  A
-# star's total charge is unchanged.  Provenance:
+# cosmic-ray rate deposit b**2 times the native charge, the pixel saturates
+# at b**2 native wells, the hot pixels are the native map summed into each
+# binned pixel, the PSF kernel and the non-radial distortion shrink by b,
+# and the sky's plate scale grows by b.  A star's total charge is unchanged.
+# Provenance:
 # - coiss_nac / coiss_wac: SUM2 and SUM4 summation modes, on-chip; the
 #   catalog's sources give no separate read noise, gain, or well for them,
 #   so each inherits the 1x1 values.

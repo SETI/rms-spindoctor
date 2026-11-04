@@ -47,6 +47,7 @@ from scipy import ndimage
 from spindoctor.config import DEFAULT_CONFIG
 from spindoctor.sim.forward.artifacts_catalog import (
     resolve_detector_defaults,
+    resolve_readout_mode,
     resolve_sky_pixel_scale_arcsec,
     resolve_star_flux_zero_point,
     scene_binning,
@@ -73,21 +74,23 @@ from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType, NDArrayI
 __all__ = ['compose_scene_radiance']
 
 
-def _nominal_read_noise(instrument: str | None, domain: str) -> float:
+def _nominal_read_noise(instrument: str | None, domain: str, *, binning: int) -> float:
     """The camera's nominal per-pixel read noise for the faint-sky cutoff.
 
     Read from the per-instrument catalog regardless of whether the scene enables
     read noise -- the cutoff asks whether a star could ever clear the camera's
-    noise floor, a physical property of the detector.
+    noise floor, a physical property of the detector.  A binned readout mode's
+    published read noise replaces the native one.
 
     Parameters:
         instrument: The sim instrument name.
         domain: The zero point's unit domain ('electrons' or 'dn').
+        binning: The scene's readout-mode binning factor.
 
     Returns:
         The nominal read noise in the zero point's unit domain.
     """
-    catalog = resolve_detector_defaults(instrument)
+    catalog = {**resolve_detector_defaults(instrument), **resolve_readout_mode(instrument, binning)}
     if domain == 'dn':
         vidicon = catalog.get('vidicon') or {}
         line = float(vidicon.get('read_noise_line_dn', 1.0))
@@ -709,7 +712,7 @@ def _render_sky(
         rendered_sigma_det = max(sigma_v_psf, float(scene_psf.get('sigma_u', sigma_v_psf)))
     else:
         rendered_sigma_det = float(inst_config['star_psf_sigma']) / scene_binning(params)
-    read_noise = _nominal_read_noise(instrument, domain)
+    read_noise = _nominal_read_noise(instrument, domain, binning=scene_binning(params))
     cutoff = faint_sky_cutoff_mag(
         zero_point=zero_point,
         exposure_sec=exposure_sec,

@@ -1,12 +1,12 @@
 """Binned and summed readout modes: ``detector.binning`` and its catalog.
 
-A scene selects a camera's readout mode with ``detector.binning``; each frame
-pixel then sums a ``b`` by ``b`` block of native pixels.  The mode's published
-gain and read noise replace the native ones, an extended source, the dark
-current, and the cosmic-ray rate deposit ``b**2`` times the native charge, a
-star's total charge stays the same, the hot pixels are the native map summed
-into binned pixels, the instrument PSF kernel shrinks by ``b``, and an
-uncataloged mode is a validation error.
+A scene selects a camera's readout mode with ``detector.binning``; each frame pixel then
+sums a ``b`` by ``b`` block of native pixels.  The mode's published gain and read noise
+replace the native ones, an extended source, the dark current, and the cosmic-ray rate
+deposit ``b**2`` times the native charge, a binned pixel holds ``b**2`` native wells, a
+star's total charge stays the same, the hot pixels are the native map summed into binned
+pixels, the instrument PSF kernel shrinks by ``b``, and an uncataloged mode is a
+validation error.
 """
 
 from typing import Any
@@ -23,6 +23,7 @@ from spindoctor.sim.forward.artifacts_catalog import (
 from spindoctor.sim.forward.detector.noise_stages import detector_hot_pixel_map
 from spindoctor.sim.forward.detector.params import DetectorParamError, resolve_detector_params
 from spindoctor.sim.forward.optics import effective_psf
+from spindoctor.sim.forward.scene_radiance import _nominal_read_noise
 from spindoctor.sim.render import render_combined_model
 from spindoctor.sim.scene import validate_sim_params
 from spindoctor.sim.scene_schema import SimSceneValidationError
@@ -99,6 +100,34 @@ def test_the_resolver_refuses_an_uncataloged_binning() -> None:
         resolve_detector_params(_scene('gossi', 4))
 
 
+@pytest.mark.parametrize('binning', [4.9, 4.0, True], ids=['fraction', 'float', 'bool'])
+def test_the_resolver_refuses_a_binning_that_is_not_an_integer(binning: object) -> None:
+    """A scene that bypasses validation can't truncate a fractional binning to a mode."""
+    scene = _scene('nhlorri')
+    scene['detector'] = {'binning': binning}
+    with pytest.raises(DetectorParamError, match=r'detector\.binning must be an integer'):
+        resolve_detector_params(scene)
+
+
+def _vidicon_scene() -> dict[str, Any]:
+    """A summed NAC scene that asks for the vidicon DN path."""
+    scene = _scene('coiss_nac', 2)
+    scene['detector']['detector_model'] = 'vidicon'
+    return scene
+
+
+def test_a_binned_vidicon_scene_fails_validation() -> None:
+    """The vidicon DN path has no binned readout, so validation refuses the pair."""
+    with pytest.raises(SimSceneValidationError, match=r'binning 2 .*vidicon'):
+        validate_sim_params(_vidicon_scene())
+
+
+def test_the_resolver_refuses_a_binned_vidicon_scene() -> None:
+    """A scene that bypasses validation can't render a binned vidicon frame either."""
+    with pytest.raises(DetectorParamError, match=r'vidicon.*binning 2'):
+        resolve_detector_params(_vidicon_scene())
+
+
 def test_a_binned_lorri_frame_reads_its_published_gain() -> None:
     """LORRI's 4x4 mode reads 19.4 e-/DN against the native 21."""
     assert resolve_detector_params(_scene('nhlorri', 4)).gain_e_per_dn == 19.4
@@ -108,6 +137,11 @@ def test_a_summed_galileo_frame_reads_its_published_read_noise() -> None:
     """Galileo's 2x2 summation mode reads 44 e- under the instrument chain."""
     scene = _scene('gossi', 2, artifacts={'instrument_defaults': True})
     assert resolve_detector_params(scene).read_noise_e == 44.0
+
+
+def test_the_sky_cutoff_reads_the_summed_mode_read_noise() -> None:
+    """The faint-sky cutoff uses the readout mode's noise floor: 44 e- for Galileo 2x2."""
+    assert _nominal_read_noise('gossi', 'electrons', binning=2) == 44.0
 
 
 def test_binning_scales_the_native_dark_current() -> None:
@@ -132,7 +166,7 @@ _LIT_BODY: dict[str, Any] = {
         }
     ],
     'noise': {'poisson': False},
-    # Short enough that four native pixels' charge stays below the well.
+    # Short enough that four native pixels' charge stays below the ADC clip.
     'exposure_sec': 0.2,
 }
 
@@ -194,3 +228,20 @@ def test_a_calibrated_frame_keeps_its_i_over_f_when_summed() -> None:
     native, _meta = render_combined_model(_scene('coiss_calib_nac', **_LIT_BODY))
     summed, _meta = render_combined_model(_scene('coiss_calib_nac', 2, **_LIT_BODY))
     assert float(summed[32, 32]) == pytest.approx(float(native[32, 32]), rel=1e-3)
+
+
+def test_a_summed_pixel_saturates_at_its_blocks_well() -> None:
+    """A summed pixel holds four native wells, so a bright disc keeps its I/F.
+
+    At the full exposure four native pixels of the disc hold twice one native
+    well; the lowest gain state keeps that charge below the ADC clip.  The
+    tolerance is one DN of the native frame's 236 DN disc.
+    """
+    bright: dict[str, Any] = {**_LIT_BODY, 'exposure_sec': 1.0}
+    native_scene = _scene('coiss_calib_nac', **bright)
+    native_scene['detector'] = {'gain_state': 0}
+    summed_scene = _scene('coiss_calib_nac', 2, **bright)
+    summed_scene['detector']['gain_state'] = 0
+    native, _meta = render_combined_model(native_scene)
+    summed, _meta = render_combined_model(summed_scene)
+    assert float(summed[32, 32]) == pytest.approx(float(native[32, 32]), rel=1.0 / 236.0)

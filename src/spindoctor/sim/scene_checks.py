@@ -412,6 +412,11 @@ def _check_detector(value: Any, *, instrument: str, source: str) -> None:
                 f'{source}: detector.binning {binning} is not a cataloged readout mode of '
                 f'instrument {instrument!r}; available binnings: {list(available)}'
             )
+        if value.get('detector_model') == 'vidicon' and binning != 1:
+            raise SimSceneValidationError(
+                f'{source}: detector.binning {binning} is not supported with '
+                f'detector_model vidicon; the vidicon DN path has no binned readout'
+            )
     model = value.get('detector_model')
     if model is not None and model not in _DETECTOR_MODELS:
         raise SimSceneValidationError(

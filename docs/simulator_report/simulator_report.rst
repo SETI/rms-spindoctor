@@ -600,6 +600,8 @@ not on cohort evidence.  The vidicon read noise was tuned down from its
 high-gain interim value (see the catalog); the sky-noise floor itself is
 quantization-limited on the sim side (known gaps).
 
+.. The LORRI wing is tracked as issue #848.
+
 **New Horizons LORRI** (2 frames, limited).  Both frames are 4x4-binned
 star fields, and the matched frames render through the 4x4 readout mode,
 where the catalog's native kernel is rescaled to binned pixels.  The core
@@ -610,8 +612,9 @@ than the kernel's interim 1.2% wing allows, the signature the NAC kernel
 showed before its wing was tuned, and the frames' bright tail is short by
 the same mechanism (p99 - p50 stretch 3.5 vs 26.8 DN).  The 4x4 frames
 test the native kernel only through the rescaling, and say its wing is too
-weak (#848); they say nothing separate about a 1x1 frame.  The sky statistics are pedestal-invariant by construction (the
-sci products are bias-subtracted; the sim raw chain is not).
+weak; they say nothing separate about a 1x1 frame.  The sky statistics are
+pedestal-invariant by construction (the sci products are bias-subtracted;
+the sim raw chain is not).
 
 Technique diagnostics (read-only)
 ---------------------------------

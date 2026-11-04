@@ -363,6 +363,16 @@ def test_detector_binning_is_authorable(model: Any) -> None:
     assert model.sim_params['detector'] == {'binning': 2}
 
 
+def test_reenabling_the_detector_group_shows_the_catalog_defaults(model: Any) -> None:
+    """Turning the group off and on again resets each widget to what the renderer reads."""
+    model._detector_group.setChecked(True)
+    model._detector_binning_spin.setValue(2)
+    model._detector_group.setChecked(False)
+    model._detector_group.setChecked(True)
+    assert model._detector_binning_spin.value() == 1
+    assert model.sim_params['detector'] == {}
+
+
 def test_detector_quantization_is_authorable(model: Any) -> None:
     """The quantization combo writes the detector.quantization key."""
     model._detector_group.setChecked(True)

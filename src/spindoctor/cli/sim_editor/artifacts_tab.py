@@ -342,12 +342,15 @@ class ArtifactsTabMixin(SimEditorBase):
 
         The block starts empty so unedited keys stay absent (the catalog
         defaults keep applying); each widget edit then writes only its key.
+        Turning the group on shows the new block's values, so no widget keeps
+        an edit the removed block held.
         """
         if self._syncing:
             return
         if on:
             if not isinstance(self.sim_params.get('detector'), dict):
                 self.sim_params['detector'] = {}
+            self._refresh_detector_catalog_defaults()
         else:
             self.sim_params.pop('detector', None)
         self._updater.request_update()

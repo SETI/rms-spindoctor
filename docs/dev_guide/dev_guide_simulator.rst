@@ -3174,20 +3174,25 @@ validation error:
      - 1
      - The vidicon has no binned readout.
 
+The vidicon DN path has no binned readout on any camera, so a scene that pairs
+a binning above 1 with ``detector_model: vidicon`` is a validation error too.
+
 Whatever the mode, a binned pixel is the sum of its native pixels. An extended
 source deposits ``b**2`` times a native pixel's charge, and so do the catalog's
 dark current and cosmic-ray rate (a ``noise`` key the scene sets states the
 frame pixel's own value). A calibrated product's DN-to-I/F scale grows by the
-same factor, so a summed frame calibrates to the same I/F. A star's total
-charge is unchanged, and the instrument PSF kernel, which the catalog states in
-native pixels, shrinks by ``b``, so the star lands in fewer, brighter pixels.
-The hot pixels are the detector's native map summed into each binned pixel, the
-residual distortion's non-radial wander shrinks by ``b`` (``k1`` and ``k2`` act
-on the radius normalized to the frame), and the background sky's plate scale
-grows by ``b``. Positions and sizes the scene states are in frame pixels
-whatever the mode. The realism match reads a cohort frame's mode
-from its size: a camera's full frame binned by ``b`` is its native size over
-``b`` (``NATIVE_FRAME_SIZE_PX``).
+same factor, so a summed frame calibrates to the same I/F. A binned pixel
+saturates at ``b**2`` native wells, the charge its block holds, so a bright
+extended source keeps that I/F up to the ADC clip. A star's total charge is
+unchanged, and the instrument PSF kernel, which the catalog states in native
+pixels, shrinks by ``b``, so the star lands in fewer, brighter pixels. The hot
+pixels are the detector's native map summed into each binned pixel, the residual
+distortion's non-radial wander shrinks by ``b`` (``k1`` and ``k2`` act on the
+radius normalized to the frame), and the background sky's plate scale grows by
+``b``. The sky's faint cutoff reads the mode's read noise. Positions and sizes
+the scene states are in frame pixels whatever the mode. The realism match reads
+a cohort frame's mode from its size: a camera's full frame binned by ``b`` is
+its native size over ``b`` (``NATIVE_FRAME_SIZE_PX``).
 
 .. _sim-artifacts-block:
 
