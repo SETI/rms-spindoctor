@@ -245,8 +245,13 @@ class RingEdgeDiagnostics:
             a fraction of distinct rasterized polyline pixels), and the
             edge-strength search
             (:func:`~spindoctor.nav_technique.dt_fitting.coarse_edge_strength_search_scored`,
-            a fraction of in-bounds vertices) only when the overlap seed's edge
-            strength falls below ``coarse_strength_keep_ratio`` of the strongest.
+            a fraction of in-bounds vertices) when the overlap seed's edge
+            strength falls below ``coarse_strength_keep_ratio`` of the strongest,
+            and the tolerant edge-strength search
+            (:meth:`~spindoctor.nav_technique.dt_fitting.TolerantEdgeStrength.search`,
+            the best plain fraction of in-bounds vertices within
+            ``coarse_basin_tolerance_px`` of its maximum) when that maximum
+            replaced the seed (see ``coarse_basin_ratio``).
         sigma_orbit_radial_px: Effective fully-correlated radial
             orbit-uncertainty sigma (px) added in quadrature to the
             reported covariance along the fit's radial direction (the
@@ -260,6 +265,12 @@ class RingEdgeDiagnostics:
             and is many times ``shape_sigma_px``; on a full ring it equals it.
             ``0.0`` for a rank-1 result, whose along-edge axis is reported
             unobservable instead.
+        coarse_basin_ratio: The seed's edge strength within
+            ``coarse_basin_tolerance_px`` over that of the strongest such
+            alignment in the search window, on the vertices both keep on the
+            sensor; below ``coarse_basin_keep_ratio`` that alignment seeded the
+            fit instead.  Above 1 when the seed earns more there, and ``1.0``
+            when the two coincide or share too few vertices to be compared.
     """
 
     total_edge_length_px: float = 0.0
@@ -272,6 +283,7 @@ class RingEdgeDiagnostics:
     coarse_peak_fraction: float = 0.0
     sigma_orbit_radial_px: float = 0.0
     sigma_shape_major_px: float = 0.0
+    coarse_basin_ratio: float = 1.0
     CURATOR_FIELDS: ClassVar[dict[str, str | None]] = {
         'total_edge_length_px': 'total_edge_length_px',
         'per_edge_dt_rms_summed': 'per_edge_dt_rms_summed',
@@ -283,6 +295,7 @@ class RingEdgeDiagnostics:
         'coarse_peak_fraction': 'coarse_peak_fraction',
         'sigma_orbit_radial_px': 'sigma_orbit_radial_px',
         'sigma_shape_major_px': 'sigma_shape_major_px',
+        'coarse_basin_ratio': 'coarse_basin_ratio',
     }
 
 

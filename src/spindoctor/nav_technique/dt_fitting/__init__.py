@@ -29,6 +29,8 @@ regardless of which stage module a helper lives in:
 * :mod:`~spindoctor.nav_technique.dt_fitting.constants` -- tunable defaults.
 * :mod:`~spindoctor.nav_technique.dt_fitting.coarse` -- rasterization, the
   integer search, and the polarity classifier.
+* :mod:`~spindoctor.nav_technique.dt_fitting.coarse_tolerant` -- edge-strength
+  scores and the integer search with a tolerance across the edge.
 * :mod:`~spindoctor.nav_technique.dt_fitting.weights` -- Tukey weighting and
   the information-matrix inversion.
 * :mod:`~spindoctor.nav_technique.dt_fitting.transforms` -- pose transforms,
@@ -55,6 +57,7 @@ from spindoctor.nav_technique.dt_fitting.coarse import (
     edge_strength_score,
     polarity_filter,
 )
+from spindoctor.nav_technique.dt_fitting.coarse_tolerant import TolerantEdgeStrength
 from spindoctor.nav_technique.dt_fitting.constants import (
     _INFINITY_DT_PENALTY_PX as _INFINITY_DT_PENALTY_PX,
 )
@@ -104,6 +107,7 @@ __all__ = [
     'LMRefineResult',
     'RidgeRefineResult',
     'SecondaryBasin',
+    'TolerantEdgeStrength',
     'build_polyline_mask',
     'coarse_edge_strength_search_scored',
     'coarse_ncc_search',
