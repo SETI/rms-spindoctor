@@ -67,17 +67,26 @@ window therefore lies within the half-widths plus ``inlier_tolerance_px`` of the
 prediction, less the at-edge tolerance, on each axis. The technique marks the rectangle of
 the half-widths plus ``inlier_tolerance_px`` plus 1 px around every cohort prediction
 (``reach_mask`` in ``src/spindoctor/nav_technique/_star_reach.py``) and tests each peak's
-pixel against it. The extra pixel and the at-edge tolerance together leave 2 px for a
-moment centroid that falls off its peak pixel; over 2,697 detections of stars on 300 study
-frames that distance was a median 0.35 px and at most 1.98 px. Every peak off the
-rectangle is set aside before the ``max_sources`` cut, and the count is logged.
+pixel against it. Every peak off the rectangle is set aside before the ``max_sources``
+cut, and the count is logged. The extra pixel and the at-edge tolerance together leave
+2 px for a moment centroid that falls off its peak pixel.
 
-Without it the cohort is the brightest sources anywhere in the frame. On a frame crossed
-by ring texture those are mostly not stars, and the faint stars against the ring rank
-below the cut. On WAC spoke frame W1726706510 (half-widths 5 and 10 px), the 30 brightest
-of the 195 sources the detector keeps hold 3 of the stars, and the matcher found 3 inliers
-although 21 of the cohort's stars are detected at the pointing the stars measure. Within reach, 23 sources remain, and the match has 21 inliers 0.04 px from that
-pointing.
+A check on 300 frames of a study set measured that distance and chose no value: over the
+2,697 detections of stars at the frames' reference pointing, it was a median 0.35 px and
+at most 1.98 px. The study set holds 3,544 Cassini ISS frames of Saturn's F ring and ring
+spokes: mostly frames that were refused, or on which this technique was refused, was
+spurious, or found three to five inliers, plus 800 random controls. A frame's reference
+pointing is the pointing found for it by independent navigations of those observations,
+separate from this software.
+
+Without the reach the cohort is the brightest sources anywhere in the frame. On a frame
+crossed by ring texture those are mostly not stars, and the faint stars against the ring
+rank below the cut. Cassini ISS wide angle frame W1726706510, from an observation of
+Saturn's ring spokes, is one of the frames the reach was built to fix; its search
+half-widths are 5 and 10 px. The 30 brightest of the 195 sources the detector keeps hold
+3 of the stars, and the matcher found 3 inliers although 21 of the cohort's stars are
+detected at the pointing the stars measure. Within reach, 23 sources remain, and the
+match has 21 inliers 0.04 px from that pointing.
 
 On a frame whose stars draw a streak (the star model records one on every STAR feature as
 :attr:`~spindoctor.feature.flags.StarFlags.streak_vu` when it is at least 4.5 px long; see
@@ -176,16 +185,18 @@ The density :math:`N_{\text{det}} / A` that matters is that of the sources that 
 the stars, and two counts estimate it. The detections the matcher keeps are drawn from the
 reach of the catalog cohort (see `Source detection`_), but on a sparse field the reach
 holds little more than the stars, which would then make the density they are tested
-against: on spoke frame W1630378489, four sources lie in reach and three of them are
-stars. The candidate peaks found anywhere in the image (every peak the detector finds
-before it applies the reach, the cosmic-ray test, and the ``max_sources`` cut) give the
-other estimate, on the assumption that the other sources lie where they do whatever the
-catalog predicts. The model takes the lower density, which spreads the kept detections
-over the larger of the reach and :math:`N_{\text{det}}` times the image area over the
-number of candidates. Both areas count sensor pixels only, so the extended frame's
-padding, which holds no source, does not thin the density. The null test bears the assumption out: with every catalog
-prediction moved beyond the reach on 931 study frames, no lock formed where the true
-offset was out of reach.
+against. Cassini ISS wide angle frame W1630378489, from an observation of Saturn's ring
+spokes, is another frame the reach was built to fix: four sources lie in reach on it, and
+three of them are stars. The candidate peaks found anywhere in the image (every peak the
+detector finds before it applies the reach, the cosmic-ray test, and the ``max_sources``
+cut) give the other estimate, on the assumption that the other sources lie where they do
+whatever the catalog predicts. The model takes the lower density, which spreads the kept
+detections over the larger of the reach and :math:`N_{\text{det}}` times the image area
+over the number of candidates. Both areas count sensor pixels only, so the extended
+frame's padding, which holds no source, does not thin the density. A null test on 931
+frames of the study set (see `Source detection`_) bears the assumption out and chose no
+value: with every catalog prediction moved beyond the reach, no lock formed on a frame
+where the reference pointing lay out of reach of the moved predictions.
 
 A candidate must also clear every remaining guard:
 
