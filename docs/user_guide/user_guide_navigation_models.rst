@@ -55,8 +55,8 @@ star answers that share no star disagree and one rests on at least twice as many
 the other is set aside, unless a star answer on still more stars contradicts the larger
 one. A star refinement that started from another star answer on at least three stars,
 moved well away from it onto other stars, and still landed in the same group because a
-third technique agrees with both, is not combined with it unless it found at least twice
-as many stars as the answer it started from. What comes out is one offset in pixels, one
+third technique agrees with both, is set aside unless it found at least twice as
+many stars as the answer it started from. What comes out is one offset in pixels, one
 uncertainty, and one confidence for the image.
 
 The offset follows one convention throughout SpinDoctor: if the prediction puts something
