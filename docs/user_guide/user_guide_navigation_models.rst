@@ -828,16 +828,17 @@ to ``RingAnnulusNav``. Edge strength keeps the fit off most steps across the edg
 not cataloged edges: on 1,041 Cassini F ring movie frames finer than 25 kilometers per
 pixel, it takes the answers locked onto such a step from 188 to 4. The tolerance check
 above covers a different failure, a fit that lays one cataloged edge on the step another
-one makes (most often the Keeler gap's edges on the A ring's outer edge): of 825 F ring
-movie frames whose answer was off by more than 5 pixels across the edge, 622 are now
-within 1.5 pixels and 153 are still off. Three cautions remain there. First, the fit needs
-the cataloged edges to be in the image at the true pointing; where they lie mostly outside
-it, the fit can lay the curves on whatever edges the frame offers, and such answers are
-reported at the ``medium`` or ``low`` tier. A 2007 Cassini spoke movie whose B ring outer
-edge runs along the frame border is wrong this way on every answered frame. Second, a
-catalog error in an edge's radius passes into the answer once the fit is on the right
-edge: the A ring's outer edge in 2005 is 11 to 17 kilometers off its catalog radius, and
-on three frames this moves the answer about 1 pixel from the stars. Third, an edge
+one makes (most often the Keeler gap's edges on the A ring's outer edge). It was built to
+fix 825 Cassini frames whose pointing is known independently and whose answer without it
+was off by more than 5 pixels across the edge; with it, 622 are within 1.5 pixels and 153
+remain more than 5 pixels off. Three cautions remain there. First, the fit needs the
+cataloged edges to be in the image at the true pointing; where they lie mostly outside it,
+the fit can lay the curves on whatever edges the frame offers. A 2007 Cassini narrow-angle
+movie of the ring spokes, whose B ring outer edge runs along the frame border, is wrong
+this way on every answered frame, at the ``medium`` or ``low`` tier. Second, a catalog
+error in an edge's radius passes into the answer once the fit is on the right edge: the A
+ring's outer edge in 2005 is 11 to 17 kilometers off its catalog radius, and on three
+frames this moves the answer about 1 pixel from the stars. Third, an edge
 that curves only gently across the frame fixes the pointing across itself far better than
 along itself, and the reported uncertainty says so: such an answer carries an uncertainty
 of several pixels along the edge, and often tens. Where a star fix or another technique in

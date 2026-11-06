@@ -118,50 +118,60 @@ about 2 px of independent pointing across the edge.
 Both scores credit a vertex only where its rounded pixel is itself a detected edge pixel,
 and the edge mask is one pixel thin. A cataloged edge's image position differs from its
 rounded model vertices by a pixel or two: the sub-pixel phase of the edge, and catalog
-residuals that differ from one edge to the next (the A ring's outer edge sits up to 34 km
-from its catalog radius on some F ring movie frames, 6 px at 5.9 km/px). At the true shift
-a model of several edges therefore scores only the vertices of each edge that happen to
-round onto it, while a shift that lays one model edge exactly on one strong step scores
-that edge in full. On F ring movie frames at 5 to 10 km/px that alias is the Keeler gap's
-edges laid on the A ring's outer edge, 30 to 50 px across the edge, and it wins both the
-overlap search and the edge-strength check above.
+residuals that differ from one edge to the next. On four Cassini ISS narrow angle F ring
+movie frames from Cassini orbit 87, measured at a pointing that stars confirm, the A
+ring's outer edge sits up to 34 km from its catalog radius, 6 px at 5.9 km/px. At the true
+shift a model of several edges therefore scores only the vertices of each edge that happen
+to round onto it, while a shift that lays one model edge exactly on one strong step scores
+that edge in full. On Cassini ISS narrow angle F ring movie frames at 5 to 10 km/px, the
+failures the check below was built to fix, that alias is the Keeler gap's edges laid on
+the A ring's outer edge, 30 to 50 px across the edge, and it wins both the overlap search
+and the edge-strength check above.
 
 The seed the two searches choose is therefore checked once more with a tolerance across
-the edge. :class:`~spindoctor.nav_technique.dt_fitting.TolerantEdgeStrength`
-credits each vertex with the strongest :math:`|g \cdot n|` among the counted edge pixels
-within ``coarse_basin_tolerance_px`` pixel steps of it, along the pixel-grid direction
-nearest its normal, so every edge of the true alignment contributes in full and a model
-edge left on nothing contributes nothing. The seed and the tolerant maximum are then
-compared on the model vertices that both keep on the sensor
+the edge. :class:`~spindoctor.nav_technique.dt_fitting.TolerantEdgeStrength` credits each
+vertex with the strongest :math:`|g \cdot n|` among the counted edge pixels within
+``coarse_basin_tolerance_px`` pixel steps of it, along the pixel-grid direction nearest
+its normal, so every edge of the true alignment contributes in full and a model edge left
+on nothing contributes nothing. The seed and the tolerant maximum are then compared on the
+model vertices that both keep on the sensor
 (:meth:`~spindoctor.nav_technique.dt_fitting.TolerantEdgeStrength.compare`): the seed is
 kept when its credit there is at least ``coarse_basin_keep_ratio`` of the maximum's, and
 the maximum seeds the fit otherwise
 (:func:`~spindoctor.nav_technique.ring_edge_seed.check_seed_basin`). Comparing the same
-vertices matters where most of the model lies off the sensor at the true pointing: a
-shift that drags the rest of the model onto ring texture collects credit from vertices
-the seed cannot see, and texture within 2 px of almost every vertex is easy to find. On a
-2007 Cassini NAC spoke movie, whose B ring outer edge sits at the frame border, the
-tolerant maximum lays the Cassini Division's edges on B ring texture 55 to 60 px off, yet
-on the vertices both keep on the sensor the seed earns 0.66 to 0.97 of its credit. Fewer
-than ``coarse_basin_min_shared_vertices`` such vertices leave nothing to compare, and the
-seed stands. The check only ever chooses the basin across the edge: where it keeps the
-seed, the overlap search and the edge-strength check still set the position along the
-edge, for the reason given above. Where the tolerant maximum replaces the seed, the match
-fraction compared against ``spurious_min_coarse_peak_fraction`` is the best plain match
-fraction within ``coarse_basin_tolerance_px`` of it
+vertices matters where most of the model lies off the sensor at the true pointing: a shift
+that drags the rest of the model onto ring texture collects credit from vertices the seed
+cannot see, and texture within 2 px of almost every vertex is easy to find. The comparison
+was built for a 2007 Cassini ISS narrow angle movie of the B ring spokes (observation
+ISS_037RI_SPKMRHPDF002), whose B ring outer edge sits at the frame border: the tolerant
+maximum lays the Cassini Division's edges on B ring texture 55 to 60 px off, yet on the
+vertices both keep on the sensor the seed earns 0.66 to 0.97 of its credit. Fewer than
+``coarse_basin_min_shared_vertices`` such vertices leave nothing to compare, and the seed
+stands. The check only ever chooses the basin across the edge: where it keeps the seed,
+the overlap search and the edge-strength check still set the position along the edge, for
+the reason given above. Where the tolerant maximum replaces the seed, the match fraction
+compared against ``spurious_min_coarse_peak_fraction`` is the best plain match fraction
+within ``coarse_basin_tolerance_px`` of it
 (:meth:`~spindoctor.nav_technique.dt_fitting.TolerantEdgeStrength.best_match_fraction`).
 The maximum's own plain fraction is near zero by construction when every edge sits a pixel
 or two off its rounded vertices. The seed's tolerant ratio is reported as
 :attr:`~spindoctor.nav_technique.diagnostics.RingEdgeDiagnostics.coarse_basin_ratio`.
 
-Measured on Cassini NAC F ring movie frames at 5 to 10 km/px, against the published F ring
-bundle's pointing (or the stars where they show it wrong): of 825 frames whose ring-edge
-answer lay more than 5 px off across the edge, 622 now lie within 1.5 px across it, 31
-within 5 px, and 19 are refused as spurious; 153 remain more than 5 px off. On 1,000
-frames with a right final answer, no ring-edge answer within 1.5 px across the edge moved
-beyond it, and those within it went from 866 to 874. Most of the remaining locks are on
-frames whose cataloged edges lie mostly or wholly outside the sensor at the true pointing,
-where little or no evidence for the true alignment is in the image.
+The check was measured on Cassini ISS narrow angle F ring movie frames at 5 to 10 km/px,
+against each frame's reference pointing, the pointing found for it by an independent
+navigation of its observation, separate from this software
+(:doc:`dev_guide_orchestrator_ensemble`), or against the stars where they show the
+reference pointing wrong. Of 825 frames whose ring-edge answer without the check lay more
+than 5 px off across the edge, 622 lie within 1.5 px across it with the check, 31 within
+5 px, and 19 are refused as spurious; 153 remain more than 5 px off. These 825 are the
+failures the check was built to fix, and its tolerance and keep ratio were chosen on 332
+of them, on 250 frames whose ring-edge answer was already right, and on 16 frames of the
+spoke movie above, so these counts are not a held-out test. On 1,000 frames drawn at
+random for this measurement from those with a right final answer and a ring-edge answer,
+no ring-edge answer within 1.5 px across the edge moved beyond it, and those within it
+went from 866 to 874. Most of the remaining locks are on frames whose cataloged edges lie
+mostly or wholly outside the sensor at the true pointing, where little or no evidence for
+the true alignment is in the image.
 
 A frame can also hold no cataloged edge at all at the true pointing: the edges lie in the
 extended margin outside the sensor, and the search drags the model onto whatever the
@@ -478,20 +488,22 @@ Restrictions and assumptions
   LM converges to a wrong local minimum.
 - The seed checks assume the image holds evidence for the true alignment. Where the
   cataloged edges lie mostly or wholly outside the sensor at the true pointing, the search
-  can drag the model in and lay it on whatever edges the frame offers: on Cassini NAC F
-  ring movie frames at 5 to 10 km/px, 153 of 825 answers that were more than 5 px off
-  across the edge still are. On a 2007 Cassini NAC spoke movie, whose B ring outer edge
-  runs along the frame border, all 33 answered frames are wrong, the ring answer 4 to
-  64 px off across the edge with the Cassini Division's edges on outer B ring texture,
-  at the ``low`` and ``medium`` tiers. At that alias the image is as
+  can drag the model in and lay it on whatever edges the frame offers: 153 of the 825
+  Cassini ISS narrow angle F ring movie frames the check was built to fix remain more than
+  5 px off across the edge with it (see `The coarse seed`_). The check leaves the
+  2007 Cassini ISS narrow angle spoke movie ISS_037RI_SPKMRHPDF002, whose B ring outer
+  edge runs along the frame border, wrong on all 33 answered frames, the ring answer 4 to
+  64 px off its reference pointing across the edge with the Cassini Division's edges on
+  outer B ring texture, at the ``low`` and ``medium`` tiers. At that alias the image is as
   bright inside the modeled gaps as around them; a test of gap brightness would catch it,
-  but a ringlet inside a gap (Herschel, Bond, Maxwell) or the planet seen through it breaks
-  that test at the right pointing too.
+  but a ringlet inside a gap (Herschel, Bond, or Maxwell) or the planet seen through it
+  breaks that test at the right pointing too.
 - Once the seed is in the right basin a catalog radius error passes into the answer: the
-  A ring's outer edge in 2005 sits 11 to 17 km off its catalog radius, so on three F ring
-  movie frames at 6.8 km/px the ring answer, 1 to 2 px off across the edge, pulls the fused
-  answer from 0.1 to 0.4 px of the bundle pointing, which the stars confirm, to 1.01 to
-  1.05 px, two of them at the ``high`` tier.
+  A ring's outer edge in 2005 sits 11 to 17 km off its catalog radius. On three Cassini
+  ISS narrow angle F ring movie frames at 6.8 km/px, a cost found when the check was
+  measured, the ring answer, 1 to 2 px off across the edge, pulls the fused answer from
+  0.1 to 0.4 px of the reference pointing, which the stars confirm, to 1.01 to 1.05 px,
+  two of them at the ``high`` tier.
 - The coarse search still chooses the along-edge position of a gently curved edge, and the
   refinement's trust region keeps it there: seeded at the bundle pointing on seven
   F ring frames the fit stays within about a pixel of it, and seeded normally it lands
