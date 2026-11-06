@@ -341,7 +341,7 @@ The known open defects:
   frames makes 14 better than the final full run and 2 worse, one ours by
   stars and one a refusal from pass-2 arbitration counting stars a
   streak-grown box reaches from a wrong prior (#771). Open: #767 for single
-  results fused inside the pixel floor, #771 for that arbitration count, and
+  results fused inside the pixel floor (closed below), #771 for that arbitration count, and
   #772 to split the star helpers once #754 and the star-streak work meet.
   The star field then counts only sources a catalog star can reach (#769):
   on WAC spoke frames the faint stars against the rings had been crowded out
@@ -349,7 +349,13 @@ The known open defects:
   verdicts and worsens 33; 95 of the 631 refused WAC spoke frames now
   answer. Stars side with the new answer, or tie, on every worse frame but
   `W1614941856`, which goes from right to wrong through a pass-2 refine
-  fused inside the grouping floor (#767).
+  fused inside the grouping floor. Two ensemble rules close that loss and the
+  three 006ri frames a ring edge pulled past 1 px (#767): a result joining a
+  set is held to the set's sharper members, and a star result that drifted
+  from the star estimator that seeded it is left out unless it found twice as
+  many stars. Replayed on the 7,091 validation frames they change 15 answers,
+  all closer, five verdicts better and none worse; the image library is
+  unchanged.
   #755 also carries the along-edge part of the planted-shift sweep (raw
   RingEdgeNav rows median 4.2 / 1.7 px v/u on frames whose edge sets are
   straight or nearly so), which the along-edge covariance change leaves as

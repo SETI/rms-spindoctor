@@ -574,3 +574,214 @@ def test_ensemble_config_rejects_a_negative_confirming_axis_sigma() -> None:
     """A negative confirming-axis sigma fails at construction."""
     with pytest.raises(ValueError, match='confirming_axis_max_sigma_px must be non-negative'):
         EnsembleConfig(confirming_axis_max_sigma_px=-1.0)
+
+
+def _member_fit(
+    offset: tuple[float, float], sigma_px: float, *, n_stars: int = 7
+) -> NavTechniqueResult:
+    """A star-field fit on ``n_stars`` stars, a non-representative member of a star set."""
+    return NavTechniqueResult(
+        technique_name='StarFieldFromCatalogNav',
+        feature_ids=tuple(f'star:UCAC4:{k + 1}' for k in range(n_stars)),
+        offset_px=offset,
+        covariance_px2=np.eye(2) * sigma_px**2,
+        confidence=0.95,
+        spurious=False,
+        at_edge=False,
+        diagnostics=StarFieldDiagnostics(n_inliers=n_stars),
+    )
+
+
+def test_a_joiner_apart_from_a_sharper_member_is_left_out() -> None:
+    """A ring edge 1.7 sigma from a loose representative but 2.4 from a sharper member.
+
+    Mirrors the F ring frames N1492059602 and N1492083763: the ring (0.55 px) agrees
+    with the 0.75 px star refine that represents the set, but lies 2.4 standard
+    deviations from a 0.43 px fit on three stars the set also holds, so fused
+    through the refine it would pull the answer about a pixel off the stars.
+    """
+    edge = _edge((0.0, -1.6), 0.55)
+    assert _pruned(edge, [_refine(0.75), _member_fit((0.0, 0.1), 0.43, n_stars=3)]) == [edge]
+
+
+def test_a_sharper_member_on_two_stars_does_not_judge_a_joiner() -> None:
+    """A member on two stars reports a precision nothing checks, so it cannot refuse a joiner."""
+    edge = _edge((0.0, -1.6), 0.55)
+    assert _pruned(edge, [_refine(0.75), _member_fit((0.0, 0.1), 0.43, n_stars=2)]) == []
+
+
+def test_a_member_less_precise_than_the_joiner_does_not_judge_it() -> None:
+    """A member 3.8 sigma from the joiner but looser (0.6 px) than it (0.55 px) is not decisive."""
+    edge = _edge((0.0, -1.6), 0.55)
+    assert _pruned(edge, [_refine(0.75), _member_fit((0.0, 1.5), 0.6)]) == []
+
+
+def test_a_sharper_representative_is_held_only_to_the_fusion_test() -> None:
+    """A joiner 2.5 sigma from a sharper representative fuses within the compromise limit.
+
+    The combine fuses the joiner with the representative, which the fusion test
+    already judges (0.37 px compromise here); the member test reads the other members.
+    """
+    edge = _edge((0.0, -1.6), 0.55)
+    assert _pruned(edge, [_refine(0.3), _member_fit((0.0, -0.5), 0.5)]) == []
+
+
+def test_a_sharper_non_star_member_judges_a_joiner() -> None:
+    """A ring annulus member on one feature counts: only star results need three stars.
+
+    The collapsed ring pair is represented by an edge precise across itself (0.2 px in
+    v) and vague along it (3 px in u).  A star refine 1.6 px away in u agrees with the
+    edge but lies 2.4 standard deviations from the sharper (0.43 px) annulus member.
+    """
+    annulus = NavTechniqueResult(
+        technique_name='RingAnnulusNav',
+        feature_ids=('ring_annulus:SATURN:a_ring',),
+        offset_px=(0.0, 0.1),
+        covariance_px2=np.eye(2) * 0.43**2,
+        confidence=0.6,
+        spurious=False,
+        at_edge=False,
+        diagnostics=RingAnnulusDiagnostics(),
+    )
+    rep = dataclasses.replace(_edge((0.0, 0.0), 1.0), covariance_px2=np.diag([0.2**2, 3.0**2]))
+    refine = dataclasses.replace(_refine(0.55), offset_px=(0.0, -1.6))
+    assert _pruned(refine, [rep, annulus]) == [refine]
+
+
+def test_a_joiner_refused_by_a_sharper_member_is_the_side_left_out() -> None:
+    """The set stays when its sharper member refuses a joiner, whatever the representative.
+
+    The edge (0.05 px in v, 1 px in u) is far more precise than the 2 px representative
+    along the line to it, but 2.4 standard deviations from the 0.3 px fit along u.
+    """
+    edge = dataclasses.replace(_edge((0.0, 0.0), 1.0), covariance_px2=np.diag([0.05**2, 1.0**2]))
+    group = [dataclasses.replace(_refine(2.0), offset_px=(1.5, 0.1)), _member_fit((0.0, 2.5), 0.3)]
+    assert _pruned(edge, group) == [edge]
+
+
+def test_a_sharper_member_the_joiner_seeded_does_not_judge_it() -> None:
+    """A member whose prior the joiner seeded is left to the seeded-pair test."""
+    edge = _edge((0.0, -1.6), 0.55)
+    member = dataclasses.replace(
+        _member_fit((0.0, 0.1), 0.43), prior_source_techniques=frozenset({'RingEdgeNav'})
+    )
+    assert _pruned(edge, [_refine(0.75), member]) == []
+
+
+def _seed_and_drifted_refine(n_refine_stars: int) -> list[NavTechniqueResult]:
+    """A five-star field fit and a refine it seeded that found other stars 3.25 px away.
+
+    Mirrors WAC frame W1614941856: the refine lies 5.2 standard deviations from the
+    fit (0.5 px) that placed its windows.
+    """
+    refine = NavTechniqueResult(
+        technique_name='StarRefineNav',
+        feature_ids=tuple(f'star:UCAC4:{100 + k}' for k in range(n_refine_stars)),
+        offset_px=(3.0, 1.25),
+        covariance_px2=np.diag([0.114, 0.629]),
+        confidence=0.5,
+        spurious=False,
+        at_edge=False,
+        diagnostics=StarRefineDiagnostics(n_stars_used=n_refine_stars),
+        prior_source_techniques=frozenset({'StarFieldFromCatalogNav'}),
+    )
+    return [_star_fit(5, (0.0, 0.0), 1), refine]
+
+
+def test_a_refine_that_drifted_from_its_star_seed_on_fewer_stars_is_left_out() -> None:
+    """Three stars against the five-star seed it contradicts: the refine is left out."""
+    seed, refine = _seed_and_drifted_refine(3)
+    assert _left_out_of_pair(seed, refine) == [refine]
+
+
+def test_a_drifted_refine_on_more_stars_short_of_the_factor_is_left_out() -> None:
+    """Nine stars against the five-star seed: short of twice as many, the refine goes."""
+    seed, refine = _seed_and_drifted_refine(9)
+    assert _left_out_of_pair(refine, seed) == [refine]
+
+
+def test_a_drifted_refine_outnumbering_its_seed_by_the_factor_stands() -> None:
+    """Ten stars against five: the refine found the stars elsewhere and the seed is left out."""
+    seed, refine = _seed_and_drifted_refine(10)
+    assert _left_out_of_pair(seed, refine) == [seed]
+
+
+def test_an_unseeded_star_result_on_fewer_stars_is_left_to_the_combine() -> None:
+    """Without the seeding, three stars against five are comparable evidence."""
+    seed, refine = _seed_and_drifted_refine(3)
+    unseeded = dataclasses.replace(refine, prior_source_techniques=frozenset())
+    assert _left_out_of_pair(seed, unseeded) == []
+
+
+def test_ensemble_answer_ignores_a_refine_that_drifted_from_its_seed() -> None:
+    """A vague ring annulus agreeing with both does not carry the drifted refine back in."""
+    seed, refine = _seed_and_drifted_refine(3)
+    annulus = NavTechniqueResult(
+        technique_name='RingAnnulusNav',
+        feature_ids=('ring_annulus:SATURN:a_ring',),
+        offset_px=(0.0, 1.0),
+        covariance_px2=np.eye(2) * 3.3,
+        confidence=0.84,
+        spurious=False,
+        at_edge=False,
+        diagnostics=RingAnnulusDiagnostics(),
+    )
+    result = _run(
+        [
+            annulus,
+            seed,
+            dataclasses.replace(
+                refine,
+                prior_source_techniques=frozenset({'StarFieldFromCatalogNav', 'RingAnnulusNav'}),
+            ),
+        ]
+    )
+    assert result.excluded_from_consensus == ['StarRefineNav']
+
+
+def test_a_drifted_refine_does_not_shield_its_seed_from_a_match_it_outnumbers() -> None:
+    """The drifted refine is left out first, so its five-star seed outnumbers the match.
+
+    The nine-star refine contradicts its seed without twice its stars; the two-star
+    match beside the refine contradicts the seed too.
+    """
+    seed, refine = _seed_and_drifted_refine(9)
+    match = _two_star_result((3.0, 1.3), 0.05)
+    match = dataclasses.replace(match, feature_ids=('star:UCAC4:300', 'star:UCAC4:301'))
+    left = _prune([seed, refine, match], [], [seed, refine, match]).left_out
+    assert [r.technique_name for r in left] == ['StarRefineNav', 'StarUniqueMatchNav']
+
+
+def test_a_sharper_member_that_seeded_the_joiner_does_not_judge_it() -> None:
+    """A joiner whose prior the member seeded is left to the seeded-pair test as well."""
+    edge = dataclasses.replace(
+        _edge((0.0, -1.6), 0.55), prior_source_techniques=frozenset({'StarFieldFromCatalogNav'})
+    )
+    assert _pruned(edge, [_refine(0.75), _member_fit((0.0, 0.1), 0.43)]) == []
+
+
+def test_a_refine_agreeing_with_its_seed_is_not_left_out() -> None:
+    """A three-star refine 0.3 px (0.5 sigma) from its five-star seed stands beside it."""
+    seed, refine = _seed_and_drifted_refine(3)
+    near = dataclasses.replace(refine, offset_px=(0.3, 0.0))
+    assert _left_out_of_pair(seed, near) == []
+
+
+def test_a_two_star_seed_does_not_evict_its_refine() -> None:
+    """A two-star match reports a predicted sigma, so it cannot show its refine drifted.
+
+    The three-star refine lies 0.35 px from the 0.057 px match, 2.6 standard deviations.
+    """
+    seed = _two_star_result((0.0, 0.0), 0.057)
+    refine = NavTechniqueResult(
+        technique_name='StarRefineNav',
+        feature_ids=('star:UCAC4:100', 'star:UCAC4:101', 'star:UCAC4:102'),
+        offset_px=(0.35, 0.0),
+        covariance_px2=np.eye(2) * 0.12**2,
+        confidence=0.8,
+        spurious=False,
+        at_edge=False,
+        diagnostics=StarRefineDiagnostics(n_stars_used=3),
+        prior_source_techniques=frozenset({'StarUniqueMatchNav'}),
+    )
+    assert _left_out_of_pair(seed, refine) == []
