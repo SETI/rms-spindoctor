@@ -1640,7 +1640,8 @@ the dedicated sweep or the scene class that drives it:
    * - Detector noise
      - full stage 4/5 noise stack
      - not modeled
-     - sweep ``noise_read_noise``
+     - sweeps ``noise_read_noise``, ``noise_read_noise_calib``, and
+       ``noise_exposure_calib``
    * - Artifact stress
      - structured loss (``missing_lines`` ``expected_events``)
      - not modeled
@@ -1656,6 +1657,40 @@ curve reads as accuracy only from the second point on.
 One PSF render knob remains unswept: the renderer has no pointing-jitter
 kernel, so the PSF-mismatch coverage above is core sigma and wing energy only;
 a jitter axis needs a renderer knob before it can be swept.
+
+Calibrated path
+---------------
+
+Every sweep above renders raw DN. Three sweeps drive the calibrated path
+instead: ``regular_sphere_calib_base`` is the raw base's sphere and planted
+offset rendered as a Cassini NAC CALIB product through the full instrument chain
+(``instrument_defaults``: shot, read, and readout-dark noise, hot pixels, cosmic
+rays, and the calibration residual) in the CL1+GRN filter, at 0.1 s so the disc
+peaks near 41,000 e-.
+
+.. list-table:: Calibrated sweeps against their raw twins
+   :header-rows: 1
+   :widths: 24 38 38
+
+   * - Sweep
+     - Calibrated result
+     - Raw twin
+   * - Read noise 1-64 DN (``noise_read_noise_calib``)
+     - every step recovers, error 0.016 px
+     - fails at 64 DN; error at most 0.008 px below it
+   * - Exposure 0.1 s to 30 us (``noise_exposure_calib``)
+     - recovers to 1 ms (about 400 e- at the disc's peak), fails from 0.3 ms
+     - none
+   * - Disc offset, 23 sub-pixel steps (``disc_offset_fine_calib``)
+     - every step recovers; a steady 0.013-0.017 px bias, rising to 0.19 px
+       at offsets of 0.31-0.38 px
+     - every step recovers; at most 0.008 px, 0.05 px at 0.45 px
+
+The two discs carry comparable charge (about 1,400 DN at the calibrated
+disc's peak, 1,800 DN at the raw one's), so the raw sweep's cliff at 64 DN
+comes from more than the read noise. The calibrated disc's steady bias and its
+larger sub-pixel bump come from the full instrument chain, which the raw base
+leaves off; their source within the chain is not yet attributed.
 
 Summary
 =======

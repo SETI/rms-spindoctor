@@ -1,0 +1,7 @@
+sweep_name: noise_read_noise_calib
+# The calibrated twin of noise_read_noise: read noise rising on the Cassini
+# NAC CALIB product, over the full instrument chain, from a clean frame to past
+# the navigability cliff.
+base_scene: phase_sweep_regular_body/regular_sphere_calib_base.yaml
+parameters: [noise.read_noise_dn]
+values: [1.0, 4.0, 8.0, 16.0, 32.0, 64.0]

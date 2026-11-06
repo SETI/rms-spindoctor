@@ -1,0 +1,8 @@
+sweep_name: disc_offset_fine_calib
+# The calibrated twin of disc_offset_fine: the same dense sub-pixel offsets on
+# the Cassini NAC CALIB product over the full instrument chain, pinned to the
+# disc correlation, so its sub-pixel bias reads against the raw sweep's.
+base_scene: phase_sweep_regular_body/regular_sphere_calib_base.yaml
+parameters: [offset_v]
+values: [0.0, 0.05, 0.1, 0.137, 0.2, 0.25, 0.31, 0.382, 0.45, 0.5, 0.55, 0.611, 0.667, 0.7, 0.75, 0.823, 0.9, 0.95, 1.0, 1.25, 1.5, 1.618, 1.75]
+technique: BodyDiscCorrelateNav

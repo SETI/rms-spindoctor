@@ -1,0 +1,8 @@
+sweep_name: noise_exposure_calib
+# Exposure falling on the Cassini NAC CALIB product, over the full instrument
+# chain: the disc's charge drops from near 41,000 e- to a few electrons while
+# the read noise, readout dark, and cosmic rays stay, so the calibrated frame
+# walks from a clean disc to below the navigability cliff.
+base_scene: phase_sweep_regular_body/regular_sphere_calib_base.yaml
+parameters: [exposure_sec]
+values: [0.1, 0.01, 0.001, 0.0003, 0.0001, 0.00003]

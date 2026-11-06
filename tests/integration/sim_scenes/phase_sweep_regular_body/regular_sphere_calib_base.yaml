@@ -1,0 +1,29 @@
+schema_version: 2
+scene_name: regular_sphere_calib_base
+instrument: coiss_calib_nac
+size_v: 220
+size_u: 220
+random_seed: 7
+exposure_sec: 0.1
+# The calibrated twin of regular_sphere_base: the same sphere and planted
+# offset, rendered as a Cassini NAC CALIB product through the full instrument
+# chain (shot, read, and readout-dark noise, hot pixels, cosmic rays, the
+# calibration residual) in the CL1+GRN filter.  At 0.1 s the disc peaks near
+# 41,000 e-, well under the full well.  The calibrated sweeps drive it the way
+# the raw sweeps drive the base: read noise, exposure, and a fine offset.
+bodies:
+  - name: RHEA
+    center_v: 110.0
+    center_u: 110.0
+    axis1: 90.0
+    axis2: 90.0
+    axis3: 90.0
+    illumination_angle: 25.0
+    phase_angle: 30.0
+artifacts:
+  instrument_defaults: true
+detector:
+  filter: CL1+GRN
+offset_v: 1.5
+offset_u: -0.5
+offset_rotation_deg: 0.0

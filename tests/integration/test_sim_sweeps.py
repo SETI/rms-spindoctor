@@ -65,6 +65,41 @@ def test_noise_sweep_low_noise_all_succeed() -> None:
         assert row.offset_error_px < _RECOVERY_TOLERANCE_PX
 
 
+def test_calibrated_noise_sweep_recovers_at_every_read_noise() -> None:
+    """On the CALIB product the disc holds within tolerance across the whole sweep.
+
+    The calibrated base renders through the full instrument chain, and its disc
+    carries a charge comparable to the raw base's, yet the raw sweep's cliff at
+    64 DN does not appear: every step recovers.
+    """
+    for row in _rows('noise_read_noise_calib'):
+        assert row.status == 'success'
+        assert row.offset_error_px is not None
+        assert row.offset_error_px < _RECOVERY_TOLERANCE_PX
+
+
+def test_calibrated_exposure_sweep_starts_clean() -> None:
+    """At the base exposure the CALIB product recovers the planted offset."""
+    rows = _rows('noise_exposure_calib')
+    assert rows[0].status == 'success'
+    assert rows[0].offset_error_px is not None
+    assert rows[0].offset_error_px < _RECOVERY_TOLERANCE_PX
+
+
+def test_calibrated_exposure_sweep_degrades_to_failure() -> None:
+    """At the shortest exposure the disc sinks below the noise and navigation fails."""
+    rows = _rows('noise_exposure_calib')
+    assert rows[-1].status == 'failed'
+
+
+def test_calibrated_disc_offset_sweep_recovers_every_offset() -> None:
+    """The disc correlation recovers every sub-pixel offset on the CALIB product."""
+    for row in _rows('disc_offset_fine_calib'):
+        assert row.status == 'success'
+        assert row.offset_error_px is not None
+        assert row.offset_error_px < _RECOVERY_TOLERANCE_PX
+
+
 def test_phase_sweep_navigates_every_phase() -> None:
     """The resolved body navigates to success across the full phase range."""
     rows = _rows('phase_regular_body')
