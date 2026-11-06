@@ -169,6 +169,8 @@ class FrameRecord:
         filter_name: The frame's filter combination (``'CL1+CL2'``) on a
             camera the sim's filter catalog covers, else None.
         gain_state: The frame's gain state on a Cassini camera, else None.
+        quantization: ``'coiss_lut'`` for a Cassini frame downlinked through
+            the 12-to-8-bit table, else None.
     """
 
     image_id: str
@@ -182,6 +184,7 @@ class FrameRecord:
     frame_shape_vu: tuple[int, int] = (512, 512)
     filter_name: str | None = None
     gain_state: int | None = None
+    quantization: str | None = None
 
 
 @dataclass
@@ -296,10 +299,12 @@ def _frame_samples_real(
     )
     if instrument.startswith('coiss_calib_'):
         # Matching content, not tuning: the sim renders the frame's own filter
-        # throughput and gain state, so its DN-to-I/F scale and quantization
-        # step are the real product's.
+        # throughput, gain state, and downlink table, so its DN-to-I/F scale
+        # and quantization step are the real product's.
         record.filter_name = f'{obs.filter1}+{obs.filter2}'
         record.gain_state = int(obs.gain_mode)
+        if obs.dict['DATA_CONVERSION_TYPE'] == 'TABLE':
+            record.quantization = 'coiss_lut'
     saturation = SATURATION_LEVEL[instrument]
     samples, rates = extract_pixel_samples(
         np.asarray(obs.data, dtype=np.float64),
@@ -357,6 +362,7 @@ def _sim_obs_for_record(record: FrameRecord) -> tuple[ObsSim, dict[str, Any]]:
         phase_angle_deg=record.phase_angle_deg,
         filter_name=record.filter_name,
         gain_state=record.gain_state,
+        quantization=record.quantization,
     )
     obs = ObsSim.from_file(f'/tmp/sim_realism_{record.image_id}.yaml', sim_params=scene)
     return obs, scene

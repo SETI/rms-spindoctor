@@ -321,6 +321,7 @@ def matched_scene(
     phase_angle_deg: float = 45.0,
     filter_name: str | None = None,
     gain_state: int | None = None,
+    quantization: str | None = None,
 ) -> dict[str, Any]:
     """The matched sim scene for one real cohort frame.
 
@@ -343,6 +344,9 @@ def matched_scene(
             camera's nominal scale.
         gain_state: The real frame's gain state; None keeps the camera's
             default state.
+        quantization: The real frame's downlink quantization sub-mode
+            (``'coiss_lut'`` for a Cassini TABLE frame); None keeps the
+            camera's default.
 
     Returns:
         A validated scene mapping.
@@ -379,5 +383,7 @@ def matched_scene(
         scene.setdefault('detector', {})['filter'] = filter_name
     if gain_state is not None:
         scene.setdefault('detector', {})['gain_state'] = gain_state
+    if quantization is not None:
+        scene.setdefault('detector', {})['quantization'] = quantization
     validate_sim_params(scene)
     return scene

@@ -559,11 +559,32 @@ the entry sets none.
   I/F. Under ``instrument_defaults`` about 28% of the pixels of a disc scene a
   third of the frame across sit below 0, down to about -0.0006.
 
-The simulator digitizes to whole DN, so a calibrated frame's values fall on a
+Before the divide, the inverse subtracts the calibration residual: the
+structure a real pipeline's per-pixel corrections leave in its product. A real
+calibrated product is continuous, because CISSCAL subtracts per-pixel models (an
+interpolated dark model, a per-line 2 Hz and bias estimate from the overclocked
+pixels) from integer DN, and the models' mismatch leaves a pattern the raw frame
+doesn't carry. Two noise keys reproduce it, both in electrons per native pixel:
+
+* ``calibration_column_residual_e`` is a column pattern fixed per detector: a
+  Gaussian per native column keyed on the camera, so every scene emulating it
+  carries the same columns. On real Cassini NAC CALIB frames the pattern repeats
+  from frame to frame (correlation 0.93) at 15 e- rms; the WAC measures 30 e-.
+* ``calibration_pixel_residual_e`` is a Gaussian per pixel, drawn per frame: NAC
+  9.4 e-, WAC 30 e-.
+
+Both are 0 unless the scene sets them or ``instrument_defaults`` takes the
+catalog's values, and only the calibrated Cassini products catalog them. On the
+NAC they lift the calibrated sky noise at gain state 2 from the raw frame's
+0.6 DN to about 0.9 DN-equivalent, as on the real products. A binned pixel sums
+its native pixels: a column's ``b`` rows add coherently and its ``b`` columns
+independently, and the pixel term adds in quadrature.
+
+With the residual off, a calibrated frame's values fall on the whole-DN
 lattice, and at some exposures the subtracted dark pedestal puts a lattice point
-on 0 (10.7 s at the NAC's default gain state, under ``instrument_defaults``). The
-inverse moves a pixel that lands exactly on a numeric marker to the next float
-above it, so no pixel the detector delivers reads as missing data. Only planted
+on 0 (10.7 s at the NAC's default gain state). The inverse moves a pixel that
+lands exactly on a numeric marker to the next float above it, so no pixel the
+detector delivers reads as missing data. Only planted
 loss puts a calibrated pixel at the marker: the artifact modes and
 ``noise.missing_data_rate``, which work on both classes.
 
@@ -658,7 +679,11 @@ intensive signal passes through the electron unit chain in
    noise (see :ref:`sim-star-params`).
 3. **Dark current, then Poisson.** A dark pedestal accumulates over the
    exposure before the shot term, so the shot noise grows with the dark signal.
-   Poisson shot noise then acts on the electron image.
+   The readout dark adds the charge each line collects while it waits to be
+   read: 0 at the first line, rising linearly to ``readout_dark_e`` at the last,
+   whatever the exposure. A calibrated product subtracts that ramp again, as
+   CISSCAL's dark model does, and keeps its shot noise. Poisson shot noise then
+   acts on the electron image.
 4. **Hot pixels and full-well bloom.** Hot pixels are stamped, then charge above
    ``full_well_e`` spills along the column up to ``bloom_length`` pixels each
    way and the image is capped at the well. A camera's physical saturation
@@ -697,11 +722,21 @@ word width, independent of ``saturation_dn``); ``uneven_12bit`` snaps values
 near the power-of-two carry boundaries to reproduce the histogram spikes of an
 ADC with unequal bit weights; ``sqrt_lut`` companding encodes to 8 bits through
 a square-root LUT and back, leaving a signal-dependent quantization residual;
-``ls8b`` keeps only the low 8 bits, so a value above 255 wraps modulo 256 (the
-banded wraparound on a bright target); and ``contour_8bit`` posterizes an 8-bit
-word to multiples of its step, the visible contouring of a coarse ADC. The
-``quantization_lut``, ``quantization_ls8b``, and ``contouring_8bit`` artifact
-modes select these last three.
+``coiss_lut`` snaps each value to the nearest DN of the Cassini 12-to-8-bit
+table, as the calibrated product decodes it; ``ls8b`` keeps only the low 8 bits,
+so a value above 255 wraps modulo 256 (the banded wraparound on a bright
+target); and ``contour_8bit`` posterizes an 8-bit word to multiples of its step,
+the visible contouring of a coarse ADC. The ``quantization_lut``,
+``quantization_ls8b``, and ``contouring_8bit`` artifact modes select the last
+three.
+
+The Cassini table is measured from the 26 TABLE frames of the CALIB cohort. The
+calibrated DN-equivalent step between consecutive raw codes is an integer that
+grows by one about every ten codes: 3 DN near code 10, 5 near 25, 8 near 55, 13
+near 100, and 24 near 200. Code ``c`` decodes to ``round(2 * c + 0.055 * c**2)``
+DN, which reproduces those steps and tops out at 4086 DN at code 255. Near a
+dark sky the step is 3 to 4 DN, several times a square-root table's, so a TABLE
+frame's calibrated sky is several times noisier than a 12-bit frame's.
 
 **Artifact modes in the chain.** The registry's detector modes (see
 :ref:`sim-artifacts-block`) render at their physical point in this chain: the
@@ -1033,7 +1068,7 @@ which mode's truth record is written first.
      - vgiss
      - ``probability``
    * - ``quantization_lut``
-     - the Cassini sqrt-companding LUT quantization
+     - the Cassini 12-to-8-bit table quantization
      - nac, wac
      - ``probability``
    * - ``quantization_ls8b``
@@ -3013,6 +3048,13 @@ against exactly this inventory, so an unknown noise key fails loudly.
      - float
      - 0 (off)
      - Dark-current pedestal rate in electrons / sec, added pre-Poisson.
+   * - ``readout_dark_e``
+     - float
+     - 0 (off)
+     - Dark charge the last line collects during the readout, in electrons per
+       frame pixel, rising linearly from 0 at the first line. The Cassini
+       cameras catalog it from their raw dark skies: 55 e- on the NAC and 33 e-
+       on the WAC.
    * - ``hot_pixel_fraction``
      - float
      - 0 (off)
@@ -3042,6 +3084,17 @@ against exactly this inventory, so an unknown noise key fails loudly.
      - float
      - 0 (off)
      - Peak-to-peak low-order bias gradients (DN).
+   * - ``calibration_column_residual_e``
+     - float
+     - 0 (off)
+     - Sigma of a calibrated product's fixed per-column residual, in electrons
+       per native pixel (calibrated frames only; see
+       :ref:`Instruments <sim-instruments>`).
+   * - ``calibration_pixel_residual_e``
+     - float
+     - 0 (off)
+     - Sigma of a calibrated product's per-frame per-pixel residual, in
+       electrons per native pixel (calibrated frames only).
    * - ``vidicon``
      - dict
      - catalog
@@ -3160,9 +3213,9 @@ chain: ``gain_state`` (the electron-chain gain state, which must be cataloged
 for the instrument), ``binning`` (the readout mode, below), ``detector_model``
 (``ccd`` electron chain or ``vidicon`` DN chain), ``exposure_ref_sec`` (the
 exposure the signal full-scale fraction references), ``filter`` (below), and
-``quantization`` (the ADC sub-mode: ``exact``, ``8bit``, ``uneven_12bit``, or
-``sqrt_lut``). Omitted keys, and keys set to null, fall back to the
-instrument's catalog defaults.
+``quantization`` (the ADC sub-mode: ``exact``, ``8bit``, ``uneven_12bit``,
+``sqrt_lut``, or ``coiss_lut``). Omitted keys, and keys set to null, fall back
+to the instrument's catalog defaults.
 
 ``filter`` names the filter combination the frame was shot through, written as
 the product label writes it (``CL1+CL2``). It sets how many electrons per second

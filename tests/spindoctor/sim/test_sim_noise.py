@@ -15,6 +15,7 @@ from spindoctor.sim.forward.detector import (
     quantize_dn,
     resolve_detector_params,
 )
+from spindoctor.sim.forward.detector.chain import COISS_LUT_DN
 from spindoctor.sim.forward.detector.noise_stages import (
     add_banding,
     add_bias_structure,
@@ -152,6 +153,24 @@ def test_sqrt_lut_leaves_a_signal_dependent_residual() -> None:
     out = quantize_dn(dn, mode='sqrt_lut', saturation_dn=4095.0)
     residual = np.abs(out - dn)
     assert float(residual[0, 1]) > float(residual[0, 0])
+
+
+@pytest.mark.parametrize(
+    ('code', 'step'),
+    [(10, 3.0), (25, 5.0), (55, 8.0), (100, 13.0), (200, 24.0)],
+    ids=['code-10', 'code-25', 'code-55', 'code-100', 'code-200'],
+)
+def test_the_cassini_table_steps_grow_with_the_code(code: int, step: float) -> None:
+    """The table's decode steps match the steps measured on real TABLE frames."""
+    assert float(COISS_LUT_DN[code + 1] - COISS_LUT_DN[code]) == step
+
+
+def test_the_cassini_table_snaps_each_value_to_the_nearest_decoded_dn() -> None:
+    """Values between two decoded DN go to the nearer one; above the table, to its top."""
+    lower, upper = float(COISS_LUT_DN[40]), float(COISS_LUT_DN[41])
+    dn = np.array([[lower + 0.4 * (upper - lower), lower + 0.6 * (upper - lower), 5000.0]])
+    out = quantize_dn(dn, mode='coiss_lut', saturation_dn=4095.0)
+    assert out.tolist() == [[lower, upper, float(COISS_LUT_DN[-1])]]
 
 
 # --- structured noise stages, each disabled at zero -------------------------

@@ -291,6 +291,7 @@ _NOISE_NUMBER_KEYS: frozenset[str] = frozenset(
         'missing_data_rate',
         'signal_full_scale_frac',
         'dark_current_e_per_sec',
+        'readout_dark_e',
         'hot_pixel_fraction',
         'hot_pixel_amplitude_e',
         'hot_pixel_column_factor',
@@ -299,6 +300,8 @@ _NOISE_NUMBER_KEYS: frozenset[str] = frozenset(
         'bias_pedestal_sigma_dn',
         'bias_row_gradient_dn',
         'bias_col_gradient_dn',
+        'calibration_column_residual_e',
+        'calibration_pixel_residual_e',
     }
 )
 _NOISE_KEYS: frozenset[str] = (
@@ -326,7 +329,7 @@ _DETECTOR_MODELS: frozenset[str] = frozenset({'ccd', 'vidicon'})
 # Quantization sub-modes: 'exact' rounds to integer DN (uniform bins); the ADC
 # modes reproduce the documented histogram structure of each camera.
 _QUANTIZATION_MODES: frozenset[str] = frozenset(
-    {'exact', 'uneven_12bit', '8bit', 'sqrt_lut', 'ls8b', 'contour_8bit'}
+    {'exact', 'uneven_12bit', '8bit', 'sqrt_lut', 'coiss_lut', 'ls8b', 'contour_8bit'}
 )
 # The artifacts block: the two switches (the physical-chain opt-in and the
 # adversarial-placement flag) plus one map per artifact mode, keyed by exactly

@@ -115,6 +115,13 @@ class DetectorParams:
             ``b**2`` here, and the chain scales the extended signal and the
             saturation well the same way.
         instrument_defaults: Whether the physical-chain opt-in is on.
+        readout_dark_e: Dark charge the last line collects during the readout,
+            in electrons per frame pixel, growing linearly from 0 at the first
+            line; 0 disables.
+        calibration_column_residual_e: Sigma, in electrons per native pixel, of
+            the calibrated product's fixed per-column residual; 0 disables.
+        calibration_pixel_residual_e: Sigma, in electrons per native pixel, of
+            the calibrated product's per-frame per-pixel residual; 0 disables.
         hot_pixel_adversarial: Whether the hot-pixel population is placed
             adversarially (biased onto the navigation features) rather than
             uniformly.
@@ -166,6 +173,9 @@ class DetectorParams:
     detector_id: str = 'generic'
     binning: int = 1
     instrument_defaults: bool = False
+    readout_dark_e: float = 0.0
+    calibration_column_residual_e: float = 0.0
+    calibration_pixel_residual_e: float = 0.0
     hot_pixel_adversarial: bool = False
     hot_pixel_mode_active: bool = False
     quantization_contour_step: int = 8
@@ -552,6 +562,11 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
     )
     if 'dark_current_e_per_sec' not in scene_noise:
         dark_current *= pixels_per_frame_pixel
+    readout_dark = _default_or_zero(
+        scene_noise, catalog, 'readout_dark_e', instrument_defaults=instrument_defaults
+    )
+    if 'readout_dark_e' not in scene_noise:
+        readout_dark *= pixels_per_frame_pixel
     hot_pixel_fraction = _default_or_zero(
         scene_noise, catalog, 'hot_pixel_fraction', instrument_defaults=instrument_defaults
     )
@@ -566,6 +581,18 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
     )
     bias_col_gradient = _default_or_zero(
         scene_noise, catalog, 'bias_col_gradient_dn', instrument_defaults=instrument_defaults
+    )
+    calibration_column_residual = _default_or_zero(
+        scene_noise,
+        catalog,
+        'calibration_column_residual_e',
+        instrument_defaults=instrument_defaults,
+    )
+    calibration_pixel_residual = _default_or_zero(
+        scene_noise,
+        catalog,
+        'calibration_pixel_residual_e',
+        instrument_defaults=instrument_defaults,
     )
     # Shape parameters (period, amplitude scales) track the catalog; they never
     # activate a stage on their own (the amplitude/fraction gate does that).
@@ -659,7 +686,7 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
         if bloom_override is not None:
             bloom_length = int(bloom_override)
     if 'quantization_lut' in detector_modes:
-        quantization = 'sqrt_lut'
+        quantization = 'coiss_lut'
     if 'quantization_ls8b' in detector_modes:
         quantization = 'ls8b'
     if 'contouring_8bit' in detector_modes:
@@ -700,6 +727,9 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
         detector_id=normalize_instrument(instrument),
         binning=binning,
         instrument_defaults=instrument_defaults,
+        readout_dark_e=readout_dark,
+        calibration_column_residual_e=calibration_column_residual,
+        calibration_pixel_residual_e=calibration_pixel_residual,
         hot_pixel_adversarial=hot_pixel_adversarial,
         hot_pixel_mode_active=hot_pixel_mode_active,
         quantization_contour_step=contour_step,

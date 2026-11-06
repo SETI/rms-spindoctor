@@ -440,12 +440,12 @@ def test_quantization_ls8b_mode_routes_to_the_ls8b_submode() -> None:
     assert dp.quantization == 'ls8b'
 
 
-def test_quantization_lut_mode_routes_to_the_sqrt_lut_submode() -> None:
-    """The quantization_lut mode selects the sqrt-companding ADC sub-mode."""
+def test_quantization_lut_mode_routes_to_the_cassini_table_submode() -> None:
+    """The quantization_lut mode selects the measured Cassini table sub-mode."""
     dp = resolve_detector_params(
         _disc('coiss_nac', artifacts={'quantization_lut': {'probability': 1.0}})
     )
-    assert dp.quantization == 'sqrt_lut'
+    assert dp.quantization == 'coiss_lut'
 
 
 def test_bias_structure_mode_overrides_the_generic_knob() -> None:
