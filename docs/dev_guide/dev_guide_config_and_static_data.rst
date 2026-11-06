@@ -384,10 +384,14 @@ revises a residual here should re-run that calibration (see
 
 ``spice_orbital_residual_km``, the body's SPK position uncertainty, is set
 only where it was measured: Prometheus and Pandora carry 5.0 km, MEASURED
-from BodyBlobNav centroids against star-confirmed pointing on Cassini F ring
-bundle frames (per-observation mean offsets a median 9 km, nearly constant
-within one observation and different between observations; a
-maximum-likelihood fit of the blob covariance gives 4.8 to 4.9 km per axis).
+from BodyBlobNav centroids on Cassini ISS frames of the F ring set, the frames
+the value was chosen on, against the frames' reference pointing where stars
+confirm it (the reference pointing is the pointing found by an independent
+navigation of the F ring observations; see
+:doc:`dev_guide_orchestrator_ensemble`). The per-observation mean offsets are
+a median 9 km, nearly constant within one observation and different between
+observations, and a maximum-likelihood fit of the blob covariance gives 4.8
+to 4.9 km per axis.
 Every other body takes the value of its fallback profile (2 km for a body
 with none).  It is added to the LIMB_ARC per-vertex sigma and, at the limb's
 image scale, to each BODY_BLOB centroid's variance (see

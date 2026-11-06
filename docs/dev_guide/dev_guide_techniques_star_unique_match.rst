@@ -31,6 +31,24 @@ plus rotation by Procrustes alignment. A single star whose window holds one sour
 brighter than every other, at an offset where no other star should have been seen, is
 best explained by that source; nothing cross-checks it, so its confidence is capped lower.
 
+The examples below are real frames, and each names the mission and camera that took it
+and its role. A *tuning case* is a frame on which a failure was found and the rule was
+built or tuned to fix it, or a frame of a set that a value was chosen on. Most are
+Cassini ISS frames measured against their reference pointing: the pointing found for each
+by independent navigations of the Cassini F ring and ring-spoke observations, separate
+from this software, which is the weaker reference on the ring-spoke frames (see
+:doc:`dev_guide_orchestrator_ensemble`). Three sets recur:
+
+- ``ISS_006RI_LPHRLFMOV001_PRIME``, a Cassini ISS narrow angle F ring observation of 1030
+  frames. The number of stars the pair search draws on and the pair residual tolerance
+  were chosen on it, so its frames are tuning cases.
+- **The star-frame set**, 3,186 Cassini ISS frames drawn for their stars from the F ring
+  observations and the ring-spoke observations. Counts over 1,986 frames are over the
+  frames of the set that hold usable stars under an exposure-only star limit, brighter
+  than the photometric limit (see :doc:`instruments/cassini_iss`).
+- **The tuning observations**, the two thirds of the F ring observations on which the
+  star techniques' parameters were derived (see :doc:`dev_guide_orchestrator_ensemble`).
+
 Brightness margin
 -----------------
 
@@ -77,11 +95,13 @@ below).
   through the light its flank spreads across the window's edge, with a centroid box that
   reaches outside the window, and takes the edge of a ring or a limb where the window cuts
   it: on ``ISS_006RI_LPHRLFMOV001_PRIME`` such cut edges at the corners of two stars'
-  windows formed a consistent pair and produced an answer 65 px wrong.
+  windows formed a consistent pair and produced an answer 65 px wrong, one of the
+  failures the peak rule was built to fix.
 - **The detection statistic** is the response to the Gaussian matched filter
   ``StarFieldFromCatalogNav`` detects with (``psf_sigma_px``, side
   ``2 * centroid_box_half_px + 1``). The response weighs a source by the light it spreads
-  over a PSF footprint and is zero over a uniform region. On ``N1530185128_1`` a
+  over a PSF footprint and is zero over a uniform region. The statistic was chosen for
+  the image library's Cassini ISS narrow angle frame ``N1530185128_1``, a tuning case: a
   single-pixel cosmic ray 1.8 times the brighter star's peak sits 30.7 rows and 24
   columns from that star's prediction; taking the brightest pixel measured the ray, while
   the star, smeared over 7 rows, gives 1.35 times the ray's response even when the ray is
@@ -96,8 +116,8 @@ below).
   mean of its four edge neighbors, both above the box's median: a candidate whose excess
   exceeds ``max_peak_sharpness`` times its neighbors' excess by more than
   ``detection_sigma`` times the noise of that difference is a cosmic ray or hot pixel. Of
-  6322 sources at catalog stars' positions under the published F ring bundle's pointing,
-  in 2500 frames of the movies set aside for tuning, the default of 8 passes over two: a
+  6322 sources at catalog stars' positions at their frames' reference pointing, in 2500
+  frames of the tuning observations, the default of 8 passes over two: a
   hot pixel whose neighbors hold none of its light, and a star of ratio 8.4. A pixel on
   the image's edge has no complete set of neighbors and is never passed over.
 - **The threshold** applies to the brightest pixel of the detection's centroid box, which
@@ -112,8 +132,9 @@ below).
   slope is fitted to the ring of pixels 2 px wide around the box, less its pixels more
   than three robust sigmas from the ring's median, and its level is the median of the box
   less that slope. The box median alone leaves the upper half of a sloping glare in the
-  moment's weights and pulls the centroid uphill: on F ring frame ``N1571454567`` a V 9.9
-  star on ring glare was measured 1.7 px from where a high-passed image puts it. The
+  moment's weights and pulls the centroid uphill: on Cassini ISS narrow angle frame
+  ``N1571454567``, the tuning case for the plane background, a V 9.9 star on ring glare
+  was measured 1.7 px from where a high-passed image puts it. The
   response peaks at the edge of a saturated core, where a box first straddles it; the
   re-centering moves the box over the core. A box that moves more than
   ``centroid_box_half_px`` from the candidate, or whose center leaves the window, has
@@ -130,9 +151,10 @@ below).
   one axis; it is no wider than the box along the other; the candidate lies on it or
   beside it; and the median of the pixels bordering it lies at least 10 tolerances below
   it. A ring's crest or a limb is flat within the tolerance over long stretches, but its
-  sides slope away gently. On Cassini NAC frame ``N1737165983`` a crest measured whole
-  pulled a lone star's centroid 1.95 px onto the ring, and its bordering pixels lie only
-  4.3 tolerances below it. The moment is taken over the core padded by
+  sides slope away gently. On Cassini ISS narrow angle frame ``N1737165983``, the tuning
+  case for the width and wall tests, a crest measured whole pulled a lone star's centroid
+  1.95 px onto the ring, and its bordering pixels lie only 4.3 tolerances below it. The
+  moment is taken over the core padded by
   ``centroid_box_half_px`` on every side; the scene's fused offset then lies 0.03 px from
   the planted one. A core that reaches the edge of the window padded by
   ``centroid_box_half_px``, or whose moment lies outside the window, is no point source
@@ -143,12 +165,14 @@ below).
   applies to its sources (``source_isolation_inner_px``, ``source_isolation_outer_px``,
   and ``source_isolation_max_ratio``, over the same matched filter). A ridge of a ring or
   a cosmic-ray track is a peak of the response but runs through the surrounding annulus.
-  On the black-sky Galileo library frame ``C0164958500R`` two tracks at the same offset
-  from two predictions formed a pair that passed its cross-check. Without the test, 3 more
-  of the 1030 frames of ``ISS_006RI_LPHRLFMOV001_PRIME`` navigate, none wrong. Both radii
-  move out by half the star's expected smear length: on the library frame
-  ``N1530185128_1`` the spacecraft's motion streaks every star over 8.5 px, each streak
-  crosses an unsmeared star's annulus, and no pair would pass.
+  The test was added for the image library's black-sky Galileo SSI frame
+  ``C0164958500R``, a tuning case, where two tracks at the same offset from two
+  predictions formed a pair that passed its cross-check. Without the test, 3 more of the
+  1030 frames of ``ISS_006RI_LPHRLFMOV001_PRIME`` navigate, none wrong. Both radii move
+  out by half the star's expected smear length. That widening was built for the Cassini
+  ISS narrow angle library frame ``N1530185128_1``, a tuning case: the spacecraft's
+  motion streaks every star over 8.5 px, each streak crosses an unsmeared star's annulus,
+  and no pair would pass.
 - **A window outshone from outside** is refused on the refinement path only: when the
   window's brightest pixel lies at its edge, belongs to no peak inside the window, and is
   brighter than the detection's own peak, the light of a source outside the window
@@ -159,7 +183,7 @@ below).
   star field had refinement accept noise peaks beside each displaced star and report a
   zero roll. This technique's windows often cut a ring, whose flank would refuse a
   correct window: with a 30 px window, refusing here lost 26 correct solutions in the
-  1030 frames of an F ring movie.
+  1030 frames of ``ISS_006RI_LPHRLFMOV001_PRIME``.
 
 A peak that fails the noise threshold or the isolation test is passed over and the next
 one measured. On the 2-star path a residual exceeding ``max_residual_px`` rejects a
@@ -184,9 +208,10 @@ the pair search found for it, is a hypothesis about the offset (``lone_star_hypo
 - A source sharper than a star, allowing nothing for noise
   (``one_star_max_peak_sharpness``) is no lone star. The ``max_peak_sharpness`` test that
   decides what counts as a source allows for noise, and a cosmic-ray hit a little broader
-  than a hot pixel passes it. None of 3656 stars found at the published bundles' pointing
-  on the F ring and spokes star frames is sharper than 6.96; with a limit of 8, five lone
-  sources between 7.03 and 7.97, each 30 to 100 px from the bundle's answer, are taken.
+  than a hot pixel passes it. The limit was chosen on the 1,986 frames of the star-frame
+  set: none of 3656 stars found there at the reference pointing is sharper than 6.96, and
+  with a limit of 8, five lone sources between 7.03 and 7.97, each 30 to 100 px from the
+  reference pointing, are taken.
 - An offset is refuted when ``one_star_absent_stars`` other usable stars that it puts
   inside the image, on clear sky, show nothing there (``absent_stars``, the test the
   2-star path applies). The lone source's peak per unit of predicted SNR says how bright
@@ -194,9 +219,9 @@ the pair search found for it, is a hypothesis about the offset (``lone_star_hypo
   ``pair_vote_peak_factor`` is absent. A star the offset puts in the padding, behind a ring
   or a limb, or too faint to stand above the noise at that scale cannot be absent. One
   absent star suffices, where a pair needs two, because a pair is two stars' agreement and
-  a lone star has none. On 978 one-star frames of the F ring and spokes movies, requiring
-  two answers 13 fewer frames within 1 px of the bundle's answer and one more 39 px from
-  it.
+  a lone star has none. The count was chosen on 978 one-star frames of the star-frame
+  set, where requiring two answers 13 fewer frames within 1 px of the reference pointing
+  and one more 39 px from it.
 
 Of the hypotheses left, the one brightest per unit of its star's predicted SNR is the
 answer (``choose_lone_star``), as the 2-star path chooses among equally supported pairs.
@@ -210,9 +235,10 @@ whose source matches it. The match is refused as ambiguous when, more than
   but then nothing says which of the two it is. The sources are the window's isolated
   point sources, so a hot pixel, a ring's flank, or a noise spike does not compete. The
   brightest pixel of a wide window is often one of those: 162 of the 361 one-star answers
-  on F ring NAC frames have a pixel brighter than the star in the window. A ratio of 2.0
-  refuses 14 lone stars within 1 px of the bundle's answer that 1.5 keeps, and answers
-  none that 1.5 refuses.
+  on the Cassini ISS narrow angle F ring frames of the star-frame set have a pixel
+  brighter than the star in the window. On the same frames a ratio of 2.0 refuses 14 lone
+  stars within 1 px of the reference pointing that 1.5 keeps, and answers none that 1.5
+  refuses.
 - another star's surviving hypothesis is within ``pair_vote_peak_factor`` of the answer's
   brightness per unit of predicted SNR (``ambiguous_lone_stars``): two stars each explain a
   source, and nothing contradicts either.
@@ -220,8 +246,9 @@ whose source matches it. The match is refused as ambiguous when, more than
 The answer is then refused when another usable star within
 ``brightness_margin_to_next_catalog_star_mag`` of the matched star has the source inside
 its own window (``ambiguous_identity``), since nothing in the image tells the two stars
-apart. On F ring frame ``N1492081691`` one source lies in the windows of two stars 0.2 mag
-apart, and taking it for the brighter gives an answer 7 px from the bundle's. A star whose
+apart. For example, on frame ``N1492081691`` of ``ISS_006RI_LPHRLFMOV001_PRIME`` one
+source lies in the windows of two stars 0.2 mag apart, and taking it for the brighter
+gives an answer 7 px from the reference pointing. A star whose
 window cannot reach the source does not compete. Refusing whenever any star of the extended
 field of view is that close in brightness refuses lone stars whenever a comparable star is
 predicted far in the padding.
@@ -254,14 +281,14 @@ than the noise-free CRLB floor. Rotation is unobservable on a single point match
 A star's predicted SNR is synthesized from how far its catalog magnitude sits below the
 frame's limiting magnitude, so it ranks the stars of a frame but says how bright a star
 appears only loosely, and differently for each camera. The peak above the local
-background per unit of predicted SNR of Cassini NAC stars found at the published bundles'
-pointing on the F ring and spokes star frames has a median of 0.17 noise sigmas and ranges
+background per unit of predicted SNR of Cassini ISS narrow angle stars found at the
+reference pointing on the star-frame set has a median of 0.17 noise sigmas and ranges
 from 0.008 to 2.5. So no lower bound applies, and the only absolute test is an upper bound a
 camera may set in its instrument configuration (``star_max_peak_per_predicted_snr``, in
 noise sigmas): a source brighter than the bound is not taken for a lone star, though it
-still competes as a source of its window. Each bound is measured from the stars found on
-the F ring and spokes star frames. A camera that sets none has no bound; the instrument chapters give the
-values.
+still competes as a source of its window. Each bound is chosen from the stars found at the
+reference pointing on the star-frame set. A camera that sets none has no bound; the
+instrument chapters give the values.
 
 2-star path
 -----------
@@ -277,22 +304,25 @@ next one taken. The isolation test for a whole window is built once
 to make a test per peak cost seconds. A wide window often holds something stronger than
 its star: the flank of a ring, a brighter star, or a cosmic-ray hit. Taking only each
 window's strongest peak, and nothing when that peak was not isolated, refused frames whose
-stars were plainly in the image once stars searched the Cassini NAC's (50, 140) px window:
-222 of 1986 frames of the F ring and spokes movies that the search below answers, 215 of
-them within 2 px of the published bundle's pointing and the other 7 where stars confirm
-the answer over the bundle's, and library frame ``N1550270436``, whose body-centroid
-fallback is then 15 px wrong. Where a star's source is found at all, it is the strongest,
-second, or third isolated source of the star's window in all but 2 of 3108 Cassini NAC
-star windows on F ring frames (2835, 254, and 17 times; fourth twice), so three candidates
-per star hold it. Every further candidate is one more chance of a coincidence: with four
-or five, two sources of F ring frame ``N1615481899`` ranked first and fourth agree 128 px
-from the bundle's answer, within a factor of 4 of the right pair's brightness, and the
-frame is refused as ambiguous.
+stars were plainly in the image once stars searched the Cassini NAC's (50, 140) px window.
+The candidate search below was built to fix those refusals, its tuning cases: 222 of the
+1,986 frames of the star-frame set that it answers, 215 of them within 2 px of the
+reference pointing and the other 7 where stars confirm the answer over the reference
+pointing, and the image library's Cassini ISS narrow angle frame ``N1550270436``, whose
+body-centroid fallback is then 15 px wrong. Where a star's source is found at all, it is
+the strongest, second, or third isolated source of the star's window in all but 2 of 3108
+Cassini ISS narrow angle star windows on F ring frames (2835, 254, and 17 times; fourth
+twice), so three candidates per star hold it; the count of three was chosen on those
+windows. Every further candidate is one more chance of a coincidence. Cassini ISS narrow
+angle frame ``N1615481899`` illustrates the cost: with four or five candidates, two of its
+sources ranked first and fourth agree 128 px from the reference pointing, within a factor
+of 4 of the right pair's brightness, and the frame is refused as ambiguous.
 
 Two catalog entries predicted within 1 px of each other (a star listed in two catalogs, or
 listed twice) are one source in the image, and only the brighter is searched
 (``distinct_stars``); counted twice, one star would back a pair twice, or one hidden star
-would count as two absent ones. On four frames of one WAC observation a star listed in
+would count as two absent ones. For example, on four frames of one Cassini ISS wide angle
+observation a star listed in
 both the bright-star and Tycho-2 catalogs, as its own rival, kept the 1-star path from
 answering.
 
@@ -309,8 +339,9 @@ unrelated sources that happen to agree gather only themselves.
 
 Pairs are judged best supported first. Of the pairs a set of agreeing stars forms, the one
 nearest all of them is judged first: a star 1.8 px off where the others put it still pairs
-with each of them, and a pair that includes it reports an offset 0.9 px off (on F ring
-frame ``N1546714862`` the brightest star is such a star). The other searched stars refute a
+with each of them, and a pair that includes it reports an offset 0.9 px off (for example,
+on Cassini ISS narrow angle frame ``N1546714862`` the brightest star is such a star). The
+other searched stars refute a
 pair's offset (``refute_pair``) when:
 
 - they contradict it. The pair's two stars set a brightness
@@ -321,8 +352,9 @@ pair's offset (``refute_pair``) when:
   its peak lies within a factor of ``pair_vote_peak_factor`` of the peak the star should
   show. A faint field star or a two-pixel cosmic-ray hit that lies there by chance is a
   small fraction of it and does not vote. A frame taken in high cosmic-ray flux holds hits
-  brighter than many of its stars: on F ring frame N1799563905 the brightest source in
-  each of three other stars' windows is such a hit, and the stars at the pair's offset,
+  brighter than many of its stars. The vote was built for Cassini ISS narrow angle frame
+  N1799563905, a tuning case, where the brightest source in each of three other stars'
+  windows is such a hit, and the stars at the pair's offset,
   with peaks 0.68 to 2.04 times what the pair predicts, keep the pair, 0.12 px from the
   answer four other stars confirm. A star not found at the offset votes against the pair
   when exactly one of its candidates is as bright as it should be (``star_like_source``),
@@ -330,11 +362,12 @@ pair's offset (``refute_pair``) when:
   fainter star predicted near a star of the pair can hold in its window; with no scale (a
   star of the pair whose catalog magnitude is only a saturated lower bound) every
   candidate qualifies, so only a window holding one candidate votes. A window that holds
-  several sources the star could be does not locate it at all: on the Galileo black-sky
-  frame ``C0164958745R`` every window holds saturated cosmic-ray hits as bright as its
-  star. Overlapping windows can return one source for several stars, so sources within 1
-  px of one another count once. With no vote for the pair, its offset is refuted when at
-  least ``pair_contradiction_stars`` distinct sources vote against it. A simulated
+  several sources the star could be does not locate it at all: for example, on the
+  black-sky Galileo SSI frame ``C0164958745R`` every window holds saturated cosmic-ray
+  hits as bright as its star. Overlapping windows can return one source for several
+  stars, so sources within 1 px of one another count once. With no vote for the pair, its
+  offset is refuted when at least ``pair_contradiction_stars`` distinct sources vote
+  against it. A simulated
   six-star field whose catalog positions each scatter by 6 or 8 px has two stars agreeing
   to 0.8 and 1.1 px, reported 5 and 7 px wrong without the refusal.
 - more of the other searched stars are absent where the pair's solution puts them than are
@@ -346,14 +379,16 @@ pair's offset (``refute_pair``) when:
   padding; the pixels around that position are clear sky, their robust spread at most
   twice the image noise, so no ring, limb, or bright neighbor can hide it; and the
   brightest pixel there stands above its local background by less than its expected peak
-  divided by ``pair_vote_peak_factor``. On the library frame ``N1598093741`` every star is
-  smeared over 19 px, so no star is an isolated point source, and two sources that are not
-  stars agree 45 px from the body techniques' answer; the two brightest stars, 4.5 and 2
-  times as bright as the pair's brighter star, lie on clear sky there and show nothing. One
-  absent star is not enough: on a dozen frames of ``ISS_006RI_LPHRLFMOV001_PRIME`` one
-  catalog star brighter than the pair shows nothing at the right offset. On F ring frame
-  ``N1755782055`` two stars predicted just past the image's last row pair two unrelated
-  sources 85 px from the bundle's answer, and the brightest star, inside the image and on
+  divided by ``pair_vote_peak_factor``. For example, on the image library's Cassini ISS
+  narrow angle frame ``N1598093741`` every star is smeared over 19 px, so no star is an
+  isolated point source, and two sources that are not stars agree 45 px from the body
+  techniques' answer; the two brightest stars, 4.5 and 2 times as bright as the pair's
+  brighter star, lie on clear sky there and show nothing. One absent star is not enough:
+  on a dozen frames of ``ISS_006RI_LPHRLFMOV001_PRIME`` one catalog star brighter than
+  the pair shows nothing at the right offset. The padding case
+  was built for Cassini ISS narrow angle frame ``N1755782055``, a tuning case, where two
+  stars predicted just past the image's last row pair two unrelated sources 85 px from the
+  reference pointing, and the brightest star, inside the image and on
   clear sky there, shows nothing; at the right offset it stands 3000 noise sigmas high.
   Three faint sources that agree with one another outnumber a bright pair, and the two
   bright stars, absent where the faint three put them, refute that offset.
@@ -363,19 +398,20 @@ A refuted offset sets aside every pair within twice ``max_residual_px`` of it
 answer is the best supported pair not set aside. When several pairs backed by equally many
 stars survive more than twice ``max_residual_px`` apart, the stars are the brightest of
 them, judged by the pair's peak per unit of predicted SNR: a ghost image of each star or a
-coincidence among faint sources shows far less light. On F ring frame ``N1600240376`` each
-star has a copy 15.5 rows and 11 columns away, 35 times fainter, and the copies form a
-second pair backed by as many stars. Another surviving pair within a factor of
-``pair_vote_peak_factor`` of the brightest one's peak per SNR leaves two answers the stars
-support equally, one of them a coincidence that cannot be told from the other, and the
-technique reports spurious with an ``ambiguous_pairs`` reason. A frame whose every pair is
-ruled out reports spurious with a ``pair_contradicted`` reason and does not fall back to
-the 1-star path.
+coincidence among faint sources shows far less light. For example, on Cassini ISS narrow
+angle frame ``N1600240376`` each star has a copy 15.5 rows and 11 columns away, 35 times
+fainter, and the copies form a second pair backed by as many stars. Another surviving
+pair within a factor of ``pair_vote_peak_factor`` of the brightest one's peak per SNR
+leaves two answers the stars support equally, one of them a coincidence that cannot be
+told from the other, and the technique reports spurious with an ``ambiguous_pairs``
+reason. A frame whose every pair is ruled out reports spurious with a
+``pair_contradicted`` reason and does not fall back to the 1-star path.
 
 The path does not apply the peak-to-runner-up ratio test to its stars' windows: the star
 need not be the strongest source in its window, and a source that is not the star moves
 that star's offset away from the other's, where the residual declines the pair, while the
-peak ratio would refuse correct pairs. On ``N1530185128_1`` the fainter star's window
+peak ratio would refuse correct pairs. The choice was made on the Cassini ISS narrow angle
+library frame ``N1530185128_1``, a tuning case, where the fainter star's window
 holds a single-pixel spike within 0.4 percent of the star's own peak, while the pair's
 residual is under half a pixel.
 
@@ -384,10 +420,10 @@ image. A star predicted inside the extended field of view may fall off the detec
 the pointing error is applied, or under a ring's glare; with only the brightest two tried,
 its window holds no star, the pair fails, and the frame falls through to the 1-star path,
 where a field of comparable stars rarely leaves one source that only one of them could
-be. On
-``ISS_006RI_LPHRLFMOV001_PRIME`` searching pairs among the brightest 3, 5, and 8 stars
-navigates 710, 771, and 777 of the 1030 frames, every one within 2 px of the published F
-ring bundle (measured with each window's strongest detection in a 50 px window).
+be. The default of five was chosen on ``ISS_006RI_LPHRLFMOV001_PRIME``, where searching
+pairs among the brightest 3, 5, and 8 stars navigates 710, 771, and 777 of the 1030
+frames, every one within 2 px of the reference pointing (measured with each window's
+strongest detection in a 50 px window).
 
 Every star is predicted inside the extended field of view, and its padding is the offset
 window, so every star's window holds at least one pixel of the image. A star predicted
@@ -397,12 +433,13 @@ on.
 
 .. A star search no wider than the offset window has no star out of reach: #763.
 
-The residual tolerance is measured. With it opened to 4 px, the 704 two-star matches on
-that observation that lie within 2 px of the bundle have residuals of median 0.10 px and
-95th percentile 0.30 px, and no star is paired with the wrong source. At 1.2 px, 701 of
-the 704 pass; 1.2 rather than 1.0 admits the correct pair of library frame
-``N1550270436``, whose residual is 1.04 px and whose fallback without it is a body
-centroid 15 px wrong.
+The residual tolerance was chosen on ``ISS_006RI_LPHRLFMOV001_PRIME``. With it opened to
+4 px, the 704 two-star matches on that observation that lie within 2 px of the reference
+pointing have residuals of median 0.10 px and 95th percentile 0.30 px, and no star is
+paired with the wrong source. At 1.2 px, 701 of the 704 pass. The image library's Cassini
+ISS narrow angle frame ``N1550270436`` is the tuning case for 1.2 rather than 1.0: 1.2
+admits its correct pair, whose residual is 1.04 px and whose fallback without it is a
+body centroid 15 px wrong.
 
 For each pair the fit is a Procrustes / similarity-transform fit on the two
 correspondences that reports the recovered translation plus rotation. The rotation
@@ -444,14 +481,13 @@ Restrictions and assumptions
   camera's ``one_star_ellipse_fraction``) around its prediction, while the whole window is
   still searched so that a source nearly as bright anywhere in it makes the match
   ambiguous: nothing cross-checks a single detection, and the wider the region it may come
-  from, the likelier an artifact is the brightest thing in it. Replayed on the F ring and
-  spokes star frames, the Cassini NAC's 334 one-star answers within 2 px of the published
-  bundles' reach 0.55 of the window, and the 61 farther from them lie between 0.01 and 0.56
-  of it, so a narrower ellipse would not separate the two. A camera whose pointing error
-  reaches the edge of its window sets a wider fraction; the instrument chapters give the
-  evidence. On the black-sky
-  Galileo library frame
-  ``C0164392700R`` a lone artifact lies 40 px from the one predicted star; the Galileo
+  from, the likelier an artifact is the brightest thing in it. Replayed on the star-frame
+  set, the Cassini NAC's 334 one-star answers within 2 px of the reference pointing reach
+  0.55 of the window, and the 61 farther from it lie between 0.01 and 0.56 of it, so a
+  narrower ellipse would not separate the two. A camera whose pointing error reaches the
+  edge of its window sets a wider fraction; the instrument chapters give the evidence. The
+  image library's black-sky Galileo SSI frame ``C0164392700R`` is a known cost: a lone
+  artifact lies 40 px from the one predicted star; the Galileo
   offset window of 350 px puts it inside the 210 px ellipse, so the ellipse does not refuse
   it there until the camera's window is set from its pointing error. Beyond the window is
   the regime where the multi-star
@@ -459,13 +495,13 @@ Restrictions and assumptions
   matcher takes over.
 - A lone star is judged against every source of the whole offset window, so a source
   nearly as bright anywhere in it refuses the match even where a window sized to the
-  star's own reach would hold the star alone. On the 1986 F ring and spokes star frames,
+  star's own reach would hold the star alone. On the 1,986 frames of the star-frame set,
   against star windows of 50 px (NAC) and 13 px (WAC) with lone stars believed within
   30 and 9 px, 17 NAC lone stars and 1 WAC lone star that those found are refused: on 15
   of the NAC frames a comparable source lies in the whole window outside the smaller one,
   or the offset lies outside the lone-star ellipse, and on the WAC frame another star
   explains another source nearly as well. In turn the whole window answers 310 NAC and 38
-  WAC frames within 1 px of the bundle that those windows refuse.
+  WAC frames within 1 px of the reference pointing that those windows refuse.
 - Both paths assume the matched detection is unsaturated. A saturated star whose centroid
   has been clipped will produce a biased centroid; in practice the brightest catalog stars
   are held off by the magnitude gate. The predicted-position saturation / cosmic-ray mask is
@@ -512,8 +548,8 @@ All numeric tunables for this technique live in ``techniques.StarUniqueMatchNav.
   brightest usable stars and pairs their candidates.
 - ``pair_search_sources`` — int, default ``3``, at least 1. Number of strongest isolated
   point sources in each searched star's window that are its candidates. The star's own
-  source ranked first, second, or third in all but 2 of 3108 star windows measured on F
-  ring frames.
+  source ranked first, second, or third in all but 2 of 3108 Cassini ISS narrow angle
+  star windows measured on F ring frames, the windows the default was chosen on.
 - ``pair_contradiction_stars`` — int, default ``3``. A pair's offset is refuted when at
   least this many distinct sources, each the one source in another searched star's window
   as bright as that star should be, lie away from the offset, and none of the other stars
@@ -526,11 +562,12 @@ All numeric tunables for this technique live in ``techniques.StarUniqueMatchNav.
 - ``pair_vote_peak_factor`` — float, default ``4.0`` (dimensionless), finite and above
   1. A source found where the pair's offset puts another star counts as that star only
   when its peak above the local background lies within this factor of the peak the
-  pair's stars predict for it. Among 93 two-star answers in the F ring movies set aside
-  for tuning, the 492 other stars at least a quarter as bright as the pair's fainter star
-  showed peaks 0.35 to 2.8 times the prediction (2nd to 99th percentile), and 4 sets
-  aside 9 of them. Of equally supported pairs, one within this factor of the brightest
-  one's peak per unit of predicted SNR makes the choice ambiguous.
+  pair's stars predict for it. The default was chosen on 93 two-star answers on frames of
+  the tuning observations (see :doc:`dev_guide_orchestrator_ensemble`), where the 492
+  other stars at least a quarter as bright as the pair's fainter star showed peaks 0.35
+  to 2.8 times the prediction (2nd to 99th percentile), and 4 sets aside 9 of them. Of
+  equally supported pairs, one within this factor of the brightest one's peak per unit of
+  predicted SNR makes the choice ambiguous.
 - ``centroid_box_half_px`` — int, default ``3`` px. Half-width of the brightness-weighted
   moment box around the detection, and of the matched-filter kernel.
 - ``max_residual_px`` — float, default ``1.2`` px. Maximum allowed

@@ -162,9 +162,12 @@ peak quality, consistency, and top-k count):
   {RingAnnulusNav: ...}`` uses that floor instead (see
   :doc:`dev_guide_orchestrator_instrument_config`); the technique reads it from
   :attr:`~spindoctor.nav_orchestrator.nav_context.NavContext.model_error_floor_px` and
-  logs the replacement. The 0.13 px default fits the Cassini NAC: over the 401 NAC annulus
-  answers of a 20,584-frame Cassini F ring bundle run, the Mahalanobis distance to the
-  bundle pointing has a median of 0.71 and exceeds 3 on 1.2% of them.
+  logs the replacement. The 0.13 px default fits the Cassini NAC. Over the 401 NAC annulus
+  answers in one navigation of the full F ring set of Cassini ISS frames (see
+  :doc:`dev_guide_orchestrator_ensemble`), a measurement that did not set the value, the
+  Mahalanobis distance to each frame's reference pointing (the pointing found for it by
+  independent navigations of the Cassini F ring and ring-spoke observations, separate from
+  this software) has a median of 0.71 and exceeds 3 on 1.2% of them.
 
 Feature-emission tunables (per-planet)
 --------------------------------------
@@ -182,11 +185,14 @@ composite for the edges that compressed below ``max_radial_px``.
 
 For Saturn the km/px threshold routes by measured reliability, not by pixel span: at or above
 25 km/px radial resolution the whole Saturn system routes to the annulus composite, and the
-per-edge distance-transform fit receives only sub-25 km/px scenes. A 131-frame clean-truth
-head-to-head measured the per-edge fit wrong-when-accepted at 5% / 13% / 56% / 100% in the
-300-1000 / 100-300 / 25-100 / 0-25 km/px bands, while the annulus fit was wrong on zero
-accepted answers at every band -- so the annulus route covers the regimes that comparison
-validates, everything at or above 25 km/px. The per-edge fit degrades toward fine resolution, where the ring alias lattice
+per-edge distance-transform fit receives only sub-25 km/px scenes. The threshold was chosen
+on 131 Cassini ISS frames of the ring-spoke observations whose reference pointing the
+operator had audited, with frames of unrefined pointing or of the wrong frame removed. On
+them a head-to-head measured the per-edge fit wrong-when-accepted at 5% / 13% / 56% / 100%
+in the 300-1000 / 100-300 / 25-100 / 0-25 km/px bands, while the annulus fit was wrong on
+zero accepted answers at every band -- so the annulus route covers the regimes that
+comparison validates, everything at or above 25 km/px. The per-edge fit degrades toward
+fine resolution, where the ring alias lattice
 resolves into many distinct similar concentric edges and a shape-only fit locks onto the wrong
 one; the rendered-brightness template disambiguates the lattice because relative ring
 brightness is part of the match. Below 25 km/px the trustworthy evidence is three frames on

@@ -41,9 +41,15 @@ km/px threshold (``feature_emission.ring_annulus.planets.SATURN.kmpp_threshold``
 Saturn, only scenes finer than 25 km/px radial resolution emit ``RING_EDGE`` features at
 all, and everything at or above that routes to the
 :doc:`annulus composite <dev_guide_techniques_ring_annulus>` instead. The routing is
-measured, not geometric. A 131-frame clean-truth head-to-head put this technique's
-wrong-when-accepted rate at 5% / 13% / 56% / 100% in the 300-1000 / 100-300 / 25-100 /
-0-25 km/px bands while the annulus fit was wrong on zero accepted answers at every band.
+measured, not geometric. Here and below, a frame's reference pointing is the pointing
+found for it by independent navigations of the Cassini F ring and ring-spoke
+observations, separate from this software; the recurring frame sets are described in
+:doc:`dev_guide_orchestrator_ensemble`. The threshold was chosen on 131 Cassini ISS frames
+of the ring-spoke observations whose reference pointing the operator had audited, with
+frames of unrefined pointing or of the wrong frame removed. On them a head-to-head put
+this technique's wrong-when-accepted rate at 5% / 13% / 56% / 100% in the 300-1000 /
+100-300 / 25-100 / 0-25 km/px bands while the annulus fit was wrong on zero accepted
+answers at every band.
 The annulus route covers the regimes that comparison validates -- everything at or above
 25 km/px. The degradation toward fine resolution is the ring alias lattice: as resolution
 improves, many similar concentric ringlet edges separate into distinct image edges, and a
@@ -108,26 +114,26 @@ and on a frame that is only weakly curved that component is what the reported an
 carries. The check changes the seed only where the overlap seed is clearly on weaker
 edges, which is the alias case.
 
-Measured on Cassini NAC frames, the edge strength under the overlap seed was 0.91 to 1.00
-of the strongest wherever that seed was right across the edge (the library's Keeler gap,
-Encke gap, and Maxwell ringlet frames at 0.2 to 0.4 km/px, and two F ring movie frames at
-5.5 km/px), and 0.005 to 0.68 wherever it had locked onto ring texture or scattered-light
-contours 16 to 94 px off. On the latter frames the strongest alignment put the model within
-about 2 px of independent pointing across the edge.
+Measured on Cassini ISS narrow angle frames, the edge strength under the overlap seed was
+0.91 to 1.00 of the strongest wherever that seed was right across the edge (the image
+library's Keeler gap, Encke gap, and Maxwell ringlet frames at 0.2 to 0.4 km/px, and two
+frames of the F ring set at 5.5 km/px), and 0.005 to 0.68 wherever it had locked onto ring
+texture or scattered-light contours 16 to 94 px off. On the latter frames the strongest
+alignment put the model within about 2 px of their reference pointing across the edge.
 
 A frame can also hold no cataloged edge at all at the true pointing: the edges lie in the
 extended margin outside the sensor, and the search drags the model onto whatever the
-thresholded image offers inside it, which in an F ring movie frame is the faint contour
-lattice of the scattered-light glow. No seed can be right there. The fit is instead
-rejected after convergence when the edges it matched are too faint to be a ring edge: the
-median of :math:`|g \cdot n|` over the vertices within 1.5 px of a detected edge, divided
-by the 99.9th percentile of the gradient magnitude inside the sensor, must reach
-``spurious_min_edge_strength_fraction``. The check lays the model where the converged fit
-placed it: when the camera rotation is fit, the vertices and their normals are first
-turned by the fitted angle about the vertex centroid, then shifted by the fitted offset.
-Ten such F ring movie frames at 9.9 km/px, each wrong by 60 to 94 px, scored 0.0012 to
-0.0022; fits on real ring edges scored from 0.0096 (F ring movie frames) and from 0.050
-(the library's ring frames) up to about 1.
+thresholded image offers inside it, which on a frame of the F ring set is the faint
+contour lattice of the scattered-light glow. No seed can be right there. The fit is
+instead rejected after convergence when the edges it matched are too faint to be a ring
+edge: the median of :math:`|g \cdot n|` over the vertices within 1.5 px of a detected
+edge, divided by the 99.9th percentile of the gradient magnitude inside the sensor, must
+reach ``spurious_min_edge_strength_fraction``. The check lays the model where the
+converged fit placed it: when the camera rotation is fit, the vertices and their normals
+are first turned by the fitted angle about the vertex centroid, then shifted by the fitted
+offset. Ten such Cassini ISS frames of the F ring set at 9.9 km/px, each wrong by 60 to 94
+px, scored 0.0012 to 0.0022; fits on real ring edges scored from 0.0096 (frames of the F
+ring set) and from 0.050 (the image library's ring frames) up to about 1.
 
 The residual scale
 ------------------
@@ -208,10 +214,10 @@ Along-edge uncertainty
 A ring edge that curves gently across the frame is not straight enough to be flagged
 rank-1, yet it constrains its along-edge position only through how its normals turn. A
 slide of one pixel along an arc of radius of curvature :math:`R` moves a vertex a distance
-:math:`s` from the arc's middle by :math:`s/R` across the edge. On a Cassini NAC F ring
-movie frame at 5.9 km/px the A ring's outer edge crosses about 1,100 px of the frame with
-:math:`R` near 12,000 px, so a one pixel slide moves the ends of the arc by 0.05 px. Three
-parts of the technique keep that weakness visible.
+:math:`s` from the arc's middle by :math:`s/R` across the edge. On a Cassini ISS narrow
+angle frame of the F ring set at 5.9 km/px the A ring's outer edge crosses about 1,100 px
+of the frame with :math:`R` near 12,000 px, so a one pixel slide moves the ends of the arc
+by 0.05 px. Three parts of the technique keep that weakness visible.
 
 **Normals from the ring geometry.** The rings model emits each vertex's normal as the
 gradient of the ring-radius backplane, the true outward radial direction, rather than the
@@ -220,21 +226,21 @@ direction its edge-mask pixel neighbors suggest (see
 term below, the rank-1 axis, and the orbit channel use these.
 
 The fit itself keeps the pixel-neighbor normals the model also carries
-(:attr:`~spindoctor.feature.geometry.RingEdgePolyline.pixel_normals_vu`): the edge-strength
-scores of `The coarse seed`_ read them, because their thresholds were measured with them,
-and the gradient-ridge pass steps along them, so where the fit converges depends on the
-pixel-neighbor normals alone. Both choices were measured on the F ring sample described
-below. Scored
-with the radius-gradient normals, edge strengths that sit near ``coarse_strength_keep_ratio``
-or ``spurious_min_edge_strength_fraction`` crossed them in both directions (one frame went
+(:attr:`~spindoctor.feature.geometry.RingEdgePolyline.pixel_normals_vu`): the
+edge-strength scores of `The coarse seed`_ read them, because their thresholds were
+measured with them, and the gradient-ridge pass steps along them, so where the fit
+converges depends on the pixel-neighbor normals alone. Both choices were made on the
+1,614-frame sample of the F ring set. Scored with the radius-gradient normals, edge
+strengths that sit near ``coarse_strength_keep_ratio`` or
+``spurious_min_edge_strength_fraction`` crossed them in both directions (one frame went
 from a right answer to a 36 px alias seed). Stepped along them, the fit moved the
 along-edge position of a gently curved edge by a median 0.4 px (90th percentile 1.4 px).
-That move brought RingEdgeNav closer to ring-navigated reference pointing (within 1 px on
-296 of 391 frames, against 244) but not to star-confirmed pointing (129 of 627, against
-138), and on frames that only the ring navigates it moved 23 answers that were within a
-pixel out of it while moving 59 in. An along-edge position that the edge itself barely
-constrains is not worth moving answers back and forth across a pixel, so only the
-reported information changes.
+That move brought RingEdgeNav closer to the reference pointing where that pointing came
+from ring navigation (within 1 px on 296 of 391 frames, against 244) but not where it came
+from stars (129 of 627, against 138), and on frames that only the ring navigates it moved
+23 answers that were within a pixel out of it while moving 59 in. An along-edge position
+that the edge itself barely constrains is not worth moving answers back and forth across a
+pixel, so only the reported information changes.
 
 **Information measured only across the edge.** The fit's residual is the distance from a
 vertex to the nearest pixel of a binary edge mask, and that distance transform is a
@@ -290,33 +296,38 @@ fusion takes each direction, to within a pixel, from the one that is precise alo
 so a ring answer tens of pixels along the edge and a one-star match whose sigma is the size
 of its offset are a disagreement rather than a compromise between them. A frame that has only the ring keeps the fit's along-edge position,
 reported with its several pixels of sigma, which places it in the ``low`` tier. The fit's
-along-edge position is better than the prediction's on such frames: on F ring frames whose
-bundle pointing came from stars, the RingEdgeNav answers that no star technique
-corroborated were a median 4.1 px from that pointing where the SPICE prediction was
-11.5 px off.
+along-edge position is better than the prediction's on such frames: on frames of the F
+ring set whose reference pointing came from stars, the RingEdgeNav answers that no star
+technique corroborated were a median 4.1 px from that pointing where the SPICE prediction
+was 11.5 px off.
 
-Measured on a stratified sample of 1,614 Cassini ISS F ring bundle frames against the
-bundle's per-frame pointing, with and without the three parts above, the ensemble's
-compromise test (see :doc:`dev_guide_orchestrator_ensemble`), and the body brightness
-center's phase and shape uncertainty (see :doc:`dev_guide_techniques_body_blob`): on the
-1,310 NAC frames, answers within 1 px went from 554 to 805, answers more than 2 px off from
-317 to 230, and refusals from 295 to 135; answers more than 2 px off at the ``medium`` or
-``high`` tier went from 313 to 28. Ten NAC answers became worse against the bundle
-pointing. On seven of them the catalog stars measured in the image lie within 0.3 px of
-the new answer and 1.1 to 4.1 px from the bundle pointing, so the reference is what is
-wrong: N1848873462, for instance, has two stars 0.15 and 0.21 px from the answer and 4.1 px
-from a ring-navigated reference that the ring fit matches. N1802002665 is a real loss: its
-one star lies 0.13 px from the bundle pointing, and the answer moved from 0.95 to 1.07 px
-from it. N1493649156 has no star; its answer moved from 0.42 to 1.26 px as a Prometheus
-brightness center took over the along-edge component. On N1851235341 one Tycho-2 star lies
-3.5 px from the bundle pointing and 2.6 px from the answer, which went from 0.70 to 1.04 px
-from the pointing; one star does not settle which is right. The 304 WAC frames take the
-annulus route and changed only through the brightness center's wider uncertainty: five
-answers more than 2 px off came within 2 px, two came within 1 px, and one, W1763501382,
-which has no star, moved from 0.92 to 1.31 px. On the 424 NAC frames that only
-the ring navigates, every offset and every verdict is unchanged, and 68 of their answers
-within 1 px move to the ``low`` tier, 65 of them from ``medium``. Across all NAC frames,
-answers within 1 px at the ``medium`` or ``high`` tier went from 540 to 689.
+Measured on the 1,614-frame sample of the F ring set against each frame's reference
+pointing, with and without the three parts above, the ensemble's compromise test (see
+:doc:`dev_guide_orchestrator_ensemble`), and the body brightness center's phase and shape
+uncertainty (see :doc:`dev_guide_techniques_body_blob`): on the 1,310 NAC frames, answers
+within 1 px went from 554 to 805, answers more than 2 px off from 317 to 230, and refusals
+from 295 to 135; answers more than 2 px off at the ``medium`` or ``high`` tier went from
+313 to 28. This is not a held-out test: ``shape_sigma_px`` and the ensemble's compromise
+limit were tuned on frames of the same sample. Ten NAC answers moved farther from the
+reference pointing, and each was examined afterward. On seven of them the catalog stars
+measured in the image lie within 0.3 px of the answer and 1.1 to 4.1 px from the reference
+pointing, so the reference is what is wrong: Cassini ISS narrow angle frame N1848873462,
+for instance, has two stars 0.15 and 0.21 px from the answer and 4.1 px from a reference
+pointing that came from ring navigation and that the ring fit matches. On the other three
+the stars do not show the reference wrong. Narrow angle frame N1802002665 is a real loss:
+its one star lies 0.13 px from the reference pointing, and the answer moved from 0.95 to
+1.07 px from it. Narrow angle frame N1493649156 has no star; its answer moved from 0.42 to
+1.26 px as a Prometheus brightness center took over the along-edge component. On narrow
+angle frame N1851235341 one Tycho-2 star lies 3.5 px from the reference pointing and 2.6
+px from the answer, which went from 0.70 to 1.04 px from the reference pointing; one star
+does not settle which is right. The 304 WAC frames take the annulus route and changed only
+through the brightness center's wider uncertainty: five answers more than 2 px off came
+within 2 px, two came within 1 px, and one, wide angle frame W1763501382, which has no
+star, moved farther from the reference pointing, from 0.92 to 1.31 px. On the 424 NAC
+frames that only the ring navigates, every offset and every verdict is unchanged, and 68
+of their answers within 1 px move to the ``low`` tier, 65 of them from ``medium``. Across
+all NAC frames, answers within 1 px at the ``medium`` or ``high`` tier went from 540 to
+689.
 
 Radial orbit-uncertainty channel
 --------------------------------
@@ -394,8 +405,8 @@ m=0 part coherently -- remains unimplemented.
 The ensemble consumes the widened covariance through its ordinary precision-weighted
 machinery — nothing downstream special-cases the term. A ring-edge lock on an uncertain
 orbit then carries an honestly wide radial axis: it fuses at reduced radial weight against
-any technique that constrains that axis independently, and the sigma-gated confidence tier
-demotes on its own when the widened axis exceeds a tier's sigma cap. The effective sigma
+any technique that constrains that axis independently, and the confidence tier drops on
+its own when the widened axis exceeds a tier's sigma cap. The effective sigma
 is recorded on
 :attr:`~spindoctor.nav_technique.diagnostics.RingEdgeDiagnostics.sigma_orbit_radial_px`.
 The channel prices the hazard; it cannot remove the underlying offset bias, which is why
@@ -429,19 +440,22 @@ Restrictions and assumptions
   exceeds the per-instrument search-window margin the seed lands on a wrong edge and the
   LM converges to a wrong local minimum.
 - The edge-strength check assumes the cataloged edges are the strongest steps near the
-  prediction. Against the published F ring bundle's per-frame pointing on 1,041 held-out
-  frames below 25 km/px, it cuts the alias locks across the edge, answers displaced across
-  the edge by a distance that matches no spacing between cataloged edges, from 188 to 4:
-  N1492091385 at 45 px, N1851236541 at 44 px, N1492064782 at 34 px, and N1851226701 at
-  3.8 px. When two cataloged edges lie a few tens of pixels apart, one strong step can be
-  matched by the wrong one of them: on Cassini NAC F ring movie frames at 5 km/px the
-  strongest alignment sometimes lays the Keeler gap edges on the A ring's outer edge. On
-  the same frames 5 answers are wrong this way, 7 to 49 px across the edge (41 to 51 px on
-  four of them). All nine are reported at the ``medium`` tier.
+  prediction. It was tuned on a sample of 263 frames of the F ring set and checked on
+  held-out frames: the 1,041 Cassini ISS narrow angle frames finer than 25 km/px from a
+  third of the F ring observations (65 observations) set aside before any tuning. Against
+  their reference pointing, it cuts the alias locks across the edge, answers displaced
+  across the edge by a distance that matches no spacing between cataloged edges, from 188
+  to 4. The four left are known costs, all narrow angle frames: N1492091385 at 45 px,
+  N1851236541 at 44 px, N1492064782 at 34 px, and N1851226701 at 3.8 px. When two
+  cataloged edges lie a few tens of pixels apart, one strong step can be matched by the
+  wrong one of them: on Cassini ISS narrow angle frames of the F ring set at 5 km/px the
+  strongest alignment sometimes lays the Keeler gap edges on the A ring's outer edge. Of
+  the same 1,041 held-out frames, 5 answers are wrong this way, 7 to 49 px across the edge
+  (41 to 51 px on four of them). All nine are reported at the ``medium`` tier.
 - The coarse search still chooses the along-edge position of a gently curved edge, and the
-  refinement's trust region keeps it there: seeded at the bundle pointing on seven
-  F ring frames the fit stays within about a pixel of it, and seeded normally it lands
-  0.8 to 9 px away along the edge. The covariance reports that weakness (see
+  refinement's trust region keeps it there: seeded at their reference pointing, on seven
+  frames of the F ring set, the fit stays within about a pixel of it, and seeded normally
+  it lands 0.8 to 9 px away along the edge. The covariance reports that weakness (see
   `Along-edge uncertainty`_), so another witness sets the component where one exists; a
   frame that has only the ring carries the coarse search's choice, in the ``low`` tier.
 
@@ -479,16 +493,16 @@ All numeric tunables for this technique live in ``techniques.RingEdgeNav.tuning`
   vertices while the rest sit nowhere near a detected edge.
 
   It does not separate a correct fit from one locked onto the wrong member of a
-  concentric family. Measured over 71 Cassini B-ring frames with independently published
-  pointing, with the inlier fractions computed under the corrected residual scale
-  described in `The residual scale`_: fits landing within 2 px of that pointing and fits
-  missing it by more than 5 px both run inlier fractions from roughly 0.3 to 0.95,
-  overlapping across the whole range: an alignment one ringlet spacing away still puts
-  most of the model on *an* image edge, which is what makes the family aliased in the
-  first place. The truth source for that measurement is bundle-published pointing
-  predating the pointing-defect audit, which supports right-versus-wrong classification
-  at the couple-of-pixel level only (about a fifth of unfiltered bundle pointing was
-  later found unrefined); the overlap conclusion survives that coarseness. Distinguishing
+  concentric family. Measured over 71 Cassini ISS frames of the B ring from the
+  ring-spoke observations against their reference pointing, with the inlier fractions
+  computed under the residual scale described in `The residual scale`_: fits landing
+  within 2 px of that pointing and fits missing it by more than 5 px both run inlier
+  fractions from roughly 0.3 to 0.95, overlapping across the whole range: an alignment one
+  ringlet spacing away still puts most of the model on *an* image edge, which is what
+  makes the family aliased in the first place. That reference pointing was not screened
+  for frames whose pointing was never refined (about a fifth of unscreened frames are), so
+  it supports right-versus-wrong classification at the couple-of-pixel level only; the
+  overlap conclusion survives that coarseness. Distinguishing
   the two is an acquisition problem, not something the converged fit's residuals record.
 - **Absent-edge waiver.** In a multi-edge fusion, a low aggregate inlier fraction can be
   fully explained by an edge that is *absent* from the image (a faint edge nothing in the
@@ -525,12 +539,13 @@ All numeric tunables for this technique live in ``techniques.RingEdgeNav.tuning`
 - ``shape_sigma_px`` — float, default ``0.22`` px. Root-mean-square, over the
   fitted vertices, of a radial model error that varies linearly across them; the
   translation the fit would absorb from it is added to the reported covariance (see
-  `Along-edge uncertainty`_). On the 408 Cassini NAC F ring frames of the sample below
-  whose bundle pointing a star technique confirms to 0.5 px, the fit's along-edge errors
-  at this value are a median 0.68 times the reported along-edge sigma and 30% exceed it,
-  as 0.67 and 32% do for a correctly sized Gaussian; the 9% beyond twice the sigma are
-  catalog orbit errors and alias seeds, which no Gaussian width describes. Must be a
-  finite number of at least zero; construction raises otherwise.
+  `Along-edge uncertainty`_). The value was tuned on the 408 Cassini ISS narrow angle
+  frames of the 1,614-frame sample of the F ring set whose reference pointing a star
+  technique confirms to 0.5 px. On them the fit's along-edge errors at this value are a
+  median 0.68 times the reported along-edge sigma and 30% exceed it, as 0.67 and 32% do
+  for a correctly sized Gaussian; the 9% beyond twice the sigma are catalog orbit errors
+  and alias seeds, which no Gaussian width describes. Must be a finite number of at least
+  zero; construction raises otherwise.
 - ``spurious_max_lm_displacement_px`` — float, default ``4.0`` px. If the LM moves more
   than this many pixels from the integer coarse seed, flag spurious. Defensive: with
   the trust region below the LM cannot leave the coarse basin, so this guard normally

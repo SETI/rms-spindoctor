@@ -223,10 +223,12 @@ from the zero-SNR huge-variance branch.
 On Cassini ISS the photometric limit sits about 4 magnitudes (NAC) and 4.5 magnitudes
 (WAC) deeper than an exposure-only anchor would put it, so every catalog star's
 synthesized SNR is that many Pogson factors higher and its CRLB covariance correspondingly
-tighter. A single-star refine reports that CRLB plus its 0.27 px model-error floor. On 44
-Cassini F ring frames the refined star sits a median 0.12 px (90th percentile 0.23 px)
-from the consensus of three or more other stars, so the floor dominates and the reported
-sigma of 0.28 to 0.36 px is conservative.
+tighter. A single-star refine reports that CRLB plus its 0.27 px model-error floor. A
+check on 44 Cassini ISS frames of the F ring set (see
+:doc:`dev_guide_orchestrator_ensemble`), each holding a single-star refine and three or
+more other stars, chose no value: there the refined star sits a median 0.12 px (90th
+percentile 0.23 px) from the consensus of the other stars, so the floor dominates and the
+reported sigma of 0.28 to 0.36 px is conservative.
 
 When the per-image smear length exceeds the anisotropic-smear threshold the PSF is
 replaced by a smear-aware kernel built from the per-image smear vector via

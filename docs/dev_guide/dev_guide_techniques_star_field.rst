@@ -68,15 +68,18 @@ brightness-weighted moment around each kept peak gives the sub-pixel centroid, a
 similarly capped.
 
 The isolation test is what lets the matcher see the stars on a frame crossed by a bright
-ring. On 16 F ring frames of ``ISS_006RI_LPHRLFMOV001_PRIME`` examined in detail, every
-one of the 30 brightest local maxima lies on the ring or on the overexposed rings beside
-it, and the real stars rank between about 300th and 500th of the 12,000-odd local maxima.
-Among isolated sources the same stars rank in the first ten. Neither the wide-offset
-fallback nor the triplet search can match a star that is not among its detections: the
-technique ran on 777 of the observation's 1030 frames and answered on none of them without
-the test, and on 479 with it, 420 of them through the wide-offset fallback. The outcome is
-insensitive to the ratio: 0.3, 0.5, and 0.7 navigate 741, 744, and 743 of the 1030 frames,
-every one within 2 px of the published bundle.
+ring. It was built for the Cassini ISS narrow angle F ring observation
+``ISS_006RI_LPHRLFMOV001_PRIME``, whose frames are its tuning cases. On 16 of them
+examined in detail, every one of the 30 brightest local maxima lies on the ring or on the
+overexposed rings beside it, and the real stars rank between about 300th and 500th of the
+12,000-odd local maxima. Among isolated sources the same stars rank in the first ten.
+Neither the wide-offset fallback nor the triplet search can match a star that is not among
+its detections: the technique ran on 777 of the observation's 1030 frames and answered on
+none of them without the test, and on 479 with it, 420 of them through the wide-offset
+fallback. The outcome is insensitive to the ratio: 0.3, 0.5, and 0.7 navigate 741, 744,
+and 743 of the 1030 frames, every one within 2 px of its reference pointing, the pointing
+found for it by an independent navigation of the Cassini F ring observations, separate
+from this software (see :doc:`dev_guide_orchestrator_ensemble`).
 
 Before the ``max_sources`` cut, a peak more concentrated than any star can be is set aside
 as a cosmic-ray hit. The observation's narrowest star point-spread function
@@ -99,10 +102,11 @@ renders its stars at its own point-spread function.
 
 A cosmic-ray hit of two to four pixels, with nothing around it, is the case the test is
 for. On a long exposure taken in high cosmic-ray flux, such hits outnumber and outshine
-the faint stars: F ring frame N1597888595 (1.5 s, CL1 and CL2) holds about 220 compact
-sources away from the rings, 29 of them brighter than its V 10.7 star. On 30 F ring frames
-(24 NAC and 6 WAC), the test set aside none of the 878 candidates within 1.5 px of a
-catalog star at the bundle pointing and 745 of the 7,195 others.
+the faint stars. The test was built for Cassini ISS narrow angle frame N1597888595 (1.5 s,
+CL1 and CL2), a tuning case, which holds about 220 compact sources away from the rings, 29
+of them brighter than its V 10.7 star. On 30 Cassini ISS F ring frames (24 narrow angle
+and 6 wide angle), the test set aside none of the 878 candidates within 1.5 px of a
+catalog star at the frame's reference pointing and 745 of the 7,195 others.
 
 Hash-space match
 ----------------
@@ -426,7 +430,8 @@ in ``src/spindoctor/config_files/config_510_techniques.yaml``.
 - ``psf_refine_box_px`` — int, default ``11`` px (odd). Square box side for the PSF fit and
   the integrated-SNR estimate around each inlier.
 - ``psf_refine_search_limit_px`` — float, default ``2.0`` px. Maximum search distance from
-  the moment centroid for the PSF fit; the moment is already within a pixel of truth.
+  the moment centroid for the PSF fit; the moment is already within a pixel of the
+  true position.
 - ``psf_refine_snr_max`` — float, default ``30.0`` (dimensionless). Integrated-SNR ceiling
   for the moment/PSF crossover: an inlier whose box SNR exceeds this keeps its moment
   centroid (its noise has already fallen below the PSF fit's sub-pixel-phase bias floor);

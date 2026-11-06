@@ -159,7 +159,7 @@ The ephemeris term is the body's SPK position uncertainty,
 :attr:`~spindoctor.nav_model.body_shape.BodyShape.spice_orbital_residual_km`, divided by
 the km per pixel at its limb; the body model puts it on the feature. An ephemeris error
 moves the whole blob, so it enters both axes. For Prometheus and Pandora it is 5 km: their
-blob offsets against star-confirmed pointing on Cassini F ring bundle frames are nearly
+blob offsets against star-confirmed pointing on Cassini ISS F ring frames are nearly
 constant within one observation and differ between observations (a median 9 km per
 observation), and a maximum-likelihood fit of the blob covariance gives 4.8 to 4.9 km per
 axis. A body without its own value takes its shape class's (2 km by default; see
@@ -214,16 +214,16 @@ multiplied by :math:`\chi^2 / (2N - 2)` (it is never scaled down).
 floor.
 
 The bias terms were fitted by maximum likelihood on the joint blob errors of one half of
-906 Cassini F ring bundle and library frames and checked on the other half. The truth is a
-star technique's answer on 497 of them, else the bundle pointing (the WAC bundle shifted
-by its measured (0.43, 0.69) px offset), else the library's operator truth; lock failures
-and at-edge results are excluded. On the held-out half the median Mahalanobis distance of
-the reported answer and the share beyond 2 are 0.88 and 0% for NAC two-blob answers, 0.62
-and 5% for single NAC blobs under 10 px, 0.75 and 14% for single NAC blobs 10 to 30 px
-across, and 1.04 and 5% for WAC blobs; a correctly sized two-axis Gaussian gives 1.18 and
-13.5%. Regular moons more than 100 px across at more than 90 degrees phase can err by 15
-to 75 px along the direction toward the Sun, beyond their reported sigma; on those frames
-a limb or disc fit of the same body supersedes the blob.
+906 Cassini frames and checked on the other half. The truth is a star technique's answer
+on 497 of them, else the frame's pointing from an independent navigation of the Cassini F
+ring observations, else the operator-verified pointing of the regression library; lock
+failures and at-edge results are excluded. On the held-out half the median Mahalanobis
+distance of the reported answer and the share beyond 2 are 0.88 and 0% for NAC two-blob
+answers, 0.62 and 5% for single NAC blobs under 10 px, 0.75 and 14% for single NAC blobs
+10 to 30 px across, and 1.04 and 5% for WAC blobs; a correctly sized two-axis Gaussian
+gives 1.18 and 13.5%. Regular moons more than 100 px across at more than 90 degrees phase
+can err by 15 to 75 px along the direction toward the Sun, beyond their reported sigma; on
+those frames a limb or disc fit of the same body supersedes the blob.
 
 Dropping a blob locked on something larger
 ------------------------------------------
@@ -238,11 +238,11 @@ fraction exceeds ``max_edge_signal_frac`` is dropped before the joint fit; a uni
 spreads 0.71 of its radius. Either test alone would also drop a real body: one that fills
 an unpadded box, or a limb-bright rim. When every blob is dropped the result is spurious.
 
-Over 1,242 Cassini F ring bundle and library blobs, the 954 within 5 px of truth reach a
-gyration ratio of at most 0.84 and never exceed both thresholds; 157 of the 219 blobs more
-than a diameter (and at least 10 px) from truth exceed both. Of the 62 that do not, 49 are
-crescents past 110 degrees phase and 11 are between 94 and 108 degrees, whose lit arcs
-spread like a correct crescent's; they are kept.
+Over 1,242 blobs on Cassini F ring frames and regression library frames, the 954 within
+5 px of truth reach a gyration ratio of at most 0.84 and never exceed both thresholds; 157
+of the 219 blobs more than a diameter (and at least 10 px) from truth exceed both. Of the
+62 that do not, 49 are crescents past 110 degrees phase and 11 are between 94 and 108
+degrees, whose lit arcs spread like a correct crescent's; they are kept.
 
 Restrictions and assumptions
 ----------------------------

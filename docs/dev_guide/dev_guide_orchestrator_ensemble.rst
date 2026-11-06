@@ -20,6 +20,37 @@ Theory
 
 The ensemble's reconciliation is an eight-step pipeline.
 
+The examples below are real frames, and each names the mission and camera that took it.
+Most are Cassini ISS frames from a set of 20,584 frames of Saturn's F ring (17,830 narrow
+angle, 2,754 wide angle) taken in 305 observations. The
+reference pointing for these frames comes from an independent navigation of those
+observations, separate from this software. An answer's error below is its distance from
+the reference pointing. Each example also states its role. A *tuning case* is a frame on
+which a failure was found and the rule was built or tuned to fix it, or a frame of a set
+that a value was chosen on. Three sets of these frames recur:
+
+- **The full F ring set**, all 20,584 frames. Counts over it come from an offline replay:
+  the per-technique results recorded in one navigation of the set are passed through
+  the combine again. Several rules below were built to fix frames found in that
+  navigation, so these counts include the rules' own tuning cases and are not a held-out
+  test.
+- **The 1,614-frame sample**, 1,310 narrow angle and 304 wide angle frames drawn at random
+  from eight groups of the full set. The groups cover both cameras and over-represent
+  frames on which the ring-edge technique was more than 2 px off, gave the only answer,
+  or was present on a refused frame, and frames whose reference pointing came from ring
+  and satellite models or was set by hand. One group of 250 holds narrow angle frames
+  already answered within 1 px of the reference pointing. Fourteen frames whose ring-edge
+  failure had already been diagnosed complete the sample. The compromise limit of Step 3
+  was tuned on it.
+- **The tuning and held-out observations.** Before the star techniques' parameters were
+  tuned, one third of the F ring observations was held out, and the parameters were
+  derived on the other two thirds. The held-out frames were scored four times during
+  development, so they are not a single blind test, and both sets count only frames whose
+  reference pointing came from stars.
+
+The remaining examples come from the image library, the operator-verified regression
+frames that the integration tests navigate (:doc:`dev_guide_image_library`).
+
 Step 1 — drop spurious
 ----------------------
 
@@ -79,10 +110,11 @@ floor agrees by the floor alone, whatever its fusion would compromise, with one
 exception: a pass-2 result and a technique that seeded its prior (see Step 4) that agree
 by the floor but not by Mahalanobis distance are held to the same compromise test. The
 refine searched small windows the seed placed, so landing several standard deviations
-from the seed means it found something other than what the seed predicted there. On F
-ring frame N1757245281 a ring edge and its seeded refine, 2.8 px and 5.9 sigma apart,
-fused 7-8 px from both. (See also the combine's check against a collapsed set's
-representative, Step 5.) The information-form fusion of two estimates lies at
+from the seed means it found something other than what the seed predicted there. The
+test was built for Cassini ISS narrow angle frame N1757245281, a tuning case: its ring
+edge and the refine it seeded, 2.8 px and 5.9 sigma apart, fused 7-8 px from both. (See
+also the combine's check against a collapsed set's representative, Step 5.) The
+information-form fusion of two estimates lies at
 :math:`a + \Sigma_{a} (\Sigma_{a} + \Sigma_{b})^{-1} (b - a)`; along one direction with
 variances :math:`s_{a}^{2}` and :math:`s_{b}^{2}` that is
 :math:`\delta\, s_{a}^{2} / (s_{a}^{2} + s_{b}^{2})` from :math:`a` and
@@ -92,23 +124,24 @@ offsets from the two are resolved onto the principal axes of
 compromise is the length of those parts together
 (:func:`~spindoctor.nav_orchestrator.ensemble_consensus.fusion_compromise_px`). The fused
 point comes from the full matrices: when the two results' principal axes differ, a
-disagreement along one axis moves the fusion along the other. On F ring frame N1757245281
-a ring edge (0.2 px across a slightly tilted edge, 7.2 px along it) and a star refine
-(0.32 px in u, 2.65 px in v) 2.8 px apart fuse about 7 px from both, which an
-axis-by-axis account puts at 0.65 px. A precise
+disagreement along one axis moves the fusion along the other. On the same narrow angle
+frame N1757245281, the tuning case for this choice, a ring edge (0.2 px across a slightly
+tilted edge, 7.2 px along it) and a star refine (0.32 px in u, 2.65 px in v) 2.8 px apart
+fuse about 7 px from both, which an axis-by-axis account puts at 0.65 px. A precise
 result beside a vague one scores near zero, and so do two that complement each other: a
 ring edge precise across itself and a body brightness center precise along the edge each
 set their own axis. When both are about equally vague along the separation, they are
 statistically consistent however far apart they lie, yet their fusion is a point between
-two answers at most one of which is right. On a Cassini F ring movie frame a ring-edge
-answer 38 px along a gently curved edge (sigma 15 px along it) and a one-star match (sigma
-14.5 px, the size of its own offset) are 1.8 sigma apart; their fusion lies 18 px from the
-star, which the star centroids in the image place within 0.1 px of the truth. Such a pair
-is a disagreement, and Step 4 decides between them. On a 1,614-frame sample of those
-frames, 375 pairs on 158 frames agreed by Mahalanobis distance alone from more than 5 px
-apart: every pair compromising by at most 0.85 px took each axis from its precise member,
-and the 9 frames with a pair at 1.03 px or more were compromises 1.4 to 18 px from the
-reference pointing.
+two answers at most one of which is right. On Cassini ISS narrow angle frame
+N1596689242, one of the tuning cases the test was built for, a ring-edge answer 38 px
+along a gently curved edge (sigma 15 px along it) and a one-star match (sigma 14.5 px, the
+size of its own offset) are 1.8 sigma apart. Their fusion lies 18 px from the star, which
+the star centroids in the image place within 0.1 px of the reference pointing. Such a pair
+is a disagreement, and Step 4 decides between them. On the 1,614-frame sample, the set the
+1 px default was tuned on, 375 pairs on 158 frames agreed by Mahalanobis distance alone
+from more than 5 px apart. Every pair compromising by at most 0.85 px took each axis from
+its precise member, and the 9 frames with a pair at 1.03 px or more were compromises 1.4
+to 18 px from the reference pointing.
 
 Two results that consumed a common feature are judged differently: they agree when their
 translation distance is at most ``shared_feature_agreement_px`` (default 1.5 px), and
@@ -116,12 +149,15 @@ neither the Mahalanobis test nor the pixel floor applies. Both located the same 
 the same image. If they found the same detection of it, their answers coincide to the
 centroid precision; if they did not, one of them has misidentified it, and no covariance
 can tell the two cases apart (a one-star unique match reports its travel distance from the
-prediction as its uncertainty, which lets it agree with anything). On the 1030 frames of
-``ISS_006RI_LPHRLFMOV001_PRIME``, star results sharing a star whose answers are both within
-2 px of the published F ring bundle never sit more than 1.27 px apart (1607 pairs, 99th
-percentile 0.79 px), while a pair in which one result misidentified the star sits at least
-2.25 px apart. Under the 5 px floor such a pair fused, and the result landed 4.4 px wrong;
-under the shared-feature test it is two answers, and the frame is reported conflicted.
+prediction as its uncertainty, which lets it agree with anything). The default was
+measured on the 1030 frames of the Cassini ISS narrow angle F ring observation
+``ISS_006RI_LPHRLFMOV001_PRIME``, whose frames are tuning cases: there, star results
+sharing a star whose answers are both within 2 px of the reference pointing never sit
+more than 1.27 px apart (1607 pairs, 99th percentile 0.79 px), while a pair in which one
+result misidentified the star sits at least 2.25 px apart. On that observation's frame
+N1492086316, the case the test was built for, in a replay with a 30 px unique-match
+window, such a pair fused under the 5 px floor and the result landed 4.4 px wrong; under
+the shared-feature test it is two answers, and the frame is reported conflicted.
 
 Both distances are measured **only in the intersection of the two results' observable
 subspaces**, not in the full parameter space. A rank-deficient result (a flat-ring
@@ -160,7 +196,7 @@ fused offset in Step 6; a *single*-star refine adds no independent constraint at
 is dropped from the combine entirely in Step 5 (below), unless it confirms and replaces a
 one-star match there. This stops a marginal refine seeded by a wrong pass-1 answer from
 "confirming" that answer and inflating consensus, or from dragging the fused offset off
-the pass-1 techniques that agree at the truth.
+the pass-1 techniques that agree at the true pointing.
 
 Exclusion forces the conflicted branch only when the excluded results constitute a
 genuine alternative answer: the strongest consensus formable among the excluded
@@ -228,11 +264,11 @@ correcting four known correlations:
   small its Mahalanobis distance. The wide one-star search found the star and the stronger
   witness confirmed it, so the prior only told the refine where to look. Without the
   replacement the one-star match, whose covariance is as large as its own offset, could
-  not fix the direction the stronger witness leaves open. On Cassini F ring frame
-  ``N1851235341`` a ring edge confirms one Tycho-2 star across the edge; the refined star
-  (0.32 px sigma) then sets the along-edge position, where averaging the ring with the
-  one-star match (20.8 px sigma) left the answer 2.67 px off the star. The ensemble logs
-  each replacement, and
+  not fix the direction the stronger witness leaves open. The rule was built for Cassini
+  ISS narrow angle frame ``N1851235341``, a tuning case, where a ring edge confirms one
+  Tycho-2 star across the edge. The refined star (0.32 px sigma) then sets the along-edge
+  position, where averaging the ring with the one-star match (20.8 px sigma) left the
+  answer 2.67 px off the star. The ensemble logs each replacement, and
   :attr:`~spindoctor.nav_orchestrator.ensemble_independence.IndependenceResolution.replaced_matches`
   lists the pairs. A multi-star refine carries genuine catalog matches and is kept (it
   still casts no corroboration vote).
@@ -259,9 +295,10 @@ correcting four known correlations:
   both by the same amount. Such results are collapsed to a single representative. Every
   non-star technique consumes a feature type no other technique reads, so the rule acts on
   the star family in practice; it is stated over features so that it holds for any
-  technique that comes to share one. Fusing the pair as two witnesses is what reported
-  a 0.3 px sigma and no spread between the techniques on one-star frames that were 36
-  and 54 px wrong.
+  technique that comes to share one. The rule was built for the one-star frames of the
+  Cassini ISS narrow angle F ring observation ``ISS_006RI_LPHRLFMOV001_PRIME``, its tuning
+  cases: fusing the pair as two witnesses reported a 0.3 px sigma and no spread between
+  the techniques on all 57 of them, including two that were 36 and 54 px wrong.
 
 The representative of a collapsed set is its highest-positional-precision member (with a
 deterministic tie-break), so the fused offset is the single best view of the shared
@@ -269,14 +306,16 @@ measurement, not a spuriously tightened average of two. A set joined by a shared
 is represented first by the member that consumed the most features, which holds every
 measurement the others made: a two-star match carries the centroid bound its stars predict
 and can report a tighter covariance than the seven-star refine that measured the same two
-stars and five more. On the Voyager library frame ``C1205021_GEOMED`` choosing by
-precision alone reported the two-star answer, at a lower tier, over the seven-star fit.
+stars and five more. The order was set for the image library's Voyager 2 ISS narrow angle
+frame ``C1205021_GEOMED``, a tuning case, where choosing by precision alone reported the
+two-star answer, at a lower tier, over the seven-star fit.
 The representative keeps its own covariance, but its confidence is replaced by the
 members' precision-weighted mean -- the average the information-form combine would take
 over them, without the agreement boost one measurement does not earn -- so collapsing a
 set can lower its tier and never raise it. Taking the representative's own confidence
 instead lets the most confident view of one measurement set the tier alone: on five
-library frames whose offsets did not move it lifted the tier from medium to high.
+image library frames whose offsets did not move, the tuning cases for this choice, it
+lifted the tier from medium to high.
 The full consensus membership is reported on
 :attr:`~spindoctor.nav_orchestrator.nav_result.NavResult.consensus_techniques` for
 transparency, while the resolved set of independent witnesses drives the
@@ -303,10 +342,11 @@ member of the set. A result that agrees only through the pixel floor, several st
 deviations from every member, contradicts the set: fused with it, the result drags the
 answer toward itself by up to the compromise limit when the two are about equally
 precise, and outweighs the set when it is the more precise. Any member counts, including
-a one-star match whose sigma is the size of its own offset. On F ring frame N1492083837
-that keeps a ring edge 5.3 standard deviations from the star refine, and the answer is
-0.55 px from the reference pointing rather than 0.08 px, while counting only members
-precise enough to resolve the separation loses other frames. The test is made against
+a one-star match whose sigma is the size of its own offset. That has a known cost, seen
+on Cassini ISS narrow angle frame N1492083837 of the full F ring set: the rule keeps a
+ring edge 5.3 standard deviations from the star refine, and the answer is 0.55 px from
+the reference pointing rather than 0.08 px. Counting only members precise enough to
+resolve the separation loses other frames. The test is made against
 collapsed sets only, since the combine fuses a set through a member other than the one a
 result agreed with when the group formed. Two single techniques inside the pixel floor
 are combined however far apart statistically they lie, unless one seeded the other (the
@@ -317,28 +357,28 @@ disagreement penalty applies; it is not a runner-up): the result, or the whole s
 set is one measurement reported by several techniques, so its precision is its most
 precise member's along the separation (a member that does not observe that direction
 lends none). A pair in which either side seeded the other is left to the seeded-pair test
-of Step 3. On F ring frames N1492059417 and N1492059454 a ring-edge fit locked 3.5-3.8 px
-off radially (a 0.6 px sigma there, 4.3-4.7 sigma from the stars) joined through the
-0.09 px two-star match and was fused with the 0.5-0.75 px star representative, moving
-the answer 1.2-1.7 px toward the ring; the stars alone are within 0.25 px of the
-reference pointing. Over the 20,584 frames of the full F ring run, replayed offline from
-their recorded per-technique results with this branch combined with the sparse-star
-work, the check moves 65 answers (9 from 1-2 px and 4 from over 2 px to within 1 px;
-none past 1 px).
+of Step 3. The check was built for Cassini ISS narrow angle frames N1492059417 and
+N1492059454, its tuning cases. On them a ring-edge fit locked 3.5-3.8 px off radially (a
+0.6 px sigma there, 4.3-4.7 sigma from the stars) joined through the 0.09 px two-star
+match and was fused with the 0.5-0.75 px star representative, moving the answer 1.2-1.7
+px toward the ring; the stars alone are within 0.25 px of the reference pointing. Over
+the full F ring set, replayed, the check moves 65 answers (9 from 1-2 px and 4 from over
+2 px to within 1 px; none past 1 px).
 
 The test against every member catches a result that the compromise limit lets through.
-On F ring frame N1862514394 a ring edge 4.8 px from 39 agreeing stars, 4.6 standard
-deviations from the nearest member of the star set, would fuse with the 0.38 px star
-refine at a compromise of 0.84 px and move the answer 0.8 px. It is left out. On
-N1584292832 a ring edge 0.17 px precise across the edge, 8.6 standard deviations from the
-star fit, would outweigh the fit and put the answer 4.3 px from the stars. It is left
-out, since the set's two-star member is more precise along the separation. Over the full
-F ring run, replayed as above, the test leaves a result out on 381 frames. On the 9 of
-them where that takes the answer across the 1 px or 2 px line away from the reference
+It was built for two Cassini ISS narrow angle frames found in the navigation of the full
+F ring set, its tuning cases. On N1862514394 a ring edge 4.8 px from 39 agreeing stars,
+4.6 standard deviations from the nearest member of the star set, would fuse with the
+0.38 px star refine at a compromise of 0.84 px and move the answer 0.8 px. It is left
+out. On N1584292832 a ring edge 0.17 px precise across the edge, 8.6 standard deviations
+from the star fit, would outweigh the fit and put the answer 4.3 px from the stars. It is
+left out, since the set's two-star member is more precise along the separation. Over the
+full F ring set, replayed, the test leaves a result out on 381 frames. On the 9 of them
+where that takes the answer across the 1 px or 2 px line away from the reference
 pointing, at least two image stars lie within 0.5 px of the answer and fewer at the
-reference. A star set left
-standing alone earns no agreement boost and carries the disagreement penalty, so 351 of
-those answers are at the medium tier. 85% of them are within 0.5 px of the reference.
+reference pointing. A star set left standing alone earns no agreement boost and carries
+the disagreement penalty, so 351 of those answers are at the medium tier. 85% of them
+are within 0.5 px of the reference pointing.
 
 The same step settles two star results that consumed no star in common and whose
 translations lie more than ``agreement_sigma`` apart (Mahalanobis distance). Each places
@@ -347,12 +387,13 @@ one matched at least twice as many distinct stars as the other, and no star resu
 still more stars contradicts it, the other is left out (with every member of its set, when
 it represents one). Closer counts are left to the combine, and so is a result outnumbered
 only by one that is itself contradicted. Results are decided from the most stars down, so
-the outcome does not depend on their order. Seeding does not exempt the pair: on F ring
-frame N1772441050 a refine seeded at a two-star match found nine stars 2.4 px away (4.5
-standard deviations), which the selection's seeded-pair test, at a compromise of 0.98 px,
-would fuse 1.06 px from the reference pointing. With the match left out the answer is 0.25
-px from it. Over the replayed full F ring run the rule acts on three frames, and each
-answer is about 0.3 px or less from the reference.
+the outcome does not depend on their order. Seeding does not exempt the pair. The rule
+was built for Cassini ISS narrow angle frame N1772441050, a tuning case found in the
+navigation of the full F ring set, where a refine seeded at a two-star match found nine
+stars 2.4 px away (4.5 standard deviations), which the selection's seeded-pair test, at a
+compromise of 0.98 px, would fuse 1.06 px from the reference pointing. With the match
+left out the answer is 0.25 px from it. Over the full F ring set, replayed, the rule acts
+on three frames, and each answer is about 0.3 px or less from the reference pointing.
 
 Step 6 — precision-weighted merge
 ---------------------------------
@@ -412,10 +453,13 @@ score:
   when every one of them is a single-star solution. Two stars are the least that checks
   itself, and nothing checks the pair: a unique-match pair caps its own confidence for
   that reason, and a refine that consumed the same two stars is no second witness
-  however sharp its own sigma and confidence. Before this cap, a one-star match whose
-  refine kept two inliers reached ``'high'`` on the refine's confidence alone (frame
-  ``N1492074698``, among 16 such answers in the F ring movies set aside for tuning and
-  11 held out). A third star, or a technique of another kind, earns ``'high'``.
+  however sharp its own sigma and confidence. The cap was built for Cassini ISS narrow
+  angle frame ``N1492074698``, a tuning case, where a one-star match whose refine kept two
+  inliers reached ``'high'`` on the refine's confidence alone. When the cap was added it
+  moved 27 answers from ``'high'`` to ``'medium'`` on the F ring frames whose reference
+  pointing came from stars, 16 on the tuning observations and 11 on the held-out ones,
+  every one within 2 px of the reference pointing. A third
+  star, or a technique of another kind, earns ``'high'``.
 
 A one-star frame typically reports a confidence of 0.500, and that number is a cap rather
 than a measurement. The one-star match and the refine of its star collapse to the refine,
@@ -567,7 +611,8 @@ trustworthy verdict and the scalar is not.
 
 That scalar is **not** inert, and it must not be dismissed as documentation.
 The tier boundaries are themselves fitted *from* it: the calibration tooling
-reads each row's fused confidence, fused sigma, and error against truth, and
+reads each row's fused confidence, fused sigma, and error against the known
+pointing, and
 solves for the confidence at which each tier reaches its success target. A
 row pairing a near-cap confidence with a multi-pixel error is therefore a
 training point that pushes the fitted boundary upward at the next refit --

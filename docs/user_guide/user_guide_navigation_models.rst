@@ -352,7 +352,7 @@ Planet shadow removal
 Saturn casts a shadow across part of its own rings, and the ring arcs inside that shadow
 are dark in the image. A model that still shows them bright would ask the navigator to
 align a bright prediction against a dark part of the image, which drags the fitted offset
-off the truth.
+off the true pointing.
 
 The ``rings.remove_planet_shadow`` setting, on by default, zeroes every model pixel that
 falls inside the planet's shadow, so those arcs enter neither the traced edges nor the
@@ -740,8 +740,9 @@ A soft edge means a faint gradient, and a faint gradient means other edges in th
 can score better in the coarse search than the true limb does. When that happens the
 starting guess lands several pixels away, on a crater rim or a terminator or a ring behind
 the disc, and the refinement is held near that wrong starting point rather than walking
-back to the truth. The cost surface has more than one *basin*, meaning more than one shift
-at which the curve fits the image locally well, and the fit settled in the wrong one.
+back to the true position. The cost surface has more than one *basin*, meaning more than
+one shift at which the curve fits the image locally well, and the fit settled in the wrong
+one.
 
 The technique detects that situation by its signature: a fit that failed to settle and
 ended pressed against the limit of how far it was allowed to move from its starting guess.
@@ -836,7 +837,8 @@ brightness earns less confidence than a uniform one.
 A terminator is a photometric feature rather than a geometric one: it marks where the
 brightness crosses a threshold, not where the body's outline is. It can settle on the
 wrong contour on a textured surface with nothing in the fit itself to reveal the mistake,
-and measurements against known truth put its typical error at 5.2 pixels. The model error
+and measurements on simulated scenes, whose true offset is known, put its typical error
+at 5.2 pixels. The model error
 added to every terminator result is accordingly
 ``techniques.BodyTerminatorNav.tuning.model_error_floor_px``, 4.32 pixels, which is large
 enough that a terminator answer cannot carry an image by itself. It is treated as a
@@ -890,8 +892,9 @@ contours, and the ring-edge answer is reported as spurious rather than used.
 This is the technique for close-range ring images. For Saturn it receives a frame only
 when the radial resolution is finer than 25 kilometers per pixel; everything coarser goes
 to ``RingAnnulusNav``. Edge strength keeps the fit off most steps across the edge that are
-not cataloged edges: on 1,041 Cassini F ring movie frames finer than 25 kilometers per
-pixel, it takes the answers locked onto such a step from 188 to 4. Three cautions remain
+not cataloged edges: on a sample of 1,041 Cassini frames finer than 25 kilometers per
+pixel whose pointing is known independently, it takes the answers locked onto such a step
+from 188 to 4. Three cautions remain
 there. First, the 4 locks left lie 4 to 45 pixels across the edge and are reported at the
 ``medium`` tier. Second, the fit still assumes the cataloged edge is the strongest step in
 its neighborhood. Where two cataloged edges lie a few tens of pixels apart, the strong

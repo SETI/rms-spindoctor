@@ -165,7 +165,7 @@ the DT-based fit treats motion along the polyline as essentially unobservable by
 Visible-lit and overflow fractions
 ----------------------------------
 
-Two scalars derived from the discrete masks gate the disc-template emission:
+Two scalars derived from the discrete masks decide whether the disc template is emitted:
 
 .. math::
 
@@ -186,7 +186,7 @@ A lit pixel a nearer body hides (see :ref:`body-body occlusion <body-occlusion>`
 usable disc-template support, so it is excluded from the visible-lit numerator while the
 denominator stays the whole predicted disc. At deep mutual-event overlap the visible-lit
 fraction therefore falls toward the surviving crescent, which drops the disc reliability and,
-below the minimum, gates the disc feature out entirely.
+below the minimum, keeps the disc feature from being emitted at all.
 
 Lit-weighted predicted centroid
 -------------------------------
@@ -756,15 +756,15 @@ Call path traced through
      uncertainty is at or below
      :data:`~spindoctor.nav_model.nav_model_body.LIMB_ARC_MAX_UNCERTAINTY_PX`, a
      :data:`~spindoctor.feature.feature_type.NavFeatureType.LIMB_ARC` feature is emitted. The
-     downstream disc gate then has a chance to fire alongside the limb arc when
+     disc template can then be emitted alongside the limb arc when
      ``visible_lit_fraction`` and ``overflow_fraction`` allow.
-   - The blob gate is met when the predicted disc diameter is at least
+   - A blob qualifies when the predicted disc diameter is at least
      ``max(`` :data:`~spindoctor.nav_model.nav_model_body_base.BODY_BLOB_MIN_DIAMETER_PX` ``,``
      :attr:`~spindoctor.nav_model.body_shape.BodyShape.min_blob_diameter_px` ``)`` and the
      rendered silhouette contains at least one lit pixel. When the limb arc was rejected but
-     the blob gate is met, a
+     the blob qualifies, a
      :data:`~spindoctor.feature.feature_type.NavFeatureType.BODY_BLOB` feature is emitted as
-     the sole body feature. When the limb arc was emitted and the blob gate is also met, a
+     the sole body feature. When the limb arc was emitted and the blob also qualifies, a
      BODY_BLOB is co-emitted alongside the limb (and disc) as a witness. Either way the blob
      feature carries the lit-weighted predicted centroid and the phase-and-irregularity factor
      :math:`\kappa` on its :class:`~spindoctor.feature.flags.BodyBlobFlags`; the witness blob

@@ -167,23 +167,26 @@ All numeric tunables for this technique live in ``techniques.StarRefineNav.tunin
   ``discordant_floor_px`` casts the missing vote as a residual of zero: of three stars, a
   2-to-1 split cannot say on its own which side is wrong. The prior is the pass-1 answer
   the stars were searched around, usually built from some of the same stars, so its vote
-  adds no independent evidence; it settles the split in the pass-1 answer's favor. On WAC
-  frame ``W1762900979`` the two stars of the two-star match, on the prior, otherwise lost
-  to a brighter third star 3.9 px off it, which pulled the refine 1.5 px. A pair that
-  disagrees with the prior cannot outvote a star that agrees with it, so on Voyager
-  library frame ``C3448723`` the faint star on the body fix still stays beside two bright
-  stars 2 px from it. A prior casts no vote when its least certain axis has a standard
-  deviation above ``discordant_floor_px`` or its covariance is rank-deficient, as a ring
-  edge's is along the arc: on F ring frame ``N1798993130`` a ring-edge prior 2.4 px along
-  the arc from the stars, with two stray peaks near it, would otherwise outvote the
-  brightest star, which four fainter catalog stars place at the same offset.
+  adds no independent evidence; it settles the split in the pass-1 answer's favor. The
+  vote was built for Cassini ISS wide angle frame ``W1762900979``, a tuning case, where
+  the two stars of the two-star match, on the prior, otherwise lost to a brighter third
+  star 3.9 px off it, which pulled the refine 1.5 px. A pair that disagrees with the prior
+  cannot outvote a star that agrees with it, so on the image library's Voyager 1 ISS wide
+  angle frame ``C3448723``, for example, the faint star on the body fix still stays beside
+  two bright stars 2 px from it. A prior casts no vote when its least certain axis has a
+  standard deviation above ``discordant_floor_px`` or its covariance is rank-deficient, as
+  a ring edge's is along the arc: on Cassini ISS narrow angle frame ``N1798993130``, for
+  example, a ring-edge prior 2.4 px along the arc from the stars, with two stray peaks
+  near it, would otherwise outvote the brightest star, which four fainter catalog stars
+  place at the same offset.
 - ``discordant_floor_px`` — float, default ``1.0`` px. Smallest distance from the median
   residual at which a star counts as discordant.
 - ``discordant_median_factor`` — float, default ``3.0`` (dimensionless). A star farther
   from the median residual than this many times the stars' median such distance (but at
-  least ``discordant_floor_px``) is dropped before the average. On F ring frame
-  ``N1802001372`` a V 9.2 Tycho-2 star 2.6 px from the median of nine otherwise pulled the
-  answer 1.1 px off seven stars that agree with each other to 0.4 px.
+  least ``discordant_floor_px``) is dropped before the average. The check was built for
+  Cassini ISS narrow angle frame ``N1802001372``, a tuning case, where a V 9.2 Tycho-2
+  star 2.6 px from the median of nine otherwise pulled the answer 1.1 px off seven stars
+  that agree with each other to 0.4 px.
 - ``detection_sigma`` — float, default ``4.0`` (dimensionless). Detection-threshold
   multiplier on the per-image noise sigma; the brightest pixel of the detection's centroid
   box must stand ``detection_sigma * image_noise_sigma`` above the box's median and its
