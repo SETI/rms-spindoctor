@@ -398,13 +398,18 @@ def _filter_exposure_ref(
         The reference exposure in seconds.
 
     Raises:
-        DetectorParamError: If the block also sets ``exposure_ref_sec``, or the
-            camera does not catalog the filter.
+        DetectorParamError: If the block also sets ``exposure_ref_sec``, selects
+            the vidicon model, or the camera does not catalog the filter.
     """
     if detector_block.get('exposure_ref_sec') is not None:
         raise DetectorParamError(
             f'sim instrument {instrument!r}: detector.filter and detector.exposure_ref_sec '
             f'both set the signal scale; set one of them'
+        )
+    if detector_block.get('detector_model') == 'vidicon':
+        raise DetectorParamError(
+            f'sim instrument {instrument!r}: detector.filter sets the CCD signal scale; '
+            f'the vidicon DN path has no reference exposure for it to set'
         )
     try:
         throughput = resolve_filter_throughput(instrument, filter_name)

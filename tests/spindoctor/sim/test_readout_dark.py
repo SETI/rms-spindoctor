@@ -64,6 +64,13 @@ def test_the_readout_dark_is_off_without_the_physical_chain() -> None:
     assert resolve_detector_params(_scene('coiss_nac', {})).readout_dark_e == 0.0
 
 
+def test_a_calibrated_vidicon_frame_subtracts_no_readout_dark() -> None:
+    """The vidicon chain adds no readout dark, so its calibration removes none."""
+    plain, _ = render_combined_model(_scene('vgiss', {}))
+    keyed, _ = render_combined_model(_scene('vgiss', {'readout_dark_e': 300.0}))
+    assert np.array_equal(plain, keyed)
+
+
 def test_a_calibrated_product_removes_the_readout_dark() -> None:
     """The calibration inverse subtracts the ramp, leaving a flat calibrated sky."""
     scene = _scene('coiss_calib_nac', {**_QUIET, 'readout_dark_e': 300.0})

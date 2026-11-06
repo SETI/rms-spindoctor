@@ -451,7 +451,8 @@ def _check_detector_filter(value: dict[str, Any], *, instrument: str, source: st
 
     Raises:
         SimSceneValidationError: If the filter is not a string, the camera does
-            not catalog it, or the block also sets ``exposure_ref_sec``.
+            not catalog it, or the block also sets ``exposure_ref_sec`` or selects
+            the vidicon model.
     """
     filter_name = value.get('filter')
     if filter_name is None:
@@ -464,6 +465,11 @@ def _check_detector_filter(value: dict[str, Any], *, instrument: str, source: st
         raise SimSceneValidationError(
             f'{source}: detector.filter and detector.exposure_ref_sec both set the signal '
             f'scale; set one of them'
+        )
+    if value.get('detector_model') == 'vidicon':
+        raise SimSceneValidationError(
+            f'{source}: detector.filter sets the CCD signal scale; the vidicon DN path has '
+            f'no reference exposure for it to set'
         )
     try:
         resolve_filter_throughput(instrument, filter_name)

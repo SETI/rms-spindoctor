@@ -173,6 +173,12 @@ def test_the_cassini_table_snaps_each_value_to_the_nearest_decoded_dn() -> None:
     assert out.tolist() == [[lower, upper, float(COISS_LUT_DN[-1])]]
 
 
+def test_the_cassini_table_keeps_a_nan_pixel_nan() -> None:
+    """An invalid pixel stays invalid instead of decoding to the table's top."""
+    out = quantize_dn(np.array([[np.nan, 100.0]]), mode='coiss_lut', saturation_dn=4095.0)
+    assert bool(np.isnan(out[0, 0]))
+
+
 # --- structured noise stages, each disabled at zero -------------------------
 
 
