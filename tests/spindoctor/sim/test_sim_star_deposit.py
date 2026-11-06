@@ -10,9 +10,11 @@ magnitude.  The background sky field draws its counts from a star-count law and
 renders them through the same path.
 """
 
+import math
 from typing import Any
 
 import numpy as np
+import pytest
 from scipy.signal import fftconvolve
 
 from spindoctor.sim.forward.artifacts_catalog import PSF_KERNELS
@@ -347,6 +349,16 @@ def test_faint_cutoff_deepens_with_a_brighter_zero_point() -> None:
     )
     # A 10x brighter zero point buys 2.5 magnitudes of depth.
     assert abs((bright - dim) - 2.5) < 1e-6
+
+
+@pytest.mark.parametrize('psf_sigma', [0.05, 0.135, 0.28])
+def test_faint_cutoff_counts_at_least_one_pixel_of_read_noise(psf_sigma: float) -> None:
+    """A core narrower than a pixel still lands in one pixel, so its noise floor is one pixel's."""
+    one_pixel_sigma = 1.0 / math.sqrt(2.0 * math.pi)
+    kwargs: dict[str, float] = {'zero_point': 1.0e6, 'exposure_sec': 1.0, 'read_noise': 12.0}
+    assert faint_sky_cutoff_mag(**kwargs, psf_sigma=psf_sigma) == pytest.approx(
+        faint_sky_cutoff_mag(**kwargs, psf_sigma=one_pixel_sigma), abs=1e-12
+    )
 
 
 def test_sky_diffuse_floor_adds_a_flat_pedestal() -> None:

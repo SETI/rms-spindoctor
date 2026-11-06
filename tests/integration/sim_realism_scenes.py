@@ -22,6 +22,7 @@ from __future__ import annotations
 import zlib
 from typing import Any
 
+from spindoctor.sim.forward.artifacts_catalog import binning_for_frame_size
 from spindoctor.sim.scene import validate_sim_params
 
 __all__ = [
@@ -32,8 +33,8 @@ __all__ = [
     'star_field_scene',
 ]
 
-# Fallback matched-frame size when the caller supplies no real frame shape:
-# large enough for 32-px sky patches and the PSD's 64-px tiles.
+# The frame size the ring scene's geometry is laid out for; a matched ring
+# scene scales it to the real frame's size.
 _DEFAULT_SCENE_SIZE = 512
 
 # Star classes place this many stars; magnitudes ladder from bright to the
@@ -66,8 +67,13 @@ def _seed_for(image_id: str) -> int:
 def _base_scene(
     scene_name: str, instrument: str, exposure_sec: float, seed: int, size_vu: tuple[int, int]
 ) -> dict[str, Any]:
-    """The shared scene skeleton: instrument chain on, zero offset."""
-    return {
+    """The shared scene skeleton: instrument chain on, zero offset.
+
+    A cohort frame smaller than its camera's native frame is a binned readout,
+    so the matched scene selects that binning and renders through its mode.
+    """
+    binning = binning_for_frame_size(instrument, size_vu)
+    scene: dict[str, Any] = {
         'schema_version': 2,
         'scene_name': scene_name,
         'instrument': instrument,
@@ -80,6 +86,9 @@ def _base_scene(
         'artifacts': {'instrument_defaults': True},
         'bodies': [],
     }
+    if binning > 1:
+        scene['detector'] = {'binning': binning}
+    return scene
 
 
 def _star_list(
@@ -306,7 +315,7 @@ def matched_scene(
     instrument: str,
     exposure_sec: float,
     *,
-    size_vu: tuple[int, int] = (_DEFAULT_SCENE_SIZE, _DEFAULT_SCENE_SIZE),
+    size_vu: tuple[int, int],
     diameter_px: float = 150.0,
     phase_angle_deg: float = 45.0,
 ) -> dict[str, Any]:

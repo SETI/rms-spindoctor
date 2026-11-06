@@ -87,7 +87,7 @@ def _unit_interval(words: NDArrayIntType) -> NDArrayFloatType:
 
 
 def detector_hot_pixel_map(
-    shape: tuple[int, int], *, fraction: float, detector_id: str
+    shape: tuple[int, int], *, fraction: float, detector_id: str, binning: int = 1
 ) -> tuple[NDArrayIntType, NDArrayIntType, NDArrayFloatType]:
     """The emulated detector's fixed hot-pixel population over a frame.
 
@@ -98,17 +98,30 @@ def detector_hot_pixel_map(
     map from ``(0, 0)``).  The count is binomial with mean ``fraction`` times
     the pixel count, and raising ``fraction`` only adds pixels.  Each hot
     pixel's relative amplitude is a fixed exponential draw keyed the same way.
+    A binned frame reads the native map: each frame pixel holds the summed
+    amplitudes of the hot native pixels in its block, so the same hot pixels
+    show at every binning.
 
     Parameters:
-        shape: The frame's ``(size_v, size_u)`` in detector pixels.
-        fraction: Fraction of detector pixels that are hot.
+        shape: The frame's ``(size_v, size_u)`` in frame pixels.
+        fraction: Fraction of native detector pixels that are hot.
         detector_id: The emulated detector's name; the calibrated and raw
             products of one camera share it.
+        binning: The readout mode's binning factor.
 
     Returns:
-        ``(hot_v, hot_u, relative_amplitudes)`` in row-major order, the
-        amplitudes exponentially distributed with mean 1.
+        ``(hot_v, hot_u, relative_amplitudes)`` in frame pixels, row-major and
+        each pixel once; a native amplitude is exponentially distributed with
+        mean 1.
     """
+    if binning > 1:
+        native_v, native_u, native_amps = detector_hot_pixel_map(
+            (shape[0] * binning, shape[1] * binning), fraction=fraction, detector_id=detector_id
+        )
+        summed = np.zeros(shape, dtype=np.float64)
+        np.add.at(summed, (native_v // binning, native_u // binning), native_amps)
+        hot_v, hot_u = np.nonzero(summed)
+        return hot_v.astype(np.intp), hot_u.astype(np.intp), summed[hot_v, hot_u]
     size_v, size_u = shape
     key = int.from_bytes(hashlib.sha256(f'hot_pixels:{detector_id}'.encode()).digest()[:8], 'big')
     vs, us = np.indices((size_v, size_u), dtype=np.uint64)
@@ -128,6 +141,7 @@ def add_hot_pixels(
     detector_id: str,
     rng: np.random.Generator,
     candidate_pool: tuple[NDArrayIntType, NDArrayIntType] | None = None,
+    binning: int = 1,
 ) -> dict[str, Any]:
     """Add a hot-pixel population (electrons) in place.
 
@@ -154,6 +168,7 @@ def add_hot_pixels(
         candidate_pool: Optional ``(v, u)`` coordinate pool an adversarial
             population is drawn from.  When None or empty, the population is
             the detector's map.
+        binning: The readout mode's binning factor, for the detector's map.
 
     Returns:
         The realized population for the truth record: the planted ``pixels``
@@ -173,7 +188,7 @@ def add_hot_pixels(
         amps = amplitude_e * rng.exponential(1.0, size=pick.size)
     else:
         hot_v, hot_u, relative = detector_hot_pixel_map(
-            (size_v, size_u), fraction=fraction, detector_id=detector_id
+            (size_v, size_u), fraction=fraction, detector_id=detector_id, binning=binning
         )
         amps = amplitude_e * relative
     np.add.at(electrons, (hot_v, hot_u), amps)

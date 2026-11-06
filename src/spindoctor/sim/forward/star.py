@@ -74,9 +74,10 @@ def faint_sky_cutoff_mag(
 
     A star falls below the sky background once its matched-filter signal drops to
     the read-noise floor integrated over its PSF core: with a Gaussian core of
-    sigma ``psf_sigma`` the effective core area is ``2*pi*sigma**2`` pixels, so
-    the noise over the core is ``read_noise * sqrt(2*pi*sigma**2)`` and the
-    cutoff is where the total flux equals it.  Fainter draws add nothing above
+    sigma ``psf_sigma`` the effective core area is ``2*pi*sigma**2`` pixels, and
+    at least one pixel, since a core narrower than a pixel still lands in one.
+    The noise over the core is ``read_noise * sqrt(area)``, and the cutoff is
+    where the total flux equals it.  Fainter draws add nothing above
     the noise, so the count integral is truncated there.
 
     Parameters:
@@ -89,8 +90,8 @@ def faint_sky_cutoff_mag(
     Returns:
         The faint cutoff magnitude.
     """
-    sigma = max(float(psf_sigma), 1e-3)
-    noise = max(float(read_noise), 1.0) * float(np.sqrt(2.0 * np.pi * sigma**2))
+    core_area_px = max(2.0 * np.pi * float(psf_sigma) ** 2, 1.0)
+    noise = max(float(read_noise), 1.0) * float(np.sqrt(core_area_px))
     flux_ref = float(zero_point) * max(float(exposure_sec), 1e-9)
     if flux_ref <= 0.0 or noise <= 0.0:
         return 0.0
