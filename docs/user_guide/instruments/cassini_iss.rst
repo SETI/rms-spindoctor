@@ -168,24 +168,28 @@ as faint. The cataloged stars that fall behind the main rings are set aside.
 **Star trails.** How far and in which direction each star trails during an
 exposure is worked out from the spacecraft's turning in the as-flown predicted
 C-kernels (``CK-predicted-v02``, January 2004 to September 2017), while the
-pointing itself still comes from the reconstructed C-kernels. The reconstructed
+pointing itself comes from the reconstructed C-kernels. The reconstructed
 kernels hold one attitude every 4 seconds and repeat the previous attitude on
 about a third of their intervals, so across an exposure of a second or so they
-show either no turning or about twice the real turning. On 1,796 narrow angle
-frames whose star trails could be measured, trails worked out from the
-as-flown kernels are a median 0.96 times the recorded length and within 1 pixel
-of the recorded trail on 99% of the frames; from the reconstructed kernels the
-figures are 0.58 times and 15%. An image taken before the as-flown kernels
-begin uses the reconstructed kernels' average turning over 16 seconds centered
-on the exposure, which is within 1 pixel on 96% of the same frames. The
-per-image log names which was used, in the line that reports the frame's smear
-vector. Trails worked out from the as-flown kernels are reliable enough that a
-frame is measured for its trail only when it is predicted to trail at least 3
-pixels, a measured trail more than 1.5 times the predicted length is set
-aside, and on a frame predicted to trail 4.5 pixels or more whose trails cannot
-be measured in the image, the stars are measured at the centers of their
-predicted trails. An image that uses the reconstructed kernels' average turning
-follows the general rules instead.
+show either no turning or about twice the real turning. On a sample of 1,796
+narrow angle frames whose star trails could be measured, trails worked out from
+the as-flown kernels are a median 0.96 times the recorded length and within 1
+pixel of the recorded trail on 99% of the frames; from the reconstructed
+kernels the figures are 0.58 times and 15%. An image whose exposure the
+as-flown kernels do not cover, such as one taken before they begin, uses the
+reconstructed kernels' average turning over 16 seconds centered on the exposure
+when its exposure is shorter than 16 seconds. That span was chosen on the same
+frames, and the trails it gives are within 1 pixel of the recorded trails on
+96% of them. A longer exposure's trails come from the pointing at its start and
+end. The per-image log names which of these was used, in the line that reports
+the frame's smear vector. Trails worked out from the as-flown kernels are
+reliable enough that a frame is measured for its trail only when it is
+predicted to trail at least 3 pixels, a measured trail more than 1.5 times the
+predicted length is set aside, and on a frame predicted to trail 4.5 pixels or
+more whose trails cannot be measured in the image, the stars are measured at
+the centers of their predicted trails. An image that uses the reconstructed
+kernels' average turning follows the general rules of
+:doc:`/user_guide/user_guide_navigation_models` instead.
 
 **Ring annulus uncertainty.** On the wide angle camera, an answer from matching
 the rings' rendered brightness reports an uncertainty of at least 0.9 pixels.

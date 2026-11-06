@@ -415,46 +415,52 @@ source it records names the kernel that gave the middle attitude. It reads once
 per observation.
 
 The reconstructed kernels are type 3 with one record every 4 s, segment
-``TELEMETRY CASSINI S/C ATTITUDE``. On 31% of the 4 s intervals within 60 s of
-1,796 F ring NAC frames whose streaks were measured, a record repeats the
-previous quaternion exactly and the motion lands in the next interval: the
-median nonzero step is 62 microradians, about 10 NAC pixels, against a
-commanded 32 per interval. A typical F ring exposure (1.2 s) lies inside one
-interval, so the smear interpolated from those kernels is that interval's
-rate: zero, or about double. Over the 1,796 frames it is a median 0.58 times
-the measured streak's length, 20.8 degrees off its direction, and within 1 px
-of it on 15%. The as-flown kernels have a record every 6 s at the commanded
-constant rate (a median 7.9 microradians per second through these
-exposures); the smear they give is a median 0.96 times the measured length,
-2.9 degrees off, and within 1 px on 99% (0.26 px median vector error). On
-the 139 frames measured at 4.5 px or more it is 0.96 times, 0.6 degrees off,
-and within 1 px on 99%. Shifting the exposure window by up to 10 s leaves the
-as-flown agreement unchanged, and scaling the window about mid-exposure
-agrees best at the label's own exposure, so the window
-``[IMAGE_TIME - EXPOSURE_DURATION, IMAGE_TIME]`` is kept.
+``TELEMETRY CASSINI S/C ATTITUDE``. They were compared with the as-flown
+kernels on 1,796 Cassini ISS narrow angle frames of Saturn's F ring, predicted
+from the reconstructed kernels to smear at least 2 px, whose streaks the star
+model measured. On 31% of the 4 s intervals within 60 s of these frames, a
+record repeats the previous quaternion exactly and the motion lands in the next
+interval: the median nonzero step is 62 microradians, about 10 NAC pixels,
+against a commanded 32 per interval. A typical F ring exposure (1.2 s) lies
+inside one interval, so the smear interpolated from those kernels is that
+interval's rate: zero, or about double. Over the 1,796 frames it is a median
+0.58 times the measured streak's length, 20.8 degrees off its direction, and
+within 1 px of it on 15%. The as-flown kernels have a record every 6 s at the
+commanded constant rate (a median 7.9 microradians per second through these
+exposures); the smear they give is a median 0.96 times the measured length, 2.9
+degrees off, and within 1 px on 99% (0.26 px median vector error). On the 139
+frames measured at 4.5 px or more it is 0.96 times, 0.6 degrees off, and within
+1 px on 99%. Shifting the exposure window by up to 10 s leaves the as-flown
+agreement unchanged, and scaling the window about mid-exposure agrees best at
+the label's own exposure, so the window
+``[IMAGE_TIME - EXPOSURE_DURATION, IMAGE_TIME]`` is used.
 
 The as-flown motion vouches for its prediction with
 ``predicted_max_streak_to_predicted`` (1.5), so the measured streak of a
 Cassini frame is held to 1.5 times the prediction, frames predicted under 4.5 /
 1.5 = 3 px are not measured, and a predicted streak of 4.5 px or more stands in
-where none can be measured. Over 6,817 F ring frames whose streak was looked
-for, the as-flown prediction of none shorter than 4.48 px goes with a measured
-streak of 4.5 px or more, and none shorter than 3.5 px with one longer than
+where none can be measured. The ratio was chosen on 6,817 Cassini ISS frames
+of Saturn's F ring whose streak the star model looked for. Among them, no frame
+predicted from the as-flown kernels shorter than 4.48 px measures a streak of
+4.5 px or more, and none predicted shorter than 3.5 px measures one longer than
 3.39 px. On the 1,101 frames predicted at least 2 px whose streak could be
 measured, the streak is at most 1.20 times the prediction (99th percentile
-1.12); on the 140 measured at 4.5 px or more, 0.85 to 1.04 times. On 212 frames
-predicted at 4.5 px or more no single star's streak could be measured, and
-those frames are centroided on the prediction.
+1.12); on the 140 measured at 4.5 px or more, 0.85 to 1.04 times. The stand-in
+was added for 212 of these frames, predicted at 4.5 px or more, on which no
+single star's streak could be measured; in a rerun, 202 of them are centroided
+on the prediction.
 
 Where no as-flown kernel covers all three instants (cruise before 2004-01-09,
 or a gap), the motion is the observation's mean rate between
 ``reconstructed_half_window_s`` (8 s) either side of mid-exposure, scaled to
-the exposure: 0.42 px median vector error and 96% within 1 px on the same
-frames. Longer windows do slightly better on steady scans (0.33 px at half
-windows of 16 s, 0.28 px at 30 s) but average across turns: on the 13 frames
-within 30 s of a turn, a 16 s half window is off by up to 3.2 px and a 30 s one
-by up to 10.2 px (``N1869989098``), where the as-flown kernel is off by 0.30
-px. That motion vouches for nothing, so the default streak limits apply. An
+the exposure. The 8 s half window was chosen on the 1,796 narrow angle frames
+above, on which it gives 0.42 px median vector error and 96% within 1 px.
+Longer windows do slightly better on steady scans (0.33 px at half windows of
+16 s, 0.28 px at 30 s) but average across turns. On the 13 of those frames
+within 30 s of a turn in the as-flown attitude, a 16 s half window is off by up
+to 3.2 px and a 30 s one by up to 10.2 px, the latter on Cassini ISS narrow
+angle frame ``N1869989098``, where the as-flown kernel is off by 0.30 px. That
+motion vouches for nothing, so the default streak limits apply. An
 exposure of 16 s or more spans several reconstructed records, and its smear
 comes from the pointing at the exposure's ends; so does that of an exposure
 whose pointing cannot be evaluated across the window.

@@ -219,9 +219,9 @@ bright stars draw in the image. When at least three of them agree on a trail 4.5
 long or longer, and no more than twice the predicted length, every star technique measures
 each star at the center of its trail. Shorter trails are measured as points, since a
 star's measurement box holds nearly all of such a trail, and so are the stars of a frame
-whose trail cannot be measured. An instrument whose predicted trails are reliable holds
-the measured trail closer to the prediction and lets the prediction stand in where no
-trail can be measured; its instrument chapter says so.
+whose trail cannot be measured. An instrument whose predicted trails are reliable uses
+limits of its own, holding the measured trail closer to the prediction and letting the
+prediction stand in where no trail can be measured; its instrument chapter gives them.
 
 Finally the model checks each star's predicted pixel against the solid bodies in the
 frame, and against the opaque parts of the ring system. A star predicted to fall on a

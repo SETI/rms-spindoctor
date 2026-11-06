@@ -305,9 +305,9 @@ ratio). The instrument chapters give each host's ratio and its evidence.
 - The stars examined are the brightest that do not conflict with any body, ring, or other
   star. A frame whose examined stars' median predicted smear is shorter than the floor is
   not measured. The per-star smear is used because the frame-center smear vector reads
-  zero on a frame rolling about its center. For an unvouched prediction, of 2,011 F ring
-  frames predicted from Cassini's reconstructed C-kernels below 2 px, one draws a streak
-  long enough to be recorded.
+  zero on a frame rolling about its center. The 2 px floor for an unvouched prediction was
+  chosen on 2,011 Cassini ISS frames of Saturn's F ring predicted below it from the
+  reconstructed C-kernels, of which one draws a streak long enough to be recorded.
 - Otherwise :func:`~spindoctor.nav_model.stars.streak.measure_streak` takes the brightest
   pixel within 30 px of each of the 12 brightest examined stars. Any star serves, since
   every star of a frame draws the same streak, and a window skips the boxes already
@@ -333,10 +333,10 @@ ratio). The instrument chapters give each host's ratio and its evidence.
   streak is 2 to 4.5 px it is smaller on 52% of 86 frames, which is no gain.
 - The streak is not recorded when it is more than the ratio times the median predicted
   smear: a longer one is drawn by something other than the motion, such as the blooms of
-  saturated stars, which the saturation mask of a calibrated image does not show. An
-  unvouched prediction may overstate the streak several times but rarely understates it
-  by much; Cassini's reconstructed C-kernels understate it by at most 1.5 times on the
-  208 F ring frames whose streak could be measured, hence the default of 2.
+  saturated stars, which the saturation mask of a calibrated image does not show. The
+  default of 2 was chosen on 208 Cassini ISS frames of Saturn's F ring whose streak
+  could be measured: predictions from Cassini's reconstructed C-kernels may overstate the
+  streak several times, but on those frames they understate it by at most 1.5 times.
 - When no streak is measured that the stars agree on and the prediction is vouched for,
   the stars are centroided on the predicted streak,
   :func:`~spindoctor.nav_model.stars.streak.predicted_streak_vu` of the examined stars'
