@@ -291,7 +291,7 @@ DETECTOR_DEFAULTS: dict[str, dict[str, Any]] = {
         # 2.75e-4 per frame on the 58-frame CALIB NAC cohort (stationary
         # hot pixels excluded; star-bearing and body/ring frames agree at
         # 2.60e-4 vs 2.79e-4, so scene point sources are not the driver).
-        # But the measured incidence is exposure-INdependent -- mean
+        # But the measured rate is exposure-INdependent -- mean
         # fraction ~2e-4 in every exposure band from <= 0.2 s to > 2 s,
         # and the 22 s frame measures 1.1e-4 where an exposure-scaling
         # rate fitted at the median frame predicts ~3e-3 -- while this

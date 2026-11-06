@@ -15,7 +15,7 @@ image-library cohort and matched simulated frames:
   limb (FOM 3) and ring-edge (FOM 4) comparisons.
 - :mod:`spindoctor.sim.realism.dynamic_range`: exposure-stratified dynamic
   range statistics (FOM 5) and the stratification logic itself.
-- :mod:`spindoctor.sim.realism.artifact_incidence`: measured artifact rates
+- :mod:`spindoctor.sim.realism.artifact_rates`: measured artifact rates
   (missing lines, hot pixels, transient spikes) for FOM 6.
 
 Everything here is a pure function of numpy arrays and small dataclasses:
@@ -28,9 +28,9 @@ it reuses :func:`divergence.w1_divergence` on diagnostics the runner collects
 from navigation runs, and is a read-only report -- never a tuning target.
 """
 
-from spindoctor.sim.realism.artifact_incidence import (
-    ArtifactIncidence,
-    measure_artifact_incidence,
+from spindoctor.sim.realism.artifact_rates import (
+    ArtifactRates,
+    measure_artifact_rates,
 )
 from spindoctor.sim.realism.divergence import (
     CohortSupport,
@@ -58,7 +58,7 @@ from spindoctor.sim.realism.profiles import (
 )
 
 __all__ = [
-    'ArtifactIncidence',
+    'ArtifactRates',
     'CohortSupport',
     'DynamicRangeStats',
     'SkyPatch',
@@ -68,7 +68,7 @@ __all__ = [
     'encircled_energy',
     'find_uniform_patches',
     'frame_dynamic_range',
-    'measure_artifact_incidence',
+    'measure_artifact_rates',
     'paired_difference_sigma',
     'profile_rise_width',
     'radial_power_spectrum',

@@ -241,17 +241,17 @@ gossi PSF or shape rendering; the Voyager and LORRI cohorts support only
 fragments.  This is a Cassini match first, and the labels say exactly how
 far the others reach.
 
-Artifact-incidence defaults and provenance
-------------------------------------------
+Artifact-rate defaults and provenance
+-------------------------------------
 
-The per-instrument artifact-incidence defaults the forward model applies live
+The per-instrument artifact-rate defaults the forward model applies live
 in ``sim/forward/artifacts_catalog.py`` (the ``DETECTOR_DEFAULTS`` block,
-resolved by ``resolve_detector_defaults``).  The two incidences the realism
+resolved by ``resolve_detector_defaults``).  The two rates the realism
 match keys on are the stationary hot-pixel fraction and the transient
 cosmic-ray rate; the table records each instrument's value and where it comes
 from.
 
-.. list-table:: Artifact-incidence defaults and cohort provenance
+.. list-table:: Artifact-rate defaults and cohort provenance
    :header-rows: 1
    :widths: 16 18 20 46
 
@@ -266,7 +266,7 @@ from.
        stationary spike fraction: single-pixel spikes recurring at fixed
        positions across the cohort.  Cosmic-ray rate is a retained zero: the
        same cohort measures a 2.75e-4 per-frame transient spike fraction, but
-       that incidence is exposure-independent while the chain's cosmic-ray stage
+       that rate is exposure-independent while the chain's cosmic-ray stage
        scales counts with exposure and deposits near full well, so a fitted
        rate is not adopted through this chain.  Unblocked by a per-readout,
        modest-amplitude transient term.
@@ -482,7 +482,7 @@ The FOM 3 strata behind the pooled number (2026-11-01; p = phase bin
 The headline reading: the star PSF matches the cohort's medians through
 the same estimator on both sides (EE50 0.87 sim vs 0.91 real; EE80 1.70
 vs 1.79), though the 25 real cutouts spread wider than the simulated
-ones (EE50 W1/IQR 1.01); the stationary artifact incidence matches (1.9e-5
+ones (EE50 W1/IQR 1.01); the stationary artifact rate matches (1.9e-5
 of pixels sim vs 1.6e-5 real, hot pixels recurring at fixed detector
 positions on both sides), while the transient (cosmic-ray) share stays
 unmodeled on every chain -- each catalog entry retains an explicit zero
@@ -553,7 +553,7 @@ the absolute value is not.
 
 .. figure:: _figures/realism_coiss_calib_nac_artifacts.png
    :width: 100%
-   :alt: Cassini NAC artifact incidence, real vs sim
+   :alt: Cassini NAC artifact rates, real vs sim
 
    FOM 6, Cassini NAC: measured line-loss and single-pixel-spike rates
    against the catalog defaults.
@@ -687,7 +687,7 @@ cannot close, it is recorded here rather than force-fitted:
    Every cohort measures a nonzero transient spike fraction (NAC 2.75e-4,
    WAC 4.89e-4, Galileo 1.17e-4, LORRI 3.36e-4 per frame), yet no
    catalog entry adopts a ``cosmic_ray_events_per_pixel_per_sec``: the Cassini
-   incidence is exposure-independent (readout-dominated) and
+   rate is exposure-independent (readout-dominated) and
    modest-amplitude while the chain's stage scales event counts with
    exposure and deposits near full well -- an adoption attempt
    (2026-07-17) inflated the matched frames' sky-noise statistics ~5x

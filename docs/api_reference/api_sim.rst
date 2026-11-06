@@ -138,7 +138,7 @@ spindoctor.sim
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: spindoctor.sim.forward.incidence
+.. automodule:: spindoctor.sim.forward.artifact_counts
    :members:
    :undoc-members:
    :show-inheritance:
@@ -240,7 +240,7 @@ spindoctor.sim
 
 .. automodule:: spindoctor.sim.realism
 
-.. automodule:: spindoctor.sim.realism.artifact_incidence
+.. automodule:: spindoctor.sim.realism.artifact_rates
    :members:
    :undoc-members:
    :show-inheritance:

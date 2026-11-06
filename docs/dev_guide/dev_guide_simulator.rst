@@ -106,8 +106,8 @@ scene -- including every planted error, noise knob, and contaminant. It lives in
        instrument availability, and implementation status, read by the
        validator, both stages, and the scene editor (see
        :ref:`sim-artifact-framework`).
-   * - ``incidence.py``
-     - Artifact-incidence measurement: the planted event counts read from
+   * - ``artifact_counts.py``
+     - Artifact counts: the planted event counts read from
        the frame truth and the marker-based image estimators that recover
        them from the DN image alone (the realism match compares the two).
    * - ``feature_loci.py``
@@ -1076,7 +1076,7 @@ feature pixels within 3 px of it. Those are the odds of picking a feature pixel,
 then jittering it, and the draw is without replacement. The neighborhood can be small, such as a
 lone star's 49 pixels, and a draw asking for more pixels than it holds plants each
 of them once. The truth record then lists that smaller set, and
-:func:`~spindoctor.sim.forward.incidence.planted_incidence` counts it.
+:func:`~spindoctor.sim.forward.artifact_counts.planted_artifact_counts` counts it.
 
 Truth bookkeeping and the planted-versus-measured match
 -------------------------------------------------------
@@ -1084,12 +1084,12 @@ Truth bookkeeping and the planted-versus-measured match
 Each applied mode records its realized geometry -- which lines, blocks, or pixels
 it touched -- into ``frame.truth['artifacts'][<mode>]``, so a later measurement
 can compare *planted* against *measured*.
-:mod:`spindoctor.sim.forward.incidence` carries both sides:
-:func:`~spindoctor.sim.forward.incidence.planted_incidence` reads the truth
-records into a realized event count per mode (exact by construction), and the
-``measured_*`` estimators recover the same counts from the DN image alone, the
-way a detector run against a real archive frame would. The image estimators key
-on the marker, so they are exact for the marker-based structural modes
+:mod:`spindoctor.sim.forward.artifact_counts` carries both sides:
+:func:`~spindoctor.sim.forward.artifact_counts.planted_artifact_counts` reads
+the truth records into a realized event count per mode (exact by construction),
+and the ``measured_*`` estimators recover the same counts from the DN image
+alone, the way a detector run against a real archive frame would. The image
+estimators key on the marker, so they are exact for the marker-based structural modes
 (``missing_lines``, ``partial_lines``, ``missing_blocks``, ``dead_pixels``) on a
 frame whose scene floor sits above the marker. Modes that plant wrong values
 rather than the marker -- garble, spikes, and the detector-electronics modes --
@@ -3280,8 +3280,8 @@ Per-instrument shape defaults for every mode live in ``artifacts_catalog.py``
 (see :ref:`sim-artifacts-catalog`); a scene inherits them by naming a mode with
 only its activation key, and overrides any parameter it spells out. The realized
 geometry each mode records is read back by
-:mod:`spindoctor.sim.forward.incidence` for the planted-versus-measured match;
-the conceptual overview, the full mode tables, and the ``artifact_sweep`` scene
+:mod:`spindoctor.sim.forward.artifact_counts` for the planted-versus-measured
+match; the conceptual overview, the full mode tables, and the ``artifact_sweep`` scene
 class are in :ref:`sim-artifact-framework`.
 
 .. _sim-instrument-config:
@@ -3656,7 +3656,7 @@ instrument, on seven figures of merit:
    and signal-percentile stretch, always inside exposure strata: an
    unstratified comparison measures what the spacecraft pointed at, not the
    forward model.
-6. **Artifact incidence** -- measured rates of lost/interpolated lines and
+6. **Artifact rates** -- measured rates of lost/interpolated lines and
    single-pixel spikes, with a cross-frame split of spikes into stationary
    (hot pixels, which recur at fixed detector positions) and transient
    (cosmic rays), compared against the artifacts-catalog defaults.

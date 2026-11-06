@@ -30,9 +30,9 @@ from spindoctor.nav_model import build_models_for_obs
 from spindoctor.nav_model.nav_model_body_simulated import NavModelBodySimulated
 from spindoctor.nav_orchestrator import NavOrchestrator
 from spindoctor.obs.obs_snapshot import ObsSnapshot
-from spindoctor.sim.realism.artifact_incidence import (
-    ArtifactIncidence,
-    measure_artifact_incidence,
+from spindoctor.sim.realism.artifact_rates import (
+    ArtifactRates,
+    measure_artifact_rates,
 )
 from spindoctor.sim.realism.dynamic_range import frame_dynamic_range
 from spindoctor.sim.realism.noise import (
@@ -134,7 +134,7 @@ def extract_pixel_samples(
     *,
     exposure_stratum: str,
     saturation_level: float,
-) -> tuple[FrameSamples, ArtifactIncidence]:
+) -> tuple[FrameSamples, ArtifactRates]:
     """FOM 1, 5, and 6 samples from raw frame pixels.
 
     Parameters:
@@ -147,8 +147,8 @@ def extract_pixel_samples(
             products); the saturated fraction is then not measured.
 
     Returns:
-        ``(samples, incidence)``: the frame's samples, plus the raw
-        artifact incidence (with spike positions) so the runner can do
+        ``(samples, rates)``: the frame's samples, plus the raw
+        artifact rates (with spike positions) so the runner can do
         the cross-frame stationary/transient split.
     """
     out = FrameSamples()
@@ -204,11 +204,11 @@ def extract_pixel_samples(
         out.add(f'signal_p95_minus_p50_{exposure_stratum}', [stats.percentiles[5] - p50])
         out.add(f'signal_p99_minus_p50_{exposure_stratum}', [stats.percentiles[6] - p50])
 
-    # FOM 6: artifact incidences.
-    incidence = measure_artifact_incidence(arr)
-    out.add('artifact_missing_line_frac', [incidence.missing_line_fraction])
-    out.add('artifact_spike_frac', [incidence.spike_fraction])
-    return out, incidence
+    # FOM 6: artifact rates.
+    rates = measure_artifact_rates(arr)
+    out.add('artifact_missing_line_frac', [rates.missing_line_fraction])
+    out.add('artifact_spike_frac', [rates.spike_fraction])
+    return out, rates
 
 
 def prepare_frame_features(

@@ -6,7 +6,7 @@ as ``realism_<instrument>_<fom>.png``, and a deterministic JSON summary
 into ``tests/integration/realism_results/realism_summary.json`` that backs
 the report's tables (per-kind W1 divergences, per-curve density-W1
 divergences, support labels, the FOM 3 one-sided-stratum disclosure, the
-FOM 7 diagnostic rows, and the artifact-incidence comparison against the
+FOM 7 diagnostic rows, and the artifact-rate comparison against the
 catalog defaults).
 
 Two fixed series colors carry sides everywhere: real cohort in blue,
@@ -337,7 +337,7 @@ def _figure_dynrange(comparison: InstrumentComparison, out: Path) -> bool:
 
 
 def _figure_artifacts(comparison: InstrumentComparison, out: Path) -> bool:
-    """FOM 6 figure: measured incidence rates with catalog-default markers."""
+    """FOM 6 figure: measured artifact rates with catalog-default markers."""
     fig, axes = plt.subplots(1, 2, figsize=(8.5, 3.6))
     _hist_overlay(
         axes[0],
@@ -365,7 +365,7 @@ def _figure_artifacts(comparison: InstrumentComparison, out: Path) -> bool:
             label=f'catalog hot_pixel_fraction {hot_default:g}',
         )
         axes[1].legend(fontsize=7, loc='best')
-    fig.suptitle(f'{comparison.instrument}: FOM 6 artifact incidence', fontsize=11)
+    fig.suptitle(f'{comparison.instrument}: FOM 6 artifact rates', fontsize=11)
     fig.tight_layout()
     fig.savefig(out, dpi=110)
     plt.close(fig)

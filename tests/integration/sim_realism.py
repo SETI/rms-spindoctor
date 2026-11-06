@@ -11,7 +11,7 @@ the seven figures of merit of the sim-realism plan's Section 7:
    and phase.
 4. Ring-edge profiles and rise widths (Cassini).
 5. Exposure-stratified dynamic-range statistics (never unstratified).
-6. Artifact incidence rates vs the catalog defaults.
+6. Artifact rates vs the catalog defaults.
 7. Technique-diagnostic values on matched scene/frame pairs -- READ-ONLY:
    reported for the record and never a tuning target, because FOM 7 is
    built from the navigator's own outputs and tuning against it would
@@ -54,8 +54,8 @@ from spindoctor.nav_model import build_models_for_obs
 from spindoctor.nav_orchestrator import NavOrchestrator
 from spindoctor.obs.obs_inst_sim import ObsSim
 from spindoctor.obs.obs_snapshot import ObsSnapshot
-from spindoctor.sim.realism.artifact_incidence import (
-    ArtifactIncidence,
+from spindoctor.sim.realism.artifact_rates import (
+    ArtifactRates,
     split_stationary_spikes,
 )
 from spindoctor.sim.realism.divergence import (
@@ -212,8 +212,8 @@ class InstrumentComparison:
     fom_frames: dict[str, int] = field(default_factory=dict)
     fom_support: dict[str, str] = field(default_factory=dict)
     fom7_rows: list[dict[str, Any]] = field(default_factory=list)
-    real_incidences: list[ArtifactIncidence] = field(default_factory=list)
-    sim_incidences: list[ArtifactIncidence] = field(default_factory=list)
+    real_rates: list[ArtifactRates] = field(default_factory=list)
+    sim_rates: list[ArtifactRates] = field(default_factory=list)
     spike_split_real: tuple[float, float] = (float('nan'), float('nan'))
     spike_split_sim: tuple[float, float] = (float('nan'), float('nan'))
 
@@ -270,7 +270,7 @@ def _stratum_label(exposure_sec: float | None) -> str:
 
 def _frame_samples_real(
     sidecar: Sidecar, instrument: str
-) -> tuple[FrameSamples, FrameRecord, ArtifactIncidence]:
+) -> tuple[FrameSamples, FrameRecord, ArtifactRates]:
     """Extract every sample the FOMs need from one real frame."""
     obs = _load_real_obs(sidecar)
     exposure = sidecar.exposure_time_sec
@@ -289,7 +289,7 @@ def _frame_samples_real(
         frame_shape_vu=(int(obs.data_shape_vu[0]), int(obs.data_shape_vu[1])),
     )
     saturation = SATURATION_LEVEL[instrument]
-    samples, incidence = extract_pixel_samples(
+    samples, rates = extract_pixel_samples(
         np.asarray(obs.data, dtype=np.float64),
         exposure_stratum=stratum,
         saturation_level=saturation,
@@ -311,7 +311,7 @@ def _frame_samples_real(
                 saturation_level=saturation,
             )
         )
-    return samples, record, incidence
+    return samples, record, rates
 
 
 def _largest_body(
@@ -348,11 +348,11 @@ def _sim_obs_for_record(record: FrameRecord) -> tuple[ObsSim, dict[str, Any]]:
     return obs, scene
 
 
-def _frame_samples_sim(record: FrameRecord) -> tuple[FrameSamples, ArtifactIncidence]:
+def _frame_samples_sim(record: FrameRecord) -> tuple[FrameSamples, ArtifactRates]:
     """Extract the matched sim frame's samples (same machinery as real)."""
     obs, _scene = _sim_obs_for_record(record)
     saturation = SATURATION_LEVEL[record.instrument]
-    samples, incidence = extract_pixel_samples(
+    samples, rates = extract_pixel_samples(
         np.asarray(obs.data, dtype=np.float64),
         exposure_stratum=record.stratum,
         saturation_level=saturation,
@@ -370,7 +370,7 @@ def _frame_samples_sim(record: FrameRecord) -> tuple[FrameSamples, ArtifactIncid
                 saturation_level=saturation,
             )
         )
-    return samples, incidence
+    return samples, rates
 
 
 def _diagnostic_row(instrument: str, image_id: str, side: str, result: Any) -> list[dict[str, Any]]:
@@ -507,8 +507,8 @@ def _aggregate(comparison: InstrumentComparison) -> None:
     # FOM 6 cross-frame split: real and sim hot pixels alike recur at fixed
     # detector positions (the sim's map is keyed on the emulated detector), so
     # the stationary fractions compare directly.
-    comparison.spike_split_real = split_stationary_spikes(comparison.real_incidences)
-    comparison.spike_split_sim = split_stationary_spikes(comparison.sim_incidences)
+    comparison.spike_split_real = split_stationary_spikes(comparison.real_rates)
+    comparison.spike_split_sim = split_stationary_spikes(comparison.sim_rates)
 
 
 def _count_fom_frames(comparison: InstrumentComparison, frame: FrameSamples) -> None:
@@ -553,15 +553,15 @@ def run_realism_match(
         comparison = InstrumentComparison(instrument=instrument)
         sidecars_by_id = {s.image_id: s for s in sidecars}
         for sidecar in sidecars:
-            frame_samples, record, incidence = _frame_samples_real(sidecar, instrument)
+            frame_samples, record, rates = _frame_samples_real(sidecar, instrument)
             comparison.records.append(record)
             comparison.real.merge(frame_samples)
-            comparison.real_incidences.append(incidence)
+            comparison.real_rates.append(rates)
             _count_fom_frames(comparison, frame_samples)
         for record in comparison.records:
-            sim_samples, sim_incidence = _frame_samples_sim(record)
+            sim_samples, sim_frame_rates = _frame_samples_sim(record)
             comparison.sim.merge(sim_samples)
-            comparison.sim_incidences.append(sim_incidence)
+            comparison.sim_rates.append(sim_frame_rates)
         if not skip_fom7:
             comparison.fom7_rows = _run_fom7(comparison.records, sidecars_by_id)
         _aggregate(comparison)

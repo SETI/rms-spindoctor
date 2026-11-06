@@ -135,7 +135,7 @@ def test_instrument_defaults_turns_on_poisson_and_catalog_bloom() -> None:
 
 def test_cosmic_ray_retained_zero_for_gossi() -> None:
     """The Galileo entry retains zero: its tuned hot-pixel fraction already
-    carries the cohort's measured single-pixel incidence."""
+    carries the cohort's measured single-pixel rate."""
     from spindoctor.sim.forward.detector.params import resolve_detector_params
 
     resolved = resolve_detector_params(_disc('gossi', artifacts={'instrument_defaults': True}))
