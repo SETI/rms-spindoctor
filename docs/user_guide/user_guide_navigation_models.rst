@@ -546,9 +546,16 @@ as hidden behind a body or a ring.
 StarFieldFromCatalogNav
 ^^^^^^^^^^^^^^^^^^^^^^^
 
-This is the technique for a genuine star field, and it needs no idea in advance of how
-large the pointing error is. It detects bright sources in the image, then recognizes the
+This is the technique for a genuine star field, and it needs no idea in advance of which
+detected source is which star. It detects bright sources in the image, then recognizes the
 pattern they form.
+
+The technique reports a pointing error only up to the size of the camera's search window,
+so it keeps only the sources that could be a predicted star at such an error: those that
+lie, on each axis, no farther from some catalog star's predicted position than the
+window's half-width plus 3 pixels. Of those, it matches the 30 brightest. On a frame
+crossed by rings, faint stars seen against the rings are then matched even when brighter
+specks of ring texture fill the rest of the frame.
 
 Recognition works on triangles. For every set of three detected sources, the technique
 computes a description of the triangle, using only ratios of side lengths and one
