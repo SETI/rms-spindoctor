@@ -28,6 +28,7 @@ from spindoctor.sim.forward.artifact_modes import (
     mode_unavailable_message,
 )
 from spindoctor.sim.forward.artifacts_catalog import cataloged_binnings, resolve_detector_defaults
+from spindoctor.sim.forward.filter_catalog import FilterCatalogError, resolve_filter_throughput
 from spindoctor.sim.scene_schema import SimSceneValidationError
 from spindoctor.support.status_reason import NavStatusReason
 
@@ -314,11 +315,12 @@ _VIDICON_NOISE_KEYS: frozenset[str] = frozenset(
 
 # The detector block selects the electron-chain gain state, the readout
 # mode's binning, the detector model (CCD electron chain or the Voyager vidicon
-# DN path), the exposure the well fraction references, and the ADC
-# quantization sub-mode.  Per-instrument defaults come from
-# artifacts_catalog.py; scene keys override them.
+# DN path), the exposure the well fraction references (or the filter whose
+# measured throughput sets it), and the ADC quantization sub-mode.
+# Per-instrument defaults come from artifacts_catalog.py and the filter
+# throughputs from filter_catalog.py; scene keys override them.
 _DETECTOR_KEYS: frozenset[str] = frozenset(
-    {'gain_state', 'binning', 'detector_model', 'exposure_ref_sec', 'quantization'}
+    {'gain_state', 'binning', 'detector_model', 'exposure_ref_sec', 'filter', 'quantization'}
 )
 _DETECTOR_MODELS: frozenset[str] = frozenset({'ccd', 'vidicon'})
 # Quantization sub-modes: 'exact' rounds to integer DN (uniform bins); the ADC
@@ -379,7 +381,8 @@ def _check_detector(value: Any, *, instrument: str, source: str) -> None:
 
     Raises:
         SimSceneValidationError: On any unknown or invalid detector field,
-            including a gain state or a binning the instrument does not catalog.
+            including a gain state, a binning, or a filter the instrument does
+            not catalog.
     """
     if value is None:
         return
@@ -426,12 +429,43 @@ def _check_detector(value: Any, *, instrument: str, source: str) -> None:
     _check_optional_positive_number(
         value.get('exposure_ref_sec'), 'detector.exposure_ref_sec', source=source
     )
+    _check_detector_filter(value, instrument=instrument, source=source)
     quantization = value.get('quantization')
     if quantization is not None and quantization not in _QUANTIZATION_MODES:
         raise SimSceneValidationError(
             f'{source}: detector.quantization must be one of {sorted(_QUANTIZATION_MODES)}; '
             f'got {quantization!r}'
         )
+
+
+def _check_detector_filter(value: dict[str, Any], *, instrument: str, source: str) -> None:
+    """Validate ``detector.filter`` against the camera's filter table.
+
+    Parameters:
+        value: The scene ``detector`` block.
+        instrument: The scene's sim instrument name.
+        source: Scene source label for error messages.
+
+    Raises:
+        SimSceneValidationError: If the filter is not a string, the camera does
+            not catalog it, or the block also sets ``exposure_ref_sec``.
+    """
+    filter_name = value.get('filter')
+    if filter_name is None:
+        return
+    if not isinstance(filter_name, str):
+        raise SimSceneValidationError(
+            f'{source}: detector.filter must be a string such as CL1+CL2; got {filter_name!r}'
+        )
+    if value.get('exposure_ref_sec') is not None:
+        raise SimSceneValidationError(
+            f'{source}: detector.filter and detector.exposure_ref_sec both set the signal '
+            f'scale; set one of them'
+        )
+    try:
+        resolve_filter_throughput(instrument, filter_name)
+    except FilterCatalogError as exc:
+        raise SimSceneValidationError(f'{source}: detector.filter: {exc}') from exc
 
 
 def _check_artifacts(value: Any, *, instrument: str, source: str) -> None:

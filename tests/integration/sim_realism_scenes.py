@@ -71,6 +71,7 @@ def _base_scene(
 
     A cohort frame smaller than its camera's native frame is a binned readout,
     so the matched scene selects that binning and renders through its mode.
+    :func:`matched_scene` adds the real frame's filter and gain state.
     """
     binning = binning_for_frame_size(instrument, size_vu)
     scene: dict[str, Any] = {
@@ -318,6 +319,8 @@ def matched_scene(
     size_vu: tuple[int, int],
     diameter_px: float = 150.0,
     phase_angle_deg: float = 45.0,
+    filter_name: str | None = None,
+    gain_state: int | None = None,
 ) -> dict[str, Any]:
     """The matched sim scene for one real cohort frame.
 
@@ -335,6 +338,11 @@ def matched_scene(
             default covers frames where no body model could be built).
         phase_angle_deg: Real frame's phase angle for the limb classes
             and ring_plus_body.
+        filter_name: The real frame's filter combination, which sets the
+            sim's DN-to-I/F scale and star brightness; None keeps the
+            camera's nominal scale.
+        gain_state: The real frame's gain state; None keeps the camera's
+            default state.
 
     Returns:
         A validated scene mapping.
@@ -367,5 +375,9 @@ def matched_scene(
         )
     else:
         scene = sky_scene(image_id, instrument, exposure_sec, size_vu)
+    if filter_name is not None:
+        scene.setdefault('detector', {})['filter'] = filter_name
+    if gain_state is not None:
+        scene.setdefault('detector', {})['gain_state'] = gain_state
     validate_sim_params(scene)
     return scene

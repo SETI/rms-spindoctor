@@ -569,10 +569,11 @@ diverges by two orders of magnitude one-sidedly: simulated sky sigma
 sits at 2.4e-5 I/F against 1.9e-4 real (W1/IQR 94), noise at signal
 likewise (98), and the sky level above floor at 3.7e-5 vs 3.2e-4
 (W1/IQR 2377).  A one-sided deficit of that size on the calibrated
-chain is a chain symptom, not a small-n artifact -- most plausibly the
-nominal DN-to-I/F calibration scale of the simulated chain (the
-per-filter CISSCAL scale is not modeled; the same family as the
-calibrated-product known gap), though the 4-frame cohort cannot close the attribution.  The
+chain is a chain symptom, not a small-n artifact: it is the DN-to-I/F
+scale.  The WAC's measured clear-filter throughput is 284 times the
+nominal scale these matched frames rendered at (see the
+calibrated-product known gap), and the matched scenes render each
+frame's own filter.  The
 remaining WAC statistics rest on 1-2 frames per stratum and are
 reported in the summary JSON without distributional claims.
 
@@ -658,24 +659,34 @@ Known gaps
 Where a figure of merit reveals a forward-model gap that parameter tuning
 cannot close, it is recorded here rather than force-fitted:
 
-1. **Calibrated-product quantization scars.**  The sim's calibrated path
-   retains full LSB quantization texture: its measured sky-noise floor is
-   ~1 DN-equivalent at every exposure (Cassini CALIB and Voyager GEOMED
-   paths alike).  Real calibrated products sit *below* the LSB (NAC CALIB
-   ~0.1-0.4 DN-equivalent, GEOMED ~0.22 DN) because their float-valued
-   corrections -- flat fields, dark/bias frames, 2-Hz filtering, geometric
-   resampling -- dither the quantization away.  This floors the FOM 1
-   sky-noise divergence for every calibrated cohort; closing it needs a
-   calibration-scar model (sub-LSB dithering / resample texture), not
-   parameter tuning.  Tuning read noise below its published value to
-   compensate would misattribute the mismatch and was not done.  The
-   per-filter absolute DN-to-I/F scale is likewise a nominal identity
-   (signal 1.0 = I/F 1.0 at the reference exposure) rather than the real
-   per-filter CISSCAL scale, so I/F noise amplitudes carry that
-   uncertainty too.  The Cassini WAC comparison shows that scale
-   uncertainty at full size: its simulated sky sigma undershoots the
-   real cohort by roughly 8x one-sidedly (2.4e-5 vs 1.9e-4 I/F; see the
-   WAC subsection).
+1. **Calibrated-product noise floor.**  On the Cassini 12-bit CALIB
+   products the real sky noise is about 0.9 DN-equivalent (0.66-1.21 over
+   22 frames, through each frame's own DN-to-I/F scale fitted on raw/CALIB
+   pairs), and the values are continuous: CISSCAL's float corrections
+   leave hundreds of thousands of distinct values in a dark sky.  The
+   sim's calibrated sky stays on the integer DN lattice with a true noise
+   of about 0.4 DN at gain state 2, so the paired-difference estimate
+   reads either 0, which rejects the patch, or 1.05.  Most simulated sky
+   patches at short exposures are rejected.  Closing that needs both a
+   model of the continuous calibration corrections and the source of the
+   raw noise the sim lacks; tuning read noise away from its published
+   value would misattribute the mismatch and was not done.  A sub-LSB
+   floor measured on the 8-bit TABLE frames doesn't hold: their LUT
+   encoding breaks the raw/CALIB fit that converts I/F to DN, and their
+   LUT step widens the real calibrated noise, which the matched scenes
+   don't model.  The per-filter DN-to-I/F scale is modeled.  The real
+   scale is one camera constant times the CISSCAL efficiency and absolute
+   correction of the frame's filter, from 6,400 e-/s per I/F (NAC
+   CL1+CB3) to 1.45 million (NAC clear) and 13.5 million (WAC clear),
+   while the sim's nominal scale is 55,000 (NAC) and 47,500 (WAC).  At
+   the nominal scale the per-frame sim/real sky-sigma ratio spans 0.06 to
+   110 on the NAC cohort, so the pooled agreement was a cancellation, and
+   the WAC deficit is the same effect.  The matched scenes therefore
+   render each frame's own filter and gain state (``detector.filter``; see
+   the simulator developer guide).  Voyager GEOMED products sit below the
+   LSB (~0.22 DN), because the geometric resampling interpolates and
+   dithers the quantization; the sim's GEOMED path doesn't resample, so
+   its floor stays at ~1 DN.
 2. **Matched-frame content limits.**  Simulated ring edges are sharp
    optical-depth steps and simulated matched bodies are relief-free
    ellipsoids, so residual FOM 3/4 width differences fold in real edge

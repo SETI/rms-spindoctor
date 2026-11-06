@@ -165,6 +165,10 @@ class FrameRecord:
         diameter_px: Largest body's predicted apparent diameter (limb
             frames; default where no body model was built).
         phase_angle_deg: That body's phase angle.
+        frame_shape_vu: The frame's (v, u) shape.
+        filter_name: The frame's filter combination (``'CL1+CL2'``) on a
+            camera the sim's filter catalog covers, else None.
+        gain_state: The frame's gain state on a Cassini camera, else None.
     """
 
     image_id: str
@@ -176,6 +180,8 @@ class FrameRecord:
     diameter_px: float = 150.0
     phase_angle_deg: float = 45.0
     frame_shape_vu: tuple[int, int] = (512, 512)
+    filter_name: str | None = None
+    gain_state: int | None = None
 
 
 @dataclass
@@ -288,6 +294,12 @@ def _frame_samples_real(
         offset_vu=offset,
         frame_shape_vu=(int(obs.data_shape_vu[0]), int(obs.data_shape_vu[1])),
     )
+    if instrument.startswith('coiss_calib_'):
+        # Matching content, not tuning: the sim renders the frame's own filter
+        # throughput and gain state, so its DN-to-I/F scale and quantization
+        # step are the real product's.
+        record.filter_name = f'{obs.filter1}+{obs.filter2}'
+        record.gain_state = int(obs.gain_mode)
     saturation = SATURATION_LEVEL[instrument]
     samples, rates = extract_pixel_samples(
         np.asarray(obs.data, dtype=np.float64),
@@ -343,6 +355,8 @@ def _sim_obs_for_record(record: FrameRecord) -> tuple[ObsSim, dict[str, Any]]:
         size_vu=record.frame_shape_vu,
         diameter_px=record.diameter_px,
         phase_angle_deg=record.phase_angle_deg,
+        filter_name=record.filter_name,
+        gain_state=record.gain_state,
     )
     obs = ObsSim.from_file(f'/tmp/sim_realism_{record.image_id}.yaml', sim_params=scene)
     return obs, scene

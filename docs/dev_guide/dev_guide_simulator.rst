@@ -648,7 +648,9 @@ intensive signal passes through the electron unit chain in
 
 1. **Signal to electrons.** The intensive [0, 1] signal is scaled to electrons
    through ``signal_full_scale_frac * full_well_e * (exposure_sec /
-   exposure_ref_sec)``.
+   exposure_ref_sec)``. A scene that names a filter (see
+   :ref:`sim-detector-block`) sets ``exposure_ref_sec`` from the filter's
+   measured throughput, so a signal of 1.0 collects that filter's electrons.
 2. **Point sources.** The point-source plane (``frame.point_e``) carries the
    stars: for a CCD it is electrons, added after the intensive conversion and
    before Poisson so it never passes through the signal scale; for the Voyager
@@ -2922,7 +2924,9 @@ stars carry no catalog, so to the navigator they are pure confounders.
 
 Every star -- catalog or sky -- is a flux-normalized point source: its total
 signal is ``zero_point * 10**(-0.4 * vmag) * exposure_sec`` (the per-instrument
-photometric zero point, in electrons for a CCD or DN for the vidicon), deposited
+photometric zero point, in electrons for a CCD or DN for the vidicon; it refers
+to the camera's clear filter, and a scene ``detector.filter`` scales it by that
+filter's throughput over the clear throughput), deposited
 as a sub-pixel-positioned point mass in ``frame.point_e`` (centroid-exact after
 the downsample). The whole-scene optics PSF is the *only* convolution a star
 receives, so the rendered star profile is the scene kernel and its peak follows
@@ -3155,9 +3159,30 @@ The optional ``detector`` dict (truth-side) overrides the resolved detector
 chain: ``gain_state`` (the electron-chain gain state, which must be cataloged
 for the instrument), ``binning`` (the readout mode, below), ``detector_model``
 (``ccd`` electron chain or ``vidicon`` DN chain), ``exposure_ref_sec`` (the
-exposure the signal full-scale fraction references), and ``quantization`` (the
-ADC sub-mode: ``exact``, ``8bit``, ``uneven_12bit``, or ``sqrt_lut``). Omitted
-keys, and keys set to null, fall back to the instrument's catalog defaults.
+exposure the signal full-scale fraction references), ``filter`` (below), and
+``quantization`` (the ADC sub-mode: ``exact``, ``8bit``, ``uneven_12bit``, or
+``sqrt_lut``). Omitted keys, and keys set to null, fall back to the
+instrument's catalog defaults.
+
+``filter`` names the filter combination the frame was shot through, written as
+the product label writes it (``CL1+CL2``). It sets how many electrons per second
+a native pixel collects from a surface at I/F 1.0, so the raw DN, a calibrated
+product's DN-to-I/F scale, and the star brightness all follow the filter. The
+catalog (:mod:`spindoctor.sim.forward.filter_catalog`) covers the Cassini NAC
+and WAC and their calibrated products. Its values come from Cassini raw/CALIB
+pairs: the CISSCAL efficiency and absolute-correction factors in each CALIB
+label, times a camera constant fitted on 12-bit pairs, with measured values for
+the combinations that 12-bit pairs cover. The clear throughputs are
+1.45 million e-/s per I/F for the NAC and 13.5 million for the WAC. A polarizer
+reads as the clear element of its wheel, as CISSCAL treats it. Naming a filter
+on a camera without a table, or one the table doesn't list, is a validation
+error, and so is setting ``filter`` together with ``exposure_ref_sec``.
+
+A scene that doesn't name a filter keeps the nominal scale its catalog entry
+derives. For the NAC that is 55,000 e-/s per I/F, close to its IR3 and HAL
+filters; for the WAC it is 47,500, close to its MT3 filter. The throughput is the only part of the rendering that
+depends on the filter. Haze, body photometry, star color, and the PSF render
+the same for every filter.
 
 ``binning`` selects a binned or summed readout mode, 1 by default: each frame
 pixel sums a ``b`` by ``b`` block of native pixels. The catalog's

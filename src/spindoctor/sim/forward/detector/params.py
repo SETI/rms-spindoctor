@@ -22,7 +22,9 @@ the resolved gain, so a scene that pins a DN read-noise level gets exactly that
 DN-level behavior out of the electron chain.  ``signal_full_scale_frac`` is the
 well fraction a signal of 1.0 fills at the reference exposure; the image-side
 DN well is derived (``full_well_e / gain_e_per_dn``) and the navigator-side
-``full_well_dn`` config key is a separate published value.
+``full_well_dn`` config key is a separate published value.  A scene
+``detector.filter`` replaces the reference exposure with the one the filter's
+measured throughput implies (:mod:`spindoctor.sim.forward.filter_catalog`).
 """
 
 from __future__ import annotations
@@ -50,6 +52,7 @@ from spindoctor.sim.forward.artifacts_catalog import (
     resolve_mode_with_catalog,
     resolve_readout_mode,
 )
+from spindoctor.sim.forward.filter_catalog import FilterCatalogError, resolve_filter_throughput
 from spindoctor.sim.instruments import navigator_marker_value, resolve_sim_inst_config
 from spindoctor.sim.seeds import derive_effect_seed
 from spindoctor.support.types import NDArrayFloatType
@@ -71,7 +74,8 @@ class DetectorParams:
         signal_full_scale_frac: Well fraction a signal of 1.0 fills at the
             reference exposure.
         full_well_e: Full well in electrons (CCD path).
-        exposure_ref_sec: Exposure the well fraction references.
+        exposure_ref_sec: Exposure the well fraction references; a scene
+            ``detector.filter`` derives it from the filter's throughput.
         exposure_sec: The scene exposure.
         gain_e_per_dn: Resolved gain (electrons per DN) for the selected state.
         read_noise_e: Read-noise sigma in electrons (CCD path).
@@ -363,6 +367,42 @@ def _resolve_detector_modes(
     return modes
 
 
+def _filter_exposure_ref(
+    detector_block: Mapping[str, Any], *, instrument: str | None, filter_name: str, well_e: float
+) -> float:
+    """The reference exposure at which a signal of 1.0 fills ``well_e`` through a filter.
+
+    The filter's measured throughput is the electrons per second one native
+    pixel collects at I/F 1.0, so the reference exposure is the well charge a
+    signal of 1.0 stands for divided by that rate.  The forward chain and the
+    derived calibration scale both read the reference exposure, so the raw DN
+    and the calibrated DN-to-I/F scale follow the filter together.
+
+    Parameters:
+        detector_block: The scene ``detector`` block.
+        instrument: The sim instrument name.
+        filter_name: The scene's ``detector.filter``.
+        well_e: ``signal_full_scale_frac * full_well_e``.
+
+    Returns:
+        The reference exposure in seconds.
+
+    Raises:
+        DetectorParamError: If the block also sets ``exposure_ref_sec``, or the
+            camera does not catalog the filter.
+    """
+    if detector_block.get('exposure_ref_sec') is not None:
+        raise DetectorParamError(
+            f'sim instrument {instrument!r}: detector.filter and detector.exposure_ref_sec '
+            f'both set the signal scale; set one of them'
+        )
+    try:
+        throughput = resolve_filter_throughput(instrument, filter_name)
+    except FilterCatalogError as exc:
+        raise DetectorParamError(str(exc)) from exc
+    return well_e / throughput
+
+
 def _set_keys(block: Mapping[str, Any]) -> dict[str, Any]:
     """Return a scene block's keys that carry a value, dropping every explicit null.
 
@@ -408,7 +448,9 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
         The resolved :class:`DetectorParams`.
 
     Raises:
-        DetectorParamError: If the scene selects an unavailable gain state.
+        DetectorParamError: If the scene selects an unavailable gain state, names
+            a filter its camera does not catalog, or sets both ``detector.filter``
+            and ``detector.exposure_ref_sec``.
     """
     instrument = params.get('instrument')
     inst_config = resolve_sim_inst_config(
@@ -460,6 +502,14 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
 
     gain_e_per_dn = _resolve_gain(catalog, detector_block, instrument=instrument)
     full_well_e = float(catalog.get('full_well_e', full_well_dn * gain_e_per_dn))
+    filter_name = detector_block.get('filter')
+    if filter_name is not None:
+        exposure_ref_sec = _filter_exposure_ref(
+            detector_block,
+            instrument=instrument,
+            filter_name=str(filter_name),
+            well_e=signal_full_scale_frac * full_well_e,
+        )
 
     # Read noise: a scene DN override wins (converted to electrons via gain);
     # otherwise the catalog electrons value when instrument_defaults is on;
