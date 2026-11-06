@@ -107,15 +107,20 @@ def test_a_camera_without_a_table_refuses_every_filter() -> None:
 
 
 @pytest.mark.parametrize(
-    ('filter_name', 'scale'),
-    [(None, 1.0), ('CL1+CL2', 1.0), ('CL1+GRN', _NAC_GREEN / _NAC_CLEAR)],
-    ids=['unnamed', 'clear', 'green'],
+    ('instrument', 'filter_name', 'scale'),
+    [
+        ('coiss_nac', None, 1.0),
+        ('coiss_nac', 'CL1+CL2', 1.0),
+        ('coiss_nac', 'CL1+GRN', _NAC_GREEN / _NAC_CLEAR),
+        ('coiss_wac', 'CL1+RED', 5.76e6 / 1.35e7),
+    ],
+    ids=['unnamed', 'clear', 'green', 'wac-red'],
 )
 def test_the_star_scale_is_the_throughput_over_the_clear_throughput(
-    filter_name: str | None, scale: float
+    instrument: str, filter_name: str | None, scale: float
 ) -> None:
     """The star zero point refers to the clear filter."""
-    assert filter_star_flux_scale('coiss_nac', filter_name) == pytest.approx(scale)
+    assert filter_star_flux_scale(instrument, filter_name) == pytest.approx(scale)
 
 
 # ---- The detector parameters ----
@@ -126,15 +131,26 @@ def test_an_unnamed_filter_keeps_the_catalog_reference_exposure() -> None:
     assert resolve_detector_params(_scene('coiss_nac')).exposure_ref_sec == 1.0
 
 
-@pytest.mark.parametrize('binning', [1, 2])
-def test_a_filter_sets_the_calibrated_divisor_from_its_throughput(binning: int) -> None:
+@pytest.mark.parametrize(
+    ('instrument', 'filter_name', 'binning'),
+    [
+        ('coiss_calib_nac', 'CL1+GRN', 1),
+        ('coiss_calib_nac', 'CL1+GRN', 2),
+        ('coiss_calib_wac', 'CL1+VIO', 1),
+    ],
+    ids=['nac', 'nac-sum2', 'wac'],
+)
+def test_a_filter_sets_the_calibrated_divisor_from_its_throughput(
+    instrument: str, filter_name: str, binning: int
+) -> None:
     """DN per I/F is throughput / gain x exposure x the binned pixel count."""
     dp = resolve_detector_params(
-        _scene('coiss_calib_nac', detector={'filter': 'CL1+GRN', 'binning': binning})
+        _scene(instrument, detector={'filter': filter_name, 'binning': binning})
     )
     cal = calibration_map(dp)
     assert cal is not None
-    expected = _NAC_GREEN / dp.gain_e_per_dn * 0.01 * binning**2
+    throughput = resolve_filter_throughput(instrument, filter_name)
+    expected = throughput / dp.gain_e_per_dn * 0.01 * binning**2
     assert cal.dn_per_if == pytest.approx(expected)
 
 
@@ -142,6 +158,13 @@ def test_a_filter_and_a_reference_exposure_are_refused_together_at_render() -> N
     """Both keys set the signal scale, so the resolver refuses the pair."""
     scene = _scene('coiss_nac', detector={'filter': 'CL1+CL2', 'exposure_ref_sec': 1.0})
     with pytest.raises(DetectorParamError, match='set one of them'):
+        resolve_detector_params(scene)
+
+
+def test_a_filter_with_the_vidicon_model_is_refused_at_render() -> None:
+    """The vidicon DN path has no reference exposure for a filter to set."""
+    scene = _scene('coiss_nac', detector={'filter': 'CL1+CL2', 'detector_model': 'vidicon'})
+    with pytest.raises(DetectorParamError, match='vidicon DN path'):
         resolve_detector_params(scene)
 
 
@@ -165,8 +188,13 @@ def test_an_uncataloged_filter_is_refused_at_render() -> None:
             {'filter': 'CL1+CL2', 'exposure_ref_sec': 2.0},
             r'detector\.filter and detector\.exposure_ref_sec both set',
         ),
+        (
+            'coiss_nac',
+            {'filter': 'CL1+CL2', 'detector_model': 'vidicon'},
+            r'detector\.filter sets the CCD signal scale',
+        ),
     ],
-    ids=['uncataloged', 'no-table', 'not-a-string', 'with-exposure-ref'],
+    ids=['uncataloged', 'no-table', 'not-a-string', 'with-exposure-ref', 'with-vidicon'],
 )
 def test_the_validator_refuses_a_bad_filter(
     instrument: str, detector: dict[str, Any], message: str

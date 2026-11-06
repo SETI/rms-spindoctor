@@ -54,6 +54,11 @@ from spindoctor.nav_model import build_models_for_obs
 from spindoctor.nav_orchestrator import NavOrchestrator
 from spindoctor.obs.obs_inst_sim import ObsSim
 from spindoctor.obs.obs_snapshot import ObsSnapshot
+from spindoctor.sim.forward.artifact_modes import normalize_instrument
+from spindoctor.sim.forward.filter_catalog import (
+    FILTER_THROUGHPUT_E_PER_S_PER_IF,
+    canonical_filter,
+)
 from spindoctor.sim.realism.artifact_rates import (
     ArtifactRates,
     split_stationary_spikes,
@@ -301,9 +306,22 @@ def _frame_samples_real(
         # Matching content, not tuning: the sim renders the frame's own filter
         # throughput, gain state, and downlink table, so its DN-to-I/F scale
         # and quantization step are the real product's.
-        record.filter_name = f'{obs.filter1}+{obs.filter2}'
+        filter_name = f'{obs.filter1}+{obs.filter2}'
+        if (
+            canonical_filter(instrument, filter_name)
+            in FILTER_THROUGHPUT_E_PER_S_PER_IF[normalize_instrument(instrument)]
+        ):
+            record.filter_name = filter_name
+        else:
+            # An uncataloged pair renders at the nominal scale rather than
+            # aborting the whole match; the warning names the frame.
+            warnings.warn(
+                f'{sidecar.image_id}: filter {filter_name} is not cataloged for '
+                f'{instrument}; its matched scene uses the nominal scale',
+                stacklevel=2,
+            )
         record.gain_state = int(obs.gain_mode)
-        if obs.dict['DATA_CONVERSION_TYPE'] == 'TABLE':
+        if obs.dict.get('DATA_CONVERSION_TYPE') == 'TABLE':
             record.quantization = 'coiss_lut'
     saturation = SATURATION_LEVEL[instrument]
     samples, rates = extract_pixel_samples(

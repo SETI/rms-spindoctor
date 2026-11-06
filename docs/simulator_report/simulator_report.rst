@@ -566,11 +566,15 @@ diverges by two orders of magnitude one-sidedly: simulated sky sigma
 sits at 2.4e-5 I/F against 1.9e-4 real (W1/IQR 94), noise at signal
 likewise (98), and the sky level above floor at 3.7e-5 vs 3.2e-4
 (W1/IQR 2377).  A one-sided deficit of that size on the calibrated
-chain is a chain symptom, not a small-n artifact: it is the DN-to-I/F
-scale.  The WAC's measured clear-filter throughput is 284 times the
-nominal scale these matched frames rendered at (see the
-calibrated-product known gap), and the matched scenes render each
-frame's own filter.  The
+chain is a chain symptom, not a small-n artifact.  These matched frames
+rendered at the nominal DN-to-I/F scale on the DN lattice, so the two
+shortest frames' simulated sky yielded 3 patches between them and the
+26 s clear frame supplied 257 of the 378: the pooled sim median is that
+frame's, where the nominal scale makes one DN 2.4e-5 I/F, 280 times the
+real frame's sky noise, while the real median comes from the short
+frames.  The matched scenes render each frame's own
+filter and the calibration residual (see the calibrated-product known
+gap), so every frame contributes on both sides.  The
 remaining WAC statistics rest on 1-2 frames per stratum and are
 reported in the summary JSON without distributional claims.
 
@@ -668,8 +672,9 @@ cannot close, it is recorded here rather than force-fitted:
      frame's filter, from 6,400 e-/s per I/F (NAC CL1+CB3) to 1.45 million
      (NAC clear) and 13.5 million (WAC clear).  At the nominal 55,000
      (NAC) and 47,500 (WAC) the per-frame sim/real sky-sigma ratio spans
-     0.06 to 110 on the NAC cohort and the WAC falls two orders of
-     magnitude short, so the pooled agreement was a cancellation;
+     0.06 to 110 on the NAC cohort, so the pooled agreement was a
+     cancellation, and the WAC's pooled shortfall is a mix of frames (see
+     the WAC subsection);
    - the readout dark (``readout_dark_e``): the raw dark sky rises
      linearly by 55 e- from the first line to the last at every exposure,
      and CISSCAL's dark model removes the ramp but not its shot noise;

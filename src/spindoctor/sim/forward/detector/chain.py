@@ -224,8 +224,10 @@ def quantize_dn(
     if mode == 'coiss_lut':
         # The table encodes each DN to the code whose decoded value is nearest;
         # the product carries the decoded DN, so the step is the table's.
+        # A NaN pixel stays NaN, as np.rint keeps it in the other modes.
         midpoints = 0.5 * (COISS_LUT_DN[1:] + COISS_LUT_DN[:-1])
-        result: NDArrayFloatType = COISS_LUT_DN[np.searchsorted(midpoints, dn)]
+        snapped = COISS_LUT_DN[np.searchsorted(midpoints, np.nan_to_num(dn, nan=0.0))]
+        result: NDArrayFloatType = np.where(np.isnan(dn), np.nan, snapped)
         return result
     raise ValueError(f'unknown quantization mode {mode!r}')
 
@@ -686,8 +688,10 @@ def _apply_calibration_inverse(frame: SimFrame, dp: DetectorParams) -> None:
     if calibration is None:
         return
     # The pipeline's dark model removes the readout dark it expects; the
-    # shot noise the dark carried stays in the product.
-    frame.signal -= _readout_dark_e(frame.signal.shape[0], dp)[:, np.newaxis] / dp.gain_e_per_dn
+    # shot noise the dark carried stays in the product.  Only the CCD chain
+    # adds the ramp, so only a CCD frame has one to remove.
+    if dp.detector_model == 'ccd':
+        frame.signal -= _readout_dark_e(frame.signal.shape[0], dp)[:, np.newaxis] / dp.gain_e_per_dn
     _subtract_calibration_residual(frame.signal, dp)
     calibrated = calibration.to_if(frame.signal)
     keep_off_marker(calibrated, dp.marker_value)

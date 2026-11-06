@@ -14,10 +14,13 @@ The end-to-end smoke on real frames lives in ``test_sim_realism_smoke.py``.
 
 from __future__ import annotations
 
+from typing import Any
+
 import numpy as np
 import pytest
 
 from spindoctor.sim.forward.artifacts_catalog import NATIVE_FRAME_SIZE_PX
+from spindoctor.sim.forward.detector.params import resolve_detector_params
 from spindoctor.sim.scene import validate_sim_params
 from tests.integration.sim_realism import (
     INSTRUMENT_FOR,
@@ -71,6 +74,40 @@ def test_a_binned_cohort_frame_renders_through_its_readout_mode() -> None:
     scene = matched_scene('L1', 'star_dominated', 'nhlorri', 1.0, size_vu=(256, 256))
     assert scene['detector']['binning'] == 4
     assert (scene['size_v'], scene['size_u']) == (256, 256)
+
+
+@pytest.mark.parametrize(
+    ('matching', 'expected'),
+    [
+        ({}, None),
+        (
+            {'filter_name': 'CL1+GRN', 'gain_state': 3, 'quantization': 'coiss_lut'},
+            {'filter': 'CL1+GRN', 'gain_state': 3, 'quantization': 'coiss_lut'},
+        ),
+    ],
+    ids=['unmatched', 'table-frame'],
+)
+def test_a_matched_scene_renders_the_frame_filter_gain_and_table(
+    matching: dict[str, Any], expected: dict[str, Any] | None
+) -> None:
+    """The real frame's filter, gain state, and downlink table reach the render."""
+    scene = matched_scene(
+        'N123', 'star_dominated', 'coiss_calib_nac', 1.2, size_vu=_NAC_FULL, **matching
+    )
+    assert scene.get('detector') == expected
+
+
+def test_a_table_frame_matched_scene_quantizes_through_the_cassini_table() -> None:
+    """A TABLE frame's matched scene resolves to the measured Cassini table."""
+    scene = matched_scene(
+        'N123',
+        'star_dominated',
+        'coiss_calib_nac',
+        1.2,
+        size_vu=_NAC_FULL,
+        quantization='coiss_lut',
+    )
+    assert resolve_detector_params(scene).quantization == 'coiss_lut'
 
 
 def test_matched_scene_is_deterministic() -> None:
