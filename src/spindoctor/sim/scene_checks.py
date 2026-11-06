@@ -27,7 +27,7 @@ from spindoctor.sim.forward.artifact_modes import (
     mode_available,
     mode_unavailable_message,
 )
-from spindoctor.sim.forward.artifacts_catalog import resolve_detector_defaults
+from spindoctor.sim.forward.artifacts_catalog import cataloged_binnings, resolve_detector_defaults
 from spindoctor.sim.scene_schema import SimSceneValidationError
 from spindoctor.support.status_reason import NavStatusReason
 
@@ -312,12 +312,13 @@ _VIDICON_NOISE_KEYS: frozenset[str] = frozenset(
     }
 )
 
-# The detector block selects the electron-chain gain state, the detector model
-# (CCD electron chain or the Voyager vidicon DN path), the exposure the well
-# fraction references, and the ADC quantization sub-mode.  Per-instrument
-# defaults come from artifacts_catalog.py; scene keys override them.
+# The detector block selects the electron-chain gain state, the readout
+# mode's binning, the detector model (CCD electron chain or the Voyager vidicon
+# DN path), the exposure the well fraction references, and the ADC
+# quantization sub-mode.  Per-instrument defaults come from
+# artifacts_catalog.py; scene keys override them.
 _DETECTOR_KEYS: frozenset[str] = frozenset(
-    {'gain_state', 'detector_model', 'exposure_ref_sec', 'quantization'}
+    {'gain_state', 'binning', 'detector_model', 'exposure_ref_sec', 'quantization'}
 )
 _DETECTOR_MODELS: frozenset[str] = frozenset({'ccd', 'vidicon'})
 # Quantization sub-modes: 'exact' rounds to integer DN (uniform bins); the ADC
@@ -378,7 +379,7 @@ def _check_detector(value: Any, *, instrument: str, source: str) -> None:
 
     Raises:
         SimSceneValidationError: On any unknown or invalid detector field,
-            including a gain state the instrument does not catalog.
+            including a gain state or a binning the instrument does not catalog.
     """
     if value is None:
         return
@@ -400,6 +401,21 @@ def _check_detector(value: Any, *, instrument: str, source: str) -> None:
             raise SimSceneValidationError(
                 f'{source}: detector.gain_state {gain_state} is not cataloged for '
                 f'instrument {instrument!r}; available states: {sorted(table)}'
+            )
+    if value.get('binning') is not None:
+        binning = _require_int(
+            {'binning': value['binning']}, 'binning', source=f'{source}: detector'
+        )
+        available = cataloged_binnings(instrument)
+        if binning not in available:
+            raise SimSceneValidationError(
+                f'{source}: detector.binning {binning} is not a cataloged readout mode of '
+                f'instrument {instrument!r}; available binnings: {list(available)}'
+            )
+        if value.get('detector_model') == 'vidicon' and binning != 1:
+            raise SimSceneValidationError(
+                f'{source}: detector.binning {binning} is not supported with '
+                f'detector_model vidicon; the vidicon DN path has no binned readout'
             )
     model = value.get('detector_model')
     if model is not None and model not in _DETECTOR_MODELS:

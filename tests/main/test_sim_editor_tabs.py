@@ -356,6 +356,38 @@ def test_detector_edit_writes_only_the_edited_key(model: Any) -> None:
     assert model.sim_params['detector'] == {'gain_state': 3}
 
 
+def test_detector_binning_is_authorable(model: Any) -> None:
+    """The binning choice writes the detector.binning key."""
+    model._instrument_combo.setCurrentText('coiss_nac')
+    model._detector_group.setChecked(True)
+    model._detector_binning_combo.setCurrentText('2')
+    assert model.sim_params['detector'] == {'binning': 2}
+
+
+@pytest.mark.parametrize(
+    ('instrument', 'choices'),
+    [('coiss_nac', ['1', '2', '4']), ('nhlorri', ['1', '4']), ('vgiss', ['1'])],
+)
+def test_detector_binning_offers_the_instruments_cataloged_modes(
+    model: Any, instrument: str, choices: list[str]
+) -> None:
+    """The binning choices follow the instrument, so an uncataloged mode can't be picked."""
+    model._instrument_combo.setCurrentText(instrument)
+    combo = model._detector_binning_combo
+    assert [combo.itemText(i) for i in range(combo.count())] == choices
+
+
+def test_reenabling_the_detector_group_shows_the_catalog_defaults(model: Any) -> None:
+    """Turning the group off and on again resets each widget to what the renderer reads."""
+    model._instrument_combo.setCurrentText('coiss_nac')
+    model._detector_group.setChecked(True)
+    model._detector_binning_combo.setCurrentText('2')
+    model._detector_group.setChecked(False)
+    model._detector_group.setChecked(True)
+    assert model._detector_binning_combo.currentText() == '1'
+    assert model.sim_params['detector'] == {}
+
+
 def test_detector_quantization_is_authorable(model: Any) -> None:
     """The quantization combo writes the detector.quantization key."""
     model._detector_group.setChecked(True)

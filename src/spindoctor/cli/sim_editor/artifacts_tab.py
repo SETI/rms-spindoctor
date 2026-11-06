@@ -40,7 +40,7 @@ from PyQt6.QtWidgets import (
 from spindoctor.cli.sim_editor.artifact_mode_rows import ModeRow
 from spindoctor.cli.sim_editor.base import SimEditorBase
 from spindoctor.sim.forward.artifact_modes import ARTIFACT_MODES
-from spindoctor.sim.forward.artifacts_catalog import resolve_detector_defaults
+from spindoctor.sim.forward.artifacts_catalog import cataloged_binnings, resolve_detector_defaults
 
 _DETECTOR_MODELS: list[str] = ['ccd', 'vidicon']
 _QUANTIZATION_MODES: list[str] = [
@@ -238,6 +238,13 @@ class ArtifactsTabMixin(SimEditorBase):
         )
         form.addRow('Gain state:', self._detector_gain_state_spin)
 
+        self._detector_binning_combo = QComboBox()
+        self._detector_binning_combo.setToolTip(
+            'Readout-mode binning: each frame pixel sums a b-by-b block of native pixels. '
+            "Lists the instrument's cataloged modes. Written to the scene only when edited."
+        )
+        form.addRow('Binning:', self._detector_binning_combo)
+
         self._detector_model_combo = QComboBox()
         self._detector_model_combo.addItems(_DETECTOR_MODELS)
         self._detector_model_combo.setToolTip(
@@ -267,6 +274,7 @@ class ArtifactsTabMixin(SimEditorBase):
         group.setChecked(isinstance(detector, dict))
         # Connect after the initial values so the build does not write.
         self._detector_gain_state_spin.valueChanged.connect(self._on_detector_gain_state)
+        self._detector_binning_combo.currentTextChanged.connect(self._on_detector_binning)
         self._detector_exposure_ref_spin.valueChanged.connect(self._on_detector_exposure_ref)
         self._detector_model_combo.currentTextChanged.connect(self._on_detector_model)
         self._detector_quantization_combo.currentTextChanged.connect(self._on_detector_quantization)
@@ -291,6 +299,7 @@ class ArtifactsTabMixin(SimEditorBase):
         self._detector_gain_state_spin.setValue(
             int(block.get('gain_state', catalog.get('default_gain_state', 0)))
         )
+        self._set_binning_choices(int(block.get('binning', 1)))
         model = str(block.get('detector_model', catalog.get('detector_model', 'ccd')))
         model_index = self._detector_model_combo.findText(model)
         if model_index >= 0:
@@ -302,6 +311,19 @@ class ArtifactsTabMixin(SimEditorBase):
         quantization_index = self._detector_quantization_combo.findText(quantization)
         if quantization_index >= 0:
             self._detector_quantization_combo.setCurrentIndex(quantization_index)
+
+    def _set_binning_choices(self, binning: int) -> None:
+        """List the instrument's cataloged binnings and select ``binning``.
+
+        A scene binning the instrument doesn't catalog is listed too, so the
+        widget shows what the scene says and validation reports it.
+        """
+        choices = list(cataloged_binnings(self.sim_params.get('instrument')))
+        if binning not in choices:
+            choices.append(binning)
+        self._detector_binning_combo.clear()
+        self._detector_binning_combo.addItems([str(choice) for choice in sorted(choices)])
+        self._detector_binning_combo.setCurrentText(str(binning))
 
     def _refresh_detector_catalog_defaults(self) -> None:
         """Refresh the displayed catalog defaults after an instrument change.
@@ -332,12 +354,15 @@ class ArtifactsTabMixin(SimEditorBase):
 
         The block starts empty so unedited keys stay absent (the catalog
         defaults keep applying); each widget edit then writes only its key.
+        Turning the group on shows the new block's values, so no widget keeps
+        an edit the removed block held.
         """
         if self._syncing:
             return
         if on:
             if not isinstance(self.sim_params.get('detector'), dict):
                 self.sim_params['detector'] = {}
+            self._refresh_detector_catalog_defaults()
         else:
             self.sim_params.pop('detector', None)
         self._updater.request_update()
@@ -345,6 +370,11 @@ class ArtifactsTabMixin(SimEditorBase):
     def _on_detector_gain_state(self, value: int) -> None:
         """Write the gain state on a spin edit."""
         self._set_detector_key('gain_state', int(value))
+
+    def _on_detector_binning(self, text: str) -> None:
+        """Write the readout-mode binning on a selection."""
+        if text:
+            self._set_detector_key('binning', int(text))
 
     def _on_detector_exposure_ref(self, value: float) -> None:
         """Write the reference exposure on a spin edit."""

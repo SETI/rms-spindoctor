@@ -21,14 +21,21 @@ __all__ = [
     'DETECTOR_DEFAULTS',
     'DISTORTION_RESIDUAL_PARAMS',
     'MODE_KEYS',
+    'NATIVE_FRAME_SIZE_PX',
     'PSF_KERNELS',
+    'READOUT_MODES',
     'SKY_PIXEL_SCALE_ARCSEC',
     'STAR_FLUX_DN_PER_S_VMAG0',
     'STAR_FLUX_E_PER_S_VMAG0',
+    'binned_psf_kernel',
+    'binning_for_frame_size',
+    'cataloged_binnings',
     'resolve_detector_defaults',
     'resolve_mode_with_catalog',
+    'resolve_readout_mode',
     'resolve_sky_pixel_scale_arcsec',
     'resolve_star_flux_zero_point',
+    'scene_binning',
 ]
 
 # The artifact-mode registry (:mod:`spindoctor.sim.forward.artifact_modes`) is the
@@ -76,9 +83,14 @@ __all__ = [
 #   evidence; gossi sim accuracy is bounded by unverified PSF fidelity
 #   until the star-calibration frames land.
 # - nhlorri: RETAINED interim elliptical values (LORRI PSF references,
-#   1x1 mode).  The cohort's two star frames are 4x4-binned (measured
-#   binned-pixel EE50 0.59 px) and cannot constrain the 1x1 kernel; a
-#   per-readout-mode kernel is future work.
+#   1x1 mode).  The cohort's two star frames are 4x4-binned; a binned frame
+#   renders with this kernel rescaled to binned pixels
+#   (:func:`binned_psf_kernel`), so those frames test the 1x1 kernel only
+#   through the 4x4 rescaling.  Rendered that way the core matches the
+#   cohort (EE50 0.50 vs 0.59 binned px) and the wing is too weak (EE80 0.66
+#   vs 1.23; #848).
+#
+# Every kernel is the native (unbinned) one, in native detector pixels.
 PSF_KERNELS: dict[str, dict[str, float]] = {
     'coiss_nac': {'sigma_v': 0.70, 'sigma_u': 0.70, 'w': 0.12, 'r0': 3.0, 'n': 4.0},
     'coiss_wac': {'sigma_v': 1.05, 'sigma_u': 1.05, 'w': 0.12, 'r0': 3.0, 'n': 4.0},
@@ -648,6 +660,138 @@ DETECTOR_DEFAULTS['coiss_calib_wac'] = {
 }
 
 _coiss_alias(DETECTOR_DEFAULTS)
+
+
+# Readout (binning or summation) modes each camera offers, keyed by the
+# binning factor b: a b-by-b block of native pixels reads out as one pixel.
+# A scene selects a mode with ``detector.binning`` (default 1), and a mode
+# missing from its camera's entry is a validation error, as an uncataloged
+# gain state is.  Each mode maps to the DETECTOR_DEFAULTS keys its published
+# characterization overrides; the keys it leaves out keep the 1x1 values.
+# Whatever the mode, the forward model treats a binned pixel as the sum of
+# its b**2 native pixels: an extended source, the dark current, and the
+# cosmic-ray rate deposit b**2 times the native charge, the pixel saturates
+# at b**2 native wells, the hot pixels are the native map summed into each
+# binned pixel, the PSF kernel and the non-radial distortion shrink by b,
+# and the sky's plate scale grows by b.  A star's total charge is unchanged.
+# Provenance:
+# - coiss_nac / coiss_wac: SUM2 and SUM4 summation modes, on-chip; the
+#   catalog's sources give no separate read noise, gain, or well for them,
+#   so each inherits the 1x1 values.
+# - gossi: the 2x2 summation mode reads 44 e- (5.4; 31 e- full resolution).
+# - nhlorri: the 4x4 binned mode reads about 19.4 e-/DN (5.5; 21 at 1x1).
+# - vgiss: the vidicon has no binned readout.
+READOUT_MODES: dict[str, dict[int, dict[str, Any]]] = {
+    'coiss_nac': {1: {}, 2: {}, 4: {}},
+    'coiss_wac': {1: {}, 2: {}, 4: {}},
+    'gossi': {1: {}, 2: {'read_noise_e': 44.0}},
+    'nhlorri': {1: {}, 4: {'gain_e_per_dn_by_state': {0: 19.4}}},
+    'vgiss': {1: {}},
+    'generic': {1: {}},
+}
+_coiss_alias(READOUT_MODES)
+
+# Native full-frame size (pixels on a side) of each camera with a binned
+# readout: a full frame binned by b is this size over b, which is how the
+# realism match tells a cohort frame's mode from its shape.
+NATIVE_FRAME_SIZE_PX: dict[str, int] = {
+    'coiss_nac': 1024,
+    'coiss_wac': 1024,
+    'gossi': 800,
+    'nhlorri': 1024,
+}
+_coiss_alias(NATIVE_FRAME_SIZE_PX)
+
+
+def cataloged_binnings(instrument: str | None) -> tuple[int, ...]:
+    """The binning factors a camera's readout modes offer, ascending.
+
+    Parameters:
+        instrument: The sim instrument name, a generic alias, or ``None``.
+
+    Returns:
+        The cataloged factors; ``(1,)`` for a camera without binned modes.
+    """
+    return tuple(sorted(READOUT_MODES.get(_catalog_key(instrument), {1: {}})))
+
+
+def resolve_readout_mode(instrument: str | None, binning: int) -> dict[str, Any]:
+    """The DETECTOR_DEFAULTS overrides of one cataloged readout mode.
+
+    Parameters:
+        instrument: The sim instrument name, a generic alias, or ``None``.
+        binning: A binning factor from :func:`cataloged_binnings`.
+
+    Returns:
+        A fresh copy of the mode's overrides; empty for a mode that keeps every
+        1x1 value, and for an uncataloged binning (the resolver refuses those).
+    """
+    modes = READOUT_MODES.get(_catalog_key(instrument), {1: {}})
+    return copy.deepcopy(modes.get(int(binning), {}))
+
+
+def scene_binning(params: Mapping[str, Any]) -> int:
+    """The binning factor a scene's ``detector`` block selects, 1 by default.
+
+    Parameters:
+        params: The full scene mapping.
+
+    Returns:
+        The stated ``detector.binning``, or 1 when the scene leaves it out.
+    """
+    detector = params.get('detector') or {}
+    binning = detector.get('binning') if isinstance(detector, Mapping) else None
+    return 1 if binning is None else int(binning)
+
+
+def binning_for_frame_size(instrument: str | None, size_vu: tuple[int, int]) -> int:
+    """The binning factor of a full frame of ``size_vu`` on ``instrument``.
+
+    Parameters:
+        instrument: The sim instrument name.
+        size_vu: The frame's ``(v, u)`` shape.
+
+    Returns:
+        ``native size / frame size`` when the frame is square and that ratio
+        is a cataloged factor; 1 for a camera without a native size.
+
+    Raises:
+        ValueError: If the camera has a native size and the frame isn't a
+            full frame in any cataloged mode.
+    """
+    native = NATIVE_FRAME_SIZE_PX.get(_catalog_key(instrument))
+    if native is None:
+        return 1
+    size_v, size_u = (int(size_vu[0]), int(size_vu[1]))
+    for binning in cataloged_binnings(instrument):
+        if size_v == size_u == native // binning:
+            return binning
+    raise ValueError(
+        f'a {size_v}x{size_u} frame is not a full {instrument!r} frame in any cataloged '
+        f'readout mode (native {native} px, binnings {list(cataloged_binnings(instrument))})'
+    )
+
+
+def binned_psf_kernel(kernel: Mapping[str, float], binning: int) -> dict[str, float]:
+    """A native PSF kernel restated in pixels binned by ``binning``.
+
+    The radii (``sigma_v``, ``sigma_u``, ``r0``) shrink by the factor; the wing
+    energy fraction ``w`` and the wing index ``n`` are dimensionless.  The
+    binned pixel's own b-by-b box is the render grid's pixel integration, so
+    it needs no term here.
+
+    Parameters:
+        kernel: The native kernel, radii in native pixels.
+        binning: The binning factor.
+
+    Returns:
+        A new kernel mapping in binned pixels.
+    """
+    scaled = dict(kernel)
+    for radius in ('sigma_v', 'sigma_u', 'r0'):
+        if radius in scaled:
+            scaled[radius] = float(scaled[radius]) / binning
+    return scaled
 
 
 def resolve_detector_defaults(instrument: str | None) -> dict[str, Any]:

@@ -45,8 +45,10 @@ from spindoctor.sim.forward.artifact_modes import (
 )
 from spindoctor.sim.forward.artifacts_catalog import (
     DEFAULT_CALIBRATED_SKY_IF,
+    cataloged_binnings,
     resolve_detector_defaults,
     resolve_mode_with_catalog,
+    resolve_readout_mode,
 )
 from spindoctor.sim.instruments import navigator_marker_value, resolve_sim_inst_config
 from spindoctor.sim.seeds import derive_effect_seed
@@ -103,6 +105,11 @@ class DetectorParams:
         detector_id: The emulated detector the fixed hot-pixel map belongs to:
             the instrument name with the calibrated Cassini products folded
             onto their raw cameras, and ``generic`` for a generic scene.
+        binning: The readout mode's binning factor ``b``: each frame pixel
+            sums a ``b`` by ``b`` block of native pixels.  The catalog's
+            native dark current and cosmic-ray rate are already scaled by
+            ``b**2`` here, and the chain scales the extended signal and the
+            saturation well the same way.
         instrument_defaults: Whether the physical-chain opt-in is on.
         hot_pixel_adversarial: Whether the hot-pixel population is placed
             adversarially (biased onto the navigation features) rather than
@@ -153,6 +160,7 @@ class DetectorParams:
     marker_value: float
     random_seed: int = 42
     detector_id: str = 'generic'
+    binning: int = 1
     instrument_defaults: bool = False
     hot_pixel_adversarial: bool = False
     hot_pixel_mode_active: bool = False
@@ -230,6 +238,36 @@ def _default_or_zero(
     if instrument_defaults:
         return float(catalog.get(key, 0.0))
     return 0.0
+
+
+def _resolve_binning(detector_block: Mapping[str, Any], *, instrument: str | None) -> int:
+    """Select the readout mode's binning factor from the scene ``detector`` block.
+
+    Parameters:
+        detector_block: The scene ``detector`` block (may set ``binning``).
+        instrument: The sim instrument name, for the catalog lookup.
+
+    Returns:
+        The binning factor, 1 when the scene leaves it out.
+
+    Raises:
+        DetectorParamError: If the binning isn't an integer (a bool counts as
+            neither), or the instrument doesn't catalog it.
+    """
+    binning = detector_block.get('binning')
+    if binning is None:
+        return 1
+    if isinstance(binning, bool) or not isinstance(binning, int):
+        raise DetectorParamError(
+            f'sim instrument {instrument!r}: detector.binning must be an integer, got {binning!r}'
+        )
+    available = cataloged_binnings(instrument)
+    if binning not in available:
+        raise DetectorParamError(
+            f'sim instrument {instrument!r} has no cataloged binning {binning}; '
+            f'available binnings: {list(available)}'
+        )
+    return binning
 
 
 def _resolve_gain(
@@ -378,9 +416,13 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
     )
     inst_noise = inst_config.get('noise') or {}
     sim_noise = DEFAULT_CONFIG.category('sim')['noise']
-    catalog = resolve_detector_defaults(instrument)
-
     detector_block = params.get('detector') or {}
+    binning = _resolve_binning(detector_block, instrument=instrument)
+    # The readout mode's published values replace the native ones it names.
+    catalog = {**resolve_detector_defaults(instrument), **resolve_readout_mode(instrument, binning)}
+    # A binned pixel collects the charge of its binning**2 native pixels.
+    pixels_per_frame_pixel = float(binning * binning)
+
     # A null noise key reads as absent: it takes the catalog or configuration
     # default, so noise: {poisson: null} keeps the instrument_defaults shot noise.
     scene_noise = _set_keys(params.get('noise') or {})
@@ -390,6 +432,11 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
     detector_model = str(
         _scene_or_default(detector_block, 'detector_model', catalog['detector_model'])
     )
+    if detector_model == 'vidicon' and binning != 1:
+        raise DetectorParamError(
+            f'sim instrument {instrument!r} cannot use detector_model vidicon with '
+            f'binning {binning}; the vidicon DN path has no binned readout'
+        )
     data_units = str(inst_config.get('data_units', 'raw_dn'))
     exposure_sec = float(params.get('exposure_sec', 1.0))
     exposure_ref_sec = float(
@@ -446,13 +493,15 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
     if cr_key in scene_noise:
         cosmic_ray_rate = float(scene_noise[cr_key])
     elif instrument_defaults and cr_key in catalog:
-        cosmic_ray_rate = float(catalog[cr_key])
+        cosmic_ray_rate = float(catalog[cr_key]) * pixels_per_frame_pixel
     else:
         cosmic_ray_rate = float(sim_noise.get(cr_key, 0.0))
 
     dark_current = _default_or_zero(
         scene_noise, catalog, 'dark_current_e_per_sec', instrument_defaults=instrument_defaults
     )
+    if 'dark_current_e_per_sec' not in scene_noise:
+        dark_current *= pixels_per_frame_pixel
     hot_pixel_fraction = _default_or_zero(
         scene_noise, catalog, 'hot_pixel_fraction', instrument_defaults=instrument_defaults
     )
@@ -526,6 +575,7 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
         calibration_scale = image_well_dn / exposure_sec if exposure_sec > 0.0 else image_well_dn
     else:
         image_well_dn = signal_full_scale_frac * full_well_e / gain_e_per_dn
+        image_well_dn *= pixels_per_frame_pixel
         calibration_scale = (
             image_well_dn / exposure_ref_sec if exposure_ref_sec > 0.0 else image_well_dn
         )
@@ -598,6 +648,7 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
         marker_value=navigator_marker_value(inst_config),
         random_seed=int(params.get('random_seed', 42)),
         detector_id=normalize_instrument(instrument),
+        binning=binning,
         instrument_defaults=instrument_defaults,
         hot_pixel_adversarial=hot_pixel_adversarial,
         hot_pixel_mode_active=hot_pixel_mode_active,

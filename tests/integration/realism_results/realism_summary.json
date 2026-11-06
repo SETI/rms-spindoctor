@@ -23,10 +23,10 @@
         },
         "sky_psd": {
           "n_real_curves": 41,
-          "n_sim_curves": 42,
+          "n_sim_curves": 43,
           "real_iqr": 0.1875,
-          "w1": 0.013965,
-          "w1_normalized": 0.074481
+          "w1": 0.012838,
+          "w1_normalized": 0.068471
         },
         "star_profile": {
           "n_real_curves": 11,
@@ -52,17 +52,17 @@
           "real_iqr": 0.000202,
           "real_median": 0.000111,
           "sim_median": 2.2e-05,
-          "w1": 0.000258,
-          "w1_normalized": 1.276926
+          "w1": 0.000256,
+          "w1_normalized": 1.267155
         },
         "frac_near_floor_0.05s_to_0.5s": {
           "n_real": 27,
           "n_sim": 27,
           "real_iqr": 0.154201,
           "real_median": 0.107344,
-          "sim_median": 0.5365,
-          "w1": 0.283923,
-          "w1_normalized": 1.84126
+          "sim_median": 0.550736,
+          "w1": 0.303332,
+          "w1_normalized": 1.967128
         },
         "frac_near_floor_0.5s_to_5s": {
           "n_real": 24,
@@ -187,8 +187,8 @@
           "real_iqr": 0.204508,
           "real_median": 0.081273,
           "sim_median": 0.039394,
-          "w1": 0.058218,
-          "w1_normalized": 0.284675
+          "w1": 0.058082,
+          "w1_normalized": 0.284008
         },
         "signal_p95_minus_p50_0.5s_to_5s": {
           "n_real": 24,
@@ -223,8 +223,8 @@
           "real_iqr": 0.320453,
           "real_median": 0.103929,
           "sim_median": 0.167194,
-          "w1": 0.090831,
-          "w1_normalized": 0.283444
+          "w1": 0.091023,
+          "w1_normalized": 0.284045
         },
         "signal_p99_minus_p50_0.5s_to_5s": {
           "n_real": 24,
@@ -255,12 +255,12 @@
         },
         "signal_sigma": {
           "n_real": 15700,
-          "n_sim": 6451,
+          "n_sim": 6448,
           "real_iqr": 0.000391,
           "real_median": 0.000285,
           "sim_median": 0.00022,
-          "w1": 0.001963,
-          "w1_normalized": 5.018112
+          "w1": 0.00195,
+          "w1_normalized": 4.984995
         },
         "sky_mean_minus_floor": {
           "n_real": 5263,
@@ -268,8 +268,8 @@
           "real_iqr": 0.000796,
           "real_median": 0.00038,
           "sim_median": 0.000296,
-          "w1": 0.137608,
-          "w1_normalized": 172.825759
+          "w1": 0.137601,
+          "w1_normalized": 172.816428
         },
         "sky_sigma": {
           "n_real": 5263,
@@ -277,8 +277,8 @@
           "real_iqr": 0.000363,
           "real_median": 0.00021,
           "sim_median": 0.00022,
-          "w1": 0.00181,
-          "w1_normalized": 4.982825
+          "w1": 0.001796,
+          "w1_normalized": 4.945284
         },
         "star_ee50": {
           "n_real": 25,
@@ -677,7 +677,7 @@
         0.000275
       ],
       "spike_split_sim": [
-        1.8e-05,
+        1.9e-05,
         2e-05
       ]
     },
@@ -1264,15 +1264,15 @@
           "n_real_curves": 1,
           "n_sim_curves": 2,
           "real_iqr": 0.1875,
-          "w1": 0.110722,
-          "w1_normalized": 0.590517
+          "w1": 0.065748,
+          "w1_normalized": 0.350655
         },
         "star_profile": {
           "n_real_curves": 2,
           "n_sim_curves": 2,
           "real_iqr": 0.5,
-          "w1": 0.327383,
-          "w1_normalized": 0.654766
+          "w1": 0.111147,
+          "w1_normalized": 0.222294
         }
       },
       "divergences": {
@@ -1290,7 +1290,7 @@
           "n_sim": 2,
           "real_iqr": null,
           "real_median": 0.001083,
-          "sim_median": 0.003128,
+          "sim_median": 0.001801,
           "w1": null,
           "w1_normalized": null
         },
@@ -1299,7 +1299,7 @@
           "n_sim": 2,
           "real_iqr": null,
           "real_median": 0.04554,
-          "sim_median": 0.093948,
+          "sim_median": 0.09314,
           "w1": null,
           "w1_normalized": null
         },
@@ -1308,7 +1308,7 @@
           "n_sim": 2,
           "real_iqr": null,
           "real_median": 0.0,
-          "sim_median": 1.5e-05,
+          "sim_median": 0.000259,
           "w1": null,
           "w1_normalized": null
         },
@@ -1317,7 +1317,7 @@
           "n_sim": 2,
           "real_iqr": null,
           "real_median": 4.489877,
-          "sim_median": 2.5,
+          "sim_median": 2.0,
           "w1": null,
           "w1_normalized": null
         },
@@ -1326,13 +1326,13 @@
           "n_sim": 2,
           "real_iqr": null,
           "real_median": 26.774861,
-          "sim_median": 10.0,
+          "sim_median": 3.5,
           "w1": null,
           "w1_normalized": null
         },
         "signal_sigma": {
           "n_real": 1,
-          "n_sim": 60,
+          "n_sim": 62,
           "real_iqr": null,
           "real_median": 1.133527,
           "sim_median": 1.048357,
@@ -1341,16 +1341,16 @@
         },
         "sky_mean_minus_floor": {
           "n_real": 1,
-          "n_sim": 21,
+          "n_sim": 22,
           "real_iqr": null,
           "real_median": 3.191217,
-          "sim_median": 2.55957,
+          "sim_median": 2.712891,
           "w1": null,
           "w1_normalized": null
         },
         "sky_sigma": {
           "n_real": 1,
-          "n_sim": 21,
+          "n_sim": 22,
           "real_iqr": null,
           "real_median": 1.088291,
           "sim_median": 1.048357,
@@ -1362,18 +1362,18 @@
           "n_sim": 16,
           "real_iqr": 0.163909,
           "real_median": 0.5869,
-          "sim_median": 1.081008,
-          "w1": 0.502754,
-          "w1_normalized": 3.06728
+          "sim_median": 0.503591,
+          "w1": 0.518729,
+          "w1_normalized": 3.164738
         },
         "star_ee80": {
           "n_real": 16,
           "n_sim": 16,
           "real_iqr": 0.31865,
           "real_median": 1.230702,
-          "sim_median": 1.729733,
-          "w1": 0.578359,
-          "w1_normalized": 1.815026
+          "sim_median": 0.660113,
+          "w1": 0.771113,
+          "w1_normalized": 2.419935
         }
       },
       "fom7_rows": [
@@ -1417,11 +1417,11 @@
           "confidence": 0.95,
           "image_id": "lor_0030713591_0x633_sci",
           "instrument": "nhlorri",
-          "median_residual_px": 0.010028613902547497,
+          "median_residual_px": 0.06282362862765464,
           "n_catalog_predicted": 23,
           "n_detected_sources": 30,
-          "n_inliers": 14,
-          "n_triplets_evaluated": 30595,
+          "n_inliers": 17,
+          "n_triplets_evaluated": 30965,
           "rotation_below_separability_floor": false,
           "side": "sim",
           "technique": "StarFieldFromCatalogNav",
@@ -1435,17 +1435,17 @@
           "image_id": "lor_0030713591_0x633_sci",
           "instrument": "nhlorri",
           "predicted_snr": 466.7437853195719,
-          "residual_px": 0.009343592564243509,
+          "residual_px": 0.04279706619356874,
           "side": "sim",
           "technique": "StarUniqueMatchNav"
         },
         {
-          "confidence": 0.953122842013067,
+          "confidence": 0.9501095446749988,
           "image_id": "lor_0030713591_0x633_sci",
           "instrument": "nhlorri",
-          "median_pos_err_px": 0.013316943962590935,
-          "n_stars_used": 21,
-          "residual_scatter_px": 0.013450724063361393,
+          "median_pos_err_px": 0.0941387904675423,
+          "n_stars_used": 23,
+          "residual_scatter_px": 0.07356996917623322,
           "side": "sim",
           "technique": "StarRefineNav"
         }
@@ -1477,8 +1477,8 @@
         0.000336
       ],
       "spike_split_sim": [
-        3.1e-05,
-        0.003098
+        0.0,
+        0.001801
       ]
     },
     "vgiss": {
@@ -1722,5 +1722,5 @@
       ]
     }
   },
-  "runtime_sec": 1690.2
+  "runtime_sec": 1238.1
 }
