@@ -65,12 +65,13 @@ brightest pixel near its moved prediction stands
 box, the spread being the larger of the ring's scaled median absolute deviation and the
 image noise, so a pixel of a body's limb or texture is not taken for a star, and its moment
 centroid above the plane background of the local centroid lies within the tolerance. On a
-streak frame the star is instead centroided as the local centroid takes a streak, about the
-streak's center within the tolerance of its moved prediction, since the brightest pixel
-lies anywhere along the streak, and the local centroid's acceptance of the streak is
-judged against the local spread, measured on a ring around the centroid box grown by the
-streak's half extent on each axis. A frame whose field has no such near-equal star keeps the
-uncorroborated match. The margin
+frame whose stars draw a streak the brightest pixel lies anywhere along the streak, so the
+star is instead centroided as the local centroid takes a streak (described below), and it
+counts as found when the streak's center lies within the tolerance of its moved
+prediction. The local centroid's acceptance of the streak is judged against the local
+spread, measured on a ring around the centroid box grown by the streak's half extent on
+each axis. A frame whose field has no such near-equal star keeps the uncorroborated match.
+The margin
 the diagnostics report, and the confidence formula scores, is the margin in the field; a
 corroborated match is scored as meeting the floor exactly.
 
@@ -103,9 +104,10 @@ along that axis, rounded up, so it holds the whole streak, and only the box's pi
 within ``centroid_box_half_px`` of the streak's segment centered on the candidate count in
 the moment. The candidate is a detection when one of those pixels stands the same
 threshold above the plane background, so the uphill end of a sloping glare is no
-detection. On F ring frame ``N1605530694`` (a 6 px
-streak), over the 62 stars both centroids find, the robust spread of the residuals along
-the streak is 1.26 px for boxes on the brightest pixels and 0.44 px for streak centroids.
+detection. The streak centroid was built to fix the failure found on Cassini ISS narrow
+angle frame ``N1605530694``, a frame of Saturn's F ring whose stars draw 6 px streaks.
+Over the 62 stars both centroids find on it, the robust spread of the residuals along the
+streak is 1.26 px for boxes on the brightest pixels and 0.44 px for streak centroids.
 
 A peak that fails the noise threshold collapses the candidate; on the 2-star path a
 best-assignment residual exceeding ``max_residual_px`` triggers the fall back to the 1-star
@@ -127,11 +129,12 @@ maximum of the window's several thousand noise pixels sits at 3.5-4.5 sigma, so 
 marginal star the brightest pixel is routinely a noise spike that clears the threshold.
 The detection therefore also passes a peak-to-runner-up ambiguity gate
 (``one_star_min_peak_ratio``): the background-subtracted peak must exceed the window's
-runner-up (outside a box of half-width ``centroid_box_half_px`` plus 2 px around the
-detection, grown on a streak frame on each axis by the streak's half extent along it, so a
-long streak's far pixels are not its own runner-up while a rival beside the streak still
-counts) by the configured ratio, or the result is spurious with an
-``ambiguous_detection`` reason. A real star detection towers
+runner-up by the configured ratio, or the result is spurious with an
+``ambiguous_detection`` reason. The runner-up is taken outside a box of half-width
+``centroid_box_half_px`` plus 2 px around the detection. On a frame whose stars draw a
+streak the box grows on each axis by the streak's half extent along it, so a long streak's
+far pixels are not its own runner-up while a rival beside the streak still counts. A real
+star detection towers
 over the window's noise order statistics while a matched spike sits within a few percent
 of its runner-up; the ratio is unit-free, so no DN-scale or photometric calibration enters
 the gate. The measured ratio is surfaced as the
