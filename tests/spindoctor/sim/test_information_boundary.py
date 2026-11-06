@@ -246,7 +246,11 @@ def _truth_exercising_scene() -> dict[str, Any]:
                         'long_peri_deg': 0.0,
                         'rate_peri_deg_per_day': 0.0,
                     },
-                    'declared_orbit_sigma': {'sigma_a_px': 0.5},
+                    'declared_orbit_sigma': {
+                        'sigma_a_px': 0.5,
+                        'sigma_ae_px': 0.25,
+                        'sigma_long_peri_deg': 2.0,
+                    },
                     'albedo': _TRUTH_SAMPLES['ring_system.features.albedo'],
                     'phase_g': _TRUTH_SAMPLES['ring_system.features.phase_g'],
                     'orbit_error': dict(_TRUTH_SAMPLES['ring_system.features.orbit_error']),
@@ -384,7 +388,11 @@ def test_ring_system_geometry_crosses_with_the_navigable_feature() -> None:
         'long_peri_deg': 0.0,
         'rate_peri_deg_per_day': 0.0,
     }
-    assert features[0]['declared_orbit_sigma'] == {'sigma_a_px': 0.5}
+    assert features[0]['declared_orbit_sigma'] == {
+        'sigma_a_px': 0.5,
+        'sigma_ae_px': 0.25,
+        'sigma_long_peri_deg': 2.0,
+    }
     assert features[0]['navigable'] is True
 
 

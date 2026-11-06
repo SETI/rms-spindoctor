@@ -1,7 +1,7 @@
 {
   "confidence": 0.99,
-  "offset_du_px": 1.9,
-  "offset_dv_px": -2.15,
+  "offset_du_px": 1.55,
+  "offset_dv_px": -2.44,
   "scene_name": "textured_moon_offset",
   "status": "success"
 }

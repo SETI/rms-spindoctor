@@ -535,12 +535,11 @@ frame of either kind. The telemetry modes that act on transmitted DN work the sa
 way on a calibrated frame. The lossy codec, ``line_garble``, and ``pixel_spikes``
 map the I/F back to DN, alter it there, and write the result as I/F. A bit-flip
 spike is capped at the ADC word: on ``vgiss`` that is 255 DN, which calibrates to
-1.85 I/F. A garbled line and a uniform spike draw up to the
-frame's peak, or the ADC word when that is higher. The codec doesn't clip what it
-rebuilds, so a saturated block can come back above the word, and a garbled line or
-a uniform spike drawn after it can follow it there. A calibrated value that lands
-exactly on the 0 I/F marker moves to the next float above it, as the calibration
-inverse does.
+1.85 I/F. A garbled line and a uniform spike draw anywhere in the ADC word. The
+codec doesn't clip what it rebuilds, so a saturated block can come back above the
+word, but a garbled line or a uniform spike drawn after it stays inside the word.
+A calibrated value that lands exactly on the 0 I/F marker moves to the next float
+above it, as the calibration inverse does.
 
 The inverse subtracts the bias and dark pedestals, which would put a noise-free
 dark sky at exactly 0 I/F, the marker. A real calibrated product's dark sky keeps
@@ -1282,8 +1281,8 @@ The topographic path
 
 **The relief field.** Limb relief is a 2-D fractional-height field
 ``h(lat, lon)`` on the body surface, not a 1-D profile on the limb, so the
-limb perturbation and the terminator shadowing are two slices of one
-consistent surface (``relief.py``). The field is an isotropic Gaussian random
+limb, the disc's shading, and its cast shadows all come from one consistent
+surface (``relief.py``). The field is an isotropic Gaussian random
 field on the sphere, synthesized as a sum of real spherical harmonics whose
 coefficients are independent Gaussians with variance
 ``C_l proportional to exp(-(l corr_rad / 2)**2)`` (``l`` the harmonic degree,
@@ -1305,146 +1304,152 @@ the body radius: 0.02 moves the limb of a 100-pixel-radius body by 2 pixels
 RMS.
 
 The scene validator caps that RMS at 0.05. The cap comes from the ellipsoid
-renderer, which displaces only the limb. It draws the silhouette at the field's
-equator slice, ``R (1 + h(0, phi))``, and it reads the terrain under each disc
-pixel at the smooth sphere's direction. The relief surface itself projects to
-the envelope ``R max_lat (1 + h(lat, phi)) cos(lat)``. Under a pixel at
-elevation ``lat`` it shows a point ``h cot(lat)`` radians away from the one the
-renderer reads. Both errors grow with the RMS and shrink with the correlation
-length. The table gives both, averaged over 64 seeds of the field:
+renderer, which draws the relief surface's own outline but reads the terrain
+under each disc pixel at the smooth sphere's direction. Under a pixel at
+elevation ``lat`` the relief surface shows a point ``h cot(lat)`` radians away
+from the one the renderer reads. That error grows with the RMS and shrinks with
+the correlation length. The table gives the share of the disc read more than
+half a correlation length from the point shown, averaged over 64 seeds of the
+field:
 
 .. list-table::
-   :widths: 20 20 30 30
+   :widths: 30 30 40
    :header-rows: 1
 
    * - Correlation length
      - RMS
-     - Drawn limb's RMS distance from the envelope, in units of the RMS
      - Disc read more than half a correlation length from the point shown
    * - 30 degrees
      - 0.05
-     - 0.47
      - 3.6%
    * - 30 degrees
      - 0.1
-     - 0.72
      - 12%
    * - 15 degrees
      - 0.01
-     - 0.31
      - 0.6%
    * - 15 degrees
      - 0.02
-     - 0.54
      - 2.5%
    * - 15 degrees
      - 0.05
-     - 0.88
      - 12%
    * - 15 degrees
      - 0.1
-     - 1.12
      - 28%
    * - 10 degrees
      - 0.02
-     - 0.81
      - 4.7%
    * - 10 degrees
      - 0.035
-     - 1.02
      - 12%
    * - 10 degrees
      - 0.05
-     - 1.14
      - 20%
    * - 5 degrees
      - 0.01
-     - 1.03
      - 4.8%
    * - 5 degrees
      - 0.02
-     - 1.27
      - 14%
    * - 5 degrees
      - 0.05
-     - 1.54
      - 39%
    * - 2 degrees
      - 0.005
-     - 1.37
      - 6.8%
    * - 2 degrees
      - 0.01
-     - 1.57
      - 19%
    * - 2 degrees
      - 0.05
-     - 1.97
      - 66%
 
-The cap of 0.05 is a conservative bound set by the disc share. At the default
+The cap of 0.05 is a conservative bound set by that share. At the default
 15-degree correlation length, the renderer reads the terrain under about 12% of
 the disc, one pixel in eight, more than half a correlation length from the
-point the pixel shows. The disc share follows the ratio of the RMS to the
+point the pixel shows. The share follows the ratio of the RMS to the
 correlation length in radians. Wherever that ratio is 0.19, from 2 to
-30 degrees, the share is 11% to 12%. The limb's error does not follow the
-ratio: along the same line it falls from 1.46 times the RMS at 2 degrees to
-0.72 times at 30 degrees.
+30 degrees, the share is 11% to 12%.
 
 Validity degrades at shorter correlation lengths, and the cap does not follow
-it. At 10 degrees and an RMS of 0.05, a fifth of the disc is misread. At
-5 degrees the limb's error exceeds the RMS from an RMS of 0.01 upward. At
-2 degrees it is at least 1.37 times the RMS at every RMS in the table.
+it. At 10 degrees and an RMS of 0.05, a fifth of the disc is misread, and at
+2 degrees a fifth is misread from an RMS of 0.01.
 
 The validator holds mesh bodies to the same cap. A mesh body's relief displaces
-the mesh's vertices in 3-D, so its silhouette is the displaced surface's own
-outline, and the two errors above belong to the ellipsoid renderer.
+the mesh's vertices in 3-D, so its disc shows the displaced surface itself, and
+the misread above belongs to the ellipsoid renderer.
 
 The validator also requires ``limb_relief_corr_deg`` of at least 1 degree. That
 floor bounds cost. It is not a validity bound: at 2 degrees validity is already
-poor at every RMS. The field's synthesis costs about the cube of ``1 / corr``:
-0.5 s and 0.2 GB at 1 degree, 3.1 s and 0.5 GB at 0.5 degrees, and 26 s and
-1.7 GB at 0.25 degrees. A realization is cached by its correlation length and
-seed and rescaled to the RMS, so a render, or the scene editor, pays that cost
-again only when the correlation length or the relief seed changes. The
+poor. The field's synthesis costs about the cube of ``1 / corr``: 0.5 s and
+0.2 GB at 1 degree, 3.1 s and 0.5 GB at 0.5 degrees, and 26 s and 1.7 GB at
+0.25 degrees. A realization is cached by its correlation length and seed and
+rescaled to the RMS, so a render, or the scene editor, pays that cost again
+only when the correlation length or the relief seed changes. The outline
+envelope below costs about 2 s more at 1 degree and 0.5 s at 2 degrees, and
+is cached by correlation length, seed, and RMS. The
 correlation length is checked even on a body whose relief is off, as every
 other key's range is checked on its own.
 
-**Limb and terminator application.** The renderer's normalized ellipse radial
-function ``e(p)`` (1 exactly at the unperturbed limb) is divided by
-``1 + delta(theta)`` -- ``delta`` the relief sampled along the sub-observer
-horizon circle -- so the perturbed limb lands at ``r_ellipse (1 + delta)`` and
-the silhouette turns ragged. The relief azimuth ``theta`` is the elliptical
-parametric angle in the body's rotated frame, not the image azimuth about the
-body center: the field is attached to the body, so the silhouette and the
-terminator march sample one consistent surface under any in-plane rotation
-(for a circular disc the two are identical). Shading normals keep the
-unperturbed ``e`` (the
-disc shading is low-frequency; relief moves the edge, not the interior).
-Near-terminator disc points are then shadowed by a march against upstream
-terrain in absolute heights ``H = h R`` (pixels): a point is shadowed when some
-upstream sample at surface distance ``d`` toward the sun satisfies
-``H_up - H_pt > d / tan(i) + d**2 / (2 R)``, that is, when the terrain rises
-above both the sun ray and the body's curvature drop. The march is capped at
-``d_max = min((H_max - H_pt) tan(i), sqrt(2 R (H_max - H_pt)))``, an upper
-bound on the distance at which that inequality can hold: the longest shadow
-the terrain could cast on a flat body, and the horizon distance of the
-highest peak. The bound is at most 1.62 times the exact distance, so it keeps
-the cost bounded and changes no shadow decision. Shadows fall where the
-terrain's slope exceeds the sun's elevation, so at the RMS values the
-validator allows they gather in the low-sun band along the terminator, where
-they grow ragged. The march steps at ``max(1.0, field_cell_arc / 4)`` pixels
-of surface arc -- about 16 samples per shortest terrain wavelength, never
-finer than one render pixel -- which is why it is both accurate and cheap.
+**Limb, shading, and shadow application.** The field's poles lie on the
+observer axis, so a surface point at ``(lat, lon)`` projects to azimuth ``lon``
+at radius ``(1 + h) cos(lat)``. The relief surface's outline at azimuth
+``theta`` is therefore the envelope ``max over lat of (1 + h(lat, theta))
+cos(lat)``, at or beyond the equator slice ``1 + h(0, theta)`` everywhere. The
+renderer's normalized ellipse radial function ``e(p)`` (1 exactly at the
+unperturbed limb) is divided by ``1 + delta(theta)``, with ``delta`` that
+envelope less 1. The limb lands on the outline, and the silhouette turns
+ragged. The envelope is stored at eight nodes per field column and located to
+an eighth of a field row in latitude, which holds it within 5e-4 of the exact
+envelope at 5% relief, 0.04 px on an 80 px radius. The relief azimuth
+``theta`` is the elliptical parametric angle in the body's rotated frame, not
+the image azimuth about the body center: the field is attached to the body, so
+the outline, the shading, and the shadows read one consistent surface under any
+in-plane rotation (for a circular disc the two are identical).
+
+The disc is shaded from the relief surface's normals. In the body's parameter
+space, where the smooth ellipsoid is the unit sphere, the relief surface
+``(1 + h) p`` has the normal ``p - grad h / (1 + h)``, with ``grad h`` the
+field's surface gradient. The normal goes to the body frame through the
+ellipsoid's inverse semi-axes and into the image like the smooth normals, so a
+slope facing the sun brightens and one facing away darkens, across the whole
+lit disc and not only at the terminator. Near the limb a pixel can read a slope
+tilted away from the observer, which the line of sight doesn't see: it meets
+the near side of the relief first. The renderer mirrors such a normal through
+the sky plane, which gives an equally steep slope facing the observer.
+
+The terrain also casts shadows. The map from the body frame to parameter space
+is affine, and an affine map carries a ray to a ray and a surface to a surface,
+so a pixel's sun ray meets the terrain in parameter space exactly when it does
+on the body. Each candidate pixel's ray is marched from its surface point until
+it leaves the relief shell ``r <= 1 + h_max``, and the pixel is shadowed when a
+sample falls below the terrain. The march reads terrain on the far hemisphere
+as readily as on the near one, and the body's curvature is in the geometry
+rather than an approximation. A shadowed pixel renders as night. Which pixels
+can be shadowed follows from the field's steepest slope ``s_max``: along a ray
+the terrain rises at most ``s_max / (1 + h_min)`` per unit of the ray's own
+rise. A pixel whose sun elevation has ``tan(elevation)`` at or above that bound
+is never shadowed, and one at or below its negative always is. The march
+visits the pixels inside that band, widened by half again because ``s_max`` is
+taken from the field grid's own differences. The steps are an eighth of a field
+grid cell, whatever the body's size in pixels. A step tied to the shading pixel
+would skip ridge tips on a small body with fine relief and leave their shadows
+lit. Against a march at a quarter of that step, the decisions differ on under
+0.3% of the shadowed pixels, for bodies from 30 to 300 pixels in radius with
+relief from 1 to 12 degrees across.
+
+Shading and shadows are evaluated per shading pixel and upsampled with the
+rest of the shading, so a shadow's edge is as soft as the shading grid.
 
 Split-resolution performance
 ----------------------------
 
 Disc shading is low-frequency by construction, so the topographic path
-computes the shading field (surface normals, crater texture, photometric law)
-once at **detector resolution** and bilinearly upsamples it, while only the
-sharp content -- the relief-perturbed silhouette mask and the terminator march
--- is rasterized at the full oversampled working grid. This replaces the
+computes the shading field (surface normals, relief shading, cast shadows, crater
+texture, and photometric law) once at **detector resolution** and bilinearly
+upsamples it, while only the sharp content, the relief-perturbed silhouette
+mask, is rasterized at the full oversampled working grid. This replaces the
 per-subsample shading that made an oversampled body ~16x more expensive than
 its detector-grid equivalent. It is what lets a body-bearing scene meet the
 render budget below, and it makes the topographic path the *fast* path at
@@ -1500,10 +1505,12 @@ the navigator fits (``body_texture.py``):
 
 - ``albedo_texture`` (truth): a band-limited multiplicative noise field
   (``rms``, ``corr_px`` in detector pixels on the disc) plus discrete circular
-  ``spots`` -- the disc contrast of an icy moon. The noise reuses the relief
-  spectral synthesis on its own seeded stream, zeroing only the mean (albedo
-  cannot alias a translation the way relief can, and large-scale hemispheric
-  contrast is exactly what the texture exists to plant).
+  ``spots`` -- the disc contrast of an icy moon. The noise reuses the relief's
+  spherical-harmonic synthesis on its own seeded stream. It is single-valued
+  at its poles and statistically the same everywhere on the body, and only
+  its mean is zeroed (albedo cannot alias a translation the way relief
+  can, and large-scale hemispheric contrast is exactly what the texture exists
+  to plant). ``rms`` is its area-weighted standard deviation over the sphere.
 - ``disc_texture`` (truth): a low-frequency latitude band pattern
   ``1 + band_amplitude cos(band_wavenumber lat_p + band_phase)`` plus discrete
   storm ovals -- the zones/belts and a great-red-spot-class storm of a giant
@@ -2035,8 +2042,8 @@ Cassini-class scene in under 8 s (``tests/integration/test_sim_perf.py``).
 The harness holds two scene families to those budgets: a star field (the PSF
 convolution on the oversampled grid and the electron chain) and a frame
 dominated by a large lit body with limb relief (the topographic body
-renderer's split-resolution path -- detector-grid shading upsampled under an
-oversampled silhouette -- plus the capped terminator shadow march). The
+renderer's split-resolution path -- detector-grid shading, relief normals, and
+cast shadows upsampled under an oversampled silhouette). The
 budget is a *cold-render* budget:
 the render caches are cleared so the timed render pays the kernel-build and
 compile costs a first render pays, while one-time non-render costs (the lazy
@@ -2099,16 +2106,17 @@ The panels below are rendered by ``python -m tests.integration.sim_doc_images``
    :width: 45%
    :align: center
 
-   A lit ellipsoid with a limb-relief field: the silhouette is visibly ragged,
-   relief shadows break up the terminator, and the rest of the disc shading
-   stays smooth.
+   A lit ellipsoid with a limb-relief field: the silhouette follows the relief
+   surface's ragged outline, and the relief normals shade every slope across
+   the disc.
 
 .. figure:: _sim_images/ragged_terminator.png
    :width: 45%
    :align: center
 
-   A high-phase crescent with limb relief: the terminator turns ragged and the
-   relief march casts shadows that grow toward it.
+   A high-phase crescent with limb relief: slopes facing the sun stand out,
+   slopes facing away and the terrain's cast shadows break the crescent up, and
+   the terminator turns ragged.
 
 .. figure:: _sim_images/haze_limb_body.png
    :width: 45%
@@ -2640,8 +2648,9 @@ refused on a ``polyhedral_mesh`` body (see :ref:`sim-mesh-appearance`).
    * - ``limb_relief_rms``, ``limb_relief_corr_deg``
      - The limb/terminator relief field: RMS of the limb slice as a fraction
        of the body radius (at most 0.05), and its correlation length in
-       degrees of surface arc (at least 1). Ragged silhouette plus terminator
-       march shadows (ellipsoid and mesh bodies).
+       degrees of surface arc (at least 1). On an ellipsoid, the relief
+       surface's ragged outline, its slope shading, and its cast shadows; on a
+       mesh, the same field displaces the vertices.
    * - ``photometric_law``, ``minnaert_k``
      - The surface-scattering law (``lambert`` / ``lommel_seeliger`` /
        ``minnaert`` / ``lunar_lambert``) and its Minnaert exponent; ellipsoid
@@ -3305,7 +3314,9 @@ rule -- and the rule is enforced mechanically:
 ``tests/integration/test_sim_doc_images.py`` (integration tier, run by CI) regenerates
 every gallery image into a temporary directory and fails, naming the stale
 files and the regeneration command, whenever a committed PNG no longer
-matches a fresh render.
+matches a fresh render. When either check fails in CI, the job uploads the
+fresh renders as a ``sim-renders`` artifact: the regenerated galleries, and
+each stale render-diff scene's fresh ``current/`` PNG.
 
 .. _sim-gui:
 

@@ -272,6 +272,48 @@ def test_a_declared_pericenter_sigma_widens_the_vertices_off_the_apsides() -> No
     )
 
 
+def test_the_envelope_adds_amplitude_and_pericenter_terms_in_quadrature() -> None:
+    """With both declared, the envelope peaks at the apsides at ``hypot(sigma_a, sigma_ae)``.
+
+    There the pericenter partial vanishes and the amplitude partial is exactly 1,
+    and ``ae sigma_peri`` (about 1.05 px) stays below ``sigma_ae`` elsewhere, so the
+    quadrature envelope is ``sqrt(1 + 2**2)``; a linear sum would give 3.
+    """
+    edges = _eccentric_edges({'sigma_a_px': 1.0, 'sigma_ae_px': 2.0, 'sigma_long_peri_deg': 10.0})
+    expected = float(np.sqrt(1.0 + 2.0**2))
+    assert [g.sigma_orbit_radial_px for g in edges] == pytest.approx(
+        [expected] * len(edges), rel=5e-3
+    )
+
+
+def test_each_vertex_sigma_follows_the_exact_conic_from_pericenter() -> None:
+    """Each vertex's sigma is ``sigma_peri |dr/dperi|`` along its normal, at its own longitude.
+
+    The ringlet's inner edge follows the orbit (a 60 px, ae 6 px, pericenter 30
+    degrees) and its outer edge the same orbit widened to a 85 px.  On the face-on
+    ring a vertex's longitude is its sky angle from the center, and the exact conic
+    ``r = a (1 - e**2) / (1 + e cos theta)`` gives its pericenter partial.  The
+    match holds to the distance field's gradient stencil; the low-eccentricity form
+    ``ae sin theta`` misses by over 15%, and a 10 degree phase error by over 50%.
+    """
+    sigma_peri = np.radians(30.0)
+    edges = _eccentric_edges({'sigma_long_peri_deg': 30.0})
+    obs = _obs()
+    center_v = _SIZE / 2.0 + obs.extfov_margin_v
+    center_u = _SIZE / 2.0 + obs.extfov_margin_u
+    assert len(edges) == 2
+    for geometry, a_px in zip(edges, (60.0, 85.0), strict=True):
+        dv = geometry.vertices_vu[:, 0] - center_v
+        du = geometry.vertices_vu[:, 1] - center_u
+        theta = np.arctan2(-dv, du) - np.radians(30.0)
+        e = 6.0 / a_px
+        r = a_px * (1.0 - e * e) / (1.0 + e * np.cos(theta))
+        slope = a_px * (1.0 - e * e) * e * np.sin(theta) / (1.0 + e * np.cos(theta)) ** 2
+        normal_shift = np.abs(slope) / np.sqrt(1.0 + (slope / r) ** 2)
+        expected = np.maximum(1.0, sigma_peri * normal_shift)
+        np.testing.assert_allclose(geometry.sigma_radial_per_vertex_px, expected, rtol=0.05)
+
+
 def test_a_pericenter_sigma_on_a_circular_ring_changes_nothing() -> None:
     """A circular edge has no pericenter, so its declared sigma leaves both sigmas alone."""
     params = _feature_params()

@@ -21,14 +21,17 @@ budget (see ``tests/integration/test_sim_perf.py``).
 
 **Relief application.**  The renderer's normalized ellipse radial function
 ``e(p)`` (1 exactly at the unperturbed limb) becomes
-``e_adj(p) = e(p) / (1 + delta(theta))``, placing the perturbed limb at
-``r_ellipse * (1 + delta)``; ``delta`` is the relief field sampled along
-the sub-observer horizon circle.  Shading normals keep the unperturbed
-``e``.  The terminator march shadows near-terminator disc points against
-upstream terrain in absolute heights (the march itself lives in
-:mod:`spindoctor.sim.forward.relief`); shadowed pixels render at the
-dark-side floor, and the marched band is bounded by the cap, so raggedness
-grows toward the terminator and the cost stays bounded.
+``e_adj(p) = e(p) / (1 + delta(theta))``, placing the limb at
+``r_ellipse * (1 + delta)``; ``delta`` is the relief surface's own outline,
+the envelope ``max over lat of (1 + h) cos(lat) - 1`` along each azimuth.
+On the shading grid the relief tilts every normal by the field's surface
+gradient, so slopes facing the sun brighten and slopes facing away darken,
+and an exact ray march through the relief shell (both in
+:mod:`spindoctor.sim.forward.relief`) casts terrain shadows, which render as
+night.  Only points whose sun elevation lies within the field's steepest
+slope can be shadowed, so the march visits those alone.  Shading and
+shadows are evaluated per shading pixel and bilinearly upsampled with the
+rest of the shading, so a shadow's edge is as soft as the shading grid.
 
 The mesh-body path does not dispatch here: a polyhedral-mesh body applies
 the relief field as a per-vertex radial perturbation in
@@ -37,7 +40,6 @@ the photometric-law, surface-texture, crater, and atmosphere keys on mesh
 bodies rather than letting them silently not render.
 """
 
-import math
 from dataclasses import dataclass
 
 import numpy as np
@@ -50,33 +52,24 @@ from spindoctor.sim.forward.body_texture import (
     apply_transits,
     surface_texture_factor,
 )
-from spindoctor.sim.forward.photometry import (
-    DARK_SIDE_FLOOR,
-    incidence_cosines,
-    shade_surface,
-)
-from spindoctor.sim.forward.relief import (
-    ReliefField,
-    march_shadows,
-    shadow_reach,
-    synthesize_relief_field,
-)
+from spindoctor.sim.forward.photometry import incidence_cosines, shade_surface
+from spindoctor.sim.forward.relief import ReliefField, cast_shadows, synthesize_relief_field
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
+from spindoctor.support.stable_math import stable_matmul3
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType, NDArrayIntType
 
 __all__ = ['TopoBodyRender', 'TopoBodySpec', 'create_topographic_body', 'render_topographic_body']
 
-# Coarse terminator-band margins: the candidate band on the
-# detector-resolution incidence map is widened by this factor plus a
-# few-pixel pad before the exact per-pixel refinement, so discretization
-# cannot exclude a marchable pixel.
-_BAND_MARGIN_FACTOR = 1.5
-_BAND_MARGIN_PAD_PX = 4.0
+# The cast-shadow band: points with |tan(sun elevation)| below the field's
+# slope bound (over 1 + h_min) are marched.  The bound is the grid's own
+# finite-difference maximum, so this factor covers the bilinear field
+# between grid nodes.
+_SLOPE_BAND_MARGIN = 1.5
 # The march samples the terrain at its own resolution: this many samples
-# per relief-field grid cell (the field is band-limited well above the
-# cell scale, so finer sampling changes no shadow decision), never finer
-# than the exact one-render-pixel step.
-_MARCH_SAMPLES_PER_CELL = 4.0
+# per relief-field grid cell, whatever the body's size in pixels.  A step
+# tied to the shading pixel would skip ridge tips on a small body with fine
+# relief and leave their shadows lit.
+_MARCH_SAMPLES_PER_CELL = 8.0
 
 
 @dataclass(frozen=True)
@@ -345,7 +338,15 @@ def render_topographic_body(
         sin_rz=sin_rz,
         cos_rt=cos_rt,
     )
-    intensity_shade, cos_i_smooth = _shade_disc(shade_grid, spec, cos_rz=cos_rz, sin_rz=sin_rz)
+    field: ReliefField | None = None
+    if spec.limb_relief_rms > 0.0:
+        field = synthesize_relief_field(
+            spec.limb_relief_rms, spec.limb_relief_corr_deg, spec.relief_seed
+        )
+        if field.h_max <= field.h_min:
+            field = None
+
+    intensity_shade = _shade_disc(shade_grid, spec, field, cos_rz=cos_rz, sin_rz=sin_rz)
 
     work_grid = _body_grid(
         work_dims,
@@ -356,29 +357,8 @@ def render_topographic_body(
         cos_rt=cos_rt,
     )
 
-    field: ReliefField | None = None
-    if spec.limb_relief_rms > 0.0:
-        field = synthesize_relief_field(
-            spec.limb_relief_rms, spec.limb_relief_corr_deg, spec.relief_seed
-        )
-        if field.h_max <= field.h_min:
-            field = None
-
     mask = _silhouette_mask(work_grid, field)
     intensity_work = _bilinear_upsample(intensity_shade, up_factor)
-    if field is not None:
-        _apply_terminator_shadows(
-            intensity_work,
-            work_grid,
-            field,
-            spec=spec,
-            cos_i_smooth=cos_i_smooth,
-            shade_e2=shade_grid.e2,
-            up_factor=up_factor,
-            cos_rz=cos_rz,
-            sin_rz=sin_rz,
-            cos_rt=cos_rt,
-        )
     intensity_work *= mask
 
     if aa_scale > 1:
@@ -392,27 +372,30 @@ def render_topographic_body(
 def _shade_disc(
     grid: _Grid,
     spec: TopoBodySpec,
+    field: ReliefField | None,
     *,
     cos_rz: float,
     sin_rz: float,
-) -> tuple[NDArrayFloatType, NDArrayFloatType]:
+) -> NDArrayFloatType:
     """Shade the disc at the shading grid under the spec's photometric law.
 
     Normals are computed everywhere with the depth clamped to the visible
     hemisphere, so pixels just outside the limb carry the limb's shading
     values: the bilinear upsample then continues the disc shading smoothly
     across the (sharper) silhouette boundary instead of blending to black.
+    With relief the normals are the relief surface's and the terrain casts
+    shadows (:func:`_relief_shading`).
 
     Parameters:
         grid: The shading-resolution geometry.
         spec: The body spec (crater texture and photometric law are read).
+        field: The relief realization, or None for the smooth surface; it sets
+            the outline the transits reach.
         cos_rz: Cosine of the in-plane rotation.
         sin_rz: Sine of the in-plane rotation.
 
     Returns:
-        Tuple of (intensity, smooth-surface cos(incidence)), both on the
-        shading grid.  The incidence map ignores crater perturbation: the
-        terminator march band is a property of the smooth surface.
+        The intensity on the shading grid.
     """
     z_coords = grid.semi_c * np.sqrt(np.maximum(0.0, 1.0 - grid.e2))
     everywhere = np.ones_like(grid.e2)
@@ -427,7 +410,20 @@ def _shade_disc(
         cos_rz=cos_rz,
         sin_rz=sin_rz,
     )
-    cos_i_smooth = incidence_cosines(
+    shadowed: NDArrayBoolType | None = None
+    if field is not None:
+        # Relief reaches only pixels inside its outline, plus the shading
+        # pixel the upsample reads beyond it; farther out the smooth limb
+        # normals carry the continuity and the silhouette masks them.
+        reach = 1.0 + max(field.h_max, 0.0) + 2.0 / max(min(grid.semi_a, grid.semi_b), 1.0)
+        near = grid.e2 < reach * reach
+        relief_v, relief_u, relief_z, shadowed = _relief_shading(
+            grid, spec, field, near, cos_rz=cos_rz, sin_rz=sin_rz
+        )
+        normal_v[near] = relief_v
+        normal_u[near] = relief_u
+        normal_z[near] = relief_z
+    cos_i = incidence_cosines(
         normal_v,
         normal_u,
         normal_z,
@@ -435,7 +431,6 @@ def _shade_disc(
         phase_angle=spec.phase_angle,
     )
 
-    cos_i = cos_i_smooth
     if spec.crater_fill > 0.0:
         height = _crater_heights(grid, spec)
         # Local import: body.py imports this module's spec for dispatch, so
@@ -452,9 +447,14 @@ def _shade_disc(
             illumination_angle=spec.illumination_angle,
             phase_angle=spec.phase_angle,
         )
+    if shadowed is not None:
+        # A cast shadow is night: the law floors it like the far side of the
+        # terminator.
+        cos_i = np.where(shadowed, -1.0, cos_i)
 
-    # The clamped-depth parametrization has no far hemisphere (normal_z >= 0
-    # everywhere; night still floors through mu0 <= 0), so the emission
+    # The clamped-depth parametrization has no far hemisphere, and relief
+    # normals are mirrored onto the near one (normal_z >= 0 everywhere; night
+    # still floors through mu0 <= 0), so the emission
     # cosine is kept strictly positive: the visibility gate must not zero
     # the exact-limb ring, whose values the upsample continues across the
     # sharper silhouette boundary.
@@ -467,13 +467,100 @@ def _shade_disc(
         surge_amplitude=spec.surge_amplitude,
         surge_width_deg=spec.surge_width_deg,
     )
-    return _apply_surface_textures(intensity, grid, spec), cos_i_smooth
+    return _apply_surface_textures(intensity, grid, spec, field)
+
+
+def _relief_shading(
+    grid: _Grid,
+    spec: TopoBodySpec,
+    field: ReliefField,
+    near: NDArrayBoolType,
+    *,
+    cos_rz: float,
+    sin_rz: float,
+) -> tuple[NDArrayFloatType, NDArrayFloatType, NDArrayFloatType, NDArrayBoolType]:
+    """The relief surface's image-frame normals and cast shadows at the ``near`` pixels.
+
+    Each shading pixel reads the terrain at its smooth-surface direction
+    ``p`` in the body's parameter space (the smooth body is the unit sphere,
+    its poles on the observer axis; a pixel past the smooth limb reads the
+    limb direction).  The relief surface ``(1 + h) p`` has the parameter-space
+    normal ``p - grad h / (1 + h)``, carried to the body frame by the
+    ellipsoid's inverse semi-axes and rotated into the image like the smooth
+    normals.  The sun direction goes to parameter space by the same affine
+    map, where :func:`~spindoctor.sim.forward.relief.cast_shadows` marches the
+    pixels whose sun elevation lies within the field's slope band; a pixel
+    below the band always lies in shadow.  A normal that faces away from the
+    observer is mirrored through the sky plane, so every returned
+    ``normal_z`` is at least 0.
+
+    Parameters:
+        grid: The shading-resolution geometry.
+        spec: The body spec (illumination geometry is read).
+        field: The relief realization.
+        near: The shading pixels the relief can reach.
+        cos_rz: Cosine of the in-plane rotation.
+        sin_rz: Sine of the in-plane rotation.
+
+    Returns:
+        ``(normal_v, normal_u, normal_z)`` at the ``near`` pixels, in their
+        row-major order, and the shading-grid ``shadowed`` mask.
+    """
+    semi = np.array([grid.semi_a, grid.semi_b, grid.semi_c], dtype=np.float64)
+    e2 = grid.e2[near]
+    x = grid.v_rot[near] / grid.semi_a
+    y = grid.u_rot[near] / grid.semi_b
+    radial = np.sqrt(np.maximum(e2, 1.0))
+    p = np.stack([x / radial, y / radial, np.sqrt(np.maximum(0.0, 1.0 - e2))], axis=-1)
+    h = field.sample_points(p)
+    normal_param = p - field.surface_gradient(p) / (1.0 + h)[..., np.newaxis]
+    normal_body = normal_param / semi
+    normal_body /= np.linalg.norm(normal_body, axis=-1, keepdims=True)
+    normal_v = normal_body[..., 0] * cos_rz + normal_body[..., 1] * sin_rz
+    normal_u = -normal_body[..., 0] * sin_rz + normal_body[..., 1] * cos_rz
+    # Near the limb a pixel's smooth-surface direction can land on a slope tilted
+    # away from the observer, which the line of sight can't see: it meets the near
+    # side of the relief first.  Mirroring the normal through the sky plane stands
+    # in for that slope, as steep but facing the observer, so the law never shades
+    # a back-facing facet as lit.
+    normal_z = np.abs(normal_body[..., 2])
+
+    # The sun in the body frame (the inverse of the normals' in-plane
+    # rotation), then in parameter space, where directions scale by 1 / semi.
+    illum_v, illum_u, illum_z = illumination_vector(
+        illumination_angle=spec.illumination_angle, phase_angle=spec.phase_angle
+    )
+    sun_body = np.array(
+        [
+            illum_v * cos_rz - illum_u * sin_rz,
+            illum_v * sin_rz + illum_u * cos_rz,
+            illum_z,
+        ]
+    )
+    sun = sun_body / semi
+    sun /= float(np.linalg.norm(sun))
+
+    on_body = e2 < (1.0 + max(field.h_max, 0.0)) ** 2
+    cos_beta = stable_matmul3(p.reshape(-1, 3), sun).reshape(p.shape[:-1])
+    tan_elevation = cos_beta / np.sqrt(np.maximum(1.0 - cos_beta**2, 1e-24))
+    band = _SLOPE_BAND_MARGIN * field.slope_max / (1.0 + field.h_min)
+    shadowed_near = on_body & (tan_elevation <= -band)
+    marched = on_body & (np.abs(tan_elevation) < band)
+    if marched.any():
+        cell = 2.0 * np.pi / field.grid.shape[0]
+        shadowed_near[marched] = cast_shadows(
+            p[marched], sun, field, step=cell / _MARCH_SAMPLES_PER_CELL
+        )
+    shadowed = np.zeros(grid.e2.shape, dtype=np.bool_)
+    shadowed[near] = shadowed_near
+    return normal_v, normal_u, normal_z, shadowed
 
 
 def _apply_surface_textures(
     intensity: NDArrayFloatType,
     grid: _Grid,
     spec: TopoBodySpec,
+    field: ReliefField | None,
 ) -> NDArrayFloatType:
     """Apply the spec's multiplicative textures and transits to the shading.
 
@@ -482,12 +569,15 @@ def _apply_surface_textures(
     transiting moon discs overwrite on top (from the pre-texture smooth-law
     shading -- a foreground moon does not inherit the parent's texture).
     Everything happens on the shading grid, so the silhouette (rasterized
-    separately on the working grid) is untouched by construction.
+    separately on the working grid) is untouched by construction.  Transits
+    reach the body's outline: the relief outline when the body has relief,
+    else the smooth limb.
 
     Parameters:
         intensity: The law-shaded intensity on the shading grid.
         grid: The shading-resolution geometry.
         spec: The body spec (texture and transit fields are read).
+        field: The relief realization, or None for the smooth limb.
 
     Returns:
         The textured intensity (the input array, unchanged, when the spec
@@ -516,7 +606,7 @@ def _apply_surface_textures(
             base_intensity=intensity,
             v_ctr=grid.v_ctr,
             u_ctr=grid.u_ctr,
-            disc_mask=grid.e2 < 1.0,
+            disc_mask=grid.e2 < 1.0 if field is None else _silhouette_mask(grid, field) > 0.0,
         )
     return textured
 
@@ -573,15 +663,17 @@ def _silhouette_mask(grid: _Grid, field: ReliefField | None) -> NDArrayFloatType
     """The body's silhouette on the working grid, relief-perturbed when on.
 
     With relief, ``e_adj = e / (1 + delta(theta))`` places the limb at
-    ``r_ellipse * (1 + delta)``; the perturbation only matters in a band
-    ``|e - 1| <= |delta|_max`` around the smooth limb, so azimuths and the
-    limb slice are evaluated on that band only.
+    ``r_ellipse * (1 + delta)``, with ``delta`` the relief surface's outline
+    envelope (:meth:`~spindoctor.sim.forward.relief.ReliefField.outline_delta`);
+    the perturbation only matters in a band ``|e - 1| <= |delta|_max`` around
+    the smooth limb, so azimuths and the outline are evaluated on that band
+    only.
 
     The relief azimuth ``phi`` is the elliptical parametric angle in the
     body's rotated frame, NOT the image azimuth about the body center: the
-    relief field is attached to the body, so the silhouette slice and the
-    terminator march sample one consistent surface under any in-plane
-    rotation.  For a circular disc the two conventions coincide.
+    relief field is attached to the body, so the outline, the shading, and
+    the cast shadows read one consistent surface under any in-plane rotation.
+    For a circular disc the two conventions coincide.
 
     Parameters:
         grid: The working-grid geometry.
@@ -601,196 +693,6 @@ def _silhouette_mask(grid: _Grid, field: ReliefField | None) -> NDArrayFloatType
             # Body-attached azimuth: the rotated-frame elliptical parametric
             # angle (identical to the image azimuth for a circular disc).
             phi = np.arctan2(grid.u_rot[band] / grid.semi_b, grid.v_rot[band] / grid.semi_a)
-            delta = field.limb_delta(phi)
+            delta = field.outline_delta(phi)
             mask[band] = e_band <= 1.0 + delta
     return mask.astype(np.float64)
-
-
-def _apply_terminator_shadows(
-    intensity_work: NDArrayFloatType,
-    grid: _Grid,
-    field: ReliefField,
-    *,
-    spec: TopoBodySpec,
-    cos_i_smooth: NDArrayFloatType,
-    shade_e2: NDArrayFloatType,
-    up_factor: int,
-    cos_rz: float,
-    sin_rz: float,
-    cos_rt: float,
-) -> None:
-    """Shadow near-terminator pixels against upstream relief, in place.
-
-    Candidate pixels are the disc points within the march cap of the
-    terminator: on the shading-grid incidence map, points whose sun
-    elevation ``eps`` (surface distance to the terminator is ``R * eps``)
-    lies within their own cap ``min((h_max - h_min) * cot(eps),
-    sqrt(2 * (h_max - h_min)))`` radians of arc, widened by the coarse-band
-    margins and refined per-pixel with exact incidence.  The relief and arc maps
-    are built only over the band dilated by the cap's reach, and the march
-    itself is :func:`spindoctor.sim.forward.relief.march_shadows`, stepping
-    at the relief field's own grid resolution (never finer than one
-    render pixel of surface arc).
-
-    Parameters:
-        intensity_work: Working-grid intensity, modified in place.
-        grid: The working-grid geometry.
-        field: The relief realization.
-        spec: The body spec (illumination geometry is read).
-        cos_i_smooth: Smooth-surface incidence map on the shading grid.
-        shade_e2: Squared radial function on the shading grid.
-        up_factor: Working-grid pixels per shading-grid pixel.
-        cos_rz: Cosine of the in-plane rotation.
-        sin_rz: Sine of the in-plane rotation.
-        cos_rt: Cosine of the tilt.
-    """
-    from scipy import ndimage
-
-    radius_max = max(grid.semi_a, grid.semi_b, grid.semi_c)
-    height_range = (field.h_max - field.h_min) * radius_max
-    if height_range <= 0.0:
-        return
-    # In-plane sun direction (unit): the direction the march walks toward.
-    sun_v = -math.cos(spec.illumination_angle)
-    sun_u = math.sin(spec.illumination_angle)
-    if math.sin(spec.phase_angle) <= 0.0:
-        # No in-plane sun component: no terminator crosses the disc.
-        return
-
-    # Coarse candidate band on the shading grid, refined exactly below: the
-    # disc points within the march cap of the terminator.  The sun elevation
-    # eps puts a point R * eps of surface arc from the terminator, so the
-    # cap condition is eps <= min((h_max - h_min) * cot(eps),
-    # sqrt(2 (h_max - h_min))) radians (the local radius cancels; the second
-    # term is the horizon of the highest peak seen from the lowest valley, the
-    # longest reach shadow_reach allows), widened by the band margins.
-    h_range = field.h_max - field.h_min
-    radius_min = min(grid.semi_a, grid.semi_b, grid.semi_c)
-    pad_rad = _BAND_MARGIN_PAD_PX * up_factor / max(radius_min, 1.0)
-    elevation = np.arcsin(np.clip(cos_i_smooth, 0.0, 1.0))
-    with np.errstate(divide='ignore'):
-        cap_rad = np.minimum(
-            h_range / np.maximum(np.tan(elevation), 1e-12),
-            math.sqrt(2.0 * h_range),
-        )
-    coarse = (
-        (shade_e2 < 1.0)
-        & (cos_i_smooth > 0.0)
-        & (elevation <= cap_rad * _BAND_MARGIN_FACTOR + pad_rad)
-    )
-    if not coarse.any():
-        return
-    coarse = ndimage.binary_dilation(coarse, iterations=1)
-
-    # The maps must cover the longest capped march: d_max surface px, each
-    # advancing at most 1 / cos(tilt) image px.
-    d_max_global = radius_max * math.sqrt(2.0 * h_range)
-    reach_work = d_max_global / max(cos_rt, 0.1) + 2.0
-    reach_shade = math.ceil(reach_work / up_factor) + 1
-    region_shade = ndimage.maximum_filter(coarse, size=2 * reach_shade + 1)
-
-    disc = grid.e2 < 1.0
-    candidate_mask = _upscale_mask(coarse, up_factor) & disc
-    region_mask = _upscale_mask(region_shade, up_factor) & disc
-    region_v, region_u = np.nonzero(region_mask)
-    if region_v.size == 0:
-        return
-
-    x = grid.v_rot[region_v, region_u] / grid.semi_a
-    y = grid.u_rot[region_v, region_u] / grid.semi_b
-    z_n = np.sqrt(np.clip(1.0 - x * x - y * y, 1e-12, 1.0))
-    # The sample longitude arctan2(y, x) is the same body-attached
-    # rotated-frame parametric azimuth the silhouette slice uses, so the
-    # march heights and the limb perturbation read one consistent field.
-    h_frac = field.sample(np.arcsin(np.clip(z_n, -1.0, 1.0)), np.mod(np.arctan2(y, x), 2 * np.pi))
-    radius_local = np.sqrt(
-        (grid.semi_a * x) ** 2 + (grid.semi_b * y) ** 2 + (grid.semi_c * z_n) ** 2
-    )
-
-    # Surface arc spanned by one image pixel along the sun direction.
-    sun_rv = (sun_v * cos_rz - sun_u * sin_rz) * cos_rt
-    sun_ru = sun_v * sin_rz + sun_u * cos_rz
-    tangential = (x * sun_rv / grid.semi_a + y * sun_ru / grid.semi_b) / z_n
-    arc = np.sqrt(sun_rv**2 + sun_ru**2 + (grid.semi_c * tangential) ** 2)
-
-    height_map = np.zeros(grid.e2.shape, dtype=np.float64)
-    arc_map = np.zeros(grid.e2.shape, dtype=np.float64)
-    height_map[region_v, region_u] = h_frac * radius_local
-    arc_map[region_v, region_u] = arc
-
-    # Exact incidence at the candidate pixels (smooth-surface normals).
-    cand_in_region = candidate_mask[region_v, region_u]
-    cand_v = region_v[cand_in_region]
-    cand_u = region_u[cand_in_region]
-    if cand_v.size == 0:
-        return
-    xc = x[cand_in_region]
-    yc = y[cand_in_region]
-    zc = z_n[cand_in_region]
-    nv_local = xc / grid.semi_a
-    nu_local = yc / grid.semi_b
-    nz_local = zc / grid.semi_c
-    norm = np.sqrt(nv_local**2 + nu_local**2 + nz_local**2)
-    nv_local /= norm
-    nu_local /= norm
-    nz_local /= norm
-    illum_v, illum_u, illum_z = illumination_vector(
-        illumination_angle=spec.illumination_angle, phase_angle=spec.phase_angle
-    )
-    cos_i = (
-        (nv_local * cos_rz + nu_local * sin_rz) * illum_v
-        + (-nv_local * sin_rz + nu_local * cos_rz) * illum_u
-        + nz_local * illum_z
-    )
-
-    lit = cos_i > 1e-9
-    tan_i = np.zeros_like(cos_i)
-    tan_i[lit] = np.sqrt(np.maximum(0.0, 1.0 - cos_i[lit] ** 2)) / cos_i[lit]
-    r_local_c = radius_local[cand_in_region]
-    h_frac_c = h_frac[cand_in_region]
-    # The march samples the terrain at the field's own resolution (the field
-    # is band-limited well above its grid-cell scale), never finer than
-    # the exact one-render-pixel step used for small bodies.
-    cell_arc_px = 2.0 * np.pi / field.grid.shape[0] * radius_max
-    step_arc = max(1.0, cell_arc_px / _MARCH_SAMPLES_PER_CELL)
-    # A pixel is marchable only when the cap admits at least one sample.
-    d_max = shadow_reach(h_frac_c, tan_i, r_local_c, h_max=field.h_max)
-    marchable = lit & (d_max >= step_arc)
-    if not marchable.any():
-        return
-
-    # The candidates are array rows and columns and the march reads pixel
-    # corner coordinates, so the half pixel goes on here.
-    shadow, _stats = march_shadows(
-        cand_v[marchable] + PIXEL_CENTER_TO_CORNER_PX,
-        cand_u[marchable] + PIXEL_CENTER_TO_CORNER_PX,
-        h_point=h_frac_c[marchable],
-        tan_incidence=tan_i[marchable],
-        radius_px=r_local_c[marchable],
-        height_map=height_map,
-        arc_per_px_map=arc_map,
-        domain_mask=region_mask,
-        h_max=field.h_max,
-        h_min=field.h_min,
-        sun_v=sun_v,
-        sun_u=sun_u,
-        step_arc_px=step_arc,
-    )
-    shadow_v = cand_v[marchable][shadow]
-    shadow_u = cand_u[marchable][shadow]
-    intensity_work[shadow_v, shadow_u] = DARK_SIDE_FLOOR
-
-
-def _upscale_mask(mask: NDArrayBoolType, factor: int) -> NDArrayBoolType:
-    """Expand a shading-grid boolean mask to the working grid by block repeat.
-
-    Parameters:
-        mask: The shading-grid mask.
-        factor: Working-grid pixels per shading-grid pixel.
-
-    Returns:
-        The working-grid mask.
-    """
-    if factor == 1:
-        return mask
-    return np.repeat(np.repeat(mask, factor, axis=0), factor, axis=1)
