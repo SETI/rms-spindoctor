@@ -47,10 +47,11 @@ from spindoctor.nav_technique.ring_edge_geometry import (
     _absorbed_orbit_sensitivity,
     _aggregate_normal_orientation,
     _effective_orbit_sigma_px,
-    _is_rank_1,
     _orbit_inflated_covariance,
     _rank1_projected_covariance,
+    _shape_tilt_covariance,
     _straight_edge_normals,
+    is_rank_1,
 )
 from spindoctor.nav_technique.ring_edge_stats import (
     _EdgeFitStat,
@@ -82,17 +83,23 @@ def _aggregate_ring_edges(
     NDArrayFloatType,
     list[str],
     bool,
+    NDArrayFloatType,
 ]:
     """Concatenate vertices, polarity normals, and per-vertex sigmas for ring edges.
 
     Returns:
         ``(vertices, polarity_normals, sigmas, feature_ids,
-        every_edge_is_straight)``.  ``every_edge_is_straight`` is True
-        when every input edge has ``is_straight_line=True``; the
+        every_edge_is_straight, pixel_normals)``.  ``every_edge_is_straight``
+        is True when every input edge has ``is_straight_line=True``; the
         technique uses it to drive the rank-1 covariance path.
+        ``pixel_normals`` are the normals the edge-strength scores and the
+        gradient-ridge pass read: each edge's ``pixel_normals_vu`` where it
+        carries them and its ``normals_vu`` otherwise, with a straight edge's
+        replaced by the line's normal exactly as for ``polarity_normals``.
     """
     vert_chunks: list[NDArrayFloatType] = []
     normal_chunks: list[NDArrayFloatType] = []
+    strength_chunks: list[NDArrayFloatType] = []
     sigma_chunks: list[NDArrayFloatType] = []
     ids: list[str] = []
     every_straight = True
@@ -111,13 +118,20 @@ def _aggregate_ring_edges(
         # gradient points across the edge in the same sense as the
         # negated normal.
         edge_normals: NDArrayFloatType = feat.geometry.normals_vu.astype(np.float64)
+        pixel_normals: NDArrayFloatType = (
+            edge_normals
+            if feat.geometry.pixel_normals_vu is None
+            else feat.geometry.pixel_normals_vu.astype(np.float64)
+        )
         if feat.geometry.is_straight_line and feat.geometry.vertices_vu.shape[0] >= 2:
-            # A straight edge's quantized per-vertex normals are replaced by the
-            # line's own normal; see ``_straight_edge_normals``.
+            # A straight edge's per-vertex normals are replaced by the line's
+            # own normal; see ``_straight_edge_normals``.
             edge_normals = _straight_edge_normals(
                 feat.geometry.vertices_vu.astype(np.float64), edge_normals
             )
+            pixel_normals = edge_normals
         normal_chunks.append(-edge_normals)
+        strength_chunks.append(-pixel_normals)
         sigma_chunks.append(feat.geometry.sigma_radial_per_vertex_px.astype(np.float64))
         ids.append(feat.feature_id)
     empty_2 = np.empty((0, 2), np.float64)
@@ -125,7 +139,8 @@ def _aggregate_ring_edges(
     vertices = np.concatenate(vert_chunks, axis=0) if vert_chunks else empty_2
     normals = np.concatenate(normal_chunks, axis=0) if normal_chunks else empty_2
     sigmas = np.concatenate(sigma_chunks, axis=0) if sigma_chunks else empty_1
-    return vertices, normals, sigmas, ids, (every_straight if seen_any else False)
+    strength = np.concatenate(strength_chunks, axis=0) if strength_chunks else empty_2
+    return vertices, normals, sigmas, ids, (every_straight if seen_any else False), strength
 
 
 class RingEdgeNav(NavTechnique):
@@ -165,8 +180,9 @@ class RingEdgeNav(NavTechnique):
                 number greater than zero (zero is physically meaningless
                 against a half-pixel-quantized edge mask, and a
                 non-numeric value would otherwise fail far from the
-                config that caused it), if ``coarse_sensor_margin_px`` is
-                not a non-negative integer, or if
+                config that caused it), if ``shape_sigma_px`` is not a finite
+                number of at least zero, if ``coarse_sensor_margin_px`` is not
+                a non-negative integer, or if
                 ``spurious_min_edge_strength_fraction`` or
                 ``coarse_strength_keep_ratio`` lies outside ``[0, 1]``.
         """
@@ -228,6 +244,12 @@ class RingEdgeNav(NavTechnique):
             raise ValueError(
                 'RingEdgeNav.coarse_strength_keep_ratio must lie in [0, 1]; '
                 f'got {self._coarse_strength_keep_ratio!r}'
+            )
+        self._shape_sigma_px = float(self.tuning['shape_sigma_px'])
+        if not math.isfinite(self._shape_sigma_px) or self._shape_sigma_px < 0.0:
+            raise ValueError(
+                'RingEdgeNav.shape_sigma_px must be a finite number >= 0; '
+                f'got {self._shape_sigma_px!r}'
             )
         self._dt_gate_config = DTFitGateConfig.from_tuning(self.tuning)
 
@@ -291,6 +313,7 @@ class RingEdgeNav(NavTechnique):
                 sigmas,
                 feature_ids,
                 every_straight,
+                pixel_normals,
             ) = _aggregate_ring_edges(features)
             self.logger.info(
                 'Consuming %d RING_EDGE features (out of %d offered); every_straight=%s',
@@ -335,11 +358,13 @@ class RingEdgeNav(NavTechnique):
                 if self._coarse_sensor_margin_px > 0
                 else context.sensor_mask_ext
             )
+            # The edge-strength scores read the normals their thresholds were
+            # measured with (see ``RingEdgePolyline.pixel_normals_vu``).
             coarse = self._coarse_seed(
                 edge_mask,
                 gradient_vu,
                 vertices,
-                polarity_normals,
+                pixel_normals,
                 (margin_v, margin_u),
                 valid_mask=sensor_interior,
             )
@@ -351,7 +376,10 @@ class RingEdgeNav(NavTechnique):
             )
             result = lm_subpixel_refine(
                 vertices_vu=vertices,
-                normals_vu=polarity_normals,
+                # The gradient-ridge pass steps along these normals; it reads
+                # the pixel-neighbor normals so the fit's trajectory, and the
+                # along-edge position the coarse seed gives it, are unchanged.
+                normals_vu=pixel_normals,
                 sigma_normal_per_vertex_px=sigmas,
                 image_edge_dt=edge_dt,
                 image_gradient_vu=gradient_vu,
@@ -363,6 +391,11 @@ class RingEdgeNav(NavTechnique):
                 trust_region_px=self._lm_trust_region_px,
                 tikhonov_alpha=self._lm_tikhonov_alpha,
                 final_gradient_ridge=self._gradient_ridge_refine,
+                # Each vertex measures only its displacement across the edge,
+                # along the model's radial normal; the edge mask's DT staircase
+                # would otherwise report the along-edge position of a nearly
+                # straight arc as well determined as the radial one (#755).
+                covariance_normals_vu=polarity_normals,
             )
             dv_final, du_final = result.offset_vu
             max_rotation_rad = math.radians(context.max_rotation_deg)
@@ -477,7 +510,7 @@ class RingEdgeNav(NavTechnique):
                 len(edge_stats),
             )
             translation_full_rank = not result.degenerate and not (
-                every_straight or _is_rank_1(np.asarray(covariance, np.float64))
+                every_straight or is_rank_1(np.asarray(covariance, np.float64))
             )
             veto_waived = (
                 len(edge_stats) >= 2
@@ -544,7 +577,7 @@ class RingEdgeNav(NavTechnique):
                 edge_dt,
                 gradient_vu,
                 _rotate_vertices(vertices, pivot_vu, fitted_rotation_rad),
-                _rotate_directions(polarity_normals, fitted_rotation_rad),
+                _rotate_directions(pixel_normals, fitted_rotation_rad),
                 (dv_final, du_final),
                 valid_mask=sensor_interior,
             )
@@ -594,8 +627,8 @@ class RingEdgeNav(NavTechnique):
                 rotation_rad = None
                 sigma_rotation_rad = None
             covariance = np.asarray(covariance, np.float64)
-            is_rank_1 = _is_rank_1(covariance) or every_straight
-            if is_rank_1:
+            rank_1 = is_rank_1(covariance) or every_straight
+            if rank_1:
                 # Enforce the rank-1 contract on the reported covariance.
                 # On an all-straight scene the along-edge (tangent) offset
                 # component is physically unobservable, but the LM
@@ -627,6 +660,30 @@ class RingEdgeNav(NavTechnique):
                     'reported covariance',
                     self._spurious_waiver_sigma_floor_px,
                 )
+            # Correlated-shape channel: a radial model error that varies along
+            # the arc is common to every vertex, so it does not average down
+            # over the polyline, and a nearly straight arc absorbs it as an
+            # along-edge slide many times its size.  The term prices that slide
+            # through the geometry (about sigma * sqrt(12) * R / L along a
+            # low-curvature arc, sigma on a full ring), so the ensemble lets an
+            # independent witness set the axis the rings barely constrain
+            # (#755).  A rank-1 result already reports that axis unobservable.
+            sigma_shape_major_px = 0.0
+            if not rank_1:
+                shape_term = _shape_tilt_covariance(
+                    vertices, polarity_normals, result.weights, self._shape_sigma_px
+                )
+                covariance = np.array(covariance, np.float64, copy=True)
+                covariance[:2, :2] += shape_term
+                sigma_shape_major_px = float(
+                    math.sqrt(max(float(np.linalg.eigvalsh(shape_term)[-1]), 0.0))
+                )
+                self.logger.info(
+                    'Widening the reported covariance by the correlated-shape term: '
+                    'sigma %.3f px gives %.3f px on its major axis',
+                    self._shape_sigma_px,
+                    sigma_shape_major_px,
+                )
             # Radial orbit-uncertainty channel: the LM covariance describes
             # the statistical lock onto the MODELED annulus; a catalog-orbit
             # error displaces the whole annulus coherently and does not
@@ -640,7 +697,7 @@ class RingEdgeNav(NavTechnique):
             # the covariance stays exactly singular along the tangent.
             sigma_orbit_px = _effective_orbit_sigma_px(features, result.weights)
             if sigma_orbit_px > 0.0:
-                if is_rank_1:
+                if rank_1:
                     orbit_g = _aggregate_normal_orientation(polarity_normals)
                 else:
                     orbit_g = _absorbed_orbit_sensitivity(polarity_normals, result.weights)
@@ -661,10 +718,11 @@ class RingEdgeNav(NavTechnique):
                 per_edge_dt_rms_mean=per_edge_rms_mean,
                 per_edge_dt_median_max=per_edge_median_max,
                 edge_count=edge_count,
-                is_rank_1=bool(is_rank_1),
+                is_rank_1=bool(rank_1),
                 lm_converged=gate_verdict.lm_converged,
                 coarse_peak_fraction=gate_verdict.coarse_peak_fraction,
                 sigma_orbit_radial_px=sigma_orbit_px,
+                sigma_shape_major_px=sigma_shape_major_px,
             )
             assert self.confidence_spec is not None  # set as class attribute
             confidence, breakdown = evaluate_sigmoid_combination(
@@ -690,7 +748,7 @@ class RingEdgeNav(NavTechnique):
                 result.rms_px,
                 result.inlier_count,
                 int(vertices.shape[0]),
-                is_rank_1,
+                rank_1,
                 float(confidence),
             )
             if fit_rotation and sigma_rotation_rad is not None and rotation_rad is not None:
@@ -839,7 +897,7 @@ def aggregate_edge_normal_angle_deg(features: list[NavFeature]) -> float | None:
         straight — the constraint direction is only meaningful for a rank-1
         scene.
     """
-    _vertices, normals, _sigmas, ids, every_straight = _aggregate_ring_edges(features)
+    _vertices, normals, _sigmas, ids, every_straight, _strength = _aggregate_ring_edges(features)
     if not ids or not every_straight:
         return None
     n_hat = _aggregate_normal_orientation(normals)

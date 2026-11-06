@@ -253,6 +253,13 @@ class RingEdgeDiagnostics:
             weight-weighted combine of the consumed features'
             ``sigma_orbit_radial_px``); ``0.0`` when no consumed feature
             declares an orbit uncertainty.
+        sigma_shape_major_px: Major-axis sigma (px) of the correlated-shape
+            term added to the reported covariance: the translation the fit
+            would absorb from a radial model error varying linearly across the
+            fitted vertices.  On a nearly straight arc it lies along the edge
+            and is many times ``shape_sigma_px``; on a full ring it equals it.
+            ``0.0`` for a rank-1 result, whose along-edge axis is reported
+            unobservable instead.
     """
 
     total_edge_length_px: float = 0.0
@@ -264,6 +271,7 @@ class RingEdgeDiagnostics:
     lm_converged: bool = True
     coarse_peak_fraction: float = 0.0
     sigma_orbit_radial_px: float = 0.0
+    sigma_shape_major_px: float = 0.0
     CURATOR_FIELDS: ClassVar[dict[str, str | None]] = {
         'total_edge_length_px': 'total_edge_length_px',
         'per_edge_dt_rms_summed': 'per_edge_dt_rms_summed',
@@ -274,6 +282,7 @@ class RingEdgeDiagnostics:
         'lm_converged': 'lm_converged',
         'coarse_peak_fraction': 'coarse_peak_fraction',
         'sigma_orbit_radial_px': 'sigma_orbit_radial_px',
+        'sigma_shape_major_px': 'sigma_shape_major_px',
     }
 
 

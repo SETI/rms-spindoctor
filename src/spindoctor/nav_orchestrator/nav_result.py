@@ -21,7 +21,12 @@ from spindoctor.support.cmatrix import PointingSolution
 from spindoctor.support.status_reason import NavStatusReason
 from spindoctor.support.types import NDArrayFloatType
 
-__all__ = ['NavInternalErrorRecord', 'NavResult']
+__all__ = [
+    'ArbitrationCandidate',
+    'ConflictArbitrationRecord',
+    'NavInternalErrorRecord',
+    'NavResult',
+]
 
 
 Status = Literal['success', 'failed', 'conflicted']
@@ -80,6 +85,39 @@ class NavInternalErrorRecord:
                 )
             if not value.strip():
                 raise ValueError(f'NavInternalErrorRecord.{name} must be a non-empty string')
+
+
+@dataclass(frozen=True)
+class ArbitrationCandidate:
+    """One answer of a conflicted pass 1 as the pass-2 test saw it.
+
+    Parameters:
+        techniques: Names of the pass-1 results whose answer this is, one per result in
+            the ensemble's order, so a technique that measured two bodies appears twice.
+        offset_px: The answer, ``(dv, du)``, at which pass 2 was seeded.
+        support: Distinct features the usable pass-2 results consumed at it.
+        confirmed: True for the answer the test confirmed.
+    """
+
+    techniques: tuple[str, ...]
+    offset_px: tuple[float, float]
+    support: int
+    confirmed: bool
+
+
+@dataclass(frozen=True)
+class ConflictArbitrationRecord:
+    """What the pass-2 test of a conflicted pass 1 found.
+
+    Parameters:
+        candidates: The consensus answer, then the runner-up answer.
+        refuted_techniques: Names of the pass-1 results reported refuted, one per
+            result, so a technique that measured two bodies appears twice; empty when the
+            test confirmed neither answer.
+    """
+
+    candidates: tuple[ArbitrationCandidate, ...]
+    refuted_techniques: tuple[str, ...]
 
 
 @dataclass(frozen=True, eq=False)
@@ -147,6 +185,8 @@ class NavResult:
             reported offset rests on.  ``0`` when the offset rests on no star;
             ``None`` when no offset was reported, or when the offset was not
             formed by the navigation techniques (a manual alignment).
+        conflict_arbitration: What the pass-2 test of a conflicted pass 1 found;
+            ``None`` when the test did not run.  Stamped by the orchestrator.
     """
 
     status: Status
@@ -170,6 +210,7 @@ class NavResult:
     pointing: PointingSolution | None = None
     internal_error: NavInternalErrorRecord | None = None
     matched_star_count: int | None = None
+    conflict_arbitration: ConflictArbitrationRecord | None = None
 
     def __post_init__(self) -> None:
         """Validate status against offset and reason, and the solution's finiteness."""

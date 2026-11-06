@@ -537,7 +537,14 @@ def reduce_catalogs(
                 mag_max=mag_max_clamped,
                 radec_movement=radec_movement,
             )
-            next_per_catalog.extend(chunk)
+            # Adjacent bins share their edge magnitude, so a star whose magnitude
+            # equals an edge is returned by both; keep its first record only.
+            seen = {star.unique_number for star in next_per_catalog}
+            next_per_catalog.extend(
+                star
+                for star in chunk
+                if star.unique_number is None or star.unique_number not in seen
+            )
             if len(next_per_catalog) >= max_stars:
                 break
 

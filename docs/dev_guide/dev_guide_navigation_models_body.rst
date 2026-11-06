@@ -165,7 +165,7 @@ the DT-based fit treats motion along the polyline as essentially unobservable by
 Visible-lit and overflow fractions
 ----------------------------------
 
-Two scalars derived from the discrete masks gate the disc-template emission:
+Two scalars derived from the discrete masks decide whether the disc template is emitted:
 
 .. math::
 
@@ -186,7 +186,7 @@ A lit pixel a nearer body hides (see :ref:`body-body occlusion <body-occlusion>`
 usable disc-template support, so it is excluded from the visible-lit numerator while the
 denominator stays the whole predicted disc. At deep mutual-event overlap the visible-lit
 fraction therefore falls toward the surviving crescent, which drops the disc reliability and,
-below the minimum, gates the disc feature out entirely.
+below the minimum, keeps the disc feature from being emitted at all.
 
 Lit-weighted predicted centroid
 -------------------------------
@@ -213,7 +213,8 @@ body-to-Sun direction, so the blob feature also carries its unit form as
 ``sub_solar_dir_vu``. :doc:`dev_guide_techniques_body_blob` orients its high-phase
 crescent coarse-acquisition template along this direction (a filled disc cannot match a
 crescent). Near full phase the two centroids coincide and the direction is meaningless, so it
-is reported as ``(0, 0)`` and the technique falls back to a disc template. The derivation is
+is reported as ``(0, 0)``. The technique then falls back to a disc template and splits
+its centroid covariance's phase terms evenly over both axes. The derivation is
 model-agnostic -- it reads only the rendered appearance -- so a SPICE-backed body model
 populates the same field without extra plumbing.
 
@@ -228,13 +229,28 @@ uncertainty with a phase factor:
     \kappa = \frac{\sigma_{\mathrm{ellipsoid}}}{R_{\mathrm{body}}} \cdot
              \left( 1 + 2 \sin^{2}\!\left(\frac{\phi}{2}\right) \right)
 
-where :math:`R_{\mathrm{body}}` is the predicted body radius (half the predicted disc diameter,
-in km, derived from the local km/px scale) and :math:`\phi` is the phase angle. The phase
-factor evaluates to 1 at full phase, 2 at 90 degrees, and 3 at full crescent — even at
-zero phase the body's rotational orientation is unknown, so a residual-scale centroid bias is
-always present. The blob feature's confidence formula consumes :math:`\kappa` directly so a
-high-phase, irregular scene can be down-weighted without re-deriving the formula at the
-technique layer.
+where :math:`R_{\mathrm{body}}` is the predicted body radius (half the predicted disc
+diameter, in km, derived from the local km/px scale) and :math:`\phi` is the phase angle.
+The phase factor evaluates to 1 at full phase, 2 at 90 degrees, and 3 at full crescent —
+even at zero phase the body's rotational orientation is unknown, so a residual-scale
+centroid bias is always present. The blob feature's confidence formula consumes
+:math:`\kappa` directly so a high-phase, irregular scene can be down-weighted without
+re-deriving the formula at the technique layer, and
+:class:`~spindoctor.nav_technique.nav_technique_body_blob.BodyBlobNav` adds :math:`\kappa
+R_c` in quadrature to each blob's centroid-bias sigma, with the radius capped at the
+technique's ``bias_radius_cap_px`` (see :doc:`dev_guide_techniques_body_blob`).
+
+Ephemeris uncertainty
+---------------------
+
+The blob feature also carries
+:attr:`~spindoctor.feature.flags.BodyBlobFlags.ephemeris_sigma_px`, the body's SPK
+position uncertainty in pixels:
+:attr:`~spindoctor.nav_model.body_shape.BodyShape.spice_orbital_residual_km` divided by
+the km per pixel at the body's limb, or 0 when that scale is unknown. An ephemeris error
+moves the whole blob, so
+:class:`~spindoctor.nav_technique.nav_technique_body_blob.BodyBlobNav` adds it to the
+blob's centroid variance on both axes.
 
 Feature emission gates
 ----------------------
@@ -272,9 +288,11 @@ any pointing error. For a uniformly lit disc of radius :math:`R` cut by one stra
 edge, with the cut-off segment holding fraction :math:`f` of the silhouette at a centroid
 distance :math:`d` from the center, the displacement is :math:`f\,d / (1 - f)`. That is
 :math:`0.047\,R` at :math:`f = 0.05` and :math:`0.055\,R` at :math:`f = 0.06`. The blob
-covariance budgets :math:`0.05\,R` for all centroid bias (``model_error_size_frac`` in the
+covariance budgets :math:`0.05\,R` for the centroid bias every blob carries whatever its
+phase and shape (``model_error_size_frac`` in the
 :class:`~spindoctor.nav_technique.nav_technique_body_blob.BodyBlobNav` tuning), so beyond
-:math:`f = 0.05` the clipping bias alone exceeds the uncertainty the blob reports.
+:math:`f = 0.05` the clipping bias alone exceeds that budget, and on a regular body at low
+phase it exceeds the uncertainty the blob reports.
 
 The fraction is measured on the silhouette clipped to the extended frame, as the share of
 that clipped silhouette lying in the margin, not as the share of the whole disc lying off
@@ -630,8 +648,12 @@ covariance and emission gates:
   topographic scale (km).
 - :attr:`~spindoctor.nav_model.body_shape.BodyShape.albedo_variation` — fractional disc-brightness
   variation in :math:`[0, 1]`. Drives the terminator-arc reliability formula.
-- :attr:`~spindoctor.nav_model.body_shape.BodyShape.spice_orbital_residual_km` — SPK ephemeris
-  uncertainty in km.
+- :attr:`~spindoctor.nav_model.body_shape.BodyShape.spice_orbital_residual_km` — SPK
+  ephemeris uncertainty in km. Added in quadrature to the LIMB_ARC per-vertex sigma, and,
+  at the limb's image scale, carried on each ``BODY_BLOB`` as
+  :attr:`~spindoctor.feature.flags.BodyBlobFlags.ephemeris_sigma_px`. The fallback
+  profiles set 0.5 km for the major Saturn moons, 2 km for very irregular moons, 2 km for
+  a body that has no profile, and 10 km for the giant planets.
 - :attr:`~spindoctor.nav_model.body_shape.BodyShape.min_blob_diameter_px` — predicted disc
   diameter (px) at which the extractor stops emitting
   :attr:`~spindoctor.feature.feature_type.NavFeatureType.LIMB_ARC` and switches to
@@ -734,15 +756,15 @@ Call path traced through
      uncertainty is at or below
      :data:`~spindoctor.nav_model.nav_model_body.LIMB_ARC_MAX_UNCERTAINTY_PX`, a
      :data:`~spindoctor.feature.feature_type.NavFeatureType.LIMB_ARC` feature is emitted. The
-     downstream disc gate then has a chance to fire alongside the limb arc when
+     disc template can then be emitted alongside the limb arc when
      ``visible_lit_fraction`` and ``overflow_fraction`` allow.
-   - The blob gate is met when the predicted disc diameter is at least
+   - A blob qualifies when the predicted disc diameter is at least
      ``max(`` :data:`~spindoctor.nav_model.nav_model_body_base.BODY_BLOB_MIN_DIAMETER_PX` ``,``
      :attr:`~spindoctor.nav_model.body_shape.BodyShape.min_blob_diameter_px` ``)`` and the
      rendered silhouette contains at least one lit pixel. When the limb arc was rejected but
-     the blob gate is met, a
+     the blob qualifies, a
      :data:`~spindoctor.feature.feature_type.NavFeatureType.BODY_BLOB` feature is emitted as
-     the sole body feature. When the limb arc was emitted and the blob gate is also met, a
+     the sole body feature. When the limb arc was emitted and the blob also qualifies, a
      BODY_BLOB is co-emitted alongside the limb (and disc) as a witness. Either way the blob
      feature carries the lit-weighted predicted centroid and the phase-and-irregularity factor
      :math:`\kappa` on its :class:`~spindoctor.feature.flags.BodyBlobFlags`; the witness blob

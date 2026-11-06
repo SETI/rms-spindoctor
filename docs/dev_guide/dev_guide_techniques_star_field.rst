@@ -68,16 +68,45 @@ brightness-weighted moment around each kept peak gives the sub-pixel centroid, a
 similarly capped.
 
 The isolation test is what lets the matcher see the stars on a frame crossed by a bright
-ring. On 16 F ring frames of ``ISS_006RI_LPHRLFMOV001_PRIME`` examined in detail, every
-one of the 30 brightest local maxima lies on the ring or on the overexposed rings beside
-it, and the real stars rank between about 300th and 500th of the 12,000-odd local maxima.
-Among isolated sources the same stars rank in the first ten. Neither the wide-offset
-fallback nor the triplet search can match a star that is not among its detections: the
-technique ran on 777 of the observation's 1030 frames and answered on none of them without
-the test, and on 479 with it, 420 of them through the wide-offset fallback. The outcome is
-insensitive to the ratio: 0.3, 0.5, and 0.7 navigate 741, 744, and 743 of the 1030 frames,
-every one within 2 px of the published bundle.
+ring. It was built for the Cassini ISS narrow angle F ring observation
+``ISS_006RI_LPHRLFMOV001_PRIME``, whose frames are its tuning cases. On 16 of them
+examined in detail, every one of the 30 brightest local maxima lies on the ring or on the
+overexposed rings beside it, and the real stars rank between about 300th and 500th of the
+12,000-odd local maxima. Among isolated sources the same stars rank in the first ten.
+Neither the wide-offset fallback nor the triplet search can match a star that is not among
+its detections: the technique ran on 777 of the observation's 1030 frames and answered on
+none of them without the test, and on 479 with it, 420 of them through the wide-offset
+fallback. The outcome is insensitive to the ratio: 0.3, 0.5, and 0.7 navigate 741, 744,
+and 743 of the 1030 frames, every one within 2 px of its reference pointing, the pointing
+found for it by an independent navigation of the Cassini F ring observations, separate
+from this software (see :doc:`dev_guide_orchestrator_ensemble`).
 
+Before the ``max_sources`` cut, a peak more concentrated than any star can be is set aside
+as a cosmic-ray hit. The observation's narrowest star point-spread function
+(``star_sharpness_psf``, a Gaussian whose sigma the instrument configuration gives as
+``star_sharpness_psf_sigma``) bounds, over every sub-pixel position of a star, the largest
+share of the light in the 5x5 box around its brightest pixel that the brightest pixel, the
+brightest pixel with the brightest of its eight neighbors, and the brightest 2x2 block
+holding the brightest pixel can hold. Only pixels touching the brightest one count, so a
+second hit or a hot pixel elsewhere in a star's box does not make the star look
+concentrated. Smear, saturation, and defocus only spread a star's light, so these bounds
+hold for every star. A candidate is set aside when the light in any of the three exceeds
+its bound's share of the box by more than ``psf_sharpness_sigma`` times the noise of that
+difference. The background is the median of a ring of pixels 2 wide around the box, and
+pixels below it count as no light, so a dark row or column through the box does not make a
+star look concentrated. An instrument whose configuration gives no
+``star_sharpness_psf_sigma``, or none for the image's row count, skips the test: the
+modeled star point-spread function is not a bound unless it has been checked against the
+narrowest stars the camera records. A simulated frame skips it as well, since a scene
+renders its stars at its own point-spread function.
+
+A cosmic-ray hit of two to four pixels, with nothing around it, is the case the test is
+for. On a long exposure taken in high cosmic-ray flux, such hits outnumber and outshine
+the faint stars. The test was built for Cassini ISS narrow angle frame N1597888595 (1.5 s,
+CL1 and CL2), a tuning case, which holds about 220 compact sources away from the rings, 29
+of them brighter than its V 10.7 star. On 30 Cassini ISS F ring frames (24 narrow angle
+and 6 wide angle), the test set aside none of the 878 candidates within 1.5 px of a
+catalog star at the frame's reference pointing and 745 of the 7,195 others.
 
 Hash-space match
 ----------------
@@ -305,6 +334,11 @@ in ``src/spindoctor/config_files/config_510_techniques.yaml``.
   loosen this once the integration library exercises the full instrument set.
 - ``centroid_box_half_px`` — int, default ``3`` px. Half-width of the brightness-weighted
   moment box around each accepted peak.
+- ``psf_sharpness_sigma`` — float, default ``4.0`` (dimensionless). Noise multiplier by
+  which a detection's brightest pixel, that pixel with the brightest of its eight
+  neighbors, or its brightest 2x2 block must hold more of its 5x5 box than the narrowest
+  star point-spread function allows before the detection is set aside as a cosmic-ray hit.
+  Must be positive.
 - ``source_isolation_inner_px`` — int, default ``4`` px. Inner radius of the annulus over
   which a candidate source's isolation is measured.
 - ``source_isolation_outer_px`` — int, default ``6`` px. Outer radius of that annulus.
@@ -396,7 +430,8 @@ in ``src/spindoctor/config_files/config_510_techniques.yaml``.
 - ``psf_refine_box_px`` — int, default ``11`` px (odd). Square box side for the PSF fit and
   the integrated-SNR estimate around each inlier.
 - ``psf_refine_search_limit_px`` — float, default ``2.0`` px. Maximum search distance from
-  the moment centroid for the PSF fit; the moment is already within a pixel of truth.
+  the moment centroid for the PSF fit; the moment is already within a pixel of the
+  true position.
 - ``psf_refine_snr_max`` — float, default ``30.0`` (dimensionless). Integrated-SNR ceiling
   for the moment/PSF crossover: an inlier whose box SNR exceeds this keeps its moment
   centroid (its noise has already fallen below the PSF fit's sub-pixel-phase bias floor);
@@ -464,6 +499,8 @@ Source files:
   ``similarity_transform_fit`` (Kabsch / Procrustes solve).
 - ``src/spindoctor/nav_technique/_star_isolation.py`` — package-private source isolation
   test (``isolation_radii``, ``isolated_response``).
+- ``src/spindoctor/nav_technique/_star_sharpness.py`` — package-private bound on how
+  concentrated a star can be (``psf_concentration``, ``sharper_than_psf``).
 - ``src/spindoctor/nav_technique/confidence.py`` — sigmoid-combination evaluator; documented at
   :doc:`dev_guide_techniques_confidence`.
 - ``src/spindoctor/nav_technique/diagnostics.py`` —

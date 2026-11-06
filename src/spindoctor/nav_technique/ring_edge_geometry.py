@@ -20,12 +20,13 @@ import math
 from typing import cast
 
 import numpy as np
+from scipy.linalg import pinvh
 
 from spindoctor.feature.feature import NavFeature
 from spindoctor.feature.geometry import RingEdgePolyline
 from spindoctor.support.types import NDArrayFloatType
 
-__all__: list[str] = []
+__all__ = ['is_rank_1']
 
 
 _MAX_SAME_SENSE_SENSITIVITY: float = 4.0 / math.pi
@@ -97,7 +98,7 @@ two paths agree on whether a result is rank-deficient.
 """
 
 
-def _is_rank_1(covariance: NDArrayFloatType) -> bool:
+def is_rank_1(covariance: NDArrayFloatType) -> bool:
     """Return True when the covariance is rank-deficient in its translation block.
 
     For both 2x2 (translation-only) and 3x3 (translation + rotation) inputs
@@ -106,6 +107,13 @@ def _is_rank_1(covariance: NDArrayFloatType) -> bool:
     rotation is fit.  Uses the same scale-independent test as the ensemble
     combine: the ratio of the smallest absolute eigenvalue to the largest
     must fall below :data:`_RANK1_NULL_RELATIVE_THRESHOLD`.
+
+    Parameters:
+        covariance: A 2x2 or 3x3 covariance; any other shape is not judged.
+
+    Returns:
+        True when the translation block is rank-deficient (an all-zero block counts);
+        False for a full-rank block or a covariance of any other shape.
     """
     if covariance.shape not in ((2, 2), (3, 3)):
         return False
@@ -419,6 +427,83 @@ def _orbit_inflated_covariance(
     variance = sigma_orbit_px * sigma_orbit_px
     out[:2, :2] += variance * (np.outer(g, g) + (1.0 - g_sq) * np.eye(2))
     return cast(NDArrayFloatType, out)
+
+
+def _shape_tilt_covariance(
+    vertices_vu: NDArrayFloatType,
+    polarity_normals: NDArrayFloatType,
+    weights: NDArrayFloatType,
+    sigma_shape_px: float,
+) -> NDArrayFloatType:
+    """Return the translation covariance a linear radial shape error induces.
+
+    The fit places each vertex along its own normal, so the along-edge position
+    of a nearly straight arc is set only by how the normals turn along it: a
+    one pixel slide along an arc of radius ``R`` moves vertices a distance
+    ``s`` from its middle by ``s / R`` radially.  Any error in the modeled
+    radius that varies linearly along the arc -- a catalog orbit wrong by more
+    at one end than the other, an uncorrected twist, a distortion residual --
+    tilts the residuals the same way, and the fit absorbs it as an along-edge
+    slide of ``R / s`` times the tilt.  That error is common to every vertex,
+    so it does not average down over the polyline the way the per-vertex
+    statistical scale does.
+
+    The error modeled is a radial displacement field that varies linearly
+    across the fitted vertices, in any image direction, with root-mean-square
+    ``sigma_shape_px`` over them.  For a gradient along the unit direction
+    ``a`` the displacement of vertex ``i`` is
+    ``sigma_shape_px * (a . d_i) / rho``, with ``d_i`` the vertex's offset from
+    the weighted centroid and ``rho`` the weighted RMS of ``|d_i|``, and the
+    fit absorbs the translation ``t = M^+ B a * sigma_shape_px / rho`` with
+    ``M = sum_i w_i n_i n_i^T`` and ``B = sum_i w_i n_i d_i^T``.  Summing
+    ``t t^T`` over two orthogonal directions gives a result independent of
+    the image axes:
+
+    .. math::
+        \\Sigma_{\\mathrm{shape}} = \\frac{\\sigma^{2}}{\\rho^{2}}\\,
+            M^{+} B B^{T} M^{+}
+
+    - A nearly straight arc of length ``L`` and radius of curvature ``R``
+      gives about ``sigma * sqrt(12) * R / L`` along the edge and almost
+      nothing across it.
+    - A full circle gives ``sigma`` in every direction: a field that pushes one
+      side of a ring out and the other in is exactly a translation.
+    - An exactly straight edge gives zero: a tilt across a line is a rotation,
+      which a translation cannot absorb, and the along-edge axis is reported
+      unobservable by the rank-1 path instead.
+
+    The normals carry their signs intact (radially outward, with at most one
+    global flip, which the result is invariant to), so a tilt pushes every
+    edge outward together.
+
+    Parameters:
+        vertices_vu: ``(N, 2)`` model vertices.
+        polarity_normals: ``(N, 2)`` per-vertex unit normals, one shared sign
+            convention.
+        weights: ``(N,)`` non-negative per-vertex final fit weights.
+        sigma_shape_px: RMS of the radial shape error over the vertices (px).
+
+    Returns:
+        ``(2, 2)`` covariance in ``(v, u)``; zero when no vertex carries weight
+        or the vertices do not spread.
+    """
+    w = np.clip(np.asarray(weights, np.float64), 0.0, None)
+    total = float(w.sum())
+    zero = np.zeros((2, 2), np.float64)
+    if total <= 0.0 or sigma_shape_px <= 0.0:
+        return cast(NDArrayFloatType, zero)
+    centroid = (w @ vertices_vu) / total
+    offsets = vertices_vu - centroid
+    rho_sq = float(w @ np.sum(offsets * offsets, axis=1)) / total
+    if rho_sq <= 0.0:
+        return cast(NDArrayFloatType, zero)
+    weighted_normals = polarity_normals * w[:, None]
+    info = weighted_normals.T @ polarity_normals
+    info = 0.5 * (info + info.T)
+    coupling = weighted_normals.T @ offsets
+    absorbed = pinvh(info) @ coupling
+    covariance = (sigma_shape_px * sigma_shape_px / rho_sq) * (absorbed @ absorbed.T)
+    return cast(NDArrayFloatType, 0.5 * (covariance + covariance.T))
 
 
 def _rank1_projected_covariance(

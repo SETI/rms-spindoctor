@@ -105,7 +105,8 @@ model-error terms added in quadrature, following the same derivation as
 content on unit-std-normalized surfaces (amplitude-invariant, inflated by the residual
 correlation area), and a ``localization_uncertainty_scale * consistency`` localization-spread
 term plus a ``model_error_floor_px`` absolute floor carry the template model error that
-dominates the true registration error. The ring annulus size (``model_error_size_frac``)
+dominates the true registration error. The floor can be set per camera (see
+"Configuration"). The ring annulus size (``model_error_size_frac``)
 term is disabled by default because the ring bulk error does not track the annulus radial
 span.
 
@@ -124,8 +125,9 @@ consequently price the same declared hazard, which is what lets the fused radial
 cover the residual bias rather than being carried by whichever member left it un-widened.
 
 The absorbed direction comes from the annulus fit's own radial geometry: the outward normals
-of the constituent ring edges painted into the composite template, which the upstream rings
-model concatenates onto
+of the constituent ring edges painted into the composite template (the gradient of the
+ring-radius backplane at each edge pixel, the true radial direction; see
+:doc:`dev_guide_navigation_models_ring`), which the upstream rings model concatenates onto
 :attr:`~spindoctor.feature.geometry.RingAnnulusGeometry.orbit_normals_vu` with an effective
 :attr:`~spindoctor.feature.geometry.RingAnnulusGeometry.sigma_orbit_radial_px`. The technique
 feeds those normals through the same absorbed-translation solve the ring-edge fit runs on its
@@ -155,7 +157,17 @@ peak quality, consistency, and top-k count):
   inter-pyramid-level peak migration (``consistency``, px) into an added translation sigma.
 - ``model_error_size_frac`` — float, default ``0.0`` (fraction of the annulus radial span);
   disabled because the ring bulk error does not track span.
-- ``model_error_floor_px`` — float, default ``0.13`` px. Absolute floor added in quadrature.
+- ``model_error_floor_px`` — float, default ``0.13`` px. Absolute floor added in
+  quadrature. A camera whose instrument config declares ``model_error_floor_px:
+  {RingAnnulusNav: ...}`` uses that floor instead (see
+  :doc:`dev_guide_orchestrator_instrument_config`); the technique reads it from
+  :attr:`~spindoctor.nav_orchestrator.nav_context.NavContext.model_error_floor_px` and
+  logs the replacement. The 0.13 px default fits the Cassini NAC. Over the 401 NAC annulus
+  answers in one navigation of the full F ring set of Cassini ISS frames (see
+  :doc:`dev_guide_orchestrator_ensemble`), a measurement that did not set the value, the
+  Mahalanobis distance to each frame's reference pointing (the pointing found for it by
+  independent navigations of the Cassini F ring and ring-spoke observations, separate from
+  this software) has a median of 0.71 and exceeds 3 on 1.2% of them.
 
 Feature-emission tunables (per-planet)
 --------------------------------------
@@ -173,11 +185,14 @@ composite for the edges that compressed below ``max_radial_px``.
 
 For Saturn the km/px threshold routes by measured reliability, not by pixel span: at or above
 25 km/px radial resolution the whole Saturn system routes to the annulus composite, and the
-per-edge distance-transform fit receives only sub-25 km/px scenes. A 131-frame clean-truth
-head-to-head measured the per-edge fit wrong-when-accepted at 5% / 13% / 56% / 100% in the
-300-1000 / 100-300 / 25-100 / 0-25 km/px bands, while the annulus fit was wrong on zero
-accepted answers at every band -- so the annulus route covers the regimes that comparison
-validates, everything at or above 25 km/px. The per-edge fit degrades toward fine resolution, where the ring alias lattice
+per-edge distance-transform fit receives only sub-25 km/px scenes. The threshold was chosen
+on 131 Cassini ISS frames of the ring-spoke observations whose reference pointing the
+operator had audited, with frames of unrefined pointing or of the wrong frame removed. On
+them a head-to-head measured the per-edge fit wrong-when-accepted at 5% / 13% / 56% / 100%
+in the 300-1000 / 100-300 / 25-100 / 0-25 km/px bands, while the annulus fit was wrong on
+zero accepted answers at every band -- so the annulus route covers the regimes that
+comparison validates, everything at or above 25 km/px. The per-edge fit degrades toward
+fine resolution, where the ring alias lattice
 resolves into many distinct similar concentric edges and a shape-only fit locks onto the wrong
 one; the rendered-brightness template disambiguates the lattice because relative ring
 brightness is part of the match. Below 25 km/px the trustworthy evidence is three frames on
