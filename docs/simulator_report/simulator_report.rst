@@ -261,36 +261,34 @@ from.
      - Provenance
    * - ``coiss_calib_nac``
      - 1.6e-5
-     - 0.0
+     - 2.0e-5
      - Hot-pixel fraction measured on the 58-frame calibrated NAC cohort as its
        stationary spike fraction: single-pixel spikes recurring at fixed
-       positions across the cohort.  Cosmic-ray rate is a retained zero: the
-       same cohort measures a 2.75e-4 per-frame transient spike fraction, but
-       that rate is exposure-independent while the chain's cosmic-ray stage
-       scales counts with exposure and deposits near full well, so a fitted
-       rate is not adopted through this chain.  Unblocked by a per-readout,
-       modest-amplitude transient term.
+       positions across the cohort.  Cosmic-ray terms fitted in closed loop to
+       the 12-bit dark-sky frames: they flag 120-270 spikes per megapixel at
+       every exposure from 60 ms to 2.6 s and 650 at 18 s, so the hits arrive
+       mostly while the frame waits to be read (6 s of dwell), and the spikes
+       peak at a median 800-1,300 e- over 4-8 pixels (a 1,000 e- deposit
+       scale, diffused by 0.6 px).
    * - ``coiss_calib_wac``
      - 1.6e-5
-     - 0.0
+     - 2.0e-5
      - Hot-pixel fraction shared with the calibrated NAC measurement.
-       Cosmic-ray rate is a retained zero for the same exposure-independence
-       and full-well-amplitude mismatch; the 4-frame WAC cohort is
-       star-contaminated besides (its
-       4.89e-4 transient fraction comes entirely from the three star frames,
-       the one body frame measuring zero).
+       Cosmic-ray terms shared with the NAC: the two cameras share the CCD
+       and its readout.  The WAC's one 12-bit dark frame, a 26 s star field,
+       flags more spikes than the terms deposit, its stars adding to the
+       count.
    * - ``gossi``
      - 1.4e-6
-     - 0.0
+     - 2.0e-5
      - Hot-pixel fraction measured on the 8-frame Galileo REDR cohort as its
        stationary spike fraction, 1.4e-6: the REDR blemish correction removes
-       most hot pixels.  Cosmic-ray rate is a retained zero: the cohort's
-       1.17e-4 transient fraction is reproduced at 1.1e-3 events per pixel per
-       second, but the chain deposits every event at full well, and at that
-       rate the matched frames' saturated fraction rose from 3.3e-5 to 2.3e-4
-       against 1.3e-5 real.  Unblocked by a modest-amplitude transient term.
-
-       .. The transient term is tracked as issue #330.
+       most hot pixels.  Cosmic-ray terms fitted in closed loop to the
+       cohort's transient spikes, 57-129 per frame at 33/58/150 DN (10th,
+       50th, and 90th percentile): 4.33 s of dwell (half the full-frame
+       readout), a 6,000 e- deposit scale, and 0.4 px of diffusion.  The
+       rendered frames' saturated fraction stays at 3e-6; full-well deposits
+       had pushed it to 2.3e-4 against 1.3e-5 real.
    * - ``vgiss``
      - n/a (vidicon path)
      - 0.0
@@ -484,10 +482,9 @@ the same estimator on both sides (EE50 0.87 sim vs 0.91 real; EE80 1.70
 vs 1.79), though the 25 real cutouts spread wider than the simulated
 ones (EE50 W1/IQR 1.01); the stationary artifact rate matches (1.9e-5
 of pixels sim vs 1.6e-5 real, hot pixels recurring at fixed detector
-positions on both sides), while the transient (cosmic-ray) share stays
-unmodeled on every chain -- each catalog entry retains an explicit zero
-beside its measured rate and the chain-model reason (see the
-measured-transients known gap); limb rise widths agree in the
+positions on both sides), while the transient (cosmic-ray) share comes
+from the catalog's fitted cosmic-ray terms (see the measured-transients
+known gap); limb rise widths agree in the
 like-for-like pool (co-populated-strata medians 2.537 sim vs 2.540 px
 real, W1/IQR 0.17) with per-stratum divergences from 0.20 to 1.89 --
 worst at high phase, where the simulated crescent limb measures *wider*
@@ -582,9 +579,9 @@ negative case, so FOMs 2-4 are unsupported and *gossi sim accuracy is
 bounded by unverified forward-model fidelity* for PSF and shape rendering
 until the star-calibration frames land.  What the cohort does support:
 FOM 6 -- the stationary spike fraction, 1.4e-6, is the catalog's
-hot-pixel fraction, while the transient fraction, 1.2e-4 of pixels, is
-unmodeled (the measured-transients known gap), so the simulated median
-spike fraction is 0 against 1.2e-4 real (normalized W1 1.21) -- and the
+hot-pixel fraction, while the transient fraction, 1.2e-4 of pixels, comes
+from the catalog's fitted cosmic-ray terms (the measured-transients known
+gap) -- and the
 observation that the real REDR sky floor
 is quantization-locked at exactly 1 LSB while the frames carry an extended
 background glow the matched sky frames do not model (see the known gaps).
@@ -702,22 +699,23 @@ cannot close, it is recorded here rather than force-fitted:
    FOM 2 pins independently.  The Galileo negative frames carry an
    extended background glow (scattered light) that matched sky frames do
    not model, which dominates that cohort's FOM 5 comparison.
-3. **Measured transients exceed what the cosmic-ray stage can express.**
-   Every cohort measures a nonzero transient spike fraction (NAC 2.75e-4,
-   WAC 4.89e-4, Galileo 1.17e-4, LORRI 3.36e-4 per frame), yet no
-   catalog entry adopts a ``cosmic_ray_events_per_pixel_per_sec``: the Cassini
-   rate is exposure-independent (readout-dominated) and
-   modest-amplitude while the chain's stage scales event counts with
-   exposure and deposits near full well -- an adoption attempt
-   (2026-07-17) inflated the matched frames' sky-noise statistics ~5x
-   and was reverted; the Galileo rate that reproduces its transients
-   (1.1e-3) raised the matched frames' saturated fraction from 3.3e-5 to
-   2.3e-4 against 1.3e-5 real, because every event lands at full well; the
-   LORRI measurement is star-contaminated (both cohort frames are binned
-   star fields); and the Voyager GEOMED resampling interpolates most
-   transients away.
-   Each catalog entry records its measured rate and the unblocking
-   condition beside the retained zero.
+3. **Measured transients.**  The Cassini and Galileo transients come from
+   cosmic-ray terms fitted in closed loop.  The cosmic-ray stage collects hits
+   during the exposure and a readout dwell, deposits a modest charge, and
+   diffuses it, and the catalog's terms reproduce the spike counts,
+   amplitudes, and sizes of the dark-sky frames through the FOM 6
+   detector.  Four differences remain.  The simulated NAC amplitude tail
+   is shorter (90th percentile ~1,800 e- against 4,000-7,000 e- real).
+   At gain state 3 the sim flags 4-6x the two real frames, whose stronger
+   line noise raises the detector's threshold.  The cohort's mean
+   transient share is pulled up by a few frames that flag 900-2,400
+   spikes from quantization steps and ring or body texture, so the
+   mean-based split runs below it while the per-frame median matches.
+   And LORRI and Voyager keep a zero rate: both LORRI cohort frames are
+   binned star fields, where a faint star is indistinguishable from a
+   transient, and the Voyager GEOMED resampling interpolates most
+   transients away.  Each catalog entry records its measurement and, for
+   a zero, the unblocking condition.
 
 Example scenes
 ==============

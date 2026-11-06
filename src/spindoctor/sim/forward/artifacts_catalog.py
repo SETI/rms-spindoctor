@@ -248,18 +248,19 @@ def resolve_sky_pixel_scale_arcsec(instrument: str | None) -> float:
 # modes are transmission artifacts and stay off.
 #
 # cosmic_ray_events_per_pixel_per_sec is the expected number of events per
-# pixel per second of exposure: the chain multiplies it by exposure_sec and
-# the pixel count to get the frame's Poisson mean.  The CCD chain deposits
-# the events in electrons and the vidicon DN chain in DN, with the same
-# meaning.
+# pixel per second the detector collects: the chain multiplies it by
+# exposure_sec plus cosmic_ray_readout_dwell_sec (the hits a frame collects
+# while it waits to be read) and the pixel count to get the frame's Poisson
+# mean.  Each event deposits at least cosmic_ray_amplitude_e (the full well
+# when unset, so every hit clips), diffused by cosmic_ray_spread_px.  The CCD
+# chain deposits the events in electrons and the vidicon DN chain in DN, with
+# the same meaning.
 # The realism match's FOM 6 transient split (single-pixel spikes that do
 # NOT recur at fixed detector positions across the cohort) measures the
-# candidate rate per instrument.  Every current entry retains zero, each
-# with its measured rate, the specific reason adoption fails through this
-# chain (exposure-scaling / full-well-amplitude mismatch for Cassini,
-# double-counting against the tuned per-scene hot pixels for Galileo,
-# star-field contamination for LORRI, GEOMED resampling for Voyager), and
-# the unblocking condition, recorded beside the value.
+# candidate rate per instrument.  Each entry records its measurement beside
+# the value: a fitted rate, or a retained zero with the reason (star-field
+# contamination for LORRI, GEOMED resampling for Voyager) and the unblocking
+# condition.
 #
 # The vidicon (Voyager) path skips the electron conversion; its noise is applied
 # directly in DN (5.3): line-correlated read noise (per-line offset +
@@ -293,24 +294,21 @@ DETECTOR_DEFAULTS: dict[str, dict[str, Any]] = {
         # 5.2 interim: total-charge fraction bled into the warm column above a
         # hot pixel (the streak integral, not a per-pixel amplitude).
         'hot_pixel_column_factor': 0.3,
-        # RETAINED zero 2026-07-18 after an adoption attempt.  The realism
-        # match measures a real transient single-pixel spike fraction of
-        # 2.75e-4 per frame on the 58-frame CALIB NAC cohort (stationary
-        # hot pixels excluded; star-bearing and body/ring frames agree at
-        # 2.60e-4 vs 2.79e-4, so scene point sources are not the driver).
-        # But the measured rate is exposure-INdependent -- mean
-        # fraction ~2e-4 in every exposure band from <= 0.2 s to > 2 s,
-        # and the 22 s frame measures 1.1e-4 where an exposure-scaling
-        # rate fitted at the median frame predicts ~3e-3 -- while this
-        # chain's cosmic-ray stage scales event counts with exposure_sec
-        # and deposits near full well.  Adopting a fitted 1.5e-4
-        # events/px/s (tried 2026-07-17) corrupted the matched frames'
-        # FOM 1 statistics (sim sky-patch sigma median 2.2e-4 -> 1.0e-3
-        # I/F against 2.1e-4 real) and overshot the FOM 6 transient
-        # fraction ~2x through the multi-pixel event morphology.
-        # Unblocked by a per-readout (exposure-independent),
-        # modest-amplitude transient term in the detector chain.
-        'cosmic_ray_events_per_pixel_per_sec': 0.0,
+        # Fitted 2026-11-06 in closed loop: dark raw NAC frames rendered at
+        # the cohort's exposures and run through the FOM 6 spike detector
+        # match the 12-bit dark-sky cohort frames.  Those frames flag about
+        # 120-270 spikes per megapixel at every exposure from 60 ms to 2.6 s
+        # and 650 at 18 s, so most hits arrive while the frame waits to be
+        # read (6 s of dwell); the spikes peak at a median 800-1,300 e-
+        # over 4-8 pixels, so the deposits are modest and diffused, not
+        # full-well points.  The simulated amplitude tail is shorter (90th
+        # percentile ~1,800 e- against 4,000-7,000 e- real).  At gain
+        # state 3 the sim flags 4-6x the two real frames, whose stronger
+        # line noise raises the detector's threshold.
+        'cosmic_ray_events_per_pixel_per_sec': 2.0e-5,
+        'cosmic_ray_readout_dwell_sec': 6.0,
+        'cosmic_ray_amplitude_e': 1000.0,
+        'cosmic_ray_spread_px': 0.6,
         'banding_amplitude_e': 30.0,  # 5.2 interim (~30 e- NAC 2 Hz)
         'banding_period_px': 64.0,  # 5.2 interim (line-readout-rate period)
         'bias_pedestal_sigma_dn': 2.0,  # 5.2 interim (per-image pedestal jitter)
@@ -363,14 +361,14 @@ DETECTOR_DEFAULTS: dict[str, dict[str, Any]] = {
         'hot_pixel_fraction': 2.0e-3,
         'hot_pixel_amplitude_e': 3.5e4,
         'hot_pixel_column_factor': 0.3,
-        # RETAINED zero 2026-07-18: same exposure-independence and
-        # full-well-amplitude mismatch as the NAC entry (the two cameras
-        # share this chain model), and the WAC's own 4-frame cohort is
-        # star-contaminated besides -- its measured 4.89e-4 per-frame
-        # transient fraction comes entirely from the three star-bearing
-        # frames while the one body frame measures zero.  Unblocked
-        # together with the NAC's per-readout transient term.
-        'cosmic_ray_events_per_pixel_per_sec': 0.0,
+        # The NAC's fitted cosmic-ray terms: the two cameras share the CCD
+        # and its readout.  The WAC's one 12-bit dark frame (a 26 s star
+        # field) flags 1,817 spikes per megapixel, above the ~640 these terms
+        # deposit, with its stars adding to the count.
+        'cosmic_ray_events_per_pixel_per_sec': 2.0e-5,
+        'cosmic_ray_readout_dwell_sec': 6.0,
+        'cosmic_ray_amplitude_e': 1000.0,
+        'cosmic_ray_spread_px': 0.6,
         'banding_amplitude_e': 6.0,  # 5.2 interim (~6 e- WAC 4 Hz)
         'banding_period_px': 64.0,
         'bias_pedestal_sigma_dn': 2.0,
@@ -417,17 +415,19 @@ DETECTOR_DEFAULTS: dict[str, dict[str, Any]] = {
         'hot_pixel_amplitude_e': 4.0e4,
         # 5.4 interim (early-blooming columns; total-charge fraction).
         'hot_pixel_column_factor': 0.5,
-        # RETAINED zero 2026-11-01 after an adoption attempt.  The cohort
-        # measures a transient spike fraction of 1.17e-4 per frame (all
-        # negative cases, so no scene point sources contaminate the split).
-        # With the stationary population on its own fixed map, the matched
-        # frames' simulated transient fraction is linear in this rate:
-        # 5.5e-5 at 5.4e-4, 1.07e-4 at 1.0e-3, and 1.68e-4 at 1.6e-3, so
-        # 1.1e-3 reproduces the measured fraction.  But the chain deposits
-        # every event at full well, and at 1.1e-3 the matched frames'
-        # saturated fraction rose from 3.3e-5 to 2.3e-4 against 1.3e-5 real.
-        # Unblocked by a modest-amplitude transient term (#330).
-        'cosmic_ray_events_per_pixel_per_sec': 0.0,
+        # Fitted 2026-11-06 in closed loop against the cohort's transient
+        # spikes (all negative cases, so no scene point sources contaminate
+        # the split): 57-129 per 800x800 frame at 50-100 ms, peaking at
+        # 33/58/150 DN (10th/50th/90th percentile).  Rendered dark frames
+        # flag 91 at 33/51/127 DN, with a saturated fraction of 3e-6 (the
+        # cohort's 1.3e-5 includes its scenes); the earlier full-well
+        # deposits pushed it to 2.3e-4.  The count barely moves with
+        # exposure, so the hits arrive during the readout: the dwell is
+        # half the 8 2/3 s full-frame readout.
+        'cosmic_ray_events_per_pixel_per_sec': 2.0e-5,
+        'cosmic_ray_readout_dwell_sec': 4.33,
+        'cosmic_ray_amplitude_e': 6000.0,
+        'cosmic_ray_spread_px': 0.4,
         'banding_amplitude_e': 65.0,  # 5.4 interim (~0.35 DN at gain 2 -> ~65 e-)
         'banding_period_px': 42.0,  # 5.4 (2400 Hz supply-noise comb every 42 px)
         'bias_pedestal_sigma_dn': 1.0,
