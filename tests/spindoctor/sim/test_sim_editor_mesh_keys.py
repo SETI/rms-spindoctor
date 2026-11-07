@@ -55,6 +55,7 @@ from spindoctor.cli.sim_editor import CreateSimulatedImageModel
 from spindoctor.cli.sim_editor.body_mesh_keys import (
     MESH_REFUSED_WIDGETS,
     MeshKeyStash,
+    _hover_targets,
     stash_message,
 )
 from spindoctor.sim.scene import (
@@ -457,6 +458,24 @@ def test_every_control_inside_a_refused_control_explains_the_refusal(model: Any,
             if c.toolTip() != _refusal(backed)
         ]
         assert wrong == [], attr
+
+
+def test_the_hover_walk_stops_at_a_spin_box_and_a_combo_box(qapp: QApplication) -> None:
+    """The walk reaches each control and label but never the parts a compound is built from."""
+    group = QGroupBox()
+    label = QLabel('Radius', group)
+    spin = QDoubleSpinBox(group)
+    combo = QComboBox(group)
+    combo.addItems(['a', 'b'])
+    combo.view()  # builds the popup, so the combo holds parts of its own
+    assert spin.findChildren(QWidget) != []
+    assert combo.findChildren(QWidget) != []
+    assert {id(target) for target in _hover_targets(group)} == {
+        id(group),
+        id(label),
+        id(spin),
+        id(combo),
+    }
 
 
 def test_an_ellipsoid_gives_every_control_its_own_tooltip_back(model: Any) -> None:
