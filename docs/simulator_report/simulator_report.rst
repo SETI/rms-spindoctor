@@ -1668,7 +1668,7 @@ offset rendered as a Cassini NAC CALIB product through the full instrument chain
 rays, and the calibration residual) in the CL1+GRN filter, at 0.1 s so the disc
 peaks near 41,000 e-.
 
-.. list-table:: Calibrated sweeps against their raw twins
+.. list-table:: Calibrated sweeps, with the raw twin where there is one
    :header-rows: 1
    :widths: 24 38 38
 

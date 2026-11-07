@@ -1295,8 +1295,9 @@ render departs from it. The sweeps and their floors:
   Titan-like haze and a brighter one can be compared at one thickness.
 
 The remaining Section 8 axes are covered by pre-existing sweeps
-(``noise_read_noise`` and its calibrated twins ``noise_read_noise_calib`` and
-``noise_exposure_calib``, ``artifact_missing_lines``, ``irregularity_shape_mismatch``,
+(``noise_read_noise`` and its calibrated twin ``noise_read_noise_calib``, the
+calibrated exposure walk ``noise_exposure_calib``, which has no raw twin,
+``artifact_missing_lines``, ``irregularity_shape_mismatch``,
 ``pose_disagreement``, ``star_confounder_density``, ``star_catalog_scatter``, and
 the per-technique ``*_offset_fine`` / ``*_offset_wide`` body-ephemeris sweeps) or
 by scene classes where a single-parameter sweep is not the right shape (the
