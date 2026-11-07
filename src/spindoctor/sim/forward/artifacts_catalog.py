@@ -274,7 +274,8 @@ def resolve_sky_pixel_scale_arcsec(instrument: str | None) -> float:
 # one about every ten codes (3 near code 10, 5 near 25, 8 near 55, 13 near 100,
 # 24 near 200), which round(2 * code + 0.055 * code**2) reproduces,
 # alternations included, and which tops out at 4086 DN at code 255.
-_COISS_SQRT_LUT: dict[str, float | bool] = {
+_COISS_SQRT_LUT: dict[str, int | float | bool] = {
+    'codes': 256,
     'linear_dn': 2.0,
     'quadratic_dn': 0.055,
     'whole_dn': True,
@@ -475,7 +476,7 @@ DETECTOR_DEFAULTS: dict[str, dict[str, Any]] = {
                 'vignetting_frac': 0.03,
                 'dust_donut_count': 4,
             },
-            'contouring_8bit': {'step': 8},
+            'quantization_contour_8bit': {'step': 8},
             # HMA/HCA vertical decimation (5.4): only every Nth line carries
             # valid data, so the Galileo periodic-line default is 'keep'.
             'alternating_lines': {'mode': 'keep'},
@@ -600,7 +601,7 @@ DETECTOR_DEFAULTS: dict[str, dict[str, Any]] = {
             'residual_image': {'amplitude': 0.05, 'prior': 'self_offset', 'offset_px': [5, 5]},
             # 48 x n s readout ramp, nonlinear in wait time.
             'dark_ramp': {'kind': 'dark_gradient', 'amplitude_e': 6.0, 'nonlinear': 1.5},
-            'contouring_8bit': {'step': 8},
+            'quantization_contour_8bit': {'step': 8},
             'reseau_scars': {'spacing_px': 46, 'patch_radius_px': 4},
             'resample_texture': {
                 'warp_amp_px': 0.3,

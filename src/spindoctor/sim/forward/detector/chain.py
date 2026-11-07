@@ -106,9 +106,9 @@ def _record_routed_modes(dp: DetectorParams, records: dict[str, Any]) -> None:
     for name in (
         'bias_structure',
         'bloom',
-        'quantization_lut',
+        'quantization_sqrt_lut',
         'quantization_ls8b',
-        'contouring_8bit',
+        'quantization_contour_8bit',
     ):
         if name in dp.detector_modes and name not in records:
             records[name] = {'active': True, **dp.detector_modes[name]}

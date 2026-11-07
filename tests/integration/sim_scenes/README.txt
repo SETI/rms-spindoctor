@@ -187,8 +187,9 @@ take its default.  A top-level block or list set to null reads as unset.
                                      cataloged readout mode; each frame pixel sums
                                      a b-by-b native block), detector_model
                                      (ccd | vidicon), exposure_ref_sec, quantization
-                                     (exact | 8bit | uneven_12bit | sqrt_lut); omitted
-                                     or null keys track the instrument catalog
+                                     (exact | 8bit | uneven_12bit | sqrt_lut | ls8b |
+                                     contour_8bit); omitted or null keys track the
+                                     instrument catalog
   artifacts        (mapping, opt)    instrument_defaults (bool): opt into the emulated
                                      camera's physical signal chain at catalog values
                                      (PSF, distortion residual, shot noise, dark / hot /
@@ -312,8 +313,8 @@ the key's name says what the number means:
                                      resample_texture, and the detector modes
                                      (banding_coherent, bias_structure, dark_ramp,
                                      bloom, frame_transfer_smear, serial_tail,
-                                     beam_bend, residual_image, quantization_lut,
-                                     quantization_ls8b, contouring_8bit,
+                                     beam_bend, residual_image, quantization_sqrt_lut,
+                                     quantization_ls8b, quantization_contour_8bit,
                                      fixed_pattern)
   pixel_fraction   (float in [0, 1]) hot_pixels only: the fraction of detector
                                      pixels that are hot

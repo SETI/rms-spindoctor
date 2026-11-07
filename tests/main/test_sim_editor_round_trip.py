@@ -115,7 +115,7 @@ _FULL_SCENE: dict[str, Any] = {
         # mode rows, not only the two switches.
         'missing_lines': {'expected_events': 2.0, 'contiguous_run': True},
         'banding_coherent': {'probability': 0.5, 'amplitude_e': 3.0},
-        'quantization_lut': {'probability': 1.0},
+        'quantization_sqrt_lut': {'probability': 1.0},
     },
     'instrument_config': {'inherit': 'coiss_nac'},
     # The full body key inventory is split across the two render paths it
@@ -687,7 +687,7 @@ def test_load_full_scene_syncs_mode_rows(
     assert model._adversarial_check.isChecked() is True
     assert model._mode_rows['missing_lines'].group.isChecked() is True
     assert model._mode_rows['banding_coherent'].group.isChecked() is True
-    assert model._mode_rows['quantization_lut'].group.isChecked() is True
+    assert model._mode_rows['quantization_sqrt_lut'].group.isChecked() is True
     expected_events = model._mode_rows['missing_lines']._scalar_widgets['expected_events'].value()
     assert expected_events == 2.0
 
