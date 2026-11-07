@@ -310,14 +310,17 @@ def _apply_ccd(frame: SimFrame, dp: DetectorParams, rng: np.random.Generator) ->
     apply_saturation(
         electrons, full_well_e=dp.full_well_e * dp.binning**2, bloom_length=dp.bloom_length
     )
-    # Cosmic rays deposit well above the full well AFTER the bloom cap, so they
-    # reach the ADC ceiling and land on the orchestrator's masks.
+    # Cosmic rays deposit AFTER the bloom cap, so a full-well-scale hit reaches
+    # the ADC ceiling and lands on the orchestrator's masks; a modest hit stays
+    # below it, as most real ones do.
     add_cosmic_rays(
         electrons,
         events_per_pixel_per_sec=dp.cosmic_ray_events_per_pixel_per_sec,
         exposure_sec=dp.exposure_sec,
-        amplitude_e=dp.full_well_e,
+        amplitude_e=dp.cosmic_ray_amplitude_e,
         rng=_stage_rng(dp.random_seed, 'cosmic_rays'),
+        readout_dwell_sec=dp.cosmic_ray_readout_dwell_sec,
+        spread_px=dp.cosmic_ray_spread_px,
     )
     if dp.read_noise_e > 0.0:
         electrons += rng.normal(0.0, dp.read_noise_e, size=electrons.shape)

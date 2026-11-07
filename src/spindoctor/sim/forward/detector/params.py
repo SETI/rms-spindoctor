@@ -87,7 +87,13 @@ class DetectorParams:
         poisson: Whether shot noise is applied.
         bloom_length: Electron-domain full-well bloom half-length (0 disables).
         cosmic_ray_events_per_pixel_per_sec: Expected cosmic-ray events per pixel
-            per second of exposure.
+            per second the detector collects.
+        cosmic_ray_readout_dwell_sec: Effective seconds the detector collects
+            cosmic rays outside the exposure, while the frame waits to be read.
+        cosmic_ray_amplitude_e: Smallest cosmic-ray deposit per event, in
+            electrons (the full well unless the scene or catalog sets one).
+        cosmic_ray_spread_px: Cosmic-ray charge-diffusion sigma in frame pixels;
+            0 keeps each deposit where it lands.
         dark_current_e_per_sec: Dark current (electrons / sec); 0 disables.
         hot_pixel_fraction: Fraction of pixels that are hot; 0 disables.
         hot_pixel_amplitude_e: Hot-pixel amplitude scale in electrons.
@@ -159,6 +165,9 @@ class DetectorParams:
     poisson: bool
     bloom_length: int
     cosmic_ray_events_per_pixel_per_sec: float
+    cosmic_ray_readout_dwell_sec: float
+    cosmic_ray_amplitude_e: float
+    cosmic_ray_spread_px: float
     dark_current_e_per_sec: float
     hot_pixel_fraction: float
     hot_pixel_amplitude_e: float
@@ -528,6 +537,14 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
 
     gain_e_per_dn = _resolve_gain(catalog, detector_block, instrument=instrument)
     full_well_e = float(catalog.get('full_well_e', full_well_dn * gain_e_per_dn))
+    # The smallest cosmic-ray deposit: a scene value, else the catalog's when
+    # instrument_defaults is on, else the full well, so every hit clips.
+    if 'cosmic_ray_amplitude_e' in scene_noise:
+        cosmic_ray_amplitude = float(scene_noise['cosmic_ray_amplitude_e'])
+    elif instrument_defaults and 'cosmic_ray_amplitude_e' in catalog:
+        cosmic_ray_amplitude = float(catalog['cosmic_ray_amplitude_e'])
+    else:
+        cosmic_ray_amplitude = full_well_e
     filter_name = detector_block.get('filter')
     if filter_name is not None:
         exposure_ref_sec = _filter_exposure_ref(
@@ -572,6 +589,20 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
         cosmic_ray_rate = float(catalog[cr_key]) * pixels_per_frame_pixel
     else:
         cosmic_ray_rate = float(sim_noise.get(cr_key, 0.0))
+    cosmic_ray_dwell = _default_or_zero(
+        scene_noise,
+        catalog,
+        'cosmic_ray_readout_dwell_sec',
+        instrument_defaults=instrument_defaults,
+    )
+    cosmic_ray_spread = _default_or_zero(
+        scene_noise, catalog, 'cosmic_ray_spread_px', instrument_defaults=instrument_defaults
+    )
+    # The catalog states the spread in native pixels, so a binned pixel sees
+    # it shrink by the binning, as the PSF kernel does; a scene key states the
+    # frame pixel's own value.
+    if 'cosmic_ray_spread_px' not in scene_noise:
+        cosmic_ray_spread /= binning
 
     dark_current = _default_or_zero(
         scene_noise, catalog, 'dark_current_e_per_sec', instrument_defaults=instrument_defaults
@@ -725,6 +756,9 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
         poisson=poisson,
         bloom_length=bloom_length,
         cosmic_ray_events_per_pixel_per_sec=cosmic_ray_rate,
+        cosmic_ray_readout_dwell_sec=cosmic_ray_dwell,
+        cosmic_ray_amplitude_e=cosmic_ray_amplitude,
+        cosmic_ray_spread_px=cosmic_ray_spread,
         dark_current_e_per_sec=dark_current,
         hot_pixel_fraction=hot_pixel_fraction,
         hot_pixel_amplitude_e=hot_pixel_amplitude,

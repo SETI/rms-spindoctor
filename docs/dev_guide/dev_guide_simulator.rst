@@ -696,11 +696,16 @@ intensive signal passes through the electron unit chain in
    corner from ``(0, 0)``, raising the fraction only adds pixels, and a
    calibrated Cassini product shares its raw camera's map. An adversarial
    placement onto the navigation features stays per scene.
-5. **Cosmic rays and read noise.** Cosmic rays deposit above the well after the
-   bloom cap, so they reach the ADC ceiling and land on the orchestrator's
-   masks. The event count is a Poisson draw with mean
-   ``cosmic_ray_events_per_pixel_per_sec`` x ``exposure_sec`` x pixel count.
-   Gaussian read noise is added in electrons.
+5. **Cosmic rays and read noise.** Cosmic rays deposit after the bloom cap. The
+   detector collects them during the exposure and while the frame waits to be
+   read, so the event count is a Poisson draw with mean
+   ``cosmic_ray_events_per_pixel_per_sec`` x (``exposure_sec`` +
+   ``cosmic_ray_readout_dwell_sec``) x pixel count. Each event deposits at least
+   ``cosmic_ray_amplitude_e``, diffused by a Gaussian of sigma
+   ``cosmic_ray_spread_px``. Without a deposit scale every hit is full-well
+   scale, so it reaches the ADC ceiling and lands on the orchestrator's masks;
+   the fitted Cassini and Galileo hits are modest, as real ones are. Gaussian
+   read noise is added in electrons.
 6. **Banding, gain to DN, bias structure.** Coherent banding is added in
    electrons; the image is divided by ``gain_e_per_dn`` and offset by the bias
    pedestal into DN; low-order bias structure (per-image pedestal jitter,
@@ -774,7 +779,8 @@ quantization.
 
 Cosmic rays work on the vidicon with the CCD's meaning: the event count is a
 Poisson draw with mean ``cosmic_ray_events_per_pixel_per_sec`` x
-``exposure_sec`` x pixel count, through the same stage. A vidicon stores the
+(``exposure_sec`` + ``cosmic_ray_readout_dwell_sec``) x pixel count, through
+the same stage, with every hit at the vidicon's full scale. A vidicon stores the
 image as charge on its photoconductive target until the electron beam scans it,
 and a charged particle crossing the target discharges it the way light does. So
 the hits join the stored image: after the stars and the erase-cycle residual
@@ -822,9 +828,10 @@ emulated camera's physical signal chain at catalog values: the whole-scene PSF
 kernel and the residual-distortion amplitude
 (:func:`~spindoctor.sim.forward.optics.instrument_defaults_on` gates the optics
 side), and the detector electron chain's Poisson shot noise, read noise, dark
-current, hot pixels, full-well bloom, banding, bias structure, and cosmic-ray
-rate (the detector side reads the same switch; every entry records a
-cosmic-ray rate of zero, each with its reason). An explicit ``noise`` key still
+current, hot pixels, full-well bloom, banding, bias structure, and cosmic rays
+(the detector side reads the same switch). The Cassini cameras and Galileo SSI
+carry cosmic-ray terms fitted to their cohorts' transient spikes; LORRI and
+Voyager keep a zero rate, each with its reason in the catalog. An explicit ``noise`` key still
 wins in either direction -- ``noise: {poisson: false}`` turns the shot term off
 under instrument defaults. It turns on only the *physical* chain: the artifact modes
 (whole-line telemetry loss, compression-block dropouts, radiation transients, and
@@ -1084,7 +1091,7 @@ which mode's truth record is written first.
      - vgiss
      - ``probability``
    * - ``quantization_sqrt_lut``
-     - the Cassini 12-to-8-bit table quantization
+     - companding through the camera's ``sqrt_lut`` table
      - nac, wac
      - ``probability``
    * - ``quantization_ls8b``
@@ -3040,12 +3047,33 @@ against exactly this inventory, so an unknown noise key fails loudly.
    * - ``cosmic_ray_events_per_pixel_per_sec``
      - float
      - 0.0
-     - Expected cosmic-ray events per pixel per second of exposure: a frame's
-       event count is a Poisson draw with mean rate x ``exposure_sec`` x pixel
-       count. ``instrument_defaults`` supplies the catalog rate (0.0 for every
-       instrument). The CCD chain deposits the hits in electrons and the
-       vidicon chain in DN, with the same meaning (see
-       :ref:`sim-detector-stage`).
+     - Expected cosmic-ray events per pixel per second the detector collects: a
+       frame's event count is a Poisson draw with mean rate x
+       (``exposure_sec`` + ``cosmic_ray_readout_dwell_sec``) x pixel count.
+       ``instrument_defaults`` supplies the catalog rate: 2.0e-5 on the
+       Cassini cameras and Galileo SSI, 0.0 on LORRI and Voyager. The CCD
+       chain deposits the hits in electrons and the vidicon chain in DN, with
+       the same meaning (see :ref:`sim-detector-stage`).
+   * - ``cosmic_ray_readout_dwell_sec``
+     - float
+     - 0.0
+     - Effective seconds the detector collects cosmic rays outside the
+       exposure, while the frame waits to be read: 6 s on the Cassini cameras
+       and 4.33 s (half the full-frame readout) on Galileo SSI.
+   * - ``cosmic_ray_amplitude_e``
+     - float
+     - full well
+     - Smallest deposit per cosmic-ray event, in electrons; an event leaves
+       this times one plus a standard lognormal draw. The catalog's 1,000 e-
+       (Cassini) and 6,000 e- (Galileo) give modest hits; unset, every hit is
+       full-well scale.
+   * - ``cosmic_ray_spread_px``
+     - float
+     - 0.0
+     - Gaussian charge-diffusion sigma of each cosmic-ray event. The catalog
+       states it in native pixels (0.6 on Cassini, 0.4 on Galileo), so a
+       binned frame sees it shrink by the binning; a scene value is the frame
+       pixel's own.
    * - ``missing_data_rate``
      - float
      - 0.0
