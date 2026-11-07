@@ -95,7 +95,10 @@ def test_calibrated_exposure_sweep_degrades_to_failure() -> None:
 def test_calibrated_exposure_sweep_fails_between_1_ms_and_0_3_ms() -> None:
     """The last recovering step is 1 ms, and navigation fails from 0.3 ms."""
     by_exposure = {row.value: row for row in _rows('noise_exposure_calib')}
-    assert by_exposure[0.001].status == 'success'
+    last_recovered = by_exposure[0.001]
+    assert last_recovered.status == 'success'
+    assert last_recovered.offset_error_px is not None
+    assert last_recovered.offset_error_px < _RECOVERY_TOLERANCE_PX
     assert by_exposure[0.0003].status == 'failed'
 
 
