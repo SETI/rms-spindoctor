@@ -19,9 +19,11 @@ import functools
 import itertools
 from pathlib import Path
 
+import numpy as np
 import pytest
 
 from spindoctor.sim.forward.atmosphere import DEFAULT_HAZE_ALBEDO
+from spindoctor.sim.render import render_combined_model
 from tests.integration.sim_sweep import (
     SweepRow,
     build_sweep_params,
@@ -36,9 +38,20 @@ _SWEEPS_ROOT = Path(__file__).parent / 'sim_sweeps'
 _RECOVERY_TOLERANCE_PX = 0.5
 
 
+@functools.cache
+def _cached_rows(sweep_name: str) -> tuple[SweepRow, ...]:
+    """Load and run a sweep by name, once per test process."""
+    return tuple(run_sweep(load_sweep(_SWEEPS_ROOT / f'{sweep_name}.yaml')))
+
+
 def _rows(sweep_name: str) -> list[SweepRow]:
-    """Load and run a sweep by name."""
-    return run_sweep(load_sweep(_SWEEPS_ROOT / f'{sweep_name}.yaml'))
+    """The rows of a sweep by name; several tests share one navigated run."""
+    return list(_cached_rows(sweep_name))
+
+
+def _sweep_values(sweep_name: str) -> list[float]:
+    """The values a sweep's specification steps through, in order."""
+    return list(load_sweep(_SWEEPS_ROOT / f'{sweep_name}.yaml').values)
 
 
 def test_noise_sweep_starts_clean() -> None:
@@ -72,10 +85,29 @@ def test_calibrated_noise_sweep_recovers_at_every_read_noise() -> None:
     carries a charge comparable to the raw base's, yet the raw sweep's cliff at
     64 DN does not appear: every step recovers.
     """
-    for row in _rows('noise_read_noise_calib'):
+    rows = _rows('noise_read_noise_calib')
+    assert [row.value for row in rows] == _sweep_values('noise_read_noise_calib')
+    for row in rows:
         assert row.status == 'success'
         assert row.offset_error_px is not None
         assert row.offset_error_px < _RECOVERY_TOLERANCE_PX
+
+
+def test_calibrated_noise_sweep_raises_the_rendered_sky_noise_at_every_step() -> None:
+    """Each read-noise step renders a noisier sky, so the sweep's recovery is not vacuous.
+
+    The noise is read from paired horizontal differences in the frame's top-left
+    32 x 32 px corner, which is sky in the base scene; the scene's seed is the same
+    at every step.
+    """
+    steps = build_sweep_params(load_sweep(_SWEEPS_ROOT / 'noise_read_noise_calib.yaml'))
+    sky_noise = []
+    for _, sim_params in steps:
+        img, _ = render_combined_model(sim_params)
+        corner = np.asarray(img, dtype=np.float64)[:32, :32]
+        sky_noise.append(float(np.std(np.diff(corner, axis=1)) / np.sqrt(2.0)))
+    assert sky_noise == sorted(sky_noise)
+    assert len(set(sky_noise)) == len(sky_noise)
 
 
 def test_calibrated_exposure_sweep_starts_clean() -> None:
@@ -93,13 +125,16 @@ def test_calibrated_exposure_sweep_degrades_to_failure() -> None:
 
 
 def test_calibrated_exposure_sweep_fails_between_1_ms_and_0_3_ms() -> None:
-    """The last recovering step is 1 ms, and navigation fails from 0.3 ms."""
+    """Every step down to 1 ms recovers, and navigation fails at every step from 0.3 ms."""
     by_exposure = {row.value: row for row in _rows('noise_exposure_calib')}
-    last_recovered = by_exposure[0.001]
-    assert last_recovered.status == 'success'
-    assert last_recovered.offset_error_px is not None
-    assert last_recovered.offset_error_px < _RECOVERY_TOLERANCE_PX
-    assert by_exposure[0.0003].status == 'failed'
+    assert sorted(by_exposure) == sorted(_sweep_values('noise_exposure_calib'))
+    for exposure in (0.1, 0.01, 0.001):
+        recovered = by_exposure[exposure]
+        assert recovered.status == 'success', exposure
+        assert recovered.offset_error_px is not None, exposure
+        assert recovered.offset_error_px < _RECOVERY_TOLERANCE_PX, exposure
+    for exposure in (0.0003, 0.0001, 0.00003):
+        assert by_exposure[exposure].status == 'failed', exposure
 
 
 # The calibrated disc's steady sub-pixel bias, and the bump it carries at offsets
@@ -113,7 +148,9 @@ _CALIB_DISC_BUMP_OFFSETS = (0.31, 0.382)
 
 def test_calibrated_disc_offset_sweep_recovers_every_offset() -> None:
     """The disc correlation recovers every sub-pixel offset on the CALIB product."""
-    for row in _rows('disc_offset_fine_calib'):
+    rows = _rows('disc_offset_fine_calib')
+    assert [row.value for row in rows] == _sweep_values('disc_offset_fine_calib')
+    for row in rows:
         assert row.status == 'success'
         assert row.offset_error_px is not None
         assert row.offset_error_px < _RECOVERY_TOLERANCE_PX
