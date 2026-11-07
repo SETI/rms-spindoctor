@@ -210,11 +210,31 @@ def test_a_table_entry_sets_its_own_code_count() -> None:
     assert float(levels[-1]) == pytest.approx(0.01 * 1023.0**2)
 
 
-def test_a_table_with_fewer_than_two_codes_is_refused() -> None:
-    """A one-code table can't quantize anything, so resolving it raises."""
-    entry = {'codes': 1, 'linear_dn': 0.0, 'quadratic_dn': 1.0, 'whole_dn': False}
-    with pytest.raises(ValueError, match='sqrt_lut codes must be at least 2, got 1'):
+@pytest.mark.parametrize(
+    ('override', 'message'),
+    [
+        ({'codes': 1}, r'sqrt_lut codes must be at least 2, got 1$'),
+        ({'codes': 256.5}, r'sqrt_lut codes must be a whole number, got 256\.5$'),
+        ({'linear_dn': float('nan')}, r'must be finite, got linear_dn nan and quadratic_dn 1\.0$'),
+        (
+            {'quadratic_dn': float('inf')},
+            r'must be finite, got linear_dn 0\.0 and quadratic_dn inf$',
+        ),
+    ],
+    ids=['one-code', 'fractional-codes', 'nan-linear', 'infinite-quadratic'],
+)
+def test_an_unusable_table_entry_is_refused(override: dict[str, float], message: str) -> None:
+    """A table entry the encoder can't use raises instead of quantizing badly."""
+    entry = {'codes': 256, 'linear_dn': 0.0, 'quadratic_dn': 1.0, 'whole_dn': False, **override}
+    with pytest.raises(ValueError, match=message):
         resolve_sqrt_lut(entry, saturation_dn=4095.0)
+
+
+def test_the_plain_curve_on_a_zero_ceiling_sends_every_value_to_zero() -> None:
+    """The plain curve never decodes above the ADC ceiling, even a zero one."""
+    dn = np.array([[0.4, 37.0, 2500.0]])
+    out = quantize_dn(dn, mode='sqrt_lut', saturation_dn=0.0)
+    assert out.tolist() == [[0.0, 0.0, 0.0]]
 
 
 def test_the_sqrt_lut_mode_defaults_to_the_plain_curve() -> None:

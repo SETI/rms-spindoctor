@@ -8,6 +8,7 @@ curve is a per-instrument catalog entry (``sqrt_lut`` in ``DETECTOR_DEFAULTS``);
 a camera without one gets the plain square-root curve scaled to its ADC ceiling.
 """
 
+import math
 from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
@@ -70,22 +71,34 @@ def resolve_sqrt_lut(entry: Mapping[str, Any] | None, *, saturation_dn: float) -
 
     Raises:
         KeyError: If ``entry`` lacks one of the four keys.
-        ValueError: If ``codes`` is below 2.
+        ValueError: If ``codes`` isn't a whole number of at least 2, or if
+            ``linear_dn`` or ``quadratic_dn`` isn't finite.
     """
     if entry is None:
         top_code = DEFAULT_SQRT_LUT_CODES - 1
         return SqrtLut(
             codes=DEFAULT_SQRT_LUT_CODES,
             linear_dn=0.0,
-            quadratic_dn=max(saturation_dn, 1.0) / top_code**2,
+            quadratic_dn=saturation_dn / top_code**2,
             whole_dn=False,
         )
-    codes = int(entry['codes'])
+    raw_codes = float(entry['codes'])
+    if not raw_codes.is_integer():
+        raise ValueError(f'sqrt_lut codes must be a whole number, got {raw_codes}')
+    codes = int(raw_codes)
     if codes < 2:
         raise ValueError(f'sqrt_lut codes must be at least 2, got {codes}')
+    linear_dn = float(entry['linear_dn'])
+    quadratic_dn = float(entry['quadratic_dn'])
+    # A NaN coefficient would turn every finite pixel the table snaps into NaN.
+    if not (math.isfinite(linear_dn) and math.isfinite(quadratic_dn)):
+        raise ValueError(
+            f'sqrt_lut coefficients must be finite, got linear_dn {linear_dn} '
+            f'and quadratic_dn {quadratic_dn}'
+        )
     return SqrtLut(
         codes=codes,
-        linear_dn=float(entry['linear_dn']),
-        quadratic_dn=float(entry['quadratic_dn']),
+        linear_dn=linear_dn,
+        quadratic_dn=quadratic_dn,
         whole_dn=bool(entry['whole_dn']),
     )
