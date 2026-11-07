@@ -230,12 +230,12 @@ it cannot be measured there.
 | #311 | Parity guard between the simulated models and the production models |
 | #227 | Umbrella: de-circularize the simulator |
 
-This is the step that makes simulated results mean accuracy. #918 builds a twin from a library
-frame's real geometry, renders it with the simulator, plants an offset, adds content the
-navigator does not model, and runs the production pipeline unchanged. The `NavModel*Simulated`
-models stay for idealized scenes and sweeps; #897 and #843 close for the real-geometry path when
-production models navigate its frames, and #311 guards whatever mirrors remain. #843 also depends
-on #842 (Phase 2).
+This step prepares simulated results for the transfer check (Phase 6); accuracy claims wait for a
+class to pass that check. #918 builds a twin from a library frame's real geometry, renders it with
+the simulator, plants an offset, adds content the navigator does not model, and runs the production
+pipeline unchanged. The `NavModel*Simulated` models stay for idealized scenes and sweeps; #897 and
+#843 close for the real-geometry path when production models navigate its frames, and #311 guards
+whatever mirrors remain. #843 also depends on #842 (Phase 2).
 
 Prerequisites: #876 (Phase 1); #901, #890, #825, and #842 (Phase 2); #898 and #837 (Phase 3);
 #895, #896, #909, and #910 (Phase 4a and 4b).
@@ -248,11 +248,14 @@ integration tier; idealized scenes and every existing baseline are unchanged.
 | Issue | Subject |
 |---|---|
 | #903, hold-out and transfer parts | In-sample tuning, no hold-out, censored noise comparison for Galileo and Voyager, no transfer check |
-| #153 | Calibration test layer: bootstrap and real-versus-simulated diagnostics (follows #230) |
+| #153, real-versus-simulated diagnostics part | Per-technique comparison of simulated and real diagnostics, run beside the transfer check |
 
 The transfer check plants matched offsets on real frames and on their twins and compares simulated
-error with real error per library class. A class passes when the two error distributions agree
-within bands set before the comparison. Tuning uses frames held out from the comparison.
+error with real error per library class. A class passes only when both comparisons, with bands set
+before the comparison, agree: the two error distributions, and the paired results frame by frame,
+so that a twin fails where its real frame fails and its error tracks the real frame's. Matching
+distributions alone never pass a class. Tuning uses frames held out from the comparison. #153's
+bootstrap and calibration-validation parts follow the rest of #230 in Track R.
 
 **Exit:** a per-class table of simulated against real error, with the classes that pass named.
 Those classes are eligible for retirement in Phase 7.
@@ -293,7 +296,8 @@ retired and retained library classes.
 | #310 | Structural information-boundary guard |
 
 Each phase updates the docs for what it changes, with per-camera values on the instrument pages
-after #924; this phase finishes the restructuring and the guide split once the schema has settled. #856 can land whenever its PR is ready.
+after #924; this phase finishes the restructuring and the guide split once the schema has settled.
+#856 can land whenever its PR is ready.
 
 ## Track R: real-frame confidence (parallel)
 
@@ -303,15 +307,17 @@ after #924; this phase finishes the restructuring and the guide split once the s
 | #225 | Multi-object cross-technique agreement study on real frames |
 | #342 | `star_psf_sigma` is a 3.0 px placeholder on Galileo, Voyager, and LORRI (navigator configuration, affects real frames today) |
 | #230 | Real-anchored confidence recalibration |
+| #153, bootstrap and calibration-validation parts | Starting guess for the confidence fit, and the sweep check of the fitted formulas |
 | #788 | Reported offset sigma too large at the core and too small in the tail |
 
 #334 is small and blocks #230, so it starts now, as do #225 and #342. #230 lists #225 and #227 as
 prerequisites. This plan proposes splitting #230: its real-frame part (the tier boundaries and the
 0.35 success threshold first, then RingEdgeNav confidence before edge routing widens further, then
-the limb floor and coefficients, the terminator plateau, and the disc size term) proceeds once
-#334 is adopted and #225 supplies anchors; the part that needs single-technique accuracy waits
-for #227 (Phase 6). The F ring and spoke comparisons and the audit's evidence on #230 supply the
-real frames. #788 waits on the ensemble fix for #767, which is in the frozen ring and star stack.
+the limb floor and coefficients, the terminator plateau, and the disc size term) proceeds once #334
+is adopted and #225 supplies anchors; the part that needs single-technique accuracy waits for #227
+(Phase 5) and the transfer check (Phase 6), and #153's bootstrap and calibration-validation parts
+follow it. The F ring and spoke comparisons and the audit's evidence on #230 supply the real frames.
+#788 waits on the ensemble fix for #767, which is in the frozen ring and star stack.
 
 ## Track O: outer-planet rings (parallel, navigator work)
 
@@ -338,7 +344,8 @@ Phase 0 -> Phase 1 -> Phase 2 -> Phase 2b
                         +-> Phase 4a, 4b -----------+-> Phase 5 -> Phase 6 -> Phase 7
                         +-> Phase 4c-4f (parallel with Phase 5)
 Phase 1 (#876) -> Phase 4d-4f, Phase 5
-Track R: #334, #225, #342 now -> #230 real-frame part; #230 remainder after Phase 6
+Track R: #334, #225, #342 now -> #230 real-frame part;
+         #230 remainder, then #153's other parts, after Phase 6
 Track O: needs #126 (Phase 1); joins Phase 5 for Voyager Uranus twins
 Phase 8: alongside, finished last
 ```
