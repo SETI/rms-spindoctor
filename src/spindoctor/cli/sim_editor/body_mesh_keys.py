@@ -108,26 +108,21 @@ def _refused_keys_by_widget() -> dict[str, list[str]]:
     return by_widget
 
 
-def _inside_compound(child: QWidget, root: QWidget) -> bool:
-    """Whether ``child`` is a part of a spin box or combo box at or below ``root``."""
-    parent = child.parentWidget()
-    while parent is not None:
-        if isinstance(parent, (QAbstractSpinBox, QComboBox)):
-            return True
-        if parent is root:
-            return False
-        parent = parent.parentWidget()
-    return False
-
-
 def _hover_targets(widget: QWidget) -> list[QWidget]:
     """``widget`` and every control and label inside it.
 
-    The parts a spin box or combo box is built from (its line edit, its popup) are
-    left out: hovering them shows the compound control's own tooltip.
+    The walk goes down from ``widget`` through each widget's own children and stops
+    at a spin box or combo box: hovering the parts it is built from (its line edit,
+    its popup) shows the compound control's own tooltip.  The walk never touches
+    those parts, which Qt creates and deletes on its own.
     """
-    inside = [c for c in widget.findChildren(QWidget) if not _inside_compound(c, widget)]
-    return [widget, *inside]
+    targets = [widget]
+    if isinstance(widget, (QAbstractSpinBox, QComboBox)):
+        return targets
+    for child in widget.children():
+        if isinstance(child, QWidget):
+            targets.extend(_hover_targets(child))
+    return targets
 
 
 def sync_mesh_refused_widgets(w: QWidget, is_mesh: bool) -> None:
