@@ -726,31 +726,38 @@ its gating amplitude, fraction, or rate is zero.
 word width, independent of ``saturation_dn``); ``uneven_12bit`` snaps values
 near the power-of-two carry boundaries to reproduce the histogram spikes of an
 ADC with unequal bit weights; ``sqrt_lut`` companding sends each value through
-an 8-bit table and back, the encoder picking the code whose decoded DN is
+a table of codes and back, the encoder picking the code whose decoded DN is
 nearest, so the step grows with the signal and leaves a signal-dependent
 quantization residual; ``ls8b`` keeps only the low 8 bits, so a value above 255
 wraps modulo 256 (the banded wraparound on a bright target); and
 ``contour_8bit`` posterizes an 8-bit word to multiples of its step, the visible
-contouring of a coarse ADC. The ``quantization_lut``, ``quantization_ls8b``, and
-``contouring_8bit`` artifact modes select ``sqrt_lut``, ``ls8b``, and
-``contour_8bit``.
+contouring of a coarse ADC.
+
+The detector's ``quantization`` key fixes one sub-mode for every frame of a
+camera or scene. Real archives mix downlink formats, though: only some Cassini
+frames went down through the 8-bit table. So each of the three table and
+word-width sub-modes also has an artifact mode, named ``quantization_`` plus the
+sub-mode: ``quantization_sqrt_lut``, ``quantization_ls8b``, and
+``quantization_contour_8bit``. An artifact mode fires on a per-frame
+``probability``, and on a frame where it fires it replaces the ``quantization``
+key's sub-mode and is recorded as active in that frame's truth.
 
 Each camera's ``sqrt_lut`` table is the ``sqrt_lut`` entry in its detector
-catalog: code ``c`` decodes to ``linear_dn * c + quadratic_dn * c**2`` DN,
-rounded to whole DN when ``whole_dn`` is set. A camera without an entry gets the
-plain square-root curve, whose top code decodes to ``saturation_dn``:
-``linear_dn`` 0, ``quadratic_dn`` ``saturation_dn / 255**2``, and fractional DN
-kept.
+catalog: the table sends ``codes`` codes (256 for an 8-bit code word), and code
+``c`` decodes to ``linear_dn * c + quadratic_dn * c**2`` DN, rounded to whole DN
+when ``whole_dn`` is set. A camera without an entry gets the plain square-root
+curve over 256 codes, whose top code decodes to ``saturation_dn``: ``linear_dn``
+0, ``quadratic_dn`` ``saturation_dn / 255**2``, and fractional DN kept.
 
 The two Cassini cameras share the 12-to-8-bit downlink table, measured from the
 26 TABLE frames of the CALIB cohort. The calibrated DN-equivalent step between
 consecutive raw codes is an integer that grows by one about every ten codes: 3
 DN near code 10, 5 near 25, 8 near 55, 13 near 100, and 24 near 200. Code ``c``
-decodes to ``round(2 * c + 0.055 * c**2)`` DN (``linear_dn`` 2, ``quadratic_dn``
-0.055, ``whole_dn`` true), which reproduces those steps and tops out at 4086 DN
-at code 255. Near a dark sky the step is 3 to 4 DN, against 1 DN in a 12-bit
-frame, so a TABLE frame's calibrated sky is several times noisier than a 12-bit
-frame's.
+decodes to ``round(2 * c + 0.055 * c**2)`` DN (``codes`` 256, ``linear_dn`` 2,
+``quadratic_dn`` 0.055, ``whole_dn`` true), which reproduces those steps and
+tops out at 4086 DN at code 255. Near a dark sky the step is 3 to 4 DN, against
+1 DN in a 12-bit frame, so a TABLE frame's calibrated sky is several times
+noisier than a 12-bit frame's.
 
 **Artifact modes in the chain.** The registry's detector modes (see
 :ref:`sim-artifacts-block`) render at their physical point in this chain: the
@@ -1083,15 +1090,15 @@ which mode's truth record is written first.
      - a prior-frame ghost from incomplete erasure
      - vgiss
      - ``probability``
-   * - ``quantization_lut``
-     - the Cassini 12-to-8-bit table quantization
+   * - ``quantization_sqrt_lut``
+     - companding through the camera's ``sqrt_lut`` table
      - nac, wac
      - ``probability``
    * - ``quantization_ls8b``
      - the Cassini LS8B wraparound quantization
      - nac, wac
      - ``probability``
-   * - ``contouring_8bit``
+   * - ``quantization_contour_8bit``
      - 8-bit contouring quantization steps
      - gossi, vgiss
      - ``probability``
@@ -3370,8 +3377,8 @@ pairs), ``frame_transfer_smear`` and ``serial_tail`` (LORRI column pedestal and
 saturation undershoot tail), ``beam_bend`` and ``residual_image`` (Voyager
 brightness-dependent limb bias and erase-cycle ghost), ``fixed_pattern``
 (stitch combs, vignetting, dust donuts, jail bars, PRNU), and the quantization
-modes ``quantization_lut``, ``quantization_ls8b``, and ``contouring_8bit``. The
-mechanics live in
+modes ``quantization_sqrt_lut``, ``quantization_ls8b``, and
+``quantization_contour_8bit``. The mechanics live in
 :mod:`spindoctor.sim.forward.detector.electronics_stages`; an explicit mode
 wins over the generic noise-block knob for the same mechanic (banding, bias,
 bloom, quantization), the precedence ``hot_pixels`` already uses.

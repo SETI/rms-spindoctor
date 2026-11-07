@@ -330,7 +330,13 @@ def _resolve_gain(
 # Detector modes routed to an existing generic mechanic by overriding a flat
 # DetectorParams field rather than by a dedicated chain call.
 _ROUTED_ONLY_MODES: frozenset[str] = frozenset(
-    {'bias_structure', 'bloom', 'quantization_lut', 'quantization_ls8b', 'contouring_8bit'}
+    {
+        'bias_structure',
+        'bloom',
+        'quantization_sqrt_lut',
+        'quantization_ls8b',
+        'quantization_contour_8bit',
+    }
 )
 
 
@@ -726,13 +732,13 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
         bloom_override = detector_modes['bloom'].get('bloom_length')
         if bloom_override is not None:
             bloom_length = int(bloom_override)
-    if 'quantization_lut' in detector_modes:
+    if 'quantization_sqrt_lut' in detector_modes:
         quantization = 'sqrt_lut'
     if 'quantization_ls8b' in detector_modes:
         quantization = 'ls8b'
-    if 'contouring_8bit' in detector_modes:
+    if 'quantization_contour_8bit' in detector_modes:
         quantization = 'contour_8bit'
-        contour_step = int(detector_modes['contouring_8bit'].get('step', 8))
+        contour_step = int(detector_modes['quantization_contour_8bit'].get('step', 8))
 
     return DetectorParams(
         detector_model=detector_model,

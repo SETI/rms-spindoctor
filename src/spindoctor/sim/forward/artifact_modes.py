@@ -477,10 +477,12 @@ _DETECTOR_MODES: tuple[ArtifactMode, ...] = (
         activation_semantics='per-frame probability the prior-frame ghost is added',
     ),
     _detector_mode(
-        'quantization_lut',
+        'quantization_sqrt_lut',
         availability=frozenset({'coiss_nac', 'coiss_wac'}),
         activation=PROBABILITY,
-        activation_semantics='per-frame probability the Cassini 8-bit table quantization is active',
+        activation_semantics=(
+            "per-frame probability the frame is companded through the camera's sqrt_lut table"
+        ),
     ),
     _detector_mode(
         'quantization_ls8b',
@@ -489,7 +491,7 @@ _DETECTOR_MODES: tuple[ArtifactMode, ...] = (
         activation_semantics='per-frame probability the LS8B wraparound quantization is active',
     ),
     _detector_mode(
-        'contouring_8bit',
+        'quantization_contour_8bit',
         ModeParam('step', 'positive_int', 8),
         availability=frozenset({'gossi', 'vgiss'}),
         activation=PROBABILITY,
@@ -594,9 +596,9 @@ DETECTOR_MODE_ORDER: tuple[str, ...] = (
     'serial_tail',
     'bias_structure',
     'beam_bend',
-    'quantization_lut',
+    'quantization_sqrt_lut',
     'quantization_ls8b',
-    'contouring_8bit',
+    'quantization_contour_8bit',
 )
 
 
