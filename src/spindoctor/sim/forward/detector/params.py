@@ -22,7 +22,9 @@ the resolved gain, so a scene that pins a DN read-noise level gets exactly that
 DN-level behavior out of the electron chain.  ``signal_full_scale_frac`` is the
 well fraction a signal of 1.0 fills at the reference exposure; the image-side
 DN well is derived (``full_well_e / gain_e_per_dn``) and the navigator-side
-``full_well_dn`` config key is a separate published value.
+``full_well_dn`` config key is a separate published value.  A scene
+``detector.filter`` replaces the reference exposure with the one the filter's
+measured throughput implies (:mod:`spindoctor.sim.forward.filter_catalog`).
 """
 
 from __future__ import annotations
@@ -50,6 +52,8 @@ from spindoctor.sim.forward.artifacts_catalog import (
     resolve_mode_with_catalog,
     resolve_readout_mode,
 )
+from spindoctor.sim.forward.detector.sqrt_lut import SqrtLut, resolve_sqrt_lut
+from spindoctor.sim.forward.filter_catalog import FilterCatalogError, resolve_filter_throughput
 from spindoctor.sim.instruments import navigator_marker_value, resolve_sim_inst_config
 from spindoctor.sim.seeds import derive_effect_seed
 from spindoctor.support.types import NDArrayFloatType
@@ -71,7 +75,8 @@ class DetectorParams:
         signal_full_scale_frac: Well fraction a signal of 1.0 fills at the
             reference exposure.
         full_well_e: Full well in electrons (CCD path).
-        exposure_ref_sec: Exposure the well fraction references.
+        exposure_ref_sec: Exposure the well fraction references; a scene
+            ``detector.filter`` derives it from the filter's throughput.
         exposure_sec: The scene exposure.
         gain_e_per_dn: Resolved gain (electrons per DN) for the selected state.
         read_noise_e: Read-noise sigma in electrons (CCD path).
@@ -111,6 +116,13 @@ class DetectorParams:
             ``b**2`` here, and the chain scales the extended signal and the
             saturation well the same way.
         instrument_defaults: Whether the physical-chain opt-in is on.
+        readout_dark_e: Dark charge the last line collects during the readout,
+            in electrons per frame pixel, growing linearly from 0 at the first
+            line; 0 disables.
+        calibration_column_residual_e: Sigma, in electrons per native pixel, of
+            the calibrated product's fixed per-column residual; 0 disables.
+        calibration_pixel_residual_e: Sigma, in electrons per native pixel, of
+            the calibrated product's per-frame per-pixel residual; 0 disables.
         hot_pixel_adversarial: Whether the hot-pixel population is placed
             adversarially (biased onto the navigation features) rather than
             uniformly.
@@ -120,6 +132,9 @@ class DetectorParams:
             noise-block / instrument_defaults path.
         quantization_contour_step: The DN posterization step for the
             ``contour_8bit`` quantization sub-mode.
+        sqrt_lut: The companding curve of the ``sqrt_lut`` quantization
+            sub-mode: the instrument's cataloged table, or the plain square-root
+            curve scaled to ``saturation_dn``; None selects that plain curve.
         artifacts_adversarial: Whether stochastic detector artifact modes place
             their events adversarially onto the navigation features.
         detector_modes: The resolved config of every active detector-stage
@@ -162,9 +177,13 @@ class DetectorParams:
     detector_id: str = 'generic'
     binning: int = 1
     instrument_defaults: bool = False
+    readout_dark_e: float = 0.0
+    calibration_column_residual_e: float = 0.0
+    calibration_pixel_residual_e: float = 0.0
     hot_pixel_adversarial: bool = False
     hot_pixel_mode_active: bool = False
     quantization_contour_step: int = 8
+    sqrt_lut: SqrtLut | None = None
     artifacts_adversarial: bool = False
     detector_modes: dict[str, dict[str, Any]] = field(default_factory=dict)
 
@@ -363,6 +382,47 @@ def _resolve_detector_modes(
     return modes
 
 
+def _filter_exposure_ref(
+    detector_block: Mapping[str, Any], *, instrument: str | None, filter_name: str, well_e: float
+) -> float:
+    """The reference exposure at which a signal of 1.0 fills ``well_e`` through a filter.
+
+    The filter's measured throughput is the electrons per second one native
+    pixel collects at I/F 1.0, so the reference exposure is the well charge a
+    signal of 1.0 stands for divided by that rate.  The forward chain and the
+    derived calibration scale both read the reference exposure, so the raw DN
+    and the calibrated DN-to-I/F scale follow the filter together.
+
+    Parameters:
+        detector_block: The scene ``detector`` block.
+        instrument: The sim instrument name.
+        filter_name: The scene's ``detector.filter``.
+        well_e: ``signal_full_scale_frac * full_well_e``.
+
+    Returns:
+        The reference exposure in seconds.
+
+    Raises:
+        DetectorParamError: If the block also sets ``exposure_ref_sec``, selects
+            the vidicon model, or the camera does not catalog the filter.
+    """
+    if detector_block.get('exposure_ref_sec') is not None:
+        raise DetectorParamError(
+            f'sim instrument {instrument!r}: detector.filter and detector.exposure_ref_sec '
+            f'both set the signal scale; set one of them'
+        )
+    if detector_block.get('detector_model') == 'vidicon':
+        raise DetectorParamError(
+            f'sim instrument {instrument!r}: detector.filter sets the CCD signal scale; '
+            f'the vidicon DN path has no reference exposure for it to set'
+        )
+    try:
+        throughput = resolve_filter_throughput(instrument, filter_name)
+    except FilterCatalogError as exc:
+        raise DetectorParamError(str(exc)) from exc
+    return well_e / throughput
+
+
 def _set_keys(block: Mapping[str, Any]) -> dict[str, Any]:
     """Return a scene block's keys that carry a value, dropping every explicit null.
 
@@ -408,7 +468,9 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
         The resolved :class:`DetectorParams`.
 
     Raises:
-        DetectorParamError: If the scene selects an unavailable gain state.
+        DetectorParamError: If the scene selects an unavailable gain state, names
+            a filter its camera does not catalog, or sets both ``detector.filter``
+            and ``detector.exposure_ref_sec``.
     """
     instrument = params.get('instrument')
     inst_config = resolve_sim_inst_config(
@@ -460,6 +522,14 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
 
     gain_e_per_dn = _resolve_gain(catalog, detector_block, instrument=instrument)
     full_well_e = float(catalog.get('full_well_e', full_well_dn * gain_e_per_dn))
+    filter_name = detector_block.get('filter')
+    if filter_name is not None:
+        exposure_ref_sec = _filter_exposure_ref(
+            detector_block,
+            instrument=instrument,
+            filter_name=str(filter_name),
+            well_e=signal_full_scale_frac * full_well_e,
+        )
 
     # Read noise: a scene DN override wins (converted to electrons via gain);
     # otherwise the catalog electrons value when instrument_defaults is on;
@@ -502,6 +572,11 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
     )
     if 'dark_current_e_per_sec' not in scene_noise:
         dark_current *= pixels_per_frame_pixel
+    readout_dark = _default_or_zero(
+        scene_noise, catalog, 'readout_dark_e', instrument_defaults=instrument_defaults
+    )
+    if 'readout_dark_e' not in scene_noise:
+        readout_dark *= pixels_per_frame_pixel
     hot_pixel_fraction = _default_or_zero(
         scene_noise, catalog, 'hot_pixel_fraction', instrument_defaults=instrument_defaults
     )
@@ -516,6 +591,18 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
     )
     bias_col_gradient = _default_or_zero(
         scene_noise, catalog, 'bias_col_gradient_dn', instrument_defaults=instrument_defaults
+    )
+    calibration_column_residual = _default_or_zero(
+        scene_noise,
+        catalog,
+        'calibration_column_residual_e',
+        instrument_defaults=instrument_defaults,
+    )
+    calibration_pixel_residual = _default_or_zero(
+        scene_noise,
+        catalog,
+        'calibration_pixel_residual_e',
+        instrument_defaults=instrument_defaults,
     )
     # Shape parameters (period, amplitude scales) track the catalog; they never
     # activate a stage on their own (the amplitude/fraction gate does that).
@@ -650,9 +737,13 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
         detector_id=normalize_instrument(instrument),
         binning=binning,
         instrument_defaults=instrument_defaults,
+        readout_dark_e=readout_dark,
+        calibration_column_residual_e=calibration_column_residual,
+        calibration_pixel_residual_e=calibration_pixel_residual,
         hot_pixel_adversarial=hot_pixel_adversarial,
         hot_pixel_mode_active=hot_pixel_mode_active,
         quantization_contour_step=contour_step,
+        sqrt_lut=resolve_sqrt_lut(catalog.get('sqrt_lut'), saturation_dn=saturation_dn),
         artifacts_adversarial=artifacts_adversarial,
         detector_modes=detector_modes,
     )

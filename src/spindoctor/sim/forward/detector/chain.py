@@ -50,12 +50,14 @@ from spindoctor.sim.forward.detector.noise_stages import (
     add_dark_current,
     add_hot_pixels,
     deposit_morphological_events,
+    detector_column_map,
 )
 from spindoctor.sim.forward.detector.params import (
     DetectorParams,
     calibration_map,
     resolve_detector_params,
 )
+from spindoctor.sim.forward.detector.sqrt_lut import SqrtLut, resolve_sqrt_lut
 from spindoctor.sim.forward.feature_loci import dilated_pixels, extract_feature_loci
 from spindoctor.sim.forward.stages import SimFrame
 from spindoctor.sim.seeds import derive_effect_seed
@@ -148,6 +150,7 @@ def quantize_dn(
     mode: str,
     saturation_dn: float,
     contour_step: int = 8,
+    sqrt_lut: SqrtLut | None = None,
 ) -> NDArrayFloatType:
     """Quantize a DN image by the selected ADC sub-mode.
 
@@ -156,13 +159,18 @@ def quantize_dn(
         mode: 'exact' (round to integer, uniform bins), '8bit' (integer bins
             with a hard 255 code ceiling), 'uneven_12bit' (integer bins with
             histogram spikes at the power-of-two bit boundaries), 'sqrt_lut'
-            (square-root companding to 8 bits and back, leaving a
+            (square-root companding to 8 bits and back: each value snapped to
+            the nearest decoded DN of ``sqrt_lut``, leaving a
             signal-dependent residual), 'ls8b' (low 8 bits kept: values above
             255 wrap modulo 256, the banded wraparound on bright targets), or
             'contour_8bit' (8-bit output posterized to multiples of
             ``contour_step``, the uneven-bin contouring of a coarse ADC).
-        saturation_dn: The ADC ceiling, used to scale the companding LUT.
+        saturation_dn: The ADC ceiling, which scales the plain square-root
+            curve when ``sqrt_lut`` is None.
         contour_step: The DN posterization step for the 'contour_8bit' mode.
+        sqrt_lut: The companding curve for the 'sqrt_lut' mode; None selects
+            the plain square-root curve whose top code decodes to
+            ``saturation_dn``.
 
     Returns:
         The quantized DN image.
@@ -200,13 +208,17 @@ def quantize_dn(
             quantized[near] = boundary
         return quantized
     if mode == 'sqrt_lut':
-        # Square-root companding: encode to 8 bits through a sqrt LUT and decode
-        # back, so the quantization step tracks the photon noise and the inverse
-        # leaves a residual that grows with signal.
-        ceiling = max(saturation_dn, 1.0)
-        clipped = np.clip(dn, 0.0, ceiling)
-        code = np.rint(255.0 * np.sqrt(clipped / ceiling))
-        return ceiling * (code / 255.0) ** 2
+        # Square-root companding: the table encodes each DN to the code whose
+        # decoded value is nearest, and the product carries the decoded DN, so
+        # the step tracks the photon noise and leaves a residual that grows with
+        # signal.  A NaN pixel stays NaN, as np.rint keeps it in the other modes.
+        if sqrt_lut is None:
+            sqrt_lut = resolve_sqrt_lut(None, saturation_dn=saturation_dn)
+        levels = sqrt_lut.levels()
+        midpoints = 0.5 * (levels[1:] + levels[:-1])
+        snapped = levels[np.searchsorted(midpoints, np.nan_to_num(dn, nan=0.0))]
+        result: NDArrayFloatType = np.where(np.isnan(dn), np.nan, snapped)
+        return result
     raise ValueError(f'unknown quantization mode {mode!r}')
 
 
@@ -257,6 +269,7 @@ def _apply_ccd(frame: SimFrame, dp: DetectorParams, rng: np.random.Generator) ->
         rate_e_per_sec=dp.dark_current_e_per_sec,
         exposure_sec=dp.exposure_sec,
     )
+    electrons += _readout_dark_e(electrons.shape[0], dp)[:, np.newaxis]
     if 'dark_ramp' in modes:
         records['dark_ramp'] = _apply_dark_ramp(electrons, modes['dark_ramp'], dp)
     if 'frame_transfer_smear' in modes:
@@ -360,6 +373,7 @@ def _apply_ccd(frame: SimFrame, dp: DetectorParams, rng: np.random.Generator) ->
         mode=dp.quantization,
         saturation_dn=dp.saturation_dn,
         contour_step=dp.quantization_contour_step,
+        sqrt_lut=dp.sqrt_lut,
     )
     np.clip(dn, 0.0, dp.saturation_dn, out=dn)
     frame.signal[:] = dn
@@ -555,6 +569,7 @@ def _apply_vidicon(frame: SimFrame, dp: DetectorParams, rng: np.random.Generator
         mode=dp.quantization,
         saturation_dn=dp.saturation_dn,
         contour_step=dp.quantization_contour_step,
+        sqrt_lut=dp.sqrt_lut,
     )
     np.clip(dn, 0.0, dp.saturation_dn, out=dn)
     frame.signal[:] = dn
@@ -580,6 +595,61 @@ def keep_off_marker(values: NDArrayFloatType, marker: float) -> None:
     values[values == marker] = np.nextafter(marker, np.inf)
 
 
+def _readout_dark_e(size_v: int, dp: DetectorParams) -> NDArrayFloatType:
+    """The readout dark per line, in electrons: 0 at line 0, ``readout_dark_e`` at the last.
+
+    A CCD line waits in the array until its turn to be read, so the dark charge
+    it collects grows linearly with line number whatever the exposure.
+
+    Parameters:
+        size_v: The frame's line count.
+        dp: The resolved detector parameters.
+
+    Returns:
+        The per-line dark charge, zeros when ``readout_dark_e`` is 0.
+    """
+    if dp.readout_dark_e <= 0.0:
+        return np.zeros(size_v, dtype=np.float64)
+    result: NDArrayFloatType = dp.readout_dark_e * np.linspace(0.0, 1.0, size_v)
+    return result
+
+
+def _subtract_calibration_residual(dn: NDArrayFloatType, dp: DetectorParams) -> None:
+    """Subtract the calibrated product's residual structure from the DN in place.
+
+    A real calibration pipeline subtracts per-pixel models (a dark model, a
+    per-line bias) from integer DN, so its product is continuous, and the
+    models' mismatch leaves structure the raw frame does not carry.  Two terms
+    reproduce it, both in electrons per native pixel and converted by the gain:
+    a column pattern fixed per detector
+    (:func:`~spindoctor.sim.forward.detector.noise_stages.detector_column_map`),
+    with sigma ``calibration_column_residual_e``, and a per-frame Gaussian per
+    pixel, with sigma ``calibration_pixel_residual_e``.  A binned pixel sums its
+    native pixels: the ``b`` rows of a column add coherently and the ``b``
+    columns independently, and the pixel term adds in quadrature over the
+    ``b**2`` native pixels.  Both sigmas 0 is a no-op.
+
+    Parameters:
+        dn: The digitized DN image, modified in place.
+        dp: The resolved detector parameters.
+    """
+    column_e = dp.calibration_column_residual_e
+    pixel_e = dp.calibration_pixel_residual_e
+    if column_e <= 0.0 and pixel_e <= 0.0:
+        return
+    b = dp.binning
+    size_u = dn.shape[1]
+    if column_e > 0.0:
+        native = detector_column_map(
+            size_u * b, effect='calibration_columns', detector_id=dp.detector_id
+        )
+        columns = native.reshape(size_u, b).sum(axis=1) * b
+        dn -= columns[np.newaxis, :] * column_e / dp.gain_e_per_dn
+    if pixel_e > 0.0:
+        rng = _stage_rng(dp.random_seed, 'calibration_residual')
+        dn -= rng.normal(0.0, pixel_e * b / dp.gain_e_per_dn, size=dn.shape)
+
+
 def _apply_calibration_inverse(frame: SimFrame, dp: DetectorParams) -> None:
     """Invert the calibration transform: DN to I/F, bias and dark subtracted first.
 
@@ -593,16 +663,25 @@ def _apply_calibration_inverse(frame: SimFrame, dp: DetectorParams) -> None:
     calibrated instrument: without it a noise-free dark sky would land on exactly
     0 I/F, and the navigator would count it as missing data.
 
-    A pixel that still lands exactly on a numeric marker moves to the next float
-    above it, so no pixel the detector delivers reads as missing data.  The
-    digitized DN are integers, so the calibrated values fall on a lattice, and
-    for some exposures the subtracted dark pedestal puts a lattice point on the
-    marker; a real calibrated product is continuous (its flat field and per-pixel
-    dark model see to that) and never carries an exact 0 for a valid pixel.
+    Before the divide, the calibration residual
+    (:func:`_subtract_calibration_residual`) takes the per-column and per-pixel
+    structure out that a real pipeline's per-pixel corrections leave, so the
+    calibrated values are continuous like a real product's rather than on the
+    integer DN lattice.  A pixel that still lands exactly on a numeric marker
+    moves to the next float above it, so no pixel the detector delivers reads as
+    missing data: with the residual off, the calibrated values fall on a
+    lattice, and for some exposures the subtracted dark pedestal puts a lattice
+    point on the marker.
     """
     calibration = calibration_map(dp)
     if calibration is None:
         return
+    # The pipeline's dark model removes the readout dark it expects; the
+    # shot noise the dark carried stays in the product.  Only the CCD chain
+    # adds the ramp, so only a CCD frame has one to remove.
+    if dp.detector_model == 'ccd':
+        frame.signal -= _readout_dark_e(frame.signal.shape[0], dp)[:, np.newaxis] / dp.gain_e_per_dn
+    _subtract_calibration_residual(frame.signal, dp)
     calibrated = calibration.to_if(frame.signal)
     keep_off_marker(calibrated, dp.marker_value)
     frame.signal[:] = calibrated

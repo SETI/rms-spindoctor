@@ -266,6 +266,19 @@ def resolve_sky_pixel_scale_arcsec(instrument: str | None) -> float:
 # within-line white), a faint coherent periodic component, and 8-bit
 # quantization.  A vidicon entry carries a 'vidicon' sub-map instead of the CCD
 # electron keys.
+# The Cassini 12-to-8-bit downlink table (DATA_CONVERSION_TYPE TABLE) the
+# sqrt_lut quantization decodes through; the NAC and WAC share it.  Measured
+# 2026-11-06 from the 26 TABLE frames of the CALIB cohort: the calibrated
+# DN-equivalent step between consecutive raw codes is an integer that grows by
+# one about every ten codes (3 near code 10, 5 near 25, 8 near 55, 13 near 100,
+# 24 near 200), which round(2 * code + 0.055 * code**2) reproduces,
+# alternations included, and which tops out at 4086 DN at code 255.
+_COISS_SQRT_LUT: dict[str, float | bool] = {
+    'linear_dn': 2.0,
+    'quadratic_dn': 0.055,
+    'whole_dn': True,
+}
+
 DETECTOR_DEFAULTS: dict[str, dict[str, Any]] = {
     'coiss_nac': {
         'detector_model': 'ccd',
@@ -281,6 +294,13 @@ DETECTOR_DEFAULTS: dict[str, dict[str, Any]] = {
         'read_noise_e': 12.0,  # 5.2 interim
         'bias_dn': 20.0,
         'dark_current_e_per_sec': 5.0,  # 5.2 interim (RBI-dominated dark)
+        # Measured 2026-11-06: the dark sky of 12-bit full-frame raw NAC
+        # frames rises linearly from the first line to the last by a median
+        # 55 e- (1.8 DN at gain state 2 over 21 frames, 4.0 DN at gain state
+        # 3 over 3), the same from 60 ms to 2.6 s, so it accumulates during
+        # the readout, not the exposure.  CISSCAL's dark model subtracts it
+        # from the CALIB product; its shot noise stays.
+        'readout_dark_e': 55.0,
         'hot_pixel_fraction': 2.0e-3,  # 5.2 interim (~0.15-0.28% of pixels)
         'hot_pixel_amplitude_e': 4.0e4,  # 5.2 interim (near full well)
         # 5.2 interim: total-charge fraction bled into the warm column above a
@@ -311,6 +331,7 @@ DETECTOR_DEFAULTS: dict[str, dict[str, Any]] = {
         'bias_col_gradient_dn': 0.5,  # 5.2 interim
         'bloom_length': 4,  # 5.2 interim (no antiblooming; column bleed above the well)
         'quantization': 'exact',
+        'sqrt_lut': dict(_COISS_SQRT_LUT),
         # Per-mode shape defaults (interim, 5.2).  An activation key is never
         # cataloged: a mode activates only when a scene sets it.  Shapes here are the values
         # a scene inherits when it names a mode without spelling every parameter.
@@ -349,6 +370,10 @@ DETECTOR_DEFAULTS: dict[str, dict[str, Any]] = {
         'read_noise_e': 12.0,  # 5.2 interim
         'bias_dn': 20.0,
         'dark_current_e_per_sec': 5.0,
+        # Measured 2026-11-06 on one 12-bit full-frame WAC star field (the
+        # other 12-bit full frames carry scene light down the frame): the
+        # dark sky rises 1.2 DN, 33 e-, from the first line to the last.
+        'readout_dark_e': 33.0,
         'hot_pixel_fraction': 2.0e-3,
         'hot_pixel_amplitude_e': 3.5e4,
         'hot_pixel_column_factor': 0.3,
@@ -367,6 +392,7 @@ DETECTOR_DEFAULTS: dict[str, dict[str, Any]] = {
         'bias_col_gradient_dn': 0.5,
         'bloom_length': 4,  # 5.2 interim (no antiblooming; column bleed above the well)
         'quantization': 'exact',
+        'sqrt_lut': dict(_COISS_SQRT_LUT),
         # Per-mode shape defaults (interim, 5.2); ~6 e- WAC 4 Hz banding.
         'artifact_modes': {
             'banding_coherent': {
@@ -650,13 +676,33 @@ _COISS_CALIB_OVERRIDES: dict[str, Any] = {
     'bias_row_gradient_dn': 0.0,
     'bias_col_gradient_dn': 0.0,
 }
+# The calibration residual: what CISSCAL's per-pixel corrections leave in a
+# CALIB product that the raw frame does not carry.  Measured 2026-11-06 as
+# the CALIB-minus-raw difference over sky pixels of 12-bit raw/CALIB pairs,
+# each line's mean removed (CISSCAL's 2-Hz and bias subtraction act per
+# line), in DN-equivalent through each frame's fitted DN-to-I/F scale:
+# - A column pattern, fixed per camera: frame-to-frame correlation 0.93
+#   (median over 319 NAC pairs).  NAC 15 e- rms (26 frames, 14-18 e- on most,
+#   the same in electrons at gain states 2 and 3); WAC 30 e- (2 frames, both
+#   long exposures, correlation 0.74).
+# - A per-pixel term, mostly different per frame (pair correlation 0.33):
+#   NAC 9.4 e- rms, WAC 30 e- (the same 2 frames).
+# The raw frames carry no column pattern above the per-pixel noise, so the
+# residual is CISSCAL's (its interpolated dark model is the likely source).
+# It is why a real CALIB sky is continuous rather than on the DN lattice,
+# and it lifts the calibrated sky noise from about 0.6 to 0.9 DN-equivalent
+# at gain state 2.
 DETECTOR_DEFAULTS['coiss_calib_nac'] = {
     **copy.deepcopy(DETECTOR_DEFAULTS['coiss_nac']),
     **_COISS_CALIB_OVERRIDES,
+    'calibration_column_residual_e': 15.0,
+    'calibration_pixel_residual_e': 9.4,
 }
 DETECTOR_DEFAULTS['coiss_calib_wac'] = {
     **copy.deepcopy(DETECTOR_DEFAULTS['coiss_wac']),
     **_COISS_CALIB_OVERRIDES,
+    'calibration_column_residual_e': 30.0,
+    'calibration_pixel_residual_e': 30.0,
 }
 
 _coiss_alias(DETECTOR_DEFAULTS)

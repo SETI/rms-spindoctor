@@ -480,7 +480,7 @@ _DETECTOR_MODES: tuple[ArtifactMode, ...] = (
         'quantization_lut',
         availability=frozenset({'coiss_nac', 'coiss_wac'}),
         activation=PROBABILITY,
-        activation_semantics='per-frame probability the sqrt-companding LUT quantization is active',
+        activation_semantics='per-frame probability the Cassini 8-bit table quantization is active',
     ),
     _detector_mode(
         'quantization_ls8b',

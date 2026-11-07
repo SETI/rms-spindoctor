@@ -399,11 +399,16 @@ def write_figures(results: RealismResults, *, figures_root: Path | None = None) 
     return written
 
 
-def _round(value: float, ndigits: int = 6) -> float | None:
-    """JSON-safe rounded float (None for non-finite)."""
+def _round(value: float, digits: int = 6) -> float | None:
+    """JSON-safe float rounded to ``digits`` significant digits (None for non-finite).
+
+    Significant digits, not decimal places: a calibrated cohort's sky sigma
+    in I/F runs down to 1e-8 on a long clear-filter exposure, which a fixed
+    six decimals would print as 0.
+    """
     if not np.isfinite(value):
         return None
-    return round(float(value), ndigits)
+    return float(f'{float(value):.{digits}g}')
 
 
 def _summary_dict(results: RealismResults) -> dict[str, Any]:

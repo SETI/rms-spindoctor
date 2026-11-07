@@ -14,10 +14,14 @@ The end-to-end smoke on real frames lives in ``test_sim_realism_smoke.py``.
 
 from __future__ import annotations
 
+from typing import Any
+
 import numpy as np
 import pytest
 
 from spindoctor.sim.forward.artifacts_catalog import NATIVE_FRAME_SIZE_PX
+from spindoctor.sim.forward.detector.params import resolve_detector_params
+from spindoctor.sim.render import render_combined_model
 from spindoctor.sim.scene import validate_sim_params
 from tests.integration.sim_realism import (
     INSTRUMENT_FOR,
@@ -71,6 +75,45 @@ def test_a_binned_cohort_frame_renders_through_its_readout_mode() -> None:
     scene = matched_scene('L1', 'star_dominated', 'nhlorri', 1.0, size_vu=(256, 256))
     assert scene['detector']['binning'] == 4
     assert (scene['size_v'], scene['size_u']) == (256, 256)
+
+
+@pytest.mark.parametrize(
+    ('matching', 'expected'),
+    [
+        ({}, None),
+        (
+            {'filter_name': 'CL1+GRN', 'gain_state': 3, 'quantization': 'sqrt_lut'},
+            {'filter': 'CL1+GRN', 'gain_state': 3, 'quantization': 'sqrt_lut'},
+        ),
+    ],
+    ids=['unmatched', 'table-frame'],
+)
+def test_a_matched_scene_renders_the_frame_filter_gain_and_table(
+    matching: dict[str, Any], expected: dict[str, Any] | None
+) -> None:
+    """The real frame's filter, gain state, and downlink table reach the render."""
+    scene = matched_scene(
+        'N123', 'star_dominated', 'coiss_calib_nac', 1.2, size_vu=_NAC_FULL, **matching
+    )
+    assert scene.get('detector') == expected
+
+
+@pytest.mark.parametrize(
+    ('quantization', 'on_table'),
+    [('sqrt_lut', True), (None, False)],
+    ids=['table-frame', 'full-frame'],
+)
+def test_a_matched_scene_renders_on_the_cassini_table_only_for_a_table_frame(
+    quantization: str | None, on_table: bool
+) -> None:
+    """A TABLE frame's raw render lands on the table's DN values; a 12-bit one doesn't."""
+    scene = matched_scene(
+        'N123', 'star_dominated', 'coiss_nac', 1.2, size_vu=(256, 256), quantization=quantization
+    )
+    img, _ = render_combined_model(scene)
+    table = resolve_detector_params(scene).sqrt_lut
+    assert table is not None
+    assert bool(np.isin(img, table.levels()).all()) is on_table
 
 
 def test_matched_scene_is_deterministic() -> None:
