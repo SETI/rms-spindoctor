@@ -212,17 +212,38 @@ def test_the_validator_accepts_a_cataloged_filter() -> None:
 # ---- The render ----
 
 
-def test_raw_dn_scale_with_the_filter_throughput() -> None:
+# Per camera, a body exposure that keeps the clear-filter body unsaturated and a
+# star exposure that gives the star enough DN to hold the ratio to 1%.
+_FILTER_RENDER_CASES = pytest.mark.parametrize(
+    ('instrument', 'filter_name', 'body_exposure', 'star_exposure'),
+    [('coiss_nac', 'CL1+GRN', 0.01, 0.1), ('coiss_wac', 'CL1+RED', 0.001, 1.0)],
+    ids=['nac', 'wac'],
+)
+
+
+def _throughput_ratio(instrument: str, filter_name: str) -> float:
+    """The filter's throughput over the camera's clear throughput."""
+    table = FILTER_THROUGHPUT_E_PER_S_PER_IF[instrument]
+    return table[filter_name] / table['CL1+CL2']
+
+
+@_FILTER_RENDER_CASES
+def test_raw_dn_scale_with_the_filter_throughput(
+    instrument: str, filter_name: str, body_exposure: float, star_exposure: float
+) -> None:
     """An unsaturated body's total raw DN scales by the throughput ratio."""
+    exposure = body_exposure
     clear, _ = render_combined_model(
-        _scene('coiss_nac', detector={'filter': 'CL1+CL2'}, bodies=[_body()])
+        _scene(instrument, detector={'filter': 'CL1+CL2'}, bodies=[_body()], exposure_sec=exposure)
     )
-    green, _ = render_combined_model(
-        _scene('coiss_nac', detector={'filter': 'CL1+GRN'}, bodies=[_body()])
+    filtered, _ = render_combined_model(
+        _scene(
+            instrument, detector={'filter': filter_name}, bodies=[_body()], exposure_sec=exposure
+        )
     )
     assert float(clear.max()) < 4000.0
-    ratio = float(green.sum()) / float(clear.sum())
-    assert ratio == pytest.approx(_NAC_GREEN / _NAC_CLEAR, rel=0.01)
+    ratio = float(filtered.sum()) / float(clear.sum())
+    assert ratio == pytest.approx(_throughput_ratio(instrument, filter_name), rel=0.01)
 
 
 def test_a_calibrated_product_renders_the_same_if_through_any_filter() -> None:
@@ -238,17 +259,22 @@ def test_a_calibrated_product_renders_the_same_if_through_any_filter() -> None:
     assert float(np.max(np.abs(green - clear))) <= step_if
 
 
-def test_a_star_dims_by_the_throughput_ratio() -> None:
-    """A star's total DN through green is the clear total times the throughput ratio."""
+@_FILTER_RENDER_CASES
+def test_a_star_dims_by_the_throughput_ratio(
+    instrument: str, filter_name: str, body_exposure: float, star_exposure: float
+) -> None:
+    """A star's total DN through a filter is the clear total times the throughput ratio."""
     star = [{'name': 'S', 'v': 32.0, 'u': 32.0, 'vmag': 4.0}]
+    exposure = star_exposure
     clear, _ = render_combined_model(
-        _scene('coiss_nac', detector={'filter': 'CL1+CL2'}, stars=star, exposure_sec=0.1)
+        _scene(instrument, detector={'filter': 'CL1+CL2'}, stars=star, exposure_sec=exposure)
     )
-    green, _ = render_combined_model(
-        _scene('coiss_nac', detector={'filter': 'CL1+GRN'}, stars=star, exposure_sec=0.1)
+    filtered, _ = render_combined_model(
+        _scene(instrument, detector={'filter': filter_name}, stars=star, exposure_sec=exposure)
     )
-    ratio = float(green.sum()) / float(clear.sum())
-    assert ratio == pytest.approx(_NAC_GREEN / _NAC_CLEAR, rel=0.01)
+    assert float(clear.max()) < 4000.0
+    ratio = float(filtered.sum()) / float(clear.sum())
+    assert ratio == pytest.approx(_throughput_ratio(instrument, filter_name), rel=0.01)
 
 
 def test_a_clear_filter_star_matches_an_unnamed_filter_star() -> None:
