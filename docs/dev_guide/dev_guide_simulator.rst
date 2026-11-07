@@ -1091,7 +1091,7 @@ which mode's truth record is written first.
      - vgiss
      - ``probability``
    * - ``quantization_sqrt_lut``
-     - the Cassini 12-to-8-bit table quantization
+     - companding through the camera's ``sqrt_lut`` table
      - nac, wac
      - ``probability``
    * - ``quantization_ls8b``
