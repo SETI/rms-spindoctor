@@ -108,6 +108,73 @@ def test_frame_poisson_mean_is_rate_times_exposure_times_pixel_count(
     assert rng.poisson_means[0] == pytest.approx(rate * exposure_sec * size_v * size_u)
 
 
+def test_the_readout_dwell_adds_to_the_collecting_time() -> None:
+    """The event count's mean is rate * (exposure + readout dwell) * pixels."""
+    rng = _RecordingRng(9)
+    add_cosmic_rays(
+        np.zeros((50, 40), dtype=np.float64),
+        events_per_pixel_per_sec=1.0e-3,
+        exposure_sec=0.5,
+        amplitude_e=1.0e3,
+        rng=cast(np.random.Generator, rng),
+        readout_dwell_sec=6.0,
+    )
+    assert rng.poisson_means[0] == pytest.approx(1.0e-3 * 6.5 * 50 * 40)
+
+
+def test_every_point_hit_deposits_at_least_the_amplitude() -> None:
+    """The deposit scale is the smallest charge an event leaves."""
+    image = np.zeros((400, 400), dtype=np.float64)
+    add_cosmic_rays(
+        image,
+        events_per_pixel_per_sec=1.0e-4,
+        exposure_sec=1.0,
+        amplitude_e=1000.0,
+        rng=np.random.default_rng(4),
+    )
+    labels, count = ndimage.label(image > 0.0)
+    totals = ndimage.sum(image, labels, index=np.arange(1, count + 1))
+    assert float(np.min(totals)) >= 1000.0
+
+
+def test_the_spread_diffuses_each_event_and_keeps_its_charge() -> None:
+    """A spread covers more pixels with the same total charge (away from the edges)."""
+    sharp = np.zeros((600, 600), dtype=np.float64)
+    spread = np.zeros((600, 600), dtype=np.float64)
+    for image, sigma in ((sharp, 0.0), (spread, 0.8)):
+        add_cosmic_rays(
+            image,
+            events_per_pixel_per_sec=2.0e-5,
+            exposure_sec=1.0,
+            amplitude_e=1000.0,
+            rng=np.random.default_rng(6),
+            spread_px=sigma,
+        )
+    assert np.count_nonzero(spread > 1.0) > 3 * np.count_nonzero(sharp > 1.0)
+    assert float(spread.sum()) == pytest.approx(float(sharp.sum()), rel=0.02)
+
+
+def test_an_unset_amplitude_resolves_to_the_full_well() -> None:
+    """Without a scene or catalog deposit scale every hit is full-well scale."""
+    resolved = resolve_detector_params(_scene('coiss_nac', {_KEY: 1.0e-4}))
+    assert resolved.cosmic_ray_amplitude_e == resolved.full_well_e
+
+
+@pytest.mark.parametrize(
+    ('noise', 'expected'),
+    [({}, 0.6 / 2), ({'cosmic_ray_spread_px': 0.6}, 0.6)],
+    ids=['catalog-native', 'scene-frame'],
+)
+def test_a_binned_frame_sees_the_catalog_spread_shrink(
+    noise: dict[str, Any], expected: float
+) -> None:
+    """The catalog spread is native pixels; a scene spread is the frame pixel's own."""
+    scene = _scene(
+        'coiss_nac', noise, artifacts={'instrument_defaults': True}, detector={'binning': 2}
+    )
+    assert resolve_detector_params(scene).cosmic_ray_spread_px == pytest.approx(expected)
+
+
 def test_scene_rate_reaches_the_stage_unscaled() -> None:
     """The scene's rate resolves to the stage's rate with no area or unit factor."""
     resolved = resolve_detector_params(_scene('coiss_nac', {_KEY: 3.5e-4}))

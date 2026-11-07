@@ -25,6 +25,7 @@ import hashlib
 from typing import Any
 
 import numpy as np
+import scipy.ndimage
 
 from spindoctor.support.types import NDArrayFloatType, NDArrayIntType
 
@@ -323,37 +324,59 @@ def add_cosmic_rays(
     exposure_sec: float,
     amplitude_e: float,
     rng: np.random.Generator,
+    readout_dwell_sec: float = 0.0,
+    spread_px: float = 0.0,
 ) -> None:
     """Deposit morphological cosmic-ray events in place.
 
     Events are point hits (the common case, a degenerate single pixel), short
     streaks at a random angle whose length is drawn from an incidence-angle
-    distribution, and rare multi-pixel splatters.  Each deposits at least
-    ``amplitude_e`` (the full well) so the digitized frame clips at the ADC
-    ceiling and the orchestrator's cosmic-ray/saturation masks catch it.  The
-    event count is a Poisson draw whose mean is ``events_per_pixel_per_sec *
-    exposure_sec`` times the frame's pixel count.  A zero rate is a no-op.
+    distribution, and rare multi-pixel splatters.  Each event deposits
+    ``amplitude_e * (1 + L)`` with ``L`` a standard lognormal draw, so
+    ``amplitude_e`` is the smallest deposit: the full well makes every hit clip
+    at the ADC ceiling, a smaller scale gives the modest hits a CCD collects.
+    The detector collects hits during the exposure and while it waits to be
+    read, so the event count is a Poisson draw whose mean is
+    ``events_per_pixel_per_sec * (exposure_sec + readout_dwell_sec)`` times
+    the frame's pixel count.  A positive ``spread_px`` diffuses each event's
+    charge with a Gaussian of that sigma, as charge spreads between CCD pixels.
+    A zero rate is a no-op.
 
     Parameters:
         electrons: The image, modified in place: electrons on the CCD chain, DN
             on the vidicon chain.
         events_per_pixel_per_sec: Expected cosmic-ray events per pixel per second
-            of exposure.
+            the detector collects.
         exposure_sec: Exposure time in seconds.
-        amplitude_e: Deposit scale per pixel of an event, in the image's units
-            (the CCD's full well in electrons, the vidicon's DN full scale).
+        amplitude_e: Smallest deposit per event, in the image's units.
         rng: The stage's seeded generator.
+        readout_dwell_sec: Effective seconds the detector collects hits outside
+            the exposure, while the frame waits to be read.
+        spread_px: Charge-diffusion sigma in frame pixels; 0 keeps each deposit
+            where it lands.
     """
     if events_per_pixel_per_sec <= 0.0 or amplitude_e <= 0.0:
         return
     size_v, size_u = electrons.shape
-    expected = events_per_pixel_per_sec * exposure_sec * size_v * size_u
+    collect_sec = max(exposure_sec, 0.0) + max(readout_dwell_sec, 0.0)
+    expected = events_per_pixel_per_sec * collect_sec * size_v * size_u
     if expected <= 0.0:
         return
     n_events = int(rng.poisson(expected))
+    if spread_px <= 0.0:
+        deposit_morphological_events(
+            electrons,
+            n_events=n_events,
+            amplitude_e=amplitude_e,
+            rng=rng,
+            amplitude_dist='lognormal',
+        )
+        return
+    hits = np.zeros_like(electrons)
     deposit_morphological_events(
-        electrons, n_events=n_events, amplitude_e=amplitude_e, rng=rng, amplitude_dist='lognormal'
+        hits, n_events=n_events, amplitude_e=amplitude_e, rng=rng, amplitude_dist='lognormal'
     )
+    electrons += scipy.ndimage.gaussian_filter(hits, sigma=spread_px, mode='constant')
 
 
 def deposit_morphological_events(

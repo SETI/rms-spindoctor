@@ -127,19 +127,29 @@ def test_instrument_defaults_turns_on_poisson_and_catalog_bloom() -> None:
     resolved = resolve_detector_params(_disc('coiss_nac', artifacts={'instrument_defaults': True}))
     assert resolved.poisson is True
     assert resolved.bloom_length == 4
-    # The Cassini entries retain a zero cosmic-ray rate (the chain's
-    # exposure-scaling stage cannot represent the cohort's
-    # exposure-independent transients; see the catalog comment).
-    assert resolved.cosmic_ray_events_per_pixel_per_sec == 0.0
 
 
-def test_cosmic_ray_retained_zero_for_gossi() -> None:
-    """The Galileo entry retains zero: its tuned hot-pixel fraction already
-    carries the cohort's measured single-pixel rate."""
+@pytest.mark.parametrize(
+    ('instrument', 'expected'),
+    [
+        ('coiss_nac', (2.0e-5, 6.0, 1000.0, 0.6)),
+        ('coiss_calib_wac', (2.0e-5, 6.0, 1000.0, 0.6)),
+        ('gossi', (2.0e-5, 4.33, 6000.0, 0.4)),
+    ],
+)
+def test_instrument_defaults_adopt_the_fitted_cosmic_ray_terms(
+    instrument: str, expected: tuple[float, float, float, float]
+) -> None:
+    """Each CCD with a fitted cohort carries its rate, dwell, deposit scale, and spread."""
     from spindoctor.sim.forward.detector.params import resolve_detector_params
 
-    resolved = resolve_detector_params(_disc('gossi', artifacts={'instrument_defaults': True}))
-    assert resolved.cosmic_ray_events_per_pixel_per_sec == 0.0
+    resolved = resolve_detector_params(_disc(instrument, artifacts={'instrument_defaults': True}))
+    assert (
+        resolved.cosmic_ray_events_per_pixel_per_sec,
+        resolved.cosmic_ray_readout_dwell_sec,
+        resolved.cosmic_ray_amplitude_e,
+        resolved.cosmic_ray_spread_px,
+    ) == pytest.approx(expected)
 
 
 def test_cosmic_ray_scene_value_activates_the_stage() -> None:
