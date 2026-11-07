@@ -1,11 +1,11 @@
-"""The 8-bit square-root companding table a camera downlinks its DN through.
+"""The square-root companding table a camera downlinks its DN through.
 
-A companding table sends each 12-bit DN as one of 256 codes and the ground
-decodes each code back to a DN.  The decode curve is quadratic in the code, so
-the encoding is a square root and the quantization step grows with the signal,
-tracking the photon noise.  A camera's curve is a per-instrument catalog entry
-(``sqrt_lut`` in ``DETECTOR_DEFAULTS``); a camera without one gets the plain
-square-root curve scaled to its ADC ceiling.
+A companding table sends each DN as one of a fixed number of codes (256 for an
+8-bit code word) and the ground decodes each code back to a DN.  The decode
+curve is quadratic in the code, so the encoding is a square root and the
+quantization step grows with the signal, tracking the photon noise.  A camera's
+curve is a per-instrument catalog entry (``sqrt_lut`` in ``DETECTOR_DEFAULTS``);
+a camera without one gets the plain square-root curve scaled to its ADC ceiling.
 """
 
 from collections.abc import Mapping
@@ -16,33 +16,36 @@ import numpy as np
 
 from spindoctor.support.types import NDArrayFloatType
 
-__all__ = ['SQRT_LUT_CODES', 'SqrtLut', 'resolve_sqrt_lut']
+__all__ = ['DEFAULT_SQRT_LUT_CODES', 'SqrtLut', 'resolve_sqrt_lut']
 
-# An 8-bit code word.
-SQRT_LUT_CODES = 256
+# The plain curve's table size: an 8-bit code word.
+DEFAULT_SQRT_LUT_CODES = 256
 
 
 @dataclass(frozen=True)
 class SqrtLut:
-    """The decode curve of an 8-bit companding table.
+    """The decode curve of a companding table.
 
-    Code ``c`` decodes to ``linear_dn * c + quadratic_dn * c**2`` DN, rounded to
-    whole DN when ``whole_dn`` is set.  The encoder sends each DN as the code
-    whose decoded value is nearest.
+    Code ``c``, from 0 to ``codes - 1``, decodes to
+    ``linear_dn * c + quadratic_dn * c**2`` DN, rounded to whole DN when
+    ``whole_dn`` is set.  The encoder sends each DN as the code whose decoded
+    value is nearest.
 
     Parameters:
+        codes: The number of codes the table sends, 256 for an 8-bit code word.
         linear_dn: The curve's linear coefficient, DN per code.
         quadratic_dn: The curve's quadratic coefficient, DN per code squared.
         whole_dn: Whether each decoded value is rounded to a whole DN.
     """
 
+    codes: int
     linear_dn: float
     quadratic_dn: float
     whole_dn: bool
 
     def levels(self) -> NDArrayFloatType:
         """The distinct decoded DN values, in increasing order."""
-        codes = np.arange(SQRT_LUT_CODES, dtype=np.float64)
+        codes = np.arange(self.codes, dtype=np.float64)
         dn = self.linear_dn * codes + self.quadratic_dn * codes**2
         if self.whole_dn:
             dn = np.round(dn)
@@ -55,24 +58,33 @@ def resolve_sqrt_lut(entry: Mapping[str, Any] | None, *, saturation_dn: float) -
 
     Parameters:
         entry: The instrument's ``sqrt_lut`` catalog entry, with the keys
-            ``linear_dn``, ``quadratic_dn``, and ``whole_dn``; None for an
-            instrument without a table of its own.
-        saturation_dn: The ADC ceiling.  Without an entry, the top code decodes
-            to it and the curve is a pure square root: ``linear_dn`` 0,
-            ``quadratic_dn`` ``saturation_dn / 255**2``, fractional DN kept.
+            ``codes``, ``linear_dn``, ``quadratic_dn``, and ``whole_dn``; None
+            for an instrument without a table of its own.
+        saturation_dn: The ADC ceiling.  Without an entry, the curve is a pure
+            square root over 256 codes whose top code decodes to it:
+            ``linear_dn`` 0, ``quadratic_dn`` ``saturation_dn / 255**2``,
+            fractional DN kept.
 
     Returns:
         The resolved curve.
 
     Raises:
-        KeyError: If ``entry`` lacks one of the three keys.
+        KeyError: If ``entry`` lacks one of the four keys.
+        ValueError: If ``codes`` is below 2.
     """
     if entry is None:
-        top_code = SQRT_LUT_CODES - 1
+        top_code = DEFAULT_SQRT_LUT_CODES - 1
         return SqrtLut(
-            linear_dn=0.0, quadratic_dn=max(saturation_dn, 1.0) / top_code**2, whole_dn=False
+            codes=DEFAULT_SQRT_LUT_CODES,
+            linear_dn=0.0,
+            quadratic_dn=max(saturation_dn, 1.0) / top_code**2,
+            whole_dn=False,
         )
+    codes = int(entry['codes'])
+    if codes < 2:
+        raise ValueError(f'sqrt_lut codes must be at least 2, got {codes}')
     return SqrtLut(
+        codes=codes,
         linear_dn=float(entry['linear_dn']),
         quadratic_dn=float(entry['quadratic_dn']),
         whole_dn=bool(entry['whole_dn']),

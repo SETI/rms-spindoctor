@@ -196,8 +196,25 @@ def test_the_sqrt_lut_keeps_a_nan_pixel_nan() -> None:
 def test_a_camera_without_a_table_gets_the_plain_square_root_curve() -> None:
     """Without a catalog entry the curve is a pure square root topping out at the ADC ceiling."""
     curve = resolve_sqrt_lut(None, saturation_dn=4095.0)
-    assert curve == SqrtLut(linear_dn=0.0, quadratic_dn=4095.0 / 255.0**2, whole_dn=False)
+    assert curve == SqrtLut(
+        codes=256, linear_dn=0.0, quadratic_dn=4095.0 / 255.0**2, whole_dn=False
+    )
     assert float(curve.levels()[-1]) == pytest.approx(4095.0)
+
+
+def test_a_table_entry_sets_its_own_code_count() -> None:
+    """A 10-bit table decodes 1024 levels, its top code at the curve's value for 1023."""
+    entry = {'codes': 1024, 'linear_dn': 0.0, 'quadratic_dn': 0.01, 'whole_dn': False}
+    levels = resolve_sqrt_lut(entry, saturation_dn=16383.0).levels()
+    assert len(levels) == 1024
+    assert float(levels[-1]) == pytest.approx(0.01 * 1023.0**2)
+
+
+def test_a_table_with_fewer_than_two_codes_is_refused() -> None:
+    """A one-code table can't quantize anything, so resolving it raises."""
+    entry = {'codes': 1, 'linear_dn': 0.0, 'quadratic_dn': 1.0, 'whole_dn': False}
+    with pytest.raises(ValueError, match='sqrt_lut codes must be at least 2, got 1'):
+        resolve_sqrt_lut(entry, saturation_dn=4095.0)
 
 
 def test_the_sqrt_lut_mode_defaults_to_the_plain_curve() -> None:

@@ -273,7 +273,8 @@ def resolve_sky_pixel_scale_arcsec(instrument: str | None) -> float:
 # one about every ten codes (3 near code 10, 5 near 25, 8 near 55, 13 near 100,
 # 24 near 200), which round(2 * code + 0.055 * code**2) reproduces,
 # alternations included, and which tops out at 4086 DN at code 255.
-_COISS_SQRT_LUT: dict[str, float | bool] = {
+_COISS_SQRT_LUT: dict[str, int | float | bool] = {
+    'codes': 256,
     'linear_dn': 2.0,
     'quadratic_dn': 0.055,
     'whole_dn': True,

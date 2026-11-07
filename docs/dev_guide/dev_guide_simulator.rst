@@ -721,7 +721,7 @@ its gating amplitude, fraction, or rate is zero.
 word width, independent of ``saturation_dn``); ``uneven_12bit`` snaps values
 near the power-of-two carry boundaries to reproduce the histogram spikes of an
 ADC with unequal bit weights; ``sqrt_lut`` companding sends each value through
-an 8-bit table and back, the encoder picking the code whose decoded DN is
+a table of codes and back, the encoder picking the code whose decoded DN is
 nearest, so the step grows with the signal and leaves a signal-dependent
 quantization residual; ``ls8b`` keeps only the low 8 bits, so a value above 255
 wraps modulo 256 (the banded wraparound on a bright target); and
@@ -731,21 +731,21 @@ contouring of a coarse ADC. The ``quantization_lut``, ``quantization_ls8b``, and
 ``contour_8bit``.
 
 Each camera's ``sqrt_lut`` table is the ``sqrt_lut`` entry in its detector
-catalog: code ``c`` decodes to ``linear_dn * c + quadratic_dn * c**2`` DN,
-rounded to whole DN when ``whole_dn`` is set. A camera without an entry gets the
-plain square-root curve, whose top code decodes to ``saturation_dn``:
-``linear_dn`` 0, ``quadratic_dn`` ``saturation_dn / 255**2``, and fractional DN
-kept.
+catalog: the table sends ``codes`` codes (256 for an 8-bit code word), and code
+``c`` decodes to ``linear_dn * c + quadratic_dn * c**2`` DN, rounded to whole DN
+when ``whole_dn`` is set. A camera without an entry gets the plain square-root
+curve over 256 codes, whose top code decodes to ``saturation_dn``: ``linear_dn``
+0, ``quadratic_dn`` ``saturation_dn / 255**2``, and fractional DN kept.
 
 The two Cassini cameras share the 12-to-8-bit downlink table, measured from the
 26 TABLE frames of the CALIB cohort. The calibrated DN-equivalent step between
 consecutive raw codes is an integer that grows by one about every ten codes: 3
 DN near code 10, 5 near 25, 8 near 55, 13 near 100, and 24 near 200. Code ``c``
-decodes to ``round(2 * c + 0.055 * c**2)`` DN (``linear_dn`` 2, ``quadratic_dn``
-0.055, ``whole_dn`` true), which reproduces those steps and tops out at 4086 DN
-at code 255. Near a dark sky the step is 3 to 4 DN, against 1 DN in a 12-bit
-frame, so a TABLE frame's calibrated sky is several times noisier than a 12-bit
-frame's.
+decodes to ``round(2 * c + 0.055 * c**2)`` DN (``codes`` 256, ``linear_dn`` 2,
+``quadratic_dn`` 0.055, ``whole_dn`` true), which reproduces those steps and
+tops out at 4086 DN at code 255. Near a dark sky the step is 3 to 4 DN, against
+1 DN in a 12-bit frame, so a TABLE frame's calibrated sky is several times
+noisier than a 12-bit frame's.
 
 **Artifact modes in the chain.** The registry's detector modes (see
 :ref:`sim-artifacts-block`) render at their physical point in this chain: the

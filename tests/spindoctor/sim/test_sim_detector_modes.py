@@ -448,7 +448,7 @@ def test_quantization_lut_mode_routes_to_the_cassini_table(instrument: str) -> N
         _disc(instrument, artifacts={'quantization_lut': {'probability': 1.0}})
     )
     assert dp.quantization == 'sqrt_lut'
-    assert dp.sqrt_lut == SqrtLut(linear_dn=2.0, quadratic_dn=0.055, whole_dn=True)
+    assert dp.sqrt_lut == SqrtLut(codes=256, linear_dn=2.0, quadratic_dn=0.055, whole_dn=True)
 
 
 def test_bias_structure_mode_overrides_the_generic_knob() -> None:
