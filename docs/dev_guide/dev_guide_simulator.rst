@@ -559,11 +559,32 @@ the entry sets none.
   I/F. Under ``instrument_defaults`` about 28% of the pixels of a disc scene a
   third of the frame across sit below 0, down to about -0.0006.
 
-The simulator digitizes to whole DN, so a calibrated frame's values fall on a
+Before the divide, the inverse subtracts the calibration residual: the
+structure a real pipeline's per-pixel corrections leave in its product. A real
+calibrated product is continuous, because CISSCAL subtracts per-pixel models (an
+interpolated dark model, a per-line 2 Hz and bias estimate from the overclocked
+pixels) from integer DN, and the models' mismatch leaves a pattern the raw frame
+doesn't carry. Two noise keys reproduce it, both in electrons per native pixel:
+
+* ``calibration_column_residual_e`` is a column pattern fixed per detector: a
+  Gaussian per native column keyed on the camera, so every scene emulating it
+  carries the same columns. On real Cassini NAC CALIB frames the pattern repeats
+  from frame to frame (correlation 0.93) at 15 e- rms; the WAC measures 30 e-.
+* ``calibration_pixel_residual_e`` is a Gaussian per pixel, drawn per frame: NAC
+  9.4 e-, WAC 30 e-.
+
+Both are 0 unless the scene sets them or ``instrument_defaults`` takes the
+catalog's values, and only the calibrated Cassini products catalog them. On the
+NAC they lift the calibrated sky noise at gain state 2 from the raw frame's
+0.6 DN to about 0.9 DN-equivalent, as on the real products. A binned pixel sums
+its native pixels: a column's ``b`` rows add coherently and its ``b`` columns
+independently, and the pixel term adds in quadrature.
+
+With the residual off, a calibrated frame's values fall on the whole-DN
 lattice, and at some exposures the subtracted dark pedestal puts a lattice point
-on 0 (10.7 s at the NAC's default gain state, under ``instrument_defaults``). The
-inverse moves a pixel that lands exactly on a numeric marker to the next float
-above it, so no pixel the detector delivers reads as missing data. Only planted
+on 0 (10.7 s at the NAC's default gain state). The inverse moves a pixel that
+lands exactly on a numeric marker to the next float above it, so no pixel the
+detector delivers reads as missing data. Only planted
 loss puts a calibrated pixel at the marker: the artifact modes and
 ``noise.missing_data_rate``, which work on both classes.
 
@@ -648,7 +669,9 @@ intensive signal passes through the electron unit chain in
 
 1. **Signal to electrons.** The intensive [0, 1] signal is scaled to electrons
    through ``signal_full_scale_frac * full_well_e * (exposure_sec /
-   exposure_ref_sec)``.
+   exposure_ref_sec)``. A scene that names a filter (see
+   :ref:`sim-detector-block`) sets ``exposure_ref_sec`` from the filter's
+   measured throughput, so a signal of 1.0 collects that filter's electrons.
 2. **Point sources.** The point-source plane (``frame.point_e``) carries the
    stars: for a CCD it is electrons, added after the intensive conversion and
    before Poisson so it never passes through the signal scale; for the Voyager
@@ -656,7 +679,11 @@ intensive signal passes through the electron unit chain in
    noise (see :ref:`sim-star-params`).
 3. **Dark current, then Poisson.** A dark pedestal accumulates over the
    exposure before the shot term, so the shot noise grows with the dark signal.
-   Poisson shot noise then acts on the electron image.
+   The readout dark adds the charge each line collects while it waits to be
+   read: 0 at the first line, rising linearly to ``readout_dark_e`` at the last,
+   whatever the exposure. A calibrated product subtracts that ramp again, as
+   CISSCAL's dark model does, and keeps its shot noise. Poisson shot noise then
+   acts on the electron image.
 4. **Hot pixels and full-well bloom.** Hot pixels are stamped, then charge above
    ``full_well_e`` spills along the column up to ``bloom_length`` pixels each
    way and the image is capped at the well. A camera's physical saturation
@@ -693,13 +720,39 @@ its gating amplitude, fraction, or rate is zero.
 ``8bit`` rounds to integer DN and clips at the 255 code ceiling (the output
 word width, independent of ``saturation_dn``); ``uneven_12bit`` snaps values
 near the power-of-two carry boundaries to reproduce the histogram spikes of an
-ADC with unequal bit weights; ``sqrt_lut`` companding encodes to 8 bits through
-a square-root LUT and back, leaving a signal-dependent quantization residual;
-``ls8b`` keeps only the low 8 bits, so a value above 255 wraps modulo 256 (the
-banded wraparound on a bright target); and ``contour_8bit`` posterizes an 8-bit
-word to multiples of its step, the visible contouring of a coarse ADC. The
-``quantization_lut``, ``quantization_ls8b``, and ``contouring_8bit`` artifact
-modes select these last three.
+ADC with unequal bit weights; ``sqrt_lut`` companding sends each value through
+a table of codes and back, the encoder picking the code whose decoded DN is
+nearest, so the step grows with the signal and leaves a signal-dependent
+quantization residual; ``ls8b`` keeps only the low 8 bits, so a value above 255
+wraps modulo 256 (the banded wraparound on a bright target); and
+``contour_8bit`` posterizes an 8-bit word to multiples of its step, the visible
+contouring of a coarse ADC.
+
+The detector's ``quantization`` key fixes one sub-mode for every frame of a
+camera or scene. Real archives mix downlink formats, though: only some Cassini
+frames went down through the 8-bit table. So each of the three table and
+word-width sub-modes also has an artifact mode, named ``quantization_`` plus the
+sub-mode: ``quantization_sqrt_lut``, ``quantization_ls8b``, and
+``quantization_contour_8bit``. An artifact mode fires on a per-frame
+``probability``, and on a frame where it fires it replaces the ``quantization``
+key's sub-mode and is recorded as active in that frame's truth.
+
+Each camera's ``sqrt_lut`` table is the ``sqrt_lut`` entry in its detector
+catalog: the table sends ``codes`` codes (256 for an 8-bit code word), and code
+``c`` decodes to ``linear_dn * c + quadratic_dn * c**2`` DN, rounded to whole DN
+when ``whole_dn`` is set. A camera without an entry gets the plain square-root
+curve over 256 codes, whose top code decodes to ``saturation_dn``: ``linear_dn``
+0, ``quadratic_dn`` ``saturation_dn / 255**2``, and fractional DN kept.
+
+The two Cassini cameras share the 12-to-8-bit downlink table, measured from the
+26 TABLE frames of the CALIB cohort. The calibrated DN-equivalent step between
+consecutive raw codes is an integer that grows by one about every ten codes: 3
+DN near code 10, 5 near 25, 8 near 55, 13 near 100, and 24 near 200. Code ``c``
+decodes to ``round(2 * c + 0.055 * c**2)`` DN (``codes`` 256, ``linear_dn`` 2,
+``quadratic_dn`` 0.055, ``whole_dn`` true), which reproduces those steps and
+tops out at 4086 DN at code 255. Near a dark sky the step is 3 to 4 DN, against
+1 DN in a 12-bit frame, so a TABLE frame's calibrated sky is several times
+noisier than a 12-bit frame's.
 
 **Artifact modes in the chain.** The registry's detector modes (see
 :ref:`sim-artifacts-block`) render at their physical point in this chain: the
@@ -1030,15 +1083,15 @@ which mode's truth record is written first.
      - a prior-frame ghost from incomplete erasure
      - vgiss
      - ``probability``
-   * - ``quantization_lut``
-     - the Cassini sqrt-companding LUT quantization
+   * - ``quantization_sqrt_lut``
+     - the Cassini 12-to-8-bit table quantization
      - nac, wac
      - ``probability``
    * - ``quantization_ls8b``
      - the Cassini LS8B wraparound quantization
      - nac, wac
      - ``probability``
-   * - ``contouring_8bit``
+   * - ``quantization_contour_8bit``
      - 8-bit contouring quantization steps
      - gossi, vgiss
      - ``probability``
@@ -2922,7 +2975,9 @@ stars carry no catalog, so to the navigator they are pure confounders.
 
 Every star -- catalog or sky -- is a flux-normalized point source: its total
 signal is ``zero_point * 10**(-0.4 * vmag) * exposure_sec`` (the per-instrument
-photometric zero point, in electrons for a CCD or DN for the vidicon), deposited
+photometric zero point, in electrons for a CCD or DN for the vidicon; it refers
+to the camera's clear filter, and a scene ``detector.filter`` scales it by that
+filter's throughput over the clear throughput), deposited
 as a sub-pixel-positioned point mass in ``frame.point_e`` (centroid-exact after
 the downsample). The whole-scene optics PSF is the *only* convolution a star
 receives, so the rendered star profile is the scene kernel and its peak follows
@@ -3009,6 +3064,13 @@ against exactly this inventory, so an unknown noise key fails loudly.
      - float
      - 0 (off)
      - Dark-current pedestal rate in electrons / sec, added pre-Poisson.
+   * - ``readout_dark_e``
+     - float
+     - 0 (off)
+     - Dark charge the last line collects during the readout, in electrons per
+       frame pixel, rising linearly from 0 at the first line. The Cassini
+       cameras catalog it from their raw dark skies: 55 e- on the NAC and 33 e-
+       on the WAC.
    * - ``hot_pixel_fraction``
      - float
      - 0 (off)
@@ -3038,6 +3100,17 @@ against exactly this inventory, so an unknown noise key fails loudly.
      - float
      - 0 (off)
      - Peak-to-peak low-order bias gradients (DN).
+   * - ``calibration_column_residual_e``
+     - float
+     - 0 (off)
+     - Sigma of a calibrated product's fixed per-column residual, in electrons
+       per native pixel (calibrated frames only; see
+       :ref:`Instruments <sim-instruments>`).
+   * - ``calibration_pixel_residual_e``
+     - float
+     - 0 (off)
+     - Sigma of a calibrated product's per-frame per-pixel residual, in
+       electrons per native pixel (calibrated frames only).
    * - ``vidicon``
      - dict
      - catalog
@@ -3155,9 +3228,30 @@ The optional ``detector`` dict (truth-side) overrides the resolved detector
 chain: ``gain_state`` (the electron-chain gain state, which must be cataloged
 for the instrument), ``binning`` (the readout mode, below), ``detector_model``
 (``ccd`` electron chain or ``vidicon`` DN chain), ``exposure_ref_sec`` (the
-exposure the signal full-scale fraction references), and ``quantization`` (the
-ADC sub-mode: ``exact``, ``8bit``, ``uneven_12bit``, or ``sqrt_lut``). Omitted
-keys, and keys set to null, fall back to the instrument's catalog defaults.
+exposure the signal full-scale fraction references), ``filter`` (below), and
+``quantization`` (the ADC sub-mode: ``exact``, ``8bit``, ``uneven_12bit``,
+``sqrt_lut``, ``ls8b``, or ``contour_8bit``). Omitted keys, and keys set to null, fall back
+to the instrument's catalog defaults.
+
+``filter`` names the filter combination the frame was shot through, written as
+the product label writes it (``CL1+CL2``). It sets how many electrons per second
+a native pixel collects from a surface at I/F 1.0, so the raw DN, a calibrated
+product's DN-to-I/F scale, and the star brightness all follow the filter. The
+catalog (:mod:`spindoctor.sim.forward.filter_catalog`) covers the Cassini NAC
+and WAC and their calibrated products. Its values come from Cassini raw/CALIB
+pairs: the CISSCAL efficiency and absolute-correction factors in each CALIB
+label, times a camera constant fitted on 12-bit pairs, with measured values for
+the combinations that 12-bit pairs cover. The clear throughputs are
+1.45 million e-/s per I/F for the NAC and 13.5 million for the WAC. A polarizer
+reads as the clear element of its wheel, as CISSCAL treats it. Naming a filter
+on a camera without a table, or one the table doesn't list, is a validation
+error, and so is setting ``filter`` together with ``exposure_ref_sec``.
+
+A scene that doesn't name a filter keeps the nominal scale its catalog entry
+derives. For the NAC that is 55,000 e-/s per I/F, close to its IR3 and HAL
+filters; for the WAC it is 47,500, close to its MT3 filter. The throughput is the only part of the rendering that
+depends on the filter. Haze, body photometry, star color, and the PSF render
+the same for every filter.
 
 ``binning`` selects a binned or summed readout mode, 1 by default: each frame
 pixel sums a ``b`` by ``b`` block of native pixels. The catalog's
@@ -3253,8 +3347,8 @@ pairs), ``frame_transfer_smear`` and ``serial_tail`` (LORRI column pedestal and
 saturation undershoot tail), ``beam_bend`` and ``residual_image`` (Voyager
 brightness-dependent limb bias and erase-cycle ghost), ``fixed_pattern``
 (stitch combs, vignetting, dust donuts, jail bars, PRNU), and the quantization
-modes ``quantization_lut``, ``quantization_ls8b``, and ``contouring_8bit``. The
-mechanics live in
+modes ``quantization_sqrt_lut``, ``quantization_ls8b``, and
+``quantization_contour_8bit``. The mechanics live in
 :mod:`spindoctor.sim.forward.detector.electronics_stages`; an explicit mode
 wins over the generic noise-block knob for the same mechanic (banding, bias,
 bloom, quantization), the precedence ``hot_pixels`` already uses.

@@ -35,6 +35,7 @@ __all__ = [
     'add_dark_current',
     'add_hot_pixels',
     'deposit_morphological_events',
+    'detector_column_map',
     'detector_hot_pixel_map',
 ]
 
@@ -130,6 +131,32 @@ def detector_hot_pixel_map(
     amp_words = _splitmix64(words[hot_v, hot_u])
     relative = -np.log1p(-_unit_interval(amp_words))
     return hot_v.astype(np.intp), hot_u.astype(np.intp), relative
+
+
+def detector_column_map(size_u: int, *, effect: str, detector_id: str) -> NDArrayFloatType:
+    """A fixed standard-normal value per native detector column.
+
+    Each column ``u`` draws a Gaussian keyed on the effect name, the detector,
+    and the column, never on a scene seed, so every scene emulating the
+    detector sees the same values in the same columns, at any frame width.
+
+    Parameters:
+        size_u: The number of native columns.
+        effect: The effect the map belongs to, so two effects draw
+            independent maps.
+        detector_id: The emulated detector's name.
+
+    Returns:
+        A length-``size_u`` array of standard-normal values.
+    """
+    key = int.from_bytes(hashlib.sha256(f'{effect}:{detector_id}'.encode()).digest()[:8], 'big')
+    us = np.arange(size_u, dtype=np.uint64)
+    first = _splitmix64(us ^ np.uint64(key))
+    second = _splitmix64(first)
+    # Box-Muller; 1 - u keeps the logarithm's argument in (0, 1].
+    radius = np.sqrt(-2.0 * np.log1p(-_unit_interval(first)))
+    result: NDArrayFloatType = radius * np.cos(2.0 * np.pi * _unit_interval(second))
+    return result
 
 
 def add_hot_pixels(

@@ -54,6 +54,7 @@ from spindoctor.sim.forward.artifacts_catalog import (
 )
 from spindoctor.sim.forward.atmosphere import HaloScreen
 from spindoctor.sim.forward.body import render_single_body
+from spindoctor.sim.forward.filter_catalog import filter_star_flux_scale
 from spindoctor.sim.forward.optics import effective_psf
 from spindoctor.sim.forward.ring_system import RingSystemMaps, render_ring_system
 from spindoctor.sim.forward.scene_compositing import (
@@ -72,6 +73,27 @@ from spindoctor.support.stable_math import stable_hypot
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType, NDArrayIntType
 
 __all__ = ['compose_scene_radiance']
+
+
+def _star_zero_point(params: Mapping[str, Any]) -> tuple[float, str]:
+    """The scene's star photometric zero point and its unit domain.
+
+    The camera's zero point refers to its clear filter; a scene
+    ``detector.filter`` scales it by that filter's throughput over the clear
+    throughput, so stars dim with the extended signal.
+
+    Parameters:
+        params: The full scene mapping.
+
+    Returns:
+        A ``(zero_point, domain)`` pair, as
+        :func:`~spindoctor.sim.forward.artifacts_catalog.resolve_star_flux_zero_point`.
+    """
+    instrument = params.get('instrument')
+    zero_point, domain = resolve_star_flux_zero_point(instrument)
+    filter_name = (params.get('detector') or {}).get('filter')
+    scale = filter_star_flux_scale(instrument, None if filter_name is None else str(filter_name))
+    return zero_point * scale, domain
 
 
 def _nominal_read_noise(instrument: str | None, domain: str, *, binning: int) -> float:
@@ -173,7 +195,7 @@ def compose_scene_radiance(
 
     # The photometric zero point and its unit domain (electrons for a CCD, DN for
     # the vidicon) drive the flux each star deposits into the point-source plane.
-    zero_point, flux_domain = resolve_star_flux_zero_point(params.get('instrument'))
+    zero_point, flux_domain = _star_zero_point(params)
     exposure_sec = float(params.get('exposure_sec', 1.0))
 
     stars_params = params.get('stars', []) or []
@@ -701,7 +723,7 @@ def _render_sky(
     if not isinstance(sky, Mapping):
         return
     instrument = params.get('instrument')
-    zero_point, domain = resolve_star_flux_zero_point(instrument)
+    zero_point, domain = _star_zero_point(params)
     exposure_sec = float(params.get('exposure_sec', 1.0))
     inst_config = resolve_sim_inst_config(
         DEFAULT_CONFIG, instrument, params.get('instrument_config')

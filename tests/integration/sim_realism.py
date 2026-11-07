@@ -54,6 +54,11 @@ from spindoctor.nav_model import build_models_for_obs
 from spindoctor.nav_orchestrator import NavOrchestrator
 from spindoctor.obs.obs_inst_sim import ObsSim
 from spindoctor.obs.obs_snapshot import ObsSnapshot
+from spindoctor.sim.forward.artifact_modes import normalize_instrument
+from spindoctor.sim.forward.filter_catalog import (
+    FILTER_THROUGHPUT_E_PER_S_PER_IF,
+    canonical_filter,
+)
 from spindoctor.sim.realism.artifact_rates import (
     ArtifactRates,
     split_stationary_spikes,
@@ -165,6 +170,13 @@ class FrameRecord:
         diameter_px: Largest body's predicted apparent diameter (limb
             frames; default where no body model was built).
         phase_angle_deg: That body's phase angle.
+        frame_shape_vu: The frame's (v, u) shape.
+        filter_name: The frame's filter combination (``'CL1+CL2'``) on a
+            camera the sim's filter catalog covers, else None.
+        gain_state: The frame's gain state on a Cassini camera, else None.
+        quantization: ``'sqrt_lut'`` for a Cassini frame downlinked through
+            the 12-to-8-bit table, which the camera's catalog curve models,
+            else None.
     """
 
     image_id: str
@@ -176,6 +188,9 @@ class FrameRecord:
     diameter_px: float = 150.0
     phase_angle_deg: float = 45.0
     frame_shape_vu: tuple[int, int] = (512, 512)
+    filter_name: str | None = None
+    gain_state: int | None = None
+    quantization: str | None = None
 
 
 @dataclass
@@ -288,6 +303,27 @@ def _frame_samples_real(
         offset_vu=offset,
         frame_shape_vu=(int(obs.data_shape_vu[0]), int(obs.data_shape_vu[1])),
     )
+    if instrument.startswith('coiss_calib_'):
+        # Matching content, not tuning: the sim renders the frame's own filter
+        # throughput, gain state, and downlink table, so its DN-to-I/F scale
+        # and quantization step are the real product's.
+        filter_name = f'{obs.filter1}+{obs.filter2}'
+        if (
+            canonical_filter(instrument, filter_name)
+            in FILTER_THROUGHPUT_E_PER_S_PER_IF[normalize_instrument(instrument)]
+        ):
+            record.filter_name = filter_name
+        else:
+            # An uncataloged pair renders at the nominal scale rather than
+            # aborting the whole match; the warning names the frame.
+            warnings.warn(
+                f'{sidecar.image_id}: filter {filter_name} is not cataloged for '
+                f'{instrument}; its matched scene uses the nominal scale',
+                stacklevel=2,
+            )
+        record.gain_state = int(obs.gain_mode)
+        if obs.dict.get('DATA_CONVERSION_TYPE') == 'TABLE':
+            record.quantization = 'sqrt_lut'
     saturation = SATURATION_LEVEL[instrument]
     samples, rates = extract_pixel_samples(
         np.asarray(obs.data, dtype=np.float64),
@@ -343,6 +379,9 @@ def _sim_obs_for_record(record: FrameRecord) -> tuple[ObsSim, dict[str, Any]]:
         size_vu=record.frame_shape_vu,
         diameter_px=record.diameter_px,
         phase_angle_deg=record.phase_angle_deg,
+        filter_name=record.filter_name,
+        gain_state=record.gain_state,
+        quantization=record.quantization,
     )
     obs = ObsSim.from_file(f'/tmp/sim_realism_{record.image_id}.yaml', sim_params=scene)
     return obs, scene

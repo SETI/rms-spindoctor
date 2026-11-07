@@ -569,10 +569,15 @@ diverges by two orders of magnitude one-sidedly: simulated sky sigma
 sits at 2.4e-5 I/F against 1.9e-4 real (W1/IQR 94), noise at signal
 likewise (98), and the sky level above floor at 3.7e-5 vs 3.2e-4
 (W1/IQR 2377).  A one-sided deficit of that size on the calibrated
-chain is a chain symptom, not a small-n artifact -- most plausibly the
-nominal DN-to-I/F calibration scale of the simulated chain (the
-per-filter CISSCAL scale is not modeled; the same family as the
-calibrated-product known gap), though the 4-frame cohort cannot close the attribution.  The
+chain is a chain symptom, not a small-n artifact.  These matched frames
+rendered at the nominal DN-to-I/F scale on the DN lattice, so the two
+shortest frames' simulated sky yielded 3 patches between them and the
+26 s clear frame supplied 257 of the 378: the pooled sim median is that
+frame's, where the nominal scale makes one DN 2.4e-5 I/F, 280 times the
+real frame's sky noise, while the real median comes from the short
+frames.  The matched scenes render each frame's own
+filter and the calibration residual (see the calibrated-product known
+gap), so every frame contributes on both sides.  The
 remaining WAC statistics rest on 1-2 frames per stratum and are
 reported in the summary JSON without distributional claims.
 
@@ -658,24 +663,43 @@ Known gaps
 Where a figure of merit reveals a forward-model gap that parameter tuning
 cannot close, it is recorded here rather than force-fitted:
 
-1. **Calibrated-product quantization scars.**  The sim's calibrated path
-   retains full LSB quantization texture: its measured sky-noise floor is
-   ~1 DN-equivalent at every exposure (Cassini CALIB and Voyager GEOMED
-   paths alike).  Real calibrated products sit *below* the LSB (NAC CALIB
-   ~0.1-0.4 DN-equivalent, GEOMED ~0.22 DN) because their float-valued
-   corrections -- flat fields, dark/bias frames, 2-Hz filtering, geometric
-   resampling -- dither the quantization away.  This floors the FOM 1
-   sky-noise divergence for every calibrated cohort; closing it needs a
-   calibration-scar model (sub-LSB dithering / resample texture), not
-   parameter tuning.  Tuning read noise below its published value to
-   compensate would misattribute the mismatch and was not done.  The
-   per-filter absolute DN-to-I/F scale is likewise a nominal identity
-   (signal 1.0 = I/F 1.0 at the reference exposure) rather than the real
-   per-filter CISSCAL scale, so I/F noise amplitudes carry that
-   uncertainty too.  The Cassini WAC comparison shows that scale
-   uncertainty at full size: its simulated sky sigma undershoots the
-   real cohort by roughly 8x one-sidedly (2.4e-5 vs 1.9e-4 I/F; see the
-   WAC subsection).
+1. **Calibrated-product noise floor.**  A real Cassini CALIB sky is
+   continuous, not on the DN lattice: CISSCAL subtracts per-pixel models
+   from integer DN.  On the 12-bit NAC frames its noise is about 0.9
+   DN-equivalent at gain state 2 (0.66-1.21 over 22 frames, through each
+   frame's own DN-to-I/F scale fitted on raw/CALIB pairs).  Three measured
+   terms build that floor, and the sim models each:
+
+   - the per-filter DN-to-I/F scale (``detector.filter``), one camera
+     constant times the CISSCAL efficiency and absolute correction of the
+     frame's filter, from 6,400 e-/s per I/F (NAC CL1+CB3) to 1.45 million
+     (NAC clear) and 13.5 million (WAC clear).  At the nominal 55,000
+     (NAC) and 47,500 (WAC) the per-frame sim/real sky-sigma ratio spans
+     0.06 to 110 on the NAC cohort, so the pooled agreement was a
+     cancellation, and the WAC's pooled shortfall is a mix of frames (see
+     the WAC subsection);
+   - the readout dark (``readout_dark_e``): the raw dark sky rises
+     linearly by 55 e- from the first line to the last at every exposure,
+     and CISSCAL's dark model removes the ramp but not its shot noise;
+   - the calibration residual (``calibration_column_residual_e`` and
+     ``calibration_pixel_residual_e``): CALIB minus raw carries a column
+     pattern fixed per camera (frame-to-frame correlation 0.93, NAC 15 e-)
+     and a per-pixel term (NAC 9.4 e-) that the raw frames don't have.
+
+   The matched scenes render each frame's own filter, gain state, and
+   downlink table (``sqrt_lut`` through the 12-to-8-bit table measured from
+   the TABLE frames, whose 3-4 DN step near a dark sky is several times a
+   12-bit frame's 1 DN).  The raw per-pixel noise the sim renders, 12 e-
+   of read noise plus the readout dark's shot noise, sits about 15% below
+   the 15.5 e- measured on the raw dark sky; tuning read noise to close it
+   would misattribute the difference and was not done.  On the TABLE
+   frames and a few 12-bit ones the real uniform patches lie on rings and
+   bodies (mean I/F up to 0.9) while the matched sim's lie on dark sky, so
+   their FOM 1 compares signal-dependent noise against sky noise (the
+   matched-frame content gap below).  Voyager GEOMED products sit below
+   the LSB (~0.22 DN), because the geometric resampling interpolates and
+   dithers the quantization; the sim's GEOMED path doesn't resample, so
+   its floor stays at ~1 DN.
 2. **Matched-frame content limits.**  Simulated ring edges are sharp
    optical-depth steps and simulated matched bodies are relief-free
    ellipsoids, so residual FOM 3/4 width differences fold in real edge
