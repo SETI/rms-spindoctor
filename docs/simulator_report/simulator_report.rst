@@ -687,9 +687,9 @@ cannot close, it is recorded here rather than force-fitted:
      and a per-pixel term (NAC 9.4 e-) that the raw frames don't have.
 
    The matched scenes render each frame's own filter, gain state, and
-   downlink table (``coiss_lut``, the 12-to-8-bit table measured from the
-   TABLE frames, whose 3-4 DN step near a dark sky is several times a
-   square-root table's).  The raw per-pixel noise the sim renders, 12 e-
+   downlink table (``sqrt_lut`` through the 12-to-8-bit table measured from
+   the TABLE frames, whose 3-4 DN step near a dark sky is several times a
+   12-bit frame's 1 DN).  The raw per-pixel noise the sim renders, 12 e-
    of read noise plus the readout dark's shot noise, sits about 15% below
    the 15.5 e- measured on the raw dark sky; tuning read noise to close it
    would misattribute the difference and was not done.  On the TABLE

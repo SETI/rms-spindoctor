@@ -318,6 +318,14 @@ DETECTOR_DEFAULTS: dict[str, dict[str, Any]] = {
         'bias_col_gradient_dn': 0.5,  # 5.2 interim
         'bloom_length': 4,  # 5.2 interim (no antiblooming; column bleed above the well)
         'quantization': 'exact',
+        # The 12-to-8-bit downlink table (DATA_CONVERSION_TYPE TABLE) the
+        # sqrt_lut quantization decodes through.  Measured 2026-11-06 from the
+        # 26 TABLE frames of the CALIB cohort: the calibrated DN-equivalent step
+        # between consecutive raw codes is an integer that grows by one about
+        # every ten codes (3 near code 10, 5 near 25, 8 near 55, 13 near 100,
+        # 24 near 200), which round(2 * code + 0.055 * code**2) reproduces,
+        # alternations included, and which tops out at 4086 DN at code 255.
+        'sqrt_lut': {'linear_dn': 2.0, 'quadratic_dn': 0.055, 'whole_dn': True},
         # Per-mode shape defaults (interim, 5.2).  An activation key is never
         # cataloged: a mode activates only when a scene sets it.  Shapes here are the values
         # a scene inherits when it names a mode without spelling every parameter.
@@ -378,6 +386,8 @@ DETECTOR_DEFAULTS: dict[str, dict[str, Any]] = {
         'bias_col_gradient_dn': 0.5,
         'bloom_length': 4,  # 5.2 interim (no antiblooming; column bleed above the well)
         'quantization': 'exact',
+        # The NAC's downlink table; the two cameras share it.
+        'sqrt_lut': {'linear_dn': 2.0, 'quadratic_dn': 0.055, 'whole_dn': True},
         # Per-mode shape defaults (interim, 5.2); ~6 e- WAC 4 Hz banding.
         'artifact_modes': {
             'banding_coherent': {

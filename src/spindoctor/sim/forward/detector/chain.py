@@ -57,22 +57,13 @@ from spindoctor.sim.forward.detector.params import (
     calibration_map,
     resolve_detector_params,
 )
+from spindoctor.sim.forward.detector.sqrt_lut import SqrtLut, resolve_sqrt_lut
 from spindoctor.sim.forward.feature_loci import dilated_pixels, extract_feature_loci
 from spindoctor.sim.forward.stages import SimFrame
 from spindoctor.sim.seeds import derive_effect_seed
 from spindoctor.support.types import NDArrayFloatType, NDArrayIntType
 
-__all__ = ['COISS_LUT_DN', 'apply_detector', 'apply_saturation', 'keep_off_marker', 'quantize_dn']
-
-# The Cassini ISS 12-to-8-bit table (DATA_CONVERSION_TYPE TABLE), as the 12-bit
-# DN each 8-bit code decodes to.  Measured 2026-11-06 from the 26 TABLE frames
-# of the CALIB cohort: the calibrated DN-equivalent step between consecutive
-# raw codes is an integer that grows by one about every ten codes (3 near code
-# 10, 5 near 25, 8 near 55, 13 near 100, 24 near 200), which
-# round(2 * code + 0.055 * code**2) reproduces, alternations included, and
-# which tops out at 4086 DN at code 255.
-_COISS_LUT_CODES = np.arange(256, dtype=np.float64)
-COISS_LUT_DN = np.round(2.0 * _COISS_LUT_CODES + 0.055 * _COISS_LUT_CODES**2)
+__all__ = ['apply_detector', 'apply_saturation', 'keep_off_marker', 'quantize_dn']
 
 
 def _stage_rng(seed: int, effect: str) -> np.random.Generator:
@@ -159,6 +150,7 @@ def quantize_dn(
     mode: str,
     saturation_dn: float,
     contour_step: int = 8,
+    sqrt_lut: SqrtLut | None = None,
 ) -> NDArrayFloatType:
     """Quantize a DN image by the selected ADC sub-mode.
 
@@ -167,16 +159,18 @@ def quantize_dn(
         mode: 'exact' (round to integer, uniform bins), '8bit' (integer bins
             with a hard 255 code ceiling), 'uneven_12bit' (integer bins with
             histogram spikes at the power-of-two bit boundaries), 'sqrt_lut'
-            (square-root companding to 8 bits and back, leaving a
+            (square-root companding to 8 bits and back: each value snapped to
+            the nearest decoded DN of ``sqrt_lut``, leaving a
             signal-dependent residual), 'ls8b' (low 8 bits kept: values above
             255 wrap modulo 256, the banded wraparound on bright targets), or
             'contour_8bit' (8-bit output posterized to multiples of
-            ``contour_step``, the uneven-bin contouring of a coarse ADC), or
-            'coiss_lut' (each value snapped to the nearest DN of the
-            Cassini 12-to-8-bit table, :data:`COISS_LUT_DN`, as the
-            calibrated product decodes it).
-        saturation_dn: The ADC ceiling, used to scale the companding LUT.
+            ``contour_step``, the uneven-bin contouring of a coarse ADC).
+        saturation_dn: The ADC ceiling, which scales the plain square-root
+            curve when ``sqrt_lut`` is None.
         contour_step: The DN posterization step for the 'contour_8bit' mode.
+        sqrt_lut: The companding curve for the 'sqrt_lut' mode; None selects
+            the plain square-root curve whose top code decodes to
+            ``saturation_dn``.
 
     Returns:
         The quantized DN image.
@@ -214,19 +208,15 @@ def quantize_dn(
             quantized[near] = boundary
         return quantized
     if mode == 'sqrt_lut':
-        # Square-root companding: encode to 8 bits through a sqrt LUT and decode
-        # back, so the quantization step tracks the photon noise and the inverse
-        # leaves a residual that grows with signal.
-        ceiling = max(saturation_dn, 1.0)
-        clipped = np.clip(dn, 0.0, ceiling)
-        code = np.rint(255.0 * np.sqrt(clipped / ceiling))
-        return ceiling * (code / 255.0) ** 2
-    if mode == 'coiss_lut':
-        # The table encodes each DN to the code whose decoded value is nearest;
-        # the product carries the decoded DN, so the step is the table's.
-        # A NaN pixel stays NaN, as np.rint keeps it in the other modes.
-        midpoints = 0.5 * (COISS_LUT_DN[1:] + COISS_LUT_DN[:-1])
-        snapped = COISS_LUT_DN[np.searchsorted(midpoints, np.nan_to_num(dn, nan=0.0))]
+        # Square-root companding: the table encodes each DN to the code whose
+        # decoded value is nearest, and the product carries the decoded DN, so
+        # the step tracks the photon noise and leaves a residual that grows with
+        # signal.  A NaN pixel stays NaN, as np.rint keeps it in the other modes.
+        if sqrt_lut is None:
+            sqrt_lut = resolve_sqrt_lut(None, saturation_dn=saturation_dn)
+        levels = sqrt_lut.levels()
+        midpoints = 0.5 * (levels[1:] + levels[:-1])
+        snapped = levels[np.searchsorted(midpoints, np.nan_to_num(dn, nan=0.0))]
         result: NDArrayFloatType = np.where(np.isnan(dn), np.nan, snapped)
         return result
     raise ValueError(f'unknown quantization mode {mode!r}')
@@ -383,6 +373,7 @@ def _apply_ccd(frame: SimFrame, dp: DetectorParams, rng: np.random.Generator) ->
         mode=dp.quantization,
         saturation_dn=dp.saturation_dn,
         contour_step=dp.quantization_contour_step,
+        sqrt_lut=dp.sqrt_lut,
     )
     np.clip(dn, 0.0, dp.saturation_dn, out=dn)
     frame.signal[:] = dn
@@ -578,6 +569,7 @@ def _apply_vidicon(frame: SimFrame, dp: DetectorParams, rng: np.random.Generator
         mode=dp.quantization,
         saturation_dn=dp.saturation_dn,
         contour_step=dp.quantization_contour_step,
+        sqrt_lut=dp.sqrt_lut,
     )
     np.clip(dn, 0.0, dp.saturation_dn, out=dn)
     frame.signal[:] = dn
