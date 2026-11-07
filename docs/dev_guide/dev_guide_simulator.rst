@@ -726,9 +726,16 @@ nearest, so the step grows with the signal and leaves a signal-dependent
 quantization residual; ``ls8b`` keeps only the low 8 bits, so a value above 255
 wraps modulo 256 (the banded wraparound on a bright target); and
 ``contour_8bit`` posterizes an 8-bit word to multiples of its step, the visible
-contouring of a coarse ADC. The ``quantization_lut``, ``quantization_ls8b``, and
-``contouring_8bit`` artifact modes select ``sqrt_lut``, ``ls8b``, and
-``contour_8bit``.
+contouring of a coarse ADC.
+
+The detector's ``quantization`` key fixes one sub-mode for every frame of a
+camera or scene. Real archives mix downlink formats, though: only some Cassini
+frames went down through the 8-bit table. So each of the three table and
+word-width sub-modes also has an artifact mode, named ``quantization_`` plus the
+sub-mode: ``quantization_sqrt_lut``, ``quantization_ls8b``, and
+``quantization_contour_8bit``. An artifact mode fires on a per-frame
+``probability``, and on a frame where it fires it replaces the ``quantization``
+key's sub-mode and is recorded as active in that frame's truth.
 
 Each camera's ``sqrt_lut`` table is the ``sqrt_lut`` entry in its detector
 catalog: the table sends ``codes`` codes (256 for an 8-bit code word), and code
@@ -1076,7 +1083,7 @@ which mode's truth record is written first.
      - a prior-frame ghost from incomplete erasure
      - vgiss
      - ``probability``
-   * - ``quantization_lut``
+   * - ``quantization_sqrt_lut``
      - the Cassini 12-to-8-bit table quantization
      - nac, wac
      - ``probability``
@@ -1084,7 +1091,7 @@ which mode's truth record is written first.
      - the Cassini LS8B wraparound quantization
      - nac, wac
      - ``probability``
-   * - ``contouring_8bit``
+   * - ``quantization_contour_8bit``
      - 8-bit contouring quantization steps
      - gossi, vgiss
      - ``probability``
@@ -3340,8 +3347,8 @@ pairs), ``frame_transfer_smear`` and ``serial_tail`` (LORRI column pedestal and
 saturation undershoot tail), ``beam_bend`` and ``residual_image`` (Voyager
 brightness-dependent limb bias and erase-cycle ghost), ``fixed_pattern``
 (stitch combs, vignetting, dust donuts, jail bars, PRNU), and the quantization
-modes ``quantization_lut``, ``quantization_ls8b``, and ``contouring_8bit``. The
-mechanics live in
+modes ``quantization_sqrt_lut``, ``quantization_ls8b``, and
+``quantization_contour_8bit``. The mechanics live in
 :mod:`spindoctor.sim.forward.detector.electronics_stages`; an explicit mode
 wins over the generic noise-block knob for the same mechanic (banding, bias,
 bloom, quantization), the precedence ``hot_pixels`` already uses.

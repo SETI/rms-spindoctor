@@ -442,10 +442,10 @@ def test_quantization_ls8b_mode_routes_to_the_ls8b_submode() -> None:
 
 
 @pytest.mark.parametrize('instrument', ['coiss_nac', 'coiss_wac', 'coiss_calib_nac'])
-def test_quantization_lut_mode_routes_to_the_cassini_table(instrument: str) -> None:
-    """The quantization_lut mode selects sqrt_lut through each camera's measured table."""
+def test_quantization_sqrt_lut_mode_routes_to_the_cassini_table(instrument: str) -> None:
+    """The quantization_sqrt_lut mode selects sqrt_lut through each camera's measured table."""
     dp = resolve_detector_params(
-        _disc(instrument, artifacts={'quantization_lut': {'probability': 1.0}})
+        _disc(instrument, artifacts={'quantization_sqrt_lut': {'probability': 1.0}})
     )
     assert dp.quantization == 'sqrt_lut'
     assert dp.sqrt_lut == SqrtLut(codes=256, linear_dn=2.0, quadratic_dn=0.055, whole_dn=True)

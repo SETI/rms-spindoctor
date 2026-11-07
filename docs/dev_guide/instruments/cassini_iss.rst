@@ -442,7 +442,7 @@ radially symmetric, which is why the non-radial wander is zero.
 
 **Artifact-mode availability.** Both cameras are in the CCD set and carry the
 whole common surface. They also carry four further modes:
-``bright_dark_pairs``, ``quantization_lut``, ``quantization_ls8b`` and
+``bright_dark_pairs``, ``quantization_sqrt_lut``, ``quantization_ls8b`` and
 ``partial_lines``. There are no exclusions recorded against either camera key.
 
 **Realism-match status.** The narrow angle PSF is tuned against eleven frames.
