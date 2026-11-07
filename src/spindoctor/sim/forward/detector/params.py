@@ -52,6 +52,7 @@ from spindoctor.sim.forward.artifacts_catalog import (
     resolve_mode_with_catalog,
     resolve_readout_mode,
 )
+from spindoctor.sim.forward.detector.sqrt_lut import SqrtLut, resolve_sqrt_lut
 from spindoctor.sim.forward.filter_catalog import FilterCatalogError, resolve_filter_throughput
 from spindoctor.sim.instruments import navigator_marker_value, resolve_sim_inst_config
 from spindoctor.sim.seeds import derive_effect_seed
@@ -137,6 +138,9 @@ class DetectorParams:
             noise-block / instrument_defaults path.
         quantization_contour_step: The DN posterization step for the
             ``contour_8bit`` quantization sub-mode.
+        sqrt_lut: The companding curve of the ``sqrt_lut`` quantization
+            sub-mode: the instrument's cataloged table, or the plain square-root
+            curve scaled to ``saturation_dn``; None selects that plain curve.
         artifacts_adversarial: Whether stochastic detector artifact modes place
             their events adversarially onto the navigation features.
         detector_modes: The resolved config of every active detector-stage
@@ -188,6 +192,7 @@ class DetectorParams:
     hot_pixel_adversarial: bool = False
     hot_pixel_mode_active: bool = False
     quantization_contour_step: int = 8
+    sqrt_lut: SqrtLut | None = None
     artifacts_adversarial: bool = False
     detector_modes: dict[str, dict[str, Any]] = field(default_factory=dict)
 
@@ -722,7 +727,7 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
         if bloom_override is not None:
             bloom_length = int(bloom_override)
     if 'quantization_lut' in detector_modes:
-        quantization = 'coiss_lut'
+        quantization = 'sqrt_lut'
     if 'quantization_ls8b' in detector_modes:
         quantization = 'ls8b'
     if 'contouring_8bit' in detector_modes:
@@ -772,6 +777,7 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
         hot_pixel_adversarial=hot_pixel_adversarial,
         hot_pixel_mode_active=hot_pixel_mode_active,
         quantization_contour_step=contour_step,
+        sqrt_lut=resolve_sqrt_lut(catalog.get('sqrt_lut'), saturation_dn=saturation_dn),
         artifacts_adversarial=artifacts_adversarial,
         detector_modes=detector_modes,
     )

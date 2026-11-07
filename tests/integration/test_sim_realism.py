@@ -20,7 +20,7 @@ import numpy as np
 import pytest
 
 from spindoctor.sim.forward.artifacts_catalog import NATIVE_FRAME_SIZE_PX
-from spindoctor.sim.forward.detector.chain import COISS_LUT_DN
+from spindoctor.sim.forward.detector.params import resolve_detector_params
 from spindoctor.sim.render import render_combined_model
 from spindoctor.sim.scene import validate_sim_params
 from tests.integration.sim_realism import (
@@ -82,8 +82,8 @@ def test_a_binned_cohort_frame_renders_through_its_readout_mode() -> None:
     [
         ({}, None),
         (
-            {'filter_name': 'CL1+GRN', 'gain_state': 3, 'quantization': 'coiss_lut'},
-            {'filter': 'CL1+GRN', 'gain_state': 3, 'quantization': 'coiss_lut'},
+            {'filter_name': 'CL1+GRN', 'gain_state': 3, 'quantization': 'sqrt_lut'},
+            {'filter': 'CL1+GRN', 'gain_state': 3, 'quantization': 'sqrt_lut'},
         ),
     ],
     ids=['unmatched', 'table-frame'],
@@ -100,7 +100,7 @@ def test_a_matched_scene_renders_the_frame_filter_gain_and_table(
 
 @pytest.mark.parametrize(
     ('quantization', 'on_table'),
-    [('coiss_lut', True), (None, False)],
+    [('sqrt_lut', True), (None, False)],
     ids=['table-frame', 'full-frame'],
 )
 def test_a_matched_scene_renders_on_the_cassini_table_only_for_a_table_frame(
@@ -111,7 +111,9 @@ def test_a_matched_scene_renders_on_the_cassini_table_only_for_a_table_frame(
         'N123', 'star_dominated', 'coiss_nac', 1.2, size_vu=(256, 256), quantization=quantization
     )
     img, _ = render_combined_model(scene)
-    assert bool(np.isin(img, COISS_LUT_DN).all()) is on_table
+    table = resolve_detector_params(scene).sqrt_lut
+    assert table is not None
+    assert bool(np.isin(img, table.levels()).all()) is on_table
 
 
 def test_matched_scene_is_deterministic() -> None:

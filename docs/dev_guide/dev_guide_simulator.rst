@@ -725,23 +725,32 @@ its gating amplitude, fraction, or rate is zero.
 ``8bit`` rounds to integer DN and clips at the 255 code ceiling (the output
 word width, independent of ``saturation_dn``); ``uneven_12bit`` snaps values
 near the power-of-two carry boundaries to reproduce the histogram spikes of an
-ADC with unequal bit weights; ``sqrt_lut`` companding encodes to 8 bits through
-a square-root LUT and back, leaving a signal-dependent quantization residual;
-``coiss_lut`` snaps each value to the nearest DN of the Cassini 12-to-8-bit
-table, as the calibrated product decodes it; ``ls8b`` keeps only the low 8 bits,
-so a value above 255 wraps modulo 256 (the banded wraparound on a bright
-target); and ``contour_8bit`` posterizes an 8-bit word to multiples of its step,
-the visible contouring of a coarse ADC. The ``quantization_lut``,
-``quantization_ls8b``, and ``contouring_8bit`` artifact modes select the last
-three.
+ADC with unequal bit weights; ``sqrt_lut`` companding sends each value through
+an 8-bit table and back, the encoder picking the code whose decoded DN is
+nearest, so the step grows with the signal and leaves a signal-dependent
+quantization residual; ``ls8b`` keeps only the low 8 bits, so a value above 255
+wraps modulo 256 (the banded wraparound on a bright target); and
+``contour_8bit`` posterizes an 8-bit word to multiples of its step, the visible
+contouring of a coarse ADC. The ``quantization_lut``, ``quantization_ls8b``, and
+``contouring_8bit`` artifact modes select ``sqrt_lut``, ``ls8b``, and
+``contour_8bit``.
 
-The Cassini table is measured from the 26 TABLE frames of the CALIB cohort. The
-calibrated DN-equivalent step between consecutive raw codes is an integer that
-grows by one about every ten codes: 3 DN near code 10, 5 near 25, 8 near 55, 13
-near 100, and 24 near 200. Code ``c`` decodes to ``round(2 * c + 0.055 * c**2)``
-DN, which reproduces those steps and tops out at 4086 DN at code 255. Near a
-dark sky the step is 3 to 4 DN, several times a square-root table's, so a TABLE
-frame's calibrated sky is several times noisier than a 12-bit frame's.
+Each camera's ``sqrt_lut`` table is the ``sqrt_lut`` entry in its detector
+catalog: code ``c`` decodes to ``linear_dn * c + quadratic_dn * c**2`` DN,
+rounded to whole DN when ``whole_dn`` is set. A camera without an entry gets the
+plain square-root curve, whose top code decodes to ``saturation_dn``:
+``linear_dn`` 0, ``quadratic_dn`` ``saturation_dn / 255**2``, and fractional DN
+kept.
+
+The two Cassini cameras share the 12-to-8-bit downlink table, measured from the
+26 TABLE frames of the CALIB cohort. The calibrated DN-equivalent step between
+consecutive raw codes is an integer that grows by one about every ten codes: 3
+DN near code 10, 5 near 25, 8 near 55, 13 near 100, and 24 near 200. Code ``c``
+decodes to ``round(2 * c + 0.055 * c**2)`` DN (``linear_dn`` 2, ``quadratic_dn``
+0.055, ``whole_dn`` true), which reproduces those steps and tops out at 4086 DN
+at code 255. Near a dark sky the step is 3 to 4 DN, against 1 DN in a 12-bit
+frame, so a TABLE frame's calibrated sky is several times noisier than a 12-bit
+frame's.
 
 **Artifact modes in the chain.** The registry's detector modes (see
 :ref:`sim-artifacts-block`) render at their physical point in this chain: the
@@ -3242,7 +3251,7 @@ for the instrument), ``binning`` (the readout mode, below), ``detector_model``
 (``ccd`` electron chain or ``vidicon`` DN chain), ``exposure_ref_sec`` (the
 exposure the signal full-scale fraction references), ``filter`` (below), and
 ``quantization`` (the ADC sub-mode: ``exact``, ``8bit``, ``uneven_12bit``,
-``sqrt_lut``, or ``coiss_lut``). Omitted keys, and keys set to null, fall back
+``sqrt_lut``, ``ls8b``, or ``contour_8bit``). Omitted keys, and keys set to null, fall back
 to the instrument's catalog defaults.
 
 ``filter`` names the filter combination the frame was shot through, written as
