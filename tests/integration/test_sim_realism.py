@@ -20,7 +20,8 @@ import numpy as np
 import pytest
 
 from spindoctor.sim.forward.artifacts_catalog import NATIVE_FRAME_SIZE_PX
-from spindoctor.sim.forward.detector.params import resolve_detector_params
+from spindoctor.sim.forward.detector.chain import COISS_LUT_DN
+from spindoctor.sim.render import render_combined_model
 from spindoctor.sim.scene import validate_sim_params
 from tests.integration.sim_realism import (
     INSTRUMENT_FOR,
@@ -97,17 +98,20 @@ def test_a_matched_scene_renders_the_frame_filter_gain_and_table(
     assert scene.get('detector') == expected
 
 
-def test_a_table_frame_matched_scene_quantizes_through_the_cassini_table() -> None:
-    """A TABLE frame's matched scene resolves to the measured Cassini table."""
+@pytest.mark.parametrize(
+    ('quantization', 'on_table'),
+    [('coiss_lut', True), (None, False)],
+    ids=['table-frame', 'full-frame'],
+)
+def test_a_matched_scene_renders_on_the_cassini_table_only_for_a_table_frame(
+    quantization: str | None, on_table: bool
+) -> None:
+    """A TABLE frame's raw render lands on the table's DN values; a 12-bit one doesn't."""
     scene = matched_scene(
-        'N123',
-        'star_dominated',
-        'coiss_calib_nac',
-        1.2,
-        size_vu=_NAC_FULL,
-        quantization='coiss_lut',
+        'N123', 'star_dominated', 'coiss_nac', 1.2, size_vu=(256, 256), quantization=quantization
     )
-    assert resolve_detector_params(scene).quantization == 'coiss_lut'
+    img, _ = render_combined_model(scene)
+    assert bool(np.isin(img, COISS_LUT_DN).all()) is on_table
 
 
 def test_matched_scene_is_deterministic() -> None:
