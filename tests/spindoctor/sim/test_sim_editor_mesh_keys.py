@@ -460,8 +460,8 @@ def test_every_control_inside_a_refused_control_explains_the_refusal(model: Any,
         assert wrong == [], attr
 
 
-def test_the_hover_walk_stops_at_a_spin_box_and_a_combo_box(qapp: QApplication) -> None:
-    """The walk reaches each control and label but never the parts a compound is built from."""
+def _walk_fixture() -> tuple[QGroupBox, QLabel, QDoubleSpinBox, QComboBox]:
+    """A group holding a label, a spin box, and a combo box whose popup is built."""
     group = QGroupBox()
     label = QLabel('Radius', group)
     spin = QDoubleSpinBox(group)
@@ -470,12 +470,49 @@ def test_the_hover_walk_stops_at_a_spin_box_and_a_combo_box(qapp: QApplication) 
     combo.view()  # builds the popup, so the combo holds parts of its own
     assert spin.findChildren(QWidget) != []
     assert combo.findChildren(QWidget) != []
+    return group, label, spin, combo
+
+
+def _refuse_call(name: str) -> Any:
+    """A stand-in method that fails the test when the walk calls it."""
+
+    def refuse(*_args: Any, **_kwargs: Any) -> Any:
+        raise AssertionError(f'the walk called {name}')
+
+    return refuse
+
+
+def _guard_walk(monkeypatch: pytest.MonkeyPatch, *widgets: QWidget) -> None:
+    """Fail on any descendant scan of ``widgets``, and on any look inside a compound."""
+    for widget in widgets:
+        monkeypatch.setattr(widget, 'findChildren', _refuse_call('findChildren'))
+        if isinstance(widget, (QAbstractSpinBox, QComboBox)):
+            monkeypatch.setattr(widget, 'children', _refuse_call('children'))
+
+
+def test_the_hover_walk_stops_at_a_spin_box_and_a_combo_box(
+    qapp: QApplication, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The walk reaches each control and label but never the parts a compound is built from."""
+    group, label, spin, combo = _walk_fixture()
+    _guard_walk(monkeypatch, group, label, spin, combo)
     assert {id(target) for target in _hover_targets(group)} == {
         id(group),
         id(label),
         id(spin),
         id(combo),
     }
+
+
+@pytest.mark.parametrize('root', ['spin', 'combo'])
+def test_a_compound_control_is_its_own_only_hover_target(
+    qapp: QApplication, monkeypatch: pytest.MonkeyPatch, root: str
+) -> None:
+    """Started at a spin box or a combo box, the walk returns that control alone."""
+    _group, _label, spin, combo = _walk_fixture()
+    widget = spin if root == 'spin' else combo
+    _guard_walk(monkeypatch, widget)
+    assert _hover_targets(widget) == [widget]
 
 
 def test_an_ellipsoid_gives_every_control_its_own_tooltip_back(model: Any) -> None:
