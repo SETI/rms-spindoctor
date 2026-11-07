@@ -65,6 +65,72 @@ def test_noise_sweep_low_noise_all_succeed() -> None:
         assert row.offset_error_px < _RECOVERY_TOLERANCE_PX
 
 
+def test_calibrated_noise_sweep_recovers_at_every_read_noise() -> None:
+    """On the CALIB product the disc holds within tolerance across the whole sweep.
+
+    The calibrated base renders through the full instrument chain, and its disc
+    carries a charge comparable to the raw base's, yet the raw sweep's cliff at
+    64 DN does not appear: every step recovers.
+    """
+    for row in _rows('noise_read_noise_calib'):
+        assert row.status == 'success'
+        assert row.offset_error_px is not None
+        assert row.offset_error_px < _RECOVERY_TOLERANCE_PX
+
+
+def test_calibrated_exposure_sweep_starts_clean() -> None:
+    """At the base exposure the CALIB product recovers the planted offset."""
+    rows = _rows('noise_exposure_calib')
+    assert rows[0].status == 'success'
+    assert rows[0].offset_error_px is not None
+    assert rows[0].offset_error_px < _RECOVERY_TOLERANCE_PX
+
+
+def test_calibrated_exposure_sweep_degrades_to_failure() -> None:
+    """At the shortest exposure the disc sinks below the noise and navigation fails."""
+    rows = _rows('noise_exposure_calib')
+    assert rows[-1].status == 'failed'
+
+
+def test_calibrated_exposure_sweep_fails_between_1_ms_and_0_3_ms() -> None:
+    """The last recovering step is 1 ms, and navigation fails from 0.3 ms."""
+    by_exposure = {row.value: row for row in _rows('noise_exposure_calib')}
+    last_recovered = by_exposure[0.001]
+    assert last_recovered.status == 'success'
+    assert last_recovered.offset_error_px is not None
+    assert last_recovered.offset_error_px < _RECOVERY_TOLERANCE_PX
+    assert by_exposure[0.0003].status == 'failed'
+
+
+# The calibrated disc's steady sub-pixel bias, and the bump it carries at offsets
+# of 0.31-0.38 px.  Each bound sits well above the measured value (0.017 px and
+# 0.19 px) and well below the recovery tolerance, so a larger error flags the
+# report's calibrated-versus-raw comparison for review.
+_CALIB_DISC_STEADY_BIAS_PX = 0.05
+_CALIB_DISC_BUMP_PX = 0.3
+_CALIB_DISC_BUMP_OFFSETS = (0.31, 0.382)
+
+
+def test_calibrated_disc_offset_sweep_recovers_every_offset() -> None:
+    """The disc correlation recovers every sub-pixel offset on the CALIB product."""
+    for row in _rows('disc_offset_fine_calib'):
+        assert row.status == 'success'
+        assert row.offset_error_px is not None
+        assert row.offset_error_px < _RECOVERY_TOLERANCE_PX
+
+
+def test_calibrated_disc_offset_sweep_holds_its_bias() -> None:
+    """Outside the 0.31-0.38 px bump the error stays a few hundredths of a pixel."""
+    for row in _rows('disc_offset_fine_calib'):
+        assert row.offset_error_px is not None
+        bound = (
+            _CALIB_DISC_BUMP_PX
+            if row.value in _CALIB_DISC_BUMP_OFFSETS
+            else _CALIB_DISC_STEADY_BIAS_PX
+        )
+        assert row.offset_error_px < bound, row.value
+
+
 def test_phase_sweep_navigates_every_phase() -> None:
     """The resolved body navigates to success across the full phase range."""
     rows = _rows('phase_regular_body')
