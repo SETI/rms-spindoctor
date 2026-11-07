@@ -29,6 +29,7 @@ from spindoctor.sim.forward.detector.electronics_stages import (
     apply_frame_transfer_smear,
 )
 from spindoctor.sim.forward.detector.params import resolve_detector_params
+from spindoctor.sim.forward.detector.sqrt_lut import SqrtLut
 from spindoctor.sim.render import render_combined_model
 
 _SIZE = 64
@@ -440,12 +441,14 @@ def test_quantization_ls8b_mode_routes_to_the_ls8b_submode() -> None:
     assert dp.quantization == 'ls8b'
 
 
-def test_quantization_lut_mode_routes_to_the_cassini_table_submode() -> None:
-    """The quantization_lut mode selects the measured Cassini table sub-mode."""
+@pytest.mark.parametrize('instrument', ['coiss_nac', 'coiss_wac', 'coiss_calib_nac'])
+def test_quantization_lut_mode_routes_to_the_cassini_table(instrument: str) -> None:
+    """The quantization_lut mode selects sqrt_lut through each camera's measured table."""
     dp = resolve_detector_params(
-        _disc('coiss_nac', artifacts={'quantization_lut': {'probability': 1.0}})
+        _disc(instrument, artifacts={'quantization_lut': {'probability': 1.0}})
     )
-    assert dp.quantization == 'coiss_lut'
+    assert dp.quantization == 'sqrt_lut'
+    assert dp.sqrt_lut == SqrtLut(linear_dn=2.0, quadratic_dn=0.055, whole_dn=True)
 
 
 def test_bias_structure_mode_overrides_the_generic_knob() -> None:

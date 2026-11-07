@@ -174,8 +174,9 @@ class FrameRecord:
         filter_name: The frame's filter combination (``'CL1+CL2'``) on a
             camera the sim's filter catalog covers, else None.
         gain_state: The frame's gain state on a Cassini camera, else None.
-        quantization: ``'coiss_lut'`` for a Cassini frame downlinked through
-            the 12-to-8-bit table, else None.
+        quantization: ``'sqrt_lut'`` for a Cassini frame downlinked through
+            the 12-to-8-bit table, which the camera's catalog curve models,
+            else None.
     """
 
     image_id: str
@@ -322,7 +323,7 @@ def _frame_samples_real(
             )
         record.gain_state = int(obs.gain_mode)
         if obs.dict.get('DATA_CONVERSION_TYPE') == 'TABLE':
-            record.quantization = 'coiss_lut'
+            record.quantization = 'sqrt_lut'
     saturation = SATURATION_LEVEL[instrument]
     samples, rates = extract_pixel_samples(
         np.asarray(obs.data, dtype=np.float64),

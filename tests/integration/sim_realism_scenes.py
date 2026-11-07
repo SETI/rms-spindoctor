@@ -345,7 +345,7 @@ def matched_scene(
         gain_state: The real frame's gain state; None keeps the camera's
             default state.
         quantization: The real frame's downlink quantization sub-mode
-            (``'coiss_lut'`` for a Cassini TABLE frame); None keeps the
+            (``'sqrt_lut'`` for a Cassini TABLE frame); None keeps the
             camera's default.
 
     Returns:

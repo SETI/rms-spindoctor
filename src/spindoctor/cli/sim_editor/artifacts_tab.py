@@ -48,7 +48,6 @@ _QUANTIZATION_MODES: list[str] = [
     '8bit',
     'uneven_12bit',
     'sqrt_lut',
-    'coiss_lut',
     'ls8b',
     'contour_8bit',
 ]
