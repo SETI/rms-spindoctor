@@ -260,12 +260,12 @@ Artifact-rate defaults and provenance
 -------------------------------------
 
 The per-instrument artifact-rate defaults the forward model applies live
-in the ``detector`` block of each instrument's config file under
+in the ``detector`` block of each instrument's config entry under
 ``sim/instrument_configs/``, resolved by ``resolve_detector_defaults``.  A
-calibrated Cassini file states only what calibration changes and sets its raw
-camera as its ``base``, inheriting every other value from that file, so its
-cosmic-ray terms, and their provenance, are in ``coiss_nac.yaml`` and
-``coiss_wac.yaml``.  The two rates the realism match keys on are the stationary
+calibrated Cassini entry states only what calibration changes and sets its raw
+camera as its ``base``, inheriting every other value from that entry.  Its
+cosmic-ray terms, and their provenance, are therefore in the ``coiss_nac`` and
+``coiss_wac`` entries of ``coiss.yaml``.  The two rates the realism match keys on are the stationary
 hot-pixel fraction and the transient cosmic-ray rate; the table records each
 instrument's value and where it comes from.
 
@@ -333,7 +333,7 @@ Cassini match quality
 
 The tuning pass (2026-07-17) adjusted the forward-model defaults so that
 rendered frames match the real Cassini cohort on FOMs 1-6.  The instrument
-config files under ``sim/instrument_configs/`` state each tuned value, with its
+config entries under ``sim/instrument_configs/`` state each tuned value, with its
 tuning date and cohort statistics in the comment beside it.  This table records
 the headline divergences before that pass and in the current record
 (2026-11-07; normalized W1; smaller is better, ~1 means displaced by one
@@ -902,7 +902,7 @@ value. The planted offsets are deliberately off-grid (no integer, half-, or
 quarter-pixel values), so a technique cannot land on a sub-pixel-bias null and
 report a flatteringly small error; these are single-sample correctness checks at
 one arbitrary phase, while per-technique sub-pixel precision across many offsets is
-characterized in the offset-accuracy section below. The technique column names the
+characterized in the offset-accuracy section below. The technique column gives the
 load-bearing technique -- pinned for the single-technique scenes (blob, limb,
 ring, roll) so each is characterized in isolation, and the full ensemble for the
 disc and star scenes. On the two disc scenes the pinned disc correlation
@@ -1669,7 +1669,7 @@ simulated models, so it isn't a real-frame accuracy either.
    drawn at 1e-4 px.
 
 Each axis pairs a render-side knob (what the frame carries) with the
-navigator-side assumption (what the model predicts); the machinery column names
+navigator-side assumption (what the model predicts); the machinery column gives
 the dedicated sweep or the scene class that drives it:
 
 .. list-table:: Model-mismatch axes and their machinery

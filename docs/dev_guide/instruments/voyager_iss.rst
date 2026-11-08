@@ -272,7 +272,7 @@ reproduces.
 
 **Per-spacecraft variation.** Two spacecraft, two CK objects, two clocks, four
 camera frames -- all derived per image from one label character. Nothing in
-configuration names a spacecraft.
+configuration refers to a spacecraft.
 
 **Rotation fitting.** ``fit_camera_rotation`` is ``false``, and that is **not**
 because there is nothing to fit. The distortion analysis measures a
@@ -364,9 +364,9 @@ Simulator model
 ===============
 
 **Instrument key.** ``vgiss``, one key for two spacecraft and four cameras.
-That is the model's sharpest simplification and it is documented as such in its
-instrument config file, ``src/spindoctor/sim/instrument_configs/vgiss.yaml``,
-which holds the values below.
+That is the model's sharpest simplification, and the instrument's config entry
+says so. The entry sits under the ``vgiss`` key of
+``src/spindoctor/sim/instrument_configs/vgiss.yaml`` and holds the values below.
 
 **PSF kernel.** ``{sigma_v: 0.85, sigma_u: 0.85, w: 1.2e-2, r0: 2.0, n: 3.0}``,
 a **retained interim estimate**. The cohort's one star frame gives eight usable
@@ -379,15 +379,15 @@ Voyager references publish no FWHM to fall back on.
 ``{k1: -6.88e-03, k2: 1.46e-02, nonradial_rms_px: 0.2}``. The non-radial wander
 is non-zero: the resampled vidicon geometry carries coherent tangential
 distortion that a radial polynomial cannot represent. The block is the
-Voyager 2 wide angle measurement, and the config file says plainly that one key
+Voyager 2 wide angle measurement, and the config entry says plainly that one key
 under-represents the spread across two spacecraft and two optics until
 per-camera keys and locked frames for each exist.
 
-**Artifact-mode availability.** The config file's ``artifact_modes.offered``
+**Artifact-mode availability.** The config entry's ``artifact_modes.offered``
 lists its modes, and the simulator guide's mode tables
 (:ref:`sim-telemetry-modes` and :ref:`sim-detector-modes`) give each mode's
 cameras. Its detector model is ``vidicon``, so the modes that act in the CCD
-chain alone are unavailable to it. The file states the reason for
+chain alone are unavailable to it. The entry states the reason for
 ``fixed_pattern``: the vidicon DN chain has no fixed-pattern stage, so if a
 scene asks for the mode, validation fails with that reason. ``reseau_scars``
 (the reseau-removal patches left by archive processing) and
@@ -396,7 +396,7 @@ through) are telemetry-stage modes applied after the structured-loss modes,
 because they emulate archive processing rather than a detector or transmission
 defect.
 
-The file's shape defaults give ``edited_frame`` a 440-pixel band, one of the
+The entry's shape defaults give ``edited_frame`` a 440-pixel band, one of the
 commanded edited-mode band widths (608, 440, 272, 160, and 80 of the 800-pixel
 line), so a bare ``probability`` keeps a physical centered band. They give
 ``reseau_scars`` 202 marks on a 46-pixel lattice, the camera's reseau grid.

@@ -100,7 +100,7 @@ The two parsers fail differently, which is worth knowing when a run reports a
 short image count. A suffix ``_get_label_filespec_from_index`` rejects
 propagates and stops the run; a structure
 ``_get_img_name_from_label_filespec`` rejects is caught by the index scan,
-logged as an error naming the index file and the filespec, and drops that row
+logged as an error that gives the index file and the filespec, and drops that row
 alone.
 
 ``_img_name_valid`` uppercases before testing, so a name given on the command
@@ -122,7 +122,7 @@ size-keyed table.
 
 **This block uses the** ``_sources`` **convention.** It carries a ``_sources``
 sub-block mirroring the shape of ``noise``, ``image_quality_thresholds`` and
-``mag_offset``, with one string per value naming where that value came from and
+``mag_offset``, with one string per value saying where that value came from and
 whether it is measured or still to be measured. ``Config._load_yaml`` strips
 every key beginning with ``_`` at load time, so the block has no runtime effect
 at all; it exists so a reviewer can trace a number's provenance and so a
@@ -238,7 +238,7 @@ lexicographically greatest basename, then the greatest path.
 it. The index reports coverage in TDB, which needs that clock, so -1 is
 recorded as unreadable and offers no coverage rather than stopping the scan.
 Refusing there would make the whole mission unindexable for the sake of an
-object no image ever asks about. The driver warns once in its run log naming
+object no image ever asks about. The driver warns once in its run log, listing
 the skipped objects, so a kernel set genuinely missing a clock still says so;
 an image that actually corrected such an object is refused with the missing
 clock named.
@@ -263,7 +263,7 @@ Simulator model
 ===============
 
 **Instrument key.** ``nhlorri``, resolving to the flat ``newhorizons_lorri``
-block. Its instrument config file,
+block. Its entry, under the ``nhlorri`` key of the instrument config file
 ``src/spindoctor/sim/instrument_configs/nhlorri.yaml``, holds the values below.
 
 **PSF kernel.** ``{sigma_v: 1.13, sigma_u: 0.87, w: 1.2e-2, r0: 2.0, n: 3.0}``,
@@ -280,16 +280,16 @@ star-field distortion analysis. The radial term is a mid-field hump close to
 the measurement floor; this camera's significant geometric signature is the
 twist, not the distortion.
 
-**Artifact-mode availability.** The config file's ``artifact_modes.offered``
+**Artifact-mode availability.** The config entry's ``artifact_modes.offered``
 lists its modes, and the simulator guide's mode tables
 (:ref:`sim-telemetry-modes` and :ref:`sim-detector-modes`) give each mode's
-cameras. Its detector model is ``ccd``. The file lists
+cameras. Its detector model is ``ccd``. The entry lists
 ``frame_transfer_smear`` under ``artifact_modes.instrument_defaults``, so
 ``instrument_defaults`` turns the smear on at its nominal scrub and transfer
 times. Its shape defaults give ``embedded_header`` a 34-pixel header, the
 binary housekeeping at the start of row 0 of every image.
 
-The file states an explicit **exclusion reason** for two modes:
+The entry states an explicit **exclusion reason** for two modes:
 
 * ``hot_pixels`` -- "explicitly disabled for LORRI, which has none".
 * ``bloom`` -- "explicitly disabled for LORRI, an antiblooming CCD with no

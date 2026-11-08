@@ -363,7 +363,7 @@ def has_planted_offset(sim_params: Mapping[str, Any]) -> bool:
 def frame_units_summary(image: NDArrayFloatType, inst_config: Mapping[str, Any]) -> str:
     """Describe a frame's units, value range, marker share, and the navigator's verdict.
 
-    The text names the units (``DN`` for a ``raw_dn`` block, ``I/F`` for a
+    The text states the units (``DN`` for a ``raw_dn`` block, ``I/F`` for a
     ``calibrated_if`` block) and the finite value range, for example
     ``'I/F 0 to 1.48'``.  When any pixel equals the navigator's marker (see
     :func:`navigator_marker_value`; NaN pixels when the marker is NaN), it adds the

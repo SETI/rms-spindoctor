@@ -366,7 +366,7 @@ sibling of each model family. These are used both by
   - :mod:`spindoctor.sim.ellipsoid_geometry`, :mod:`spindoctor.sim.mesh_geometry`,
     :mod:`spindoctor.sim.ring_geometry`, :mod:`spindoctor.sim.star_records` —
     geometry/record helpers both sides share
-  - :mod:`spindoctor.sim.instruments`
+  - :mod:`spindoctor.sim.instrument_navigator`
   - :mod:`spindoctor.sim.seeds`
   - :mod:`spindoctor.sim.png_export`
 

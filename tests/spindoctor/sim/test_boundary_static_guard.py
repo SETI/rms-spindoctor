@@ -200,8 +200,8 @@ def test_navigator_package_references_no_truth_attribute(package: str) -> None:
 
 
 @pytest.mark.parametrize('package', _NAVIGATOR_PACKAGES)
-def test_navigator_package_names_no_atmosphere_truth_key(package: str) -> None:
-    """No navigator-side module names a key of the haze truth block.
+def test_navigator_package_mentions_no_atmosphere_truth_key(package: str) -> None:
+    """No navigator-side module mentions a key of the haze truth block.
 
     The structural boundary filter drops the whole ``atmosphere`` mapping,
     so a navigator-side read of one of its keys can only come from some
@@ -211,7 +211,7 @@ def test_navigator_package_names_no_atmosphere_truth_key(package: str) -> None:
         package, denied=ATMOSPHERE_TRUTH_KEY_NAMES, label='atmosphere truth key'
     )
     assert not violations, (
-        'navigator-side code names simulated-scene haze truth keys (the haze '
+        'navigator-side code mentions simulated-scene haze truth keys (the haze '
         'is nature, and the predicted geometry is a deliberate mismatch for '
         'it):\n' + '\n'.join(violations)
     )
@@ -240,7 +240,7 @@ def test_atmosphere_guard_covers_the_structure_keys() -> None:
     """The scanned name set includes every symmetry-breaking structure key.
 
     The single-letter phase-asymmetry key is deliberately excluded (see the
-    deny-set comment); every key that names structure is long enough to
+    deny-set comment); every key that describes structure is long enough to
     scan for, so none may be dropped silently.
     """
     from spindoctor.sim.forward.haze_structure import HAZE_STRUCTURE_KEYS
