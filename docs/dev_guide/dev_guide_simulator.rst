@@ -959,15 +959,17 @@ and :func:`~spindoctor.sim.instruments.resolve_sim_inst_config` (the navigator
 block). Scene validation's allowed names, the scene editor's instrument list,
 and the realism match's cohort map all come from the catalog.
 
-Two unit tests tie the catalog to the navigator's packaged configuration without
-the simulator reading it at load: every entry's ``navigator`` section and
-detector must name a block that exists (an inherited ``detector`` under a
-changed ``section`` fails there), and each navigator block's
-``star_flux_dn_per_s_vmag0`` must equal the file's star zero point, converted to
-DN through the default gain state for a CCD, to the 3 significant figures the
-navigator value carries. The navigator states its own value, so a simulator
-retune does not move what the navigator knows; the test makes the two drifting
-apart fail.
+Unit tests tie the catalog to the navigator's packaged configuration without the
+simulator reading it at load. Every entry's ``navigator`` section and detector
+must name a block that exists (an inherited ``detector`` under a changed
+``section`` fails there). Every navigator block whose ``data_units`` is
+``raw_dn``, the blocks whose star limit reads a DN zero point, must state
+``star_flux_dn_per_s_vmag0`` (without it the navigator would take the generic
+block's value), and that value must match the file's star zero point, converted
+to DN through the default gain state for a CCD, within half the place value of
+the navigator value's last significant digit. The navigator states its own
+value, so a simulator retune does not move what the navigator knows; the test
+fails when the two drift apart by more than the navigator value's rounding.
 
 The keys, all at the top level of the file:
 

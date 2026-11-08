@@ -7,6 +7,7 @@ that exist, and each navigator star zero point agrees with the simulator's.
 """
 
 from collections.abc import Mapping
+from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
@@ -368,29 +369,56 @@ def test_an_inherited_detector_under_another_section_is_caught(
         resolve_sim_inst_config(DEFAULT_CONFIG, 'cam')
 
 
-def _navigator_zero_point_instruments() -> list[str]:
-    """The entries whose navigator block states a star zero point in DN."""
+def _raw_dn_navigator_instruments() -> list[str]:
+    """The entries whose navigator block reads raw DN, so it uses a DN star zero point.
+
+    The navigator's star limit (``ObsSim.star_max_usable_vmag``) reads
+    ``star_flux_dn_per_s_vmag0`` exactly when the block's ``data_units`` is
+    ``raw_dn`` (the default); a calibrated block never consults it.
+    """
     return [
         name
         for name in (*sim_instrument_names(), GENERIC_INSTRUMENT)
-        if 'star_flux_dn_per_s_vmag0' in resolve_sim_inst_config(DEFAULT_CONFIG, name)['noise']
+        if resolve_sim_inst_config(DEFAULT_CONFIG, name).get('data_units', 'raw_dn') == 'raw_dn'
     ]
 
 
-@pytest.mark.parametrize('instrument', _navigator_zero_point_instruments())
+def _rounding_step(value: float) -> float:
+    """The place value of the last significant digit ``value`` is written with."""
+    exponent = Decimal(repr(value)).normalize().as_tuple().exponent
+    assert isinstance(exponent, int)
+    return float(Decimal(1).scaleb(exponent))
+
+
+@pytest.mark.parametrize('instrument', _raw_dn_navigator_instruments())
+def test_the_navigator_states_a_zero_point_for_a_raw_dn_block(instrument: str) -> None:
+    """A raw-DN navigator block states its own DN zero point.
+
+    Without one the navigator falls back to the generic block's value silently.
+    """
+    navigator = resolve_sim_inst_config(DEFAULT_CONFIG, instrument)['noise']
+    assert 'star_flux_dn_per_s_vmag0' in navigator
+
+
+@pytest.mark.parametrize('instrument', _raw_dn_navigator_instruments())
 def test_the_navigator_zero_point_matches_the_simulators(instrument: str) -> None:
-    """The navigator's DN zero point is the simulator's, to the 3 figures it carries.
+    """The navigator's DN zero point is the simulator's, within its own rounding.
 
     The navigator states its value separately, so the information boundary holds;
-    this test catches the two drifting apart.  A CCD's zero point is in electrons,
-    converted through the default gain state; a vidicon's is already DN.
+    this test detects the two drifting apart by more than half the rounding step of
+    the navigator's stated value (the place value of its last significant digit), so
+    a difference the navigator's rounding explains passes.  A CCD's zero point is in
+    electrons, converted through the default gain state; a vidicon's is already DN.
     """
     zero_point, domain = resolve_star_flux_zero_point(instrument)
     if domain == 'electrons':
         detector = resolve_detector_defaults(instrument)
         zero_point /= detector['gain_e_per_dn_by_state'][detector['default_gain_state']]
-    navigator = resolve_sim_inst_config(DEFAULT_CONFIG, instrument)['noise']
-    assert float(f'{zero_point:.3g}') == navigator['star_flux_dn_per_s_vmag0']
+    # A block without the key fails here and in the test above, which says why.
+    stated = resolve_sim_inst_config(DEFAULT_CONFIG, instrument)['noise'][
+        'star_flux_dn_per_s_vmag0'
+    ]
+    assert zero_point == pytest.approx(stated, rel=0.0, abs=_rounding_step(stated) / 2.0)
 
 
 @pytest.fixture
