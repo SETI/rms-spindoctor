@@ -4,9 +4,9 @@ A scene with an active whole-scene PSF renders its radiance on an oversampled
 grid and downsamples back to the detector grid; a scene with no optics block
 renders at oversample 1.  These tests cover the oversample resolution, the
 determinism of the no-optics path, that the oversampled render preserves body
-flux and position after the downsample, that a smooth body on the oversampled grid
-renders as the navigator predicts it, and that the classifying truth arrays come
-back describing the pixels the image put the body on.
+flux and position after the downsample, that a smooth body on an oversampled or
+anti-aliased grid renders as the navigator predicts it, and that the classifying truth
+arrays come back describing the pixels the image put the body on.
 """
 
 from typing import Any
@@ -102,9 +102,9 @@ def test_oversample_keeps_body_centered() -> None:
 def test_oversampled_smooth_body_matches_the_navigator_model() -> None:
     """A smooth sphere on a 4x grid renders exactly as the navigator predicts it.
 
-    The body is half lit, off the pixel grid, and lit from an oblique direction, so a
-    shading grid coarser than the render grid would shift its light toward the
-    terminator and the two renders would differ.
+    The body is about four-fifths lit (phase 0.9 rad), off the pixel grid, and lit from
+    an oblique direction, so a shading grid coarser than the render grid would shift its
+    light toward the terminator and the two renders would differ.
     """
     size = (160, 160)
     center = (81.3, 78.9)
@@ -122,6 +122,39 @@ def test_oversampled_smooth_body_matches_the_navigator_model() -> None:
     )
     predicted = create_simulated_body(
         size, center, 96.0, axis2=96.0, axis3=96.0, illumination_angle=0.7, phase_angle=0.9
+    )
+    np.testing.assert_allclose(rendered, predicted, rtol=0.0, atol=1e-12)
+
+
+def test_anti_aliased_smooth_body_matches_the_navigator_model() -> None:
+    """A smooth sphere anti-aliased at oversample 1 renders as the navigator predicts it.
+
+    Full anti-aliasing supersamples the body 4x, as the navigator's model does, so the
+    shading must be computed on that supersample grid for the two renders to agree.
+    """
+    size = (160, 160)
+    center = (81.3, 78.9)
+    rendered = create_topographic_body(
+        size,
+        center,
+        TopoBodySpec(
+            axis1=96.0,
+            axis2=96.0,
+            axis3=96.0,
+            illumination_angle=0.7,
+            phase_angle=0.9,
+            anti_aliasing=1.0,
+        ),
+    )
+    predicted = create_simulated_body(
+        size,
+        center,
+        96.0,
+        axis2=96.0,
+        axis3=96.0,
+        illumination_angle=0.7,
+        phase_angle=0.9,
+        anti_aliasing=1.0,
     )
     np.testing.assert_allclose(rendered, predicted, rtol=0.0, atol=1e-12)
 

@@ -1507,24 +1507,30 @@ rest of the shading, so a shadow's edge is as soft as the shading grid.
 Split-resolution performance
 ----------------------------
 
-Disc shading is low-frequency by construction, so for a body with relief,
-craters, a surface texture, or transits the topographic path computes the
-shading field (surface normals, relief shading, cast shadows, crater texture,
-and photometric law) once at **detector resolution** and bilinearly upsamples
-it, while only the sharp content, the relief-perturbed silhouette mask, is
-rasterized at the full oversampled working grid. This replaces the
-per-subsample shading that made an oversampled body ~16x more expensive than
-its detector-grid equivalent. It is what lets a body-bearing scene meet the
-render budget below. The budget harness (``tests/integration/test_sim_perf.py``)
-holds a large-lit-body-with-relief frame to its measured budget for exactly
-this reason.
+The topographic path renders a body on a working grid: the oversampled grid,
+or, at oversample 1, the anti-aliasing supersample grid. The sharp content, the
+relief-perturbed silhouette mask, is always rasterized on the working grid.
+Where the shading field (surface normals, relief shading, cast shadows, crater
+texture, and photometric law) is computed depends on the body:
 
-A smooth body, one that has none of those four, is shaded on the oversampled
-working grid, exactly as the navigator's predicted body is, so the two agree
-pixel for pixel when no mismatch is planted. Upsampling a smooth disc's shading
-would move its light about 0.007 px away from the Sun, which the disc
-correlation reads as a steady error of about 0.015 px. A body with relief,
-craters, a surface texture, or transits still carries that shift.
+- A body with relief, craters, a surface texture, or transits is shaded once at
+  **detector resolution**, and the shading is bilinearly upsampled onto the
+  working grid. Disc shading is low-frequency by construction, so this replaces
+  the per-subsample shading that made an oversampled body ~16x more expensive
+  than its detector-grid equivalent, and it is what lets a body-bearing scene
+  meet the render budget below. The budget harness
+  (``tests/integration/test_sim_perf.py``) holds a large-lit-body-with-relief
+  frame to its measured budget for exactly this reason. The upsample moves the
+  disc's light about 0.007 px away from the Sun.
+- Every other body is smooth and is shaded on the working grid itself.
+
+The navigator's predicted body is shaded on a grid four times finer than the
+detector's. A smooth body whose working grid has that same factor (oversample 4,
+the default for a scene with a point-spread function, or full anti-aliasing at
+oversample 1) is shaded exactly as the predicted body is. A scene that sets
+another oversample factor samples the body differently from the navigator. On
+the calibrated disc sweep, shading the smooth disc at detector resolution gave
+the disc correlation a steady error of about 0.015 px.
 
 Photometric laws
 ----------------

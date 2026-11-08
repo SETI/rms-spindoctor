@@ -10,18 +10,19 @@ smooth Lambert body at oversample 1 keeps the classic path byte-for-byte.
 
 **Split-resolution rendering.**  Disc shading is low-frequency by
 construction -- relief moves the silhouette and the terminator, never the
-disc shading -- so on an oversampled grid the shading field of a body with
-relief, craters, a surface texture, or transits (surface normals, crater
-texture, photometric law) is computed once at detector resolution and
-bilinearly upsampled, while the sharp content is rasterized at the full
-working grid: the silhouette mask (with the relief-perturbed limb) and the
+disc shading -- so for a body with relief, craters, a surface texture, or
+transits the shading field (surface normals, crater texture, photometric law)
+is computed once at detector resolution and bilinearly upsampled to the
+working grid (the oversampled grid, or the anti-aliasing supersample grid at
+oversample 1), while the sharp content is rasterized at the full working
+grid: the silhouette mask (with the relief-perturbed limb) and the
 terminator shadow march.  This replaces the per-subsample shading that made
 an oversampled body render ~16x more expensive than its detector-grid
 equivalent, and is what lets a body-bearing scene meet the render-time
 budget (see ``tests/integration/test_sim_perf.py``).  A smooth body (none of
-those four) shades on the working grid instead, exactly as the navigator's
-predicted body does, because the bilinear upsample would move its light a
-few thousandths of a pixel away from the sun.
+those four) is shaded on the working grid itself, as the navigator's
+predicted body is, because the bilinear upsample would move its light a few
+thousandths of a pixel away from the sun.
 
 **Relief application.**  The renderer's normalized ellipse radial function
 ``e(p)`` (1 exactly at the unperturbed limb) becomes
@@ -98,13 +99,15 @@ class TopoBodySpec:
         crater_relief_scale: Crater depth scale factor.
         anti_aliasing: Silhouette anti-aliasing amount in [0, 1]; only
             consumed at ``oversample`` 1, where it supersamples the
-            silhouette exactly as the classic path does (an oversampled
-            scene already resolves the limb on its own grid).
+            silhouette (and a smooth body's shading) as the classic path
+            does (an oversampled scene already resolves the limb on its own
+            grid).
         crater_seed: Seed for crater placement (None with no craters).
         oversample: The incoming grid's oversampling factor.  A body with
             relief, craters, a surface texture, or transits is shaded at the
             detector grid ``size / oversample``; a smooth body is shaded on the
-            incoming grid.
+            working grid (the incoming grid, or its anti-aliasing supersample
+            at oversample 1).
         limb_relief_rms: Commanded limb-slice relief RMS (h/R; 0 = off).
         limb_relief_corr_deg: Relief correlation length, degrees of arc.
         relief_seed: Seed of the relief-field realization.
@@ -337,7 +340,7 @@ def render_topographic_body(
         if field.h_max <= field.h_min:
             field = None
 
-    # A smooth body on an oversampled grid shades on the working grid, as the
+    # A smooth body shades on the working grid, oversampled or anti-aliased, as the
     # navigator's model of it does.  Shading it at the detector grid and upsampling
     # bilinearly moves its light about 0.007 px away from the sun (#916).  Relief,
     # craters, textures, and transits still shade at the detector grid (#931).
@@ -348,8 +351,7 @@ def render_topographic_body(
         and spec.disc_texture is None
         and not spec.transits
     )
-    shade_os = 1 if smooth else os_in
-    up_factor = shade_os * aa_scale
+    up_factor = 1 if smooth else os_in * aa_scale
 
     cos_rz = float(np.cos(spec.rotation_z))
     sin_rz = float(np.sin(spec.rotation_z))
@@ -368,9 +370,9 @@ def render_topographic_body(
         shade_grid = work_grid
     else:
         shade_grid = _body_grid(
-            (size_v // shade_os, size_u // shade_os),
-            (center[0] / shade_os, center[1] / shade_os),
-            (semi[0] / shade_os, semi[1] / shade_os, semi[2] / shade_os),
+            (size_v // os_in, size_u // os_in),
+            (center[0] / os_in, center[1] / os_in),
+            (semi[0] / os_in, semi[1] / os_in, semi[2] / os_in),
             cos_rz=cos_rz,
             sin_rz=sin_rz,
             cos_rt=cos_rt,
