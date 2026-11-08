@@ -50,6 +50,7 @@ from spindoctor.support.types import NDArrayFloatType
 
 __all__ = [
     'FrameSamples',
+    'FrameSettings',
     'extract_feature_samples',
     'extract_pixel_samples',
     'prepare_frame_features',
@@ -92,6 +93,23 @@ _MAX_PROFILES_PER_FEATURE = 200
 # a shape-information guard, not solely a clip signature.
 _FLAT_TOP_MIN_PIXELS = 3
 _FLAT_TOP_REL_EPS = 1e-6
+
+
+@dataclass(frozen=True)
+class FrameSettings:
+    """A real frame's commanded settings its matched scene renders through.
+
+    Parameters:
+        filter_name: The filter combination (``'CL1+CL2'``) when the matched
+            instrument catalogs it, else None.
+        gain_state: The frame's gain state, or None when its label carries none.
+        quantization: The downlink quantization the frame went through, as a scene's
+            ``detector.quantization`` names it, or None for the instrument's own.
+    """
+
+    filter_name: str | None = None
+    gain_state: int | None = None
+    quantization: str | None = None
 
 
 @dataclass

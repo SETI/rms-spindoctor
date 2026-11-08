@@ -40,15 +40,15 @@ from spindoctor.sim.forward.artifact_modes import (
     ARTIFACT_MODES,
     COUNT_ACTIVATION_KEYS,
     DETECTOR_MODE_ORDER,
-    PROBABILITY,
-    mode_available,
-    normalize_instrument,
     resolve_mode_config,
 )
 from spindoctor.sim.forward.artifacts_catalog import (
-    DEFAULT_CALIBRATED_SKY_IF,
     cataloged_binnings,
+    instrument_default_modes,
+    mode_available,
+    resolve_calibrated_sky_if,
     resolve_detector_defaults,
+    resolve_detector_id,
     resolve_mode_with_catalog,
     resolve_readout_mode,
 )
@@ -108,14 +108,16 @@ class DetectorParams:
         dark_dn: Dark pedestal in DN subtracted before the I/F divide.
         calibrated_sky_if: The calibrated sky residual in I/F, added after the
             I/F divide on a calibrated frame: the instrument's catalog value,
-            else :data:`~spindoctor.sim.forward.artifacts_catalog.DEFAULT_CALIBRATED_SKY_IF`.
+            else the generic entry's (see
+            :func:`~spindoctor.sim.forward.artifacts_catalog.resolve_calibrated_sky_if`).
         marker_value: The missing-data marker the navigator applies to the frame
             (see :func:`~spindoctor.sim.instruments.navigator_marker_value`),
             possibly NaN; the calibration inverse keeps every pixel off it.
         random_seed: The scene seed for the per-effect sub-streams.
         detector_id: The emulated detector the fixed hot-pixel map belongs to:
-            the instrument name with the calibrated Cassini products folded
-            onto their raw cameras, and ``generic`` for a generic scene.
+            the instrument config's ``detector_id`` (a calibrated product names
+            its raw camera), else the instrument name, and ``generic`` for a
+            generic scene.
         binning: The readout mode's binning factor ``b``: each frame pixel
             sums a ``b`` by ``b`` block of native pixels.  The catalog's
             native dark current and cosmic-ray rate are already scaled by
@@ -304,7 +306,8 @@ def _resolve_gain(
     """Select ``gain_e_per_dn`` from the catalog table by the scene gain state.
 
     Parameters:
-        catalog: The instrument's ``DETECTOR_DEFAULTS`` entry.
+        catalog: The instrument's detector defaults (see
+            :func:`~spindoctor.sim.forward.artifacts_catalog.resolve_detector_defaults`).
         detector_block: The scene ``detector`` block (may set ``gain_state``).
         instrument: The sim instrument name, for error messages.
 
@@ -369,25 +372,21 @@ def _resolve_detector_modes(
     """Resolve the active detector-stage artifact modes for a render.
 
     Each present, available, and active mode is resolved (scene value over
-    catalog default over registry default) and returned keyed by name.  LORRI's
-    ``frame_transfer_smear`` is the one physical-signal-chain member turned on
-    under ``instrument_defaults``: when a LORRI scene has not set it, it is
-    injected at probability 1 with the catalog's nominal scrub/transfer times.
-    The injection is LORRI-only; the instrument-agnostic generic block accepts
-    every mode but emulates no frame-transfer camera, so it gets no injection.
+    catalog default over registry default) and returned keyed by name.  Under
+    ``instrument_defaults``, a mode the instrument's config names in
+    ``artifact_modes.instrument_defaults`` and the scene has not set is supplied
+    with the config's scene map for it (for example a probability of 1), so the
+    instrument's defining physical-chain artifact renders with its shape
+    defaults.
     """
+    supplied = instrument_default_modes(instrument) if instrument_defaults else {}
     modes: dict[str, dict[str, Any]] = {}
     for name in DETECTOR_MODE_ORDER:
         raw = artifacts.get(name)
         if raw is None:
-            if (
-                name == 'frame_transfer_smear'
-                and instrument_defaults
-                and normalize_instrument(instrument) == 'nhlorri'
-            ):
-                raw = {PROBABILITY: 1.0}
-            else:
+            if name not in supplied:
                 continue
+            raw = supplied[name]
         if not isinstance(raw, Mapping) or not mode_available(name, instrument):
             continue
         cfg = resolve_mode_with_catalog(name, raw, instrument)
@@ -771,10 +770,12 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
         vidicon=vidicon,
         calibration_scale_dn_per_s_per_if=calibration_scale,
         dark_dn=dark_dn,
-        calibrated_sky_if=float(catalog.get('calibrated_sky_if', DEFAULT_CALIBRATED_SKY_IF)),
+        calibrated_sky_if=float(
+            catalog.get('calibrated_sky_if', resolve_calibrated_sky_if(instrument))
+        ),
         marker_value=navigator_marker_value(inst_config),
         random_seed=int(params.get('random_seed', 42)),
-        detector_id=normalize_instrument(instrument),
+        detector_id=resolve_detector_id(instrument),
         binning=binning,
         instrument_defaults=instrument_defaults,
         readout_dark_e=readout_dark,

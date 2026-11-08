@@ -19,9 +19,9 @@ from spindoctor.sim.forward.artifact_modes import (
     ARTIFACT_MODES,
     MODE_KEYS,
     STRUCTURED_LOSS_ORDER,
-    mode_available,
     resolve_mode_config,
 )
+from spindoctor.sim.forward.artifacts_catalog import mode_available
 from spindoctor.sim.forward.detector.params import (
     CalibrationMap,
     calibration_map,

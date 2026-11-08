@@ -16,10 +16,10 @@ import pytest
 
 from spindoctor.sim.forward import scene_radiance
 from spindoctor.sim.forward.artifacts_catalog import (
-    PSF_KERNELS,
     binned_psf_kernel,
     binning_for_frame_size,
     cataloged_binnings,
+    resolve_psf_kernel,
 )
 from spindoctor.sim.forward.detector.noise_stages import detector_hot_pixel_map
 from spindoctor.sim.forward.detector.params import DetectorParamError, resolve_detector_params
@@ -226,7 +226,9 @@ def test_the_binned_hot_pixel_map_is_the_native_map_summed() -> None:
 def test_the_instrument_psf_shrinks_with_the_binning() -> None:
     """The instrument chain's PSF in 4x4 pixels is the native kernel over 4."""
     scene = _scene('nhlorri', 4, artifacts={'instrument_defaults': True})
-    assert effective_psf(scene) == binned_psf_kernel(PSF_KERNELS['nhlorri'], 4)
+    native = resolve_psf_kernel('nhlorri')
+    assert native is not None
+    assert effective_psf(scene) == binned_psf_kernel(native, 4)
 
 
 def test_binned_psf_kernel_scales_only_the_radii() -> None:

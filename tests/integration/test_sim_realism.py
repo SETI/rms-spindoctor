@@ -20,7 +20,7 @@ from typing import Any
 import numpy as np
 import pytest
 
-from spindoctor.sim.forward.artifacts_catalog import NATIVE_FRAME_SIZE_PX
+from spindoctor.sim.forward.artifacts_catalog import resolve_native_frame_size_px
 from spindoctor.sim.forward.detector.params import resolve_detector_params
 from spindoctor.sim.render import render_combined_model
 from spindoctor.sim.scene import validate_sim_params
@@ -56,10 +56,10 @@ _NAC_FULL = (1024, 1024)
 def _full_frame(instrument: str) -> tuple[int, int]:
     """A full unbinned frame's shape for ``instrument``.
 
-    The shape is ``NATIVE_FRAME_SIZE_PX`` on a side, or 1000 by 1000 (Voyager's
-    GEOMED frame) for an instrument that table doesn't list.
+    The shape is the instrument's native frame size on a side, or 1000 by 1000
+    (Voyager's GEOMED frame) for an instrument whose config states none.
     """
-    size = NATIVE_FRAME_SIZE_PX.get(instrument, 1000)
+    size = resolve_native_frame_size_px(instrument) or 1000
     return (size, size)
 
 

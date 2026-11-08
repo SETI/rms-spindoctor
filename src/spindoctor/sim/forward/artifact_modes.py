@@ -3,19 +3,20 @@
 The ``artifacts`` scene block is keyed, besides ``instrument_defaults`` and
 ``adversarial``, by the artifact-mode names in this registry.  Each mode is
 described once here -- its rendering stage (``telemetry`` or ``detector``), its
-parameter schema, the instruments it is available on, and whether it is
-implemented yet -- and every consumer (the scene validator, the telemetry
-stage, the detector hot-pixel routing) reads that description rather than
-carrying its own copy.  Registering a mode is therefore the whole job of adding
-one: a detector-stage mode that is unimplemented today drops in by flipping its
-``implemented`` flag and adding its rendering code, with no change to the
-validator or the block schema.
+parameter schema, and whether it is implemented yet -- and every consumer (the
+scene validator, the telemetry stage, the detector hot-pixel routing) reads that
+description rather than carrying its own copy.  Registering a mode is therefore
+the whole job of adding one: a detector-stage mode that is unimplemented today
+drops in by flipping its ``implemented`` flag and adding its rendering code, with
+no change to the validator or the block schema.
 
-**Availability.**  A mode lists the sim instruments it is available on; a scene
-that names the mode on any other instrument fails validation with a clear
-message (the LORRI hot-pixel case carries a bespoke one, since LORRI has no hot
-pixels by construction).  The instrument-agnostic ``generic`` / ``sim`` block
-accepts every mode, which keeps unit scenes free to exercise any shape.
+**Availability.**  Which instruments offer a mode is not part of the registry:
+each simulated instrument's config file lists the modes it offers (see
+:mod:`spindoctor.sim.instrument_catalog`), and may state why it does not offer
+one.  A scene that names a mode its instrument does not offer fails validation
+with that reason, or with a message listing the instruments that offer it.  The
+instrument-agnostic generic entry offers every mode, which keeps unit scenes free
+to exercise any shape.
 
 **Activation.**  Every mode carries exactly one activation key, and which one
 names the quantity it holds, so a scene line reads the same way on every mode:
@@ -50,7 +51,7 @@ them (a key set to null counts as unset).  Each mode's
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 __all__ = [
@@ -68,17 +69,8 @@ __all__ = [
     'TELEMETRY_PRE_LOSS_ORDER',
     'ArtifactMode',
     'ModeParam',
-    'mode_available',
-    'mode_unavailable_message',
-    'normalize_instrument',
     'resolve_mode_config',
 ]
-
-
-# Instrument groupings used by the availability tables below.  ``generic`` is
-# never listed: it is accepted unconditionally by mode_available.
-_ALL_CCD: frozenset[str] = frozenset({'coiss_nac', 'coiss_wac', 'gossi', 'nhlorri'})
-_ALL_INSTRUMENTS: frozenset[str] = _ALL_CCD | frozenset({'vgiss'})
 
 
 @dataclass(frozen=True)
@@ -146,29 +138,23 @@ class ArtifactMode:
         stage: The rendering stage that applies it, ``telemetry`` or
             ``detector``.
         implemented: Whether the renderer implements it yet.  An unimplemented
-            mode is a reserved registry entry: it fixes the name, stage, and
-            availability so the eventual implementation drops in without a
+            mode is a reserved registry entry: it fixes the name and stage so
+            the eventual implementation drops in without a
             schema change, and it fails validation with a clear message until
             its rendering code lands.
         params: The mode's parameters (the activation key first, then
             mode-specific).
-        availability: The sim instruments the mode is available on (the generic
-            block is always accepted, so it is never listed here).
         activation: The mode's activation key, one of :data:`ACTIVATION_KEYS`.
         activation_semantics: Human-readable meaning of the activation key for
             the mode, for the sim editor's tooltip and the developer guide.
-        unavailable_reason: Per-instrument bespoke unavailability messages
-            (e.g. LORRI hot pixels); other instruments get a generic message.
     """
 
     name: str
     stage: str
     implemented: bool
     params: tuple[ModeParam, ...]
-    availability: frozenset[str]
     activation: str
     activation_semantics: str
-    unavailable_reason: Mapping[str, str] = field(default_factory=dict)
 
     @property
     def param_map(self) -> dict[str, ModeParam]:
@@ -189,10 +175,8 @@ class ArtifactMode:
 def _telemetry_mode(
     name: str,
     *extra_params: ModeParam,
-    availability: frozenset[str],
     activation: str,
     activation_semantics: str,
-    unavailable_reason: Mapping[str, str] | None = None,
 ) -> ArtifactMode:
     """Build an implemented telemetry-stage loss mode led by its activation key."""
     return ArtifactMode(
@@ -200,20 +184,16 @@ def _telemetry_mode(
         stage='telemetry',
         implemented=True,
         params=(_ACTIVATION_PARAMS[activation], *extra_params),
-        availability=availability,
         activation=activation,
         activation_semantics=activation_semantics,
-        unavailable_reason=unavailable_reason or {},
     )
 
 
 def _detector_mode(
     name: str,
     *extra_params: ModeParam,
-    availability: frozenset[str],
     activation: str,
     activation_semantics: str,
-    unavailable_reason: Mapping[str, str] | None = None,
 ) -> ArtifactMode:
     """Build an implemented detector-stage electronics mode led by its activation key."""
     return ArtifactMode(
@@ -221,10 +201,8 @@ def _detector_mode(
         stage='detector',
         implemented=True,
         params=(_ACTIVATION_PARAMS[activation], *extra_params),
-        availability=availability,
         activation=activation,
         activation_semantics=activation_semantics,
-        unavailable_reason=unavailable_reason or {},
     )
 
 
@@ -236,14 +214,12 @@ _IMPLEMENTED_MODES: tuple[ArtifactMode, ...] = (
     _telemetry_mode(
         'missing_lines',
         ModeParam('contiguous_run', 'bool', False),
-        availability=frozenset({'coiss_nac', 'coiss_wac', 'vgiss', 'gossi', 'nhlorri'}),
         activation=EXPECTED_EVENTS,
         activation_semantics='a Poisson expected count of whole lines lost per frame',
     ),
     _telemetry_mode(
         'partial_lines',
         ModeParam('max_surviving_segments', 'positive_int', 1),
-        availability=frozenset({'coiss_nac', 'coiss_wac', 'vgiss'}),
         activation=EXPECTED_EVENTS,
         activation_semantics='a Poisson expected count of truncated lines per frame',
     ),
@@ -254,7 +230,6 @@ _IMPLEMENTED_MODES: tuple[ArtifactMode, ...] = (
         # 'drop' blanks every Nth line (severe-Huffman entropy dropout); 'keep'
         # blanks all BUT every Nth line (Galileo HMA/HCA vertical decimation).
         ModeParam('mode', 'enum', 'drop', choices=('drop', 'keep')),
-        availability=frozenset({'coiss_nac', 'coiss_wac', 'gossi'}),
         activation=PROBABILITY,
         activation_semantics='per-frame probability the periodic line pattern is active',
     ),
@@ -265,7 +240,6 @@ _IMPLEMENTED_MODES: tuple[ArtifactMode, ...] = (
         ModeParam('band_width_px', 'positive_int', 440),
         ModeParam('half_frame', 'bool', False),
         ModeParam('half', 'enum', 'top', choices=('top', 'bottom')),
-        availability=frozenset({'vgiss', 'gossi'}),
         activation=PROBABILITY,
         activation_semantics='per-frame probability the commanded edit is applied',
     ),
@@ -276,7 +250,6 @@ _IMPLEMENTED_MODES: tuple[ArtifactMode, ...] = (
         ModeParam('fraction', 'unit_interval', 0.25),
         ModeParam('lines', 'nonneg_int', None),
         ModeParam('from', 'enum', 'bottom', choices=('bottom', 'top')),
-        availability=frozenset({'coiss_nac', 'coiss_wac', 'gossi'}),
         activation=PROBABILITY,
         activation_semantics='per-frame probability the frame is truncated',
     ),
@@ -284,20 +257,17 @@ _IMPLEMENTED_MODES: tuple[ArtifactMode, ...] = (
         'missing_blocks',
         ModeParam('block_lines', 'positive_int', 8),
         ModeParam('start_mid_line', 'bool', False),
-        availability=frozenset({'gossi', 'coiss_nac', 'coiss_wac'}),
         activation=EXPECTED_EVENTS,
         activation_semantics='a Poisson expected count of compression blocks lost per frame',
     ),
     _telemetry_mode(
         'line_garble',
-        availability=frozenset({'vgiss', 'gossi'}),
         activation=EXPECTED_EVENTS,
         activation_semantics='a Poisson expected count of garbled lines per frame',
     ),
     _telemetry_mode(
         'pixel_spikes',
         ModeParam('amplitude', 'enum', 'bitflip', choices=('bitflip', 'uniform')),
-        availability=frozenset({'vgiss'}),
         activation=EXPECTED_EVENTS,
         activation_semantics='a Poisson expected count of spiked pixels per frame',
     ),
@@ -305,7 +275,6 @@ _IMPLEMENTED_MODES: tuple[ArtifactMode, ...] = (
         'dead_pixels',
         _COUNT,
         ModeParam('low_dn', 'nonneg_number', 0.0),
-        availability=frozenset({'coiss_nac', 'coiss_wac', 'gossi', 'nhlorri'}),
         activation=EXPECTED_EVENTS,
         activation_semantics=(
             "a Poisson expected count of dead pixels per frame; 'count' plants a fixed number "
@@ -316,7 +285,6 @@ _IMPLEMENTED_MODES: tuple[ArtifactMode, ...] = (
         'dead_columns',
         _COUNT,
         ModeParam('low_dn', 'nonneg_number', 0.0),
-        availability=frozenset({'coiss_nac', 'coiss_wac', 'gossi', 'nhlorri'}),
         activation=EXPECTED_EVENTS,
         activation_semantics=(
             "a Poisson expected count of dead columns per frame; 'count' plants a fixed number "
@@ -326,7 +294,6 @@ _IMPLEMENTED_MODES: tuple[ArtifactMode, ...] = (
     _telemetry_mode(
         'embedded_header',
         ModeParam('header_px', 'positive_int', 34),
-        availability=frozenset({'nhlorri'}),
         activation=PROBABILITY,
         activation_semantics='per-frame probability the row-0 housekeeping header is written',
     ),
@@ -334,14 +301,12 @@ _IMPLEMENTED_MODES: tuple[ArtifactMode, ...] = (
         'truth_window',
         ModeParam('size', 'positive_int', 96),
         ModeParam('position', 'int_list', None, length=2),
-        availability=frozenset({'gossi'}),
         activation=PROBABILITY,
         activation_semantics='per-frame probability the losslessly-clean carve-out is commanded',
     ),
     _telemetry_mode(
         'cutout_window',
         ModeParam('rect', 'int_list', None, length=4),
-        availability=frozenset({'gossi', 'nhlorri'}),
         activation=PROBABILITY,
         activation_semantics='per-frame probability the commanded cut-out window is applied',
     ),
@@ -358,14 +323,10 @@ _IMPLEMENTED_MODES: tuple[ArtifactMode, ...] = (
             ModeParam('amplitude_e', 'nonneg_number', None),
             ModeParam('column_factor', 'unit_interval', None),
         ),
-        availability=frozenset({'coiss_nac', 'coiss_wac', 'gossi'}),
         activation=PIXEL_FRACTION,
         activation_semantics=(
             'the fraction of detector pixels that are hot, a spatial density in [0, 1]'
         ),
-        unavailable_reason={
-            'nhlorri': 'explicitly disabled for LORRI, which has none',
-        },
     ),
 )
 
@@ -385,7 +346,6 @@ _DETECTOR_MODES: tuple[ArtifactMode, ...] = (
         ModeParam('orientation', 'enum', 'horizontal', choices=('horizontal', 'vertical', 'both')),
         ModeParam('freq_step_factor', 'nonneg_number', 1.0),
         ModeParam('dark_step_dn', 'nonneg_number', 0.0),
-        availability=_ALL_INSTRUMENTS,
         activation=PROBABILITY,
         activation_semantics='per-frame probability the coherent banding is active',
     ),
@@ -394,7 +354,6 @@ _DETECTOR_MODES: tuple[ArtifactMode, ...] = (
         ModeParam('pedestal_sigma_dn', 'nonneg_number', None),
         ModeParam('row_gradient_dn', 'nonneg_number', None),
         ModeParam('col_gradient_dn', 'nonneg_number', None),
-        availability=_ALL_INSTRUMENTS,
         activation=PROBABILITY,
         activation_semantics='per-frame probability the bias pedestal / gradients are active',
     ),
@@ -406,26 +365,20 @@ _DETECTOR_MODES: tuple[ArtifactMode, ...] = (
         ModeParam('rbi_column_factor', 'unit_interval', 0.0),
         ModeParam('top_factor', 'nonneg_number', None),
         ModeParam('bottom_factor', 'nonneg_number', None),
-        availability=_ALL_INSTRUMENTS,
         activation=PROBABILITY,
         activation_semantics='per-frame probability the readout / shutter line ramp is active',
     ),
     _detector_mode(
         'bloom',
         ModeParam('bloom_length', 'positive_int', None),
-        availability=frozenset({'coiss_nac', 'coiss_wac', 'gossi'}),
         activation=PROBABILITY,
         activation_semantics='per-frame probability the electron-domain column bloom is active',
-        unavailable_reason={
-            'nhlorri': 'explicitly disabled for LORRI, an antiblooming CCD with no column bloom',
-        },
     ),
     _detector_mode(
         'radiation_transients',
         ModeParam('environment_factor', 'nonneg_number', 1.0),
         ModeParam('readout_dwell_sec', 'nonneg_number', 0.0),
         ModeParam('amplitude_e', 'nonneg_number', None),
-        availability=_ALL_CCD,
         activation=EXPECTED_EVENTS_PER_SEC,
         activation_semantics=(
             'a Poisson expected count of radiation spikes per second; the frame expects this '
@@ -435,7 +388,6 @@ _DETECTOR_MODES: tuple[ArtifactMode, ...] = (
     _detector_mode(
         'bright_dark_pairs',
         ModeParam('amplitude_e', 'nonneg_number', None),
-        availability=frozenset({'coiss_nac', 'coiss_wac'}),
         activation=EXPECTED_EVENTS_PER_SEC,
         activation_semantics=(
             'a Poisson expected count of bright/dark pairs per second of exposure; the frame '
@@ -446,7 +398,6 @@ _DETECTOR_MODES: tuple[ArtifactMode, ...] = (
         'frame_transfer_smear',
         ModeParam('t_scrub_sec', 'nonneg_number', None),
         ModeParam('t_transfer_sec', 'nonneg_number', None),
-        availability=frozenset({'nhlorri'}),
         activation=PROBABILITY,
         activation_semantics='per-frame probability the frame-transfer smear is applied',
     ),
@@ -456,14 +407,12 @@ _DETECTOR_MODES: tuple[ArtifactMode, ...] = (
         ModeParam('length_px', 'positive_int', 8),
         ModeParam('direction', 'enum', 'right', choices=('right', 'left')),
         ModeParam('saturation_frac', 'unit_interval', 0.99),
-        availability=frozenset({'nhlorri'}),
         activation=PROBABILITY,
         activation_semantics='per-frame probability the saturation serial tail is applied',
     ),
     _detector_mode(
         'beam_bend',
         ModeParam('amplitude_px', 'nonneg_number', 1.0),
-        availability=frozenset({'vgiss'}),
         activation=PROBABILITY,
         activation_semantics='per-frame probability the brightness-dependent limb bend is applied',
     ),
@@ -472,13 +421,11 @@ _DETECTOR_MODES: tuple[ArtifactMode, ...] = (
         ModeParam('amplitude', 'unit_interval', 0.05),
         ModeParam('prior', 'enum', 'self_offset', choices=('self_offset', 'flat')),
         ModeParam('offset_px', 'int_list', None, length=2),
-        availability=frozenset({'vgiss'}),
         activation=PROBABILITY,
         activation_semantics='per-frame probability the prior-frame ghost is added',
     ),
     _detector_mode(
         'quantization_sqrt_lut',
-        availability=frozenset({'coiss_nac', 'coiss_wac'}),
         activation=PROBABILITY,
         activation_semantics=(
             "per-frame probability the frame is companded through the camera's sqrt_lut table"
@@ -486,14 +433,12 @@ _DETECTOR_MODES: tuple[ArtifactMode, ...] = (
     ),
     _detector_mode(
         'quantization_ls8b',
-        availability=frozenset({'coiss_nac', 'coiss_wac'}),
         activation=PROBABILITY,
         activation_semantics='per-frame probability the LS8B wraparound quantization is active',
     ),
     _detector_mode(
         'quantization_contour_8bit',
         ModeParam('step', 'positive_int', 8),
-        availability=frozenset({'gossi', 'vgiss'}),
         activation=PROBABILITY,
         activation_semantics='per-frame probability the 8-bit contouring quantization is active',
     ),
@@ -505,7 +450,6 @@ _DETECTOR_MODES: tuple[ArtifactMode, ...] = (
         ModeParam('stitch_amplitude_dn', 'nonneg_number', None),
         ModeParam('jail_bar_dn', 'nonneg_number', None),
         ModeParam('dust_donut_count', 'nonneg_int', None),
-        availability=_ALL_INSTRUMENTS,
         activation=PROBABILITY,
         activation_semantics='per-frame probability the static fixed-pattern composite is applied',
     ),
@@ -521,7 +465,6 @@ _TELEMETRY_ARTIFACT_MODES: tuple[ArtifactMode, ...] = (
         'compression_dct',
         ModeParam('scale_factor', 'nonneg_number', 8.0),
         ModeParam('block', 'positive_int', 8),
-        availability=_ALL_CCD,
         activation=PROBABILITY,
         activation_semantics='per-frame probability the lossy DCT compression is applied',
     ),
@@ -529,7 +472,6 @@ _TELEMETRY_ARTIFACT_MODES: tuple[ArtifactMode, ...] = (
         'reseau_scars',
         ModeParam('spacing_px', 'positive_int', 46),
         ModeParam('patch_radius_px', 'positive_int', 4),
-        availability=frozenset({'vgiss'}),
         activation=PROBABILITY,
         activation_semantics='per-frame probability the reseau-removal scars are applied',
     ),
@@ -538,7 +480,6 @@ _TELEMETRY_ARTIFACT_MODES: tuple[ArtifactMode, ...] = (
         ModeParam('warp_amp_px', 'nonneg_number', 0.3),
         ModeParam('blank_border_px', 'nonneg_int', 0),
         ModeParam('missing_line_interp', 'bool', False),
-        availability=frozenset({'vgiss'}),
         activation=PROBABILITY,
         activation_semantics='per-frame probability the GEOMED resample texture is applied',
     ),
@@ -600,56 +541,6 @@ DETECTOR_MODE_ORDER: tuple[str, ...] = (
     'quantization_ls8b',
     'quantization_contour_8bit',
 )
-
-
-def normalize_instrument(instrument: str | None) -> str:
-    """Collapse an instrument name to its availability key.
-
-    The calibrated Cassini aliases share the raw detector's availability, and
-    the generic aliases (and ``None``) map to ``generic``, which accepts every
-    mode.
-
-    Parameters:
-        instrument: A sim instrument name, a generic alias, or ``None``.
-
-    Returns:
-        The normalized availability key.
-    """
-    if instrument is None or instrument in ('generic', 'sim'):
-        return 'generic'
-    aliases = {'coiss_calib_nac': 'coiss_nac', 'coiss_calib_wac': 'coiss_wac'}
-    return aliases.get(instrument, instrument)
-
-
-def mode_available(mode_name: str, instrument: str | None) -> bool:
-    """Whether ``mode_name`` is available on ``instrument``.
-
-    Parameters:
-        mode_name: A registered mode name.
-        instrument: A sim instrument name, a generic alias, or ``None``.
-
-    Returns:
-        True if the generic block is selected (which accepts every mode) or the
-        instrument is in the mode's availability set.
-    """
-    norm = normalize_instrument(instrument)
-    if norm == 'generic':
-        return True
-    return norm in ARTIFACT_MODES[mode_name].availability
-
-
-def mode_unavailable_message(mode_name: str, instrument: str | None) -> str:
-    """A validation message explaining why a mode is unavailable on an instrument."""
-    norm = normalize_instrument(instrument)
-    mode = ARTIFACT_MODES[mode_name]
-    bespoke = mode.unavailable_reason.get(norm)
-    if bespoke is not None:
-        return f'artifact mode {mode_name!r} is {bespoke}'
-    available = sorted(mode.availability)
-    return (
-        f'artifact mode {mode_name!r} is not available for instrument {instrument!r}; '
-        f'available on: {available}'
-    )
 
 
 def resolve_mode_config(mode_name: str, raw_config: Mapping[str, Any]) -> dict[str, Any]:

@@ -19,12 +19,12 @@ import pytest
 from scipy import ndimage
 
 from spindoctor.config import DEFAULT_CONFIG
-from spindoctor.sim.forward.artifacts_catalog import DETECTOR_DEFAULTS, resolve_detector_defaults
+from spindoctor.sim.forward.artifacts_catalog import resolve_detector_defaults
 from spindoctor.sim.forward.detector import apply_detector, chain
 from spindoctor.sim.forward.detector.noise_stages import add_cosmic_rays
 from spindoctor.sim.forward.detector.params import resolve_detector_params
 from spindoctor.sim.forward.stages import SimFrame
-from spindoctor.sim.instruments import SIM_INSTRUMENTS
+from spindoctor.sim.instrument_catalog import instrument_entry, sim_instrument_names
 from spindoctor.sim.render import render_combined_model
 from spindoctor.sim.scene import validate_sim_params
 from spindoctor.sim.seeds import derive_effect_seed
@@ -34,7 +34,7 @@ _KEY = 'cosmic_ray_events_per_pixel_per_sec'
 # validator and the renderer must both read as the instrument's default), or a
 # named model.
 _ABSENT = 'absent'
-_INSTRUMENTS = (*sorted(SIM_INSTRUMENTS), 'generic')
+_INSTRUMENTS = (*sim_instrument_names(), 'generic')
 
 
 class _RecordingRng:
@@ -372,7 +372,7 @@ def test_null_detector_keys_resolve_like_absent_ones() -> None:
 
 def test_instrument_defaults_applies_the_catalog_rate(monkeypatch: pytest.MonkeyPatch) -> None:
     """Under instrument_defaults the catalog's rate applies (every entry holds 0.0 today)."""
-    monkeypatch.setitem(DETECTOR_DEFAULTS['coiss_nac'], _KEY, 2.0e-4)
+    monkeypatch.setitem(instrument_entry('coiss_nac')['detector'], _KEY, 2.0e-4)
     scene = _scene('coiss_nac', {}, artifacts={'instrument_defaults': True})
     resolved = resolve_detector_params(scene)
     assert resolved.cosmic_ray_events_per_pixel_per_sec == pytest.approx(2.0e-4)
@@ -382,6 +382,6 @@ def test_catalog_rate_stays_off_without_instrument_defaults(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Without instrument_defaults the catalog's rate does not apply."""
-    monkeypatch.setitem(DETECTOR_DEFAULTS['coiss_nac'], _KEY, 2.0e-4)
+    monkeypatch.setitem(instrument_entry('coiss_nac')['detector'], _KEY, 2.0e-4)
     resolved = resolve_detector_params(_scene('coiss_nac', {}))
     assert resolved.cosmic_ray_events_per_pixel_per_sec == 0.0

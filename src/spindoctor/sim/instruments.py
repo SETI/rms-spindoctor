@@ -3,13 +3,14 @@
 The simulator can render a frame as though it came from a specific camera, so
 that a 'sim COISS NAC raw' frame goes through the same per-instrument noise,
 saturation, marker, and unit settings the navigator applies to a real frame.
-This module resolves a sim ``instrument`` name to the matching
-``config_4N0_inst_*.yaml`` block; physical parameters then delegate to that
-block, while sim-only knobs (signal full-scale, cosmic-ray rate, dropout rate)
-stay in the ``sim`` config block.
+This module resolves a sim ``instrument`` name to the navigator config block the
+instrument's config file names (its ``navigator`` section and detector; see
+:mod:`spindoctor.sim.instrument_catalog`); physical parameters then delegate to
+that block, while sim-only knobs (signal full-scale, cosmic-ray rate, dropout
+rate) stay in the ``sim`` config block.
 
-A value of ``None`` (or the generic aliases) selects the standalone ``sim``
-block, preserving the instrument-agnostic defaults.
+A value of ``None`` (or the generic entry and its aliases) selects the standalone
+``sim`` block, preserving the instrument-agnostic defaults.
 
 A scene may also carry ``instrument_config`` overrides that are deep-merged over
 the resolved block, so a scene can:
@@ -41,11 +42,10 @@ from typing import Any
 import numpy as np
 
 from spindoctor.config import Config
+from spindoctor.sim.instrument_catalog import load_instrument_catalog
 from spindoctor.support.types import NDArrayFloatType
 
 __all__ = [
-    'GENERIC_INSTRUMENT_ALIASES',
-    'SIM_INSTRUMENTS',
     'NavigatorFrameReading',
     'frame_units_name',
     'frame_units_summary',
@@ -56,20 +56,6 @@ __all__ = [
     'resolve_extfov_margin',
     'resolve_sim_inst_config',
 ]
-
-# Sim instrument name -> (config section, detector key or None for flat blocks).
-SIM_INSTRUMENTS: dict[str, tuple[str, str | None]] = {
-    'coiss_nac': ('cassini_iss', 'nac'),
-    'coiss_wac': ('cassini_iss', 'wac'),
-    'coiss_calib_nac': ('cassini_iss_calib', 'nac'),
-    'coiss_calib_wac': ('cassini_iss_calib', 'wac'),
-    'gossi': ('galileo_ssi', None),
-    'nhlorri': ('newhorizons_lorri', None),
-    'vgiss': ('voyager_iss', None),
-}
-
-# Names that resolve to the standalone, instrument-agnostic ``sim`` block.
-GENERIC_INSTRUMENT_ALIASES = frozenset({'generic', 'sim'})
 
 # The navigator's defaults for the image_quality_thresholds keys its classifier
 # reads (nav_orchestrator.instrument_config and ImageQualityThresholds).  The
@@ -111,8 +97,10 @@ def resolve_sim_inst_config(
 
     Parameters:
         config: The active configuration.
-        instrument: A sim instrument name (see ``SIM_INSTRUMENTS``), one of the
-            generic aliases, or ``None`` for the instrument-agnostic block.
+        instrument: A sim instrument name (see
+            :func:`~spindoctor.sim.instrument_catalog.sim_instrument_names`), the
+            generic entry or one of its aliases, or ``None`` for the
+            instrument-agnostic block.
         overrides: Optional scene-level overrides deep-merged over the resolved
             block. Overridden keys are pinned to the scene; the rest continue to
             track the instrument. Combined with the generic block this expresses a
@@ -134,14 +122,9 @@ def resolve_sim_inst_config(
 
 def _resolve_base_block(config: Config, instrument: str | None) -> Mapping[str, Any]:
     """Resolve the unmodified per-instrument (or generic) config block."""
-    if instrument is None or instrument in GENERIC_INSTRUMENT_ALIASES:
-        return config.category('sim')
-    if instrument not in SIM_INSTRUMENTS:
-        raise ValueError(
-            f'unknown sim instrument {instrument!r}; '
-            f'expected one of {sorted(SIM_INSTRUMENTS)} or a generic alias'
-        )
-    section, detector = SIM_INSTRUMENTS[instrument]
+    navigator = load_instrument_catalog().entry(instrument)['navigator']
+    section: str = navigator['section']
+    detector: str | None = navigator.get('detector')
     category = config.category(section)
     if not category:
         raise ValueError(

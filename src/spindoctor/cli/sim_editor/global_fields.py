@@ -9,11 +9,7 @@ change handlers.
 from PyQt6.QtWidgets import QComboBox, QDoubleSpinBox, QFormLayout, QLineEdit, QSpinBox
 
 from spindoctor.cli.sim_editor.base import SimEditorBase
-from spindoctor.sim.instruments import SIM_INSTRUMENTS
-
-# Instrument options for the General-tab selector: the generic (instrument-
-# agnostic) frame plus every per-instrument sim camera.
-_INSTRUMENT_CHOICES: list[str] = ['generic', *sorted(SIM_INSTRUMENTS)]
+from spindoctor.sim.instrument_catalog import GENERIC_INSTRUMENT, sim_instrument_names
 
 
 class GlobalFieldsMixin(SimEditorBase):
@@ -85,7 +81,9 @@ class GlobalFieldsMixin(SimEditorBase):
         # Instrument selector: drives the per-instrument noise / saturation /
         # PSF / unit settings the renderer applies (see spindoctor.sim.instruments).
         self._instrument_combo = QComboBox()
-        self._instrument_combo.addItems(_INSTRUMENT_CHOICES)
+        # The generic (instrument-agnostic) frame, then every instrument config
+        # file's camera.
+        self._instrument_combo.addItems([GENERIC_INSTRUMENT, *sim_instrument_names()])
         instrument = str(self.sim_params.get('instrument', 'generic'))
         instrument_index = self._instrument_combo.findText(instrument)
         if instrument_index >= 0:

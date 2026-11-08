@@ -12,15 +12,12 @@ import numpy as np
 import pytest
 
 from spindoctor.config import DEFAULT_CONFIG
-from spindoctor.sim.instruments import (
-    SIM_INSTRUMENTS,
-    navigator_marker_value,
-    resolve_sim_inst_config,
-)
+from spindoctor.sim.instrument_catalog import sim_instrument_names
+from spindoctor.sim.instruments import navigator_marker_value, resolve_sim_inst_config
 from spindoctor.sim.render import render_combined_model
 from spindoctor.sim.scene import validate_sim_params
 
-_INSTRUMENTS = (*sorted(SIM_INSTRUMENTS), 'generic')
+_INSTRUMENTS = (*sim_instrument_names(), 'generic')
 # The data_units a property case pins through instrument_config: the
 # instrument's own block, or each unit class forced over it.
 _UNITS = (None, 'raw_dn', 'calibrated_if')

@@ -1,13 +1,16 @@
 """Per-filter throughput of the simulated cameras that carry a filter wheel.
 
 A scene's optional ``detector.filter`` key names the filter combination the
-frame was shot through, written as the product label writes it (``'CL1+CL2'``
-for the Cassini ISS wheel-1 and wheel-2 elements).  The catalog value is the
-electrons per second one native pixel collects from a surface at I/F 1.0, so
-the detector chain renders a signal of 1.0 at that rate and the calibrated
-products divide by the same scale.  A scene that does not name a filter keeps
-the nominal scale its detector entry derives (``signal_full_scale_frac *
-full_well_e / exposure_ref_sec``).
+frame was shot through, written as the product label writes it, with the
+elements joined by ``+`` (for example ``'CL1+CL2'`` for a two-wheel camera).
+Each instrument's config file catalogs its combinations under ``filters`` (see
+:mod:`spindoctor.sim.instrument_catalog`), along with the clear combination its
+star zero point refers to and the clear element each polarizer folds onto.  The
+catalog value is the electrons per second one native pixel collects from a
+surface at I/F 1.0, so the detector chain renders a signal of 1.0 at that rate
+and the calibrated products divide by the same scale.  A scene that does not name
+a filter keeps the nominal scale its detector entry derives
+(``signal_full_scale_frac * full_well_e / exposure_ref_sec``).
 
 The throughput is the only filter-dependent quantity the simulator models.
 Haze, body photometry, star color, and the PSF render the same for every
@@ -16,115 +19,50 @@ filter.
 
 from __future__ import annotations
 
-from spindoctor.sim.forward.artifact_modes import normalize_instrument
+from typing import Any
+
+from spindoctor.sim.instrument_catalog import instrument_entry, load_instrument_catalog
 
 __all__ = [
-    'FILTER_THROUGHPUT_E_PER_S_PER_IF',
+    'FilterCatalogError',
     'canonical_filter',
+    'cataloged_filters',
     'filter_star_flux_scale',
     'resolve_filter_throughput',
 ]
-
-# Electrons per second per native pixel at I/F 1.0, by filter combination,
-# keyed by the raw camera name (the calibrated aliases share it).
-#
-# Measured 2026-11-06 from Cassini ISS raw/CALIB pairs.  CISSCAL writes the
-# conversion it applied into every CALIB label (``RADIOMETRIC_CORRECTION_TEXT``:
-# an efficiency factor and an absolute correction factor per filter
-# combination), and the camera constant comes from fitting raw DN against
-# CALIB I/F on the bright pixels of 12-bit frames, converted to electrons by
-# the label's ``GAIN_CORRECTION``, divided by the exposure less
-# ``EXPOSURE_OFFSET`` and by the summation factor.  The fits put the constant
-# at 16,800 e-/s per I/F per unit efficiency for the NAC (31 frames, scatter
-# about 15%) and 193,000 for the WAC (16 frames), a ratio of 11.5 that the
-# cameras' apertures and pixel solid angles predict to within 30%.
-#
-# An entry tagged ``measured`` is the median of two or more 12-bit pair fits
-# for that combination; every other entry is the camera constant times the
-# label's efficiency and absolute correction.  Two measured filters depart
-# from that model by more than the fit scatter: NAC UV3 (0.32x, two frames at
-# two gains) and NAC IR3 (0.74x, three frames).  WAC VIO measures 0.67x on two
-# frames of one sequence.  The 8-bit TABLE frames are excluded: their LUT
-# encoding breaks the linear raw/CALIB fit.
-#
-# CISSCAL gives the polarizers the efficiency of the clear element they
-# replace, so the real products carry the same DN-to-I/F scale with or
-# without a polarizer; ``canonical_filter`` folds them onto that clear
-# element.
-FILTER_THROUGHPUT_E_PER_S_PER_IF: dict[str, dict[str, float]] = {
-    'coiss_nac': {
-        'BL1+CL2': 110000.0,
-        'BL1+GRN': 5750.0,
-        'CL1+BL2': 24700.0,
-        'CL1+CB1': 62300.0,
-        'CL1+CB2': 31300.0,
-        'CL1+CB3': 6380.0,
-        'CL1+CL2': 1450000.0,  # measured, 9 frames
-        'CL1+GRN': 413000.0,  # measured, 8 frames
-        'CL1+IR1': 471000.0,  # measured, 2 frames
-        'CL1+IR3': 65300.0,  # measured, 3 frames
-        'CL1+MT1': 11000.0,
-        'CL1+MT2': 13400.0,
-        'CL1+MT3': 13900.0,
-        'CL1+UV3': 19600.0,  # measured, 2 frames
-        'HAL+CL2': 28700.0,
-        'IR2+CL2': 167000.0,
-        'IR2+IR1': 56400.0,
-        'IR2+IR3': 51400.0,
-        'IR4+CL2': 11800.0,
-        'IR4+IR3': 9630.0,
-        'RED+CL2': 445000.0,
-        'RED+GRN': 141000.0,
-        'RED+IR1': 141000.0,
-        'UV1+CL2': 13100.0,
-        'UV2+CL2': 20800.0,
-        'UV2+UV3': 6700.0,
-    },
-    'coiss_wac': {
-        'CB2+CL2': 279000.0,
-        'CB3+CL2': 11700.0,
-        'CL1+BL1': 1150000.0,  # measured, 2 frames
-        'CL1+CL2': 13500000.0,  # measured, 4 frames
-        'CL1+GRN': 4470000.0,
-        'CL1+HAL': 323000.0,
-        'CL1+IR1': 4100000.0,
-        'CL1+RED': 5760000.0,  # measured, 2 frames
-        'CL1+VIO': 115000.0,  # measured, 2 frames
-        'IR2+CL2': 695000.0,
-        'IR2+IR1': 293000.0,
-        'IR3+CL2': 216000.0,
-        'IR4+CL2': 11200.0,
-        'IR5+CL2': 1320.0,
-        'MT2+CL2': 135000.0,
-        'MT3+CL2': 39300.0,
-    },
-}
-
-# The clear combination each camera's star zero point refers to: the
-# zero points are sized from the published clear-filter limiting magnitudes.
-_CLEAR_FILTER: dict[str, str] = {
-    'coiss_nac': 'CL1+CL2',
-    'coiss_wac': 'CL1+CL2',
-}
-
-# Polarizer elements and the clear element of the same wheel.  The NAC
-# polarizers sit in wheel 1; the WAC polarizers sit in wheel 2.
-_POLARIZER_CLEAR: dict[str, dict[str, str]] = {
-    'coiss_nac': {'P0': 'CL1', 'P60': 'CL1', 'P120': 'CL1', 'IRP0': 'CL1'},
-    'coiss_wac': {'IRP0': 'CL2', 'IRP90': 'CL2'},
-}
 
 
 class FilterCatalogError(ValueError):
     """A scene names a filter its camera does not catalog."""
 
 
+def _filters(instrument: str | None) -> dict[str, Any] | None:
+    """The ``filters`` section of an instrument's config, or None."""
+    filters: dict[str, Any] | None = instrument_entry(instrument).get('filters')
+    return filters
+
+
+def _require_filters(instrument: str | None) -> dict[str, Any]:
+    """The ``filters`` section of an instrument's config, refusing one without it."""
+    filters = _filters(instrument)
+    if filters is None:
+        catalog = load_instrument_catalog()
+        cataloged = [
+            name for name in catalog.instrument_names() if 'filters' in catalog.entry(name)
+        ]
+        raise FilterCatalogError(
+            f'sim instrument {instrument!r} has no filter table; instruments with one: {cataloged}'
+        )
+    return filters
+
+
 def canonical_filter(instrument: str | None, filter_name: str) -> str:
     """Fold a filter combination onto its cataloged spelling.
 
     Each ``+``-separated element is stripped of surrounding whitespace and
-    upper-cased, and a polarizer becomes the clear element of its wheel, so
-    ``'p120+grn'`` reads as ``'CL1+GRN'`` on the Cassini NAC.
+    upper-cased, and a polarizer the instrument's ``filters.polarizer_clear`` names
+    becomes the clear element of its wheel, so ``'p120+grn'`` reads as
+    ``'CL1+GRN'`` on a camera whose ``P120`` folds onto ``CL1``.
 
     Parameters:
         instrument: The sim instrument name.
@@ -132,10 +70,31 @@ def canonical_filter(instrument: str | None, filter_name: str) -> str:
 
     Returns:
         The combination as the catalog keys it.
+
+    Raises:
+        ValueError: If the instrument is not in the catalog.
     """
-    polarizers = _POLARIZER_CLEAR.get(normalize_instrument(instrument), {})
+    filters = _filters(instrument) or {}
+    polarizers = filters.get('polarizer_clear') or {}
     elements = [element.strip().upper() for element in filter_name.split('+')]
     return '+'.join(polarizers.get(element, element) for element in elements)
+
+
+def cataloged_filters(instrument: str | None) -> tuple[str, ...]:
+    """The filter combinations an instrument catalogs, sorted.
+
+    Parameters:
+        instrument: The sim instrument name.
+
+    Returns:
+        The combinations, as the catalog keys them; empty for an instrument
+        without a filter table.
+
+    Raises:
+        ValueError: If the instrument is not in the catalog.
+    """
+    filters = _filters(instrument)
+    return () if filters is None else tuple(sorted(filters['throughput_e_per_s_per_if']))
 
 
 def resolve_filter_throughput(instrument: str | None, filter_name: str) -> float:
@@ -152,27 +111,25 @@ def resolve_filter_throughput(instrument: str | None, filter_name: str) -> float
     Raises:
         FilterCatalogError: If the instrument has no filter table, or the
             combination is not in it.
+        ValueError: If the instrument is not in the catalog.
     """
-    table = FILTER_THROUGHPUT_E_PER_S_PER_IF.get(normalize_instrument(instrument))
-    if table is None:
-        cataloged = sorted(FILTER_THROUGHPUT_E_PER_S_PER_IF)
-        raise FilterCatalogError(
-            f'sim instrument {instrument!r} has no filter table; instruments with one: {cataloged}'
-        )
+    table = _require_filters(instrument)['throughput_e_per_s_per_if']
     canonical = canonical_filter(instrument, filter_name)
     if canonical not in table:
         raise FilterCatalogError(
             f'filter {filter_name!r} is not cataloged for sim instrument {instrument!r}; '
             f'available filters: {sorted(table)}'
         )
-    return table[canonical]
+    throughput: float = table[canonical]
+    return throughput
 
 
 def filter_star_flux_scale(instrument: str | None, filter_name: str | None) -> float:
     """Return the factor a filter applies to the camera's star zero point.
 
-    The zero point refers to the camera's clear combination, so a named filter
-    scales it by that filter's throughput over the clear throughput.
+    The zero point refers to the camera's clear combination (``filters.clear``),
+    so a named filter scales it by that filter's throughput over the clear
+    throughput.
 
     Parameters:
         instrument: The sim instrument name.
@@ -187,5 +144,5 @@ def filter_star_flux_scale(instrument: str | None, filter_name: str | None) -> f
     if filter_name is None:
         return 1.0
     throughput = resolve_filter_throughput(instrument, filter_name)
-    clear = _CLEAR_FILTER[normalize_instrument(instrument)]
+    clear = _require_filters(instrument)['clear']
     return throughput / resolve_filter_throughput(instrument, clear)

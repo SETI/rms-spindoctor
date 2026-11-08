@@ -4,8 +4,9 @@ A companding table sends each DN as one of a fixed number of codes (256 for an
 8-bit code word) and the ground decodes each code back to a DN.  The decode
 curve is quadratic in the code, so the encoding is a square root and the
 quantization step grows with the signal, tracking the photon noise.  A camera's
-curve is a per-instrument catalog entry (``sqrt_lut`` in ``DETECTOR_DEFAULTS``);
-a camera without one gets the plain square-root curve scaled to its ADC ceiling.
+curve is a per-instrument catalog entry (``sqrt_lut`` in the instrument config
+file's ``detector`` block); a camera without one gets the plain square-root curve
+scaled to its ADC ceiling.
 """
 
 import math

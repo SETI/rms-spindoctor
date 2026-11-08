@@ -45,9 +45,8 @@ from spindoctor.sim.forward.artifact_modes import (
     PIXEL_FRACTION,
     ArtifactMode,
     ModeParam,
-    mode_available,
-    mode_unavailable_message,
 )
+from spindoctor.sim.forward.artifacts_catalog import mode_available, mode_unavailable_message
 
 # Generous numeric bounds: artifact parameters span pixel counts, electron
 # amplitudes, and unit fractions, so the spins are not the validation surface

@@ -24,8 +24,8 @@ from spindoctor.nav_orchestrator.instrument_config import instrument_settings_fr
 from spindoctor.obs.obs_inst_sim import ObsSim
 from spindoctor.sim.forward.stages import SimFrame
 from spindoctor.sim.forward.telemetry import apply_telemetry
+from spindoctor.sim.instrument_catalog import sim_instrument_names
 from spindoctor.sim.instruments import (
-    SIM_INSTRUMENTS,
     frame_units_name,
     frame_units_summary,
     has_planted_offset,
@@ -35,7 +35,7 @@ from spindoctor.sim.instruments import (
 )
 from spindoctor.sim.render import render_combined_model
 
-_ALL_INSTRUMENTS = [*sorted(SIM_INSTRUMENTS), 'generic']
+_ALL_INSTRUMENTS = [*sim_instrument_names(), 'generic']
 
 
 def _navigator_marker(instrument: str, overrides: dict[str, Any] | None = None) -> float:

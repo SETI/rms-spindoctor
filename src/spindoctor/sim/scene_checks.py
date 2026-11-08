@@ -24,11 +24,15 @@ from spindoctor.sim.forward.artifact_modes import (
     ARTIFACT_MODES,
     MODE_KEYS,
     ModeParam,
+)
+from spindoctor.sim.forward.artifacts_catalog import (
+    cataloged_binnings,
     mode_available,
     mode_unavailable_message,
+    resolve_detector_defaults,
 )
-from spindoctor.sim.forward.artifacts_catalog import cataloged_binnings, resolve_detector_defaults
 from spindoctor.sim.forward.filter_catalog import FilterCatalogError, resolve_filter_throughput
+from spindoctor.sim.instrument_schema import DETECTOR_MODELS, QUANTIZATION_MODES
 from spindoctor.sim.scene_schema import SimSceneValidationError
 from spindoctor.support.status_reason import NavStatusReason
 
@@ -323,16 +327,10 @@ _VIDICON_NOISE_KEYS: frozenset[str] = frozenset(
 # mode's binning, the detector model (CCD electron chain or the Voyager vidicon
 # DN path), the exposure the well fraction references (or the filter whose
 # measured throughput sets it), and the ADC quantization sub-mode.
-# Per-instrument defaults come from artifacts_catalog.py and the filter
-# throughputs from filter_catalog.py; scene keys override them.
+# Per-instrument defaults and filter throughputs come from the instrument's
+# config file; scene keys override them.
 _DETECTOR_KEYS: frozenset[str] = frozenset(
     {'gain_state', 'binning', 'detector_model', 'exposure_ref_sec', 'filter', 'quantization'}
-)
-_DETECTOR_MODELS: frozenset[str] = frozenset({'ccd', 'vidicon'})
-# Quantization sub-modes: 'exact' rounds to integer DN (uniform bins); the ADC
-# modes reproduce the documented histogram structure of each camera.
-_QUANTIZATION_MODES: frozenset[str] = frozenset(
-    {'exact', 'uneven_12bit', '8bit', 'sqrt_lut', 'ls8b', 'contour_8bit'}
 )
 # The artifacts block: the two switches (the physical-chain opt-in and the
 # adversarial-placement flag) plus one map per artifact mode, keyed by exactly
@@ -427,9 +425,9 @@ def _check_detector(value: Any, *, instrument: str, source: str) -> None:
                 f'detector_model vidicon; the vidicon DN path has no binned readout'
             )
     model = value.get('detector_model')
-    if model is not None and model not in _DETECTOR_MODELS:
+    if model is not None and model not in DETECTOR_MODELS:
         raise SimSceneValidationError(
-            f'{source}: detector.detector_model must be one of {sorted(_DETECTOR_MODELS)}; '
+            f'{source}: detector.detector_model must be one of {sorted(DETECTOR_MODELS)}; '
             f'got {model!r}'
         )
     _check_optional_positive_number(
@@ -437,9 +435,9 @@ def _check_detector(value: Any, *, instrument: str, source: str) -> None:
     )
     _check_detector_filter(value, instrument=instrument, source=source)
     quantization = value.get('quantization')
-    if quantization is not None and quantization not in _QUANTIZATION_MODES:
+    if quantization is not None and quantization not in QUANTIZATION_MODES:
         raise SimSceneValidationError(
-            f'{source}: detector.quantization must be one of {sorted(_QUANTIZATION_MODES)}; '
+            f'{source}: detector.quantization must be one of {sorted(QUANTIZATION_MODES)}; '
             f'got {quantization!r}'
         )
 
@@ -485,9 +483,9 @@ def _check_artifacts(value: Any, *, instrument: str, source: str) -> None:
 
     Beyond the two switch keys, the block is keyed by exactly the artifact-mode
     registry (unknown keys fail).  A mode that has no implementation yet fails
-    as not-yet-implemented, and a mode unavailable on the scene's instrument
-    fails with the registry's message (the LORRI hot-pixel case carries a
-    bespoke one).  Each present mode's parameters are then type-checked against
+    as not-yet-implemented, and a mode the scene's instrument does not offer
+    fails with the reason the instrument's config file states, or with a list of
+    the instruments that offer it.  Each present mode's parameters are then type-checked against
     its schema.
 
     Parameters:

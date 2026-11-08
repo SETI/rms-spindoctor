@@ -19,35 +19,35 @@ from functools import lru_cache
 import numpy as np
 from scipy.signal import fftconvolve
 
+from spindoctor.sim.instrument_catalog import instrument_entry
 from spindoctor.support.types import NDArrayFloatType
 
 __all__ = [
-    'DEFAULT_TRUNCATION_PX',
     'apply_psf',
     'psf_kernel',
     'psf_truncation_for_instrument',
 ]
 
-# Kernel truncation radius in detector pixels: the window past which the
-# Gaussian core and Moffat wing are cut and the kernel renormalized.  Cassini's
-# documented long wings get a wider window; the far halo beyond the window is
-# stray-light scope, not kernel scope.
-DEFAULT_TRUNCATION_PX = 16
-_COISS_TRUNCATION_PX = 32
-
 
 def psf_truncation_for_instrument(instrument: str | None) -> int:
     """Return the PSF truncation radius (detector px) for an instrument.
 
+    The truncation radius is the window past which the Gaussian core and Moffat
+    wing are cut and the kernel renormalized; the far halo beyond it is
+    stray-light scope, not kernel scope.
+
     Parameters:
-        instrument: The sim instrument name, or None for the generic block.
+        instrument: The sim instrument name, an alias, or None for the generic
+            entry.
 
     Returns:
-        32 for the Cassini ISS cameras (documented long wings), else 16.
+        The instrument config's ``psf.truncation_px``.
+
+    Raises:
+        ValueError: If the instrument is not in the catalog.
     """
-    if instrument is not None and instrument.startswith('coiss'):
-        return _COISS_TRUNCATION_PX
-    return DEFAULT_TRUNCATION_PX
+    truncation: int = instrument_entry(instrument)['psf']['truncation_px']
+    return truncation
 
 
 @lru_cache(maxsize=8)

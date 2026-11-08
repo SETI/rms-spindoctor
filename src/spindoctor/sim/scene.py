@@ -40,7 +40,7 @@ from typing import Any
 
 from ruamel.yaml import YAML
 
-from spindoctor.sim.instruments import GENERIC_INSTRUMENT_ALIASES, SIM_INSTRUMENTS
+from spindoctor.sim.instrument_catalog import load_instrument_catalog
 from spindoctor.sim.scene_checks import (
     _check_artifacts,
     _check_detector,
@@ -90,7 +90,6 @@ from spindoctor.sim.scene_schema import (
 from spindoctor.sim.scene_truth_echo import SimSceneTruthEchoWarning, check_truth_echo
 
 __all__ = [
-    'ALLOWED_INSTRUMENTS',
     'ATMOSPHERE_KEYS',
     'CURRENT_SCHEMA_VERSION',
     'DECLARED_SIM_SCENE_CLASSES',
@@ -129,9 +128,6 @@ DECLARED_SIM_SCENE_CLASSES: frozenset[str] = frozenset(
         'expected_fail',
     }
 )
-
-# Instrument names a scene may name (the sim instruments plus the generic alias).
-ALLOWED_INSTRUMENTS: frozenset[str] = frozenset(SIM_INSTRUMENTS) | GENERIC_INSTRUMENT_ALIASES
 
 CURRENT_SCHEMA_VERSION: int = 2
 
@@ -266,9 +262,12 @@ def validate_sim_params(
         _require_str(sim_params, 'scene_name', source=source)
 
     instrument = _require_str(sim_params, 'instrument', source=source)
-    if instrument not in ALLOWED_INSTRUMENTS:
+    # The names a scene may write: every instrument config file's stem, plus the
+    # aliases those files declare.
+    allowed = load_instrument_catalog().allowed_names()
+    if instrument not in allowed:
         raise SimSceneValidationError(
-            f'{source}: instrument {instrument!r} is not one of {sorted(ALLOWED_INSTRUMENTS)}'
+            f'{source}: instrument {instrument!r} is not one of {sorted(allowed)}'
         )
     _require_positive_int(sim_params, 'size_v', source=source)
     _require_positive_int(sim_params, 'size_u', source=source)

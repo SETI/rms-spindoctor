@@ -13,7 +13,7 @@ from typing import Any
 import numpy as np
 import pytest
 
-from spindoctor.sim.forward.artifacts_catalog import DETECTOR_DEFAULTS
+from spindoctor.sim.forward.artifacts_catalog import resolve_detector_defaults
 from spindoctor.sim.forward.detector.noise_stages import detector_column_map
 from spindoctor.sim.forward.detector.params import calibration_map, resolve_detector_params
 from spindoctor.sim.render import render_combined_model
@@ -140,7 +140,7 @@ def test_an_instrument_defaults_calibrated_sky_is_continuous() -> None:
 @pytest.mark.parametrize('instrument', ['coiss_calib_nac', 'coiss_calib_wac'])
 def test_each_calibrated_camera_catalogs_both_terms(instrument: str) -> None:
     """Both calibrated Cassini products carry a measured, positive residual."""
-    entry = DETECTOR_DEFAULTS[instrument]
+    entry = resolve_detector_defaults(instrument)
     assert entry['calibration_column_residual_e'] > 0.0
     assert entry['calibration_pixel_residual_e'] > 0.0
 

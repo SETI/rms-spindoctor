@@ -17,7 +17,7 @@ import numpy as np
 import pytest
 from scipy.signal import fftconvolve
 
-from spindoctor.sim.forward.artifacts_catalog import PSF_KERNELS
+from spindoctor.sim.forward.artifacts_catalog import resolve_psf_kernel
 from spindoctor.sim.forward.psf import psf_kernel, psf_truncation_for_instrument
 from spindoctor.sim.forward.star import faint_sky_cutoff_mag, render_sky_counts
 from spindoctor.sim.render import clear_render_caches, render_combined_model
@@ -196,7 +196,8 @@ def test_instrument_defaults_star_reproduces_the_catalog_kernel() -> None:
     cut = img[32 - radius : 32 + radius + 1, 32 - radius : 32 + radius + 1].astype(np.float64)
 
     os = 4
-    k = PSF_KERNELS['coiss_nac']
+    k = resolve_psf_kernel('coiss_nac')
+    assert k is not None
     kernel = psf_kernel(
         k['sigma_v'],
         k['sigma_u'],

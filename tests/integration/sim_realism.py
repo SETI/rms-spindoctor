@@ -42,23 +42,23 @@ from __future__ import annotations
 
 import argparse
 import dataclasses
+import math
 import os
 import time
 import warnings
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any, cast
 
 import numpy as np
 
+from spindoctor.config import DEFAULT_CONFIG
 from spindoctor.nav_model import build_models_for_obs
 from spindoctor.nav_orchestrator import NavOrchestrator
 from spindoctor.obs.obs_inst_sim import ObsSim
 from spindoctor.obs.obs_snapshot import ObsSnapshot
-from spindoctor.sim.forward.artifact_modes import normalize_instrument
-from spindoctor.sim.forward.filter_catalog import (
-    FILTER_THROUGHPUT_E_PER_S_PER_IF,
-    canonical_filter,
-)
+from spindoctor.sim.instrument_catalog import realism_cohort_instruments
+from spindoctor.sim.instruments import resolve_sim_inst_config
 from spindoctor.sim.realism.artifact_rates import (
     ArtifactRates,
     split_stationary_spikes,
@@ -73,9 +73,11 @@ from spindoctor.sim.realism.dynamic_range import stratify_by_exposure
 from spindoctor.support.types import NDArrayFloatType
 from tests.integration.checkout_guard import require_checkout_package
 from tests.integration.sidecar import LibraryRoot, Sidecar, load_sidecar
+from tests.integration.sim_realism_cassini import cassini_frame_settings
 from tests.integration.sim_realism_scenes import matched_scene
 from tests.integration.sim_realism_support import (
     FrameSamples,
+    FrameSettings,
     extract_feature_samples,
     extract_pixel_samples,
     prepare_frame_features,
@@ -89,27 +91,34 @@ __all__ = [
 ]
 
 # (mission, camera) -> sim instrument whose signal chain and units match the
-# cohort's products (COISS CALIB and VGISS GEOMED are I/F; GOSSI REDR and
-# LORRI sci are DN).
-INSTRUMENT_FOR: dict[tuple[str, str], str] = {
-    ('COISS', 'NAC'): 'coiss_calib_nac',
-    ('COISS', 'WAC'): 'coiss_calib_wac',
-    ('GOSSI', 'SSI'): 'gossi',
-    ('VGISS', 'NA'): 'vgiss',
-    ('VGISS', 'WA'): 'vgiss',
-    ('NHLORRI', 'LORRI'): 'nhlorri',
+# cohort's products: each instrument config file's realism_cohort.
+INSTRUMENT_FOR: dict[tuple[str, str], str] = realism_cohort_instruments()
+
+# The readers of a real frame's commanded settings, by the sidecar's mission.  A
+# mission without one renders its matched scenes at the instrument's own
+# settings.
+_FRAME_SETTINGS_READERS: dict[str, Callable[..., FrameSettings]] = {
+    'COISS': cassini_frame_settings,
 }
 
-# Full-scale level in cohort units for the saturation statistics and the
-# FOM 2 saturated-star filter; NaN where the cohort's calibrated units do
-# not define a fixed level (CALIB/GEOMED I/F).
-SATURATION_LEVEL: dict[str, float] = {
-    'coiss_calib_nac': float('nan'),
-    'coiss_calib_wac': float('nan'),
-    'gossi': 255.0,
-    'nhlorri': 4095.0,
-    'vgiss': float('nan'),
-}
+
+def saturation_level(instrument: str) -> float:
+    """The full-scale level in cohort units, from the navigator's instrument block.
+
+    The level feeds the saturation statistics and the FOM 2 saturated-star filter.
+
+    Parameters:
+        instrument: The sim instrument a cohort is matched against.
+
+    Returns:
+        The block's ``noise.saturation_dn`` for a ``raw_dn`` product; NaN for a
+        calibrated one, whose I/F units define no fixed level.
+    """
+    block = resolve_sim_inst_config(DEFAULT_CONFIG, instrument)
+    if block.get('data_units', 'raw_dn') != 'raw_dn':
+        return math.nan
+    return float(block['noise']['saturation_dn'])
+
 
 # Scene classes -> NavModel globs for the feature FOMs (the sim-side models
 # are registered as body_sim:/rings_sim:, so both spellings appear).  Classes
@@ -304,28 +313,16 @@ def _frame_samples_real(
         offset_vu=offset,
         frame_shape_vu=(int(obs.data_shape_vu[0]), int(obs.data_shape_vu[1])),
     )
-    if instrument.startswith('coiss_calib_'):
+    reader = _FRAME_SETTINGS_READERS.get(sidecar.mission)
+    if reader is not None:
         # Matching content, not tuning: the sim renders the frame's own filter
         # throughput, gain state, and downlink table, so its DN-to-I/F scale
         # and quantization step are the real product's.
-        filter_name = f'{obs.filter1}+{obs.filter2}'
-        if (
-            canonical_filter(instrument, filter_name)
-            in FILTER_THROUGHPUT_E_PER_S_PER_IF[normalize_instrument(instrument)]
-        ):
-            record.filter_name = filter_name
-        else:
-            # An uncataloged pair renders at the nominal scale rather than
-            # aborting the whole match; the warning names the frame.
-            warnings.warn(
-                f'{sidecar.image_id}: filter {filter_name} is not cataloged for '
-                f'{instrument}; its matched scene uses the nominal scale',
-                stacklevel=2,
-            )
-        record.gain_state = int(obs.gain_mode)
-        if obs.dict.get('DATA_CONVERSION_TYPE', None) == 'TABLE':
-            record.quantization = 'sqrt_lut'
-    saturation = SATURATION_LEVEL[instrument]
+        settings = reader(obs, image_id=sidecar.image_id, instrument=instrument)
+        record.filter_name = settings.filter_name
+        record.gain_state = settings.gain_state
+        record.quantization = settings.quantization
+    saturation = saturation_level(instrument)
     samples, rates = extract_pixel_samples(
         np.asarray(obs.data, dtype=np.float64),
         exposure_stratum=stratum,
@@ -391,7 +388,7 @@ def _sim_obs_for_record(record: FrameRecord) -> tuple[ObsSim, dict[str, Any]]:
 def _frame_samples_sim(record: FrameRecord) -> tuple[FrameSamples, ArtifactRates]:
     """Extract the matched sim frame's samples (same machinery as real)."""
     obs, _scene = _sim_obs_for_record(record)
-    saturation = SATURATION_LEVEL[record.instrument]
+    saturation = saturation_level(record.instrument)
     samples, rates = extract_pixel_samples(
         np.asarray(obs.data, dtype=np.float64),
         exposure_stratum=record.stratum,

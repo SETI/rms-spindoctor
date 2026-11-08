@@ -19,7 +19,6 @@ from spindoctor.sim.forward.detector.params import (
     resolve_detector_params,
 )
 from spindoctor.sim.forward.filter_catalog import (
-    FILTER_THROUGHPUT_E_PER_S_PER_IF,
     FilterCatalogError,
     canonical_filter,
     filter_star_flux_scale,
@@ -29,8 +28,8 @@ from spindoctor.sim.render import render_combined_model
 from spindoctor.sim.scene import validate_sim_params
 from spindoctor.sim.scene_schema import SimSceneValidationError
 
-_NAC_CLEAR = FILTER_THROUGHPUT_E_PER_S_PER_IF['coiss_nac']['CL1+CL2']
-_NAC_GREEN = FILTER_THROUGHPUT_E_PER_S_PER_IF['coiss_nac']['CL1+GRN']
+_NAC_CLEAR = resolve_filter_throughput('coiss_nac', 'CL1+CL2')
+_NAC_GREEN = resolve_filter_throughput('coiss_nac', 'CL1+GRN')
 _QUIET = {'poisson': False, 'read_noise_dn': 0.0, 'bias_dn': 0.0}
 
 
@@ -223,8 +222,9 @@ _FILTER_RENDER_CASES = pytest.mark.parametrize(
 
 def _throughput_ratio(instrument: str, filter_name: str) -> float:
     """The filter's throughput over the camera's clear throughput."""
-    table = FILTER_THROUGHPUT_E_PER_S_PER_IF[instrument]
-    return table[filter_name] / table['CL1+CL2']
+    return resolve_filter_throughput(instrument, filter_name) / resolve_filter_throughput(
+        instrument, 'CL1+CL2'
+    )
 
 
 @_FILTER_RENDER_CASES

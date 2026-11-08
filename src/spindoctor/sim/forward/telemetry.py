@@ -46,10 +46,9 @@ from spindoctor.sim.forward.artifact_modes import (
     STRUCTURED_LOSS_ORDER,
     TELEMETRY_POST_LOSS_ORDER,
     TELEMETRY_PRE_LOSS_ORDER,
-    mode_available,
     resolve_mode_config,
 )
-from spindoctor.sim.forward.artifacts_catalog import resolve_mode_with_catalog
+from spindoctor.sim.forward.artifacts_catalog import mode_available, resolve_mode_with_catalog
 from spindoctor.sim.forward.detector.params import calibration_map, resolve_detector_params
 from spindoctor.sim.forward.feature_loci import FeatureLoci, extract_feature_loci
 from spindoctor.sim.forward.stages import SimFrame
