@@ -16,12 +16,12 @@ before claiming a documentation change is done; `scripts/run-all-checks.sh` runs
 it too. The rest of this rule is a review checklist -- a human or a model has to
 read the prose to apply it.
 
-When a pull request changes documentation, read each changed passage aloud, or as
-if aloud, and rewrite any passage that does not sound like a person wrote it. This
-is the first item of the review checklist in section 8. No script can check it.
-That one item reaches past the files listed above. It also covers docstrings, code
-comments, and the messages a user sees, such as log lines and error text, in `.py`
-files.
+In every pull request, read each changed passage aloud, or as if aloud, and rewrite
+any passage that does not sound like a person wrote it. This covers the files listed
+above, and also the docstrings, code comments, log lines, and error messages in
+`.py` files. It is the first item of the review checklist in section 8, and no
+script can check it. The rest of this rule applies only to the files under `docs/`,
+`README.md`, and `CONTRIBUTING.md`.
 
 ## 1. Audience separation
 
@@ -100,16 +100,17 @@ correct and stays. A metadata document has **contents** or a **structure**.
 
 ### The names rule
 
-Do not use **names** or **naming** as a verb for setting, listing, selecting, or
-referring to something. Say what happens instead. A scene file *sets* a mode. A task
-*lists* image files. A run *asks for* a results index. An error message *refers to*
-the file it could not read.
+Do not use **names** or **naming** as a verb for setting, listing, selecting, asking
+for, or referring to something. Say what happens instead. A scene file *sets* a
+mode. A task *lists* image files. An option *selects* volumes. A run *asks for* a
+results index. A chapter *refers to* the program it documents.
 
 The noun is fine: "instrument names", "a file name". So is naming in the literal
 sense: "a file named `X`", "named after the class that implements it".
 
-`scripts/check-doc-prose.sh --warnings` flags the likely verb uses. It cannot tell
-every noun from a verb, so read each hit before changing it.
+`scripts/check-doc-prose.sh --warnings` flags the likely verb uses. It flags some
+nouns and misses some verbs, so read each hit before changing it, and do not take a
+clean run to mean none are left.
 
 ## 3. Terminology
 
@@ -200,15 +201,15 @@ five copies of it read as distrust of the reader.
 The script cannot judge these. Read for them:
 
 1. Read each changed passage through as if aloud. Does it sound like something a
-   person would write? If not, rewrite it. This applies to docstrings, code
-   comments, and messages a user sees as much as to the files under `docs/`.
-   These are the usual signs that a passage fails:
+   person would write? If not, rewrite it. This applies to the docstrings, code
+   comments, log lines, and error messages in `.py` files as much as to the files
+   under `docs/`. These are the usual signs that a passage fails:
    - Stacked nouns: "the schema-version mismatch remedy step".
    - A chain of qualifiers in front of one word: "the first completed
      current-schema root ingest".
    - A parenthetical inside a parenthetical.
-   - A key or identifier where an ordinary word would do: "when `status` is
-     `error`" where "when the image failed" says the same thing.
+   - A key or identifier where an ordinary word would do. "When the image failed"
+     says the same thing as "when `status` is `error`".
    - A relative clause packed in front of the verb: "a mode the scene's detector
      chain never renders is disabled with a tooltip saying so". Write instead: "If
      the scene's detector chain can't render a mode, the mode is disabled, and its

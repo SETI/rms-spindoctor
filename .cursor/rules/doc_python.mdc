@@ -55,6 +55,9 @@ and build requirements without repeating them.
   forward. Cite freely there.
 - Do not use unicode smart quotes, em-dashes, or arrows inside `.py` files
   (they are acceptable in `.rst` and `.md`).
+- Read each changed docstring, code comment, log line, and error message as if
+  aloud, and rewrite any that does not sound like a person wrote it
+  (`doc_prose_style`, section 8, item 1).
 
 ## 3. Sphinx Configuration (`conf.py`)
 
@@ -96,9 +99,6 @@ A single `conf.py` configures the whole tree. It MUST:
   describe internal implementation details.
 - Wrap docstring text to the project's docstring width (commonly **90**
   characters).
-- Read each changed docstring, comment, and user-visible message as if aloud, and
-  rewrite any that does not sound like a person wrote it (`doc_prose_style`,
-  section 8, item 1).
 - The API reference is generated from these docstrings, so a missing or thin
   docstring is a hole in the published API documentation, not a private matter.
 

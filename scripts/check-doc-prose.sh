@@ -395,24 +395,30 @@ if [[ $SHOW_WARNINGS -eq 1 ]]; then
     report WARNING 'a clause after "so" that restates the obvious should be deleted' \
         "$(hits '\bso (what|that means|you|it) \w+' "$PROSE_ALL")"
 
-    # "names" is a noun after a word like these ("file names", "its names") and before
-    # a word like these ("names are", "names of"). What is left is mostly the verb.
+    # Two ways to match the verb. "names the", "naming a", "names no" and the like are
+    # almost always the verb, whatever comes before them, so they are always flagged.
+    # Otherwise "names" is a noun after a word like these ("file names", "its names")
+    # and before a word like these ("names are", "names of"), and what is left is
+    # mostly the verb, including at the end of a sentence ("the defects it names.").
+    # Words that are usually the subject of the verb ("the scene names", "the label
+    # names") are left out of the first list on purpose.
+    names_object='the|a|an|no|each|every|its|their|any|it|them|one|both|all|none'
     names_noun_before='file|class|function|key|column|module|instrument|camera|detector|'
-    names_noun_before+='model|technique|mode|method|component|body|field|program|option|'
-    names_noun_before+='frame|image|target|filter|variable|member|attribute|parameter|'
-    names_noun_before+='section|directory|kernel|mission|bundle|volume|product|feature|'
-    names_noun_before+='logger|setting|dataset|test|path|host|table|label|URL|log|'
-    names_noun_before+='task|line|bar|index|entry|scene|chapter|object|record|type|stage|'
-    names_noun_before+='step|flag|tool|metric|plot|stub|the|its|their|these|those|whose|'
-    names_noun_before+='our|your|of|by|with|for|no|all|both|any|other|own|many|such|'
-    names_noun_before+='same|different|exact|full|short|valid|internal|unique|plain|six'
-    names_noun_after='are|is|of|in|and|or|for|with|to|as|were|from|on|must|can|may|'
-    names_noun_after+='should|will|match|differ|appear|used|given|listed|end|cover|'
-    names_noun_after+='carrying|separated|share|stubs|per|such|rather|conventions?|'
-    names_noun_after+='schemes?|rules?'
-    NAMES_VERB="(?i)(?<!${names_noun_before//|/ |} )\\bnam(es|ing)\\b"
-    NAMES_VERB+="(?!\\s+(?:${names_noun_after})\\b)(?![.,;:)])"
-    report WARNING '"names" as a verb -- say what happens: sets, lists, asks for, refers to, selects' \
+    names_noun_before+='model|technique|mode|method|component|field|program|option|'
+    names_noun_before+='variable|member|attribute|parameter|section|kernel|mission|'
+    names_noun_before+='dataset|path|host|URL|type|flag|metric|plot|stub|bar|chapter|'
+    names_noun_before+='feature|product|target|filter|frame|image|body|volume|bundle|'
+    names_noun_before+='logger|setting|the|its|their|these|those|whose|our|your|of|by|'
+    names_noun_before+='with|for|no|all|both|any|other|own|many|such|same|different|'
+    names_noun_before+='exact|explicit|full|short|valid|internal|unique|plain|two|six'
+    names_noun_after='are|is|of|in|and|or|for|with|to|as|were|from|on|there\s+are|must|'
+    names_noun_after+='can|may|should|will|match|differ|appear|used|given|listed|end|'
+    names_noun_after+='cover|carrying|separated|share|stubs|per|such|rather|'
+    names_noun_after+='conventions?|schemes?|rules?'
+    NAMES_VERB="(?i)\\bnam(es|ing)\\s+(?:${names_object})\\b"
+    NAMES_VERB+="|(?<!${names_noun_before//|/ |} )\\bnam(es|ing)\\b"
+    NAMES_VERB+="(?!\\s+(?:${names_noun_after})\\b)"
+    report WARNING '"names" as a verb -- say sets, lists, selects, asks for, or refers to' \
         "$(hits "$NAMES_VERB" "$PROSE_ALL")"
 
     if [[ ${#USER_FILES[@]} -gt 0 ]]; then
