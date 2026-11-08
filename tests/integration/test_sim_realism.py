@@ -54,12 +54,9 @@ _NAC_FULL = (1024, 1024)
 
 
 def _full_frame(instrument: str) -> tuple[int, int]:
-    """A full unbinned frame's shape for ``instrument``.
-
-    The shape is the instrument's native frame size on a side, or 1000 by 1000
-    (Voyager's GEOMED frame) for an instrument whose config states none.
-    """
-    size = resolve_native_frame_size_px(instrument) or 1000
+    """A full unbinned frame's shape for ``instrument``: its native size on a side."""
+    size = resolve_native_frame_size_px(instrument)
+    assert size is not None, f'{instrument} states no native_frame_size_px'
     return (size, size)
 
 

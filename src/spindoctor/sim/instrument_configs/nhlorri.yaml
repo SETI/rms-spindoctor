@@ -115,6 +115,9 @@ artifact_modes:
     # ~16 hits per readout-dominated short exposure; mostly single px.  A scene
     # plants the hits as a rate, with expected_events_per_sec.
     radiation_transients: {amplitude_e: 8.6e+4}
+    # The first 34 pixels of row 0 of every image are binary housekeeping, never
+    # scene data (5.5).
+    embedded_header: {header_px: 34}
 
 # The image library's sci frames are matched against this instrument by the
 # realism match.

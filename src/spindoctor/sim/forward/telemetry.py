@@ -14,8 +14,8 @@ grid.  It applies its sub-effects in the physical order of transmission:
    (commanded frame shapes, then line losses, then block losses, then garble,
    then per-pixel losses, then the row-0 header), with the commanded
    ``truth_window`` carve-out resolved first and passed to ``missing_blocks``.
-   Each mode is honored only where its registry availability lists the
-   instrument, and its shape parameters resolve through the per-instrument
+   Each mode is honored only where the instrument's config offers it, and its
+   shape parameters resolve through the per-instrument
    catalog (scene value over catalog default over registry default), like the
    flanking artifact loops.
 3. Voyager GEOMED archive-processing scars, applied to the already-loss-bearing
@@ -46,7 +46,6 @@ from spindoctor.sim.forward.artifact_modes import (
     STRUCTURED_LOSS_ORDER,
     TELEMETRY_POST_LOSS_ORDER,
     TELEMETRY_PRE_LOSS_ORDER,
-    resolve_mode_config,
 )
 from spindoctor.sim.forward.artifacts_catalog import mode_available, resolve_mode_with_catalog
 from spindoctor.sim.forward.detector.params import calibration_map, resolve_detector_params
@@ -111,7 +110,9 @@ def apply_telemetry(
     records: dict[str, Any] = {}
     # The commanded truth window is resolved first so both compression and
     # missing_blocks can leave it clean.
-    protect = _resolve_truth_window(artifacts, frame.signal.shape, random_seed, records)
+    protect = _resolve_truth_window(
+        artifacts, frame.signal.shape, random_seed, records, instrument=instrument
+    )
     # A calibrated frame holds I/F; the modes that act on the transmitted DN map
     # it back first (None on a raw-DN frame).
     calibration = calibration_map(resolve_detector_params(params))
@@ -187,19 +188,22 @@ def _resolve_truth_window(
     shape: tuple[int, int],
     random_seed: int,
     records: dict[str, Any],
+    *,
+    instrument: str | None,
 ) -> tuple[int, int, int, int] | None:
     """Resolve the commanded truth-window carve-out (a protected clean region).
 
     The truth window is a losslessly-clean square that missing_blocks (and,
     later, compression) must leave untouched.  It is a commanded region:
-    activation is by its ``probability``, drawn from its own stream.  Returns the
-    protected ``(v0, v1, u0, u1)`` rectangle, or None when it is not active, and
-    records its geometry.
+    activation is by its ``probability``, drawn from its own stream, and its size
+    resolves through the instrument's shape defaults like every other mode's.
+    Returns the protected ``(v0, v1, u0, u1)`` rectangle, or None when it is not
+    active, and records its geometry.
     """
     raw_cfg = artifacts.get('truth_window')
     if raw_cfg is None:
         return None
-    cfg = resolve_mode_config('truth_window', raw_cfg)
+    cfg = resolve_mode_with_catalog('truth_window', raw_cfg, instrument)
     rng = np.random.default_rng(derive_effect_seed(random_seed, 'telemetry/truth_window'))
     probability = float(cfg['probability'])
     if probability <= 0.0 or not bool(rng.random() < probability):

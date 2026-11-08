@@ -914,7 +914,7 @@ def test_reseau_scars_smooth_lattice_patches() -> None:
     signal = rng.uniform(0.0, 100.0, size=(128, 128))
     record = apply_reseau_scars(
         signal,
-        {'probability': 1.0, 'spacing_px': 46, 'patch_radius_px': 4},
+        {'probability': 1.0, 'spacing_px': 46, 'patch_radius_px': 4, 'mark_count': 202},
         rng=np.random.default_rng(1),
     )
     assert record['active'] is True
@@ -925,7 +925,7 @@ def test_reseau_lattice_spans_the_archive_frame() -> None:
     """At the 800x800 archive size the 202 marks span the full frame height."""
     from spindoctor.sim.forward.telemetry_artifacts import _reseau_lattice
 
-    points = _reseau_lattice(800, 800, 46)
+    points = _reseau_lattice(800, 800, 46, 202)
     assert len(points) == 202
     rows = [v for v, _u in points]
     assert max(rows) - min(rows) >= 0.9 * 800

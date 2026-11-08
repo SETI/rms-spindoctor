@@ -228,15 +228,16 @@ _IMPLEMENTED_MODES: tuple[ArtifactMode, ...] = (
         ModeParam('period', 'enum', 2, choices=(2, 4)),
         ModeParam('phase', 'nonneg_int', 0),
         # 'drop' blanks every Nth line (severe-Huffman entropy dropout); 'keep'
-        # blanks all BUT every Nth line (Galileo HMA/HCA vertical decimation).
+        # blanks all BUT every Nth line (a vertical-decimation readout format).
         ModeParam('mode', 'enum', 'drop', choices=('drop', 'keep')),
         activation=PROBABILITY,
         activation_semantics='per-frame probability the periodic line pattern is active',
     ),
     _telemetry_mode(
         'edited_frame',
-        # The Voyager IM edited-mode band width, so a bare probability keeps a
-        # physical centered band; an explicit half_frame wins over the band.
+        # A generic fallback band width, so a bare probability keeps a centered
+        # band; a camera's config states its own as a shape default.  An
+        # explicit half_frame wins over the band.
         ModeParam('band_width_px', 'positive_int', 440),
         ModeParam('half_frame', 'bool', False),
         ModeParam('half', 'enum', 'top', choices=('top', 'bottom')),
@@ -255,6 +256,8 @@ _IMPLEMENTED_MODES: tuple[ArtifactMode, ...] = (
     ),
     _telemetry_mode(
         'missing_blocks',
+        # A generic fallback block height; a camera's config states its
+        # compression block height as a shape default.
         ModeParam('block_lines', 'positive_int', 8),
         ModeParam('start_mid_line', 'bool', False),
         activation=EXPECTED_EVENTS,
@@ -293,12 +296,16 @@ _IMPLEMENTED_MODES: tuple[ArtifactMode, ...] = (
     ),
     _telemetry_mode(
         'embedded_header',
+        # A generic fallback header length; a camera's config states its own as
+        # a shape default.
         ModeParam('header_px', 'positive_int', 34),
         activation=PROBABILITY,
         activation_semantics='per-frame probability the row-0 housekeeping header is written',
     ),
     _telemetry_mode(
         'truth_window',
+        # A generic fallback window size; a camera's config states its own as a
+        # shape default.
         ModeParam('size', 'positive_int', 96),
         ModeParam('position', 'int_list', None, length=2),
         activation=PROBABILITY,
@@ -456,7 +463,7 @@ _DETECTOR_MODES: tuple[ArtifactMode, ...] = (
 )
 
 # Telemetry-stage artifact modes beyond the structured loss modes: the lossy
-# compression blockiness (before structured loss) and the Voyager GEOMED
+# compression blockiness (before structured loss) and the geometric-resample
 # archive-processing scars (after structured loss).  ``resample_texture`` is a
 # telemetry mode, not a detector mode: it emulates the archive resample the
 # pipeline consumes, so it runs after the loss modes rather than in the detector.
@@ -470,8 +477,12 @@ _TELEMETRY_ARTIFACT_MODES: tuple[ArtifactMode, ...] = (
     ),
     _telemetry_mode(
         'reseau_scars',
+        # Generic fallbacks for the lattice spacing, the scar radius, and the
+        # number of marks the lattice is thinned to; a camera's config states
+        # its own as shape defaults.
         ModeParam('spacing_px', 'positive_int', 46),
         ModeParam('patch_radius_px', 'positive_int', 4),
+        ModeParam('mark_count', 'positive_int', 202),
         activation=PROBABILITY,
         activation_semantics='per-frame probability the reseau-removal scars are applied',
     ),
@@ -481,7 +492,7 @@ _TELEMETRY_ARTIFACT_MODES: tuple[ArtifactMode, ...] = (
         ModeParam('blank_border_px', 'nonneg_int', 0),
         ModeParam('missing_line_interp', 'bool', False),
         activation=PROBABILITY,
-        activation_semantics='per-frame probability the GEOMED resample texture is applied',
+        activation_semantics='per-frame probability the archive resample texture is applied',
     ),
 )
 
@@ -516,7 +527,7 @@ STRUCTURED_LOSS_ORDER: tuple[str, ...] = (
 
 # Telemetry-stage artifact modes that flank the structured loss loop.  Lossy DCT
 # compression runs first, on the transmitted signal before any loss (a lossy
-# codec compresses, then packets drop); the Voyager GEOMED archive-processing
+# codec compresses, then packets drop); the geometric-resample archive-processing
 # scars run last, on the loss-bearing frame (they emulate the archive processing
 # the pipeline consumes, after the raw losses are already present).
 TELEMETRY_PRE_LOSS_ORDER: tuple[str, ...] = ('compression_dct',)

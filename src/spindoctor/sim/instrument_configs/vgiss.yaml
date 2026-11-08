@@ -7,6 +7,12 @@
 navigator:
   section: voyager_iss
 
+# The GEOMED product is a 1000 by 1000 resample of the 800 by 800 vidicon frame
+# (LINES and LINE_SAMPLES 1000 in every GEOMED label of the image library's
+# cohort and of VGISS_5101).  The camera has no binned readout, so this size
+# only tells a full frame from a subframe.
+native_frame_size_px: 1000
+
 psf:
   # RETAINED interim estimate: the cohort's one star frame (8 usable star
   # cutouts, EE50 1.22 px) cannot constrain the kernel through GEOMED
@@ -108,12 +114,17 @@ artifact_modes:
   # reseau-removal scars on the ~46-px lattice, and the GEOMED resample
   # texture (blank border + missing-line interpolation banding).
   shape_defaults:
+    # The edited (IM) modes downlink a centered band of each line, 608, 440,
+    # 272, 160, or 80 of the 800 px (5.3); 440 is the band a scene that sets
+    # only a probability gets.
+    edited_frame: {band_width_px: 440}
     beam_bend: {amplitude_px: 1.0}
     residual_image: {amplitude: 0.05, prior: self_offset, offset_px: [5, 5]}
     # 48 x n s readout ramp, nonlinear in wait time.
     dark_ramp: {kind: dark_gradient, amplitude_e: 6.0, nonlinear: 1.5}
     quantization_contour_8bit: {step: 8}
-    reseau_scars: {spacing_px: 46, patch_radius_px: 4}
+    # 202 reseau marks per camera on a ~46 px triangular lattice (5.3).
+    reseau_scars: {spacing_px: 46, patch_radius_px: 4, mark_count: 202}
     resample_texture: {warp_amp_px: 0.3, blank_border_px: 2, missing_line_interp: false}
 
 # The image library's GEOMED frames from both cameras are matched against this

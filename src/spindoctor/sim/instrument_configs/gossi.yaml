@@ -122,6 +122,12 @@ artifact_modes:
     # HMA/HCA vertical decimation (5.4): only every Nth line carries valid
     # data, so the periodic-line default is 'keep'.
     alternating_lines: {mode: keep}
+    # ICT/Huffman slice loss zero-fills bands exactly 8 lines tall: each packet
+    # is an 8-line slice of 8x8 blocks (5.4).
+    missing_blocks: {block_lines: 8}
+    # One 96x96 losslessly coded square with visibly cleaner texture than the
+    # ICT remainder (5.4).
+    truth_window: {size: 96}
 
 # The image library's REDR frames are matched against this instrument by the
 # realism match.
