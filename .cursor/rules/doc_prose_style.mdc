@@ -66,6 +66,7 @@ technique in one plain sentence and cross-reference the developer guide with
 | "the document shape depends on ..." | "the metadata document's contents depend on ..." | A shape is a physical form. |
 | "exactly as every offset product has always been built" | (delete) | No implementation history. |
 | "every program accepts the same options, so what you learn for one works for the next" | "every program accepts the same options" | Delete clauses that restate the obvious. |
+| "the scene names the mode", "a run naming a results index" | "the scene sets the mode", "a run that asks for a results index" | Say what happens. See the names rule below. |
 
 ### The X-not-Y test
 
@@ -89,6 +90,19 @@ sentence instead.
 
 **shape** means dimensions and nothing else. `image shape` (rows by columns) is
 correct and stays. A metadata document has **contents** or a **structure**.
+
+### The names rule
+
+Do not use **names** or **naming** as a verb for setting, listing, selecting, or
+referring to something. Say what happens instead. A scene file *sets* a mode. A task
+*lists* image files. A run *asks for* a results index. An error message *refers to*
+the file it could not read.
+
+The noun is fine: "instrument names", "a file name". So is naming in the literal
+sense: "a file named `X`", "named after the class that implements it".
+
+`scripts/check-doc-prose.sh --warnings` flags the likely verb uses. It cannot tell
+every noun from a verb, so read each hit before changing it.
 
 ## 3. Terminology
 
