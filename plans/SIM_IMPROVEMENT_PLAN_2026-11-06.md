@@ -67,12 +67,12 @@ through the full instrument chain (#888) are on main. One item follows them dire
 
 ## Phase 1: foundations
 
-These make every later phase cheaper or safer. Most are small.
+These make every later phase cheaper or safer. Most are small. The framing part of #914 and
+all of #924 are on main: the docs say simulated results are reproducibility and
+self-consistency, and each camera's simulator values are stated once, on its instrument page.
 
 | Issue | Subject | Why now |
 |---|---|---|
-| #914, framing part | Docs present self-consistency as accuracy | Stop the overclaim immediately: simulated results are reproducibility and self-consistency on the Cassini NAC, and confidence values are provisional. Docs only. |
-| #924 | The simulator developer guide mixes per-camera values into the mechanism descriptions | Move each camera's measured values to its instrument page so each is stated once, before Phases 3 and 4 re-measure them and every change has to edit two copies. Docs only. |
 | #911, including per-pixel variates | One frame-wide Poisson stream | Every later fix would otherwise turn into a new noise field across the whole frame. |
 | #905, truth-check part | Assertions are change detectors and 1 px bounds | Give validation scenes truth-based assertions before the renders start moving, so a move is judged against the planted truth. |
 | #872 | The baseline regenerator imports whichever installed package it finds | Regenerated baselines must come from the checkout under test before the churn starts. |
@@ -294,8 +294,8 @@ retired and retained library classes.
 | #914, the rest | User chapter around a complete scene, developer guide split, and one schema reference |
 | #310 | Structural information-boundary guard |
 
-Each phase updates the docs for what it changes, with per-camera values on the instrument pages
-after #924; this phase finishes the restructuring and the guide split once the schema has settled.
+Each phase updates the docs for what it changes, with per-camera values on the instrument
+pages; this phase finishes the restructuring and the guide split once the schema has settled.
 #856 can land whenever its fix is ready.
 
 ## Track R: real-frame confidence (parallel)
