@@ -46,7 +46,6 @@ import math
 import os
 import time
 import warnings
-from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any, cast
 
@@ -73,13 +72,12 @@ from spindoctor.sim.realism.dynamic_range import stratify_by_exposure
 from spindoctor.support.types import NDArrayFloatType
 from tests.integration.checkout_guard import require_checkout_package
 from tests.integration.sidecar import LibraryRoot, Sidecar, load_sidecar
-from tests.integration.sim_realism_cassini import cassini_frame_settings
 from tests.integration.sim_realism_scenes import matched_scene
 from tests.integration.sim_realism_support import (
     FrameSamples,
-    FrameSettings,
     extract_feature_samples,
     extract_pixel_samples,
+    frame_settings_reader,
     prepare_frame_features,
 )
 
@@ -93,13 +91,6 @@ __all__ = [
 # (mission, camera) -> sim instrument whose signal chain and units match the
 # cohort's products: each instrument config file's realism_cohort.
 INSTRUMENT_FOR: dict[tuple[str, str], str] = realism_cohort_instruments()
-
-# The readers of a real frame's commanded settings, by the sidecar's mission.  A
-# mission without one renders its matched scenes at the instrument's own
-# settings.
-_FRAME_SETTINGS_READERS: dict[str, Callable[..., FrameSettings]] = {
-    'COISS': cassini_frame_settings,
-}
 
 
 def saturation_level(instrument: str) -> float:
@@ -183,9 +174,10 @@ class FrameRecord:
         frame_shape_vu: The frame's (v, u) shape.
         filter_name: The frame's filter combination (``'CL1+CL2'``) on a
             camera the sim's filter catalog covers, else None.
-        gain_state: The frame's gain state on a Cassini camera, else None.
-        quantization: ``'sqrt_lut'`` for a Cassini frame downlinked through
-            the 12-to-8-bit table, which the camera's catalog curve models,
+        gain_state: The frame's gain state when its mission's label reader
+            reads one, else None.
+        quantization: ``'sqrt_lut'`` for a frame downlinked through a
+            companding table, which the camera's default downlink table models,
             else None.
     """
 
@@ -313,7 +305,7 @@ def _frame_samples_real(
         offset_vu=offset,
         frame_shape_vu=(int(obs.data_shape_vu[0]), int(obs.data_shape_vu[1])),
     )
-    reader = _FRAME_SETTINGS_READERS.get(sidecar.mission)
+    reader = frame_settings_reader(sidecar.mission)
     if reader is not None:
         # Matching content, not tuning: the sim renders the frame's own filter
         # throughput, gain state, and downlink table, so its DN-to-I/F scale

@@ -17,8 +17,12 @@ runner averages for the overlay figures and the density-W1 statistic.
 
 from __future__ import annotations
 
+import importlib
+import pkgutil
 import warnings
+from collections.abc import Callable
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -51,9 +55,12 @@ from spindoctor.support.types import NDArrayFloatType
 __all__ = [
     'FrameSamples',
     'FrameSettings',
+    'FrameSettingsReader',
     'extract_feature_samples',
     'extract_pixel_samples',
+    'frame_settings_reader',
     'prepare_frame_features',
+    'register_frame_settings_reader',
 ]
 
 # Phase-angle bin edges (degrees) for the FOM 3 limb-width stratification.
@@ -110,6 +117,51 @@ class FrameSettings:
     filter_name: str | None = None
     gain_state: int | None = None
     quantization: str | None = None
+
+
+# A reader of a real frame's commanded settings: it takes the real observation and
+# the keywords ``image_id`` and ``instrument``.
+FrameSettingsReader = Callable[..., FrameSettings]
+
+# The prefix of a module that reads one mission's frame labels and registers its
+# reader here when imported.  The module is named for its mission.
+_FRAME_SETTINGS_MODULE_PREFIX = 'sim_realism_frames_'
+
+# The registered readers, by the sidecar's mission.
+_FRAME_SETTINGS_READERS: dict[str, FrameSettingsReader] = {}
+
+
+def register_frame_settings_reader(mission: str, reader: FrameSettingsReader) -> None:
+    """Register the reader of one mission's real-frame settings.
+
+    A mission-named module (``sim_realism_frames_<mission>.py`` beside this one)
+    calls this when it is imported.
+
+    Parameters:
+        mission: The sidecar mission whose frames the reader reads.
+        reader: The reader.
+    """
+    _FRAME_SETTINGS_READERS[mission] = reader
+
+
+def frame_settings_reader(mission: str) -> FrameSettingsReader | None:
+    """The reader of a mission's real-frame settings, or None if it has none.
+
+    Every ``sim_realism_frames_*`` module beside this one is imported first, so each
+    registers its reader without this module naming a mission.  A mission without a
+    reader renders its matched scenes at the instrument's own settings.
+
+    Parameters:
+        mission: The sidecar's mission.
+
+    Returns:
+        The registered reader, or None.
+    """
+    directory = str(Path(__file__).resolve().parent)
+    for module in pkgutil.iter_modules([directory]):
+        if module.name.startswith(_FRAME_SETTINGS_MODULE_PREFIX):
+            importlib.import_module(f'{__package__}.{module.name}')
+    return _FRAME_SETTINGS_READERS.get(mission)
 
 
 @dataclass

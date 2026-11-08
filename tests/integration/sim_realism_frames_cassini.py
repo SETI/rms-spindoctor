@@ -3,7 +3,9 @@
 The realism match renders each cohort frame's matched scene through the frame's own
 filter throughput, gain state, and downlink table, so the simulated DN-to-I/F scale
 and quantization step are the real product's.  These are facts of the real frame's
-label, which this module reads for a Cassini ISS frame.
+label, which this module reads for a Cassini ISS frame and registers as the reader
+of the ``COISS`` cohort's frames (see
+:func:`tests.integration.sim_realism_support.register_frame_settings_reader`).
 """
 
 from __future__ import annotations
@@ -12,7 +14,7 @@ import warnings
 from typing import Any
 
 from spindoctor.sim.forward.filter_catalog import canonical_filter, cataloged_filters
-from tests.integration.sim_realism_support import FrameSettings
+from tests.integration.sim_realism_support import FrameSettings, register_frame_settings_reader
 
 __all__ = ['cassini_frame_settings']
 
@@ -46,3 +48,6 @@ def cassini_frame_settings(obs: Any, *, image_id: str, instrument: str) -> Frame
     return FrameSettings(
         filter_name=filter_name, gain_state=int(obs.gain_mode), quantization=quantization
     )
+
+
+register_frame_settings_reader('COISS', cassini_frame_settings)
