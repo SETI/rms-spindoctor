@@ -1,22 +1,40 @@
-"""A fictional simulated camera, added as one config file in a copy of the catalog.
+"""A fictional simulated camera, added as one config entry in a copy of the catalog.
 
-It serves the tests that show a camera needs nothing but its config file.  It has a
+It serves the tests that show a camera needs nothing but its config entry.  It has a
 filter table with a clear filter, a binned readout mode beside a native frame
 size, two downlink tables (one parametric, one tabulated), three gain states, and
 an artifact mode it does not offer, with the reason.
 """
 
 import shutil
+import textwrap
 from pathlib import Path
 
 from spindoctor.sim.instrument_catalog import INSTRUMENT_CONFIG_DIR
 
-__all__ = ['FICTIONAL_CAMERA', 'FICTIONAL_CAMERA_NAME', 'catalog_dir_with']
+__all__ = ['FICTIONAL_CAMERA', 'FICTIONAL_CAMERA_NAME', 'catalog_dir_with', 'keyed']
 
-# The fictional camera's instrument name, which is its file's stem.
+# The fictional camera's instrument name, which is its entry's top-level key.
 FICTIONAL_CAMERA_NAME = 'fictional_cam'
 
-FICTIONAL_CAMERA = """\
+
+def keyed(name: str, entry: str) -> str:
+    """The text of a config file holding one entry under the top-level key ``name``.
+
+    Parameters:
+        name: The instrument name.
+        entry: The entry's YAML text, unindented.
+
+    Returns:
+        The file text, with the entry indented under its key.
+    """
+    return f'{name}:\n' + textwrap.indent(entry, '  ')
+
+
+# The fictional camera's config file, holding its one entry.
+FICTIONAL_CAMERA = keyed(
+    FICTIONAL_CAMERA_NAME,
+    """\
 navigator:
   section: sim
 native_frame_size_px: 64
@@ -60,7 +78,8 @@ artifact_modes:
   offered: [missing_lines]
   unavailable_reasons:
     hot_pixels: not offered, since the fictional camera has none
-"""
+""",
+)
 
 
 def catalog_dir_with(tmp_path: Path, files: dict[str, str]) -> Path:

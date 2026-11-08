@@ -1,6 +1,6 @@
 """Per-instrument detector, optics, and radiometry values for the forward model.
 
-Every value here comes from the simulated instrument's config file (see
+Every value here comes from the simulated instrument's config entry (see
 :mod:`spindoctor.sim.instrument_catalog`): the detector chain an
 ``instrument_defaults`` scene turns on, the readout modes, the star zero point,
 the plate scale the background-sky star count uses, the whole-scene PSF kernel,

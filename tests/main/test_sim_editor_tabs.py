@@ -392,10 +392,10 @@ def test_the_gain_state_spin_spans_the_instruments_cataloged_states(model: Any) 
     assert (spin.minimum(), spin.maximum()) == (2, 2)
 
 
-def test_a_camera_added_as_a_file_is_in_the_instrument_list(
+def test_a_camera_added_as_an_entry_is_in_the_instrument_list(
     qapp: QApplication, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A camera added only as a config file appears in the drop-down."""
+    """A camera added only as a config entry appears in the drop-down."""
     directory = catalog_dir_with(tmp_path, {f'{FICTIONAL_CAMERA_NAME}.yaml': FICTIONAL_CAMERA})
     monkeypatch.setattr(instrument_catalog, 'INSTRUMENT_CONFIG_DIR', directory)
     model = CreateSimulatedImageModel()

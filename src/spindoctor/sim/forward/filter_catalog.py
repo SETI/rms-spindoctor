@@ -3,7 +3,7 @@
 A scene's optional ``detector.filter`` key sets the filter combination the
 frame was shot through, written as the product label writes it, with the
 elements joined by ``+`` (for example ``'CL1+CL2'`` for a two-wheel camera).
-Each instrument's config file catalogs its combinations under ``filters`` (see
+Each instrument's config entry catalogs its combinations under ``filters`` (see
 :mod:`spindoctor.sim.instrument_catalog`), along with the clear combination its
 star zero point refers to and the clear element each polarizer folds onto.  The
 catalog value is the electrons per second one native pixel collects from a

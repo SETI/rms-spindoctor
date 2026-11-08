@@ -326,7 +326,7 @@ _VIDICON_NOISE_KEYS: frozenset[str] = frozenset(
 # the exposure the well fraction references (or the filter whose measured
 # throughput sets it), the ADC quantization sub-mode, and the downlink table the
 # sqrt_lut quantization decodes through.  Per-instrument defaults, filter
-# throughputs, and downlink tables come from the instrument's config file; scene
+# throughputs, and downlink tables come from the instrument's config entry; scene
 # keys override them.
 _DETECTOR_KEYS: frozenset[str] = frozenset(
     {

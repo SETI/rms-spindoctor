@@ -1,13 +1,13 @@
-"""The schema of a simulated instrument's config file.
+"""The schema of a simulated instrument's config entry.
 
-Every simulated camera is one YAML file in ``spindoctor/sim/instrument_configs/``
-(see :mod:`spindoctor.sim.instrument_catalog`).  This module states what such a
-file may hold: the key inventory, each key's type and range, and which keys an
-entry must carry.  The cross-checks that tie one part of an entry to another live
-in :mod:`spindoctor.sim.instrument_checks`.  Both run when the catalog loads, so a
-typo, a value written as a string, a negative gain, or a missing table fails at
-load with the file and the key path in the message instead of rendering with a
-fallback.
+Every simulated camera is one top-level entry of a YAML file in
+``spindoctor/sim/instrument_configs/`` (see :mod:`spindoctor.sim.instrument_catalog`).
+This module states what such an entry may hold: the key inventory, each key's type
+and range, and which keys an entry must carry.  The cross-checks that tie one part
+of an entry to another live in :mod:`spindoctor.sim.instrument_checks`.  Both run
+when the catalog loads, so a typo, a value written as a string, a negative gain, or
+a missing table fails at load instead of rendering with a fallback, and the message
+gives the file, the entry, and the key path.
 
 The schema is a small tree of nodes: a :class:`Record` has named fields, each
 required or optional; a :class:`MapOf` is a table with uniformly typed keys and
@@ -16,8 +16,8 @@ values (a gain table, a filter table); a :class:`ListOf` is a list; and a
 a fixed set of choices or within a range.  A number is a finite integer or float,
 never a boolean or a string.
 
-A file with a ``base`` may set a key to null, which removes the key the base
-would otherwise pass on; a file without a ``base`` has nothing to remove, so a
+An entry with a ``base`` may set a key to null, which removes the key the base
+would otherwise pass on.  An entry without a ``base`` has nothing to remove, so a
 null there fails.
 """
 
@@ -49,15 +49,15 @@ __all__ = [
     'ModeNames',
     'Record',
     'Scalar',
-    'check_file',
     'check_mode_name',
     'check_node',
+    'check_own_entry',
     'config_error',
     'instrument_schema',
 ]
 
 # The name of the instrument-agnostic entry, which a scene renders through when it
-# sets no instrument.  It is a file like any other (``generic.yaml``).
+# sets no instrument.  It is an entry like any other, in ``generic.yaml``.
 GENERIC_INSTRUMENT = 'generic'
 
 # The value of ``artifact_modes.offered`` that offers every registered mode.
@@ -81,7 +81,7 @@ QUANTIZATION_MODES: tuple[str, ...] = (
     'contour_8bit',
 )
 
-# The two artifact-mode tables a file may state: the shape parameters a scene
+# The two artifact-mode tables an entry may state: the shape parameters a scene
 # inherits when it sets a mode without spelling out every parameter, and the
 # detector-stage modes the instrument_defaults switch turns on.
 SHAPE_DEFAULTS = 'shape_defaults'
@@ -120,7 +120,7 @@ _KIND_NAMES: dict[str, str] = {
 }
 
 # The message for a null that has nothing to remove.
-_NULL_WITHOUT_BASE = 'null removes an inherited key, and this file sets no base'
+_NULL_WITHOUT_BASE = 'null removes an inherited key, and this entry sets no base'
 _NULL_IN_LIST = (
     "a list item cannot be null: a list replaces the base's whole list, so an item has "
     'nothing to remove'
@@ -128,7 +128,7 @@ _NULL_IN_LIST = (
 
 
 class InstrumentConfigError(ValueError):
-    """A simulated instrument's config file breaks the schema."""
+    """A simulated instrument's config entry breaks the schema."""
 
 
 @dataclass(frozen=True)
@@ -180,8 +180,8 @@ class Record:
 
     Parameters:
         fields: Each key's node.
-        required: The keys a complete entry must carry.  The check of a single file
-            skips this, since a file with a ``base`` inherits the rest.
+        required: The keys a complete entry must carry.  The check of an entry on
+            its own skips this, since an entry with a ``base`` inherits the rest.
     """
 
     fields: Mapping[str, Node]
@@ -369,16 +369,17 @@ _SCHEMA = Record(
 
 
 def instrument_schema() -> Record:
-    """The root node of an instrument config file's schema."""
+    """The root node of an instrument config entry's schema."""
     return _SCHEMA
 
 
 def config_error(source: str, path: str, message: str) -> InstrumentConfigError:
-    """Build the error for one key, with the file and the key path in its message.
+    """Build the error for one key, with its source and key path in the message.
 
     Parameters:
-        source: The file name.
-        path: The dotted key path, or empty for the file as a whole.
+        source: The file name, followed by the entry's name for an error in one
+            entry (``'coiss.yaml: coiss_nac'``).
+        path: The dotted key path, or empty for the file or entry as a whole.
         message: What is wrong.
 
     Returns:
@@ -451,18 +452,19 @@ def check_node(
 
     Parameters:
         node: The schema node.
-        value: The value read from the file.
-        source: The file name, for error messages.
+        value: The value read from the entry.
+        source: The file and the entry, for error messages.
         path: The dotted key path of ``value``, for error messages.
-        complete: Whether to require each record's required keys.  False for a
-            single file, which may inherit keys from its base; True for an entry
+        complete: Whether to require each record's required keys.  False for an
+            entry on its own, which may inherit keys from its base; True for an entry
             after inheritance.
         allow_null: Whether a null value is accepted (it removes the key the base
-            passes on).  True only for a file that sets a base.
+            passes on).  True only for an entry that sets a base.
 
     Raises:
         InstrumentConfigError: On an unknown key, a missing required key, a null in
-            a file without a base or in a list, or a value of the wrong type or range.
+            an entry without a base or in a list, or a value of the wrong type or
+            range.
     """
     if value is None:
         if allow_null:
@@ -623,25 +625,25 @@ def _check_mode_map(
             )
 
 
-def check_file(entry: Any, *, source: str) -> dict[str, Any]:
-    """Check one config file on its own, before inheritance.
+def check_own_entry(entry: Any, *, source: str) -> dict[str, Any]:
+    """Check one config entry on its own, before inheritance.
 
-    Unknown keys, types, and ranges are checked; required keys are not, since a
-    file with a ``base`` inherits them.  A null is accepted only in a file with a
+    Unknown keys, types, and ranges are checked; required keys are not, since an
+    entry with a ``base`` inherits them.  A null is accepted only in an entry with a
     base, and never on a key a base does not pass on.
 
     Parameters:
-        entry: The value the file holds.
-        source: The file name, for error messages.
+        entry: The value under the instrument's top-level key.
+        source: The file and the entry, for error messages.
 
     Returns:
         ``entry``, which is a mapping.
 
     Raises:
-        InstrumentConfigError: If the file breaks the schema.
+        InstrumentConfigError: If the entry breaks the schema.
     """
     if not isinstance(entry, dict):
-        raise config_error(source, '', 'the file must hold a mapping')
+        raise config_error(source, '', f'expected a mapping, got {_describe(entry)}')
     for key in sorted(NON_INHERITED_KEYS & set(entry)):
         if entry[key] is None:
             raise config_error(

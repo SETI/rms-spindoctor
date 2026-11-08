@@ -6,7 +6,7 @@ keys the detector model calls for, the gain table and readout modes, the star ze
 point's unit, the filter table's spelling and its clear elements, the downlink
 tables, and the artifact modes an entry lists.  Each check refuses a setting that
 the renderer could not honor or that would silently do nothing, with a message that
-gives the file and the key path.
+gives the file, the entry, and the key path.
 """
 
 from __future__ import annotations
@@ -97,11 +97,11 @@ def check_entry(entry: Mapping[str, Any], *, source: str) -> None:
 
     Parameters:
         entry: The instrument's mapping after inheritance.
-        source: The file name, for error messages.
+        source: The file and the entry, for error messages.
 
     Raises:
         ~spindoctor.sim.instrument_schema.InstrumentConfigError: On any violation, with
-            a message that gives the file and the key path.
+            a message that gives the file, the entry, and the key path.
     """
     check_node(instrument_schema(), entry, source=source, path='', complete=True)
     _check_detector(entry['detector'], source=source)

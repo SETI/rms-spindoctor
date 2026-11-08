@@ -6,7 +6,7 @@ table's decode curve is quadratic in the code, so the encoding is a square root
 and the quantization step grows with the signal, tracking the photon noise; a
 tabulated table lists each code's decoded DN, so it can describe a curve of any
 shape.  A camera lists its tables under ``downlink_tables`` in its instrument
-config file and sets one as the default, and a scene may select another with
+config entry and sets one as the default, and a scene may select another with
 ``detector.downlink_table``.  If a camera lists no table, it gets the plain
 square-root curve scaled to its ADC ceiling.
 """

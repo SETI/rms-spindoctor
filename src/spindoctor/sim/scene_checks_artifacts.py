@@ -53,7 +53,7 @@ def _check_artifacts(value: Any, *, instrument: str, detector: Any, source: str)
     Beyond the two switch keys, the block is keyed by exactly the artifact-mode
     registry (unknown keys fail).  If a mode has no implementation yet, it fails as
     not-yet-implemented.  If the scene's instrument does not offer a mode, it fails
-    with the reason the instrument's config file states, or with a list of the
+    with the reason the instrument's config entry states, or with a list of the
     instruments that offer it.  If the scene's detector chain never applies a mode,
     it fails as such.  Each present mode's parameters are then type-checked against
     its schema.  Under ``instrument_defaults``, the block fails if the camera's

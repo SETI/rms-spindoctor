@@ -89,7 +89,7 @@ __all__ = [
 ]
 
 # (mission, camera) -> sim instrument whose signal chain and units match the
-# cohort's products: each instrument config file's realism_cohort.
+# cohort's products: each instrument config entry's realism_cohort.
 INSTRUMENT_FOR: dict[tuple[str, str], str] = realism_cohort_instruments()
 
 

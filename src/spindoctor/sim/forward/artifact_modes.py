@@ -11,7 +11,7 @@ drops in by flipping its ``implemented`` flag and adding its rendering code, wit
 no change to the validator or the block schema.
 
 **Availability.**  Which instruments offer a mode is not part of the registry:
-each simulated instrument's config file lists the modes it offers (see
+each simulated instrument's config entry lists the modes it offers (see
 :mod:`spindoctor.sim.instrument_catalog`), and may state why it does not offer
 one.  If a scene sets a mode that its instrument does not offer, validation fails
 with that reason, or with a message that lists the instruments that offer it.  The

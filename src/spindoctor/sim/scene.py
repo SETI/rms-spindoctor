@@ -264,8 +264,8 @@ def validate_sim_params(
         _require_str(sim_params, 'scene_name', source=source)
 
     instrument = _require_str(sim_params, 'instrument', source=source)
-    # The names a scene may write: every instrument config file's stem, plus the
-    # aliases those files declare.
+    # The names a scene may write: every instrument in the catalog, plus the
+    # aliases the entries declare.
     allowed = load_instrument_catalog().allowed_names()
     if instrument not in allowed:
         raise SimSceneValidationError(

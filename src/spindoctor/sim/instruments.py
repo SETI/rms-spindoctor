@@ -4,7 +4,7 @@ The simulator can render a frame as though it came from a specific camera, so
 that a 'sim COISS NAC raw' frame goes through the same per-instrument noise,
 saturation, marker, and unit settings the navigator applies to a real frame.
 This module resolves a sim ``instrument`` name to the navigator config block that
-the instrument's config file points at (its ``navigator`` section and detector; see
+the instrument's config entry points at (its ``navigator`` section and detector; see
 :mod:`spindoctor.sim.instrument_catalog`); physical parameters then delegate to
 that block, while sim-only knobs (signal full-scale, cosmic-ray rate, dropout
 rate) stay in the ``sim`` config block.

@@ -19,7 +19,7 @@ a Cassini frame:
 * whether the frame was downlinked through the table (``DATA_CONVERSION_TYPE`` is
   ``TABLE``), in which case the twin is quantized with ``sqrt_lut``.
 
-If the camera's config file has no throughput for the filter pair, the twin renders at
+If the camera's config entry has no throughput for the filter pair, the twin renders at
 the camera's nominal scale and a warning gives the frame's image ID. One odd filter
 shouldn't stop the whole match.
 
