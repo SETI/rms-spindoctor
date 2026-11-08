@@ -14,6 +14,7 @@ The end-to-end smoke on real frames lives in ``test_sim_realism_smoke.py``.
 
 from __future__ import annotations
 
+from types import SimpleNamespace
 from typing import Any
 
 import numpy as np
@@ -26,10 +27,12 @@ from spindoctor.sim.scene import validate_sim_params
 from tests.integration.sim_realism import (
     INSTRUMENT_FOR,
     FrameRecord,
+    _frame_samples_real,
     _frame_samples_sim,
     discover_cohort,
 )
 from tests.integration.sim_realism_scenes import matched_scene
+from tests.spindoctor.inst.conftest import VicarLabelStandIn
 
 pytestmark = [pytest.mark.integration, pytest.mark.sim_integration]
 
@@ -247,3 +250,36 @@ def test_cohort_discovery_covers_known_instruments() -> None:
     assert 'nhlorri' in cohort
     for sidecars in cohort.values():
         assert sidecars == sorted(sidecars, key=lambda s: s.image_id)
+
+
+@pytest.mark.parametrize(
+    ('label_items', 'quantization'),
+    [
+        ({'DATA_CONVERSION_TYPE': 'TABLE'}, 'sqrt_lut'),
+        ({'DATA_CONVERSION_TYPE': '12BIT'}, None),
+        ({}, None),
+    ],
+    ids=['table', '12-bit', 'without-the-item'],
+)
+def test_a_calibrated_frame_reads_its_downlink_table_from_its_vicar_label(
+    monkeypatch: pytest.MonkeyPatch, label_items: dict[str, str], quantization: str | None
+) -> None:
+    """Only a TABLE frame asks for sqrt_lut, and a label without the item reads as 12-bit.
+
+    The real observation is a stand-in whose label refuses a lookup without a default, as
+    rms-vicar's does, and feature extraction is skipped, so no holdings are read.
+    """
+    sidecar = discover_cohort()['coiss_calib_nac'][0]
+    frame = SimpleNamespace(
+        dict=VicarLabelStandIn(label_items),
+        filter1='CL1',
+        filter2='CL2',
+        gain_mode=2,
+        data=np.zeros((64, 64)),
+        data_shape_vu=(64, 64),
+        texp=1.0,
+    )
+    monkeypatch.setattr('tests.integration.sim_realism._load_real_obs', lambda _sidecar: frame)
+    monkeypatch.setattr('tests.integration.sim_realism.MODELS_FOR_CLASS', {})
+    _, record, _ = _frame_samples_real(sidecar, 'coiss_calib_nac')
+    assert record.quantization == quantization

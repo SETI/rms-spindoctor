@@ -317,7 +317,7 @@ The tuning pass (2026-07-17) adjusted the forward-model defaults in
 ``sim/forward/artifacts_catalog.py`` against FOMs 1-6 -- the tuned values
 and their cohort statistics are recorded there -- and this table records
 the headline divergences before that pass and in the current record
-(2026-11-01; normalized W1; smaller is better, ~1 means displaced by one
+(2026-11-07; normalized W1; smaller is better, ~1 means displaced by one
 real IQR):
 
 .. list-table::
@@ -333,65 +333,79 @@ real IQR):
    * - sky noise sigma (FOM 1)
      - 2.1e-4 I/F
      - 10.0
-     - 4.9
+     - 1.44 [#table]_
      - 5263
-     - 2214
+     - 11283
    * - sky level above floor (FOM 1)
      - 3.8e-4 I/F
      - 13.9
-     - 173 [#tail]_
+     - 31.4 [#tail]_
      - 5263
-     - 2214
+     - 11283
    * - noise at signal (FOM 1)
-     - 2.9e-4 I/F
+     - 2.8e-4 I/F
      - 13.8
-     - 5.0
+     - 1.53
      - 15700
-     - 6448
+     - 33763
    * - star EE50 (FOM 2)
      - 0.91 px
      - 1.09
-     - 1.01
+     - 0.98
      - 25
-     - 79
+     - 32
    * - star EE80 (FOM 2)
      - 1.79 px
      - 1.28
-     - 0.59
+     - 0.35
      - 25
-     - 79
+     - 32
    * - limb rise width, co-populated strata (FOM 3)
      - 2.54 px
      - -- [#copop]_
-     - 0.17
+     - 0.10
      - 3742
-     - 4338
+     - 4345
    * - ring-edge rise width (FOM 4)
-     - 3.17 px
+     - 3.36 px
      - 0.47
      - 0.49
-     - 3161
-     - 21918
+     - 3163
+     - 21950
    * - near-floor fraction, 0.05-0.5 s (FOM 5)
      - 0.107
      - 0.76
-     - 1.97 [#floor]_
+     - 0.69
      - 27
      - 27
    * - p99 - p50 stretch, 0.05-0.5 s (FOM 5)
      - 0.104 I/F
      - 0.89
-     - 0.28
+     - 0.24
      - 27
      - 27
    * - spike fraction (FOM 6)
      - 1.1e-4
      - 11.0
-     - 1.3
+     - 0.88
      - 58
      - 58
 
-.. [#tail] Medians agree to 25% (3.0e-4 sim vs 3.8e-4 real); the large W1
+.. [#table] The pooled value hides a split by downlink format.  On the 31
+   12-bit frames with sky patches on both sides, the per-frame ratio of
+   simulated to real median sky sigma has a median of 0.88 (quartiles
+   0.79-1.02).  On the 17 TABLE frames it has a median of 0.26 (quartiles
+   0.08-0.38), and 9 more TABLE frames yield no real sky patch at all.
+   Most of that is content: TABLE frames are mostly ring- and body-filled,
+   so their darkest-quartile real patches lie on rings and bodies (0.02 to
+   0.88 I/F on the six lowest-ratio frames) while the matched frames' lie
+   on dark sky near 3e-4 I/F (see the matched-frame content known gap).
+   Where the two sides' patch levels agree within a factor of three, the
+   TABLE ratios still run low, 0.26-5.1 with a median of 0.48 over eight
+   frames, which hints at a residual TABLE noise shortfall that too few
+   frames can confirm.
+
+.. [#tail] Medians agree to 20% (3.0e-4 sim vs 3.8e-4 real); the large W1
    is carried by a tail of simulated sky patches near bright content in
    body- and ring-bearing frames -- residual halo and shading structure
    the darkest-quartile patch selection admits on the sim side.
@@ -410,12 +424,7 @@ real IQR):
    like-for-like "before" number cannot be reconstructed for the
    pre-tuning model, so the cell is blank.
 
-.. [#floor] Simulated sky is flatter than real sky relative to its own
-   noise (real frames carry background gradients and glow), so more sim
-   pixels sit within one sigma of the frame floor.  This statistic folds
-   in scene content beyond the detector chain; see the known gaps.
-
-The FOM 3 strata behind the pooled number (2026-11-01; p = phase bin
+The FOM 3 strata behind the pooled number (2026-11-07; p = phase bin
 < 60 / 60-120 / > 120 deg, r = diameter bin < 100 / 100-400 / > 400 px):
 
 .. list-table::
@@ -429,78 +438,83 @@ The FOM 3 strata behind the pooled number (2026-11-01; p = phase bin
      - n real
      - n sim
    * - p0 r0
-     - 0.20
+     - 0.25
      - 2.87
-     - 2.64
+     - 2.58
      - 522
      - 1408
    * - p0 r1
-     - 0.29
+     - 0.37
      - 2.75
-     - 2.73
+     - 2.62
      - 400
      - 400
    * - p0 r2
-     - 0.78
+     - 0.68
      - 3.09
-     - 2.61
+     - 2.60
      - 733
-     - 780
+     - 781
    * - p1 r0
-     - 0.94
+     - 0.70
      - 2.18
-     - 2.46
+     - 2.48
      - 435
-     - 398
+     - 400
    * - p1 r1
-     - 0.76
+     - 0.62
      - 2.24
-     - 2.41
+     - 2.49
      - 909
-     - 796
+     - 800
    * - p1 r2
-     - 0.47
+     - 0.34
      - 2.58
-     - 2.37
+     - 2.45
      - 525
      - 200
    * - p2 r0
-     - 0.96
+     - 1.47
      - 1.75
-     - 2.33
+     - 2.35
      - 70
      - 156
    * - p2 r1
-     - 1.89
+     - 2.56
      - 1.71
-     - 2.16
+     - 2.53
      - 148
      - 200
 
 The headline reading: the star PSF matches the cohort's medians through
-the same estimator on both sides (EE50 0.87 sim vs 0.91 real; EE80 1.70
-vs 1.79), though the 25 real cutouts spread wider than the simulated
-ones (EE50 W1/IQR 1.01); the stationary artifact rate matches (1.9e-5
-of pixels sim vs 1.6e-5 real, hot pixels recurring at fixed detector
-positions on both sides), while the transient (cosmic-ray) share comes
-from the catalog's fitted cosmic-ray terms (see the measured-transients
-known gap); limb rise widths agree in the
-like-for-like pool (co-populated-strata medians 2.537 sim vs 2.540 px
-real, W1/IQR 0.17) with per-stratum divergences from 0.20 to 1.89 --
-worst at high phase, where the simulated crescent limb measures *wider*
-than the real one (2.2-2.3 px vs 1.7 px medians); ring-edge widths
-differ by 0.7 px (2.45 sim vs 3.17 px real, W1/IQR 0.49); and the
-sky-noise *level* matches
-at the median (2.2e-4 vs 2.1e-4 I/F) while the distributional
-divergence remains floored by the quantization-scar gap below.  The
-low-phase residual is not a PSF error -- FOM 2 pins the PSF
-independently -- but limb content (real topography, the Lommel-Seeliger
-approximation); the high-phase excess runs the other way and points at
-the crescent shading model.  The curve *shapes* agree far tighter than
-the scalar samples: the density-W1 of the frame-averaged curves is
-0.07 for the sky power spectrum, 0.14 for the star radial profile,
-0.02 for the limb profile, and 0.08 for the ring radial profile (axis
-units over the real IQR; ``curve_divergences`` in the summary).
+the same estimator on both sides (EE50 0.84 sim vs 0.91 real; EE80 1.56
+vs 1.79).  The 25 real cutouts spread wider than the simulated ones (EE50
+W1/IQR 0.98), and the simulated cutouts number 32, down from 79, because
+each matched star frame now renders through its own filter and the
+narrowband frames' stars dim with it.  The stationary artifact rate
+matches (1.6e-5 of pixels on both sides, hot pixels recurring at fixed
+detector positions on both sides), while the transient (cosmic-ray) share
+comes from the catalog's fitted cosmic-ray terms (see the
+measured-transients known gap).  Limb rise widths agree in the
+like-for-like pool (co-populated-strata medians 2.542 sim vs 2.540 px
+real, W1/IQR 0.10) with per-stratum divergences from 0.25 to 2.56, worst
+at high phase, where the simulated crescent limb measures *wider* than
+the real one (2.35-2.53 px vs 1.71-1.75 px medians).  Ring-edge widths
+differ by 0.9 px (2.47 sim vs 3.36 px real, W1/IQR 0.49).  The sky-noise
+distribution matches far closer than before (W1/IQR 1.44, from 4.95),
+with the simulated median below the real one (1.5e-4 vs 2.1e-4 I/F),
+and the pooled value hides the split by downlink format in the table's
+first footnote.  The low-phase limb residual is not a PSF error -- FOM 2
+pins the PSF independently -- but limb content (real topography, the
+Lommel-Seeliger approximation); the high-phase excess runs the other way
+and points at the crescent shading model.  The curve *shapes* agree
+closer than the scalar samples: the density-W1 of the frame-averaged
+curves is 0.29 for the sky power spectrum, 0.20 for the star radial
+profile, 0.02 for the limb profile, and 0.08 for the ring radial profile
+(axis units over the real IQR; ``curve_divergences`` in the summary).
+The sky power spectrum's distance rose from 0.07 in the 2026-11-01
+record, alongside the calibrated noise floor and per-frame filters this
+record adds; the record doesn't isolate which term moved it.
 
 Two caveats apply to every FOM 2/3 width above.  First, a registration
 asymmetry: real-side star cutouts and limb profiles are centered through
@@ -559,33 +573,86 @@ The other instruments
 ---------------------
 
 **Cassini WAC** (4 frames, limited).  The cohort's two star frames give
-9 usable star cutouts that pin the tuned WAC kernel: cohort EE50/EE80 =
-1.30/2.00 px against simulated 1.14/1.89 px, normalized W1 0.35 and 1.25
-(from 1.32 and 3.16 before tuning).  The WAC *noise* comparison, though,
-diverges by two orders of magnitude one-sidedly: simulated sky sigma
-sits at 2.4e-5 I/F against 1.9e-4 real (W1/IQR 94), noise at signal
-likewise (98), and the sky level above floor at 3.7e-5 vs 3.2e-4
-(W1/IQR 2377).  A one-sided deficit of that size on the calibrated
-chain is a chain symptom, not a small-n artifact.  These matched frames
-rendered at the nominal DN-to-I/F scale on the DN lattice, so the two
-shortest frames' simulated sky yielded 3 patches between them and the
-26 s clear frame supplied 257 of the 378: the pooled sim median is that
-frame's, where the nominal scale makes one DN 2.4e-5 I/F, 280 times the
-real frame's sky noise, while the real median comes from the short
-frames.  The matched scenes render each frame's own
-filter and the calibration residual (see the calibrated-product known
-gap), so every frame contributes on both sides.  The
-remaining WAC statistics rest on 1-2 frames per stratum and are
-reported in the summary JSON without distributional claims.
+9 usable real star cutouts that pin the tuned WAC kernel: cohort
+EE50/EE80 = 1.30/2.00 px against simulated 1.15/1.92 px over 8 cutouts,
+normalized W1 0.53 and 0.53 (from 1.32 and 3.16 before tuning).  The
+matched scenes render each frame's own filter, gain state, and downlink
+table and the calibration residual (see the calibrated-product known
+gap), so every frame contributes sky patches on both sides.  Pooled, the
+simulated sky sigma sits at 2.4e-4 I/F against 1.9e-4 real (W1/IQR 3.3,
+from 94 at the nominal DN-to-I/F scale), noise at signal at W1/IQR 9.9
+(from 98), and the sky level above the floor at 5.0e-4 against 3.2e-4
+I/F (W1/IQR 190, from 2377).  Frame by frame, the median sky-patch sigma
+in I/F:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 24 10 12 11 9 9 10 10 9
+
+   * - Frame
+     - Exposure
+     - Filter
+     - Downlink
+     - Real patches
+     - Sim patches
+     - Real
+     - Sim
+     - Sim/real
+   * - W1444747627
+     - 1.8 s
+     - CL1+VIO
+     - TABLE
+     - 90
+     - 247
+     - 4.9e-4
+     - 2.3e-4
+     - 0.47
+   * - W1449079117
+     - 25 ms
+     - CL1+RED
+     - 12-bit
+     - 209
+     - 245
+     - 1.9e-4
+     - 3.1e-4
+     - 1.68
+   * - W1580760393
+     - 26 s
+     - CL1+CL2
+     - 12-bit
+     - 79
+     - 222
+     - 8.7e-8
+     - 1.3e-7
+     - 1.53
+   * - W1637520502
+     - 5 ms
+     - CL1+CL2
+     - TABLE
+     - 98
+     - 95
+     - 3.0e-3
+     - 7.3e-4
+     - 0.24
+
+The 12-bit frames run 1.5-1.7 times noisier in the simulation and the
+TABLE frames 0.2-0.5 times as noisy, the NAC's split by downlink format
+again.  W1637520502 is a full-frame body whose real patches sit 2.5 times
+brighter than the matched frame's, the content mismatch; W1444747627's
+patch levels agree within 40%.  The pooled sim median now comes from all
+four frames, where before the regeneration the two shortest frames
+yielded 3 simulated patches between them and the 26 s frame supplied 257
+of 378.  The remaining WAC statistics rest on 1-2 frames per stratum and
+are reported in the summary JSON without distributional claims.
 
 **Galileo SSI** (8 frames).  Every Galileo frame in the library is a
 negative case, so FOMs 2-4 are unsupported and *gossi sim accuracy is
 bounded by unverified forward-model fidelity* for PSF and shape rendering
 until the star-calibration frames land.  What the cohort does support:
 FOM 6 -- the stationary spike fraction, 1.4e-6, is the catalog's
-hot-pixel fraction, while the transient fraction, 1.2e-4 of pixels, comes
-from the catalog's fitted cosmic-ray terms (the measured-transients known
-gap) -- and the
+hot-pixel fraction, and the real transient fraction, 1.2e-4 of pixels,
+meets 1.6e-4 from the catalog's fitted cosmic-ray terms (spike-fraction
+W1/IQR 0.45; the measured-transients known gap) -- and the
 observation that the real REDR sky floor
 is quantization-locked at exactly 1 LSB while the frames carry an extended
 background glow the matched sky frames do not model (see the known gaps).
@@ -607,12 +674,12 @@ quantization-limited on the sim side (known gaps).
 **New Horizons LORRI** (2 frames, limited).  Both frames are 4x4-binned
 star fields, and the matched frames render through the 4x4 readout mode,
 where the catalog's native kernel is rescaled to binned pixels.  The core
-lands near the cohort (EE50 0.50 sim vs 0.59 px real), but the wing does
-not (EE80 0.66 vs 1.23 px; normalized W1 3.2 and 2.4 over 16 cutouts a
+lands near the cohort (EE50 0.48 sim vs 0.59 px real), but the wing does
+not (EE80 0.66 vs 1.23 px; normalized W1 2.3 and 2.0 over 16 cutouts a
 side): the real profile carries far more energy between the two radii
 than the kernel's interim 1.2% wing allows, the signature the NAC kernel
 showed before its wing was tuned, and the frames' bright tail is short by
-the same mechanism (p99 - p50 stretch 3.5 vs 26.8 DN).  The 4x4 frames
+the same mechanism (p99 - p50 stretch 3.0 vs 26.8 DN).  The 4x4 frames
 test the native kernel only through the rescaling, and say its wing is too
 weak; they say nothing separate about a 1x1 frame.  The sky statistics are
 pedestal-invariant by construction (the sci products are bias-subtracted;
@@ -625,12 +692,12 @@ For a handful of matched pairs per instrument (at most three: one star
 field, one limb frame, one ring frame) the full navigator ran on both the
 real frame and its matched simulated frame; the per-technique diagnostics
 are recorded in the summary JSON (``fom7_rows``).  Headline reading of the
-2026-11-01 pairs:
+2026-11-07 pairs:
 
 - Star-field pairs behave comparably where both sides lock:
   ``StarFieldFromCatalogNav`` reports 0.95 confidence on both sides of the
   WAC and LORRI star pairs, with the simulated inlier residuals tighter
-  than the real ones (0.01-0.02 px vs 0.06-0.32 px) -- the sim errs
+  than the real ones (0.02-0.06 px vs 0.06-0.33 px) -- the sim errs
   optimistic on star sharpness.
 - The Cassini ring pair separates on residual texture: ``RingEdgeNav``
   reports 0.71 on the real frame versus 0.94 on its matched render.
@@ -638,15 +705,21 @@ are recorded in the summary JSON (``fom7_rows``).  Headline reading of the
   ~28 px mean per-edge DT residual (the matched render fits to ~1.5 px),
   and the ring-vocabulary calibration prices that residual, so the sim
   errs optimistic on ring-scene sharpness.
-- The limb pairs split: on the NAC pair both sides succeed (0.77 real vs
-  0.65 sim) with the simulated DT residual three times the real one;
-  on the WAC pair the real limb fit succeeds at 0.76 while the matched
-  simulated result is discarded by its own ensemble.
-- The NAC star pair separates on star count: the real frame predicts 4
-  catalog stars and locks at only 0.6, a wide-offset lock on 3 inliers (a
-  known caveat of that cohort frame), while its matched render predicts 25
-  and locks at 0.95 on 16 inliers.  The clean simulated field pushes in the
-  optimistic direction.
+- Both limb pairs succeed on both sides.  On the NAC pair (0.77 real vs
+  0.65 sim) the simulated DT residual is three times the real one.  On
+  the WAC pair (0.76 real vs 0.81 sim) the simulated fit is the tighter
+  (DT RMS 0.43 vs 0.62 px); the matched render, which the 2026-11-01
+  record's ensemble discarded, now carries the frame's filter and
+  downlink table.
+- The NAC star pair fails on the simulated side.  The real frame, an
+  H-alpha (HAL+CL2) exposure, predicts 4 catalog stars and locks at only
+  0.6, a wide-offset lock on 3 inliers (a known caveat of that cohort
+  frame).  Its matched render predicts 25 stars, renders them through the
+  narrowband filter, and finds 2 inliers, so it doesn't lock; the
+  2026-11-01 record's clear-scale render locked at 0.95 on 16.  The
+  matched star scene always places 25 stars on a magnitude ladder (V 7.0
+  to 11.8) that reaches the detection edge of a clear frame, so through a
+  narrowband filter most of them fall below it.
 
 These rows are the evidence a human reads to judge whether the techniques
 *behave* comparably on matched frames.  They were not consulted during
@@ -703,7 +776,17 @@ cannot close, it is recorded here rather than force-fitted:
    structure (ring radial profiles, limb topography) beyond the PSF that
    FOM 2 pins independently.  The Galileo negative frames carry an
    extended background glow (scattered light) that matched sky frames do
-   not model, which dominates that cohort's FOM 5 comparison.
+   not model, which dominates that cohort's FOM 5 comparison.  FOM 1 takes
+   each frame's darkest-quartile uniform patches as sky, so on a ring- or
+   body-filled frame the real patches lie on that content while the
+   matched frame's lie on dark sky; the Cassini TABLE frames, mostly
+   content-filled, carry the NAC's low per-frame sky-noise ratios for this
+   reason (the match table's first footnote).  And the matched star scene
+   places the same 25-star magnitude ladder on every star frame, reaching
+   the detection edge of a clear frame, so a narrowband frame's ladder
+   falls mostly below detection.
+
+   .. The matched-content comparison is tracked as issue #925.
 3. **Measured transients.**  The Cassini and Galileo transients come from
    cosmic-ray terms fitted in closed loop.  The cosmic-ray stage collects hits
    during the exposure and a readout dwell, deposits a modest charge, and

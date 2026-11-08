@@ -322,7 +322,7 @@ def _frame_samples_real(
                 stacklevel=2,
             )
         record.gain_state = int(obs.gain_mode)
-        if obs.dict.get('DATA_CONVERSION_TYPE') == 'TABLE':
+        if obs.dict.get('DATA_CONVERSION_TYPE', None) == 'TABLE':
             record.quantization = 'sqrt_lut'
     saturation = SATURATION_LEVEL[instrument]
     samples, rates = extract_pixel_samples(
