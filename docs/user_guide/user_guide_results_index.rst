@@ -743,14 +743,14 @@ with each task counted once the sum can only exceed the listing on a report
 belonging somewhere else.
 
 **Step 3 counts a task's result only for the root it was written under.** A result records
-the run it belongs to and the root it wrote its rows under, and both have to match. A run
-number is only unique inside the results index that minted it, so a task file run after
-its results index was deleted and rebuilt refers to a run of whatever was built next.
-Deleting and rebuilding a results index is the remedy for a schema-version mismatch. That
-task file's shares add up correctly, but their rows are somewhere else entirely, and a
-root stamped on them would hold nothing at all. Such results are counted and reported in
-the summary rather than credited. The root they were meant for is left unfinished, and
-step 1 over that root is what starts it again.
+the run it belongs to and the root it wrote its rows under, and both have to match. Run
+numbers are unique only within one results index. Deleting and rebuilding a results index
+is the remedy for a schema-version mismatch, and after a rebuild a run number can belong
+to a different run. A task file made before the rebuild and run after it then points at
+the wrong run. Its shares still add up correctly, but its rows are somewhere else
+entirely, and stamping the root on them would record a root that holds nothing. Step 3
+counts such results and reports them in the summary instead of crediting them. The root
+they were meant for stays unfinished, and running step 1 over that root starts it again.
 
 **Step 3 needs every task's result in the log it reads.** It reads one event log
 and counts what is in it, so a root whose tasks are spread over several logs is
