@@ -245,11 +245,14 @@ Artifact-rate defaults and provenance
 -------------------------------------
 
 The per-instrument artifact-rate defaults the forward model applies live
-in each instrument's config file under ``sim/instrument_configs/`` (the
-``detector`` block, resolved by ``resolve_detector_defaults``).  The two rates the realism
-match keys on are the stationary hot-pixel fraction and the transient
-cosmic-ray rate; the table records each instrument's value and where it comes
-from.
+in the ``detector`` block of each instrument's config file under
+``sim/instrument_configs/``, resolved by ``resolve_detector_defaults``.  A
+calibrated Cassini file states only what calibration changes and inherits every
+other value from the raw camera's file it names as its ``base``, so its
+cosmic-ray terms, and their provenance, are in ``coiss_nac.yaml`` and
+``coiss_wac.yaml``.  The two rates the realism match keys on are the stationary
+hot-pixel fraction and the transient cosmic-ray rate; the table records each
+instrument's value and where it comes from.
 
 .. list-table:: Artifact-rate defaults and cohort provenance
    :header-rows: 1
@@ -313,10 +316,12 @@ from.
 Cassini match quality
 ---------------------
 
-The tuning pass (2026-07-17) adjusted the forward-model defaults in
-the instrument config files under ``sim/instrument_configs/`` against FOMs
-1-6 -- the tuned values and their cohort statistics are recorded there -- and this table records
-the headline divergences before that pass and in the current record
+The tuning pass (2026-07-17) adjusted the forward-model defaults against FOMs
+1-6 in the Python tables the simulator read at the time.  The instrument config
+files under ``sim/instrument_configs/`` state each tuned value, with its tuning
+date and cohort statistics in the comment beside it, but their history starts
+when the values moved into them.  This table records the headline divergences
+before that pass and in the current record
 (2026-11-07; normalized W1; smaller is better, ~1 means displaced by one
 real IQR):
 
