@@ -54,16 +54,13 @@ kilometer radii, and #896 keeps an authored shadow beside the geometric one.
 - **One fact, one issue.** Each phase names the issues it closes; anything found along the way is
   filed, not folded silently into a PR.
 
-## Phase 0: attribute the calibrated disc bias
+## Phase 0: attribute the calibrated disc bias (done)
 
 The calibrated Cassini noise floor (#886), fitted cosmic-ray hits (#887), and calibrated sweeps
-through the full instrument chain (#888) are on main. One item follows them directly.
-
-| Issue | Subject |
-|---|---|
-| #916 | Attribute the calibrated disc correlation's sub-pixel bias that #888 reports |
-
-**Exit:** #916 names the source of the bias or the stage it is confined to.
+through the full instrument chain (#888) are on main, and so is #916. Its steady part came from
+shading a smooth body at detector resolution and interpolating it onto the oversampled grid; the
+simulator now shades a smooth body on the grid it renders it on. The larger error at three
+offsets is the correlation refinement clamp, a navigator defect scheduled in Phase 1 as #929.
 
 ## Phase 1: foundations
 
@@ -99,7 +96,7 @@ retired, every body fix has to be made twice.
 | Issue | Subject |
 |---|---|
 | #901 | Classic and topographic body renderers disagree; retire the classic path (part of #915) |
-| #931 | Coarse-grid shading shifts relief, textured, and cratered bodies at oversample above 1 (smooth bodies fixed by #916) |
+| #931 | Coarse-grid shading shifts relief, textured, and cratered bodies at oversample above 1 (smooth bodies fixed under #916) |
 | #890 | A body larger than half the frame and off center is clipped or vanishes |
 | #825, #644 | A planted roll turns ellipsoids the wrong way, mesh bodies and the lit side not at all, and leaves smear, companions, and sky unturned; #644 also asks for a ruling on what a roll turns |
 | #891, #873 | Ring-edge anti-aliasing on optical depth shifts lone edges up to 0.7 px; a rank-1 ring scene misses its planted shift by 0.52 px |
