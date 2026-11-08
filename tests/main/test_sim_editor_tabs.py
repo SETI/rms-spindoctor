@@ -351,6 +351,7 @@ def test_detector_group_toggles_key(model: Any) -> None:
 
 def test_detector_edit_writes_only_the_edited_key(model: Any) -> None:
     """A single spin edit writes its own key and nothing else."""
+    model._instrument_combo.setCurrentText('coiss_nac')
     model._detector_group.setChecked(True)
     model._detector_gain_state_spin.setValue(3)
     assert model.sim_params['detector'] == {'gain_state': 3}
@@ -375,6 +376,13 @@ def test_detector_binning_offers_the_instruments_cataloged_modes(
     model._instrument_combo.setCurrentText(instrument)
     combo = model._detector_binning_combo
     assert [combo.itemText(i) for i in range(combo.count())] == choices
+
+
+def test_the_gain_state_spin_spans_the_instruments_cataloged_states(model: Any) -> None:
+    """The spin's range follows the instrument, so a camera with one state offers only it."""
+    model._instrument_combo.setCurrentText('coiss_wac')
+    spin = model._detector_gain_state_spin
+    assert (spin.minimum(), spin.maximum()) == (2, 2)
 
 
 def test_reenabling_the_detector_group_shows_the_catalog_defaults(model: Any) -> None:

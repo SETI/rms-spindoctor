@@ -230,11 +230,12 @@ class ArtifactsTabMixin(SimEditorBase):
         form = QFormLayout(group)
         detector = self.sim_params.get('detector')
 
+        # The spin's range follows the instrument's cataloged gain states; see
+        # _set_gain_state_range.
         self._detector_gain_state_spin = QSpinBox()
-        self._detector_gain_state_spin.setRange(0, 3)
         self._detector_gain_state_spin.setToolTip(
-            'Electron-chain gain state; must be cataloged for the instrument. '
-            'Written to the scene only when edited.'
+            "Electron-chain gain state; the range spans the instrument's cataloged "
+            'states. Written to the scene only when edited.'
         )
         form.addRow('Gain state:', self._detector_gain_state_spin)
 
@@ -296,9 +297,9 @@ class ArtifactsTabMixin(SimEditorBase):
             else {}
         )
         catalog = self._detector_catalog()
-        self._detector_gain_state_spin.setValue(
-            int(block.get('gain_state', catalog.get('default_gain_state', 0)))
-        )
+        gain_state = int(block.get('gain_state', catalog.get('default_gain_state', 0)))
+        self._set_gain_state_range(catalog, gain_state)
+        self._detector_gain_state_spin.setValue(gain_state)
         self._set_binning_choices(int(block.get('binning', 1)))
         model = str(block.get('detector_model', catalog.get('detector_model', 'ccd')))
         model_index = self._detector_model_combo.findText(model)
@@ -311,6 +312,21 @@ class ArtifactsTabMixin(SimEditorBase):
         quantization_index = self._detector_quantization_combo.findText(quantization)
         if quantization_index >= 0:
             self._detector_quantization_combo.setCurrentIndex(quantization_index)
+
+    def _set_gain_state_range(self, catalog: dict[str, Any], gain_state: int) -> None:
+        """Span the gain-state spin over the instrument's cataloged states.
+
+        The range runs from the lowest cataloged state to the highest; a scene state
+        outside it widens the range, so the widget shows what the scene says and
+        validation reports it.  An instrument without a gain table (a vidicon) has
+        the single state 0.
+
+        Parameters:
+            catalog: The instrument's detector defaults.
+            gain_state: The state the spin is about to show.
+        """
+        states = {*(catalog.get('gain_e_per_dn_by_state') or {0: 1.0}), gain_state}
+        self._detector_gain_state_spin.setRange(min(states), max(states))
 
     def _set_binning_choices(self, binning: int) -> None:
         """List the instrument's cataloged binnings and select ``binning``.
