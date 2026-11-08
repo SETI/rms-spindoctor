@@ -56,9 +56,14 @@ def test_realism_reads_the_downlink_table_from_a_calibrated_vicar_label() -> Non
     """A CALIB frame's VICAR label marks its TABLE downlink for the matched scene.
 
     The calibrated WAC cohort has four frames, two downlinked through the 8-bit
-    table; only those two records ask for the ``sqrt_lut`` quantization.
+    table; only those two records ask for the ``sqrt_lut`` quantization, and the
+    two 12-bit frames' records ask for none.
     """
     results = run_realism_match(instruments=['coiss_calib_wac'], skip_fom7=True)
     records = results.comparisons['coiss_calib_wac'].records
-    assert len(records) == 4
-    assert [record.quantization for record in records].count('sqrt_lut') == 2
+    assert {record.image_id: record.quantization for record in records} == {
+        'W1444747627_1_CALIB': 'sqrt_lut',
+        'W1449079117_1_CALIB': None,
+        'W1580760393_1_CALIB': None,
+        'W1637520502_1_CALIB': 'sqrt_lut',
+    }
