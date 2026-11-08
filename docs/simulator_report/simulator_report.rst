@@ -3,10 +3,26 @@ Simulator Performance and Sensitivity Report
 ============================================
 
 This chapter reports how the SpinDoctor navigation pipeline performs on simulated
-images: how accurately each technique recovers a known transform, and how its
+images: how closely each technique recovers a known transform, and how its
 navigation responds as a single scene parameter is swept. It is a standalone
 chapter, separate from the user and developer guides, and is regenerable on
 demand from the simulator scene catalog and sweep harness.
+
+**What these numbers measure.** Every recovery error in this chapter is measured
+on simulated frames, mostly Cassini NAC frames with a few Voyager ISS ones, and
+none is a real-frame accuracy.  A recovery on a clean frame is a
+self-consistency floor; a sweep that plants a deliberate mismatch (a shape, a
+ring orbit, a PSF, a haze altitude) measures sensitivity to that one mismatch.
+On a simulated frame the navigator's body, ring, and
+star models are simulated counterparts that share the renderer's geometry,
+shading, point-spread function, ring projection, and star flux; the production
+models that navigate real frames never run.  A recovery therefore says how
+tightly a technique converges on a frame drawn by its own kind of model, and
+how that changes as one parameter moves.  A simulated number becomes a
+statement about real frames only for a class of frame where simulated error
+has been shown to predict real error, and no such comparison has been made
+yet.  The confidence values the navigator reports are provisional: their
+coefficients and tier boundaries were fitted on one simulated campaign.
 
 The numbers below are representative measurements from the committed scene
 catalog and sweeps. The technique solvers carry sub-millipixel floating-point
@@ -152,16 +168,15 @@ models that emit the features each technique consumes.
 Realism match against real cohorts
 ==================================
 
-The accuracy measurements in the sections that follow -- the recovery-error
-and model-mismatch curves -- are taken on frames the simulator rendered, so
-they bound the navigator's real-frame accuracy only to the degree the
-simulator reproduces each instrument's real frames.  Where the forward model
-is faithful, a recovery error measured on a simulated frame carries over to
-the real one; where it diverges, the same number bounds only reproducibility
-on synthetic input.  This section therefore comes first, as the precondition
-for reading the mismatch curves below as accuracy: it measures the simulator
-against reality, per instrument, and the per-instrument labels say how far
-that reading reaches.
+The recovery-error and model-mismatch curves in the sections that follow are
+taken on frames the simulator rendered and navigated with the simulated models,
+so they are reproducibility results on synthetic input.  Whether a simulated
+frame looks like a real one is a precondition for reading any of them as a
+statement about real frames, and this section measures it, per instrument,
+with labels for how far each cohort reaches.  It is a precondition only: a
+close image match doesn't show that simulated navigation error predicts real
+error, and the match itself has no pass threshold and was tuned on the same
+frames that report it.
 
 The realism runner (``python -m tests.integration.sim_realism``; see
 :ref:`sim-realism-match` for the machinery) compares the curated real-image
@@ -234,8 +249,8 @@ Cohort support (measured 2026-07-18, 75 frames):
      - limited
 
 Where a figure of merit is *unsupported* and no independent evidence
-exists, that instrument's sim accuracy is **bounded by unverified
-forward-model fidelity**: the Galileo cohort holds only negative-case
+exists, that instrument's simulated frames rest on **unverified
+forward-model fidelity** for that figure: the Galileo cohort holds only negative-case
 frames (no star, limb, or ring content), so nothing currently verifies the
 gossi PSF or shape rendering; the Voyager and LORRI cohorts support only
 fragments.  This is a Cassini match first, and the labels say exactly how
@@ -650,9 +665,9 @@ of 378.  The remaining WAC statistics rest on 1-2 frames per stratum and
 are reported in the summary JSON without distributional claims.
 
 **Galileo SSI** (8 frames).  Every Galileo frame in the library is a
-negative case, so FOMs 2-4 are unsupported and *gossi sim accuracy is
-bounded by unverified forward-model fidelity* for PSF and shape rendering
-until the star-calibration frames land.  What the cohort does support:
+negative case, so FOMs 2-4 are unsupported and *the gossi PSF and shape
+rendering rest on unverified forward-model fidelity* until the
+star-calibration frames land.  What the cohort does support:
 FOM 6 -- the stationary spike fraction, 1.4e-6, is the catalog's
 hot-pixel fraction, and the real transient fraction, 1.2e-4 of pixels,
 meets 1.6e-4 from the catalog's fitted cosmic-ray terms (spike-fraction
@@ -879,7 +894,7 @@ sigma_u) at the instrument's configured ``star_psf_sigma``, never an empirical
 kernel -- an empirical PSF, or wings the navigator does not model, would plant
 a hidden mismatch into the floor itself.  Read every clean-recovery number
 below as this floor; the *Model-mismatch sensitivity* section is where those
-floors become the first point of an accuracy-vs-mismatch curve.
+floors become the first point of an error-vs-mismatch curve.
 
 Each scene below plants a known transform and the navigator predicts the
 unshifted geometry, so the recovered offset (or roll) should equal the planted
@@ -1199,7 +1214,7 @@ The correlation and centroid techniques sit at or below a few hundredths of a
 pixel; the distance-transform techniques carry a larger sub-pixel residual:
 
 - **Disc and blob recover to <0.01 px** (median 0.006), and the bright star field
-  to ~0.005 px -- the most accurate. A zero shift between identical frames recovers
+  to ~0.005 px -- the tightest. A zero shift between identical frames recovers
   the disc exactly at ``(0, 0)`` -- the self-consistency floor (not accuracy), a
   reproducibility bound rather than a real-frame result.
 - **The ring edge holds a ~0.03 px residual** and **the limb a ~0.09 px residual**
@@ -1260,7 +1275,7 @@ field (vmag 0-0.8, ~1000-2000 DN net peak, below the 4095 DN full well).
    ~0.005 px -- below every other technique.
 
 The dim field recovers to a median ~0.025 px and the bright field to ~0.005 px,
-the most accurate of any technique. The centroiding mechanism behind this split
+the tightest of any technique. The centroiding mechanism behind this split
 is documented in :doc:`/dev_guide/dev_guide_techniques_star_field`.
 
 A finer characterization sweeps a uniform-brightness field across a 20x
@@ -1316,8 +1331,8 @@ intrinsic brightness, so the curves occupy different SNR bands.
    :width: 100%
    :alt: Per-technique recovered-offset error vs SNR, nominal background.
 
-   Nominal background. The disc (~0.01 px) and blob (~0.008 px) are the most
-   accurate and both flat with SNR. The star improves steadily with SNR. The ring
+   Nominal background. The disc (~0.01 px) and blob (~0.008 px) recover most
+   tightly and both stay flat with SNR. The star improves steadily with SNR. The ring
    is flat at ~0.06 px and the limb at ~0.15 px, both distance-transform residuals
    independent of SNR.
 
@@ -1326,7 +1341,7 @@ intrinsic brightness, so the curves occupy different SNR bands.
    :alt: Per-technique recovered-offset error vs SNR, stray-light gradient.
 
    A gentle stray-light gradient (linear ramp ~3% of full scale). The blob stays
-   most accurate (~0.016 px), the disc rises to ~0.04 px, the ring holds ~0.06 px;
+   tightest (~0.016 px), the disc rises to ~0.04 px, the ring holds ~0.06 px;
    the limb and star field return no result (their curves are absent). Stray light
    is a larger threat to the faint-feature techniques than read noise alone.
 
@@ -1631,14 +1646,15 @@ on the noise-free floor, and to within 0.07 px under ``instrument_defaults`` (se
 Model-mismatch sensitivity
 ==========================
 
-Most accuracy numbers above are recovered on frames that plant a rigid
+Most recovery errors above are measured on frames that plant a rigid
 transform but no model mismatch (the shape- and pose-mismatch sweeps are the
 exceptions), so each clean-recovery number is a point on the self-consistency
-floor.  Real accuracy is what the navigator achieves when the frame it sees
-differs from the model it assumes.  The sweeps here drive one render-vs-navigate
-mismatch at a time -- the axes cataloged below -- and report the recovery
-error as a function of that mismatch; the accuracy-vs-mismatch curve is the
-product.
+floor.  On a real frame the navigator always works against a model that differs
+from the scene.  The sweeps here drive one render-vs-navigate mismatch at a
+time -- the axes cataloged below -- and report the recovery error as a function
+of that mismatch; the error-vs-mismatch curve is the product.  It measures
+sensitivity to that one mismatch, still on simulated frames navigated with the
+simulated models, so it isn't a real-frame accuracy either.
 
 .. figure:: _figures/mismatch_axes.png
    :width: 100%
@@ -1738,8 +1754,8 @@ Eight of these sweeps -- ``psf_limb_mismatch``, ``psf_limb_wings``,
 ``photometric_minnaert_mismatch``, ``spk_parallax_error``,
 ``differential_smear``, ``ring_orbit_error``, ``atmosphere_haze``, and
 ``atmosphere_haze_albedo`` -- each begin at a self-consistency floor: their first swept value plants no mismatch,
-so its recovery error is the floor (reproducibility), not accuracy, and the
-curve reads as accuracy only from the second point on.
+so its recovery error is the floor (reproducibility), and the curve measures
+sensitivity to the mismatch from the second point on.
 
 One PSF render knob remains unswept: the renderer has no pointing-jitter
 kernel, so the PSF-mismatch coverage above is core sigma and wing energy only;
@@ -1784,14 +1800,16 @@ Summary
 
 * All eight feature techniques (disc, mesh disc, blob, high-phase blob, star
   field, limb, ring edge, haze symmetry) plus the camera-roll fit recover their
-  planted transform to sub-pixel / sub-half-degree accuracy on clean simulated
-  frames.
+  planted transform to within a pixel and half a degree on clean simulated
+  frames. For every technique but the haze symmetry fit that is the
+  self-consistency floor; the haze scene deliberately renders a limb that
+  isn't the circle the fit assumes.
 * The disc, blob, ring edge, and star field are quantization-free: they recover
   any offset -- whole, near-boundary, or arbitrary fraction -- to a few hundredths
-  of a pixel. The disc and blob are the most accurate (~0.01 px). The limb holds a
+  of a pixel. The disc and blob recover most tightly (~0.01 px). The limb holds a
   ~0.09 px distance-transform residual and the ring a ~0.03 px residual.
 * The star field improves with SNR: a dim field recovers to ~0.02 px and a bright
-  field to ~0.005 px, the most accurate of any technique.
+  field to ~0.005 px, the tightest of any technique.
 * The haze symmetry fit recovers a hazy body to ~0.26 px across both the dense
   sub-pixel sweep and the full navigable range, against a rendered haze limb that
   is deliberately not the circle it fits. Its randomized planted-truth campaign

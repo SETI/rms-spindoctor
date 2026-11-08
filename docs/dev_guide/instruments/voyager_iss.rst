@@ -383,19 +383,17 @@ Voyager 2 wide angle measurement, and the config file says plainly that one key
 under-represents the spread across two spacecraft and two optics until
 per-camera keys and locked frames for each exist.
 
-**Artifact-mode availability.** The config file offers ``missing_lines``,
-``partial_lines``, ``edited_frame``, ``line_garble``, ``pixel_spikes``,
-``banding_coherent``, ``bias_structure``, ``dark_ramp``, ``beam_bend`` (the
-brightness-dependent limb bend), ``residual_image`` (the prior-frame ghost),
-``quantization_contour_8bit``, ``reseau_scars`` (the
-reseau-removal patches left by archive processing), and ``resample_texture``
-(the geometric resample the pipeline's own input has been through).
-``reseau_scars`` and ``resample_texture`` are telemetry-stage modes applied
-after the structured-loss modes, because they emulate archive processing rather
-than a detector or transmission defect. The file does not offer
-``fixed_pattern``, ``radiation_transients``, or ``compression_dct``, and it states
-the reason for ``fixed_pattern``: the vidicon DN chain has no fixed-pattern
-stage, so a scene naming the mode fails validation with that reason.
+**Artifact-mode availability.** The config file's ``artifact_modes.offered``
+lists its modes, and the simulator guide's mode tables
+(:ref:`sim-telemetry-modes` and :ref:`sim-detector-modes`) give each mode's
+cameras. This instrument is **not** in the CCD set, so the CCD-only modes are
+unavailable to it. The file states the reason for ``fixed_pattern``: the
+vidicon DN chain has no fixed-pattern stage, so a scene naming the mode fails
+validation with that reason. ``reseau_scars`` (the reseau-removal patches left
+by archive processing) and ``resample_texture`` (the geometric resample the
+pipeline's own input has been through) are telemetry-stage modes applied after
+the structured-loss modes, because they emulate archive processing rather than
+a detector or transmission defect.
 
 The file's shape defaults give ``edited_frame`` a 440-pixel band, one of the
 commanded edited-mode band widths (608, 440, 272, 160, and 80 of the 800-pixel
@@ -425,6 +423,11 @@ residual keeps every digitized pixel off 0. Under ``instrument_defaults`` the
 vidicon read noise (0.40 DN rms) takes a sky pixel below 0 only on a 1.5 DN
 excursion, about 7 pixels in 100,000, so the sky's first percentile stays
 positive.
+
+**Cosmic rays.** The vidicon's cosmic-ray stage works as on a CCD (see
+:ref:`sim-detector-stage`), but the catalog rate is a retained zero. The cohort
+measures a 3.5e-5 transient fraction, mostly interpolated away by the
+reseau-anchored resampling, so it can't say how many hits the target took.
 
 **Realism-match status.** The PSF is unverified and unverifiable through the
 resampling with the frames held locally. The distortion is measured, but on
