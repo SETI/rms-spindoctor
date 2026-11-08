@@ -43,6 +43,7 @@ from scipy import ndimage
 from spindoctor.sim.mesh_geometry import MeshBodySpec, mesh_spec_from_params, render_mesh_body_image
 from spindoctor.sim.scene import load_sim_scene
 from spindoctor.support.types import NDArrayBoolType
+from tests.integration.checkout_guard import require_checkout_package
 from tests.integration.sim_sweep import load_sweep
 
 _INTEGRATION_ROOT = Path(__file__).resolve().parent
@@ -203,4 +204,5 @@ def main() -> None:
 
 
 if __name__ == '__main__':
+    require_checkout_package(__file__)
     main()

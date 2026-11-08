@@ -25,6 +25,7 @@ from pathlib import Path
 from typing import Any
 
 from spindoctor.sim.png_export import render_scene_png
+from tests.integration.checkout_guard import require_checkout_package
 from tests.integration.sim_sweep import (
     build_sweep_params,
     iter_sweep_paths,
@@ -129,4 +130,5 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == '__main__':
+    require_checkout_package(__file__)
     raise SystemExit(main())

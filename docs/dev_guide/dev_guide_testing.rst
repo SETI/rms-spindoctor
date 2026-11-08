@@ -330,10 +330,16 @@ whatever change is in flight when somebody notices.
 
 Run the updaters against the checkout's own source. ``pytest`` puts ``src`` on
 the import path itself, but ``python -m`` imports ``spindoctor`` from the active
-environment, and in an environment that has a different checkout installed, it
-regenerates the baselines with that checkout's code. Unless this checkout is
-the one installed, run:
+environment, which may have a different checkout installed. Every runnable
+script in ``tests/integration`` checks this first
+(``tests/integration/checkout_guard.py``): when the imported ``spindoctor`` lies
+outside the script's own checkout, it stops before writing anything and names
+both paths. Unless this checkout is the one installed, run:
 
 .. code-block:: bash
 
    PYTHONPATH=src python -m tests.integration.update_sim_baselines
+
+A new runnable script calls ``require_checkout_package(__file__)`` as the first
+statement of its ``__main__`` block; ``tests/integration/test_checkout_guard.py``
+fails for one that doesn't.

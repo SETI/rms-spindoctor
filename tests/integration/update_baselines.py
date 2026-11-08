@@ -38,6 +38,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from tests.integration.checkout_guard import require_checkout_package
+
 if TYPE_CHECKING:  # pragma: no cover - typing-only imports
     from tests.integration.baseline import Baseline
     from tests.integration.sidecar import LibraryRoot, Sidecar
@@ -321,4 +323,5 @@ def _safe_update(sidecar: Sidecar, *, baselines_dir: Path, dry_run: bool) -> _Im
 
 
 if __name__ == '__main__':
+    require_checkout_package(__file__)
     sys.exit(main())
