@@ -1,7 +1,7 @@
 {
   "confidence": 0.75,
   "offset_du_px": -0.5,
-  "offset_dv_px": 1.52,
+  "offset_dv_px": 1.5,
   "scene_name": "regular_sphere_calib_base",
   "status": "success"
 }

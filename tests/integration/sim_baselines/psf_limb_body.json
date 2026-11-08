@@ -1,6 +1,6 @@
 {
   "confidence": 0.99,
-  "offset_du_px": -0.61,
+  "offset_du_px": -0.6,
   "offset_dv_px": 1.5,
   "scene_name": "psf_limb_body",
   "status": "success"

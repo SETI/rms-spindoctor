@@ -201,6 +201,11 @@ def _mesh_pose_figure() -> None:
     plt.close(fig)
 
 
+# The smallest error the mismatch panels draw.  A log axis cannot show an exact
+# recovery (0 px, or a float residual near 1e-16 px), so a smaller error is drawn
+# here, below every measured nonzero floor.
+_MISMATCH_ERROR_DISPLAY_FLOOR_PX = 1e-4
+
 # The Section 8 model-mismatch axes: (sweep name, x-axis label, panel title).
 # Each walks one render-vs-navigate mismatch from a self-consistency floor (the
 # first sweep value) into the mismatched regime; the recovery-error-vs-mismatch
@@ -224,8 +229,9 @@ def _mismatch_axes_figure() -> None:
     mismatch parameter.  The zero-mismatch point (equality with the navigator's
     configuration) is drawn as the self-consistency floor -- a bound on
     reproducibility, not accuracy -- and a failed step (the navigability cliff)
-    is annotated on the axis rather than plotted.  The grid is sized to the
-    axis count; any unused trailing panel is hidden.
+    is annotated on the axis rather than plotted.  An error below
+    ``_MISMATCH_ERROR_DISPLAY_FLOOR_PX`` is drawn at that floor.  The grid is sized
+    to the axis count; any unused trailing panel is hidden.
     """
     if not _all_ran([name for name, _xlabel, _title in _MISMATCH_AXES]):
         return
@@ -238,7 +244,9 @@ def _mismatch_axes_figure() -> None:
     for ax, (name, xlabel, title) in zip(flat_axes, _MISMATCH_AXES, strict=False):
         rows = _load(name)
         solved = [
-            (r['value'], r['offset_error_px']) for r in rows if r.get('offset_error_px') is not None
+            (r['value'], max(r['offset_error_px'], _MISMATCH_ERROR_DISPLAY_FLOOR_PX))
+            for r in rows
+            if r.get('offset_error_px') is not None
         ]
         failed = [r['value'] for r in rows if r.get('offset_error_px') is None]
         if solved:

@@ -137,13 +137,15 @@ def test_calibrated_exposure_sweep_fails_between_1_ms_and_0_3_ms() -> None:
         assert by_exposure[exposure].status == 'failed', exposure
 
 
-# The calibrated disc's steady sub-pixel bias, and the bump it carries at offsets
-# of 0.31-0.38 px.  Each bound sits well above the measured value (0.017 px and
-# 0.19 px) and well below the recovery tolerance, so a larger error flags the
-# report's calibrated-versus-raw comparison for review.
-_CALIB_DISC_STEADY_BIAS_PX = 0.05
-_CALIB_DISC_BUMP_PX = 0.3
-_CALIB_DISC_BUMP_OFFSETS = (0.31, 0.382)
+# The calibrated disc's steady sub-pixel error, and the bump it carries at offsets
+# of 0.31, 0.382, and 0.45 px.  The steady bound sits above the measured maximum
+# of 0.0062 px over 8 seeds x 23 steps, the raw twin's own level.  Each bump offset
+# has its own bound above its measured error, which is the same on every seed:
+# 0.190 and 0.118 px at 0.31 and 0.382 (16 seeds), 0.050 px at 0.45.  The bump is
+# the correlation's sub-pixel refinement window, which spans half a pixel either
+# side of the integer peak (#929).
+_CALIB_DISC_STEADY_BIAS_PX = 0.008
+_CALIB_DISC_BUMP_BOUNDS_PX = {0.31: 0.25, 0.382: 0.25, 0.45: 0.06}
 
 
 def test_calibrated_disc_offset_sweep_recovers_every_offset() -> None:
@@ -157,14 +159,10 @@ def test_calibrated_disc_offset_sweep_recovers_every_offset() -> None:
 
 
 def test_calibrated_disc_offset_sweep_holds_its_bias() -> None:
-    """Outside the 0.31-0.38 px bump the error stays a few hundredths of a pixel."""
+    """Outside the 0.31-0.45 px bump the error stays below a hundredth of a pixel."""
     for row in _rows('disc_offset_fine_calib'):
         assert row.offset_error_px is not None
-        bound = (
-            _CALIB_DISC_BUMP_PX
-            if row.value in _CALIB_DISC_BUMP_OFFSETS
-            else _CALIB_DISC_STEADY_BIAS_PX
-        )
+        bound = _CALIB_DISC_BUMP_BOUNDS_PX.get(row.value, _CALIB_DISC_STEADY_BIAS_PX)
         assert row.offset_error_px < bound, row.value
 
 
@@ -636,23 +634,38 @@ def test_psf_wings_floor_recovers() -> None:
 
 
 def test_psf_wings_bias_stays_gentle() -> None:
-    """Unmodeled Moffat wing energy biases the limb gently, without a cliff.
+    """Unmodeled Moffat wing energy does not break the DT limb fit.
 
     Unlike the core-sigma axis (whose blur washes the limb gradient out to
     outright failure), moving up to 60% of the kernel energy into the
     isotropic wing leaves the core sharp: every step still recovers within
-    tolerance, and the error at the largest wing sits above the floor
-    (measured ~0.08 px -> ~0.14 px).  The axis pins that measured shape --
-    wing mismatch alone does not break the DT limb fit.
+    tolerance.  Any bias the wings add is smaller than the sweep's scatter
+    across noise seeds, several hundredths of a pixel, so no bound on it is
+    asserted.
     """
     rows = _rows('psf_limb_wings')
     for row in rows:
         assert row.status == 'success'
         assert row.offset_error_px is not None
-        assert row.offset_error_px < _RECOVERY_TOLERANCE_PX
-    assert rows[-1].offset_error_px is not None
-    assert rows[0].offset_error_px is not None
-    assert rows[-1].offset_error_px > rows[0].offset_error_px
+        assert row.offset_error_px < _RECOVERY_TOLERANCE_PX, row.value
+
+
+def test_psf_wings_change_the_rendered_image() -> None:
+    """The largest wing weight renders a different frame from the zero-wing floor.
+
+    The two steps keep the sweep's scene and seed, with the noise switched off so that
+    only the kernel can tell them apart.  If the optics stage ignored the wing weight,
+    every step would render the floor's frame and the recovery checks above would pass
+    without testing any wing energy.
+    """
+    steps = build_sweep_params(load_sweep(_SWEEPS_ROOT / 'psf_limb_wings.yaml'))
+    frames = []
+    for _, sim_params in (steps[0], steps[-1]):
+        quiet = copy.deepcopy(sim_params)
+        quiet['noise'] = {'poisson': False, 'read_noise_dn': 0.0}
+        img, _ = render_combined_model(quiet)
+        frames.append(np.asarray(img, dtype=np.float64))
+    assert not np.array_equal(frames[0], frames[1])
 
 
 def test_photometric_mismatch_floor_recovers() -> None:
