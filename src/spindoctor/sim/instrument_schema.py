@@ -222,15 +222,17 @@ _UNIT_NUMBER = Scalar(_NUMBER, bound=UNIT)
 _STR_NODE = Scalar(_STR)
 
 # A downlink table is either parametric (a quadratic decode curve over ``codes``
-# codes) or tabulated (the decoded DN of each code, in code order); the
-# cross-checks require exactly one form.
+# codes) or tabulated (the decoded DN of each code, in code order, none negative);
+# the cross-checks require exactly one form and at least two distinct decoded
+# values, and the detector resolver refuses a table that decodes above the ADC
+# ceiling when a frame is companded through it.
 _DOWNLINK_TABLE = Record(
     fields={
         'codes': Scalar(_INT, bound=POSITIVE),
         'linear_dn': _FINITE,
         'quadratic_dn': _FINITE,
         'whole_dn': Scalar(_BOOL),
-        'decoded_dn': ListOf(_FINITE),
+        'decoded_dn': ListOf(_NONNEG_NUMBER),
     }
 )
 

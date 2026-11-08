@@ -25,7 +25,7 @@ from spindoctor.sim.forward.artifacts_catalog import (
     resolve_detector_defaults,
     resolve_star_flux_zero_point,
 )
-from spindoctor.sim.forward.detector.params import resolve_detector_params
+from spindoctor.sim.forward.detector.params import DetectorParamError, resolve_detector_params
 from spindoctor.sim.forward.detector.sqrt_lut import TabulatedLut
 from spindoctor.sim.instrument_catalog import (
     GENERIC_INSTRUMENT,
@@ -281,6 +281,35 @@ _REFUSED: list[tuple[dict[str, str], str, str]] = [
         'downlink-table-with-one-code',
     ),
     (
+        {
+            'cam.yaml': _CAMERA
+            + 'downlink_tables:\n  default: main\n  tables:\n'
+            + '    main: {decoded_dn: [5.0, 5.0, 5.0]}\n'
+        },
+        r'downlink_tables\.tables\.main\.decoded_dn: a downlink table decodes to at least 2 '
+        r'distinct values, got 1',
+        'downlink-table-with-one-distinct-value',
+    ),
+    (
+        {
+            'cam.yaml': _CAMERA
+            + 'downlink_tables:\n  default: main\n  tables:\n'
+            + '    main: {decoded_dn: [0.0, .inf]}\n'
+        },
+        r'downlink_tables\.tables\.main\.decoded_dn\[1\]: expected a finite number, got float inf',
+        'downlink-table-with-a-non-finite-value',
+    ),
+    (
+        {
+            'cam.yaml': _CAMERA
+            + 'downlink_tables:\n  default: main\n  tables:\n'
+            + '    main: {decoded_dn: [-1.0, 1.0]}\n'
+        },
+        r'downlink_tables\.tables\.main\.decoded_dn\[0\]: expected a non-negative number, '
+        r'got -1\.0',
+        'downlink-table-with-a-negative-value',
+    ),
+    (
         {'cam.yaml': 'base: coiss_nac\naliases: [x, null]\n'},
         r'cam\.yaml: aliases\[1\]: a list item cannot be null',
         'null-list-item',
@@ -486,3 +515,26 @@ def test_a_scene_naming_an_unlisted_downlink_table_fails() -> None:
     }
     with pytest.raises(SimSceneValidationError, match=r"available tables: \['table_12_to_8'\]"):
         validate_sim_params(scene)
+
+
+@pytest.mark.parametrize(
+    'table',
+    [
+        '{decoded_dn: [0.0, 100.0, 5000.0]}',
+        '{codes: 256, linear_dn: 2.0, quadratic_dn: 0.1, whole_dn: true}',
+    ],
+    ids=['tabulated', 'parametric'],
+)
+def test_a_table_decoding_above_the_adc_ceiling_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, table: str
+) -> None:
+    """A companded frame refuses a table whose top value exceeds saturation_dn."""
+    text = _CAMERA + f'downlink_tables:\n  default: high\n  tables:\n    high: {table}\n'
+    monkeypatch.setattr(
+        instrument_catalog, 'INSTRUMENT_CONFIG_DIR', catalog_dir_with(tmp_path, {'cam.yaml': text})
+    )
+    scene = {'instrument': 'cam', 'detector': {'quantization': 'sqrt_lut'}}
+    with pytest.raises(
+        DetectorParamError, match=r'above the ADC ceiling \(saturation_dn\) of 4095 DN'
+    ):
+        resolve_detector_params(scene)

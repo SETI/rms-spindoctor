@@ -268,11 +268,15 @@ def _check_downlink_tables(tables: Mapping[str, Any] | None, *, source: str) -> 
         path = f'downlink_tables.tables.{name}'
         keys = set(table)
         if keys == {_TABULATED_TABLE_KEY}:
-            if len(table[_TABULATED_TABLE_KEY]) < _MIN_TABLE_CODES:
+            # Codes that decode to one value are one quantization level, so a table
+            # needs as many distinct values as a working table needs codes.
+            distinct = len(set(table[_TABULATED_TABLE_KEY]))
+            if distinct < _MIN_TABLE_CODES:
                 raise config_error(
                     source,
                     f'{path}.{_TABULATED_TABLE_KEY}',
-                    f'a downlink table decodes at least {_MIN_TABLE_CODES} codes',
+                    f'a downlink table decodes to at least {_MIN_TABLE_CODES} distinct values, '
+                    f'got {distinct}',
                 )
             continue
         if keys != _PARAMETRIC_TABLE_KEYS:

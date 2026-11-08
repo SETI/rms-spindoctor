@@ -20,7 +20,14 @@ import numpy as np
 
 from spindoctor.support.types import NDArrayFloatType
 
-__all__ = ['DEFAULT_SQRT_LUT_CODES', 'DownlinkCurve', 'SqrtLut', 'TabulatedLut', 'resolve_sqrt_lut']
+__all__ = [
+    'DEFAULT_SQRT_LUT_CODES',
+    'DownlinkCurve',
+    'SqrtLut',
+    'TabulatedLut',
+    'check_curve_ceiling',
+    'resolve_sqrt_lut',
+]
 
 # The plain curve's table size: an 8-bit code word.
 DEFAULT_SQRT_LUT_CODES = 256
@@ -130,3 +137,25 @@ def resolve_sqrt_lut(entry: Mapping[str, Any] | None, *, saturation_dn: float) -
         quadratic_dn=quadratic_dn,
         whole_dn=bool(entry['whole_dn']),
     )
+
+
+def check_curve_ceiling(curve: DownlinkCurve, *, saturation_dn: float) -> None:
+    """Refuse a decode curve whose top decoded value lies above the ADC ceiling.
+
+    The quantizer snaps each DN, already clipped at the ceiling, to the nearest
+    decoded value, so a value above the ceiling would put DN in the product that
+    the ADC can never produce.
+
+    Parameters:
+        curve: A camera's downlink table, resolved.
+        saturation_dn: The ADC ceiling the frame's DN is clipped at.
+
+    Raises:
+        ValueError: If the curve's largest decoded value exceeds ``saturation_dn``.
+    """
+    top_dn = float(curve.levels()[-1])
+    if top_dn > saturation_dn:
+        raise ValueError(
+            f'the downlink table decodes up to {top_dn:g} DN, above the ADC ceiling '
+            f'(saturation_dn) of {saturation_dn:g} DN'
+        )

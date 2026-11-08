@@ -53,7 +53,11 @@ from spindoctor.sim.forward.artifacts_catalog import (
     resolve_mode_with_catalog,
     resolve_readout_mode,
 )
-from spindoctor.sim.forward.detector.sqrt_lut import DownlinkCurve, resolve_sqrt_lut
+from spindoctor.sim.forward.detector.sqrt_lut import (
+    DownlinkCurve,
+    check_curve_ceiling,
+    resolve_sqrt_lut,
+)
 from spindoctor.sim.forward.filter_catalog import FilterCatalogError, resolve_filter_throughput
 from spindoctor.sim.instruments import navigator_marker_value, resolve_sim_inst_config
 from spindoctor.sim.seeds import derive_effect_seed
@@ -486,8 +490,9 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
 
     Raises:
         DetectorParamError: If the scene selects an unavailable gain state, names
-            a filter or a downlink table its camera does not catalog, or sets both
-            ``detector.filter`` and ``detector.exposure_ref_sec``.
+            a filter or a downlink table its camera does not catalog, sets both
+            ``detector.filter`` and ``detector.exposure_ref_sec``, or compands the
+            frame through a downlink table that decodes above the ADC ceiling.
     """
     instrument = params.get('instrument')
     inst_config = resolve_sim_inst_config(
@@ -747,6 +752,12 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
     if 'quantization_contour_8bit' in detector_modes:
         quantization = 'contour_8bit'
         contour_step = int(detector_modes['quantization_contour_8bit'].get('step', 8))
+    sqrt_lut = resolve_sqrt_lut(downlink_table, saturation_dn=saturation_dn)
+    if quantization == 'sqrt_lut' and downlink_table is not None:
+        try:
+            check_curve_ceiling(sqrt_lut, saturation_dn=saturation_dn)
+        except ValueError as exc:
+            raise DetectorParamError(f'sim instrument {instrument!r}: {exc}') from exc
 
     return DetectorParams(
         detector_model=detector_model,
@@ -793,7 +804,7 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
         hot_pixel_adversarial=hot_pixel_adversarial,
         hot_pixel_mode_active=hot_pixel_mode_active,
         quantization_contour_step=contour_step,
-        sqrt_lut=resolve_sqrt_lut(downlink_table, saturation_dn=saturation_dn),
+        sqrt_lut=sqrt_lut,
         artifacts_adversarial=artifacts_adversarial,
         detector_modes=detector_modes,
     )

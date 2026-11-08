@@ -752,8 +752,12 @@ table. A parametric table sends ``codes`` codes (256 for an 8-bit code word), an
 code ``c`` decodes to ``linear_dn * c + quadratic_dn * c**2`` DN, rounded to whole
 DN when ``whole_dn`` is set. A tabulated table lists the DN each code decodes to,
 in code order, under ``decoded_dn``, so a curve of any shape takes a config entry
-and no code. A camera that lists no table gets the plain square-root curve over
-256 codes, whose top code decodes to ``saturation_dn``: ``linear_dn`` 0,
+and no code; the load requires at least two distinct values, none of them
+negative. When a frame is companded through a listed table, the detector resolver
+refuses a table whose largest decoded value lies above the ADC ceiling,
+``saturation_dn``, because the quantizer would then write DN the ADC can't
+produce. A camera that lists no table gets the plain square-root curve over 256
+codes, whose top code decodes to ``saturation_dn``: ``linear_dn`` 0,
 ``quadratic_dn`` ``saturation_dn / 255**2``, and fractional DN kept.
 
 The two Cassini cameras share the 12-to-8-bit downlink table, measured from the
@@ -921,8 +925,9 @@ isn't valid YAML or writes a key twice. Within a file, the load fails on:
   readout on a vidicon, readout modes without binning 1 or with a binning that
   doesn't divide the native frame size, a readout mode whose gain table adds or
   drops a state, a star zero point in the wrong unit for the detector model, a
-  downlink table that mixes the parametric and tabulated forms or sends fewer
-  than 2 codes, or an ``instrument_defaults`` mode that isn't a detector-stage
+  downlink table that mixes the parametric and tabulated forms, sends fewer than
+  2 codes, or (tabulated) decodes to fewer than 2 distinct values or to a
+  negative one, or an ``instrument_defaults`` mode that isn't a detector-stage
   mode;
 * a setting that would do nothing: an activation key (``probability``,
   ``expected_events``, and the others) or ``count`` in ``shape_defaults``, which
