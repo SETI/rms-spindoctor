@@ -430,24 +430,25 @@ NAC the two lift the calibrated sky noise at gain state 2 from the raw frame's
 0.6 DN to about 0.9 DN-equivalent, as on the real products.
 
 **Downlink table.** The two cameras share the 12-to-8-bit downlink table the
-``sqrt_lut`` quantization decodes through (see :ref:`sim-detector-stage`).
-Each raw file names it, ``table_12_to_8``, as its default, and the calibrated
-files inherit it. It was measured from the 26 TABLE frames of the CALIB cohort. The calibrated
-DN-equivalent step between consecutive raw codes is an integer that grows by
-one about every ten codes: 3 DN near code 10, 5 near 25, 8 near 55, 13 near
-100, and 24 near 200. Code ``c`` decodes to ``round(2 * c + 0.055 * c**2)`` DN
-(``codes`` 256, ``linear_dn`` 2, ``quadratic_dn`` 0.055, ``whole_dn`` true),
-which reproduces those steps and tops out at 4086 DN at code 255. Near a dark
-sky the step is 3 to 4 DN, against 1 DN in a 12-bit frame, so a TABLE frame's
-calibrated sky is several times noisier than a 12-bit frame's.
+``sqrt_lut`` quantization decodes through (see :ref:`sim-detector-stage`). Each
+raw file names it, ``table_12_to_8``, as its default, and the calibrated files
+inherit it. It was measured from the 26 TABLE frames of the CALIB cohort. The
+calibrated DN-equivalent step between consecutive raw codes is an integer that
+grows by one about every ten codes: 3 DN near code 10, 5 near 25, 8 near 55, 13
+near 100, and 24 near 200. Code ``c`` decodes to ``round(2 * c + 0.055 *
+c**2)`` DN (``codes`` 256, ``linear_dn`` 2, ``quadratic_dn`` 0.055,
+``whole_dn`` true), which reproduces those steps and tops out at 4086 DN at
+code 255. Near a dark sky the step is 3 to 4 DN, against 1 DN in a 12-bit
+frame, so a TABLE frame's calibrated sky is several times noisier than a 12-bit
+frame's.
 
 **Readout dark and cosmic rays.** The raw dark sky rises linearly from the
 first line to the last at every exposure, by 55 e- on the NAC and 33 e- on the
-WAC, and ``readout_dark_e`` catalogs those rises. The cosmic-ray terms, fitted in closed loop to the
-NAC's 12-bit dark-sky frames and shared by the WAC, are a rate of 2.0e-5 events
-per pixel per second, a 6 s readout dwell, a 1,000 e- deposit scale, and 0.6
-native pixels of diffusion; the simulator report's artifact-rate table gives
-the fit's evidence.
+WAC, and ``readout_dark_e`` catalogs those rises. The cosmic-ray terms, fitted
+in closed loop to the NAC's 12-bit dark-sky frames and shared by the WAC, are a
+rate of 2.0e-5 events per pixel per second, a 6 s readout dwell, a 1,000 e-
+deposit scale, and 0.6 native pixels of diffusion; the simulator report's
+artifact-rate table gives the fit's evidence.
 
 **PSF kernels.** ``coiss_nac`` is
 ``{sigma_v: 0.70, sigma_u: 0.70, w: 0.12, r0: 3.0, n: 4.0}``, tuned against the
@@ -477,7 +478,7 @@ radially symmetric, which is why the non-radial wander is zero.
 **Artifact-mode availability.** Each raw file's ``artifact_modes.offered``
 lists its modes, and the calibrated files inherit the list. The simulator
 guide's mode tables (:ref:`sim-telemetry-modes` and :ref:`sim-detector-modes`)
-give each mode's cameras. Both cameras are in the CCD set, and neither file
+give each mode's cameras. Both cameras' detector model is ``ccd``, and neither file
 states an exclusion reason.
 
 **Realism-match status.** The narrow angle PSF is tuned against eleven frames.

@@ -386,8 +386,8 @@ per-camera keys and locked frames for each exist.
 **Artifact-mode availability.** The config file's ``artifact_modes.offered``
 lists its modes, and the simulator guide's mode tables
 (:ref:`sim-telemetry-modes` and :ref:`sim-detector-modes`) give each mode's
-cameras. This instrument is **not** in the CCD set, so the CCD-only modes are
-unavailable to it. The file states the reason for ``fixed_pattern``: the
+cameras. Its detector model is ``vidicon``, so the modes that act in the CCD chain
+alone are unavailable to it. The file states the reason for ``fixed_pattern``: the
 vidicon DN chain has no fixed-pattern stage, so a scene naming the mode fails
 validation with that reason. ``reseau_scars`` (the reseau-removal patches left
 by archive processing) and ``resample_texture`` (the geometric resample the

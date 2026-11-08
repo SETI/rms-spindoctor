@@ -258,15 +258,16 @@ simulator support.
 star-field distortion analysis: a ``k2``-dominated pincushion reaching about
 half a pixel at the field corner.
 
-**Cosmic rays.** The config file's ``cosmic_ray_*`` terms are fitted in closed
-loop to the cohort's transient spikes, 57-129 per frame, with a readout dwell
-of half the full-frame readout. The file's comments give the fitted values, and
-the simulator report's artifact-rate table gives the fit's evidence.
+**Cosmic rays.** The catalog's terms are fitted in closed loop to the cohort's
+transient spikes, 57-129 per frame: a rate of 2.0e-5 events per pixel per
+second, a 4.33 s readout dwell (half the full-frame readout), a 6,000 e-
+deposit scale, and 0.4 native pixels of diffusion. The simulator report's
+artifact-rate table gives the fit's evidence.
 
 **Artifact-mode availability.** The config file's ``artifact_modes.offered``
 lists its modes, and the simulator guide's mode tables
 (:ref:`sim-telemetry-modes` and :ref:`sim-detector-modes`) give each mode's
-cameras. This instrument is in the CCD set. ``alternating_lines`` defaults to
+cameras. Its detector model is ``ccd``. ``alternating_lines`` defaults to
 its ``keep`` mode for this instrument's vertical decimation, rather than the
 ``drop`` mode that blanks every Nth line: the HMA and HCA telemetry formats
 carry valid data on every 2nd or every 4th line only. ``missing_blocks``
