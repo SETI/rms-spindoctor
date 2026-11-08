@@ -228,9 +228,9 @@ class ArtifactsTabMixin(SimEditorBase):
     def _detector_catalog(self, binning: int) -> dict[str, Any]:
         """The selected instrument's detector defaults in one readout mode.
 
-        The readout mode's values replace the native values of the keys it sets,
-        as the detector resolver merges them, so a readout mode with its own
-        default gain state or quantization shows that.
+        Where the readout mode sets a key, its value replaces the native one, as
+        the detector resolver merges them, so a readout mode with its own default
+        gain state or quantization shows that default.
 
         Parameters:
             binning: The scene's readout-mode binning.

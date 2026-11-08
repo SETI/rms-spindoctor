@@ -121,7 +121,7 @@ class DetectorParams:
             possibly NaN; the calibration inverse keeps every pixel off it.
         random_seed: The scene seed for the per-effect sub-streams.
         detector_id: The emulated detector the fixed hot-pixel map belongs to:
-            the instrument config's ``detector_id`` (a calibrated product's file
+            the instrument config's ``detector_id`` (a calibrated product's entry
             sets it to its raw camera), else the instrument name, and ``generic``
             for a generic scene.
         binning: The readout mode's binning factor ``b``: each frame pixel

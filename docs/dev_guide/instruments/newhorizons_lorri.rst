@@ -263,8 +263,8 @@ Simulator model
 ===============
 
 **Instrument key.** ``nhlorri``, resolving to the flat ``newhorizons_lorri``
-block. Its entry, under the ``nhlorri`` key of the instrument config file
-``src/spindoctor/sim/instrument_configs/nhlorri.yaml``, holds the values below.
+block. The ``nhlorri`` entry in
+``src/spindoctor/sim/instrument_configs/nhlorri.yaml`` holds the values below.
 
 **PSF kernel.** ``{sigma_v: 1.13, sigma_u: 0.87, w: 1.2e-2, r0: 2.0, n: 3.0}``,
 **retained interim elliptical values** from the published references for

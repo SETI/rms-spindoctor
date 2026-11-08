@@ -6,9 +6,9 @@ keys the detector model calls for, the gain table and readout modes, the star ze
 point's unit, the filter table's spelling and its clear elements, the downlink
 tables, and the artifact modes an entry lists.  :func:`check_catalog` runs those
 checks on every entry, plus the two that span entries: the generic entry's
-calibrated sky residual and the realism cohort each entry claims.  Each check refuses a setting that
-the renderer could not honor or that would silently do nothing, with a message that
-gives the file, the entry, and the key path.
+calibrated sky residual and the realism cohort each entry claims.  Each check
+refuses a setting that the renderer could not honor or that would silently do
+nothing, with a message that gives the file, the entry, and the key path.
 """
 
 from __future__ import annotations

@@ -25,8 +25,10 @@ file, an instrument defined in two files, an unknown key, a missing required key
 or a value of the wrong type or out of range.  It also fails on a base that
 doesn't exist or that loops back on itself, and on a gain state, readout mode,
 filter, downlink table, or artifact mode that an entry refers to but does not
-define.  A setting that would do nothing fails too.  Each message gives the file,
-the entry, and the key path.
+define.  A setting that would do nothing fails too.  Every message about an entry
+gives the file, the entry, and the key path.  A message about a whole file (a YAML
+error, or a file that holds no mapping) gives the file, and a message about the
+directory (a stray file, or no ``generic`` entry) gives the directory.
 
 The rest of the simulator reads the catalog through the resolvers in
 :mod:`spindoctor.sim.instrument_resolvers`, and through
@@ -148,15 +150,18 @@ def _read_file(path: Path) -> dict[str, Any]:
     return raw
 
 
-def _read_entries(paths: list[Path]) -> tuple[dict[str, dict[str, Any]], dict[str, str]]:
+def _read_entries(
+    paths: list[Path],
+) -> tuple[dict[str, dict[str, Any]], dict[str, str], dict[str, str]]:
     """Merge the top-level keys of every config file, checking each entry on its own.
 
     Parameters:
         paths: The config files, in the order to read them.
 
     Returns:
-        Each instrument's own entry keyed by name, and each name mapped to the
-        ``file: entry`` prefix its error messages carry.
+        Each instrument's own entry keyed by name, each name mapped to the
+        ``file: entry`` prefix its error messages carry, and each name mapped to its
+        file.
 
     Raises:
         InstrumentConfigError: If a file is not valid YAML or holds no mapping, an
@@ -175,7 +180,7 @@ def _read_entries(paths: list[Path]) -> tuple[dict[str, dict[str, Any]], dict[st
             files[name] = path.name
             sources[name] = source
             raw[name] = check_own_entry(entry, source=source)
-    return raw, sources
+    return raw, sources, files
 
 
 def _deep_merge(
@@ -291,15 +296,28 @@ def _resolve_inheritance(
 
 
 def _collect_aliases(
-    raw: Mapping[str, dict[str, Any]], sources: Mapping[str, str]
+    raw: Mapping[str, dict[str, Any]], sources: Mapping[str, str], files: Mapping[str, str]
 ) -> dict[str, str]:
-    """Map each alias to its instrument, refusing an alias already in use as a name."""
+    """Map each alias to its instrument, refusing an alias already in use.
+
+    An alias may be neither an instrument's name nor another entry's alias; the
+    message gives the file that holds the clashing name or alias.
+    """
     aliases: dict[str, str] = {}
     for name in sorted(raw):
         for alias in raw[name].get('aliases') or []:
-            if alias in raw or alias in aliases:
+            if alias in raw:
                 raise config_error(
-                    sources[name], 'aliases', f'{alias!r} is already an instrument or an alias'
+                    sources[name],
+                    'aliases',
+                    f'{alias!r} is already an instrument, defined in {files[alias]}',
+                )
+            if alias in aliases:
+                other = aliases[alias]
+                raise config_error(
+                    sources[name],
+                    'aliases',
+                    f'{alias!r} is already an alias of {other!r} in {files[other]}',
                 )
             aliases[alias] = name
     return aliases
@@ -323,7 +341,7 @@ def _config_paths(config_dir: Path) -> list[Path]:
 @lru_cache(maxsize=4)
 def _load(config_dir: Path) -> InstrumentCatalog:
     """Read, merge, and check every config file in ``config_dir``."""
-    raw, sources = _read_entries(_config_paths(config_dir))
+    raw, sources, files = _read_entries(_config_paths(config_dir))
     if GENERIC_INSTRUMENT not in raw:
         raise InstrumentConfigError(
             f'{config_dir}: no {GENERIC_INSTRUMENT!r} entry (the instrument-agnostic entry)'
@@ -331,7 +349,7 @@ def _load(config_dir: Path) -> InstrumentCatalog:
     entries = _resolve_inheritance(raw, sources)
     check_catalog(entries, sources)
     return InstrumentCatalog(
-        config_dir=config_dir, entries=entries, aliases=_collect_aliases(raw, sources)
+        config_dir=config_dir, entries=entries, aliases=_collect_aliases(raw, sources, files)
     )
 
 

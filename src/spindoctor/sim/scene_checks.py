@@ -480,8 +480,9 @@ def _check_downlink_table_used(
     when the frame can be companded: the scene quantizes with ``sqrt_lut`` (its own
     ``detector.quantization``, else the camera's default for the selected readout
     mode), the scene includes the ``quantization_sqrt_lut`` artifact mode at any
-    probability, or ``artifacts.instrument_defaults`` turns that mode on through the
-    camera's ``instrument_defaults``.  Run after :func:`_check_detector` and
+    probability, or the scene sets ``artifacts.instrument_defaults`` and the camera
+    lists the mode under ``artifact_modes.instrument_defaults``.  Run after
+    :func:`_check_detector` and
     :func:`~spindoctor.sim.scene_checks_artifacts._check_artifacts`, so both blocks
     are well-formed mappings or None.
 

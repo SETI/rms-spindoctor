@@ -487,8 +487,23 @@ _REFUSED: list[tuple[dict[str, str], str, str]] = [
     ),
     (
         {'cam.yaml': _cam('base: generic\naliases: [gossi]\n')},
-        r"cam\.yaml: cam: aliases: 'gossi' is already an instrument or an alias",
+        r"cam\.yaml: cam: aliases: 'gossi' is already an instrument, defined in gossi\.yaml",
         'alias-in-use-as-a-name',
+    ),
+    (
+        {'cam.yaml': _cam('base: generic\naliases: [sim]\n')},
+        r"generic\.yaml: generic: aliases: 'sim' is already an alias of 'cam' in cam\.yaml",
+        'alias-in-use-as-an-alias',
+    ),
+    (
+        {'cam.yaml': '- x\n'},
+        r'cam\.yaml: the file must map instrument names to entries',
+        'file-not-a-mapping',
+    ),
+    (
+        {'generic.yaml': keyed('cam', 'base: gossi\n')},
+        r"no 'generic' entry \(the instrument-agnostic entry\)",
+        'no-generic-entry',
     ),
 ]
 
@@ -514,7 +529,7 @@ def test_the_loader_refuses_a_bad_config(
 
 
 def test_a_null_removes_an_inherited_key(tmp_path: Path) -> None:
-    """A file that sets an inherited readout mode to null drops it."""
+    """An entry that sets an inherited readout mode to null drops it."""
     directory = catalog_dir_with(
         tmp_path, {'cam.yaml': _cam('base: coiss_nac\nreadout_modes: {4: null}\n')}
     )
@@ -523,7 +538,7 @@ def test_a_null_removes_an_inherited_key(tmp_path: Path) -> None:
 
 
 def test_a_base_does_not_pass_on_its_realism_cohort(tmp_path: Path) -> None:
-    """If a file's base claims a realism cohort, the file itself claims none."""
+    """If an entry's base claims a realism cohort, the entry itself claims none."""
     directory = catalog_dir_with(tmp_path, {'cam.yaml': _cam('base: coiss_calib_nac\n')})
     entry = load_instrument_catalog(config_dir=directory).entry('cam')
     assert 'realism_cohort' not in entry
@@ -561,7 +576,7 @@ def test_each_entry_names_a_navigator_block_that_exists(instrument: str) -> None
 def test_an_inherited_detector_under_another_section_is_caught(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A file that changes its base's navigator section but inherits its detector fails."""
+    """An entry that changes its base's navigator section but inherits its detector fails."""
     text = _cam('base: coiss_nac\nnavigator: {section: galileo_ssi}\n')
     monkeypatch.setattr(
         instrument_catalog, 'INSTRUMENT_CONFIG_DIR', catalog_dir_with(tmp_path, {'cam.yaml': text})
@@ -764,7 +779,9 @@ def test_a_downlink_table_no_quantization_reads_fails() -> None:
     with pytest.raises(
         SimSceneValidationError,
         match=r"detector\.downlink_table 'table_12_to_8' has no effect: only the sqrt_lut "
-        r"quantization decodes through a downlink table, and this scene quantizes with 'exact'",
+        r"quantization decodes through a downlink table, and this scene quantizes with 'exact'; "
+        r'set detector\.quantization: sqrt_lut, add the quantization_sqrt_lut artifact mode, or '
+        r'drop the key',
     ):
         validate_sim_params(scene)
 

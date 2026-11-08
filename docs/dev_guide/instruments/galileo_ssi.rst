@@ -242,9 +242,9 @@ midtime_et)`` against each furnished candidate, accepted at 1e-9 radians.
 Simulator model
 ===============
 
-**Instrument key.** ``gossi``, resolving to the flat ``galileo_ssi`` block. Its
-entry, under the ``gossi`` key of the instrument config file
-``src/spindoctor/sim/instrument_configs/gossi.yaml``, holds the values below.
+**Instrument key.** ``gossi``, resolving to the flat ``galileo_ssi`` block. The
+``gossi`` entry in ``src/spindoctor/sim/instrument_configs/gossi.yaml`` holds the
+values below.
 
 **PSF kernel.** ``{sigma_v: 0.80, sigma_u: 0.80, w: 1.2e-2, r0: 2.0, n: 3.0}``,
 a **retained interim published sigma**. The curated cohort holds no star frames

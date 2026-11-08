@@ -795,7 +795,7 @@ and no code; the load requires at least two distinct values, none of them
 negative. When a frame is companded through a listed table, the detector
 resolver refuses a table whose largest decoded value lies above the ADC ceiling,
 ``saturation_dn``, because the quantizer would then write DN the ADC can't
-produce. If a camera's file lists no table, the camera gets the plain
+produce. If a camera's entry lists no table, the camera gets the plain
 square-root curve over 256 codes, whose top code decodes to ``saturation_dn``:
 ``linear_dn`` 0, ``quadratic_dn`` ``saturation_dn / 255**2``, and fractional DN
 kept.
@@ -915,9 +915,9 @@ well equals its DN depth at unit gain.
 Instrument config files
 -----------------------
 
-The simulated cameras live in the YAML files of
-``src/spindoctor/sim/instrument_configs/``, one file per mission, the way the
-navigator's ``config_4N0`` files group a mission's instrument blocks. Each
+Each mission's simulated cameras share one YAML file in
+``src/spindoctor/sim/instrument_configs/``, as the navigator's config files group
+a mission's instrument blocks. Each
 top-level key of a file is one simulated instrument, and a scene selects it by
 writing that key in ``instrument``; the file's name plays no part. ``coiss.yaml``
 holds four instruments (``coiss_nac``, ``coiss_wac``, ``coiss_calib_nac``, and
@@ -948,9 +948,11 @@ null for either fails.
 file once per directory (the result is cached) and merges the top-level keys of
 all of them. It checks each entry against the schema in
 :mod:`spindoctor.sim.instrument_schema` and the cross-checks in
-:mod:`spindoctor.sim.instrument_checks`. Every failure message gives the file, the
-entry, and the key path, as in ``coiss.yaml: coiss_calib_nac:
-detector.gain_e_per_dn_by_state: ...``. The directory may hold only ``.yaml``
+:mod:`spindoctor.sim.instrument_checks`. Every message about an entry gives the
+file, the entry, and the key path, as in ``coiss.yaml: coiss_calib_nac:
+detector.gain_e_per_dn_by_state: ...``. A message about a whole file gives the
+file, and a message about the directory, such as a stray file or a missing
+``generic`` entry, gives the directory. The directory may hold only ``.yaml``
 files: a ``.yml`` file, or any other entry in the directory, fails the load rather
 than being skipped. A file also fails the load if it isn't valid YAML, writes a
 key twice, or doesn't hold a mapping of instrument names to entries. The load
@@ -968,8 +970,9 @@ value isn't a mapping. Within an entry, the load fails on:
   integers and binnings positive ones; a shape default's value must lie in its
   parameter's range, as a scene's must;
 * a ``base`` that doesn't exist or that loops back on itself, an alias that is
-  already an instrument's name, or a real cohort camera that two entries both
-  claim (the message gives both entries);
+  already an instrument's name or another entry's alias (the message gives the
+  file that holds it), or a real cohort camera that two entries both claim (the
+  message gives both entries);
 * anything the entry refers to but doesn't define: a default gain state missing
   from its gain table, a clear filter or polarizer element missing from the
   filter table, a default downlink table the entry doesn't list, or shape

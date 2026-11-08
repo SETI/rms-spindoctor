@@ -88,11 +88,32 @@ _IMAGE_SIDE_MODULE_PREFIX = 'spindoctor.sim.instrument_'
 _IMAGE_SIDE_MODULES: frozenset[str] = frozenset({'spindoctor.sim.artifact_modes'})
 
 
-def _image_side_imports(source: str) -> list[tuple[int, str]]:
+def _module_package(path: Path) -> str:
+    """The dotted package a module file under the spindoctor package belongs to."""
+    parent = path.parent.relative_to(_PACKAGE_ROOT.parent)
+    return '.'.join(parent.parts)
+
+
+def _imported_module(node: ast.ImportFrom, *, package: str) -> str:
+    """The absolute module a ``from ... import`` statement reads from.
+
+    A relative import climbs ``level - 1`` packages above ``package`` before it
+    appends the module it states.
+    """
+    if node.level == 0:
+        return node.module or ''
+    parts = package.split('.')
+    base = parts[: len(parts) - (node.level - 1)]
+    return '.'.join([*base, node.module] if node.module else base)
+
+
+def _image_side_imports(source: str, *, package: str) -> list[tuple[int, str]]:
     """Return each import of an image-side simulator module in ``source``.
 
     Parameters:
         source: Python source text to scan.
+        package: The dotted package the source's module belongs to, against which
+            a relative import resolves.
 
     Returns:
         List of ``(line number, module)`` tuples, one per imported module.
@@ -101,9 +122,10 @@ def _image_side_imports(source: str) -> list[tuple[int, str]]:
     for node in ast.walk(ast.parse(source)):
         if isinstance(node, ast.Import):
             modules = [alias.name for alias in node.names]
-        elif isinstance(node, ast.ImportFrom) and node.module is not None:
+        elif isinstance(node, ast.ImportFrom):
+            module = _imported_module(node, package=package)
             # ``from spindoctor.sim import instrument_catalog`` imports the module itself.
-            modules = [node.module, *(f'{node.module}.{alias.name}' for alias in node.names)]
+            modules = [module, *(f'{module}.{alias.name}' for alias in node.names)]
         else:
             continue
         imports.extend(
@@ -223,7 +245,9 @@ def test_navigator_package_imports_no_image_side_simulator_module(package: str) 
     violations = [
         f'{path.relative_to(_PACKAGE_ROOT).as_posix()}:{lineno}: imports {module}'
         for path in sorted((_PACKAGE_ROOT / package).rglob('*.py'))
-        for lineno, module in _image_side_imports(path.read_text(encoding='utf-8'))
+        for lineno, module in _image_side_imports(
+            path.read_text(encoding='utf-8'), package=_module_package(path)
+        )
     ]
     assert not violations, (
         'navigator-side code imports an image-side simulator module:\n' + '\n'.join(violations)
@@ -232,8 +256,18 @@ def test_navigator_package_imports_no_image_side_simulator_module(package: str) 
 
 def test_import_guard_flags_a_module_import() -> None:
     """The import scanner detects ``from spindoctor.sim import instrument_catalog``."""
-    imports = _image_side_imports('from spindoctor.sim import instrument_catalog\n')
+    imports = _image_side_imports(
+        'from spindoctor.sim import instrument_catalog\n', package='spindoctor.nav_model'
+    )
     assert imports == [(1, 'spindoctor.sim.instrument_catalog')]
+
+
+def test_import_guard_flags_a_relative_import() -> None:
+    """The import scanner resolves ``from ..sim import artifact_modes`` in a navigator module."""
+    imports = _image_side_imports(
+        'from ..sim import artifact_modes\n', package='spindoctor.nav_model'
+    )
+    assert imports == [(1, 'spindoctor.sim.artifact_modes')]
 
 
 def test_atmosphere_guard_covers_the_structure_keys() -> None:
