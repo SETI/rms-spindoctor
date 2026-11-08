@@ -364,8 +364,9 @@ Simulator model
 ===============
 
 **Instrument key.** ``vgiss``, one key for two spacecraft and four cameras.
-That is the model's sharpest simplification and it is documented as such in the
-catalog.
+That is the model's sharpest simplification and it is documented as such in its
+instrument config file, ``src/spindoctor/sim/instrument_configs/vgiss.yaml``,
+which holds the values below.
 
 **PSF kernel.** ``{sigma_v: 0.85, sigma_u: 0.85, w: 1.2e-2, r0: 2.0, n: 3.0}``,
 a **retained interim estimate**. The cohort's one star frame gives eight usable
@@ -378,17 +379,18 @@ Voyager references publish no FWHM to fall back on.
 ``{k1: -6.88e-03, k2: 1.46e-02, nonradial_rms_px: 0.2}``. The non-radial wander
 is non-zero: the resampled vidicon geometry carries coherent tangential
 distortion that a radial polynomial cannot represent. The block is the
-Voyager 2 wide angle measurement, and the catalog says plainly that one key
+Voyager 2 wide angle measurement, and the config file says plainly that one key
 under-represents the spread across two spacecraft and two optics until
 per-camera keys and locked frames for each exist.
 
-**Artifact-mode availability.** This instrument is **not** in the CCD set, so
-the CCD-only modes -- ``radiation_transients`` and ``compression_dct`` -- are
-unavailable to it. It carries five further modes: ``pixel_spikes``,
-``beam_bend`` (the brightness-dependent limb bend), ``residual_image`` (the
-prior-frame ghost), ``reseau_scars`` (the reseau-removal patches left by
-archive processing), and ``resample_texture`` (the geometric resample the
-pipeline's own input has been through). The last two are telemetry-stage modes
+**Artifact-mode availability.** The config file offers ``missing_lines``,
+``partial_lines``, ``edited_frame``, ``line_garble``, ``pixel_spikes``,
+``banding_coherent``, ``bias_structure``, ``dark_ramp``, ``beam_bend`` (the
+brightness-dependent limb bend), ``residual_image`` (the prior-frame ghost),
+``quantization_contour_8bit``, ``fixed_pattern``, ``reseau_scars`` (the
+reseau-removal patches left by archive processing), and ``resample_texture``
+(the geometric resample the pipeline's own input has been through). It does not
+offer ``radiation_transients`` or ``compression_dct``. The last two are telemetry-stage modes
 applied after the structured-loss modes, because they emulate archive
 processing rather than a detector or transmission defect. ``edited_frame``
 defaults to a 440-pixel band, which is this instrument's commanded edited-mode

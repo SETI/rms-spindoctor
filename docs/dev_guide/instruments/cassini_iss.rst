@@ -399,11 +399,13 @@ holdings make multiple reproducing candidates ordinary rather than exceptional.
 Simulator model
 ===============
 
-**Instrument keys.** Four: ``coiss_nac`` and ``coiss_wac`` resolve to the
-``cassini_iss`` block's two detectors, and ``coiss_calib_nac`` and
-``coiss_calib_wac`` to the ``cassini_iss_calib`` block's. The artifact catalog
-aliases the calibrated keys onto the raw ones, so a calibrated scene gets the
-same artifact defaults as its raw counterpart.
+**Instrument keys.** Four, each an instrument config file in
+``src/spindoctor/sim/instrument_configs/`` that holds the values below:
+``coiss_nac`` and ``coiss_wac`` resolve to the ``cassini_iss`` block's two
+detectors, and ``coiss_calib_nac`` and ``coiss_calib_wac`` to the
+``cassini_iss_calib`` block's. Each calibrated file names its raw camera's as
+its ``base`` and states only the calibrated product's own detector terms, so a
+calibrated scene gets the same artifact defaults as its raw counterpart.
 
 **Units.** A ``coiss_calib_*`` frame is in I/F with a ``0`` missing-data marker,
 as the CALIB products are: across 24 CALIB images from four volumes no pixel is
@@ -429,10 +431,9 @@ halo energy that a FWHM-derived core leaves unaccounted for. A first fit at
 from the cohort's two wide angle star frames and nine usable cutouts. Treat it
 as cohort-limited and revisit it when more wide angle star frames land.
 
-:func:`~spindoctor.sim.forward.psf.psf_truncation_for_instrument` truncates
-this instrument's kernels at 32 detector pixels rather than the default 16,
-because the documented wings run further out. The match keys on the ``coiss``
-prefix, so all four instrument keys get the wider window.
+Both raw files state a kernel truncation window (``psf.truncation_px``) of 32
+detector pixels rather than the generic 16, because the documented wings run
+further out, and the calibrated files inherit it.
 
 **Distortion residuals.** ``coiss_nac`` is
 ``{k1: 3.17e-04, k2: -3.51e-04, nonradial_rms_px: 0.0}`` and ``coiss_wac`` is
@@ -440,10 +441,13 @@ prefix, so all four instrument keys get the wider window.
 star-field distortion analysis. The corrected field is sub-pixel and close to
 radially symmetric, which is why the non-radial wander is zero.
 
-**Artifact-mode availability.** Both cameras are in the CCD set and carry the
-whole common surface. They also carry four further modes:
-``bright_dark_pairs``, ``quantization_sqrt_lut``, ``quantization_ls8b`` and
-``partial_lines``. There are no exclusions recorded against either camera key.
+**Artifact-mode availability.** Each raw file offers ``missing_lines``,
+``partial_lines``, ``alternating_lines``, ``truncated_frame``,
+``missing_blocks``, ``dead_pixels``, ``dead_columns``, ``hot_pixels``,
+``banding_coherent``, ``bias_structure``, ``dark_ramp``, ``bloom``,
+``radiation_transients``, ``bright_dark_pairs``, ``quantization_sqrt_lut``,
+``quantization_ls8b``, ``fixed_pattern``, and ``compression_dct``, and the
+calibrated files inherit the list. Neither states an exclusion reason.
 
 **Realism-match status.** The narrow angle PSF is tuned against eleven frames.
 The wide angle PSF rests on two frames.

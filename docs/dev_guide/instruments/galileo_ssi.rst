@@ -242,7 +242,9 @@ midtime_et)`` against each furnished candidate, accepted at 1e-9 radians.
 Simulator model
 ===============
 
-**Instrument key.** ``gossi``, resolving to the flat ``galileo_ssi`` block.
+**Instrument key.** ``gossi``, resolving to the flat ``galileo_ssi`` block. Its
+instrument config file, ``src/spindoctor/sim/instrument_configs/gossi.yaml``,
+holds the values below.
 
 **PSF kernel.** ``{sigma_v: 0.80, sigma_u: 0.80, w: 1.2e-2, r0: 2.0, n: 3.0}``,
 a **retained interim published sigma**. The curated cohort holds no star frames
@@ -256,14 +258,16 @@ simulator support.
 star-field distortion analysis: a ``k2``-dominated pincushion reaching about
 half a pixel at the field corner.
 
-**Artifact-mode availability.** This instrument is in the CCD set, so it
-carries the CCD-only modes (``radiation_transients``, ``compression_dct``) as
-well as every mode declared available to all instruments. It also carries
-``truth_window``, the losslessly-clean commanded carve-out.
-``alternating_lines`` carries a ``keep`` mode for this instrument's vertical
-decimation, rather than the ``drop`` mode that blanks every Nth line. No mode
-records an exclusion reason against this key; the modes it lacks are simply not
-in their availability sets.
+**Artifact-mode availability.** The config file offers ``missing_lines``,
+``alternating_lines``, ``edited_frame``, ``truncated_frame``,
+``missing_blocks``, ``line_garble``, ``dead_pixels``, ``dead_columns``,
+``truth_window`` (the losslessly-clean commanded carve-out), ``cutout_window``,
+``hot_pixels``, ``banding_coherent``, ``bias_structure``, ``dark_ramp``,
+``bloom``, ``radiation_transients``, ``quantization_contour_8bit``,
+``fixed_pattern``, and ``compression_dct``. ``alternating_lines`` defaults to
+its ``keep`` mode for this instrument's vertical decimation, rather than the
+``drop`` mode that blanks every Nth line. The file states no exclusion reason;
+the modes it lacks are simply not in its list.
 
 **Realism-match status.** Unverified. Every optical parameter is a published
 or scaled estimate and the cohort offers nothing to check them against.

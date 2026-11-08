@@ -63,8 +63,10 @@ reproduction path.
 Simulator model
 ===============
 
-Artifact-catalog entries; PSF and distortion parameters; artifact-mode
-availability with the exclusion reasons; realism-match status.
+The instrument config files that hold the simulated camera's values
+(``src/spindoctor/sim/instrument_configs/<name>.yaml``, see the simulator
+chapter); PSF and distortion parameters; the artifact modes each file offers,
+with its exclusion reasons; realism-match status.
 
 Image library and test coverage
 ===============================

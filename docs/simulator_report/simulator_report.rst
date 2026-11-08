@@ -245,8 +245,8 @@ Artifact-rate defaults and provenance
 -------------------------------------
 
 The per-instrument artifact-rate defaults the forward model applies live
-in ``sim/forward/artifacts_catalog.py`` (the ``DETECTOR_DEFAULTS`` block,
-resolved by ``resolve_detector_defaults``).  The two rates the realism
+in each instrument's config file under ``sim/instrument_configs/`` (the
+``detector`` block, resolved by ``resolve_detector_defaults``).  The two rates the realism
 match keys on are the stationary hot-pixel fraction and the transient
 cosmic-ray rate; the table records each instrument's value and where it comes
 from.
@@ -314,8 +314,8 @@ Cassini match quality
 ---------------------
 
 The tuning pass (2026-07-17) adjusted the forward-model defaults in
-``sim/forward/artifacts_catalog.py`` against FOMs 1-6 -- the tuned values
-and their cohort statistics are recorded there -- and this table records
+the instrument config files under ``sim/instrument_configs/`` against FOMs
+1-6 -- the tuned values and their cohort statistics are recorded there -- and this table records
 the headline divergences before that pass and in the current record
 (2026-11-07; normalized W1; smaller is better, ~1 means displaced by one
 real IQR):

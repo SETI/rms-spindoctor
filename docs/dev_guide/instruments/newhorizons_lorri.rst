@@ -263,7 +263,8 @@ Simulator model
 ===============
 
 **Instrument key.** ``nhlorri``, resolving to the flat ``newhorizons_lorri``
-block.
+block. Its instrument config file,
+``src/spindoctor/sim/instrument_configs/nhlorri.yaml``, holds the values below.
 
 **PSF kernel.** ``{sigma_v: 1.13, sigma_u: 0.87, w: 1.2e-2, r0: 2.0, n: 3.0}``,
 **retained interim elliptical values** from the published references for
@@ -279,21 +280,23 @@ star-field distortion analysis. The radial term is a mid-field hump close to
 the measurement floor; this camera's significant geometric signature is the
 twist, not the distortion.
 
-**Artifact-mode availability.** This instrument is in the CCD set, so it
-carries the CCD-only modes (``radiation_transients``, ``compression_dct``) as
-well as every mode declared available to all instruments. It also carries three
-further modes: ``embedded_header`` (the row-0 housekeeping header),
-``frame_transfer_smear``, and ``serial_tail`` (the post-gain DN undershoot
-after saturation).
+**Artifact-mode availability.** The config file offers ``missing_lines``,
+``dead_pixels``, ``dead_columns``, ``embedded_header`` (the row-0 housekeeping
+header), ``cutout_window``, ``banding_coherent``, ``bias_structure``,
+``dark_ramp``, ``radiation_transients``, ``frame_transfer_smear``,
+``serial_tail`` (the post-gain DN undershoot after saturation),
+``fixed_pattern``, and ``compression_dct``. It names ``frame_transfer_smear``
+under ``artifact_modes.instrument_defaults``, so ``instrument_defaults`` turns
+the smear on at its nominal scrub and transfer times.
 
-Two modes record an explicit **exclusion reason** against this key:
+The file states an explicit **exclusion reason** for two modes:
 
 * ``hot_pixels`` -- "explicitly disabled for LORRI, which has none".
 * ``bloom`` -- "explicitly disabled for LORRI, an antiblooming CCD with no
   column bloom".
 
 Those are physical statements rather than gaps in coverage, which is why they
-are recorded as reasons rather than as absences from an availability set. A
+are recorded as reasons rather than as absences from the list. A
 scene that asks for either mode on this instrument is refused with the reason
 quoted back.
 
