@@ -607,6 +607,40 @@ def test_mode_availability_enables_available_row(model: Any) -> None:
     assert 'pixel_fraction' in row.group.toolTip()
 
 
+def test_generic_camera_disables_a_vidicon_only_row(model: Any) -> None:
+    """On the generic camera's CCD chain, a vidicon-only mode's row is disabled."""
+    model.sim_params['instrument'] = 'generic'
+    model._refresh_artifact_mode_availability()
+    assert model._mode_rows['beam_bend'].group.isEnabled() is False
+
+
+def test_a_disabled_chain_row_says_the_chain_does_not_render_it(model: Any) -> None:
+    """A row its detector chain never renders says so in its tooltip."""
+    model.sim_params['instrument'] = 'generic'
+    model._refresh_artifact_mode_availability()
+    tip = model._mode_rows['beam_bend'].group.toolTip()
+    assert 'the selected ccd detector chain does not render it' in tip
+
+
+def _select_detector_model(model: Any, detector_model: str) -> None:
+    """Turn the detector override on and choose a detector model in its combo."""
+    model._detector_group.setChecked(True)
+    model._detector_model_combo.setCurrentText(detector_model)
+
+
+def test_a_vidicon_detector_model_disables_a_ccd_only_row(model: Any) -> None:
+    """Choosing the vidicon detector model disables a CCD-only mode's row."""
+    _select_detector_model(model, 'vidicon')
+    assert model._mode_rows['bloom'].group.isEnabled() is False
+
+
+def test_switching_the_detector_model_back_reenables_the_row(model: Any) -> None:
+    """Choosing the CCD model again re-enables the CCD-only row the vidicon disabled."""
+    _select_detector_model(model, 'vidicon')
+    model._detector_model_combo.setCurrentText('ccd')
+    assert model._mode_rows['bloom'].group.isEnabled() is True
+
+
 def _dead_row(model: Any, mode_name: str = 'dead_pixels') -> Any:
     """Enable a dead-pixel or dead-column row on Cassini NAC and return it."""
     model.sim_params['instrument'] = 'coiss_nac'

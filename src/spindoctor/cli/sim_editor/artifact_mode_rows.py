@@ -23,7 +23,8 @@ controller (the Artifacts-tab mixin), which owns the artifacts block and the
 absent-key discipline -- an unchecked mode leaves its key absent, an enabled mode
 starts as an empty map, and each parameter key appears only once its widget is
 edited.  Availability filtering is per row: a mode unavailable on the scene's
-instrument is disabled with the registry's reason as its tooltip.
+instrument is disabled with the instrument's reason as its tooltip, and a mode
+the scene's detector chain never renders is disabled with a tooltip saying so.
 """
 
 from __future__ import annotations
@@ -380,16 +381,30 @@ class ModeRow:
 
     # ---- Availability ----
 
-    def apply_availability(self, instrument: str | None) -> None:
-        """Enable or disable the row for the scene's instrument.
+    def apply_availability(self, instrument: str | None, detector_model: str) -> None:
+        """Enable or disable the row for the scene's instrument and detector model.
 
-        An unavailable mode is disabled with the registry's reason as its
-        tooltip; an available mode is enabled and carries its activation key's
-        semantics.
+        A mode the instrument does not offer is disabled with the instrument's
+        reason as its tooltip, and a mode the scene's detector chain never renders
+        is disabled with a tooltip saying so; an available mode is enabled and
+        carries its activation key's semantics.
+
+        Parameters:
+            instrument: The scene's instrument name.
+            detector_model: The detector model the scene renders with.
         """
-        available = mode_available(self.mode.name, instrument)
-        self.group.setEnabled(available)
-        if available:
+        if not mode_available(self.mode.name, instrument):
+            reason: str | None = mode_unavailable_message(self.mode.name, instrument)
+        elif detector_model not in self.mode.detector_models:
+            chains = ' and '.join(sorted(self.mode.detector_models))
+            reason = (
+                f'artifact mode {self.mode.name!r} renders only in the {chains} detector '
+                f'chain; the selected {detector_model} detector chain does not render it'
+            )
+        else:
+            reason = None
+        self.group.setEnabled(reason is None)
+        if reason is None:
             self.group.setToolTip(f'{self.mode.activation}: {self.mode.activation_semantics}')
         else:
-            self.group.setToolTip(mode_unavailable_message(self.mode.name, instrument))
+            self.group.setToolTip(reason)

@@ -14,8 +14,10 @@ an editor row with no change here.  The whole tab keeps one discipline: an
 unchecked switch or mode leaves its key absent, an enabled mode starts as an
 empty map, and every parameter key -- including the detector override's -- appears
 only once its widget is edited, so keys the operator never touched track the
-per-instrument catalog defaults.  A mode unavailable on the scene's instrument is
-disabled with the registry's reason as its tooltip.
+per-instrument catalog defaults.  A mode unavailable on the scene's instrument,
+or one the scene's detector chain never renders, is disabled with the reason as
+its tooltip; the rows refresh when the instrument, the detector model, or the
+binning changes.
 
 The detector group is a checkable override for the electron-chain gain state, the
 detector model, the exposure the well fraction references, and the ADC
@@ -43,6 +45,7 @@ from spindoctor.sim.forward.artifact_modes import ARTIFACT_MODES, DETECTOR_MODEL
 from spindoctor.sim.forward.artifacts_catalog import (
     cataloged_binnings,
     resolve_detector_defaults,
+    resolve_detector_model,
     resolve_readout_mode,
 )
 from spindoctor.sim.instrument_schema import QUANTIZATION_MODES
@@ -207,10 +210,19 @@ class ArtifactsTabMixin(SimEditorBase):
         return group
 
     def _refresh_artifact_mode_availability(self) -> None:
-        """Enable or disable each mode row for the scene's instrument."""
+        """Enable or disable each mode row for the scene's instrument and detector model.
+
+        The detector model is the one the scene renders with: its own
+        ``detector.detector_model``, else the camera's default in the scene's
+        readout mode, as the detector resolver reads it.  A row whose mode is
+        already enabled stays enabled in the scene when it becomes unavailable,
+        as on an instrument change; scene validation reports it.
+        """
         instrument = self.sim_params.get('instrument')
+        detector = self.sim_params.get('detector')
+        model = resolve_detector_model(instrument, detector if isinstance(detector, dict) else None)
         for row in self._mode_rows.values():
-            row.apply_availability(instrument)
+            row.apply_availability(instrument, model)
 
     # ---- Detector override group ----
 
@@ -402,6 +414,7 @@ class ArtifactsTabMixin(SimEditorBase):
             self._refresh_detector_catalog_defaults()
         else:
             self.sim_params.pop('detector', None)
+        self._refresh_artifact_mode_availability()
         self._updater.request_update()
 
     def _on_detector_gain_state(self, value: int) -> None:
@@ -412,7 +425,8 @@ class ArtifactsTabMixin(SimEditorBase):
         """Write the readout-mode binning on a selection, then show that mode's defaults.
 
         Refreshing every other key's display keeps an unedited gain state or
-        quantization showing what the scene renders with in the new mode.
+        quantization showing what the scene renders with in the new mode, and the
+        mode rows follow the detector model the new readout mode renders with.
         """
         if not text or self._syncing:
             return
@@ -422,14 +436,20 @@ class ArtifactsTabMixin(SimEditorBase):
             self._show_readout_mode_values(int(self._detector_block().get('binning', 1)))
         finally:
             self._syncing = False
+        self._refresh_artifact_mode_availability()
 
     def _on_detector_exposure_ref(self, value: float) -> None:
         """Write the reference exposure on a spin edit."""
         self._set_detector_key('exposure_ref_sec', float(value))
 
     def _on_detector_model(self, text: str) -> None:
-        """Write the detector model on a combo edit."""
+        """Write the detector model on a combo edit, then refresh the mode rows.
+
+        A mode the new model's chain never renders is disabled, and one it renders
+        is enabled again.
+        """
         self._set_detector_key('detector_model', text or 'ccd')
+        self._refresh_artifact_mode_availability()
 
     def _on_detector_quantization(self, text: str) -> None:
         """Write the quantization sub-mode on a combo edit."""

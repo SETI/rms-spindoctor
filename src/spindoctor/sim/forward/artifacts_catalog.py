@@ -36,6 +36,7 @@ __all__ = [
     'resolve_calibrated_sky_if',
     'resolve_detector_defaults',
     'resolve_detector_id',
+    'resolve_detector_model',
     'resolve_distortion_residual',
     'resolve_downlink_table',
     'resolve_mode_with_catalog',
@@ -433,6 +434,36 @@ def resolve_detector_defaults(instrument: str | None) -> dict[str, Any]:
     if shape_defaults is not None:
         defaults['artifact_modes'] = copy.deepcopy(shape_defaults)
     return defaults
+
+
+def resolve_detector_model(instrument: str | None, detector: Mapping[str, Any] | None) -> str:
+    """The detector model a scene renders with, read as the detector resolver reads it.
+
+    The scene's own ``detector.detector_model`` wins; otherwise the camera's
+    default in the scene's readout mode (the mode's values over the native ones).
+    A null key reads as absent, as it does everywhere in the detector resolver.
+
+    Parameters:
+        instrument: The sim instrument name, an alias, or ``None``.
+        detector: The scene ``detector`` block, or None when the scene has none.
+
+    Returns:
+        The detector model, one of
+        :data:`~spindoctor.sim.forward.artifact_modes.DETECTOR_MODELS`.
+
+    Raises:
+        ValueError: If the instrument is not in the catalog.
+    """
+    block = detector or {}
+    model = block.get('detector_model')
+    if model is not None:
+        return str(model)
+    binning = block.get('binning')
+    catalog = {
+        **resolve_detector_defaults(instrument),
+        **resolve_readout_mode(instrument, 1 if binning is None else binning),
+    }
+    return str(catalog['detector_model'])
 
 
 def resolve_mode_with_catalog(
