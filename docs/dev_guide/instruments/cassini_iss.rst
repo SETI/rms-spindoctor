@@ -410,9 +410,41 @@ as the CALIB products are: across 24 CALIB images from four volumes no pixel is
 ``NaN``, and exact zeros appear only on the lines the index reports missing. A
 lost pixel reads 0, and the dark sky sits on the 4.0e-5 I/F calibrated sky
 residual, the median sky of 13 dark NAC CALIB frames, so it reads as dark and
-never as missing (see :ref:`Instruments <sim-instruments>`). Under
-``instrument_defaults`` the sky scatters around 0, with about 28% of a disc
-frame's pixels below it, as on the real frames.
+never as missing (see :ref:`Instruments <sim-instruments>`). The simulator also
+uses that value for an instrument a scene pins to calibrated I/F when the
+instrument's detector catalog entry doesn't set a sky residual.
+Those real frames' sky scatters around 0 with a sigma of 1.9e-4 I/F, and under
+``instrument_defaults`` about 28% of the pixels of a disc scene a third of the
+frame across sit below 0, down to about -0.0006, as on the real frames. The
+chain's DN ceiling applies before the calibration inverse, so a
+``coiss_calib_nac`` frame tops out at about 2.0 I/F at the reference exposure.
+
+**Calibration residual.** CISSCAL subtracts per-pixel models from integer DN,
+and their mismatch leaves a pattern the raw frame doesn't carry (see
+:ref:`Instruments <sim-instruments>` for the two keys). On real NAC CALIB frames
+the column pattern repeats from frame to frame (correlation 0.93) at 15 e- rms,
+and the per-pixel term measures 9.4 e-; the WAC measures 30 e- for each. On the
+NAC the two lift the calibrated sky noise at gain state 2 from the raw frame's
+0.6 DN to about 0.9 DN-equivalent, as on the real products.
+
+**Downlink table.** The two cameras share the 12-to-8-bit downlink table the
+``sqrt_lut`` quantization decodes through (see :ref:`sim-detector-stage`),
+measured from the 26 TABLE frames of the CALIB cohort. The calibrated
+DN-equivalent step between consecutive raw codes is an integer that grows by
+one about every ten codes: 3 DN near code 10, 5 near 25, 8 near 55, 13 near
+100, and 24 near 200. Code ``c`` decodes to ``round(2 * c + 0.055 * c**2)`` DN
+(``codes`` 256, ``linear_dn`` 2, ``quadratic_dn`` 0.055, ``whole_dn`` true),
+which reproduces those steps and tops out at 4086 DN at code 255. Near a dark
+sky the step is 3 to 4 DN, against 1 DN in a 12-bit frame, so a TABLE frame's
+calibrated sky is several times noisier than a 12-bit frame's.
+
+**Readout dark and cosmic rays.** The raw dark sky rises linearly from the
+first line to the last at every exposure, by 55 e- on the NAC and 33 e- on the
+WAC, and ``readout_dark_e`` catalogs those rises. The cosmic-ray terms, fitted in closed loop to the
+NAC's 12-bit dark-sky frames and shared by the WAC, are a rate of 2.0e-5 events
+per pixel per second, a 6 s readout dwell, a 1,000 e- deposit scale, and 0.6
+native pixels of diffusion; the simulator report's artifact-rate table gives
+the fit's evidence.
 
 **PSF kernels.** ``coiss_nac`` is
 ``{sigma_v: 0.70, sigma_u: 0.70, w: 0.12, r0: 3.0, n: 4.0}``, tuned against the
@@ -440,10 +472,10 @@ prefix, so all four instrument keys get the wider window.
 star-field distortion analysis. The corrected field is sub-pixel and close to
 radially symmetric, which is why the non-radial wander is zero.
 
-**Artifact-mode availability.** Both cameras are in the CCD set and carry the
-whole common surface. They also carry four further modes:
-``bright_dark_pairs``, ``quantization_sqrt_lut``, ``quantization_ls8b`` and
-``partial_lines``. There are no exclusions recorded against either camera key.
+**Artifact-mode availability.** The simulator guide's mode tables
+(:ref:`sim-telemetry-modes` and :ref:`sim-detector-modes`) give each mode's
+cameras. Both cameras are in the CCD set, and no mode records an exclusion
+against either camera key.
 
 **Realism-match status.** The narrow angle PSF is tuned against eleven frames.
 The wide angle PSF rests on two frames.

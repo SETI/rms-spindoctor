@@ -279,12 +279,9 @@ star-field distortion analysis. The radial term is a mid-field hump close to
 the measurement floor; this camera's significant geometric signature is the
 twist, not the distortion.
 
-**Artifact-mode availability.** This instrument is in the CCD set, so it
-carries the CCD-only modes (``radiation_transients``, ``compression_dct``) as
-well as every mode declared available to all instruments. It also carries three
-further modes: ``embedded_header`` (the row-0 housekeeping header),
-``frame_transfer_smear``, and ``serial_tail`` (the post-gain DN undershoot
-after saturation).
+**Artifact-mode availability.** The simulator guide's mode tables
+(:ref:`sim-telemetry-modes` and :ref:`sim-detector-modes`) give each mode's
+cameras. This instrument is in the CCD set.
 
 Two modes record an explicit **exclusion reason** against this key:
 
@@ -296,6 +293,11 @@ Those are physical statements rather than gaps in coverage, which is why they
 are recorded as reasons rather than as absences from an availability set. A
 scene that asks for either mode on this instrument is refused with the reason
 quoted back.
+
+**Cosmic rays.** The catalog rate is a retained zero. The cohort's measured
+3.36e-4 transient fraction comes from two 4x4-binned star frames, where a binned
+faint star can't be told from a single-pixel transient, so it can't be adopted
+as a rate until a non-star frame joins the library.
 
 **Realism-match status.** Unverified for the unbinned readout mode, which is
 what the kernel describes. The binned frames the cohort holds are measured but
