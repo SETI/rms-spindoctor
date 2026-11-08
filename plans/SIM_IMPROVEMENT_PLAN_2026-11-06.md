@@ -67,6 +67,8 @@ offsets is the correlation refinement clamp, a navigator defect scheduled in Pha
 These make every later phase cheaper or safer. Most are small. The framing part of #914 and
 all of #924 are on main: the docs say simulated results are reproducibility and
 self-consistency, and each camera's simulator values are stated once, on its instrument page.
+#876 is on main too: each simulated camera's values come from its own validated config file, so
+adding a camera or a readout mode is a configuration entry.
 
 | Issue | Subject | Why now |
 |---|---|---|
@@ -75,7 +77,6 @@ self-consistency, and each camera's simulator values are stated once, on its ins
 | #872 | The baseline regenerator imports whichever installed package it finds | Regenerated baselines must come from the checkout under test before the churn starts. |
 | #900, #813 | Validation skips the render path; null body keys crash; the navigator's simulated ring model reads nullable keys unsafely | Typed per-block specs on every entry point, with null meaning absent; the first slice of #915. |
 | #913 | `axis1`, `axis2`, and `axis3` are full widths named like semi-axes | Rename before more scenes are written in the old names. |
-| #876 | Per-instrument tables in one validated YAML file | Adding a camera or a readout mode becomes a configuration entry; Phase 4's instrument work depends on it. |
 | #912, #126 | Correlation FFTs at slow sizes; the disc correlation's rotation search runs 19 full pyramid evaluations | Make full-frame scenes affordable in the integration tier; #904 and #908 both need it. |
 | #854 | Simulated stars clip below the navigator's saturation level | Small; star brightness is wrong until it lands. |
 | #925 | The realism match compares mismatched content on content-filled and narrowband frames | Compare sky noise on comparable content and scale the matched star ladder by filter throughput, so the statistics the regression check holds to measure only the simulator. Then settle whether the TABLE path is too quiet. |
@@ -84,8 +85,7 @@ self-consistency, and each camera's simulator values are stated once, on its ins
 
 **Exit:** changing the signal in one region of a frame leaves the noise elsewhere in that frame
 unchanged; validation scenes assert against their planted truth; a null body key behaves exactly
-as an absent one on every entry point; the realism match fails on a planted regression; adding a
-camera's tables is a YAML edit.
+as an absent one on every entry point; the realism match fails on a planted regression.
 
 ## Phase 2: rendering correctness
 
@@ -201,6 +201,7 @@ model does not gain them.
 | #806 | One `vgiss` key for four cameras; split per spacecraft and camera |
 | #907 | GEOMED plate scale, beam-bend sign, reseau lattice, and a fixed DN scale with no exposure term |
 | #804 | Noise keys inert on the vidicon and on calibrated frames |
+| #935 | The vidicon chain renders no fixed-pattern structure, so `vgiss` does not offer `fixed_pattern`; measure the residual pattern on calibrated frames before adding a stage |
 | #355 | Distortion and twist per camera once the split keys exist (deferred until star navigation locks enough frames per camera) |
 
 **4f. Filters beyond Cassini throughput:**
@@ -233,7 +234,7 @@ pipeline unchanged. The `NavModel*Simulated` models stay for idealized scenes an
 #843 close for the real-geometry path when production models navigate its frames, and #311 guards
 whatever mirrors remain. #843 also depends on #842 (Phase 2).
 
-Prerequisites: #876 (Phase 1); #901, #890, #825, and #842 (Phase 2); #898 and #837 (Phase 3);
+Prerequisites: #901, #890, #825, and #842 (Phase 2); #898 and #837 (Phase 3);
 #895, #896, #909, and #910 (Phase 4a and 4b).
 
 **Exit:** every library class has a twin generator; twins navigate through production code in the
@@ -339,7 +340,6 @@ Phase 0 -> Phase 1 -> Phase 2 -> Phase 2b
                         +-> Phase 3 ----------------+
                         +-> Phase 4a, 4b -----------+-> Phase 5 -> Phase 6 -> Phase 7
                         +-> Phase 4c-4f (parallel with Phase 5)
-Phase 1 (#876) -> Phase 4d-4f, Phase 5
 Track R: #334, #225, #342 now -> #230 real-frame part;
          #230 remainder, then #153's other parts, after Phase 6
 Track O: needs #126 (Phase 1); joins Phase 5 for Voyager Uranus twins
