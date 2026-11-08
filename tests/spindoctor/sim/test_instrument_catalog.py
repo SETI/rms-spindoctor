@@ -361,6 +361,21 @@ _REFUSED: list[tuple[dict[str, str], str, str]] = [
         'generic-without-a-calibrated-sky',
     ),
     (
+        {'cam.yaml': _with(_OFFERED, 'offered: [beam_bend]')},
+        r"cam\.yaml: artifact_modes\.offered: 'beam_bend' renders only in the vidicon "
+        r'detector chain; a ccd detector never applies it',
+        'offered-mode-the-chain-never-applies',
+    ),
+    (
+        {
+            'cam.yaml': 'base: generic\nartifact_modes:\n  instrument_defaults:\n'
+            + '    residual_image: {probability: 1.0}\n'
+        },
+        r"cam\.yaml: artifact_modes\.instrument_defaults\.residual_image: 'residual_image' "
+        r'renders only in the vidicon detector chain',
+        'default-mode-the-chain-never-applies',
+    ),
+    (
         {'cam.yaml': 'base: coiss_nac\naliases: [x, null]\n'},
         r'cam\.yaml: aliases\[1\]: a list item cannot be null',
         'null-list-item',
@@ -552,6 +567,35 @@ def test_a_camera_added_as_a_file_states_why_a_mode_is_unavailable(fictional_cam
     """A scene naming a mode the camera does not offer fails with the file's reason."""
     scene = {**_fictional_scene(fictional_camera), 'artifacts': {'hot_pixels': {}}}
     with pytest.raises(SimSceneValidationError, match='the fictional camera has none'):
+        validate_sim_params(scene)
+
+
+@pytest.mark.parametrize(
+    ('instrument', 'detector', 'mode', 'model'),
+    [
+        ('generic', None, 'beam_bend', 'ccd'),
+        ('generic', {'detector_model': 'vidicon'}, 'fixed_pattern', 'vidicon'),
+    ],
+    ids=['instrument-model', 'scene-model'],
+)
+def test_a_scene_naming_a_mode_its_detector_chain_ignores_fails(
+    instrument: str, detector: dict[str, Any] | None, mode: str, model: str
+) -> None:
+    """A scene may name a mode only when its detector model's chain applies it."""
+    scene: dict[str, Any] = {
+        'instrument': instrument,
+        'size_v': 32,
+        'size_u': 32,
+        'random_seed': 1,
+        'artifacts': {mode: {'probability': 1.0}},
+    }
+    if detector is not None:
+        scene['detector'] = detector
+    with pytest.raises(
+        SimSceneValidationError,
+        match=rf"artifact mode '{mode}' renders only in the .* detector chain; this scene "
+        rf'renders with detector_model {model}',
+    ):
         validate_sim_params(scene)
 
 

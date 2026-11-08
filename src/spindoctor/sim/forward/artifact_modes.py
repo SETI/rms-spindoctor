@@ -57,7 +57,9 @@ from typing import Any
 __all__ = [
     'ACTIVATION_KEYS',
     'ARTIFACT_MODES',
+    'CCD_MODEL',
     'COUNT_ACTIVATION_KEYS',
+    'DETECTOR_MODELS',
     'DETECTOR_MODE_ORDER',
     'EXPECTED_EVENTS',
     'EXPECTED_EVENTS_PER_SEC',
@@ -67,6 +69,7 @@ __all__ = [
     'STRUCTURED_LOSS_ORDER',
     'TELEMETRY_POST_LOSS_ORDER',
     'TELEMETRY_PRE_LOSS_ORDER',
+    'VIDICON_MODEL',
     'ArtifactMode',
     'ModeParam',
     'resolve_mode_config',
@@ -95,6 +98,17 @@ class ModeParam:
     choices: tuple[Any, ...] | None = None
     length: int | None = None
 
+
+# The detector models, each a chain the detector stage implements: the CCD
+# electron chain and the vidicon DN chain.
+CCD_MODEL = 'ccd'
+VIDICON_MODEL = 'vidicon'
+DETECTOR_MODELS: tuple[str, ...] = (CCD_MODEL, VIDICON_MODEL)
+
+# The models a mode renders under: every model, or one chain's alone.
+_EVERY_MODEL: frozenset[str] = frozenset(DETECTOR_MODELS)
+_CCD_ONLY: frozenset[str] = frozenset({CCD_MODEL})
+_VIDICON_ONLY: frozenset[str] = frozenset({VIDICON_MODEL})
 
 # The four activation keys.  Each mode carries exactly one of them as its first
 # parameter; which one is part of the mode's registry entry.
@@ -147,6 +161,10 @@ class ArtifactMode:
         activation: The mode's activation key, one of :data:`ACTIVATION_KEYS`.
         activation_semantics: Human-readable meaning of the activation key for
             the mode, for the sim editor's tooltip and the developer guide.
+        detector_models: The detector models whose chain applies the mode.  A
+            telemetry-stage mode acts on the frame whatever its detector, and a
+            detector-stage mode only where its chain has a stage for it, so a
+            camera or scene whose model is not listed never renders it.
     """
 
     name: str
@@ -155,6 +173,7 @@ class ArtifactMode:
     params: tuple[ModeParam, ...]
     activation: str
     activation_semantics: str
+    detector_models: frozenset[str] = _EVERY_MODEL
 
     @property
     def param_map(self) -> dict[str, ModeParam]:
@@ -194,6 +213,7 @@ def _detector_mode(
     *extra_params: ModeParam,
     activation: str,
     activation_semantics: str,
+    detector_models: frozenset[str] = _EVERY_MODEL,
 ) -> ArtifactMode:
     """Build an implemented detector-stage electronics mode led by its activation key."""
     return ArtifactMode(
@@ -203,6 +223,7 @@ def _detector_mode(
         params=(_ACTIVATION_PARAMS[activation], *extra_params),
         activation=activation,
         activation_semantics=activation_semantics,
+        detector_models=detector_models,
     )
 
 
@@ -334,6 +355,8 @@ _IMPLEMENTED_MODES: tuple[ArtifactMode, ...] = (
         activation_semantics=(
             'the fraction of detector pixels that are hot, a spatial density in [0, 1]'
         ),
+        # The vidicon DN chain has no hot-pixel stage.
+        detector_models=_CCD_ONLY,
     ),
 )
 
@@ -380,6 +403,7 @@ _DETECTOR_MODES: tuple[ArtifactMode, ...] = (
         ModeParam('bloom_length', 'positive_int', None),
         activation=PROBABILITY,
         activation_semantics='per-frame probability the electron-domain column bloom is active',
+        detector_models=_CCD_ONLY,
     ),
     _detector_mode(
         'radiation_transients',
@@ -391,6 +415,7 @@ _DETECTOR_MODES: tuple[ArtifactMode, ...] = (
             'a Poisson expected count of radiation spikes per second; the frame expects this '
             'times environment_factor times (exposure_sec + readout_dwell_sec)'
         ),
+        detector_models=_CCD_ONLY,
     ),
     _detector_mode(
         'bright_dark_pairs',
@@ -400,6 +425,7 @@ _DETECTOR_MODES: tuple[ArtifactMode, ...] = (
             'a Poisson expected count of bright/dark pairs per second of exposure; the frame '
             'expects this times exposure_sec'
         ),
+        detector_models=_CCD_ONLY,
     ),
     _detector_mode(
         'frame_transfer_smear',
@@ -407,6 +433,7 @@ _DETECTOR_MODES: tuple[ArtifactMode, ...] = (
         ModeParam('t_transfer_sec', 'nonneg_number', None),
         activation=PROBABILITY,
         activation_semantics='per-frame probability the frame-transfer smear is applied',
+        detector_models=_CCD_ONLY,
     ),
     _detector_mode(
         'serial_tail',
@@ -416,12 +443,14 @@ _DETECTOR_MODES: tuple[ArtifactMode, ...] = (
         ModeParam('saturation_frac', 'unit_interval', 0.99),
         activation=PROBABILITY,
         activation_semantics='per-frame probability the saturation serial tail is applied',
+        detector_models=_CCD_ONLY,
     ),
     _detector_mode(
         'beam_bend',
         ModeParam('amplitude_px', 'nonneg_number', 1.0),
         activation=PROBABILITY,
         activation_semantics='per-frame probability the brightness-dependent limb bend is applied',
+        detector_models=_VIDICON_ONLY,
     ),
     _detector_mode(
         'residual_image',
@@ -430,6 +459,7 @@ _DETECTOR_MODES: tuple[ArtifactMode, ...] = (
         ModeParam('offset_px', 'int_list', None, length=2),
         activation=PROBABILITY,
         activation_semantics='per-frame probability the prior-frame ghost is added',
+        detector_models=_VIDICON_ONLY,
     ),
     _detector_mode(
         'quantization_sqrt_lut',
@@ -459,6 +489,7 @@ _DETECTOR_MODES: tuple[ArtifactMode, ...] = (
         ModeParam('dust_donut_count', 'nonneg_int', None),
         activation=PROBABILITY,
         activation_semantics='per-frame probability the static fixed-pattern composite is applied',
+        detector_models=_CCD_ONLY,
     ),
 )
 

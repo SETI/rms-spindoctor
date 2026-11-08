@@ -92,7 +92,8 @@ def check_entry(entry: Mapping[str, Any], *, source: str) -> None:
     canonically, keys no polarizer, and holds the clear filter and each polarizer's
     clear element, each downlink table has one form and decodes to at least two
     levels, none negative, and the default names one of them, and every artifact
-    mode the entry names is one it offers.
+    mode the entry names is one it offers and one its detector model's chain
+    applies.
 
     Parameters:
         entry: The instrument's mapping after inheritance.
@@ -109,7 +110,7 @@ def check_entry(entry: Mapping[str, Any], *, source: str) -> None:
     model = entry['detector']['detector_model']
     _check_filters(entry.get('filters'), model=model, source=source)
     _check_downlink_tables(entry.get('downlink_tables'), source=source)
-    _check_artifact_modes(entry['artifact_modes'], source=source)
+    _check_artifact_modes(entry['artifact_modes'], model=model, source=source)
 
 
 def _check_detector(detector: Mapping[str, Any], *, source: str) -> None:
@@ -361,8 +362,12 @@ def _check_decoded_levels(
         )
 
 
-def _check_artifact_modes(modes: Mapping[str, Any], *, source: str) -> None:
-    """Check that every mode the entry names is one it offers (or, for a reason, not)."""
+def _check_artifact_modes(modes: Mapping[str, Any], *, model: str, source: str) -> None:
+    """Check that every mode the entry names is one it offers (or, for a reason, not).
+
+    A mode the entry lists, gives shape defaults, or turns on must also be one the
+    detector model's chain applies, or a scene enabling it would render nothing.
+    """
     offered = modes['offered']
     offered_set = set(ARTIFACT_MODES) if offered == OFFER_EVERY_MODE else set(offered)
     for section in (SHAPE_DEFAULTS, INSTRUMENT_DEFAULTS):
@@ -373,6 +378,18 @@ def _check_artifact_modes(modes: Mapping[str, Any], *, source: str) -> None:
                     f'artifact_modes.{section}.{name}',
                     f'{name!r} is not in artifact_modes.offered',
                 )
+    named = [] if offered == OFFER_EVERY_MODE else [('offered', name) for name in offered]
+    for section in (SHAPE_DEFAULTS, INSTRUMENT_DEFAULTS):
+        named.extend((f'{section}.{name}', name) for name in modes.get(section) or {})
+    for key, name in named:
+        models = ARTIFACT_MODES[name].detector_models
+        if model not in models:
+            raise config_error(
+                source,
+                f'artifact_modes.{key}',
+                f'{name!r} renders only in the {" and ".join(sorted(models))} detector chain; '
+                f'a {model} detector never applies it',
+            )
     for name, scene_map in (modes.get(INSTRUMENT_DEFAULTS) or {}).items():
         path = f'artifact_modes.{INSTRUMENT_DEFAULTS}.{name}'
         if name not in DETECTOR_MODE_ORDER:

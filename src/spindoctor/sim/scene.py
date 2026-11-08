@@ -301,7 +301,12 @@ def validate_sim_params(
     _check_ring_system(sim_params.get('ring_system'), source=source)
     _check_optics(sim_params.get('optics'), source=source)
     _check_detector(sim_params.get('detector'), instrument=instrument, source=source)
-    _check_artifacts(sim_params.get('artifacts'), instrument=instrument, source=source)
+    _check_artifacts(
+        sim_params.get('artifacts'),
+        instrument=instrument,
+        detector=sim_params.get('detector'),
+        source=source,
+    )
     _check_downlink_table_used(
         sim_params.get('detector'),
         sim_params.get('artifacts'),

@@ -110,7 +110,6 @@ artifact_modes:
     - beam_bend
     - residual_image
     - quantization_contour_8bit
-    - fixed_pattern
     - reseau_scars
     - resample_texture
   # Per-mode shape defaults, estimated, all GEOMED-level: the beam-bend limb

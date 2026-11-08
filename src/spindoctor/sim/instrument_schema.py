@@ -28,7 +28,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
-from spindoctor.sim.forward.artifact_modes import ARTIFACT_MODES, ModeParam
+from spindoctor.sim.forward.artifact_modes import ARTIFACT_MODES, DETECTOR_MODELS, ModeParam
 
 __all__ = [
     'CATALOG_BLIND_MODES',
@@ -68,10 +68,6 @@ OFFER_EVERY_MODE = 'all'
 # reference itself, the alternative names, and the real cameras the realism match
 # pairs with the entry, each of which belongs to one entry only.
 NON_INHERITED_KEYS: frozenset[str] = frozenset({'base', 'aliases', 'realism_cohort'})
-
-# The detector models the detector stage implements: the CCD electron chain and the
-# vidicon DN chain.  The order is the order the sim editor lists them in.
-DETECTOR_MODELS: tuple[str, ...] = ('ccd', 'vidicon')
 
 # Quantization sub-modes: 'exact' rounds to integer DN (uniform bins); the ADC modes
 # reproduce a coarse or uneven ADC's histogram structure, and 'sqrt_lut' companding

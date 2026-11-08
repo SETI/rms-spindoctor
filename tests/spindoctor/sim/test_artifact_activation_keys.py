@@ -67,6 +67,13 @@ def _scene(artifacts: dict[str, Any], instrument: str = 'generic') -> dict[str, 
     }
 
 
+def _scene_for(mode_name: str, artifacts: dict[str, Any]) -> dict[str, Any]:
+    """A generic scene whose detector model is one the mode renders under."""
+    scene = _scene(artifacts)
+    scene['detector'] = {'detector_model': min(ARTIFACT_MODES[mode_name].detector_models)}
+    return scene
+
+
 def _expected_key(mode_name: str) -> str:
     """The activation key the mode's mechanic calls for."""
     if mode_name in _COUNT_MODES:
@@ -130,13 +137,13 @@ def test_probability_and_pixel_fraction_above_one_are_refused(mode_name: str) ->
     """A probability or pixel fraction above 1 fails validation."""
     key = _expected_key(mode_name)
     with pytest.raises(SimSceneValidationError, match=rf'{mode_name}\.{key} must lie in \[0, 1\]'):
-        validate_sim_params(_scene({mode_name: {key: 1.5}}))
+        validate_sim_params(_scene_for(mode_name, {mode_name: {key: 1.5}}))
 
 
 @pytest.mark.parametrize('mode_name', _UNIT_INTERVAL_MODES)
 def test_probability_and_pixel_fraction_of_one_validate(mode_name: str) -> None:
     """The closed upper bound 1 is a valid probability or pixel fraction."""
-    validate_sim_params(_scene({mode_name: {_expected_key(mode_name): 1.0}}))
+    validate_sim_params(_scene_for(mode_name, {mode_name: {_expected_key(mode_name): 1.0}}))
 
 
 @pytest.mark.parametrize('mode_name', _POISSON_MODES)

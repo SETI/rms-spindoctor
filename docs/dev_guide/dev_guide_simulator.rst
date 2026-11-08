@@ -944,8 +944,10 @@ isn't valid YAML or writes a key twice. Within a file, the load fails on:
   ``expected_events``, and the others) or ``count`` in ``shape_defaults``, which
   never turns a mode on; a shape default for ``hot_pixels``, whose shape comes
   from the ``detector`` block's hot-pixel terms; an ``instrument_defaults`` entry
-  without a positive activation key; an unavailability reason for a mode the file
-  offers; a filter or polarizer spelled other than canonically; and a
+  without a positive activation key; an artifact mode offered, given shape
+  defaults, or turned on whose detector stage the file's detector model doesn't
+  have (see the detector-stage modes below); an unavailability reason for a mode
+  the file offers; a filter or polarizer spelled other than canonically; and a
   filter table key holding a polarizer, which a scene's filter folds onto its
   wheel's clear element before lookup.
 
@@ -1295,6 +1297,17 @@ PRNU multiplicative pre-Poisson, serial tail as a post-gain DN undershoot). The
 :data:`~spindoctor.sim.forward.artifact_modes.DETECTOR_MODE_ORDER` fixes only
 which mode's truth record is written first.
 
+Each mode renders only in the chains that have a stage for it, which its
+registry entry lists as
+:attr:`~spindoctor.sim.forward.artifact_modes.ArtifactMode.detector_models`.
+``hot_pixels``, ``bloom``, ``radiation_transients``, ``bright_dark_pairs``,
+``frame_transfer_smear``, ``serial_tail``, and ``fixed_pattern`` act in the CCD
+electron chain alone; ``beam_bend`` and ``residual_image`` act in the vidicon DN
+chain alone; the rest act in both. A config file may not offer, give shape
+defaults to, or turn on a mode its detector model never renders, and scene
+validation refuses a scene that names one under the detector model it renders
+with (its own ``detector.detector_model``, else its camera's).
+
 .. list-table::
    :header-rows: 1
    :widths: 18 44 20 18
@@ -1361,7 +1374,7 @@ which mode's truth record is written first.
      - ``probability``
    * - ``fixed_pattern``
      - a static PRNU / vignetting / stitch / jail-bar / dust composite
-     - all
+     - all CCD
      - ``probability``
 
 Precedence

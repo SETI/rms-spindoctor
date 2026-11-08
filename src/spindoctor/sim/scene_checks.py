@@ -566,25 +566,28 @@ def _check_detector_filter(value: dict[str, Any], *, instrument: str, source: st
         raise SimSceneValidationError(f'{source}: detector.filter: {exc}') from exc
 
 
-def _check_artifacts(value: Any, *, instrument: str, source: str) -> None:
+def _check_artifacts(value: Any, *, instrument: str, detector: Any, source: str) -> None:
     """Validate the scene-level ``artifacts`` block against the mode registry.
 
     Beyond the two switch keys, the block is keyed by exactly the artifact-mode
     registry (unknown keys fail).  A mode that has no implementation yet fails
-    as not-yet-implemented, and a mode the scene's instrument does not offer
-    fails with the reason the instrument's config file states, or with a list of
-    the instruments that offer it.  Each present mode's parameters are then
+    as not-yet-implemented, a mode the scene's instrument does not offer fails
+    with the reason the instrument's config file states, or with a list of the
+    instruments that offer it, and a mode the scene's detector model's chain
+    never applies fails as such.  Each present mode's parameters are then
     type-checked against its schema.
 
     Parameters:
         value: The ``artifacts`` mapping, or None when the block is absent.
         instrument: The scene's (already validated) instrument name, used to
             check per-mode availability.
+        detector: The scene's (already validated) ``detector`` block, or None,
+            whose ``detector_model`` overrides the instrument's.
         source: Label used in error messages.
 
     Raises:
         SimSceneValidationError: On any unknown, unimplemented, unavailable, or
-            mistyped artifacts field.
+            mistyped artifacts field, or a mode the detector model never renders.
     """
     if value is None:
         return
@@ -597,12 +600,28 @@ def _check_artifacts(value: Any, *, instrument: str, source: str) -> None:
         value.get('instrument_defaults'), 'artifacts.instrument_defaults', source=source
     )
     _check_optional_bool(value.get('adversarial'), 'artifacts.adversarial', source=source)
+    model = _resolved_detector_model(detector, instrument=instrument)
     for mode_name in set(value) & MODE_KEYS:
-        _check_artifact_mode(mode_name, value[mode_name], instrument=instrument, source=source)
+        _check_artifact_mode(
+            mode_name, value[mode_name], instrument=instrument, model=model, source=source
+        )
 
 
-def _check_artifact_mode(mode_name: str, config: Any, *, instrument: str, source: str) -> None:
-    """Validate one artifact-mode map: availability, implementation, and params.
+def _resolved_detector_model(detector: Any, *, instrument: str) -> str:
+    """The detector model a scene renders with: its own, else its instrument's.
+
+    A null ``detector_model`` reads as absent, as the detector resolver reads it.
+    """
+    model = detector.get('detector_model') if isinstance(detector, dict) else None
+    if model is None:
+        model = resolve_detector_defaults(instrument)['detector_model']
+    return str(model)
+
+
+def _check_artifact_mode(
+    mode_name: str, config: Any, *, instrument: str, model: str, source: str
+) -> None:
+    """Validate one artifact-mode map: availability, implementation, chain, and params.
 
     An unknown key fails, and a map that sets both ``count`` and
     ``expected_events`` to a value (``dead_pixels``, ``dead_columns``) fails as
@@ -621,6 +640,12 @@ def _check_artifact_mode(mode_name: str, config: Any, *, instrument: str, source
     if not mode_available(mode_name, instrument):
         raise SimSceneValidationError(
             f'{source}: {mode_unavailable_message(mode_name, instrument)}'
+        )
+    if model not in mode.detector_models:
+        raise SimSceneValidationError(
+            f'{source}: artifact mode {mode_name!r} renders only in the '
+            f'{" and ".join(sorted(mode.detector_models))} detector chain; this scene renders '
+            f'with detector_model {model}'
         )
     param_map = mode.param_map
     unknown = set(config) - set(param_map)

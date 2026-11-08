@@ -387,13 +387,13 @@ per-camera keys and locked frames for each exist.
 ``partial_lines``, ``edited_frame``, ``line_garble``, ``pixel_spikes``,
 ``banding_coherent``, ``bias_structure``, ``dark_ramp``, ``beam_bend`` (the
 brightness-dependent limb bend), ``residual_image`` (the prior-frame ghost),
-``quantization_contour_8bit``, ``fixed_pattern``, ``reseau_scars`` (the
+``quantization_contour_8bit``, ``reseau_scars`` (the
 reseau-removal patches left by archive processing), and ``resample_texture``
 (the geometric resample the pipeline's own input has been through).
 ``reseau_scars`` and ``resample_texture`` are telemetry-stage modes applied
 after the structured-loss modes, because they emulate archive processing rather
 than a detector or transmission defect. The file does not offer
-``radiation_transients`` or ``compression_dct``.
+``fixed_pattern``, ``radiation_transients``, or ``compression_dct``.
 
 The file's shape defaults give ``edited_frame`` a 440-pixel band, one of the
 commanded edited-mode band widths (608, 440, 272, 160, and 80 of the 800-pixel
