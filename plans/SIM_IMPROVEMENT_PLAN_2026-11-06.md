@@ -54,20 +54,16 @@ kilometer radii, and #896 keeps an authored shadow beside the geometric one.
 - **One fact, one issue.** Each phase names the issues it closes; anything found along the way is
   filed, not folded silently into a PR.
 
-## Phase 0: land the open stack
+## Phase 0: attribute the calibrated disc bias
 
-| Issue or PR | Subject |
+The calibrated Cassini noise floor (#886), fitted cosmic-ray hits (#887), and calibrated sweeps
+through the full instrument chain (#888) are on main. One item follows them directly.
+
+| Issue | Subject |
 |---|---|
-| #886 | Calibrated Cassini noise floor: filter scale, readout dark, calibration residuals, and the measured Cassini 12-to-8-bit decode table |
-| #887 | Fitted cosmic-ray hits on the Cassini cameras and Galileo SSI |
-| #888 | Calibrated sweeps through the full instrument chain |
 | #916 | Attribute the calibrated disc correlation's sub-pixel bias that #888 reports |
 
-Merge #886, #887, and #888 in order and confirm that #329, #330, and #234 close. #916 follows
-directly. The rest of the plan assumes this stack.
-
-**Exit:** the three PRs are on main, and #916 names the source of the bias or the stage it is
-confined to.
+**Exit:** #916 names the source of the bias or the stage it is confined to.
 
 ## Phase 1: foundations
 
@@ -82,7 +78,7 @@ These make every later phase cheaper or safer. Most are small.
 | #872 | The baseline regenerator imports whichever installed package it finds | Regenerated baselines must come from the checkout under test before the churn starts. |
 | #900, #813 | Validation skips the render path; null body keys crash; the navigator's simulated ring model reads nullable keys unsafely | Typed per-block specs on every entry point, with null meaning absent; the first slice of #915. |
 | #913 | `axis1`, `axis2`, and `axis3` are full widths named like semi-axes | Rename before more scenes are written in the old names. |
-| #876 | Per-instrument tables in one validated YAML file | Adding a camera or a readout mode becomes a configuration entry; Phase 4's instrument work depends on it. Lands after #886, as its text asks. |
+| #876 | Per-instrument tables in one validated YAML file | Adding a camera or a readout mode becomes a configuration entry; Phase 4's instrument work depends on it. |
 | #912, #126 | Correlation FFTs at slow sizes; the disc correlation's rotation search runs 19 full pyramid evaluations | Make full-frame scenes affordable in the integration tier; #904 and #908 both need it. |
 | #854 | Simulated stars clip below the navigator's saturation level | Small; star brightness is wrong until it lands. |
 | #903, regression part | The realism match cannot fail | Compare a fresh run with the committed summary within per-statistic bands, so later physics changes are caught when they make realism worse. The hold-out and transfer parts come in Phase 6. |
@@ -291,13 +287,13 @@ retired and retained library classes.
 | #915 | Restructure below the core: typed specs (begun in #900), one body path (begun in #901), and smaller stages |
 | #923 | Duplicate classifier, test-only module, missing fixtures, and codenames |
 | #902 | 26 scene keys without editor controls |
-| #856 | The simulated-image editor segfaults intermittently (fix open as PR #917) |
+| #856 | The simulated-image editor segfaults intermittently (reopened after the fix in PR #917) |
 | #914, the rest | User chapter around a complete scene, developer guide split, and one schema reference |
 | #310 | Structural information-boundary guard |
 
 Each phase updates the docs for what it changes, with per-camera values on the instrument pages
 after #924; this phase finishes the restructuring and the guide split once the schema has settled.
-#856 can land whenever its PR is ready.
+#856 can land whenever its fix is ready.
 
 ## Track R: real-frame confidence (parallel)
 
