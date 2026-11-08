@@ -10,7 +10,6 @@ from typing import Any
 import numpy as np
 import pytest
 
-from spindoctor.sim.forward.artifacts_catalog import resolve_downlink_table
 from spindoctor.sim.forward.detector import (
     apply_detector,
     quantize_dn,
@@ -26,6 +25,7 @@ from spindoctor.sim.forward.detector.noise_stages import (
 )
 from spindoctor.sim.forward.detector.sqrt_lut import SqrtLut, resolve_sqrt_lut
 from spindoctor.sim.forward.stages import SimFrame
+from spindoctor.sim.instrument_resolvers import resolve_downlink_table
 from spindoctor.sim.seeds import derive_effect_seed
 
 # coiss_nac catalog: full well 110k e-, gain state 2 = 30 e-/DN, bias 20 DN.

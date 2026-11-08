@@ -4,7 +4,9 @@
 checks how the parts of one entry, after inheritance, fit together: the detector
 keys the detector model calls for, the gain table and readout modes, the star zero
 point's unit, the filter table's spelling and its clear elements, the downlink
-tables, and the artifact modes an entry lists.  Each check refuses a setting that
+tables, and the artifact modes an entry lists.  :func:`check_catalog` runs those
+checks on every entry, plus the two that span entries: the generic entry's
+calibrated sky residual and the realism cohort each entry claims.  Each check refuses a setting that
 the renderer could not honor or that would silently do nothing, with a message that
 gives the file, the entry, and the key path.
 """
@@ -16,18 +18,20 @@ from typing import Any
 
 import numpy as np
 
-from spindoctor.sim.forward.artifact_modes import ARTIFACT_MODES, DETECTOR_MODE_ORDER
+from spindoctor.sim.artifact_modes import ARTIFACT_MODES, DETECTOR_MODE_ORDER
 from spindoctor.sim.instrument_schema import (
+    GENERIC_INSTRUMENT,
     INSTRUMENT_DEFAULTS,
     OFFER_EVERY_MODE,
     SHAPE_DEFAULTS,
+    canonical_filter_elements,
     check_mode_name,
     check_node,
     config_error,
     instrument_schema,
 )
 
-__all__ = ['canonical_filter_elements', 'check_entry']
+__all__ = ['check_catalog', 'check_entry']
 
 # The electron-chain keys a CCD entry carries.
 _CCD_REQUIRED: frozenset[str] = frozenset(
@@ -66,19 +70,26 @@ _TABULATED_TABLE_KEY = 'decoded_dn'
 _MIN_TABLE_CODES = 2
 
 
-def canonical_filter_elements(filter_name: str) -> list[str]:
-    """Split a filter combination into its elements as the catalog spells them.
+def check_catalog(entries: Mapping[str, dict[str, Any]], sources: Mapping[str, str]) -> None:
+    """Check every entry after inheritance, and the checks that span entries.
 
-    Each ``+``-separated element is stripped of surrounding whitespace and
-    upper-cased, which is how a scene's ``detector.filter`` is read before lookup.
+    Each entry must pass :func:`check_entry`.  The generic entry must state the
+    calibrated sky residual that the other entries fall back on, and no real
+    (mission, camera) pair may be claimed by two entries' realism cohorts.
 
     Parameters:
-        filter_name: A filter combination, such as ``'cl1 + grn'``.
+        entries: Each instrument's entry after inheritance, keyed by name, the
+            generic entry included.
+        sources: Each name's ``file: entry`` prefix, for error messages.
 
-    Returns:
-        The elements, such as ``['CL1', 'GRN']``.
+    Raises:
+        ~spindoctor.sim.instrument_schema.InstrumentConfigError: On any violation, with
+            a message that gives the file, the entry, and the key path.
     """
-    return [element.strip().upper() for element in filter_name.split('+')]
+    for name, entry in entries.items():
+        check_entry(entry, source=sources[name])
+    _check_generic(entries[GENERIC_INSTRUMENT], source=sources[GENERIC_INSTRUMENT])
+    _check_cohorts(entries, sources)
 
 
 def check_entry(entry: Mapping[str, Any], *, source: str) -> None:
@@ -111,6 +122,39 @@ def check_entry(entry: Mapping[str, Any], *, source: str) -> None:
     _check_filters(entry.get('filters'), model=model, source=source)
     _check_downlink_tables(entry.get('downlink_tables'), source=source)
     _check_artifact_modes(entry['artifact_modes'], model=model, source=source)
+
+
+def _check_cohorts(entries: Mapping[str, dict[str, Any]], sources: Mapping[str, str]) -> None:
+    """Refuse a real (mission, camera) pair claimed by two entries, giving both."""
+    owner: dict[tuple[str, str], tuple[str, int]] = {}
+    for name in sorted(entries):
+        for index, pair in enumerate(entries[name].get('realism_cohort') or []):
+            key = (pair['mission'], pair['camera'])
+            if key in owner:
+                other, other_index = owner[key]
+                raise config_error(
+                    sources[name],
+                    f'realism_cohort[{index}]',
+                    f'{key} is already claimed by {sources[other]} '
+                    f'(realism_cohort[{other_index}]); one camera of the real cohort matches '
+                    'one instrument',
+                )
+            owner[key] = (name, index)
+
+
+def _check_generic(entry: Mapping[str, Any], *, source: str) -> None:
+    """Refuse a generic entry without the calibrated sky residual the others fall back on.
+
+    If a calibrated frame's own entry states no ``calibrated_sky_if``, the frame
+    takes the generic entry's, so the generic entry must state one.
+    """
+    if 'calibrated_sky_if' not in entry['detector']:
+        raise config_error(
+            source,
+            'detector.calibrated_sky_if',
+            'the generic entry states the calibrated sky residual that every entry without '
+            'its own falls back on',
+        )
 
 
 def _check_detector(detector: Mapping[str, Any], *, source: str) -> None:

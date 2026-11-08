@@ -28,7 +28,12 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
-from spindoctor.sim.forward.artifact_modes import ARTIFACT_MODES, DETECTOR_MODELS, ModeParam
+from spindoctor.sim.artifact_modes import (
+    ARTIFACT_MODES,
+    DETECTOR_MODELS,
+    QUANTIZATION_MODES,
+    ModeParam,
+)
 
 __all__ = [
     'CATALOG_BLIND_MODES',
@@ -39,7 +44,6 @@ __all__ = [
     'NON_INHERITED_KEYS',
     'OFFER_EVERY_MODE',
     'POSITIVE',
-    'QUANTIZATION_MODES',
     'SHAPE_DEFAULTS',
     'UNIT',
     'InstrumentConfigError',
@@ -49,6 +53,7 @@ __all__ = [
     'ModeNames',
     'Record',
     'Scalar',
+    'canonical_filter_elements',
     'check_mode_name',
     'check_node',
     'check_own_entry',
@@ -67,19 +72,6 @@ OFFER_EVERY_MODE = 'all'
 # reference itself, the alternative names, and the real cameras the realism match
 # pairs with the entry, each of which belongs to one entry only.
 NON_INHERITED_KEYS: frozenset[str] = frozenset({'base', 'aliases', 'realism_cohort'})
-
-# Quantization sub-modes: 'exact' rounds to integer DN (uniform bins); the ADC modes
-# reproduce a coarse or uneven ADC's histogram structure, and 'sqrt_lut' companding
-# decodes through a camera's downlink table.  The order is the order the sim editor
-# lists them in.
-QUANTIZATION_MODES: tuple[str, ...] = (
-    'exact',
-    '8bit',
-    'uneven_12bit',
-    'sqrt_lut',
-    'ls8b',
-    'contour_8bit',
-)
 
 # The two artifact-mode tables an entry may state: the shape parameters a scene
 # inherits when it sets a mode without spelling out every parameter, and the
@@ -366,6 +358,21 @@ _SCHEMA = Record(
         }
     ),
 )
+
+
+def canonical_filter_elements(filter_name: str) -> list[str]:
+    """Split a filter combination into its elements as the catalog spells them.
+
+    Each ``+``-separated element is stripped of surrounding whitespace and
+    upper-cased, which is how a scene's ``detector.filter`` is read before lookup.
+
+    Parameters:
+        filter_name: A filter combination, such as ``'cl1 + grn'``.
+
+    Returns:
+        The elements, such as ``['CL1', 'GRN']``.
+    """
+    return [element.strip().upper() for element in filter_name.split('+')]
 
 
 def instrument_schema() -> Record:

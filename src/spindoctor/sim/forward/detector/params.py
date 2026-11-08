@@ -1,7 +1,7 @@
 """Resolved detector parameters for one scene render.
 
 :class:`DetectorParams` collapses the emulated instrument's config block, the
-per-instrument catalog defaults (:mod:`spindoctor.sim.forward.artifacts_catalog`),
+per-instrument catalog defaults (:mod:`spindoctor.sim.instrument_resolvers`),
 the scene ``detector`` / ``noise`` blocks, and the ``artifacts.instrument_defaults``
 switch into one flat, resolved view the detector stage reads.
 
@@ -24,7 +24,7 @@ well fraction a signal of 1.0 fills at the reference exposure; the image-side
 DN well is derived (``full_well_e / gain_e_per_dn``) and the navigator-side
 ``full_well_dn`` config key is a separate published value.  A scene
 ``detector.filter`` replaces the reference exposure with the one the filter's
-measured throughput implies (:mod:`spindoctor.sim.forward.filter_catalog`).
+measured throughput implies (:mod:`spindoctor.sim.instrument_resolvers`).
 """
 
 from __future__ import annotations
@@ -36,13 +36,20 @@ from typing import Any
 import numpy as np
 
 from spindoctor.config import DEFAULT_CONFIG
-from spindoctor.sim.forward.artifact_modes import (
+from spindoctor.sim.artifact_modes import (
     ARTIFACT_MODES,
     COUNT_ACTIVATION_KEYS,
     DETECTOR_MODE_ORDER,
     resolve_mode_config,
 )
-from spindoctor.sim.forward.artifacts_catalog import (
+from spindoctor.sim.forward.detector.sqrt_lut import (
+    DownlinkCurve,
+    check_curve_ceiling,
+    resolve_sqrt_lut,
+)
+from spindoctor.sim.instrument_navigator import navigator_marker_value, resolve_sim_inst_config
+from spindoctor.sim.instrument_resolvers import (
+    FilterCatalogError,
     cataloged_binnings,
     instrument_default_modes,
     mode_available,
@@ -50,16 +57,10 @@ from spindoctor.sim.forward.artifacts_catalog import (
     resolve_detector_defaults,
     resolve_detector_id,
     resolve_downlink_table,
+    resolve_filter_throughput,
     resolve_mode_with_catalog,
     resolve_readout_mode,
 )
-from spindoctor.sim.forward.detector.sqrt_lut import (
-    DownlinkCurve,
-    check_curve_ceiling,
-    resolve_sqrt_lut,
-)
-from spindoctor.sim.forward.filter_catalog import FilterCatalogError, resolve_filter_throughput
-from spindoctor.sim.instruments import navigator_marker_value, resolve_sim_inst_config
 from spindoctor.sim.seeds import derive_effect_seed
 from spindoctor.support.types import NDArrayFloatType
 
@@ -114,9 +115,9 @@ class DetectorParams:
         calibrated_sky_if: The calibrated sky residual in I/F, added after the
             I/F divide on a calibrated frame: the instrument's catalog value,
             else the generic entry's (see
-            :func:`~spindoctor.sim.forward.artifacts_catalog.resolve_calibrated_sky_if`).
+            :func:`~spindoctor.sim.instrument_resolvers.resolve_calibrated_sky_if`).
         marker_value: The missing-data marker the navigator applies to the frame
-            (see :func:`~spindoctor.sim.instruments.navigator_marker_value`),
+            (see :func:`~spindoctor.sim.instrument_navigator.navigator_marker_value`),
             possibly NaN; the calibration inverse keeps every pixel off it.
         random_seed: The scene seed for the per-effect sub-streams.
         detector_id: The emulated detector the fixed hot-pixel map belongs to:
@@ -314,7 +315,7 @@ def _resolve_gain(
 
     Parameters:
         catalog: The instrument's detector defaults (see
-            :func:`~spindoctor.sim.forward.artifacts_catalog.resolve_detector_defaults`).
+            :func:`~spindoctor.sim.instrument_resolvers.resolve_detector_defaults`).
         detector_block: The scene ``detector`` block (may set ``gain_state``).
         instrument: The sim instrument name, for error messages.
 

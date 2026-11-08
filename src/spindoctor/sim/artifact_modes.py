@@ -8,7 +8,9 @@ scene validator, the telemetry stage, the detector hot-pixel routing) reads that
 description rather than carrying its own copy.  Registering a mode is therefore
 the whole job of adding one: a detector-stage mode that is unimplemented today
 drops in by flipping its ``implemented`` flag and adding its rendering code, with
-no change to the validator or the block schema.
+no change to the validator or the block schema.  The module also lists the detector
+models and the quantization modes that the scene validator, the instrument
+schema, and the sim editor accept.
 
 **Availability.**  Which instruments offer a mode is not part of the registry:
 each simulated instrument's config entry lists the modes it offers (see
@@ -65,6 +67,7 @@ __all__ = [
     'MODE_KEYS',
     'PIXEL_FRACTION',
     'PROBABILITY',
+    'QUANTIZATION_MODES',
     'STRUCTURED_LOSS_ORDER',
     'TELEMETRY_POST_LOSS_ORDER',
     'TELEMETRY_PRE_LOSS_ORDER',
@@ -101,6 +104,19 @@ class ModeParam:
 # electron chain and the vidicon DN chain.  The order is the order the sim editor
 # lists them in.
 DETECTOR_MODELS: tuple[str, ...] = ('ccd', 'vidicon')
+
+# Quantization sub-modes: 'exact' rounds to integer DN (uniform bins); the ADC modes
+# reproduce a coarse or uneven ADC's histogram structure, and 'sqrt_lut' companding
+# decodes through a camera's downlink table.  The order is the order the sim editor
+# lists them in.
+QUANTIZATION_MODES: tuple[str, ...] = (
+    'exact',
+    '8bit',
+    'uneven_12bit',
+    'sqrt_lut',
+    'ls8b',
+    'contour_8bit',
+)
 
 # The models a mode renders under: every model, or one chain's alone.
 _EVERY_MODEL: frozenset[str] = frozenset(DETECTOR_MODELS)
@@ -592,7 +608,7 @@ def resolve_mode_config(mode_name: str, raw_config: Mapping[str, Any]) -> dict[s
     Returns:
         A fresh dict carrying every parameter, scene value overriding default.
         A key set to ``None`` reads as unset and takes the default, as in
-        :func:`~spindoctor.sim.forward.artifacts_catalog.resolve_mode_with_catalog`.
+        :func:`~spindoctor.sim.instrument_resolvers.resolve_mode_with_catalog`.
     """
     mode = ARTIFACT_MODES[mode_name]
     resolved: dict[str, Any] = {}

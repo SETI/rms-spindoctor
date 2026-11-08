@@ -57,7 +57,7 @@ from spindoctor.nav_orchestrator import NavOrchestrator
 from spindoctor.obs.obs_inst_sim import ObsSim
 from spindoctor.obs.obs_snapshot import ObsSnapshot
 from spindoctor.sim.instrument_catalog import realism_cohort_instruments
-from spindoctor.sim.instruments import resolve_sim_inst_config
+from spindoctor.sim.instrument_navigator import resolve_sim_inst_config
 from spindoctor.sim.realism.artifact_rates import (
     ArtifactRates,
     split_stationary_spikes,

@@ -1,9 +1,9 @@
 """Registry-driven artifact-mode rows for the simulated-image editor.
 
 The Artifacts tab does not hand-code a section per artifact mode: it generates
-one :class:`ModeRow` from each :class:`~spindoctor.sim.forward.artifact_modes.ArtifactMode`
+one :class:`ModeRow` from each :class:`~spindoctor.sim.artifact_modes.ArtifactMode`
 in the registry, and each row builds its own widgets from the mode's
-:class:`~spindoctor.sim.forward.artifact_modes.ModeParam` specs.  A registered
+:class:`~spindoctor.sim.artifact_modes.ModeParam` specs.  A registered
 mode therefore acquires an editor row with no GUI change: the row's enable
 checkbox maps to the mode key's presence, the activation-key spin
 (``expected_events``, ``expected_events_per_sec``, ``probability``, or
@@ -43,12 +43,12 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from spindoctor.sim.forward.artifact_modes import (
+from spindoctor.sim.artifact_modes import (
     PIXEL_FRACTION,
     ArtifactMode,
     ModeParam,
 )
-from spindoctor.sim.forward.artifacts_catalog import mode_available, mode_unavailable_message
+from spindoctor.sim.instrument_resolvers import mode_available, mode_unavailable_message
 
 # Generous numeric bounds: artifact parameters span pixel counts, electron
 # amplitudes, and unit fractions, so the spins are not the validation surface

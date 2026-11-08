@@ -12,7 +12,7 @@ from typing import Any
 import numpy as np
 import pytest
 
-from spindoctor.sim.forward.artifacts_catalog import resolve_detector_defaults
+from spindoctor.sim.instrument_resolvers import resolve_detector_defaults
 from spindoctor.sim.render import render_combined_model
 
 _CALIBRATED = ('coiss_calib_nac', 'coiss_calib_wac', 'vgiss')

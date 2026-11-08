@@ -26,10 +26,12 @@ or a value of the wrong type or out of range.  It also fails on a base that
 doesn't exist or that loops back on itself, and on a gain state, readout mode,
 filter, downlink table, or artifact mode that an entry refers to but does not
 define.  A setting that would do nothing fails too.  Each message gives the file,
-the entry, and the key path.  The resolver
-functions in :mod:`spindoctor.sim.forward.artifacts_catalog`,
-:mod:`spindoctor.sim.forward.filter_catalog`, :mod:`spindoctor.sim.forward.psf`,
-and :mod:`spindoctor.sim.instruments` are how the rest of the simulator reads it.
+the entry, and the key path.
+
+The rest of the simulator reads the catalog through the resolvers in
+:mod:`spindoctor.sim.instrument_resolvers`, and through
+:mod:`spindoctor.sim.instrument_navigator` for the navigator config block an entry
+emulates.
 """
 
 from __future__ import annotations
@@ -44,7 +46,7 @@ from typing import Any
 from ruamel.yaml import YAML
 from ruamel.yaml.error import YAMLError
 
-from spindoctor.sim.instrument_checks import check_entry
+from spindoctor.sim.instrument_checks import check_catalog
 from spindoctor.sim.instrument_schema import (
     GENERIC_INSTRUMENT,
     NON_INHERITED_KEYS,
@@ -303,39 +305,6 @@ def _collect_aliases(
     return aliases
 
 
-def _check_cohorts(entries: Mapping[str, dict[str, Any]], sources: Mapping[str, str]) -> None:
-    """Refuse a real (mission, camera) pair claimed by two entries, giving both."""
-    owner: dict[tuple[str, str], tuple[str, int]] = {}
-    for name in sorted(entries):
-        for index, pair in enumerate(entries[name].get('realism_cohort') or []):
-            key = (pair['mission'], pair['camera'])
-            if key in owner:
-                other, other_index = owner[key]
-                raise config_error(
-                    sources[name],
-                    f'realism_cohort[{index}]',
-                    f'{key} is already claimed by {sources[other]} '
-                    f'(realism_cohort[{other_index}]); one camera of the real cohort matches '
-                    'one instrument',
-                )
-            owner[key] = (name, index)
-
-
-def _check_generic(entry: Mapping[str, Any], *, source: str) -> None:
-    """Refuse a generic entry without the calibrated sky residual the others fall back on.
-
-    If a calibrated frame's own entry states no ``calibrated_sky_if``, the frame
-    takes the generic entry's, so the generic entry must state one.
-    """
-    if 'calibrated_sky_if' not in entry['detector']:
-        raise config_error(
-            source,
-            'detector.calibrated_sky_if',
-            'the generic entry states the calibrated sky residual that every entry without '
-            'its own falls back on',
-        )
-
-
 def _config_paths(config_dir: Path) -> list[Path]:
     """The config files in ``config_dir``, refusing anything that is not one.
 
@@ -360,10 +329,7 @@ def _load(config_dir: Path) -> InstrumentCatalog:
             f'{config_dir}: no {GENERIC_INSTRUMENT!r} entry (the instrument-agnostic entry)'
         )
     entries = _resolve_inheritance(raw, sources)
-    for name, entry in entries.items():
-        check_entry(entry, source=sources[name])
-    _check_generic(entries[GENERIC_INSTRUMENT], source=sources[GENERIC_INSTRUMENT])
-    _check_cohorts(entries, sources)
+    check_catalog(entries, sources)
     return InstrumentCatalog(
         config_dir=config_dir, entries=entries, aliases=_collect_aliases(raw, sources)
     )

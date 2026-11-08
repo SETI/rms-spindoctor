@@ -10,7 +10,7 @@ grid.  It applies its sub-effects in the physical order of transmission:
    the commanded ``truth_window`` carve-out.  A calibrated frame is compressed in
    the DN the spacecraft transmitted, then mapped back to I/F.
 2. Structured data loss: the registry loss modes in
-   :data:`~spindoctor.sim.forward.artifact_modes.STRUCTURED_LOSS_ORDER`
+   :data:`~spindoctor.sim.artifact_modes.STRUCTURED_LOSS_ORDER`
    (commanded frame shapes, then line losses, then block losses, then garble,
    then per-pixel losses, then the row-0 header), with the commanded
    ``truth_window`` carve-out resolved first and passed to ``missing_blocks``.
@@ -43,12 +43,11 @@ from typing import Any
 import numpy as np
 
 from spindoctor.config import DEFAULT_CONFIG
-from spindoctor.sim.forward.artifact_modes import (
+from spindoctor.sim.artifact_modes import (
     STRUCTURED_LOSS_ORDER,
     TELEMETRY_POST_LOSS_ORDER,
     TELEMETRY_PRE_LOSS_ORDER,
 )
-from spindoctor.sim.forward.artifacts_catalog import mode_available, resolve_mode_with_catalog
 from spindoctor.sim.forward.detector.params import calibration_map, resolve_detector_params
 from spindoctor.sim.forward.feature_loci import FeatureLoci, extract_feature_loci
 from spindoctor.sim.forward.stages import SimFrame
@@ -58,7 +57,8 @@ from spindoctor.sim.forward.telemetry_artifacts import (
     apply_reseau_scars,
 )
 from spindoctor.sim.forward.telemetry_loss import LOSS_APPLIERS
-from spindoctor.sim.instruments import navigator_marker_value, resolve_sim_inst_config
+from spindoctor.sim.instrument_navigator import navigator_marker_value, resolve_sim_inst_config
+from spindoctor.sim.instrument_resolvers import mode_available, resolve_mode_with_catalog
 from spindoctor.sim.seeds import derive_effect_seed
 
 __all__ = ['apply_telemetry']

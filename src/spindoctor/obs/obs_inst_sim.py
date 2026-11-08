@@ -18,7 +18,7 @@ from oops.observation.snapshot import Snapshot
 
 from spindoctor.config import DEFAULT_CONFIG, IMAGE_LOGGER, Config, logged_section
 from spindoctor.obs.obs_snapshot_inst import ObsSnapshotInst
-from spindoctor.sim.instruments import resolve_extfov_margin, resolve_sim_inst_config
+from spindoctor.sim.instrument_navigator import resolve_extfov_margin, resolve_sim_inst_config
 from spindoctor.sim.render import render_combined_model
 from spindoctor.sim.scene import build_nav_params, load_sim_scene
 from spindoctor.support.types import PathLike

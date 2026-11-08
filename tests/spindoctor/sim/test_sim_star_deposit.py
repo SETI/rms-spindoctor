@@ -17,9 +17,9 @@ import numpy as np
 import pytest
 from scipy.signal import fftconvolve
 
-from spindoctor.sim.forward.artifacts_catalog import resolve_psf_kernel
-from spindoctor.sim.forward.psf import psf_kernel, psf_truncation_for_instrument
+from spindoctor.sim.forward.psf import psf_kernel
 from spindoctor.sim.forward.star import faint_sky_cutoff_mag, render_sky_counts
+from spindoctor.sim.instrument_resolvers import resolve_psf_kernel, resolve_psf_truncation_px
 from spindoctor.sim.render import clear_render_caches, render_combined_model
 
 # Explicit zeroing of every stochastic detector knob, so the star-profile
@@ -204,7 +204,7 @@ def test_instrument_defaults_star_reproduces_the_catalog_kernel() -> None:
         k['w'],
         k['r0'],
         k['n'],
-        truncation_px=psf_truncation_for_instrument('coiss_nac'),
+        truncation_px=resolve_psf_truncation_px('coiss_nac'),
         oversample=os,
     )
     grid = np.zeros((64 * os, 64 * os), dtype=np.float64)

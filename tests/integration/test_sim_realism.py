@@ -20,8 +20,8 @@ from typing import Any
 import numpy as np
 import pytest
 
-from spindoctor.sim.forward.artifacts_catalog import resolve_native_frame_size_px
 from spindoctor.sim.forward.detector.params import resolve_detector_params
+from spindoctor.sim.instrument_resolvers import resolve_native_frame_size_px
 from spindoctor.sim.render import render_combined_model
 from spindoctor.sim.scene import validate_sim_params
 from tests.integration.sim_realism import (

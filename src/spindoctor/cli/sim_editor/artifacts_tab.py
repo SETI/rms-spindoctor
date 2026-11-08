@@ -8,7 +8,7 @@ residual, shot noise, dark / hot / bloom / banding / bias); ``adversarial`` bias
 each enabled mode's stochastic placement onto the navigation features.
 
 The mode rows are not hand-coded: each is generated from an
-:class:`~spindoctor.sim.forward.artifact_modes.ArtifactMode` (see
+:class:`~spindoctor.sim.artifact_modes.ArtifactMode` (see
 :mod:`spindoctor.cli.sim_editor.artifact_mode_rows`), so a registered mode gains
 an editor row with no change here.  The whole tab keeps one discipline: an
 unchecked switch or mode leaves its key absent, an enabled mode starts as an
@@ -41,14 +41,13 @@ from PyQt6.QtWidgets import (
 
 from spindoctor.cli.sim_editor.artifact_mode_rows import ModeRow
 from spindoctor.cli.sim_editor.base import SimEditorBase
-from spindoctor.sim.forward.artifact_modes import ARTIFACT_MODES, DETECTOR_MODELS
-from spindoctor.sim.forward.artifacts_catalog import (
+from spindoctor.sim.artifact_modes import ARTIFACT_MODES, DETECTOR_MODELS, QUANTIZATION_MODES
+from spindoctor.sim.instrument_resolvers import (
     cataloged_binnings,
     resolve_detector_defaults,
     resolve_detector_model,
     resolve_readout_mode,
 )
-from spindoctor.sim.instrument_schema import QUANTIZATION_MODES
 
 # The rendering stages the mode rows are grouped under, in tab order.
 _STAGE_TITLES: tuple[tuple[str, str], ...] = (

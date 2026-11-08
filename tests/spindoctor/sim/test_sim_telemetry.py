@@ -15,14 +15,13 @@ from typing import Any
 import numpy as np
 import pytest
 
-from spindoctor.sim.forward.artifact_counts import planted_artifact_counts
-from spindoctor.sim.forward.artifact_modes import (
+from spindoctor.sim.artifact_modes import (
     ARTIFACT_MODES,
     MODE_KEYS,
     STRUCTURED_LOSS_ORDER,
     resolve_mode_config,
 )
-from spindoctor.sim.forward.artifacts_catalog import mode_available
+from spindoctor.sim.forward.artifact_counts import planted_artifact_counts
 from spindoctor.sim.forward.detector.params import (
     CalibrationMap,
     calibration_map,
@@ -32,6 +31,7 @@ from spindoctor.sim.forward.feature_loci import FeatureLoci, choose_pixels, extr
 from spindoctor.sim.forward.stages import SimFrame
 from spindoctor.sim.forward.telemetry import apply_telemetry
 from spindoctor.sim.forward.telemetry_loss import apply_line_garble, apply_pixel_spikes
+from spindoctor.sim.instrument_resolvers import mode_available
 from spindoctor.sim.render import render_combined_model
 from spindoctor.sim.scene import SimSceneValidationError, validate_sim_params
 from spindoctor.support.types import NDArrayFloatType
@@ -86,7 +86,7 @@ def test_structured_loss_order_covers_the_loss_modes() -> None:
     archive-scar modes flank the loss loop in their own sub-stages, so none of
     those belong in the structured-loss order.
     """
-    from spindoctor.sim.forward.artifact_modes import (
+    from spindoctor.sim.artifact_modes import (
         TELEMETRY_POST_LOSS_ORDER,
         TELEMETRY_PRE_LOSS_ORDER,
     )

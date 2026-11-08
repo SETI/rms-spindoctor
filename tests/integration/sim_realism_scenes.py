@@ -22,7 +22,7 @@ from __future__ import annotations
 import zlib
 from typing import Any
 
-from spindoctor.sim.forward.artifacts_catalog import binning_for_frame_size
+from spindoctor.sim.instrument_resolvers import binning_for_frame_size
 from spindoctor.sim.scene import validate_sim_params
 
 __all__ = [

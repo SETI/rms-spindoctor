@@ -19,12 +19,12 @@ import pytest
 from scipy import ndimage
 
 from spindoctor.config import DEFAULT_CONFIG
-from spindoctor.sim.forward.artifacts_catalog import resolve_detector_defaults
 from spindoctor.sim.forward.detector import apply_detector, chain
 from spindoctor.sim.forward.detector.noise_stages import add_cosmic_rays
 from spindoctor.sim.forward.detector.params import resolve_detector_params
 from spindoctor.sim.forward.stages import SimFrame
 from spindoctor.sim.instrument_catalog import instrument_entry, sim_instrument_names
+from spindoctor.sim.instrument_resolvers import resolve_detector_defaults
 from spindoctor.sim.render import render_combined_model
 from spindoctor.sim.scene import validate_sim_params
 from spindoctor.sim.seeds import derive_effect_seed

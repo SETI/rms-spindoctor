@@ -468,7 +468,7 @@ def test_detector_quantization_is_authorable(model: Any) -> None:
 
 def test_null_detector_keys_show_the_catalog_defaults(model: Any) -> None:
     """A loaded detector block of nulls shows the catalog values, as the renderer reads it."""
-    from spindoctor.sim.forward.artifacts_catalog import resolve_detector_defaults
+    from spindoctor.sim.instrument_resolvers import resolve_detector_defaults
 
     keys = ('gain_state', 'detector_model', 'exposure_ref_sec', 'quantization')
     model._apply_params_dict({'instrument': 'coiss_nac', 'detector': dict.fromkeys(keys)})
@@ -522,7 +522,7 @@ def test_null_body_and_star_lists_load_as_empty(model: Any) -> None:
 
 def test_every_registry_mode_has_a_row(model: Any) -> None:
     """The tab generates one row per registered artifact mode."""
-    from spindoctor.sim.forward.artifact_modes import ARTIFACT_MODES
+    from spindoctor.sim.artifact_modes import ARTIFACT_MODES
 
     assert set(model._mode_rows) == set(ARTIFACT_MODES)
 

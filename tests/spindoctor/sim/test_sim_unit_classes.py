@@ -5,10 +5,10 @@ marker.  The calibrated instruments (the calibrated Cassini cameras and ``vgiss`
 render I/F with a ``0`` marker, because the Cassini CALIB and Voyager GEOMED
 products the navigator reads fill lost pixels with zero.  In every class the
 simulator writes the marker the navigator applies to the same frame, and
-:func:`~spindoctor.sim.instruments.read_frame_as_navigator` reads the frame the
+:func:`~spindoctor.sim.instrument_navigator.read_frame_as_navigator` reads the frame the
 navigator reads (planted offset applied) to the verdict the navigator's
 classifier reaches, blank before missing data.
-:func:`~spindoctor.sim.instruments.frame_units_summary` states that verdict.
+:func:`~spindoctor.sim.instrument_navigator.frame_units_summary` states that verdict.
 """
 
 import math
@@ -25,7 +25,7 @@ from spindoctor.obs.obs_inst_sim import ObsSim
 from spindoctor.sim.forward.stages import SimFrame
 from spindoctor.sim.forward.telemetry import apply_telemetry
 from spindoctor.sim.instrument_catalog import sim_instrument_names
-from spindoctor.sim.instruments import (
+from spindoctor.sim.instrument_navigator import (
     frame_units_name,
     frame_units_summary,
     has_planted_offset,

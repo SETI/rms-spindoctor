@@ -13,6 +13,7 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 import pytest
 from ruamel.yaml import YAML
 from tests.spindoctor.sim.fictional_camera import (
@@ -24,13 +25,8 @@ from tests.spindoctor.sim.fictional_camera import (
 
 from spindoctor.config import DEFAULT_CONFIG
 from spindoctor.sim import instrument_catalog
-from spindoctor.sim.forward.artifacts_catalog import (
-    cataloged_binnings,
-    resolve_detector_defaults,
-    resolve_star_flux_zero_point,
-)
 from spindoctor.sim.forward.detector.params import DetectorParamError, resolve_detector_params
-from spindoctor.sim.forward.detector.sqrt_lut import TabulatedLut
+from spindoctor.sim.forward.detector.sqrt_lut import SqrtLut, TabulatedLut
 from spindoctor.sim.instrument_catalog import (
     GENERIC_INSTRUMENT,
     INSTRUMENT_CONFIG_DIR,
@@ -38,7 +34,13 @@ from spindoctor.sim.instrument_catalog import (
     load_instrument_catalog,
     sim_instrument_names,
 )
-from spindoctor.sim.instruments import resolve_sim_inst_config
+from spindoctor.sim.instrument_checks import _parametric_decoded_dn
+from spindoctor.sim.instrument_navigator import resolve_sim_inst_config
+from spindoctor.sim.instrument_resolvers import (
+    cataloged_binnings,
+    resolve_detector_defaults,
+    resolve_star_flux_zero_point,
+)
 from spindoctor.sim.render import render_combined_model
 from spindoctor.sim.scene import validate_sim_params
 from spindoctor.sim.scene_schema import SimSceneValidationError
@@ -525,6 +527,28 @@ def test_a_base_does_not_pass_on_its_realism_cohort(tmp_path: Path) -> None:
     directory = catalog_dir_with(tmp_path, {'cam.yaml': _cam('base: coiss_calib_nac\n')})
     entry = load_instrument_catalog(config_dir=directory).entry('cam')
     assert 'realism_cohort' not in entry
+
+
+def _shipped_parametric_tables() -> list[dict[str, Any]]:
+    """Each distinct parametric downlink table in the packaged catalog."""
+    catalog = load_instrument_catalog()
+    tables: list[dict[str, Any]] = []
+    for name in sorted(catalog.entries):
+        for table in (
+            (catalog.entries[name].get('downlink_tables') or {}).get('tables', {}).values()
+        ):
+            if 'codes' in table and table not in tables:
+                tables.append(dict(table))
+    return tables
+
+
+@pytest.mark.parametrize('table', _shipped_parametric_tables())
+def test_the_load_check_decodes_a_parametric_table_as_the_renderer_does(
+    table: dict[str, Any],
+) -> None:
+    """The load check's decoded levels are the levels the companding stage decodes to."""
+    checked = np.unique(_parametric_decoded_dn(table))
+    np.testing.assert_array_equal(checked, SqrtLut(**table).levels())
 
 
 @pytest.mark.parametrize('instrument', [*sim_instrument_names(), GENERIC_INSTRUMENT])

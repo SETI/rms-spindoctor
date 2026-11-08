@@ -13,7 +13,7 @@ import pytest
 
 from spindoctor.config import DEFAULT_CONFIG
 from spindoctor.sim.instrument_catalog import sim_instrument_names
-from spindoctor.sim.instruments import navigator_marker_value, resolve_sim_inst_config
+from spindoctor.sim.instrument_navigator import navigator_marker_value, resolve_sim_inst_config
 from spindoctor.sim.render import render_combined_model
 from spindoctor.sim.scene import validate_sim_params
 

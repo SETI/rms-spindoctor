@@ -37,7 +37,7 @@ from __future__ import annotations
 import warnings
 from typing import Any
 
-from spindoctor.sim.forward.filter_catalog import canonical_filter, cataloged_filters
+from spindoctor.sim.instrument_resolvers import canonical_filter, cataloged_filters
 from tests.integration.sim_realism_support import FrameSettings, register_frame_settings_reader
 
 __all__ = ['cassini_frame_settings']

@@ -1,35 +1,49 @@
-"""Per-instrument detector, optics, and radiometry values for the forward model.
+"""Every typed read of a simulated instrument's config entry.
 
 Every value here comes from the simulated instrument's config entry (see
 :mod:`spindoctor.sim.instrument_catalog`): the detector chain an
 ``instrument_defaults`` scene turns on, the readout modes, the star zero point,
-the plate scale the background-sky star count uses, the whole-scene PSF kernel,
-the residual geometric distortion, the downlink tables, and the artifact modes the
-camera offers with their shape defaults.  These resolvers are how the forward
-model reads that catalog; each takes a sim instrument name, an alias, or ``None``
-for the generic entry, and raises :class:`ValueError` if the catalog doesn't hold
-the name.
+the plate scale the background-sky star count uses, the whole-scene PSF kernel and
+its truncation radius, the residual geometric distortion, the downlink tables, the
+filter throughputs, and the artifact modes the camera offers with their shape
+defaults.  The rest of the simulator reads the catalog through these resolvers.
+Each takes a sim instrument name, an alias, or ``None`` for the generic entry, and
+raises :class:`ValueError` if the catalog doesn't hold the name.
+
+**Filters.**  A scene's optional ``detector.filter`` key sets the filter
+combination the frame was shot through, written as the product label writes it,
+with the elements joined by ``+`` (for example ``'CL1+CL2'`` for a two-wheel
+camera).  Each instrument's entry catalogs its combinations under ``filters``,
+along with the clear combination its star zero point refers to and the clear
+element each polarizer folds onto.  The catalog value is the electrons per second
+one native pixel collects from a surface at I/F 1.0, so the detector chain renders
+a signal of 1.0 at that rate and the calibrated products divide by the same scale.
+If a scene sets no filter, it keeps the nominal scale its detector entry derives
+(``signal_full_scale_frac * full_well_e / exposure_ref_sec``).  The throughput is
+the only filter-dependent quantity the simulator models: haze, body photometry,
+star color, and the PSF render the same for every filter.
 """
 
 import copy
 from collections.abc import Mapping
 from typing import Any
 
-from spindoctor.sim.forward.artifact_modes import ARTIFACT_MODES, MODE_KEYS
+from spindoctor.sim.artifact_modes import ARTIFACT_MODES
 from spindoctor.sim.instrument_catalog import (
     GENERIC_INSTRUMENT,
     instrument_entry,
     load_instrument_catalog,
 )
-from spindoctor.sim.instrument_schema import OFFER_EVERY_MODE
+from spindoctor.sim.instrument_schema import OFFER_EVERY_MODE, canonical_filter_elements
 
 __all__ = [
-    'ARTIFACT_MODES',
-    'MODE_KEYS',
-    'binned_psf_kernel',
+    'FilterCatalogError',
     'binning_for_frame_size',
+    'canonical_filter',
     'cataloged_binnings',
+    'cataloged_filters',
     'downlink_table_names',
+    'filter_star_flux_scale',
     'instrument_default_modes',
     'mode_available',
     'mode_unavailable_message',
@@ -39,13 +53,14 @@ __all__ = [
     'resolve_detector_model',
     'resolve_distortion_residual',
     'resolve_downlink_table',
+    'resolve_filter_throughput',
     'resolve_mode_with_catalog',
     'resolve_native_frame_size_px',
     'resolve_psf_kernel',
+    'resolve_psf_truncation_px',
     'resolve_readout_mode',
     'resolve_sky_pixel_scale_arcsec',
     'resolve_star_flux_zero_point',
-    'scene_binning',
 ]
 
 # The *missing-data* loss modes default to 0 even under ``instrument_defaults`` --
@@ -114,6 +129,27 @@ def resolve_psf_kernel(instrument: str | None) -> dict[str, float] | None:
     """
     kernel = instrument_entry(instrument)['psf'].get('kernel')
     return None if kernel is None else dict(kernel)
+
+
+def resolve_psf_truncation_px(instrument: str | None) -> int:
+    """Return the PSF truncation radius (detector px) for an instrument.
+
+    The truncation radius is the window past which the Gaussian core and Moffat
+    wing are cut and the kernel renormalized; the far halo beyond it is
+    stray-light scope, not kernel scope.
+
+    Parameters:
+        instrument: The sim instrument name, an alias, or None for the generic
+            entry.
+
+    Returns:
+        The instrument config's ``psf.truncation_px``.
+
+    Raises:
+        ValueError: If the instrument is not in the catalog.
+    """
+    truncation: int = instrument_entry(instrument)['psf']['truncation_px']
+    return truncation
 
 
 def resolve_distortion_residual(instrument: str | None) -> dict[str, float] | None:
@@ -349,20 +385,6 @@ def resolve_native_frame_size_px(instrument: str | None) -> int | None:
     return native
 
 
-def scene_binning(params: Mapping[str, Any]) -> int:
-    """The binning factor a scene's ``detector`` block selects, 1 by default.
-
-    Parameters:
-        params: The full scene mapping.
-
-    Returns:
-        The stated ``detector.binning``, or 1 when the scene leaves it out.
-    """
-    detector = params.get('detector') or {}
-    binning = detector.get('binning') if isinstance(detector, Mapping) else None
-    return 1 if binning is None else int(binning)
-
-
 def binning_for_frame_size(instrument: str | None, size_vu: tuple[int, int]) -> int:
     """The binning factor of a full frame of ``size_vu`` on ``instrument``.
 
@@ -389,28 +411,6 @@ def binning_for_frame_size(instrument: str | None, size_vu: tuple[int, int]) -> 
         f'a {size_v}x{size_u} frame is not a full {instrument!r} frame in any cataloged '
         f'readout mode (native {native} px, binnings {list(cataloged_binnings(instrument))})'
     )
-
-
-def binned_psf_kernel(kernel: Mapping[str, float], binning: int) -> dict[str, float]:
-    """A native PSF kernel restated in pixels binned by ``binning``.
-
-    The radii (``sigma_v``, ``sigma_u``, ``r0``) shrink by the factor; the wing
-    energy fraction ``w`` and the wing index ``n`` are dimensionless.  The
-    binned pixel's own b-by-b box is the render grid's pixel integration, so
-    it needs no term here.
-
-    Parameters:
-        kernel: The native kernel, radii in native pixels.
-        binning: The binning factor.
-
-    Returns:
-        A new kernel mapping in binned pixels.
-    """
-    scaled = dict(kernel)
-    for radius in ('sigma_v', 'sigma_u', 'r0'):
-        if radius in scaled:
-            scaled[radius] = float(scaled[radius]) / binning
-    return scaled
 
 
 def resolve_detector_defaults(instrument: str | None) -> dict[str, Any]:
@@ -449,7 +449,7 @@ def resolve_detector_model(instrument: str | None, detector: Mapping[str, Any] |
 
     Returns:
         The detector model, one of
-        :data:`~spindoctor.sim.forward.artifact_modes.DETECTOR_MODELS`.
+        :data:`~spindoctor.sim.artifact_modes.DETECTOR_MODELS`.
 
     Raises:
         ValueError: If the instrument is not in the catalog.
@@ -502,3 +502,121 @@ def resolve_mode_with_catalog(
         else:
             resolved[name] = param.default
     return resolved
+
+
+class FilterCatalogError(ValueError):
+    """A scene sets a filter its camera does not catalog."""
+
+
+def _filters(instrument: str | None) -> dict[str, Any] | None:
+    """The ``filters`` section of an instrument's config, or None."""
+    filters: dict[str, Any] | None = instrument_entry(instrument).get('filters')
+    return filters
+
+
+def _require_filters(instrument: str | None) -> dict[str, Any]:
+    """The ``filters`` section of an instrument's config, refusing one without it."""
+    filters = _filters(instrument)
+    if filters is None:
+        catalog = load_instrument_catalog()
+        cataloged = [
+            name for name in catalog.instrument_names() if 'filters' in catalog.entry(name)
+        ]
+        raise FilterCatalogError(
+            f'sim instrument {instrument!r} has no filter table; instruments with one: {cataloged}'
+        )
+    return filters
+
+
+def canonical_filter(instrument: str | None, filter_name: str) -> str:
+    """Fold a filter combination onto its cataloged spelling.
+
+    Each ``+``-separated element is stripped of surrounding whitespace and
+    upper-cased, and a polarizer listed in the instrument's ``filters.polarizer_clear``
+    becomes the clear element of its wheel, so ``'p120+grn'`` reads as
+    ``'CL1+GRN'`` on a camera whose ``P120`` folds onto ``CL1``.  The catalog
+    refuses a filter table or polarizer spelled any other way, since no scene
+    spelling could reach it.
+
+    Parameters:
+        instrument: The sim instrument name.
+        filter_name: The filter combination as the scene writes it.
+
+    Returns:
+        The combination as the catalog keys it.
+
+    Raises:
+        ValueError: If the instrument is not in the catalog.
+    """
+    filters = _filters(instrument) or {}
+    polarizers = filters.get('polarizer_clear') or {}
+    elements = canonical_filter_elements(filter_name)
+    return '+'.join(polarizers.get(element, element) for element in elements)
+
+
+def cataloged_filters(instrument: str | None) -> tuple[str, ...]:
+    """The filter combinations an instrument catalogs, sorted.
+
+    Parameters:
+        instrument: The sim instrument name.
+
+    Returns:
+        The combinations, as the catalog keys them; empty for an instrument
+        without a filter table.
+
+    Raises:
+        ValueError: If the instrument is not in the catalog.
+    """
+    filters = _filters(instrument)
+    return () if filters is None else tuple(sorted(filters['throughput_e_per_s_per_if']))
+
+
+def resolve_filter_throughput(instrument: str | None, filter_name: str) -> float:
+    """Return a filter combination's throughput in e-/s per native pixel at I/F 1.0.
+
+    Parameters:
+        instrument: The sim instrument name.
+        filter_name: The filter combination, in any spelling
+            :func:`canonical_filter` folds onto a catalog key.
+
+    Returns:
+        The throughput.
+
+    Raises:
+        FilterCatalogError: If the instrument has no filter table, or the
+            combination is not in it.
+        ValueError: If the instrument is not in the catalog.
+    """
+    table = _require_filters(instrument)['throughput_e_per_s_per_if']
+    canonical = canonical_filter(instrument, filter_name)
+    if canonical not in table:
+        raise FilterCatalogError(
+            f'filter {filter_name!r} is not cataloged for sim instrument {instrument!r}; '
+            f'available filters: {sorted(table)}'
+        )
+    throughput: float = table[canonical]
+    return throughput
+
+
+def filter_star_flux_scale(instrument: str | None, filter_name: str | None) -> float:
+    """Return the factor a filter applies to the camera's star zero point.
+
+    The zero point refers to the camera's clear combination (``filters.clear``),
+    so a scene's filter scales it by that filter's throughput over the clear
+    throughput.
+
+    Parameters:
+        instrument: The sim instrument name.
+        filter_name: The scene's ``detector.filter``, or ``None``.
+
+    Returns:
+        1.0 when the scene sets no filter, else the throughput ratio.
+
+    Raises:
+        FilterCatalogError: As :func:`resolve_filter_throughput`.
+    """
+    if filter_name is None:
+        return 1.0
+    throughput = resolve_filter_throughput(instrument, filter_name)
+    clear = _require_filters(instrument)['clear']
+    return throughput / resolve_filter_throughput(instrument, clear)

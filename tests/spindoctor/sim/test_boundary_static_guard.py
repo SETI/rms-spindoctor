@@ -25,6 +25,11 @@ haze navigator that makes it worth closing: a simulated Titan model reads the
 body's idealized geometry and must never read the haze that geometry is a
 deliberate mismatch for.
 
+A third scan covers imports.  The simulated instrument catalog and the artifact-mode
+registry describe how the image side renders a frame, so no navigator-side module
+imports ``spindoctor.sim.instrument_*`` or ``spindoctor.sim.artifact_modes``.  A
+navigator-side model reads what the navigator would know from its own config.
+
 Legitimate exceptions, should one ever exist, go in ``_ALLOWED_REFERENCES``:
 a mapping from ``(module path relative to the spindoctor package, name)`` to a
 one-line justification.  The allowlist is currently empty -- no navigator-side
@@ -76,6 +81,37 @@ _NAVIGATOR_PACKAGES: tuple[str, ...] = ('nav_model', 'nav_technique', 'nav_orche
 _ALLOWED_REFERENCES: dict[tuple[str, str], str] = {}
 
 _PACKAGE_ROOT = Path(spindoctor.__file__).parent
+
+# The image-side simulator modules no navigator-side module may import: the
+# instrument catalog and its readers, and the artifact-mode registry.
+_IMAGE_SIDE_MODULE_PREFIX = 'spindoctor.sim.instrument_'
+_IMAGE_SIDE_MODULES: frozenset[str] = frozenset({'spindoctor.sim.artifact_modes'})
+
+
+def _image_side_imports(source: str) -> list[tuple[int, str]]:
+    """Return each import of an image-side simulator module in ``source``.
+
+    Parameters:
+        source: Python source text to scan.
+
+    Returns:
+        List of ``(line number, module)`` tuples, one per imported module.
+    """
+    imports: list[tuple[int, str]] = []
+    for node in ast.walk(ast.parse(source)):
+        if isinstance(node, ast.Import):
+            modules = [alias.name for alias in node.names]
+        elif isinstance(node, ast.ImportFrom) and node.module is not None:
+            # ``from spindoctor.sim import instrument_catalog`` imports the module itself.
+            modules = [node.module, *(f'{node.module}.{alias.name}' for alias in node.names)]
+        else:
+            continue
+        imports.extend(
+            (node.lineno, module)
+            for module in modules
+            if module.startswith(_IMAGE_SIDE_MODULE_PREFIX) or module in _IMAGE_SIDE_MODULES
+        )
+    return imports
 
 
 def _truth_references(
@@ -179,6 +215,25 @@ def test_navigator_package_names_no_atmosphere_truth_key(package: str) -> None:
         'is nature, and the predicted geometry is a deliberate mismatch for '
         'it):\n' + '\n'.join(violations)
     )
+
+
+@pytest.mark.parametrize('package', _NAVIGATOR_PACKAGES)
+def test_navigator_package_imports_no_image_side_simulator_module(package: str) -> None:
+    """No navigator-side module imports the instrument catalog or the mode registry."""
+    violations = [
+        f'{path.relative_to(_PACKAGE_ROOT).as_posix()}:{lineno}: imports {module}'
+        for path in sorted((_PACKAGE_ROOT / package).rglob('*.py'))
+        for lineno, module in _image_side_imports(path.read_text(encoding='utf-8'))
+    ]
+    assert not violations, (
+        'navigator-side code imports an image-side simulator module:\n' + '\n'.join(violations)
+    )
+
+
+def test_import_guard_flags_a_module_import() -> None:
+    """The import scanner detects ``from spindoctor.sim import instrument_catalog``."""
+    imports = _image_side_imports('from spindoctor.sim import instrument_catalog\n')
+    assert imports == [(1, 'spindoctor.sim.instrument_catalog')]
 
 
 def test_atmosphere_guard_covers_the_structure_keys() -> None:

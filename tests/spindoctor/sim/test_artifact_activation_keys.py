@@ -16,7 +16,7 @@ from typing import Any
 import numpy as np
 import pytest
 
-from spindoctor.sim.forward.artifact_modes import (
+from spindoctor.sim.artifact_modes import (
     ACTIVATION_KEYS,
     ARTIFACT_MODES,
     EXPECTED_EVENTS,

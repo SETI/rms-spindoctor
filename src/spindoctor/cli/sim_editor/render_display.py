@@ -24,7 +24,7 @@ from PyQt6.QtWidgets import QFileDialog, QFormLayout, QGroupBox, QLabel, QMessag
 
 from spindoctor.cli.sim_editor.base import SimEditorBase
 from spindoctor.config import DEFAULT_CONFIG
-from spindoctor.sim.instruments import (
+from spindoctor.sim.instrument_navigator import (
     frame_units_name,
     frame_units_summary,
     has_planted_offset,

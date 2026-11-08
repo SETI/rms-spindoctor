@@ -83,7 +83,7 @@ class GlobalFieldsMixin(SimEditorBase):
         gen_layout.addRow('Random seed:', self._random_seed_spin)
 
         # Instrument selector: drives the per-instrument noise / saturation /
-        # PSF / unit settings the renderer applies (see spindoctor.sim.instruments).
+        # PSF / unit settings the renderer applies (see spindoctor.sim.instrument_navigator).
         self._instrument_combo = QComboBox()
         # The generic (instrument-agnostic) frame, then every instrument config
         # file's camera.

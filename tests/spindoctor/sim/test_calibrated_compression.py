@@ -15,7 +15,7 @@ import pytest
 from spindoctor.config import DEFAULT_CONFIG
 from spindoctor.sim.forward.detector.params import calibration_map, resolve_detector_params
 from spindoctor.sim.forward.telemetry_artifacts import apply_compression_dct
-from spindoctor.sim.instruments import read_frame_as_navigator, resolve_sim_inst_config
+from spindoctor.sim.instrument_navigator import read_frame_as_navigator, resolve_sim_inst_config
 from spindoctor.sim.render import render_combined_model
 
 _COMPRESSION = {'compression_dct': {'probability': 1.0}}

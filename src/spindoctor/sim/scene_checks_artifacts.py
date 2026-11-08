@@ -19,13 +19,13 @@ from __future__ import annotations
 
 from typing import Any
 
-from spindoctor.sim.forward.artifact_modes import (
+from spindoctor.sim.artifact_modes import (
     ARTIFACT_MODES,
     MODE_KEYS,
     ArtifactMode,
     ModeParam,
 )
-from spindoctor.sim.forward.artifacts_catalog import (
+from spindoctor.sim.instrument_resolvers import (
     instrument_default_modes,
     mode_available,
     mode_unavailable_message,

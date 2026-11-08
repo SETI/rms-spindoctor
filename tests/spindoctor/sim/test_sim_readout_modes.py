@@ -15,17 +15,17 @@ import numpy as np
 import pytest
 
 from spindoctor.sim.forward import scene_radiance
-from spindoctor.sim.forward.artifacts_catalog import (
-    binned_psf_kernel,
+from spindoctor.sim.forward.detector.noise_stages import detector_hot_pixel_map
+from spindoctor.sim.forward.detector.params import DetectorParamError, resolve_detector_params
+from spindoctor.sim.forward.optics import effective_psf
+from spindoctor.sim.forward.psf import binned_psf_kernel
+from spindoctor.sim.forward.scene_radiance import _nominal_read_noise
+from spindoctor.sim.forward.star import faint_sky_cutoff_mag
+from spindoctor.sim.instrument_resolvers import (
     binning_for_frame_size,
     cataloged_binnings,
     resolve_psf_kernel,
 )
-from spindoctor.sim.forward.detector.noise_stages import detector_hot_pixel_map
-from spindoctor.sim.forward.detector.params import DetectorParamError, resolve_detector_params
-from spindoctor.sim.forward.optics import effective_psf
-from spindoctor.sim.forward.scene_radiance import _nominal_read_noise
-from spindoctor.sim.forward.star import faint_sky_cutoff_mag
 from spindoctor.sim.render import clear_render_caches, render_combined_model
 from spindoctor.sim.scene import validate_sim_params
 from spindoctor.sim.scene_schema import SimSceneValidationError

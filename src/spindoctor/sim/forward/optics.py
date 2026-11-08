@@ -25,18 +25,18 @@ from typing import Any
 
 import numpy as np
 
-from spindoctor.sim.forward.artifacts_catalog import (
-    binned_psf_kernel,
-    resolve_distortion_residual,
-    resolve_psf_kernel,
-    scene_binning,
-)
 from spindoctor.sim.forward.distortion import apply_distortion
 from spindoctor.sim.forward.ghosts import apply_ghosts
-from spindoctor.sim.forward.psf import apply_psf, psf_truncation_for_instrument
+from spindoctor.sim.forward.psf import apply_psf, binned_psf_kernel
 from spindoctor.sim.forward.smear import apply_smear
 from spindoctor.sim.forward.stages import SimFrame
-from spindoctor.sim.instruments import navigator_matched_psf
+from spindoctor.sim.instrument_navigator import navigator_matched_psf
+from spindoctor.sim.instrument_resolvers import (
+    resolve_distortion_residual,
+    resolve_psf_kernel,
+    resolve_psf_truncation_px,
+)
+from spindoctor.sim.scene_schema import scene_binning
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 from spindoctor.support.stable_math import stable_hypot
 from spindoctor.support.types import NDArrayFloatType
@@ -222,7 +222,7 @@ def apply_optics(
             w=float(psf.get('w', 0.0)),
             r0=float(psf.get('r0', 2.0)),
             n=float(psf.get('n', 3.0)),
-            truncation_px=psf_truncation_for_instrument(params.get('instrument')),
+            truncation_px=resolve_psf_truncation_px(params.get('instrument')),
             oversample=oversample,
         )
 

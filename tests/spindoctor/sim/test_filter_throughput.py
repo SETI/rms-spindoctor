@@ -18,7 +18,7 @@ from spindoctor.sim.forward.detector.params import (
     calibration_map,
     resolve_detector_params,
 )
-from spindoctor.sim.forward.filter_catalog import (
+from spindoctor.sim.instrument_resolvers import (
     FilterCatalogError,
     canonical_filter,
     filter_star_flux_scale,
