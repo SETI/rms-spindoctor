@@ -49,3 +49,16 @@ def test_realism_smoke_lorri(tmp_path: Path) -> None:
     assert inst['n_frames'] == 2
     assert 'star_ee50' in inst['divergences']
     assert inst['divergences']['star_ee50']['w1_normalized'] is not None
+
+
+@pytest.mark.skipif(not _HAS_REAL_DATA, reason='PDS3_HOLDINGS_DIR or OOPS_RESOURCES unset')
+def test_realism_reads_the_downlink_table_from_a_calibrated_vicar_label() -> None:
+    """A CALIB frame's VICAR label marks its TABLE downlink for the matched scene.
+
+    The calibrated WAC cohort has four frames, two downlinked through the 8-bit
+    table; only those two records ask for the ``sqrt_lut`` quantization.
+    """
+    results = run_realism_match(instruments=['coiss_calib_wac'], skip_fom7=True)
+    records = results.comparisons['coiss_calib_wac'].records
+    assert len(records) == 4
+    assert [record.quantization for record in records].count('sqrt_lut') == 2
