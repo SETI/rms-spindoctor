@@ -157,9 +157,9 @@ Options
   ``--nav-results-root``, and its rows are a snapshot of that root as of the
   ingest. Without the option, which is the default, no results index is used and
   the navigation results tree is read directly. ``--results-index-db none`` also
-  turns the results index off. A machine that sets the option through
-  configuration or through the ``NAV_RESULTS_INDEX_DB`` environment variable
-  uses it to read the files instead.
+  turns the results index off. On a machine that sets a results index through
+  configuration or through the ``NAV_RESULTS_INDEX_DB`` environment variable,
+  this is how a run reads the files instead.
 
 * ``--output-cloud-tasks-file PATH``: write a cloud task queue file for the
   selected images and generate no backplanes. See

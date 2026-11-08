@@ -235,12 +235,11 @@ the useful value is your network and what your storage service will do at
 once, and past that point extra requests queue, or the service refuses them,
 and the pass gets slower rather than faster.
 
-**If no pass can run at a value, the value is refused when the configuration is
-loaded**, before the program has written anything, and the message says which setting
-is wrong. Three kinds of value are refused: a count that is not a positive whole
-number, a setting name the section does not have, and a round of work smaller than
-the pool it feeds, which would leave threads idle at every setting rather than merely
-running slowly.
+**A value is refused if no pass can run at it.** The refusal comes when the configuration
+is loaded, before the program has written anything, and the message says which setting is
+wrong. Three kinds of value are refused: a count that is not a positive whole number, a
+setting name the section does not have, and a round of work smaller than the pool it
+feeds, which would leave threads idle at every setting rather than merely running slowly.
 
 The settings
 ~~~~~~~~~~~~
@@ -440,13 +439,12 @@ before a table is created or a stamp is written:
   the URL, or the search path behind it, points to a database or a schema other
   than the one intended.
 
-The refusal reports the schema, the tables it stopped on, and the results index URL
-with its password hidden, and the program exits 1. Nothing is created, nothing is
-stamped, and that schema is exactly as it was. The remedy is to check the URL, or to
-point the results index at a schema of its own. On PostgreSQL, append
-``?options=-csearch_path=schemaname`` to the URL. Other schemas of the same database
-are never read and never mentioned, so one server holds a results index beside
-whatever else it holds.
+The refusal reports the schema, the tables it stopped on, and the results index URL with
+its password hidden, and the program exits 1. Nothing is created, nothing is stamped, and
+that schema is exactly as it was. The remedy is to check the URL, or to point the results
+index at a schema of its own. On PostgreSQL, append ``?options=-csearch_path=schemaname``
+to the URL. Other schemas of the same database are never read or referred to, so one
+server holds a results index beside whatever else it holds.
 
 **Ingestion is incremental.** One recursive listing per root collects the
 metadata documents and carries each file's size and modification time along
@@ -535,15 +533,14 @@ subcommands offers it: ``complete`` removes no row --- whether a fan-out's rows
 went was settled at the ``divide`` that listed the root --- and ``drop`` reads no
 tree at all.
 
-**A root is refused, rather than answered for, until an ingest over it has
-completed.** Otherwise the absence of a row would read as "this image was never
-navigated". So if a consumer is pointed at a results index that has never covered its
-root, it fails, and the message gives the root and the roots that results index does
-hold. A pass that is still running, or one that stopped, leaves its root in exactly
-that state until it is completed. A consumer that is not given a root of its own --
-only the statistics report allows that -- reads only the roots that have a completed
-ingest, and lists the others as roots it covered nothing of. That is the same rule,
-applied to a set of roots instead of to one.
+**A root is refused, rather than answered for, until an ingest over it has completed.**
+Otherwise the absence of a row would read as "this image was never navigated". So if a
+consumer is pointed at a results index that has never covered its root, it fails, and the
+message gives the root and the roots that results index does hold. A pass that is still
+running, or one that stopped, leaves its root in exactly that state until it is completed.
+A consumer that is not given a root of its own -- only the statistics report allows that
+-- reads just the roots that have a completed ingest, and lists the others as roots it
+covered nothing of. That is the same rule, applied to a set of roots instead of to one.
 
 **Ingestion is never automatic.** No batch driver runs it as a side effect. The
 results index is a snapshot of the tree as of the last ingest: there is no staleness
@@ -578,12 +575,11 @@ of what changed. ``sd_results_index ingest --force`` reads every metadata docume
 which puts the reasons and the example files back into the summary; the root's whole
 set of them is otherwise a query over ``failed_files`` away.
 
-**If the walk cannot list a directory under a root, the ingest stops.** That happens
-when this user may not read the directory, or when the share it is on stopped
-answering. The error gives the directory, and the pass ends there. The root it was
-under gets no finish time, no root that follows it on the same command line is
-walked, and ``sd_results_index ingest`` exits 1. Fix what stopped the walk and run it
-again.
+**If the walk cannot list a directory under a root, the ingest stops.** That happens, for
+example, when this user may not read the directory, or when the share it is on stopped
+answering. The error gives the directory, and the pass ends there. The root it was under
+gets no finish time, no root that follows it on the same command line is walked, and
+``sd_results_index ingest`` exits 1. Fix what stopped the walk and run it again.
 
 **If the results index will not store a metadata document, the ingest stops too.**
 If a file read as a navigation result and the database then refused its rows, that
@@ -646,16 +642,17 @@ What is undefined is a link *inside* the tree being walked, which is what the
 paragraph above is about.
 
 **The exit status says whether the pass completed, not what it found.**
-``sd_results_index ingest`` exits 0 when every named root was walked, whatever
-mix of metadata documents was read, skipped, and refused, and 1 when the run could not
-complete: no results index or no results root could be resolved, a named root is not a
-location that can be read, the results index could not be opened, a root could
-not be listed at all, or a directory under one could not be listed, which stops
-the pass where it is found. A scheduled invocation therefore reads the same
-status from the same tree every time, and a status of 1 always means something
-needs fixing rather than that a tree happens to hold no results. If the command line
-carries an option the subcommand does not take, the program exits 2 instead, with a
-usage message that quotes the option, and nothing is opened or walked.
+``sd_results_index ingest`` exits 0 when every root it was given was walked, whatever mix
+of metadata documents was read, skipped, and refused, and 1 when the run could not
+complete: no results index or no results root could be resolved, a root it was given is
+not a location that can be read, the results index could not be opened, a root could not
+be listed at all, or a directory under one could not be listed, which stops the pass where
+it is found. A scheduled invocation therefore reads the same status from the same tree
+every time, and a status of 1 always means something needs fixing rather than that a tree
+happens to hold no results. If the program cannot parse the command line, it exits 2
+instead. That covers a missing subcommand, an unknown one, a subcommand without the path
+it acts on, and an option the subcommand does not take. The program then prints a usage
+message on standard error, and nothing is opened or walked.
 
 Ingesting over a queue of workers
 =================================
@@ -745,15 +742,15 @@ that never ran. An account that runs past the listing is refused the same way:
 with each task counted once the sum can only exceed the listing on a report
 belonging somewhere else.
 
-**Step 3 counts a task's result only for the root it was written under.** A
-result records the run it belongs to and the root it wrote its rows under, and
-both have to match. A run number is only unique inside the results index that
-minted it. Deleting and rebuilding a results index is the remedy for a
-schema-version mismatch, and a task file run after that refers to a run of whatever
-was built next. Its shares add up correctly, but their rows are somewhere else
-entirely, and a root stamped on them would hold nothing at all. Such results are
-counted and reported in the summary rather than credited. The root they were meant
-for is left unfinished, and step 1 over that root is what starts it again.
+**Step 3 counts a task's result only for the root it was written under.** A result records
+the run it belongs to and the root it wrote its rows under, and both have to match. A run
+number is only unique inside the results index that minted it, so a task file run after
+its results index was deleted and rebuilt refers to a run of whatever was built next.
+Deleting and rebuilding a results index is the remedy for a schema-version mismatch. That
+task file's shares add up correctly, but their rows are somewhere else entirely, and a
+root stamped on them would hold nothing at all. Such results are counted and reported in
+the summary rather than credited. The root they were meant for is left unfinished, and
+step 1 over that root is what starts it again.
 
 **Step 3 needs every task's result in the log it reads.** It reads one event log
 and counts what is in it, so a root whose tasks are spread over several logs is

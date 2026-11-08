@@ -132,9 +132,9 @@ Options both commands accept
        ``--nav-results-root``, and its rows are a snapshot of that root as of
        the ingest. Without the option, no results index is used and the
        navigation results are read as files. ``--results-index-db none`` also
-       turns the results index off. A machine that sets the option through
-       configuration or through the ``NAV_RESULTS_INDEX_DB`` environment
-       variable uses it to read the files instead.
+       turns the results index off. On a machine that sets a results index
+       through configuration or through the ``NAV_RESULTS_INDEX_DB`` environment
+       variable, this is how a run reads the files instead.
    * - ``--output-dir DIR``
      - *(required)*
      - Directory the reprojection files and the mosaic are written to.

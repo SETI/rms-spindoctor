@@ -33,7 +33,7 @@ run yourself does, and writes its results to the same place.
 
 No SpinDoctor worker ever asks for a task to be handed out again. When the worker can
 describe a failure, it returns a task result whose ``status`` is ``error`` and whose
-``status_error`` value describes the failure, and the queue does not retry that task. A
+``status_error`` value identifies the failure, and the queue does not retry that task. A
 failure that stops the worker outright reaches the queue as an exception instead, and the
 queue retries that only when it was run with retry-on-exception turned on. Each stage's
 chapter says what its worker reports.

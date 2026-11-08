@@ -233,8 +233,8 @@ time. The merged pointing files in this mission's holdings describe an object
 clock for it, so its coverage cannot be expressed in TDB. The scan records it
 as unreadable, indexes the rest of the file, and reports it once in the log. It
 can never supply a baseline, and no image ever asks it to; an image that
-actually corrected such an object would be refused with the missing clock
-named.
+actually corrected such an object would be refused, and the refusal would give
+the missing clock.
 
 **Baseline kernel naming.** New Horizons basenames declare a class only on the
 pair of kernels that exist in both forms: a trailing ``_recon`` marks

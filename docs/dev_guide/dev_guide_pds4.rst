@@ -144,15 +144,15 @@ exactly one image the same way; that is a guard on the one-image-per-batch
 invariant :func:`~spindoctor.cli.pds4.bundle_data.generate_bundle_data_files`
 also asserts.
 
-An image the bundle has nothing to describe is skipped rather than failed, and does
-not count against the run.  Three kinds arise when a selection holds more images than
-the bundle covers, which is the ordinary state of a selection made by volume: an image
-that has no navigation metadata document, an image whose navigation status is not
-``success``, and a navigated image that has no backplane metadata document.  An image
-whose backplane metadata lists no body with geometry and holds no ring statistic, as a
-star field's does, is skipped too (see `Targets`_).  It is skipped before any check that
-fails an image, since nothing would be written for it however those checks came out.  If
-an error is raised while an image is processed, the log gives the image and the error's
+An image the bundle has nothing to describe is skipped rather than failed, and does not
+count against the run.  Three kinds arise when a selection holds more images than the
+bundle covers, which is the ordinary state of a selection made by volume: an image that
+has no navigation metadata document, an image whose navigation status is not ``success``,
+and a navigated image that has no backplane metadata document.  An image whose backplane
+metadata lists no body with geometry and holds no ring statistic, as a star field's does,
+is one more such case and is skipped too (see `Targets`_).  It is skipped before any check
+that fails an image, since nothing would be written for it however those checks came out.
+If an error is raised while an image is processed, the log gives the image and the error's
 traceback, the image counts against the run, and the run carries on to the next one.
 
 A dry run reports what it would have processed and exits 0, once the
@@ -221,12 +221,12 @@ holds a statistic no index column can hold: one in a unit other than the one the
 configuration gives its plane, or a minimum or maximum that is NaN or infinite.  This is
 the check the labels pass makes per image, through
 :func:`~spindoctor.cli.pds4.statistic_checks.unindexable_statistic`.  The error gives the
-file and the plane, and says what the file records there.  The index tables and labels and
-the miscellaneous collection an earlier run wrote, its collection inventories and labels,
-and its run-level products are cleared once the index generator has found the ``data/``
-directory and before the first supplemental file is read, all of them by the index
-generator since it runs first, so a run refused for want of ``data/`` leaves them as they
-were.  Every supplemental file is read, and every value in both index tables rendered,
+file and the plane, and says what the file records there.  Once the index generator has found the
+``data/`` directory, and before it reads the first supplemental file, it clears what an
+earlier run wrote: the index tables and their labels, the miscellaneous collection, that
+run's collection inventories and labels, and its run-level products.  The index generator
+clears all of them because it runs first, so a run refused for want of ``data/`` leaves
+them as they were.  Every supplemental file is read, and every value in both index tables rendered,
 before either table is opened, so a run refused over a supplemental file leaves no product
 of the pass, neither this run's nor an earlier run's.  The pass reads each supplemental
 file as the labels pass wrote it and checks nothing in it but the statistics; whether a

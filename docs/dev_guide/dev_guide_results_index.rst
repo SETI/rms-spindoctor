@@ -328,14 +328,15 @@ passes its logger. The library reads no configuration itself, and a call that
 passes no tuning gets the library's defaults.
 
 The section is validated where every program loads its configuration, in
-:func:`~spindoctor.config.load_default_and_user_config`. If no pass can run at a
-value, the value is refused before the program has written anything, and the
-message gives the section and the setting. Three kinds of value are refused: a
-count that is not a positive integer, a setting the section does not have, and a
-round of work smaller than the pool it feeds. The section is also one of the
-three :data:`~spindoctor.config.config.HASH_EXCLUDED_SECTIONS`: how many
-requests a pass makes at once cannot change what any document says, so tuning it
-must not re-stamp a run's results as differently configured.
+:func:`~spindoctor.config.load_default_and_user_config`. A value is refused if
+no pass can run at it. The refusal comes before the program has written
+anything, and the message gives the section and the setting. Three kinds of
+value are refused: a count that is not a positive integer, a setting the section
+does not have, and a round of work smaller than the pool it feeds. The section
+is also one of the three
+:data:`~spindoctor.config.config.HASH_EXCLUDED_SECTIONS`: how many requests a
+pass makes at once cannot change what any document says, so tuning it must not
+re-stamp a run's results as differently configured.
 
 **What a check cannot report is the size and the modification time.** Those come
 from a directory entry, and an entry a check produced carries neither and says

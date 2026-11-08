@@ -482,9 +482,9 @@ A C-kernel can describe an object whose spacecraft clock none of the furnished
 kernels defines, and the scan indexes the rest of the file rather than stopping.
 The run log carries one warning that lists such objects. They can never supply a
 baseline, since their coverage cannot be expressed in TDB, and an image that
-actually corrects one is refused with the missing clock named. A mission whose
-holdings contain such an object says so in its chapter, so the warning is
-expected rather than investigated.
+actually corrects one is refused, and the refusal gives the missing clock. A
+mission whose holdings contain such an object says so in its chapter, so the
+warning is expected rather than investigated.
 
 Exit status
 -----------

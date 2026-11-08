@@ -397,9 +397,9 @@ values, and the per-reason short form), and
 :func:`~spindoctor.cli.reproj.offsets.apply_pointing_to_obs` applies it,
 returning an :class:`~spindoctor.cli.reproj.offsets.AppliedPointing` that
 records what the observation now carries (``cmatrix``, ``pool``, ``offset`` or
-``none``). The offset path is the documented mechanism for every record with no
-usable C-matrix: a fitted-rotation result (``no_cmatrix_rotation_fitted`` -- the
-mechanism, not a mission), a record with no pointing block
+``none``). The offset path is the documented mechanism for every record that has
+no usable C-matrix: a fitted-rotation result (``no_cmatrix_rotation_fitted`` --
+the mechanism, not a mission), a record that has no pointing block
 (``no_pointing_block``), and a malformed pointing block (``malformed_pointing``,
 warned to both logs like the gate refusals). Every caller treats a record that
 supplies no pointing the same way: the product is built on uncorrected pointing,
@@ -576,9 +576,9 @@ measured against a baseline that no longer exists is worse than no correction.
 Three failure modes would otherwise arrive disguised as that verdict. Each is
 refused before any candidate is tried, and the refusal says what is missing:
 
-* A camera frame or CK object frame the images name that the pool does not
-  define. A frame kernel that was never furnished defeats the same lookup for
-  every image alike, so a run that forgot it would write nothing, blame the
+* A camera frame or CK object frame that the images refer to but the pool does
+  not define. A frame kernel that was never furnished defeats the same lookup
+  for every image alike, so a run that forgot it would write nothing, blame the
   holdings, and say so once per image.
 * Two frame kernels defining one of those frames, or two versions of one
   spacecraft clock kernel. A text kernel's last assignment wins, so the corpus

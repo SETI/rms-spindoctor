@@ -200,7 +200,7 @@ differs from every ring pixel's by a few thousandths of a degree -- so no backpl
 it.  The stage records the target and the angle for every image with a closest planet,
 whether or not any pixel is on the rings.  It also keeps the angle at each pixel,
 ``oops``'s ``ring_incidence_angle`` on the same target and measured the same way, which no
-plane holds either: the writer records its least, greatest and mean over the ring pixels
+plane holds either: the writer records its least, greatest, and mean over the ring pixels
 the merged planes hold, beside the angle at the center.
 
 Distance-aware merge
@@ -281,20 +281,20 @@ body covers holds the nearer body's value, so it counts for the nearer body alon
 and a body a nearer body hides entirely is recorded with no statistic.  The body
 and ring steps compute none of their own.
 
-The statistic for the plane identified by
-:data:`~spindoctor.cli.backplanes.backplanes_rings.RING_LONGITUDE` also records its range
+The ring longitude statistic (plane
+:data:`~spindoctor.cli.backplanes.backplanes_rings.RING_LONGITUDE`) also records its range
 wrapped at zero, ``wrapped_min`` and ``wrapped_max``, which
 :func:`~spindoctor.cli.backplanes.statistics.wrapped_range` finds over the same pixels.
 The widest gap between the longitudes, the gap across zero among them, is the part of the
 circle the image does not cover, and the arc runs from the longitude after it to the one
 before it, so the arc's start is the greater where it crosses zero.  Longitudes that leave
-no gap wider than the coarsest value of the plane identified by
-:data:`~spindoctor.cli.backplanes.backplanes_rings.RING_LONGITUDINAL_RESOLUTION` cover the
-whole circle, recorded as 0 to 360.  With no value of that plane, as when the
+no gap wider than the coarsest value of the ring longitudinal resolution (plane
+:data:`~spindoctor.cli.backplanes.backplanes_rings.RING_LONGITUDINAL_RESOLUTION`) cover
+the whole circle, recorded as 0 to 360.  With no value of that plane, as when the
 configuration declares none, the statistic records no wrapped range.
 
-Each body's statistic for the plane identified by
-:data:`~spindoctor.cli.backplanes.backplanes_bodies.BODY_LONGITUDE` records its range
+Each body's longitude statistic (plane
+:data:`~spindoctor.cli.backplanes.backplanes_bodies.BODY_LONGITUDE`) records its range
 wrapped at zero too, by the same rule, over the pixels that ``BODY_ID_MAP`` assigns to the
 body.  A body's resolutions are sizes on its surface, in km per pixel, so the widest gap
 that leaves the circle covered is instead the widest longitude step between two of the
