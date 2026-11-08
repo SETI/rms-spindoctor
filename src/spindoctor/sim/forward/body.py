@@ -603,10 +603,18 @@ def render_single_body(
         ref_center_v: Reference center V for body shape caching.
         ref_center_u: Reference center U for body shape caching.
         oversample: The render grid's oversampling factor.  The body's
-            pixel-space parameters must already be scaled to this grid; the
-            factor selects the topographic renderer, which shades a body with
-            relief, craters, a surface texture, or transits at the detector
-            grid and a smooth body on the oversampled grid.
+            pixel-space parameters must already be scaled to this grid.  A
+            factor above 1 sends every ellipsoid to the topographic renderer.
+            At factor 1 the topographic renderer runs only for relief, a
+            non-Lambert law, an opposition surge, a surface texture, or
+            transits; every other ellipsoid, craters or not, takes the classic
+            path, which shades the body, craters included, on its
+            anti-aliasing supersample grid.  The topographic renderer shades a
+            body whose relief, craters, surface texture, or transits change its
+            shading at the detector grid and bilinearly upsamples it to its
+            working grid (the oversampled grid, or the anti-aliasing
+            supersample grid at factor 1), and shades any other body on the
+            working grid itself.
 
     Returns:
         Tuple of (body_mask, body_info_dict) where body_info_dict contains
