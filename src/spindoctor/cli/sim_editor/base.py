@@ -298,3 +298,7 @@ class SimEditorBase(QMainWindow):
     def _refresh_artifact_mode_availability(self) -> None:
         """Refresh per-instrument mode-row availability (ArtifactsTabMixin)."""
         raise NotImplementedError
+
+    def _select_instrument(self, instrument: str) -> None:
+        """Show a scene's instrument in the selector (GlobalFieldsMixin)."""
+        raise NotImplementedError

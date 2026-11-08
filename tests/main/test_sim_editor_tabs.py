@@ -402,6 +402,13 @@ def test_a_camera_added_as_a_file_is_in_the_instrument_list(
     assert model._instrument_combo.findText(FICTIONAL_CAMERA_NAME) >= 0
 
 
+def test_a_scene_naming_an_alias_selects_the_camera_it_names(model: Any) -> None:
+    """Loading a scene written with an alias selects the aliased camera, not the last one."""
+    model._apply_params_dict({'instrument': 'coiss_nac'})
+    model._apply_params_dict({'instrument': 'sim'})
+    assert model._instrument_combo.currentText() == 'generic'
+
+
 def test_reenabling_the_detector_group_shows_the_catalog_defaults(model: Any) -> None:
     """Turning the group off and on again resets each widget to what the renderer reads."""
     model._instrument_combo.setCurrentText('coiss_nac')
