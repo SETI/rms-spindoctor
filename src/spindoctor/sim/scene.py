@@ -44,6 +44,7 @@ from spindoctor.sim.instrument_catalog import load_instrument_catalog
 from spindoctor.sim.scene_checks import (
     _check_artifacts,
     _check_detector,
+    _check_downlink_table_used,
     _check_expected,
     _check_noise,
     _check_optics,
@@ -301,6 +302,12 @@ def validate_sim_params(
     _check_optics(sim_params.get('optics'), source=source)
     _check_detector(sim_params.get('detector'), instrument=instrument, source=source)
     _check_artifacts(sim_params.get('artifacts'), instrument=instrument, source=source)
+    _check_downlink_table_used(
+        sim_params.get('detector'),
+        sim_params.get('artifacts'),
+        instrument=instrument,
+        source=source,
+    )
     _check_spk_error(sim_params.get('spk_error'), source=source)
     _check_sky_counts(sim_params.get('sky_counts'), source=source)
     _check_star_catalog_scatter(sim_params.get('star_catalog_scatter_px'), source=source)

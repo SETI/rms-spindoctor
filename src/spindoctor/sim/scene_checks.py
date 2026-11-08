@@ -28,9 +28,11 @@ from spindoctor.sim.forward.artifact_modes import (
 from spindoctor.sim.forward.artifacts_catalog import (
     cataloged_binnings,
     downlink_table_names,
+    instrument_default_modes,
     mode_available,
     mode_unavailable_message,
     resolve_detector_defaults,
+    resolve_readout_mode,
 )
 from spindoctor.sim.forward.filter_catalog import FilterCatalogError, resolve_filter_throughput
 from spindoctor.sim.instrument_schema import DETECTOR_MODELS, QUANTIZATION_MODES
@@ -477,6 +479,55 @@ def _check_downlink_table(name: Any, *, instrument: str, source: str) -> None:
             f'{source}: detector.downlink_table {name!r} is not listed for instrument '
             f'{instrument!r}; available tables: {list(available)}'
         )
+
+
+def _check_downlink_table_used(
+    detector: Any, artifacts: Any, *, instrument: str, source: str
+) -> None:
+    """Refuse a ``detector.downlink_table`` that no quantization would decode through.
+
+    Only the ``sqrt_lut`` quantization reads the table, so a scene may name one only
+    when the frame can be companded: the resolved quantization (the scene's
+    ``detector.quantization``, else the camera's default for the selected readout
+    mode) is ``sqrt_lut``, or the ``quantization_sqrt_lut`` artifact mode is named,
+    by the scene at any probability or by the camera's ``instrument_defaults`` under
+    ``artifacts.instrument_defaults``.  Run after :func:`_check_detector` and
+    :func:`_check_artifacts`, so both blocks are well-formed mappings or None.
+
+    Parameters:
+        detector: The scene ``detector`` block, or None when absent.
+        artifacts: The scene ``artifacts`` block, or None when absent.
+        instrument: The scene's (already validated) instrument name.
+        source: Label used in error messages.
+
+    Raises:
+        SimSceneValidationError: If the scene names a downlink table and nothing
+            selects the ``sqrt_lut`` quantization.
+    """
+    if not detector or detector.get('downlink_table') is None:
+        return
+    artifacts = artifacts or {}
+    if artifacts.get('quantization_sqrt_lut') is not None:
+        return
+    if artifacts.get('instrument_defaults') and (
+        'quantization_sqrt_lut' in instrument_default_modes(instrument)
+    ):
+        return
+    quantization = detector.get('quantization')
+    if quantization is None:
+        catalog = resolve_detector_defaults(instrument)
+        binning = detector.get('binning')
+        if binning is not None:
+            catalog.update(resolve_readout_mode(instrument, binning))
+        quantization = catalog.get('quantization', 'exact')
+    if quantization == 'sqrt_lut':
+        return
+    raise SimSceneValidationError(
+        f'{source}: detector.downlink_table {detector["downlink_table"]!r} has no effect: '
+        f'only the sqrt_lut quantization decodes through a downlink table, and this '
+        f'scene quantizes with {quantization!r}; set detector.quantization: sqrt_lut, '
+        f'name the quantization_sqrt_lut artifact mode, or drop the key'
+    )
 
 
 def _check_detector_filter(value: dict[str, Any], *, instrument: str, source: str) -> None:

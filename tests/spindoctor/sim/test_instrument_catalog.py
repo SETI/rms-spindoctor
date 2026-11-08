@@ -517,6 +517,23 @@ def test_a_scene_naming_an_unlisted_downlink_table_fails() -> None:
         validate_sim_params(scene)
 
 
+def test_a_downlink_table_no_quantization_reads_fails() -> None:
+    """A scene may name a downlink table only when its frame is companded."""
+    scene = {
+        'instrument': 'coiss_nac',
+        'size_v': 32,
+        'size_u': 32,
+        'random_seed': 1,
+        'detector': {'downlink_table': 'table_12_to_8'},
+    }
+    with pytest.raises(
+        SimSceneValidationError,
+        match=r"detector\.downlink_table 'table_12_to_8' has no effect: only the sqrt_lut "
+        r"quantization decodes through a downlink table, and this scene quantizes with 'exact'",
+    ):
+        validate_sim_params(scene)
+
+
 @pytest.mark.parametrize(
     'table',
     [

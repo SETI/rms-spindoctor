@@ -760,6 +760,14 @@ produce. A camera that lists no table gets the plain square-root curve over 256
 codes, whose top code decodes to ``saturation_dn``: ``linear_dn`` 0,
 ``quadratic_dn`` ``saturation_dn / 255**2``, and fractional DN kept.
 
+A scene may set ``detector.downlink_table`` only when something would decode
+through the table: the resolved quantization (the scene's
+``detector.quantization``, else the camera's default for the selected readout
+mode) is ``sqrt_lut``, the scene names the ``quantization_sqrt_lut`` artifact
+mode at any probability, or ``instrument_defaults`` turns that mode on for the
+camera. Validation refuses the key in any other scene, because the render would
+ignore it.
+
 The two Cassini cameras share the 12-to-8-bit downlink table, measured from the
 26 TABLE frames of the CALIB cohort. The calibrated DN-equivalent step between
 consecutive raw codes is an integer that grows by one about every ten codes: 3
@@ -948,7 +956,8 @@ readout mode that restates the gain table keeps the same states. **Downlink
 tables:** a file lists its tables under ``downlink_tables.tables``, each named
 and in one of two forms, and names one as ``downlink_tables.default``; a scene
 selects another with ``detector.downlink_table``, which validation checks against
-the file's list (see the quantization sub-modes above).
+the file's list and refuses in a scene that never quantizes with ``sqrt_lut``
+(see the quantization sub-modes above).
 
 The loader takes a ``config_dir`` keyword so a test can load a directory of its
 own.
@@ -3505,7 +3514,8 @@ exposure the signal full-scale fraction references), ``filter`` (below),
 ``quantization`` (the ADC sub-mode: ``exact``, ``8bit``, ``uneven_12bit``,
 ``sqrt_lut``, ``ls8b``, or ``contour_8bit``), and ``downlink_table`` (the
 downlink table, by name, that the ``sqrt_lut`` sub-mode decodes through; it must
-be one the instrument's config file lists). Omitted keys, and keys set to null,
+be one the instrument's config file lists, in a scene that quantizes with
+``sqrt_lut``). Omitted keys, and keys set to null,
 fall back to the instrument's catalog defaults.
 
 ``filter`` names the filter combination the frame was shot through, written as
