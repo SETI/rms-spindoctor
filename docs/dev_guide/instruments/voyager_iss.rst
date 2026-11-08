@@ -382,17 +382,13 @@ Voyager 2 wide angle measurement, and the catalog says plainly that one key
 under-represents the spread across two spacecraft and two optics until
 per-camera keys and locked frames for each exist.
 
-**Artifact-mode availability.** This instrument is **not** in the CCD set, so
-the CCD-only modes -- ``radiation_transients`` and ``compression_dct`` -- are
-unavailable to it. It carries five further modes: ``pixel_spikes``,
-``beam_bend`` (the brightness-dependent limb bend), ``residual_image`` (the
-prior-frame ghost), ``reseau_scars`` (the reseau-removal patches left by
-archive processing), and ``resample_texture`` (the geometric resample the
-pipeline's own input has been through). The last two are telemetry-stage modes
-applied after the structured-loss modes, because they emulate archive
-processing rather than a detector or transmission defect. ``edited_frame``
-defaults to a 440-pixel band, which is this instrument's commanded edited-mode
-band width, so a bare ``probability`` keeps a physical centered band.
+**Artifact-mode availability.** The simulator guide's mode tables
+(:ref:`sim-telemetry-modes` and :ref:`sim-detector-modes`) give each mode's
+cameras. This instrument is **not** in the CCD
+set, so the CCD-only modes -- ``radiation_transients`` and ``compression_dct`` --
+are unavailable to it. ``edited_frame`` defaults to a 440-pixel band, which is
+this instrument's commanded edited-mode band width, so a bare ``probability``
+keeps a physical centered band.
 
 **Units.** A ``vgiss`` frame is in I/F, with a ``0`` missing-data marker. The
 simulator reads the same configuration block as real navigation, so a simulated

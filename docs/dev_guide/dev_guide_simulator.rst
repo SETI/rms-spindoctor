@@ -546,13 +546,13 @@ Calibrated scenes render through the full DN chain and then invert the
 calibration transform, so they carry propagated shot/read noise and quantization
 texture in I/F units. The chain's DN ceiling, the lower of the full well and the
 ADC clip, applies before the inverse, so a calibrated frame has an I/F ceiling as
-well: about 2.0 for ``coiss_calib_nac`` at the reference exposure, and 1.85 for
-``vgiss`` at any exposure. The navigator applies no saturation test to an I/F
+well; each camera's instrument page (:doc:`instruments/instruments`) gives its
+value. The navigator applies no saturation test to an I/F
 frame of either kind. The telemetry modes that act on transmitted DN work the same
 way on a calibrated frame. The lossy codec, ``line_garble``, and ``pixel_spikes``
 map the I/F back to DN, alter it there, and write the result as I/F. A bit-flip
-spike is capped at the ADC word: on ``vgiss`` that is 255 DN, which calibrates to
-1.85 I/F. A garbled line and a uniform spike draw anywhere in the ADC word. The
+spike is capped at the ADC word, 255 DN on ``vgiss``, so it calibrates to at most
+the I/F ceiling. A garbled line and a uniform spike draw anywhere in the ADC word. The
 codec doesn't clip what it rebuilds, so a saturated block can come back above the
 word, but a garbled line or a uniform spike drawn after it stays inside the word.
 A calibrated value that lands exactly on the 0 I/F marker moves to the next float
@@ -563,18 +563,10 @@ dark sky at exactly 0 I/F, the marker. A real calibrated product's dark sky keep
 a residual level, so the inverse then adds the instrument's calibrated sky
 residual to every pixel: ``calibrated_sky_if`` in its detector catalog entry, or
 :data:`~spindoctor.sim.forward.artifacts_catalog.DEFAULT_CALIBRATED_SKY_IF` where
-the entry sets none.
-
-* ``vgiss`` uses 1.5 DN at the vidicon's 127.5 DN per unit I/F, 0.0118 I/F. Real
-  GEOMED sky sits above 0, between 6.6e-4 and 3.2e-2 I/F in five archived frames.
-  Half a DN off the whole-DN grid, the residual keeps every digitized pixel off 0
-  at any noise level. One and a half steps up, it keeps the sky's 1st percentile
-  positive under ``instrument_defaults``, as inside a real GEOMED border.
-* Every other calibrated frame (the Cassini CALIB cameras, and any instrument a
-  scene pins to ``calibrated_if``) uses 4.0e-5 I/F, the median sky of 13 dark
-  Cassini NAC CALIB frames. Their sky scatters around 0 with a sigma of 1.9e-4
-  I/F. Under ``instrument_defaults`` about 28% of the pixels of a disc scene a
-  third of the frame across sit below 0, down to about -0.0006.
+the entry sets none, as for any instrument a scene pins to ``calibrated_if``.
+The default is the Cassini CALIB cameras' value. Each camera's value, and the
+real sky measurements behind it, are on its instrument page: the Voyager page
+for ``vgiss`` and the Cassini page for the CALIB cameras.
 
 Before the divide, the inverse subtracts the calibration residual: the
 structure a real pipeline's per-pixel corrections leave in its product. A real
@@ -585,15 +577,12 @@ doesn't carry. Two noise keys reproduce it, both in electrons per native pixel:
 
 * ``calibration_column_residual_e`` is a column pattern fixed per detector: a
   Gaussian per native column keyed on the camera, so every scene emulating it
-  carries the same columns. On real Cassini NAC CALIB frames the pattern repeats
-  from frame to frame (correlation 0.93) at 15 e- rms; the WAC measures 30 e-.
-* ``calibration_pixel_residual_e`` is a Gaussian per pixel, drawn per frame: NAC
-  9.4 e-, WAC 30 e-.
+  carries the same columns.
+* ``calibration_pixel_residual_e`` is a Gaussian per pixel, drawn per frame.
 
 Both are 0 unless the scene sets them or ``instrument_defaults`` takes the
-catalog's values, and only the calibrated Cassini products catalog them. On the
-NAC they lift the calibrated sky noise at gain state 2 from the raw frame's
-0.6 DN to about 0.9 DN-equivalent, as on the real products. A binned pixel sums
+catalog's values, and only the calibrated Cassini products catalog them (the
+Cassini page gives the measured values). A binned pixel sums
 its native pixels: a column's ``b`` rows add coherently and its ``b`` columns
 independently, and the pixel term adds in quadrature.
 
@@ -766,15 +755,8 @@ when ``whole_dn`` is set. A camera without an entry gets the plain square-root
 curve over 256 codes, whose top code decodes to ``saturation_dn``: ``linear_dn``
 0, ``quadratic_dn`` ``saturation_dn / 255**2``, and fractional DN kept.
 
-The two Cassini cameras share the 12-to-8-bit downlink table, measured from the
-26 TABLE frames of the CALIB cohort. The calibrated DN-equivalent step between
-consecutive raw codes is an integer that grows by one about every ten codes: 3
-DN near code 10, 5 near 25, 8 near 55, 13 near 100, and 24 near 200. Code ``c``
-decodes to ``round(2 * c + 0.055 * c**2)`` DN (``codes`` 256, ``linear_dn`` 2,
-``quadratic_dn`` 0.055, ``whole_dn`` true), which reproduces those steps and
-tops out at 4086 DN at code 255. Near a dark sky the step is 3 to 4 DN, against
-1 DN in a 12-bit frame, so a TABLE frame's calibrated sky is several times
-noisier than a 12-bit frame's.
+The Cassini cameras' table and its measurement are on the Cassini page
+(:doc:`instruments/cassini_iss`).
 
 **Artifact modes in the chain.** The registry's detector modes (see
 :ref:`sim-artifacts-block`) render at their physical point in this chain: the
@@ -953,6 +935,8 @@ path stepping a value out of its range, or naming an unknown key in a block the
 validator checks key by key (every artifact mode's map does), fails when the
 sweep is built.
 
+.. _sim-telemetry-modes:
+
 Telemetry-stage modes
 ---------------------
 
@@ -1045,6 +1029,8 @@ GEOMED archive-processing scars on the already-loss-bearing frame
 :data:`~spindoctor.sim.forward.artifact_modes.TELEMETRY_POST_LOSS_ORDER`). The
 commanded ``truth_window`` is resolved before the loop and passed to
 ``missing_blocks`` as a protected rectangle.
+
+.. _sim-detector-modes:
 
 Detector-stage modes
 --------------------
@@ -3069,30 +3055,26 @@ against exactly this inventory, so an unknown noise key fails loudly.
      - Expected cosmic-ray events per pixel per second the detector collects: a
        frame's event count is a Poisson draw with mean rate x
        (``exposure_sec`` + ``cosmic_ray_readout_dwell_sec``) x pixel count.
-       ``instrument_defaults`` supplies the catalog rate: 2.0e-5 on the
-       Cassini cameras and Galileo SSI, 0.0 on LORRI and Voyager. The CCD
-       chain deposits the hits in electrons and the vidicon chain in DN, with
+       ``instrument_defaults`` supplies the catalog rate, which each camera's
+       instrument page gives. The CCD chain deposits the hits in electrons and the vidicon chain in DN, with
        the same meaning (see :ref:`sim-detector-stage`).
    * - ``cosmic_ray_readout_dwell_sec``
      - float
      - 0.0
      - Effective seconds the detector collects cosmic rays outside the
-       exposure, while the frame waits to be read: 6 s on the Cassini cameras
-       and 4.33 s (half the full-frame readout) on Galileo SSI.
+       exposure, while the frame waits to be read.
    * - ``cosmic_ray_amplitude_e``
      - float
      - full well
      - Smallest deposit per cosmic-ray event, in electrons; an event leaves
-       this times one plus a standard lognormal draw. The catalog's 1,000 e-
-       (Cassini) and 6,000 e- (Galileo) give modest hits; unset, every hit is
-       full-well scale.
+       this times one plus a standard lognormal draw. The catalog's fitted
+       deposits give modest hits; unset, every hit is full-well scale.
    * - ``cosmic_ray_spread_px``
      - float
      - 0.0
      - Gaussian charge-diffusion sigma of each cosmic-ray event. The catalog
-       states it in native pixels (0.6 on Cassini, 0.4 on Galileo), so a
-       binned frame sees it shrink by the binning; a scene value is the frame
-       pixel's own.
+       states it in native pixels, so a binned frame sees it shrink by the
+       binning; a scene value is the frame pixel's own.
    * - ``missing_data_rate``
      - float
      - 0.0
@@ -3116,8 +3098,7 @@ against exactly this inventory, so an unknown noise key fails loudly.
      - 0 (off)
      - Dark charge the last line collects during the readout, in electrons per
        frame pixel, rising linearly from 0 at the first line. The Cassini
-       cameras catalog it from their raw dark skies: 55 e- on the NAC and 33 e-
-       on the WAC.
+       cameras catalog it from their raw dark skies.
    * - ``hot_pixel_fraction``
      - float
      - 0 (off)

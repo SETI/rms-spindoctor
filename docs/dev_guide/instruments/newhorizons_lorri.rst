@@ -279,12 +279,9 @@ star-field distortion analysis. The radial term is a mid-field hump close to
 the measurement floor; this camera's significant geometric signature is the
 twist, not the distortion.
 
-**Artifact-mode availability.** This instrument is in the CCD set, so it
-carries the CCD-only modes (``radiation_transients``, ``compression_dct``) as
-well as every mode declared available to all instruments. It also carries three
-further modes: ``embedded_header`` (the row-0 housekeeping header),
-``frame_transfer_smear``, and ``serial_tail`` (the post-gain DN undershoot
-after saturation).
+**Artifact-mode availability.** The simulator guide's mode tables
+(:ref:`sim-telemetry-modes` and :ref:`sim-detector-modes`) give each mode's
+cameras. This instrument is in the CCD set.
 
 Two modes record an explicit **exclusion reason** against this key:
 

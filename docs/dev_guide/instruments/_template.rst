@@ -63,8 +63,12 @@ reproduction path.
 Simulator model
 ===============
 
-Artifact-catalog entries; PSF and distortion parameters; artifact-mode
-availability with the exclusion reasons; realism-match status.
+Artifact-catalog entries and their measured values, with how each was measured;
+PSF and distortion parameters; artifact-mode availability as a link to the
+simulator guide's mode tables, plus the reasons for any exclusion and any
+per-camera mode default; realism-match status. Each camera's values live here
+once: the simulator guide describes the mechanisms and keys and links here for
+the values.
 
 Image library and test coverage
 ===============================

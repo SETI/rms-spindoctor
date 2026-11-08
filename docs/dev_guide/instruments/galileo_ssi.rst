@@ -247,8 +247,8 @@ Simulator model
 **PSF kernel.** ``{sigma_v: 0.80, sigma_u: 0.80, w: 1.2e-2, r0: 2.0, n: 3.0}``,
 a **retained interim published sigma**. The curated cohort holds no star frames
 for this instrument, so nothing independent has constrained the kernel, and
-simulated-frame accuracy is bounded by unverified PSF fidelity until star
-calibration frames land. This is the weakest link in this instrument's
+simulated frames rest on unverified PSF fidelity until star calibration frames
+land. This is the weakest link in this instrument's
 simulator support.
 
 **Distortion residuals.**
@@ -256,14 +256,18 @@ simulator support.
 star-field distortion analysis: a ``k2``-dominated pincushion reaching about
 half a pixel at the field corner.
 
-**Artifact-mode availability.** This instrument is in the CCD set, so it
-carries the CCD-only modes (``radiation_transients``, ``compression_dct``) as
-well as every mode declared available to all instruments. It also carries
-``truth_window``, the losslessly-clean commanded carve-out.
-``alternating_lines`` carries a ``keep`` mode for this instrument's vertical
-decimation, rather than the ``drop`` mode that blanks every Nth line. No mode
-records an exclusion reason against this key; the modes it lacks are simply not
-in their availability sets.
+**Cosmic rays.** The catalog's terms are fitted in closed loop to the cohort's
+transient spikes, 57-129 per frame: a rate of 2.0e-5 events per pixel per
+second, a 4.33 s readout dwell (half the full-frame readout), a 6,000 e-
+deposit scale, and 0.4 native pixels of diffusion. The simulator report's
+artifact-rate table gives the fit's evidence.
+
+**Artifact-mode availability.** The simulator guide's mode tables
+(:ref:`sim-telemetry-modes` and :ref:`sim-detector-modes`) give each mode's
+cameras. This instrument is in the CCD set.
+``alternating_lines`` carries a ``keep`` mode for its vertical decimation,
+rather than the ``drop`` mode that blanks every Nth line. No mode records an
+exclusion reason against this key.
 
 **Realism-match status.** Unverified. Every optical parameter is a published
 or scaled estimate and the cohort offers nothing to check them against.
