@@ -39,13 +39,13 @@ from PyQt6.QtWidgets import (
 
 from spindoctor.cli.sim_editor.artifact_mode_rows import ModeRow
 from spindoctor.cli.sim_editor.base import SimEditorBase
-from spindoctor.sim.forward.artifact_modes import ARTIFACT_MODES
+from spindoctor.sim.forward.artifact_modes import ARTIFACT_MODES, DETECTOR_MODELS
 from spindoctor.sim.forward.artifacts_catalog import (
     cataloged_binnings,
     resolve_detector_defaults,
     resolve_readout_mode,
 )
-from spindoctor.sim.instrument_schema import DETECTOR_MODELS, QUANTIZATION_MODES
+from spindoctor.sim.instrument_schema import QUANTIZATION_MODES
 
 # The rendering stages the mode rows are grouped under, in tab order.
 _STAGE_TITLES: tuple[tuple[str, str], ...] = (

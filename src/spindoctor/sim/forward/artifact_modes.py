@@ -57,7 +57,6 @@ from typing import Any
 __all__ = [
     'ACTIVATION_KEYS',
     'ARTIFACT_MODES',
-    'CCD_MODEL',
     'COUNT_ACTIVATION_KEYS',
     'DETECTOR_MODELS',
     'DETECTOR_MODE_ORDER',
@@ -69,7 +68,6 @@ __all__ = [
     'STRUCTURED_LOSS_ORDER',
     'TELEMETRY_POST_LOSS_ORDER',
     'TELEMETRY_PRE_LOSS_ORDER',
-    'VIDICON_MODEL',
     'ArtifactMode',
     'ModeParam',
     'resolve_mode_config',
@@ -100,15 +98,14 @@ class ModeParam:
 
 
 # The detector models, each a chain the detector stage implements: the CCD
-# electron chain and the vidicon DN chain.
-CCD_MODEL = 'ccd'
-VIDICON_MODEL = 'vidicon'
-DETECTOR_MODELS: tuple[str, ...] = (CCD_MODEL, VIDICON_MODEL)
+# electron chain and the vidicon DN chain.  The order is the order the sim editor
+# lists them in.
+DETECTOR_MODELS: tuple[str, ...] = ('ccd', 'vidicon')
 
 # The models a mode renders under: every model, or one chain's alone.
 _EVERY_MODEL: frozenset[str] = frozenset(DETECTOR_MODELS)
-_CCD_ONLY: frozenset[str] = frozenset({CCD_MODEL})
-_VIDICON_ONLY: frozenset[str] = frozenset({VIDICON_MODEL})
+_CCD_ONLY: frozenset[str] = frozenset({'ccd'})
+_VIDICON_ONLY: frozenset[str] = frozenset({'vidicon'})
 
 # The four activation keys.  Each mode carries exactly one of them as its first
 # parameter; which one is part of the mode's registry entry.

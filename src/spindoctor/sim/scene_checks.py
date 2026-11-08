@@ -22,6 +22,7 @@ from typing import Any
 
 from spindoctor.sim.forward.artifact_modes import (
     ARTIFACT_MODES,
+    DETECTOR_MODELS,
     MODE_KEYS,
     ModeParam,
 )
@@ -35,7 +36,7 @@ from spindoctor.sim.forward.artifacts_catalog import (
     resolve_readout_mode,
 )
 from spindoctor.sim.forward.filter_catalog import FilterCatalogError, resolve_filter_throughput
-from spindoctor.sim.instrument_schema import DETECTOR_MODELS, QUANTIZATION_MODES
+from spindoctor.sim.instrument_schema import QUANTIZATION_MODES
 from spindoctor.sim.scene_schema import SimSceneValidationError
 from spindoctor.support.status_reason import NavStatusReason
 

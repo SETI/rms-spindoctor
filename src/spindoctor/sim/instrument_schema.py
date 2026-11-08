@@ -33,7 +33,6 @@ from spindoctor.sim.forward.artifact_modes import ARTIFACT_MODES, DETECTOR_MODEL
 __all__ = [
     'CATALOG_BLIND_MODES',
     'DETECTOR_COMMON_REQUIRED',
-    'DETECTOR_MODELS',
     'GENERIC_INSTRUMENT',
     'INSTRUMENT_DEFAULTS',
     'NONNEG',
