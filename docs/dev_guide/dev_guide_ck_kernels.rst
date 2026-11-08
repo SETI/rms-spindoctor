@@ -123,8 +123,9 @@ The conversion lives behind one function,
 it. The helpers beneath it are private for that reason rather than because they
 are trivial. The two conversions between the ``oops`` and SPICE conventions are
 ``oops``'s; what remains here is what ``oops`` does not do -- turning a pixel
-offset into a rotation, refusing a malformed record, naming the C-kernel object
-and spacecraft clock, and gating a recorded attitude before applying it.
+offset into a rotation, refusing a malformed record, identifying the C-kernel
+object and spacecraft clock, and checking a recorded attitude before applying
+it.
 
 Step 1: the corrected boresight, in the oops frame
 --------------------------------------------------
@@ -394,19 +395,18 @@ already-parsed metadata record into a
 :class:`~spindoctor.cli.reproj.offsets.PointingSelection` (the mechanism, the
 values, and the per-reason short form), and
 :func:`~spindoctor.cli.reproj.offsets.apply_pointing_to_obs` applies it,
-returning an :class:`~spindoctor.cli.reproj.offsets.AppliedPointing` naming
-what the observation now carries (``cmatrix``, ``pool``, ``offset`` or
-``none``). The offset path is the documented mechanism for every record with
-no usable C-matrix: a fitted-rotation result
-(``no_cmatrix_rotation_fitted`` -- the mechanism, not a mission), a record
-with no pointing block (``no_pointing_block``), and a malformed pointing
-block (``malformed_pointing``, warned to both logs like the gate refusals).
-Every caller treats a record that supplies no pointing the same way: the
-product is built on uncorrected pointing, the shortfall is reported, and the
-reason is counted.  A caller that refused a record class the others processed
-would build one product from a document and another from the index row the
-same document was ingested into, since a column pair holds every way an offset
-can fail to be a pair.
+returning an :class:`~spindoctor.cli.reproj.offsets.AppliedPointing` that
+records what the observation now carries (``cmatrix``, ``pool``, ``offset`` or
+``none``). The offset path is the documented mechanism for every record with no
+usable C-matrix: a fitted-rotation result (``no_cmatrix_rotation_fitted`` -- the
+mechanism, not a mission), a record with no pointing block
+(``no_pointing_block``), and a malformed pointing block (``malformed_pointing``,
+warned to both logs like the gate refusals). Every caller treats a record that
+supplies no pointing the same way: the product is built on uncorrected pointing,
+the shortfall is reported, and the reason is counted.  A caller that refused a
+record class the others processed would build one product from a document and
+another from the index row the same document was ingested into, since a column
+pair holds every way an offset can fail to be a pair.
 
 After either mechanism mutates the observation,
 :func:`~spindoctor.cli.reproj.offsets.apply_pointing_to_obs` calls
@@ -515,7 +515,7 @@ after the first file was already on disk -- the same partial set, reached a
 different way. So :func:`~spindoctor.cli.ck.kernel_file.check_output_paths`
 judges every destination together and
 :func:`~spindoctor.cli.ck.kernel_file.check_ck_file` judges each file's
-contents, both before the first ``ckopn``. The refusal names every path that
+contents, both before the first ``ckopn``. The refusal lists every path that
 failed rather than the first, so a set is cleared in one pass.
 
 The per-file refusals stay where they are.
@@ -540,12 +540,12 @@ cleared before a rerun.
 The boundary is drawn at the corrected kernels on purpose. The meta-kernel's own
 rules -- no quote, no trailing ``+``, no trailing blank in a path -- are
 knowable in advance for the corrections, and are deliberately *not* checked with
-the output paths, because the meta-kernel also names every original, whose paths
+the output paths, because the meta-kernel also lists every original, whose paths
 come from ``--kernel-dir`` and are not in the output set at all. Checking half
 of what it will refuse would read as having closed a window that is still open.
 So that failure keeps its own shape: it lands after every corrected kernel is
 written, leaves a complete and self-consistent set of them, and takes only the
-meta-kernel and the report with it. The user guide names it beside the three
+meta-kernel and the report with it. The user guide lists it with the three
 above.
 
 Assignment is by reproduction, not by the recorded kernel list
@@ -573,8 +573,8 @@ navigation ran. An eligible image that no candidate reproduces is reported
 ``no_reproducing_baseline`` and receives no segment, because a correction
 measured against a baseline that no longer exists is worse than no correction.
 
-Three failure modes would otherwise arrive disguised as that verdict, and each
-is refused before any candidate is tried, naming what is missing:
+Three failure modes would otherwise arrive disguised as that verdict. Each is
+refused before any candidate is tried, and the refusal says what is missing:
 
 * A camera frame or CK object frame the images name that the pool does not
   define. A frame kernel that was never furnished defeats the same lookup for
@@ -587,9 +587,9 @@ is refused before any candidate is tried, naming what is missing:
   reports coverage in TDB, which needs that clock; such an object is recorded as
   unreadable and offers no coverage, which would make every image correcting it
   look like drift. Recording it rather than refusing the scan is deliberate: a
-  real New Horizons kernel names object -1 beside -98000, and refusing there
+  real New Horizons kernel describes object -1 beside -98000, and refusing there
   would make the whole mission unindexable for the sake of an object no image
-  ever asks about. The driver warns once in its run log, naming the skipped
+  ever asks about. The driver warns once in its run log, listing the skipped
   objects, so a kernel set missing a clock says so even when no image needs it.
 
 When several candidates reproduce -- which the holdings make ordinary, since
@@ -716,17 +716,16 @@ opposite things here, since one refuses the run and the other omits an image.
 The sampling pass over every record decides; when it comes back empty-handed, a
 second pass reads attitude alone, so a genuine coverage gap surfaces as itself
 (:exc:`~spindoctor.cli.ck.segment.BaselineCoverageGapError`) and an exposure
-that lacked only its rate is refused with a :exc:`ValueError` naming that.
-Both lookups are made through the flag-returning form of the SPICE call rather
-than the raising one, so "nothing here", which is a question about one exposure,
-is told apart from a pool with no C-kernel furnished at all, an undefined
-reference frame, or a kernel that cannot be read, each of which still raises and
-still stops the run. Choosing the form per call does not touch the process-wide
-``use_errors`` regime. Refusal rather than zeros
-for the records that lack a rate: the attitude would be right, but a platform
-genuinely parks, so an invented zero is indistinguishable from a measured one,
-and the overlay would start answering ``sxform`` at epochs where the pool has no
-answer at all.
+that lacked only its rate is refused with a :exc:`ValueError` that says so. Both
+lookups are made through the flag-returning form of the SPICE call rather than
+the raising one, so "nothing here", which is a question about one exposure, is
+told apart from a pool with no C-kernel furnished at all, an undefined reference
+frame, or a kernel that cannot be read, each of which still raises and still
+stops the run. Choosing the form per call does not touch the process-wide
+``use_errors`` regime. Refusal rather than zeros for the records that lack a
+rate: the attitude would be right, but a platform genuinely parks, so an
+invented zero is indistinguishable from a measured one, and the overlay would
+start answering ``sxform`` at epochs where the pool has no answer at all.
 
 A frozen (Voyager) segment writes zeros with ``avflag = 1``. Its attitude is
 constant, so zero is that attitude's true angular velocity -- a measurement

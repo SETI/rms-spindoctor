@@ -402,7 +402,7 @@ bodies block
 ------------
 
 Every key under ``bodies`` is listed below. Several keys are not consumed by
-:class:`~spindoctor.nav_model.nav_model_body.NavModelBody` itself; the second column names the
+:class:`~spindoctor.nav_model.nav_model_body.NavModelBody` itself; the second column gives the
 module that does consume each key. The grep
 ``grep -c '^  [a-z_]\+:' src/spindoctor/config_files/config_040_bodies.yaml`` returns 31 keys, which
 matches the 31 bullets here.

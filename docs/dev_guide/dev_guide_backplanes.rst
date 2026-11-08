@@ -187,22 +187,21 @@ the spacecraft to the ring intersection point along the line of sight)
 that the merge step compares to per-body distances to decide which source
 owns each pixel.
 
-The ring target is the one
-:func:`~spindoctor.cli.backplanes.backplanes_rings.ring_target` names for the image's
-closest planet: ``SATURN_MAIN_RINGS`` for Saturn, whose main rings the ring backplanes
-cover, and ``<PLANET>_RING_SYSTEM`` for any other.  The ring step also takes the
-incidence angle of sunlight on that target's plane, once for the image, through
-``oops``'s ``ring_center_incidence_angle`` on the same full-frame backplane: the angle
-at the ring system's center, for the light that reaches the camera at the observation's
+The ring target is the one :func:`~spindoctor.cli.backplanes.backplanes_rings.ring_target`
+returns for the image's closest planet: ``SATURN_MAIN_RINGS`` for Saturn, whose main rings
+the ring backplanes cover, and ``<PLANET>_RING_SYSTEM`` for any other.  The ring step also
+takes the incidence angle of sunlight on that target's plane, once for the image, through
+``oops``'s ``ring_center_incidence_angle`` on the same full-frame backplane: the angle at
+the ring system's center, for the light that reaches the camera at the observation's
 midtime, measured from the normal on the plane's sunlit side, converted to degrees as a
 :class:`~spindoctor.cli.backplanes.backplanes_rings.RingIncidenceAngle`.  Sunlight falls
 on a ring plane at one angle over an image -- on a real frame the angle at the center
-differs from every ring pixel's by a few thousandths of a degree -- so no backplane
-holds it.  The stage records the target and the angle for every image with a closest
-planet, whether or not any pixel is on the rings.  It also keeps the angle at each
-pixel, ``oops``'s ``ring_incidence_angle`` on the same target and measured the same
-way, which no plane holds either: the writer records its least, greatest and mean over
-the ring pixels the merged planes hold, beside the angle at the center.
+differs from every ring pixel's by a few thousandths of a degree -- so no backplane holds
+it.  The stage records the target and the angle for every image with a closest planet,
+whether or not any pixel is on the rings.  It also keeps the angle at each pixel,
+``oops``'s ``ring_incidence_angle`` on the same target and measured the same way, which no
+plane holds either: the writer records its least, greatest and mean over the ring pixels
+the merged planes hold, beside the angle at the center.
 
 Distance-aware merge
 ====================
@@ -282,33 +281,33 @@ body covers holds the nearer body's value, so it counts for the nearer body alon
 and a body a nearer body hides entirely is recorded with no statistic.  The body
 and ring steps compute none of their own.
 
-The ring longitude's statistic, the plane
-:data:`~spindoctor.cli.backplanes.backplanes_rings.RING_LONGITUDE` names, also
-records its range wrapped at zero, ``wrapped_min`` and ``wrapped_max``, which
-:func:`~spindoctor.cli.backplanes.statistics.wrapped_range` finds over the same
-pixels.  The widest gap between the longitudes, the gap across zero among them, is
-the part of the circle the image does not cover, and the arc runs from the longitude
-after it to the one before it, so the arc's start is the greater where it crosses
-zero.  Longitudes that leave no gap wider than the coarsest value of the plane
-:data:`~spindoctor.cli.backplanes.backplanes_rings.RING_LONGITUDINAL_RESOLUTION`
-names cover the whole circle, recorded as 0 to 360.  With no value of that plane, as
-when the configuration declares none, the statistic records no wrapped range.
+The statistic for the plane identified by
+:data:`~spindoctor.cli.backplanes.backplanes_rings.RING_LONGITUDE` also records its range
+wrapped at zero, ``wrapped_min`` and ``wrapped_max``, which
+:func:`~spindoctor.cli.backplanes.statistics.wrapped_range` finds over the same pixels.
+The widest gap between the longitudes, the gap across zero among them, is the part of the
+circle the image does not cover, and the arc runs from the longitude after it to the one
+before it, so the arc's start is the greater where it crosses zero.  Longitudes that leave
+no gap wider than the coarsest value of the plane identified by
+:data:`~spindoctor.cli.backplanes.backplanes_rings.RING_LONGITUDINAL_RESOLUTION` cover the
+whole circle, recorded as 0 to 360.  With no value of that plane, as when the
+configuration declares none, the statistic records no wrapped range.
 
-Each body's longitude statistic, the plane
-:data:`~spindoctor.cli.backplanes.backplanes_bodies.BODY_LONGITUDE` names, records its
-range wrapped at zero too, over the pixels ``BODY_ID_MAP`` gives the body, by the same
-rule.  A body's resolutions are sizes on its surface, in km per pixel, so the widest gap
+Each body's statistic for the plane identified by
+:data:`~spindoctor.cli.backplanes.backplanes_bodies.BODY_LONGITUDE` records its range
+wrapped at zero too, by the same rule, over the pixels that ``BODY_ID_MAP`` assigns to the
+body.  A body's resolutions are sizes on its surface, in km per pixel, so the widest gap
 that leaves the circle covered is instead the widest longitude step between two of the
 body's pixels that share an edge, taken the short way round the circle, as
-:func:`~spindoctor.cli.backplanes.statistics.longitude_step` finds it.  Longitude
-changes fastest from pixel to pixel near the limb and round a pole in view, where every
-longitude meets, so the step is as wide as any gap the body's sampling leaves: a body
-seen round a pole covers the whole circle, and one seen from its equator the arc its
-visible side spans.  The angle a pixel spans on the surface, from the body's coarsest
-resolution and its radius, is not the threshold: it grows without bound toward the
-limb, where the surface turns edge-on, and a small body's would be wider than the half
-of it out of view, reading every view of it as the whole circle.  A body whose
-longitude plane has no value records no statistic, and so no range.
+:func:`~spindoctor.cli.backplanes.statistics.longitude_step` finds it.  Longitude changes
+fastest from pixel to pixel near the limb and round a pole in view, where every longitude
+meets, so the step is as wide as any gap the body's sampling leaves: a body seen round a
+pole covers the whole circle, and one seen from its equator the arc its visible side
+spans.  The angle a pixel spans on the surface, from the body's coarsest resolution and
+its radius, is not the threshold: it grows without bound toward the limb, where the
+surface turns edge-on, and a small body's would be wider than the half of it out of view,
+reading every view of it as the whole circle.  A body whose longitude plane has no value
+records no statistic, and so no range.
 
 The PDS4 bundle generator (:doc:`dev_guide_pds4`) reads this sidecar
 when rendering the per-image data label.
@@ -395,12 +394,11 @@ Adding a backplane
    method exists by reading the ``oops`` source — there is no
    compile-time check on the YAML name.
 2. Append a ``{name, method, units, index}`` entry to the matching list in
-   ``config_900_backplanes.yaml``. Pick a ``name`` that scans well as
-   a FITS HDU name (uppercase or snake_case, no spaces). ``units``
-   describes the array, which for an angular plane means radians; the
-   statistics are converted from it, per the units section above. The
-   ``index`` block names the two columns the PDS4 bundle's global index
-   tables give the plane's statistic, their data type and their
+   ``config_900_backplanes.yaml``. Pick a ``name`` that scans well as a FITS HDU name
+   (uppercase or snake_case, no spaces). ``units`` describes the array, which for an
+   angular plane means radians; the statistics are converted from it, per the units
+   section above. The ``index`` block gives the names of the two columns that the PDS4
+   bundle's global index tables use for the plane's statistic, their data type, and their
    descriptions (see :doc:`dev_guide_pds4`).
 3. Rebuild a sample image with ``sd_backplanes`` and verify the new
    HDU appears in the FITS file with the expected ``BUNIT`` header and

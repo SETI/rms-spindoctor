@@ -269,12 +269,11 @@ every term saturates (large blob, high SNR, multi-blob composite), the calibrate
 cannot exceed 0.4 — a brightness-weighted centroid is structurally weaker evidence than a limb
 fit and the cap encodes that fact independently of the per-term coefficients.
 
-**Validation at startup.**  If the YAML spec for a technique declares
-``feature: dt_fit_rms_px`` for a star technique whose
-:class:`~spindoctor.nav_technique.diagnostics.StarRefineDiagnostics` does not carry
-``dt_fit_rms_px``, the
+**Validation at startup.**  If the YAML spec for a technique declares ``feature: dt_fit_rms_px`` for
+a star technique whose :class:`~spindoctor.nav_technique.diagnostics.StarRefineDiagnostics` does not
+carry ``dt_fit_rms_px``, the
 :func:`~spindoctor.nav_technique.nav_technique.validate_registered_confidence_specs` walk fails with
-a :exc:`ValueError` naming the technique class and the unknown attribute, before any image is
+a :exc:`ValueError` that gives the technique class and the unknown attribute, before any image is
 processed. The same check fires for unknown
 :attr:`~spindoctor.nav_technique.confidence.ConfidenceSpec.hard_zero_if` keys.
 

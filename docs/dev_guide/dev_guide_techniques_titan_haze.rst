@@ -476,7 +476,7 @@ Gates
 -----
 
 Every gate is evaluated on the final pass. A failure yields a spurious
-:class:`~spindoctor.nav_technique.technique_result.NavTechniqueResult` naming the gate in
+:class:`~spindoctor.nav_technique.technique_result.NavTechniqueResult` that records the gate in
 :attr:`~spindoctor.nav_technique.diagnostics.TitanHazeDiagnostics.gate_failed`; the frame then
 resolves through the standard generic statuses, so a hazy-body-only frame whose fit fails ends
 ``all_techniques_spurious``.

@@ -237,10 +237,10 @@ output roots, and the results index URL:
 - ``results_index_db`` — connection URL of the results index, a database derived
   from the navigation results tree by a separate ingest step. It is not
   authoritative: the per-image ``_metadata.json`` documents are, and the index
-  can be deleted and rebuilt from them. A ``sqlite:`` URL names a local
+  can be deleted and rebuilt from them. A ``sqlite:`` URL points to a local
   filesystem path and nothing else: it carries no query string, because the
   driver would then open a file named after the query rather than the file named
-  in the URL. A ``postgresql+psycopg:`` URL names a server. Leaving it unset
+  in the URL. A ``postgresql+psycopg:`` URL points to a server. Leaving it unset
   means "no index", which is the default mode of every program, and the literal
   value ``none`` says so explicitly, overriding a URL set elsewhere. A value
   that is empty, or nothing but spaces, is neither a URL nor that word, and is
@@ -249,12 +249,12 @@ output roots, and the results index URL:
 Each root may be a local path or a URL; ``filecache``-aware consumers handle
 both. ``results_index_db`` is the exception: it is a database connection URL,
 not a location ``filecache`` resolves. Every one of them resolves from the first
-level that names it: the CLI flag, then this ``environment`` block, then the
+level that sets it: the CLI flag, then this ``environment`` block, then the
 environment variable (``PDS3_HOLDINGS_DIR``, ``NAV_RESULTS_ROOT``,
-``NAV_BACKPLANE_RESULTS_ROOT``, ``NAV_BUNDLE_RESULTS_ROOT``, ``NAV_RESULTS_INDEX_DB``).
-A key written into a configuration file therefore wins over the same value
-exported into the environment, and a flag typed on the command line wins over
-both.
+``NAV_BACKPLANE_RESULTS_ROOT``, ``NAV_BUNDLE_RESULTS_ROOT``,
+``NAV_RESULTS_INDEX_DB``). A key written into a configuration file therefore
+wins over the same value exported into the environment, and a flag typed on the
+command line wins over both.
 
 The whole ``environment`` block is left out of the provenance configuration
 digest recorded with each navigation result. It says where a deployment keeps
@@ -449,8 +449,8 @@ When a new YAML knob is added:
 1. Pick the file whose section it belongs to (e.g. a new ``bodies`` key goes
    in ``config_040_bodies.yaml``). If no existing file fits, allocate a new
    numeric prefix per the layout table above.
-2. Add the key with a sensible default and a one-line YAML comment naming
-   the consumer.
+2. Add the key with a sensible default and a one-line YAML comment that
+   identifies the consumer.
 3. Document the key on the consumer's dev-guide page (for example,
    :doc:`dev_guide_navigation_models_body` lists every key under
    ``bodies``). The page lists name, type, default, units, and consumer.

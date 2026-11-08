@@ -31,7 +31,7 @@ Bundle generation is a two-phase process driven by ``sd_create_bundle``:
    summary PNG and its ``<image>_summary.lblx`` label. The label's data objects
    are read from the source FITS before anything is written into the bundle, and
    the copy is the same bytes (see `The FITS and its data objects`_). The data
-   label also names the image's targets (see `Targets`_).
+   label also lists the image's targets (see `Targets`_).
 
 2. **Collections and indexes.**  After every per-image data label is in place,
    :func:`~spindoctor.cli.pds4.global_index.generate_global_index_files` reads
@@ -39,7 +39,7 @@ Bundle generation is a two-phase process driven by ``sd_create_bundle``:
    ``global_bodies_index`` and ``global_rings_index`` tables and their labels,
    and the miscellaneous collection that lists them, into ``miscellaneous/`` (see
    `The global index and the miscellaneous collection`_), and takes the range of
-   the products' exposure epochs, and the targets they name, in the same read.  Then
+   the products' exposure epochs, and the targets they list, in the same read.  Then
    :func:`~spindoctor.cli.pds4.collections.generate_collection_files` walks the
    ``data/`` and ``browse/`` trees, collects every ``_backplanes.lblx`` and
    ``_summary.lblx`` it finds, sorts each set by product name -- the file name
@@ -55,20 +55,19 @@ Bundle generation is a two-phase process driven by ``sd_create_bundle``:
    :func:`~spindoctor.cli.pds4.bundle_products.generate_bundle_products` writes
    the bundle's run-level products: the readme, the context, document, SPICE
    kernel and XML schema collections, the user guide when the template directory
-   holds its PDF, and the bundle label, which states the same range, names the same
-   targets and is kept only over a bundle holding every collection it declares (see
-   `The bundle's run-level products`_).
+   holds its PDF, and the bundle label. The bundle label states the same range and
+   lists the same targets, and is kept only when the bundle holds every collection it
+   declares (see `The bundle's run-level products`_).
 
 The driver runs phase 1 once per image (fan-out friendly — each image is
 independent) and phase 2 once at the end (sequential — needs every per-image
 label in place before it can build the inventory).
 
 ``sd_create_bundle check`` then holds the bundle the two phases wrote to the PDS4
-standard, reading
-its tree and the schemas its labels name, and writes nothing in the tree (see `Checking
-a bundle`_).  Before phase 1, ``sd_create_bundle labels --check-only`` reports whether
-each selected image has the files phase 1 reads, and writes no label, log or bundle
-file.
+standard. It reads the bundle's tree and the schemas its labels refer to, and writes
+nothing in the tree (see `Checking a bundle`_).  Before phase 1,
+``sd_create_bundle labels --check-only`` reports whether each selected image has the
+files phase 1 reads, and writes no label, log or bundle file.
 
 Driver: ``sd_create_bundle``
 =============================
@@ -96,14 +95,14 @@ holding that image's ``image_file_url``, ``label_file_url`` and
 Exit status
 -----------
 
-Before either pass processes anything, it checks that every template
-:meth:`~spindoctor.dataset.dataset.DataSet.pds4_required_templates` declares for
-it is in the directory
-:meth:`~spindoctor.dataset.dataset.DataSet.pds4_bundle_template_dir` names, and
-exits 1 naming each one that is not.  Every product of a pass renders from that
-one directory, so a template that is missing is missing for every product, and a
-per-product report would be the same line thousands of times.  The two passes
-render different templates and each checks its own.
+Before either pass processes anything, it checks that every template that
+:meth:`~spindoctor.dataset.dataset.DataSet.pds4_required_templates` declares for it is
+in the directory that
+:meth:`~spindoctor.dataset.dataset.DataSet.pds4_bundle_template_dir` returns.  If any
+template is missing, the pass exits 1 and lists each missing one.  Every product of a pass
+renders from that one directory, so a template that is missing is missing for every
+product, and a per-product report would be the same line thousands of times.  The two
+passes render different templates and each checks its own.
 
 Each index column is written in the format
 :data:`~spindoctor.cli.pds4.index_columns.INDEX_VALUE_FORMATS` gives its unit, each
@@ -115,8 +114,8 @@ two tests over the shipped configuration that :doc:`dev_guide_backplanes`
 describes.
 
 Before it processes anything, ``sd_create_bundle labels`` also requires
-``<bundle_results_root>/<pds4_bundle_name()>/`` to be empty or absent, and exits
-1 naming the directory when it is not.  A bundle is the product of one run: with
+``<bundle_results_root>/<pds4_bundle_name()>/`` to be empty or absent.  When it is
+not, the pass exits 1 and logs the directory.  A bundle is the product of one run: with
 that precondition there is no stale label to detect and no directory to clean,
 which is why nothing downstream of this check looks for either.  The check is
 the local driver's alone.  ``sd_create_bundle_cloud_tasks`` calls
@@ -137,40 +136,40 @@ infinite), an image whose navigation document records no exposure times in its
 observation block, as a navigation by an earlier version left it (see `Epochs`_),
 and an image whose processing raised an error -- and exits 1 when that count is not
 zero.  An image with such a statistic is failed before anything is
-written for it, and the log names the image, the plane and what the document
-records there.  The run closes with a line giving that count alongside the
+written for it, and the log gives the image, the plane, and what the backplane
+metadata records there.  The run closes with a line giving that count alongside the
 number of images it labeled and the number it skipped, so a selection that
 matched nothing reads as the zero it is.  It counts a batch that did not hold
 exactly one image the same way; that is a guard on the one-image-per-batch
 invariant :func:`~spindoctor.cli.pds4.bundle_data.generate_bundle_data_files`
 also asserts.
 
-An image the bundle has nothing to describe is skipped rather than failed and
-does not count against the run: an image with no navigation metadata document,
-an image whose navigation status is not ``success``, and a navigated image with
-no backplane metadata document are all cases of a selection naming more images
-than the bundle covers, which is the ordinary state of a selection made by
-volume.  So is an image whose backplane metadata names no body with geometry and holds
-no ring statistic, as a star field's does (see `Targets`_): it is
-skipped before any check that fails an image, since nothing would be written for it
-however those came out.  An error raised while one image is processed is logged with
-its traceback naming the image, counts the image against the run, and the run carries
-on to the next one.
+An image the bundle has nothing to describe is skipped rather than failed, and does
+not count against the run.  Three kinds arise when a selection holds more images than
+the bundle covers, which is the ordinary state of a selection made by volume: an image
+that has no navigation metadata document, an image whose navigation status is not
+``success``, and a navigated image that has no backplane metadata document.  An image
+whose backplane metadata lists no body with geometry and holds no ring statistic, as a
+star field's does, is skipped too (see `Targets`_).  It is skipped before any check that
+fails an image, since nothing would be written for it however those checks came out.  If
+an error is raised while an image is processed, the log gives the image and the error's
+traceback, the image counts against the run, and the run carries on to the next one.
 
 A dry run reports what it would have processed and exits 0, once the
 preconditions above are met: they are checked before ``--dry-run`` is read, so a
 dry run over a missing template or a populated bundle root
-exits 1 naming what it found, like any other run.  Past them it writes nothing,
+exits 1 and reports what it found, like any other run.  Past them it writes nothing,
 so it counts nothing against the run, including a batch it reports it could not
 have processed.
 
 ``--check-only`` makes neither check, since it writes no label, log or bundle file,
-neither needs nor creates a bundle root, and builds no logging.  For the image of each
-batch the selection enumerates it prints one line saying whether the navigation
-document, the summary PNG, the backplane FITS and the backplane metadata that
-:func:`~spindoctor.cli.pds4.image_inputs.image_inputs` names for it exist, and whether
-its navigation succeeded, from the navigation record as the labels pass reads it; then
-a count, through :func:`~spindoctor.cli.pds4.image_inputs.report_image_inputs`.  A batch
+neither needs nor creates a bundle root, and builds no logging.  It prints one line for
+the image of each batch the selection enumerates.  The line says whether the navigation
+metadata document, the summary PNG, the backplane FITS, and the backplane metadata exist
+at the paths :func:`~spindoctor.cli.pds4.image_inputs.image_inputs` returns for the
+image, and whether its navigation succeeded, from the navigation record as the labels
+pass reads it.  A count follows, through
+:func:`~spindoctor.cli.pds4.image_inputs.report_image_inputs`.  A batch
 of other than one image, which the labels pass fails, is one line, and every image of
 it counts as incomplete: the two take that rule from one function in the driver.  It
 exits 1 when any image lacks a file, its navigation did not succeed, or its batch is
@@ -207,42 +206,41 @@ global index step, so a document inventory that cannot be rendered stops the sum
 pass there, with exit status 1, the index tables and their labels on disk and nothing
 the pass writes after them.  A readme that fails to render counts too, and so does the
 bundle label, which the package's template gives the readme's creation time.  A user-guide
-PDF the template directory does not hold is one warning, and does not count.  A collection whose label cannot state what the PDS4 standard requires of it is not
-written at all -- neither its inventory nor its label, and whatever an earlier run
-left at either path is removed -- and counts once among the labels not written,
-with an error naming the collection and each reason.  A collection label states at
-least one record, so a collection with no label of its kind on disk -- no data
-label, or no browse label -- is never written.  The data collection label also
-states the range of its products' epochs, so a data tree in which no data label has
-a supplemental file beside it writes no data collection (see `Epochs`_).  The
-global index is generated first, and it refuses a
-bundle with no ``data/`` directory, naming the directory, before any product of
-the pass is cleared or written.  The pass also exits 1 when a supplemental file
-holds a statistic no index column can -- one in a unit other than the one the
-configuration gives its plane, or a minimum or maximum that is NaN or infinite --
+PDF the template directory does not hold is one warning, and does not count.  A collection
+whose label cannot state what the PDS4 standard requires of it is not written at all --
+neither its inventory nor its label, and whatever an earlier run left at either path is
+removed -- and counts once among the labels not written, with an error that gives the
+collection and each reason.  A collection label states at least one record, so a
+collection with no label of its kind on disk -- no data label, or no browse label -- is
+never written.  The data collection label also states the range of its products' epochs,
+so a data tree in which no data label has a supplemental file beside it writes no data
+collection (see `Epochs`_).  The global index is generated first.  If the bundle has no
+``data/`` directory, the index generator refuses it and logs the directory, before any
+product of the pass is cleared or written.  The pass also exits 1 when a supplemental file
+holds a statistic no index column can hold: one in a unit other than the one the
+configuration gives its plane, or a minimum or maximum that is NaN or infinite.  This is
 the check the labels pass makes per image, through
-:func:`~spindoctor.cli.pds4.statistic_checks.unindexable_statistic`, naming the
-file and the plane and saying what the file records there.  The index tables and
-labels and the miscellaneous collection an earlier run wrote, its collection
-inventories and labels, and its run-level products are cleared once the index generator
-has found the ``data/`` directory and before the first supplemental file is read, all of
-them by the index generator since it runs first, so a run refused for want of ``data/``
-leaves them as they were.  Every supplemental file is read, and every value in
-both index tables rendered, before either table is opened, so a run refused over a
-supplemental file leaves no product of the pass, neither this run's nor an earlier
-run's.  The pass reads each
-supplemental file as the labels pass wrote it and checks nothing in it but the
-statistics; whether a data label is beside it is the product check that follows, and a
-supplemental file with no data label beside it adds no row to either index table.
-Anything else unexpected raises, and the run ends with exit status 1.
+:func:`~spindoctor.cli.pds4.statistic_checks.unindexable_statistic`.  The error gives the
+file and the plane, and says what the file records there.  The index tables and labels and
+the miscellaneous collection an earlier run wrote, its collection inventories and labels,
+and its run-level products are cleared once the index generator has found the ``data/``
+directory and before the first supplemental file is read, all of them by the index
+generator since it runs first, so a run refused for want of ``data/`` leaves them as they
+were.  Every supplemental file is read, and every value in both index tables rendered,
+before either table is opened, so a run refused over a supplemental file leaves no product
+of the pass, neither this run's nor an earlier run's.  The pass reads each supplemental
+file as the labels pass wrote it and checks nothing in it but the statistics; whether a
+data label is beside it is the product check that follows, and a supplemental file with no
+data label beside it adds no row to either index table. Anything else unexpected raises,
+and the run ends with exit status 1.
 
 The summary pass inventories each collection from the labels of its own kind, the
 data collection from the data labels in ``data/`` and the browse collection from
 the browse labels in ``browse/``, and holds each image's products against each
 other, since every data product has a browse product.  An image with a data label
 and no browse label, or with a browse label or a supplemental file and no data
-label, disagrees: the pass logs one error naming the image, the files of it that
-are there and the label it lacks, counts it, and exits 1, its closing line giving
+label, disagrees: the pass logs one error that gives the image, the files of it that
+are there, and the label it lacks, counts it, and exits 1, its closing line giving
 the images whose products disagree beside the labels not written.  Such an image
 is still listed in whichever inventory holds a product of it.  These are the states
 a labels pass that failed an image leaves -- an image whose summary PNG was missing
@@ -256,21 +254,20 @@ nothing to count.  A data label with no
 supplemental file is not checked, since the labels pass writes an image's
 supplemental file before its data label.
 
-A summary pass that exits 1 does not repair the bundle: the generators report what
-they cannot describe, and what they wrote stays, but for two things.  A collection
-that cannot be written has whatever an earlier run left at its paths removed, and
-the bundle label, rendered and then found to name a collection the bundle does not
-hold, is removed in the same run.  After one, the browse labels can name a data
-collection that was not written, and the data labels a browse collection that was not
-written; a user guide whose label failed is in
-``document/user_guide/`` unlabeled and unlisted; and a metakernel whose label failed
-is in ``spice_kernels/`` with neither label nor collection.  The bundle label names no
-collection the bundle does not hold, except after a run refused before it cleared
-anything -- over a bundle with no data directory -- which leaves an earlier run's
-products as they were, its bundle label among them.  A run refused after it cleared
-can leave empty collection directories.  None of this is repaired in place: clear the
-bundle directory and regenerate the bundle into it, as after a labels pass that exits
-1.
+A summary pass that exits 1 does not repair the bundle.  The generators report what
+they cannot describe, and what they wrote stays, with two exceptions.  If a collection
+cannot be written, whatever an earlier run left at its paths is removed.  If the bundle
+label is rendered and then found to list a collection the bundle does not hold, it is
+removed in the same run.  After such a run, the browse labels can refer to a data
+collection that was not written, and the data labels to a browse collection that was
+not written.  A user guide whose label failed is in ``document/user_guide/``, unlabeled
+and unlisted, and a metakernel whose label failed is in ``spice_kernels/`` with neither
+label nor collection.  The bundle label lists no collection the bundle does not hold,
+except after a run refused before it cleared anything -- over a bundle with no data
+directory -- which leaves an earlier run's products as they were, its bundle label among
+them.  A run refused after it cleared can leave empty collection directories.  None of
+this is repaired in place: clear the bundle directory and regenerate the bundle into it,
+as after a labels pass that exits 1.
 
 ``sd_create_bundle_cloud_tasks`` reports a product it could not write as a
 ``status: error`` result carrying ``status_error: label_not_written``, and asks
@@ -309,8 +306,8 @@ The full extension-point set:
   ``<bundle_results_root>/<bundle_name>/``. Lookups consult
   ``config.pds4.<dataset_name>.bundle_name``.
 - :meth:`~spindoctor.dataset.dataset.DataSet.pds4_bundle_version` — the bundle's
-  version, which the bundle, each of its collections and each product it writes states
-  as its ``version_id``, and which every LIDVID naming one of them carries.  Lookups
+  version.  The bundle, each of its collections, and each product it writes state it as
+  their ``version_id``, and every LIDVID that refers to one of them carries it.  Lookups
   consult ``config.pds4.<dataset_name>.bundle_version``, which has no default.
 - :meth:`~spindoctor.dataset.dataset.DataSet.pds4_information_model_version` and
   :meth:`~spindoctor.dataset.dataset.DataSet.pds4_schemas` — the PDS4 information model
@@ -364,18 +361,18 @@ The full extension-point set:
   derive any per-image quantity the templates reference (target body,
   observer, mid-time, exposure, filters, navigation offset and confidence,
   per-backplane min/max/units, and so on), and the product the backplanes were
-  computed from: the Cassini hook cites the calibrated image the navigation read
+  computed from.  The Cassini hook cites the calibrated image the navigation read
   as a ``Source_Product_External``, by its volume and the file specification of
   its label within that volume, since no PDS4 bundle holds calibrated Cassini ISS
-  images yet; the label names it through a ``Source_Product_Internal`` once one
-  does.
+  images yet.  Once one does, the label will cite the image through a
+  ``Source_Product_Internal``.
 
 Reference implementation:
 :class:`~spindoctor.dataset.dataset_pds3_cassini_iss.DataSetPDS3CassiniISS`
 overrides every PDS4 hook above and serves as the canonical worked example.
 Of its two registered subclasses only the Saturn one bundles as the package
-ships: the cruise one names ``cassini_iss_cruise_1.0``, which does not ship, so
-both passes refuse it at the missing-template check.  Galileo SSI
+ships.  The cruise one's template directory is ``cassini_iss_cruise_1.0``, which does
+not ship, so both passes refuse it at the missing-template check.  Galileo SSI
 (:class:`~spindoctor.dataset.dataset_pds3_galileo_ssi.DataSetPDS3GalileoSSI`),
 New Horizons LORRI
 (:class:`~spindoctor.dataset.dataset_pds3_newhorizons_lorri.DataSetPDS3NewHorizonsLORRI`)
@@ -392,7 +389,7 @@ The Cassini ISS class itself, registered as ``coiss``, leaves its configuration
 name and default template directory to its subclasses and raises
 :exc:`NotImplementedError` for them, so both passes stop on it when they ask for
 the template directory, as they do on ``sim``, whose hooks all raise it.  Every
-registered name but ``sim`` has a ``_pds3`` alias naming the same class, which
+registered name but ``sim`` has a ``_pds3`` alias for the same class, which
 bundles, or does not, the same way.
 
 The ``pds4`` config block
@@ -410,11 +407,11 @@ to another version is one edit of this entry.  The dictionary schemas are the bu
 beside its name, since each bundle's labels are checked against the dictionaries its
 own templates were written for.  The name, the version, the information model version
 and the schemas have no default, and the shipped configuration is held to the shipped
-templates by tests rather than checked when it is loaded: it names the bundle, sets the
-version, gives a schema for exactly the dictionaries the templates declare, and gives
-the ``pds`` schema of the build the information model version names.  The bundle check
-fetches each schema by its URL (see `Checking a bundle`_), and its tests read local
-copies, so a schema named here needs a copy in
+templates by tests rather than checked when it is loaded.  The tests check that it
+gives the bundle's name and version, a schema for exactly the dictionaries the templates
+declare, and the ``pds`` schema of the build the information model version identifies.
+The bundle check fetches each schema by its URL (see `Checking a bundle`_), and its
+tests read local copies, so a schema listed here needs a copy in
 ``tests/spindoctor/cli/pds4/check/schemas/``, which a test holds the shipped
 configuration to.  The entry is kept in a file named for the mission, since nothing
 mission-specific goes in a generically named file, and at the ``95x`` tier rather than in
@@ -477,10 +474,9 @@ A typical render looks like:
 The ``pdstemplate`` library handles the XML escaping, the expression syntax,
 and the per-template error reporting; consumers only supply the variable
 dictionary and the destination path.  The destination is an
-:class:`~filecache.FCPath` naming
-the label's place in the bundle, never a local cache path standing in for it:
-on a cloud bundle root those are two different files, and the label belongs in
-the bundle.
+:class:`~filecache.FCPath` that points to the label's place in the bundle, never a
+local cache path standing in for it.  On a cloud bundle root those are two different
+files, and the label belongs in the bundle.
 
 The bundle's variables
 ----------------------
@@ -493,10 +489,10 @@ whole, from the dataset's hooks:
 - ``BUNDLE_LID``, ``urn:nasa:pds:<bundle name>``, which a template extends into the LID
   of each collection and product of the bundle, as in ``$BUNDLE_LID$:browse``;
 - ``BUNDLE_VERSION``, which every label states as its ``version_id`` and every LIDVID
-  naming one of the bundle's own products carries;
+  that refers to one of the bundle's own products carries;
 - ``INFORMATION_MODEL_VERSION``, which every label states;
 - ``PDS4_<PREFIX>_SCHEMA`` and ``PDS4_<PREFIX>_SCHEMA_XSD``, for each schema, the
-  Schematron a label's ``xml-model`` instruction names and the XML schema its
+  Schematron a label's ``xml-model`` instruction points to and the XML schema its
   ``xsi:schemaLocation`` pairs with the namespace, ``<PREFIX>`` being the namespace's
   prefix in upper case;
 - ``XML_SCHEMA_LIDVIDS``, which the XML schema inventory lists, one ``S`` line each.
@@ -522,7 +518,7 @@ Every label the bundle stage writes therefore goes through
 ``pdstemplate``'s ``repair`` mode and acts on what comes back:
 
 - Warnings are logged at warning level, and the label is written.
-- Errors are logged at error level naming the label path, and the label is not
+- Errors are logged at error level, with the label path, and the label is not
   written.  A render that drew errors writes nothing at all, so whatever was at
   that path before is what is there after -- nothing, in a bundle the labels
   pass wrote into an empty directory.
@@ -598,9 +594,9 @@ The FITS and its data objects
 =============================
 
 The labels pass copies an image's ``<stub>_backplanes.fits`` from the backplane
-root into the bundle's ``data/`` tree, beside its data label, which names the file
-with no directory part.  ``BACKPLANE_PATH`` names the copy, so the size, checksum
-and time the label states through ``pdstemplate``'s ``FILE_BYTES``, ``FILE_MD5``
+root into the bundle's ``data/`` tree, beside its data label, which gives the file's
+name with no directory part.  ``BACKPLANE_PATH`` is the path of the copy, so the size,
+checksum, and time the label states through ``pdstemplate``'s ``FILE_BYTES``, ``FILE_MD5``
 and ``FILE_ZULU`` are the archived file's.  The copy is written to a local path and
 uploaded, as the summary PNG's is, and those three functions read a local file, so
 a bundle root in the cloud is not supported.
@@ -692,11 +688,11 @@ like any other.  A navigation by an earlier version recorded the exposure times 
 beside a solved pointing, under ``navigation_result.times``, and none in the
 ``observation`` block.
 :func:`~spindoctor.cli.pds4.bundle_data.generate_bundle_data_files` fails an image
-whose block holds no ``start_time_et`` before anything is written for it, the log
-naming the image, and the image is bundled once it is navigated again; the times are
-not taken from ``navigation_result.times`` instead, so every time the bundle states
-comes from the one block.  The epochs are read as recorded, and the supplemental file
-carries the whole navigation document, so the summary pass reads the same block.  It
+whose block holds no ``start_time_et`` before anything is written for it, and the log
+gives the image.  The image is bundled once it is navigated again.  The times are not
+taken from ``navigation_result.times`` instead, so every time the bundle states comes
+from the one block.  The epochs are read as recorded, and the supplemental file carries
+the whole navigation metadata document, so the summary pass reads the same block.  It
 checks nothing: a supplemental file the labels pass wrote always holds the times, and
 a bundle is written into an empty directory.
 
@@ -718,7 +714,7 @@ empty dates (see `Exit status`_).
 Targets
 =======
 
-A label names a target by its PDS4 context product.
+A label refers to a target by its PDS4 context product.
 :func:`~spindoctor.cli.pds4.targets.target_table` reads the configuration's
 ``backplanes.target_lids`` into :class:`~spindoctor.cli.pds4.targets.Pds4Target` entries,
 each the context product's LID and version and the name and type the product gives the
@@ -727,45 +723,42 @@ target, keyed by the name the backplane metadata gives the target: a body by the
 under, and the rings by the target
 :func:`~spindoctor.cli.backplanes.backplanes_rings.ring_target` computes their backplanes
 for.  An image's targets, as :func:`~spindoctor.cli.pds4.targets.image_targets` finds
-them, are every body its backplane metadata names that has geometry -- a statistic at
+them, are every body in its backplane metadata that has geometry -- a statistic at
 least, as :func:`~spindoctor.cli.pds4.targets.has_geometry` decides -- and the ring
-target when the metadata holds a ring statistic, in the table's order.  A body the
-image's inventory found that shows at no pixel is named with no statistic, and is no
-target.  A name the
-table has no entry for raises :exc:`KeyError`, naming it.  Nothing checks the table when
-a run starts; a test over the shipped configuration holds it to the stage's own body
-list and ring target.
+target when the metadata holds a ring statistic, in the table's order.  A body that the
+image's inventory found but that shows at no pixel is listed with no statistic, and is
+not a target.  If the table has no entry for a name, the lookup raises :exc:`KeyError`
+with that name.  Nothing checks the table when a run starts; a test over the shipped
+configuration holds it to the stage's own body list and ring target.
 
-``data.lblx`` names an image's targets, handed to it as ``TARGETS``, one
+``data.lblx`` lists an image's targets, handed to it as ``TARGETS``, one
 ``Target_Identification`` each, with a ``data_to_target`` reference.  The PDS4 standard
-requires a data label to name one at least.  An image whose backplane metadata names none -- no
-body, and no ring statistic -- has no geometry for a data label to describe, so the
-labels pass skips it before anything is written for it, logging why, and
-:func:`~spindoctor.cli.pds4.targets.covers_a_target` decides it without reading a
-ring target, which backplanes an earlier version generated do not record.  The summary
-pass takes the
-targets of the data collection's members in its one read of the supplemental files, by a
-:class:`~spindoctor.cli.pds4.targets.TargetScan`, as it takes the range of their epochs,
-and :func:`~spindoctor.cli.pds4.global_index.generate_global_index_files` returns them in
-its :class:`~spindoctor.cli.pds4.global_index.GlobalIndexOutcome`; the driver hands them
-to the collection generator and to the run-level products.  Backplane metadata that
-records ring statistics and no ring target, as backplanes an earlier version generated
-does, raises a bare ``KeyError: 'target'`` wherever the targets are read: the labels
-pass raises it for such an image before anything is written for it, which counts the
-image failed, and a summary pass over data members an earlier labels pass wrote from
-such metadata raises it from its read.  Nothing checks for it: backplanes are
-regenerated before a bundle is built for delivery, and a bundle is written into an
-empty directory, the labels pass first, so the members of the pass are the labels
-pass's own.  The data collection label
-names them with ``collection_to_target``, as the SPICE kernel collection label does, the
-bundle label with ``bundle_to_target`` and the metakernel label with ``data_to_target``,
-the values the Schematron allows under each kind of product, and the context inventory
-lists each, after the members the template directory ships, as ``S,<lidvid>``.  The
-document and miscellaneous inventories list no target, since no label of their
-collections names one.
+requires a data label to list at least one.  If an image's backplane metadata lists no
+target -- no body, and no ring statistic -- the image has no geometry for a data label
+to describe.  The labels pass skips it before anything is written for it, and logs why.
+:func:`~spindoctor.cli.pds4.targets.covers_a_target` makes that decision without
+reading a ring target, which backplanes generated by an earlier version do not record.
+The summary pass takes the targets of the data collection's members in its one read of the
+supplemental files, by a :class:`~spindoctor.cli.pds4.targets.TargetScan`, as it takes the
+range of their epochs, and
+:func:`~spindoctor.cli.pds4.global_index.generate_global_index_files` returns them in its
+:class:`~spindoctor.cli.pds4.global_index.GlobalIndexOutcome`; the driver hands them to
+the collection generator and to the run-level products.  Backplane metadata that records
+ring statistics and no ring target, as backplanes an earlier version generated does,
+raises a bare ``KeyError: 'target'`` wherever the targets are read: the labels pass raises
+it for such an image before anything is written for it, which counts the image failed, and
+a summary pass over data members an earlier labels pass wrote from such metadata raises it
+from its read.  Nothing checks for it: backplanes are regenerated before a bundle is built
+for delivery, and a bundle is written into an empty directory, the labels pass first, so
+the members of the pass are the labels pass's own.  The data collection label refers to
+them with ``collection_to_target``, as the SPICE kernel collection label does, the bundle
+label with ``bundle_to_target`` and the metakernel label with ``data_to_target``, the
+values the Schematron allows under each kind of product, and the context inventory lists
+each, after the members the template directory ships, as ``S,<lidvid>``.  The document and
+miscellaneous inventories list no target, since no label of their collections lists one.
 
-A data label states no ring geometry: of an image's rings it names the ring target
-alone.  The rings index states the image's ring ranges instead: the least and the
+A data label states no ring geometry.  For an image's rings, it gives only the ring
+target.  The rings index table states the image's ring ranges instead: the least and the
 greatest value of each ring plane, the ring longitude's range wrapped at zero, and the
 incidence angle of sunlight on the ring plane, the last two as the backplane metadata
 records them beside the ring statistics (see :doc:`dev_guide_backplanes` and
@@ -811,7 +804,7 @@ it has none for.  The rings are recorded only with their statistics, so an image
 rings have none gets no row of the rings table.
 
 **The table.**  Each table is fixed width, as the reference bundle's index tables are:
-a header line naming the fields, separated by commas, and then the rows.
+a header line that lists the fields, separated by commas, and then the rows.
 :func:`~spindoctor.cli.pds4.global_index.lay_out_table` pads every field to the longest
 value written in its column, a statistic right-justified and text left-justified, puts a
 comma between fields and a line feed after the last, and returns the header, the records
@@ -829,8 +822,8 @@ Both then give ``pds:start_date_time`` and ``pds:stop_date_time``
 supplemental file records, to the millisecond, as the data label states them.
 Then each configured plane gives its table two columns, the least and the greatest value
 its statistic spans, as :class:`~spindoctor.cli.pds4.index_columns.IndexColumn` entries
-built from the plane's entry in ``config_900_backplanes.yaml``, whose ``index`` block
-names the two columns, their ``data_type`` and their descriptions:
+built from the plane's entry in ``config_900_backplanes.yaml``.  The entry's ``index``
+block gives each of the two columns its name, ``data_type``, and description:
 
 .. code-block:: yaml
 
@@ -953,12 +946,13 @@ some are copied as they are:
   decided, so it is the ``KPL/MK`` identification word and a comment block, with no
   ``KERNELS_TO_LOAD`` assignment, which SPICE refuses empty.  Its label and the data
   label's ``geom:SPICE_Kernel_Files`` comment say so.
-- The user guide is the PDF
-  :meth:`~spindoctor.dataset.dataset.DataSet.pds4_user_guide_file_name` names.  When the
-  template directory holds it, it is copied into ``document/user_guide/`` and its label
-  rendered beside it from the template of the same stem ending in ``.lblx``, handed the
-  copy's path as ``USER_GUIDE_PATH``.  When it does not, neither is written and the pass
-  logs one warning naming the file; that is not a label the pass failed to write.
+- The user guide is the PDF whose file name
+  :meth:`~spindoctor.dataset.dataset.DataSet.pds4_user_guide_file_name` returns.  When
+  the template directory holds it, it is copied into ``document/user_guide/``, and its
+  label is rendered beside it from the template of the same stem ending in ``.lblx``,
+  which is handed the copy's path as ``USER_GUIDE_PATH``.  When it does not, neither is
+  written, and the pass logs one warning that gives the file's name.  That is not a
+  label the pass failed to write.
 - ``bundle.lblx`` is rendered last, at the bundle's root, handed the readme's path as
   ``README_PATH``, the range of the products' epochs the data collection label states
   (see `Epochs`_), and the targets as ``TARGETS``.
@@ -990,11 +984,12 @@ each, so it is kept only over a bundle that holds them all.  The pass renders it
 the LID of each member entry, and looks for a ``collection_*.lblx`` one directory below
 the bundle's root whose logical identifier is that LID.  When one is missing -- a
 collection whose label failed to render or was not written, or one the template declares
-before any pass writes it -- the label is removed, one error names each LID it lacks, and
-it counts as a label not written.  With no range to state it is not rendered at all.
-Either way whatever an earlier run left at the path is gone, so a summary pass that
-reaches the bundle label leaves none naming a collection that is not there; a pass
-refused before it cleared anything leaves an earlier run's (see `Exit status`_).
+before any pass writes it -- the label is removed, one error gives each LID it lacks,
+and it counts as a label not written.  With no range to state, it is not rendered at
+all.  Either way, whatever an earlier run left at the path is gone.  So a summary pass
+that reaches the bundle label never leaves one that lists a collection that is not
+there.  A pass refused before it cleared anything leaves an earlier run's bundle label
+(see `Exit status`_).
 
 Every label is attempted, whichever of them fail, and each one not written is counted
 (see `Exit status`_); a file copied stays whether or not its label renders.  The
@@ -1017,13 +1012,12 @@ Checking a bundle
 ``sd_create_bundle check`` holds a bundle the two passes wrote to the PDS4 standard,
 through
 :func:`~spindoctor.cli.pds4.check.bundle.check_bundle`.  It reads the bundle's tree
-and the schemas its labels name, fetched by URL or read from a directory, and writes
-nothing in the tree.  Each way the tree departs
-from the PDS4 standard is a :class:`~spindoctor.cli.pds4.check.findings.Finding`, which
-names the
-file, whether it is an error or a warning, the check that found it, where in the file,
-and what is wrong; an XML schema error also names its kind, the class of the xmlschema
-validator that failed, which does not change with xmlschema's wording.  The program
+and the schemas its labels refer to, fetched by URL or read from a directory, and writes
+nothing in the tree.  Each way the tree departs from the PDS4 standard is a
+:class:`~spindoctor.cli.pds4.check.findings.Finding`.  A finding gives the file, whether
+it is an error or a warning, the check that found it, where in the file, and what is
+wrong.  An XML schema error also gives its kind: the class of the xmlschema validator
+that failed, which does not change with xmlschema's wording.  The program
 prints each finding as one line, and then the number of errors and of warnings, and
 exits 1 on an error.  A warning is what the PDS ``validate`` tool
 reports as a warning too: an unresolved reference to a product of the bundle
@@ -1048,16 +1042,17 @@ label is checked on its own, by :func:`~spindoctor.cli.pds4.check.bundle.check_l
   ``--schema-dir`` it is the file of the URL's name in that directory, and nothing is
   fetched.  ``xmlschema`` is allowed only local files and reads every URL through that
   rule, so an import resolves to the schema at its own URL, as ``validate`` resolves it,
-  and no namespace is named in code.  ``xmlschema`` reads a namespace once in a set,
+  and no namespace is hard-coded.  ``xmlschema`` reads a namespace once in a set,
   though: the Cassini data labels declare the geometry dictionary's build ``19B0``, and
   that build serves the Cassini schema's import of ``19A0``, which is not read, where
-  ``validate`` reads both, to the same verdicts.  A URL a label names that cannot be resolved is a finding naming it.  Every
-  warning ``xmlschema`` raises while it builds a set of schemas is a finding, so an
-  import that cannot be resolved cannot pass silently.  A set that cannot be built at all -- a URL paired with a namespace its file
-  does not define, say -- is one finding, and the label is checked without it.  Each
-  distinct set a label declares is built once.
+  ``validate`` reads both, to the same verdicts.  If a URL in a label cannot be
+  resolved, that is a finding, and the finding gives the URL.  Every warning
+  ``xmlschema`` raises while it builds a set of schemas is a finding, so an import that
+  cannot be resolved cannot pass silently.  A set that cannot be built at all -- a URL
+  paired with a namespace its file does not define, say -- is one finding, and the label
+  is checked without it.  Each distinct set a label declares is built once.
 - **Against its Schematron rules** (:mod:`~spindoctor.cli.pds4.check.schematron`), each
-  named by the ``href`` of an ``xml-model`` instruction and resolved by the same rule.
+  given by the ``href`` of an ``xml-model`` instruction and resolved by the same rule.
   A rule is matched as the ISO Schematron skeleton's XSLT matches it: a
   node matches when it is in ``//(context)`` evaluated from the document node; only the
   first rule of a pattern a node matches fires for it; the schema's and each pattern's
@@ -1092,34 +1087,35 @@ label is checked on its own, by :func:`~spindoctor.cli.pds4.check.bundle.check_l
 - **A global index table's layout** (:mod:`~spindoctor.cli.pds4.check.index_tables`).
   PDS4 constrains neither what a header holds nor the bytes between two fields, but the
   layout :mod:`~spindoctor.cli.pds4.global_index` writes, the same for every dataset's
-  bundle, does: the header line names the label's fields, in order, separated by commas;
+  bundle, does: the header line lists the label's fields, in order, separated by commas;
   a comma alone lies between two fields, and the last ends where the record delimiter
   begins; and in every record the byte after each field but the last is a comma.
-- **Its statistic columns** (:mod:`~spindoctor.cli.pds4.check.statistic_columns`).  A
-  field a configured plane's ``index`` block names states the unit the plane's statistic
-  is in, as :func:`~spindoctor.cli.backplanes.statistics.statistics_units` gives it, and
-  declares as its missing constant the masked value in that unit's format.  This is the
-  part of the check that reads the configuration.  The two helpers are the summary
+- **Its statistic columns** (:mod:`~spindoctor.cli.pds4.check.statistic_columns`).  Each
+  field that a configured plane's ``index`` block defines states the unit the plane's
+  statistic is in, as :func:`~spindoctor.cli.backplanes.statistics.statistics_units` gives
+  it, and declares as its missing constant the masked value in that unit's format.  This
+  is the part of the check that reads the configuration.  The two helpers are the summary
   pass's own, so that each rule is stated once: the summary pass's tests pin them, and a
   defect in one would pass this check.
 
-Then the tree as a whole (:mod:`~spindoctor.cli.pds4.check.integrity`): every
-``file_name`` names a file beside its label, by its name alone and once, and the
-``file_size`` and ``md5_checksum`` beside it are that file's; every file is a label or
-is named by exactly one label; no label holds a ``[[[`` marker; no element is empty
-unless its ``xsi:nil`` is true; no two labels declare one logical identifier; and every
+Then the tree as a whole (:mod:`~spindoctor.cli.pds4.check.integrity`).  Every
+``file_name`` gives a file beside its label, by its name alone and once, and the
+``file_size`` and ``md5_checksum`` beside it are that file's.  Every file is a label or
+is listed by exactly one label.  No label holds a ``[[[`` marker.  No element is empty
+unless its ``xsi:nil`` is true.  No two labels declare one logical identifier.  Every
 ``lid_reference`` and ``lidvid_reference`` to a product of the bundle itself -- one
-whose logical identifier extends the bundle label's -- names a product a label of the
-tree declares, and a ``lidvid_reference`` that product's version, one that does not
-being a warning.  Each collection's inventory
+whose logical identifier extends the bundle label's -- refers to a product a label of
+the tree declares, and a ``lidvid_reference`` gives that product's version.  A
+reference that does not is a warning.  Each collection's inventory
 (:mod:`~spindoctor.cli.pds4.check.inventories`) lists as a primary member only products
-the tree holds, at the versions it holds, and each product in the collection's
-directory once, one listed twice being an error and one not listed a warning.  Each
-global index table's records (:mod:`~spindoctor.cli.pds4.check.index_tables`) name
-products the tree holds, with each product's label as their ``file_spec`` and every
-other column named for a PDS4 attribute, the start and stop times, as that label states
-it; and each product whose label names a supplemental file has the records the file
-calls for.  A tree with no bundle label at its top is a finding of its own.
+the tree holds, at the versions it holds, and lists each product in the collection's
+directory once.  A product listed twice is an error, and one not listed is a warning.
+Each global index table's records (:mod:`~spindoctor.cli.pds4.check.index_tables`)
+refer to products the tree holds.  A record gives the product's label as its
+``file_spec``, and gives every other column named for a PDS4 attribute, the start and
+stop times, as that label states it.  Each product whose label lists a supplemental
+file has the records the file calls for.  A tree with no bundle label at its top is a
+finding of its own.
 
 The NASA PDS ``validate`` tool is the authority for a bundle delivered to the node, and
 checks three things the check does not: where each data object of a FITS file begins,
@@ -1200,7 +1196,7 @@ two different environments.
 The first is plumbing: which file goes where, which variable reaches which
 template, what a render that errors leaves behind. Those tests run a duck-typed
 dataset over tiny templates the test itself wrote, so every variable in play is
-one the test controls and a failure names the wiring that broke.
+one the test controls and a failure points to the wiring that broke.
 
 The second is content: what a label actually says. Those tests run the
 registered dataset a bundle is built with over the templates it ships, on the
@@ -1327,8 +1323,8 @@ The end-to-end checklist:
    ``src/spindoctor/cli/pds4/templates/<dataset>_<version>/`` containing the ``.lblx``
    files, the static inventory CSVs, the readme and the metakernel, and the user
    guide when it exists. Copy from ``cassini_iss_saturn_1.0/`` and adapt the field
-   set, naming the bundle, its version and each schema through the bundle's variables
-   (see `The bundle's variables`_) rather than spelling them.
+   set.  Refer to the bundle, its version, and each schema through the bundle's
+   variables (see `The bundle's variables`_) rather than spelling them.
 3. Add an entry under ``pds4.<dataset_name>:`` in a configuration file of its own,
    named for its mission and target as ``config_951_pds4_coiss_saturn.yaml`` is (see
    the ``pds4`` config block above), that points at the new template directory and
@@ -1391,12 +1387,12 @@ documented above.
 - :class:`~spindoctor.cli.pds4.epochs.EpochRangeScan`,
   :class:`~spindoctor.cli.pds4.targets.TargetScan` and
   :class:`~spindoctor.cli.pds4.global_index.GlobalIndexOutcome` — the range of the
-  products' epochs and the targets they name, taken in the global index's read of the
+  products' epochs and the targets they list, taken in the global index's read of the
   supplemental files and handed to the collection generator and the run-level products.
 - :func:`~spindoctor.cli.pds4.targets.target_table` and
   :func:`~spindoctor.cli.pds4.targets.image_targets` — the configuration's targets
-  table, as :class:`~spindoctor.cli.pds4.targets.Pds4Target` entries, and the targets one
-  image's backplane metadata names.
+  table, as :class:`~spindoctor.cli.pds4.targets.Pds4Target` entries, and the targets in
+  one image's backplane metadata.
 - :func:`~spindoctor.cli.pds4.index_columns.statistic_index_columns` — every statistic
   column of the global index tables, as the summary pass writes them and the bundle
   check holds their labels to them.

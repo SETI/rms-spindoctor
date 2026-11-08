@@ -4,9 +4,9 @@ Instruments
 
 One chapter per instrument, for a developer changing or extending that
 instrument's support. Each chapter is self-contained: it answers, for its own
-instrument, every question the shared subsystem chapters answer in general, and
-it names no other instrument. The subsystem chapters carry the mechanism; these
-carry the values.
+instrument, every question the shared subsystem chapters answer in general, and it
+never mentions another instrument. The subsystem chapters carry the mechanism;
+these carry the values.
 
 The sections, in the order every chapter carries them, are Code map, Loading
 the image, Label and index dependencies, Configuration block, Photometric and

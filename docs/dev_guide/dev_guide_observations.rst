@@ -79,7 +79,7 @@ The pixel-corner cases:
 
 - Every field-of-view call: the observation's ``uv_from_ra_and_dec``, the field
   of view's ``uv_from_los`` and ``los_from_uv``, and its ``uv_los`` attribute,
-  which names where the boresight falls on the detector. For the Cassini
+  which gives where the boresight falls on the detector. For the Cassini
   narrow-angle camera at full resolution that is ``(512.0, 512.0)`` on a
   1024-square detector -- the corner where the four central pixels meet -- and
   it halves with each summation mode, to 256.0 at 512 and 128.0 at 256.
@@ -144,7 +144,7 @@ spans ``[i, i + 1)``. The two readings coincide.
 A **mosaic grid** is not a pixel grid and answers the question differently
 again: row ``r`` of a ring mosaic is the sample taken at radius
 ``radius_inner + r * radius_resolution``, and column ``c`` of a body mosaic is
-the sample taken at longitude ``c * longitude_resolution``. A row names a
+the sample taken at longitude ``c * longitude_resolution``. A row stands for a
 point, not the interval around it.
 
 Where the conversion happens
@@ -350,12 +350,12 @@ per-image metadata into :meth:`~spindoctor.obs.obs_inst.ObsInst.get_public_metad
 Simulated-image instrument config: inherit / override / self-specify
 --------------------------------------------------------------------
 
-A simulated scene names an ``instrument`` (``coiss_nac``, ``vgiss``, ...) so its
-rendered frame and its :class:`~spindoctor.obs.obs_inst_sim.ObsSim` go through the same
-per-instrument units, noise, saturation, and PSF the navigator applies to a real
-frame. :func:`~spindoctor.sim.instruments.resolve_sim_inst_config` maps that name to the
-matching ``config_4N0_inst_*.yaml`` block (or the standalone ``sim`` block for the
-``generic`` alias).
+A simulated scene sets an ``instrument`` (``coiss_nac``, ``vgiss``, ...) so its
+rendered frame and its :class:`~spindoctor.obs.obs_inst_sim.ObsSim` go through
+the same per-instrument units, noise, saturation, and PSF the navigator applies
+to a real frame. :func:`~spindoctor.sim.instruments.resolve_sim_inst_config`
+maps that name to the matching ``config_4N0_inst_*.yaml`` block (or the
+standalone ``sim`` block for the ``generic`` alias).
 
 A scene may additionally carry an ``instrument_config`` mapping that is
 **deep-merged** over the resolved block (nested mappings merge key-by-key; scalars
@@ -372,19 +372,19 @@ and lists replace). This gives three modes:
 fixture wants reproducible behavior. If every parameter is inherited live from a
 real camera's config, then editing that camera's ``star_psf_sigma`` (or noise,
 saturation, ...) silently shifts the rendered image and the recovered offset of
-every sim scene that names it -- re-blessing baselines for a change that had
-nothing to do with the simulator. Pinning a key via ``instrument_config`` decouples
-it from the camera config: the merge produces a fresh dict, so a later camera-config
-edit cannot reach a pinned key. Full self-specification (generic + complete
-overrides) makes a scene immune to *all* instrument-config drift. The merge is
-applied identically in both consumers -- :meth:`ObsSim.from_file
+every sim scene that uses it -- re-blessing baselines for a change that had
+nothing to do with the simulator. Pinning a key via ``instrument_config``
+decouples it from the camera config: the merge produces a fresh dict, so a later
+camera-config edit cannot reach a pinned key. Full self-specification (generic +
+complete overrides) makes a scene immune to *all* instrument-config drift. The
+merge is applied identically in both consumers -- :meth:`ObsSim.from_file
 <spindoctor.obs.obs_inst_sim.ObsSim.from_file>` and
-:func:`~spindoctor.sim.render.render_combined_model` -- so the rendered image and the
-navigator's instrument settings stay consistent. The one precedence subtlety: the
-top-level scene ``noise`` block (the primary noise control) still wins over
-``instrument_config.noise`` for rendering, so ``instrument_config`` is the channel
-for the instrument parameters that have no dedicated scene field (star PSF sigma,
-data units, saturation / full-well DN, extfov margin, ...).
+:func:`~spindoctor.sim.render.render_combined_model` -- so the rendered image
+and the navigator's instrument settings stay consistent. The one precedence
+subtlety: the top-level scene ``noise`` block (the primary noise control) still
+wins over ``instrument_config.noise`` for rendering, so ``instrument_config`` is
+the channel for the instrument parameters that have no dedicated scene field
+(star PSF sigma, data units, saturation / full-well DN, extfov margin, ...).
 
 Adding a new instrument
 =======================

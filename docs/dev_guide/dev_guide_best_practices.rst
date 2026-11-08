@@ -28,8 +28,8 @@ Imports
 
 * Imports go at the top of the file, in three alphabetically sorted groups
   separated by blank lines: standard library, third party, then this project.
-* An import inside a function is permitted only to keep a heavy dependency off
-  a path that does not use it, and it must carry a comment naming the
+* An import inside a function is permitted only to keep a heavy dependency off a
+  path that does not use it, and it must carry a comment that identifies the
   dependency and the path. Most of them keep an optional or costly library out
   of a module that only some callers reach: the GUI toolkit, the plotting and
   imaging libraries, the SPICE and array libraries a single function needs, and

@@ -231,11 +231,12 @@ arrives in a stream in place of a record or a fact set when a file yielded
 neither. Each is taken in turn in the sections below.
 
 :class:`~spindoctor.dataset.results_filter.ResultsFilter` stands here for every
-consumer, and is drawn because it is the one that asks at two different moments:
-it writes a :class:`~spindoctor.nav_records.Selection` naming subtrees when it is
-built and one naming stubs for each batch of candidates afterwards. Which of its
-flags is answered at which of those two moments, and what each costs, is
-*What each flag costs* below.
+consumer. It is drawn because it is the one consumer that asks at two different
+moments. When it is built, it writes a
+:class:`~spindoctor.nav_records.Selection` that lists subtrees. Afterwards, for
+each batch of candidates, it writes one that lists stubs. *What each flag costs*
+below says which of its flags is answered at which of those two moments, and
+what each costs.
 
 Four questions, because the programs ask four things
 ----------------------------------------------------
@@ -244,7 +245,8 @@ Four questions, because the programs ask four things
 one record. It is the shape a per-image loop asks in --- the backplane and
 mosaic stages reading the pointing an image is built with --- so it is the call
 an implementation answers in a single round trip. A stub is a key under a root,
-so a source holding more than one root refuses it, naming them.
+so a source that holds more than one root refuses it, and the message lists
+those roots.
 
 :meth:`~spindoctor.nav_records.RecordSource.records` takes a selection and
 yields the records it covers, one at a time. It is what a program that
@@ -279,23 +281,23 @@ ingest's discovery and its unchanged-file skip are both built on. What a listing
 cannot do is answer anything a document says, so a selection restricting on a
 mission or a span is refused rather than partly honored.
 
-**A selection naming stubs is not such a restriction.** A stub is the identity
-of a file rather than something the file says, so a listing answers it, and that
-is the question a caller enumerating candidate images asks: which of the ones
-this run might still keep has a document. The index answers it with one keyed
-query per batch. The tree has two ways to answer it and picks between them on
-whether the root is local, because what decides is not a ratio of files named to
-documents held but what one call costs. On a local root a check is a system
-call, and checking the named files beats walking their directories at every
-ratio worth having: ten files of a fifty-thousand-document volume by three
+**A selection that lists stubs is not such a restriction.** A stub is the
+identity of a file rather than something the file says, so a listing answers it,
+and that is the question a caller enumerating candidate images asks: which of
+the ones this run might still keep has a document. The index answers it with one
+keyed query per batch. The tree has two ways to answer it and picks between them
+on whether the root is local, because what decides is not a ratio of files
+listed to documents held but what one call costs. On a local root a check is a
+system call, and checking the listed files beats walking their directories at
+every ratio worth having: ten files of a fifty-thousand-document volume by three
 orders of magnitude, a fifth of the volume by two and a half times, and only at
-something near the whole of it does the walk come back ahead. On a cloud root a check is a
-paid round trip per file against one per directory for a thousand entries, so
-the walk wins above roughly a thousandth of the root --- and one walk made for
-one batch answers every later batch of the same run, since a run asks in
-batches. The choice lives inside the seam, so a caller has one way to ask what a
-root holds; two shapes in the callers would be two answers to keep true of each
-other.
+something near the whole of it does the walk come back ahead. On a cloud root a
+check is a paid round trip per file against one per directory for a thousand
+entries, so the walk wins above roughly a thousandth of the root --- and one
+walk made for one batch answers every later batch of the same run, since a run
+asks in batches. The choice lives inside the seam, so a caller has one way to
+ask what a root holds; two shapes in the callers would be two answers to keep
+true of each other.
 
 **On a cloud root, both halves of a pass are latency rather than bandwidth.** A
 listing is one round trip and a document is another, and neither moves enough
@@ -309,31 +311,31 @@ latency, so on a local directory the thread and batch settings have nothing to
 overlap and no useful effect; only the transaction size, which is about the
 index an ingest writes rather than the tree it reads, applies there too.
 
-**How much of it runs at once is not a property of this program.** It belongs
-to a machine, its link to the root, and what the service will do concurrently:
+**How much of it runs at once is not a property of this program.** It belongs to
+a machine, its link to the root, and what the service will do concurrently:
 where the useful value stops rising is where that particular round trip becomes
 what is left, and another provider or another link puts it somewhere else. So
-the numbers are configuration rather than constants, and they travel through
-the code one way. :class:`~spindoctor.nav_records.TreeTuning` carries them and
-owns their defaults; the ``results_tree`` section of the configuration is where
-a machine overrides them, shipped with the same values so that an operator can
-see what they are; and :func:`~spindoctor.config.get_results_tree_tuning` is
-the one door a program reads the section through. A program resolves the
-tuning once, in its entry point, and passes it down to whatever reads the tree
---- :class:`~spindoctor.nav_records.TreeRecordSource`,
+the numbers are configuration rather than constants, and they travel through the
+code one way. :class:`~spindoctor.nav_records.TreeTuning` carries them and owns
+their defaults; the ``results_tree`` section of the configuration is where a
+machine overrides them, shipped with the same values so that an operator can see
+what they are; and :func:`~spindoctor.config.get_results_tree_tuning` is the one
+door a program reads the section through. A program resolves the tuning once, in
+its entry point, and passes it down to whatever reads the tree ---
+:class:`~spindoctor.nav_records.TreeRecordSource`,
 :func:`~spindoctor.results_index.open_record_source`, the ingest --- the way it
 passes its logger. The library reads no configuration itself, and a call that
-names no tuning gets the library's defaults.
+passes no tuning gets the library's defaults.
 
 The section is validated where every program loads its configuration, in
-:func:`~spindoctor.config.load_default_and_user_config`, so a value no pass can
-run at --- a count that is not a positive integer, a setting the section does
-not have, a round of work smaller than the pool it feeds --- is refused before
-the program has written anything, naming the section and the setting. The
-section is also one of the three
-:data:`~spindoctor.config.config.HASH_EXCLUDED_SECTIONS`: how many requests a
-pass makes at once cannot change what any document says, so tuning it must not
-re-stamp a run's results as differently configured.
+:func:`~spindoctor.config.load_default_and_user_config`. If no pass can run at a
+value, the value is refused before the program has written anything, and the
+message gives the section and the setting. Three kinds of value are refused: a
+count that is not a positive integer, a setting the section does not have, and a
+round of work smaller than the pool it feeds. The section is also one of the
+three :data:`~spindoctor.config.config.HASH_EXCLUDED_SECTIONS`: how many
+requests a pass makes at once cannot change what any document says, so tuning it
+must not re-stamp a run's results as differently configured.
 
 **What a check cannot report is the size and the modification time.** Those come
 from a directory entry, and an entry a check produced carries neither and says
@@ -371,22 +373,22 @@ the stream finishes its pass before it writes its output.
 Two backends, and why the package is split
 ------------------------------------------
 
-:class:`~spindoctor.nav_records.TreeRecordSource` answers from the documents:
-it walks the tree a bounded slice of directories at a time, carrying each
-entry's metrics out of the listing, and retrieves documents in batches
-underneath a stream that yields them one at a time.
+:class:`~spindoctor.nav_records.TreeRecordSource` answers from the documents: it
+walks the tree a bounded slice of directories at a time, carrying each entry's
+metrics out of the listing, and retrieves documents in batches underneath a
+stream that yields them one at a time.
 :class:`~spindoctor.results_index.IndexRecordSource` answers from the rows,
-streamed in server-side chunks. The per-image lookup and the listing
-are one query each; a stream of records is two, the images and the files the
-ingest refused; and :meth:`~spindoctor.nav_records.RecordSource.facts` is four,
-because the per-technique and per-feature rows are merged onto the images stream
-by key. That merge is the one place a statement here sorts --- its three
-streams order on the key, so each image's child rows arrive next to it --- and
-it is safe for the one reason a text sort ever is: the three orders are one
-server's, read from one snapshot, and nothing compares them to an order
-computed anywhere else.
+streamed in server-side chunks. The per-image lookup and the listing are one
+query each; a stream of records is two, the images and the files the ingest
+refused; and :meth:`~spindoctor.nav_records.RecordSource.facts` is four, because
+the per-technique and per-feature rows are merged onto the images stream by key.
+That merge is the one place a statement here sorts --- its three streams order
+on the key, so each image's child rows arrive next to it --- and it is safe for
+the one reason a text sort ever is: the three orders are one server's, read from
+one snapshot, and nothing compares them to an order computed anywhere else.
 :func:`~spindoctor.results_index.open_record_source` is what a program calls; it
-returns the first when the run names no index and the second when it names one.
+returns the first when the run asks for no results index and the second when it
+asks for one.
 
 **The seam is split along the database line, and the line is not a matter of
 taste.** ``import spindoctor.nav_records`` must not import SQLAlchemy. It is
@@ -446,16 +448,16 @@ The defect that makes the point is an ``ORDER BY`` on text --- correct under
 SQLite's default collation, wrong under a PostgreSQL locale collation, and
 invisible to a consumer that reads one row at a time.
 
-**A consumer names the columns it reads.** A row is only cheaper than a document
-while it carries less, so nobody selects forty columns to read five. The columns
-are declared beside the consumer --- ``_ROW_COLUMNS`` for the reprojection and
-backplane stages, ``RECORD_COLUMNS`` for the kernel writer --- and a test holds
-each list to the fields the rebuild knows a place for, since a column selected
-that no field is rebuilt from is paid for on every read and then dropped. The
-reprojection list is held to the other direction too: each of its columns is
-dropped in turn and what those readers are then given has to differ, since a
-column whose absence no reader notices is paid for on every read and then
-ignored.
+**A consumer declares the columns it reads.** A row is only cheaper than a
+document while it carries less, so nobody selects forty columns to read five.
+The columns are declared beside the consumer: ``_ROW_COLUMNS`` for the
+reprojection and backplane stages, and ``RECORD_COLUMNS`` for the kernel writer.
+A test holds each list to the fields the rebuild knows a place for, since a
+selected column that no field is rebuilt from is paid for on every read and then
+dropped. The reprojection list is also held in the other direction. Each of its
+columns is dropped in turn, and what those readers are then given has to differ.
+If no reader notices that a column is missing, that column is paid for on every
+read and then ignored.
 
 **The rebuild is a table, not a function per consumer.**
 :data:`~spindoctor.results_index.rebuild.RECORD_FIELDS` maps each column to its
@@ -486,12 +488,12 @@ other does not.
 is normalized to one absolute, resolved spelling by
 :func:`~spindoctor.nav_records.normalize_root_url` the moment a program is
 handed one, and a stub and a subtree are checked as keys by
-:class:`~spindoctor.nav_records.Selection` the moment a caller writes one: a
-stub names no absolute path, no parent directory and no null byte, and a subtree
-is one directory immediately under a root. Everything below that point is a
-join, with one answer, so no reader carries a rule of its own about what a join
-may have produced --- which is what a walk and a query could not have been made
-to agree about by writing the same rule twice.
+:class:`~spindoctor.nav_records.Selection` the moment a caller writes one. A
+stub may not be absolute, refer to a parent directory, or carry a null byte, and
+a subtree is one directory immediately under a root. Everything below that point
+is a join, with one answer, so no reader carries a rule of its own about what a
+join may have produced --- which is what a walk and a query could not have been
+made to agree about by writing the same rule twice.
 
 :func:`~spindoctor.results_index.roots.open_index_for_roots` is where the index
 side's opening ceremony lives: it opens an index, refuses a root the index has
@@ -567,26 +569,26 @@ lookup, which is what lets an enumeration offering a million rows reject most
 of them without constructing anything.
 
 The four error filters are settled in two stages, because each of them asks what
-a document records and so requires one to exist. The construction listing
-settles that half and no more: an error filter is folded into the same presence
-question, so ``passes`` rejects an image the results root holds no document for
-and no later stage ever names it. What the document *records* is settled per
-batch, by :meth:`~spindoctor.nav_records.source.RecordSource.facts` over the
-candidates
+a document records, and so needs a document to exist. The construction listing
+settles that half and no more. An error filter is folded into the same presence
+question, so ``passes`` rejects an image that has no document in the results
+root, and no later stage ever asks about it. What the document *records* is
+settled per batch, by :meth:`~spindoctor.nav_records.source.RecordSource.facts`
+over the candidates
 :meth:`~spindoctor.dataset.results_filter.ResultsFilter.filter_batch` is handed.
-That call does read documents --- but only the candidates the other selection
-constraints kept, never every document under the volume, and never one for an
-image the listing has already excluded.
+That call does read documents, but only for the candidates the other selection
+constraints kept. It never reads every document under the volume, and never one
+for an image the listing has already excluded.
 
 ``--has-no-offset-file`` is asked about the candidates instead. Its answer set
 is one it only ever rejects from, so listing a volume to build it would be work
 with no reader. It is also structurally alone: the constructor refuses every
 combination that pairs it with another results flag.
 
-A listing that names the images it asks about is answered the way the root
-answers most cheaply, and the source decides. A local root checks the named
-images, because a local check is a system call. A remote root walks the named
-subtrees once and answers every batch of that scan from the one walk, because a
+When a listing asks about particular images, the source answers it in whichever
+way is cheapest for the root. A local root checks the images in the selection,
+because a local check is a system call. A remote root walks the subtrees in the
+selection once and answers every batch of that scan from the one walk, because a
 remote check is a request per image while a listing returns about a thousand
 entries with their metrics for the price of one. An entry produced by a check
 carries neither of its two metrics and reports
@@ -644,9 +646,9 @@ schema version is not the one the code reads.
 
 Three rules about that opener are worth knowing before changing it:
 
-- **Every refusal is a** :exc:`ValueError` **naming the URL**, including the
-  ones a database driver raises, so a caller that reports failures catches one
-  type rather than the driver's exception hierarchy.
+- **Every refusal is a** :exc:`ValueError` **that quotes the URL**, including
+  the ones a database driver raises, so a caller that reports failures catches
+  one type rather than the driver's exception hierarchy.
 - **Every message masks the URL's password**, and so does anything the failure
   underneath it quoted back. These messages reach run logs, cloud-task results
   and terminals.
@@ -693,19 +695,19 @@ say why; expressed as a multiple, the two move together and the pool stays full
 across a whole chunk while a transaction stays something a crash can afford to
 repeat.
 
-**Every statement that names stubs names at most**
-:data:`~spindoctor.results_index.engine.STUBS_PER_STATEMENT` **of them.** Each stub is
-a bind parameter and every backend caps how many one statement may carry, so
-the lookup of what a share already recorded, the streams that answer about a
-named set of images, and the prune's deletes all batch on that one constant. It
-is a property of the SQL dialects underneath and not a tuning: nothing about
-how a tree is walked or retrieved bears on it, which is why it lives beside the
-engine rather than in the ``results_tree`` section.
+**No statement lists more than**
+:data:`~spindoctor.results_index.engine.STUBS_PER_STATEMENT` **stubs.** Each
+stub is a bind parameter, and every backend caps how many one statement may
+carry. So the lookup of what a share already recorded, the streams that answer
+about a given set of images, and the prune's deletes all batch on that one
+constant. It is a property of the SQL dialects underneath and not a tuning:
+nothing about how a tree is walked or retrieved bears on it, which is why it
+lives beside the engine rather than in the ``results_tree`` section.
 
 **On SQLite, several local writers are an ordinary case.** The opener turns on
 write-ahead logging and sets ``busy_timeout`` to ``SQLITE_BUSY_TIMEOUT_MS``, so
 a competing writer waits rather than failing; with short transactions the
-contention is brief. A ``sqlite:`` URL names a local path, which is what
+contention is brief. A ``sqlite:`` URL points to a local path, which is what
 confines this to one machine. Several machines share an index only through
 PostgreSQL.
 
@@ -755,11 +757,12 @@ which every other consumer lets end its run.
 Adding a column
 ===============
 
-There are no migrations. Any change to the column set of any table --- or to
-the constraints over it --- means every existing index is rebuilt, and raising
-:data:`~spindoctor.results_index.schema.SCHEMA_VERSION` is what makes that happen: an
-index stamped with the earlier number is refused at open, naming both versions,
-and its holder empties it and ingests the tree again.
+There are no migrations. Any change to the column set of any table --- or to the
+constraints over it --- means every existing index is rebuilt, and raising
+:data:`~spindoctor.results_index.schema.SCHEMA_VERSION` is what makes that
+happen. An index stamped with the earlier number is refused at open, and the
+message gives both versions. Its holder then empties it and ingests the tree
+again.
 
 1. Add the column to its table in
    :mod:`spindoctor.results_index.schema`. Use ``Double`` rather than ``Float``
@@ -783,15 +786,15 @@ and its holder empties it and ingests the tree again.
 4. Sort it into one of the three groups in
    :mod:`spindoctor.results_index.rebuild`. A column copied out of one field of
    one document is an entry in
-   :data:`~spindoctor.results_index.rebuild.RECORD_FIELDS` naming where in a
+   :data:`~spindoctor.results_index.rebuild.RECORD_FIELDS` that says where in a
    record that field sits; one that says where the document is belongs to
    :data:`~spindoctor.results_index.rebuild.IDENTITY_COLUMNS`; one the ingest
    computes rather than copies --- a date rendered from the recorded epoch, a
    count of a list --- belongs to
    :data:`~spindoctor.results_index.rebuild.DERIVED_COLUMNS`, because no field
-   of a record is what it came from. The
-   three are asserted to be a partition of the table, so a column left out of
-   all three fails rather than reading as absent from every record.
+   of a record is what it came from. The three are asserted to be a partition of
+   the table, so a column left out of all three fails rather than reading as
+   absent from every record.
 5. Read it wherever it is consumed, by adding it to that consumer's column list,
    and extend the reason vocabulary if the consumer classifies on it. A consumer
    that does not select a column reads its field as absent.
