@@ -54,29 +54,40 @@ kilometer radii, and #896 keeps an authored shadow beside the geometric one.
 - **One fact, one issue.** Each phase names the issues it closes; anything found along the way is
   filed, not folded silently into a PR.
 
-## Phase 0: attribute the calibrated disc bias (done)
+## Phase 0: land the open stack (done)
 
-The calibrated Cassini noise floor (#886), fitted cosmic-ray hits (#887), and calibrated sweeps
-through the full instrument chain (#888) are on main, and so is #916. Its steady part came from
-shading a smooth body at detector resolution and interpolating it onto the oversampled grid; the
-simulator now shades a smooth body on the grid it renders it on. The larger error at three
+| Issue or PR | Subject |
+|---|---|
+| #886 | **Done.** Calibrated Cassini noise floor: filter scale, readout dark, calibration residuals, and the measured Cassini 12-to-8-bit decode table |
+| #887 | **Done.** Fitted cosmic-ray hits on the Cassini cameras and Galileo SSI |
+| #888 | **Done.** Calibrated sweeps through the full instrument chain |
+| #916 | **Done (PR #933).** Attribute the calibrated disc correlation's sub-pixel bias that #888 reports |
+
+Merge #886, #887, and #888 in order and confirm that #329, #330, and #234 close. #916 follows
+directly. The rest of the plan assumes this stack.
+
+**Done:** the three PRs are on main, and #329, #330, and #234 are closed. #916's steady part came
+from shading a smooth body at detector resolution and interpolating it onto the oversampled grid;
+the simulator now shades a smooth body on the grid it renders it on. The larger error at three
 offsets is the correlation refinement clamp, a navigator defect scheduled in Phase 1 as #929.
+
+**Exit (met):** the three PRs are on main, and #916 names the source of the bias or the stage it
+is confined to.
 
 ## Phase 1: foundations
 
-These make every later phase cheaper or safer. Most are small. The framing part of #914 and
-all of #924 are on main: the docs say simulated results are reproducibility and
-self-consistency, and each camera's simulator values are stated once, on its instrument page.
-#876 is on main too: each simulated camera's values come from its own validated config file, so
-adding a camera or a readout mode is a configuration entry.
+These make every later phase cheaper or safer. Most are small.
 
 | Issue | Subject | Why now |
 |---|---|---|
+| #914, framing part | **Done (PR #932).** Docs present self-consistency as accuracy | Stop the overclaim immediately: simulated results are reproducibility and self-consistency on the Cassini NAC, and confidence values are provisional. Docs only. |
+| #924 | **Done (PR #932).** The simulator developer guide mixes per-camera values into the mechanism descriptions | Move each camera's measured values to its instrument page so each is stated once, before Phases 3 and 4 re-measure them and every change has to edit two copies. Docs only. |
 | #911, including per-pixel variates | One frame-wide Poisson stream | Every later fix would otherwise turn into a new noise field across the whole frame. |
 | #905, truth-check part | Assertions are change detectors and 1 px bounds | Give validation scenes truth-based assertions before the renders start moving, so a move is judged against the planted truth. |
 | #872 | The baseline regenerator imports whichever installed package it finds | Regenerated baselines must come from the checkout under test before the churn starts. |
 | #900, #813 | Validation skips the render path; null body keys crash; the navigator's simulated ring model reads nullable keys unsafely | Typed per-block specs on every entry point, with null meaning absent; the first slice of #915. |
 | #913 | `axis1`, `axis2`, and `axis3` are full widths named like semi-axes | Rename before more scenes are written in the old names. |
+| #876 | **Done (PR #934).** Per-instrument tables in one validated YAML file | Adding a camera or a readout mode becomes a configuration entry; Phase 4's instrument work depends on it. Lands after #886, as its text asks. |
 | #912, #126 | Correlation FFTs at slow sizes; the disc correlation's rotation search runs 19 full pyramid evaluations | Make full-frame scenes affordable in the integration tier; #904 and #908 both need it. |
 | #854 | Simulated stars clip below the navigator's saturation level | Small; star brightness is wrong until it lands. |
 | #925 | The realism match compares mismatched content on content-filled and narrowband frames | Compare sky noise on comparable content and scale the matched star ladder by filter throughput, so the statistics the regression check holds to measure only the simulator. Then settle whether the TABLE path is too quiet. |
@@ -85,7 +96,8 @@ adding a camera or a readout mode is a configuration entry.
 
 **Exit:** changing the signal in one region of a frame leaves the noise elsewhere in that frame
 unchanged; validation scenes assert against their planted truth; a null body key behaves exactly
-as an absent one on every entry point; the realism match fails on a planted regression.
+as an absent one on every entry point; the realism match fails on a planted regression; adding a
+camera's tables is a YAML edit (met by #876).
 
 ## Phase 2: rendering correctness
 
@@ -96,7 +108,7 @@ retired, every body fix has to be made twice.
 | Issue | Subject |
 |---|---|
 | #901 | Classic and topographic body renderers disagree; retire the classic path (part of #915) |
-| #931 | Coarse-grid shading shifts relief, textured, and cratered bodies at oversample above 1 (smooth bodies fixed under #916) |
+| #931 | Coarse-grid shading shifts relief, textured, and cratered bodies at oversample above 1 (smooth bodies fixed by #916) |
 | #890 | A body larger than half the frame and off center is clipped or vanishes |
 | #825, #644 | A planted roll turns ellipsoids the wrong way, mesh bodies and the lit side not at all, and leaves smear, companions, and sky unturned; #644 also asks for a ruling on what a roll turns |
 | #891, #873 | Ring-edge anti-aliasing on optical depth shifts lone edges up to 0.7 px; a rank-1 ring scene misses its planted shift by 0.52 px |
@@ -234,7 +246,7 @@ pipeline unchanged. The `NavModel*Simulated` models stay for idealized scenes an
 #843 close for the real-geometry path when production models navigate its frames, and #311 guards
 whatever mirrors remain. #843 also depends on #842 (Phase 2).
 
-Prerequisites: #901, #890, #825, and #842 (Phase 2); #898 and #837 (Phase 3);
+Prerequisites: #876 (Phase 1, done); #901, #890, #825, and #842 (Phase 2); #898 and #837 (Phase 3);
 #895, #896, #909, and #910 (Phase 4a and 4b).
 
 **Exit:** every library class has a twin generator; twins navigate through production code in the
@@ -292,8 +304,8 @@ retired and retained library classes.
 | #914, the rest | User chapter around a complete scene, developer guide split, and one schema reference |
 | #310 | Structural information-boundary guard |
 
-Each phase updates the docs for what it changes, with per-camera values on the instrument
-pages; this phase finishes the restructuring and the guide split once the schema has settled.
+Each phase updates the docs for what it changes, with per-camera values on the instrument pages
+after #924 (done); this phase finishes the restructuring and the guide split once the schema has settled.
 #856 can land whenever its fix is ready.
 
 ## Track R: real-frame confidence (parallel)
@@ -340,6 +352,7 @@ Phase 0 -> Phase 1 -> Phase 2 -> Phase 2b
                         +-> Phase 3 ----------------+
                         +-> Phase 4a, 4b -----------+-> Phase 5 -> Phase 6 -> Phase 7
                         +-> Phase 4c-4f (parallel with Phase 5)
+Phase 1 (#876, done) -> Phase 4d-4f, Phase 5
 Track R: #334, #225, #342 now -> #230 real-frame part;
          #230 remainder, then #153's other parts, after Phase 6
 Track O: needs #126 (Phase 1); joins Phase 5 for Voyager Uranus twins
