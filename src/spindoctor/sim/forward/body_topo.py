@@ -20,7 +20,9 @@ terminator shadow march.  This replaces the per-subsample shading that made
 an oversampled body render ~16x more expensive than its detector-grid
 equivalent, and is what lets a body-bearing scene meet the render-time
 budget (see ``tests/integration/test_sim_perf.py``).  A smooth body (none of
-those four) is shaded on the working grid itself, as the navigator's
+those four, counting only settings that change the shading: a crater fill that
+places no crater, a texture with no contrast and no spots, or an empty transit
+does not count) is shaded on the working grid itself, as the navigator's
 predicted body is, because the bilinear upsample would move its light a few
 thousandths of a pixel away from the sun.
 
@@ -45,7 +47,8 @@ the photometric-law, surface-texture, crater, and atmosphere keys on mesh
 bodies rather than letting them silently not render.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+from typing import Any
 
 import numpy as np
 
@@ -103,11 +106,11 @@ class TopoBodySpec:
             does (an oversampled scene already resolves the limb on its own
             grid).
         crater_seed: Seed for crater placement (None with no craters).
-        oversample: The incoming grid's oversampling factor.  A body with
-            relief, craters, a surface texture, or transits is shaded at the
-            detector grid ``size / oversample``; a smooth body is shaded on the
-            working grid (the incoming grid, or its anti-aliasing supersample
-            at oversample 1).
+        oversample: The incoming grid's oversampling factor.  A body whose
+            relief, craters, surface texture, or transits change its shading is
+            shaded at the detector grid ``size / oversample``; any other body is
+            smooth and is shaded on the working grid (the incoming grid, or its
+            anti-aliasing supersample at oversample 1).
         limb_relief_rms: Commanded limb-slice relief RMS (h/R; 0 = off).
         limb_relief_corr_deg: Relief correlation length, degrees of arc.
         relief_seed: Seed of the relief-field realization.
@@ -340,23 +343,40 @@ def render_topographic_body(
         if field.h_max <= field.h_min:
             field = None
 
-    # A smooth body shades on the working grid, oversampled or anti-aliased, as the
-    # navigator's model of it does.  Shading it at the detector grid and upsampling
-    # bilinearly moves its light about 0.007 px away from the sun (#916).  Relief,
-    # craters, textures, and transits still shade at the detector grid (#931).
-    smooth = (
-        field is None
-        and spec.crater_fill <= 0.0
-        and spec.albedo_texture is None
-        and spec.disc_texture is None
-        and not spec.transits
-    )
-    up_factor = 1 if smooth else os_in * aa_scale
-
     cos_rz = float(np.cos(spec.rotation_z))
     sin_rz = float(np.sin(spec.rotation_z))
     cos_rt = float(np.cos(spec.rotation_tilt))
     semi = (spec.axis1 / 2.0, spec.axis2 / 2.0, spec.axis3 / 2.0)
+
+    def _detector_grid() -> _Grid:
+        """The body's geometry on the detector grid, where featured shading is computed."""
+        return _body_grid(
+            (size_v // os_in, size_u // os_in),
+            (center[0] / os_in, center[1] / os_in),
+            (semi[0] / os_in, semi[1] / os_in, semi[2] / os_in),
+            cos_rz=cos_rz,
+            sin_rz=sin_rz,
+            cos_rt=cos_rt,
+        )
+
+    # A smooth body shades on the working grid, oversampled or anti-aliased, as the
+    # navigator's model of it does.  Shading it at the detector grid and upsampling
+    # bilinearly moves its light about 0.007 px away from the sun (#916).  Relief,
+    # craters, textures, and transits still shade at the detector grid (#931).  A
+    # surface setting that changes nothing (a crater fill that places no crater on
+    # the detector grid, a texture with no contrast and no spots, a transit with
+    # neither a moon nor a shadow) leaves the body smooth, and is dropped from the
+    # spec it is shaded with.
+    up_factor = os_in * aa_scale
+    shading_spec = spec
+    detector_grid: _Grid | None = None
+    if up_factor > 1:
+        if spec.crater_fill > 0.0:
+            detector_grid = _detector_grid()
+        active_spec = _without_inert_surface(spec, detector_grid)
+        if field is None and _is_featureless(active_spec):
+            shading_spec = active_spec
+            up_factor = 1
 
     work_grid = _body_grid(
         work_dims,
@@ -368,17 +388,12 @@ def render_topographic_body(
     )
     if up_factor == 1:
         shade_grid = work_grid
+    elif detector_grid is not None:
+        shade_grid = detector_grid
     else:
-        shade_grid = _body_grid(
-            (size_v // os_in, size_u // os_in),
-            (center[0] / os_in, center[1] / os_in),
-            (semi[0] / os_in, semi[1] / os_in, semi[2] / os_in),
-            cos_rz=cos_rz,
-            sin_rz=sin_rz,
-            cos_rt=cos_rt,
-        )
+        shade_grid = _detector_grid()
 
-    intensity_shade = _shade_disc(shade_grid, spec, field, cos_rz=cos_rz, sin_rz=sin_rz)
+    intensity_shade = _shade_disc(shade_grid, shading_spec, field, cos_rz=cos_rz, sin_rz=sin_rz)
 
     mask = _silhouette_mask(work_grid, field)
     intensity_work = _bilinear_upsample(intensity_shade, up_factor)
@@ -634,6 +649,75 @@ def _apply_surface_textures(
     return textured
 
 
+def _without_inert_surface(spec: TopoBodySpec, detector_grid: _Grid | None) -> TopoBodySpec:
+    """The spec with every surface setting that cannot change the shading removed.
+
+    A crater fill is inert when it places no crater on the detector grid, the grid the
+    craters are carved on when they shade at all; an albedo texture when its noise field
+    is off (zero RMS or zero correlation length) and it has no spots; a disc texture
+    when its bands have zero amplitude and it has no storms; and a transit when it has
+    neither a moon nor a shadow.
+
+    Parameters:
+        spec: The body spec.
+        detector_grid: The detector-grid geometry the crater count is taken on, or
+            None, in which case the crater fill is kept as it is.
+
+    Returns:
+        The spec with the inert settings cleared (``spec`` itself when none is inert).
+    """
+    changes: dict[str, Any] = {}
+    if (
+        spec.crater_fill > 0.0
+        and detector_grid is not None
+        and _crater_count(detector_grid, spec) == 0
+    ):
+        changes['crater_fill'] = 0.0
+    albedo = spec.albedo_texture
+    if albedo is not None and not (albedo.rms > 0.0 and albedo.corr_px > 0.0) and not albedo.spots:
+        changes['albedo_texture'] = None
+    disc = spec.disc_texture
+    if disc is not None and disc.band_amplitude <= 0.0 and not disc.storms:
+        changes['disc_texture'] = None
+    transits = tuple(t for t in spec.transits if t.moon is not None or t.shadow is not None)
+    if len(transits) != len(spec.transits):
+        changes['transits'] = transits
+    return replace(spec, **changes) if changes else spec
+
+
+def _is_featureless(spec: TopoBodySpec) -> bool:
+    """Whether the spec carries no craters, no surface texture, and no transits.
+
+    Parameters:
+        spec: The body spec.
+
+    Returns:
+        True when the spec's surface is smooth apart from any relief, which the caller
+        checks separately.
+    """
+    return (
+        spec.crater_fill <= 0.0
+        and spec.albedo_texture is None
+        and spec.disc_texture is None
+        and not spec.transits
+    )
+
+
+def _crater_count(grid: _Grid, spec: TopoBodySpec) -> int:
+    """The number of craters the spec's crater fill places on a grid.
+
+    Parameters:
+        grid: The geometry the craters would be carved on.
+        spec: The body spec (crater fill and maximum radius are read).
+
+    Returns:
+        The crater count, between 0 and 1000.
+    """
+    total_area = int(np.sum(grid.e2 < 1.0))
+    avg_crater_area = (spec.crater_max_radius * grid.semi_a) ** 2
+    return int(np.clip(int(spec.crater_fill * total_area / avg_crater_area), 0, 1000))
+
+
 def _crater_heights(grid: _Grid, spec: TopoBodySpec) -> NDArrayFloatType:
     """Carve the crater height field on the shading grid.
 
@@ -654,9 +738,7 @@ def _crater_heights(grid: _Grid, spec: TopoBodySpec) -> NDArrayFloatType:
     from spindoctor.sim.seeds import stable_param_seed
 
     inside_strict = grid.e2 < 1.0
-    total_area = int(np.sum(inside_strict))
-    avg_crater_area = (spec.crater_max_radius * grid.semi_a) ** 2
-    n_craters = int(np.clip(int(spec.crater_fill * total_area / avg_crater_area), 0, 1000))
+    n_craters = _crater_count(grid, spec)
     if n_craters == 0 or not inside_strict.any():
         return np.zeros_like(grid.e2)
 

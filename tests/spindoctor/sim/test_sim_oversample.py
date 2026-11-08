@@ -5,15 +5,19 @@ grid and downsamples back to the detector grid; a scene with no optics block
 renders at oversample 1.  These tests cover the oversample resolution, the
 determinism of the no-optics path, that the oversampled render preserves body
 flux and position after the downsample, that a smooth body on an oversampled or
-anti-aliased grid renders as the navigator predicts it, and that the classifying truth
-arrays come back describing the pixels the image put the body on.
+anti-aliased grid renders as the navigator predicts it, that a surface setting that
+changes nothing leaves a body smooth, and that the classifying truth arrays come back
+describing the pixels the image put the body on.
 """
 
+import dataclasses
 from typing import Any
 
 import numpy as np
+import pytest
 
 from spindoctor.nav_model.sim_body import create_simulated_body
+from spindoctor.sim.forward.body_texture import AlbedoTextureSpec, DiscTextureSpec, TransitSpec
 from spindoctor.sim.forward.body_topo import TopoBodySpec, create_topographic_body
 from spindoctor.sim.forward.stages import downsample_to_detector, new_sim_frame
 from spindoctor.sim.render import render_combined_model, resolve_oversample
@@ -157,6 +161,41 @@ def test_anti_aliased_smooth_body_matches_the_navigator_model() -> None:
         anti_aliasing=1.0,
     )
     np.testing.assert_allclose(rendered, predicted, rtol=0.0, atol=1e-12)
+
+
+# Surface settings that change nothing: a crater fill too small to place a crater on the
+# 40 px detector grid (0.01 x 452 px of disc / 9 px per crater rounds down to none), an
+# albedo texture with no noise field and no spots, banding of zero amplitude with no
+# storms, and a transit with neither a moon nor a shadow.
+_INERT_SURFACES: dict[str, dict[str, Any]] = {
+    'crater_fill': {'crater_fill': 0.01},
+    'albedo_texture': {'albedo_texture': AlbedoTextureSpec(rms=0.0)},
+    'disc_texture': {'disc_texture': DiscTextureSpec(band_amplitude=0.0)},
+    'transits': {'transits': (TransitSpec(),)},
+}
+
+
+@pytest.mark.parametrize('setting', sorted(_INERT_SURFACES))
+def test_inert_surface_setting_keeps_the_smooth_shading(setting: str) -> None:
+    """A surface setting that changes nothing renders exactly as the smooth body.
+
+    Parameters:
+        setting: The key into ``_INERT_SURFACES`` naming the inert setting.
+    """
+    smooth = TopoBodySpec(
+        axis1=96.0,
+        axis2=96.0,
+        axis3=96.0,
+        illumination_angle=0.7,
+        phase_angle=0.9,
+        oversample=4,
+    )
+    inert = dataclasses.replace(smooth, **_INERT_SURFACES[setting])
+    size = (160, 160)
+    center = (81.3, 78.9)
+    np.testing.assert_array_equal(
+        create_topographic_body(size, center, inert), create_topographic_body(size, center, smooth)
+    )
 
 
 def test_oversample_inventory_is_detector_scale() -> None:

@@ -1513,16 +1513,20 @@ relief-perturbed silhouette mask, is always rasterized on the working grid.
 Where the shading field (surface normals, relief shading, cast shadows, crater
 texture, and photometric law) is computed depends on the body:
 
-- A body with relief, craters, a surface texture, or transits is shaded once at
-  **detector resolution**, and the shading is bilinearly upsampled onto the
-  working grid. Disc shading is low-frequency by construction, so this replaces
-  the per-subsample shading that made an oversampled body ~16x more expensive
-  than its detector-grid equivalent, and it is what lets a body-bearing scene
-  meet the render budget below. The budget harness
+- A body whose relief, craters, surface texture, or transits change its shading
+  is shaded once at **detector resolution**, and the shading is bilinearly
+  upsampled onto the working grid. Disc shading is low-frequency by
+  construction, so this replaces the per-subsample shading that made an
+  oversampled body ~16x more expensive than its detector-grid equivalent, and it
+  is what lets a body-bearing scene meet the render budget below. The budget harness
   (``tests/integration/test_sim_perf.py``) holds a large-lit-body-with-relief
   frame to its measured budget for exactly this reason. The upsample moves the
   disc's light about 0.007 px away from the Sun.
-- Every other body is smooth and is shaded on the working grid itself.
+- Every other body is smooth and is shaded on the working grid itself. A
+  surface setting that changes nothing leaves a body smooth: a crater fill too
+  small to place a crater at detector resolution, an albedo texture with no
+  noise field and no spots, banding of zero amplitude with no storms, or a
+  transit with neither a moon nor a shadow.
 
 The navigator's predicted body is shaded on a grid four times finer than the
 detector's. A smooth body whose working grid has that same factor (oversample 4,
