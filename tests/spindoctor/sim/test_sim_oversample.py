@@ -215,7 +215,7 @@ def test_oversampled_smooth_body_matches_the_navigator_model_on_the_detector_gri
 
 
 # Surface settings that change nothing: a crater fill too small to place a crater on the
-# 40 px detector grid (0.01 x 452 px of disc / 9 px per crater rounds down to none), an
+# 40 px detector grid (0.01 x 454 px of disc / 9 px per crater rounds down to none), an
 # albedo texture with no noise field and no spots, banding of zero amplitude with no
 # storms, and a transit with neither a moon nor a shadow.
 _INERT_SURFACES: dict[str, dict[str, Any]] = {
@@ -246,6 +246,39 @@ def test_inert_surface_setting_keeps_the_smooth_shading(setting: str) -> None:
     center = (81.3, 78.9)
     np.testing.assert_array_equal(
         create_topographic_body(size, center, inert), create_topographic_body(size, center, smooth)
+    )
+
+
+# Surface settings next to the inert ones that do change the shading: a crater fill that
+# places one crater on the 40 px detector grid (0.03 x 454 / 9 rounds down to 1), an albedo
+# spot with no noise field, and a storm with no banding.
+_ACTIVE_SURFACES: dict[str, dict[str, Any]] = {
+    'crater_fill': {'crater_fill': 0.03},
+    'albedo_spot': {'albedo_texture': AlbedoTextureSpec(rms=0.0, spots=((0.0, 0.0, 20.0, 0.5),))},
+    'storm': {'disc_texture': DiscTextureSpec(band_amplitude=0.0, storms=((0.0, 0.0, 20.0, 0.5),))},
+}
+
+
+@pytest.mark.parametrize('setting', sorted(_ACTIVE_SURFACES))
+def test_active_surface_setting_changes_the_shading(setting: str) -> None:
+    """A surface setting that changes the shading is not dropped as inert.
+
+    Parameters:
+        setting: The key into ``_ACTIVE_SURFACES`` naming the active setting.
+    """
+    smooth = TopoBodySpec(
+        axis1=96.0,
+        axis2=96.0,
+        axis3=96.0,
+        illumination_angle=0.7,
+        phase_angle=0.9,
+        oversample=4,
+    )
+    active = dataclasses.replace(smooth, **_ACTIVE_SURFACES[setting])
+    size = (160, 160)
+    center = (81.3, 78.9)
+    assert not np.array_equal(
+        create_topographic_body(size, center, active), create_topographic_body(size, center, smooth)
     )
 
 

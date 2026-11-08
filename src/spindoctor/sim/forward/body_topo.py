@@ -349,7 +349,7 @@ def render_topographic_body(
     semi = (spec.axis1 / 2.0, spec.axis2 / 2.0, spec.axis3 / 2.0)
 
     def _detector_grid() -> _Grid:
-        """The body's geometry on the detector grid, where featured shading is computed."""
+        """The body's geometry on the detector grid, where featured shading is done."""
         return _body_grid(
             (size_v // os_in, size_u // os_in),
             (center[0] / os_in, center[1] / os_in),
@@ -650,7 +650,7 @@ def _apply_surface_textures(
 
 
 def _without_inert_surface(spec: TopoBodySpec, detector_grid: _Grid | None) -> TopoBodySpec:
-    """The spec with every surface setting that cannot change the shading removed.
+    """The spec with the recognized no-op surface settings removed.
 
     A crater fill is inert when it places no crater on the detector grid, the grid the
     craters are carved on when they shade at all; an albedo texture when its noise field
