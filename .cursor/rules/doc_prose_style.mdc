@@ -19,6 +19,9 @@ read the prose to apply it.
 When a pull request changes documentation, read each changed passage aloud, or as
 if aloud, and rewrite any passage that does not sound like a person wrote it. This
 is the first item of the review checklist in section 8. No script can check it.
+That one item reaches past the files listed above. It also covers docstrings, code
+comments, and the messages a user sees, such as log lines and error text, in `.py`
+files.
 
 ## 1. Audience separation
 
@@ -197,8 +200,9 @@ five copies of it read as distrust of the reader.
 The script cannot judge these. Read for them:
 
 1. Read each changed passage through as if aloud. Does it sound like something a
-   person would write? If not, rewrite it. These are the usual signs that it does
-   not:
+   person would write? If not, rewrite it. This applies to docstrings, code
+   comments, and messages a user sees as much as to the files under `docs/`.
+   These are the usual signs that a passage fails:
    - Stacked nouns: "the schema-version mismatch remedy step".
    - A chain of qualifiers in front of one word: "the first completed
      current-schema root ingest".
@@ -208,7 +212,9 @@ The script cannot judge these. Read for them:
    - A relative clause packed in front of the verb: "a mode the scene's detector
      chain never renders is disabled with a tooltip saying so". Write instead: "If
      the scene's detector chain can't render a mode, the mode is disabled, and its
-     tooltip says why."
+     tooltip says why." The same goes for "a name the catalog does not know leaves
+     the selection as it is", from a docstring. Write instead: "If the catalog
+     doesn't know the name, the selection stays as it is."
    - A sentence you have to read twice to follow.
 2. Would a user who has never seen our source understand every sentence?
 3. Is every term defined before it is used, or linked to where it is defined?
