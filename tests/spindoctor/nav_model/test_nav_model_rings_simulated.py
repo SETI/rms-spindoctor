@@ -15,6 +15,7 @@ import pytest
 from spindoctor.feature.composition import compose_template_features
 from spindoctor.feature.geometry import RingEdgePolyline
 from spindoctor.nav_model.nav_model_rings_simulated import NavModelRingsSimulated
+from spindoctor.nav_model.sim_ring import predict_ring_feature
 from spindoctor.nav_orchestrator.nav_context import NavContext
 from spindoctor.obs.obs_inst_sim import ObsSim
 
@@ -334,3 +335,48 @@ def test_a_null_declared_sigma_counts_as_zero() -> None:
     edges = _eccentric_edges({'sigma_a_px': 2.0, 'sigma_long_peri_deg': None})
     omitted = _eccentric_edges({'sigma_a_px': 2.0})
     assert [g.sigma_orbit_radial_px for g in edges] == [g.sigma_orbit_radial_px for g in omitted]
+
+
+def _edge_vertices(ring_system: dict[str, Any]) -> list[Any]:
+    """The ringlet's predicted edge vertices under the given ring_system block."""
+    model = NavModelRingsSimulated('rings', _obs(), 'SATURN', _feature_params(), ring_system)
+    model.create_model()
+    features = model.to_features(cast(NavContext, None))
+    return [
+        cast(RingEdgePolyline, f.geometry).vertices_vu
+        for f in features
+        if f.feature_type.name == 'RING_EDGE'
+    ]
+
+
+@pytest.mark.parametrize('key', ['center_v', 'center_u', 'opening_deg_obs', 'node_deg'])
+def test_a_null_geometry_key_predicts_the_same_edges_as_an_omitted_one(key: str) -> None:
+    """A geometry key set to null reads as unset, as the scene validator reads it."""
+    null_system = _ring_system()
+    null_system['geometry'][key] = None
+    omitted_system = _ring_system()
+    del omitted_system['geometry'][key]
+    null_edges = _edge_vertices(null_system)
+    omitted_edges = _edge_vertices(omitted_system)
+    assert len(null_edges) == 2
+    for null_vertices, omitted_vertices in zip(null_edges, omitted_edges, strict=True):
+        np.testing.assert_array_equal(null_vertices, omitted_vertices)
+
+
+def test_a_ramp_with_a_null_side_predicts_its_default_outer_edge() -> None:
+    """A ramp's null side takes the ramp default, so its sharp end is the outer edge."""
+    ramp: dict[str, Any] = {
+        'kind': 'ramp',
+        'width_px': 20.0,
+        'orbit': {'a_px': 60.0, 'ae_px': 0.0, 'long_peri_deg': 0.0},
+    }
+    grid = {
+        'center_v': _SIZE / 2.0,
+        'center_u': _SIZE / 2.0,
+        'opening_deg_obs': 90.0,
+        'node_deg': 0.0,
+    }
+    null_side = predict_ring_feature((_SIZE, _SIZE), {**ramp, 'side': None}, **grid)
+    omitted = predict_ring_feature((_SIZE, _SIZE), ramp, **grid)
+    assert [edge.edge_type for edge in null_side.edges] == ['outer']
+    np.testing.assert_array_equal(null_side.edges[0].vertices_vu, omitted.edges[0].vertices_vu)

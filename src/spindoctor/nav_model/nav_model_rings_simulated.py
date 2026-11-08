@@ -38,6 +38,7 @@ from spindoctor.nav_model.sim_ring import (
     PredictedRingFeature,
     predict_ring_feature,
 )
+from spindoctor.sim.scene_schema import scene_value
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 from spindoctor.support.filters import NavFilterKind, NavFilterSpec
 from spindoctor.support.time import now_dt
@@ -194,10 +195,10 @@ class NavModelRingsSimulated(NavModelRingsBase):
         ext_margin_v = int(obs.extfov_margin_v)
         ext_margin_u = int(obs.extfov_margin_u)
         geometry = self._ring_system.get('geometry') or {}
-        center_v = float(geometry.get('center_v', data_size_v / 2.0)) + ext_margin_v
-        center_u = float(geometry.get('center_u', data_size_u / 2.0)) + ext_margin_u
-        opening_deg_obs = float(geometry.get('opening_deg_obs', 90.0))
-        node_deg = float(geometry.get('node_deg', 0.0))
+        center_v = float(scene_value(geometry, 'center_v', data_size_v / 2.0)) + ext_margin_v
+        center_u = float(scene_value(geometry, 'center_u', data_size_u / 2.0)) + ext_margin_u
+        opening_deg_obs = float(scene_value(geometry, 'opening_deg_obs', 90.0))
+        node_deg = float(scene_value(geometry, 'node_deg', 0.0))
         shape = (data_size_v + 2 * ext_margin_v, data_size_u + 2 * ext_margin_u)
         self._logger.debug(
             'Simulated rings: predicting %r (kind=%s) at extfov center (%.2f, %.2f), '

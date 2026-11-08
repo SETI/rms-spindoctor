@@ -32,6 +32,7 @@ from spindoctor.sim.ring_geometry import (
     ring_plane_from_sky,
     ring_radial_scale,
 )
+from spindoctor.sim.scene_schema import RING_SIDE_DEFAULTS, scene_value
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 
@@ -272,7 +273,7 @@ def predict_ring_feature(
     r_edge = compute_orbit_radii(lam, orbit, epoch=epoch, time=time)
 
     if kind in ('ringlet', 'gap'):
-        width = float(feature.get('width_px', 0.0))
+        width = float(scene_value(feature, 'width_px', 0.0))
         outer_orbit = orbit.widened(width)
         r_outer = compute_orbit_radii(lam, outer_orbit, epoch=epoch, time=time)
         inner_shade = compute_antialiasing_shade((r - r_edge) / radial_scale, 1.0)
@@ -305,8 +306,8 @@ def predict_ring_feature(
     if kind == 'ramp':
         # Only the ramp's sharp end is a fittable boundary; the linear end
         # fades into the background with no gradient to fit.
-        width = float(feature.get('width_px', 0.0))
-        side = str(feature.get('side', 'out'))
+        width = float(scene_value(feature, 'width_px', 0.0))
+        side = str(scene_value(feature, 'side', RING_SIDE_DEFAULTS['ramp']))
         sharp_orbit = orbit.widened(width) if side == 'out' else orbit
         r_sharp = compute_orbit_radii(lam, sharp_orbit, epoch=epoch, time=time)
         edge_type = 'outer' if side == 'out' else 'inner'
