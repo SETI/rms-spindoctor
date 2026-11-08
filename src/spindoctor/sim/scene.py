@@ -17,7 +17,8 @@ dependency): the key inventory and boundary classification live in
 :mod:`spindoctor.sim.scene_schema` and the per-field type checks in
 :mod:`spindoctor.sim.scene_checks` (body entries:
 :mod:`spindoctor.sim.scene_checks_body`; the ring_system block:
-:mod:`spindoctor.sim.scene_checks_ring`); this module is the public entry point
+:mod:`spindoctor.sim.scene_checks_ring`; the artifacts block:
+:mod:`spindoctor.sim.scene_checks_artifacts`); this module is the public entry point
 and re-exports the boundary names.
 
 **The information boundary.**  Every key in the schema is classified as either
@@ -42,7 +43,6 @@ from ruamel.yaml import YAML
 
 from spindoctor.sim.instrument_catalog import load_instrument_catalog
 from spindoctor.sim.scene_checks import (
-    _check_artifacts,
     _check_detector,
     _check_downlink_table_used,
     _check_expected,
@@ -64,6 +64,7 @@ from spindoctor.sim.scene_checks import (
     _require_ranges_for_spk_error,
     _require_str,
 )
+from spindoctor.sim.scene_checks_artifacts import _check_artifacts
 from spindoctor.sim.scene_checks_body import (
     ATMOSPHERE_KEYS,
     _check_body_names_unique,

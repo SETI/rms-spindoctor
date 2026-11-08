@@ -599,6 +599,25 @@ def test_a_scene_naming_a_mode_its_detector_chain_ignores_fails(
         validate_sim_params(scene)
 
 
+def test_instrument_defaults_turning_on_a_mode_the_chain_ignores_fails() -> None:
+    """instrument_defaults may not turn on a mode the scene's own detector model ignores."""
+    scene = {
+        'instrument': 'nhlorri',
+        'size_v': 32,
+        'size_u': 32,
+        'random_seed': 1,
+        'detector': {'detector_model': 'vidicon'},
+        'artifacts': {'instrument_defaults': True},
+    }
+    with pytest.raises(
+        SimSceneValidationError,
+        match=r"instrument_defaults turns on artifact mode 'frame_transfer_smear', which "
+        r'renders only in the ccd detector chain; this scene renders with detector_model '
+        r'vidicon',
+    ):
+        validate_sim_params(scene)
+
+
 def test_a_scene_naming_an_unlisted_downlink_table_fails() -> None:
     """A scene's downlink table must be one its camera lists."""
     scene = {

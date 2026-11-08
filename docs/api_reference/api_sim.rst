@@ -208,6 +208,11 @@ spindoctor.sim
    :undoc-members:
    :show-inheritance:
 
+.. automodule:: spindoctor.sim.scene_checks_artifacts
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 .. automodule:: spindoctor.sim.scene_checks_body
    :members:
    :undoc-members:

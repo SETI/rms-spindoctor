@@ -1125,7 +1125,7 @@ fixes the mode's name, its rendering stage (``telemetry`` or ``detector``), the
 parameters, and its activation key with that key's meaning for the mode. Which
 instruments offer a mode is each instrument config file's ``artifact_modes``
 list (see :ref:`sim-instrument-files`). Every consumer reads that description rather than carrying its
-own copy: the scene validator (:func:`spindoctor.sim.scene_checks._check_artifacts`),
+own copy: the scene validator (:func:`spindoctor.sim.scene_checks_artifacts._check_artifacts`),
 the telemetry and detector stages, and the scene-editor GUI all iterate the
 registry, so registering a mode is the whole job of adding one editor row, one
 validation entry, and one dispatch slot.
@@ -1304,9 +1304,12 @@ registry entry lists as
 ``frame_transfer_smear``, ``serial_tail``, and ``fixed_pattern`` act in the CCD
 electron chain alone; ``beam_bend`` and ``residual_image`` act in the vidicon DN
 chain alone; the rest act in both. A config file may not offer, give shape
-defaults to, or turn on a mode its detector model never renders, and scene
+defaults to, or turn on a mode its detector model never renders. Scene
 validation refuses a scene that names one under the detector model it renders
-with (its own ``detector.detector_model``, else its camera's).
+with (its own ``detector.detector_model``, else its camera's default in the
+scene's readout mode), and refuses ``instrument_defaults`` in a scene whose
+detector model never renders a mode the camera's ``instrument_defaults`` turns
+on.
 
 .. list-table::
    :header-rows: 1

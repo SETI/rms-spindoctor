@@ -154,6 +154,14 @@ A key that a defect doesn't take is refused when the scene is loaded. The develo
 guide's :doc:`/dev_guide/dev_guide_simulator` chapter lists every defect, the cameras
 each one is available on, and the key each one takes.
 
+Some defects arise in one kind of detector only. Hot pixels, column bloom, and
+radiation hits, among others, are CCD defects, and the limb bend and the prior-frame
+ghost are vidicon defects. A scene that names a defect its detector can't produce is
+refused when it is loaded, and so is a scene whose ``instrument_defaults`` would turn on
+a defect of its camera that the scene's chosen ``detector_model`` can't produce. In the
+editor, the entry for a defect that the scene's camera doesn't offer, or that its
+detector can't produce, is disabled, and its tooltip says why.
+
 Rings in a scene
 ================
 
