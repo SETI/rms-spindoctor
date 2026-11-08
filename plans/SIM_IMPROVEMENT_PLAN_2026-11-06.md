@@ -82,6 +82,7 @@ These make every later phase cheaper or safer. Most are small.
 | #912, #126 | Correlation FFTs at slow sizes; the disc correlation's rotation search runs 19 full pyramid evaluations | Make full-frame scenes affordable in the integration tier; #904 and #908 both need it. |
 | #854 | Simulated stars clip below the navigator's saturation level | Small; star brightness is wrong until it lands. |
 | #925 | The realism match compares mismatched content on content-filled and narrowband frames | Compare sky noise on comparable content and scale the matched star ladder by filter throughput, so the statistics the regression check holds to measure only the simulator. Then settle whether the TABLE path is too quiet. |
+| #929, #930 | The correlation refinement clamps at ±0.5 px from the integer peak; peak suppression and PSR ignore wrap-around | Navigator defects the simulator found; committed baselines record clamped answers, so they land before the guard scenes and the Phase 3 re-ratchet. #929 is measured on real frames first, and its fix keeps the expected failures failing. |
 | #903, regression part | The realism match cannot fail | Compare a fresh run with the committed summary within per-statistic bands, so later physics changes are caught when they make realism worse. The hold-out and transfer parts come in Phase 6. |
 
 **Exit:** changing the signal in one region of a frame leaves the noise elsewhere in that frame
@@ -98,6 +99,7 @@ retired, every body fix has to be made twice.
 | Issue | Subject |
 |---|---|
 | #901 | Classic and topographic body renderers disagree; retire the classic path (part of #915) |
+| #931 | Coarse-grid shading shifts relief, textured, and cratered bodies at oversample above 1 (smooth bodies fixed by #916) |
 | #890 | A body larger than half the frame and off center is clipped or vanishes |
 | #825, #644 | A planted roll turns ellipsoids the wrong way, mesh bodies and the lit side not at all, and leaves smear, companions, and sky unturned; #644 also asks for a ruling on what a roll turns |
 | #891, #873 | Ring-edge anti-aliasing on optical depth shifts lone edges up to 0.7 px; a rank-1 ring scene misses its planted shift by 0.52 px |
