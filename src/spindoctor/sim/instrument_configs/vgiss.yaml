@@ -112,6 +112,10 @@ artifact_modes:
     - quantization_contour_8bit
     - reseau_scars
     - resample_texture
+  # Why a scene naming one of these modes fails validation.  The vidicon DN
+  # chain has no fixed-pattern stage, so the mode would render nothing (#935).
+  unavailable_reasons:
+    fixed_pattern: not rendered for vgiss, whose vidicon DN chain has no fixed-pattern stage
   # Per-mode shape defaults, estimated, all GEOMED-level: the beam-bend limb
   # bias that survives reseau-anchored correction, the shortened erase-cycle
   # residual image, the readout dark-current line ramp, the reseau-removal

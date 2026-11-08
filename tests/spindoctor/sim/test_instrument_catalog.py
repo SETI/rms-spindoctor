@@ -618,6 +618,21 @@ def test_instrument_defaults_turning_on_a_mode_the_chain_ignores_fails() -> None
         validate_sim_params(scene)
 
 
+def test_vgiss_states_why_it_has_no_fixed_pattern() -> None:
+    """A vgiss scene naming fixed_pattern fails with the reason the vgiss file states."""
+    scene = {
+        'instrument': 'vgiss',
+        'size_v': 32,
+        'size_u': 32,
+        'random_seed': 1,
+        'artifacts': {'fixed_pattern': {'probability': 1.0}},
+    }
+    with pytest.raises(
+        SimSceneValidationError, match=r'vidicon DN chain has no fixed-pattern stage'
+    ):
+        validate_sim_params(scene)
+
+
 def test_a_scene_naming_an_unlisted_downlink_table_fails() -> None:
     """A scene's downlink table must be one its camera lists."""
     scene = {

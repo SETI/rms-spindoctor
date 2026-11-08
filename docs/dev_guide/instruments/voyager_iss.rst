@@ -393,7 +393,9 @@ reseau-removal patches left by archive processing), and ``resample_texture``
 ``reseau_scars`` and ``resample_texture`` are telemetry-stage modes applied
 after the structured-loss modes, because they emulate archive processing rather
 than a detector or transmission defect. The file does not offer
-``fixed_pattern``, ``radiation_transients``, or ``compression_dct``.
+``fixed_pattern``, ``radiation_transients``, or ``compression_dct``, and it states
+the reason for ``fixed_pattern``: the vidicon DN chain has no fixed-pattern
+stage, so a scene naming the mode fails validation with that reason.
 
 The file's shape defaults give ``edited_frame`` a 440-pixel band, one of the
 commanded edited-mode band widths (608, 440, 272, 160, and 80 of the 800-pixel
