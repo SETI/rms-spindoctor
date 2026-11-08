@@ -1645,7 +1645,8 @@ product.
    first point, drawn as a green star, where the render matches the navigator's
    model -- into the mismatched regime, and the recovery-error-vs-mismatch curve
    is the product.  A dashed line marks the navigability cliff, the mismatch at
-   which the fit fails.
+   which the fit fails.  The error axis is logarithmic, so an exact recovery is
+   drawn at 1e-4 px.
 
 Each axis pairs a render-side knob (what the frame carries) with the
 navigator-side assumption (what the model predicts); the machinery column names
