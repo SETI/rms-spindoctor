@@ -14,6 +14,8 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
+import numpy as np
+
 from spindoctor.sim.forward.artifact_modes import ARTIFACT_MODES, DETECTOR_MODE_ORDER
 from spindoctor.sim.instrument_schema import (
     INSTRUMENT_DEFAULTS,
@@ -86,10 +88,11 @@ def check_entry(entry: Mapping[str, Any], *, source: str) -> None:
     detector keys its model calls for are present, the gain states are contiguous
     and hold the default state, the readout modes include binning 1, divide the
     native frame size, and keep the detector model, the star zero point's unit
-    fits the detector model, the filter table is spelled canonically and holds the
-    clear filter and each polarizer's clear element, each downlink table has one
-    form and the default names one of them, and every artifact mode the entry names
-    is one it offers.
+    fits the detector model, a filter table belongs to a CCD, is spelled
+    canonically, keys no polarizer, and holds the clear filter and each polarizer's
+    clear element, each downlink table has one form and decodes to at least two
+    levels, none negative, and the default names one of them, and every artifact
+    mode the entry names is one it offers.
 
     Parameters:
         entry: The instrument's mapping after inheritance.
@@ -103,7 +106,8 @@ def check_entry(entry: Mapping[str, Any], *, source: str) -> None:
     _check_detector(entry['detector'], source=source)
     _check_readout_modes(entry, source=source)
     _check_star_flux(entry, source=source)
-    _check_filters(entry.get('filters'), source=source)
+    model = entry['detector']['detector_model']
+    _check_filters(entry.get('filters'), model=model, source=source)
     _check_downlink_tables(entry.get('downlink_tables'), source=source)
     _check_artifact_modes(entry['artifact_modes'], source=source)
 
@@ -216,19 +220,43 @@ def _check_star_flux(entry: Mapping[str, Any], *, source: str) -> None:
         raise config_error(source, 'star_flux', f'a {model} detector states {expected}')
 
 
-def _check_filters(filters: Mapping[str, Any] | None, *, source: str) -> None:
-    """Check the filter table's spelling, its clear filter, and the polarizers."""
+def _check_filters(filters: Mapping[str, Any] | None, *, model: str, source: str) -> None:
+    """Check the filter table's detector, spelling, clear filter, and polarizers.
+
+    A filter's throughput sets the CCD signal scale, which the vidicon DN chain
+    does not have, so only a CCD carries a filter table.  A scene's polarizer folds
+    onto its wheel's clear element before lookup, so a table key holding a
+    polarizer could never be selected.
+    """
     if filters is None:
         return
+    if model == 'vidicon':
+        raise config_error(
+            source,
+            'filters',
+            'a filter sets the CCD signal scale; the vidicon DN chain has no reference '
+            'exposure for it to set',
+        )
     table = filters['throughput_e_per_s_per_if']
+    polarizers = filters.get('polarizer_clear') or {}
     for combination in table:
-        _check_canonical(combination, source=source, path='filters.throughput_e_per_s_per_if')
+        path = 'filters.throughput_e_per_s_per_if'
+        _check_canonical(combination, source=source, path=path)
+        for element in combination.split('+'):
+            if element in polarizers:
+                folded = '+'.join(polarizers.get(part, part) for part in combination.split('+'))
+                raise config_error(
+                    source,
+                    f'{path}.{combination}',
+                    f'the polarizer {element!r} folds onto {polarizers[element]!r}, so a scene '
+                    f'naming {combination!r} reads {folded!r}; key the throughput by that',
+                )
     if filters['clear'] not in table:
         raise config_error(
             source, 'filters.clear', f'{filters["clear"]!r} is not in throughput_e_per_s_per_if'
         )
     elements = {element for combination in table for element in combination.split('+')}
-    for polarizer, clear in (filters.get('polarizer_clear') or {}).items():
+    for polarizer, clear in polarizers.items():
         path = f'filters.polarizer_clear.{polarizer}'
         _check_canonical(polarizer, source=source, path='filters.polarizer_clear', element=True)
         if clear not in elements:
@@ -261,23 +289,18 @@ def _check_canonical(name: str, *, source: str, path: str, element: bool = False
 
 
 def _check_downlink_tables(tables: Mapping[str, Any] | None, *, source: str) -> None:
-    """Check that each downlink table has one form and the default names a table."""
+    """Check each downlink table's form and decoded levels, and the default's name."""
     if tables is None:
         return
     for name, table in tables['tables'].items():
         path = f'downlink_tables.tables.{name}'
         keys = set(table)
         if keys == {_TABULATED_TABLE_KEY}:
-            # Codes that decode to one value are one quantization level, so a table
-            # needs as many distinct values as a working table needs codes.
-            distinct = len(set(table[_TABULATED_TABLE_KEY]))
-            if distinct < _MIN_TABLE_CODES:
-                raise config_error(
-                    source,
-                    f'{path}.{_TABULATED_TABLE_KEY}',
-                    f'a downlink table decodes to at least {_MIN_TABLE_CODES} distinct values, '
-                    f'got {distinct}',
-                )
+            _check_decoded_levels(
+                np.asarray(table[_TABULATED_TABLE_KEY], dtype=np.float64),
+                source=source,
+                path=f'{path}.{_TABULATED_TABLE_KEY}',
+            )
             continue
         if keys != _PARAMETRIC_TABLE_KEYS:
             raise config_error(
@@ -292,11 +315,49 @@ def _check_downlink_tables(tables: Mapping[str, Any] | None, *, source: str) -> 
                 f'{path}.codes',
                 f'a downlink table sends at least {_MIN_TABLE_CODES} codes, got {table["codes"]}',
             )
+        _check_decoded_levels(_parametric_decoded_dn(table), source=source, path=path)
     if tables['default'] not in tables['tables']:
         raise config_error(
             source,
             'downlink_tables.default',
             f'{tables["default"]!r} is not one of the tables {sorted(tables["tables"])}',
+        )
+
+
+def _parametric_decoded_dn(table: Mapping[str, Any]) -> np.ndarray[Any, np.dtype[np.float64]]:
+    """The DN each code of a parametric table decodes to, in code order.
+
+    This is the curve :class:`~spindoctor.sim.forward.detector.sqrt_lut.SqrtLut`
+    decodes through: ``linear_dn * c + quadratic_dn * c**2`` for code ``c``, rounded
+    to whole DN when ``whole_dn`` is set.
+    """
+    codes = np.arange(table['codes'], dtype=np.float64)
+    decoded = float(table['linear_dn']) * codes + float(table['quadratic_dn']) * codes**2
+    return np.round(decoded) if table['whole_dn'] else decoded
+
+
+def _check_decoded_levels(
+    decoded: np.ndarray[Any, np.dtype[np.float64]], *, source: str, path: str
+) -> None:
+    """Refuse a downlink table with fewer than two decoded levels or a negative one.
+
+    Codes that decode to one value are one quantization level, so a table needs as
+    many distinct values as a working table needs codes; and the encoder snaps each
+    DN, never negative, to the nearest level, so a negative level is DN no frame
+    could hold.
+    """
+    distinct = len(np.unique(decoded))
+    if distinct < _MIN_TABLE_CODES:
+        raise config_error(
+            source,
+            path,
+            f'a downlink table decodes to at least {_MIN_TABLE_CODES} distinct values, '
+            f'got {distinct}',
+        )
+    lowest = float(decoded.min())
+    if lowest < 0.0:
+        raise config_error(
+            source, path, f'a downlink table decodes to no negative DN, got {lowest:g}'
         )
 
 

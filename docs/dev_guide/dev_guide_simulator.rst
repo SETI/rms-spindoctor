@@ -928,21 +928,26 @@ isn't valid YAML or writes a key twice. Within a file, the load fails on:
   its gain table, a clear filter or polarizer element missing from the filter
   table, a default downlink table the file doesn't list, or an artifact mode
   with shape defaults or ``instrument_defaults`` that the file doesn't offer;
+  and, in ``generic.yaml``, a missing ``detector.calibrated_sky_if``, the value
+  every entry without its own falls back on;
 * a combination the renderer can't honor: a ``vidicon`` block on a CCD, a
-  readout mode that changes ``detector_model`` or the ``vidicon`` block, a binned
-  readout on a vidicon, readout modes without binning 1 or with a binning that
-  doesn't divide the native frame size, a readout mode whose gain table adds or
-  drops a state, a star zero point in the wrong unit for the detector model, a
-  downlink table that mixes the parametric and tabulated forms, sends fewer than
-  2 codes, or (tabulated) decodes to fewer than 2 distinct values or to a
-  negative one, or an ``instrument_defaults`` mode that isn't a detector-stage
-  mode;
+  filter table on a vidicon (a filter sets the CCD signal scale), a readout mode
+  that changes ``detector_model`` or the ``vidicon`` block, a binned readout on
+  a vidicon, readout modes without binning 1 or with a binning that doesn't
+  divide the native frame size, a readout mode whose gain table adds or drops a
+  state, a star zero point in the wrong unit for the detector model, a downlink
+  table that mixes the parametric and tabulated forms, sends fewer than 2 codes,
+  or decodes (after rounding to whole DN, for a parametric table that asks for
+  it) to fewer than 2 distinct values or to a negative one, or an
+  ``instrument_defaults`` mode that isn't a detector-stage mode;
 * a setting that would do nothing: an activation key (``probability``,
   ``expected_events``, and the others) or ``count`` in ``shape_defaults``, which
   never turns a mode on; a shape default for ``hot_pixels``, whose shape comes
   from the ``detector`` block's hot-pixel terms; an ``instrument_defaults`` entry
   without a positive activation key; an unavailability reason for a mode the file
-  offers; and a filter or polarizer spelled other than canonically.
+  offers; a filter or polarizer spelled other than canonically; and a
+  filter table key holding a polarizer, which a scene's filter folds onto its
+  wheel's clear element before lookup.
 
 Three rules shape what a file may state. **Canonical filter spelling:** a scene's
 ``detector.filter`` is read element by element, stripped of spaces and

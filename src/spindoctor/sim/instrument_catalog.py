@@ -46,6 +46,7 @@ from spindoctor.sim.instrument_schema import (
     NON_INHERITED_KEYS,
     InstrumentConfigError,
     check_file,
+    config_error,
 )
 
 __all__ = [
@@ -266,6 +267,21 @@ def _check_cohorts(entries: Mapping[str, dict[str, Any]]) -> None:
             owner[key] = (name, index)
 
 
+def _check_generic(entry: Mapping[str, Any]) -> None:
+    """Refuse a generic entry without the calibrated sky residual the others fall back on.
+
+    A calibrated frame whose own entry states no ``calibrated_sky_if`` takes the
+    generic entry's, so the generic entry must state one.
+    """
+    if 'calibrated_sky_if' not in entry['detector']:
+        raise config_error(
+            f'{GENERIC_INSTRUMENT}.yaml',
+            'detector.calibrated_sky_if',
+            'the generic entry states the calibrated sky residual that every entry without '
+            'its own falls back on',
+        )
+
+
 def _config_paths(config_dir: Path) -> list[Path]:
     """The config files in ``config_dir``, refusing anything that is not one.
 
@@ -292,6 +308,7 @@ def _load(config_dir: Path) -> InstrumentCatalog:
     entries = _resolve_inheritance(raw)
     for name, entry in entries.items():
         check_entry(entry, source=f'{name}.yaml')
+    _check_generic(entries[GENERIC_INSTRUMENT])
     _check_cohorts(entries)
     return InstrumentCatalog(config_dir=config_dir, entries=entries, aliases=_collect_aliases(raw))
 
@@ -310,7 +327,8 @@ def load_instrument_catalog(*, config_dir: Path | None = None) -> InstrumentCata
     Raises:
         InstrumentConfigError: If any file breaks the schema, names a base that
             doesn't exist or loops, reuses an alias, or claims another instrument's
-            realism cohort, or if the directory has no ``generic.yaml``.
+            realism cohort, or if the directory has no ``generic.yaml`` or that file
+            states no ``detector.calibrated_sky_if``.
     """
     return _load((config_dir or INSTRUMENT_CONFIG_DIR).resolve())
 

@@ -87,6 +87,13 @@ def _with(old: str, new: str) -> str:
     return _CAMERA.replace(old, new)
 
 
+def _generic_without(line: str) -> str:
+    """The packaged generic entry with one line removed."""
+    text = (INSTRUMENT_CONFIG_DIR / 'generic.yaml').read_text()
+    assert text.count(line) == 1
+    return text.replace(line, '')
+
+
 # Each case: the files written over the packaged directory, the expected message,
 # and the case's id.
 _REFUSED: list[tuple[dict[str, str], str, str]] = [
@@ -218,6 +225,25 @@ _REFUSED: list[tuple[dict[str, str], str, str]] = [
         'polarizer-not-canonical',
     ),
     (
+        {
+            'cam.yaml': _CAMERA
+            + 'filters:\n  throughput_e_per_s_per_if: {CL1+GRN: 1.0, P0+GRN: 1.0}\n'
+            + '  clear: CL1+GRN\n  polarizer_clear: {P0: CL1}\n'
+        },
+        r"filters\.throughput_e_per_s_per_if\.P0\+GRN: the polarizer 'P0' folds onto 'CL1', "
+        r"so a scene naming 'P0\+GRN' reads 'CL1\+GRN'",
+        'filter-keyed-by-a-polarizer',
+    ),
+    (
+        {
+            'cam.yaml': 'base: vgiss\nfilters:\n  throughput_e_per_s_per_if: {CLEAR: 1.0}\n'
+            + '  clear: CLEAR\n'
+        },
+        r'cam\.yaml: filters: a filter sets the CCD signal scale; the vidicon DN chain has no '
+        r'reference exposure',
+        'filters-on-a-vidicon',
+    ),
+    (
         {'cam.yaml': _with('default_gain_state: 0', 'default_gain_state: 3')},
         r'cam\.yaml: detector\.default_gain_state: state 3 is not in '
         r'gain_e_per_dn_by_state \[0\]',
@@ -308,6 +334,31 @@ _REFUSED: list[tuple[dict[str, str], str, str]] = [
         r'downlink_tables\.tables\.main\.decoded_dn\[0\]: expected a non-negative number, '
         r'got -1\.0',
         'downlink-table-with-a-negative-value',
+    ),
+    (
+        {
+            'cam.yaml': _CAMERA
+            + 'downlink_tables:\n  default: main\n  tables:\n'
+            + '    main: {codes: 4, linear_dn: 0.1, quadratic_dn: 0.0, whole_dn: true}\n'
+        },
+        r'downlink_tables\.tables\.main: a downlink table decodes to at least 2 distinct '
+        r'values, got 1',
+        'parametric-table-rounding-to-one-value',
+    ),
+    (
+        {
+            'cam.yaml': _CAMERA
+            + 'downlink_tables:\n  default: main\n  tables:\n'
+            + '    main: {codes: 4, linear_dn: -1.0, quadratic_dn: 0.0, whole_dn: false}\n'
+        },
+        r'downlink_tables\.tables\.main: a downlink table decodes to no negative DN, got -3',
+        'parametric-table-decoding-negative',
+    ),
+    (
+        {'generic.yaml': _generic_without('  calibrated_sky_if: 4.0e-5\n')},
+        r'generic\.yaml: detector\.calibrated_sky_if: the generic entry states the calibrated '
+        r'sky residual',
+        'generic-without-a-calibrated-sky',
     ),
     (
         {'cam.yaml': 'base: coiss_nac\naliases: [x, null]\n'},
