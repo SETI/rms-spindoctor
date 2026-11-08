@@ -10,21 +10,27 @@ answer can be checked exactly. The simulator backs the algorithmic-invariant tes
 regression baselines, and the single-variable sensitivity sweeps that verify the navigator
 behaves as expected.
 
-You do not need the simulator to navigate real spacecraft images; the results you rely
-on are validated with it on your behalf. A simulated frame is navigated by the same
+You do not need the simulator to navigate real spacecraft images. The simulator checks
+that the navigation techniques behave as designed; it doesn't measure how accurately they
+navigate real frames, and the confidence values a navigation reports are provisional,
+fitted on simulated frames. A simulated frame is navigated by the same
 program that navigates a real one, as described below, and a simulated scene cannot be
 assembled into a PDS4 bundle.
 
 What a simulated check measures
 ===============================
 
-What such a check measures depends on how the simulated image is built. When the rendered
-scene matches the navigator's own model of the sky, recovering the known offset measures
-**reproducibility** -- a self-consistency floor -- rather than accuracy. The numbers speak
-to accuracy only to the degree a simulated frame resembles a real one, which is what each
-instrument's **realism match** establishes; that match is what makes simulated numbers
-credible. Sensitivity is reported through **model-mismatch sweeps**: recovery error
-measured as a function of how far the rendered image departs from the navigator's model.
+Recovering a simulated frame's known offset measures **reproducibility** -- how tightly
+the navigation techniques converge -- rather than accuracy on real frames. On a simulated
+frame the navigator predicts the scene with simulated models that share the simulator's
+own geometry and shading, so a scene that matches that model is the model's own picture
+plus a shift and noise, and its recovery error is a **self-consistency floor**.
+Sensitivity is reported through **model-mismatch sweeps**: recovery error measured as a
+function of how far the rendered image departs from the navigator's model. Each
+instrument's **realism match** compares simulated frames with real ones; a close match is
+a precondition for reading any simulated number as a statement about real frames, but it
+isn't enough on its own, and today simulated results stand for reproducibility on the
+Cassini NAC.
 
 Navigating a simulated frame
 ============================

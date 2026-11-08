@@ -15,6 +15,15 @@ simulator drives the algorithmic-invariant tests, the regression baselines, the
 single-variable sensitivity sweeps, and the sensitivity report
 (:doc:`/simulator_report/simulator_report`).
 
+Its results are reproducibility and self-consistency results, measured today on
+the Cassini NAC. On a simulated frame the navigator's body, ring, and star models
+are simulated counterparts that share the renderer's geometry and shading, so a
+recovered offset says how tightly the techniques converge on a frame drawn by
+their own kind of model, not how accurately navigation works on a real frame.
+The confidence values the navigator reports are provisional: they were fitted on
+a simulated campaign. :ref:`sim-capability-envelope` sets out what the simulator
+can and cannot establish.
+
 The simulator has three equally valid entry points (the "three peers"):
 
 - the **Python API** (:func:`spindoctor.sim.render.render_combined_model`, a thin
@@ -128,8 +137,12 @@ scene -- including every planted error, noise knob, and contaminant. It lives in
        ``instrument_defaults`` switch turns on (see
        :ref:`sim-artifacts-catalog`).
 
-**The navigator side** predicts what the scene *should* look like, exactly the
-way the SPICE-backed models predict a real frame. Its renderers live under
+**The navigator side** predicts what the scene *should* look like, standing in
+for the SPICE-backed models that predict a real frame; those production models
+never run on a simulated frame. Its predictions share the renderer's geometry,
+shading, point-spread function, ring projection, and star flux, so a scene drawn
+without a deliberate mismatch is the navigator's own template plus a shift and
+noise. Its renderers live under
 ``nav_model/`` so the package layout states who owns them:
 :mod:`spindoctor.nav_model.sim_body` and :mod:`spindoctor.nav_model.sim_ring`
 draw the predicted templates that
@@ -271,15 +284,17 @@ end."
 The four axes
 -------------
 
-**Verification is unconditional.** Every simulated frame carries a planted
-offset the navigator cannot see, so a recovery measurement's only error is
-the error the scene planted. This does not depend on the renderer being
-realistic: the information boundary (:ref:`sim-information-boundary`)
-guarantees the navigator cannot cheat, and therefore a planted-truth recovery,
-an algorithmic-invariant test, or a regression pin is an exact statement about
-the navigation algorithms -- if a change breaks a baseline, the algorithms
-changed behavior, full stop. This is the axis on which the simulator's word is
-final.
+**Verification is unconditional, within the simulated models.** Every
+simulated frame carries a planted offset the navigator cannot see, so a
+recovery measurement's only error is the error the scene planted. This does
+not depend on the renderer being realistic: the information boundary
+(:ref:`sim-information-boundary`) guarantees the navigator cannot read the
+planted offset. A planted-truth recovery, an algorithmic-invariant test, or a
+regression pin is therefore an exact statement about the techniques navigating
+against the simulated models: if a change breaks a baseline, the techniques or
+those models changed behavior. It says nothing about the production body,
+ring, and star models, which never run on a simulated frame. Within that
+scope, this is the axis on which the simulator's word is final.
 
 **Precision is unconditional too, and is labeled as such.** The sweep curves
 and the self-consistency floor (:ref:`sim-floor`) measure repeatability: how
@@ -290,24 +305,25 @@ simulator report mark it so. A sub-0.1 px floor says the machinery is
 numerically tight; it says nothing about how far a real frame's answer is from
 the truth.
 
-**Accuracy is conditional on the realism match, per instrument.** A sim error
-curve becomes an accuracy statement only to the degree the realism match
-(:ref:`sim-realism-match`) supports it for that instrument. For the Cassini
-NAC the support is strong: the tuned star PSF reproduces the cohort's
-encircled-energy radii (measured on its 23 star-bearing frames) through the
-same estimator on both sides (EE50 0.90 px
-sim vs 0.91 real, EE80 1.72 vs 1.79), limb rise widths agree in the
-like-for-like pool (medians 2.54 px both sides, normalized W1 0.16), ring-edge
-widths agree at the few-tenths level, and the frame-averaged curve shapes
-diverge by only 0.02-0.13. For the WAC the support is limited (four frames,
-and the calibrated-chain noise comparison diverges by orders of magnitude
-one-sidedly); for Galileo, Voyager, and LORRI the cohorts support fragments at
-most, so on those instruments the simulator's error numbers are
-reproducibility statements wearing no accuracy claim -- and will stay that way
-until their cohorts grow.
+**Accuracy isn't established for any instrument yet.** A simulated error
+curve becomes a statement about real frames only for a class of frame where
+simulated navigation error has been shown to predict real error, and no such
+comparison has been made. The realism match (:ref:`sim-realism-match`) is a
+precondition for that, not the comparison itself: it measures how closely
+simulated image statistics resemble a real cohort's. It has no pass
+threshold, and its tuned values were fitted on the same frames that report
+them. For the Cassini NAC the image side matches closely: the tuned star PSF
+reproduces the cohort's encircled-energy radii through the same estimator on
+both sides (EE50 0.84 px sim vs 0.91 real, EE80 1.56 vs 1.79, over 25 real
+cutouts from the cohort's 11 contributing star frames), limb rise widths agree
+in the like-for-like pool (medians 2.54 px on both sides, normalized W1 0.10),
+and the sky-noise distributions sit at a normalized W1 of 1.44. The WAC
+cohort is four frames, and the Galileo, Voyager, and LORRI cohorts support
+fragments at most. On every instrument, the simulator's error numbers are
+reproducibility statements.
 
-**Calibration is sim-measured, with a disclosed basis and a measured
-transfer.** The confidence formulas and tier boundaries have exact meaning on
+**Calibration is fitted on simulation, so it is provisional.** The
+confidence formulas and tier boundaries have exact meaning on
 the campaign that fitted them: each tier boundary is the smallest confidence
 at which the tier's sigma-gated subset achieves a 0.9 success rate against the
 tier's own error budget. That meaning comes with its basis attached: the
@@ -359,10 +375,11 @@ What it cannot do
   precisely why the calibration is non-circular. No simulated measurement can
   replace it; the simulator's role is to make the navigator's behavior
   legible, not to grade its own renders.
-- **Vouch for the thin-cohort instruments.** Galileo, Voyager, and LORRI
-  numbers bound reproducibility only (see the four axes above); treating them
-  as accuracy is exactly the misreading the per-instrument support labels
-  exist to prevent.
+- **Vouch for any instrument's accuracy.** Until simulated error is shown to
+  predict real error for a class of frame, every instrument's numbers bound
+  reproducibility only (see the four axes above). The Galileo, Voyager, and
+  LORRI cohorts don't support even the image-side comparison, which is what
+  the per-instrument support labels say.
 - **See outside its modeled axes.** A model error the renderer does not
   implement contributes nothing to any curve or fit. The main unmodeled axes
   today: pointing jitter within an exposure, image mid-time error, readout
@@ -3843,9 +3860,9 @@ support label per instrument -- ``supported`` (8+ contributing frames),
 ``limited`` (2-7, reported with the caveat), or ``unsupported`` (fewer; the
 statistic is not reported, because an IQR of two frames is not a
 statistic).  Where a figure of merit is unsupported and no independent
-evidence exists, that instrument's sim accuracy is *bounded by unverified
-forward-model fidelity* and the report says exactly that rather than
-implying a match that was never measured.
+evidence exists, that instrument's simulated frames rest on *unverified
+forward-model fidelity* for that figure, and the report says exactly that
+rather than implying a match that was never measured.
 
 The FOM 7 firewall
 ------------------
