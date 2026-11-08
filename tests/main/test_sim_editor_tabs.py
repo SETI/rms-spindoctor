@@ -12,6 +12,7 @@ Qt runs headless (offscreen platform).
 
 import math
 import os
+from pathlib import Path
 from typing import Any, cast
 
 import pytest
@@ -36,8 +37,14 @@ except Exception as exc:
     )
 
 from spindoctor.cli.sim_editor import CreateSimulatedImageModel
+from spindoctor.sim import instrument_catalog
 from spindoctor.sim.forward.atmosphere import DEFAULT_HAZE_ALBEDO
 from spindoctor.sim.scene import validate_sim_params
+from tests.spindoctor.sim.fictional_camera import (
+    FICTIONAL_CAMERA,
+    FICTIONAL_CAMERA_NAME,
+    catalog_dir_with,
+)
 
 
 @pytest.fixture
@@ -383,6 +390,16 @@ def test_the_gain_state_spin_spans_the_instruments_cataloged_states(model: Any) 
     model._instrument_combo.setCurrentText('coiss_wac')
     spin = model._detector_gain_state_spin
     assert (spin.minimum(), spin.maximum()) == (2, 2)
+
+
+def test_a_camera_added_as_a_file_is_in_the_instrument_list(
+    qapp: QApplication, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A camera whose only addition is its config file appears in the drop-down."""
+    directory = catalog_dir_with(tmp_path, {f'{FICTIONAL_CAMERA_NAME}.yaml': FICTIONAL_CAMERA})
+    monkeypatch.setattr(instrument_catalog, 'INSTRUMENT_CONFIG_DIR', directory)
+    model = CreateSimulatedImageModel()
+    assert model._instrument_combo.findText(FICTIONAL_CAMERA_NAME) >= 0
 
 
 def test_reenabling_the_detector_group_shows_the_catalog_defaults(model: Any) -> None:

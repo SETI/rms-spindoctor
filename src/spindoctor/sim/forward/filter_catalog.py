@@ -22,6 +22,7 @@ from __future__ import annotations
 from typing import Any
 
 from spindoctor.sim.instrument_catalog import instrument_entry, load_instrument_catalog
+from spindoctor.sim.instrument_checks import canonical_filter_elements
 
 __all__ = [
     'FilterCatalogError',
@@ -62,7 +63,9 @@ def canonical_filter(instrument: str | None, filter_name: str) -> str:
     Each ``+``-separated element is stripped of surrounding whitespace and
     upper-cased, and a polarizer the instrument's ``filters.polarizer_clear`` names
     becomes the clear element of its wheel, so ``'p120+grn'`` reads as
-    ``'CL1+GRN'`` on a camera whose ``P120`` folds onto ``CL1``.
+    ``'CL1+GRN'`` on a camera whose ``P120`` folds onto ``CL1``.  The catalog
+    refuses a filter table or polarizer spelled any other way, since no scene
+    spelling could reach it.
 
     Parameters:
         instrument: The sim instrument name.
@@ -76,7 +79,7 @@ def canonical_filter(instrument: str | None, filter_name: str) -> str:
     """
     filters = _filters(instrument) or {}
     polarizers = filters.get('polarizer_clear') or {}
-    elements = [element.strip().upper() for element in filter_name.split('+')]
+    elements = canonical_filter_elements(filter_name)
     return '+'.join(polarizers.get(element, element) for element in elements)
 
 

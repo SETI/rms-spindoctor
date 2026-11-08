@@ -188,8 +188,10 @@ take its default.  A top-level block or list set to null reads as unset.
                                      a b-by-b native block), detector_model
                                      (ccd | vidicon), exposure_ref_sec, quantization
                                      (exact | 8bit | uneven_12bit | sqrt_lut | ls8b |
-                                     contour_8bit); omitted or null keys track the
-                                     instrument catalog
+                                     contour_8bit), downlink_table (the table, by
+                                     name, sqrt_lut decodes through; one the
+                                     instrument's config lists); omitted or null keys
+                                     track the instrument catalog
   artifacts        (mapping, opt)    instrument_defaults (bool): opt into the emulated
                                      camera's physical signal chain at catalog values
                                      (PSF, distortion residual, shot noise, dark / hot /

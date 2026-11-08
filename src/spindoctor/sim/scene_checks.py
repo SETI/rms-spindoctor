@@ -27,6 +27,7 @@ from spindoctor.sim.forward.artifact_modes import (
 )
 from spindoctor.sim.forward.artifacts_catalog import (
     cataloged_binnings,
+    downlink_table_names,
     mode_available,
     mode_unavailable_message,
     resolve_detector_defaults,
@@ -324,13 +325,22 @@ _VIDICON_NOISE_KEYS: frozenset[str] = frozenset(
 )
 
 # The detector block selects the electron-chain gain state, the readout
-# mode's binning, the detector model (CCD electron chain or the Voyager vidicon
-# DN path), the exposure the well fraction references (or the filter whose
-# measured throughput sets it), and the ADC quantization sub-mode.
-# Per-instrument defaults and filter throughputs come from the instrument's
-# config file; scene keys override them.
+# mode's binning, the detector model (CCD electron chain or vidicon DN path),
+# the exposure the well fraction references (or the filter whose measured
+# throughput sets it), the ADC quantization sub-mode, and the downlink table the
+# sqrt_lut quantization decodes through.  Per-instrument defaults, filter
+# throughputs, and downlink tables come from the instrument's config file; scene
+# keys override them.
 _DETECTOR_KEYS: frozenset[str] = frozenset(
-    {'gain_state', 'binning', 'detector_model', 'exposure_ref_sec', 'filter', 'quantization'}
+    {
+        'gain_state',
+        'binning',
+        'detector_model',
+        'exposure_ref_sec',
+        'filter',
+        'quantization',
+        'downlink_table',
+    }
 )
 # The artifacts block: the two switches (the physical-chain opt-in and the
 # adversarial-placement flag) plus one map per artifact mode, keyed by exactly
@@ -385,8 +395,8 @@ def _check_detector(value: Any, *, instrument: str, source: str) -> None:
 
     Raises:
         SimSceneValidationError: On any unknown or invalid detector field,
-            including a gain state, a binning, or a filter the instrument does
-            not catalog.
+            including a gain state, a binning, a filter, or a downlink table the
+            instrument does not catalog.
     """
     if value is None:
         return
@@ -440,6 +450,33 @@ def _check_detector(value: Any, *, instrument: str, source: str) -> None:
             f'{source}: detector.quantization must be one of {sorted(QUANTIZATION_MODES)}; '
             f'got {quantization!r}'
         )
+    _check_downlink_table(value.get('downlink_table'), instrument=instrument, source=source)
+
+
+def _check_downlink_table(name: Any, *, instrument: str, source: str) -> None:
+    """Validate ``detector.downlink_table`` against the tables the camera lists.
+
+    Parameters:
+        name: The scene's ``detector.downlink_table``, or None when unset.
+        instrument: The scene's sim instrument name.
+        source: Scene source label for error messages.
+
+    Raises:
+        SimSceneValidationError: If the name is not a string or is not one of the
+            camera's downlink tables.
+    """
+    if name is None:
+        return
+    if not isinstance(name, str):
+        raise SimSceneValidationError(
+            f'{source}: detector.downlink_table must be a string; got {name!r}'
+        )
+    available = downlink_table_names(instrument)
+    if name not in available:
+        raise SimSceneValidationError(
+            f'{source}: detector.downlink_table {name!r} is not listed for instrument '
+            f'{instrument!r}; available tables: {list(available)}'
+        )
 
 
 def _check_detector_filter(value: dict[str, Any], *, instrument: str, source: str) -> None:
@@ -485,8 +522,8 @@ def _check_artifacts(value: Any, *, instrument: str, source: str) -> None:
     registry (unknown keys fail).  A mode that has no implementation yet fails
     as not-yet-implemented, and a mode the scene's instrument does not offer
     fails with the reason the instrument's config file states, or with a list of
-    the instruments that offer it.  Each present mode's parameters are then type-checked against
-    its schema.
+    the instruments that offer it.  Each present mode's parameters are then
+    type-checked against its schema.
 
     Parameters:
         value: The ``artifacts`` mapping, or None when the block is absent.
@@ -614,7 +651,7 @@ def _check_spk_error(value: Any, *, source: str) -> None:
 # The background-sky star-count law: cumulative log10 N(<m) = a + b*m per square
 # degree, a local-density multiplier, and an optional flat diffuse-sky floor.
 # diffuse_e_per_px is detector-native despite the '_e_' in its name: electrons
-# per pixel on a CCD, DN per pixel on the Voyager vidicon (which has no electron
+# per pixel on a CCD, DN per pixel on a vidicon (which has no electron
 # domain), matching the unit domain of the point-source plane it adds to.
 _SKY_COUNTS_KEYS: frozenset[str] = frozenset({'a', 'b', 'density_factor', 'diffuse_e_per_px'})
 

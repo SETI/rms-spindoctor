@@ -10,7 +10,7 @@ from typing import Any
 import numpy as np
 import pytest
 
-from spindoctor.sim.forward.artifacts_catalog import resolve_detector_defaults
+from spindoctor.sim.forward.artifacts_catalog import resolve_downlink_table
 from spindoctor.sim.forward.detector import (
     apply_detector,
     quantize_dn,
@@ -156,9 +156,7 @@ def test_sqrt_lut_leaves_a_signal_dependent_residual() -> None:
     assert float(residual[0, 1]) > float(residual[0, 0])
 
 
-_CASSINI_LUT = resolve_sqrt_lut(
-    resolve_detector_defaults('coiss_nac')['sqrt_lut'], saturation_dn=4095.0
-)
+_CASSINI_LUT = resolve_sqrt_lut(resolve_downlink_table('coiss_nac', None), saturation_dn=4095.0)
 _CASSINI_DN = _CASSINI_LUT.levels()
 
 

@@ -57,7 +57,7 @@ from spindoctor.sim.forward.detector.params import (
     calibration_map,
     resolve_detector_params,
 )
-from spindoctor.sim.forward.detector.sqrt_lut import SqrtLut, resolve_sqrt_lut
+from spindoctor.sim.forward.detector.sqrt_lut import DownlinkCurve, resolve_sqrt_lut
 from spindoctor.sim.forward.feature_loci import dilated_pixels, extract_feature_loci
 from spindoctor.sim.forward.stages import SimFrame
 from spindoctor.sim.seeds import derive_effect_seed
@@ -150,7 +150,7 @@ def quantize_dn(
     mode: str,
     saturation_dn: float,
     contour_step: int = 8,
-    sqrt_lut: SqrtLut | None = None,
+    sqrt_lut: DownlinkCurve | None = None,
 ) -> NDArrayFloatType:
     """Quantize a DN image by the selected ADC sub-mode.
 

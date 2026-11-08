@@ -49,10 +49,11 @@ from spindoctor.sim.forward.artifacts_catalog import (
     resolve_calibrated_sky_if,
     resolve_detector_defaults,
     resolve_detector_id,
+    resolve_downlink_table,
     resolve_mode_with_catalog,
     resolve_readout_mode,
 )
-from spindoctor.sim.forward.detector.sqrt_lut import SqrtLut, resolve_sqrt_lut
+from spindoctor.sim.forward.detector.sqrt_lut import DownlinkCurve, resolve_sqrt_lut
 from spindoctor.sim.forward.filter_catalog import FilterCatalogError, resolve_filter_throughput
 from spindoctor.sim.instruments import navigator_marker_value, resolve_sim_inst_config
 from spindoctor.sim.seeds import derive_effect_seed
@@ -141,8 +142,10 @@ class DetectorParams:
         quantization_contour_step: The DN posterization step for the
             ``contour_8bit`` quantization sub-mode.
         sqrt_lut: The companding curve of the ``sqrt_lut`` quantization
-            sub-mode: the instrument's cataloged table, or the plain square-root
-            curve scaled to ``saturation_dn``; None selects that plain curve.
+            sub-mode: the downlink table the scene's ``detector.downlink_table``
+            names, else the instrument's default table, else (for an instrument
+            that lists none) the plain square-root curve scaled to
+            ``saturation_dn``; None selects that plain curve.
         artifacts_adversarial: Whether stochastic detector artifact modes place
             their events adversarially onto the navigation features.
         detector_modes: The resolved config of every active detector-stage
@@ -194,7 +197,7 @@ class DetectorParams:
     hot_pixel_adversarial: bool = False
     hot_pixel_mode_active: bool = False
     quantization_contour_step: int = 8
-    sqrt_lut: SqrtLut | None = None
+    sqrt_lut: DownlinkCurve | None = None
     artifacts_adversarial: bool = False
     detector_modes: dict[str, dict[str, Any]] = field(default_factory=dict)
 
@@ -483,8 +486,8 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
 
     Raises:
         DetectorParamError: If the scene selects an unavailable gain state, names
-            a filter its camera does not catalog, or sets both ``detector.filter``
-            and ``detector.exposure_ref_sec``.
+            a filter or a downlink table its camera does not catalog, or sets both
+            ``detector.filter`` and ``detector.exposure_ref_sec``.
     """
     instrument = params.get('instrument')
     inst_config = resolve_sim_inst_config(
@@ -717,6 +720,12 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
         instrument_defaults=instrument_defaults,
     )
     contour_step = 8
+    try:
+        downlink_table = resolve_downlink_table(
+            instrument, _scene_or_default(detector_block, 'downlink_table', None)
+        )
+    except ValueError as exc:
+        raise DetectorParamError(str(exc)) from exc
     if 'banding_coherent' in detector_modes:
         banding_amplitude = 0.0
     if 'bias_structure' in detector_modes:
@@ -784,7 +793,7 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
         hot_pixel_adversarial=hot_pixel_adversarial,
         hot_pixel_mode_active=hot_pixel_mode_active,
         quantization_contour_step=contour_step,
-        sqrt_lut=resolve_sqrt_lut(catalog.get('sqrt_lut'), saturation_dn=saturation_dn),
+        sqrt_lut=resolve_sqrt_lut(downlink_table, saturation_dn=saturation_dn),
         artifacts_adversarial=artifacts_adversarial,
         detector_modes=detector_modes,
     )

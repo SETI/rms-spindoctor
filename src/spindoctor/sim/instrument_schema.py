@@ -1,36 +1,48 @@
-"""The schema of a simulated instrument's config file, and its checks.
+"""The schema of a simulated instrument's config file.
 
 Every simulated camera is one YAML file in ``spindoctor/sim/instrument_configs/``
 (see :mod:`spindoctor.sim.instrument_catalog`).  This module states what such a
-file may hold: the key inventory, each key's type, which keys an entry must
-carry, and the cross-checks that tie one part of an entry to another (a gain
-state, readout mode, filter, or artifact mode the entry names must be one it
-defines).  The checks run when the catalog loads, so a typo, a value written as a
-string, or a missing table fails at load with the file and the key path in the
-message instead of rendering with a fallback.
+file may hold: the key inventory, each key's type and range, and which keys an
+entry must carry.  The cross-checks that tie one part of an entry to another live
+in :mod:`spindoctor.sim.instrument_checks`.  Both run when the catalog loads, so a
+typo, a value written as a string, a negative gain, or a missing table fails at
+load with the file and the key path in the message instead of rendering with a
+fallback.
 
 The schema is a small tree of nodes: a :class:`Record` has named fields, each
 required or optional; a :class:`MapOf` is a table with uniformly typed keys and
 values (a gain table, a filter table); a :class:`ListOf` is a list; and a
 :class:`Scalar` is a number, an integer, a boolean, or a string, optionally from
-a fixed set of choices.  A number is an integer or a float, never a boolean or a
-string.
+a fixed set of choices or within a range.  A number is a finite integer or float,
+never a boolean or a string.
+
+A file that names a ``base`` may set a key to null, which removes the key the
+base would pass on; a file without a ``base`` has nothing to remove, so a null
+there fails.
 """
 
 from __future__ import annotations
 
+import math
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
-from spindoctor.sim.forward.artifact_modes import ARTIFACT_MODES, DETECTOR_MODE_ORDER, ModeParam
+from spindoctor.sim.forward.artifact_modes import ARTIFACT_MODES, ModeParam
 
 __all__ = [
+    'CATALOG_BLIND_MODES',
+    'DETECTOR_COMMON_REQUIRED',
     'DETECTOR_MODELS',
     'GENERIC_INSTRUMENT',
+    'INSTRUMENT_DEFAULTS',
+    'NONNEG',
     'NON_INHERITED_KEYS',
     'OFFER_EVERY_MODE',
+    'POSITIVE',
     'QUANTIZATION_MODES',
+    'SHAPE_DEFAULTS',
+    'UNIT',
     'InstrumentConfigError',
     'ListOf',
     'MapOf',
@@ -38,8 +50,11 @@ __all__ = [
     'ModeNames',
     'Record',
     'Scalar',
-    'check_entry',
+    'check_file',
+    'check_mode_name',
     'check_node',
+    'config_error',
+    'instrument_schema',
 ]
 
 # The name of the instrument-agnostic entry every other name falls back to when a
@@ -50,18 +65,51 @@ GENERIC_INSTRUMENT = 'generic'
 OFFER_EVERY_MODE = 'all'
 
 # Keys an entry does not pass to an entry that names it as its ``base``: the base
-# reference itself, and the alternative names, which belong to one entry only.
-NON_INHERITED_KEYS: frozenset[str] = frozenset({'base', 'aliases'})
+# reference itself, the alternative names, and the real cameras the realism match
+# pairs with the entry, each of which belongs to one entry only.
+NON_INHERITED_KEYS: frozenset[str] = frozenset({'base', 'aliases', 'realism_cohort'})
 
 # The detector models the detector stage implements: the CCD electron chain and the
-# vidicon DN chain.
-DETECTOR_MODELS: frozenset[str] = frozenset({'ccd', 'vidicon'})
+# vidicon DN chain.  The order is the order the sim editor lists them in.
+DETECTOR_MODELS: tuple[str, ...] = ('ccd', 'vidicon')
 
 # Quantization sub-modes: 'exact' rounds to integer DN (uniform bins); the ADC modes
-# reproduce the documented histogram structure of each camera.
-QUANTIZATION_MODES: frozenset[str] = frozenset(
-    {'exact', 'uneven_12bit', '8bit', 'sqrt_lut', 'ls8b', 'contour_8bit'}
+# reproduce a coarse or uneven ADC's histogram structure, and 'sqrt_lut' companding
+# decodes through a camera's downlink table.  The order is the order the sim editor
+# lists them in.
+QUANTIZATION_MODES: tuple[str, ...] = (
+    'exact',
+    '8bit',
+    'uneven_12bit',
+    'sqrt_lut',
+    'ls8b',
+    'contour_8bit',
 )
+
+# The two artifact-mode tables a file may state: the shape parameters a scene
+# inherits when it names a mode without spelling every parameter, and the
+# detector-stage modes the instrument_defaults switch turns on.
+SHAPE_DEFAULTS = 'shape_defaults'
+INSTRUMENT_DEFAULTS = 'instrument_defaults'
+
+# Modes the renderer resolves without the per-instrument shape defaults, each with
+# where its shape comes from instead, so a shape default for one would do nothing.
+CATALOG_BLIND_MODES: dict[str, str] = {
+    'hot_pixels': (
+        'its shape comes from detector.hot_pixel_amplitude_e and detector.hot_pixel_column_factor'
+    ),
+}
+
+# The range tags a number or integer may carry.
+POSITIVE = 'positive'
+NONNEG = 'nonneg'
+UNIT = 'unit'
+# How an error message names a value of each range, by number or integer.
+_BOUND_NAMES: dict[str, str] = {
+    POSITIVE: 'a positive {noun}',
+    NONNEG: 'a non-negative {noun}',
+    UNIT: 'a {noun} in [0, 1]',
+}
 
 # The scalar type tags, and how an error message names each.
 _NUMBER = 'number'
@@ -75,6 +123,9 @@ _KIND_NAMES: dict[str, str] = {
     _STR: 'a string',
 }
 
+# The message for a null that has nothing to remove.
+_NULL_WITHOUT_BASE = 'null removes an inherited key, and this file names no base'
+
 
 class InstrumentConfigError(ValueError):
     """A simulated instrument's config file breaks the schema."""
@@ -85,12 +136,16 @@ class Scalar:
     """A scalar value.
 
     Parameters:
-        kind: ``'number'`` (an integer or a float), ``'int'``, ``'bool'``, or ``'str'``.
+        kind: ``'number'`` (a finite integer or float), ``'int'``, ``'bool'``, or
+            ``'str'``.
         choices: The permitted values, or None for any value of the kind.
+        bound: The range of a number or integer: ``'positive'``, ``'nonneg'``,
+            ``'unit'`` (in [0, 1]), or None for any finite value.
     """
 
     kind: str
     choices: frozenset[Any] | None = None
+    bound: str | None = None
 
 
 @dataclass(frozen=True)
@@ -100,10 +155,12 @@ class MapOf:
     Parameters:
         key_kind: The scalar kind of every key, ``'int'`` or ``'str'``.
         value: The node every value must match.
+        key_bound: The range of an integer key (see :class:`Scalar`), or None.
     """
 
     key_kind: str
     value: Node
+    key_bound: str | None = None
 
 
 @dataclass(frozen=True)
@@ -141,18 +198,52 @@ class ModeMaps:
     """A table of artifact-mode scene maps keyed by registered mode name.
 
     Each map's keys must be parameters of its mode, and each value must have the type
-    the parameter's kind calls for.
+    and range the parameter's kind calls for.  A shape-default table may not carry a
+    mode's activation key or fixed count (a shape default never turns a mode on),
+    nor a mode the renderer resolves without the shape defaults.
+
+    Parameters:
+        section: :data:`SHAPE_DEFAULTS` or :data:`INSTRUMENT_DEFAULTS`.
     """
+
+    section: str
 
 
 Node = Scalar | MapOf | ListOf | Record | ModeNames | ModeMaps
 
-_NUMBER_NODE = Scalar(_NUMBER)
-_INT_NODE = Scalar(_INT)
+_FINITE = Scalar(_NUMBER)
+_POSITIVE_NUMBER = Scalar(_NUMBER, bound=POSITIVE)
+_NONNEG_NUMBER = Scalar(_NUMBER, bound=NONNEG)
+_UNIT_NUMBER = Scalar(_NUMBER, bound=UNIT)
 _STR_NODE = Scalar(_STR)
 
+# A downlink table is either parametric (a quadratic decode curve over ``codes``
+# codes) or tabulated (the decoded DN of each code, in code order); the
+# cross-checks require exactly one form.
+_DOWNLINK_TABLE = Record(
+    fields={
+        'codes': Scalar(_INT, bound=POSITIVE),
+        'linear_dn': _FINITE,
+        'quadratic_dn': _FINITE,
+        'whole_dn': Scalar(_BOOL),
+        'decoded_dn': ListOf(_FINITE),
+    }
+)
+
+_VIDICON = Record(
+    fields={
+        'read_noise_line_dn': _NONNEG_NUMBER,
+        'read_noise_pixel_dn': _NONNEG_NUMBER,
+        'coherent_amplitude_dn': _NONNEG_NUMBER,
+        'coherent_period_px': _POSITIVE_NUMBER,
+    },
+    required=frozenset(
+        {'read_noise_line_dn', 'read_noise_pixel_dn', 'coherent_amplitude_dn', 'coherent_period_px'}
+    ),
+)
+
 # The detector keys every entry carries, whatever its model.
-_DETECTOR_COMMON_REQUIRED: frozenset[str] = frozenset(
+DETECTOR_COMMON_REQUIRED: frozenset[str] = frozenset(
     {
         'detector_model',
         'exposure_ref_sec',
@@ -162,84 +253,39 @@ _DETECTOR_COMMON_REQUIRED: frozenset[str] = frozenset(
     }
 )
 
-# The electron-chain keys a CCD entry carries.
-_CCD_REQUIRED: frozenset[str] = frozenset(
-    {
-        'full_well_e',
-        'gain_e_per_dn_by_state',
-        'default_gain_state',
-        'read_noise_e',
-        'dark_current_e_per_sec',
-        'hot_pixel_fraction',
-        'hot_pixel_amplitude_e',
-        'hot_pixel_column_factor',
-        'banding_amplitude_e',
-        'banding_period_px',
-        'bias_pedestal_sigma_dn',
-        'bias_row_gradient_dn',
-        'bias_col_gradient_dn',
-        'bloom_length',
-    }
-)
-
-# The DN-chain key a vidicon entry carries.
-_VIDICON_REQUIRED: frozenset[str] = frozenset({'vidicon'})
-
-_SQRT_LUT = Record(
-    fields={
-        'codes': _INT_NODE,
-        'linear_dn': _NUMBER_NODE,
-        'quadratic_dn': _NUMBER_NODE,
-        'whole_dn': Scalar(_BOOL),
-    },
-    required=frozenset({'codes', 'linear_dn', 'quadratic_dn', 'whole_dn'}),
-)
-
-_VIDICON = Record(
-    fields={
-        'read_noise_line_dn': _NUMBER_NODE,
-        'read_noise_pixel_dn': _NUMBER_NODE,
-        'coherent_amplitude_dn': _NUMBER_NODE,
-        'coherent_period_px': _NUMBER_NODE,
-    },
-    required=frozenset(
-        {'read_noise_line_dn', 'read_noise_pixel_dn', 'coherent_amplitude_dn', 'coherent_period_px'}
-    ),
-)
-
 _DETECTOR_FIELDS: dict[str, Node] = {
-    'detector_model': Scalar(_STR, DETECTOR_MODELS),
-    'exposure_ref_sec': _NUMBER_NODE,
-    'bias_dn': _NUMBER_NODE,
-    'quantization': Scalar(_STR, QUANTIZATION_MODES),
-    'full_well_e': _NUMBER_NODE,
-    'gain_e_per_dn_by_state': MapOf(_INT, _NUMBER_NODE),
-    'default_gain_state': _INT_NODE,
-    'read_noise_e': _NUMBER_NODE,
-    'dark_current_e_per_sec': _NUMBER_NODE,
-    'readout_dark_e': _NUMBER_NODE,
-    'hot_pixel_fraction': _NUMBER_NODE,
-    'hot_pixel_amplitude_e': _NUMBER_NODE,
-    'hot_pixel_column_factor': _NUMBER_NODE,
-    'cosmic_ray_events_per_pixel_per_sec': _NUMBER_NODE,
-    'cosmic_ray_readout_dwell_sec': _NUMBER_NODE,
-    'cosmic_ray_amplitude_e': _NUMBER_NODE,
-    'cosmic_ray_spread_px': _NUMBER_NODE,
-    'banding_amplitude_e': _NUMBER_NODE,
-    'banding_period_px': _NUMBER_NODE,
-    'bias_pedestal_sigma_dn': _NUMBER_NODE,
-    'bias_row_gradient_dn': _NUMBER_NODE,
-    'bias_col_gradient_dn': _NUMBER_NODE,
-    'bloom_length': _INT_NODE,
-    'sqrt_lut': _SQRT_LUT,
-    'calibrated_sky_if': _NUMBER_NODE,
-    'calibration_column_residual_e': _NUMBER_NODE,
-    'calibration_pixel_residual_e': _NUMBER_NODE,
+    'detector_model': Scalar(_STR, frozenset(DETECTOR_MODELS)),
+    'exposure_ref_sec': _POSITIVE_NUMBER,
+    'bias_dn': _NONNEG_NUMBER,
+    'quantization': Scalar(_STR, frozenset(QUANTIZATION_MODES)),
+    'full_well_e': _POSITIVE_NUMBER,
+    'gain_e_per_dn_by_state': MapOf(_INT, _POSITIVE_NUMBER, key_bound=NONNEG),
+    'default_gain_state': Scalar(_INT, bound=NONNEG),
+    'read_noise_e': _NONNEG_NUMBER,
+    'dark_current_e_per_sec': _NONNEG_NUMBER,
+    'readout_dark_e': _NONNEG_NUMBER,
+    'hot_pixel_fraction': _UNIT_NUMBER,
+    'hot_pixel_amplitude_e': _NONNEG_NUMBER,
+    'hot_pixel_column_factor': _UNIT_NUMBER,
+    'cosmic_ray_events_per_pixel_per_sec': _NONNEG_NUMBER,
+    'cosmic_ray_readout_dwell_sec': _NONNEG_NUMBER,
+    'cosmic_ray_amplitude_e': _NONNEG_NUMBER,
+    'cosmic_ray_spread_px': _NONNEG_NUMBER,
+    'banding_amplitude_e': _NONNEG_NUMBER,
+    'banding_period_px': _POSITIVE_NUMBER,
+    'bias_pedestal_sigma_dn': _NONNEG_NUMBER,
+    'bias_row_gradient_dn': _NONNEG_NUMBER,
+    'bias_col_gradient_dn': _NONNEG_NUMBER,
+    'bloom_length': Scalar(_INT, bound=NONNEG),
+    'calibrated_sky_if': _FINITE,
+    'calibration_column_residual_e': _NONNEG_NUMBER,
+    'calibration_pixel_residual_e': _NONNEG_NUMBER,
     'vidicon': _VIDICON,
 }
 
 # A readout mode overrides any detector key; the keys it leaves out keep the 1x1
-# values, so none is required.
+# values, so none is required.  The cross-checks refuse the keys a readout mode
+# cannot change (the detector model and the vidicon chain).
 _READOUT_MODE = Record(fields=_DETECTOR_FIELDS)
 
 _SCHEMA = Record(
@@ -251,37 +297,49 @@ _SCHEMA = Record(
             required=frozenset({'section'}),
         ),
         'detector_id': _STR_NODE,
-        'detector': Record(fields=_DETECTOR_FIELDS, required=_DETECTOR_COMMON_REQUIRED),
-        'readout_modes': MapOf(_INT, _READOUT_MODE),
-        'native_frame_size_px': _INT_NODE,
-        'star_flux': Record(fields={'e_per_s_vmag0': _NUMBER_NODE, 'dn_per_s_vmag0': _NUMBER_NODE}),
-        'sky_pixel_scale_arcsec': _NUMBER_NODE,
+        'detector': Record(fields=_DETECTOR_FIELDS, required=DETECTOR_COMMON_REQUIRED),
+        'readout_modes': MapOf(_INT, _READOUT_MODE, key_bound=POSITIVE),
+        'native_frame_size_px': Scalar(_INT, bound=POSITIVE),
+        'star_flux': Record(
+            fields={'e_per_s_vmag0': _POSITIVE_NUMBER, 'dn_per_s_vmag0': _POSITIVE_NUMBER}
+        ),
+        'sky_pixel_scale_arcsec': _POSITIVE_NUMBER,
         'psf': Record(
             fields={
                 'kernel': Record(
-                    fields=dict.fromkeys(('sigma_v', 'sigma_u', 'w', 'r0', 'n'), _NUMBER_NODE),
+                    fields={
+                        'sigma_v': _POSITIVE_NUMBER,
+                        'sigma_u': _POSITIVE_NUMBER,
+                        'w': _UNIT_NUMBER,
+                        'r0': _POSITIVE_NUMBER,
+                        'n': _FINITE,
+                    },
                     required=frozenset({'sigma_v', 'sigma_u', 'w', 'r0', 'n'}),
                 ),
-                'truncation_px': _INT_NODE,
+                'truncation_px': Scalar(_INT, bound=NONNEG),
             },
             required=frozenset({'truncation_px'}),
         ),
         'distortion_residual': Record(
-            fields=dict.fromkeys(('k1', 'k2', 'nonradial_rms_px'), _NUMBER_NODE),
+            fields={'k1': _FINITE, 'k2': _FINITE, 'nonradial_rms_px': _NONNEG_NUMBER},
             required=frozenset({'k1', 'k2', 'nonradial_rms_px'}),
+        ),
+        'downlink_tables': Record(
+            fields={'default': _STR_NODE, 'tables': MapOf(_STR, _DOWNLINK_TABLE)},
+            required=frozenset({'default', 'tables'}),
         ),
         'artifact_modes': Record(
             fields={
                 'offered': ModeNames(),
                 'unavailable_reasons': MapOf(_STR, _STR_NODE),
-                'instrument_defaults': ModeMaps(),
-                'shape_defaults': ModeMaps(),
+                INSTRUMENT_DEFAULTS: ModeMaps(INSTRUMENT_DEFAULTS),
+                SHAPE_DEFAULTS: ModeMaps(SHAPE_DEFAULTS),
             },
             required=frozenset({'offered'}),
         ),
         'filters': Record(
             fields={
-                'throughput_e_per_s_per_if': MapOf(_STR, _NUMBER_NODE),
+                'throughput_e_per_s_per_if': MapOf(_STR, _POSITIVE_NUMBER),
                 'clear': _STR_NODE,
                 'polarizer_clear': MapOf(_STR, _STR_NODE),
             },
@@ -308,8 +366,22 @@ _SCHEMA = Record(
 )
 
 
-def _fail(source: str, path: str, message: str) -> InstrumentConfigError:
-    """Build the error for one key, naming the file and the key path."""
+def instrument_schema() -> Record:
+    """The root node of an instrument config file's schema."""
+    return _SCHEMA
+
+
+def config_error(source: str, path: str, message: str) -> InstrumentConfigError:
+    """Build the error for one key, naming the file and the key path.
+
+    Parameters:
+        source: The file name.
+        path: The dotted key path, or empty for the file as a whole.
+        message: What is wrong.
+
+    Returns:
+        The error, ready to raise.
+    """
     location = f'{source}: {path}' if path else source
     return InstrumentConfigError(f'{location}: {message}')
 
@@ -332,11 +404,11 @@ def _describe(value: Any) -> str:
 
 
 def _scalar_ok(kind: str, value: Any) -> bool:
-    """Whether ``value`` is a scalar of ``kind``."""
+    """Whether ``value`` is a scalar of ``kind``; a number must also be finite."""
     if isinstance(value, bool):
         return kind == _BOOL
     if kind == _NUMBER:
-        return isinstance(value, int | float)
+        return isinstance(value, int) or (isinstance(value, float) and math.isfinite(value))
     if kind == _INT:
         return isinstance(value, int)
     if kind == _STR:
@@ -344,7 +416,35 @@ def _scalar_ok(kind: str, value: Any) -> bool:
     return False
 
 
-def check_node(node: Node, value: Any, *, source: str, path: str, complete: bool) -> None:
+def _in_bound(bound: str | None, value: float) -> bool:
+    """Whether a number or integer lies in the range ``bound`` names."""
+    if bound == POSITIVE:
+        return value > 0
+    if bound == NONNEG:
+        return value >= 0
+    if bound == UNIT:
+        return 0 <= value <= 1
+    return True
+
+
+def _check_scalar(node: Scalar, value: Any, *, source: str, path: str) -> None:
+    """Check one scalar's type, choices, and range."""
+    if not _scalar_ok(node.kind, value):
+        finite = node.kind == _NUMBER and isinstance(value, float)
+        expected = 'a finite number' if finite else _KIND_NAMES[node.kind]
+        raise config_error(source, path, f'expected {expected}, got {_describe(value)}')
+    if node.choices is not None and value not in node.choices:
+        raise config_error(source, path, f'{value!r} is not one of {sorted(node.choices)}')
+    if node.bound is not None and not _in_bound(node.bound, value):
+        expected = _BOUND_NAMES[node.bound].format(
+            noun='number' if node.kind == _NUMBER else 'integer'
+        )
+        raise config_error(source, path, f'expected {expected}, got {value!r}')
+
+
+def check_node(
+    node: Node, value: Any, *, source: str, path: str, complete: bool, allow_null: bool = False
+) -> None:
     """Check one value against a schema node.
 
     Parameters:
@@ -355,51 +455,73 @@ def check_node(node: Node, value: Any, *, source: str, path: str, complete: bool
         complete: Whether to require each record's required keys.  False for a
             single file, which may inherit keys from its base; True for an entry
             after inheritance.
+        allow_null: Whether a null value is accepted (it removes the key the base
+            passes on).  True only for a file that names a base.
 
     Raises:
-        InstrumentConfigError: On an unknown key, a missing required key, or a value
-            of the wrong type.
+        InstrumentConfigError: On an unknown key, a missing required key, a null in
+            a file without a base, or a value of the wrong type or range.
     """
+    if value is None:
+        if allow_null:
+            return
+        raise config_error(source, path, _NULL_WITHOUT_BASE)
     if isinstance(node, ModeNames):
         _check_offered(value, source=source, path=path)
         return
     if isinstance(node, Scalar):
-        if not _scalar_ok(node.kind, value):
-            raise _fail(source, path, f'expected {_KIND_NAMES[node.kind]}, got {_describe(value)}')
-        if node.choices is not None and value not in node.choices:
-            raise _fail(source, path, f'{value!r} is not one of {sorted(node.choices)}')
+        _check_scalar(node, value, source=source, path=path)
         return
     if isinstance(node, ListOf):
         if not isinstance(value, list):
-            raise _fail(source, path, f'expected a list, got {_describe(value)}')
+            raise config_error(source, path, f'expected a list, got {_describe(value)}')
+        # A list replaces the base's whole list, so an item has nothing to remove.
         for index, item in enumerate(value):
             check_node(node.item, item, source=source, path=f'{path}[{index}]', complete=complete)
         return
     if not isinstance(value, Mapping):
-        raise _fail(source, path, f'expected a mapping, got {_describe(value)}')
+        raise config_error(source, path, f'expected a mapping, got {_describe(value)}')
     if isinstance(node, ModeMaps):
         for key, item in value.items():
-            _check_mode_map(key, item, source=source, path=_join(path, key))
+            _check_mode_map(
+                key,
+                item,
+                node.section,
+                source=source,
+                path=_join(path, key),
+                allow_null=allow_null,
+            )
         return
     if isinstance(node, MapOf):
+        key_node = Scalar(node.key_kind, bound=node.key_bound)
         for key, item in value.items():
-            if not _scalar_ok(node.key_kind, key):
-                raise _fail(
-                    source,
-                    _join(path, key),
-                    f'expected {_KIND_NAMES[node.key_kind]} key, got {_describe(key)}',
-                )
-            check_node(node.value, item, source=source, path=_join(path, key), complete=complete)
+            key_path = _join(path, key)
+            _check_scalar(key_node, key, source=source, path=key_path)
+            check_node(
+                node.value,
+                item,
+                source=source,
+                path=key_path,
+                complete=complete,
+                allow_null=allow_null,
+            )
         return
     unknown = sorted(str(key) for key in value if key not in node.fields)
     if unknown:
-        raise _fail(source, path, f'unknown keys: {unknown}')
+        raise config_error(source, path, f'unknown keys: {unknown}')
     if complete:
         missing = sorted(node.required - set(value))
         if missing:
-            raise _fail(source, path, f'missing required keys: {missing}')
+            raise config_error(source, path, f'missing required keys: {missing}')
     for key, item in value.items():
-        check_node(node.fields[key], item, source=source, path=_join(path, key), complete=complete)
+        check_node(
+            node.fields[key],
+            item,
+            source=source,
+            path=_join(path, key),
+            complete=complete,
+            allow_null=allow_null,
+        )
 
 
 def _check_offered(value: Any, *, source: str, path: str) -> None:
@@ -407,32 +529,51 @@ def _check_offered(value: Any, *, source: str, path: str) -> None:
     if value == OFFER_EVERY_MODE:
         return
     if not isinstance(value, list):
-        raise _fail(
+        raise config_error(
             source,
             path,
             f'expected {OFFER_EVERY_MODE!r} or a list of modes, got {_describe(value)}',
         )
     for index, name in enumerate(value):
-        _check_mode_name(name, source=source, path=f'{path}[{index}]')
+        check_mode_name(name, source=source, path=f'{path}[{index}]')
 
 
-def _check_mode_name(name: Any, *, source: str, path: str) -> None:
-    """Check that ``name`` is a registered artifact mode."""
+def check_mode_name(name: Any, *, source: str, path: str) -> None:
+    """Check that ``name`` is a registered artifact mode.
+
+    Parameters:
+        name: The value naming a mode.
+        source: The file name, for error messages.
+        path: The dotted key path, for error messages.
+
+    Raises:
+        InstrumentConfigError: If ``name`` is not a registered mode.
+    """
     if not isinstance(name, str) or name not in ARTIFACT_MODES:
-        raise _fail(source, path, f'{name!r} is not a registered artifact mode')
+        raise config_error(source, path, f'{name!r} is not a registered artifact mode')
+
+
+# The range each integer mode-parameter kind carries.
+_INT_KIND_BOUNDS: dict[str, str | None] = {
+    'int': None,
+    'nonneg_int': NONNEG,
+    'positive_int': POSITIVE,
+}
 
 
 def _param_ok(param: ModeParam, value: Any) -> bool:
-    """Whether ``value`` has the type a mode parameter's kind calls for."""
-    if param.kind == 'bool':
+    """Whether ``value`` has the type and range a mode parameter's kind calls for."""
+    kind = param.kind
+    if kind == 'bool':
         return isinstance(value, bool)
-    if param.kind in ('nonneg_number', 'unit_interval'):
-        return _scalar_ok(_NUMBER, value)
-    if param.kind in ('int', 'nonneg_int', 'positive_int'):
-        return _scalar_ok(_INT, value)
-    if param.kind == 'enum':
+    if kind in ('nonneg_number', 'unit_interval'):
+        bound = NONNEG if kind == 'nonneg_number' else UNIT
+        return _scalar_ok(_NUMBER, value) and _in_bound(bound, value)
+    if kind in _INT_KIND_BOUNDS:
+        return _scalar_ok(_INT, value) and _in_bound(_INT_KIND_BOUNDS[kind], value)
+    if kind == 'enum':
         return param.choices is not None and value in param.choices
-    if param.kind == 'int_list':
+    if kind == 'int_list':
         return (
             isinstance(value, list)
             and len(value) == param.length
@@ -441,144 +582,66 @@ def _param_ok(param: ModeParam, value: Any) -> bool:
     return False
 
 
-def _check_mode_map(name: Any, value: Any, *, source: str, path: str) -> None:
-    """Check one mode's map: the mode exists and each parameter has its type."""
-    _check_mode_name(name, source=source, path=path)
+def _check_mode_map(
+    name: Any, value: Any, section: str, *, source: str, path: str, allow_null: bool
+) -> None:
+    """Check one mode's map: the mode exists and each parameter has its type and range."""
+    check_mode_name(name, source=source, path=path)
+    if value is None and allow_null:
+        return
     if not isinstance(value, Mapping):
-        raise _fail(source, path, f'expected a mapping, got {_describe(value)}')
-    params = ARTIFACT_MODES[name].param_map
+        raise config_error(source, path, f'expected a mapping, got {_describe(value)}')
+    mode = ARTIFACT_MODES[name]
+    if section == SHAPE_DEFAULTS and name in CATALOG_BLIND_MODES:
+        raise config_error(
+            source, path, f'a shape default for {name!r} does nothing: {CATALOG_BLIND_MODES[name]}'
+        )
+    params = mode.param_map
     for key, item in value.items():
+        key_path = _join(path, key)
         if key not in params:
-            raise _fail(source, _join(path, key), f'{name!r} has no parameter {key!r}')
-        if not _param_ok(params[key], item):
-            raise _fail(
+            raise config_error(source, key_path, f'{name!r} has no parameter {key!r}')
+        if section == SHAPE_DEFAULTS and key in (mode.activation, mode.count_alternative):
+            raise config_error(
                 source,
-                _join(path, key),
-                f'expected a {params[key].kind} value, got {_describe(item)}',
+                key_path,
+                f'{key!r} turns the mode on, and a shape default never does; a scene sets '
+                f'it, or the mode goes in artifact_modes.{INSTRUMENT_DEFAULTS}',
+            )
+        if item is None:
+            if allow_null:
+                continue
+            raise config_error(source, key_path, _NULL_WITHOUT_BASE)
+        if not _param_ok(params[key], item):
+            raise config_error(
+                source, key_path, f'expected a {params[key].kind} value, got {_describe(item)}'
             )
 
 
-def check_entry(entry: Mapping[str, Any], *, source: str, complete: bool) -> None:
-    """Check one instrument's config against the schema.
+def check_file(entry: Any, *, source: str) -> dict[str, Any]:
+    """Check one config file on its own, before inheritance.
 
-    With ``complete`` set, the entry is one after inheritance, and the
-    cross-checks run as well: the detector keys its model calls for are present,
-    the default gain state is in the gain table, the readout modes include binning
-    1 and divide the native frame size, the star zero point's unit fits the detector
-    model, the clear filter and each polarizer's clear element are cataloged, and
-    every artifact mode the entry names is one it offers.
+    Unknown keys, types, and ranges are checked; required keys are not, since a
+    file that names a ``base`` inherits them.  A null is accepted only in a file
+    that names a base, and never on a key a base does not pass on.
 
     Parameters:
-        entry: The instrument's mapping.
+        entry: The value the file holds.
         source: The file name, for error messages.
-        complete: Whether ``entry`` is a whole entry after inheritance.
+
+    Returns:
+        ``entry``, which is a mapping.
 
     Raises:
-        InstrumentConfigError: On any violation, naming the file and the key path.
+        InstrumentConfigError: If the file breaks the schema.
     """
-    check_node(_SCHEMA, entry, source=source, path='', complete=complete)
-    if complete:
-        _check_detector(entry['detector'], source=source)
-        _check_readout_modes(entry, source=source)
-        _check_star_flux(entry, source=source)
-        _check_filters(entry.get('filters'), source=source)
-        _check_artifact_modes(entry['artifact_modes'], source=source)
-
-
-def _check_detector(detector: Mapping[str, Any], *, source: str) -> None:
-    """Check the model-specific detector keys and the default gain state."""
-    model = detector['detector_model']
-    required = _CCD_REQUIRED if model == 'ccd' else _VIDICON_REQUIRED
-    missing = sorted(required - set(detector))
-    if missing:
-        raise _fail(source, 'detector', f'a {model} detector requires the keys {missing}')
-    if 'default_gain_state' in detector:
-        table = detector.get('gain_e_per_dn_by_state') or {}
-        state = detector['default_gain_state']
-        if state not in table:
-            raise _fail(
-                source,
-                'detector.default_gain_state',
-                f'state {state} is not in gain_e_per_dn_by_state {sorted(table)}',
+    if not isinstance(entry, dict):
+        raise config_error(source, '', 'the file must hold a mapping')
+    for key in sorted(NON_INHERITED_KEYS & set(entry)):
+        if entry[key] is None:
+            raise config_error(
+                source, key, f'{key} is not inherited from a base, so null removes nothing'
             )
-
-
-def _check_readout_modes(entry: Mapping[str, Any], *, source: str) -> None:
-    """Check that binning 1 is cataloged and every binning divides the native size."""
-    modes = entry['readout_modes']
-    if 1 not in modes:
-        raise _fail(source, 'readout_modes', 'binning 1 (the unbinned readout) is not defined')
-    native = entry.get('native_frame_size_px')
-    if native is None:
-        return
-    for binning in modes:
-        if binning <= 0 or native % binning != 0:
-            raise _fail(
-                source,
-                f'readout_modes.{binning}',
-                f'binning {binning} does not divide native_frame_size_px {native}',
-            )
-
-
-def _check_star_flux(entry: Mapping[str, Any], *, source: str) -> None:
-    """Check that the star zero point is stated once, in the detector model's unit."""
-    star_flux = entry['star_flux']
-    if len(star_flux) != 1:
-        raise _fail(source, 'star_flux', 'state exactly one of e_per_s_vmag0 and dn_per_s_vmag0')
-    expected = (
-        'dn_per_s_vmag0' if entry['detector']['detector_model'] == 'vidicon' else ('e_per_s_vmag0')
-    )
-    if expected not in star_flux:
-        raise _fail(
-            source,
-            'star_flux',
-            f'a {entry["detector"]["detector_model"]} detector states {expected}',
-        )
-
-
-def _check_filters(filters: Mapping[str, Any] | None, *, source: str) -> None:
-    """Check that the clear filter and each polarizer's clear element are cataloged."""
-    if filters is None:
-        return
-    table = filters['throughput_e_per_s_per_if']
-    if filters['clear'] not in table:
-        raise _fail(
-            source, 'filters.clear', f'{filters["clear"]!r} is not in throughput_e_per_s_per_if'
-        )
-    elements = {element for combination in table for element in combination.split('+')}
-    for polarizer, clear in (filters.get('polarizer_clear') or {}).items():
-        if clear not in elements:
-            raise _fail(
-                source,
-                f'filters.polarizer_clear.{polarizer}',
-                f'{clear!r} is not an element of any cataloged filter combination',
-            )
-
-
-def _check_artifact_modes(modes: Mapping[str, Any], *, source: str) -> None:
-    """Check that every mode the entry names is one it offers (or, for a reason, not)."""
-    offered = modes['offered']
-    offered_set = set(ARTIFACT_MODES) if offered == OFFER_EVERY_MODE else set(offered)
-    for section in ('shape_defaults', 'instrument_defaults'):
-        for name in modes.get(section) or {}:
-            if name not in offered_set:
-                raise _fail(
-                    source,
-                    f'artifact_modes.{section}.{name}',
-                    f'{name!r} is not in artifact_modes.offered',
-                )
-    for name in modes.get('instrument_defaults') or {}:
-        if name not in DETECTOR_MODE_ORDER:
-            raise _fail(
-                source,
-                f'artifact_modes.instrument_defaults.{name}',
-                f'{name!r} is not a detector-stage mode the detector chain consults',
-            )
-    for name in modes.get('unavailable_reasons') or {}:
-        _check_mode_name(name, source=source, path=f'artifact_modes.unavailable_reasons.{name}')
-        if name in offered_set:
-            raise _fail(
-                source,
-                f'artifact_modes.unavailable_reasons.{name}',
-                f'{name!r} is offered, so it has no unavailability reason',
-            )
+    has_base = entry.get('base') is not None
+    check_node(_SCHEMA, entry, source=source, path='', complete=False, allow_null=has_base)
+    return entry

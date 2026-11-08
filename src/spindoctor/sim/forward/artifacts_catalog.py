@@ -4,10 +4,11 @@ Every value here comes from the simulated instrument's config file (see
 :mod:`spindoctor.sim.instrument_catalog`): the detector chain an
 ``instrument_defaults`` scene turns on, the readout modes, the star zero point,
 the plate scale the background-sky star count uses, the whole-scene PSF kernel,
-the residual geometric distortion, and the artifact modes the camera offers with
-their shape defaults.  These resolvers are how the forward model reads that
-catalog; each takes a sim instrument name, an alias, or ``None`` for the generic
-entry, and raises :class:`ValueError` on a name the catalog doesn't hold.
+the residual geometric distortion, the downlink tables, and the artifact modes the
+camera offers with their shape defaults.  These resolvers are how the forward
+model reads that catalog; each takes a sim instrument name, an alias, or ``None``
+for the generic entry, and raises :class:`ValueError` on a name the catalog
+doesn't hold.
 """
 
 import copy
@@ -28,6 +29,7 @@ __all__ = [
     'binned_psf_kernel',
     'binning_for_frame_size',
     'cataloged_binnings',
+    'downlink_table_names',
     'instrument_default_modes',
     'mode_available',
     'mode_unavailable_message',
@@ -35,6 +37,7 @@ __all__ = [
     'resolve_detector_defaults',
     'resolve_detector_id',
     'resolve_distortion_residual',
+    'resolve_downlink_table',
     'resolve_mode_with_catalog',
     'resolve_native_frame_size_px',
     'resolve_psf_kernel',
@@ -171,6 +174,55 @@ def resolve_calibrated_sky_if(instrument: str | None) -> float:
     if own is not None:
         return float(own)
     return float(instrument_entry(GENERIC_INSTRUMENT)['detector']['calibrated_sky_if'])
+
+
+def downlink_table_names(instrument: str | None) -> tuple[str, ...]:
+    """The downlink tables an instrument lists, sorted.
+
+    Parameters:
+        instrument: The sim instrument name, an alias, or ``None``.
+
+    Returns:
+        The table names its config's ``downlink_tables`` lists; empty for an
+        instrument that lists none.
+
+    Raises:
+        ValueError: If the instrument is not in the catalog.
+    """
+    tables = instrument_entry(instrument).get('downlink_tables')
+    return () if tables is None else tuple(sorted(tables['tables']))
+
+
+def resolve_downlink_table(instrument: str | None, name: str | None) -> dict[str, Any] | None:
+    """The downlink table the ``sqrt_lut`` quantization decodes a frame through.
+
+    Parameters:
+        instrument: The sim instrument name, an alias, or ``None``.
+        name: The table a scene's ``detector.downlink_table`` names, or ``None`` for
+            the instrument's default table.
+
+    Returns:
+        A fresh copy of the table's entry (``codes``, ``linear_dn``,
+        ``quadratic_dn``, and ``whole_dn``, or ``decoded_dn``); None for an
+        instrument that lists no tables, which decodes through the plain
+        square-root curve.
+
+    Raises:
+        ValueError: If the instrument is not in the catalog, or ``name`` is not a
+            table it lists.
+    """
+    tables = instrument_entry(instrument).get('downlink_tables')
+    if tables is None:
+        if name is None:
+            return None
+        raise ValueError(f'sim instrument {instrument!r} lists no downlink tables; got {name!r}')
+    chosen = tables['default'] if name is None else name
+    if chosen not in tables['tables']:
+        raise ValueError(
+            f'downlink table {chosen!r} is not listed for sim instrument {instrument!r}; '
+            f'available tables: {sorted(tables["tables"])}'
+        )
+    return copy.deepcopy(dict(tables['tables'][chosen]))
 
 
 def _offers(entry: Mapping[str, Any], mode_name: str) -> bool:

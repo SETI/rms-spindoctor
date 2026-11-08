@@ -1,28 +1,42 @@
 """The simulated-instrument catalog: one checked YAML file per camera.
 
-Each schema violation the loader refuses is one case, with the file and key path in
-its message; a camera added only as a file in a copy of the packaged directory
-validates, resolves, and renders.
+Each violation the loader refuses is one case, with the file and key path in its
+message.  A camera added only as a file in a copy of the packaged directory
+validates, resolves, and renders.  The packaged catalog names navigator blocks
+that exist, and each navigator star zero point agrees with the simulator's.
 """
 
-import shutil
+from collections.abc import Mapping
 from pathlib import Path
+from typing import Any
 
 import pytest
+from tests.spindoctor.sim.fictional_camera import (
+    FICTIONAL_CAMERA,
+    FICTIONAL_CAMERA_NAME,
+    catalog_dir_with,
+)
 
+from spindoctor.config import DEFAULT_CONFIG
 from spindoctor.sim import instrument_catalog
 from spindoctor.sim.forward.artifacts_catalog import (
+    cataloged_binnings,
     resolve_detector_defaults,
-    resolve_sky_pixel_scale_arcsec,
+    resolve_star_flux_zero_point,
 )
+from spindoctor.sim.forward.detector.params import resolve_detector_params
+from spindoctor.sim.forward.detector.sqrt_lut import TabulatedLut
 from spindoctor.sim.instrument_catalog import (
+    GENERIC_INSTRUMENT,
     INSTRUMENT_CONFIG_DIR,
     InstrumentConfigError,
     load_instrument_catalog,
     sim_instrument_names,
 )
+from spindoctor.sim.instruments import resolve_sim_inst_config
 from spindoctor.sim.render import render_combined_model
 from spindoctor.sim.scene import validate_sim_params
+from spindoctor.sim.scene_schema import SimSceneValidationError
 
 # A complete camera entry, written out so each case changes one thing in it.
 _CAMERA = """\
@@ -59,14 +73,229 @@ artifact_modes:
   offered: [missing_lines]
 """
 
+_OFFERED = 'offered: [missing_lines]'
+_VIDICON_BLOCK = (
+    '  vidicon: {read_noise_line_dn: 1.0, read_noise_pixel_dn: 1.0, '
+    'coherent_amplitude_dn: 1.0, coherent_period_px: 8.0}\n'
+)
 
-def _catalog_dir(tmp_path: Path, files: dict[str, str]) -> Path:
-    """A copy of the packaged config directory with ``files`` written over it."""
-    directory = tmp_path / 'instrument_configs'
-    shutil.copytree(INSTRUMENT_CONFIG_DIR, directory)
-    for name, text in files.items():
-        (directory / name).write_text(text)
-    return directory
+
+def _with(old: str, new: str) -> str:
+    """The test camera with one passage replaced."""
+    assert old in _CAMERA
+    return _CAMERA.replace(old, new)
+
+
+# Each case: the files written over the packaged directory, the expected message,
+# and the case's id.
+_REFUSED: list[tuple[dict[str, str], str, str]] = [
+    (
+        {'cam.yaml': _CAMERA + 'sensor: {}\n'},
+        r"cam\.yaml: unknown keys: \['sensor'\]",
+        'unknown-key',
+    ),
+    (
+        {'cam.yaml': _with('sky_pixel_scale_arcsec: 2.5\n', '')},
+        r"cam\.yaml: missing required keys: \['sky_pixel_scale_arcsec'\]",
+        'missing-required-key',
+    ),
+    (
+        {'cam.yaml': _with('bloom_length: 0', 'bloom_length: 0.5')},
+        r'cam\.yaml: detector\.bloom_length: expected an integer, got float 0\.5',
+        'wrong-type',
+    ),
+    (
+        {'cam.yaml': _with('full_well_e: 5000.0', 'full_well_e: .5e4')},
+        r"detector\.full_well_e: expected a number, got str '\.5e4' \(a number written",
+        'number-read-as-a-string',
+    ),
+    (
+        {'cam.yaml': _with('full_well_e: 5000.0', 'full_well_e: .nan')},
+        r'cam\.yaml: detector\.full_well_e: expected a finite number, got float nan',
+        'non-finite-number',
+    ),
+    (
+        {'cam.yaml': _with('{0: 2.0}', '{0: 0.0}')},
+        r'cam\.yaml: detector\.gain_e_per_dn_by_state\.0: expected a positive number, got 0\.0',
+        'non-positive-gain',
+    ),
+    (
+        {'cam.yaml': _with('hot_pixel_fraction: 0.0', 'hot_pixel_fraction: 5.0')},
+        r'cam\.yaml: detector\.hot_pixel_fraction: expected a number in \[0, 1\], got 5\.0',
+        'fraction-above-one',
+    ),
+    (
+        {'cam.yaml': _with('  1: {}', '  1: {}\n  0: {}')},
+        r'cam\.yaml: readout_modes\.0: expected a positive integer, got 0',
+        'binning-below-one',
+    ),
+    (
+        {'cam.yaml': 'navigator: {section: sim\n'},
+        r'cam\.yaml: not valid YAML',
+        'yaml-syntax-error',
+    ),
+    (
+        {'cam.yaml': _with('read_noise_e: 3.0', 'read_noise_e: 3.0\n  read_noise_e: 9.0')},
+        r'(?s)cam\.yaml: not valid YAML: .*duplicate key',
+        'duplicate-key',
+    ),
+    (
+        {'cam.yml': _CAMERA},
+        r"\['cam\.yml'\] are not instrument config files",
+        'file-not-named-yaml',
+    ),
+    (
+        {'cam.yaml': _with('read_noise_e: 3.0', 'read_noise_e: null')},
+        r'cam\.yaml: detector\.read_noise_e: null removes an inherited key, and this file '
+        r'names no base',
+        'null-without-a-base',
+    ),
+    (
+        {'cam.yaml': 'base: generic\ndistortion_residual: null\n'},
+        r'cam\.yaml: distortion_residual: null removes an inherited key, and the base has no '
+        r'such key',
+        'null-for-a-key-the-base-lacks',
+    ),
+    (
+        {'cam.yaml': 'base: coiss_nac\nsky_pixel_scale_arcsec: null\n'},
+        r"cam\.yaml: missing required keys: \['sky_pixel_scale_arcsec'\]",
+        'null-removing-a-required-key',
+    ),
+    (
+        {'cam.yaml': _CAMERA + '  shape_defaults:\n    missing_lines: {expected_events: 5.0}\n'},
+        r"shape_defaults\.missing_lines\.expected_events: 'expected_events' turns the mode on",
+        'activation-key-in-shape-defaults',
+    ),
+    (
+        {
+            'cam.yaml': _with(_OFFERED, 'offered: [missing_lines, hot_pixels]')
+            + '  shape_defaults:\n    hot_pixels: {amplitude_e: 5.0}\n'
+        },
+        r"shape_defaults\.hot_pixels: a shape default for 'hot_pixels' does nothing",
+        'shape-default-the-renderer-ignores',
+    ),
+    (
+        {
+            'cam.yaml': _with(_OFFERED, 'offered: [edited_frame]')
+            + '  shape_defaults:\n    edited_frame: {band_width_px: 0}\n'
+        },
+        r'shape_defaults\.edited_frame\.band_width_px: expected a positive_int value, got int 0',
+        'shape-default-out-of-range',
+    ),
+    (
+        {
+            'cam.yaml': _with(_OFFERED, 'offered: [frame_transfer_smear]')
+            + '  instrument_defaults:\n    frame_transfer_smear: {t_scrub_sec: 0.01}\n'
+        },
+        r'instrument_defaults\.frame_transfer_smear: an instrument_defaults entry turns the '
+        r"mode on, so it sets a positive 'probability'",
+        'instrument-default-without-activation',
+    ),
+    (
+        {'cam.yaml': _CAMERA + '  shape_defaults:\n    bloom: {bloom_length: 2}\n'},
+        r"cam\.yaml: artifact_modes\.shape_defaults\.bloom: 'bloom' is not in "
+        r'artifact_modes\.offered',
+        'mode-not-offered',
+    ),
+    (
+        {'cam.yaml': _CAMERA + 'filters:\n  throughput_e_per_s_per_if: {CLR: 1.0}\n  clear: CL1\n'},
+        r"cam\.yaml: filters\.clear: 'CL1' is not in throughput_e_per_s_per_if",
+        'filter-not-cataloged',
+    ),
+    (
+        {'cam.yaml': _CAMERA + 'filters:\n  throughput_e_per_s_per_if: {Red: 1.0}\n  clear: Red\n'},
+        r"filters\.throughput_e_per_s_per_if\.Red: 'Red' is not in canonical form; write 'RED'",
+        'filter-not-canonical',
+    ),
+    (
+        {
+            'cam.yaml': _CAMERA
+            + 'filters:\n  throughput_e_per_s_per_if: {CLR: 1.0}\n  clear: CLR\n'
+            + '  polarizer_clear: {p0: CLR}\n'
+        },
+        r"filters\.polarizer_clear\.p0: 'p0' is not in canonical form; write 'P0'",
+        'polarizer-not-canonical',
+    ),
+    (
+        {'cam.yaml': _with('default_gain_state: 0', 'default_gain_state: 3')},
+        r'cam\.yaml: detector\.default_gain_state: state 3 is not in '
+        r'gain_e_per_dn_by_state \[0\]',
+        'gain-state-not-cataloged',
+    ),
+    (
+        {'cam.yaml': _with('{0: 2.0}', '{0: 2.0, 2: 1.0}')},
+        r'detector\.gain_e_per_dn_by_state: the gain states \[0, 2\] must be contiguous '
+        r'integers from 0',
+        'gain-states-not-contiguous',
+    ),
+    (
+        {'cam.yaml': _with('  quantization: exact\n', '  quantization: exact\n' + _VIDICON_BLOCK)},
+        r'cam\.yaml: detector\.vidicon: a ccd detector has no vidicon chain to configure',
+        'vidicon-chain-on-a-ccd',
+    ),
+    (
+        {'cam.yaml': _with('  1: {}', '  1: {}\n  2: {detector_model: vidicon}')},
+        r'readout_modes\.2\.detector_model: a readout mode bins the same detector',
+        'readout-mode-changing-the-model',
+    ),
+    (
+        {'cam.yaml': _with('  1: {}', '  1: {}\n  2: {gain_e_per_dn_by_state: {0: 2.0, 1: 1.0}}')},
+        r'readout_modes\.2\.gain_e_per_dn_by_state: the states \[0, 1\] differ',
+        'readout-mode-changing-the-gain-states',
+    ),
+    (
+        {'cam.yaml': 'base: vgiss\nreadout_modes: {2: {}}\n'},
+        r'cam\.yaml: readout_modes\.2: the vidicon DN chain has no binned readout',
+        'binned-vidicon',
+    ),
+    (
+        {'cam.yaml': _with('  1: {}', '  2: {}')},
+        r'cam\.yaml: readout_modes: binning 1 \(the unbinned readout\) is not defined',
+        'unbinned-readout-missing',
+    ),
+    (
+        {
+            'cam.yaml': _CAMERA
+            + 'downlink_tables:\n  default: other\n  tables:\n    main: {decoded_dn: [0.0, 1.0]}\n'
+        },
+        r"downlink_tables\.default: 'other' is not one of the tables \['main'\]",
+        'downlink-default-not-listed',
+    ),
+    (
+        {
+            'cam.yaml': _CAMERA
+            + 'downlink_tables:\n  default: main\n  tables:\n'
+            + '    main: {decoded_dn: [0.0, 1.0], codes: 2}\n'
+        },
+        r'downlink_tables\.tables\.main: state either decoded_dn alone',
+        'downlink-table-mixing-forms',
+    ),
+    (
+        {
+            'cam.yaml': _CAMERA
+            + 'downlink_tables:\n  default: main\n  tables:\n'
+            + '    main: {codes: 1, linear_dn: 1.0, quadratic_dn: 0.0, whole_dn: true}\n'
+        },
+        r'downlink_tables\.tables\.main\.codes: a downlink table sends at least 2 codes, got 1',
+        'downlink-table-with-one-code',
+    ),
+    (
+        {'cam.yaml': 'base: nothing\n'},
+        r"cam\.yaml: base: 'nothing' is not an instrument in the catalog",
+        'unknown-base',
+    ),
+    (
+        {'cam_a.yaml': 'base: cam_b\n', 'cam_b.yaml': 'base: cam_a\n'},
+        r'cam_b\.yaml: base: inheritance loops \(cam_a -> cam_b -> cam_a\)',
+        'cyclic-base',
+    ),
+    (
+        {'cam.yaml': _CAMERA + 'realism_cohort:\n  - {mission: COISS, camera: NAC}\n'},
+        r"realism_cohort: \('COISS', 'NAC'\) is claimed by both cam\.yaml "
+        r'\(realism_cohort\[0\]\) and coiss_calib_nac\.yaml',
+        'realism-cohort-claimed-twice',
+    ),
+]
 
 
 def test_the_packaged_catalog_names_every_config_file() -> None:
@@ -77,99 +306,139 @@ def test_the_packaged_catalog_names_every_config_file() -> None:
 
 @pytest.mark.parametrize(
     ('files', 'message'),
-    [
-        (
-            {'cam.yaml': _CAMERA + 'sensor: {}\n'},
-            r"cam\.yaml: unknown keys: \['sensor'\]",
-        ),
-        (
-            {'cam.yaml': _CAMERA.replace('sky_pixel_scale_arcsec: 2.5\n', '')},
-            r"cam\.yaml: missing required keys: \['sky_pixel_scale_arcsec'\]",
-        ),
-        (
-            {'cam.yaml': _CAMERA.replace('bloom_length: 0', 'bloom_length: 0.5')},
-            r'cam\.yaml: detector\.bloom_length: expected an integer, got float 0\.5',
-        ),
-        (
-            {'cam.yaml': _CAMERA.replace('full_well_e: 5000.0', 'full_well_e: .5e4')},
-            r"detector\.full_well_e: expected a number, got str '\.5e4' \(a number written",
-        ),
-        (
-            {'cam.yaml': _CAMERA + '  shape_defaults:\n    bloom: {bloom_length: 2}\n'},
-            r"cam\.yaml: artifact_modes\.shape_defaults\.bloom: 'bloom' is not in "
-            r'artifact_modes\.offered',
-        ),
-        (
-            {
-                'cam.yaml': _CAMERA
-                + 'filters:\n  throughput_e_per_s_per_if: {CLR: 1.0}\n  clear: CL1\n'
-            },
-            r"cam\.yaml: filters\.clear: 'CL1' is not in throughput_e_per_s_per_if",
-        ),
-        (
-            {'cam.yaml': _CAMERA.replace('default_gain_state: 0', 'default_gain_state: 3')},
-            r'cam\.yaml: detector\.default_gain_state: state 3 is not in '
-            r'gain_e_per_dn_by_state \[0\]',
-        ),
-        (
-            {'cam.yaml': _CAMERA.replace('  1: {}', '  2: {}')},
-            r'cam\.yaml: readout_modes: binning 1 \(the unbinned readout\) is not defined',
-        ),
-        (
-            {'cam.yaml': 'base: nothing\n'},
-            r"cam\.yaml: base: 'nothing' is not an instrument in the catalog",
-        ),
-        (
-            {'cam_a.yaml': 'base: cam_b\n', 'cam_b.yaml': 'base: cam_a\n'},
-            r'cam_b\.yaml: base: inheritance loops \(cam_a -> cam_b -> cam_a\)',
-        ),
-    ],
-    ids=[
-        'unknown-key',
-        'missing-required-key',
-        'wrong-type',
-        'number-read-as-a-string',
-        'mode-not-offered',
-        'filter-not-cataloged',
-        'gain-state-not-cataloged',
-        'unbinned-readout-missing',
-        'unknown-base',
-        'cyclic-base',
-    ],
+    [(files, message) for files, message, _ in _REFUSED],
+    ids=[case_id for _, _, case_id in _REFUSED],
 )
-def test_the_loader_refuses_a_schema_violation(
+def test_the_loader_refuses_a_bad_config(
     tmp_path: Path, files: dict[str, str], message: str
 ) -> None:
     """Each violation fails at load, naming the file and the key path."""
     with pytest.raises(InstrumentConfigError, match=message):
-        load_instrument_catalog(config_dir=_catalog_dir(tmp_path, files))
+        load_instrument_catalog(config_dir=catalog_dir_with(tmp_path, files))
 
 
-def test_a_camera_is_one_config_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """A camera added only as a file validates, resolves its own and inherited keys, and renders."""
-    text = (
-        'base: generic\n'
-        'navigator: {section: sim}\n'
-        'detector: {read_noise_e: 3.0}\n'
-        'sky_pixel_scale_arcsec: 2.5\n'
-        'artifact_modes: {offered: [missing_lines]}\n'
+def test_a_null_removes_an_inherited_key(tmp_path: Path) -> None:
+    """A file that sets an inherited readout mode to null drops it."""
+    directory = catalog_dir_with(
+        tmp_path, {'cam.yaml': 'base: coiss_nac\nreadout_modes: {4: null}\n'}
     )
+    entry = load_instrument_catalog(config_dir=directory).entry('cam')
+    assert sorted(entry['readout_modes']) == [1, 2]
+
+
+def test_a_base_does_not_pass_on_its_realism_cohort(tmp_path: Path) -> None:
+    """A file whose base claims a realism cohort claims none itself."""
+    directory = catalog_dir_with(tmp_path, {'cam.yaml': 'base: coiss_calib_nac\n'})
+    entry = load_instrument_catalog(config_dir=directory).entry('cam')
+    assert 'realism_cohort' not in entry
+
+
+@pytest.mark.parametrize('instrument', [*sim_instrument_names(), GENERIC_INSTRUMENT])
+def test_each_entry_names_a_navigator_block_that_exists(instrument: str) -> None:
+    """Each entry's navigator section and detector name a block of the packaged config."""
+    block = resolve_sim_inst_config(DEFAULT_CONFIG, instrument)
+    assert isinstance(block.get('noise'), Mapping)
+
+
+def test_an_inherited_detector_under_another_section_is_caught(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A file that changes its base's navigator section but inherits its detector fails."""
+    text = 'base: coiss_nac\nnavigator: {section: galileo_ssi}\n'
     monkeypatch.setattr(
-        instrument_catalog, 'INSTRUMENT_CONFIG_DIR', _catalog_dir(tmp_path, {'cam.yaml': text})
+        instrument_catalog, 'INSTRUMENT_CONFIG_DIR', catalog_dir_with(tmp_path, {'cam.yaml': text})
     )
-    scene = {
-        'instrument': 'cam',
+    with pytest.raises(ValueError, match=r"references detector 'nac' in section 'galileo_ssi'"):
+        resolve_sim_inst_config(DEFAULT_CONFIG, 'cam')
+
+
+def _navigator_zero_point_instruments() -> list[str]:
+    """The entries whose navigator block states a star zero point in DN."""
+    return [
+        name
+        for name in (*sim_instrument_names(), GENERIC_INSTRUMENT)
+        if 'star_flux_dn_per_s_vmag0' in resolve_sim_inst_config(DEFAULT_CONFIG, name)['noise']
+    ]
+
+
+@pytest.mark.parametrize('instrument', _navigator_zero_point_instruments())
+def test_the_navigator_zero_point_matches_the_simulators(instrument: str) -> None:
+    """The navigator's DN zero point is the simulator's, to the 3 figures it carries.
+
+    The navigator states its value separately, so the information boundary holds;
+    this test catches the two drifting apart.  A CCD's zero point is in electrons,
+    converted through the default gain state; a vidicon's is already DN.
+    """
+    zero_point, domain = resolve_star_flux_zero_point(instrument)
+    if domain == 'electrons':
+        detector = resolve_detector_defaults(instrument)
+        zero_point /= detector['gain_e_per_dn_by_state'][detector['default_gain_state']]
+    navigator = resolve_sim_inst_config(DEFAULT_CONFIG, instrument)['noise']
+    assert float(f'{zero_point:.3g}') == navigator['star_flux_dn_per_s_vmag0']
+
+
+@pytest.fixture
+def fictional_camera(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> str:
+    """Point the resolvers at a catalog holding the fictional camera; return its name."""
+    directory = catalog_dir_with(tmp_path, {f'{FICTIONAL_CAMERA_NAME}.yaml': FICTIONAL_CAMERA})
+    monkeypatch.setattr(instrument_catalog, 'INSTRUMENT_CONFIG_DIR', directory)
+    return FICTIONAL_CAMERA_NAME
+
+
+def _fictional_scene(instrument: str) -> dict[str, Any]:
+    """A binned, filtered, companded scene on the fictional camera."""
+    return {
+        'instrument': instrument,
         'size_v': 32,
         'size_u': 32,
         'random_seed': 1,
+        'detector': {
+            'binning': 2,
+            'filter': 'red',
+            'gain_state': 2,
+            'quantization': 'sqrt_lut',
+            'downlink_table': 'stepped',
+        },
         'artifacts': {'instrument_defaults': True},
     }
+
+
+def test_a_camera_added_as_a_file_validates_and_renders(fictional_camera: str) -> None:
+    """A scene using the camera's filter, binning, gain, and table validates and renders."""
+    scene = _fictional_scene(fictional_camera)
     validate_sim_params(scene)
     image, _ = render_combined_model(scene)
     assert image.shape == (32, 32)
-    assert resolve_sky_pixel_scale_arcsec('cam') == 2.5
-    assert resolve_detector_defaults('cam')['read_noise_e'] == 3.0
-    assert (
-        resolve_detector_defaults('cam')['full_well_e']
-        == (resolve_detector_defaults('generic')['full_well_e'])
+
+
+def test_a_camera_added_as_a_file_decodes_through_its_named_table(fictional_camera: str) -> None:
+    """The scene's downlink table is the tabulated one the file lists."""
+    curve = resolve_detector_params(_fictional_scene(fictional_camera)).sqrt_lut
+    assert curve == TabulatedLut(
+        decoded_dn=(0.0, 10.0, 30.0, 70.0, 150.0, 310.0, 630.0, 1270.0, 4095.0)
     )
+
+
+def test_a_camera_added_as_a_file_lists_its_readout_modes(fictional_camera: str) -> None:
+    """The camera's binned readout mode is cataloged beside the unbinned one."""
+    assert cataloged_binnings(fictional_camera) == (1, 2)
+
+
+def test_a_camera_added_as_a_file_states_why_a_mode_is_unavailable(fictional_camera: str) -> None:
+    """A scene naming a mode the camera does not offer fails with the file's reason."""
+    scene = {**_fictional_scene(fictional_camera), 'artifacts': {'hot_pixels': {}}}
+    with pytest.raises(SimSceneValidationError, match='the fictional camera has none'):
+        validate_sim_params(scene)
+
+
+def test_a_scene_naming_an_unlisted_downlink_table_fails() -> None:
+    """A scene's downlink table must be one its camera lists."""
+    scene = {
+        'instrument': 'coiss_nac',
+        'size_v': 32,
+        'size_u': 32,
+        'random_seed': 1,
+        'detector': {'downlink_table': 'x'},
+    }
+    with pytest.raises(SimSceneValidationError, match=r"available tables: \['table_12_to_8'\]"):
+        validate_sim_params(scene)

@@ -41,16 +41,7 @@ from spindoctor.cli.sim_editor.artifact_mode_rows import ModeRow
 from spindoctor.cli.sim_editor.base import SimEditorBase
 from spindoctor.sim.forward.artifact_modes import ARTIFACT_MODES
 from spindoctor.sim.forward.artifacts_catalog import cataloged_binnings, resolve_detector_defaults
-
-_DETECTOR_MODELS: list[str] = ['ccd', 'vidicon']
-_QUANTIZATION_MODES: list[str] = [
-    'exact',
-    '8bit',
-    'uneven_12bit',
-    'sqrt_lut',
-    'ls8b',
-    'contour_8bit',
-]
+from spindoctor.sim.instrument_schema import DETECTOR_MODELS, QUANTIZATION_MODES
 
 # The rendering stages the mode rows are grouped under, in tab order.
 _STAGE_TITLES: tuple[tuple[str, str], ...] = (
@@ -247,7 +238,7 @@ class ArtifactsTabMixin(SimEditorBase):
         form.addRow('Binning:', self._detector_binning_combo)
 
         self._detector_model_combo = QComboBox()
-        self._detector_model_combo.addItems(_DETECTOR_MODELS)
+        self._detector_model_combo.addItems(list(DETECTOR_MODELS))
         self._detector_model_combo.setToolTip(
             'ccd electron chain or vidicon DN chain. Written to the scene only when edited.'
         )
@@ -264,7 +255,7 @@ class ArtifactsTabMixin(SimEditorBase):
         form.addRow('Exposure ref (sec):', self._detector_exposure_ref_spin)
 
         self._detector_quantization_combo = QComboBox()
-        self._detector_quantization_combo.addItems(_QUANTIZATION_MODES)
+        self._detector_quantization_combo.addItems(list(QUANTIZATION_MODES))
         self._detector_quantization_combo.setToolTip(
             'ADC quantization sub-mode. Written to the scene only when edited.'
         )
@@ -316,10 +307,11 @@ class ArtifactsTabMixin(SimEditorBase):
     def _set_gain_state_range(self, catalog: dict[str, Any], gain_state: int) -> None:
         """Span the gain-state spin over the instrument's cataloged states.
 
-        The range runs from the lowest cataloged state to the highest; a scene state
-        outside it widens the range, so the widget shows what the scene says and
-        validation reports it.  An instrument without a gain table (a vidicon) has
-        the single state 0.
+        The catalog requires an instrument's gain states to be contiguous
+        integers, so the range from the lowest to the highest holds exactly the
+        cataloged states.  A scene state outside it widens the range, so the
+        widget shows what the scene says and validation reports it.  An
+        instrument without a gain table (a vidicon) has the single state 0.
 
         Parameters:
             catalog: The instrument's detector defaults.

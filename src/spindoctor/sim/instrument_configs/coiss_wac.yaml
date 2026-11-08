@@ -70,9 +70,13 @@ detector:
   bias_col_gradient_dn: 0.5
   bloom_length: 4  # 5.2 interim (no antiblooming; column bleed above the well)
   quantization: exact
-  # The Cassini 12-to-8-bit downlink table the NAC and WAC share; its
-  # measurement is described in coiss_nac.yaml.
-  sqrt_lut: {codes: 256, linear_dn: 2.0, quadratic_dn: 0.055, whole_dn: true}
+
+# The 12-to-8-bit downlink table the NAC and WAC share; its measurement is
+# described in coiss_nac.yaml.
+downlink_tables:
+  default: table_12_to_8
+  tables:
+    table_12_to_8: {codes: 256, linear_dn: 2.0, quadratic_dn: 0.055, whole_dn: true}
 
 # SUM2 and SUM4 summation modes, on-chip; the sources give no separate read
 # noise, gain, or well for them, so each inherits the 1x1 values.

@@ -96,14 +96,18 @@ detector:
   bias_col_gradient_dn: 0.5  # 5.2 interim
   bloom_length: 4  # 5.2 interim (no antiblooming; column bleed above the well)
   quantization: exact
-  # The Cassini 12-to-8-bit downlink table (DATA_CONVERSION_TYPE TABLE) the
-  # sqrt_lut quantization decodes through; the NAC and WAC share it.  Measured
-  # 2026-11-06 from the 26 TABLE frames of the CALIB cohort: the calibrated
-  # DN-equivalent step between consecutive raw codes is an integer that grows
-  # by one about every ten codes (3 near code 10, 5 near 25, 8 near 55, 13 near
-  # 100, 24 near 200), which round(2 * code + 0.055 * code**2) reproduces,
-  # alternations included, and which tops out at 4086 DN at code 255.
-  sqrt_lut: {codes: 256, linear_dn: 2.0, quadratic_dn: 0.055, whole_dn: true}
+
+# The downlink tables the sqrt_lut quantization decodes through.  The camera has
+# one: the 12-to-8-bit table (DATA_CONVERSION_TYPE TABLE), which the NAC and WAC
+# share.  Measured 2026-11-06 from the 26 TABLE frames of the CALIB cohort: the
+# calibrated DN-equivalent step between consecutive raw codes is an integer that
+# grows by one about every ten codes (3 near code 10, 5 near 25, 8 near 55, 13
+# near 100, 24 near 200), which round(2 * code + 0.055 * code**2) reproduces,
+# alternations included, and which tops out at 4086 DN at code 255.
+downlink_tables:
+  default: table_12_to_8
+  tables:
+    table_12_to_8: {codes: 256, linear_dn: 2.0, quadratic_dn: 0.055, whole_dn: true}
 
 # SUM2 and SUM4 summation modes, on-chip; the sources give no separate read
 # noise, gain, or well for them, so each inherits the 1x1 values.

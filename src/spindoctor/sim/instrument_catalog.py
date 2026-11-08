@@ -13,13 +13,16 @@ no code names an instrument.
 A file may name another instrument as its ``base``: the base's entry is merged
 under the file's own keys (mappings merge key by key, any other value replaces
 the base's), so a calibrated product can state only what differs from its raw
-camera.  ``aliases`` is the one key a base does not pass on.
+camera.  A key set to null removes the key the base would pass on.  ``aliases``
+and ``realism_cohort`` are the keys a base does not pass on.
 
 The catalog loads once per directory and is checked against
-:mod:`spindoctor.sim.instrument_schema` as it loads: an unknown key, a missing
-required key, a value of the wrong type, a base that doesn't exist or that loops
-back on itself, or a gain state, readout mode, filter, or artifact mode an entry
-names but does not define fails with the file and the key path.  The resolver
+:mod:`spindoctor.sim.instrument_schema` and :mod:`spindoctor.sim.instrument_checks`
+as it loads: a file that is not valid YAML or not a ``.yaml`` file, an unknown
+key, a missing required key, a value of the wrong type or out of range, a base
+that doesn't exist or that loops back on itself, a gain state, readout mode,
+filter, downlink table, or artifact mode an entry names but does not define, or a
+setting that would do nothing fails with the file and the key path.  The resolver
 functions in :mod:`spindoctor.sim.forward.artifacts_catalog`,
 :mod:`spindoctor.sim.forward.filter_catalog`, :mod:`spindoctor.sim.forward.psf`,
 and :mod:`spindoctor.sim.instruments` are how the rest of the simulator reads it.
@@ -35,12 +38,14 @@ from pathlib import Path
 from typing import Any
 
 from ruamel.yaml import YAML
+from ruamel.yaml.error import YAMLError
 
+from spindoctor.sim.instrument_checks import check_entry
 from spindoctor.sim.instrument_schema import (
     GENERIC_INSTRUMENT,
     NON_INHERITED_KEYS,
     InstrumentConfigError,
-    check_entry,
+    check_file,
 )
 
 __all__ = [
@@ -120,21 +125,53 @@ class InstrumentCatalog:
 
 
 def _read_file(path: Path) -> dict[str, Any]:
-    """Read one config file, which must hold a mapping."""
+    """Read one config file and check it on its own.
+
+    A YAML syntax error and a key written twice fail with the file named, as every
+    schema violation does.
+    """
     yaml = YAML(typ='safe')
-    raw = yaml.load(path.read_text())
-    if not isinstance(raw, dict):
-        raise InstrumentConfigError(f'{path.name}: the file must hold a mapping')
-    return raw
+    try:
+        raw = yaml.load(path.read_text())
+    except YAMLError as exc:
+        raise InstrumentConfigError(f'{path.name}: not valid YAML: {exc}') from exc
+    return check_file(raw, source=path.name)
 
 
-def _deep_merge(base: Mapping[str, Any], overrides: Mapping[str, Any]) -> dict[str, Any]:
-    """``base`` with ``overrides`` merged in: mappings key by key, anything else replaced."""
+def _deep_merge(
+    base: Mapping[str, Any], overrides: Mapping[str, Any], *, source: str, path: str = ''
+) -> dict[str, Any]:
+    """``base`` with ``overrides`` merged in, key by key.
+
+    Mappings merge key by key, a null removes the base's key, and any other value
+    replaces the base's.
+
+    Parameters:
+        base: The base entry (or one of its mappings).
+        overrides: The file's own keys at the same place.
+        source: The file name, for error messages.
+        path: The dotted key path of ``overrides``, for error messages.
+
+    Returns:
+        The merged mapping, a fresh copy.
+
+    Raises:
+        InstrumentConfigError: If a null names a key the base does not have, so it
+            would remove nothing.
+    """
     merged = copy.deepcopy(dict(base))
     for key, value in overrides.items():
+        key_path = f'{path}.{key}' if path else str(key)
         existing = merged.get(key)
-        if isinstance(value, Mapping) and isinstance(existing, Mapping):
-            merged[key] = _deep_merge(existing, value)
+        if value is None:
+            if key not in merged:
+                raise InstrumentConfigError(
+                    f'{source}: {key_path}: null removes an inherited key, and the base has '
+                    'no such key'
+                )
+            del merged[key]
+        elif isinstance(value, Mapping) and isinstance(existing, Mapping):
+            merged[key] = _deep_merge(existing, value, source=source, path=key_path)
         else:
             merged[key] = copy.deepcopy(value)
     return merged
@@ -160,13 +197,18 @@ def _resolve_inheritance(raw: Mapping[str, dict[str, Any]]) -> dict[str, dict[st
                 loop = ' -> '.join((*chain, base))
                 raise InstrumentConfigError(f'{name}.yaml: base: inheritance loops ({loop})')
             # A resolved entry already lacks the keys a base does not pass on.
-            entry = _deep_merge(resolve(base, (*chain, base)), entry)
+            entry = _deep_merge(resolve(base, (*chain, base)), entry, source=f'{name}.yaml')
         resolved[name] = entry
         return entry
 
+    entries: dict[str, dict[str, Any]] = {}
     for name in sorted(raw):
-        resolve(name, (name,))
-    return resolved
+        entry = copy.deepcopy(resolve(name, (name,)))
+        # The entry's own realism cohort, which a base does not pass on.
+        if 'realism_cohort' in raw[name]:
+            entry['realism_cohort'] = copy.deepcopy(raw[name]['realism_cohort'])
+        entries[name] = entry
+    return entries
 
 
 def _collect_aliases(raw: Mapping[str, dict[str, Any]]) -> dict[str, str]:
@@ -183,35 +225,47 @@ def _collect_aliases(raw: Mapping[str, dict[str, Any]]) -> dict[str, str]:
 
 
 def _check_cohorts(entries: Mapping[str, dict[str, Any]]) -> None:
-    """Refuse a real (mission, camera) pair claimed by two instruments."""
-    owner: dict[tuple[str, str], str] = {}
+    """Refuse a real (mission, camera) pair that two files claim, naming both."""
+    owner: dict[tuple[str, str], tuple[str, int]] = {}
     for name in sorted(entries):
         for index, pair in enumerate(entries[name].get('realism_cohort') or []):
             key = (pair['mission'], pair['camera'])
             if key in owner:
+                other, other_index = owner[key]
                 raise InstrumentConfigError(
-                    f'{name}.yaml: realism_cohort[{index}]: {key} is already the cohort of '
-                    f'{owner[key]!r}'
+                    f'realism_cohort: {key} is claimed by both {other}.yaml '
+                    f'(realism_cohort[{other_index}]) and {name}.yaml (realism_cohort[{index}]); '
+                    'one camera of the real cohort matches one instrument'
                 )
-            owner[key] = name
+            owner[key] = (name, index)
+
+
+def _config_paths(config_dir: Path) -> list[Path]:
+    """The config files in ``config_dir``, refusing anything that is not one.
+
+    Every entry must be a ``.yaml`` file: a ``.yml`` file, or any other file, would
+    otherwise be skipped without a word.
+    """
+    paths = sorted(config_dir.iterdir())
+    strays = [path.name for path in paths if path.suffix != '.yaml' or not path.is_file()]
+    if strays:
+        raise InstrumentConfigError(
+            f'{config_dir}: {strays} are not instrument config files; each camera is one .yaml file'
+        )
+    return paths
 
 
 @lru_cache(maxsize=4)
 def _load(config_dir: Path) -> InstrumentCatalog:
     """Read, merge, and check every config file in ``config_dir``."""
-    paths = sorted(config_dir.glob('*.yaml'))
-    raw: dict[str, dict[str, Any]] = {}
-    for path in paths:
-        entry = _read_file(path)
-        check_entry(entry, source=path.name, complete=False)
-        raw[path.stem] = entry
+    raw = {path.stem: _read_file(path) for path in _config_paths(config_dir)}
     if GENERIC_INSTRUMENT not in raw:
         raise InstrumentConfigError(
             f'{config_dir}: no {GENERIC_INSTRUMENT}.yaml (the instrument-agnostic entry)'
         )
     entries = _resolve_inheritance(raw)
     for name, entry in entries.items():
-        check_entry(entry, source=f'{name}.yaml', complete=True)
+        check_entry(entry, source=f'{name}.yaml')
     _check_cohorts(entries)
     return InstrumentCatalog(config_dir=config_dir, entries=entries, aliases=_collect_aliases(raw))
 
