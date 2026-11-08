@@ -389,12 +389,18 @@ per-camera keys and locked frames for each exist.
 brightness-dependent limb bend), ``residual_image`` (the prior-frame ghost),
 ``quantization_contour_8bit``, ``fixed_pattern``, ``reseau_scars`` (the
 reseau-removal patches left by archive processing), and ``resample_texture``
-(the geometric resample the pipeline's own input has been through). It does not
-offer ``radiation_transients`` or ``compression_dct``. The last two are telemetry-stage modes
-applied after the structured-loss modes, because they emulate archive
-processing rather than a detector or transmission defect. ``edited_frame``
-defaults to a 440-pixel band, which is this instrument's commanded edited-mode
-band width, so a bare ``probability`` keeps a physical centered band.
+(the geometric resample the pipeline's own input has been through).
+``reseau_scars`` and ``resample_texture`` are telemetry-stage modes applied
+after the structured-loss modes, because they emulate archive processing rather
+than a detector or transmission defect. The file does not offer
+``radiation_transients`` or ``compression_dct``.
+
+The file's shape defaults give ``edited_frame`` a 440-pixel band, one of the
+commanded edited-mode band widths (608, 440, 272, 160, and 80 of the 800-pixel
+line), so a bare ``probability`` keeps a physical centered band, and give
+``reseau_scars`` 202 marks on a 46-pixel lattice, the camera's reseau grid.
+``native_frame_size_px`` is 1000, the GEOMED product's size, which the realism
+match uses to tell a full frame from a subframe.
 
 **Units.** A ``vgiss`` frame is in I/F, with a ``0`` missing-data marker. The
 simulator reads the same configuration block as real navigation, so a simulated

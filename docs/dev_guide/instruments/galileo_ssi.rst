@@ -266,8 +266,11 @@ half a pixel at the field corner.
 ``bloom``, ``radiation_transients``, ``quantization_contour_8bit``,
 ``fixed_pattern``, and ``compression_dct``. ``alternating_lines`` defaults to
 its ``keep`` mode for this instrument's vertical decimation, rather than the
-``drop`` mode that blanks every Nth line. The file states no exclusion reason;
-the modes it lacks are simply not in its list.
+``drop`` mode that blanks every Nth line. ``missing_blocks`` defaults to
+8-line blocks, the height of a lost compression slice, and ``truth_window`` to a
+96-pixel square, the losslessly coded window. The file states no band width for
+``edited_frame``, so that mode takes the registry's generic fallback. The file
+states no exclusion reason; the modes it lacks are simply not in its list.
 
 **Realism-match status.** Unverified. Every optical parameter is a published
 or scaled estimate and the cohort offers nothing to check them against.

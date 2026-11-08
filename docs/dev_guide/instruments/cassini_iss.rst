@@ -449,6 +449,11 @@ radially symmetric, which is why the non-radial wander is zero.
 ``quantization_ls8b``, ``fixed_pattern``, and ``compression_dct``, and the
 calibrated files inherit the list. Neither states an exclusion reason.
 
+**Downlink table.** Each raw file lists one downlink table, ``table_12_to_8``,
+the 12-to-8-bit table the two cameras share, as its default, and the calibrated
+files inherit it. A frame quantized by ``sqrt_lut`` decodes through it, so code
+``c`` reads ``round(2 * c + 0.055 * c**2)`` DN.
+
 **Realism-match status.** The narrow angle PSF is tuned against eleven frames.
 The wide angle PSF rests on two frames.
 

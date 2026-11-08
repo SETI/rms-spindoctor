@@ -287,7 +287,9 @@ header), ``cutout_window``, ``banding_coherent``, ``bias_structure``,
 ``serial_tail`` (the post-gain DN undershoot after saturation),
 ``fixed_pattern``, and ``compression_dct``. It names ``frame_transfer_smear``
 under ``artifact_modes.instrument_defaults``, so ``instrument_defaults`` turns
-the smear on at its nominal scrub and transfer times.
+the smear on at its nominal scrub and transfer times. Its shape defaults give
+``embedded_header`` a 34-pixel header, the binary housekeeping at the start of
+row 0 of every image.
 
 The file states an explicit **exclusion reason** for two modes:
 
