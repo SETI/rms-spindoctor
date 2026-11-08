@@ -1,0 +1,140 @@
+# Cassini ISS wide-angle camera, raw DN products.
+#
+# Section numbers in the comments (5.2, 12, ...) refer to the simulator's
+# instrument calibration references.  The keys are described in the simulator
+# chapter of the developer guide.
+
+navigator:
+  section: cassini_iss
+  detector: wac
+
+# A full frame binned by b is this size over b, which is how the realism match
+# tells a cohort frame's readout mode from its shape.
+native_frame_size_px: 1024
+
+psf:
+  # TUNED 2026-07-17 from the cohort's two WAC star frames (9 usable star
+  # cutouts): cohort EE50/EE80 = 1.33/2.16 px through the final estimator;
+  # sigma follows the measured EE50 with the NAC wing shape.  Two-frame
+  # evidence -- treat as cohort-limited, revisit when more WAC star frames
+  # land.  Replaces the interim FWHM/2.355 value.  Radii in native detector
+  # pixels.
+  kernel: {sigma_v: 1.05, sigma_u: 1.05, w: 0.12, r0: 3.0, n: 4.0}
+  # Cassini's documented long wings get a wider window than the generic 16 px;
+  # the far halo beyond the window is stray-light scope, not kernel scope.
+  truncation_px: 32
+
+# The residual geometric distortion left after the navigator's distortion
+# model, from the star-field FOV distortion analysis: sub-pixel and close to
+# radially symmetric.
+distortion_residual: {k1: 9.0e-06, k2: 5.48e-05, nonradial_rms_px: 0.0}
+
+# Electrons a magnitude-0 star deposits per second, sized from the camera's
+# Section 5 limiting magnitude at SNR ~5.  Interim.
+star_flux:
+  e_per_s_vmag0: 2.6e+6
+
+# Interim plate scale from the published value (Section 12): ~60 urad/px.
+sky_pixel_scale_arcsec: 12.37
+
+detector:
+  detector_model: ccd
+  full_well_e: 95.0e+3  # 5.2 interim
+  exposure_ref_sec: 1.0
+  # 5.2: only state 2 is cataloged for the WAC; selecting another WAC state is
+  # a validation error until its full table is sourced.
+  gain_e_per_dn_by_state: {2: 28.0}
+  default_gain_state: 2
+  read_noise_e: 12.0  # 5.2 interim
+  bias_dn: 20.0
+  dark_current_e_per_sec: 5.0
+  # Measured 2026-11-06 on one 12-bit full-frame WAC star field (the other
+  # 12-bit full frames carry scene light down the frame): the dark sky rises
+  # 1.2 DN, 33 e-, from the first line to the last.
+  readout_dark_e: 33.0
+  hot_pixel_fraction: 2.0e-3
+  hot_pixel_amplitude_e: 3.5e+4
+  hot_pixel_column_factor: 0.3
+  # The NAC's fitted cosmic-ray terms: the two cameras share the CCD and its
+  # readout.  The WAC's one 12-bit dark frame (a 26 s star field) flags 1,817
+  # spikes per megapixel, above the ~640 these terms deposit, with its stars
+  # adding to the count.
+  cosmic_ray_events_per_pixel_per_sec: 2.0e-5
+  cosmic_ray_readout_dwell_sec: 6.0
+  cosmic_ray_amplitude_e: 1000.0
+  cosmic_ray_spread_px: 0.6
+  banding_amplitude_e: 6.0  # 5.2 interim (~6 e- WAC 4 Hz)
+  banding_period_px: 64.0
+  bias_pedestal_sigma_dn: 2.0
+  bias_row_gradient_dn: 1.0
+  bias_col_gradient_dn: 0.5
+  bloom_length: 4  # 5.2 interim (no antiblooming; column bleed above the well)
+  quantization: exact
+  # The Cassini 12-to-8-bit downlink table the NAC and WAC share; its
+  # measurement is described in coiss_nac.yaml.
+  sqrt_lut: {codes: 256, linear_dn: 2.0, quadratic_dn: 0.055, whole_dn: true}
+
+# SUM2 and SUM4 summation modes, on-chip; the sources give no separate read
+# noise, gain, or well for them, so each inherits the 1x1 values.
+readout_modes:
+  1: {}
+  2: {}
+  4: {}
+
+# Electrons per second per native pixel at I/F 1.0, by filter combination,
+# measured 2026-11-06 from Cassini ISS raw/CALIB pairs as described in
+# coiss_nac.yaml: the WAC camera constant is 193,000 e-/s per I/F per unit
+# efficiency (16 frames).  VIO measures 0.67x the label model on two frames of
+# one sequence.
+filters:
+  throughput_e_per_s_per_if:
+    CB2+CL2: 279000.0
+    CB3+CL2: 11700.0
+    CL1+BL1: 1150000.0  # measured, 2 frames
+    CL1+CL2: 13500000.0  # measured, 4 frames
+    CL1+GRN: 4470000.0
+    CL1+HAL: 323000.0
+    CL1+IR1: 4100000.0
+    CL1+RED: 5760000.0  # measured, 2 frames
+    CL1+VIO: 115000.0  # measured, 2 frames
+    IR2+CL2: 695000.0
+    IR2+IR1: 293000.0
+    IR3+CL2: 216000.0
+    IR4+CL2: 11200.0
+    IR5+CL2: 1320.0
+    MT2+CL2: 135000.0
+    MT3+CL2: 39300.0
+  # The combination the star zero point refers to.
+  clear: CL1+CL2
+  # The WAC polarizers sit in wheel 2 and fold onto its clear element.
+  polarizer_clear: {IRP0: CL2, IRP90: CL2}
+
+artifact_modes:
+  offered:
+    - missing_lines
+    - partial_lines
+    - alternating_lines
+    - truncated_frame
+    - missing_blocks
+    - dead_pixels
+    - dead_columns
+    - hot_pixels
+    - banding_coherent
+    - bias_structure
+    - dark_ramp
+    - bloom
+    - radiation_transients
+    - bright_dark_pairs
+    - quantization_sqrt_lut
+    - quantization_ls8b
+    - fixed_pattern
+    - compression_dct
+  # Per-mode shape defaults (interim, 5.2); ~6 e- WAC 4 Hz banding.
+  shape_defaults:
+    banding_coherent: {amplitude_e: 6.0, period_px: 64.0, orientation: horizontal}
+    bias_structure: {pedestal_sigma_dn: 2.0, row_gradient_dn: 1.0, col_gradient_dn: 0.5}
+    dark_ramp: {kind: dark_gradient, amplitude_e: 150.0}
+    bloom: {bloom_length: 4}
+    bright_dark_pairs: {amplitude_e: 3.5e+3}
+    radiation_transients: {amplitude_e: 3.5e+4}
+    fixed_pattern: {dust_donut_count: 5}

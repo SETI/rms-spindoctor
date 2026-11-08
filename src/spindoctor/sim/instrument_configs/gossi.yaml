@@ -1,0 +1,129 @@
+# Galileo SSI, raw DN (REDR) products.
+#
+# Section numbers in the comments (5.4, 12, ...) refer to the simulator's
+# instrument calibration references.  The keys are described in the simulator
+# chapter of the developer guide.
+
+navigator:
+  section: galileo_ssi
+
+# A full frame binned by b is this size over b, which is how the realism match
+# tells a cohort frame's readout mode from its shape.
+native_frame_size_px: 800
+
+psf:
+  # RETAINED interim published sigma: the Galileo cohort holds no star frames
+  # (negative cases only), so there is no independent PSF evidence; sim
+  # accuracy is bounded by unverified PSF fidelity until the
+  # star-calibration frames land.  Radii in native detector pixels.
+  kernel: {sigma_v: 0.80, sigma_u: 0.80, w: 1.2e-2, r0: 2.0, n: 3.0}
+  truncation_px: 16
+
+# The residual geometric distortion left after the navigator's distortion
+# model, from the star-field FOV distortion analysis: a pincushion term
+# reaching ~0.5 px at the corner.
+distortion_residual: {k1: -3.47e-04, k2: 1.72e-03, nonradial_rms_px: 0.0}
+
+# Electrons a magnitude-0 star deposits per second, sized from the camera's
+# Section 5 limiting magnitude at SNR ~5.  Interim.
+star_flux:
+  e_per_s_vmag0: 4.0e+6
+
+# Interim plate scale from the published value (Section 12): ~10.2 urad/px.
+sky_pixel_scale_arcsec: 2.095
+
+detector:
+  detector_model: ccd
+  full_well_e: 108.0e+3  # 5.4 interim
+  exposure_ref_sec: 0.2  # 5.4 interim (typical science exposure)
+  # 5.4 interim gain states ~1822/377/187/39 e-/DN; common science state 2.
+  gain_e_per_dn_by_state: {0: 1822.0, 1: 377.0, 2: 187.0, 3: 39.0}
+  default_gain_state: 2
+  read_noise_e: 31.0  # 5.4 (full-res; 44 e- in summation mode)
+  bias_dn: 20.0
+  dark_current_e_per_sec: 10.0  # 5.4 interim (RTG-driven dark spikes)
+  # TUNED 2026-11-01 by the realism match: the 8-frame Galileo REDR cohort's
+  # stationary spike fraction (single-pixel spikes recurring at fixed
+  # positions) is 1.4e-6 -- the REDR blemish correction removes most hot
+  # pixels.  The simulated hot pixels are a fixed per-detector map, so this
+  # fraction is the stationary population alone; the cohort's transient
+  # spikes are carried by the cosmic-ray rate below.
+  hot_pixel_fraction: 1.4e-6
+  hot_pixel_amplitude_e: 4.0e+4
+  # 5.4 interim (early-blooming columns; total-charge fraction).
+  hot_pixel_column_factor: 0.5
+  # Fitted 2026-11-06 in closed loop against the cohort's transient spikes
+  # (all negative cases, so no scene point sources contaminate the split):
+  # 57-129 per 800x800 frame at 50-100 ms, peaking at 33/58/150 DN
+  # (10th/50th/90th percentile).  Rendered dark frames flag 91 at 33/51/127
+  # DN, with a saturated fraction of 3e-6 (the cohort's 1.3e-5 includes its
+  # scenes); the earlier full-well deposits pushed it to 2.3e-4.  The count
+  # barely moves with exposure, so the hits arrive during the readout: the
+  # dwell is half the 8 2/3 s full-frame readout.
+  cosmic_ray_events_per_pixel_per_sec: 2.0e-5
+  cosmic_ray_readout_dwell_sec: 4.33
+  cosmic_ray_amplitude_e: 6000.0
+  cosmic_ray_spread_px: 0.4
+  banding_amplitude_e: 65.0  # 5.4 interim (~0.35 DN at gain 2 -> ~65 e-)
+  banding_period_px: 42.0  # 5.4 (2400 Hz supply-noise comb every 42 px)
+  bias_pedestal_sigma_dn: 1.0
+  bias_row_gradient_dn: 1.0  # 5.4 (summation-mode L-R shading ramp)
+  bias_col_gradient_dn: 0.5
+  bloom_length: 6  # 5.4 interim (early-blooming columns)
+  quantization: exact
+
+# The 2x2 summation mode reads 44 e- (5.4; 31 e- full resolution).
+readout_modes:
+  1: {}
+  2: {read_noise_e: 44.0}
+
+artifact_modes:
+  offered:
+    - missing_lines
+    - alternating_lines
+    - edited_frame
+    - truncated_frame
+    - missing_blocks
+    - line_garble
+    - dead_pixels
+    - dead_columns
+    - truth_window
+    - cutout_window
+    - hot_pixels
+    - banding_coherent
+    - bias_structure
+    - dark_ramp
+    - bloom
+    - radiation_transients
+    - quantization_contour_8bit
+    - fixed_pattern
+    - compression_dct
+  # Per-mode shape defaults (interim, 5.4).
+  shape_defaults:
+    # 42-px vertical supply-noise comb (~0.35 DN at gain 2 -> ~65 e-), plus a
+    # <8 Hz horizontal component in high gain (orientation both).
+    banding_coherent: {amplitude_e: 65.0, period_px: 42.0, orientation: both}
+    bias_structure: {pedestal_sigma_dn: 1.0, row_gradient_dn: 1.0, col_gradient_dn: 0.5}
+    # Shutter line-dependent exposure offset (~1.5 -> ~1.05 ms, line 1->800).
+    dark_ramp: {kind: exposure_shading, top_factor: 1.5, bottom_factor: 1.05}
+    bloom: {bloom_length: 6}
+    # Ganymede-distance regime: ~1e4 spikes/frame scale in the readout,
+    # amplitudes few DN steeply falling (near full well at the top).  A scene
+    # plants the hits as a rate, with expected_events_per_sec.
+    radiation_transients: {amplitude_e: 4.0e+4}
+    # 33-px photolithography stitch comb plus corner vignetting; the 8-bit ADC
+    # contours worst at DN multiples of 8.
+    fixed_pattern:
+      stitch_period_px: 33
+      stitch_amplitude_dn: 1.0
+      vignetting_frac: 0.03
+      dust_donut_count: 4
+    quantization_contour_8bit: {step: 8}
+    # HMA/HCA vertical decimation (5.4): only every Nth line carries valid
+    # data, so the periodic-line default is 'keep'.
+    alternating_lines: {mode: keep}
+
+# The image library's REDR frames are matched against this instrument by the
+# realism match.
+realism_cohort:
+  - {mission: GOSSI, camera: SSI}

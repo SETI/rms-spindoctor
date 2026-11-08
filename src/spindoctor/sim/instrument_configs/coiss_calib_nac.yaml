@@ -1,0 +1,54 @@
+# Cassini ISS narrow-angle camera, calibrated (CALIB, I/F) products.
+#
+# The same camera as coiss_nac run through CISSCAL, whose bias/dark
+# subtraction, flat-fielding, and 2-Hz noise removal strip most of the raw
+# chain's structure.  Every key not stated here is the raw camera's.  The keys
+# are described in the simulator chapter of the developer guide.
+
+base: coiss_nac
+
+navigator:
+  section: cassini_iss_calib
+  detector: nac
+
+# The physical detector, so the fixed hot-pixel map is the raw camera's.
+detector_id: coiss_nac
+
+detector:
+  # TUNED 2026-07-17 by the realism match against the 62-frame CALIB
+  # image-library cohort: the measured stationary spike fraction 1.6e-5
+  # (single-pixel spikes recurring at fixed positions across the 58-frame NAC
+  # cohort; the interim raw-chain 2e-3 overstated the calibrated products by
+  # ~100x and dominated their p99 signal percentile).
+  hot_pixel_fraction: 1.6e-5
+  # CISSCAL's 2-Hz noise removal strips the coherent banding, and the cohort
+  # sky floor sits below the level at which the raw chain's 30 e- banding
+  # would register.
+  banding_amplitude_e: 0.0
+  # CISSCAL subtracts the full 2-D bias structure, not just the constant
+  # pedestal the calibration inverse already removes.
+  bias_pedestal_sigma_dn: 0.0
+  bias_row_gradient_dn: 0.0
+  bias_col_gradient_dn: 0.0
+  # The calibration residual: what CISSCAL's per-pixel corrections leave in a
+  # CALIB product that the raw frame does not carry.  Measured 2026-11-06 as
+  # the CALIB-minus-raw difference over sky pixels of 12-bit raw/CALIB pairs,
+  # each line's mean removed (CISSCAL's 2-Hz and bias subtraction act per
+  # line), in DN-equivalent through each frame's fitted DN-to-I/F scale:
+  # - A column pattern, fixed per camera: frame-to-frame correlation 0.93
+  #   (median over 319 pairs), 15 e- rms (26 frames, 14-18 e- on most, the
+  #   same in electrons at gain states 2 and 3).
+  # - A per-pixel term, mostly different per frame (pair correlation 0.33):
+  #   9.4 e- rms.
+  # The raw frames carry no column pattern above the per-pixel noise, so the
+  # residual is CISSCAL's (its interpolated dark model is the likely source).
+  # It is why a real CALIB sky is continuous rather than on the DN lattice,
+  # and it lifts the calibrated sky noise from about 0.6 to 0.9 DN-equivalent
+  # at gain state 2.
+  calibration_column_residual_e: 15.0
+  calibration_pixel_residual_e: 9.4
+
+# The image library's CALIB frames from this camera are matched against this
+# instrument by the realism match.
+realism_cohort:
+  - {mission: COISS, camera: NAC}
