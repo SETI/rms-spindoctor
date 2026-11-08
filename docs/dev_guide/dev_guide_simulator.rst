@@ -1790,17 +1790,34 @@ rest of the shading, so a shadow's edge is as soft as the shading grid.
 Split-resolution performance
 ----------------------------
 
-Disc shading is low-frequency by construction, so the topographic path
-computes the shading field (surface normals, relief shading, cast shadows, crater
-texture, and photometric law) once at **detector resolution** and bilinearly
-upsamples it, while only the sharp content, the relief-perturbed silhouette
-mask, is rasterized at the full oversampled working grid. This replaces the
-per-subsample shading that made an oversampled body ~16x more expensive than
-its detector-grid equivalent. It is what lets a body-bearing scene meet the
-render budget below, and it makes the topographic path the *fast* path at
-oversample > 1 even for a plain Lambert body. The budget harness
-(``tests/integration/test_sim_perf.py``) holds a large-lit-body-with-relief
-frame to its measured budget for exactly this reason.
+The topographic path renders a body on a working grid: the oversampled grid,
+or, at oversample 1, the anti-aliasing supersample grid. The sharp content, the
+relief-perturbed silhouette mask, is always rasterized on the working grid.
+Where the shading field (surface normals, relief shading, cast shadows, crater
+texture, and photometric law) is computed depends on the body:
+
+- A body whose relief, craters, surface texture, or transits change its shading
+  is shaded once at **detector resolution**, and the shading is bilinearly
+  upsampled onto the working grid. Disc shading is low-frequency by
+  construction, so this replaces the per-subsample shading that made an
+  oversampled body ~16x more expensive than its detector-grid equivalent, and it
+  is what lets a body-bearing scene meet the render budget below. The budget harness
+  (``tests/integration/test_sim_perf.py``) holds a large-lit-body-with-relief
+  frame to its measured budget for exactly this reason. The upsample moves the
+  disc's light about 0.007 px away from the Sun.
+- Every other body is smooth and is shaded on the working grid itself. A
+  surface setting that changes nothing leaves a body smooth: a crater fill too
+  small to place a crater at detector resolution, an albedo texture with no
+  noise field and no spots, banding of zero amplitude with no storms, or a
+  transit with neither a moon nor a shadow.
+
+The navigator's predicted body is shaded on a grid four times finer than the
+detector's. A smooth body whose working grid has that same factor (oversample 4,
+the default for a scene with a point-spread function, or full anti-aliasing at
+oversample 1) is shaded exactly as the predicted body is. A scene that sets
+another oversample factor samples the body differently from the navigator. On
+the calibrated disc sweep, shading the smooth disc at detector resolution gave
+the disc correlation a steady error of about 0.015 px.
 
 Photometric laws
 ----------------

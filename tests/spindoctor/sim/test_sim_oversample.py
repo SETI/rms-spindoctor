@@ -4,14 +4,23 @@ A scene with an active whole-scene PSF renders its radiance on an oversampled
 grid and downsamples back to the detector grid; a scene with no optics block
 renders at oversample 1.  These tests cover the oversample resolution, the
 determinism of the no-optics path, that the oversampled render preserves body
-flux and position after the downsample, and that the classifying truth arrays
-come back describing the pixels the image put the body on.
+flux and position after the downsample, that a smooth body on an oversampled or
+anti-aliased grid renders as the navigator predicts it (on the render grid, and on the
+detector grid after the scene scaling and the downsample), that a surface setting that
+changes nothing leaves a body smooth, and that the classifying truth arrays come back
+describing the pixels the image put the body on.
 """
 
+import dataclasses
 from typing import Any
 
 import numpy as np
+import pytest
 
+from spindoctor.nav_model.sim_body import create_simulated_body
+from spindoctor.sim.forward.body_texture import AlbedoTextureSpec, DiscTextureSpec, TransitSpec
+from spindoctor.sim.forward.body_topo import TopoBodySpec, create_topographic_body
+from spindoctor.sim.forward.pipeline import STAGES
 from spindoctor.sim.forward.stages import downsample_to_detector, new_sim_frame
 from spindoctor.sim.render import render_combined_model, resolve_oversample
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
@@ -94,6 +103,183 @@ def test_oversample_keeps_body_centered() -> None:
     cv_fine, cu_fine = _centroid(fine)
     assert abs(cv_fine - cv_plain) < 0.2
     assert abs(cu_fine - cu_plain) < 0.2
+
+
+def test_oversampled_smooth_body_matches_the_navigator_model() -> None:
+    """A smooth sphere on a 4x grid renders exactly as the navigator predicts it.
+
+    The body is about four-fifths lit (phase 0.9 rad), off the pixel grid, and lit from
+    an oblique direction, so a shading grid coarser than the render grid would shift its
+    light toward the terminator and the two renders would differ.
+    """
+    size = (160, 160)
+    center = (81.3, 78.9)
+    rendered = create_topographic_body(
+        size,
+        center,
+        TopoBodySpec(
+            axis1=96.0,
+            axis2=96.0,
+            axis3=96.0,
+            illumination_angle=0.7,
+            phase_angle=0.9,
+            oversample=4,
+        ),
+    )
+    predicted = create_simulated_body(
+        size, center, 96.0, axis2=96.0, axis3=96.0, illumination_angle=0.7, phase_angle=0.9
+    )
+    np.testing.assert_allclose(rendered, predicted, rtol=0.0, atol=1e-12)
+
+
+def test_anti_aliased_smooth_body_matches_the_navigator_model() -> None:
+    """A smooth sphere anti-aliased at oversample 1 renders as the navigator predicts it.
+
+    Full anti-aliasing supersamples the body 4x, as the navigator's model does, so the
+    shading must be computed on that supersample grid for the two renders to agree.
+    """
+    size = (160, 160)
+    center = (81.3, 78.9)
+    rendered = create_topographic_body(
+        size,
+        center,
+        TopoBodySpec(
+            axis1=96.0,
+            axis2=96.0,
+            axis3=96.0,
+            illumination_angle=0.7,
+            phase_angle=0.9,
+            anti_aliasing=1.0,
+        ),
+    )
+    predicted = create_simulated_body(
+        size,
+        center,
+        96.0,
+        axis2=96.0,
+        axis3=96.0,
+        illumination_angle=0.7,
+        phase_angle=0.9,
+        anti_aliasing=1.0,
+    )
+    np.testing.assert_allclose(rendered, predicted, rtol=0.0, atol=1e-12)
+
+
+def test_oversampled_smooth_body_matches_the_navigator_model_on_the_detector_grid() -> None:
+    """A smooth sphere rendered at oversample 4 and downsampled matches the navigator model.
+
+    The scene goes through the pipeline's own stages up to and including the downsample,
+    so the scaling of its center and axes onto the 4x grid and the box downsample back
+    to the detector grid both act on it.  The navigator's model is the detector-size
+    template at full anti-aliasing, which shades on the same 4x grid; a shift of a
+    thousandth of a pixel in either stage changes the image by about 2e-4.  The body's
+    center sits a whole number of detector pixels from the frame center, so the
+    renderer's translation from its reference center moves no light between pixels.
+    """
+    size = 40
+    center = (23.0, 17.0)
+    scene: dict[str, Any] = {
+        'size_v': size,
+        'size_u': size,
+        'random_seed': 3,
+        'oversample': 4,
+        'bodies': [
+            {
+                'name': 'B',
+                'center_v': center[0],
+                'center_u': center[1],
+                'axis1': 24.0,
+                'axis2': 24.0,
+                'axis3': 24.0,
+                'illumination_angle': 40.0,
+                'phase_angle': 51.6,
+            }
+        ],
+    }
+    frame = new_sim_frame(size, size, oversample=4)
+    for name, stage in STAGES:
+        stage(frame, params=scene, rng=np.random.default_rng(0))
+        if name == 'downsample':
+            break
+    predicted = create_simulated_body(
+        (size, size),
+        center,
+        24.0,
+        axis2=24.0,
+        axis3=24.0,
+        illumination_angle=np.radians(40.0),
+        phase_angle=np.radians(51.6),
+        anti_aliasing=1.0,
+    )
+    np.testing.assert_allclose(frame.signal, predicted, rtol=0.0, atol=1e-12)
+
+
+# Surface settings that change nothing: a crater fill too small to place a crater on the
+# 40 px detector grid (0.01 x 454 px of disc / 9 px per crater rounds down to none), an
+# albedo texture with no noise field and no spots, banding of zero amplitude with no
+# storms, and a transit with neither a moon nor a shadow.
+_INERT_SURFACES: dict[str, dict[str, Any]] = {
+    'crater_fill': {'crater_fill': 0.01},
+    'albedo_texture': {'albedo_texture': AlbedoTextureSpec(rms=0.0)},
+    'disc_texture': {'disc_texture': DiscTextureSpec(band_amplitude=0.0)},
+    'transits': {'transits': (TransitSpec(),)},
+}
+
+
+@pytest.mark.parametrize('setting', sorted(_INERT_SURFACES))
+def test_inert_surface_setting_keeps_the_smooth_shading(setting: str) -> None:
+    """A surface setting that changes nothing renders exactly as the smooth body.
+
+    Parameters:
+        setting: The key into ``_INERT_SURFACES`` naming the inert setting.
+    """
+    smooth = TopoBodySpec(
+        axis1=96.0,
+        axis2=96.0,
+        axis3=96.0,
+        illumination_angle=0.7,
+        phase_angle=0.9,
+        oversample=4,
+    )
+    inert = dataclasses.replace(smooth, **_INERT_SURFACES[setting])
+    size = (160, 160)
+    center = (81.3, 78.9)
+    np.testing.assert_array_equal(
+        create_topographic_body(size, center, inert), create_topographic_body(size, center, smooth)
+    )
+
+
+# Surface settings next to the inert ones that do change the shading: a crater fill that
+# places one crater on the 40 px detector grid (0.03 x 454 / 9 rounds down to 1), an albedo
+# spot with no noise field, and a storm with no banding.
+_ACTIVE_SURFACES: dict[str, dict[str, Any]] = {
+    'crater_fill': {'crater_fill': 0.03},
+    'albedo_spot': {'albedo_texture': AlbedoTextureSpec(rms=0.0, spots=((0.0, 0.0, 20.0, 0.5),))},
+    'storm': {'disc_texture': DiscTextureSpec(band_amplitude=0.0, storms=((0.0, 0.0, 20.0, 0.5),))},
+}
+
+
+@pytest.mark.parametrize('setting', sorted(_ACTIVE_SURFACES))
+def test_active_surface_setting_changes_the_shading(setting: str) -> None:
+    """A surface setting that changes the shading is not dropped as inert.
+
+    Parameters:
+        setting: The key into ``_ACTIVE_SURFACES`` naming the active setting.
+    """
+    smooth = TopoBodySpec(
+        axis1=96.0,
+        axis2=96.0,
+        axis3=96.0,
+        illumination_angle=0.7,
+        phase_angle=0.9,
+        oversample=4,
+    )
+    active = dataclasses.replace(smooth, **_ACTIVE_SURFACES[setting])
+    size = (160, 160)
+    center = (81.3, 78.9)
+    assert not np.array_equal(
+        create_topographic_body(size, center, active), create_topographic_body(size, center, smooth)
+    )
 
 
 def test_oversample_inventory_is_detector_scale() -> None:
