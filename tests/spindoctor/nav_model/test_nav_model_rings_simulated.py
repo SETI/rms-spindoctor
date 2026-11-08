@@ -15,6 +15,7 @@ import pytest
 from spindoctor.feature.composition import compose_template_features
 from spindoctor.feature.geometry import RingEdgePolyline
 from spindoctor.nav_model.nav_model_rings_simulated import NavModelRingsSimulated
+from spindoctor.nav_model.sim_ring import predict_ring_feature
 from spindoctor.nav_orchestrator.nav_context import NavContext
 from spindoctor.obs.obs_inst_sim import ObsSim
 
@@ -334,3 +335,134 @@ def test_a_null_declared_sigma_counts_as_zero() -> None:
     edges = _eccentric_edges({'sigma_a_px': 2.0, 'sigma_long_peri_deg': None})
     omitted = _eccentric_edges({'sigma_a_px': 2.0})
     assert [g.sigma_orbit_radial_px for g in edges] == [g.sigma_orbit_radial_px for g in omitted]
+
+
+def _factory_outputs(ring_system: dict[str, Any]) -> list[Any]:
+    """The arrays a factory-built simulated ring model predicts for one ring system.
+
+    The ring system rides an observation's scene parameters, and the model comes
+    from ``NavModelRingsSimulated.instances_for_obs``, so the observation's
+    filtered idealized view sits between the scene and the model, as in navigation.
+
+    Parameters:
+        ring_system: The ``ring_system`` block, holding the centered ringlet of
+            ``_feature_params`` and a geometry block that may omit keys or set
+            them to null.
+
+    Returns:
+        Each ``RING_EDGE`` feature's vertices, then the ``RING_ANNULUS`` feature's
+        bounding box, template image, and template mask.
+    """
+    obs = ObsSim.from_file(
+        '/tmp/ring_sim.json',
+        sim_params={
+            'size_v': _SIZE,
+            'size_u': _SIZE,
+            'instrument': 'coiss_nac',
+            'ring_system': ring_system,
+        },
+    )
+    models = NavModelRingsSimulated.instances_for_obs(obs)
+    assert len(models) == 1
+    models[0].create_model()
+    features = models[0].to_features(cast(NavContext, None))
+    edges = [
+        cast(RingEdgePolyline, f.geometry).vertices_vu
+        for f in features
+        if f.feature_type.name == 'RING_EDGE'
+    ]
+    annuli = [f for f in features if f.feature_type.name == 'RING_ANNULUS']
+    assert len(edges) == 2
+    assert len(annuli) == 1
+    annulus = annuli[0]
+    return [
+        *edges,
+        np.asarray(annulus.geometry.bbox_extfov_vu),
+        annulus.template_img,
+        annulus.template_mask,
+    ]
+
+
+@pytest.mark.parametrize('key', ['center_v', 'center_u', 'opening_deg_obs', 'node_deg'])
+@pytest.mark.parametrize('form', ['null', 'omitted'])
+def test_an_unset_geometry_key_predicts_the_default_geometry(key: str, form: str) -> None:
+    """A geometry key set to null or omitted takes its default, as the validator reads it.
+
+    The fixture's geometry states every default explicitly (the frame's center,
+    a 90 deg opening, a 0 deg node), so an unset key must predict exactly the
+    fixture's edges and annulus template.
+
+    Parameters:
+        key: The geometry key left unset.
+        form: ``'null'`` to set the key to null, ``'omitted'`` to delete it.
+    """
+    unset = _ring_system()
+    if form == 'null':
+        unset['geometry'][key] = None
+    else:
+        del unset['geometry'][key]
+    for unset_array, explicit_array in zip(
+        _factory_outputs(unset), _factory_outputs(_ring_system()), strict=True
+    ):
+        np.testing.assert_array_equal(unset_array, explicit_array)
+
+
+_RING_GRID: dict[str, float] = {
+    'center_v': _SIZE / 2.0,
+    'center_u': _SIZE / 2.0,
+    'opening_deg_obs': 90.0,
+    'node_deg': 0.0,
+}
+
+
+def _predicted_radii(feature: dict[str, Any]) -> list[Any]:
+    """Each predicted edge's vertex radii from the ring center, for one feature.
+
+    Parameters:
+        feature: A ring_system feature mapping, predicted face-on at the center
+            of a ``_SIZE``-pixel grid.
+
+    Returns:
+        One array of vertex radii per predicted edge, in prediction order.
+    """
+    prediction = predict_ring_feature((_SIZE, _SIZE), feature, **_RING_GRID)
+    center = np.array([_RING_GRID['center_v'], _RING_GRID['center_u']])
+    return [np.hypot(*(edge.vertices_vu - center).T) for edge in prediction.edges]
+
+
+def test_a_ramp_with_a_null_side_predicts_its_default_outer_edge() -> None:
+    """A ramp's null side takes the ramp default, so its sharp end is its outer edge.
+
+    The ramp starts at 60 px and is 20 px wide, so its outer edge lies at 80 px.
+    The vertices are border pixels, so each sits within 1.5 px of that radius (a
+    diagonal step reaches about 1.1 px) and their median within 0.1 px of it.
+    """
+    ramp: dict[str, Any] = {
+        'kind': 'ramp',
+        'width_px': 20.0,
+        'side': None,
+        'orbit': {'a_px': 60.0, 'ae_px': 0.0, 'long_peri_deg': 0.0},
+    }
+    prediction = predict_ring_feature((_SIZE, _SIZE), ramp, **_RING_GRID)
+    assert [edge.edge_type for edge in prediction.edges] == ['outer']
+    (radii,) = _predicted_radii(ramp)
+    np.testing.assert_allclose(radii, 80.0, atol=1.5)
+    assert float(np.median(radii)) == pytest.approx(80.0, abs=0.1)
+
+
+@pytest.mark.parametrize('kind', ['ringlet', 'gap', 'ramp'])
+def test_a_null_width_predicts_the_same_edges_as_an_omitted_one(kind: str) -> None:
+    """A direct caller's null width reads as unset, the same as an omitted one.
+
+    Parameters:
+        kind: The banded feature kind predicted.
+    """
+    omitted: dict[str, Any] = {
+        'kind': kind,
+        'orbit': {'a_px': 60.0, 'ae_px': 0.0, 'long_peri_deg': 0.0},
+    }
+    null_radii = _predicted_radii({**omitted, 'width_px': None})
+    omitted_radii = _predicted_radii(omitted)
+    assert len(null_radii) == len(omitted_radii)
+    for null_edge, omitted_edge in zip(null_radii, omitted_radii, strict=True):
+        np.testing.assert_array_equal(null_edge, omitted_edge)

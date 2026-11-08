@@ -31,6 +31,7 @@ import os
 from pathlib import Path
 from typing import Any
 
+from tests.integration.checkout_guard import require_checkout_package
 from tests.integration.limb_bias import (
     LimbBiasSample,
     build_body_scene,
@@ -206,4 +207,5 @@ def main() -> None:
 
 
 if __name__ == '__main__':
+    require_checkout_package(__file__)
     main()

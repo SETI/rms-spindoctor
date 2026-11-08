@@ -78,6 +78,7 @@ from spindoctor.obs import (
 )
 from spindoctor.spice_ids import FROZEN_ATTITUDE_CK_IDS
 from spindoctor.support.types import NDArrayFloatType
+from tests.integration.checkout_guard import require_checkout_package
 from tests.integration.sidecar import LibraryRoot, Sidecar, load_sidecar
 
 # The three steps, named as the driver names them on the command line.
@@ -607,4 +608,5 @@ def main(argv: Sequence[str] | None = None) -> None:
 
 
 if __name__ == '__main__':
+    require_checkout_package(__file__)
     main()

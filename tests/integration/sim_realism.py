@@ -71,6 +71,7 @@ from spindoctor.sim.realism.divergence import (
 )
 from spindoctor.sim.realism.dynamic_range import stratify_by_exposure
 from spindoctor.support.types import NDArrayFloatType
+from tests.integration.checkout_guard import require_checkout_package
 from tests.integration.sidecar import LibraryRoot, Sidecar, load_sidecar
 from tests.integration.sim_realism_scenes import matched_scene
 from tests.integration.sim_realism_support import (
@@ -634,4 +635,5 @@ def main() -> None:
 
 
 if __name__ == '__main__':
+    require_checkout_package(__file__)
     main()

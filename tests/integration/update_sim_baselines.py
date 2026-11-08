@@ -18,6 +18,7 @@ import sys
 from pathlib import Path
 
 from spindoctor.sim.scene import iter_scene_paths, load_sim_scene
+from tests.integration.checkout_guard import require_checkout_package
 from tests.integration.sim_baseline import baseline_for_scene, sim_baseline_path
 
 _SCENES_ROOT = Path(__file__).parent / 'sim_scenes'
@@ -48,4 +49,5 @@ def main() -> int:
 
 
 if __name__ == '__main__':
+    require_checkout_package(__file__)
     raise SystemExit(main())

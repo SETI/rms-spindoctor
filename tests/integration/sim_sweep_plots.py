@@ -19,6 +19,7 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
 from spindoctor.sim.scene import load_sim_scene
+from tests.integration.checkout_guard import require_checkout_package
 
 _RESULTS_ROOT = Path(__file__).parent / 'sim_sweeps' / 'results'
 _SCENES_ROOT = Path(__file__).parent / 'sim_scenes'
@@ -298,5 +299,6 @@ def generate_plots() -> list[Path]:
 
 
 if __name__ == '__main__':
+    require_checkout_package(__file__)
     for path in generate_plots():
         print(f'wrote {path}')

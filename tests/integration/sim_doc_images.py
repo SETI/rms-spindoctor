@@ -30,6 +30,7 @@ import numpy as np
 
 from spindoctor.sim.png_export import render_scene_png
 from spindoctor.sim.scene import load_sim_scene, validate_sim_params
+from tests.integration.checkout_guard import require_checkout_package
 
 _DOCS = Path(__file__).parent.parent.parent / 'docs'
 _GUI_DIR = _DOCS / 'dev_guide' / '_sim_images'
@@ -680,4 +681,5 @@ def main() -> int:
 
 
 if __name__ == '__main__':
+    require_checkout_package(__file__)
     raise SystemExit(main())

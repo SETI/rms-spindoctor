@@ -33,6 +33,7 @@ from spindoctor.nav_model import build_models_for_obs
 from spindoctor.nav_orchestrator import NavOrchestrator
 from spindoctor.obs.obs_inst_sim import ObsSim
 from spindoctor.sim.scene import load_sim_scene
+from tests.integration.checkout_guard import require_checkout_package
 
 _SCENES = Path(__file__).parent / 'sim_scenes'
 _FIGURES_ROOT = Path(__file__).parent.parent.parent / 'docs' / 'simulator_report' / '_figures'
@@ -259,5 +260,6 @@ def generate() -> list[Path]:
 
 
 if __name__ == '__main__':
+    require_checkout_package(__file__)
     for fig_path in generate():
         print(f'wrote {fig_path}')
