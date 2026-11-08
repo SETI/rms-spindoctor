@@ -280,6 +280,22 @@ _REFUSED: list[tuple[dict[str, str], str, str]] = [
         'downlink-table-with-one-code',
     ),
     (
+        {'cam.yaml': 'base: coiss_nac\naliases: [x, null]\n'},
+        r'cam\.yaml: aliases\[1\]: a list item cannot be null',
+        'null-list-item',
+    ),
+    (
+        {
+            'cam.yaml': 'base: generic\nfilters:\n'
+            + '  throughput_e_per_s_per_if: {CLEAR: 1.0}\n'
+            + '  clear: CLEAR\n'
+            + '  polarizer_clear: {P0: null}\n'
+        },
+        r'cam\.yaml: filters\.polarizer_clear\.P0: null removes an inherited key, and the '
+        r'base has no such key',
+        'null-under-a-key-the-base-lacks',
+    ),
+    (
         {'cam.yaml': 'base: nothing\n'},
         r"cam\.yaml: base: 'nothing' is not an instrument in the catalog",
         'unknown-base',

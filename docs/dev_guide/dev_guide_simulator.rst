@@ -883,9 +883,13 @@ list, a number) replaces the base's. A key the file sets to null removes the key
 the base would pass on, so ``readout_modes: {4: null}`` drops one inherited
 readout mode and ``distortion_residual: null`` drops the inherited residual.
 The merged entry is then checked as a whole, so removing a required key fails.
-A null in a file without a ``base``, or a null for a key the base doesn't have,
-removes nothing and fails. ``aliases`` and ``realism_cohort`` belong to one file
-only: a base doesn't pass them on, and a null for either fails.
+A null in a file without a ``base``, or a null for a key the base doesn't have
+(also one nested under a mapping the base lacks, such as a polarizer in a
+``filters`` block the base doesn't state), removes nothing; the load fails with a
+message naming that key. A null list item fails too: a list replaces the base's
+whole list, so an item has nothing to remove. ``aliases`` and ``realism_cohort``
+belong to one file only: a base doesn't pass them on, and a null for either
+fails.
 
 :func:`~spindoctor.sim.instrument_catalog.load_instrument_catalog` reads every
 file once per directory (the result is cached) and checks it against the schema

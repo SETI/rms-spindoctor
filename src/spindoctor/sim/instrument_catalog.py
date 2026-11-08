@@ -173,8 +173,34 @@ def _deep_merge(
         elif isinstance(value, Mapping) and isinstance(existing, Mapping):
             merged[key] = _deep_merge(existing, value, source=source, path=key_path)
         else:
+            # The base has nothing under this key to merge with, so a null anywhere
+            # inside the file's mapping would remove nothing.
+            _refuse_nulls(value, source=source, path=key_path)
             merged[key] = copy.deepcopy(value)
     return merged
+
+
+def _refuse_nulls(value: Any, *, source: str, path: str) -> None:
+    """Refuse a null inside a mapping the base has no counterpart for.
+
+    Parameters:
+        value: A file's value under a key the base lacks (or holds as a non-mapping).
+        source: The file name, for error messages.
+        path: The dotted key path of ``value``, for error messages.
+
+    Raises:
+        InstrumentConfigError: If a mapping inside ``value`` sets a key to null,
+            naming that key's path.
+    """
+    if not isinstance(value, Mapping):
+        return
+    for key, item in value.items():
+        key_path = f'{path}.{key}'
+        if item is None:
+            raise InstrumentConfigError(
+                f'{source}: {key_path}: null removes an inherited key, and the base has no such key'
+            )
+        _refuse_nulls(item, source=source, path=key_path)
 
 
 def _resolve_inheritance(raw: Mapping[str, dict[str, Any]]) -> dict[str, dict[str, Any]]:

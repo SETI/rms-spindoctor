@@ -125,6 +125,10 @@ _KIND_NAMES: dict[str, str] = {
 
 # The message for a null that has nothing to remove.
 _NULL_WITHOUT_BASE = 'null removes an inherited key, and this file names no base'
+_NULL_IN_LIST = (
+    "a list item cannot be null: a list replaces the base's whole list, so an item has "
+    'nothing to remove'
+)
 
 
 class InstrumentConfigError(ValueError):
@@ -460,7 +464,7 @@ def check_node(
 
     Raises:
         InstrumentConfigError: On an unknown key, a missing required key, a null in
-            a file without a base, or a value of the wrong type or range.
+            a file without a base or in a list, or a value of the wrong type or range.
     """
     if value is None:
         if allow_null:
@@ -477,7 +481,10 @@ def check_node(
             raise config_error(source, path, f'expected a list, got {_describe(value)}')
         # A list replaces the base's whole list, so an item has nothing to remove.
         for index, item in enumerate(value):
-            check_node(node.item, item, source=source, path=f'{path}[{index}]', complete=complete)
+            item_path = f'{path}[{index}]'
+            if item is None:
+                raise config_error(source, item_path, _NULL_IN_LIST)
+            check_node(node.item, item, source=source, path=item_path, complete=complete)
         return
     if not isinstance(value, Mapping):
         raise config_error(source, path, f'expected a mapping, got {_describe(value)}')
