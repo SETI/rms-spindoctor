@@ -5,7 +5,8 @@ grid and downsamples back to the detector grid; a scene with no optics block
 renders at oversample 1.  These tests cover the oversample resolution, the
 determinism of the no-optics path, that the oversampled render preserves body
 flux and position after the downsample, that a smooth body on an oversampled or
-anti-aliased grid renders as the navigator predicts it, that a surface setting that
+anti-aliased grid renders as the navigator predicts it (on the render grid, and on the
+detector grid after the scene scaling and the downsample), that a surface setting that
 changes nothing leaves a body smooth, and that the classifying truth arrays come back
 describing the pixels the image put the body on.
 """
@@ -19,6 +20,7 @@ import pytest
 from spindoctor.nav_model.sim_body import create_simulated_body
 from spindoctor.sim.forward.body_texture import AlbedoTextureSpec, DiscTextureSpec, TransitSpec
 from spindoctor.sim.forward.body_topo import TopoBodySpec, create_topographic_body
+from spindoctor.sim.forward.pipeline import STAGES
 from spindoctor.sim.forward.stages import downsample_to_detector, new_sim_frame
 from spindoctor.sim.render import render_combined_model, resolve_oversample
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
@@ -161,6 +163,55 @@ def test_anti_aliased_smooth_body_matches_the_navigator_model() -> None:
         anti_aliasing=1.0,
     )
     np.testing.assert_allclose(rendered, predicted, rtol=0.0, atol=1e-12)
+
+
+def test_oversampled_smooth_body_matches_the_navigator_model_on_the_detector_grid() -> None:
+    """A smooth sphere rendered at oversample 4 and downsampled matches the navigator model.
+
+    The scene goes through the pipeline's own stages up to and including the downsample,
+    so the scaling of its center and axes onto the 4x grid and the box downsample back
+    to the detector grid both act on it.  The navigator's model is the detector-size
+    template at full anti-aliasing, which shades on the same 4x grid; a shift of a
+    thousandth of a pixel in either stage changes the image by about 2e-4.  The body's
+    center sits a whole number of detector pixels from the frame center, so the
+    renderer's translation from its reference center moves no light between pixels.
+    """
+    size = 40
+    center = (23.0, 17.0)
+    scene: dict[str, Any] = {
+        'size_v': size,
+        'size_u': size,
+        'random_seed': 3,
+        'oversample': 4,
+        'bodies': [
+            {
+                'name': 'B',
+                'center_v': center[0],
+                'center_u': center[1],
+                'axis1': 24.0,
+                'axis2': 24.0,
+                'axis3': 24.0,
+                'illumination_angle': 40.0,
+                'phase_angle': 51.6,
+            }
+        ],
+    }
+    frame = new_sim_frame(size, size, oversample=4)
+    for name, stage in STAGES:
+        stage(frame, params=scene, rng=np.random.default_rng(0))
+        if name == 'downsample':
+            break
+    predicted = create_simulated_body(
+        (size, size),
+        center,
+        24.0,
+        axis2=24.0,
+        axis3=24.0,
+        illumination_angle=np.radians(40.0),
+        phase_angle=np.radians(51.6),
+        anti_aliasing=1.0,
+    )
+    np.testing.assert_allclose(frame.signal, predicted, rtol=0.0, atol=1e-12)
 
 
 # Surface settings that change nothing: a crater fill too small to place a crater on the
