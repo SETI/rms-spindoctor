@@ -26,10 +26,11 @@ Pipeline support
   it will build. The Saturn bundle's labels identify Saturn, each satellite the
   configuration lists for it, and Saturn's main rings, whose PDS4 context
   product is ``Saturn Rings``; the shipped targets table has an entry for every
-  one. A data label states its image's ring geometry in the plane of Saturn's
-  equator. A Saturn image whose backplanes cover none of these is left out of
-  the bundle: a frame of stars alone, of a satellite the configuration does not
-  list, or of rings outside the main rings, such as the F ring.
+  one. A data label states no ring geometry: for the rings it gives only the
+  target, and the image's ring ranges are in the global rings index table. A
+  Saturn image whose backplanes cover none of these is left out of the bundle:
+  a frame of stars alone, of a satellite the configuration does not list, or of
+  rings outside the main rings, such as the F ring.
 * **Simulator** -- supported, under four instrument keys: raw and calibrated,
   each per camera.
 * **Statistics** -- supported, with a BOTSIM pair consistency section in the
