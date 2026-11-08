@@ -424,8 +424,10 @@ vidicon read noise (0.40 DN rms) takes a sky pixel below 0 only on a 1.5 DN
 excursion, about 7 pixels in 100,000, so the sky's first percentile stays
 positive.
 
-**Cosmic rays.** The vidicon's cosmic-ray stage works as on a CCD (see
-:ref:`sim-detector-stage`), but the catalog rate is a retained zero. The cohort
+**Cosmic rays.** The vidicon's cosmic-ray stage reads the rate as events per
+pixel per second of exposure, with no readout dwell, and each hit saturates the
+pixels it lands on, with no diffusion (see :ref:`sim-detector-stage`). The
+catalog rate is a retained zero. The cohort
 measures a 3.5e-5 transient fraction, mostly interpolated away by the
 reseau-anchored resampling, so it can't say how many hits the target took.
 

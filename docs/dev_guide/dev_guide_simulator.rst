@@ -802,10 +802,10 @@ line-correlated read-noise term (a per-line offset plus a within-line white
 component) and a faint vertical coherent periodic component -- then 8-bit
 quantization.
 
-Cosmic rays work on the vidicon with the CCD's meaning: the event count is a
+Cosmic rays work on the vidicon through the CCD's stage: the event count is a
 Poisson draw with mean ``cosmic_ray_events_per_pixel_per_sec`` x
-(``exposure_sec`` + ``cosmic_ray_readout_dwell_sec``) x pixel count, through
-the same stage, with every hit at the vidicon's full scale. A vidicon stores the
+``exposure_sec`` x pixel count, with no readout dwell, and every hit is at the
+vidicon's full scale with no diffusion. A vidicon stores the
 image as charge on its photoconductive target until the electron beam scans it,
 and a charged particle crossing the target discharges it the way light does. So
 the hits join the stored image: after the stars and the erase-cycle residual
@@ -3337,8 +3337,8 @@ against exactly this inventory, so an unknown noise key fails loudly.
        (``exposure_sec`` + ``cosmic_ray_readout_dwell_sec``) x pixel count.
        ``instrument_defaults`` supplies the catalog rate, which each camera's
        instrument page (:doc:`instruments/instruments`) gives. The CCD chain
-       deposits the hits in electrons and the vidicon chain in DN, with
-       the same meaning (see :ref:`sim-detector-stage`).
+       deposits the hits in electrons; the vidicon chain deposits full-scale
+       hits in DN and adds no readout dwell (see :ref:`sim-detector-stage`).
    * - ``cosmic_ray_readout_dwell_sec``
      - float
      - 0.0
