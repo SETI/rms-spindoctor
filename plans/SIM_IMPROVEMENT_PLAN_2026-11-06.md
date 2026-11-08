@@ -81,6 +81,7 @@ These make every later phase cheaper or safer. Most are small.
 | #876 | Per-instrument tables in one validated YAML file | Adding a camera or a readout mode becomes a configuration entry; Phase 4's instrument work depends on it. |
 | #912, #126 | Correlation FFTs at slow sizes; the disc correlation's rotation search runs 19 full pyramid evaluations | Make full-frame scenes affordable in the integration tier; #904 and #908 both need it. |
 | #854 | Simulated stars clip below the navigator's saturation level | Small; star brightness is wrong until it lands. |
+| #925 | The realism match compares mismatched content on content-filled and narrowband frames | Compare sky noise on comparable content and scale the matched star ladder by filter throughput, so the statistics the regression check holds to measure only the simulator. Then settle whether the TABLE path is too quiet. |
 | #903, regression part | The realism match cannot fail | Compare a fresh run with the committed summary within per-statistic bands, so later physics changes are caught when they make realism worse. The hold-out and transfer parts come in Phase 6. |
 
 **Exit:** changing the signal in one region of a frame leaves the noise elsewhere in that frame
