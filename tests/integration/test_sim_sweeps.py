@@ -650,6 +650,24 @@ def test_psf_wings_bias_stays_gentle() -> None:
         assert row.offset_error_px < _RECOVERY_TOLERANCE_PX, row.value
 
 
+def test_psf_wings_change_the_rendered_image() -> None:
+    """The largest wing weight renders a different frame from the zero-wing floor.
+
+    The two steps keep the sweep's scene and seed, with the noise switched off so that
+    only the kernel can tell them apart.  If the optics stage ignored the wing weight,
+    every step would render the floor's frame and the recovery checks above would pass
+    without testing any wing energy.
+    """
+    steps = build_sweep_params(load_sweep(_SWEEPS_ROOT / 'psf_limb_wings.yaml'))
+    frames = []
+    for _, sim_params in (steps[0], steps[-1]):
+        quiet = copy.deepcopy(sim_params)
+        quiet['noise'] = {'poisson': False, 'read_noise_dn': 0.0}
+        img, _ = render_combined_model(quiet)
+        frames.append(np.asarray(img, dtype=np.float64))
+    assert not np.array_equal(frames[0], frames[1])
+
+
 def test_photometric_mismatch_floor_recovers() -> None:
     """Minnaert k=1 is Lambert, so the floor recovers the planted offset."""
     rows = _rows('photometric_minnaert_mismatch')
