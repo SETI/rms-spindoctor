@@ -403,8 +403,8 @@ Simulator model
 ``src/spindoctor/sim/instrument_configs/`` that holds the values below:
 ``coiss_nac`` and ``coiss_wac`` resolve to the ``cassini_iss`` block's two
 detectors, and ``coiss_calib_nac`` and ``coiss_calib_wac`` to the
-``cassini_iss_calib`` block's. Each calibrated file names its raw camera's as
-its ``base`` and states only the calibrated product's own detector terms, so a
+``cassini_iss_calib`` block's. Each calibrated file sets its raw camera as its
+``base`` and states only the calibrated product's own detector terms, so a
 calibrated scene gets the same artifact defaults as its raw counterpart.
 
 **Units.** A ``coiss_calib_*`` frame is in I/F with a ``0`` missing-data marker,
@@ -412,9 +412,10 @@ as the CALIB products are: across 24 CALIB images from four volumes no pixel is
 ``NaN``, and exact zeros appear only on the lines the index reports missing. A
 lost pixel reads 0, and the dark sky sits on the 4.0e-5 I/F calibrated sky
 residual, the median sky of 13 dark NAC CALIB frames, so it reads as dark and
-never as missing (see :ref:`Instruments <sim-instruments>`). The simulator also
-uses that value, the generic entry's, for an instrument a scene pins to
-calibrated I/F when the instrument's config file doesn't set a sky residual.
+never as missing (see :ref:`Instruments <sim-instruments>`). The generic entry
+carries the same value, so the simulator also uses it when a scene pins an
+instrument to calibrated I/F and the instrument's config file sets no sky
+residual.
 Those real frames' sky scatters around 0 with a sigma of 1.9e-4 I/F, and under
 ``instrument_defaults`` about 28% of the pixels of a disc scene a third of the
 frame across sit below 0, down to about -0.0006, as on the real frames. The
@@ -431,7 +432,7 @@ NAC the two lift the calibrated sky noise at gain state 2 from the raw frame's
 
 **Downlink table.** The two cameras share the 12-to-8-bit downlink table the
 ``sqrt_lut`` quantization decodes through (see :ref:`sim-detector-stage`). Each
-raw file names it, ``table_12_to_8``, as its default, and the calibrated files
+raw file sets it, ``table_12_to_8``, as its default, and the calibrated files
 inherit it. It was measured from the 26 TABLE frames of the CALIB cohort. The
 calibrated DN-equivalent step between consecutive raw codes is an integer that
 grows by one about every ten codes: 3 DN near code 10, 5 near 25, 8 near 55, 13

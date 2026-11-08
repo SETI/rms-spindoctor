@@ -386,18 +386,19 @@ per-camera keys and locked frames for each exist.
 **Artifact-mode availability.** The config file's ``artifact_modes.offered``
 lists its modes, and the simulator guide's mode tables
 (:ref:`sim-telemetry-modes` and :ref:`sim-detector-modes`) give each mode's
-cameras. Its detector model is ``vidicon``, so the modes that act in the CCD chain
-alone are unavailable to it. The file states the reason for ``fixed_pattern``: the
-vidicon DN chain has no fixed-pattern stage, so a scene naming the mode fails
-validation with that reason. ``reseau_scars`` (the reseau-removal patches left
-by archive processing) and ``resample_texture`` (the geometric resample the
-pipeline's own input has been through) are telemetry-stage modes applied after
-the structured-loss modes, because they emulate archive processing rather than
-a detector or transmission defect.
+cameras. Its detector model is ``vidicon``, so the modes that act in the CCD
+chain alone are unavailable to it. The file states the reason for
+``fixed_pattern``: the vidicon DN chain has no fixed-pattern stage, so if a
+scene asks for the mode, validation fails with that reason. ``reseau_scars``
+(the reseau-removal patches left by archive processing) and
+``resample_texture`` (the geometric resample the pipeline's own input has been
+through) are telemetry-stage modes applied after the structured-loss modes,
+because they emulate archive processing rather than a detector or transmission
+defect.
 
 The file's shape defaults give ``edited_frame`` a 440-pixel band, one of the
 commanded edited-mode band widths (608, 440, 272, 160, and 80 of the 800-pixel
-line), so a bare ``probability`` keeps a physical centered band, and give
+line), so a bare ``probability`` keeps a physical centered band. They give
 ``reseau_scars`` 202 marks on a 46-pixel lattice, the camera's reseau grid.
 ``native_frame_size_px`` is 1000, the GEOMED product's size, which the realism
 match uses to tell a full frame from a subframe.

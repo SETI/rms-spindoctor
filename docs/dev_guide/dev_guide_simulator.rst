@@ -531,8 +531,9 @@ consulted, and two renders of the same scene are bit-identical on one machine.
 the detector model and PSF (:mod:`spindoctor.sim.instruments`). The recognized
 names are the config files' stems, ``coiss_nac``, ``coiss_wac``,
 ``coiss_calib_nac``, ``coiss_calib_wac``, ``gossi``, ``nhlorri``, and ``vgiss``,
-plus ``generic`` (alias ``sim``) for the instrument-agnostic defaults. A scene can pin or override individual instrument settings with
-``instrument_config`` (see :ref:`sim-instrument-config`).
+plus ``generic`` (alias ``sim``) for the instrument-agnostic defaults. A scene
+can pin or override individual instrument settings with ``instrument_config``
+(see :ref:`sim-instrument-config`).
 
 Each instrument renders into one of two unit classes, set by its block's
 ``data_units``. Every shipped block marks a lost pixel with ``0``
@@ -569,11 +570,12 @@ above it, as the calibration inverse does.
 The inverse subtracts the bias and dark pedestals, which would put a noise-free
 dark sky at exactly 0 I/F, the marker. A real calibrated product's dark sky keeps
 a residual level, so the inverse then adds the instrument's calibrated sky
-residual to every pixel: ``calibrated_sky_if`` in its config file's ``detector``
-block, or the generic entry's value where the file sets none, as for any
-instrument a scene pins to ``calibrated_if``
+residual to every pixel
 (:func:`~spindoctor.sim.forward.artifacts_catalog.resolve_calibrated_sky_if`).
-The generic value is the Cassini CALIB cameras' value. Each camera's value, and
+The value is ``calibrated_sky_if`` in the config file's ``detector`` block. If
+the file sets none, as when a scene pins a raw camera to ``calibrated_if``, the
+generic entry's value applies. The generic value is the Cassini CALIB cameras'
+value. Each camera's value, and
 the real sky measurements behind it, are on its instrument page: the Voyager
 page for ``vgiss`` and the Cassini page for the CALIB cameras.
 
@@ -758,28 +760,30 @@ sub-mode: ``quantization_sqrt_lut``, ``quantization_ls8b``, and
 ``probability``, and on a frame where it fires it replaces the ``quantization``
 key's sub-mode and is recorded as active in that frame's truth.
 
-The ``sqrt_lut`` sub-mode decodes through one of the downlink tables the camera's
-config file lists under ``downlink_tables`` (see :ref:`sim-instrument-files`):
-the table a scene's ``detector.downlink_table`` names, else the file's default
-table. A parametric table sends ``codes`` codes (256 for an 8-bit code word), and
-code ``c`` decodes to ``linear_dn * c + quadratic_dn * c**2`` DN, rounded to whole
-DN when ``whole_dn`` is set. A tabulated table lists the DN each code decodes to,
-in code order, under ``decoded_dn``, so a curve of any shape takes a config entry
+The ``sqrt_lut`` sub-mode decodes through one of the tables listed under
+``downlink_tables`` in the camera's config file (see
+:ref:`sim-instrument-files`): the one the scene selects with
+``detector.downlink_table``, or else the file's default. A parametric table
+sends ``codes`` codes (256 for an 8-bit code word), and code ``c`` decodes to
+``linear_dn * c + quadratic_dn * c**2`` DN, rounded to whole DN when
+``whole_dn`` is set. A tabulated table lists the DN each code decodes to, in
+code order, under ``decoded_dn``, so a curve of any shape takes a config entry
 and no code; the load requires at least two distinct values, none of them
-negative. When a frame is companded through a listed table, the detector resolver
-refuses a table whose largest decoded value lies above the ADC ceiling,
+negative. When a frame is companded through a listed table, the detector
+resolver refuses a table whose largest decoded value lies above the ADC ceiling,
 ``saturation_dn``, because the quantizer would then write DN the ADC can't
-produce. A camera that lists no table gets the plain square-root curve over 256
-codes, whose top code decodes to ``saturation_dn``: ``linear_dn`` 0,
-``quadratic_dn`` ``saturation_dn / 255**2``, and fractional DN kept.
+produce. If a camera's file lists no table, the camera gets the plain
+square-root curve over 256 codes, whose top code decodes to ``saturation_dn``:
+``linear_dn`` 0, ``quadratic_dn`` ``saturation_dn / 255**2``, and fractional DN
+kept.
 
 A scene may set ``detector.downlink_table`` only when something would decode
-through the table: the resolved quantization (the scene's
+through the table: the scene quantizes with ``sqrt_lut`` (its own
 ``detector.quantization``, else the camera's default for the selected readout
-mode) is ``sqrt_lut``, the scene names the ``quantization_sqrt_lut`` artifact
-mode at any probability, or ``instrument_defaults`` turns that mode on for the
-camera. Validation refuses the key in any other scene, because the render would
-ignore it.
+mode), the scene includes the ``quantization_sqrt_lut`` artifact mode at any
+probability, or ``instrument_defaults`` turns that mode on for the camera.
+Validation refuses the key in any other scene, because the render would ignore
+it.
 
 The Cassini cameras' table and its measurement are on the Cassini page
 (:doc:`instruments/cassini_iss`).
@@ -867,58 +871,61 @@ Each instrument's config file is the single home for those per-instrument
 values (see :ref:`sim-instrument-files`): the PSF kernel, the residual
 distortion, the full electron-chain, gain-table, read-noise, and vidicon
 numbers, and the per-mode shape defaults -- banding amplitudes and periods,
-frame-transfer scrub/transfer times, fixed-pattern components, and the rest. A
-scene that names an artifact mode with only its activation key inherits these
-shapes (``resolve_mode_with_catalog`` resolves scene value over catalog default
-over registry default). The activation keys themselves are never cataloged, so
-naming an instrument never plants a defect on its own; the one exception is a
-mode the config file names under ``artifact_modes.instrument_defaults``, which
-``instrument_defaults`` turns on (LORRI's frame-transfer smear). Every value is
-provenance-tagged in a YAML comment beside it, and most are interim -- sized
-from published FWHMs, gain tables, and documented residual-error bounds, pending
-the per-instrument measurement passes -- so the wing parameters and noise
-amplitudes are the first quantities the realism-match pass revisits. Each
-calibrated Cassini instrument's file names its raw camera's as its ``base``, and
-``generic`` (alias ``sim``) is an instrument-agnostic ideal 12-bit detector whose
-electron well equals its DN depth at unit gain.
+frame-transfer scrub/transfer times, fixed-pattern components, and the rest. If
+a scene sets only an artifact mode's activation key, the mode inherits these
+shapes: ``resolve_mode_with_catalog`` takes the scene's value first, then the
+catalog default, then the registry default. The activation keys themselves are
+never cataloged, so choosing an instrument never plants a defect on its own.
+There is one exception: if the config file lists a mode under
+``artifact_modes.instrument_defaults``, ``instrument_defaults`` turns that mode
+on, as it does LORRI's frame-transfer smear. Every value carries its provenance
+in a YAML comment beside it. Most are interim, sized from published FWHMs, gain
+tables, and documented residual-error bounds until the per-instrument
+measurement passes replace them, so the wing parameters and noise amplitudes
+are the first quantities the realism-match pass revisits. Each calibrated
+Cassini instrument's file sets its raw camera as its ``base``. ``generic``
+(alias ``sim``) is an instrument-agnostic ideal 12-bit detector whose electron
+well equals its DN depth at unit gain.
 
 .. _sim-instrument-files:
 
 Instrument config files
 -----------------------
 
-Every simulated camera is one YAML file in ``src/spindoctor/sim/instrument_configs/``,
-and the file's stem is the name a scene's ``instrument`` writes. ``generic.yaml``
-is the instrument-agnostic entry, which a scene that names no camera, or names
-``generic`` or ``sim``, renders through. The directory sits outside
-``config_files/``, so the navigator's :class:`~spindoctor.config.config.Config`
-never loads a simulator value: what the navigator knows about a camera stays in
-its own ``config_4N0`` block, which the sim file points at.
+Every simulated camera is one YAML file in
+``src/spindoctor/sim/instrument_configs/``, and a scene selects it by writing
+the file's stem in ``instrument``. ``generic.yaml`` is the instrument-agnostic
+entry: a scene renders through it when it doesn't set ``instrument`` or sets it
+to ``generic`` or ``sim``. The directory sits outside ``config_files/``, so the
+navigator's :class:`~spindoctor.config.config.Config` never loads a simulator
+value: what the navigator knows about a camera stays in its own ``config_4N0``
+block, which the sim file points at.
 
-A file that names a ``base`` inherits that instrument's entry: the base's entry
+A file that sets a ``base`` inherits that instrument's entry: the base's entry
 is merged under the file's own keys, mappings key by key, and any other value (a
-list, a number) replaces the base's. A key the file sets to null removes the key
-the base would pass on, so ``readout_modes: {4: null}`` drops one inherited
-readout mode and ``distortion_residual: null`` drops the inherited residual.
+list, a number) replaces the base's. Setting a key to null removes the key the
+base would otherwise pass on, so ``readout_modes: {4: null}`` drops one
+inherited readout mode and ``distortion_residual: null`` drops the inherited
+residual.
 The merged entry is then checked as a whole, so removing a required key fails.
-A null in a file without a ``base``, or a null for a key the base doesn't have
-(also one nested under a mapping the base lacks, such as a polarizer in a
-``filters`` block the base doesn't state), removes nothing; the load fails with a
-message naming that key. A null list item fails too: a list replaces the base's
-whole list, so an item has nothing to remove. ``aliases`` and ``realism_cohort``
-belong to one file only: a base doesn't pass them on, and a null for either
-fails.
+A null removes nothing in a file without a ``base``, or for a key the base
+doesn't have, including a key nested under a mapping the base lacks, such as a
+polarizer in a ``filters`` block the base doesn't state. Instead the load fails
+with a message that gives the key. A null list item fails too: a list replaces
+the base's whole list, so an item has nothing to remove. ``aliases`` and
+``realism_cohort`` belong to one file only: a base doesn't pass them on, and a
+null for either fails.
 
 :func:`~spindoctor.sim.instrument_catalog.load_instrument_catalog` reads every
 file once per directory (the result is cached) and checks it against the schema
 in :mod:`spindoctor.sim.instrument_schema` and the cross-checks in
-:mod:`spindoctor.sim.instrument_checks`. Every failure names the file and the
-key path. The directory may hold only ``.yaml`` files: a ``.yml`` file, or any
-other entry, fails the load rather than being skipped, and so does a file that
-isn't valid YAML or writes a key twice. Within a file, the load fails on:
+:mod:`spindoctor.sim.instrument_checks`. Every failure message gives the file
+and the key path. The directory may hold only ``.yaml`` files: a ``.yml`` file,
+or any other entry, fails the load rather than being skipped, and so does a file
+that isn't valid YAML or writes a key twice. Within a file, the load fails on:
 
-* an unknown key, a missing required key, or a value of the wrong type (a number
-  written so YAML reads it as a string, such as ``.5e3``, included);
+* an unknown key, a missing required key, or a value of the wrong type,
+  including a number that YAML reads as a string, such as ``.5e3``;
 * a number that isn't finite (``.nan``, ``.inf``) or is out of its range: gains,
   the full well, the reference exposure, the plate scale, the star zero point,
   the PSF radii, periods, filter throughputs, and the native frame size must be
@@ -928,14 +935,14 @@ isn't valid YAML or writes a key twice. Within a file, the load fails on:
   integers and binnings positive ones; a shape default's value must lie in its
   parameter's range, as a scene's must;
 * a ``base`` that doesn't exist or that loops back on itself, an alias that is
-  already a name, or a real cohort camera two files claim (the message names
-  both);
-* anything the file names but doesn't define: a default gain state missing from
-  its gain table, a clear filter or polarizer element missing from the filter
-  table, a default downlink table the file doesn't list, or an artifact mode
-  with shape defaults or ``instrument_defaults`` that the file doesn't offer;
-  and, in ``generic.yaml``, a missing ``detector.calibrated_sky_if``, the value
-  every entry without its own falls back on;
+  already an instrument's name, or a real cohort camera that two files both
+  claim (the message lists both files);
+* anything the file refers to but doesn't define: a default gain state missing
+  from its gain table, a clear filter or polarizer element missing from the
+  filter table, a default downlink table the file doesn't list, or shape
+  defaults or an ``instrument_defaults`` entry for a mode the file doesn't
+  offer; and a ``generic.yaml`` without ``detector.calibrated_sky_if``, since
+  every entry that doesn't set its own falls back on that value;
 * a combination the renderer can't honor: a ``vidicon`` block on a CCD, a
   filter table on a vidicon (a filter sets the CCD signal scale), a readout mode
   that changes ``detector_model`` or the ``vidicon`` block, a binned readout on
@@ -943,40 +950,42 @@ isn't valid YAML or writes a key twice. Within a file, the load fails on:
   divide the native frame size, a readout mode whose gain table adds or drops a
   state, a star zero point in the wrong unit for the detector model, a downlink
   table that mixes the parametric and tabulated forms, sends fewer than 2 codes,
-  or decodes (after rounding to whole DN, for a parametric table that asks for
-  it) to fewer than 2 distinct values or to a negative one, or an
+  or decodes to fewer than 2 distinct values or to a negative one (a parametric
+  table with ``whole_dn`` set counts its values after rounding), or an
   ``instrument_defaults`` mode that isn't a detector-stage mode;
 * a setting that would do nothing: an activation key (``probability``,
   ``expected_events``, and the others) or ``count`` in ``shape_defaults``, which
   never turns a mode on; a shape default for ``hot_pixels``, whose shape comes
   from the ``detector`` block's hot-pixel terms; an ``instrument_defaults`` entry
-  without a positive activation key; an artifact mode offered, given shape
-  defaults, or turned on whose detector stage the file's detector model doesn't
-  have (see the detector-stage modes below); an unavailability reason for a mode
-  the file offers; a filter or polarizer spelled other than canonically; and a
-  filter table key holding a polarizer, which a scene's filter folds onto its
-  wheel's clear element before lookup.
+  without a positive activation key; a mode the file offers, gives shape
+  defaults, or turns on although its detector model has no stage for the mode
+  (see the detector-stage modes below); an unavailability reason for a mode the
+  file offers; a filter or polarizer spelled other than canonically; and a
+  filter table key that contains a polarizer, which no scene can select because
+  a scene's filter folds each polarizer onto its wheel's clear element before
+  lookup.
 
 Three rules shape what a file may state. **Canonical filter spelling:** a scene's
 ``detector.filter`` is read element by element, stripped of spaces and
 upper-cased, so the filter table's keys and the polarizer names must already be
 in that form (``CL1+GRN``, ``P120``); the load fails on ``Red`` with a message
-naming ``RED``. **Contiguous gain states:** the gain states are integers that run
-without a gap from the lowest one (``{2: 28.0}`` and ``{0: ..., 1: ..., 2: ...,
-3: ...}`` are both contiguous), which is what lets the scene editor's gain-state
-control span the lowest state to the highest and offer only cataloged ones. A
-readout mode that restates the gain table keeps the same states. **Downlink
-tables:** a file lists its tables under ``downlink_tables.tables``, each named
-and in one of two forms, and names one as ``downlink_tables.default``; a scene
-selects another with ``detector.downlink_table``, which validation checks against
-the file's list and refuses in a scene that never quantizes with ``sqrt_lut``
-(see the quantization sub-modes above).
+that says to write ``RED``. **Contiguous gain states:** the gain states are
+integers that run without a gap from the lowest one. Both ``{2: 28.0}`` and
+``{0: ..., 1: ..., 2: ..., 3: ...}`` are contiguous. This lets the scene
+editor's gain-state control run from the lowest state to the highest and offer
+only cataloged ones. A readout mode that restates the gain table keeps the same
+states. **Downlink tables:** a file lists its tables under
+``downlink_tables.tables``, each named and in one of two forms, and sets one as
+``downlink_tables.default``. A scene can select another with
+``detector.downlink_table``; validation checks it against the file's list and
+refuses it in a scene that never quantizes with ``sqrt_lut`` (see the
+quantization sub-modes above).
 
 The loader takes a ``config_dir`` keyword so a test can load a directory of its
 own.
 
 The rest of the simulator reads the catalog only through resolver functions,
-which raise :class:`ValueError` on a name no file defines:
+which raise :class:`ValueError` for an instrument name that no file defines:
 :mod:`spindoctor.sim.forward.artifacts_catalog` (detector defaults, readout
 modes, native frame size, star zero point, plate scale, PSF kernel, distortion
 residual, detector identity, calibrated sky, downlink tables, and artifact-mode
@@ -988,13 +997,13 @@ and the realism match's cohort map all come from the catalog.
 
 Unit tests tie the catalog to the navigator's packaged configuration without the
 simulator reading it at load. Every entry's ``navigator`` section and detector
-must name a block that exists (an inherited ``detector`` under a changed
-``section`` fails there). Every navigator block whose ``data_units`` is
-``raw_dn``, the blocks whose star limit reads a DN zero point, must state
-``star_flux_dn_per_s_vmag0`` (without it the navigator would take the generic
-block's value), and that value must match the file's star zero point, converted
-to DN through the default gain state for a CCD, within half the place value of
-the navigator value's last significant digit. The navigator states its own
+must point at a block that exists, so an inherited ``detector`` fails there if
+the file changes ``section``. A navigator block whose ``data_units`` is
+``raw_dn`` reads a DN zero point for its star limit, so it must state
+``star_flux_dn_per_s_vmag0``; without it the navigator would take the generic
+block's value. That value must match the file's star zero point, converted to
+DN through the default gain state for a CCD, within half the place value of the
+navigator value's last significant digit. The navigator states its own
 value, so a simulator retune does not move what the navigator knows; the test
 fails when the two drift apart by more than the navigator value's rounding.
 
@@ -1010,26 +1019,26 @@ The keys, all at the top level of the file:
    * - ``base``
      - no
      - Another instrument whose entry is merged under this file's keys (see
-       above). A calibrated product names its raw camera, so its file states
-       only what calibration changes.
+       above). A calibrated product's file sets its raw camera here, so it
+       states only what calibration changes.
    * - ``aliases``
      - no
      - Other names a scene may write for this instrument (``generic`` lists
-       ``sim``). Not passed on to a file that names this one as its ``base``.
+       ``sim``). Not passed on to a file that sets this one as its ``base``.
    * - ``navigator``
      - yes
      - ``section`` (and ``detector`` for a block with one entry per camera):
-       the navigator config block the simulated frame reads its units, marker,
-       noise, PSF sigma, and thresholds from.
+       the navigator config block from which the simulated frame reads its
+       units, marker, noise, PSF sigma, and thresholds.
    * - ``detector_id``
      - no
      - The physical detector, which keys the fixed hot-pixel map and the
        calibration column pattern; defaults to the instrument's own name. A
-       calibrated product names its raw camera.
+       calibrated product's file sets it to its raw camera.
    * - ``detector``
      - yes
-     - The detector chain ``instrument_defaults`` turns on. Every entry states
-       ``detector_model`` (``ccd`` or ``vidicon``), ``exposure_ref_sec``,
+     - The detector chain that ``instrument_defaults`` turns on. Every entry
+       states ``detector_model`` (``ccd`` or ``vidicon``), ``exposure_ref_sec``,
        ``bias_dn``, ``quantization``, and ``cosmic_ray_events_per_pixel_per_sec``.
        A ``ccd`` entry also states the electron chain (``full_well_e``,
        ``gain_e_per_dn_by_state``, ``default_gain_state``, ``read_noise_e``,
@@ -1041,11 +1050,11 @@ The keys, all at the top level of the file:
        ``calibration_column_residual_e``, and ``calibration_pixel_residual_e``.
    * - ``readout_modes``
      - yes
-     - The binning factors the camera reads out at, each mapped to the
-       ``detector`` keys its published characterization changes (an empty map
-       keeps every 1x1 value). Binning 1 is required. A mode may not change
-       ``detector_model`` or the ``vidicon`` block, and a vidicon has binning 1
-       only.
+     - The binning factors at which the camera reads out. Each maps to the
+       ``detector`` keys that its published characterization changes, and an
+       empty map keeps every 1x1 value. Binning 1 is required. A mode may not
+       change ``detector_model`` or the ``vidicon`` block, and a vidicon has
+       binning 1 only.
    * - ``native_frame_size_px``
      - no
      - The full unbinned frame's size on a side, from which the realism match
@@ -1063,28 +1072,29 @@ The keys, all at the top level of the file:
      - yes
      - ``truncation_px``, the kernel window, and optionally ``kernel``
        (``sigma_v``, ``sigma_u``, ``w``, ``r0``, ``n`` in native pixels), the
-       kernel ``instrument_defaults`` applies. Without a kernel the frame renders
-       unblurred unless the scene states ``optics.psf``.
+       kernel that ``instrument_defaults`` applies. Without a kernel the frame
+       renders unblurred unless the scene states ``optics.psf``.
    * - ``distortion_residual``
      - no
      - ``k1``, ``k2``, and ``nonradial_rms_px``: the distortion left after the
        navigator's own distortion model, which ``instrument_defaults`` applies.
    * - ``downlink_tables``
      - no
-     - ``tables``, each downlink table by name, and ``default``, the table a
-       frame quantized by ``sqrt_lut`` decodes through unless the scene's
-       ``detector.downlink_table`` names another. A parametric table states
-       ``codes``, ``linear_dn``, ``quadratic_dn``, and ``whole_dn``; a tabulated
-       one states ``decoded_dn``, each code's decoded DN in code order.
+     - ``tables``, the downlink tables by name, and ``default``, the table that
+       a frame quantized by ``sqrt_lut`` decodes through unless the scene
+       selects another with ``detector.downlink_table``. A parametric table
+       states ``codes``, ``linear_dn``, ``quadratic_dn``, and ``whole_dn``; a
+       tabulated one states ``decoded_dn``, each code's decoded DN in code
+       order.
    * - ``artifact_modes``
      - yes
      - ``offered`` (a list of mode names, or ``all``), and optionally
-       ``unavailable_reasons`` (the message a scene naming a mode the camera
-       doesn't offer gets), ``shape_defaults`` (each offered mode's shape
-       parameter defaults, never its activation key), and
-       ``instrument_defaults`` (each detector-stage mode ``instrument_defaults``
-       turns on, with the scene map it gets, a positive activation key
-       included).
+       ``unavailable_reasons`` (the message validation gives a scene that asks
+       for a mode the camera doesn't offer), ``shape_defaults`` (each offered
+       mode's shape parameter defaults, never its activation key), and
+       ``instrument_defaults`` (the detector-stage modes that
+       ``instrument_defaults`` turns on, each with the scene map it gets,
+       including a positive activation key).
    * - ``filters``
      - no
      - ``throughput_e_per_s_per_if`` (electrons per second per native pixel at
@@ -1095,7 +1105,7 @@ The keys, all at the top level of the file:
      - no
      - The image library's ``{mission, camera}`` pairs whose frames the realism
        match compares against this instrument. Not passed on to a file that
-       names this one as its ``base``.
+       sets this one as its ``base``.
 
 Write a number so YAML reads it as one: ``1.0e+7`` and ``1.0e7`` are numbers,
 but ``.5e3`` is a string, which the loader refuses.
@@ -1106,14 +1116,15 @@ block under ``navigator``, state every required key with the value's provenance
 as a comment beside it, list the artifact modes the camera offers, and state the
 camera's own value for each offered mode whose shape is a camera attribute (a
 band width, a block height, a header length); a mode without one takes the
-registry's generic fallback. Nothing in the code names an instrument, so the
+registry's generic fallback. No code refers to an instrument by name, so the
 scene validator, the renderer, and the scene editor's instrument list pick the
-file up as it is, and so does the realism match for a camera whose frames the
-match renders at the camera's own settings. If the camera's real frames carry
-commanded settings the matched scene must copy (a filter, a gain state, a
-downlink table), the realism match needs a reader of the real label, which goes
-in a mission-named module, ``tests/integration/sim_realism_frames_<mission>.py``,
-that registers its reader for the sidecar's mission when imported.
+file up as it is. The realism match picks it up too, as long as the match
+renders the camera's frames at the camera's own settings. If the matched scene
+must copy commanded settings from the camera's real frames (a filter, a gain
+state, a downlink table), the realism match needs a reader of the real label.
+That reader goes in a mission-named module,
+``tests/integration/sim_realism_frames_<mission>.py``, which registers it for
+the sidecar's mission when imported.
 
 .. _sim-artifact-framework:
 
@@ -1128,20 +1139,21 @@ one at a time. The modes are registered once in
 is their single source of truth. Each :class:`~spindoctor.sim.forward.artifact_modes.ArtifactMode`
 fixes the mode's name, its rendering stage (``telemetry`` or ``detector``), the
 :class:`~spindoctor.sim.forward.artifact_modes.ModeParam` schema of its
-parameters, and its activation key with that key's meaning for the mode. Which
-instruments offer a mode is each instrument config file's ``artifact_modes``
-list (see :ref:`sim-instrument-files`). Every consumer reads that description rather than carrying its
-own copy: the scene validator (:func:`spindoctor.sim.scene_checks_artifacts._check_artifacts`),
-the telemetry and detector stages, and the scene-editor GUI all iterate the
-registry, so registering a mode is the whole job of adding one editor row, one
-validation entry, and one dispatch slot.
+parameters, and its activation key with that key's meaning for the mode. Each
+instrument config file's ``artifact_modes`` list says which modes that
+instrument offers (see :ref:`sim-instrument-files`). Every consumer reads that
+description rather than carrying its own copy: the scene validator
+(:func:`spindoctor.sim.scene_checks_artifacts._check_artifacts`), the telemetry
+and detector stages, and the scene-editor GUI all iterate the registry, so
+registering a mode is the whole job of adding one editor row, one validation
+entry, and one dispatch slot.
 
 The block's two non-mode keys are switches: ``instrument_defaults`` (the
 physical-chain opt-in above) and ``adversarial`` (placement, below). Every other
-key must be a registered mode name; an unknown key, an unimplemented mode, or a
-mode named on an instrument that doesn't offer it fails validation with the
-reason the instrument's config file states, or a list of the instruments that
-offer it.
+key must be a registered mode name, and an unknown key or an unimplemented mode
+fails validation. If a scene sets a mode on an instrument that doesn't offer it,
+validation fails with the reason the instrument's config file states or, when
+the file states none, with a list of the instruments that offer it.
 
 .. _sim-artifact-activation-keys:
 
@@ -1314,12 +1326,12 @@ registry entry lists as
 ``frame_transfer_smear``, ``serial_tail``, and ``fixed_pattern`` act in the CCD
 electron chain alone; ``beam_bend`` and ``residual_image`` act in the vidicon DN
 chain alone; the rest act in both. A config file may not offer, give shape
-defaults to, or turn on a mode its detector model never renders. Scene
-validation refuses a scene that names one under the detector model it renders
-with (its own ``detector.detector_model``, else its camera's default in the
-scene's readout mode), and refuses ``instrument_defaults`` in a scene whose
-detector model never renders a mode the camera's ``instrument_defaults`` turns
-on.
+defaults to, or turn on a mode its detector model never renders. If a scene
+asks for a mode that its detector model never renders, scene validation refuses
+it. The scene's detector model is its own ``detector.detector_model``, else its
+camera's default in the scene's readout mode. Validation also refuses
+``instrument_defaults`` in a scene if the camera's ``instrument_defaults`` turns
+on a mode that the scene's detector model never renders.
 
 .. list-table::
    :header-rows: 1
@@ -3556,26 +3568,25 @@ for the instrument), ``binning`` (the readout mode, below), ``detector_model``
 (``ccd`` electron chain or ``vidicon`` DN chain), ``exposure_ref_sec`` (the
 exposure the signal full-scale fraction references), ``filter`` (below),
 ``quantization`` (the ADC sub-mode: ``exact``, ``8bit``, ``uneven_12bit``,
-``sqrt_lut``, ``ls8b``, or ``contour_8bit``), and ``downlink_table`` (the
-downlink table, by name, that the ``sqrt_lut`` sub-mode decodes through; it must
-be one the instrument's config file lists, in a scene that quantizes with
-``sqrt_lut``). Omitted keys, and keys set to null,
-fall back to the instrument's catalog defaults.
+``sqrt_lut``, ``ls8b``, or ``contour_8bit``), and ``downlink_table`` (the name
+of the downlink table that the ``sqrt_lut`` sub-mode decodes through; see
+:ref:`sim-detector-stage` for when a scene may set it). Omitted keys, and keys
+set to null, fall back to the instrument's catalog defaults.
 
 ``filter`` names the filter combination the frame was shot through, written as
 the product label writes it (``CL1+CL2``). It sets how many electrons per second
 a native pixel collects from a surface at I/F 1.0, so the raw DN, a calibrated
-product's DN-to-I/F scale, and the star brightness all follow the filter. The
-catalog (read by :mod:`spindoctor.sim.forward.filter_catalog`) covers the Cassini NAC
-and WAC and their calibrated products, in those instruments' config files. Its
-values come from Cassini raw/CALIB
-pairs: the CISSCAL efficiency and absolute-correction factors in each CALIB
-label, times a camera constant fitted on 12-bit pairs, with measured values for
-the combinations that 12-bit pairs cover. The clear throughputs are
-1.45 million e-/s per I/F for the NAC and 13.5 million for the WAC. A polarizer
-reads as the clear element of its wheel, as CISSCAL treats it. Naming a filter
-on a camera without a table, or one the table doesn't list, is a validation
-error, and so is setting ``filter`` together with ``exposure_ref_sec``.
+product's DN-to-I/F scale, and the star brightness all follow the filter. Only
+the Cassini NAC and WAC and their calibrated products have filter tables, in
+their config files, which :mod:`spindoctor.sim.forward.filter_catalog` reads.
+The values come from Cassini raw/CALIB pairs: the CISSCAL efficiency and
+absolute-correction factors in each CALIB label, times a camera constant fitted
+on 12-bit pairs, with measured values for the combinations that 12-bit pairs
+cover. The clear throughputs are 1.45 million e-/s per I/F for the NAC and 13.5
+million for the WAC. A polarizer reads as the clear element of its wheel, as
+CISSCAL treats it. Setting a filter on a camera without a table, or one the
+table doesn't list, is a validation error, and so is setting ``filter``
+together with ``exposure_ref_sec``.
 
 A scene that doesn't name a filter keeps the nominal scale its catalog entry
 derives. For the NAC that is 55,000 e-/s per I/F, close to its IR3 and HAL
@@ -3638,20 +3649,22 @@ The optional ``artifacts`` dict (truth-side) carries the physical-chain opt-in
 switch ``instrument_defaults`` (see :ref:`sim-artifacts-catalog`), the
 ``adversarial`` placement flag, and one map per **artifact mode**. With
 ``instrument_defaults`` on, the emulated camera's catalog PSF, distortion
-residual, and detector noise chain render at their per-instrument values; the
-artifact modes' activation keys stay at zero (naming an instrument selects a
-signal chain, not a set of defects), except the modes the instrument's config
-file names under ``artifact_modes.instrument_defaults``: LORRI's names
-``frame_transfer_smear`` -- its defining artifact -- which renders at the
-file's nominal scrub/transfer times. Leaving ``instrument_defaults`` off keeps those keys
-absent (the self-consistency floor).
+residual, and detector noise chain render at their per-instrument values. The
+artifact modes' activation keys stay at zero, because choosing an instrument
+selects a signal chain and plants no defects. There is one exception: if the
+instrument's config file lists a mode under
+``artifact_modes.instrument_defaults``, that mode turns on. LORRI's file lists
+``frame_transfer_smear``, its defining artifact, which renders at the file's
+nominal scrub and transfer times. Leaving ``instrument_defaults``
+off keeps those keys absent (the self-consistency floor).
 
 The artifact modes are registered once in
 :mod:`spindoctor.sim.forward.artifact_modes` -- the single source of truth for
 each mode's rendering stage (``detector`` or ``telemetry``) and parameter
-schema; which instruments offer it comes from their config files. Every mode carries one activation key (see
-:ref:`sim-artifact-activation-keys`): ``expected_events`` for a count mode (the
-expected number of events per frame, drawn Poisson), ``expected_events_per_sec``
+schema; the instrument config files say which instruments offer it. Every mode
+carries one activation key (see :ref:`sim-artifact-activation-keys`):
+``expected_events`` for a count mode (the expected number of events per frame,
+drawn Poisson), ``expected_events_per_sec``
 for a rate mode, ``bright_dark_pairs`` or ``radiation_transients`` (the expected
 number of events per second, drawn Poisson),
 ``probability`` for a commanded or periodic mode (the per-frame probability the
@@ -3704,12 +3717,13 @@ smear, the quantization modes) are unaffected by the flag -- their shape does no
 depend on where the features are.
 
 Per-instrument shape defaults for every mode live in each instrument config
-file's ``artifact_modes.shape_defaults`` (see :ref:`sim-instrument-files`); a scene inherits them by naming a mode with
-only its activation key, and overrides any parameter it spells out. The realized
-geometry each mode records is read back by
-:mod:`spindoctor.sim.forward.artifact_counts` for the planted-versus-measured
-match; the conceptual overview, the full mode tables, and the ``artifact_sweep`` scene
-class are in :ref:`sim-artifact-framework`.
+file's ``artifact_modes.shape_defaults`` (see :ref:`sim-instrument-files`). If
+a scene sets only a mode's activation key, the mode takes these defaults, and
+any parameter the scene spells out overrides its default.
+:mod:`spindoctor.sim.forward.artifact_counts` reads back the geometry each mode
+records for the planted-versus-measured match. The conceptual overview, the full
+mode tables, and the ``artifact_sweep`` scene class are in
+:ref:`sim-artifact-framework`.
 
 .. _sim-instrument-config:
 

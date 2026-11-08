@@ -162,11 +162,11 @@ each one is available on, and the key each one takes.
 
 Some defects arise in one kind of detector only. Hot pixels, column bloom, and
 radiation hits, among others, are CCD defects, and the limb bend and the prior-frame
-ghost are vidicon defects. A scene that names a defect its detector can't produce is
-refused when it is loaded, and so is a scene whose ``instrument_defaults`` would turn on
-a defect of its camera that the scene's chosen ``detector_model`` can't produce. In the
-editor, the entry for a defect that the scene's camera doesn't offer, or that its
-detector can't produce, is disabled, and its tooltip says why.
+ghost are vidicon defects. If a scene asks for a defect its detector can't produce, the
+scene is refused when it is loaded. It is also refused if ``instrument_defaults`` would
+turn on one of its camera's defects that the scene's chosen ``detector_model`` can't
+produce. In the editor, if the scene's camera doesn't offer a defect or its detector
+can't produce it, the defect's entry is disabled, and its tooltip says why.
 
 Rings in a scene
 ================

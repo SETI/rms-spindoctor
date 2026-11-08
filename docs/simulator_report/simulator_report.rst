@@ -262,8 +262,8 @@ Artifact-rate defaults and provenance
 The per-instrument artifact-rate defaults the forward model applies live
 in the ``detector`` block of each instrument's config file under
 ``sim/instrument_configs/``, resolved by ``resolve_detector_defaults``.  A
-calibrated Cassini file states only what calibration changes and inherits every
-other value from the raw camera's file it names as its ``base``, so its
+calibrated Cassini file states only what calibration changes and sets its raw
+camera as its ``base``, inheriting every other value from that file, so its
 cosmic-ray terms, and their provenance, are in ``coiss_nac.yaml`` and
 ``coiss_wac.yaml``.  The two rates the realism match keys on are the stationary
 hot-pixel fraction and the transient cosmic-ray rate; the table records each
