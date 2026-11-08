@@ -1507,17 +1507,24 @@ rest of the shading, so a shadow's edge is as soft as the shading grid.
 Split-resolution performance
 ----------------------------
 
-Disc shading is low-frequency by construction, so the topographic path
-computes the shading field (surface normals, relief shading, cast shadows, crater
-texture, and photometric law) once at **detector resolution** and bilinearly
-upsamples it, while only the sharp content, the relief-perturbed silhouette
-mask, is rasterized at the full oversampled working grid. This replaces the
+Disc shading is low-frequency by construction, so for a body with relief,
+craters, a surface texture, or transits the topographic path computes the
+shading field (surface normals, relief shading, cast shadows, crater texture,
+and photometric law) once at **detector resolution** and bilinearly upsamples
+it, while only the sharp content, the relief-perturbed silhouette mask, is
+rasterized at the full oversampled working grid. This replaces the
 per-subsample shading that made an oversampled body ~16x more expensive than
 its detector-grid equivalent. It is what lets a body-bearing scene meet the
-render budget below, and it makes the topographic path the *fast* path at
-oversample > 1 even for a plain Lambert body. The budget harness
-(``tests/integration/test_sim_perf.py``) holds a large-lit-body-with-relief
-frame to its measured budget for exactly this reason.
+render budget below. The budget harness (``tests/integration/test_sim_perf.py``)
+holds a large-lit-body-with-relief frame to its measured budget for exactly
+this reason.
+
+A smooth body, one that has none of those four, is shaded on the oversampled
+working grid, exactly as the navigator's predicted body is, so the two agree
+pixel for pixel when no mismatch is planted. Upsampling a smooth disc's shading
+would move its light about 0.007 px away from the Sun, which the disc
+correlation reads as a steady error of about 0.015 px. A body with relief,
+craters, a surface texture, or transits still carries that shift.
 
 Photometric laws
 ----------------

@@ -604,8 +604,9 @@ def render_single_body(
         ref_center_u: Reference center U for body shape caching.
         oversample: The render grid's oversampling factor.  The body's
             pixel-space parameters must already be scaled to this grid; the
-            factor selects the topographic renderer's split-resolution path,
-            which shades at the detector grid.
+            factor selects the topographic renderer, which shades a body with
+            relief, craters, a surface texture, or transits at the detector
+            grid and a smooth body on the oversampled grid.
 
     Returns:
         Tuple of (body_mask, body_info_dict) where body_info_dict contains
@@ -705,8 +706,8 @@ def render_single_body(
     # The classic smooth-Lambert path stays byte-for-byte for the scenes it
     # has always rendered; anything more (relief, a non-Lambert law, a surge,
     # surface texture / transits, or an oversampled grid, where the
-    # split-resolution shading is also the render-time fast path) goes to the
-    # topographic renderer.
+    # split-resolution shading is also the render-time fast path for a body with
+    # relief, craters, or texture) goes to the topographic renderer.
     use_topo = (
         oversample > 1
         or limb_relief_rms > 0.0

@@ -137,13 +137,14 @@ def test_calibrated_exposure_sweep_fails_between_1_ms_and_0_3_ms() -> None:
         assert by_exposure[exposure].status == 'failed', exposure
 
 
-# The calibrated disc's steady sub-pixel bias, and the bump it carries at offsets
-# of 0.31-0.38 px.  Each bound sits well above the measured value (0.017 px and
-# 0.19 px) and well below the recovery tolerance, so a larger error flags the
-# report's calibrated-versus-raw comparison for review.
-_CALIB_DISC_STEADY_BIAS_PX = 0.05
+# The calibrated disc's steady sub-pixel error, and the bump it carries at offsets
+# of 0.31-0.45 px.  The steady bound sits above the measured 0.0062 px, the raw
+# twin's own level; the bump bound sits above the measured 0.19 px and well below
+# the recovery tolerance.  The bump is the correlation's sub-pixel refinement
+# window, which spans half a pixel either side of the integer peak (#929).
+_CALIB_DISC_STEADY_BIAS_PX = 0.008
 _CALIB_DISC_BUMP_PX = 0.3
-_CALIB_DISC_BUMP_OFFSETS = (0.31, 0.382)
+_CALIB_DISC_BUMP_OFFSETS = (0.31, 0.382, 0.45)
 
 
 def test_calibrated_disc_offset_sweep_recovers_every_offset() -> None:
@@ -157,7 +158,7 @@ def test_calibrated_disc_offset_sweep_recovers_every_offset() -> None:
 
 
 def test_calibrated_disc_offset_sweep_holds_its_bias() -> None:
-    """Outside the 0.31-0.38 px bump the error stays a few hundredths of a pixel."""
+    """Outside the 0.31-0.45 px bump the error stays below a hundredth of a pixel."""
     for row in _rows('disc_offset_fine_calib'):
         assert row.offset_error_px is not None
         bound = (
@@ -635,24 +636,31 @@ def test_psf_wings_floor_recovers() -> None:
     assert rows[0].offset_error_px < _RECOVERY_TOLERANCE_PX
 
 
+# How far above the zero-wing floor the limb error may rise at any wing energy.
+# Measured, every wing step sits below the floor: 0.04-0.06 px against 0.105 px.
+_PSF_WING_RISE_PX = 0.03
+
+
 def test_psf_wings_bias_stays_gentle() -> None:
-    """Unmodeled Moffat wing energy biases the limb gently, without a cliff.
+    """Unmodeled Moffat wing energy leaves the limb error at or below its floor.
 
     Unlike the core-sigma axis (whose blur washes the limb gradient out to
     outright failure), moving up to 60% of the kernel energy into the
     isotropic wing leaves the core sharp: every step still recovers within
-    tolerance, and the error at the largest wing sits above the floor
-    (measured ~0.08 px -> ~0.14 px).  The axis pins that measured shape --
-    wing mismatch alone does not break the DT limb fit.
+    tolerance, and no step's error rises more than ``_PSF_WING_RISE_PX`` above
+    the zero-wing floor.  Wing mismatch alone neither breaks nor measurably
+    biases the DT limb fit.
     """
     rows = _rows('psf_limb_wings')
     for row in rows:
         assert row.status == 'success'
         assert row.offset_error_px is not None
         assert row.offset_error_px < _RECOVERY_TOLERANCE_PX
-    assert rows[-1].offset_error_px is not None
-    assert rows[0].offset_error_px is not None
-    assert rows[-1].offset_error_px > rows[0].offset_error_px
+    floor = rows[0].offset_error_px
+    assert floor is not None
+    for row in rows[1:]:
+        assert row.offset_error_px is not None
+        assert row.offset_error_px < floor + _PSF_WING_RISE_PX, row.value
 
 
 def test_photometric_mismatch_floor_recovers() -> None:

@@ -10,14 +10,18 @@ smooth Lambert body at oversample 1 keeps the classic path byte-for-byte.
 
 **Split-resolution rendering.**  Disc shading is low-frequency by
 construction -- relief moves the silhouette and the terminator, never the
-disc shading -- so the shading field (surface normals, crater texture,
-photometric law) is computed once at detector resolution and bilinearly
-upsampled, while the sharp content is rasterized at the full working grid:
-the silhouette mask (with the relief-perturbed limb) and the terminator
-shadow march.  This replaces the per-subsample shading that made an
-oversampled body render ~16x more expensive than its detector-grid
+disc shading -- so on an oversampled grid the shading field of a body with
+relief, craters, a surface texture, or transits (surface normals, crater
+texture, photometric law) is computed once at detector resolution and
+bilinearly upsampled, while the sharp content is rasterized at the full
+working grid: the silhouette mask (with the relief-perturbed limb) and the
+terminator shadow march.  This replaces the per-subsample shading that made
+an oversampled body render ~16x more expensive than its detector-grid
 equivalent, and is what lets a body-bearing scene meet the render-time
-budget (see ``tests/integration/test_sim_perf.py``).
+budget (see ``tests/integration/test_sim_perf.py``).  A smooth body (none of
+those four) shades on the working grid instead, exactly as the navigator's
+predicted body does, because the bilinear upsample would move its light a
+few thousandths of a pixel away from the sun.
 
 **Relief application.**  The renderer's normalized ellipse radial function
 ``e(p)`` (1 exactly at the unperturbed limb) becomes
@@ -97,8 +101,10 @@ class TopoBodySpec:
             silhouette exactly as the classic path does (an oversampled
             scene already resolves the limb on its own grid).
         crater_seed: Seed for crater placement (None with no craters).
-        oversample: The incoming grid's oversampling factor; shading is
-            computed at the detector grid ``size / oversample``.
+        oversample: The incoming grid's oversampling factor.  A body with
+            relief, craters, a surface texture, or transits is shaded at the
+            detector grid ``size / oversample``; a smooth body is shaded on the
+            incoming grid.
         limb_relief_rms: Commanded limb-slice relief RMS (h/R; 0 = off).
         limb_relief_corr_deg: Relief correlation length, degrees of arc.
         relief_seed: Seed of the relief-field realization.
@@ -322,22 +328,7 @@ def render_topographic_body(
     # scene already resolves the limb, so its work grid IS the render grid.
     aa_scale = int(1 + 3 * spec.anti_aliasing) if (os_in == 1 and spec.anti_aliasing > 0) else 1
     work_dims = (size_v * aa_scale, size_u * aa_scale)
-    shade_dims = (size_v // os_in, size_u // os_in)
-    up_factor = os_in * aa_scale
 
-    cos_rz = float(np.cos(spec.rotation_z))
-    sin_rz = float(np.sin(spec.rotation_z))
-    cos_rt = float(np.cos(spec.rotation_tilt))
-    semi = (spec.axis1 / 2.0, spec.axis2 / 2.0, spec.axis3 / 2.0)
-
-    shade_grid = _body_grid(
-        shade_dims,
-        (center[0] / os_in, center[1] / os_in),
-        (semi[0] / os_in, semi[1] / os_in, semi[2] / os_in),
-        cos_rz=cos_rz,
-        sin_rz=sin_rz,
-        cos_rt=cos_rt,
-    )
     field: ReliefField | None = None
     if spec.limb_relief_rms > 0.0:
         field = synthesize_relief_field(
@@ -346,7 +337,24 @@ def render_topographic_body(
         if field.h_max <= field.h_min:
             field = None
 
-    intensity_shade = _shade_disc(shade_grid, spec, field, cos_rz=cos_rz, sin_rz=sin_rz)
+    # A smooth body on an oversampled grid shades on the working grid, as the
+    # navigator's model of it does.  Shading it at the detector grid and upsampling
+    # bilinearly moves its light about 0.007 px away from the sun (#916).  Relief,
+    # craters, textures, and transits still shade at the detector grid (#931).
+    smooth = (
+        field is None
+        and spec.crater_fill <= 0.0
+        and spec.albedo_texture is None
+        and spec.disc_texture is None
+        and not spec.transits
+    )
+    shade_os = 1 if smooth else os_in
+    up_factor = shade_os * aa_scale
+
+    cos_rz = float(np.cos(spec.rotation_z))
+    sin_rz = float(np.sin(spec.rotation_z))
+    cos_rt = float(np.cos(spec.rotation_tilt))
+    semi = (spec.axis1 / 2.0, spec.axis2 / 2.0, spec.axis3 / 2.0)
 
     work_grid = _body_grid(
         work_dims,
@@ -356,6 +364,19 @@ def render_topographic_body(
         sin_rz=sin_rz,
         cos_rt=cos_rt,
     )
+    if up_factor == 1:
+        shade_grid = work_grid
+    else:
+        shade_grid = _body_grid(
+            (size_v // shade_os, size_u // shade_os),
+            (center[0] / shade_os, center[1] / shade_os),
+            (semi[0] / shade_os, semi[1] / shade_os, semi[2] / shade_os),
+            cos_rz=cos_rz,
+            sin_rz=sin_rz,
+            cos_rt=cos_rt,
+        )
+
+    intensity_shade = _shade_disc(shade_grid, spec, field, cos_rz=cos_rz, sin_rz=sin_rz)
 
     mask = _silhouette_mask(work_grid, field)
     intensity_work = _bilinear_upsample(intensity_shade, up_factor)

@@ -1759,21 +1759,37 @@ peaks near 41,000 e-.
      - Calibrated result
      - Raw twin
    * - Read noise 1-64 DN (``noise_read_noise_calib``)
-     - every step recovers, error 0.016 px
+     - every step recovers; error at most 0.008 px
      - fails at 64 DN; error at most 0.008 px below it
    * - Exposure 0.1 s to 30 us (``noise_exposure_calib``)
      - recovers to 1 ms (about 400 e- at the disc's peak), fails from 0.3 ms
      - none
    * - Disc offset, 23 sub-pixel steps (``disc_offset_fine_calib``)
-     - every step recovers; a steady 0.013-0.017 px bias, rising to 0.19 px
-       at offsets of 0.31-0.38 px
-     - every step recovers; at most 0.008 px, 0.05 px at 0.45 px
+     - every step recovers; at most 0.006 px, except 0.19, 0.12, and 0.05 px
+       at offsets of 0.31, 0.382, and 0.45 px
+     - every step recovers; at most 0.008 px, except 0.05 px at 0.45 px
 
 The two discs carry comparable charge (about 1,400 DN at the calibrated
 disc's peak, 1,800 DN at the raw one's), so the raw sweep's cliff at 64 DN
-comes from more than the read noise. The calibrated disc's steady bias and its
-larger sub-pixel bump come from the full instrument chain, which the raw base
-leaves off; their source within the chain is not yet attributed.
+comes from more than the read noise.
+
+Away from the three offsets the calibrated disc recovers as closely as the raw
+one. Both renders shade the disc on the grid they render it on, as the
+navigator's model does. The calibrated scene renders on a grid four times finer
+than the detector's, because its instrument has a point-spread function.
+Shading that disc at detector resolution and interpolating it onto the finer
+grid would move its light about 0.007 px away from the Sun, and the disc
+correlation would carry that shift as a steady error of about 0.015 px at
+every offset.
+
+The errors at 0.31, 0.382, and 0.45 px come from the disc correlation. It first
+finds the correlation peak to a whole pixel, then refines the offset only
+within half a pixel either side of that pixel. On a resolved sphere the whole
+pixel it picks is not always the nearest one. The calibrated disc's
+point-spread function moves the switch to the next whole pixel to between 0.25
+and 0.31 px. At all three offsets the refinement then stops at the window's
+edge and reports exactly 0.5 px. The raw disc, without that point-spread
+function, reaches the edge only at 0.45 px.
 
 Summary
 =======
