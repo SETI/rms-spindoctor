@@ -409,6 +409,45 @@ def test_a_scene_naming_an_alias_selects_the_camera_it_names(model: Any) -> None
     assert model._instrument_combo.currentText() == 'generic'
 
 
+@pytest.fixture
+def mode_gain_camera(qapp: QApplication, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Any:
+    """An editor over a catalog whose fictional camera's 2x2 mode defaults to gain state 2.
+
+    The camera's native default gain state is 1.
+    """
+    text = FICTIONAL_CAMERA.replace(
+        '2: {read_noise_e: 4.0}', '2: {read_noise_e: 4.0, default_gain_state: 2}'
+    )
+    assert text != FICTIONAL_CAMERA
+    directory = catalog_dir_with(tmp_path, {f'{FICTIONAL_CAMERA_NAME}.yaml': text})
+    monkeypatch.setattr(instrument_catalog, 'INSTRUMENT_CONFIG_DIR', directory)
+    return CreateSimulatedImageModel()
+
+
+def test_a_loaded_binned_scene_shows_its_modes_default_gain(mode_gain_camera: Any) -> None:
+    """A scene that sets a binning but no gain state shows that readout mode's default."""
+    mode_gain_camera._apply_params_dict(
+        {'instrument': FICTIONAL_CAMERA_NAME, 'detector': {'binning': 2}}
+    )
+    assert mode_gain_camera._detector_gain_state_spin.value() == 2
+
+
+def test_choosing_a_binning_shows_its_modes_default_gain(mode_gain_camera: Any) -> None:
+    """Choosing a binning refreshes an unedited gain state to that readout mode's default."""
+    mode_gain_camera._instrument_combo.setCurrentText(FICTIONAL_CAMERA_NAME)
+    mode_gain_camera._detector_group.setChecked(True)
+    mode_gain_camera._detector_binning_combo.setCurrentText('2')
+    assert mode_gain_camera._detector_gain_state_spin.value() == 2
+
+
+def test_choosing_a_binning_writes_only_the_binning(mode_gain_camera: Any) -> None:
+    """Refreshing the displayed defaults after a binning choice writes no other key."""
+    mode_gain_camera._instrument_combo.setCurrentText(FICTIONAL_CAMERA_NAME)
+    mode_gain_camera._detector_group.setChecked(True)
+    mode_gain_camera._detector_binning_combo.setCurrentText('2')
+    assert mode_gain_camera.sim_params['detector'] == {'binning': 2}
+
+
 def test_reenabling_the_detector_group_shows_the_catalog_defaults(model: Any) -> None:
     """Turning the group off and on again resets each widget to what the renderer reads."""
     model._instrument_combo.setCurrentText('coiss_nac')

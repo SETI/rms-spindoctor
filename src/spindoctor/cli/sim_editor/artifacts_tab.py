@@ -40,7 +40,11 @@ from PyQt6.QtWidgets import (
 from spindoctor.cli.sim_editor.artifact_mode_rows import ModeRow
 from spindoctor.cli.sim_editor.base import SimEditorBase
 from spindoctor.sim.forward.artifact_modes import ARTIFACT_MODES
-from spindoctor.sim.forward.artifacts_catalog import cataloged_binnings, resolve_detector_defaults
+from spindoctor.sim.forward.artifacts_catalog import (
+    cataloged_binnings,
+    resolve_detector_defaults,
+    resolve_readout_mode,
+)
 from spindoctor.sim.instrument_schema import DETECTOR_MODELS, QUANTIZATION_MODES
 
 # The rendering stages the mode rows are grouped under, in tab order.
@@ -210,9 +214,28 @@ class ArtifactsTabMixin(SimEditorBase):
 
     # ---- Detector override group ----
 
-    def _detector_catalog(self) -> dict[str, Any]:
-        """The selected instrument's detector catalog defaults."""
-        return resolve_detector_defaults(self.sim_params.get('instrument'))
+    def _detector_catalog(self, binning: int) -> dict[str, Any]:
+        """The selected instrument's detector defaults in one readout mode.
+
+        The readout mode's values replace the native ones it names, as the
+        detector resolver merges them, so a mode with its own default gain state
+        or quantization shows that.
+
+        Parameters:
+            binning: The scene's readout-mode binning.
+        """
+        instrument = self.sim_params.get('instrument')
+        return {
+            **resolve_detector_defaults(instrument),
+            **resolve_readout_mode(instrument, binning),
+        }
+
+    def _detector_block(self) -> dict[str, Any]:
+        """The scene's detector keys that carry a value; a null reads as absent."""
+        detector = self.sim_params.get('detector')
+        if not isinstance(detector, dict):
+            return {}
+        return {key: value for key, value in detector.items() if value is not None}
 
     def _build_detector_group(self) -> QGroupBox:
         """Build the detector-override group (per-key discipline)."""
@@ -280,18 +303,24 @@ class ArtifactsTabMixin(SimEditorBase):
         key the operator never edits stays absent and keeps tracking the
         catalog.
         """
-        detector = self.sim_params.get('detector')
-        # A key set to null reads as absent, as the renderer reads it.
-        block = (
-            {key: value for key, value in detector.items() if value is not None}
-            if isinstance(detector, dict)
-            else {}
-        )
-        catalog = self._detector_catalog()
+        binning = int(self._detector_block().get('binning', 1))
+        self._set_binning_choices(binning)
+        self._show_readout_mode_values(binning)
+
+    def _show_readout_mode_values(self, binning: int) -> None:
+        """Show each detector key other than the binning, under one readout mode.
+
+        A key the scene sets shows the scene's value; any other key shows the
+        instrument's default in that readout mode.  Only display state.
+
+        Parameters:
+            binning: The readout-mode binning the defaults come from.
+        """
+        block = self._detector_block()
+        catalog = self._detector_catalog(binning)
         gain_state = int(block.get('gain_state', catalog.get('default_gain_state', 0)))
         self._set_gain_state_range(catalog, gain_state)
         self._detector_gain_state_spin.setValue(gain_state)
-        self._set_binning_choices(int(block.get('binning', 1)))
         model = str(block.get('detector_model', catalog.get('detector_model', 'ccd')))
         model_index = self._detector_model_combo.findText(model)
         if model_index >= 0:
@@ -380,9 +409,19 @@ class ArtifactsTabMixin(SimEditorBase):
         self._set_detector_key('gain_state', int(value))
 
     def _on_detector_binning(self, text: str) -> None:
-        """Write the readout-mode binning on a selection."""
-        if text:
-            self._set_detector_key('binning', int(text))
+        """Write the readout-mode binning on a selection, then show that mode's defaults.
+
+        Refreshing every other key's display keeps an unedited gain state or
+        quantization showing what the scene renders with in the new mode.
+        """
+        if not text or self._syncing:
+            return
+        self._set_detector_key('binning', int(text))
+        self._syncing = True
+        try:
+            self._show_readout_mode_values(int(self._detector_block().get('binning', 1)))
+        finally:
+            self._syncing = False
 
     def _on_detector_exposure_ref(self, value: float) -> None:
         """Write the reference exposure on a spin edit."""
