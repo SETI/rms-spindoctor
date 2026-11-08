@@ -123,7 +123,7 @@ reading, rounded to four decimal places; the exact value is the top-level ``offs
 
 ``sigma_px`` is the uncertainty of that offset, in pixels, one value per axis.
 ``confidence`` is a number between 0 and 1 saying how much the evidence in the frame
-supports the answer, and 0.86 is a strong one. ``techniques_used`` names the measurements
+supports the answer, and 0.86 is a strong one. ``techniques_used`` lists the measurements
 that contributed to it, here a fit to a body's illuminated limb and a correlation against
 the star field.
 

@@ -578,7 +578,7 @@ environment, from the repository root:
 
    python util/fov_distortion/run.py util/fov_distortion/configs/coiss_nac.yaml --report-figures
 
-Each cohort YAML in ``util/fov_distortion/configs/`` names one instrument and
-camera's star frames. The driver writes a per-frame CSV, a JSON summary, and the
-figures embedded above; ``--report-figures`` writes the figures into this
-chapter's ``_figures`` directory.
+Each cohort YAML in ``util/fov_distortion/configs/`` lists the star frames of one
+instrument and camera. The driver writes a per-frame CSV, a JSON summary, and the
+figures embedded above; ``--report-figures`` writes the figures into this chapter's
+``_figures`` directory.
