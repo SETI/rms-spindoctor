@@ -13,13 +13,13 @@ no change to the validator or the block schema.
 **Availability.**  Which instruments offer a mode is not part of the registry:
 each simulated instrument's config file lists the modes it offers (see
 :mod:`spindoctor.sim.instrument_catalog`), and may state why it does not offer
-one.  A scene that names a mode its instrument does not offer fails validation
-with that reason, or with a message listing the instruments that offer it.  The
+one.  If a scene sets a mode that its instrument does not offer, validation fails
+with that reason, or with a message that lists the instruments that offer it.  The
 instrument-agnostic generic entry offers every mode, which keeps unit scenes free
 to exercise any shape.
 
-**Activation.**  Every mode carries exactly one activation key, and which one
-names the quantity it holds, so a scene line reads the same way on every mode:
+**Activation.**  Every mode carries exactly one activation key, and the key's name
+says what quantity it holds, so a scene line reads the same way on every mode:
 
 * ``expected_events`` (count modes: lost lines, lost blocks, spiked pixels,
   dead pixels and columns): the expected number of events per frame, drawn

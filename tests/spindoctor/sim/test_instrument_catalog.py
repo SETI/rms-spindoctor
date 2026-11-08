@@ -2,8 +2,9 @@
 
 Each violation the loader refuses is one case, with the file and key path in its
 message.  A camera added only as a file in a copy of the packaged directory
-validates, resolves, and renders.  The packaged catalog names navigator blocks
-that exist, and each navigator star zero point agrees with the simulator's.
+validates, resolves, and renders.  The packaged catalog's entries point at
+navigator blocks that exist, and each navigator star zero point agrees with the
+simulator's.
 """
 
 from collections.abc import Mapping
@@ -155,7 +156,7 @@ _REFUSED: list[tuple[dict[str, str], str, str]] = [
     (
         {'cam.yaml': _with('read_noise_e: 3.0', 'read_noise_e: null')},
         r'cam\.yaml: detector\.read_noise_e: null removes an inherited key, and this file '
-        r'names no base',
+        r'sets no base',
         'null-without-a-base',
     ),
     (
@@ -231,7 +232,7 @@ _REFUSED: list[tuple[dict[str, str], str, str]] = [
             + '  clear: CL1+GRN\n  polarizer_clear: {P0: CL1}\n'
         },
         r"filters\.throughput_e_per_s_per_if\.P0\+GRN: the polarizer 'P0' folds onto 'CL1', "
-        r"so a scene naming 'P0\+GRN' reads 'CL1\+GRN'",
+        r"so a scene that sets 'P0\+GRN' reads 'CL1\+GRN'",
         'filter-keyed-by-a-polarizer',
     ),
     (
@@ -424,7 +425,7 @@ def test_the_packaged_catalog_names_every_config_file() -> None:
 def test_the_loader_refuses_a_bad_config(
     tmp_path: Path, files: dict[str, str], message: str
 ) -> None:
-    """Each violation fails at load, naming the file and the key path."""
+    """Each violation fails at load, with the file and the key path in the message."""
     with pytest.raises(InstrumentConfigError, match=message):
         load_instrument_catalog(config_dir=catalog_dir_with(tmp_path, files))
 
@@ -439,7 +440,7 @@ def test_a_null_removes_an_inherited_key(tmp_path: Path) -> None:
 
 
 def test_a_base_does_not_pass_on_its_realism_cohort(tmp_path: Path) -> None:
-    """A file whose base claims a realism cohort claims none itself."""
+    """If a file's base claims a realism cohort, the file itself claims none."""
     directory = catalog_dir_with(tmp_path, {'cam.yaml': 'base: coiss_calib_nac\n'})
     entry = load_instrument_catalog(config_dir=directory).entry('cam')
     assert 'realism_cohort' not in entry
@@ -447,7 +448,7 @@ def test_a_base_does_not_pass_on_its_realism_cohort(tmp_path: Path) -> None:
 
 @pytest.mark.parametrize('instrument', [*sim_instrument_names(), GENERIC_INSTRUMENT])
 def test_each_entry_names_a_navigator_block_that_exists(instrument: str) -> None:
-    """Each entry's navigator section and detector name a block of the packaged config."""
+    """Each entry's navigator section and detector point at a block of the packaged config."""
     block = resolve_sim_inst_config(DEFAULT_CONFIG, instrument)
     assert isinstance(block.get('noise'), Mapping)
 
@@ -564,7 +565,7 @@ def test_a_camera_added_as_a_file_lists_its_readout_modes(fictional_camera: str)
 
 
 def test_a_camera_added_as_a_file_states_why_a_mode_is_unavailable(fictional_camera: str) -> None:
-    """A scene naming a mode the camera does not offer fails with the file's reason."""
+    """If a scene asks for a mode the camera does not offer, it fails with the file's reason."""
     scene = {**_fictional_scene(fictional_camera), 'artifacts': {'hot_pixels': {}}}
     with pytest.raises(SimSceneValidationError, match='the fictional camera has none'):
         validate_sim_params(scene)
@@ -581,7 +582,7 @@ def test_a_camera_added_as_a_file_states_why_a_mode_is_unavailable(fictional_cam
 def test_a_scene_naming_a_mode_its_detector_chain_ignores_fails(
     instrument: str, detector: dict[str, Any] | None, mode: str, model: str
 ) -> None:
-    """A scene may name a mode only when its detector model's chain applies it."""
+    """A scene may set a mode only when its detector model's chain applies it."""
     scene: dict[str, Any] = {
         'instrument': instrument,
         'size_v': 32,
@@ -619,7 +620,7 @@ def test_instrument_defaults_turning_on_a_mode_the_chain_ignores_fails() -> None
 
 
 def test_vgiss_states_why_it_has_no_fixed_pattern() -> None:
-    """A vgiss scene naming fixed_pattern fails with the reason the vgiss file states."""
+    """A vgiss scene that sets fixed_pattern fails with the reason the vgiss file states."""
     scene = {
         'instrument': 'vgiss',
         'size_v': 32,
@@ -647,7 +648,7 @@ def test_a_scene_naming_an_unlisted_downlink_table_fails() -> None:
 
 
 def test_a_downlink_table_no_quantization_reads_fails() -> None:
-    """A scene may name a downlink table only when its frame is companded."""
+    """A scene may set a downlink table only when its frame is companded."""
     scene = {
         'instrument': 'coiss_nac',
         'size_v': 32,

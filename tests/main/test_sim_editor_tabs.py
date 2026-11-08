@@ -395,7 +395,7 @@ def test_the_gain_state_spin_spans_the_instruments_cataloged_states(model: Any) 
 def test_a_camera_added_as_a_file_is_in_the_instrument_list(
     qapp: QApplication, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A camera whose only addition is its config file appears in the drop-down."""
+    """A camera added only as a config file appears in the drop-down."""
     directory = catalog_dir_with(tmp_path, {f'{FICTIONAL_CAMERA_NAME}.yaml': FICTIONAL_CAMERA})
     monkeypatch.setattr(instrument_catalog, 'INSTRUMENT_CONFIG_DIR', directory)
     model = CreateSimulatedImageModel()
@@ -615,7 +615,7 @@ def test_generic_camera_disables_a_vidicon_only_row(model: Any) -> None:
 
 
 def test_a_disabled_chain_row_says_the_chain_does_not_render_it(model: Any) -> None:
-    """A row its detector chain never renders says so in its tooltip."""
+    """If the detector chain can't render a row's mode, the row's tooltip says so."""
     model.sim_params['instrument'] = 'generic'
     model._refresh_artifact_mode_availability()
     tip = model._mode_rows['beam_bend'].group.toolTip()

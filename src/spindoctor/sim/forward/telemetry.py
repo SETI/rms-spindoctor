@@ -18,11 +18,11 @@ grid.  It applies its sub-effects in the physical order of transmission:
    shape parameters resolve through the per-instrument
    catalog (scene value over catalog default over registry default), like the
    flanking artifact loops.
-3. Archive-processing scars, which a ground pipeline that removes reseau marks
-   and resamples the frame onto a corrected geometry leaves in its product,
-   applied to the already-loss-bearing frame: ``reseau_scars`` (reseau-removal
-   smudges on the lattice) then ``resample_texture`` (the resample warp, blank
-   border, and missing-line interpolation banding).
+3. Archive-processing scars, applied to the already-loss-bearing frame.  A ground
+   pipeline leaves them in its product when it removes reseau marks and resamples
+   the frame onto a corrected geometry: ``reseau_scars`` (reseau-removal smudges
+   on the lattice) then ``resample_texture`` (the resample warp, blank border, and
+   missing-line interpolation banding).
 4. Missing-data markers: the generic per-pixel ``noise.missing_data_rate``
    dropout knob (a worst-case stress knob, not an instrument artifact),
    which writes the instrument's marker.

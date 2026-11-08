@@ -93,7 +93,7 @@ artifact_modes:
     - serial_tail
     - fixed_pattern
     - compression_dct
-  # Why a scene naming one of these modes fails validation.
+  # Why validation fails a scene that asks for one of these modes.
   unavailable_reasons:
     hot_pixels: explicitly disabled for LORRI, which has none
     bloom: explicitly disabled for LORRI, an antiblooming CCD with no column bloom

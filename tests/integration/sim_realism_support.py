@@ -111,7 +111,7 @@ class FrameSettings:
             instrument catalogs it, else None.
         gain_state: The frame's gain state, or None when its label carries none.
         quantization: The downlink quantization the frame went through, as a scene's
-            ``detector.quantization`` names it, or None for the instrument's own.
+            ``detector.quantization`` spells it, or None for the instrument's own.
     """
 
     filter_name: str | None = None
@@ -148,8 +148,8 @@ def frame_settings_reader(mission: str) -> FrameSettingsReader | None:
     """The reader of a mission's real-frame settings, or None if it has none.
 
     Every ``sim_realism_frames_*`` module beside this one is imported first, so each
-    registers its reader without this module naming a mission.  A mission without a
-    reader renders its matched scenes at the instrument's own settings.
+    registers its reader without this module referring to any mission.  If a mission
+    has no reader, its matched scenes render at the instrument's own settings.
 
     Parameters:
         mission: The sidecar's mission.

@@ -200,8 +200,8 @@ artifact_modes:
     - compression_dct
   # Per-mode shape defaults, published or estimated like the detector values.
   # An activation key is never cataloged: a mode activates only when a scene
-  # sets it.  Shapes here are the values a scene inherits when it names a mode
-  # without spelling every parameter.
+  # sets it.  Shapes here are the values a scene inherits when it sets a mode
+  # without spelling out every parameter.
   shape_defaults:
     # ~30 e- NAC 2 Hz horizontal banding, line-readout-rate period.
     banding_coherent: {amplitude_e: 30.0, period_px: 64.0, orientation: horizontal}

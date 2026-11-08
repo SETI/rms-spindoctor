@@ -68,7 +68,7 @@ def _scene(artifacts: dict[str, Any], instrument: str = 'generic') -> dict[str, 
 
 
 def _scene_for(mode_name: str, artifacts: dict[str, Any]) -> dict[str, Any]:
-    """A generic scene whose detector model is one the mode renders under."""
+    """A generic scene with a detector model that the mode renders under."""
     scene = _scene(artifacts)
     scene['detector'] = {'detector_model': min(ARTIFACT_MODES[mode_name].detector_models)}
     return scene

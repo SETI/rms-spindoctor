@@ -209,12 +209,12 @@ class GlobalFieldsMixin(SimEditorBase):
         self._updater.request_update()
 
     def _select_instrument(self, instrument: str) -> None:
-        """Show a scene's instrument in the selector, an alias as the camera it names.
+        """Show a scene's instrument in the selector, and an alias as its camera.
 
         The selector lists each camera once by its own name, so an alias (such as
-        ``sim`` for the generic entry) selects the camera it names.  A name the
-        catalog does not know leaves the selection as it is; scene validation
-        reports it.  The scene keeps the name it was written with.
+        ``sim`` for the generic entry) selects the camera it stands for.  If the
+        catalog doesn't know the name, the selection stays as it is, and scene
+        validation reports it.  The scene keeps the name it was written with.
 
         Parameters:
             instrument: The scene's ``instrument`` value.

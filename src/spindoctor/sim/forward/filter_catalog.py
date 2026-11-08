@@ -1,6 +1,6 @@
 """Per-filter throughput of the simulated cameras that carry a filter wheel.
 
-A scene's optional ``detector.filter`` key names the filter combination the
+A scene's optional ``detector.filter`` key sets the filter combination the
 frame was shot through, written as the product label writes it, with the
 elements joined by ``+`` (for example ``'CL1+CL2'`` for a two-wheel camera).
 Each instrument's config file catalogs its combinations under ``filters`` (see
@@ -8,8 +8,8 @@ Each instrument's config file catalogs its combinations under ``filters`` (see
 star zero point refers to and the clear element each polarizer folds onto.  The
 catalog value is the electrons per second one native pixel collects from a
 surface at I/F 1.0, so the detector chain renders a signal of 1.0 at that rate
-and the calibrated products divide by the same scale.  A scene that does not name
-a filter keeps the nominal scale its detector entry derives
+and the calibrated products divide by the same scale.  If a scene sets no filter,
+it keeps the nominal scale its detector entry derives
 (``signal_full_scale_frac * full_well_e / exposure_ref_sec``).
 
 The throughput is the only filter-dependent quantity the simulator models.
@@ -61,7 +61,7 @@ def canonical_filter(instrument: str | None, filter_name: str) -> str:
     """Fold a filter combination onto its cataloged spelling.
 
     Each ``+``-separated element is stripped of surrounding whitespace and
-    upper-cased, and a polarizer the instrument's ``filters.polarizer_clear`` names
+    upper-cased, and a polarizer listed in the instrument's ``filters.polarizer_clear``
     becomes the clear element of its wheel, so ``'p120+grn'`` reads as
     ``'CL1+GRN'`` on a camera whose ``P120`` folds onto ``CL1``.  The catalog
     refuses a filter table or polarizer spelled any other way, since no scene
@@ -131,7 +131,7 @@ def filter_star_flux_scale(instrument: str | None, filter_name: str | None) -> f
     """Return the factor a filter applies to the camera's star zero point.
 
     The zero point refers to the camera's clear combination (``filters.clear``),
-    so a named filter scales it by that filter's throughput over the clear
+    so a scene's filter scales it by that filter's throughput over the clear
     throughput.
 
     Parameters:
@@ -139,7 +139,7 @@ def filter_star_flux_scale(instrument: str | None, filter_name: str | None) -> f
         filter_name: The scene's ``detector.filter``, or ``None``.
 
     Returns:
-        1.0 when the scene does not name a filter, else the throughput ratio.
+        1.0 when the scene sets no filter, else the throughput ratio.
 
     Raises:
         FilterCatalogError: As :func:`resolve_filter_throughput`.

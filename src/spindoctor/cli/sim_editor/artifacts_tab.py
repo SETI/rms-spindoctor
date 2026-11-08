@@ -14,9 +14,9 @@ an editor row with no change here.  The whole tab keeps one discipline: an
 unchecked switch or mode leaves its key absent, an enabled mode starts as an
 empty map, and every parameter key -- including the detector override's -- appears
 only once its widget is edited, so keys the operator never touched track the
-per-instrument catalog defaults.  A mode unavailable on the scene's instrument,
-or one the scene's detector chain never renders, is disabled with the reason as
-its tooltip; the rows refresh when the instrument, the detector model, or the
+per-instrument catalog defaults.  If the scene's instrument doesn't offer a mode,
+or the scene's detector chain can't render it, the mode's row is disabled, and its
+tooltip says why.  The rows refresh when the instrument, the detector model, or the
 binning changes.
 
 The detector group is a checkable override for the electron-chain gain state, the
@@ -214,9 +214,9 @@ class ArtifactsTabMixin(SimEditorBase):
 
         The detector model is the one the scene renders with: its own
         ``detector.detector_model``, else the camera's default in the scene's
-        readout mode, as the detector resolver reads it.  A row whose mode is
-        already enabled stays enabled in the scene when it becomes unavailable,
-        as on an instrument change; scene validation reports it.
+        readout mode, as the detector resolver reads it.  If the scene already
+        enables a mode and the mode then becomes unavailable, as on an instrument
+        change, the scene keeps it, and scene validation reports it.
         """
         instrument = self.sim_params.get('instrument')
         detector = self.sim_params.get('detector')
@@ -229,9 +229,9 @@ class ArtifactsTabMixin(SimEditorBase):
     def _detector_catalog(self, binning: int) -> dict[str, Any]:
         """The selected instrument's detector defaults in one readout mode.
 
-        The readout mode's values replace the native ones it names, as the
-        detector resolver merges them, so a mode with its own default gain state
-        or quantization shows that.
+        The readout mode's values replace the native values of the keys it sets,
+        as the detector resolver merges them, so a readout mode with its own
+        default gain state or quantization shows that.
 
         Parameters:
             binning: The scene's readout-mode binning.
@@ -322,8 +322,9 @@ class ArtifactsTabMixin(SimEditorBase):
     def _show_readout_mode_values(self, binning: int) -> None:
         """Show each detector key other than the binning, under one readout mode.
 
-        A key the scene sets shows the scene's value; any other key shows the
-        instrument's default in that readout mode.  Only display state.
+        If the scene sets a key, its widget shows the scene's value; otherwise the
+        widget shows the instrument's default in that readout mode.  Only display
+        state.
 
         Parameters:
             binning: The readout-mode binning the defaults come from.
@@ -350,9 +351,9 @@ class ArtifactsTabMixin(SimEditorBase):
 
         The catalog requires an instrument's gain states to be contiguous
         integers, so the range from the lowest to the highest holds exactly the
-        cataloged states.  A scene state outside it widens the range, so the
-        widget shows what the scene says and validation reports it.  An
-        instrument without a gain table (a vidicon) has the single state 0.
+        cataloged states.  If the scene's state lies outside it, the range widens
+        to hold it, so the widget shows what the scene says and validation reports
+        it.  If the instrument has no gain table (a vidicon), its single state is 0.
 
         Parameters:
             catalog: The instrument's detector defaults.
@@ -424,9 +425,9 @@ class ArtifactsTabMixin(SimEditorBase):
     def _on_detector_binning(self, text: str) -> None:
         """Write the readout-mode binning on a selection, then show that mode's defaults.
 
-        Refreshing every other key's display keeps an unedited gain state or
-        quantization showing what the scene renders with in the new mode, and the
-        mode rows follow the detector model the new readout mode renders with.
+        Every other key's display is refreshed, so an unedited gain state or
+        quantization shows what the scene renders with in the new mode.  The mode
+        rows follow the detector model of the new readout mode.
         """
         if not text or self._syncing:
             return
@@ -445,8 +446,8 @@ class ArtifactsTabMixin(SimEditorBase):
     def _on_detector_model(self, text: str) -> None:
         """Write the detector model on a combo edit, then refresh the mode rows.
 
-        A mode the new model's chain never renders is disabled, and one it renders
-        is enabled again.
+        If the new model's chain can't render a mode, the mode's row is disabled;
+        if it can, the row is enabled again.
         """
         self._set_detector_key('detector_model', text or 'ccd')
         self._refresh_artifact_mode_availability()

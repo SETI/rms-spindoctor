@@ -16,9 +16,9 @@ values (a gain table, a filter table); a :class:`ListOf` is a list; and a
 a fixed set of choices or within a range.  A number is a finite integer or float,
 never a boolean or a string.
 
-A file that names a ``base`` may set a key to null, which removes the key the
-base would pass on; a file without a ``base`` has nothing to remove, so a null
-there fails.
+A file with a ``base`` may set a key to null, which removes the key the base
+would otherwise pass on; a file without a ``base`` has nothing to remove, so a
+null there fails.
 """
 
 from __future__ import annotations
@@ -56,14 +56,14 @@ __all__ = [
     'instrument_schema',
 ]
 
-# The name of the instrument-agnostic entry every other name falls back to when a
-# scene names no instrument.  It is a file like any other (``generic.yaml``).
+# The name of the instrument-agnostic entry, which a scene renders through when it
+# sets no instrument.  It is a file like any other (``generic.yaml``).
 GENERIC_INSTRUMENT = 'generic'
 
 # The value of ``artifact_modes.offered`` that offers every registered mode.
 OFFER_EVERY_MODE = 'all'
 
-# Keys an entry does not pass to an entry that names it as its ``base``: the base
+# Keys an entry does not pass on to an entry that sets it as its ``base``: the base
 # reference itself, the alternative names, and the real cameras the realism match
 # pairs with the entry, each of which belongs to one entry only.
 NON_INHERITED_KEYS: frozenset[str] = frozenset({'base', 'aliases', 'realism_cohort'})
@@ -82,13 +82,14 @@ QUANTIZATION_MODES: tuple[str, ...] = (
 )
 
 # The two artifact-mode tables a file may state: the shape parameters a scene
-# inherits when it names a mode without spelling every parameter, and the
+# inherits when it sets a mode without spelling out every parameter, and the
 # detector-stage modes the instrument_defaults switch turns on.
 SHAPE_DEFAULTS = 'shape_defaults'
 INSTRUMENT_DEFAULTS = 'instrument_defaults'
 
-# Modes the renderer resolves without the per-instrument shape defaults, each with
-# where its shape comes from instead, so a shape default for one would do nothing.
+# Modes whose shape the renderer takes from somewhere other than the per-instrument
+# shape defaults, so a shape default for one would do nothing.  Each maps to where
+# its shape comes from instead.
 CATALOG_BLIND_MODES: dict[str, str] = {
     'hot_pixels': (
         'its shape comes from detector.hot_pixel_amplitude_e and detector.hot_pixel_column_factor'
@@ -99,14 +100,14 @@ CATALOG_BLIND_MODES: dict[str, str] = {
 POSITIVE = 'positive'
 NONNEG = 'nonneg'
 UNIT = 'unit'
-# How an error message names a value of each range, by number or integer.
+# How an error message describes a value of each range, by number or integer.
 _BOUND_NAMES: dict[str, str] = {
     POSITIVE: 'a positive {noun}',
     NONNEG: 'a non-negative {noun}',
     UNIT: 'a {noun} in [0, 1]',
 }
 
-# The scalar type tags, and how an error message names each.
+# The scalar type tags, and how an error message describes each.
 _NUMBER = 'number'
 _INT = 'int'
 _BOOL = 'bool'
@@ -119,7 +120,7 @@ _KIND_NAMES: dict[str, str] = {
 }
 
 # The message for a null that has nothing to remove.
-_NULL_WITHOUT_BASE = 'null removes an inherited key, and this file names no base'
+_NULL_WITHOUT_BASE = 'null removes an inherited key, and this file sets no base'
 _NULL_IN_LIST = (
     "a list item cannot be null: a list replaces the base's whole list, so an item has "
     'nothing to remove'
@@ -373,7 +374,7 @@ def instrument_schema() -> Record:
 
 
 def config_error(source: str, path: str, message: str) -> InstrumentConfigError:
-    """Build the error for one key, naming the file and the key path.
+    """Build the error for one key, with the file and the key path in its message.
 
     Parameters:
         source: The file name.
@@ -393,7 +394,7 @@ def _join(path: str, key: Any) -> str:
 
 
 def _describe(value: Any) -> str:
-    """Name a value's type for an error message, with a hint for a string number."""
+    """Describe a value's type for an error message, with a hint for a string number."""
     text = f'{type(value).__name__} {value!r}'
     if isinstance(value, str):
         try:
@@ -418,7 +419,7 @@ def _scalar_ok(kind: str, value: Any) -> bool:
 
 
 def _in_bound(bound: str | None, value: float) -> bool:
-    """Whether a number or integer lies in the range ``bound`` names."""
+    """Whether a number or integer lies in the range that ``bound`` stands for."""
     if bound == POSITIVE:
         return value > 0
     if bound == NONNEG:
@@ -457,7 +458,7 @@ def check_node(
             single file, which may inherit keys from its base; True for an entry
             after inheritance.
         allow_null: Whether a null value is accepted (it removes the key the base
-            passes on).  True only for a file that names a base.
+            passes on).  True only for a file that sets a base.
 
     Raises:
         InstrumentConfigError: On an unknown key, a missing required key, a null in
@@ -546,7 +547,7 @@ def check_mode_name(name: Any, *, source: str, path: str) -> None:
     """Check that ``name`` is a registered artifact mode.
 
     Parameters:
-        name: The value naming a mode.
+        name: The value that should be a mode's name.
         source: The file name, for error messages.
         path: The dotted key path, for error messages.
 
@@ -626,8 +627,8 @@ def check_file(entry: Any, *, source: str) -> dict[str, Any]:
     """Check one config file on its own, before inheritance.
 
     Unknown keys, types, and ranges are checked; required keys are not, since a
-    file that names a ``base`` inherits them.  A null is accepted only in a file
-    that names a base, and never on a key a base does not pass on.
+    file with a ``base`` inherits them.  A null is accepted only in a file with a
+    base, and never on a key a base does not pass on.
 
     Parameters:
         entry: The value the file holds.

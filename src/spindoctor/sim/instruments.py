@@ -3,8 +3,8 @@
 The simulator can render a frame as though it came from a specific camera, so
 that a 'sim COISS NAC raw' frame goes through the same per-instrument noise,
 saturation, marker, and unit settings the navigator applies to a real frame.
-This module resolves a sim ``instrument`` name to the navigator config block the
-instrument's config file names (its ``navigator`` section and detector; see
+This module resolves a sim ``instrument`` name to the navigator config block that
+the instrument's config file points at (its ``navigator`` section and detector; see
 :mod:`spindoctor.sim.instrument_catalog`); physical parameters then delegate to
 that block, while sim-only knobs (signal full-scale, cosmic-ray rate, dropout
 rate) stay in the ``sim`` config block.
@@ -15,9 +15,9 @@ A value of ``None`` (or the generic entry and its aliases) selects the standalon
 A scene may also carry ``instrument_config`` overrides that are deep-merged over
 the resolved block, so a scene can:
 
-- **inherit** every physical parameter from a named instrument (no overrides),
+- **inherit** every physical parameter from a chosen instrument (no overrides),
 - **inherit and override** individual parameters (override only those keys), or
-- **fully self-specify** by naming the generic block and overriding everything.
+- **fully self-specify** by choosing the generic block and overriding everything.
 
 Overriding a key pins it to the scene, so a later change to the real camera's
 config cannot silently shift a sim test's behavior for that key; the non-overridden

@@ -1,7 +1,7 @@
 """Telemetry reseau scars: patches on the reseau lattice, thinned to the mark count.
 
-The ``reseau_scars`` mode emulates the patches a ground pipeline's reseau removal
-leaves behind.  These tests check that the patches smooth the frame, that the
+The ``reseau_scars`` mode emulates the patches that a ground pipeline leaves behind
+when it removes the reseau marks.  These tests check that the patches smooth the frame, that the
 lattice is thinned to the configured mark count and spans the archive frame, and
 that the mode is a no-op at probability 0.
 """

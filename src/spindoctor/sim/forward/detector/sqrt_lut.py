@@ -4,11 +4,11 @@ A companding table sends each DN as one of a fixed number of codes (256 for an
 8-bit code word) and the ground decodes each code back to a DN.  A parametric
 table's decode curve is quadratic in the code, so the encoding is a square root
 and the quantization step grows with the signal, tracking the photon noise; a
-tabulated table lists each code's decoded DN, so any curve needs no code.  A
-camera lists its tables under ``downlink_tables`` in its instrument config file
-and names a default, and a scene's ``detector.downlink_table`` may name another;
-a camera that lists none gets the plain square-root curve scaled to its ADC
-ceiling.
+tabulated table lists each code's decoded DN, so it can describe a curve of any
+shape.  A camera lists its tables under ``downlink_tables`` in its instrument
+config file and sets one as the default, and a scene may select another with
+``detector.downlink_table``.  If a camera lists no table, it gets the plain
+square-root curve scaled to its ADC ceiling.
 """
 
 import math
@@ -87,7 +87,7 @@ DownlinkCurve = SqrtLut | TabulatedLut
 
 
 def resolve_sqrt_lut(entry: Mapping[str, Any] | None, *, saturation_dn: float) -> DownlinkCurve:
-    """The companding curve a downlink table names, or the plain square-root curve.
+    """The companding curve of a downlink table, or the plain square-root curve.
 
     Parameters:
         entry: A downlink table from the instrument's config: a parametric table

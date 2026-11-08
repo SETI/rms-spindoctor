@@ -2,11 +2,11 @@
 
 The ``artifacts`` block holds two switches (``instrument_defaults`` and
 ``adversarial``) and one map per artifact mode, keyed by exactly the mode
-registry.  Its checkers live here, beside the block's key inventory: each named
-mode must be implemented, offered by the scene's instrument, and rendered by the
-scene's detector chain, and each parameter is type-checked against its registry
-schema; ``instrument_defaults`` must not turn on a mode the scene's detector chain
-never renders.  The scalar primitives they share with the other block checkers
+registry.  Its checkers live here, beside the block's key inventory: each mode the
+scene sets must be implemented, offered by the scene's instrument, and rendered by
+the scene's detector chain, and each parameter is type-checked against its registry
+schema; ``instrument_defaults`` must not turn on a mode that the scene's detector
+chain never renders.  The scalar primitives they share with the other block checkers
 stay in :mod:`spindoctor.sim.scene_checks`, which also documents the overall
 validation contract (unknown keys fail, every violation raises
 :class:`spindoctor.sim.scene_schema.SimSceneValidationError`).
@@ -51,13 +51,13 @@ def _check_artifacts(value: Any, *, instrument: str, detector: Any, source: str)
     """Validate the scene-level ``artifacts`` block against the mode registry.
 
     Beyond the two switch keys, the block is keyed by exactly the artifact-mode
-    registry (unknown keys fail).  A mode that has no implementation yet fails
-    as not-yet-implemented, a mode the scene's instrument does not offer fails
+    registry (unknown keys fail).  If a mode has no implementation yet, it fails as
+    not-yet-implemented.  If the scene's instrument does not offer a mode, it fails
     with the reason the instrument's config file states, or with a list of the
-    instruments that offer it, and a mode the scene's detector model's chain
-    never applies fails as such.  Each present mode's parameters are then
-    type-checked against its schema.  Under ``instrument_defaults``, a mode the
-    camera's config turns on fails if the scene's detector model never renders it.
+    instruments that offer it.  If the scene's detector chain never applies a mode,
+    it fails as such.  Each present mode's parameters are then type-checked against
+    its schema.  Under ``instrument_defaults``, the block fails if the camera's
+    config turns on a mode that the scene's detector model never renders.
 
     Parameters:
         value: The ``artifacts`` mapping, or None when the block is absent.
@@ -99,9 +99,9 @@ def _chain_names(mode: ArtifactMode) -> str:
 def _check_instrument_default_modes(instrument: str, *, model: str, source: str) -> None:
     """Refuse ``instrument_defaults`` when it turns on a mode the chain never renders.
 
-    The camera's config names the modes ``instrument_defaults`` turns on, and the
-    loader checks them against the camera's own detector model.  A scene that
-    overrides ``detector.detector_model`` can select a chain without that mode's
+    The camera's config lists the modes that ``instrument_defaults`` turns on, and
+    the loader checks them against the camera's own detector model.  If a scene
+    overrides ``detector.detector_model``, it can select a chain without that mode's
     stage, where the mode would render nothing.
 
     Parameters:

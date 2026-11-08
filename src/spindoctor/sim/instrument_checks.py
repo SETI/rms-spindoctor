@@ -4,9 +4,9 @@
 checks how the parts of one entry, after inheritance, fit together: the detector
 keys the detector model calls for, the gain table and readout modes, the star zero
 point's unit, the filter table's spelling and its clear elements, the downlink
-tables, and the artifact modes an entry names.  Each check refuses a setting that
-the renderer could not honor or that would silently do nothing, naming the file
-and the key path.
+tables, and the artifact modes an entry lists.  Each check refuses a setting that
+the renderer could not honor or that would silently do nothing, with a message that
+gives the file and the key path.
 """
 
 from __future__ import annotations
@@ -84,15 +84,15 @@ def canonical_filter_elements(filter_name: str) -> list[str]:
 def check_entry(entry: Mapping[str, Any], *, source: str) -> None:
     """Check one instrument's whole entry, after inheritance.
 
-    The entry must carry every required key, and its parts must fit together: the
-    detector keys its model calls for are present, the gain states are contiguous
-    and hold the default state, the readout modes include binning 1, divide the
-    native frame size, and keep the detector model, the star zero point's unit
-    fits the detector model, a filter table belongs to a CCD, is spelled
+    The entry must carry every required key, and its parts must fit together.  The
+    detector keys its model calls for are present.  The gain states are contiguous
+    and hold the default state.  The readout modes include binning 1, divide the
+    native frame size, and keep the detector model.  The star zero point's unit
+    fits the detector model.  A filter table belongs to a CCD, is spelled
     canonically, keys no polarizer, and holds the clear filter and each polarizer's
-    clear element, each downlink table has one form and decodes to at least two
-    levels, none negative, and the default names one of them, and every artifact
-    mode the entry names is one it offers and one its detector model's chain
+    clear element.  Each downlink table has one form and decodes to at least two
+    levels, none negative, and the default is one of the tables.  Every artifact
+    mode the entry lists is one it offers and one its detector model's chain
     applies.
 
     Parameters:
@@ -100,8 +100,8 @@ def check_entry(entry: Mapping[str, Any], *, source: str) -> None:
         source: The file name, for error messages.
 
     Raises:
-        ~spindoctor.sim.instrument_schema.InstrumentConfigError: On any violation, naming
-            the file and the key path.
+        ~spindoctor.sim.instrument_schema.InstrumentConfigError: On any violation, with
+            a message that gives the file and the key path.
     """
     check_node(instrument_schema(), entry, source=source, path='', complete=True)
     _check_detector(entry['detector'], source=source)
@@ -188,7 +188,7 @@ def _check_readout_gain(
 
     A scene's gain state is validated against the unbinned table, so a readout
     mode may restate each state's gain but not add or drop a state, and its default
-    state, if it names one, must be in the table.
+    state, if it sets one, must be in the table.
     """
     base_table = detector.get('gain_e_per_dn_by_state') or {}
     table = overrides.get('gain_e_per_dn_by_state', base_table)
@@ -250,7 +250,7 @@ def _check_filters(filters: Mapping[str, Any] | None, *, model: str, source: str
                     source,
                     f'{path}.{combination}',
                     f'the polarizer {element!r} folds onto {polarizers[element]!r}, so a scene '
-                    f'naming {combination!r} reads {folded!r}; key the throughput by that',
+                    f'that sets {combination!r} reads {folded!r}; key the throughput by that',
                 )
     if filters['clear'] not in table:
         raise config_error(
@@ -267,7 +267,7 @@ def _check_filters(filters: Mapping[str, Any] | None, *, model: str, source: str
 
 
 def _check_canonical(name: str, *, source: str, path: str, element: bool = False) -> None:
-    """Refuse a filter spelling a scene's filter could never fold onto.
+    """Refuse a filter spelling that a scene's filter could never fold onto.
 
     A scene's filter is stripped and upper-cased element by element before lookup,
     so a key spelled any other way could never be selected.
@@ -363,10 +363,12 @@ def _check_decoded_levels(
 
 
 def _check_artifact_modes(modes: Mapping[str, Any], *, model: str, source: str) -> None:
-    """Check that every mode the entry names is one it offers (or, for a reason, not).
+    """Check the entry's artifact modes against the modes it offers.
 
-    A mode the entry lists, gives shape defaults, or turns on must also be one the
-    detector model's chain applies, or a scene enabling it would render nothing.
+    A mode with shape defaults or an ``instrument_defaults`` entry must be offered,
+    and a mode with an unavailability reason must not be.  If the entry offers a
+    mode, gives it shape defaults, or turns it on, the detector model's chain must
+    apply that mode, or a scene that enables it would render nothing.
     """
     offered = modes['offered']
     offered_set = set(ARTIFACT_MODES) if offered == OFFER_EVERY_MODE else set(offered)

@@ -8,21 +8,22 @@ modes, star zero point, plate scale, PSF, residual distortion, filter
 throughputs, and which artifact modes it offers with their shape defaults.  The
 provenance of each value is a YAML comment beside it.  Adding a camera is adding
 a file (plus the navigator's own instrument block for the camera it emulates);
-no code names an instrument.
+no code refers to an instrument by name.
 
-A file may name another instrument as its ``base``: the base's entry is merged
+A file may set another instrument as its ``base``: the base's entry is merged
 under the file's own keys (mappings merge key by key, any other value replaces
 the base's), so a calibrated product can state only what differs from its raw
-camera.  A key set to null removes the key the base would pass on.  ``aliases``
-and ``realism_cohort`` are the keys a base does not pass on.
+camera.  Setting a key to null removes the key the base would otherwise pass on.
+``aliases`` and ``realism_cohort`` are the keys a base does not pass on.
 
 The catalog loads once per directory and is checked against
 :mod:`spindoctor.sim.instrument_schema` and :mod:`spindoctor.sim.instrument_checks`
-as it loads: a file that is not valid YAML or not a ``.yaml`` file, an unknown
-key, a missing required key, a value of the wrong type or out of range, a base
-that doesn't exist or that loops back on itself, a gain state, readout mode,
-filter, downlink table, or artifact mode an entry names but does not define, or a
-setting that would do nothing fails with the file and the key path.  The resolver
+as it loads.  The load fails, giving the file and the key path, on a file that is
+not valid YAML or not a ``.yaml`` file, an unknown key, a missing required key, a
+value of the wrong type or out of range, a base that doesn't exist or that loops
+back on itself, a gain state, readout mode, filter, downlink table, or artifact
+mode that an entry refers to but does not define, or a setting that would do
+nothing.  The resolver
 functions in :mod:`spindoctor.sim.forward.artifacts_catalog`,
 :mod:`spindoctor.sim.forward.filter_catalog`, :mod:`spindoctor.sim.forward.psf`,
 and :mod:`spindoctor.sim.instruments` are how the rest of the simulator reads it.
@@ -72,7 +73,7 @@ class InstrumentCatalog:
         config_dir: The directory the entries were read from.
         entries: Each instrument's entry keyed by name, ``generic`` included, with
             its base merged in and ``base`` and ``aliases`` removed.
-        aliases: Each alternative name mapped to the instrument it names.
+        aliases: Each alias mapped to the instrument it stands for.
     """
 
     config_dir: Path
@@ -128,8 +129,8 @@ class InstrumentCatalog:
 def _read_file(path: Path) -> dict[str, Any]:
     """Read one config file and check it on its own.
 
-    A YAML syntax error and a key written twice fail with the file named, as every
-    schema violation does.
+    A YAML syntax error and a key written twice fail with a message that gives the
+    file, as every schema violation does.
     """
     yaml = YAML(typ='safe')
     try:
@@ -157,8 +158,8 @@ def _deep_merge(
         The merged mapping, a fresh copy.
 
     Raises:
-        InstrumentConfigError: If a null names a key the base does not have, so it
-            would remove nothing.
+        InstrumentConfigError: If a null is set on a key the base does not have, so
+            it would remove nothing.
     """
     merged = copy.deepcopy(dict(base))
     for key, value in overrides.items():
@@ -190,8 +191,8 @@ def _refuse_nulls(value: Any, *, source: str, path: str) -> None:
         path: The dotted key path of ``value``, for error messages.
 
     Raises:
-        InstrumentConfigError: If a mapping inside ``value`` sets a key to null,
-            naming that key's path.
+        InstrumentConfigError: If a mapping inside ``value`` sets a key to null; the
+            message gives that key's path.
     """
     if not isinstance(value, Mapping):
         return
@@ -239,20 +240,20 @@ def _resolve_inheritance(raw: Mapping[str, dict[str, Any]]) -> dict[str, dict[st
 
 
 def _collect_aliases(raw: Mapping[str, dict[str, Any]]) -> dict[str, str]:
-    """Map each alias to its instrument, refusing an alias that is already a name."""
+    """Map each alias to its instrument, refusing an alias already in use as a name."""
     aliases: dict[str, str] = {}
     for name in sorted(raw):
         for alias in raw[name].get('aliases') or []:
             if alias in raw or alias in aliases:
                 raise InstrumentConfigError(
-                    f'{name}.yaml: aliases: {alias!r} already names an instrument or an alias'
+                    f'{name}.yaml: aliases: {alias!r} is already an instrument or an alias'
                 )
             aliases[alias] = name
     return aliases
 
 
 def _check_cohorts(entries: Mapping[str, dict[str, Any]]) -> None:
-    """Refuse a real (mission, camera) pair that two files claim, naming both."""
+    """Refuse a real (mission, camera) pair claimed by two files, listing both."""
     owner: dict[tuple[str, str], tuple[str, int]] = {}
     for name in sorted(entries):
         for index, pair in enumerate(entries[name].get('realism_cohort') or []):
@@ -270,8 +271,8 @@ def _check_cohorts(entries: Mapping[str, dict[str, Any]]) -> None:
 def _check_generic(entry: Mapping[str, Any]) -> None:
     """Refuse a generic entry without the calibrated sky residual the others fall back on.
 
-    A calibrated frame whose own entry states no ``calibrated_sky_if`` takes the
-    generic entry's, so the generic entry must state one.
+    If a calibrated frame's own entry states no ``calibrated_sky_if``, the frame
+    takes the generic entry's, so the generic entry must state one.
     """
     if 'calibrated_sky_if' not in entry['detector']:
         raise config_error(
@@ -325,7 +326,7 @@ def load_instrument_catalog(*, config_dir: Path | None = None) -> InstrumentCata
         catalog; its entries must not be modified.
 
     Raises:
-        InstrumentConfigError: If any file breaks the schema, names a base that
+        InstrumentConfigError: If any file breaks the schema, sets a base that
             doesn't exist or loops, reuses an alias, or claims another instrument's
             realism cohort, or if the directory has no ``generic.yaml`` or that file
             states no ``detector.calibrated_sky_if``.

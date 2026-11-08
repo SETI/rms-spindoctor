@@ -1,8 +1,8 @@
 # The instrument-agnostic simulated detector ('generic', also written 'sim').
 #
-# A scene that names no camera renders through this entry: an ideal 12-bit
-# detector whose electron well equals its DN depth at unit gain, so a generic
-# scene's electron chain reproduces the direct signal-to-DN mapping
+# A scene renders through this entry when it sets no camera.  The entry is an
+# ideal 12-bit detector whose electron well equals its DN depth at unit gain, so
+# a generic scene's electron chain reproduces the direct signal-to-DN mapping
 # (electrons == DN) rather than imposing a specific camera's radiometry.  It
 # offers every artifact mode, which keeps unit scenes free to exercise any
 # shape, and emulates no frame-transfer camera, so it turns no mode on under

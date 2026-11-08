@@ -1,6 +1,6 @@
 """A fictional simulated camera, added as one config file in a copy of the catalog.
 
-The tests that show a camera needs nothing but its config file use it: it has a
+It serves the tests that show a camera needs nothing but its config file.  It has a
 filter table with a clear filter, a binned readout mode beside a native frame
 size, two downlink tables (one parametric, one tabulated), three gain states, and
 an artifact mode it does not offer, with the reason.
@@ -13,7 +13,7 @@ from spindoctor.sim.instrument_catalog import INSTRUMENT_CONFIG_DIR
 
 __all__ = ['FICTIONAL_CAMERA', 'FICTIONAL_CAMERA_NAME', 'catalog_dir_with']
 
-# The instrument name the fictional camera's file stem gives it.
+# The fictional camera's instrument name, which is its file's stem.
 FICTIONAL_CAMERA_NAME = 'fictional_cam'
 
 FICTIONAL_CAMERA = """\

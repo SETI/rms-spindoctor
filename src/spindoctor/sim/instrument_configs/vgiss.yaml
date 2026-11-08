@@ -112,7 +112,7 @@ artifact_modes:
     - quantization_contour_8bit
     - reseau_scars
     - resample_texture
-  # Why a scene naming one of these modes fails validation.  The vidicon DN
+  # Why validation fails a scene that asks for one of these modes.  The vidicon DN
   # chain has no fixed-pattern stage, so the mode would render nothing (#935).
   unavailable_reasons:
     fixed_pattern: not rendered for vgiss, whose vidicon DN chain has no fixed-pattern stage

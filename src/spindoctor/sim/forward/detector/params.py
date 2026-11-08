@@ -120,9 +120,9 @@ class DetectorParams:
             possibly NaN; the calibration inverse keeps every pixel off it.
         random_seed: The scene seed for the per-effect sub-streams.
         detector_id: The emulated detector the fixed hot-pixel map belongs to:
-            the instrument config's ``detector_id`` (a calibrated product names
-            its raw camera), else the instrument name, and ``generic`` for a
-            generic scene.
+            the instrument config's ``detector_id`` (a calibrated product's file
+            sets it to its raw camera), else the instrument name, and ``generic``
+            for a generic scene.
         binning: The readout mode's binning factor ``b``: each frame pixel
             sums a ``b`` by ``b`` block of native pixels.  The catalog's
             native dark current and cosmic-ray rate are already scaled by
@@ -147,7 +147,7 @@ class DetectorParams:
             ``contour_8bit`` quantization sub-mode.
         sqrt_lut: The companding curve of the ``sqrt_lut`` quantization
             sub-mode: the downlink table the scene's ``detector.downlink_table``
-            names, else the instrument's default table, else (for an instrument
+            selects, else the instrument's default table, else (for an instrument
             that lists none) the plain square-root curve scaled to
             ``saturation_dn``; None selects that plain curve.
         artifacts_adversarial: Whether stochastic detector artifact modes place
@@ -380,10 +380,10 @@ def _resolve_detector_modes(
 
     Each present, available, and active mode is resolved (scene value over
     catalog default over registry default) and returned keyed by name.  Under
-    ``instrument_defaults``, a mode the instrument's config names in
-    ``artifact_modes.instrument_defaults`` and the scene has not set is supplied
-    with the config's scene map for it (for example a probability of 1), so the
-    instrument's defining physical-chain artifact renders with its shape
+    ``instrument_defaults``, if the instrument's config lists a mode in
+    ``artifact_modes.instrument_defaults`` and the scene has not set that mode, the
+    mode gets the config's scene map for it (for example a probability of 1), so
+    the instrument's defining physical-chain artifact renders with its shape
     defaults.
     """
     supplied = instrument_default_modes(instrument) if instrument_defaults else {}
@@ -489,7 +489,7 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
         The resolved :class:`DetectorParams`.
 
     Raises:
-        DetectorParamError: If the scene selects an unavailable gain state, names
+        DetectorParamError: If the scene selects an unavailable gain state, sets
             a filter or a downlink table its camera does not catalog, sets both
             ``detector.filter`` and ``detector.exposure_ref_sec``, or compands the
             frame through a downlink table that decodes above the ADC ceiling.

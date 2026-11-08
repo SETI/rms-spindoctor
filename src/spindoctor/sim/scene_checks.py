@@ -476,12 +476,12 @@ def _check_downlink_table_used(
 ) -> None:
     """Refuse a ``detector.downlink_table`` that no quantization would decode through.
 
-    Only the ``sqrt_lut`` quantization reads the table, so a scene may name one only
-    when the frame can be companded: the resolved quantization (the scene's
+    Only the ``sqrt_lut`` quantization reads the table, so a scene may set one only
+    when the frame can be companded: the scene quantizes with ``sqrt_lut`` (its own
     ``detector.quantization``, else the camera's default for the selected readout
-    mode) is ``sqrt_lut``, or the ``quantization_sqrt_lut`` artifact mode is named,
-    by the scene at any probability or by the camera's ``instrument_defaults`` under
-    ``artifacts.instrument_defaults``.  Run after :func:`_check_detector` and
+    mode), the scene includes the ``quantization_sqrt_lut`` artifact mode at any
+    probability, or ``artifacts.instrument_defaults`` turns that mode on through the
+    camera's ``instrument_defaults``.  Run after :func:`_check_detector` and
     :func:`~spindoctor.sim.scene_checks_artifacts._check_artifacts`, so both blocks
     are well-formed mappings or None.
 
@@ -492,7 +492,7 @@ def _check_downlink_table_used(
         source: Label used in error messages.
 
     Raises:
-        SimSceneValidationError: If the scene names a downlink table and nothing
+        SimSceneValidationError: If the scene sets a downlink table and nothing
             selects the ``sqrt_lut`` quantization.
     """
     if not detector or detector.get('downlink_table') is None:
@@ -517,7 +517,7 @@ def _check_downlink_table_used(
         f'{source}: detector.downlink_table {detector["downlink_table"]!r} has no effect: '
         f'only the sqrt_lut quantization decodes through a downlink table, and this '
         f'scene quantizes with {quantization!r}; set detector.quantization: sqrt_lut, '
-        f'name the quantization_sqrt_lut artifact mode, or drop the key'
+        f'add the quantization_sqrt_lut artifact mode, or drop the key'
     )
 
 

@@ -7,8 +7,8 @@ the plate scale the background-sky star count uses, the whole-scene PSF kernel,
 the residual geometric distortion, the downlink tables, and the artifact modes the
 camera offers with their shape defaults.  These resolvers are how the forward
 model reads that catalog; each takes a sim instrument name, an alias, or ``None``
-for the generic entry, and raises :class:`ValueError` on a name the catalog
-doesn't hold.
+for the generic entry, and raises :class:`ValueError` if the catalog doesn't hold
+the name.
 """
 
 import copy
@@ -49,7 +49,7 @@ __all__ = [
 ]
 
 # The *missing-data* loss modes default to 0 even under ``instrument_defaults`` --
-# naming an instrument selects a signal chain, not a set of transmission defects --
+# choosing an instrument selects a signal chain and plants no transmission defects --
 # so they are planted only by scenes that configure them explicitly.  Cosmic rays
 # are different: radiation on the detector is environment physics, so each CCD
 # instrument's detector entry carries a ``cosmic_ray_events_per_pixel_per_sec``
@@ -138,7 +138,7 @@ def resolve_distortion_residual(instrument: str | None) -> dict[str, float] | No
 
 
 def resolve_detector_id(instrument: str | None) -> str:
-    """Name the physical detector an instrument's frames come from.
+    """Return the physical detector that an instrument's frames come from.
 
     Two instruments that are products of one camera (a raw and a calibrated
     product) share a detector, so they share its fixed hot-pixel map.
@@ -199,7 +199,7 @@ def resolve_downlink_table(instrument: str | None, name: str | None) -> dict[str
 
     Parameters:
         instrument: The sim instrument name, an alias, or ``None``.
-        name: The table a scene's ``detector.downlink_table`` names, or ``None`` for
+        name: The table a scene's ``detector.downlink_table`` selects, or ``None`` for
             the instrument's default table.
 
     Returns:
@@ -476,9 +476,9 @@ def resolve_mode_with_catalog(
     config), then the registry default.  A mode's activation key
     (``expected_events``, ``expected_events_per_sec``, ``probability``, or
     ``pixel_fraction``) and the fixed-count alternative ``count`` are never read
-    from the shape defaults: a mode activates only when a scene sets one (or, for
-    a mode the instrument's ``artifact_modes.instrument_defaults`` names, when the
-    detector resolver supplies it under ``instrument_defaults``).
+    from the shape defaults: a mode activates only when a scene sets one (or, if
+    the instrument lists the mode in ``artifact_modes.instrument_defaults``, when
+    the detector resolver supplies it under ``instrument_defaults``).
 
     Parameters:
         mode_name: A registered artifact-mode name.

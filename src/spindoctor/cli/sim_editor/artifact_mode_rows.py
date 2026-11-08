@@ -7,7 +7,7 @@ in the registry, and each row builds its own widgets from the mode's
 mode therefore acquires an editor row with no GUI change: the row's enable
 checkbox maps to the mode key's presence, the activation-key spin
 (``expected_events``, ``expected_events_per_sec``, ``probability``, or
-``pixel_fraction``, as the registry names it) and one widget per parameter map
+``pixel_fraction``, whichever the registry assigns) and one widget per parameter map
 to that mode's map keys, and the parameter kinds pick the widget (a spin, a
 checkbox, an enum combo, or a group of spins for a rect/window list).
 
@@ -22,9 +22,10 @@ The row never touches ``sim_params`` itself: every edit calls back into the
 controller (the Artifacts-tab mixin), which owns the artifacts block and the
 absent-key discipline -- an unchecked mode leaves its key absent, an enabled mode
 starts as an empty map, and each parameter key appears only once its widget is
-edited.  Availability filtering is per row: a mode unavailable on the scene's
-instrument is disabled with the instrument's reason as its tooltip, and a mode
-the scene's detector chain never renders is disabled with a tooltip saying so.
+edited.  Availability filtering is per row.  If the scene's instrument doesn't
+offer a mode, the mode's row is disabled, and its tooltip gives the instrument's
+reason.  If the scene's detector chain can't render a mode, the row is disabled,
+and its tooltip says why.
 """
 
 from __future__ import annotations
@@ -384,10 +385,10 @@ class ModeRow:
     def apply_availability(self, instrument: str | None, detector_model: str) -> None:
         """Enable or disable the row for the scene's instrument and detector model.
 
-        A mode the instrument does not offer is disabled with the instrument's
-        reason as its tooltip, and a mode the scene's detector chain never renders
-        is disabled with a tooltip saying so; an available mode is enabled and
-        carries its activation key's semantics.
+        If the instrument doesn't offer the mode, the row is disabled, and its
+        tooltip gives the instrument's reason.  If the scene's detector chain can't
+        render the mode, the row is disabled, and its tooltip says why.  Otherwise
+        the row is enabled, and its tooltip gives its activation key's semantics.
 
         Parameters:
             instrument: The scene's instrument name.
