@@ -921,6 +921,19 @@ def test_reseau_scars_smooth_lattice_patches() -> None:
     assert record['marks'] > 0
 
 
+def test_reseau_scars_plant_the_requested_mark_count() -> None:
+    """The scars thin the lattice to the configured mark count, not a fixed one."""
+    from spindoctor.sim.forward.telemetry_artifacts import apply_reseau_scars
+
+    signal = np.zeros((400, 400), dtype=np.float64)
+    record = apply_reseau_scars(
+        signal,
+        {'probability': 1.0, 'spacing_px': 46, 'patch_radius_px': 4, 'mark_count': 40},
+        rng=np.random.default_rng(1),
+    )
+    assert record['marks'] == 40
+
+
 def test_reseau_lattice_spans_the_archive_frame() -> None:
     """At the 800x800 archive size the 202 marks span the full frame height."""
     from spindoctor.sim.forward.telemetry_artifacts import _reseau_lattice
