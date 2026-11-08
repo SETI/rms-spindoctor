@@ -29,7 +29,7 @@ def test_a_package_from_another_checkout_is_named_with_both_paths(tmp_path: Path
     assert foreign_package_message(checkout, other) == (
         f'spindoctor was imported from {other.resolve()}, which is outside this checkout '
         f'({checkout.resolve()}); run with PYTHONPATH={(checkout / "src").resolve()} or '
-        'install this checkout'
+        'install this checkout in editable mode (pip install -e)'
     )
 
 
@@ -41,11 +41,22 @@ def test_a_script_in_another_checkout_stops_before_running(tmp_path: Path) -> No
         require_checkout_package(str(script))
 
 
-def test_a_script_in_this_checkout_runs() -> None:
-    """The scripts in this checkout pass the guard when this checkout's code is imported."""
-    if not Path(spindoctor.__file__).resolve().is_relative_to(_INTEGRATION_DIR.parents[1]):
-        pytest.skip('spindoctor is imported from outside this checkout')
-    require_checkout_package(str(_INTEGRATION_DIR / 'update_sim_baselines.py'))
+def test_a_script_runs_when_its_checkout_provides_the_package(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A script two levels below the checkout root runs against that checkout's package.
+
+    ``spindoctor.__file__`` is pointed into a temporary checkout, so the test
+    doesn't depend on where the environment installed the package, and a script
+    in that checkout's ``tests/integration`` passes the guard.
+    """
+    package_init = tmp_path / 'src' / 'spindoctor' / '__init__.py'
+    package_init.parent.mkdir(parents=True)
+    package_init.touch()
+    monkeypatch.setattr(spindoctor, '__file__', str(package_init))
+    script = tmp_path / 'tests' / 'integration' / 'regenerate.py'
+    script.parent.mkdir(parents=True)
+    require_checkout_package(str(script))
 
 
 _MAIN_GUARD = "__name__ == '__main__'"

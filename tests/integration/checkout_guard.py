@@ -28,8 +28,9 @@ def foreign_package_message(checkout_root: Path, package_dir: Path) -> str | Non
 
     Returns:
         None when the package lies under ``checkout_root / 'src'``; otherwise a
-        message naming the package's directory, the checkout, and the
-        ``PYTHONPATH`` that selects the checkout's code.
+        message naming the package's directory, the checkout, and the two
+        ways to select the checkout's code: its ``src`` on ``PYTHONPATH``, or
+        an editable install, which imports from that ``src``.
     """
     checkout_src = (checkout_root / 'src').resolve()
     package = package_dir.resolve()
@@ -38,7 +39,7 @@ def foreign_package_message(checkout_root: Path, package_dir: Path) -> str | Non
     return (
         f'spindoctor was imported from {package}, which is outside this checkout '
         f'({checkout_root.resolve()}); run with PYTHONPATH={checkout_src} or '
-        'install this checkout'
+        'install this checkout in editable mode (pip install -e)'
     )
 
 
