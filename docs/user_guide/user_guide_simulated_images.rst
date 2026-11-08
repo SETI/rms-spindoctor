@@ -29,8 +29,8 @@ Sensitivity is reported through **model-mismatch sweeps**: recovery error measur
 function of how far the rendered image departs from the navigator's model. Each
 instrument's **realism match** compares simulated frames with real ones; a close match is
 a precondition for reading any simulated number as a statement about real frames, but it
-isn't enough on its own, and today simulated results stand for reproducibility on the
-Cassini NAC.
+isn't enough on its own, and today simulated results stand for reproducibility, measured
+mostly on the Cassini NAC.
 
 Navigating a simulated frame
 ============================

@@ -412,6 +412,11 @@ vidicon read noise (0.40 DN rms) takes a sky pixel below 0 only on a 1.5 DN
 excursion, about 7 pixels in 100,000, so the sky's first percentile stays
 positive.
 
+**Cosmic rays.** The vidicon's cosmic-ray stage works as on a CCD (see
+:ref:`sim-detector-stage`), but the catalog rate is a retained zero. The cohort
+measures a 3.5e-5 transient fraction, mostly interpolated away by the
+reseau-anchored resampling, so it can't say how many hits the target took.
+
 **Realism-match status.** The PSF is unverified and unverifiable through the
 resampling with the frames held locally. The distortion is measured, but on
 one of the four cameras.

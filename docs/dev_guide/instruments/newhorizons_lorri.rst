@@ -294,6 +294,11 @@ are recorded as reasons rather than as absences from an availability set. A
 scene that asks for either mode on this instrument is refused with the reason
 quoted back.
 
+**Cosmic rays.** The catalog rate is a retained zero. The cohort's measured
+3.36e-4 transient fraction comes from two 4x4-binned star frames, where a binned
+faint star can't be told from a single-pixel transient, so it can't be adopted
+as a rate until a non-star frame joins the library.
+
 **Realism-match status.** Unverified for the unbinned readout mode, which is
 what the kernel describes. The binned frames the cohort holds are measured but
 cannot check it.

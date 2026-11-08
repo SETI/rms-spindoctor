@@ -410,8 +410,9 @@ as the CALIB products are: across 24 CALIB images from four volumes no pixel is
 ``NaN``, and exact zeros appear only on the lines the index reports missing. A
 lost pixel reads 0, and the dark sky sits on the 4.0e-5 I/F calibrated sky
 residual, the median sky of 13 dark NAC CALIB frames, so it reads as dark and
-never as missing (see :ref:`Instruments <sim-instruments>`). That value is also
-the simulator's default for any instrument a scene pins to calibrated I/F.
+never as missing (see :ref:`Instruments <sim-instruments>`). The simulator also
+uses that value for an instrument a scene pins to calibrated I/F when the
+instrument's detector catalog entry doesn't set a sky residual.
 Those real frames' sky scatters around 0 with a sigma of 1.9e-4 I/F, and under
 ``instrument_defaults`` about 28% of the pixels of a disc scene a third of the
 frame across sit below 0, down to about -0.0006, as on the real frames. The

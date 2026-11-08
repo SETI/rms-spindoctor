@@ -15,7 +15,7 @@ simulator drives the algorithmic-invariant tests, the regression baselines, the
 single-variable sensitivity sweeps, and the sensitivity report
 (:doc:`/simulator_report/simulator_report`).
 
-Its results are reproducibility and self-consistency results, measured today on
+Its results are reproducibility and self-consistency results, measured mostly on
 the Cassini NAC. On a simulated frame the navigator's body, ring, and star models
 are simulated counterparts that share the renderer's geometry and shading, so a
 recovered offset says how tightly the techniques converge on a frame drawn by
@@ -142,7 +142,10 @@ for the SPICE-backed models that predict a real frame; those production models
 never run on a simulated frame. Its predictions share the renderer's geometry,
 shading, point-spread function, ring projection, and star flux, so a scene drawn
 without a deliberate mismatch is the navigator's own template plus a shift and
-noise. Its renderers live under
+noise. For stars that holds only when the scene's PSF is the navigator's own,
+``optics: {psf: {match_navigator: true}}`` (see :ref:`sim-floor`); without an
+``optics`` block a star renders as a point, which the navigator's Gaussian
+doesn't match. Its renderers live under
 ``nav_model/`` so the package layout states who owns them:
 :mod:`spindoctor.nav_model.sim_body` and :mod:`spindoctor.nav_model.sim_ring`
 draw the predicted templates that
@@ -291,8 +294,8 @@ not depend on the renderer being realistic: the information boundary
 (:ref:`sim-information-boundary`) guarantees the navigator cannot read the
 planted offset. A planted-truth recovery, an algorithmic-invariant test, or a
 regression pin is therefore an exact statement about the techniques navigating
-against the simulated models: if a change breaks a baseline, the techniques or
-those models changed behavior. It says nothing about the production body,
+against the simulated models: if a change breaks a baseline, the techniques,
+those models, or the rendered scene changed behavior. It says nothing about the production body,
 ring, and star models, which never run on a simulated frame. Within that
 scope, this is the axis on which the simulator's word is final.
 
@@ -312,12 +315,15 @@ comparison has been made. The realism match (:ref:`sim-realism-match`) is a
 precondition for that, not the comparison itself: it measures how closely
 simulated image statistics resemble a real cohort's. It has no pass
 threshold, and its tuned values were fitted on the same frames that report
-them. For the Cassini NAC the image side matches closely: the tuned star PSF
-reproduces the cohort's encircled-energy radii through the same estimator on
-both sides (EE50 0.84 px sim vs 0.91 real, EE80 1.56 vs 1.79, over 25 real
-cutouts from the cohort's 11 contributing star frames), limb rise widths agree
-in the like-for-like pool (medians 2.54 px on both sides, normalized W1 0.10),
-and the sky-noise distributions sit at a normalized W1 of 1.44. The WAC
+them. For the Cassini NAC several image statistics match closely: the tuned
+star PSF reproduces the cohort's encircled-energy radii through the same
+estimator on both sides (EE50 0.84 px sim vs 0.91 real, EE80 1.56 vs 1.79,
+over 25 real cutouts from the cohort's 11 contributing star frames), limb rise
+widths agree in the like-for-like pool (medians 2.54 px on both sides,
+normalized W1 0.10), and the sky-noise distributions sit at a normalized W1 of
+1.44. Others don't: the sky level above the frame floor diverges at a
+normalized W1 of 31, and at high phase the simulated limb measures wider than
+the real one (normalized W1 1.5 and 2.6 in the two high-phase strata). The WAC
 cohort is four frames, and the Galileo, Voyager, and LORRI cohorts support
 fragments at most. On every instrument, the simulator's error numbers are
 reproducibility statements.
@@ -378,8 +384,8 @@ What it cannot do
 - **Vouch for any instrument's accuracy.** Until simulated error is shown to
   predict real error for a class of frame, every instrument's numbers bound
   reproducibility only (see the four axes above). The Galileo, Voyager, and
-  LORRI cohorts don't support even the image-side comparison, which is what
-  the per-instrument support labels say.
+  LORRI cohorts support only some image-side comparisons; the per-instrument
+  support labels identify them.
 - **See outside its modeled axes.** A model error the renderer does not
   implement contributes nothing to any curve or fit. The main unmodeled axes
   today: pointing jitter within an exposure, image mid-time error, readout
@@ -3056,7 +3062,8 @@ against exactly this inventory, so an unknown noise key fails loudly.
        frame's event count is a Poisson draw with mean rate x
        (``exposure_sec`` + ``cosmic_ray_readout_dwell_sec``) x pixel count.
        ``instrument_defaults`` supplies the catalog rate, which each camera's
-       instrument page gives. The CCD chain deposits the hits in electrons and the vidicon chain in DN, with
+       instrument page (:doc:`instruments/instruments`) gives. The CCD chain
+       deposits the hits in electrons and the vidicon chain in DN, with
        the same meaning (see :ref:`sim-detector-stage`).
    * - ``cosmic_ray_readout_dwell_sec``
      - float

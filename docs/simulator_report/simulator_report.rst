@@ -8,9 +8,12 @@ navigation responds as a single scene parameter is swept. It is a standalone
 chapter, separate from the user and developer guides, and is regenerable on
 demand from the simulator scene catalog and sweep harness.
 
-**What these numbers measure.** Every recovery error in this chapter is a
-reproducibility and self-consistency result, measured today on the Cassini NAC,
-not a real-frame accuracy.  On a simulated frame the navigator's body, ring, and
+**What these numbers measure.** Every recovery error in this chapter is measured
+on simulated frames, mostly Cassini NAC frames with a few Voyager ISS ones, and
+none is a real-frame accuracy.  A recovery on a clean frame is a
+self-consistency floor; a sweep that plants a deliberate mismatch (a shape, a
+ring orbit, a PSF, a haze altitude) measures sensitivity to that one mismatch.
+On a simulated frame the navigator's body, ring, and
 star models are simulated counterparts that share the renderer's geometry,
 shading, point-spread function, ring projection, and star flux; the production
 models that navigate real frames never run.  A recovery therefore says how
@@ -1794,7 +1797,9 @@ Summary
 * All eight feature techniques (disc, mesh disc, blob, high-phase blob, star
   field, limb, ring edge, haze symmetry) plus the camera-roll fit recover their
   planted transform to within a pixel and half a degree on clean simulated
-  frames, the self-consistency floor.
+  frames. For every technique but the haze symmetry fit that is the
+  self-consistency floor; the haze scene deliberately renders a limb that
+  isn't the circle the fit assumes.
 * The disc, blob, ring edge, and star field are quantization-free: they recover
   any offset -- whole, near-boundary, or arbitrary fraction -- to a few hundredths
   of a pixel. The disc and blob recover most tightly (~0.01 px). The limb holds a
