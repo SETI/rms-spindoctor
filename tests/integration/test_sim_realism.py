@@ -1,4 +1,4 @@
-"""Integration tests for the Section 7 realism-match runner.
+"""Integration tests for the realism-match runner.
 
 Two layers, under the ``sim_integration`` tier because they render simulated
 frames and need no holdings, SPICE, or catalogs:

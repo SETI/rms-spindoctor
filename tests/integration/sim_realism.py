@@ -1,7 +1,7 @@
-"""Section 7 realism-match runner: sim vs real, per instrument, FOMs 1-7.
+"""Realism-match runner: sim vs real, per instrument, FOMs 1-7.
 
-Compares the WS-3 image-library cohort against matched simulated frames on
-the seven figures of merit of the sim-realism plan's Section 7:
+Compares the image-library cohort against matched simulated frames on the
+seven figures of merit:
 
 1. Sky-region noise statistics (paired-difference sigma, noise vs signal,
    sky power spectrum).
@@ -20,9 +20,9 @@ the seven figures of merit of the sim-realism plan's Section 7:
 Every real frame gets one matched sim frame (same instrument chain, same
 exposure, same content class; see :mod:`tests.integration.sim_realism_scenes`),
 and both sides run identical extraction (:mod:`tests.integration.sim_realism_support`).
-The scalar divergence per figure of merit is the 15.10-H W1 (quantile-clipped,
-real-IQR-normalized); curve kinds (sky PSD, star / limb / ring profiles) get
-the density-W1 between the frame-averaged curves.  Where a cohort cannot
+The scalar divergence per figure of merit is the Wasserstein-1 distance (W1,
+quantile-clipped, real-IQR-normalized); curve kinds (sky PSD, star / limb / ring
+profiles) get the density-W1 between the frame-averaged curves.  Where a cohort cannot
 support a statistic, the summary labels it rather than reporting a fake
 distribution.
 
@@ -513,7 +513,7 @@ def _aggregate(comparison: InstrumentComparison) -> None:
         )
     # Curve kinds get the density-W1: the frame-averaged curve on each side
     # is treated as a density over its axis (frequency or distance), and the
-    # 15.10-H scalar is how far mass must move along that axis to turn one
+    # W1 scalar is how far mass must move along that axis to turn one
     # shape into the other, normalized by the real density's IQR.
     for kind in sorted(set(comparison.real.curves) | set(comparison.sim.curves)):
         real_curves = comparison.real.curves.get(kind, [])

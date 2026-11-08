@@ -1,4 +1,4 @@
-"""Matched sim-scene construction for the Section 7 realism runner.
+"""Matched sim-scene construction for the realism-match runner.
 
 Every real cohort frame gets one matched simulated frame: same instrument
 signal chain (``artifacts.instrument_defaults``), same exposure, and scene

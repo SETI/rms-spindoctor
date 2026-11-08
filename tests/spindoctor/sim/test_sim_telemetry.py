@@ -73,8 +73,8 @@ def _body_truth(v0: int, v1: int, u0: int, u1: int) -> dict[str, Any]:
 # --- registry surface -------------------------------------------------------
 
 
-def test_registry_covers_every_5_1_mode_key() -> None:
-    """The registry holds exactly 31 mode keys (the 5.1 registry)."""
+def test_registry_covers_every_mode_key() -> None:
+    """The registry holds exactly 31 mode keys."""
     assert len(MODE_KEYS) == 31
 
 

@@ -1,8 +1,13 @@
 # New Horizons LORRI, raw DN (sci) products.
 #
-# Section numbers in the comments (5.5, 12, 15.7, ...) refer to the
-# simulator's instrument calibration references.  The keys are described in
-# the simulator chapter of the developer guide.
+# A value marked "published" comes from Cheng et al. 2008 (Space Science
+# Reviews 140, 189-215), Weaver et al. 2020 (PASP 132, 035003), the New
+# Horizons SOC-to-Instrument Pipeline ICD (SwRI 05310-SOCINST-01, PDS Small
+# Bodies Node), or the PDS LORRI instrument overview.  A value marked
+# "estimated" stands for a behavior those sources describe without a figure.
+# Neither has been fitted to flight frames; a measured or fitted value says so,
+# with the date and the frames.  The keys are described in the simulator
+# chapter of the developer guide.
 
 navigator:
   section: newhorizons_lorri
@@ -12,12 +17,12 @@ navigator:
 native_frame_size_px: 1024
 
 psf:
-  # RETAINED interim elliptical values (LORRI PSF references, 1x1 mode).  The
-  # cohort's two star frames are 4x4-binned; a binned frame renders with this
-  # kernel rescaled to binned pixels, so those frames test the 1x1 kernel only
-  # through the 4x4 rescaling.  Rendered that way the core matches the cohort
-  # (EE50 0.50 vs 0.59 binned px) and the wing is too weak (EE80 0.66 vs 1.23;
-  # #848).  Radii in native detector pixels.
+  # The published in-flight FWHMs over 2.355 (Y 2.65 px, X 2.06 px, 1x1 mode;
+  # Weaver et al. 2020), kept.  The cohort's two star frames are 4x4-binned; a
+  # binned frame renders with this kernel rescaled to binned pixels, so those
+  # frames test the 1x1 kernel only through the 4x4 rescaling.  Rendered that
+  # way the core matches the cohort (EE50 0.50 vs 0.59 binned px) and the wing
+  # is too weak (EE80 0.66 vs 1.23; #848).  Radii in native detector pixels.
   kernel: {sigma_v: 1.13, sigma_u: 0.87, w: 1.2e-2, r0: 2.0, n: 3.0}
   truncation_px: 16
 
@@ -25,31 +30,34 @@ psf:
 # model, from the star-field FOV distortion analysis: near its noise floor.
 distortion_residual: {k1: 8.13e-04, k2: -1.10e-03, nonradial_rms_px: 0.0}
 
-# Electrons a magnitude-0 star deposits per second, sized from the camera's
-# Section 5 limiting magnitude at SNR ~5.  Interim.
+# Electrons a magnitude-0 star deposits per second.  Estimated: sized so a star
+# at the camera's published limiting magnitude reaches SNR ~5, near the
+# matched-filter detection boundary.
 star_flux:
   e_per_s_vmag0: 7.0e+7
 
-# Interim plate scale from the published value (Section 12): ~5 urad/px
-# (1x1).
+# Plate scale from the published value, ~5 urad/px (1x1).
 sky_pixel_scale_arcsec: 1.023
 
 detector:
   detector_model: ccd
-  # 5.5: ADC-limited full well 4095 DN x 21 e-/DN.
+  # ADC-limited full well: the 4095 DN clip times the published 21 e-/DN.
   full_well_e: 86.0e+3
-  exposure_ref_sec: 0.1  # 5.5 interim (typical encounter exposure)
-  # 5.5: single gain state ~21 e-/DN (1x1); 4x4 binning reads ~19.4.
+  exposure_ref_sec: 0.1  # estimated (a typical encounter exposure)
+  # Published: a single gain state, ~21 e-/DN (1x1); 4x4 binning reads ~19.4.
   gain_e_per_dn_by_state: {0: 21.0}
   default_gain_state: 0
-  read_noise_e: 23.0  # 5.5 (~1.1 DN)
-  bias_dn: 545.0  # 5.5 (~545 DN estimated per-image from dark columns)
-  dark_current_e_per_sec: 0.04  # 5.5 (negligible dark current)
-  # 5.5: LORRI has NO hot pixels (PDS maps are zeroes); disabled.
+  read_noise_e: 23.0  # published (~1.1 DN)
+  # Published: ~545 DN, which the pipeline estimates per image from the dark
+  # columns.
+  bias_dn: 545.0
+  dark_current_e_per_sec: 0.04  # published (negligible dark current)
+  # LORRI has no hot pixels (the PDS hot- and dead-pixel maps are all zeroes);
+  # disabled.
   hot_pixel_fraction: 0.0
   hot_pixel_amplitude_e: 0.0
   hot_pixel_column_factor: 0.0
-  # RETAINED zero 2026-07-17: the realism match measured a 3.36e-4 per-frame
+  # Kept at zero 2026-07-17: the realism match measured a 3.36e-4 per-frame
   # transient spike fraction (two 5 s frames), but both cohort frames are
   # 4x4-binned star fields and a binned faint star is indistinguishable from a
   # transient to the single-pixel spike detector -- the cohort has no
@@ -57,15 +65,15 @@ detector:
   # adoptable.  Unblocked by any non-star LORRI frame entering the library;
   # scenes can still plant the radiation_transients mode explicitly.
   cosmic_ray_events_per_pixel_per_sec: 0.0
-  banding_amplitude_e: 17.0  # 5.5 interim (~0.8 DN vertical banding)
-  banding_period_px: 128.0  # 5.5 interim
+  banding_amplitude_e: 17.0  # published (~0.8 DN vertical banding)
+  banding_period_px: 128.0  # estimated
   bias_pedestal_sigma_dn: 1.0
   bias_row_gradient_dn: 0.5
   bias_col_gradient_dn: 0.5
-  bloom_length: 2  # 5.5 interim (short column bleed)
+  bloom_length: 2  # estimated (short column bleed)
   quantization: exact
 
-# The 4x4 binned mode reads about 19.4 e-/DN (5.5; 21 at 1x1).
+# The 4x4 binned mode reads about 19.4 e-/DN (published; 21 at 1x1).
 readout_modes:
   1: {}
   4: {gain_e_per_dn_by_state: {0: 19.4}}
@@ -89,14 +97,15 @@ artifact_modes:
   unavailable_reasons:
     hot_pixels: explicitly disabled for LORRI, which has none
     bloom: explicitly disabled for LORRI, an antiblooming CCD with no column bloom
-  # The frame-transfer smear is the defining LORRI artifact (15.7), so it is
-  # the one mode instrument_defaults turns on: a scene that has not set it
-  # gets it at probability 1 with the shape defaults' nominal scrub and
-  # transfer times.  Every other mode stays off until a scene sets its
-  # activation key.
+  # The frame-transfer smear is the defining LORRI artifact (vertical
+  # full-column pedestals through bright targets, about 10% of the column at
+  # the nominal 100 ms exposure), so it is the one mode instrument_defaults
+  # turns on: a scene that has not set it gets it at probability 1 with the
+  # shape defaults' nominal scrub and transfer times.  Every other mode stays
+  # off until a scene sets its activation key.
   instrument_defaults:
     frame_transfer_smear: {probability: 1.0}
-  # Per-mode shape defaults (interim, 5.5).
+  # Per-mode shape defaults, published or estimated like the detector values.
   shape_defaults:
     # ~12 ms pre-exposure scrub, ~11 ms post-exposure transfer.
     frame_transfer_smear: {t_scrub_sec: 0.012, t_transfer_sec: 0.011}
@@ -116,7 +125,7 @@ artifact_modes:
     # plants the hits as a rate, with expected_events_per_sec.
     radiation_transients: {amplitude_e: 8.6e+4}
     # The first 34 pixels of row 0 of every image are binary housekeeping, never
-    # scene data (5.5).
+    # scene data (SOC-to-Instrument Pipeline ICD).
     embedded_header: {header_px: 34}
 
 # The image library's sci frames are matched against this instrument by the

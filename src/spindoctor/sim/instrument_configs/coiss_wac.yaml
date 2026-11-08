@@ -1,8 +1,12 @@
 # Cassini ISS wide-angle camera, raw DN products.
 #
-# Section numbers in the comments (5.2, 12, ...) refer to the simulator's
-# instrument calibration references.  The keys are described in the simulator
-# chapter of the developer guide.
+# A value marked "published" comes from Porco et al. 2004 (Space Science
+# Reviews 115, 363-497), the ISS Data User's Guide (Knowles 2018, PDS Imaging
+# Node), or West et al. 2010 (Planetary and Space Science 58, 1475-1488).  A
+# value marked "estimated" stands for a behavior those sources describe without
+# a figure.  Neither has been fitted to flight frames; a measured or fitted
+# value says so, with the date and the frames.  The keys are described in the
+# simulator chapter of the developer guide.
 
 navigator:
   section: cassini_iss
@@ -17,8 +21,7 @@ psf:
   # cutouts): cohort EE50/EE80 = 1.33/2.16 px through the final estimator;
   # sigma follows the measured EE50 with the NAC wing shape.  Two-frame
   # evidence -- treat as cohort-limited, revisit when more WAC star frames
-  # land.  Replaces the interim FWHM/2.355 value.  Radii in native detector
-  # pixels.
+  # land.  Radii in native detector pixels.
   kernel: {sigma_v: 1.05, sigma_u: 1.05, w: 0.12, r0: 3.0, n: 4.0}
   # Cassini's documented long wings get a wider window than the generic 16 px;
   # the far halo beyond the window is stray-light scope, not kernel scope.
@@ -29,23 +32,25 @@ psf:
 # radially symmetric.
 distortion_residual: {k1: 9.0e-06, k2: 5.48e-05, nonradial_rms_px: 0.0}
 
-# Electrons a magnitude-0 star deposits per second, sized from the camera's
-# Section 5 limiting magnitude at SNR ~5.  Interim.
+# Electrons a magnitude-0 star deposits per second.  Estimated: sized so a star
+# at the camera's published limiting magnitude reaches SNR ~5, near the
+# matched-filter detection boundary.
 star_flux:
   e_per_s_vmag0: 2.6e+6
 
-# Interim plate scale from the published value (Section 12): ~60 urad/px.
+# Plate scale from the published value, ~60 urad/px.
 sky_pixel_scale_arcsec: 12.37
 
 detector:
   detector_model: ccd
-  full_well_e: 95.0e+3  # 5.2 interim
+  full_well_e: 95.0e+3  # published (~95k e-, ~3400 DN at gain state 2)
   exposure_ref_sec: 1.0
-  # 5.2: only state 2 is cataloged for the WAC; selecting another WAC state is
-  # a validation error until its full table is sourced.
+  # Only gain state 2 is cataloged for the WAC, estimated from the NAC-to-WAC
+  # gain ratios of the calibration reports; selecting another WAC state is a
+  # validation error until the WAC's full table is sourced.
   gain_e_per_dn_by_state: {2: 28.0}
   default_gain_state: 2
-  read_noise_e: 12.0  # 5.2 interim
+  read_noise_e: 12.0  # published (~12 e-)
   bias_dn: 20.0
   dark_current_e_per_sec: 5.0
   # Measured 2026-11-06 on one 12-bit full-frame WAC star field (the other
@@ -63,12 +68,12 @@ detector:
   cosmic_ray_readout_dwell_sec: 6.0
   cosmic_ray_amplitude_e: 1000.0
   cosmic_ray_spread_px: 0.6
-  banding_amplitude_e: 6.0  # 5.2 interim (~6 e- WAC 4 Hz)
+  banding_amplitude_e: 6.0  # published (~6 e- at 4.0 Hz)
   banding_period_px: 64.0
   bias_pedestal_sigma_dn: 2.0
   bias_row_gradient_dn: 1.0
   bias_col_gradient_dn: 0.5
-  bloom_length: 4  # 5.2 interim (no antiblooming; column bleed above the well)
+  bloom_length: 4  # estimated (no antiblooming; column bleed above the well)
   quantization: exact
 
 # The 12-to-8-bit downlink table the NAC and WAC share; its measurement is
@@ -133,7 +138,8 @@ artifact_modes:
     - quantization_ls8b
     - fixed_pattern
     - compression_dct
-  # Per-mode shape defaults (interim, 5.2); ~6 e- WAC 4 Hz banding.
+  # Per-mode shape defaults, published or estimated like the detector values;
+  # ~6 e- 4 Hz banding.
   shape_defaults:
     banding_coherent: {amplitude_e: 6.0, period_px: 64.0, orientation: horizontal}
     bias_structure: {pedestal_sigma_dn: 2.0, row_gradient_dn: 1.0, col_gradient_dn: 0.5}

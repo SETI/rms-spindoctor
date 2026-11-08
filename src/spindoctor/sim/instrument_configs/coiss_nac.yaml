@@ -1,8 +1,12 @@
 # Cassini ISS narrow-angle camera, raw DN products.
 #
-# Section numbers in the comments (5.2, 12, ...) refer to the simulator's
-# instrument calibration references.  The keys are described in the simulator
-# chapter of the developer guide.
+# A value marked "published" comes from Porco et al. 2004 (Space Science
+# Reviews 115, 363-497), the ISS Data User's Guide (Knowles 2018, PDS Imaging
+# Node), or West et al. 2010 (Planetary and Space Science 58, 1475-1488).  A
+# value marked "estimated" stands for a behavior those sources describe without
+# a figure.  Neither has been fitted to flight frames; a measured or fitted
+# value says so, with the date and the frames.  The keys are described in the
+# simulator chapter of the developer guide.
 
 navigator:
   section: cassini_iss
@@ -20,13 +24,13 @@ psf:
   # estimator.  The EE80/EE50 ratio (1.97 vs 1.52 for a pure Gaussian) requires
   # substantial mid-range wing energy, so this is an *effective* in-window
   # kernel: the fitted w = 0.12 carries the measured 1-8 px halo energy that
-  # the interim FWHM-derived core (sigma 0.55, w 0.025) put nowhere.  A first
-  # fit at w = 0.20 matched the encircled energy but measurably over-lifted the
-  # wide-field halo (sky-patch means and mid-size-body limb widths); w = 0.12
-  # with the softer core matches the stars without that excess.  The far halo
-  # beyond the truncation window remains stray-light scope.  Replaces the
-  # interim FWHM/2.355 value.  Radii in native detector pixels; the wing
-  # parameters are an energy fraction, so the kernel conserves flux.
+  # the earlier core (sigma 0.55 from the published FWHM over 2.355, w 0.025)
+  # put nowhere.  A first fit at w = 0.20 matched the encircled energy but
+  # measurably over-lifted the wide-field halo (sky-patch means and
+  # mid-size-body limb widths); w = 0.12 with the softer core matches the stars
+  # without that excess.  The far halo beyond the truncation window remains
+  # stray-light scope.  Radii in native detector pixels; the wing parameters are
+  # an energy fraction, so the kernel conserves flux.
   kernel: {sigma_v: 0.70, sigma_u: 0.70, w: 0.12, r0: 3.0, n: 4.0}
   # Cassini's documented long wings get a wider window than the generic 16 px;
   # the far halo beyond the window is stray-light scope, not kernel scope.
@@ -39,30 +43,31 @@ psf:
 # close to radially symmetric.
 distortion_residual: {k1: 3.17e-04, k2: -3.51e-04, nonradial_rms_px: 0.0}
 
-# Electrons a magnitude-0 star deposits per second, sized from the camera's
-# Section 5 limiting magnitude at SNR ~5 (a magnitude-0 star of this zero
-# point lands the limiting magnitude near the matched-filter detection
-# boundary at the camera's read noise and PSF core).  Interim.
+# Electrons a magnitude-0 star deposits per second.  Estimated: sized so a star
+# at the camera's published clear-filter limiting magnitude reaches SNR ~5,
+# near the matched-filter detection boundary at the camera's read noise and PSF
+# core.
 star_flux:
   e_per_s_vmag0: 1.0e+7
 
-# Interim plate scale from the published value (Section 12): ~6 urad/px.
+# Plate scale from the published value, ~6 urad/px.
 sky_pixel_scale_arcsec: 1.237
 
 detector:
   detector_model: ccd
-  # 5.2 interim: full well ~110k e- (saturates ~3600 DN at gain 2, below the
-  # 4095 ADC clip).
+  # Published: full well ~110k e- (saturates ~3600 DN at gain state 2, below
+  # the 4095 ADC clip).
   full_well_e: 110.0e+3
-  # 5.2 interim: a typical NAC science exposure, so a converted scene at this
-  # exposure keeps today's brightness scale.
+  # Estimated: a typical NAC science exposure, so a converted scene at this
+  # exposure keeps its brightness scale.
   exposure_ref_sec: 1.0
-  # 5.2 interim gain states ~233/95/30/13 e-/DN; tour-standard state 2.
+  # Published gain states ~233/95/30/13 e-/DN; state 2 is the standard science
+  # state of the Saturn tour.
   gain_e_per_dn_by_state: {0: 233.0, 1: 95.0, 2: 30.0, 3: 13.0}
   default_gain_state: 2
-  read_noise_e: 12.0  # 5.2 interim
+  read_noise_e: 12.0  # published (~12 e-)
   bias_dn: 20.0
-  dark_current_e_per_sec: 5.0  # 5.2 interim (RBI-dominated dark)
+  dark_current_e_per_sec: 5.0  # estimated (dark dominated by residual bulk image)
   # Measured 2026-11-06: the dark sky of 12-bit full-frame raw NAC frames rises
   # linearly from the first line to the last by a median 55 e- (1.8 DN at gain
   # state 2 over 21 frames, 4.0 DN at gain state 3 over 3), the same from 60 ms
@@ -70,9 +75,10 @@ detector:
   # CISSCAL's dark model subtracts it from the CALIB product; its shot noise
   # stays.
   readout_dark_e: 55.0
-  hot_pixel_fraction: 2.0e-3  # 5.2 interim (~0.15-0.28% of pixels)
-  hot_pixel_amplitude_e: 4.0e+4  # 5.2 interim (near full well)
-  # 5.2 interim: total-charge fraction bled into the warm column above a hot
+  # Published: 0.15% of pixels in 2004, growing to ~0.28% by 2008-2009.
+  hot_pixel_fraction: 2.0e-3
+  hot_pixel_amplitude_e: 4.0e+4  # estimated (near the full well)
+  # Estimated: total-charge fraction bled into the warm column above a hot
   # pixel (the streak integral, not a per-pixel amplitude).
   hot_pixel_column_factor: 0.3
   # Fitted 2026-11-06 in closed loop: dark raw NAC frames rendered at the
@@ -89,12 +95,12 @@ detector:
   cosmic_ray_readout_dwell_sec: 6.0
   cosmic_ray_amplitude_e: 1000.0
   cosmic_ray_spread_px: 0.6
-  banding_amplitude_e: 30.0  # 5.2 interim (~30 e- NAC 2 Hz)
-  banding_period_px: 64.0  # 5.2 interim (line-readout-rate period)
-  bias_pedestal_sigma_dn: 2.0  # 5.2 interim (per-image pedestal jitter)
-  bias_row_gradient_dn: 1.0  # 5.2 interim (readout-direction gradient)
-  bias_col_gradient_dn: 0.5  # 5.2 interim
-  bloom_length: 4  # 5.2 interim (no antiblooming; column bleed above the well)
+  banding_amplitude_e: 30.0  # published (~30 e-, 2.1 and 2.5 Hz beating)
+  banding_period_px: 64.0  # estimated (the line readout rate sets the period)
+  bias_pedestal_sigma_dn: 2.0  # estimated (per-image pedestal jitter)
+  bias_row_gradient_dn: 1.0  # estimated (readout-direction gradient)
+  bias_col_gradient_dn: 0.5  # estimated
+  bloom_length: 4  # estimated (no antiblooming; column bleed above the well)
   quantization: exact
 
 # The downlink tables the sqrt_lut quantization decodes through.  The camera has
@@ -192,10 +198,10 @@ artifact_modes:
     - quantization_ls8b
     - fixed_pattern
     - compression_dct
-  # Per-mode shape defaults (interim, 5.2).  An activation key is never
-  # cataloged: a mode activates only when a scene sets it.  Shapes here are the
-  # values a scene inherits when it names a mode without spelling every
-  # parameter.
+  # Per-mode shape defaults, published or estimated like the detector values.
+  # An activation key is never cataloged: a mode activates only when a scene
+  # sets it.  Shapes here are the values a scene inherits when it names a mode
+  # without spelling every parameter.
   shape_defaults:
     # ~30 e- NAC 2 Hz horizontal banding, line-readout-rate period.
     banding_coherent: {amplitude_e: 30.0, period_px: 64.0, orientation: horizontal}

@@ -18,8 +18,8 @@ detector:
   # TUNED 2026-07-17 by the realism match against the 62-frame CALIB
   # image-library cohort: the measured stationary spike fraction 1.6e-5
   # (single-pixel spikes recurring at fixed positions across the 58-frame NAC
-  # cohort; the interim raw-chain 2e-3 overstated the calibrated products by
-  # ~100x and dominated their p99 signal percentile).
+  # cohort; the raw camera's estimated 2e-3 overstated the calibrated products
+  # by ~100x and dominated their p99 signal percentile).
   hot_pixel_fraction: 1.6e-5
   # CISSCAL's 2-Hz noise removal strips the coherent banding, and the cohort
   # sky floor sits below the level at which the raw chain's 30 e- banding

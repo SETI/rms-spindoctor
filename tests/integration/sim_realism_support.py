@@ -1,4 +1,4 @@
-"""Shared extraction machinery for the Section 7 realism-match runner.
+"""Shared extraction machinery for the realism-match runner.
 
 This module turns one frame -- real or simulated -- into the pooled sample
 arrays the figures of merit compare.  Both sides run exactly the same code:
@@ -531,8 +531,8 @@ def extract_feature_samples(
                 if peak > 0.0:
                     out.add_curve('ring_radial_profile', taps, mean / peak)
         elif feature.feature_type is NavFeatureType.TERMINATOR_ARC:
-            # Terminator realism is a separate verdict (plan Section 8);
-            # excluded from the FOM 3 limb distribution.
+            # Terminator realism is judged separately, by FOM 3 computed on the
+            # terminator side; excluded from the FOM 3 limb distribution.
             continue
     if star_candidates and star_radius is not None:
         star_candidates.sort(key=lambda entry: entry[0], reverse=True)
