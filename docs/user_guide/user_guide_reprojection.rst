@@ -46,9 +46,9 @@ as its first argument, which is the form the cloud task worker uses::
     sd_mosaic rings DATASET [options]
     sd_mosaic body  DATASET [options]
 
-``DATASET`` names the dataset to draw images from, and the options that choose
-which of its images to process are the same ones every pipeline program takes;
-see :doc:`user_guide_image_selection`. The two commands are two faces of one
+``DATASET`` is the dataset to draw images from. The options that choose which of
+its images to process are the same ones every pipeline program takes; see
+:doc:`user_guide_image_selection`. The two commands are two faces of one
 program, so everything below is common to them except where a section says
 otherwise.
 
@@ -119,22 +119,22 @@ Options both commands accept
        :doc:`user_guide_navigation_running`). Each image is reprojected on its
        navigated pointing. A root is required: give it here, or as
        ``environment.nav_results_root`` in a configuration file, or as the
-       ``NAV_RESULTS_ROOT`` environment variable. A run that names none in any of
-       those places stops.
+       ``NAV_RESULTS_ROOT`` environment variable. If none of those places gives
+       one, the run stops.
    * - ``--results-index-db URL``
      - *(none)*
      - Connection URL of a results index built by ``sd_results_index`` (see
-       :doc:`user_guide_results_index`): a
-       ``sqlite:`` URL naming a local file, or a ``postgresql+psycopg:`` URL
-       naming a server. Each image's navigation record is then read as one
-       database row instead of one file, which on a cloud results root replaces
-       a round trip per image with a query. The results index must already hold a
-       completed ingest of the root named by ``--nav-results-root``, and its
-       rows are a snapshot of that root as of the ingest. Omitting the option
-       names no results index, and the navigation results are read as files.
-       ``--results-index-db none`` also names no results index, which is how a machine
-       that sets the option through configuration or through the
-       ``NAV_RESULTS_INDEX_DB`` environment variable reads the files instead.
+       :doc:`user_guide_results_index`): a ``sqlite:`` URL for a local file, or
+       a ``postgresql+psycopg:`` URL for a server. Each image's navigation
+       record is then read as one database row instead of one file, which on a
+       cloud results root replaces a round trip per image with a query. The
+       results index must already hold a completed ingest of the root given by
+       ``--nav-results-root``, and its rows are a snapshot of that root as of
+       the ingest. Without the option, no results index is used and the
+       navigation results are read as files. ``--results-index-db none`` also
+       turns the results index off. A machine that sets the option through
+       configuration or through the ``NAV_RESULTS_INDEX_DB`` environment
+       variable uses it to read the files instead.
    * - ``--output-dir DIR``
      - *(required)*
      - Directory the reprojection files and the mosaic are written to.
@@ -541,17 +541,17 @@ every metadata document that could be read, the products a run builds are the
 same whether the option was given or not.
 
 A metadata document that could not be read is the exception, and it is a refusal
-rather than a difference. The results index records such a file as one it holds
-no navigation record for. Read directly, that same metadata document may well
+rather than a difference. The results index records that it holds no navigation
+record for such a file. Read directly, that same metadata document may well
 carry a status and a pointing, so reporting it as an image that nothing ever
 navigated would build one product from the results tree and a different one from
-the results index without saying so. Instead that image fails, naming itself,
-the results index, and the reason the ingest recorded, and the rest of the pass
-continues. The remedy is to fix the metadata document and ingest the root again,
-or to run the pass without ``--results-index-db``. A file the ingest could not
-retrieve at all is not recorded, since it is worth retrying on the next pass,
-and an image whose metadata document failed that way reads as one that nothing
-navigated.
+the results index without saying so. Instead that image fails with a message
+that gives the image, the results index, and the reason the ingest recorded, and
+the rest of the pass continues. The remedy is to fix the metadata document and
+ingest the root again, or to run the pass without ``--results-index-db``. A file
+the ingest could not retrieve at all is not recorded, since it is worth retrying
+on the next pass, and an image whose metadata document failed that way reads as
+one that nothing navigated.
 
 One difference is visible only in the run's own reporting. Where a record
 supplies no pointing, the results index cannot always keep *why*, so the
@@ -660,7 +660,7 @@ to the recorded pixel offset, which is why the tally is not a count of images
 built on uncorrected pointing. The rest leave the image on uncorrected pointing,
 and those are the ones the ``with uncorrected pointing`` count above covers.
 
-Every run names a navigation results root, so every image is asked for a
+Every run is given a navigation results root, so every image is asked for a
 navigated pointing and the tally covers all of them.
 
 Displaying reprojections and mosaics
@@ -826,7 +826,7 @@ would have processed, and does no reprojection or mosaicing:
        --output-dir /data/mosaics --prefix mimas_2004 \
        --output-cloud-tasks-file mimas_tasks.json
 
-Each task names one or more images and carries every setting for those images:
+Each task lists one or more images and carries every setting for those images:
 the output directory, the prefix, the format, and the whole ring or body mosaic
 configuration. Each task also declares whether it is ring work or body work, so
 one worker can drain a queue holding both. The worker writes its per-image

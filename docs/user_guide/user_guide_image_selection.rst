@@ -65,11 +65,11 @@ that enumerates images out of an archive offers the same set:
 results rather than an archive, and selects by time instead: ``--start-time`` and
 ``--stop-time`` bound the exposure midtimes it will accept.
 
-Which options a run accepts depends on the dataset it names, because each dataset offers
-the options that suit its archive. Everything in this chapter applies to the PDS3
-datasets, which is all four supported instruments: ``coiss``, ``coiss_cruise``,
-``coiss_saturn``, ``gossi``, ``nhlorri``, and ``vgiss``, together with the ``_pds3``
-alias of each. The ``sim`` dataset takes the paths of its scene files instead
+Which options a run accepts depends on its dataset, because each dataset offers the
+options that suit its archive. Everything in this chapter applies to the PDS3 datasets,
+which is all four supported instruments: ``coiss``, ``coiss_cruise``, ``coiss_saturn``,
+``gossi``, ``nhlorri``, and ``vgiss``, together with the ``_pds3`` alias of each. The
+``sim`` dataset takes the paths of its scene files instead
 (:doc:`user_guide_simulated_images`). Running a program with ``--help`` and the dataset
 you intend to use lists exactly what that combination accepts.
 
@@ -145,9 +145,9 @@ Selecting by Image Name
   to have that column is reported and skipped, and the run goes on. (Reads the file you
   name, then matches against the PDS3 index table rows.)
 
-Naming images does not by itself restrict the volumes a run looks in. Combining a name
-list with volume options keeps the run from reading PDS3 index tables that it does not
-need.
+Selecting images by name does not by itself restrict the volumes a run looks in. Combining
+a name list with volume options keeps the run from reading PDS3 index tables that it does
+not need.
 
 Selecting by Image Number
 =========================
@@ -230,14 +230,14 @@ Each of the four error options asks what a metadata document records, so each of
 requires that metadata document to exist. An image that has no metadata document records
 no error, and ``--has-no-offset-file`` is what selects it.
 
-Combinations that nothing could satisfy are refused before the run starts, and the
-message names every flag involved:
+Combinations that nothing could satisfy are refused before the run starts, and the message
+lists every flag involved:
 
 * ``--has-offset-file`` with ``--has-no-offset-file``.
 * ``--has-offset-spice-error`` with ``--has-offset-nonspice-error``.
 * ``--has-no-offset-file`` with any of the four error options, since those need a
   metadata document to read.
-* ``--has-no-offset-error`` with any of the three options that name an error.
+* ``--has-no-offset-error`` with any of the three options that ask about a kind of error.
 
 What These Options Cost
 -----------------------
@@ -286,9 +286,9 @@ schema.
 Such a metadata document is still a file that exists, so ``--has-offset-file`` selects its
 image and ``--has-no-offset-file`` passes over it.
 
-When a run ends, its log reports how many candidate metadata documents it could read
-nothing out of and names one of them with the reason. A selection that is short for this
-reason says so.
+When a run ends, its log reports how many candidate metadata documents it could not read
+anything from. It also gives one of them and the reason. A selection that is short for
+this reason says so.
 
 Results Directories That Cannot Be Listed
 -----------------------------------------
@@ -300,7 +300,7 @@ A selected volume that has no directory under the results root contributes nothi
 volume nobody has navigated yet has no directory there, and that is an ordinary state of
 a results tree.
 
-A directory that is there and cannot be listed ends the run instead, and the message names
+A directory that is there and cannot be listed ends the run instead, and the message gives
 that directory. This user may not have permission to read it, or the storage it lives on
 may have gone away.
 

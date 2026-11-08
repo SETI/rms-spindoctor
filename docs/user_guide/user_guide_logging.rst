@@ -286,9 +286,9 @@ debugging ones. ``NONE`` sits above ``CRITICAL`` and admits nothing at all.
 The default is ``INFO``.
 
 Level names are not case sensitive, and surrounding whitespace is ignored:
-``debug``, ``Debug``, and ``DEBUG`` all mean the same thing. This chapter
-spells them in upper case throughout. Anything that is not one of the six is
-refused, with a message naming what you wrote and listing what is accepted.
+``debug``, ``Debug``, and ``DEBUG`` all mean the same thing. This chapter spells
+them in upper case throughout. Anything that is not one of the six is refused,
+with a message that quotes what you wrote and lists what is accepted.
 
 A level applies to a log, not to one of its output destinations. The terminal
 and the file always show the same records, so there is one level to set per
@@ -337,9 +337,9 @@ section, as is whether each logger reaches the terminal -- ``main_console`` and
 There are no configuration keys for the file destinations or the log root.
 Whether a log file is written is inseparable from where it goes, and that is
 chosen per run with ``--log-root``, so ``--log-main-to-file`` and
-``--log-image-to-file`` are command-line only. Writing ``main_file`` or ``image_file`` in
-the configuration is an error naming the key, not a setting that quietly does
-nothing.
+``--log-image-to-file`` are command-line only. Writing ``main_file`` or
+``image_file`` in the configuration is an error that reports the key, not a
+setting that quietly does nothing.
 
 .. code-block:: yaml
 
@@ -371,11 +371,11 @@ The most specific setting wins:
      > logging.main / logging.image
      > INFO
 
-Note that a component named in a configuration file outranks a bare
+Note that a level set for a component in a configuration file outranks a bare
 ``--log-level``, which says nothing about that component. The shipped
-configuration names one: ``other.annotate: ERROR``. So ``--log-level NONE``
-does not produce silence -- annotation stays at ERROR, which keeps a log file
-open and writes one per image. To get silence, either name it
+configuration sets one: ``other.annotate: ERROR``. So ``--log-level NONE`` does
+not produce silence -- annotation stays at ERROR, which keeps a log file open
+and writes one per image. To get silence, either set that component too
 (``--log-level NONE --log-level annotate=NONE``) or turn both per-image
 destinations off (``--no-log-image-to-file --no-log-image-to-console``).
 ``--no-log-image-to-file`` on its own is enough only while the per-image console
@@ -387,7 +387,7 @@ with the settings above it, so a program can override one value while
 inheriting the rest.
 
 An unrecognized component name, program name, or level is rejected when the
-configuration loads, naming the offending key.
+configuration loads, and the error gives the offending key.
 
 Component names
 ---------------
@@ -473,7 +473,6 @@ many images it completed, how many it skipped, and how many failed.
 ``sd_results_index_cloud_tasks`` is the case where the task result is the whole
 record. It has no per-image log either, because it reads metadata documents
 rather than images. Each task returns how many files it ingested, how many it
-skipped, and how many it could not read, and names every file it could not
-read. ``sd_results_index`` reads those tallies back and writes them into the
-results index, where they stay. See
-:doc:`/user_guide/user_guide_results_index`.
+skipped, and how many it could not read, and lists every file it could not read.
+``sd_results_index`` reads those tallies back and writes them into the
+results index, where they stay. See :doc:`/user_guide/user_guide_results_index`.

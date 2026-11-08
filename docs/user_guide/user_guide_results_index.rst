@@ -6,11 +6,10 @@ Overview
 ========
 
 Navigation writes one ``_metadata.json`` metadata document per image under
-``nav_results_root``. In a run that names no results index, every program downstream
-of navigation reads one of those metadata documents per image it processes. On a
-local disk that is cheap. On a
-cloud root it is one paid round trip per image per program, and a
-Cassini-scale run is of the order of 400,000 images.
+``nav_results_root``. If a run does not ask for a results index, every program after
+navigation reads one of those metadata documents for each image it processes. That is
+cheap on a local disk. On a cloud root it costs one paid round trip per image per
+program, and a Cassini-scale run covers on the order of 400,000 images.
 
 The fields those programs actually consume are narrow: whether the image was
 navigated, what fatal error it recorded, the pixel offset, the corrected
@@ -36,8 +35,8 @@ report.
 Nothing requires a results index
 ================================
 
-Every program runs without a results index, and that is the default. A run that
-names none reads the results tree directly. There is no fallback path to get
+Every program runs without a results index, and that is the default. A run that does
+not ask for one reads the results tree directly. There is no fallback path to get
 wrong, because reading files *is* the ordinary path.
 
 ``sd_stats_report`` is the one worth a word before it is pointed at a tree. It
@@ -54,8 +53,8 @@ exported for another program. A declaring program honors all three levels of the
 ladder below; a program that declares nothing reads the tree whatever is set in
 the environment.
 
-Naming a results index
-======================
+Choosing a results index
+========================
 
 Every index-backed program resolves its URL the same way, in this order:
 
@@ -74,10 +73,11 @@ machine that has a results index configured:
 A value that is empty, or nothing but spaces, is refused at whichever level
 carries it. ``none`` is how a level says "no results index" deliberately, so an
 empty value is a typo, a script that computed nothing, or a variable left half
-unset; read as naming no results index it would send a whole batch to the results
-tree, which answers a different question and takes hours longer to answer it on a cloud
-root. Every run on a machine configured that way therefore stops, on the first
-run rather than after the batch, and says which of the three levels to fix::
+unset. If SpinDoctor read an empty value as "no results index", it would send a
+whole batch to the results tree, which answers a different question and, on a cloud
+root, takes hours longer to answer it. So every run on a machine configured that way
+stops at once and says which of the three levels to fix. The mistake shows up on the
+first run instead of after the batch::
 
     NAV_RESULTS_INDEX_DB is set to an empty value, which is neither a
     connection URL nor the way to name no index. Write none to name no index,
@@ -88,14 +88,14 @@ Two URL forms are supported::
     sqlite:////data/nav-offset-results/index.sqlite3
     postgresql+psycopg://user@dbhost/spindoctor
 
-A ``sqlite:`` URL names a **local filesystem path**, spelled with four slashes
+A ``sqlite:`` URL points to a **local filesystem path**, spelled with four slashes
 for an absolute one. It is the one location in this system that is not
 cloud-capable: the SQLite library opens the file directly, so a network
 filesystem that cannot honor its locking is refused when the results index is
 opened rather than corrupted later. The URL carries no query string, since the
 driver would then open a file named after the query.
 
-A ``postgresql+psycopg:`` URL names a server, and needs the driver:
+A ``postgresql+psycopg:`` URL points to a server, and needs the driver:
 
 .. code-block:: bash
 
@@ -108,9 +108,10 @@ writes the URL it hides the password, so a log records
 hidden the same way.
 
 A refusal also quotes what the database software itself reported, and the password is
-hidden inside that quoted text too. A driver names a URL it could not use by quoting
-the part of it that stopped it, which for a password holding an ``@`` or a ``:`` can be
-a run of the password, so the quote is cleaned wherever a refusal carries one.
+hidden inside that quoted text too. When a driver cannot use a URL, its message quotes
+the part of the URL that stopped it. If the password holds an ``@`` or a ``:``, that
+part can be a run of the password, so the quote is cleaned wherever a refusal carries
+one.
 
 Which programs read a results index
 ===================================
@@ -220,10 +221,10 @@ is on.
      ingest_commit_batches: 2
 
 The section applies to every program that reads a results tree, not only to
-``sd_results_index``: a statistics report or a C-kernel run over a tree, and a
-navigation, backplane, or bundle run whose selection names one of the
-``--has-offset-file`` family of filters, all read the tree the same way and all
-honor it. Only the last setting is particular to the ingest.
+``sd_results_index``. A statistics report or a C-kernel run over a tree reads the tree
+the same way and honors it. So does a navigation, backplane, or bundle run that
+selects its images with one of the ``--has-offset-file`` family of filters. Only the
+last setting is particular to the ingest.
 
 **A note on processor cores.** These are not settings that divide work between
 cores. The threads they create spend their time waiting for storage to answer,
@@ -234,11 +235,12 @@ the useful value is your network and what your storage service will do at
 once, and past that point extra requests queue, or the service refuses them,
 and the pass gets slower rather than faster.
 
-**A value no pass can run at is refused when the configuration is loaded**,
-naming the setting, before the program has written anything: a count that is
-not a positive whole number, a setting name the section does not have, or a
-round of work smaller than the pool it feeds, which would leave threads idle at
-every setting rather than merely running slowly.
+**If no pass can run at a value, the value is refused when the configuration is
+loaded**, before the program has written anything, and the message says which setting
+is wrong. Three kinds of value are refused: a count that is not a positive whole
+number, a setting name the section does not have, and a round of work smaller than
+the pool it feeds, which would leave threads idle at every setting rather than merely
+running slowly.
 
 The settings
 ~~~~~~~~~~~~
@@ -374,9 +376,9 @@ How a results index is asked for
    * - ``drop``
      - Removes the results index's own tables from the database and stops.
 
-Each subcommand takes the options it acts on and no others, so a command line
-asking for two different things is refused with a usage message naming the
-option instead of being run as one of them. ``--results-index-db``,
+Each subcommand takes the options it acts on and no others. A command line that asks
+for two different things is not run as one of them: it is refused with a usage
+message that quotes the option. ``--results-index-db``,
 ``--config-file``, and the logging options belong to all four;
 ``--nav-results-root`` to the three that read a tree; ``--force`` and
 ``--no-prune`` to ``ingest`` and ``divide``; and ``--yes`` to ``drop``. Such a
@@ -423,7 +425,7 @@ own.** The tables go into the schema the results index resolves to: the one hold
 stamp, the one an unqualified ``CREATE TABLE`` lands in (``main`` on SQLite, the
 first schema of the search path on PostgreSQL). That schema is built in when it
 holds nothing at all, and gone on with when it already carries SpinDoctor's
-stamp, whatever schema version that stamp names. Anything else is **refused**,
+stamp, whatever schema version that stamp records. Anything else is **refused**,
 before a table is created or a stamp is written:
 
 - A schema holding a table of one of the results index's own names --
@@ -435,15 +437,15 @@ before a table is created or a stamp is written:
   drop's.
 - A schema holding any table SpinDoctor does not own, stamped or not. A results
   index owns the schema it lives in, so a table nobody here created in it means
-  the URL, or the search path behind it, names a database or a schema other than
-  the one intended.
+  the URL, or the search path behind it, points to a database or a schema other
+  than the one intended.
 
-The refusal names the schema, the tables it stopped on, and the results index URL
-with its password hidden, and exits 1; nothing is created, nothing is stamped,
-and that schema is exactly as it was. The remedy is to check the URL, or to name
-a schema of the results index's own -- on PostgreSQL, by appending
-``?options=-csearch_path=schemaname`` to the URL. Other schemas of the same
-database are neither read nor named, so one server holds a results index beside
+The refusal reports the schema, the tables it stopped on, and the results index URL
+with its password hidden, and the program exits 1. Nothing is created, nothing is
+stamped, and that schema is exactly as it was. The remedy is to check the URL, or to
+point the results index at a schema of its own. On PostgreSQL, append
+``?options=-csearch_path=schemaname`` to the URL. Other schemas of the same database
+are never read and never mentioned, so one server holds a results index beside
 whatever else it holds.
 
 **Ingestion is incremental.** One recursive listing per root collects the
@@ -534,14 +536,14 @@ went was settled at the ``divide`` that listed the root --- and ``drop`` reads n
 tree at all.
 
 **A root is refused, rather than answered for, until an ingest over it has
-completed.** Absence of a row would otherwise read as "this image was never
-navigated", so a consumer pointed at a results index that has never covered its
-root fails with a message naming the root and the roots that results index does hold. A
-pass that is still running, or one that stopped, leaves its root in exactly that
-state until it is completed. A consumer that names no root of its own -- the
-statistics report is the one that may -- is bound to the roots that do have a
-completed ingest and names the others as roots it covered nothing of, which is
-the same rule stated about a set of roots rather than about one.
+completed.** Otherwise the absence of a row would read as "this image was never
+navigated". So if a consumer is pointed at a results index that has never covered its
+root, it fails, and the message gives the root and the roots that results index does
+hold. A pass that is still running, or one that stopped, leaves its root in exactly
+that state until it is completed. A consumer that is not given a root of its own --
+only the statistics report allows that -- reads only the roots that have a completed
+ingest, and lists the others as roots it covered nothing of. That is the same rule,
+applied to a set of roots instead of to one.
 
 **Ingestion is never automatic.** No batch driver runs it as a side effect. The
 results index is a snapshot of the tree as of the last ingest: there is no staleness
@@ -549,16 +551,16 @@ detection and no automatic refresh, so an operator who navigates more images and
 wants them visible runs ingest again.
 
 Every ingestible metadata document must carry ``observation.image_name`` and
-``observation.instrument``, every container it declares -- ``observation``,
-``navigation_result`` and the objects and lists inside it, and ``timing`` -- must
-hold what the schema says, and each of its ``per_technique`` entries must carry
-a ``technique_name`` of its own, since that name is what the results index
-stores the entry under (the pipeline writes all of this in every metadata
-document). A results tree also holds ``*_metadata.json`` files that are not
-per-image navigation metadata documents at all; each is counted as an error for its own
-file, the run continues, and the closing summary tallies the failures by reason
-and names one file per reason, so several hundred files that were never
-navigation results read as exactly that rather than as a broken ingest.
+``observation.instrument``. Every container it declares must hold what the schema
+says: ``observation``, ``timing``, and ``navigation_result`` with the objects and lists
+inside it. Each of its ``per_technique`` entries must carry a ``technique_name`` of
+its own, since the results index stores the entry under that name. The pipeline
+writes all of this in every metadata document. A results tree also holds
+``*_metadata.json`` files that are not per-image navigation metadata documents at
+all. Each of those is counted as an error for its own file, and the run continues.
+The closing summary tallies the failures by reason and gives one example file for
+each reason, so several hundred files that were never navigation results read as
+exactly that, rather than as a broken ingest.
 
 A file that could not be retrieved at all is the one failure the pass does not
 record. It is counted in the pass's own tally, and no ``failed_files`` row is
@@ -576,24 +578,24 @@ of what changed. ``sd_results_index ingest --force`` reads every metadata docume
 which puts the reasons and the example files back into the summary; the root's whole
 set of them is otherwise a query over ``failed_files`` away.
 
-**A directory under a root that the walk cannot list stops the ingest.** One
-this user may not read, or on a share that stopped answering, is reported as an
-error naming the directory, and the pass ends there: the root it was under gets
-no finish time, no root named after it on the same command line is walked, and
-``sd_results_index ingest`` exits 1. Fix what stopped the walk and run it
+**If the walk cannot list a directory under a root, the ingest stops.** That happens
+when this user may not read the directory, or when the share it is on stopped
+answering. The error gives the directory, and the pass ends there. The root it was
+under gets no finish time, no root that follows it on the same command line is
+walked, and ``sd_results_index ingest`` exits 1. Fix what stopped the walk and run it
 again.
 
-**A metadata document the results index will not store stops it too.** A file
-that read as a navigation result and whose rows the database then refused is a
-defect in SpinDoctor -- in what it writes, or in the columns it writes into --
-rather than anything about the file, and the next metadata document like it would
-be refused the same way. The pass ends there, naming the file and what the
-database said, the root gets no finish time, and ``sd_results_index ingest``
-exits 1. Every metadata document written before it stays in, so a rerun after the
-fix reads only what is left. Counting the file and carrying on instead would put
-it in neither ``images`` nor ``failed_files`` under a run stamped finished, which
-would make an image nothing had ever navigated and an image SpinDoctor could not
-store look exactly alike.
+**If the results index will not store a metadata document, the ingest stops too.**
+If a file read as a navigation result and the database then refused its rows, that
+is a defect in SpinDoctor -- in what it writes, or in the columns it writes into --
+rather than anything about the file. The next metadata document like it would be
+refused the same way. The pass ends there, and its message gives the file and what
+the database said. The root gets no finish time, and ``sd_results_index ingest``
+exits 1. Every metadata document written before it stays in, so a rerun after the fix
+reads only what is left. Counting the file and carrying on instead would leave it in
+neither ``images`` nor ``failed_files`` under a run stamped finished. An image
+nothing had ever navigated and an image SpinDoctor could not store would then look
+exactly alike.
 
 **A root that cannot be listed does not stop it.** That is the case above --
 the mistyped path, the unmounted share -- and it is charged to the root it is
@@ -636,12 +638,12 @@ other, and nothing about either pass looks wrong: both complete, both stamp the
 root, and both report that they removed the rows of metadata documents that had left it.
 
 **A results root that is itself a link is a different matter and is handled.**
-Every program resolves the root it is given to the location that root names
-before it reads anything, so ``--nav-results-root /data/latest`` pointing at
-``/data/results-2026`` is the same root as naming ``/data/results-2026``
-outright: one set of rows, and either spelling finds them. What is undefined is
-a link *inside* the tree being walked, which is what the paragraph above is
-about.
+Every program resolves the root it is given to the location that root points to
+before it reads anything. So ``--nav-results-root /data/latest``, where
+``/data/latest`` points at ``/data/results-2026``, is the same root as giving
+``/data/results-2026`` outright: one set of rows, and either spelling finds them.
+What is undefined is a link *inside* the tree being walked, which is what the
+paragraph above is about.
 
 **The exit status says whether the pass completed, not what it found.**
 ``sd_results_index ingest`` exits 0 when every named root was walked, whatever
@@ -651,9 +653,9 @@ location that can be read, the results index could not be opened, a root could
 not be listed at all, or a directory under one could not be listed, which stops
 the pass where it is found. A scheduled invocation therefore reads the same
 status from the same tree every time, and a status of 1 always means something
-needs fixing rather than that a tree happens to hold no results. A command line
-no subcommand takes exits 2 instead, with a usage message naming the option, and
-nothing is opened or walked.
+needs fixing rather than that a tree happens to hold no results. If the command line
+carries an option the subcommand does not take, the program exits 2 instead, with a
+usage message that quotes the option, and nothing is opened or walked.
 
 Ingesting over a queue of workers
 =================================
@@ -685,7 +687,7 @@ file is loaded into a queue, and who runs the workers.
         --events-log events.log
 
 **Workers on one machine can share a SQLite results index**; workers on several cannot.
-A ``sqlite:`` URL names a local file, so a run spread across machines connects
+A ``sqlite:`` URL points to a local file, so a run spread across machines connects
 to PostgreSQL instead. Several worker processes on one machine writing to one
 local file is supported, and needs no merge step -- there is one file.
 
@@ -744,14 +746,14 @@ with each task counted once the sum can only exceed the listing on a report
 belonging somewhere else.
 
 **Step 3 counts a task's result only for the root it was written under.** A
-result names the run it belongs to and the root it wrote its rows under, and
+result records the run it belongs to and the root it wrote its rows under, and
 both have to match. A run number is only unique inside the results index that
-minted it, so a task file run after its results index was deleted and rebuilt -- the
-remedy for a schema-version mismatch -- names a run of whatever was built next.
-Its shares add up correctly and their rows are somewhere else entirely, and a
-root stamped on them would hold nothing at all. Such results are counted and
-named in the summary rather than credited; the root they were meant for is left
-unfinished, and step 1 over that root is what starts it again.
+minted it. Deleting and rebuilding a results index is the remedy for a
+schema-version mismatch, and a task file run after that refers to a run of whatever
+was built next. Its shares add up correctly, but their rows are somewhere else
+entirely, and a root stamped on them would hold nothing at all. Such results are
+counted and reported in the summary rather than credited. The root they were meant
+for is left unfinished, and step 1 over that root is what starts it again.
 
 **Step 3 needs every task's result in the log it reads.** It reads one event log
 and counts what is in it, so a root whose tasks are spread over several logs is
@@ -759,14 +761,14 @@ completed from the concatenation of them::
 
     cat worker-*.events.log > all-events.log
 
-A task appearing in more than one of them is counted once, under the last report
-of it in the file. Order therefore decides between two reports of one task that
-disagree -- a task that failed on one worker and succeeded on another -- so a
-concatenation that puts the failure last leaves the root unfinished, which the
-same log concatenated the other way completes. Both outcomes are safe; neither
-stamps a root whose metadata documents were not read. A log naming only some of a root's
-tasks leaves that root unfinished, which is the same outcome as tasks that never
-ran and is corrected the same way.
+If a task appears in more than one log, it is counted once, under its last report in
+the file. So when two reports of one task disagree -- a task that failed on one
+worker and succeeded on another -- their order decides between them. If the
+concatenation puts the failure last, the root is left unfinished; the same logs
+concatenated the other way complete it. Both outcomes are safe: neither stamps a root
+whose metadata documents were not read. If a log holds reports from only some of a
+root's tasks, that root is left unfinished. That is the same outcome as tasks that
+never ran, and it is corrected the same way.
 
 **Step 3 refuses a root whose listing was never recorded.** A root that step 1
 could not list -- mistyped, or an unmounted share -- gets no tasks and no record
@@ -812,7 +814,7 @@ array of task objects, and one of them looks like this:
             "has_file_metrics": true,
             "files": [
                 {
-                    "results_path_stub": "<relative stub naming the metadata document>",
+                    "results_path_stub": "<relative stub of the metadata document>",
                     "mtime_ns": 1758000000000000000,
                     "size_bytes": 4096
                 }
@@ -823,7 +825,7 @@ array of task objects, and one of them looks like this:
 * ``task_id`` identifies the task, and is built from the ingest run and the
   position of the share.
 * ``data.run_id`` is the ingest run the share belongs to. Step 3 credits a share
-  only to the run it names.
+  only to that run.
 * ``data.root_url`` is the results root the share's rows are written under, in
   the normalized spelling the rows record. A relative spelling is resolved
   against the worker's own working directory, which is why step 1 writes the
@@ -846,11 +848,11 @@ comes from step 1, which mints them as it divides the root.
 Rebuilding a results index
 ==========================
 
-The results index carries the version of the column set that wrote it. Opening
-one stamped with a different version fails, naming both versions: there are no
-migrations, because ingest is cheap relative to navigation and entirely
-reproducible from the tree, so the remedy for a version bump is to empty the
-database and read the tree again.
+The results index carries the version of the column set that wrote it. Opening one
+stamped with a different version fails, and the message gives both versions. There
+are no migrations, because ingest is cheap relative to navigation and entirely
+reproducible from the tree. The remedy for a version bump is to empty the database
+and read the tree again.
 
 .. code-block:: bash
 
@@ -902,31 +904,31 @@ and a destructive command may not decide that on your behalf. Such tables are
 removed by hand, or with the SQLite file that holds them.
 
 **It drops from one schema: the one that stamp was found in.** A server resolves
-an unqualified table name through a search path that may cross several schemas,
-so the stamp is looked for once and every statement of the drop then names the
-schema it was found in. A table of one of these names in any other schema
-belongs to whoever put it there and is not touched. The schema is named in the
-confirmation and in the run log. On SQLite it is always ``main``, the one
-namespace a database file has.
+an unqualified table name through a search path that may cross several schemas. So
+the drop looks for the stamp once, and every statement it then runs spells out the
+schema the stamp was found in. A table with one of these names in any other schema
+belongs to whoever put it there and is not touched. The confirmation and the run log
+both show the schema. On SQLite it is always ``main``, the one namespace a database
+file has.
 
-**It confirms first.** The run log lists the tables with their row counts and
-names the schema and the schema version, and the question -- which names the
-results index, its schema, how many tables and rows go with it, and any ingest run that
-has not finished -- is written to standard output, which is where ``input``
-writes a prompt. The answer is read without regard to case or surrounding space,
-so ``y``, ``Y``, ``yes``, and ``YES`` all mean yes; anything else, Ctrl-C
-included, leaves the results index alone and exits 1. ``--yes`` drops without
-asking, for a run with nobody at the terminal -- and is required for one,
-because a standard input with nothing to read is treated as a refusal rather
-than as consent. Every refusal, the question itself, and the first line of the
-account name the results index URL with its password hidden; the lines that continue
-that account carry the schema and the counts rather than repeating the URL.
+**It confirms first.** The run log lists the tables with their row counts, the
+schema, and the schema version. Then the program asks its question on standard
+output, where a prompt is normally written. The question gives the results index,
+its schema, how many tables and rows go with it, and any ingest run that has not
+finished. The answer is read without regard to case or surrounding space, so ``y``,
+``Y``, ``yes``, and ``YES`` all mean yes. Anything else, Ctrl-C included, leaves the
+results index alone and exits 1. ``--yes`` drops without asking, for a run with
+nobody at the terminal, and such a run needs it, because a standard input with
+nothing to read is treated as a refusal rather than as consent. Every refusal, the
+question itself, and the first line of the account show the results index URL with
+its password hidden. The lines that continue that account carry the schema and the
+counts rather than repeating the URL.
 
 **It takes no option that belongs to another subcommand.** ``drop`` offers none of
 ``--force``, ``--no-prune``, ``--nav-results-root``, or either of the two
 cloud-task paths: a drop reads no metadata document and walks no tree, so each of
-those belongs to a different subcommand. Typing one is a usage error naming the
-option, before anything is opened and with a status of 2. A results root reaching
+those belongs to a different subcommand. Typing one is a usage error: the message
+quotes the option, the program exits 2, and nothing is opened. A results root reaching
 the program from ``NAV_RESULTS_ROOT`` or from the configuration is a machine's
 standing setting rather than a request, and is simply unused. ``--yes`` is
 offered by ``drop`` alone for the same reason from the other side: it answers a
@@ -952,9 +954,9 @@ server refuses a PostgreSQL database it does not have, and a SQLite path that is
 not there gets the same refusal rather than being created, so both exit 1 and
 neither leaves an empty database behind.
 
-**What is left behind is an empty database.** Every consumer reads a
-dropped results index exactly as it reads one nobody has ever ingested into -- "not
-ingested", with a message naming ``sd_results_index`` -- and the next
+**What is left behind is an empty database.** Every consumer reads a dropped
+results index exactly as it reads one nobody has ever ingested into: as "not
+ingested", with a message that tells you to run ``sd_results_index``. The next
 ``sd_results_index ingest`` builds it again from the metadata documents. On
 PostgreSQL the two states are literally the same database. On SQLite the file
 itself remains, empty, and the drop deliberately does not delete it, so that one
@@ -969,10 +971,10 @@ driver would otherwise commit each ``DROP TABLE`` on its own -- the drop opens
 its transaction itself, which SQLite's own transactional DDL then honors. Ctrl-C
 partway through, a table that will not drop, a lost connection: each leaves the
 database exactly as it was, still readable by every consumer, and the drop is
-run again when the cause is dealt with. Ctrl-C is reported as the refusal it is
-wherever it lands -- while the database is being opened, while what it holds is
-being read, or during the drop -- naming which step stopped and exiting 1,
-rather than printing a traceback.
+run again when the cause is dealt with. Wherever Ctrl-C lands -- while the database
+is being opened, while what it holds is being read, or during the drop -- it is
+reported as the refusal it is. The message says which step stopped, and the program
+exits 1 rather than printing a traceback.
 
 Two things it does **not** refuse:
 
@@ -988,7 +990,7 @@ Two things it does **not** refuse:
   precedes the question and the drop itself wait a bounded time for each table
   -- ``lock_timeout`` on PostgreSQL, the busy timeout on SQLite -- and then give
   up, and what they give up on is put back whole by the transaction around it.
-  A failure names what the database said the cause was: a lock somebody holds, a
+  A failure reports what the database said the cause was: a lock somebody holds, a
   view or another object depending on one of these tables, an account that does
   not own one of them, or, where the database gave no code this recognizes, its
   own words with no cause invented for them.
@@ -998,11 +1000,11 @@ Sharing a results index
 
 Several worker processes **on one machine** can write one SQLite results index; there
 is one file and no merge step, which is what the queue workflow above rests on.
-Workers on several machines cannot, because a ``sqlite:`` URL names a local
+Workers on several machines cannot, because a ``sqlite:`` URL points to a local
 path: a run spread across machines writes to PostgreSQL.
 
 For reading, the same rule decides. A SQLite results index serves every consumer that
-can open the file it names; consumers on other machines need either their own
+can open the file it points to; consumers on other machines need either their own
 copy of the file or a PostgreSQL server they can all reach.
 
 The results index schema
@@ -1327,20 +1329,19 @@ when it was read. It is what lets a second pass skip it. It is deliberately not
 an ``images`` row, because a file that holds no usable data must not answer the
 question ``images`` exists to answer.
 
-``reason`` names one of two things. ``unreadable``, ``not valid JSON``, and ``not
-a JSON object`` each name a file from which no JSON object was produced. A
-reason beginning ``not a current-schema navigation document`` names a JSON
-object that was produced and that this schema will not take, and says in
-parentheses which field said so. Every one of the reasons is the reason a reader
-of the results tree gives for the same file, so the two never describe one
-file's fault two different ways, and a file refused for any of them yields no
-per-image facts to either storage: it counts as a file that exists, for the
-presence filters and for nothing else.
+``reason`` says which of two things went wrong. ``unreadable``, ``not valid JSON``,
+and ``not a JSON object`` each mark a file that produced no JSON object. A reason
+beginning ``not a current-schema navigation document`` marks a file that produced a
+JSON object this schema will not take, and says in parentheses which field was at
+fault. Each reason is the one a reader of the results tree gives for the same file,
+so the two storages never describe one file's fault two different ways. A file
+refused for any of these reasons yields no per-image facts to either storage. It
+counts as a file that exists for the presence filters, and for nothing else.
 
 ``schema_meta`` holds a single row stamping the database with the column-set
 version that created it. A results index whose stamp is not the version this
-build reads is refused at open, naming both; the remedy is the rebuild described
-under `Rebuilding a results index`_.
+build reads is refused at open, and the message gives both versions. The remedy is
+the rebuild described under `Rebuilding a results index`_.
 
 The database carries indexes on ``images(results_path_stub)``,
 ``images(image_date)``, ``images(instrument)``, and ``ingest_runs(root_url)``,

@@ -85,11 +85,11 @@ correction and is tied to no particular set of kernels.
    candidates to the techniques you name, and only those then run.
 
 These metadata documents are also what the run-statistics tooling reads.
-``sd_results_index`` (see :doc:`user_guide_results_index`) collects one row per
-navigated image from them. ``sd_stats_report`` (see :doc:`user_guide_statistics`)
-aggregates success and failure counts, technique usage, offset distributions, and
-cross-technique agreement reports. It reads the metadata documents when the run names no
-results index, and queries the results index when the run names one.
+``sd_results_index`` (see :doc:`user_guide_results_index`) collects one row per navigated
+image from them. ``sd_stats_report`` (see :doc:`user_guide_statistics`) aggregates success
+and failure counts, technique usage, offset distributions, and cross-technique agreement
+reports. It reads the metadata documents when the run does not ask for a results index,
+and queries the results index when it does.
 
 The summary picture
 -------------------

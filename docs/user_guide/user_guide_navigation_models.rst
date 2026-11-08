@@ -161,7 +161,7 @@ Navigation Models
 Four model families ship with SpinDoctor: stars, solid bodies, rings, and the haze
 envelope of a body whose atmosphere hides its surface. Every model reads its settings from
 the configuration system described in :doc:`/user_guide/user_guide_configuration`, and
-this chapter names a setting by its configuration key wherever it quotes a number you can
+this chapter gives a setting's configuration key wherever it quotes a number you can
 change.
 
 Star Navigation Model
@@ -972,7 +972,7 @@ The patterns can be given in two places:
   :doc:`/user_guide/user_guide_navigation_cloud_tasks`.
 
 Both options only ever narrow. A pattern that matches nothing installed on your copy of
-SpinDoctor simply selects nothing, and no model or technique can be added by naming it.
+SpinDoctor simply selects nothing, and listing a model or technique cannot add it.
 
 Pattern Syntax
 --------------
@@ -1026,7 +1026,7 @@ in the frame. That is why a model name can carry the subject it was built for:
    :widths: 24 76
 
    * - Name
-     - What it names
+     - What the model covers
    * - ``stars``
      - Every catalog star predicted to be visible in the frame. There is one such
        model per image and it takes no subject, so the name is bare.

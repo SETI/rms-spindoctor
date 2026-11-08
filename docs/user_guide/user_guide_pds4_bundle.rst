@@ -126,7 +126,7 @@ Basic Usage
 
    sd_create_bundle labels DATASET_NAME [options]
 
-Where ``DATASET_NAME`` names a dataset that can be bundled (see `Supported Datasets`_).
+Where ``DATASET_NAME`` is a dataset that can be bundled (see `Supported Datasets`_).
 
 Command-Line Arguments
 ^^^^^^^^^^^^^^^^^^^^^^
@@ -206,7 +206,7 @@ incomplete:
    COISS_2001/data/1454725799_1455008789/N1454821332_1_CALIB: navigation document present, summary PNG absent, backplane FITS absent, backplane metadata absent, navigation did not succeed (status error): incomplete
    Input check: 2 image(s) selected, 1 complete, 1 incomplete
 
-Each line names the image by where its results are under the two roots.
+Each line identifies the image by where its results are under the two roots.
 
 Cloud Tasks Variant
 ^^^^^^^^^^^^^^^^^^^
@@ -251,7 +251,7 @@ A task file is a JSON array of task objects. A bundle task looks like this:
 
 * ``task_id`` identifies the task uniquely within the file.
 * ``data.dataset_name`` is a dataset that can be bundled (see `Supported Datasets`_).
-  A task naming any other dataset fails with ``unknown_dataset``.
+  A task for any other dataset fails with ``unknown_dataset``.
 * ``data.files`` holds one entry per image, each requiring ``image_file_url``,
   ``label_file_url``, and ``results_path_stub``, and each optionally carrying
   ``index_file_row``, the row the PDS3 index table held for that image. The worker
@@ -298,16 +298,16 @@ Check Pass
 
 The check pass checks a bundle the labels and summary passes wrote, and reports every
 way it departs from what a PDS4 bundle has to be. It reads the bundle and the PDS4
-schemas its labels name. By default it fetches each schema from the web address the
-label gives, so it needs the network, and keeps what it fetches in a cache, so that a
-later check fetches nothing it already has: the directory
-``_filecache_spindoctor_pds4_schemas`` in your own cache directory, ``~/.cache`` (or the
-directory the ``XDG_CACHE_HOME`` environment variable names, if it is set), or in the
-directory ``FILECACHE_CACHE_ROOT`` names, if that is set. With
-``--schema-dir`` it reads each schema from the file of the same name in that directory
-instead, and fetches nothing. It writes nothing in the bundle, and no log. It uses the
-``lxml``, ``elementpath``, and ``xmlschema`` packages, which are installed with
-SpinDoctor.
+schemas its labels refer to. By default it fetches each schema from the web address the
+label gives, so it needs the network. It keeps what it fetches in a cache, so that a
+later check fetches nothing it already has. The cache is the directory
+``_filecache_spindoctor_pds4_schemas`` in your own cache directory. That is ``~/.cache``,
+or the directory the ``XDG_CACHE_HOME`` environment variable points to if it is set. If
+``FILECACHE_CACHE_ROOT`` is set, the directory it points to takes the place of your own
+cache directory. With ``--schema-dir`` it reads each schema from the file of the same
+name in that directory instead, and fetches nothing. It writes nothing in the bundle, and
+no log. It uses the ``lxml``, ``elementpath``, and ``xmlschema`` packages, which are
+installed with SpinDoctor.
 
 Basic Usage
 ^^^^^^^^^^^
@@ -342,23 +342,23 @@ What It Checks
   record ends in exactly the characters the label says it does, and whether each value
   is of its field's type. A value equal to its field's missing constant must be written
   as the constant is.
-* The layout of the index tables: the header line names the columns in order, separated
+* The layout of the index tables: the header line lists the columns in order, separated
   by commas, and a comma alone lies between two values of a row.
 * Each column of an index table against the configuration: its unit, and its missing
   constant, which is the masked value written in the column's format.
-* Each row of an index table against the bundle: it names a data product the bundle
-  holds, with that product's label and its start and stop times, and each data product
-  has a row in the bodies table for each body its backplanes give statistics for and, if
-  they give ring statistics, a row in the rings table.
-* The bundle as a whole: every file a label names is beside the label, is named by its
-  name alone, and has the size and MD5 checksum the label gives it; every other file is
-  named by exactly one label; no label holds a leftover template marker, ``[[[``, which
-  a label template leaves where it could not fill in a value; no element is empty,
-  unless it carries ``xsi:nil``, which marks it empty on purpose; no two labels declare
-  the same product; each collection's list of members names products the bundle holds,
-  at the versions it holds, and names each product in the collection's directory once;
-  and every reference to a product of the bundle names one the bundle holds, at the
-  version it holds.
+* Each row of an index table against the bundle: the row refers to a data product the
+  bundle holds, and gives that product's label and its start and stop times. Each data
+  product has a row in the bodies table for each body its backplanes give statistics
+  for. If its backplanes give ring statistics, it also has a row in the rings table.
+* The bundle as a whole: every file a label lists is beside the label, is given by its
+  name alone, and has the size and MD5 checksum the label gives it. Every file that is
+  not a label is listed by exactly one label. No label holds a leftover template marker,
+  ``[[[``, which a label template leaves where it could not fill in a value. No element
+  is empty unless it carries ``xsi:nil``, which marks it empty on purpose. No two labels
+  declare the same product. Every product in a collection's list of members is one the
+  bundle holds, at the version it holds, and every product in the collection's directory
+  appears in the list once. Every reference to a product of the bundle points to one the
+  bundle holds, at the version it holds.
 
 Each finding is an error or a warning. A warning is something the NASA PDS ``validate``
 tool also reports as a warning: a reference to a product of the bundle that the bundle
@@ -425,7 +425,7 @@ The labels pass requires:
 * Summary PNG files (``*_summary.png``) from the navigation pass, one for every
   image whose navigation succeeded
 
-A run that also names an error filter (``--has-offset-error``,
+A run that also uses an error filter (``--has-offset-error``,
 ``--has-no-offset-error``, ``--has-offset-spice-error``,
 ``--has-offset-nonspice-error``) has already read each selected image's
 navigation metadata document, because that is how the filter decided what to select.
@@ -454,7 +454,7 @@ out, without counting it as an error:
   nothing to describe. A body in the field of view that shows at no pixel, such as one
   hidden behind a nearer body, does not count.
 
-The log names each image left out and says why, and the labels pass's closing line
+The log lists each image left out and says why, and the labels pass's closing line
 counts them as skipped. The instrument chapters say which bodies and rings each
 dataset's backplanes cover.
 
@@ -503,19 +503,19 @@ were computed from, as the PDS Ring-Moon Systems Node holds it: by the image's v
 and the path of its label within that volume, as in
 ``COISS_2001:data/1454725799_1455008789/N1454725799_1_CALIB.LBL``.
 
-Each data label names its targets, the bodies and rings its backplanes cover: one
+Each data label lists its targets, the bodies and rings its backplanes cover: one
 ``Target_Identification`` for each body that shows at a pixel of the image, where at
 least one of its backplanes has a value, and one for the rings when the image has ring
 backplanes. A body in the field of view that shows at no pixel, such as one hidden
-behind a nearer body, is not named. Each gives the target's name and type and refers
+behind a nearer body, is not listed. Each gives the target's name and type and refers
 to its PDS4 context product by its logical identifier, as the targets table identifies
 it (see `Targets`_): for example ``Saturn``, of type ``Planet``, at
 ``urn:nasa:pds:context:target:planet.saturn``.
 
-A data label states no ring geometry: of the rings it names the target alone. Each
-ring image's ranges are in the global rings index instead: the least and the greatest
-value of each of its ring backplanes, the arc of ring longitude it covers, and the least,
-the greatest, and the mean incidence angle of sunlight on its rings (see
+A data label states no ring geometry. For the rings, it gives only the target. Each
+ring image's ranges are in the global rings index table instead: the least and the
+greatest value of each of its ring backplanes, the arc of ring longitude it covers, and
+the least, the greatest, and the mean incidence angle of sunlight on its rings (see
 `Global Index Tables`_).
 
 Each data label, the data collection label, and the bundle label declare one set of
@@ -558,41 +558,40 @@ The summary pass generates:
 
 * **Bundle Files**:
 
-  * ``bundle.lblx``: PDS4 label for the bundle, naming each collection the bundle holds
+  * ``bundle.lblx``: PDS4 label for the bundle, listing each collection the bundle holds
   * ``readme.txt``: the bundle's readme, written from the dataset's template directory,
     giving the logical identifiers of the bundle and of its user guide
 
 * **Context, Document, SPICE Kernel, and XML Schema Collections**: for each, a
   ``collection_<name>.csv`` listing its members and its PDS4 label,
-  ``collection_<name>.lblx``. Each list is the one the dataset's template directory
-  gives, naming the bundle's own products under the bundle's name and version, except
-  that the user guide and the metakernel are listed only when their labels are
-  written, and that the context collection's list also names every target the data
-  labels name, each at the version of its context product. The XML schema collection
-  lists each dictionary schema the configuration gives (see `Configuration`_).
+  ``collection_<name>.lblx``. Each list is the one in the dataset's template directory,
+  with the bundle's own products given under the bundle's name and version. There are
+  two exceptions. The user guide and the metakernel are listed only when their labels
+  are written. The context collection's list also includes every target the data labels
+  list, each at the version of its context product. The XML schema collection lists
+  each dictionary schema the configuration gives (see `Configuration`_).
 
 * **Metakernel**: ``spice_kernels/kernels.ker``, the SPICE metakernel every data label
-  names, and its PDS4 label, ``kernels.lblx``. It lists no SPICE kernels, and its label
-  says so. When its label cannot be written, the bundle has no SPICE kernel collection
-  and no bundle label, and the pass exits 1.
+  refers to, and its PDS4 label, ``kernels.lblx``. It lists no SPICE kernels, and its
+  label says so. When its label cannot be written, the bundle has no SPICE kernel
+  collection and no bundle label, and the pass exits 1.
 
 The data collection label, the SPICE kernel collection label, the bundle label, and the
-metakernel label each name every target the bundle's data labels name, once each. The
-document and miscellaneous collections list no target, since none of their labels names
-one.
+metakernel label each list every target the bundle's data labels list, once each. The
+labels of the document and miscellaneous collections list no target.
 
 * **User Guide**: the bundle's user guide, a PDF, copied into ``document/user_guide/``
   from the dataset's template directory, and its PDS4 label beside it. When the template
   directory does not hold the user guide, the bundle has none, the document collection
-  lists none, and the pass writes a warning naming the file it looked for. When its
-  label cannot be written, the document collection does not list it either, and the
-  pass exits 1.
+  lists none, and the pass writes a warning that gives the name of the file it looked
+  for. When its label cannot be written, the document collection does not list it
+  either, and the pass exits 1.
 
 The data collection label and the bundle label state the time range of the products
 the data collection holds, in whole seconds: from the earliest exposure start, rounded
 down, to the latest exposure stop, rounded up, as in ``2004-02-07T04:25:35Z`` to
 ``2004-02-22T05:32:17Z``. The bundle label is written only when every collection it
-names is in the bundle.
+lists is in the bundle.
 
 Global Index Tables
 ^^^^^^^^^^^^^^^^^^^
@@ -611,7 +610,7 @@ FITS file.
 When neither table has a row, the miscellaneous collection is not written either, and
 the summary pass exits 1 (see `Exit Status`_).
 
-Each table begins with one line naming its columns, separated by commas. Every row
+Each table begins with one line that lists its columns, separated by commas. Every row
 after it has the same length: each value is padded with spaces to its column's width
 and followed by a comma, the last by the end of the line. The label beside each table
 gives every column's name, position, width, data type, unit, and description.
@@ -620,10 +619,10 @@ A row's first column, ``pds:logical_identifier``, is the logical identifier of t
 image's data product, and its ``file_spec`` column is the path of that product's label
 in the bundle. Its ``pds:start_date_time`` and ``pds:stop_date_time`` columns give when
 the exposure began and ended, in UTC to the millisecond, as that label does. The bodies
-table's ``body_name`` column names the body. The other
-columns come in pairs, the least and the greatest value one backplane takes over the
-pixels where it has a value, named as the configuration names them, as in
-``geom:minimum_latitude`` and ``geom:maximum_latitude``.
+table's ``body_name`` column gives the body's name. The other columns come in pairs: the
+least and the greatest value one backplane takes over the pixels where it has a value.
+Their names come from the configuration, as in ``geom:minimum_latitude`` and
+``geom:maximum_latitude``.
 
 The rings table also gives the arc of ring longitude each image covers, as
 ``rings:minimum_inertial_ring_longitude`` and ``rings:maximum_inertial_ring_longitude``:
@@ -675,9 +674,9 @@ with exit status 2 before it does anything.
   the observation. For such a statistic, regenerate that image's backplanes; an image
   navigated by an earlier version must be navigated again before it can be
   bundled. An image whose backplanes cover a body that has no entry in the targets
-  table fails too, the log naming the body (see `Targets`_), and so does an image whose
-  ring backplanes were generated by an earlier version, which did not record the ring
-  target: regenerate its backplanes.
+  table fails too, and the log says which body (see `Targets`_), and so does an image
+  whose ring backplanes were generated by an earlier version, which did not record the
+  ring target: regenerate its backplanes.
 
   ``--dry-run`` writes nothing and ends with the number of images it would
   process. It exits 0 if the bundle directory is empty and every template is
@@ -694,19 +693,17 @@ with exit status 2 before it does anything.
   products, as when the labels pass labeled no image, and writes no files for
   that collection: check the labels pass's closing count. It exits 1 if an
   image's products disagree -- a data label that has no browse label, or a browse
-  label or supplemental file that has no data label -- naming each such image. That
-  is what an image the labels pass failed leaves: fix the image or drop it from
-  the selection, then run both passes again into an empty directory. It exits 1
-  if a label cannot be written, the bundle label included: that label is written
-  only when every collection it names is in the bundle, so a collection that was not
-  written leaves the bundle without it. A missing user-guide PDF is a warning, not
-  a failure. An index table that has no rows is not written; the log records
-  that, and it is not a failure. When neither table is written, though, the
-  miscellaneous collection has no products, and the pass exits 1 as for any
-  collection with none.
-  If a supplemental file holds such a statistic, it exits 1 and leaves none
-  of the files the summary pass writes: regenerate the backplanes, then the bundle,
-  into an empty directory.
+  label or supplemental file that has no data label -- and lists each such image. An
+  image that the labels pass failed leaves products like these: fix the image or drop it
+  from the selection, then run both passes again into an empty directory. It exits 1
+  if a label cannot be written, the bundle label included. The bundle label is written
+  only when every collection it lists is in the bundle, so a collection that was not
+  written leaves the bundle without a bundle label. A missing user-guide PDF is a warning,
+  not a failure. An index table that has no rows is not written; the log records that, and
+  it is not a failure. When neither table is written, though, the miscellaneous collection
+  has no products, and the pass exits 1 as for any collection with none. If a supplemental
+  file holds such a statistic, it exits 1 and leaves none of the files the summary pass
+  writes: regenerate the backplanes, then the bundle, into an empty directory.
 
 * ``sd_create_bundle check`` exits 1 if it finds an error, if there is no bundle
   directory under the bundle results root, or if the check itself stops, in which case
@@ -756,21 +753,21 @@ or as an absolute path), and which gives every other key below.
 Configuration Options
 ---------------------
 
-* ``template_dir``: Name or absolute path to the template directory. If just a name, it
-  names one of the template directories that ship inside the ``rms-spindoctor``
-  package. If an absolute path, it is used as-is.
+* ``template_dir``: Name or absolute path to the template directory. A name alone
+  selects one of the template directories that ship inside the ``rms-spindoctor``
+  package. An absolute path is used as-is.
 
 * ``bundle_name``: The bundle's name (e.g., ``cassini_iss_saturn_backplanes_rsfrench2027``):
   the name of its directory, and the last part of its logical identifier,
   ``urn:nasa:pds:<bundle_name>``, which the logical identifier of each of its
   collections and products extends. Every label, every list of members, and the readme
-  name the bundle by it.
+  refer to the bundle by this name.
 
 * ``bundle_version``: The bundle's version, as ``<major>.<minor>`` in quotes (e.g.,
   ``'1.0'``). It is the version of the bundle, of each of its collections, and of each
-  product it holds, and the version every label and list of members names one of them
-  at. A product outside the bundle that a label names, such as a context product, keeps
-  its own version.
+  product it holds. Every label and list of members gives this version when it refers
+  to one of them. A product outside the bundle that a label refers to, such as a context
+  product, keeps its own version.
 
 * ``information_model_version``: The version of the PDS4 information model the labels
   are written against, which every label states. It is the version of the build the
@@ -792,7 +789,7 @@ have no default, so an entry for a dataset that is bundled gives all four.
 Targets
 -------
 
-The targets a label names come from the ``backplanes.target_lids`` configuration
+The targets a label lists come from the ``backplanes.target_lids`` configuration
 setting, one entry per target, keyed by the name the backplane metadata gives it: a body
 by its name, and the rings by the ring target their backplanes are computed for.
 :doc:`user_guide_configuration` says where the values that ship with the package live
@@ -859,7 +856,7 @@ either one that ships inside the package or one you name by absolute path, conta
   the summary pass can do without, and ``cassini_iss_saturn_1.0`` does not hold it;
   the template for its label is required.
 
-The document collection's list of members names the user guide; when the template
+The document collection's list of members includes the user guide. When the template
 directory does not hold the guide, the summary pass leaves that line out.
 
 No template spells the bundle's name or version, a schema's location, or the
@@ -961,24 +958,25 @@ Common Issues
 * **Missing backplane files**: Ensure the backplanes pass has completed successfully and
   both FITS and metadata files exist in the backplane results root.
 
-* **Template not found**: the pass exits before writing anything, naming each
-  file it could not find. Check that ``template_dir`` names a directory holding
-  every file listed above, the user-guide PDF apart.
+* **Template not found**: the pass exits before writing anything and lists each file
+  it could not find. Check that ``template_dir`` points to a directory holding every
+  file listed above, the user-guide PDF apart.
 
-* **User-guide PDF not in the template directory**: the summary pass warns, naming
-  the file, and writes the bundle without a user guide. Put the PDF in the template
-  directory under that name and run the summary pass again.
+* **User-guide PDF not in the template directory**: the summary pass logs a warning
+  that gives the file's name, and writes the bundle without a user guide. Put the PDF in
+  the template directory under that name and run the summary pass again.
 
-* **Bundle label not written**: the summary pass names each collection the bundle
-  label names that is not in the bundle, and the error for that collection, earlier
-  in the log, says why it was not written. Or it says no data label in the data tree
-  has a supplemental file beside it, so there is no time range for the label to
+* **Bundle label not written**: the summary pass lists each collection in the bundle
+  label that is not in the bundle. The error for that collection, earlier in the log,
+  says why it was not written. Or the summary pass says that no data label in the data
+  tree has a supplemental file beside it, so there is no time range for the label to
   state: the labels pass labeled no image, and has to be run first.
 
-* **No entry for a target**: the labels pass fails each image whose backplanes cover a
-  body or rings the targets table does not identify, naming it. Add an entry for it to
-  ``backplanes.target_lids`` (see `Targets`_), giving its PDS4 context product, and run
-  the labels pass again into an empty directory.
+* **No entry for a target**: if an image's backplanes cover a body or rings that the
+  targets table does not identify, the labels pass fails the image and logs the target
+  it could not identify. Add an entry for it to ``backplanes.target_lids`` (see
+  `Targets`_), giving its PDS4 context product, and run the labels pass again into an
+  empty directory.
 
 * **Summary PNG not found**: that image is failed. A successfully navigated
   image always has one, so either it was removed from the navigation results or
@@ -988,7 +986,7 @@ Common Issues
 * **Collection files incomplete**: Ensure all images have been processed in the labels
   pass before running the summary pass.
 
-* **Products disagree**: the summary pass names each image that has a data label
+* **Products disagree**: the summary pass lists each image that has a data label
   and no browse label, or a browse label or supplemental file and no data label.
   The labels pass failed that image, and its log says why. Fix the image or drop
   it from the selection, clear the bundle directory, and run both passes again.
@@ -997,8 +995,8 @@ Common Issues
   bundle results root, or point ``--bundle-results-root`` somewhere else, and
   run the pass again from the start.
 
-* **Label not written**: the run names the label it could not write and exits
-  non-zero. The ``pdstemplate`` lines just above it name the template expression
+* **Label not written**: the run logs the label it could not write and exits
+  non-zero. The ``pdstemplate`` lines just above it show the template expression
   that failed. This is a fault in the dataset's templates or in the metadata
   they are given rather than anything a run can be asked to do differently; see
   :doc:`/dev_guide/dev_guide_pds4`.

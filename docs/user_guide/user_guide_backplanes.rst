@@ -76,7 +76,7 @@ recorded measurement, which is the better answer for that image, while a
 consumer of the corrected kernels sees the attitude of the segment that won.
 
 Each image's backplane metadata document reports which pointing its backplanes
-were built on. ``pointing_source`` names which one:
+were built on. ``pointing_source`` records which one:
 
 ``'cmatrix'``
     The corrected attitude the navigation measured was applied.
@@ -93,7 +93,7 @@ were built on. ``pointing_source`` names which one:
 ``'none'``
     Neither was usable, and the backplanes were built on the uncorrected pointing.
 
-``pointing_reason`` names why whenever the source is a fallback, and
+``pointing_reason`` says why whenever the source is a fallback, and
 ``uncorrected_pointing`` is ``true`` when the source is ``'none'``.
 
 What the FITS file holds
@@ -129,9 +129,9 @@ Running sd_backplanes
 
     sd_backplanes DATASET [options]
 
-``DATASET`` names the dataset to draw images from, and the options that choose
-which of its images to process are the same ones every pipeline program takes;
-see :doc:`user_guide_image_selection`.
+``DATASET`` is the dataset to draw images from. The options that choose which of
+its images to process are the same ones every pipeline program takes; see
+:doc:`user_guide_image_selection`.
 
 Options
 -------
@@ -150,16 +150,16 @@ Options
 
 * ``--results-index-db URL``: connection URL of a results index built by
   ``sd_results_index`` (see :doc:`user_guide_results_index`): a ``sqlite:`` URL
-  naming a local file, or a ``postgresql+psycopg:`` URL naming a server. Each
-  image's navigation record is then read as one database row instead of one file,
-  which on a cloud results root replaces a round trip per image with a query. The
-  results index must already hold a completed ingest of the root named by
+  for a local file, or a ``postgresql+psycopg:`` URL for a server. Each image's
+  navigation record is then read as one database row instead of one file, which
+  on a cloud results root replaces a round trip per image with a query. The
+  results index must already hold a completed ingest of the root given by
   ``--nav-results-root``, and its rows are a snapshot of that root as of the
-  ingest. Omitting the option names no results index, which is the default, and
+  ingest. Without the option, which is the default, no results index is used and
   the navigation results tree is read directly. ``--results-index-db none`` also
-  names no results index, which is how a machine that sets the option through
+  turns the results index off. A machine that sets the option through
   configuration or through the ``NAV_RESULTS_INDEX_DB`` environment variable
-  reads the files instead.
+  uses it to read the files instead.
 
 * ``--output-cloud-tasks-file PATH``: write a cloud task queue file for the
   selected images and generate no backplanes. See
@@ -187,14 +187,15 @@ generates backplanes rather than quietly reverting to reading files. ``--dry-run
 and ``--output-cloud-tasks-file`` read no navigation record, so neither one opens the
 results index and neither fails for want of a usable one.
 
-An image whose metadata document could not be read is a third case, and it fails
-that image rather than skipping it. The results index records such a file as one
-it holds no navigation record for, which is not the same fact as nothing having navigated
-that image: read directly, the same metadata document may well carry a status and
-a pointing. The failure names the image, the results index, and the reason the
-ingest recorded, so the remedy is visible from the run's log: fix the metadata document
-and ingest that root again, or run without ``--results-index-db``. The rest of
-the pass continues, and only that image is lost.
+A third case is an image whose metadata document could not be read. That image
+fails rather than being skipped. The results index records that it holds no
+navigation record for such a file, but that is a different fact from the image
+never having been navigated: read directly, the same metadata document may well
+carry a status and a pointing. The failure message gives the image, the
+results index, and the reason the ingest recorded, so the remedy is visible
+from the run's log: fix the metadata document and ingest that root again, or
+run without ``--results-index-db``. The rest of the pass continues, and only
+that image is lost.
 
 Examples
 --------
@@ -257,14 +258,15 @@ ends. Where the arc crosses zero, ``wrapped_min`` is greater than
 its poles is in view, records 0 and 360. The ring longitude's arc is recorded
 when the ring longitudinal resolution backplane has a value.
 
-The metadata document's ``rings`` block names the ring target the ring
-backplanes were computed for, as ``target``, and records ``incidence_angle``:
-the angle between the direction sunlight arrives from and the normal to the ring
-plane on its sunlit side, from 0 to 90 degrees, with its unit. Sunlight falls on
-the ring plane at one angle over the whole image, so no backplane holds it; it is
-taken once, at the center of the ring system, for the light that reached the
-camera at the observation's midtime. Both are recorded for every image that has a
-closest planet, whether or not any of its pixels is on the rings.
+The ``target`` key in the metadata document's ``rings`` block gives the ring
+target the ring backplanes were computed for. The block also records
+``incidence_angle``: the angle between the direction sunlight arrives from and
+the normal to the ring plane on its sunlit side, from 0 to 90 degrees, with its
+unit. Sunlight falls on the ring plane at one angle over the whole image, so no
+backplane holds it; it is taken once, at the center of the ring system, for the
+light that reached the camera at the observation's midtime. Both are recorded
+for every image that has a closest planet, whether or not any of its pixels is
+on the rings.
 
 Where the image's ring backplanes have values, ``incidence_angle`` also records
 the least, the greatest, and the mean angle over those pixels, as ``min``,
@@ -346,8 +348,8 @@ Features
 
 - Live readout: the cursor's ``(v, u)`` position to two decimals in pixel-corner
   coordinates (see :ref:`coordinate-systems`), the science image value at the
-  pixel holding that position, the object ``BODY_ID_MAP`` names there, and the
-  value of each backplane at the cursor.
+  pixel holding that position, the object that ``BODY_ID_MAP`` identifies at
+  that pixel, and the value of each backplane at the cursor.
 
 Units and masking
 -----------------
