@@ -16,6 +16,10 @@ before claiming a documentation change is done; `scripts/run-all-checks.sh` runs
 it too. The rest of this rule is a review checklist -- a human or a model has to
 read the prose to apply it.
 
+When a pull request changes documentation, read each changed passage aloud, or as
+if aloud, and rewrite any passage that does not sound like a person wrote it. This
+is the first item of the review checklist in section 8. No script can check it.
+
 ## 1. Audience separation
 
 The user guide is for users. A user runs command-line programs, reads the files
@@ -192,11 +196,25 @@ five copies of it read as distrust of the reader.
 
 The script cannot judge these. Read for them:
 
-1. Would a user who has never seen our source understand every sentence?
-2. Is every term defined before it is used, or linked to where it is defined?
-3. For each "X, not Y": would a reasonable reader have expected Y?
-4. Does each command-line option say what it does, what it looks at, and how
+1. Read each changed passage through as if aloud. Does it sound like something a
+   person would write? If not, rewrite it. These are the usual signs that it does
+   not:
+   - Stacked nouns: "the schema-version mismatch remedy step".
+   - A chain of qualifiers in front of one word: "the first completed
+     current-schema root ingest".
+   - A parenthetical inside a parenthetical.
+   - A key or identifier where an ordinary word would do: "when `status` is
+     `error`" where "when the image failed" says the same thing.
+   - A relative clause packed in front of the verb: "a mode the scene's detector
+     chain never renders is disabled with a tooltip saying so". Write instead: "If
+     the scene's detector chain can't render a mode, the mode is disabled, and its
+     tooltip says why."
+   - A sentence you have to read twice to follow.
+2. Would a user who has never seen our source understand every sentence?
+3. Is every term defined before it is used, or linked to where it is defined?
+4. For each "X, not Y": would a reasonable reader have expected Y?
+5. Does each command-line option say what it does, what it looks at, and how
    expensive it is?
-5. Is any passage explaining how the code works rather than what the program does?
-6. Does any sentence appeal to history, or to how a product has always been built?
-7. Is a convention described as a requirement?
+6. Is any passage explaining how the code works rather than what the program does?
+7. Does any sentence appeal to history, or to how a product has always been built?
+8. Is a convention described as a requirement?
