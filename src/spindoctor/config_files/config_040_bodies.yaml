@@ -20,8 +20,9 @@ bodies:
   # straight frame edge, with the cut-off segment holding fraction f of the
   # silhouette, the displacement is f / (1 - f) times the segment-centroid
   # distance, which is 0.047 R at f = 0.05 and 0.055 R at f = 0.06.  BodyBlobNav's
-  # covariance budgets 0.05 R for all centroid bias (model_error_size_frac in
-  # config_510_techniques.yaml), so beyond f = 0.05 the clipping bias alone
+  # covariance budgets 0.05 R for the centroid bias of every body (model_error_size_frac
+  # in config_510_techniques.yaml; its phase and shape terms add to that only for a
+  # body seen at phase or irregular), so beyond f = 0.05 the clipping bias alone
   # exceeds the uncertainty the blob reports and its offset is not a measurement
   # of the body's position.  Re-derive this value if that fraction changes.
   # Image library at derivation: every blob-led answer has overflow 0.000 and

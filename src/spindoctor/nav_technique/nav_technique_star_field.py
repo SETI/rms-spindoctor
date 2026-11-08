@@ -71,6 +71,11 @@ from spindoctor.nav_technique._star_isolation import (
     isolated_response,
     isolation_radii,
 )
+from spindoctor.nav_technique._star_sharpness import (
+    PsfConcentration,
+    psf_concentration,
+    sharper_than_psf,
+)
 from spindoctor.nav_technique.confidence import evaluate_sigmoid_combination
 from spindoctor.nav_technique.diagnostics import StarFieldDiagnostics
 from spindoctor.nav_technique.dt_fitting import DEFAULT_TUKEY_C, tukey_biweight_weights
@@ -108,6 +113,18 @@ class _StarPSFProvider(Protocol):
     def star_psf(self) -> PSF: ...
 
 
+@runtime_checkable
+class _StarSharpnessProvider(Protocol):
+    """Structural type for an observation that can bound how sharp a star can be.
+
+    The detection stage's cosmic-ray test needs only ``star_sharpness_psf()``, the
+    narrowest point-spread function a star in the image can have, or None when the
+    instrument gives none and the test is skipped.
+    """
+
+    def star_sharpness_psf(self) -> PSF | None: ...
+
+
 _COLLINEAR_REL_EPS: float = 1.0e-6
 """Relative tolerance for the collinear-triplet rejection in ``_triplet_hash``.
 
@@ -141,6 +158,20 @@ class _DetectedSource:
     v: float
     u: float
     peak_dn: float
+
+
+@dataclass(frozen=True)
+class _SourceDetections:
+    """Output of ``_detect_image_sources``.
+
+    Parameters:
+        sources: The kept detections, brightest first.
+        n_sharper_than_psf: Candidates set aside, before the cohort filled, as more
+            concentrated than the instrument's point-spread function allows a star.
+    """
+
+    sources: list[_DetectedSource]
+    n_sharper_than_psf: int
 
 
 @dataclass(frozen=True)
@@ -268,10 +299,12 @@ def _detect_image_sources(
     isolation_inner_px: int,
     isolation_outer_px: int,
     isolation_max_ratio: float,
-) -> list[_DetectedSource]:
+    psf_limits: PsfConcentration | None,
+    psf_sharpness_sigma: float,
+) -> _SourceDetections:
     """Detect bright isolated point sources in ``image`` and return the brightest set.
 
-    Four-stage pipeline:
+    Five-stage pipeline:
 
     1. Matched-filter the image against a Gaussian kernel sized by
        ``sigma_px``; the response peak amplitude at each pixel is the
@@ -290,6 +323,12 @@ def _detect_image_sources(
        ``max_sources`` brightest detections are all ring.
     4. For each surviving peak, fit a brightness-weighted moment in a
        small box around the peak to pull a sub-pixel centroid.
+    5. When ``psf_limits`` is given, set aside, in rank order until the
+       cohort is full, every peak more concentrated than the instrument's
+       point-spread function allows a star (see ``sharper_than_psf``):
+       a compact cosmic-ray hit of one to four pixels.  On a long
+       exposure such hits outnumber and outshine the faint stars, and
+       without this they fill the cohort.
 
     Detections are ranked by ``(peak_dn descending, v ascending,
     u ascending)`` and the first ``max_sources`` are returned -- the
@@ -309,10 +348,15 @@ def _detect_image_sources(
         isolation_outer_px: Outer radius of the isolation annulus (px).
         isolation_max_ratio: Largest allowed ratio of the annulus maximum's
             excess over the annulus mean to the peak's excess over it.
+        psf_limits: The largest shares of its light a star's brightest pixels can
+            hold, from the narrowest star point-spread function the instrument records;
+            None skips stage 5.
+        psf_sharpness_sigma: Noise multiplier by which a candidate's light must
+            exceed ``psf_limits`` to be set aside.
 
     Returns:
-        List of ``_DetectedSource`` records, ordered by brightness
-        descending.  May be empty when no peak clears the threshold.
+        The ``_DetectedSource`` records, ordered by brightness descending (empty
+        when no peak clears the threshold), and the count set aside by stage 5.
     """
     kernel_size = 2 * centroid_box_half_px + 1
     kernel = gaussian_psf_kernel(sigma_px, size=kernel_size)
@@ -331,6 +375,7 @@ def _detect_image_sources(
     )
     h, w = image.shape
     out: list[_DetectedSource] = []
+    peaks: list[tuple[int, int]] = []
     for v_idx, u_idx in np.argwhere(candidate_mask):
         v_i = int(v_idx)
         u_i = int(u_idx)
@@ -349,8 +394,25 @@ def _detect_image_sources(
         cv = float(np.sum(vs[:, None] * weights) / total)
         cu = float(np.sum(us[None, :] * weights) / total)
         out.append(_DetectedSource(v=cv, u=cu, peak_dn=float(response[v_i, u_i])))
-    out.sort(key=lambda s: (-s.peak_dn, s.v, s.u))
-    return out[:max_sources]
+        peaks.append((v_i, u_i))
+    order = sorted(range(len(out)), key=lambda i: (-out[i].peak_dn, out[i].v, out[i].u))
+    kept: list[_DetectedSource] = []
+    n_sharp = 0
+    for i in order:
+        if len(kept) >= max_sources:
+            break
+        if psf_limits is not None and sharper_than_psf(
+            image,
+            peaks[i][0],
+            peaks[i][1],
+            limits=psf_limits,
+            noise_sigma=image_noise_sigma,
+            detection_sigma=psf_sharpness_sigma,
+        ):
+            n_sharp += 1
+            continue
+        kept.append(out[i])
+    return _SourceDetections(sources=kept, n_sharper_than_psf=n_sharp)
 
 
 def _triplet_hash(
@@ -671,6 +733,7 @@ class StarFieldFromCatalogNav(NavTechnique):
         self._isolation_inner_px = int(self.tuning['source_isolation_inner_px'])
         self._isolation_outer_px = int(self.tuning['source_isolation_outer_px'])
         self._isolation_max_ratio = float(self.tuning['source_isolation_max_ratio'])
+        self._psf_sharpness_sigma = float(self.tuning['psf_sharpness_sigma'])
         self._hash_match_tolerance = float(self.tuning['hash_match_tolerance'])
         self._hash_ratio_weight = float(self.tuning['hash_ratio_weight'])
         self._hash_angle_weight = float(self.tuning['hash_angle_weight'])
@@ -726,6 +789,8 @@ class StarFieldFromCatalogNav(NavTechnique):
             )
         if self._max_sources < 3:
             raise ValueError(f'max_sources must be >= 3; got {self._max_sources}')
+        if self._psf_sharpness_sigma <= 0.0:
+            raise ValueError(f'psf_sharpness_sigma must be > 0; got {self._psf_sharpness_sigma}')
         if self._wide_offset_min_inliers < 3:
             raise ValueError(
                 f'wide_offset_min_inliers must be >= 3 (two stars cannot cross-'
@@ -825,7 +890,12 @@ class StarFieldFromCatalogNav(NavTechnique):
                 self._isolation_outer_px,
                 float(np.median([smear_length_px(f) for f in usable])),
             )
-            detected = _detect_image_sources(
+            obs = context.obs
+            sharpness_psf = (
+                obs.star_sharpness_psf() if isinstance(obs, _StarSharpnessProvider) else None
+            )
+            psf_limits = None if sharpness_psf is None else psf_concentration(sharpness_psf)
+            detections = _detect_image_sources(
                 image_ext,
                 image_noise_sigma=noise_sigma,
                 sigma_px=self._psf_sigma_px,
@@ -835,7 +905,16 @@ class StarFieldFromCatalogNav(NavTechnique):
                 isolation_inner_px=isolation_inner_px,
                 isolation_outer_px=isolation_outer_px,
                 isolation_max_ratio=self._isolation_max_ratio,
+                psf_limits=psf_limits,
+                psf_sharpness_sigma=self._psf_sharpness_sigma,
             )
+            if detections.n_sharper_than_psf > 0:
+                self.logger.info(
+                    'Set aside %d source(s) more concentrated than the star PSF allows '
+                    '(cosmic-ray hits)',
+                    detections.n_sharper_than_psf,
+                )
+            detected = detections.sources
             n_detected_sources = len(detected)
             self.logger.info(
                 'Detected %d source(s); using up to %d catalog stars',

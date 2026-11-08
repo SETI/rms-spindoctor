@@ -31,6 +31,7 @@ from spindoctor.feature.feature_type import NavFeatureType
 from spindoctor.feature.flags import StarFlags
 from spindoctor.feature.geometry import StarGeometry
 from spindoctor.nav_model.stars.detection import matched_filter_image
+from spindoctor.nav_technique._star_background import peak_excess, region_centroid
 from spindoctor.support.types import NDArrayFloatType
 
 __all__ = [
@@ -459,35 +460,14 @@ def _box_centroid(
 ) -> tuple[float, float] | None:
     """Return the background-subtracted brightness-weighted centroid of one box.
 
-    The background is the box median.  Returns ``None`` when nothing in the box rises
-    above it.
+    The background is a plane fitted around the box (see ``box_background`` in
+    ``_star_background``); the re-centering in :func:`local_centroid` would otherwise
+    follow a centroid pulled up a slope.  Returns ``None`` when nothing in the box rises
+    above the background.
     """
     h, w = image_ext.shape
-    return _region_centroid(
+    return region_centroid(
         image_ext, (max(0, v - half), min(h, v + half + 1), max(0, u - half), min(w, u + half + 1))
-    )
-
-
-def _region_centroid(
-    image_ext: NDArrayFloatType, region: tuple[int, int, int, int]
-) -> tuple[float, float] | None:
-    """Return the background-subtracted brightness-weighted centroid of a region.
-
-    ``region`` is ``(v_lo, v_hi, u_lo, u_hi)``, upper bounds exclusive, inside the image.
-    The background is the region's median.  Returns ``None`` when nothing in the region
-    rises above it.
-    """
-    v_lo, v_hi, u_lo, u_hi = region
-    box = np.asarray(image_ext[v_lo:v_hi, u_lo:u_hi], np.float64)
-    weights = np.clip(box - float(np.median(box)), 0.0, None)
-    total = float(weights.sum())
-    if total <= 0.0:
-        return None
-    vs = np.arange(v_lo, v_hi, dtype=np.float64)
-    us = np.arange(u_lo, u_hi, dtype=np.float64)
-    return (
-        float(np.sum(vs[:, None] * weights) / total),
-        float(np.sum(us[None, :] * weights) / total),
     )
 
 
@@ -564,8 +544,10 @@ def local_centroid(
        so the star it would have outranked is measured.
     4. Reject the candidate when the brightest pixel of its centroid box
        stands less than ``detection_sigma * image_noise_sigma`` above the
-       box's median, so a noise bump on the floor of a bright extended
-       region (a saturated ring or body) is no detection.
+       box's median, or above the box's plane background
+       (``peak_excess`` in ``_star_background``), so a noise bump on the
+       floor of a bright extended region (a saturated ring or body), flat
+       or sloping, is no detection.
     5. With ``refuse_outshone``, reject the window when its brightest pixel
        is the edge-cut flank of a source outside it that outshines the
        candidate (:func:`_flank_outshines`).
@@ -597,8 +579,8 @@ def local_centroid(
         image_noise_sigma: Robust per-pixel noise sigma in DN units.
         detection_sigma: Threshold multiplier on
             ``image_noise_sigma``; the candidate's brightest pixel must stand
-            ``detection_sigma * image_noise_sigma`` above its box's median to
-            be accepted.
+            ``detection_sigma * image_noise_sigma`` above its box's median and
+            above its box's plane background to be accepted.
         refuse_outshone: Refuse a window outshone by a source outside it.
             ``StarRefineNav`` sets it: its small window sits on a prediction
             the pass-1 offset has already corrected, so light spilling in
@@ -645,7 +627,10 @@ def local_centroid(
     peak_v, peak_u = candidate
     box = _box(image_ext, peak_v, peak_u, half)
     peak_dn = float(box.max())
-    if peak_dn - float(np.median(box)) < detection_sigma * image_noise_sigma:
+    threshold = detection_sigma * image_noise_sigma
+    if peak_dn - float(np.median(box)) < threshold:
+        return None, peak_dn
+    if peak_excess(image_ext, peak_v, peak_u, half) < threshold:
         return None, peak_dn
     if refuse_outshone:
         window = np.asarray(image_ext[v_lo:v_hi, u_lo:u_hi], np.float64)
@@ -776,8 +761,8 @@ def _recentered_centroid(
             that is still its flat top.
 
     Returns:
-        The ``(v, u)`` centroid, or ``None`` when the box finds nothing above its median,
-        walks away, or holds a clipped core that is no point source of the window.
+        The ``(v, u)`` centroid, or ``None`` when the box finds nothing above its plane
+        background, walks away, or holds a clipped core that is no point source of the window.
     """
     v_lo, v_hi, u_lo, u_hi = bounds
     flat = _flat_top_region(
@@ -786,7 +771,7 @@ def _recentered_centroid(
     if flat is False:
         return None
     if isinstance(flat, tuple):
-        centroid = _region_centroid(image_ext, flat)
+        centroid = region_centroid(image_ext, flat)
         if centroid is None:
             return None
         cv, cu = math.floor(centroid[0] + 0.5), math.floor(centroid[1] + 0.5)
@@ -842,11 +827,11 @@ def window_sources(
     The window and its matched-filter peaks are those of :func:`local_centroid`, and each
     peak, taken in order of falling response, is measured as it measures its one
     candidate: a peak sharper than a star is skipped, so is one whose box's brightest
-    pixel stands less than ``detection_sigma * image_noise_sigma`` above the box's median,
-    and so is one whose re-centered box walks away.  A peak that passes and that
-    ``accept`` takes (the caller's isolation test) is a source; one whose centroid lies
-    within a pixel of a source already found is that source again.  Every peak of the
-    window may be put to ``accept``, so it should be cheap:
+    pixel stands less than ``detection_sigma * image_noise_sigma`` above the box's median
+    or its plane background, and so is one whose re-centered box walks away.  A peak that
+    passes and that ``accept`` takes (the caller's isolation test) is a source; one whose
+    centroid lies within a pixel of a source already found is that source again.  Every
+    peak of the window may be put to ``accept``, so it should be cheap:
     :func:`~spindoctor.nav_technique._star_isolation.isolation_lookup` builds the
     isolation test once for a whole window.  Where :func:`local_centroid` measures only
     the window's strongest peak and reports no detection when that peak is not a star,
@@ -886,7 +871,10 @@ def window_sources(
         pv, pu = (int(x) for x in np.unravel_index(int(flat_idx), peaks.shape))
         peak_v, peak_u = v_lo + pv, u_lo + pu
         box = _box(image_ext, peak_v, peak_u, half)
-        if float(box.max()) - float(np.median(box)) < detection_sigma * image_noise_sigma:
+        threshold = detection_sigma * image_noise_sigma
+        if float(box.max()) - float(np.median(box)) < threshold:
+            continue
+        if peak_excess(image_ext, peak_v, peak_u, half) < threshold:
             continue
         if too_sharp(
             image_ext,

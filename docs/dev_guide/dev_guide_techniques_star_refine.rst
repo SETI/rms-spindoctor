@@ -33,15 +33,17 @@ Per-star centroid model
 
 For a single predicted catalog star at position :math:`x_{\mathrm{pred}}` with covariance
 :math:`\Sigma_{i}` (the Cramer-Rao lower bound carried on the feature), the refinement
-step takes the brightness-weighted moment of a small box around the strongest
-matched-filter detection in a search window centered on
+step takes the brightness-weighted moment, above a plane background fitted to the ring of
+pixels around the box, of a small box around the strongest matched-filter detection in a
+search window centered on
 :math:`x_{\mathrm{pred}} + \mathbf{p}` (where :math:`\mathbf{p}` is the prior offset).
 Window and detection rule are the ones
 :class:`~spindoctor.nav_technique.nav_technique_star_unique_match.StarUniqueMatchNav` uses
 (see its "Local centroid" section): a centered window ``2 * floor(refine_window_px) + 1``
 pixels on a side, the Gaussian matched-filter response, and the sharpness limit that
 passes over a single-pixel spike. The centroid is rejected when the brightest pixel of the
-detection's centroid box does not stand the detection threshold above the box's median,
+detection's centroid box does not stand the detection threshold above the box's median
+and its plane background,
 when the window's brightest pixel is the edge-cut flank of a brighter source outside it
 (the star has left the window, and anything chosen inside it is noise), or when the
 implied per-star residual exceeds a configured cap; the surviving correspondences are the
@@ -159,10 +161,36 @@ All numeric tunables for this technique live in ``techniques.StarRefineNav.tunin
 - ``max_per_star_residual_px`` — float, default ``4.0`` px. A star whose detected centroid
   sits more than this many pixels from the shifted prediction is dropped before the average;
   almost certainly a wrong peak.
+- ``discordant_min_stars`` — int, default ``4`` (count), at least ``2``. Fewest votes the
+  discordant-star check needs; four is the fewest whose median rests on an agreeing
+  majority of three. With exactly one star fewer, a prior precise to
+  ``discordant_floor_px`` casts the missing vote as a residual of zero: of three stars, a
+  2-to-1 split cannot say on its own which side is wrong. The prior is the pass-1 answer
+  the stars were searched around, usually built from some of the same stars, so its vote
+  adds no independent evidence; it settles the split in the pass-1 answer's favor. The
+  vote was built for Cassini ISS wide angle frame ``W1762900979``, a tuning case, where
+  the two stars of the two-star match, on the prior, otherwise lost to a brighter third
+  star 3.9 px off it, which pulled the refine 1.5 px. A pair that disagrees with the prior
+  cannot outvote a star that agrees with it, so on the image library's Voyager 1 ISS wide
+  angle frame ``C3448723``, for example, the faint star on the body fix still stays beside
+  two bright stars 2 px from it. A prior casts no vote when its least certain axis has a
+  standard deviation above ``discordant_floor_px`` or its covariance is rank-deficient, as
+  a ring edge's is along the arc: on Cassini ISS narrow angle frame ``N1798993130``, for
+  example, a ring-edge prior 2.4 px along the arc from the stars, with two stray peaks
+  near it, would otherwise outvote the brightest star, which four fainter catalog stars
+  place at the same offset.
+- ``discordant_floor_px`` — float, default ``1.0`` px. Smallest distance from the median
+  residual at which a star counts as discordant.
+- ``discordant_median_factor`` — float, default ``3.0`` (dimensionless). A star farther
+  from the median residual than this many times the stars' median such distance (but at
+  least ``discordant_floor_px``) is dropped before the average. The check was built for
+  Cassini ISS narrow angle frame ``N1802001372``, a tuning case, where a V 9.2 Tycho-2
+  star 2.6 px from the median of nine otherwise pulled the answer 1.1 px off seven stars
+  that agree with each other to 0.4 px.
 - ``detection_sigma`` — float, default ``4.0`` (dimensionless). Detection-threshold
   multiplier on the per-image noise sigma; the brightest pixel of the detection's centroid
-  box must stand ``detection_sigma * image_noise_sigma`` above the box's median to be
-  accepted.
+  box must stand ``detection_sigma * image_noise_sigma`` above the box's median and its
+  plane background to be accepted.
 - ``min_inliers`` — int, default ``1`` (count). Below this many surviving inliers the
   technique reports a spurious zero-confidence result instead of attempting the average.
 - ``at_edge_tolerance_px`` — float, default ``1.0`` px. The reported absolute translation
@@ -184,7 +212,7 @@ All numeric tunables for this technique live in ``techniques.StarRefineNav.tunin
 Per-instrument overrides
 ------------------------
 
-The nine keys above are global; the per-instrument YAML files in
+The keys above are global; the per-instrument YAML files in
 ``src/spindoctor/config_files/config_4N0_inst_*.yaml`` do not override any of them. The
 camera-rotation flag (:attr:`~spindoctor.nav_orchestrator.nav_context.NavContext.fit_camera_rotation`) and the rotation cap (:attr:`~spindoctor.nav_orchestrator.nav_context.NavContext.max_rotation_deg`)
 that this technique reads off the per-image
@@ -277,11 +305,23 @@ Call path traced through
 2. **No prior on the context.**  Return early with a spurious zero-confidence result via the
    private ``_fail`` helper, with ``reason='no_prior_offset_on_context'``.
 3. Read the prior offset, the extfov image, and the per-image noise sigma off the context.
-   Loop over the usable stars: for each, call
-   ``local_centroid`` against the shifted prediction; drop
-   stars with no peak above the detection threshold or whose centroid sits more than
-   ``max_per_star_residual_px`` from the shifted prediction. Compute the per-star residuals
-   and inverse-trace weights.
+   Loop over the usable stars: for each, call ``local_centroid`` against the shifted
+   prediction; drop stars that have no peak above the detection threshold (measured
+   against the median of a ring of pixels 2 px wide around the centroid box), whose
+   centroid box (``centroid_box_half_px`` either side of the unrounded centroid) does not
+   lie wholly inside the frame's data area (the extfov image less ``obs.extfov_margin_vu``
+   on each side), or whose centroid sits more than ``max_per_star_residual_px`` from the
+   shifted prediction. The padding beyond the frame holds no starlight, so a box it cuts
+   measures a truncated star, or the frame's edge pixels when the star itself lies outside
+   the frame. Compute the per-star residuals and inverse-trace weights.
+   With at least ``discordant_min_stars`` survivors, drop each star whose residual lies
+   farther from the per-axis median residual than ``max(discordant_floor_px,
+   discordant_median_factor * median distance)``: the average weights each star by its
+   catalog brightness, so one bright star centroided on the wrong peak would otherwise
+   outweigh every faint star that agrees with the others. With exactly one survivor fewer
+   and a prior of full rank whose least certain axis has a standard deviation of at most
+   ``discordant_floor_px``, the per-axis median also counts the prior as a residual of
+   zero; the median distance is still taken over the stars alone.
 4. **Too few inliers.**  When the surviving inlier count is below ``min_inliers``, return a
    spurious zero-confidence result via ``_fail``.
 5. Compute the inverse-variance weighted delta, the median per-star residual distance, and

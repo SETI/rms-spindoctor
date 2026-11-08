@@ -18,7 +18,12 @@ from tests.shims import FakeObs, install_fake_catalogs, make_star
 
 from spindoctor.config import DEFAULT_CONFIG
 from spindoctor.nav_model.stars import catalog as nav_catalog
-from spindoctor.nav_model.stars.catalog import _merge_catalogs, reduce_catalogs, stars_in_extfov
+from spindoctor.nav_model.stars.catalog import (
+    CATALOG_MAGNITUDE_BINS,
+    _merge_catalogs,
+    reduce_catalogs,
+    stars_in_extfov,
+)
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 from spindoctor.support.types import MutableStar
 
@@ -175,6 +180,20 @@ def test_reduce_catalogs_dedupes_against_higher_precedence(
     assert len(out) == 1
     # UCAC4 has higher precedence so its entry survives.
     assert out[0].catalog_name == 'ucac4'
+
+
+def test_reduce_catalogs_keeps_one_record_of_a_star_on_a_bin_edge(
+    monkeypatch: pytest.MonkeyPatch, fake_obs: FakeObs
+) -> None:
+    """A star whose magnitude is a bin edge is returned by both bins and kept once."""
+    edge = 12.5
+    assert edge in CATALOG_MAGNITUDE_BINS
+    install_fake_catalogs(
+        monkeypatch,
+        ucac4=[make_star(unique_number=7, ra=0.10, dec=0.00, vmag=edge)],
+    )
+    out = reduce_catalogs(cast(Any, fake_obs), DEFAULT_CONFIG)
+    assert [s.unique_number for s in out] == [7]
 
 
 def test_reduce_catalogs_caps_at_max_stars(

@@ -668,3 +668,73 @@ def test_isolation_lookup_answers_as_the_single_detection_test_at_the_image_corn
     ]
     assert sum(single for _, single in answers) >= 5
     assert [window for window, _ in answers] == [single for _, single in answers]
+
+
+_FLOOR_DN = 100.0
+
+
+def _bright_floor() -> np.ndarray:
+    """Return a 41x41 frame on a uniform floor far above the noise, with mild texture."""
+    rng = np.random.default_rng(7)
+    return _FLOOR_DN + rng.normal(0.0, 1.0, size=(41, 41))
+
+
+def _star_on(image: np.ndarray, center_vu: tuple[float, float]) -> np.ndarray:
+    """Return ``image`` with a 40 DN star of sigma 0.8 px added at ``center_vu``."""
+    vv, uu = np.mgrid[0 : image.shape[0], 0 : image.shape[1]]
+    v, u = center_vu
+    return np.asarray(image + 40.0 * np.exp(-((vv - v) ** 2 + (uu - u) ** 2) / (2.0 * 0.8**2)))
+
+
+def test_a_star_on_a_sloping_floor_is_centroided_where_it_lies() -> None:
+    """Glare rising across the centroid box does not pull the centroid uphill."""
+    columns = np.mgrid[0:41, 0:41][1]
+    image = _star_on(_bright_floor() + 4.0 * columns, (22.0, 18.0))
+    centroid = _centroid(image, (20.0, 20.0), search_half_vu=(6.0, 6.0))
+    assert isinstance(centroid, tuple)
+    assert centroid[1] == pytest.approx(18.0, abs=0.2)
+
+
+def test_a_cosmic_ray_beside_the_box_does_not_tilt_its_background() -> None:
+    """A spike in the ring around the centroid box is left out of the background's slope."""
+    image = _star_on(_bright_floor(), (22.0, 18.0))
+    image[22, 23] += 2000.0
+    centroid = _centroid(image, (22.0, 18.0), search_half_vu=(2.0, 2.0))
+    assert isinstance(centroid, tuple)
+    assert centroid[1] == pytest.approx(18.0, abs=0.2)
+
+
+def test_the_background_level_is_the_box_floor_not_the_ring() -> None:
+    """Glow filling the centroid box above the floor around it is background, not star."""
+    image = _star_on(_bright_floor(), (22.4, 18.0))
+    image[19:26, 15:22] += 20.0
+    centroid = _centroid(image, (22.0, 18.0), search_half_vu=(2.0, 2.0))
+    assert isinstance(centroid, tuple)
+    assert centroid[0] == pytest.approx(22.4, abs=0.15)
+
+
+def test_the_brightest_pixel_of_a_sloping_floor_holds_no_detection() -> None:
+    """Glare that rises across the window peaks at its edge but stands above nothing."""
+    columns = np.mgrid[0:41, 0:41][1]
+    image = _bright_floor() + 2.0 * columns
+    assert _centroid(image, (20.0, 20.0), search_half_vu=(6.0, 6.0)) is None
+
+
+def test_window_sources_on_a_sloping_floor_are_none() -> None:
+    """No peak of a glare slope is a source, however far the slope rises across the box."""
+    columns = np.mgrid[0:81, 0:81][1]
+    rng = np.random.default_rng(7)
+    image = _FLOOR_DN + rng.normal(0.0, 1.0, size=(81, 81)) + 2.0 * columns
+    sources = window_sources(
+        image,
+        (40.0, 40.0),
+        search_half_vu=(30.0, 30.0),
+        centroid_box_half_px=3,
+        psf_sigma_px=1.0,
+        max_peak_sharpness=8.0,
+        image_noise_sigma=1.0,
+        detection_sigma=5.0,
+        accept=lambda vu: True,
+        max_sources=10,
+    )
+    assert sources == []

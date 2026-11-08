@@ -85,7 +85,7 @@ def test_ring_edge_nav_returns_rank_1_for_all_flat_input(
     assert observed_eigval > 0.0
     # Null direction is along the edge tangent (u axis); rank-deficient
     # covariance is expressed via the eigenvalue ratio.  Use the same
-    # threshold the production code's ``_is_rank_1`` classifier uses, so
+    # threshold the production code's ``is_rank_1`` classifier uses, so
     # this test exercises the same boundary the technique itself draws
     # rather than a looser independent constant.
     assert (

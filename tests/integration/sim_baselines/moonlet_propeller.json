@@ -1,7 +1,7 @@
 {
-  "confidence": 0.91,
-  "offset_du_px": -1.1,
-  "offset_dv_px": -0.8,
+  "confidence": 0.88,
+  "offset_du_px": -1.09,
+  "offset_dv_px": -0.81,
   "scene_name": "moonlet_propeller",
   "status": "success"
 }

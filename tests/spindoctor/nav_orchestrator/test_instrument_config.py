@@ -7,6 +7,7 @@ from typing import Any
 
 import pytest
 
+from spindoctor.config import Config
 from spindoctor.nav_orchestrator.image_classifier import ImageQualityThresholds
 from spindoctor.nav_orchestrator.instrument_config import (
     InstrumentSettings,
@@ -201,8 +202,6 @@ def test_calibrated_if_default_marker_is_nan() -> None:
 
 def test_shipped_inst_configs_load_cleanly() -> None:
     """Every shipped per-instrument config loads through the helper."""
-    from spindoctor.config import Config
-
     config = Config()
     config.read_config()
     blocks = [
@@ -220,8 +219,6 @@ def test_shipped_inst_configs_load_cleanly() -> None:
 
 def test_shipped_calibrated_if_configs_load_cleanly() -> None:
     """Every shipped calibrated-IF block loads and disables the saturation gate."""
-    from spindoctor.config import Config
-
     config = Config()
     config.read_config()
     blocks = [
@@ -235,3 +232,58 @@ def test_shipped_calibrated_if_configs_load_cleanly() -> None:
         assert settings.saturation_dn is None
         # Saturation gate disabled for calibrated_if (Phase 10 §F).
         assert math.isinf(settings.thresholds.saturation_threshold_dn)
+
+
+def test_model_error_floors_absent_is_empty() -> None:
+    """An instrument that declares no model_error_floor_px block has no camera floors."""
+    settings = instrument_settings_from_obs(_FakeObs(_raw_dn_block()))
+    assert dict(settings.model_error_floor_px) == {}
+
+
+def test_model_error_floors_are_read() -> None:
+    """A declared per-technique floor reaches the settings unchanged."""
+    block = _raw_dn_block()
+    block['model_error_floor_px'] = {'RingAnnulusNav': 0.9}
+    settings = instrument_settings_from_obs(_FakeObs(block))
+    assert dict(settings.model_error_floor_px) == {'RingAnnulusNav': 0.9}
+
+
+@pytest.mark.parametrize(
+    ('floors', 'error', 'message'),
+    [
+        ({'RingAnulusNav': 0.9}, ValueError, 'does not read a per-camera floor'),
+        ({'RingAnnulusNav': -0.1}, ValueError, 'must be >= 0'),
+        ({'RingAnnulusNav': float('nan')}, ValueError, 'must be a finite numeric value'),
+        ([0.9], TypeError, 'model_error_floor_px must be a mapping'),
+    ],
+    ids=['unknown-technique', 'negative', 'nan', 'not-a-mapping'],
+)
+def test_model_error_floors_reject_invalid_blocks(
+    floors: Any, error: type[Exception], message: str
+) -> None:
+    """A misspelled technique, a negative or NaN floor, or a non-mapping block fails to load."""
+    block = _raw_dn_block()
+    block['model_error_floor_px'] = floors
+    with pytest.raises(error, match=message):
+        instrument_settings_from_obs(_FakeObs(block))
+
+
+def test_shipped_cassini_wac_declares_annulus_floor() -> None:
+    """Both Cassini WAC blocks carry the calibrated annulus floor; the NAC keeps the tuning's."""
+    config = Config()
+    config.read_config()
+    floors = {
+        (section, camera): dict(
+            instrument_settings_from_obs(
+                _FakeObs(config.category(section).get(camera))
+            ).model_error_floor_px
+        )
+        for section in ('cassini_iss', 'cassini_iss_calib')
+        for camera in ('nac', 'wac')
+    }
+    assert floors == {
+        ('cassini_iss', 'nac'): {},
+        ('cassini_iss', 'wac'): {'RingAnnulusNav': 0.9},
+        ('cassini_iss_calib', 'nac'): {},
+        ('cassini_iss_calib', 'wac'): {'RingAnnulusNav': 0.9},
+    }

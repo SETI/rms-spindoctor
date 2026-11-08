@@ -41,7 +41,12 @@ from spindoctor.feature.feature import NavReliabilityBreakdown
 from spindoctor.feature.feature_type import NavFeatureType
 from spindoctor.nav_orchestrator.feature_summary import NavFeatureSummary
 from spindoctor.nav_orchestrator.image_classifier_result import NavImageClassifierResult
-from spindoctor.nav_orchestrator.nav_result import NavInternalErrorRecord, NavResult
+from spindoctor.nav_orchestrator.nav_result import (
+    ArbitrationCandidate,
+    ConflictArbitrationRecord,
+    NavInternalErrorRecord,
+    NavResult,
+)
 from spindoctor.nav_orchestrator.provenance import Provenance
 from spindoctor.nav_technique.diagnostics import BodyLimbDiagnostics
 from spindoctor.nav_technique.technique_result import NavTechniqueResult
@@ -410,6 +415,37 @@ def _internal_error_document() -> dict[str, Any]:
     return _document(_with_pointing(result, corrected=False), shutter_mode=None)
 
 
+def _arbitration_document() -> dict[str, Any]:
+    """The written document for a conflict that the pass-2 test resolved.
+
+    Carried by the writer-to-chapter guard because its ``conflict_arbitration`` block
+    appears on no other document's contents.
+    """
+    record = ConflictArbitrationRecord(
+        candidates=(
+            ArbitrationCandidate(
+                techniques=('StarUniqueMatchNav',), offset_px=(1.0, 2.0), support=9, confirmed=True
+            ),
+            ArbitrationCandidate(
+                techniques=('RingEdgeNav',), offset_px=(9.0, 2.0), support=0, confirmed=False
+            ),
+        ),
+        refuted_techniques=('RingEdgeNav',),
+    )
+    result = NavResult.success(
+        offset_px=(1.0, 2.0),
+        covariance_px2=np.diag([0.04, 0.04]),
+        confidence=0.788,
+        confidence_rank='medium',
+        status_reason=NavStatusReason.OK,
+        per_technique=[_technique_result(with_rotation=False)],
+        feature_inventory=[_feature_summary()],
+        image_classifier=_classifier(),
+        provenance=_provenance(),
+    )
+    return _document(dataclasses.replace(result, conflict_arbitration=record))
+
+
 class _LoadErrorObsClass:
     """Observation class whose load always fails with a SPICE coverage error."""
 
@@ -508,6 +544,7 @@ def test_every_writer_key_is_documented(tmp_path: Path) -> None:
         _rotation_document(),
         _failed_document(),
         _internal_error_document(),
+        _arbitration_document(),
         _load_error_document(tmp_path),
         _early_return_document(tmp_path),
     ]
