@@ -266,7 +266,8 @@ half a pixel at the field corner.
 ``bloom``, ``radiation_transients``, ``quantization_contour_8bit``,
 ``fixed_pattern``, and ``compression_dct``. ``alternating_lines`` defaults to
 its ``keep`` mode for this instrument's vertical decimation, rather than the
-``drop`` mode that blanks every Nth line. ``missing_blocks`` defaults to
+``drop`` mode that blanks every Nth line: the HMA and HCA telemetry formats
+carry valid data on every 2nd or every 4th line only. ``missing_blocks`` defaults to
 8-line blocks, the height of a lost compression slice, and ``truth_window`` to a
 96-pixel square, the losslessly coded window. The file states no band width for
 ``edited_frame``, so that mode takes the registry's generic fallback. The file

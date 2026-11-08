@@ -1189,8 +1189,9 @@ values instead.
      - nac, wac, vgiss
      - ``expected_events``
    * - ``alternating_lines``
-     - every Nth line dropped, or (``mode: keep``, the Galileo HMA / HCA
-       catalog default) only every Nth line kept
+     - every Nth line dropped, or (``mode: keep``) only every Nth line kept, the
+       vertical decimation of a telemetry format that sends a subset of lines
+       (see :doc:`instruments/galileo_ssi`)
      - nac, wac, gossi
      - ``probability``
    * - ``edited_frame``
@@ -1223,7 +1224,8 @@ values instead.
      - all CCD
      - ``expected_events``
    * - ``embedded_header``
-     - row 0 overwritten with binary housekeeping (the LORRI header)
+     - the start of row 0 overwritten with binary housekeeping, a header the
+       camera embeds in every image (see :doc:`instruments/newhorizons_lorri`)
      - lorri
      - ``probability``
    * - ``truth_window``
@@ -1243,13 +1245,16 @@ values instead.
      - vgiss
      - ``probability``
    * - ``resample_texture``
-     - GEOMED resample warp, blank border, and missing-line interpolation
+     - geometric resample warp, blank border, and missing-line interpolation
+       (archive processing)
      - vgiss
      - ``probability``
 
 The telemetry sub-stage order is fixed: lossy compression runs first (a codec
-compresses, then packets drop), then the structured loss loop, then the Voyager
-GEOMED archive-processing scars on the already-loss-bearing frame
+compresses, then packets drop), then the structured loss loop, then the
+archive-processing scars on the already-loss-bearing frame: the marks a ground
+pipeline leaves when it removes reseau marks and resamples the frame onto a
+corrected geometry (see :doc:`instruments/voyager_iss`)
 (:data:`~spindoctor.sim.forward.artifact_modes.TELEMETRY_PRE_LOSS_ORDER`,
 ``STRUCTURED_LOSS_ORDER``,
 :data:`~spindoctor.sim.forward.artifact_modes.TELEMETRY_POST_LOSS_ORDER`). The
@@ -3620,9 +3625,11 @@ stage (:mod:`spindoctor.sim.forward.telemetry_artifacts`):
 before packets drop, leaving any commanded ``truth_window`` clean; on a calibrated
 frame it quantizes the DN the spacecraft transmitted, pedestal included, and maps
 the result back to I/F, so its ``scale_factor`` step is in DN on every frame), and
-the Voyager GEOMED archive-processing scars run last -- ``reseau_scars``
-(reseau-removal smudges on the ~46-px lattice) then ``resample_texture`` (the
-GEOMED resample warp, blank border, and missing-line interpolation banding).
+the archive-processing scars run last -- ``reseau_scars`` (smudges where a ground
+pipeline removed the reseau marks, on the camera's reseau lattice) then
+``resample_texture`` (the warp, blank border, and missing-line interpolation
+banding of the pipeline's geometric resample). :doc:`instruments/voyager_iss`
+gives the camera's lattice and product.
 
 **Adversarial placement.** With ``adversarial: true`` the stochastic modes place
 their events preferentially on the navigation features (a limb arc, a ring edge,

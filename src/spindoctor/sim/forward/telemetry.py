@@ -18,10 +18,11 @@ grid.  It applies its sub-effects in the physical order of transmission:
    shape parameters resolve through the per-instrument
    catalog (scene value over catalog default over registry default), like the
    flanking artifact loops.
-3. Voyager GEOMED archive-processing scars, applied to the already-loss-bearing
-   frame: ``reseau_scars`` (reseau-removal smudges on the lattice) then
-   ``resample_texture`` (the GEOMED resample warp, blank border, and
-   missing-line interpolation banding).
+3. Archive-processing scars, which a ground pipeline that removes reseau marks
+   and resamples the frame onto a corrected geometry leaves in its product,
+   applied to the already-loss-bearing frame: ``reseau_scars`` (reseau-removal
+   smudges on the lattice) then ``resample_texture`` (the resample warp, blank
+   border, and missing-line interpolation banding).
 4. Missing-data markers: the generic per-pixel ``noise.missing_data_rate``
    dropout knob (a worst-case stress knob, not an instrument artifact),
    which writes the instrument's marker.
@@ -151,9 +152,10 @@ def apply_telemetry(
         )
         records[mode_name] = result
 
-    # Sub-stage 3: Voyager GEOMED archive-processing scars, applied to the
-    # already-loss-bearing frame (they emulate archive processing, not raw
-    # readout): reseau-removal smudges, then the GEOMED resample texture.
+    # Sub-stage 3: archive-processing scars, applied to the already-loss-bearing
+    # frame (they emulate a ground pipeline's reseau removal and geometric
+    # resampling, not raw readout): reseau-removal smudges, then the resample
+    # texture.
     for mode_name in TELEMETRY_POST_LOSS_ORDER:
         raw_cfg = artifacts.get(mode_name)
         if raw_cfg is None or not mode_available(mode_name, instrument):
