@@ -58,6 +58,7 @@ from spindoctor.obs.obs_inst_sim import ObsSim
 from spindoctor.obs.obs_snapshot import ObsSnapshot
 from spindoctor.sim.instrument_catalog import realism_cohort_instruments
 from spindoctor.sim.instrument_navigator import resolve_sim_inst_config
+from spindoctor.sim.instrument_resolvers import resolve_data_units
 from spindoctor.sim.realism.artifact_rates import (
     ArtifactRates,
     split_stationary_spikes,
@@ -105,10 +106,9 @@ def saturation_level(instrument: str) -> float:
         The block's ``noise.saturation_dn`` for a ``raw_dn`` product; NaN for a
         calibrated one, whose I/F units define no fixed level.
     """
-    block = resolve_sim_inst_config(DEFAULT_CONFIG, instrument)
-    if block.get('data_units', 'raw_dn') != 'raw_dn':
+    if resolve_data_units(instrument) != 'raw_dn':
         return math.nan
-    return float(block['noise']['saturation_dn'])
+    return float(resolve_sim_inst_config(DEFAULT_CONFIG, instrument)['noise']['saturation_dn'])
 
 
 # Scene classes -> NavModel globs for the feature FOMs (the sim-side models

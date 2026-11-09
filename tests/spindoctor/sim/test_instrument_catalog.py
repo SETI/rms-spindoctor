@@ -2,12 +2,11 @@
 
 Each violation the loader refuses is one case, with the file, the entry, and the key
 path in its message.  A camera added only as an entry in a copy of the packaged
-directory
-validates, resolves, and renders.  The packaged catalog's entries point at
-navigator blocks that exist and state the units those blocks read, and each
-navigator star zero point agrees with the simulator's.  An entry whose units differ
-from its navigator block's fails when the block is resolved, and the detector chain
-renders in the entry's units.
+directory validates, resolves, and renders.  The packaged catalog's entries point at
+navigator blocks that exist and set the same units as those blocks, and each
+navigator star zero point agrees with the simulator's.  An entry fails when its
+navigator block is resolved if their units differ, or if the block doesn't set
+data_units.  The detector chain renders in the entry's units.
 """
 
 from collections.abc import Mapping
@@ -601,17 +600,17 @@ def test_an_inherited_detector_under_another_section_is_caught(
 
 @pytest.mark.parametrize('instrument', [*sim_instrument_names(), GENERIC_INSTRUMENT])
 def test_each_entry_states_the_units_its_navigator_block_reads(instrument: str) -> None:
-    """Each entry's units are its navigator block's, which are raw_dn if it states none."""
+    """Each entry's units are the units its navigator block sets."""
     navigator = load_instrument_catalog().entry(instrument)['navigator']
     block = DEFAULT_CONFIG.category(navigator['section'])
     if 'detector' in navigator:
         block = block[navigator['detector']]
-    assert resolve_data_units(instrument) == block.get('data_units', 'raw_dn')
+    assert resolve_data_units(instrument) == block['data_units']
 
 
 @pytest.fixture
 def calibrated_cam_on_raw_block(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> str:
-    """Point the resolvers at a catalog whose camera renders I/F against the raw sim block."""
+    """Point the resolvers at a camera that renders I/F against the raw sim block."""
     text = _cam(_with('data_units: raw_dn', 'data_units: calibrated_if'))
     monkeypatch.setattr(
         instrument_catalog, 'INSTRUMENT_CONFIG_DIR', catalog_dir_with(tmp_path, {'cam.yaml': text})
@@ -619,38 +618,41 @@ def calibrated_cam_on_raw_block(tmp_path: Path, monkeypatch: pytest.MonkeyPatch)
     return 'cam'
 
 
-@pytest.mark.parametrize(
-    ('block_states_units', 'reading'),
-    [(True, 'raw_dn'), (False, r'raw_dn \(it states no data_units\)')],
-    ids=['stated', 'unstated'],
-)
-def test_units_that_differ_from_the_navigator_block_fail(
-    calibrated_cam_on_raw_block: str,
-    monkeypatch: pytest.MonkeyPatch,
-    block_states_units: bool,
-    reading: str,
-) -> None:
-    """An entry whose units differ from its navigator block's fails when the block resolves.
-
-    A block that states no data_units reads raw_dn.
-    """
-    if not block_states_units:
-        block = dict(DEFAULT_CONFIG.category('sim'))
-        del block['data_units']
-        monkeypatch.setattr(DEFAULT_CONFIG, 'category', lambda section: block)
+def test_units_that_differ_from_the_navigator_block_fail(calibrated_cam_on_raw_block: str) -> None:
+    """An entry fails when its navigator block is resolved if their units differ."""
     message = (
-        r'cam\.yaml: cam: data_units: the entry renders calibrated_if frames, but its '
-        rf'navigator block sim reads {reading}, so the navigator would read every frame in '
-        r'the wrong units'
+        r'cam\.yaml: cam: data_units: the entry renders calibrated_if frames, but the '
+        r'navigator reads frames of block sim as raw_dn\. The two must match\.'
     )
     with pytest.raises(InstrumentConfigError, match=message):
         resolve_sim_inst_config(DEFAULT_CONFIG, calibrated_cam_on_raw_block)
+
+
+def test_a_navigator_block_without_units_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A navigator block that doesn't set data_units fails when it is resolved."""
+    monkeypatch.setattr(
+        instrument_catalog,
+        'INSTRUMENT_CONFIG_DIR',
+        catalog_dir_with(tmp_path, {'cam.yaml': _cam(_CAMERA)}),
+    )
+    block = dict(DEFAULT_CONFIG.category('sim'))
+    del block['data_units']
+    monkeypatch.setattr(DEFAULT_CONFIG, 'category', lambda section: block)
+    message = (
+        r"cam\.yaml: cam: data_units: the navigator block sim doesn't set data_units, which "
+        r'the navigator requires'
+    )
+    with pytest.raises(InstrumentConfigError, match=message):
+        resolve_sim_inst_config(DEFAULT_CONFIG, 'cam')
 
 
 def test_the_frame_units_follow_the_entry(
     calibrated_cam_on_raw_block: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """The detector chain renders in the entry's units, not the navigator block's."""
+    # The check makes the two sources agree, so switch it off to see which one the frame follows.
     monkeypatch.setattr(instrument_navigator, '_check_units_agree', lambda *_, **__: None)
     params = resolve_detector_params({'instrument': calibrated_cam_on_raw_block})
     assert params.data_units == 'calibrated_if'
@@ -661,12 +663,14 @@ def _raw_dn_navigator_instruments() -> list[str]:
 
     The navigator's star limit (``ObsSim.star_max_usable_vmag``) reads
     ``star_flux_dn_per_s_vmag0`` exactly when the block's ``data_units`` is
-    ``raw_dn`` (the default); a calibrated block never consults it.
+    ``raw_dn``; a calibrated block never consults it.  The list reads each entry's
+    own units, which the test above ties to its block's, so collecting this file
+    doesn't resolve any navigator block.
     """
     return [
         name
         for name in (*sim_instrument_names(), GENERIC_INSTRUMENT)
-        if resolve_sim_inst_config(DEFAULT_CONFIG, name).get('data_units', 'raw_dn') == 'raw_dn'
+        if resolve_data_units(name) == 'raw_dn'
     ]
 
 

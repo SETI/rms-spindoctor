@@ -24,10 +24,10 @@ config cannot silently shift a sim test's behavior for that key; the non-overrid
 keys continue to track the instrument.
 
 A rendered frame's units come from the instrument's own config entry
-(``data_units``), and the navigator reads the frame in the units its block states.
-Resolving the block therefore refuses an entry whose units differ from the
-block's.  A block that states no ``data_units`` reads ``raw_dn``.  A ``raw_dn``
-instrument renders detector counts with a ``0`` missing-data marker.  A
+(``data_units``), and the navigator reads the frame in the units its block sets, so
+resolving the block fails when the entry's units differ from the block's.  It also
+fails when the block doesn't set ``data_units``, which the navigator requires.  A
+``raw_dn`` instrument renders detector counts with a ``0`` missing-data marker.  A
 ``calibrated_if`` instrument (the calibrated Cassini cameras and Voyager ISS)
 renders I/F, also with a ``0`` marker, because the archived Cassini CALIB and
 Voyager GEOMED products fill lost pixels with zero.
@@ -117,9 +117,10 @@ def resolve_sim_inst_config(
     Raises:
         ValueError: If ``instrument`` is unrecognized, or the referenced config
             section / detector is missing.
-        ~spindoctor.sim.instrument_schema.InstrumentConfigError: If the entry's
-            ``data_units`` differ from the referenced block's.  The message gives the
-            entry's file and name, its units, the block, and the block's units.
+        ~spindoctor.sim.instrument_schema.InstrumentConfigError: If the referenced
+            block doesn't set ``data_units``, or the entry's ``data_units`` differ
+            from the block's.  The message gives the entry's file and name and the
+            block, and for a mismatch both units.
     """
     base = _resolve_base_block(config, instrument)
     if not overrides:
@@ -164,24 +165,31 @@ def _check_units_agree(
     *,
     block_name: str,
 ) -> None:
-    """Refuse an entry whose frames are in other units than its navigator block reads.
+    """Refuse an entry whose frame units differ from the units its navigator block sets.
 
-    The navigator reads a frame in its block's ``data_units``, and in ``raw_dn`` when
-    the block states none.  If the entry rendered I/F against a ``raw_dn`` block, the
-    navigator would read every frame as DN, and the other way round.
+    The navigator reads a frame in its block's ``data_units``, and it refuses a frame
+    whose block doesn't set them, so this refuses such a block too.  If the entry
+    rendered I/F against a ``raw_dn`` block, the navigator would read every frame as
+    DN, and the other way round.
     """
     name = catalog.canonical_name(instrument)
+    source = catalog.sources[name]
+    if 'data_units' not in block:
+        raise config_error(
+            source,
+            'data_units',
+            f"the navigator block {block_name} doesn't set data_units, which the "
+            'navigator requires',
+        )
     own = catalog.entry(name)['data_units']
-    stated = block.get('data_units')
-    expected = 'raw_dn' if stated is None else str(stated)
+    expected = str(block['data_units'])
     if own == expected:
         return
-    reading = expected if stated is not None else f'{expected} (it states no data_units)'
     raise config_error(
-        catalog.sources[name],
+        source,
         'data_units',
-        f'the entry renders {own} frames, but its navigator block {block_name} reads '
-        f'{reading}, so the navigator would read every frame in the wrong units',
+        f'the entry renders {own} frames, but the navigator reads frames of block '
+        f'{block_name} as {expected}. The two must match.',
     )
 
 
@@ -373,14 +381,13 @@ def read_frame_as_navigator(
 
 
 def frame_units_name(inst_config: Mapping[str, Any]) -> str:
-    """Name the units a frame of this block is written in.
+    """Return the units the navigator reads a frame of this block in.
 
     Parameters:
         inst_config: A resolved per-instrument config block.
 
     Returns:
-        ``'DN'`` for a ``raw_dn`` block (the default when ``data_units`` is absent),
-        ``'I/F'`` for a ``calibrated_if`` one.
+        ``'DN'`` for a ``raw_dn`` block, ``'I/F'`` for a ``calibrated_if`` one.
     """
     return 'DN' if str(inst_config.get('data_units', 'raw_dn')) == 'raw_dn' else 'I/F'
 
@@ -401,8 +408,9 @@ def has_planted_offset(sim_params: Mapping[str, Any]) -> bool:
 def frame_units_summary(image: NDArrayFloatType, inst_config: Mapping[str, Any]) -> str:
     """Describe a frame's units, value range, marker share, and the navigator's verdict.
 
-    The text states the units (``DN`` for a ``raw_dn`` block, ``I/F`` for a
-    ``calibrated_if`` block) and the finite value range, for example
+    The text gives the units the navigator reads a frame of this block in (``DN`` for
+    a ``raw_dn`` block, ``I/F`` for a ``calibrated_if`` block) and the finite value
+    range, for example
     ``'I/F 0 to 1.48'``.  When any pixel equals the navigator's marker (see
     :func:`navigator_marker_value`; NaN pixels when the marker is NaN), it adds the
     marker and the share of pixels carrying it.  When the navigator's classifier

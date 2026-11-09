@@ -1029,38 +1029,37 @@ in :mod:`spindoctor.sim.instrument_resolvers`. They cover the frame units, the
 detector defaults, readout modes, native frame size, star zero point, plate scale,
 PSF kernel and truncation radius, distortion residual, detector identity,
 calibrated sky, downlink tables, filters, and artifact-mode availability and shape
-defaults. The
-navigator block an entry points at is read by
+defaults. The navigator block an entry points at is read by
 :func:`~spindoctor.sim.instrument_navigator.resolve_sim_inst_config`. Each of these
 raises :class:`ValueError` for an instrument that no entry defines. Scene
 validation's allowed names, the scene editor's instrument list, and the realism
 match's cohort map all come from the catalog.
 
-An entry's ``data_units`` must match the ``data_units`` of the navigator block
-it points at, and a block that doesn't state them reads ``raw_dn``. Otherwise the
-navigator would read a calibrated frame as DN, or a DN frame as I/F. The check
-runs each time the block is resolved, against the configuration in use, so it
-also catches a user configuration that changes a block's units. It doesn't run
-when the catalog loads, because the catalog is loaded once per directory and
-cached, and can't know which configuration a render will use. The message gives
-the file, the entry, and both values::
+An entry's ``data_units`` must match the ``data_units`` of the navigator block it
+points at. Otherwise the navigator would read a calibrated frame as DN, or a DN
+frame as I/F. The navigator refuses a frame whose block doesn't set ``data_units``,
+so such a block is refused too. The check runs each time the block is resolved,
+against the configuration in use, so it also catches a user configuration that
+changes a block's units. The check can't run when the catalog loads: the catalog
+is cached once per directory and doesn't know which configuration a render will
+use. A mismatch's message gives the file, the entry, the block, and both values::
 
     coiss.yaml: coiss_calib_nac: data_units: the entry renders raw_dn frames, but
-    its navigator block cassini_iss_calib.nac reads calibrated_if, so the navigator
-    would read every frame in the wrong units
+    the navigator reads frames of block cassini_iss_calib.nac as calibrated_if. The
+    two must match.
 
 Unit tests tie the catalog to the navigator's packaged configuration without the
 simulator reading it at load. Every entry's ``navigator`` section and detector
-must point at a block that exists, so an inherited ``detector`` fails there if
-the entry changes ``section``. Every entry's ``data_units`` must match its
-block's. A navigator block whose ``data_units`` is
-``raw_dn`` reads a DN zero point for its star limit, so it must state
-``star_flux_dn_per_s_vmag0``; without it the navigator would take the generic
-block's value. That value must match the entry's star zero point, converted to
-DN through the default gain state for a CCD, within half the place value of the
-navigator value's last significant digit. The navigator states its own
-value, so a simulator retune does not move what the navigator knows; the test
-fails when the two drift apart by more than the navigator value's rounding.
+must point at a block that exists, so an inherited ``detector`` fails there if the
+entry changes ``section``. Every entry's ``data_units`` must match its block's. A
+navigator block whose ``data_units`` is ``raw_dn`` reads a DN zero point for its
+star limit, so it must state ``star_flux_dn_per_s_vmag0``; without it the
+navigator would take the generic block's value. That value must match the entry's
+star zero point, converted to DN through the default gain state for a CCD, within
+half the place value of the navigator value's last significant digit. The
+navigator states its own value, so a simulator retune does not move what the
+navigator knows; the test fails when the two drift apart by more than the
+navigator value's rounding.
 
 The keys of an entry, all directly under the instrument's top-level key:
 
@@ -1176,9 +1175,8 @@ but ``.5e3`` is a string, which the loader refuses.
 start a file for a mission that has none. Add the navigator's ``config_4N0``
 block for the camera it emulates too, if there isn't one yet. Point the entry's
 ``navigator`` key at that block, and give the entry the same ``data_units`` as the
-block. State every required key with the value's
-provenance as a comment beside it, and list the artifact modes the camera
-offers. For each offered mode whose shape is a camera attribute (a band width, a
+block. State every required key with the value's provenance as a comment beside it,
+and list the artifact modes the camera offers. For each offered mode whose shape is a camera attribute (a band width, a
 block height, a header length), state the camera's own value; a mode without one
 takes the registry's generic fallback. No code refers to an instrument by name,
 so the scene validator, the renderer, and the scene editor's instrument list pick
