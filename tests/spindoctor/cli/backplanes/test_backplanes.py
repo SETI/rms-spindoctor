@@ -623,8 +623,8 @@ def test_driver_applies_offset_as_du_dv(tmp_path: Path, monkeypatch: pytest.Monk
     _stub_pipeline(monkeypatch)
     snapshot, _, _, _ = _run(tmp_path, metadata={'status': 'success', 'offset': [2.5, -1.25]})
     assert isinstance(snapshot.fov, oops.fov.OffsetFOV)
-    assert snapshot.fov.uv_offset.vals[0] == -1.25
-    assert snapshot.fov.uv_offset.vals[1] == 2.5
+    assert np.asarray(snapshot.fov.uv_offset.vals)[0] == -1.25
+    assert np.asarray(snapshot.fov.uv_offset.vals)[1] == 2.5
 
 
 def test_driver_reads_image_with_zero_extfov_margin(
@@ -788,8 +788,8 @@ def test_end_to_end_simulated_image_applies_offset(tmp_path: Path) -> None:
     snap, _ = _simulated_mimas_snapshot()
     _run(tmp_path, metadata={'status': 'success', 'offset': [1.0, -2.0]}, obs=snap)
     assert isinstance(snap.fov, oops.fov.OffsetFOV)
-    assert snap.fov.uv_offset.vals[0] == -2.0
-    assert snap.fov.uv_offset.vals[1] == 1.0
+    assert np.asarray(snap.fov.uv_offset.vals)[0] == -2.0
+    assert np.asarray(snap.fov.uv_offset.vals)[1] == 1.0
 
 
 def test_end_to_end_simulated_image_writes_sidecar(tmp_path: Path) -> None:
@@ -945,8 +945,8 @@ def test_the_result_names_the_offset_pointing_source(
     assert result['pointing_source'] == 'offset'
     assert result['pointing_reason'] == 'no_pointing_block'
     assert isinstance(snapshot.fov, oops.fov.OffsetFOV)
-    assert snapshot.fov.uv_offset.vals[0] == -2.5
-    assert snapshot.fov.uv_offset.vals[1] == 1.5
+    assert np.asarray(snapshot.fov.uv_offset.vals)[0] == -2.5
+    assert np.asarray(snapshot.fov.uv_offset.vals)[1] == 1.5
 
 
 def test_the_result_names_the_cmatrix_pointing_source(

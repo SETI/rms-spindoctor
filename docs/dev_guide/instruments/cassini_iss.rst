@@ -33,30 +33,29 @@ Code map
      - ``other.obs`` governs the image-scoped ``LOAD IMAGE`` section; there is
        no per-instrument logging key
    * - oops host module
-     - ``oops.hosts.cassini.iss``
+     - ``host_cassini.CassiniISS``, from the ``rms-host-cassini`` package
 
 Loading the image
 =================
 
 :meth:`~spindoctor.obs.obs_inst_cassini_iss.ObsCassiniISS.from_file` calls
-``oops.hosts.cassini.iss.from_file(path, fast_distortion=..., return_all_planets=...)``.
+``host_cassini.CassiniISS.from_file(path, fast_distortion=..., return_all_planets=...)``.
 Both keyword arguments are read from ``**kwargs`` and default to ``True``.
 ``fast_distortion`` selects the host's polynomial inverse rather than an
 iterative one, which is what makes per-pixel geometry affordable in a batch;
-``return_all_planets`` keeps every planet the host finds rather than the
-closest one alone, which the multi-body navigation models need.
+``return_all_planets`` makes the host list the kernels of every planet in the
+observation's ``spice_kernels`` rather than those of Jupiter or Saturn alone.
 
-Beyond the host call it does four things:
+The host records ``obs.image_url``, the absolute source URL, so a run against
+remote holdings still records which file it read; the published image name
+is taken from it. Beyond the host call ``from_file`` does three things:
 
-1. Records ``obs.abspath`` (the resolved local path) and ``obs.image_url`` (the
-   absolute source URL) from an ``FCPath``, so a run against remote holdings
-   still names the file it read.
-2. Selects the configuration block. ``'_CALIB' in fc_path.name.upper()``
+1. Selects the configuration block. ``'_CALIB' in fc_path.name.upper()``
    chooses ``cassini_iss_calib``; anything else chooses ``cassini_iss``.
-3. Indexes that block by ``obs.detector.lower()``. A missing section, or a
-   section with no entry for the detector, raises ``ValueError`` naming the
+2. Indexes that block by ``obs.detector.lower()``. A missing section, or a
+   section with no entry for the detector, raises ``ValueError`` listing the
    detectors that are present, rather than failing later on a missing key.
-4. Resolves the extended-FOV margin. The configured value is a mapping keyed
+3. Resolves the extended-FOV margin. The configured value is a mapping keyed
    by image size, so the margin is ``entry[obs.data.shape[0]]``; an explicit
    ``extfov_margin_vu`` argument wins over the configuration entirely.
 
@@ -87,21 +86,21 @@ Label and index dependencies
 * The label metadata. ``_label_metadata`` builds the ``label_metadata`` block from
   ``_LABEL_METADATA``, a table of one entry per attribute of the Cassini data
   dictionary's ISS specific attributes, in the order that dictionary declares them.
-  Each entry names the attribute, the PDS3 label keyword that states it, and, for a
+  Each entry gives the attribute, the PDS3 label keyword that states it, and, for a
   keyword holding several values, which element. The published key is the attribute
   behind the ``cassini:`` prefix.
 
   The dictionary's names are used rather than the label's own so that a record says
   the same thing whether it was built from a PDS3 volume or from a PDS4 Cassini source
   bundle, and whether the image file was raw or calibrated. It is the one place in
-  the library that names PDS4 attributes, and it is deliberate.
+  the library that lists PDS4 attributes, and it is deliberate.
 
   The value is what rms-vicar hands back, unconverted: numbers as numbers, text as
   text, and times as the label's day-of-year text. The one transformation is the
   positional split the attribute names require: ``EXPECTED_MAXIMUM``, ``FILTER_NAME``,
   ``INST_CMPRS_PARAM``, ``INST_CMPRS_RATE``, ``OPTICS_TEMPERATURE`` and
-  ``VALID_MAXIMUM`` fill several attributes each, and ``_element`` takes the value the
-  attribute's position names.
+  ``VALID_MAXIMUM`` fill several attributes each, and ``_element`` takes the value at the
+  attribute's position.
 
   A label may state a single value where another states a sequence, and ``_element``
   reads that as the first position: the value fills the first attribute and the later
@@ -142,11 +141,11 @@ Label and index dependencies
   over a real tour-era label and a real cruise-era label hold both behaviors. Six
   keywords a tour-era label states are read by no attribute --- ``DATA_SET_ID``,
   ``INSTRUMENT_HOST_NAME``, ``INSTRUMENT_ID``, ``INSTRUMENT_NAME``, ``MISSION_NAME``
-  and ``PRODUCT_ID`` --- and the tour-era test names exactly those, so a seventh
+  and ``PRODUCT_ID`` --- and the tour-era test lists exactly those, so a seventh
   would fail it.
 
 **Which label is read.** ``obs.dict`` is the VICAR label inside the
-``_CALIB.IMG`` file, which ``oops.hosts.cassini.iss.from_file`` reads with
+``_CALIB.IMG`` file, which ``host_cassini.CassiniISS.from_file`` reads with
 rms-vicar. It is neither the detached ``_CALIB.LBL`` nor the raw volume's
 ``.LBL``. Its values are the raw product's, as the raw ``.LBL`` states them,
 in the VICAR spelling: reals to six or seven significant digits, times ending
@@ -157,7 +156,9 @@ single ``IMAGE_OBSERVATION_TYPE`` as text rather than a one-element set. The
 ``_CALIB.LBL`` departs further: it carries no ``VALID_MAXIMUM``, its
 ``DESCRIPTION`` is the calibration's history, and its
 ``PRODUCT_CREATION_TIME`` is the calibration's, which on some labels is not
-a parsable time.
+a parsable time. Where the VICAR label repeats a keyword, such as ``DAT_TIM``, the
+host's label keeps only the first occurrence. Every read here looks a keyword up by
+name, and none reads a repeated one.
 
 :meth:`~spindoctor.obs.obs_inst_cassini_iss.ObsCassiniISS.get_public_metadata`
 also refuses a detector that is neither ``NAC`` nor ``WAC``, because the
@@ -243,7 +244,7 @@ Photometric and PSF calibration
 **Limiting magnitude.** Both cameras follow the Pogson-ratio form, an anchor
 plus ``log(texp) / log(2.512)``, so each factor of 2.512 in exposure buys one
 magnitude of depth. The two anchors are measured rather than derived, and each
-names the frame it came from:
+gives the frame it came from:
 
 * NAC: 10.5 at a 1 s exposure, from the clear-filter star field
   ``N1521881358``, which was not useful beyond magnitude 10.7. The returned
@@ -308,7 +309,7 @@ Frames, attitude, and rotation fitting
 encoded against spacecraft clock -82.
 
 **The oops-from-SPICE flip.** ``R = diag(-1, -1, +1)``, a 180 degree rotation
-about the boresight, applied by ``oops/hosts/cassini/iss.py``. The correction
+about the boresight, applied by the ``rms-host-cassini`` host. The correction
 is built in the oops observation frame and must be conjugated through ``R``
 before it is composed onto a ``pxform``-derived matrix; dropping the
 conjugation yields a proper rotation of the correct magnitude with both
@@ -399,10 +400,14 @@ holdings make multiple reproducing candidates ordinary rather than exceptional.
 Simulator model
 ===============
 
-**Instrument keys.** Four: ``coiss_nac`` and ``coiss_wac`` resolve to the
-``cassini_iss`` block's two detectors, and ``coiss_calib_nac`` and
-``coiss_calib_wac`` to the ``cassini_iss_calib`` block's. The artifact catalog
-aliases the calibrated keys onto the raw ones, so a calibrated scene gets the
+**Instrument keys.** Four, each a top-level entry of the instrument config file
+``src/spindoctor/sim/instrument_configs/coiss.yaml``, which holds the values
+below. ``coiss_nac`` and ``coiss_wac`` resolve to the ``cassini_iss`` block's two
+detectors, and ``coiss_calib_nac`` and ``coiss_calib_wac`` to the
+``cassini_iss_calib`` block's. Each calibrated entry sets its raw camera as its
+``base`` and states only what calibration changes: its units and its detector
+terms. Its ``data_units`` is ``calibrated_if``, matching the ``cassini_iss_calib``
+block. Everything else comes from the raw camera, so a calibrated scene gets the
 same artifact defaults as its raw counterpart.
 
 **Units.** A ``coiss_calib_*`` frame is in I/F with a ``0`` missing-data marker,
@@ -410,9 +415,10 @@ as the CALIB products are: across 24 CALIB images from four volumes no pixel is
 ``NaN``, and exact zeros appear only on the lines the index reports missing. A
 lost pixel reads 0, and the dark sky sits on the 4.0e-5 I/F calibrated sky
 residual, the median sky of 13 dark NAC CALIB frames, so it reads as dark and
-never as missing (see :ref:`Instruments <sim-instruments>`). The simulator also
-uses that value for an instrument a scene pins to calibrated I/F when the
-instrument's detector catalog entry doesn't set a sky residual.
+never as missing (see :ref:`Instruments <sim-instruments>`). The generic entry
+carries the same value, so the simulator also uses it when a scene pins an
+instrument to calibrated I/F and the instrument's config entry sets no sky
+residual.
 Those real frames' sky scatters around 0 with a sigma of 1.9e-4 I/F, and under
 ``instrument_defaults`` about 28% of the pixels of a disc scene a third of the
 frame across sit below 0, down to about -0.0006, as on the real frames. The
@@ -428,23 +434,25 @@ NAC the two lift the calibrated sky noise at gain state 2 from the raw frame's
 0.6 DN to about 0.9 DN-equivalent, as on the real products.
 
 **Downlink table.** The two cameras share the 12-to-8-bit downlink table the
-``sqrt_lut`` quantization decodes through (see :ref:`sim-detector-stage`),
-measured from the 26 TABLE frames of the CALIB cohort. The calibrated
-DN-equivalent step between consecutive raw codes is an integer that grows by
-one about every ten codes: 3 DN near code 10, 5 near 25, 8 near 55, 13 near
-100, and 24 near 200. Code ``c`` decodes to ``round(2 * c + 0.055 * c**2)`` DN
-(``codes`` 256, ``linear_dn`` 2, ``quadratic_dn`` 0.055, ``whole_dn`` true),
-which reproduces those steps and tops out at 4086 DN at code 255. Near a dark
-sky the step is 3 to 4 DN, against 1 DN in a 12-bit frame, so a TABLE frame's
-calibrated sky is several times noisier than a 12-bit frame's.
+``sqrt_lut`` quantization decodes through (see :ref:`sim-detector-stage`). Each
+raw entry sets it, ``table_12_to_8``, as its default, and the calibrated entries
+inherit it. It was measured from the 26 TABLE frames of the CALIB cohort. The
+calibrated DN-equivalent step between consecutive raw codes is an integer that
+grows by one about every ten codes: 3 DN near code 10, 5 near 25, 8 near 55, 13
+near 100, and 24 near 200. Code ``c`` decodes to ``round(2 * c + 0.055 *
+c**2)`` DN (``codes`` 256, ``linear_dn`` 2, ``quadratic_dn`` 0.055,
+``whole_dn`` true), which reproduces those steps and tops out at 4086 DN at
+code 255. Near a dark sky the step is 3 to 4 DN, against 1 DN in a 12-bit
+frame, so a TABLE frame's calibrated sky is several times noisier than a 12-bit
+frame's.
 
 **Readout dark and cosmic rays.** The raw dark sky rises linearly from the
 first line to the last at every exposure, by 55 e- on the NAC and 33 e- on the
-WAC, and ``readout_dark_e`` catalogs those rises. The cosmic-ray terms, fitted in closed loop to the
-NAC's 12-bit dark-sky frames and shared by the WAC, are a rate of 2.0e-5 events
-per pixel per second, a 6 s readout dwell, a 1,000 e- deposit scale, and 0.6
-native pixels of diffusion; the simulator report's artifact-rate table gives
-the fit's evidence.
+WAC, and ``readout_dark_e`` catalogs those rises. The cosmic-ray terms, fitted
+in closed loop to the NAC's 12-bit dark-sky frames and shared by the WAC, are a
+rate of 2.0e-5 events per pixel per second, a 6 s readout dwell, a 1,000 e-
+deposit scale, and 0.6 native pixels of diffusion; the simulator report's
+artifact-rate table gives the fit's evidence.
 
 **PSF kernels.** ``coiss_nac`` is
 ``{sigma_v: 0.70, sigma_u: 0.70, w: 0.12, r0: 3.0, n: 4.0}``, tuned against the
@@ -461,10 +469,9 @@ halo energy that a FWHM-derived core leaves unaccounted for. A first fit at
 from the cohort's two wide angle star frames and nine usable cutouts. Treat it
 as cohort-limited and revisit it when more wide angle star frames land.
 
-:func:`~spindoctor.sim.forward.psf.psf_truncation_for_instrument` truncates
-this instrument's kernels at 32 detector pixels rather than the default 16,
-because the documented wings run further out. The match keys on the ``coiss``
-prefix, so all four instrument keys get the wider window.
+Both raw entries state a kernel truncation window (``psf.truncation_px``) of 32
+detector pixels rather than the generic 16, because the documented wings run
+further out, and the calibrated entries inherit it.
 
 **Distortion residuals.** ``coiss_nac`` is
 ``{k1: 3.17e-04, k2: -3.51e-04, nonradial_rms_px: 0.0}`` and ``coiss_wac`` is
@@ -472,10 +479,11 @@ prefix, so all four instrument keys get the wider window.
 star-field distortion analysis. The corrected field is sub-pixel and close to
 radially symmetric, which is why the non-radial wander is zero.
 
-**Artifact-mode availability.** The simulator guide's mode tables
-(:ref:`sim-telemetry-modes` and :ref:`sim-detector-modes`) give each mode's
-cameras. Both cameras are in the CCD set, and no mode records an exclusion
-against either camera key.
+**Artifact-mode availability.** Each raw entry's ``artifact_modes.offered``
+lists its modes, and the calibrated entries inherit the list. The simulator
+guide's mode tables (:ref:`sim-telemetry-modes` and :ref:`sim-detector-modes`)
+give each mode's cameras. Both cameras' detector model is ``ccd``, and neither
+entry states an exclusion reason.
 
 **Realism-match status.** The narrow angle PSF is tuned against eleven frames.
 The wide angle PSF rests on two frames.
@@ -484,7 +492,7 @@ Image library and test coverage
 ===============================
 
 **Cohort.** Sixty-two sidecars, 58 narrow angle and 4 wide angle, spread across
-the scene classes. Every one names a calibrated product.
+the scene classes. Every one is a calibrated product.
 
 **Integration tests.** The per-image regression suite
 (``tests/integration/test_autonomous_nav.py``) and the structural-invariants
@@ -540,7 +548,7 @@ That is what makes the undivided ``coiss`` dataset unable to build a bundle: a
 bundle belongs to one of the two halves, not to both.
 
 Only ``cassini_iss_saturn_1.0`` is shipped under the templates directory. The
-cruise subclass names ``cassini_iss_cruise_1.0``, which is not present, so a
+cruise subclass refers to ``cassini_iss_cruise_1.0``, which is not present, so a
 cruise bundle needs that directory supplied before it will build.
 
 Backplanes, mosaics, and statistics

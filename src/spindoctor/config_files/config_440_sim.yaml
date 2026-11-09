@@ -27,7 +27,7 @@ sim:
     read_noise_dn: 1.0
     # Photometric zero point: DN a vmag-0 star deposits per second.  Derived so a
     # vmag-4 star reproduces the prior peak-normalized brightness at the generic
-    # detector (see sim/forward/artifacts_catalog.py).
+    # detector (see sim/instrument_configs/generic.yaml).
     star_flux_dn_per_s_vmag0: 1.3e4
     # Additive bias pedestal in DN.  Real raw frames sit on a bias level, so
     # signal-free sky is never exactly zero; without it the dark sky collides

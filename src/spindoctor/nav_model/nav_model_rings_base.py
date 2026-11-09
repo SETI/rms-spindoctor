@@ -11,7 +11,6 @@ need observation metadata (image shape, config font settings) that belongs with
 """
 
 import numpy as np
-import oops
 from scipy import ndimage
 
 from spindoctor.annotation import (
@@ -24,6 +23,7 @@ from spindoctor.annotation import (
     AnnotationTextInfo,
     TextLocInfo,
 )
+from spindoctor.obs import ObsSnapshotInst
 from spindoctor.support.types import NDArrayBoolType
 
 from .nav_model import NavModel
@@ -41,7 +41,7 @@ class NavModelRingsBase(NavModel):
 
     def _create_edge_annotations(
         self,
-        obs: oops.Observation,
+        obs: ObsSnapshotInst,
         edge_info_list: list[tuple[NDArrayBoolType, str, str]],
         model_mask: NDArrayBoolType,
     ) -> Annotations:

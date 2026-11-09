@@ -7,7 +7,7 @@ surface an ellipsoid prediction assumes, so it belongs to the haze model alone
 and the two must never both claim it.
 """
 
-from typing import Any
+from typing import Any, cast
 
 import pytest
 
@@ -19,6 +19,7 @@ from spindoctor.nav_model.nav_model_titan_simulated import (
     REQUIRED_SIM_PARAMS,
     NavModelTitanSimulated,
 )
+from spindoctor.obs import ObsSnapshotInst
 from spindoctor.obs.obs_inst_sim import ObsSim
 
 
@@ -34,6 +35,11 @@ class _FakeObs:
     def __init__(self, *, is_simulated: bool, nav_params: dict[str, Any] | None = None) -> None:
         self.is_simulated = is_simulated
         self.nav_params = nav_params if nav_params is not None else {}
+
+
+def _fake_obs(*, is_simulated: bool, nav_params: dict[str, Any] | None = None) -> ObsSnapshotInst:
+    """Return a ``_FakeObs`` typed as the observation the selection rules take."""
+    return cast(ObsSnapshotInst, _FakeObs(is_simulated=is_simulated, nav_params=nav_params))
 
 
 def _sim_obs(bodies: list[dict[str, Any]]) -> ObsSim:
@@ -86,12 +92,12 @@ def test_sim_obs_skips_spice_body_model() -> None:
 
 def test_simulated_model_empty_for_real_obs() -> None:
     """NavModelBodySimulated builds nothing for a non-simulated obs."""
-    assert NavModelBodySimulated.instances_for_obs(_FakeObs(is_simulated=False)) == []
+    assert NavModelBodySimulated.instances_for_obs(_fake_obs(is_simulated=False)) == []
 
 
 def test_spice_model_empty_for_simulated_obs() -> None:
     """NavModelBody builds nothing for a simulated obs."""
-    assert NavModelBody.instances_for_obs(_FakeObs(is_simulated=True)) == []
+    assert NavModelBody.instances_for_obs(_fake_obs(is_simulated=True)) == []
 
 
 def test_sim_titan_builds_the_haze_model() -> None:
@@ -149,7 +155,7 @@ def test_sim_titan_without_axes_builds_no_model() -> None:
     """A simulated Titan with no stated size yields no model."""
     body = _titan_body()
     del body['axis2']
-    obs = _FakeObs(is_simulated=True, nav_params={'bodies': [body]})
+    obs = _fake_obs(is_simulated=True, nav_params={'bodies': [body]})
     assert NavModelTitanSimulated.instances_for_obs(obs) == []
 
 
@@ -159,7 +165,7 @@ def test_sim_titan_with_every_required_param_builds_one_model() -> None:
     The companion to the two omission tests: without this, deleting a
     required key from the tuple would silently stop being tested.
     """
-    obs = _FakeObs(is_simulated=True, nav_params={'bodies': [_titan_body()]})
+    obs = _fake_obs(is_simulated=True, nav_params={'bodies': [_titan_body()]})
     instances = NavModelTitanSimulated.instances_for_obs(obs)
     assert len(instances) == 1
 
@@ -169,15 +175,15 @@ def test_required_sim_param_is_load_bearing(key: str) -> None:
     """Omitting any single required parameter suppresses the model."""
     body = _titan_body()
     del body[key]
-    obs = _FakeObs(is_simulated=True, nav_params={'bodies': [body]})
+    obs = _fake_obs(is_simulated=True, nav_params={'bodies': [body]})
     assert NavModelTitanSimulated.instances_for_obs(obs) == []
 
 
 def test_titan_sim_model_empty_for_real_obs() -> None:
     """NavModelTitanSimulated builds nothing for a non-simulated obs."""
-    assert NavModelTitanSimulated.instances_for_obs(_FakeObs(is_simulated=False)) == []
+    assert NavModelTitanSimulated.instances_for_obs(_fake_obs(is_simulated=False)) == []
 
 
 def test_spice_titan_model_empty_for_simulated_obs() -> None:
     """NavModelTitan builds nothing for a simulated obs."""
-    assert NavModelTitan.instances_for_obs(_FakeObs(is_simulated=True)) == []
+    assert NavModelTitan.instances_for_obs(_fake_obs(is_simulated=True)) == []

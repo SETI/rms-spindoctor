@@ -17,7 +17,7 @@ import numpy as np
 from spindoctor.config import DEFAULT_CONFIG
 from spindoctor.sim.forward.optics import effective_psf
 from spindoctor.sim.forward.psf import psf_kernel
-from spindoctor.sim.instruments import resolve_sim_inst_config
+from spindoctor.sim.instrument_navigator import resolve_sim_inst_config
 from spindoctor.sim.scene import load_sim_scene, save_sim_scene, validate_sim_params
 
 

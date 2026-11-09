@@ -1,4 +1,4 @@
-"""Integration tests for the Section 7 realism-match runner.
+"""Integration tests for the realism-match runner.
 
 Two layers, under the ``sim_integration`` tier because they render simulated
 frames and need no holdings, SPICE, or catalogs:
@@ -20,8 +20,8 @@ from typing import Any
 import numpy as np
 import pytest
 
-from spindoctor.sim.forward.artifacts_catalog import NATIVE_FRAME_SIZE_PX
 from spindoctor.sim.forward.detector.params import resolve_detector_params
+from spindoctor.sim.instrument_resolvers import resolve_native_frame_size_px
 from spindoctor.sim.render import render_combined_model
 from spindoctor.sim.scene import validate_sim_params
 from tests.integration.sim_realism import (
@@ -54,12 +54,9 @@ _NAC_FULL = (1024, 1024)
 
 
 def _full_frame(instrument: str) -> tuple[int, int]:
-    """A full unbinned frame's shape for ``instrument``.
-
-    The shape is ``NATIVE_FRAME_SIZE_PX`` on a side, or 1000 by 1000 (Voyager's
-    GEOMED frame) for an instrument that table doesn't list.
-    """
-    size = NATIVE_FRAME_SIZE_PX.get(instrument, 1000)
+    """A full unbinned frame's shape for ``instrument``: its native size on a side."""
+    size = resolve_native_frame_size_px(instrument)
+    assert size is not None, f'{instrument} states no native_frame_size_px'
     return (size, size)
 
 

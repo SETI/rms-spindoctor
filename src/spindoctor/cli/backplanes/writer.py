@@ -1,5 +1,5 @@
 from collections.abc import Mapping
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 from astropy.io import fits
@@ -15,7 +15,7 @@ from spindoctor.cli.backplanes.backplanes_rings import (
 from spindoctor.cli.backplanes.merge import body_naif_id
 from spindoctor.cli.backplanes.statistics import PlaneStatistics, longitude_step, plane_statistics
 from spindoctor.config import IMAGE_LOGGER, Config
-from spindoctor.obs import ObsSnapshot
+from spindoctor.obs import ObsSim, ObsSnapshotInst
 from spindoctor.support.file import json_as_string
 from spindoctor.support.types import NDArrayBoolType
 
@@ -98,7 +98,7 @@ def _incidence_angle(
 def write_fits(
     *,
     fits_file_path: FCPath,
-    snapshot: ObsSnapshot,
+    snapshot: ObsSnapshotInst,
     master_by_type: dict[str, np.ndarray],
     body_id_map: np.ndarray,
     config: Config,
@@ -187,12 +187,13 @@ def write_fits(
     # Get inventory information for all bodies
     # TODO Clean this up
     if snapshot.is_simulated:
-        inv = snapshot.sim_inventory
+        inv = cast(ObsSim, snapshot).sim_inventory
     else:
         closest_planet = snapshot.closest_planet
         if closest_planet:
             body_list = backplane_body_names(closest_planet, config)
-            inv = snapshot.inventory(body_list, return_type='full')
+            # return_type='full' answers a dict of per-body records.
+            inv = cast(dict[str, Any], snapshot.inventory(body_list, return_type='full'))
         else:
             inv = {}
 

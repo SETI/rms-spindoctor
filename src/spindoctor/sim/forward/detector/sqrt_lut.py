@@ -1,11 +1,14 @@
-"""The square-root companding table a camera downlinks its DN through.
+"""The companding table a camera downlinks its DN through.
 
 A companding table sends each DN as one of a fixed number of codes (256 for an
-8-bit code word) and the ground decodes each code back to a DN.  The decode
-curve is quadratic in the code, so the encoding is a square root and the
-quantization step grows with the signal, tracking the photon noise.  A camera's
-curve is a per-instrument catalog entry (``sqrt_lut`` in ``DETECTOR_DEFAULTS``);
-a camera without one gets the plain square-root curve scaled to its ADC ceiling.
+8-bit code word) and the ground decodes each code back to a DN.  A parametric
+table's decode curve is quadratic in the code, so the encoding is a square root
+and the quantization step grows with the signal, tracking the photon noise; a
+tabulated table lists each code's decoded DN, so it can describe a curve of any
+shape.  A camera lists its tables under ``downlink_tables`` in its instrument
+config entry and sets one as the default, and a scene may select another with
+``detector.downlink_table``.  If a camera lists no table, it gets the plain
+square-root curve scaled to its ADC ceiling.
 """
 
 import math
@@ -17,7 +20,14 @@ import numpy as np
 
 from spindoctor.support.types import NDArrayFloatType
 
-__all__ = ['DEFAULT_SQRT_LUT_CODES', 'SqrtLut', 'resolve_sqrt_lut']
+__all__ = [
+    'DEFAULT_SQRT_LUT_CODES',
+    'DownlinkCurve',
+    'SqrtLut',
+    'TabulatedLut',
+    'check_curve_ceiling',
+    'resolve_sqrt_lut',
+]
 
 # The plain curve's table size: an 8-bit code word.
 DEFAULT_SQRT_LUT_CODES = 256
@@ -54,13 +64,36 @@ class SqrtLut:
         return levels
 
 
-def resolve_sqrt_lut(entry: Mapping[str, Any] | None, *, saturation_dn: float) -> SqrtLut:
-    """The companding curve a catalog entry names, or the plain square-root curve.
+@dataclass(frozen=True)
+class TabulatedLut:
+    """The decode curve of a companding table that lists each code's decoded DN.
+
+    The encoder sends each DN as the code whose decoded value is nearest.
 
     Parameters:
-        entry: The instrument's ``sqrt_lut`` catalog entry, with the keys
-            ``codes``, ``linear_dn``, ``quadratic_dn``, and ``whole_dn``; None
-            for an instrument without a table of its own.
+        decoded_dn: The DN each code decodes to, in code order.
+    """
+
+    decoded_dn: tuple[float, ...]
+
+    def levels(self) -> NDArrayFloatType:
+        """The distinct decoded DN values, in increasing order."""
+        levels: NDArrayFloatType = np.unique(np.asarray(self.decoded_dn, dtype=np.float64))
+        return levels
+
+
+# The decode curve of either kind of table.
+DownlinkCurve = SqrtLut | TabulatedLut
+
+
+def resolve_sqrt_lut(entry: Mapping[str, Any] | None, *, saturation_dn: float) -> DownlinkCurve:
+    """The companding curve of a downlink table, or the plain square-root curve.
+
+    Parameters:
+        entry: A downlink table from the instrument's config: a parametric table
+            with the keys ``codes``, ``linear_dn``, ``quadratic_dn``, and
+            ``whole_dn``, or a tabulated one with ``decoded_dn``; None for an
+            instrument that lists no table.
         saturation_dn: The ADC ceiling.  Without an entry, the curve is a pure
             square root over 256 codes whose top code decodes to it:
             ``linear_dn`` 0, ``quadratic_dn`` ``saturation_dn / 255**2``,
@@ -70,7 +103,7 @@ def resolve_sqrt_lut(entry: Mapping[str, Any] | None, *, saturation_dn: float) -
         The resolved curve.
 
     Raises:
-        KeyError: If ``entry`` lacks one of the four keys.
+        KeyError: If a parametric ``entry`` lacks one of the four keys.
         ValueError: If ``codes`` isn't a whole number of at least 2, or if
             ``linear_dn`` or ``quadratic_dn`` isn't finite.
     """
@@ -82,6 +115,8 @@ def resolve_sqrt_lut(entry: Mapping[str, Any] | None, *, saturation_dn: float) -
             quadratic_dn=saturation_dn / top_code**2,
             whole_dn=False,
         )
+    if 'decoded_dn' in entry:
+        return TabulatedLut(decoded_dn=tuple(float(dn) for dn in entry['decoded_dn']))
     raw_codes = float(entry['codes'])
     if not raw_codes.is_integer():
         raise ValueError(f'sqrt_lut codes must be a whole number, got {raw_codes}')
@@ -102,3 +137,25 @@ def resolve_sqrt_lut(entry: Mapping[str, Any] | None, *, saturation_dn: float) -
         quadratic_dn=quadratic_dn,
         whole_dn=bool(entry['whole_dn']),
     )
+
+
+def check_curve_ceiling(curve: DownlinkCurve, *, saturation_dn: float) -> None:
+    """Refuse a decode curve whose top decoded value lies above the ADC ceiling.
+
+    The quantizer snaps each DN, already clipped at the ceiling, to the nearest
+    decoded value, so a value above the ceiling would put DN in the product that
+    the ADC can never produce.
+
+    Parameters:
+        curve: A camera's downlink table, resolved.
+        saturation_dn: The ADC ceiling the frame's DN is clipped at.
+
+    Raises:
+        ValueError: If the curve's largest decoded value exceeds ``saturation_dn``.
+    """
+    top_dn = float(curve.levels()[-1])
+    if top_dn > saturation_dn:
+        raise ValueError(
+            f'the downlink table decodes up to {top_dn:g} DN, above the ADC ceiling '
+            f'(saturation_dn) of {saturation_dn:g} DN'
+        )

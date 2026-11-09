@@ -34,7 +34,7 @@ from spindoctor.config import (
     run_logging_for_root,
 )
 from spindoctor.dataset.dataset import ImageFiles
-from spindoctor.obs import ObsSnapshot, ObsSnapshotInst
+from spindoctor.obs import ObsSnapshotInst
 from spindoctor.support.nav_record import record_status, record_status_error
 
 from .backplanes_bodies import create_body_backplanes
@@ -146,8 +146,8 @@ def generate_backplanes_image_files(
                 # Build observation in original FOV
                 # TODO We only support snapshots for backplane generation for now
                 obs = obs_class.from_file(image_path, extfov_margin_vu=(0, 0))
-                if not isinstance(obs, ObsSnapshot):
-                    raise TypeError(f'Expected ObsSnapshot, got {type(obs).__name__}')
+                if not isinstance(obs, ObsSnapshotInst):
+                    raise TypeError(f'Expected ObsSnapshotInst, got {type(obs).__name__}')
                 snapshot = obs
 
                 # Apply the recorded pointing: the corrected C-matrix when the

@@ -45,16 +45,8 @@ import numpy as np
 from scipy import ndimage
 
 from spindoctor.config import DEFAULT_CONFIG
-from spindoctor.sim.forward.artifacts_catalog import (
-    resolve_detector_defaults,
-    resolve_readout_mode,
-    resolve_sky_pixel_scale_arcsec,
-    resolve_star_flux_zero_point,
-    scene_binning,
-)
 from spindoctor.sim.forward.atmosphere import HaloScreen
 from spindoctor.sim.forward.body import render_single_body
-from spindoctor.sim.forward.filter_catalog import filter_star_flux_scale
 from spindoctor.sim.forward.optics import effective_psf
 from spindoctor.sim.forward.ring_system import RingSystemMaps, render_ring_system
 from spindoctor.sim.forward.scene_compositing import (
@@ -65,8 +57,15 @@ from spindoctor.sim.forward.scene_compositing import (
 )
 from spindoctor.sim.forward.stages import SimFrame
 from spindoctor.sim.forward.star import faint_sky_cutoff_mag, render_sky_counts, render_stars
-from spindoctor.sim.instruments import resolve_sim_inst_config
-from spindoctor.sim.scene_schema import scene_value
+from spindoctor.sim.instrument_navigator import resolve_sim_inst_config
+from spindoctor.sim.instrument_resolvers import (
+    filter_star_flux_scale,
+    resolve_detector_defaults,
+    resolve_readout_mode,
+    resolve_sky_pixel_scale_arcsec,
+    resolve_star_flux_zero_point,
+)
+from spindoctor.sim.scene_schema import scene_binning, scene_value
 from spindoctor.sim.seeds import derive_effect_seed
 from spindoctor.sim.star_records import DEFAULT_PSF_SIZE
 from spindoctor.support.stable_math import stable_hypot
@@ -87,7 +86,7 @@ def _star_zero_point(params: Mapping[str, Any]) -> tuple[float, str]:
 
     Returns:
         A ``(zero_point, domain)`` pair, as
-        :func:`~spindoctor.sim.forward.artifacts_catalog.resolve_star_flux_zero_point`.
+        :func:`~spindoctor.sim.instrument_resolvers.resolve_star_flux_zero_point`.
     """
     instrument = params.get('instrument')
     zero_point, domain = resolve_star_flux_zero_point(instrument)

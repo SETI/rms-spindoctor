@@ -1,8 +1,9 @@
 """Shared stand-ins for the instrument host tests."""
 
-from pathlib import Path
 from types import SimpleNamespace
-from typing import Any, TypeVar
+from typing import Any, TypeVar, cast
+
+from oops.cadence import Cadence
 
 from spindoctor.obs import ObsSnapshotInst
 
@@ -41,13 +42,13 @@ def bare_observation(obs_class: type[_ObsT], label: dict[str, Any], **attributes
         The observation.
     """
     obs = object.__new__(obs_class)
-    obs.dict = label
     obs.image_url = '/holdings/image_0001.img'
-    obs.abspath = Path('/cache/image_0001.img')
-    obs.cadence = SimpleNamespace(time=(0.0, 2.0), midtime=1.0)
+    obs.cadence = cast(Cadence, SimpleNamespace(time=(0.0, 2.0), midtime=1.0))
     obs.texp = 2.0
     obs._data_shape_uv = (1024, 1024)
-    for name, value in attributes.items():
+    # Not every host keeps a label, so the label is set by name like the host's own
+    # attributes.
+    for name, value in {'dict': label, **attributes}.items():
         setattr(obs, name, value)
     return obs
 

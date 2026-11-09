@@ -14,6 +14,7 @@ pixels; the kernel is sampled on the oversampled render grid, and the whole
 convolution runs there before the box downsample.
 """
 
+from collections.abc import Mapping
 from functools import lru_cache
 
 import numpy as np
@@ -22,32 +23,10 @@ from scipy.signal import fftconvolve
 from spindoctor.support.types import NDArrayFloatType
 
 __all__ = [
-    'DEFAULT_TRUNCATION_PX',
     'apply_psf',
+    'binned_psf_kernel',
     'psf_kernel',
-    'psf_truncation_for_instrument',
 ]
-
-# Kernel truncation radius in detector pixels: the window past which the
-# Gaussian core and Moffat wing are cut and the kernel renormalized.  Cassini's
-# documented long wings get a wider window; the far halo beyond the window is
-# stray-light scope, not kernel scope.
-DEFAULT_TRUNCATION_PX = 16
-_COISS_TRUNCATION_PX = 32
-
-
-def psf_truncation_for_instrument(instrument: str | None) -> int:
-    """Return the PSF truncation radius (detector px) for an instrument.
-
-    Parameters:
-        instrument: The sim instrument name, or None for the generic block.
-
-    Returns:
-        32 for the Cassini ISS cameras (documented long wings), else 16.
-    """
-    if instrument is not None and instrument.startswith('coiss'):
-        return _COISS_TRUNCATION_PX
-    return DEFAULT_TRUNCATION_PX
 
 
 @lru_cache(maxsize=8)
@@ -135,3 +114,25 @@ def apply_psf(
     signal[:] = fftconvolve(signal, kernel, mode='same')
     if float(np.count_nonzero(point_e)) > 0.0:
         point_e[:] = fftconvolve(point_e, kernel, mode='same')
+
+
+def binned_psf_kernel(kernel: Mapping[str, float], binning: int) -> dict[str, float]:
+    """A native PSF kernel restated in pixels binned by ``binning``.
+
+    The radii (``sigma_v``, ``sigma_u``, ``r0``) shrink by the factor; the wing
+    energy fraction ``w`` and the wing index ``n`` are dimensionless.  The
+    binned pixel's own b-by-b box is the render grid's pixel integration, so
+    it needs no term here.
+
+    Parameters:
+        kernel: The native kernel, radii in native pixels.
+        binning: The binning factor.
+
+    Returns:
+        A new kernel mapping in binned pixels.
+    """
+    scaled = dict(kernel)
+    for radius in ('sigma_v', 'sigma_u', 'r0'):
+        if radius in scaled:
+            scaled[radius] = float(scaled[radius]) / binning
+    return scaled

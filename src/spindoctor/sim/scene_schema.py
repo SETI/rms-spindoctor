@@ -435,6 +435,20 @@ def scene_value(block: Mapping[str, Any], key: str, default: Any) -> Any:
     return default if value is None else value
 
 
+def scene_binning(params: Mapping[str, Any]) -> int:
+    """The binning factor a scene's ``detector`` block selects, 1 by default.
+
+    Parameters:
+        params: The full scene mapping.
+
+    Returns:
+        The stated ``detector.binning``, or 1 when the scene leaves it out.
+    """
+    detector = params.get('detector') or {}
+    binning = detector.get('binning') if isinstance(detector, Mapping) else None
+    return 1 if binning is None else int(binning)
+
+
 # What each ring-plane length and angle key the sim editor's tooltips describe
 # holds, per block.  Each of these keys names its unit.  A ring-plane pixel is
 # a distance in the ring plane in detector pixels: it projects to that many

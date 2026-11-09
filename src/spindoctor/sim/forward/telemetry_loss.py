@@ -229,9 +229,9 @@ def apply_edited_frame(
 
     An explicit ``half_frame`` keeps one half of the frame height (the 2:1
     scan modes); otherwise a band width keeps a centered column band and blanks
-    the rest of every line (the Voyager edited modes, whose registry default
-    of 440 px matches the Voyager IM band widths, so a bare probability renders
-    the band shape).  A commanded mode: activation is by ``probability``.
+    the rest of every line (the edited downlink modes; the band width is the
+    camera's shape default or the registry's fallback, so a bare probability
+    renders the band shape).  A commanded mode: activation is by ``probability``.
     """
     probability = float(cfg['probability'])
     if not _activated(rng, probability):
@@ -306,10 +306,11 @@ def apply_missing_blocks(
 ) -> dict[str, Any]:
     """Zero-fill bands quantized to the compression-block row grid.
 
-    Blocks align to the ``block_lines`` row grid (8 lines for Galileo ICT
-    slices).  With ``start_mid_line`` the first row of a block is lost only from
-    a random column to the right, then the remaining rows of the block are whole
-    (the bit-error-mid-line ICT shape).  A ``protect`` rectangle (the commanded
+    Blocks align to the ``block_lines`` row grid (the height of a compression
+    slice, the camera's shape default or the registry's fallback).  With
+    ``start_mid_line`` the first row of a block is lost only from a random column
+    to the right, then the remaining rows of the block are whole (the
+    bit-error-mid-line shape).  A ``protect`` rectangle (the commanded
     truth window) is left untouched.  Adversarial placement chooses blocks whose
     rows cross a feature.
     """
@@ -508,8 +509,9 @@ def apply_embedded_header(
 ) -> dict[str, Any]:
     """Overwrite the first ``header_px`` pixels of row 0 with housekeeping values.
 
-    The LORRI embedded header is binary housekeeping in row 0 of every image,
-    never scene data.  A commanded mode: activation is by ``probability``.
+    An embedded header is binary housekeeping in row 0 of every image, never
+    scene data; its length is the camera's shape default or the registry's
+    fallback.  A commanded mode: activation is by ``probability``.
     """
     probability = float(cfg['probability'])
     if not _activated(rng, probability):

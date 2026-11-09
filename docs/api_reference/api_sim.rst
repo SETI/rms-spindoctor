@@ -158,16 +158,6 @@ spindoctor.sim
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: spindoctor.sim.forward.artifact_modes
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-.. automodule:: spindoctor.sim.forward.artifacts_catalog
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
 .. automodule:: spindoctor.sim.ellipsoid_geometry
    :members:
    :undoc-members:
@@ -208,6 +198,11 @@ spindoctor.sim
    :undoc-members:
    :show-inheritance:
 
+.. automodule:: spindoctor.sim.scene_checks_artifacts
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 .. automodule:: spindoctor.sim.scene_checks_body
    :members:
    :undoc-members:
@@ -223,7 +218,32 @@ spindoctor.sim
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: spindoctor.sim.instruments
+.. automodule:: spindoctor.sim.instrument_catalog
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: spindoctor.sim.instrument_schema
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: spindoctor.sim.instrument_checks
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: spindoctor.sim.instrument_resolvers
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: spindoctor.sim.instrument_navigator
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: spindoctor.sim.artifact_modes
    :members:
    :undoc-members:
    :show-inheritance:

@@ -17,7 +17,8 @@ dependency): the key inventory and boundary classification live in
 :mod:`spindoctor.sim.scene_schema` and the per-field type checks in
 :mod:`spindoctor.sim.scene_checks` (body entries:
 :mod:`spindoctor.sim.scene_checks_body`; the ring_system block:
-:mod:`spindoctor.sim.scene_checks_ring`); this module is the public entry point
+:mod:`spindoctor.sim.scene_checks_ring`; the artifacts block:
+:mod:`spindoctor.sim.scene_checks_artifacts`); this module is the public entry point
 and re-exports the boundary names.
 
 **The information boundary.**  Every key in the schema is classified as either
@@ -40,15 +41,15 @@ from typing import Any
 
 from ruamel.yaml import YAML
 
-from spindoctor.sim.instruments import GENERIC_INSTRUMENT_ALIASES, SIM_INSTRUMENTS
+from spindoctor.sim.instrument_catalog import load_instrument_catalog
 from spindoctor.sim.scene_checks import (
-    _check_artifacts,
     _check_detector,
+    _check_downlink_table_used,
     _check_expected,
+    _check_instrument_config,
     _check_noise,
     _check_optics,
     _check_optional_bool,
-    _check_optional_mapping,
     _check_optional_mapping_list,
     _check_optional_number,
     _check_optional_positive_int,
@@ -63,6 +64,7 @@ from spindoctor.sim.scene_checks import (
     _require_ranges_for_spk_error,
     _require_str,
 )
+from spindoctor.sim.scene_checks_artifacts import _check_artifacts
 from spindoctor.sim.scene_checks_body import (
     ATMOSPHERE_KEYS,
     _check_body_names_unique,
@@ -90,7 +92,6 @@ from spindoctor.sim.scene_schema import (
 from spindoctor.sim.scene_truth_echo import SimSceneTruthEchoWarning, check_truth_echo
 
 __all__ = [
-    'ALLOWED_INSTRUMENTS',
     'ATMOSPHERE_KEYS',
     'CURRENT_SCHEMA_VERSION',
     'DECLARED_SIM_SCENE_CLASSES',
@@ -129,9 +130,6 @@ DECLARED_SIM_SCENE_CLASSES: frozenset[str] = frozenset(
         'expected_fail',
     }
 )
-
-# Instrument names a scene may name (the sim instruments plus the generic alias).
-ALLOWED_INSTRUMENTS: frozenset[str] = frozenset(SIM_INSTRUMENTS) | GENERIC_INSTRUMENT_ALIASES
 
 CURRENT_SCHEMA_VERSION: int = 2
 
@@ -266,9 +264,12 @@ def validate_sim_params(
         _require_str(sim_params, 'scene_name', source=source)
 
     instrument = _require_str(sim_params, 'instrument', source=source)
-    if instrument not in ALLOWED_INSTRUMENTS:
+    # The names a scene may write: every instrument in the catalog, plus the
+    # aliases the entries declare.
+    allowed = load_instrument_catalog().allowed_names()
+    if instrument not in allowed:
         raise SimSceneValidationError(
-            f'{source}: instrument {instrument!r} is not one of {sorted(ALLOWED_INSTRUMENTS)}'
+            f'{source}: instrument {instrument!r} is not one of {sorted(allowed)}'
         )
     _require_positive_int(sim_params, 'size_v', source=source)
     _require_positive_int(sim_params, 'size_u', source=source)
@@ -296,12 +297,23 @@ def validate_sim_params(
         sim_params.get('fit_camera_rotation'), 'fit_camera_rotation', source=source
     )
     _check_noise(sim_params.get('noise'), source=source)
-    _check_optional_mapping(sim_params.get('instrument_config'), 'instrument_config', source=source)
+    _check_instrument_config(sim_params.get('instrument_config'), source=source)
     _check_optional_positive_int(sim_params.get('oversample'), 'oversample', source=source)
     _check_ring_system(sim_params.get('ring_system'), source=source)
     _check_optics(sim_params.get('optics'), source=source)
     _check_detector(sim_params.get('detector'), instrument=instrument, source=source)
-    _check_artifacts(sim_params.get('artifacts'), instrument=instrument, source=source)
+    _check_artifacts(
+        sim_params.get('artifacts'),
+        instrument=instrument,
+        detector=sim_params.get('detector'),
+        source=source,
+    )
+    _check_downlink_table_used(
+        sim_params.get('detector'),
+        sim_params.get('artifacts'),
+        instrument=instrument,
+        source=source,
+    )
     _check_spk_error(sim_params.get('spk_error'), source=source)
     _check_sky_counts(sim_params.get('sky_counts'), source=source)
     _check_star_catalog_scatter(sim_params.get('star_catalog_scatter_px'), source=source)

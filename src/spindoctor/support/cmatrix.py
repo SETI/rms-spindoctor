@@ -344,9 +344,11 @@ def _oops_correction_matrix(fov: oops.fov.FOV, offset_px: tuple[float, float]) -
             not a pointing this module can express.
     """
     dv, du = float(offset_px[0]), float(offset_px[1])
-    uv_los = fov.uv_los
+    # Every concrete FOV states its line of sight; the FOV base class declares none.
+    uv_los: oops.Pair = fov.uv_los  # type: ignore[attr-defined]
+    los_u, los_v = np.asarray(uv_los.vals, dtype=np.float64)
     xy_los = fov.xy_from_uv(uv_los)
-    xy_offset = fov.xy_from_uv(oops.Pair((uv_los.vals[0] + du, uv_los.vals[1] + dv)))
+    xy_offset = fov.xy_from_uv(oops.Pair((los_u + du, los_v + dv)))
     uncorrected = np.asarray(fov.los_from_xy(xy_los - xy_offset).unit().vals, dtype=np.float64)
     corrected = np.asarray(fov.los_from_xy(xy_los).unit().vals, dtype=np.float64)
     axis = np.cross(uncorrected, corrected)
@@ -560,8 +562,10 @@ def apply_cmatrix_to_obs(
     This is the reading half of :func:`compute_pointing`: it replaces the
     observation's frame with one whose midtime attitude is the recorded
     ``cmatrix``, while the field of view is left untouched.  The replacement
-    goes through ``Observation.set_spice_cmatrix``, which composes the
-    ``spice_to_frame`` rotation the host declares onto the recorded matrix.
+    goes through ``Observation.set_spice_cmatrix``, which replaces the
+    recorded matrix with the nearest exact rotation (a change of order 1e-16
+    for a matrix that passed the checks below) and composes the
+    ``spice_to_frame`` rotation the host declares onto it.
 
     ``R_hat = C_oops . cmatrix_original^T``, with ``C_oops`` the observation
     frame's own midtime attitude, is measured for the gate below and is not
@@ -899,7 +903,7 @@ def _observation_attitude(obs: ObsSnapshotInst, et: float) -> NDArrayFloatType:
         ) from exc
     # A shape check rather than a reshape: a reshape would also accept a flat
     # nine-element array of any rank that a changed oops return could supply.
-    return _as_readonly_3x3(transform.matrix.vals)
+    return _as_readonly_3x3(np.asarray(transform.matrix.vals))
 
 
 def _attitude_baseline(obs: ObsSnapshotInst, identity: _FrameIdentity) -> AttitudeBaseline:

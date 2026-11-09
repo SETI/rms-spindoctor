@@ -1014,7 +1014,7 @@ def test_summary_metadata_fails_when_public_metadata_raises() -> None:
     class _RaisingObs:
         """Observation stand-in whose public metadata cannot be read."""
 
-        abspath = Path('/holdings/N9.IMG')
+        image_url = '/holdings/N9.IMG'
 
         def get_public_metadata(self) -> dict[str, Any]:
             """Raise the way a snapshot whose label cannot be read does.

@@ -952,9 +952,7 @@ class RingMosaic:
 
         ring_surface = _ring_plane_surface(ring_body_name)
         obs_event = oops.Event(obs.midtime, (Vector3.ZERO, Vector3.ZERO), obs.path, obs.frame)
-        _, obs_event = ring_surface.photon_to_event_by_coords(
-            obs_event, (radius_scalar, longitude_scalar)
-        )
+        _, obs_event = ring_surface.photon_to_coords(obs_event, (radius_scalar, longitude_scalar))
 
         uv = obs.fov.uv_from_los(obs_event.neg_arr_ap)
         u, v = uv.to_scalars()

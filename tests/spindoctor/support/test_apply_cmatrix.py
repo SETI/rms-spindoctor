@@ -146,7 +146,7 @@ def _navigated_record(
     return np.asarray(solution.cmatrix, np.float64), original, c_oops
 
 
-def _boresight_j2000(attitude: np.ndarray, fov: oops.fov.FOV) -> np.ndarray:
+def _boresight_j2000(attitude: np.ndarray, fov: oops.fov.FlatFOV) -> np.ndarray:
     """Return the J2000 line of sight of a FOV's boresight under one attitude.
 
     Parameters:
@@ -442,11 +442,11 @@ def test_frame_replacement_registers_no_name(monkeypatch: pytest.MonkeyPatch) ->
     """The replacement frame is registered under no ID a later lookup can find."""
     cmatrix, original, c_oops = _navigated_record(_CASSINI_FLIP)
     _inject_identity(monkeypatch, _CASSINI_FLIP)
-    frame_registry_before = dict(Frame._FRAME_REGISTRY)
+    frame_registry_before = dict(Frame._FRAME_REGISTRY)  # type: ignore[attr-defined]  # private to oops; its stub omits it
     for _ in range(2):
         obs = _FrameOnlyObs(c_oops)
         apply_cmatrix_to_obs(cast(ObsSnapshotInst, obs), cmatrix, original, SYNTHETIC_MIDTIME_ET)
-    assert frame_registry_before == Frame._FRAME_REGISTRY
+    assert frame_registry_before == Frame._FRAME_REGISTRY  # type: ignore[attr-defined]  # private to oops; its stub omits it
 
 
 def test_each_distinct_replacement_is_retained(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -465,11 +465,11 @@ def test_each_distinct_replacement_is_retained(monkeypatch: pytest.MonkeyPatch) 
     _, _, warm_c_oops = _navigated_record(_CASSINI_FLIP)
     _FrameOnlyObs(warm_c_oops)
     wayframes_before = len(Cmatrix._WAYFRAMES)
-    cache_before = len(Frame._FRAME_CACHE)
+    cache_before = len(Frame._FRAME_CACHE)  # type: ignore[attr-defined]  # private to oops; its stub omits it
     replacements = 3
     for i in range(replacements):
         cmatrix, original, c_oops = _navigated_record(_CASSINI_FLIP, offset_px=(1.0 + i, -2.0 - i))
         obs = _FrameOnlyObs(c_oops)
         apply_cmatrix_to_obs(cast(ObsSnapshotInst, obs), cmatrix, original, SYNTHETIC_MIDTIME_ET)
     assert len(Cmatrix._WAYFRAMES) == wayframes_before + replacements
-    assert len(Frame._FRAME_CACHE) == cache_before + 2 * replacements
+    assert len(Frame._FRAME_CACHE) == cache_before + 2 * replacements  # type: ignore[attr-defined]  # private to oops; its stub omits it

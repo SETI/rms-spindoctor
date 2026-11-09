@@ -14,18 +14,48 @@ from typing import Any, cast
 
 import oops
 from filecache import FCPath
-from oops.observation.snapshot import Snapshot
+from oops.observation import Snapshot
 
 from spindoctor.config import DEFAULT_CONFIG, IMAGE_LOGGER, Config, logged_section
 from spindoctor.obs.obs_snapshot_inst import ObsSnapshotInst
-from spindoctor.sim.instruments import resolve_extfov_margin, resolve_sim_inst_config
+from spindoctor.sim.instrument_navigator import resolve_extfov_margin, resolve_sim_inst_config
 from spindoctor.sim.render import render_combined_model
 from spindoctor.sim.scene import build_nav_params, load_sim_scene
-from spindoctor.support.types import PathLike
+from spindoctor.support.types import NDArrayAnyType, NDArrayBoolType, PathLike
 
 
 class ObsSim(ObsSnapshotInst):
     """Observation backed by a description of simulated bodies and stars."""
+
+    sim_params: dict[str, Any]
+    """The full scene, truth included, for the renderer-side consumers."""
+
+    sim_offset_v: float
+    """The planted pointing offset along v, in pixels."""
+
+    sim_offset_u: float
+    """The planted pointing offset along u, in pixels."""
+
+    sim_time: float
+    """The scene's time, in seconds."""
+
+    nav_params: dict[str, Any]
+    """The scene with every truth key stripped: all the navigator may read."""
+
+    sim_body_models: dict[str, Any]
+    """The renderer's per-body models, keyed by body name."""
+
+    sim_inventory: dict[str, Any]
+    """The renderer's per-body inventory, keyed by body name."""
+
+    sim_body_order_near_to_far: list[str]
+    """The rendered bodies' names, nearest first."""
+
+    sim_body_index_map: NDArrayAnyType | None
+    """Which body each pixel shows, or None when the scene has no bodies."""
+
+    sim_body_mask_map: dict[str, NDArrayBoolType]
+    """Each rendered body's full-frame mask, keyed by body name."""
 
     def __init__(self, snapshot: Snapshot, **kwargs: Any) -> None:
         super().__init__(snapshot, **kwargs)
@@ -103,44 +133,17 @@ class ObsSim(ObsSnapshotInst):
 
         # Build a basic Snapshot with a flat FOV and dummy geometry
         fov = oops.fov.FlatFOV((1.0, 1.0), (size_u, size_v))
-        snapshot = oops.observation.snapshot.Snapshot(
+        snapshot = Snapshot(
             axes=('v', 'u'),
-            tstart=0.0,
-            texp=1.0,
+            cadence=oops.cadence.SnapCadence(0.0, 1.0),
             fov=fov,
             path='SSB',
             frame='J2000',
         )
-        # Store data and the full sim-params dictionary for future use
-        snapshot.image_url = str(scene_path.absolute())
-        snapshot.abspath = abspath
-
-        # The full scene (truth included) stays on the snapshot for the
-        # renderer-side consumers: the test harnesses that score recovery
-        # against planted truth and the backplane writer that consumes the
-        # rendered masks.  The navigator-side models consume ONLY the
-        # filtered idealized view built below.
-        snapshot.sim_params = sim_params
-        snapshot.sim_offset_v = offset_v
-        snapshot.sim_offset_u = offset_u
-        snapshot.sim_time = float(sim_params.get('time', 0.0))
-
-        # The information boundary: nav_params is sim_params with every
-        # truth key stripped and per-body nav_override overlaid (the
-        # navigator sees the geometry it believes, never the true values
-        # underneath).  See spindoctor.sim.scene.build_nav_params.
-        snapshot.nav_params = build_nav_params(sim_params)
-
         # Render combined model
         logger.debug('Rendering combined simulated model')
         img_rendered, meta = render_combined_model(sim_params)
         snapshot.insert_subfield('data', img_rendered)
-        # Renderer output metadata (truth side; never read by NavModels).
-        snapshot.sim_body_models = meta.get('bodies', {})
-        snapshot.sim_inventory = meta.get('inventory', {})
-        snapshot.sim_body_order_near_to_far = meta.get('order_near_to_far', [])
-        snapshot.sim_body_index_map = meta.get('body_index_map')
-        snapshot.sim_body_mask_map = meta.get('body_mask_map', {})
 
         # Select the per-instrument config block the sim is emulating (or the
         # generic sim block when no instrument is specified), so the
@@ -163,11 +166,39 @@ class ObsSim(ObsSnapshotInst):
         if fit_rotation_override is not None:
             inst_config = {**inst_config, 'fit_camera_rotation': bool(fit_rotation_override)}
 
-        snapshot._closest_planet = sim_params.get('closest_planet')
-        new_obs = ObsSim(snapshot, config=config, extfov_margin_vu=extfov_margin_vu, simulated=True)
+        new_obs = ObsSim(
+            snapshot,
+            config=config,
+            extfov_margin_vu=extfov_margin_vu,
+            closest_planet=sim_params.get('closest_planet'),
+            simulated=True,
+        )
         new_obs._inst_config = cast(dict[str, Any], inst_config)
+        new_obs.image_url = str(scene_path.absolute())
+        new_obs.abspath = abspath
 
-        new_obs.spice_kernels = ['fake_kernel1.txt', 'fake_kernel2.txt']
+        # The full scene (truth included) stays on the observation for the
+        # renderer-side consumers: the test harnesses that score recovery
+        # against planted truth and the backplane writer that consumes the
+        # rendered masks.  The navigator-side models consume ONLY the
+        # filtered idealized view built below.
+        new_obs.sim_params = sim_params
+        new_obs.sim_offset_v = offset_v
+        new_obs.sim_offset_u = offset_u
+        new_obs.sim_time = float(sim_params.get('time', 0.0))
+
+        # The information boundary: nav_params is sim_params with every
+        # truth key stripped and per-body nav_override overlaid (the
+        # navigator sees the geometry it believes, never the true values
+        # underneath).  See spindoctor.sim.scene.build_nav_params.
+        new_obs.nav_params = build_nav_params(sim_params)
+
+        # Renderer output metadata (truth side; never read by NavModels).
+        new_obs.sim_body_models = meta.get('bodies', {})
+        new_obs.sim_inventory = meta.get('inventory', {})
+        new_obs.sim_body_order_near_to_far = meta.get('order_near_to_far', [])
+        new_obs.sim_body_index_map = meta.get('body_index_map')
+        new_obs.sim_body_mask_map = meta.get('body_mask_map', {})
 
         return new_obs
 
@@ -216,10 +247,15 @@ class ObsSim(ObsSnapshotInst):
             calibrated-unit sim instruments the published block carries no DN
             zero point to anchor a matched-filter limit, so the navigator uses a
             generous constant.
+
+        Raises:
+            ValueError: If the observation has no instrument configuration.
         """
-        inst_config = self._inst_config or {}
+        inst_config = self._inst_config
+        if inst_config is None:
+            raise ValueError('Instrument configuration not set')
         inst_noise = inst_config.get('noise') or {}
-        if inst_config.get('data_units', 'raw_dn') != 'raw_dn':
+        if inst_config['data_units'] != 'raw_dn':
             # calibrated_if: no published DN zero point to anchor the limit, so
             # the navigator-side detection limit is a generous constant.
             return 30.0
@@ -267,7 +303,7 @@ class ObsSim(ObsSnapshotInst):
         """
         return {
             'image_path': self.image_url,
-            'image_name': self.abspath.name,
+            'image_name': self.image_name,
             'instrument_host_lid': 'sim',
             'instrument_lid': 'sim',
             'image_shape_xy': self.data_shape_uv,

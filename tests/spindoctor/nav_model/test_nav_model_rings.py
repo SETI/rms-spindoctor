@@ -9,6 +9,8 @@ reliability sigmoids.
 
 from __future__ import annotations
 
+from typing import cast
+
 import numpy as np
 import pytest
 
@@ -35,6 +37,7 @@ from spindoctor.nav_model.ring_polyline import (
     _polyline_from_edge_mask,
     _radial_extent_px,
 )
+from spindoctor.obs import ObsSnapshotInst
 
 
 def test_constants_have_design_values() -> None:
@@ -519,7 +522,7 @@ def _rings_model_for_to_features(
         A NavModelRings ready for a ``to_features`` call.
     """
     v_size, u_size = raw_edge_info[0][0].shape
-    model = NavModelRings('rings:SATURN', None, config=Config())
+    model = NavModelRings('rings:SATURN', cast(ObsSnapshotInst, None), config=Config())
     model._ring_occluded_ext = occluded
     model._planet = 'SATURN'
     # Small radial scale keeps the system-level annulus gate from firing so the
@@ -617,7 +620,7 @@ def _rings_model_for_annulus(
         A NavModelRings ready for a ``to_features`` call.
     """
     v_size, u_size = model_img.shape
-    model = NavModelRings('rings:SATURN', None, config=Config())
+    model = NavModelRings('rings:SATURN', cast(ObsSnapshotInst, None), config=Config())
     model._ring_occluded_ext = occluded
     model._planet = 'SATURN'
     # Large radial scale exceeds the SATURN kmpp_threshold, forcing the

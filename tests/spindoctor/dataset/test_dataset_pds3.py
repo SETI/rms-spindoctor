@@ -59,7 +59,7 @@ def test_a_galileo_name_outside_the_product_rule_drops_its_row(
     # its images. A G name carries no image number, and reading one raised
     # instead of dropping the row, which ended the enumeration of every
     # remaining volume (issue #17).
-    ds = DataSetPDS3GalileoSSI()
+    ds = DataSetPDS3GalileoSSI('/fake/holdings')
     install_fake_index(
         ds,
         monkeypatch,

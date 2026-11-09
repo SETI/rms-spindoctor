@@ -72,13 +72,13 @@ mesh doesn't support, because the scene file would refuse them: atmosphere, phot
 law, opposition surge, albedo texture, disc texture, transits, and the crater controls.
 Each disabled control's tooltip says why. When you switch a body's ``shape_model`` to
 ``polyhedral_mesh``, the editor moves the values a mesh refuses out of the scene, and the
-status bar names them. Switching back puts them back during the same session. A scene
+status bar lists them. Switching back puts them back during the same session. A scene
 saved in between doesn't carry them.
 
 Units of a simulated frame
 ==========================
 
-A scene file's ``instrument`` names the camera a frame imitates, and the camera
+A scene file's ``instrument`` selects the camera a frame imitates, and the camera
 decides the frame's units. There are two kinds of frame, and in both a lost pixel
 reads 0, as it does in the real products.
 
@@ -95,7 +95,7 @@ With ``instrument_defaults`` on, read noise moves the dark sky about. On a
 calibrated Cassini frame it scatters around 0, and more than a quarter of the
 pixels of a disc scene sit slightly below 0, as on the real frames. On a ``vgiss``
 frame it stays above 0 on all but about 7 pixels in 100,000, as the real Voyager
-sky stays above 0. The editor's status bar names the units and value range of each
+sky stays above 0. The editor's status bar shows the units and value range of each
 render.
 
 The status bar also warns when the navigator would refuse a render: when more than
@@ -145,7 +145,7 @@ on through exactly one key. The key's name says what its number means.
    For hot pixels only: the fraction of the detector's pixels that are hot, from 0 to 1.
 
 Dead pixels and dead columns can also be given as a fixed ``count`` in place of
-``expected_events``. An entry names one of the two keys, never both. Every key defaults
+``expected_events``. An entry sets one of the two keys, never both. Every key defaults
 to 0, and an entry whose key, or whose ``count``, is 0 doesn't plant anything.
 
 .. code-block:: yaml
@@ -159,6 +159,16 @@ to 0, and an entry whose key, or whose ``count``, is 0 doesn't plant anything.
 A key that a defect doesn't take is refused when the scene is loaded. The developer
 guide's :doc:`/dev_guide/dev_guide_simulator` chapter lists every defect, the cameras
 each one is available on, and the key each one takes.
+
+Some defects arise in one kind of detector only. Hot pixels, column bloom, and
+radiation hits, among others, are CCD defects, and the limb bend and the prior-frame
+ghost are vidicon defects. If a scene asks for a defect its detector can't produce, the
+scene is refused when it is loaded. It is also refused if ``instrument_defaults`` would
+turn on one of its camera's defects that the scene's chosen ``detector_model`` can't
+produce. In the editor, if the scene's camera doesn't offer a defect or its detector
+can't produce it, the defect's entry is disabled, and its tooltip says why. If the
+scene already includes that defect, its entry stays enabled so that you can turn it
+off. The editor won't save the scene until you do.
 
 Rings in a scene
 ================

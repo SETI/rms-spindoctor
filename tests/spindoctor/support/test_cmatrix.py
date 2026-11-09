@@ -86,10 +86,8 @@ def test_correction_maps_the_uncorrected_boresight_onto_the_corrected_one() -> N
     fov = synthetic_fov()
     correction = _oops_correction_matrix(fov, _PLANTED_OFFSET)
     xy_los = fov.xy_from_uv(fov.uv_los)
-    uv_los = fov.uv_los
-    xy_offset = fov.xy_from_uv(
-        oops.Pair((uv_los.vals[0] + _PLANTED_OFFSET[1], uv_los.vals[1] + _PLANTED_OFFSET[0]))
-    )
+    los_u, los_v = np.asarray(fov.uv_los.vals, np.float64)
+    xy_offset = fov.xy_from_uv(oops.Pair((los_u + _PLANTED_OFFSET[1], los_v + _PLANTED_OFFSET[0])))
     uncorrected = np.asarray(fov.los_from_xy(xy_los - xy_offset).unit().vals, np.float64)
     corrected = np.asarray(fov.los_from_xy(xy_los).unit().vals, np.float64)
     assert correction @ uncorrected == pytest.approx(corrected, abs=1e-15)

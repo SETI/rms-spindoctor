@@ -20,7 +20,7 @@ from typing import Any, cast
 
 import numpy as np
 import pytest
-from oops.fov.flatfov import FlatFOV
+from oops.fov import FlatFOV
 from psfmodel import GaussianPSF
 
 from spindoctor.feature.geometry import StarGeometry
@@ -56,7 +56,7 @@ _RENDER_CENTROID_TOL_PX = 0.05
 def _boresight_uv() -> float:
     """Return the FOV optical axis in pixel corner coordinates, straight from ``oops``."""
     fov = FlatFOV(1e-5, (_FOV_SIZE, _FOV_SIZE))
-    return float(fov.uv_los.vals[0])
+    return float(np.asarray(fov.uv_los.vals)[0])
 
 
 def _boresight_centric() -> float:

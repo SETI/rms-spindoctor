@@ -25,18 +25,18 @@ from typing import Any
 
 import numpy as np
 
-from spindoctor.sim.forward.artifacts_catalog import (
-    DISTORTION_RESIDUAL_PARAMS,
-    PSF_KERNELS,
-    binned_psf_kernel,
-    scene_binning,
-)
 from spindoctor.sim.forward.distortion import apply_distortion
 from spindoctor.sim.forward.ghosts import apply_ghosts
-from spindoctor.sim.forward.psf import apply_psf, psf_truncation_for_instrument
+from spindoctor.sim.forward.psf import apply_psf, binned_psf_kernel
 from spindoctor.sim.forward.smear import apply_smear
 from spindoctor.sim.forward.stages import SimFrame
-from spindoctor.sim.instruments import navigator_matched_psf
+from spindoctor.sim.instrument_navigator import navigator_matched_psf
+from spindoctor.sim.instrument_resolvers import (
+    resolve_distortion_residual,
+    resolve_psf_kernel,
+    resolve_psf_truncation_px,
+)
+from spindoctor.sim.scene_schema import scene_binning
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 from spindoctor.support.stable_math import stable_hypot
 from spindoctor.support.types import NDArrayFloatType
@@ -77,7 +77,7 @@ def effective_psf(params: Mapping[str, Any]) -> dict[str, Any] | None:
             )
         return explicit
     if instrument_defaults_on(params):
-        kernel = PSF_KERNELS.get(str(params.get('instrument')))
+        kernel = resolve_psf_kernel(params.get('instrument'))
         if kernel is not None:
             # The catalog kernel is native; a binned frame's pixels are larger.
             return binned_psf_kernel(kernel, scene_binning(params))
@@ -108,12 +108,11 @@ def _effective_distortion(params: Mapping[str, Any]) -> dict[str, Any] | None:
     instrument = params.get('instrument')
     if instrument is None:
         return None
-    measured = DISTORTION_RESIDUAL_PARAMS.get(str(instrument))
-    if measured is None:
+    residual = resolve_distortion_residual(instrument)
+    if residual is None:
         return None
     # k1 and k2 act on the radius normalized to the frame, so a full binned
     # frame keeps them; the non-radial wander is in native pixels.
-    residual = dict(measured)
     residual['nonradial_rms_px'] = float(residual.get('nonradial_rms_px', 0.0)) / scene_binning(
         params
     )
@@ -223,7 +222,7 @@ def apply_optics(
             w=float(psf.get('w', 0.0)),
             r0=float(psf.get('r0', 2.0)),
             n=float(psf.get('n', 3.0)),
-            truncation_px=psf_truncation_for_instrument(params.get('instrument')),
+            truncation_px=resolve_psf_truncation_px(params.get('instrument')),
             oversample=oversample,
         )
 

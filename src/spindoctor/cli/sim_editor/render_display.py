@@ -24,12 +24,13 @@ from PyQt6.QtWidgets import QFileDialog, QFormLayout, QGroupBox, QLabel, QMessag
 
 from spindoctor.cli.sim_editor.base import SimEditorBase
 from spindoctor.config import DEFAULT_CONFIG
-from spindoctor.sim.instruments import (
+from spindoctor.sim.instrument_navigator import (
     frame_units_name,
     frame_units_summary,
     has_planted_offset,
     resolve_sim_inst_config,
 )
+from spindoctor.sim.instrument_resolvers import resolve_data_units
 from spindoctor.sim.render import render_combined_model
 from spindoctor.sim.scene_schema import scene_value
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
@@ -175,9 +176,10 @@ class RenderDisplayMixin(SimEditorBase):
 
     def _current_saturation_dn(self) -> float | None:
         """Saturation DN of the selected instrument, or None if it has none."""
-        inst_config = resolve_sim_inst_config(DEFAULT_CONFIG, self.sim_params.get('instrument'))
-        if str(inst_config.get('data_units', 'raw_dn')) != 'raw_dn':
+        instrument = self.sim_params.get('instrument')
+        if resolve_data_units(instrument) != 'raw_dn':
             return None
+        inst_config = resolve_sim_inst_config(DEFAULT_CONFIG, instrument)
         noise = inst_config.get('noise') or {}
         if 'saturation_dn' not in noise:
             return None

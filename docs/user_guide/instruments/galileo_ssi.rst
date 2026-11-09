@@ -168,6 +168,11 @@ a Galileo SSI record carries one filter entry in ``filters``. Its
 ``instrument`` is ``gossi`` and its ``camera`` is ``SSI``. It writes no
 ``shutter_mode``, since its labels carry none.
 
+The exposure is centered on the label's ``IMAGE_TIME``: it starts half the exposure
+time before and ends half the exposure time after. Some frames on volumes GO_0002 and
+GO_0003 have no ``IMAGE_TIME``. Their times come from the spacecraft clock count
+instead, which places the exposure within a few seconds of its true time.
+
 It writes ``start_time_sclk``, the image's frame count as the label records
 it, which comes a few seconds before the exposure, as a count of the clock's
 leading field, the RIM count, with its three finer fields as a fraction of one.
