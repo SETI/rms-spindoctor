@@ -4,13 +4,14 @@ from fractions import Fraction
 from pathlib import Path
 from typing import Any, cast
 
+import host_cassini
 import numpy as np
 from filecache import FCPath
 
 from spindoctor.config import DEFAULT_CONFIG, IMAGE_LOGGER, Config, logged_section
 from spindoctor.support.sclk import exposure_counts, fractional_count
 from spindoctor.support.time import et_to_utc
-from spindoctor.support.types import PathLike
+from spindoctor.support.types import NDArrayAnyType, PathLike
 
 from .obs_snapshot_inst import HostLabel, ObsSnapshotInst
 
@@ -286,8 +287,6 @@ class ObsCassiniISS(ObsSnapshotInst, HostLabel):
             An ObsCassiniISS object containing the image data and metadata.
         """
 
-        import oops.hosts.cassini.iss
-
         config = config or DEFAULT_CONFIG
         logger = IMAGE_LOGGER
 
@@ -297,15 +296,14 @@ class ObsCassiniISS(ObsSnapshotInst, HostLabel):
         logger.debug(f'Reading Cassini ISS image {path}')
         logger.debug(f'  Fast distortion: {fast_distortion}')
         logger.debug(f'  Return all planets: {return_all_planets}')
-        # The host module publishes no type information for from_file.
-        obs = oops.hosts.cassini.iss.from_file(  # type: ignore[no-untyped-call]
+        obs = host_cassini.CassiniISS.from_file(
             path, fast_distortion=fast_distortion, return_all_planets=return_all_planets
         )
+        # The host inserts the camera and the image as subfields, which the Snapshot it
+        # returns does not declare.
+        detector = str(obs.subfields['detector']).lower()
+        data: NDArrayAnyType = obs.subfields['data']
         fc_path = FCPath(path)
-        obs.abspath = cast(Path, fc_path.get_local_path()).absolute()
-        obs.image_url = str(fc_path.absolute())
-
-        detector = obs.detector.lower()
         # Cassini ISS CALIB products carry pixels in I/F units; the RAW
         # and CALIB pipelines have different blank / saturation /
         # noisy thresholds.  ``_CALIB.IMG`` in the filename selects the
@@ -328,15 +326,17 @@ class ObsCassiniISS(ObsSnapshotInst, HostLabel):
         if extfov_margin_vu is None:
             extfov_margin_vu_entry = inst_config['extfov_margin_vu']
             if isinstance(extfov_margin_vu_entry, dict):
-                extfov_margin_vu = extfov_margin_vu_entry[obs.data.shape[0]]
+                extfov_margin_vu = extfov_margin_vu_entry[data.shape[0]]
             else:
                 extfov_margin_vu = extfov_margin_vu_entry
-        logger.debug(f'  Data shape: {obs.data.shape}')
+        logger.debug(f'  Data shape: {data.shape}')
         logger.debug(f'  Extfov margin vu: {extfov_margin_vu}')
         # TODO This is slow when debug turned off
-        logger.debug(f'  Data min: {np.min(obs.data)}, max: {np.max(obs.data)}')
+        logger.debug(f'  Data min: {np.min(data)}, max: {np.max(data)}')
 
         new_obs = ObsCassiniISS(obs, config=config, extfov_margin_vu=extfov_margin_vu)
+        new_obs.abspath = cast(Path, fc_path.get_local_path()).absolute()
+        new_obs.image_url = str(fc_path.absolute())
         new_obs._inst_config = inst_config
         return new_obs
 

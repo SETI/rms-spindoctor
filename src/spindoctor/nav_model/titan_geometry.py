@@ -301,9 +301,12 @@ def _filter_names(obs: ObsSnapshotInst) -> tuple[str, ...]:
 
     Each instrument's observation names its filters differently -- Cassini
     ISS carries ``filter1`` and ``filter2``, Voyager ISS and Galileo SSI carry
-    ``filter`` -- so the lookup is by presence.
+    ``filter`` -- so the lookup is by presence.  An observation carrying the
+    two wheels' names gives those alone: Cassini ISS also carries ``filter``,
+    the two combined, which would name the same filters twice.
     """
-    names = [getattr(obs, attr, None) for attr in ('filter1', 'filter2', 'filter')]
+    attrs = ('filter1', 'filter2') if hasattr(obs, 'filter1') else ('filter',)
+    names = [getattr(obs, attr, None) for attr in attrs]
     return tuple(str(name) for name in names if name)
 
 

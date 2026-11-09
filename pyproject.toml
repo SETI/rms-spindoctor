@@ -23,6 +23,7 @@ dependencies = [
   "rms-pdslogger>=3.2.1",
   "rms-pdstable>=1.0.1",
   "rms-pdstemplate>=2.3.0",
+  "rms-host-cassini>=0.1.1",
   "rms-polymath>=2.1.1",
   "rms-psfmodel",
   "rms-oops>=0.4.0",
@@ -71,7 +72,8 @@ dev = [
   "pytest-xdist",
   "ruff",
   # The Cassini ISS label tests read a VICAR label directly, which is the only
-  # direct use of rms-vicar; the runtime reaches VICAR files through rms-oops.
+  # direct use of rms-vicar; the runtime reaches VICAR files through rms-oops
+  # and rms-host-cassini.
   "rms-vicar>=1.3.0",
   "rms-spindoctor[docs]",
   "rms-spindoctor[postgres]",

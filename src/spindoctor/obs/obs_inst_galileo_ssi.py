@@ -98,6 +98,11 @@ class ObsGalileoSSI(ObsSnapshotInst, HostLabel):
         # image brightness scale-invariantly (NCC correlation, image-derived
         # MAD noise thresholds, magnitude-based star gate), so no photometric
         # calibration is required here.
+        # Galileo SSI is read through oops.hosts rather than rms-host-galileo, whose
+        # GalileoSSI fails on a VICAR label whose observation ID (the PA item) does not begin with
+        # an orbit number (GO_0003's OPNAV01A frames); read through the detached
+        # .LBL instead, it would publish the label as the image path
+        # (SETI/rms-host-galileo#2).
         obs = oops.hosts.galileo.ssi.from_file(path, full_fov=True)
         # The host inserts the image as the data subfield, which the Snapshot it returns
         # does not declare.
