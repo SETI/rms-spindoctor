@@ -62,13 +62,14 @@ It also **modifies the pixel data**, in two steps:
    computed from distances. The step logs at debug when it fires.
 
 Beyond that it records ``obs.abspath``, the local path with any symlink kept
-as the caller gave it, reads the flat ``voyager_iss`` config section, and resolves the
-extended-FOV margin from the size-keyed table by ``obs.data.shape[0]``. That
-table has exactly one entry, for size 1000, which is what a geometrically
-corrected product is; an image of any other size raises ``KeyError`` from the
-margin lookup rather than loading with a wrong margin. Last, it reads the
-spacecraft clock counts from the PDS3 label beside the image, which the VICAR
-label the observation keeps does not carry; see the label fields below.
+as the caller gave it, reads the flat ``voyager_iss`` config section, and
+resolves the extended-FOV margin from the size-keyed table by
+``obs.data.shape[0]``. That table has exactly one entry, for size 1000, which
+is what a geometrically corrected product is; an image of any other size
+raises ``KeyError`` from the margin lookup rather than loading with a wrong
+margin. Last, it reads the spacecraft clock counts from the PDS3 label beside
+the image, which the VICAR label the observation keeps does not carry; see the
+label fields below.
 
 A TODO on the calibration block records that this arithmetic belongs in the
 host once the host grows it.

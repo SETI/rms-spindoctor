@@ -280,7 +280,8 @@ class ObsCassiniISS(ObsSnapshotInst, HostLabel):
 
                 - fast_distortion: Whether to use a fast distortion model.
 
-                - return_all_planets: Whether to return all planets.
+                - return_all_planets: Whether the host lists the kernels of every planet,
+                  not only Jupiter or Saturn.
 
         Returns:
             An ObsCassiniISS object containing the image data and metadata.

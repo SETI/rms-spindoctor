@@ -158,9 +158,9 @@ single ``IMAGE_OBSERVATION_TYPE`` as text rather than a one-element set. The
 ``_CALIB.LBL`` departs further: it carries no ``VALID_MAXIMUM``, its
 ``DESCRIPTION`` is the calibration's history, and its
 ``PRODUCT_CREATION_TIME`` is the calibration's, which on some labels is not
-a parsable time. The host also stores every occurrence of a repeated keyword under a
-tuple key, such as ``('DAT_TIM', 0)``. Every read here looks a keyword up by name, so
-those entries are never seen.
+a parsable time. Where the VICAR label repeats a keyword, such as ``DAT_TIM``, the
+host's label keeps only the first occurrence. Every read here looks a keyword up by
+name, and none reads a repeated one.
 
 :meth:`~spindoctor.obs.obs_inst_cassini_iss.ObsCassiniISS.get_public_metadata`
 also refuses a detector that is neither ``NAC`` nor ``WAC``, because the

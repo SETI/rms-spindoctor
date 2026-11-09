@@ -260,9 +260,9 @@ snapshot it returns. :class:`~spindoctor.obs.obs_snapshot.ObsSnapshot` declares 
 this package reads on every observation: the image array (``data``), the image file on
 local storage and as the caller gave it (``abspath`` and ``image_url``), and the SPICE
 camera frame the host built the observation on (``spice_to_frame``,
-``spice_frame_name``, and ``spice_frame_id``). An attribute that only one instrument's
-host supplies, such as the two Cassini ISS filter wheels, is declared on that
-instrument's class. :class:`~spindoctor.obs.obs_snapshot_inst.HostLabel` declares the
+``spice_frame_name``, and ``spice_frame_id``). An attribute that only some hosts
+supply, such as the two Cassini ISS filter wheels, is declared on the class of each
+instrument whose host supplies it. :class:`~spindoctor.obs.obs_snapshot_inst.HostLabel` declares the
 label that the Cassini ISS, Voyager ISS, and Galileo SSI hosts keep. Together these
 declarations list everything the package relies on a host for.
 
