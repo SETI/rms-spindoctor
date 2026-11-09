@@ -466,6 +466,27 @@ def test_detector_quantization_is_authorable(model: Any) -> None:
     assert model.sim_params['detector'] == {'quantization': 'sqrt_lut'}
 
 
+def test_choosing_a_downlink_table_writes_the_key(model: Any) -> None:
+    """The downlink-table combo writes the detector.downlink_table key."""
+    model._instrument_combo.setCurrentText('coiss_nac')
+    model._detector_group.setChecked(True)
+    model._detector_downlink_combo.setCurrentText('table_12_to_8')
+    assert model.sim_params['detector'] == {'downlink_table': 'table_12_to_8'}
+
+
+def test_choosing_the_camera_default_table_removes_the_key(model: Any) -> None:
+    """After a switch to exact, the first downlink choice drops the table nothing reads."""
+    model._apply_params_dict(
+        {
+            'instrument': 'coiss_nac',
+            'detector': {'quantization': 'sqrt_lut', 'downlink_table': 'table_12_to_8'},
+        }
+    )
+    model._detector_quantization_combo.setCurrentText('exact')
+    model._detector_downlink_combo.setCurrentIndex(0)
+    assert model.sim_params['detector'] == {'quantization': 'exact'}
+
+
 def test_null_detector_keys_show_the_catalog_defaults(model: Any) -> None:
     """A loaded detector block of nulls shows the catalog values, as the renderer reads it."""
     from spindoctor.sim.instrument_resolvers import resolve_detector_defaults

@@ -3888,9 +3888,11 @@ realism addition needs -- live in their own module:
        optical sub-block is a checkable group under absent-key discipline.
    * - ``artifacts_tab.py``
      - The Artifacts tab: the instrument-defaults switch and the detector
-       override (gain state, detector model, exposure reference, quantization)
-       under per-key discipline -- an edit writes only its own key, so
-       unedited keys keep tracking the instrument catalog.
+       override (gain state, binning, detector model, exposure reference,
+       quantization, and downlink table) under per-key discipline -- an edit
+       writes only its own key, so unedited keys keep tracking the instrument
+       catalog. The downlink table's first choice, ``camera default``, removes
+       the key.
    * - ``stray_light.py``
      - Stray-light amplitude, direction, model, radial center (its panel is
        hosted in the Optics tab's stray-light group).

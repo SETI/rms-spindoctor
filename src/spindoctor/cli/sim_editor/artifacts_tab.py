@@ -21,9 +21,11 @@ the author turns the mode off.  The rows refresh when the instrument, the detect
 model, or the binning changes.
 
 The detector group is a checkable override for the electron-chain gain state, the
-detector model, the exposure the well fraction references, and the ADC
-quantization sub-mode, under the same per-key discipline (a vgiss scene stays
-vidicon without ever writing ``detector_model``).
+readout-mode binning, the detector model, the exposure the well fraction
+references, the ADC quantization sub-mode, and the downlink table, under the same
+per-key discipline (a vgiss scene stays vidicon without ever writing
+``detector_model``).  The downlink table's first choice removes the key, so the
+camera's default table applies.
 """
 
 from typing import Any
@@ -45,6 +47,7 @@ from spindoctor.cli.sim_editor.base import SimEditorBase
 from spindoctor.sim.artifact_modes import ARTIFACT_MODES, DETECTOR_MODELS, QUANTIZATION_MODES
 from spindoctor.sim.instrument_resolvers import (
     cataloged_binnings,
+    downlink_table_names,
     resolve_detector_defaults,
     resolve_detector_model,
     resolve_readout_mode,
@@ -55,6 +58,9 @@ _STAGE_TITLES: tuple[tuple[str, str], ...] = (
     ('telemetry', 'Telemetry-stage modes'),
     ('detector', 'Detector-stage modes'),
 )
+
+# The downlink-table choice that leaves ``detector.downlink_table`` out of the scene.
+_CAMERA_DEFAULT_TABLE = 'camera default'
 
 
 class ArtifactsTabMixin(SimEditorBase):
@@ -297,6 +303,14 @@ class ArtifactsTabMixin(SimEditorBase):
         )
         form.addRow('Quantization:', self._detector_quantization_combo)
 
+        self._detector_downlink_combo = QComboBox()
+        self._detector_downlink_combo.setToolTip(
+            "The table the sqrt_lut quantization decodes through, from the instrument's list. "
+            f"Choose {_CAMERA_DEFAULT_TABLE} to leave the key out and use the camera's default "
+            'table. Written to the scene only when edited.'
+        )
+        form.addRow('Downlink table:', self._detector_downlink_combo)
+
         self._detector_group = group
         self._set_detector_widget_values()
         group.setChecked(isinstance(detector, dict))
@@ -306,6 +320,7 @@ class ArtifactsTabMixin(SimEditorBase):
         self._detector_exposure_ref_spin.valueChanged.connect(self._on_detector_exposure_ref)
         self._detector_model_combo.currentTextChanged.connect(self._on_detector_model)
         self._detector_quantization_combo.currentTextChanged.connect(self._on_detector_quantization)
+        self._detector_downlink_combo.currentIndexChanged.connect(self._on_detector_downlink_table)
         group.toggled.connect(self._on_detector_group_toggled)
         return group
 
@@ -319,6 +334,7 @@ class ArtifactsTabMixin(SimEditorBase):
         binning = int(self._detector_block().get('binning', 1))
         self._set_binning_choices(binning)
         self._show_readout_mode_values(binning)
+        self._set_downlink_table_choices()
 
     def _show_readout_mode_values(self, binning: int) -> None:
         """Show each detector key other than the binning, under one readout mode.
@@ -376,6 +392,22 @@ class ArtifactsTabMixin(SimEditorBase):
         self._detector_binning_combo.addItems([str(choice) for choice in sorted(choices)])
         self._detector_binning_combo.setCurrentText(str(binning))
 
+    def _set_downlink_table_choices(self) -> None:
+        """List the instrument's downlink tables and select the scene's.
+
+        The first choice stands for an absent key and is selected when the scene sets
+        no table.  A scene table the instrument doesn't list is listed too, so the
+        widget shows what the scene says and validation reports it.
+        """
+        selected = self._detector_block().get('downlink_table')
+        choices = list(downlink_table_names(self.sim_params.get('instrument')))
+        if selected is not None and str(selected) not in choices:
+            choices.append(str(selected))
+        combo = self._detector_downlink_combo
+        combo.clear()
+        combo.addItems([_CAMERA_DEFAULT_TABLE, *choices])
+        combo.setCurrentIndex(0 if selected is None else choices.index(str(selected)) + 1)
+
     def _refresh_detector_catalog_defaults(self) -> None:
         """Refresh the displayed catalog defaults after an instrument change.
 
@@ -399,6 +431,15 @@ class ArtifactsTabMixin(SimEditorBase):
             self.sim_params['detector'] = detector
         detector[key] = value
         self._updater.request_update()
+
+    def _remove_detector_key(self, key: str) -> None:
+        """Remove one detector key, preserving every other authored key."""
+        if self._syncing or not self._detector_group.isChecked():
+            return
+        detector = self.sim_params.get('detector')
+        if isinstance(detector, dict) and key in detector:
+            del detector[key]
+            self._updater.request_update()
 
     def _on_detector_group_toggled(self, on: bool) -> None:
         """Insert an empty detector block, or remove the block entirely.
@@ -456,6 +497,19 @@ class ArtifactsTabMixin(SimEditorBase):
     def _on_detector_quantization(self, text: str) -> None:
         """Write the quantization sub-mode on a combo edit."""
         self._set_detector_key('quantization', text or 'exact')
+
+    def _on_detector_downlink_table(self, index: int) -> None:
+        """Write the downlink table on a selection, or remove it on the first choice.
+
+        Removing the key lets a scene that no longer quantizes with ``sqrt_lut`` drop
+        a table nothing would decode through, without clearing the detector block.
+        """
+        if index < 0:
+            return
+        if index == 0:
+            self._remove_detector_key('downlink_table')
+        else:
+            self._set_detector_key('downlink_table', self._detector_downlink_combo.itemText(index))
 
     # ---- Scene-load sync ----
 
