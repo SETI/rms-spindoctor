@@ -207,13 +207,15 @@ take its default.  A top-level block or list set to null reads as unset.
                                      and on the ring_system)
   instrument_config (mapping, opt)   per-instrument config overrides deep-merged over
                                      the named instrument's block (star_psf_sigma,
-                                     data_units, noise.*, extfov_margin_vu, ...).  Omit
-                                     to inherit everything; override individual keys to
-                                     pin them to the scene; name 'generic' and override
+                                     noise.*, extfov_margin_vu, ...).  Omit to inherit
+                                     everything; override individual keys to pin them
+                                     to the scene; choose 'generic' and override
                                      everything to fully self-specify so a later
                                      camera-config change cannot shift the scene.  (The
                                      top-level noise block still wins over
-                                     instrument_config.noise for rendering.)
+                                     instrument_config.noise for rendering.)  A scene
+                                     can't set data_units here; the instrument's
+                                     entry decides the frame's units.
   published_equals_truth (list, opt) truth paths (noise.read_noise_dn,
                                      optics.psf.sigma_v, ...) that instrument_config
                                      repeats on purpose.  Without it, a planted

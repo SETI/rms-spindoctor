@@ -46,10 +46,10 @@ from spindoctor.sim.scene_checks import (
     _check_detector,
     _check_downlink_table_used,
     _check_expected,
+    _check_instrument_config,
     _check_noise,
     _check_optics,
     _check_optional_bool,
-    _check_optional_mapping,
     _check_optional_mapping_list,
     _check_optional_number,
     _check_optional_positive_int,
@@ -297,7 +297,7 @@ def validate_sim_params(
         sim_params.get('fit_camera_rotation'), 'fit_camera_rotation', source=source
     )
     _check_noise(sim_params.get('noise'), source=source)
-    _check_optional_mapping(sim_params.get('instrument_config'), 'instrument_config', source=source)
+    _check_instrument_config(sim_params.get('instrument_config'), source=source)
     _check_optional_positive_int(sim_params.get('oversample'), 'oversample', source=source)
     _check_ring_system(sim_params.get('ring_system'), source=source)
     _check_optics(sim_params.get('optics'), source=source)

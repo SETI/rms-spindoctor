@@ -559,10 +559,9 @@ can pin or override individual instrument settings with ``instrument_config``
 (see :ref:`sim-instrument-config`).
 
 Each instrument renders into one of two unit classes, set by the ``data_units``
-key of its config entry (see :ref:`sim-instrument-files`). A scene can set other
-units in ``instrument_config``, and the navigator then reads the frame in those
-units too. Every shipped navigator block marks a lost pixel with ``0``
-(``noise.marker_value``):
+key of its config entry (see :ref:`sim-instrument-files`). A scene can't change
+them; to render in other units, it chooses another instrument. Every shipped
+navigator block marks a lost pixel with ``0`` (``noise.marker_value``):
 
 * ``coiss_nac``, ``coiss_wac``, ``gossi``, ``nhlorri``, and ``generic`` render raw
   DN. The bias pedestal keeps the dark sky above the marker.
@@ -3795,11 +3794,12 @@ Instrument-config overrides
 
 The optional ``instrument_config`` dict is deep-merged over the resolved
 per-instrument block, so a scene can pin individual settings (PSF sigma, noise,
-data units, extfov margin) without tracking later camera-config edits. Omit it to
-inherit everything; name ``generic`` and override everything to fully
-self-specify. If a scene sets ``data_units`` here, the frame renders in those
-units, and the navigator reads it in them. The top-level ``noise`` block still wins over
-``instrument_config.noise`` for rendering. See :doc:`dev_guide_observations`.
+extfov margin) without tracking later camera-config edits. Omit it to inherit
+everything; choose ``generic`` and override everything to fully self-specify. The
+one key a scene can't set here is ``data_units``. A frame's units come only from
+the instrument's config entry, and validation refuses the key. The top-level
+``noise`` block still wins over ``instrument_config.noise`` for rendering. See
+:doc:`dev_guide_observations`.
 
 ``instrument_config`` is idealized and crosses the information boundary
 unfiltered. A planted value copied into it reaches the navigator as published

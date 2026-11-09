@@ -249,10 +249,20 @@ def test_both_chains_give_the_stage_the_rate_and_exposure(
 
 
 def _vgiss_dn(noise: dict[str, Any], **extra: Any) -> np.ndarray:
-    """A dark 64 x 64 vgiss frame in raw DN (its unit class pinned to raw_dn)."""
-    scene = _scene('vgiss', noise, instrument_config={'data_units': 'raw_dn'}, **extra)
+    """A dark 64 x 64 vgiss frame as the vidicon chain digitizes it.
+
+    vgiss renders calibrated I/F, so this runs the vidicon chain without the
+    calibration inverse that follows it, and reads the DN the hits leave.
+    """
+    scene = _scene('vgiss', noise, **extra)
     scene.update(size_v=64, size_u=64)
-    return _detector_dn(scene)
+    frame = SimFrame(
+        signal=np.zeros((64, 64), dtype=np.float64),
+        point_e=np.zeros((64, 64), dtype=np.float64),
+    )
+    rng = np.random.default_rng(derive_effect_seed(int(scene['random_seed']), 'detector'))
+    chain._apply_vidicon(frame, resolve_detector_params(scene), rng)
+    return frame.signal.copy()
 
 
 def test_a_vidicon_hit_digitizes_at_the_adc_ceiling() -> None:

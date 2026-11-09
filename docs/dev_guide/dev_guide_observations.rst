@@ -384,7 +384,8 @@ navigator's instrument settings stay consistent. The one precedence subtlety: th
 top-level scene ``noise`` block (the primary noise control) still wins over
 ``instrument_config.noise`` for rendering, so ``instrument_config`` is the channel
 for the instrument parameters that have no dedicated scene field (star PSF sigma,
-data units, saturation / full-well DN, extfov margin, ...).
+saturation / full-well DN, extfov margin, ...). A scene can't set ``data_units``
+there: a frame's units come only from the instrument's simulator config entry.
 
 Adding a new instrument
 =======================

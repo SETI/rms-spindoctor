@@ -2,8 +2,8 @@
 
 The ``_check_*`` / ``_require_*`` helpers here enforce the per-field types of
 every scene block: the per-object stars entries, the optics sub-blocks (PSF,
-smear, distortion, ghosts, stray light), the noise, detector, and spk_error
-blocks, plus the primitive scalar checks they all share.  Each block's key
+smear, distortion, ghosts, stray light), the noise, instrument_config, detector, and
+spk_error blocks, plus the primitive scalar checks they all share.  Each block's key
 inventory lives beside its checker (unknown keys fail validation, so a typo
 cannot silently render an un-blurred or clean frame).  The ``bodies``-entry
 checkers, the schema's largest block, live in the sibling
@@ -374,6 +374,29 @@ def _check_noise(value: Any, *, source: str) -> None:
         raise SimSceneValidationError(f'{source}: noise.vidicon: unknown keys: {sorted(unknown)}')
     for key in _VIDICON_NOISE_KEYS:
         _check_optional_nonnegative_number(vidicon.get(key), f'noise.vidicon.{key}', source=source)
+
+
+def _check_instrument_config(value: Any, *, source: str) -> None:
+    """Validate the scene-level ``instrument_config`` block.
+
+    The block overrides keys of the navigator block, except ``data_units``.  A frame's
+    units come only from the instrument's config entry, so a scene that wants other
+    units chooses another instrument.
+
+    Parameters:
+        value: The ``instrument_config`` mapping, or None when the block is absent.
+        source: Label used in error messages.
+
+    Raises:
+        SimSceneValidationError: If the block isn't a mapping, or it sets
+            ``data_units``.
+    """
+    _check_optional_mapping(value, 'instrument_config', source=source)
+    if value is not None and 'data_units' in value:
+        raise SimSceneValidationError(
+            f"{source}: instrument_config: a scene can't set data_units. Choose an "
+            'instrument whose entry renders the units you want.'
+        )
 
 
 def _check_detector(value: Any, *, instrument: str, source: str) -> None:

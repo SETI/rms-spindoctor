@@ -17,6 +17,7 @@ import numpy as np
 import pytest
 from scipy.signal import fftconvolve
 
+from spindoctor.sim.forward.detector.params import calibration_map, resolve_detector_params
 from spindoctor.sim.forward.psf import psf_kernel
 from spindoctor.sim.forward.star import faint_sky_cutoff_mag, render_sky_counts
 from spindoctor.sim.instrument_resolvers import resolve_psf_kernel, resolve_psf_truncation_px
@@ -227,7 +228,9 @@ def test_vidicon_star_renders_in_the_dn_domain() -> None:
     """A Voyager (vidicon) star deposits DN with no electron conversion.
 
     The vidicon zero point is in DN, so a faint star's integrated DN tracks
-    ``zero_point * 10**(-0.4 * vmag) * exposure`` directly (no gain divide).
+    ``zero_point * 10**(-0.4 * vmag) * exposure`` directly (no gain divide).  The
+    frame is calibrated I/F, like a GEOMED product, so the test maps it back to DN
+    through the frame's own calibration before summing.
     """
     scene = _star_scene(
         'vgiss',
@@ -235,13 +238,12 @@ def test_vidicon_star_renders_in_the_dn_domain() -> None:
         # little flux rounds away) yet below the 8-bit ceiling.
         vmag=1.2,
         optics={'psf': {'match_navigator': True}},
-        # Voyager GEOMED products are calibrated; override to the raw DN path so
-        # the deposited DN reads out directly (no calibration inverse).
-        instrument_config={'data_units': 'raw_dn'},
     )
     img, meta = render_combined_model(scene)
+    calibration = calibration_map(resolve_detector_params(scene))
+    assert calibration is not None
     total_dn = float(meta['star_info'][0]['total_flux'])
-    got = float(img[15:50, 15:50].sum())
+    got = float(calibration.to_dn(img[15:50, 15:50]).sum())
     assert abs(got - total_dn) < 0.05 * total_dn
 
 
