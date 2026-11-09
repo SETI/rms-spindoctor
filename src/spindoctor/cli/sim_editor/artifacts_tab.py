@@ -502,12 +502,19 @@ class ArtifactsTabMixin(SimEditorBase):
         """Write the downlink table on a selection, or remove it on the first choice.
 
         Removing the key lets the author drop a table once the scene no longer
-        quantizes with ``sqrt_lut``, without clearing the whole detector block.
+        quantizes with ``sqrt_lut``, without clearing the whole detector block.  The
+        choices are then rebuilt, so a table the instrument doesn't list is no longer
+        offered.
         """
-        if index < 0:
+        if index < 0 or self._syncing:
             return
         if index == 0:
             self._remove_detector_key('downlink_table')
+            self._syncing = True
+            try:
+                self._set_downlink_table_choices()
+            finally:
+                self._syncing = False
         else:
             self._set_detector_key('downlink_table', self._detector_downlink_combo.itemText(index))
 

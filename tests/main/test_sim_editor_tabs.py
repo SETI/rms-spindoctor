@@ -487,6 +487,25 @@ def test_choosing_the_camera_default_table_removes_the_key(model: Any) -> None:
     assert model.sim_params['detector'] == {'quantization': 'exact'}
 
 
+def test_a_loaded_scene_selects_its_downlink_table(model: Any) -> None:
+    """Loading a scene that sets a table shows that table in the combo."""
+    model._apply_params_dict(
+        {'instrument': 'coiss_nac', 'detector': {'downlink_table': 'table_12_to_8'}}
+    )
+    assert model._detector_downlink_combo.currentText() == 'table_12_to_8'
+
+
+def test_choosing_the_camera_default_drops_an_unlisted_table(model: Any) -> None:
+    """Once the camera default replaces a table the camera doesn't list, it isn't offered."""
+    model._apply_params_dict(
+        {'instrument': 'coiss_nac', 'detector': {'downlink_table': 'table_12_to_8'}}
+    )
+    model._instrument_combo.setCurrentText('vgiss')
+    model._detector_downlink_combo.setCurrentIndex(0)
+    combo = model._detector_downlink_combo
+    assert [combo.itemText(i) for i in range(combo.count())] == ['camera default']
+
+
 def test_null_detector_keys_show_the_catalog_defaults(model: Any) -> None:
     """A loaded detector block of nulls shows the catalog values, as the renderer reads it."""
     from spindoctor.sim.instrument_resolvers import resolve_detector_defaults
