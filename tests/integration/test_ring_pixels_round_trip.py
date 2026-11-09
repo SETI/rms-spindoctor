@@ -40,7 +40,10 @@ _TOLERANCE_PX = 1e-3
 
 @pytest.fixture(scope='module')
 def round_trip_error() -> tuple[np.ndarray, np.ndarray]:
-    """Per-pixel (du, dv) between six main-ring pixels and their round trip."""
+    """Return (du, dv), each round trip's landing point minus its pixel center, in pixels.
+
+    One element per sampled main-ring pixel, six in all.
+    """
     holdings = os.environ['PDS3_HOLDINGS_DIR'].rstrip('/')
     obs = ObsCassiniISS.from_file(f'{holdings}/{_FRAME}')
     backplane = Backplane(obs)
