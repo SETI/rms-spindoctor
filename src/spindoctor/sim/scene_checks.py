@@ -509,8 +509,9 @@ def _check_downlink_table_used(
     if quantization is None:
         catalog = resolve_detector_defaults(instrument)
         binning = detector.get('binning')
-        if binning is not None:
-            catalog.update(resolve_readout_mode(instrument, binning))
+        if binning is None:
+            binning = 1
+        catalog.update(resolve_readout_mode(instrument, binning))
         quantization = catalog.get('quantization', 'exact')
     if quantization == 'sqrt_lut':
         return
