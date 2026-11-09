@@ -367,6 +367,8 @@ Simulator model
 That is the model's sharpest simplification, and the instrument's config entry
 says so. The entry sits under the ``vgiss`` key of
 ``src/spindoctor/sim/instrument_configs/vgiss.yaml`` and holds the values below.
+It states ``data_units: calibrated_if``, the units of the GEOMED product and of
+the ``voyager_iss`` block, so a simulated frame is in I/F.
 
 **PSF kernel.** ``{sigma_v: 0.85, sigma_u: 0.85, w: 1.2e-2, r0: 2.0, n: 3.0}``,
 a **retained interim estimate**. The cohort's one star frame gives eight usable

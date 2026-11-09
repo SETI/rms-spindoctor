@@ -558,8 +558,10 @@ plus ``generic`` (alias ``sim``) for the instrument-agnostic defaults. A scene
 can pin or override individual instrument settings with ``instrument_config``
 (see :ref:`sim-instrument-config`).
 
-Each instrument renders into one of two unit classes, set by its block's
-``data_units``. Every shipped block marks a lost pixel with ``0``
+Each instrument renders into one of two unit classes, set by the ``data_units``
+key of its config entry (see :ref:`sim-instrument-files`). A scene can set other
+units in ``instrument_config``, and the navigator then reads the frame in those
+units too. Every shipped navigator block marks a lost pixel with ``0``
 (``noise.marker_value``):
 
 * ``coiss_nac``, ``coiss_wac``, ``gossi``, ``nhlorri``, and ``generic`` render raw
@@ -906,7 +908,8 @@ in a YAML comment beside it. Most are interim, sized from published FWHMs, gain
 tables, and documented residual-error bounds until the per-instrument
 measurement passes replace them, so the wing parameters and noise amplitudes
 are the first quantities the realism-match pass revisits. Each calibrated
-Cassini instrument's entry sets its raw camera as its ``base``. ``generic``
+Cassini instrument's entry sets its raw camera as its ``base`` and states
+``data_units: calibrated_if`` in place of the raw camera's ``raw_dn``. ``generic``
 (alias ``sim``) is an instrument-agnostic ideal 12-bit detector whose electron
 well equals its DN depth at unit gain.
 
@@ -961,6 +964,7 @@ value isn't a mapping. Within an entry, the load fails on:
 
 * an unknown key, a missing required key, or a value of the wrong type,
   including a number that YAML reads as a string, such as ``.5e3``;
+* a ``data_units`` other than ``raw_dn`` or ``calibrated_if``;
 * a number that isn't finite (``.nan``, ``.inf``) or is out of its range: gains,
   the full well, the reference exposure, the plate scale, the star zero point,
   the PSF radii, periods, filter throughputs, and the native frame size must be
@@ -1021,20 +1025,35 @@ The loader takes a ``config_dir`` keyword so a test can load a directory of its
 own.
 
 The rest of the simulator reads the catalog only through the resolver functions
-in :mod:`spindoctor.sim.instrument_resolvers`. They cover the detector defaults,
-readout modes, native frame size, star zero point, plate scale, PSF kernel and
-truncation radius, distortion residual, detector identity, calibrated sky,
-downlink tables, filters, and artifact-mode availability and shape defaults. The
+in :mod:`spindoctor.sim.instrument_resolvers`. They cover the frame units, the
+detector defaults, readout modes, native frame size, star zero point, plate scale,
+PSF kernel and truncation radius, distortion residual, detector identity,
+calibrated sky, downlink tables, filters, and artifact-mode availability and shape
+defaults. The
 navigator block an entry points at is read by
 :func:`~spindoctor.sim.instrument_navigator.resolve_sim_inst_config`. Each of these
 raises :class:`ValueError` for an instrument that no entry defines. Scene
 validation's allowed names, the scene editor's instrument list, and the realism
 match's cohort map all come from the catalog.
 
+An entry's ``data_units`` must match the ``data_units`` of the navigator block
+it points at, and a block that doesn't state them reads ``raw_dn``. Otherwise the
+navigator would read a calibrated frame as DN, or a DN frame as I/F. The check
+runs each time the block is resolved, against the configuration in use, so it
+also catches a user configuration that changes a block's units. It doesn't run
+when the catalog loads, because the catalog is loaded once per directory and
+cached, and can't know which configuration a render will use. The message gives
+the file, the entry, and both values::
+
+    coiss.yaml: coiss_calib_nac: data_units: the entry renders raw_dn frames, but
+    its navigator block cassini_iss_calib.nac reads calibrated_if, so the navigator
+    would read every frame in the wrong units
+
 Unit tests tie the catalog to the navigator's packaged configuration without the
 simulator reading it at load. Every entry's ``navigator`` section and detector
 must point at a block that exists, so an inherited ``detector`` fails there if
-the entry changes ``section``. A navigator block whose ``data_units`` is
+the entry changes ``section``. Every entry's ``data_units`` must match its
+block's. A navigator block whose ``data_units`` is
 ``raw_dn`` reads a DN zero point for its star limit, so it must state
 ``star_flux_dn_per_s_vmag0``; without it the navigator would take the generic
 block's value. That value must match the entry's star zero point, converted to
@@ -1061,11 +1080,18 @@ The keys of an entry, all directly under the instrument's top-level key:
      - no
      - Other names a scene may write for this instrument (``generic`` lists
        ``sim``). Not passed on to an entry that sets this one as its ``base``.
+   * - ``data_units``
+     - yes
+     - The units the simulated frame is written in: ``raw_dn`` for detector
+       counts, or ``calibrated_if`` for calibrated I/F. They must match the
+       navigator block's ``data_units`` (see above). A calibrated product's
+       entry states ``calibrated_if`` in place of its raw camera's ``raw_dn``.
    * - ``navigator``
      - yes
      - ``section`` (and ``detector`` for a block with one entry per camera):
-       the navigator config block from which the simulated frame reads its
-       units, marker, noise, PSF sigma, and thresholds.
+       the navigator config block that the simulated frame takes its marker,
+       noise, PSF sigma, and thresholds from. The navigator reads the frame in
+       this block's units.
    * - ``detector_id``
      - no
      - The physical detector, which keys the fixed hot-pixel map and the
@@ -1149,7 +1175,8 @@ but ``.5e3`` is a string, which the loader refuses.
 **Adding a camera.** Add a top-level entry for it to its mission's file, or
 start a file for a mission that has none. Add the navigator's ``config_4N0``
 block for the camera it emulates too, if there isn't one yet. Point the entry's
-``navigator`` key at that block. State every required key with the value's
+``navigator`` key at that block, and give the entry the same ``data_units`` as the
+block. State every required key with the value's
 provenance as a comment beside it, and list the artifact modes the camera
 offers. For each offered mode whose shape is a camera attribute (a band width, a
 block height, a header length), state the camera's own value; a mode without one
@@ -3772,7 +3799,8 @@ The optional ``instrument_config`` dict is deep-merged over the resolved
 per-instrument block, so a scene can pin individual settings (PSF sigma, noise,
 data units, extfov margin) without tracking later camera-config edits. Omit it to
 inherit everything; name ``generic`` and override everything to fully
-self-specify. The top-level ``noise`` block still wins over
+self-specify. If a scene sets ``data_units`` here, the frame renders in those
+units, and the navigator reads it in them. The top-level ``noise`` block still wins over
 ``instrument_config.noise`` for rendering. See :doc:`dev_guide_observations`.
 
 ``instrument_config`` is idealized and crosses the information boundary

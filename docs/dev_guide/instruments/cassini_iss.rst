@@ -404,8 +404,10 @@ Simulator model
 below. ``coiss_nac`` and ``coiss_wac`` resolve to the ``cassini_iss`` block's two
 detectors, and ``coiss_calib_nac`` and ``coiss_calib_wac`` to the
 ``cassini_iss_calib`` block's. Each calibrated entry sets its raw camera as its
-``base`` and states only the calibrated product's own detector terms, so a
-calibrated scene gets the same artifact defaults as its raw counterpart.
+``base`` and states only what calibration changes: its units and its detector
+terms. Its ``data_units`` is ``calibrated_if``, matching the ``cassini_iss_calib``
+block. Everything else comes from the raw camera, so a calibrated scene gets the
+same artifact defaults as its raw counterpart.
 
 **Units.** A ``coiss_calib_*`` frame is in I/F with a ``0`` missing-data marker,
 as the CALIB products are: across 24 CALIB images from four volumes no pixel is
