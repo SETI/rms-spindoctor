@@ -34,9 +34,9 @@ occluded, or one too small to measure scores exactly zero, and the standard per-
 gate then removes it. A marginal Titan therefore resolves through the same statuses as any other
 marginal scene -- ``all_features_gated`` on a Titan-only frame. The gate record's reliability
 breakdown holds the envelope diameter and the occluded fraction, so a zero caused by either one can
-be read from it. The breakdown says nothing about the detector edge, but a zero next to a diameter
-and an occluded fraction that both pass can only mean the envelope was clipped. There is no
-Titan-specific status reason anywhere in the codebase.
+be read from it. The breakdown says nothing about the detector edge, but a zero next to a passing
+diameter and a passing occluded fraction below 1 can only mean the envelope was clipped. There is
+no Titan-specific status reason anywhere in the codebase.
 
 Theory
 ======
@@ -334,6 +334,8 @@ A Titan-only frame whose envelope is clipped by the detector edge, or occluded p
 ``max_occluded_fraction`` by the rings, emits a zero-reliability feature that the type gate
 removes; the frame ends ``all_features_gated``. On the occluded frame, the breakdown shows the
 occluded fraction that produced the zero. On the clipped frame, the diameter and the occluded
-fraction can both pass, and a zero next to two passing values means the envelope was clipped. A
+fraction can both pass. The size sigmoid is never zero, and the occlusion factor is zero only for a
+fully occluded envelope, whose fraction of 1 passes only if ``max_occluded_fraction`` is at least 1.
+With any lower setting, a zero next to two passing values means the envelope was clipped. A
 frame carrying Titan plus a resolved moon, a ring, or a star field navigates on all of its content
 together, with the haze fit contributing one witness to the ensemble.
