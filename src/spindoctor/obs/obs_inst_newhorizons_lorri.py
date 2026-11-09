@@ -9,7 +9,7 @@ from spindoctor.support.sclk import exposure_counts, fractional_count, pds3_labe
 from spindoctor.support.time import et_to_utc
 from spindoctor.support.types import PathLike
 
-from .obs_snapshot_inst import ObsSnapshotInst, local_image_path
+from .obs_snapshot_inst import ObsSnapshotInst
 
 # SCLK01_MODULI_98 and SCLK01_OFFSETS_98 of the New Horizons spacecraft clock kernel,
 # $OOPS_RESOURCES/SPICE/New-Horizons/SCLK/new_horizons_2132.tsc: whole seconds, then
@@ -104,7 +104,6 @@ class ObsNewHorizonsLORRI(ObsSnapshotInst):
             path, calibration=False
         )
         fc_path = FCPath(path)
-        obs.abspath = local_image_path(fc_path)
 
         inst_config = config.category('newhorizons_lorri')
 
@@ -187,7 +186,7 @@ class ObsNewHorizonsLORRI(ObsSnapshotInst):
 
         return {
             'image_path': self.image_url,
-            'image_name': self.abspath.name,
+            'image_name': self.image_name,
             'instrument_host_lid': 'urn:nasa:pds:context:instrument_host:spacecraft.nh',
             'instrument_lid': 'urn:nasa:pds:context:instrument:nh.lorri',
             'start_time_utc': et_to_utc(self.time[0]),

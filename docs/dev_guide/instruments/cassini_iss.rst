@@ -47,17 +47,15 @@ iterative one, which is what makes per-pixel geometry affordable in a batch;
 observation's ``spice_kernels`` rather than those of Jupiter or Saturn alone.
 
 The host records ``obs.image_url``, the absolute source URL, so a run against
-remote holdings still records which file it read. Beyond the host call
-``from_file`` does four things:
+remote holdings still records which file it read; the published image name
+is taken from it. Beyond the host call ``from_file`` does three things:
 
-1. Records ``obs.abspath``, the local path, with any symlink kept as the
-   caller gave it, because the published image name is read from it.
-2. Selects the configuration block. ``'_CALIB' in fc_path.name.upper()``
+1. Selects the configuration block. ``'_CALIB' in fc_path.name.upper()``
    chooses ``cassini_iss_calib``; anything else chooses ``cassini_iss``.
-3. Indexes that block by ``obs.detector.lower()``. A missing section, or a
+2. Indexes that block by ``obs.detector.lower()``. A missing section, or a
    section with no entry for the detector, raises ``ValueError`` listing the
    detectors that are present, rather than failing later on a missing key.
-4. Resolves the extended-FOV margin. The configured value is a mapping keyed
+3. Resolves the extended-FOV margin. The configured value is a mapping keyed
    by image size, so the margin is ``entry[obs.data.shape[0]]``; an explicit
    ``extfov_margin_vu`` argument wins over the configuration entirely.
 

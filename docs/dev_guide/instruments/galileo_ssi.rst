@@ -40,13 +40,13 @@ region the label describes, so the navigation models are generated over the
 same grid whatever readout mode a frame used. No other keyword argument is
 accepted, and ``**_kwargs`` is named with a leading underscore to say so.
 
-The host records ``obs.image_url``, the absolute source URL. Beyond the host call
-``from_file`` records ``obs.abspath``, the local path with any symlink kept as the
-caller gave it, reads the flat ``galileo_ssi`` config section, and resolves the
-extended-FOV margin. The margin resolution carries an ``isinstance(..., dict)``
-branch for a size-keyed table, but this instrument's configured value is a
-plain list, so that branch is dead code here; it carries a TODO saying the
-branch belongs somewhere shared.
+The host records ``obs.image_url``, the absolute source URL, from which the
+published image name is taken. Beyond the host call ``from_file`` reads the
+flat ``galileo_ssi`` config section and resolves the extended-FOV margin. The
+margin resolution carries an ``isinstance(..., dict)`` branch for a size-keyed
+table, but this instrument's configured value is a plain list, so that branch
+is dead code here; it carries a TODO saying the branch belongs somewhere
+shared.
 
 There is no calibration step. The PDS3 archive holds no I/F-calibrated Galileo
 SSI product, and the navigation pipeline treats image brightness

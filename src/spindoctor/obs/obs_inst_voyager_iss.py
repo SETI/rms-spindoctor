@@ -9,7 +9,7 @@ from spindoctor.support.sclk import exposure_counts, fractional_count, pds3_labe
 from spindoctor.support.time import et_to_utc
 from spindoctor.support.types import PathLike
 
-from .obs_snapshot_inst import HostLabel, ObsSnapshotInst, local_image_path
+from .obs_snapshot_inst import HostLabel, ObsSnapshotInst
 
 # SCLK01_MODULI_31/_32 and SCLK01_OFFSETS_31/_32 of the Voyager 1 and 2 spacecraft clock
 # kernels, $OOPS_RESOURCES/SPICE/Voyager/SCLK/vg100042.tsc and vg200041.tsc, which give both
@@ -177,7 +177,6 @@ class ObsVoyagerISS(ObsSnapshotInst, HostLabel):
         # The host module publishes no type information for from_file.
         obs = oops.hosts.voyager.iss.from_file(path)  # type: ignore[no-untyped-call]
         fc_path = FCPath(path)
-        obs.abspath = local_image_path(fc_path)
 
         inst_config = config.category('voyager_iss')
 
@@ -301,7 +300,7 @@ class ObsVoyagerISS(ObsSnapshotInst, HostLabel):
 
         return {
             'image_path': self.image_url,
-            'image_name': self.abspath.name,
+            'image_name': self.image_name,
             'instrument_host_lid': (
                 f'urn:nasa:pds:context:instrument_host:spacecraft.vg{spacecraft}'
             ),

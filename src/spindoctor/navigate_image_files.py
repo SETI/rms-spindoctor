@@ -674,8 +674,8 @@ def _summary_metadata_from_obs_result(obs: ObsSnapshotInst, result: NavResult) -
     # the image's document instead.  The PNG is written before that document,
     # so no document ever describes a PNG with a blank caption.
     public = obs.get_public_metadata()
-    abspath = getattr(obs, 'abspath', None)
-    image_name = str(public.get('image_name') or (abspath.name if abspath is not None else ''))
+    image_url = getattr(obs, 'image_url', None)
+    image_name = str(public.get('image_name') or (FCPath(image_url).name if image_url else ''))
     filters = [str(f) for f in (public.get('filters') or []) if f]
     filter_name = '+'.join(filters)
     exposure_raw = public.get('exposure_time')

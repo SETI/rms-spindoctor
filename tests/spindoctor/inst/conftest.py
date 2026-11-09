@@ -1,6 +1,5 @@
 """Shared stand-ins for the instrument host tests."""
 
-from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, TypeVar, cast
 
@@ -44,7 +43,6 @@ def bare_observation(obs_class: type[_ObsT], label: dict[str, Any], **attributes
     """
     obs = object.__new__(obs_class)
     obs.image_url = '/holdings/image_0001.img'
-    obs.abspath = Path('/cache/image_0001.img')
     obs.cadence = cast(Cadence, SimpleNamespace(time=(0.0, 2.0), midtime=1.0))
     obs.texp = 2.0
     obs._data_shape_uv = (1024, 1024)

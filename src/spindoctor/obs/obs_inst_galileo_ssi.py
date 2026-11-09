@@ -3,14 +3,13 @@ from fractions import Fraction
 from typing import Any, cast
 
 import numpy as np
-from filecache import FCPath
 
 from spindoctor.config import DEFAULT_CONFIG, IMAGE_LOGGER, Config, logged_section
 from spindoctor.support.sclk import exposure_counts, fractional_count
 from spindoctor.support.time import et_to_utc
 from spindoctor.support.types import NDArrayAnyType, PathLike
 
-from .obs_snapshot_inst import HostLabel, ObsSnapshotInst, local_image_path
+from .obs_snapshot_inst import HostLabel, ObsSnapshotInst
 
 # SCLK01_MODULI_77 and SCLK01_OFFSETS_77 of the Galileo spacecraft clock kernel,
 # $OOPS_RESOURCES/SPICE/Galileo/SCLK/mk00062a.tsc: the RIM count, then its 91 MOD91
@@ -119,8 +118,6 @@ class ObsGalileoSSI(ObsSnapshotInst, HostLabel):
         logger.debug(f'  Data min: {np.min(data)}, max: {np.max(data)}')
 
         new_obs = ObsGalileoSSI(obs, config=config, extfov_margin_vu=extfov_margin_vu)
-        fc_path = FCPath(path)
-        new_obs.abspath = local_image_path(fc_path)
         new_obs._inst_config = inst_config
         return new_obs
 
@@ -185,7 +182,7 @@ class ObsGalileoSSI(ObsSnapshotInst, HostLabel):
 
         return {
             'image_path': self.image_url,
-            'image_name': self.abspath.name,
+            'image_name': self.image_name,
             'instrument_host_lid': 'urn:nasa:pds:context:instrument_host:spacecraft.go',
             'instrument_lid': 'urn:nasa:pds:context:instrument:go.ssi',
             'start_time_utc': et_to_utc(self.time[0]),

@@ -26,7 +26,7 @@ from spindoctor.ui.library_entry import (
 def _fake_obs(
     *,
     cls_name: str = 'ObsCassiniISS',
-    abspath: Path | None = None,
+    image_url: Path | None = None,
     detector: str | None = 'NAC',
     filter1: str | None = 'CL1',
     filter2: str | None = 'CL2',
@@ -38,7 +38,7 @@ def _fake_obs(
         cls_name,
         (object,),
         {
-            'abspath': abspath,
+            'image_url': None if image_url is None else image_url.as_posix(),
             'detector': detector,
             'filter1': filter1,
             'filter2': filter2,
@@ -53,7 +53,7 @@ def test_infer_obs_metadata_reads_cassini_iss_fields(tmp_path: Path) -> None:
     """A Cassini-ISS-shaped obs yields the right mission / camera / filter combo."""
     img_path = tmp_path / 'W1521598221_1_CALIB.IMG'
     img_path.write_bytes(b'')
-    draft = infer_obs_metadata(_fake_obs(abspath=img_path, texp=0.46))
+    draft = infer_obs_metadata(_fake_obs(image_url=img_path, texp=0.46))
     assert draft.image_id == 'W1521598221_1_CALIB'
     assert draft.mission == 'COISS'
     assert draft.camera == 'NAC'
@@ -66,7 +66,7 @@ def test_infer_obs_metadata_drops_non_positive_texp(tmp_path: Path) -> None:
     img_path = tmp_path / 'X.IMG'
     img_path.write_bytes(b'')
     for bad in (0.0, -1.0, float('nan'), 'huh'):
-        draft = infer_obs_metadata(_fake_obs(abspath=img_path, texp=bad))  # type: ignore[arg-type]
+        draft = infer_obs_metadata(_fake_obs(image_url=img_path, texp=bad))  # type: ignore[arg-type]
         assert draft.exposure_time_sec is None
 
 
@@ -74,7 +74,7 @@ def test_infer_obs_metadata_missing_texp_attribute(tmp_path: Path) -> None:
     """``obs`` without a ``texp`` attribute drops cleanly to ``None``."""
     img_path = tmp_path / 'X.IMG'
     img_path.write_bytes(b'')
-    obs = _fake_obs(abspath=img_path)
+    obs = _fake_obs(image_url=img_path)
     delattr(type(obs), 'texp')
     draft = infer_obs_metadata(obs)
     assert draft.exposure_time_sec is None
@@ -89,7 +89,7 @@ def test_infer_obs_metadata_extracts_image_datetime_utc(tmp_path: Path) -> None:
     img_path = tmp_path / 'X.IMG'
     img_path.write_bytes(b'')
     # ET=0 maps to 2000-01-01 (J2000) plus a few minutes of offset.
-    draft = infer_obs_metadata(_fake_obs(abspath=img_path, midtime=0.0))
+    draft = infer_obs_metadata(_fake_obs(image_url=img_path, midtime=0.0))
     assert draft.image_datetime_utc is not None
     assert draft.image_datetime_utc.startswith('2000-01-01T')
 
@@ -98,7 +98,7 @@ def test_infer_obs_metadata_missing_midtime_attribute(tmp_path: Path) -> None:
     """``obs`` without a ``midtime`` attribute drops cleanly to ``None``."""
     img_path = tmp_path / 'X.IMG'
     img_path.write_bytes(b'')
-    obs = _fake_obs(abspath=img_path, midtime=None)
+    obs = _fake_obs(image_url=img_path, midtime=None)
     draft = infer_obs_metadata(obs)
     assert draft.image_datetime_utc is None
 
@@ -116,8 +116,8 @@ def test_infer_obs_metadata_canonicalizes_filter_order(tmp_path: Path) -> None:
     """``filter_combo`` is sorted lexically so ``CL+IR`` and ``IR+CL`` are identical."""
     img_path = tmp_path / 'X.IMG'
     img_path.write_bytes(b'')
-    a = infer_obs_metadata(_fake_obs(abspath=img_path, filter1='IR', filter2='CL'))
-    b = infer_obs_metadata(_fake_obs(abspath=img_path, filter1='CL', filter2='IR'))
+    a = infer_obs_metadata(_fake_obs(image_url=img_path, filter1='IR', filter2='CL'))
+    b = infer_obs_metadata(_fake_obs(image_url=img_path, filter1='CL', filter2='IR'))
     assert a.filter_combo == b.filter_combo == 'CL+IR'
 
 
@@ -127,7 +127,7 @@ def test_compute_image_url_rewrites_to_pds3_when_under_holdings(
     """A path under ``PDS3_HOLDINGS_DIR`` is rewritten with the ``pds3://`` prefix."""
     monkeypatch.setenv('PDS3_HOLDINGS_DIR', '/mnt/ganymede/PDS/holdings')
     obs = _fake_obs(
-        abspath=Path('/mnt/ganymede/PDS/holdings/calibrated/COISS_2xxx/x.IMG'),
+        image_url=Path('/mnt/ganymede/PDS/holdings/calibrated/COISS_2xxx/x.IMG'),
     )
     assert compute_image_url(obs) == 'pds3://calibrated/COISS_2xxx/x.IMG'
 
@@ -137,7 +137,7 @@ def test_compute_image_url_tolerates_trailing_slash(
 ) -> None:
     """A trailing slash on ``PDS3_HOLDINGS_DIR`` does not double-up the separator."""
     monkeypatch.setenv('PDS3_HOLDINGS_DIR', '/mnt/ganymede/PDS/holdings/')
-    obs = _fake_obs(abspath=Path('/mnt/ganymede/PDS/holdings/volumes/X.IMG'))
+    obs = _fake_obs(image_url=Path('/mnt/ganymede/PDS/holdings/volumes/X.IMG'))
     assert compute_image_url(obs) == 'pds3://volumes/X.IMG'
 
 
@@ -146,7 +146,7 @@ def test_compute_image_url_falls_through_when_outside_holdings(
 ) -> None:
     """A path that is not under the holdings root is returned verbatim."""
     monkeypatch.setenv('PDS3_HOLDINGS_DIR', '/mnt/ganymede/PDS/holdings')
-    obs = _fake_obs(abspath=Path('/tmp/somewhere/else/X.IMG'))
+    obs = _fake_obs(image_url=Path('/tmp/somewhere/else/X.IMG'))
     assert compute_image_url(obs) == '/tmp/somewhere/else/X.IMG'
 
 
@@ -158,7 +158,7 @@ def test_compute_image_url_falls_through_when_holdings_unset(
     # Drop the global config's pds3_holdings_root if present so the
     # fallback path does not silently route through it.
     config_stub = type('C', (), {'environment': type('E', (), {'pds3_holdings_root': None})()})()
-    obs = _fake_obs(abspath=Path('/tmp/x.IMG'))
+    obs = _fake_obs(image_url=Path('/tmp/x.IMG'))
     assert compute_image_url(obs, config_stub) == '/tmp/x.IMG'
 
 
@@ -172,13 +172,13 @@ def test_compute_image_url_uses_config_when_env_missing(
         (),
         {'environment': type('E', (), {'pds3_holdings_root': '/srv/pds_holdings'})()},
     )()
-    obs = _fake_obs(abspath=Path('/srv/pds_holdings/calibrated/COISS/y.IMG'))
+    obs = _fake_obs(image_url=Path('/srv/pds_holdings/calibrated/COISS/y.IMG'))
     assert compute_image_url(obs, config_stub) == 'pds3://calibrated/COISS/y.IMG'
 
 
 def test_compute_image_url_returns_blank_when_obs_has_no_path() -> None:
-    """An obs without ``abspath`` yields an empty string."""
-    obs = _fake_obs(abspath=None)
+    """An obs without ``image_url`` yields an empty string."""
+    obs = _fake_obs(image_url=None)
     assert compute_image_url(obs) == ''
 
 

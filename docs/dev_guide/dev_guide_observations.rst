@@ -266,10 +266,11 @@ instrument whose host supplies it. :class:`~spindoctor.obs.obs_snapshot_inst.Hos
 label that the Cassini ISS, Voyager ISS, and Galileo SSI hosts keep. Together these
 declarations list everything the package relies on a host for.
 
-The instrument classes replace one of these attributes. A host resolves every symlink in
-``abspath``, but the published image name has to be the name the caller used, so each
-class sets ``abspath`` again with
-:func:`~spindoctor.obs.obs_snapshot_inst.local_image_path`.
+A host resolves every symlink in ``abspath``, so an image reached through a link with a
+name of its own has its target's name there. The published image name has to be the name
+the caller used, so
+:attr:`~spindoctor.obs.obs_snapshot.ObsSnapshot.image_name` takes it from ``image_url``,
+and ``abspath`` serves only to read the file.
 
 When it wraps a snapshot, :class:`~spindoctor.obs.obs_snapshot.ObsSnapshot` finds the
 planet nearest the observer by measuring the distance to each planet in the

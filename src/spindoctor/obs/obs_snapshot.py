@@ -48,7 +48,7 @@ class ObsSnapshot(Obs, Snapshot):
     """The image array, indexed ``[v, u]``."""
 
     abspath: Path | FCPath
-    """The image file on local storage, whose name is the published image name."""
+    """The image file on local storage; a host resolves its symlinks."""
 
     image_url: str
     """The image file as the caller named it, published as the image path."""
@@ -284,6 +284,16 @@ class ObsSnapshot(Obs, Snapshot):
             and inv['v_max_unclipped'] >= self.extfov_v_min
             and inv['v_min_unclipped'] <= self.extfov_v_max
         )
+
+    @property
+    def image_name(self) -> str:
+        """The image file's name as the caller gave it, which is the published image name.
+
+        It is taken from ``image_url`` rather than ``abspath``, whose symlinks are resolved:
+        an image reached through a link with a name of its own would otherwise be published
+        under its target's name.
+        """
+        return FCPath(self.image_url).name
 
     @property
     def data_shape_uv(self) -> tuple[int, int]:

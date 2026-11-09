@@ -303,7 +303,7 @@ class ObsSim(ObsSnapshotInst):
         """
         return {
             'image_path': self.image_url,
-            'image_name': self.abspath.name,
+            'image_name': self.image_name,
             'instrument_host_lid': 'sim',
             'instrument_lid': 'sim',
             'image_shape_xy': self.data_shape_uv,

@@ -12,7 +12,7 @@ from spindoctor.support.sclk import exposure_counts, fractional_count
 from spindoctor.support.time import et_to_utc
 from spindoctor.support.types import NDArrayAnyType, PathLike
 
-from .obs_snapshot_inst import HostLabel, ObsSnapshotInst, local_image_path
+from .obs_snapshot_inst import HostLabel, ObsSnapshotInst
 
 # SCLK01_MODULI_82 and SCLK01_OFFSETS_82 of the Cassini spacecraft clock kernel,
 # $OOPS_RESOURCES/SPICE/Cassini/SCLK/cas00172.tsc: whole seconds, then 1/256-second ticks.
@@ -335,7 +335,6 @@ class ObsCassiniISS(ObsSnapshotInst, HostLabel):
         logger.debug(f'  Data min: {np.min(data)}, max: {np.max(data)}')
 
         new_obs = ObsCassiniISS(obs, config=config, extfov_margin_vu=extfov_margin_vu)
-        new_obs.abspath = local_image_path(fc_path)
         new_obs._inst_config = inst_config
         return new_obs
 
@@ -438,7 +437,7 @@ class ObsCassiniISS(ObsSnapshotInst, HostLabel):
                 f"unexpected Cassini ISS detector {self.detector!r}; expected 'NAC' or 'WAC'"
             )
 
-        image_name = self.abspath.name
+        image_name = self.image_name
         return {
             'image_path': self.image_url,
             'image_name': image_name,
