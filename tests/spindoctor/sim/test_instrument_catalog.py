@@ -574,7 +574,11 @@ def _shipped_parametric_tables() -> list[dict[str, Any]]:
     return tables
 
 
-@pytest.mark.parametrize('table', _shipped_parametric_tables())
+# A table that keeps fractional DN, which no packaged table does.
+_FRACTIONAL_TABLE = {'codes': 4, 'linear_dn': 0.1, 'quadratic_dn': 0.0, 'whole_dn': False}
+
+
+@pytest.mark.parametrize('table', [*_shipped_parametric_tables(), _FRACTIONAL_TABLE])
 def test_the_load_check_decodes_a_parametric_table_as_the_renderer_does(
     table: dict[str, Any],
 ) -> None:
