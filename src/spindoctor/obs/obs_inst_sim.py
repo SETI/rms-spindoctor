@@ -216,10 +216,15 @@ class ObsSim(ObsSnapshotInst):
             calibrated-unit sim instruments the published block carries no DN
             zero point to anchor a matched-filter limit, so the navigator uses a
             generous constant.
+
+        Raises:
+            ValueError: If the observation has no instrument configuration.
         """
-        inst_config = self._inst_config or {}
+        inst_config = self._inst_config
+        if inst_config is None:
+            raise ValueError('Instrument configuration not set')
         inst_noise = inst_config.get('noise') or {}
-        if inst_config.get('data_units', 'raw_dn') != 'raw_dn':
+        if inst_config['data_units'] != 'raw_dn':
             # calibrated_if: no published DN zero point to anchor the limit, so
             # the navigator-side detection limit is a generous constant.
             return 30.0

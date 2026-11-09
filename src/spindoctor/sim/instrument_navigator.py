@@ -286,7 +286,7 @@ def navigator_marker_value(inst_config: Mapping[str, Any]) -> float:
         ValueError: If ``noise.marker_value`` is a string other than ``'NaN'``.
     """
     noise = inst_config.get('noise') or {}
-    raw_dn = str(inst_config.get('data_units', 'raw_dn')) == 'raw_dn'
+    raw_dn = str(inst_config['data_units']) == 'raw_dn'
     value = noise.get('marker_value', 0 if raw_dn else None)
     if value is None:
         return math.nan
@@ -394,7 +394,7 @@ def frame_units_name(inst_config: Mapping[str, Any]) -> str:
     Returns:
         ``'DN'`` for a ``raw_dn`` block, ``'I/F'`` for a ``calibrated_if`` one.
     """
-    return 'DN' if str(inst_config.get('data_units', 'raw_dn')) == 'raw_dn' else 'I/F'
+    return 'DN' if str(inst_config['data_units']) == 'raw_dn' else 'I/F'
 
 
 def has_planted_offset(sim_params: Mapping[str, Any]) -> bool:
