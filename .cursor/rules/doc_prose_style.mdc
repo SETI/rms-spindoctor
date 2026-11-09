@@ -16,6 +16,13 @@ before claiming a documentation change is done; `scripts/run-all-checks.sh` runs
 it too. The rest of this rule is a review checklist -- a human or a model has to
 read the prose to apply it.
 
+In every pull request, read each changed passage aloud, or as if aloud, and rewrite
+any passage that does not sound like a person wrote it. This covers the files listed
+above, and also the docstrings, code comments, log lines, and error messages in
+`.py` files. It is the first item of the review checklist in section 8, and no
+script can check it. The rest of this rule applies only to the files under `docs/`,
+`README.md`, and `CONTRIBUTING.md`.
+
 ## 1. Audience separation
 
 The user guide is for users. A user runs command-line programs, reads the files
@@ -66,6 +73,7 @@ technique in one plain sentence and cross-reference the developer guide with
 | "the document shape depends on ..." | "the metadata document's contents depend on ..." | A shape is a physical form. |
 | "exactly as every offset product has always been built" | (delete) | No implementation history. |
 | "every program accepts the same options, so what you learn for one works for the next" | "every program accepts the same options" | Delete clauses that restate the obvious. |
+| "the scene names the mode", "a run naming a results index" | "the scene sets the mode", "a run that asks for a results index" | Say what happens. See the names rule below. |
 
 ### The X-not-Y test
 
@@ -89,6 +97,20 @@ sentence instead.
 
 **shape** means dimensions and nothing else. `image shape` (rows by columns) is
 correct and stays. A metadata document has **contents** or a **structure**.
+
+### The names rule
+
+Do not use **names** or **naming** as a verb for setting, listing, selecting, asking
+for, or referring to something. Say what happens instead. A scene file *sets* a
+mode. A task *lists* image files. An option *selects* volumes. A run *asks for* a
+results index. A chapter *refers to* the program it documents.
+
+The noun is fine: "instrument names", "a file name". So is naming in the literal
+sense: "a file named `X`", "named after the class that implements it".
+
+`scripts/check-doc-prose.sh --warnings` flags the likely verb uses. It flags some
+nouns and misses some verbs, so read each hit before changing it, and do not take a
+clean run to mean none are left.
 
 ## 3. Terminology
 
@@ -178,11 +200,28 @@ five copies of it read as distrust of the reader.
 
 The script cannot judge these. Read for them:
 
-1. Would a user who has never seen our source understand every sentence?
-2. Is every term defined before it is used, or linked to where it is defined?
-3. For each "X, not Y": would a reasonable reader have expected Y?
-4. Does each command-line option say what it does, what it looks at, and how
+1. Read each changed passage through as if aloud. Does it sound like something a
+   person would write? If not, rewrite it. This applies to the docstrings, code
+   comments, log lines, and error messages in `.py` files as much as to the files
+   under `docs/`. These are the usual signs that a passage fails:
+   - Stacked nouns: "the schema-version mismatch remedy step".
+   - A chain of qualifiers in front of one word: "the first completed
+     current-schema root ingest".
+   - A parenthetical inside a parenthetical.
+   - A key or identifier where an ordinary word would do. "When the image failed"
+     says the same thing as "when `status` is `error`".
+   - A relative clause packed in front of the verb: "a mode the scene's detector
+     chain never renders is disabled with a tooltip saying so". Write instead: "If
+     the scene's detector chain can't render a mode, the mode is disabled, and its
+     tooltip says why." The same goes for "a name the catalog does not know leaves
+     the selection as it is", from a docstring. Write instead: "If the catalog
+     doesn't know the name, the selection stays as it is."
+   - A sentence you have to read twice to follow.
+2. Would a user who has never seen our source understand every sentence?
+3. Is every term defined before it is used, or linked to where it is defined?
+4. For each "X, not Y": would a reasonable reader have expected Y?
+5. Does each command-line option say what it does, what it looks at, and how
    expensive it is?
-5. Is any passage explaining how the code works rather than what the program does?
-6. Does any sentence appeal to history, or to how a product has always been built?
-7. Is a convention described as a requirement?
+6. Is any passage explaining how the code works rather than what the program does?
+7. Does any sentence appeal to history, or to how a product has always been built?
+8. Is a convention described as a requirement?
