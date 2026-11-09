@@ -1,5 +1,4 @@
 from fractions import Fraction
-from pathlib import Path
 from typing import Any, cast
 
 import numpy as np
@@ -10,7 +9,7 @@ from spindoctor.support.sclk import exposure_counts, fractional_count, pds3_labe
 from spindoctor.support.time import et_to_utc
 from spindoctor.support.types import PathLike
 
-from .obs_snapshot_inst import HostLabel, ObsSnapshotInst
+from .obs_snapshot_inst import HostLabel, ObsSnapshotInst, local_image_path
 
 # SCLK01_MODULI_31/_32 and SCLK01_OFFSETS_31/_32 of the Voyager 1 and 2 spacecraft clock
 # kernels, $OOPS_RESOURCES/SPICE/Voyager/SCLK/vg100042.tsc and vg200041.tsc, which give both
@@ -178,8 +177,7 @@ class ObsVoyagerISS(ObsSnapshotInst, HostLabel):
         # The host module publishes no type information for from_file.
         obs = oops.hosts.voyager.iss.from_file(path)  # type: ignore[no-untyped-call]
         fc_path = FCPath(path)
-        obs.abspath = cast(Path, fc_path.get_local_path()).absolute()
-        obs.image_url = str(fc_path.absolute())
+        obs.abspath = local_image_path(fc_path)
 
         inst_config = config.category('voyager_iss')
 

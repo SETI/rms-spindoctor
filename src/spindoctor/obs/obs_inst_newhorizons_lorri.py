@@ -1,5 +1,4 @@
 from fractions import Fraction
-from pathlib import Path
 from typing import Any, cast
 
 import numpy as np
@@ -10,7 +9,7 @@ from spindoctor.support.sclk import exposure_counts, fractional_count, pds3_labe
 from spindoctor.support.time import et_to_utc
 from spindoctor.support.types import PathLike
 
-from .obs_snapshot_inst import ObsSnapshotInst
+from .obs_snapshot_inst import ObsSnapshotInst, local_image_path
 
 # SCLK01_MODULI_98 and SCLK01_OFFSETS_98 of the New Horizons spacecraft clock kernel,
 # $OOPS_RESOURCES/SPICE/New-Horizons/SCLK/new_horizons_2132.tsc: whole seconds, then
@@ -105,8 +104,7 @@ class ObsNewHorizonsLORRI(ObsSnapshotInst):
             path, calibration=False
         )
         fc_path = FCPath(path)
-        obs.abspath = cast(Path, fc_path.get_local_path()).absolute()
-        obs.image_url = str(fc_path.absolute())
+        obs.abspath = local_image_path(fc_path)
 
         inst_config = config.category('newhorizons_lorri')
 

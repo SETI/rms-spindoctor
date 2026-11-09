@@ -1,6 +1,5 @@
 from collections.abc import Mapping, Sequence
 from fractions import Fraction
-from pathlib import Path
 from typing import Any, cast
 
 import numpy as np
@@ -11,7 +10,7 @@ from spindoctor.support.sclk import exposure_counts, fractional_count
 from spindoctor.support.time import et_to_utc
 from spindoctor.support.types import NDArrayAnyType, PathLike
 
-from .obs_snapshot_inst import HostLabel, ObsSnapshotInst
+from .obs_snapshot_inst import HostLabel, ObsSnapshotInst, local_image_path
 
 # SCLK01_MODULI_77 and SCLK01_OFFSETS_77 of the Galileo spacecraft clock kernel,
 # $OOPS_RESOURCES/SPICE/Galileo/SCLK/mk00062a.tsc: the RIM count, then its 91 MOD91
@@ -121,8 +120,7 @@ class ObsGalileoSSI(ObsSnapshotInst, HostLabel):
 
         new_obs = ObsGalileoSSI(obs, config=config, extfov_margin_vu=extfov_margin_vu)
         fc_path = FCPath(path)
-        new_obs.abspath = cast(Path, fc_path.get_local_path()).absolute()
-        new_obs.image_url = str(fc_path.absolute())
+        new_obs.abspath = local_image_path(fc_path)
         new_obs._inst_config = inst_config
         return new_obs
 

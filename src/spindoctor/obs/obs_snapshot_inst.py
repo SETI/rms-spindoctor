@@ -1,9 +1,27 @@
-from typing import Any
+from pathlib import Path
+from typing import Any, cast
 
+from filecache import FCPath
 from oops.observation import Snapshot
 
 from .obs_inst import ObsInst
 from .obs_snapshot import ObsSnapshot
+
+
+def local_image_path(image: FCPath) -> Path:
+    """Return the image file on local storage, under the name the caller gave it.
+
+    An oops host records the local path with every symlink resolved, so an image reached
+    through a link with a name of its own would be published under its target's name,
+    which disagrees with the published image path.  This path keeps the link.
+
+    Parameters:
+        image: The image file as the caller named it.
+
+    Returns:
+        The absolute local path of the image, fetched into the cache when remote.
+    """
+    return cast(Path, image.get_local_path()).absolute()
 
 
 class HostLabel:
