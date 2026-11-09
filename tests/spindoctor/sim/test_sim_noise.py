@@ -10,7 +10,6 @@ from typing import Any
 import numpy as np
 import pytest
 
-from spindoctor.sim.forward.artifacts_catalog import DETECTOR_DEFAULTS
 from spindoctor.sim.forward.detector import (
     apply_detector,
     quantize_dn,
@@ -26,6 +25,7 @@ from spindoctor.sim.forward.detector.noise_stages import (
 )
 from spindoctor.sim.forward.detector.sqrt_lut import SqrtLut, resolve_sqrt_lut
 from spindoctor.sim.forward.stages import SimFrame
+from spindoctor.sim.instrument_resolvers import resolve_downlink_table
 from spindoctor.sim.seeds import derive_effect_seed
 
 # coiss_nac catalog: full well 110k e-, gain state 2 = 30 e-/DN, bias 20 DN.
@@ -156,7 +156,7 @@ def test_sqrt_lut_leaves_a_signal_dependent_residual() -> None:
     assert float(residual[0, 1]) > float(residual[0, 0])
 
 
-_CASSINI_LUT = resolve_sqrt_lut(DETECTOR_DEFAULTS['coiss_nac']['sqrt_lut'], saturation_dn=4095.0)
+_CASSINI_LUT = resolve_sqrt_lut(resolve_downlink_table('coiss_nac', None), saturation_dn=4095.0)
 _CASSINI_DN = _CASSINI_LUT.levels()
 
 

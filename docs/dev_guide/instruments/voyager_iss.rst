@@ -272,7 +272,7 @@ reproduces.
 
 **Per-spacecraft variation.** Two spacecraft, two CK objects, two clocks, four
 camera frames -- all derived per image from one label character. Nothing in
-configuration names a spacecraft.
+configuration refers to a spacecraft.
 
 **Rotation fitting.** ``fit_camera_rotation`` is ``false``, and that is **not**
 because there is nothing to fit. The distortion analysis measures a
@@ -364,8 +364,11 @@ Simulator model
 ===============
 
 **Instrument key.** ``vgiss``, one key for two spacecraft and four cameras.
-That is the model's sharpest simplification and it is documented as such in the
-catalog.
+That is the model's sharpest simplification, and the instrument's config entry
+says so. The entry sits under the ``vgiss`` key of
+``src/spindoctor/sim/instrument_configs/vgiss.yaml`` and holds the values below.
+It states ``data_units: calibrated_if``, the units of the GEOMED product and of
+the ``voyager_iss`` block, so a simulated frame is in I/F.
 
 **PSF kernel.** ``{sigma_v: 0.85, sigma_u: 0.85, w: 1.2e-2, r0: 2.0, n: 3.0}``,
 a **retained interim estimate**. The cohort's one star frame gives eight usable
@@ -378,17 +381,33 @@ Voyager references publish no FWHM to fall back on.
 ``{k1: -6.88e-03, k2: 1.46e-02, nonradial_rms_px: 0.2}``. The non-radial wander
 is non-zero: the resampled vidicon geometry carries coherent tangential
 distortion that a radial polynomial cannot represent. The block is the
-Voyager 2 wide angle measurement, and the catalog says plainly that one key
+Voyager 2 wide angle measurement, and the config entry says plainly that one key
 under-represents the spread across two spacecraft and two optics until
 per-camera keys and locked frames for each exist.
 
-**Artifact-mode availability.** The simulator guide's mode tables
+**Artifact-mode availability.** The config entry's ``artifact_modes.offered``
+lists its modes, and the simulator guide's mode tables
 (:ref:`sim-telemetry-modes` and :ref:`sim-detector-modes`) give each mode's
-cameras. This instrument is **not** in the CCD
-set, so the CCD-only modes -- ``radiation_transients`` and ``compression_dct`` --
-are unavailable to it. ``edited_frame`` defaults to a 440-pixel band, which is
-this instrument's commanded edited-mode band width, so a bare ``probability``
-keeps a physical centered band.
+cameras. Its detector model is ``vidicon``, so the modes that act in the CCD
+chain alone are unavailable to it. The entry states the reason for
+``fixed_pattern``: the vidicon DN chain has no fixed-pattern stage, so if a
+scene asks for the mode, validation fails with that reason. ``reseau_scars``
+(the reseau-removal patches left by archive processing) and
+``resample_texture`` (the geometric resample the pipeline's own input has been
+through) are telemetry-stage modes applied after the structured-loss modes,
+because they emulate archive processing rather than a detector or transmission
+defect.
+
+The entry's shape defaults give ``edited_frame`` a centered band 550 pixels wide.
+The edited modes downlink a centered band of 608, 440, 272, 160, or 80 of the 800
+samples in a raw line. The GEOMED resample spreads those 800 samples over 1000
+pixels, so the 440-sample band covers 550 pixels of the GEOMED frame. A scene that
+sets only a ``probability`` gets that band. The shape defaults give
+``reseau_scars`` 202 marks on a 59-pixel lattice. The camera's 202 reseau marks
+sit about 47 pixels apart in a raw frame, and the GEOMED resample stretches that
+to about 59 pixels.
+``native_frame_size_px`` is 1000, the GEOMED product's size, which the realism
+match uses to tell a full frame from a subframe.
 
 **Units.** A ``vgiss`` frame is in I/F, with a ``0`` missing-data marker. The
 simulator reads the same configuration block as real navigation, so a simulated
@@ -412,8 +431,10 @@ vidicon read noise (0.40 DN rms) takes a sky pixel below 0 only on a 1.5 DN
 excursion, about 7 pixels in 100,000, so the sky's first percentile stays
 positive.
 
-**Cosmic rays.** The vidicon's cosmic-ray stage works as on a CCD (see
-:ref:`sim-detector-stage`), but the catalog rate is a retained zero. The cohort
+**Cosmic rays.** The vidicon's cosmic-ray stage reads the rate as events per
+pixel per second of exposure, with no readout dwell, and each hit saturates the
+pixels it lands on, with no diffusion (see :ref:`sim-detector-stage`). The
+catalog rate is a retained zero. The cohort
 measures a 3.5e-5 transient fraction, mostly interpolated away by the
 reseau-anchored resampling, so it can't say how many hits the target took.
 

@@ -1,7 +1,7 @@
 """Resolved detector parameters for one scene render.
 
 :class:`DetectorParams` collapses the emulated instrument's config block, the
-per-instrument catalog defaults (:mod:`spindoctor.sim.forward.artifacts_catalog`),
+per-instrument catalog defaults (:mod:`spindoctor.sim.instrument_resolvers`),
 the scene ``detector`` / ``noise`` blocks, and the ``artifacts.instrument_defaults``
 switch into one flat, resolved view the detector stage reads.
 
@@ -24,7 +24,7 @@ well fraction a signal of 1.0 fills at the reference exposure; the image-side
 DN well is derived (``full_well_e / gain_e_per_dn``) and the navigator-side
 ``full_well_dn`` config key is a separate published value.  A scene
 ``detector.filter`` replaces the reference exposure with the one the filter's
-measured throughput implies (:mod:`spindoctor.sim.forward.filter_catalog`).
+measured throughput implies (:mod:`spindoctor.sim.instrument_resolvers`).
 """
 
 from __future__ import annotations
@@ -36,25 +36,32 @@ from typing import Any
 import numpy as np
 
 from spindoctor.config import DEFAULT_CONFIG
-from spindoctor.sim.forward.artifact_modes import (
+from spindoctor.sim.artifact_modes import (
     ARTIFACT_MODES,
     COUNT_ACTIVATION_KEYS,
     DETECTOR_MODE_ORDER,
-    PROBABILITY,
-    mode_available,
-    normalize_instrument,
     resolve_mode_config,
 )
-from spindoctor.sim.forward.artifacts_catalog import (
-    DEFAULT_CALIBRATED_SKY_IF,
+from spindoctor.sim.forward.detector.sqrt_lut import (
+    DownlinkCurve,
+    check_curve_ceiling,
+    resolve_sqrt_lut,
+)
+from spindoctor.sim.instrument_navigator import navigator_marker_value, resolve_sim_inst_config
+from spindoctor.sim.instrument_resolvers import (
+    FilterCatalogError,
     cataloged_binnings,
+    instrument_default_modes,
+    mode_available,
+    resolve_calibrated_sky_if,
+    resolve_data_units,
     resolve_detector_defaults,
+    resolve_detector_id,
+    resolve_downlink_table,
+    resolve_filter_throughput,
     resolve_mode_with_catalog,
     resolve_readout_mode,
 )
-from spindoctor.sim.forward.detector.sqrt_lut import SqrtLut, resolve_sqrt_lut
-from spindoctor.sim.forward.filter_catalog import FilterCatalogError, resolve_filter_throughput
-from spindoctor.sim.instruments import navigator_marker_value, resolve_sim_inst_config
 from spindoctor.sim.seeds import derive_effect_seed
 from spindoctor.support.types import NDArrayFloatType
 
@@ -71,7 +78,8 @@ class DetectorParams:
 
     Parameters:
         detector_model: 'ccd' (electron chain) or 'vidicon' (DN chain).
-        data_units: 'raw_dn' or 'calibrated_if'.
+        data_units: The frame's units, 'raw_dn' or 'calibrated_if', from the
+            instrument's config entry.
         signal_full_scale_frac: Well fraction a signal of 1.0 fills at the
             reference exposure.
         full_well_e: Full well in electrons (CCD path).
@@ -108,14 +116,16 @@ class DetectorParams:
         dark_dn: Dark pedestal in DN subtracted before the I/F divide.
         calibrated_sky_if: The calibrated sky residual in I/F, added after the
             I/F divide on a calibrated frame: the instrument's catalog value,
-            else :data:`~spindoctor.sim.forward.artifacts_catalog.DEFAULT_CALIBRATED_SKY_IF`.
+            else the generic entry's (see
+            :func:`~spindoctor.sim.instrument_resolvers.resolve_calibrated_sky_if`).
         marker_value: The missing-data marker the navigator applies to the frame
-            (see :func:`~spindoctor.sim.instruments.navigator_marker_value`),
+            (see :func:`~spindoctor.sim.instrument_navigator.navigator_marker_value`),
             possibly NaN; the calibration inverse keeps every pixel off it.
         random_seed: The scene seed for the per-effect sub-streams.
         detector_id: The emulated detector the fixed hot-pixel map belongs to:
-            the instrument name with the calibrated Cassini products folded
-            onto their raw cameras, and ``generic`` for a generic scene.
+            the instrument config's ``detector_id`` (a calibrated product's entry
+            sets it to its raw camera), else the instrument name, and ``generic``
+            for a generic scene.
         binning: The readout mode's binning factor ``b``: each frame pixel
             sums a ``b`` by ``b`` block of native pixels.  The catalog's
             native dark current and cosmic-ray rate are already scaled by
@@ -139,8 +149,10 @@ class DetectorParams:
         quantization_contour_step: The DN posterization step for the
             ``contour_8bit`` quantization sub-mode.
         sqrt_lut: The companding curve of the ``sqrt_lut`` quantization
-            sub-mode: the instrument's cataloged table, or the plain square-root
-            curve scaled to ``saturation_dn``; None selects that plain curve.
+            sub-mode: the downlink table the scene's ``detector.downlink_table``
+            selects, else the instrument's default table, else (for an instrument
+            that lists none) the plain square-root curve scaled to
+            ``saturation_dn``; None selects that plain curve.
         artifacts_adversarial: Whether stochastic detector artifact modes place
             their events adversarially onto the navigation features.
         detector_modes: The resolved config of every active detector-stage
@@ -192,7 +204,7 @@ class DetectorParams:
     hot_pixel_adversarial: bool = False
     hot_pixel_mode_active: bool = False
     quantization_contour_step: int = 8
-    sqrt_lut: SqrtLut | None = None
+    sqrt_lut: DownlinkCurve | None = None
     artifacts_adversarial: bool = False
     detector_modes: dict[str, dict[str, Any]] = field(default_factory=dict)
 
@@ -304,7 +316,8 @@ def _resolve_gain(
     """Select ``gain_e_per_dn`` from the catalog table by the scene gain state.
 
     Parameters:
-        catalog: The instrument's ``DETECTOR_DEFAULTS`` entry.
+        catalog: The instrument's detector defaults (see
+            :func:`~spindoctor.sim.instrument_resolvers.resolve_detector_defaults`).
         detector_block: The scene ``detector`` block (may set ``gain_state``).
         instrument: The sim instrument name, for error messages.
 
@@ -369,25 +382,21 @@ def _resolve_detector_modes(
     """Resolve the active detector-stage artifact modes for a render.
 
     Each present, available, and active mode is resolved (scene value over
-    catalog default over registry default) and returned keyed by name.  LORRI's
-    ``frame_transfer_smear`` is the one physical-signal-chain member turned on
-    under ``instrument_defaults``: when a LORRI scene has not set it, it is
-    injected at probability 1 with the catalog's nominal scrub/transfer times.
-    The injection is LORRI-only; the instrument-agnostic generic block accepts
-    every mode but emulates no frame-transfer camera, so it gets no injection.
+    catalog default over registry default) and returned keyed by name.  Under
+    ``instrument_defaults``, if the instrument's config lists a mode in
+    ``artifact_modes.instrument_defaults`` and the scene has not set that mode, the
+    mode gets the config's scene map for it (for example a probability of 1), so
+    the instrument's defining physical-chain artifact renders with its shape
+    defaults.
     """
+    supplied = instrument_default_modes(instrument) if instrument_defaults else {}
     modes: dict[str, dict[str, Any]] = {}
     for name in DETECTOR_MODE_ORDER:
         raw = artifacts.get(name)
         if raw is None:
-            if (
-                name == 'frame_transfer_smear'
-                and instrument_defaults
-                and normalize_instrument(instrument) == 'nhlorri'
-            ):
-                raw = {PROBABILITY: 1.0}
-            else:
+            if name not in supplied:
                 continue
+            raw = supplied[name]
         if not isinstance(raw, Mapping) or not mode_available(name, instrument):
             continue
         cfg = resolve_mode_with_catalog(name, raw, instrument)
@@ -483,9 +492,10 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
         The resolved :class:`DetectorParams`.
 
     Raises:
-        DetectorParamError: If the scene selects an unavailable gain state, names
-            a filter its camera does not catalog, or sets both ``detector.filter``
-            and ``detector.exposure_ref_sec``.
+        DetectorParamError: If the scene selects an unavailable gain state, sets
+            a filter or a downlink table its camera does not catalog, sets both
+            ``detector.filter`` and ``detector.exposure_ref_sec``, or compands the
+            frame through a downlink table that decodes above the ADC ceiling.
     """
     instrument = params.get('instrument')
     inst_config = resolve_sim_inst_config(
@@ -514,7 +524,7 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
             f'sim instrument {instrument!r} cannot use detector_model vidicon with '
             f'binning {binning}; the vidicon DN path has no binned readout'
         )
-    data_units = str(inst_config.get('data_units', 'raw_dn'))
+    data_units = resolve_data_units(instrument)
     exposure_sec = float(params.get('exposure_sec', 1.0))
     exposure_ref_sec = float(
         _scene_or_default(detector_block, 'exposure_ref_sec', catalog.get('exposure_ref_sec', 1.0))
@@ -718,6 +728,12 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
         instrument_defaults=instrument_defaults,
     )
     contour_step = 8
+    try:
+        downlink_table = resolve_downlink_table(
+            instrument, _scene_or_default(detector_block, 'downlink_table', None)
+        )
+    except ValueError as exc:
+        raise DetectorParamError(str(exc)) from exc
     if 'banding_coherent' in detector_modes:
         banding_amplitude = 0.0
     if 'bias_structure' in detector_modes:
@@ -739,6 +755,12 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
     if 'quantization_contour_8bit' in detector_modes:
         quantization = 'contour_8bit'
         contour_step = int(detector_modes['quantization_contour_8bit'].get('step', 8))
+    sqrt_lut = resolve_sqrt_lut(downlink_table, saturation_dn=saturation_dn)
+    if quantization == 'sqrt_lut' and downlink_table is not None:
+        try:
+            check_curve_ceiling(sqrt_lut, saturation_dn=saturation_dn)
+        except ValueError as exc:
+            raise DetectorParamError(f'sim instrument {instrument!r}: {exc}') from exc
 
     return DetectorParams(
         detector_model=detector_model,
@@ -771,10 +793,12 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
         vidicon=vidicon,
         calibration_scale_dn_per_s_per_if=calibration_scale,
         dark_dn=dark_dn,
-        calibrated_sky_if=float(catalog.get('calibrated_sky_if', DEFAULT_CALIBRATED_SKY_IF)),
+        calibrated_sky_if=float(
+            catalog.get('calibrated_sky_if', resolve_calibrated_sky_if(instrument))
+        ),
         marker_value=navigator_marker_value(inst_config),
         random_seed=int(params.get('random_seed', 42)),
-        detector_id=normalize_instrument(instrument),
+        detector_id=resolve_detector_id(instrument),
         binning=binning,
         instrument_defaults=instrument_defaults,
         readout_dark_e=readout_dark,
@@ -783,7 +807,7 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
         hot_pixel_adversarial=hot_pixel_adversarial,
         hot_pixel_mode_active=hot_pixel_mode_active,
         quantization_contour_step=contour_step,
-        sqrt_lut=resolve_sqrt_lut(catalog.get('sqrt_lut'), saturation_dn=saturation_dn),
+        sqrt_lut=sqrt_lut,
         artifacts_adversarial=artifacts_adversarial,
         detector_modes=detector_modes,
     )

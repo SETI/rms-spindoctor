@@ -3,30 +3,34 @@
 The simulator can render a frame as though it came from a specific camera, so
 that a 'sim COISS NAC raw' frame goes through the same per-instrument noise,
 saturation, marker, and unit settings the navigator applies to a real frame.
-This module resolves a sim ``instrument`` name to the matching
-``config_4N0_inst_*.yaml`` block; physical parameters then delegate to that
-block, while sim-only knobs (signal full-scale, cosmic-ray rate, dropout rate)
-stay in the ``sim`` config block.
+This module resolves a sim ``instrument`` name to the navigator config block that
+the instrument's config entry points at (its ``navigator`` section and detector; see
+:mod:`spindoctor.sim.instrument_catalog`); physical parameters then delegate to
+that block, while sim-only knobs (signal full-scale, cosmic-ray rate, dropout
+rate) stay in the ``sim`` config block.
 
-A value of ``None`` (or the generic aliases) selects the standalone ``sim``
-block, preserving the instrument-agnostic defaults.
+A value of ``None`` (or the generic entry and its aliases) selects the standalone
+``sim`` block, preserving the instrument-agnostic defaults.
 
 A scene may also carry ``instrument_config`` overrides that are deep-merged over
 the resolved block, so a scene can:
 
-- **inherit** every physical parameter from a named instrument (no overrides),
+- **inherit** every physical parameter from a chosen instrument (no overrides),
 - **inherit and override** individual parameters (override only those keys), or
-- **fully self-specify** by naming the generic block and overriding everything.
+- **fully self-specify** by choosing the generic block and overriding every key
+  except ``data_units``, which a scene can't set.
 
 Overriding a key pins it to the scene, so a later change to the real camera's
 config cannot silently shift a sim test's behavior for that key; the non-overridden
 keys continue to track the instrument.
 
-The resolved block also fixes a rendered frame's unit class.  A ``raw_dn``
-instrument renders detector counts with a ``0`` missing-data marker.  A
-``calibrated_if`` instrument (the calibrated Cassini cameras and Voyager ISS)
-renders I/F, also with a ``0`` marker, because the archived Cassini CALIB and
-Voyager GEOMED products fill lost pixels with zero.
+A rendered frame's units come from the instrument's config entry (``data_units``).
+The navigator reads the frame in the units its block sets, so resolving the block
+fails if the two differ.  It also fails if the block doesn't set ``data_units``,
+which the navigator requires.  A ``raw_dn`` instrument renders detector counts
+with a ``0`` missing-data marker.  A ``calibrated_if`` instrument (the calibrated
+Cassini cameras and Voyager ISS) renders I/F, also with a ``0`` marker, because the
+archived Cassini CALIB and Voyager GEOMED products fill lost pixels with zero.
 :func:`navigator_marker_value` reads the marker the way the navigator does,
 :func:`read_frame_as_navigator` classifies a frame the way the navigator's image
 classifier does, and :func:`frame_units_summary` states a rendered frame's
@@ -41,11 +45,11 @@ from typing import Any
 import numpy as np
 
 from spindoctor.config import Config
+from spindoctor.sim.instrument_catalog import InstrumentCatalog, load_instrument_catalog
+from spindoctor.sim.instrument_schema import config_error
 from spindoctor.support.types import NDArrayFloatType
 
 __all__ = [
-    'GENERIC_INSTRUMENT_ALIASES',
-    'SIM_INSTRUMENTS',
     'NavigatorFrameReading',
     'frame_units_name',
     'frame_units_summary',
@@ -56,20 +60,6 @@ __all__ = [
     'resolve_extfov_margin',
     'resolve_sim_inst_config',
 ]
-
-# Sim instrument name -> (config section, detector key or None for flat blocks).
-SIM_INSTRUMENTS: dict[str, tuple[str, str | None]] = {
-    'coiss_nac': ('cassini_iss', 'nac'),
-    'coiss_wac': ('cassini_iss', 'wac'),
-    'coiss_calib_nac': ('cassini_iss_calib', 'nac'),
-    'coiss_calib_wac': ('cassini_iss_calib', 'wac'),
-    'gossi': ('galileo_ssi', None),
-    'nhlorri': ('newhorizons_lorri', None),
-    'vgiss': ('voyager_iss', None),
-}
-
-# Names that resolve to the standalone, instrument-agnostic ``sim`` block.
-GENERIC_INSTRUMENT_ALIASES = frozenset({'generic', 'sim'})
 
 # The navigator's defaults for the image_quality_thresholds keys its classifier
 # reads (nav_orchestrator.instrument_config and ImageQualityThresholds).  The
@@ -111,21 +101,33 @@ def resolve_sim_inst_config(
 
     Parameters:
         config: The active configuration.
-        instrument: A sim instrument name (see ``SIM_INSTRUMENTS``), one of the
-            generic aliases, or ``None`` for the instrument-agnostic block.
+        instrument: A sim instrument name (see
+            :func:`~spindoctor.sim.instrument_catalog.sim_instrument_names`), the
+            generic entry or one of its aliases, or ``None`` for the
+            instrument-agnostic block.
         overrides: Optional scene-level overrides deep-merged over the resolved
             block. Overridden keys are pinned to the scene; the rest continue to
-            track the instrument. Combined with the generic block this expresses a
-            fully self-specified scene config.
+            track the instrument. Any key except ``data_units`` can be overridden,
+            so the generic block with every other key overridden is a fully
+            self-specified scene config.
 
     Returns:
         The resolved per-instrument config mapping (a fresh dict when ``overrides``
         are supplied, otherwise the live config block).
 
     Raises:
-        ValueError: If ``instrument`` is unrecognized, or the referenced config
-            section / detector is missing.
+        ValueError: If ``instrument`` is unrecognized, the referenced config section
+            or detector is missing, or ``overrides`` sets ``data_units``.
+        ~spindoctor.sim.instrument_schema.InstrumentConfigError: If the referenced
+            block doesn't set ``data_units``, or the entry's ``data_units`` differ
+            from the block's.  The message gives the entry's file and name and the
+            block; for a mismatch it also gives both units.
     """
+    if overrides and 'data_units' in overrides:
+        raise ValueError(
+            "instrument_config: a scene can't set data_units. Choose an instrument whose "
+            'entry renders the units you want.'
+        )
     base = _resolve_base_block(config, instrument)
     if not overrides:
         return base
@@ -134,14 +136,10 @@ def resolve_sim_inst_config(
 
 def _resolve_base_block(config: Config, instrument: str | None) -> Mapping[str, Any]:
     """Resolve the unmodified per-instrument (or generic) config block."""
-    if instrument is None or instrument in GENERIC_INSTRUMENT_ALIASES:
-        return config.category('sim')
-    if instrument not in SIM_INSTRUMENTS:
-        raise ValueError(
-            f'unknown sim instrument {instrument!r}; '
-            f'expected one of {sorted(SIM_INSTRUMENTS)} or a generic alias'
-        )
-    section, detector = SIM_INSTRUMENTS[instrument]
+    catalog = load_instrument_catalog()
+    navigator = catalog.entry(instrument)['navigator']
+    section: str = navigator['section']
+    detector: str | None = navigator.get('detector')
     category = config.category(section)
     if not category:
         raise ValueError(
@@ -149,6 +147,7 @@ def _resolve_base_block(config: Config, instrument: str | None) -> Mapping[str, 
             'which is missing or empty'
         )
     if detector is None:
+        _check_units_agree(catalog, instrument, category, block_name=section)
         return category
     if detector not in category:
         raise ValueError(
@@ -161,7 +160,44 @@ def _resolve_base_block(config: Config, instrument: str | None) -> Mapping[str, 
             f'sim instrument {instrument!r} detector block {section}.{detector} '
             f'is not a mapping; got {type(detector_block).__name__}'
         )
+    _check_units_agree(catalog, instrument, detector_block, block_name=f'{section}.{detector}')
     return detector_block
+
+
+def _check_units_agree(
+    catalog: InstrumentCatalog,
+    instrument: str | None,
+    block: Mapping[str, Any],
+    *,
+    block_name: str,
+) -> None:
+    """Refuse an entry whose frame units differ from the units its navigator block sets.
+
+    The navigator reads a frame in its block's ``data_units`` and refuses a frame
+    whose block doesn't set them, so a block without them is refused here as well.
+    If the entry
+    rendered I/F against a ``raw_dn`` block, the navigator would read every frame as
+    DN, and the other way round.
+    """
+    name = catalog.canonical_name(instrument)
+    source = catalog.sources[name]
+    if 'data_units' not in block:
+        raise config_error(
+            source,
+            'data_units',
+            f"the navigator block {block_name} doesn't set data_units, which the "
+            'navigator requires',
+        )
+    own = catalog.entry(name)['data_units']
+    expected = str(block['data_units'])
+    if own == expected:
+        return
+    raise config_error(
+        source,
+        'data_units',
+        f'the entry renders {own} frames, but its navigator block {block_name} reads '
+        f'frames as {expected}; the units must match',
+    )
 
 
 def navigator_matched_psf(
@@ -252,7 +288,7 @@ def navigator_marker_value(inst_config: Mapping[str, Any]) -> float:
         ValueError: If ``noise.marker_value`` is a string other than ``'NaN'``.
     """
     noise = inst_config.get('noise') or {}
-    raw_dn = str(inst_config.get('data_units', 'raw_dn')) == 'raw_dn'
+    raw_dn = str(inst_config['data_units']) == 'raw_dn'
     value = noise.get('marker_value', 0 if raw_dn else None)
     if value is None:
         return math.nan
@@ -352,16 +388,15 @@ def read_frame_as_navigator(
 
 
 def frame_units_name(inst_config: Mapping[str, Any]) -> str:
-    """Name the units a frame of this block is written in.
+    """Return the units in which the navigator reads this block's frames.
 
     Parameters:
         inst_config: A resolved per-instrument config block.
 
     Returns:
-        ``'DN'`` for a ``raw_dn`` block (the default when ``data_units`` is absent),
-        ``'I/F'`` for a ``calibrated_if`` one.
+        ``'DN'`` for a ``raw_dn`` block, ``'I/F'`` for a ``calibrated_if`` one.
     """
-    return 'DN' if str(inst_config.get('data_units', 'raw_dn')) == 'raw_dn' else 'I/F'
+    return 'DN' if str(inst_config['data_units']) == 'raw_dn' else 'I/F'
 
 
 def has_planted_offset(sim_params: Mapping[str, Any]) -> bool:
@@ -380,9 +415,9 @@ def has_planted_offset(sim_params: Mapping[str, Any]) -> bool:
 def frame_units_summary(image: NDArrayFloatType, inst_config: Mapping[str, Any]) -> str:
     """Describe a frame's units, value range, marker share, and the navigator's verdict.
 
-    The text names the units (``DN`` for a ``raw_dn`` block, ``I/F`` for a
-    ``calibrated_if`` block) and the finite value range, for example
-    ``'I/F 0 to 1.48'``.  When any pixel equals the navigator's marker (see
+    The text gives the frame's units and its finite value range, for example
+    ``'I/F 0 to 1.48'``.  The units are ``DN`` for a ``raw_dn`` block and ``I/F`` for
+    a ``calibrated_if`` one.  When any pixel equals the navigator's marker (see
     :func:`navigator_marker_value`; NaN pixels when the marker is NaN), it adds the
     marker and the share of pixels carrying it.  When the navigator's classifier
     (see :func:`read_frame_as_navigator`) would not call the frame clean, it adds

@@ -79,7 +79,7 @@ The pixel-corner cases:
 
 - Every field-of-view call: the observation's ``uv_from_ra_and_dec``, the field
   of view's ``uv_from_los`` and ``los_from_uv``, and its ``uv_los`` attribute,
-  which names where the boresight falls on the detector. For the Cassini
+  which says where the boresight falls on the detector. For the Cassini
   narrow-angle camera at full resolution that is ``(512.0, 512.0)`` on a
   1024-square detector -- the corner where the four central pixels meet -- and
   it halves with each summation mode, to 256.0 at 512 and 128.0 at 256.
@@ -144,7 +144,7 @@ spans ``[i, i + 1)``. The two readings coincide.
 A **mosaic grid** is not a pixel grid and answers the question differently
 again: row ``r`` of a ring mosaic is the sample taken at radius
 ``radius_inner + r * radius_resolution``, and column ``c`` of a body mosaic is
-the sample taken at longitude ``c * longitude_resolution``. A row names a
+the sample taken at longitude ``c * longitude_resolution``. A row stands for a
 point, not the interval around it.
 
 Where the conversion happens
@@ -314,9 +314,10 @@ must implement:
   :attr:`~spindoctor.obs.obs_inst.ObsInst.camera` rather than repeating a
   literal, so the name has one source.
 
-The :attr:`~spindoctor.obs.obs_inst.ObsInst.inst_config` property exposes the per-instrument YAML block
-loaded from ``src/spindoctor/config_files/config_4N0_inst_*.yaml`` so subclass
-methods can read instrument-specific knobs without hard-coding them.
+The :attr:`~spindoctor.obs.obs_inst.ObsInst.inst_config` property exposes the
+per-instrument YAML block loaded from
+``src/spindoctor/config_files/config_4N0_inst_*.yaml`` so subclass methods can read
+instrument-specific knobs without hard-coding them.
 
 Per-instrument subclasses
 =========================
@@ -350,10 +351,10 @@ per-image metadata into :meth:`~spindoctor.obs.obs_inst.ObsInst.get_public_metad
 Simulated-image instrument config: inherit / override / self-specify
 --------------------------------------------------------------------
 
-A simulated scene names an ``instrument`` (``coiss_nac``, ``vgiss``, ...) so its
+A simulated scene sets an ``instrument`` (``coiss_nac``, ``vgiss``, ...) so its
 rendered frame and its :class:`~spindoctor.obs.obs_inst_sim.ObsSim` go through the same
 per-instrument units, noise, saturation, and PSF the navigator applies to a real
-frame. :func:`~spindoctor.sim.instruments.resolve_sim_inst_config` maps that name to the
+frame. :func:`~spindoctor.sim.instrument_navigator.resolve_sim_inst_config` maps that name to the
 matching ``config_4N0_inst_*.yaml`` block (or the standalone ``sim`` block for the
 ``generic`` alias).
 
@@ -372,7 +373,7 @@ and lists replace). This gives three modes:
 fixture wants reproducible behavior. If every parameter is inherited live from a
 real camera's config, then editing that camera's ``star_psf_sigma`` (or noise,
 saturation, ...) silently shifts the rendered image and the recovered offset of
-every sim scene that names it -- re-blessing baselines for a change that had
+every sim scene that uses it -- re-blessing baselines for a change that had
 nothing to do with the simulator. Pinning a key via ``instrument_config`` decouples
 it from the camera config: the merge produces a fresh dict, so a later camera-config
 edit cannot reach a pinned key. Full self-specification (generic + complete
@@ -384,7 +385,8 @@ navigator's instrument settings stay consistent. The one precedence subtlety: th
 top-level scene ``noise`` block (the primary noise control) still wins over
 ``instrument_config.noise`` for rendering, so ``instrument_config`` is the channel
 for the instrument parameters that have no dedicated scene field (star PSF sigma,
-data units, saturation / full-well DN, extfov margin, ...).
+saturation / full-well DN, extfov margin, ...). A scene can't set ``data_units``
+there: a frame's units come only from the instrument's simulator config entry.
 
 Adding a new instrument
 =======================

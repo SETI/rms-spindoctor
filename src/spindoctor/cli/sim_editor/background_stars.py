@@ -134,8 +134,7 @@ class BackgroundStarsMixin(SimEditorBase):
         self._sky_diffuse_spin.setSingleStep(1.0)
         self._sky_diffuse_spin.setValue(float(sky.get('diffuse_e_per_px', 0.0)))
         self._sky_diffuse_spin.setToolTip(
-            'Detector-native units: electrons per pixel on a CCD, DN per pixel '
-            'on the Voyager vidicon.'
+            'Detector-native units: electrons per pixel on a CCD, DN per pixel on a vidicon.'
         )
         self._sky_diffuse_spin.valueChanged.connect(self._on_sky_diffuse_spin)
         gen_layout.addRow('Sky diffuse floor (e-/px):', self._sky_diffuse_spin)

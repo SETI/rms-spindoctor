@@ -1,4 +1,4 @@
-"""Shared extraction machinery for the Section 7 realism-match runner.
+"""Shared extraction machinery for the realism-match runner.
 
 This module turns one frame -- real or simulated -- into the pooled sample
 arrays the figures of merit compare.  Both sides run exactly the same code:
@@ -17,8 +17,12 @@ runner averages for the overlay figures and the density-W1 statistic.
 
 from __future__ import annotations
 
+import importlib
+import pkgutil
 import warnings
+from collections.abc import Callable
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -50,9 +54,13 @@ from spindoctor.support.types import NDArrayFloatType
 
 __all__ = [
     'FrameSamples',
+    'FrameSettings',
+    'FrameSettingsReader',
     'extract_feature_samples',
     'extract_pixel_samples',
+    'frame_settings_reader',
     'prepare_frame_features',
+    'register_frame_settings_reader',
 ]
 
 # Phase-angle bin edges (degrees) for the FOM 3 limb-width stratification.
@@ -92,6 +100,68 @@ _MAX_PROFILES_PER_FEATURE = 200
 # a shape-information guard, not solely a clip signature.
 _FLAT_TOP_MIN_PIXELS = 3
 _FLAT_TOP_REL_EPS = 1e-6
+
+
+@dataclass(frozen=True)
+class FrameSettings:
+    """A real frame's commanded settings its matched scene renders through.
+
+    Parameters:
+        filter_name: The filter combination (``'CL1+CL2'``) when the matched
+            instrument catalogs it, else None.
+        gain_state: The frame's gain state, or None when its label carries none.
+        quantization: The downlink quantization the frame went through, as a scene's
+            ``detector.quantization`` spells it, or None for the instrument's own.
+    """
+
+    filter_name: str | None = None
+    gain_state: int | None = None
+    quantization: str | None = None
+
+
+# A reader of a real frame's commanded settings: it takes the real observation and
+# the keywords ``image_id`` and ``instrument``.
+FrameSettingsReader = Callable[..., FrameSettings]
+
+# The prefix of a module that reads one mission's frame labels and registers its
+# reader here when imported.  The module is named for its mission.
+_FRAME_SETTINGS_MODULE_PREFIX = 'sim_realism_frames_'
+
+# The registered readers, by the sidecar's mission.
+_FRAME_SETTINGS_READERS: dict[str, FrameSettingsReader] = {}
+
+
+def register_frame_settings_reader(mission: str, reader: FrameSettingsReader) -> None:
+    """Register the reader of one mission's real-frame settings.
+
+    A mission-named module (``sim_realism_frames_<mission>.py`` beside this one)
+    calls this when it is imported.
+
+    Parameters:
+        mission: The sidecar mission whose frames the reader reads.
+        reader: The reader.
+    """
+    _FRAME_SETTINGS_READERS[mission] = reader
+
+
+def frame_settings_reader(mission: str) -> FrameSettingsReader | None:
+    """The reader of a mission's real-frame settings, or None if it has none.
+
+    Every ``sim_realism_frames_*`` module beside this one is imported first, so each
+    registers its reader without this module referring to any mission.  If a mission
+    has no reader, its matched scenes render at the instrument's own settings.
+
+    Parameters:
+        mission: The sidecar's mission.
+
+    Returns:
+        The registered reader, or None.
+    """
+    directory = str(Path(__file__).resolve().parent)
+    for module in pkgutil.iter_modules([directory]):
+        if module.name.startswith(_FRAME_SETTINGS_MODULE_PREFIX):
+            importlib.import_module(f'{__package__}.{module.name}')
+    return _FRAME_SETTINGS_READERS.get(mission)
 
 
 @dataclass
@@ -461,8 +531,8 @@ def extract_feature_samples(
                 if peak > 0.0:
                     out.add_curve('ring_radial_profile', taps, mean / peak)
         elif feature.feature_type is NavFeatureType.TERMINATOR_ARC:
-            # Terminator realism is a separate verdict (plan Section 8);
-            # excluded from the FOM 3 limb distribution.
+            # Terminator realism is judged separately, by FOM 3 computed on the
+            # terminator side; excluded from the FOM 3 limb distribution.
             continue
     if star_candidates and star_radius is not None:
         star_candidates.sort(key=lambda entry: entry[0], reverse=True)

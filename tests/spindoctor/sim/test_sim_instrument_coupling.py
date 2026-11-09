@@ -14,8 +14,8 @@ import pytest
 from spindoctor.config import DEFAULT_CONFIG
 from spindoctor.nav_orchestrator.instrument_config import instrument_settings_from_obs
 from spindoctor.obs.obs_inst_sim import ObsSim
-from spindoctor.sim.forward.artifacts_catalog import resolve_detector_defaults
-from spindoctor.sim.instruments import resolve_sim_inst_config
+from spindoctor.sim.instrument_navigator import resolve_sim_inst_config
+from spindoctor.sim.instrument_resolvers import resolve_detector_defaults
 from spindoctor.sim.render import render_combined_model
 
 
@@ -157,11 +157,20 @@ def test_generic_plus_overrides_self_specifies() -> None:
     cfg = resolve_sim_inst_config(
         DEFAULT_CONFIG,
         'generic',
-        {'star_psf_sigma': 1.5, 'data_units': 'raw_dn', 'noise': {'read_noise_dn': 3.0}},
+        {'star_psf_sigma': 1.5, 'noise': {'read_noise_dn': 3.0}},
     )
     assert cfg['star_psf_sigma'] == 1.5
-    assert cfg['data_units'] == 'raw_dn'
     assert cfg['noise']['read_noise_dn'] == 3.0
+
+
+def test_overrides_cannot_set_data_units() -> None:
+    """The resolver refuses a data_units override, even for an unvalidated scene."""
+    message = (
+        r"instrument_config: a scene can't set data_units\. Choose an instrument whose "
+        r'entry renders the units you want\.'
+    )
+    with pytest.raises(ValueError, match=message):
+        resolve_sim_inst_config(DEFAULT_CONFIG, 'vgiss', {'data_units': 'raw_dn'})
 
 
 def test_no_overrides_returns_the_live_block() -> None:
@@ -203,7 +212,7 @@ def test_instrument_config_round_trips_through_the_scene_schema(tmp_path: Path) 
 
 def test_extfov_margin_unmatched_size_names_the_available_keys() -> None:
     """An uncovered image size fails with the size and the fallback keys."""
-    from spindoctor.sim.instruments import resolve_extfov_margin
+    from spindoctor.sim.instrument_navigator import resolve_extfov_margin
 
     with pytest.raises(ValueError, match=r'image size 777.*fallback sizes.*\[64, 512\]'):
         resolve_extfov_margin(
@@ -215,7 +224,7 @@ def test_extfov_margin_unmatched_size_names_the_available_keys() -> None:
 
 def test_extfov_margin_fallback_covers_uncatalogued_size() -> None:
     """A size the instrument table lacks resolves through the generic table."""
-    from spindoctor.sim.instruments import resolve_extfov_margin
+    from spindoctor.sim.instrument_navigator import resolve_extfov_margin
 
     margin = resolve_extfov_margin(
         {'extfov_margin_vu': {512: [10, 10]}},

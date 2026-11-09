@@ -8,19 +8,23 @@ residual, shot noise, dark / hot / bloom / banding / bias); ``adversarial`` bias
 each enabled mode's stochastic placement onto the navigation features.
 
 The mode rows are not hand-coded: each is generated from an
-:class:`~spindoctor.sim.forward.artifact_modes.ArtifactMode` (see
+:class:`~spindoctor.sim.artifact_modes.ArtifactMode` (see
 :mod:`spindoctor.cli.sim_editor.artifact_mode_rows`), so a registered mode gains
 an editor row with no change here.  The whole tab keeps one discipline: an
 unchecked switch or mode leaves its key absent, an enabled mode starts as an
 empty map, and every parameter key -- including the detector override's -- appears
 only once its widget is edited, so keys the operator never touched track the
-per-instrument catalog defaults.  A mode unavailable on the scene's instrument is
-disabled with the registry's reason as its tooltip.
+per-instrument catalog defaults.  If the scene's instrument doesn't offer a mode,
+or the scene's detector chain can't render it, the mode's row is disabled, and its
+tooltip says why.  If the scene already includes such a mode, its row stays enabled
+until the author turns the mode off.  The rows refresh when the instrument, the
+detector model, or the binning changes.
 
-The detector group is a checkable override for the electron-chain gain state, the
-detector model, the exposure the well fraction references, and the ADC
-quantization sub-mode, under the same per-key discipline (a vgiss scene stays
-vidicon without ever writing ``detector_model``).
+The detector group is a checkable override for six keys: the gain state, the
+binning, the detector model, the reference exposure, the quantization, and the
+downlink table.  It too writes only the keys the author edits, so a vgiss scene
+stays vidicon without ever writing ``detector_model``.  Choosing 'camera default'
+for the downlink table removes the key, so the camera's default table applies.
 """
 
 from typing import Any
@@ -39,24 +43,23 @@ from PyQt6.QtWidgets import (
 
 from spindoctor.cli.sim_editor.artifact_mode_rows import ModeRow
 from spindoctor.cli.sim_editor.base import SimEditorBase
-from spindoctor.sim.forward.artifact_modes import ARTIFACT_MODES
-from spindoctor.sim.forward.artifacts_catalog import cataloged_binnings, resolve_detector_defaults
-
-_DETECTOR_MODELS: list[str] = ['ccd', 'vidicon']
-_QUANTIZATION_MODES: list[str] = [
-    'exact',
-    '8bit',
-    'uneven_12bit',
-    'sqrt_lut',
-    'ls8b',
-    'contour_8bit',
-]
+from spindoctor.sim.artifact_modes import ARTIFACT_MODES, DETECTOR_MODELS, QUANTIZATION_MODES
+from spindoctor.sim.instrument_resolvers import (
+    cataloged_binnings,
+    downlink_table_names,
+    resolve_detector_defaults,
+    resolve_detector_model,
+    resolve_readout_mode,
+)
 
 # The rendering stages the mode rows are grouped under, in tab order.
 _STAGE_TITLES: tuple[tuple[str, str], ...] = (
     ('telemetry', 'Telemetry-stage modes'),
     ('detector', 'Detector-stage modes'),
 )
+
+# The downlink-table choice that leaves ``detector.downlink_table`` out of the scene.
+_CAMERA_DEFAULT_TABLE = 'camera default'
 
 
 class ArtifactsTabMixin(SimEditorBase):
@@ -212,16 +215,45 @@ class ArtifactsTabMixin(SimEditorBase):
         return group
 
     def _refresh_artifact_mode_availability(self) -> None:
-        """Enable or disable each mode row for the scene's instrument."""
+        """Enable or disable each mode row for the scene's instrument and detector model.
+
+        The detector model is the one the scene renders with: its own
+        ``detector.detector_model``, else the camera's default in the scene's
+        readout mode, as the detector resolver reads it.  If the scene already
+        includes a mode and the mode then becomes unavailable, as on an instrument
+        change, the scene keeps it and scene validation reports it.  The mode's row
+        stays enabled until the author turns the mode off.
+        """
         instrument = self.sim_params.get('instrument')
+        detector = self.sim_params.get('detector')
+        model = resolve_detector_model(instrument, detector if isinstance(detector, dict) else None)
         for row in self._mode_rows.values():
-            row.apply_availability(instrument)
+            row.apply_availability(instrument, model)
 
     # ---- Detector override group ----
 
-    def _detector_catalog(self) -> dict[str, Any]:
-        """The selected instrument's detector catalog defaults."""
-        return resolve_detector_defaults(self.sim_params.get('instrument'))
+    def _detector_catalog(self, binning: int) -> dict[str, Any]:
+        """The selected instrument's detector defaults in one readout mode.
+
+        Where the readout mode sets a key, its value replaces the native one, as
+        the detector resolver merges them, so a readout mode with its own default
+        gain state or quantization shows that default.
+
+        Parameters:
+            binning: The scene's readout-mode binning.
+        """
+        instrument = self.sim_params.get('instrument')
+        return {
+            **resolve_detector_defaults(instrument),
+            **resolve_readout_mode(instrument, binning),
+        }
+
+    def _detector_block(self) -> dict[str, Any]:
+        """The scene's detector keys that carry a value; a null reads as absent."""
+        detector = self.sim_params.get('detector')
+        if not isinstance(detector, dict):
+            return {}
+        return {key: value for key, value in detector.items() if value is not None}
 
     def _build_detector_group(self) -> QGroupBox:
         """Build the detector-override group (per-key discipline)."""
@@ -230,11 +262,12 @@ class ArtifactsTabMixin(SimEditorBase):
         form = QFormLayout(group)
         detector = self.sim_params.get('detector')
 
+        # The spin's range follows the instrument's cataloged gain states; see
+        # _set_gain_state_range.
         self._detector_gain_state_spin = QSpinBox()
-        self._detector_gain_state_spin.setRange(0, 3)
         self._detector_gain_state_spin.setToolTip(
-            'Electron-chain gain state; must be cataloged for the instrument. '
-            'Written to the scene only when edited.'
+            "Electron-chain gain state; the range spans the instrument's cataloged "
+            'states. Written to the scene only when edited.'
         )
         form.addRow('Gain state:', self._detector_gain_state_spin)
 
@@ -246,7 +279,7 @@ class ArtifactsTabMixin(SimEditorBase):
         form.addRow('Binning:', self._detector_binning_combo)
 
         self._detector_model_combo = QComboBox()
-        self._detector_model_combo.addItems(_DETECTOR_MODELS)
+        self._detector_model_combo.addItems(list(DETECTOR_MODELS))
         self._detector_model_combo.setToolTip(
             'ccd electron chain or vidicon DN chain. Written to the scene only when edited.'
         )
@@ -263,11 +296,19 @@ class ArtifactsTabMixin(SimEditorBase):
         form.addRow('Exposure ref (sec):', self._detector_exposure_ref_spin)
 
         self._detector_quantization_combo = QComboBox()
-        self._detector_quantization_combo.addItems(_QUANTIZATION_MODES)
+        self._detector_quantization_combo.addItems(list(QUANTIZATION_MODES))
         self._detector_quantization_combo.setToolTip(
             'ADC quantization sub-mode. Written to the scene only when edited.'
         )
         form.addRow('Quantization:', self._detector_quantization_combo)
+
+        self._detector_downlink_combo = QComboBox()
+        self._detector_downlink_combo.setToolTip(
+            'The table the sqrt_lut quantization decodes through. '
+            f"Choose '{_CAMERA_DEFAULT_TABLE}' to use the camera's own table. "
+            'Written to the scene only when edited.'
+        )
+        form.addRow('Downlink table:', self._detector_downlink_combo)
 
         self._detector_group = group
         self._set_detector_widget_values()
@@ -278,6 +319,7 @@ class ArtifactsTabMixin(SimEditorBase):
         self._detector_exposure_ref_spin.valueChanged.connect(self._on_detector_exposure_ref)
         self._detector_model_combo.currentTextChanged.connect(self._on_detector_model)
         self._detector_quantization_combo.currentTextChanged.connect(self._on_detector_quantization)
+        self._detector_downlink_combo.currentIndexChanged.connect(self._on_detector_downlink_table)
         group.toggled.connect(self._on_detector_group_toggled)
         return group
 
@@ -288,18 +330,26 @@ class ArtifactsTabMixin(SimEditorBase):
         key the operator never edits stays absent and keeps tracking the
         catalog.
         """
-        detector = self.sim_params.get('detector')
-        # A key set to null reads as absent, as the renderer reads it.
-        block = (
-            {key: value for key, value in detector.items() if value is not None}
-            if isinstance(detector, dict)
-            else {}
-        )
-        catalog = self._detector_catalog()
-        self._detector_gain_state_spin.setValue(
-            int(block.get('gain_state', catalog.get('default_gain_state', 0)))
-        )
-        self._set_binning_choices(int(block.get('binning', 1)))
+        binning = int(self._detector_block().get('binning', 1))
+        self._set_binning_choices(binning)
+        self._show_readout_mode_values(binning)
+        self._set_downlink_table_choices()
+
+    def _show_readout_mode_values(self, binning: int) -> None:
+        """Show each detector key other than the binning, under one readout mode.
+
+        If the scene sets a key, its widget shows the scene's value; otherwise the
+        widget shows the instrument's default in that readout mode.  Only display
+        state.
+
+        Parameters:
+            binning: The readout-mode binning the defaults come from.
+        """
+        block = self._detector_block()
+        catalog = self._detector_catalog(binning)
+        gain_state = int(block.get('gain_state', catalog.get('default_gain_state', 0)))
+        self._set_gain_state_range(catalog, gain_state)
+        self._detector_gain_state_spin.setValue(gain_state)
         model = str(block.get('detector_model', catalog.get('detector_model', 'ccd')))
         model_index = self._detector_model_combo.findText(model)
         if model_index >= 0:
@@ -311,6 +361,22 @@ class ArtifactsTabMixin(SimEditorBase):
         quantization_index = self._detector_quantization_combo.findText(quantization)
         if quantization_index >= 0:
             self._detector_quantization_combo.setCurrentIndex(quantization_index)
+
+    def _set_gain_state_range(self, catalog: dict[str, Any], gain_state: int) -> None:
+        """Span the gain-state spin over the instrument's cataloged states.
+
+        The catalog requires an instrument's gain states to be contiguous
+        integers, so the range from the lowest to the highest holds exactly the
+        cataloged states.  If the scene's state lies outside it, the range widens
+        to hold it, so the widget shows what the scene says and validation reports
+        it.  If the instrument has no gain table (a vidicon), its single state is 0.
+
+        Parameters:
+            catalog: The instrument's detector defaults.
+            gain_state: The state the spin is about to show.
+        """
+        states = {*(catalog.get('gain_e_per_dn_by_state') or {0: 1.0}), gain_state}
+        self._detector_gain_state_spin.setRange(min(states), max(states))
 
     def _set_binning_choices(self, binning: int) -> None:
         """List the instrument's cataloged binnings and select ``binning``.
@@ -324,6 +390,22 @@ class ArtifactsTabMixin(SimEditorBase):
         self._detector_binning_combo.clear()
         self._detector_binning_combo.addItems([str(choice) for choice in sorted(choices)])
         self._detector_binning_combo.setCurrentText(str(binning))
+
+    def _set_downlink_table_choices(self) -> None:
+        """List the instrument's downlink tables and select the scene's.
+
+        The first choice stands for an absent key and is selected when the scene sets
+        no table.  If the scene sets a table the instrument doesn't list, that table is
+        listed too, so the widget shows what the scene says and validation reports it.
+        """
+        selected = self._detector_block().get('downlink_table')
+        choices = list(downlink_table_names(self.sim_params.get('instrument')))
+        if selected is not None and str(selected) not in choices:
+            choices.append(str(selected))
+        combo = self._detector_downlink_combo
+        combo.clear()
+        combo.addItems([_CAMERA_DEFAULT_TABLE, *choices])
+        combo.setCurrentIndex(0 if selected is None else choices.index(str(selected)) + 1)
 
     def _refresh_detector_catalog_defaults(self) -> None:
         """Refresh the displayed catalog defaults after an instrument change.
@@ -349,6 +431,15 @@ class ArtifactsTabMixin(SimEditorBase):
         detector[key] = value
         self._updater.request_update()
 
+    def _remove_detector_key(self, key: str) -> None:
+        """Remove one detector key, preserving every other authored key."""
+        if self._syncing or not self._detector_group.isChecked():
+            return
+        detector = self.sim_params.get('detector')
+        if isinstance(detector, dict) and key in detector:
+            del detector[key]
+            self._updater.request_update()
+
     def _on_detector_group_toggled(self, on: bool) -> None:
         """Insert an empty detector block, or remove the block entirely.
 
@@ -365,6 +456,7 @@ class ArtifactsTabMixin(SimEditorBase):
             self._refresh_detector_catalog_defaults()
         else:
             self.sim_params.pop('detector', None)
+        self._refresh_artifact_mode_availability()
         self._updater.request_update()
 
     def _on_detector_gain_state(self, value: int) -> None:
@@ -372,21 +464,58 @@ class ArtifactsTabMixin(SimEditorBase):
         self._set_detector_key('gain_state', int(value))
 
     def _on_detector_binning(self, text: str) -> None:
-        """Write the readout-mode binning on a selection."""
-        if text:
-            self._set_detector_key('binning', int(text))
+        """Write the readout-mode binning on a selection, then show that mode's defaults.
+
+        Every other key's display is refreshed, so an unedited gain state or
+        quantization shows what the scene renders with in the new mode.  The mode
+        rows follow the detector model of the new readout mode.
+        """
+        if not text or self._syncing:
+            return
+        self._set_detector_key('binning', int(text))
+        self._syncing = True
+        try:
+            self._show_readout_mode_values(int(self._detector_block().get('binning', 1)))
+        finally:
+            self._syncing = False
+        self._refresh_artifact_mode_availability()
 
     def _on_detector_exposure_ref(self, value: float) -> None:
         """Write the reference exposure on a spin edit."""
         self._set_detector_key('exposure_ref_sec', float(value))
 
     def _on_detector_model(self, text: str) -> None:
-        """Write the detector model on a combo edit."""
+        """Write the detector model on a combo edit, then refresh the mode rows.
+
+        If the new model's chain can't render a mode, the mode's row is disabled;
+        if it can, the row is enabled again.
+        """
         self._set_detector_key('detector_model', text or 'ccd')
+        self._refresh_artifact_mode_availability()
 
     def _on_detector_quantization(self, text: str) -> None:
         """Write the quantization sub-mode on a combo edit."""
         self._set_detector_key('quantization', text or 'exact')
+
+    def _on_detector_downlink_table(self, index: int) -> None:
+        """Write the downlink table on a selection, or remove it on the first choice.
+
+        Removing the key lets the author drop a table once the scene no longer
+        quantizes with ``sqrt_lut``, without clearing the whole detector block.  The
+        choices are then rebuilt, so a table the instrument doesn't list is no longer
+        offered.
+        """
+        if index < 0 or self._syncing:
+            return
+        if index == 0:
+            self._remove_detector_key('downlink_table')
+            self._syncing = True
+            try:
+                self._set_downlink_table_choices()
+            finally:
+                self._syncing = False
+        else:
+            self._set_detector_key('downlink_table', self._detector_downlink_combo.itemText(index))
 
     # ---- Scene-load sync ----
 

@@ -1,6 +1,7 @@
 """Telemetry structured-loss geometry: a missing line is a full line.
 
-Every implemented artifact loss mode gets a geometry test here: the shape it
+Every implemented artifact loss mode gets a geometry test here (the reseau scars
+in :mod:`tests.spindoctor.sim.test_sim_telemetry_reseau`): the shape it
 plants is exact (whole lines, grid-aligned blocks, spikes that flip rather than
 zero), it is a no-op when its activation key is 0, its realized geometry is
 recorded in the frame truth, and its adversarial placement lands on the
@@ -14,14 +15,13 @@ from typing import Any
 import numpy as np
 import pytest
 
-from spindoctor.sim.forward.artifact_counts import planted_artifact_counts
-from spindoctor.sim.forward.artifact_modes import (
+from spindoctor.sim.artifact_modes import (
     ARTIFACT_MODES,
     MODE_KEYS,
     STRUCTURED_LOSS_ORDER,
-    mode_available,
     resolve_mode_config,
 )
+from spindoctor.sim.forward.artifact_counts import planted_artifact_counts
 from spindoctor.sim.forward.detector.params import (
     CalibrationMap,
     calibration_map,
@@ -31,6 +31,7 @@ from spindoctor.sim.forward.feature_loci import FeatureLoci, choose_pixels, extr
 from spindoctor.sim.forward.stages import SimFrame
 from spindoctor.sim.forward.telemetry import apply_telemetry
 from spindoctor.sim.forward.telemetry_loss import apply_line_garble, apply_pixel_spikes
+from spindoctor.sim.instrument_resolvers import mode_available
 from spindoctor.sim.render import render_combined_model
 from spindoctor.sim.scene import SimSceneValidationError, validate_sim_params
 from spindoctor.support.types import NDArrayFloatType
@@ -73,8 +74,8 @@ def _body_truth(v0: int, v1: int, u0: int, u1: int) -> dict[str, Any]:
 # --- registry surface -------------------------------------------------------
 
 
-def test_registry_covers_every_5_1_mode_key() -> None:
-    """The registry holds exactly 31 mode keys (the 5.1 registry)."""
+def test_registry_covers_every_mode_key() -> None:
+    """The registry holds exactly 31 mode keys."""
     assert len(MODE_KEYS) == 31
 
 
@@ -85,7 +86,7 @@ def test_structured_loss_order_covers_the_loss_modes() -> None:
     archive-scar modes flank the loss loop in their own sub-stages, so none of
     those belong in the structured-loss order.
     """
-    from spindoctor.sim.forward.artifact_modes import (
+    from spindoctor.sim.artifact_modes import (
         TELEMETRY_POST_LOSS_ORDER,
         TELEMETRY_PRE_LOSS_ORDER,
     )
@@ -274,11 +275,11 @@ def test_edited_frame_keeps_only_a_centered_band() -> None:
 
 
 def test_edited_frame_bare_probability_keeps_the_default_band() -> None:
-    """A bare probability renders the default 440-px Voyager IM centered band."""
-    frame = _frame(size=512)
+    """A bare probability renders the vgiss default band, 550 GEOMED pixels wide."""
+    frame = _frame(size=1000)
     record = _render(frame, {'edited_frame': {'probability': 1.0}}, instrument='vgiss')
     u0, u1 = record['edited_frame']['kept_band']
-    assert u1 - u0 == 440
+    assert u1 - u0 == 550
     assert np.all(frame.signal[:, :u0] == 0.0)
     assert np.all(frame.signal[:, u1:] == 0.0)
     assert np.all(frame.signal[:, u0:u1] == 1.0)
@@ -839,6 +840,16 @@ def test_enum_param_rejects_bad_value() -> None:
         validate_sim_params(scene)
 
 
+def test_enum_param_accepts_null() -> None:
+    """A null enum value is unset, so it passes validation and stays null."""
+    scene = {
+        **_base_scene('coiss_nac'),
+        'artifacts': {'alternating_lines': {'probability': 1.0, 'period': None}},
+    }
+    validated = validate_sim_params(scene)
+    assert validated['artifacts']['alternating_lines']['period'] is None
+
+
 def test_adversarial_flag_is_a_boolean() -> None:
     """The adversarial switch must be a boolean."""
     scene = {**_base_scene(), 'artifacts': {'adversarial': 'yes'}}
@@ -901,47 +912,6 @@ def test_compression_dct_disabled_at_zero_probability() -> None:
         {'probability': 0.0, 'scale_factor': 40.0, 'block': 8},
         rng=np.random.default_rng(1),
         protect=None,
-    )
-    assert record['active'] is False
-    assert np.array_equal(signal, before)
-
-
-def test_reseau_scars_smooth_lattice_patches() -> None:
-    """Reseau scars smooth patches on the lattice, lowering local variation."""
-    from spindoctor.sim.forward.telemetry_artifacts import apply_reseau_scars
-
-    rng = np.random.default_rng(4)
-    signal = rng.uniform(0.0, 100.0, size=(128, 128))
-    record = apply_reseau_scars(
-        signal,
-        {'probability': 1.0, 'spacing_px': 46, 'patch_radius_px': 4},
-        rng=np.random.default_rng(1),
-    )
-    assert record['active'] is True
-    assert record['marks'] > 0
-
-
-def test_reseau_lattice_spans_the_archive_frame() -> None:
-    """At the 800x800 archive size the 202 marks span the full frame height."""
-    from spindoctor.sim.forward.telemetry_artifacts import _reseau_lattice
-
-    points = _reseau_lattice(800, 800, 46)
-    assert len(points) == 202
-    rows = [v for v, _u in points]
-    assert max(rows) - min(rows) >= 0.9 * 800
-
-
-def test_reseau_scars_disabled_at_zero_probability() -> None:
-    """A zero probability plants no scars."""
-    from spindoctor.sim.forward.telemetry_artifacts import apply_reseau_scars
-
-    rng = np.random.default_rng(5)
-    signal = rng.uniform(0.0, 100.0, size=(128, 128))
-    before = signal.copy()
-    record = apply_reseau_scars(
-        signal,
-        {'probability': 0.0, 'spacing_px': 46, 'patch_radius_px': 4},
-        rng=np.random.default_rng(1),
     )
     assert record['active'] is False
     assert np.array_equal(signal, before)
