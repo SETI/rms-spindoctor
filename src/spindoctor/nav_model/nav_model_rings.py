@@ -26,7 +26,6 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
-import oops
 from oops import Meshgrid
 from oops.backplane import Backplane
 
@@ -57,6 +56,7 @@ from spindoctor.nav_model.rings import (
     RingsRenderContext,
     validate_no_date_overlaps,
 )
+from spindoctor.obs import ObsSnapshotInst
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 from spindoctor.support.memory import release_transient_memory
 from spindoctor.support.time import now_dt, utc_to_et
@@ -266,7 +266,7 @@ class NavModelRings(NavModelRingsBase):
     def __init__(
         self,
         name: str,
-        obs: oops.Observation,
+        obs: ObsSnapshotInst,
         *,
         config: Config | None = None,
     ) -> None:
@@ -300,7 +300,7 @@ class NavModelRings(NavModelRingsBase):
 
     @classmethod
     def instances_for_obs(
-        cls, obs: oops.Observation, *, config: Config | None = None
+        cls, obs: ObsSnapshotInst, *, config: Config | None = None
     ) -> list[NavModel]:
         """Return one NavModelRings per planet whose ring catalog touches the FOV.
 

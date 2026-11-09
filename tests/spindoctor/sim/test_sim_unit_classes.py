@@ -5,10 +5,10 @@ marker.  The calibrated instruments (the calibrated Cassini cameras and ``vgiss`
 render I/F with a ``0`` marker, because the Cassini CALIB and Voyager GEOMED
 products the navigator reads fill lost pixels with zero.  In every class the
 simulator writes the marker the navigator applies to the same frame, and
-:func:`~spindoctor.sim.instruments.read_frame_as_navigator` reads the frame the
+:func:`~spindoctor.sim.instrument_navigator.read_frame_as_navigator` reads the frame the
 navigator reads (planted offset applied) to the verdict the navigator's
 classifier reaches, blank before missing data.
-:func:`~spindoctor.sim.instruments.frame_units_summary` states that verdict.
+:func:`~spindoctor.sim.instrument_navigator.frame_units_summary` states that verdict.
 """
 
 import math
@@ -24,8 +24,8 @@ from spindoctor.nav_orchestrator.instrument_config import instrument_settings_fr
 from spindoctor.obs.obs_inst_sim import ObsSim
 from spindoctor.sim.forward.stages import SimFrame
 from spindoctor.sim.forward.telemetry import apply_telemetry
-from spindoctor.sim.instruments import (
-    SIM_INSTRUMENTS,
+from spindoctor.sim.instrument_catalog import sim_instrument_names
+from spindoctor.sim.instrument_navigator import (
     frame_units_name,
     frame_units_summary,
     has_planted_offset,
@@ -35,7 +35,7 @@ from spindoctor.sim.instruments import (
 )
 from spindoctor.sim.render import render_combined_model
 
-_ALL_INSTRUMENTS = [*sorted(SIM_INSTRUMENTS), 'generic']
+_ALL_INSTRUMENTS = [*sim_instrument_names(), 'generic']
 
 
 def _navigator_marker(instrument: str, overrides: dict[str, Any] | None = None) -> float:
@@ -203,7 +203,7 @@ def test_marker_helper_defaults_a_calibrated_block_to_nan() -> None:
 def test_marker_helper_rejects_a_non_nan_string() -> None:
     """A marker string other than NaN is refused with the navigator's message."""
     with pytest.raises(ValueError, match='must be "NaN" or numeric'):
-        navigator_marker_value({'noise': {'marker_value': 'zero'}})
+        navigator_marker_value({'data_units': 'raw_dn', 'noise': {'marker_value': 'zero'}})
 
 
 @pytest.mark.parametrize(
@@ -370,7 +370,7 @@ def test_reading_matches_the_classifier_exactly_at_each_limit(instrument: str) -
     inst_config = dict(resolve_sim_inst_config(DEFAULT_CONFIG, instrument))
     thresholds = instrument_settings_from_obs(_InstConfigOnly(inst_config)).thresholds
     classifier = NavImageClassifier(thresholds=thresholds)
-    raw = inst_config.get('data_units', 'raw_dn') == 'raw_dn'
+    raw = inst_config['data_units'] == 'raw_dn'
     frames = _boundary_frames(thresholds, raw=raw)
     mirror = {
         name: read_frame_as_navigator(img, inst_config).image_class for name, img in frames.items()
@@ -441,11 +441,11 @@ def test_units_name_matches_the_navigator_reading(instrument: str) -> None:
 
 @pytest.mark.parametrize(
     ('inst_config', 'units'),
-    [({}, 'DN'), ({'data_units': 'raw_dn'}, 'DN'), ({'data_units': 'calibrated_if'}, 'I/F')],
-    ids=['absent', 'raw_dn', 'calibrated_if'],
+    [({'data_units': 'raw_dn'}, 'DN'), ({'data_units': 'calibrated_if'}, 'I/F')],
+    ids=['raw_dn', 'calibrated_if'],
 )
 def test_units_name_follows_the_data_units(inst_config: dict[str, Any], units: str) -> None:
-    """A raw_dn block (the default) is DN, a calibrated_if block is I/F."""
+    """A raw_dn block is DN, and a calibrated_if block is I/F."""
     assert frame_units_name(inst_config) == units
 
 

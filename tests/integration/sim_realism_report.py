@@ -27,7 +27,7 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from matplotlib.axes import Axes
 
-from spindoctor.sim.forward.artifacts_catalog import resolve_detector_defaults
+from spindoctor.sim.instrument_resolvers import resolve_detector_defaults
 from spindoctor.support.types import NDArrayFloatType
 from tests.integration.sim_realism import InstrumentComparison, RealismResults
 

@@ -46,7 +46,7 @@ from spindoctor.cli.backplanes.merge import merge_sources_into_master
 from spindoctor.cli.backplanes.statistics import DEGREES
 from spindoctor.cli.backplanes.writer import write_fits
 from spindoctor.config import MAIN_LOGGER, Config
-from spindoctor.obs import ObsSnapshot
+from spindoctor.obs import ObsSnapshotInst
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 
 COHORT_SHAPE_VU = (16, 16)
@@ -316,7 +316,7 @@ def write_backplanes(
         'distance': _ring_distance(bodies),
     }
 
-    snapshot = cast(ObsSnapshot, _SimulatedSnapshot(sim_inventory, config))
+    snapshot = cast(ObsSnapshotInst, _SimulatedSnapshot(sim_inventory, config))
     master_by_type, body_id_map = merge_sources_into_master(
         snapshot, bodies_result=bodies_result, rings_result=rings_result
     )

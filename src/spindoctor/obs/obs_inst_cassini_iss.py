@@ -1,18 +1,18 @@
 import re
 from collections.abc import Mapping
 from fractions import Fraction
-from pathlib import Path
 from typing import Any, cast
 
+import host_cassini
 import numpy as np
 from filecache import FCPath
 
 from spindoctor.config import DEFAULT_CONFIG, IMAGE_LOGGER, Config, logged_section
 from spindoctor.support.sclk import exposure_counts, fractional_count
 from spindoctor.support.time import et_to_utc
-from spindoctor.support.types import PathLike
+from spindoctor.support.types import NDArrayAnyType, PathLike
 
-from .obs_snapshot_inst import ObsSnapshotInst
+from .obs_snapshot_inst import HostLabel, ObsSnapshotInst
 
 # SCLK01_MODULI_82 and SCLK01_OFFSETS_82 of the Cassini spacecraft clock kernel,
 # $OOPS_RESOURCES/SPICE/Cassini/SCLK/cas00172.tsc: whole seconds, then 1/256-second ticks.
@@ -241,12 +241,24 @@ def _published_sclk(start: str | None, stop: str | None) -> dict[str, float | No
     )
 
 
-class ObsCassiniISS(ObsSnapshotInst):
+class ObsCassiniISS(ObsSnapshotInst, HostLabel):
     """Implements an observation of a Cassini ISS image.
 
     This class provides specialized functionality for accessing and analyzing Cassini
     ISS image data.
     """
+
+    detector: str
+    """The camera, ``'NAC'`` or ``'WAC'``."""
+
+    filter1: str
+    """The filter in the first filter wheel, as the label names it."""
+
+    filter2: str
+    """The filter in the second filter wheel, as the label names it."""
+
+    gain_mode: int | None
+    """The gain state, 0 to 3 for 215, 95, 29 and 12 electrons per DN, or None if unknown."""
 
     @staticmethod
     @logged_section('obs', 'LOAD IMAGE')
@@ -268,13 +280,12 @@ class ObsCassiniISS(ObsSnapshotInst):
 
                 - fast_distortion: Whether to use a fast distortion model.
 
-                - return_all_planets: Whether to return all planets.
+                - return_all_planets: Whether the host lists the kernels of every planet,
+                  not only Jupiter or Saturn.
 
         Returns:
             An ObsCassiniISS object containing the image data and metadata.
         """
-
-        import oops.hosts.cassini.iss
 
         config = config or DEFAULT_CONFIG
         logger = IMAGE_LOGGER
@@ -285,14 +296,14 @@ class ObsCassiniISS(ObsSnapshotInst):
         logger.debug(f'Reading Cassini ISS image {path}')
         logger.debug(f'  Fast distortion: {fast_distortion}')
         logger.debug(f'  Return all planets: {return_all_planets}')
-        obs = oops.hosts.cassini.iss.from_file(
+        obs = host_cassini.CassiniISS.from_file(
             path, fast_distortion=fast_distortion, return_all_planets=return_all_planets
         )
+        # The host inserts the camera and the image as subfields, which the Snapshot it
+        # returns does not declare.
+        detector = str(obs.subfields['detector']).lower()
+        data: NDArrayAnyType = obs.subfields['data']
         fc_path = FCPath(path)
-        obs.abspath = cast(Path, fc_path.get_local_path()).absolute()
-        obs.image_url = str(fc_path.absolute())
-
-        detector = obs.detector.lower()
         # Cassini ISS CALIB products carry pixels in I/F units; the RAW
         # and CALIB pipelines have different blank / saturation /
         # noisy thresholds.  ``_CALIB.IMG`` in the filename selects the
@@ -315,13 +326,13 @@ class ObsCassiniISS(ObsSnapshotInst):
         if extfov_margin_vu is None:
             extfov_margin_vu_entry = inst_config['extfov_margin_vu']
             if isinstance(extfov_margin_vu_entry, dict):
-                extfov_margin_vu = extfov_margin_vu_entry[obs.data.shape[0]]
+                extfov_margin_vu = extfov_margin_vu_entry[data.shape[0]]
             else:
                 extfov_margin_vu = extfov_margin_vu_entry
-        logger.debug(f'  Data shape: {obs.data.shape}')
+        logger.debug(f'  Data shape: {data.shape}')
         logger.debug(f'  Extfov margin vu: {extfov_margin_vu}')
         # TODO This is slow when debug turned off
-        logger.debug(f'  Data min: {np.min(obs.data)}, max: {np.max(obs.data)}')
+        logger.debug(f'  Data min: {np.min(data)}, max: {np.max(data)}')
 
         new_obs = ObsCassiniISS(obs, config=config, extfov_margin_vu=extfov_margin_vu)
         new_obs._inst_config = inst_config
@@ -426,7 +437,7 @@ class ObsCassiniISS(ObsSnapshotInst):
                 f"unexpected Cassini ISS detector {self.detector!r}; expected 'NAC' or 'WAC'"
             )
 
-        image_name = self.abspath.name
+        image_name = self.image_name
         return {
             'image_path': self.image_url,
             'image_name': image_name,

@@ -23,11 +23,10 @@ dependencies = [
   "rms-pdslogger>=3.2.1",
   "rms-pdstable>=1.0.1",
   "rms-pdstemplate>=2.3.0",
-  "rms-polymath>=2.1.0",
+  "rms-host-cassini>=0.1.1",
+  "rms-polymath>=2.1.1",
   "rms-psfmodel",
-  # rms-oops 0.4.0 changed the Snapshot constructor (cadence is required) and
-  # breaks the test suite; the cap stays until the code moves to the 0.4 API.
-  "rms-oops>=0.1.5,<0.4",
+  "rms-oops>=0.4.0",
   "rms-starcat>=1.0.1",
   "ruamel.yaml",
   "scipy",
@@ -73,7 +72,8 @@ dev = [
   "pytest-xdist",
   "ruff",
   # The Cassini ISS label tests read a VICAR label directly, which is the only
-  # direct use of rms-vicar; the runtime reaches VICAR files through rms-oops.
+  # direct use of rms-vicar; the runtime reaches VICAR files through rms-oops
+  # and rms-host-cassini.
   "rms-vicar>=1.3.0",
   "rms-spindoctor[docs]",
   "rms-spindoctor[postgres]",
@@ -133,10 +133,6 @@ ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 module = "lxml.*"
-ignore_missing_imports = true
-
-[[tool.mypy.overrides]]
-module = "oops.*"
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]

@@ -29,7 +29,7 @@ from typing import TYPE_CHECKING, Any, ClassVar
 from spindoctor.annotation import Annotations
 from spindoctor.config import Config
 from spindoctor.feature.feature import NavFeature
-from spindoctor.obs import ObsSnapshot
+from spindoctor.obs import ObsSnapshotInst
 from spindoctor.support.nav_base import NavBase
 
 if TYPE_CHECKING:  # pragma: no cover - typing-only import
@@ -68,7 +68,7 @@ class NavModel(NavBase, ABC):
         if not cls.__dict__.get('_abstract', False):
             NavModel._registry.append(cls)
 
-    def __init__(self, name: str, obs: ObsSnapshot, *, config: Config | None = None) -> None:
+    def __init__(self, name: str, obs: ObsSnapshotInst, *, config: Config | None = None) -> None:
         super().__init__(config=config)
         self._name = name
         self._obs = obs
@@ -80,7 +80,7 @@ class NavModel(NavBase, ABC):
         return self._name
 
     @property
-    def obs(self) -> ObsSnapshot:
+    def obs(self) -> ObsSnapshotInst:
         """The observation snapshot this model is built against."""
         return self._obs
 
@@ -90,7 +90,9 @@ class NavModel(NavBase, ABC):
         return self._metadata
 
     @classmethod
-    def instances_for_obs(cls, obs: ObsSnapshot, *, config: Config | None = None) -> list[NavModel]:
+    def instances_for_obs(
+        cls, obs: ObsSnapshotInst, *, config: Config | None = None
+    ) -> list[NavModel]:
         """Return concrete NavModel instances applicable to ``obs``.
 
         Default returns ``[]``.  Subclasses that auto-instantiate from an
@@ -156,7 +158,7 @@ class NavModel(NavBase, ABC):
         """
 
 
-def build_models_for_obs(obs: ObsSnapshot, *, config: Config | None = None) -> list[NavModel]:
+def build_models_for_obs(obs: ObsSnapshotInst, *, config: Config | None = None) -> list[NavModel]:
     """Construct every NavModel applicable to ``obs``.
 
     Iterates ``NavModel._registry`` and lets each registered concrete

@@ -133,6 +133,18 @@ def test_validate_sim_params_rejects_nan_positive_number() -> None:
         validate_sim_params(params)
 
 
+def test_validate_sim_params_rejects_scene_data_units() -> None:
+    """A scene's instrument_config can't set data_units, even to the entry's own units."""
+    params = _sim_params()
+    params['instrument_config'] = {'data_units': 'raw_dn'}
+    message = (
+        r"sim_params: instrument_config: a scene can't set data_units\. Choose an "
+        r'instrument whose entry renders the units you want\.$'
+    )
+    with pytest.raises(SimSceneValidationError, match=message):
+        validate_sim_params(params)
+
+
 def test_load_rejects_schema_version_1(tmp_path: Path) -> None:
     """The loader accepts only the current schema version."""
     path = tmp_path / 'v1.yaml'

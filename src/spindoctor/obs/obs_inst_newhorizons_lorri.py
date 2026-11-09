@@ -1,5 +1,4 @@
 from fractions import Fraction
-from pathlib import Path
 from typing import Any, cast
 
 import numpy as np
@@ -64,6 +63,9 @@ class ObsNewHorizonsLORRI(ObsSnapshotInst):
     Horizons LORRI image data.
     """
 
+    _label_clock_counts: tuple[str | None, str | None]
+    """The start and stop clock counts of the PDS3 label beside the image."""
+
     @staticmethod
     @logged_section('obs', 'LOAD IMAGE')
     def from_file(
@@ -97,10 +99,11 @@ class ObsNewHorizonsLORRI(ObsSnapshotInst):
         # navigation pipeline treats image brightness scale-invariantly (NCC
         # correlation, image-derived MAD noise thresholds, magnitude-based star
         # gate), so no I/F conversion is required or expected here.
-        obs = oops.hosts.newhorizons.lorri.from_file(path, calibration=False)
+        # The host module publishes no type information for from_file.
+        obs = oops.hosts.newhorizons.lorri.from_file(  # type: ignore[no-untyped-call]
+            path, calibration=False
+        )
         fc_path = FCPath(path)
-        obs.abspath = cast(Path, fc_path.get_local_path()).absolute()
-        obs.image_url = str(fc_path.absolute())
 
         inst_config = config.category('newhorizons_lorri')
 
@@ -183,7 +186,7 @@ class ObsNewHorizonsLORRI(ObsSnapshotInst):
 
         return {
             'image_path': self.image_url,
-            'image_name': self.abspath.name,
+            'image_name': self.image_name,
             'instrument_host_lid': 'urn:nasa:pds:context:instrument_host:spacecraft.nh',
             'instrument_lid': 'urn:nasa:pds:context:instrument:nh.lorri',
             'start_time_utc': et_to_utc(self.time[0]),

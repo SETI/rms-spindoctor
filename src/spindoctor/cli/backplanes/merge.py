@@ -4,7 +4,7 @@ from typing import Any
 import cspyce
 import numpy as np
 
-from spindoctor.obs import ObsSnapshot
+from spindoctor.obs import ObsSnapshotInst
 
 
 def fake_naif_id(body_name: str) -> int:
@@ -24,7 +24,7 @@ def fake_naif_id(body_name: str) -> int:
     return 10000 + (int.from_bytes(digest[:8], 'big') % 20000)
 
 
-def body_naif_id(snapshot: ObsSnapshot, body_name: str) -> int:
+def body_naif_id(snapshot: ObsSnapshotInst, body_name: str) -> int:
     """Return the NAIF ID a body's pixels carry in the body identity map.
 
     Parameters:
@@ -49,7 +49,7 @@ def body_naif_id(snapshot: ObsSnapshot, body_name: str) -> int:
 
 
 def merge_sources_into_master(
-    snapshot: ObsSnapshot,
+    snapshot: ObsSnapshotInst,
     *,
     bodies_result: dict[str, Any],
     rings_result: dict[str, Any] | None,

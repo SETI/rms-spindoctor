@@ -9,11 +9,11 @@ change handlers.
 from PyQt6.QtWidgets import QComboBox, QDoubleSpinBox, QFormLayout, QLineEdit, QSpinBox
 
 from spindoctor.cli.sim_editor.base import SimEditorBase
-from spindoctor.sim.instruments import SIM_INSTRUMENTS
-
-# Instrument options for the General-tab selector: the generic (instrument-
-# agnostic) frame plus every per-instrument sim camera.
-_INSTRUMENT_CHOICES: list[str] = ['generic', *sorted(SIM_INSTRUMENTS)]
+from spindoctor.sim.instrument_catalog import (
+    GENERIC_INSTRUMENT,
+    load_instrument_catalog,
+    sim_instrument_names,
+)
 
 
 class GlobalFieldsMixin(SimEditorBase):
@@ -83,13 +83,12 @@ class GlobalFieldsMixin(SimEditorBase):
         gen_layout.addRow('Random seed:', self._random_seed_spin)
 
         # Instrument selector: drives the per-instrument noise / saturation /
-        # PSF / unit settings the renderer applies (see spindoctor.sim.instruments).
+        # PSF / unit settings the renderer applies (see spindoctor.sim.instrument_navigator).
         self._instrument_combo = QComboBox()
-        self._instrument_combo.addItems(_INSTRUMENT_CHOICES)
-        instrument = str(self.sim_params.get('instrument', 'generic'))
-        instrument_index = self._instrument_combo.findText(instrument)
-        if instrument_index >= 0:
-            self._instrument_combo.setCurrentIndex(instrument_index)
+        # The generic (instrument-agnostic) frame, then every instrument config
+        # file's camera.
+        self._instrument_combo.addItems([GENERIC_INSTRUMENT, *sim_instrument_names()])
+        self._select_instrument(str(self.sim_params.get('instrument', 'generic')))
         self._instrument_combo.setToolTip(
             'Camera the sim emulates; sets noise, saturation, PSF, and units.'
         )
@@ -208,6 +207,25 @@ class GlobalFieldsMixin(SimEditorBase):
         """Update the render RNG seed."""
         self.sim_params['random_seed'] = value
         self._updater.request_update()
+
+    def _select_instrument(self, instrument: str) -> None:
+        """Show a scene's instrument in the selector, and an alias as its camera.
+
+        The selector lists each camera once by its own name, so an alias (such as
+        ``sim`` for the generic entry) selects the camera it stands for.  If the
+        catalog doesn't know the name, the selection stays as it is, and scene
+        validation reports it.  The scene keeps the name it was written with.
+
+        Parameters:
+            instrument: The scene's ``instrument`` value.
+        """
+        try:
+            name = load_instrument_catalog().canonical_name(instrument)
+        except ValueError:
+            return
+        index = self._instrument_combo.findText(name)
+        if index >= 0:
+            self._instrument_combo.setCurrentIndex(index)
 
     def _on_instrument(self, text: str) -> None:
         """Update the emulated instrument and refresh the PSF preview."""

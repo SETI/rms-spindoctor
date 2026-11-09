@@ -300,7 +300,7 @@ def _inject_sim_params(
     import copy as _copy
 
     from spindoctor.config import DEFAULT_CONFIG
-    from spindoctor.sim.instruments import navigator_matched_psf
+    from spindoctor.sim.instrument_navigator import navigator_matched_psf
     from spindoctor.sim.scene import validate_sim_params
 
     params = _copy.deepcopy(dict(sim_params))

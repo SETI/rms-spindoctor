@@ -57,9 +57,9 @@ def add_coherent_banding(
     """Add coherent banding (electrons) in place, horizontal and/or vertical.
 
     A horizontal family is line-correlated (constant along a row, a sinusoid in
-    the row index) -- the Cassini 2 Hz / LORRI striping shape; a vertical family
-    is column-correlated (a sinusoid in the column index) -- the Galileo 42-px
-    supply-noise comb.  ``both`` lays down a vertical comb plus a horizontal
+    the row index) -- the line-readout-rate striping shape; a vertical family
+    is column-correlated (a sinusoid in the column index) -- a supply-noise comb
+    along each line.  ``both`` lays down a vertical comb plus a horizontal
     band.  A mid-image readout pause steps the horizontal spatial frequency by
     ``freq_step_factor`` and, when ``dark_step_dn`` is set, steps the dark level
     at that line (converted to electrons through ``gain_e_per_dn``).  A zero
@@ -161,7 +161,7 @@ def apply_exposure_shading(
 
     A focal-plane shutter opens and closes line by line, so the effective
     exposure varies from ``top_factor`` at line 0 to ``bottom_factor`` at the
-    last line (the Galileo ~1.5 -> ~1.05 ms shading).  Modeled as a
+    last line (a camera's factors are its ``dark_ramp`` shape defaults).  Modeled as a
     multiplicative gradient on the accumulated electrons.  Equal factors are a
     no-op.
 

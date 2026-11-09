@@ -32,15 +32,15 @@ def offset_from_correction(fov: oops.fov.FOV, correction: np.ndarray) -> tuple[f
     Returns:
         The ``(dv, du)`` offset in pixels that produces this correction.
     """
-    xy_los = fov.xy_from_uv(fov.uv_los)
+    # Every concrete FOV states its line of sight; the FOV base class declares none.
+    uv_los: oops.Pair = fov.uv_los  # type: ignore[attr-defined]
+    los_u, los_v = np.asarray(uv_los.vals, np.float64)
+    xy_los = fov.xy_from_uv(uv_los)
     corrected = np.asarray(fov.los_from_xy(xy_los).unit().vals, np.float64)
     uncorrected = np.asarray(correction, np.float64).T @ corrected
     xy_uncorrected = oops.Pair((uncorrected[0] / uncorrected[2], uncorrected[1] / uncorrected[2]))
-    uv = fov.uv_from_xy(xy_los - xy_uncorrected)
-    return (
-        float(uv.vals[1] - fov.uv_los.vals[1]),
-        float(uv.vals[0] - fov.uv_los.vals[0]),
-    )
+    uv_u, uv_v = np.asarray(fov.uv_from_xy(xy_los - xy_uncorrected).vals, np.float64)
+    return (float(uv_v - los_v), float(uv_u - los_u))
 
 
 def observation_attitude(obs: ObsSnapshotInst, et: float) -> np.ndarray:
@@ -76,7 +76,7 @@ SYNTHETIC_MIDTIME_ET = 100.25
 SYNTHETIC_STOP_ET = 100.5
 
 
-def synthetic_fov() -> oops.fov.FOV:
+def synthetic_fov() -> oops.fov.FlatFOV:
     """Build the synthetic camera the hermetic C-matrix tests point.
 
     Returns:

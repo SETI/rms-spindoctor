@@ -22,6 +22,8 @@ from dataclasses import dataclass
 from datetime import date
 from typing import Any
 
+from filecache import FCPath
+
 __all__ = [
     'LibraryEntryDraft',
     'build_sidecar_yaml',
@@ -67,9 +69,9 @@ def infer_obs_metadata(obs: Any) -> LibraryEntryDraft:
     on validation, which is the right error.
     """
     image_id = ''
-    abspath = getattr(obs, 'abspath', None)
-    if abspath is not None and getattr(abspath, 'stem', None):
-        image_id = str(abspath.stem)
+    image_url = getattr(obs, 'image_url', None)
+    if image_url:
+        image_id = FCPath(image_url).stem
 
     mission = _OBS_CLASS_TO_MISSION.get(type(obs).__name__, '')
 
@@ -116,32 +118,32 @@ def infer_obs_metadata(obs: Any) -> LibraryEntryDraft:
 def compute_image_url(obs: Any, config: Any = None) -> str:
     """Return the best ``image_url`` for the sidecar.
 
-    When the obs's absolute path lives under a known PDS3 holdings root
-    (resolved from ``PDS3_HOLDINGS_DIR`` first, then
+    When the image, as the caller named it, lives under a known PDS3
+    holdings root (resolved from ``PDS3_HOLDINGS_DIR`` first, then
     ``config.environment.pds3_holdings_root``), the URL is rewritten to
     the opaque ``pds3://<relative-path>`` form the regression test
-    re-resolves at load time.  Otherwise the raw absolute path is
-    returned so the operator at least sees what was navigated.
+    re-resolves at load time.  Otherwise the image's own absolute path or
+    URL is returned so the operator at least sees what was navigated.
 
     Parameters:
-        obs: Observation snapshot; ``obs.abspath`` is the file path.
+        obs: Observation snapshot; ``obs.image_url`` is the image as the caller named it.
         config: Optional ``Config`` override for the
             ``environment.pds3_holdings_root`` fallback.
 
     Returns:
         Either ``'pds3://<relative-path>'`` or the raw absolute path
-        as a string.  Empty string when ``obs`` carries no ``abspath``.
+        as a string.  Empty string when ``obs`` carries no ``image_url``.
     """
-    abspath = getattr(obs, 'abspath', None)
-    if abspath is None:
+    image_url = getattr(obs, 'image_url', None)
+    if not image_url:
         return ''
-    abspath_str = str(abspath)
+    image_url = str(image_url)
     holdings_root = _resolve_pds3_holdings_root(config)
     if holdings_root:
-        rel = _relative_to_holdings(abspath_str, holdings_root)
+        rel = _relative_to_holdings(image_url, holdings_root)
         if rel is not None:
             return f'pds3://{rel}'
-    return abspath_str
+    return image_url
 
 
 def _resolve_pds3_holdings_root(config: Any) -> str:
@@ -172,17 +174,17 @@ def _resolve_pds3_holdings_root(config: Any) -> str:
     return str(cfg_root).rstrip('/')
 
 
-def _relative_to_holdings(abspath_str: str, holdings_root: str) -> str | None:
-    """Return the holdings-relative path or ``None`` if abspath is outside.
+def _relative_to_holdings(image_url: str, holdings_root: str) -> str | None:
+    """Return the holdings-relative path or ``None`` if the image is outside it.
 
     Tolerates trailing slashes and case-sensitive comparisons; does not
     walk the filesystem.  ``holdings_root`` is expected to already be
     normalized by :func:`_resolve_pds3_holdings_root` (no trailing
     slash).
     """
-    if not abspath_str.startswith(holdings_root):
+    if not image_url.startswith(holdings_root):
         return None
-    remainder = abspath_str[len(holdings_root) :]
+    remainder = image_url[len(holdings_root) :]
     return remainder.lstrip('/')
 
 

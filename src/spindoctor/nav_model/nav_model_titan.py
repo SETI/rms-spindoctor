@@ -38,7 +38,6 @@ import math
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
-from oops import Observation
 
 from spindoctor.annotation import (
     TEXTINFO_BOTTOM_ARROW,
@@ -59,6 +58,7 @@ from spindoctor.feature.reliability import FeatureReliabilityGate
 from spindoctor.nav_model.nav_model import NavModel
 from spindoctor.nav_model.nav_model_body import TITAN_BODY_NAME, bodies_in_extfov
 from spindoctor.nav_model.titan_geometry import TitanGeometryInputs, geometry_from_obs
+from spindoctor.obs import ObsSnapshotInst
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 from spindoctor.support.filters import NavFilterKind, NavFilterSpec
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
@@ -473,7 +473,7 @@ class NavModelTitan(NavModel):
     def __init__(
         self,
         name: str,
-        obs: Observation,
+        obs: ObsSnapshotInst,
         *,
         inventory: dict[str, Any] | None = None,
         siblings: list[tuple[str, dict[str, Any]]] | None = None,
@@ -485,7 +485,9 @@ class NavModelTitan(NavModel):
         self._geometry: TitanGeometryInputs | None = None
 
     @classmethod
-    def instances_for_obs(cls, obs: Observation, *, config: Config | None = None) -> list[NavModel]:
+    def instances_for_obs(
+        cls, obs: ObsSnapshotInst, *, config: Config | None = None
+    ) -> list[NavModel]:
         """Return one instance when Titan is inside the extfov, else none.
 
         Parameters:

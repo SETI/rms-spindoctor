@@ -34,7 +34,7 @@ def _make_obs(texp: float) -> ObsGalileoSSI:
 @REQUIRES_EXTERNAL_DATA
 def test_galileo_ssi_basic() -> None:
     obs = obstgossi.ObsGalileoSSI.from_file(URL_GALILEO_SSI_IO_01)
-    assert obs.midtime == -110923771.01052806
+    assert obs.midtime == -110923771.04177806
 
 
 def test_star_max_usable_vmag_anchor_at_unit_exposure() -> None:

@@ -334,7 +334,7 @@ class ManualNavDialog(QDialog):
         self._config = config
         self._annotations: Annotations = annotations if annotations is not None else Annotations()
 
-        self.setWindowTitle(f'Manual Navigation - {obs.abspath.name}')
+        self.setWindowTitle(f'Manual Navigation - {obs.image_name}')
 
         # Image and model arrays
         self._img_fov = obs.data  # V x U, float64

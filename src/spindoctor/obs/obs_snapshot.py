@@ -1,16 +1,20 @@
+from pathlib import Path
 from typing import Any, cast
 
 import numpy as np
 import oops
+from filecache import FCPath
+from oops import Meshgrid
 from oops.backplane import Backplane
-from oops.meshgrid import Meshgrid
-from oops.observation.snapshot import Snapshot
+from oops.observation import Snapshot
+from polymath import Matrix3
 
 from spindoctor.config import Config
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 from spindoctor.support.image import pad_array
 from spindoctor.support.types import (
     DTypeLike,
+    NDArrayAnyType,
     NDArrayBoolType,
     NDArrayFloatType,
     NDArrayType,
@@ -20,12 +24,43 @@ from spindoctor.support.types import (
 from .obs import Obs
 
 
-class ObsSnapshot(Obs, Snapshot):  # type: ignore[misc, unused-ignore]  # oops.Snapshot has no type stubs in some environments
+class _FindClosestPlanet:
+    """The default of ``closest_planet``: find the closest planet from the geometry."""
+
+
+_FIND_CLOSEST_PLANET = _FindClosestPlanet()
+
+
+class ObsSnapshot(Obs, Snapshot):
     """Provides cached Backplane and Meshgrid operations for snapshot observations.
 
     This class extends both Obs and Snapshot to provide navigation-specific functionality
     for snapshot observations, including FOV management and backplane caching.
+
+    The annotations below are the attributes of the wrapped snapshot that this package
+    reads beyond what an oops ``Snapshot`` itself declares.  Every oops host inserts
+    them as subfields; a simulated observation sets ``data``, ``abspath`` and
+    ``image_url`` itself and has no SPICE frame.  The attributes particular to one
+    instrument are declared on that instrument's class.
     """
+
+    data: NDArrayAnyType
+    """The image array, indexed ``[v, u]``."""
+
+    abspath: Path | FCPath
+    """The image file on local storage; a host resolves its symlinks."""
+
+    image_url: str
+    """The image file as the caller named it, published as the image path."""
+
+    spice_to_frame: Matrix3
+    """The rotation from the instrument's SPICE frame convention to the oops convention."""
+
+    spice_frame_name: str
+    """The SPICE name of the camera frame the observation was built on."""
+
+    spice_frame_id: int
+    """The SPICE id of the camera frame the observation was built on."""
 
     def __init__(
         self,
@@ -33,6 +68,7 @@ class ObsSnapshot(Obs, Snapshot):  # type: ignore[misc, unused-ignore]  # oops.S
         *,
         extfov_margin_vu: int | tuple[int, int] | None = None,
         config: Config | None = None,
+        closest_planet: str | _FindClosestPlanet | None = _FIND_CLOSEST_PLANET,
         **kwargs: Any,
     ) -> None:
         """Initialize an ObsSnapshot by wrapping an existing Snapshot.
@@ -41,6 +77,10 @@ class ObsSnapshot(Obs, Snapshot):  # type: ignore[misc, unused-ignore]  # oops.S
             snapshot: The Snapshot object to wrap.
             extfov_margin_vu: The extended field of view margins in (v, u) pixels.
             config: The configuration object to use. If None, uses DEFAULT_CONFIG.
+            closest_planet: The planet nearest the observer, or None for none.  By
+                default it is found from the geometry, by measuring the distance to
+                each planet the configuration names; a caller whose observation has
+                no real geometry, such as a simulated image, states it instead.
             **kwargs: Additional keyword arguments used by subclasses.
 
         Warning:
@@ -91,7 +131,7 @@ class ObsSnapshot(Obs, Snapshot):  # type: ignore[misc, unused-ignore]  # oops.S
         )
         self.reset_all()
 
-        if not hasattr(self, '_closest_planet'):
+        if isinstance(closest_planet, _FindClosestPlanet):
             closest_planet = None
             closest_dist = 1e38
             for planet in self._config.planets:
@@ -100,7 +140,7 @@ class ObsSnapshot(Obs, Snapshot):  # type: ignore[misc, unused-ignore]  # oops.S
                     closest_planet = planet
                     closest_dist = dist
 
-            self._closest_planet = closest_planet
+        self._closest_planet: str | None = closest_planet
 
     def make_fov_zeros(self, dtype: DTypeLike = np.float64) -> NDArrayFloatType:
         """Creates a zero-filled array matching the original FOV dimensions.
@@ -246,6 +286,16 @@ class ObsSnapshot(Obs, Snapshot):  # type: ignore[misc, unused-ignore]  # oops.S
         )
 
     @property
+    def image_name(self) -> str:
+        """The image file's name as the caller gave it, which is the published image name.
+
+        It is taken from ``image_url`` rather than ``abspath``, whose symlinks are resolved:
+        an image reached through a link with a name of its own would otherwise be published
+        under its target's name.
+        """
+        return FCPath(self.image_url).name
+
+    @property
     def data_shape_uv(self) -> tuple[int, int]:
         return self._data_shape_uv
 
@@ -356,24 +406,24 @@ class ObsSnapshot(Obs, Snapshot):  # type: ignore[misc, unused-ignore]  # oops.S
         """
 
         # Standard FOV
-        self._meshgrid = None
-        self._bp = None
+        self._meshgrid: Meshgrid | None = None
+        self._bp: Backplane | None = None
 
         # Extended FOV
-        self._ext_meshgrid = None
-        self._ext_bp = None
+        self._ext_meshgrid: Meshgrid | None = None
+        self._ext_bp: Backplane | None = None
 
         # Standard FOV at four corners only
-        self._corner_meshgrid = None
-        self._corner_bp = None
+        self._corner_meshgrid: Meshgrid | None = None
+        self._corner_bp: Backplane | None = None
 
         # Extended FOV at four corners only
-        self._ext_corner_meshgrid = None
-        self._ext_corner_bp = None
+        self._ext_corner_meshgrid: Meshgrid | None = None
+        self._ext_corner_bp: Backplane | None = None
 
         # Center pixel only
-        self._center_meshgrid = None
-        self._center_bp = None
+        self._center_meshgrid: Meshgrid | None = None
+        self._center_bp: Backplane | None = None
 
     @property
     def bp(self) -> Backplane:
