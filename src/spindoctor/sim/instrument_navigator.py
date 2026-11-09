@@ -115,13 +115,18 @@ def resolve_sim_inst_config(
         are supplied, otherwise the live config block).
 
     Raises:
-        ValueError: If ``instrument`` is unrecognized, or the referenced config
-            section / detector is missing.
+        ValueError: If ``instrument`` is unrecognized, the referenced config section
+            or detector is missing, or ``overrides`` sets ``data_units``.
         ~spindoctor.sim.instrument_schema.InstrumentConfigError: If the referenced
             block doesn't set ``data_units``, or the entry's ``data_units`` differ
             from the block's.  The message gives the entry's file and name and the
-            block, and for a mismatch both units.
+            block; for a mismatch it also gives both units.
     """
+    if overrides and 'data_units' in overrides:
+        raise ValueError(
+            "instrument_config: a scene can't set data_units. Choose an instrument whose "
+            'entry renders the units you want.'
+        )
     base = _resolve_base_block(config, instrument)
     if not overrides:
         return base

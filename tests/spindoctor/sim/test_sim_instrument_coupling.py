@@ -157,11 +157,20 @@ def test_generic_plus_overrides_self_specifies() -> None:
     cfg = resolve_sim_inst_config(
         DEFAULT_CONFIG,
         'generic',
-        {'star_psf_sigma': 1.5, 'data_units': 'raw_dn', 'noise': {'read_noise_dn': 3.0}},
+        {'star_psf_sigma': 1.5, 'noise': {'read_noise_dn': 3.0}},
     )
     assert cfg['star_psf_sigma'] == 1.5
-    assert cfg['data_units'] == 'raw_dn'
     assert cfg['noise']['read_noise_dn'] == 3.0
+
+
+def test_overrides_cannot_set_data_units() -> None:
+    """The resolver refuses a data_units override, even for an unvalidated scene."""
+    message = (
+        r"instrument_config: a scene can't set data_units\. Choose an instrument whose "
+        r'entry renders the units you want\.'
+    )
+    with pytest.raises(ValueError, match=message):
+        resolve_sim_inst_config(DEFAULT_CONFIG, 'vgiss', {'data_units': 'raw_dn'})
 
 
 def test_no_overrides_returns_the_live_block() -> None:
