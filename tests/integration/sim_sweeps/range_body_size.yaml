@@ -1,11 +1,12 @@
 sweep_name: range_body_size
 # Body diameter shrinking from well-resolved to unnavigable.  The primary
 # technique transitions BodyLimbNav -> BodyDiscCorrelateNav -> BodyBlobNav as the
-# disc and limb lose resolution, and the smallest body -- below the 5 px
-# BODY_BLOB emission floor, so no body feature is emitted at all -- fails.
-# This is the technique ladder the range regime exercises.  With wrap-aware PSR
-# the 4 px body navigates by disc correlation on a PSR computed from about five
-# background cells.
+# disc and limb lose resolution.  The smallest body, 4 px, is below the 5 px
+# BODY_BLOB emission floor and is meant to fail.  It currently navigates by disc
+# correlation instead, on a PSR computed from about five background cells, which
+# is too few to mean anything; the test that expects the failure is marked as an
+# expected failure until the PSR requires a minimum background size.  This is
+# the technique ladder the range regime exercises.
 base_scene: phase_sweep_regular_body/regular_sphere_base.yaml
 parameters: [bodies.0.axis1, bodies.0.axis2, bodies.0.axis3]
 values: [130.0, 90.0, 60.0, 40.0, 20.0, 12.0, 6.0, 4.0]
