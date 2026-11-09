@@ -7,6 +7,7 @@ from typing import Any
 import numpy as np
 import pytest
 import scipy.fft
+from scipy.ndimage import gaussian_filter
 
 from spindoctor.support.correlate import (
     _MAX_PEAK_RATIO,
@@ -283,6 +284,27 @@ class TestSingleScale:
             logger=None,
         )
         assert result['quality'] > 6.0
+
+    def test_a_shift_longer_than_the_image_is_recovered(self) -> None:
+        """A model much larger than the image recovers a shift longer than the image.
+
+        The image is a window of the model 30 rows and 40 columns in, so the shift is
+        (-30, -40), beyond the image's own height and width.  Such a lag lies where the
+        surface's positive and negative lags meet, so it is found only if the surface
+        is laid out with the image's extent on the positive side.
+        """
+        rng = np.random.default_rng(945)
+        model = gaussian_filter(rng.normal(size=(64, 80)), 2.0)
+        image = model[30:54, 40:69].copy()
+        result = navigate_single_scale_kpeaks(
+            image=image,
+            model=model,
+            mask=np.ones(model.shape, dtype=bool),
+            max_peaks=3,
+            upsample_factor=16,
+            logger=None,
+        )
+        assert result['offset'] == pytest.approx((-30.0, -40.0), abs=0.1)
 
     def test_no_candidates_result_carries_full_key_set(self) -> None:
         """When no peaks survive ``max_offset_vu`` the result still has every key.
