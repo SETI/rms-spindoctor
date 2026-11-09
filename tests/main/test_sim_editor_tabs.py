@@ -641,6 +641,23 @@ def test_switching_the_detector_model_back_reenables_the_row(model: Any) -> None
     assert model._mode_rows['bloom'].group.isEnabled() is True
 
 
+def test_a_turned_on_row_stays_enabled_when_its_mode_becomes_unavailable(model: Any) -> None:
+    """A mode the scene already includes keeps its row enabled, so it can be turned off."""
+    row = model._mode_rows['bloom']
+    row.group.setChecked(True)
+    _select_detector_model(model, 'vidicon')
+    assert row.group.isEnabled() is True
+
+
+def test_turning_off_an_unavailable_row_disables_it(model: Any) -> None:
+    """Once its mode is turned off, an unavailable row is disabled like any other."""
+    row = model._mode_rows['bloom']
+    row.group.setChecked(True)
+    _select_detector_model(model, 'vidicon')
+    row.group.setChecked(False)
+    assert row.group.isEnabled() is False
+
+
 def _dead_row(model: Any, mode_name: str = 'dead_pixels') -> Any:
     """Enable a dead-pixel or dead-column row on Cassini NAC and return it."""
     model.sim_params['instrument'] = 'coiss_nac'

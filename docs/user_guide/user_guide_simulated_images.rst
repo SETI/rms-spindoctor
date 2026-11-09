@@ -166,7 +166,9 @@ ghost are vidicon defects. If a scene asks for a defect its detector can't produ
 scene is refused when it is loaded. It is also refused if ``instrument_defaults`` would
 turn on one of its camera's defects that the scene's chosen ``detector_model`` can't
 produce. In the editor, if the scene's camera doesn't offer a defect or its detector
-can't produce it, the defect's entry is disabled, and its tooltip says why.
+can't produce it, the defect's entry is disabled, and its tooltip says why. If the
+scene already includes that defect, its entry stays enabled so that you can turn it
+off. The editor won't save the scene until you do.
 
 Rings in a scene
 ================

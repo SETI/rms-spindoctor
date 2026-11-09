@@ -25,7 +25,8 @@ starts as an empty map, and each parameter key appears only once its widget is
 edited.  Availability filtering is per row.  If the scene's instrument doesn't
 offer a mode, the mode's row is disabled, and its tooltip gives the instrument's
 reason.  If the scene's detector chain can't render a mode, the row is disabled,
-and its tooltip says why.
+and its tooltip says why.  A row whose mode the scene already includes stays
+enabled until the author turns it off, because a disabled row can't be turned off.
 """
 
 from __future__ import annotations
@@ -104,6 +105,7 @@ class ModeRow:
         self._list_spins: dict[str, list[QSpinBox]] = {}
         self._count_check: QCheckBox | None = None
         self._count_spin: QSpinBox | None = None
+        self._unavailable_reason: str | None = None
 
         self.group = QGroupBox(f'{mode.name}  ({mode.stage})')
         self.group.setCheckable(True)
@@ -311,10 +313,13 @@ class ModeRow:
 
         Enabling the row resyncs its widgets, so they show the map it now
         edits rather than values left over from before it was turned off.
+        Turning off a row whose mode is unavailable disables it.
         """
         self._controller._set_mode_enabled(self.mode.name, on)
         if on:
             self.sync()
+        elif self._unavailable_reason is not None:
+            self.group.setEnabled(False)
 
     # ---- Display sync ----
 
@@ -389,6 +394,8 @@ class ModeRow:
         tooltip gives the instrument's reason.  If the scene's detector chain can't
         render the mode, the row is disabled, and its tooltip says why.  Otherwise
         the row is enabled, and its tooltip gives its activation key's semantics.
+        An unavailable mode that the scene already includes keeps its row enabled,
+        with the reason in the tooltip, so the author can turn the mode off.
 
         Parameters:
             instrument: The scene's instrument name.
@@ -404,7 +411,8 @@ class ModeRow:
             )
         else:
             reason = None
-        self.group.setEnabled(reason is None)
+        self._unavailable_reason = reason
+        self.group.setEnabled(reason is None or self.group.isChecked())
         if reason is None:
             self.group.setToolTip(f'{self.mode.activation}: {self.mode.activation_semantics}')
         else:

@@ -16,8 +16,9 @@ empty map, and every parameter key -- including the detector override's -- appea
 only once its widget is edited, so keys the operator never touched track the
 per-instrument catalog defaults.  If the scene's instrument doesn't offer a mode,
 or the scene's detector chain can't render it, the mode's row is disabled, and its
-tooltip says why.  The rows refresh when the instrument, the detector model, or the
-binning changes.
+tooltip says why.  A row whose mode the scene already includes stays enabled until
+the author turns the mode off.  The rows refresh when the instrument, the detector
+model, or the binning changes.
 
 The detector group is a checkable override for the electron-chain gain state, the
 detector model, the exposure the well fraction references, and the ADC
@@ -214,8 +215,9 @@ class ArtifactsTabMixin(SimEditorBase):
         The detector model is the one the scene renders with: its own
         ``detector.detector_model``, else the camera's default in the scene's
         readout mode, as the detector resolver reads it.  If the scene already
-        enables a mode and the mode then becomes unavailable, as on an instrument
-        change, the scene keeps it, and scene validation reports it.
+        includes a mode and the mode then becomes unavailable, as on an instrument
+        change, the scene keeps it and scene validation reports it.  The mode's row
+        stays enabled until the author turns the mode off.
         """
         instrument = self.sim_params.get('instrument')
         detector = self.sim_params.get('detector')
