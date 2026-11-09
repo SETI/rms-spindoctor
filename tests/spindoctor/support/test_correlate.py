@@ -24,6 +24,7 @@ from spindoctor.support.correlate import (
     navigate_with_pyramid_kpeaks,
     nms_topk,
     peak_to_runner_up_ratio,
+    psr_metric,
 )
 from spindoctor.support.image import normalize_array, pad_top_left
 from spindoctor.support.misc import mad_std
@@ -427,6 +428,24 @@ class TestPyramid:
         assert dy == pytest.approx(0.0, abs=0.05)
         assert dx == pytest.approx(0.0, abs=0.05)
 
+    def test_a_peak_with_no_sidelobe_is_spurious(self) -> None:
+        """A NaN quality is spurious rather than passing the threshold test.
+
+        On a 6 x 6 frame every shift with enough overlap lies within the PSR
+        guard radius of zero shift, so the peak has no sidelobe and its PSR is NaN.
+        """
+        rng = np.random.default_rng(3)
+        image = rng.normal(size=(6, 6))
+        result = navigate_with_pyramid_kpeaks(
+            image,
+            image.copy(),
+            np.ones((6, 6), dtype=bool),
+            pyramid_levels=1,
+            upsample_factor=8,
+            data_mask=np.ones((6, 6), dtype=bool),
+        )
+        assert result['spurious'] is True
+
 
 # =========================================================================
 # max_offset_vu tests
@@ -463,6 +482,19 @@ class TestMaxOffsetVu:
         assert len(peaks) == 1
         assert int(peaks[0][0]) == 30
         assert int(peaks[0][1]) == 30
+
+    def test_nms_topk_finds_a_peak_at_zero_shift_once(self) -> None:
+        """A peak at zero shift is one candidate, not one per corner it wraps into."""
+        corr = np.full((64, 64), -np.inf)
+        # A valid neighborhood of radius 3 around zero shift, which wraps into all
+        # four corners of the array.
+        rows, cols = np.ogrid[:64, :64]
+        dv = np.minimum(rows, 64 - rows)
+        du = np.minimum(cols, 64 - cols)
+        near = dv**2 + du**2 <= 9
+        corr[near] = np.exp(-(dv**2 + du**2) / 4.0)[near]
+        peaks = nms_topk(corr, k=5, radius=5)
+        assert len(peaks) == 1
 
     def test_single_scale_with_max_offset_finds_correct_peak(self) -> None:
         """max_offset_vu forces the single-scale search to the correct small offset."""
@@ -605,6 +637,21 @@ class TestPyramidTopKPeaks:
 # =========================================================================
 # peak_to_runner_up_ratio
 # =========================================================================
+
+
+def test_psr_at_zero_shift_matches_the_same_peak_mid_array() -> None:
+    """A peak at zero shift scores the PSR it scores mid-array.
+
+    The mid-array surface is the same surface rolled, so every value keeps its
+    neighbors and only the peak's position relative to the array edges changes.
+    """
+    rng = np.random.default_rng(930)
+    rows, cols = np.ogrid[:64, :64]
+    dv = np.minimum(rows, 64 - rows)
+    du = np.minimum(cols, 64 - cols)
+    corr = 0.05 * rng.standard_normal((64, 64)) + np.exp(-(dv**2 + du**2) / 4.0)
+    mid = np.roll(corr, (32, 32), axis=(0, 1))
+    assert psr_metric(corr, (0, 0)) == pytest.approx(psr_metric(mid, (32, 32)), rel=1e-12)
 
 
 def test_peak_to_runner_up_ratio_empty_and_single() -> None:

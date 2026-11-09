@@ -413,12 +413,48 @@ def _masked_ncc_bidir(
 # ==============================================================
 
 
+def _wrapped_distance_sq(shape: tuple[int, int], rc: tuple[int, int]) -> NDArrayFloatType:
+    """Squared distance of every cell of a circular surface from one cell.
+
+    A correlation surface is circular, so the distance along each axis is taken the
+    short way round: a cell in the last row is one row from a cell in the first.
+
+    Parameters:
+        shape: Shape of the surface.
+        rc: Row and column of the cell distances are measured from.
+
+    Returns:
+        Array of ``shape`` holding the squared wrapped distance in pixels.
+    """
+    rows, cols = np.ogrid[: shape[0], : shape[1]]
+    dv = np.abs(rows - rc[0])
+    dv = np.minimum(dv, shape[0] - dv)
+    du = np.abs(cols - rc[1])
+    du = np.minimum(du, shape[1] - du)
+    return cast(NDArrayFloatType, dv**2 + du**2)
+
+
 def psr_metric(corr: NDArrayFloatType, rc: tuple[int, int], guard: int = 5) -> float:
-    corr_v, corr_u = corr.shape
+    """Peak-to-sidelobe ratio of one peak of a circular correlation surface.
+
+    The sidelobe is every finite value farther than ``guard`` pixels from the peak,
+    with distances taken around the surface's edges, so a peak near zero shift has
+    its whole neighborhood excluded, including the part that wraps to the far side.
+
+    Parameters:
+        corr: 2-D circular correlation surface.
+        rc: Row and column of the peak.
+        guard: Radius in pixels of the neighborhood excluded from the sidelobe.
+
+    Returns:
+        ``(peak - mean(sidelobe)) / std(sidelobe)``, or NaN when no finite value lies
+        outside the guard radius.
+    """
     row, col = rc
     peak = corr[row, col]
-    y, x = np.ogrid[:corr_v, :corr_u]
-    mask = (y - row) ** 2 + (x - col) ** 2 > guard**2
+    # Wrapped distances: a peak within ``guard`` of zero shift would otherwise
+    # leave its wrapped lobe in the sidelobe (#930).
+    mask = _wrapped_distance_sq(corr.shape, rc) > guard**2
     bg = corr[mask]
     # Exclude invalidated-shift sentinels (-inf) before computing background stats;
     # otherwise ``bg.mean()`` collapses to -inf and PSR becomes NaN.
@@ -463,6 +499,10 @@ def nms_topk(
             the boundary as spurious). Signed offsets are derived from the
             FFT-convention wrap-around used by :func:`int_to_signed`.
 
+    The surface is circular, so the suppression distance is taken around its edges:
+    a peak near zero shift suppresses its neighbors on the far side of the array too,
+    and is not returned again as a separate peak there.
+
     Returns:
         List of ``(row, col, value)`` tuples for up to ``k`` peaks.
     """
@@ -488,8 +528,9 @@ def nms_topk(
         row_i, col_i = np.unravel_index(idx, work.shape)
         row, col = int(row_i), int(col_i)
         peaks.append((row, col, v))
-        y, x = np.ogrid[:corr_v, :corr_u]
-        work[(y - row) ** 2 + (x - col) ** 2 <= radius**2] = -np.inf
+        # Wrapped distances, so a peak near zero shift is not found again as its
+        # own wrap-around duplicate on the far side of the surface (#930).
+        work[_wrapped_distance_sq(work.shape, (row, col)) <= radius**2] = -np.inf
     return peaks
 
 
@@ -1097,7 +1138,8 @@ def navigate_with_pyramid_kpeaks(
         max_peaks: The number of peaks to look for in the correlation at each pyramid level.
         upsample_factor: The upsample factor to use for increased FFT resolution around a peak.
         metric: The metric to use for the navigation. Can be one of 'psr', 'pmr', or 'per'.
-        quality_thresh: The quality threshold to use for the navigation.
+        quality_thresh: The quality threshold to use for the navigation.  A result whose
+            quality is below it, or is NaN, is spurious.
         consistency_tol: The consistency tolerance to use for the navigation.
         nms_radius: The radius to use for the non-maximum suppression.
         prior_weight_final: The prior weight to use for the final navigation.
@@ -1386,7 +1428,11 @@ def navigate_with_pyramid_kpeaks(
             abs(result['offset'][0]) >= max_offset_vu[0] - 2.0
             or abs(result['offset'][1]) >= max_offset_vu[1] - 2.0
         )
-    spurious = (result['quality'] < quality_thresh) or (consistency > consistency_tol) or at_edge
+    # Written so a NaN quality fails it: the PSR is NaN when every valid shift lies
+    # within the peak's guard radius, as on a tiny frame or template, and such a
+    # peak has no sidelobe to stand out from.
+    quality_ok = bool(result['quality'] >= quality_thresh)
+    spurious = (not quality_ok) or (consistency > consistency_tol) or at_edge
     if at_edge:
         logger.debug(
             'Correlation peak within 2 pixels of max-offset window edge; marking result spurious'
