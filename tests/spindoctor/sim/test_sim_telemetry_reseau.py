@@ -15,13 +15,17 @@ def test_reseau_scars_smooth_lattice_patches() -> None:
     """Reseau scars smooth patches on the lattice, lowering local variation."""
     rng = np.random.default_rng(4)
     signal = rng.uniform(0.0, 100.0, size=(128, 128))
+    before = signal.copy()
     record = apply_reseau_scars(
         signal,
         {'probability': 1.0, 'spacing_px': 46, 'patch_radius_px': 4, 'mark_count': 202},
         rng=np.random.default_rng(1),
     )
+    # (40, 23) is a lattice point whose patch lies wholly inside the frame.
+    patch = np.s_[36:45, 19:28]
     assert record['active'] is True
     assert record['marks'] > 0
+    assert signal[patch].std() < 0.5 * before[patch].std()
 
 
 def test_reseau_scars_plant_the_requested_mark_count() -> None:
