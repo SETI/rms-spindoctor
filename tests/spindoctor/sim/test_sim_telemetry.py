@@ -840,6 +840,16 @@ def test_enum_param_rejects_bad_value() -> None:
         validate_sim_params(scene)
 
 
+def test_enum_param_accepts_null() -> None:
+    """A null enum value is unset, so it validates and keeps its null."""
+    scene = {
+        **_base_scene('coiss_nac'),
+        'artifacts': {'alternating_lines': {'probability': 1.0, 'period': None}},
+    }
+    validated = validate_sim_params(scene)
+    assert validated['artifacts']['alternating_lines']['period'] is None
+
+
 def test_adversarial_flag_is_a_boolean() -> None:
     """The adversarial switch must be a boolean."""
     scene = {**_base_scene(), 'artifacts': {'adversarial': 'yes'}}

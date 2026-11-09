@@ -192,7 +192,8 @@ def _check_mode_param(value: Any, param: ModeParam, *, key: str, source: str) ->
     elif kind == 'positive_int':
         _check_optional_positive_int(value, key, source=source)
     elif kind == 'enum':
-        if param.choices is not None and value not in param.choices:
+        # A null value is unset, as for every other kind, and takes the default.
+        if value is not None and param.choices is not None and value not in param.choices:
             raise SimSceneValidationError(
                 f'{source}: {key} must be one of {list(param.choices)}; got {value!r}'
             )
