@@ -6,12 +6,15 @@ from typing import Any
 
 import numpy as np
 import pytest
+import scipy.fft
 
 from spindoctor.support.correlate import (
     _MAX_PEAK_RATIO,
     _NCC_BIDIR_VAR_FRAC_MIN,
     _NCC_BIDIR_W_FRAC_MIN,
     _NCC_EPS,
+    _correlate_from_spectra,
+    _crop_circular,
     _masked_ncc_bidir,
     _residual_correlation_area,
     gradient_magnitude,
@@ -309,6 +312,36 @@ class TestSingleScale:
             assert key in result, f'no-candidates result missing key {key!r}'
         assert result['all_candidates'] == []
         assert result['quality'] == -np.inf
+
+
+def test_a_longer_transform_cropped_is_the_image_plus_model_surface() -> None:
+    """Cropping a longer transform's surface puts every lag where image + model does.
+
+    The model is larger than the image on both axes, so the split between
+    positive and negative lags is not at the middle of the surface.
+    """
+    rng = np.random.default_rng(7)
+    image = rng.normal(size=(23, 31))
+    model = rng.normal(size=(29, 37))
+
+    def correlate(rows: int, cols: int) -> NDArrayFloatType:
+        """Circular correlation of the zero-padded image and model.
+
+        Parameters:
+            rows: Transform length on the first axis.
+            cols: Transform length on the second axis.
+
+        Returns:
+            The correlation surface.
+        """
+        return _correlate_from_spectra(
+            scipy.fft.rfft2(pad_top_left(image, rows, cols)),
+            scipy.fft.rfft2(pad_top_left(model, rows, cols)),
+            (rows, cols),
+        )
+
+    cropped = _crop_circular(correlate(60, 75), image.shape, model.shape)
+    np.testing.assert_allclose(cropped, correlate(52, 68), rtol=0.0, atol=1e-12)
 
 
 # =========================================================================
@@ -799,10 +832,8 @@ class TestMaskedNccBidirectional:
         view of its real part; nothing about the result changes either way,
         so only a count of what is alive can catch it.
         """
-        # Reached by name rather than through the module attribute, which
-        # strict typing reads as a re-export of numpy's.
-        real_rfft2 = np.fft.rfft2
-        real_irfft2 = np.fft.irfft2
+        real_rfft2 = scipy.fft.rfft2
+        real_irfft2 = scipy.fft.irfft2
         spectra: list[weakref.ref[Any]] = []
         made = {'forward': 0, 'inverse': 0}
         high = 0
@@ -816,7 +847,7 @@ class TestMaskedNccBidirectional:
                 **kwargs: Passed through.
 
             Returns:
-                The transform numpy would have returned.
+                The transform scipy would have returned.
             """
             nonlocal high
             made['forward'] += 1
@@ -838,7 +869,7 @@ class TestMaskedNccBidirectional:
                 **kwargs: Passed through.
 
             Returns:
-                The transform numpy would have returned.
+                The transform scipy would have returned.
             """
             made['inverse'] += 1
             return real_irfft2(a, *args, **kwargs)
