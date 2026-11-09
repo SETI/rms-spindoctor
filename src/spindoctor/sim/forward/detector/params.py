@@ -54,6 +54,7 @@ from spindoctor.sim.instrument_resolvers import (
     instrument_default_modes,
     mode_available,
     resolve_calibrated_sky_if,
+    resolve_data_units,
     resolve_detector_defaults,
     resolve_detector_id,
     resolve_downlink_table,
@@ -77,7 +78,9 @@ class DetectorParams:
 
     Parameters:
         detector_model: 'ccd' (electron chain) or 'vidicon' (DN chain).
-        data_units: 'raw_dn' or 'calibrated_if'.
+        data_units: The frame's units, 'raw_dn' or 'calibrated_if': the instrument
+            config's ``data_units``, unless the scene's ``instrument_config`` sets
+            them.
         signal_full_scale_frac: Well fraction a signal of 1.0 fills at the
             reference exposure.
         full_well_e: Full well in electrons (CCD path).
@@ -522,7 +525,13 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
             f'sim instrument {instrument!r} cannot use detector_model vidicon with '
             f'binning {binning}; the vidicon DN path has no binned readout'
         )
-    data_units = str(inst_config.get('data_units', 'raw_dn'))
+    # The scene's instrument_config also reaches the navigator, so a scene that
+    # sets the units there changes them for the frame and the navigator together.
+    scene_inst_config = params.get('instrument_config') or {}
+    if 'data_units' in scene_inst_config:
+        data_units = str(scene_inst_config['data_units'])
+    else:
+        data_units = resolve_data_units(instrument)
     exposure_sec = float(params.get('exposure_sec', 1.0))
     exposure_ref_sec = float(
         _scene_or_default(detector_block, 'exposure_ref_sec', catalog.get('exposure_ref_sec', 1.0))

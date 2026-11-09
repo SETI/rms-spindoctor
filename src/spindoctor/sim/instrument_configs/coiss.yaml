@@ -12,6 +12,9 @@
 # value says so, with the date and the frames.  The keys are described in the
 # simulator chapter of the developer guide.
 coiss_nac:
+  # Frames are raw DN, which is what the navigator block below expects.
+  data_units: raw_dn
+
   navigator:
     section: cassini_iss
     detector: nac
@@ -231,6 +234,9 @@ coiss_nac:
 # value says so, with the date and the frames.  The keys are described in the
 # simulator chapter of the developer guide.
 coiss_wac:
+  # Frames are raw DN, which is what the navigator block below expects.
+  data_units: raw_dn
+
   navigator:
     section: cassini_iss
     detector: wac
@@ -381,6 +387,10 @@ coiss_wac:
 coiss_calib_nac:
   base: coiss_nac
 
+  # A CALIB product is in I/F, so this entry replaces the raw camera's raw_dn.
+  # The navigator block below expects I/F too.
+  data_units: calibrated_if
+
   navigator:
     section: cassini_iss_calib
     detector: nac
@@ -435,6 +445,10 @@ coiss_calib_nac:
 # are described in the simulator chapter of the developer guide.
 coiss_calib_wac:
   base: coiss_wac
+
+  # A CALIB product is in I/F, so this entry replaces the raw camera's raw_dn.
+  # The navigator block below expects I/F too.
+  data_units: calibrated_if
 
   navigator:
     section: cassini_iss_calib

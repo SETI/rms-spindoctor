@@ -9,6 +9,9 @@
 # fitted value says so, with the date and the frames.  The keys are described in
 # the simulator chapter of the developer guide.
 vgiss:
+  # A GEOMED product is in I/F, which is what the navigator block below expects.
+  data_units: calibrated_if
+
   navigator:
     section: voyager_iss
 

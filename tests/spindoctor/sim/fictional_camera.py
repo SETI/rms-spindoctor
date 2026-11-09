@@ -35,6 +35,7 @@ def keyed(name: str, entry: str) -> str:
 FICTIONAL_CAMERA = keyed(
     FICTIONAL_CAMERA_NAME,
     """\
+data_units: raw_dn
 navigator:
   section: sim
 native_frame_size_px: 64

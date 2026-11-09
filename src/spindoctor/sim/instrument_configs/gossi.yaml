@@ -8,6 +8,9 @@
 # value says so, with the date and the frames.  The keys are described in the
 # simulator chapter of the developer guide.
 gossi:
+  # Frames are raw DN, which is what the navigator block below expects.
+  data_units: raw_dn
+
   navigator:
     section: galileo_ssi
 

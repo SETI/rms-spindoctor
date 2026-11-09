@@ -37,6 +37,7 @@ from spindoctor.sim.artifact_modes import (
 
 __all__ = [
     'CATALOG_BLIND_MODES',
+    'DATA_UNITS',
     'DETECTOR_COMMON_REQUIRED',
     'GENERIC_INSTRUMENT',
     'INSTRUMENT_DEFAULTS',
@@ -64,6 +65,9 @@ __all__ = [
 # The name of the instrument-agnostic entry, which a scene renders through when it
 # sets no instrument.  It is an entry like any other, in ``generic.yaml``.
 GENERIC_INSTRUMENT = 'generic'
+
+# The units a rendered frame is written in: detector counts, or calibrated I/F.
+DATA_UNITS: frozenset[str] = frozenset({'raw_dn', 'calibrated_if'})
 
 # The value of ``artifact_modes.offered`` that offers every registered mode.
 OFFER_EVERY_MODE = 'all'
@@ -286,6 +290,7 @@ _SCHEMA = Record(
     fields={
         'base': _STR_NODE,
         'aliases': ListOf(_STR_NODE),
+        'data_units': Scalar(_STR, DATA_UNITS),
         'navigator': Record(
             fields={'section': _STR_NODE, 'detector': _STR_NODE},
             required=frozenset({'section'}),
@@ -348,6 +353,7 @@ _SCHEMA = Record(
     },
     required=frozenset(
         {
+            'data_units',
             'navigator',
             'detector',
             'readout_modes',

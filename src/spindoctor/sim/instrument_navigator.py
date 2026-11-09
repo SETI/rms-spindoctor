@@ -23,7 +23,10 @@ Overriding a key pins it to the scene, so a later change to the real camera's
 config cannot silently shift a sim test's behavior for that key; the non-overridden
 keys continue to track the instrument.
 
-The resolved block also fixes a rendered frame's unit class.  A ``raw_dn``
+A rendered frame's units come from the instrument's own config entry
+(``data_units``), and the navigator reads the frame in the units its block states.
+Resolving the block therefore refuses an entry whose units differ from the
+block's.  A block that states no ``data_units`` reads ``raw_dn``.  A ``raw_dn``
 instrument renders detector counts with a ``0`` missing-data marker.  A
 ``calibrated_if`` instrument (the calibrated Cassini cameras and Voyager ISS)
 renders I/F, also with a ``0`` marker, because the archived Cassini CALIB and
@@ -42,7 +45,8 @@ from typing import Any
 import numpy as np
 
 from spindoctor.config import Config
-from spindoctor.sim.instrument_catalog import load_instrument_catalog
+from spindoctor.sim.instrument_catalog import InstrumentCatalog, load_instrument_catalog
+from spindoctor.sim.instrument_schema import config_error
 from spindoctor.support.types import NDArrayFloatType
 
 __all__ = [
@@ -113,6 +117,9 @@ def resolve_sim_inst_config(
     Raises:
         ValueError: If ``instrument`` is unrecognized, or the referenced config
             section / detector is missing.
+        ~spindoctor.sim.instrument_schema.InstrumentConfigError: If the entry's
+            ``data_units`` differ from the referenced block's.  The message gives the
+            entry's file and name, its units, the block, and the block's units.
     """
     base = _resolve_base_block(config, instrument)
     if not overrides:
@@ -122,7 +129,8 @@ def resolve_sim_inst_config(
 
 def _resolve_base_block(config: Config, instrument: str | None) -> Mapping[str, Any]:
     """Resolve the unmodified per-instrument (or generic) config block."""
-    navigator = load_instrument_catalog().entry(instrument)['navigator']
+    catalog = load_instrument_catalog()
+    navigator = catalog.entry(instrument)['navigator']
     section: str = navigator['section']
     detector: str | None = navigator.get('detector')
     category = config.category(section)
@@ -132,6 +140,7 @@ def _resolve_base_block(config: Config, instrument: str | None) -> Mapping[str, 
             'which is missing or empty'
         )
     if detector is None:
+        _check_units_agree(catalog, instrument, category, block_name=section)
         return category
     if detector not in category:
         raise ValueError(
@@ -144,7 +153,36 @@ def _resolve_base_block(config: Config, instrument: str | None) -> Mapping[str, 
             f'sim instrument {instrument!r} detector block {section}.{detector} '
             f'is not a mapping; got {type(detector_block).__name__}'
         )
+    _check_units_agree(catalog, instrument, detector_block, block_name=f'{section}.{detector}')
     return detector_block
+
+
+def _check_units_agree(
+    catalog: InstrumentCatalog,
+    instrument: str | None,
+    block: Mapping[str, Any],
+    *,
+    block_name: str,
+) -> None:
+    """Refuse an entry whose frames are in other units than its navigator block reads.
+
+    The navigator reads a frame in its block's ``data_units``, and in ``raw_dn`` when
+    the block states none.  If the entry rendered I/F against a ``raw_dn`` block, the
+    navigator would read every frame as DN, and the other way round.
+    """
+    name = catalog.canonical_name(instrument)
+    own = catalog.entry(name)['data_units']
+    stated = block.get('data_units')
+    expected = 'raw_dn' if stated is None else str(stated)
+    if own == expected:
+        return
+    reading = expected if stated is not None else f'{expected} (it states no data_units)'
+    raise config_error(
+        catalog.sources[name],
+        'data_units',
+        f'the entry renders {own} frames, but its navigator block {block_name} reads '
+        f'{reading}, so the navigator would read every frame in the wrong units',
+    )
 
 
 def navigator_matched_psf(

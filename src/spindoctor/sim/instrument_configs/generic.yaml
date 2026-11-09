@@ -12,6 +12,9 @@
 generic:
   aliases: [sim]
 
+  # Frames are raw DN, which is what the navigator block below expects.
+  data_units: raw_dn
+
   # The navigator's flat 'sim' config block.
   navigator:
     section: sim

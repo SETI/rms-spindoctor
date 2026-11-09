@@ -4,19 +4,20 @@ The config files live in ``spindoctor/sim/instrument_configs/``, one per mission
 (``coiss.yaml`` holds the four Cassini ISS instruments, and ``generic.yaml`` holds
 the instrument-agnostic entry).  Each top-level key of a file is one simulated
 instrument, and the key is the name a scene writes; the file's own name plays no
-part.  An entry holds everything the simulator knows about the camera: the
-navigator config block it emulates, its detector chain, readout modes, star zero
-point, plate scale, PSF, residual distortion, filter throughputs, and which
-artifact modes it offers with their shape defaults.  The provenance of each value
-is a YAML comment beside it.  Adding a camera is adding an entry (plus the
-navigator's own instrument block for the camera it emulates); no code refers to an
-instrument by name.
+part.  An entry holds everything the simulator knows about the camera: the units
+its frames are written in, the navigator config block it emulates, its detector
+chain, readout modes, star zero point, plate scale, PSF, residual distortion,
+filter throughputs, and which artifact modes it offers with their shape defaults.
+The provenance of each value is a YAML comment beside it.  Adding a camera is adding
+an entry (plus the navigator's own instrument block for the camera it emulates); no
+code refers to an instrument by name.
 
 An entry may set another instrument as its ``base``.  The base's entry is then
 merged under the entry's own keys: mappings merge key by key, and any other value
 replaces the base's.  A calibrated product can therefore state only what differs
-from its raw camera.  Setting a key to null removes the key the base would
-otherwise pass on.  A base does not pass on ``aliases`` or ``realism_cohort``.
+from its raw camera, such as its ``data_units``.  Setting a key to null removes the
+key the base would otherwise pass on.  A base does not pass on ``aliases`` or
+``realism_cohort``.
 
 The catalog loads once per directory and is checked against
 :mod:`spindoctor.sim.instrument_schema` and :mod:`spindoctor.sim.instrument_checks`
@@ -81,11 +82,14 @@ class InstrumentCatalog:
         entries: Each instrument's entry keyed by name, ``generic`` included, with
             its base merged in and ``base`` and ``aliases`` removed.
         aliases: Each alias mapped to the instrument it stands for.
+        sources: Each instrument's file and name, as its error messages begin
+            (``'coiss.yaml: coiss_nac'``).
     """
 
     config_dir: Path
     entries: Mapping[str, dict[str, Any]]
     aliases: Mapping[str, str]
+    sources: Mapping[str, str]
 
     def canonical_name(self, instrument: str | None) -> str:
         """The catalog name a scene's instrument name selects.
@@ -349,7 +353,10 @@ def _load(config_dir: Path) -> InstrumentCatalog:
     entries = _resolve_inheritance(raw, sources)
     check_catalog(entries, sources)
     return InstrumentCatalog(
-        config_dir=config_dir, entries=entries, aliases=_collect_aliases(raw, sources, files)
+        config_dir=config_dir,
+        entries=entries,
+        aliases=_collect_aliases(raw, sources, files),
+        sources=sources,
     )
 
 

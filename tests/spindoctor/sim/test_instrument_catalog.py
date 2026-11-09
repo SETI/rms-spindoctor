@@ -4,8 +4,10 @@ Each violation the loader refuses is one case, with the file, the entry, and the
 path in its message.  A camera added only as an entry in a copy of the packaged
 directory
 validates, resolves, and renders.  The packaged catalog's entries point at
-navigator blocks that exist, and each navigator star zero point agrees with the
-simulator's.
+navigator blocks that exist and state the units those blocks read, and each
+navigator star zero point agrees with the simulator's.  An entry whose units differ
+from its navigator block's fails when the block is resolved, and the detector chain
+renders in the entry's units.
 """
 
 from collections.abc import Mapping
@@ -24,7 +26,7 @@ from tests.spindoctor.sim.fictional_camera import (
 )
 
 from spindoctor.config import DEFAULT_CONFIG
-from spindoctor.sim import instrument_catalog
+from spindoctor.sim import instrument_catalog, instrument_navigator
 from spindoctor.sim.forward.detector.params import DetectorParamError, resolve_detector_params
 from spindoctor.sim.forward.detector.sqrt_lut import SqrtLut, TabulatedLut
 from spindoctor.sim.instrument_catalog import (
@@ -38,6 +40,7 @@ from spindoctor.sim.instrument_checks import _parametric_decoded_dn
 from spindoctor.sim.instrument_navigator import resolve_sim_inst_config
 from spindoctor.sim.instrument_resolvers import (
     cataloged_binnings,
+    resolve_data_units,
     resolve_detector_defaults,
     resolve_star_flux_zero_point,
 )
@@ -47,6 +50,7 @@ from spindoctor.sim.scene_schema import SimSceneValidationError
 
 # A complete camera entry, written out so each case changes one thing in it.
 _CAMERA = """\
+data_units: raw_dn
 navigator:
   section: sim
 detector:
@@ -117,6 +121,16 @@ _REFUSED: list[tuple[dict[str, str], str, str]] = [
         {'cam.yaml': _cam(_with('sky_pixel_scale_arcsec: 2.5\n', ''))},
         r"cam\.yaml: cam: missing required keys: \['sky_pixel_scale_arcsec'\]",
         'missing-required-key',
+    ),
+    (
+        {'cam.yaml': _cam(_with('data_units: raw_dn', 'data_units: reflectance'))},
+        r"cam\.yaml: cam: data_units: 'reflectance' is not one of \['calibrated_if', 'raw_dn'\]",
+        'unknown-data-units',
+    ),
+    (
+        {'generic.yaml': _generic_without('  data_units: raw_dn\n')},
+        r"generic\.yaml: generic: missing required keys: \['data_units'\]",
+        'generic-without-data-units',
     ),
     (
         {'cam.yaml': _cam(_with('bloom_length: 0', 'bloom_length: 0.5'))},
@@ -583,6 +597,63 @@ def test_an_inherited_detector_under_another_section_is_caught(
     )
     with pytest.raises(ValueError, match=r"references detector 'nac' in section 'galileo_ssi'"):
         resolve_sim_inst_config(DEFAULT_CONFIG, 'cam')
+
+
+@pytest.mark.parametrize('instrument', [*sim_instrument_names(), GENERIC_INSTRUMENT])
+def test_each_entry_states_the_units_its_navigator_block_reads(instrument: str) -> None:
+    """Each entry's units are its navigator block's, which are raw_dn if it states none."""
+    navigator = load_instrument_catalog().entry(instrument)['navigator']
+    block = DEFAULT_CONFIG.category(navigator['section'])
+    if 'detector' in navigator:
+        block = block[navigator['detector']]
+    assert resolve_data_units(instrument) == block.get('data_units', 'raw_dn')
+
+
+@pytest.fixture
+def calibrated_cam_on_raw_block(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> str:
+    """Point the resolvers at a catalog whose camera renders I/F against the raw sim block."""
+    text = _cam(_with('data_units: raw_dn', 'data_units: calibrated_if'))
+    monkeypatch.setattr(
+        instrument_catalog, 'INSTRUMENT_CONFIG_DIR', catalog_dir_with(tmp_path, {'cam.yaml': text})
+    )
+    return 'cam'
+
+
+@pytest.mark.parametrize(
+    ('block_states_units', 'reading'),
+    [(True, 'raw_dn'), (False, r'raw_dn \(it states no data_units\)')],
+    ids=['stated', 'unstated'],
+)
+def test_units_that_differ_from_the_navigator_block_fail(
+    calibrated_cam_on_raw_block: str,
+    monkeypatch: pytest.MonkeyPatch,
+    block_states_units: bool,
+    reading: str,
+) -> None:
+    """An entry whose units differ from its navigator block's fails when the block resolves.
+
+    A block that states no data_units reads raw_dn.
+    """
+    if not block_states_units:
+        block = dict(DEFAULT_CONFIG.category('sim'))
+        del block['data_units']
+        monkeypatch.setattr(DEFAULT_CONFIG, 'category', lambda section: block)
+    message = (
+        r'cam\.yaml: cam: data_units: the entry renders calibrated_if frames, but its '
+        rf'navigator block sim reads {reading}, so the navigator would read every frame in '
+        r'the wrong units'
+    )
+    with pytest.raises(InstrumentConfigError, match=message):
+        resolve_sim_inst_config(DEFAULT_CONFIG, calibrated_cam_on_raw_block)
+
+
+def test_the_frame_units_follow_the_entry(
+    calibrated_cam_on_raw_block: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The detector chain renders in the entry's units, not the navigator block's."""
+    monkeypatch.setattr(instrument_navigator, '_check_units_agree', lambda *_, **__: None)
+    params = resolve_detector_params({'instrument': calibrated_cam_on_raw_block})
+    assert params.data_units == 'calibrated_if'
 
 
 def _raw_dn_navigator_instruments() -> list[str]:

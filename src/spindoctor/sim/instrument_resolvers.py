@@ -1,8 +1,8 @@
 """Every typed read of a simulated instrument's config entry.
 
 Every value here comes from the simulated instrument's config entry (see
-:mod:`spindoctor.sim.instrument_catalog`): the detector chain an
-``instrument_defaults`` scene turns on, the readout modes, the star zero point,
+:mod:`spindoctor.sim.instrument_catalog`): the units a frame is written in, the
+detector chain an ``instrument_defaults`` scene turns on, the readout modes, the star zero point,
 the plate scale the background-sky star count uses, the whole-scene PSF kernel and
 its truncation radius, the residual geometric distortion, the downlink tables, the
 filter throughputs, and the artifact modes the camera offers with their shape
@@ -48,6 +48,7 @@ __all__ = [
     'mode_available',
     'mode_unavailable_message',
     'resolve_calibrated_sky_if',
+    'resolve_data_units',
     'resolve_detector_defaults',
     'resolve_detector_id',
     'resolve_detector_model',
@@ -69,6 +70,23 @@ __all__ = [
 # are different: radiation on the detector is environment physics, so each CCD
 # instrument's detector entry carries a ``cosmic_ray_events_per_pixel_per_sec``
 # that is either cohort-measured or an explicit retained zero with its reason.
+
+
+def resolve_data_units(instrument: str | None) -> str:
+    """Return the units an instrument's frames are written in.
+
+    Parameters:
+        instrument: The sim instrument name, an alias, or ``None``.
+
+    Returns:
+        The config's ``data_units``: ``'raw_dn'`` for detector counts, or
+        ``'calibrated_if'`` for calibrated I/F.
+
+    Raises:
+        ValueError: If the instrument is not in the catalog.
+    """
+    data_units: str = instrument_entry(instrument)['data_units']
+    return data_units
 
 
 def resolve_star_flux_zero_point(instrument: str | None) -> tuple[float, str]:
