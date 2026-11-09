@@ -359,11 +359,12 @@ What It Checks
   not a label is listed by exactly one label. No label holds a leftover template marker,
   ``[[[``, which a label template leaves where it could not fill in a value. No element
   is empty unless it carries ``xsi:nil``, which marks it empty on purpose. No two labels
-  declare the same product. A collection's list of members marks each product as one of
-  the collection's own or as one outside the bundle. Every product it marks as its own is
+  declare the same product. A collection's list of members marks each product either as
+  one of the collection's own or as one the collection only refers to, which belongs to
+  another collection or lies outside the bundle. Every product it marks as its own is
   one the bundle holds, at the version it holds, and every product in the collection's
-  directory appears in the list once. The products it marks as outside the bundle are
-  not checked. Every reference to a product of the bundle points to one the
+  directory appears in the list once. The products it only refers to are not checked,
+  wherever they are. Every reference to a product of the bundle points to one the
   bundle holds, at the version it holds.
 
 Each finding is an error or a warning. A warning is something the NASA PDS ``validate``
