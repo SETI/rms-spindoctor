@@ -252,9 +252,10 @@ A task file is a JSON array of task objects. A bundle task looks like this:
 * ``task_id`` identifies the task uniquely within the file.
 * ``data.dataset_name`` is a dataset that can be bundled (see `Supported Datasets`_).
   A task whose dataset name matches no dataset fails with ``unknown_dataset``.
-  A task for a dataset that exists but cannot be bundled fails with an error when it
-  reaches the labels. The queue worker reports that as an exception (see
-  `Exit Status`_).
+  A task for a dataset that exists but cannot be bundled fails with an error if its
+  image gets as far as the labels. The queue worker reports that as an exception (see
+  `Exit Status`_). An image the bundle leaves out (see `Images a Bundle Leaves Out`_)
+  stops before then, so its task reports ``status: success`` whatever its dataset.
 * ``data.files`` holds one entry per image, each requiring ``image_file_url``,
   ``label_file_url``, and ``results_path_stub``, and each optionally carrying
   ``index_file_row``, the row the PDS3 index table held for that image. The worker
