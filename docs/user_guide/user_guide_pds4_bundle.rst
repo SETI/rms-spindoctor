@@ -773,10 +773,11 @@ Configuration Options
 * ``bundle_version``: The bundle's version, as ``<major>.<minor>`` in quotes (e.g.,
   ``'1.0'``). It is the version of the bundle, of each of its collections, and of each
   product it holds. Each label states this version as its own. Each list of members
-  gives this version for every product of the bundle it lists. A label refers to another
-  product, inside the bundle or outside it, by its logical identifier alone, with no
-  version. When a list of members includes a product outside the bundle, such as a
-  context product, it gives that product's own version.
+  gives this version for every product of the bundle it lists. A label written from the
+  templates that ship with the package refers to another product, inside the bundle or
+  outside it, by its logical identifier alone, with no version. When a list of members
+  includes a product outside the bundle, such as a context product, it gives that
+  product's own version.
 
 * ``information_model_version``: The version of the PDS4 information model the labels
   are written against, which every label states. It is the version of the build the
