@@ -756,8 +756,11 @@ A rebuild can also give a root's new run the same number its old run had. A resu
 carries only the run number and the root, so step 3 cannot tell a result reported before
 the rebuild from one reported after it. It credits the earlier results to the new run,
 and if they add up to what the new listing found, it stamps the root even though none of
-the new tasks ran. After a rebuild, use only the task file the new step 1 wrote, and run
-step 3 over an event log that holds only those tasks' results.
+the new tasks ran. Before a rebuild, let the earlier pass's tasks finish, or remove the
+ones still waiting from the queue. An earlier task that runs after the rebuild writes into
+the new results index and overlaps the new pass, as two passes over one root at the same
+time do. After the rebuild, use only the task file the new step 1 wrote, and run step 3
+over an event log that holds only those tasks' results.
 
 **Step 3 needs every task's result in the log it reads.** It reads one event log
 and counts what is in it, so a root whose tasks are spread over several logs is
