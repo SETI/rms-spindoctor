@@ -365,7 +365,7 @@ What It Checks
   one the bundle holds, at the version it holds, and every product in the collection's
   directory appears in the list once. The products it only refers to are not checked,
   wherever they are. Every reference to a product of the bundle points to one the
-  bundle holds, at the version it holds.
+  bundle holds, and a reference that gives a version gives the one the bundle holds.
 
 Each finding is an error or a warning. A warning is something the NASA PDS ``validate``
 tool also reports as a warning: a reference to a product of the bundle that the bundle
