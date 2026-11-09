@@ -137,7 +137,7 @@ vgiss:
       dark_ramp: {kind: dark_gradient, amplitude_e: 6.0, nonlinear: 1.5}
       quantization_contour_8bit: {step: 8}
       # 202 reseau marks per camera on a triangular lattice (Benesh and Jepsen
-      # 1978).  MEASURED 2026-11-08 in VGISS_5101's C1385455_RESLOC.TAB: 202 marks,
+      # 1978).  Measured 2026-11-08 in VGISS_5101's C1385455_RESLOC.TAB: 202 marks,
       # median nearest-neighbor distance 47.25 raw pixels.  The GEOMED resample
       # spreads the 800 raw pixels over 1000, so the spacing here is 47.25 * 1.25,
       # about 59 GEOMED pixels.

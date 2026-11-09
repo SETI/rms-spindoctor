@@ -4,9 +4,9 @@ Each violation the loader refuses is one case, with the file, the entry, and the
 path in its message.  A camera added only as an entry in a copy of the packaged
 directory validates, resolves, and renders.  The packaged catalog's entries point at
 navigator blocks that exist and set the same units as those blocks, and each
-navigator star zero point agrees with the simulator's.  An entry fails when its
-navigator block is resolved if their units differ, or if the block doesn't set
-data_units.  The detector chain renders in the entry's units.
+navigator star zero point agrees with the simulator's.  Resolving an entry's
+navigator block fails if their units differ or if the block doesn't set data_units.
+The detector chain renders in the entry's units.
 """
 
 from collections.abc import Mapping
@@ -619,10 +619,10 @@ def calibrated_cam_on_raw_block(tmp_path: Path, monkeypatch: pytest.MonkeyPatch)
 
 
 def test_units_that_differ_from_the_navigator_block_fail(calibrated_cam_on_raw_block: str) -> None:
-    """An entry fails when its navigator block is resolved if their units differ."""
+    """Resolving an entry's navigator block fails if their units differ."""
     message = (
-        r'cam\.yaml: cam: data_units: the entry renders calibrated_if frames, but the '
-        r'navigator reads frames of block sim as raw_dn\. The two must match\.'
+        r'cam\.yaml: cam: data_units: the entry renders calibrated_if frames, but its '
+        r'navigator block sim reads frames as raw_dn; the units must match$'
     )
     with pytest.raises(InstrumentConfigError, match=message):
         resolve_sim_inst_config(DEFAULT_CONFIG, calibrated_cam_on_raw_block)
@@ -652,7 +652,8 @@ def test_the_frame_units_follow_the_entry(
     calibrated_cam_on_raw_block: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """The detector chain renders in the entry's units, not the navigator block's."""
-    # The check makes the two sources agree, so switch it off to see which one the frame follows.
+    # The check refuses an entry whose units differ from its block's, so switch it off to
+    # see which of the two the frame follows.
     monkeypatch.setattr(instrument_navigator, '_check_units_agree', lambda *_, **__: None)
     params = resolve_detector_params({'instrument': calibrated_cam_on_raw_block})
     assert params.data_units == 'calibrated_if'
@@ -663,9 +664,9 @@ def _raw_dn_navigator_instruments() -> list[str]:
 
     The navigator's star limit (``ObsSim.star_max_usable_vmag``) reads
     ``star_flux_dn_per_s_vmag0`` exactly when the block's ``data_units`` is
-    ``raw_dn``; a calibrated block never consults it.  The list reads each entry's
-    own units, which the test above ties to its block's, so collecting this file
-    doesn't resolve any navigator block.
+    ``raw_dn``; a calibrated block never consults it.  It reads each entry's own units
+    instead of resolving its navigator block, so a block without units fails its own
+    test instead of breaking collection of this file.
     """
     return [
         name

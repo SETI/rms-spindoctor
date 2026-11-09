@@ -17,20 +17,20 @@ the resolved block, so a scene can:
 
 - **inherit** every physical parameter from a chosen instrument (no overrides),
 - **inherit and override** individual parameters (override only those keys), or
-- **fully self-specify** by choosing the generic block and overriding everything.
+- **fully self-specify** by choosing the generic block and overriding every key
+  except ``data_units``, which a scene can't set.
 
 Overriding a key pins it to the scene, so a later change to the real camera's
 config cannot silently shift a sim test's behavior for that key; the non-overridden
 keys continue to track the instrument.
 
-A rendered frame's units come from the instrument's own config entry
-(``data_units``), and the navigator reads the frame in the units its block sets, so
-resolving the block fails when the entry's units differ from the block's.  It also
-fails when the block doesn't set ``data_units``, which the navigator requires.  A
-``raw_dn`` instrument renders detector counts with a ``0`` missing-data marker.  A
-``calibrated_if`` instrument (the calibrated Cassini cameras and Voyager ISS)
-renders I/F, also with a ``0`` marker, because the archived Cassini CALIB and
-Voyager GEOMED products fill lost pixels with zero.
+A rendered frame's units come from the instrument's config entry (``data_units``).
+The navigator reads the frame in the units its block sets, so resolving the block
+fails if the two differ.  It also fails if the block doesn't set ``data_units``,
+which the navigator requires.  A ``raw_dn`` instrument renders detector counts
+with a ``0`` missing-data marker.  A ``calibrated_if`` instrument (the calibrated
+Cassini cameras and Voyager ISS) renders I/F, also with a ``0`` marker, because the
+archived Cassini CALIB and Voyager GEOMED products fill lost pixels with zero.
 :func:`navigator_marker_value` reads the marker the way the navigator does,
 :func:`read_frame_as_navigator` classifies a frame the way the navigator's image
 classifier does, and :func:`frame_units_summary` states a rendered frame's
@@ -107,8 +107,9 @@ def resolve_sim_inst_config(
             instrument-agnostic block.
         overrides: Optional scene-level overrides deep-merged over the resolved
             block. Overridden keys are pinned to the scene; the rest continue to
-            track the instrument. Combined with the generic block this expresses a
-            fully self-specified scene config.
+            track the instrument. Any key except ``data_units`` can be overridden,
+            so the generic block with every other key overridden is a fully
+            self-specified scene config.
 
     Returns:
         The resolved per-instrument config mapping (a fresh dict when ``overrides``
@@ -172,8 +173,9 @@ def _check_units_agree(
 ) -> None:
     """Refuse an entry whose frame units differ from the units its navigator block sets.
 
-    The navigator reads a frame in its block's ``data_units``, and it refuses a frame
-    whose block doesn't set them, so this refuses such a block too.  If the entry
+    The navigator reads a frame in its block's ``data_units`` and refuses a frame
+    whose block doesn't set them, so a block without them is refused here as well.
+    If the entry
     rendered I/F against a ``raw_dn`` block, the navigator would read every frame as
     DN, and the other way round.
     """
@@ -193,8 +195,8 @@ def _check_units_agree(
     raise config_error(
         source,
         'data_units',
-        f'the entry renders {own} frames, but the navigator reads frames of block '
-        f'{block_name} as {expected}. The two must match.',
+        f'the entry renders {own} frames, but its navigator block {block_name} reads '
+        f'frames as {expected}; the units must match',
     )
 
 
@@ -386,7 +388,7 @@ def read_frame_as_navigator(
 
 
 def frame_units_name(inst_config: Mapping[str, Any]) -> str:
-    """Return the units the navigator reads a frame of this block in.
+    """Return the units in which the navigator reads this block's frames.
 
     Parameters:
         inst_config: A resolved per-instrument config block.
@@ -413,10 +415,9 @@ def has_planted_offset(sim_params: Mapping[str, Any]) -> bool:
 def frame_units_summary(image: NDArrayFloatType, inst_config: Mapping[str, Any]) -> str:
     """Describe a frame's units, value range, marker share, and the navigator's verdict.
 
-    The text gives the units the navigator reads a frame of this block in (``DN`` for
-    a ``raw_dn`` block, ``I/F`` for a ``calibrated_if`` block) and the finite value
-    range, for example
-    ``'I/F 0 to 1.48'``.  When any pixel equals the navigator's marker (see
+    The text gives the frame's units and its finite value range, for example
+    ``'I/F 0 to 1.48'``.  The units are ``DN`` for a ``raw_dn`` block and ``I/F`` for
+    a ``calibrated_if`` one.  When any pixel equals the navigator's marker (see
     :func:`navigator_marker_value`; NaN pixels when the marker is NaN), it adds the
     marker and the share of pixels carrying it.  When the navigator's classifier
     (see :func:`read_frame_as_navigator`) would not call the frame clean, it adds

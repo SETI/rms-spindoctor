@@ -560,8 +560,8 @@ can pin or override individual instrument settings with ``instrument_config``
 
 Each instrument renders into one of two unit classes, set by the ``data_units``
 key of its config entry (see :ref:`sim-instrument-files`). A scene can't change
-them; to render in other units, it chooses another instrument. Every shipped
-navigator block marks a lost pixel with ``0`` (``noise.marker_value``):
+them. For frames in the other units, use an instrument that renders them. Every
+shipped navigator block marks a lost pixel with ``0`` (``noise.marker_value``):
 
 * ``coiss_nac``, ``coiss_wac``, ``gossi``, ``nhlorri``, and ``generic`` render raw
   DN. The bias pedestal keeps the dark sky above the marker.
@@ -1036,16 +1036,17 @@ match's cohort map all come from the catalog.
 
 An entry's ``data_units`` must match the ``data_units`` of the navigator block it
 points at. Otherwise the navigator would read a calibrated frame as DN, or a DN
-frame as I/F. The navigator refuses a frame whose block doesn't set ``data_units``,
-so such a block is refused too. The check runs each time the block is resolved,
-against the configuration in use, so it also catches a user configuration that
-changes a block's units. The check can't run when the catalog loads: the catalog
-is cached once per directory and doesn't know which configuration a render will
-use. A mismatch's message gives the file, the entry, the block, and both values::
+frame as I/F. A block must set ``data_units``, because the navigator refuses a
+frame whose block doesn't. The check runs each time the block is resolved, against
+the configuration in use, so it also catches a user configuration that changes a
+block's units. The check can't run when the catalog loads: the catalog is loaded
+once per directory and cached, and doesn't know which configuration a render will
+use. The message for a mismatch gives the file, the entry, the block, and both
+values::
 
-    coiss.yaml: coiss_calib_nac: data_units: the entry renders raw_dn frames, but
-    the navigator reads frames of block cassini_iss_calib.nac as calibrated_if. The
-    two must match.
+    coiss.yaml: coiss_calib_nac: data_units: the entry renders raw_dn frames, but its
+    navigator block cassini_iss_calib.nac reads frames as calibrated_if; the units
+    must match
 
 Unit tests tie the catalog to the navigator's packaged configuration without the
 simulator reading it at load. Every entry's ``navigator`` section and detector
@@ -1175,9 +1176,10 @@ start a file for a mission that has none. Add the navigator's ``config_4N0``
 block for the camera it emulates too, if there isn't one yet. Point the entry's
 ``navigator`` key at that block, and give the entry the same ``data_units`` as the
 block. State every required key with the value's provenance as a comment beside it,
-and list the artifact modes the camera offers. For each offered mode whose shape is a camera attribute (a band width, a
-block height, a header length), state the camera's own value; a mode without one
-takes the registry's generic fallback. No code refers to an instrument by name,
+and list the artifact modes the camera offers. For each offered mode whose shape is
+a camera attribute (a band width, a block height, a header length), state the
+camera's own value; a mode without one takes the registry's generic fallback. No
+code refers to an instrument by name,
 so the scene validator, the renderer, and the scene editor's instrument list pick
 the entry up as it is. The realism match picks it up too, as long as the match
 renders the camera's frames at the camera's own settings. If the matched scene
@@ -3795,11 +3797,12 @@ Instrument-config overrides
 The optional ``instrument_config`` dict is deep-merged over the resolved
 per-instrument block, so a scene can pin individual settings (PSF sigma, noise,
 extfov margin) without tracking later camera-config edits. Omit it to inherit
-everything; choose ``generic`` and override everything to fully self-specify. The
-one key a scene can't set here is ``data_units``. A frame's units come only from
-the instrument's config entry, and validation refuses the key. The top-level
-``noise`` block still wins over ``instrument_config.noise`` for rendering. See
-:doc:`dev_guide_observations`.
+everything. To fully self-specify, choose ``generic`` and override every key except
+``data_units``, which a scene can't set here. A frame's units come only from the
+instrument's config entry. Scene validation refuses the key, and so does
+:func:`~spindoctor.sim.instrument_navigator.resolve_sim_inst_config` for a scene
+that skipped validation. The top-level ``noise`` block still wins over
+``instrument_config.noise`` for rendering. See :doc:`dev_guide_observations`.
 
 ``instrument_config`` is idealized and crosses the information boundary
 unfiltered. A planted value copied into it reaches the navigator as published

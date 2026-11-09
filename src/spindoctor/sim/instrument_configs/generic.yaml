@@ -46,7 +46,7 @@ generic:
     # pins to calibrated_if.  The calibration inverse adds it after subtracting
     # the bias and dark pedestals, so a noise-free (floor) calibrated dark sky
     # sits at this value instead of exactly 0 I/F, the missing-data marker of
-    # every calibrated instrument.  MEASURED 2026-10-28 on 13 dark-sky Cassini
+    # every calibrated instrument.  Measured 2026-10-28 on 13 dark-sky Cassini
     # NAC CALIB frames (STAR targets with no missing lines, from COISS_2010,
     # 2030, 2050, and 2090): the per-frame sky median spans -5.8e-5 to 2.2e-4
     # I/F, median 4.0e-5, against a median sky sigma of 1.9e-4 I/F, so the real

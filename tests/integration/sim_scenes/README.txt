@@ -209,12 +209,12 @@ take its default.  A top-level block or list set to null reads as unset.
                                      the named instrument's block (star_psf_sigma,
                                      noise.*, extfov_margin_vu, ...).  Omit to inherit
                                      everything; override individual keys to pin them
-                                     to the scene; choose 'generic' and override
-                                     everything to fully self-specify so a later
-                                     camera-config change cannot shift the scene.  (The
-                                     top-level noise block still wins over
-                                     instrument_config.noise for rendering.)  A scene
-                                     can't set data_units here; the instrument's
+                                     to the scene; choose 'generic' and override every
+                                     key except data_units to fully self-specify so a
+                                     later camera-config change cannot shift the
+                                     scene.  (The top-level noise block still wins
+                                     over instrument_config.noise for rendering.)  A
+                                     scene can't set data_units here; the instrument's
                                      entry decides the frame's units.
   published_equals_truth (list, opt) truth paths (noise.read_noise_dn,
                                      optics.psf.sigma_v, ...) that instrument_config
