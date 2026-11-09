@@ -9,6 +9,7 @@ import pytest
 import scipy.fft
 from scipy.ndimage import gaussian_filter
 
+import spindoctor.support.correlate as correlate_module
 from spindoctor.support.correlate import (
     _MAX_PEAK_RATIO,
     _NCC_BIDIR_VAR_FRAC_MIN,
@@ -335,6 +336,27 @@ class TestSingleScale:
             assert key in result, f'no-candidates result missing key {key!r}'
         assert result['all_candidates'] == []
         assert result['quality'] == -np.inf
+
+    def test_no_refinement_spectrum_is_built_when_no_peak_survives(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A search with no surviving peak returns before the refinement transforms."""
+
+        def _refuse(*_args: Any, **_kwargs: Any) -> Any:
+            raise AssertionError('the refinement spectrum was built with no peak to refine')
+
+        monkeypatch.setattr(correlate_module, 'refinement_cross_spectrum', _refuse)
+        result = navigate_single_scale_kpeaks(
+            image=np.zeros((16, 16), dtype=np.float64),
+            model=np.zeros((16, 16), dtype=np.float64),
+            mask=np.ones((16, 16), dtype=bool),
+            max_peaks=3,
+            upsample_factor=8,
+            metric='psr',
+            max_offset_vu=(0, 0),
+            logger=None,
+        )
+        assert result['all_candidates'] == []
 
 
 def test_a_longer_transform_cropped_is_the_image_plus_model_surface() -> None:

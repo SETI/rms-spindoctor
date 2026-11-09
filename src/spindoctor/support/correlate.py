@@ -958,6 +958,40 @@ def navigate_single_scale_kpeaks(
     corr = _crop_circular(corr_fft, (image_h, image_w), (model_h, model_w))
     del corr_fft
 
+    # Use the NCC (Pearson r) itself for peak localization, not the unnormalized
+    # numerator.  The numerator scales with sqrt(image-variance-under-mask), and
+    # for dense templates -- body discs, Lambert-shaded limbs, rings, etc. -- that
+    # variance changes systematically with shift because the fixed body-shaped
+    # mask straddles more or less of the bright/dark boundary at different shifts.
+    # This produces a "scale bias" that can move the numerator's peak several
+    # pixels away from the true alignment even though the NCC peak is correct
+    # (reproduced on Enceladus N1500045859 where the numerator peak was at
+    # (dV, dU) = (+11, +22) but the NCC peak -- and the correct answer -- is at
+    # (dV, dU) = (-2, -6)).
+    #
+    # Restricting to ``max_offset_vu`` prevents the classic NCC failure mode --
+    # plateaus at 1.0 over shifts where the mask covers pure noise -- because
+    # such shifts are outside any physically plausible offset range.
+    peaks = nms_topk(corr, k=max_peaks, radius=nms_radius, max_offset_vu=max_offset_vu)
+
+    if not peaks:
+        # TODO When no candidates are found, the function returns cov: np.diag([1e6, 1e6])
+        # and quality: -np.inf. Downstream code might not check for -np.inf quality and could
+        # treat this as a valid result. Consider returning None or raising an exception instead.
+        # The result-shape contract matches the populated path so callers
+        # (e.g. ``navigate_with_pyramid_kpeaks`` debug log) can read every
+        # key without a KeyError when the search collapses.  Returning before the
+        # refinement spectrum is built spares its two full-period transforms.
+        return {
+            'offset': (0.0, 0.0),
+            'cov': np.diag([1e6, 1e6]),
+            'sigma_xy': (1e3, 1e3),
+            'quality': -np.inf,
+            'peak_val': 0.0,
+            'rc': (0, 0),
+            'all_candidates': [],
+        }
+
     # The sub-pixel refinement interpolates the correlation between integer lags
     # with the trigonometric interpolant at the transform's period, so its
     # transform stays at image + model: another length would move the refined
@@ -978,22 +1012,6 @@ def navigate_single_scale_kpeaks(
         lowpass_sigma_px=refine_lowpass_sigma_px,
     )
     del refine_image_pad, refine_model_pad
-
-    # Use the NCC (Pearson r) itself for peak localization, not the unnormalized
-    # numerator.  The numerator scales with sqrt(image-variance-under-mask), and
-    # for dense templates -- body discs, Lambert-shaded limbs, rings, etc. -- that
-    # variance changes systematically with shift because the fixed body-shaped
-    # mask straddles more or less of the bright/dark boundary at different shifts.
-    # This produces a "scale bias" that can move the numerator's peak several
-    # pixels away from the true alignment even though the NCC peak is correct
-    # (reproduced on Enceladus N1500045859 where the numerator peak was at
-    # (dV, dU) = (+11, +22) but the NCC peak -- and the correct answer -- is at
-    # (dV, dU) = (-2, -6)).
-    #
-    # Restricting to ``max_offset_vu`` prevents the classic NCC failure mode --
-    # plateaus at 1.0 over shifts where the mask covers pure noise -- because
-    # such shifts are outside any physically plausible offset range.
-    peaks = nms_topk(corr, k=max_peaks, radius=nms_radius, max_offset_vu=max_offset_vu)
 
     if logger is not None:
         logger.debug('Correlation peaks:')
@@ -1025,22 +1043,6 @@ def navigate_single_scale_kpeaks(
                 f'peak_val {evaluation["peak_val"]:.3f}'
             )
 
-    if not candidates:
-        # TODO When no candidates are found, the function returns cov: np.diag([1e6, 1e6])
-        # and quality: -np.inf. Downstream code might not check for -np.inf quality and could
-        # treat this as a valid result. Consider returning None or raising an exception instead.
-        # The result-shape contract matches the populated path so callers
-        # (e.g. ``navigate_with_pyramid_kpeaks`` debug log) can read every
-        # key without a KeyError when the search collapses.
-        return {
-            'offset': (0.0, 0.0),
-            'cov': np.diag([1e6, 1e6]),
-            'sigma_xy': (1e3, 1e3),
-            'quality': -np.inf,
-            'peak_val': 0.0,
-            'rc': (0, 0),
-            'all_candidates': [],
-        }
     winner = max(candidates, key=lambda r: r['quality'])
     # Carry every evaluated candidate so callers that want to inspect
     # runner-up peaks (e.g. peak-to-runner-up ratio diagnostics) can do
