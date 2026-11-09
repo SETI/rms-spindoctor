@@ -14,7 +14,7 @@ from typing import Any, cast
 
 import numpy as np
 import oops
-from oops.observation.snapshot import Snapshot
+from oops.observation import Snapshot
 
 from spindoctor.config import Config
 from spindoctor.obs import Obs, ObsSnapshotInst
@@ -34,9 +34,8 @@ class HermeticObs(ObsSnapshotInst):
     Wraps a real ``oops`` Snapshot on the built-in SSB path and J2000 frame with a
     FlatFOV, so the geometry-free code paths (FOV clipping, meshgrid construction,
     ``oops.Backplane`` instantiation) exercise genuine oops objects.  The
-    ``_closest_planet`` attribute is stamped onto the wrapped Snapshot before
-    construction, which bypasses the SPICE-driven closest-planet search in
-    ``ObsSnapshot.__init__``.
+    closest planet is stated at construction, which bypasses the SPICE-driven
+    closest-planet search in ``ObsSnapshot.__init__``.
 
     A canned inventory dict stands in for the SPICE-driven ``Snapshot.inventory``
     so the non-simulated body path can run hermetically; requested body lists are
@@ -132,7 +131,7 @@ def make_snapshot(
 
     Parameters:
         shape_vu: Image shape as (rows, columns).
-        closest_planet: Planet name stamped as ``_closest_planet`` (None for a
+        closest_planet: Planet name stated as the closest planet (None for a
             no-planet observation).
         simulated: Whether the observation reports ``is_simulated``.
         sim_inventory: Simulated per-body inventory dict.
@@ -148,8 +147,7 @@ def make_snapshot(
     fov = oops.fov.FlatFOV((0.001, 0.001), (size_u, size_v))
     snapshot = Snapshot(
         axes=('v', 'u'),
-        tstart=0.0,
-        texp=1.0,
+        cadence=oops.cadence.SnapCadence(0.0, 1.0),
         fov=fov,
         path='SSB',
         frame='J2000',
@@ -160,10 +158,10 @@ def make_snapshot(
     snapshot.insert_subfield('spice_to_frame', oops.Matrix3(np.eye(3)))
     snapshot.insert_subfield('spice_frame_name', 'J2000')
     snapshot.insert_subfield('spice_frame_id', 1)
-    snapshot._closest_planet = closest_planet
     obs = HermeticObs(
         snapshot,
         canned_inventory=canned_inventory,
+        closest_planet=closest_planet,
         extfov_margin_vu=(0, 0),
         simulated=simulated,
     )

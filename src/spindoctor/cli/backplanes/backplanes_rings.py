@@ -5,7 +5,7 @@ from pdslogger import PdsLogger
 
 from spindoctor.cli.backplanes.statistics import DEGREES
 from spindoctor.config import Config
-from spindoctor.obs import ObsSnapshot
+from spindoctor.obs import ObsSnapshotInst
 
 RING_LONGITUDE = 'ring_longitude'
 """The configured ring plane holding the ring longitude.
@@ -63,7 +63,7 @@ def ring_target(planet: str) -> str:
 
 
 def create_ring_backplanes(
-    snapshot: ObsSnapshot, config: Config, *, logger: PdsLogger
+    snapshot: ObsSnapshotInst, config: Config, *, logger: PdsLogger
 ) -> dict[str, Any] | None:
     """Create configured ring backplanes over the full image, if applicable.
 

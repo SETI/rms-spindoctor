@@ -36,6 +36,7 @@ from oops import Event
 from starcat import (
     SCLASS_TO_SURFACE_TEMP,
     SpiceStarCatalog,
+    Star,
     UCAC4StarCatalog,
     YBSCStarCatalog,
 )
@@ -53,7 +54,7 @@ from spindoctor.support.flux import clean_sclass
 
 if TYPE_CHECKING:  # pragma: no cover - typing-only import
     from spindoctor.config import Config
-    from spindoctor.obs import ObsSnapshot
+    from spindoctor.obs import ObsSnapshotInst
     from spindoctor.support.types import MutableStar
 
 __all__ = [
@@ -116,7 +117,7 @@ def get_ybsc_catalog() -> YBSCStarCatalog:
     return YBSCStarCatalog()
 
 
-def aberrate_star(obs: ObsSnapshot, star: MutableStar) -> None:
+def aberrate_star(obs: ObsSnapshotInst, star: MutableStar) -> None:
     """Apply stellar aberration to a star in place.
 
     Builds an ``oops.Event`` at ``obs.midtime`` in the spacecraft frame,
@@ -147,9 +148,11 @@ def aberrate_star(obs: ObsSnapshot, star: MutableStar) -> None:
     event.neg_arr_j2000 = polymath.Vector3.from_ra_dec_length(
         star.ra, star.dec, 1.0, recursive=False
     )
-    abb_ra, abb_dec, _ = event.neg_arr_ap_j2000.to_ra_dec_length(recursive=False)
-    star.ra = abb_ra.vals
-    star.dec = abb_dec.vals
+    # The event's arrival direction was set just above, so its apparent form exists.
+    aberrated = cast(polymath.Vector3, event.neg_arr_ap_j2000)
+    abb_ra, abb_dec, _ = aberrated.to_ra_dec_length(recursive=False)
+    star.ra = float(abb_ra.vals)
+    star.dec = float(abb_dec.vals)
 
 
 def select_radec_list(
@@ -178,7 +181,7 @@ def select_radec_list(
 
 def _find_stars_in_one_catalog(
     *,
-    obs: ObsSnapshot,
+    obs: ObsSnapshotInst,
     config: Config,
     catalog_name: str,
     ra_min: float,
@@ -298,7 +301,8 @@ def _find_stars_in_one_catalog(
         star.johnson_mag_faked = False
         star.photometry_corrected = False
         star.photometry_saturated = False
-        star.psf_size = obs.star_psf_size(star)
+        # The catalog's records are starcat stars, whatever protocol they are handled by.
+        star.psf_size = obs.star_psf_size(cast(Star, star))
         if star.temperature is None:
             star.temperature_faked = True
             star.temperature = SCLASS_TO_SURFACE_TEMP[default_star_class]
@@ -324,7 +328,7 @@ def _find_stars_in_one_catalog(
 
 def _project_stars_to_fov(
     *,
-    obs: ObsSnapshot,
+    obs: ObsSnapshotInst,
     config: Config,
     stars: list[MutableStar],
     radec_movement: tuple[float, float] | None,
@@ -333,7 +337,7 @@ def _project_stars_to_fov(
 
     Mutates each surviving star to populate ``u``, ``v``, ``move_u``,
     ``move_v``, ``ra_pm``, ``dec_pm``.  ``u`` and ``v`` are whatever
-    ``ObsSnapshot.uv_from_ra_and_dec`` returns, which is a pixel corner coordinate -- the
+    ``ObsSnapshotInst.uv_from_ra_and_dec`` returns, which is a pixel corner coordinate -- the
     convention :class:`~spindoctor.support.types.MutableStar` declares, half
     a pixel above the index of the pixel the star lands on.  Stars whose PSF
     support would spill off the extfov are excluded; so are stars whose
@@ -366,8 +370,8 @@ def _project_stars_to_fov(
 
     uv_mid = obs.uv_from_ra_and_dec(ra_arr, dec_arr, apparent=True)
     u_list, v_list = uv_mid.to_scalars()
-    u_arr = u_list.vals
-    v_arr = v_list.vals
+    u_arr = np.asarray(u_list.vals, dtype=np.float64)
+    v_arr = np.asarray(v_list.vals, dtype=np.float64)
 
     if radec_movement is not None:
         uv_start = obs.uv_from_ra_and_dec(
@@ -384,10 +388,10 @@ def _project_stars_to_fov(
         uv_start = obs.uv_from_ra_and_dec(ra_arr, dec_arr, tfrac=0.0, apparent=True)
         uv_end = obs.uv_from_ra_and_dec(ra_arr, dec_arr, tfrac=1.0, apparent=True)
 
-    u_start_arr = uv_start.to_scalars()[0].vals
-    v_start_arr = uv_start.to_scalars()[1].vals
-    u_end_arr = uv_end.to_scalars()[0].vals
-    v_end_arr = uv_end.to_scalars()[1].vals
+    u_start_arr = np.asarray(uv_start.to_scalars()[0].vals, dtype=np.float64)
+    v_start_arr = np.asarray(uv_start.to_scalars()[1].vals, dtype=np.float64)
+    u_end_arr = np.asarray(uv_end.to_scalars()[0].vals, dtype=np.float64)
+    v_end_arr = np.asarray(uv_end.to_scalars()[1].vals, dtype=np.float64)
 
     # ``extfov_*_min`` / ``_max`` name the first and last pixel of the
     # padded frame as whole numbers; every position tested
@@ -442,7 +446,7 @@ def _project_stars_to_fov(
 
 
 def stars_in_extfov(
-    obs: ObsSnapshot,
+    obs: ObsSnapshotInst,
     config: Config,
     *,
     catalog_name: str,
@@ -482,7 +486,7 @@ def stars_in_extfov(
 
 
 def reduce_catalogs(
-    obs: ObsSnapshot,
+    obs: ObsSnapshotInst,
     config: Config,
     *,
     radec_movement: tuple[float, float] | None = None,

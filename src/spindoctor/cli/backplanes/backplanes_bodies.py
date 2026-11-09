@@ -1,13 +1,13 @@
 import hashlib
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
+from oops import Meshgrid
 from oops.backplane import Backplane
-from oops.meshgrid import Meshgrid
 from pdslogger import PdsLogger
 
 from spindoctor.config import Config
-from spindoctor.obs import ObsSnapshot
+from spindoctor.obs import ObsSim, ObsSnapshotInst
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 
 BODY_LONGITUDE = 'body_longitude'
@@ -19,7 +19,7 @@ pixels cover.
 
 
 def _create_simulated_body_backplane(
-    snapshot: ObsSnapshot,
+    snapshot: ObsSim,
     body_name: str,
     backplane_name: str,
     v0: int,
@@ -65,6 +65,8 @@ def _create_simulated_body_backplane(
             order_names = [str(n).upper() for n in snapshot.sim_body_order_near_to_far]
             body_idx = order_names.index(str(body_name).upper()) + 1
             sim_map = snapshot.sim_body_index_map
+            if sim_map is None:
+                raise ValueError('the scene rendered no body index map')
             sub_mask = sim_map[v0 : v1 + 1, u0 : u1 + 1] == body_idx
         except Exception:
             # Fallback: fill entire rect (last resort)
@@ -95,7 +97,7 @@ def backplane_body_names(planet: str, config: Config) -> list[str]:
 
 
 def create_body_backplanes(
-    snapshot: ObsSnapshot, config: Config, *, logger: PdsLogger
+    snapshot: ObsSnapshotInst, config: Config, *, logger: PdsLogger
 ) -> dict[str, Any]:
     """Create configured body backplanes embedded in full-frame arrays.
 
@@ -125,14 +127,15 @@ def create_body_backplanes(
     # Build inventory and candidate body list
     if snapshot.is_simulated:
         # Guaranteed present for simulated bodies
-        inv = snapshot.sim_inventory
+        inv = cast(ObsSim, snapshot).sim_inventory
     else:
         closest_planet = snapshot.closest_planet
         if closest_planet is None:
             # No planet, no bodies
             return result
         body_list = backplane_body_names(closest_planet, config)
-        inv = snapshot.inventory(body_list, return_type='full')
+        # return_type='full' answers a dict of per-body records.
+        inv = cast(dict[str, Any], snapshot.inventory(body_list, return_type='full'))
 
     candidate_names = list(inv.keys())
     # Filter and sort by distance
@@ -187,7 +190,7 @@ def create_body_backplanes(
             # Evaluate backplane for this body
             if snapshot.is_simulated:
                 full, full_mask = _create_simulated_body_backplane(
-                    snapshot, body_name, bp_name, v0, v1, u0, u1
+                    cast(ObsSim, snapshot), body_name, bp_name, v0, v1, u0, u1
                 )
 
             else:

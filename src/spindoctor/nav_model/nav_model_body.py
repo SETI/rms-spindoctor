@@ -49,7 +49,7 @@ from __future__ import annotations
 import math
 from collections.abc import Iterator
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 import numpy as np
 import polymath
@@ -83,6 +83,7 @@ from spindoctor.nav_model.nav_model_body_base import (
     _sigmoid,
 )
 from spindoctor.nav_model.stars.predicted_snr import psf_sigma_px
+from spindoctor.obs import ObsSnapshotInst
 from spindoctor.support.constants import HALFPI, PIXEL_CENTER_TO_CORNER_PX
 from spindoctor.support.image import filter_downsample, shift_array
 from spindoctor.support.memory import release_transient_memory
@@ -90,8 +91,6 @@ from spindoctor.support.time import now_dt
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 
 if TYPE_CHECKING:  # pragma: no cover - typing-only import
-    from oops import Observation
-
     from spindoctor.nav_orchestrator.nav_context import NavContext
 
 from spindoctor.support.filters import NavFilterKind, NavFilterSpec
@@ -222,7 +221,7 @@ other thick-atmosphere bodies such as Venus.
 
 
 def bodies_in_extfov(
-    obs: Observation, *, config: Config | None = None
+    obs: ObsSnapshotInst, *, config: Config | None = None
 ) -> list[tuple[str, dict[str, Any]]]:
     """Return ``(body_name, inventory_entry)`` for each body inside the extfov.
 
@@ -329,7 +328,7 @@ class _BodyStripArrays:
 
 
 def _striped_body_quantities(
-    obs: Observation,
+    obs: ObsSnapshotInst,
     body_name: str,
     *,
     u_range: tuple[float, float],
@@ -428,7 +427,7 @@ def _striped_body_quantities(
     )
 
 
-def body_fills_extfov(obs: Observation, inventory: dict[str, Any]) -> bool:
+def body_fills_extfov(obs: ObsSnapshotInst, inventory: dict[str, Any]) -> bool:
     """Whether a body's disc covers every corner of the extended frame.
 
     The first half of the covering-body test, asked of the inventory alone so
@@ -469,7 +468,7 @@ def body_fills_extfov(obs: Observation, inventory: dict[str, Any]) -> bool:
     )
 
 
-def body_edge_in_frame(obs: Observation, body_name: str) -> bool:
+def body_edge_in_frame(obs: ObsSnapshotInst, body_name: str) -> bool:
     """Whether a body's limb or terminator crosses the extended frame.
 
     Asked of the frame's boundary, sampled at pixel spacing, which settles both
@@ -634,7 +633,7 @@ class NavModelBody(NavModelBodyBase):
     def __init__(
         self,
         name: str,
-        obs: Observation,
+        obs: ObsSnapshotInst,
         body_name: str,
         *,
         inventory: dict[str, Any] | None = None,
@@ -663,7 +662,9 @@ class NavModelBody(NavModelBodyBase):
         self._phase_angle_factor: float = 0.0
 
     @classmethod
-    def instances_for_obs(cls, obs: Observation, *, config: Config | None = None) -> list[NavModel]:
+    def instances_for_obs(
+        cls, obs: ObsSnapshotInst, *, config: Config | None = None
+    ) -> list[NavModel]:
         """Return one NavModelBody per body whose bbox lies inside extfov.
 
         Selects every in-FOV body via :func:`bodies_in_extfov` and constructs
@@ -739,9 +740,12 @@ class NavModelBody(NavModelBodyBase):
             # meant a caller who did not skipped the decline and then built the
             # very backplane it exists to avoid.
             if self._inventory is None:
-                self._inventory = self.obs.inventory([self._body_name], return_type='full')[
-                    self._body_name
-                ]
+                # return_type='full' answers a dict of per-body records.
+                inventory = cast(
+                    dict[str, dict[str, Any]],
+                    self.obs.inventory([self._body_name], return_type='full'),
+                )
+                self._inventory = inventory[self._body_name]
             fills = body_fills_extfov(self.obs, self._inventory)
             if fills:
                 self._metadata['fills_extfov'] = True

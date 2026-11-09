@@ -80,7 +80,7 @@ def _cassini_observation(
         detector='NAC',
         filter1='CL1',
         filter2='CL2',
-        abspath=Path('/cache') / image_name,
+        image_url=f'/holdings/{image_name}',
     )
 
 
@@ -99,7 +99,7 @@ def _wide_angle_observation(label: VicarLabelStandIn) -> ObsCassiniISS:
         detector='WAC',
         filter1='CL1',
         filter2='GRN',
-        abspath=Path('/cache/W1573251410_1_CALIB.IMG'),
+        image_url='/holdings/W1573251410_1_CALIB.IMG',
     )
 
 

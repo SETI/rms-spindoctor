@@ -33,7 +33,7 @@ from spindoctor.feature.geometry import LimbPolyline, RingEdgePolyline, StarGeom
 from spindoctor.nav_model import build_models_for_obs
 from spindoctor.nav_model.nav_model_body_simulated import NavModelBodySimulated
 from spindoctor.nav_orchestrator import NavOrchestrator
-from spindoctor.obs.obs_snapshot import ObsSnapshot
+from spindoctor.obs import ObsSnapshotInst
 from spindoctor.sim.realism.artifact_rates import (
     ArtifactRates,
     measure_artifact_rates,
@@ -282,7 +282,7 @@ def extract_pixel_samples(
 
 
 def prepare_frame_features(
-    obs: ObsSnapshot, *, only_models: str | list[str]
+    obs: ObsSnapshotInst, *, only_models: str | list[str]
 ) -> tuple[NDArrayFloatType, list[NavFeature], dict[str, dict[str, Any]]]:
     """Run the navigator's feature extraction on one frame.
 

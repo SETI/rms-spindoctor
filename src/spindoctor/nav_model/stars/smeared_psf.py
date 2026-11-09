@@ -153,4 +153,4 @@ def compute_smear_vector_px(obs: ObsSnapshot) -> tuple[float, float]:
     )
     u0, v0 = center_uv0.to_scalars()
     u1, v1 = center_uv1.to_scalars()
-    return float(v1.vals - v0.vals), float(u1.vals - u0.vals)
+    return float(v1.vals) - float(v0.vals), float(u1.vals) - float(u0.vals)

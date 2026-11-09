@@ -1,17 +1,15 @@
 from collections.abc import Mapping, Sequence
 from fractions import Fraction
-from pathlib import Path
 from typing import Any, cast
 
 import numpy as np
-from filecache import FCPath
 
 from spindoctor.config import DEFAULT_CONFIG, IMAGE_LOGGER, Config, logged_section
 from spindoctor.support.sclk import exposure_counts, fractional_count
 from spindoctor.support.time import et_to_utc
-from spindoctor.support.types import PathLike
+from spindoctor.support.types import NDArrayAnyType, PathLike
 
-from .obs_snapshot_inst import ObsSnapshotInst
+from .obs_snapshot_inst import HostLabel, ObsSnapshotInst
 
 # SCLK01_MODULI_77 and SCLK01_OFFSETS_77 of the Galileo spacecraft clock kernel,
 # $OOPS_RESOURCES/SPICE/Galileo/SCLK/mk00062a.tsc: the RIM count, then its 91 MOD91
@@ -55,12 +53,15 @@ def _published_sclk(label: Mapping[str, Any]) -> dict[str, float | None]:
     return exposure_counts(_sclk_count(fields), None, bracketed=False)
 
 
-class ObsGalileoSSI(ObsSnapshotInst):
+class ObsGalileoSSI(ObsSnapshotInst, HostLabel):
     """Implements an observation of a Galileo SSI image.
 
     This class provides specialized functionality for accessing and analyzing Galileo
     SSI image data.
     """
+
+    filter: str
+    """The filter, as the label names it."""
 
     @staticmethod
     @logged_section('obs', 'LOAD IMAGE')
@@ -95,21 +96,26 @@ class ObsGalileoSSI(ObsSnapshotInst):
         # image brightness scale-invariantly (NCC correlation, image-derived
         # MAD noise thresholds, magnitude-based star gate), so no photometric
         # calibration is required here.
+        # Galileo SSI is read through oops.hosts rather than rms-host-galileo, whose
+        # GalileoSSI fails on a VICAR label whose observation ID (the PA item) does not begin with
+        # an orbit number (GO_0003's OPNAV01A frames); read through the detached
+        # .LBL instead, it would publish the label as the image path
+        # (SETI/rms-host-galileo#2).
         obs = oops.hosts.galileo.ssi.from_file(path, full_fov=True)
-        fc_path = FCPath(path)
-        obs.abspath = cast(Path, fc_path.get_local_path()).absolute()
-        obs.image_url = str(fc_path.absolute())
+        # The host inserts the image as the data subfield, which the Snapshot it returns
+        # does not declare.
+        data: NDArrayAnyType = obs.subfields['data']
 
         inst_config = config.category('galileo_ssi')
         if extfov_margin_vu is None:
             if isinstance(inst_config.extfov_margin_vu, dict):
                 # TODO Do this a better way
-                extfov_margin_vu = inst_config.extfov_margin_vu[obs.data.shape[0]]
+                extfov_margin_vu = inst_config.extfov_margin_vu[data.shape[0]]
             else:
                 extfov_margin_vu = inst_config.extfov_margin_vu
-        logger.debug(f'  Data shape: {obs.data.shape}')
+        logger.debug(f'  Data shape: {data.shape}')
         logger.debug(f'  Extfov margin vu: {extfov_margin_vu}')
-        logger.debug(f'  Data min: {np.min(obs.data)}, max: {np.max(obs.data)}')
+        logger.debug(f'  Data min: {np.min(data)}, max: {np.max(data)}')
 
         new_obs = ObsGalileoSSI(obs, config=config, extfov_margin_vu=extfov_margin_vu)
         new_obs._inst_config = inst_config
@@ -176,7 +182,7 @@ class ObsGalileoSSI(ObsSnapshotInst):
 
         return {
             'image_path': self.image_url,
-            'image_name': self.abspath.name,
+            'image_name': self.image_name,
             'instrument_host_lid': 'urn:nasa:pds:context:instrument_host:spacecraft.go',
             'instrument_lid': 'urn:nasa:pds:context:instrument:go.ssi',
             'start_time_utc': et_to_utc(self.time[0]),

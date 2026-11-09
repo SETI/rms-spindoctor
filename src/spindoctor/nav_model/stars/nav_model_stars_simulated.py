@@ -19,14 +19,13 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from oops import Observation
-
 from spindoctor.nav_model.nav_model import NavModel
 from spindoctor.nav_model.stars.nav_model_stars import (
     NavModelStars,
     _star_short_info,
     _star_summary,
 )
+from spindoctor.obs import ObsSnapshotInst
 from spindoctor.sim.star_records import star_record_from_params
 from spindoctor.support.time import now_dt
 
@@ -52,7 +51,9 @@ class NavModelStarsSimulated(NavModelStars):
     """
 
     @classmethod
-    def instances_for_obs(cls, obs: Observation, *, config: Config | None = None) -> list[NavModel]:
+    def instances_for_obs(
+        cls, obs: ObsSnapshotInst, *, config: Config | None = None
+    ) -> list[NavModel]:
         """Return one star model for a simulated obs whose scene has stars.
 
         Returns an empty list for a real obs (the catalog-driven

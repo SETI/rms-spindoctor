@@ -61,8 +61,7 @@ It also **modifies the pixel data**, in two steps:
    so this is the only case, and the constant is written out rather than
    computed from distances. The step logs at debug when it fires.
 
-Beyond that it records ``obs.abspath`` and ``obs.image_url`` from an
-``FCPath``, reads the flat ``voyager_iss`` config section, and resolves the
+Beyond that it reads the flat ``voyager_iss`` config section and resolves the
 extended-FOV margin from the size-keyed table by ``obs.data.shape[0]``. That
 table has exactly one entry, for size 1000, which is what a geometrically
 corrected product is; an image of any other size raises ``KeyError`` from the

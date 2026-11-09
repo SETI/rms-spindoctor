@@ -54,8 +54,8 @@ import numpy as np
 from spindoctor.config import DEFAULT_CONFIG
 from spindoctor.nav_model import build_models_for_obs
 from spindoctor.nav_orchestrator import NavOrchestrator
+from spindoctor.obs import ObsSnapshotInst
 from spindoctor.obs.obs_inst_sim import ObsSim
-from spindoctor.obs.obs_snapshot import ObsSnapshot
 from spindoctor.sim.instrument_catalog import realism_cohort_instruments
 from spindoctor.sim.instrument_navigator import resolve_sim_inst_config
 from spindoctor.sim.instrument_resolvers import resolve_data_units
@@ -258,12 +258,12 @@ def _resolve_image_url(url: str) -> Any:
     return FCPath(url)
 
 
-def _load_real_obs(sidecar: Sidecar) -> ObsSnapshot:
+def _load_real_obs(sidecar: Sidecar) -> ObsSnapshotInst:
     """Load the real observation behind one sidecar."""
     from tests.integration.test_autonomous_nav import _MISSION_TO_OBS_CLASS
 
     obs_class = _MISSION_TO_OBS_CLASS[sidecar.mission]
-    return cast(ObsSnapshot, obs_class.from_file(_resolve_image_url(sidecar.image_url)))
+    return cast(ObsSnapshotInst, obs_class.from_file(_resolve_image_url(sidecar.image_url)))
 
 
 def discover_cohort() -> dict[str, list[Sidecar]]:

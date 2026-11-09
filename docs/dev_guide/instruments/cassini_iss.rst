@@ -33,30 +33,29 @@ Code map
      - ``other.obs`` governs the image-scoped ``LOAD IMAGE`` section; there is
        no per-instrument logging key
    * - oops host module
-     - ``oops.hosts.cassini.iss``
+     - ``host_cassini.CassiniISS``, from the ``rms-host-cassini`` package
 
 Loading the image
 =================
 
 :meth:`~spindoctor.obs.obs_inst_cassini_iss.ObsCassiniISS.from_file` calls
-``oops.hosts.cassini.iss.from_file(path, fast_distortion=..., return_all_planets=...)``.
+``host_cassini.CassiniISS.from_file(path, fast_distortion=..., return_all_planets=...)``.
 Both keyword arguments are read from ``**kwargs`` and default to ``True``.
 ``fast_distortion`` selects the host's polynomial inverse rather than an
 iterative one, which is what makes per-pixel geometry affordable in a batch;
-``return_all_planets`` keeps every planet the host finds rather than the
-closest one alone, which the multi-body navigation models need.
+``return_all_planets`` makes the host list the kernels of every planet in the
+observation's ``spice_kernels`` rather than those of Jupiter or Saturn alone.
 
-Beyond the host call it does four things:
+The host records ``obs.image_url``, the absolute source URL, so a run against
+remote holdings still records which file it read; the published image name
+is taken from it. Beyond the host call ``from_file`` does three things:
 
-1. Records ``obs.abspath`` (the resolved local path) and ``obs.image_url`` (the
-   absolute source URL) from an ``FCPath``, so a run against remote holdings
-   still says which file it read.
-2. Selects the configuration block. ``'_CALIB' in fc_path.name.upper()``
+1. Selects the configuration block. ``'_CALIB' in fc_path.name.upper()``
    chooses ``cassini_iss_calib``; anything else chooses ``cassini_iss``.
-3. Indexes that block by ``obs.detector.lower()``. A missing section, or a
+2. Indexes that block by ``obs.detector.lower()``. A missing section, or a
    section with no entry for the detector, raises ``ValueError`` listing the
    detectors that are present, rather than failing later on a missing key.
-4. Resolves the extended-FOV margin. The configured value is a mapping keyed
+3. Resolves the extended-FOV margin. The configured value is a mapping keyed
    by image size, so the margin is ``entry[obs.data.shape[0]]``; an explicit
    ``extfov_margin_vu`` argument wins over the configuration entirely.
 
@@ -146,7 +145,7 @@ Label and index dependencies
   would fail it.
 
 **Which label is read.** ``obs.dict`` is the VICAR label inside the
-``_CALIB.IMG`` file, which ``oops.hosts.cassini.iss.from_file`` reads with
+``_CALIB.IMG`` file, which ``host_cassini.CassiniISS.from_file`` reads with
 rms-vicar. It is neither the detached ``_CALIB.LBL`` nor the raw volume's
 ``.LBL``. Its values are the raw product's, as the raw ``.LBL`` states them,
 in the VICAR spelling: reals to six or seven significant digits, times ending
@@ -157,7 +156,9 @@ single ``IMAGE_OBSERVATION_TYPE`` as text rather than a one-element set. The
 ``_CALIB.LBL`` departs further: it carries no ``VALID_MAXIMUM``, its
 ``DESCRIPTION`` is the calibration's history, and its
 ``PRODUCT_CREATION_TIME`` is the calibration's, which on some labels is not
-a parsable time.
+a parsable time. Where the VICAR label repeats a keyword, such as ``DAT_TIM``, the
+host's label keeps only the first occurrence. Every read here looks a keyword up by
+name, and none reads a repeated one.
 
 :meth:`~spindoctor.obs.obs_inst_cassini_iss.ObsCassiniISS.get_public_metadata`
 also refuses a detector that is neither ``NAC`` nor ``WAC``, because the
@@ -308,7 +309,7 @@ Frames, attitude, and rotation fitting
 encoded against spacecraft clock -82.
 
 **The oops-from-SPICE flip.** ``R = diag(-1, -1, +1)``, a 180 degree rotation
-about the boresight, applied by ``oops/hosts/cassini/iss.py``. The correction
+about the boresight, applied by the ``rms-host-cassini`` host. The correction
 is built in the oops observation frame and must be conjugated through ``R``
 before it is composed onto a ``pxform``-derived matrix; dropping the
 conjugation yields a proper rotation of the correct magnitude with both

@@ -16,6 +16,7 @@ import itertools
 import math
 from collections.abc import Callable
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any, cast
 
 import numpy as np
@@ -34,6 +35,7 @@ from spindoctor.nav_model.nav_model_titan import (
     titan_haze_reliability,
 )
 from spindoctor.nav_model.titan_geometry import TitanGeometryInputs
+from spindoctor.obs import ObsSnapshotInst
 
 _EXTFOV_SHAPE = (200, 200)
 _WINDOW_PX = 10.0
@@ -273,6 +275,12 @@ def test_surface_window_filter_flag_is_clear_for_a_clear_filter(config: Config) 
     """A filter that does not reach the surface leaves the flag clear."""
     feature = build_titan_feature(_inputs(), source_model='titan:TITAN', config=config)
     assert feature.flags.surface_window_filter is False  # type: ignore[union-attr]
+
+
+def test_an_observation_naming_each_wheel_reports_each_filter_once() -> None:
+    """The two wheels' names are the filters; the combined name repeats them."""
+    obs = SimpleNamespace(filter1='CL1', filter2='CB3', filter='CB3')
+    assert geometry_module._filter_names(cast(ObsSnapshotInst, obs)) == ('CL1', 'CB3')
 
 
 def test_high_phase_flag_fires_above_the_threshold(config: Config) -> None:
