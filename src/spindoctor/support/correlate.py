@@ -1430,7 +1430,8 @@ def navigate_with_pyramid_kpeaks(
         )
     # Written so a NaN quality fails it: the PSR is NaN when every valid shift lies
     # within the peak's guard radius, as on a tiny frame or template, and such a
-    # peak has no sidelobe to stand out from.
+    # peak has no sidelobe to stand out from.  Winner selection by max() still
+    # treats a NaN quality order-dependently (#943).
     quality_ok = bool(result['quality'] >= quality_thresh)
     spurious = (not quality_ok) or (consistency > consistency_tol) or at_edge
     if at_edge:

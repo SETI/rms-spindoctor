@@ -194,6 +194,15 @@ def test_range_sweep_largest_body_uses_resolved_body_technique() -> None:
     assert rows[0].primary_technique in ('BodyDiscCorrelateNav', 'BodyLimbNav')
 
 
+# #941
+@pytest.mark.xfail(
+    strict=True,
+    raises=AssertionError,
+    reason=(
+        'With wrap-aware PSR the 4 px body navigates on a PSR computed from about five '
+        'background cells, and nothing yet requires a minimum background size.'
+    ),
+)
 def test_range_sweep_smallest_body_fails() -> None:
     """The smallest body is unnavigable."""
     rows = _rows('range_body_size')

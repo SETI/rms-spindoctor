@@ -483,19 +483,6 @@ class TestMaxOffsetVu:
         assert int(peaks[0][0]) == 30
         assert int(peaks[0][1]) == 30
 
-    def test_nms_topk_finds_a_peak_at_zero_shift_once(self) -> None:
-        """A peak at zero shift is one candidate, not one per corner it wraps into."""
-        corr = np.full((64, 64), -np.inf)
-        # A valid neighborhood of radius 3 around zero shift, which wraps into all
-        # four corners of the array.
-        rows, cols = np.ogrid[:64, :64]
-        dv = np.minimum(rows, 64 - rows)
-        du = np.minimum(cols, 64 - cols)
-        near = dv**2 + du**2 <= 9
-        corr[near] = np.exp(-(dv**2 + du**2) / 4.0)[near]
-        peaks = nms_topk(corr, k=5, radius=5)
-        assert len(peaks) == 1
-
     def test_single_scale_with_max_offset_finds_correct_peak(self) -> None:
         """max_offset_vu forces the single-scale search to the correct small offset."""
         image, model, mask = _make_single_star(image_offset=(2.0, 0.0))
@@ -635,8 +622,22 @@ class TestPyramidTopKPeaks:
 
 
 # =========================================================================
-# peak_to_runner_up_ratio
+# Wrap-around on the circular correlation surface
 # =========================================================================
+
+
+def test_nms_topk_finds_a_peak_at_zero_shift_once() -> None:
+    """A peak at zero shift is one candidate, not one per corner it wraps into."""
+    corr = np.full((64, 64), -np.inf)
+    # A valid neighborhood of radius 3 around zero shift, which wraps into all
+    # four corners of the array.
+    rows, cols = np.ogrid[:64, :64]
+    dv = np.minimum(rows, 64 - rows)
+    du = np.minimum(cols, 64 - cols)
+    near = dv**2 + du**2 <= 9
+    corr[near] = np.exp(-(dv**2 + du**2) / 4.0)[near]
+    peaks = nms_topk(corr, k=5, radius=5)
+    assert len(peaks) == 1
 
 
 def test_psr_at_zero_shift_matches_the_same_peak_mid_array() -> None:
@@ -652,6 +653,11 @@ def test_psr_at_zero_shift_matches_the_same_peak_mid_array() -> None:
     corr = 0.05 * rng.standard_normal((64, 64)) + np.exp(-(dv**2 + du**2) / 4.0)
     mid = np.roll(corr, (32, 32), axis=(0, 1))
     assert psr_metric(corr, (0, 0)) == pytest.approx(psr_metric(mid, (32, 32)), rel=1e-12)
+
+
+# =========================================================================
+# peak_to_runner_up_ratio
+# =========================================================================
 
 
 def test_peak_to_runner_up_ratio_empty_and_single() -> None:
