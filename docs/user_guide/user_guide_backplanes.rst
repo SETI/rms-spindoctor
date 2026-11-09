@@ -155,11 +155,12 @@ Options
   on a cloud results root replaces a round trip per image with a query. The
   results index must already hold a completed ingest of the root given by
   ``--nav-results-root``, and its rows are a snapshot of that root as of the
-  ingest. Without the option, which is the default, no results index is used and
-  the navigation results tree is read directly. ``--results-index-db none`` also
-  turns the results index off. On a machine that sets a results index through
-  configuration or through the ``NAV_RESULTS_INDEX_DB`` environment variable,
-  this is how a run reads the files instead.
+  ingest. The option takes precedence over the ``environment.results_index_db``
+  configuration setting and the ``NAV_RESULTS_INDEX_DB`` environment variable.
+  When none of the three gives a results index, which is the default, the
+  navigation results tree is read directly. ``--results-index-db none`` reads the
+  tree even when the configuration or the environment variable gives a
+  results index.
 
 * ``--output-cloud-tasks-file PATH``: write a cloud task queue file for the
   selected images and generate no backplanes. See
@@ -194,7 +195,7 @@ never having been navigated: read directly, the same metadata document may well
 carry a status and a pointing. The failure message gives the image, the
 results index, and the reason the ingest recorded, so the remedy is visible
 from the run's log: fix the metadata document and ingest that root again, or
-run without ``--results-index-db``. The rest of the pass continues, and only
+run with ``--results-index-db none``. The rest of the pass continues, and only
 that image is lost.
 
 Examples

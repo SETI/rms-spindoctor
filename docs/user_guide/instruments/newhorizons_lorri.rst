@@ -54,9 +54,10 @@ change is visible instead of silently reducing the image count. A row whose
 directory structure is unexpected is a milder case: it is logged as an error
 and that row alone is dropped.
 
-The data directory is organized by request rather than by image number: the
-filespec is ``data/ddddddd_ddddddd/lor_dddddddddd_0xNNN_sci.lbl``, whose
-middle component is a pair of seven-digit request identifiers.
+The data directory is organized by date: the filespec is
+``data/yyyymmdd_dddddd/lor_dddddddddd_0xNNN_sci.lbl``. The middle component is an
+eight-digit date, then the first six of the ten digits in the image name, as in
+``data/20070108_003059/lor_0030598439_0x630_sci.lbl``.
 
 **Image names.** A name is ``lor_`` followed by ten digits -- fourteen
 characters exactly. The image name is the leading fourteen characters of the

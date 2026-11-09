@@ -130,11 +130,12 @@ Options both commands accept
        cloud results root replaces a round trip per image with a query. The
        results index must already hold a completed ingest of the root given by
        ``--nav-results-root``, and its rows are a snapshot of that root as of
-       the ingest. Without the option, no results index is used and the
-       navigation results are read as files. ``--results-index-db none`` also
-       turns the results index off. On a machine that sets a results index
-       through configuration or through the ``NAV_RESULTS_INDEX_DB`` environment
-       variable, this is how a run reads the files instead.
+       the ingest. The option takes precedence over the
+       ``environment.results_index_db`` configuration setting and the
+       ``NAV_RESULTS_INDEX_DB`` environment variable. When none of the three
+       gives a results index, the navigation results are read as files.
+       ``--results-index-db none`` reads the files even when the configuration
+       or the environment variable gives a results index.
    * - ``--output-dir DIR``
      - *(required)*
      - Directory the reprojection files and the mosaic are written to.
@@ -548,7 +549,7 @@ navigated would build one product from the results tree and a different one from
 the results index without saying so. Instead that image fails with a message
 that gives the image, the results index, and the reason the ingest recorded, and
 the rest of the pass continues. The remedy is to fix the metadata document and
-ingest the root again, or to run the pass without ``--results-index-db``. A file
+ingest the root again, or to run the pass with ``--results-index-db none``. A file
 the ingest could not retrieve at all is not recorded, since it is worth retrying
 on the next pass, and an image whose metadata document failed that way reads as
 one that nothing navigated.

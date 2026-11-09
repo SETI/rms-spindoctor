@@ -251,7 +251,10 @@ A task file is a JSON array of task objects. A bundle task looks like this:
 
 * ``task_id`` identifies the task uniquely within the file.
 * ``data.dataset_name`` is a dataset that can be bundled (see `Supported Datasets`_).
-  A task for any other dataset fails with ``unknown_dataset``.
+  A task whose dataset name matches no dataset fails with ``unknown_dataset``.
+  A task for a dataset that exists but cannot be bundled stops on an error when it
+  comes to write the labels, and the queue worker reports it as an exception (see
+  `Exit Status`_).
 * ``data.files`` holds one entry per image, each requiring ``image_file_url``,
   ``label_file_url``, and ``results_path_stub``, and each optionally carrying
   ``index_file_row``, the row the PDS3 index table held for that image. The worker
@@ -355,9 +358,11 @@ What It Checks
   not a label is listed by exactly one label. No label holds a leftover template marker,
   ``[[[``, which a label template leaves where it could not fill in a value. No element
   is empty unless it carries ``xsi:nil``, which marks it empty on purpose. No two labels
-  declare the same product. Every product in a collection's list of members is one the
-  bundle holds, at the version it holds, and every product in the collection's directory
-  appears in the list once. Every reference to a product of the bundle points to one the
+  declare the same product. A collection's list of members marks each product as one of
+  the collection's own or as one outside the bundle. Every product it marks as its own is
+  one the bundle holds, at the version it holds, and every product in the collection's
+  directory appears in the list once. The products it marks as outside the bundle are
+  not checked. Every reference to a product of the bundle points to one the
   bundle holds, at the version it holds.
 
 Each finding is an error or a warning. A warning is something the NASA PDS ``validate``
@@ -765,9 +770,11 @@ Configuration Options
 
 * ``bundle_version``: The bundle's version, as ``<major>.<minor>`` in quotes (e.g.,
   ``'1.0'``). It is the version of the bundle, of each of its collections, and of each
-  product it holds. Every label and list of members gives this version when it refers
-  to one of them. A product outside the bundle that a label refers to, such as a context
-  product, keeps its own version.
+  product it holds. Each label gives this version as its own, and each list of members
+  gives it for every product of the bundle that the list holds. A label refers to
+  another product of the bundle by its logical identifier alone, without a version. A
+  product outside the bundle that a label refers to, such as a context product, keeps
+  its own version.
 
 * ``information_model_version``: The version of the PDS4 information model the labels
   are written against, which every label states. It is the version of the build the

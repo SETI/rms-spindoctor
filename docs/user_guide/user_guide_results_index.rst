@@ -650,9 +650,10 @@ be listed at all, or a directory under one could not be listed, which stops the 
 it is found. A scheduled invocation therefore reads the same status from the same tree
 every time, and a status of 1 always means something needs fixing rather than that a tree
 happens to hold no results. If the program cannot parse the command line, it exits 2
-instead. That covers a missing subcommand, an unknown one, a subcommand without the path
-it acts on, and an option the subcommand does not take. The program then prints a usage
-message on standard error, and nothing is opened or walked.
+instead. That covers a missing subcommand, an unknown one, ``divide`` without
+``--tasks-file``, ``complete`` without ``--events-log``, and an option the subcommand does
+not take. The program then prints a usage message on standard error, and nothing is
+opened or walked.
 
 Ingesting over a queue of workers
 =================================
@@ -751,6 +752,11 @@ the wrong run. Its shares still add up correctly, but its rows are somewhere els
 entirely, and stamping the root on them would record a root that holds nothing. Step 3
 counts such results and reports them in the summary instead of crediting them. The root
 they were meant for stays unfinished, and running step 1 over that root starts it again.
+A run of the same root can also get the same number before and after a rebuild, and
+nothing in a result tells those two runs apart. Step 3 then credits the old results to
+the new run, and if they add up to what the new listing found, it stamps the root even
+though none of the new tasks ran. After a rebuild, use only the task file from the new
+step 1, and run step 3 over an event log that holds only the results of those tasks.
 
 **Step 3 needs every task's result in the log it reads.** It reads one event log
 and counts what is in it, so a root whose tasks are spread over several logs is

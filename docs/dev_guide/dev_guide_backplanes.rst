@@ -285,9 +285,10 @@ The ring longitude statistic (plane
 :data:`~spindoctor.cli.backplanes.backplanes_rings.RING_LONGITUDE`) also records its range
 wrapped at zero, ``wrapped_min`` and ``wrapped_max``, which
 :func:`~spindoctor.cli.backplanes.statistics.wrapped_range` finds over the same pixels.
-The widest gap between the longitudes, the gap across zero among them, is the part of the
-circle the image does not cover, and the arc runs from the longitude after it to the one
-before it, so the arc's start is the greater where it crosses zero.  Longitudes that leave
+The gaps between neighboring longitudes include the one that runs across zero, from the
+greatest longitude round to the least.  The widest of them is the part of the circle the
+image does not cover, and the arc runs from the longitude after it to the one before it,
+so the arc's start is the greater where it crosses zero.  Longitudes that leave
 no gap wider than the coarsest value of the ring longitudinal resolution (plane
 :data:`~spindoctor.cli.backplanes.backplanes_rings.RING_LONGITUDINAL_RESOLUTION`) cover
 the whole circle, recorded as 0 to 360.  With no value of that plane, as when the

@@ -96,14 +96,14 @@ So a suite started in a directory whose configuration sets a live results index
 neither reads nor locks it. For a SQLite results index, an open takes a
 write-lock probe against a file an ingest may be holding.
 
-A test that wants either level sets it up for itself. Two things the closure
-cannot do for you: a subprocess given a working directory of its own resolves
-its configuration there, so a test that starts one gives it the directory it
-means; and nothing may be written into the directory the suite runs from, which
-is shared by every test of the worker -- a file left there is a configuration
-every later test in that worker resolves through, so a test that writes one is
-failed on the way out. Move to a directory of your own with
-``monkeypatch.chdir`` first.
+A test that wants either level sets it up for itself. The closure cannot do two
+things for you. First, a subprocess given a working directory of its own resolves
+its configuration there, so a test that starts one must give it the directory it
+intends. Second, the directory the suite runs from is shared by every test of the
+worker. Anything a test leaves there is removed when the test ends. A
+``nav_default_config.yaml`` left there also fails the test, because every later
+test in that worker would read it as its configuration. Move to a directory of
+your own with ``monkeypatch.chdir`` before writing anything.
 
 Archive-backed tests additionally require the holdings and catalog environment
 (set by CI; see :doc:`dev_guide_introduction`):

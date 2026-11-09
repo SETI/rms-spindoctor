@@ -574,8 +574,10 @@ A result whose ``status_reason`` is ``internal_error`` carries an ``internal_err
 object, and no other result carries one. It records the part of the navigation that
 failed and the class of error it hit, so a program reading the metadata document,
 rather than a person reading the log, can tell a navigation that hit a defect from
-one that simply found nothing. An example of both keys, from a real captured run, is
-under `Internal error`_ below.
+one that simply found nothing. The `Internal error`_ example below is a different
+failure. The error there was raised while the summary picture was being captioned,
+outside any model or technique, so its metadata document carries ``status_error``
+instead and no ``internal_error`` object.
 
 .. list-table::
    :header-rows: 1
