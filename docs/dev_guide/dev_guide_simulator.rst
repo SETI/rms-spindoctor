@@ -3372,15 +3372,15 @@ the scene kernel's core sigma. A scene with no PSF renders each star as a
 one-pixel spike (the undersampled limit), so the converted floor scenes carry an
 explicit ``optics.psf`` block.
 
-The faint sky-count integral is truncated at the magnitude where a star's
-matched-filter signal drops to the read-noise floor over its PSF core
-(:func:`spindoctor.sim.forward.star.faint_sky_cutoff_mag`): fainter draws add
-nothing above the noise. The core counts as at least one pixel, since a core
-narrower than a pixel, as in a binned frame, still lands in one. That cutoff is an image-side rendering economy and is
-distinct from the navigator's own published-config detection limit
-(:meth:`~spindoctor.obs.obs_inst_sim.ObsSim.star_max_usable_vmag`), which is
-derived from the emulated instrument's configuration and bounds which stars the
-navigator will *use*, never from the scene's truth-side blocks.
+The faint sky-count integral is truncated at the magnitude where a star's matched-filter
+signal drops to the read-noise floor over its PSF core
+(:func:`spindoctor.sim.forward.star.faint_sky_cutoff_mag`): fainter draws add nothing
+above the noise. The core counts as at least one pixel, since a core narrower than a
+pixel, as in a binned frame, still lands in one. That cutoff is an image-side rendering
+economy and is distinct from the navigator's own published-config detection limit
+(:meth:`~spindoctor.obs.obs_inst_sim.ObsSim.star_max_usable_vmag`), which is derived from
+the emulated instrument's configuration and bounds which stars the navigator will *use*,
+never from the scene's truth-side blocks.
 
 .. _sim-noise:
 
@@ -3652,11 +3652,11 @@ CISSCAL treats it. Setting a filter on a camera without a table, or one the
 table doesn't list, is a validation error, and so is setting ``filter``
 together with ``exposure_ref_sec``.
 
-A scene that doesn't name a filter keeps the nominal scale its catalog entry
-derives. For the NAC that is 55,000 e-/s per I/F, close to its IR3 and HAL
-filters; for the WAC it is 47,500, close to its MT3 filter. The throughput is the only part of the rendering that
-depends on the filter. Haze, body photometry, star color, and the PSF render
-the same for every filter.
+A scene that doesn't name a filter keeps the nominal scale its catalog entry derives. For
+the NAC that is 55,000 e-/s per I/F, close to its IR3 and HAL filters; for the WAC it is
+47,500, close to its MT3 filter. The throughput is the only part of the rendering that
+depends on the filter. Haze, body photometry, star color, and the PSF render the same for
+every filter.
 
 ``binning`` selects a binned or summed readout mode, 1 by default: each frame
 pixel sums a ``b`` by ``b`` block of native pixels. Each instrument config

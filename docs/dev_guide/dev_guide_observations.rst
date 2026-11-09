@@ -314,9 +314,10 @@ must implement:
   :attr:`~spindoctor.obs.obs_inst.ObsInst.camera` rather than repeating a
   literal, so the name has one source.
 
-The :attr:`~spindoctor.obs.obs_inst.ObsInst.inst_config` property exposes the per-instrument YAML block
-loaded from ``src/spindoctor/config_files/config_4N0_inst_*.yaml`` so subclass
-methods can read instrument-specific knobs without hard-coding them.
+The :attr:`~spindoctor.obs.obs_inst.ObsInst.inst_config` property exposes the
+per-instrument YAML block loaded from
+``src/spindoctor/config_files/config_4N0_inst_*.yaml`` so subclass methods can read
+instrument-specific knobs without hard-coding them.
 
 Per-instrument subclasses
 =========================

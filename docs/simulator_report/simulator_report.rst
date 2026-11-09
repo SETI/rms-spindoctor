@@ -1752,11 +1752,11 @@ the dedicated sweep or the scene class that drives it:
      - sweep ``artifact_missing_lines`` and ``artifact_sweep`` scene class
 
 Eight of these sweeps -- ``psf_limb_mismatch``, ``psf_limb_wings``,
-``photometric_minnaert_mismatch``, ``spk_parallax_error``,
-``differential_smear``, ``ring_orbit_error``, ``atmosphere_haze``, and
-``atmosphere_haze_albedo`` -- each begin at a self-consistency floor: their first swept value plants no mismatch,
-so its recovery error is the floor (reproducibility), and the curve measures
-sensitivity to the mismatch from the second point on.
+``photometric_minnaert_mismatch``, ``spk_parallax_error``, ``differential_smear``,
+``ring_orbit_error``, ``atmosphere_haze``, and ``atmosphere_haze_albedo`` -- each begin at
+a self-consistency floor: their first swept value plants no mismatch, so its recovery
+error is the floor (reproducibility), and the curve measures sensitivity to the mismatch
+from the second point on.
 
 One PSF render knob remains unswept: the renderer has no pointing-jitter
 kernel, so the PSF-mismatch coverage above is core sigma and wing energy only;
