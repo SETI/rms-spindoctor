@@ -396,9 +396,11 @@ through) are telemetry-stage modes applied after the structured-loss modes,
 because they emulate archive processing rather than a detector or transmission
 defect.
 
-The entry's shape defaults give ``edited_frame`` a 440-pixel band, one of the
-commanded edited-mode band widths (608, 440, 272, 160, and 80 of the 800-pixel
-line), so a bare ``probability`` keeps a physical centered band. They give
+The entry's shape defaults give ``edited_frame`` a centered band 550 pixels wide.
+The edited modes downlink a band of 608, 440, 272, 160, or 80 of the 800 samples in
+a raw line, and the GEOMED resample spreads those 800 samples over 1000 pixels, so
+the 440-sample band covers 550 pixels of the GEOMED frame. A scene that sets only a
+``probability`` therefore gets a band of physical width. The shape defaults give
 ``reseau_scars`` 202 marks on a 46-pixel lattice, the camera's reseau grid.
 ``native_frame_size_px`` is 1000, the GEOMED product's size, which the realism
 match uses to tell a full frame from a subframe.

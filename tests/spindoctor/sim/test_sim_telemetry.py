@@ -275,11 +275,11 @@ def test_edited_frame_keeps_only_a_centered_band() -> None:
 
 
 def test_edited_frame_bare_probability_keeps_the_default_band() -> None:
-    """A bare probability renders the default 440-px Voyager IM centered band."""
-    frame = _frame(size=512)
+    """A bare probability renders the vgiss default band, 550 GEOMED pixels wide."""
+    frame = _frame(size=1000)
     record = _render(frame, {'edited_frame': {'probability': 1.0}}, instrument='vgiss')
     u0, u1 = record['edited_frame']['kept_band']
-    assert u1 - u0 == 440
+    assert u1 - u0 == 550
     assert np.all(frame.signal[:, :u0] == 0.0)
     assert np.all(frame.signal[:, u1:] == 0.0)
     assert np.all(frame.signal[:, u0:u1] == 1.0)
