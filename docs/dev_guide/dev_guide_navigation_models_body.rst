@@ -401,9 +401,9 @@ not exposed to YAML.
 bodies block
 ------------
 
-Every key under ``bodies`` is listed below. Several keys are not consumed by
-:class:`~spindoctor.nav_model.nav_model_body.NavModelBody` itself, so each bullet gives the
-module that consumes its key, or says that the key is reserved. The grep
+Every key under ``bodies`` is listed below. Several keys are read by classes
+other than :class:`~spindoctor.nav_model.nav_model_body.NavModelBody`, and some are not read
+at all. Each bullet gives the class that reads its key, or says that the key is reserved. The grep
 ``grep -c '^  [a-z_]\+:' src/spindoctor/config_files/config_040_bodies.yaml`` returns 31 keys, which
 matches the 31 bullets here.
 

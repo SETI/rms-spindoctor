@@ -580,7 +580,7 @@ over the candidates
 On the results tree, that call reads metadata documents, but only for the
 candidates the other selection constraints kept. It never reads every metadata
 document under the volume, and never one for an image the listing has already
-excluded. On a results index, it reads those candidates' rows instead.
+excluded. With a results index, it reads those candidates' rows instead.
 
 ``--has-no-offset-file`` is asked about the candidates instead. Its answer set
 is one it only ever rejects from, so listing a volume to build it would be work

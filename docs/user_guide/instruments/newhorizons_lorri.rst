@@ -55,8 +55,9 @@ directory structure is unexpected is a milder case: it is logged as an error
 and that row alone is dropped.
 
 The data directory is organized by date: the filespec is
-``data/yyyymmdd_dddddd/lor_dddddddddd_0xNNN_sci.lbl``. The middle component is an
-eight-digit date, then the first six of the ten digits in the image name, as in
+``data/yyyymmdd_dddddd/lor_dddddddddd_0xNNN_sci.lbl``. The middle component is the
+date as eight digits (yyyymmdd), an underscore, and the first six of the ten digits in
+the image name, as in
 ``data/20070108_003059/lor_0030598439_0x630_sci.lbl``.
 
 **Image names.** A name is ``lor_`` followed by ten digits -- fourteen

@@ -575,9 +575,10 @@ object, and no other result carries one. It records the part of the navigation t
 failed and the class of error it hit, so a program reading the metadata document,
 rather than a person reading the log, can tell a navigation that hit a defect from
 one that simply found nothing. The `Internal error`_ example below is a different
-failure. The error there was raised while the summary picture was being captioned,
-outside any model or technique, so its metadata document carries ``status_error``
-instead and no ``internal_error`` object.
+kind of failure. There, the error was raised while the summary picture was being
+captioned, which is outside any model or technique. Its metadata document has a
+top-level ``status_error`` of ``internal_error``, and it has no ``internal_error``
+object.
 
 .. list-table::
    :header-rows: 1

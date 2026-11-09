@@ -157,7 +157,7 @@ Options
   ``--nav-results-root``, and its rows are a snapshot of that root as of the
   ingest. The option takes precedence over the ``environment.results_index_db``
   configuration setting and the ``NAV_RESULTS_INDEX_DB`` environment variable.
-  When none of the three gives a results index, which is the default, the
+  By default none of the three gives a results index, and the
   navigation results tree is read directly. ``--results-index-db none`` reads the
   tree even when the configuration or the environment variable gives a
   results index.

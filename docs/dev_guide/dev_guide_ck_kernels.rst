@@ -397,17 +397,19 @@ values, and the per-reason short form), and
 :func:`~spindoctor.cli.reproj.offsets.apply_pointing_to_obs` applies it,
 returning an :class:`~spindoctor.cli.reproj.offsets.AppliedPointing` that
 records what the observation now carries (``cmatrix``, ``pool``, ``offset`` or
-``none``). The offset path is the documented mechanism for every record that has
-no usable C-matrix but does have a usable offset: a fitted-rotation result
-(``no_cmatrix_rotation_fitted`` -- the mechanism, not a mission), a record that has
-no pointing block (``no_pointing_block``), and a malformed pointing block
-(``malformed_pointing``, warned to both logs like a C-matrix that the checks above
-refuse). A record that has neither selects ``none``. Every caller treats a record that
-supplies no pointing the same way: the product is built on uncorrected pointing,
-the shortfall is reported, and the reason is counted.  A caller that refused a
-record class the others processed would build one product from a metadata document
-and another from the results index row that was ingested from it, since a column
-pair holds every way an offset can fail to be a pair.
+``none``). The offset path is used for every record that has no usable C-matrix
+but has a usable offset. There are three kinds: a fitted-rotation result
+(``no_cmatrix_rotation_fitted``, named for the mechanism, not a mission), a
+record that has no pointing block (``no_pointing_block``), and a record whose
+pointing block is malformed (``malformed_pointing``). Like a C-matrix that the
+checks above refuse, a malformed pointing block is reported as a warning in both
+logs. A record that has neither a usable C-matrix nor a usable offset selects
+``none``. Every caller treats a record that supplies no pointing the same way:
+the product is built on uncorrected pointing, the shortfall is reported, and the
+reason is counted. The results index stores the offset in two columns that can
+hold every way an offset can be unusable, so a record reads the same from its
+metadata document as from its row. A caller that refused a kind of record the
+others accept would build different products from the two.
 
 After either mechanism mutates the observation,
 :func:`~spindoctor.cli.reproj.offsets.apply_pointing_to_obs` calls

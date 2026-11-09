@@ -32,11 +32,11 @@ model emits its feature. Frame quality lives in that feature's reliability, neve
 envelope that cannot clear the detector wherever the true pointing puts it, one too heavily
 occluded, or one too small to measure scores exactly zero, and the standard per-type reliability
 gate then removes it. A marginal Titan therefore resolves through the same statuses as any other
-marginal scene -- ``all_features_gated`` on a Titan-only frame. The reliability breakdown on the
-gate record carries the envelope diameter and the occluded fraction, which show a zero that
-either of them caused. It carries nothing about the detector edge: a zero from clipping shows only
-as a zero reliability beside values that would have passed. There is no Titan-specific
-status reason anywhere in the codebase.
+marginal scene -- ``all_features_gated`` on a Titan-only frame. The gate record's reliability
+breakdown holds the envelope diameter and the occluded fraction, so a zero caused by either one can
+be read from it. The breakdown says nothing about the detector edge, but a zero next to a diameter
+and an occluded fraction that both pass can only mean the envelope was clipped. There is no
+Titan-specific status reason anywhere in the codebase.
 
 Theory
 ======
@@ -331,10 +331,9 @@ feature, :class:`~spindoctor.nav_technique.nav_technique_titan_haze.TitanHazeNav
 frame commits with an anisotropic covariance and a ``medium``-tier confidence.
 
 A Titan-only frame whose envelope is clipped by the detector edge, or occluded past
-``max_occluded_fraction`` by the rings, emits a zero-reliability feature that the type gate removes;
-the frame ends ``all_features_gated``. On the occluded frame, the gate record's reliability
-breakdown gives the occluded fraction that produced the zero. On the clipped frame it does not
-give the cause: its diameter and occluded fraction can both pass, and only the zero reliability
-shows that the envelope was clipped. A frame carrying Titan plus a resolved moon, a ring,
-or a star field navigates on all of its content together, with the haze fit contributing one witness
-to the ensemble.
+``max_occluded_fraction`` by the rings, emits a zero-reliability feature that the type gate
+removes; the frame ends ``all_features_gated``. On the occluded frame, the breakdown shows the
+occluded fraction that produced the zero. On the clipped frame, the diameter and the occluded
+fraction can both pass, and a zero next to two passing values means the envelope was clipped. A
+frame carrying Titan plus a resolved moon, a ring, or a star field navigates on all of its content
+together, with the haze fit contributing one witness to the ensemble.

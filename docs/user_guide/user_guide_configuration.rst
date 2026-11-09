@@ -133,8 +133,8 @@ The sections are:
     The camera the image simulator pretends to be, and the noise and defects it renders.
     See :doc:`/user_guide/user_guide_simulated_images`.
 
-When two configuration files both give a value for one setting, the value from the last
-file loaded wins.
+When two configuration files give the same setting different values, the file loaded
+last wins.
 Sections merge setting by setting, so a file that sets one value in a section leaves the
 rest of that section at its default.
 

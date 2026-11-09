@@ -252,8 +252,8 @@ A task file is a JSON array of task objects. A bundle task looks like this:
 * ``task_id`` identifies the task uniquely within the file.
 * ``data.dataset_name`` is a dataset that can be bundled (see `Supported Datasets`_).
   A task whose dataset name matches no dataset fails with ``unknown_dataset``.
-  A task for a dataset that exists but cannot be bundled stops on an error when it
-  comes to write the labels, and the queue worker reports it as an exception (see
+  A task for a dataset that exists but cannot be bundled fails with an error when it
+  reaches the labels. The queue worker reports that as an exception (see
   `Exit Status`_).
 * ``data.files`` holds one entry per image, each requiring ``image_file_url``,
   ``label_file_url``, and ``results_path_stub``, and each optionally carrying
@@ -770,11 +770,11 @@ Configuration Options
 
 * ``bundle_version``: The bundle's version, as ``<major>.<minor>`` in quotes (e.g.,
   ``'1.0'``). It is the version of the bundle, of each of its collections, and of each
-  product it holds. Each label gives this version as its own, and each list of members
-  gives it for every product of the bundle that the list holds. A label refers to
-  another product of the bundle by its logical identifier alone, without a version. A
-  product outside the bundle that a label refers to, such as a context product, keeps
-  its own version.
+  product it holds. Each label states this version as its own. Each list of members
+  gives this version for every product of the bundle it lists. A label refers to another
+  product, inside the bundle or outside it, by its logical identifier alone, with no
+  version. When a list of members includes a product outside the bundle, such as a
+  context product, it gives that product's own version.
 
 * ``information_model_version``: The version of the PDS4 information model the labels
   are written against, which every label states. It is the version of the build the
