@@ -40,7 +40,6 @@ from spindoctor.sim.instrument_navigator import resolve_sim_inst_config
 from spindoctor.sim.instrument_resolvers import (
     cataloged_binnings,
     resolve_data_units,
-    resolve_detector_defaults,
     resolve_star_flux_zero_point,
 )
 from spindoctor.sim.render import render_combined_model
@@ -705,12 +704,12 @@ def test_the_navigator_zero_point_matches_the_simulators(instrument: str) -> Non
     this test detects the two drifting apart by more than half the rounding step of
     the navigator's stated value (the place value of its last significant digit), so
     a difference the navigator's rounding explains passes.  A CCD's zero point is in
-    electrons, converted through the default gain state; a vidicon's is already DN.
+    electrons, converted through the gain that a scene with no detector settings
+    renders with; a vidicon's is already DN.
     """
     zero_point, domain = resolve_star_flux_zero_point(instrument)
     if domain == 'electrons':
-        detector = resolve_detector_defaults(instrument)
-        zero_point /= detector['gain_e_per_dn_by_state'][detector['default_gain_state']]
+        zero_point /= resolve_detector_params({'instrument': instrument}).gain_e_per_dn
     # A block without the key fails here and in the test above, which says why.
     stated = resolve_sim_inst_config(DEFAULT_CONFIG, instrument)['noise'][
         'star_flux_dn_per_s_vmag0'
