@@ -336,10 +336,10 @@ class ModeRow:
     def _sync_widgets(self, mode_map: dict[str, Any] | None) -> None:
         """Set the row's checked state and widget values from a mode map.
 
-        Display state only: signals are blocked so no write occurs.  A key absent
-        from ``mode_map`` shows the default the renderer uses, without authoring it.
-        That is the camera's shape default when its config states one, else the
-        registry default.
+        Signals are blocked, so syncing never writes to the scene.  A key the scene
+        leaves unset shows the camera's shape default if its config has one, else the
+        registry default.  A key with no default at all shows 0, though the renderer
+        may take its value from the detector block instead.
         """
         enabled = mode_map is not None
         self.group.blockSignals(True)
@@ -358,10 +358,12 @@ class ModeRow:
             self._count_check.blockSignals(False)
 
     def _sync_scalar(self, param: ModeParam, current: dict[str, Any]) -> None:
-        """Show one scalar parameter's scene value, or the default the renderer uses.
+        """Show one scalar parameter's scene value, or its default.
 
         If the key is absent or set to null, the widget shows the camera's shape
-        default when its config states one, else the registry default.
+        default if its config has one, else the registry default.  A key with no
+        default at all shows 0, or the spin box's minimum, though the renderer may
+        take its value from the detector block instead.
         """
         widget = self._scalar_widgets[param.name]
         value = current.get(param.name)

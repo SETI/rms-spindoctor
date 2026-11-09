@@ -841,7 +841,7 @@ def test_enum_param_rejects_bad_value() -> None:
 
 
 def test_enum_param_accepts_null() -> None:
-    """A null enum value is unset, so it validates and keeps its null."""
+    """A null enum value is unset, so it passes validation and stays null."""
     scene = {
         **_base_scene('coiss_nac'),
         'artifacts': {'alternating_lines': {'probability': 1.0, 'period': None}},

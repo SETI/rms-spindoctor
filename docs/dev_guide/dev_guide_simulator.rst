@@ -958,7 +958,8 @@ file, and a message about the directory, such as a stray file or a missing
 files: a ``.yml`` file, or any other entry in the directory, fails the load rather
 than being skipped. A file also fails the load if it isn't valid YAML, writes a
 key twice, or doesn't hold a mapping of instrument names to entries. An instrument
-name must be a string, so a name written as a bare number, such as ``123``, fails.
+name must be a string, so a name that YAML reads as a number, a boolean, or a date,
+such as a bare ``123``, fails.
 The load fails if two files define the same instrument, or if an instrument's
 top-level value isn't a mapping. Within an entry, the load fails on:
 
