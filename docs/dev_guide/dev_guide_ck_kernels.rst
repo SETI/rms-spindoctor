@@ -406,10 +406,13 @@ checks above refuse, a malformed pointing block is reported as a warning in both
 logs. A record that has neither a usable C-matrix nor a usable offset selects
 ``none``. Every caller treats a record that supplies no pointing the same way:
 the product is built on uncorrected pointing, the shortfall is reported, and the
-reason is counted. The results index stores the offset in two columns that can
-hold every way an offset can be unusable, so a record reads the same from its
-metadata document as from its row. A caller that refused a kind of record the
-others accept would build different products from the two.
+reason is counted. The one exception is a navigation that did not succeed:
+:func:`~spindoctor.cli.backplanes.backplanes.generate_backplanes_image_files`
+skips that image before it selects any pointing, and builds no backplanes for
+it. The results index stores the offset in two columns that can hold every way
+an offset can be unusable, so a record reads the same from its metadata document
+as from its row. A caller that refused a kind of unusable offset the others
+accept would build different products from the two.
 
 After either mechanism mutates the observation,
 :func:`~spindoctor.cli.reproj.offsets.apply_pointing_to_obs` calls
