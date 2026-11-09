@@ -2,11 +2,11 @@
 
 Every value here comes from the simulated instrument's config entry (see
 :mod:`spindoctor.sim.instrument_catalog`): the units a frame is written in, the
-detector chain an ``instrument_defaults`` scene turns on, the readout modes, the star zero point,
-the plate scale the background-sky star count uses, the whole-scene PSF kernel and
-its truncation radius, the residual geometric distortion, the downlink tables, the
-filter throughputs, and the artifact modes the camera offers with their shape
-defaults.  The rest of the simulator reads the catalog through these resolvers.
+detector chain an ``instrument_defaults`` scene turns on, the readout modes, the star
+zero point, the plate scale the background-sky star count uses, the whole-scene PSF
+kernel and its truncation radius, the residual geometric distortion, the downlink
+tables, the filter throughputs, and the artifact modes the camera offers with their
+shape defaults.  The rest of the simulator reads the catalog through these resolvers.
 Each takes a sim instrument name, an alias, or ``None`` for the generic entry, and
 raises :class:`ValueError` if the catalog doesn't hold the name.
 

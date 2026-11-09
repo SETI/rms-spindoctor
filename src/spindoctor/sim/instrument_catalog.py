@@ -82,8 +82,8 @@ class InstrumentCatalog:
         entries: Each instrument's entry keyed by name, ``generic`` included, with
             its base merged in and ``base`` and ``aliases`` removed.
         aliases: Each alias mapped to the instrument it stands for.
-        sources: Each instrument's file and name, as its error messages begin
-            (``'coiss.yaml: coiss_nac'``).
+        sources: The file and entry name that begin each of the instrument's error
+            messages (``'coiss.yaml: coiss_nac'``).
     """
 
     config_dir: Path
