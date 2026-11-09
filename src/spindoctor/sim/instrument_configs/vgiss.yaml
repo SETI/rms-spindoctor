@@ -122,7 +122,7 @@ vgiss:
     # Per-mode shape defaults, estimated, all GEOMED-level: the beam-bend limb
     # bias that survives reseau-anchored correction, the shortened erase-cycle
     # residual image, the readout dark-current line ramp, the reseau-removal
-    # scars on the ~46-px lattice, and the GEOMED resample texture (blank border
+    # scars on the ~59-px lattice, and the GEOMED resample texture (blank border
     # + missing-line interpolation banding).
     shape_defaults:
       # The edited (IM) modes downlink a centered band of each line: 608, 440,
@@ -136,10 +136,12 @@ vgiss:
       # 48 x n s readout ramp, nonlinear in wait time.
       dark_ramp: {kind: dark_gradient, amplitude_e: 6.0, nonlinear: 1.5}
       quantization_contour_8bit: {step: 8}
-      # 202 reseau marks per camera on a ~46 px triangular lattice (Benesh and
-      # Jepsen 1978; the 202-mark count verified in VGISS_5101's per-image reseau
-      # tables, e.g. C1385455_RESLOC.TAB).
-      reseau_scars: {spacing_px: 46, patch_radius_px: 4, mark_count: 202}
+      # 202 reseau marks per camera on a triangular lattice (Benesh and Jepsen
+      # 1978).  MEASURED 2026-11-08 in VGISS_5101's C1385455_RESLOC.TAB: 202 marks,
+      # median nearest-neighbor distance 47.25 raw pixels.  The GEOMED resample
+      # spreads the 800 raw pixels over 1000, so the spacing here is 47.25 * 1.25,
+      # about 59 GEOMED pixels.
+      reseau_scars: {spacing_px: 59, patch_radius_px: 4, mark_count: 202}
       resample_texture: {warp_amp_px: 0.3, blank_border_px: 2, missing_line_interp: false}
 
   # The image library's GEOMED frames from both cameras are matched against this

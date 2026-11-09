@@ -403,7 +403,9 @@ The edited modes downlink a centered band of 608, 440, 272, 160, or 80 of the 80
 samples in a raw line. The GEOMED resample spreads those 800 samples over 1000
 pixels, so the 440-sample band covers 550 pixels of the GEOMED frame. A scene that
 sets only a ``probability`` gets that band. The shape defaults give
-``reseau_scars`` 202 marks on a 46-pixel lattice, the camera's reseau grid.
+``reseau_scars`` 202 marks on a 59-pixel lattice. The camera's 202 reseau marks
+sit about 47 pixels apart in a raw frame, and the GEOMED resample stretches that
+to about 59 pixels.
 ``native_frame_size_px`` is 1000, the GEOMED product's size, which the realism
 match uses to tell a full frame from a subframe.
 

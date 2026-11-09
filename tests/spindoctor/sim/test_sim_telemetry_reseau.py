@@ -40,11 +40,11 @@ def test_reseau_scars_plant_the_requested_mark_count() -> None:
 
 
 def test_reseau_lattice_spans_the_archive_frame() -> None:
-    """At the 800x800 archive size the 202 marks span the full frame height."""
-    points = _reseau_lattice(800, 800, 46, 202)
+    """At the 1000x1000 GEOMED size and 59-pixel spacing, the 202 marks span the frame."""
+    points = _reseau_lattice(1000, 1000, 59, 202)
     assert len(points) == 202
     rows = [v for v, _u in points]
-    assert max(rows) - min(rows) >= 0.9 * 800
+    assert max(rows) - min(rows) >= 0.9 * 1000
 
 
 def test_reseau_scars_disabled_at_zero_probability() -> None:
