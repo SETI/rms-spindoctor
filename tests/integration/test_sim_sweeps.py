@@ -194,19 +194,36 @@ def test_range_sweep_largest_body_uses_resolved_body_technique() -> None:
     assert rows[0].primary_technique in ('BodyDiscCorrelateNav', 'BodyLimbNav')
 
 
+class _SmallestBodyNavigatedError(Exception):
+    """The smallest range-sweep body navigated when it should have failed."""
+
+
 # #941
 @pytest.mark.xfail(
     strict=True,
-    raises=AssertionError,
+    raises=_SmallestBodyNavigatedError,
     reason=(
         'With wrap-aware PSR the 4 px body navigates on a PSR computed from about five '
         'background cells, and nothing yet requires a minimum background size.'
     ),
 )
 def test_range_sweep_smallest_body_fails() -> None:
-    """The smallest body is unnavigable."""
+    """The smallest body is unnavigable.
+
+    The expected failure is its own exception, so an assertion raised while the sweep
+    runs is reported as a failure rather than absorbed by the marker.
+    """
     rows = _rows('range_body_size')
-    assert rows[-1].status == 'failed'
+    if rows[-1].status != 'failed':
+        raise _SmallestBodyNavigatedError(
+            f'the 4 px body ended {rows[-1].status} by {rows[-1].primary_technique}'
+        )
+
+
+def test_range_sweep_smallest_body_is_not_a_blob() -> None:
+    """The 4 px body is below the blob floor, so BodyBlobNav never navigates it."""
+    rows = _rows('range_body_size')
+    assert rows[-1].primary_technique != 'BodyBlobNav'
 
 
 def test_range_sweep_reaches_blob_regime() -> None:
