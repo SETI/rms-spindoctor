@@ -13,7 +13,6 @@ import math
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
-from oops import Observation
 
 from spindoctor.annotation import (
     TEXTINFO_BOTTOM,
@@ -43,6 +42,7 @@ from spindoctor.nav_model.stars.predicted_snr import (
     psf_sigma_px,
 )
 from spindoctor.nav_model.stars.smeared_psf import compute_smear_vector_px, smear_length_px
+from spindoctor.obs import ObsSnapshotInst
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX, containing_pixel
 from spindoctor.support.flux import clean_sclass
 from spindoctor.support.image import draw_rect
@@ -98,7 +98,7 @@ class NavModelStars(NavModel):
     def __init__(
         self,
         name: str,
-        obs: Observation,
+        obs: ObsSnapshotInst,
         *,
         config: Config | None = None,
     ) -> None:
@@ -108,7 +108,9 @@ class NavModelStars(NavModel):
         self._smear_vu: tuple[float, float] = (0.0, 0.0)
 
     @classmethod
-    def instances_for_obs(cls, obs: Observation, *, config: Config | None = None) -> list[NavModel]:
+    def instances_for_obs(
+        cls, obs: ObsSnapshotInst, *, config: Config | None = None
+    ) -> list[NavModel]:
         """Return one star NavModel per real observation.
 
         Simulated obs have no real star-catalog pointing, so no star model is
@@ -440,7 +442,7 @@ class NavModelStars(NavModel):
         )
 
 
-def _resolve_mag_offset(obs: Observation) -> float:
+def _resolve_mag_offset(obs: ObsSnapshotInst) -> float:
     """Return the per-camera-per-filter magnitude offset for a navigation.
 
     Reads ``obs.inst_config.mag_offset.{fallback_combo, mag_offset_table}``

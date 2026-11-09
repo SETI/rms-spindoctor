@@ -20,7 +20,6 @@ import math
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
-from oops import Observation
 
 from spindoctor.annotation import Annotations
 from spindoctor.config import Config
@@ -42,6 +41,7 @@ from spindoctor.nav_model.nav_model_body import (
 )
 from spindoctor.nav_model.nav_model_body_base import BODY_BLOB_MIN_DIAMETER_PX, NavModelBodyBase
 from spindoctor.nav_model.sim_body import create_simulated_body
+from spindoctor.obs import ObsSnapshotInst
 from spindoctor.sim.ellipsoid_geometry import DARK_SIDE_ILLUM_STRENGTH
 from spindoctor.sim.mesh_geometry import mesh_spec_from_params, render_mesh_body_image
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX, containing_pixel
@@ -286,7 +286,7 @@ class NavModelBodySimulated(NavModelBodyBase):
     def __init__(
         self,
         name: str,
-        obs: Observation,
+        obs: ObsSnapshotInst,
         body_name: str,
         sim_params: dict[str, Any],
         *,
@@ -310,7 +310,9 @@ class NavModelBodySimulated(NavModelBodyBase):
         self._overflow_fraction: float = 1.0
 
     @classmethod
-    def instances_for_obs(cls, obs: Observation, *, config: Config | None = None) -> list[NavModel]:
+    def instances_for_obs(
+        cls, obs: ObsSnapshotInst, *, config: Config | None = None
+    ) -> list[NavModel]:
         """Build one simulated body model per body of a simulated obs.
 
         Reads the per-body entries of the filtered idealized view

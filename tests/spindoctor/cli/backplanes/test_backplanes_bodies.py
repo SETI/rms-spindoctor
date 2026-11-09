@@ -12,7 +12,7 @@ confined to the simulated body mask.
 import os
 import subprocess
 import sys
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 import numpy.ma as ma
@@ -24,6 +24,7 @@ from spindoctor.cli.backplanes.backplanes_bodies import (
     create_body_backplanes,
 )
 from spindoctor.config import IMAGE_LOGGER
+from spindoctor.obs import ObsSim
 
 from .conftest import (
     MASKED_VALUE,
@@ -361,7 +362,9 @@ def test_simulated_backplane_mask_map_lookup_is_case_insensitive() -> None:
     mask = np.zeros(SHAPE_VU, dtype=bool)
     mask[2:4, 3:6] = True
     snap = make_snapshot(shape_vu=SHAPE_VU, simulated=True, sim_body_mask_map={'MOON_A': mask})
-    full, full_mask = _create_simulated_body_backplane(snap, 'moon_a', 'body_latitude', 2, 3, 3, 5)
+    full, full_mask = _create_simulated_body_backplane(
+        cast(ObsSim, snap), 'moon_a', 'body_latitude', 2, 3, 3, 5
+    )
     assert np.all(full[mask] > 0.0)
     assert np.all(full_mask == mask)
 
@@ -377,7 +380,9 @@ def test_simulated_backplane_index_map_fallback() -> None:
         sim_body_order_near_to_far=['ALPHA', 'BETA'],
         sim_body_index_map=index_map,
     )
-    full, full_mask = _create_simulated_body_backplane(snap, 'BETA', 'body_latitude', 2, 4, 3, 5)
+    full, full_mask = _create_simulated_body_backplane(
+        cast(ObsSim, snap), 'BETA', 'body_latitude', 2, 4, 3, 5
+    )
     assert full[2, 3] > 0.0
     assert full[3, 4] == MASKED_VALUE
     assert bool(full_mask[2, 3])
@@ -387,7 +392,9 @@ def test_simulated_backplane_index_map_fallback() -> None:
 def test_simulated_backplane_rect_fallback_fills_whole_box() -> None:
     """A body absent from every sim structure falls back to filling the rectangle."""
     snap = make_snapshot(shape_vu=SHAPE_VU, simulated=True)
-    full, full_mask = _create_simulated_body_backplane(snap, 'UNKNOWN', 'body_latitude', 2, 3, 3, 5)
+    full, full_mask = _create_simulated_body_backplane(
+        cast(ObsSim, snap), 'UNKNOWN', 'body_latitude', 2, 3, 3, 5
+    )
     assert np.all(full[2:4, 3:6] > 0.0)
     assert np.all(full_mask[2:4, 3:6])
     assert np.all(full[4:, :] == MASKED_VALUE)

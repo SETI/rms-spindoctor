@@ -36,7 +36,6 @@ import math
 from typing import Any
 
 import numpy as np
-from oops import Observation
 
 from spindoctor.config import DEFAULT_CONFIG, IMAGE_LOGGER, Config
 from spindoctor.nav_model.nav_model import NavModel
@@ -48,6 +47,7 @@ from spindoctor.nav_model.titan_geometry import (
     occluded_disc_fraction,
     paint_disc,
 )
+from spindoctor.obs import ObsSnapshotInst
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 from spindoctor.support.types import NDArrayBoolType
 
@@ -149,7 +149,7 @@ class NavModelTitanSimulated(NavModelTitan):
     def __init__(
         self,
         name: str,
-        obs: Observation,
+        obs: ObsSnapshotInst,
         body_params: dict[str, Any],
         *,
         sibling_bodies: list[dict[str, Any]] | None = None,
@@ -162,7 +162,9 @@ class NavModelTitanSimulated(NavModelTitan):
         self._star_records: list[dict[str, Any]] = [dict(s) for s in star_records or []]
 
     @classmethod
-    def instances_for_obs(cls, obs: Observation, *, config: Config | None = None) -> list[NavModel]:
+    def instances_for_obs(
+        cls, obs: ObsSnapshotInst, *, config: Config | None = None
+    ) -> list[NavModel]:
         """Return one instance per configured simulated Titan, else none.
 
         Reads the filtered idealized view (``obs.nav_params``) and never the

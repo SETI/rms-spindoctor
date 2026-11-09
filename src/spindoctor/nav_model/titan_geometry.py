@@ -96,11 +96,11 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 import oops
-from oops import Meshgrid, Observation
+from oops import Meshgrid
 from oops.backplane import Backplane
 
 from spindoctor.config import IMAGE_LOGGER, Config
@@ -110,6 +110,7 @@ from spindoctor.nav_model.nav_model_body import (
     occluder_mask_for_body,
 )
 from spindoctor.nav_model.stars.catalog import stars_in_extfov
+from spindoctor.obs import ObsSnapshotInst
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 from spindoctor.support.memory import release_transient_memory
 from spindoctor.support.types import NDArrayBoolType
@@ -270,7 +271,7 @@ def _finite(value: Any, name: str) -> float:
     return out
 
 
-def _frame_bounds(obs: Observation) -> tuple[tuple[int, int], float, tuple[float, float]]:
+def _frame_bounds(obs: ObsSnapshotInst) -> tuple[tuple[int, int], float, tuple[float, float]]:
     """Return the extfov shape, search half-window, and per-axis margins.
 
     Parameters:
@@ -295,7 +296,7 @@ def _frame_bounds(obs: Observation) -> tuple[tuple[int, int], float, tuple[float
     return bounds, window_px, margin_vu
 
 
-def _filter_names(obs: Observation) -> tuple[str, ...]:
+def _filter_names(obs: ObsSnapshotInst) -> tuple[str, ...]:
     """Return the image's filter names, or an empty tuple when it has none.
 
     Each instrument's observation names its filters differently -- Cassini
@@ -362,7 +363,7 @@ def _body_radius_km(body_name: str) -> float:
     return float(oops.Body.lookup(body_name).radius)
 
 
-def _body_scale(obs: Observation, config: Config) -> _BodyScale | None:
+def _body_scale(obs: ObsSnapshotInst, config: Config) -> _BodyScale | None:
     """Return the image scale, apparent radii, and phase.
 
     ``km_per_px`` averages the per-axis center resolutions; the radii come
@@ -506,7 +507,7 @@ def _clip_bbox_to_extfov(
 
 
 def _restricted_backplane(
-    obs: Observation, bbox_nominal: tuple[int, int, int, int], *, undersample: int = 1
+    obs: ObsSnapshotInst, bbox_nominal: tuple[int, int, int, int], *, undersample: int = 1
 ) -> tuple[Backplane, Meshgrid]:
     """Build a backplane over a nominal-frame bbox.
 
@@ -545,7 +546,7 @@ def _restricted_backplane(
 
 
 def _symmetry_axis(
-    obs: Observation,
+    obs: ObsSnapshotInst,
     bbox_nominal: tuple[int, int, int, int],
     center_vu: tuple[float, float],
     margin_vu: tuple[int, int],
@@ -782,7 +783,7 @@ def _paint_sibling_bboxes(
 
 def _paint_bright_stars(
     mask: NDArrayBoolType,
-    obs: Observation,
+    obs: ObsSnapshotInst,
     config: Config,
     *,
     margin_vu: tuple[int, int],
@@ -876,7 +877,7 @@ class _ContaminantMask:
 
 def _striped_occlusion(
     *,
-    obs: Observation,
+    obs: ObsSnapshotInst,
     bbox_nominal: tuple[int, int, int, int],
     sibling_ranges: list[tuple[str, float]],
     subject_range_km: float,
@@ -959,7 +960,7 @@ def _striped_occlusion(
 
 
 def _contaminant_mask(
-    obs: Observation,
+    obs: ObsSnapshotInst,
     config: Config,
     *,
     siblings: list[tuple[str, dict[str, Any]]],
@@ -1092,7 +1093,7 @@ def _embed_local(
 
 
 def geometry_from_obs(
-    obs: Observation,
+    obs: ObsSnapshotInst,
     config: Config,
     *,
     inventory: dict[str, Any] | None = None,
@@ -1134,7 +1135,9 @@ def geometry_from_obs(
     filters = _filter_names(obs)
     margin_vu = (int(obs.extfov_margin_vu[0]), int(obs.extfov_margin_vu[1]))
     if inventory is None:
-        inventory = obs.inventory([TITAN_BODY_NAME], return_type='full')[TITAN_BODY_NAME]
+        # return_type='full' answers a dict of per-body records.
+        full = cast(dict[str, dict[str, Any]], obs.inventory([TITAN_BODY_NAME], return_type='full'))
+        inventory = full[TITAN_BODY_NAME]
     if siblings is None:
         siblings = [
             (name, entry)

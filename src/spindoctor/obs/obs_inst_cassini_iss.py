@@ -12,7 +12,7 @@ from spindoctor.support.sclk import exposure_counts, fractional_count
 from spindoctor.support.time import et_to_utc
 from spindoctor.support.types import PathLike
 
-from .obs_snapshot_inst import ObsSnapshotInst
+from .obs_snapshot_inst import HostLabel, ObsSnapshotInst
 
 # SCLK01_MODULI_82 and SCLK01_OFFSETS_82 of the Cassini spacecraft clock kernel,
 # $OOPS_RESOURCES/SPICE/Cassini/SCLK/cas00172.tsc: whole seconds, then 1/256-second ticks.
@@ -241,12 +241,24 @@ def _published_sclk(start: str | None, stop: str | None) -> dict[str, float | No
     )
 
 
-class ObsCassiniISS(ObsSnapshotInst):
+class ObsCassiniISS(ObsSnapshotInst, HostLabel):
     """Implements an observation of a Cassini ISS image.
 
     This class provides specialized functionality for accessing and analyzing Cassini
     ISS image data.
     """
+
+    detector: str
+    """The camera, ``'NAC'`` or ``'WAC'``."""
+
+    filter1: str
+    """The filter in the first filter wheel, as the label names it."""
+
+    filter2: str
+    """The filter in the second filter wheel, as the label names it."""
+
+    gain_mode: int | None
+    """The gain state, 0 to 3 for 215, 95, 29 and 12 electrons per DN, or None if unknown."""
 
     @staticmethod
     @logged_section('obs', 'LOAD IMAGE')
@@ -285,7 +297,8 @@ class ObsCassiniISS(ObsSnapshotInst):
         logger.debug(f'Reading Cassini ISS image {path}')
         logger.debug(f'  Fast distortion: {fast_distortion}')
         logger.debug(f'  Return all planets: {return_all_planets}')
-        obs = oops.hosts.cassini.iss.from_file(
+        # The host module publishes no type information for from_file.
+        obs = oops.hosts.cassini.iss.from_file(  # type: ignore[no-untyped-call]
             path, fast_distortion=fast_distortion, return_all_planets=return_all_planets
         )
         fc_path = FCPath(path)

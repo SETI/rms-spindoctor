@@ -10,7 +10,7 @@ from spindoctor.support.sclk import exposure_counts, fractional_count, pds3_labe
 from spindoctor.support.time import et_to_utc
 from spindoctor.support.types import PathLike
 
-from .obs_snapshot_inst import ObsSnapshotInst
+from .obs_snapshot_inst import HostLabel, ObsSnapshotInst
 
 # SCLK01_MODULI_31/_32 and SCLK01_OFFSETS_31/_32 of the Voyager 1 and 2 spacecraft clock
 # kernels, $OOPS_RESOURCES/SPICE/Voyager/SCLK/vg100042.tsc and vg200041.tsc, which give both
@@ -128,12 +128,24 @@ def _voyager_if_factor(label3: Any) -> float:
         raise ValueError(f'Unexpected Voyager LABEL3 format: {label3!r}') from None
 
 
-class ObsVoyagerISS(ObsSnapshotInst):
+class ObsVoyagerISS(ObsSnapshotInst, HostLabel):
     """Implements an observation of a Voyager ISS image.
 
     This class provides specialized functionality for accessing and analyzing Voyager
     ISS image data.
     """
+
+    detector: str
+    """The camera, ``'NAC'`` or ``'WAC'``."""
+
+    filter: str
+    """The filter, as the label names it."""
+
+    planet: str
+    """The planet of the encounter the image was taken in."""
+
+    _label_clock_counts: tuple[str | None, str | None]
+    """The start and stop clock counts of the PDS3 label beside the image."""
 
     @staticmethod
     @logged_section('obs', 'LOAD IMAGE')
@@ -163,7 +175,8 @@ class ObsVoyagerISS(ObsSnapshotInst):
         logger = IMAGE_LOGGER
 
         logger.debug(f'Reading Voyager ISS image {path}')
-        obs = oops.hosts.voyager.iss.from_file(path)
+        # The host module publishes no type information for from_file.
+        obs = oops.hosts.voyager.iss.from_file(path)  # type: ignore[no-untyped-call]
         fc_path = FCPath(path)
         obs.abspath = cast(Path, fc_path.get_local_path()).absolute()
         obs.image_url = str(fc_path.absolute())

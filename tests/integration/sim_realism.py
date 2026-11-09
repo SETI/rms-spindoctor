@@ -52,8 +52,8 @@ import numpy as np
 
 from spindoctor.nav_model import build_models_for_obs
 from spindoctor.nav_orchestrator import NavOrchestrator
+from spindoctor.obs import ObsCassiniISS, ObsSnapshotInst
 from spindoctor.obs.obs_inst_sim import ObsSim
-from spindoctor.obs.obs_snapshot import ObsSnapshot
 from spindoctor.sim.forward.artifact_modes import normalize_instrument
 from spindoctor.sim.forward.filter_catalog import (
     FILTER_THROUGHPUT_E_PER_S_PER_IF,
@@ -257,12 +257,12 @@ def _resolve_image_url(url: str) -> Any:
     return FCPath(url)
 
 
-def _load_real_obs(sidecar: Sidecar) -> ObsSnapshot:
+def _load_real_obs(sidecar: Sidecar) -> ObsSnapshotInst:
     """Load the real observation behind one sidecar."""
     from tests.integration.test_autonomous_nav import _MISSION_TO_OBS_CLASS
 
     obs_class = _MISSION_TO_OBS_CLASS[sidecar.mission]
-    return cast(ObsSnapshot, obs_class.from_file(_resolve_image_url(sidecar.image_url)))
+    return cast(ObsSnapshotInst, obs_class.from_file(_resolve_image_url(sidecar.image_url)))
 
 
 def discover_cohort() -> dict[str, list[Sidecar]]:
@@ -308,7 +308,8 @@ def _frame_samples_real(
         # Matching content, not tuning: the sim renders the frame's own filter
         # throughput, gain state, and downlink table, so its DN-to-I/F scale
         # and quantization step are the real product's.
-        filter_name = f'{obs.filter1}+{obs.filter2}'
+        cassini = cast(ObsCassiniISS, obs)
+        filter_name = f'{cassini.filter1}+{cassini.filter2}'
         if (
             canonical_filter(instrument, filter_name)
             in FILTER_THROUGHPUT_E_PER_S_PER_IF[normalize_instrument(instrument)]
@@ -322,8 +323,8 @@ def _frame_samples_real(
                 f'{instrument}; its matched scene uses the nominal scale',
                 stacklevel=2,
             )
-        record.gain_state = int(obs.gain_mode)
-        if obs.dict.get('DATA_CONVERSION_TYPE', None) == 'TABLE':
+        record.gain_state = int(cast(int, cassini.gain_mode))
+        if cassini.dict.get('DATA_CONVERSION_TYPE', None) == 'TABLE':
             record.quantization = 'sqrt_lut'
     saturation = SATURATION_LEVEL[instrument]
     samples, rates = extract_pixel_samples(

@@ -23,7 +23,6 @@ import math
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
-import oops
 
 from spindoctor.annotation import Annotations
 from spindoctor.config import Config
@@ -38,6 +37,7 @@ from spindoctor.nav_model.sim_ring import (
     PredictedRingFeature,
     predict_ring_feature,
 )
+from spindoctor.obs import ObsSnapshotInst
 from spindoctor.sim.scene_schema import scene_value
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 from spindoctor.support.filters import NavFilterKind, NavFilterSpec
@@ -94,7 +94,7 @@ class NavModelRingsSimulated(NavModelRingsBase):
     def __init__(
         self,
         name: str,
-        obs: oops.Observation,
+        obs: ObsSnapshotInst,
         feature_name: str,
         feature_params: dict[str, Any],
         ring_system: dict[str, Any],
@@ -130,7 +130,7 @@ class NavModelRingsSimulated(NavModelRingsBase):
 
     @classmethod
     def instances_for_obs(
-        cls, obs: oops.Observation, *, config: Config | None = None
+        cls, obs: ObsSnapshotInst, *, config: Config | None = None
     ) -> list[NavModel]:
         """Build one simulated ring model per navigable ring_system feature.
 

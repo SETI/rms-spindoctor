@@ -23,11 +23,9 @@ dependencies = [
   "rms-pdslogger>=3.2.1",
   "rms-pdstable>=1.0.1",
   "rms-pdstemplate>=2.3.0",
-  "rms-polymath>=2.1.0",
+  "rms-polymath>=2.1.1",
   "rms-psfmodel",
-  # rms-oops 0.4.0 changed the Snapshot constructor (cadence is required) and
-  # breaks the test suite; the cap stays until the code moves to the 0.4 API.
-  "rms-oops>=0.1.5,<0.4",
+  "rms-oops>=0.4.0",
   "rms-starcat>=1.0.1",
   "ruamel.yaml",
   "scipy",
@@ -133,10 +131,6 @@ ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 module = "lxml.*"
-ignore_missing_imports = true
-
-[[tool.mypy.overrides]]
-module = "oops.*"
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]

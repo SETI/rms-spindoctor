@@ -64,6 +64,9 @@ class ObsNewHorizonsLORRI(ObsSnapshotInst):
     Horizons LORRI image data.
     """
 
+    _label_clock_counts: tuple[str | None, str | None]
+    """The start and stop clock counts of the PDS3 label beside the image."""
+
     @staticmethod
     @logged_section('obs', 'LOAD IMAGE')
     def from_file(
@@ -97,7 +100,10 @@ class ObsNewHorizonsLORRI(ObsSnapshotInst):
         # navigation pipeline treats image brightness scale-invariantly (NCC
         # correlation, image-derived MAD noise thresholds, magnitude-based star
         # gate), so no I/F conversion is required or expected here.
-        obs = oops.hosts.newhorizons.lorri.from_file(path, calibration=False)
+        # The host module publishes no type information for from_file.
+        obs = oops.hosts.newhorizons.lorri.from_file(  # type: ignore[no-untyped-call]
+            path, calibration=False
+        )
         fc_path = FCPath(path)
         obs.abspath = cast(Path, fc_path.get_local_path()).absolute()
         obs.image_url = str(fc_path.absolute())

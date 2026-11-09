@@ -837,7 +837,9 @@ class BodyMosaic:
         if len(longitude) == 0:
             return polymath.Pair(np.empty((0, 2)))
 
-        moon_surface = oops.Body.lookup(self.body_name).surface
+        # A body mosaic is built only for a body whose surface is an ellipsoid, which is
+        # what states the centric and graphic coordinate conversions.
+        moon_surface = cast(oops.surface.Ellipsoid, oops.Body.lookup(self.body_name).surface)
 
         if self._latlon_type == 'centric':
             longitude = moon_surface.lon_from_centric(longitude)

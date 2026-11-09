@@ -20,7 +20,7 @@ import oops
 import pdslogger
 import pytest
 from filecache import FCPath
-from oops.observation.snapshot import Snapshot
+from oops.observation import Snapshot
 from tests.cmatrix_helpers import (
     observation_attitude,
     some_attitude,
@@ -81,7 +81,11 @@ def _hermetic_obs(frame: Any = 'J2000') -> ObsSnapshot:
     size_v, size_u = _SHAPE_VU
     fov = oops.fov.FlatFOV((0.001, 0.001), (size_u, size_v))
     snapshot = Snapshot(
-        axes=('v', 'u'), tstart=_TSTART, texp=_TEXP, fov=fov, path='SSB', frame=frame
+        axes=('v', 'u'),
+        cadence=oops.cadence.SnapCadence(_TSTART, _TEXP),
+        fov=fov,
+        path='SSB',
+        frame=frame,
     )
     snapshot.insert_subfield('data', np.zeros(_SHAPE_VU, dtype=np.float32))
     # The subfields an oops host declares, which the reader reads to learn the
@@ -89,8 +93,7 @@ def _hermetic_obs(frame: Any = 'J2000') -> ObsSnapshot:
     snapshot.insert_subfield('spice_to_frame', oops.Matrix3(_IDENTITY))
     snapshot.insert_subfield('spice_frame_name', 'J2000')
     snapshot.insert_subfield('spice_frame_id', 1)
-    snapshot._closest_planet = None
-    return ObsSnapshot(snapshot, extfov_margin_vu=(0, 0))
+    return ObsSnapshot(snapshot, extfov_margin_vu=(0, 0), closest_planet=None)
 
 
 def _recorded_cmatrix(obs: ObsSnapshot) -> np.ndarray:
@@ -348,7 +351,11 @@ def test_an_offset_of_numeric_strings_is_read_as_the_numbers_it_names() -> None:
 
 
 def test_a_cmatrix_selection_replaces_the_frame(monkeypatch: pytest.MonkeyPatch) -> None:
-    """The C-matrix mechanism replaces the frame with the recorded attitude."""
+    """The C-matrix mechanism replaces the frame with the recorded attitude.
+
+    oops rounds the matrix it is given to the nearest exact rotation before it builds the
+    frame, which moves the last bit of some elements, so the comparison allows that.
+    """
     obs = _hermetic_obs()
     cmatrix = _recorded_cmatrix(obs)
     _inject_identity_flip(monkeypatch)
@@ -356,7 +363,7 @@ def test_a_cmatrix_selection_replaces_the_frame(monkeypatch: pytest.MonkeyPatch)
     applied = apply_pointing_to_obs(cast(ObsSnapshotInst, obs), selection)
     assert applied == AppliedPointing(source='cmatrix', reason=None)
     corrected = observation_attitude(cast(ObsSnapshotInst, obs), _MIDTIME)
-    assert np.array_equal(corrected, cmatrix)
+    assert corrected == pytest.approx(cmatrix, rel=0.0, abs=1e-15)
 
 
 def test_the_cmatrix_mechanism_leaves_the_fov_untouched(
@@ -443,8 +450,8 @@ def test_the_offset_fallback_carries_the_recorded_uv_offset(
     )
     apply_pointing_to_obs(cast(ObsSnapshotInst, obs), selection)
     fov = cast(oops.fov.OffsetFOV, obs.fov)
-    assert fov.uv_offset.vals[0] == _OFFSET_DV_DU[1]
-    assert fov.uv_offset.vals[1] == _OFFSET_DV_DU[0]
+    assert np.asarray(fov.uv_offset.vals)[0] == _OFFSET_DV_DU[1]
+    assert np.asarray(fov.uv_offset.vals)[1] == _OFFSET_DV_DU[0]
 
 
 def test_a_gate_failure_with_no_offset_leaves_pointing_uncorrected(
@@ -474,8 +481,8 @@ def test_an_offset_selection_wraps_the_fov() -> None:
     applied = apply_pointing_to_obs(cast(ObsSnapshotInst, obs), selection)
     assert applied == AppliedPointing(source='offset', reason='no_pointing_block')
     fov = cast(oops.fov.OffsetFOV, obs.fov)
-    assert fov.uv_offset.vals[0] == _OFFSET_DV_DU[1]
-    assert fov.uv_offset.vals[1] == _OFFSET_DV_DU[0]
+    assert np.asarray(fov.uv_offset.vals)[0] == _OFFSET_DV_DU[1]
+    assert np.asarray(fov.uv_offset.vals)[1] == _OFFSET_DV_DU[0]
 
 
 def test_a_none_selection_touches_nothing() -> None:
