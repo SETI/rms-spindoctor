@@ -88,10 +88,13 @@ These make every later phase cheaper or safer. Most are small.
 | #900, #813 | Validation skips the render path; null body keys crash; the navigator's simulated ring model reads nullable keys unsafely | Typed per-block specs on every entry point, with null meaning absent; the first slice of #915. |
 | #913 | `axis1`, `axis2`, and `axis3` are full widths named like semi-axes | Rename before more scenes are written in the old names. |
 | #876 | **Done (PR #934).** Per-instrument tables in one validated YAML file | Adding a camera or a readout mode becomes a configuration entry; Phase 4's instrument work depends on it. Lands after #886, as its text asks. |
-| #912, #126 | Correlation FFTs at slow sizes; the disc correlation's rotation search runs 19 full pyramid evaluations | Make full-frame scenes affordable in the integration tier; #904 and #908 both need it. |
+| #912 | **Done (PR #946).** Correlation FFTs at slow sizes | The correlator runs at fast transform lengths with the same answers, 2.1 to 2.3 times faster. |
+| #126, #945 | The disc correlation's rotation search runs 19 full pyramid evaluations; each candidate is refined on the whole surface at a slow length | Make full-frame scenes affordable in the integration tier; #904 and #908 both need it. Refinement is now most of the correlator's time. |
 | #854 | Simulated stars clip below the navigator's saturation level | Small; star brightness is wrong until it lands. |
 | #925 | The realism match compares mismatched content on content-filled and narrowband frames | Compare sky noise on comparable content and scale the matched star ladder by filter throughput, so the statistics the regression check holds to measure only the simulator. Then settle whether the TABLE path is too quiet. |
-| #929, #930 | The correlation refinement clamps at ±0.5 px from the integer peak; peak suppression and PSR ignore wrap-around | Navigator defects the simulator found; committed baselines record clamped answers, so they land before the guard scenes and the Phase 3 re-ratchet. #929 is measured on real frames first, and its fix keeps the expected failures failing. |
+| #930 | **Done (PR #946).** Peak suppression and PSR ignore wrap-around | Disc and ring confidence rose about 0.08; no library frame's final offset, status, or tier moved. |
+| #929 | The correlation refinement clamps at ±0.5 px from the integer peak | A navigator defect the simulator found; committed baselines record clamped answers, so it lands before the guard scenes and the Phase 3 re-ratchet. It is measured on real frames first, and its fix keeps the expected failures failing. |
+| #941, #943, #944 | The PSR has no minimum background size; a NaN quality makes candidate selection order-dependent; the overlap floor flips a lag's validity on rounding ties | Since #930, a 4 px body navigates on a PSR from about five background cells and a NaN quality is reachable for small bodies; the smallest range-sweep body is an expected failure until #941 lands. #944 shows only in contrived small geometries. |
 | #903, regression part | The realism match cannot fail | Compare a fresh run with the committed summary within per-statistic bands, so later physics changes are caught when they make realism worse. The hold-out and transfer parts come in Phase 6. |
 
 **Exit:** changing the signal in one region of a frame leaves the noise elsewhere in that frame
@@ -154,6 +157,7 @@ scenes are not built on the same slip.
 | #898 | The calibration generator draws catalog bodies at half size |
 | #309 | The campaign does not run the realism-anchored configuration (chain off, NAC only) |
 | #793, #874 | Refit on the repaired renderers and generator, under the overflow limits, and re-ratchet the moved coefficients |
+| #942 | Disc and ring confidence was fitted on runner-up ratios that wrap-around depressed before #930; the refit covers them |
 | #341 | The campaign's scene mixture is authored, with no data that it matches real frames |
 
 Track R replaces simulation-fitted values with real-anchored ones wherever real anchors exist;
@@ -365,7 +369,7 @@ Phase 8: alongside, finished last
   guard scenes of Phase 2b before the physics, and one logical change per PR with its moved
   baselines listed.
 - **Real-geometry cost.** #918 scenes need SPICE kernels and the holdings, so they run only in the
-  integration tier. Mitigation: #912 and #126 first, and a small per-class twin set in the
+  integration tier. Mitigation: #912 (done) and #126 first, and a small per-class twin set in the
   integration tier with the full set run on demand.
 - **The transfer check may fail for a class for reasons outside the simulator.** That is a result,
   not a setback: the class keeps its library frames and the gap is filed.
