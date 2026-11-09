@@ -17,8 +17,7 @@ from spindoctor.sim.instrument_navigator import navigator_marker_value, resolve_
 from spindoctor.sim.render import render_combined_model
 from spindoctor.sim.scene import validate_sim_params
 
-# The shipped entries cover both unit classes: coiss_nac, gossi, nhlorri, and
-# generic render raw DN, and coiss_calib_nac, coiss_calib_wac, and vgiss render I/F.
+# The shipped entries cover both unit classes.
 _INSTRUMENTS = (*sim_instrument_names(), 'generic')
 _RATE = 0.2
 

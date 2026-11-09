@@ -251,8 +251,10 @@ def test_both_chains_give_the_stage_the_rate_and_exposure(
 def _vgiss_dn(noise: dict[str, Any], **extra: Any) -> np.ndarray:
     """A dark 64 x 64 vgiss frame as the vidicon chain digitizes it.
 
-    vgiss renders calibrated I/F, so this runs the vidicon chain without the
-    calibration inverse that follows it, and reads the DN the hits leave.
+    vgiss renders calibrated I/F, so this runs only the vidicon chain, stopping before
+    the calibration inverse, and returns its DN.  Running the whole chain and undoing
+    the calibration would give the same DN only while vgiss has no calibration
+    residual.
     """
     scene = _scene('vgiss', noise, **extra)
     scene.update(size_v=64, size_u=64)
