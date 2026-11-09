@@ -514,6 +514,11 @@ _REFUSED: list[tuple[dict[str, str], str, str]] = [
         'file-not-a-mapping',
     ),
     (
+        {'cam.yaml': '123:\n  base: generic\n'},
+        r'cam\.yaml: the instrument name 123 must be a string',
+        'instrument-name-not-a-string',
+    ),
+    (
         {'generic.yaml': keyed('cam', 'base: gossi\n')},
         r"no 'generic' entry \(the instrument-agnostic entry\)",
         'no-generic-entry',

@@ -142,7 +142,7 @@ def _read_file(path: Path) -> dict[str, Any]:
 
     A YAML syntax error and a key written twice fail with a message that gives the
     file, as every schema violation does.  A file that holds anything but a mapping
-    fails too.
+    fails too, and so does an instrument name that isn't a string.
     """
     yaml = YAML(typ='safe')
     try:
@@ -151,6 +151,9 @@ def _read_file(path: Path) -> dict[str, Any]:
         raise InstrumentConfigError(f'{path.name}: not valid YAML: {exc}') from exc
     if not isinstance(raw, dict):
         raise config_error(path.name, '', 'the file must map instrument names to entries')
+    for name in raw:
+        if not isinstance(name, str):
+            raise config_error(path.name, '', f'the instrument name {name!r} must be a string')
     return raw
 
 
