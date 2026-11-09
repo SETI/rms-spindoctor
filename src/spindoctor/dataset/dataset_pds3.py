@@ -656,7 +656,8 @@ class DataSetPDS3(DataSet):
             The parsed PdsTable object.
         """
 
-        return PdsTable(fn, columns=columns, label_method='fast')
+        # The tuple keeps the argument hashable for the cache; PdsTable takes a list.
+        return PdsTable(fn, columns=None if columns is None else list(columns), label_method='fast')
 
     def _yield_image_files_index(self, **kwargs: Any) -> Generator[ImageFile, None, None]:
         """Yield filenames given search criteria using index files.
