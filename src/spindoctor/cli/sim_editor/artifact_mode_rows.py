@@ -50,7 +50,11 @@ from spindoctor.sim.artifact_modes import (
     ArtifactMode,
     ModeParam,
 )
-from spindoctor.sim.instrument_resolvers import mode_available, mode_unavailable_message
+from spindoctor.sim.instrument_resolvers import (
+    mode_available,
+    mode_unavailable_message,
+    resolve_mode_with_catalog,
+)
 
 # Generous numeric bounds: artifact parameters span pixel counts, electron
 # amplitudes, and unit fractions, so the spins are not the validation surface
@@ -107,6 +111,7 @@ class ModeRow:
         self._count_check: QCheckBox | None = None
         self._count_spin: QSpinBox | None = None
         self._unavailable_reason: str | None = None
+        self._instrument: str | None = None
 
         self.group = QGroupBox(f'{mode.name}  ({mode.stage})')
         self.group.setCheckable(True)
@@ -331,8 +336,10 @@ class ModeRow:
     def _sync_widgets(self, mode_map: dict[str, Any] | None) -> None:
         """Set the row's checked state and widget values from a mode map.
 
-        Display state only: signals are blocked so no write occurs, and a key
-        absent from ``mode_map`` shows the registry default without authoring it.
+        Display state only: signals are blocked so no write occurs.  A key absent
+        from ``mode_map`` shows the default the renderer uses, without authoring it.
+        That is the camera's shape default when its config states one, else the
+        registry default.
         """
         enabled = mode_map is not None
         self.group.blockSignals(True)
@@ -351,14 +358,15 @@ class ModeRow:
             self._count_check.blockSignals(False)
 
     def _sync_scalar(self, param: ModeParam, current: dict[str, Any]) -> None:
-        """Show one scalar parameter's scene value, or its registry default.
+        """Show one scalar parameter's scene value, or the default the renderer uses.
 
-        A key set to null shows the default, as the renderer resolves it.
+        If the key is absent or set to null, the widget shows the camera's shape
+        default when its config states one, else the registry default.
         """
         widget = self._scalar_widgets[param.name]
         value = current.get(param.name)
         if value is None:
-            value = param.default
+            value = resolve_mode_with_catalog(self.mode.name, {}, self._instrument)[param.name]
         widget.blockSignals(True)
         if isinstance(widget, QCheckBox):
             widget.setChecked(bool(value))
@@ -397,11 +405,15 @@ class ModeRow:
         the row is enabled, and its tooltip gives its activation key's semantics.
         If the scene already includes an unavailable mode, the mode's row stays
         enabled, with the reason in its tooltip, so the author can turn the mode off.
+        The row also shows the instrument's shape defaults for the keys the scene
+        leaves unset.
 
         Parameters:
             instrument: The scene's instrument name.
             detector_model: The detector model the scene renders with.
         """
+        self._instrument = instrument
+        self.sync()
         if not mode_available(self.mode.name, instrument):
             reason: str | None = mode_unavailable_message(self.mode.name, instrument)
         elif detector_model not in self.mode.detector_models:

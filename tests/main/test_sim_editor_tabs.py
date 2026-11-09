@@ -784,6 +784,13 @@ def test_null_mode_parameter_shows_its_default(model: Any) -> None:
     assert row._scalar_widgets['block_lines'].value() == 8
 
 
+def test_an_unset_mode_parameter_shows_the_cameras_shape_default(model: Any) -> None:
+    """An unset key shows the camera's shape default, as the renderer resolves it."""
+    model._apply_params_dict({'instrument': 'vgiss', 'artifacts': {'edited_frame': {}}})
+    row = model._mode_rows['edited_frame']
+    assert row._scalar_widgets['band_width_px'].value() == 550
+
+
 def test_reenabling_a_mode_shows_its_empty_map(model: Any) -> None:
     """Turning a mode off and on again shows the fresh map, with the count unset."""
     row = _dead_row(model)
