@@ -1,13 +1,13 @@
 """Registry-driven artifact-mode rows for the simulated-image editor.
 
 The Artifacts tab does not hand-code a section per artifact mode: it generates
-one :class:`ModeRow` from each :class:`~spindoctor.sim.forward.artifact_modes.ArtifactMode`
+one :class:`ModeRow` from each :class:`~spindoctor.sim.artifact_modes.ArtifactMode`
 in the registry, and each row builds its own widgets from the mode's
-:class:`~spindoctor.sim.forward.artifact_modes.ModeParam` specs.  A registered
+:class:`~spindoctor.sim.artifact_modes.ModeParam` specs.  A registered
 mode therefore acquires an editor row with no GUI change: the row's enable
 checkbox maps to the mode key's presence, the activation-key spin
 (``expected_events``, ``expected_events_per_sec``, ``probability``, or
-``pixel_fraction``, as the registry names it) and one widget per parameter map
+``pixel_fraction``, whichever the registry assigns) and one widget per parameter map
 to that mode's map keys, and the parameter kinds pick the widget (a spin, a
 checkbox, an enum combo, or a group of spins for a rect/window list).
 
@@ -22,8 +22,12 @@ The row never touches ``sim_params`` itself: every edit calls back into the
 controller (the Artifacts-tab mixin), which owns the artifacts block and the
 absent-key discipline -- an unchecked mode leaves its key absent, an enabled mode
 starts as an empty map, and each parameter key appears only once its widget is
-edited.  Availability filtering is per row: a mode unavailable on the scene's
-instrument is disabled with the registry's reason as its tooltip.
+edited.  Availability filtering is per row.  If the scene's instrument doesn't
+offer a mode, the mode's row is disabled, and its tooltip gives the instrument's
+reason.  If the scene's detector chain can't render a mode, the row is disabled,
+and its tooltip says why.  If the scene already includes a mode that its camera or
+detector can't render, the row stays enabled so the author can turn the mode off.
+Once the mode is off, the row is disabled.
 """
 
 from __future__ import annotations
@@ -41,12 +45,15 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from spindoctor.sim.forward.artifact_modes import (
+from spindoctor.sim.artifact_modes import (
     PIXEL_FRACTION,
     ArtifactMode,
     ModeParam,
+)
+from spindoctor.sim.instrument_resolvers import (
     mode_available,
     mode_unavailable_message,
+    resolve_mode_with_catalog,
 )
 
 # Generous numeric bounds: artifact parameters span pixel counts, electron
@@ -103,6 +110,8 @@ class ModeRow:
         self._list_spins: dict[str, list[QSpinBox]] = {}
         self._count_check: QCheckBox | None = None
         self._count_spin: QSpinBox | None = None
+        self._unavailable_reason: str | None = None
+        self._instrument: str | None = None
 
         self.group = QGroupBox(f'{mode.name}  ({mode.stage})')
         self.group.setCheckable(True)
@@ -310,10 +319,13 @@ class ModeRow:
 
         Enabling the row resyncs its widgets, so they show the map it now
         edits rather than values left over from before it was turned off.
+        If the mode is unavailable, turning the row off disables it.
         """
         self._controller._set_mode_enabled(self.mode.name, on)
         if on:
             self.sync()
+        elif self._unavailable_reason is not None:
+            self.group.setEnabled(False)
 
     # ---- Display sync ----
 
@@ -324,8 +336,10 @@ class ModeRow:
     def _sync_widgets(self, mode_map: dict[str, Any] | None) -> None:
         """Set the row's checked state and widget values from a mode map.
 
-        Display state only: signals are blocked so no write occurs, and a key
-        absent from ``mode_map`` shows the registry default without authoring it.
+        Signals are blocked, so syncing never writes to the scene.  A key the scene
+        leaves unset shows the camera's shape default if its config has one, else the
+        registry default.  A key with no default at all shows 0, though the renderer
+        may take its value from the detector block instead.
         """
         enabled = mode_map is not None
         self.group.blockSignals(True)
@@ -344,14 +358,17 @@ class ModeRow:
             self._count_check.blockSignals(False)
 
     def _sync_scalar(self, param: ModeParam, current: dict[str, Any]) -> None:
-        """Show one scalar parameter's scene value, or its registry default.
+        """Show one scalar parameter's scene value, or its default.
 
-        A key set to null shows the default, as the renderer resolves it.
+        If the key is absent or set to null, the widget shows the camera's shape
+        default if its config has one, else the registry default.  A key with no
+        default at all shows 0, or the spin box's minimum, though the renderer may
+        take its value from the detector block instead.
         """
         widget = self._scalar_widgets[param.name]
         value = current.get(param.name)
         if value is None:
-            value = param.default
+            value = resolve_mode_with_catalog(self.mode.name, {}, self._instrument)[param.name]
         widget.blockSignals(True)
         if isinstance(widget, QCheckBox):
             widget.setChecked(bool(value))
@@ -381,16 +398,37 @@ class ModeRow:
 
     # ---- Availability ----
 
-    def apply_availability(self, instrument: str | None) -> None:
-        """Enable or disable the row for the scene's instrument.
+    def apply_availability(self, instrument: str | None, detector_model: str) -> None:
+        """Enable or disable the row for the scene's instrument and detector model.
 
-        An unavailable mode is disabled with the registry's reason as its
-        tooltip; an available mode is enabled and carries its activation key's
-        semantics.
+        If the instrument doesn't offer the mode, the row is disabled, and its
+        tooltip gives the instrument's reason.  If the scene's detector chain can't
+        render the mode, the row is disabled, and its tooltip says why.  Otherwise
+        the row is enabled, and its tooltip gives its activation key's semantics.
+        If the scene already includes an unavailable mode, the mode's row stays
+        enabled, with the reason in its tooltip, so the author can turn the mode off.
+        The row also shows the instrument's shape defaults for the keys the scene
+        leaves unset.
+
+        Parameters:
+            instrument: The scene's instrument name.
+            detector_model: The detector model the scene renders with.
         """
-        available = mode_available(self.mode.name, instrument)
-        self.group.setEnabled(available)
-        if available:
+        self._instrument = instrument
+        self.sync()
+        if not mode_available(self.mode.name, instrument):
+            reason: str | None = mode_unavailable_message(self.mode.name, instrument)
+        elif detector_model not in self.mode.detector_models:
+            chains = ' and '.join(sorted(self.mode.detector_models))
+            reason = (
+                f'artifact mode {self.mode.name!r} renders only in the {chains} detector '
+                f'chain; the selected {detector_model} detector chain does not render it'
+            )
+        else:
+            reason = None
+        self._unavailable_reason = reason
+        self.group.setEnabled(reason is None or self.group.isChecked())
+        if reason is None:
             self.group.setToolTip(f'{self.mode.activation}: {self.mode.activation_semantics}')
         else:
-            self.group.setToolTip(mode_unavailable_message(self.mode.name, instrument))
+            self.group.setToolTip(reason)

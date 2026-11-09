@@ -32,11 +32,6 @@ __all__ = [
     'apply_reseau_scars',
 ]
 
-# The Voyager reseau grid carries 202 marks per camera; the lattice is thinned
-# uniformly to that many points however large the frame, so the marks span the
-# whole frame rather than crowding its top rows.
-_RESEAU_MARK_COUNT = 202
-
 
 def _activated(rng: np.random.Generator, probability: float) -> bool:
     """Whether a commanded / periodic telemetry mode fires this frame, with ``probability``."""
@@ -109,13 +104,16 @@ def apply_compression_dct(
     return {'active': True, 'scale_factor': scale, 'block': block}
 
 
-def _reseau_lattice(size_v: int, size_u: int, spacing: int) -> list[tuple[int, int]]:
-    """The triangular reseau lattice points, thinned uniformly to the 202-mark count.
+def _reseau_lattice(
+    size_v: int, size_u: int, spacing: int, mark_count: int
+) -> list[tuple[int, int]]:
+    """The triangular reseau lattice points, thinned uniformly to ``mark_count`` marks.
 
     The full triangular lattice at ``spacing`` is generated first; when it holds
     more than the mark count, every-kth subsampling across the row-major
-    ordering keeps exactly 202 marks spread over the whole frame (a truncation
-    would instead crowd the marks into the top rows at archive frame sizes).
+    ordering keeps exactly ``mark_count`` marks spread over the whole frame (a
+    truncation would instead crowd the marks into the top rows at archive frame
+    sizes).
     """
     dv = max(1, round(spacing * np.sqrt(3.0) / 2.0))
     points: list[tuple[int, int]] = []
@@ -123,9 +121,9 @@ def _reseau_lattice(size_v: int, size_u: int, spacing: int) -> list[tuple[int, i
         offset = (spacing // 2) if (i % 2) else 0
         for u in range(offset, size_u, spacing):
             points.append((v, u))
-    if len(points) <= _RESEAU_MARK_COUNT:
+    if len(points) <= mark_count:
         return points
-    indices = np.linspace(0, len(points) - 1, _RESEAU_MARK_COUNT).round().astype(int)
+    indices = np.linspace(0, len(points) - 1, mark_count).round().astype(int)
     return [points[i] for i in indices]
 
 
@@ -146,7 +144,7 @@ def apply_reseau_scars(
     Parameters:
         signal: The DN image, modified in place.
         cfg: The resolved mode config (``probability``, ``spacing_px``,
-            ``patch_radius_px``).
+            ``patch_radius_px``, ``mark_count``).
         rng: The mode's seeded generator (for the activation draw).
 
     Returns:
@@ -161,7 +159,7 @@ def apply_reseau_scars(
         return {'active': False, 'marks': 0}
     size_v, size_u = signal.shape
     smoothed = ndimage.gaussian_filter(signal, sigma=max(1.0, radius / 2.0))
-    points = _reseau_lattice(size_v, size_u, spacing)
+    points = _reseau_lattice(size_v, size_u, spacing, int(cfg['mark_count']))
     for v, u in points:
         v0, v1 = max(0, v - radius), min(size_v, v + radius + 1)
         u0, u1 = max(0, u - radius), min(size_u, u + radius + 1)

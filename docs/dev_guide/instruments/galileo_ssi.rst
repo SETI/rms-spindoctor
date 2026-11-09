@@ -97,7 +97,7 @@ volume component, requires two to four remaining levels, drops a leading
   ``I31``, ``I32``, ``I33``, ``J0`` are three-level orbit directories, and the
   image is the third component.
 * Anything else raises ``ValueError``, which the index scan catches per row:
-  it logs an error naming the index file and the offending filespec and drops
+  it logs an error that gives the index file and the offending filespec and drops
   that row alone. So a layout the parser does not know shows up in the log
   rather than silently reducing the image count, but it does not stop the run.
 
@@ -216,7 +216,7 @@ every record -- ``avflag = 0`` makes SPICE skip the segment for ``ckgpav`` and
 ``sxform`` and answer from the uncorrected original instead -- and the writer
 applies all records or none, with none meaning refuse. So roughly a quarter of
 this mission's baseline segments would stop a run that reached them, reported
-as a ``ValueError`` naming the missing rate rather than as an omission, since
+as a ``ValueError`` that gives the missing rate rather than as an omission, since
 an exposure whose baseline supplies pointing but not a rate has no entry in the
 closed omission-reason set.
 
@@ -244,7 +244,9 @@ midtime_et)`` against each furnished candidate, accepted at 1e-9 radians.
 Simulator model
 ===============
 
-**Instrument key.** ``gossi``, resolving to the flat ``galileo_ssi`` block.
+**Instrument key.** ``gossi``, resolving to the flat ``galileo_ssi`` block. The
+``gossi`` entry in ``src/spindoctor/sim/instrument_configs/gossi.yaml`` holds the
+values below.
 
 **PSF kernel.** ``{sigma_v: 0.80, sigma_u: 0.80, w: 1.2e-2, r0: 2.0, n: 3.0}``,
 a **retained interim published sigma**. The curated cohort holds no star frames
@@ -264,12 +266,17 @@ second, a 4.33 s readout dwell (half the full-frame readout), a 6,000 e-
 deposit scale, and 0.4 native pixels of diffusion. The simulator report's
 artifact-rate table gives the fit's evidence.
 
-**Artifact-mode availability.** The simulator guide's mode tables
+**Artifact-mode availability.** The config entry's ``artifact_modes.offered``
+lists its modes, and the simulator guide's mode tables
 (:ref:`sim-telemetry-modes` and :ref:`sim-detector-modes`) give each mode's
-cameras. This instrument is in the CCD set.
-``alternating_lines`` carries a ``keep`` mode for its vertical decimation,
-rather than the ``drop`` mode that blanks every Nth line. No mode records an
-exclusion reason against this key.
+cameras. Its detector model is ``ccd``. ``alternating_lines`` defaults to
+its ``keep`` mode for this instrument's vertical decimation, rather than the
+``drop`` mode that blanks every Nth line: the HMA and HCA telemetry formats
+carry valid data on every 2nd or every 4th line only. ``missing_blocks``
+defaults to 8-line blocks, the height of a lost compression slice, and
+``truth_window`` to a 96-pixel square, the losslessly coded window. The entry
+states no band width for ``edited_frame``, so that mode takes the registry's
+generic fallback. The entry states no exclusion reason.
 
 **Realism-match status.** Unverified. Every optical parameter is a published
 or scaled estimate and the cohort offers nothing to check them against.

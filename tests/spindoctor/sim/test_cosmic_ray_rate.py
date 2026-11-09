@@ -19,12 +19,12 @@ import pytest
 from scipy import ndimage
 
 from spindoctor.config import DEFAULT_CONFIG
-from spindoctor.sim.forward.artifacts_catalog import DETECTOR_DEFAULTS, resolve_detector_defaults
 from spindoctor.sim.forward.detector import apply_detector, chain
 from spindoctor.sim.forward.detector.noise_stages import add_cosmic_rays
 from spindoctor.sim.forward.detector.params import resolve_detector_params
 from spindoctor.sim.forward.stages import SimFrame
-from spindoctor.sim.instruments import SIM_INSTRUMENTS
+from spindoctor.sim.instrument_catalog import instrument_entry, sim_instrument_names
+from spindoctor.sim.instrument_resolvers import resolve_detector_defaults
 from spindoctor.sim.render import render_combined_model
 from spindoctor.sim.scene import validate_sim_params
 from spindoctor.sim.seeds import derive_effect_seed
@@ -34,7 +34,7 @@ _KEY = 'cosmic_ray_events_per_pixel_per_sec'
 # validator and the renderer must both read as the instrument's default), or a
 # named model.
 _ABSENT = 'absent'
-_INSTRUMENTS = (*sorted(SIM_INSTRUMENTS), 'generic')
+_INSTRUMENTS = (*sim_instrument_names(), 'generic')
 
 
 class _RecordingRng:
@@ -249,10 +249,22 @@ def test_both_chains_give_the_stage_the_rate_and_exposure(
 
 
 def _vgiss_dn(noise: dict[str, Any], **extra: Any) -> np.ndarray:
-    """A dark 64 x 64 vgiss frame in raw DN (its unit class pinned to raw_dn)."""
-    scene = _scene('vgiss', noise, instrument_config={'data_units': 'raw_dn'}, **extra)
+    """A dark 64 x 64 vgiss frame as the vidicon chain digitizes it.
+
+    vgiss renders calibrated I/F, so this runs only the vidicon chain, stopping before
+    the calibration inverse, and returns its DN.  Running the whole chain and undoing
+    the calibration would give the same DN only while vgiss has no calibration
+    residual.
+    """
+    scene = _scene('vgiss', noise, **extra)
     scene.update(size_v=64, size_u=64)
-    return _detector_dn(scene)
+    frame = SimFrame(
+        signal=np.zeros((64, 64), dtype=np.float64),
+        point_e=np.zeros((64, 64), dtype=np.float64),
+    )
+    rng = np.random.default_rng(derive_effect_seed(int(scene['random_seed']), 'detector'))
+    chain._apply_vidicon(frame, resolve_detector_params(scene), rng)
+    return frame.signal.copy()
 
 
 def test_a_vidicon_hit_digitizes_at_the_adc_ceiling() -> None:
@@ -372,7 +384,7 @@ def test_null_detector_keys_resolve_like_absent_ones() -> None:
 
 def test_instrument_defaults_applies_the_catalog_rate(monkeypatch: pytest.MonkeyPatch) -> None:
     """Under instrument_defaults the catalog's rate applies (every entry holds 0.0 today)."""
-    monkeypatch.setitem(DETECTOR_DEFAULTS['coiss_nac'], _KEY, 2.0e-4)
+    monkeypatch.setitem(instrument_entry('coiss_nac')['detector'], _KEY, 2.0e-4)
     scene = _scene('coiss_nac', {}, artifacts={'instrument_defaults': True})
     resolved = resolve_detector_params(scene)
     assert resolved.cosmic_ray_events_per_pixel_per_sec == pytest.approx(2.0e-4)
@@ -382,6 +394,6 @@ def test_catalog_rate_stays_off_without_instrument_defaults(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Without instrument_defaults the catalog's rate does not apply."""
-    monkeypatch.setitem(DETECTOR_DEFAULTS['coiss_nac'], _KEY, 2.0e-4)
+    monkeypatch.setitem(instrument_entry('coiss_nac')['detector'], _KEY, 2.0e-4)
     resolved = resolve_detector_params(_scene('coiss_nac', {}))
     assert resolved.cosmic_ray_events_per_pixel_per_sec == 0.0

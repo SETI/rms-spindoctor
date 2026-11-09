@@ -12,6 +12,7 @@ Qt runs headless (offscreen platform).
 
 import math
 import os
+from pathlib import Path
 from typing import Any, cast
 
 import pytest
@@ -36,8 +37,14 @@ except Exception as exc:
     )
 
 from spindoctor.cli.sim_editor import CreateSimulatedImageModel
+from spindoctor.sim import instrument_catalog
 from spindoctor.sim.forward.atmosphere import DEFAULT_HAZE_ALBEDO
 from spindoctor.sim.scene import validate_sim_params
+from tests.spindoctor.sim.fictional_camera import (
+    FICTIONAL_CAMERA,
+    FICTIONAL_CAMERA_NAME,
+    catalog_dir_with,
+)
 
 
 @pytest.fixture
@@ -351,6 +358,7 @@ def test_detector_group_toggles_key(model: Any) -> None:
 
 def test_detector_edit_writes_only_the_edited_key(model: Any) -> None:
     """A single spin edit writes its own key and nothing else."""
+    model._instrument_combo.setCurrentText('coiss_nac')
     model._detector_group.setChecked(True)
     model._detector_gain_state_spin.setValue(3)
     assert model.sim_params['detector'] == {'gain_state': 3}
@@ -377,6 +385,69 @@ def test_detector_binning_offers_the_instruments_cataloged_modes(
     assert [combo.itemText(i) for i in range(combo.count())] == choices
 
 
+def test_the_gain_state_spin_spans_the_instruments_cataloged_states(model: Any) -> None:
+    """The spin's range follows the instrument, so a camera with one state offers only it."""
+    model._instrument_combo.setCurrentText('coiss_wac')
+    spin = model._detector_gain_state_spin
+    assert (spin.minimum(), spin.maximum()) == (2, 2)
+
+
+def test_a_camera_added_as_an_entry_is_in_the_instrument_list(
+    qapp: QApplication, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A camera added only as a config entry appears in the drop-down."""
+    directory = catalog_dir_with(tmp_path, {f'{FICTIONAL_CAMERA_NAME}.yaml': FICTIONAL_CAMERA})
+    monkeypatch.setattr(instrument_catalog, 'INSTRUMENT_CONFIG_DIR', directory)
+    model = CreateSimulatedImageModel()
+    assert model._instrument_combo.findText(FICTIONAL_CAMERA_NAME) >= 0
+
+
+def test_a_scene_naming_an_alias_selects_the_camera_it_names(model: Any) -> None:
+    """Loading a scene written with an alias selects the aliased camera, not the last one."""
+    model._apply_params_dict({'instrument': 'coiss_nac'})
+    model._apply_params_dict({'instrument': 'sim'})
+    assert model._instrument_combo.currentText() == 'generic'
+
+
+@pytest.fixture
+def mode_gain_camera(qapp: QApplication, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Any:
+    """An editor over a catalog whose fictional camera's 2x2 mode defaults to gain state 2.
+
+    The camera's native default gain state is 1.
+    """
+    text = FICTIONAL_CAMERA.replace(
+        '2: {read_noise_e: 4.0}', '2: {read_noise_e: 4.0, default_gain_state: 2}'
+    )
+    assert text != FICTIONAL_CAMERA
+    directory = catalog_dir_with(tmp_path, {f'{FICTIONAL_CAMERA_NAME}.yaml': text})
+    monkeypatch.setattr(instrument_catalog, 'INSTRUMENT_CONFIG_DIR', directory)
+    return CreateSimulatedImageModel()
+
+
+def test_a_loaded_binned_scene_shows_its_modes_default_gain(mode_gain_camera: Any) -> None:
+    """A scene that sets a binning but no gain state shows that readout mode's default."""
+    mode_gain_camera._apply_params_dict(
+        {'instrument': FICTIONAL_CAMERA_NAME, 'detector': {'binning': 2}}
+    )
+    assert mode_gain_camera._detector_gain_state_spin.value() == 2
+
+
+def test_choosing_a_binning_shows_its_modes_default_gain(mode_gain_camera: Any) -> None:
+    """Choosing a binning refreshes an unedited gain state to that readout mode's default."""
+    mode_gain_camera._instrument_combo.setCurrentText(FICTIONAL_CAMERA_NAME)
+    mode_gain_camera._detector_group.setChecked(True)
+    mode_gain_camera._detector_binning_combo.setCurrentText('2')
+    assert mode_gain_camera._detector_gain_state_spin.value() == 2
+
+
+def test_choosing_a_binning_writes_only_the_binning(mode_gain_camera: Any) -> None:
+    """Refreshing the displayed defaults after a binning choice writes no other key."""
+    mode_gain_camera._instrument_combo.setCurrentText(FICTIONAL_CAMERA_NAME)
+    mode_gain_camera._detector_group.setChecked(True)
+    mode_gain_camera._detector_binning_combo.setCurrentText('2')
+    assert mode_gain_camera.sim_params['detector'] == {'binning': 2}
+
+
 def test_reenabling_the_detector_group_shows_the_catalog_defaults(model: Any) -> None:
     """Turning the group off and on again resets each widget to what the renderer reads."""
     model._instrument_combo.setCurrentText('coiss_nac')
@@ -395,9 +466,49 @@ def test_detector_quantization_is_authorable(model: Any) -> None:
     assert model.sim_params['detector'] == {'quantization': 'sqrt_lut'}
 
 
+def test_choosing_a_downlink_table_writes_the_key(model: Any) -> None:
+    """The downlink-table combo writes the detector.downlink_table key."""
+    model._instrument_combo.setCurrentText('coiss_nac')
+    model._detector_group.setChecked(True)
+    model._detector_downlink_combo.setCurrentText('table_12_to_8')
+    assert model.sim_params['detector'] == {'downlink_table': 'table_12_to_8'}
+
+
+def test_choosing_the_camera_default_table_removes_the_key(model: Any) -> None:
+    """After a switch to exact, choosing the camera default removes the unused table."""
+    model._apply_params_dict(
+        {
+            'instrument': 'coiss_nac',
+            'detector': {'quantization': 'sqrt_lut', 'downlink_table': 'table_12_to_8'},
+        }
+    )
+    model._detector_quantization_combo.setCurrentText('exact')
+    model._detector_downlink_combo.setCurrentIndex(0)
+    assert model.sim_params['detector'] == {'quantization': 'exact'}
+
+
+def test_a_loaded_scene_selects_its_downlink_table(model: Any) -> None:
+    """Loading a scene that sets a table shows that table in the combo."""
+    model._apply_params_dict(
+        {'instrument': 'coiss_nac', 'detector': {'downlink_table': 'table_12_to_8'}}
+    )
+    assert model._detector_downlink_combo.currentText() == 'table_12_to_8'
+
+
+def test_choosing_the_camera_default_drops_an_unlisted_table(model: Any) -> None:
+    """Once the camera default replaces a table the camera doesn't list, it isn't offered."""
+    model._apply_params_dict(
+        {'instrument': 'coiss_nac', 'detector': {'downlink_table': 'table_12_to_8'}}
+    )
+    model._instrument_combo.setCurrentText('vgiss')
+    model._detector_downlink_combo.setCurrentIndex(0)
+    combo = model._detector_downlink_combo
+    assert [combo.itemText(i) for i in range(combo.count())] == ['camera default']
+
+
 def test_null_detector_keys_show_the_catalog_defaults(model: Any) -> None:
     """A loaded detector block of nulls shows the catalog values, as the renderer reads it."""
-    from spindoctor.sim.forward.artifacts_catalog import resolve_detector_defaults
+    from spindoctor.sim.instrument_resolvers import resolve_detector_defaults
 
     keys = ('gain_state', 'detector_model', 'exposure_ref_sec', 'quantization')
     model._apply_params_dict({'instrument': 'coiss_nac', 'detector': dict.fromkeys(keys)})
@@ -451,7 +562,7 @@ def test_null_body_and_star_lists_load_as_empty(model: Any) -> None:
 
 def test_every_registry_mode_has_a_row(model: Any) -> None:
     """The tab generates one row per registered artifact mode."""
-    from spindoctor.sim.forward.artifact_modes import ARTIFACT_MODES
+    from spindoctor.sim.artifact_modes import ARTIFACT_MODES
 
     assert set(model._mode_rows) == set(ARTIFACT_MODES)
 
@@ -534,6 +645,58 @@ def test_mode_availability_enables_available_row(model: Any) -> None:
     row = model._mode_rows['hot_pixels']
     assert row.group.isEnabled() is True
     assert 'pixel_fraction' in row.group.toolTip()
+
+
+def test_generic_camera_disables_a_vidicon_only_row(model: Any) -> None:
+    """On the generic camera's CCD chain, a vidicon-only mode's row is disabled."""
+    model.sim_params['instrument'] = 'generic'
+    model._refresh_artifact_mode_availability()
+    assert model._mode_rows['beam_bend'].group.isEnabled() is False
+
+
+def test_a_disabled_chain_row_says_the_chain_does_not_render_it(model: Any) -> None:
+    """If the detector chain can't render a row's mode, the row's tooltip says so."""
+    model.sim_params['instrument'] = 'generic'
+    model._refresh_artifact_mode_availability()
+    tip = model._mode_rows['beam_bend'].group.toolTip()
+    assert 'the selected ccd detector chain does not render it' in tip
+
+
+def _select_detector_model(model: Any, detector_model: str) -> None:
+    """Turn the detector override on and choose a detector model in its combo."""
+    model._detector_group.setChecked(True)
+    model._detector_model_combo.setCurrentText(detector_model)
+
+
+def test_a_vidicon_detector_model_disables_a_ccd_only_row(model: Any) -> None:
+    """Choosing the vidicon detector model disables a CCD-only mode's row."""
+    _select_detector_model(model, 'vidicon')
+    assert model._mode_rows['bloom'].group.isEnabled() is False
+
+
+def test_switching_the_detector_model_back_reenables_the_row(model: Any) -> None:
+    """Choosing the CCD model again re-enables the CCD-only row the vidicon disabled."""
+    _select_detector_model(model, 'vidicon')
+    model._detector_model_combo.setCurrentText('ccd')
+    assert model._mode_rows['bloom'].group.isEnabled() is True
+
+
+def test_a_turned_on_row_stays_enabled_when_its_mode_becomes_unavailable(model: Any) -> None:
+    """If the scene includes the mode, its row stays enabled so it can be turned off."""
+    row = model._mode_rows['bloom']
+    row.group.setChecked(True)
+    _select_detector_model(model, 'vidicon')
+    assert row.group.isEnabled() is True
+
+
+def test_turning_off_an_unavailable_row_disables_it(model: Any) -> None:
+    """Once its mode is turned off, an unavailable row is disabled like any other."""
+    row = model._mode_rows['bloom']
+    row.group.setChecked(True)
+    _select_detector_model(model, 'vidicon')
+    row.group.setChecked(False)
+    assert row.group.isEnabled() is False
+    assert 'bloom' not in model.sim_params.get('artifacts', {})
 
 
 def _dead_row(model: Any, mode_name: str = 'dead_pixels') -> Any:
@@ -620,6 +783,13 @@ def test_null_mode_parameter_shows_its_default(model: Any) -> None:
     model.sim_params.setdefault('artifacts', {})['missing_blocks'] = {'block_lines': None}
     row.sync()
     assert row._scalar_widgets['block_lines'].value() == 8
+
+
+def test_an_unset_mode_parameter_shows_the_cameras_shape_default(model: Any) -> None:
+    """An unset key shows the camera's shape default, as the renderer resolves it."""
+    model._apply_params_dict({'instrument': 'vgiss', 'artifacts': {'edited_frame': {}}})
+    row = model._mode_rows['edited_frame']
+    assert row._scalar_widgets['band_width_px'].value() == 550
 
 
 def test_reenabling_a_mode_shows_its_empty_map(model: Any) -> None:

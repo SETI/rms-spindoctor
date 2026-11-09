@@ -86,6 +86,7 @@ These make every later phase cheaper or safer. Most are small.
 | #905, truth-check part | Assertions are change detectors and 1 px bounds | Give validation scenes truth-based assertions before the renders start moving, so a move is judged against the planted truth. |
 | #872 | The baseline regenerator imports whichever installed package it finds | Regenerated baselines must come from the checkout under test before the churn starts. |
 | #900, #813 | Validation skips the render path; null body keys crash; the navigator's simulated ring model reads nullable keys unsafely | Typed per-block specs on every entry point, with null meaning absent; the first slice of #915. |
+| #940 | An in-memory scene reaches the renderer without validation | The one entry point that renders a scene validation would refuse; closing it with #900 makes every path validate. |
 | #913 | `axis1`, `axis2`, and `axis3` are full widths named like semi-axes | Rename before more scenes are written in the old names. |
 | #876 | **Done (PR #934).** Per-instrument tables in one validated YAML file | Adding a camera or a readout mode becomes a configuration entry; Phase 4's instrument work depends on it. Lands after #886, as its text asks. |
 | #912, #126 | Correlation FFTs at slow sizes; the disc correlation's rotation search runs 19 full pyramid evaluations | Make full-frame scenes affordable in the integration tier; #904 and #908 both need it. |
@@ -300,6 +301,7 @@ retired and retained library classes.
 | #915 | Restructure below the core: typed specs (begun in #900), one body path (begun in #901), and smaller stages |
 | #923 | Duplicate classifier, test-only module, missing fixtures, and codenames |
 | #902 | 26 scene keys without editor controls |
+| #947 | The simulated-image editor shows 0 for parameters the renderer fills from the detector block or another key |
 | #856 | The simulated-image editor segfaults intermittently (reopened after the fix in PR #917) |
 | #914, the rest | User chapter around a complete scene, developer guide split, and one schema reference |
 | #310 | Structural information-boundary guard |

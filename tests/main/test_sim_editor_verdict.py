@@ -42,7 +42,7 @@ except Exception as exc:
 from spindoctor.cli.sim_editor import CreateSimulatedImageModel
 from spindoctor.cli.sim_editor import verdict as verdict_module
 from spindoctor.config import DEFAULT_CONFIG
-from spindoctor.sim.instruments import frame_units_summary, resolve_sim_inst_config
+from spindoctor.sim.instrument_navigator import frame_units_summary, resolve_sim_inst_config
 
 # Generous: a gated render finishes as soon as it is released, and the one real
 # render is a 128 x 128 frame.

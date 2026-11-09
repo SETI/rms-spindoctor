@@ -1,4 +1,4 @@
-"""Matched sim-scene construction for the Section 7 realism runner.
+"""Matched sim-scene construction for the realism-match runner.
 
 Every real cohort frame gets one matched simulated frame: same instrument
 signal chain (``artifacts.instrument_defaults``), same exposure, and scene
@@ -22,7 +22,7 @@ from __future__ import annotations
 import zlib
 from typing import Any
 
-from spindoctor.sim.forward.artifacts_catalog import binning_for_frame_size
+from spindoctor.sim.instrument_resolvers import binning_for_frame_size
 from spindoctor.sim.scene import validate_sim_params
 
 __all__ = [
@@ -345,8 +345,8 @@ def matched_scene(
         gain_state: The real frame's gain state; None keeps the camera's
             default state.
         quantization: The real frame's downlink quantization sub-mode
-            (``'sqrt_lut'`` for a Cassini TABLE frame); None keeps the
-            camera's default.
+            (``'sqrt_lut'`` for a frame downlinked through a companding table);
+            None keeps the camera's default.
 
     Returns:
         A validated scene mapping.

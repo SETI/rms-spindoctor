@@ -63,12 +63,14 @@ reproduction path.
 Simulator model
 ===============
 
-Artifact-catalog entries and their measured values, with how each was measured;
-PSF and distortion parameters; artifact-mode availability as a link to the
-simulator guide's mode tables, plus the reasons for any exclusion and any
-per-camera mode default; realism-match status. Each camera's values live here
-once: the simulator guide describes the mechanisms and keys and links here for
-the values.
+The simulated camera's values live in its instrument config entry, a top-level key of its
+mission's file, ``src/spindoctor/sim/instrument_configs/<mission>.yaml`` (see the
+simulator chapter). This section covers that entry and how each of its values was
+measured; the units its frames are written in; PSF and distortion parameters;
+artifact-mode availability as a link to the simulator guide's mode tables, plus the
+reasons for any exclusion and any per-camera mode default; realism-match status. The
+config entry holds each value, this page says where it came from, and the simulator guide
+describes the mechanisms and keys and links here.
 
 Image library and test coverage
 ===============================

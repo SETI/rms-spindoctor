@@ -8,7 +8,8 @@ that an elliptical core respects its axis sigmas.
 
 import numpy as np
 
-from spindoctor.sim.forward.psf import apply_psf, psf_kernel, psf_truncation_for_instrument
+from spindoctor.sim.forward.psf import apply_psf, psf_kernel
+from spindoctor.sim.instrument_resolvers import resolve_psf_truncation_px
 
 
 def _kernel(**over: float) -> np.ndarray:
@@ -136,6 +137,6 @@ def test_point_source_plane_is_also_blurred() -> None:
 
 def test_coiss_uses_a_wider_truncation_window() -> None:
     """Cassini cameras get the documented wider PSF window."""
-    assert psf_truncation_for_instrument('coiss_nac') == 32
-    assert psf_truncation_for_instrument('gossi') == 16
-    assert psf_truncation_for_instrument(None) == 16
+    assert resolve_psf_truncation_px('coiss_nac') == 32
+    assert resolve_psf_truncation_px('gossi') == 16
+    assert resolve_psf_truncation_px(None) == 16

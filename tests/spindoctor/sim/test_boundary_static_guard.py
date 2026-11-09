@@ -25,6 +25,11 @@ haze navigator that makes it worth closing: a simulated Titan model reads the
 body's idealized geometry and must never read the haze that geometry is a
 deliberate mismatch for.
 
+A third scan covers imports.  The simulated instrument catalog and the artifact-mode
+registry describe how the image side renders a frame, so no navigator-side module
+imports ``spindoctor.sim.instrument_*`` or ``spindoctor.sim.artifact_modes``.  A
+navigator-side model reads what the navigator would know from its own config.
+
 Legitimate exceptions, should one ever exist, go in ``_ALLOWED_REFERENCES``:
 a mapping from ``(module path relative to the spindoctor package, name)`` to a
 one-line justification.  The allowlist is currently empty -- no navigator-side
@@ -76,6 +81,59 @@ _NAVIGATOR_PACKAGES: tuple[str, ...] = ('nav_model', 'nav_technique', 'nav_orche
 _ALLOWED_REFERENCES: dict[tuple[str, str], str] = {}
 
 _PACKAGE_ROOT = Path(spindoctor.__file__).parent
+
+# The image-side simulator modules no navigator-side module may import: the
+# instrument catalog and its readers, and the artifact-mode registry.
+_IMAGE_SIDE_MODULE_PREFIX = 'spindoctor.sim.instrument_'
+_IMAGE_SIDE_MODULES: frozenset[str] = frozenset({'spindoctor.sim.artifact_modes'})
+
+
+def _module_package(path: Path) -> str:
+    """The dotted package a module file under the spindoctor package belongs to."""
+    parent = path.parent.relative_to(_PACKAGE_ROOT.parent)
+    return '.'.join(parent.parts)
+
+
+def _imported_module(node: ast.ImportFrom, *, package: str) -> str:
+    """The absolute module a ``from ... import`` statement reads from.
+
+    A relative import climbs ``level - 1`` packages above ``package`` before it
+    appends the module it states.
+    """
+    if node.level == 0:
+        return node.module or ''
+    parts = package.split('.')
+    base = parts[: len(parts) - (node.level - 1)]
+    return '.'.join([*base, node.module] if node.module else base)
+
+
+def _image_side_imports(source: str, *, package: str) -> list[tuple[int, str]]:
+    """Return each import of an image-side simulator module in ``source``.
+
+    Parameters:
+        source: Python source text to scan.
+        package: The dotted package the source's module belongs to, against which
+            a relative import resolves.
+
+    Returns:
+        List of ``(line number, module)`` tuples, one per imported module.
+    """
+    imports: list[tuple[int, str]] = []
+    for node in ast.walk(ast.parse(source)):
+        if isinstance(node, ast.Import):
+            modules = [alias.name for alias in node.names]
+        elif isinstance(node, ast.ImportFrom):
+            module = _imported_module(node, package=package)
+            # ``from spindoctor.sim import instrument_catalog`` imports the module itself.
+            modules = [module, *(f'{module}.{alias.name}' for alias in node.names)]
+        else:
+            continue
+        imports.extend(
+            (node.lineno, module)
+            for module in modules
+            if module.startswith(_IMAGE_SIDE_MODULE_PREFIX) or module in _IMAGE_SIDE_MODULES
+        )
+    return imports
 
 
 def _truth_references(
@@ -164,8 +222,8 @@ def test_navigator_package_references_no_truth_attribute(package: str) -> None:
 
 
 @pytest.mark.parametrize('package', _NAVIGATOR_PACKAGES)
-def test_navigator_package_names_no_atmosphere_truth_key(package: str) -> None:
-    """No navigator-side module names a key of the haze truth block.
+def test_navigator_package_mentions_no_atmosphere_truth_key(package: str) -> None:
+    """No navigator-side module mentions a key of the haze truth block.
 
     The structural boundary filter drops the whole ``atmosphere`` mapping,
     so a navigator-side read of one of its keys can only come from some
@@ -175,17 +233,48 @@ def test_navigator_package_names_no_atmosphere_truth_key(package: str) -> None:
         package, denied=ATMOSPHERE_TRUTH_KEY_NAMES, label='atmosphere truth key'
     )
     assert not violations, (
-        'navigator-side code names simulated-scene haze truth keys (the haze '
+        'navigator-side code mentions simulated-scene haze truth keys (the haze '
         'is nature, and the predicted geometry is a deliberate mismatch for '
         'it):\n' + '\n'.join(violations)
     )
+
+
+@pytest.mark.parametrize('package', _NAVIGATOR_PACKAGES)
+def test_navigator_package_imports_no_image_side_simulator_module(package: str) -> None:
+    """No navigator-side module imports the instrument catalog or the mode registry."""
+    violations = [
+        f'{path.relative_to(_PACKAGE_ROOT).as_posix()}:{lineno}: imports {module}'
+        for path in sorted((_PACKAGE_ROOT / package).rglob('*.py'))
+        for lineno, module in _image_side_imports(
+            path.read_text(encoding='utf-8'), package=_module_package(path)
+        )
+    ]
+    assert not violations, (
+        'navigator-side code imports an image-side simulator module:\n' + '\n'.join(violations)
+    )
+
+
+def test_import_guard_flags_a_module_import() -> None:
+    """The import scanner detects ``from spindoctor.sim import instrument_catalog``."""
+    imports = _image_side_imports(
+        'from spindoctor.sim import instrument_catalog\n', package='spindoctor.nav_model'
+    )
+    assert imports == [(1, 'spindoctor.sim.instrument_catalog')]
+
+
+def test_import_guard_flags_a_relative_import() -> None:
+    """The import scanner resolves ``from ..sim import artifact_modes`` in a navigator module."""
+    imports = _image_side_imports(
+        'from ..sim import artifact_modes\n', package='spindoctor.nav_model'
+    )
+    assert imports == [(1, 'spindoctor.sim.artifact_modes')]
 
 
 def test_atmosphere_guard_covers_the_structure_keys() -> None:
     """The scanned name set includes every symmetry-breaking structure key.
 
     The single-letter phase-asymmetry key is deliberately excluded (see the
-    deny-set comment); every key that names structure is long enough to
+    deny-set comment); every key that describes structure is long enough to
     scan for, so none may be dropped silently.
     """
     from spindoctor.sim.forward.haze_structure import HAZE_STRUCTURE_KEYS

@@ -1,7 +1,7 @@
-"""Section 7 realism-match runner: sim vs real, per instrument, FOMs 1-7.
+"""Realism-match runner: sim vs real, per instrument, FOMs 1-7.
 
-Compares the WS-3 image-library cohort against matched simulated frames on
-the seven figures of merit of the sim-realism plan's Section 7:
+Compares the image-library cohort against matched simulated frames on the
+seven figures of merit:
 
 1. Sky-region noise statistics (paired-difference sigma, noise vs signal,
    sky power spectrum).
@@ -20,9 +20,9 @@ the seven figures of merit of the sim-realism plan's Section 7:
 Every real frame gets one matched sim frame (same instrument chain, same
 exposure, same content class; see :mod:`tests.integration.sim_realism_scenes`),
 and both sides run identical extraction (:mod:`tests.integration.sim_realism_support`).
-The scalar divergence per figure of merit is the 15.10-H W1 (quantile-clipped,
-real-IQR-normalized); curve kinds (sky PSD, star / limb / ring profiles) get
-the density-W1 between the frame-averaged curves.  Where a cohort cannot
+The scalar divergence per figure of merit is the Wasserstein-1 distance (W1,
+quantile-clipped, real-IQR-normalized); curve kinds (sky PSD, star / limb / ring
+profiles) get the density-W1 between the frame-averaged curves.  Where a cohort cannot
 support a statistic, the summary labels it rather than reporting a fake
 distribution.
 
@@ -42,6 +42,7 @@ from __future__ import annotations
 
 import argparse
 import dataclasses
+import math
 import os
 import time
 import warnings
@@ -50,15 +51,14 @@ from typing import Any, cast
 
 import numpy as np
 
+from spindoctor.config import DEFAULT_CONFIG
 from spindoctor.nav_model import build_models_for_obs
 from spindoctor.nav_orchestrator import NavOrchestrator
-from spindoctor.obs import ObsCassiniISS, ObsSnapshotInst
+from spindoctor.obs import ObsSnapshotInst
 from spindoctor.obs.obs_inst_sim import ObsSim
-from spindoctor.sim.forward.artifact_modes import normalize_instrument
-from spindoctor.sim.forward.filter_catalog import (
-    FILTER_THROUGHPUT_E_PER_S_PER_IF,
-    canonical_filter,
-)
+from spindoctor.sim.instrument_catalog import realism_cohort_instruments
+from spindoctor.sim.instrument_navigator import resolve_sim_inst_config
+from spindoctor.sim.instrument_resolvers import resolve_data_units
 from spindoctor.sim.realism.artifact_rates import (
     ArtifactRates,
     split_stationary_spikes,
@@ -78,6 +78,7 @@ from tests.integration.sim_realism_support import (
     FrameSamples,
     extract_feature_samples,
     extract_pixel_samples,
+    frame_settings_reader,
     prepare_frame_features,
 )
 
@@ -89,27 +90,26 @@ __all__ = [
 ]
 
 # (mission, camera) -> sim instrument whose signal chain and units match the
-# cohort's products (COISS CALIB and VGISS GEOMED are I/F; GOSSI REDR and
-# LORRI sci are DN).
-INSTRUMENT_FOR: dict[tuple[str, str], str] = {
-    ('COISS', 'NAC'): 'coiss_calib_nac',
-    ('COISS', 'WAC'): 'coiss_calib_wac',
-    ('GOSSI', 'SSI'): 'gossi',
-    ('VGISS', 'NA'): 'vgiss',
-    ('VGISS', 'WA'): 'vgiss',
-    ('NHLORRI', 'LORRI'): 'nhlorri',
-}
+# cohort's products: each instrument config entry's realism_cohort.
+INSTRUMENT_FOR: dict[tuple[str, str], str] = realism_cohort_instruments()
 
-# Full-scale level in cohort units for the saturation statistics and the
-# FOM 2 saturated-star filter; NaN where the cohort's calibrated units do
-# not define a fixed level (CALIB/GEOMED I/F).
-SATURATION_LEVEL: dict[str, float] = {
-    'coiss_calib_nac': float('nan'),
-    'coiss_calib_wac': float('nan'),
-    'gossi': 255.0,
-    'nhlorri': 4095.0,
-    'vgiss': float('nan'),
-}
+
+def saturation_level(instrument: str) -> float:
+    """The full-scale level in cohort units, from the navigator's instrument block.
+
+    The level feeds the saturation statistics and the FOM 2 saturated-star filter.
+
+    Parameters:
+        instrument: The sim instrument a cohort is matched against.
+
+    Returns:
+        The block's ``noise.saturation_dn`` for a ``raw_dn`` product; NaN for a
+        calibrated one, whose I/F units define no fixed level.
+    """
+    if resolve_data_units(instrument) != 'raw_dn':
+        return math.nan
+    return float(resolve_sim_inst_config(DEFAULT_CONFIG, instrument)['noise']['saturation_dn'])
+
 
 # Scene classes -> NavModel globs for the feature FOMs (the sim-side models
 # are registered as body_sim:/rings_sim:, so both spellings appear).  Classes
@@ -174,9 +174,10 @@ class FrameRecord:
         frame_shape_vu: The frame's (v, u) shape.
         filter_name: The frame's filter combination (``'CL1+CL2'``) on a
             camera the sim's filter catalog covers, else None.
-        gain_state: The frame's gain state on a Cassini camera, else None.
-        quantization: ``'sqrt_lut'`` for a Cassini frame downlinked through
-            the 12-to-8-bit table, which the camera's catalog curve models,
+        gain_state: The frame's gain state when its mission's label reader
+            reads one, else None.
+        quantization: ``'sqrt_lut'`` for a frame downlinked through a
+            companding table, which the camera's default downlink table models,
             else None.
     """
 
@@ -304,29 +305,16 @@ def _frame_samples_real(
         offset_vu=offset,
         frame_shape_vu=(int(obs.data_shape_vu[0]), int(obs.data_shape_vu[1])),
     )
-    if instrument.startswith('coiss_calib_'):
+    reader = frame_settings_reader(sidecar.mission)
+    if reader is not None:
         # Matching content, not tuning: the sim renders the frame's own filter
         # throughput, gain state, and downlink table, so its DN-to-I/F scale
         # and quantization step are the real product's.
-        cassini = cast(ObsCassiniISS, obs)
-        filter_name = f'{cassini.filter1}+{cassini.filter2}'
-        if (
-            canonical_filter(instrument, filter_name)
-            in FILTER_THROUGHPUT_E_PER_S_PER_IF[normalize_instrument(instrument)]
-        ):
-            record.filter_name = filter_name
-        else:
-            # An uncataloged pair renders at the nominal scale rather than
-            # aborting the whole match; the warning names the frame.
-            warnings.warn(
-                f'{sidecar.image_id}: filter {filter_name} is not cataloged for '
-                f'{instrument}; its matched scene uses the nominal scale',
-                stacklevel=2,
-            )
-        record.gain_state = int(cast(int, cassini.gain_mode))
-        if cassini.dict.get('DATA_CONVERSION_TYPE', None) == 'TABLE':
-            record.quantization = 'sqrt_lut'
-    saturation = SATURATION_LEVEL[instrument]
+        settings = reader(obs, image_id=sidecar.image_id, instrument=instrument)
+        record.filter_name = settings.filter_name
+        record.gain_state = settings.gain_state
+        record.quantization = settings.quantization
+    saturation = saturation_level(instrument)
     samples, rates = extract_pixel_samples(
         np.asarray(obs.data, dtype=np.float64),
         exposure_stratum=stratum,
@@ -392,7 +380,7 @@ def _sim_obs_for_record(record: FrameRecord) -> tuple[ObsSim, dict[str, Any]]:
 def _frame_samples_sim(record: FrameRecord) -> tuple[FrameSamples, ArtifactRates]:
     """Extract the matched sim frame's samples (same machinery as real)."""
     obs, _scene = _sim_obs_for_record(record)
-    saturation = SATURATION_LEVEL[record.instrument]
+    saturation = saturation_level(record.instrument)
     samples, rates = extract_pixel_samples(
         np.asarray(obs.data, dtype=np.float64),
         exposure_stratum=record.stratum,
@@ -525,7 +513,7 @@ def _aggregate(comparison: InstrumentComparison) -> None:
         )
     # Curve kinds get the density-W1: the frame-averaged curve on each side
     # is treated as a density over its axis (frequency or distance), and the
-    # 15.10-H scalar is how far mass must move along that axis to turn one
+    # W1 scalar is how far mass must move along that axis to turn one
     # shape into the other, normalized by the real density's IQR.
     for kind in sorted(set(comparison.real.curves) | set(comparison.sim.curves)):
         real_curves = comparison.real.curves.get(kind, [])

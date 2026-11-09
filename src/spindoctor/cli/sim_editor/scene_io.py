@@ -148,9 +148,7 @@ class SceneIoMixin(SimEditorBase):
         self._random_seed_spin.setValue(self.sim_params['random_seed'])
         # Update instrument selector
         self._instrument_combo.blockSignals(True)
-        instrument_index = self._instrument_combo.findText(str(self.sim_params['instrument']))
-        if instrument_index >= 0:
-            self._instrument_combo.setCurrentIndex(instrument_index)
+        self._select_instrument(str(self.sim_params['instrument']))
         self._instrument_combo.blockSignals(False)
         # Camera-rotation fit override and midtime
         fit_rotation = self.sim_params.get('fit_camera_rotation')
