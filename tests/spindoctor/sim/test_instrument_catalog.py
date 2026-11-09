@@ -755,6 +755,24 @@ def test_a_camera_added_as_an_entry_validates_and_renders(fictional_camera: str)
     assert image.shape == (32, 32)
 
 
+def test_a_camera_added_as_an_entry_uses_its_gain_state(fictional_camera: str) -> None:
+    """The scene's gain state 2 takes the entry's gain for that state, 2 e-/DN."""
+    assert resolve_detector_params(_fictional_scene(fictional_camera)).gain_e_per_dn == 2.0
+
+
+def test_a_camera_added_as_an_entry_scales_its_signal_by_the_filter(
+    fictional_camera: str,
+) -> None:
+    """The scene's red filter sets the reference exposure from the entry's throughput.
+
+    A signal of 1.0 fills the scaled well (20000 e- times the full-scale fraction) at
+    the red filter's 5000 e-/s.
+    """
+    params = resolve_detector_params(_fictional_scene(fictional_camera))
+    expected = params.signal_full_scale_frac * 20000.0 / 5000.0
+    assert params.exposure_ref_sec == pytest.approx(expected)
+
+
 def test_a_camera_added_as_an_entry_decodes_through_its_named_table(fictional_camera: str) -> None:
     """The scene's downlink table is the tabulated one the entry lists."""
     curve = resolve_detector_params(_fictional_scene(fictional_camera)).sqrt_lut
