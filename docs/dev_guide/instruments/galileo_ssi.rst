@@ -27,7 +27,8 @@ Code map
      - ``other.obs`` governs the image-scoped ``LOAD IMAGE`` section; there is
        no per-instrument logging key
    * - oops host module
-     - ``oops.hosts.galileo.ssi``
+     - ``oops.hosts.galileo.ssi``, because ``host_galileo.GalileoSSI``, from the
+       ``rms-host-galileo`` package, fails to read some GO_0003 frames
 
 Loading the image
 =================
@@ -39,8 +40,9 @@ region the label describes, so the navigation models are generated over the
 same grid whatever readout mode a frame used. No other keyword argument is
 accepted, and ``**_kwargs`` is named with a leading underscore to say so.
 
-Beyond the host call it records ``obs.abspath`` and ``obs.image_url`` from an
-``FCPath``, reads the flat ``galileo_ssi`` config section, and resolves the
+The host records ``obs.image_url``, the absolute source URL. Beyond the host call
+``from_file`` records ``obs.abspath``, the local path with any symlink kept as the
+caller gave it, reads the flat ``galileo_ssi`` config section, and resolves the
 extended-FOV margin. The margin resolution carries an ``isinstance(..., dict)``
 branch for a size-keyed table, but this instrument's configured value is a
 plain list, so that branch is dead code here; it carries a TODO saying the

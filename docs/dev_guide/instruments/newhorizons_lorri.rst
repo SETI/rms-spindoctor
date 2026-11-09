@@ -43,8 +43,8 @@ image-derived noise floor, a magnitude-based star gate. No other keyword
 argument is accepted, and ``**_kwargs`` is named with a leading underscore to
 say so.
 
-Beyond the host call it records ``obs.abspath`` and ``obs.image_url`` from an
-``FCPath``, reads the flat ``newhorizons_lorri`` config section, and resolves
+Beyond the host call it records ``obs.abspath``, the local path with any
+symlink kept as the caller gave it, reads the flat ``newhorizons_lorri`` config section, and resolves
 the extended-FOV margin from the size-keyed table by ``obs.data.shape[0]``. An
 explicit ``extfov_margin_vu`` argument wins over the configuration entirely.
 Last, it reads the spacecraft clock counts from the PDS3 label beside the

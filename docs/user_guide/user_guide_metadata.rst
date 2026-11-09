@@ -1509,7 +1509,7 @@ and every frame of the traceback.
       "status": "error",
       "status_error": "missing_spice_data",
       "status_exception": "SPICE(NOFRAMECONNECT) -- sxform -- At epoch 2.2130942680406E+08 TDB (2007 JAN 05 22:50:26.804 TDB), there is insufficient information available to transform from reference frame 1 (J2000) to reference frame -82360 (CASSINI_ISS_NAC).",
-      "status_traceback": "Traceback (most recent call last):\n  File \"spindoctor/navigate_image_files.py\", line 268, in navigate_image_files\n    snapshot_inst = obs_class.from_file(image_url, extra_params=extra_params)\n  File \"spindoctor/obs/obs_cassini_iss.py\", line 141, in from_file\n    return cls(oops.hosts.cassini.iss.from_file(local_path))\nspiceypy.utils.exceptions.NotFoundError: SPICE(NOFRAMECONNECT) -- sxform -- ...",
+      "status_traceback": "Traceback (most recent call last):\n  File \"spindoctor/navigate_image_files.py\", line 268, in navigate_image_files\n    snapshot_inst = obs_class.from_file(image_url, extra_params=extra_params)\n  File \"spindoctor/obs/obs_inst_cassini_iss.py\", line 298, in from_file\n    obs = host_cassini.CassiniISS.from_file(\nspiceypy.utils.exceptions.NotFoundError: SPICE(NOFRAMECONNECT) -- sxform -- ...",
       "observation": {
         "image_path": "/holdings/calibrated/COISS_2xxx/COISS_2028/data/1546716727_1546797712/N1546730528_4_CALIB.IMG",
         "image_name": "N1546730528_4_CALIB.IMG",
