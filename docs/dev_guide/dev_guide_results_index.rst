@@ -577,10 +577,11 @@ root, and no later stage ever asks about it. What the document *records* is
 settled per batch, by :meth:`~spindoctor.nav_records.source.RecordSource.facts`
 over the candidates
 :meth:`~spindoctor.dataset.results_filter.ResultsFilter.filter_batch` is handed.
-On the results tree, that call reads metadata documents, but only for the
-candidates the other selection constraints kept. It never reads every metadata
-document under the volume, and never one for an image the listing has already
-excluded. With a results index, it reads those candidates' rows instead.
+On the results tree, that call reads one metadata document for each candidate
+the other selection constraints kept, and none for an image the listing has
+already excluded. When nothing else narrows the selection, that can be every
+metadata document under the volume. With a results index, it reads those
+candidates' rows instead.
 
 ``--has-no-offset-file`` is asked about the candidates instead. Its answer set
 is one it only ever rejects from, so listing a volume to build it would be work
