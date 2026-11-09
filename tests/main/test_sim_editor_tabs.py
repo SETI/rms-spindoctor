@@ -696,6 +696,7 @@ def test_turning_off_an_unavailable_row_disables_it(model: Any) -> None:
     _select_detector_model(model, 'vidicon')
     row.group.setChecked(False)
     assert row.group.isEnabled() is False
+    assert 'bloom' not in model.sim_params.get('artifacts', {})
 
 
 def _dead_row(model: Any, mode_name: str = 'dead_pixels') -> Any:
