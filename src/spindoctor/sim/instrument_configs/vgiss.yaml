@@ -125,8 +125,8 @@ vgiss:
       # The edited (IM) modes downlink a centered band of each line: 608, 440,
       # 272, 160, or 80 of the 800 raw samples (the PDS Ring-Moon Systems Node
       # instrument catalogs).  The GEOMED resample spreads the 800 raw samples
-      # over 1000 pixels, so the 440-sample band, the one a scene that sets only a
-      # probability gets, is 550 GEOMED pixels wide.
+      # over 1000 pixels, so the 440-sample band is 550 GEOMED pixels wide.  A
+      # scene that sets only a probability gets that band.
       edited_frame: {band_width_px: 550}
       beam_bend: {amplitude_px: 1.0}
       residual_image: {amplitude: 0.05, prior: self_offset, offset_px: [5, 5]}

@@ -25,9 +25,9 @@ starts as an empty map, and each parameter key appears only once its widget is
 edited.  Availability filtering is per row.  If the scene's instrument doesn't
 offer a mode, the mode's row is disabled, and its tooltip gives the instrument's
 reason.  If the scene's detector chain can't render a mode, the row is disabled,
-and its tooltip says why.  If the scene already includes a mode, its row stays
-enabled until the author turns the mode off, because a disabled row can't be turned
-off.
+and its tooltip says why.  If the scene already includes a mode that its camera or
+detector can't render, the row stays enabled so the author can turn the mode off.
+Once the mode is off, the row is disabled.
 """
 
 from __future__ import annotations

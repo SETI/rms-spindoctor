@@ -1279,7 +1279,8 @@ values instead.
      - nac, wac, gossi
      - ``probability``
    * - ``edited_frame``
-     - only a centered column band (440 px by default), or one half-height, kept
+     - only a centered column band of the camera's default width, or the top or
+       bottom half of the frame, kept
      - gossi, vgiss
      - ``probability``
    * - ``truncated_frame``

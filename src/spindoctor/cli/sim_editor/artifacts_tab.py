@@ -16,16 +16,15 @@ empty map, and every parameter key -- including the detector override's -- appea
 only once its widget is edited, so keys the operator never touched track the
 per-instrument catalog defaults.  If the scene's instrument doesn't offer a mode,
 or the scene's detector chain can't render it, the mode's row is disabled, and its
-tooltip says why.  If the scene already includes a mode, its row stays enabled until
-the author turns the mode off.  The rows refresh when the instrument, the detector
-model, or the binning changes.
+tooltip says why.  If the scene already includes such a mode, its row stays enabled
+until the author turns the mode off.  The rows refresh when the instrument, the
+detector model, or the binning changes.
 
-The detector group is a checkable override for the electron-chain gain state, the
-readout-mode binning, the detector model, the exposure the well fraction
-references, the ADC quantization sub-mode, and the downlink table, under the same
-per-key discipline (a vgiss scene stays vidicon without ever writing
-``detector_model``).  The downlink table's first choice removes the key, so the
-camera's default table applies.
+The detector group is a checkable override for six keys: the gain state, the
+binning, the detector model, the reference exposure, the quantization, and the
+downlink table.  It too writes only the keys the author edits, so a vgiss scene
+stays vidicon without ever writing ``detector_model``.  Choosing 'camera default'
+for the downlink table removes the key, so the camera's default table applies.
 """
 
 from typing import Any
@@ -305,9 +304,9 @@ class ArtifactsTabMixin(SimEditorBase):
 
         self._detector_downlink_combo = QComboBox()
         self._detector_downlink_combo.setToolTip(
-            "The table the sqrt_lut quantization decodes through, from the instrument's list. "
-            f"Choose {_CAMERA_DEFAULT_TABLE} to leave the key out and use the camera's default "
-            'table. Written to the scene only when edited.'
+            'The table the sqrt_lut quantization decodes through. '
+            f"Choose '{_CAMERA_DEFAULT_TABLE}' to use the camera's own table. "
+            'Written to the scene only when edited.'
         )
         form.addRow('Downlink table:', self._detector_downlink_combo)
 
