@@ -475,7 +475,7 @@ def test_choosing_a_downlink_table_writes_the_key(model: Any) -> None:
 
 
 def test_choosing_the_camera_default_table_removes_the_key(model: Any) -> None:
-    """After a switch to exact, the first downlink choice drops the table nothing reads."""
+    """After a switch to exact, choosing the camera default removes the unused table."""
     model._apply_params_dict(
         {
             'instrument': 'coiss_nac',
@@ -663,7 +663,7 @@ def test_switching_the_detector_model_back_reenables_the_row(model: Any) -> None
 
 
 def test_a_turned_on_row_stays_enabled_when_its_mode_becomes_unavailable(model: Any) -> None:
-    """A mode the scene already includes keeps its row enabled, so it can be turned off."""
+    """If the scene includes the mode, its row stays enabled so it can be turned off."""
     row = model._mode_rows['bloom']
     row.group.setChecked(True)
     _select_detector_model(model, 'vidicon')

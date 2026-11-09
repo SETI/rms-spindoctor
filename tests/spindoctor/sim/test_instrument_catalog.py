@@ -789,7 +789,7 @@ def test_a_downlink_table_no_quantization_reads_fails() -> None:
 def test_a_downlink_table_companded_by_the_native_readout_mode_passes(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A scene that sets no binning is checked in the native readout mode, as it renders."""
+    """With no binning set, validation reads the native readout mode, as a render does."""
     text = FICTIONAL_CAMERA.replace('  1: {}\n', '  1: {quantization: sqrt_lut}\n')
     assert text != FICTIONAL_CAMERA
     directory = catalog_dir_with(tmp_path, {f'{FICTIONAL_CAMERA_NAME}.yaml': text})

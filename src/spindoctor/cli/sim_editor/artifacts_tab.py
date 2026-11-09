@@ -16,7 +16,7 @@ empty map, and every parameter key -- including the detector override's -- appea
 only once its widget is edited, so keys the operator never touched track the
 per-instrument catalog defaults.  If the scene's instrument doesn't offer a mode,
 or the scene's detector chain can't render it, the mode's row is disabled, and its
-tooltip says why.  A row whose mode the scene already includes stays enabled until
+tooltip says why.  If the scene already includes a mode, its row stays enabled until
 the author turns the mode off.  The rows refresh when the instrument, the detector
 model, or the binning changes.
 
@@ -396,8 +396,8 @@ class ArtifactsTabMixin(SimEditorBase):
         """List the instrument's downlink tables and select the scene's.
 
         The first choice stands for an absent key and is selected when the scene sets
-        no table.  A scene table the instrument doesn't list is listed too, so the
-        widget shows what the scene says and validation reports it.
+        no table.  If the scene sets a table the instrument doesn't list, that table is
+        listed too, so the widget shows what the scene says and validation reports it.
         """
         selected = self._detector_block().get('downlink_table')
         choices = list(downlink_table_names(self.sim_params.get('instrument')))
@@ -501,8 +501,8 @@ class ArtifactsTabMixin(SimEditorBase):
     def _on_detector_downlink_table(self, index: int) -> None:
         """Write the downlink table on a selection, or remove it on the first choice.
 
-        Removing the key lets a scene that no longer quantizes with ``sqrt_lut`` drop
-        a table nothing would decode through, without clearing the detector block.
+        Removing the key lets the author drop a table once the scene no longer
+        quantizes with ``sqrt_lut``, without clearing the whole detector block.
         """
         if index < 0:
             return

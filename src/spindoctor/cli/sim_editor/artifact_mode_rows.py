@@ -25,8 +25,9 @@ starts as an empty map, and each parameter key appears only once its widget is
 edited.  Availability filtering is per row.  If the scene's instrument doesn't
 offer a mode, the mode's row is disabled, and its tooltip gives the instrument's
 reason.  If the scene's detector chain can't render a mode, the row is disabled,
-and its tooltip says why.  A row whose mode the scene already includes stays
-enabled until the author turns it off, because a disabled row can't be turned off.
+and its tooltip says why.  If the scene already includes a mode, its row stays
+enabled until the author turns the mode off, because a disabled row can't be turned
+off.
 """
 
 from __future__ import annotations
@@ -313,7 +314,7 @@ class ModeRow:
 
         Enabling the row resyncs its widgets, so they show the map it now
         edits rather than values left over from before it was turned off.
-        Turning off a row whose mode is unavailable disables it.
+        If the mode is unavailable, turning the row off disables it.
         """
         self._controller._set_mode_enabled(self.mode.name, on)
         if on:
@@ -394,8 +395,8 @@ class ModeRow:
         tooltip gives the instrument's reason.  If the scene's detector chain can't
         render the mode, the row is disabled, and its tooltip says why.  Otherwise
         the row is enabled, and its tooltip gives its activation key's semantics.
-        An unavailable mode that the scene already includes keeps its row enabled,
-        with the reason in the tooltip, so the author can turn the mode off.
+        If the scene already includes an unavailable mode, the mode's row stays
+        enabled, with the reason in its tooltip, so the author can turn the mode off.
 
         Parameters:
             instrument: The scene's instrument name.
