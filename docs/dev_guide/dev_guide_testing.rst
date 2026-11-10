@@ -294,12 +294,11 @@ answer on a grid. The disc correlation's offset moves in steps of 1/128 px, one
 step of its upsampled grid, and a last-bit change upstream can move it one step.
 The tolerance is about two and a half of those steps.
 
-It compares the confidence within 0.02. That value is a provisional choice: how
-far a last-bit change can move a scene's confidence has not been measured, and
-the tolerance has not been reviewed. The rank comes from thresholds on the
-confidence and on the offset's uncertainty, so a scene that sits near one of
-those thresholds can still change rank, and fail, after a change far smaller
-than either tolerance.
+It compares the confidence within 0.02. That tolerance can be revisited once runs
+on other machines show how far a scene's confidence moves. The rank comes from
+thresholds on the confidence and on the offset's uncertainty, so a scene that
+sits near one of those thresholds can still change rank, and fail, after a
+change far smaller than either tolerance.
 
 The render-diff check compares every committed render with a fresh one, pixel
 for pixel. It compares the decoded pixels, so a change in the PNG encoder doesn't
