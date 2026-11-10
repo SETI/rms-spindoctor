@@ -1,7 +1,8 @@
 {
-  "confidence": 0.79,
-  "offset_du_px": -0.61,
-  "offset_dv_px": 1.43,
+  "confidence": 0.7932675962373423,
+  "confidence_rank": "medium",
+  "offset_du_px": -0.6171874999999999,
+  "offset_dv_px": 1.4218750000000002,
   "scene_name": "planted_offset_blob_mesh_crescent",
   "status": "success"
 }

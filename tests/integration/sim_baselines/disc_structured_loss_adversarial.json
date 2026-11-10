@@ -1,7 +1,8 @@
 {
-  "confidence": 0.83,
-  "offset_du_px": -0.58,
-  "offset_dv_px": 1.38,
+  "confidence": 0.8306165962936614,
+  "confidence_rank": "medium",
+  "offset_du_px": -0.5781249999999999,
+  "offset_dv_px": 1.3828125000000002,
   "scene_name": "disc_structured_loss_adversarial",
   "status": "success"
 }

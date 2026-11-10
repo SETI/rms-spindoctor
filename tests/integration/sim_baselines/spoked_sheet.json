@@ -1,7 +1,8 @@
 {
-  "confidence": 0.91,
-  "offset_du_px": 1.39,
-  "offset_dv_px": 0.9,
+  "confidence": 0.9075678169661539,
+  "confidence_rank": "high",
+  "offset_du_px": 1.3859062806643117,
+  "offset_dv_px": 0.9032852288093942,
   "scene_name": "spoked_sheet",
   "status": "success"
 }
