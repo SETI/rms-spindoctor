@@ -27,9 +27,9 @@ tree an interactive run writes it to, and writes no main log. See
 Writing the task file
 =====================
 
-``--output-cloud-tasks-file PATH`` is an option of **sd_offset**, not of the worker.
-Given it, ``sd_offset`` enumerates the images your selection names, writes one task per
-enumerated entry to the named file, and navigates nothing. Each task carries a list of
+``--output-cloud-tasks-file PATH`` is an option of **sd_offset**, not of the worker. Given
+it, ``sd_offset`` enumerates the images your selection picks out, writes one task per
+enumerated entry to the file given, and navigates nothing. Each task carries a list of
 images, and every selection an instrument offers today puts one image in each, so a file
 written now holds one task per image:
 
@@ -74,8 +74,8 @@ The fields are:
 * ``task_id``: a string that identifies the task uniquely, built from the dataset name,
   the first image's label filename, and the position of the task in the enumeration.
 * ``data.dataset_name``: the dataset the images come from, spelled as it is on an
-  ``sd_offset`` command line. A task naming a dataset the installed package does not know
-  fails with ``unknown_dataset``.
+  ``sd_offset`` command line. If the installed package does not know a task's dataset, the
+  task fails with ``unknown_dataset``.
 * ``data.arguments``: an object with the optional keys ``nav_models`` and
   ``nav_techniques``, each a list of selection patterns or ``null`` for "use the default
   selection". These carry the ``--nav-models`` and ``--nav-techniques`` choices made when

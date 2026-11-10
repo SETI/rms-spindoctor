@@ -492,9 +492,9 @@ NavFeature and NavFeatureGeometry
 =================================
 
 A :class:`~spindoctor.feature.feature.NavFeature` is the smallest
-independently-navigable scene element: a star, one body's limb arc,
-one ring edge, a body disc rendered as a pixel template, and so on.
-The :class:`~spindoctor.feature.feature_type.NavFeatureType` enum names every
+independently-navigable scene element: a star, one body's limb arc, one ring
+edge, a body disc rendered as a pixel template, and so on. The
+:class:`~spindoctor.feature.feature_type.NavFeatureType` enum lists every
 shipping feature category.
 
 The ``geometry`` field carries one of the

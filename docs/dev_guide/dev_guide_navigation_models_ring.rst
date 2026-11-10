@@ -218,7 +218,7 @@ sigma and curvature thresholds that are not exposed to YAML.
 rings block
 -----------
 
-Every key under ``rings`` is listed below, each naming the consumer that reads it.
+Every key under ``rings`` is listed below, each with the consumer that reads it.
 
 - ``default_orbit_radial_sigma_km`` — float, default ``2.0`` km. Coherent whole-edge
   radial orbit uncertainty used for an edge whose catalog entry carries no ``rms``.

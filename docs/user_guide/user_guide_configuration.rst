@@ -45,10 +45,10 @@ environment variable is not one of these steps; it is a fallback, described afte
    take precedence over every file. They are listed under `Options that override
    configuration`_ below.
 
-Some settings also have an environment variable. It is a fallback rather than a layer:
-it supplies the value only when neither the command line nor any configuration file names
-the setting. Exporting one has no effect on a setting a configuration file already names.
-Each is named with the option it belongs to below.
+Some settings also have an environment variable. It is a fallback rather than a layer: it
+supplies the value only when neither the command line nor any configuration file sets it.
+Exporting one has no effect on a setting that a configuration file already sets. Each
+variable is listed below with the option it belongs to.
 
 The built-in defaults are in ``src/spindoctor/config_files/`` of the installed package,
 loaded in filename order; that is where a developer reading the source finds them, and
@@ -133,8 +133,9 @@ The sections are:
     The camera the image simulator pretends to be, and the noise and defects it renders.
     See :doc:`/user_guide/user_guide_simulated_images`.
 
-When two configuration files name the same setting, the value from the last file loaded
-wins. Sections merge setting by setting, so naming one setting in a section leaves the
+When two configuration files give the same setting different values, the file loaded
+last wins.
+Sections merge setting by setting, so a file that sets one value in a section leaves the
 rest of that section at its default.
 
 Writing your own default file
@@ -156,10 +157,10 @@ To set defaults for every run you make from a given directory:
 
 3. Run any program without ``--config-file``. The file is found and loaded.
 
-Naming a file per run
-=====================
+Choosing a file per run
+=======================
 
-``--config-file PATH`` names a configuration file for one run. Every program accepts it;
+``--config-file PATH`` loads a configuration file for one run. Every program accepts it;
 ``sd_offset`` (:doc:`/user_guide/user_guide_navigation_running`) is used for the examples
 here:
 
@@ -176,7 +177,7 @@ The option is repeatable, and the files are loaded in the order given:
      --config-file run_specific.yaml
 
 Because ``--config-file`` replaces ``nav_default_config.yaml`` rather than adding to it,
-keeping your personal defaults for such a run means naming that file first:
+you keep your personal defaults for such a run by giving that file first:
 
 .. code-block:: bash
 
@@ -207,10 +208,9 @@ Environment options
 
 ``--results-index-db URL``
     The results index, a database with one row per navigated image that a separate step
-    builds from the navigation results tree. Give a ``sqlite:`` URL naming a local file,
-    or a ``postgresql+psycopg:`` URL naming a server. Overrides the
-    ``NAV_RESULTS_INDEX_DB`` environment variable and the ``environment.results_index_db``
-    setting.
+    builds from the navigation results tree. Give a ``sqlite:`` URL for a local file, or a
+    ``postgresql+psycopg:`` URL for a server. Overrides the ``NAV_RESULTS_INDEX_DB``
+    environment variable and the ``environment.results_index_db`` setting.
 
     No results index is the default for every program that offers this option, and the
     literal value ``none`` says so explicitly, overriding a URL set anywhere else. A value
@@ -262,7 +262,7 @@ which also has a ``--no-`` form.
 equivalent. All the rest correspond to a key in the ``logging`` section.
 
 :doc:`/user_guide/user_guide_logging` is the full account: the levels, the component
-names, the keys of the ``logging`` section, and which setting wins when two of them name
+names, the keys of the ``logging`` section, and which setting wins when two of them set
 the same component.
 
 Acceptance thresholds
@@ -281,13 +281,12 @@ Two settings in the ``orchestrator`` section decide that:
     refused.
 
 ``orchestrator.ensemble.tier_thresholds``
-    The boundaries of the three tiers you can set thresholds for -- high, medium,
-    and low. Two further ranks, conflicted and failed, are outcomes rather than
-    thresholds, so they have no entry here;
-    :doc:`user_guide_navigation_models` describes all five. Each tier names the confidence
-    an answer must reach. The high and medium tiers also name the largest pointing
-    uncertainty, in pixels, an answer may have, and an answer must satisfy both to earn
-    one of them. The low tier sets no maximum uncertainty.
+    The boundaries of the three tiers you can set thresholds for -- high, medium, and low.
+    Two further ranks, conflicted and failed, are outcomes rather than thresholds, so they
+    have no entry here; :doc:`user_guide_navigation_models` describes all five. Each tier
+    sets the confidence an answer must reach. The high and medium tiers also set the
+    largest pointing uncertainty, in pixels, that an answer may have, and an answer must
+    satisfy both to earn one of them. The low tier sets no maximum uncertainty.
 
 Lowering these makes more frames report an answer and makes those answers less
 trustworthy, so change them only when you know why the evidence in your frames is weaker

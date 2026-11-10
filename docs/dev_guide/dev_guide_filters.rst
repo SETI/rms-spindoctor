@@ -7,12 +7,12 @@ Overview
 
 :mod:`spindoctor.support.filters` is the one place image-domain filtering is
 defined for the navigation pipeline. A filter is described by a
-:class:`~spindoctor.support.filters.NavFilterSpec` -- a frozen dataclass
-naming a :class:`~spindoctor.support.filters.NavFilterKind` plus the
-parameters that kind consumes -- and executed by the single dispatcher
+:class:`~spindoctor.support.filters.NavFilterSpec` -- a frozen dataclass that
+holds a :class:`~spindoctor.support.filters.NavFilterKind` plus the parameters
+that kind consumes -- and executed by the single dispatcher
 :func:`~spindoctor.support.filters.apply_filter`. Higher-level code never
-switches on the kind itself; it builds a spec and calls the dispatcher, so
-every consumer applies exactly the same operation for the same description.
+switches on the kind itself; it builds a spec and calls the dispatcher, so every
+consumer applies exactly the same operation for the same description.
 
 The point of describing a filter as data rather than as a function call is
 uniformity: the same spec can be applied to an image patch and to a model

@@ -161,10 +161,10 @@ Adding a function-shaped component means adding its key to ``OTHER_LOG_KEYS``
 in :mod:`spindoctor.config.logging_keys`, or the configuration will reject it.
 
 Every dispatch module that has a logger declares ``PROGRAM_NAME`` from
-:mod:`spindoctor.config.program_names`. It names the program's main log
-directory and selects its block under ``logging.programs``, so a program
-without one has no way to be configured separately and no place to put its
-main log.
+:mod:`spindoctor.config.program_names`. ``PROGRAM_NAME`` gives the program's
+main log directory its name and selects the program's block under
+``logging.programs``. A program without one has no way to be configured
+separately and no place to put its main log.
 
 Anything that degrades a result goes to both
 ============================================
@@ -183,10 +183,10 @@ Report those twice, and say different things:
   told to look will look, and it belongs with the rest of that image's
   processing.
 
-* **To the run's log, the fact.** One line naming the image and the short
-  reason, plus a count in whatever summary the program prints. Someone
-  following a batch should not have to open every image's log to discover
-  that a tenth of it was reprojected uncorrected.
+* **To the run's log, the fact.** One line that gives the image and the short
+  reason, plus a count in whatever summary the program prints. Someone following
+  a batch should not have to open every image's log to discover that a tenth of
+  it was reprojected uncorrected.
 
 A cloud task has no run log, so the second half becomes a field in the value
 ``process_task`` returns -- a count, a per-reason tally, or a flag. The task
@@ -200,8 +200,8 @@ The scope rule
 ==============
 
 An image-role component that logs when no image scope is open is a bug. The
-record is routed to the main logger so it is never lost, and a warning names
-the call site, deduplicated so a loop cannot flood the log. Under
+record is routed to the main logger so it is never lost, and a warning gives the
+call site, deduplicated so a loop cannot flood the log. Under
 ``logging.strict_scope`` it raises instead.
 
 There is no legitimate case for it in production code: a component logging

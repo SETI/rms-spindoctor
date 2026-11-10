@@ -234,9 +234,9 @@ After reconstructing the dataclass in ``load()``, ``verify_dtype`` checks:
 - ``image_number`` is ``uint16``.
 - All mask arrays are ``bool_``.
 
-A ``ValueError`` is raised on the first mismatch, naming the offending field
-and both the expected and actual dtypes. This catches files produced by
-external tools that may have coerced dtypes on write.
+A ``ValueError`` is raised on the first mismatch. Its message gives the
+offending field and both the expected and actual dtypes. This catches files
+produced by external tools that may have coerced dtypes on write.
 
 RingOrbitModel serialization
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

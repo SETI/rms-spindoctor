@@ -20,17 +20,17 @@ Pipeline support
 * **Backplanes** -- supported.
 * **Mosaics** -- supported, body and ring.
 * **PDS4 bundles** -- supported for the Saturn dataset. The dataset class
-  implements every PDS4 hook, and the shipped label templates and
-  configuration entry cover ``coiss_saturn``. ``coiss_cruise`` names a
-  template directory that is not shipped, so a cruise bundle needs that
-  directory supplied before it will build. The Saturn bundle's labels name
-  Saturn, each satellite the configuration lists for it, and Saturn's main
-  rings, whose PDS4 context product is ``Saturn Rings``; the shipped targets
-  table has an entry for every one. A data label states its image's ring
-  geometry in the plane of Saturn's equator. A Saturn image whose backplanes
-  cover none of these is left out of the bundle: a frame of stars alone, of a
-  satellite the configuration does not list, or of rings outside the main rings,
-  such as the F ring.
+  implements every PDS4 hook, and the shipped label templates and configuration
+  entry cover ``coiss_saturn``. ``coiss_cruise`` points to a template directory
+  that is not shipped, so a cruise bundle needs that directory supplied before
+  it will build. The Saturn bundle's labels identify Saturn, each satellite the
+  configuration lists for it, and Saturn's main rings, whose PDS4 context
+  product is ``Saturn Rings``; the shipped targets table has an entry for every
+  one. A data label states no ring geometry: for the rings it gives only the
+  target, and the image's ring ranges are in the global rings index table. A
+  Saturn image whose backplanes cover none of these is left out of the bundle:
+  a frame of stars alone, of a satellite the configuration does not list, or of
+  rings outside the main rings, such as the F ring.
 * **Simulator** -- supported, under four instrument keys: raw and calibrated,
   each per camera.
 * **Statistics** -- supported, with a BOTSIM pair consistency section in the
@@ -41,13 +41,13 @@ Datasets and image selection
 
 **Dataset names.** ``coiss`` selects the whole archive; ``coiss_cruise`` and
 ``coiss_saturn`` select the two halves of it. Each has a ``_pds3`` alias
-(``coiss_pds3``, ``coiss_cruise_pds3``, ``coiss_saturn_pds3``) naming the same
-class, and all names are case-insensitive.
+(``coiss_pds3``, ``coiss_cruise_pds3``, ``coiss_saturn_pds3``) for the same
+dataset, and all names are case-insensitive.
 
 **Volumes.** ``coiss_cruise`` covers COISS_1001 through COISS_1009;
 ``coiss_saturn`` covers COISS_2001 through COISS_2116; ``coiss`` covers both
-ranges, in that order. Naming a volume outside the selected dataset's range is
-an error rather than an empty result.
+ranges, in that order. Asking for a volume outside the selected dataset's range
+is an error rather than an empty result.
 
 **Holdings layout.** Images are read from the ``calibrated/`` subtree of the
 holdings root, not from ``volumes/``:
@@ -61,14 +61,14 @@ The volume set directory is ``COISS_1xxx`` or ``COISS_2xxx`` according to the
 volume's first digit. In the PDS3 index file name, the volume identifier keeps
 its uppercase form and the ``_index.lbl`` suffix is lowercase.
 
-**Which product is navigated.** The calibrated product, always. The image files are
-VICAR; PDS3 is the archive organization around them. Each PDS3 index
-row names a raw ``.IMG`` filespec, which the dataset rewrites to ``_CALIB.LBL``
-before the image is opened, so every selection route -- volume ranges, image
-number ranges, explicit names, ``--image-file-list``, ``--image-filespec-csv``
--- enumerates ``_CALIB.IMG`` files. The raw configuration block exists and is
-selected by the absence of ``_CALIB`` in the filename, but no ``sd_offset``
-selection route reaches it (see
+**Which product is navigated.** The calibrated product, always. The image files
+are VICAR; PDS3 is the archive organization around them. Each row of the
+PDS3 index gives a raw ``.IMG`` filespec, which the dataset rewrites to
+``_CALIB.LBL`` before the image is opened, so every selection route -- volume
+ranges, image number ranges, explicit names, ``--image-file-list``,
+``--image-filespec-csv`` -- enumerates ``_CALIB.IMG`` files. The raw
+configuration block exists and is selected by the absence of ``_CALIB`` in the
+filename, but no ``sd_offset`` selection route reaches it (see
 :doc:`/user_guide/user_guide_navigation_running`): a ``_RAW`` image name is
 rejected by the name rule, and the path a run opens always comes from the PDS3
 index rewrite. Navigating a raw frame means calling the observation loader on
@@ -268,10 +268,10 @@ Each value is the label's own, in the label's own form:
   ``Z``, for example ``2007-312T21:41:14.946Z``. The product creation time is
   the exception, as its row says.
 * Where one label keyword fills several attributes, each value is recorded
-  under the attribute its position names, in the label's own order. The four
-  compression parameters and the two optics temperatures are read this way,
-  among others. A label that states a single value for such a keyword fills
-  the first of its attributes, and the rest are null.
+  under the attribute that matches its position, in the label's own order. The
+  four compression parameters and the two optics temperatures are read this
+  way, among others. A label that states a single value for such a keyword
+  fills the first of its attributes, and the rest are null.
 * A value the label writes as ``N/A``, ``UNK``, ``--``, or ``-999.0`` is
   recorded as written. What it means depends on the attribute, and the
   attribute's row says so wherever the label writes one.
@@ -392,7 +392,7 @@ mode reads the image size.
      - The version of the instrument flight software.
      - none
    * - ``cassini:gain_mode_id``
-     - The gain setting as the label names it, for example
+     - The gain setting as the label states it, for example
        ``29 ELECTRONS PER DN``.
      - none
    * - ``cassini:ground_software_version_id``
@@ -649,7 +649,7 @@ Known limitations
 * A BOTSIM wide angle frame receives no corrected segment whenever its narrow
   angle partner writes one. Its pixel offset in the metadata is unaffected.
 * PDS4 bundles are shipped for the Saturn dataset only; the cruise dataset
-  names a label template directory that is not part of the distribution.
+  points to a label template directory that is not part of the distribution.
 
 References
 ==========

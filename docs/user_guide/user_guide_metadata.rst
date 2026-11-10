@@ -559,23 +559,26 @@ accompany ``conflicted``. Every other value accompanies ``failed``.
        error upstream, not bad image data. The full traceback is in the
        error log.
    * - ``internal_error``
-     - A navigation model or technique raised an exception nothing
-       anticipated, so the image was not navigated as designed and is
-       reported failed rather than answered from the evidence that
-       survived. The ``internal_error`` block below names the component and
-       the exception class; the full traceback is in the error log.
+     - A navigation model or technique raised an exception nothing anticipated, so
+       the image was not navigated as designed and is reported failed rather than
+       answered from the evidence that survived. The ``internal_error`` block below
+       records the component and the exception class; the full traceback is in the
+       error log.
 
 .. _internal-error-block:
 
 The internal-error block
 ------------------------
 
-A result whose ``status_reason`` is ``internal_error`` carries an
-``internal_error`` object, and no other result carries one. It names the part of the
-navigation that failed and the class of error it hit, so a program reading the
-metadata document, rather than a person reading the log, can tell a navigation that
-hit a defect from one that simply found nothing. An example of both keys, from a real
-captured run, is under `Internal error`_ below.
+A result whose ``status_reason`` is ``internal_error`` carries an ``internal_error``
+object, and no other result carries one. It records the part of the navigation that
+failed and the class of error it hit, so a program reading the metadata document,
+rather than a person reading the log, can tell a navigation that hit a defect from
+one that simply found nothing. The `Internal error`_ example below is a different
+kind of failure. There, the error was raised while the summary picture was being
+captioned, which is outside any model or technique. Its metadata document has a
+top-level ``status_error`` of ``internal_error``, and it has no ``internal_error``
+object.
 
 .. list-table::
    :header-rows: 1
@@ -1528,11 +1531,11 @@ Internal error
 --------------
 
 A Cassini frame that loaded and then raised where the navigation does not turn an
-exception into a result, here while the summary picture was being captioned. The same
-keys as the load-error structure. ``camera`` comes from the PDS3 index table, since
-an image that has raised is not consulted again; ``status_exception`` names the
-exception type and message; and ``status_traceback`` carries the traceback, shortened
-here.
+exception into a result, here while the summary picture was being captioned. The
+same keys as the load-error structure. ``camera`` comes from the PDS3 index table,
+since an image that has raised is not consulted again; ``status_exception`` gives
+the exception type and message; and ``status_traceback`` carries the traceback,
+shortened here.
 
 .. code-block:: json
 

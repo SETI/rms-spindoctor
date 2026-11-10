@@ -56,10 +56,10 @@ already holds.
 The extended-FOV edge cull converts the other way. It drops a star whose PSF
 window would spill off the padded array, and holds six freshly projected
 pixel-corner positions against ``obs.extfov_u_min`` / ``_max`` and
-``extfov_v_min`` / ``_max``. Those four are whole numbers naming the first and
-last pixel of the padded frame -- ``-margin`` and ``shape + margin - 1`` -- so
-reaching a pixel-corner position from one of them adds the same half pixel that
-:meth:`~spindoctor.obs.obs_snapshot.ObsSnapshot.ext_bp` adds when it lays a
+``extfov_v_min`` / ``_max``. Those four are whole numbers that give the first
+and last pixel of the padded frame -- ``-margin`` and ``shape + margin - 1`` --
+so reaching a pixel-corner position from one of them adds the same half pixel
+that :meth:`~spindoctor.obs.obs_snapshot.ObsSnapshot.ext_bp` adds when it lays a
 meshgrid on those pixels' centers. The cull converts the four bounds once,
 before the per-star loop, rather than six positions per star.
 

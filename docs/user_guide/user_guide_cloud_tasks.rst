@@ -18,11 +18,11 @@ worker did with the failure and on how the queue was run. Read the cloud tasks
 documentation for how a queue is created, loaded, and run.
 
 A queue holds one task per unit of work. A worker running on a cloud compute instance
-takes a task off the queue, does the work the task names, reports what happened, and asks
-for the next one. **A user never runs a worker directly**: the cloud task system starts it
-on the compute instances you have asked for. What you do is generate the task file with
-one of the programs you run yourself, load it into a queue, and read the results the
-workers leave behind.
+takes a task off the queue, does the work the task describes, reports what happened, and
+asks for the next one. **A user never runs a worker directly**: the cloud task system
+starts it on the compute instances you have asked for. What you do is generate the task
+file with one of the programs you run yourself, load it into a queue, and read the results
+the workers leave behind.
 
 The workers
 ===========
@@ -31,12 +31,12 @@ SpinDoctor's part is small. For each stage that can be run in bulk there is a wo
 program whose name ends in ``_cloud_tasks``. A worker does the same work the program you
 run yourself does, and writes its results to the same place.
 
-No SpinDoctor worker ever asks for a task to be handed out again. A failure the worker
-can describe comes back as a task result whose ``status`` is ``error``, with a
-``status_error`` value naming the failure, and the queue does not retry it. A failure
-that stops the worker outright reaches the queue as an exception instead, and the queue
-retries that only when it was run with retry-on-exception turned on. Each stage's chapter
-says what its worker reports.
+No SpinDoctor worker ever asks for a task to be handed out again. When the worker can
+describe a failure, it returns a task result whose ``status`` is ``error`` and whose
+``status_error`` value identifies the failure, and the queue does not retry that task. A
+failure that stops the worker outright reaches the queue as an exception instead, and the
+queue retries that only when it was run with retry-on-exception turned on. Each stage's
+chapter says what its worker reports.
 
 .. list-table::
    :header-rows: 1
@@ -90,12 +90,13 @@ program enumerates the work its command line selects, writes the task file, and 
 nothing else: no image is navigated, no backplane is generated, and no mosaic is
 reprojected.
 
-A task carries the work, not the worker's surroundings. An image-processing task names
-the images to process, the dataset they come from, and the processing choices the
-command line made: for ``sd_offset`` the models and techniques to run, and for
-``sd_mosaic`` the whole mosaic configuration, including where the mosaic is written
-and the prefix its filenames take. An ingest task from ``sd_results_index divide``
-names the navigation results root it covers and the share of metadata documents in it.
+A task carries the work, not the worker's surroundings. An image-processing task lists the
+images to process and gives the dataset they come from and the processing choices made on
+the command line. For ``sd_offset`` those choices are the models and techniques to run.
+For ``sd_mosaic`` they are the whole mosaic configuration, including where the mosaic is
+written and the prefix its filenames take. An ingest task from ``sd_results_index divide``
+gives the navigation results root it covers and its share of the metadata documents in
+that root.
 
 The rest is the worker's own. The configuration file, the navigation results root a
 processing worker reads, the backplane and bundle results roots it writes, the
@@ -104,9 +105,9 @@ command line, and no task file carries them. They are chosen when the queue is r
 rather than when the task file is written, and a worker started without one it needs
 cannot get it from the task. Each stage's chapter lists the options its worker takes.
 
-Where a task names image files, it names them by absolute URL, and that URL is fixed when
-the task is written. Such a task file has to be generated against the holdings root the
-workers will read.
+A task that lists image files gives each one as an absolute URL, and that URL is fixed
+when the task is written. Such a task file has to be generated against the holdings root
+the workers will read.
 
 What every task file has in common
 ==================================

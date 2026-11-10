@@ -86,18 +86,17 @@ Summary-PNG extras
 
 Beyond the raw overlay the summary-PNG renderer
 (:func:`~spindoctor.support.summary_png.render_annotated_summary_rgb`) adds two
-presentation features. A metadata text block names the image and, when they are
-known, its filter and exposure; it reports the navigation status, the
+presentation features. A metadata text block gives the image name and, when they
+are known, its filter and exposure; it reports the navigation status, the
 contributing techniques (only for a successful navigation), and the fused
 confidence (shown as ``n/a`` when none was fused). It is drawn in the
-least-crowded corner and steered clear of the
-drawn label bounding boxes (falling back to image brightness among the
-text-free corners). A per-star local contrast stretch rewrites each star
-detection box against its own min / max so a faint star a few DN above a bright
-background stays visible even when the whole-frame stretch would bury it.
-Ring edges hidden behind the planet globe are already absent from the masks the
-overlay draws, so they are never painted across the disc (see
-:doc:`dev_guide_navigation_models_ring`).
+least-crowded corner and steered clear of the drawn label bounding boxes
+(falling back to image brightness among the text-free corners). A per-star local
+contrast stretch rewrites each star detection box against its own min / max so a
+faint star a few DN above a bright background stays visible even when the
+whole-frame stretch would bury it. Ring edges hidden behind the planet globe are
+already absent from the masks the overlay draws, so they are never painted
+across the disc (see :doc:`dev_guide_navigation_models_ring`).
 
 Configuration
 =============

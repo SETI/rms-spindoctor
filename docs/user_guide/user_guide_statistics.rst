@@ -96,17 +96,18 @@ same inputs always produce the same numbers and the same charts.
 
 ``--root`` restricts a report backed by the results index to one ingested
 navigation-results root and may be given more than once. With none given, the
-report covers every root for which the results index holds a completed ingest.
-A root whose newest ingest run did not finish is passed over rather than
-counted, because no absence under it can be read as an image nothing navigated.
-Naming such a root outright is an error rather than an empty report. A report
-legitimately spans roots where a per-image lookup never does.
+report covers every root for which the results index holds a completed ingest. A
+root whose newest ingest run did not finish is passed over rather than counted,
+because no absence under it can be read as an image nothing navigated. Asking
+for such a root with ``--root`` is an error rather than an empty report. A
+report legitimately spans roots where a per-image lookup never does.
 
-**A report that passed a root over says so.** Its header names the roots it
-covered as the narrowing they are, and a ``Roots dropped`` line under them names
-the ones it left out; nothing under a dropped root is reported, neither its
-images nor its files that yielded no record, because a half-covered root is
-worse than an uncovered one. Ingest such a root and the next report covers it.
+**A report that passed a root over says so.** Its header lists the roots it
+covered among the filters that narrowed the report, and a ``Roots dropped`` line
+under them lists the ones it left out. Nothing under a dropped root is reported,
+neither its images nor its files that yielded no record, because a half-covered
+root is worse than an uncovered one. Ingest such a root and the next report
+covers it.
 
 Because ``--root`` selects among the roots one results index holds, it is a
 different thing from ``--nav-results-root``, and it is refused when no results
@@ -148,9 +149,9 @@ Three options control drill-down output:
 
 The first two write *image names* rather than file names -- ``N1454725799``
 rather than ``N1454725799_1_CALIB.IMG`` -- because that is the token the
-datasets' ``--image-filelist`` option selects on. The filelists are
-directly consumable by it: one name per line, with a leading ``#`` comment
-naming the category.
+datasets' ``--image-filelist`` option selects on. The filelists are directly
+consumable by it: one name per line, with a leading ``#`` comment that gives the
+category.
 
 Every image count in the report carries its percentage -- ``5 (3.2%)``.
 Counts are broken down by instrument: a table of counts gets one column per

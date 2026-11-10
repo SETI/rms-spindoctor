@@ -22,8 +22,8 @@ Pipeline support
   constant attitude: see `Corrected-pointing C-kernels`_.
 * **Backplanes** -- supported.
 * **Mosaics** -- supported, body and ring.
-* **PDS4 bundles** -- not supported. The dataset names a bundle and a label
-  template directory, but the remaining hooks are unimplemented and the
+* **PDS4 bundles** -- not supported. The dataset defines a bundle name and a
+  label template directory, but the remaining hooks are unimplemented and the
   configuration entry is a commented-out stub.
 * **Simulator** -- supported, under the single instrument key ``vgiss``.
 * **Statistics** -- supported.
@@ -31,9 +31,9 @@ Pipeline support
 Datasets and image selection
 ============================
 
-**Dataset names.** ``vgiss``, with the alias ``vgiss_pds3`` naming the same
-class. Both are case-insensitive. There are no sub-datasets: one dataset covers
-both spacecraft and all four encounters.
+**Dataset names.** ``vgiss``, with the alias ``vgiss_pds3`` for the same
+dataset. Both are case-insensitive. There are no sub-datasets: one dataset
+covers both spacecraft and all four encounters.
 
 **Volumes.** Six ranges, one per spacecraft and encounter:
 
@@ -63,7 +63,8 @@ both spacecraft and all four encounters.
      - Voyager 2
      - VGISS_8201 - VGISS_8210
 
-Naming a volume outside those ranges is an error rather than an empty result.
+Asking for a volume outside those ranges is an error rather than an empty
+result.
 
 **Holdings layout.** Images are read from the ``volumes/`` subtree:
 

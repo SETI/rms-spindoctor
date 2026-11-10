@@ -15,13 +15,13 @@ Basic Usage
 
    sd_offset DATASET_NAME [options]
 
-``DATASET_NAME`` is the first argument and is required. It names the mission and
+``DATASET_NAME`` is the first argument and is required. It identifies the mission and
 instrument whose images the run reads, and is one of the names listed under "Supported
 Missions" in :doc:`user_guide_introduction`. Names are case-insensitive, so ``COISS`` and
 ``coiss`` are equivalent.
 
 Everything else is an option. Which options a run accepts depends in part on the dataset
-named, because each dataset offers the selection options that suit its archive. Asking
+chosen, because each dataset offers the selection options that suit its archive. Asking
 for the options of the dataset you intend to use shows exactly what that run accepts:
 
 .. code-block:: bash
@@ -69,13 +69,13 @@ These say where configuration and results live.
   built-in default.
 
 ``--results-index-db URL``
-  The connection URL of a results index: a ``sqlite:`` URL naming a local file, or a
-  ``postgresql+psycopg:`` URL naming a server. Overrides the
-  ``environment.results_index_db`` configuration setting and the
-  ``NAV_RESULTS_INDEX_DB`` environment variable. Given a results index, the selection
-  options that ask what a previous run recorded are answered from its rows instead of by
-  reading the results tree; see :doc:`user_guide_image_selection` for what that changes
-  and :doc:`user_guide_results_index` for the results index itself.
+  The connection URL of a results index: a ``sqlite:`` URL for a local file, or a
+  ``postgresql+psycopg:`` URL for a server. Overrides the ``environment.results_index_db``
+  configuration setting and the ``NAV_RESULTS_INDEX_DB`` environment variable. Given a
+  results index, the selection options that ask what a previous run recorded are answered
+  from its rows instead of by reading the results tree; see
+  :doc:`user_guide_image_selection` for what that changes and
+  :doc:`user_guide_results_index` for the results index itself.
 
   Pass ``--results-index-db none`` to read the results tree even when a URL is configured
   elsewhere. See :doc:`user_guide_configuration`.

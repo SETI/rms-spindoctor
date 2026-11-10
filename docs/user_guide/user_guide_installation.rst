@@ -157,10 +157,10 @@ Which catalogs are consulted, and in what order, is a configuration setting; see
 Geometry resources
 ------------------
 
-``OOPS_RESOURCES`` names the root of the resource collection that the underlying geometry
-library reads, published at https://storage.googleapis.com/rms-node-oops-resources. The
-collection carries the SPICE kernel tree under ``SPICE`` and the Tycho-2 catalog under
-``SPICE/Stars``.
+``OOPS_RESOURCES`` points to the root of the resource collection that the underlying
+geometry library reads, published at
+https://storage.googleapis.com/rms-node-oops-resources. The collection carries the SPICE
+kernel tree under ``SPICE`` and the Tycho-2 catalog under ``SPICE/Stars``.
 
 A navigation run does not require this variable. Set ``SPICE_PATH`` and it is never
 consulted; leave ``SPICE_PATH`` unset and it is where Tycho-2 is looked for.

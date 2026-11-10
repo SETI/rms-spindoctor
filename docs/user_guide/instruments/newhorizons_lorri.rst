@@ -19,8 +19,8 @@ Pipeline support
   (see :doc:`/user_guide/user_guide_ck_kernels`).
 * **Backplanes** -- supported.
 * **Mosaics** -- supported, body and ring.
-* **PDS4 bundles** -- not supported. The dataset names a bundle and a label
-  template directory, but the remaining hooks are unimplemented and the
+* **PDS4 bundles** -- not supported. The dataset defines a bundle name and a
+  label template directory, but the remaining hooks are unimplemented and the
   configuration entry is a commented-out stub.
 * **Simulator** -- supported, under the instrument key ``nhlorri``.
 * **Statistics** -- supported.
@@ -28,13 +28,13 @@ Pipeline support
 Datasets and image selection
 ============================
 
-**Dataset names.** ``nhlorri``, with the alias ``nhlorri_pds3`` naming the same
-class. Both are case-insensitive. There are no sub-datasets.
+**Dataset names.** ``nhlorri``, with the alias ``nhlorri_pds3`` for the same
+dataset. Both are case-insensitive. There are no sub-datasets.
 
 **Volumes.** Seven, one per mission phase, and they are named rather than
 numbered: ``NHLALO_2001``, ``NHJULO_2001``, ``NHPCLO_2001``, ``NHPELO_2001``,
-``NHKCLO_2001``, ``NHKELO_2001``, ``NHK2LO_2001``. Naming anything else is an
-error rather than an empty result.
+``NHKCLO_2001``, ``NHKELO_2001``, ``NHK2LO_2001``. Asking for any other volume
+is an error rather than an empty result.
 
 **Holdings layout.** Images are read from the ``volumes/`` subtree:
 
@@ -49,14 +49,16 @@ Every volume sits under the single volume set directory ``NHxxLO_xxxx``.
 a PDS3 index filespec ending ``_sci.lbl`` or ``_eng.lbl`` is used as it stands,
 with the FITS image resolved from the label. Those two suffixes are matched
 **lowercase only**, which is the archive's own convention; a PDS3 index row
-naming anything else stops the run rather than being skipped, so a layout change
-is visible instead of silently reducing the image count. A row whose directory
-structure is unexpected is a milder case: it is logged as an error and that
-row alone is dropped.
+with any other suffix stops the run rather than being skipped, so a layout
+change is visible instead of silently reducing the image count. A row whose
+directory structure is unexpected is a milder case: it is logged as an error
+and that row alone is dropped.
 
-The data directory is organized by request rather than by image number: the
-filespec is ``data/ddddddd_ddddddd/lor_dddddddddd_0xNNN_sci.lbl``, whose
-middle component is a pair of seven-digit request identifiers.
+The data directory is organized by date: the filespec is
+``data/yyyymmdd_dddddd/lor_dddddddddd_0xNNN_sci.lbl``. The middle component is the
+date as eight digits (yyyymmdd), an underscore, and the first six of the ten digits in
+the image name, as in
+``data/20070108_003059/lor_0030598439_0x630_sci.lbl``.
 
 **Image names.** A name is ``lor_`` followed by ten digits -- fourteen
 characters exactly. The image name is the leading fourteen characters of the
@@ -126,9 +128,9 @@ are missing or more than 80% are overexposed.
 the expected-noise and read-noise figures, and the magnitude-offset table are
 all placeholders awaiting calibration. Only the 4095 DN ADC ceiling and the
 missing-pixel marker are hard facts. This instrument's configuration block
-carries a ``_sources`` section naming, value by value, where each number came
-from and which are still to be measured; it is documentation only and does not
-affect a run.
+carries a ``_sources`` section that records, value by value, where each number
+came from and which are still to be measured; it is documentation only and does
+not affect a run.
 
 Field of view and geometry
 ==========================
@@ -227,14 +229,14 @@ against spacecraft clock **-98**.
 Directories are not searched recursively, so a holdings tree that keeps its
 kernels in per-kind subdirectories needs one flag per subdirectory.
 
-Expect one warning in the run log naming an object the scan could not place in
+Expect one warning in the run log about an object the scan could not place in
 time. The merged pointing files in this mission's holdings describe an object
 **-1** beside the spacecraft, and no furnished kernel defines a spacecraft
 clock for it, so its coverage cannot be expressed in TDB. The scan records it
-as unreadable, indexes the rest of the file, and names it once in the log. It
+as unreadable, indexes the rest of the file, and reports it once in the log. It
 can never supply a baseline, and no image ever asks it to; an image that
-actually corrected such an object would be refused with the missing clock
-named.
+actually corrected such an object would be refused, and the refusal would give
+the missing clock.
 
 **Baseline kernel naming.** New Horizons basenames declare a class only on the
 pair of kernels that exist in both forms: a trailing ``_recon`` marks
