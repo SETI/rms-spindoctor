@@ -13,13 +13,13 @@ way ``test_sim_doc_images`` guards the documentation galleries:
 * Every scene class present in the catalog must have a committed sheet, and
   no sheet may outlive its class.
 
-Noisy scenes are compared exactly too.  The detector draws each pixel's noise from
-that pixel's own random values, so on the same NumPy a render reproduces exactly,
-apart from a chance of about 1e-13 per pixel.  When NumPy changes a random stream,
-the noise moves, and so do the star counts, the star positions, the cosmic rays,
-and the hot pixels.  That fails this check and the simulator baselines alike, and
-both are regenerated then, as they are after a deliberate change to what a scene
-renders.
+Noisy scenes are compared exactly too.  On the same NumPy a render reproduces
+exactly.  The detector draws each pixel's noise from that pixel's own random values,
+so a last-bit change in a pixel's mean changes that pixel's noise with a chance of
+about 1e-13.  When NumPy changes a random stream, the noise moves, and so do the star
+counts, the star positions, the cosmic rays, and the hot pixels.  That fails this
+check, the gallery check, and the simulator baselines alike, and all three are
+regenerated then, as they are after a deliberate change to what a scene renders.
 
 The sheets are checked for presence and coverage only, never for pixel
 identity: a sheet's pixels legitimately encode the *previous* baseline's

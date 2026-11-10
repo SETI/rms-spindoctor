@@ -3884,18 +3884,20 @@ change alters rendered output:
   failure lists the scene, how many of its pixels differ, and the largest
   difference in display levels.
 
-  Noisy scenes are compared exactly too. The detector draws each pixel's noise from
-  that pixel's own random values, so on the same NumPy a render reproduces exactly,
-  apart from a chance of about 1e-13 per pixel (see
-  :ref:`reproducing-sim-baselines`). Regenerate the ``current/`` PNGs and review
-  the sheets after any deliberate change to what a scene renders, and when a NumPy
-  release changes a random stream. Such a release moves the noise in every noisy
-  render, and it also moves star counts, star positions, cosmic rays, and hot
-  pixels, so the regression baselines are regenerated with it:
+  Noisy scenes are compared exactly too. On the same NumPy a render reproduces
+  exactly. The detector draws each pixel's noise from that pixel's own random
+  values, so a last-bit change in a pixel's mean changes that pixel's noise with a
+  chance of about 1e-13 (see :ref:`reproducing-sim-baselines`). Regenerate the
+  ``current/`` PNGs and review the sheets after any deliberate change to what a
+  scene renders, and when a NumPy release changes a random stream. Such a release
+  moves the noise in every noisy render, and it also moves star counts, star
+  positions, cosmic rays, and hot pixels, so the galleries and the regression
+  baselines are regenerated with it:
 
   .. code-block:: bash
 
      python -m tests.integration.render_contact_sheet
+     python -m tests.integration.sim_doc_images
      python -m tests.integration.update_sim_baselines
 
   The sheets themselves are enforced for presence and coverage only -- their

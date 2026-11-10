@@ -294,11 +294,11 @@ answer on a grid. The disc correlation's offset moves in steps of 1/128 px, one
 step of its upsampled grid, and a last-bit change upstream can move it one step.
 The tolerance is about two and a half of those steps.
 
-It compares the confidence within 0.02. That tolerance can be revisited once runs
-on other machines show how far a scene's confidence moves. The rank comes from
-thresholds on the confidence and on the offset's uncertainty, so a scene that
-sits near one of those thresholds can still change rank, and fail, after a
-change far smaller than either tolerance.
+It compares the confidence within 0.02, a value chosen by hand. It can be
+revisited once runs on other machines show how far a scene's confidence moves.
+The rank comes from thresholds on the confidence and on the offset's uncertainty,
+so a scene that sits near one of those thresholds can still change rank, and
+fail, after a change far smaller than either tolerance.
 
 The render-diff check compares every committed render with a fresh one, pixel
 for pixel. It compares the decoded pixels, so a change in the PNG encoder doesn't
@@ -354,14 +354,15 @@ a baseline that CI doesn't reproduce fails the pull request.
 
 A NumPy release can change how a random stream turns into values. That moves the
 noise in every noisy render, and it also moves star counts, star positions,
-cosmic rays, and hot pixels. The render-diff check fails, and baselines move too.
-Regenerate the committed renders and the baselines together then, as you would
-after a deliberate change to what a scene renders, and review the sheets and the
-baseline diff:
+cosmic rays, and hot pixels. The render-diff check and the gallery check fail,
+and baselines move too. Regenerate the committed renders, the galleries, and the
+baselines together then, as you would after a deliberate change to what a scene
+renders, and review the sheets, the galleries, and the baseline diff:
 
 .. code-block:: bash
 
    python -m tests.integration.render_contact_sheet
+   python -m tests.integration.sim_doc_images
    python -m tests.integration.update_sim_baselines
 
 When a change moves a baseline, regenerate it in that change and say in the
