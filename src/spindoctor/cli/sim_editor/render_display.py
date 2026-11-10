@@ -255,8 +255,7 @@ class RenderDisplayMixin(SimEditorBase):
             pen = QPen(QColor(255, 255, 0), 1)
             painter.setPen(pen)
             for s in self.sim_params.get('stars') or []:
-                u = float(scene_value(s, 'u', 0.0))
-                v = float(scene_value(s, 'v', 0.0))
+                v, u = self._star_position(s)
                 painter.drawLine(QPointF(u - 4.0, v), QPointF(u + 4.0, v))
                 painter.drawLine(QPointF(u, v - 4.0), QPointF(u, v + 4.0))
             # Draw the ring system's shared center as a small circle
@@ -437,12 +436,9 @@ class RenderDisplayMixin(SimEditorBase):
                     cu_spin.setValue(geometry['center_u'])
             self._updater.immediate_update()
         elif kind == 'star' and 0 <= idx < len(self.sim_params['stars']):
-            self.sim_params['stars'][idx]['v'] = float(
-                scene_value(self.sim_params['stars'][idx], 'v', 0.0) + dv
-            )
-            self.sim_params['stars'][idx]['u'] = float(
-                scene_value(self.sim_params['stars'][idx], 'u', 0.0) + du
-            )
+            star_v, star_u = self._star_position(self.sim_params['stars'][idx])
+            self.sim_params['stars'][idx]['v'] = star_v + dv
+            self.sim_params['stars'][idx]['u'] = star_u + du
             # Sync the tab spin boxes for this star
             tab_idx = self._find_tab_by_properties('star', idx)
             if tab_idx is not None:

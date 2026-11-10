@@ -20,7 +20,9 @@ validator's semantics.
 The position spin boxes write the scene's ``v`` / ``u`` unchanged, so they
 carry the scene's own convention: every position in a scene is a pixel corner,
 and the center of pixel ``N`` is ``N + 0.5``.  The row labels name that
-convention rather than leaving the reader to infer it from a rendered star.
+convention rather than leaving the reader to infer it from a rendered star.  A star
+whose ``v`` or ``u`` is absent or null shows the frame center there, which is where
+the renderer places it.
 
 The PSF-window size is stored as a two-element list, never a tuple: the safe
 YAML dumper is not guaranteed to accept tuples, and a tuple never compares
@@ -59,6 +61,23 @@ _POSITION_TOOLTIP = (
 class StarTabMixin(SimEditorBase):
     """Builds and handles the per-star editing tab."""
 
+    def _star_position(self, star: dict[str, Any]) -> tuple[float, float]:
+        """A scene star's catalog position, where the renderer places it.
+
+        An absent or null ``v`` or ``u`` is the frame center, as the renderer reads
+        it.  The star tab, the preview's star marks, and a star drag all start from
+        this position.
+
+        Parameters:
+            star: One entry of the scene's ``stars`` list.
+
+        Returns:
+            The ``(v, u)`` position in pixel corner coordinates.
+        """
+        v = float(scene_value(star, 'v', self.sim_params['size_v'] / 2.0))
+        u = float(scene_value(star, 'u', self.sim_params['size_u'] / 2.0))
+        return v, u
+
     def _build_star_tab(self, idx: int) -> QWidget:
         """Build the editing tab widget for the star at ``idx``."""
         p = self.sim_params['stars'][idx]
@@ -73,17 +92,18 @@ class StarTabMixin(SimEditorBase):
         name_edit.textChanged.connect(lambda t, i=idx: self._on_star_name(i, t))
         fl.addRow('Name:', name_edit)
 
+        star_v, star_u = self._star_position(p)
         v_spin = QDoubleSpinBox()
         v_spin.setRange(-10000.0, 20000.0)
         v_spin.setDecimals(1)
-        v_spin.setValue(scene_value(p, 'v', 0.0))
+        v_spin.setValue(star_v)
         v_spin.setToolTip(_POSITION_TOOLTIP.format(axis='V'))
         v_spin.valueChanged.connect(lambda v, i=idx: self._on_star_field(i, 'v', v))
         fl.addRow('V (pixel corner):', v_spin)
         u_spin = QDoubleSpinBox()
         u_spin.setRange(-10000.0, 20000.0)
         u_spin.setDecimals(1)
-        u_spin.setValue(scene_value(p, 'u', 0.0))
+        u_spin.setValue(star_u)
         u_spin.setToolTip(_POSITION_TOOLTIP.format(axis='U'))
         u_spin.valueChanged.connect(lambda v, i=idx: self._on_star_field(i, 'u', v))
         fl.addRow('U (pixel corner):', u_spin)
