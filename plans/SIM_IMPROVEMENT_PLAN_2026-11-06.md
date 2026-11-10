@@ -87,10 +87,12 @@ These make every later phase cheaper or safer. Most are small.
 | #872 | The baseline regenerator imports whichever installed package it finds | Regenerated baselines must come from the checkout under test before the churn starts. |
 | #900, #813 | **Done: #900 (PR TBD); #813 (PR #927).** Validation skips the render path; null body keys crash; the navigator's simulated ring model reads nullable keys unsafely | Typed per-block specs on every entry point, with null meaning absent; the first slice of #915. |
 | #940 | **Done (PR TBD).** An in-memory scene reaches the renderer without validation | The one entry point that renders a scene validation would refuse; closing it with #900 makes every path validate. |
+| #958 | The editor's tabs crash or misread a scene with null keys | The editor is the last entry point where a null key does not act as an absent one; the render path and the navigator side read nulls as absent since #900. |
 | #913 | `axis1`, `axis2`, and `axis3` are full widths named like semi-axes | Rename before more scenes are written in the old names. |
 | #876 | **Done (PR #934).** Per-instrument tables in one validated YAML file | Adding a camera or a readout mode becomes a configuration entry; Phase 4's instrument work depends on it. Lands after #886, as its text asks. |
 | #912, #126 | Correlation FFTs at slow sizes; the disc correlation's rotation search runs 19 full pyramid evaluations | Make full-frame scenes affordable in the integration tier; #904 and #908 both need it. |
 | #854 | Simulated stars clip below the navigator's saturation level | Small; star brightness is wrong until it lands. |
+| #955 | Simulated A0 stars get B-V 0.63 instead of 0.00 | Small; every A0 star has the wrong color until it lands. |
 | #925 | The realism match compares mismatched content on content-filled and narrowband frames | Compare sky noise on comparable content and scale the matched star ladder by filter throughput, so the statistics the regression check holds to measure only the simulator. Then settle whether the TABLE path is too quiet. |
 | #929, #930 | The correlation refinement clamps at ±0.5 px from the integer peak; peak suppression and PSR ignore wrap-around | Navigator defects the simulator found; committed baselines record clamped answers, so they land before the guard scenes and the Phase 3 re-ratchet. #929 is measured on real frames first, and its fix keeps the expected failures failing. |
 | #903, regression part | The realism match cannot fail | Compare a fresh run with the committed summary within per-statistic bands, so later physics changes are caught when they make realism worse. The hold-out and transfer parts come in Phase 6. |
@@ -302,6 +304,7 @@ retired and retained library classes.
 | #923 | Duplicate classifier, test-only module, missing fixtures, and codenames |
 | #902 | 26 scene keys without editor controls |
 | #947 | The simulated-image editor shows 0 for parameters the renderer fills from the detector block or another key |
+| #956 | Unnamed simulated bodies get different default names in the renderer and the navigator |
 | #856 | The simulated-image editor segfaults intermittently (reopened after the fix in PR #917) |
 | #914, the rest | User chapter around a complete scene, developer guide split, and one schema reference |
 | #310 | Structural information-boundary guard |
