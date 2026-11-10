@@ -34,7 +34,13 @@ The simulator has three equally valid entry points (the "three peers"):
   package), an interactive editor for the same parameters.
 
 Every parameter is reachable from all three; adding a physical effect means
-adding it to the renderer, the scene schema, and a GUI control together. The
+adding it to the renderer, the scene schema, and a GUI control together. All three
+hold a scene to the same rules: every render validates its scene first, whether
+the scene came from a file, a Python dict, or the editor. The editor's live
+preview is the one exception. It renders through
+:func:`spindoctor.sim.render.render_unvalidated_preview`, so the author can see a
+half-edited scene that would not yet pass validation, and nothing that navigates a
+frame uses it. The
 navigator side -- how a simulated frame is turned into ``NavFeature`` objects and
 navigated -- is documented in the simulated-model chapters
 (:doc:`dev_guide_navigation_models_body_simulated`,
@@ -539,13 +545,20 @@ salted ``hash``.) Sub-effects inside a stage derive their own named streams the
 same way (background stars, cosmic rays, crater placement).
 
 **The driver.** :func:`spindoctor.sim.render.render_combined_model` takes a
-``sim_params`` dict and returns ``(image, metadata)``. It normalizes the
-parameters into a deterministic JSON cache key, runs the pipeline on a fresh
-frame, and caches the result (``lru_cache(maxsize=2)``, plus small shape caches
-inside the body/mesh/star renderers; ``clear_render_caches`` drops them all for
-determinism tests). The caching contract: scene parameters are
-JSON-serializable scalars/lists/maps, no wall-clock or global RNG state is
-consulted, and two renders of the same scene are bit-identical on one machine.
+``sim_params`` dict and returns ``(image, metadata)``. It normalizes the parameters
+into a deterministic JSON cache key, validates the scene with
+:func:`spindoctor.sim.scene.validate_sim_params`, runs the pipeline on a fresh frame,
+and caches the result (``lru_cache(maxsize=2)``, plus small shape caches inside the
+body/mesh/star renderers; ``clear_render_caches`` drops them all for determinism
+tests). Validation is cached on the same JSON key, so a scene rendered many times is
+validated once, and a refused scene raises the same
+:class:`~spindoctor.sim.scene_schema.SimSceneValidationError` that loading it from a
+file would raise. :class:`~spindoctor.obs.obs_inst_sim.ObsSim` renders through this
+driver, so a scene handed to it in memory is validated too, with the scene path in the
+error message. :func:`spindoctor.sim.render.render_unvalidated_preview` is the editor
+preview's offset-free route, which skips validation. The caching contract: scene
+parameters are JSON-serializable scalars/lists/maps, no wall-clock or global RNG state
+is consulted, and two renders of the same scene are bit-identical on one machine.
 
 .. _sim-instruments:
 
@@ -1699,6 +1712,22 @@ an oversampled radiance grid -- it dispatches to the *topographic path*
 navigator's predicted body is always the smooth Lambert template, so every one
 plants a known model error the technique must survive.
 
+**The body spec.** The scene radiance stage parses each ``bodies`` entry once into a
+frozen :class:`~spindoctor.sim.forward.body_spec.BodySpec`
+(:func:`~spindoctor.sim.forward.body_spec.body_spec_from_params`). Every default is
+applied there, and a key set to null takes the default an absent key takes. The
+stage then scales the spec's centers and axes to the render grid and applies the
+planted pointing, and both renderers read only the spec. Two sub-blocks stay as
+their validated mappings, because their specs depend on the render: the
+``atmosphere`` block's pixel lengths scale with the oversampling factor, and the
+``albedo_texture`` noise draws its seed from the body's identity. The renderer
+builds them with
+:func:`~spindoctor.sim.forward.atmosphere.atmosphere_spec_from_params` and
+:func:`~spindoctor.sim.forward.body_texture.albedo_spec_from_params`, which read a
+null key as absent too. The stage also writes each body's entry in the render
+truth: the scene entry with its render-grid centers and axes, its name and range
+filled in, and a mesh body's drawn pose scatter.
+
 The topographic path
 --------------------
 
@@ -2693,7 +2722,9 @@ same format via :func:`spindoctor.sim.scene.save_sim_scene`; and programmatic
 scene authors -- the calibration-campaign generator
 ``util/calibration/scene_gen.py`` and the doc-gallery definitions in
 ``tests/integration/sim_doc_images.py`` -- validate their in-memory dicts
-through the same core, :func:`spindoctor.sim.scene.validate_sim_params`.
+through the same core, :func:`spindoctor.sim.scene.validate_sim_params`. Every
+render calls it too, so a dict that skips this step is still checked before it
+renders.
 Validation is strict: an unknown key at the top level or inside a ``bodies`` /
 ``stars`` / ``ring_system`` entry fails loudly, so a typo cannot silently
 render the default scene.
@@ -2830,7 +2861,10 @@ Top-level fields
 A top-level number (``exposure_sec``, ``offset_v``, ``offset_u``,
 ``offset_rotation_deg``, ``time``, ``ring_epoch``, and ``star_catalog_scatter_px``)
 can't be null: the validator refuses it, and the author leaves the key out to take its
-default. A top-level block or list set to null reads as unset.
+default. A top-level block or list set to null reads as unset. Inside the ``bodies``,
+``stars``, ``optics``, ``sky_counts``, ``spk_error``, ``noise``, ``detector``,
+``artifacts``, and ``ring_system`` blocks, an optional key set to null renders exactly
+as the absent key does.
 
 .. list-table::
    :widths: 22 11 11 10 46
@@ -3004,7 +3038,10 @@ Body parameters
 Each entry of ``bodies`` is a dict. The geometry, pose, lighting, and physical
 scale are idealized (the published shape model of a body is catalog knowledge;
 a scene plants shape error through ``nav_override``, not by hiding the mesh).
-Common fields:
+Every body key, and every optional key inside a body's sub-blocks, may be null,
+and a null key renders exactly as the absent key does (see the body spec in
+:ref:`sim-body-renderer`). An entry of a fixed-length list, such as
+``pose_euler_deg`` or a cloud's ``center_vu``, can't be null. Common fields:
 
 .. list-table::
    :widths: 22 11 11 10 46

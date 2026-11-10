@@ -109,6 +109,11 @@ finishes. The editor redraws a moment after you stop changing a value, and each
 redraw replaces the pending verdict. Until that redraw, the status bar still describes
 the scene as it was before the change.
 
+The preview shows the scene even while an edit leaves it unfinished, for example with
+a value out of range. The second render checks the scene first, as loading a scene file
+does, so when the scene would be refused, the status bar shows the reason in place of a
+verdict.
+
 The random pixel loss (the missing-data rate) and the cosmic-ray rate work on every
 camera.
 
