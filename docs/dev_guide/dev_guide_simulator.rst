@@ -728,9 +728,14 @@ intensive signal passes through the electron unit chain in
    acts on the electron image, one pixel at a time. The chain draws one uniform
    value per pixel and turns it into a count through that pixel's own Poisson
    distribution (:func:`~spindoctor.sim.forward.detector.shot_noise.sample_poisson`).
-   Up to a mean of a million electrons the count is the exact Poisson quantile.
-   Above that it is the rounded Cornish-Fisher quantile, which differs from the
-   exact one by a single count in a few pixels per hundred thousand.
+   Up to a mean of a million electrons the count is the exact Poisson quantile,
+   found from a close first guess by a bracketing search whose work grows with
+   the logarithm of the guess's error, so a mean as small as a convolution tail's
+   costs no more than any other. Above that it is the rounded Cornish-Fisher
+   quantile, which differs from the exact one by a single count in a few pixels
+   per hundred thousand. A NaN or infinite mean raises an error. The sampler is
+   more than ten times slower than NumPy's frame-wide one: about 1.4 s for a 2048
+   by 2048 frame, against 0.12 s.
 4. **Hot pixels and full-well bloom.** Hot pixels are stamped, then charge above
    ``full_well_e`` spills along the column up to ``bloom_length`` pixels each
    way and the image is capped at the well. A camera's physical saturation
