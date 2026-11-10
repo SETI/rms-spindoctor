@@ -384,6 +384,29 @@ def test_a_preview_that_fails_on_a_valid_scene_opens_the_error_dialog(
     assert dialogs == ['Failed to render image:\npreview failed']
 
 
+def test_a_validator_failure_after_a_failed_preview_reports_the_render_error(
+    model: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A validator that fails some other way leaves the render error to the dialog."""
+    dialogs: list[str] = []
+
+    def _fail_render(*args: Any, **kwargs: Any) -> Any:
+        raise RuntimeError('preview failed')
+
+    def _fail_validation(*args: Any, **kwargs: Any) -> None:
+        raise KeyError('validator broke')
+
+    monkeypatch.setattr(
+        'spindoctor.cli.sim_editor.render_display.render_unvalidated_preview', _fail_render
+    )
+    monkeypatch.setattr('spindoctor.cli.sim_editor.render_display.validate_scene', _fail_validation)
+    monkeypatch.setattr(
+        QMessageBox, 'critical', staticmethod(lambda *args: dialogs.append(args[2]))
+    )
+    model._update_image()
+    assert dialogs == ['Failed to render image:\npreview failed']
+
+
 def test_clearing_the_offset_drops_the_running_verdict(model: Any, gated: _GatedSummary) -> None:
     """A render for a scene whose offset was then removed never replaces the label."""
     _edit_offset(model, 5.0)

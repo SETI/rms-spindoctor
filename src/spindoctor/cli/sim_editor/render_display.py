@@ -139,13 +139,18 @@ class RenderDisplayMixin(SimEditorBase):
             try:
                 # The preview skips validation so a half-edited scene still shows.
                 img, meta = render_unvalidated_preview(self.sim_params)
-            except Exception:
+            except Exception as render_error:
                 # A scene the renderer cannot read is usually one validation refuses,
-                # and the refusal names the offending key where the render error
-                # does not.
-                if self._report_refusal():
+                # and the refusal points at the offending key where the render error
+                # does not.  If the validator itself fails some other way, the dialog
+                # still reports the render error.
+                try:
+                    refused = self._report_refusal()
+                except Exception:
+                    refused = False
+                if refused:
                     return
-                raise
+                raise render_error
             self._current_image = img
             self._last_meta = meta
             # The scene is then checked as every navigated frame is (the check is
