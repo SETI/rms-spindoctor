@@ -39,6 +39,7 @@ import numpy as np
 import pytest
 from PIL import Image
 
+from spindoctor.config import DEFAULT_CONFIG
 from spindoctor.sim.forward.detector import resolve_detector_params
 from spindoctor.sim.png_export import stretch_to_uint8
 from spindoctor.sim.render import render_combined_model
@@ -76,12 +77,15 @@ def _scene_paths() -> list[Path]:
 
 
 def _draws_pixel_noise(scene: dict[str, Any]) -> bool:
-    """Whether the scene's detector adds a random value to every pixel.
+    """Whether the scene adds a random value to every pixel.
 
     The CCD chain does so with shot noise, read noise, or a per-pixel response
-    pattern; the vidicon chain with its line or pixel read noise; and a calibrated
-    frame of either with its per-pixel calibration residual.
+    pattern; the vidicon chain with its line or pixel read noise; a calibrated
+    frame of either with its per-pixel calibration residual; and the telemetry
+    stage of any frame with its randomly missing pixels.
     """
+    if _missing_data_rate(scene) > 0.0:
+        return True
     dp = resolve_detector_params(scene)
     if dp.detector_model == 'vidicon':
         line_dn = float(dp.vidicon.get('read_noise_line_dn', 0.0))
@@ -93,6 +97,18 @@ def _draws_pixel_noise(scene: dict[str, Any]) -> bool:
         if dp.poisson or dp.read_noise_e > 0.0 or prnu_rms > 0.0:
             return True
     return dp.data_units != 'raw_dn' and dp.calibration_pixel_residual_e > 0.0
+
+
+def _missing_data_rate(scene: dict[str, Any]) -> float:
+    """The fraction of pixels the telemetry stage marks missing at random.
+
+    A null or absent scene rate takes the configuration default, as the telemetry
+    stage does.
+    """
+    scene_rate = (scene.get('noise') or {}).get('missing_data_rate')
+    if scene_rate is None:
+        return float(DEFAULT_CONFIG.category('sim')['noise'].get('missing_data_rate', 0.0))
+    return float(scene_rate)
 
 
 def _decode_png(path: Path) -> NDArrayUint8Type:
