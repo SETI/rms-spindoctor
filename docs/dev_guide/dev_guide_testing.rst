@@ -332,15 +332,17 @@ takes a matrix product with ``@``, ``.dot``, or a NumPy matrix-product function,
 calls ``np.hypot``.
 
 A last-bit change in the render path stays small. The PSF's FFT convolution
-spreads it to the mean of every pixel, but the detector draws its noise one pixel
-at a time. Each pixel takes one uniform value for its shot noise and one normal
-value for its read noise, however bright or dark the scene is. A changed mean
-can therefore change only its own pixel's noise, and it does so only when the pixel's uniform
-value sits within that last bit of a step in the Poisson distribution, which is
-rare, and then by one count. The pin matters for the checks that remain exact:
-the noise-free renders and the gallery images, which are compared pixel for pixel
-or byte for byte, and the sweep checks, which can sit near a threshold. A last-bit
-change can move a pixel wherever a mask edge or a rounding step falls on it.
+spreads it to the mean of every pixel, but the detector draws its noise one
+pixel at a time. Each pixel takes one uniform value for its shot noise and one
+normal value for its read noise, however bright or dark the scene is. A changed
+mean can therefore change only its own pixel's noise. It does so only when the
+pixel's uniform value sits within that last bit of a step in the Poisson
+distribution, which is rare, and then by one count.
+
+The pin matters for the checks that remain exact: the noise-free renders and the
+gallery images, which are compared pixel for pixel or byte for byte, and the
+sweep checks, which can sit near a threshold. A last-bit change can move a pixel
+wherever a mask edge or a rounding step falls on it.
 
 On x86-64, with NumPy 2.4 or later, and with ``NPY_DISABLE_CPU_FEATURES`` not
 already set, every machine then reproduces the same files. They reproduced under

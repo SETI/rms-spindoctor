@@ -774,13 +774,13 @@ it is what makes a DN frame -- while each stochastic sub-effect is a no-op when
 its gating amplitude, fraction, or rate is zero.
 
 No draw in the chain takes a number of random values that depends on the signal.
-The shot noise, the read noise, the response pattern, and the calibration residual
-each draw one value per pixel (the vidicon's line noise draws one per line), and
-every event count takes its mean from the scene rather than from the pixels. So changing the signal in one region of a frame
-leaves the noise everywhere else unchanged, and a last-bit change in a pixel's
-mean, such as a convolution tail that crosses zero, changes that pixel's count
-only in the rare case that its uniform value falls on a step of the Poisson
-distribution.
+The shot noise, the read noise, the response pattern, and the calibration
+residual each draw one value per pixel (the vidicon's line noise draws one per
+line), and every event count takes its mean from the scene rather than from the
+pixels. So changing the signal in one region of a frame leaves the noise
+everywhere else unchanged, and a last-bit change in a pixel's mean, such as a
+convolution tail that crosses zero, changes that pixel's count only in the rare
+case that its uniform value falls on a step of the Poisson distribution.
 
 **Quantization sub-modes.** ``exact`` rounds to integer DN (uniform bins);
 ``8bit`` rounds to integer DN and clips at the 255 code ceiling (the output
@@ -3857,7 +3857,8 @@ change alters rendered output:
   validates, sits in a declared class, has a unique name, and renders.
 - **Regression baselines** (``tests/integration/sim_baselines/``): every
   catalog scene re-navigates to its recorded outcome, with the same status and
-  confidence rank, each offset axis within 0.02 px, and the confidence within 0.02
+  confidence rank, each offset axis within 0.02 px, and the confidence within
+  0.02
   (``test_sim_baselines.py``, integration tier, run by CI); regenerate with
   ``python -m tests.integration.update_sim_baselines`` and review the diff
   (see :ref:`reproducing-sim-baselines`).

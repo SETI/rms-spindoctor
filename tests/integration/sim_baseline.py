@@ -6,10 +6,10 @@ orchestrator produced for a catalog scene:
 
 ```json
 {
-  "confidence": 0.3661834217,
+  "confidence": 0.3661834217129642,
   "confidence_rank": "medium",
   "offset_du_px": -1.796875,
-  "offset_dv_px": 3.5004211,
+  "offset_dv_px": 3.500421107761235,
   "scene_name": "planted_offset_disc",
   "status": "success"
 }
@@ -116,7 +116,7 @@ def baseline_mismatches(expected: SimBaseline, actual: SimBaseline) -> list[str]
         actual: The outcome of a fresh render and navigation.
 
     Returns:
-        One line per mismatch, naming the field with both values; empty when the
+        One line per mismatch, giving the field and both values; empty when the
         outcome matches.
     """
     problems = [

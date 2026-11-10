@@ -157,7 +157,7 @@ def test_a_confidence_beyond_tolerance_fails() -> None:
 
 
 def test_a_baseline_without_a_confidence_rank_is_refused(tmp_path: Path) -> None:
-    """A baseline file that lacks the confidence rank fails to load, naming the key."""
+    """A baseline file that lacks the confidence rank fails to load, citing the key."""
     path = tmp_path / 'old.json'
     path.write_text(
         '{"confidence": 0.5, "offset_du_px": 0.0, "offset_dv_px": 0.0, '
