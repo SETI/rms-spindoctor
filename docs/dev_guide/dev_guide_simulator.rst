@@ -3874,12 +3874,20 @@ change alters rendered output:
   ``tests/integration/test_render_diffs.py`` (integration tier, run by CI): every
   catalog scene must have a committed ``current/`` PNG whose decoded pixels match
   a fresh render, every scene class must have a committed sheet, and neither
-  may outlive its scene or class. A scene whose detector adds no random value to
-  each pixel must match exactly. A scene with shot noise, read noise, a per-pixel
-  response pattern, or a calibration residual may carry a different noise
-  realization, but in every 16 by 16 block the mean difference must stay within
-  eight standard errors of that block's own noise, plus one display level for the
-  stretch. A moved edge or a changed brightness fails; a new noise draw does not.
+  may outlive its scene or class. A scene that adds no random value to each pixel
+  must match exactly. A scene with shot noise, read noise, a per-pixel response
+  pattern, a calibration residual, or randomly missing pixels may carry a
+  different noise realization, but in every 16 by 16 block the mean difference
+  must stay within eight standard errors of that block's own noise, plus one
+  display level. The check catches a change that is large next to the noise of
+  the blocks it touches: a moved body or ring edge, or a brightness change across
+  much of a block, in a scene whose noise spans a few display levels. It can miss
+  a change confined to a few pixels. In a star field whose display stretch is set
+  by the sky, the sky noise fills most of the display range, a block's mean must
+  move by more than 30 levels to fail, and a star that disappears or moves
+  passes. The stretch's black and white points move with each noise draw too, by
+  up to 7 display levels in a test star field, and the block noise term absorbs
+  that.
   The sheets themselves are enforced for presence and coverage only -- their
   pixels encode the previous baseline's before-panels and PIL's
   environment-dependent label rasterization, so their *content* remains a review

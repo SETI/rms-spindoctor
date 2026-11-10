@@ -13,13 +13,18 @@ way ``test_sim_doc_images`` guards the documentation galleries:
 * Every scene class present in the catalog must have a committed sheet, and
   no sheet may outlive its class.
 
-A scene whose detector adds no random value to each pixel must match pixel for
-pixel.  A scene with shot noise, read noise, a per-pixel response pattern, or a
-calibration residual is checked statistically: the two renders may differ by a
-new noise realization, as they do when NumPy changes a random stream, but in each
-16 by 16 block the mean difference must stay within what that block's own noise
-explains.  A body or ring edge that moves, or a region whose brightness changes,
-shifts the block means and fails.
+A scene that adds no random value to each pixel must match pixel for pixel.  A
+scene with shot noise, read noise, a per-pixel response pattern, a calibration
+residual, or randomly missing pixels is checked statistically: the two renders may
+differ by a new noise realization, as they do when NumPy changes a random stream,
+but in each 16 by 16 block the mean difference must stay within what that block's
+own noise explains.  The check therefore catches a change that is large next to
+the noise of the blocks it touches: a body or ring edge that moves, or a region
+whose brightness changes across much of a block, in a scene whose noise spans a
+few display levels.  It can miss a change confined to a few pixels.  In a star
+field whose display stretch is set by the sky, the sky noise spans most of the
+display range and a block's mean must move by more than 30 levels to fail, so a star
+that disappears or moves passes.
 
 The sheets are checked for presence and coverage only, never for pixel
 identity: a sheet's pixels legitimately encode the *previous* baseline's
@@ -60,11 +65,17 @@ _REGEN_COMMAND = 'python -m tests.integration.render_contact_sheet'
 # the median absolute deviation of the difference, scaled to a standard deviation
 # (1.4826 for a normal distribution), so the few pixels of a moved edge do not
 # inflate it.  A block fails when its mean difference exceeds _BLOCK_SIGMAS
-# standard errors of the mean plus _STRETCH_ALLOWANCE_LEVELS.  The allowance
-# covers the display stretch: its black and white points are percentiles of the
-# noisy frame, so a new noise realization moves every display level by a
-# fraction of a level.  Eight standard errors leave room for noise that is
-# heavier-tailed or more correlated than a normal distribution.
+# standard errors of the mean plus _STRETCH_ALLOWANCE_LEVELS.  Eight standard
+# errors leave room for noise that is heavier-tailed or more correlated than a
+# normal distribution.
+#
+# The display stretch takes its black and white points from percentiles of the
+# noisy frame, so a new noise realization shifts every display level.  The shift
+# grows with the noise of the pixels at those percentiles, and the block noise
+# term absorbs it: over 200 pairs of draws of the star field in
+# test_a_new_noise_realization_survives_the_stretch, the frame's mean level moved
+# by up to 7 levels against a block limit of about 33.  The one-level allowance
+# covers blocks whose own noise is under a level.
 _BLOCK_PX = 16
 _BLOCK_SIGMAS = 8.0
 _STRETCH_ALLOWANCE_LEVELS = 1.0
@@ -238,6 +249,22 @@ def test_a_new_noise_realization_is_within_the_noise() -> None:
     first = np.clip(np.rint(signal + rng.normal(0.0, 6.0, signal.shape)), 0, 255)
     second = np.clip(np.rint(signal + rng.normal(0.0, 6.0, signal.shape)), 0, 255)
     assert _blocks_beyond_noise(first.astype(np.uint8), second.astype(np.uint8)) == 0
+
+
+def test_a_new_noise_realization_survives_the_stretch() -> None:
+    """Two draws of a star field, each stretched for display, pass the block check.
+
+    Six stars cover a third of a percent of the frame, so both the black and the
+    white point fall in the sky's noise and move with each draw, as they do in a
+    sky-dominated catalog scene.
+    """
+    rng = np.random.default_rng(911)
+    signal = np.full((128, 128), 100.0)
+    for v, u in ((20, 30), (40, 100), (64, 64), (90, 20), (100, 110), (115, 70)):
+        signal[v - 1 : v + 2, u - 1 : u + 2] += 2000.0
+    first = stretch_to_uint8(rng.poisson(signal).astype(np.float64))
+    second = stretch_to_uint8(rng.poisson(signal).astype(np.float64))
+    assert _blocks_beyond_noise(first, second) == 0
 
 
 def test_a_moved_edge_is_beyond_the_noise() -> None:
