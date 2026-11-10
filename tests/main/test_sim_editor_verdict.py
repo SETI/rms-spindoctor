@@ -343,6 +343,19 @@ def test_an_offset_free_scene_that_fails_validation_shows_why(model: Any) -> Non
     )
 
 
+def test_a_scene_with_an_offset_that_fails_validation_gets_no_verdict(
+    model: Any, gated: _GatedSummary
+) -> None:
+    """A scene validation would refuse requests no verdict, though it plants an offset."""
+    model.sim_params['unknown_probe_key'] = 1
+    _edit_offset(model, 5.0)
+    assert gated.calls == []
+    assert model._verdict_runner.is_busy is False
+    assert model._units_label.text() == (
+        "scene would be refused: sim_params: unknown scene keys: ['unknown_probe_key']"
+    )
+
+
 def test_clearing_the_offset_drops_the_running_verdict(model: Any, gated: _GatedSummary) -> None:
     """A render for a scene whose offset was then removed never replaces the label."""
     _edit_offset(model, 5.0)
