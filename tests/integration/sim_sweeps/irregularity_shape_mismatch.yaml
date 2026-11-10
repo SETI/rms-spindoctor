@@ -15,7 +15,7 @@ sweep_name: irregularity_shape_mismatch
 # the shape and the pose-free blob carries a success.  Every step is a success;
 # the shape-lock veto does not fire on this shape.  The error holds at 2.89 px
 # from L 0.4 to 0.6 (it falls by less than a millipixel at L 0.6) and rises at
-# every other step.
+# each remaining step.
 #
 # Across mesh seeds 0 to 12 (2026-11-10): every walk starts sub-pixel and ends
 # 2.7 to 12.7 px off, but the error never falls between steps on only 6 of them
