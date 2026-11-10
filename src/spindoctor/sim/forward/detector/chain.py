@@ -8,6 +8,12 @@ structure, quantization, and the ADC clip.  A camera's physical saturation
 therefore emerges from ``full_well_e / gain_e_per_dn`` (below the ADC ceiling for
 Cassini), not from the ADC clip.
 
+The shot noise is sampled per pixel
+(:func:`~spindoctor.sim.forward.detector.shot_noise.sample_poisson`): one uniform
+per pixel, turned into a count through that pixel's Poisson distribution.  No
+random draw in the chain takes a number of values that depends on the signal, so
+changing the signal in one pixel changes the noise drawn for that pixel alone.
+
 The Voyager vidicon skips the electron conversion and applies its noise directly
 in DN (line-correlated read noise plus a faint coherent component); its point
 sources (stars) and its cosmic-ray hits are already DN and are added onto the
@@ -57,6 +63,7 @@ from spindoctor.sim.forward.detector.params import (
     calibration_map,
     resolve_detector_params,
 )
+from spindoctor.sim.forward.detector.shot_noise import sample_poisson
 from spindoctor.sim.forward.detector.sqrt_lut import DownlinkCurve, resolve_sqrt_lut
 from spindoctor.sim.forward.feature_loci import dilated_pixels, extract_feature_loci
 from spindoctor.sim.forward.stages import SimFrame
@@ -281,7 +288,11 @@ def _apply_ccd(frame: SimFrame, dp: DetectorParams, rng: np.random.Generator) ->
             exposure_sec=dp.exposure_sec,
         )
     if dp.poisson:
-        electrons = rng.poisson(np.maximum(electrons, 0.0)).astype(np.float64)
+        # One uniform per pixel, whatever the means, so a change to one pixel's
+        # mean (a zero-crossing convolution tail, a last-bit FFT difference)
+        # changes only that pixel's count and leaves the read noise drawn after
+        # it in place (#911).
+        electrons = sample_poisson(rng, electrons)
     if 'bright_dark_pairs' in modes:
         records['bright_dark_pairs'] = _apply_bright_dark_pairs(
             electrons, modes['bright_dark_pairs'], frame, dp
@@ -706,9 +717,12 @@ def apply_detector(
         frame: The frame whose signal plane is converted in place.
         params: The full scene mapping; resolved into detector parameters via
             :func:`spindoctor.sim.forward.detector.params.resolve_detector_params`.
-        rng: The stage generator, used for the shot and read-noise streams; the
-            structured sub-effects derive their own named streams from the scene
-            seed.
+        rng: The stage generator.  The CCD chain draws one uniform per pixel
+            for the shot noise and then one normal per pixel for the read noise;
+            the vidicon chain draws its line and pixel read noise.  The number of
+            values drawn depends only on the frame's dimensions and the enabled
+            terms, never on the signal.  The structured sub-effects derive their
+            own named streams from the scene seed.
     """
     dp = resolve_detector_params(params)
     if dp.detector_model == 'vidicon':
