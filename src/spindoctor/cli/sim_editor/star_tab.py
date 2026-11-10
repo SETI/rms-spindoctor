@@ -209,10 +209,10 @@ class StarTabMixin(SimEditorBase):
         # off the catalog position -- a physical catalog error.  The checkable
         # group inserts or removes the whole companion map; each spin then
         # writes only its own sub-key.
-        companion = p.get('companion') if isinstance(p.get('companion'), dict) else {}
+        companion = scene_value(p, 'companion', {})
         companion_group = QGroupBox('Companion (unresolved binary)')
         companion_group.setCheckable(True)
-        companion_group.setChecked(bool(p.get('companion')))
+        companion_group.setChecked(bool(companion))
         companion_layout = QFormLayout(companion_group)
         companion_sep_spin = QDoubleSpinBox()
         companion_sep_spin.setRange(0.0, 200.0)
@@ -486,7 +486,7 @@ class StarTabMixin(SimEditorBase):
                     spin.blockSignals(True)
                     spin.setValue(odd_value)
                     spin.blockSignals(False)
-        current_psf_size = self.sim_params['stars'][idx].get('psf_size', [11, 11])
+        current_psf_size = scene_value(self.sim_params['stars'][idx], 'psf_size', [11, 11])
         if dimension == 0:
             self.sim_params['stars'][idx]['psf_size'] = [odd_value, current_psf_size[1]]
         else:
@@ -524,7 +524,7 @@ class StarTabMixin(SimEditorBase):
                     slider.blockSignals(True)
                     slider.setValue((odd_value - 1) // 2)
                     slider.blockSignals(False)
-        current_psf_size = self.sim_params['stars'][idx].get('psf_size', [11, 11])
+        current_psf_size = scene_value(self.sim_params['stars'][idx], 'psf_size', [11, 11])
         if dimension == 0:
             self.sim_params['stars'][idx]['psf_size'] = [odd_value, current_psf_size[1]]
         else:
