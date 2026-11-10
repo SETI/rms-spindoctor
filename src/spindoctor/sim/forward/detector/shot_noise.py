@@ -108,11 +108,25 @@ def poisson_inverse_cdf(uniform: NDArrayFloatType, mean: NDArrayFloatType) -> ND
         The counts as float64, the same dimensions as ``mean``.
 
     Raises:
-        ValueError: If any mean is NaN or infinite.  Such a mean has no Poisson
-            distribution, and it means an earlier stage went wrong.
+        ValueError: If the uniforms and the means differ in dimensions, if any
+            uniform is NaN or outside [0, 1), or if any mean is NaN or infinite.  A
+            uniform of 1 or more has no count, and the search for one would never
+            end.  A mean that is not finite has no Poisson distribution, and it
+            means an earlier stage went wrong.
     """
     uniform = np.asarray(uniform, dtype=np.float64)
     mean = np.asarray(mean, dtype=np.float64)
+    if uniform.shape != mean.shape:
+        raise ValueError(
+            f'Uniforms and means must have the same dimensions, but the uniforms are '
+            f'{uniform.shape} and the means {mean.shape}'
+        )
+    out_of_range = int(np.count_nonzero(~((uniform >= 0.0) & (uniform < 1.0))))
+    if out_of_range:
+        raise ValueError(
+            f'Uniforms must lie in [0, 1), but {out_of_range} of {uniform.size} are '
+            f'NaN or outside it'
+        )
     not_finite = int(np.count_nonzero(~np.isfinite(mean)))
     if not_finite:
         raise ValueError(

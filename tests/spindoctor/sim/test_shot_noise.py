@@ -97,6 +97,18 @@ def test_a_mean_that_is_not_finite_is_refused() -> None:
         poisson_inverse_cdf(np.full(3, 0.5), np.array([1.0, np.nan, np.inf]))
 
 
+def test_a_uniform_outside_the_unit_interval_is_refused() -> None:
+    """A uniform of 1 or a NaN uniform raises and counts the bad pixels."""
+    with pytest.raises(ValueError, match=r'\[0, 1\), but 2 of 3 are NaN or outside it'):
+        poisson_inverse_cdf(np.array([0.5, 1.0, np.nan]), np.full(3, 100.0))
+
+
+def test_uniforms_and_means_of_different_dimensions_are_refused() -> None:
+    """Uniforms and means of the same size but different dimensions raise."""
+    with pytest.raises(ValueError, match=r'the uniforms are \(6,\) and the means \(2, 3\)'):
+        poisson_inverse_cdf(np.full(6, 0.5), np.full((2, 3), 3.0))
+
+
 @pytest.mark.parametrize('mean', [1e-300, 1e-12], ids=['1e-300', '1e-12'])
 def test_a_tiny_mean_gives_the_exact_count_at_every_uniform(mean: float) -> None:
     """A tiny mean gives 0, or 1 where the uniform is within the mean of 1, promptly.
