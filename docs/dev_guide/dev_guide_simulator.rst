@@ -553,13 +553,14 @@ deterministic sorted-key JSON, validates the scene with
 :func:`spindoctor.sim.scene.validate_sim_params`, runs the pipeline on a fresh frame,
 and caches the result on a key built from that JSON (``lru_cache(maxsize=2)``, plus
 small shape caches inside the body/mesh/star renderers; ``clear_render_caches`` drops
-them all for determinism tests). Validation has a small cache of its own. Its key is
-the scene's full JSON together with the ``source`` label that error messages start
-with. That differs from the render cache key, which leaves the planted offset and roll
-out for an offset-free render. A scene rendered many times is validated once, and a
-refused scene raises the same
+them all for determinism tests). Validation has a small cache of its own, keyed on the
+scene's full JSON alone. That differs from the render cache key, which leaves the
+planted offset and roll out for an offset-free render. A scene rendered many times is
+validated once, even when its callers pass different ``source`` labels, since the label
+only starts the text of an error message. Only a scene that passes is cached. A
+refused scene is validated again on every call and raises the same
 :class:`~spindoctor.sim.scene_schema.SimSceneValidationError` that loading it from a
-file would raise. :class:`~spindoctor.obs.obs_inst_sim.ObsSim` renders through this
+file would raise, starting with that call's label. :class:`~spindoctor.obs.obs_inst_sim.ObsSim` renders through this
 driver, so a scene handed to it in memory is validated too, with the scene path in the
 error message. :func:`spindoctor.sim.render.render_unvalidated_preview` is the editor
 preview's offset-free route, which skips validation. After each preview the editor

@@ -12,10 +12,11 @@ is held to the same rules as one read from a file.  The one route that skips
 validation is :func:`render_unvalidated_preview`, which the scene editor's live
 preview uses so the author can see a half-edited scene that would not yet pass.
 
-Validation is cached on the scene's full JSON together with the label its errors
-start with, so rendering one scene many times validates it once.  That is not
-quite the render cache key: an offset-free render leaves the planted pointing out
-of its key, and validation never does.
+A scene that passes validation is cached on its full JSON alone, so rendering one
+scene many times validates it once, whatever label its callers give their errors.
+That is not quite the render cache key: an offset-free render leaves the planted
+pointing out of its key, and validation never does.  A refused scene is never
+cached, and its error starts with the label of the caller that met it.
 
 Callers are ``ObsSim``, the scene-editor GUI, and ``sim/png_export.py``
 (which the doc-gallery and sweep runners drive).  The params-JSON caching
@@ -40,6 +41,7 @@ from typing import Any
 from spindoctor.sim.forward.pipeline import run_pipeline
 from spindoctor.sim.forward.stages import new_sim_frame
 from spindoctor.sim.scene import validate_sim_params
+from spindoctor.sim.scene_schema import SimSceneValidationError
 from spindoctor.support.types import NDArrayFloatType
 
 # The planted pointing keys an offset-free render zeroes, and so leaves out of
@@ -126,23 +128,49 @@ def resolve_oversample(sim_params: dict[str, Any]) -> int:
 # A handful of entries: a validation is cheap next to a render, and a scene
 # that validated once validates again whenever it is rendered again.
 @lru_cache(maxsize=8)
-def _validate_scene_json(scene_json: str, source: str) -> None:
-    """Validate the scene that ``scene_json`` encodes, once per scene and source.
+def _validate_scene_json(scene_json: str) -> None:
+    """Validate the scene that ``scene_json`` encodes, once per scene.
 
     The mapping validated is decoded from the same JSON the render decodes, so
-    validation checks what the pipeline will read.  A refused scene raises every
-    time, since ``lru_cache`` does not cache exceptions.
+    validation checks what the pipeline will read.  Only a pass is cached: a refused
+    scene raises every time, since ``lru_cache`` does not cache exceptions.  Its
+    error carries the default label; :func:`_check_scene_json` relabels it.
     """
+    validate_sim_params(json.loads(scene_json))
+
+
+def _check_scene_json(scene_json: str, source: str) -> None:
+    """Validate a scene through the validation cache, labeling a refusal ``source``.
+
+    The label changes only the text of an error, so a pass is cached on the scene
+    alone.  A refused scene is validated again under ``source`` so that its error
+    starts with the caller's label.
+
+    Parameters:
+        scene_json: The scene as sorted-key JSON.
+        source: The label validation errors start with.
+
+    Raises:
+        ~spindoctor.sim.scene_schema.SimSceneValidationError: If the scene fails
+            validation.
+    """
+    try:
+        _validate_scene_json(scene_json)
+    except SimSceneValidationError:
+        pass
+    else:
+        return
+    # Raised outside the handler, so the unlabeled refusal is not chained onto it.
     validate_sim_params(json.loads(scene_json), source=source)
 
 
 def validate_scene(sim_params: dict[str, Any], *, source: str = 'sim_params') -> None:
     """Validate a scene exactly as :func:`render_combined_model` does, without rendering.
 
-    The check shares the render path's validation cache, so a scene checked here
-    and then rendered with the same ``source`` is validated once.  The scene editor
-    calls it after each preview, so an author sees why a scene would be refused
-    even when nothing else renders it.
+    The check shares the render path's validation cache, so a scene checked here and
+    then rendered is validated once, whatever ``source`` each call gives.  The scene
+    editor calls it after each preview, so an author sees why a scene would be
+    refused even when nothing else renders it.
 
     Parameters:
         sim_params: The parameters describing the simulated model.
@@ -151,7 +179,7 @@ def validate_scene(sim_params: dict[str, Any], *, source: str = 'sim_params') ->
     Raises:
         ~spindoctor.sim.scene_schema.SimSceneValidationError: If the scene fails validation.
     """
-    _validate_scene_json(json.dumps(sim_params, sort_keys=True), source)
+    _check_scene_json(json.dumps(sim_params, sort_keys=True), source)
 
 
 def render_combined_model(
@@ -161,8 +189,9 @@ def render_combined_model(
 
     The scene is checked with :func:`~spindoctor.sim.scene.validate_sim_params`
     before anything renders, so an invalid scene raises the same error a scene
-    file would raise when loaded.  Validation is cached on the scene's full JSON
-    and ``source``, so rendering one scene repeatedly validates it once.
+    file would raise when loaded.  A pass is cached on the scene's full JSON alone,
+    so rendering one scene repeatedly validates it once, whatever ``source`` each
+    render gives.
 
     Parameters:
         sim_params: The parameters describing the simulated model.
@@ -184,7 +213,7 @@ def render_combined_model(
         ~spindoctor.sim.scene_schema.SimSceneValidationError: If the scene fails validation.
     """
     scene_json = json.dumps(sim_params, sort_keys=True)
-    _validate_scene_json(scene_json, source)
+    _check_scene_json(scene_json, source)
     return _render(sim_params, scene_json, ignore_offset=ignore_offset)
 
 
