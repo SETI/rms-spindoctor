@@ -57,6 +57,7 @@ from typing import Any
 import numpy as np
 
 from spindoctor.sim.forward.relief import synthesize_albedo_field
+from spindoctor.sim.scene_schema import scene_value
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 
 __all__ = [
@@ -140,31 +141,32 @@ class TransitSpec:
 def _spot_tuple(spot: Mapping[str, Any]) -> tuple[float, float, float, float]:
     """Resolve one spot/storm mapping into its hashable tuple form."""
     return (
-        float(spot.get('lat_deg', 0.0)),
-        float(spot.get('lon_deg', 90.0)),
-        float(spot.get('radius_deg', 10.0)),
-        float(spot.get('albedo_factor', 0.7)),
+        float(scene_value(spot, 'lat_deg', 0.0)),
+        float(scene_value(spot, 'lon_deg', 90.0)),
+        float(scene_value(spot, 'radius_deg', 10.0)),
+        float(scene_value(spot, 'albedo_factor', 0.7)),
     )
 
 
 def albedo_spec_from_params(
-    body_params: Mapping[str, Any], *, seed: int
+    block: Mapping[str, Any] | None, *, seed: int
 ) -> AlbedoTextureSpec | None:
-    """Build an :class:`AlbedoTextureSpec` from a body mapping, or None.
+    """Build an :class:`AlbedoTextureSpec` from a body's ``albedo_texture`` block.
+
+    A key that is absent or null takes its default.
 
     Parameters:
-        body_params: One scene body entry.
+        block: One body's ``albedo_texture`` mapping, or None.
         seed: The body's 'albedo' stream seed.
 
     Returns:
-        The resolved spec, or None when the body has no ``albedo_texture``.
+        The resolved spec, or None when ``block`` is not a mapping.
     """
-    block = body_params.get('albedo_texture')
     if not isinstance(block, Mapping):
         return None
     return AlbedoTextureSpec(
-        rms=float(block.get('rms', 0.0)),
-        corr_px=float(block.get('corr_px', _DEFAULT_ALBEDO_CORR_PX)),
+        rms=float(scene_value(block, 'rms', 0.0)),
+        corr_px=float(scene_value(block, 'corr_px', _DEFAULT_ALBEDO_CORR_PX)),
         spots=tuple(_spot_tuple(spot) for spot in block.get('spots') or []),
         seed=int(seed),
     )
@@ -172,6 +174,8 @@ def albedo_spec_from_params(
 
 def disc_texture_spec_from_params(body_params: Mapping[str, Any]) -> DiscTextureSpec | None:
     """Build a :class:`DiscTextureSpec` from a body mapping, or None.
+
+    A key that is absent or null takes its default.
 
     Parameters:
         body_params: One scene body entry.
@@ -183,15 +187,17 @@ def disc_texture_spec_from_params(body_params: Mapping[str, Any]) -> DiscTexture
     if not isinstance(block, Mapping):
         return None
     return DiscTextureSpec(
-        band_amplitude=float(block.get('band_amplitude', 0.0)),
-        band_wavenumber=float(block.get('band_wavenumber', 8.0)),
-        band_phase_deg=float(block.get('band_phase_deg', 0.0)),
+        band_amplitude=float(scene_value(block, 'band_amplitude', 0.0)),
+        band_wavenumber=float(scene_value(block, 'band_wavenumber', 8.0)),
+        band_phase_deg=float(scene_value(block, 'band_phase_deg', 0.0)),
         storms=tuple(_spot_tuple(storm) for storm in block.get('storms') or []),
     )
 
 
 def transit_specs_from_params(body_params: Mapping[str, Any]) -> tuple[TransitSpec, ...]:
     """Build the body's :class:`TransitSpec` tuple (empty without ``transits``).
+
+    A key that is absent or null takes its default.
 
     Parameters:
         body_params: One scene body entry.
@@ -210,20 +216,20 @@ def transit_specs_from_params(body_params: Mapping[str, Any]) -> tuple[TransitSp
             TransitSpec(
                 moon=(
                     (
-                        float(moon.get('dv_px', 0.0)),
-                        float(moon.get('du_px', 0.0)),
-                        float(moon.get('radius_px', 5.0)),
-                        float(moon.get('albedo_factor', 1.0)),
+                        float(scene_value(moon, 'dv_px', 0.0)),
+                        float(scene_value(moon, 'du_px', 0.0)),
+                        float(scene_value(moon, 'radius_px', 5.0)),
+                        float(scene_value(moon, 'albedo_factor', 1.0)),
                     )
                     if isinstance(moon, Mapping)
                     else None
                 ),
                 shadow=(
                     (
-                        float(shadow.get('dv_px', 0.0)),
-                        float(shadow.get('du_px', 0.0)),
-                        float(shadow.get('radius_px', 5.0)),
-                        float(shadow.get('darkness', 0.8)),
+                        float(scene_value(shadow, 'dv_px', 0.0)),
+                        float(scene_value(shadow, 'du_px', 0.0)),
+                        float(scene_value(shadow, 'radius_px', 5.0)),
+                        float(scene_value(shadow, 'darkness', 0.8)),
                     )
                     if isinstance(shadow, Mapping)
                     else None

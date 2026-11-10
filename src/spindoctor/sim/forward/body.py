@@ -32,11 +32,8 @@ from spindoctor.sim.forward.atmosphere import (
     apply_atmosphere,
     atmosphere_spec_from_params,
 )
-from spindoctor.sim.forward.body_texture import (
-    albedo_spec_from_params,
-    disc_texture_spec_from_params,
-    transit_specs_from_params,
-)
+from spindoctor.sim.forward.body_spec import BodySpec
+from spindoctor.sim.forward.body_texture import albedo_spec_from_params
 from spindoctor.sim.forward.body_topo import TopoBodyRender, TopoBodySpec, render_topographic_body
 from spindoctor.sim.seeds import derive_effect_seed, stable_param_seed
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
@@ -578,7 +575,7 @@ def _render_topo_shape_cached(size_v: int, size_u: int, spec: TopoBodySpec) -> T
 
 def render_single_body(
     img: NDArrayFloatType,
-    body_params: dict[str, Any],
+    spec: BodySpec,
     offset_v: float,
     *,
     offset_u: float,
@@ -592,7 +589,10 @@ def render_single_body(
 
     Parameters:
         img: Image array to modify in-place.
-        body_params: Body parameters dictionary.
+        spec: The body, parsed by
+            :func:`~spindoctor.sim.forward.body_spec.body_spec_from_params`.
+            Its centers, axes, and other pixel lengths must already be scaled to
+            the render grid.
         offset_v: V offset to apply.
         offset_u: U offset to apply.
         seed: Scene-level crater seed; a per-body sub-seed is derived from it
@@ -602,10 +602,9 @@ def render_single_body(
             into the per-body crater sub-seed alongside the body name.
         ref_center_v: Reference center V for body shape caching.
         ref_center_u: Reference center U for body shape caching.
-        oversample: The render grid's oversampling factor.  The body's
-            pixel-space parameters must already be scaled to this grid.  A
-            factor above 1 sends every ellipsoid to the topographic renderer.
-            At factor 1 the topographic renderer runs only for relief, a
+        oversample: The render grid's oversampling factor.  A factor above 1
+            sends every ellipsoid to the topographic renderer.  At factor 1 the
+            topographic renderer runs only for relief, a
             non-Lambert law, an opposition surge, a surface texture, or
             transits; every other ellipsoid, craters or not, takes the classic
             path, which shades the body, craters included, on its
@@ -618,39 +617,34 @@ def render_single_body(
 
     Returns:
         Tuple of (body_mask, body_info_dict) where body_info_dict contains
-        name, inventory item, and model params.
+        the upper-cased name, the inventory item, and, for a mesh body whose
+        pose scatter drew a perturbation, ``pose_scatter_drawn_deg``.
     """
     size_v, size_u = img.shape
-    # The positional fallback matches the default the radiance stage assigns,
-    # so a direct caller and the pipeline agree on an unnamed body's identity.
-    body_name = str(body_params.get('name', f'SIM-BODY-{body_index + 1}')).upper()
+    body_name = spec.name.upper()
 
-    center_v = float(body_params.get('center_v', size_v / 2.0)) + offset_v
-    center_u = float(body_params.get('center_u', size_u / 2.0)) + offset_u
+    center_v = (size_v / 2.0 if spec.center_v is None else spec.center_v) + offset_v
+    center_u = (size_u / 2.0 if spec.center_u is None else spec.center_u) + offset_u
 
-    axis1 = float(body_params.get('axis1', 0.0))
-    axis2 = float(body_params.get('axis2', 0.0))
-    axis3 = float(body_params.get('axis3', min(axis1, axis2)))
+    axis1 = spec.axis1
+    axis2 = spec.axis2
+    axis3 = spec.axis3
 
-    rotation_z = np.radians(body_params.get('rotation_z', 0.0))
-    rotation_tilt = np.radians(body_params.get('rotation_tilt', 0.0))
-    illumination_angle = np.radians(body_params.get('illumination_angle', 0.0))
-    phase_angle = np.radians(body_params.get('phase_angle', 0.0))
+    rotation_z = np.radians(spec.rotation_z)
+    rotation_tilt = np.radians(spec.rotation_tilt)
+    illumination_angle = np.radians(spec.illumination_angle)
+    phase_angle = np.radians(spec.phase_angle)
 
-    crater_fill = float(body_params.get('crater_fill', 0.0))
-    crater_min_radius = float(body_params.get('crater_min_radius', 0.05))
-    crater_max_radius = float(body_params.get('crater_max_radius', 0.25))
-    crater_power_law_exponent = float(body_params.get('crater_power_law_exponent', 3.0))
-    crater_relief_scale = float(body_params.get('crater_relief_scale', 0.6))
-    anti_aliasing = float(body_params.get('anti_aliasing', 1.0))
+    crater_fill = spec.crater_fill
+    crater_min_radius = spec.crater_min_radius
+    crater_max_radius = spec.crater_max_radius
+    crater_power_law_exponent = spec.crater_power_law_exponent
+    crater_relief_scale = spec.crater_relief_scale
+    anti_aliasing = spec.anti_aliasing
 
-    limb_relief_rms = float(body_params.get('limb_relief_rms', 0.0))
-    limb_relief_corr_deg = float(body_params.get('limb_relief_corr_deg', 15.0))
-    photometric_law = str(body_params.get('photometric_law', 'lambert'))
-    minnaert_k = float(body_params.get('minnaert_k', 0.5))
-    surge = body_params.get('opposition_surge') or {}
-    surge_amplitude = float(surge.get('amplitude', 0.0))
-    surge_width_deg = float(surge.get('width_deg', 6.0))
+    limb_relief_rms = spec.limb_relief_rms
+    limb_relief_corr_deg = spec.limb_relief_corr_deg
+    photometric_law = spec.photometric_law
 
     # Mix a stable per-body identity (scene index and name) into the scene's
     # crater seed so two bodies with identical geometry draw independent crater
@@ -664,7 +658,7 @@ def render_single_body(
     elif seed is not None:
         body_seed = derive_effect_seed(seed, f'body:{body_index}:{body_name}')
     else:
-        body_seed = body_params.get('seed')
+        body_seed = spec.seed
 
     # Projected half-extents of the body in the image plane.  The rendered
     # silhouette is the axis1/axis2 ellipse rotated in-plane by rotation_z
@@ -679,14 +673,14 @@ def render_single_body(
 
     # Get cached body shape (at reference center).  An irregular body renders
     # from a polyhedral mesh at a scene-supplied pose; otherwise an ellipsoid.
-    if str(body_params.get('shape_model', 'ellipsoid')) == 'polyhedral_mesh':
+    if spec.shape_model == 'polyhedral_mesh':
         # Local import: body_mesh imports this module's finisher, so the mesh
         # path is resolved lazily to keep the module import graph acyclic.
         from spindoctor.sim.forward.body_mesh import render_single_mesh_body
 
         return render_single_mesh_body(
             img,
-            body_params,
+            spec,
             body_name,
             center_v=center_v,
             center_u=center_u,
@@ -707,10 +701,6 @@ def render_single_body(
             body_index=body_index,
         )
 
-    has_texture = any(
-        body_params.get(key) is not None for key in ('albedo_texture', 'disc_texture', 'transits')
-    )
-
     # The classic smooth-Lambert path stays byte-for-byte for the scenes it
     # has always rendered; anything more (relief, a non-Lambert law, a surge,
     # surface texture / transits, or an oversampled grid, where the
@@ -720,8 +710,8 @@ def render_single_body(
         oversample > 1
         or limb_relief_rms > 0.0
         or photometric_law != 'lambert'
-        or surge_amplitude > 0.0
-        or has_texture
+        or spec.surge_amplitude > 0.0
+        or spec.has_texture
     )
     # The classic path never renders a pixel inside the body at zero (every
     # visible-hemisphere pixel sits at or above the dark-side floor), so its
@@ -736,18 +726,18 @@ def render_single_body(
         # other randomized features are toggled.
         relief_seed = 0
         albedo_seed = 0
-        if limb_relief_rms > 0.0 or body_params.get('albedo_texture') is not None:
+        if limb_relief_rms > 0.0 or spec.albedo_texture is not None:
             if seed is not None:
                 identity_seed = derive_effect_seed(seed, f'body:{body_index}:{body_name}')
-            elif body_params.get('seed') is not None:
-                identity_seed = int(body_params['seed']) & 0x7FFFFFFF
+            elif spec.seed is not None:
+                identity_seed = spec.seed & 0x7FFFFFFF
             else:
                 identity_seed = stable_param_seed(axis1, axis2, axis3, body_index, body_name)
             if limb_relief_rms > 0.0:
                 relief_seed = derive_effect_seed(identity_seed, 'relief')
-            if body_params.get('albedo_texture') is not None:
+            if spec.albedo_texture is not None:
                 albedo_seed = derive_effect_seed(identity_seed, 'albedo')
-        spec = TopoBodySpec(
+        topo_spec = TopoBodySpec(
             axis1=axis1,
             axis2=axis2,
             axis3=axis3,
@@ -767,14 +757,14 @@ def render_single_body(
             limb_relief_corr_deg=limb_relief_corr_deg,
             relief_seed=relief_seed,
             photometric_law=photometric_law,
-            minnaert_k=minnaert_k,
-            surge_amplitude=surge_amplitude,
-            surge_width_deg=surge_width_deg,
-            albedo_texture=albedo_spec_from_params(body_params, seed=albedo_seed),
-            disc_texture=disc_texture_spec_from_params(body_params),
-            transits=transit_specs_from_params(body_params),
+            minnaert_k=spec.minnaert_k,
+            surge_amplitude=spec.surge_amplitude,
+            surge_width_deg=spec.surge_width_deg,
+            albedo_texture=albedo_spec_from_params(spec.albedo_texture, seed=albedo_seed),
+            disc_texture=spec.disc_texture,
+            transits=spec.transits or (),
         )
-        topo_render = _render_topo_shape_cached(size_v, size_u, spec)
+        topo_render = _render_topo_shape_cached(size_v, size_u, topo_spec)
         body_shape = topo_render.intensity
         silhouette = topo_render.silhouette
     else:
@@ -805,7 +795,7 @@ def render_single_body(
     # apply_atmosphere returns fresh arrays, so the shared render cache the
     # shape may come from is never mutated.
     halo: HaloScreen | None = None
-    atmosphere_spec = atmosphere_spec_from_params(body_params, oversample=int(oversample))
+    atmosphere_spec = atmosphere_spec_from_params(spec.atmosphere, oversample=int(oversample))
     if atmosphere_spec is not None:
         layers = apply_atmosphere(
             body_shape,
@@ -827,7 +817,6 @@ def render_single_body(
     return finish_single_body(
         img,
         body_shape,
-        body_params,
         body_name=body_name,
         center_v=center_v,
         center_u=center_u,
@@ -835,6 +824,7 @@ def render_single_body(
         half_extent_u=half_extent_u,
         ref_center_v=ref_center_v,
         ref_center_u=ref_center_u,
+        range_km=spec.range_km,
         halo=halo,
         silhouette=silhouette,
     )
@@ -865,7 +855,6 @@ def _shifted_box(box: slice, delta: float, size: int) -> slice:
 def finish_single_body(
     img: NDArrayFloatType,
     body_shape: NDArrayFloatType,
-    body_params: dict[str, Any],
     *,
     body_name: str,
     center_v: float,
@@ -874,6 +863,7 @@ def finish_single_body(
     half_extent_u: float,
     ref_center_v: float,
     ref_center_u: float,
+    range_km: float | None,
     halo: HaloScreen | None = None,
     silhouette: NDArrayFloatType | None = None,
 ) -> tuple[NDArrayBoolType, dict[str, Any]]:
@@ -890,7 +880,6 @@ def finish_single_body(
     Parameters:
         img: Image array to modify in-place.
         body_shape: Body intensity rendered at the reference center.
-        body_params: Body parameters dictionary.
         body_name: Upper-cased body name for the inventory keys.
         center_v: Body center V in the image (offset already applied).
         center_u: Body center U in the image (offset already applied).
@@ -898,6 +887,8 @@ def finish_single_body(
         half_extent_u: Projected half-extent of the silhouette along u.
         ref_center_v: Reference center V the shape was rendered at.
         ref_center_u: Reference center U the shape was rendered at.
+        range_km: The body's observer distance for the inventory, or None,
+            which records 1.0.
         halo: The body's translucent halo screen at the reference center, or
             None for a body without an atmosphere.
         silhouette: The body's solid-outline pixel coverage at the reference
@@ -906,8 +897,8 @@ def finish_single_body(
 
     Returns:
         Tuple of (body_mask, body_info_dict) where body_info_dict contains
-        name, inventory item, and model params (plus the positioned halo
-        screen under ``'halo'`` when the body carries one).
+        the name and the inventory item (plus the positioned halo screen under
+        ``'halo'`` when the body carries one).
     """
     dv = center_v - ref_center_v
     du = center_u - ref_center_u
@@ -968,13 +959,12 @@ def finish_single_body(
         # The inventory mirrors the oops inventory contract for real frames,
         # whose distance key is named 'range'; the scene schema key is the
         # per-body 'range_km'.
-        'range': body_params.get('range_km', 1.0),
+        'range': 1.0 if range_km is None else range_km,
     }
 
     body_info: dict[str, Any] = {
         'name': body_name,
         'inventory': inventory_item,
-        'params': body_params,
     }
     if positioned_halo is not None:
         body_info['halo'] = positioned_halo

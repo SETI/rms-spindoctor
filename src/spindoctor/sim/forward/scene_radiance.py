@@ -38,6 +38,7 @@ the sibling :mod:`spindoctor.sim.forward.scene_compositing`; this module
 paints the stack and applies the ordered screen ops it returns.
 """
 
+import dataclasses
 from collections.abc import Callable, Mapping
 from typing import Any
 
@@ -47,6 +48,7 @@ from scipy import ndimage
 from spindoctor.config import DEFAULT_CONFIG
 from spindoctor.sim.forward.atmosphere import HaloScreen
 from spindoctor.sim.forward.body import render_single_body
+from spindoctor.sim.forward.body_spec import BodySpec, body_spec_from_params
 from spindoctor.sim.forward.optics import effective_psf
 from spindoctor.sim.forward.ring_system import RingSystemMaps, render_ring_system
 from spindoctor.sim.forward.scene_compositing import (
@@ -243,43 +245,56 @@ def compose_scene_radiance(
         factor = spk_ref_range / range_km
         return spk_dv * factor, spk_du * factor
 
-    # Process bodies: assign default ranges, apply parallax and the camera roll,
-    # and scale centers and axes to the oversampled grid.  A roll rotates each
-    # body's center about the boresight and adds to its line-of-sight pose
-    # (rotation_z), so a body moves and turns under the same pointing rotation
-    # the stars do; the body NavModel predicts the unrolled geometry.
-    bodies_with_ranges = []
+    # Process bodies: parse each into its typed spec (every default applied,
+    # a null key read as absent), assign default ranges, apply parallax and the
+    # camera roll, and scale centers and axes to the oversampled grid.  A roll
+    # rotates each body's center about the boresight and adds to its
+    # line-of-sight pose (rotation_z), so a body moves and turns under the same
+    # pointing rotation the stars do; the body NavModel predicts the unrolled
+    # geometry.  Each body also keeps a scene mapping with the same values for
+    # the render truth.
+    bodies_with_ranges: list[tuple[BodySpec, dict[str, Any]]] = []
+    explicit_ranges: list[bool] = []
     for body_number, body_params in enumerate(bodies_params):
-        body_params_copy = dict(body_params)
-        # Positional default name, applied once here so every name-keyed
-        # consumer (render order, masks, inventory) sees the same identity
-        # and two unnamed bodies cannot collide.
-        body_params_copy.setdefault('name', f'SIM-BODY-{body_number + 1}')
-        if 'range_km' in body_params_copy:
-            range_km = float(body_params_copy['range_km'])
-        else:
-            range_km = float(body_number + 1)
-        body_params_copy['range_km'] = range_km
-        cv = float(body_params.get('center_v', det_center_v))
-        cu = float(body_params.get('center_u', det_center_u))
+        spec = body_spec_from_params(body_params, index=body_number)
+        explicit_ranges.append(spec.range_km is not None)
+        # The positional default name and range are applied once here, so
+        # every name-keyed consumer (render order, masks, inventory) sees the
+        # same identity and two unnamed bodies cannot collide.
+        range_km = float(body_number + 1) if spec.range_km is None else spec.range_km
+        truth_params = dict(body_params)
+        truth_params['name'] = spec.name
+        truth_params['range_km'] = range_km
+        cv = det_center_v if spec.center_v is None else spec.center_v
+        cu = det_center_u if spec.center_u is None else spec.center_u
         sdv, sdu = _spk_shift(range_km)
         cv += sdv
         cu += sdu
+        rotation_z = spec.rotation_z
         if offset_rotation_deg != 0.0:
             rv = cv - det_center_v
             ru = cu - det_center_u
             cv = det_center_v + roll_cos * rv - roll_sin * ru
             cu = det_center_u + roll_sin * rv + roll_cos * ru
-            body_params_copy['rotation_z'] = (
-                float(body_params.get('rotation_z', 0.0)) + offset_rotation_deg
-            )
-        body_params_copy['center_v'] = cv * os
-        body_params_copy['center_u'] = cu * os
+            rotation_z = spec.rotation_z + offset_rotation_deg
+            truth_params['rotation_z'] = rotation_z
+        truth_params['center_v'] = cv * os
+        truth_params['center_u'] = cu * os
         for axis_key in ('axis1', 'axis2', 'axis3'):
             axis_val = body_params.get(axis_key)
             if axis_val is not None:
-                body_params_copy[axis_key] = float(axis_val) * os
-        bodies_with_ranges.append(body_params_copy)
+                truth_params[axis_key] = float(axis_val) * os
+        render_spec = dataclasses.replace(
+            spec,
+            center_v=cv * os,
+            center_u=cu * os,
+            axis1=spec.axis1 * os,
+            axis2=spec.axis2 * os,
+            axis3=spec.axis3 * os,
+            rotation_z=rotation_z,
+            range_km=range_km,
+        )
+        bodies_with_ranges.append((render_spec, truth_params))
 
     # Order the bodies far to near.  The ordering key is the physical
     # 'range_km' -- there is no hint-unit fallback.  A body without one
@@ -288,12 +303,12 @@ def compose_scene_radiance(
     # placement, never a depth claim: the paint loop below raises when
     # bodies without an explicit range_km actually overlap, so an
     # ambiguous stack is a scene-authoring error, not a guess.
-    render_items: list[tuple[tuple[float, int], dict[str, Any], int, bool]] = []
-    for idx, (body_params, body_scaled) in enumerate(
-        zip(bodies_params, bodies_with_ranges, strict=True)
+    render_items: list[tuple[tuple[float, int], BodySpec, dict[str, Any], int, bool]] = []
+    for idx, ((body_spec, truth_params), explicit) in enumerate(
+        zip(bodies_with_ranges, explicit_ranges, strict=True)
     ):
-        explicit = body_params.get('range_km') is not None
-        render_items.append(((float(body_scaled['range_km']), idx), body_scaled, idx, explicit))
+        assert body_spec.range_km is not None
+        render_items.append(((body_spec.range_km, idx), body_spec, truth_params, idx, explicit))
 
     # Sort all items far to near.  The key is (range_km, list index), so
     # bodies at exactly equal ranges tie-break deterministically by their
@@ -322,8 +337,8 @@ def compose_scene_radiance(
     ref_center_u = size_u / 2.0
 
     # Build order_near_to_far for bodies (needed for body_index_map)
-    sorted_bodies_by_range = sorted(bodies_with_ranges, key=lambda x: x['range_km'])
-    order_near_to_far = [str(bp['name']).upper() for bp in sorted_bodies_by_range]
+    sorted_bodies_by_range = sorted(bodies_with_ranges, key=lambda x: x[1]['range_km'])
+    order_near_to_far = [body_spec.name.upper() for body_spec, _ in sorted_bodies_by_range]
 
     # Painted-so-far tracking for the depth-ambiguity check: overlapping
     # bodies must ALL carry an explicit scene range_km, or their stacking
@@ -350,10 +365,10 @@ def compose_scene_radiance(
     halo_screens: list[tuple[float, HaloScreen]] = []
     halo_check_items: list[tuple[str, bool, HaloScreen]] = []
 
-    for sort_key, item_params, orig_idx, explicit_depth in render_items:
+    for sort_key, item_spec, item_truth, orig_idx, explicit_depth in render_items:
         body_mask, body_info = render_single_body(
             img,
-            item_params,
+            item_spec,
             offset_v,
             offset_u=offset_u,
             seed=crater_seed,
@@ -365,7 +380,11 @@ def compose_scene_radiance(
         # Store mask by original index for proper ordering
         body_mask_map_by_idx[orig_idx] = body_mask
         body_mask_map_dict[body_info['name']] = body_mask
-        body_models_dict[body_info['name']] = body_info['params']
+        # A mesh body's drawn pose scatter joins its render truth.
+        drawn = body_info.get('pose_scatter_drawn_deg')
+        body_models_dict[body_info['name']] = (
+            item_truth if drawn is None else {**item_truth, 'pose_scatter_drawn_deg': drawn}
+        )
         inventory_dict[body_info['name']] = body_info['inventory']
         rendered_bodies.append((body_info['name'], body_mask))
         # Index into near-to-far order is 1-based
@@ -498,10 +517,10 @@ def compose_scene_radiance(
             stars_layer[body_occlusion_mask] = 0.0
         bodies_layer = np.zeros((size_v, size_u), dtype=np.float64)
         rings_layer = np.zeros((size_v, size_u), dtype=np.float64)
-        for _sort_key, item_params, orig_idx, _explicit in render_items:
+        for _sort_key, item_spec, _item_truth, orig_idx, _explicit in render_items:
             render_single_body(
                 bodies_layer,
-                item_params,
+                item_spec,
                 offset_v,
                 offset_u=offset_u,
                 seed=crater_seed,

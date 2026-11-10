@@ -19,8 +19,9 @@ its truth-key upgrades, none of which the navigator's prediction consumes:
 - ``pose_scatter`` draws a seeded per-frame Gaussian perturbation (sigma_deg
   per Euler axis, its own 'pose_scatter' stream) added to the rendered
   pose only.  The navigator predicts the catalog pose, so the drawn
-  rotation is a known-wrong rotation state; the draw is recorded in the
-  render truth as ``pose_scatter_drawn_deg``.
+  rotation is a known-wrong rotation state; the draw is returned with the
+  body info as ``pose_scatter_drawn_deg``, and the scene radiance stage
+  records it in the render truth.
 """
 
 import dataclasses
@@ -30,12 +31,12 @@ from typing import Any
 import numpy as np
 
 from spindoctor.sim.forward.body import finish_single_body
+from spindoctor.sim.forward.body_spec import BodySpec
 from spindoctor.sim.forward.relief import ReliefField, synthesize_relief_field
 from spindoctor.sim.mesh_geometry import (
     Mesh,
     MeshBodySpec,
     make_irregular_mesh,
-    mesh_spec_from_params,
     render_polyhedral_body,
 )
 from spindoctor.sim.seeds import derive_effect_seed, stable_param_seed
@@ -116,7 +117,7 @@ def _render_mesh_shape_cached(
 
 
 def _mesh_identity_seed(
-    body_params: dict[str, Any],
+    body_seed: int | None,
     *,
     seed: int | None,
     body_index: int,
@@ -133,14 +134,14 @@ def _mesh_identity_seed(
     """
     if seed is not None:
         return derive_effect_seed(seed, f'body:{body_index}:{body_name}')
-    if body_params.get('seed') is not None:
-        return int(body_params['seed']) & 0x7FFFFFFF
+    if body_seed is not None:
+        return body_seed & 0x7FFFFFFF
     return stable_param_seed(axis1, axis2, axis3, body_index, body_name) & 0x7FFFFFFF
 
 
 def render_single_mesh_body(
     img: NDArrayFloatType,
-    body_params: dict[str, Any],
+    body: BodySpec,
     body_name: str,
     *,
     center_v: float,
@@ -160,12 +161,10 @@ def render_single_mesh_body(
 
     Parameters:
         img: Image array to modify in-place.
-        body_params: Body parameters dictionary (mesh keys are parsed by
-            ``mesh_spec_from_params``; the truth keys ``shading``,
-            ``limb_relief_*``, and ``pose_scatter`` are read here).  The
-            mapping is never mutated: when a pose scatter is drawn, the
-            returned body info's ``params`` is a copy of this mapping with
-            ``pose_scatter_drawn_deg`` added (render truth metadata).
+        body: The body, parsed by
+            :func:`~spindoctor.sim.forward.body_spec.body_spec_from_params`.
+            Its mesh shape and pose, and the truth fields ``shading``,
+            ``limb_relief_*``, and ``pose_scatter_sigma_deg``, are read here.
         body_name: Upper-cased body name for the inventory keys.
         center_v: Body center V in the image (offset already applied).
         center_u: Body center U in the image (offset already applied).
@@ -182,27 +181,25 @@ def render_single_mesh_body(
 
     Returns:
         Tuple of (body_mask, body_info_dict) matching the ellipsoid path.
+        When a pose scatter is drawn, the info also carries the drawn
+        per-axis angles in degrees as ``pose_scatter_drawn_deg``.
     """
     size_v, size_u = img.shape
-    spec = mesh_spec_from_params(body_params)
-    shading = str(body_params.get('shading', 'flat'))
-    relief_rms = float(body_params.get('limb_relief_rms', 0.0))
-    relief_corr_deg = float(body_params.get('limb_relief_corr_deg', 15.0))
-    scatter = body_params.get('pose_scatter') or {}
-    scatter_sigma_deg = float(scatter.get('sigma_deg', 0.0))
+    spec = body.mesh
+    shading = body.shading
+    relief_rms = body.limb_relief_rms
+    relief_corr_deg = body.limb_relief_corr_deg
+    scatter_sigma_deg = body.pose_scatter_sigma_deg
 
     # The relief terrain and the pose scatter each draw from their own named
     # stream of the per-body identity seed, mirroring the ellipsoid path, so
     # they are independent of each other and of any crater draws.  The drawn
-    # scatter travels to the render truth through the returned body info's
-    # params copy; body_params itself stays untouched (the caller's scene
-    # mapping must remain schema-valid, and pose_scatter_drawn_deg is not a
-    # schema key).
-    truth_params = body_params
+    # scatter travels to the render truth through the returned body info.
+    drawn_deg: list[float] | None = None
     relief_seed = 0
     if relief_rms > 0.0 or scatter_sigma_deg > 0.0:
         identity_seed = _mesh_identity_seed(
-            body_params,
+            body.seed,
             seed=seed,
             body_index=body_index,
             body_name=body_name,
@@ -215,7 +212,7 @@ def render_single_mesh_body(
         if scatter_sigma_deg > 0.0:
             rng = np.random.default_rng(derive_effect_seed(identity_seed, 'pose_scatter'))
             drawn = rng.normal(0.0, scatter_sigma_deg, size=3)
-            truth_params = {**body_params, 'pose_scatter_drawn_deg': [float(d) for d in drawn]}
+            drawn_deg = [float(d) for d in drawn]
             spec = dataclasses.replace(
                 spec,
                 pose_euler_deg=(
@@ -243,10 +240,9 @@ def render_single_mesh_body(
     # A mesh body's pose is an arbitrary 3D rotation, so fall back to the
     # bounding sphere of the ellipsoidal envelope for both image axes.
     mesh_half_extent = max(axis1, axis2, axis3) / 2.0
-    return finish_single_body(
+    mask, body_info = finish_single_body(
         img,
         body_shape,
-        truth_params,
         body_name=body_name,
         center_v=center_v,
         center_u=center_u,
@@ -254,4 +250,8 @@ def render_single_mesh_body(
         half_extent_u=mesh_half_extent,
         ref_center_v=ref_center_v,
         ref_center_u=ref_center_u,
+        range_km=body.range_km,
     )
+    if drawn_deg is not None:
+        body_info['pose_scatter_drawn_deg'] = drawn_deg
+    return mask, body_info

@@ -8,7 +8,6 @@ and the per-frame pose scatter moves the RENDERED pose by the recorded
 drawn amount while the navigator's catalog view is unmoved.
 """
 
-import copy
 import math
 from typing import Any, cast
 
@@ -17,6 +16,7 @@ import pytest
 from scipy import ndimage
 
 from spindoctor.sim.forward.body_mesh import render_single_mesh_body
+from spindoctor.sim.forward.body_spec import body_spec_from_params
 from spindoctor.sim.mesh_geometry import (
     make_irregular_mesh,
     render_polyhedral_body,
@@ -117,7 +117,7 @@ def _render_mesh_body(body: dict[str, Any]) -> NDArrayFloatType:
     img = np.zeros((_SIZE, _SIZE), dtype=np.float64)
     render_single_mesh_body(
         img,
-        dict(body),
+        body_spec_from_params(body, index=0),
         'LUMP',
         center_v=_CENTER,
         center_u=_CENTER,
@@ -217,20 +217,13 @@ def test_pose_scatter_moves_the_render_by_the_recorded_drawn_amount() -> None:
     assert np.array_equal(scattered_img, explicit_img)
 
 
-def test_pose_scatter_does_not_mutate_the_input_mapping() -> None:
-    """The drawn scatter reaches the render truth without touching the input.
-
-    ``render_single_mesh_body`` must leave the caller's body mapping exactly
-    as given (a mutated scene dict would no longer re-validate, since the
-    drawn value is not a schema key); the draw is returned through the body
-    info's ``params`` copy instead.
-    """
+def test_pose_scatter_draw_is_returned_with_the_body_info() -> None:
+    """The mesh renderer returns the drawn scatter for the render truth."""
     body: dict[str, Any] = {**_MESH_SPHERE, 'pose_scatter': {'sigma_deg': 3.0}}
-    snapshot = copy.deepcopy(body)
     img = np.zeros((_SIZE, _SIZE), dtype=np.float64)
     _, info = render_single_mesh_body(
         img,
-        body,
+        body_spec_from_params(body, index=0),
         'LUMP',
         center_v=_CENTER,
         center_u=_CENTER,
@@ -245,8 +238,7 @@ def test_pose_scatter_does_not_mutate_the_input_mapping() -> None:
         seed=99,
         body_index=0,
     )
-    assert body == snapshot
-    drawn = info['params']['pose_scatter_drawn_deg']
+    drawn = info['pose_scatter_drawn_deg']
     assert len(drawn) == 3
     assert any(abs(d) > 1e-6 for d in drawn)
 
@@ -304,7 +296,12 @@ def test_mesh_anti_aliasing_suppressed_on_oversampled_grid(
     }
     img = np.zeros((64, 64), dtype=np.float64)
     render_single_body(
-        img, dict(body_params), 0.0, offset_u=0.0, ref_center_v=32.0, ref_center_u=32.0
+        img,
+        body_spec_from_params(body_params, index=0),
+        0.0,
+        offset_u=0.0,
+        ref_center_v=32.0,
+        ref_center_u=32.0,
     )
     img_os = np.zeros((128, 128), dtype=np.float64)
     scaled = dict(body_params)
@@ -312,7 +309,7 @@ def test_mesh_anti_aliasing_suppressed_on_oversampled_grid(
         scaled[axis_key] = float(cast(float, scaled[axis_key])) * 2
     render_single_body(
         img_os,
-        scaled,
+        body_spec_from_params(scaled, index=0),
         0.0,
         offset_u=0.0,
         ref_center_v=64.0,
