@@ -1001,27 +1001,27 @@ cliff:
    * - 1
      - success
      - 0.00 px
-     - 0.75
+     - 0.84
      - BodyDiscCorrelateNav
    * - 4
      - success
      - 0.00 px
-     - 0.75
+     - 0.84
      - BodyDiscCorrelateNav
    * - 8
      - success
      - 0.00 px
-     - 0.75
+     - 0.84
      - BodyDiscCorrelateNav
    * - 16
      - success
-     - 0.01 px
-     - 0.75
+     - 0.00 px
+     - 0.84
      - BodyDiscCorrelateNav
    * - 32
      - success
-     - 0.01 px
-     - 0.75
+     - 0.00 px
+     - 0.84
      - BodyDiscCorrelateNav
    * - 64
      - **failed**
@@ -1052,32 +1052,32 @@ Varying ``bodies.0.phase_angle`` across the full range on the resolved sphere:
    * - 0
      - success
      - 0.00 px
-     - 0.75
+     - 0.84
      - BodyDiscCorrelateNav
    * - 30
      - success
      - 0.00 px
-     - 0.75
+     - 0.84
      - BodyDiscCorrelateNav
    * - 60
      - success
-     - 0.01 px
-     - 0.75
+     - 0.00 px
+     - 0.83
      - BodyDiscCorrelateNav
    * - 90
      - success
      - 0.00 px
-     - 0.74
+     - 0.83
      - BodyDiscCorrelateNav
    * - 120
      - success
      - 0.00 px
-     - 0.73
+     - 0.82
      - BodyDiscCorrelateNav
    * - 150
      - success
      - 0.01 px
-     - 0.62
+     - 0.69
      - BodyDiscCorrelateNav
 
 The resolved body navigates to success at every phase and recovers the planted
@@ -1086,8 +1086,8 @@ the terminator sweeps across the lit disc -- the gradient-domain matched filter
 keys on the sunward limb, which stays a sharp, well-defined feature at every
 phase -- so there is no mid-phase accuracy penalty. The disc correlation carries
 the frame at every step, including zero phase (where the blob centroid agrees but
-its 0.40 structural cap keeps it the secondary), with confidence easing from 0.75
-toward 0.62 as the shrinking lit fraction softens the correlation diagnostics.
+its 0.40 structural cap keeps it the secondary), with confidence easing from 0.84
+toward 0.69 as the shrinking lit fraction softens the correlation diagnostics.
 
 Body-size (range) sweep
 -----------------------
@@ -1112,49 +1112,56 @@ This is the technique ladder the range regime is meant to exercise:
    * - 90
      - success
      - 0.00 px
-     - 0.75
+     - 0.84
      - BodyDiscCorrelateNav
    * - 60
      - success
-     - 0.01 px
-     - 0.74
+     - 0.00 px
+     - 0.83
      - BodyDiscCorrelateNav
    * - 40
      - success
      - 0.00 px
-     - 0.74
+     - 0.83
      - BodyDiscCorrelateNav
    * - 20
-     - success
-     - 0.00 px
-     - 0.40
-     - BodyBlobNav
-   * - 12
-     - success
-     - 0.02 px
-     - 0.40
-     - BodyBlobNav
-   * - 6
      - success
      - 0.01 px
      - 0.40
      - BodyBlobNav
+   * - 12
+     - success
+     - 0.00 px
+     - 0.40
+     - BodyBlobNav
+   * - 6
+     - success
+     - 0.00 px
+     - 0.63
+     - BodyDiscCorrelateNav
    * - 4
-     - **failed**
-     - --
-     - 0.00
-     - --
+     - success
+     - 0.00 px
+     - 0.60
+     - BodyDiscCorrelateNav
 
-The primary technique transitions cleanly as resolution falls: a well-resolved
-body (130 px) fuses the limb fit with the disc correlation at 0.99 combined
-confidence (the disc ranks primary -- with the 2.61 px limb model-error floor
-priced into its covariance, the limb corroborates the fuse rather than leading
-it); a mid-size body is carried by the disc correlation alone; a small body
-(6-20 px) falls to the orientation-free blob centroid; and the smallest body
-(4 px, below the 5 px ``BODY_BLOB`` emission floor) is unnavigable. Every
-navigable step recovers the planted offset to within a few hundredths of a
-pixel. This transition is the sim's most direct verification that the
-orchestrator selects the right technique for the available resolution.
+Down to 12 px the primary technique transitions as resolution falls: a
+well-resolved body (130 px) fuses the limb fit with the disc correlation at 0.99
+combined confidence (the disc ranks primary -- with the 2.61 px limb model-error
+floor priced into its covariance, the limb corroborates the fuse rather than
+leading it); a mid-size body (40-90 px) is carried by the disc correlation alone;
+and at 20 px and 12 px the disc correlation flags its peak as spurious, so the
+orientation-free blob centroid carries the frame. Below that the ladder does not
+hold. At 6 px and 4 px the disc correlation passes again and carries the frame at
+0.60-0.63 confidence, and the 4 px body, below the 5 px ``BODY_BLOB`` emission
+floor, navigates where it is meant to fail. On these bodies the overlap floor
+leaves only a handful of valid lags on the correlation surface, so the
+peak-to-sidelobe ratio that decides the spurious flag and the confidence is
+computed from 5 to 10 background cells. Every navigable step recovers the
+planted offset to within a few hundredths of a pixel, but the confidence on the
+two smallest bodies rests on too few cells to mean much.
+
+.. The missing minimum background size is tracked as issue #941.
 
 Offset accuracy by technique
 ============================
@@ -1612,11 +1619,13 @@ roughly 0.75-2 deg, widening to ~0.5 deg with the two-star path. See
 Small-body navigation floor
 ===========================
 
-The range sweep above navigates 12 px and 6 px bodies by ``BodyBlobNav`` and
-fails at 4 px, below the 5 px ``BODY_BLOB`` emission floor where the model emits
-no body feature at all. The floor is the emission gate (a sub-5-px silhouette
-covers so few pixels that the centroid is PSF- and noise-dominated), not the
-reliability gate: the ``BODY_BLOB`` reliability is driven by a measured
+The range sweep above navigates 20 px and 12 px bodies by ``BodyBlobNav``. Below
+5 px the model emits no ``BODY_BLOB`` feature at all, so the blob centroid cannot
+navigate a 4 px body; the disc correlation navigates it instead, on the
+few-cell peak-to-sidelobe ratio described under the body-size sweep. The blob
+floor is set where the model stops emitting the feature (a sub-5-px silhouette
+covers so few pixels that the centroid is PSF- and noise-dominated), not by the
+feature's reliability: the ``BODY_BLOB`` reliability is driven by a measured
 detection SNR, so a bright body is admitted at any emitted size while a
 predicted body with no image signal anywhere in its search window is culled
 regardless of size. See :doc:`/dev_guide/dev_guide_techniques_body_blob`.
@@ -1849,18 +1858,22 @@ Summary
   predicts the wrong pose the limb degrades to a confidently-wrong fix (or, for a
   wrong in-plane roll, far enough that it self-flags) while the pose-free blob
   holds -- the demote-to-pose-free behavior a chaotic rotator needs.
-* The sweeps show the expected qualitative behavior: navigation degrades to a
-  clean failure past the noise cliff, the resolved body recovers across the full
-  phase range with no mid-phase accuracy penalty, and the primary technique walks
-  from the limb-corroborated disc fuse on a well-resolved body through the disc
-  alone to the blob as a body shrinks.
+* The sweeps show the expected qualitative behavior except on the smallest
+  bodies: navigation degrades to a clean failure past the noise cliff, the
+  resolved body recovers across the full phase range with no mid-phase accuracy
+  penalty, and the primary technique walks from the limb-corroborated disc fuse on
+  a well-resolved body through the disc alone to the blob as a body shrinks to
+  12 px. At 6 px and 4 px the disc correlation takes the frame back on a
+  peak-to-sidelobe ratio computed from too few cells, and the 4 px body navigates
+  where it is meant to fail.
 * A small camera roll is not separable from a translation: the field matcher
   recovers rolls only above ~0.75 deg (the two-star fit extends this to ~0.5 deg),
-  and the small-body navigation floor (the 5 px ``BODY_BLOB`` emission floor) is
-  set by the feature-emission gate, not the centroid algorithm. Navigation is
-  unit-agnostic: I/F frames navigate identically to raw DN.
+  and the blob centroid's small-body floor is the 5 px size below which the model
+  emits no ``BODY_BLOB`` feature, not a limit of the centroid algorithm.
+  Navigation is unit-agnostic: I/F frames navigate identically to raw DN.
 * The confidence column reflects the sim-calibrated per-technique formulas
-  (seed-20260718 campaign: the limb-corroborated fuse ~0.99, disc ~0.62-0.75,
+  (seed-20260718 campaign: the limb-corroborated fuse ~0.99, disc ~0.69-0.84 on a
+  resolved body,
   blob capped at 0.40 on clean frames); the report verifies the recovered
   geometry and the technique selection, while tier behavior on real frames is
   validated against the operator-curated library.
