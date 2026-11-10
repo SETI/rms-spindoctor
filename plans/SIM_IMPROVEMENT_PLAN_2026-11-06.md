@@ -85,7 +85,7 @@ These make every later phase cheaper or safer. Most are small.
 | #911, including per-pixel variates | One frame-wide Poisson stream | Every later fix would otherwise turn into a new noise field across the whole frame. |
 | #905, truth-check part | Assertions are change detectors and 1 px bounds | Give validation scenes truth-based assertions before the renders start moving, so a move is judged against the planted truth. |
 | #872 | The baseline regenerator imports whichever installed package it finds | Regenerated baselines must come from the checkout under test before the churn starts. |
-| #900, #813 | **#900 done (PR TBD); #813 open.** Validation skips the render path; null body keys crash; the navigator's simulated ring model reads nullable keys unsafely | Typed per-block specs on every entry point, with null meaning absent; the first slice of #915. |
+| #900, #813 | **Done: #900 (PR TBD); #813 (PR #927).** Validation skips the render path; null body keys crash; the navigator's simulated ring model reads nullable keys unsafely | Typed per-block specs on every entry point, with null meaning absent; the first slice of #915. |
 | #940 | **Done (PR TBD).** An in-memory scene reaches the renderer without validation | The one entry point that renders a scene validation would refuse; closing it with #900 makes every path validate. |
 | #913 | `axis1`, `axis2`, and `axis3` are full widths named like semi-axes | Rename before more scenes are written in the old names. |
 | #876 | **Done (PR #934).** Per-instrument tables in one validated YAML file | Adding a camera or a readout mode becomes a configuration entry; Phase 4's instrument work depends on it. Lands after #886, as its text asks. |
