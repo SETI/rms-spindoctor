@@ -6,12 +6,17 @@ from typing import Any
 
 import numpy as np
 import pytest
+import scipy.fft
+from scipy.ndimage import gaussian_filter
 
+import spindoctor.support.correlate as correlate_module
 from spindoctor.support.correlate import (
     _MAX_PEAK_RATIO,
     _NCC_BIDIR_VAR_FRAC_MIN,
     _NCC_BIDIR_W_FRAC_MIN,
     _NCC_EPS,
+    _correlate_from_spectra,
+    _crop_circular,
     _masked_ncc_bidir,
     _residual_correlation_area,
     gradient_magnitude,
@@ -21,6 +26,7 @@ from spindoctor.support.correlate import (
     navigate_with_pyramid_kpeaks,
     nms_topk,
     peak_to_runner_up_ratio,
+    psr_metric,
 )
 from spindoctor.support.image import normalize_array, pad_top_left
 from spindoctor.support.misc import mad_std
@@ -280,6 +286,27 @@ class TestSingleScale:
         )
         assert result['quality'] > 6.0
 
+    def test_a_shift_longer_than_the_image_is_recovered(self) -> None:
+        """A model much larger than the image recovers a shift longer than the image.
+
+        The image is a window of the model 30 rows and 40 columns in, so the shift is
+        (-30, -40), beyond the image's own height and width.  Such a lag lies where the
+        surface's positive and negative lags meet, so it is found only if the surface
+        is laid out with the image's extent on the positive side.
+        """
+        rng = np.random.default_rng(945)
+        model = gaussian_filter(rng.normal(size=(64, 80)), 2.0)
+        image = model[30:54, 40:69].copy()
+        result = navigate_single_scale_kpeaks(
+            image=image,
+            model=model,
+            mask=np.ones(model.shape, dtype=bool),
+            max_peaks=3,
+            upsample_factor=16,
+            logger=None,
+        )
+        assert result['offset'] == pytest.approx((-30.0, -40.0), abs=0.1)
+
     def test_no_candidates_result_carries_full_key_set(self) -> None:
         """When no peaks survive ``max_offset_vu`` the result still has every key.
 
@@ -309,6 +336,57 @@ class TestSingleScale:
             assert key in result, f'no-candidates result missing key {key!r}'
         assert result['all_candidates'] == []
         assert result['quality'] == -np.inf
+
+    def test_no_refinement_spectrum_is_built_when_no_peak_survives(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A search with no surviving peak returns before the refinement transforms."""
+
+        def _refuse(*_args: Any, **_kwargs: Any) -> Any:
+            raise AssertionError('the refinement spectrum was built with no peak to refine')
+
+        monkeypatch.setattr(correlate_module, 'refinement_cross_spectrum', _refuse)
+        result = navigate_single_scale_kpeaks(
+            image=np.zeros((16, 16), dtype=np.float64),
+            model=np.zeros((16, 16), dtype=np.float64),
+            mask=np.ones((16, 16), dtype=bool),
+            max_peaks=3,
+            upsample_factor=8,
+            metric='psr',
+            max_offset_vu=(0, 0),
+            logger=None,
+        )
+        assert result['all_candidates'] == []
+
+
+def test_a_longer_transform_cropped_is_the_image_plus_model_surface() -> None:
+    """Cropping a longer transform's surface puts every lag where image + model does.
+
+    The model is larger than the image on both axes, so the split between
+    positive and negative lags is not at the middle of the surface.
+    """
+    rng = np.random.default_rng(7)
+    image = rng.normal(size=(23, 31))
+    model = rng.normal(size=(29, 37))
+
+    def correlate(rows: int, cols: int) -> NDArrayFloatType:
+        """Circular correlation of the zero-padded image and model.
+
+        Parameters:
+            rows: Transform length on the first axis.
+            cols: Transform length on the second axis.
+
+        Returns:
+            The correlation surface.
+        """
+        return _correlate_from_spectra(
+            scipy.fft.rfft2(pad_top_left(image, rows, cols)),
+            scipy.fft.rfft2(pad_top_left(model, rows, cols)),
+            (rows, cols),
+        )
+
+    cropped = _crop_circular(correlate(60, 75), image.shape, model.shape)
+    np.testing.assert_allclose(cropped, correlate(52, 68), rtol=0.0, atol=1e-12)
 
 
 # =========================================================================
@@ -393,6 +471,24 @@ class TestPyramid:
         dy, dx = result['offset']
         assert dy == pytest.approx(0.0, abs=0.05)
         assert dx == pytest.approx(0.0, abs=0.05)
+
+    def test_a_peak_with_no_sidelobe_is_spurious(self) -> None:
+        """A NaN quality is spurious rather than passing the threshold test.
+
+        On a 6 x 6 frame every shift with enough overlap lies within the PSR
+        guard radius of zero shift, so the peak has no sidelobe and its PSR is NaN.
+        """
+        rng = np.random.default_rng(3)
+        image = rng.normal(size=(6, 6))
+        result = navigate_with_pyramid_kpeaks(
+            image,
+            image.copy(),
+            np.ones((6, 6), dtype=bool),
+            pyramid_levels=1,
+            upsample_factor=8,
+            data_mask=np.ones((6, 6), dtype=bool),
+        )
+        assert result['spurious'] is True
 
 
 # =========================================================================
@@ -567,6 +663,40 @@ class TestPyramidTopKPeaks:
         # Each entry has shape (quality, dv, du).
         for entry in peaks:
             assert len(entry) == 3
+
+
+# =========================================================================
+# Wrap-around on the circular correlation surface
+# =========================================================================
+
+
+def test_nms_topk_finds_a_peak_at_zero_shift_once() -> None:
+    """A peak at zero shift is one candidate, not one per corner it wraps into."""
+    corr = np.full((64, 64), -np.inf)
+    # A valid neighborhood of radius 3 around zero shift, which wraps into all
+    # four corners of the array.
+    rows, cols = np.ogrid[:64, :64]
+    dv = np.minimum(rows, 64 - rows)
+    du = np.minimum(cols, 64 - cols)
+    near = dv**2 + du**2 <= 9
+    corr[near] = np.exp(-(dv**2 + du**2) / 4.0)[near]
+    peaks = nms_topk(corr, k=5, radius=5)
+    assert len(peaks) == 1
+
+
+def test_psr_at_zero_shift_matches_the_same_peak_mid_array() -> None:
+    """A peak at zero shift scores the PSR it scores mid-array.
+
+    The mid-array surface is the same surface rolled, so every value keeps its
+    neighbors and only the peak's position relative to the array edges changes.
+    """
+    rng = np.random.default_rng(930)
+    rows, cols = np.ogrid[:64, :64]
+    dv = np.minimum(rows, 64 - rows)
+    du = np.minimum(cols, 64 - cols)
+    corr = 0.05 * rng.standard_normal((64, 64)) + np.exp(-(dv**2 + du**2) / 4.0)
+    mid = np.roll(corr, (32, 32), axis=(0, 1))
+    assert psr_metric(corr, (0, 0)) == pytest.approx(psr_metric(mid, (32, 32)), rel=1e-12)
 
 
 # =========================================================================
@@ -799,10 +929,8 @@ class TestMaskedNccBidirectional:
         view of its real part; nothing about the result changes either way,
         so only a count of what is alive can catch it.
         """
-        # Reached by name rather than through the module attribute, which
-        # strict typing reads as a re-export of numpy's.
-        real_rfft2 = np.fft.rfft2
-        real_irfft2 = np.fft.irfft2
+        real_rfft2 = scipy.fft.rfft2
+        real_irfft2 = scipy.fft.irfft2
         spectra: list[weakref.ref[Any]] = []
         made = {'forward': 0, 'inverse': 0}
         high = 0
@@ -816,7 +944,7 @@ class TestMaskedNccBidirectional:
                 **kwargs: Passed through.
 
             Returns:
-                The transform numpy would have returned.
+                The transform scipy would have returned.
             """
             nonlocal high
             made['forward'] += 1
@@ -838,7 +966,7 @@ class TestMaskedNccBidirectional:
                 **kwargs: Passed through.
 
             Returns:
-                The transform numpy would have returned.
+                The transform scipy would have returned.
             """
             made['inverse'] += 1
             return real_irfft2(a, *args, **kwargs)

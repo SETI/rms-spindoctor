@@ -249,11 +249,12 @@ is the masked normalized cross-correlation in
 :class:`~spindoctor.nav_technique.nav_technique_ring_annulus.RingAnnulusNav`. It
 correlates the extended frame against a template of the same size, zero-padded for
 linear rather than circular correlation, so the surfaces it works on are twice the
-extended frame on each axis: 3600 x 3600 for a Voyager frame, about a tenth of a
-gigabyte each. Six of them have to exist together for the normalization, and
-everything on the way to them is a transform of the same size. It is one allocation
-spike rather than an accumulation, which is why releasing between techniques does
-nothing for it.
+extended frame on each axis, rounded up to the next length with small prime factors
+because a transform of such a length is several times faster: 3600 x 3600 for a
+Voyager frame, about a tenth of a gigabyte each. Six of them have to exist together
+for the normalization, and everything on the way to them is a transform of the same
+size. It is one allocation spike rather than an accumulation, which is why
+releasing between techniques does nothing for it.
 
 Three things keep it down, none of which changes what is computed.
 

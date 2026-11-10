@@ -2,8 +2,8 @@ import math
 from typing import Any, Literal, cast
 
 import numpy as np
-from numpy.fft import fft2, fftfreq, ifftshift, irfft2, rfft2
 from pdslogger import PdsLogger
+from scipy.fft import fft2, fftfreq, ifftshift, irfft, irfft2, next_fast_len, rfft, rfft2
 from scipy.ndimage import gaussian_filter, sobel
 
 from spindoctor.config import IMAGE_LOGGER, logged_section
@@ -51,6 +51,42 @@ def int_to_signed(idx: int, size: int) -> int:
         ``idx - size`` (negative branch for peaks in the second half).
     """
     return idx if idx < size // 2 else idx - size
+
+
+def _crop_circular(
+    surface: NDArrayFloatType,
+    image_shape: tuple[int, int],
+    model_shape: tuple[int, int],
+) -> NDArrayFloatType:
+    """Lay out a linear correlation surface at the period ``image + model``.
+
+    ``surface`` is the circular correlation of a zero-padded image and model at a
+    transform length of at least ``image + model`` on each axis.  Along an axis of
+    length ``n``, index ``j`` holds lag ``j`` for small ``j`` and lag ``j - n`` near
+    the far end, and only the lags from ``-(model - 1)`` to ``image - 1`` have any
+    overlap.  The result holds those same values at the period ``m = image +
+    model``: index ``j`` holds lag ``j`` when ``j < image`` and lag ``j - m``
+    otherwise.  That is where a transform of length ``m`` puts each overlapping lag,
+    so the result is the surface such a transform produces, up to rounding.
+
+    Parameters:
+        surface: Circular correlation surface, at least ``image + model`` on each
+            axis.
+        image_shape: Shape of the unpadded image.
+        model_shape: Shape of the unpadded model.
+
+    Returns:
+        The surface at the period ``image + model``; ``surface`` itself when it is
+        already that shape.
+    """
+    shape = (image_shape[0] + model_shape[0], image_shape[1] + model_shape[1])
+    if surface.shape == shape:
+        return surface
+    index = [
+        np.concatenate((np.arange(image_len), np.arange(full - model_len, full)))
+        for full, image_len, model_len in zip(surface.shape, image_shape, model_shape, strict=True)
+    ]
+    return surface[np.ix_(index[0], index[1])]
 
 
 # ==============================================================
@@ -377,12 +413,48 @@ def _masked_ncc_bidir(
 # ==============================================================
 
 
+def _wrapped_distance_sq(shape: tuple[int, int], rc: tuple[int, int]) -> NDArrayFloatType:
+    """Squared distance of every cell of a circular surface from one cell.
+
+    A correlation surface is circular, so the distance along each axis is taken the
+    short way round: a cell in the last row is one row from a cell in the first.
+
+    Parameters:
+        shape: Shape of the surface.
+        rc: Row and column of the cell distances are measured from.
+
+    Returns:
+        Array of ``shape`` holding the squared wrapped distance in pixels.
+    """
+    rows, cols = np.ogrid[: shape[0], : shape[1]]
+    dv = np.abs(rows - rc[0])
+    dv = np.minimum(dv, shape[0] - dv)
+    du = np.abs(cols - rc[1])
+    du = np.minimum(du, shape[1] - du)
+    return cast(NDArrayFloatType, dv**2 + du**2)
+
+
 def psr_metric(corr: NDArrayFloatType, rc: tuple[int, int], guard: int = 5) -> float:
-    corr_v, corr_u = corr.shape
+    """Peak-to-sidelobe ratio of one peak of a circular correlation surface.
+
+    The sidelobe is every finite value farther than ``guard`` pixels from the peak,
+    with distances taken around the surface's edges, so a peak near zero shift has
+    its whole neighborhood excluded, including the part that wraps to the far side.
+
+    Parameters:
+        corr: 2-D circular correlation surface.
+        rc: Row and column of the peak.
+        guard: Radius in pixels of the neighborhood excluded from the sidelobe.
+
+    Returns:
+        ``(peak - mean(sidelobe)) / std(sidelobe)``, or NaN when no finite value lies
+        outside the guard radius.
+    """
     row, col = rc
     peak = corr[row, col]
-    y, x = np.ogrid[:corr_v, :corr_u]
-    mask = (y - row) ** 2 + (x - col) ** 2 > guard**2
+    # Wrapped distances: a peak within ``guard`` of zero shift would otherwise
+    # leave its wrapped lobe in the sidelobe (#930).
+    mask = _wrapped_distance_sq(corr.shape, rc) > guard**2
     bg = corr[mask]
     # Exclude invalidated-shift sentinels (-inf) before computing background stats;
     # otherwise ``bg.mean()`` collapses to -inf and PSR becomes NaN.
@@ -427,6 +499,10 @@ def nms_topk(
             the boundary as spurious). Signed offsets are derived from the
             FFT-convention wrap-around used by :func:`int_to_signed`.
 
+    The surface is circular, so the suppression distance is taken around its edges:
+    a peak near zero shift suppresses its neighbors on the far side of the array too,
+    and is not returned again as a separate peak there.
+
     Returns:
         List of ``(row, col, value)`` tuples for up to ``k`` peaks.
     """
@@ -452,8 +528,9 @@ def nms_topk(
         row_i, col_i = np.unravel_index(idx, work.shape)
         row, col = int(row_i), int(col_i)
         peaks.append((row, col, v))
-        y, x = np.ogrid[:corr_v, :corr_u]
-        work[(y - row) ** 2 + (x - col) ** 2 <= radius**2] = -np.inf
+        # Wrapped distances, so a peak near zero shift is not found again as its
+        # own wrap-around duplicate on the far side of the surface (#930).
+        work[_wrapped_distance_sq(work.shape, (row, col)) <= radius**2] = -np.inf
     return peaks
 
 
@@ -509,9 +586,9 @@ def _residual_correlation_area(resid: NDArrayFloatType) -> float:
         n = r.shape[axis]
         if n < 3:
             return 1.0
-        spec = np.fft.rfft(r, axis=axis)
+        spec = rfft(r, axis=axis)
         power = (spec * np.conj(spec)).real
-        autocorr = np.fft.irfft(power, n=n, axis=axis)
+        autocorr = irfft(power, n=n, axis=axis)
         # Collapse the perpendicular axis so the 1-D autocorrelation is the
         # per-lag average across the other axis's lines.
         autocorr_1d = autocorr.mean(axis=1 - axis)
@@ -598,12 +675,67 @@ def matched_filter_covariance(
 # ==============================================================
 
 
+def refinement_cross_spectrum(
+    image_pad: NDArrayFloatType,
+    model_pad: NDArrayFloatType,
+    mask_pad: NDArrayBoolType,
+    *,
+    lowpass_sigma_px: float = 0.0,
+) -> NDArrayComplexType:
+    """Cross-power spectrum that the sub-pixel refinement interpolates.
+
+    The spectrum is ``conj(F(model * mask)) * F(image)``, transformed at the shape of
+    the inputs.  It is the same for every candidate peak of one correlation, so it is
+    built once and handed to :func:`evaluate_candidate` for each.
+
+    When the coarse peak is found on gradient-magnitude surfaces, pass the
+    raw-intensity image and model here: the Sobel *magnitude* rectifies the signal,
+    so its cross-power peak is non-smooth at the apex and the upsampled-DFT sub-pixel
+    estimate is biased (largest near whole-pixel offsets), whereas raw intensity
+    reaches the upsample-factor resolution.
+
+    Parameters:
+        image_pad: Zero-padded image.
+        model_pad: Zero-padded model, the same shape as ``image_pad``.
+        mask_pad: Zero-padded model mask, the same shape as ``image_pad``.
+        lowpass_sigma_px: Sigma in pixels of the Gaussian low-pass applied to the
+            image and to the masked model before the transform; ``0.0`` applies none.
+
+    Returns:
+        The complex cross-power spectrum, of the inputs' shape.
+    """
+    refine_image = image_pad
+    refine_model_masked = model_pad * mask_pad
+    # Band-limit both surfaces before the cross-power.  The sub-pixel peak of two
+    # sharp, anti-aliased (but non-PSF-blurred) surfaces with differing edge
+    # profiles -- a rendered body / ring vs. a Lambert template -- is aliased by a
+    # sub-pixel-phase-dependent amount (a ~0.03 px odd S-curve, zero at integer and
+    # half-pixel offsets).  A matched Gaussian low-pass removes the high-frequency
+    # mismatch that drives it, cutting the disc / ring residual to ~0.01 px; the
+    # upsampled DFT still localizes the smoothed peak.  The low-pass is applied to
+    # the final surfaces (the image and the already-masked model) so the model's
+    # support edge is not re-sharpened by the mask afterwards.  Default 0.0 is a
+    # no-op.
+    if lowpass_sigma_px > 0.0:
+        refine_image = gaussian_filter(refine_image, lowpass_sigma_px)
+        refine_model_masked = gaussian_filter(refine_model_masked, lowpass_sigma_px)
+    # Conjugate and multiply into the model's own transform rather than
+    # building a conjugate and a product beside it: at the full-resolution
+    # scale each of those is one of the largest arrays in the process, and
+    # ``upsampled_dft`` needs only the product.
+    spec = fft2(refine_model_masked)
+    del refine_model_masked
+    np.conjugate(spec, out=spec)
+    spec *= fft2(refine_image)
+    return cast(NDArrayComplexType, spec)
+
+
 def evaluate_candidate(
     *,
     image_pad: NDArrayFloatType,
     model_pad: NDArrayFloatType,
-    mask_pad: NDArrayBoolType,
     corr: NDArrayFloatType,
+    refine_spectrum: NDArrayComplexType,
     rc: tuple[int, int],
     upsample_factor: int,
     model_shape: tuple[int, int],
@@ -612,9 +744,6 @@ def evaluate_candidate(
     prior_shift: tuple[float, float] | None = None,
     prior_weight: float = 0.0,
     metric: str = 'psr',
-    refine_image_pad: NDArrayFloatType | None = None,
-    refine_model_pad: NDArrayFloatType | None = None,
-    refine_lowpass_sigma_px: float = 0.0,
 ) -> dict[str, Any]:
     """
     Evaluate a candidate for the navigation.
@@ -622,8 +751,10 @@ def evaluate_candidate(
     Parameters:
         image_pad: The padded image.
         model_pad: The padded model.
-        mask_pad: The padded mask.
         corr: The correlation matrix.
+        refine_spectrum: The cross-power spectrum from
+            :func:`refinement_cross_spectrum` that the sub-pixel refinement
+            interpolates, the same shape as ``corr``.
         rc: The row and column of the candidate.
         upsample_factor: The upsample factor.
         model_shape: The shape of the model.
@@ -631,16 +762,6 @@ def evaluate_candidate(
         prior_shift: The prior shift.
         prior_weight: The prior weight.
         metric: The metric to use for the navigation.
-        refine_image_pad: Optional padded image used *only* for the sub-pixel
-            cross-power-spectrum refinement, in place of ``image_pad``.  When the
-            coarse peak is found on gradient-magnitude surfaces (``use_gradient``),
-            pass the raw-intensity padded image here: the Sobel *magnitude*
-            rectifies the signal, so its cross-power peak is non-smooth at the apex
-            and the upsampled-DFT sub-pixel estimate is biased (largest near
-            whole-pixel offsets), whereas raw intensity reaches the
-            ``upsample_factor`` resolution.  Defaults to ``image_pad``.
-        refine_model_pad: Optional padded model for the same refinement; defaults
-            to ``model_pad``.
 
     Returns:
         A dictionary containing the navigation result.  Its ``offset`` is the
@@ -669,34 +790,7 @@ def evaluate_candidate(
     p, q = rc
     dy_i, dx_i = int_to_signed(p, corr_v), int_to_signed(q, corr_u)
 
-    # Subpixel refinement: local upsampled DFT of correlation spectrum numerator.
-    # Refine on the raw-intensity surfaces when provided (see ``refine_image_pad``)
-    # so a gradient-magnitude coarse peak does not carry its rectified-cusp
-    # sub-pixel bias into the reported offset.
-    refine_image = image_pad if refine_image_pad is None else refine_image_pad
-    refine_model = model_pad if refine_model_pad is None else refine_model_pad
-    refine_model_masked = refine_model * mask_pad
-    # Band-limit both surfaces before the cross-power.  The sub-pixel peak of two
-    # sharp, anti-aliased (but non-PSF-blurred) surfaces with differing edge
-    # profiles -- a rendered body / ring vs. a Lambert template -- is aliased by a
-    # sub-pixel-phase-dependent amount (a ~0.03 px odd S-curve, zero at integer and
-    # half-pixel offsets).  A matched Gaussian low-pass removes the high-frequency
-    # mismatch that drives it, cutting the disc / ring residual to ~0.01 px; the
-    # upsampled DFT still localizes the smoothed peak.  The low-pass is applied to
-    # the final surfaces (the image and the already-masked model) so the model's
-    # support edge is not re-sharpened by the mask afterwards.  Default 0.0 is a
-    # no-op.
-    if refine_lowpass_sigma_px > 0.0:
-        refine_image = gaussian_filter(refine_image, refine_lowpass_sigma_px)
-        refine_model_masked = gaussian_filter(refine_model_masked, refine_lowpass_sigma_px)
-    # Conjugate and multiply into the model's own transform rather than
-    # building a conjugate and a product beside it: at the full-resolution
-    # scale each of those is one of the largest arrays in the process, and
-    # ``upsampled_dft`` needs only the product.
-    spec = fft2(refine_model_masked)
-    del refine_model_masked
-    np.conjugate(spec, out=spec)
-    spec *= fft2(refine_image)
+    # Subpixel refinement: local upsampled DFT of the cross-power spectrum.
     # Center of the local upsampled DFT window should be the middle of the
     # evaluation region (e.g., 3x3 -> center index 1), not half the upsample factor.
     # Using upsample_factor here caused increasing bias for large factors.
@@ -707,7 +801,7 @@ def evaluate_candidate(
     oy = region_v // 2
     ox = region_u // 2
     Up = upsampled_dft(
-        spec,
+        refine_spectrum,
         upsample_factor,
         (region_v, region_u),
         (oy - dy_i * upsample_factor, ox - dx_i * upsample_factor),
@@ -837,29 +931,33 @@ def navigate_single_scale_kpeaks(
     model_h, model_w = model_arr.shape
     image_h, image_w = image_orig.shape
     padded_h, padded_w = image_h + model_h, image_w + model_w
+    # The correlation is linear rather than circular once each axis is at least
+    # image + model long, and padding further only adds lags at which image and
+    # model do not overlap.  The NCC transforms are therefore run at the next
+    # length with small prime factors, which is several times faster than an
+    # arbitrary image + model length (#912), and the surface is cropped back to
+    # image + model so its lags, the peak search, and the quality statistics are
+    # those of an unrounded transform.  A half-spectrum transform is real only
+    # along its last axis and complex along the first, and each axis gets the
+    # length that is fast for its kind of transform.
+    fft_h = next_fast_len(padded_h)
+    fft_w = next_fast_len(padded_w, real=True)
 
-    image_pad = pad_top_left(image_orig, padded_h, padded_w)
-    model_pad = pad_top_left(model_arr, padded_h, padded_w)
-    mask_pad = pad_top_left(mask, padded_h, padded_w)
-    # The gradient surfaces localize the integer peak (and drive quality), but the
-    # sub-pixel refinement runs on the raw-intensity surfaces to avoid the
-    # gradient-magnitude rectification bias.  Without gradient mode these are the
-    # same arrays, so the refinement is unchanged.
-    if use_gradient:
-        refine_image_pad = pad_top_left(image_raw, padded_h, padded_w)
-        refine_model_pad = pad_top_left(model_raw, padded_h, padded_w)
-    else:
-        refine_image_pad = image_pad
-        refine_model_pad = model_pad
+    image_pad = pad_top_left(image_orig, fft_h, fft_w)
+    model_pad = pad_top_left(model_arr, fft_h, fft_w)
+    mask_pad = pad_top_left(mask, fft_h, fft_w)
     data_mask_pad: NDArrayBoolType | None = None
     if data_mask is not None:
-        data_mask_pad = pad_top_left(data_mask.astype(bool), padded_h, padded_w)
+        data_mask_pad = pad_top_left(data_mask.astype(bool), fft_h, fft_w)
 
-    corr, corr_num = masked_ncc(image_pad, model_pad, mask_pad, data_mask=data_mask_pad)
+    corr_fft, corr_num = masked_ncc(image_pad, model_pad, mask_pad, data_mask=data_mask_pad)
     # The numerator is a diagnostic that peak selection deliberately does not
     # use (see masked_ncc); holding the name would keep a full-size surface
     # alive through the candidate evaluations below.
     del corr_num
+    corr = _crop_circular(corr_fft, (image_h, image_w), (model_h, model_w))
+    del corr_fft
+
     # Use the NCC (Pearson r) itself for peak localization, not the unnormalized
     # numerator.  The numerator scales with sqrt(image-variance-under-mask), and
     # for dense templates -- body discs, Lambert-shaded limbs, rings, etc. -- that
@@ -876,6 +974,45 @@ def navigate_single_scale_kpeaks(
     # such shifts are outside any physically plausible offset range.
     peaks = nms_topk(corr, k=max_peaks, radius=nms_radius, max_offset_vu=max_offset_vu)
 
+    if not peaks:
+        # TODO When no candidates are found, the function returns cov: np.diag([1e6, 1e6])
+        # and quality: -np.inf. Downstream code might not check for -np.inf quality and could
+        # treat this as a valid result. Consider returning None or raising an exception instead.
+        # The result-shape contract matches the populated path so callers
+        # (e.g. ``navigate_with_pyramid_kpeaks`` debug log) can read every
+        # key without a KeyError when the search collapses.  Returning before the
+        # refinement spectrum is built spares its two full-period transforms.
+        return {
+            'offset': (0.0, 0.0),
+            'cov': np.diag([1e6, 1e6]),
+            'sigma_xy': (1e3, 1e3),
+            'quality': -np.inf,
+            'peak_val': 0.0,
+            'rc': (0, 0),
+            'all_candidates': [],
+        }
+
+    # The sub-pixel refinement interpolates the correlation between integer lags
+    # with the trigonometric interpolant at the transform's period, so its
+    # transform stays at image + model: another length would move the refined
+    # offset.  The gradient surfaces localize the integer peak (and drive
+    # quality), but the refinement runs on the raw-intensity surfaces to avoid the
+    # gradient-magnitude rectification bias.  Without gradient mode these are the
+    # same arrays, so the refinement is unchanged.
+    if use_gradient:
+        refine_image_pad = pad_top_left(image_raw, padded_h, padded_w)
+        refine_model_pad = pad_top_left(model_raw, padded_h, padded_w)
+    else:
+        refine_image_pad = image_pad[:padded_h, :padded_w]
+        refine_model_pad = model_pad[:padded_h, :padded_w]
+    refine_spectrum = refinement_cross_spectrum(
+        refine_image_pad,
+        refine_model_pad,
+        mask_pad[:padded_h, :padded_w],
+        lowpass_sigma_px=refine_lowpass_sigma_px,
+    )
+    del refine_image_pad, refine_model_pad
+
     if logger is not None:
         logger.debug('Correlation peaks:')
 
@@ -884,8 +1021,8 @@ def navigate_single_scale_kpeaks(
         evaluation = evaluate_candidate(
             image_pad=image_pad,
             model_pad=model_pad,
-            mask_pad=mask_pad,
             corr=corr,
+            refine_spectrum=refine_spectrum,
             rc=(p, q),
             upsample_factor=upsample_factor,
             model_shape=(model_h, model_w),
@@ -894,9 +1031,6 @@ def navigate_single_scale_kpeaks(
             prior_weight=prior_weight,
             metric=metric,
             logger=logger,
-            refine_image_pad=refine_image_pad,
-            refine_model_pad=refine_model_pad,
-            refine_lowpass_sigma_px=refine_lowpass_sigma_px,
         )
         candidates.append(evaluation)
         if logger is not None:
@@ -909,22 +1043,6 @@ def navigate_single_scale_kpeaks(
                 f'peak_val {evaluation["peak_val"]:.3f}'
             )
 
-    if not candidates:
-        # TODO When no candidates are found, the function returns cov: np.diag([1e6, 1e6])
-        # and quality: -np.inf. Downstream code might not check for -np.inf quality and could
-        # treat this as a valid result. Consider returning None or raising an exception instead.
-        # The result-shape contract matches the populated path so callers
-        # (e.g. ``navigate_with_pyramid_kpeaks`` debug log) can read every
-        # key without a KeyError when the search collapses.
-        return {
-            'offset': (0.0, 0.0),
-            'cov': np.diag([1e6, 1e6]),
-            'sigma_xy': (1e3, 1e3),
-            'quality': -np.inf,
-            'peak_val': 0.0,
-            'rc': (0, 0),
-            'all_candidates': [],
-        }
     winner = max(candidates, key=lambda r: r['quality'])
     # Carry every evaluated candidate so callers that want to inspect
     # runner-up peaks (e.g. peak-to-runner-up ratio diagnostics) can do
@@ -1022,7 +1140,8 @@ def navigate_with_pyramid_kpeaks(
         max_peaks: The number of peaks to look for in the correlation at each pyramid level.
         upsample_factor: The upsample factor to use for increased FFT resolution around a peak.
         metric: The metric to use for the navigation. Can be one of 'psr', 'pmr', or 'per'.
-        quality_thresh: The quality threshold to use for the navigation.
+        quality_thresh: The quality threshold to use for the navigation.  A result whose
+            quality is below it, or is NaN, is spurious.
         consistency_tol: The consistency tolerance to use for the navigation.
         nms_radius: The radius to use for the non-maximum suppression.
         prior_weight_final: The prior weight to use for the final navigation.
@@ -1311,7 +1430,12 @@ def navigate_with_pyramid_kpeaks(
             abs(result['offset'][0]) >= max_offset_vu[0] - 2.0
             or abs(result['offset'][1]) >= max_offset_vu[1] - 2.0
         )
-    spurious = (result['quality'] < quality_thresh) or (consistency > consistency_tol) or at_edge
+    # Written so a NaN quality fails it: the PSR is NaN when every valid shift lies
+    # within the peak's guard radius, as on a tiny frame or template, and such a
+    # peak has no sidelobe to stand out from.  Winner selection by max() still
+    # treats a NaN quality order-dependently (#943).
+    quality_ok = bool(result['quality'] >= quality_thresh)
+    spurious = (not quality_ok) or (consistency > consistency_tol) or at_edge
     if at_edge:
         logger.debug(
             'Correlation peak within 2 pixels of max-offset window edge; marking result spurious'
