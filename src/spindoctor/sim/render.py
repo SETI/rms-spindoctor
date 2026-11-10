@@ -1,18 +1,21 @@
 """Entry point for rendering a simulated scene: params in, image + meta out.
 
 ``render_combined_model`` is a thin, cached driver over the forward-model
-stage pipeline (:mod:`spindoctor.sim.forward`): it validates the scene,
-normalizes its parameters into a deterministic JSON cache key, runs the
-pipeline on a fresh :class:`~spindoctor.sim.forward.stages.SimFrame`, and
-returns the rendered image with the renderer's output metadata.
+stage pipeline (:mod:`spindoctor.sim.forward`): it encodes the scene as
+deterministic sorted-key JSON, validates the scene, runs the pipeline on a fresh
+:class:`~spindoctor.sim.forward.stages.SimFrame` (cached on a key built from
+that JSON), and returns the rendered image with the renderer's output metadata.
 
 Every render validates its scene with
 :func:`~spindoctor.sim.scene.validate_sim_params`, so a scene built in memory
-is held to the same rules as one read from a file.  Validation is cached on
-the same JSON key the render uses, so rendering one scene many times validates
-it once.  The one exception is :func:`render_unvalidated_preview`, which the
-scene editor's live preview uses so the author can see a half-edited scene
-that would not yet pass.
+is held to the same rules as one read from a file.  The one route that skips
+validation is :func:`render_unvalidated_preview`, which the scene editor's live
+preview uses so the author can see a half-edited scene that would not yet pass.
+
+Validation is cached on the scene's full JSON together with the label its errors
+start with, so rendering one scene many times validates it once.  That is not
+quite the render cache key: an offset-free render leaves the planted pointing out
+of its key, and validation never does.
 
 Callers are ``ObsSim``, the scene-editor GUI, and ``sim/png_export.py``
 (which the doc-gallery and sweep runners drive).  The params-JSON caching
@@ -124,13 +127,31 @@ def resolve_oversample(sim_params: dict[str, Any]) -> int:
 # that validated once validates again whenever it is rendered again.
 @lru_cache(maxsize=8)
 def _validate_scene_json(scene_json: str, source: str) -> None:
-    """Validate the scene a JSON cache key encodes, once per key and source.
+    """Validate the scene that ``scene_json`` encodes, once per scene and source.
 
-    The decoded mapping is the one the cached render decodes, so validation
-    checks exactly what the pipeline will read.  A refused scene raises every
+    The mapping validated is decoded from the same JSON the render decodes, so
+    validation checks what the pipeline will read.  A refused scene raises every
     time, since ``lru_cache`` does not cache exceptions.
     """
     validate_sim_params(json.loads(scene_json), source=source)
+
+
+def validate_scene(sim_params: dict[str, Any], *, source: str = 'sim_params') -> None:
+    """Validate a scene exactly as :func:`render_combined_model` does, without rendering.
+
+    The check shares the render path's validation cache, so a scene checked here
+    and then rendered with the same ``source`` is validated once.  The scene editor
+    calls it after each preview, so an author sees why a scene would be refused
+    even when nothing else renders it.
+
+    Parameters:
+        sim_params: The parameters describing the simulated model.
+        source: The label validation errors start with.
+
+    Raises:
+        SimSceneValidationError: If the scene fails validation.
+    """
+    _validate_scene_json(json.dumps(sim_params, sort_keys=True), source)
 
 
 def render_combined_model(
@@ -140,8 +161,8 @@ def render_combined_model(
 
     The scene is checked with :func:`~spindoctor.sim.scene.validate_sim_params`
     before anything renders, so an invalid scene raises the same error a scene
-    file would raise when loaded.  Validation is cached on the scene's JSON
-    key, so rendering one scene repeatedly validates it once.
+    file would raise when loaded.  Validation is cached on the scene's full JSON
+    and ``source``, so rendering one scene repeatedly validates it once.
 
     Parameters:
         sim_params: The parameters describing the simulated model.

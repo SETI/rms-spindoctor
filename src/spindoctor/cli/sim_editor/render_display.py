@@ -13,8 +13,9 @@ status bar reads the frame the navigator reads, with the planted offset applied.
 When a scene plants an offset, that frame is a second render, which runs off the UI
 thread (:mod:`spindoctor.cli.sim_editor.verdict`): the preview appears at once, the
 status bar says the verdict is pending, and the navigated frame's summary replaces
-that when the second render finishes.  That render validates the scene, so a scene
-that fails validation shows the validation error in the status bar instead.
+that when the second render finishes.  After each preview the scene is validated on
+the UI thread, through the render path's validation cache, and a scene that fails
+shows the reason in the status bar in place of a verdict.
 """
 
 from typing import Any
@@ -33,8 +34,8 @@ from spindoctor.sim.instrument_navigator import (
     resolve_sim_inst_config,
 )
 from spindoctor.sim.instrument_resolvers import resolve_data_units
-from spindoctor.sim.render import render_unvalidated_preview
-from spindoctor.sim.scene_schema import scene_value
+from spindoctor.sim.render import render_unvalidated_preview, validate_scene
+from spindoctor.sim.scene_schema import SimSceneValidationError, scene_value
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 
 
@@ -115,19 +116,30 @@ class RenderDisplayMixin(SimEditorBase):
     def _update_image(self) -> None:
         """Re-render the preview, refresh the display, and update the status bar.
 
-        The preview renders on the UI thread.  Without a planted offset the status
-        bar describes the preview itself.  With one, the navigator reads a
+        The preview renders on the UI thread, and the scene is then validated there.
+        A scene that fails validation shows the reason in the status bar and gets no
+        verdict.  Otherwise, without a planted offset the status bar describes the
+        preview itself.  With one, the navigator reads a
         different frame, since the offset moves the scene within the frame (a body
         near the edge can leave it); the status bar then names the units with
         ``verdict pending`` and asks the verdict runner for that frame, which
         supersedes any verdict still on its way for an earlier edit.
         """
         try:
-            # The preview skips validation so a half-edited scene still shows;
-            # the verdict render below validates (caching is in render.py).
+            # The preview skips validation so a half-edited scene still shows.
             img, meta = render_unvalidated_preview(self.sim_params)
             self._current_image = img
             self._last_meta = meta
+            # The scene is then checked as every navigated frame is (the check is
+            # cached in render.py), so a scene that would be refused says why at
+            # once, whether or not it plants an offset.
+            try:
+                validate_scene(self.sim_params)
+            except SimSceneValidationError as e:
+                self._verdict_runner.cancel()
+                self._units_label.setText(f'scene would be refused: {e}')
+                self._display_image()
+                return
             inst_config = resolve_sim_inst_config(
                 DEFAULT_CONFIG,
                 self.sim_params.get('instrument'),

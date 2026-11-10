@@ -548,18 +548,22 @@ salted ``hash``.) Sub-effects inside a stage derive their own named streams the
 same way (background stars, cosmic rays, crater placement).
 
 **The driver.** :func:`spindoctor.sim.render.render_combined_model` takes a
-``sim_params`` dict and returns ``(image, metadata)``. It normalizes the parameters
-into a deterministic JSON cache key, validates the scene with
+``sim_params`` dict and returns ``(image, metadata)``. It encodes the scene as
+deterministic sorted-key JSON, validates the scene with
 :func:`spindoctor.sim.scene.validate_sim_params`, runs the pipeline on a fresh frame,
-and caches the result (``lru_cache(maxsize=2)``, plus small shape caches inside the
-body/mesh/star renderers; ``clear_render_caches`` drops them all for determinism
-tests). Validation is cached on the same JSON key, so a scene rendered many times is
-validated once, and a refused scene raises the same
-:class:`~spindoctor.sim.scene_schema.SimSceneValidationError` that loading it from a
-file would raise. :class:`~spindoctor.obs.obs_inst_sim.ObsSim` renders through this
-driver, so a scene handed to it in memory is validated too, with the scene path in the
-error message. :func:`spindoctor.sim.render.render_unvalidated_preview` is the editor
-preview's offset-free route, which skips validation. The caching contract: scene
+and caches the result on a key built from that JSON (``lru_cache(maxsize=2)``, plus
+small shape caches inside the body/mesh/star renderers; ``clear_render_caches`` drops
+them all for determinism tests). Validation has a small cache of its own. Its key is the scene's full JSON
+together with the ``source`` label that error messages start with. That differs from
+the render cache key, which leaves the planted offset and roll out for an offset-free
+render. A scene rendered many times is validated once, and a refused scene raises the
+same :class:`~spindoctor.sim.scene_schema.SimSceneValidationError` that loading it
+from a file would raise. :class:`~spindoctor.obs.obs_inst_sim.ObsSim` renders through
+this driver, so a scene handed to it in memory is validated too, with the scene path
+in the error message. :func:`spindoctor.sim.render.render_unvalidated_preview` is the
+editor preview's offset-free route, which skips validation. After each preview the
+editor calls :func:`spindoctor.sim.render.validate_scene`, which shares the validation
+cache, so the author sees why a scene would be refused. The caching contract: scene
 parameters are JSON-serializable scalars/lists/maps, no wall-clock or global RNG state
 is consulted, and two renders of the same scene are bit-identical on one machine.
 
@@ -659,15 +663,17 @@ residual is below the blank limit, so the navigator calls it blank; an empty
 the units are otherwise invisible: a ``vgiss`` frame spanning about 0 to 1 looks
 the same as a ``coiss_nac`` frame spanning 20 to 4095.
 
-Without a planted offset, the preview is the frame the navigator reads, and the
-status bar describes it as soon as it renders. With one, the navigated frame is a
-second render, and the editor runs it on a worker thread so that an edit never
-waits for it. The preview appears at once, and the status bar shows the units
-followed by ``verdict pending``. When the second render finishes, its summary
-replaces that line. A newer edit supersedes the verdict on its way, so the status
-bar never shows the verdict for an older scene. A failed second render puts its
-error on the status bar and prints its traceback to standard error.
-:ref:`sim-editor-verdict-thread` describes the worker.
+The preview renders without validation, and the editor then validates the scene on
+the UI thread. A scene that fails shows ``scene would be refused:`` and the reason in
+the status bar, and gets no verdict render. Otherwise, without a planted offset, the
+preview is the frame the navigator reads, and the status bar describes it as soon as
+it renders. With one, the navigated frame is a second render, and the editor runs it
+on a worker thread so that an edit never waits for it. The preview appears at once,
+and the status bar shows the units followed by ``verdict pending``. When the second
+render finishes, its summary replaces that line. A newer edit supersedes the verdict
+on its way, so the status bar never shows the verdict for an older scene. A failed
+second render puts its error on the status bar and prints its traceback to standard
+error. :ref:`sim-editor-verdict-thread` describes the worker.
 
 .. _sim-optics-stage:
 
@@ -4055,14 +4061,15 @@ For a scene with a planted offset that frame is a second render (see
 :ref:`Instruments <sim-instruments>`), which ``VerdictRunner`` in ``verdict.py`` runs on a
 worker thread while the preview stays on the UI thread.
 
-- **Requests.** Each render of the preview with a planted offset asks for a
+- **Requests.** Each preview of a valid scene with a planted offset asks for a
   verdict, which takes the next generation number and an independent deep copy of
   ``sim_params``. At most one verdict render runs. A request made while one runs
   waits, and replaces any request already waiting. A render whose generation is
   older than the latest request is discarded when it finishes. A preview without
-  an offset, a failed preview, and closing the window each cancel, by taking a
-  generation number with no request behind it. A running render can't be
-  interrupted, so a stale one runs to the end before the waiting request starts.
+  an offset, a failed preview, a scene that fails validation, and closing the window
+  each cancel, by taking a generation number with no request behind it. A running
+  render can't be interrupted, so a stale one runs to the end before the waiting
+  request starts.
 - **Hand-back.** The worker touches no Qt object and no editor state. It writes its
   summary, or its error and traceback, into its job object and then sets the job's
   ``threading.Event``. While a render runs, a ``QTimer`` on the UI thread polls
