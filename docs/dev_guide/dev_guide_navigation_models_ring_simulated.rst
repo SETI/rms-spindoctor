@@ -265,4 +265,4 @@ The image shows the band 2.5 px outside the prediction. A uniform radial error d
 closed ring rather than translating it, yet the robust fit still locks onto one side and
 absorbs part of the error into the offset. The declared sigma reaches both techniques'
 covariance, so the scene expects a success at the low confidence tier with an offset error
-of 3.2 ± 1.0 px. That error bar covers how far the fix can be from the truth.
+of 1.7 ± 1.0 px. That error bar covers how far the fix can be from the truth.

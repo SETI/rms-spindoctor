@@ -392,8 +392,8 @@ Three things, each impossible with real frames alone:
   the method's assumption does not describe.
 - **Failure modes real data cannot isolate become provable.** The worked
   example is the planted-radial-error family: ``orbit_error_ringlet`` plants
-  a 2.5 px radial catalog error and the fused result is a success roughly
-  3 px wrong. On a real frame this is indistinguishable from a good lock --
+  a 2.5 px radial catalog error and the fused result is a success about
+  1.7 px wrong. On a real frame this is indistinguishable from a good lock --
   only a frame whose truth is known by construction can *prove* the ensemble
   absorbs this error into the offset, and keep proving it (the honest pin in
   :ref:`sim-expected`) until the gap is closed.
@@ -2444,7 +2444,7 @@ in quadrature to its reported covariance along the fit's radial direction
 
 The measured behavior on this axis stays deliberately uncomfortable, and the
 ``orbit_error_ringlet`` scene pins it: a navigable ringlet rendered 2.5 px
-outward of its catalog orbit navigates to a success about 3 px wrong. A
+outward of its catalog orbit navigates to a success about 1.7 px wrong. A
 uniform radial misplacement has no exact translational equivalent, so the
 robust edge fit down-weights one arc, locks onto one side of the annulus,
 and absorbs the ephemeris error into the recovered offset instead of leaving

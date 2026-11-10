@@ -307,7 +307,7 @@ techniques read one catalog model, the Step 5 independence resolution collapses
 them to a single representative witness before the merge, so the fused radial
 sigma is that one witness's honest ~2.5 px rather than the value a
 two-independent-witness fuse would shrink it to. The biased offset then demotes
-to ``low`` (a measured confidence around 0.89 against a ~2.5 px sigma that
+to ``low`` (a measured confidence around 0.90 against a ~2.5 px sigma that
 covers the residual bias), and the scene keeps its measured-error pin: the
 channel prices the hazard, but it cannot remove the bias. Collapsing the ring
 pair is what stops the spurious alternative -- treating the two correlated
@@ -377,7 +377,7 @@ a regression test, and the first also shows where the veto's coverage ends:
   extreme mesh-vs-ellipsoid shape mismatch (``mesh_lumpiness`` 0.7, a
   non-ellipsoidal relief of 8.75% of the radius RMS) the disc correlation and
   the limb fit lock onto the mismatched model. Over mesh seeds 0 to 12 the
-  veto reports 4 of the 13 shapes ``conflicted``. On those, the pose-free
+  veto reports 2 of the 13 shapes ``conflicted``. On those, the pose-free
   blob, which does not chase the shape, sits pixels from the consensus, and its
   separation clears both the body-scaled pixel floor and the Mahalanobis
   threshold. ``test_sim_sweeps`` asserts that rate as a floor. On the other
