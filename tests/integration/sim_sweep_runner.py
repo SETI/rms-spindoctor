@@ -3,8 +3,9 @@
 Invoked as ``python -m tests.integration.sim_sweep_runner`` from a clean
 checkout.  For every spec under ``tests/integration/sim_sweeps/`` it navigates
 each sweep step and writes ``tests/integration/sim_sweeps/results/<name>.json``
-containing one row per value: ``value``, ``status``, ``offset_error_px``,
-``confidence``, and ``primary_technique``.  The JSON is a human-readable
+containing one row per value and seed: ``value``, ``seed``, ``status``,
+``status_reason``, ``offset_error_px``, ``rotation_error_deg``, ``confidence``, and
+``primary_technique``.  The JSON is a human-readable
 diagnostic artifact (response curves), not a re-blessed regression baseline --
 ``test_sim_sweeps`` asserts the invariants directly.
 

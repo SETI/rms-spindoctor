@@ -20,13 +20,15 @@ sweep_name: irregularity_shape_mismatch
 # Across mesh seeds 0 to 12 (2026-11-10): every walk starts sub-pixel and ends
 # 2.7 to 12.7 px off, but the error never falls between steps on only 6 of them
 # (seeds 2, 5, 7, 9, 10, 12); every walk but seed 7's dips at least 0.3 below the
-# clean confidence somewhere (seed 7 dips 0.10); at L 0.7 the veto reports 2 of
-# the 13 conflicted (seeds 2, 5); and seed 10 ends a 0.91-confidence success
-# 12.7 px off, a confident wrong result the veto misses (#790).  These come from
-# one noise draw: the draw before the detector drew shot noise per pixel had
-# the veto report 4 conflicted (seeds 0, 2, 5, 12), and the population over
-# several noise seeds is still to be measured (#960).  test_sim_sweeps asserts
-# the single-seed walk as a tripwire and the population's properties on its own.
+# clean confidence somewhere (seed 7 dips 0.10); at L 0.7 two of the 13 end
+# conflicted, seed 5 by the shape-lock veto and seed 2 because its disc and limb
+# disagree; and seed 10 ends a 0.91-confidence success 12.7 px off, a confident
+# wrong result the veto misses (#790).  These come from one noise draw.  On the
+# draw before the detector drew shot noise per pixel, the veto fired on 3 seeds
+# (0, 5, 12) and seed 2 was conflicted because its disc and limb disagreed.  The
+# population over several noise seeds is still to be measured (#960).
+# test_sim_sweeps asserts the single-seed walk as a tripwire and the population's
+# properties on its own.
 base_scene: algorithmic_invariants/planted_offset_shapemismatch.yaml
 parameters: [bodies.0.mesh_lumpiness]
 values: [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7]

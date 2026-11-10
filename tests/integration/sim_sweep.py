@@ -3,8 +3,8 @@
 A sweep takes one catalog scene as a base, varies a single parameter (or a group
 of parameters that move together, e.g. the three axes of a sphere) across a list
 of values, and navigates each resulting frame.  The per-step row records the
-recovered offset error, confidence, status, and primary technique, so a test can
-assert how a navigation diagnostic *responds* to a controlled change -- the
+recovered offset error, confidence, status, status reason, and primary technique,
+so a test can assert how a navigation diagnostic *responds* to a controlled change -- the
 verification layer a calibrated confidence formula relies on.
 
 A sweep may also declare ``ensemble_seeds: N``: each point is then replicated
@@ -68,6 +68,7 @@ class SweepRow:
 
     value: float
     status: str
+    status_reason: str
     offset_error_px: float | None
     rotation_error_deg: float | None
     confidence: float
@@ -334,6 +335,7 @@ def run_sweep_steps(
                 SweepRow(
                     value=value,
                     status=str(result.status),
+                    status_reason=str(result.status_reason),
                     offset_error_px=offset_error,
                     rotation_error_deg=rotation_error,
                     confidence=float(result.confidence),

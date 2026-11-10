@@ -377,10 +377,13 @@ a regression test, and the first also shows where the veto's coverage ends:
   extreme mesh-vs-ellipsoid shape mismatch (``mesh_lumpiness`` 0.7, a
   non-ellipsoidal relief of 8.75% of the radius RMS) the disc correlation and
   the limb fit lock onto the mismatched model. Over mesh seeds 0 to 12 the
-  veto reports 2 of the 13 shapes ``conflicted``. On those, the pose-free
-  blob, which does not chase the shape, sits pixels from the consensus, and its
+  veto fires on one of the 13 shapes and reports it ``conflicted``, with the
+  status reason ``body_shape_lock_suspect``. On that shape the pose-free blob,
+  which does not chase the shape, sits pixels from the consensus, and its
   separation clears both the body-scaled pixel floor and the Mahalanobis
-  threshold. ``test_sim_sweeps`` asserts that rate as a floor. On the other
+  threshold. ``test_sim_sweeps`` counts that status reason and asserts the rate
+  as a floor. A second shape also ends ``conflicted``, but because its disc and
+  limb disagree with each other, and the veto plays no part. On the remaining
   shapes the blob either carries the result itself at low confidence or is
   displaced together with the lock, so the disagreement the veto reads never
   appears. One shape ends a 0.91-confidence success 12.7 px off. That
