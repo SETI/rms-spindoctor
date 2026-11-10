@@ -356,6 +356,34 @@ def test_a_scene_with_an_offset_that_fails_validation_gets_no_verdict(
     )
 
 
+def test_a_preview_that_fails_on_a_refused_scene_shows_why(model: Any) -> None:
+    """A scene the preview cannot render shows validation's refusal, with no dialog."""
+    model.sim_params['exposure_sec'] = 'long'
+    model._update_image()
+    assert model._units_label.text() == (
+        'scene would be refused: sim_params: exposure_sec must be a positive number when present'
+    )
+
+
+def test_a_preview_that_fails_on_a_valid_scene_opens_the_error_dialog(
+    model: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A render failure on a scene validation accepts reports the render error."""
+    dialogs: list[str] = []
+
+    def _fail(*args: Any, **kwargs: Any) -> Any:
+        raise RuntimeError('preview failed')
+
+    monkeypatch.setattr(
+        'spindoctor.cli.sim_editor.render_display.render_unvalidated_preview', _fail
+    )
+    monkeypatch.setattr(
+        QMessageBox, 'critical', staticmethod(lambda *args: dialogs.append(args[2]))
+    )
+    model._update_image()
+    assert dialogs == ['Failed to render image:\npreview failed']
+
+
 def test_clearing_the_offset_drops_the_running_verdict(model: Any, gated: _GatedSummary) -> None:
     """A render for a scene whose offset was then removed never replaces the label."""
     _edit_offset(model, 5.0)

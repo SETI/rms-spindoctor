@@ -666,7 +666,10 @@ the same as a ``coiss_nac`` frame spanning 20 to 4095.
 
 The preview renders without validation, and the editor then validates the scene on
 the UI thread. A scene that fails shows ``scene would be refused:`` and the reason in
-the status bar, and gets no verdict render. Otherwise, without a planted offset, the
+the status bar, and gets no verdict render. When the preview itself fails to render,
+the editor validates the scene as well. If validation refuses it, the status bar shows
+the same line and the last preview stays in place; any other render failure opens an
+error dialog. For a scene that renders and passes validation, without a planted offset, the
 preview is the frame the navigator reads, and the status bar describes it as soon as
 it renders. With one, the navigated frame is a second render, and the editor runs it
 on a worker thread so that an edit never waits for it. The preview appears at once,

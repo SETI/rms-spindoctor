@@ -15,7 +15,9 @@ thread (:mod:`spindoctor.cli.sim_editor.verdict`): the preview appears at once, 
 status bar says the verdict is pending, and the navigated frame's summary replaces
 that when the second render finishes.  After each preview the scene is validated on
 the UI thread, through the render path's validation cache, and a scene that fails
-shows the reason in the status bar in place of a verdict.
+shows the reason in the status bar in place of a verdict.  A preview that fails to
+render is validated too, so a scene the renderer cannot read but validation refuses
+shows that reason rather than an error dialog.
 """
 
 from typing import Any
@@ -128,20 +130,28 @@ class RenderDisplayMixin(SimEditorBase):
         near the edge can leave it); the status bar then names the units with
         ``verdict pending`` and asks the verdict runner for that frame, which
         supersedes any verdict still on its way for an earlier edit.
+
+        When the preview render itself fails, the scene is validated too.  A scene
+        that validation refuses shows the reason in the status bar and keeps the last
+        preview; any other render failure opens an error dialog.
         """
         try:
-            # The preview skips validation so a half-edited scene still shows.
-            img, meta = render_unvalidated_preview(self.sim_params)
+            try:
+                # The preview skips validation so a half-edited scene still shows.
+                img, meta = render_unvalidated_preview(self.sim_params)
+            except Exception:
+                # A scene the renderer cannot read is usually one validation refuses,
+                # and the refusal names the offending key where the render error
+                # does not.
+                if self._report_refusal():
+                    return
+                raise
             self._current_image = img
             self._last_meta = meta
             # The scene is then checked as every navigated frame is (the check is
             # cached in render.py), so a scene that would be refused says why at
             # once, whether or not it plants an offset.
-            try:
-                validate_scene(self.sim_params)
-            except SimSceneValidationError as e:
-                self._verdict_runner.cancel()
-                self._units_label.setText(f'scene would be refused: {e}')
+            if self._report_refusal():
                 self._display_image()
                 return
             inst_config = resolve_sim_inst_config(
@@ -162,6 +172,22 @@ class RenderDisplayMixin(SimEditorBase):
             self._verdict_runner.cancel()
             self._units_label.setText('')
             QMessageBox.critical(self, 'Error', f'Failed to render image:\n{e!s}')
+
+    def _report_refusal(self) -> bool:
+        """Validate the scene and, if validation refuses it, say why in the status bar.
+
+        A refused scene gets no verdict, so any verdict render on its way is dropped.
+
+        Returns:
+            True if validation refused the scene, False if it passed.
+        """
+        try:
+            validate_scene(self.sim_params)
+        except SimSceneValidationError as e:
+            self._verdict_runner.cancel()
+            self._units_label.setText(f'scene would be refused: {e}')
+            return True
+        return False
 
     def _show_verdict(self, summary: str) -> None:
         """Show the navigated frame's summary, delivered by the verdict runner.
