@@ -82,7 +82,7 @@ These make every later phase cheaper or safer. Most are small.
 |---|---|---|
 | #914, framing part | **Done (PR #932).** Docs present self-consistency as accuracy | Stop the overclaim immediately: simulated results are reproducibility and self-consistency on the Cassini NAC, and confidence values are provisional. Docs only. |
 | #924 | **Done (PR #932).** The simulator developer guide mixes per-camera values into the mechanism descriptions | Move each camera's measured values to its instrument page so each is stated once, before Phases 3 and 4 re-measure them and every change has to edit two copies. Docs only. |
-| #911, including per-pixel variates | One frame-wide Poisson stream | Every later fix would otherwise turn into a new noise field across the whole frame. |
+| #911, including per-pixel variates | **Done (PR TBD).** One frame-wide Poisson stream | Every later fix would otherwise turn into a new noise field across the whole frame. |
 | #905, truth-check part | Assertions are change detectors and 1 px bounds | Give validation scenes truth-based assertions before the renders start moving, so a move is judged against the planted truth. |
 | #872 | The baseline regenerator imports whichever installed package it finds | Regenerated baselines must come from the checkout under test before the churn starts. |
 | #900, #813 | Validation skips the render path; null body keys crash; the navigator's simulated ring model reads nullable keys unsafely | Typed per-block specs on every entry point, with null meaning absent; the first slice of #915. |
@@ -96,7 +96,7 @@ These make every later phase cheaper or safer. Most are small.
 | #903, regression part | The realism match cannot fail | Compare a fresh run with the committed summary within per-statistic bands, so later physics changes are caught when they make realism worse. The hold-out and transfer parts come in Phase 6. |
 
 **Exit:** changing the signal in one region of a frame leaves the noise elsewhere in that frame
-unchanged; validation scenes assert against their planted truth; a null body key behaves exactly
+unchanged (met by #911); validation scenes assert against their planted truth; a null body key behaves exactly
 as an absent one on every entry point; the realism match fails on a planted regression; adding a
 camera's tables is a YAML edit (met by #876).
 

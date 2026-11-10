@@ -725,7 +725,12 @@ intensive signal passes through the electron unit chain in
    read: 0 at the first line, rising linearly to ``readout_dark_e`` at the last,
    whatever the exposure. A calibrated product subtracts that ramp again, as
    CISSCAL's dark model does, and keeps its shot noise. Poisson shot noise then
-   acts on the electron image.
+   acts on the electron image, one pixel at a time. The chain draws one uniform
+   value per pixel and turns it into a count through that pixel's own Poisson
+   distribution (:func:`~spindoctor.sim.forward.detector.shot_noise.sample_poisson`).
+   Up to a mean of a million electrons the count is the exact Poisson quantile.
+   Above that it is the rounded Cornish-Fisher quantile, which differs from the
+   exact one by a single count in a few pixels per hundred thousand.
 4. **Hot pixels and full-well bloom.** Hot pixels are stamped, then charge above
    ``full_well_e`` spills along the column up to ``bloom_length`` pixels each
    way and the image is capped at the well. A camera's physical saturation
@@ -762,6 +767,15 @@ an independent RNG stream from the scene seed, so toggling one never perturbs
 another's realization. The deterministic signal-to-DN conversion always runs --
 it is what makes a DN frame -- while each stochastic sub-effect is a no-op when
 its gating amplitude, fraction, or rate is zero.
+
+No draw in the chain takes a number of random values that depends on the signal.
+The shot noise, the read noise, the response pattern, and the calibration residual
+each draw one value per pixel (the vidicon's line noise draws one per line), and
+every event count takes its mean from the scene rather than from the pixels. So changing the signal in one region of a frame
+leaves the noise everywhere else unchanged, and a last-bit change in a pixel's
+mean, such as a convolution tail that crosses zero, changes that pixel's count
+only in the rare case that its uniform value falls on a step of the Poisson
+distribution.
 
 **Quantization sub-modes.** ``exact`` rounds to integer DN (uniform bins);
 ``8bit`` rounds to integer DN and clips at the 255 code ceiling (the output
@@ -3837,7 +3851,8 @@ change alters rendered output:
 - **Structural tests** (``tests/integration/test_sim_scenes.py``): every scene
   validates, sits in a declared class, has a unique name, and renders.
 - **Regression baselines** (``tests/integration/sim_baselines/``): every
-  catalog scene re-navigates to its recorded rounded outcome
+  catalog scene re-navigates to its recorded outcome, with the same status and
+  confidence rank, each offset axis within 0.02 px, and the confidence within 0.02
   (``test_sim_baselines.py``, integration tier, run by CI); regenerate with
   ``python -m tests.integration.update_sim_baselines`` and review the diff
   (see :ref:`reproducing-sim-baselines`).
@@ -3857,12 +3872,18 @@ change alters rendered output:
 
   The regeneration rule is enforced mechanically by
   ``tests/integration/test_render_diffs.py`` (integration tier, run by CI): every
-  catalog scene must have a committed ``current/`` PNG byte-identical to a
-  fresh render, every scene class must have a committed sheet, and neither
-  may outlive its scene or class. The sheets themselves are enforced for
-  presence and coverage only -- their pixels encode the previous baseline's
-  before-panels and PIL's environment-dependent label rasterization, so
-  their *content* remains a review artifact, not a byte-compared one.
+  catalog scene must have a committed ``current/`` PNG whose decoded pixels match
+  a fresh render, every scene class must have a committed sheet, and neither
+  may outlive its scene or class. A scene whose detector adds no random value to
+  each pixel must match exactly. A scene with shot noise, read noise, a per-pixel
+  response pattern, or a calibration residual may carry a different noise
+  realization, but in every 16 by 16 block the mean difference must stay within
+  eight standard errors of that block's own noise, plus one display level for the
+  stretch. A moved edge or a changed brightness fails; a new noise draw does not.
+  The sheets themselves are enforced for presence and coverage only -- their
+  pixels encode the previous baseline's before-panels and PIL's
+  environment-dependent label rasterization, so their *content* remains a review
+  artifact, not a pixel-compared one.
 
 The two documentation galleries (``docs/dev_guide/_sim_images/`` and
 ``docs/simulator_report/_scene_images/``, both written by

@@ -200,9 +200,10 @@ tests need none of the archive environment above.
    * - Sim regression baselines (``test_sim_baselines.py``)
      - integration (``sim_integration``)
      - nothing
-     - Every catalog scene re-navigates to its recorded rounded outcome (a
-       tripwire). Integration-marked because rendering and navigating every scene
-       takes minutes; see :ref:`reproducing-sim-baselines`.
+     - Every catalog scene re-navigates to its recorded outcome, within a small
+       tolerance on the offset (a tripwire). Integration-marked because rendering
+       and navigating every scene takes minutes; see
+       :ref:`reproducing-sim-baselines`.
    * - Sensitivity sweeps (``test_sim_sweeps.py``)
      - integration (``sim_integration``)
      - nothing
@@ -284,17 +285,26 @@ verify no existing baseline shifts.
 Reproducing the simulator baselines
 ===================================
 
-A simulator baseline records a scene's rounded outcome: status, offset to
-0.01 px, and confidence to 0.01. The test compares them exactly, without a
-tolerance band, and the render and gallery checks compare PNGs byte for byte.
-That works because a simulated navigation is deterministic. A scene gives the
-same result in a fresh process and in a long-lived ``pytest-xdist`` worker,
-whatever ran before it.
+A simulator baseline records a scene's outcome: its status, its confidence rank,
+and its offset and confidence as computed, without rounding. The test compares the status and the
+rank exactly, each axis of the offset within 0.02 px, and the confidence within
+0.02. The tolerance is there because some techniques answer on a grid. The disc
+correlation's offset moves in steps of 1/128 px, one step of its upsampled grid,
+and a last-bit change upstream can move it one step. The tolerance is about two
+and a half of those steps.
 
-What does change the result is the CPU. NumPy picks vectorized code paths by CPU
+The render-diff check compares decoded pixels, never PNG bytes. A scene whose
+detector adds no random value to each pixel must match exactly, and one that does
+is checked statistically, block by block (see :doc:`dev_guide_simulator`). The
+gallery check compares PNGs byte for byte. All of this works because a
+simulated render and its navigation are deterministic. A scene gives the same
+result in a fresh process and in a long-lived ``pytest-xdist`` worker, whatever
+ran before it.
+
+What can change the result is the CPU. NumPy picks vectorized code paths by CPU
 (AVX2, AVX-512, and so on), and the paths differ in the last bits of their
-results. That is enough to move a render's bytes, a baseline's rounding, or a
-sweep check that sits near its threshold. So the test package pins NumPy to the
+results. That can move a pixel of a render, a gallery image's bytes, or a sweep
+check that sits near its threshold. So the test package pins NumPy to the
 x86-64-v2 baseline: before NumPy is first imported, ``tests/__init__.py`` sets
 ``NPY_DISABLE_CPU_FEATURES`` to every dispatch group above it.
 ``tests/integration/test_simd_pin.py`` fails if the pin didn't take effect. The
@@ -310,10 +320,17 @@ products in a fixed order, in place of ``@``, and the simulator calls
 ``tests/spindoctor/sim/test_sim_stable_math_guard.py`` fails if a simulator module
 takes a matrix product with ``@``, ``.dot``, or a NumPy matrix-product function, or
 calls ``np.hypot``.
-A last-bit change in the render path wouldn't stay small. The PSF's FFT
-convolution spreads it to every pixel, and a Poisson draw whose mean changes can
-take a different number of random values, which changes the noise in every pixel
-after it.
+
+A last-bit change in the render path stays small. The PSF's FFT convolution
+spreads it to the mean of every pixel, but the detector draws its noise one pixel
+at a time. Each pixel takes one uniform value for its shot noise and one normal
+value for its read noise, however bright or dark the scene is. A changed mean
+can therefore change only its own pixel's noise, and it does so only when the pixel's uniform
+value sits within that last bit of a step in the Poisson distribution, which is
+rare, and then by one count. The pin matters for the checks that remain exact:
+the noise-free renders and the gallery images, which are compared pixel for pixel
+or byte for byte, and the sweep checks, which can sit near a threshold. A last-bit
+change can move a pixel wherever a mask edge or a rounding step falls on it.
 
 On x86-64, with NumPy 2.4 or later, and with ``NPY_DISABLE_CPU_FEATURES`` not
 already set, every machine then reproduces the same files. They reproduced under
