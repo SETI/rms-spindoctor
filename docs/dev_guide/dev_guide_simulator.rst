@@ -221,7 +221,10 @@ applies where. The *channel* is structural:
   (the filter is default-deny -- an unclassified or unknown key stays behind),
   a body's ``nav_override`` mapping is overlaid onto its idealized view and
   then dropped (the navigator sees what it *believes*, never the true values
-  underneath), and all values are deep copies. Nothing reachable *through
+  underneath), and all values are deep copies. A null reads as absent here too:
+  a null inside ``nav_override`` overrides nothing, and a body or star key that is
+  still null after the overlay is left out. Leaving a key out can only take
+  information away, so neither rule lets truth across. Nothing reachable *through
   the filtered view* carries truth.
 - The navigator-side models read **only** ``obs.nav_params``. None of the
   renderer's output -- rendered star records, body masks, z-order maps, all

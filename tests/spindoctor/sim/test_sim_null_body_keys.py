@@ -1,9 +1,10 @@
-"""A null scene body key reads as absent, to the renderer as to the validator.
+"""A null body key reads as absent to the renderer, the navigator, and the validator.
 
 The validator accepts null for every key of a ``bodies`` entry and for every
 optional key of the body's sub-blocks, and reads it as absent.  The renderer
 parses each body once into a typed spec, and the specs of a scene with a null
-key and the scene without it are equal, so the two render the same frame.
+key and the scene without it are equal, so the two render the same frame.  The
+navigator's filtered view leaves a null key out, so it reads the absent key too.
 Atmosphere keys are covered in ``test_sim_atmosphere.py``.
 """
 
@@ -20,7 +21,7 @@ from spindoctor.sim.forward.body_spec import BodySpec, body_spec_from_params
 from spindoctor.sim.forward.body_texture import AlbedoTextureSpec, albedo_spec_from_params
 from spindoctor.sim.forward.haze_structure import CLOUD_BLOB_KEYS
 from spindoctor.sim.render import render_combined_model
-from spindoctor.sim.scene import SimSceneValidationError, validate_sim_params
+from spindoctor.sim.scene import SimSceneValidationError, build_nav_params, validate_sim_params
 from spindoctor.sim.scene_checks_body import (
     _ALBEDO_TEXTURE_KEYS,
     _DISC_TEXTURE_KEYS,
@@ -30,7 +31,7 @@ from spindoctor.sim.scene_checks_body import (
     _TRANSIT_MOON_KEYS,
     _TRANSIT_SHADOW_KEYS,
 )
-from spindoctor.sim.scene_schema import _BODY_KEYS, ELLIPSOID_UNSUPPORTED_KEYS
+from spindoctor.sim.scene_schema import _BODY_IDEALIZED_KEYS, _BODY_KEYS, ELLIPSOID_UNSUPPORTED_KEYS
 
 _SIZE = 32
 
@@ -227,6 +228,31 @@ def test_null_body_keys_render_as_absent(shape: str) -> None:
     image, _ = render_combined_model(_scene(stated))
     expected, _ = render_combined_model(_scene(absent))
     np.testing.assert_array_equal(image, expected)
+
+
+@pytest.mark.parametrize('key', sorted(_BODY_IDEALIZED_KEYS))
+def test_null_body_key_reaches_the_navigator_as_absent(key: str) -> None:
+    """The navigator's view of a body with a null key equals its view without the key.
+
+    The body carries no ``nav_override``, so the key's own null is what is tested.
+    """
+    absent = {k: v for k, v in _base_body(key).items() if k not in {key, 'nav_override'}}
+    stated = {**absent, key: None}
+    validate_sim_params(_scene(stated), source='null')
+    assert build_nav_params(_scene(stated)) == build_nav_params(_scene(absent))
+
+
+def test_null_nav_override_key_leaves_the_scene_value() -> None:
+    """A null nav_override key overrides nothing; the navigator sees the scene's value."""
+    body = {**_ellipsoid_body(), 'nav_override': {'center_v': None}}
+    validate_sim_params(_scene(body), source='null')
+    assert build_nav_params(_scene(body))['bodies'][0]['center_v'] == 15.0
+
+
+def test_null_body_name_stays_out_of_the_navigator_view() -> None:
+    """A null name is left out, so the navigator takes its default rather than 'None'."""
+    body = {**_ellipsoid_body(), 'name': None}
+    assert 'name' not in build_nav_params(_scene(body))['bodies'][0]
 
 
 def test_null_body_name_takes_the_positional_name() -> None:

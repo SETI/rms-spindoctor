@@ -354,6 +354,13 @@ def build_nav_params(sim_params: dict[str, Any]) -> dict[str, Any]:
     truth.  All values are deep copies, so navigator-side code cannot mutate the
     renderer's scene.
 
+    A null means the absent key, here as everywhere in a scene.  A null inside
+    ``nav_override`` overrides nothing, so the navigator sees the scene's own value
+    for that key.  After the overlay, a body or star key that is still null is left
+    out of the entry, so every navigator reader sees exactly what it sees for an
+    absent key.  Dropping keys can only take information away, so this cannot let
+    truth across the boundary.
+
     Parameters:
         sim_params: The full scene mapping (the renderer's input).
 
@@ -384,9 +391,9 @@ def build_nav_params(sim_params: dict[str, Any]) -> dict[str, Any]:
             if block == 'bodies':
                 override = merged.pop('nav_override', None)
                 if isinstance(override, dict):
-                    merged.update(override)
+                    merged.update({k: v for k, v in override.items() if v is not None})
             filtered_objects.append(
-                {k: copy.deepcopy(v) for k, v in merged.items() if k in idealized}
+                {k: copy.deepcopy(v) for k, v in merged.items() if k in idealized and v is not None}
             )
         nav[block] = filtered_objects
     return nav

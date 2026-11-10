@@ -159,7 +159,9 @@ An optional ``nav_override`` mapping breaks that tie. The renderer ignores it an
 always draws the true geometry; the boundary filter
 (:func:`~spindoctor.sim.scene.build_nav_params`) overlays ``nav_override`` onto the
 body's idealized view and drops the key, so the predicted body is built from what the
-navigator *believes* without the true values underneath. This is the channel
+navigator *believes* without the true values underneath. A null inside
+``nav_override`` overrides nothing, and a body key that is null after the overlay is
+left out of the view, so the model reads a null key as the absent key. This is the channel
 that lets the navigation geometry diverge from the render geometry, which the
 irregular-body scenarios exercise:
 
