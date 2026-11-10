@@ -96,7 +96,7 @@ These make every later phase cheaper or safer. Most are small.
 | #903, regression part | The realism match cannot fail | Compare a fresh run with the committed summary within per-statistic bands, so later physics changes are caught when they make realism worse. The hold-out and transfer parts come in Phase 6. |
 
 **Exit:** changing the signal in one region of a frame leaves the noise elsewhere in that frame
-unchanged (met by #911); validation scenes assert against their planted truth; a null body key behaves exactly
+unchanged; validation scenes assert against their planted truth; a null body key behaves exactly
 as an absent one on every entry point; the realism match fails on a planted regression; adding a
 camera's tables is a YAML edit (met by #876).
 
