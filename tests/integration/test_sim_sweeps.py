@@ -436,14 +436,20 @@ def test_pose_disagreement_limb_error_grows() -> None:
     and the last must be more than 1 px further off than the first and more than
     2 px off.  On this noise draw the limb self-flags spurious at the 45 and 90
     deg steps (10 and 55 deg from the true pose), so the steps read are 35, 55,
-    and 110 deg, at 0.17, 1.26, and 5.39 px off.
+    and 110 deg, at 0.17, 1.26, and 5.39 px off.  The test pins that list of
+    steps first, so a change in which steps the limb self-flags at fails here.
     """
-    # Which steps self-flag depends on the noise draw, so the check reads whichever
-    # steps succeed.  Measuring the growth over several noise seeds is #960.
-    errors = [
-        row.offset_error_px for row in _rows('pose_disagreement') if row.offset_error_px is not None
+    # The filter keeps the steps where the pinned limb returned a result that is not
+    # flagged spurious, whatever the fused status.  Which steps those are depends on
+    # the noise draw, so the list pinned below is this draw's.  Measuring the growth
+    # over several noise seeds is #960.
+    reading = [
+        (row.value, row.offset_error_px)
+        for row in _rows('pose_disagreement')
+        if row.offset_error_px is not None
     ]
-    assert len(errors) >= 2
+    assert [value for value, _ in reading] == [35.0, 55.0, 110.0]
+    errors = [error for _, error in reading]
     assert errors[1] > errors[0]
     assert errors[-1] > errors[0] + 1.0
     assert errors[-1] > 2.0
@@ -452,9 +458,9 @@ def test_pose_disagreement_limb_error_grows() -> None:
 def test_pose_disagreement_limb_is_confidently_wrong() -> None:
     """At the largest disagreement the limb is several pixels off yet still 'success'.
 
-    Apart from the 45 and 90 deg steps, where it self-flags spurious and the frame
-    fails, the pinned limb does not self-flag across this tumble range -- it
-    returns a confidently-wrong fix (5.4 px off at 110 deg, at 0.55 confidence
+    The pinned limb self-flags spurious at the 45 and 90 deg steps, and the frame
+    fails there.  At the walk's other steps it does not self-flag, and at the last
+    one it returns a confidently-wrong fix (5.4 px off at 110 deg, at 0.55 confidence
     against 0.62 at the true pose).  That is why the per-technique demote
     decision (test_sim_irregular_pose) cannot rely on the limb's own status and
     compares it against the pose-free blob instead.
