@@ -354,12 +354,12 @@ def build_nav_params(sim_params: dict[str, Any]) -> dict[str, Any]:
     truth.  All values are deep copies, so navigator-side code cannot mutate the
     renderer's scene.
 
-    A null means the absent key, here as everywhere in a scene.  A null inside
-    ``nav_override`` overrides nothing, so the navigator sees the scene's own value
-    for that key.  After the overlay, a body or star key that is still null is left
-    out of the entry, so every navigator reader sees exactly what it sees for an
-    absent key.  Dropping keys can only take information away, so this cannot let
-    truth across the boundary.
+    Where validation accepts a null, it means the absent key, and this view reads it
+    the same way.  A null inside ``nav_override`` overrides nothing, so the navigator
+    sees the scene's own value for that key.  After the overlay, a body or star key
+    that is still null is left out of the entry, so every navigator reader sees
+    exactly what it sees for an absent key.  Dropping keys can only take information
+    away, so this cannot let truth across the boundary.
 
     Parameters:
         sim_params: The full scene mapping (the renderer's input).
