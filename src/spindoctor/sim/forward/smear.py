@@ -27,6 +27,7 @@ import numpy as np
 from scipy.signal import fftconvolve
 
 from spindoctor.sim.forward.stages import SimFrame
+from spindoctor.sim.scene_schema import scene_value
 from spindoctor.support.stable_math import stable_hypot
 from spindoctor.support.types import NDArrayFloatType
 
@@ -84,8 +85,8 @@ def _parse_smear(
     all_du = 0.0
     per_class: dict[str, tuple[float, float]] = {}
     for entry in smear:
-        dv = float(entry.get('dv_px', 0.0))
-        du = float(entry.get('du_px', 0.0))
+        dv = float(scene_value(entry, 'dv_px', 0.0))
+        du = float(scene_value(entry, 'du_px', 0.0))
         object_class = str(entry.get('object_class', 'all'))
         if object_class == 'all':
             all_dv += dv

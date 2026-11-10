@@ -36,7 +36,7 @@ from spindoctor.sim.instrument_resolvers import (
     resolve_psf_kernel,
     resolve_psf_truncation_px,
 )
-from spindoctor.sim.scene_schema import scene_binning
+from spindoctor.sim.scene_schema import scene_binning, scene_value
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 from spindoctor.support.stable_math import stable_hypot
 from spindoctor.support.types import NDArrayFloatType
@@ -213,15 +213,15 @@ def apply_optics(
     psf = effective_psf(params)
     if isinstance(psf, dict):
         sigma_v = float(psf['sigma_v'])
-        sigma_u = float(psf.get('sigma_u', sigma_v))
+        sigma_u = float(scene_value(psf, 'sigma_u', sigma_v))
         apply_psf(
             frame.signal,
             frame.point_e,
             sigma_v=sigma_v,
             sigma_u=sigma_u,
-            w=float(psf.get('w', 0.0)),
-            r0=float(psf.get('r0', 2.0)),
-            n=float(psf.get('n', 3.0)),
+            w=float(scene_value(psf, 'w', 0.0)),
+            r0=float(scene_value(psf, 'r0', 2.0)),
+            n=float(scene_value(psf, 'n', 3.0)),
             truncation_px=resolve_psf_truncation_px(params.get('instrument')),
             oversample=oversample,
         )
@@ -242,9 +242,9 @@ def apply_optics(
             center_u = float(center_u) * oversample - PIXEL_CENTER_TO_CORNER_PX
         apply_stray_light(
             frame.signal,
-            amplitude=float(stray.get('amplitude', 0.0)),
-            direction_deg=float(stray.get('direction_deg', 0.0)),
-            model=str(stray.get('model', 'linear')),
+            amplitude=float(scene_value(stray, 'amplitude', 0.0)),
+            direction_deg=float(scene_value(stray, 'direction_deg', 0.0)),
+            model=str(scene_value(stray, 'model', 'linear')),
             center_v=center_v,
             center_u=center_u,
         )

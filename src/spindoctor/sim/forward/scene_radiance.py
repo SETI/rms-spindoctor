@@ -189,7 +189,7 @@ def compose_scene_radiance(
     scene_psf = effective_psf(params)
     if scene_psf is not None:
         sigma_v_psf = float(scene_psf['sigma_v'])
-        rendered_sigma_det = max(sigma_v_psf, float(scene_psf.get('sigma_u', sigma_v_psf)))
+        rendered_sigma_det = max(sigma_v_psf, float(scene_value(scene_psf, 'sigma_u', sigma_v_psf)))
     else:
         rendered_sigma_det = 0.0
     rendered_sigma = rendered_sigma_det * os
@@ -234,9 +234,9 @@ def compose_scene_radiance(
     roll_sin = float(np.sin(np.radians(offset_rotation_deg)))
     det_center_v = (size_v / os) / 2.0
     det_center_u = (size_u / os) / 2.0
-    spk_dv = float(spk_error.get('dv_px', 0.0))
-    spk_du = float(spk_error.get('du_px', 0.0))
-    spk_ref_range = float(spk_error.get('reference_range_km', 0.0))
+    spk_dv = float(scene_value(spk_error, 'dv_px', 0.0))
+    spk_du = float(scene_value(spk_error, 'du_px', 0.0))
+    spk_ref_range = float(scene_value(spk_error, 'reference_range_km', 0.0))
 
     def _spk_shift(range_km: float) -> tuple[float, float]:
         """Parallax displacement in detector pixels for a body/ring range."""
@@ -749,7 +749,7 @@ def _render_sky(
     scene_psf = effective_psf(params)
     if scene_psf is not None:
         sigma_v_psf = float(scene_psf['sigma_v'])
-        rendered_sigma_det = max(sigma_v_psf, float(scene_psf.get('sigma_u', sigma_v_psf)))
+        rendered_sigma_det = max(sigma_v_psf, float(scene_value(scene_psf, 'sigma_u', sigma_v_psf)))
     else:
         rendered_sigma_det = float(inst_config['star_psf_sigma']) / scene_binning(params)
     read_noise = _nominal_read_noise(instrument, domain, binning=scene_binning(params))
@@ -762,15 +762,15 @@ def _render_sky(
     render_sky_counts(
         plane,
         seed=seed,
-        a=float(sky.get('a', -3.1)),
-        b=float(sky.get('b', 0.34)),
-        density_factor=float(sky.get('density_factor', 1.0)),
+        a=float(scene_value(sky, 'a', -3.1)),
+        b=float(scene_value(sky, 'b', 0.34)),
+        density_factor=float(scene_value(sky, 'density_factor', 1.0)),
         # A binned frame pixel spans binning native pixels on a side.
         pixel_scale_arcsec=resolve_sky_pixel_scale_arcsec(instrument) * scene_binning(params),
         faint_cutoff_mag=cutoff,
         zero_point=zero_point,
         exposure_sec=exposure_sec,
-        diffuse_flux_per_px=float(sky.get('diffuse_e_per_px', 0.0)),
+        diffuse_flux_per_px=float(scene_value(sky, 'diffuse_e_per_px', 0.0)),
         oversample=os,
     )
 
@@ -821,7 +821,7 @@ def _scale_star_params(star_params: dict[str, Any], os: int) -> dict[str, Any]:
     # entry scales exactly like an explicit one: the downsample stage divides
     # every record's psf_size by os, which would otherwise shrink a defaulted
     # window to (11 // os, 11 // os) detector pixels.
-    psf_size = star_params.get('psf_size', DEFAULT_PSF_SIZE)
+    psf_size = scene_value(star_params, 'psf_size', DEFAULT_PSF_SIZE)
     scaled['psf_size'] = [int(psf_size[0]) * os, int(psf_size[1]) * os]
     companion = star_params.get('companion')
     if isinstance(companion, dict) and companion.get('sep_px') is not None:

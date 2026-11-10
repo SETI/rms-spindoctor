@@ -28,6 +28,7 @@ from typing import Any, cast
 
 from starcat import Star
 
+from spindoctor.sim.scene_schema import scene_value
 from spindoctor.support.types import MutableStar
 
 __all__ = ['DEFAULT_PSF_SIZE', 'star_record_from_params']
@@ -68,15 +69,15 @@ def star_record_from_params(
     """
     star = cast(MutableStar, Star())
     star.unique_number = index + 1
-    star.catalog_name = str(star_params.get('catalog_name', 'SIM'))
-    star.pretty_name = str(star_params.get('name', f'SIM-{index + 1}'))
+    star.catalog_name = str(scene_value(star_params, 'catalog_name', 'SIM'))
+    star.pretty_name = str(scene_value(star_params, 'name', f'SIM-{index + 1}'))
     star.name = star.pretty_name
-    star.v = float(star_params.get('v', default_v))
-    star.u = float(star_params.get('u', default_u))
-    star.move_v = float(star_params.get('move_v', 0.0))
-    star.move_u = float(star_params.get('move_u', 0.0))
-    star.vmag = float(star_params.get('vmag', 8.0))
-    star.spectral_class = str(star_params.get('spectral_class', 'G2'))
+    star.v = float(scene_value(star_params, 'v', default_v))
+    star.u = float(scene_value(star_params, 'u', default_u))
+    star.move_v = float(scene_value(star_params, 'move_v', 0.0))
+    star.move_u = float(scene_value(star_params, 'move_u', 0.0))
+    star.vmag = float(scene_value(star_params, 'vmag', 8.0))
+    star.spectral_class = str(scene_value(star_params, 'spectral_class', 'G2'))
     star.temperature = Star.temperature_from_sclass(star.spectral_class)
     star.temperature_faked = star.temperature is None
     if star.temperature is None:
@@ -92,7 +93,7 @@ def star_record_from_params(
     star.ra_pm = 0.0
     star.dec_pm = 0.0
     star.conflicts = ''
-    star.psf_size = tuple(star_params.get('psf_size', DEFAULT_PSF_SIZE))
+    star.psf_size = tuple(scene_value(star_params, 'psf_size', DEFAULT_PSF_SIZE))
     # Catalog-relative flux in the navigator's DN convention (see
     # nav_model/stars/catalog.py); derived from vmag, never from the render.
     star.dn = 2.512 ** -(star.vmag - 4.0)
