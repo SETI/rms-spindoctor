@@ -196,7 +196,10 @@ def test_null_detector_keys_render_as_absent() -> None:
 def test_null_artifacts_keys_render_as_absent() -> None:
     """Null artifacts switches and a null mode parameter render as the absent keys.
 
-    A mode's map itself can't be null; validation refuses it.
+    A null ``instrument_defaults`` or ``adversarial`` acts like its False default
+    whether the reader takes null as absent or as false, so only the null
+    ``contiguous_run`` tests the reader.  A mode's map itself can't be null;
+    validation refuses it.
     """
     stated = {
         **_scene(),

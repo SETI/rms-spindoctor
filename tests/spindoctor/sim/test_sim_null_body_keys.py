@@ -268,10 +268,19 @@ def test_null_body_geometry_renders_as_absent() -> None:
 
 
 def test_null_body_keys_write_the_truth_of_absent_keys() -> None:
-    """A body's render truth leaves its null keys out, as if the scene never set them."""
-    stated, absent = _null_geometry_scenes()
-    _, meta = render_combined_model(stated)
-    _, expected = render_combined_model(absent)
+    """A body's render truth leaves its null keys out, as if the scene never set them.
+
+    The body keeps its name and two axes, and every other key is null.  The
+    radiance stage writes the rendered center and range into the truth over the
+    scene's values, so those nulls never reach it either way; each of the other
+    keys, axis3 and the pose among them, would reach the truth as a null if the
+    stage copied it.
+    """
+    full = _ellipsoid_body()
+    absent = {key: full[key] for key in ('name', 'axis1', 'axis2')}
+    stated = {**absent, **{key: None for key in full if key not in absent}}
+    _, meta = render_combined_model(_scene(stated))
+    _, expected = render_combined_model(_scene(absent))
     assert meta['bodies'] == expected['bodies']
 
 
