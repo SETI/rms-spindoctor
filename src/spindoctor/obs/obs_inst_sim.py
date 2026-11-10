@@ -91,7 +91,7 @@ class ObsSim(ObsSnapshotInst):
             without any storage being touched.
 
         Raises:
-            SimSceneValidationError: If the scene fails validation.
+            ~spindoctor.sim.scene_schema.SimSceneValidationError: If the scene fails validation.
         """
 
         config = config or DEFAULT_CONFIG

@@ -149,7 +149,7 @@ def validate_scene(sim_params: dict[str, Any], *, source: str = 'sim_params') ->
         source: The label validation errors start with.
 
     Raises:
-        SimSceneValidationError: If the scene fails validation.
+        ~spindoctor.sim.scene_schema.SimSceneValidationError: If the scene fails validation.
     """
     _validate_scene_json(json.dumps(sim_params, sort_keys=True), source)
 
@@ -181,7 +181,7 @@ def render_combined_model(
         ``occluded_limb_arc_deg`` against every nearer body).
 
     Raises:
-        SimSceneValidationError: If the scene fails validation.
+        ~spindoctor.sim.scene_schema.SimSceneValidationError: If the scene fails validation.
     """
     scene_json = json.dumps(sim_params, sort_keys=True)
     _validate_scene_json(scene_json, source)
