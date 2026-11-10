@@ -84,6 +84,8 @@ These make every later phase cheaper or safer. Most are small.
 | #924 | **Done (PR #932).** The simulator developer guide mixes per-camera values into the mechanism descriptions | Move each camera's measured values to its instrument page so each is stated once, before Phases 3 and 4 re-measure them and every change has to edit two copies. Docs only. |
 | #911, including per-pixel variates | **Done (PR TBD).** One frame-wide Poisson stream | Every later fix would otherwise turn into a new noise field across the whole frame. |
 | #954 | A last-bit geometry change can reseed every crater on a simulated body | The same fragility as #911, in the crater field instead of the noise; fixing it moves every cratered render once, so it is cheapest alongside another regeneration. |
+| #960 | Simulator tripwires depend on a single noise draw | The #911 redraw moved three of them; until each rate or band is measured over several noise seeds, the next redraw can move them again. |
+| #961 | The simulator report quotes the sweeps' earlier noise draw | Regenerate the sweep figures and their prose together in the report's end-of-stack regeneration. |
 | #905, truth-check part | Assertions are change detectors and 1 px bounds | Give validation scenes truth-based assertions before the renders start moving, so a move is judged against the planted truth. |
 | #872 | The baseline regenerator imports whichever installed package it finds | Regenerated baselines must come from the checkout under test before the churn starts. |
 | #900, #813 | Validation skips the render path; null body keys crash; the navigator's simulated ring model reads nullable keys unsafely | Typed per-block specs on every entry point, with null meaning absent; the first slice of #915. |
