@@ -435,6 +435,21 @@ def scene_value(block: Mapping[str, Any], key: str, default: Any) -> Any:
     return default if value is None else value
 
 
+def default_body_name(index: int) -> str:
+    """The name a scene body takes when its entry leaves ``name`` absent or null.
+
+    The renderer keys a body's truth records by this name, the validator refuses two
+    bodies that share one, and the scene editor finds a body's truth records by it.
+
+    Parameters:
+        index: The entry's zero-based position in the scene's ``bodies`` list.
+
+    Returns:
+        ``SIM-BODY-<index + 1>``, such as ``SIM-BODY-1`` for the first entry.
+    """
+    return f'SIM-BODY-{index + 1}'
+
+
 def scene_binning(params: Mapping[str, Any]) -> int:
     """The binning factor a scene's ``detector`` block selects, 1 by default.
 

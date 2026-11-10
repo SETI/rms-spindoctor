@@ -35,7 +35,11 @@ from spindoctor.sim.instrument_navigator import (
 )
 from spindoctor.sim.instrument_resolvers import resolve_data_units
 from spindoctor.sim.render import render_unvalidated_preview, validate_scene
-from spindoctor.sim.scene_schema import SimSceneValidationError, scene_value
+from spindoctor.sim.scene_schema import (
+    SimSceneValidationError,
+    default_body_name,
+    scene_value,
+)
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 
 
@@ -327,7 +331,7 @@ class RenderDisplayMixin(SimEditorBase):
             # body_masks is in the original order of bodies_params, so match by index
             for idx, body in enumerate(bodies):
                 if idx < len(body_masks):
-                    body_name = str(scene_value(body, 'name', f'SIM-BODY-{idx + 1}')).upper()
+                    body_name = str(scene_value(body, 'name', default_body_name(idx))).upper()
                     range_val = inv.get(body_name, {}).get('range', float('inf'))
                     objects.append((range_val, 'body', idx, body_masks[idx]))
 

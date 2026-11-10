@@ -39,6 +39,7 @@ from spindoctor.sim.scene_schema import (
     ELLIPSOID_UNSUPPORTED_KEYS,
     MESH_UNSUPPORTED_KEYS,
     SimSceneValidationError,
+    default_body_name,
     ellipsoid_unsupported_message,
     mesh_unsupported_message,
     scene_value,
@@ -65,7 +66,7 @@ def _check_body_names_unique(bodies: list[dict[str, Any]], *, source: str) -> No
     """
     seen: dict[str, int] = {}
     for index, obj in enumerate(bodies):
-        effective = str(scene_value(obj, 'name', f'SIM-BODY-{index + 1}')).upper()
+        effective = str(scene_value(obj, 'name', default_body_name(index))).upper()
         if effective in seen:
             raise SimSceneValidationError(
                 f'{source}: bodies[{seen[effective]}] and bodies[{index}] share the '

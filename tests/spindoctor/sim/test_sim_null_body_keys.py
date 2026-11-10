@@ -32,7 +32,12 @@ from spindoctor.sim.scene_checks_body import (
     _TRANSIT_MOON_KEYS,
     _TRANSIT_SHADOW_KEYS,
 )
-from spindoctor.sim.scene_schema import _BODY_IDEALIZED_KEYS, _BODY_KEYS, ELLIPSOID_UNSUPPORTED_KEYS
+from spindoctor.sim.scene_schema import (
+    _BODY_IDEALIZED_KEYS,
+    _BODY_KEYS,
+    ELLIPSOID_UNSUPPORTED_KEYS,
+    default_body_name,
+)
 
 _SIZE = 32
 
@@ -308,6 +313,11 @@ def test_null_body_name_takes_the_positional_name() -> None:
     body = {'name': None, 'center_v': 16.0, 'center_u': 16.0, 'axis1': 10.0, 'axis2': 10.0}
     _, meta = render_combined_model(_scene(body))
     assert meta['order_near_to_far'] == ['SIM-BODY-1']
+
+
+def test_default_body_name_counts_from_one() -> None:
+    """The entry at zero-based index 2 takes the name SIM-BODY-3."""
+    assert default_body_name(2) == 'SIM-BODY-3'
 
 
 @pytest.mark.parametrize(

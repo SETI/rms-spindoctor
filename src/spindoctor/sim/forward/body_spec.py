@@ -28,7 +28,7 @@ from spindoctor.sim.forward.body_texture import (
     transit_specs_from_params,
 )
 from spindoctor.sim.mesh_geometry import MeshBodySpec, mesh_spec_from_params
-from spindoctor.sim.scene_schema import scene_value
+from spindoctor.sim.scene_schema import default_body_name, scene_value
 
 __all__ = [
     'CRATER_MAX_RADIUS_DEFAULT',
@@ -175,7 +175,7 @@ def body_spec_from_params(body_params: Mapping[str, Any], *, index: int) -> Body
     scatter = scene_value(body_params, 'pose_scatter', {})
     transits = body_params.get('transits')
     return BodySpec(
-        name=str(scene_value(body_params, 'name', f'SIM-BODY-{index + 1}')),
+        name=str(scene_value(body_params, 'name', default_body_name(index))),
         shape_model=str(scene_value(body_params, 'shape_model', 'ellipsoid')),
         center_v=_optional_float(body_params, 'center_v'),
         center_u=_optional_float(body_params, 'center_u'),

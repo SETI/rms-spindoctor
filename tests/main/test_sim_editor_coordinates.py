@@ -108,6 +108,20 @@ def test_mask_hit_test_does_not_reach_the_previous_pixel(model: Any) -> None:
     assert model._selected_model_key is None
 
 
+def test_mask_hit_test_finds_an_unnamed_body_by_its_default_name(model: Any) -> None:
+    """Of three overlapping unnamed bodies, the second, which alone has a range, is selected."""
+    for _ in range(3):
+        model._add_body_tab()
+    for body in model.sim_params['bodies']:
+        del body['name']
+    mask = np.zeros((_SIZE, _SIZE), dtype=bool)
+    mask[6, 8] = True
+    inventory = {'SIM-BODY-2': {'range': 1.0}}
+    model._last_meta = {'body_masks': [mask, mask, mask], 'inventory': inventory}
+    model._select_model_at(6.5, 8.5)
+    assert model._selected_model_key == ('body', 1)
+
+
 # A sigma-free star offers a one-pixel-radius click target about its rendered
 # position.  The renderer states that position pixel centric, so a rendered
 # ``(10.0, 20.0)`` is at pixel corner ``(10.5, 20.5)`` and the target reaches
