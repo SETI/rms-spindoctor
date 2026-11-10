@@ -1,11 +1,12 @@
-"""A null star, optics, sky-count, or spk_error key reads as absent.
+"""Null star, optics, sky, spk_error, detector, and artifacts keys read as absent.
 
 The validator accepts null for every optional key of a ``stars`` entry and its
 ``companion``, of the ``optics`` block and its sub-blocks, of ``sky_counts``,
-and of ``spk_error``, and reads it as absent.  The renderer reads these keys the
-same way: a scene whose optional key is null renders exactly the frame, and
-records exactly the star truth, that the scene without the key does.  The body,
-noise, and ring blocks have their own null tests.
+of ``spk_error``, of ``detector``, and of ``artifacts`` (apart from a mode's map),
+and reads it as absent.  The renderer reads these keys the same way: a scene whose
+optional key is null renders exactly the frame, and records exactly the star truth,
+that the scene without the key does.  The body, noise, and ring blocks have their
+own null tests.
 """
 
 import copy
@@ -18,6 +19,7 @@ from spindoctor.sim.render import render_combined_model
 from spindoctor.sim.scene import validate_sim_params
 from spindoctor.sim.scene_checks import (
     _COMPANION_KEYS,
+    _DETECTOR_KEYS,
     _DISTORTION_KEYS,
     _GHOST_KEYS,
     _OPTICS_KEYS,
@@ -182,3 +184,28 @@ def test_null_sky_counts_key_renders_as_absent(key: str) -> None:
 def test_null_spk_error_key_renders_as_absent(key: str) -> None:
     """A validated null spk_error key renders the frame the absent key renders."""
     _assert_renders_alike(*_scenes(('spk_error',), key))
+
+
+def test_null_detector_keys_render_as_absent() -> None:
+    """A detector block whose every key is null renders as an empty detector block."""
+    stated = {**_scene(), 'detector': dict.fromkeys(_DETECTOR_KEYS)}
+    validate_sim_params(stated, source='null')
+    _assert_renders_alike(stated, {**_scene(), 'detector': {}})
+
+
+def test_null_artifacts_keys_render_as_absent() -> None:
+    """Null artifacts switches and a null mode parameter render as the absent keys.
+
+    A mode's map itself can't be null; validation refuses it.
+    """
+    stated = {
+        **_scene(),
+        'artifacts': {
+            'instrument_defaults': None,
+            'adversarial': None,
+            'missing_lines': {'expected_events': 2.0, 'contiguous_run': None},
+        },
+    }
+    validate_sim_params(stated, source='null')
+    absent = {**_scene(), 'artifacts': {'missing_lines': {'expected_events': 2.0}}}
+    _assert_renders_alike(stated, absent)
