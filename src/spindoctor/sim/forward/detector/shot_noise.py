@@ -81,6 +81,9 @@ def sample_poisson(rng: np.random.Generator, mean: NDArrayFloatType) -> NDArrayF
 
     Returns:
         The counts as float64, the same dimensions as ``mean``.
+
+    Raises:
+        ValueError: If any mean is NaN or infinite.
     """
     uniform = rng.random(mean.shape)
     return poisson_inverse_cdf(uniform, mean)
@@ -103,9 +106,18 @@ def poisson_inverse_cdf(uniform: NDArrayFloatType, mean: NDArrayFloatType) -> ND
 
     Returns:
         The counts as float64, the same dimensions as ``mean``.
+
+    Raises:
+        ValueError: If any mean is NaN or infinite.  Such a mean has no Poisson
+            distribution, and it means an earlier stage went wrong.
     """
     uniform = np.asarray(uniform, dtype=np.float64)
     mean = np.asarray(mean, dtype=np.float64)
+    not_finite = int(np.count_nonzero(~np.isfinite(mean)))
+    if not_finite:
+        raise ValueError(
+            f'Poisson means must be finite, but {not_finite} of {mean.size} are NaN or infinite'
+        )
     counts = np.zeros(mean.shape, dtype=np.float64)
     flat_uniform = uniform.reshape(-1)
     flat_mean = mean.reshape(-1)

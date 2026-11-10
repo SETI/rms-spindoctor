@@ -91,6 +91,12 @@ def test_a_zero_uniform_gives_zero() -> None:
     assert np.array_equal(counts, np.zeros(4))
 
 
+def test_a_mean_that_is_not_finite_is_refused() -> None:
+    """A NaN or infinite mean raises and counts the bad pixels."""
+    with pytest.raises(ValueError, match='finite, but 2 of 3 are NaN or infinite'):
+        poisson_inverse_cdf(np.full(3, 0.5), np.array([1.0, np.nan, np.inf]))
+
+
 @pytest.mark.parametrize('mean', [1e-300, 1e-12], ids=['1e-300', '1e-12'])
 def test_a_tiny_mean_gives_the_exact_count_at_every_uniform(mean: float) -> None:
     """A tiny mean gives 0, or 1 where the uniform is within the mean of 1, promptly.
