@@ -201,8 +201,8 @@ tests need none of the archive environment above.
      - integration (``sim_integration``)
      - nothing
      - Every catalog scene re-navigates to its recorded outcome, within small
-       tolerances on the offset and the confidence (a tripwire). Integration-marked because rendering
-       and navigating every scene takes minutes; see
+       tolerances on the offset and the confidence (a tripwire). Integration-marked
+       because rendering and navigating every scene takes minutes; see
        :ref:`reproducing-sim-baselines`.
    * - Sensitivity sweeps (``test_sim_sweeps.py``)
      - integration (``sim_integration``)

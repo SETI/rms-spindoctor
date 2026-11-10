@@ -219,9 +219,11 @@ def test_a_psf_tail_on_an_empty_frame_adds_no_counts() -> None:
     """A blurred star's convolution tail leaves the dark sky as an exactly zero one does.
 
     With no dark charge, the sky outside the PSF's footprint holds only the FFT's
-    rounding: means from about 1e-17 to 1e-13 electrons, and about as many slightly
-    below zero.  Each samples to no counts, and promptly, so the sky's DN equals that
-    of the same frame with the sky set to exactly 0.
+    rounding: signals that give means from about 1e-17 to 1e-13 electrons, and about
+    as many slightly below zero.  The conversion to electrons clips the signal at 0,
+    so the negative ones reach the sampler as means of exactly 0.  Each positive mean
+    samples to no counts, and promptly, so the sky's DN equals that of the same frame
+    with the sky set to exactly 0.
     """
     star = np.zeros(_FRAME_SHAPE, dtype=np.float64)
     star[24, 24] = 0.5

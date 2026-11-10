@@ -3857,8 +3857,7 @@ change alters rendered output:
   validates, sits in a declared class, has a unique name, and renders.
 - **Regression baselines** (``tests/integration/sim_baselines/``): every
   catalog scene re-navigates to its recorded outcome, with the same status and
-  confidence rank, each offset axis within 0.02 px, and the confidence within
-  0.02
+  confidence rank, each offset axis within 0.02 px, and the confidence within 0.02
   (``test_sim_baselines.py``, integration tier, run by CI); regenerate with
   ``python -m tests.integration.update_sim_baselines`` and review the diff
   (see :ref:`reproducing-sim-baselines`).
