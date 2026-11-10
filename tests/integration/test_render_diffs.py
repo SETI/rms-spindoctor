@@ -6,30 +6,44 @@
 scene class.  This module enforces the regeneration rule mechanically, the
 way ``test_sim_doc_images`` guards the documentation galleries:
 
-* Every catalog scene's committed ``current/`` PNG must be byte-identical to
-  a fresh render encoded through the generator's own PNG path, and no
-  ``current/`` PNG may outlive its scene.
+* Every catalog scene's committed ``current/`` PNG, decoded, must match a fresh
+  render stretched through the generator's own path, and no ``current/`` PNG may
+  outlive its scene.  The decoded pixels are compared, never the file bytes, so a
+  change in the PNG encoder does not fail the check.
 * Every scene class present in the catalog must have a committed sheet, and
   no sheet may outlive its class.
 
-The sheets are checked for presence and coverage only, never for byte
+A scene whose detector adds no random value to each pixel must match pixel for
+pixel.  A scene with shot noise, read noise, a per-pixel response pattern, or a
+calibration residual is checked statistically: the two renders may differ by a
+new noise realization, as they do when NumPy changes a random stream, but in each
+16 by 16 block the mean difference must stay within what that block's own noise
+explains.  A body or ring edge that moves, or a region whose brightness changes,
+shifts the block means and fails.
+
+The sheets are checked for presence and coverage only, never for pixel
 identity: a sheet's pixels legitimately encode the *previous* baseline's
 before-panels (they show the last reviewed transition, which a fresh
 regeneration would erase), and its text labels rasterize through PIL's
 ``ImageDraw`` default font, whose output is environment-dependent.  The
-per-scene ``current/`` PNGs carry none of that -- they are pure encoded
-renders -- so byte identity is asserted exactly there.
+per-scene ``current/`` PNGs carry none of that -- they are pure stretched
+renders.
 """
 
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
+import numpy as np
 import pytest
+from PIL import Image
 
+from spindoctor.sim.forward.detector import resolve_detector_params
 from spindoctor.sim.png_export import stretch_to_uint8
 from spindoctor.sim.render import render_combined_model
 from spindoctor.sim.scene import iter_scene_paths, load_sim_scene, scene_class_for_path
+from spindoctor.support.types import NDArrayUint8Type
 from tests.integration.render_contact_sheet import encode_current_png
 
 pytestmark = [pytest.mark.integration, pytest.mark.sim_integration]
@@ -40,14 +54,85 @@ _RENDER_DIFFS_DIR = _HERE / 'render_diffs'
 _CURRENT_DIR = _RENDER_DIFFS_DIR / 'current'
 _REGEN_COMMAND = 'python -m tests.integration.render_contact_sheet'
 
+# The statistical check for a noisy scene compares the mean difference of each
+# block of _BLOCK_PX by _BLOCK_PX pixels with that block's own noise.  The noise is
+# the median absolute deviation of the difference, scaled to a standard deviation
+# (1.4826 for a normal distribution), so the few pixels of a moved edge do not
+# inflate it.  A block fails when its mean difference exceeds _BLOCK_SIGMAS
+# standard errors of the mean plus _STRETCH_ALLOWANCE_LEVELS.  The allowance
+# covers the display stretch: its black and white points are percentiles of the
+# noisy frame, so a new noise realization moves every display level by a
+# fraction of a level.  Eight standard errors leave room for noise that is
+# heavier-tailed or more correlated than a normal distribution.
+_BLOCK_PX = 16
+_BLOCK_SIGMAS = 8.0
+_STRETCH_ALLOWANCE_LEVELS = 1.0
+_MAD_TO_SIGMA = 1.4826
+
 
 def _scene_paths() -> list[Path]:
     """Every catalog scene path (the enforcement domain)."""
     return iter_scene_paths(_SCENES_ROOT)
 
 
+def _draws_pixel_noise(scene: dict[str, Any]) -> bool:
+    """Whether the scene's detector adds a random value to every pixel.
+
+    The CCD chain does so with shot noise, read noise, or a per-pixel response
+    pattern; the vidicon chain with its line or pixel read noise; and a calibrated
+    frame of either with its per-pixel calibration residual.
+    """
+    dp = resolve_detector_params(scene)
+    if dp.detector_model == 'vidicon':
+        line_dn = float(dp.vidicon.get('read_noise_line_dn', 0.0))
+        pixel_dn = float(dp.vidicon.get('read_noise_pixel_dn', 0.0))
+        if line_dn > 0.0 or pixel_dn > 0.0:
+            return True
+    else:
+        prnu_rms = float((dp.detector_modes.get('fixed_pattern') or {}).get('prnu_rms') or 0.0)
+        if dp.poisson or dp.read_noise_e > 0.0 or prnu_rms > 0.0:
+            return True
+    return dp.data_units != 'raw_dn' and dp.calibration_pixel_residual_e > 0.0
+
+
+def _decode_png(path: Path) -> NDArrayUint8Type:
+    """The grayscale pixels of a committed PNG."""
+    with Image.open(path) as image:
+        return np.asarray(image.convert('L'), dtype=np.uint8)
+
+
+def _blocks_beyond_noise(committed: NDArrayUint8Type, fresh: NDArrayUint8Type) -> int:
+    """How many blocks differ by more than a new noise realization explains.
+
+    Both arrays are stretched renders with the same dimensions.  See the constants
+    above for the test each block must pass.
+    """
+    diff = fresh.astype(np.float64) - committed.astype(np.float64)
+    size_v, size_u = diff.shape
+    failing = 0
+    for v0 in range(0, size_v, _BLOCK_PX):
+        for u0 in range(0, size_u, _BLOCK_PX):
+            block = diff[v0 : v0 + _BLOCK_PX, u0 : u0 + _BLOCK_PX]
+            sigma = _MAD_TO_SIGMA * float(np.median(np.abs(block - np.median(block))))
+            limit = _BLOCK_SIGMAS * sigma / np.sqrt(block.size) + _STRETCH_ALLOWANCE_LEVELS
+            if abs(float(block.mean())) > limit:
+                failing += 1
+    return failing
+
+
+def _is_current(
+    scene: dict[str, Any], committed: NDArrayUint8Type, fresh: NDArrayUint8Type
+) -> bool:
+    """Whether a committed render matches a fresh one: exactly, or within the noise."""
+    if committed.shape != fresh.shape:
+        return False
+    if not _draws_pixel_noise(scene):
+        return bool(np.array_equal(committed, fresh))
+    return _blocks_beyond_noise(committed, fresh) == 0
+
+
 def test_every_scene_has_a_current_render(tmp_path_factory: pytest.TempPathFactory) -> None:
-    """Every catalog scene has a committed, byte-current ``current/`` PNG.
+    """Every catalog scene has a committed, current ``current/`` PNG.
 
     A missing or stale PNG means a scene (or a rendering change) landed
     without regenerating the review artifacts; rerun the generator and
@@ -61,11 +146,12 @@ def test_every_scene_has_a_current_render(tmp_path_factory: pytest.TempPathFacto
     for path in _scene_paths():
         examined += 1
         committed = _CURRENT_DIR / f'{path.stem}.png'
-        img, _ = render_combined_model(load_sim_scene(path))
-        fresh = encode_current_png(stretch_to_uint8(img))
-        if not committed.is_file() or committed.read_bytes() != fresh:
+        scene = load_sim_scene(path)
+        img, _ = render_combined_model(scene)
+        fresh = stretch_to_uint8(img)
+        if not committed.is_file() or not _is_current(scene, _decode_png(committed), fresh):
             stale.append(path.stem)
-            (fresh_dir / f'{path.stem}.png').write_bytes(fresh)
+            (fresh_dir / f'{path.stem}.png').write_bytes(encode_current_png(fresh))
     assert examined > 0, 'no scenes were examined; the catalog is empty or unreachable'
     assert not stale, (
         f'{len(stale)} committed current render(s) missing or no longer matching a '
@@ -127,3 +213,24 @@ def test_no_orphaned_sheets() -> None:
         f'committed sheet(s) with no catalog scene class: {orphans}; delete them '
         f'(or restore their scenes) and regenerate with `{_REGEN_COMMAND}`'
     )
+
+
+def test_a_new_noise_realization_is_within_the_noise() -> None:
+    """Two draws of the same noisy image pass the block check."""
+    rng = np.random.default_rng(911)
+    signal = np.tile(np.linspace(20.0, 230.0, 128), (128, 1))
+    first = np.clip(np.rint(signal + rng.normal(0.0, 6.0, signal.shape)), 0, 255)
+    second = np.clip(np.rint(signal + rng.normal(0.0, 6.0, signal.shape)), 0, 255)
+    assert _blocks_beyond_noise(first.astype(np.uint8), second.astype(np.uint8)) == 0
+
+
+def test_a_moved_edge_is_beyond_the_noise() -> None:
+    """A bright edge moved by two pixels under the same noise fails the block check."""
+    rng = np.random.default_rng(911)
+    signal = np.full((128, 128), 30.0)
+    signal[:, 60:] = 200.0
+    moved = np.full((128, 128), 30.0)
+    moved[:, 62:] = 200.0
+    first = np.clip(np.rint(signal + rng.normal(0.0, 6.0, signal.shape)), 0, 255)
+    second = np.clip(np.rint(moved + rng.normal(0.0, 6.0, signal.shape)), 0, 255)
+    assert _blocks_beyond_noise(first.astype(np.uint8), second.astype(np.uint8)) > 0
