@@ -79,7 +79,8 @@ class ObsSim(ObsSnapshotInst):
             extfov_margin_vu: Optional extended FOV margins (v,u) to add around the image.
             **kwargs: Additional keyword arguments.
                 sim_params: Flat sim-params mapping. If present, this overrides the
-                scene file.
+                scene file.  It is validated before it renders, exactly as a
+                scene file is when it loads.
 
         Returns:
             The :class:`ObsSim` wrapping the rendered scene: the rendered
@@ -88,6 +89,9 @@ class ObsSim(ObsSnapshotInst):
             Its ``abspath`` is the local file the scene was read from, or,
             for a scene supplied in memory, ``path`` rendered absolute
             without any storage being touched.
+
+        Raises:
+            SimSceneValidationError: If the scene fails validation.
         """
 
         config = config or DEFAULT_CONFIG
@@ -112,24 +116,15 @@ class ObsSim(ObsSnapshotInst):
             sim_params = provided_sim_params
             logger.debug('Using provided sim_params')
 
-        # Required fields
-        try:
-            size_v = int(sim_params['size_v'])
-            size_u = int(sim_params['size_u'])
-            offset_v = float(sim_params.get('offset_v', 0.0))
-            offset_u = float(sim_params.get('offset_u', 0.0))
-        except (KeyError, TypeError, ValueError) as e:
-            if provided_sim_params is None:
-                raise ValueError(
-                    'Invalid or missing size/offset field in simulated image '
-                    f'scene file "{scene_path}": {e}'
-                ) from e
-            else:
-                raise ValueError(
-                    'Invalid or missing size/offset field in provided '
-                    'sim_params for simulated image scene file '
-                    f'"{scene_path}": {e}'
-                ) from e
+        # Rendering validates the scene first, so a scene supplied in memory is
+        # held to the rules a scene file meets when it loads, and the size and
+        # offset fields read below are known to be well formed.
+        logger.debug('Rendering combined simulated model')
+        img_rendered, meta = render_combined_model(sim_params, source=str(scene_path))
+        size_v = int(sim_params['size_v'])
+        size_u = int(sim_params['size_u'])
+        offset_v = float(sim_params.get('offset_v', 0.0))
+        offset_u = float(sim_params.get('offset_u', 0.0))
 
         # Build a basic Snapshot with a flat FOV and dummy geometry
         fov = oops.fov.FlatFOV((1.0, 1.0), (size_u, size_v))
@@ -140,9 +135,6 @@ class ObsSim(ObsSnapshotInst):
             path='SSB',
             frame='J2000',
         )
-        # Render combined model
-        logger.debug('Rendering combined simulated model')
-        img_rendered, meta = render_combined_model(sim_params)
         snapshot.insert_subfield('data', img_rendered)
 
         # Select the per-instrument config block the sim is emulating (or the

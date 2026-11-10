@@ -352,7 +352,9 @@ def test_a_failed_preview_drops_the_running_verdict(
     def _fail(*args: Any, **kwargs: Any) -> Any:
         raise RuntimeError('preview failed')
 
-    monkeypatch.setattr('spindoctor.cli.sim_editor.render_display.render_combined_model', _fail)
+    monkeypatch.setattr(
+        'spindoctor.cli.sim_editor.render_display.render_unvalidated_preview', _fail
+    )
     monkeypatch.setattr(
         'spindoctor.cli.sim_editor.render_display.QMessageBox.critical',
         lambda *args, **kwargs: None,

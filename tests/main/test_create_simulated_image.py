@@ -361,7 +361,7 @@ def test_units_label_clears_after_a_failed_render(
         raise RuntimeError('render failed')
 
     render_display = importlib.import_module('spindoctor.cli.sim_editor.render_display')
-    monkeypatch.setattr(render_display, 'render_combined_model', _fail)
+    monkeypatch.setattr(render_display, 'render_unvalidated_preview', _fail)
     monkeypatch.setattr(QMessageBox, 'critical', lambda *args, **kwargs: None)
     model._update_image()
     assert model._units_label.text() == ''

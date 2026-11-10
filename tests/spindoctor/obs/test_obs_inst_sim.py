@@ -6,11 +6,13 @@ backplane writer).  These tests guard the per-body mask map: a renderer
 change that stops populating ``body_mask_map`` degrades those consumers
 silently, because nothing on the navigation path reads it.
 
-They also guard how the scene path is resolved.  A scene handed over in
-memory names no file, so resolving it must not reach storage; a scene named
-by a file or a URL must be fetched before it can be parsed.
+They also guard that a scene supplied in memory is validated before it renders,
+and how the scene path is resolved.  A scene handed over in memory names no file,
+so resolving it must not reach storage; a scene named by a file or a URL must be
+fetched before it can be parsed.
 """
 
+import re
 from pathlib import Path
 from typing import Any
 
@@ -18,7 +20,7 @@ import numpy as np
 import pytest
 
 from spindoctor.obs.obs_inst_sim import ObsSim
-from spindoctor.sim.scene import save_sim_scene
+from spindoctor.sim.scene import SimSceneValidationError, save_sim_scene
 
 _SIZE = 96
 
@@ -56,6 +58,16 @@ def test_body_mask_shape_matches_the_render() -> None:
     assert mask.dtype == np.bool_
     assert mask.shape == np.asarray(obs.data).shape
     assert mask.any()
+
+
+def test_invalid_in_memory_scene_is_refused() -> None:
+    """A scene supplied in memory is validated, and the error carries its path."""
+    scene = {**_body_scene(), 'exposure_seconds': 2.0}
+    with pytest.raises(
+        SimSceneValidationError,
+        match=re.escape("/tmp/obs_sim_bad.yaml: unknown scene keys: ['exposure_seconds']"),
+    ):
+        ObsSim.from_file('/tmp/obs_sim_bad.yaml', sim_params=scene)
 
 
 def test_in_memory_scene_creates_nothing_beside_the_process(

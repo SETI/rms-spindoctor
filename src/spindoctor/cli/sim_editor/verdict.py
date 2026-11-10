@@ -53,7 +53,9 @@ _POLL_INTERVAL_MS = 25
 def navigated_frame_summary(sim_params: dict[str, Any]) -> str:
     """Render the frame the navigator reads and describe it for the status bar.
 
-    The frame carries the planted offset and roll (``ignore_offset=False``), and the
+    The frame carries the planted offset and roll (``ignore_offset=False``).  The
+    scene is validated before it renders, as every navigated frame is, so a scene
+    that fails validation raises here while the preview still shows it.  The
     text is :func:`~spindoctor.sim.instrument_navigator.frame_units_summary` of that frame
     under the scene's resolved instrument block.
 
@@ -63,6 +65,9 @@ def navigated_frame_summary(sim_params: dict[str, Any]) -> str:
     Returns:
         One line of text naming the navigated frame's units, range, marker share,
         and the navigator's verdict when it would not call the frame clean.
+
+    Raises:
+        SimSceneValidationError: If the scene fails validation.
     """
     image, _ = render_combined_model(sim_params, ignore_offset=False)
     inst_config = resolve_sim_inst_config(

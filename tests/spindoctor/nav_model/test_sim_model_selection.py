@@ -45,7 +45,13 @@ def _fake_obs(*, is_simulated: bool, nav_params: dict[str, Any] | None = None) -
 def _sim_obs(bodies: list[dict[str, Any]]) -> ObsSim:
     return ObsSim.from_file(
         '/tmp/sel.json',
-        sim_params={'size_v': 96, 'size_u': 96, 'instrument': 'coiss_nac', 'bodies': bodies},
+        sim_params={
+            'size_v': 96,
+            'size_u': 96,
+            'instrument': 'coiss_nac',
+            'random_seed': 1,
+            'bodies': bodies,
+        },
     )
 
 

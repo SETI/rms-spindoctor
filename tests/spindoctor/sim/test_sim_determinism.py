@@ -28,12 +28,12 @@ def _clear_render_caches() -> None:
 
 
 def _scene() -> dict[str, Any]:
-    """A scene exercising noise, background sky, and crater RNG paths."""
+    """A scene exercising the background sky and crater RNG paths."""
     return {
         'size_v': 64,
         'size_u': 64,
         'random_seed': 42,
-        'background_noise_intensity': 0.05,
+        'instrument': 'generic',
         'sky_counts': {'density_factor': 500.0},
         'bodies': [
             {

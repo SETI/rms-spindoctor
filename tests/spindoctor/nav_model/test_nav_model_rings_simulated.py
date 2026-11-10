@@ -56,6 +56,7 @@ def _obs() -> ObsSim:
             'size_v': _SIZE,
             'size_u': _SIZE,
             'instrument': 'coiss_nac',
+            'random_seed': 1,
             'ring_system': _ring_system(),
         },
     )
@@ -359,6 +360,7 @@ def _factory_outputs(ring_system: dict[str, Any]) -> list[Any]:
             'size_v': _SIZE,
             'size_u': _SIZE,
             'instrument': 'coiss_nac',
+            'random_seed': 1,
             'ring_system': ring_system,
         },
     )
@@ -383,14 +385,14 @@ def _factory_outputs(ring_system: dict[str, Any]) -> list[Any]:
     ]
 
 
-@pytest.mark.parametrize('key', ['center_v', 'center_u', 'opening_deg_obs', 'node_deg'])
+@pytest.mark.parametrize('key', ['center_v', 'center_u', 'node_deg'])
 @pytest.mark.parametrize('form', ['null', 'omitted'])
 def test_an_unset_geometry_key_predicts_the_default_geometry(key: str, form: str) -> None:
     """A geometry key set to null or omitted takes its default, as the validator reads it.
 
-    The fixture's geometry states every default explicitly (the frame's center,
-    a 90 deg opening, a 0 deg node), so an unset key must predict exactly the
-    fixture's edges and annulus template.
+    The fixture's geometry states every default explicitly (the frame's center
+    and a 0 deg node), so an unset key must predict exactly the fixture's edges
+    and annulus template.
 
     Parameters:
         key: The geometry key left unset.

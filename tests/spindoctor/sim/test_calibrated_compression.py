@@ -59,17 +59,17 @@ _CASES: dict[str, dict[str, Any]] = {
 
 
 @pytest.mark.parametrize('case', sorted(_CASES))
-@pytest.mark.parametrize('instrument', ['coiss_calib_nac', 'coiss_calib_wac', 'vgiss'])
+@pytest.mark.parametrize('instrument', ['coiss_calib_nac', 'coiss_calib_wac'])
 def test_a_compressed_calibrated_frame_has_no_pixel_at_the_marker(
     instrument: str, case: str
 ) -> None:
-    """No pixel of a compressed calibrated frame reads 0 (vgiss has no codec mode)."""
+    """No pixel of a compressed calibrated frame reads 0."""
     img, _ = render_combined_model(_disc(instrument, **_CASES[case]))
     assert int((img == 0.0).sum()) == 0
 
 
 @pytest.mark.parametrize('case', sorted(_CASES))
-@pytest.mark.parametrize('instrument', ['coiss_calib_nac', 'coiss_calib_wac', 'vgiss'])
+@pytest.mark.parametrize('instrument', ['coiss_calib_nac', 'coiss_calib_wac'])
 def test_a_compressed_calibrated_frame_classifies_clean(instrument: str, case: str) -> None:
     """The navigator reads a compressed calibrated disc frame as clean."""
     params = _disc(instrument, **_CASES[case])

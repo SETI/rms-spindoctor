@@ -1,9 +1,10 @@
 """Render, display, PSF preview, selection, and image-save panel.
 
-Drives the live preview: it calls the renderer, stretches DN to a grayscale
-pixmap (with an optional saturation overlay and visual aids), applies the zoom
-scaling, hit-tests right-clicks to select and drag scene objects, renders the
-instrument PSF inset, and saves the current preview to PNG.  The status bar
+Drives the live preview.  The preview renders without validating the scene, so a
+half-edited scene still shows.  The panel stretches DN to a grayscale pixmap (with
+an optional saturation overlay and visual aids), applies the zoom scaling,
+hit-tests right-clicks to select and drag scene objects, renders the instrument PSF
+inset, and saves the current preview to PNG.  The status bar
 names the frame's units and range, the share of pixels at the missing-data
 marker, and the navigator's verdict when it would not call the frame clean,
 because the preview stretch hides all of them: a ``vgiss`` frame in I/F looks
@@ -12,7 +13,8 @@ status bar reads the frame the navigator reads, with the planted offset applied.
 When a scene plants an offset, that frame is a second render, which runs off the UI
 thread (:mod:`spindoctor.cli.sim_editor.verdict`): the preview appears at once, the
 status bar says the verdict is pending, and the navigated frame's summary replaces
-that when the second render finishes.
+that when the second render finishes.  That render validates the scene, so a scene
+that fails validation shows the validation error in the status bar instead.
 """
 
 from typing import Any
@@ -31,7 +33,7 @@ from spindoctor.sim.instrument_navigator import (
     resolve_sim_inst_config,
 )
 from spindoctor.sim.instrument_resolvers import resolve_data_units
-from spindoctor.sim.render import render_combined_model
+from spindoctor.sim.render import render_unvalidated_preview
 from spindoctor.sim.scene_schema import scene_value
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 
@@ -121,8 +123,9 @@ class RenderDisplayMixin(SimEditorBase):
         supersedes any verdict still on its way for an earlier edit.
         """
         try:
-            # Render image (caching is handled in render.py)
-            img, meta = render_combined_model(self.sim_params, ignore_offset=True)
+            # The preview skips validation so a half-edited scene still shows;
+            # the verdict render below validates (caching is in render.py).
+            img, meta = render_unvalidated_preview(self.sim_params)
             self._current_image = img
             self._last_meta = meta
             inst_config = resolve_sim_inst_config(
