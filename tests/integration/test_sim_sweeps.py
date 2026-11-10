@@ -263,14 +263,19 @@ def test_star_rotation_sweep_recovers_roll() -> None:
 # walk's extreme step, lumpiness 0.7, below.
 _IRREGULARITY_POPULATION_SEEDS = range(13)
 _IRREGULARITY_EXTREME_LUMPINESS = 0.7
-# Measured 2026-10-27: at lumpiness 0.7 the shape-lock veto reports 4 of the 13
-# seeds conflicted (mesh seeds 0, 2, 5, and 12).
-_IRREGULARITY_MIN_VETOED = 4
+# Measured 2026-11-10: at lumpiness 0.7 the shape-lock veto reports 2 of the 13
+# seeds conflicted (mesh seeds 2 and 5).  The noise draw before the detector drew
+# shot noise per pixel gave 4 (seeds 0, 2, 5, and 12).  One noise draw moved the
+# rate that far, so this bound is one draw's measurement until the rate is
+# measured over several noise seeds (#960).
+_IRREGULARITY_MIN_VETOED = 2
 # A "confident wrong" result: success at this confidence or above, this far off.
 _CONFIDENT = 0.9
 _IRREGULARITY_CONFIDENT_WRONG_PX = 5.0
-# Every one of mesh seeds 0 to 12 dips at least this far below the clean step's
-# confidence somewhere on its walk (the smallest dip is seed 10's, 0.31).
+# Twelve of the 13 mesh seeds 0 to 12 dip at least this far below the clean
+# step's confidence somewhere on their walks (the smallest of those dips is seed
+# 9's, 0.37).  Seed 7 dips only 0.10, to 0.89 at lumpiness 0.7.  Measured
+# 2026-11-10.
 _IRREGULARITY_MIN_CONFIDENCE_DROP = 0.3
 
 
@@ -299,13 +304,13 @@ def _irregularity_population() -> tuple[SweepRow, ...]:
 def test_irregularity_sweep_starts_matched() -> None:
     """At zero relief the fused recovery stays sub-half-pixel.
 
-    The fused offset precision-weights the disc correlation (~0.03 px
-    recovery here) against the limb DT fit (which carries the documented
-    ~0.1 px-class gradient-peak/model offset and errs a few tenths on
-    this mesh).  With the #210 model-error floors both report
-    comparable honest sigmas, so the fused value is their blend rather
-    than whichever technique used to claim the tighter covariance; the
-    bound reflects that blend, not a single technique's floor.
+    The fused offset precision-weights the disc correlation (0.07 px off
+    here) against the limb DT fit (which carries the documented ~0.1 px-class
+    gradient-peak/model offset and is 0.05 px off here).  With the #210
+    model-error floors both report comparable honest sigmas, so the fused
+    value is their blend rather than whichever technique used to claim the
+    tighter covariance; the bound reflects that blend, not a single
+    technique's floor.
     """
     rows = _rows('irregularity_shape_mismatch')
     assert rows[0].offset_error_px is not None
@@ -316,8 +321,10 @@ def test_irregularity_sweep_bias_grows() -> None:
     """Shape mismatch grows the recovered centroid bias as relief increases.
 
     This realization ends 5.2 px off.  Every one of mesh seeds 0 to 12 ends
-    more than 2 px off (the least, seed 11, at 2.7 px), but the error never
-    falls between steps on only 4 of them (seeds 4, 5, 9, and 10).
+    more than 2 px off (the least, seeds 6 and 11, both at 2.7 px), but the
+    error never falls between steps on only 6 of them (seeds 2, 5, 7, 9, 10,
+    and 12).  On this realization it holds at 2.89 px from lumpiness 0.4 to 0.6
+    and falls by less than a millipixel at 0.6.
     """
     rows = _rows('irregularity_shape_mismatch')
     assert rows[-1].offset_error_px is not None
@@ -330,17 +337,17 @@ def test_irregularity_sweep_confidence_drops() -> None:
     """Shape mismatch pulls the fused confidence well below the clean step's.
 
     Somewhere on the walk the confidence falls at least 0.3 below the clean
-    (zero-relief) step's 0.99.  That holds on every one of mesh seeds 0 to 12,
-    but it is asserted on this realization only, so the test is a tripwire on
-    this walk rather than a check of the population.  The bound is the
-    population's smallest dip (seed 10's, 0.31) less 0.01; this walk dips 0.59,
-    to 0.40 at lumpiness 0.7, so a failure here means the walk changed, and the
-    population is what to measure next.
+    (zero-relief) step's 0.99.  That holds on 12 of the 13 mesh seeds 0 to 12
+    (seed 7 dips only 0.10), but it is asserted on this realization only, so the
+    test is a tripwire on this walk rather than a check of the population.  The
+    bound sits below the smallest of those 12 dips (seed 9's, 0.37); this walk
+    dips 0.59, to 0.40 at lumpiness 0.7, so a failure here means the walk
+    changed, and the population is what to measure next.
 
-    Falling below it at every mismatched step holds only on seeds 0, 8, and 11,
-    and from lumpiness 0.2 on only on six of them, so neither is asserted: on
+    Falling that far at every mismatched step holds on none of the seeds, and
+    from lumpiness 0.2 on it holds only on seed 8, so neither is asserted: on
     many shapes a mismatched step still reports 0.99 (this realization does at
-    lumpiness 0.1, 0.2, and 0.6).
+    lumpiness 0.1 and 0.2).
     """
     rows = _rows('irregularity_shape_mismatch')
     lowest = min(row.confidence for row in rows[1:])
@@ -369,14 +376,14 @@ def test_irregularity_sweep_clean_step_still_succeeds() -> None:
 
 
 def test_irregularity_population_veto_rate_at_extreme_mismatch() -> None:
-    """At lumpiness 0.7 the shape-lock veto declines at least 4 of 13 mesh shapes.
+    """At lumpiness 0.7 the shape-lock veto declines at least 2 of 13 mesh shapes.
 
     Over mesh seeds 0 to 12 the disc correlation and the limb fit lock onto the
     mismatched shape at the extreme step.  The veto reports a shape
     ``conflicted`` when the pose-free blob disagrees with that lock; on the
     other shapes the blob is displaced with the lock or carries the result
-    itself.  The bound is the measured rate, 4 of 13 (seeds 0, 2, 5, and 12), so
-    a change that weakens the veto on these shapes fails here.
+    itself.  The bound is the rate measured on one noise draw, 2 of 13 (seeds 2
+    and 5), so a change that weakens the veto on these shapes fails here.
     """
     vetoed = [row for row in _irregularity_population() if row.status == 'conflicted']
     assert len(vetoed) >= _IRREGULARITY_MIN_VETOED
@@ -415,27 +422,35 @@ def test_pose_disagreement_starts_clean() -> None:
 
 
 def test_pose_disagreement_limb_error_grows() -> None:
-    """The limb fit error grows monotonically as the predicted pose drifts."""
-    rows = _rows('pose_disagreement')
-    first = rows[0].offset_error_px
-    second = rows[1].offset_error_px
-    last = rows[-1].offset_error_px
-    assert first is not None
-    assert second is not None
-    assert last is not None
-    assert second > first
-    assert last > first + 1.0
-    assert last > 2.0
+    """The limb fit error grows as the predicted pose drifts.
+
+    The check reads, in walk order, the steps where the pinned limb's result is
+    not flagged spurious.  The second of them must be further off than the first,
+    and the last must be more than 1 px further off than the first and more than
+    2 px off.  On this noise draw the limb self-flags spurious at the 45 and 90
+    deg steps (10 and 55 deg from the true pose), so the steps read are 35, 55,
+    and 110 deg, at 0.17, 1.26, and 5.39 px off.
+    """
+    # Which steps self-flag depends on the noise draw, so the check reads whichever
+    # steps succeed.  Measuring the growth over several noise seeds is #960.
+    errors = [
+        row.offset_error_px for row in _rows('pose_disagreement') if row.offset_error_px is not None
+    ]
+    assert len(errors) >= 2
+    assert errors[1] > errors[0]
+    assert errors[-1] > errors[0] + 1.0
+    assert errors[-1] > 2.0
 
 
 def test_pose_disagreement_limb_is_confidently_wrong() -> None:
     """At the largest disagreement the limb is several pixels off yet still 'success'.
 
-    Apart from the 55 deg step, where it self-flags spurious and the frame fails,
-    the pinned limb does not self-flag across this tumble range -- it returns a
-    confidently-wrong fix (a multi-pixel error at unchanged confidence), which is
-    why the per-technique demote decision (test_sim_irregular_pose) cannot rely on
-    the limb's own status and compares it against the pose-free blob instead.
+    Apart from the 45 and 90 deg steps, where it self-flags spurious and the frame
+    fails, the pinned limb does not self-flag across this tumble range -- it
+    returns a confidently-wrong fix (5.4 px off at 110 deg, at 0.55 confidence
+    against 0.62 at the true pose).  That is why the per-technique demote
+    decision (test_sim_irregular_pose) cannot rely on the limb's own status and
+    compares it against the pose-free blob instead.
     """
     rows = _rows('pose_disagreement')
     assert rows[-1].status == 'success'
