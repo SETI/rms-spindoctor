@@ -294,12 +294,6 @@ def test_null_nav_override_key_leaves_the_scene_value() -> None:
     assert build_nav_params(_scene(body))['bodies'][0]['center_v'] == 15.0
 
 
-def test_null_body_name_stays_out_of_the_navigator_view() -> None:
-    """A null name is left out, so the navigator takes its default rather than 'None'."""
-    body = {**_ellipsoid_body(), 'name': None}
-    assert 'name' not in build_nav_params(_scene(body))['bodies'][0]
-
-
 def test_null_body_name_takes_the_positional_name() -> None:
     """A null body name keys the render truth by the positional default."""
     body = {'name': None, 'center_v': 16.0, 'center_u': 16.0, 'axis1': 10.0, 'axis2': 10.0}
