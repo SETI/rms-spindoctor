@@ -1872,8 +1872,9 @@ Summary
   emits no ``BODY_BLOB`` feature, not a limit of the centroid algorithm.
   Navigation is unit-agnostic: a noise-free I/F frame recovers the planted
   offset exactly, as its raw-DN twin does. Under the full instrument chain the
-  calibrated sweeps and their raw twins differ at the noise cliff and at three
-  sub-pixel offsets.
+  calibrated sweeps and their raw twins differ at the noise cliff and at the
+  0.31 and 0.382 px offsets, where only the calibrated disc errs by more than
+  0.01 px.
 * The confidence column reflects the per-technique formulas calibrated on the
   seed-20260718 campaign: the limb-corroborated fuse reports ~0.99, the disc
   ~0.69-0.84 on a resolved body, and the blob is capped at 0.40 on clean frames.
