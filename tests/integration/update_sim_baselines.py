@@ -1,11 +1,11 @@
-"""Regenerate the simulator regression baselines (Phase T2).
+"""Regenerate the simulator regression baselines.
 
 Invoke from a project checkout::
 
     python -m tests.integration.update_sim_baselines
 
 For each scene in the catalog (``tests/integration/sim_scenes/``) this renders,
-navigates, and writes the rounded outcome to
+navigates, and writes the outcome, offsets and confidence unrounded, to
 ``tests/integration/sim_baselines/<scene_name>.json``.  Run it whenever a
 deliberate change to the sim or the navigator shifts a scene's outcome, then
 review the diff before committing -- the baselines are tripwires, so an
@@ -43,7 +43,10 @@ def main() -> int:
             if baseline.offset_dv_px is not None
             else 'none'
         )
-        print(f'{scene_name}: {baseline.status} offset={offset} conf={baseline.confidence}')
+        print(
+            f'{scene_name}: {baseline.status} ({baseline.confidence_rank}) '
+            f'offset={offset} conf={baseline.confidence}'
+        )
     print(f'Wrote {len(scene_paths)} baseline(s) to {_BASELINES_DIR}')
     return 0
 
