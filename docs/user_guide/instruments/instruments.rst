@@ -3,10 +3,10 @@ Instruments
 ===========
 
 One chapter per instrument. Each is self-contained: it answers, for its own
-instrument, every question the shared chapters answer in general, and it names
-no other instrument. Comparing two instruments means opening both chapters and
-reading the same section on each, which is what the fixed section order below
-is for.
+instrument, every question the shared chapters answer in general, and it never
+mentions another instrument. Comparing two instruments means opening both
+chapters and reading the same section on each, which is what the fixed section
+order below is for.
 
 The sections, in the order every chapter carries them, are Overview, Pipeline
 support, Datasets and image selection, Image data and units, Field of view and

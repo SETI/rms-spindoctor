@@ -50,13 +50,13 @@ classification is the top-level ``status_error`` and the evidence is
 ``status_exception`` with the traceback in ``status_traceback``.
 
 ``missing_spice_data``
-    The load raised a SPICE coverage error (``CKINSUFFDATA``,
-    ``SPKINSUFFDATA``, or ``NOFRAMECONNECT``). The document records no epoch
-    of its own, since an epoch is the midtime of the observation the load
-    never built, but the exception text names both the frame and the epoch.
-    Check that the kernel set covers that epoch: attitude gaps in
-    reconstructed C-kernels are the common case, and an epoch outside every
-    loaded CK's coverage bounds cannot be navigated at all.
+    The load raised a SPICE coverage error (``CKINSUFFDATA``, ``SPKINSUFFDATA``,
+    or ``NOFRAMECONNECT``). The document records no epoch of its own, since an
+    epoch is the midtime of the observation the load never built, but the
+    exception text gives both the frame and the epoch. Check that the kernel set
+    covers that epoch: attitude gaps in reconstructed C-kernels are the common
+    case, and an epoch outside every loaded CK's coverage bounds cannot be
+    navigated at all.
 
 ``image_read_error``
     Any other load failure -- a truncated, corrupt, or absent file. The
@@ -82,10 +82,10 @@ classification is the top-level ``status_error`` and the evidence is
 Image-quality refusals
 ======================
 
-The classifier (:doc:`dev_guide_orchestrator_image_classifier`) runs before
-any model is built; when it refuses the frame, ``status_reason`` names the
-class and ``navigation_result.image_classifier`` carries the measurements
-that triggered it.
+The classifier (:doc:`dev_guide_orchestrator_image_classifier`) runs before any
+model is built; when it refuses the frame, ``status_reason`` gives the class and
+``navigation_result.image_classifier`` carries the measurements that triggered
+it.
 
 ``no_signal_in_image``
     A blank or dark frame. Check ``image_classifier.max_dn`` against the
@@ -205,11 +205,11 @@ Technique- and ensemble-stage failures
     between them is only where it came from: a violated invariant that core
     code checked for, against anything else a plugin threw.
 
-    Read ``navigation_result.internal_error`` in the metadata document
-    first. It names the component as ``<registered name>.<method>``
-    (``rings:SATURN.create_model``, ``RingEdgeNav.navigate``) and the
-    exception class (``AttributeError``), which is usually enough to place
-    the fault without opening the log; the log has the traceback.
+    Read ``navigation_result.internal_error`` in the metadata document first. It
+    records the component as ``<registered name>.<method>``
+    (``rings:SATURN.create_model``, ``RingEdgeNav.navigate``) and the exception
+    class (``AttributeError``), which is usually enough to place the fault
+    without opening the log; the log has the traceback.
 
     An exception raised by one model or technique fails the whole image even
     when others succeeded, and that is deliberate. Continuing on the
@@ -228,13 +228,12 @@ A ``status`` of ``conflicted`` is not a failure: an offset **is** reported
 opt-in, because the evidence disagreed. Three reasons produce it:
 
 ``conflicted_techniques``
-    Two (or more) agreement groups existed and the winner's summed
-    confidence did not clear the runner-up by the configured
-    ``agreement_gap``. ``excluded_from_consensus`` names the losing side;
-    comparing the ``per_technique`` offsets shows the disagreement
-    directly, and the summary PNG usually makes the wrong party obvious (a
-    star solution against a body solution displaced along a limb, for
-    example).
+    Two (or more) agreement groups existed and the winner's summed confidence
+    did not clear the runner-up by the configured ``agreement_gap``.
+    ``excluded_from_consensus`` lists the losing side; comparing the
+    ``per_technique`` offsets shows the disagreement directly, and the summary
+    PNG usually makes the wrong party obvious (a star solution against a body
+    solution displaced along a limb, for example).
 
 ``body_shape_lock_suspect``
     A disc/limb consensus agreed at an offset the same body's brightness

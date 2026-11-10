@@ -202,11 +202,11 @@ each subsystem needs.
 ``tests/integration/test_image_library_coverage.py`` checks the library as a
 whole: every class holds at least two sidecars, and every shipped autonomous
 technique is the expected primary technique of at least one sidecar. The library
-is still being filled, so each check names its known gaps. While a gap list isn't
-empty, the check reports an expected failure whose reason lists the gaps (``pytest
--rx`` prints it). A new gap fails it, and so does a filled gap still on the list,
-so the list can only shrink. The check is in the integration tier, so CI doesn't
-run it while the classes are filling.
+is still being filled, so each check lists its known gaps. While a gap list
+isn't empty, the check reports an expected failure whose reason lists the gaps
+(``pytest -rx`` prints it). A new gap fails it, and so does a filled gap still
+on the list, so the list can only shrink. The check is in the integration tier,
+so CI doesn't run it while the classes are filling.
 
 Confidence-tier semantics
 -------------------------

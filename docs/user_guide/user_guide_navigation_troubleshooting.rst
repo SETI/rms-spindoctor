@@ -27,9 +27,9 @@ The run stops with this message::
    must be set
 
 There is no built-in results root, so every run has to be told where to write. Supply it
-by any one of the three the message names; the command-line option wins over the
+by any one of the three the message lists; the command-line option wins over the
 configuration file, which wins over the environment variable. The backplane and bundle
-results roots behave the same way, and their messages name their own three sources. The
+results roots behave the same way, and their messages list their own three sources. The
 log root is the exception: when none of its three is set, it falls back to a ``logs``
 directory under the navigation results root. See
 :doc:`/user_guide/user_guide_installation`.
@@ -50,7 +50,7 @@ sets.
 The run stops on a missing PDS3 index label
 ===========================================
 
-The run stops with a file-not-found error naming a path under ``metadata``, such as::
+The run stops with a file-not-found error that gives a path under ``metadata``, such as::
 
    File(s) do not exist: .../metadata/COISS_2xxx/COISS_2001/COISS_2001_index.lbl,
    .../metadata/COISS_2xxx/COISS_2001/COISS_2001_index.tab
@@ -68,7 +68,7 @@ The image's metadata document records ``missing_spice_data``, or the navigation 
 reports ``kernels_unavailable``. SPICE kernels covering the image's observation time were
 not available.
 
-Check that ``SPICE_PATH`` names the kernel tree, that the tree is readable from the
+Check that ``SPICE_PATH`` points to the kernel tree, that the tree is readable from the
 machine running the program, and that the kernels there actually cover the mission phase
 the image comes from. An image from outside the loaded coverage fails this way even when
 every path is correct.
@@ -133,7 +133,7 @@ The navigation reports a conflicted result: ``conflicted_techniques``,
 measurements pointed at different offsets, or one measurement was contradicted by another
 on the same body.
 
-The image's log names the competing measurements and their confidences. A conflict usually
+The image's log lists the competing measurements and their confidences. A conflict usually
 means one technique locked onto the wrong thing. Restricting the run to the techniques you
 trust for that kind of frame, with ``--nav-techniques``, will tell you which one.
 

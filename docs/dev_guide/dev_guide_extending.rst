@@ -45,7 +45,7 @@ skeleton, using the Cassini ISS implementation
    class DataSetPDS3NewInstrument(DataSetPDS3):
        _ALL_VOLUME_NAMES = tuple(f'NEWI_{n:04d}' for n in range(1, 12))
        _INDEX_COLUMNS = ('FILE_SPECIFICATION_NAME',)
-       # Index columns naming the camera that took the image, in preference
+       # Index columns that identify the camera that took the image, in preference
        # order.  Read for every enumerated image and landing on
        # ImageFile.camera.  This needs no SPICE and never opens the image,
        # so an image whose load fails for want of a kernel is still

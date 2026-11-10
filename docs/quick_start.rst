@@ -123,9 +123,10 @@ reading, rounded to four decimal places; the exact value is the top-level ``offs
 
 ``sigma_px`` is the uncertainty of that offset, in pixels, one value per axis.
 ``confidence`` is a number between 0 and 1 saying how much the evidence in the frame
-supports the answer, and 0.86 is a strong one. ``techniques_used`` names the measurements
-that contributed to it, here a fit to a body's illuminated limb and a correlation against
-the star field.
+supports the answer, and 0.86 is a strong one. ``techniques_used`` lists the techniques
+that produced a result, here a fit to a body's illuminated limb and a correlation against
+the star field. A technique is listed there even when its result was not used in the
+answer.
 
 ``cmatrix`` under ``pointing`` is the corrected pointing itself, written as a C-matrix:
 the rotation from J2000 coordinates to camera coordinates, given as its nine elements row

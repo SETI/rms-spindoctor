@@ -9,9 +9,9 @@ code, or to read a reprojection or mosaic file back into arrays. Everything the
 command-line programs do, they do through this package; see
 :doc:`user_guide_reprojection` for those programs.
 
-This chapter names classes, functions, and fields, because that is what you
-type. All angles in the package are in **radians**, and all radii are in
-kilometers. The command-line programs take degrees and convert.
+This chapter refers to classes, functions, and fields by name, because those
+names are what you type. All angles in the package are in **radians**, and all
+radii are in kilometers. The command-line programs take degrees and convert.
 
 Overview
 ========

@@ -86,23 +86,25 @@ Integration runs take the same flags.
 
 **The suite opens no results index it was not handed.** An index URL resolves
 from an argument, then from the ``environment.results_index_db`` configuration
-variable, then from ``NAV_RESULTS_INDEX_DB``; a test of what a program does with
-no index names none of the three. Both ambient levels are closed by fixtures in
-``tests/conftest.py``, which unset the environment variable and run from a
-directory holding no ``nav_default_config.yaml``: once for the whole session, so
-that a fixture of any scope is built with both closed, and again around each
-test, so that what a test sets up for itself is undone afterwards. The suite
-started in a directory that names a live index therefore neither reads nor locks
-it -- for a SQLite index, an open takes a write-lock probe against a file an
-ingest may be holding.
+variable, then from ``NAV_RESULTS_INDEX_DB``. A test of what a program does
+without a results index sets none of the three. Both ambient levels are closed
+by fixtures in ``tests/conftest.py``, which unset the environment variable and
+run from a directory holding no ``nav_default_config.yaml``: once for the whole
+session, so that a fixture of any scope is built with both closed, and again
+around each test, so that what a test sets up for itself is undone afterwards.
+So a suite started in a directory whose configuration sets a live results index
+neither reads nor locks it. For a SQLite results index, an open takes a
+write-lock probe against a file an ingest may be holding.
 
-A test that wants either level sets it up for itself. Two things the closure
-cannot do for you: a subprocess given a working directory of its own resolves
-its configuration there, so a test that starts one names the directory it means;
-and nothing may be written into the directory the suite runs from, which is
-shared by every test of the worker -- a file left there is a configuration every
-later test in that worker resolves through, so a test that writes one is failed
-on the way out. Move to a directory of your own with ``monkeypatch.chdir`` first.
+A test that wants either level sets it up for itself. These fixtures cannot do two
+things for you. First, a subprocess started in a working directory of its own
+reads its configuration there, so a test that starts one must choose that
+directory deliberately. Second, every test in a worker runs from the same
+directory. Anything a test leaves there is removed when the test ends. A test
+that leaves a ``nav_default_config.yaml`` there also fails, so that the mistake
+is reported at the test that made it: had the file stayed, every later test in
+that worker would have read it as its configuration. Move to a directory of your
+own with ``monkeypatch.chdir`` before writing anything.
 
 Archive-backed tests additionally require the holdings and catalog environment
 (set by CI; see :doc:`dev_guide_introduction`):
@@ -144,16 +146,16 @@ tests need none of the archive environment above.
      - The schema, the version gate, and the type discipline against a backend
        that enforces them, rather than against SQLite's permissive typing; the
        questions only a server can be asked of a drop -- that it leaves another
-       owner's tables standing, including one named as the index names its own;
-       that a search path crossing schemas cannot make one drop span two of
-       them; that an emptied database is the same database as one nothing was
-       built in; that a stamp column this account may not read costs the version
-       and not the drop; and that a lock somebody else holds ends it rather than
-       hanging it. And the questions only a server can be asked of a creating
-       open: that the schema it examines is the one the index resolves to rather
-       than the database around it, and that a table of one of the index's own
-       names in another schema of the search path is neither adopted nor built
-       around.
+       owner's tables standing, including one with the same name as one of the
+       results index's own tables; that a search path crossing schemas cannot
+       make one drop span two of them; that an emptied database is the same
+       database as one nothing was built in; that a stamp column this account
+       may not read costs the version and not the drop; and that a lock somebody
+       else holds ends it rather than hanging it. And the questions only a
+       server can be asked of a creating open: that the schema it examines is
+       the one the index resolves to rather than the database around it, and
+       that a table of one of the index's own names in another schema of the
+       search path is neither adopted nor built around.
    * - Statistics programs on a server
        (``tests/spindoctor/cli/stats/test_postgres.py``, and the
        ``postgres``-marked tests of ``tests/spindoctor/cli/stats/**``)
@@ -333,7 +335,7 @@ the import path itself, but ``python -m`` imports ``spindoctor`` from the active
 environment, which may have a different checkout installed. Every runnable
 script in ``tests/integration`` checks this first
 (``tests/integration/checkout_guard.py``): when the imported ``spindoctor`` lies
-outside the script's own checkout, it stops before writing anything and names
+outside the script's own checkout, it stops before writing anything and reports
 both paths. Unless this checkout is the one installed, run:
 
 .. code-block:: bash

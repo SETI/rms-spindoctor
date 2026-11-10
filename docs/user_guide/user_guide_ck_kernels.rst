@@ -208,13 +208,13 @@ selected no images, writes none -- and
 it covers every image the run considered, including the images that received no
 segment.
 
-Inside a corrected kernel, each segment's identifier is the image's basename,
-so a listing tool such as ``ckbrief`` names the image every segment came from.
-The comment area records the generator version, the configuration hash, the
-original kernel the file corrects, the spacecraft clock kernel its time tags
-are encoded against, and one line per image carrying the same offset, sigma,
-confidence, rank, status, and status reason the report carries. Read it with
-the NAIF ``commnt`` utility or with ``dafec``.
+Inside a corrected kernel, each segment's identifier is the image's basename, so
+a listing tool such as ``ckbrief`` shows the image every segment came from. The
+comment area records the generator version, the configuration hash, the original
+kernel the file corrects, the spacecraft clock kernel its time tags are encoded
+against, and one line per image carrying the same offset, sigma, confidence,
+rank, status, and status reason the report carries. Read it with the NAIF
+``commnt`` utility or with ``dafec``.
 
 Every corrected segment carries angular velocity, so ``ckgp``, ``ckgpav``,
 ``pxform``, and ``sxform`` all report the correction. The rates are copied
@@ -284,7 +284,7 @@ pointing:
 The leapseconds and spacecraft clock kernels are furnished first because
 coverage in TDB is what they convert the segments' clock ticks into.
 ``ck_object`` is the mission's corrected object, which its chapter under
-:doc:`instruments/instruments` names.
+:doc:`instruments/instruments` gives.
 
 The report
 ==========
@@ -383,9 +383,9 @@ Environment options
   archive-scale root costs one paid round trip per image otherwise, and a
   Cassini-scale root holds several hundred thousand. Takes precedence over the
   ``environment.results_index_db`` configuration variable and
-  ``NAV_RESULTS_INDEX_DB``. ``--results-index-db none`` names no results index,
-  which is how a machine that has one configured is told to read the tree for
-  this run. With no results index the tree is read, which is the default.
+  ``NAV_RESULTS_INDEX_DB``. ``--results-index-db none`` turns the results index
+  off, which is how a machine that has one configured is told to read the tree
+  for this run. By default no results index is used, and the tree is read.
 
   The results index must hold a completed ingest of the same results root, and
   the run is refused if it does not: a root nobody has ingested cannot say what
@@ -426,10 +426,10 @@ Output options
 
 * ``--output-dir PATH`` (required): where the corrected kernels, the
   meta-kernel, and the report are written. It is created if it does not exist,
-  and it must be a local directory, since SPICE creates a kernel by name on
-  the local filesystem. Relative paths are resolved to absolute before
-  anything is written, so the meta-kernel names its kernels by paths that work
-  from any working directory.
+  and it must be a local directory, since SPICE creates a kernel by name on the
+  local filesystem. Relative paths are resolved to absolute before anything is
+  written, so the meta-kernel refers to its kernels by paths that work from any
+  working directory.
 
 Logging options
 ---------------
@@ -479,10 +479,10 @@ Restricting a run to part of a mission is a matter of adding ``--start-time`` an
 ``--stop-time``.
 
 A C-kernel can describe an object whose spacecraft clock none of the furnished
-kernels defines, and the scan indexes the rest of the file rather than
-stopping. The run log carries one warning naming such objects. They can never
-supply a baseline, since their coverage cannot be expressed in TDB, and an
-image that actually corrects one is refused with the missing clock named. A
+kernels defines, and the scan indexes the rest of the file rather than stopping.
+The run log carries one warning that lists such objects. They can never supply a
+baseline, since their coverage cannot be expressed in TDB, and an image that
+actually corrects one is refused, and the refusal gives the missing clock. A
 mission whose holdings contain such an object says so in its chapter, so the
 warning is expected rather than investigated.
 
@@ -492,12 +492,12 @@ Exit status
 The program exits 0 when every metadata file it was pointed at could be read,
 whether or not every image received a segment -- an image omitted for a reason
 is reported in the CSV, which is the answer. It exits 1 when any file under the
-navigation results root could not be read as a metadata document naming its
-image and mission. Those files are named in the run log and the run continues on
-what it could read, so a batch wrapper can tell a clean run from one that
-silently skipped its input. Selecting no images at all is not an error: the run
-says so, writes nothing, and exits 0 -- unless some of its input was unreadable,
-which still exits 1 even when nothing was selected.
+navigation results root could not be read as a metadata document that identifies
+its image and mission. Those files are listed in the run log and the run
+continues on what it could read, so a batch wrapper can tell a clean run from
+one that silently skipped its input. Selecting no images at all is not an error:
+the run says so, writes nothing, and exits 0 -- unless some of its input was
+unreadable, which still exits 1 even when nothing was selected.
 
 Refusals worth knowing about
 ----------------------------
@@ -518,23 +518,23 @@ express, which the meta-kernel refuses when it is rendered.
 
 In all of those cases the corrected kernels already written stay on disk while
 the meta-kernel and the report do not, so these are the failures where the
-output directory has to be cleared before the run is repeated. The run log names
+output directory has to be cleared before the run is repeated. The run log lists
 every file it wrote, and each of them is a complete, valid kernel.
 
-* **Two versions of one spacecraft clock kernel, or two frame kernels defining
-  a frame the run's images name.** A text kernel's last assignment wins, so the
-  whole corpus would be reproduced against whichever version sorted last and
-  every image navigated under the other would be reported as having no
-  baseline. The run names the two kernels and what they disagree about.
+* **Two versions of one spacecraft clock kernel, or two frame kernels that
+  define a frame the run's images use.** A text kernel's last assignment wins,
+  so the whole corpus would be reproduced against whichever version sorted last,
+  and every image navigated under the other would be reported as having no
+  baseline. The run reports the two kernels and what they disagree about.
 
 * **A clock or frame kernel that the images recorded and no kernel directory
   holds.** Named, rather than left to surface as an image whose baseline
   appears to have drifted.
 
-* **An output path the run cannot write.** Every destination is judged
-  together, before the first file is opened, and the refusal names every one
-  that failed and why, so a set is cleared in one pass rather than one rerun
-  per file. A path fails in any of these ways:
+* **An output path the run cannot write.** Every destination is judged together,
+  before the first file is opened, and the refusal lists every one that failed
+  and why, so a set is cleared in one pass rather than one rerun per file. A
+  path fails in any of these ways:
 
   * Something already occupies it. A rerun writes a fresh corrected kernel
     rather than appending to or overwriting the old one, so remove or move the

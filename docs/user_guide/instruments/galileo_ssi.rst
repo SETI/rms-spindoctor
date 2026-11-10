@@ -19,8 +19,8 @@ Pipeline support
   `Corrected-pointing C-kernels`_.
 * **Backplanes** -- supported.
 * **Mosaics** -- supported, body and ring.
-* **PDS4 bundles** -- not supported. The dataset names a bundle and a label
-  template directory, but the remaining hooks are unimplemented and the
+* **PDS4 bundles** -- not supported. The dataset defines a bundle name and a
+  label template directory, but the remaining hooks are unimplemented and the
   configuration entry is a commented-out stub.
 * **Simulator** -- supported, under the instrument key ``gossi``.
 * **Statistics** -- supported.
@@ -28,11 +28,11 @@ Pipeline support
 Datasets and image selection
 ============================
 
-**Dataset names.** ``gossi``, with the alias ``gossi_pds3`` naming the same
-class. Both are case-insensitive. There are no sub-datasets.
+**Dataset names.** ``gossi``, with the alias ``gossi_pds3`` for the same
+dataset. Both are case-insensitive. There are no sub-datasets.
 
-**Volumes.** GO_0002 through GO_0023. Naming a volume outside that range is an
-error rather than an empty result.
+**Volumes.** GO_0002 through GO_0023. Asking for a volume outside that range is
+an error rather than an empty result.
 
 **Holdings layout.** Images are read from the ``volumes/`` subtree:
 
@@ -46,25 +46,25 @@ index file name, the volume identifier keeps its uppercase form and the
 ``_index.lbl`` suffix is lowercase.
 
 **Which product is navigated.** The image files are VICAR; PDS3 is the archive
-organization around them. The PDS3 index names a ``.LBL`` filespec
-directly and it is used as it stands, with the image resolved from the label's
-image pointer. The archive holds no calibrated Galileo SSI product, so navigation
+organization around them. The PDS3 index gives a ``.LBL`` filespec directly,
+and it is used as it stands, with the image resolved from the label's image
+pointer. The archive holds no calibrated Galileo SSI product, so navigation
 runs on raw DN.
 
 The directory layout inside a volume is organized by target rather than by
 image number, and the dataset parses both forms it takes: a two-level
-``TARGET/IMAGE.LBL`` for the cruise targets and calibration data
-(``RAW_CAL``, ``VENUS``, ``EARTH``, ``MOON``, ``GASPRA``, ``IDA``, ``SL9``,
-``EMCONJ``, ``GOPEX``) and a three-level ``ORBIT/TARGET/IMAGE.LBL`` for the
-Jupiter orbits (``C3``, ``C9``, ``C10``, ``C20``, ``C21``, ``C22``, ``C30``,
-``E4``, ``E6``, ``E11``, ``E12``, ``E14``, ``E15``, ``E17``, ``E18``, ``E19``,
-``E26``, ``G1``, ``G2``, ``G7``, ``G8``, ``G28``, ``G29``, ``I24``, ``I25``,
-``I27``, ``I31``, ``I32``, ``I33``, ``J0``). Either form may sit under a
-leading ``REDO`` directory, and reprocessed images under ``REDO`` are
-navigated like any other. A filespec whose leading directory is none of those
-names is logged as an error naming the PDS3 index file and the filespec, and that
-row alone is dropped -- so a layout change shows up in the log rather than
-silently reducing the image count.
+``TARGET/IMAGE.LBL`` for the cruise targets and calibration data (``RAW_CAL``,
+``VENUS``, ``EARTH``, ``MOON``, ``GASPRA``, ``IDA``, ``SL9``, ``EMCONJ``,
+``GOPEX``) and a three-level ``ORBIT/TARGET/IMAGE.LBL`` for the Jupiter orbits
+(``C3``, ``C9``, ``C10``, ``C20``, ``C21``, ``C22``, ``C30``, ``E4``, ``E6``,
+``E11``, ``E12``, ``E14``, ``E15``, ``E17``, ``E18``, ``E19``, ``E26``, ``G1``,
+``G2``, ``G7``, ``G8``, ``G28``, ``G29``, ``I24``, ``I25``, ``I27``, ``I31``,
+``I32``, ``I33``, ``J0``). Either form may sit under a leading ``REDO``
+directory, and reprocessed images under ``REDO`` are navigated like any other.
+A filespec whose leading directory is none of those names is logged as an error
+that gives the PDS3 index file and the filespec, and that row alone is dropped
+-- so a layout change shows up in the log rather than silently reducing the
+image count.
 
 **Image names.** A name is ``C``, ten digits, and a trailing ``R`` or ``S`` --
 twelve characters exactly, matched **uppercase only**:
@@ -73,10 +73,10 @@ twelve characters exactly, matched **uppercase only**:
 
    C0349875200R
 
-A filespec whose image name falls outside that rule names a product this
-dataset does not navigate, and its row is dropped without comment. The archive
-holds such products: ``GO_0016``'s ``SL9`` directory stores a ``G`` product
-beside the ``R`` product of each of its thirteen images, a second
+If a filespec's image name falls outside that rule, the filespec refers to a
+product this dataset does not navigate, and its row is dropped without comment.
+The archive holds such products: ``GO_0016``'s ``SL9`` directory stores a ``G``
+product beside the ``R`` product of each of its thirteen images, a second
 representation of an image the enumeration already yields.
 
 **Image numbering.** The image number is the ten digits between the leading
