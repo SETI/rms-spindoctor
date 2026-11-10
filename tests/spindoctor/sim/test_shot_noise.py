@@ -13,6 +13,7 @@ from typing import Any
 import numpy as np
 import pytest
 from scipy import stats
+from scipy.signal import fftconvolve
 
 from spindoctor.sim.forward.detector import apply_detector
 from spindoctor.sim.forward.detector.shot_noise import (
@@ -48,9 +49,8 @@ def _base_means() -> np.ndarray:
     [
         (0.0, 1e-300),
         (np.nextafter(10.0, 0.0), np.nextafter(10.0, 20.0)),
-        (50.0, 50.0 * (1.0 + 2.0**-52)),
     ],
-    ids=['zero_to_tiny', 'across_ten', 'last_bit'],
+    ids=['zero_to_tiny', 'across_ten'],
 )
 def test_one_changed_mean_leaves_every_other_pixel_unchanged(before: float, after: float) -> None:
     """Changing one pixel's mean leaves the counts of all other pixels as they were."""
@@ -87,8 +87,25 @@ def test_a_mean_that_is_not_positive_gives_zero(mean: float) -> None:
 
 def test_a_zero_uniform_gives_zero() -> None:
     """A uniform of exactly 0 gives a count of 0, the smallest count there is."""
-    counts = poisson_inverse_cdf(np.zeros(3), np.array([0.5, 10.0, 1.0e5]))
-    assert np.array_equal(counts, np.zeros(3))
+    counts = poisson_inverse_cdf(np.zeros(4), np.array([0.5, 10.0, 1.0e5, 4.0 * EXACT_MEAN_LIMIT]))
+    assert np.array_equal(counts, np.zeros(4))
+
+
+@pytest.mark.parametrize('mean', [1e-300, 1e-12], ids=['1e-300', '1e-12'])
+def test_a_tiny_mean_gives_the_exact_count_at_every_uniform(mean: float) -> None:
+    """A tiny mean gives 0, or 1 where the uniform is within the mean of 1, promptly.
+
+    Below a mean of about 1e-8 the chance of two counts is smaller than the gap between
+    the uniforms nearest 1, so the count is 1 exactly when ``1 - u`` falls below
+    ``P(X >= 1)`` and 0 otherwise.  The uniforms span the generator's whole range,
+    including its smallest and largest values.
+    """
+    uniform = np.concatenate(
+        [np.random.default_rng(_SEED).random(10_000), [2.0**-53, 0.5, 1.0 - 2.0**-53]]
+    )
+    means = np.full(uniform.size, mean)
+    expected = (1.0 - uniform < -np.expm1(-means)).astype(np.float64)
+    assert np.array_equal(poisson_inverse_cdf(uniform, means), expected)
 
 
 def test_the_inverse_matches_scipy_up_to_the_exact_limit() -> None:
@@ -134,14 +151,19 @@ _FRAME_SHAPE = (48, 48)
 _REGION = (slice(8, 16), slice(30, 40))
 
 
-def _detector_dn(signal: np.ndarray) -> np.ndarray:
-    """Run the coiss_nac detector with shot and read noise over ``signal``."""
+def _detector_dn(signal: np.ndarray, *, noise: dict[str, float] | None = None) -> np.ndarray:
+    """Run the coiss_nac detector with shot and read noise over ``signal``.
+
+    Parameters:
+        signal: The signal plane.
+        noise: Extra scene noise keys, added to the shot and read noise.
+    """
     frame = SimFrame(signal=signal.copy(), point_e=np.zeros_like(signal))
     params: dict[str, Any] = {
         'instrument': 'coiss_nac',
         'random_seed': _SEED,
         'exposure_sec': 1.0,
-        'noise': {'poisson': True, 'read_noise_dn': 5.0},
+        'noise': {'poisson': True, 'read_noise_dn': 5.0, **(noise or {})},
     }
     rng = np.random.default_rng(derive_effect_seed(_SEED, 'detector'))
     apply_detector(frame, params=params, rng=rng)
@@ -173,3 +195,26 @@ def test_a_changed_region_leaves_the_rest_of_the_frame_unchanged(kind: str) -> N
     dn = _detector_dn(signal)
     dn_changed = _detector_dn(changed)
     assert np.array_equal(dn[outside], dn_changed[outside])
+
+
+def test_a_psf_tail_on_an_empty_frame_adds_no_counts() -> None:
+    """A blurred star's convolution tail leaves the dark sky as an exactly zero one does.
+
+    With no dark charge, the sky outside the PSF's footprint holds only the FFT's
+    rounding: means from about 1e-17 to 1e-13 electrons, and about as many slightly
+    below zero.  Each samples to no counts, and promptly, so the sky's DN equals that
+    of the same frame with the sky set to exactly 0.
+    """
+    star = np.zeros(_FRAME_SHAPE, dtype=np.float64)
+    star[24, 24] = 0.5
+    v, u = np.mgrid[-7:8, -7:8]
+    psf = np.exp(-(v * v + u * u) / (2.0 * 1.5**2))
+    blurred = fftconvolve(star, psf / psf.sum(), mode='same')
+    sky = np.ones(_FRAME_SHAPE, dtype=bool)
+    sky[17:32, 17:32] = False
+    trimmed = np.where(sky, 0.0, blurred)
+    noise = {'dark_current_e_per_sec': 0.0, 'readout_dark_e': 0.0}
+    assert np.count_nonzero(sky & (blurred > 0.0)) > 500
+    assert np.array_equal(
+        _detector_dn(blurred, noise=noise)[sky], _detector_dn(trimmed, noise=noise)[sky]
+    )
