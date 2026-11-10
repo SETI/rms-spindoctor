@@ -3883,17 +3883,40 @@ change alters rendered output:
   may outlive its scene or class. A scene that adds no random value to each pixel
   must match exactly. A scene with shot noise, read noise, a per-pixel response
   pattern, a calibration residual, or randomly missing pixels may carry a
-  different noise realization, but in every 16 by 16 block the mean difference
-  must stay within eight standard errors of that block's own noise, plus one
-  display level. The check catches a change that is large next to the noise of
-  the blocks it touches: a moved body or ring edge, or a brightness change across
-  much of a block, in a scene whose noise spans a few display levels. It can miss
-  a change confined to a few pixels. In a star field whose display stretch is set
-  by the sky, the sky noise fills most of the display range, a block's mean must
-  move by more than 30 levels to fail, and a star that disappears or moves
-  passes. The stretch's black and white points move with each noise draw too, by
-  up to 7 display levels in a test star field, and the block noise term absorbs
-  that.
+  different noise realization, and is compared in 16 by 16 blocks of the
+  difference between the two stretched renders:
+
+  - Each block's noise is the median absolute deviation of its difference. In the
+    dark sky of a frame in whole DN with under 1 DN of noise, one DN spans tens of
+    display levels and most of a block's pixels land on the same level in both
+    renders, so that deviation is often 0. Each block's standard error is
+    therefore floored by a frame-wide one, taken from the differences between
+    adjacent blocks. Adjacent blocks share any broad pattern, so a change that
+    covers much of the frame does not raise its own limit.
+  - The display stretch takes its black and white points from percentiles of each
+    frame. A new noise draw moves them: in a star field with a smooth sky, the
+    frame's mean display level moved by up to 7 levels over 200 pairs of draws. In
+    a frame in whole DN, a black or white point can move by a whole DN against the
+    scene, as it does when the bias pedestal moves by a fraction of a DN, and every
+    display level shifts by up to tens of levels. The shift changes linearly with
+    the level, so the check fits a straight line to the blocks' mean differences
+    against their mean levels, over the blocks within their limits, and subtracts
+    it.
+  - A block fails when what remains of its mean difference exceeds eight standard
+    errors plus one display level.
+
+  A new noise realization should pass. A change that is large next to the noise of
+  the blocks it touches fails: a moved body or ring edge, or a brightness change
+  across much of a block, even one that covers a third of the frame. A change
+  confined to a few pixels can pass. In a star field whose display stretch is set
+  by the sky, a block's limit is tens of display levels, so a star that disappears
+  or moves passes. A change that the stretch takes out passes too, such as
+  brightening a body that sets the white point. A change in where sparse artifacts
+  land can fail: hot pixels, cosmic-ray hits, and randomly missing pixels move a
+  block's mean by a few levels where its noise is low, so a NumPy change to how
+  such events are placed can fail a scene that a new noise draw alone would pass.
+  When that happens, regenerate and review the sheet as for any other change.
+
   The sheets themselves are enforced for presence and coverage only -- their
   pixels encode the previous baseline's before-panels and PIL's
   environment-dependent label rasterization, so their *content* remains a review

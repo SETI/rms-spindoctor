@@ -15,16 +15,22 @@ way ``test_sim_doc_images`` guards the documentation galleries:
 
 A scene that adds no random value to each pixel must match pixel for pixel.  A
 scene with shot noise, read noise, a per-pixel response pattern, a calibration
-residual, or randomly missing pixels is checked statistically: the two renders may
-differ by a new noise realization, as they do when NumPy changes a random stream,
-but in each 16 by 16 block the mean difference must stay within what that block's
-own noise explains.  The check therefore catches a change that is large next to
-the noise of the blocks it touches: a body or ring edge that moves, or a region
-whose brightness changes across much of a block, in a scene whose noise spans a
-few display levels.  It can miss a change confined to a few pixels.  In a star
-field whose display stretch is set by the sky, the sky noise spans most of the
-display range and a block's mean must move by more than 30 levels to fail, so a star
-that disappears or moves passes.
+residual, or randomly missing pixels is checked statistically, in 16 by 16 blocks of
+the difference between the two renders; the comment above ``_BLOCK_PX`` gives the
+statistics.  A new noise realization, as when NumPy changes a random stream, should
+pass.  So should a frame in whole DN whose dark sky puts most pixels of a block on one display
+level, and whose black and white points move by a whole DN between draws.
+
+A change that is large next to the noise of the blocks it touches fails: a body or
+ring edge that moves, or a region whose brightness changes across much of a block,
+even when the region covers a third of the frame.  A change confined to a few pixels
+can pass.  In a star field whose display stretch is set by the sky, a block's limit
+is tens of display levels, so a star that disappears or moves passes.  A change that
+the stretch takes out passes too, such as brightening a body that sets the white
+point.  A change in where sparse artifacts land can fail: hot pixels, cosmic-ray
+hits, and randomly missing pixels move a block's mean by a few levels where its
+noise is low, so a NumPy change to how such events are placed can fail a scene that
+a new noise draw alone would pass.
 
 The sheets are checked for presence and coverage only, never for pixel
 identity: a sheet's pixels legitimately encode the *previous* baseline's
@@ -49,7 +55,7 @@ from spindoctor.sim.forward.detector import resolve_detector_params
 from spindoctor.sim.png_export import stretch_to_uint8
 from spindoctor.sim.render import render_combined_model
 from spindoctor.sim.scene import iter_scene_paths, load_sim_scene, scene_class_for_path
-from spindoctor.support.types import NDArrayUint8Type
+from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType, NDArrayUint8Type
 from tests.integration.render_contact_sheet import encode_current_png
 
 pytestmark = [pytest.mark.integration, pytest.mark.sim_integration]
@@ -60,26 +66,39 @@ _RENDER_DIFFS_DIR = _HERE / 'render_diffs'
 _CURRENT_DIR = _RENDER_DIFFS_DIR / 'current'
 _REGEN_COMMAND = 'python -m tests.integration.render_contact_sheet'
 
-# The statistical check for a noisy scene compares the mean difference of each
-# block of _BLOCK_PX by _BLOCK_PX pixels with that block's own noise.  The noise is
-# the median absolute deviation of the difference, scaled to a standard deviation
-# (1.4826 for a normal distribution), so the few pixels of a moved edge do not
-# inflate it.  A block fails when its mean difference exceeds _BLOCK_SIGMAS
-# standard errors of the mean plus _STRETCH_ALLOWANCE_LEVELS.  Eight standard
-# errors leave room for noise that is heavier-tailed or more correlated than a
-# normal distribution.
+# The statistical check for a noisy scene works on blocks of _BLOCK_PX by _BLOCK_PX
+# pixels of the difference between the two stretched renders.
 #
-# The display stretch takes its black and white points from percentiles of the
-# noisy frame, so a new noise realization shifts every display level.  The shift
-# grows with the noise of the pixels at those percentiles, and the block noise
-# term absorbs it: over 200 pairs of draws of the star field in
-# test_a_new_noise_realization_survives_the_stretch, the frame's mean level moved
-# by up to 7 levels against a block limit of about 33.  The one-level allowance
-# covers blocks whose own noise is under a level.
+# A block's noise is the median absolute deviation of its difference, scaled to a
+# standard deviation (1.4826 for a normal distribution), so the few pixels of a moved
+# edge do not inflate it.  In a frame in whole DN whose sky noise is under 1 DN, one DN
+# spans tens of display levels and most sky pixels land on the same level in both
+# renders, so a sky block's median absolute deviation is often 0.  Each block's
+# standard error is therefore floored by a frame-wide one, taken from the differences
+# between the residuals (below) of adjacent blocks: their scaled median absolute value
+# divided by the square root of 2.  Adjacent blocks share any broad pattern, so a change
+# that covers much of the frame does not raise its own limit.
+#
+# The display stretch takes its black and white points from percentiles of each noisy
+# frame.  In a frame in whole DN, a new noise draw or a new bias pedestal can move a
+# black or white point by a whole DN against the scene.  That moves every display
+# level by an amount that changes linearly with the level, by up to tens of levels.
+# The check removes it by fitting a straight line to each block's mean difference
+# against the block's mean level.  The level is the average of the two renders, so the
+# noise of either render does not tilt the line.  The line is fitted _TREND_PASSES
+# times, each time to the blocks within their limits about the previous fit, so the
+# blocks of a real change do not pull it; the first pass starts from the median
+# difference.
+#
+# A block fails when its mean difference, less the line, exceeds _BLOCK_SIGMAS standard
+# errors plus _STRETCH_ALLOWANCE_LEVELS.  Eight standard errors leave room for noise
+# that is heavier-tailed or more correlated than a normal distribution, and the
+# allowance covers rounding to whole display levels.
 _BLOCK_PX = 16
 _BLOCK_SIGMAS = 8.0
 _STRETCH_ALLOWANCE_LEVELS = 1.0
 _MAD_TO_SIGMA = 1.4826
+_TREND_PASSES = 3
 
 
 def _scene_paths() -> list[Path]:
@@ -134,17 +153,62 @@ def _blocks_beyond_noise(committed: NDArrayUint8Type, fresh: NDArrayUint8Type) -
     Both arrays are stretched renders with the same dimensions.  See the constants
     above for the test each block must pass.
     """
-    diff = fresh.astype(np.float64) - committed.astype(np.float64)
+    committed_f = committed.astype(np.float64)
+    fresh_f = fresh.astype(np.float64)
+    diff = fresh_f - committed_f
+    level = 0.5 * (fresh_f + committed_f)
     size_v, size_u = diff.shape
-    failing = 0
-    for v0 in range(0, size_v, _BLOCK_PX):
-        for u0 in range(0, size_u, _BLOCK_PX):
-            block = diff[v0 : v0 + _BLOCK_PX, u0 : u0 + _BLOCK_PX]
-            sigma = _MAD_TO_SIGMA * float(np.median(np.abs(block - np.median(block))))
-            limit = _BLOCK_SIGMAS * sigma / np.sqrt(block.size) + _STRETCH_ALLOWANCE_LEVELS
-            if abs(float(block.mean())) > limit:
-                failing += 1
-    return failing
+    grid = (-(-size_v // _BLOCK_PX), -(-size_u // _BLOCK_PX))
+    mean_diff = np.empty(grid)
+    mean_level = np.empty(grid)
+    block_se = np.empty(grid)
+    for bv in range(grid[0]):
+        for bu in range(grid[1]):
+            rows = slice(bv * _BLOCK_PX, (bv + 1) * _BLOCK_PX)
+            cols = slice(bu * _BLOCK_PX, (bu + 1) * _BLOCK_PX)
+            block = diff[rows, cols]
+            mad = float(np.median(np.abs(block - np.median(block))))
+            mean_diff[bv, bu] = block.mean()
+            mean_level[bv, bu] = level[rows, cols].mean()
+            block_se[bv, bu] = _MAD_TO_SIGMA * mad / np.sqrt(block.size)
+    trend = np.full(grid, np.median(mean_diff))
+    for _ in range(_TREND_PASSES):
+        within = np.abs(mean_diff - trend) <= _block_limits(mean_diff - trend, block_se)
+        trend = _fitted_line(mean_level, mean_diff, within)
+    residual = mean_diff - trend
+    return int(np.count_nonzero(np.abs(residual) > _block_limits(residual, block_se)))
+
+
+def _block_limits(residual: NDArrayFloatType, block_se: NDArrayFloatType) -> NDArrayFloatType:
+    """Each block's limit on its residual, with the frame-wide floor on its error.
+
+    The floor is the scaled median absolute difference between the residuals of
+    horizontally and vertically adjacent blocks, divided by the square root of 2.
+    """
+    steps = np.concatenate([np.diff(residual, axis=0).ravel(), np.diff(residual, axis=1).ravel()])
+    frame_se = _MAD_TO_SIGMA * float(np.median(np.abs(steps))) / np.sqrt(2.0) if steps.size else 0.0
+    limits: NDArrayFloatType = (
+        _BLOCK_SIGMAS * np.maximum(block_se, frame_se) + _STRETCH_ALLOWANCE_LEVELS
+    )
+    return limits
+
+
+def _fitted_line(
+    level: NDArrayFloatType, diff: NDArrayFloatType, within: NDArrayBoolType
+) -> NDArrayFloatType:
+    """The least-squares line of difference against level over the blocks within.
+
+    With fewer than two such blocks, or no spread in their levels, the line is flat
+    at their median difference (0 when there are none).
+    """
+    x = level[within]
+    y = diff[within]
+    if x.size < 2 or np.ptp(x) == 0.0:
+        return np.full(level.shape, float(np.median(y)) if y.size else 0.0)
+    dx = x - x.mean()
+    slope = float(np.dot(dx, y - y.mean()) / np.dot(dx, dx))
+    line: NDArrayFloatType = y.mean() + slope * (level - x.mean())
+    return line
 
 
 def _is_current(
@@ -265,6 +329,59 @@ def test_a_new_noise_realization_survives_the_stretch() -> None:
     first = stretch_to_uint8(rng.poisson(signal).astype(np.float64))
     second = stretch_to_uint8(rng.poisson(signal).astype(np.float64))
     assert _blocks_beyond_noise(first, second) == 0
+
+
+def _whole_dn_star_field(noise_seed: int, bias_dn: float) -> NDArrayFloatType:
+    """A 512 by 512 frame in whole DN: 40 stars on a dark sky, 30 electrons per DN.
+
+    The stars are the same in every call; ``noise_seed`` seeds the shot and read noise.
+    """
+    electrons = np.zeros((512, 512))
+    for v, u in np.random.default_rng(911).integers(5, 507, (40, 2)):
+        electrons[v - 1 : v + 2, u - 1 : u + 2] += 20000.0
+    rng = np.random.default_rng(noise_seed)
+    dn: NDArrayFloatType = np.rint(
+        rng.poisson(electrons) / 30.0 + rng.normal(bias_dn, 0.4, electrons.shape)
+    )
+    return dn
+
+
+def test_a_sky_in_whole_dn_survives_the_stretch() -> None:
+    """Two draws of a star field in whole DN, each stretched, pass the block check.
+
+    The sky holds a 20 DN bias and 0.4 DN of read noise, so most sky pixels take one
+    of three values, one DN spans about 128 display levels, and most pixels of a sky
+    block land on the same level in both draws.
+    """
+    first = stretch_to_uint8(_whole_dn_star_field(1, 20.0))
+    second = stretch_to_uint8(_whole_dn_star_field(2, 20.0))
+    assert _blocks_beyond_noise(first, second) == 0
+
+
+def test_a_new_bias_pedestal_survives_the_stretch() -> None:
+    """A star field in whole DN whose bias moves by 0.6 DN passes the block check.
+
+    The black and white points fall on whole DN values while the sky moves by 0.6 DN,
+    so every sky display level shifts.
+    """
+    first = stretch_to_uint8(_whole_dn_star_field(1, 20.0))
+    second = stretch_to_uint8(_whole_dn_star_field(2, 20.6))
+    assert _blocks_beyond_noise(first, second) == 0
+
+
+def test_a_change_across_a_third_of_the_frame_is_beyond_the_noise() -> None:
+    """Brightening the top third of a ramp by 20 percent fails the block check.
+
+    The brightened rows hold the frame's brightest pixels, so the white point moves
+    with them and every unchanged block shifts too.
+    """
+    rng = np.random.default_rng(911)
+    ramp = np.tile(np.linspace(0.0, 3000.0, 128), (128, 1))
+    brighter = ramp.copy()
+    brighter[:43] *= 1.2
+    first = stretch_to_uint8(rng.poisson(ramp).astype(np.float64))
+    second = stretch_to_uint8(rng.poisson(brighter).astype(np.float64))
+    assert _blocks_beyond_noise(first, second) > 0
 
 
 def test_a_moved_edge_is_beyond_the_noise() -> None:
