@@ -129,3 +129,13 @@ def test_star_hit_test_misses_short_of_the_rendered_position(model: Any) -> None
     model._last_meta = {'star_info': _STAR_INFO}
     model._select_model_at(9.1, 20.5)
     assert model._selected_model_key is None
+
+
+def test_dragging_a_body_without_a_center_starts_at_the_frame_center(model: Any) -> None:
+    """A body with no center moves from the frame center, where the renderer puts it."""
+    model._add_body_tab()
+    del model.sim_params['bodies'][0]['center_v']
+    model._selected_model_key = ('body', 0)
+    model._last_drag_img_vu = (10.0, 10.0)
+    model._move_selected_by(13.0, 10.0)
+    assert model.sim_params['bodies'][0]['center_v'] == pytest.approx(_SIZE / 2.0 + 3.0)
