@@ -1870,10 +1870,18 @@ Summary
   recovers rolls only above ~0.75 deg (the two-star fit extends this to ~0.5 deg),
   and the blob centroid's small-body floor is the 5 px size below which the model
   emits no ``BODY_BLOB`` feature, not a limit of the centroid algorithm.
-  Navigation is unit-agnostic: I/F frames navigate identically to raw DN.
-* The confidence column reflects the sim-calibrated per-technique formulas
-  (seed-20260718 campaign: the limb-corroborated fuse ~0.99, disc ~0.69-0.84 on a
-  resolved body,
-  blob capped at 0.40 on clean frames); the report verifies the recovered
-  geometry and the technique selection, while tier behavior on real frames is
-  validated against the operator-curated library.
+  Navigation is unit-agnostic: a noise-free I/F frame recovers the planted
+  offset exactly, as its raw-DN twin does. Under the full instrument chain the
+  calibrated sweeps and their raw twins differ at the noise cliff and at three
+  sub-pixel offsets.
+* The confidence column reflects the per-technique formulas calibrated on the
+  seed-20260718 campaign: the limb-corroborated fuse reports ~0.99, the disc
+  ~0.69-0.84 on a resolved body, and the blob is capped at 0.40 on clean frames.
+  The disc coefficients were fitted while the correlation's runner-up peak was
+  often the winning peak's own wrapped duplicate. The disc confidences here apply
+  those coefficients to the corrected runner-up, so they run about 0.09 above the
+  values the campaign fitted, and a refit is pending. The report verifies the
+  recovered geometry and the technique selection, while tier behavior on real
+  frames is validated against the operator-curated library.
+
+  .. The refit is tracked as issue #942.
