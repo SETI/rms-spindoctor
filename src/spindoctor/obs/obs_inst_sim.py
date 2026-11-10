@@ -137,9 +137,9 @@ class ObsSim(ObsSnapshotInst):
         )
         snapshot.insert_subfield('data', img_rendered)
 
-        # Select the per-instrument config block the sim is emulating (or the
-        # generic sim block when no instrument is specified), so the
+        # Select the per-instrument config block the sim is emulating, so the
         # orchestrator sees the right units / noise / saturation settings.
+        # Validation requires every scene to set its instrument.
         sim_block = config.category('sim')
         inst_config = resolve_sim_inst_config(
             config, sim_params.get('instrument'), sim_params.get('instrument_config')

@@ -2876,8 +2876,14 @@ A top-level number (``exposure_sec``, ``offset_v``, ``offset_u``,
 can't be null: the validator refuses it, and the author leaves the key out to take its
 default. A top-level block or list set to null reads as unset. Inside the ``bodies``,
 ``stars``, ``optics``, ``sky_counts``, ``spk_error``, ``noise``, ``detector``,
-``artifacts``, and ``ring_system`` blocks, an optional key set to null renders exactly
-as the absent key does.
+``artifacts``, and ``ring_system`` blocks, an optional key that validation accepts at
+null renders exactly as the absent key does, and the navigator reads it as absent
+too: :func:`~spindoctor.sim.scene.build_nav_params` leaves a null body or star key
+out of the navigator's view, and a null inside ``nav_override`` overrides nothing.
+Validation refuses null on a few optional keys, and the author leaves them out
+instead: ``optics.psf.match_navigator``, an ``optics.smear`` entry's
+``object_class``, and the map of an artifact mode inside ``artifacts``. A parameter
+inside a mode's map may be null, and takes its default.
 
 .. list-table::
    :widths: 22 11 11 10 46

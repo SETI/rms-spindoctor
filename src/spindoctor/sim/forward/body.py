@@ -591,8 +591,10 @@ def render_single_body(
         img: Image array to modify in-place.
         spec: The body, parsed by
             :func:`~spindoctor.sim.forward.body_spec.body_spec_from_params`.
-            Its centers, axes, and other pixel lengths must already be scaled to
-            the render grid.
+            Its centers and axes must already be scaled to the render grid.  Its
+            atmosphere's pixel lengths are scaled here, by ``oversample``.  Its
+            surface texture and transit lengths stay in detector pixels, because
+            the topographic renderer shades those features at the detector grid.
         offset_v: V offset to apply.
         offset_u: U offset to apply.
         seed: Scene-level crater seed; a per-body sub-seed is derived from it
