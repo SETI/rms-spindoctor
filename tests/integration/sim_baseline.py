@@ -25,7 +25,10 @@ disc correlation's answer moves in steps of 1/128 px, one step of its upsampled
 grid, and a last-bit change upstream can move it one step.  A per-axis tolerance
 of :data:`OFFSET_TOLERANCE_PX` (0.02 px, about two and a half grid steps) absorbs
 that and still catches a real regression.  The confidence is held to
-:data:`CONFIDENCE_TOLERANCE` for the same reason.
+:data:`CONFIDENCE_TOLERANCE`, a provisional value: how far a last-bit change can move
+a scene's confidence has not been measured.  The rank comes from thresholds on the
+confidence and on the offset's uncertainty, so a scene that sits near one of them can
+still change rank, and fail, after a change far smaller than either tolerance.
 """
 
 from __future__ import annotations
@@ -43,7 +46,10 @@ OFFSET_TOLERANCE_PX: float = 0.02
 """The largest per-axis offset difference, in pixels, that still matches a baseline."""
 
 CONFIDENCE_TOLERANCE: float = 0.02
-"""The largest confidence difference that still matches a baseline."""
+"""The largest confidence difference that still matches a baseline.
+
+A provisional value: how far a last-bit change can move a confidence is unmeasured.
+"""
 
 
 @dataclass(frozen=True)

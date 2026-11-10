@@ -200,8 +200,8 @@ tests need none of the archive environment above.
    * - Sim regression baselines (``test_sim_baselines.py``)
      - integration (``sim_integration``)
      - nothing
-     - Every catalog scene re-navigates to its recorded outcome, within a small
-       tolerance on the offset (a tripwire). Integration-marked because rendering
+     - Every catalog scene re-navigates to its recorded outcome, within small
+       tolerances on the offset and the confidence (a tripwire). Integration-marked because rendering
        and navigating every scene takes minutes; see
        :ref:`reproducing-sim-baselines`.
    * - Sensitivity sweeps (``test_sim_sweeps.py``)
@@ -286,16 +286,26 @@ Reproducing the simulator baselines
 ===================================
 
 A simulator baseline records a scene's outcome: its status, its confidence rank,
-and its offset and confidence as computed, without rounding. The test compares the status and the
-rank exactly, each axis of the offset within 0.02 px, and the confidence within
-0.02. The tolerance is there because some techniques answer on a grid. The disc
-correlation's offset moves in steps of 1/128 px, one step of its upsampled grid,
-and a last-bit change upstream can move it one step. The tolerance is about two
-and a half of those steps.
+its offset, and its confidence, the last two as computed, without rounding. The
+test compares the status and the confidence rank exactly.
 
-The render-diff check compares decoded pixels, never PNG bytes. A scene whose
-detector adds no random value to each pixel must match exactly, and one that does
-is checked statistically, block by block (see :doc:`dev_guide_simulator`). The
+It compares each axis of the offset within 0.02 px, because some techniques
+answer on a grid. The disc correlation's offset moves in steps of 1/128 px, one
+step of its upsampled grid, and a last-bit change upstream can move it one step.
+The tolerance is about two and a half of those steps.
+
+It compares the confidence within 0.02. That value is a provisional choice: how
+far a last-bit change can move a scene's confidence has not been measured, and
+the tolerance has not been reviewed. The rank comes from thresholds on the
+confidence and on the offset's uncertainty, so a scene that sits near one of
+those thresholds can still change rank, and fail, after a change far smaller
+than either tolerance.
+
+The render-diff check compares decoded pixels, never PNG bytes. A scene that
+adds no random value to each pixel must match exactly, and one that does is
+checked statistically, block by block. That check catches a change only when it
+is large next to the noise of the blocks it touches, and
+:doc:`dev_guide_simulator` says what it can miss. The
 gallery check compares PNGs byte for byte. All of this works because a
 simulated render and its navigation are deterministic. A scene gives the same
 result in a fresh process and in a long-lived ``pytest-xdist`` worker, whatever
