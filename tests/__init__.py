@@ -3,12 +3,12 @@
 Importing this package pins NumPy's SIMD dispatch to the x86-64 baseline before
 NumPy is first imported.  NumPy picks vectorized code paths by CPU, and they
 differ in the last bits of their results.  The simulator draws its noise one pixel
-at a time, so such a difference moves the noise of a few pixels at most, and the
-simulator baselines compare offsets within a tolerance.  The noise-free renders and
-the gallery images are compared exactly, though, and a sweep check can sit
-near its threshold, so a last-bit difference that falls on a mask edge or a
-rounding step can fail one.  With every x86 machine on the baseline path,
-the committed baselines, renders, and gallery images reproduce on any of them.
+at a time, so such a difference rarely reaches a pixel's noise, and the simulator
+baselines compare offsets and confidence within a tolerance.  Every committed render
+and gallery image is compared exactly, though, and a sweep check can sit near its
+threshold, so a last-bit difference that falls on a mask edge or a rounding step
+can fail one.  With every x86 machine on the baseline path, the committed
+baselines, renders, and gallery images reproduce on any of them.
 The package is imported both by pytest and by the ``python -m
 tests.integration...`` tools that regenerate those files, so both see the same
 pin.

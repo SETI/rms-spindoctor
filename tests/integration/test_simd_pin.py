@@ -1,7 +1,7 @@
 """The test package's NumPy SIMD pin is in effect.
 
-The committed noise-free renders and gallery images are compared exactly, and
-reproduce reliably only when NumPy runs its x86-64-v2 code path, which
+The committed renders and gallery images are compared exactly, and reproduce
+reliably only when NumPy runs its x86-64-v2 code path, which
 ``tests/__init__.py`` selects before NumPy is first imported.  A plugin or
 conftest that imported NumPy earlier would leave the pin without effect, and the
 simulator checks would then depend on the CPU again; these tests catch that.  An

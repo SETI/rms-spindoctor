@@ -3877,44 +3877,26 @@ change alters rendered output:
 
   The regeneration rule is enforced mechanically by
   ``tests/integration/test_render_diffs.py`` (integration tier, run by CI): every
-  catalog scene must have a committed ``current/`` PNG whose decoded pixels match
-  a fresh render, every scene class must have a committed sheet, and neither
-  may outlive its scene or class. A scene that adds no random value to each pixel
-  must match exactly. A scene with shot noise, read noise, a per-pixel response
-  pattern, a calibration residual, or randomly missing pixels may carry a
-  different noise realization, and is compared in 16 by 16 blocks of the
-  difference between the two stretched renders:
+  catalog scene must have a committed ``current/`` PNG whose decoded pixels equal
+  a fresh render's exactly. Every scene class must have a committed sheet. No PNG
+  may outlive its scene, and no sheet its class. The test compares decoded pixels, so
+  a change in the PNG encoder doesn't fail it. When a render no longer matches, the
+  failure lists the scene, how many of its pixels differ, and the largest
+  difference in display levels.
 
-  - Each block's noise is the median absolute deviation of its difference. In the
-    dark sky of a frame in whole DN with under 1 DN of noise, one DN spans tens of
-    display levels and most of a block's pixels land on the same level in both
-    renders, so that deviation is often 0. Each block's standard error is
-    therefore floored by a frame-wide one, taken from the differences between
-    adjacent blocks. Adjacent blocks share any broad pattern, so a change that
-    covers much of the frame does not raise its own limit.
-  - The display stretch takes its black and white points from percentiles of each
-    frame. A new noise draw moves them: in a star field with a smooth sky, the
-    frame's mean display level moved by up to 7 levels over 200 pairs of draws. In
-    a frame in whole DN, a black or white point can move by a whole DN against the
-    scene, as it does when the bias pedestal moves by a fraction of a DN, and every
-    display level shifts by up to tens of levels. The shift changes linearly with
-    the level, so the check fits a straight line to the blocks' mean differences
-    against their mean levels, over the blocks within their limits, and subtracts
-    it.
-  - A block fails when what remains of its mean difference exceeds eight standard
-    errors plus one display level.
+  Noisy scenes are compared exactly too. The detector draws each pixel's noise from
+  that pixel's own random values, so on the same NumPy a render reproduces exactly,
+  apart from a chance of about 1e-13 per pixel (see
+  :ref:`reproducing-sim-baselines`). Regenerate the ``current/`` PNGs and review
+  the sheets after any deliberate change to what a scene renders, and when a NumPy
+  release changes a random stream. Such a release moves the noise in every noisy
+  render, and it also moves star counts, star positions, cosmic rays, and hot
+  pixels, so the regression baselines are regenerated with it:
 
-  A new noise realization should pass. A change that is large next to the noise of
-  the blocks it touches fails: a moved body or ring edge, or a brightness change
-  across much of a block, even one that covers a third of the frame. A change
-  confined to a few pixels can pass. In a star field whose display stretch is set
-  by the sky, a block's limit is tens of display levels, so a star that disappears
-  or moves passes. A change that the stretch takes out passes too, such as
-  brightening a body that sets the white point. A change in where sparse artifacts
-  land can fail: hot pixels, cosmic-ray hits, and randomly missing pixels move a
-  block's mean by a few levels where its noise is low, so a NumPy change to how
-  such events are placed can fail a scene that a new noise draw alone would pass.
-  When that happens, regenerate and review the sheet as for any other change.
+  .. code-block:: bash
+
+     python -m tests.integration.render_contact_sheet
+     python -m tests.integration.update_sim_baselines
 
   The sheets themselves are enforced for presence and coverage only -- their
   pixels encode the previous baseline's before-panels and PIL's

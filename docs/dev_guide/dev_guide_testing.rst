@@ -301,13 +301,10 @@ confidence and on the offset's uncertainty, so a scene that sits near one of
 those thresholds can still change rank, and fail, after a change far smaller
 than either tolerance.
 
-The render-diff check compares decoded pixels, never PNG bytes. A scene that
-adds no random value to each pixel must match exactly, and one that does is
-checked statistically, block by block. That check catches a change only when it
-is large next to the noise of the blocks it touches, and
-:doc:`dev_guide_simulator` says what it can miss. The
-gallery check compares PNGs byte for byte. All of this works because a
-simulated render and its navigation are deterministic. A scene gives the same
+The render-diff check compares every committed render with a fresh one, pixel
+for pixel. It compares the decoded pixels, so a change in the PNG encoder doesn't
+fail it. The gallery check compares PNGs byte for byte. All of this works because
+a simulated render and its navigation are deterministic. A scene gives the same
 result in a fresh process and in a long-lived ``pytest-xdist`` worker, whatever
 ran before it.
 
@@ -337,9 +334,10 @@ pixel at a time. Each pixel takes one uniform value for its shot noise and one
 normal value for its read noise, however bright or dark the scene is. A changed
 mean can therefore change only its own pixel's noise. It does so only when the
 pixel's uniform value sits within that last bit of a step in the Poisson
-distribution, which is rare, and then by one count.
+distribution, a chance of about 1e-13 per pixel, and then by one count. That is
+why a noisy render can be compared exactly.
 
-The pin matters for the checks that remain exact: the noise-free renders and the
+The pin matters for the checks that are exact: the committed renders and the
 gallery images, which are compared pixel for pixel or byte for byte, and the
 sweep checks, which can sit near a threshold. A last-bit change can move a pixel
 wherever a mask edge or a rounding step falls on it.
@@ -354,6 +352,18 @@ results may differ.
 CI is the reference environment: GitHub's ``ubuntu-latest`` runner, at each
 supported Python version. Every pull request runs the simulator checks there, so
 a baseline that CI doesn't reproduce fails the pull request.
+
+A NumPy release can change how a random stream turns into values. That moves the
+noise in every noisy render, and it also moves star counts, star positions,
+cosmic rays, and hot pixels. The render-diff check fails, and baselines move too.
+Regenerate the committed renders and the baselines together then, as you would
+after a deliberate change to what a scene renders, and review the sheets and the
+baseline diff:
+
+.. code-block:: bash
+
+   python -m tests.integration.render_contact_sheet
+   python -m tests.integration.update_sim_baselines
 
 When a change moves a baseline, regenerate it in that change and say in the
 commit message why it moved. A baseline left stale fails CI and gets blamed on
