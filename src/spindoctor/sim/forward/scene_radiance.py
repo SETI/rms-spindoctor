@@ -252,7 +252,8 @@ def compose_scene_radiance(
     # line-of-sight pose (rotation_z), so a body moves and turns under the same
     # pointing rotation the stars do; the body NavModel predicts the unrolled
     # geometry.  Each body also keeps a scene mapping with the same values for
-    # the render truth.
+    # the render truth.  That mapping leaves out a key the scene sets to null,
+    # so a null key and an absent one give the same truth.
     bodies_with_ranges: list[tuple[BodySpec, dict[str, Any]]] = []
     explicit_ranges: list[bool] = []
     for body_number, body_params in enumerate(bodies_params):
@@ -262,7 +263,7 @@ def compose_scene_radiance(
         # every name-keyed consumer (render order, masks, inventory) sees the
         # same identity and two unnamed bodies cannot collide.
         range_km = float(body_number + 1) if spec.range_km is None else spec.range_km
-        truth_params = dict(body_params)
+        truth_params = {key: value for key, value in body_params.items() if value is not None}
         truth_params['name'] = spec.name
         truth_params['range_km'] = range_km
         cv = det_center_v if spec.center_v is None else spec.center_v

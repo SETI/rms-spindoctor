@@ -1727,9 +1727,13 @@ their validated mappings, because their specs depend on the render: the
 builds them with
 :func:`~spindoctor.sim.forward.atmosphere.atmosphere_spec_from_params` and
 :func:`~spindoctor.sim.forward.body_texture.albedo_spec_from_params`, which read a
-null key as absent too. The stage also writes each body's entry in the render
-truth: the scene entry with its render-grid centers and axes, its name and range
-filled in, and a mesh body's drawn pose scatter.
+null key as absent too.
+
+The stage also writes each body's entry in the render truth. The entry starts as a
+copy of the scene entry, leaving out any key the scene sets to null, so a null key
+and an absent one give the same truth. The stage then puts in the render-grid
+centers and axes, fills in the name and range when the scene leaves them out, and,
+for a mesh body, adds the pose scatter it drew.
 
 The topographic path
 --------------------
@@ -3043,8 +3047,11 @@ scale are idealized (the published shape model of a body is catalog knowledge;
 a scene plants shape error through ``nav_override``, not by hiding the mesh).
 Every body key, and every optional key inside a body's sub-blocks, may be null,
 and a null key renders exactly as the absent key does (see the body spec in
-:ref:`sim-body-renderer`). An entry of a fixed-length list, such as
-``pose_euler_deg`` or a cloud's ``center_vu``, can't be null. Common fields:
+:ref:`sim-body-renderer`). It writes the same render truth, and the navigator's view
+leaves it out, as it would an absent key. A null inside ``nav_override`` overrides
+nothing, so the navigator sees the scene's own value for that key. An entry of a
+fixed-length list, such as ``pose_euler_deg`` or a cloud's ``center_vu``, can't be
+null. Common fields:
 
 .. list-table::
    :widths: 22 11 11 10 46

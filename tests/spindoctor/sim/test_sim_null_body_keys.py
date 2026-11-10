@@ -3,9 +3,10 @@
 The validator accepts null for every key of a ``bodies`` entry and for every
 optional key of the body's sub-blocks, and reads it as absent.  The renderer
 parses each body once into a typed spec, and the specs of a scene with a null
-key and the scene without it are equal, so the two render the same frame.  The
-navigator's filtered view leaves a null key out, so it reads the absent key too.
-Atmosphere keys are covered in ``test_sim_atmosphere.py``.
+key and the scene without it are equal, so the two render the same frame and
+write the same render truth.  The navigator's filtered view leaves a null key
+out, so it reads the absent key too.  Atmosphere keys are covered in
+``test_sim_atmosphere.py``.
 """
 
 import copy
@@ -228,6 +229,50 @@ def test_null_body_keys_render_as_absent(shape: str) -> None:
     image, _ = render_combined_model(_scene(stated))
     expected, _ = render_combined_model(_scene(absent))
     np.testing.assert_array_equal(image, expected)
+
+
+def _null_geometry_scenes() -> tuple[dict[str, Any], dict[str, Any]]:
+    """A rolled scene with null body geometry keys, and the same scene without them.
+
+    The body sets its center, axis3, range, and pose to null.  The radiance stage
+    reads each of these keys itself, to place the body, scale it to the render grid,
+    add the camera roll to its pose, and write its render truth.
+    """
+    absent = {
+        'name': 'RHEA',
+        'axis1': 14.0,
+        'axis2': 12.0,
+        'illumination_angle': 30.0,
+        'phase_angle': 40.0,
+    }
+    stated = {
+        **absent,
+        'center_v': None,
+        'center_u': None,
+        'axis3': None,
+        'range_km': None,
+        'rotation_z': None,
+    }
+    return (
+        {**_scene(stated), 'offset_rotation_deg': 5.0},
+        {**_scene(absent), 'offset_rotation_deg': 5.0},
+    )
+
+
+def test_null_body_geometry_renders_as_absent() -> None:
+    """Null center, axis3, range, and pose keys render the frame the absent keys do."""
+    stated, absent = _null_geometry_scenes()
+    image, _ = render_combined_model(stated)
+    expected, _ = render_combined_model(absent)
+    np.testing.assert_array_equal(image, expected)
+
+
+def test_null_body_keys_write_the_truth_of_absent_keys() -> None:
+    """A body's render truth leaves its null keys out, as if the scene never set them."""
+    stated, absent = _null_geometry_scenes()
+    _, meta = render_combined_model(stated)
+    _, expected = render_combined_model(absent)
+    assert meta['bodies'] == expected['bodies']
 
 
 @pytest.mark.parametrize('key', sorted(_BODY_IDEALIZED_KEYS))
