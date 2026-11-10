@@ -305,13 +305,14 @@ def _irregularity_population() -> tuple[SweepRow, ...]:
     return tuple(run_sweep_steps(steps, spec.technique))
 
 
+# The per-technique model-error floors the docstring refers to are #210.
 def test_irregularity_sweep_starts_matched() -> None:
     """At zero relief the fused recovery stays sub-half-pixel.
 
     The fused offset precision-weights the disc correlation (0.07 px off
     here) against the limb DT fit (which carries the documented ~0.1 px-class
-    gradient-peak/model offset and is 0.05 px off here).  With the #210
-    model-error floors both report comparable honest sigmas, so the fused
+    gradient-peak/model offset and is 0.05 px off here).  With the per-technique
+    model-error floors, both report comparable honest sigmas, so the fused
     value is their blend rather than whichever technique used to claim the
     tighter covariance; the bound reflects that blend, not a single
     technique's floor.
