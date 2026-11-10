@@ -243,16 +243,16 @@ class RenderDisplayMixin(SimEditorBase):
             pen = QPen(QColor(255, 0, 0), 2)
             painter.setPen(pen)
             # Draw centers for bodies
-            for b in self.sim_params.get('bodies', []):
-                center_x = float(b.get('center_u', 0.0))
-                center_y = float(b.get('center_v', 0.0))
+            for b in self.sim_params.get('bodies') or []:
+                center_x = float(scene_value(b, 'center_u', self.sim_params['size_u'] / 2.0))
+                center_y = float(scene_value(b, 'center_v', self.sim_params['size_v'] / 2.0))
                 painter.drawEllipse(QRectF(center_x - 4.0, center_y - 4.0, 8.0, 8.0))
             # Draw stars as small crosses
             pen = QPen(QColor(255, 255, 0), 1)
             painter.setPen(pen)
-            for s in self.sim_params.get('stars', []):
-                u = float(s.get('u', 0.0))
-                v = float(s.get('v', 0.0))
+            for s in self.sim_params.get('stars') or []:
+                u = float(scene_value(s, 'u', 0.0))
+                v = float(scene_value(s, 'v', 0.0))
                 painter.drawLine(QPointF(u - 4.0, v), QPointF(u + 4.0, v))
                 painter.drawLine(QPointF(u, v - 4.0), QPointF(u, v + 4.0))
             # Draw the ring system's shared center as a small circle
@@ -327,7 +327,7 @@ class RenderDisplayMixin(SimEditorBase):
             # body_masks is in the original order of bodies_params, so match by index
             for idx, body in enumerate(bodies):
                 if idx < len(body_masks):
-                    body_name = body.get('name', '').upper()
+                    body_name = str(scene_value(body, 'name', f'SIM-BODY-{idx + 1}')).upper()
                     range_val = inv.get(body_name, {}).get('range', float('inf'))
                     objects.append((range_val, 'body', idx, body_masks[idx]))
 
@@ -393,10 +393,16 @@ class RenderDisplayMixin(SimEditorBase):
         kind, idx = self._selected_model_key
         if kind == 'body' and 0 <= idx < len(self.sim_params['bodies']):
             self.sim_params['bodies'][idx]['center_v'] = float(
-                self.sim_params['bodies'][idx].get('center_v', 0.0) + dv
+                scene_value(
+                    self.sim_params['bodies'][idx], 'center_v', self.sim_params['size_v'] / 2.0
+                )
+                + dv
             )
             self.sim_params['bodies'][idx]['center_u'] = float(
-                self.sim_params['bodies'][idx].get('center_u', 0.0) + du
+                scene_value(
+                    self.sim_params['bodies'][idx], 'center_u', self.sim_params['size_u'] / 2.0
+                )
+                + du
             )
             # Sync the tab spin boxes for this body
             tab_idx = self._find_tab_by_properties('body', idx)
@@ -428,10 +434,10 @@ class RenderDisplayMixin(SimEditorBase):
             self._updater.immediate_update()
         elif kind == 'star' and 0 <= idx < len(self.sim_params['stars']):
             self.sim_params['stars'][idx]['v'] = float(
-                self.sim_params['stars'][idx].get('v', 0.0) + dv
+                scene_value(self.sim_params['stars'][idx], 'v', 0.0) + dv
             )
             self.sim_params['stars'][idx]['u'] = float(
-                self.sim_params['stars'][idx].get('u', 0.0) + du
+                scene_value(self.sim_params['stars'][idx], 'u', 0.0) + du
             )
             # Sync the tab spin boxes for this star
             tab_idx = self._find_tab_by_properties('star', idx)
