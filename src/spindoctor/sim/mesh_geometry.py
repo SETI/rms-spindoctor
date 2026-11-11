@@ -31,6 +31,7 @@ from typing import Any
 import numpy as np
 
 from spindoctor.sim.ellipsoid_geometry import DARK_SIDE_ILLUM_STRENGTH
+from spindoctor.sim.scene_schema import scene_value
 from spindoctor.sim.spherical_harmonics import (
     degree_mean_square,
     draw_sh_coefficients,
@@ -431,7 +432,7 @@ def mesh_spec_from_params(body_params: Mapping[str, Any]) -> MeshBodySpec:
 
     The mesh seed and pose are explicit body parameters (not the scene's noise
     seed), so the same body params reproduce the same shape on both the render
-    and prediction sides.
+    and prediction sides.  A key that is absent or null takes its default.
 
     Parameters:
         body_params: A body parameter mapping.
@@ -442,17 +443,17 @@ def mesh_spec_from_params(body_params: Mapping[str, Any]) -> MeshBodySpec:
     Raises:
         ValueError: If ``pose_euler_deg`` does not hold exactly three angles.
     """
-    pose = body_params.get('pose_euler_deg', (0.0, 0.0, 0.0))
+    pose = scene_value(body_params, 'pose_euler_deg', (0.0, 0.0, 0.0))
     values = [float(x) for x in pose]
     if len(values) != 3:
         raise ValueError(f'pose_euler_deg must have 3 angles; got {pose!r}')
     return MeshBodySpec(
-        lumpiness=float(body_params.get('mesh_lumpiness', 0.3)),
-        n_lat=int(body_params.get('mesh_n_lat', 16)),
-        n_lon=int(body_params.get('mesh_n_lon', 32)),
-        seed=int(body_params.get('mesh_seed', 0)),
+        lumpiness=float(scene_value(body_params, 'mesh_lumpiness', 0.3)),
+        n_lat=int(scene_value(body_params, 'mesh_n_lat', 16)),
+        n_lon=int(scene_value(body_params, 'mesh_n_lon', 32)),
+        seed=int(scene_value(body_params, 'mesh_seed', 0)),
         pose_euler_deg=(values[0], values[1], values[2]),
-        detail_octaves=int(body_params.get('mesh_detail_octaves', 0)),
+        detail_octaves=int(scene_value(body_params, 'mesh_detail_octaves', 0)),
     )
 
 

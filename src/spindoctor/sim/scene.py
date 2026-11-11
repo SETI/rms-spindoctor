@@ -12,7 +12,9 @@ file IS the ``sim_params`` mapping with no translation layer.  ``load_sim_scene`
 parses and validates a file and returns that dict; ``save_sim_scene`` validates a
 ``sim_params`` dict and writes it (injecting ``schema_version`` and
 ``scene_name``); ``validate_sim_params`` validates an in-memory dict for
-programmatic scene authors.  The validator is hand-rolled (no pydantic
+programmatic scene authors.  ``validate_scene`` puts that check behind a small
+cache, which loading a file and every render share, so a scene is not checked
+twice while its contents and label stay the same.  The validator is hand-rolled (no pydantic
 dependency): the key inventory and boundary classification live in
 :mod:`spindoctor.sim.scene_schema` and the per-field type checks in
 :mod:`spindoctor.sim.scene_checks` (body entries:
@@ -36,6 +38,8 @@ change must extend the boundary in the same change.
 from __future__ import annotations
 
 import copy
+import json
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -102,10 +106,12 @@ __all__ = [
     'SimSceneTruthEchoWarning',
     'SimSceneValidationError',
     'build_nav_params',
+    'clear_validation_cache',
     'iter_scene_paths',
     'load_sim_scene',
     'save_sim_scene',
     'scene_class_for_path',
+    'validate_scene',
     'validate_sim_params',
 ]
 
@@ -189,7 +195,55 @@ def load_sim_scene(path: Path) -> dict[str, Any]:
         raise SimSceneValidationError(
             f'{path}: scene_name {scene_name!r} must match filename stem {path.stem!r}'
         )
-    return validate_sim_params(raw, source=str(path))
+    validate_scene(raw, source=str(path))
+    return raw
+
+
+# A handful of entries.  Validation is cheap next to a render, so a scene that has
+# dropped out of the cache costs little to check again.
+@lru_cache(maxsize=8)
+def _validate_scene_json(scene_json: str, source: str) -> None:
+    """Validate the scene that ``scene_json`` encodes, once per scene and source.
+
+    The mapping checked is decoded from the scene's JSON, as the renderer's input
+    is, so validation sees the values the pipeline reads.  A refused scene raises
+    every time, since ``lru_cache`` does not cache exceptions.
+    """
+    validate_sim_params(json.loads(scene_json), source=source)
+
+
+def validate_scene(sim_params: dict[str, Any], *, source: str = 'sim_params') -> None:
+    """Validate a scene through the shared validation cache.
+
+    Loading a scene file, every render, and the scene editor's check before each
+    preview all validate through this function.  A scene checked once is not
+    checked again while its contents and ``source`` stay the same, so a scene file
+    that is loaded and then rendered is validated once, and a scene that passes
+    prints its truth-echo warnings once.  A scene that a caller changes after a
+    check is checked again, because its contents differ.
+
+    A mapping that JSON cannot encode, such as one holding a date that a YAML file
+    spelled without quotes, is validated directly instead, outside the cache.
+
+    Parameters:
+        sim_params: The flat scene parameter mapping.
+        source: The label that begins each validation error message, such as the
+            path of the scene file the mapping came from.
+
+    Raises:
+        SimSceneValidationError: If the scene fails validation.
+    """
+    try:
+        scene_json = json.dumps(sim_params, sort_keys=True)
+    except (TypeError, ValueError):
+        validate_sim_params(sim_params, source=source)
+        return
+    _validate_scene_json(scene_json, source)
+
+
+def clear_validation_cache() -> None:
+    """Forget every scene validated so far, so the next check runs in full."""
+    _validate_scene_json.cache_clear()
 
 
 def save_sim_scene(sim_params: dict[str, Any], path: Path) -> None:
@@ -354,6 +408,14 @@ def build_nav_params(sim_params: dict[str, Any]) -> dict[str, Any]:
     truth.  All values are deep copies, so navigator-side code cannot mutate the
     renderer's scene.
 
+    Where validation accepts a null, the null means the key is absent, and this view
+    reads it that way.  For a key set to null inside ``nav_override``, the navigator
+    sees the scene's own value.  After the overlay, a body or star key that is still
+    null is left out of the entry, and so is a null key of the ring system or of a
+    ring feature, so every navigator reader sees exactly what it sees for an absent
+    key.  Dropping keys can only take information away, so this
+    cannot let truth across the boundary.
+
     Parameters:
         sim_params: The full scene mapping (the renderer's input).
 
@@ -384,9 +446,9 @@ def build_nav_params(sim_params: dict[str, Any]) -> dict[str, Any]:
             if block == 'bodies':
                 override = merged.pop('nav_override', None)
                 if isinstance(override, dict):
-                    merged.update(override)
+                    merged.update({k: v for k, v in override.items() if v is not None})
             filtered_objects.append(
-                {k: copy.deepcopy(v) for k, v in merged.items() if k in idealized}
+                {k: copy.deepcopy(v) for k, v in merged.items() if k in idealized and v is not None}
             )
         nav[block] = filtered_objects
     return nav
@@ -405,6 +467,10 @@ def _filter_ring_system(ring_system: dict[str, Any]) -> dict[str, Any]:
     phase_g) or the planted ``orbit_error`` -- the navigator knows the error
     bars, never the drawn error values.
 
+    A block-level or feature key set to null is left out, as a body or star key
+    is, so the navigator's ring model reads it as an absent key.  A feature whose
+    name is null, for example, takes the model's positional default name.
+
     Parameters:
         ring_system: The full ``ring_system`` mapping (renderer input).
 
@@ -414,14 +480,18 @@ def _filter_ring_system(ring_system: dict[str, Any]) -> dict[str, Any]:
     filtered: dict[str, Any] = {
         key: copy.deepcopy(value)
         for key, value in ring_system.items()
-        if key in _RING_SYSTEM_IDEALIZED_KEYS and key != 'features'
+        if key in _RING_SYSTEM_IDEALIZED_KEYS and key != 'features' and value is not None
     }
     features: list[dict[str, Any]] = []
     for feature in ring_system.get('features') or []:
         if not isinstance(feature, dict) or feature.get('navigable') is not True:
             continue
         features.append(
-            {k: copy.deepcopy(v) for k, v in feature.items() if k in _RING_FEATURE_IDEALIZED_KEYS}
+            {
+                k: copy.deepcopy(v)
+                for k, v in feature.items()
+                if k in _RING_FEATURE_IDEALIZED_KEYS and v is not None
+            }
         )
     filtered['features'] = features
     return filtered

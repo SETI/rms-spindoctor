@@ -77,11 +77,13 @@ all of that cost too, so the clip sets it and the band does not.
 """
 
 import math
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
 
+from spindoctor.sim.scene_schema import scene_value
 from spindoctor.support.stable_math import stable_hypot
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 
@@ -291,7 +293,7 @@ class HazeStructure:
 
 def _blob_from_params(entry: dict[str, Any], *, os_factor: int) -> CloudBlob:
     """Build one :class:`CloudBlob` from a scene ``cloud_blobs`` entry."""
-    center = entry.get('center_vu', (0.0, 0.0))
+    center = scene_value(entry, 'center_vu', (0.0, 0.0))
     return CloudBlob(
         center_v=float(center[0]) * os_factor,
         center_u=float(center[1]) * os_factor,
@@ -301,15 +303,15 @@ def _blob_from_params(entry: dict[str, Any], *, os_factor: int) -> CloudBlob:
 
 
 def haze_structure_from_params(
-    atmosphere: dict[str, Any], *, oversample: int
+    atmosphere: Mapping[str, Any], *, oversample: int
 ) -> HazeStructure | None:
     """Build a :class:`HazeStructure` from a body's ``atmosphere`` block.
 
-    Returns None when the block names none of :data:`HAZE_STRUCTURE_KEYS`,
-    which is what keeps a plain haze on exactly the arithmetic it had before
-    this structure existed.  Pixel lengths are scaled to the render grid by
-    ``oversample`` exactly as the body's axes are; the amplitudes, ratios,
-    and angles are dimensionless and are not.
+    Returns None when every key of :data:`HAZE_STRUCTURE_KEYS` is absent or null,
+    so a plain haze renders as an unstructured haze.  A key that is absent or null
+    takes its default.  Pixel lengths are scaled to the render grid by
+    ``oversample`` exactly as the body's axes are; the amplitudes, ratios, and
+    angles are dimensionless and are not.
 
     Parameters:
         atmosphere: One body's ``atmosphere`` mapping.
@@ -319,16 +321,16 @@ def haze_structure_from_params(
         The scaled structure, or None when the block carries no structure
         keys.
     """
-    if not HAZE_STRUCTURE_KEYS & set(atmosphere):
+    if all(atmosphere.get(key) is None for key in HAZE_STRUCTURE_KEYS):
         return None
     os_factor = max(1, int(oversample))
     blobs = atmosphere.get('cloud_blobs') or ()
     return HazeStructure(
-        interior_ramp_amplitude=float(atmosphere.get('interior_ramp_amplitude', 0.0)),
-        ns_asymmetry_amplitude=float(atmosphere.get('ns_asymmetry_amplitude', 0.0)),
-        ns_falloff_ratio=float(atmosphere.get('ns_falloff_ratio', 1.0)),
-        axis_tilt_deg=float(atmosphere.get('axis_tilt_deg', 0.0)),
-        sector_sharpness_gradient=float(atmosphere.get('sector_sharpness_gradient', 0.0)),
+        interior_ramp_amplitude=float(scene_value(atmosphere, 'interior_ramp_amplitude', 0.0)),
+        ns_asymmetry_amplitude=float(scene_value(atmosphere, 'ns_asymmetry_amplitude', 0.0)),
+        ns_falloff_ratio=float(scene_value(atmosphere, 'ns_falloff_ratio', 1.0)),
+        axis_tilt_deg=float(scene_value(atmosphere, 'axis_tilt_deg', 0.0)),
+        sector_sharpness_gradient=float(scene_value(atmosphere, 'sector_sharpness_gradient', 0.0)),
         cloud_blobs=tuple(_blob_from_params(dict(b), os_factor=os_factor) for b in blobs),
     )
 

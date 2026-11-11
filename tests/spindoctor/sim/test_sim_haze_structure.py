@@ -33,6 +33,7 @@ import pytest
 
 from spindoctor.sim.forward.atmosphere import HaloScreen, atmosphere_spec_from_params
 from spindoctor.sim.forward.body import render_single_body
+from spindoctor.sim.forward.body_spec import body_spec_from_params
 from spindoctor.sim.forward.haze_structure import (
     HAZE_STRUCTURE_KEYS,
     HEMISPHERE_BLEND_HALF_WIDTH_DEG,
@@ -108,7 +109,7 @@ def _render_body(
     }
     _mask, body_info = render_single_body(
         img,
-        body_params,
+        body_spec_from_params(body_params, index=0),
         0.0,
         offset_u=0.0,
         ref_center_v=_SIZE / 2.0,
@@ -247,7 +248,7 @@ def _disc_mean(img: NDArrayFloatType, *, southern: bool) -> float:
 
 def test_plain_atmosphere_block_carries_no_structure() -> None:
     """A block naming no structure key leaves the spec's structure at None."""
-    spec = atmosphere_spec_from_params({'atmosphere': dict(_BASE_ATMOSPHERE)}, oversample=1)
+    spec = atmosphere_spec_from_params(dict(_BASE_ATMOSPHERE), oversample=1)
     assert spec is not None
     assert spec.structure is None
 
@@ -263,7 +264,7 @@ def test_any_structure_key_builds_a_structure(key: str) -> None:
         'sector_sharpness_gradient': 0.3,
         'cloud_blobs': [{'center_vu': [0.0, 0.0], 'sigma_px': 3.0, 'amplitude': 0.2}],
     }
-    spec = atmosphere_spec_from_params({'atmosphere': _with(**{key: sample[key]})}, oversample=1)
+    spec = atmosphere_spec_from_params(_with(**{key: sample[key]}), oversample=1)
     assert spec is not None
     assert spec.structure is not None
 

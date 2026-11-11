@@ -19,11 +19,14 @@ from spindoctor.sim.instrument_resolvers import resolve_detector_defaults
 from spindoctor.sim.render import render_combined_model
 
 
-def _obs(instrument: str | None, *, size: int = 64) -> ObsSim:
+def _obs(instrument: str, *, size: int = 64) -> ObsSim:
     """Build an ObsSim for the given instrument from a minimal scene."""
-    params: dict[str, Any] = {'size_v': size, 'size_u': size, 'random_seed': 1}
-    if instrument is not None:
-        params['instrument'] = instrument
+    params: dict[str, Any] = {
+        'size_v': size,
+        'size_u': size,
+        'random_seed': 1,
+        'instrument': instrument,
+    }
     return ObsSim.from_file('/tmp/sim_test.json', sim_params=params)
 
 
@@ -78,8 +81,8 @@ def test_settings_vgiss_is_calibrated_if() -> None:
 
 
 def test_settings_generic_defaults_to_raw_dn() -> None:
-    """An instrument-less obs falls back to the generic raw_dn sim block."""
-    settings = instrument_settings_from_obs(_obs(None))
+    """A generic obs takes the generic raw_dn sim block."""
+    settings = instrument_settings_from_obs(_obs('generic'))
     assert settings.data_units == 'raw_dn'
 
 

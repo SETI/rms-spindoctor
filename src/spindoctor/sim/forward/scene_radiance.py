@@ -38,6 +38,7 @@ the sibling :mod:`spindoctor.sim.forward.scene_compositing`; this module
 paints the stack and applies the ordered screen ops it returns.
 """
 
+import dataclasses
 from collections.abc import Callable, Mapping
 from typing import Any
 
@@ -47,6 +48,7 @@ from scipy import ndimage
 from spindoctor.config import DEFAULT_CONFIG
 from spindoctor.sim.forward.atmosphere import HaloScreen
 from spindoctor.sim.forward.body import render_single_body
+from spindoctor.sim.forward.body_spec import BodySpec, body_spec_from_params
 from spindoctor.sim.forward.optics import effective_psf
 from spindoctor.sim.forward.ring_system import RingSystemMaps, render_ring_system
 from spindoctor.sim.forward.scene_compositing import (
@@ -187,7 +189,7 @@ def compose_scene_radiance(
     scene_psf = effective_psf(params)
     if scene_psf is not None:
         sigma_v_psf = float(scene_psf['sigma_v'])
-        rendered_sigma_det = max(sigma_v_psf, float(scene_psf.get('sigma_u', sigma_v_psf)))
+        rendered_sigma_det = max(sigma_v_psf, float(scene_value(scene_psf, 'sigma_u', sigma_v_psf)))
     else:
         rendered_sigma_det = 0.0
     rendered_sigma = rendered_sigma_det * os
@@ -232,9 +234,9 @@ def compose_scene_radiance(
     roll_sin = float(np.sin(np.radians(offset_rotation_deg)))
     det_center_v = (size_v / os) / 2.0
     det_center_u = (size_u / os) / 2.0
-    spk_dv = float(spk_error.get('dv_px', 0.0))
-    spk_du = float(spk_error.get('du_px', 0.0))
-    spk_ref_range = float(spk_error.get('reference_range_km', 0.0))
+    spk_dv = float(scene_value(spk_error, 'dv_px', 0.0))
+    spk_du = float(scene_value(spk_error, 'du_px', 0.0))
+    spk_ref_range = float(scene_value(spk_error, 'reference_range_km', 0.0))
 
     def _spk_shift(range_km: float) -> tuple[float, float]:
         """Parallax displacement in detector pixels for a body/ring range."""
@@ -243,43 +245,57 @@ def compose_scene_radiance(
         factor = spk_ref_range / range_km
         return spk_dv * factor, spk_du * factor
 
-    # Process bodies: assign default ranges, apply parallax and the camera roll,
-    # and scale centers and axes to the oversampled grid.  A roll rotates each
-    # body's center about the boresight and adds to its line-of-sight pose
-    # (rotation_z), so a body moves and turns under the same pointing rotation
-    # the stars do; the body NavModel predicts the unrolled geometry.
-    bodies_with_ranges = []
+    # Process bodies: parse each into its typed spec (every default applied,
+    # a null key read as absent), assign default ranges, apply parallax and the
+    # camera roll, and scale centers and axes to the oversampled grid.  A roll
+    # rotates each body's center about the boresight and adds to its
+    # line-of-sight pose (rotation_z), so a body moves and turns under the same
+    # pointing rotation the stars do; the body NavModel predicts the unrolled
+    # geometry.  Each body also keeps a scene mapping with the same values for
+    # the render truth.  If the scene sets a key to null, that mapping leaves
+    # the key out, so a null key and an absent one give the same truth.
+    bodies_with_ranges: list[tuple[BodySpec, dict[str, Any]]] = []
+    explicit_ranges: list[bool] = []
     for body_number, body_params in enumerate(bodies_params):
-        body_params_copy = dict(body_params)
-        # Positional default name, applied once here so every name-keyed
-        # consumer (render order, masks, inventory) sees the same identity
-        # and two unnamed bodies cannot collide.
-        body_params_copy.setdefault('name', f'SIM-BODY-{body_number + 1}')
-        if 'range_km' in body_params_copy:
-            range_km = float(body_params_copy['range_km'])
-        else:
-            range_km = float(body_number + 1)
-        body_params_copy['range_km'] = range_km
-        cv = float(body_params.get('center_v', det_center_v))
-        cu = float(body_params.get('center_u', det_center_u))
+        spec = body_spec_from_params(body_params, index=body_number)
+        explicit_ranges.append(spec.range_km is not None)
+        # The positional default name and range are applied once here, so
+        # every name-keyed consumer (render order, masks, inventory) sees the
+        # same identity and two unnamed bodies cannot collide.
+        range_km = float(body_number + 1) if spec.range_km is None else spec.range_km
+        truth_params = {key: value for key, value in body_params.items() if value is not None}
+        truth_params['name'] = spec.name
+        truth_params['range_km'] = range_km
+        cv = det_center_v if spec.center_v is None else spec.center_v
+        cu = det_center_u if spec.center_u is None else spec.center_u
         sdv, sdu = _spk_shift(range_km)
         cv += sdv
         cu += sdu
+        rotation_z = spec.rotation_z
         if offset_rotation_deg != 0.0:
             rv = cv - det_center_v
             ru = cu - det_center_u
             cv = det_center_v + roll_cos * rv - roll_sin * ru
             cu = det_center_u + roll_sin * rv + roll_cos * ru
-            body_params_copy['rotation_z'] = (
-                float(body_params.get('rotation_z', 0.0)) + offset_rotation_deg
-            )
-        body_params_copy['center_v'] = cv * os
-        body_params_copy['center_u'] = cu * os
+            rotation_z = spec.rotation_z + offset_rotation_deg
+            truth_params['rotation_z'] = rotation_z
+        truth_params['center_v'] = cv * os
+        truth_params['center_u'] = cu * os
         for axis_key in ('axis1', 'axis2', 'axis3'):
             axis_val = body_params.get(axis_key)
             if axis_val is not None:
-                body_params_copy[axis_key] = float(axis_val) * os
-        bodies_with_ranges.append(body_params_copy)
+                truth_params[axis_key] = float(axis_val) * os
+        render_spec = dataclasses.replace(
+            spec,
+            center_v=cv * os,
+            center_u=cu * os,
+            axis1=spec.axis1 * os,
+            axis2=spec.axis2 * os,
+            axis3=spec.axis3 * os,
+            rotation_z=rotation_z,
+            range_km=range_km,
+        )
+        bodies_with_ranges.append((render_spec, truth_params))
 
     # Order the bodies far to near.  The ordering key is the physical
     # 'range_km' -- there is no hint-unit fallback.  A body without one
@@ -288,12 +304,12 @@ def compose_scene_radiance(
     # placement, never a depth claim: the paint loop below raises when
     # bodies without an explicit range_km actually overlap, so an
     # ambiguous stack is a scene-authoring error, not a guess.
-    render_items: list[tuple[tuple[float, int], dict[str, Any], int, bool]] = []
-    for idx, (body_params, body_scaled) in enumerate(
-        zip(bodies_params, bodies_with_ranges, strict=True)
+    render_items: list[tuple[tuple[float, int], BodySpec, dict[str, Any], int, bool]] = []
+    for idx, ((body_spec, truth_params), explicit) in enumerate(
+        zip(bodies_with_ranges, explicit_ranges, strict=True)
     ):
-        explicit = body_params.get('range_km') is not None
-        render_items.append(((float(body_scaled['range_km']), idx), body_scaled, idx, explicit))
+        assert body_spec.range_km is not None
+        render_items.append(((body_spec.range_km, idx), body_spec, truth_params, idx, explicit))
 
     # Sort all items far to near.  The key is (range_km, list index), so
     # bodies at exactly equal ranges tie-break deterministically by their
@@ -322,8 +338,8 @@ def compose_scene_radiance(
     ref_center_u = size_u / 2.0
 
     # Build order_near_to_far for bodies (needed for body_index_map)
-    sorted_bodies_by_range = sorted(bodies_with_ranges, key=lambda x: x['range_km'])
-    order_near_to_far = [str(bp['name']).upper() for bp in sorted_bodies_by_range]
+    sorted_bodies_by_range = sorted(bodies_with_ranges, key=lambda x: x[1]['range_km'])
+    order_near_to_far = [body_spec.name.upper() for body_spec, _ in sorted_bodies_by_range]
 
     # Painted-so-far tracking for the depth-ambiguity check: overlapping
     # bodies must ALL carry an explicit scene range_km, or their stacking
@@ -350,10 +366,10 @@ def compose_scene_radiance(
     halo_screens: list[tuple[float, HaloScreen]] = []
     halo_check_items: list[tuple[str, bool, HaloScreen]] = []
 
-    for sort_key, item_params, orig_idx, explicit_depth in render_items:
+    for sort_key, item_spec, item_truth, orig_idx, explicit_depth in render_items:
         body_mask, body_info = render_single_body(
             img,
-            item_params,
+            item_spec,
             offset_v,
             offset_u=offset_u,
             seed=crater_seed,
@@ -365,7 +381,11 @@ def compose_scene_radiance(
         # Store mask by original index for proper ordering
         body_mask_map_by_idx[orig_idx] = body_mask
         body_mask_map_dict[body_info['name']] = body_mask
-        body_models_dict[body_info['name']] = body_info['params']
+        # A mesh body's drawn pose scatter joins its render truth.
+        drawn = body_info.get('pose_scatter_drawn_deg')
+        body_models_dict[body_info['name']] = (
+            item_truth if drawn is None else {**item_truth, 'pose_scatter_drawn_deg': drawn}
+        )
         inventory_dict[body_info['name']] = body_info['inventory']
         rendered_bodies.append((body_info['name'], body_mask))
         # Index into near-to-far order is 1-based
@@ -498,10 +518,10 @@ def compose_scene_radiance(
             stars_layer[body_occlusion_mask] = 0.0
         bodies_layer = np.zeros((size_v, size_u), dtype=np.float64)
         rings_layer = np.zeros((size_v, size_u), dtype=np.float64)
-        for _sort_key, item_params, orig_idx, _explicit in render_items:
+        for _sort_key, item_spec, _item_truth, orig_idx, _explicit in render_items:
             render_single_body(
                 bodies_layer,
-                item_params,
+                item_spec,
                 offset_v,
                 offset_u=offset_u,
                 seed=crater_seed,
@@ -730,7 +750,7 @@ def _render_sky(
     scene_psf = effective_psf(params)
     if scene_psf is not None:
         sigma_v_psf = float(scene_psf['sigma_v'])
-        rendered_sigma_det = max(sigma_v_psf, float(scene_psf.get('sigma_u', sigma_v_psf)))
+        rendered_sigma_det = max(sigma_v_psf, float(scene_value(scene_psf, 'sigma_u', sigma_v_psf)))
     else:
         rendered_sigma_det = float(inst_config['star_psf_sigma']) / scene_binning(params)
     read_noise = _nominal_read_noise(instrument, domain, binning=scene_binning(params))
@@ -743,15 +763,15 @@ def _render_sky(
     render_sky_counts(
         plane,
         seed=seed,
-        a=float(sky.get('a', -3.1)),
-        b=float(sky.get('b', 0.34)),
-        density_factor=float(sky.get('density_factor', 1.0)),
+        a=float(scene_value(sky, 'a', -3.1)),
+        b=float(scene_value(sky, 'b', 0.34)),
+        density_factor=float(scene_value(sky, 'density_factor', 1.0)),
         # A binned frame pixel spans binning native pixels on a side.
         pixel_scale_arcsec=resolve_sky_pixel_scale_arcsec(instrument) * scene_binning(params),
         faint_cutoff_mag=cutoff,
         zero_point=zero_point,
         exposure_sec=exposure_sec,
-        diffuse_flux_per_px=float(sky.get('diffuse_e_per_px', 0.0)),
+        diffuse_flux_per_px=float(scene_value(sky, 'diffuse_e_per_px', 0.0)),
         oversample=os,
     )
 
@@ -802,7 +822,7 @@ def _scale_star_params(star_params: dict[str, Any], os: int) -> dict[str, Any]:
     # entry scales exactly like an explicit one: the downsample stage divides
     # every record's psf_size by os, which would otherwise shrink a defaulted
     # window to (11 // os, 11 // os) detector pixels.
-    psf_size = star_params.get('psf_size', DEFAULT_PSF_SIZE)
+    psf_size = scene_value(star_params, 'psf_size', DEFAULT_PSF_SIZE)
     scaled['psf_size'] = [int(psf_size[0]) * os, int(psf_size[1]) * os]
     companion = star_params.get('companion')
     if isinstance(companion, dict) and companion.get('sep_px') is not None:

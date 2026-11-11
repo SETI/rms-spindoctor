@@ -1,10 +1,11 @@
 """Render, display, PSF preview, selection, and image-save panel.
 
-Drives the live preview: it calls the renderer, stretches DN to a grayscale
-pixmap (with an optional saturation overlay and visual aids), applies the zoom
-scaling, hit-tests right-clicks to select and drag scene objects, renders the
-instrument PSF inset, and saves the current preview to PNG.  The status bar
-names the frame's units and range, the share of pixels at the missing-data
+Drives the live preview, which validates the scene before it renders, as every
+render does.  The panel stretches DN to a grayscale pixmap (with an optional
+saturation overlay and visual aids), applies the zoom scaling, hit-tests
+right-clicks to select and drag scene objects, renders the instrument PSF inset,
+and saves the current preview to PNG.  The status bar gives the frame's units and
+range, the share of pixels at the missing-data
 marker, and the navigator's verdict when it would not call the frame clean,
 because the preview stretch hides all of them: a ``vgiss`` frame in I/F looks
 the same as a ``coiss_nac`` frame in DN.  The preview is offset-free, but the
@@ -12,9 +13,12 @@ status bar reads the frame the navigator reads, with the planted offset applied.
 When a scene plants an offset, that frame is a second render, which runs off the UI
 thread (:mod:`spindoctor.cli.sim_editor.verdict`): the preview appears at once, the
 status bar says the verdict is pending, and the navigated frame's summary replaces
-that when the second render finishes.
+that when the second render finishes.  When validation refuses a scene, the last
+valid picture stays on screen and the status bar shows the reason in place of a
+verdict.  A render that fails on a valid scene opens an error dialog.
 """
 
+import copy
 from typing import Any
 
 import numpy as np
@@ -32,7 +36,12 @@ from spindoctor.sim.instrument_navigator import (
 )
 from spindoctor.sim.instrument_resolvers import resolve_data_units
 from spindoctor.sim.render import render_combined_model
-from spindoctor.sim.scene_schema import scene_value
+from spindoctor.sim.scene import validate_scene
+from spindoctor.sim.scene_schema import (
+    SimSceneValidationError,
+    default_body_name,
+    scene_value,
+)
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 
 
@@ -113,18 +122,29 @@ class RenderDisplayMixin(SimEditorBase):
     def _update_image(self) -> None:
         """Re-render the preview, refresh the display, and update the status bar.
 
-        The preview renders on the UI thread.  Without a planted offset the status
-        bar describes the preview itself.  With one, the navigator reads a
-        different frame, since the offset moves the scene within the frame (a body
-        near the edge can leave it); the status bar then names the units with
-        ``verdict pending`` and asks the verdict runner for that frame, which
-        supersedes any verdict still on its way for an earlier edit.
+        The scene is validated first, on the UI thread.  If validation refuses it,
+        the last valid picture stays on screen and the status bar shows the reason in
+        place of a verdict.  A valid scene renders its offset-free preview.  Without a
+        planted offset the status bar then describes the preview itself.  With one,
+        the navigator reads a different frame, since the offset moves the scene
+        within the frame (a body near the edge can leave it); the status bar then
+        shows the units with ``verdict pending`` and asks the verdict runner for
+        that frame, which supersedes any verdict still on its
+        way for an earlier edit.
+
+        Any other failure, of the render or of the validator itself, opens an error
+        dialog that reports it.
         """
         try:
-            # Render image (caching is handled in render.py)
+            if self._report_refusal():
+                return
+            # The check above stored this scene in the shared validation cache, so
+            # the render's own validation finds it there.
             img, meta = render_combined_model(self.sim_params, ignore_offset=True)
+            displayed = copy.deepcopy(self.sim_params)
             self._current_image = img
             self._last_meta = meta
+            self._displayed_params = displayed
             inst_config = resolve_sim_inst_config(
                 DEFAULT_CONFIG,
                 self.sim_params.get('instrument'),
@@ -142,7 +162,26 @@ class RenderDisplayMixin(SimEditorBase):
         except Exception as e:
             self._verdict_runner.cancel()
             self._units_label.setText('')
-            QMessageBox.critical(self, 'Error', f'Failed to render image:\n{e!s}')
+            QMessageBox.critical(self, 'Error', f'Failed to preview the scene:\n{e!s}')
+
+    def _report_refusal(self) -> bool:
+        """Validate the scene and, if validation refuses it, say why in the status bar.
+
+        A refused scene does not start a verdict render, and any verdict render
+        already on its way is dropped.  An exception other than
+        :class:`~spindoctor.sim.scene_schema.SimSceneValidationError` propagates to
+        the caller.
+
+        Returns:
+            True if validation refused the scene, False if it passed.
+        """
+        try:
+            validate_scene(self.sim_params)
+        except SimSceneValidationError as e:
+            self._verdict_runner.cancel()
+            self._units_label.setText(f'scene would be refused: {e}')
+            return True
+        return False
 
     def _show_verdict(self, summary: str) -> None:
         """Show the navigated frame's summary, delivered by the verdict runner.
@@ -175,20 +214,33 @@ class RenderDisplayMixin(SimEditorBase):
         self._display_image()
 
     def _current_saturation_dn(self) -> float | None:
-        """Saturation DN of the selected instrument, or None if it has none."""
-        instrument = self.sim_params.get('instrument')
+        """Saturation DN of the displayed scene's instrument, or None if it has none.
+
+        A scene's ``instrument_config`` can set its own ``noise.saturation_dn``, which
+        the renderer clips at, so the overlay reads the same merged block.
+        """
+        shown = self._displayed_params
+        instrument = shown.get('instrument')
         if resolve_data_units(instrument) != 'raw_dn':
             return None
-        inst_config = resolve_sim_inst_config(DEFAULT_CONFIG, instrument)
+        inst_config = resolve_sim_inst_config(
+            DEFAULT_CONFIG, instrument, shown.get('instrument_config')
+        )
         noise = inst_config.get('noise') or {}
         if 'saturation_dn' not in noise:
             return None
         return float(noise['saturation_dn'])
 
     def _display_image(self) -> None:
-        """Compose the preview pixmap from the current DN image and redraw."""
+        """Compose the preview pixmap from the current DN image and redraw.
+
+        The marks for bodies, stars, and the ring center come from the scene that
+        produced the picture, so they stay on the picture while an edit leaves the
+        scene refused.
+        """
         if self._current_image is None:
             return
+        shown = self._displayed_params
         img_uint8 = _dn_to_display_uint8(self._current_image)
         height, width = img_uint8.shape
         saturation_dn = self._current_saturation_dn()
@@ -228,28 +280,27 @@ class RenderDisplayMixin(SimEditorBase):
             pen = QPen(QColor(255, 0, 0), 2)
             painter.setPen(pen)
             # Draw centers for bodies
-            for b in self.sim_params.get('bodies', []):
-                center_x = float(b.get('center_u', 0.0))
-                center_y = float(b.get('center_v', 0.0))
+            for b in shown.get('bodies') or []:
+                center_x = float(scene_value(b, 'center_u', shown['size_u'] / 2.0))
+                center_y = float(scene_value(b, 'center_v', shown['size_v'] / 2.0))
                 painter.drawEllipse(QRectF(center_x - 4.0, center_y - 4.0, 8.0, 8.0))
             # Draw stars as small crosses
             pen = QPen(QColor(255, 255, 0), 1)
             painter.setPen(pen)
-            for s in self.sim_params.get('stars', []):
-                u = float(s.get('u', 0.0))
-                v = float(s.get('v', 0.0))
+            for s in shown.get('stars') or []:
+                v, u = self._star_position(s, scene=shown)
                 painter.drawLine(QPointF(u - 4.0, v), QPointF(u + 4.0, v))
                 painter.drawLine(QPointF(u, v - 4.0), QPointF(u, v + 4.0))
             # Draw the ring system's shared center as a small circle
-            ring_system = self.sim_params.get('ring_system')
+            ring_system = shown.get('ring_system')
             if isinstance(ring_system, dict):
                 pen = QPen(QColor(0, 255, 255), 2)
                 painter.setPen(pen)
                 geometry = ring_system.get('geometry') or {}
                 # An absent or null center is the detector center, as the renderer
                 # reads it.
-                center_u = float(scene_value(geometry, 'center_u', self.sim_params['size_u'] / 2.0))
-                center_v = float(scene_value(geometry, 'center_v', self.sim_params['size_v'] / 2.0))
+                center_u = float(scene_value(geometry, 'center_u', shown['size_u'] / 2.0))
+                center_v = float(scene_value(geometry, 'center_v', shown['size_v'] / 2.0))
                 painter.drawEllipse(QRectF(center_u - 4.0, center_v - 4.0, 8.0, 8.0))
         painter.end()
         self._base_pixmap = pixmap
@@ -290,8 +341,20 @@ class RenderDisplayMixin(SimEditorBase):
             img_v: Cursor V position in pixel corner coordinates.
             img_u: Cursor U position in pixel corner coordinates.
         """
-        height = int(self.sim_params['size_v'])
-        width = int(self.sim_params['size_u'])
+        # The masks belong to the displayed picture, so the hit test reads the
+        # scene that produced it.
+        shown = self._displayed_params
+        if not shown:
+            self._selected_model_key = None
+            return
+        # While an edit leaves the scene refused, the picture shows an earlier scene.
+        # Its objects can sit at other indices in the edited scene, which a drag
+        # changes, so a click leaves the selection empty until the scene validates.
+        if shown != self.sim_params:
+            self._selected_model_key = None
+            return
+        height = int(shown['size_v'])
+        width = int(shown['size_u'])
         if not (0.0 <= img_v < height and 0.0 <= img_u < width):
             self._selected_model_key = None
             return
@@ -306,13 +369,13 @@ class RenderDisplayMixin(SimEditorBase):
 
         # Add bodies
         body_masks = self._last_meta.get('body_masks', [])
-        bodies = self.sim_params.get('bodies', [])
+        bodies = shown.get('bodies', [])
         inv = self._last_meta.get('inventory', {})
         if body_masks and bodies:
             # body_masks is in the original order of bodies_params, so match by index
             for idx, body in enumerate(bodies):
                 if idx < len(body_masks):
-                    body_name = body.get('name', '').upper()
+                    body_name = str(scene_value(body, 'name', default_body_name(idx))).upper()
                     range_val = inv.get(body_name, {}).get('range', float('inf'))
                     objects.append((range_val, 'body', idx, body_masks[idx]))
 
@@ -321,7 +384,7 @@ class RenderDisplayMixin(SimEditorBase):
         # farthest here.  A hit selects the first feature's tab (the one
         # carrying the shared system controls).
         ring_masks = self._last_meta.get('ring_masks', [])
-        ring_system = self.sim_params.get('ring_system')
+        ring_system = shown.get('ring_system')
         if ring_masks and isinstance(ring_system, dict) and self._ring_features():
             range_val = float(ring_system.get('range_km') or float('inf'))
             objects.append((range_val, 'ring', 0, ring_masks[0]))
@@ -378,10 +441,16 @@ class RenderDisplayMixin(SimEditorBase):
         kind, idx = self._selected_model_key
         if kind == 'body' and 0 <= idx < len(self.sim_params['bodies']):
             self.sim_params['bodies'][idx]['center_v'] = float(
-                self.sim_params['bodies'][idx].get('center_v', 0.0) + dv
+                scene_value(
+                    self.sim_params['bodies'][idx], 'center_v', self.sim_params['size_v'] / 2.0
+                )
+                + dv
             )
             self.sim_params['bodies'][idx]['center_u'] = float(
-                self.sim_params['bodies'][idx].get('center_u', 0.0) + du
+                scene_value(
+                    self.sim_params['bodies'][idx], 'center_u', self.sim_params['size_u'] / 2.0
+                )
+                + du
             )
             # Sync the tab spin boxes for this body
             tab_idx = self._find_tab_by_properties('body', idx)
@@ -412,12 +481,9 @@ class RenderDisplayMixin(SimEditorBase):
                     cu_spin.setValue(geometry['center_u'])
             self._updater.immediate_update()
         elif kind == 'star' and 0 <= idx < len(self.sim_params['stars']):
-            self.sim_params['stars'][idx]['v'] = float(
-                self.sim_params['stars'][idx].get('v', 0.0) + dv
-            )
-            self.sim_params['stars'][idx]['u'] = float(
-                self.sim_params['stars'][idx].get('u', 0.0) + du
-            )
+            star_v, star_u = self._star_position(self.sim_params['stars'][idx])
+            self.sim_params['stars'][idx]['v'] = star_v + dv
+            self.sim_params['stars'][idx]['u'] = star_u + du
             # Sync the tab spin boxes for this star
             tab_idx = self._find_tab_by_properties('star', idx)
             if tab_idx is not None:

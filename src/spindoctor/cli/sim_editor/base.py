@@ -45,6 +45,7 @@ class SimEditorBase(QMainWindow):
     sim_params: dict[str, Any]
     _current_image: np.ndarray | None
     _last_meta: dict[str, Any]
+    _displayed_params: dict[str, Any]
     _base_pixmap: QPixmap | None
     _mesh_key_stash: MeshKeyStash
 
@@ -241,6 +242,12 @@ class SimEditorBase(QMainWindow):
 
     def _build_star_tab(self, idx: int) -> QWidget:
         """Build a star tab widget (implemented in StarTabMixin)."""
+        raise NotImplementedError
+
+    def _star_position(
+        self, star: dict[str, Any], *, scene: dict[str, Any] | None = None
+    ) -> tuple[float, float]:
+        """A star's catalog ``(v, u)`` position (implemented in StarTabMixin)."""
         raise NotImplementedError
 
     def _noise_value(self, key: str, default: Any) -> Any:

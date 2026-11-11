@@ -23,6 +23,7 @@ import numpy as np
 from scipy import ndimage
 
 from spindoctor.sim.forward.stages import SimFrame
+from spindoctor.sim.scene_schema import scene_value
 from spindoctor.sim.seeds import derive_effect_seed
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 from spindoctor.support.stable_math import stable_hypot
@@ -92,9 +93,9 @@ def apply_distortion(
         distortion = optics.get('distortion')
     if not isinstance(distortion, dict):
         return
-    k1 = float(distortion.get('k1', 0.0))
-    k2 = float(distortion.get('k2', 0.0))
-    nonradial_rms = float(distortion.get('nonradial_rms_px', 0.0))
+    k1 = float(scene_value(distortion, 'k1', 0.0))
+    k2 = float(scene_value(distortion, 'k2', 0.0))
+    nonradial_rms = float(scene_value(distortion, 'nonradial_rms_px', 0.0))
     if k1 == 0.0 and k2 == 0.0 and nonradial_rms == 0.0:
         return
 
@@ -105,11 +106,11 @@ def apply_distortion(
     # rest of the way.  The default is the frame's own center, which lands on
     # (size - 1) / 2 by the same route.
     center_v = (
-        float(distortion.get('center_v', (size_v / oversample) / 2.0)) * oversample
+        float(scene_value(distortion, 'center_v', (size_v / oversample) / 2.0)) * oversample
         - PIXEL_CENTER_TO_CORNER_PX
     )
     center_u = (
-        float(distortion.get('center_u', (size_u / oversample) / 2.0)) * oversample
+        float(scene_value(distortion, 'center_u', (size_u / oversample) / 2.0)) * oversample
         - PIXEL_CENTER_TO_CORNER_PX
     )
     rho_ref = 0.5 * float(stable_hypot(size_v, size_u))

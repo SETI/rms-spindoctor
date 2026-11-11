@@ -14,6 +14,8 @@ structural invariants are enforced by tests/integration/test_sim_scenes.py.
 The fields are the flat runtime sim_params names the renderer consumes, so a
 validated scene file is the sim_params dict directly (load_sim_scene returns it
 unchanged; schema_version and scene_name are metadata the renderer ignores).
+Every render validates its scene, the scene editor's live preview included, so
+a scene built as a Python dict or in the editor meets the same rules as a file.
 
 This mirrors the operator-curated image library (images/README.txt) but the
 scenes are generated on demand by the simulator, so they augment -- never
@@ -254,7 +256,11 @@ range_km, and -- for polyhedral_mesh -- mesh_lumpiness (the non-ellipsoidal
 relief's RMS is mesh_lumpiness / 8 of the radius), mesh_seed (which shape),
 mesh_n_lat / mesh_n_lon (tessellation, default 16 / 32; the catalog's mesh
 scenes use 64 / 128 so no facets show), mesh_detail_octaves, and
-pose_euler_deg.
+pose_euler_deg.  Every body key, and every optional key inside a body's blocks,
+may be null, and a null key renders as the absent key does.  The navigator
+reads it as absent too.  For a key set to null inside nav_override, the
+navigator sees the scene's own value.  An entry of a list such as
+pose_euler_deg can't be null.
 
 A polyhedral_mesh body refuses a non-null value of any of the twelve
 ellipsoid-only appearance keys, which the mesh renderer would silently ignore

@@ -1,10 +1,21 @@
 """Entry point for rendering a simulated scene: params in, image + meta out.
 
 ``render_combined_model`` is a thin, cached driver over the forward-model
-stage pipeline (:mod:`spindoctor.sim.forward`): it normalizes the scene
-parameters into a deterministic JSON cache key, runs the pipeline on a fresh
-:class:`~spindoctor.sim.forward.stages.SimFrame`, and returns the rendered
-image with the renderer's output metadata.
+stage pipeline (:mod:`spindoctor.sim.forward`): it encodes the scene as
+deterministic sorted-key JSON, validates the scene, runs the pipeline on a fresh
+:class:`~spindoctor.sim.forward.stages.SimFrame` (cached on a key built from
+that JSON), and returns the rendered image with the renderer's output metadata.
+
+Every render validates its scene with
+:func:`~spindoctor.sim.scene.validate_sim_params`, so a scene built in memory
+is held to the same rules as one read from a file.  The scene editor's live
+preview is one such render: it validates its scene like every other caller.
+
+Validation goes through :func:`~spindoctor.sim.scene.validate_scene`, whose cache
+loading a scene file shares, so a scene that is loaded and then rendered, or
+rendered many times, is validated once.  Its key is not quite the render cache
+key: an offset-free render leaves the planted pointing out of its key, and
+validation never does.
 
 Callers are ``ObsSim``, the scene-editor GUI, and ``sim/png_export.py``
 (which the doc-gallery and sweep runners drive).  The params-JSON caching
@@ -28,7 +39,12 @@ from typing import Any
 
 from spindoctor.sim.forward.pipeline import run_pipeline
 from spindoctor.sim.forward.stages import new_sim_frame
+from spindoctor.sim.scene import clear_validation_cache, validate_scene
 from spindoctor.support.types import NDArrayFloatType
+
+# The planted pointing keys an offset-free render zeroes, and so leaves out of
+# its cache key: previews differing only in planted pointing share one render.
+_PLANTED_POINTING_KEYS: tuple[str, ...] = ('offset_v', 'offset_u', 'offset_rotation_deg')
 
 
 def clear_render_caches() -> None:
@@ -41,6 +57,7 @@ def clear_render_caches() -> None:
     from spindoctor.sim.forward import body, body_mesh, psf, relief, star
 
     _render_combined_model_cached.cache_clear()
+    clear_validation_cache()
     star._render_stars_cached.cache_clear()
     star._render_sky_counts_cached.cache_clear()
     body._render_body_shape_cached.cache_clear()
@@ -63,9 +80,8 @@ def _render_combined_model_cached(
     sim_params = json.loads(sim_params_json)
     if ignore_offset:
         # GUI preview mode: render the unshifted, unrolled geometry.
-        sim_params['offset_v'] = 0.0
-        sim_params['offset_u'] = 0.0
-        sim_params['offset_rotation_deg'] = 0.0
+        for key in _PLANTED_POINTING_KEYS:
+            sim_params[key] = 0.0
     size_v = int(sim_params['size_v'])
     size_u = int(sim_params['size_u'])
 
@@ -108,16 +124,22 @@ def resolve_oversample(sim_params: dict[str, Any]) -> int:
 
 
 def render_combined_model(
-    sim_params: dict[str, Any], *, ignore_offset: bool = False
+    sim_params: dict[str, Any], *, ignore_offset: bool = False, source: str = 'sim_params'
 ) -> tuple[NDArrayFloatType, dict[str, Any]]:
-    """Render stars then bodies from a full sim_params dict. Returns (img, meta).
+    """Validate a scene, then render it. Returns (img, meta).
 
-    ignore_offset = True should be used when rendering the image in the GUI, but not
-    when creating the simulated image to navigate.
+    The scene is checked with :func:`~spindoctor.sim.scene.validate_sim_params`
+    before anything renders, so an invalid scene raises the same error a scene
+    file would raise when loaded.  Validation is cached on the scene's full JSON
+    and ``source``, so rendering one scene repeatedly validates it once.
 
     Parameters:
         sim_params: The parameters describing the simulated model.
-        ignore_offset: Whether to ignore the offset.
+        ignore_offset: Render the unshifted, unrolled geometry, ignoring the
+            planted offset and roll.  The frame the navigator reads always
+            carries them; a display of the scene's geometry may not want them.
+        source: The label that begins each validation error message, such as
+            the path of the scene file the parameters came from.
 
     Returns:
         A tuple containing the image and metadata.  Metadata keys: ``stars``
@@ -126,22 +148,37 @@ def render_combined_model(
         ``body_index_map``, ``body_mask_map``, and ``body_occlusion``
         (per-body mutual-event truth: ``visible_fraction`` and
         ``occluded_limb_arc_deg`` against every nearer body).
+
+    Raises:
+        ~spindoctor.sim.scene_schema.SimSceneValidationError: If the scene fails
+            validation.
     """
-    # Create cache key from parameters.  When ignore_offset is True the cached
-    # function zeroes the planted offset AND roll, so all three keys are
-    # excluded from the cache key (previews differing only in planted pointing
-    # share one render).
-    params_for_hash = dict(sim_params)
+    validate_scene(sim_params, source=source)
+    return _render(sim_params, json.dumps(sim_params, sort_keys=True), ignore_offset=ignore_offset)
+
+
+def _render(
+    sim_params: dict[str, Any], scene_json: str, *, ignore_offset: bool
+) -> tuple[NDArrayFloatType, dict[str, Any]]:
+    """Render a scene through the cache and hand back private copies.
+
+    Parameters:
+        sim_params: The scene mapping.
+        scene_json: ``sim_params`` as sorted-key JSON.
+        ignore_offset: Whether to zero the planted offset and roll.
+
+    Returns:
+        Copies of the cached image and metadata.
+    """
+    render_key = scene_json
     if ignore_offset:
-        params_for_hash = {
-            k: v
-            for k, v in params_for_hash.items()
-            if k not in ('offset_v', 'offset_u', 'offset_rotation_deg')
-        }
-    sim_params_json = json.dumps(params_for_hash, sort_keys=True)
-    cached_img, cached_meta = _render_combined_model_cached(
-        sim_params_json, ignore_offset=ignore_offset
-    )
+        # The cached function zeroes the planted offset and roll, so all three
+        # keys stay out of the cache key.
+        render_key = json.dumps(
+            {k: v for k, v in sim_params.items() if k not in _PLANTED_POINTING_KEYS},
+            sort_keys=True,
+        )
+    cached_img, cached_meta = _render_combined_model_cached(render_key, ignore_offset=ignore_offset)
     # Return copies to avoid cache modification
     # Use deepcopy for meta to fully isolate nested mutable structures
     return cached_img.copy(), copy.deepcopy(cached_meta)
