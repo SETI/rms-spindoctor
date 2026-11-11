@@ -77,7 +77,7 @@ saved in between doesn't carry them.
 
 Each control shows the value the frame is drawn with. A setting the scene leaves out or
 sets to ``null`` shows its default, and a group the scene leaves out or sets to ``null``
-starts turned off. A body without a name shows the name the frame gives it, such as
+starts turned off. A body without a name shows the name the simulator gives it, such as
 ``SIM-BODY-1`` for the first body in the list, and a body without a center shows the
 center of the frame.
 

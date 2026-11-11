@@ -46,6 +46,8 @@ except Exception as exc:
     )
 
 from spindoctor.cli.sim_editor import CreateSimulatedImageModel
+from spindoctor.sim.forward.body_spec import body_spec_from_params
+from spindoctor.sim.forward.star import SKY_COUNTS_DEFAULTS
 from spindoctor.sim.scene import validate_sim_params
 
 # Every key a scene body may carry, each null.  The tests below give a body's
@@ -288,3 +290,99 @@ def test_spk_edit_keeps_an_absent_reference_range_absent(qapp: QApplication) -> 
     )
     model._spk_du_spin.setValue(2.0)
     assert model.sim_params['spk_error'] == {'dv_px': 1.0, 'du_px': 2.0}
+
+
+def _loaded(scene: dict[str, Any]) -> Any:
+    """Return a fresh editor with ``scene`` loaded into it."""
+    model: Any = CreateSimulatedImageModel()
+    model._apply_params_dict(copy.deepcopy(scene))
+    return model
+
+
+def _body_tab(model: Any, idx: int) -> Any:
+    """Return the built tab widget of the body at ``idx``."""
+    return model._tabs.widget(model._find_tab_by_properties('body', idx))
+
+
+_FRAME_300_BY_400: dict[str, Any] = {'instrument': 'coiss_nac', 'size_v': 300, 'size_u': 400}
+
+
+def test_unset_keys_show_the_renderers_defaults(qapp: QApplication) -> None:
+    """Controls for keys a scene leaves out show the values the renderer draws with."""
+    body = {'axis1': 40.0, 'axis2': 30.0, 'opposition_surge': {}}
+    spec = body_spec_from_params(body, index=0)
+    model = _loaded({**_FRAME_300_BY_400, 'bodies': [body], 'sky_counts': {}, 'spk_error': {}})
+    tab = _body_tab(model, 0)
+    shown = (
+        tab.anti_aliasing_spin.value(),
+        tab.axis3_spin.value(),
+        tab.surge_amplitude_spin.value(),
+        model._sky_density_spin.value(),
+        model._spk_range_spin.value(),
+    )
+    assert shown == (
+        spec.anti_aliasing,
+        spec.axis3,
+        spec.surge_amplitude,
+        SKY_COUNTS_DEFAULTS['density_factor'],
+        0.0,
+    )
+
+
+def test_loading_a_scene_leaves_it_unchanged(qapp: QApplication) -> None:
+    """Loading a scene and touching nothing leaves the editor's scene equal to it."""
+    frame_blocks = {
+        key: value
+        for key, value in _NULL_FRAME_SCENE.items()
+        if key not in ('closest_planet', 'bodies', 'stars', 'spk_error')
+    }
+    scene = {
+        **frame_blocks,
+        'offset_v': 0.0,
+        'offset_u': 0.0,
+        'offset_rotation_deg': 0.0,
+        'exposure_sec': 1.0,
+        'time': 0.0,
+        'ring_epoch': 0.0,
+        'closest_planet': 'SATURN',
+        'bodies': _NULL_BODIES_SCENE['bodies'],
+        'stars': [],
+    }
+    validate_sim_params(copy.deepcopy(scene), source='round-trip scene')
+    assert _loaded(scene).sim_params == scene
+
+
+def test_an_axis_edit_moves_an_unset_axis3(qapp: QApplication) -> None:
+    """Editing axis1 moves what an unset axis3 shows, without writing axis3."""
+    model = _loaded({**_FRAME_300_BY_400, 'bodies': [{'axis1': 40.0, 'axis2': 30.0}]})
+    tab = _body_tab(model, 0)
+    tab.axis1_spin.setValue(20.0)
+    shown = (tab.axis3_spin.value(), 'axis3' in model.sim_params['bodies'][0])
+    assert shown == (20.0, False)
+
+
+def test_a_frame_size_change_moves_an_unset_center(qapp: QApplication) -> None:
+    """Changing the frame height moves what an unset center shows, without writing it."""
+    model = _loaded({**_FRAME_300_BY_400, 'bodies': [{'axis1': 40.0, 'axis2': 30.0}]})
+    model._size_v_spin.setValue(600)
+    shown = (_body_tab(model, 0).center_v_spin.value(), 'center_v' in model.sim_params['bodies'][0])
+    assert shown == (300.0, False)
+
+
+def test_spk_edit_keeps_a_reference_range_finer_than_the_spin_shows(
+    qapp: QApplication,
+) -> None:
+    """An spk_error edit keeps a stated reference range the spin rounds to 0."""
+    model = _loaded({**_FRAME_300_BY_400, 'spk_error': {'dv_px': 1.0, 'reference_range_km': 0.004}})
+    model._spk_du_spin.setValue(2.0)
+    assert model.sim_params['spk_error']['reference_range_km'] == 0.004
+
+
+def test_an_empty_ring_modulation_starts_turned_off(qapp: QApplication) -> None:
+    """An empty azimuthal modulation block shows its group off, as the renderer skips it."""
+    model: Any = CreateSimulatedImageModel()
+    model._add_ring_tab()
+    model.sim_params['ring_system']['azimuthal'] = {'modulation': {}}
+    model._rebuild_dynamic_tabs()
+    tab = model._tabs.widget(model._find_tab_by_properties('ring', 0))
+    assert tab.azimuthal_modulation_group.isChecked() is False

@@ -30,6 +30,7 @@ from PyQt6.QtWidgets import (
 )
 
 from spindoctor.cli.sim_editor.base import SimEditorBase
+from spindoctor.cli.sim_editor.widgets import kept_or_shown
 from spindoctor.sim.scene_schema import scene_value
 
 _SMEAR_CLASSES: list[str] = ['all', 'stars', 'bodies', 'rings']
@@ -316,7 +317,7 @@ class OpticsTabMixin(SimEditorBase):
         )
         class_combo = QComboBox()
         class_combo.addItems(_SMEAR_CLASSES)
-        class_index = class_combo.findText(str(entry.get('object_class', 'all')))
+        class_index = class_combo.findText(str(scene_value(entry, 'object_class', 'all')))
         if class_index >= 0:
             class_combo.setCurrentIndex(class_index)
         remove_btn = QPushButton('Remove')
@@ -752,10 +753,11 @@ class OpticsTabMixin(SimEditorBase):
             step=100.0,
             value=reference_range_km,
             tooltip=(
-                'Range (km) the displacement is quoted at; scales per object.  0 leaves '
-                'the key out, which plants no parallax.'
+                'Range (km) the displacement is quoted at; scales per object.  Unset '
+                'leaves the key out, which plants no parallax.'
             ),
         )
+        self._spk_range_spin.setSpecialValueText('unset')
         spk_form.addRow('Reference range (km):', self._spk_range_spin)
         outer.addWidget(spk_group)
 
@@ -804,15 +806,23 @@ class OpticsTabMixin(SimEditorBase):
     def _spk_block_from_widgets(self) -> dict[str, Any]:
         """Assemble the spk_error block the widgets describe.
 
-        A reference range of 0 leaves the key out: the validator refuses 0, and the
-        renderer reads an absent key as 0.
+        Each key keeps the scene's exact value while its spin still shows it, so an
+        edit to one spin never rounds another, and a reference range finer than the
+        spin displays survives.  A reference range of 0 leaves the key out: the
+        validator refuses 0, and the renderer reads an absent key as 0.
         """
-        block: dict[str, Any] = {
-            'dv_px': float(self._spk_dv_spin.value()),
-            'du_px': float(self._spk_du_spin.value()),
-        }
-        reference_range_km = float(self._spk_range_spin.value())
-        if reference_range_km > 0.0:
+        spk = self.sim_params.get('spk_error')
+        values = kept_or_shown(
+            {
+                'dv_px': self._spk_dv_spin,
+                'du_px': self._spk_du_spin,
+                'reference_range_km': self._spk_range_spin,
+            },
+            spk if isinstance(spk, dict) else {},
+        )
+        reference_range_km = values.pop('reference_range_km')
+        block: dict[str, Any] = dict(values)
+        if reference_range_km is not None and reference_range_km > 0.0:
             block['reference_range_km'] = reference_range_km
         return block
 

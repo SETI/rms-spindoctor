@@ -120,6 +120,9 @@ class BodyTabMixin(SimEditorBase):
         sc.setValue(spec.axis3)
         sc.valueChanged.connect(lambda v, i=idx: self._on_body_field(i, 'axis3', v))
         fl.addRow('Axis 3:', sc)
+        w.axis1_spin = smaj  # type: ignore[attr-defined]
+        w.axis2_spin = smin  # type: ignore[attr-defined]
+        w.axis3_spin = sc  # type: ignore[attr-defined]
 
         # Shape model (B7): ellipsoid or an irregular polyhedral mesh.  For a
         # mesh, lumpiness/seed pick the shape and pose_euler_deg orients it; the
@@ -403,6 +406,36 @@ class BodyTabMixin(SimEditorBase):
             self._updater.request_update()
             if trigger_validate and key == 'range_km':
                 self._validate_ranges()
+            if key in ('axis1', 'axis2'):
+                self._refresh_body_derived_spins(idx)
+
+    def _refresh_body_derived_spins(self, idx: int) -> None:
+        """Show the renderer's current default in the spins of a body's derived keys.
+
+        A body without ``axis3`` draws it as the smaller of ``axis1`` and ``axis2``,
+        and a body without a center sits at the frame center, so an edit to the axes
+        or the frame size moves what those spins show.  A spin whose key the body
+        sets keeps its value, and the refresh writes nothing to the scene.
+
+        Parameters:
+            idx: The body's index in the scene's ``bodies`` list.
+        """
+        tab_idx = self._find_tab_by_properties('body', idx)
+        tab_w = self._tabs.widget(tab_idx) if tab_idx is not None else None
+        if tab_w is None:
+            return
+        body = self.sim_params['bodies'][idx]
+        spec = body_spec_from_params(self._mesh_key_stash.view(body), index=idx)
+        derived = (
+            (tab_w.axis3_spin, 'axis3', spec.axis3),  # type: ignore[attr-defined]
+            (tab_w.center_v_spin, 'center_v', self.sim_params['size_v'] / 2.0),  # type: ignore[attr-defined]
+            (tab_w.center_u_spin, 'center_u', self.sim_params['size_u'] / 2.0),  # type: ignore[attr-defined]
+        )
+        for spin, key, shown in derived:
+            if body.get(key) is None:
+                spin.blockSignals(True)
+                spin.setValue(shown)
+                spin.blockSignals(False)
 
     def _on_body_shape_model(self, idx: int, text: str) -> None:
         """Set the shape model and gate the shape-specific controls and keys.

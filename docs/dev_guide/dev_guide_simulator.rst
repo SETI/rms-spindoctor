@@ -4113,21 +4113,29 @@ realism addition needs -- live in their own module:
        carry the stashed keys. Load Scene clears the stash, and deleting a
        body drops its entry.
 
-Every control shows the value the renderer draws with, and a key set to null shows
-what the key left out shows. A tab reads each optional key through
-:func:`~spindoctor.sim.scene_schema.scene_value` with the renderer's default, or from
-the spec the renderer builds: the body tab and its appearance groups read
-:func:`~spindoctor.sim.forward.body_spec.body_spec_from_params`, and the background-sky
-controls read :data:`~spindoctor.sim.forward.star.SKY_COUNTS_DEFAULTS`. A body left
-without a name shows :func:`~spindoctor.sim.scene_schema.default_body_name`, and one
-left without a center shows the frame center. A checkable group starts turned off when
-its block or its activating key is absent or null. While a group is off, its controls
-show the values turning it on writes. Three groups start from a value other than the
-renderer's default, because the default draws nothing: the opposition surge's
-amplitude, the pose scatter's sigma, and the spacecraft-ephemeris reference range. A
-spacecraft-ephemeris block that leaves out its reference range shows 0, and an edit
-made while the range shows 0 leaves the key out: the validator refuses 0, and the
-renderer reads an absent range as 0.
+Every control shows the value the renderer draws with, held to the control's range, and
+a key set to null shows what the key left out shows. A body that leaves out ``axis1``
+or ``axis2`` draws that axis as 0, and its axis control shows its minimum, 1 pixel. A
+tab reads each optional key through :func:`~spindoctor.sim.scene_schema.scene_value`
+with the renderer's default, or from the spec the renderer builds: the body tab and its
+appearance groups read :func:`~spindoctor.sim.forward.body_spec.body_spec_from_params`,
+and the background-sky controls read
+:data:`~spindoctor.sim.forward.star.SKY_COUNTS_DEFAULTS`. A body left without a name
+shows :func:`~spindoctor.sim.scene_schema.default_body_name`, and one left without a
+center shows the frame center. These derived values follow the scene: an edit to
+``axis1`` or ``axis2`` moves what an unset ``axis3`` shows, and a change of frame size
+moves what an unset center shows, without writing either key.
+
+A checkable group starts turned off when its block or its activating key is absent or
+null, and a ring azimuthal sub-block starts turned off when it is empty, as the renderer
+then draws none of it. While a group is off, its controls show the values turning it on
+writes. Three groups start from a value other than the renderer's default, because the
+default draws nothing: the opposition surge's amplitude, the pose scatter's sigma, and
+the spacecraft-ephemeris reference range. A spacecraft-ephemeris block that leaves out
+its reference range shows ``unset``, and an edit made while the range shows ``unset``
+leaves the key out: the validator refuses 0, and the renderer reads an absent range as
+zero. An edit to one spacecraft-ephemeris spin keeps the scene's exact value for the
+other two.
 
 The GUI exposes the full scene parameter surface, so any scene that can be
 written by hand in YAML can also be built in the GUI. Two exceptions are

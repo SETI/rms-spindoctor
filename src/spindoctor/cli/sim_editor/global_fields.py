@@ -157,14 +157,21 @@ class GlobalFieldsMixin(SimEditorBase):
 
     # ---- Sim param handlers ----
     def _on_size_v(self, value: int) -> None:
-        """Update the image height."""
+        """Update the image height, and the center a body without one shows."""
         self.sim_params['size_v'] = value
+        self._refresh_all_body_derived_spins()
         self._updater.request_update()
 
     def _on_size_u(self, value: int) -> None:
-        """Update the image width."""
+        """Update the image width, and the center a body without one shows."""
         self.sim_params['size_u'] = value
+        self._refresh_all_body_derived_spins()
         self._updater.request_update()
+
+    def _refresh_all_body_derived_spins(self) -> None:
+        """Refresh every body tab's derived-default spins after a frame-size change."""
+        for idx in range(len(self.sim_params['bodies'])):
+            self._refresh_body_derived_spins(idx)
 
     def _on_offset_v(self, value: float) -> None:
         """Update the planted V offset."""

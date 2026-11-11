@@ -13,6 +13,7 @@ from PyQt6.QtWidgets import QFileDialog, QMessageBox
 
 from spindoctor.cli.sim_editor.base import SimEditorBase
 from spindoctor.sim.scene import load_sim_scene, save_sim_scene
+from spindoctor.sim.scene_schema import scene_value
 from spindoctor.sim.scene_truth_echo import stale_truth_declarations
 
 # How long the status bar shows the dropped-declaration notice, in milliseconds.
@@ -238,7 +239,9 @@ class SceneIoMixin(SimEditorBase):
         self._expected_group.setChecked(has_expected)
         self._expected_group.blockSignals(False)
         self._expected_status_combo.blockSignals(True)
-        status_index = self._expected_status_combo.findText(str(block.get('status', 'success')))
+        status_index = self._expected_status_combo.findText(
+            str(scene_value(block, 'status', 'success'))
+        )
         if status_index >= 0:
             self._expected_status_combo.setCurrentIndex(status_index)
         self._expected_status_combo.blockSignals(False)

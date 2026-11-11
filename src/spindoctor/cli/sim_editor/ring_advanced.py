@@ -560,7 +560,7 @@ class RingAdvancedMixin(SimEditorBase):
         mod_form.addRow('Amplitude:', mod_amplitude)
         mod_form.addRow('Wavenumber m:', mod_m)
         mod_form.addRow('Peak longitude (deg):', mod_phase)
-        mod_group.setChecked(azimuthal.get('modulation') is not None)
+        mod_group.setChecked(bool(azimuthal.get('modulation')))
         outer.addWidget(mod_group)
 
         shadow = _as_map(azimuthal.get('shadow'))
@@ -594,7 +594,7 @@ class RingAdvancedMixin(SimEditorBase):
         shadow_form.addRow('Start (deg):', shadow_start)
         shadow_form.addRow('Extent (deg):', shadow_extent)
         shadow_form.addRow('Darkness:', shadow_darkness)
-        shadow_group.setChecked(azimuthal.get('shadow') is not None)
+        shadow_group.setChecked(bool(azimuthal.get('shadow')))
         outer.addWidget(shadow_group)
 
         spokes = _as_map(azimuthal.get('spokes'))
@@ -648,7 +648,7 @@ class RingAdvancedMixin(SimEditorBase):
         spokes_form.addRow('r outer (px):', spokes_r_outer)
         spokes_form.addRow('Width (deg):', spokes_width)
         spokes_form.addRow('Contrast:', spokes_contrast)
-        spokes_group.setChecked(azimuthal.get('spokes') is not None)
+        spokes_group.setChecked(bool(azimuthal.get('spokes')))
         outer.addWidget(spokes_group)
 
         mod_group.toggled.connect(self._on_ring_modulation_toggled)

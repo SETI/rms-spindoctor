@@ -29,7 +29,9 @@ navigator-side models.
 
 import copy
 import json
+from collections.abc import Mapping
 from functools import lru_cache
+from types import MappingProxyType
 from typing import Any
 
 import numpy as np
@@ -53,12 +55,14 @@ __all__ = [
 # distribution toward faint stars), so the exact value only bounds the sampler.
 _SKY_BRIGHT_CUTOFF_MAG = -2.0
 
-SKY_COUNTS_DEFAULTS: dict[str, float] = {
-    'a': -3.1,
-    'b': 0.34,
-    'density_factor': 1.0,
-    'diffuse_e_per_px': 0.0,
-}
+SKY_COUNTS_DEFAULTS: Mapping[str, float] = MappingProxyType(
+    {
+        'a': -3.1,
+        'b': 0.34,
+        'density_factor': 1.0,
+        'diffuse_e_per_px': 0.0,
+    }
+)
 """The value each ``sky_counts`` key takes when a scene leaves it out or null: the
 count law at mid galactic latitude, with no density boost and no diffuse floor."""
 

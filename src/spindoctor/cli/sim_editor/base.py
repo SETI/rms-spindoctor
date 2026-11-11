@@ -262,6 +262,10 @@ class SimEditorBase(QMainWindow):
         """Populate a stray-light form (implemented in StrayLightMixin)."""
         raise NotImplementedError
 
+    def _refresh_body_derived_spins(self, idx: int) -> None:
+        """Refresh a body tab's derived-default spins (implemented in BodyTabMixin)."""
+        raise NotImplementedError
+
     def _sky_value(self, key: str) -> float:
         """The value a sky_counts control shows (implemented in BackgroundStarsMixin)."""
         raise NotImplementedError
