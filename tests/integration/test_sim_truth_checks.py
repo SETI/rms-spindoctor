@@ -4,7 +4,8 @@ Every validation scene plants an offset, and every one whose correct outcome is 
 success is compared with that truth.  This module holds the fused answer of each
 validation scene outside ``algorithmic_invariants`` to its measured tolerance in
 :mod:`tests.integration.sim_truth` (the ``algorithmic_invariants`` scenes are checked
-by ``test_sim_algorithmic_invariants``, in the default suite).  A scene whose answer is
+by ``test_sim_algorithmic_invariants``, in the default suite), and checks every
+validation scene's fused error against the sigma it reports.  A scene whose answer is
 wrong for a known reason carries a band around its known error in its ``expected``
 block instead, which ``test_sim_expected`` asserts.
 
@@ -28,8 +29,11 @@ from spindoctor.sim.scene import load_sim_scene, scene_class_for_path
 from tests.integration.sim_expected import navigate_scene
 from tests.integration.sim_truth import (
     FUSED,
+    SIGMA_EXCEPTIONS,
+    SIGMA_MULTIPLE,
     TRUTH_TOLERANCES,
     assert_within_tolerance,
+    error_in_sigmas,
     validation_scene_paths,
 )
 
@@ -67,6 +71,16 @@ _FUSED_CHECK_PATHS = [
     if scene_class_for_path(p) != 'algorithmic_invariants' and (p.stem, FUSED) in TRUTH_TOLERANCES
 ]
 _FUSED_CHECK_IDS = [p.stem for p in _FUSED_CHECK_PATHS]
+_SIGMA_PARAMS = [
+    pytest.param(
+        p,
+        id=p.stem,
+        marks=[pytest.mark.xfail(reason=SIGMA_EXCEPTIONS[p.stem], strict=True)]
+        if p.stem in SIGMA_EXCEPTIONS
+        else [],
+    )
+    for p in _SUCCESS_PATHS
+]
 
 
 @functools.cache
@@ -113,3 +127,15 @@ def test_fused_offset_is_within_its_truth_tolerance(path: Path) -> None:
     result = _navigated(path.stem)
     assert result.status == 'success', f'{path.stem}: expected success, got {result.status}'
     assert_within_tolerance(result.offset_px, scene, FUSED)
+
+
+@pytest.mark.parametrize('path', _SIGMA_PARAMS)
+def test_fused_error_is_within_the_sigma_multiple(path: Path) -> None:
+    """Each validation scene's fused error stays within a multiple of its reported sigma."""
+    scene = load_sim_scene(path)
+    result = _navigated(path.stem)
+    assert result.offset_px is not None, f'{path.stem}: navigation gave no offset'
+    sigmas = error_in_sigmas(result, scene)
+    assert sigmas <= SIGMA_MULTIPLE, (
+        f'{path.stem}: fused error is {sigmas:.2f} sigma, above the {SIGMA_MULTIPLE} sigma bound'
+    )

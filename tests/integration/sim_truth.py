@@ -24,6 +24,13 @@ A fused known error lives in the scene's ``expected`` block
 :mod:`tests.integration.sim_expected`); a known error on one component lives here as a
 :class:`KnownErrorBand`.  Each end of a band sits outside the measured extreme by the
 same margin rule.
+
+The fused answer is also checked against the sigma it reports: the error measured in
+units of the reported covariance must not exceed :data:`SIGMA_MULTIPLE`.  For a round
+covariance that measure is the error divided by the per-axis sigma.  Measured on the
+committed seeds and the 15 others, every accurate validation scene sits at or below
+1.9 times its reported sigma; 3 leaves room above that and still fails an answer that
+is confidently wrong.
 """
 
 from __future__ import annotations
@@ -33,6 +40,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+import numpy as np
+
+from spindoctor.nav_orchestrator.nav_result import NavResult
 from spindoctor.sim.scene import iter_scene_paths, scene_class_for_path
 
 FUSED = '*'
@@ -40,6 +50,9 @@ FUSED = '*'
 
 SEEDS_MEASURED = 16
 """The number of noise seeds each tolerance was measured over (the committed one and 15)."""
+
+SIGMA_MULTIPLE = 3.0
+"""The largest fused error, in units of the reported covariance, a validation scene may show."""
 
 VALIDATION_CLASSES: frozenset[str] = frozenset(
     {
@@ -186,6 +199,18 @@ ROLL_WORST_ERROR_DEG = 0.020
 ROLL_MARGIN_DEG = 0.01
 ROLL_TOLERANCE_DEG = ROLL_WORST_ERROR_DEG + ROLL_MARGIN_DEG
 
+# Fused answers known to sit far outside their reported sigma, each tied to the issue
+# that explains it.  The sigma check expects these to fail, so a fix shows up.
+SIGMA_EXCEPTIONS: dict[str, str] = {
+    # The two-star fused sigma is about 0.01 px against a steady 0.04 px error (#788).
+    'lock_pair': 'two-star fused sigma is too small',
+    # The along-edge component is unobservable; the observable one misses by 0.52 px
+    # against a 0.16 px sigma (#873).
+    'planted_rank1_ring_flat': 'rank-1 ring misses its observable component',
+    # The translation is fitted about the extended field of view's corner (#434).
+    'planted_rotation_star_field': 'roll is fitted about the extended-FOV corner',
+}
+
 
 def tolerance_for(scene_name: str, technique: str) -> TruthTolerance:
     """Return the tolerance for one scene and technique, failing clearly when it has none."""
@@ -224,6 +249,31 @@ def assert_within_tolerance(
         f'{tolerance.tolerance_px:.3f} px (worst measured {tolerance.worst_px:.3f} px '
         f'plus margin {tolerance.margin_px:.2f} px)'
     )
+
+
+def error_in_sigmas(result: NavResult, scene: dict[str, Any]) -> float:
+    """Return the fused error measured in units of the reported covariance.
+
+    This is the Mahalanobis distance ``sqrt(e^T C^+ e)`` of the error ``e`` under the
+    fused 2-by-2 covariance ``C``.  The pseudo-inverse measures a rank-1 covariance
+    along its one observable axis.
+
+    Parameters:
+        result: A fused result that carries an offset.
+        scene: The validated scene mapping, which holds the planted offset.
+
+    Returns:
+        The error in units of sigma.
+    """
+    assert result.offset_px is not None
+    error = np.array(
+        [
+            result.offset_px[0] - float(scene.get('offset_v', 0.0)),
+            result.offset_px[1] - float(scene.get('offset_u', 0.0)),
+        ]
+    )
+    cov = np.asarray(result.covariance_px2, dtype=np.float64)[:2, :2]
+    return float(math.sqrt(max(0.0, float(error @ np.linalg.pinv(cov, rcond=1e-9) @ error))))
 
 
 def validation_scene_paths(root: Path) -> list[Path]:

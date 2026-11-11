@@ -41,9 +41,10 @@ exposure_sec: 1.0
 # NOTE ON WHAT THIS SCENE GUARDS: the recovered error staying in the
 # [1.41, 3.82] px band and the tier staying at low.  The tier is a coarse
 # sigma check: the frame rises to medium only once the fused sigma falls to
-# the medium tier's 2.0 px bound.  The original recovery was confidently
-# wrong: about 3 px off, with an error bar that did not cover that error.  The
-# tier catches that coming back.  The
+# the medium tier's 2.0 px bound.  The truth checks add a finer one: the fused
+# error must stay within 3 sigma (test_sim_truth_checks).  The original
+# recovery was confidently wrong: about 3 px off, with an error bar that did
+# not cover that error.  Both sigma checks catch that coming back.  The
 # standing hazard it documents is that a planted radial catalog error is
 # still absorbed into the offset at all.
 expected:
