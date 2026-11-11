@@ -12,8 +12,9 @@ exposure_sec: 1.0
 # star was gated and the star techniques had nothing to navigate.  With a planted
 # offset of a fraction of a pixel the prediction sits on each star; the star field
 # must still recover it.  The offset is not zero, because at zero the centroid
-# error vanishes by symmetry and the truth check would measure nothing.  Magnitudes are distinct here so the detection is
-# unambiguous; the equal-magnitude sibling scene star_equal_brightness exercises
+# error vanishes by symmetry and the truth check would measure nothing.
+# Magnitudes are distinct here so the detection is unambiguous; the
+# equal-magnitude sibling scene star_equal_brightness exercises
 # the geometric triplet canonicalisation that keeps the match deterministic when
 # the magnitudes tie.
 # Stars deposit as point masses; an explicit navigator-matched PSF gives them a

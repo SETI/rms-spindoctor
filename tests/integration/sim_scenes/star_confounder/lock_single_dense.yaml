@@ -15,6 +15,9 @@ exposure_sec: 1.0
 # offset.  This scene is also the base geometry of the confounder-density
 # breakdown sweep (sim_sweeps/star_confounder_density.yaml), which walks
 # density_factor across the transition and drives the seed-ensemble population.
+# Over 16 noise seeds (the committed one and 101, 202, ..., 1515) the scene
+# succeeds on 12 and fails on 4, so the expected success holds on the committed
+# seed only, not on every noise draw (#960).
 optics:
   psf:
     match_navigator: true
