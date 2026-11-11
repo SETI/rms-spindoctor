@@ -68,8 +68,9 @@ renders hard-limbed, byte-for-byte as before.
 """
 
 import math
+from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import cast
+from typing import Any, cast
 
 import numpy as np
 
@@ -229,23 +230,23 @@ class AtmosphereSpec:
 
 
 def atmosphere_spec_from_params(
-    body_params: dict[str, object], *, oversample: int
+    atmosphere: Mapping[str, Any] | None, *, oversample: int
 ) -> AtmosphereSpec | None:
     """Build an :class:`AtmosphereSpec` from a body's ``atmosphere`` block.
 
     Returns None when the body carries no atmosphere, so a body without the
     block never enters the haze path.  Pixel lengths are scaled to the render
-    grid by ``oversample`` exactly as the body's axes are.
+    grid by ``oversample`` exactly as the body's axes are.  An optional key that
+    is absent or null takes its default.
 
     Parameters:
-        body_params: One scene body entry.
+        atmosphere: One body's ``atmosphere`` mapping, or None.
         oversample: The render grid's oversampling factor.
 
     Returns:
-        The scaled spec, or None when the body has no ``atmosphere`` block.
+        The scaled spec, or None when ``atmosphere`` is not a mapping.
     """
-    atmosphere = body_params.get('atmosphere')
-    if not isinstance(atmosphere, dict):
+    if not isinstance(atmosphere, Mapping):
         return None
     os_factor = max(1, int(oversample))
     detached = atmosphere.get('detached_px')

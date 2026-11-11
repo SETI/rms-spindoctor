@@ -20,7 +20,9 @@ validator's semantics.
 The position spin boxes write the scene's ``v`` / ``u`` unchanged, so they
 carry the scene's own convention: every position in a scene is a pixel corner,
 and the center of pixel ``N`` is ``N + 0.5``.  The row labels name that
-convention rather than leaving the reader to infer it from a rendered star.
+convention rather than leaving the reader to infer it from a rendered star.  If a
+star's ``v`` or ``u`` is absent or null, its spin box shows the frame center,
+because the renderer reads it that way.
 
 The PSF-window size is stored as a two-element list, never a tuple: the safe
 YAML dumper is not guaranteed to accept tuples, and a tuple never compares
@@ -47,6 +49,7 @@ from PyQt6.QtWidgets import (
 )
 
 from spindoctor.cli.sim_editor.base import SimEditorBase
+from spindoctor.sim.scene_schema import scene_value
 
 # Tooltip for the position spin boxes, which write the scene value directly.
 _POSITION_TOOLTIP = (
@@ -58,6 +61,30 @@ _POSITION_TOOLTIP = (
 class StarTabMixin(SimEditorBase):
     """Builds and handles the per-star editing tab."""
 
+    def _star_position(
+        self, star: dict[str, Any], *, scene: dict[str, Any] | None = None
+    ) -> tuple[float, float]:
+        """A scene star's catalog position, read as the renderer reads it.
+
+        An absent or null ``v`` or ``u`` reads as the center of the star's own scene
+        frame.  A planted catalog error moves the drawn star off this position.  The
+        star tab, the preview's star marks, and a star drag all start from this
+        position.
+
+        Parameters:
+            star: One entry of the ``stars`` list of ``scene``.
+            scene: The scene the star belongs to.  Defaults to the scene being
+                edited; the preview's marks pass the scene behind the displayed
+                picture, whose frame size can differ while an edit is refused.
+
+        Returns:
+            The ``(v, u)`` position in pixel corner coordinates.
+        """
+        frame = self.sim_params if scene is None else scene
+        v = float(scene_value(star, 'v', frame['size_v'] / 2.0))
+        u = float(scene_value(star, 'u', frame['size_u'] / 2.0))
+        return v, u
+
     def _build_star_tab(self, idx: int) -> QWidget:
         """Build the editing tab widget for the star at ``idx``."""
         p = self.sim_params['stars'][idx]
@@ -68,21 +95,22 @@ class StarTabMixin(SimEditorBase):
         fl = QFormLayout()
         main_layout.addLayout(fl)
 
-        name_edit = QLineEdit(p.get('name', ''))
+        name_edit = QLineEdit(scene_value(p, 'name', ''))
         name_edit.textChanged.connect(lambda t, i=idx: self._on_star_name(i, t))
         fl.addRow('Name:', name_edit)
 
+        star_v, star_u = self._star_position(p)
         v_spin = QDoubleSpinBox()
         v_spin.setRange(-10000.0, 20000.0)
         v_spin.setDecimals(1)
-        v_spin.setValue(p.get('v', 0.0))
+        v_spin.setValue(star_v)
         v_spin.setToolTip(_POSITION_TOOLTIP.format(axis='V'))
         v_spin.valueChanged.connect(lambda v, i=idx: self._on_star_field(i, 'v', v))
         fl.addRow('V (pixel corner):', v_spin)
         u_spin = QDoubleSpinBox()
         u_spin.setRange(-10000.0, 20000.0)
         u_spin.setDecimals(1)
-        u_spin.setValue(p.get('u', 0.0))
+        u_spin.setValue(star_u)
         u_spin.setToolTip(_POSITION_TOOLTIP.format(axis='U'))
         u_spin.valueChanged.connect(lambda v, i=idx: self._on_star_field(i, 'u', v))
         fl.addRow('U (pixel corner):', u_spin)
@@ -93,34 +121,34 @@ class StarTabMixin(SimEditorBase):
         vmag = QDoubleSpinBox()
         vmag.setRange(-10.0, 30.0)
         vmag.setDecimals(2)
-        vmag.setValue(p.get('vmag', 3.0))
+        vmag.setValue(scene_value(p, 'vmag', 3.0))
         vmag.valueChanged.connect(lambda v, i=idx: self._on_star_field(i, 'vmag', v))
         fl.addRow('Magnitude (V):', vmag)
-        sclass = QLineEdit(p.get('spectral_class', 'G2'))
+        sclass = QLineEdit(scene_value(p, 'spectral_class', 'G2'))
         sclass.textChanged.connect(lambda t, i=idx: self._on_star_field(i, 'spectral_class', t))
         fl.addRow('Spectral class:', sclass)
         psf = QDoubleSpinBox()
         psf.setRange(0.1, 20.0)
         psf.setDecimals(2)
-        psf.setValue(p.get('psf_sigma', 1.0))
+        psf.setValue(scene_value(p, 'psf_sigma', 1.0))
         psf.valueChanged.connect(lambda v, i=idx: self._on_star_field(i, 'psf_sigma', v))
         fl.addRow('PSF sigma:', psf)
 
         move_v_spin = QDoubleSpinBox()
         move_v_spin.setRange(-200.0, 200.0)
         move_v_spin.setDecimals(2)
-        move_v_spin.setValue(float(p.get('move_v', 0.0)))
+        move_v_spin.setValue(float(scene_value(p, 'move_v', 0.0)))
         move_v_spin.setToolTip('Star smear vector V (px) during the exposure.')
         move_v_spin.valueChanged.connect(lambda v, i=idx: self._on_star_field(i, 'move_v', v))
         fl.addRow('Smear V (px):', move_v_spin)
         move_u_spin = QDoubleSpinBox()
         move_u_spin.setRange(-200.0, 200.0)
         move_u_spin.setDecimals(2)
-        move_u_spin.setValue(float(p.get('move_u', 0.0)))
+        move_u_spin.setValue(float(scene_value(p, 'move_u', 0.0)))
         move_u_spin.setToolTip('Star smear vector U (px) during the exposure.')
         move_u_spin.valueChanged.connect(lambda v, i=idx: self._on_star_field(i, 'move_u', v))
         fl.addRow('Smear U (px):', move_u_spin)
-        catalog_edit = QLineEdit(str(p.get('catalog_name', 'SIM')))
+        catalog_edit = QLineEdit(str(scene_value(p, 'catalog_name', 'SIM')))
         catalog_edit.setToolTip('Source-catalog label carried on the star.')
         catalog_edit.textChanged.connect(lambda t, i=idx: self._on_star_field(i, 'catalog_name', t))
         fl.addRow('Catalog name:', catalog_edit)
@@ -130,7 +158,7 @@ class StarTabMixin(SimEditorBase):
         # only when unchecked.  A non-navigable star renders but is dropped from
         # the navigator's filtered view entirely.
         navigable_check = QCheckBox('Navigable (unchecked plants a non-navigable star)')
-        navigable_check.setChecked(bool(p.get('navigable', True)))
+        navigable_check.setChecked(bool(scene_value(p, 'navigable', True)))
         navigable_check.setToolTip(
             'Checked leaves the key absent (navigable); unchecked writes '
             'navigable: false, dropping the star from the navigator view.'
@@ -154,12 +182,12 @@ class StarTabMixin(SimEditorBase):
         catalog_error_v_spin = QDoubleSpinBox()
         catalog_error_v_spin.setRange(-200.0, 200.0)
         catalog_error_v_spin.setDecimals(3)
-        catalog_error_v_spin.setValue(float(p.get('catalog_error_v', 0.0)))
+        catalog_error_v_spin.setValue(float(scene_value(p, 'catalog_error_v', 0.0)))
         catalog_error_v_spin.setEnabled(has_catalog_error)
         catalog_error_u_spin = QDoubleSpinBox()
         catalog_error_u_spin.setRange(-200.0, 200.0)
         catalog_error_u_spin.setDecimals(3)
-        catalog_error_u_spin.setValue(float(p.get('catalog_error_u', 0.0)))
+        catalog_error_u_spin.setValue(float(scene_value(p, 'catalog_error_u', 0.0)))
         catalog_error_u_spin.setEnabled(has_catalog_error)
         catalog_error_row = QHBoxLayout()
         catalog_error_row.setSpacing(4)
@@ -194,7 +222,7 @@ class StarTabMixin(SimEditorBase):
         delta_mag_spin = QDoubleSpinBox()
         delta_mag_spin.setRange(-10.0, 10.0)
         delta_mag_spin.setDecimals(2)
-        delta_mag_spin.setValue(float(p.get('delta_mag', 0.0)))
+        delta_mag_spin.setValue(float(scene_value(p, 'delta_mag', 0.0)))
         delta_mag_spin.setEnabled(has_delta_mag)
         delta_mag_check.clicked.connect(
             lambda checked, i=idx: self._on_star_delta_mag_enabled(i, checked)
@@ -208,15 +236,15 @@ class StarTabMixin(SimEditorBase):
         # off the catalog position -- a physical catalog error.  The checkable
         # group inserts or removes the whole companion map; each spin then
         # writes only its own sub-key.
-        companion = p.get('companion') if isinstance(p.get('companion'), dict) else {}
+        companion = scene_value(p, 'companion', {})
         companion_group = QGroupBox('Companion (unresolved binary)')
         companion_group.setCheckable(True)
-        companion_group.setChecked(bool(p.get('companion')))
+        companion_group.setChecked(bool(companion))
         companion_layout = QFormLayout(companion_group)
         companion_sep_spin = QDoubleSpinBox()
         companion_sep_spin.setRange(0.0, 200.0)
         companion_sep_spin.setDecimals(3)
-        companion_sep_spin.setValue(float(companion.get('sep_px', 2.0)))
+        companion_sep_spin.setValue(float(scene_value(companion, 'sep_px', 2.0)))
         companion_sep_spin.valueChanged.connect(
             lambda v, i=idx: self._on_star_companion_value(i, 'sep_px', v)
         )
@@ -224,7 +252,7 @@ class StarTabMixin(SimEditorBase):
         companion_dmag_spin = QDoubleSpinBox()
         companion_dmag_spin.setRange(-10.0, 10.0)
         companion_dmag_spin.setDecimals(2)
-        companion_dmag_spin.setValue(float(companion.get('delta_mag', 1.0)))
+        companion_dmag_spin.setValue(float(scene_value(companion, 'delta_mag', 1.0)))
         companion_dmag_spin.valueChanged.connect(
             lambda v, i=idx: self._on_star_companion_value(i, 'delta_mag', v)
         )
@@ -232,7 +260,7 @@ class StarTabMixin(SimEditorBase):
         companion_angle_spin = QDoubleSpinBox()
         companion_angle_spin.setRange(-360.0, 360.0)
         companion_angle_spin.setDecimals(1)
-        companion_angle_spin.setValue(float(companion.get('angle_deg', 0.0)))
+        companion_angle_spin.setValue(float(scene_value(companion, 'angle_deg', 0.0)))
         companion_angle_spin.valueChanged.connect(
             lambda v, i=idx: self._on_star_companion_value(i, 'angle_deg', v)
         )
@@ -263,7 +291,7 @@ class StarTabMixin(SimEditorBase):
         )
         psf_size_v_slider = QSlider(Qt.Orientation.Horizontal)
         psf_size_v_slider.setRange(0, 11)  # 12 positions for odd values 1-23
-        psf_size_v_default = p.get('psf_size', [11, 11])[0]
+        psf_size_v_default = scene_value(p, 'psf_size', [11, 11])[0]
         psf_size_v_default = self._ensure_odd_psf_size(psf_size_v_default)
         # Convert odd value to slider position: (value - 1) // 2
         psf_size_v_slider.setValue((psf_size_v_default - 1) // 2)
@@ -303,7 +331,7 @@ class StarTabMixin(SimEditorBase):
         )
         psf_size_u_slider = QSlider(Qt.Orientation.Horizontal)
         psf_size_u_slider.setRange(0, 11)  # 12 positions for odd values 1-23
-        psf_size_u_default = p.get('psf_size', [11, 11])[1]
+        psf_size_u_default = scene_value(p, 'psf_size', [11, 11])[1]
         psf_size_u_default = self._ensure_odd_psf_size(psf_size_u_default)
         # Convert odd value to slider position: (value - 1) // 2
         psf_size_u_slider.setValue((psf_size_u_default - 1) // 2)
@@ -485,7 +513,7 @@ class StarTabMixin(SimEditorBase):
                     spin.blockSignals(True)
                     spin.setValue(odd_value)
                     spin.blockSignals(False)
-        current_psf_size = self.sim_params['stars'][idx].get('psf_size', [11, 11])
+        current_psf_size = scene_value(self.sim_params['stars'][idx], 'psf_size', [11, 11])
         if dimension == 0:
             self.sim_params['stars'][idx]['psf_size'] = [odd_value, current_psf_size[1]]
         else:
@@ -523,7 +551,7 @@ class StarTabMixin(SimEditorBase):
                     slider.blockSignals(True)
                     slider.setValue((odd_value - 1) // 2)
                     slider.blockSignals(False)
-        current_psf_size = self.sim_params['stars'][idx].get('psf_size', [11, 11])
+        current_psf_size = scene_value(self.sim_params['stars'][idx], 'psf_size', [11, 11])
         if dimension == 0:
             self.sim_params['stars'][idx]['psf_size'] = [odd_value, current_psf_size[1]]
         else:

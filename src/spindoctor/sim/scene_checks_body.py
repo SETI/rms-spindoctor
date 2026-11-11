@@ -17,6 +17,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from spindoctor.sim.forward.body_spec import CRATER_MAX_RADIUS_DEFAULT, CRATER_MIN_RADIUS_DEFAULT
 from spindoctor.sim.forward.haze_structure import (
     CLOUD_BLOB_KEYS,
     HAZE_STRUCTURE_KEYS,
@@ -38,8 +39,10 @@ from spindoctor.sim.scene_schema import (
     ELLIPSOID_UNSUPPORTED_KEYS,
     MESH_UNSUPPORTED_KEYS,
     SimSceneValidationError,
+    default_body_name,
     ellipsoid_unsupported_message,
     mesh_unsupported_message,
+    scene_value,
 )
 
 
@@ -58,11 +61,12 @@ def _check_body_names_unique(bodies: list[dict[str, Any]], *, source: str) -> No
 
     Raises:
         SimSceneValidationError: If two entries share an effective name
-            (case-insensitive, positional defaults included).
+            (case-insensitive, positional defaults included; a null name takes
+            the positional default).
     """
     seen: dict[str, int] = {}
     for index, obj in enumerate(bodies):
-        effective = str(obj.get('name', f'SIM-BODY-{index + 1}')).upper()
+        effective = str(scene_value(obj, 'name', default_body_name(index))).upper()
         if effective in seen:
             raise SimSceneValidationError(
                 f'{source}: bodies[{seen[effective]}] and bodies[{index}] share the '
@@ -138,8 +142,7 @@ def _check_body_object(obj: dict[str, Any], *, index: int, source: str) -> None:
             raise SimSceneValidationError(
                 f'{source}: {label}.pose_euler_deg must be a list of 3 angles when present'
             )
-        for angle in pose:
-            _check_optional_number(angle, f'{label}.pose_euler_deg[]', source=source)
+        _check_number_list(pose, f'{label}.pose_euler_deg', source=source)
     override = obj.get('nav_override')
     if override is not None:
         if not isinstance(override, dict):
@@ -156,11 +159,24 @@ def _check_body_object(obj: dict[str, Any], *, index: int, source: str) -> None:
             )
 
 
-# The renderer's crater-radius defaults, mirrored from
-# ``spindoctor.sim.forward.body.render_single_body`` so the cross-field check
-# below sees the same effective band the renderer will sample.
-_CRATER_MIN_RADIUS_DEFAULT: float = 0.05
-_CRATER_MAX_RADIUS_DEFAULT: float = 0.25
+def _check_number_list(values: Any, key: str, *, source: str) -> None:
+    """Validate that every entry of a fixed-length list is a number.
+
+    A list entry can't fall back on a default, so a null entry is refused
+    rather than read as absent.
+
+    Parameters:
+        values: The list or tuple, already checked for its length.
+        key: The list's label for error messages.
+        source: Label used in error messages.
+
+    Raises:
+        SimSceneValidationError: If an entry is null or not a number.
+    """
+    for value in values:
+        if value is None:
+            raise SimSceneValidationError(f'{source}: {key} entries must be numbers; got null')
+        _check_optional_number(value, f'{key}[]', source=source)
 
 
 def _check_crater_shape_keys(obj: dict[str, Any], *, label: str, source: str) -> None:
@@ -185,14 +201,14 @@ def _check_crater_shape_keys(obj: dict[str, Any], *, label: str, source: str) ->
         _check_optional_positive_number(obj.get(key), f'{label}.{key}', source=source)
     min_radius = obj.get('crater_min_radius')
     max_radius = obj.get('crater_max_radius')
-    effective_min = _CRATER_MIN_RADIUS_DEFAULT if min_radius is None else float(min_radius)
-    effective_max = _CRATER_MAX_RADIUS_DEFAULT if max_radius is None else float(max_radius)
+    effective_min = CRATER_MIN_RADIUS_DEFAULT if min_radius is None else float(min_radius)
+    effective_max = CRATER_MAX_RADIUS_DEFAULT if max_radius is None else float(max_radius)
     if (min_radius is not None or max_radius is not None) and effective_min >= effective_max:
         raise SimSceneValidationError(
             f'{source}: {label}: crater_min_radius must be less than '
             f'crater_max_radius; got {effective_min!r} >= {effective_max!r} '
             f'(an omitted bound takes the renderer default '
-            f'{_CRATER_MIN_RADIUS_DEFAULT} / {_CRATER_MAX_RADIUS_DEFAULT})'
+            f'{CRATER_MIN_RADIUS_DEFAULT} / {CRATER_MAX_RADIUS_DEFAULT})'
         )
     exponent = obj.get('crater_power_law_exponent')
     _check_optional_number(exponent, f'{label}.crater_power_law_exponent', source=source)
@@ -416,8 +432,7 @@ def _check_haze_structure(value: dict[str, Any], *, label: str, source: str) -> 
             raise SimSceneValidationError(
                 f'{source}: {blob_label}.center_vu must be a list of 2 offsets when present'
             )
-        for offset in center:
-            _check_optional_number(offset, f'{blob_label}.center_vu[]', source=source)
+        _check_number_list(center, f'{blob_label}.center_vu', source=source)
 
 
 # The multiplicative albedo texture: a band-limited noise field (rms +

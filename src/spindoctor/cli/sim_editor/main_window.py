@@ -106,6 +106,10 @@ class CreateSimulatedImageModel(
         # Render cache/meta
         self._current_image: np.ndarray | None = None
         self._last_meta: dict[str, Any] = {}
+        # The scene that produced _current_image.  While the edited scene is
+        # refused, the overlays and the hit test read this copy, so they match
+        # the picture on screen.
+        self._displayed_params: dict[str, Any] = {}
         self._base_pixmap = None
         # Ellipsoid-only body keys held while their body is a polyhedral mesh.
         self._mesh_key_stash = MeshKeyStash()

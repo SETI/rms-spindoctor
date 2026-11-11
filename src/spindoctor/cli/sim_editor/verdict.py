@@ -53,8 +53,10 @@ _POLL_INTERVAL_MS = 25
 def navigated_frame_summary(sim_params: dict[str, Any]) -> str:
     """Render the frame the navigator reads and describe it for the status bar.
 
-    The frame carries the planted offset and roll (``ignore_offset=False``), and the
-    text is :func:`~spindoctor.sim.instrument_navigator.frame_units_summary` of that frame
+    The frame carries the planted offset and roll (``ignore_offset=False``).  The
+    scene is validated before it renders, as it is for every render, so this
+    function raises for a scene that fails validation.  The text is
+    :func:`~spindoctor.sim.instrument_navigator.frame_units_summary` of that frame
     under the scene's resolved instrument block.
 
     Parameters:
@@ -63,6 +65,9 @@ def navigated_frame_summary(sim_params: dict[str, Any]) -> str:
     Returns:
         One line of text naming the navigated frame's units, range, marker share,
         and the navigator's verdict when it would not call the frame clean.
+
+    Raises:
+        SimSceneValidationError: If the scene fails validation.
     """
     image, _ = render_combined_model(sim_params, ignore_offset=False)
     inst_config = resolve_sim_inst_config(
@@ -162,8 +167,9 @@ class VerdictRunner(QObject):
     def cancel(self) -> None:
         """Drop the waiting request and the result of the running one.
 
-        The editor calls this when the scene has nothing for the worker to do (no
-        planted offset, or a failed preview) and when the window closes.
+        The editor calls this when the scene is offset-free, when validation
+        refuses the scene, when the preview fails to render, and when the window
+        closes.
         """
         self._generation += 1
         self._waiting = None

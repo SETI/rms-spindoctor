@@ -34,9 +34,11 @@ The simulator has three equally valid entry points (the "three peers"):
   package), an interactive editor for the same parameters.
 
 Every parameter is reachable from all three; adding a physical effect means
-adding it to the renderer, the scene schema, and a GUI control together. The
-navigator side -- how a simulated frame is turned into ``NavFeature`` objects and
-navigated -- is documented in the simulated-model chapters
+adding it to the renderer, the scene schema, and a GUI control together. All three
+hold a scene to the same rules: every render validates its scene first, whether
+the scene came from a file, a Python dict, or the editor. The editor's live preview
+is one such render. The navigator side -- how a simulated frame is turned into
+``NavFeature`` objects and navigated -- is documented in the simulated-model chapters
 (:doc:`dev_guide_navigation_models_body_simulated`,
 :doc:`dev_guide_navigation_models_ring_simulated`,
 :doc:`dev_guide_navigation_models_star_simulated`); this chapter documents the
@@ -215,8 +217,12 @@ applies where. The *channel* is structural:
   (the filter is default-deny -- an unclassified or unknown key stays behind),
   a body's ``nav_override`` mapping is overlaid onto its idealized view and
   then dropped (the navigator sees what it *believes*, never the true values
-  underneath), and all values are deep copies. Nothing reachable *through
-  the filtered view* carries truth.
+  underneath), and all values are deep copies. A null reads as absent here too:
+  a key set to null inside ``nav_override`` leaves the idealized value in place, and
+  a body or star key that is still null after the overlay is left out, as is a
+  null key of the ring system or of one of its features. Leaving a key out can
+  only take information away, so neither rule lets truth across.
+  Nothing reachable *through the filtered view* carries truth.
 - The navigator-side models read **only** ``obs.nav_params``. None of the
   renderer's output -- rendered star records, body masks, z-order maps, all
   accumulated on the frame's ``truth`` metadata -- ever crosses.
@@ -539,13 +545,41 @@ salted ``hash``.) Sub-effects inside a stage derive their own named streams the
 same way (background stars, cosmic rays, crater placement).
 
 **The driver.** :func:`spindoctor.sim.render.render_combined_model` takes a
-``sim_params`` dict and returns ``(image, metadata)``. It normalizes the
-parameters into a deterministic JSON cache key, runs the pipeline on a fresh
-frame, and caches the result (``lru_cache(maxsize=2)``, plus small shape caches
-inside the body/mesh/star renderers; ``clear_render_caches`` drops them all for
-determinism tests). The caching contract: scene parameters are
-JSON-serializable scalars/lists/maps, no wall-clock or global RNG state is
-consulted, and two renders of the same scene are bit-identical on one machine.
+``sim_params`` dict and returns ``(image, metadata)``. It encodes the scene as
+deterministic sorted-key JSON, validates the scene with
+:func:`spindoctor.sim.scene.validate_sim_params`, runs the pipeline on a fresh frame,
+and caches the result on a key built from that JSON. The render cache holds two
+entries (``lru_cache(maxsize=2)``), and the body, mesh, and star renderers keep small
+shape caches of their own. ``clear_render_caches`` drops them all for determinism
+tests. The caching contract: scene parameters are JSON-serializable scalars, lists,
+and maps, no wall-clock or global RNG state is consulted, and two renders of the same
+scene are bit-identical on one machine.
+
+The render validates through :func:`spindoctor.sim.scene.validate_scene`. It keeps a
+small cache keyed on the scene's full JSON and on the ``source`` label that begins
+each error message. That key always includes the planted offset and roll, which the
+render cache key leaves out for an offset-free render. Loading a scene file uses the
+same cache. A scene file that is loaded and then rendered is therefore checked once.
+A scene rendered many times is checked once, too. A scene that passes prints each
+truth-echo warning once. A scene that changes after a check misses the cache and is
+checked again. A refused scene raises the same
+:class:`~spindoctor.sim.scene_schema.SimSceneValidationError` that loading it from a
+file would raise.
+
+:class:`~spindoctor.obs.obs_inst_sim.ObsSim` renders a scene file under the label it
+loaded the file with, so the render finds the load's check in the cache. A scene
+handed to ``ObsSim`` in memory is checked by the render, and the error message starts
+with the label the caller gave.
+
+Before each preview the editor calls :func:`spindoctor.sim.scene.validate_scene`, so
+the author sees why a scene would be refused. A refused scene leaves the last valid
+preview on screen. A scene that passes renders through
+:func:`~spindoctor.sim.render.render_combined_model` with ``ignore_offset=True``, which
+draws it without its planted offset and roll. The editor's check and the render's own
+check use the same label, so the render finds the editor's check in the cache. The
+editor's first check of a loaded scene misses the load's entry and runs in full: it
+uses the editor's own label, and the editor rebuilds a loaded scene with its defaults
+filled in, so the contents differ from the file's.
 
 .. _sim-instruments:
 
@@ -643,15 +677,27 @@ residual is below the blank limit, so the navigator calls it blank; an empty
 the units are otherwise invisible: a ``vgiss`` frame spanning about 0 to 1 looks
 the same as a ``coiss_nac`` frame spanning 20 to 4095.
 
-Without a planted offset, the preview is the frame the navigator reads, and the
-status bar describes it as soon as it renders. With one, the navigated frame is a
-second render, and the editor runs it on a worker thread so that an edit never
-waits for it. The preview appears at once, and the status bar shows the units
-followed by ``verdict pending``. When the second render finishes, its summary
-replaces that line. A newer edit supersedes the verdict on its way, so the status
-bar never shows the verdict for an older scene. A failed second render puts its
-error on the status bar and prints its traceback to standard error.
-:ref:`sim-editor-verdict-thread` describes the worker.
+The editor validates the scene on the UI thread before it renders the preview. If
+validation refuses the scene, the last valid preview stays on screen, the status bar
+shows ``scene would be refused:`` and the reason, and the editor does not start a
+verdict render. It cancels any verdict render already running or waiting. The marks,
+the saturation overlay, and the hit test read the scene behind the picture. A
+right-click leaves the selection empty while that scene differs from the edited one,
+since an object's index in the picture can belong to a different object in the edited
+scene. When a later edit makes the scene valid again, the preview renders as usual. A
+render that fails on a valid scene opens an error dialog, and so does a validator that
+fails with an error other than a refusal.
+
+Once a scene passes validation and renders, what happens next depends on the planted
+offset. Without one, the preview is the frame the navigator reads, and the status bar
+describes it as soon as it renders. With one, the navigated frame is a second render,
+and the editor runs it on a worker thread so that an edit never waits for it. The
+preview appears at once, and the status bar shows the units followed by
+``verdict pending``. When the second render finishes, its summary replaces that line.
+A newer edit supersedes the verdict on its way, so the status bar never shows the
+verdict for an older scene. A failed second render puts its error on the status bar
+and prints its traceback to standard
+error. :ref:`sim-editor-verdict-thread` describes the worker.
 
 .. _sim-optics-stage:
 
@@ -1724,6 +1770,26 @@ an oversampled radiance grid -- it dispatches to the *topographic path*
 navigator's predicted body is always the smooth Lambert template, so every one
 plants a known model error the technique must survive.
 
+**The body spec.** The scene radiance stage parses each ``bodies`` entry once into a
+frozen :class:`~spindoctor.sim.forward.body_spec.BodySpec`
+(:func:`~spindoctor.sim.forward.body_spec.body_spec_from_params`). Every default is
+applied there, and a key set to null gets the same default as an absent key. The
+stage then shifts each center by the ephemeris parallax, applies the planted roll to the
+center and to ``rotation_z``, and scales the centers and axes to the render grid. The body
+renderer adds the planted translation when it draws the body. Both renderers read only the
+spec. Two sub-blocks stay as their validated mappings, because their specs depend on the
+render: the ``atmosphere`` block's pixel lengths scale with the oversampling factor, and
+the ``albedo_texture`` noise draws its seed from the body's identity. The renderer builds
+them with :func:`~spindoctor.sim.forward.atmosphere.atmosphere_spec_from_params` and
+:func:`~spindoctor.sim.forward.body_texture.albedo_spec_from_params`, which read a null
+key as absent too.
+
+The stage also writes each body's entry in the render truth. The entry starts as a
+copy of the scene entry, leaving out any key the scene sets to null, so a null key
+and an absent one give the same truth. The stage then puts in the render-grid
+centers and axes, fills in the name and range when the scene leaves them out, and,
+for a mesh body, adds the pose scatter it drew.
+
 The topographic path
 --------------------
 
@@ -2718,7 +2784,9 @@ same format via :func:`spindoctor.sim.scene.save_sim_scene`; and programmatic
 scene authors -- the calibration-campaign generator
 ``util/calibration/scene_gen.py`` and the doc-gallery definitions in
 ``tests/integration/sim_doc_images.py`` -- validate their in-memory dicts
-through the same core, :func:`spindoctor.sim.scene.validate_sim_params`.
+through the same core, :func:`spindoctor.sim.scene.validate_sim_params`. Every
+render calls it too, so a dict that skips this step is still checked before it
+renders.
 Validation is strict: an unknown key at the top level or inside a ``bodies`` /
 ``stars`` / ``ring_system`` entry fails loudly, so a typo cannot silently
 render the default scene.
@@ -2855,7 +2923,16 @@ Top-level fields
 A top-level number (``exposure_sec``, ``offset_v``, ``offset_u``,
 ``offset_rotation_deg``, ``time``, ``ring_epoch``, and ``star_catalog_scatter_px``)
 can't be null: the validator refuses it, and the author leaves the key out to take its
-default. A top-level block or list set to null reads as unset.
+default. A top-level block or list set to null reads as unset. Inside the ``bodies``,
+``stars``, ``optics``, ``sky_counts``, ``spk_error``, ``noise``, ``detector``,
+``artifacts``, and ``ring_system`` blocks, an optional key that validation accepts as
+null renders exactly as an absent key does. The navigator reads it as absent too:
+:func:`~spindoctor.sim.scene.build_nav_params` leaves a null body, star, or ring key
+out of the navigator's view. For a key set to null inside ``nav_override``, the navigator
+sees the scene's own value. Validation refuses null on a few optional keys, which the
+author leaves out instead: ``optics.psf.match_navigator``, an ``optics.smear`` entry's
+``object_class``, and the map of an artifact mode inside ``artifacts``. A parameter
+inside a mode's map may be null and takes its default.
 
 .. list-table::
    :widths: 22 11 11 10 46
@@ -3029,7 +3106,13 @@ Body parameters
 Each entry of ``bodies`` is a dict. The geometry, pose, lighting, and physical
 scale are idealized (the published shape model of a body is catalog knowledge;
 a scene plants shape error through ``nav_override``, not by hiding the mesh).
-Common fields:
+Every body key, and every optional key inside a body's sub-blocks, may be null. A
+null key renders exactly as an absent key does (see the body spec in
+:ref:`sim-body-renderer`), gives the same render truth, and is left out of the
+navigator's view. For a key set to null inside ``nav_override``, the navigator sees
+the scene's own value. An entry of a
+fixed-length list, such as ``pose_euler_deg`` or a cloud's ``center_vu``, can't be
+null. Common fields:
 
 .. list-table::
    :widths: 22 11 11 10 46
@@ -4055,14 +4138,15 @@ For a scene with a planted offset that frame is a second render (see
 :ref:`Instruments <sim-instruments>`), which ``VerdictRunner`` in ``verdict.py`` runs on a
 worker thread while the preview stays on the UI thread.
 
-- **Requests.** Each render of the preview with a planted offset asks for a
+- **Requests.** Each preview of a valid scene with a planted offset asks for a
   verdict, which takes the next generation number and an independent deep copy of
   ``sim_params``. At most one verdict render runs. A request made while one runs
   waits, and replaces any request already waiting. A render whose generation is
-  older than the latest request is discarded when it finishes. A preview without
-  an offset, a failed preview, and closing the window each cancel, by taking a
-  generation number with no request behind it. A running render can't be
-  interrupted, so a stale one runs to the end before the waiting request starts.
+  older than the latest request is discarded when it finishes. An offset-free
+  preview, a scene that validation refuses, a failed preview, and closing the
+  window each cancel, by taking a generation number that no request uses. A
+  running render can't be interrupted, so a stale one runs to the end before the
+  waiting request starts.
 - **Hand-back.** The worker touches no Qt object and no editor state. It writes its
   summary, or its error and traceback, into its job object and then sets the job's
   ``threading.Event``. While a render runs, a ``QTimer`` on the UI thread polls

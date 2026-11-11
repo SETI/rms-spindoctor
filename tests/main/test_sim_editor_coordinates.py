@@ -9,6 +9,7 @@ states a rendered star position that way.
 Qt runs headless (offscreen platform).
 """
 
+import copy
 import os
 from typing import Any, cast
 
@@ -52,6 +53,10 @@ def model(qapp: QApplication) -> Any:
     editor.sim_params['size_u'] = _SIZE
     v_grid, u_grid = np.mgrid[0:_SIZE, 0:_SIZE]
     editor._current_image = (100.0 * v_grid + u_grid).astype(np.float64)
+    # The overlays and the hit test read the scene behind the displayed picture.
+    # These tests stand a hand-made picture in for a render, so that scene is the
+    # one each test edits.
+    editor._displayed_params = editor.sim_params
     return editor
 
 
@@ -98,6 +103,18 @@ def test_mask_hit_test_holds_to_the_end_of_a_pixel(model: Any) -> None:
     assert model._selected_model_key == ('body', 0)
 
 
+def test_a_click_selects_nothing_while_the_scene_is_refused(model: Any) -> None:
+    """A click on the last valid picture selects nothing while an edit is refused."""
+    model._add_body_tab()
+    mask = np.zeros((_SIZE, _SIZE), dtype=bool)
+    mask[6, 8] = True
+    model._last_meta = {'body_masks': [mask], 'inventory': {}}
+    model._displayed_params = copy.deepcopy(model.sim_params)
+    model.sim_params['bodies'] = []
+    model._select_model_at(6.5, 8.5)
+    assert model._selected_model_key is None
+
+
 def test_mask_hit_test_does_not_reach_the_previous_pixel(model: Any) -> None:
     """A click in the pixel before a mask pixel does not select what it shows."""
     model._add_body_tab()
@@ -106,6 +123,24 @@ def test_mask_hit_test_does_not_reach_the_previous_pixel(model: Any) -> None:
     model._last_meta = {'body_masks': [mask], 'inventory': {}}
     model._select_model_at(5.6, 7.6)
     assert model._selected_model_key is None
+
+
+def test_mask_hit_test_finds_an_unnamed_body_by_its_default_name(model: Any) -> None:
+    """The hit test finds an unnamed body by its default name in the inventory.
+
+    Three unnamed bodies overlap at the click, and only ``SIM-BODY-2`` has an
+    inventory range, so the second body is selected.
+    """
+    for _ in range(3):
+        model._add_body_tab()
+    for body in model.sim_params['bodies']:
+        del body['name']
+    mask = np.zeros((_SIZE, _SIZE), dtype=bool)
+    mask[6, 8] = True
+    inventory = {'SIM-BODY-2': {'range': 1.0}}
+    model._last_meta = {'body_masks': [mask, mask, mask], 'inventory': inventory}
+    model._select_model_at(6.5, 8.5)
+    assert model._selected_model_key == ('body', 1)
 
 
 # A sigma-free star offers a one-pixel-radius click target about its rendered
@@ -129,3 +164,62 @@ def test_star_hit_test_misses_short_of_the_rendered_position(model: Any) -> None
     model._last_meta = {'star_info': _STAR_INFO}
     model._select_model_at(9.1, 20.5)
     assert model._selected_model_key is None
+
+
+def test_dragging_a_body_missing_center_v_starts_at_the_frame_center(model: Any) -> None:
+    """Dragging a body whose ``center_v`` is absent starts from the frame center.
+
+    The renderer places the body there too.
+    """
+    model._add_body_tab()
+    del model.sim_params['bodies'][0]['center_v']
+    model._selected_model_key = ('body', 0)
+    model._last_drag_img_vu = (10.0, 10.0)
+    model._move_selected_by(13.0, 10.0)
+    assert model.sim_params['bodies'][0]['center_v'] == pytest.approx(_SIZE / 2.0 + 3.0)
+
+
+def test_dragging_a_star_without_a_position_starts_at_the_frame_center(model: Any) -> None:
+    """A star whose ``u`` is absent moves from the frame center, where it is drawn."""
+    model._add_star_tab()
+    del model.sim_params['stars'][0]['u']
+    model._selected_model_key = ('star', 0)
+    model._last_drag_img_vu = (10.0, 10.0)
+    model._move_selected_by(10.0, 12.0)
+    assert model.sim_params['stars'][0]['u'] == pytest.approx(_SIZE / 2.0 + 2.0)
+
+
+def test_a_star_tab_shows_a_null_position_at_the_frame_center(model: Any) -> None:
+    """The star tab's V box shows the frame center for a star whose ``v`` is null."""
+    model.sim_params['stars'] = [{'v': None, 'u': None}]
+    tab = model._build_star_tab(0)
+    assert tab.v_spin.value() == pytest.approx(_SIZE / 2.0)
+
+
+def test_a_star_with_a_null_position_is_marked_at_the_frame_center(model: Any) -> None:
+    """The preview marks a star whose ``v`` and ``u`` are null at the frame center."""
+    model.sim_params['bodies'] = []
+    model.sim_params['ring_system'] = None
+    model.sim_params['stars'] = [{'v': None, 'u': None}]
+    model._current_image = np.zeros((_SIZE, _SIZE), dtype=np.float64)
+    model._show_visual_aids = True
+    model._display_image()
+    # The mark's horizontal arm runs 4 px either side of the center; antialiasing
+    # spreads its 1 px pen over the two rows beside the center line.
+    pixel = model._base_pixmap.toImage().pixelColor(_SIZE // 2 - 3, _SIZE // 2)
+    assert pixel.green() > 0
+
+
+def test_a_null_star_mark_follows_the_displayed_frame_size(model: Any) -> None:
+    """A null-position star mark keeps to the displayed frame while an edit is refused."""
+    model.sim_params['bodies'] = []
+    model.sim_params['ring_system'] = None
+    model.sim_params['stars'] = [{'v': None, 'u': None}]
+    model._current_image = np.zeros((_SIZE, _SIZE), dtype=np.float64)
+    model._displayed_params = copy.deepcopy(model.sim_params)
+    model.sim_params['size_v'] = _SIZE // 2
+    model.sim_params['size_u'] = _SIZE // 2
+    model._show_visual_aids = True
+    model._display_image()
+    pixel = model._base_pixmap.toImage().pixelColor(_SIZE // 2 - 3, _SIZE // 2)
+    assert pixel.green() > 0

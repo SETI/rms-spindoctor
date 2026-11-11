@@ -15,6 +15,7 @@ from typing import Any
 from scipy import ndimage
 
 from spindoctor.sim.forward.stages import SimFrame
+from spindoctor.sim.scene_schema import scene_value
 from spindoctor.support.types import NDArrayFloatType
 
 __all__ = ['apply_ghosts']
@@ -30,12 +31,12 @@ def _add_ghosts_to_plane(
         return
     pre_ghost = plane.copy()
     for ghost in ghosts:
-        amplitude = float(ghost.get('amplitude', 0.0))
+        amplitude = float(scene_value(ghost, 'amplitude', 0.0))
         if amplitude == 0.0:
             continue
-        dv = float(ghost.get('dv_px', 0.0)) * oversample
-        du = float(ghost.get('du_px', 0.0)) * oversample
-        defocus_sigma = float(ghost.get('defocus_sigma', 0.0)) * oversample
+        dv = float(scene_value(ghost, 'dv_px', 0.0)) * oversample
+        du = float(scene_value(ghost, 'du_px', 0.0)) * oversample
+        defocus_sigma = float(scene_value(ghost, 'defocus_sigma', 0.0)) * oversample
         copy = ndimage.shift(pre_ghost, (dv, du), order=1, mode='constant', cval=0.0)
         if defocus_sigma > 0.0:
             copy = ndimage.gaussian_filter(copy, defocus_sigma, mode='constant')

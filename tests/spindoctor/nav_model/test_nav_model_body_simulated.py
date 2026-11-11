@@ -29,7 +29,12 @@ def _obs() -> ObsSim:
     """A coiss_nac sim obs sized for the body scenes below."""
     return ObsSim.from_file(
         '/tmp/body_sim.json',
-        sim_params={'size_v': _SIZE, 'size_u': _SIZE, 'instrument': 'coiss_nac'},
+        sim_params={
+            'size_v': _SIZE,
+            'size_u': _SIZE,
+            'instrument': 'coiss_nac',
+            'random_seed': 1,
+        },
     )
 
 
@@ -188,7 +193,12 @@ def _limb_obs() -> ObsSim:
     """A coiss_nac sim obs sized for a well-resolved limb body."""
     return ObsSim.from_file(
         '/tmp/limb_sim.json',
-        sim_params={'size_v': _LIMB_SIZE, 'size_u': _LIMB_SIZE, 'instrument': 'coiss_nac'},
+        sim_params={
+            'size_v': _LIMB_SIZE,
+            'size_u': _LIMB_SIZE,
+            'instrument': 'coiss_nac',
+            'random_seed': 1,
+        },
     )
 
 
@@ -820,6 +830,7 @@ def test_instances_for_obs_wires_siblings() -> None:
             'size_v': _LIMB_SIZE,
             'size_u': _LIMB_SIZE,
             'instrument': 'coiss_nac',
+            'random_seed': 1,
             'bodies': [far, near],
         },
     )

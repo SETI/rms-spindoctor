@@ -34,6 +34,7 @@ from typing import Any
 
 import numpy as np
 
+from spindoctor.sim.scene_schema import scene_value
 from spindoctor.sim.star_records import star_record_from_params
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 from spindoctor.support.stable_math import stable_hypot
@@ -234,8 +235,8 @@ def _render_stars_cached(
         # The planted per-star catalog error (explicit plus the seeded scene
         # scatter draw) displaces the RENDERED star off the catalog position the
         # navigator predicts from; it is unrecoverable astrometric residual.
-        err_v = float(star_params.get('catalog_error_v', 0.0))
-        err_u = float(star_params.get('catalog_error_u', 0.0))
+        err_v = float(scene_value(star_params, 'catalog_error_v', 0.0))
+        err_u = float(scene_value(star_params, 'catalog_error_u', 0.0))
         if scatter_rng is not None:
             err_v += float(scatter_rng.normal(0.0, catalog_scatter_px))
             err_u += float(scatter_rng.normal(0.0, catalog_scatter_px))
@@ -245,7 +246,7 @@ def _render_stars_cached(
         # A variable star renders at a brightness delta_mag off its catalog vmag
         # (positive = fainter); the catalog vmag stays what the navigator sees.
         vmag = star.vmag if star.vmag is not None else 8.0
-        delta_mag = float(star_params.get('delta_mag', 0.0))
+        delta_mag = float(scene_value(star_params, 'delta_mag', 0.0))
         total = total_flux_for_vmag(
             float(vmag) + delta_mag, zero_point=zero_point, exposure_sec=exposure_sec
         )
@@ -265,11 +266,13 @@ def _render_stars_cached(
         # amount -- a physical catalog error, rendered here, never told to the
         # navigator.
         companion = star_params.get('companion')
-        has_companion = isinstance(companion, dict) and float(companion.get('sep_px', 0.0)) > 0.0
+        has_companion = (
+            isinstance(companion, dict) and float(scene_value(companion, 'sep_px', 0.0)) > 0.0
+        )
         if has_companion:
-            sep = float(companion.get('sep_px', 0.0))
-            angle = np.radians(float(companion.get('angle_deg', 0.0)))
-            comp_dmag = float(companion.get('delta_mag', 0.0))
+            sep = float(scene_value(companion, 'sep_px', 0.0))
+            angle = np.radians(float(scene_value(companion, 'angle_deg', 0.0)))
+            comp_dmag = float(scene_value(companion, 'delta_mag', 0.0))
             comp_total = total_flux_for_vmag(
                 float(vmag) + delta_mag + comp_dmag,
                 zero_point=zero_point,
@@ -302,7 +305,7 @@ def _render_stars_cached(
                 'catalog_error_u': err_u,
                 'delta_mag': delta_mag,
                 'has_companion': has_companion,
-                'navigable': bool(star_params.get('navigable', True)),
+                'navigable': bool(scene_value(star_params, 'navigable', True)),
             }
         )
 

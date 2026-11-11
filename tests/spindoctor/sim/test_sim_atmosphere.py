@@ -32,9 +32,10 @@ from spindoctor.sim.forward.atmosphere import (
     tangent_optical_depth,
 )
 from spindoctor.sim.forward.body import render_single_body
+from spindoctor.sim.forward.body_spec import body_spec_from_params
 from spindoctor.sim.forward.scene_radiance import compose_scene_radiance
 from spindoctor.sim.forward.stages import new_sim_frame
-from spindoctor.sim.scene import validate_sim_params
+from spindoctor.sim.scene import ATMOSPHERE_KEYS, validate_sim_params
 from spindoctor.sim.scene_schema import SimSceneValidationError
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 from spindoctor.support.types import NDArrayFloatType
@@ -80,7 +81,7 @@ def _render_haze_body(
         body_params['atmosphere'] = atmosphere
     _mask, body_info = render_single_body(
         img,
-        body_params,
+        body_spec_from_params(body_params, index=0),
         0.0,
         offset_u=0.0,
         ref_center_v=_SIZE / 2.0,
@@ -305,13 +306,13 @@ def test_tangent_optical_depth_shell_adds_a_bump() -> None:
 
 def test_atmosphere_spec_absent_returns_none() -> None:
     """A body without an atmosphere block yields no spec."""
-    assert atmosphere_spec_from_params({'name': 'X'}, oversample=1) is None
+    assert atmosphere_spec_from_params(None, oversample=1) is None
 
 
 def test_atmosphere_spec_scales_pixel_lengths_by_oversample() -> None:
     """Pixel lengths scale with the oversampling factor; dimensionless ones do not."""
     block = {'scale_height_px': 4.0, 'tau_ref': 1.2, 'ref_altitude_px': 2.0, 'detached_px': 6.0}
-    spec = atmosphere_spec_from_params({'atmosphere': block}, oversample=4)
+    spec = atmosphere_spec_from_params(block, oversample=4)
     assert spec is not None
     assert spec.scale_height_px == pytest.approx(16.0)
 
@@ -319,7 +320,7 @@ def test_atmosphere_spec_scales_pixel_lengths_by_oversample() -> None:
 def test_atmosphere_spec_keeps_tau_ref_dimensionless() -> None:
     """The optical depth is dimensionless and is not scaled by oversample."""
     block = {'scale_height_px': 4.0, 'tau_ref': 1.2}
-    spec = atmosphere_spec_from_params({'atmosphere': block}, oversample=4)
+    spec = atmosphere_spec_from_params(block, oversample=4)
     assert spec is not None
     assert spec.tau_ref == pytest.approx(1.2)
 
@@ -327,26 +328,28 @@ def test_atmosphere_spec_keeps_tau_ref_dimensionless() -> None:
 def test_atmosphere_spec_reads_the_haze_albedo() -> None:
     """A stated haze albedo reaches the spec unscaled by oversample."""
     block = {'scale_height_px': 4.0, 'tau_ref': 1.2, 'albedo': 0.25}
-    spec = atmosphere_spec_from_params({'atmosphere': block}, oversample=4)
+    spec = atmosphere_spec_from_params(block, oversample=4)
     assert spec is not None
     assert spec.albedo == 0.25
 
 
 def test_atmosphere_spec_defaults_the_haze_albedo() -> None:
     """A block without an albedo takes the renderer's default."""
-    spec = atmosphere_spec_from_params(
-        {'atmosphere': {'scale_height_px': 4.0, 'tau_ref': 1.2}}, oversample=1
-    )
+    spec = atmosphere_spec_from_params({'scale_height_px': 4.0, 'tau_ref': 1.2}, oversample=1)
     assert spec is not None
     assert spec.albedo == DEFAULT_HAZE_ALBEDO
 
 
-@pytest.mark.parametrize('key', ['ref_altitude_px', 'g', 'albedo'])
+@pytest.mark.parametrize('key', sorted(ATMOSPHERE_KEYS - {'scale_height_px', 'tau_ref'}))
 def test_a_null_atmosphere_key_reads_as_omitted(key: str) -> None:
-    """An optional key written as null builds the same spec as leaving it out."""
+    """An optional key written as null builds the same spec as leaving it out.
+
+    A structure key written as null leaves the structure off, as leaving it out
+    does.
+    """
     block = {'scale_height_px': 4.0, 'tau_ref': 1.2}
-    stated = atmosphere_spec_from_params({'atmosphere': {**block, key: None}}, oversample=2)
-    omitted = atmosphere_spec_from_params({'atmosphere': block}, oversample=2)
+    stated = atmosphere_spec_from_params({**block, key: None}, oversample=2)
+    omitted = atmosphere_spec_from_params(block, oversample=2)
     assert stated == omitted
 
 
@@ -639,7 +642,7 @@ def test_body_mask_covers_only_the_solid_silhouette() -> None:
     img = np.zeros((_C_SIZE, _C_SIZE), dtype=np.float64)
     mask, body_info = render_single_body(
         img,
-        _compose_body(),
+        body_spec_from_params(_compose_body(), index=0),
         0.0,
         offset_u=0.0,
         ref_center_v=_C_CENTER,

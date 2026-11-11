@@ -280,12 +280,22 @@ def test_toggle_saturation_overlay_sets_flag(model: Any) -> None:
 def test_saturation_dn_for_raw_instrument(model: Any) -> None:
     """A raw-DN instrument reports its saturation DN."""
     model.sim_params['instrument'] = 'coiss_nac'
+    model._update_image()
     assert model._current_saturation_dn() == 4095.0
+
+
+def test_saturation_dn_follows_the_scene_instrument_config(model: Any) -> None:
+    """A scene's own saturation DN in ``instrument_config`` sets the overlay's level."""
+    model.sim_params['instrument'] = 'coiss_nac'
+    model.sim_params['instrument_config'] = {'noise': {'saturation_dn': 2047.0}}
+    model._update_image()
+    assert model._current_saturation_dn() == 2047.0
 
 
 def test_saturation_dn_none_for_calibrated_instrument(model: Any) -> None:
     """A calibrated-IF instrument has no saturation DN."""
     model.sim_params['instrument'] = 'vgiss'
+    model._update_image()
     assert model._current_saturation_dn() is None
 
 

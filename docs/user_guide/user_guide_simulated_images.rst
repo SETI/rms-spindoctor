@@ -109,6 +109,15 @@ finishes. The editor redraws a moment after you stop changing a value, and each
 redraw replaces the pending verdict. Until that redraw, the status bar still describes
 the scene as it was before the change.
 
+Before each redraw the editor checks the scene by the same rules it uses to load a
+scene file. An edit can leave the scene unfinished for a moment, such as when two
+bodies share a name while you retype one, or when a value is out of range. If the scene
+would be refused, the last valid preview stays on screen. The status bar shows the
+reason in place of a verdict, whether or not the scene plants an offset. Until then
+you cannot drag an object on the preview, because the picture shows the earlier scene;
+the object's tab still edits it. Once an edit makes the scene valid again, the preview
+redraws as usual.
+
 The random pixel loss (the missing-data rate) and the cosmic-ray rate work on every
 camera.
 
