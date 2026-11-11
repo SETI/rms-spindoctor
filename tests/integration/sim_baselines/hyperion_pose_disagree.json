@@ -1,7 +1,8 @@
 {
   "confidence": 0.99,
-  "offset_du_px": -0.58,
-  "offset_dv_px": 1.49,
+  "confidence_rank": "medium",
+  "offset_du_px": -0.5861584712485748,
+  "offset_dv_px": 1.4798959584770004,
   "scene_name": "hyperion_pose_disagree",
   "status": "success"
 }

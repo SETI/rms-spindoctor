@@ -200,9 +200,10 @@ tests need none of the archive environment above.
    * - Sim regression baselines (``test_sim_baselines.py``)
      - integration (``sim_integration``)
      - nothing
-     - Every catalog scene re-navigates to its recorded rounded outcome (a
-       tripwire). Integration-marked because rendering and navigating every scene
-       takes minutes; see :ref:`reproducing-sim-baselines`.
+     - Every catalog scene re-navigates to its recorded outcome, within small
+       tolerances on the offset and the confidence (a tripwire). Integration-marked
+       because rendering and navigating every scene takes minutes; see
+       :ref:`reproducing-sim-baselines`.
    * - Sensitivity sweeps (``test_sim_sweeps.py``)
      - integration (``sim_integration``)
      - nothing
@@ -284,17 +285,32 @@ verify no existing baseline shifts.
 Reproducing the simulator baselines
 ===================================
 
-A simulator baseline records a scene's rounded outcome: status, offset to
-0.01 px, and confidence to 0.01. The test compares them exactly, without a
-tolerance band, and the render and gallery checks compare PNGs byte for byte.
-That works because a simulated navigation is deterministic. A scene gives the
-same result in a fresh process and in a long-lived ``pytest-xdist`` worker,
-whatever ran before it.
+A simulator baseline records a scene's outcome: its status, its confidence rank,
+its offset, and its confidence, the last two as computed, without rounding. The
+test compares the status and the confidence rank exactly.
 
-What does change the result is the CPU. NumPy picks vectorized code paths by CPU
+It compares each axis of the offset within 0.02 px, because some techniques
+answer on a grid. The disc correlation's offset moves in steps of 1/128 px, one
+step of its upsampled grid, and a last-bit change upstream can move it one step.
+The tolerance is about two and a half of those steps.
+
+It compares the confidence within 0.02, a value chosen by hand. It can be
+revisited once runs on other machines show how far a scene's confidence moves.
+The rank comes from thresholds on the confidence and on the offset's uncertainty,
+so a scene that sits near one of those thresholds can still change rank, and
+fail, after a change far smaller than either tolerance.
+
+The render-diff check compares every committed render with a fresh one, pixel
+for pixel. It compares the decoded pixels, so a change in the PNG encoder doesn't
+fail it. The gallery check compares PNGs byte for byte. All of this works because
+a simulated render and its navigation are deterministic. A scene gives the same
+result in a fresh process and in a long-lived ``pytest-xdist`` worker, whatever
+ran before it.
+
+What can change the result is the CPU. NumPy picks vectorized code paths by CPU
 (AVX2, AVX-512, and so on), and the paths differ in the last bits of their
-results. That is enough to move a render's bytes, a baseline's rounding, or a
-sweep check that sits near its threshold. So the test package pins NumPy to the
+results. That can move a pixel of a render, a gallery image's bytes, or a sweep
+check that sits near its threshold. So the test package pins NumPy to the
 x86-64-v2 baseline: before NumPy is first imported, ``tests/__init__.py`` sets
 ``NPY_DISABLE_CPU_FEATURES`` to every dispatch group above it.
 ``tests/integration/test_simd_pin.py`` fails if the pin didn't take effect. The
@@ -310,10 +326,20 @@ products in a fixed order, in place of ``@``, and the simulator calls
 ``tests/spindoctor/sim/test_sim_stable_math_guard.py`` fails if a simulator module
 takes a matrix product with ``@``, ``.dot``, or a NumPy matrix-product function, or
 calls ``np.hypot``.
-A last-bit change in the render path wouldn't stay small. The PSF's FFT
-convolution spreads it to every pixel, and a Poisson draw whose mean changes can
-take a different number of random values, which changes the noise in every pixel
-after it.
+
+A last-bit change in the render path stays small. The PSF's FFT convolution
+spreads it to the mean of every pixel, but the detector draws its noise one
+pixel at a time. Each pixel takes one uniform value for its shot noise and one
+normal value for its read noise, however bright or dark the scene is. A changed
+mean can therefore change only its own pixel's noise. It does so only when the
+pixel's uniform value sits within that last bit of a step in the Poisson
+distribution, a chance of about 1e-13 per pixel, and then by one count. That is
+why a noisy render can be compared exactly.
+
+The pin matters for the checks that are exact: the committed renders and the
+gallery images, which are compared pixel for pixel or byte for byte, and the
+sweep checks, which can sit near a threshold. A last-bit change can move a pixel
+wherever a mask edge or a rounding step falls on it.
 
 On x86-64, with NumPy 2.4 or later, and with ``NPY_DISABLE_CPU_FEATURES`` not
 already set, every machine then reproduces the same files. They reproduced under
@@ -325,6 +351,19 @@ results may differ.
 CI is the reference environment: GitHub's ``ubuntu-latest`` runner, at each
 supported Python version. Every pull request runs the simulator checks there, so
 a baseline that CI doesn't reproduce fails the pull request.
+
+A NumPy release can change how a random stream turns into values. That moves the
+noise in every noisy render, and it also moves star counts, star positions,
+cosmic rays, and hot pixels. The render-diff check and the gallery check fail,
+and baselines move too. Regenerate the committed renders, the galleries, and the
+baselines together then, as you would after a deliberate change to what a scene
+renders, and review the sheets, the galleries, and the baseline diff:
+
+.. code-block:: bash
+
+   python -m tests.integration.render_contact_sheet
+   python -m tests.integration.sim_doc_images
+   python -m tests.integration.update_sim_baselines
 
 When a change moves a baseline, regenerate it in that change and say in the
 commit message why it moved. A baseline left stale fails CI and gets blamed on

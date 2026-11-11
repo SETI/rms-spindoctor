@@ -83,8 +83,8 @@ def encode_current_png(after: NDArrayUint8Type) -> bytes:
     """The exact PNG byte encoding of a scene's ``current/`` render.
 
     The single encoding path shared by :func:`generate` (which writes the
-    committed files) and the render-diff currency test (which byte-compares
-    fresh renders against them), so the two cannot drift apart.
+    committed files) and the render-diff currency test (which writes a stale
+    scene's fresh render with it for review), so the two cannot drift apart.
 
     Parameters:
         after: The stretched uint8 grayscale render.

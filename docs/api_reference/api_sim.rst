@@ -118,6 +118,11 @@ spindoctor.sim
    :undoc-members:
    :show-inheritance:
 
+.. automodule:: spindoctor.sim.forward.detector.shot_noise
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 .. automodule:: spindoctor.sim.forward.detector.noise_stages
    :members:
    :undoc-members:

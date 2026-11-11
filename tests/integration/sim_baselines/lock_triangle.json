@@ -1,7 +1,8 @@
 {
-  "confidence": 0.8,
-  "offset_du_px": -0.56,
-  "offset_dv_px": 1.46,
+  "confidence": 0.8000304094005959,
+  "confidence_rank": "medium",
+  "offset_du_px": -0.5634003777438642,
+  "offset_dv_px": 1.4584949654973536,
   "scene_name": "lock_triangle",
   "status": "success"
 }

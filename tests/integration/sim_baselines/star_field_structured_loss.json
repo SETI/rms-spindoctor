@@ -1,7 +1,8 @@
 {
-  "confidence": 0.8,
-  "offset_du_px": -0.6,
-  "offset_dv_px": 1.5,
+  "confidence": 0.8003663489866139,
+  "confidence_rank": "medium",
+  "offset_du_px": -0.5951903329077621,
+  "offset_dv_px": 1.4954741530581277,
   "scene_name": "star_field_structured_loss",
   "status": "success"
 }

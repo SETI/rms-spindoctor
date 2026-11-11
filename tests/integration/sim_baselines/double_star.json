@@ -1,7 +1,8 @@
 {
-  "confidence": 0.5,
-  "offset_du_px": -0.36,
-  "offset_dv_px": 1.72,
+  "confidence": 0.5046127575270308,
+  "confidence_rank": "low",
+  "offset_du_px": -0.3534221820646053,
+  "offset_dv_px": 1.7215269934492878,
   "scene_name": "double_star",
   "status": "success"
 }

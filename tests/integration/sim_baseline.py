@@ -1,28 +1,35 @@
-"""Regression-baseline schema for the simulator scene catalog (Phase T2).
+"""Regression-baseline schema for the simulator scene catalog.
 
 A sim baseline is a tiny JSON file at
-``tests/integration/sim_baselines/<scene_name>.json`` recording the exact
-rounded outcome the orchestrator produced for a catalog scene:
+``tests/integration/sim_baselines/<scene_name>.json`` recording the outcome the
+orchestrator produced for a catalog scene:
 
 ```json
 {
+  "confidence": 0.3661834217129642,
+  "confidence_rank": "medium",
+  "offset_du_px": -1.796875,
+  "offset_dv_px": 3.500421107761235,
   "scene_name": "planted_offset_disc",
-  "status": "success",
-  "offset_dv_px": 3.5,
-  "offset_du_px": -1.7969,
-  "confidence": 0.366
+  "status": "success"
 }
 ```
 
 Unlike the real-image baseline (which always navigates), a sim scene may fail;
 ``status`` is recorded and the offsets are ``null`` for a non-success run.
-``offset_*_px`` and ``confidence`` are rounded to 2 decimals so comparison
-against a fresh navigation run is exact-equal on rounded values.  Navigation is
-deterministic within a process, but the technique solvers carry sub-millipixel
-floating-point jitter across processes (BLAS reordering under parallel load), so
-the rounding is intentionally coarser than the real-image baselines' (which run
-serially in the integration job); 0.01 px / 0.01 confidence still catches any
-real regression while staying immune to that jitter.
+
+The offsets and the confidence are stored unrounded and compared within a
+tolerance; the status and the confidence rank are compared exactly.  A rounded
+value compared exactly fails whenever a tiny move crosses a rounding boundary: the
+disc correlation's answer moves in steps of 1/128 px, one step of its upsampled
+grid, and a last-bit change upstream can move it one step.  A per-axis tolerance
+of :data:`OFFSET_TOLERANCE_PX` (0.02 px, about two and a half grid steps) absorbs
+that and still catches a real regression.  The confidence is held to within
+:data:`CONFIDENCE_TOLERANCE` (0.02), a value chosen by hand that can be revisited once
+runs on other machines show how far a scene's confidence moves.  The rank comes from
+thresholds on the confidence and on the offset's uncertainty, so a scene that sits near
+one of them can still change rank, and fail, after a change far smaller than either
+tolerance.
 """
 
 from __future__ import annotations
@@ -36,16 +43,24 @@ from spindoctor.nav_model import build_models_for_obs
 from spindoctor.nav_orchestrator import NavOrchestrator
 from spindoctor.obs.obs_inst_sim import ObsSim
 
-OFFSET_DECIMALS: int = 2
-CONFIDENCE_DECIMALS: int = 2
+OFFSET_TOLERANCE_PX: float = 0.02
+"""The largest per-axis offset difference, in pixels, that still matches a baseline."""
+
+CONFIDENCE_TOLERANCE: float = 0.02
+"""The largest confidence difference that still matches a baseline.
+
+The value is chosen by hand. It can be revisited once runs on other machines show how
+far a confidence moves.
+"""
 
 
 @dataclass(frozen=True)
 class SimBaseline:
-    """An exact-rounded snapshot of one sim scene's navigation outcome."""
+    """A snapshot of one sim scene's navigation outcome, offsets and confidence unrounded."""
 
     scene_name: str
     status: str
+    confidence_rank: str
     offset_dv_px: float | None
     offset_du_px: float | None
     confidence: float
@@ -56,27 +71,28 @@ class SimBaseline:
         *,
         scene_name: str,
         status: str,
+        confidence_rank: str,
         offset_px: tuple[float, float] | None,
         confidence: float,
     ) -> SimBaseline:
-        """Build a baseline by rounding live navigation outputs."""
-        dv = round(float(offset_px[0]), OFFSET_DECIMALS) if offset_px is not None else None
-        du = round(float(offset_px[1]), OFFSET_DECIMALS) if offset_px is not None else None
+        """Build a baseline from live navigation outputs, keeping every value as computed."""
         return cls(
             scene_name=scene_name,
             status=status,
-            offset_dv_px=dv,
-            offset_du_px=du,
-            confidence=round(float(confidence), CONFIDENCE_DECIMALS),
+            confidence_rank=confidence_rank,
+            offset_dv_px=float(offset_px[0]) if offset_px is not None else None,
+            offset_du_px=float(offset_px[1]) if offset_px is not None else None,
+            confidence=float(confidence),
         )
 
     def to_json(self) -> str:
-        """Serialize to deterministic JSON (sorted keys, no NaN)."""
+        """Serialize to deterministic JSON (sorted keys, no NaN, floats round-trip exactly)."""
         return (
             json.dumps(
                 {
                     'scene_name': self.scene_name,
                     'status': self.status,
+                    'confidence_rank': self.confidence_rank,
                     'offset_dv_px': self.offset_dv_px,
                     'offset_du_px': self.offset_du_px,
                     'confidence': self.confidence,
@@ -89,9 +105,54 @@ class SimBaseline:
         )
 
 
+def baseline_mismatches(expected: SimBaseline, actual: SimBaseline) -> list[str]:
+    """Describe every way a fresh outcome fails to match its baseline.
+
+    The scene name, the status, and the confidence rank must be equal.  An offset
+    must be present in both or absent in both, and when present each axis must lie
+    within :data:`OFFSET_TOLERANCE_PX` of the baseline's.  The confidence must lie
+    within :data:`CONFIDENCE_TOLERANCE`.
+
+    Parameters:
+        expected: The committed baseline.
+        actual: The outcome of a fresh render and navigation.
+
+    Returns:
+        One line per mismatch, giving the field and both values; empty when the
+        outcome matches.
+    """
+    problems = [
+        f'{name}: expected {want!r}, got {got!r}'
+        for name, want, got in (
+            ('scene_name', expected.scene_name, actual.scene_name),
+            ('status', expected.status, actual.status),
+            ('confidence_rank', expected.confidence_rank, actual.confidence_rank),
+        )
+        if want != got
+    ]
+    for name, want_px, got_px in (
+        ('offset_dv_px', expected.offset_dv_px, actual.offset_dv_px),
+        ('offset_du_px', expected.offset_du_px, actual.offset_du_px),
+    ):
+        if want_px is None or got_px is None:
+            if want_px is not got_px:
+                problems.append(f'{name}: expected {want_px!r}, got {got_px!r}')
+        elif abs(got_px - want_px) > OFFSET_TOLERANCE_PX:
+            problems.append(
+                f'{name}: expected {want_px!r} within {OFFSET_TOLERANCE_PX} px, got {got_px!r}'
+            )
+    if abs(actual.confidence - expected.confidence) > CONFIDENCE_TOLERANCE:
+        problems.append(
+            f'confidence: expected {expected.confidence!r} within {CONFIDENCE_TOLERANCE}, '
+            f'got {actual.confidence!r}'
+        )
+    return problems
+
+
 _REQUIRED_KEYS: tuple[str, ...] = (
     'scene_name',
     'status',
+    'confidence_rank',
     'offset_dv_px',
     'offset_du_px',
     'confidence',
@@ -112,6 +173,7 @@ def load_sim_baseline(path: Path) -> SimBaseline:
     return SimBaseline(
         scene_name=_require_str(raw, 'scene_name', path),
         status=_require_str(raw, 'status', path),
+        confidence_rank=_require_str(raw, 'confidence_rank', path),
         offset_dv_px=_optional_float(raw['offset_dv_px'], 'offset_dv_px', path),
         offset_du_px=_optional_float(raw['offset_du_px'], 'offset_du_px', path),
         confidence=_require_float(raw['confidence'], 'confidence', path),
@@ -119,7 +181,7 @@ def load_sim_baseline(path: Path) -> SimBaseline:
 
 
 def baseline_for_scene(scene: dict[str, Any]) -> SimBaseline:
-    """Render and navigate the scene ``sim_params``, returning its rounded baseline."""
+    """Render and navigate the scene ``sim_params``, returning its baseline."""
     obs = ObsSim.from_file('/tmp/sim_baseline.yaml', sim_params=scene)
     result = NavOrchestrator(
         build_models_for_obs(obs), only_models='*', only_techniques='*'
@@ -127,6 +189,7 @@ def baseline_for_scene(scene: dict[str, Any]) -> SimBaseline:
     return SimBaseline.from_run(
         scene_name=scene['scene_name'],
         status=str(result.status),
+        confidence_rank=str(result.confidence_rank),
         offset_px=result.offset_px,
         confidence=float(result.confidence),
     )

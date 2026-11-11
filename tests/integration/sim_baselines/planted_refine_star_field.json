@@ -1,7 +1,8 @@
 {
-  "confidence": 0.8,
-  "offset_du_px": -0.6,
-  "offset_dv_px": 1.44,
+  "confidence": 0.8001379069544488,
+  "confidence_rank": "medium",
+  "offset_du_px": -0.5971358319095437,
+  "offset_dv_px": 1.4392509076555726,
   "scene_name": "planted_refine_star_field",
   "status": "success"
 }

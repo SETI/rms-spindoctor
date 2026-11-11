@@ -6,30 +6,42 @@
 scene class.  This module enforces the regeneration rule mechanically, the
 way ``test_sim_doc_images`` guards the documentation galleries:
 
-* Every catalog scene's committed ``current/`` PNG must be byte-identical to
-  a fresh render encoded through the generator's own PNG path, and no
-  ``current/`` PNG may outlive its scene.
+* Every catalog scene's committed ``current/`` PNG, decoded, must equal a fresh
+  render stretched through the generator's own path, pixel for pixel, and no
+  ``current/`` PNG may outlive its scene.  The decoded pixels are compared, never
+  the file bytes, so a change in the PNG encoder does not fail the check.
 * Every scene class present in the catalog must have a committed sheet, and
   no sheet may outlive its class.
 
-The sheets are checked for presence and coverage only, never for byte
+Noisy scenes are compared exactly too.  On the same NumPy a render reproduces
+exactly.  The detector draws each pixel's noise from that pixel's own random values,
+so a last-bit change in a pixel's mean changes that pixel's noise with a chance of
+about 1e-13.  When NumPy changes a random stream, the noise moves, and so do the star
+counts, the star positions, the cosmic rays, and the hot pixels.  That fails this
+check, the gallery check, and the simulator baselines alike, and all three are
+regenerated then, as they are after a deliberate change to what a scene renders.
+
+The sheets are checked for presence and coverage only, never for pixel
 identity: a sheet's pixels legitimately encode the *previous* baseline's
 before-panels (they show the last reviewed transition, which a fresh
 regeneration would erase), and its text labels rasterize through PIL's
 ``ImageDraw`` default font, whose output is environment-dependent.  The
-per-scene ``current/`` PNGs carry none of that -- they are pure encoded
-renders -- so byte identity is asserted exactly there.
+per-scene ``current/`` PNGs carry none of that -- they are pure stretched
+renders.
 """
 
 from __future__ import annotations
 
 from pathlib import Path
 
+import numpy as np
 import pytest
+from PIL import Image
 
 from spindoctor.sim.png_export import stretch_to_uint8
 from spindoctor.sim.render import render_combined_model
 from spindoctor.sim.scene import iter_scene_paths, load_sim_scene, scene_class_for_path
+from spindoctor.support.types import NDArrayUint8Type
 from tests.integration.render_contact_sheet import encode_current_png
 
 pytestmark = [pytest.mark.integration, pytest.mark.sim_integration]
@@ -46,8 +58,38 @@ def _scene_paths() -> list[Path]:
     return iter_scene_paths(_SCENES_ROOT)
 
 
+def _decode_png(path: Path) -> NDArrayUint8Type:
+    """The grayscale pixels of a committed PNG."""
+    with Image.open(path) as image:
+        return np.asarray(image.convert('L'), dtype=np.uint8)
+
+
+def _mismatch(committed_path: Path, fresh: NDArrayUint8Type) -> str | None:
+    """How a committed render differs from a fresh one, or None when they are equal.
+
+    Parameters:
+        committed_path: The committed ``current/`` PNG, which may be missing.
+        fresh: The fresh render, stretched to display levels.
+
+    Returns:
+        None when the decoded PNG equals the fresh render pixel for pixel.  Otherwise
+        a short description: that the PNG is missing, that the dimensions differ, or
+        how many pixels differ and by how many display levels at most.
+    """
+    if not committed_path.is_file():
+        return 'no committed PNG'
+    committed = _decode_png(committed_path)
+    if committed.shape != fresh.shape:
+        return f'committed {committed.shape}, fresh {fresh.shape}'
+    diff = np.abs(committed.astype(np.int16) - fresh.astype(np.int16))
+    differing = int(np.count_nonzero(diff))
+    if differing == 0:
+        return None
+    return f'{differing} of {diff.size} pixels differ, by up to {int(diff.max())} levels'
+
+
 def test_every_scene_has_a_current_render(tmp_path_factory: pytest.TempPathFactory) -> None:
-    """Every catalog scene has a committed, byte-current ``current/`` PNG.
+    """Every catalog scene has a committed ``current/`` PNG equal to a fresh render.
 
     A missing or stale PNG means a scene (or a rendering change) landed
     without regenerating the review artifacts; rerun the generator and
@@ -60,12 +102,12 @@ def test_every_scene_has_a_current_render(tmp_path_factory: pytest.TempPathFacto
     examined = 0
     for path in _scene_paths():
         examined += 1
-        committed = _CURRENT_DIR / f'{path.stem}.png'
         img, _ = render_combined_model(load_sim_scene(path))
-        fresh = encode_current_png(stretch_to_uint8(img))
-        if not committed.is_file() or committed.read_bytes() != fresh:
-            stale.append(path.stem)
-            (fresh_dir / f'{path.stem}.png').write_bytes(fresh)
+        fresh = stretch_to_uint8(img)
+        mismatch = _mismatch(_CURRENT_DIR / f'{path.stem}.png', fresh)
+        if mismatch is not None:
+            stale.append(f'{path.stem}: {mismatch}')
+            (fresh_dir / f'{path.stem}.png').write_bytes(encode_current_png(fresh))
     assert examined > 0, 'no scenes were examined; the catalog is empty or unreachable'
     assert not stale, (
         f'{len(stale)} committed current render(s) missing or no longer matching a '

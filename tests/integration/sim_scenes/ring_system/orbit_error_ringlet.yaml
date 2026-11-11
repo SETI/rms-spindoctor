@@ -27,26 +27,32 @@ exposure_sec: 1.0
 # two ring techniques read one catalog model, the ensemble collapses them
 # to a single witness before the fuse, so the declared error bar isn't
 # shrunk by a second, correlated view of the same misplaced annulus.
-# Measured outcome: success/LOW at (-2.03, -2.41) px against the planted
-# (1.0, -1.5), fused error 3.2 px, fused sigma (2.50, 2.45) px, confidence
-# 0.89 -- the sigma covers the error at ~1.3 sigma and holds the tier at
-# low.  That covering error bar is the point: the frame reports a radial
-# precision consistent with how far it can actually be from truth.
+# Measured outcome (2026-11-10): success/LOW at (0.29, -3.04) px against
+# the planted (1.0, -1.5), fused error 1.7 px, fused sigma (2.49, 2.50) px,
+# confidence 0.90 -- the sigma covers the error at ~0.7 sigma and holds the
+# tier at low.  That covering error bar is the point: the frame reports a
+# radial precision consistent with how far it can actually be from truth.
+# On this noise draw the fit locks onto a different arc of the annulus from
+# the one it locked onto before the detector drew shot noise per pixel
+# (then at (-2.03, -2.41) px, 3.2 px off), so the error is smaller and lies
+# mostly along u.  Which arc it locks onto depends on the noise draw; the
+# error over several noise seeds is still to be measured (#960).
 # NOTE ON WHAT THIS SCENE GUARDS: the recovered error staying in the
-# 3.2 +/- 1.0 band and the tier staying at low.  The expected-outcome test
+# 1.7 +/- 1.0 band and the tier staying at low.  The expected-outcome test
 # doesn't read the fused sigma, so the tier is its only sigma check, and a
 # coarse one: the frame rises to medium only once the fused sigma falls to
-# the medium tier's 2.0 px bound.  A sigma just above 2.0 px stays low,
-# though it covers the 3.2 px error only at 1.6 sigma.  The error is still
-# about the ~3 px the original confident-wrong recovery had; what changed is
-# the confidence, so a future change that reintroduced that behavior would
-# show up as the tier rising above low.  The standing hazard it documents is
-# that a planted radial catalog error is still absorbed into the offset at
-# all.
+# the medium tier's 2.0 px bound.  A sigma just above 2.0 px stays low and
+# still covers the 1.7 px error.  The original recovery was confidently
+# wrong: about 3 px off, with an error bar that did not cover that error.  The
+# error band catches that coming back only if the error climbs above 2.7 px.
+# The tier catches the overconfidence wherever the error lands: an error bar
+# under 2.0 px raises the frame above low, and the scene fails.  The standing
+# hazard it documents is that a planted radial catalog error is still absorbed
+# into the offset at all.
 expected:
   status: success
   confidence_tier: low
-  known_offset_error_px: 3.2
+  known_offset_error_px: 1.7
   known_offset_error_tol_px: 1.0
 bodies: []
 ring_system:

@@ -398,8 +398,8 @@ Three things, each impossible with real frames alone:
   the method's assumption does not describe.
 - **Failure modes real data cannot isolate become provable.** The worked
   example is the planted-radial-error family: ``orbit_error_ringlet`` plants
-  a 2.5 px radial catalog error and the fused result is a success roughly
-  3 px wrong. On a real frame this is indistinguishable from a good lock --
+  a 2.5 px radial catalog error and the fused result is a success about
+  1.7 px wrong. On a real frame this is indistinguishable from a good lock --
   only a frame whose truth is known by construction can *prove* the ensemble
   absorbs this error into the offset, and keep proving it (the honest pin in
   :ref:`sim-expected`) until the gap is closed.
@@ -771,7 +771,23 @@ intensive signal passes through the electron unit chain in
    read: 0 at the first line, rising linearly to ``readout_dark_e`` at the last,
    whatever the exposure. A calibrated product subtracts that ramp again, as
    CISSCAL's dark model does, and keeps its shot noise. Poisson shot noise then
-   acts on the electron image.
+   acts on the electron image, one pixel at a time. The chain draws one uniform
+   value per pixel and turns it into a count through that pixel's own Poisson
+   distribution (:func:`~spindoctor.sim.forward.detector.shot_noise.sample_poisson`).
+   How the count is found depends on the pixel's mean. Below 30 electrons it is
+   the exact Poisson quantile, found by adding up the chances of 0, 1, 2, and more
+   counts until the total reaches the uniform value. A pixel whose total lands
+   within rounding distance of its uniform value is settled again by a search on
+   SciPy's distribution function, so rounding never picks the count. From 30
+   electrons up it is the rounded Cornish-Fisher quantile. That differs from the
+   exact count on about 0.6% of pixels at 30 electrons and 0.03% at 10,000, always
+   by one count, against a spread of 5.5 counts or more, and its mean and variance
+   match the exact quantile's. The gain and the read noise then hide nearly all of
+   those differences: a 1024 by 1024 calibrated Cassini frame differed in 68
+   pixels from the same frame made with the exact quantile at every mean. A NaN
+   or infinite mean raises an error. The sampler takes about 0.07 s for that
+   frame. The exact quantile at every mean takes 0.31 s, and NumPy's frame-wide
+   sampler 0.03 s.
 4. **Hot pixels and full-well bloom.** Hot pixels are stamped, then charge above
    ``full_well_e`` spills along the column up to ``bloom_length`` pixels each
    way and the image is capped at the well. A camera's physical saturation
@@ -808,6 +824,15 @@ an independent RNG stream from the scene seed, so toggling one never perturbs
 another's realization. The deterministic signal-to-DN conversion always runs --
 it is what makes a DN frame -- while each stochastic sub-effect is a no-op when
 its gating amplitude, fraction, or rate is zero.
+
+No draw in the chain takes a number of random values that depends on the signal.
+The shot noise, the read noise, the response pattern, and the calibration
+residual each draw one value per pixel (the vidicon's line noise draws one per
+line), and every event count takes its mean from the scene rather than from the
+pixels. So changing the signal in one region of a frame leaves the noise
+everywhere else unchanged, and a last-bit change in a pixel's mean, such as a
+convolution tail that crosses zero, changes that pixel's count only in the rare
+case that its uniform value falls on a step of the Poisson distribution.
 
 **Quantization sub-modes.** ``exact`` rounds to integer DN (uniform bins);
 ``8bit`` rounds to integer DN and clips at the 255 code ceiling (the output
@@ -2491,7 +2516,7 @@ in quadrature to its reported covariance along the fit's radial direction
 
 The measured behavior on this axis stays deliberately uncomfortable, and the
 ``orbit_error_ringlet`` scene pins it: a navigable ringlet rendered 2.5 px
-outward of its catalog orbit navigates to a success about 3 px wrong. A
+outward of its catalog orbit navigates to a success about 1.7 px wrong. A
 uniform radial misplacement has no exact translational equivalent, so the
 robust edge fit down-weights one arc, locks onto one side of the annulus,
 and absorbs the ephemeris error into the recovered offset instead of leaving
@@ -3920,7 +3945,8 @@ change alters rendered output:
 - **Structural tests** (``tests/integration/test_sim_scenes.py``): every scene
   validates, sits in a declared class, has a unique name, and renders.
 - **Regression baselines** (``tests/integration/sim_baselines/``): every
-  catalog scene re-navigates to its recorded rounded outcome
+  catalog scene re-navigates to its recorded outcome, with the same status and
+  confidence rank, each offset axis within 0.02 px, and the confidence within 0.02
   (``test_sim_baselines.py``, integration tier, run by CI); regenerate with
   ``python -m tests.integration.update_sim_baselines`` and review the diff
   (see :ref:`reproducing-sim-baselines`).
@@ -3940,12 +3966,33 @@ change alters rendered output:
 
   The regeneration rule is enforced mechanically by
   ``tests/integration/test_render_diffs.py`` (integration tier, run by CI): every
-  catalog scene must have a committed ``current/`` PNG byte-identical to a
-  fresh render, every scene class must have a committed sheet, and neither
-  may outlive its scene or class. The sheets themselves are enforced for
-  presence and coverage only -- their pixels encode the previous baseline's
-  before-panels and PIL's environment-dependent label rasterization, so
-  their *content* remains a review artifact, not a byte-compared one.
+  catalog scene must have a committed ``current/`` PNG whose decoded pixels equal
+  a fresh render's exactly. Every scene class must have a committed sheet. No PNG
+  may outlive its scene, and no sheet its class. The test compares decoded pixels, so
+  a change in the PNG encoder doesn't fail it. When a render no longer matches, the
+  failure lists the scene, how many of its pixels differ, and the largest
+  difference in display levels.
+
+  Noisy scenes are compared exactly too. On the same NumPy a render reproduces
+  exactly. The detector draws each pixel's noise from that pixel's own random
+  values, so a last-bit change in a pixel's mean changes that pixel's noise with a
+  chance of about 1e-13 (see :ref:`reproducing-sim-baselines`). Regenerate the
+  ``current/`` PNGs and review the sheets after any deliberate change to what a
+  scene renders, and when a NumPy release changes a random stream. Such a release
+  moves the noise in every noisy render, and it also moves star counts, star
+  positions, cosmic rays, and hot pixels, so the galleries and the regression
+  baselines are regenerated with it:
+
+  .. code-block:: bash
+
+     python -m tests.integration.render_contact_sheet
+     python -m tests.integration.sim_doc_images
+     python -m tests.integration.update_sim_baselines
+
+  The sheets themselves are enforced for presence and coverage only -- their
+  pixels encode the previous baseline's before-panels and PIL's
+  environment-dependent label rasterization, so their *content* remains a review
+  artifact, not a pixel-compared one.
 
 The two documentation galleries (``docs/dev_guide/_sim_images/`` and
 ``docs/simulator_report/_scene_images/``, both written by
