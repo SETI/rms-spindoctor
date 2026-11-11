@@ -18,7 +18,7 @@ convolves each cluster of lit pixels on its own crop (see the lit_clusters
 module) and adds the results, which the convolution's linearity allows.  A crop's
 blur reaches the kernel's half-width past the crop and is exactly zero beyond.
 The FFTs are smaller than the frame's, so the result differs from one
-whole-frame convolution by rounding: about 1e-16 of the peak on lit pixels, and
+whole-frame convolution by rounding: up to about 1e-15 of the peak on lit pixels, and
 exact zeros where the whole-frame FFT leaves residue of that size in the dark.
 When the crops' convolutions would cover more than the frame's, the plane is
 blurred in one piece.

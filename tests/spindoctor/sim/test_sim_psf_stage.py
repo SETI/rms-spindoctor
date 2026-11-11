@@ -193,7 +193,7 @@ def test_cluster_blur_matches_the_whole_frame_convolution(
     assert float(np.max(np.abs(out - expected))) <= 1e-14 * float(np.max(expected))
 
 
-def test_a_fully_lit_plane_is_blurred_in_one_piece() -> None:
+def test_a_fully_lit_plane_gives_the_whole_frame_convolution_exactly() -> None:
     """A plane lit everywhere gives exactly one whole-frame convolution."""
     signal = np.random.default_rng(5).uniform(0.0, 1.0, size=(120, 100))
     assert np.array_equal(_blur(signal), fftconvolve(signal, _kernel(), mode='same'))

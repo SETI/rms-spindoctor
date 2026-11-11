@@ -1,8 +1,8 @@
 """Box-limited sub-pixel translation of a render-grid plane.
 
-The translation resamples only the box holding the content.  Inside the
-translated box it must give the same bits as ``scipy.ndimage.shift`` over the
-whole frame, and outside it the fill value exactly.
+The translation resamples only the box holding the content.  It must give the
+same bits as ``scipy.ndimage.shift`` over the whole frame, apart from the fill
+outside the box, which is exact where ``shift`` rounds a fill of one.
 """
 
 import numpy as np
@@ -21,23 +21,30 @@ def _content(cval: float, rows: slice, cols: slice) -> np.ndarray:
 
 
 @pytest.mark.parametrize(
-    ('dv', 'du', 'rows', 'cols', 'cval'),
+    ('dv', 'du', 'rows', 'cols'),
     [
-        pytest.param(0.37, -0.81, slice(100, 160), slice(90, 200), 0.0, id='sub_pixel'),
-        pytest.param(-23.6, 41.2, slice(100, 160), slice(90, 200), 0.0, id='many_pixels'),
-        pytest.param(5.5, -7.25, slice(0, 40), slice(250, 280), 0.0, id='frame_edge'),
-        pytest.param(1.3, 2.9, slice(100, 160), slice(90, 200), 1.0, id='fill_of_one'),
+        pytest.param(0.37, -0.81, slice(100, 160), slice(90, 200), id='sub_pixel'),
+        pytest.param(-23.6, 41.2, slice(100, 160), slice(90, 200), id='many_pixels'),
+        pytest.param(5.5, -7.25, slice(0, 40), slice(250, 280), id='frame_edge'),
+        pytest.param(-25.3, 40.6, slice(10, 60), slice(220, 280), id='partly_off_the_frame'),
     ],
 )
-def test_translation_inside_the_box_is_the_whole_frame_shift(
-    dv: float, du: float, rows: slice, cols: slice, cval: float
+def test_translation_is_the_whole_frame_shift(
+    dv: float, du: float, rows: slice, cols: slice
 ) -> None:
-    """Inside the translated box every pixel has the whole-frame shift's exact bits."""
-    plane = _content(cval, rows, cols)
-    expected = ndimage.shift(plane, (dv, du), order=1, mode='constant', cval=cval)
-    out = translate_box(plane, dv, du, rows, cols, cval=cval)
-    box = (shifted_box(rows, dv, plane.shape[0]), shifted_box(cols, du, plane.shape[1]))
-    assert np.array_equal(out[box], expected[box])
+    """With a fill of zero, every pixel of the frame has the whole-frame shift's bits."""
+    plane = _content(0.0, rows, cols)
+    expected = ndimage.shift(plane, (dv, du), order=1, mode='constant', cval=0.0)
+    assert np.array_equal(translate_box(plane, dv, du, rows, cols), expected)
+
+
+def test_translation_with_a_fill_of_one_is_the_whole_frame_shift() -> None:
+    """With a fill of one, the frame matches the whole-frame shift to its last bit."""
+    rows, cols = slice(100, 160), slice(90, 200)
+    plane = _content(1.0, rows, cols)
+    expected = ndimage.shift(plane, (1.3, 2.9), order=1, mode='constant', cval=1.0)
+    out = translate_box(plane, 1.3, 2.9, rows, cols, cval=1.0)
+    assert float(np.max(np.abs(out - expected))) <= 2.3e-16
 
 
 def test_translation_outside_the_box_is_the_fill_value() -> None:
