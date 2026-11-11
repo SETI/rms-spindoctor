@@ -308,6 +308,7 @@ retired and retained library classes.
 | #923 | Duplicate classifier, test-only module, missing fixtures, and codenames |
 | #902 | 26 scene keys without editor controls |
 | #947 | The simulated-image editor shows 0 for parameters the renderer fills from the detector block or another key |
+| #967 | The simulated-image editor's controls can build scenes that validation refuses: ranges wider than the rules, conflicting settings, settings left behind by a camera switch, and duplicate names |
 | #956 | Unnamed simulated bodies get different default names in the renderer and the navigator |
 | #856 | The simulated-image editor segfaults intermittently (reopened after the fix in PR #917) |
 | #914, the rest | User chapter around a complete scene, developer guide split, and one schema reference |

@@ -14,9 +14,8 @@ structural invariants are enforced by tests/integration/test_sim_scenes.py.
 The fields are the flat runtime sim_params names the renderer consumes, so a
 validated scene file is the sim_params dict directly (load_sim_scene returns it
 unchanged; schema_version and scene_name are metadata the renderer ignores).
-Every render validates its scene, so a scene built as a Python dict meets the
-same rules as a file.  The scene editor's live preview is the one exception: it
-shows a half-edited scene that would not yet pass.
+Every render validates its scene, the scene editor's live preview included, so
+a scene built as a Python dict or in the editor meets the same rules as a file.
 
 This mirrors the operator-curated image library (images/README.txt) but the
 scenes are generated on demand by the simulator, so they augment -- never

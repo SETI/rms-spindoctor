@@ -8,9 +8,8 @@ that JSON), and returns the rendered image with the renderer's output metadata.
 
 Every render validates its scene with
 :func:`~spindoctor.sim.scene.validate_sim_params`, so a scene built in memory
-is held to the same rules as one read from a file.  The one route that skips
-validation is :func:`render_unvalidated_preview`, which the scene editor's live
-preview uses so the author can see a half-edited scene that would not yet pass.
+is held to the same rules as one read from a file.  The scene editor's live
+preview is one such render: it validates its scene like every other caller.
 
 Validation goes through :func:`~spindoctor.sim.scene.validate_scene`, whose cache
 loading a scene file shares, so a scene that is loaded and then rendered, or
@@ -156,27 +155,6 @@ def render_combined_model(
     """
     validate_scene(sim_params, source=source)
     return _render(sim_params, json.dumps(sim_params, sort_keys=True), ignore_offset=ignore_offset)
-
-
-def render_unvalidated_preview(
-    sim_params: dict[str, Any],
-) -> tuple[NDArrayFloatType, dict[str, Any]]:
-    """Render a scene's offset-free geometry without validating it.
-
-    This is the scene editor's live preview.  While the author edits, the scene
-    often fails validation for a moment, and the preview should still show it.
-    Nothing that navigates or measures a frame may use this function; every
-    such caller goes through :func:`render_combined_model`.  A scene that the
-    renderer cannot read raises whatever error the renderer meets.
-
-    Parameters:
-        sim_params: The parameters describing the simulated model.
-
-    Returns:
-        The image and metadata, as :func:`render_combined_model` returns them
-        with ``ignore_offset=True``.
-    """
-    return _render(sim_params, json.dumps(sim_params, sort_keys=True), ignore_offset=True)
 
 
 def _render(

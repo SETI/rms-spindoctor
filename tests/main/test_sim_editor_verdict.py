@@ -17,6 +17,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any, cast
 
+import numpy as np
 import pytest
 
 os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
@@ -43,6 +44,7 @@ from spindoctor.cli.sim_editor import CreateSimulatedImageModel
 from spindoctor.cli.sim_editor import verdict as verdict_module
 from spindoctor.config import DEFAULT_CONFIG
 from spindoctor.sim.instrument_navigator import frame_units_summary, resolve_sim_inst_config
+from spindoctor.sim.render import render_combined_model
 
 # Generous: a gated render finishes as soon as it is released, and the one real
 # render is a 128 x 128 frame.
@@ -334,13 +336,77 @@ def test_a_scene_without_an_offset_starts_no_verdict_render(
     assert model._units_label.text() == _preview_summary(model)
 
 
-def test_an_offset_free_scene_that_fails_validation_shows_why(model: Any) -> None:
-    """A refused offset-free scene still shows why in the status bar."""
-    model.sim_params['unknown_probe_key'] = 1
-    model._update_image()
-    assert model._units_label.text() == (
-        "scene would be refused: sim_params: unknown scene keys: ['unknown_probe_key']"
-    )
+_ZERO_K_REFUSAL = (
+    'scene would be refused: sim_params: bodies[0].minnaert_k must be a positive number '
+    'when present'
+)
+
+
+def _minnaert_body_tab(model: Any) -> Any:
+    """Add a body under the minnaert law, render the preview, and return its tab."""
+    model._add_body_tab()
+    tab_idx = model._find_tab_by_properties('body', 0)
+    assert tab_idx is not None
+    tab = model._tabs.widget(tab_idx)
+    tab.photometry_group.setChecked(True)
+    tab.photometry_law_combo.setCurrentText('minnaert')
+    model._updater.immediate_update()
+    return tab
+
+
+def _set_minnaert_k(model: Any, tab: Any, value: float) -> None:
+    """Set the Minnaert k spin and redraw, as the debounced update does."""
+    tab.minnaert_k_spin.setValue(value)
+    model._updater.immediate_update()
+
+
+def test_a_refused_scene_keeps_the_last_valid_picture(model: Any) -> None:
+    """Edits made while the scene is refused leave the last valid picture on screen."""
+    tab = _minnaert_body_tab(model)
+    valid_picture = model._current_image.copy()
+    _set_minnaert_k(model, tab, 0.0)
+    # Moving the body would change the picture if the refused scene were drawn.
+    tab.center_v_spin.setValue(tab.center_v_spin.value() + 40.0)
+    model._updater.immediate_update()
+    assert np.array_equal(model._current_image, valid_picture)
+
+
+def test_a_refused_scene_keeps_its_marks_on_the_last_picture(model: Any) -> None:
+    """Redrawing while the scene is refused draws the marks of the displayed scene."""
+    tab = _minnaert_body_tab(model)
+    valid_pixmap = model._base_pixmap.toImage()
+    _set_minnaert_k(model, tab, 0.0)
+    tab.center_v_spin.setValue(tab.center_v_spin.value() + 40.0)
+    model._updater.immediate_update()
+    # Toggling an overlay redraws from the stored picture without re-rendering.
+    model._display_image()
+    assert model._base_pixmap.toImage() == valid_pixmap
+
+
+def test_the_preview_leaves_out_the_planted_offset(model: Any, gated: _GatedSummary) -> None:
+    """The preview draws the scene without its planted offset and roll."""
+    model._add_body_tab()
+    _edit_offset(model, 5.0)
+    offset_free, _ = render_combined_model(model.sim_params, ignore_offset=True)
+    navigated, _ = render_combined_model(model.sim_params, ignore_offset=False)
+    assert np.array_equal(model._current_image, offset_free)
+    assert not np.array_equal(model._current_image, navigated)
+
+
+def test_a_refused_scene_shows_the_reason(model: Any) -> None:
+    """A widget edit that makes the scene invalid puts the refusal on the status bar."""
+    tab = _minnaert_body_tab(model)
+    _set_minnaert_k(model, tab, 0.0)
+    assert model._units_label.text() == _ZERO_K_REFUSAL
+
+
+def test_fixing_a_refused_scene_renders_the_new_picture(model: Any) -> None:
+    """Once an edit makes a refused scene valid again, the preview draws it."""
+    tab = _minnaert_body_tab(model)
+    _set_minnaert_k(model, tab, 0.0)
+    _set_minnaert_k(model, tab, 1.0)
+    expected, _ = render_combined_model(model.sim_params, ignore_offset=True)
+    assert np.array_equal(model._current_image, expected)
 
 
 def test_a_refused_scene_with_an_offset_does_not_start_a_verdict(
@@ -356,15 +422,15 @@ def test_a_refused_scene_with_an_offset_does_not_start_a_verdict(
     )
 
 
-def test_a_preview_that_fails_on_a_refused_scene_shows_why(model: Any) -> None:
-    """If the preview cannot render a refused scene, the status bar shows the refusal.
-
-    The refusal appears in place of an error dialog.
-    """
-    model.sim_params['exposure_sec'] = 'long'
-    model._update_image()
+def test_a_refusal_drops_the_running_verdict(model: Any, gated: _GatedSummary) -> None:
+    """A verdict requested before the scene was refused never replaces the refusal."""
+    _edit_offset(model, 5.0)
+    model.sim_params['unknown_probe_key'] = 1
+    _edit_offset(model, 6.0)
+    gated.release(0)
+    _wait_for_verdict(model)
     assert model._units_label.text() == (
-        'scene would be refused: sim_params: exposure_sec must be a positive number when present'
+        "scene would be refused: sim_params: unknown scene keys: ['unknown_probe_key']"
     )
 
 
@@ -377,37 +443,29 @@ def test_a_preview_that_fails_on_a_valid_scene_opens_the_error_dialog(
     def _fail(*args: Any, **kwargs: Any) -> Any:
         raise RuntimeError('preview failed')
 
-    monkeypatch.setattr(
-        'spindoctor.cli.sim_editor.render_display.render_unvalidated_preview', _fail
-    )
+    monkeypatch.setattr('spindoctor.cli.sim_editor.render_display.render_combined_model', _fail)
     monkeypatch.setattr(
         QMessageBox, 'critical', staticmethod(lambda *args: dialogs.append(args[2]))
     )
     model._update_image()
-    assert dialogs == ['Failed to render image:\npreview failed']
+    assert dialogs == ['Failed to preview the scene:\npreview failed']
 
 
-def test_a_validator_failure_after_a_failed_preview_reports_the_render_error(
+def test_a_validator_failure_opens_the_error_dialog(
     model: Any, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A validator that fails some other way leaves the render error to the dialog."""
+    """A validator that fails other than by refusing reports the error in the dialog."""
     dialogs: list[str] = []
 
-    def _fail_render(*args: Any, **kwargs: Any) -> Any:
-        raise RuntimeError('preview failed')
-
     def _fail_validation(*args: Any, **kwargs: Any) -> None:
-        raise KeyError('validator broke')
+        raise RuntimeError('validator broke')
 
-    monkeypatch.setattr(
-        'spindoctor.cli.sim_editor.render_display.render_unvalidated_preview', _fail_render
-    )
     monkeypatch.setattr('spindoctor.cli.sim_editor.render_display.validate_scene', _fail_validation)
     monkeypatch.setattr(
         QMessageBox, 'critical', staticmethod(lambda *args: dialogs.append(args[2]))
     )
     model._update_image()
-    assert dialogs == ['Failed to render image:\npreview failed']
+    assert dialogs == ['Failed to preview the scene:\nvalidator broke']
 
 
 def test_clearing_the_offset_drops_the_running_verdict(model: Any, gated: _GatedSummary) -> None:
@@ -428,9 +486,7 @@ def test_a_failed_preview_drops_the_running_verdict(
     def _fail(*args: Any, **kwargs: Any) -> Any:
         raise RuntimeError('preview failed')
 
-    monkeypatch.setattr(
-        'spindoctor.cli.sim_editor.render_display.render_unvalidated_preview', _fail
-    )
+    monkeypatch.setattr('spindoctor.cli.sim_editor.render_display.render_combined_model', _fail)
     monkeypatch.setattr(
         'spindoctor.cli.sim_editor.render_display.QMessageBox.critical',
         lambda *args, **kwargs: None,

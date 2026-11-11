@@ -215,7 +215,7 @@ def _validate_scene_json(scene_json: str, source: str) -> None:
 def validate_scene(sim_params: dict[str, Any], *, source: str = 'sim_params') -> None:
     """Validate a scene through the shared validation cache.
 
-    Loading a scene file, every render, and the scene editor's check after each
+    Loading a scene file, every render, and the scene editor's check before each
     preview all validate through this function.  A scene checked once is not
     checked again while its contents and ``source`` stay the same, so a scene file
     that is loaded and then rendered is validated once, and a scene that passes

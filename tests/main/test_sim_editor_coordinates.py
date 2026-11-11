@@ -52,6 +52,10 @@ def model(qapp: QApplication) -> Any:
     editor.sim_params['size_u'] = _SIZE
     v_grid, u_grid = np.mgrid[0:_SIZE, 0:_SIZE]
     editor._current_image = (100.0 * v_grid + u_grid).astype(np.float64)
+    # The overlays and the hit test read the scene behind the displayed picture.
+    # These tests stand a hand-made picture in for a render, so that scene is the
+    # one each test edits.
+    editor._displayed_params = editor.sim_params
     return editor
 
 

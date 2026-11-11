@@ -36,13 +36,9 @@ The simulator has three equally valid entry points (the "three peers"):
 Every parameter is reachable from all three; adding a physical effect means
 adding it to the renderer, the scene schema, and a GUI control together. All three
 hold a scene to the same rules: every render validates its scene first, whether
-the scene came from a file, a Python dict, or the editor. The one exception is the
-editor's live preview, which renders through
-:func:`spindoctor.sim.render.render_unvalidated_preview` so that the author can see
-a half-edited scene before it passes validation. Nothing that navigates a frame uses
-that function. The
-navigator side -- how a simulated frame is turned into ``NavFeature`` objects and
-navigated -- is documented in the simulated-model chapters
+the scene came from a file, a Python dict, or the editor. The editor's live preview
+is one such render. The navigator side -- how a simulated frame is turned into
+``NavFeature`` objects and navigated -- is documented in the simulated-model chapters
 (:doc:`dev_guide_navigation_models_body_simulated`,
 :doc:`dev_guide_navigation_models_ring_simulated`,
 :doc:`dev_guide_navigation_models_star_simulated`); this chapter documents the
@@ -575,13 +571,15 @@ loaded the file with, so the render finds the load's check in the cache. A scene
 handed to ``ObsSim`` in memory is checked by the render, and the error message starts
 with the label the caller gave.
 
-The editor's preview renders through
-:func:`spindoctor.sim.render.render_unvalidated_preview`, which skips validation and
-draws the scene without its planted offset and roll. After each preview the editor
-calls :func:`spindoctor.sim.scene.validate_scene`, so the author sees why a scene
-would be refused. This check misses the cache and runs in full: it uses the editor's
-own label, and the editor rebuilds a loaded scene with its defaults filled in, so the
-contents differ from the file's.
+Before each preview the editor calls :func:`spindoctor.sim.scene.validate_scene`, so
+the author sees why a scene would be refused. A refused scene leaves the last valid
+preview on screen. A scene that passes renders through
+:func:`~spindoctor.sim.render.render_combined_model` with ``ignore_offset=True``, which
+draws it without its planted offset and roll. The editor's check and the render's own
+check use the same label, so the render finds the editor's check in the cache. The
+editor's first check of a loaded scene misses the load's entry and runs in full: it
+uses the editor's own label, and the editor rebuilds a loaded scene with its defaults
+filled in, so the contents differ from the file's.
 
 .. _sim-instruments:
 
@@ -679,14 +677,15 @@ residual is below the blank limit, so the navigator calls it blank; an empty
 the units are otherwise invisible: a ``vgiss`` frame spanning about 0 to 1 looks
 the same as a ``coiss_nac`` frame spanning 20 to 4095.
 
-The preview renders without validation. The editor then validates the scene on the
-UI thread. If the scene fails, the status bar shows ``scene would be refused:`` and
-the reason, and the editor does not ask for a verdict. If the preview itself fails to
-render, the editor validates the scene as well. When validation refuses it, the status
-bar shows the same line and the last preview stays in place. Any other render failure
-opens an error dialog.
+The editor validates the scene on the UI thread before it renders the preview. If
+validation refuses the scene, the last valid preview stays on screen, the status bar
+shows ``scene would be refused:`` and the reason, and the editor does not start a
+verdict render. It cancels any verdict render already running or waiting. When a later
+edit makes the scene valid again, the preview renders as usual. A render that fails on
+a valid scene opens an error dialog, and so does a validator that fails with an error
+other than a refusal.
 
-Once a scene renders and passes validation, what happens next depends on the planted
+Once a scene passes validation and renders, what happens next depends on the planted
 offset. Without one, the preview is the frame the navigator reads, and the status bar
 describes it as soon as it renders. With one, the navigated frame is a second render,
 and the editor runs it on a worker thread so that an edit never waits for it. The
@@ -4093,9 +4092,9 @@ worker thread while the preview stays on the UI thread.
   verdict, which takes the next generation number and an independent deep copy of
   ``sim_params``. At most one verdict render runs. A request made while one runs
   waits, and replaces any request already waiting. A render whose generation is
-  older than the latest request is discarded when it finishes. A preview without
-  an offset, a failed preview, a preview whose scene fails validation, and closing
-  the window each cancel, by taking a generation number that no request uses. A
+  older than the latest request is discarded when it finishes. An offset-free
+  preview, a scene that validation refuses, a failed preview, and closing the
+  window each cancel, by taking a generation number that no request uses. A
   running render can't be interrupted, so a stale one runs to the end before the
   waiting request starts.
 - **Hand-back.** The worker touches no Qt object and no editor state. It writes its

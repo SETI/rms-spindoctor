@@ -280,12 +280,14 @@ def test_toggle_saturation_overlay_sets_flag(model: Any) -> None:
 def test_saturation_dn_for_raw_instrument(model: Any) -> None:
     """A raw-DN instrument reports its saturation DN."""
     model.sim_params['instrument'] = 'coiss_nac'
+    model._update_image()
     assert model._current_saturation_dn() == 4095.0
 
 
 def test_saturation_dn_none_for_calibrated_instrument(model: Any) -> None:
     """A calibrated-IF instrument has no saturation DN."""
     model.sim_params['instrument'] = 'vgiss'
+    model._update_image()
     assert model._current_saturation_dn() is None
 
 
@@ -361,7 +363,7 @@ def test_units_label_clears_after_a_failed_render(
         raise RuntimeError('render failed')
 
     render_display = importlib.import_module('spindoctor.cli.sim_editor.render_display')
-    monkeypatch.setattr(render_display, 'render_unvalidated_preview', _fail)
+    monkeypatch.setattr(render_display, 'render_combined_model', _fail)
     monkeypatch.setattr(QMessageBox, 'critical', lambda *args, **kwargs: None)
     model._update_image()
     assert model._units_label.text() == ''

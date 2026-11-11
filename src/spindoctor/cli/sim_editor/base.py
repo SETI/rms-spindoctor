@@ -45,6 +45,7 @@ class SimEditorBase(QMainWindow):
     sim_params: dict[str, Any]
     _current_image: np.ndarray | None
     _last_meta: dict[str, Any]
+    _displayed_params: dict[str, Any]
     _base_pixmap: QPixmap | None
     _mesh_key_stash: MeshKeyStash
 
