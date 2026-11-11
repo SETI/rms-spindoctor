@@ -723,11 +723,14 @@ exactly the optical effects it wants and leaves the rest at the floor.
    A limb fitted at the frame edge then disagrees with a ring fitted through the
    center by the differential residual, which the navigator gets no model to
    remove. The warp resamples only the parts of the frame that hold light. It
-   runs before the PSF, so the image is exactly zero away from the bodies,
+   runs before the PSF, so the image is usually zero away from the bodies,
    rings, and stars. Each cluster of lit pixels is warped on its own crop with a
    margin of 64 dark render-grid pixels, which leaves every lit pixel as warping
-   the whole frame would leave it. A full-size calibrated Cassini frame warps
-   about five times faster this way.
+   the whole frame would leave it, apart from rounding. The saving depends on
+   how much of the frame is lit. On a 1024 x 1024 calibrated Cassini frame of a
+   moon covering 13% of the image, the warp takes 0.3 s instead of 1.7 s. A
+   frame that is lit everywhere, including one whose smear or diffuse sky light
+   leaves no pixel at zero, is warped whole and gains nothing.
 3. **Whole-scene PSF** (:mod:`~spindoctor.sim.forward.psf`) convolves the image
    by a core-Gaussian-plus-Moffat-wing kernel, so the limb gradient, the
    ring-edge gradient, and every star shape inherit one profile. The core is

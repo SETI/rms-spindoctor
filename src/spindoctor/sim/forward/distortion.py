@@ -15,8 +15,8 @@ scene is resampled there by cubic interpolation.  The non-radial term adds a
 seeded, smooth 2-D displacement field (its own RNG stream) at the commanded
 RMS amplitude.
 
-The stage runs before the PSF, when the planes are zero away from the bodies,
-rings, and stars, so the warp resamples only the lit parts.  Lit pixels are
+The stage runs before the PSF, when the planes are usually zero away from the
+bodies, rings, and stars, so the warp resamples only the lit parts.  Lit pixels are
 grouped into clusters.  Each cluster is cropped with a margin of dark pixels,
 turned into cubic-spline coefficients on the crop, and interpolated over the
 crop grown by the largest displacement in the frame; the clusters' results add
@@ -25,9 +25,10 @@ pixel's coefficients reach into the dark around it with a response that falls by
 a factor of 2 - sqrt(3), about 0.27, per pixel.  Across the margin that is a
 factor of about 1e-37.  Cropping therefore leaves every lit pixel as the
 whole-frame warp makes it, apart from rounding, and leaves zero where the
-whole-frame warp would leave values below 1e-37 of the peak.  When the crops
-would cover more than the frame, the plane is warped in one piece, exactly as one
-call over the whole frame would warp it.
+whole-frame warp would leave values below 1e-37 of the peak.  When the crops'
+outputs would cover more than the frame, the plane is warped in one piece, exactly
+as one call over the whole frame would warp it.  That includes a plane that smear
+or a diffuse sky has made nonzero everywhere, which gains nothing.
 """
 
 import math
@@ -262,7 +263,10 @@ def _warp_plane(plane: NDArrayFloatType, warp: _Warp) -> None:
         return
     margin = _PREFILTER_MARGIN_PX
     crops = [(_grow(v, margin, size_v), _grow(u, margin, size_u)) for v, u in boxes]
-    if sum((v.stop - v.start) * (u.stop - u.start) for v, u in crops) >= size_v * size_u:
+    # Each crop is interpolated over itself grown by the reach, so that is what it
+    # costs; past the frame's area, one whole-frame warp is cheaper.
+    outputs = [(_grow(v, warp.reach, size_v), _grow(u, warp.reach, size_u)) for v, u in crops]
+    if sum((v.stop - v.start) * (u.stop - u.start) for v, u in outputs) >= size_v * size_u:
         whole_v, whole_u = slice(0, size_v), slice(0, size_u)
         _, _, values = _warp_crop(plane, whole_v, whole_u, warp)
         plane[:] = values

@@ -134,10 +134,10 @@ def _separate_clusters() -> np.ndarray:
 
 
 def _cut_by_the_frame_edge() -> np.ndarray:
-    """A disc cut off by the top edge and a corner, so crops are clipped to the frame."""
-    signal = np.zeros((512, 512), dtype=np.float64)
+    """Discs cut off by the top edge and a corner of a frame that is not whole blocks."""
+    signal = np.zeros((500, 470), dtype=np.float64)
     _disc(signal, 0.0, 256.0, 60.0)
-    _disc(signal, 511.0, 511.0, 30.0)
+    _disc(signal, 499.0, 469.0, 30.0)
     return signal
 
 
@@ -173,7 +173,7 @@ def _small_discs() -> np.ndarray:
 def test_cropped_warp_matches_the_whole_frame_warp(
     make_signal: Any, distortion: dict[str, Any]
 ) -> None:
-    """Warping only the lit clusters gives the whole-frame warp to far below rounding."""
+    """Warping only the lit clusters gives the whole-frame warp, apart from rounding."""
     signal = make_signal()
     expected = _whole_frame_warp(signal, distortion, seed=7)
     out = _distort(signal, distortion, seed=7)
