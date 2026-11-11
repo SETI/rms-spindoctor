@@ -1084,6 +1084,13 @@ class TestNanQualityRanking:
 
         An ``nms_radius`` of 2, below the PSR's 5 px guard, is the setting under which
         a NaN-quality peak can stand beside other candidates.
+
+        Parameters:
+            monkeypatch: The pytest monkeypatch fixture, used to stub the candidate
+                evaluation.
+
+        Returns:
+            The single-scale result.
         """
         rng = np.random.default_rng(943)
         image = gaussian_filter(rng.normal(size=(48, 48)), 1.0)
@@ -1114,22 +1121,51 @@ class TestNanQualityRanking:
         result = self._single_scale_with_nan_first(monkeypatch)
         assert np.isnan(result['all_candidates'][-1]['quality'])
 
-    def test_auto_mode_tie_break_prefers_a_finite_raw_quality(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """In the same tier, a finite raw quality beats a NaN gradient quality."""
+    @staticmethod
+    def _auto_mode_choice(
+        monkeypatch: pytest.MonkeyPatch, raw_quality: float, grad_quality: float
+    ) -> bool:
+        """Run auto mode on stubbed raw and gradient results that share a spurious tier.
+
+        Parameters:
+            monkeypatch: The pytest monkeypatch fixture, used to stub the two passes.
+            raw_quality: The quality of the raw-intensity result.
+            grad_quality: The quality of the gradient result.
+
+        Returns:
+            Whether auto mode kept the gradient result.
+        """
         auto_pyramid = correlate_module.navigate_with_pyramid_kpeaks
 
         def _mode_result(*_args: Any, use_gradient: bool, **_kwargs: Any) -> dict[str, Any]:
-            quality = float('nan') if use_gradient else 3.0
+            quality = grad_quality if use_gradient else raw_quality
             return {'quality': quality, 'spurious': True, 'at_edge': False}
 
         monkeypatch.setattr(correlate_module, 'navigate_with_pyramid_kpeaks', _mode_result)
         model = np.zeros((8, 8))
         result = auto_pyramid(model, model, np.ones((8, 8), dtype=bool), use_gradient='auto')
-        assert result['used_gradient'] is False
+        return bool(result['used_gradient'])
 
-    def test_peak_to_runner_up_ratio_caps_a_nan_runner_up(self) -> None:
-        """A NaN runner-up ranks below the winner, giving the unambiguous-winner cap."""
+    def test_auto_mode_tie_break_prefers_a_finite_raw_quality(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """In the same tier, a finite raw quality beats a NaN gradient quality."""
+        assert self._auto_mode_choice(monkeypatch, 3.0, float('nan')) is False
+
+    def test_auto_mode_tie_break_keeps_gradient_when_both_are_nan(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """In the same tier, two NaN qualities keep the gradient result."""
+        assert self._auto_mode_choice(monkeypatch, float('nan'), float('nan')) is True
+
+    def test_peak_to_runner_up_ratio_skips_a_nan_runner_up(self) -> None:
+        """A NaN runner-up is skipped in favor of the next finite one."""
+        ratio = peak_to_runner_up_ratio(
+            [(8.0, 0.0, 0.0), (float('nan'), 1.0, 1.0), (2.0, 2.0, 2.0)]
+        )
+        assert ratio == pytest.approx(4.0)
+
+    def test_peak_to_runner_up_ratio_nan_runner_up_alone_is_a_lone_peak(self) -> None:
+        """A NaN runner-up with no finite one after it gives the lone-peak ratio."""
         ratio = peak_to_runner_up_ratio([(8.0, 0.0, 0.0), (float('nan'), 1.0, 1.0)])
-        assert ratio == _MAX_PEAK_RATIO
+        assert ratio == 1.0

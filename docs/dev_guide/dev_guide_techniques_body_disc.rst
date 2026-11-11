@@ -111,10 +111,11 @@ The shared NCC pyramid evaluates the correlation in two modes — raw image vs. 
 and gradient image vs. gradient template — and ``auto`` mode runs both and keeps the better
 result. A non-spurious result beats a spurious one, then a peak inside the search window
 beats one at its edge, and only then does the higher quality win, with raw mode taking a
-tie. Raw mode wins on smooth Lambert-shaded discs that fill the FOV where the per-pixel
-intensity carries unique-alignment signal; gradient mode wins when only the limb edge
-carries useful signal (a bright disc on a bright background, an over-exposed or saturated
-body).
+tie. A quality that cannot be computed loses to any quality that can; when neither mode's
+quality can be computed, gradient mode is kept. Raw mode wins on smooth Lambert-shaded discs
+that fill the FOV where the per-pixel intensity carries unique-alignment signal; gradient
+mode wins when only the limb edge carries useful signal (a bright disc on a bright
+background, an over-exposed or saturated body).
 
 Search strategy
 ---------------
@@ -126,7 +127,7 @@ between levels — a peak that drifts more than a documented threshold across le
 flagged spurious. The per-image quality metric is the peak-to-side-lobe ratio (PSR) at the
 finest level; the per-image consistency metric is the maximum Euclidean drift of the
 chosen peak across pyramid levels. The PSR cannot be computed when every valid shift lies
-within its guard radius of the peak, as on a very small body. Such a peak is flagged spurious,
+within the guard radius of the peak, as on a very small body. Such a peak is flagged spurious,
 and wherever peaks, rotation samples, or the raw and gradient results are compared by quality,
 it ranks below every peak whose PSR can be computed.
 
