@@ -15,7 +15,7 @@ from spindoctor.nav_orchestrator import NavOrchestrator
 from spindoctor.nav_technique.technique_result import NavTechniqueResult
 from spindoctor.obs.obs_inst_sim import ObsSim
 from spindoctor.sim.scene import load_sim_scene
-from tests.integration.sim_truth import assert_within_tolerance
+from tests.integration.sim_truth import assert_matches_truth
 
 _REGRESSION_DIR = Path(__file__).parent / 'sim_scenes' / 'regression'
 
@@ -45,7 +45,7 @@ def _assert_technique_recovers(scene_name: str, technique: str) -> None:
     scene = load_sim_scene(_REGRESSION_DIR / f'{scene_name}.yaml')
     pinned = _pin_technique(scene_name, technique)
     assert not pinned.spurious
-    assert_within_tolerance(pinned.offset_px, scene, technique)
+    assert_matches_truth(pinned.offset_px, scene, technique)
 
 
 def test_disc_recovers_whole_pixel_offset() -> None:

@@ -1,12 +1,13 @@
 """Behavioral checks for the mutual-event scene class.
 
-The navigator-side simulated body model must predict occlusion-aware limbs:
-the near body's limb stays complete, while the far body's limb loses the arc
-hidden behind the near body's silhouette and its ``visible_arc_fraction``
-reports the loss honestly (the input the limb reliability and BodyLimbNav's
-confidence formula consume).  The overlaps' fused outcomes are pinned by their
-scenes' ``expected`` blocks (test_sim_expected), their truth tolerances
-(test_sim_truth_checks), and their baselines.
+A grazing two-body overlap must still navigate to its planted offset within its
+truth tolerance, and the navigator-side simulated body model must predict
+occlusion-aware limbs: the near body's limb stays complete, while the far body's
+limb loses the arc hidden behind the near body's silhouette and its
+``visible_arc_fraction`` reports the loss honestly (the input the limb reliability
+and BodyLimbNav's confidence formula consume).  The deeper overlaps' fused outcomes
+are pinned by their scenes' ``expected`` blocks (test_sim_expected), their truth
+tolerances (test_sim_truth_checks), and their baselines.
 
 Everything renders and navigates in-process (no holdings or SPICE), so this
 runs in the default suite.
@@ -21,6 +22,8 @@ from spindoctor.feature.feature_type import NavFeatureType
 from spindoctor.nav_model import build_models_for_obs
 from spindoctor.obs.obs_inst_sim import ObsSim
 from spindoctor.sim.scene import load_sim_scene
+from tests.integration.sim_expected import navigate_scene
+from tests.integration.sim_truth import FUSED, assert_matches_truth
 from tests.shims.context import bare_nav_context
 
 _SCENES_DIR = Path(__file__).parent / 'sim_scenes' / 'mutual_event'
@@ -28,6 +31,14 @@ _SCENES_DIR = Path(__file__).parent / 'sim_scenes' / 'mutual_event'
 
 def _load(scene_name: str) -> dict[str, Any]:
     return load_sim_scene(_SCENES_DIR / f'{scene_name}.yaml')
+
+
+def test_grazing_overlap_navigates_within_tolerance() -> None:
+    """The grazing mutual event recovers its planted offset within its truth tolerance."""
+    scene = _load('mutual_grazing')
+    result = navigate_scene(scene)
+    assert result.status == 'success'
+    assert_matches_truth(result.offset_px, scene, FUSED)
 
 
 def test_navigator_predicts_occlusion_aware_limbs() -> None:

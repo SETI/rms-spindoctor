@@ -36,10 +36,11 @@ exposure_sec: 1.0
 # 16 noise seeds (the committed one and 101, 202, ..., 1515) the error is
 # 1.77 px on three seeds, 1.90 px on nine, and 3.14 to 3.18 px on four.  The
 # band covers that spread (#960): each end sits a margin of max(0.05 px, a
-# fifth of the end) outside the measured range, giving [1.41, 3.82] px.  The
+# fifth of the 1.404 px spread) outside the measured range, giving
+# [1.490, 3.457] px.  The
 # fused sigma covers the error on every seed, at 1.3 sigma at most.
 # NOTE ON WHAT THIS SCENE GUARDS: the recovered error staying in the
-# [1.41, 3.82] px band and the tier staying at low.  The tier is a coarse
+# [1.490, 3.457] px band and the tier staying at low.  The tier is a coarse
 # sigma check: the frame rises to medium only once the fused sigma falls to
 # the medium tier's 2.0 px bound.  The truth checks add a finer one: the fused
 # error must stay within 3 sigma (test_sim_truth_checks).  The original
@@ -50,8 +51,8 @@ exposure_sec: 1.0
 expected:
   status: success
   confidence_tier: low
-  known_offset_error_px: 2.615
-  known_offset_error_tol_px: 1.205
+  known_offset_error_px: 2.4735
+  known_offset_error_tol_px: 0.9835
 bodies: []
 ring_system:
   geometry:

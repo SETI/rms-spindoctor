@@ -3,9 +3,9 @@
 Each scene under ``sim_scenes/algorithmic_invariants/`` carries a ground-truth
 offset that is applied as the rendered offset.  A navigator predicting the
 unshifted geometry must recover it.  These tests render each scene into an
-ObsSim, navigate it, and assert success plus offset recovery within the scene's
-truth tolerance: the error as a distance in two dimensions, held to a bound measured
-over noise seeds plus a margin (:mod:`tests.integration.sim_truth`).  Unlike a
+ObsSim, navigate it, and assert success plus the scene's truth check: the error as a
+distance in two dimensions, held to a tolerance measured over noise seeds plus a margin,
+or to a band around a known error (:mod:`tests.integration.sim_truth`).  Unlike a
 baseline, a truth check compares with the planted offset, so regenerating the
 baselines cannot hide a regression.  Everything is in-process, so this runs in the
 default suite.
@@ -57,7 +57,7 @@ from tests.integration.sim_truth import (
     FUSED,
     RANK1_NORMAL_ERROR,
     ROLL_TOLERANCE_DEG,
-    assert_within_tolerance,
+    assert_matches_truth,
 )
 
 _INVARIANTS_DIR = Path(__file__).parent / 'sim_scenes' / 'algorithmic_invariants'
@@ -72,21 +72,19 @@ _BLOB_STEM_PREFIX = 'planted_offset_blob'
 # Star-designed scenes carry no body/rings; the star techniques are load-bearing
 # and the full ensemble recovers stably.
 _STAR_STEM_PREFIX = 'planted_offset_star'
-# Rotation-designed scenes carry a planted camera roll.  Recovery is verified on
-# the StarFieldFromCatalogNav per-technique result: that technique recovers the
-# roll geometrically (non-spurious), but on a clean sim field its confidence sits
-# at the placeholder-alpha floor, so the *fused* status is a stable 'failed'
-# rather than 'success' -- which is why the roll is asserted per-technique and the
-# scene is held out of the full-ensemble navigate assertion.
+# Rotation-designed scenes carry a planted camera roll.  The roll is verified on
+# the StarFieldFromCatalogNav per-technique result, which recovers it
+# geometrically (non-spurious).  The fused answer is a success, but its translation
+# is fitted about the extended field of view's corner, so it carries a known error
+# that the scene's expected block holds to a band (#434).
 _ROTATION_STEM_PREFIX = 'planted_rotation'
 # Limb scenes route through a LIMB_ARC the simulated body emits; the full ensemble
 # still recovers via the disc correlation (so they double as disc scenes) and the
 # limb path is asserted per-technique.
 _LIMB_STEM_PREFIX = 'planted_offset_limb'
-# Ring scenes route through a RING_EDGE the simulated ring emits; like rotation,
-# the technique recovers geometrically but its placeholder-alpha confidence holds
-# the fused status at a stable 'failed', so recovery is asserted per-technique and
-# the scene is held out of the full-ensemble navigate assertion.
+# Ring scenes route through a RING_EDGE the simulated ring emits.  Recovery is
+# asserted on the RingEdgeNav per-technique result, so the ring path is checked in
+# isolation; the fused answer is a high-tier success.
 _RING_STEM_PREFIX = 'planted_offset_ring'
 # Unique-match scenes are a single unambiguous star: StarFieldFromCatalogNav's
 # pattern match is infeasible, so StarUniqueMatchNav's one-star path is the
@@ -134,12 +132,10 @@ _DISC_EXCLUDE = (
 )
 _DISC_PATHS = [p for p in _INVARIANT_PATHS if not p.stem.startswith(_DISC_EXCLUDE)]
 _DISC_IDS = [p.stem for p in _DISC_PATHS]
-# Scenes whose full ensemble reaches 'success'.  Rotation and ring sit below the
-# threshold on a clean field; the unique-match (single star) and refine scenes
-# are pinned per-technique, so they are held out of the success assertion too.
+# Scenes whose full ensemble reaches 'success'.  The unique-match (single star) and
+# refine scenes are pinned per-technique, so they are held out of the success
+# assertion.
 _NAVIGATES_EXCLUDE = (
-    _ROTATION_STEM_PREFIX,
-    _RING_STEM_PREFIX,
     _UNIQUE_MATCH_STEM_PREFIX,
     _REFINE_STEM_PREFIX,
 )
@@ -246,7 +242,7 @@ def test_rank1_scene_holds_its_known_normal_error(path: Path) -> None:
     normal_error = abs(float(error_vu @ n_hat))
     assert RANK1_NORMAL_ERROR.contains(normal_error), (
         f'normal-component error {normal_error:.3f} px left the known band '
-        f'[{RANK1_NORMAL_ERROR.low_px}, {RANK1_NORMAL_ERROR.high_px}] px'
+        f'[{RANK1_NORMAL_ERROR.low}, {RANK1_NORMAL_ERROR.high}] px'
     )
 
 
@@ -259,10 +255,14 @@ def test_invariant_scene_navigates(path: Path) -> None:
 
 @pytest.mark.parametrize('path', _DISC_PATHS, ids=_DISC_IDS)
 def test_disc_scene_recovers_planted_offset(path: Path) -> None:
-    """Each disc scene recovers its planted offset within its truth tolerance."""
+    """Each disc scene's fused offset meets its truth check.
+
+    Three disc scenes carry a known error at the edge of the correlation's sub-pixel
+    window and are held to a band around it; the rest are held to a tolerance.
+    """
     scene = load_sim_scene(path)
     result = _navigate(scene)
-    assert_within_tolerance(result.offset_px, scene, FUSED)
+    assert_matches_truth(result.offset_px, scene, FUSED)
 
 
 @pytest.mark.parametrize('path', _BLOB_PATHS, ids=_BLOB_IDS)
@@ -283,7 +283,7 @@ def test_blob_alone_recovers_planted_offset(path: Path) -> None:
     """
     scene = load_sim_scene(path)
     result = _navigate(scene, only_techniques='BodyBlobNav')
-    assert_within_tolerance(result.offset_px, scene, 'BodyBlobNav')
+    assert_matches_truth(result.offset_px, scene, 'BodyBlobNav')
 
 
 @pytest.mark.parametrize('path', _STAR_PATHS, ids=_STAR_IDS)
@@ -299,15 +299,14 @@ def test_star_scene_recovers_planted_offset(path: Path) -> None:
     """
     scene = load_sim_scene(path)
     result = _navigate(scene)
-    assert_within_tolerance(result.offset_px, scene, FUSED)
+    assert_matches_truth(result.offset_px, scene, FUSED)
 
 
 def _starfield_result(scene: dict[str, Any]) -> Any:
     """Navigate ``scene`` with StarFieldFromCatalogNav alone; return its result.
 
-    Reads the per-technique result directly rather than the fused offset because
-    the roll is the quantity under test and the technique's confidence (not its
-    geometry) is what keeps the fused status below 'success' on a clean field.
+    Reads the per-technique result directly rather than the fused answer because
+    the roll is the quantity under test.
     """
     result = _navigate(scene, only_techniques='StarFieldFromCatalogNav')
     matches = [t for t in result.per_technique if t.technique_name == 'StarFieldFromCatalogNav']
@@ -322,9 +321,8 @@ def test_rotation_scene_recovers_planted_roll(path: Path) -> None:
     Guards the camera-roll rendering (``offset_rotation_deg``) and the
     ``fit_camera_rotation`` scene override: the renderer rotates each star about
     the boresight, and StarFieldFromCatalogNav's similarity fit recovers the
-    planted roll.  Asserted on the StarField per-technique result -- the
-    technique recovers the roll geometrically (non-spurious) even though its
-    placeholder-alpha confidence holds the fused status below 'success'.
+    planted roll.  Asserted on the StarField per-technique result, where the
+    technique recovers the roll geometrically (non-spurious).
     """
     scene = load_sim_scene(path)
     technique = _starfield_result(scene)
@@ -344,15 +342,14 @@ def test_limb_alone_recovers_planted_offset(path: Path) -> None:
     """
     scene = load_sim_scene(path)
     result = _navigate(scene, only_techniques='BodyLimbNav')
-    assert_within_tolerance(result.offset_px, scene, 'BodyLimbNav')
+    assert_matches_truth(result.offset_px, scene, 'BodyLimbNav')
 
 
 def _ring_edge_result(scene: dict[str, Any]) -> Any:
     """Navigate ``scene`` with RingEdgeNav alone; return its per-technique result.
 
-    Like the rotation scene, the offset is read from the per-technique result
-    because the technique's clean-field confidence (not its geometry) keeps the
-    fused status below 'success'.
+    The offset is read from the per-technique result so the ring path is checked in
+    isolation from the rest of the ensemble.
     """
     result = _navigate(scene, only_techniques='RingEdgeNav')
     matches = [t for t in result.per_technique if t.technique_name == 'RingEdgeNav']
@@ -371,7 +368,7 @@ def test_ring_scene_recovers_planted_offset(path: Path) -> None:
     scene = load_sim_scene(path)
     technique = _ring_edge_result(scene)
     assert not technique.spurious
-    assert_within_tolerance(technique.offset_px, scene, 'RingEdgeNav')
+    assert_matches_truth(technique.offset_px, scene, 'RingEdgeNav')
 
 
 def _unique_match_result(scene: dict[str, Any]) -> Any:
@@ -400,7 +397,7 @@ def test_unique_match_scene_recovers_planted_offset(path: Path) -> None:
     scene = load_sim_scene(path)
     technique = _unique_match_result(scene)
     assert not technique.spurious
-    assert_within_tolerance(technique.offset_px, scene, 'StarUniqueMatchNav')
+    assert_matches_truth(technique.offset_px, scene, 'StarUniqueMatchNav')
 
 
 def _star_refine_result(scene: dict[str, Any]) -> Any:
@@ -431,4 +428,4 @@ def test_refine_scene_recovers_planted_offset(path: Path) -> None:
     scene = load_sim_scene(path)
     technique = _star_refine_result(scene)
     assert not technique.spurious
-    assert_within_tolerance(technique.offset_px, scene, 'StarRefineNav')
+    assert_matches_truth(technique.offset_px, scene, 'StarRefineNav')
