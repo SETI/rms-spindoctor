@@ -186,8 +186,8 @@ tests need none of the archive environment above.
    * - Algorithmic invariants (``test_sim_algorithmic_invariants.py``)
      - default
      - nothing
-     - Each technique recovers its planted offset / roll on a clean scene --
-       correct by construction, so no baseline.
+     - Each technique recovers its planted offset / roll on a clean scene,
+       within the scene's measured truth tolerance.
    * - End-to-end sim nav (``test_sim_navigation.py``)
      - default
      - nothing
@@ -197,6 +197,12 @@ tests need none of the archive environment above.
      - default
      - nothing
      - Fast bug-specific scenes guarding defects the sweeps surfaced.
+   * - Sim truth checks (``test_sim_truth_checks.py``)
+     - integration (``sim_integration``)
+     - nothing
+     - Every validation scene's fused offset lies within its measured truth
+       tolerance and within 3 times its reported sigma, and every validation scene
+       has a truth check.
    * - Sim regression baselines (``test_sim_baselines.py``)
      - integration (``sim_integration``)
      - nothing

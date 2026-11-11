@@ -398,8 +398,8 @@ Three things, each impossible with real frames alone:
   the method's assumption does not describe.
 - **Failure modes real data cannot isolate become provable.** The worked
   example is the planted-radial-error family: ``orbit_error_ringlet`` plants
-  a 2.5 px radial catalog error and the fused result is a success about
-  1.7 px wrong. On a real frame this is indistinguishable from a good lock --
+  a 2.5 px radial catalog error and the fused result is a success 1.8 to
+  3.2 px wrong, depending on the noise draw. On a real frame this is indistinguishable from a good lock --
   only a frame whose truth is known by construction can *prove* the ensemble
   absorbs this error into the offset, and keep proving it (the honest pin in
   :ref:`sim-expected`) until the gap is closed.
@@ -1659,16 +1659,24 @@ confident wrong offset. Each such scene carries an ``expected`` block, and the
 machinery turns "must not be confidently wrong here" into a passing assertion.
 
 **The honest pin.** A small second family inverts the reading: a scene whose
-measured behavior *is* a wrong offset the ensemble cannot remove -- the
-``orbit_error_ringlet`` planted radial catalog error, whose bias survives even
-though the declared-sigma covariance channel demotes its tier. Pinning bare
-``status: success`` on such a scene would quietly freeze the wrong answer as
-correct behavior, so it also declares ``known_offset_error_px`` -- the measured
-fused error magnitude, from the scene's recorded baseline -- with a
-``known_offset_error_tol_px`` band. The assertion then fails in *both*
-directions: a regression that worsens the error fails, and a genuine fix that
-shrinks it also fails loudly, prompting a deliberate re-pin (or retirement of
-the pin) instead of a silent behavior change. The pinned success is a
+measured behavior *is* a wrong offset, for a reason that is understood but not
+yet fixed. The ``orbit_error_ringlet`` planted radial catalog error is one: its
+bias survives even though the declared-sigma covariance channel demotes its
+tier. The others are ``relief_psf_stray_light``, where the disc correlation stops
+at the edge of its sub-pixel search window, and ``planted_rotation_star_field``,
+whose translation is fitted about the corner of the extended field of view
+rather than the frame center. Pinning bare ``status: success`` on such a scene
+would quietly freeze the wrong answer as correct behavior, so it also declares
+``known_offset_error_px`` and a ``known_offset_error_tol_px`` band around it.
+The band covers the fused error measured over 16 noise seeds, the scene's own
+and 15 more, and each end sits outside the measured range by a margin of
+0.05 px or a fifth of that end, whichever is larger. On
+``orbit_error_ringlet`` the error is 1.77 px on the scene's own seed and up to
+3.18 px on others, so a band fitted to one draw would fail on the next. The
+assertion fails in *both* directions: a regression that worsens the error
+fails, and a genuine fix that shrinks it also fails loudly, prompting a
+deliberate re-pin (or retirement of the pin) instead of a silent behavior
+change. The pinned success is a
 documented hazard held in view, never an endorsement; the scene comments and
 the campaign record carry the analysis, and the ensemble chapter
 (:doc:`dev_guide_orchestrator_ensemble`) describes the failure family for the
@@ -2516,7 +2524,8 @@ in quadrature to its reported covariance along the fit's radial direction
 
 The measured behavior on this axis stays deliberately uncomfortable, and the
 ``orbit_error_ringlet`` scene pins it: a navigable ringlet rendered 2.5 px
-outward of its catalog orbit navigates to a success about 1.7 px wrong. A
+outward of its catalog orbit navigates to a success 1.8 to 3.2 px wrong,
+depending on the noise draw. A
 uniform radial misplacement has no exact translational equivalent, so the
 robust edge fit down-weights one arc, locks onto one side of the annulus,
 and absorbs the ephemeris error into the recovered offset instead of leaving
@@ -3944,6 +3953,28 @@ change alters rendered output:
 
 - **Structural tests** (``tests/integration/test_sim_scenes.py``): every scene
   validates, sits in a declared class, has a unique name, and renders.
+- **Truth checks** (``tests/integration/sim_truth.py``): every validation
+  scene -- one in a class that checks accuracy on a frame rather than sweeping
+  one setting -- is compared with its planted offset. The error is a distance
+  in two dimensions, and each scene has its own tolerance, set from its
+  measured error: the largest error over 16 noise seeds (the scene's own and
+  15 more) plus a margin of 0.05 px or a fifth of that error, whichever is
+  larger. Each entry in the table records the error on the scene's own seed,
+  the largest error, the spread over the seeds, and the margin.
+  The algorithmic invariants and the regression scenes read their tolerances
+  from it in the default suite, and ``test_sim_truth_checks.py`` checks every
+  other validation scene's fused answer in the integration tier. That module
+  also fails a fused answer whose error exceeds 3 times its reported sigma,
+  measured in units of the reported covariance. Every accurate validation
+  scene sits at or below 1.9 sigma over the seeds. The few scenes above 3
+  sigma for an understood reason are expected failures, so a fix shows up. A
+  wrong answer with an understood cause is held to a band around its known
+  error (see :ref:`sim-expected`). No validation scene plants an
+  offset whose fraction is 0 or 0.5 on either axis, where a disc or star error
+  can vanish by symmetry, except ``disc_subpixel_offset``, which guards the
+  bias that is largest at whole-pixel offsets. A truth check compares with
+  the planted offset rather than with a stored answer, so a regression that
+  is regenerated into the baselines still fails it.
 - **Regression baselines** (``tests/integration/sim_baselines/``): every
   catalog scene re-navigates to its recorded outcome, with the same status and
   confidence rank, each offset axis within 0.02 px, and the confidence within 0.02

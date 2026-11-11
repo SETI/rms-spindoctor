@@ -962,7 +962,9 @@ Observations:
 
 * All scenes plant the **same** off-grid offset ``(1.43, -0.61)`` px, so the
   per-technique errors are at one common sub-pixel phase and directly comparable.
-  Every technique recovers well within the 1.0 px (and third-of-a-degree) bound.
+  Each scene is held to its own truth tolerance: the largest error over 16 noise
+  seeds plus a margin of 0.05 px or a fifth of that error, whichever is larger
+  (0.03 deg for the roll). Every technique recovers inside it.
 * At this phase (2026-10-31 measurement) the mesh disc recovers exactly, the
   blob and the ring edge to ~0.01 px, the fused star field to ~0.04 px, the
   disc to ~0.07 px, and the limb to ~0.13 px. The limb's own fix is the
@@ -1226,7 +1228,7 @@ pixel; the distance-transform techniques carry a larger sub-pixel residual:
   reproducibility bound rather than a real-frame result.
 - **The ring edge holds a ~0.03 px residual** and **the limb a ~0.09 px residual**
   across the dense sweep, both distance-transform effects that vary with the
-  sub-pixel phase; they stay well inside the invariant bound. See
+  sub-pixel phase; they stay inside the scenes' truth tolerances. See
   :doc:`/dev_guide/dev_guide_techniques_body_limb` for the mechanism.
 - **The haze symmetry fit holds a ~0.26 px residual** across the dense sweep, and
   it is a floor rather than a fraction-dependent wobble: the swept axis on the
