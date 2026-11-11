@@ -48,6 +48,7 @@ from typing import Any
 
 import numpy as np
 
+from spindoctor.nav_orchestrator.ensemble_observability import mixed_scale_pinvh
 from spindoctor.nav_orchestrator.nav_result import NavResult
 from spindoctor.sim.scene import iter_scene_paths, scene_class_for_path
 
@@ -308,7 +309,9 @@ def error_in_sigmas(result: NavResult, scene: dict[str, Any]) -> float:
 
     This is the Mahalanobis distance ``sqrt(e^T C^+ e)`` of the error ``e`` under the
     fused 2-by-2 covariance ``C``.  The pseudo-inverse measures a rank-1 covariance
-    along its one observable axis.
+    along its one observable axis.  It is the combine step's own, which inverts a
+    sentinel-sized unobservable variance on its own axis, so that variance cannot
+    raise the eigenvalue cutoff past the observable axis and hide a miss along it.
 
     Parameters:
         result: A fused result that carries an offset.
@@ -322,7 +325,7 @@ def error_in_sigmas(result: NavResult, scene: dict[str, Any]) -> float:
         ]
     )
     cov = np.asarray(result.covariance_px2, dtype=np.float64)[:2, :2]
-    return float(math.sqrt(max(0.0, float(error @ np.linalg.pinv(cov, rcond=1e-9) @ error))))
+    return float(math.sqrt(max(0.0, float(error @ mixed_scale_pinvh(cov, rcond=1e-9) @ error))))
 
 
 def validation_scene_paths(root: Path) -> list[Path]:
