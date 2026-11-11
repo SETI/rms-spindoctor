@@ -1670,7 +1670,7 @@ would quietly freeze the wrong answer as correct behavior, so it also declares
 ``known_offset_error_px`` and a ``known_offset_error_tol_px`` band around it.
 The band covers the fused error measured over 16 noise seeds, the scene's own
 and 15 more, and each end sits outside the measured range by a margin of
-0.05 px or a fifth of that end, whichever is larger. On
+0.05 px or a fifth of the spread, whichever is larger. On
 ``orbit_error_ringlet`` the error is 1.77 px on the scene's own seed and up to
 3.18 px on others, so a band fitted to one draw would fail on the next. The
 assertion fails in *both* directions: a regression that worsens the error
@@ -3956,25 +3956,38 @@ change alters rendered output:
 - **Truth checks** (``tests/integration/sim_truth.py``): every validation
   scene -- one in a class that checks accuracy on a frame rather than sweeping
   one setting -- is compared with its planted offset. The error is a distance
-  in two dimensions, and each scene has its own tolerance, set from its
-  measured error: the largest error over 16 noise seeds (the scene's own and
-  15 more) plus a margin of 0.05 px or a fifth of that error, whichever is
-  larger. Each entry in the table records the error on the scene's own seed,
-  the largest error, the spread over the seeds, and the margin.
-  The algorithmic invariants and the regression scenes read their tolerances
-  from it in the default suite, and ``test_sim_truth_checks.py`` checks every
-  other validation scene's fused answer in the integration tier. That module
-  also fails a fused answer whose error exceeds 3 times its reported sigma,
+  in two dimensions, measured on 16 noise seeds (the scene's own and 15 more),
+  and one of two rules sets each check:
+
+  - An accurate answer is held to a tolerance: the largest error over the
+    seeds plus a margin of 0.05 px or a fifth of that error, whichever is
+    larger. Each entry in the table records the error on the scene's own seed,
+    the largest error, the spread over the seeds, and the margin.
+  - A wrong answer with an understood cause is held to a band around its
+    known error, so a fix fails as visibly as a regression. A known error is a
+    bias, and its spread over the seeds is its noise, so the band runs from the
+    smallest error to the largest, widened on each side by 0.05 px or a fifth
+    of the spread, whichever is larger. Bands cover the fused answer of a few
+    scenes (see :ref:`sim-expected`), one technique's answer where it is far
+    off without being flagged spurious, and the observable component of the
+    rank-1 ring scene.
+
+  In the default suite, the algorithmic invariants read their checks from the
+  table, as do the technique-pinned regression tests and the fused check on
+  ``mutual_grazing``. In the integration tier, ``test_sim_truth_checks.py``
+  checks the fused answer of every validation scene outside
+  ``algorithmic_invariants`` and every single-technique band. That module also
+  fails a fused answer whose error exceeds 3 times its reported sigma,
   measured in units of the reported covariance. Every accurate validation
-  scene sits at or below 1.9 sigma over the seeds. The few scenes above 3
-  sigma for an understood reason are expected failures, so a fix shows up. A
-  wrong answer with an understood cause is held to a band around its known
-  error (see :ref:`sim-expected`). No validation scene plants an
-  offset whose fraction is 0 or 0.5 on either axis, where a disc or star error
-  can vanish by symmetry, except ``disc_subpixel_offset``, which guards the
-  bias that is largest at whole-pixel offsets. A truth check compares with
-  the planted offset rather than with a stored answer, so a regression that
-  is regenerated into the baselines still fails it.
+  scene sits at or below 1.9 sigma over the seeds. A scene above 3 sigma for an
+  understood reason is held to a band on that measure, widened by 0.1 sigma or
+  a fifth of its spread, whichever is larger, so a fix leaves the band. No
+  validation scene plants an offset whose fraction is 0 or 0.5 on either axis,
+  where a disc or star error can vanish by symmetry, except
+  ``disc_subpixel_offset``, which guards the bias that is largest at
+  whole-pixel offsets. A truth check compares with the planted offset rather
+  than with a stored answer, so a regression that is regenerated into the
+  baselines still fails it.
 - **Regression baselines** (``tests/integration/sim_baselines/``): every
   catalog scene re-navigates to its recorded outcome, with the same status and
   confidence rank, each offset axis within 0.02 px, and the confidence within 0.02

@@ -266,6 +266,6 @@ The image shows the band 2.5 px outside the prediction. A uniform radial error d
 closed ring rather than translating it, yet the robust fit still locks onto one side and
 absorbs part of the error into the offset. The declared sigma reaches both techniques'
 covariance, so the scene expects a success at the low confidence tier with an offset error
-between 1.41 and 3.82 px. Which arc the fit locks onto depends on the noise draw, and the
+between 1.490 and 3.457 px. Which arc the fit locks onto depends on the noise draw, and the
 band covers the error measured over 16 noise seeds plus a margin. The fused sigma of about
 2.5 px covers how far the fix can be from the truth.

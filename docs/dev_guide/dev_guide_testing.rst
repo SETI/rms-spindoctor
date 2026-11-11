@@ -200,8 +200,12 @@ tests need none of the archive environment above.
    * - Sim truth checks (``test_sim_truth_checks.py``)
      - integration (``sim_integration``)
      - nothing
-     - Every validation scene's fused offset lies within its measured truth
-       tolerance and within 3 times its reported sigma, and every validation scene
+     - The fused offset of every validation scene outside
+       ``algorithmic_invariants`` that is expected to succeed meets its truth
+       check; the invariant scenes are checked in the default suite. Each known
+       wrong answer of a single technique stays in its band. The fused error of
+       every validation scene expected to succeed stays within 3 times its
+       reported sigma, or inside its known band in sigmas. Every validation scene
        has a truth check.
    * - Sim regression baselines (``test_sim_baselines.py``)
      - integration (``sim_integration``)
