@@ -41,6 +41,12 @@ from typing import Any
 import numpy as np
 from scipy import ndimage
 
+from spindoctor.sim.forward.lit_clusters import (
+    CLUSTER_BLOCK_PX,
+    cluster_crop,
+    find_lit_clusters,
+    grow,
+)
 from spindoctor.sim.forward.stages import SimFrame
 from spindoctor.sim.scene_schema import scene_value
 from spindoctor.sim.seeds import derive_effect_seed
@@ -55,15 +61,10 @@ __all__ = ['apply_distortion']
 # (crater-scale coherent, not per-pixel jitter).
 _NONRADIAL_CONTROL = 4
 
-# Side of the square blocks, in render-grid pixels, in which lit pixels are
-# grouped into clusters.  Lit blocks that touch, diagonally included, form one
-# cluster.
-_CLUSTER_BLOCK_PX = 32
-
 # Dark render-grid pixels kept around each cluster when it is cropped.  The cubic
 # prefilter's response falls by 2 - sqrt(3) per pixel, so by about 1e-37 across
 # this margin.  A whole number of blocks, so every crop starts on a block edge.
-_PREFILTER_MARGIN_PX = 2 * _CLUSTER_BLOCK_PX
+_PREFILTER_MARGIN_PX = 2 * CLUSTER_BLOCK_PX
 
 # The cubic spline reads up to two pixels past a source position.  An output crop
 # therefore reaches this many render-grid pixels past its input crop, on top of the
@@ -164,11 +165,6 @@ def _largest_radial_displacement(
     return largest
 
 
-def _grow(box: slice, by: int, size: int) -> slice:
-    """A slice widened by ``by`` on each side and clipped to ``[0, size)``."""
-    return slice(max(box.start - by, 0), min(box.stop + by, size))
-
-
 def _source_coords(
     warp: _Warp, out_v: slice, out_u: slice, origin_v: int, origin_u: int
 ) -> NDArrayFloatType:
@@ -216,42 +212,14 @@ def _warp_crop(
         The output rows and columns the crop's light can reach, and the warped
         values there.
     """
-    out_v = _grow(in_v, warp.reach, warp.shape[0])
-    out_u = _grow(in_u, warp.reach, warp.shape[1])
+    out_v = grow(in_v, warp.reach, warp.shape[0])
+    out_u = grow(in_u, warp.reach, warp.shape[1])
     coeffs = ndimage.spline_filter(crop, order=3, output=np.float64, mode='constant')
     coords = _source_coords(warp, out_v, out_u, in_v.start, in_u.start)
     values = ndimage.map_coordinates(
         coeffs, coords, order=3, mode='constant', cval=0.0, prefilter=False
     )
     return out_v, out_u, values
-
-
-def _lit_clusters(plane: NDArrayFloatType) -> tuple[NDArrayFloatType, list[tuple[slice, slice]]]:
-    """Group a plane's nonzero pixels into clusters of touching lit blocks.
-
-    Parameters:
-        plane: The render-grid plane.
-
-    Returns:
-        The cluster label of every block, and each cluster's bounding box in
-        pixels.  An unlit block has label 0, and cluster ``n`` has label ``n + 1``.
-    """
-    size_v, size_u = plane.shape
-    block = _CLUSTER_BLOCK_PX
-    blocks_v = -(-size_v // block)
-    blocks_u = -(-size_u // block)
-    lit = np.zeros((blocks_v * block, blocks_u * block), dtype=bool)
-    lit[:size_v, :size_u] = plane != 0.0
-    lit_blocks = lit.reshape(blocks_v, block, blocks_u, block).any(axis=(1, 3))
-    labels, _ = ndimage.label(lit_blocks, structure=np.ones((3, 3), dtype=bool))
-    boxes = [
-        (
-            slice(rows.start * block, min(rows.stop * block, size_v)),
-            slice(cols.start * block, min(cols.stop * block, size_u)),
-        )
-        for rows, cols in ndimage.find_objects(labels)
-    ]
-    return labels, boxes
 
 
 def _warp_plane(plane: NDArrayFloatType, warp: _Warp) -> None:
@@ -262,14 +230,14 @@ def _warp_plane(plane: NDArrayFloatType, warp: _Warp) -> None:
         warp: The resolved warp.
     """
     size_v, size_u = plane.shape
-    labels, boxes = _lit_clusters(plane)
-    if not boxes:
+    clusters = find_lit_clusters(plane)
+    if not clusters.boxes:
         return
     margin = _PREFILTER_MARGIN_PX
-    crops = [(_grow(v, margin, size_v), _grow(u, margin, size_u)) for v, u in boxes]
+    crops = [(grow(v, margin, size_v), grow(u, margin, size_u)) for v, u in clusters.boxes]
     # A crop's cost is the area it is interpolated over: the crop grown by the
     # reach.  Once those areas add up to the frame's, one whole-frame warp is cheaper.
-    outputs = [(_grow(v, warp.reach, size_v), _grow(u, warp.reach, size_u)) for v, u in crops]
+    outputs = [(grow(v, warp.reach, size_v), grow(u, warp.reach, size_u)) for v, u in crops]
     if sum((v.stop - v.start) * (u.stop - u.start) for v, u in outputs) >= size_v * size_u:
         whole_v, whole_u = slice(0, size_v), slice(0, size_u)
         _, _, values = _warp_crop(plane, whole_v, whole_u, warp)
@@ -277,17 +245,8 @@ def _warp_plane(plane: NDArrayFloatType, warp: _Warp) -> None:
         return
     source = plane.copy()
     plane[:] = 0.0
-    block = _CLUSTER_BLOCK_PX
-    for label, (in_v, in_u) in enumerate(crops, start=1):
-        # A crop can take in part of another cluster, so only this cluster's
-        # blocks are kept; every crop starts on a block edge.
-        block_labels = labels[
-            in_v.start // block : -(-in_v.stop // block),
-            in_u.start // block : -(-in_u.stop // block),
-        ]
-        own = np.repeat(np.repeat(block_labels == label, block, axis=0), block, axis=1)
-        own = own[: in_v.stop - in_v.start, : in_u.stop - in_u.start]
-        crop = np.where(own, source[in_v, in_u], 0.0)
+    for index, (in_v, in_u) in enumerate(crops):
+        crop = cluster_crop(clusters, source, index, in_v, in_u)
         out_v, out_u, values = _warp_crop(crop, in_v, in_u, warp)
         plane[out_v, out_u] += values
 
