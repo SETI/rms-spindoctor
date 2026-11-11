@@ -680,10 +680,13 @@ the same as a ``coiss_nac`` frame spanning 20 to 4095.
 The editor validates the scene on the UI thread before it renders the preview. If
 validation refuses the scene, the last valid preview stays on screen, the status bar
 shows ``scene would be refused:`` and the reason, and the editor does not start a
-verdict render. It cancels any verdict render already running or waiting. When a later
-edit makes the scene valid again, the preview renders as usual. A render that fails on
-a valid scene opens an error dialog, and so does a validator that fails with an error
-other than a refusal.
+verdict render. It cancels any verdict render already running or waiting. The marks,
+the saturation overlay, and the hit test read the scene behind the picture. A
+right-click leaves the selection empty while that scene differs from the edited one,
+since an object's index in the picture can belong to a different object in the edited
+scene. When a later edit makes the scene valid again, the preview renders as usual. A
+render that fails on a valid scene opens an error dialog, and so does a validator that
+fails with an error other than a refusal.
 
 Once a scene passes validation and renders, what happens next depends on the planted
 offset. Without one, the preview is the frame the navigator reads, and the status bar

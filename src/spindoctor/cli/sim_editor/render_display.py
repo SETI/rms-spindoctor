@@ -141,9 +141,10 @@ class RenderDisplayMixin(SimEditorBase):
             # The check above stored this scene in the shared validation cache, so
             # the render's own validation finds it there.
             img, meta = render_combined_model(self.sim_params, ignore_offset=True)
+            displayed = copy.deepcopy(self.sim_params)
             self._current_image = img
             self._last_meta = meta
-            self._displayed_params = copy.deepcopy(self.sim_params)
+            self._displayed_params = displayed
             inst_config = resolve_sim_inst_config(
                 DEFAULT_CONFIG,
                 self.sim_params.get('instrument'),
@@ -213,11 +214,18 @@ class RenderDisplayMixin(SimEditorBase):
         self._display_image()
 
     def _current_saturation_dn(self) -> float | None:
-        """Saturation DN of the displayed scene's instrument, or None if it has none."""
-        instrument = self._displayed_params.get('instrument')
+        """Saturation DN of the displayed scene's instrument, or None if it has none.
+
+        A scene's ``instrument_config`` can set its own ``noise.saturation_dn``, which
+        the renderer clips at, so the overlay reads the same merged block.
+        """
+        shown = self._displayed_params
+        instrument = shown.get('instrument')
         if resolve_data_units(instrument) != 'raw_dn':
             return None
-        inst_config = resolve_sim_inst_config(DEFAULT_CONFIG, instrument)
+        inst_config = resolve_sim_inst_config(
+            DEFAULT_CONFIG, instrument, shown.get('instrument_config')
+        )
         noise = inst_config.get('noise') or {}
         if 'saturation_dn' not in noise:
             return None
@@ -280,7 +288,7 @@ class RenderDisplayMixin(SimEditorBase):
             pen = QPen(QColor(255, 255, 0), 1)
             painter.setPen(pen)
             for s in shown.get('stars') or []:
-                v, u = self._star_position(s)
+                v, u = self._star_position(s, scene=shown)
                 painter.drawLine(QPointF(u - 4.0, v), QPointF(u + 4.0, v))
                 painter.drawLine(QPointF(u, v - 4.0), QPointF(u, v + 4.0))
             # Draw the ring system's shared center as a small circle
@@ -337,6 +345,12 @@ class RenderDisplayMixin(SimEditorBase):
         # scene that produced it.
         shown = self._displayed_params
         if not shown:
+            self._selected_model_key = None
+            return
+        # While an edit leaves the scene refused, the picture shows an earlier scene.
+        # Its objects can sit at other indices in the edited scene, which a drag
+        # changes, so a click leaves the selection empty until the scene validates.
+        if shown != self.sim_params:
             self._selected_model_key = None
             return
         height = int(shown['size_v'])

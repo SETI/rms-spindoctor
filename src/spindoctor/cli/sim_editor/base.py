@@ -244,7 +244,9 @@ class SimEditorBase(QMainWindow):
         """Build a star tab widget (implemented in StarTabMixin)."""
         raise NotImplementedError
 
-    def _star_position(self, star: dict[str, Any]) -> tuple[float, float]:
+    def _star_position(
+        self, star: dict[str, Any], *, scene: dict[str, Any] | None = None
+    ) -> tuple[float, float]:
         """A star's catalog ``(v, u)`` position (implemented in StarTabMixin)."""
         raise NotImplementedError
 

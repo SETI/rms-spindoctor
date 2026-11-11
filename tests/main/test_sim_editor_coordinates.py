@@ -9,6 +9,7 @@ states a rendered star position that way.
 Qt runs headless (offscreen platform).
 """
 
+import copy
 import os
 from typing import Any, cast
 
@@ -102,6 +103,18 @@ def test_mask_hit_test_holds_to_the_end_of_a_pixel(model: Any) -> None:
     assert model._selected_model_key == ('body', 0)
 
 
+def test_a_click_selects_nothing_while_the_scene_is_refused(model: Any) -> None:
+    """A click on the last valid picture selects nothing while an edit is refused."""
+    model._add_body_tab()
+    mask = np.zeros((_SIZE, _SIZE), dtype=bool)
+    mask[6, 8] = True
+    model._last_meta = {'body_masks': [mask], 'inventory': {}}
+    model._displayed_params = copy.deepcopy(model.sim_params)
+    model.sim_params['bodies'] = []
+    model._select_model_at(6.5, 8.5)
+    assert model._selected_model_key is None
+
+
 def test_mask_hit_test_does_not_reach_the_previous_pixel(model: Any) -> None:
     """A click in the pixel before a mask pixel does not select what it shows."""
     model._add_body_tab()
@@ -193,5 +206,20 @@ def test_a_star_with_a_null_position_is_marked_at_the_frame_center(model: Any) -
     model._display_image()
     # The mark's horizontal arm runs 4 px either side of the center; antialiasing
     # spreads its 1 px pen over the two rows beside the center line.
+    pixel = model._base_pixmap.toImage().pixelColor(_SIZE // 2 - 3, _SIZE // 2)
+    assert pixel.green() > 0
+
+
+def test_a_null_star_mark_follows_the_displayed_frame_size(model: Any) -> None:
+    """A null-position star mark keeps to the displayed frame while an edit is refused."""
+    model.sim_params['bodies'] = []
+    model.sim_params['ring_system'] = None
+    model.sim_params['stars'] = [{'v': None, 'u': None}]
+    model._current_image = np.zeros((_SIZE, _SIZE), dtype=np.float64)
+    model._displayed_params = copy.deepcopy(model.sim_params)
+    model.sim_params['size_v'] = _SIZE // 2
+    model.sim_params['size_u'] = _SIZE // 2
+    model._show_visual_aids = True
+    model._display_image()
     pixel = model._base_pixmap.toImage().pixelColor(_SIZE // 2 - 3, _SIZE // 2)
     assert pixel.green() > 0

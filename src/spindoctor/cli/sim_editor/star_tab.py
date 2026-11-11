@@ -61,21 +61,28 @@ _POSITION_TOOLTIP = (
 class StarTabMixin(SimEditorBase):
     """Builds and handles the per-star editing tab."""
 
-    def _star_position(self, star: dict[str, Any]) -> tuple[float, float]:
+    def _star_position(
+        self, star: dict[str, Any], *, scene: dict[str, Any] | None = None
+    ) -> tuple[float, float]:
         """A scene star's catalog position, read as the renderer reads it.
 
-        An absent or null ``v`` or ``u`` reads as the frame center.  A planted
-        catalog error moves the drawn star off this position.  The star tab, the
-        preview's star marks, and a star drag all start from this position.
+        An absent or null ``v`` or ``u`` reads as the center of the star's own scene
+        frame.  A planted catalog error moves the drawn star off this position.  The
+        star tab, the preview's star marks, and a star drag all start from this
+        position.
 
         Parameters:
-            star: One entry of the scene's ``stars`` list.
+            star: One entry of the ``stars`` list of ``scene``.
+            scene: The scene the star belongs to.  Defaults to the scene being
+                edited; the preview's marks pass the scene behind the displayed
+                picture, whose frame size can differ while an edit is refused.
 
         Returns:
             The ``(v, u)`` position in pixel corner coordinates.
         """
-        v = float(scene_value(star, 'v', self.sim_params['size_v'] / 2.0))
-        u = float(scene_value(star, 'u', self.sim_params['size_u'] / 2.0))
+        frame = self.sim_params if scene is None else scene
+        v = float(scene_value(star, 'v', frame['size_v'] / 2.0))
+        u = float(scene_value(star, 'u', frame['size_u'] / 2.0))
         return v, u
 
     def _build_star_tab(self, idx: int) -> QWidget:
