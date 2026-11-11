@@ -411,8 +411,9 @@ def build_nav_params(sim_params: dict[str, Any]) -> dict[str, Any]:
     Where validation accepts a null, the null means the key is absent, and this view
     reads it that way.  For a key set to null inside ``nav_override``, the navigator
     sees the scene's own value.  After the overlay, a body or star key that is still
-    null is left out of the entry, so every navigator reader sees exactly what it
-    sees for an absent key.  Dropping keys can only take information away, so this
+    null is left out of the entry, and so is a null key of the ring system or of a
+    ring feature, so every navigator reader sees exactly what it sees for an absent
+    key.  Dropping keys can only take information away, so this
     cannot let truth across the boundary.
 
     Parameters:
@@ -466,6 +467,10 @@ def _filter_ring_system(ring_system: dict[str, Any]) -> dict[str, Any]:
     phase_g) or the planted ``orbit_error`` -- the navigator knows the error
     bars, never the drawn error values.
 
+    A block-level or feature key set to null is left out, as a body or star key
+    is, so the navigator's ring model reads it as an absent key.  A feature whose
+    name is null, for example, takes the model's positional default name.
+
     Parameters:
         ring_system: The full ``ring_system`` mapping (renderer input).
 
@@ -475,14 +480,18 @@ def _filter_ring_system(ring_system: dict[str, Any]) -> dict[str, Any]:
     filtered: dict[str, Any] = {
         key: copy.deepcopy(value)
         for key, value in ring_system.items()
-        if key in _RING_SYSTEM_IDEALIZED_KEYS and key != 'features'
+        if key in _RING_SYSTEM_IDEALIZED_KEYS and key != 'features' and value is not None
     }
     features: list[dict[str, Any]] = []
     for feature in ring_system.get('features') or []:
         if not isinstance(feature, dict) or feature.get('navigable') is not True:
             continue
         features.append(
-            {k: copy.deepcopy(v) for k, v in feature.items() if k in _RING_FEATURE_IDEALIZED_KEYS}
+            {
+                k: copy.deepcopy(v)
+                for k, v in feature.items()
+                if k in _RING_FEATURE_IDEALIZED_KEYS and v is not None
+            }
         )
     filtered['features'] = features
     return filtered

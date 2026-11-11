@@ -223,8 +223,9 @@ applies where. The *channel* is structural:
   then dropped (the navigator sees what it *believes*, never the true values
   underneath), and all values are deep copies. A null reads as absent here too:
   a key set to null inside ``nav_override`` leaves the idealized value in place, and
-  a body or star key that is still null after the overlay is left out. Leaving a
-  key out can only take information away, so neither rule lets truth across.
+  a body or star key that is still null after the overlay is left out, as is a
+  null key of the ring system or of one of its features. Leaving a key out can
+  only take information away, so neither rule lets truth across.
   Nothing reachable *through the filtered view* carries truth.
 - The navigator-side models read **only** ``obs.nav_params``. None of the
   renderer's output -- rendered star records, body masks, z-order maps, all
@@ -558,26 +559,29 @@ tests. The caching contract: scene parameters are JSON-serializable scalars, lis
 and maps, no wall-clock or global RNG state is consulted, and two renders of the same
 scene are bit-identical on one machine.
 
-The render validates through :func:`spindoctor.sim.scene.validate_scene`, which keeps
-a small cache keyed on the scene's full JSON and on the ``source`` label that its
-error messages start with. That key always includes the planted offset and roll,
-which the render cache key leaves out for an offset-free render. Loading a scene file
-goes through the same cache. So a scene file that is loaded and then rendered is
-checked once, as is a scene rendered many times, and a scene that passes prints each
-truth-echo warning once. A scene changed after a check is checked again. A refused
-scene raises
-the same :class:`~spindoctor.sim.scene_schema.SimSceneValidationError` that loading it
-from a file would raise. :class:`~spindoctor.obs.obs_inst_sim.ObsSim` renders through
-this driver with the label it loaded the file under, so a scene file's check carries
-over to the render. A scene handed to ``ObsSim`` in memory is checked by the render,
-and the error message gives the scene's path.
+The render validates through :func:`spindoctor.sim.scene.validate_scene`. It keeps a
+small cache keyed on the scene's full JSON and on the ``source`` label that begins
+each error message. That key always includes the planted offset and roll, which the
+render cache key leaves out for an offset-free render. Loading a scene file uses the
+same cache. A scene file that is loaded and then rendered is therefore checked once.
+A scene rendered many times is checked once, too. A scene that passes prints each
+truth-echo warning once. A scene that changes after a check misses the cache and is
+checked again. A refused scene raises the same
+:class:`~spindoctor.sim.scene_schema.SimSceneValidationError` that loading it from a
+file would raise.
+
+:class:`~spindoctor.obs.obs_inst_sim.ObsSim` renders a scene file under the label it
+loaded the file with, so the render finds the load's check in the cache. A scene
+handed to ``ObsSim`` in memory is checked by the render, and the error message starts
+with the label the caller gave.
 
 The editor's preview renders through
 :func:`spindoctor.sim.render.render_unvalidated_preview`, which skips validation and
 draws the scene without its planted offset and roll. After each preview the editor
 calls :func:`spindoctor.sim.scene.validate_scene`, so the author sees why a scene
-would be refused. This check runs under the editor's own label, on a scene the
-editor rebuilt with its defaults filled in, so it is a fresh check.
+would be refused. This check misses the cache and runs in full: it uses the editor's
+own label, and the editor rebuilds a loaded scene with its defaults filled in, so the
+contents differ from the file's.
 
 .. _sim-instruments:
 
@@ -2896,8 +2900,8 @@ default. A top-level block or list set to null reads as unset. Inside the ``bodi
 ``stars``, ``optics``, ``sky_counts``, ``spk_error``, ``noise``, ``detector``,
 ``artifacts``, and ``ring_system`` blocks, an optional key that validation accepts as
 null renders exactly as an absent key does. The navigator reads it as absent too:
-:func:`~spindoctor.sim.scene.build_nav_params` leaves a null body or star key out of
-the navigator's view. For a key set to null inside ``nav_override``, the navigator
+:func:`~spindoctor.sim.scene.build_nav_params` leaves a null body, star, or ring key
+out of the navigator's view. For a key set to null inside ``nav_override``, the navigator
 sees the scene's own value. Validation refuses null on a few optional keys, which the
 author leaves out instead: ``optics.psf.match_navigator``, an ``optics.smear`` entry's
 ``object_class``, and the map of an artifact mode inside ``artifacts``. A parameter

@@ -4,7 +4,8 @@ The validator accepts null for every optional key in the ring block and reads it
 as absent.  The renderer, the orbit parser the navigator-side model shares, the
 validator's orbit-error bounds, and the sim editor read it the same way: a scene
 whose optional ring key is null renders exactly the frame the scene without the
-key renders.  The editor's side is in ``test_sim_editor_ring_nulls.py``.
+key renders, and the navigator's view leaves the key out.  The editor's side is in
+``test_sim_editor_ring_nulls.py``.
 """
 
 import copy
@@ -16,7 +17,7 @@ import pytest
 
 from spindoctor.sim.render import render_combined_model
 from spindoctor.sim.ring_geometry import ring_orbit_from_mapping
-from spindoctor.sim.scene import load_sim_scene, validate_sim_params
+from spindoctor.sim.scene import build_nav_params, load_sim_scene, validate_sim_params
 from spindoctor.sim.scene_schema import scene_value
 
 _SCENES = Path(__file__).parents[2] / 'integration' / 'sim_scenes'
@@ -159,3 +160,19 @@ def test_orbit_error_bounds_read_a_null_ae_as_zero() -> None:
 def test_scene_value_reads_null_as_the_default(value: float | None, expected: float) -> None:
     """A null takes the default; a zero or any other value is kept."""
     assert scene_value({'k': value}, 'k', 7.0) == expected
+
+
+def test_the_navigator_view_leaves_out_null_ring_keys() -> None:
+    """The navigator's view of a ring system with null keys equals its view without them.
+
+    A null feature name must not reach the navigator's ring model, which would label
+    the feature ``None`` instead of its positional default.
+    """
+    feature = {'name': 'RINGLET', 'kind': 'ringlet', 'navigable': True, 'tau': 0.5}
+    unnamed = {key: value for key, value in feature.items() if key != 'name'}
+    stated = build_nav_params(
+        {'ring_system': {'range_km': None, 'features': [{**feature, 'name': None}]}}
+    )['ring_system']
+    absent = build_nav_params({'ring_system': {'features': [unnamed]}})['ring_system']
+    assert stated['features'] == absent['features']
+    assert stated.keys() == absent.keys()
