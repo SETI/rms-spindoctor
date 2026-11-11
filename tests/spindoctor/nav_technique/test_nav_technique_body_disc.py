@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 import numpy as np
 import pytest
 from tests.spindoctor.nav_technique.conftest import (
@@ -440,3 +442,60 @@ def test_body_disc_size_term_scales_covariance_with_diameter(
         assert cov_sized[axis, axis] == pytest.approx(
             cov_bare[axis, axis] + expected_extra, rel=1e-9
         )
+
+
+def _stub_rotation_qualities(
+    monkeypatch: pytest.MonkeyPatch,
+    technique: BodyDiscCorrelateNav,
+    qualities: list[float],
+) -> list[dict[str, Any]]:
+    """Make the per-rotation NCC return the given qualities, one per call, in order.
+
+    Parameters:
+        monkeypatch: The pytest monkeypatch fixture.
+        technique: The technique whose per-rotation NCC is replaced.
+        qualities: The quality for each successive rotation sample.
+
+    Returns:
+        The list the stub appends each returned NCC result to.
+    """
+    returned: list[dict[str, Any]] = []
+
+    def _ncc_at_rotation(**_kwargs: Any) -> dict[str, Any]:
+        ncc_result = {'quality': qualities[len(returned)], 'call': len(returned)}
+        returned.append(ncc_result)
+        return ncc_result
+
+    monkeypatch.setattr(technique, '_ncc_at_rotation', _ncc_at_rotation)
+    return returned
+
+
+_ROTATION_STUB_INPUTS: dict[str, Any] = {
+    'image': np.zeros((8, 8)),
+    'template_img': np.zeros((8, 8)),
+    'template_mask': np.ones((8, 8), dtype=bool),
+    'pivot_vu': (4.0, 4.0),
+    'max_offset_vu': (2, 2),
+    'data_mask': None,
+    'upsample_factor': 4,
+    'consistency_tol': 5.0,
+}
+
+
+def test_rotation_samples_skip_a_nan_first_sample(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A NaN-quality first rotation sample does not block a later finite one."""
+    technique = BodyDiscCorrelateNav()
+    _stub_rotation_qualities(monkeypatch, technique, [float('nan'), 4.0, 3.0])
+    best = technique._evaluate_rotation_samples(
+        thetas_rad=[-0.01, 0.0, 0.01], **_ROTATION_STUB_INPUTS
+    )
+    assert best.ncc_result['call'] == 1
+
+
+def test_rotation_level_two_skips_a_nan_first_sample(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The level-2 pick passes over a NaN-quality first sample for a finite one."""
+    technique = BodyDiscCorrelateNav()
+    # 11 level-0 and 5 level-1 samples, all equal, then the three level-2 samples.
+    _stub_rotation_qualities(monkeypatch, technique, [5.0] * 16 + [float('nan'), 4.0, 3.0])
+    _, ncc_result, _ = technique._run_3dof_pyramid(max_rotation_deg=5.0, **_ROTATION_STUB_INPUTS)
+    assert ncc_result['call'] == 17

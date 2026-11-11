@@ -66,10 +66,11 @@ Mode selection (auto / raw / gradient)
 --------------------------------------
 
 The shared pyramid evaluates the correlation in two modes — raw vs. raw and gradient vs.
-gradient — and ``auto`` picks whichever peak scores higher quality. Raw wins on
-broad-brightness-gradient ring geometries (a low-resolution Saturn ring system where the
-C-ring is uniformly dim and the A/B rings dominate the per-pixel intensity); gradient wins
-when sharp ringlet edges dominate the per-pixel signal.
+gradient — and ``auto`` keeps the better result by the rule described in
+:doc:`dev_guide_techniques_body_disc`: non-spurious first, then interior, then higher quality.
+Raw wins on broad-brightness-gradient ring geometries (a low-resolution Saturn ring system
+where the C-ring is uniformly dim and the A/B rings dominate the per-pixel intensity);
+gradient wins when sharp ringlet edges dominate the per-pixel signal.
 
 Search strategy
 ---------------

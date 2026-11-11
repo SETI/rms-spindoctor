@@ -41,7 +41,11 @@ from spindoctor.nav_technique.nav_technique import (
     search_window_for_obs,
 )
 from spindoctor.nav_technique.technique_result import NavTechniqueResult
-from spindoctor.support.correlate import navigate_with_pyramid_kpeaks, peak_to_runner_up_ratio
+from spindoctor.support.correlate import (
+    navigate_with_pyramid_kpeaks,
+    peak_to_runner_up_ratio,
+    quality_rank_key,
+)
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 
 if TYPE_CHECKING:  # pragma: no cover - typing-only import
@@ -592,7 +596,9 @@ class BodyDiscCorrelateNav(NavTechnique):
             )
             for theta in l2_thetas
         ]
-        l2_winner = max(l2_candidates, key=lambda c: float(c.ncc_result['quality']))
+        # A NaN quality ranks below every other quality; max() keeps the first of
+        # equal qualities.
+        l2_winner = max(l2_candidates, key=lambda c: quality_rank_key(c.ncc_result['quality']))
         sigma_theta_rad = self._rotation_sigma_from_quality(
             candidates=l2_candidates,
             winner=l2_winner,
@@ -652,7 +658,11 @@ class BodyDiscCorrelateNav(NavTechnique):
                 consistency_tol=consistency_tol,
             )
             candidate = _RotationCandidate(theta_rad=theta, ncc_result=ncc_result)
-            if best is None or float(ncc_result['quality']) > float(best.ncc_result['quality']):
+            # Strict > keeps the first of equal qualities; a NaN quality ranks below
+            # every other quality, so a NaN first sample cannot block a later one.
+            if best is None or quality_rank_key(ncc_result['quality']) > quality_rank_key(
+                best.ncc_result['quality']
+            ):
                 best = candidate
         assert best is not None  # thetas_rad guaranteed non-empty by callers
         return best

@@ -53,6 +53,26 @@ def int_to_signed(idx: int, size: int) -> int:
     return idx if idx < size // 2 else idx - size
 
 
+def quality_rank_key(quality: float) -> float:
+    """Return a ranking key for a correlation quality that places NaN below every number.
+
+    Every comparison with NaN is False, so ranking raw qualities with ``max()``,
+    ``sorted()``, or ``>`` lets a NaN win or lose depending only on where it sits in
+    the input.  Mapping NaN to ``-inf`` gives it a fixed place at the bottom, while
+    every other quality, ``-inf`` included, keeps its own value, so the ranking among
+    those qualities, ties included, is unchanged.  A NaN quality is the PSR of a peak
+    whose every valid shift lies within the guard radius, and such a peak is spurious.
+
+    Parameters:
+        quality: A candidate's quality score (PSR, PMR, or PER).
+
+    Returns:
+        ``-inf`` when ``quality`` is NaN, else ``quality`` as a ``float``.
+    """
+    q = float(quality)
+    return -math.inf if math.isnan(q) else q
+
+
 def _crop_circular(
     surface: NDArrayFloatType,
     image_shape: tuple[int, int],
@@ -1043,15 +1063,21 @@ def navigate_single_scale_kpeaks(
                 f'peak_val {evaluation["peak_val"]:.3f}'
             )
 
-    winner = max(candidates, key=lambda r: r['quality'])
+    # A NaN quality ranks below every other quality (see quality_rank_key).  It can
+    # reach this point only when nms_radius is smaller than the PSR guard radius.
+    winner = max(candidates, key=lambda r: quality_rank_key(r['quality']))
     # Carry every evaluated candidate so callers that want to inspect
     # runner-up peaks (e.g. peak-to-runner-up ratio diagnostics) can do
     # so without re-running the correlation.  Sorted by quality desc so
-    # ``all_candidates[0]`` is the winner and ``[1:]`` are runner-ups.
+    # ``all_candidates[0]`` is the winner and ``[1:]`` are runner-ups; the
+    # sort is stable, so equal qualities keep their order and ``max()``'s
+    # first-of-equals winner stays at index 0.
     # Return a shallow copy of the winner with the per-candidate list
     # attached separately so the returned dict is not self-referential
     # (the original winner remains an entry inside the new list).
-    sorted_candidates = sorted(candidates, key=lambda r: r['quality'], reverse=True)
+    sorted_candidates = sorted(
+        candidates, key=lambda r: quality_rank_key(r['quality']), reverse=True
+    )
     result = dict(winner)
     result['all_candidates'] = sorted_candidates
     return result
@@ -1082,7 +1108,8 @@ def peak_to_runner_up_ratio(top_k_peaks: list[tuple[float, float, float]]) -> fl
     what an unambiguous correlation looks like, so a value at or above 1.0
     is the "good" tail -- and ``0.0`` when no peaks are present.  When the
     runner-up quality is non-positive (rare; happens with the prior
-    penalty) the result is the unambiguous-winner cap ``_MAX_PEAK_RATIO``
+    penalty) or NaN (ranked below every number, as :func:`quality_rank_key`
+    ranks it) the result is the unambiguous-winner cap ``_MAX_PEAK_RATIO``
     rather than ``winner / 1e-9`` (which scaled with the winner's
     magnitude and could reach ``~1e9``).  The ordinary ratio is likewise
     clamped to ``_MAX_PEAK_RATIO``.
@@ -1098,7 +1125,7 @@ def peak_to_runner_up_ratio(top_k_peaks: list[tuple[float, float, float]]) -> fl
     if len(top_k_peaks) == 1:
         return 1.0
     winner_q = float(top_k_peaks[0][0])
-    runner_q = float(top_k_peaks[1][0])
+    runner_q = quality_rank_key(top_k_peaks[1][0])
     if runner_q <= 1e-9:
         return _MAX_PEAK_RATIO if winner_q > 0.0 else 0.0
     return min(winner_q / runner_q, _MAX_PEAK_RATIO)
@@ -1259,7 +1286,8 @@ def navigate_with_pyramid_kpeaks(
         # interior result even if the interior result has lower quality.
         #   1. Non-spurious beats spurious.
         #   2. Not-at-edge beats at-edge.
-        #   3. Higher quality wins within the same tier.
+        #   3. Higher quality wins within the same tier; a NaN quality ranks below
+        #      every other quality, and raw wins a tie.
         raw_tier = (not result_raw['spurious'], not result_raw['at_edge'])
         grad_tier = (not result_grad['spurious'], not result_grad['at_edge'])
         reason_parts = []
@@ -1270,7 +1298,7 @@ def navigate_with_pyramid_kpeaks(
                 reason_parts.append('non-spurious beats spurious')
             if raw_tier[1] != grad_tier[1]:
                 reason_parts.append('interior beats at-edge')
-        elif result_raw['quality'] >= result_grad['quality']:
+        elif quality_rank_key(result_raw['quality']) >= quality_rank_key(result_grad['quality']):
             winner = result_raw
             chosen = 'raw'
             reason_parts.append('higher quality')
@@ -1432,8 +1460,8 @@ def navigate_with_pyramid_kpeaks(
         )
     # Written so a NaN quality fails it: the PSR is NaN when every valid shift lies
     # within the peak's guard radius, as on a tiny frame or template, and such a
-    # peak has no sidelobe to stand out from.  Winner selection by max() still
-    # treats a NaN quality order-dependently (#943).
+    # peak has no sidelobe to stand out from.  Every ranking of candidates by quality
+    # places a NaN below every other quality (quality_rank_key).
     quality_ok = bool(result['quality'] >= quality_thresh)
     spurious = (not quality_ok) or (consistency > consistency_tol) or at_edge
     if at_edge:
