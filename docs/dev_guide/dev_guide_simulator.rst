@@ -728,14 +728,18 @@ intensive signal passes through the electron unit chain in
    acts on the electron image, one pixel at a time. The chain draws one uniform
    value per pixel and turns it into a count through that pixel's own Poisson
    distribution (:func:`~spindoctor.sim.forward.detector.shot_noise.sample_poisson`).
-   Up to a mean of a million electrons the count is the exact Poisson quantile,
-   found from a close first guess by a bracketing search whose work grows with
-   the logarithm of the guess's error, so a mean as small as a convolution tail's
-   costs no more than any other. Above that it is the rounded Cornish-Fisher
-   quantile, which differs from the exact one by a single count in a few pixels
-   per hundred thousand. A NaN or infinite mean raises an error. The sampler is
-   more than ten times slower than NumPy's frame-wide one: about 1.4 s for a 2048
-   by 2048 frame, against 0.12 s.
+   How the count is found depends on the pixel's mean. Below 30 electrons it is
+   the exact Poisson quantile, found by adding up the chances of 0, 1, 2, and more
+   counts until the total reaches the uniform value. A pixel whose total lands
+   within rounding distance of its uniform value is settled again by the search
+   below, so rounding never picks the count. From 30 to 100 electrons it is also
+   the exact quantile, found from a close first guess by a bracketing search.
+   Above 100 electrons it is the rounded Cornish-Fisher quantile. That differs from
+   the exact count on about 0.3% of pixels at 100 electrons and 0.03% at 10,000,
+   always by one count, against a spread of 10 to 100 counts, and its mean and
+   variance match the exact quantile's. A NaN or infinite mean raises an error.
+   The sampler takes about 0.08 s for a 1024 by 1024 frame of a moon on a dark
+   sky, against 0.03 s for NumPy's frame-wide sampler.
 4. **Hot pixels and full-well bloom.** Hot pixels are stamped, then charge above
    ``full_well_e`` spills along the column up to ``bloom_length`` pixels each
    way and the image is capped at the well. A camera's physical saturation
