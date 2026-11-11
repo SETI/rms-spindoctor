@@ -3,7 +3,7 @@
 The detector draws one uniform per pixel and turns it into a count through that
 pixel's own Poisson distribution, so changing one pixel's mean can change only that
 pixel's noise.  These tests pin the locality at the sampler and through the detector
-chain, the exactness of the inverse distribution function up to the exact limit, the
+chain, the exactness of the inverse distribution function below the exact limit, the
 accuracy of the approximation above it, and the sampler's mean and variance.
 """
 
@@ -18,7 +18,6 @@ from scipy.signal import fftconvolve
 from spindoctor.sim.forward.detector import apply_detector
 from spindoctor.sim.forward.detector.shot_noise import (
     EXACT_MEAN_LIMIT,
-    SUM_MEAN_LIMIT,
     poisson_inverse_cdf,
     sample_poisson,
 )
@@ -50,10 +49,9 @@ def _base_means() -> np.ndarray:
     [
         (0.0, 1e-300),
         (np.nextafter(10.0, 0.0), np.nextafter(10.0, 20.0)),
-        (np.nextafter(SUM_MEAN_LIMIT, 0.0), SUM_MEAN_LIMIT),
-        (EXACT_MEAN_LIMIT, np.nextafter(EXACT_MEAN_LIMIT, 1e3)),
+        (np.nextafter(EXACT_MEAN_LIMIT, 0.0), EXACT_MEAN_LIMIT),
     ],
-    ids=['zero_to_tiny', 'across_ten', 'across_sum_limit', 'across_exact_limit'],
+    ids=['zero_to_tiny', 'across_ten', 'across_exact_limit'],
 )
 def test_one_changed_mean_leaves_every_other_pixel_unchanged(before: float, after: float) -> None:
     """Changing one pixel's mean leaves the counts of all other pixels as they were."""
@@ -129,8 +127,8 @@ def test_a_tiny_mean_gives_the_exact_count_at_every_uniform(mean: float) -> None
     assert np.array_equal(poisson_inverse_cdf(uniform, means), expected)
 
 
-def test_the_inverse_matches_scipy_up_to_the_exact_limit() -> None:
-    """Up to the exact limit each count is SciPy's Poisson quantile at its uniform."""
+def test_the_inverse_matches_scipy_below_the_exact_limit() -> None:
+    """Below the exact limit each count is SciPy's Poisson quantile at its uniform."""
     rng = np.random.default_rng(_SEED)
     uniform = rng.random(10_000)
     means = 10.0 ** rng.uniform(-3.0, math.log10(EXACT_MEAN_LIMIT), 10_000)
@@ -160,12 +158,12 @@ def _exact_by_definition(uniform: np.ndarray, means: np.ndarray) -> np.ndarray:
 def test_a_uniform_at_a_distribution_step_gets_the_exact_count(where: str) -> None:
     """A uniform on, just below, or just above a step of the distribution gets its count.
 
-    These are the uniforms where rounding in the running sum below the sum limit could
-    pick the neighboring count, so the sampler settles them again exactly.
+    These are the uniforms where rounding in the running sum could pick the
+    neighboring count, so the sampler settles them again exactly.
     """
     rng = np.random.default_rng(_SEED)
-    steps = np.floor(rng.uniform(0.0, 40.0, 5_000))
-    means = rng.uniform(0.01, EXACT_MEAN_LIMIT, steps.size)
+    steps = np.floor(rng.uniform(0.0, 60.0, 5_000))
+    means = rng.uniform(0.01, np.nextafter(EXACT_MEAN_LIMIT, 0.0), steps.size)
     uniform = special.pdtr(steps, means)
     keep = (uniform > 0.0) & (uniform < 1.0)
     uniform, means = uniform[keep], means[keep]
@@ -176,13 +174,13 @@ def test_a_uniform_at_a_distribution_step_gets_the_exact_count(where: str) -> No
     assert np.array_equal(poisson_inverse_cdf(uniform, means), _exact_by_definition(uniform, means))
 
 
-def test_the_largest_uniform_gets_the_exact_count_below_the_sum_limit() -> None:
-    """The generator's largest uniform gets its exact count at means up to the sum limit.
+def test_the_largest_uniform_gets_the_exact_count_below_the_exact_limit() -> None:
+    """The generator's largest uniform gets its exact count at means below the exact limit.
 
     The running sum's total rounds to 1 before it reaches this uniform, so the sampler
     has to settle these pixels with the search instead.
     """
-    means = np.linspace(0.01, np.nextafter(SUM_MEAN_LIMIT, 0.0), 500)
+    means = np.linspace(0.01, np.nextafter(EXACT_MEAN_LIMIT, 0.0), 500)
     uniform = np.full(means.size, 1.0 - 2.0**-53)
     assert np.array_equal(poisson_inverse_cdf(uniform, means), _exact_by_definition(uniform, means))
 
@@ -194,7 +192,7 @@ def test_above_the_exact_limit_a_count_is_off_by_at_most_one_on_few_pixels() -> 
     """
     rng = np.random.default_rng(_SEED)
     uniform = rng.random(100_000)
-    means = 10.0 ** rng.uniform(math.log10(EXACT_MEAN_LIMIT) + 1e-9, 5.0, uniform.size)
+    means = 10.0 ** rng.uniform(math.log10(EXACT_MEAN_LIMIT), 5.0, uniform.size)
     difference = np.abs(poisson_inverse_cdf(uniform, means) - stats.poisson.ppf(uniform, means))
     assert difference.max() <= 1.0
     assert np.count_nonzero(difference) < 0.01 * uniform.size
@@ -203,7 +201,7 @@ def test_above_the_exact_limit_a_count_is_off_by_at_most_one_on_few_pixels() -> 
 @pytest.mark.parametrize(
     'mean',
     [0.5, 10.0, 50.0, 1000.0],
-    ids=['summed_small', 'summed_ten', 'searched', 'approximated'],
+    ids=['small', 'ten', 'approximated_fifty', 'approximated_thousand'],
 )
 def test_sample_mean_matches_the_poisson_mean(mean: float) -> None:
     """The sample mean is within 5 standard errors, sqrt(mean / n), of the mean."""
@@ -215,7 +213,7 @@ def test_sample_mean_matches_the_poisson_mean(mean: float) -> None:
 @pytest.mark.parametrize(
     'mean',
     [0.5, 10.0, 50.0, 1000.0],
-    ids=['summed_small', 'summed_ten', 'searched', 'approximated'],
+    ids=['small', 'ten', 'approximated_fifty', 'approximated_thousand'],
 )
 def test_sample_variance_matches_the_poisson_mean(mean: float) -> None:
     """The sample variance is within 5 standard errors of the mean.

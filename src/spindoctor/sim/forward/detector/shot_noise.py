@@ -10,32 +10,28 @@ of 10, so a last-bit change in one pixel can shift the noise of every pixel afte
 
 How a pixel's count is found depends on its mean:
 
-* Below :data:`SUM_MEAN_LIMIT` electrons the count is exact, found by adding up the
+* Below :data:`EXACT_MEAN_LIMIT` electrons the count is exact, found by adding up the
   probabilities of 0, 1, 2, ... counts until the running total reaches the uniform.
-  This is the cheapest exact method for a dark pixel.  A pixel whose total lands
-  within rounding distance of its uniform is settled again with SciPy's distribution
-  function, so rounding in the sum never changes a count.
-* From there up to :data:`EXACT_MEAN_LIMIT` electrons the count is also exact: the
-  search starts from a close first guess, steps outward in doubling strides until it
-  has the answer bracketed, and then halves the bracket, so the number of
-  distribution function evaluations grows only with the logarithm of the guess's
-  error.  The guess is held within ten standard deviations of the mean, plus 40
-  counts, so every pixel is settled in at most about 40 evaluations, and in two or
-  fewer for nearly every pixel.
-* Above :data:`EXACT_MEAN_LIMIT` the count is the Cornish-Fisher quantile, rounded to
-  the nearest integer.  It differs from the exact inverse on about 0.3% of pixels at a
-  mean of 100, 0.1% at 1,000, and 0.03% at 10,000, and then always by one count,
-  against a standard deviation of 10 to 100 counts.  Its sample mean and variance are
-  indistinguishable from the exact inverse's.  It costs a tenth of the exact search.
+  A pixel whose total lands within rounding distance of its uniform is settled again
+  by a search on SciPy's distribution function, so rounding in the sum never changes
+  a count.  The search starts from a close first guess, steps outward in doubling
+  strides until it has the answer bracketed, and then halves the bracket.
+* From :data:`EXACT_MEAN_LIMIT` up, the count is the Cornish-Fisher quantile, rounded
+  to the nearest integer.  It differs from the exact inverse on about 0.6% of pixels
+  at a mean of 30, 0.3% at 100, and 0.03% at 10,000, and then always by one count,
+  against a standard deviation of 5.5 counts or more.  Its sample mean and variance
+  are indistinguishable from the exact inverse's.  On a camera the count is then
+  divided by a gain of tens of electrons per DN and read noise is added, so a
+  one-count difference seldom changes the output: a 1024 by 1024 calibrated Cassini
+  frame differed from one made with the exact inverse at every mean in 68 pixels.
 
 The uniforms for the whole frame are drawn at once, and the frame is then converted
 in passes of a fixed number of pixels, so the working memory beyond the input and
 output arrays does not grow with the frame, and the counts do not depend on the pass
-size.  Measured on one core of an i9-13900K, a 1024 by 1024 frame whose sky lies
-between 0 and 20 electrons and whose body covers 30% of it at 1,000 to 40,000
-electrons takes about 0.08 s, where NumPy's frame-wide Poisson sampler takes 0.03 s.
-A 2048 by 2048 frame of means spread evenly from 0 to 1,000 takes about 0.36 s,
-against 0.09 s.
+size.  Measured on one core of an i9-13900K, the 1024 by 1024 calibrated Cassini
+frame above, whose dark sky lies between 1 and 100 electrons, takes about 0.07 s,
+against 0.31 s for the exact inverse at every mean.  NumPy's frame-wide Poisson
+sampler takes about 0.03 s for a frame that size.
 """
 
 import numpy as np
@@ -45,20 +41,16 @@ from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 
 __all__ = ['EXACT_MEAN_LIMIT', 'poisson_inverse_cdf', 'sample_poisson']
 
-# The largest mean, in counts, whose inverse distribution function is computed
-# exactly.  Above it the Cornish-Fisher quantile differs from the exact count on
-# under 0.3% of pixels, by one count against a standard deviation of at least ten,
-# and costs a tenth as much.
-EXACT_MEAN_LIMIT = 100.0
-
 # Means below this, in counts, are inverted exactly by a running sum of the
-# probabilities.  The sum takes about mean + 1 steps per pixel, each a few cheap
-# array operations, so it wins over the distribution-function search only for a
-# small mean.
-SUM_MEAN_LIMIT = 30.0
+# probabilities; larger ones take the Cornish-Fisher quantile.  The sum takes about
+# mean + 1 steps per pixel, each a few cheap array operations.  At and above the
+# limit the quantile differs from the exact count on under 0.6% of pixels, by one
+# count against a standard deviation of at least 5.5, at a tenth of the cost of an
+# exact search.
+EXACT_MEAN_LIMIT = 30.0
 
 # The running sum stops after this many steps.  A count above it has probability
-# below 1e-38 at any mean below SUM_MEAN_LIMIT, so only a uniform within rounding
+# below 1e-38 at any mean below EXACT_MEAN_LIMIT, so only a uniform within rounding
 # distance of 1 can reach it, and such a pixel is settled by the search instead.
 _SUM_MAX_STEPS = 125
 
@@ -116,10 +108,10 @@ def sample_poisson(rng: np.random.Generator, mean: NDArrayFloatType) -> NDArrayF
 def poisson_inverse_cdf(uniform: NDArrayFloatType, mean: NDArrayFloatType) -> NDArrayFloatType:
     """The Poisson count at each uniform, for each pixel's own mean.
 
-    For a mean up to :data:`EXACT_MEAN_LIMIT` the count is the smallest ``k`` with
+    For a mean below :data:`EXACT_MEAN_LIMIT` the count is the smallest ``k`` with
     ``P(X <= k) >= u``, the exact inverse distribution function at ``u``.  For a
     larger mean it is the rounded Cornish-Fisher quantile, which differs from the
-    exact answer on under 0.3% of pixels, and then by one count.  A zero or negative
+    exact answer on under 0.6% of pixels, and then by one count.  A zero or negative
     mean gives 0, and so does a uniform of exactly 0, which is the exact inverse there
     for every mean.  Each output pixel depends only on the uniform and the mean at that
     pixel.
@@ -170,13 +162,10 @@ def _chunk_counts(uniform: NDArrayFloatType, mean: NDArrayFloatType) -> NDArrayF
     """The counts for one pass of pixels, as :func:`poisson_inverse_cdf` defines them."""
     counts = np.zeros(mean.shape, dtype=np.float64)
     live = (mean > 0.0) & (uniform > 0.0)
-    small = np.flatnonzero(live & (mean < SUM_MEAN_LIMIT))
-    middle = np.flatnonzero(live & (mean >= SUM_MEAN_LIMIT) & (mean <= EXACT_MEAN_LIMIT))
-    large = np.flatnonzero(live & (mean > EXACT_MEAN_LIMIT))
+    small = np.flatnonzero(live & (mean < EXACT_MEAN_LIMIT))
+    large = np.flatnonzero(live & (mean >= EXACT_MEAN_LIMIT))
     if small.size > 0:
         counts[small] = _running_sum_quantile(uniform[small], mean[small])
-    if middle.size > 0:
-        counts[middle] = _searched_quantile(uniform[middle], mean[middle])
     if large.size > 0:
         counts[large] = _cornish_fisher_quantile(uniform[large], mean[large])
     return counts
@@ -193,7 +182,7 @@ def _searched_quantile(u: NDArrayFloatType, lam: NDArrayFloatType) -> NDArrayFlo
 def _running_sum_quantile(u: NDArrayFloatType, lam: NDArrayFloatType) -> NDArrayFloatType:
     """The exact count by adding up the probabilities of 0, 1, 2, ... counts.
 
-    ``u`` and ``lam`` must be positive and ``lam`` below :data:`SUM_MEAN_LIMIT`.  Each
+    ``u`` and ``lam`` must be positive and ``lam`` below :data:`EXACT_MEAN_LIMIT`.  Each
     step multiplies the last probability by ``lam / k`` and adds it to the running
     total, until the total reaches the uniform or :data:`_SUM_MAX_STEPS` steps have
     run.  A pixel whose total ends below its uniform, or within

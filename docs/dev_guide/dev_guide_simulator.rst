@@ -731,15 +731,17 @@ intensive signal passes through the electron unit chain in
    How the count is found depends on the pixel's mean. Below 30 electrons it is
    the exact Poisson quantile, found by adding up the chances of 0, 1, 2, and more
    counts until the total reaches the uniform value. A pixel whose total lands
-   within rounding distance of its uniform value is settled again by the search
-   below, so rounding never picks the count. From 30 to 100 electrons it is also
-   the exact quantile, found from a close first guess by a bracketing search.
-   Above 100 electrons it is the rounded Cornish-Fisher quantile. That differs from
-   the exact count on about 0.3% of pixels at 100 electrons and 0.03% at 10,000,
-   always by one count, against a spread of 10 to 100 counts, and its mean and
-   variance match the exact quantile's. A NaN or infinite mean raises an error.
-   The sampler takes about 0.08 s for a 1024 by 1024 frame of a moon on a dark
-   sky, against 0.03 s for NumPy's frame-wide sampler.
+   within rounding distance of its uniform value is settled again by a search on
+   SciPy's distribution function, so rounding never picks the count. From 30
+   electrons up it is the rounded Cornish-Fisher quantile. That differs from the
+   exact count on about 0.6% of pixels at 30 electrons and 0.03% at 10,000, always
+   by one count, against a spread of 5.5 counts or more, and its mean and variance
+   match the exact quantile's. The gain and the read noise then hide nearly all of
+   those differences: a 1024 by 1024 calibrated Cassini frame differed in 68
+   pixels from the same frame made with the exact quantile at every mean. A NaN
+   or infinite mean raises an error. The sampler takes about 0.07 s for that
+   frame. The exact quantile at every mean takes 0.31 s, and NumPy's frame-wide
+   sampler 0.03 s.
 4. **Hot pixels and full-well bloom.** Hot pixels are stamped, then charge above
    ``full_well_e`` spills along the column up to ``bloom_length`` pixels each
    way and the image is capped at the well. A camera's physical saturation
