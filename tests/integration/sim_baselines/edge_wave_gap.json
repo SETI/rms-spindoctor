@@ -1,8 +1,8 @@
 {
-  "confidence": 0.9020059884908308,
+  "confidence": 0.9020059888741486,
   "confidence_rank": "high",
-  "offset_du_px": -0.8983202696305406,
-  "offset_dv_px": 1.2024420073806075,
+  "offset_du_px": -0.8983298175122509,
+  "offset_dv_px": 1.2024405441904642,
   "scene_name": "edge_wave_gap",
   "status": "success"
 }
