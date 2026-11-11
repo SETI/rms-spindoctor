@@ -75,6 +75,12 @@ Each disabled control's tooltip says why. When you switch a body's ``shape_model
 status bar lists them. Switching back puts them back during the same session. A scene
 saved in between doesn't carry them.
 
+Each control shows the value the frame is drawn with. A setting the scene leaves out or
+sets to ``null`` shows its default, and a group the scene leaves out or sets to ``null``
+starts turned off. A body without a name shows the name the frame gives it, such as
+``SIM-BODY-1`` for the first body in the list, and a body without a center shows the
+center of the frame.
+
 Units of a simulated frame
 ==========================
 

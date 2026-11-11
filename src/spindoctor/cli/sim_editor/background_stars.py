@@ -22,15 +22,8 @@ from PyQt6.QtWidgets import (
 )
 
 from spindoctor.cli.sim_editor.base import SimEditorBase
-
-# Widget defaults for a freshly enabled sky_counts block: interim
-# mid-galactic-latitude count-law values, no local-density boost, no floor.
-_SKY_DEFAULTS: dict[str, float] = {
-    'a': -3.1,
-    'b': 0.34,
-    'density_factor': 0.0,
-    'diffuse_e_per_px': 0.0,
-}
+from spindoctor.sim.forward.star import SKY_COUNTS_DEFAULTS
+from spindoctor.sim.scene_schema import scene_value
 
 
 class BackgroundStarsMixin(SimEditorBase):
@@ -51,6 +44,17 @@ class BackgroundStarsMixin(SimEditorBase):
         sky = self.sim_params.get('sky_counts')
         return sky if isinstance(sky, dict) else None
 
+    def _sky_value(self, key: str) -> float:
+        """The value a sky_counts control shows: the scene's, or the renderer's default.
+
+        A key that is absent or null, or a scene without the block, shows the default
+        the renderer reads, which is also what turning the block on writes.
+
+        Parameters:
+            key: The ``sky_counts`` key.
+        """
+        return float(scene_value(self._sky_counts() or {}, key, SKY_COUNTS_DEFAULTS[key]))
+
     def _set_sky_widgets_enabled(self, enabled: bool) -> None:
         """Enable or disable the sky_counts value widgets as a group."""
         self._sky_density_slider.setEnabled(enabled)
@@ -65,7 +69,6 @@ class BackgroundStarsMixin(SimEditorBase):
         Parameters:
             gen_layout: The General tab's form layout.
         """
-        sky = self._sky_counts() or dict(_SKY_DEFAULTS)
         has_sky = self._sky_counts() is not None
 
         # Whole-block enable: checked inserts sky_counts, unchecked leaves the
@@ -91,17 +94,13 @@ class BackgroundStarsMixin(SimEditorBase):
         density_max_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         self._sky_density_slider = QSlider(Qt.Orientation.Horizontal)
         self._sky_density_slider.setRange(0, 2000)
-        self._sky_density_slider.setValue(
-            int(float(sky.get('density_factor', _SKY_DEFAULTS['density_factor'])) * 10)
-        )
+        self._sky_density_slider.setValue(int(self._sky_value('density_factor') * 10))
         self._sky_density_slider.valueChanged.connect(self._on_sky_density_slider)
         self._sky_density_spin = QDoubleSpinBox()
         self._sky_density_spin.setRange(0.0, 200.0)
         self._sky_density_spin.setDecimals(1)
         self._sky_density_spin.setSingleStep(0.5)
-        self._sky_density_spin.setValue(
-            float(sky.get('density_factor', _SKY_DEFAULTS['density_factor']))
-        )
+        self._sky_density_spin.setValue(self._sky_value('density_factor'))
         self._sky_density_spin.valueChanged.connect(self._on_sky_density_spin)
         density_row.addWidget(density_min_label)
         density_row.addWidget(self._sky_density_slider, stretch=1)
@@ -116,7 +115,7 @@ class BackgroundStarsMixin(SimEditorBase):
         self._sky_a_spin.setRange(-8.0, 2.0)
         self._sky_a_spin.setDecimals(2)
         self._sky_a_spin.setSingleStep(0.1)
-        self._sky_a_spin.setValue(float(sky.get('a', _SKY_DEFAULTS['a'])))
+        self._sky_a_spin.setValue(self._sky_value('a'))
         self._sky_a_spin.valueChanged.connect(self._on_sky_a_spin)
         gen_layout.addRow('Sky count law a:', self._sky_a_spin)
 
@@ -124,7 +123,7 @@ class BackgroundStarsMixin(SimEditorBase):
         self._sky_b_spin.setRange(0.0, 1.0)
         self._sky_b_spin.setDecimals(3)
         self._sky_b_spin.setSingleStep(0.01)
-        self._sky_b_spin.setValue(float(sky.get('b', _SKY_DEFAULTS['b'])))
+        self._sky_b_spin.setValue(self._sky_value('b'))
         self._sky_b_spin.valueChanged.connect(self._on_sky_b_spin)
         gen_layout.addRow('Sky count law b:', self._sky_b_spin)
 
@@ -132,7 +131,7 @@ class BackgroundStarsMixin(SimEditorBase):
         self._sky_diffuse_spin.setRange(0.0, 1000.0)
         self._sky_diffuse_spin.setDecimals(2)
         self._sky_diffuse_spin.setSingleStep(1.0)
-        self._sky_diffuse_spin.setValue(float(sky.get('diffuse_e_per_px', 0.0)))
+        self._sky_diffuse_spin.setValue(self._sky_value('diffuse_e_per_px'))
         self._sky_diffuse_spin.setToolTip(
             'Detector-native units: electrons per pixel on a CCD, DN per pixel on a vidicon.'
         )

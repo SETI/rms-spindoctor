@@ -22,6 +22,7 @@ from spindoctor.cli.sim_editor.base import SimEditorBase
 from spindoctor.cli.sim_editor.widgets import kept_or_shown
 from spindoctor.cli.sim_editor.widgets import make_dspin as _dspin
 from spindoctor.sim.forward.atmosphere import DEFAULT_HAZE_ALBEDO
+from spindoctor.sim.scene_schema import scene_value
 
 _NULL_SHOWS: dict[str, float] = {
     'ref_altitude_px': 0.0,
@@ -29,6 +30,12 @@ _NULL_SHOWS: dict[str, float] = {
     'albedo': DEFAULT_HAZE_ALBEDO,
 }
 """The value the renderer reads for each atmosphere key a scene may leave null."""
+
+_DETACHED_ENABLE_PX = 8.0
+"""The shell altitude the detached-shell spin shows until the scene sets one.
+
+A scene without ``detached_px`` draws no shell, so this is the value turning the
+shell on writes, and the renderer has no default for it."""
 
 
 def _as_map(value: Any) -> dict[str, Any]:
@@ -97,10 +104,10 @@ class BodyAtmosphereMixin(SimEditorBase):
             maximum=200.0,
             decimals=2,
             step=0.5,
-            value=float(atmosphere.get('detached_px', 8.0)),
+            value=float(scene_value(atmosphere, 'detached_px', _DETACHED_ENABLE_PX)),
             tooltip='Altitude of a detached haze shell above the surface, in pixels.',
         )
-        shell_check.setChecked('detached_px' in atmosphere)
+        shell_check.setChecked(atmosphere.get('detached_px') is not None)
         detached.setEnabled(shell_check.isChecked())
         form.addRow('Scale height (px):', scale_height)
         form.addRow('Tau ref:', tau_ref)
@@ -109,7 +116,7 @@ class BodyAtmosphereMixin(SimEditorBase):
         form.addRow('Albedo:', albedo)
         form.addRow(shell_check)
         form.addRow('Detached (px):', detached)
-        group.setChecked('atmosphere' in p)
+        group.setChecked(isinstance(p.get('atmosphere'), dict))
         group.toggled.connect(lambda on, i=idx: self._on_body_atmosphere_toggled(i, on))
         scale_height.valueChanged.connect(
             lambda v, i=idx: self._on_body_atmosphere_value(i, 'scale_height_px', v)
@@ -193,7 +200,7 @@ class BodyAtmosphereMixin(SimEditorBase):
             return
         # A detached-shell edit writes only while the shell is enabled, so the
         # spin cannot resurrect the optional key when the shell is off.
-        if key == 'detached_px' and 'detached_px' not in atmosphere:
+        if key == 'detached_px' and atmosphere.get('detached_px') is None:
             return
         atmosphere[key] = float(value)
         self._updater.request_update()
@@ -211,7 +218,9 @@ class BodyAtmosphereMixin(SimEditorBase):
             return
         if checked:
             atmosphere['detached_px'] = (
-                float(w.atmosphere_detached_spin.value()) if w is not None else 8.0  # type: ignore[attr-defined]
+                float(w.atmosphere_detached_spin.value())  # type: ignore[attr-defined]
+                if w is not None
+                else _DETACHED_ENABLE_PX
             )
         else:
             atmosphere.pop('detached_px', None)

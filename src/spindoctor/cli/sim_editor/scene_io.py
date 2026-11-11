@@ -205,21 +205,20 @@ class SceneIoMixin(SimEditorBase):
         # a scene without the block leaves the enable checkbox unchecked (and
         # the value widgets disabled, showing the would-be defaults).
         has_sky = isinstance(self.sim_params.get('sky_counts'), dict)
-        sky = self.sim_params.get('sky_counts') or {}
         self._sky_counts_check.blockSignals(True)
         self._sky_counts_check.setChecked(has_sky)
         self._sky_counts_check.blockSignals(False)
         for widget, value in (
-            (self._sky_density_spin, float(sky.get('density_factor', 0.0))),
-            (self._sky_a_spin, float(sky.get('a', -3.1))),
-            (self._sky_b_spin, float(sky.get('b', 0.34))),
-            (self._sky_diffuse_spin, float(sky.get('diffuse_e_per_px', 0.0))),
+            (self._sky_density_spin, self._sky_value('density_factor')),
+            (self._sky_a_spin, self._sky_value('a')),
+            (self._sky_b_spin, self._sky_value('b')),
+            (self._sky_diffuse_spin, self._sky_value('diffuse_e_per_px')),
         ):
             widget.blockSignals(True)
             widget.setValue(value)
             widget.blockSignals(False)
         self._sky_density_slider.blockSignals(True)
-        self._sky_density_slider.setValue(int(float(sky.get('density_factor', 0.0)) * 10))
+        self._sky_density_slider.setValue(int(self._sky_value('density_factor') * 10))
         self._sky_density_slider.blockSignals(False)
         self._set_sky_widgets_enabled(has_sky)
         # Sync the scene-level star-catalog-scatter control.

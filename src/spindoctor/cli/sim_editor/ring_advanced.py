@@ -291,7 +291,7 @@ class RingAdvancedMixin(SimEditorBase):
         form.addRow('Wavelength (px):', wavelength)
         form.addRow('Damping (deg):', damp)
         form.addRow('Launch lam0 (deg):', lam0)
-        group.setChecked('edge_wave' in orbit)
+        group.setChecked(orbit.get('edge_wave') is not None)
         group.toggled.connect(lambda on, i=idx: self._on_ring_edge_wave_toggled(i, on))
         amp.valueChanged.connect(lambda v, i=idx: self._on_ring_edge_wave_value(i, 'amp_px', v))
         wavelength.valueChanged.connect(
@@ -388,7 +388,7 @@ class RingAdvancedMixin(SimEditorBase):
         form.addRow('delta a (px):', delta_a)
         form.addRow('delta ae (px):', delta_ae)
         form.addRow('delta long_peri (deg):', delta_peri)
-        group.setChecked('orbit_error' in p)
+        group.setChecked(p.get('orbit_error') is not None)
         group.toggled.connect(lambda on, i=idx: self._on_ring_orbit_error_toggled(i, on))
         delta_a.valueChanged.connect(
             lambda v, i=idx: self._on_ring_orbit_error_value(i, 'delta_a_px', v)
@@ -471,7 +471,7 @@ class RingAdvancedMixin(SimEditorBase):
         form.addRow('sigma a (px):', sigma_a)
         form.addRow('sigma ae (px):', sigma_ae)
         form.addRow('sigma long_peri (deg):', sigma_peri)
-        group.setChecked('declared_orbit_sigma' in p)
+        group.setChecked(p.get('declared_orbit_sigma') is not None)
         group.toggled.connect(lambda on, i=idx: self._on_ring_sigma_toggled(i, on))
         sigma_a.valueChanged.connect(lambda v, i=idx: self._on_ring_sigma_value(i, 'sigma_a_px', v))
         sigma_ae.valueChanged.connect(
@@ -560,7 +560,7 @@ class RingAdvancedMixin(SimEditorBase):
         mod_form.addRow('Amplitude:', mod_amplitude)
         mod_form.addRow('Wavenumber m:', mod_m)
         mod_form.addRow('Peak longitude (deg):', mod_phase)
-        mod_group.setChecked('modulation' in azimuthal)
+        mod_group.setChecked(azimuthal.get('modulation') is not None)
         outer.addWidget(mod_group)
 
         shadow = _as_map(azimuthal.get('shadow'))
@@ -594,7 +594,7 @@ class RingAdvancedMixin(SimEditorBase):
         shadow_form.addRow('Start (deg):', shadow_start)
         shadow_form.addRow('Extent (deg):', shadow_extent)
         shadow_form.addRow('Darkness:', shadow_darkness)
-        shadow_group.setChecked('shadow' in azimuthal)
+        shadow_group.setChecked(azimuthal.get('shadow') is not None)
         outer.addWidget(shadow_group)
 
         spokes = _as_map(azimuthal.get('spokes'))
@@ -648,7 +648,7 @@ class RingAdvancedMixin(SimEditorBase):
         spokes_form.addRow('r outer (px):', spokes_r_outer)
         spokes_form.addRow('Width (deg):', spokes_width)
         spokes_form.addRow('Contrast:', spokes_contrast)
-        spokes_group.setChecked('spokes' in azimuthal)
+        spokes_group.setChecked(azimuthal.get('spokes') is not None)
         outer.addWidget(spokes_group)
 
         mod_group.toggled.connect(self._on_ring_modulation_toggled)
@@ -803,7 +803,7 @@ class RingAdvancedMixin(SimEditorBase):
         w.moonlet_rows_layout = rows_layout  # type: ignore[attr-defined]
         for moonlet in ring_system.get('moonlets') or []:
             self._add_ring_moonlet_row(w, moonlet)
-        group.setChecked('moonlets' in ring_system)
+        group.setChecked(ring_system.get('moonlets') is not None)
         group.toggled.connect(self._on_ring_moonlets_toggled)
         add_btn.clicked.connect(lambda _c=False: self._on_ring_add_moonlet())
         w.moonlets_group = group  # type: ignore[attr-defined]

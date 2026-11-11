@@ -35,6 +35,8 @@ from spindoctor.cli.sim_editor.body_mesh_keys import (
     refused_keys,
     stash_message,
 )
+from spindoctor.sim.forward.body_spec import body_spec_from_params
+from spindoctor.sim.scene_schema import default_body_name, scene_value
 
 # Tooltip for the center spin boxes, which write the scene value directly.
 _CENTER_TOOLTIP = (
@@ -51,6 +53,9 @@ class BodyTabMixin(SimEditorBase):
         # Built from the stash-merged view, so a tab rebuilt while the body is a
         # mesh shows the values switching it back to an ellipsoid restores.
         p = self._mesh_key_stash.view(self.sim_params['bodies'][idx])
+        # Every control shows the value the renderer draws with: the body's spec
+        # applies each default, and a null key takes the default an absent key does.
+        spec = body_spec_from_params(p, index=idx)
         w = QWidget()
         w.setProperty('kind', 'body')
         w.setProperty('data_index', idx)
@@ -58,25 +63,31 @@ class BodyTabMixin(SimEditorBase):
         fl = QFormLayout()
         main_layout.addLayout(fl)
 
-        name_edit = QLineEdit(p.get('name', ''))
+        name_edit = QLineEdit(spec.name)
         name_edit.textChanged.connect(lambda t, i=idx: self._on_body_name(i, t))
         fl.addRow('Name:', name_edit)
 
         center_v = QDoubleSpinBox()
         center_v.setRange(-10000.0, 20000.0)
         center_v.setDecimals(1)
-        center_v.setValue(p.get('center_v', 0.0))
+        # A body without a center sits at the frame center, as the renderer draws it.
+        center_v.setValue(
+            self.sim_params['size_v'] / 2.0 if spec.center_v is None else spec.center_v
+        )
         center_v.setToolTip(_CENTER_TOOLTIP.format(axis='V'))
         center_v.valueChanged.connect(lambda v, i=idx: self._on_body_field(i, 'center_v', v))
         fl.addRow('Center V (pixel corner):', center_v)
         center_u = QDoubleSpinBox()
         center_u.setRange(-10000.0, 20000.0)
         center_u.setDecimals(1)
-        center_u.setValue(p.get('center_u', 0.0))
+        center_u.setValue(
+            self.sim_params['size_u'] / 2.0 if spec.center_u is None else spec.center_u
+        )
         center_u.setToolTip(_CENTER_TOOLTIP.format(axis='U'))
         center_u.valueChanged.connect(lambda v, i=idx: self._on_body_field(i, 'center_u', v))
         fl.addRow('Center U (pixel corner):', center_u)
         # Keep references so drag updates can sync the UI
+        w.name_edit = name_edit  # type: ignore[attr-defined]
         w.center_v_spin = center_v  # type: ignore[attr-defined]
         w.center_u_spin = center_u  # type: ignore[attr-defined]
 
@@ -84,7 +95,8 @@ class BodyTabMixin(SimEditorBase):
         rng = QDoubleSpinBox()
         rng.setRange(-1e9, 1e9)
         rng.setDecimals(3)
-        rng.setValue(p.get('range_km', idx + 1))
+        # A body without a range is painted at its list position plus one.
+        rng.setValue(float(idx + 1) if spec.range_km is None else spec.range_km)
         rng.valueChanged.connect(
             lambda v, i=idx: self._on_body_field(i, 'range_km', v, trigger_validate=True)
         )
@@ -93,19 +105,19 @@ class BodyTabMixin(SimEditorBase):
         smaj = QDoubleSpinBox()
         smaj.setRange(1.0, 5000.0)
         smaj.setDecimals(1)
-        smaj.setValue(p.get('axis1', 0.0))
+        smaj.setValue(spec.axis1)
         smaj.valueChanged.connect(lambda v, i=idx: self._on_body_field(i, 'axis1', v))
         fl.addRow('Axis 1:', smaj)
         smin = QDoubleSpinBox()
         smin.setRange(1.0, 5000.0)
         smin.setDecimals(1)
-        smin.setValue(p.get('axis2', 0.0))
+        smin.setValue(spec.axis2)
         smin.valueChanged.connect(lambda v, i=idx: self._on_body_field(i, 'axis2', v))
         fl.addRow('Axis 2:', smin)
         sc = QDoubleSpinBox()
         sc.setRange(1.0, 5000.0)
         sc.setDecimals(1)
-        sc.setValue(p.get('axis3', 0.0))
+        sc.setValue(spec.axis3)
         sc.valueChanged.connect(lambda v, i=idx: self._on_body_field(i, 'axis3', v))
         fl.addRow('Axis 3:', sc)
 
@@ -114,7 +126,7 @@ class BodyTabMixin(SimEditorBase):
         # axes above scale it.  The mesh fields are inert for an ellipsoid.
         shape_combo = QComboBox()
         shape_combo.addItems(['ellipsoid', 'polyhedral_mesh'])
-        shape_index = shape_combo.findText(str(p.get('shape_model', 'ellipsoid')))
+        shape_index = shape_combo.findText(spec.shape_model)
         if shape_index >= 0:
             shape_combo.setCurrentIndex(shape_index)
         shape_combo.currentTextChanged.connect(lambda t, i=idx: self._on_body_shape_model(i, t))
@@ -125,26 +137,26 @@ class BodyTabMixin(SimEditorBase):
         mesh_lump.setRange(0.0, 1.0)
         mesh_lump.setDecimals(3)
         mesh_lump.setSingleStep(0.01)
-        mesh_lump.setValue(float(p.get('mesh_lumpiness', 0.3)))
+        mesh_lump.setValue(spec.mesh.lumpiness)
         mesh_lump.valueChanged.connect(lambda v, i=idx: self._on_body_field(i, 'mesh_lumpiness', v))
         fl.addRow('Mesh lumpiness:', mesh_lump)
 
         mesh_seed = QSpinBox()
         mesh_seed.setRange(0, 2147483647)
-        mesh_seed.setValue(int(p.get('mesh_seed', 0)))
+        mesh_seed.setValue(spec.mesh.seed)
         mesh_seed.valueChanged.connect(lambda v, i=idx: self._on_body_field(i, 'mesh_seed', v))
         fl.addRow('Mesh seed:', mesh_seed)
 
         mesh_n_lat = QSpinBox()
         mesh_n_lat.setRange(2, 256)
-        mesh_n_lat.setValue(int(p.get('mesh_n_lat', 16)))
+        mesh_n_lat.setValue(spec.mesh.n_lat)
         mesh_n_lat.setToolTip('Mesh latitude bands (resolution).')
         mesh_n_lat.valueChanged.connect(lambda v, i=idx: self._on_body_field(i, 'mesh_n_lat', v))
         fl.addRow('Mesh lat bands:', mesh_n_lat)
 
         mesh_n_lon = QSpinBox()
         mesh_n_lon.setRange(3, 512)
-        mesh_n_lon.setValue(int(p.get('mesh_n_lon', 32)))
+        mesh_n_lon.setValue(spec.mesh.n_lon)
         mesh_n_lon.setToolTip('Mesh longitude divisions (resolution).')
         mesh_n_lon.valueChanged.connect(lambda v, i=idx: self._on_body_field(i, 'mesh_n_lon', v))
         fl.addRow('Mesh lon divisions:', mesh_n_lon)
@@ -152,13 +164,13 @@ class BodyTabMixin(SimEditorBase):
         w.mesh_n_lat_spin = mesh_n_lat  # type: ignore[attr-defined]
         w.mesh_n_lon_spin = mesh_n_lon  # type: ignore[attr-defined]
 
-        pose = p.get('pose_euler_deg', [0.0, 0.0, 0.0])
+        pose = spec.mesh.pose_euler_deg
         for axis_i, axis_name in enumerate(('X', 'Y', 'Z')):
             pose_spin = QDoubleSpinBox()
             pose_spin.setRange(0.0, 360.0)
             pose_spin.setDecimals(1)
             pose_spin.setWrapping(True)
-            pose_spin.setValue(float(pose[axis_i]) if axis_i < len(pose) else 0.0)
+            pose_spin.setValue(pose[axis_i])
             pose_spin.valueChanged.connect(lambda v, i=idx, a=axis_i: self._on_body_pose(i, a, v))
             fl.addRow(f'Mesh pose {axis_name} (deg):', pose_spin)
 
@@ -166,14 +178,14 @@ class BodyTabMixin(SimEditorBase):
         rz.setRange(0.0, 360.0)
         rz.setDecimals(1)
         rz.setSuffix('°')
-        rz.setValue(p.get('rotation_z', 0.0))
+        rz.setValue(spec.rotation_z)
         rz.valueChanged.connect(lambda v, i=idx: self._on_body_field(i, 'rotation_z', v))
         fl.addRow('Rotation Z:', rz)
         rt = QDoubleSpinBox()
         rt.setRange(0.0, 90.0)
         rt.setDecimals(1)
         rt.setSuffix('°')
-        rt.setValue(p.get('rotation_tilt', 0.0))
+        rt.setValue(spec.rotation_tilt)
         rt.valueChanged.connect(lambda v, i=idx: self._on_body_field(i, 'rotation_tilt', v))
         fl.addRow('Rotation Tilt:', rt)
 
@@ -181,14 +193,14 @@ class BodyTabMixin(SimEditorBase):
         illum.setRange(0.0, 360.0)
         illum.setDecimals(1)
         illum.setSuffix('°')
-        illum.setValue(p.get('illumination_angle', 0.0))
+        illum.setValue(spec.illumination_angle)
         illum.valueChanged.connect(lambda v, i=idx: self._on_body_field(i, 'illumination_angle', v))
         fl.addRow('Illumination angle:', illum)
         phase = QDoubleSpinBox()
         phase.setRange(0.0, 180.0)
         phase.setDecimals(1)
         phase.setSuffix('°')
-        phase.setValue(p.get('phase_angle', 0.0))
+        phase.setValue(spec.phase_angle)
         phase.valueChanged.connect(lambda v, i=idx: self._on_body_field(i, 'phase_angle', v))
         fl.addRow('Phase angle:', phase)
 
@@ -204,13 +216,13 @@ class BodyTabMixin(SimEditorBase):
         cf_max_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         cf_slider = QSlider(Qt.Orientation.Horizontal)
         cf_slider.setRange(0, 10000)  # 0.0 to 10.0 with 0.001 steps
-        cf_slider.setValue(int(p.get('crater_fill', 0.0) * 1000))
+        cf_slider.setValue(int(spec.crater_fill * 1000))
         cf_slider.valueChanged.connect(lambda v, i=idx: self._on_body_crater_fill_slider(i, v))
         cf_spin = QDoubleSpinBox()
         cf_spin.setRange(0.0, 10.0)
         cf_spin.setDecimals(3)
         cf_spin.setSingleStep(0.01)
-        cf_spin.setValue(p.get('crater_fill', 0.0))
+        cf_spin.setValue(spec.crater_fill)
         cf_spin.valueChanged.connect(lambda v, i=idx: self._on_body_crater_fill_spin(i, v))
         cf_row.addWidget(cf_min_label)
         cf_row.addWidget(cf_slider, stretch=1)
@@ -226,21 +238,21 @@ class BodyTabMixin(SimEditorBase):
         cmin.setRange(0.01, 0.25)
         cmin.setDecimals(3)
         cmin.setSingleStep(0.005)
-        cmin.setValue(p.get('crater_min_radius', 0.05))
+        cmin.setValue(spec.crater_min_radius)
         cmin.valueChanged.connect(lambda v, i=idx: self._on_body_field(i, 'crater_min_radius', v))
         fl.addRow('Crater min radius:', cmin)
         cmax = QDoubleSpinBox()
         cmax.setRange(0.01, 0.25)
         cmax.setDecimals(3)
         cmax.setSingleStep(0.005)
-        cmax.setValue(p.get('crater_max_radius', 0.25))
+        cmax.setValue(spec.crater_max_radius)
         cmax.valueChanged.connect(lambda v, i=idx: self._on_body_field(i, 'crater_max_radius', v))
         fl.addRow('Crater max radius:', cmax)
         cexp = QDoubleSpinBox()
         cexp.setRange(1.1, 5.0)
         cexp.setDecimals(2)
         cexp.setSingleStep(0.05)
-        cexp.setValue(p.get('crater_power_law_exponent', 3.0))
+        cexp.setValue(spec.crater_power_law_exponent)
         cexp.valueChanged.connect(
             lambda v, i=idx: self._on_body_field(i, 'crater_power_law_exponent', v)
         )
@@ -249,7 +261,7 @@ class BodyTabMixin(SimEditorBase):
         crs.setRange(0.0, 3.0)
         crs.setDecimals(3)
         crs.setSingleStep(0.01)
-        crs.setValue(p.get('crater_relief_scale', 0.6))
+        crs.setValue(spec.crater_relief_scale)
         crs.valueChanged.connect(lambda v, i=idx: self._on_body_field(i, 'crater_relief_scale', v))
         fl.addRow('Crater relief scale:', crs)
         w.crater_min_radius_spin = cmin  # type: ignore[attr-defined]
@@ -269,13 +281,13 @@ class BodyTabMixin(SimEditorBase):
         aa_max_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         aa_slider = QSlider(Qt.Orientation.Horizontal)
         aa_slider.setRange(0, 1000)  # 0.0 to 1.0 with 0.001 steps
-        aa_slider.setValue(int(p.get('anti_aliasing', 0.5) * 1000))
+        aa_slider.setValue(int(spec.anti_aliasing * 1000))
         aa_slider.valueChanged.connect(lambda v, i=idx: self._on_body_anti_aliasing_slider(i, v))
         aa_spin = QDoubleSpinBox()
         aa_spin.setRange(0.0, 1.0)
         aa_spin.setDecimals(3)
         aa_spin.setSingleStep(0.01)
-        aa_spin.setValue(p.get('anti_aliasing', 0.5))
+        aa_spin.setValue(spec.anti_aliasing)
         aa_spin.valueChanged.connect(lambda v, i=idx: self._on_body_anti_aliasing_spin(i, v))
         aa_row.addWidget(aa_min_label)
         aa_row.addWidget(aa_slider, stretch=1)
@@ -293,7 +305,7 @@ class BodyTabMixin(SimEditorBase):
         crater_seed = QSpinBox()
         crater_seed.setRange(-1, 2147483647)
         crater_seed.setSpecialValueText('Auto')
-        crater_seed.setValue(int(p['seed']) if p.get('seed') is not None else -1)
+        crater_seed.setValue(-1 if spec.seed is None else spec.seed)
         crater_seed.setToolTip('Crater RNG seed; Auto hashes the body geometry.')
         crater_seed.valueChanged.connect(lambda v, i=idx: self._on_body_seed(i, v))
         fl.addRow('Crater seed:', crater_seed)
@@ -301,7 +313,7 @@ class BodyTabMixin(SimEditorBase):
         km_pp = QDoubleSpinBox()
         km_pp.setRange(0.0, 1.0e9)
         km_pp.setDecimals(4)
-        km_pp.setValue(float(p.get('km_per_pixel', 0.0)))
+        km_pp.setValue(float(scene_value(p, 'km_per_pixel', 0.0)))
         km_pp.setToolTip('Physical scale at the limb (0 = none); drives the irregularity factor.')
         km_pp.valueChanged.connect(lambda v, i=idx: self._on_body_field(i, 'km_per_pixel', v))
         fl.addRow('km per pixel:', km_pp)
@@ -309,17 +321,18 @@ class BodyTabMixin(SimEditorBase):
         # Navigation-override group: the renderer ignores it (it always draws the
         # true geometry), but the navigator predicts the body with these fields
         # overlaid, so a scene can render a mesh and predict a smooth ellipsoid or
-        # a different pose.  Unchecking it removes the override.
+        # a different pose.  Unchecking it removes the override.  A null override
+        # key gives the navigator the body's own value, so the control shows it.
         raw_override = p.get('nav_override')
         override: dict[str, Any] = raw_override if isinstance(raw_override, dict) else {}
         nav_group = QGroupBox('Navigation override (predicted geometry)')
         nav_group.setCheckable(True)
-        nav_group.setChecked('nav_override' in p)
+        nav_group.setChecked(isinstance(raw_override, dict))
         nav_form = QFormLayout(nav_group)
         nav_shape = QComboBox()
         nav_shape.addItems(['ellipsoid', 'polyhedral_mesh'])
         nav_shape_idx = nav_shape.findText(
-            str(override.get('shape_model', p.get('shape_model', 'ellipsoid')))
+            str(scene_value(override, 'shape_model', spec.shape_model))
         )
         if nav_shape_idx >= 0:
             nav_shape.setCurrentIndex(nav_shape_idx)
@@ -328,9 +341,9 @@ class BodyTabMixin(SimEditorBase):
         nav_lump.setRange(0.0, 1.0)
         nav_lump.setDecimals(3)
         nav_lump.setSingleStep(0.01)
-        nav_lump.setValue(float(override.get('mesh_lumpiness', p.get('mesh_lumpiness', 0.3))))
+        nav_lump.setValue(float(scene_value(override, 'mesh_lumpiness', spec.mesh.lumpiness)))
         nav_form.addRow('Predicted lumpiness:', nav_lump)
-        nav_pose = override.get('pose_euler_deg', p.get('pose_euler_deg', [0.0, 0.0, 0.0]))
+        nav_pose = scene_value(override, 'pose_euler_deg', spec.mesh.pose_euler_deg)
         nav_pose_spins = []
         for axis_i, axis_name in enumerate(('X', 'Y', 'Z')):
             sp = QDoubleSpinBox()
@@ -363,7 +376,7 @@ class BodyTabMixin(SimEditorBase):
         # mesh extras); each follows the absent-key discipline and stores its
         # widget refs on ``w``.
         self._build_body_appearance_groups(w, idx, main_layout)
-        self._sync_body_mesh_enabled(w, p.get('shape_model') == 'polyhedral_mesh')
+        self._sync_body_mesh_enabled(w, spec.shape_model == 'polyhedral_mesh')
 
         # Delete button at bottom
         delete_btn = QPushButton('Delete')
@@ -402,7 +415,7 @@ class BodyTabMixin(SimEditorBase):
         """
         if 0 <= idx < len(self.sim_params['bodies']):
             body = self.sim_params['bodies'][idx]
-            old_refused = refused_keys(str(body.get('shape_model', 'ellipsoid')))
+            old_refused = refused_keys(str(scene_value(body, 'shape_model', 'ellipsoid')))
             body['shape_model'] = text
             new_refused = refused_keys(text)
             if new_refused != old_refused:
@@ -411,7 +424,9 @@ class BodyTabMixin(SimEditorBase):
                 status_bar = self.statusBar()
                 if taken and status_bar is not None:
                     status_bar.showMessage(
-                        stash_message(str(body.get('name', f'Body{idx + 1}')), taken, text),
+                        stash_message(
+                            str(scene_value(body, 'name', default_body_name(idx))), taken, text
+                        ),
                         STASH_MESSAGE_MS,
                     )
             tab_idx = self._find_tab_by_properties('body', idx)
@@ -434,7 +449,7 @@ class BodyTabMixin(SimEditorBase):
         """Update one axis of a body's mesh pose (pose_euler_deg)."""
         if 0 <= idx < len(self.sim_params['bodies']):
             body = self.sim_params['bodies'][idx]
-            pose = list(body.get('pose_euler_deg', [0.0, 0.0, 0.0]))
+            pose = list(scene_value(body, 'pose_euler_deg', [0.0, 0.0, 0.0]))
             while len(pose) < 3:
                 pose.append(0.0)
             pose[axis] = float(value)

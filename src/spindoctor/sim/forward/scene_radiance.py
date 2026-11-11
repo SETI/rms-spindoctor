@@ -58,7 +58,12 @@ from spindoctor.sim.forward.scene_compositing import (
     translucent_screen_ops,
 )
 from spindoctor.sim.forward.stages import SimFrame
-from spindoctor.sim.forward.star import faint_sky_cutoff_mag, render_sky_counts, render_stars
+from spindoctor.sim.forward.star import (
+    SKY_COUNTS_DEFAULTS,
+    faint_sky_cutoff_mag,
+    render_sky_counts,
+    render_stars,
+)
 from spindoctor.sim.instrument_navigator import resolve_sim_inst_config
 from spindoctor.sim.instrument_resolvers import (
     filter_star_flux_scale,
@@ -763,15 +768,19 @@ def _render_sky(
     render_sky_counts(
         plane,
         seed=seed,
-        a=float(scene_value(sky, 'a', -3.1)),
-        b=float(scene_value(sky, 'b', 0.34)),
-        density_factor=float(scene_value(sky, 'density_factor', 1.0)),
+        a=float(scene_value(sky, 'a', SKY_COUNTS_DEFAULTS['a'])),
+        b=float(scene_value(sky, 'b', SKY_COUNTS_DEFAULTS['b'])),
+        density_factor=float(
+            scene_value(sky, 'density_factor', SKY_COUNTS_DEFAULTS['density_factor'])
+        ),
         # A binned frame pixel spans binning native pixels on a side.
         pixel_scale_arcsec=resolve_sky_pixel_scale_arcsec(instrument) * scene_binning(params),
         faint_cutoff_mag=cutoff,
         zero_point=zero_point,
         exposure_sec=exposure_sec,
-        diffuse_flux_per_px=float(scene_value(sky, 'diffuse_e_per_px', 0.0)),
+        diffuse_flux_per_px=float(
+            scene_value(sky, 'diffuse_e_per_px', SKY_COUNTS_DEFAULTS['diffuse_e_per_px'])
+        ),
         oversample=os,
     )
 

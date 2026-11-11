@@ -41,6 +41,7 @@ from spindoctor.support.stable_math import stable_hypot
 from spindoctor.support.types import MutableStar, NDArrayFloatType
 
 __all__ = [
+    'SKY_COUNTS_DEFAULTS',
     'faint_sky_cutoff_mag',
     'render_sky_counts',
     'render_stars',
@@ -51,6 +52,15 @@ __all__ = [
 # this bright is astronomically rare at the modeled counts (b > 0 weights the
 # distribution toward faint stars), so the exact value only bounds the sampler.
 _SKY_BRIGHT_CUTOFF_MAG = -2.0
+
+SKY_COUNTS_DEFAULTS: dict[str, float] = {
+    'a': -3.1,
+    'b': 0.34,
+    'density_factor': 1.0,
+    'diffuse_e_per_px': 0.0,
+}
+"""The value each ``sky_counts`` key takes when a scene leaves it out or null: the
+count law at mid galactic latitude, with no density boost and no diffuse floor."""
 
 
 def total_flux_for_vmag(vmag: float, *, zero_point: float, exposure_sec: float) -> float:
