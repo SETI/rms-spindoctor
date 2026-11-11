@@ -26,8 +26,13 @@ exposure_sec: 1.0
 # carry the relief shading the frame does.  The
 # ensemble fuses the limb fit and the correlation as one witness and takes
 # the correlation's offset, so the scene pins a medium-confidence success
-# whose error is the correlation's.  The baseline is a tripwire on that
-# outcome; it makes no accuracy claim.
+# whose error is the correlation's.
+# Known error: over 16 noise seeds (the committed one and 101, 202, ...,
+# 1515) the fused error runs 0.655 to 3.252 px, because which window edge
+# the correlation stops at depends on the noise draw (#791).  Each end of the
+# band sits a margin of max(0.05 px, a fifth of the end) outside, giving
+# [0.52, 3.91] px.  A worse miss fails, and so does a fix that brings the
+# error under 0.52 px.
 bodies:
   - name: RUGGED
     shape_model: ellipsoid
@@ -58,3 +63,5 @@ offset_rotation_deg: 0.0
 expected:
   status: success
   confidence_tier: medium
+  known_offset_error_px: 2.215
+  known_offset_error_tol_px: 1.695
