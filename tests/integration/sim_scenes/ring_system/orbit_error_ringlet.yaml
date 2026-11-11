@@ -74,6 +74,6 @@ ring_system:
 noise:
   poisson: true
   read_noise_dn: 4.0
-offset_v: 1.0
-offset_u: -1.5
+offset_v: 1.13
+offset_u: -1.37
 offset_rotation_deg: 0.0

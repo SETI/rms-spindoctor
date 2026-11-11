@@ -12,9 +12,9 @@ exposure_sec: 1.0
 # (2026-07-18, occlusion-aware sim limb): FAR's LIMB_ARC drops the arc
 # hidden behind NEAR and reports visible_arc_fraction 0.86 (reliability
 # 0.78), so the fit never sees the interlocked arc, and navigation
-# succeeds within a few tenths of a pixel.  test_sim_mutual_event pins
-# the offset tolerance; the expected block pins the fused status/tier the
-# ensemble measured.
+# succeeds within a few tenths of a pixel.  test_sim_truth_checks holds
+# the fused offset to its measured tolerance; the expected block pins the
+# fused status/tier the ensemble measured.
 bodies:
   - name: FAR
     shape_model: ellipsoid
@@ -39,8 +39,8 @@ bodies:
 noise:
   poisson: true
   read_noise_dn: 4.0
-offset_v: 2.5
-offset_u: -1.5
+offset_v: 2.37
+offset_u: -1.62
 offset_rotation_deg: 0.0
 expected:
   status: success
