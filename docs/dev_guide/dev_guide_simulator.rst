@@ -722,7 +722,12 @@ exactly the optical effects it wants and leaves the rest at the floor.
    error left after the navigator applies each camera's known distortion model.
    A limb fitted at the frame edge then disagrees with a ring fitted through the
    center by the differential residual, which the navigator gets no model to
-   remove.
+   remove. The warp resamples only the parts of the frame that hold light. It
+   runs before the PSF, so the image is exactly zero away from the bodies,
+   rings, and stars. Each cluster of lit pixels is warped on its own crop with a
+   margin of 64 dark render-grid pixels, which leaves every lit pixel as warping
+   the whole frame would leave it. A full-size calibrated Cassini frame warps
+   about five times faster this way.
 3. **Whole-scene PSF** (:mod:`~spindoctor.sim.forward.psf`) convolves the image
    by a core-Gaussian-plus-Moffat-wing kernel, so the limb gradient, the
    ring-edge gradient, and every star shape inherit one profile. The core is
