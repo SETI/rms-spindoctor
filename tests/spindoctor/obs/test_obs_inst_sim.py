@@ -6,13 +6,15 @@ backplane writer).  These tests guard the per-body mask map: a renderer
 change that stops populating ``body_mask_map`` degrades those consumers
 silently, because nothing on the navigation path reads it.
 
-They also guard that a scene supplied in memory is validated before it renders,
-and how the scene path is resolved.  A scene handed over in memory names no file,
-so resolving it must not reach storage; a scene named by a file or a URL must be
+They also check that a scene supplied in memory is validated before it renders,
+that a scene file is validated once although it is both loaded and rendered, and
+how the scene path is resolved.  The path of a scene handed over in memory is only
+a label, so resolving it must not reach storage; a scene read from a file or a URL must be
 fetched before it can be parsed.
 """
 
 import re
+import warnings
 from pathlib import Path
 from typing import Any
 
@@ -20,7 +22,11 @@ import numpy as np
 import pytest
 
 from spindoctor.obs.obs_inst_sim import ObsSim
-from spindoctor.sim.scene import SimSceneValidationError, save_sim_scene
+from spindoctor.sim.scene import (
+    SimSceneTruthEchoWarning,
+    SimSceneValidationError,
+    save_sim_scene,
+)
 
 _SIZE = 96
 
@@ -61,13 +67,13 @@ def test_body_mask_shape_matches_the_render() -> None:
 
 
 def test_invalid_in_memory_scene_is_refused() -> None:
-    """A scene supplied in memory is validated, and the error carries its path."""
+    """A scene supplied in memory is validated, and the error starts with its label."""
     scene = {**_body_scene(), 'exposure_seconds': 2.0}
     with pytest.raises(
         SimSceneValidationError,
-        match=re.escape("/tmp/obs_sim_bad.yaml: unknown scene keys: ['exposure_seconds']"),
+        match='^' + re.escape("obs_sim_bad.yaml: unknown scene keys: ['exposure_seconds']"),
     ):
-        ObsSim.from_file('/tmp/obs_sim_bad.yaml', sim_params=scene)
+        ObsSim.from_file('obs_sim_bad.yaml', sim_params=scene)
 
 
 def test_in_memory_scene_creates_nothing_beside_the_process(
@@ -92,6 +98,29 @@ def test_scene_file_supplies_the_sim_params(tmp_path: Path) -> None:
     obs = ObsSim.from_file(scene_path)
     assert obs.sim_params['scene_name'] == 'pebble'
     assert np.asarray(obs.data).shape == (_SIZE, _SIZE)
+
+
+def test_a_scene_file_is_validated_once(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A scene file that ObsSim loads and then renders prints its truth echo once.
+
+    The scene is given by a relative path, which ObsSim resolves to an absolute one
+    for loading, so the render must label the scene as the load did.
+    """
+    monkeypatch.chdir(tmp_path)
+    scene = {
+        **_body_scene(),
+        'noise': {'read_noise_dn': 4.0},
+        'instrument_config': {'noise': {'read_noise_dn': 4.0}},
+    }
+    scene_path = tmp_path / 'echo.yaml'
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore', SimSceneTruthEchoWarning)
+        save_sim_scene(scene, scene_path)
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter('always')
+        ObsSim.from_file('echo.yaml')
+    echoes = [w for w in caught if issubclass(w.category, SimSceneTruthEchoWarning)]
+    assert len(echoes) == 1
 
 
 def test_scene_url_is_fetched_before_it_is_parsed(

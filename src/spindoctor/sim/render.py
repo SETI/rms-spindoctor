@@ -12,10 +12,11 @@ is held to the same rules as one read from a file.  The one route that skips
 validation is :func:`render_unvalidated_preview`, which the scene editor's live
 preview uses so the author can see a half-edited scene that would not yet pass.
 
-Validation is cached on the scene's full JSON together with the label its errors
-start with, so rendering one scene many times validates it once.  That is not
-quite the render cache key: an offset-free render leaves the planted pointing out
-of its key, and validation never does.
+Validation goes through :func:`~spindoctor.sim.scene.validate_scene`, whose cache
+loading a scene file shares, so a scene that is loaded and then rendered, or
+rendered many times, is validated once.  Its key is not quite the render cache
+key: an offset-free render leaves the planted pointing out of its key, and
+validation never does.
 
 Callers are ``ObsSim``, the scene-editor GUI, and ``sim/png_export.py``
 (which the doc-gallery and sweep runners drive).  The params-JSON caching
@@ -39,7 +40,7 @@ from typing import Any
 
 from spindoctor.sim.forward.pipeline import run_pipeline
 from spindoctor.sim.forward.stages import new_sim_frame
-from spindoctor.sim.scene import validate_sim_params
+from spindoctor.sim.scene import clear_validation_cache, validate_scene
 from spindoctor.support.types import NDArrayFloatType
 
 # The planted pointing keys an offset-free render zeroes, and so leaves out of
@@ -57,7 +58,7 @@ def clear_render_caches() -> None:
     from spindoctor.sim.forward import body, body_mesh, psf, relief, star
 
     _render_combined_model_cached.cache_clear()
-    _validate_scene_json.cache_clear()
+    clear_validation_cache()
     star._render_stars_cached.cache_clear()
     star._render_sky_counts_cached.cache_clear()
     body._render_body_shape_cached.cache_clear()
@@ -123,37 +124,6 @@ def resolve_oversample(sim_params: dict[str, Any]) -> int:
     return 4 if (psf_active or instrument_defaults) else 1
 
 
-# A handful of entries: a validation is cheap next to a render, and a scene
-# that validated once validates again whenever it is rendered again.
-@lru_cache(maxsize=8)
-def _validate_scene_json(scene_json: str, source: str) -> None:
-    """Validate the scene that ``scene_json`` encodes, once per scene and source.
-
-    The mapping validated is decoded from the same JSON the render decodes, so
-    validation checks what the pipeline will read.  A refused scene raises every
-    time, since ``lru_cache`` does not cache exceptions.
-    """
-    validate_sim_params(json.loads(scene_json), source=source)
-
-
-def validate_scene(sim_params: dict[str, Any], *, source: str = 'sim_params') -> None:
-    """Validate a scene exactly as :func:`render_combined_model` does, without rendering.
-
-    The check shares the render path's validation cache, so a scene checked here
-    and then rendered with the same ``source`` is validated once.  The scene editor
-    calls it after each preview, so an author sees why a scene would be refused
-    even when nothing else renders it.
-
-    Parameters:
-        sim_params: The parameters describing the simulated model.
-        source: The label validation errors start with.
-
-    Raises:
-        ~spindoctor.sim.scene_schema.SimSceneValidationError: If the scene fails validation.
-    """
-    _validate_scene_json(json.dumps(sim_params, sort_keys=True), source)
-
-
 def render_combined_model(
     sim_params: dict[str, Any], *, ignore_offset: bool = False, source: str = 'sim_params'
 ) -> tuple[NDArrayFloatType, dict[str, Any]]:
@@ -169,8 +139,8 @@ def render_combined_model(
         ignore_offset: Render the unshifted, unrolled geometry, ignoring the
             planted offset and roll.  The frame the navigator reads always
             carries them; a display of the scene's geometry may not want them.
-        source: The label validation errors start with, such as the path of
-            the scene file the parameters came from.
+        source: The label that begins each validation error message, such as
+            the path of the scene file the parameters came from.
 
     Returns:
         A tuple containing the image and metadata.  Metadata keys: ``stars``
@@ -181,11 +151,11 @@ def render_combined_model(
         ``occluded_limb_arc_deg`` against every nearer body).
 
     Raises:
-        ~spindoctor.sim.scene_schema.SimSceneValidationError: If the scene fails validation.
+        ~spindoctor.sim.scene_schema.SimSceneValidationError: If the scene fails
+            validation.
     """
-    scene_json = json.dumps(sim_params, sort_keys=True)
-    _validate_scene_json(scene_json, source)
-    return _render(sim_params, scene_json, ignore_offset=ignore_offset)
+    validate_scene(sim_params, source=source)
+    return _render(sim_params, json.dumps(sim_params, sort_keys=True), ignore_offset=ignore_offset)
 
 
 def render_unvalidated_preview(

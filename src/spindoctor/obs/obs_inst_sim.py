@@ -91,7 +91,8 @@ class ObsSim(ObsSnapshotInst):
             without any storage being touched.
 
         Raises:
-            ~spindoctor.sim.scene_schema.SimSceneValidationError: If the scene fails validation.
+            ~spindoctor.sim.scene_schema.SimSceneValidationError: If the scene fails
+                validation.
         """
 
         config = config or DEFAULT_CONFIG
@@ -118,9 +119,13 @@ class ObsSim(ObsSnapshotInst):
 
         # Rendering validates the scene first, so a scene supplied in memory is
         # held to the rules a scene file meets when it loads, and the size and
-        # offset fields read below are known to be well formed.
+        # offset fields read below are known to be well formed.  A scene file was
+        # checked when it loaded, under its local path, and the render uses that
+        # label too, so it reuses the check instead of running it again.  A scene
+        # supplied in memory keeps the label its caller gave.
+        label = str(abspath) if provided_sim_params is None else str(scene_path)
         logger.debug('Rendering combined simulated model')
-        img_rendered, meta = render_combined_model(sim_params, source=str(scene_path))
+        img_rendered, meta = render_combined_model(sim_params, source=label)
         size_v = int(sim_params['size_v'])
         size_u = int(sim_params['size_u'])
         offset_v = float(sim_params.get('offset_v', 0.0))

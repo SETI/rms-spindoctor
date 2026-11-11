@@ -14,10 +14,10 @@ When a scene plants an offset, that frame is a second render, which runs off the
 thread (:mod:`spindoctor.cli.sim_editor.verdict`): the preview appears at once, the
 status bar says the verdict is pending, and the navigated frame's summary replaces
 that when the second render finishes.  After each preview the scene is validated on
-the UI thread, through the render path's validation cache, and a scene that fails
-shows the reason in the status bar in place of a verdict.  A preview that fails to
-render is validated too, so a scene the renderer cannot read but validation refuses
-shows that reason rather than an error dialog.
+the UI thread, through the shared validation cache, and if it fails, the status bar
+shows the reason in place of a verdict.  When the preview fails to render, the scene
+is validated too.  If validation refuses it, the status bar shows validation's
+reason, which points at the bad key, in place of an error dialog.
 """
 
 from typing import Any
@@ -36,7 +36,8 @@ from spindoctor.sim.instrument_navigator import (
     resolve_sim_inst_config,
 )
 from spindoctor.sim.instrument_resolvers import resolve_data_units
-from spindoctor.sim.render import render_unvalidated_preview, validate_scene
+from spindoctor.sim.render import render_unvalidated_preview
+from spindoctor.sim.scene import validate_scene
 from spindoctor.sim.scene_schema import (
     SimSceneValidationError,
     default_body_name,
@@ -123,7 +124,7 @@ class RenderDisplayMixin(SimEditorBase):
         """Re-render the preview, refresh the display, and update the status bar.
 
         The preview renders on the UI thread, and the scene is then validated there.
-        A scene that fails validation shows the reason in the status bar and gets no
+        If the scene fails validation, the status bar shows the reason in place of a
         verdict.  Otherwise, without a planted offset the status bar describes the
         preview itself.  With one, the navigator reads a
         different frame, since the offset moves the scene within the frame (a body
@@ -140,10 +141,10 @@ class RenderDisplayMixin(SimEditorBase):
                 # The preview skips validation so a half-edited scene still shows.
                 img, meta = render_unvalidated_preview(self.sim_params)
             except Exception as render_error:
-                # A scene the renderer cannot read is usually one validation refuses,
-                # and the refusal points at the offending key where the render error
-                # does not.  If the validator itself fails some other way, the dialog
-                # still reports the render error.
+                # When the renderer cannot read a scene, validation usually refuses
+                # it too, and validation's message points at the bad key, so it is
+                # the more useful report.  If the validator itself fails some other
+                # way, the dialog still reports the render error.
                 try:
                     refused = self._report_refusal()
                 except Exception:
@@ -153,9 +154,9 @@ class RenderDisplayMixin(SimEditorBase):
                 raise render_error
             self._current_image = img
             self._last_meta = meta
-            # The scene is then checked as every navigated frame is (the check is
-            # cached in render.py), so a scene that would be refused says why at
-            # once, whether or not it plants an offset.
+            # The scene is then checked as every navigated frame is (through the
+            # shared validation cache), so a scene that would be refused says why
+            # at once, whether or not it plants an offset.
             if self._report_refusal():
                 self._display_image()
                 return
@@ -181,7 +182,8 @@ class RenderDisplayMixin(SimEditorBase):
     def _report_refusal(self) -> bool:
         """Validate the scene and, if validation refuses it, say why in the status bar.
 
-        A refused scene gets no verdict, so any verdict render on its way is dropped.
+        The editor does not compute a verdict for a refused scene, and it drops any
+        verdict render already on its way.
 
         Returns:
             True if validation refused the scene, False if it passed.
