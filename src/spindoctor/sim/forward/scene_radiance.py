@@ -252,8 +252,8 @@ def compose_scene_radiance(
     # line-of-sight pose (rotation_z), so a body moves and turns under the same
     # pointing rotation the stars do; the body NavModel predicts the unrolled
     # geometry.  Each body also keeps a scene mapping with the same values for
-    # the render truth.  That mapping leaves out a key the scene sets to null,
-    # so a null key and an absent one give the same truth.
+    # the render truth.  If the scene sets a key to null, that mapping leaves
+    # the key out, so a null key and an absent one give the same truth.
     bodies_with_ranges: list[tuple[BodySpec, dict[str, Any]]] = []
     explicit_ranges: list[bool] = []
     for body_number, body_params in enumerate(bodies_params):

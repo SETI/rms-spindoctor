@@ -162,7 +162,7 @@ def _check_body_object(obj: dict[str, Any], *, index: int, source: str) -> None:
 def _check_number_list(values: Any, key: str, *, source: str) -> None:
     """Validate that every entry of a fixed-length list is a number.
 
-    A list entry has no default to fall back on, so a null entry is refused
+    A list entry can't fall back on a default, so a null entry is refused
     rather than read as absent.
 
     Parameters:

@@ -244,7 +244,7 @@ class SimEditorBase(QMainWindow):
         raise NotImplementedError
 
     def _star_position(self, star: dict[str, Any]) -> tuple[float, float]:
-        """A star's rendered ``(v, u)`` position (implemented in StarTabMixin)."""
+        """A star's catalog ``(v, u)`` position (implemented in StarTabMixin)."""
         raise NotImplementedError
 
     def _noise_value(self, key: str, default: Any) -> Any:

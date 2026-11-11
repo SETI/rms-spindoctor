@@ -9,12 +9,12 @@ meets a null.
 Two sub-blocks stay as their validated mappings: ``atmosphere``, whose pixel
 lengths scale with the render grid's oversampling, and ``albedo_texture``, whose
 noise field draws its seed from the body's identity.  The renderer builds their
-specs when it knows both, through
+specs once it knows the oversampling factor and the body's identity seed, through
 :func:`~spindoctor.sim.forward.atmosphere.atmosphere_spec_from_params` and
 :func:`~spindoctor.sim.forward.body_texture.albedo_spec_from_params`, which read
 a null key as absent too.  The renderer does not read ``km_per_pixel``, which
-describes the body to the navigator, or ``nav_override``, which is what the
-navigator believes, so the spec leaves both out.
+describes the body to the navigator, or ``nav_override``, which holds the values
+the navigator is given in place of the truth, so the spec leaves both out.
 """
 
 from collections.abc import Mapping
@@ -58,11 +58,16 @@ _SURGE_WIDTH_DEG_DEFAULT = 6.0
 class BodySpec:
     """One scene body with every default applied.
 
-    The fields carry the scene keys of the same names, in the scene's units:
-    pixels for centers and axes, and degrees for angles.  A body the scene
-    radiance stage renders carries its render-grid values, which are the scene's
-    centers and axes scaled by the oversampling factor, with the planted
-    pointing applied to the center and roll.
+    Most fields carry the scene key of the same name, in the scene's units:
+    pixels for centers and axes, and degrees for angles.  The entries below note
+    the fields that come from other keys.
+
+    When the scene radiance stage renders a body, it fills the spec with
+    render-grid values.  It shifts the center by the ephemeris parallax and
+    applies the planted roll, which rotates the center about the frame center and
+    adds to ``rotation_z``.  It then scales the center and axes by the
+    oversampling factor.  :func:`~spindoctor.sim.forward.body.render_single_body`
+    adds the planted translation when it draws the body.
 
     Parameters:
         name: The body's name as written, or ``SIM-BODY-<index + 1>`` when the
@@ -93,17 +98,21 @@ class BodySpec:
         limb_relief_corr_deg: The limb-relief correlation length, in degrees.
         photometric_law: The surface scattering law.
         minnaert_k: The Minnaert exponent.
-        surge_amplitude: The opposition-surge amplitude; 0 is no surge.
-        surge_width_deg: The opposition-surge width, in degrees of phase.
+        surge_amplitude: The ``opposition_surge`` block's ``amplitude``.  Zero
+            turns the surge off.
+        surge_width_deg: The ``opposition_surge`` block's ``width_deg``, in
+            degrees of phase.
         seed: The body's own seed, or None.
         shading: A mesh body's shading mode, ``'flat'`` or ``'gouraud'``.
-        pose_scatter_sigma_deg: The per-axis sigma of a mesh body's pose
-            scatter, in degrees; 0 is no scatter.
-        mesh: A mesh body's shape and pose.
+        pose_scatter_sigma_deg: The ``pose_scatter`` block's ``sigma_deg``, the
+            per-axis sigma of a mesh body's pose scatter in degrees.  Zero turns
+            the scatter off.
+        mesh: A mesh body's shape and pose, built from the ``mesh_*`` keys and
+            ``pose_euler_deg``.
         albedo_texture: The validated ``albedo_texture`` mapping, or None.
         disc_texture: The banded disc texture, or None.
-        transits: The transiting moons and shadows, or None when the scene has
-            no ``transits`` list.  An empty list is an empty tuple.
+        transits: The transiting moons and shadows, or None when the scene leaves
+            out the ``transits`` list.  An empty list is an empty tuple.
         atmosphere: The validated ``atmosphere`` mapping, or None.
     """
 

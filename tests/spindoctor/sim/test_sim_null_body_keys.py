@@ -2,9 +2,9 @@
 
 The validator accepts null for every key of a ``bodies`` entry and for every
 optional key of the body's sub-blocks, and reads it as absent.  The renderer
-parses each body once into a typed spec, and the specs of a scene with a null
-key and the scene without it are equal, so the two render the same frame and
-write the same render truth.  The navigator's filtered view leaves a null key
+parses each body once into a typed spec.  A body with a null key and the same
+body without the key parse to equal specs, so the two scenes render the same frame
+and write the same render truth.  The navigator's filtered view leaves a null key
 out, so it reads the absent key too.  Atmosphere keys are covered in
 ``test_sim_atmosphere.py``.
 """
@@ -156,7 +156,8 @@ def _render_inputs(
     """The parsed body, with the sub-block specs the renderer builds from it.
 
     The spec keeps the albedo texture and the atmosphere as mappings, which the
-    renderer parses when it renders; they are replaced by those parsed specs.
+    renderer parses when it renders.  This helper replaces those mappings with the
+    specs the renderer builds from them.
     """
     spec = body_spec_from_params(body, index=0)
     return (
@@ -239,9 +240,9 @@ def test_null_body_keys_render_as_absent(shape: str) -> None:
 def _null_geometry_scenes() -> tuple[dict[str, Any], dict[str, Any]]:
     """A rolled scene with null body geometry keys, and the same scene without them.
 
-    The body sets its center, axis3, range, and pose to null.  The radiance stage
-    reads each of these keys itself, to place the body, scale it to the render grid,
-    add the camera roll to its pose, and write its render truth.
+    The body sets its center, axis3, range, and in-plane rotation to null.  The
+    radiance stage reads each of these keys itself, to place the body, scale it to
+    the render grid, add the camera roll to its rotation, and write its render truth.
     """
     absent = {
         'name': 'RHEA',
@@ -265,7 +266,7 @@ def _null_geometry_scenes() -> tuple[dict[str, Any], dict[str, Any]]:
 
 
 def test_null_body_geometry_renders_as_absent() -> None:
-    """Null center, axis3, range, and pose keys render the frame the absent keys do."""
+    """Null center, axis3, range, and rotation keys render as the absent keys do."""
     stated, absent = _null_geometry_scenes()
     image, _ = render_combined_model(stated)
     expected, _ = render_combined_model(absent)
@@ -276,10 +277,9 @@ def test_null_body_keys_write_the_truth_of_absent_keys() -> None:
     """A body's render truth leaves its null keys out, as if the scene never set them.
 
     The body keeps its name and two axes, and every other key is null.  The
-    radiance stage writes the rendered center and range into the truth over the
-    scene's values, so those nulls never reach it either way; each of the other
-    keys, axis3 and the pose among them, would reach the truth as a null if the
-    stage copied it.
+    radiance stage overwrites the center and range with the rendered values, so
+    their nulls never reach the truth.  Any other key, including axis3 and
+    rotation_z, would reach the truth as a null if the stage copied it.
     """
     full = _ellipsoid_body()
     absent = {key: full[key] for key in ('name', 'axis1', 'axis2')}
@@ -293,7 +293,7 @@ def test_null_body_keys_write_the_truth_of_absent_keys() -> None:
 def test_null_body_key_reaches_the_navigator_as_absent(key: str) -> None:
     """The navigator's view of a body with a null key equals its view without the key.
 
-    The body carries no ``nav_override``, so the key's own null is what is tested.
+    The body leaves out ``nav_override``, so the key's own null is what is tested.
     """
     absent = {k: v for k, v in _base_body(key).items() if k not in {key, 'nav_override'}}
     stated = {**absent, key: None}
@@ -302,7 +302,7 @@ def test_null_body_key_reaches_the_navigator_as_absent(key: str) -> None:
 
 
 def test_null_nav_override_key_leaves_the_scene_value() -> None:
-    """A null nav_override key overrides nothing; the navigator sees the scene's value."""
+    """For a key set to null in nav_override, the navigator sees the scene's value."""
     body = {**_ellipsoid_body(), 'nav_override': {'center_v': None}}
     validate_sim_params(_scene(body), source='null')
     assert build_nav_params(_scene(body))['bodies'][0]['center_v'] == 15.0
@@ -342,6 +342,6 @@ def test_default_body_name_counts_from_one() -> None:
     ids=['pose_euler_deg', 'center_vu'],
 )
 def test_a_null_list_entry_is_refused(body: dict[str, Any], message: str) -> None:
-    """A fixed-length list has no default for one entry, so a null entry is refused."""
+    """A fixed-length list entry can't take a default, so a null entry is refused."""
     with pytest.raises(SimSceneValidationError, match=re.escape(message)):
         validate_sim_params(_scene(body), source='null')

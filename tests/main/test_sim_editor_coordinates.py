@@ -109,7 +109,11 @@ def test_mask_hit_test_does_not_reach_the_previous_pixel(model: Any) -> None:
 
 
 def test_mask_hit_test_finds_an_unnamed_body_by_its_default_name(model: Any) -> None:
-    """Of three overlapping unnamed bodies, the second, which alone has a range, is selected."""
+    """The hit test finds an unnamed body by its default name in the inventory.
+
+    Three unnamed bodies overlap at the click, and only ``SIM-BODY-2`` has an
+    inventory range, so the second body is selected.
+    """
     for _ in range(3):
         model._add_body_tab()
     for body in model.sim_params['bodies']:
@@ -145,8 +149,11 @@ def test_star_hit_test_misses_short_of_the_rendered_position(model: Any) -> None
     assert model._selected_model_key is None
 
 
-def test_dragging_a_body_without_a_center_starts_at_the_frame_center(model: Any) -> None:
-    """A body with no center moves from the frame center, where the renderer puts it."""
+def test_dragging_a_body_missing_center_v_starts_at_the_frame_center(model: Any) -> None:
+    """Dragging a body whose ``center_v`` is absent starts from the frame center.
+
+    The renderer places the body there too.
+    """
     model._add_body_tab()
     del model.sim_params['bodies'][0]['center_v']
     model._selected_model_key = ('body', 0)
@@ -156,7 +163,7 @@ def test_dragging_a_body_without_a_center_starts_at_the_frame_center(model: Any)
 
 
 def test_dragging_a_star_without_a_position_starts_at_the_frame_center(model: Any) -> None:
-    """A star with no ``u`` moves from the frame center, where the renderer puts it."""
+    """A star whose ``u`` is absent moves from the frame center, where it is drawn."""
     model._add_star_tab()
     del model.sim_params['stars'][0]['u']
     model._selected_model_key = ('star', 0)
@@ -173,7 +180,7 @@ def test_a_star_tab_shows_a_null_position_at_the_frame_center(model: Any) -> Non
 
 
 def test_a_star_with_a_null_position_is_marked_at_the_frame_center(model: Any) -> None:
-    """The preview's star mark for a star with null ``v`` and ``u`` crosses the frame center."""
+    """The preview marks a star whose ``v`` and ``u`` are null at the frame center."""
     model.sim_params['bodies'] = []
     model.sim_params['ring_system'] = None
     model.sim_params['stars'] = [{'v': None, 'u': None}]

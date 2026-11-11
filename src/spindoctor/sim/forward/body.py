@@ -889,8 +889,8 @@ def finish_single_body(
         half_extent_u: Projected half-extent of the silhouette along u.
         ref_center_v: Reference center V the shape was rendered at.
         ref_center_u: Reference center U the shape was rendered at.
-        range_km: The body's observer distance for the inventory, or None,
-            which records 1.0.
+        range_km: The body's distance from the observer, recorded in the
+            inventory.  None records 1.0.
         halo: The body's translucent halo screen at the reference center, or
             None for a body without an atmosphere.
         silhouette: The body's solid-outline pixel coverage at the reference

@@ -4,8 +4,8 @@ The validator accepts null for every optional key of a ``stars`` entry and its
 ``companion``, of the ``optics`` block and its sub-blocks, of ``sky_counts``,
 of ``spk_error``, of ``detector``, and of ``artifacts`` (apart from a mode's map),
 and reads it as absent.  The renderer reads these keys the same way: a scene whose
-optional key is null renders exactly the frame, and records exactly the star truth,
-that the scene without the key does.  The body, noise, and ring blocks have their
+optional key is null renders the same frame, and records the same star truth, as
+the scene without the key.  The body, noise, and ring blocks have their
 own null tests.
 """
 
@@ -39,7 +39,10 @@ _Path = tuple[str | int, ...]
 
 
 def _scene() -> dict[str, Any]:
-    """A small scene that gives every optional key of the four blocks a value."""
+    """A small scene that gives a value to every optional key of four blocks.
+
+    The four blocks are ``stars``, ``sky_counts``, ``spk_error``, and ``optics``.
+    """
     return {
         'size_v': _SIZE,
         'size_u': _SIZE,
@@ -144,7 +147,7 @@ def _case_id(value: Any) -> str:
     ids=_case_id,
 )
 def test_null_star_key_renders_as_absent(path: _Path, key: str) -> None:
-    """A validated null star key renders, and catalogs, as the absent key."""
+    """A validated null star key gives the frame and star record of the absent key."""
     stated, absent = _scenes(path, key)
     _assert_renders_alike(stated, absent)
     centers = {'default_v': _SIZE / 2.0, 'default_u': _SIZE / 2.0}

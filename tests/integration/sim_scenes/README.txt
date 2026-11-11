@@ -259,8 +259,8 @@ mesh_n_lat / mesh_n_lon (tessellation, default 16 / 32; the catalog's mesh
 scenes use 64 / 128 so no facets show), mesh_detail_octaves, and
 pose_euler_deg.  Every body key, and every optional key inside a body's blocks,
 may be null, and a null key renders as the absent key does.  The navigator
-reads it as absent too, and a null inside nav_override overrides nothing, so
-the navigator sees the scene's own value.  An entry of a list such as
+reads it as absent too.  For a key set to null inside nav_override, the
+navigator sees the scene's own value.  An entry of a list such as
 pose_euler_deg can't be null.
 
 A polyhedral_mesh body refuses a non-null value of any of the twelve

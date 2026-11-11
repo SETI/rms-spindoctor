@@ -335,7 +335,7 @@ def test_a_scene_without_an_offset_starts_no_verdict_render(
 
 
 def test_an_offset_free_scene_that_fails_validation_shows_why(model: Any) -> None:
-    """A scene validation would refuse shows the reason even with no verdict render."""
+    """A refused offset-free scene still shows why in the status bar."""
     model.sim_params['unknown_probe_key'] = 1
     model._update_image()
     assert model._units_label.text() == (
@@ -343,10 +343,10 @@ def test_an_offset_free_scene_that_fails_validation_shows_why(model: Any) -> Non
     )
 
 
-def test_a_scene_with_an_offset_that_fails_validation_gets_no_verdict(
+def test_a_refused_scene_with_an_offset_does_not_start_a_verdict(
     model: Any, gated: _GatedSummary
 ) -> None:
-    """A scene validation would refuse requests no verdict, though it plants an offset."""
+    """A refused scene that plants an offset does not start a verdict render."""
     model.sim_params['unknown_probe_key'] = 1
     _edit_offset(model, 5.0)
     assert gated.calls == []
@@ -357,7 +357,10 @@ def test_a_scene_with_an_offset_that_fails_validation_gets_no_verdict(
 
 
 def test_a_preview_that_fails_on_a_refused_scene_shows_why(model: Any) -> None:
-    """A scene the preview cannot render shows validation's refusal, with no dialog."""
+    """If the preview cannot render a refused scene, the status bar shows the refusal.
+
+    The refusal appears in place of an error dialog.
+    """
     model.sim_params['exposure_sec'] = 'long'
     model._update_image()
     assert model._units_label.text() == (
@@ -368,7 +371,7 @@ def test_a_preview_that_fails_on_a_refused_scene_shows_why(model: Any) -> None:
 def test_a_preview_that_fails_on_a_valid_scene_opens_the_error_dialog(
     model: Any, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A render failure on a scene validation accepts reports the render error."""
+    """If the preview fails on a valid scene, the dialog reports the render error."""
     dialogs: list[str] = []
 
     def _fail(*args: Any, **kwargs: Any) -> Any:

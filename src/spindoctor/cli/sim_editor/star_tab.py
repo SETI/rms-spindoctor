@@ -20,9 +20,9 @@ validator's semantics.
 The position spin boxes write the scene's ``v`` / ``u`` unchanged, so they
 carry the scene's own convention: every position in a scene is a pixel corner,
 and the center of pixel ``N`` is ``N + 0.5``.  The row labels name that
-convention rather than leaving the reader to infer it from a rendered star.  A star
-whose ``v`` or ``u`` is absent or null shows the frame center there, which is where
-the renderer places it.
+convention rather than leaving the reader to infer it from a rendered star.  If a
+star's ``v`` or ``u`` is absent or null, its spin box shows the frame center,
+because the renderer reads it that way.
 
 The PSF-window size is stored as a two-element list, never a tuple: the safe
 YAML dumper is not guaranteed to accept tuples, and a tuple never compares
@@ -62,11 +62,11 @@ class StarTabMixin(SimEditorBase):
     """Builds and handles the per-star editing tab."""
 
     def _star_position(self, star: dict[str, Any]) -> tuple[float, float]:
-        """A scene star's catalog position, where the renderer places it.
+        """A scene star's catalog position, read as the renderer reads it.
 
-        An absent or null ``v`` or ``u`` is the frame center, as the renderer reads
-        it.  The star tab, the preview's star marks, and a star drag all start from
-        this position.
+        An absent or null ``v`` or ``u`` reads as the frame center.  A planted
+        catalog error moves the drawn star off this position.  The star tab, the
+        preview's star marks, and a star drag all start from this position.
 
         Parameters:
             star: One entry of the scene's ``stars`` list.

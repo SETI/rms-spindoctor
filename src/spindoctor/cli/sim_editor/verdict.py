@@ -54,9 +54,10 @@ def navigated_frame_summary(sim_params: dict[str, Any]) -> str:
     """Render the frame the navigator reads and describe it for the status bar.
 
     The frame carries the planted offset and roll (``ignore_offset=False``).  The
-    scene is validated before it renders, as every navigated frame is, so a scene
-    that fails validation raises here while the preview still shows it.  The
-    text is :func:`~spindoctor.sim.instrument_navigator.frame_units_summary` of that frame
+    scene is validated before it renders, as it is for every navigated frame, so
+    this function raises for a scene that fails validation, even though the
+    preview still shows that scene.  The text is
+    :func:`~spindoctor.sim.instrument_navigator.frame_units_summary` of that frame
     under the scene's resolved instrument block.
 
     Parameters:
