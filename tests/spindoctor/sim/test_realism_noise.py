@@ -486,6 +486,158 @@ def test_quantization_step_finds_whole_dn_scaled_into_float32(
     assert quantization_step(patch) == pytest.approx(scale, rel=1e-4)
 
 
+def test_one_bright_pixel_does_not_hide_a_fine_lattice() -> None:
+    """A sky on a 1e-8 lattice near 1e-3 keeps its lattice beside one pixel at 1.0.
+
+    The step is 1e-8 of the bright pixel's value, the spacing of float32 numbers there,
+    but a hundred times the spacing at the sky's level.  In float32 the bright pixel
+    itself sits up to three steps off the lattice.
+    """
+    rng = np.random.default_rng(41)
+    patch = np.round(rng.normal(1e5, 3.0, (32, 32))) * 1e-8
+    patch[16, 16] = 1.0
+    assert quantization_step(patch.astype(np.float32)) == pytest.approx(1e-8, rel=1e-3)
+
+
+def test_one_bright_pixel_does_not_widen_the_sky_levels_tolerance() -> None:
+    """Sky levels a tenth of a step off a lattice are off it, beside one pixel at 1.0.
+
+    The bright pixel's own float32 rounding is 48 steps of the 1e-8 lattice, so a
+    tolerance taken from the largest value would pass every sky level.
+    """
+    rng = np.random.default_rng(42)
+    index = np.round(rng.normal(1e5, 3.0, (32, 32)))
+    patch = (index + 0.1 * (-1.0) ** index) * 1e-8
+    patch[16, 16] = 1.0
+    assert quantization_step(patch.astype(np.float32)) is None
+
+
+@pytest.mark.parametrize('dtype', [np.float64, np.float32], ids=['float64', 'float32'])
+def test_uneven_levels_beside_one_bright_pixel_are_no_lattice(dtype: type) -> None:
+    """Levels spaced 1 and 1.3 apart are no lattice beside a pixel 800,000 steps up.
+
+    The bright pixel's float32 rounding is 0.38 of a step, under half a step, so the
+    pixel is checked like the levels.  Its rounding taken as every level's tolerance
+    would pass levels three tenths of a step off.
+    """
+    rng = np.random.default_rng(43)
+    levels = np.array([0.0, 1.0, 2.3, 3.3, 4.6, 5.6, 6.9, 7.9, 9.2]) + 100.0
+    patch = levels[rng.integers(0, levels.size, (32, 32))]
+    patch[3, 3] = 8e5
+    assert quantization_step(patch.astype(dtype)) is None
+
+
+def test_a_bright_pixel_the_fit_cannot_place_keeps_the_lattice() -> None:
+    """Whole DN times 1.234e-3 keep their lattice beside a pixel near 1250, 1.01 million steps up.
+
+    The step is just under a millionth of that pixel's value, and the pixel rounds by
+    0.48 step in float32, so it is three tenths of a step off the lattice or on it.  The
+    fit to the sky can't place it either: carried out a million steps, the fit's
+    standard error is 14 steps.  So the pixel passes, and the step comes from the sky.
+    """
+    rng = np.random.default_rng(44)
+    step = 1.234e-3
+    patch = np.round(rng.normal(4000.0, 3.0, (32, 32))) * step
+    patch[16, 16] = (np.round(1250.0 / step) + 0.3) * step
+    assert quantization_step(patch.astype(np.float32)) == pytest.approx(step, rel=1e-4)
+
+
+def test_a_bright_pixel_on_the_lattice_keeps_a_scaled_float32_lattice() -> None:
+    """Whole DN times 1.234e-3 keep their lattice and its step beside one pixel on it at 5x.
+
+    Carried out 16,000 steps beyond the sky, the sky's fit misses the pixel's level by
+    about a tenth of a step, ten times the pixel's own float32 rounding.  That fit can't
+    pin down the pixel's lattice index, so the step comes from the sky's levels alone.
+    """
+    rng = np.random.default_rng(45)
+    step = 1.234e-3
+    dn = np.round(rng.normal(4000.0, 3.0, (32, 32)))
+    dn[16, 16] = 5.0 * dn.max()
+    assert quantization_step((dn * step).astype(np.float32)) == pytest.approx(step, rel=1e-4)
+
+
+def test_a_level_off_the_lattice_beyond_the_fits_reach_passes() -> None:
+    """Whole DN beside a pixel half a step off the lattice, 20,000 steps up, keep their lattice.
+
+    The sky's levels fit exactly, so the fit's standard error comes from one float32
+    rounding at the sky's level and is about 0.32 step carried out to the pixel.  Four
+    standard errors reach past half a step, so the fit can't place the pixel and it
+    passes; one would place it and refuse the lattice.
+    """
+    rng = np.random.default_rng(49)
+    patch = np.round(rng.normal(4000.0, 3.0, (32, 32)))
+    patch[16, 16] = 24_000.5
+    assert quantization_step(patch) == pytest.approx(1.0, rel=1e-12)
+
+
+@pytest.mark.parametrize(
+    ('neighbor', 'far', 'expected'),
+    [(999.0, 1500.0, 1.0), (999.0, 1500.4, None), (1001.0, 499.6, None)],
+    ids=['bright-on-the-lattice', 'bright-off-the-lattice', 'dark-off-the-lattice'],
+)
+def test_one_sky_level_fits_its_near_neighbor_alone(
+    neighbor: float, far: float, expected: float | None
+) -> None:
+    """A sky of one level fits its step to the level beside it, leaving a far pixel out.
+
+    Every pixel but three is 1000, two sit on the neighboring level, and one is the far
+    pixel, about 500 steps away on the other side.  The fit takes 1000 and its neighbor,
+    so the step is 1 with the far pixel on the lattice.  Four tenths of a step off, the
+    far pixel is refused, above the sky or below it: fitted along with the sky, it would
+    tilt the step by 0.0008 and pass.
+    """
+    patch = np.full((32, 32), 1000.0)
+    patch[0, :2] = neighbor
+    patch[16, 16] = far
+    expected_step = None if expected is None else pytest.approx(expected, rel=1e-12)
+    assert quantization_step(patch) == expected_step
+
+
+def test_the_step_is_refitted_across_the_levels_the_fit_places() -> None:
+    """A placed pixel 4000 steps up sharpens a scaled float32 step; one it can't place doesn't.
+
+    The sky's levels of whole DN times 1.234e-3 give the step to about 5e-6.  One pixel
+    on the lattice at 8000 DN, which the fit places, carries the refitted step to about
+    5e-8.  A pixel 100,000 steps up and four tenths of a step off passes because the fit
+    can't place it, and taking it into the refit would move the step by about 6e-6.
+    """
+    rng = np.random.default_rng(46)
+    step = 1.234e-3
+    dn = np.round(rng.normal(4000.0, 3.0, (32, 32)))
+    dn[16, 16] = 8000.0
+    dn[8, 8] = 104_000.4
+    assert quantization_step((dn * step).astype(np.float32)) == pytest.approx(step, rel=1e-6)
+
+
+@pytest.mark.parametrize(
+    'patch',
+    [
+        np.where(
+            np.arange(1024).reshape(32, 32) == 100,
+            -1e17,
+            np.round(np.random.default_rng(47).normal(1000.0, 3.0, (32, 32))),
+        ),
+        np.where(
+            np.arange(1024).reshape(32, 32) == 100,
+            -3.4e38,
+            np.round(np.random.default_rng(48).normal(1e5, 3.0, (32, 32))) * 1e-8,
+        ).astype(np.float32),
+    ],
+    ids=['whole-dn-beside-1e17-steps', 'float32-beside-3e46-steps'],
+)
+def test_a_pixel_beyond_two_to_the_31_steps_puts_the_sample_on_no_lattice(
+    patch: NDArrayFloatType,
+) -> None:
+    """A sentinel value far below the sky leaves the sky to the paired differences.
+
+    Counted in steps from that pixel, the sky's indices lose their whole-step precision
+    in float64, and the quantized estimators read NaN.  So the sample sits on no lattice,
+    and the patch's sigma is the paired-difference reading.
+    """
+    assert quantization_step(patch) is None
+    assert patch_noise_sigma(patch) == paired_difference_sigma(patch)
+
+
 def test_find_uniform_patches_keeps_quantized_sky_below_one_step() -> None:
     """Whole-DN sky whose noise is below one DN still yields every patch."""
     rng = np.random.default_rng(26)

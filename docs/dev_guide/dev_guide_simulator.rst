@@ -4426,14 +4426,34 @@ hot pixel in the patch from inflating it.
 
 A patch whose values sit on a lattice of equally spaced levels, such as raw
 frames in whole DN or 8-bit I/F products, is quantized.  The step starts as the
-smallest gap between the patch's distinct values and is then refit across all of
-them, so whole DN scaled into 32-bit floats still count as a lattice, although
-each scaled value carries its own rounding error.  A lattice counts only when the
-patch could fill it: the central 98% of its values spans no more steps than the
-patch has pixels, and the step is far coarser than the spacing of floating-point
-numbers at those values.  Without that condition every frame stored as 32-bit
-floats would count, because its values are all whole multiples of the float
-spacing.
+smallest gap between the patch's distinct values.  The step and the lattice's
+origin are then fitted to the levels of the central 98% of the values, so whole
+DN scaled into 32-bit floats still count as a lattice, although each scaled value
+carries its own rounding error.  When those values all sit on one level, the fit
+adds the nearest level on each side, but leaves out either one when it lies more
+than twice as far away as the other.  A bright pixel stays out of the fit
+whenever the sky has a level within half its distance on the other side.
+
+Each level must then lie on the fitted lattice to within a thousandth of a step
+or its own rounding, whichever is larger.  A level beyond the fitted ones is also
+allowed the fit's uncertainty out at that level, and a level so far out that
+this uncertainty reaches half a step passes whatever its value.  A value whose
+own rounding reaches half a step, such as a bright pixel far above a finely
+quantized sky, could stand for any of the levels around it, and the fit and the
+test leave it out.  A single pixel off the lattice that the fit can place, such
+as a bright pixel 500 steps up and four tenths of a step off, takes the whole
+patch off the lattice.  The patch is then measured from its paired differences
+as a continuous patch is, and for noise below a step those read low, since most
+neighbors share a value.
+
+A lattice counts only when the patch could fill it: the central 98% of its
+values spans no more steps than the patch has pixels, and the step is far
+coarser than the spacing of floating-point numbers among those values.  Without
+those conditions every frame stored as 32-bit floats would count, because its
+values are all whole multiples of the float spacing.  Every value must also lie
+within 2\ :sup:`31` steps of the central levels, which keeps the estimators'
+whole-step arithmetic exact, so a fill value such as -10\ :sup:`17` beside a sky
+in whole DN keeps the patch from counting as quantized.
 
 A quantized patch is measured from paired differences too, when they resolve the
 noise, and otherwise by fitting the quantization itself.  The differences come

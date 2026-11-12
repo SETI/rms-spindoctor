@@ -53,20 +53,39 @@ __all__ = [
 # MAD to sigma conversion for a normal distribution.
 _MAD_TO_SIGMA = 1.4826
 
-# A patch's distinct values lie on a lattice when each one lies within this fraction of
-# a step of the lattice level fitted to it, or within _FLOAT_ROUNDING_EPS of its own
-# magnitude, whichever is larger.
+# A level lies on the fitted lattice when it lies within this fraction of a step of its
+# lattice level, or within _FLOAT_ROUNDING_EPS of its own magnitude, whichever is larger;
+# a level beyond the fitted ones may also be off by the fit's error there.
 _LATTICE_TOLERANCE = 1e-3
 
 # The rounding error a float32 value can carry, relative to its magnitude: a few units
 # of float32's machine epsilon.  A lattice of whole DN scaled into float32, such as DN
-# times 1.234e-3 near DN 3000, sits off its levels by this much.
-_FLOAT_ROUNDING_EPS = 4.0 * float(np.finfo(np.float32).eps)
+# times 1.234e-3 near DN 3000, sits off its levels by this much.  A single rounding to
+# float32 moves a value by at most half of _FLOAT32_EPS of its magnitude.
+_FLOAT32_EPS = float(np.finfo(np.float32).eps)
+_FLOAT_ROUNDING_EPS = 4.0 * _FLOAT32_EPS
 
-# A step at or below this fraction of the largest value's magnitude is the spacing of
-# floating-point numbers, not a quantization: the float32 values near 3e-3 I/F are
+# The fit's error at a level beyond the fitted ones is taken as this many standard errors
+# of the fit carried out to that level.
+_FIT_SIGMAS = 4.0
+
+# A step at or below this fraction of a value's magnitude is the spacing of
+# floating-point numbers there, not a quantization: the float32 values near 3e-3 I/F are
 # 2.3e-10 apart.
 _FLOAT_SPACING_FRACTION = 1e-6
+
+# A lattice counts only when every level lies within this many steps of the central
+# levels, resolved or not.  The noise estimators then count every pixel's whole-step
+# index from the lowest value below 2**32, where float64 holds each index and each
+# half-step edge exactly, and the quantized fit's surface near the sky's index carries a
+# rounding error of under a millionth of a step.  A pixel farther out, such as a sentinel
+# value, would break that arithmetic.
+_MAX_LEVEL_STEPS = 2.0**31
+
+# When the central values sit on fewer than two levels, the step is fitted to them and to
+# the nearest level on each side, leaving out a side's level that lies more than this
+# many times as far from them as the other side's.
+_NEIGHBOR_GAPS = 2.0
 
 # The quantized fit conditions each pixel on a window of levels around the fitted surface
 # that reaches at least this many fitted sigmas beyond the surface on each side, and at
@@ -312,28 +331,73 @@ def _end_level_overflow(
     return float(max(overflows))
 
 
+def _widened_levels(
+    levels: NDArrayFloatType, first: int, last: int, central: tuple[float, float]
+) -> tuple[int, int]:
+    """The range of the central levels widened by the nearest level on each side.
+
+    A side's nearest level is left out when it lies more than _NEIGHBOR_GAPS times as far
+    from the central levels as the other side's, so a far level, such as a bright
+    pixel's, joins the fit only when no nearer level lies on the other side.
+
+    Parameters:
+        levels: The distinct levels, ascending.
+        first: The index of the lowest central level.
+        last: One past the index of the highest central level.
+        central: The lowest and highest central value, which bound the central levels.
+
+    Returns:
+        The widened range as the index of its lowest level and one past its highest.
+    """
+    inner_low = float(levels[first]) if last > first else central[0]
+    inner_high = float(levels[last - 1]) if last > first else central[1]
+    gap_below = inner_low - float(levels[first - 1]) if first > 0 else np.inf
+    gap_above = float(levels[last]) - inner_high if last < levels.size else np.inf
+    nearer = min(gap_below, gap_above)
+    if first > 0 and gap_below <= _NEIGHBOR_GAPS * nearer:
+        first -= 1
+    if last < levels.size and gap_above <= _NEIGHBOR_GAPS * nearer:
+        last += 1
+    return first, last
+
+
 def quantization_step(values: NDArrayFloatType) -> float | None:
     """The spacing of the lattice a sample's values sit on, or None if they sit on none.
 
-    The step starts as the smallest gap between distinct values and is refined by a
-    least-squares fit of the values on their whole-step indices, so a lattice of whole
-    DN scaled into float32 is found although each level carries its own rounding
-    error.  A value lies on the lattice when it is within a thousandth of a step of its
-    fitted level, or within a few float32 rounding errors of its own magnitude,
-    whichever is larger.
+    The step starts as the smallest gap between distinct values.  The step and the
+    lattice's origin are then fitted by least squares to the levels of the central 98%
+    of the values on their whole-step indices, so a lattice of whole DN scaled into
+    float32 is found although each level carries its own rounding error.  When the
+    central values sit on a single level, the fit adds the nearest level on each side,
+    but leaves out either one when it lies more than twice as far from the central level
+    as the other.  A far level, such as a bright pixel's, stays out of the fit whenever
+    the sky has a level within half its distance on the other side.
+
+    Each level is then checked against the fitted lattice.  It passes when it lies
+    within a thousandth of a step of its lattice level, or within a few float32
+    rounding errors of its own magnitude, whichever is larger.  A level beyond the
+    fitted ones may also be off by four standard errors of the fit carried out to it,
+    so a level far enough out that this allowance reaches half a step passes whatever
+    its value.  A value whose own float32 rounding reaches half a step, such as a bright
+    pixel far above a finely quantized sky, can't name its lattice level, and is
+    neither fitted nor checked.  Float64 values get the same float32 allowance, as they
+    may come from a float32 product.  The step returned is refitted across the levels
+    whose lattice index the fit pins down.
 
     A lattice counts only when the sample could fill it: its central 98% spans no
     more steps than there are values, and the step is far coarser than the spacing of
-    floating-point numbers at the values' magnitude.  Without those conditions every
+    floating-point numbers at the central values.  Without those conditions every
     float32 frame would pass, since its values are all whole multiples of the float
-    spacing.
+    spacing.  A lattice also counts only when every value lies within 2**31 steps of
+    the central levels, which keeps the noise estimators' whole-step arithmetic exact;
+    a sentinel value such as -1e17 beside a sky of whole DN puts the sample on none.
 
     Parameters:
         values: Pixel values (any shape; non-finite entries are ignored).
 
     Returns:
-        The fitted step when every distinct value lies on the lattice; None for
-        continuous values and for fewer than two distinct values.
+        The fitted step when the lattice counts and every level checked passes; None
+        for continuous values and for fewer than two distinct values.
     """
     arr = np.asarray(values, dtype=np.float64).ravel()
     finite = arr[np.isfinite(arr)]
@@ -341,22 +405,51 @@ def quantization_step(values: NDArrayFloatType) -> float | None:
     if levels.size < 2:
         return None
     step = float(np.min(np.diff(levels)))
-    magnitude = float(np.max(np.abs(levels)))
-    if step <= _FLOAT_SPACING_FRACTION * magnitude:
-        return None
-    low, high = np.quantile(finite, [0.01, 0.99])
+    low, high = (float(v) for v in np.quantile(finite, [0.01, 0.99]))
     if (high - low) / step > finite.size:
         return None
-    offsets = levels - levels[0]
+    if step <= _FLOAT_SPACING_FRACTION * max(abs(low), abs(high)):
+        return None
+    # A level whose float32 rounding reaches half a step can't say which lattice level it
+    # is on, so it is neither fitted nor checked.  Every central level is resolved, since
+    # the step passed the float-spacing condition there.
+    resolved = levels[_FLOAT_ROUNDING_EPS * np.abs(levels) < 0.5 * step]
+    first = int(np.searchsorted(resolved, low, side='left'))
+    last = int(np.searchsorted(resolved, high, side='right'))
+    if last - first < 2:
+        first, last = _widened_levels(resolved, first, last, (low, high))
+    if last - first < 2:
+        return None
+    central = resolved[first:last]
+    fitted = central - central[0]
     for _ in range(2):
-        index = np.round(offsets / step)
-        step, origin = (float(c) for c in np.polyfit(index, offsets, 1))
+        index = np.round(fitted / step)
+        step, origin = (float(c) for c in np.polyfit(index, fitted, 1))
         if step <= 0.0:
             return None
-    misfit = float(np.max(np.abs(offsets - origin - step * np.round(offsets / step))))
-    if misfit > max(_LATTICE_TOLERANCE * step, _FLOAT_ROUNDING_EPS * magnitude):
+    if float(np.max(np.abs(levels - central[0]))) > _MAX_LEVEL_STEPS * step:
         return None
-    return step
+    offsets = resolved - central[0]
+    lattice_index = np.round((offsets - origin) / step)
+    misfit = np.abs(offsets - origin - step * lattice_index)
+    # The fit's standard error at a level comes from the fitted levels' scatter about the
+    # fit, or from a single float32 rounding at their magnitude, whichever is larger.
+    spread = index - np.mean(index)
+    residual = fitted - origin - step * index
+    scatter = float(np.sqrt(np.sum(residual**2) / (central.size - 2))) if central.size > 2 else 0.0
+    sigma = max(scatter, _FLOAT32_EPS / 2.0 * float(np.max(np.abs(central))))
+    standard_error = sigma * np.sqrt(
+        1.0 / central.size + (lattice_index - np.mean(index)) ** 2 / float(np.sum(spread**2))
+    )
+    beyond = (lattice_index < index.min()) | (lattice_index > index.max())
+    tolerance = _FLOAT_ROUNDING_EPS * np.abs(resolved) + np.where(
+        beyond, _FIT_SIGMAS * standard_error, 0.0
+    )
+    if np.any(misfit > np.maximum(_LATTICE_TOLERANCE * step, tolerance)):
+        return None
+    placed = tolerance < 0.5 * step
+    placed_index = lattice_index[placed] - lattice_index[placed][0]
+    return float(np.polyfit(placed_index, resolved[placed] - resolved[placed][0], 1)[0])
 
 
 def _quadratic_design(vv: NDArrayFloatType, uu: NDArrayFloatType, size: int) -> NDArrayFloatType:
