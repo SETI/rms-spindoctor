@@ -4463,10 +4463,18 @@ models the clipping.
 Differences between neighbors assume the noise of neighboring pixels is
 independent.  A product resampled after readout, such as a geometrically
 corrected frame, mixes each pixel with its neighbors, so the differences read
-its noise low: on one such frame, differences between adjacent pixels gave about
-a third less than differences between pixels two apart and than the fit.  The
-simulated twin draws independent noise, so on such a product the two sides of
-the comparison are measured differently.
+its noise low.  On the 205 sky patches of the Voyager frame C3446143, the
+differences gave a median of 1.68e-3 I/F, about a third below the fit's 2.55e-3
+on the same patches.  The simulator can resample a Voyager frame the same way,
+but the matched scene does not turn that on, so on such a product the two sides
+of the comparison are measured differently.
+
+Near two steps, such a patch would get one estimate or the other by chance.
+Noise of 3 DN smoothed across neighbors reads about 1.7 DN from its differences
+and 3 DN from the fit.  So an unclipped patch whose differences read below two
+steps and whose fit reads 2.5 steps or more is not measured.  A block of pixels
+on one value inside the sky's range, such as a zero-filled border on a sky near
+zero, shrinks the differences and widens the fit in the same way.
 
 The fit models each pixel as a smooth surface plus Gaussian noise, rounded to
 the nearest lattice level
@@ -4507,6 +4515,19 @@ patch, the patch holds something other than noise, and its sigma is not
 measured.  A pixel on a clipped level counts as beyond its window only on the
 side away from the clip.
 
+A contaminant that joins the bulk with no empty level between piles onto one
+level.  On the patch's lowest or highest level the fit takes the pile for a
+clip and widens to follow it.  So once the fit is done, the bulk's lowest and
+highest levels are compared with the populations the fitted model predicts for
+them, and an open end level is predicted to hold all of the model's mass beyond
+its inner edge.  When either level holds more pixels than predicted by more than
+four times the square root of the prediction, plus 0.27% of the patch and three
+pixels, the patch's sigma is not measured.  On the benchmark below, no level
+came within 3.7 pixels of that limit.  The levels between are not checked,
+because a real camera's levels need not be equally wide.  In the darkest sky of
+real Galileo frames, the fullest level holds about 1.4 times the pixels the fit
+predicts for it, and its neighbors fewer.
+
 Both estimates were measured on Gaussian noise rounded to whole DN, in 32 × 32
 patches at random levels.  The sky was flat, tilted by 12 DN from corner to
 corner, or curved into a bowl 4 DN deep.  It was unclipped, clipped at the zero
@@ -4520,30 +4541,41 @@ the true sigma at every sigma, and for clipped sky within 2.7%.  Between 1 and
 differences measure it, they lie within 5.8%; the fit is the more precise
 estimate there, but it follows structure the differences ignore.  For clipped
 sky, which the fit measures at every sigma, they lie within 5.6% from 1 DN up.
-Below 1 DN they spread wider, to about 11% at 0.2 DN.
+Below 1 DN they spread wider, to about 11% at 0.2 DN.  Neither the end-level
+check nor the rule for disagreeing estimates turns away a single one of these
+patches.
 
 A few contaminated pixels raise the estimate a little.  On a flat sky at 1 DN,
 which the fit measures, a hot pixel and a two-pixel cosmic ray far above the
 noise raise it by about 2%, four pixels four sigmas above the sky by about 1%,
-ten pixels three sigmas above the sky by about 3%, and an eight-pixel cosmic ray
-one level above the highest noise level by about 3%.  At 0.3 DN, each of these
-raises it by up to 6%.  At 2 and 5 DN, where the differences measure, each raises
-it by 3% or less.
+and ten pixels three sigmas above the sky by about 3%.  At 0.3 DN, each of these
+raises it by up to 6%.  At 2 and 5 DN, where the differences measure, each
+raises it by 3% or less.  An eight-pixel cosmic ray one level above the highest
+noise level piles onto the bulk's highest level, so the end-level check leaves
+82% of such patches unmeasured at 0.3 and 0.5 DN, 62% at 1 DN, and 19% at 2 DN.
+The fit raises the rest by about 3%, except at 0.3 DN, where it raises them by
+about 26%.
 
-A contaminant covering many pixels is either cut off from the bulk or measured
-by the differences.  Two rows of zeros under a sky at 9 DN with a sigma of 1 DN,
-or 8 zero-filled columns at the edge of a sky at 100 DN, leave so many pixels
-beyond the bulk that the patch's sigma is not measured; a fit that took the
-zeros for a floor clip read 1.55 and 22.6 times the true sigma.  With a sigma of
-3 DN, the differences measure the patch with zero-filled columns, and it fails
-the structure test; the rows are the case below.
+A contaminant covering many pixels is cut off from the bulk, caught on an end
+level, or measured by the differences.  Two rows of zeros under a sky at 9 DN
+with a sigma of 1 DN, or 8 zero-filled columns at the edge of a sky at 100 DN,
+leave so many pixels beyond the bulk that the patch's sigma is not measured; a
+fit that took the zeros for a floor clip read 1.55 and 22.6 times the true
+sigma.  With a sigma of 3 DN, the differences measure the patch with zero-filled
+columns, and it fails the structure test.
 
-One case remains.  A contaminant on the patch's lowest or highest level that
-joins the bulk with no empty stretch between, which takes a contaminant within
-about three sigmas of the sky, is fitted as a clip, and the fit can follow it.
-Under a sky at 9 DN with a sigma of 3 DN, two rows of zeros raise the estimate by
-about 9% and five rows lower it by about 16%, and such patches pass the
-structure test.
+Under a sky that is itself floored at 0, rows of zeros join the bulk as its
+lowest level.  Under a sky at 9 DN, with sigmas from 1.5 to 3.5 DN, two or five
+such rows left 399 of 400 patches unmeasured.  A fit that took the zeros for a
+clip read 1.2 to 2 times the true sigma, and the patches passed the structure
+test.  The one patch measured, two rows under a sky of 3.5 DN, read 21% high.
+
+One case remains.  Where the sky's own noise reaches below the zeros, they sit
+inside the patch's levels, and the differences measure the patch when they read
+two steps or more.  The zero rows' own differences, all 0, pull the estimate
+low.  Under a sky at 9 DN with a sigma of 3 or 4 DN, two rows read about 8% low
+and five rows about 21% low, and such patches pass the structure test.  At 3 DN,
+about half the patches hold no pixel below 0, and those are not measured.
 
 The sigma can be measured only when at least three levels each hold at least
 two pixels, counting each window's end levels as holding the pixels beyond them.

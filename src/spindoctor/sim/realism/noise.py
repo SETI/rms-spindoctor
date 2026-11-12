@@ -20,7 +20,10 @@ spreading add is removed.  Below two steps that estimate drifts by up to a few p
 and below about one step more than half the differences are 0.  The quantized fit
 models a quadratic surface plus Gaussian noise, rounded to the lattice, by maximum
 likelihood, and models clipping.  It reads every level's population as noise, so
-structure the quadratic cannot follow counts as noise there.
+structure the quadratic cannot follow counts as noise there, and a patch whose lowest
+or highest level is far fuller than the fitted model predicts is not measured.  A
+patch whose differences read below two steps and whose fit reads 2.5 steps or more is
+not measured either.
 
 The sky spatial power spectrum (radially averaged over annuli of spatial
 frequency) catches banding and coherent noise that a scalar sigma cannot:
@@ -83,6 +86,15 @@ _GAUSSIAN_BEYOND_FRACTION = 0.0027
 _EXCESS_FRACTION = 0.01
 _EXCESS_PIXELS = 3
 
+# Once fitted, a quantized patch gives NaN when the lowest or highest level of its bulk
+# holds more pixels than the fitted model predicts for it by more than _LEVEL_SIGMAS times
+# the square root of the prediction plus _GAUSSIAN_BEYOND_FRACTION of the patch and
+# _EXCESS_PIXELS.  On rounded Gaussian noise of 0.3 to 10 steps, flat, tilted, or curved,
+# clipped or not, no level of 11,000 patches came within 3.7 pixels of that limit.  The
+# levels between are left unchecked: the darkest sky of real Galileo frames puts about
+# 1.4 times the predicted pixels on its fullest level, and few on its neighbors.
+_LEVEL_SIGMAS = 4.0
+
 # The bulk of a quantized patch's levels is broken by a stretch of empty levels wider
 # than this many paired-difference sigmas, and by any empty level when that sigma is
 # below 1/_GAP_SIGMAS of a step.  Noise many steps wide leaves empty levels in its tails;
@@ -94,6 +106,11 @@ _GAP_SIGMAS = 1.5
 # many steps, and by the quantized fit below it.  From two steps up, the median estimate
 # on rounded Gaussian noise lies within 1% of the truth.
 _DIFFERENCE_MIN_STEPS = 2.0
+
+# An unclipped lattice patch whose paired differences read below _DIFFERENCE_MIN_STEPS but
+# whose quantized fit reads at least this many steps gives NaN: the two estimators
+# disagree, as they do on a resampled product or a patch holding a block of one value.
+_DISAGREEMENT_STEPS = 2.5
 
 # The variance, in steps squared, that rounding adds to each pixel (1/12, so 1/6 to a
 # difference) and that spreading each whole-step difference across its step adds to the
@@ -241,6 +258,52 @@ def _is_clipped(q: NDArrayFloatType, sigma_steps: float) -> bool:
     low_count = int(np.sum(q == 0.0)) if bulk_low == 0 else 0
     high_count = int(np.sum(q == bulk_high)) if bulk_high == int(q.max()) else 0
     return max(low_count, high_count) > limit
+
+
+def _end_level_overflow(
+    q: NDArrayFloatType,
+    mu: NDArrayFloatType,
+    sigma: float,
+    bulk: tuple[int, int],
+    *,
+    open_low: bool,
+    open_high: bool,
+) -> float:
+    """How far the fuller end level of the bulk overflows the fitted model's prediction.
+
+    The model predicts a level's population as the sum, over every pixel, of the
+    probability that the pixel's surface plus Gaussian noise rounds to that level.  An
+    open end level is predicted to hold the whole mass beyond its inner edge.  A level
+    overflows by the pixels it holds beyond its prediction plus _LEVEL_SIGMAS times the
+    square root of the prediction, the count's Poisson scatter.
+
+    Parameters:
+        q: Whole-step level index of each pixel.
+        mu: The fitted surface at each pixel, in steps.
+        sigma: The fitted sigma in steps.
+        bulk: The lowest and highest level of the bulk.
+        open_low: Whether the bulk's lowest level gathers everything below it.
+        open_high: Whether the bulk's highest level gathers everything above it.
+
+    Returns:
+        The larger overflow of the two end levels, in pixels; negative when both hold
+        fewer pixels than their allowance.
+    """
+    low, high = bulk
+    # Each pixel's probability of lying below the low level's upper edge, and above the
+    # high level's lower edge.
+    below_low = scipy.special.ndtr((low + 0.5 - mu) / sigma)
+    above_high = scipy.special.ndtr((mu - high + 0.5) / sigma)
+    if not open_low:
+        below_low = below_low - scipy.special.ndtr((low - 0.5 - mu) / sigma)
+    if not open_high:
+        above_high = above_high - scipy.special.ndtr((mu - high - 0.5) / sigma)
+    overflows = []
+    for level, probability in ((low, below_low), (high, above_high)):
+        predicted = float(np.sum(probability))
+        count = int(np.sum(q == level))
+        overflows.append(count - predicted - _LEVEL_SIGMAS * np.sqrt(predicted))
+    return float(max(overflows))
 
 
 def quantization_step(values: NDArrayFloatType) -> float | None:
@@ -473,8 +536,19 @@ def lattice_noise_sigma(patch: NDArrayFloatType, step: float) -> float:
     beyond their windows or cut off from the bulk exceed that fraction by more than 1%
     of the patch plus three pixels holds something other than noise, and returns NaN.
     A pixel on a clipped end level is beyond its window only on the side away from the
-    clip.  A contaminant that joins the bulk with no empty stretch between, on the
-    patch's lowest or highest level, is fitted as a clip, and the fit can follow it.
+    clip.
+
+    A contaminant that joins the bulk with no empty level between, such as dropout rows
+    at zero under a sky a few sigmas above the floor, piles onto one level.  On the
+    patch's lowest or highest level the fit takes it for a clip and widens to follow it.
+    So once the fit is done, the bulk's lowest and highest levels are each compared with
+    the population the fitted model predicts for them, an open end level with the
+    model's whole mass beyond its inner edge.  A patch whose end level holds more pixels
+    than predicted, by more than four times the square root of the prediction, the
+    count's Poisson scatter, plus 0.27% of the patch and three pixels, returns NaN.  The
+    levels between are not checked, because a real camera's levels need not be equally
+    wide: the darkest sky of real Galileo frames puts about 1.4 times the predicted
+    pixels on its fullest level.
 
     The sigma is only measurable when at least three levels, counting each window's
     end levels as holding the pixels beyond them, each hold at least two pixels.  A
@@ -542,7 +616,18 @@ def lattice_noise_sigma(patch: NDArrayFloatType, step: float) -> float:
         return float('nan')
     if int(beyond.sum()) > _excess_limit(q.size, _GAUSSIAN_BEYOND_FRACTION):
         return float('nan')
-    return float(np.exp(params[-1]) * step)
+    sigma = float(np.exp(params[-1]))
+    overflow = _end_level_overflow(
+        q,
+        _surface(design, params[:-1]),
+        sigma,
+        (bulk_low, bulk_high),
+        open_low=bulk_low == 0,
+        open_high=bulk_high == int(q_high),
+    )
+    if overflow > _GAUSSIAN_BEYOND_FRACTION * q.size + _EXCESS_PIXELS:
+        return float('nan')
+    return sigma * step
 
 
 def patch_noise_sigma(patch: NDArrayFloatType) -> float:
@@ -559,8 +644,13 @@ def patch_noise_sigma(patch: NDArrayFloatType) -> float:
     than 1% of its pixels plus three, has its differences shrunk by the clipped pixels,
     and goes to the fit, which models the clipping.
 
-    Paired differences assume neighboring pixels carry independent noise; on a product
-    resampled after readout, which mixes neighbors, they read the noise low.
+    An unclipped patch whose differences read below two steps but whose fit reads 2.5
+    steps or more returns NaN, because the two estimators disagree.  Paired differences
+    assume neighboring pixels carry independent noise.  On a product resampled after
+    readout, which mixes neighbors, they read the noise low while the fit reads each
+    pixel's own spread, so near the switch the patch would otherwise get one estimate or
+    the other by chance.  A block of pixels on one value inside the sky's range, which
+    shrinks the differences and widens the fit, disagrees the same way.
 
     Each estimate gives the sigma of the noise before any rounding.  A product that was
     quantized and then rescaled pixel by pixel, such as a flat-fielded frame, no longer
@@ -584,8 +674,13 @@ def patch_noise_sigma(patch: NDArrayFloatType) -> float:
     if arr.ndim == 2 and arr.shape[1] >= 2 and finite.size == arr.size:
         q = np.round((arr - float(finite.min())) / step)
         sigma = _grouped_difference_sigma(q)
-        if sigma >= _DIFFERENCE_MIN_STEPS and not _is_clipped(q, sigma):
+        clipped = _is_clipped(q, sigma)
+        if sigma >= _DIFFERENCE_MIN_STEPS and not clipped:
             return sigma * step
+        fitted = lattice_noise_sigma(arr, step)
+        if not clipped and fitted >= _DISAGREEMENT_STEPS * step:
+            return float('nan')
+        return fitted
     return lattice_noise_sigma(arr, step)
 
 

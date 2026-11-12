@@ -7,6 +7,7 @@ from typing import Any
 
 import numpy as np
 import pytest
+import scipy.ndimage
 import scipy.optimize
 
 import spindoctor.sim.realism.noise as noise_module
@@ -106,6 +107,51 @@ def test_zeros_cut_off_from_the_sky_are_not_measurable(
     rng = np.random.default_rng(36)
     patch = np.round(level + rng.normal(0.0, 1.0, (32, 32)))
     patch[rows, columns] = 0.0
+    assert np.isnan(patch_noise_sigma(patch))
+
+
+def test_zeros_joined_to_the_sky_are_not_measurable() -> None:
+    """Two dropout rows under a sky at 9 DN of sigma 3 DN, floored at 0, give NaN.
+
+    The zeros join the sky's own floored pixels with no empty level between, so the fit
+    takes them for a floor clip, and the zero level holds far more pixels than the fitted
+    model predicts for it.  A fit that accepts the clip reads about 24% high, and the
+    patch passes the structure test.
+    """
+    rng = np.random.default_rng(40)
+    patch = np.maximum(np.round(9.0 + rng.normal(0.0, 3.0, (32, 32))), 0.0)
+    patch[10:12, :] = 0.0
+    assert np.isnan(patch_noise_sigma(patch))
+
+
+def test_noise_digitized_with_one_wide_level_stays_measurable() -> None:
+    """Whole-DN noise of 1 DN whose central level is wider than a step keeps its sigma.
+
+    The central level spans 1.4 DN, so it holds about 1.35 times the pixels rounded
+    Gaussian noise puts there, as the fullest level of real Galileo sky does.  Only the
+    bulk's end levels are held to the fitted model's prediction; a check of every level
+    leaves this patch unmeasurable.
+    """
+    rng = np.random.default_rng(41)
+    values = 100.0 + rng.normal(0.0, 1.0, (32, 32))
+    patch = np.round(values)
+    patch[np.abs(values - 100.0) < 0.7] = 100.0
+    assert np.isfinite(patch_noise_sigma(patch))
+
+
+def test_noise_the_two_estimators_disagree_on_is_not_measurable() -> None:
+    """Whole-DN noise of 3 DN smoothed across neighbors, as resampling does, gives NaN.
+
+    Smoothing correlates neighboring pixels, so paired differences read about 1.7 DN,
+    below two steps, while the quantized fit reads the pixels' own spread of about 3 DN.
+    """
+    rng = np.random.default_rng(40)
+    kernel = np.array([0.25, 0.5, 0.25])
+    white = rng.normal(0.0, 1.0, (36, 36))
+    smooth = scipy.ndimage.convolve1d(
+        scipy.ndimage.convolve1d(white, kernel, axis=0), kernel, axis=1
+    )
+    patch = np.round(50.0 + 8.0 * smooth[2:34, 2:34])
     assert np.isnan(patch_noise_sigma(patch))
 
 
