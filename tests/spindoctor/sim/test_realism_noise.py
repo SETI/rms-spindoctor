@@ -108,6 +108,76 @@ def test_two_level_patch_sigma_is_not_measurable() -> None:
     assert np.isnan(lattice_noise_sigma(patch, 1.0))
 
 
+def test_two_levels_and_one_stray_pixel_are_not_measurable() -> None:
+    """One stray pixel on a third level doesn't make a two-level patch measurable."""
+    rng = np.random.default_rng(28)
+    patch = np.round(rng.normal(100.5, 0.15, (32, 32)))
+    patch[5, 5] = 102.0
+    assert np.isnan(patch_noise_sigma(patch))
+
+
+def test_a_patch_of_one_value_is_not_measurable() -> None:
+    """A tile of one value has no measurable sigma, as a two-level patch has none."""
+    assert np.isnan(patch_noise_sigma(np.full((32, 32), 7.0)))
+
+
+def test_quantized_noise_on_a_curved_sky_is_recovered() -> None:
+    """Curvature across the patch is fitted, never read as noise.
+
+    The sky is a bowl 4 DN deep with sigma 1 DN; a fitted plane leaves the bowl in the
+    residuals and reads about 1.31 DN.
+    """
+    rng = np.random.default_rng(29)
+    vv, uu = np.mgrid[0:32, 0:32].astype(np.float64)
+    bowl = 2.0 * (((vv - 15.5) / 16.0) ** 2 + ((uu - 15.5) / 16.0) ** 2)
+    patch = np.round(100.3 + bowl + rng.normal(0.0, 1.0, (32, 32)))
+    assert patch_noise_sigma(patch) == pytest.approx(1.0, rel=0.05)
+
+
+def test_quantized_noise_well_below_one_step_on_a_gradient_is_recovered() -> None:
+    """Sigma 0.2 DN on a gradient of 1 DN across the patch gives back 0.2 DN.
+
+    The gradient is fitted together with the noise; a gradient fixed beforehand by least
+    squares reads about 11% high here.  The median runs over 20 patches at random levels,
+    since one patch this far below a step carries only a few pixels off its level.
+    """
+    rng = np.random.default_rng(30)
+    vv, uu = np.mgrid[0:32, 0:32].astype(np.float64)
+    gradient = (vv + uu) / 64.0
+    sigmas = [
+        patch_noise_sigma(
+            np.round(100.0 + rng.uniform() + gradient + rng.normal(0.0, 0.2, (32, 32)))
+        )
+        for _ in range(20)
+    ]
+    assert float(np.nanmedian(sigmas)) == pytest.approx(0.2, rel=0.03)
+
+
+def test_quantized_noise_clipped_at_the_floor_is_recovered() -> None:
+    """Sky at the zero floor, where half the values are clipped to 0, gives back its sigma."""
+    rng = np.random.default_rng(31)
+    patch = np.clip(np.round(rng.normal(0.0, 1.0, (32, 32))), 0.0, None)
+    assert patch_noise_sigma(patch) == pytest.approx(1.0, rel=0.08)
+
+
+@pytest.mark.parametrize(
+    ('scale', 'offset', 'level'),
+    [(1.234e-3, 0.0, 3000.0), (1e-4, 0.5, 30.0), (1e-4, 8.0, 30.0)],
+    ids=['scaled', 'scaled-and-offset', 'offset-beyond-the-step-tolerance'],
+)
+def test_quantization_step_finds_whole_dn_scaled_into_float32(
+    scale: float, offset: float, level: float
+) -> None:
+    """Whole DN scaled into float32 sit on a lattice although each value carries rounding.
+
+    Near 8.0, a float32 value's rounding exceeds a thousandth of a 1e-4 step, so the
+    tolerance there comes from the float precision at the values' magnitude.
+    """
+    rng = np.random.default_rng(32)
+    patch = (np.round(rng.normal(level, 3.0, (32, 32))) * scale + offset).astype(np.float32)
+    assert quantization_step(patch) == pytest.approx(scale, rel=1e-4)
+
+
 def test_find_uniform_patches_keeps_quantized_sky_below_one_step() -> None:
     """Whole-DN sky whose noise is below one DN still yields every patch."""
     rng = np.random.default_rng(26)
@@ -181,7 +251,7 @@ def test_dark_sky_keeps_a_patch_far_below_the_ceiling() -> None:
 
 
 def test_a_constant_patch_has_no_noise_to_compare() -> None:
-    """A patch whose sigma is 0, such as a zero-filled tile, is dropped."""
+    """A patch whose sigma is 0 is dropped."""
     constant = SkyPatch(v0=0, u0=0, size=32, mean=0.0, sigma=0.0)
     sky = SkyPatch(v0=0, u0=32, size=32, mean=4e-5, sigma=1e-4)
     assert noisy_patches([constant, sky]) == [sky]

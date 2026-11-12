@@ -11,8 +11,9 @@ from inflating the estimate; naive signal-binning would conflate scene texture w
 noise, which is exactly what this estimator avoids.
 
 A patch whose values sit on a lattice of equally spaced levels, such as whole DN, is
-measured by fitting the quantization itself (:func:`lattice_noise_sigma`).  The
-paired-difference scale is not valid there: when the noise is below about one step,
+measured by fitting the quantization itself (:func:`lattice_noise_sigma`): a
+quadratic surface plus Gaussian noise, rounded to the lattice, fitted by maximum
+likelihood.  The paired-difference scale is not valid there: when the noise is below about one step,
 more than half the differences are 0, the MAD is 0, and a camera whose noise is
 smaller than one step contributes no sky samples at all.  Above one step, the MAD of
 whole-step differences is itself a whole or half step, so the estimate can only take
@@ -46,10 +47,15 @@ __all__ = [
 # MAD to sigma conversion for a normal distribution.
 _MAD_TO_SIGMA = 1.4826
 
-# A patch's distinct values lie on a lattice when each one's distance from the
-# lowest, in units of the smallest gap between them, is a whole number to within
-# this fraction of a step.
+# A patch's distinct values lie on a lattice when each one lies within this fraction of
+# a step of the lattice level fitted to it, or within _FLOAT_ROUNDING_EPS of its own
+# magnitude, whichever is larger.
 _LATTICE_TOLERANCE = 1e-3
+
+# The rounding error a float32 value can carry, relative to its magnitude: a few units
+# of float32's machine epsilon.  A lattice of whole DN scaled into float32, such as DN
+# times 1.234e-3 near DN 3000, sits off its levels by this much.
+_FLOAT_ROUNDING_EPS = 4.0 * float(np.finfo(np.float32).eps)
 
 # A step at or below this fraction of the largest value's magnitude is the spacing of
 # floating-point numbers, not a quantization: the float32 values near 3e-3 I/F are
@@ -57,14 +63,25 @@ _LATTICE_TOLERANCE = 1e-3
 _FLOAT_SPACING_FRACTION = 1e-6
 
 # The quantized fit uses the levels within this many robust sigmas of each pixel's
-# fitted level (and at least _MIN_HALF_WINDOW_STEPS steps), cut back to the run of
+# first-guess level (and at least _MIN_HALF_WINDOW_STEPS steps), cut back to the run of
 # occupied levels around it.
 _WINDOW_SIGMAS = 5.0
 _MIN_HALF_WINDOW_STEPS = 3
 
-# The fewest occupied levels from which the quantized fit can tell the noise sigma
-# from the level: two levels fix one proportion, which any sigma can match.
+# The fewest populated levels from which the quantized fit can tell the noise sigma
+# from the level and its slope: two levels fix one proportion, which any sigma can
+# match.  A level is populated when at least _MIN_LEVEL_PIXELS pixels sit on it, so one
+# stray pixel next to a two-level patch cannot make a third level.
 _MIN_LEVELS = 3
+_MIN_LEVEL_PIXELS = 2
+
+# The quantized fit searches sigmas from this fraction of a step up to the span of the
+# levels in its window, which keeps the search away from sigmas whose interval
+# probabilities underflow.
+_MIN_SIGMA_STEPS = 1e-3
+
+# The floor put under a probability before its log is taken.
+_SMALLEST_PROBABILITY = 1e-300
 
 
 @dataclass(frozen=True)
@@ -111,6 +128,13 @@ def paired_difference_sigma(patch: NDArrayFloatType) -> float:
 def quantization_step(values: NDArrayFloatType) -> float | None:
     """The spacing of the lattice a sample's values sit on, or None if they sit on none.
 
+    The step starts as the smallest gap between distinct values and is refined by a
+    least-squares fit of the values on their whole-step indices, so a lattice of whole
+    DN scaled into float32 is found although each level carries its own rounding
+    error.  A value lies on the lattice when it is within a thousandth of a step of its
+    fitted level, or within a few float32 rounding errors of its own magnitude,
+    whichever is larger.
+
     A lattice counts only when the sample could fill it: its central 98% spans no
     more steps than there are values, and the step is far coarser than the spacing of
     floating-point numbers at the values' magnitude.  Without those conditions every
@@ -121,9 +145,8 @@ def quantization_step(values: NDArrayFloatType) -> float | None:
         values: Pixel values (any shape; non-finite entries are ignored).
 
     Returns:
-        The smallest gap between distinct values when every distinct value lies a
-        whole number of those gaps above the lowest; None for continuous values and
-        for fewer than two distinct values.
+        The fitted step when every distinct value lies on the lattice; None for
+        continuous values and for fewer than two distinct values.
     """
     arr = np.asarray(values, dtype=np.float64).ravel()
     finite = arr[np.isfinite(arr)]
@@ -131,66 +154,122 @@ def quantization_step(values: NDArrayFloatType) -> float | None:
     if levels.size < 2:
         return None
     step = float(np.min(np.diff(levels)))
-    if step <= _FLOAT_SPACING_FRACTION * float(np.max(np.abs(levels))):
+    magnitude = float(np.max(np.abs(levels)))
+    if step <= _FLOAT_SPACING_FRACTION * magnitude:
         return None
     low, high = np.quantile(finite, [0.01, 0.99])
     if (high - low) / step > finite.size:
         return None
-    in_steps = (levels - levels[0]) / step
-    if float(np.max(np.abs(in_steps - np.round(in_steps)))) > _LATTICE_TOLERANCE:
+    offsets = levels - levels[0]
+    for _ in range(2):
+        index = np.round(offsets / step)
+        step, origin = (float(c) for c in np.polyfit(index, offsets, 1))
+        if step <= 0.0:
+            return None
+    misfit = float(np.max(np.abs(offsets - origin - step * np.round(offsets / step))))
+    if misfit > max(_LATTICE_TOLERANCE * step, _FLOAT_ROUNDING_EPS * magnitude):
         return None
     return step
+
+
+def _quadratic_design(vv: NDArrayFloatType, uu: NDArrayFloatType, size: int) -> NDArrayFloatType:
+    """The columns of a quadratic surface over a patch: 1, y, x, y^2, xy, x^2.
+
+    The coordinates are scaled to run from about -1 to 1 across the patch, which keeps
+    the fit well conditioned.
+    """
+    half = max(size, 2) / 2.0
+    y = (vv - (size - 1) / 2.0) / half
+    x = (uu - (size - 1) / 2.0) / half
+    return np.column_stack([np.ones_like(x), y, x, y * y, x * y, x * x])
+
+
+def _log_interval_probability(lower: NDArrayFloatType, upper: NDArrayFloatType) -> NDArrayFloatType:
+    """``log(Phi(upper) - Phi(lower))`` for ``lower < upper``, accurate in both tails.
+
+    An interval too narrow to resolve in double precision gets the log of the smallest
+    positive probability rather than minus infinity.
+    """
+    flip = lower > 0.0
+    low = np.where(flip, -upper, lower)
+    high = np.where(flip, -lower, upper)
+    log_high = scipy.special.log_ndtr(high)
+    log_low = scipy.special.log_ndtr(low)
+    fraction = np.maximum(-np.expm1(log_low - log_high), _SMALLEST_PROBABILITY)
+    return np.asarray(log_high + np.log(fraction), dtype=np.float64)
+
+
+def _normal_density(z: NDArrayFloatType) -> NDArrayFloatType:
+    """The standard normal density, 0 at infinite ``z``."""
+    return np.asarray(np.exp(-0.5 * z * z) / np.sqrt(2.0 * np.pi), dtype=np.float64)
+
+
+def _z_times_density(z: NDArrayFloatType) -> NDArrayFloatType:
+    """``z`` times the standard normal density, 0 at infinite ``z``."""
+    finite = np.isfinite(z)
+    zf = np.where(finite, z, 0.0)
+    return np.where(finite, zf * _normal_density(zf), 0.0)
 
 
 def lattice_noise_sigma(patch: NDArrayFloatType, step: float) -> float:
     """Noise sigma of a quantized patch, by fitting the quantization.
 
-    Each pixel is modeled as a level on a plane across the patch plus Gaussian noise
-    of sigma ``s``, rounded to the nearest lattice level, so a pixel lands on level
-    ``q`` with probability ``Phi((q + step/2 - mu) / s) - Phi((q - step/2 - mu) / s)``,
-    where ``mu`` is the plane's level at that pixel.  The plane's tilt comes from a
-    least-squares fit, which rounding does not bias, and the plane's level and ``s``
-    are fitted by maximum likelihood.  The fit recovers a sigma well below one step,
-    which local differencing reports as 0, and it is unbiased above one step, where
-    differencing can only return values about half a step apart.
+    Each pixel is modeled as a smooth surface plus Gaussian noise of sigma ``s``,
+    rounded to the nearest lattice level, so a pixel lands on level ``q`` with
+    probability ``Phi((q + step/2 - mu) / s) - Phi((q - step/2 - mu) / s)``, where
+    ``mu`` is the surface at that pixel.  The surface is a quadratic in the pixel's
+    row and column, and its six coefficients are fitted together with ``s`` by maximum
+    likelihood, so neither a gradient nor curvature across the patch is mistaken for
+    noise.  The fit recovers a sigma well below one step, which local differencing
+    reports as 0, and it is unbiased above one step, where differencing can only
+    return values about half a step apart.
+
+    The patch's lowest and highest levels in the fit are each taken as open-ended: a
+    pixel on the lowest level is known only to lie below that level's upper edge, and
+    a pixel on the highest level only to lie above its lower edge.  So a patch clipped
+    at the detector's floor or at saturation, where the lowest or highest level
+    gathers every value beyond it, is fitted as faithfully as an unclipped one.
 
     The fit uses each pixel only when its level lies in a window around the pixel's
     first-guess level: within five robust sigmas (at least three steps), and within
     the run of occupied levels around it, so a hot pixel or cosmic ray separated from
-    the noise by an empty level is left out.  The likelihood is conditioned on the
-    window, so leaving the tails out does not bias the sigma.
+    the noise by an empty level is left out.
 
-    The sigma is only measurable when the window holds at least three occupied
-    levels.  A patch whose noise is so far below one step that its pixels take only
-    two values gives one proportion, and any sigma, with a matching level, gives that
-    proportion; such a patch returns NaN.
+    The sigma is only measurable when at least three levels in the window each hold
+    at least two pixels.  A patch whose noise is so far below one step that its pixels
+    take only two values gives one proportion along the surface, and any sigma, with a
+    matching surface, gives that proportion; such a patch returns NaN, as does a patch
+    of one value.
 
     Parameters:
         patch: 2-D array of pixel values on a lattice of spacing ``step``.
         step: The lattice spacing, as :func:`quantization_step` returns it.
 
     Returns:
-        The fitted sigma in the patch's units; 0 for a patch of one value, and NaN
-        when the sigma is not measurable.
+        The fitted sigma in the patch's units, or NaN when the sigma is not
+        measurable.
     """
     arr = np.asarray(patch, dtype=np.float64)
     finite = np.isfinite(arr)
     if arr.ndim != 2 or int(finite.sum()) < 8:
         return float('nan')
     values = arr[finite]
-    if float(values.max()) == float(values.min()):
-        return 0.0
-    vv, uu = np.nonzero(finite)
-    v_c = vv - vv.mean()
-    u_c = uu - uu.mean()
     q = np.round((values - values.min()) / step)
-    median = float(np.median(q))
-    robust_sigma = max(_MAD_TO_SIGMA * float(np.median(np.abs(q - median))), 0.5)
-    near = np.abs(q - median) <= 3.0 * robust_sigma + 1.0
-    design = np.column_stack([np.ones(int(near.sum())), v_c[near], u_c[near]])
-    coef = np.linalg.lstsq(design, q[near], rcond=None)[0]
-    tilt = coef[1] * v_c + coef[2] * u_c
-    center = np.round(coef[0] + tilt)
+    vv, uu = np.nonzero(finite)
+    design = _quadratic_design(vv.astype(np.float64), uu.astype(np.float64), max(arr.shape))
+
+    # First guess: a least-squares surface, refit twice without the pixels far from it.
+    near = np.ones(q.size, dtype=bool)
+    robust_sigma = 0.5
+    for _ in range(3):
+        coef = np.linalg.lstsq(design[near], q[near], rcond=None)[0]
+        resid = q - design @ coef
+        deviation = np.abs(resid[near] - np.median(resid[near]))
+        robust_sigma = max(_MAD_TO_SIGMA * float(np.median(deviation)), 0.5)
+        near = np.abs(resid) <= 4.0 * robust_sigma + 1.0
+    center = np.round(design @ coef)
+
+    # The window: the run of occupied levels around each pixel's first-guess level.
     offset = (q - center).astype(np.int64)
     half = max(_MIN_HALF_WINDOW_STEPS, int(np.ceil(_WINDOW_SIGMAS * robust_sigma)))
     occupied = set(offset[np.abs(offset) <= half].tolist())
@@ -204,34 +283,41 @@ def lattice_noise_sigma(patch: NDArrayFloatType, step: float) -> float:
         high += 1
     keep = (offset >= low) & (offset <= high)
     q_k = q[keep]
-    if np.unique(q_k).size < _MIN_LEVELS:
+    design_k = design[keep]
+    _levels, counts = np.unique(q_k, return_counts=True)
+    if int(np.sum(counts >= _MIN_LEVEL_PIXELS)) < _MIN_LEVELS:
         return float('nan')
-    tilt_k = tilt[keep]
-    top = center[keep] + high + 0.5
-    bottom = center[keep] + low - 0.5
+    upper_edge = np.where(q_k == q_k.max(), np.inf, q_k + 0.5)
+    lower_edge = np.where(q_k == q_k.min(), -np.inf, q_k - 0.5)
+    n_coef = design_k.shape[1]
 
-    def neg_log_likelihood(params: NDArrayFloatType) -> float:
-        level, log_sigma = float(params[0]), float(params[1])
-        sigma = np.exp(log_sigma)
-        mu = level + tilt_k
-        p_pixel = scipy.special.ndtr((q_k + 0.5 - mu) / sigma) - scipy.special.ndtr(
-            (q_k - 0.5 - mu) / sigma
-        )
-        p_window = scipy.special.ndtr((top - mu) / sigma) - scipy.special.ndtr(
-            (bottom - mu) / sigma
-        )
-        return -float(
-            np.sum(np.log(np.maximum(p_pixel, 1e-300)) - np.log(np.maximum(p_window, 1e-300)))
-        )
+    def neg_log_likelihood(params: NDArrayFloatType) -> tuple[float, NDArrayFloatType]:
+        sigma = float(np.exp(params[n_coef]))
+        mu = design_k @ params[:n_coef]
+        z_upper = (upper_edge - mu) / sigma
+        z_lower = (lower_edge - mu) / sigma
+        log_p = _log_interval_probability(z_lower, z_upper)
+        p = np.maximum(np.exp(log_p), _SMALLEST_PROBABILITY)
+        d_mu = (_normal_density(z_upper) - _normal_density(z_lower)) / (sigma * p)
+        d_log_sigma = (_z_times_density(z_upper) - _z_times_density(z_lower)) / p
+        grad = np.empty(n_coef + 1)
+        grad[:n_coef] = design_k.T @ d_mu
+        grad[n_coef] = float(np.sum(d_log_sigma))
+        return -float(np.sum(log_p)), grad
 
-    first_sigma = max(float(np.std(q_k - center[keep])), 0.3)
+    coef_k = np.linalg.lstsq(design_k, q_k, rcond=None)[0]
+    resid_var = float(np.var(q_k - design_k @ coef_k))
+    first_sigma = max(np.sqrt(max(resid_var - 1.0 / 12.0, 0.0)), 0.3)
+    span = float(q_k.max() - q_k.min()) + 1.0
+    bounds = [(None, None)] * n_coef + [(np.log(_MIN_SIGMA_STEPS), np.log(span))]
     fit = scipy.optimize.minimize(
         neg_log_likelihood,
-        np.array([coef[0], np.log(first_sigma)]),
-        method='Nelder-Mead',
-        options={'xatol': 1e-4, 'fatol': 1e-6},
+        np.append(coef_k, np.log(min(first_sigma, span))),
+        jac=True,
+        method='L-BFGS-B',
+        bounds=bounds,
     )
-    return float(np.exp(fit.x[1]) * step)
+    return float(np.exp(fit.x[n_coef]) * step)
 
 
 def patch_noise_sigma(patch: NDArrayFloatType) -> float:
@@ -248,13 +334,17 @@ def patch_noise_sigma(patch: NDArrayFloatType) -> float:
         patch: 2-D array of pixel values (a near-uniform region).
 
     Returns:
-        The sigma in the patch's units; NaN for a degenerate patch and for a
-        quantized one whose sigma is not measurable.
+        The sigma in the patch's units; NaN for a degenerate patch, for a patch of
+        one value, and for a quantized patch whose sigma is not measurable.
     """
-    step = quantization_step(patch)
+    arr = np.asarray(patch, dtype=np.float64)
+    finite = arr[np.isfinite(arr)]
+    if finite.size and float(finite.max()) == float(finite.min()):
+        return float('nan')
+    step = quantization_step(arr)
     if step is not None:
-        return lattice_noise_sigma(patch, step)
-    return paired_difference_sigma(patch)
+        return lattice_noise_sigma(arr, step)
+    return paired_difference_sigma(arr)
 
 
 def find_uniform_patches(
@@ -274,8 +364,8 @@ def find_uniform_patches(
     patch's total standard deviation does not exceed ``max_structure_ratio``
     times its noise sigma (:func:`patch_noise_sigma`).  Condition (b) rejects
     patches crossed by limbs, rings, or bright stars, whose spatial structure
-    would masquerade as noise.  A patch whose sigma is not measurable is
-    skipped.
+    would masquerade as noise.  A patch whose sigma is not measurable, such
+    as a tile of one value, is skipped.
 
     Parameters:
         image: 2-D frame in its native units.
@@ -320,8 +410,10 @@ def find_uniform_patches(
 def noisy_patches(patches: list[SkyPatch]) -> list[SkyPatch]:
     """Select the patches whose noise sigma is positive.
 
-    A tile of one constant value, such as zero-filled missing data, passes the
-    uniformity test with a sigma of 0 but holds no noise to compare.
+    A patch of continuous values whose neighbors mostly share a value, such as
+    zero-filled missing data with a few stray pixels, has a paired-difference sigma
+    of 0 and holds no noise to compare.  A tile of one value has no measurable sigma
+    and never becomes a patch.
 
     Parameters:
         patches: One frame's sky patches.

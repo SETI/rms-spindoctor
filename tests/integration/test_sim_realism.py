@@ -392,7 +392,7 @@ def test_a_frame_without_real_sky_adds_nothing_on_the_sim_side() -> None:
 
 
 def test_a_constant_patch_adds_no_sky_noise() -> None:
-    """A patch whose sigma is 0, such as a zero-filled tile, is left out of the pool."""
+    """A patch whose sigma is 0 is left out of the pool."""
     real = _sky_frame_of([(0.0, 0.0), (_REF, 1e-4)])
     pair_sky(_sky_record(), real, _sky_frame(_REF), twins_with_sky=True)
     assert real.samples['sky_sigma'] == [1e-4]

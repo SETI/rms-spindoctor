@@ -622,8 +622,8 @@ def pair_sky(
     """Add one frame pair's FOM 1 sky samples from the patches on dark sky in both frames.
 
     A frame's sky patches are the darkest quarter of the uniform patches whose noise
-    sigma is positive (a constant tile, such as zero-filled missing data, has a
-    sigma of 0).  On a
+    sigma is positive (a constant tile, such as zero-filled missing data, has no
+    measurable sigma and is never a patch).  On a
     frame filled with rings or a body they lie on that content, and comparing them
     with the other frame's dark sky would set signal-dependent noise against sky
     noise.  So on an instrument that sets a dark-sky ceiling, a patch of either
