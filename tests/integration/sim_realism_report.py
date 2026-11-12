@@ -5,11 +5,11 @@ overlays plus the curve overlays) into ``docs/simulator_report/_figures/``
 as ``realism_<instrument>_<fom>.png``, and a deterministic JSON summary
 into ``tests/integration/realism_results/realism_summary.json`` that backs
 the report's tables and the regression check (the code commit it was made
-from, per-kind W1 divergences, per-curve density-W1 divergences, support
-labels with each side's frame counts, the FOM 3 one-sided-stratum
-disclosure, the FOM 1 sky pairing with its per-frame sigma ratios, the FOM
-7 diagnostic rows, and the artifact-rate comparison against the catalog
-defaults).
+from and whether its checkout was dirty, per-kind W1 divergences, per-curve
+density-W1 divergences, support labels with each side's frame counts, the
+FOM 3 one-sided-stratum disclosure, the FOM 1 sky pairing with its per-frame
+sigma ratios, the FOM 7 diagnostic rows, and the artifact-rate comparison
+against the catalog defaults).
 
 Two fixed series colors carry sides everywhere: real cohort in blue,
 simulated frames in orange -- a colorblind-safe pair, never cycled.
@@ -20,6 +20,7 @@ from __future__ import annotations
 import json
 import subprocess
 import warnings
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -39,7 +40,7 @@ from tests.integration.sim_realism import (
     SkyPairStatus,
 )
 
-__all__ = ['code_commit', 'summary_dict', 'write_figures', 'write_summary']
+__all__ = ['CodeProvenance', 'code_provenance', 'summary_dict', 'write_figures', 'write_summary']
 
 _REPO_ROOT = Path(__file__).parent.parent.parent
 _FIGURES_ROOT = _REPO_ROOT / 'docs' / 'simulator_report' / '_figures'
@@ -491,30 +492,50 @@ def _kind_support(comparison: InstrumentComparison, kind: str) -> dict[str, Any]
     }
 
 
-def code_commit() -> str | None:
-    """The commit checked out in this repository, or None when git cannot tell.
+@dataclass(frozen=True)
+class CodeProvenance:
+    """The code a realism summary was made from.
 
-    The summary records it so the regression check
-    (:mod:`tests.integration.realism_regression`) knows which code the record holds.
+    Parameters:
+        commit: The full hash of the commit checked out.
+        dirty: Whether tracked files differed from that commit.
     """
+
+    commit: str
+    dirty: bool
+
+
+def _git(*args: str) -> str | None:
+    """The output of one git command in this repository, or None when git fails."""
     try:
         done = subprocess.run(
-            ['git', 'rev-parse', 'HEAD'],
-            cwd=_REPO_ROOT,
-            capture_output=True,
-            text=True,
-            check=False,
+            ['git', *args], cwd=_REPO_ROOT, capture_output=True, text=True, check=False
         )
     except OSError:
         return None
-    commit = done.stdout.strip()
-    return commit if done.returncode == 0 and commit else None
+    return done.stdout if done.returncode == 0 else None
+
+
+def code_provenance() -> CodeProvenance | None:
+    """The commit checked out in this repository and whether it is dirty.
+
+    The summary records both so the regression check
+    (:mod:`tests.integration.realism_regression`) knows which code the record holds.
+    Untracked files don't make the checkout dirty.
+
+    Returns:
+        The provenance, or None when git is missing or refuses the repository.
+    """
+    commit = _git('rev-parse', 'HEAD')
+    status = _git('status', '--porcelain', '--untracked-files=no')
+    if commit is None or not commit.strip() or status is None:
+        return None
+    return CodeProvenance(commit=commit.strip(), dirty=bool(status.strip()))
 
 
 def summary_dict(results: RealismResults) -> dict[str, Any]:
-    """The deterministic JSON-serializable summary."""
+    """The deterministic JSON-serializable summary, without the code provenance."""
     out: dict[str, Any] = {
-        'code_commit': code_commit(),
         'runtime_sec': round(results.runtime_sec, 1),
         'instruments': {},
     }
@@ -584,16 +605,29 @@ def summary_dict(results: RealismResults) -> dict[str, Any]:
 
 
 def write_summary(results: RealismResults, *, results_root: Path | None = None) -> Path:
-    """Write the JSON summary; returns its path.
+    """Write the JSON summary with the code's commit and dirty flag; returns its path.
 
     Parameters:
         results: The realism-match results.
         results_root: Output directory override (tests); defaults to
             ``tests/integration/realism_results``.
+
+    Raises:
+        RuntimeError: When git cannot name the commit checked out, since a summary
+            without one can't be held to the regression bands.
     """
+    provenance = code_provenance()
+    if provenance is None:
+        raise RuntimeError(
+            f'Cannot determine the code commit of {_REPO_ROOT} with git, so the realism '
+            'summary would not record which code made it; run from a git checkout '
+            'that git accepts.'
+        )
     root = results_root if results_root is not None else _RESULTS_ROOT
     root.mkdir(parents=True, exist_ok=True)
     path = root / 'realism_summary.json'
     payload = summary_dict(results)
+    payload['code_commit'] = provenance.commit
+    payload['code_dirty'] = provenance.dirty
     path.write_text(json.dumps(payload, indent=2, sort_keys=True, allow_nan=False) + '\n')
     return path
