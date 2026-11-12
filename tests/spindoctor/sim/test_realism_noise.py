@@ -591,9 +591,9 @@ def test_one_bright_pixel_does_not_widen_the_sky_levels_tolerance() -> None:
 def test_uneven_levels_beside_one_bright_pixel_are_no_lattice(dtype: type) -> None:
     """Levels spaced 1 and 1.3 apart are no lattice beside a pixel 800,000 steps up.
 
-    The bright pixel's float32 rounding is 0.38 of a step, under half a step, so the
-    pixel is checked like the levels.  Its rounding taken as every level's tolerance
-    would pass levels three tenths of a step off.
+    The bright pixel's float32 allowance, four rounding errors of its value, is 0.38 of
+    a step, under half a step, so the pixel is checked like the levels.  That allowance
+    taken as every level's tolerance would pass levels three tenths of a step off.
     """
     rng = np.random.default_rng(43)
     levels = np.array([0.0, 1.0, 2.3, 3.3, 4.6, 5.6, 6.9, 7.9, 9.2]) + 100.0
@@ -603,12 +603,13 @@ def test_uneven_levels_beside_one_bright_pixel_are_no_lattice(dtype: type) -> No
 
 
 def test_a_bright_pixel_the_fit_cannot_place_keeps_the_lattice() -> None:
-    """Whole DN times 1.234e-3 keep their lattice beside a pixel near 1250, 1.01 million steps up.
+    """Whole DN times 1.234e-3 keep their lattice beside a pixel 1.01 million steps up.
 
-    The step is just under a millionth of that pixel's value, and the pixel rounds by
-    0.48 step in float32, so it is three tenths of a step off the lattice or on it.  The
-    fit to the sky can't place it either: carried out a million steps, the fit's
-    standard error is 14 steps.  So the pixel passes, and the step comes from the sky.
+    The pixel sits three tenths of a step off the lattice.  Its float32 allowance, four
+    rounding errors of its value, is 0.48 step, so the allowance alone nearly passes it,
+    and the fit to the sky can't place it either: carried out a million steps, the
+    fit's standard error is 14 steps.  So the pixel passes, and the step comes from the
+    sky.
     """
     rng = np.random.default_rng(44)
     step = 1.234e-3
@@ -632,7 +633,7 @@ def test_a_bright_pixel_on_the_lattice_keeps_a_scaled_float32_lattice() -> None:
 
 
 def test_a_level_off_the_lattice_beyond_the_fits_reach_passes() -> None:
-    """Whole DN beside a pixel half a step off the lattice, 20,000 steps up, keep their lattice.
+    """Whole DN keep their lattice beside a pixel 20,000 steps up and half a step off.
 
     The sky's levels fit exactly, so the fit's standard error comes from one float32
     rounding at the sky's level and is about 0.32 step carried out to the pixel.  Four
@@ -669,7 +670,7 @@ def test_one_sky_level_fits_its_near_neighbor_alone(
 
 
 def test_the_step_is_refitted_across_the_levels_the_fit_places() -> None:
-    """A placed pixel 4000 steps up sharpens a scaled float32 step; one it can't place doesn't.
+    """A placed pixel 4000 steps up sharpens a float32 step; an unplaced one doesn't.
 
     The sky's levels of whole DN times 1.234e-3 give the step to about 5e-6.  One pixel
     on the lattice at 8000 DN, which the fit places, carries the refitted step to about
@@ -697,8 +698,13 @@ def test_the_step_is_refitted_across_the_levels_the_fit_places() -> None:
             -3.4e38,
             np.round(np.random.default_rng(48).normal(1e5, 3.0, (32, 32))) * 1e-8,
         ).astype(np.float32),
+        np.where(
+            np.arange(1024).reshape(32, 32) == 100,
+            1000.0 - 3e9,
+            np.round(np.random.default_rng(50).normal(1000.0, 3.0, (32, 32))),
+        ),
     ],
-    ids=['whole-dn-beside-1e17-steps', 'float32-beside-3e46-steps'],
+    ids=['whole-dn-beside-1e17-steps', 'float32-beside-3e46-steps', 'whole-dn-beside-3e9-steps'],
 )
 def test_a_pixel_beyond_two_to_the_31_steps_puts_the_sample_on_no_lattice(
     patch: NDArrayFloatType,

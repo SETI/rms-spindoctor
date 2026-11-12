@@ -79,7 +79,9 @@ _FLOAT_SPACING_FRACTION = 1e-6
 # index from the lowest value below 2**32, where float64 holds each index and each
 # half-step edge exactly, and the quantized fit's surface near the sky's index carries a
 # rounding error of under a millionth of a step.  A pixel farther out, such as a sentinel
-# value, would break that arithmetic.
+# value, would break that arithmetic.  The bound keeps the arithmetic exact, and it does
+# not make the fit converge: a pixel a billion steps from the sky can still leave the
+# quantized fit reading NaN.
 _MAX_LEVEL_STEPS = 2.0**31
 
 # When the central values sit on fewer than two levels, the step is fitted to them and to
@@ -420,10 +422,10 @@ def quantization_step(values: NDArrayFloatType) -> float | None:
     lattice's origin are then fitted by least squares to the levels of the central 98%
     of the values on their whole-step indices, so a lattice of whole DN scaled into
     float32 is found although each level carries its own rounding error.  When the
-    central values sit on a single level, the fit adds the nearest level on each side,
-    but leaves out either one when it lies more than twice as far from the central level
-    as the other.  A far level, such as a bright pixel's, stays out of the fit whenever
-    the sky has a level within half its distance on the other side.
+    central values sit on fewer than two levels, the fit adds the nearest level on each
+    side, but leaves out either one when it lies more than twice as far from the central
+    levels as the other.  A far level, such as a bright pixel's, stays out of the fit
+    whenever the sky has a level at most half as far away on the other side.
 
     Each level is then checked against the fitted lattice.  It passes when it lies
     within a thousandth of a step of its lattice level, or within a few float32
@@ -442,7 +444,9 @@ def quantization_step(values: NDArrayFloatType) -> float | None:
     float32 frame would pass, since its values are all whole multiples of the float
     spacing.  A lattice also counts only when every value lies within 2**31 steps of
     the central levels, which keeps the noise estimators' whole-step arithmetic exact;
-    a sentinel value such as -1e17 beside a sky of whole DN puts the sample on none.
+    a sentinel value such as -1e17 beside a sky of whole DN puts the sample on none.  A
+    sentinel inside that bound, around a billion steps out, can still leave the
+    quantized fit reading NaN.
 
     Parameters:
         values: Pixel values (any shape; non-finite entries are ignored).
