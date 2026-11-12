@@ -4447,32 +4447,51 @@ the nearest lattice level
 quadratic in the pixel's row and column, so it follows a gradient or a gentle
 curve across the patch.  Its six coefficients and the noise sigma are fitted
 together by maximum likelihood, so neither a gradient nor curvature is read as
-noise.  Only levels near each pixel's first-guess level enter the fit: within
-five robust sigmas, at least three steps, and no farther than the first empty
-level, so an isolated hot pixel or cosmic ray is left out.  The lowest and
-highest levels in the fit are taken as open-ended: a pixel on the lowest level
-is known only to lie below that level's upper edge, and a pixel on the highest
-level only to lie above its lower edge.  So a patch clipped at the zero floor or
-at saturation, where one level gathers every value beyond it, is fitted as
-faithfully as one that isn't clipped.
+noise.
 
-The fit was measured on Gaussian noise rounded to whole DN, in 32 × 32 patches
-at random levels that were flat, tilted by up to 12 DN from corner to corner, or
-curved into a bowl about 4 DN deep, 300 patches for each combination.  For every
-sigma from 0.2 to 1 DN, the median fit of the patches whose sigma can be measured
-lies within 1.5% of the true sigma.  For sigmas of 0.5 DN and 1 DN, the fits
-between the 10th and 90th percentiles all lie within 4% of the true sigma, and
-for sigmas of 0.2 DN and 0.3 DN, within 8%.  Sky at the zero floor with a sigma
-of 1 DN, where half the values are clipped to 0, gives back 1.0 DN.
+Each pixel is fitted against a window of levels around the surface that reaches
+three fitted sigmas beyond it on each side.  The window's end levels are
+open-ended: a pixel on or below the lowest level is known only to lie below that
+level's upper edge, and a pixel on or above the highest level only to lie above
+its lower edge.  So every pixel enters the fit.  The tails of noise many steps
+wide count in full, and a hot pixel or cosmic ray counts only as one more pixel
+beyond the window's edge, however bright it is.  The first window comes from a
+least-squares surface and a robust sigma.  Each fit then rebuilds the window from
+its own surface and sigma, and the fit repeats until no pixel's interval changes,
+at most ten times.  A first guess that is far off, as on a clipped patch where
+half the values share one level, costs only another fit or two.
+
+The patch's lowest and highest levels are open-ended as well.  So a patch clipped
+at the zero floor or at saturation, where one level gathers every value beyond
+it, is fitted as an unclipped patch is.
+
+The fit was measured on Gaussian noise rounded to whole DN, in 32 × 32 patches at
+random levels.  The sky was flat, tilted by 12 DN from corner to corner, or curved
+into a bowl 4 DN deep.  It was unclipped, clipped at the zero floor, or clipped at
+a ceiling of 4095 DN, with about half its values on the clipped level.  Each
+combination was measured at sigmas of 0.2, 0.3, 0.5, 1, 2, 5, 10, 20, and 50 DN,
+200 patches each.  For unclipped sky, the median fit of the patches whose sigma
+can be measured lies within 1.1% of the true sigma at every sigma, and for
+clipped sky within 2.1%.  From a sigma of 1 DN up, the fits between the 10th and
+90th percentiles lie within 3.6% of the true sigma for unclipped sky and within
+5.4% for clipped sky.  Below 1 DN they spread wider, to 13% at 0.2 DN.
+
+A pixel that isn't noise still enters the fit, so a contaminant raises the fit a
+little.  On a flat sky, a hot pixel and a two-pixel cosmic ray far above the
+noise raise it by 1% to 2%, and four pixels four sigmas above the sky by about
+1%.  Ten pixels three sigmas above the sky raise it by 3% to 4%, and an
+eight-pixel cosmic ray one level above the highest noise level by about 3.5%.
+At a sigma of 0.3 DN, each of these raises the fit by up to 5%.
 
 The sigma can be measured only when at least three levels each hold at least
-two pixels.  A patch whose pixels take only two values holds one proportion
-along the surface, and every sigma, with a matching surface, reproduces it, so
-its sigma cannot be measured and the patch is skipped.  One stray pixel on a
-third level does not count as a level.  This happens when the noise is below
-about a third of a step, most often when the level sits near a half step.  A
-product quantized and then rescaled pixel by pixel no longer sits on a lattice,
-so its estimate also carries the rounding's own spread, the step over the
+two pixels, counting each window's end levels as holding the pixels beyond them.
+A patch whose pixels take only two values holds one proportion along the
+surface, and every sigma, with a matching surface, reproduces it, so its sigma
+cannot be measured and the patch is skipped.  One stray pixel on a third level
+does not count as a level.  This happens when the noise is below about a third
+of a step, most often when the level sits near a half step.  A product quantized
+and then rescaled pixel by pixel no longer sits on a lattice, so its estimate
+also carries the rounding's own spread, the step over the
 square root of 12, which adds under 4% to a sigma of one step or more.
 
 The divergence statistic

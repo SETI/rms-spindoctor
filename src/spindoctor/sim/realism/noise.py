@@ -13,11 +13,11 @@ noise, which is exactly what this estimator avoids.
 A patch whose values sit on a lattice of equally spaced levels, such as whole DN, is
 measured by fitting the quantization itself (:func:`lattice_noise_sigma`): a
 quadratic surface plus Gaussian noise, rounded to the lattice, fitted by maximum
-likelihood.  The paired-difference scale is not valid there: when the noise is below about one step,
-more than half the differences are 0, the MAD is 0, and a camera whose noise is
-smaller than one step contributes no sky samples at all.  Above one step, the MAD of
-whole-step differences is itself a whole or half step, so the estimate can only take
-values about 0.5 step apart.
+likelihood.  The paired-difference scale is not valid there: when the noise is below
+about one step, more than half the differences are 0, the MAD is 0, and a camera whose
+noise is smaller than one step contributes no sky samples at all.  Above one step, the
+MAD of whole-step differences is itself a whole or half step, so the estimate can only
+take values about 0.5 step apart.
 
 The sky spatial power spectrum (radially averaged over annuli of spatial
 frequency) catches banding and coherent noise that a scalar sigma cannot:
@@ -62,11 +62,13 @@ _FLOAT_ROUNDING_EPS = 4.0 * float(np.finfo(np.float32).eps)
 # 2.3e-10 apart.
 _FLOAT_SPACING_FRACTION = 1e-6
 
-# The quantized fit uses the levels within this many robust sigmas of each pixel's
-# first-guess level (and at least _MIN_HALF_WINDOW_STEPS steps), cut back to the run of
-# occupied levels around it.
-_WINDOW_SIGMAS = 5.0
-_MIN_HALF_WINDOW_STEPS = 3
+# The quantized fit conditions each pixel on a window of levels around the fitted surface
+# that reaches at least this many fitted sigmas beyond the surface on each side, and at
+# least one level beyond the surface's nearest level.  A pixel outside its window counts
+# as lying beyond the window's edge.  The window is rebuilt from each fit until no
+# pixel's interval changes, or for at most _MAX_WINDOW_FITS fits.
+_WINDOW_SIGMAS = 3.0
+_MAX_WINDOW_FITS = 10
 
 # The fewest populated levels from which the quantized fit can tell the noise sigma
 # from the level and its slope: two levels fix one proportion, which any sigma can
@@ -75,10 +77,12 @@ _MIN_HALF_WINDOW_STEPS = 3
 _MIN_LEVELS = 3
 _MIN_LEVEL_PIXELS = 2
 
-# The quantized fit searches sigmas from this fraction of a step up to the span of the
-# levels in its window, which keeps the search away from sigmas whose interval
-# probabilities underflow.
+# The quantized fit searches sigmas from _MIN_SIGMA_STEPS of a step, which keeps the
+# search away from sigmas whose interval probabilities underflow, up to
+# _MAX_SIGMA_SPANS times the span of the patch's levels, well beyond any sigma a patch
+# can show.
 _MIN_SIGMA_STEPS = 1e-3
+_MAX_SIGMA_SPANS = 10.0
 
 # The floor put under a probability before its log is taken.
 _SMALLEST_PROBABILITY = 1e-300
@@ -211,6 +215,92 @@ def _z_times_density(z: NDArrayFloatType) -> NDArrayFloatType:
     return np.where(finite, zf * _normal_density(zf), 0.0)
 
 
+def _populated_levels(levels: NDArrayFloatType) -> int:
+    """How many distinct levels hold at least _MIN_LEVEL_PIXELS pixels each."""
+    counts = np.unique(levels, return_counts=True)[1]
+    return int(np.sum(counts >= _MIN_LEVEL_PIXELS))
+
+
+def _first_guess(q: NDArrayFloatType, design: NDArrayFloatType) -> tuple[NDArrayFloatType, float]:
+    """A least-squares surface and a robust sigma, refit twice without far pixels.
+
+    The guess only seeds the maximum-likelihood fit and its first window, so it need
+    not be accurate: on a clipped patch, where half the residuals share a value, its
+    sigma comes out far too small, and the fit corrects it.
+    """
+    near = np.ones(q.size, dtype=bool)
+    robust_sigma = 0.5
+    coef = np.zeros(design.shape[1])
+    for _ in range(3):
+        coef = np.asarray(np.linalg.lstsq(design[near], q[near], rcond=None)[0], dtype=np.float64)
+        resid = q - design @ coef
+        deviation = np.abs(resid[near] - np.median(resid[near]))
+        robust_sigma = max(_MAD_TO_SIGMA * float(np.median(deviation)), 0.5)
+        near = np.abs(resid) <= 4.0 * robust_sigma + 1.0
+    return coef, robust_sigma
+
+
+def _level_window(mu: NDArrayFloatType, sigma: float) -> tuple[NDArrayFloatType, NDArrayFloatType]:
+    """Each pixel's lowest and highest window level, for surface ``mu`` and ``sigma``.
+
+    The window's levels cover the surface out to _WINDOW_SIGMAS sigmas on each side,
+    and at least one level each side of the surface's nearest level.
+    """
+    nearest = np.round(mu)
+    reach = _WINDOW_SIGMAS * sigma
+    bottom = np.minimum(nearest - 1.0, np.floor(mu - reach + 0.5))
+    top = np.maximum(nearest + 1.0, np.ceil(mu + reach - 0.5))
+    return bottom, top
+
+
+def _fit_censored(
+    design: NDArrayFloatType,
+    lower_edge: NDArrayFloatType,
+    upper_edge: NDArrayFloatType,
+    start: NDArrayFloatType,
+    log_sigma_bounds: tuple[float, float],
+) -> NDArrayFloatType | None:
+    """Maximize the likelihood of each pixel lying between its lower and upper edges.
+
+    Parameters:
+        design: The quadratic surface's columns at each pixel.
+        lower_edge: Each pixel's lower edge in steps, minus infinity when open-ended.
+        upper_edge: Each pixel's upper edge in steps, infinity when open-ended.
+        start: The surface coefficients and the log of sigma to start from.
+        log_sigma_bounds: The range of log sigma searched.
+
+    Returns:
+        The fitted surface coefficients followed by log sigma, or None when the
+        optimizer reports failure.
+    """
+    n_coef = design.shape[1]
+
+    def neg_log_likelihood(params: NDArrayFloatType) -> tuple[float, NDArrayFloatType]:
+        sigma = float(np.exp(params[n_coef]))
+        mu = design @ params[:n_coef]
+        z_upper = (upper_edge - mu) / sigma
+        z_lower = (lower_edge - mu) / sigma
+        log_p = _log_interval_probability(z_lower, z_upper)
+        p = np.maximum(np.exp(log_p), _SMALLEST_PROBABILITY)
+        d_mu = (_normal_density(z_upper) - _normal_density(z_lower)) / (sigma * p)
+        d_log_sigma = (_z_times_density(z_upper) - _z_times_density(z_lower)) / p
+        grad = np.empty(n_coef + 1)
+        grad[:n_coef] = design.T @ d_mu
+        grad[n_coef] = float(np.sum(d_log_sigma))
+        return -float(np.sum(log_p)), grad
+
+    fit = scipy.optimize.minimize(
+        neg_log_likelihood,
+        start,
+        jac=True,
+        method='L-BFGS-B',
+        bounds=[(None, None)] * n_coef + [log_sigma_bounds],
+    )
+    if not fit.success:
+        return None
+    return np.asarray(fit.x, dtype=np.float64)
+
+
 def lattice_noise_sigma(patch: NDArrayFloatType, step: float) -> float:
     """Noise sigma of a quantized patch, by fitting the quantization.
 
@@ -221,25 +311,28 @@ def lattice_noise_sigma(patch: NDArrayFloatType, step: float) -> float:
     row and column, and its six coefficients are fitted together with ``s`` by maximum
     likelihood, so neither a gradient nor curvature across the patch is mistaken for
     noise.  The fit recovers a sigma well below one step, which local differencing
-    reports as 0, and it is unbiased above one step, where differencing can only
-    return values about half a step apart.
+    reports as 0, and a sigma of many steps, where differencing can only return values
+    about half a step apart.
 
-    The patch's lowest and highest levels in the fit are each taken as open-ended: a
-    pixel on the lowest level is known only to lie below that level's upper edge, and
-    a pixel on the highest level only to lie above its lower edge.  So a patch clipped
-    at the detector's floor or at saturation, where the lowest or highest level
-    gathers every value beyond it, is fitted as faithfully as an unclipped one.
+    Each pixel is conditioned on a window of levels around the surface, reaching three
+    fitted sigmas beyond it on each side.  The window's end levels are open-ended: a
+    pixel on or below the lowest level is known only to lie below that level's upper
+    edge, and a pixel on or above the highest level only to lie above its lower edge.
+    So every pixel enters the fit, and a hot pixel or cosmic ray far from the noise
+    counts only as one pixel beyond the window's edge, however far beyond it lies.  The
+    window starts from a least-squares surface and a robust sigma, and is rebuilt from
+    each fit's surface and sigma until it stops changing.
 
-    The fit uses each pixel only when its level lies in a window around the pixel's
-    first-guess level: within five robust sigmas (at least three steps), and within
-    the run of occupied levels around it, so a hot pixel or cosmic ray separated from
-    the noise by an empty level is left out.
+    The patch's lowest and highest levels are open-ended as well, so a patch clipped
+    at the detector's floor or at saturation, where one level gathers every value
+    beyond it, is fitted as an unclipped one is.
 
-    The sigma is only measurable when at least three levels in the window each hold
-    at least two pixels.  A patch whose noise is so far below one step that its pixels
-    take only two values gives one proportion along the surface, and any sigma, with a
-    matching surface, gives that proportion; such a patch returns NaN, as does a patch
-    of one value.
+    The sigma is only measurable when at least three levels, counting each window's
+    end levels as holding the pixels beyond them, each hold at least two pixels.  A
+    patch whose noise is so far below one step that its pixels take only two values
+    gives one proportion along the surface, and any sigma, with a matching surface,
+    gives that proportion; such a patch returns NaN, as does a patch of one value and
+    a patch whose fit fails to converge.
 
     Parameters:
         patch: 2-D array of pixel values on a lattice of spacing ``step``.
@@ -255,69 +348,36 @@ def lattice_noise_sigma(patch: NDArrayFloatType, step: float) -> float:
         return float('nan')
     values = arr[finite]
     q = np.round((values - values.min()) / step)
+    if _populated_levels(q) < _MIN_LEVELS:
+        return float('nan')
     vv, uu = np.nonzero(finite)
     design = _quadratic_design(vv.astype(np.float64), uu.astype(np.float64), max(arr.shape))
+    q_high = float(q.max())
+    log_sigma_bounds = (np.log(_MIN_SIGMA_STEPS), np.log(_MAX_SIGMA_SPANS * (q_high + 1.0)))
 
-    # First guess: a least-squares surface, refit twice without the pixels far from it.
-    near = np.ones(q.size, dtype=bool)
-    robust_sigma = 0.5
-    for _ in range(3):
-        coef = np.linalg.lstsq(design[near], q[near], rcond=None)[0]
-        resid = q - design @ coef
-        deviation = np.abs(resid[near] - np.median(resid[near]))
-        robust_sigma = max(_MAD_TO_SIGMA * float(np.median(deviation)), 0.5)
-        near = np.abs(resid) <= 4.0 * robust_sigma + 1.0
-    center = np.round(design @ coef)
-
-    # The window: the run of occupied levels around each pixel's first-guess level.
-    offset = (q - center).astype(np.int64)
-    half = max(_MIN_HALF_WINDOW_STEPS, int(np.ceil(_WINDOW_SIGMAS * robust_sigma)))
-    occupied = set(offset[np.abs(offset) <= half].tolist())
-    if not occupied:
+    coef, sigma = _first_guess(q, design)
+    params = np.append(coef, np.clip(np.log(sigma), *log_sigma_bounds))
+    used: tuple[NDArrayFloatType, NDArrayFloatType] | None = None
+    censored = q
+    for _ in range(_MAX_WINDOW_FITS):
+        bottom, top = _level_window(design @ params[:-1], float(np.exp(params[-1])))
+        censored = np.clip(q, bottom, top)
+        lower_edge = np.where((censored <= bottom) | (q <= 0.0), -np.inf, censored - 0.5)
+        upper_edge = np.where((censored >= top) | (q >= q_high), np.inf, censored + 0.5)
+        if (
+            used is not None
+            and np.array_equal(lower_edge, used[0])
+            and np.array_equal(upper_edge, used[1])
+        ):
+            break
+        used = (lower_edge, upper_edge)
+        fitted = _fit_censored(design, lower_edge, upper_edge, params, log_sigma_bounds)
+        if fitted is None:
+            return float('nan')
+        params = fitted
+    if _populated_levels(censored) < _MIN_LEVELS:
         return float('nan')
-    start = 0 if 0 in occupied else min(occupied, key=abs)
-    low = high = start
-    while low - 1 in occupied:
-        low -= 1
-    while high + 1 in occupied:
-        high += 1
-    keep = (offset >= low) & (offset <= high)
-    q_k = q[keep]
-    design_k = design[keep]
-    _levels, counts = np.unique(q_k, return_counts=True)
-    if int(np.sum(counts >= _MIN_LEVEL_PIXELS)) < _MIN_LEVELS:
-        return float('nan')
-    upper_edge = np.where(q_k == q_k.max(), np.inf, q_k + 0.5)
-    lower_edge = np.where(q_k == q_k.min(), -np.inf, q_k - 0.5)
-    n_coef = design_k.shape[1]
-
-    def neg_log_likelihood(params: NDArrayFloatType) -> tuple[float, NDArrayFloatType]:
-        sigma = float(np.exp(params[n_coef]))
-        mu = design_k @ params[:n_coef]
-        z_upper = (upper_edge - mu) / sigma
-        z_lower = (lower_edge - mu) / sigma
-        log_p = _log_interval_probability(z_lower, z_upper)
-        p = np.maximum(np.exp(log_p), _SMALLEST_PROBABILITY)
-        d_mu = (_normal_density(z_upper) - _normal_density(z_lower)) / (sigma * p)
-        d_log_sigma = (_z_times_density(z_upper) - _z_times_density(z_lower)) / p
-        grad = np.empty(n_coef + 1)
-        grad[:n_coef] = design_k.T @ d_mu
-        grad[n_coef] = float(np.sum(d_log_sigma))
-        return -float(np.sum(log_p)), grad
-
-    coef_k = np.linalg.lstsq(design_k, q_k, rcond=None)[0]
-    resid_var = float(np.var(q_k - design_k @ coef_k))
-    first_sigma = max(np.sqrt(max(resid_var - 1.0 / 12.0, 0.0)), 0.3)
-    span = float(q_k.max() - q_k.min()) + 1.0
-    bounds = [(None, None)] * n_coef + [(np.log(_MIN_SIGMA_STEPS), np.log(span))]
-    fit = scipy.optimize.minimize(
-        neg_log_likelihood,
-        np.append(coef_k, np.log(min(first_sigma, span))),
-        jac=True,
-        method='L-BFGS-B',
-        bounds=bounds,
-    )
-    return float(np.exp(fit.x[n_coef]) * step)
+    return float(np.exp(params[-1]) * step)
 
 
 def patch_noise_sigma(patch: NDArrayFloatType) -> float:

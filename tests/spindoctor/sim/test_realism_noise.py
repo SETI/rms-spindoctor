@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 import numpy as np
 import pytest
+import scipy.optimize
 
 from spindoctor.sim.realism.noise import (
     SkyPatch,
@@ -158,6 +161,68 @@ def test_quantized_noise_clipped_at_the_floor_is_recovered() -> None:
     rng = np.random.default_rng(31)
     patch = np.clip(np.round(rng.normal(0.0, 1.0, (32, 32))), 0.0, None)
     assert patch_noise_sigma(patch) == pytest.approx(1.0, rel=0.08)
+
+
+def _fit_over_drawn_sigma(rng: np.random.Generator, sigma: float, clip: str) -> float:
+    """Draw one 32 x 32 sky of noise ``sigma``, round it, and divide its fit by the drawn sigma.
+
+    The sky is unclipped at about 1000, or clipped at the zero floor or at a ceiling of
+    4095, each with about half its values on the clipped level.  Dividing by the standard
+    deviation of the noise drawn, before rounding and clipping, removes the sampling
+    scatter of the sigma itself.
+    """
+    noise = rng.normal(0.0, sigma, (32, 32))
+    sky = rng.uniform() + noise
+    if clip == 'floor':
+        patch = np.maximum(np.round(sky), 0.0)
+    elif clip == 'ceiling':
+        patch = np.minimum(np.round(4094.0 + sky), 4095.0)
+    else:
+        patch = np.round(1000.0 + sky)
+    return patch_noise_sigma(patch) / float(noise.std())
+
+
+@pytest.mark.parametrize('sigma', [10.0, 20.0])
+def test_quantized_noise_of_many_steps_is_recovered(sigma: float) -> None:
+    """Noise of many steps leaves empty levels in its tails, and every pixel still counts.
+
+    A fit that drops the pixels beyond the first empty level truncates the distribution
+    and reads about 3% low at 10 steps and 8% low at 20.
+    """
+    rng = np.random.default_rng(33)
+    ratios = [_fit_over_drawn_sigma(rng, sigma, 'none') for _ in range(6)]
+    assert float(np.median(ratios)) == pytest.approx(1.0, abs=0.01)
+
+
+@pytest.mark.parametrize(
+    ('clip', 'sigma'), [('floor', 3.0), ('ceiling', 5.0)], ids=['floor-3', 'ceiling-5']
+)
+def test_clipped_quantized_noise_of_a_few_steps_is_recovered(clip: str, sigma: float) -> None:
+    """Sky clipped at the floor or at saturation, half its values on one level, keeps its sigma.
+
+    Half the residuals share a value there, so a robust first guess of the sigma comes out
+    far too small; a fit held to the window that guess builds reads about 15% low at 3
+    steps and 40% low at 5.  Half of each patch is clipped, so the median runs over 20.
+    """
+    rng = np.random.default_rng(34)
+    ratios = [_fit_over_drawn_sigma(rng, sigma, clip) for _ in range(20)]
+    assert float(np.median(ratios)) == pytest.approx(1.0, abs=0.025)
+
+
+def test_a_quantized_fit_that_fails_to_converge_is_not_measurable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A fit the optimizer reports as failed gives NaN rather than where it stopped."""
+    real_minimize = scipy.optimize.minimize
+
+    def failing_minimize(*args: Any, **kwargs: Any) -> scipy.optimize.OptimizeResult:
+        result = real_minimize(*args, **kwargs)
+        result.success = False
+        return result
+
+    monkeypatch.setattr(scipy.optimize, 'minimize', failing_minimize)
+    rng = np.random.default_rng(35)
+    assert np.isnan(lattice_noise_sigma(np.round(rng.normal(100.0, 1.0, (32, 32))), 1.0))
 
 
 @pytest.mark.parametrize(
