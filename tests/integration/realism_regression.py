@@ -296,10 +296,11 @@ def compare_with_record(
 def _run_once(instrument: str, out_dir: Path) -> None:
     """Match one instrument once and write its summary into ``out_dir``."""
     from tests.integration.sim_realism import run_realism_match
-    from tests.integration.sim_realism_report import write_summary
+    from tests.integration.sim_realism_report import require_code_provenance, write_summary
 
+    provenance = require_code_provenance()
     results = run_realism_match(instruments=[instrument], skip_fom7=True)
-    write_summary(results, results_root=out_dir)
+    write_summary(results, provenance, results_root=out_dir)
 
 
 def measure_bands(instrument: str, runs: int) -> InstrumentBands:

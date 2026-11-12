@@ -32,8 +32,13 @@ def test_realism_smoke_lorri(tmp_path: Path) -> None:
     feature FOMs, aggregation, support labeling, and both writers without
     the full-cohort runtime.
     """
-    from tests.integration.sim_realism_report import write_figures, write_summary
+    from tests.integration.sim_realism_report import (
+        require_code_provenance,
+        write_figures,
+        write_summary,
+    )
 
+    provenance = require_code_provenance()
     results = run_realism_match(instruments=['nhlorri'], skip_fom7=True)
     comparison = results.comparisons['nhlorri']
     assert len(comparison.records) == 2
@@ -43,7 +48,7 @@ def test_realism_smoke_lorri(tmp_path: Path) -> None:
     assert comparison.fom_support['fom4_ring'] == 'unsupported'
     figures = write_figures(results, figures_root=tmp_path / 'figures')
     assert any('nhlorri_psf' in p.name for p in figures)
-    summary_path = write_summary(results, results_root=tmp_path / 'results')
+    summary_path = write_summary(results, provenance, results_root=tmp_path / 'results')
     payload = json.loads(summary_path.read_text())
     inst = payload['instruments']['nhlorri']
     assert inst['n_frames'] == 2

@@ -6,6 +6,7 @@ environment guard and no ``integration`` marker and runs in the plain unit tier.
 
 from __future__ import annotations
 
+import json
 import re
 from pathlib import Path
 from typing import Any
@@ -141,19 +142,35 @@ def test_measuring_bands_needs_two_runs() -> None:
         measure_bands('nhlorri', 1)
 
 
-def test_the_code_provenance_names_a_full_commit() -> None:
-    """In a checkout, the provenance names a full commit hash."""
+def test_the_code_provenance_names_a_full_commit(monkeypatch: pytest.MonkeyPatch) -> None:
+    """In a checkout, the provenance names a full commit hash, SHA-1 or SHA-256."""
+    monkeypatch.delenv('GIT_DIR', raising=False)
+    monkeypatch.delenv('GIT_WORK_TREE', raising=False)
     provenance = report.code_provenance()
     assert provenance is not None
-    assert re.fullmatch(r'[0-9a-f]{40}', provenance.commit)
+    assert re.fullmatch(r'[0-9a-f]{40}|[0-9a-f]{64}', provenance.commit)
 
 
-def test_a_summary_is_not_written_without_a_commit(
+def test_the_provenance_is_refused_without_a_commit(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Outside a git checkout, the summary is refused rather than written without a commit."""
+    """Outside a git checkout, the provenance is refused before any match runs."""
+    monkeypatch.delenv('GIT_DIR', raising=False)
+    monkeypatch.delenv('GIT_WORK_TREE', raising=False)
     monkeypatch.setattr(report, '_REPO_ROOT', tmp_path)
     monkeypatch.setenv('GIT_CEILING_DIRECTORIES', str(tmp_path.parent))
-    results = RealismResults(comparisons={}, runtime_sec=0.0)
     with pytest.raises(RuntimeError, match='Cannot determine the code commit'):
-        report.write_summary(results, results_root=tmp_path / 'out')
+        report.require_code_provenance()
+
+
+def test_a_summary_records_the_provenance_it_is_given(tmp_path: Path) -> None:
+    """The summary records the provenance taken before the run, never a later status.
+
+    The match writes tracked figures, so a status taken while writing the summary would
+    report them as changes.
+    """
+    provenance = report.CodeProvenance(commit='a' * 40, dirty=False)
+    results = RealismResults(comparisons={}, runtime_sec=0.0)
+    path = report.write_summary(results, provenance, results_root=tmp_path)
+    payload = json.loads(path.read_text())
+    assert (payload['code_commit'], payload['code_dirty']) == ('a' * 40, False)

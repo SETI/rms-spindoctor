@@ -40,7 +40,14 @@ from tests.integration.sim_realism import (
     SkyPairStatus,
 )
 
-__all__ = ['CodeProvenance', 'code_provenance', 'summary_dict', 'write_figures', 'write_summary']
+__all__ = [
+    'CodeProvenance',
+    'code_provenance',
+    'require_code_provenance',
+    'summary_dict',
+    'write_figures',
+    'write_summary',
+]
 
 _REPO_ROOT = Path(__file__).parent.parent.parent
 _FIGURES_ROOT = _REPO_ROOT / 'docs' / 'simulator_report' / '_figures'
@@ -533,6 +540,29 @@ def code_provenance() -> CodeProvenance | None:
     return CodeProvenance(commit=commit.strip(), dirty=bool(status.strip()))
 
 
+def require_code_provenance() -> CodeProvenance:
+    """The provenance a realism summary records, captured before the match runs.
+
+    The match writes tracked figures, so git status taken after it would report the
+    run's own outputs as changes.
+
+    Returns:
+        The commit checked out and whether tracked files differed from it.
+
+    Raises:
+        RuntimeError: When git cannot name the commit checked out, since a summary
+            without one can't be held to the regression bands.
+    """
+    provenance = code_provenance()
+    if provenance is None:
+        raise RuntimeError(
+            f'Cannot determine the code commit of {_REPO_ROOT} with git, so the realism '
+            'summary would not record which code made it; run from a git checkout '
+            'that git accepts.'
+        )
+    return provenance
+
+
 def summary_dict(results: RealismResults) -> dict[str, Any]:
     """The deterministic JSON-serializable summary, without the code provenance."""
     out: dict[str, Any] = {
@@ -604,25 +634,18 @@ def summary_dict(results: RealismResults) -> dict[str, Any]:
     return out
 
 
-def write_summary(results: RealismResults, *, results_root: Path | None = None) -> Path:
+def write_summary(
+    results: RealismResults, provenance: CodeProvenance, *, results_root: Path | None = None
+) -> Path:
     """Write the JSON summary with the code's commit and dirty flag; returns its path.
 
     Parameters:
         results: The realism-match results.
+        provenance: The code the match ran on, from :func:`require_code_provenance`
+            called before the match.
         results_root: Output directory override (tests); defaults to
             ``tests/integration/realism_results``.
-
-    Raises:
-        RuntimeError: When git cannot name the commit checked out, since a summary
-            without one can't be held to the regression bands.
     """
-    provenance = code_provenance()
-    if provenance is None:
-        raise RuntimeError(
-            f'Cannot determine the code commit of {_REPO_ROOT} with git, so the realism '
-            'summary would not record which code made it; run from a git checkout '
-            'that git accepts.'
-        )
     root = results_root if results_root is not None else _RESULTS_ROOT
     root.mkdir(parents=True, exist_ok=True)
     path = root / 'realism_summary.json'

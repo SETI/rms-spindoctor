@@ -924,7 +924,11 @@ def run_realism_match(
 
 def main() -> None:
     """CLI entry: run the match, write figures and the JSON summary."""
-    from tests.integration.sim_realism_report import code_provenance, write_figures, write_summary
+    from tests.integration.sim_realism_report import (
+        require_code_provenance,
+        write_figures,
+        write_summary,
+    )
 
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -937,15 +941,17 @@ def main() -> None:
     )
     parser.add_argument('--skip-fom7', action='store_true', help='skip the navigation pairs')
     args = parser.parse_args()
-    if code_provenance() is None:
-        parser.error('git cannot name the commit checked out, so the summary cannot record it')
+    try:
+        provenance = require_code_provenance()
+    except RuntimeError as exc:
+        parser.error(str(exc))
     results = run_realism_match(
         instruments=args.instrument,
         max_frames_per_instrument=args.max_frames,
         skip_fom7=args.skip_fom7,
     )
     write_figures(results)
-    summary_path = write_summary(results)
+    summary_path = write_summary(results, provenance)
     print(f'realism match complete in {results.runtime_sec:.1f} s; summary: {summary_path}')
 
 
