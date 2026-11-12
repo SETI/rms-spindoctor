@@ -25,16 +25,22 @@ from spindoctor.sim.instrument_resolvers import (
     filter_star_flux_scale,
     resolve_native_frame_size_px,
 )
+from spindoctor.sim.realism.noise import SkyPatch
 from spindoctor.sim.render import render_combined_model
 from spindoctor.sim.scene import validate_sim_params
 from tests.integration.sim_realism import (
     INSTRUMENT_FOR,
     FrameRecord,
+    InstrumentComparison,
+    _aggregate,
     _frame_samples_real,
     _frame_samples_sim,
     discover_cohort,
+    pair_sky,
 )
+from tests.integration.sim_realism_report import _sky_comparison
 from tests.integration.sim_realism_scenes import matched_scene
+from tests.integration.sim_realism_support import FrameSamples, FrameSky, _has_flat_top
 from tests.spindoctor.inst.conftest import VicarLabelStandIn
 
 pytestmark = [pytest.mark.integration, pytest.mark.sim_integration]
@@ -205,8 +211,6 @@ def test_sim_side_extraction_is_deterministic() -> None:
 
 def test_flat_top_guard_rejects_clipped_core() -> None:
     """A plateau of core pixels at the cutout max marks a clipped star."""
-    from tests.integration.sim_realism_support import _has_flat_top
-
     image = np.zeros((33, 33))
     image[15:18, 15:18] = 50.0
     image[16, 16] = 100.0
@@ -217,8 +221,6 @@ def test_flat_top_guard_rejects_clipped_core() -> None:
 
 def test_flat_top_guard_survives_calibration_rescale() -> None:
     """The plateau test is invariant under a multiplicative unit change."""
-    from tests.integration.sim_realism_support import _has_flat_top
-
     image = np.zeros((33, 33))
     image[15:18, 15:18] = 50.0
     image[16, 15:18] = 100.0
@@ -227,8 +229,6 @@ def test_flat_top_guard_survives_calibration_rescale() -> None:
 
 def test_pooled_limb_statistic_uses_copopulated_bins_only() -> None:
     """FOM 3 pooling excludes strata that only one side populates."""
-    from tests.integration.sim_realism import InstrumentComparison, _aggregate
-
     comparison = InstrumentComparison(instrument='coiss_calib_nac')
     comparison.real.samples['limb_width_p0_r1'] = [2.0] * 10
     comparison.sim.samples['limb_width_p0_r1'] = [2.5] * 10
@@ -243,8 +243,6 @@ def test_pooled_limb_statistic_uses_copopulated_bins_only() -> None:
 
 def test_aggregate_emits_density_w1_for_curve_kinds() -> None:
     """Curve kinds present on both sides get a density-W1 scalar."""
-    from tests.integration.sim_realism import InstrumentComparison, _aggregate
-
     comparison = InstrumentComparison(instrument='coiss_calib_nac')
     x = np.linspace(0.0, 8.0, 17)
     real_y = np.exp(-0.5 * (x / 1.0) ** 2)
@@ -259,30 +257,76 @@ def test_aggregate_emits_density_w1_for_curve_kinds() -> None:
     assert np.isfinite(result.w1_normalized)
 
 
-def test_a_content_filled_frame_leaves_both_sky_pools() -> None:
-    """A real frame whose sky patches all lie on content adds no sky noise on either side."""
-    from spindoctor.sim.realism.noise import SkyPatch
-    from tests.integration.sim_realism import pair_sky
-    from tests.integration.sim_realism_support import FrameSamples, FrameSky
+def _sky_frame(mean: float, sigma: float = 1e-4) -> FrameSamples:
+    """A frame's samples holding one sky patch at ``mean`` with noise ``sigma``."""
+    patch = SkyPatch(v0=0, u0=0, size=32, mean=mean, sigma=sigma)
+    sky = FrameSky(patches=[patch], floor=0.0, psd_freq=np.zeros(16), psd_tiles=[])
+    return FrameSamples(sky=sky)
 
-    def frame_at(mean: float) -> FrameSamples:
-        patch = SkyPatch(v0=0, u0=0, size=32, mean=mean, sigma=1e-4)
-        sky = FrameSky(patches=[patch], floor=0.0, psd_freq=np.zeros(16), psd_tiles=[])
-        return FrameSamples(sky=sky)
 
-    record = FrameRecord(
+def _sky_record(instrument: str = 'coiss_calib_nac') -> FrameRecord:
+    """A frame record on ``instrument`` for the sky-pairing tests."""
+    return FrameRecord(
         image_id='N1',
         scene_class='ring_only_flat',
-        instrument='coiss_calib_nac',
+        instrument=instrument,
         exposure_sec=0.68,
         stratum='0.5s_to_5s',
         offset_vu=(0.0, 0.0),
     )
-    real = frame_at(0.07)
-    sim = frame_at(3e-4)
-    pair_sky(record, real, sim)
+
+
+def test_a_dark_sky_pair_adds_sky_noise_on_both_sides() -> None:
+    """A pair whose patches both lie on dark sky adds its sky noise to both pools."""
+    real = _sky_frame(1e-4)
+    sim = _sky_frame(4e-5)
+    pair_sky(_sky_record(), real, sim)
+    assert 'sky_sigma' in real.samples
+    assert 'sky_sigma' in sim.samples
+
+
+def test_a_content_filled_frame_leaves_both_sky_pools() -> None:
+    """A real frame whose sky patches all lie on content adds no sky noise on either side."""
+    real = _sky_frame(0.07)
+    sim = _sky_frame(3e-4)
+    pair_sky(_sky_record(), real, sim)
     assert 'sky_sigma' not in real.samples
     assert 'sky_sigma' not in sim.samples
+
+
+def test_a_matched_frame_on_content_leaves_both_sky_pools() -> None:
+    """A matched frame whose sky patches all lie on a body adds no sky noise on either side."""
+    real = _sky_frame(1e-4)
+    sim = _sky_frame(1e-2)
+    pair_sky(_sky_record(), real, sim)
+    assert 'sky_sigma' not in real.samples
+    assert 'sky_sigma' not in sim.samples
+
+
+def test_a_raw_dn_pair_adds_every_patch_unjudged() -> None:
+    """On a raw-DN camera the two sides' levels can't be compared, so no patch is dropped.
+
+    The matched LORRI frame keeps the simulator's bias pedestal, about 545 DN, which the
+    real bias-subtracted product doesn't have.
+    """
+    real = _sky_frame(2.18, sigma=1.1)
+    sim = _sky_frame(544.5, sigma=1.05)
+    pair_sky(_sky_record('nhlorri'), real, sim)
+    assert 'sky_sigma' in sim.samples
+
+
+def test_a_frame_whose_twin_has_no_sky_keeps_its_real_sky_noise() -> None:
+    """With nothing to judge against, the real frame's sky noise is recorded as it is."""
+    real = _sky_frame(1e-4)
+    pair_sky(_sky_record(), real, FrameSamples())
+    assert 'sky_sigma' in real.samples
+
+
+def test_a_frame_off_the_downlink_table_is_grouped_as_native() -> None:
+    """A frame that wasn't downlinked through a companding table is grouped as native."""
+    comparison = InstrumentComparison(instrument='coiss_calib_nac')
+    comparison.sky_pairs.append(pair_sky(_sky_record(), _sky_frame(1e-4), _sky_frame(4e-5)))
+    assert list(_sky_comparison(comparison)['by_downlink']) == ['native']
 
 
 def test_cohort_discovery_covers_known_instruments() -> None:

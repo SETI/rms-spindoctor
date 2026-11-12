@@ -32,15 +32,12 @@ __all__ = [
 # MAD to sigma conversion for a normal distribution.
 _MAD_TO_SIGMA = 1.4826
 
-# A real frame's sky patch counts as sky comparable with its matched frame's when its
-# mean lies at most this many of its own noise sigmas above the matched frame's sky
-# level.  The darkest patches of a frame filled with rings or a body sit tens to
-# thousands of sigmas above dark sky, while a real dark sky differs from the matched
-# one only by its calibration residual, within three sigmas on every Cassini star
-# frame of the cohort.  The patch's own sigma is the yardstick because neither
-# frame's sky sigma is neutral: the matched frame's is half of the quantity being
-# compared, and the real frame's is inflated on content.  A ratio of the two levels
-# can't serve, because a calibrated dark sky sits near zero, where a ratio is noise.
+# A sky patch counts as dark sky when its mean lies at most this many noise sigmas
+# above the dark-sky reference level (see sky_patches_in_band).  The darkest patches
+# of a frame filled with rings or a body sit tens to thousands of sigmas above dark
+# sky, while a dark sky scatters about the reference by its calibration residual.  A
+# ratio of levels can't separate the two, because a calibrated dark sky sits near
+# zero, where a ratio is noise.
 SKY_BAND_MAX_SIGMAS = 3.0
 
 
@@ -148,29 +145,33 @@ def find_uniform_patches(
 def sky_patches_in_band(
     patches: list[SkyPatch],
     reference_level: float,
+    sigma: float,
     *,
     max_sigmas: float = SKY_BAND_MAX_SIGMAS,
 ) -> list[SkyPatch]:
-    """Select the sky patches on content comparable with a reference sky.
+    """Select the sky patches that lie on dark sky.
 
     A patch is kept when its mean exceeds the reference level by at most
-    ``max_sigmas`` times the patch's own noise sigma.  A patch below the
-    reference is always kept.
+    ``max_sigmas`` times ``sigma``.  The band is one-sided: a patch below the
+    reference is always kept, however far below it lies, because only content
+    (rings, a body, or scattered light) lifts a patch above dark sky.  One
+    ``sigma`` serves every patch of the frame, so the selection depends on each
+    patch's level alone and never on its own noise, the quantity being compared.
 
     Parameters:
         patches: One frame's sky patches.
-        reference_level: The matched frame's sky level (its median sky-patch
-            mean) in the same units.
-        max_sigmas: How many of its own sigmas a kept patch may sit above the
-            reference.
+        reference_level: The dark-sky level in the patches' units.
+        sigma: The noise sigma that scales the band, one value for the frame.
+        max_sigmas: How many sigmas a kept patch may sit above the reference.
 
     Returns:
-        The patches inside the band, in their input order; none for a
-        non-finite reference.
+        The patches inside the band, in their input order; none when the
+        reference or the sigma is not finite.
     """
-    if not np.isfinite(reference_level):
+    if not (np.isfinite(reference_level) and np.isfinite(sigma)):
         return []
-    return [p for p in patches if p.mean - reference_level <= max_sigmas * p.sigma]
+    limit = reference_level + max_sigmas * sigma
+    return [p for p in patches if p.mean <= limit]
 
 
 def radial_power_spectrum(

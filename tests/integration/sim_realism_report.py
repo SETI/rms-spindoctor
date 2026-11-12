@@ -29,7 +29,12 @@ from matplotlib.axes import Axes
 
 from spindoctor.sim.instrument_resolvers import resolve_detector_defaults
 from spindoctor.support.types import NDArrayFloatType
-from tests.integration.sim_realism import InstrumentComparison, RealismResults
+from tests.integration.sim_realism import (
+    InstrumentComparison,
+    RealismResults,
+    SkyPair,
+    SkyPairStatus,
+)
 
 __all__ = ['write_figures', 'write_summary']
 
@@ -411,17 +416,34 @@ def _round(value: float, digits: int = 6) -> float | None:
     return float(f'{float(value):.{digits}g}')
 
 
-def _sky_comparison(comparison: InstrumentComparison) -> dict[str, Any]:
-    """The FOM 1 sky pairing: frame counts and per-frame sigma ratios by downlink.
+def _downlink_label(pair: SkyPair) -> str:
+    """The pair's downlink label: its companding table, else ``'native'``."""
+    return pair.quantization if pair.quantization is not None else 'native'
 
-    Frames group by their downlink quantization (``'12bit'`` for a frame
-    without one).  Each group reports how many frames have real sky patches,
-    how many the sky band keeps, and the quartiles of the kept frames'
-    simulated over real median sky sigma.
+
+def _sky_comparison(comparison: InstrumentComparison) -> dict[str, Any]:
+    """Summarize the FOM 1 sky pairing by downlink, with the per-frame values.
+
+    A frame downlinked through a companding table is grouped under that table's
+    quantization name (``'sqrt_lut'``); every other frame is grouped as
+    ``'native'``.  Each group reports how many of its frames ended in each pairing
+    status, and the quartiles of the compared frames' simulated over real median
+    sky sigma.
+
+    Parameters:
+        comparison: One instrument's comparison, after the match has paired
+            every frame's sky patches.
+
+    Returns:
+        ``by_downlink``, keyed by downlink label, holding ``n_frames``, a
+        ``n_<status>`` count for every pairing status, and
+        ``sigma_ratio_quartiles`` (None when no frame was compared); and
+        ``frames``, one entry per frame with its downlink label, status, sky
+        levels, patch counts, and sigma ratio.
     """
-    groups: dict[str, list[Any]] = {}
+    groups: dict[str, list[SkyPair]] = {}
     for pair in comparison.sky_pairs:
-        groups.setdefault(pair.quantization or '12bit', []).append(pair)
+        groups.setdefault(_downlink_label(pair), []).append(pair)
     by_downlink: dict[str, Any] = {}
     for name, pairs in sorted(groups.items()):
         ratios = np.asarray([p.sigma_ratio for p in pairs if p.compared], dtype=np.float64)
@@ -431,23 +453,24 @@ def _sky_comparison(comparison: InstrumentComparison) -> dict[str, Any]:
             if ratios.size
             else None
         )
-        by_downlink[name] = {
-            'n_frames': len(pairs),
-            'n_with_real_sky': sum(1 for p in pairs if p.n_real_patches > 0),
-            'n_compared': sum(1 for p in pairs if p.compared),
-            'sigma_ratio_quartiles': quartiles,
-        }
+        group: dict[str, Any] = {'n_frames': len(pairs)}
+        for status in SkyPairStatus:
+            group[f'n_{status.value}'] = sum(1 for p in pairs if p.status is status)
+        group['sigma_ratio_quartiles'] = quartiles
+        by_downlink[name] = group
     return {
-        'n_compared': sum(1 for p in comparison.sky_pairs if p.compared),
         'by_downlink': by_downlink,
         'frames': [
             {
                 'image_id': p.image_id,
-                'downlink': p.quantization or '12bit',
+                'downlink': _downlink_label(p),
+                'status': p.status.value,
                 'real_level': _round(p.real_level),
                 'sim_level': _round(p.sim_level),
                 'n_real_patches': p.n_real_patches,
+                'n_sim_patches': p.n_sim_patches,
                 'n_real_kept': p.n_real_kept,
+                'n_sim_kept': p.n_sim_kept,
                 'sigma_ratio': _round(p.sigma_ratio, 3),
             }
             for p in comparison.sky_pairs
@@ -487,6 +510,7 @@ def _summary_dict(results: RealismResults) -> dict[str, Any]:
             'frames': [r.image_id for r in comparison.records],
             'fom_support': dict(sorted(comparison.fom_support.items())),
             'fom_frames': dict(sorted(comparison.fom_frames.items())),
+            'n_sky_compared': sum(1 for p in comparison.sky_pairs if p.compared),
             'divergences': kinds,
             'curve_divergences': curve_kinds,
             'limb_bins_real_only': list(comparison.limb_bins_real_only),
