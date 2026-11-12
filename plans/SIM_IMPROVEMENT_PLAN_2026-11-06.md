@@ -102,7 +102,7 @@ These make every later phase cheaper or safer. Most are small.
 | #930 | **Done (PR #946).** Peak suppression and PSR ignore wrap-around | Disc and ring confidence rose about 0.08; no library frame's final offset, status, or tier moved. |
 | #929 | The correlation refinement clamps at ±0.5 px from the integer peak | A navigator defect the simulator found; committed baselines record clamped answers, so it lands before the guard scenes and the Phase 3 re-ratchet. It is measured on real frames first, and its fix keeps the expected failures failing. |
 | #941, #943, #944 | The PSR has no minimum background size; a NaN quality makes candidate selection order-dependent; the overlap floor flips a lag's validity on rounding ties | Since #930, a 4 px body navigates on a PSR from about five background cells and a NaN quality is reachable for small bodies; the smallest range-sweep body is an expected failure until #941 lands. #944 shows only in contrived small geometries. |
-| #903, regression part | The realism match cannot fail | Compare a fresh run with the committed summary within per-statistic bands, so later physics changes are caught when they make realism worse. The hold-out and transfer parts come in Phase 6. |
+| #903, regression part | **Done (this branch); its bands arm at the end-of-stack regeneration of the realism record, the first record to carry a code commit.** The realism match cannot fail | **Done:** compare a fresh LORRI run with the committed summary within two-sided per-statistic bands (the larger of 3 times the run-to-run spread over 10 runs and 2% of the value), so later physics changes are caught when they move realism either way; the summary records its code commit, and the check skips a record without one. Support counts frames on both sides, so a statistic with no simulated samples is unsupported. A maximum-likelihood fit of the quantization replaces paired differences on quantized patches, so a camera whose simulated sky noise is below one DN step still contributes: on the 2026-11-11 frames, Galileo's matched frames give 689 sky patches on 8 frames (none before) and Voyager's 730 on 3, and the Cassini counts are unchanged. Both comparisons are measured, and both twins' sky noise is off: Galileo simulated 0.26 DN against real 0.96 DN (W1/IQR 5.9), Voyager 3.1e-3 against 2.6e-3 I/F (W1/IQR 16). The hold-out and transfer parts come in Phase 6. |
 
 **Exit:** changing the signal in one region of a frame leaves the noise elsewhere in that frame
 unchanged; validation scenes assert against their planted truth; a null body key behaves exactly
@@ -267,7 +267,7 @@ integration tier; idealized scenes and every existing baseline are unchanged.
 
 | Issue | Subject |
 |---|---|
-| #903, hold-out and transfer parts | In-sample tuning, no hold-out, censored noise comparison for Galileo and Voyager, no transfer check |
+| #903, hold-out and transfer parts | In-sample tuning, no hold-out, no transfer check (the censored noise comparison for Galileo and Voyager is done with the regression part) |
 | #153, real-versus-simulated diagnostics part | Per-technique comparison of simulated and real diagnostics, run beside the transfer check |
 
 The transfer check plants matched offsets on real frames and on their twins and compares simulated
