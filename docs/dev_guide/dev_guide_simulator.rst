@@ -4277,20 +4277,47 @@ instrument, on seven figures of merit:
    spectrum (which catches banding and coherent noise a scalar sigma cannot).
    A frame's sky patches are the darkest quarter of its uniform 32 × 32 pixel
    patches.  On a frame filled with rings or a body, those lie on the rings or
-   the body, while the matched frame's lie on dark sky, and comparing them
-   would set signal-dependent noise against sky noise.  So a real sky patch
-   counts only when its mean exceeds the matched frame's median sky level by at
-   most three of the patch's own noise sigmas (``SKY_BAND_MAX_SIGMAS`` in
-   :mod:`spindoctor.sim.realism.noise`), and a frame pair adds sky statistics
-   to either side only when at least one real patch counts.  A patch on rings or
-   a body sits tens to thousands of sigmas above dark sky, while a real dark sky
-   differs from the matched one by its calibration residual, within three
-   sigmas on every Cassini star frame.  A ratio of the two levels can't separate
-   them, because a calibrated dark sky sits near zero.  The summary's
-   ``sky_comparison`` block lists, for each instrument and downlink format,
-   how many frames have real sky patches, how many the rule keeps, and the
-   quartiles of the kept frames' ratio of simulated to real median sky sigma,
-   with the per-frame values beneath.
+   the body, and comparing them with the other frame's dark sky would set
+   signal-dependent noise against sky noise.  So on a calibrated camera a patch
+   of either frame counts only when it lies on dark sky: its mean may exceed
+   the camera's calibrated sky residual by at most three times the matched
+   frame's median sky sigma (``SKY_BAND_MAX_SIGMAS`` in
+   :mod:`spindoctor.sim.realism.noise`).  The residual is the level at which
+   the simulator draws empty calibrated sky, measured on real dark skies, so
+   both frames' dark skies scatter about it.  A frame pair adds sky statistics
+   only when both frames keep at least one patch.
+
+   One sigma serves the whole frame.  A patch's own sigma would select patches
+   by the noise being compared, keeping the noisier ones.  The real frame's sky
+   sigma grows on content: on the Cassini cohort it lets through a body at
+   0.8 I/F and 81 of the 98 patches of a frame filled by Rhea.  The matched
+   frame's sigma rejects every content-filled frame of the cohort.  A real dark
+   sky that sits more than three of those sigmas above the residual drops out
+   with the content.  Every Cassini NAC TABLE frame drops this way, because
+   its real sky sits 5e-4 to 2.3e-3 I/F above the residual and the matched
+   frames don't reproduce that offset.  So the sky comparison says nothing
+   about the TABLE downlink's sky noise.  Two NAC 12-bit frames, N1489256001
+   and N1828122657, also drop, with real skies 3e-4 to 5e-4 I/F above the
+   residual.  Their sky could be a calibration offset or faint scattered
+   light, and the rule can't tell which.
+
+   On a camera whose products are raw DN, the real product may have had its
+   bias pedestal removed while the matched frame keeps the simulator's, so the
+   two levels can't be compared.  Such a pair isn't judged, and every patch of
+   both frames is compared.  When the matched frame has no sky patches, the
+   real frame's patches are recorded as they are.  When the real frame has
+   none, neither side adds any.
+
+   The summary's ``sky_comparison`` block groups each instrument's frames by
+   downlink: ``sqrt_lut`` for a frame downlinked through a companding table,
+   and ``native`` for every other frame.  Each group counts its frames by
+   outcome (``compared``, ``dropped``, ``not_judged``, ``no_real_sky``, and
+   ``no_sim_sky``) and gives the quartiles of the compared frames' ratio of
+   simulated to real median sky sigma, with the per-frame values beneath.  The
+   figure's support label counts every frame that has uniform patches, since
+   the noise-at-signal statistic uses all of them.  The sky statistics can rest
+   on fewer frames, and ``n_sky_compared``, beside the support counts, gives
+   their number.
 2. **Star PSF** -- star-cutout radial profiles and encircled-energy radii
    (EE50/EE80) on cohorts that contain star frames.  Where a cohort has no
    star frames, the limb profile of figure 3 is the only PSF evidence and
@@ -4322,7 +4349,14 @@ instrument, on seven figures of merit:
 7. **Technique diagnostics** -- for a handful of matched real/sim pairs the
    full navigator runs on both frames and the per-technique diagnostics
    (inlier counts, residual scatter, confidences) are tabulated side by
-   side.
+   side.  The navigator predicts each star's signal without regard to the
+   frame's filter, while the matched scene brightens its star ladder by the
+   filter's throughput.  On a frame taken through a filter other than clear,
+   the star techniques' predicted SNR and brightness margin therefore can't be
+   compared between the real and simulated frames until the prediction
+   accounts for the filter.
+
+   .. The star prediction's filter handling is issue 899.
 
 Matched frames
 --------------
