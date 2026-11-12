@@ -174,3 +174,58 @@ def test_a_summary_records_the_provenance_it_is_given(tmp_path: Path) -> None:
     path = report.write_summary(results, provenance, results_root=tmp_path)
     payload = json.loads(path.read_text())
     assert (payload['code_commit'], payload['code_dirty']) == ('a' * 40, False)
+
+
+@pytest.mark.parametrize(
+    ('text', 'message'),
+    [
+        (
+            '{"nhlorri": {"runs": 10, "statistics": {"s": '
+            '{"value": NaN, "spread": 0, "band": 0}}}}',
+            'the band table holds NaN',
+        ),
+        (
+            '{"nhlorri": {"runs": 10, "statistics": {"s": '
+            '{"value": 1, "spread": 0, "band": Infinity}}}}',
+            'the band table holds Infinity',
+        ),
+        (
+            '{"nhlorri": {"runs": 10, "statistics": {"s": '
+            '{"value": 1e999, "spread": 0, "band": 0}}}}',
+            "nhlorri s 'value' is inf, which is not finite",
+        ),
+        (
+            '{"nhlorri": {"runs": 10, "statistics": {"s": '
+            '{"value": 1, "spread": -0.1, "band": 0}}}}',
+            "nhlorri s 'spread' is -0.1, which is negative",
+        ),
+        (
+            '{"nhlorri": {"runs": 10, "statistics": {"s": '
+            '{"value": 1, "spread": 0, "band": "0.1"}}}}',
+            "nhlorri s 'band' is '0.1', which is not a number",
+        ),
+        (
+            '{"nhlorri": {"runs": 1, "statistics": {}}}',
+            'nhlorri: runs is 1; a spread needs a whole number of at least 2 runs',
+        ),
+    ],
+    ids=['nan', 'infinity', 'overflow', 'negative-spread', 'string-band', 'one-run'],
+)
+def test_a_band_table_that_breaks_the_rules_is_refused(
+    tmp_path: Path, text: str, message: str
+) -> None:
+    """A table holding a number no band can use is refused with a message naming it."""
+    path = tmp_path / 'bands.json'
+    path.write_text(text)
+    with pytest.raises(ValueError, match=re.escape(message)):
+        load_bands(path)
+
+
+def test_a_negative_statistic_value_is_read(tmp_path: Path) -> None:
+    """A statistic's value may be negative, as the sky level less the floor can be."""
+    table = InstrumentBands(
+        runs=10, statistics={_EE50: RealismBand(value=-0.5, spread=0.0, band=0.01)}
+    )
+    path = tmp_path / 'bands.json'
+    write_bands({'nhlorri': table}, path)
+    assert load_bands(path) == {'nhlorri': table}

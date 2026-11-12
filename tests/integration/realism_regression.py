@@ -145,30 +145,60 @@ def band_rule(spread: float, value: float) -> float:
     return float(f'{math.ceil(band / scale - 1e-9) * scale:.3g}')
 
 
+def _reject_constant(name: str) -> float:
+    """Refuse the NaN and Infinity constants Python's JSON reader accepts by default."""
+    raise ValueError(f'the band table holds {name}, which is not a number a band can use')
+
+
+def _table_number(row: dict[str, Any], key: str, where: str, *, signed: bool) -> float:
+    """One number of a band-table row, finite and, unless ``signed``, non-negative."""
+    value = row[key]
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError(f'{where} {key!r} is {value!r}, which is not a number')
+    if not math.isfinite(value):
+        raise ValueError(f'{where} {key!r} is {value!r}, which is not finite')
+    if not signed and value < 0:
+        raise ValueError(f'{where} {key!r} is {value!r}, which is negative')
+    return float(value)
+
+
 def load_bands(path: Path = BANDS_PATH) -> dict[str, InstrumentBands]:
-    """Read the band table.
+    """Read and validate the band table.
+
+    Each instrument's ``runs`` must be a whole number of at least :data:`MIN_RUNS`.  Each
+    statistic's ``value`` must be a finite number, and its ``spread`` and ``band``
+    finite and non-negative; a value may be negative, as the sky level less the
+    detector floor can be.
 
     Parameters:
         path: The table's path.
 
     Returns:
         Each instrument's bands, keyed by instrument.
+
+    Raises:
+        ValueError: When the table holds NaN or Infinity, or an entry breaks one of the
+            rules above; the message names the instrument and statistic.
     """
-    raw: dict[str, Any] = json.loads(path.read_text())
-    return {
-        instrument: InstrumentBands(
-            runs=int(entry['runs']),
-            statistics={
-                stat: RealismBand(
-                    value=float(row['value']),
-                    spread=float(row['spread']),
-                    band=float(row['band']),
-                )
-                for stat, row in entry['statistics'].items()
-            },
-        )
-        for instrument, entry in raw.items()
-    }
+    raw: dict[str, Any] = json.loads(path.read_text(), parse_constant=_reject_constant)
+    bands: dict[str, InstrumentBands] = {}
+    for instrument, entry in raw.items():
+        runs = entry.get('runs')
+        if isinstance(runs, bool) or not isinstance(runs, int) or runs < MIN_RUNS:
+            raise ValueError(
+                f'{instrument}: runs is {runs!r}; a spread needs a whole number of at least '
+                f'{MIN_RUNS} runs'
+            )
+        statistics: dict[str, RealismBand] = {}
+        for stat, row in entry['statistics'].items():
+            where = f'{instrument} {stat}'
+            statistics[stat] = RealismBand(
+                value=_table_number(row, 'value', where, signed=True),
+                spread=_table_number(row, 'spread', where, signed=False),
+                band=_table_number(row, 'band', where, signed=False),
+            )
+        bands[instrument] = InstrumentBands(runs=runs, statistics=statistics)
+    return bands
 
 
 def write_bands(bands: dict[str, InstrumentBands], path: Path = BANDS_PATH) -> None:
