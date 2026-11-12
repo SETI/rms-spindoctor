@@ -211,8 +211,8 @@ class FrameRecord:
 class SkyPairStatus(StrEnum):
     """What became of one frame pair's FOM 1 sky patches.
 
-    A frame's sky patches here are its darkest-quartile uniform patches whose noise
-    sigma is positive.
+    A frame's sky patches here are the darkest quarter of the uniform patches whose
+    noise sigma is positive.
 
     ``COMPARED``: both frames kept dark-sky patches, which entered the pooled sky
     statistics.  ``DROPPED``: neither side added any, because a frame kept no
@@ -608,8 +608,9 @@ def pair_sky(
 ) -> SkyPair:
     """Add one frame pair's FOM 1 sky samples from the patches on dark sky in both frames.
 
-    A frame's sky patches are its darkest-quartile uniform patches, less any whose
-    noise sigma is 0 (a constant tile, such as zero-filled missing data).  On a
+    A frame's sky patches are the darkest quarter of the uniform patches whose noise
+    sigma is positive (a constant tile, such as zero-filled missing data, has a
+    sigma of 0).  On a
     frame filled with rings or a body they lie on that content, and comparing them
     with the other frame's dark sky would set signal-dependent noise against sky
     noise.  So on an instrument that sets a dark-sky ceiling, a patch of either

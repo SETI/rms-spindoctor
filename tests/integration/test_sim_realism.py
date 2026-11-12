@@ -469,31 +469,60 @@ def test_the_reported_sky_level_follows_the_patches_kept(
     assert pair.real_level == pytest.approx(expected)
 
 
-def test_only_the_kept_patches_spectra_enter_the_sky_spectrum() -> None:
-    """A dropped patch's power spectrum stays out of the frame's sky spectrum."""
-    kept = SkyPatch(v0=0, u0=0, size=32, mean=_REF, sigma=1e-4)
-    dropped = SkyPatch(v0=0, u0=32, size=32, mean=0.076, sigma=1e-3)
-    kept_power = np.linspace(1.0, 0.0, 16)
+def _grid_patch(v0: int, u0: int, mean: float = _REF) -> SkyPatch:
+    """A 32-px sky patch at ``(v0, u0)`` with mean ``mean``."""
+    return SkyPatch(v0=v0, u0=u0, size=32, mean=mean, sigma=1e-4)
+
+
+def test_a_tile_enters_the_sky_spectrum_only_when_all_its_patches_were_kept() -> None:
+    """A tile whose anchor patch was kept but whose neighbor lies on a ring is left out."""
+    corner, top, ring = _grid_patch(0, 0), _grid_patch(0, 32), _grid_patch(0, 64, mean=0.076)
+    left, middle, right = _grid_patch(32, 0), _grid_patch(32, 32), _grid_patch(32, 64)
+    kept = [corner, top, left, middle, right]
+    whole_power = np.linspace(1.0, 0.0, 16)
+    whole = (corner, top, left, middle)
+    beside_ring = (top, ring, middle, right)
     sky = FrameSky(
-        patches=[kept, dropped],
+        patches=[*kept, ring],
         floor=0.0,
         psd_freq=np.linspace(0.0, 0.5, 16),
-        psd_tiles=[(kept, kept_power), (dropped, np.ones(16))],
+        psd_tiles=[(whole, whole_power), (beside_ring, np.ones(16))],
     )
     frame = FrameSamples(sky=sky)
-    add_sky_samples(frame, [kept])
-    assert np.array_equal(frame.curves['sky_psd'][0][1], kept_power)
+    add_sky_samples(frame, kept)
+    assert np.array_equal(frame.curves['sky_psd'][0][1], whole_power)
 
 
-def test_the_sky_spectrum_tiles_skip_constant_patches() -> None:
-    """The spectrum tiles sit at the darkest noisy patches, never at a zero-filled block."""
-    image = np.random.default_rng(1).normal(1e-4, 1e-5, (256, 256))
-    image[:64, :64] = 0.0
+def test_the_sky_spectrum_tiles_are_made_wholly_of_sky_patches() -> None:
+    """No spectrum tile reaches past the frame's sky patches onto brighter content.
+
+    The darkest patches lie in the second row, beside the bright band below, so a
+    tile anchored at a darkest patch would cover the band.
+    """
+    image = np.random.default_rng(1).normal(1.0, 1e-2, (256, 256))
+    image[:32] = np.random.default_rng(2).normal(2e-4, 1e-5, (32, 256))
+    image[32:64] = np.random.default_rng(3).normal(1e-4, 1e-5, (32, 256))
     samples, _rates = extract_pixel_samples(
         image, exposure_stratum='0.5s_to_5s', saturation_level=float('nan')
     )
     assert samples.sky is not None
-    assert min(p.sigma for p, _ in samples.sky.psd_tiles) > 0.0
+    sky_patches = samples.sky.patches
+    assert samples.sky.psd_tiles
+    assert all(cell in sky_patches for cells, _ in samples.sky.psd_tiles for cell in cells)
+
+
+def test_a_zero_filled_block_leaves_the_dark_sky_in_the_sky_quartile() -> None:
+    """The sky is the darkest quarter of the noisy patches, whatever constant tiles the frame has.
+
+    The zero-filled block covers 24 of the 64 patches, more than a quarter of the frame.
+    """
+    image = np.random.default_rng(4).normal(1e-4, 1e-5, (256, 256))
+    image[:96] = 0.0
+    samples, _rates = extract_pixel_samples(
+        image, exposure_stratum='0.5s_to_5s', saturation_level=float('nan')
+    )
+    assert samples.sky is not None
+    assert len(samples.sky.patches) == 10
 
 
 def test_the_pools_carry_the_sky_samples_each_pair_kept() -> None:
