@@ -1072,10 +1072,12 @@ top-level value isn't a mapping. Within an entry, the load fails on:
   without a positive activation key; a mode the entry offers, gives shape
   defaults, or turns on although its detector model has no stage for the mode
   (see the detector-stage modes below); an unavailability reason for a mode the
-  entry offers; a filter or polarizer spelled other than canonically; and a
-  filter table key that contains a polarizer, which no scene can select because
-  a scene's filter folds each polarizer onto its wheel's clear element before
-  lookup.
+  entry offers; a filter or polarizer spelled other than canonically; a filter
+  table key that contains a polarizer, which no scene can select because a
+  scene's filter folds each polarizer onto its wheel's clear element before
+  lookup; and a ``dark_sky_ceiling_if`` on an entry whose ``data_units`` is
+  ``raw_dn``, since the realism match applies the ceiling only to calibrated
+  frames.
 
 Three rules shape what an entry may state. **Canonical filter spelling:** a
 scene's ``detector.filter`` is read element by element, stripped of spaces and
@@ -1179,10 +1181,11 @@ The keys of an entry, all directly under the instrument's top-level key:
        ``dark_current_e_per_sec``, the hot-pixel, banding, and bias-structure
        terms, and ``bloom_length``); a ``vidicon`` entry states the ``vidicon``
        DN-noise sub-map, which only a vidicon may carry. Optional:
-       ``readout_dark_e``, the cosmic-ray dwell, amplitude, and spread, and the
-       calibrated-product terms ``calibrated_sky_if``,
-       ``calibration_column_residual_e``, and ``calibration_pixel_residual_e``, and
-       the realism match's dark-sky ceiling ``dark_sky_ceiling_if``.
+       ``readout_dark_e`` and the cosmic-ray dwell, amplitude, and spread. Also
+       optional are the calibrated-product terms (``calibrated_sky_if``,
+       ``calibration_column_residual_e``, and ``calibration_pixel_residual_e``)
+       and the realism match's dark-sky ceiling, ``dark_sky_ceiling_if``, which
+       only a calibrated product's entry may set.
    * - ``readout_modes``
      - yes
      - The binning factors at which the camera reads out. Each maps to the
@@ -4287,7 +4290,9 @@ instrument, on seven figures of merit:
    level at which the simulator draws empty calibrated sky, measured on real
    dark skies.  The ceiling is ``dark_sky_ceiling_if`` in the config entry's
    ``detector`` block, in I/F.  A frame pair adds sky statistics only when both
-   frames keep at least one patch.
+   frames keep at least one patch.  The sky power spectrum is measured on 64 × 64
+   pixel tiles at up to four of a frame's darkest sky patches, and a frame adds
+   the spectra of the tiles at the patches it keeps.
 
    The rule looks at each patch's level and at nothing else.  A rule that used
    a noise sigma would select patches by the quantity being compared.  A band
@@ -4304,26 +4309,31 @@ instrument, on seven figures of merit:
    gives the CALIB cameras' ceiling and the real patch levels it was measured
    on.
 
-   A camera that sets no ceiling isn't judged, and every patch of both frames
-   is compared.  A camera whose products are raw DN sets none, because the real
-   product may have had its bias pedestal removed while the matched frame keeps
-   the simulator's, so the two levels can't be compared.  When no matched frame
-   of an instrument has sky patches, each real frame's patches are recorded
-   alone, so the real sky statistics still appear.  When the instrument's other
-   matched frames have sky patches, a pair whose matched frame has none is
-   dropped.  When the real frame has no sky patches, neither side adds any.
+   A camera that sets no ceiling isn't judged, and every sky patch of both
+   frames enters the sky statistics.  A camera whose products are raw DN sets
+   none, because the real product may have had its bias pedestal removed while
+   the matched frame keeps the simulator's, so the two levels can't be compared.
+   When no matched frame of an instrument has sky patches, each real frame's
+   dark-sky patches are recorded alone, so the real sky statistics still appear.
+   On a camera that sets no ceiling, every sky patch of the real frame is
+   recorded.  When the instrument's other matched frames have sky patches, a
+   pair whose matched frame has none is dropped.  When the real frame has no sky
+   patches, neither side adds any.
 
    The summary's ``sky_comparison`` block groups each instrument's frames by
    downlink: ``sqrt_lut`` for a frame downlinked through a companding table,
    and ``native`` for every other frame.  Each group counts its frames by
    outcome (``compared``, ``dropped``, ``not_judged``, ``no_real_sky``, and
    ``no_sim_sky``) and gives the quartiles of the compared frames' ratio of
-   simulated to real median sky sigma, with the per-frame values beneath.  The
-   figure's support label counts every frame that has uniform patches, since
-   the noise-at-signal statistic uses all of them.  The sky statistics can rest
-   on fewer frames.  ``n_sky_frames``, beside the support counts, gives the
-   number of frames that added sky samples, once for the real side and once for
-   the simulated side.
+   simulated to real median sky sigma, with the per-frame values beneath.  In
+   each frame's entry, ``real_level`` and ``sim_level`` are the median means of
+   the patches each frame kept, or of all its sky patches when it kept none.
+   The figure's support label counts every frame that adds any of its
+   statistics.  The noise-at-signal statistic uses the uniform patches above the
+   darkest quarter, so a frame can add it while its sky drops out, and the sky
+   statistics can rest on fewer frames.
+   ``n_sky_frames``, beside the support counts, gives the number of frames that
+   added sky samples, once for the real side and once for the simulated side.
 2. **Star PSF** -- star-cutout radial profiles and encircled-energy radii
    (EE50/EE80) on cohorts that contain star frames.  Where a cohort has no
    star frames, the limb profile of figure 3 is the only PSF evidence and

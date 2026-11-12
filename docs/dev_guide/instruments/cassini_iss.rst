@@ -451,7 +451,7 @@ its matched frame as dark sky when the patch's mean lies at most 2.5e-3 I/F abov
 the calibrated sky residual (``dark_sky_ceiling_if``; see
 :ref:`sim-realism-match`). Both calibrated entries set this value. It was
 measured on the darkest quarter of the uniform patches of the CALIB cohort and of
-its matched frames. On the NAC, real dark sky lies from -9.3e-4 to 6.9e-4 I/F
+its matched frames. On the NAC, real dark sky lies from -9.4e-4 to 6.9e-4 I/F
 above the residual on 12-bit frames. The TABLE frames' skies sit higher, up to
 2.18e-3 on a frame whose whole sky lies between 2.12e-3 and 2.18e-3. Ring and
 body material lies at 1.26e-2 and above. The real patch levels leave one empty
@@ -471,7 +471,8 @@ the WAC frame of Rhea, the darkest patches are the halo sky around the moon, at
 
 Two TABLE skies below the ceiling are nearly flat, with sky sigmas of 2.3e-5 and
 4.4e-6 I/F, so their matched frames' sky sigmas come out about 5 and 3 times as
-large. That comes from the TABLE downlink.
+large. These two skies are tracked with the open question of the TABLE frames'
+sky noise and offset.
 
 .. The TABLE sky noise and offset are tracked in issue 977.
 

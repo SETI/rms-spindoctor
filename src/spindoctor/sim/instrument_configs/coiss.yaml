@@ -436,7 +436,7 @@ coiss_calib_nac:
     # mean lies at or below calibrated_sky_if plus this value.  It separates
     # level alone.  Measured 2026-11-11 on the darkest-quarter uniform patches of
     # the 58-frame NAC cohort and its twins:
-    # - Real dark sky lies at -9.3e-4 to 6.9e-4 on 12-bit frames, and the TABLE
+    # - Real dark sky lies at -9.4e-4 to 6.9e-4 on 12-bit frames, and the TABLE
     #   frames' offset skies reach 2.18e-3 (N1447064164, a uniform sky at 2.12e-3
     #   to 2.18e-3).
     # - Ring and body material lies at 1.26e-2 and up.
@@ -450,7 +450,8 @@ coiss_calib_nac:
     # 6e-4 to 2.5e-3.  Brightened sky below the ceiling counts as dark sky, so a
     # few frames' brightened sky is compared with the twins' dark sky.  Two TABLE
     # skies kept by the ceiling are nearly flat (sky sigmas 2.3e-5 and 4.4e-6 on
-    # N1447064164 and N1492091163); that belongs to the TABLE downlink (#977).
+    # N1447064164 and N1492091163); they are tracked with the TABLE sky question
+    # (#977).
     dark_sky_ceiling_if: 2.5e-3
 
   # The image library's CALIB frames from this camera are matched against this
