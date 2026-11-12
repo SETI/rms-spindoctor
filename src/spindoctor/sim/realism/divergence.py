@@ -6,8 +6,10 @@ by the real distribution's interquartile range.  W1 is a transport metric in
 the variable's own units -- the actual reason to use it -- but it is not
 outlier-robust (it grows linearly with displaced-tail distance), so the clip
 keeps a noise statistic from silently measuring an artifact statistic's
-tails.  No pass/fail threshold is attached; the number is reported per figure
-of merit and read by a human.
+tails.  No absolute pass/fail threshold is attached: the number is reported
+per figure of merit and read by a human, and the regression check
+(``tests/integration/realism_regression.py``) holds each supported statistic
+to its committed value within a band measured from run-to-run variation.
 
 Each sample is winsorized at its *own* 1st/99th percentiles.  Clipping the
 sim sample at the real sample's bounds would cap the measured displacement of
@@ -74,9 +76,12 @@ class CohortSupport(Enum):
     The labels: ``SUPPORTED`` means enough frames for a per-frame
     distribution statement; ``LIMITED`` means a comparison is reported but
     flagged as resting on too few frames for distributional confidence; and
-    ``UNSUPPORTED`` means the statistic is not computed, so the instrument's
-    sim accuracy is bounded by unverified forward-model fidelity for this
-    figure of merit.
+    ``UNSUPPORTED`` means the comparison rests on too few frames to say
+    anything about the distributions and is not held to a regression band, so
+    the instrument's sim accuracy is bounded by unverified forward-model
+    fidelity for this figure of merit.  The frames
+    are counted on both sides, real and simulated, and the smaller count sets
+    the label.
     """
 
     SUPPORTED = 'supported'
@@ -93,7 +98,8 @@ def cohort_support(n_frames: int, *, supported_min: int = 8, limited_min: int = 
     the comparison is reported with an explicit low-count caveat.
 
     Parameters:
-        n_frames: Number of cohort frames contributing to the statistic.
+        n_frames: Number of cohort frames contributing to the statistic, on
+            whichever side, real or simulated, has fewer.
         supported_min: Frame count at or above which the statistic is
             fully supported.
         limited_min: Frame count at or above which a caveated comparison

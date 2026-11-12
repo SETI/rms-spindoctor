@@ -5,9 +5,10 @@ overlays plus the curve overlays) into ``docs/simulator_report/_figures/``
 as ``realism_<instrument>_<fom>.png``, and a deterministic JSON summary
 into ``tests/integration/realism_results/realism_summary.json`` that backs
 the report's tables (per-kind W1 divergences, per-curve density-W1
-divergences, support labels, the FOM 3 one-sided-stratum disclosure, the
-FOM 1 sky pairing with its per-frame sigma ratios, the FOM 7 diagnostic
-rows, and the artifact-rate comparison against the catalog defaults).
+divergences, support labels with each side's frame counts, the FOM 3
+one-sided-stratum disclosure, the FOM 1 sky pairing with its per-frame
+sigma ratios, the FOM 7 diagnostic rows, and the artifact-rate comparison
+against the catalog defaults).
 
 Two fixed series colors carry sides everywhere: real cohort in blue,
 simulated frames in orange -- a colorblind-safe pair, never cycled.
@@ -36,9 +37,10 @@ from tests.integration.sim_realism import (
     SkyPairStatus,
 )
 
-__all__ = ['write_figures', 'write_summary']
+__all__ = ['summary_dict', 'write_figures', 'write_summary']
 
-_FIGURES_ROOT = Path(__file__).parent.parent.parent / 'docs' / 'simulator_report' / '_figures'
+_REPO_ROOT = Path(__file__).parent.parent.parent
+_FIGURES_ROOT = _REPO_ROOT / 'docs' / 'simulator_report' / '_figures'
 _RESULTS_ROOT = Path(__file__).parent / 'realism_results'
 
 # Fixed series colors (real vs sim), used in every figure.
@@ -478,7 +480,16 @@ def _sky_comparison(comparison: InstrumentComparison) -> dict[str, Any]:
     }
 
 
-def _summary_dict(results: RealismResults) -> dict[str, Any]:
+def _kind_support(comparison: InstrumentComparison, kind: str) -> dict[str, Any]:
+    """One statistic's contributing frames on each side and its support label."""
+    return {
+        'n_real_frames': comparison.kind_frames.get('real', {}).get(kind, 0),
+        'n_sim_frames': comparison.kind_frames.get('sim', {}).get(kind, 0),
+        'support': comparison.kind_support.get(kind, 'unsupported'),
+    }
+
+
+def summary_dict(results: RealismResults) -> dict[str, Any]:
     """The deterministic JSON-serializable summary."""
     out: dict[str, Any] = {'runtime_sec': round(results.runtime_sec, 1), 'instruments': {}}
     for instrument, comparison in sorted(results.comparisons.items()):
@@ -495,6 +506,7 @@ def _summary_dict(results: RealismResults) -> dict[str, Any]:
                 'n_sim': div.n_sim,
                 'real_median': _round(float(np.median(real_values))) if real_values.size else None,
                 'sim_median': _round(float(np.median(sim_values))) if sim_values.size else None,
+                **_kind_support(comparison, kind),
             }
         curve_kinds: dict[str, Any] = {}
         for kind, div in sorted(comparison.curve_divergences.items()):
@@ -504,12 +516,16 @@ def _summary_dict(results: RealismResults) -> dict[str, Any]:
                 'real_iqr': _round(div.real_iqr),
                 'n_real_curves': len(comparison.real.curves.get(kind, [])),
                 'n_sim_curves': len(comparison.sim.curves.get(kind, [])),
+                **_kind_support(comparison, kind),
             }
         out['instruments'][instrument] = {
             'n_frames': len(comparison.records),
             'frames': [r.image_id for r in comparison.records],
             'fom_support': dict(sorted(comparison.fom_support.items())),
-            'fom_frames': dict(sorted(comparison.fom_frames.items())),
+            'fom_frames': {
+                side: dict(sorted(comparison.fom_frames.get(side, {}).items()))
+                for side in ('real', 'sim')
+            },
             'n_sky_frames': {
                 'real': sum(1 for p in comparison.sky_pairs if p.real_added),
                 'sim': sum(1 for p in comparison.sky_pairs if p.sim_added),
@@ -552,6 +568,6 @@ def write_summary(results: RealismResults, *, results_root: Path | None = None) 
     root = results_root if results_root is not None else _RESULTS_ROOT
     root.mkdir(parents=True, exist_ok=True)
     path = root / 'realism_summary.json'
-    payload = _summary_dict(results)
+    payload = summary_dict(results)
     path.write_text(json.dumps(payload, indent=2, sort_keys=True, allow_nan=False) + '\n')
     return path
