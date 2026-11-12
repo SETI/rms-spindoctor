@@ -188,6 +188,26 @@ def _quadratic_design(vv: NDArrayFloatType, uu: NDArrayFloatType, size: int) -> 
     return np.column_stack([np.ones_like(x), y, x, y * y, x * y, x * x])
 
 
+def _surface(design: NDArrayFloatType, coef: NDArrayFloatType) -> NDArrayFloatType:
+    """Return ``design @ coef`` as a left-to-right sum of scaled columns.
+
+    The simulator keeps BLAS products out of its arithmetic, because their last bit
+    depends on the CPU's kernel; plain multiplies and adds round the same everywhere.
+    """
+    total = design[:, 0] * coef[0]
+    for col in range(1, design.shape[1]):
+        total = total + design[:, col] * coef[col]
+    return np.asarray(total, dtype=np.float64)
+
+
+def _column_sums(design: NDArrayFloatType, weights: NDArrayFloatType) -> NDArrayFloatType:
+    """Return ``design.T @ weights`` as one NumPy sum per column, without a BLAS product."""
+    return np.array(
+        [float(np.sum(design[:, col] * weights)) for col in range(design.shape[1])],
+        dtype=np.float64,
+    )
+
+
 def _log_interval_probability(lower: NDArrayFloatType, upper: NDArrayFloatType) -> NDArrayFloatType:
     """``log(Phi(upper) - Phi(lower))`` for ``lower < upper``, accurate in both tails.
 
@@ -233,7 +253,7 @@ def _first_guess(q: NDArrayFloatType, design: NDArrayFloatType) -> tuple[NDArray
     coef = np.zeros(design.shape[1])
     for _ in range(3):
         coef = np.asarray(np.linalg.lstsq(design[near], q[near], rcond=None)[0], dtype=np.float64)
-        resid = q - design @ coef
+        resid = q - _surface(design, coef)
         deviation = np.abs(resid[near] - np.median(resid[near]))
         robust_sigma = max(_MAD_TO_SIGMA * float(np.median(deviation)), 0.5)
         near = np.abs(resid) <= 4.0 * robust_sigma + 1.0
@@ -277,7 +297,7 @@ def _fit_censored(
 
     def neg_log_likelihood(params: NDArrayFloatType) -> tuple[float, NDArrayFloatType]:
         sigma = float(np.exp(params[n_coef]))
-        mu = design @ params[:n_coef]
+        mu = _surface(design, params[:n_coef])
         z_upper = (upper_edge - mu) / sigma
         z_lower = (lower_edge - mu) / sigma
         log_p = _log_interval_probability(z_lower, z_upper)
@@ -285,7 +305,7 @@ def _fit_censored(
         d_mu = (_normal_density(z_upper) - _normal_density(z_lower)) / (sigma * p)
         d_log_sigma = (_z_times_density(z_upper) - _z_times_density(z_lower)) / p
         grad = np.empty(n_coef + 1)
-        grad[:n_coef] = design.T @ d_mu
+        grad[:n_coef] = _column_sums(design, d_mu)
         grad[n_coef] = float(np.sum(d_log_sigma))
         return -float(np.sum(log_p)), grad
 
@@ -360,7 +380,7 @@ def lattice_noise_sigma(patch: NDArrayFloatType, step: float) -> float:
     used: tuple[NDArrayFloatType, NDArrayFloatType] | None = None
     censored = q
     for _ in range(_MAX_WINDOW_FITS):
-        bottom, top = _level_window(design @ params[:-1], float(np.exp(params[-1])))
+        bottom, top = _level_window(_surface(design, params[:-1]), float(np.exp(params[-1])))
         censored = np.clip(q, bottom, top)
         lower_edge = np.where((censored <= bottom) | (q <= 0.0), -np.inf, censored - 0.5)
         upper_edge = np.where((censored >= top) | (q >= q_high), np.inf, censored + 0.5)
