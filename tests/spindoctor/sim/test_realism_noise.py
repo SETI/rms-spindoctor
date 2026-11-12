@@ -6,9 +6,11 @@ import numpy as np
 import pytest
 
 from spindoctor.sim.realism.noise import (
+    SkyPatch,
     find_uniform_patches,
     paired_difference_sigma,
     radial_power_spectrum,
+    sky_patches_in_band,
 )
 
 
@@ -95,3 +97,10 @@ def test_radial_power_spectrum_peaks_at_banding_frequency() -> None:
     peak_bin = int(np.nanargmax(power))
     expected_freq = 1.0 / period_px
     assert freq[peak_bin] == pytest.approx(expected_freq, abs=0.5 / 16)
+
+
+def test_sky_band_drops_a_patch_on_content() -> None:
+    """A patch many of its sigmas above the matched sky is content; one within them is sky."""
+    sky = SkyPatch(v0=0, u0=0, size=32, mean=8e-4, sigma=5e-4)
+    ring = SkyPatch(v0=0, u0=32, size=32, mean=0.07, sigma=1e-3)
+    assert sky_patches_in_band([sky, ring], 1e-5) == [sky]

@@ -40,6 +40,7 @@ from spindoctor.sim.realism.artifact_rates import (
 )
 from spindoctor.sim.realism.dynamic_range import frame_dynamic_range
 from spindoctor.sim.realism.noise import (
+    SkyPatch,
     find_uniform_patches,
     radial_power_spectrum,
 )
@@ -56,6 +57,8 @@ __all__ = [
     'FrameSamples',
     'FrameSettings',
     'FrameSettingsReader',
+    'FrameSky',
+    'add_sky_samples',
     'extract_feature_samples',
     'extract_pixel_samples',
     'frame_settings_reader',
@@ -164,6 +167,31 @@ def frame_settings_reader(mission: str) -> FrameSettingsReader | None:
     return _FRAME_SETTINGS_READERS.get(mission)
 
 
+@dataclass(frozen=True)
+class FrameSky:
+    """One frame's FOM 1 sky patches, held until the runner pairs the frame.
+
+    Parameters:
+        patches: The frame's darkest-quartile near-uniform patches.
+        floor: The frame's floor (1st percentile) in native units.
+        psd_freq: The spatial-frequency grid of the sky power spectra.
+        psd_tiles: ``(patch, unit-total power)`` for the 64-px tiles at up to
+            four of the darkest sky patches.
+    """
+
+    patches: list[SkyPatch]
+    floor: float
+    psd_freq: NDArrayFloatType
+    psd_tiles: list[tuple[SkyPatch, NDArrayFloatType]]
+
+    @property
+    def level(self) -> float:
+        """The median sky-patch mean in native units, or NaN without patches."""
+        if not self.patches:
+            return float('nan')
+        return float(np.median([p.mean for p in self.patches]))
+
+
 @dataclass
 class FrameSamples:
     """Sample arrays and curves extracted from one frame.
@@ -172,10 +200,14 @@ class FrameSamples:
         samples: Scalar sample lists per kind (pooled by the runner).
         curves: Per-kind list of ``(x, y)`` curve pairs; the runner
             averages the y-arrays over frames on the shared x-grid.
+        sky: The frame's FOM 1 sky patches, which the runner turns into sky
+            samples with :func:`add_sky_samples` once it has judged them
+            against the matched frame's; never merged.
     """
 
     samples: dict[str, list[float]] = field(default_factory=dict)
     curves: dict[str, list[tuple[NDArrayFloatType, NDArrayFloatType]]] = field(default_factory=dict)
+    sky: FrameSky | None = None
 
     def add(self, kind: str, values: list[float] | NDArrayFloatType) -> None:
         """Append scalar samples under ``kind``, dropping non-finite values."""
@@ -207,6 +239,10 @@ def extract_pixel_samples(
 ) -> tuple[FrameSamples, ArtifactRates]:
     """FOM 1, 5, and 6 samples from raw frame pixels.
 
+    The FOM 1 sky patches are held on the returned samples' ``sky`` rather
+    than added as samples: the runner adds them with :func:`add_sky_samples`
+    after judging them against the matched frame's.
+
     Parameters:
         image: The frame in its native units (DN or I/F).
         exposure_stratum: Label of the frame's exposure stratum; the FOM 5
@@ -229,6 +265,10 @@ def extract_pixel_samples(
     # statistic is pedestal-invariant: some cohort products are
     # bias-subtracted (LORRI sci) while the matching sim chain carries its
     # bias pedestal, and the *level above floor* is the comparable part.
+    # The sky patches stay on the frame (``FrameSamples.sky``) until the
+    # runner has judged them against the matched frame's: only patches on
+    # comparable content enter the pooled sky statistics (see
+    # :func:`add_sky_samples`).
     frame_floor = float(np.percentile(arr[np.isfinite(arr)], 1.0)) if arr.size else 0.0
     patches = find_uniform_patches(arr, patch_size=32, max_mean_quantile=None)
     if patches:
@@ -236,27 +276,21 @@ def extract_pixel_samples(
         sky_cutoff = float(np.quantile(means, 0.25))
         sky = [p for p in patches if p.mean <= sky_cutoff]
         signal = [p for p in patches if p.mean > sky_cutoff]
-        out.add('sky_sigma', [p.sigma for p in sky])
-        out.add('sky_mean_minus_floor', [p.mean - frame_floor for p in sky])
         out.add('signal_sigma', [p.sigma for p in signal])
-        # Sky power spectrum from up to four 64-px sky tiles, normalized to
-        # unit total power per frame (the amplitude is sky_sigma's job).
-        psd_curves: list[NDArrayFloatType] = []
+        # Sky power spectra from up to four 64-px tiles at the darkest sky
+        # patches, normalized to unit total power per tile (the amplitude is
+        # sky_sigma's job).
+        psd_tiles: list[tuple[SkyPatch, NDArrayFloatType]] = []
         for p in sorted(sky, key=lambda q: q.mean)[:4]:
             if p.v0 + 64 <= arr.shape[0] and p.u0 + 64 <= arr.shape[1]:
-                freq, power = radial_power_spectrum(
+                _freq, power = radial_power_spectrum(
                     arr[p.v0 : p.v0 + 64, p.u0 : p.u0 + 64], n_bins=16
                 )
                 total = np.nansum(power)
                 if np.isfinite(total) and total > 0.0:
-                    psd_curves.append(power / total)
-        if psd_curves:
-            freq, _ = radial_power_spectrum(arr[:64, :64], n_bins=16)
-            with warnings.catch_warnings():
-                # A frequency bin empty in every tile is legitimately NaN.
-                warnings.simplefilter('ignore', category=RuntimeWarning)
-                mean_psd = np.nanmean(np.stack(psd_curves), axis=0)
-            out.add_curve('sky_psd', freq, mean_psd)
+                    psd_tiles.append((p, power / total))
+        freq, _ = radial_power_spectrum(arr[:64, :64], n_bins=16)
+        out.sky = FrameSky(patches=sky, floor=frame_floor, psd_freq=freq, psd_tiles=psd_tiles)
         sky_sigma = float(np.median([p.sigma for p in sky])) if sky else float('nan')
     else:
         sky_sigma = float('nan')
@@ -279,6 +313,29 @@ def extract_pixel_samples(
     out.add('artifact_missing_line_frac', [rates.missing_line_fraction])
     out.add('artifact_spike_frac', [rates.spike_fraction])
     return out, rates
+
+
+def add_sky_samples(frame: FrameSamples, patches: list[SkyPatch]) -> None:
+    """Add a frame's FOM 1 sky samples from the sky patches its pair kept.
+
+    Parameters:
+        frame: The frame, whose ``sky`` holds its floor and power spectra.
+        patches: The sky patches kept for the comparison (a subset of
+            ``frame.sky.patches``); the power spectra of the tiles at those
+            patches go into the frame-averaged sky spectrum.
+    """
+    sky = frame.sky
+    if sky is None or not patches:
+        return
+    frame.add('sky_sigma', [p.sigma for p in patches])
+    frame.add('sky_mean_minus_floor', [p.mean - sky.floor for p in patches])
+    psd_curves = [power for patch, power in sky.psd_tiles if patch in patches]
+    if psd_curves:
+        with warnings.catch_warnings():
+            # A frequency bin empty in every tile is legitimately NaN.
+            warnings.simplefilter('ignore', category=RuntimeWarning)
+            mean_psd = np.nanmean(np.stack(psd_curves), axis=0)
+        frame.add_curve('sky_psd', sky.psd_freq, mean_psd)
 
 
 def prepare_frame_features(

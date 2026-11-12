@@ -4,7 +4,8 @@ Compares the image-library cohort against matched simulated frames on the
 seven figures of merit:
 
 1. Sky-region noise statistics (paired-difference sigma, noise vs signal,
-   sky power spectrum).
+   sky power spectrum), with the sky patches restricted to content comparable
+   between the real and matched frames (:func:`pair_sky`).
 2. Star-cutout radial profiles / encircled energy where the cohort has
    star frames.
 3. Normalized limb profiles and 10-90% rise widths, binned by resolution
@@ -70,12 +71,14 @@ from spindoctor.sim.realism.divergence import (
     w1_divergence,
 )
 from spindoctor.sim.realism.dynamic_range import stratify_by_exposure
+from spindoctor.sim.realism.noise import sky_patches_in_band
 from spindoctor.support.types import NDArrayFloatType
 from tests.integration.checkout_guard import require_checkout_package
 from tests.integration.sidecar import LibraryRoot, Sidecar, load_sidecar
 from tests.integration.sim_realism_scenes import matched_scene
 from tests.integration.sim_realism_support import (
     FrameSamples,
+    add_sky_samples,
     extract_feature_samples,
     extract_pixel_samples,
     frame_settings_reader,
@@ -86,6 +89,8 @@ __all__ = [
     'FrameRecord',
     'InstrumentComparison',
     'RealismResults',
+    'SkyPair',
+    'pair_sky',
     'run_realism_match',
 ]
 
@@ -195,6 +200,49 @@ class FrameRecord:
     quantization: str | None = None
 
 
+@dataclass(frozen=True)
+class SkyPair:
+    """How one real frame's FOM 1 sky patches compared with its matched frame's.
+
+    Parameters:
+        image_id: The real frame's image_id.
+        quantization: The real frame's downlink quantization (``'sqrt_lut'`` for a
+            frame downlinked through a companding table), else None.
+        real_level: The real frame's median sky-patch mean (native units), NaN
+            without sky patches.
+        sim_level: The matched frame's median sky-patch mean, NaN without sky
+            patches.
+        n_real_patches: The real frame's sky patches.
+        n_real_kept: The real sky patches within the sky band around the matched
+            frame's sky level.
+        real_sigma: The median noise sigma of the kept real patches, NaN when none
+            is kept.
+        sim_sigma: The median noise sigma of the matched frame's sky patches, NaN
+            when the pair is dropped.
+    """
+
+    image_id: str
+    quantization: str | None
+    real_level: float
+    sim_level: float
+    n_real_patches: int
+    n_real_kept: int
+    real_sigma: float
+    sim_sigma: float
+
+    @property
+    def compared(self) -> bool:
+        """Whether the pair contributes to the pooled sky statistics."""
+        return self.n_real_kept > 0
+
+    @property
+    def sigma_ratio(self) -> float:
+        """The simulated over real median sky sigma, NaN for a dropped pair."""
+        if not self.compared or self.real_sigma <= 0.0:
+            return float('nan')
+        return self.sim_sigma / self.real_sigma
+
+
 @dataclass
 class InstrumentComparison:
     """Pooled real and sim samples plus divergences for one instrument.
@@ -216,6 +264,8 @@ class InstrumentComparison:
         fom_support: Cohort-support label per figure of merit.
         fom7_rows: Read-only technique-diagnostic rows from the matched
             navigation pairs.
+        sky_pairs: Per frame, how its FOM 1 sky patches compared with the
+            matched frame's.
     """
 
     instrument: str
@@ -229,6 +279,7 @@ class InstrumentComparison:
     fom_frames: dict[str, int] = field(default_factory=dict)
     fom_support: dict[str, str] = field(default_factory=dict)
     fom7_rows: list[dict[str, Any]] = field(default_factory=list)
+    sky_pairs: list[SkyPair] = field(default_factory=list)
     real_rates: list[ArtifactRates] = field(default_factory=list)
     sim_rates: list[ArtifactRates] = field(default_factory=list)
     spike_split_real: tuple[float, float] = (float('nan'), float('nan'))
@@ -445,6 +496,50 @@ def _run_fom7(
     return rows
 
 
+def pair_sky(record: FrameRecord, real: FrameSamples, sim: FrameSamples) -> SkyPair:
+    """Add one frame pair's FOM 1 sky samples where the two show comparable content.
+
+    A frame's sky patches are its darkest-quartile uniform patches.  On a frame
+    filled with rings or a body they lie on that content, while the matched
+    frame's lie on dark sky, and comparing the two would compare
+    signal-dependent noise with sky noise.  So a real sky patch counts only when
+    its mean lies within a few of its own noise sigmas of the matched frame's sky
+    level (:func:`sky_patches_in_band`), and the pair contributes on both sides
+    only when at least one real patch counts.
+
+    Parameters:
+        record: The real frame's record.
+        real: The real frame's samples; its kept sky samples are added to it.
+        sim: The matched frame's samples; its sky samples are added to it when
+            the pair is compared.
+
+    Returns:
+        The pair's sky comparison.
+    """
+    real_patches = real.sky.patches if real.sky is not None else []
+    sim_patches = sim.sky.patches if sim.sky is not None else []
+    real_level = real.sky.level if real.sky is not None else float('nan')
+    sim_level = sim.sky.level if sim.sky is not None else float('nan')
+    kept = sky_patches_in_band(real_patches, sim_level) if sim_patches else []
+    real_sigma = float('nan')
+    sim_sigma = float('nan')
+    if kept:
+        add_sky_samples(real, kept)
+        add_sky_samples(sim, sim_patches)
+        real_sigma = float(np.median([p.sigma for p in kept]))
+        sim_sigma = float(np.median([p.sigma for p in sim_patches]))
+    return SkyPair(
+        image_id=record.image_id,
+        quantization=record.quantization,
+        real_level=real_level,
+        sim_level=sim_level,
+        n_real_patches=len(real_patches),
+        n_real_kept=len(kept),
+        real_sigma=real_sigma,
+        sim_sigma=sim_sigma,
+    )
+
+
 def _fom_for_kind(kind: str) -> str | None:
     """Which figure of merit a sample kind belongs to."""
     for fom, prefixes in FOM_KIND_PREFIXES.items():
@@ -581,14 +676,17 @@ def run_realism_match(
             sidecars = sidecars[:max_frames_per_instrument]
         comparison = InstrumentComparison(instrument=instrument)
         sidecars_by_id = {s.image_id: s for s in sidecars}
+        real_frames: list[FrameSamples] = []
         for sidecar in sidecars:
             frame_samples, record, rates = _frame_samples_real(sidecar, instrument)
             comparison.records.append(record)
-            comparison.real.merge(frame_samples)
+            real_frames.append(frame_samples)
             comparison.real_rates.append(rates)
-            _count_fom_frames(comparison, frame_samples)
-        for record in comparison.records:
+        for record, real_samples in zip(comparison.records, real_frames, strict=True):
             sim_samples, sim_frame_rates = _frame_samples_sim(record)
+            comparison.sky_pairs.append(pair_sky(record, real_samples, sim_samples))
+            comparison.real.merge(real_samples)
+            _count_fom_frames(comparison, real_samples)
             comparison.sim.merge(sim_samples)
             comparison.sim_rates.append(sim_frame_rates)
         if not skip_fom7:

@@ -4275,6 +4275,22 @@ instrument, on seven figures of merit:
    naive signal-binning would count scene texture as noise), the sky-patch
    level above the frame floor, noise at signal, and the sky spatial power
    spectrum (which catches banding and coherent noise a scalar sigma cannot).
+   A frame's sky patches are the darkest quarter of its uniform 32 × 32 pixel
+   patches.  On a frame filled with rings or a body, those lie on the rings or
+   the body, while the matched frame's lie on dark sky, and comparing them
+   would set signal-dependent noise against sky noise.  So a real sky patch
+   counts only when its mean exceeds the matched frame's median sky level by at
+   most three of the patch's own noise sigmas (``SKY_BAND_MAX_SIGMAS`` in
+   :mod:`spindoctor.sim.realism.noise`), and a frame pair adds sky statistics
+   to either side only when at least one real patch counts.  A patch on rings or
+   a body sits tens to thousands of sigmas above dark sky, while a real dark sky
+   differs from the matched one by its calibration residual, within three
+   sigmas on every Cassini star frame.  A ratio of the two levels can't separate
+   them, because a calibrated dark sky sits near zero.  The summary's
+   ``sky_comparison`` block lists, for each instrument and downlink format,
+   how many frames have real sky patches, how many the rule keeps, and the
+   quartiles of the kept frames' ratio of simulated to real median sky sigma,
+   with the per-frame values beneath.
 2. **Star PSF** -- star-cutout radial profiles and encircled-energy radii
    (EE50/EE80) on cohorts that contain star frames.  Where a cohort has no
    star frames, the limb profile of figure 3 is the only PSF evidence and

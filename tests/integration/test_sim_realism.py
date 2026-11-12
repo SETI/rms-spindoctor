@@ -240,6 +240,32 @@ def test_aggregate_emits_density_w1_for_curve_kinds() -> None:
     assert np.isfinite(result.w1_normalized)
 
 
+def test_a_content_filled_frame_leaves_both_sky_pools() -> None:
+    """A real frame whose sky patches all lie on content adds no sky noise on either side."""
+    from spindoctor.sim.realism.noise import SkyPatch
+    from tests.integration.sim_realism import pair_sky
+    from tests.integration.sim_realism_support import FrameSamples, FrameSky
+
+    def frame_at(mean: float) -> FrameSamples:
+        patch = SkyPatch(v0=0, u0=0, size=32, mean=mean, sigma=1e-4)
+        sky = FrameSky(patches=[patch], floor=0.0, psd_freq=np.zeros(16), psd_tiles=[])
+        return FrameSamples(sky=sky)
+
+    record = FrameRecord(
+        image_id='N1',
+        scene_class='ring_only_flat',
+        instrument='coiss_calib_nac',
+        exposure_sec=0.68,
+        stratum='0.5s_to_5s',
+        offset_vu=(0.0, 0.0),
+    )
+    real = frame_at(0.07)
+    sim = frame_at(3e-4)
+    pair_sky(record, real, sim)
+    assert 'sky_sigma' not in real.samples
+    assert 'sky_sigma' not in sim.samples
+
+
 def test_cohort_discovery_covers_known_instruments() -> None:
     """The committed library maps onto the expected sim instruments."""
     cohort = discover_cohort()

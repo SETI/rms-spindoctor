@@ -6,8 +6,8 @@ as ``realism_<instrument>_<fom>.png``, and a deterministic JSON summary
 into ``tests/integration/realism_results/realism_summary.json`` that backs
 the report's tables (per-kind W1 divergences, per-curve density-W1
 divergences, support labels, the FOM 3 one-sided-stratum disclosure, the
-FOM 7 diagnostic rows, and the artifact-rate comparison against the
-catalog defaults).
+FOM 1 sky pairing with its per-frame sigma ratios, the FOM 7 diagnostic
+rows, and the artifact-rate comparison against the catalog defaults).
 
 Two fixed series colors carry sides everywhere: real cohort in blue,
 simulated frames in orange -- a colorblind-safe pair, never cycled.
@@ -411,6 +411,50 @@ def _round(value: float, digits: int = 6) -> float | None:
     return float(f'{float(value):.{digits}g}')
 
 
+def _sky_comparison(comparison: InstrumentComparison) -> dict[str, Any]:
+    """The FOM 1 sky pairing: frame counts and per-frame sigma ratios by downlink.
+
+    Frames group by their downlink quantization (``'12bit'`` for a frame
+    without one).  Each group reports how many frames have real sky patches,
+    how many the sky band keeps, and the quartiles of the kept frames'
+    simulated over real median sky sigma.
+    """
+    groups: dict[str, list[Any]] = {}
+    for pair in comparison.sky_pairs:
+        groups.setdefault(pair.quantization or '12bit', []).append(pair)
+    by_downlink: dict[str, Any] = {}
+    for name, pairs in sorted(groups.items()):
+        ratios = np.asarray([p.sigma_ratio for p in pairs if p.compared], dtype=np.float64)
+        ratios = ratios[np.isfinite(ratios)]
+        quartiles = (
+            [_round(float(q), 3) for q in np.quantile(ratios, [0.25, 0.5, 0.75])]
+            if ratios.size
+            else None
+        )
+        by_downlink[name] = {
+            'n_frames': len(pairs),
+            'n_with_real_sky': sum(1 for p in pairs if p.n_real_patches > 0),
+            'n_compared': sum(1 for p in pairs if p.compared),
+            'sigma_ratio_quartiles': quartiles,
+        }
+    return {
+        'n_compared': sum(1 for p in comparison.sky_pairs if p.compared),
+        'by_downlink': by_downlink,
+        'frames': [
+            {
+                'image_id': p.image_id,
+                'downlink': p.quantization or '12bit',
+                'real_level': _round(p.real_level),
+                'sim_level': _round(p.sim_level),
+                'n_real_patches': p.n_real_patches,
+                'n_real_kept': p.n_real_kept,
+                'sigma_ratio': _round(p.sigma_ratio, 3),
+            }
+            for p in comparison.sky_pairs
+        ],
+    }
+
+
 def _summary_dict(results: RealismResults) -> dict[str, Any]:
     """The deterministic JSON-serializable summary."""
     out: dict[str, Any] = {'runtime_sec': round(results.runtime_sec, 1), 'instruments': {}}
@@ -465,6 +509,7 @@ def _summary_dict(results: RealismResults) -> dict[str, Any]:
                 else None,
             },
             'fom7_rows': comparison.fom7_rows,
+            'sky_comparison': _sky_comparison(comparison),
         }
     return out
 
