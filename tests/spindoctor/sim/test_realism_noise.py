@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Any
 
 import numpy as np
 import pytest
 import scipy.optimize
 
+import spindoctor.sim.realism.noise as noise_module
 from spindoctor.sim.realism.noise import (
     SkyPatch,
     dark_sky_patches,
@@ -19,6 +21,7 @@ from spindoctor.sim.realism.noise import (
     quantization_step,
     radial_power_spectrum,
 )
+from spindoctor.support.types import NDArrayFloatType
 
 
 def test_paired_difference_recovers_known_sigma() -> None:
@@ -71,16 +74,52 @@ def test_quantized_noise_below_one_step_is_recovered() -> None:
 def test_quantized_sky_with_gradient_and_spikes_is_recovered() -> None:
     """A real-like whole-DN sky recovers its sigma.
 
-    The sky carries a gradient of 3 DN across the patch, sigma 2.5 DN, two hot pixels,
-    and a cosmic ray.
+    The sky carries a gradient of 3 DN across the patch, sigma 1 DN, two hot pixels, and
+    a cosmic ray.  The four spike pixels are cut off from the sky by empty levels and
+    stay well within the pixels the quantized fit lets lie beyond the noise.
     """
     rng = np.random.default_rng(22)
     vv, uu = np.mgrid[0:32, 0:32].astype(np.float64)
-    sky = 540.0 + 3.0 * (vv + uu) / 64.0 + rng.normal(0.0, 2.5, (32, 32))
+    sky = 540.0 + 3.0 * (vv + uu) / 64.0 + rng.normal(0.0, 1.0, (32, 32))
     sky[4, 7] += 300.0
     sky[20, 11] += 80.0
     sky[12:14, 25] += 2000.0
-    assert patch_noise_sigma(np.round(sky)) == pytest.approx(2.5, rel=0.08)
+    assert patch_noise_sigma(np.round(sky)) == pytest.approx(1.0, rel=0.08)
+
+
+@pytest.mark.parametrize(
+    ('level', 'rows', 'columns'),
+    [(9.0, slice(10, 12), slice(None)), (100.0, slice(None), slice(0, 8))],
+    ids=['two-dropout-rows', 'eight-edge-columns'],
+)
+def test_zeros_cut_off_from_the_sky_are_not_measurable(
+    level: float, rows: slice, columns: slice
+) -> None:
+    """A block of zero-filled pixels under a sky of sigma 1 DN makes the patch unmeasurable.
+
+    Empty levels cut the zeros off from the sky, and they are far more than Gaussian noise
+    puts beyond three sigmas.  A fit that takes them for a floor clip reads two dropout
+    rows under a sky at 9 DN about 55% high, and eight zero-filled columns beside a sky at
+    100 DN about 22 times too high, and the inflated sigma lets the patch pass the
+    structure test.
+    """
+    rng = np.random.default_rng(36)
+    patch = np.round(level + rng.normal(0.0, 1.0, (32, 32)))
+    patch[rows, columns] = 0.0
+    assert np.isnan(patch_noise_sigma(patch))
+
+
+def test_texture_is_not_read_as_noise_once_the_noise_spans_two_steps() -> None:
+    """A whole-DN sky of sigma 3 DN under a texture a quadratic cannot follow keeps its sigma.
+
+    The texture is a ripple of 6 DN amplitude along both axes; paired differences cancel
+    most of it, while the quantized fit reads it as noise, about 40% high.
+    """
+    rng = np.random.default_rng(37)
+    vv, uu = np.mgrid[0:32, 0:32].astype(np.float64)
+    ripple = 6.0 * np.sin(2.0 * np.pi * vv / 16.0) * np.sin(2.0 * np.pi * uu / 16.0)
+    patch = np.round(200.0 + ripple + rng.normal(0.0, 3.0, (32, 32)))
+    assert patch_noise_sigma(patch) == pytest.approx(3.0, rel=0.08)
 
 
 def test_quantized_noise_on_a_fractional_lattice_is_recovered() -> None:
@@ -163,13 +202,33 @@ def test_quantized_noise_clipped_at_the_floor_is_recovered() -> None:
     assert patch_noise_sigma(patch) == pytest.approx(1.0, rel=0.08)
 
 
-def _fit_over_drawn_sigma(rng: np.random.Generator, sigma: float, clip: str) -> float:
-    """Draw one 32 x 32 sky of noise ``sigma``, round it, and divide its fit by the drawn sigma.
+def test_a_sky_sloping_below_the_floor_keeps_its_sigma() -> None:
+    """Sky tilted 12 DN across the patch, clipped at 0 over about half of it, gives back 0.5 DN.
+
+    Where the surface lies several sigmas below the floor, the clipped pixels sit above
+    their windows, on the side toward the clip, which is where a clipped pixel belongs;
+    counting them as lying beyond the noise would leave the patch unmeasurable.
+    """
+    rng = np.random.default_rng(39)
+    vv, uu = np.mgrid[0:32, 0:32].astype(np.float64)
+    tilt = 12.0 * (vv + uu) / 62.0 - 6.0
+    patch = np.maximum(np.round(tilt + rng.normal(0.0, 0.5, (32, 32))), 0.0)
+    assert patch_noise_sigma(patch) == pytest.approx(0.5, rel=0.1)
+
+
+def _fit_over_drawn_sigma(
+    rng: np.random.Generator,
+    sigma: float,
+    clip: str,
+    *,
+    estimator: Callable[[NDArrayFloatType], float] = patch_noise_sigma,
+) -> float:
+    """Draw one 32 x 32 sky of noise ``sigma``, round it, and divide its estimate by its sigma.
 
     The sky is unclipped at about 1000, or clipped at the zero floor or at a ceiling of
     4095, each with about half its values on the clipped level.  Dividing by the standard
     deviation of the noise drawn, before rounding and clipping, removes the sampling
-    scatter of the sigma itself.
+    scatter of the sigma itself.  ``estimator`` measures the rounded sky.
     """
     noise = rng.normal(0.0, sigma, (32, 32))
     sky = rng.uniform() + noise
@@ -179,18 +238,35 @@ def _fit_over_drawn_sigma(rng: np.random.Generator, sigma: float, clip: str) -> 
         patch = np.minimum(np.round(4094.0 + sky), 4095.0)
     else:
         patch = np.round(1000.0 + sky)
-    return patch_noise_sigma(patch) / float(noise.std())
+    return estimator(patch) / float(noise.std())
+
+
+def _fitted(patch: NDArrayFloatType) -> float:
+    """The quantized fit of a whole-DN patch."""
+    return lattice_noise_sigma(patch, 1.0)
 
 
 @pytest.mark.parametrize('sigma', [10.0, 20.0])
-def test_quantized_noise_of_many_steps_is_recovered(sigma: float) -> None:
-    """Noise of many steps leaves empty levels in its tails, and every pixel still counts.
+def test_quantized_fit_of_noise_of_many_steps_counts_every_pixel(sigma: float) -> None:
+    """Noise of many steps leaves empty levels in its tails, and the fit still counts them.
 
     A fit that drops the pixels beyond the first empty level truncates the distribution
     and reads about 3% low at 10 steps and 8% low at 20.
     """
     rng = np.random.default_rng(33)
-    ratios = [_fit_over_drawn_sigma(rng, sigma, 'none') for _ in range(6)]
+    ratios = [_fit_over_drawn_sigma(rng, sigma, 'none', estimator=_fitted) for _ in range(6)]
+    assert float(np.median(ratios)) == pytest.approx(1.0, abs=0.01)
+
+
+def test_quantized_noise_of_two_steps_reads_between_whole_steps() -> None:
+    """Whole-DN noise of sigma 2 DN measured by paired differences gives back 2 DN.
+
+    The plain MAD of whole-step differences is a whole step here and reads about 5% high;
+    the differences read from their histogram without removing the variance the rounding
+    adds read about 2% high.  The median runs over 200 patches to resolve that.
+    """
+    rng = np.random.default_rng(38)
+    ratios = [_fit_over_drawn_sigma(rng, 2.0, 'none') for _ in range(200)]
     assert float(np.median(ratios)) == pytest.approx(1.0, abs=0.01)
 
 
@@ -223,6 +299,26 @@ def test_a_quantized_fit_that_fails_to_converge_is_not_measurable(
     monkeypatch.setattr(scipy.optimize, 'minimize', failing_minimize)
     rng = np.random.default_rng(35)
     assert np.isnan(lattice_noise_sigma(np.round(rng.normal(100.0, 1.0, (32, 32))), 1.0))
+
+
+def test_a_window_that_repeats_stops_the_quantized_fit(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A window equal to one fitted before ends the iteration instead of alternating.
+
+    On this patch of sigma 1 DN the window alternates between two states, and a fit that
+    stops only on an unchanged window runs all ten fits.
+    """
+    real_fit = noise_module._fit_censored
+    fits: list[int] = []
+
+    def counting_fit(*args: Any, **kwargs: Any) -> Any:
+        fits.append(1)
+        return real_fit(*args, **kwargs)
+
+    monkeypatch.setattr(noise_module, '_fit_censored', counting_fit)
+    rng = np.random.default_rng(26)
+    patch = np.round(1000.0 + rng.uniform() + rng.normal(0.0, 1.0, (32, 32)))
+    lattice_noise_sigma(patch, 1.0)
+    assert len(fits) == 3
 
 
 @pytest.mark.parametrize(
