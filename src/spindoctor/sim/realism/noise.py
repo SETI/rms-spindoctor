@@ -36,7 +36,7 @@ import numpy as np
 import scipy.optimize
 import scipy.special
 
-from spindoctor.support.types import NDArrayFloatType
+from spindoctor.support.types import NDArrayFloatType, NDArrayIntType
 
 __all__ = [
     'SkyPatch',
@@ -226,12 +226,62 @@ def _grouped_difference_sigma(q: NDArrayFloatType) -> float:
     edges = np.unique(np.concatenate([values - 0.5, values + 0.5]))
     below = np.concatenate([[0], np.cumsum(counts)])
     cdf = below[np.searchsorted(values, edges)] / diffs.size
-    center = float(np.interp(0.5, cdf, edges))
-    radii = np.unique(np.abs(edges - center))
-    mass = np.interp(center + radii, edges, cdf) - np.interp(center - radii, edges, cdf)
-    mad = float(np.interp(0.5, mass, radii))
+    # When exactly half the differences lie below a run of empty steps, every point of
+    # the run is a median, and its midpoint is taken, as for a sample of even size.  The
+    # counts decide this exactly.
+    halves = np.flatnonzero(2 * below[1:-1] == diffs.size)
+    if halves.size:
+        center = 0.5 * float(values[halves[0]] + values[halves[0] + 1])
+    else:
+        center = float(np.interp(0.5, cdf, edges))
+    mad = _half_mass_plateau(values, below, center)
+    if mad is None:
+        radii = np.unique(np.abs(edges - center))
+        mass = np.interp(center + radii, edges, cdf) - np.interp(center - radii, edges, cdf)
+        mad = float(np.interp(0.5, mass, radii))
     variance = (mad * _MAD_TO_SIGMA) ** 2 / 2.0 - _GROUPING_VARIANCE
     return float(np.sqrt(max(variance, 0.0)))
+
+
+def _half_mass_plateau(
+    values: NDArrayFloatType, below: NDArrayIntType, center: float
+) -> float | None:
+    """The midpoint of the radii about the center that hold exactly half the differences.
+
+    The mass within a radius of the center stays at one half over an interval of radii
+    when both ends of the radius's span lie in runs of empty steps with exactly half the
+    differences between them.  Every radius of that interval is a median absolute
+    deviation, and its midpoint is taken, as for a sample of even size.  The pair of runs
+    is found from the whole-step counts, so float rounding of the mass can't pick some
+    other point of the interval.
+
+    Parameters:
+        values: The distinct whole-step differences, ascending.
+        below: The number of differences below each of ``values``, then their total.
+        center: The differences' median.
+
+    Returns:
+        The interval's midpoint, or None when the mass reaches one half at a single
+        radius.
+    """
+    total = int(below[-1])
+    if total % 2:
+        return None
+    # The run of empty steps before values[k] starts at values[k - 1] + 0.5 and ends at
+    # values[k] - 0.5, with below[k] differences beneath it; the first run has no start
+    # and the last no end.  A run between neighboring values is a single point.
+    starts = np.concatenate([[-np.inf], values + 0.5])
+    ends = np.concatenate([values - 0.5, [np.inf]])
+    outer = np.searchsorted(below, below + total // 2)
+    inner = np.flatnonzero(outer < below.size)
+    inner = inner[below[outer[inner]] == below[inner] + total // 2]
+    outer = outer[inner]
+    shortest = np.maximum(center - ends[inner], starts[outer] - center)
+    longest = np.minimum(center - starts[inner], ends[outer] - center)
+    plateau = np.flatnonzero(longest > shortest)
+    if plateau.size == 0:
+        return None
+    return 0.5 * float(shortest[plateau[0]] + longest[plateau[0]])
 
 
 def _bulk_levels(q: NDArrayFloatType, max_gap: int) -> tuple[int, int]:

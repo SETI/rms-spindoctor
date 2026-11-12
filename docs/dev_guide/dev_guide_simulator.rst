@@ -4471,7 +4471,12 @@ the median absolute deviation vary continuously with the noise.  Rounding and
 that spreading add 1/8 of a step squared to each pixel's variance, and the
 estimate removes it.  The median estimate then lies within 0.6% of the true
 sigma from 2 DN up and within 2% from 1.25 DN.  Below that it drifts, by up to
-5% at 0.75 DN and 15% at 0.5 DN, as most neighbors come to share a value.
+5% at 0.75 DN and 15% at 0.5 DN, as most neighbors come to share a value.  When
+exactly half the differences lie on each side of a run of empty steps, every
+point of the run is a median, and the estimate takes the run's midpoint, as the
+median of an even number of values does.  When every deviation over a range
+takes in exactly half the differences, the median absolute deviation is the
+middle of that range in the same way.
 
 So a quantized patch whose paired-difference estimate is at least two steps is
 measured by the differences, unless it is clipped, and every other quantized

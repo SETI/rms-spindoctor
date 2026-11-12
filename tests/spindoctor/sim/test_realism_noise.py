@@ -325,7 +325,10 @@ def _dense_grouped_sigma(q: NDArrayFloatType) -> float:
     """The grouped paired-difference sigma with one histogram bin per step of the span.
 
     This is the reference the estimator must reproduce: every step between the lowest and
-    highest difference gets a bin, occupied or not.
+    highest difference gets a bin, occupied or not.  Where the cumulative fraction holds
+    at one half across a run of knots, the median is the run's midpoint, and where the
+    mass about the median holds within 1e-9 of one half across a run of radii, the
+    median absolute deviation is that run's midpoint.
     """
     diffs = (q[:, 1:] - q[:, :-1]).ravel()
     diffs = diffs[np.isfinite(diffs)]
@@ -334,11 +337,20 @@ def _dense_grouped_sigma(q: NDArrayFloatType) -> float:
     lowest = int(diffs.min())
     counts = np.bincount((diffs - lowest).astype(np.int64))
     edges = lowest - 0.5 + np.arange(counts.size + 1, dtype=np.float64)
-    cdf = np.concatenate([[0.0], np.cumsum(counts) / diffs.size])
-    center = float(np.interp(0.5, cdf, edges))
+    below = np.concatenate([[0], np.cumsum(counts)])
+    cdf = below / diffs.size
+    halves = np.flatnonzero(2 * below == diffs.size)
+    if halves.size:
+        center = 0.5 * float(edges[halves[0]] + edges[halves[-1]])
+    else:
+        center = float(np.interp(0.5, cdf, edges))
     radii = np.unique(np.abs(edges - center))
     mass = np.interp(center + radii, edges, cdf) - np.interp(center - radii, edges, cdf)
-    mad = float(np.interp(0.5, mass, radii))
+    at_half = np.flatnonzero(np.abs(mass - 0.5) <= 1e-9)
+    if at_half.size > 1:
+        mad = 0.5 * float(radii[at_half[0]] + radii[at_half[-1]])
+    else:
+        mad = float(np.interp(0.5, mass, radii))
     variance = (mad * 1.4826) ** 2 / 2.0 - 1.0 / 8.0
     return float(np.sqrt(max(variance, 0.0)))
 
@@ -398,6 +410,43 @@ def test_grouped_differences_match_a_bin_for_every_step(kind: str) -> None:
         assert noise_module._grouped_difference_sigma(q) == pytest.approx(
             expected, rel=1e-12, abs=1e-12
         )
+
+
+def _sigma_from_mad(mad: float) -> float:
+    """The grouped estimator's sigma for a median absolute deviation of ``mad`` steps."""
+    return float(np.sqrt((mad * 1.4826) ** 2 / 2.0 - 1.0 / 8.0))
+
+
+@pytest.mark.parametrize(
+    ('q', 'mad'),
+    [
+        (np.array([[0.0, -1.0, -2.0, 4.0, 11.0]]), 11.0 / 3.0),
+        (np.array([[47.0, 57.0, 47.0, 57.0], [1.0, 47.0, 57.0, 1.0]]), 10.0),
+        (
+            np.concatenate(
+                [[0.0], np.cumsum(np.repeat([-20.0, -12, -5, 4, 8, 9], [2, 3, 3, 1, 2, 1]))]
+            )[None, :],
+            8.0,
+        ),
+    ],
+    ids=['median-between-two-halves', 'deviation-range-6-differences', 'deviation-range-12'],
+)
+def test_grouped_differences_take_the_midpoint_of_an_exact_half(
+    q: NDArrayFloatType, mad: float
+) -> None:
+    """Where exactly half the differences hold over a range, its midpoint is taken.
+
+    The first patch's differences are -1, -1, 6, and 7: every point from -0.5 to 5.5
+    splits them in half, the median is 2.5, and the median absolute deviation is 11/3.
+    The second's are -56, -10, 10, 10, 10, and 46, with median 9 5/6: every deviation
+    from 2/3 to 19 1/3 takes in exactly three, so the deviation is 10.  The third's
+    twelve differences have median -5 1/6, and every deviation from 7 1/3 to 8 2/3 takes
+    in six, so the deviation is 8.  Points of those ranges picked by the float rounding
+    of the mass gave sigmas of 0.60 and 7.68 steps for the last two.
+    """
+    assert noise_module._grouped_difference_sigma(q) == pytest.approx(
+        _sigma_from_mad(mad), rel=1e-12
+    )
 
 
 def test_an_outliers_distance_does_not_change_the_grouped_differences() -> None:
