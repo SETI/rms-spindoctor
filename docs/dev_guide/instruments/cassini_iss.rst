@@ -446,6 +446,35 @@ code 255. Near a dark sky the step is 3 to 4 DN, against 1 DN in a 12-bit
 frame, so a TABLE frame's calibrated sky is several times noisier than a 12-bit
 frame's.
 
+**Dark-sky ceiling.** The realism match counts a sky patch of a CALIB frame or of
+its matched frame as dark sky when the patch's mean lies at most 2.5e-3 I/F above
+the calibrated sky residual (``dark_sky_ceiling_if``; see
+:ref:`sim-realism-match`). Both calibrated entries set this value. It was
+measured on the darkest quarter of the uniform patches of the CALIB cohort and of
+its matched frames. On the NAC, real dark sky lies from -9.3e-4 to 6.9e-4 I/F
+above the residual on 12-bit frames. The TABLE frames' skies sit higher, up to
+2.18e-3 on a frame whose whole sky lies between 2.12e-3 and 2.18e-3. Ring and
+body material lies at 1.26e-2 and above. The real patch levels leave one empty
+interval, from 2.34e-3 to 2.78e-3, and the ceiling sits in it. The matched frames
+separate cleanly: their sky lies at most 2.8e-5 above the residual, and their
+body patches start at 9.7e-3. The same 26 NAC 12-bit frames are compared for any
+ceiling from 6e-4 to 2.5e-3. On the WAC, real dark sky reaches 6.5e-5 and the
+next patches up lie at 4.88e-3, so the same ceiling sits inside that gap.
+
+The ceiling separates levels and nothing else. On the NAC, sky brightened by
+scattered light spans 5.4e-4 to 7.7e-3 I/F: glow in the Encke and Keeler gaps,
+glare from nearby rings, glow beside a limb, and the halos around bright moons.
+Below the ceiling it counts as dark sky, so a few frames' brightened sky is
+compared with the matched frames' dark sky. Above the ceiling it drops out. On
+the WAC frame of Rhea, the darkest patches are the halo sky around the moon, at
+4.88e-3 and above, so that frame drops out.
+
+Two TABLE skies below the ceiling are nearly flat, with sky sigmas of 2.3e-5 and
+4.4e-6 I/F, so their matched frames' sky sigmas come out about 5 and 3 times as
+large. That comes from the TABLE downlink.
+
+.. The TABLE sky noise and offset are tracked in issue 977.
+
 **Readout dark and cosmic rays.** The raw dark sky rises linearly from the
 first line to the last at every exposure, by 55 e- on the NAC and 33 e- on the
 WAC, and ``readout_dark_e`` catalogs those rises. The cosmic-ray terms, fitted

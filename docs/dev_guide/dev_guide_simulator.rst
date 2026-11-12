@@ -1039,12 +1039,12 @@ top-level value isn't a mapping. Within an entry, the load fails on:
 * a ``data_units`` other than ``raw_dn`` or ``calibrated_if``;
 * a number that isn't finite (``.nan``, ``.inf``) or is out of its range: gains,
   the full well, the reference exposure, the plate scale, the star zero point,
-  the PSF radii, periods, filter throughputs, and the native frame size must be
-  positive; noise amplitudes, rates, the bias, the truncation radius, and the
-  bloom length must be non-negative; fractions (the hot-pixel fraction and column
-  factor, the PSF wing fraction) lie in [0, 1]; gain states are non-negative
-  integers and binnings positive ones; a shape default's value must lie in its
-  parameter's range, as a scene's must;
+  the PSF radii, periods, filter throughputs, the native frame size, and the
+  dark-sky ceiling must be positive; noise amplitudes, rates, the bias, the
+  truncation radius, and the bloom length must be non-negative; fractions (the
+  hot-pixel fraction and column factor, the PSF wing fraction) lie in [0, 1];
+  gain states are non-negative integers and binnings positive ones; a shape
+  default's value must lie in its parameter's range, as a scene's must;
 * a ``base`` that doesn't exist or that loops back on itself, an alias that is
   already an instrument's name or another entry's alias (the message gives the
   file that holds it), or a real cohort camera that two entries both claim (the
@@ -1181,7 +1181,8 @@ The keys of an entry, all directly under the instrument's top-level key:
        DN-noise sub-map, which only a vidicon may carry. Optional:
        ``readout_dark_e``, the cosmic-ray dwell, amplitude, and spread, and the
        calibrated-product terms ``calibrated_sky_if``,
-       ``calibration_column_residual_e``, and ``calibration_pixel_residual_e``.
+       ``calibration_column_residual_e``, and ``calibration_pixel_residual_e``, and
+       the realism match's dark-sky ceiling ``dark_sky_ceiling_if``.
    * - ``readout_modes``
      - yes
      - The binning factors at which the camera reads out. Each maps to the
@@ -4276,37 +4277,41 @@ instrument, on seven figures of merit:
    level above the frame floor, noise at signal, and the sky spatial power
    spectrum (which catches banding and coherent noise a scalar sigma cannot).
    A frame's sky patches are the darkest quarter of its uniform 32 × 32 pixel
-   patches.  On a frame filled with rings or a body, those lie on the rings or
-   the body, and comparing them with the other frame's dark sky would set
-   signal-dependent noise against sky noise.  So on a calibrated camera a patch
-   of either frame counts only when it lies on dark sky: its mean may exceed
-   the camera's calibrated sky residual by at most three times the matched
-   frame's median sky sigma (``SKY_BAND_MAX_SIGMAS`` in
-   :mod:`spindoctor.sim.realism.noise`).  The residual is the level at which
-   the simulator draws empty calibrated sky, measured on real dark skies, so
-   both frames' dark skies scatter about it.  A frame pair adds sky statistics
-   only when both frames keep at least one patch.
+   patches, less any whose noise sigma is 0.  A tile of one constant value, such
+   as zero-filled missing data, has a sigma of 0 and holds no noise to compare.
+   On a frame filled with rings or a body, the darkest patches lie on the rings
+   or the body, and comparing them with the other frame's dark sky would set
+   signal-dependent noise against sky noise.  So a patch of either frame counts
+   only when it lies on dark sky: its mean may sit at most the camera's dark-sky
+   ceiling above the camera's calibrated sky residual.  The residual is the
+   level at which the simulator draws empty calibrated sky, measured on real
+   dark skies.  The ceiling is ``dark_sky_ceiling_if`` in the config entry's
+   ``detector`` block, in I/F.  A frame pair adds sky statistics only when both
+   frames keep at least one patch.
 
-   One sigma serves the whole frame.  A patch's own sigma would select patches
-   by the noise being compared, keeping the noisier ones.  The real frame's sky
-   sigma grows on content: on the Cassini cohort it lets through a body at
-   0.8 I/F and 81 of the 98 patches of a frame filled by Rhea.  The matched
-   frame's sigma rejects every content-filled frame of the cohort.  A real dark
-   sky that sits more than three of those sigmas above the residual drops out
-   with the content.  Every Cassini NAC TABLE frame drops this way, because
-   its real sky sits 5e-4 to 2.3e-3 I/F above the residual and the matched
-   frames don't reproduce that offset.  So the sky comparison says nothing
-   about the TABLE downlink's sky noise.  Two NAC 12-bit frames, N1489256001
-   and N1828122657, also drop, with real skies 3e-4 to 5e-4 I/F above the
-   residual.  Their sky could be a calibration offset or faint scattered
-   light, and the rule can't tell which.
+   The rule looks at each patch's level and at nothing else.  A rule that used
+   a noise sigma would select patches by the quantity being compared.  A band
+   scaled by the matched frame's sigma narrows when the matched frame is too
+   quiet, and then drops real dark sky.  A band scaled by the real frame's sigma
+   widens on content, because noise grows with signal.
 
-   On a camera whose products are raw DN, the real product may have had its
-   bias pedestal removed while the matched frame keeps the simulator's, so the
-   two levels can't be compared.  Such a pair isn't judged, and every patch of
-   both frames is compared.  When the matched frame has no sky patches, the
-   real frame's patches are recorded as they are.  When the real frame has
-   none, neither side adds any.
+   Because the rule separates levels, it can't tell sky from content that sits
+   at the same level.  Sky brightened by scattered light, such as ring glare,
+   glow in a ring gap or beside a limb, or the halo around a bright moon, can
+   lie on either side of the ceiling.  Below it, the brightened sky counts as
+   dark sky and is compared with the matched frame's dark sky.  Above it, the
+   brightened sky drops out with the content.  The Cassini instrument page
+   gives the CALIB cameras' ceiling and the real patch levels it was measured
+   on.
+
+   A camera that sets no ceiling isn't judged, and every patch of both frames
+   is compared.  A camera whose products are raw DN sets none, because the real
+   product may have had its bias pedestal removed while the matched frame keeps
+   the simulator's, so the two levels can't be compared.  When no matched frame
+   of an instrument has sky patches, each real frame's patches are recorded
+   alone, so the real sky statistics still appear.  When the instrument's other
+   matched frames have sky patches, a pair whose matched frame has none is
+   dropped.  When the real frame has no sky patches, neither side adds any.
 
    The summary's ``sky_comparison`` block groups each instrument's frames by
    downlink: ``sqrt_lut`` for a frame downlinked through a companding table,
@@ -4316,8 +4321,9 @@ instrument, on seven figures of merit:
    simulated to real median sky sigma, with the per-frame values beneath.  The
    figure's support label counts every frame that has uniform patches, since
    the noise-at-signal statistic uses all of them.  The sky statistics can rest
-   on fewer frames, and ``n_sky_compared``, beside the support counts, gives
-   their number.
+   on fewer frames.  ``n_sky_frames``, beside the support counts, gives the
+   number of frames that added sky samples, once for the real side and once for
+   the simulated side.
 2. **Star PSF** -- star-cutout radial profiles and encircled-energy radii
    (EE50/EE80) on cohorts that contain star frames.  Where a cohort has no
    star frames, the limb profile of figure 3 is the only PSF evidence and
