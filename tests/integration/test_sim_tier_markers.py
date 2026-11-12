@@ -28,7 +28,9 @@ _CI_MARKER_EXPR = '(not integration or sim_integration) and not postgres'
 _QUIET_HOST_MODULES: frozenset[str] = frozenset({'test_sim_perf.py'})
 """Simulator modules kept out of CI because they time themselves."""
 
-_REAL_DATA_MODULES: frozenset[str] = frozenset({'test_sim_realism_smoke.py'})
+_REAL_DATA_MODULES: frozenset[str] = frozenset(
+    {'test_sim_realism_regression.py', 'test_sim_realism_smoke.py'}
+)
 """Simulator modules kept out of CI because they read archive holdings and SPICE."""
 
 _NO_TESTS_COLLECTED = 5

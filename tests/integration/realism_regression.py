@@ -38,6 +38,7 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import os
 import subprocess
 import sys
 import tempfile
@@ -52,6 +53,8 @@ from tests.integration.checkout_guard import require_checkout_package
 __all__ = [
     'BANDS_PATH',
     'MIN_RUNS',
+    'RECORD_ENV',
+    'RECORD_PATH',
     'RELATIVE_FLOOR',
     'SPREAD_MULTIPLE',
     'InstrumentBands',
@@ -61,6 +64,8 @@ __all__ = [
     'compare_with_record',
     'held_statistics',
     'load_bands',
+    'load_record',
+    'made_at',
     'measure_bands',
     'write_bands',
 ]
@@ -79,6 +84,14 @@ SPREAD_MULTIPLE = 3.0
 
 RELATIVE_FLOOR = 0.02
 """A band is at least this fraction of its statistic's measured magnitude."""
+
+RECORD_PATH = Path(__file__).parent / 'realism_results' / 'realism_summary.json'
+"""The committed realism record."""
+
+RECORD_ENV = 'SPINDOCTOR_TEST_REALISM_RECORD'
+"""Names another summary for the checks to read, so that they can be shown to pass and
+fail against a record made outside the repository."""
+
 
 REGENERATE_HINT = (
     'If the change is deliberate, accept it by regenerating the realism record '
@@ -416,3 +429,25 @@ def main() -> None:
 if __name__ == '__main__':
     require_checkout_package(__file__)
     main()
+
+
+def load_record() -> dict[str, Any]:
+    """Return the realism record the checks read: the committed one, or the one named by
+    ``SPINDOCTOR_TEST_REALISM_RECORD``."""
+    path = Path(os.environ.get(RECORD_ENV, str(RECORD_PATH)))
+    record: dict[str, Any] = json.loads(path.read_text())
+    return record
+
+
+def made_at(record: dict[str, Any]) -> str:
+    """Name the code a record was made from, with its checkout's dirty flag.
+
+    Parameters:
+        record: A realism summary.
+
+    Returns:
+        The record's commit and whether its checkout was clean, dirty, or unknown.
+    """
+    dirty = record.get('code_dirty')
+    state = 'unknown' if dirty is None else ('dirty' if dirty else 'clean')
+    return f'{record.get("code_commit") or "an unrecorded commit"} (checkout {state})'

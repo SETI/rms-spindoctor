@@ -4593,7 +4593,8 @@ that the statistics the record holds for each listed instrument are exactly the
 table's, and that each recorded value lies within its band of the table's
 measured value.  When they disagree, or the record lacks a listed instrument,
 the check fails and says the bands must be remeasured with the command above.
-This check reads only committed files.
+This check, in ``tests/integration/test_realism_record_bands.py``, reads only
+committed files, so it runs in the unit tier and in CI.
 
 The committed record predates the regression check.  It lacks the support labels
 the band statistics are drawn from, so the band table can't describe it, and the
