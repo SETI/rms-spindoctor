@@ -4595,14 +4595,21 @@ measured value.  When they disagree, or the record lacks a listed instrument,
 the check fails and says the bands must be remeasured with the command above.
 This check reads only committed files.
 
-A summary that carries no code commit isn't held to bands, and both checks skip
-with a message that says so.  Setting ``SPINDOCTOR_TEST_REALISM_RECORD`` to the
-path of another summary points the checks at that summary instead.  Against a
-summary written from unchanged code, both checks pass.  With the LORRI PSF core
-drawn three times too wide, nine statistics leave their bands, among them the
-EE50 W1/IQR, which falls from 2.36 to 1.05.  With the LORRI read noise ten times
-too high, eight leave their bands, among them the simulated 95th-minus-50th
-percentile signal stretch, which rises from 2 to 20 DN.  The LORRI sky-noise
+The committed record predates the regression check.  It lacks the support labels
+the band statistics are drawn from, so the band table can't describe it, and the
+record-versus-table check is marked as an expected failure on it.  The mark is
+strict: when the record and the bands are regenerated together, at the end of the
+simulator realism work, the check passes, the strict mark turns that pass into a
+failure, and the same change removes the mark.  The fresh match skips on a summary
+that carries no code commit, with a message that says so.
+
+Setting ``SPINDOCTOR_TEST_REALISM_RECORD`` to the path of another summary points
+the checks at that summary instead, and the expected-failure mark then does not
+apply.  Against a summary written from unchanged code, both checks pass.  With
+the LORRI PSF core drawn three times too wide, nine statistics leave their bands,
+among them the EE50 W1/IQR, which falls from 2.36 to 1.05.  With the LORRI read
+noise ten times too high, eight leave their bands, among them the simulated
+95th-minus-50th percentile signal stretch, which rises from 2 to 20 DN.  The LORRI sky-noise
 statistics themselves are unsupported, because only one real frame has sky
 patches, so the read noise shows in the dynamic-range and star statistics.
 

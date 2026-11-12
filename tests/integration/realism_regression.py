@@ -24,9 +24,10 @@ on one machine cannot show.  :func:`band_rule` is the rule in code.
 
 The table and the record must describe the same run: the statistics the record holds
 for an instrument are exactly the table's, and each recorded value lies within its band
-of the table's measured value.  A record that carries no code commit predates the check
-and is not held to bands.  A deliberate change to the simulator, or to the statistics,
-is accepted by regenerating the record and then remeasuring the bands::
+of the table's measured value.  A fresh match is never compared with a record that
+carries no code commit, which predates the check.  A deliberate change to the simulator,
+or to the statistics, is accepted by regenerating the record and then remeasuring the
+bands::
 
     python -m tests.integration.sim_realism
     python -m tests.integration.realism_regression
