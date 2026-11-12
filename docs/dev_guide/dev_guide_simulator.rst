@@ -4279,9 +4279,12 @@ instrument, on seven figures of merit:
    naive signal-binning would count scene texture as noise), the sky-patch
    level above the frame floor, noise at signal, and the sky spatial power
    spectrum (which catches banding and coherent noise a scalar sigma cannot).
-   A frame's sky patches are the darkest quarter of its uniform 32 × 32 pixel
-   patches, less any whose noise sigma is 0.  A tile of one constant value, such
-   as zero-filled missing data, has a sigma of 0 and holds no noise to compare.
+   The uniform 32 × 32 pixel patches lie on a grid that starts at the frame's
+   corner.  A frame's sky patches are the darkest quarter of those whose noise
+   sigma is above 0.  A tile of one constant value, such as zero-filled missing
+   data, has a sigma of 0 and holds no noise to compare.  It plays no part in
+   choosing the darkest quarter, so a large zero-filled area can't push the
+   frame's dark sky out of it.
    On a frame filled with rings or a body, the darkest patches lie on the rings
    or the body, and comparing them with the other frame's dark sky would set
    signal-dependent noise against sky noise.  So a patch of either frame counts
@@ -4291,8 +4294,10 @@ instrument, on seven figures of merit:
    dark skies.  The ceiling is ``dark_sky_ceiling_if`` in the config entry's
    ``detector`` block, in I/F.  A frame pair adds sky statistics only when both
    frames keep at least one patch.  The sky power spectrum is measured on 64 × 64
-   pixel tiles at up to four of a frame's darkest sky patches, and a frame adds
-   the spectra of the tiles at the patches it keeps.
+   pixel tiles, each made of four sky patches.  A frame measures up to four
+   tiles, those whose brightest patch is darkest, and adds a tile's spectrum only
+   when it keeps all four of the tile's patches.  Light from a ring or a limb
+   beside a dark patch therefore stays out of the spectrum.
 
    The rule looks at each patch's level and at nothing else.  A rule that used
    a noise sigma would select patches by the quantity being compared.  A band
