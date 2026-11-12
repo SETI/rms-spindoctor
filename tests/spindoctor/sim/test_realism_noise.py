@@ -1,4 +1,4 @@
-"""Unit tests for the FOM 1 sky-noise machinery (paired differences, PSD)."""
+"""Unit tests for the FOM 1 sky-noise machinery (noise estimators, patches, PSD)."""
 
 from __future__ import annotations
 
@@ -9,8 +9,11 @@ from spindoctor.sim.realism.noise import (
     SkyPatch,
     dark_sky_patches,
     find_uniform_patches,
+    lattice_noise_sigma,
     noisy_patches,
     paired_difference_sigma,
+    patch_noise_sigma,
+    quantization_step,
     radial_power_spectrum,
 )
 
@@ -50,6 +53,66 @@ def test_paired_difference_robust_to_spikes() -> None:
 def test_paired_difference_degenerate_patch_is_nan() -> None:
     """A 1-D or tiny patch yields NaN, not a crash."""
     assert np.isnan(paired_difference_sigma(np.zeros((1, 5))))
+
+
+def test_quantized_noise_below_one_step_is_recovered() -> None:
+    """Gaussian noise of sigma 0.3 DN rounded to whole DN gives back 0.3 DN.
+
+    Paired differences report 0 here: most neighbors share a value.
+    """
+    rng = np.random.default_rng(21)
+    patch = np.round(rng.normal(100.2, 0.3, (64, 64)))
+    assert patch_noise_sigma(patch) == pytest.approx(0.3, rel=0.05)
+
+
+def test_quantized_sky_with_gradient_and_spikes_is_recovered() -> None:
+    """A real-like whole-DN sky recovers its sigma.
+
+    The sky carries a gradient of 3 DN across the patch, sigma 2.5 DN, two hot pixels,
+    and a cosmic ray.
+    """
+    rng = np.random.default_rng(22)
+    vv, uu = np.mgrid[0:32, 0:32].astype(np.float64)
+    sky = 540.0 + 3.0 * (vv + uu) / 64.0 + rng.normal(0.0, 2.5, (32, 32))
+    sky[4, 7] += 300.0
+    sky[20, 11] += 80.0
+    sky[12:14, 25] += 2000.0
+    assert patch_noise_sigma(np.round(sky)) == pytest.approx(2.5, rel=0.08)
+
+
+def test_quantized_noise_on_a_fractional_lattice_is_recovered() -> None:
+    """A lattice whose step is not 1, such as 8-bit I/F, is fitted in its own units."""
+    rng = np.random.default_rng(23)
+    step = 1.0 / 255.0
+    patch = np.round(rng.normal(3.3, 0.6, (64, 64))) * step
+    assert patch_noise_sigma(patch) == pytest.approx(0.6 * step, rel=0.05)
+
+
+def test_quantization_step_is_none_for_continuous_values() -> None:
+    """Values that take any real value sit on no lattice."""
+    rng = np.random.default_rng(24)
+    assert quantization_step(rng.normal(0.0, 1.0, (32, 32))) is None
+
+
+def test_quantization_step_is_none_for_float32_values() -> None:
+    """Float32 values sit on the float spacing, which is no quantization."""
+    rng = np.random.default_rng(27)
+    patch = rng.normal(3e-3, 2e-4, (32, 32)).astype(np.float32)
+    assert quantization_step(patch) is None
+
+
+def test_two_level_patch_sigma_is_not_measurable() -> None:
+    """A patch whose pixels take only two values gives NaN, since any sigma fits it."""
+    rng = np.random.default_rng(25)
+    patch = np.round(rng.normal(100.5, 0.15, (32, 32)))
+    assert np.isnan(lattice_noise_sigma(patch, 1.0))
+
+
+def test_find_uniform_patches_keeps_quantized_sky_below_one_step() -> None:
+    """Whole-DN sky whose noise is below one DN still yields every patch."""
+    rng = np.random.default_rng(26)
+    image = np.round(rng.normal(20.0, 0.4, (64, 64)))
+    assert len(find_uniform_patches(image, patch_size=32, max_mean_quantile=None)) == 4
 
 
 def test_find_uniform_patches_rejects_structured_tiles() -> None:
