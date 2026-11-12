@@ -321,6 +321,101 @@ def test_paired_differences_of_quantized_noise_read_between_whole_steps() -> Non
     assert float(np.median(ratios)) == pytest.approx(1.0, abs=0.005)
 
 
+def _dense_grouped_sigma(q: NDArrayFloatType) -> float:
+    """The grouped paired-difference sigma with one histogram bin per step of the span.
+
+    This is the reference the estimator must reproduce: every step between the lowest and
+    highest difference gets a bin, occupied or not.
+    """
+    diffs = (q[:, 1:] - q[:, :-1]).ravel()
+    diffs = diffs[np.isfinite(diffs)]
+    if diffs.size == 0:
+        return 0.0
+    lowest = int(diffs.min())
+    counts = np.bincount((diffs - lowest).astype(np.int64))
+    edges = lowest - 0.5 + np.arange(counts.size + 1, dtype=np.float64)
+    cdf = np.concatenate([[0.0], np.cumsum(counts) / diffs.size])
+    center = float(np.interp(0.5, cdf, edges))
+    radii = np.unique(np.abs(edges - center))
+    mass = np.interp(center + radii, edges, cdf) - np.interp(center - radii, edges, cdf)
+    mad = float(np.interp(0.5, mass, radii))
+    variance = (mad * 1.4826) ** 2 / 2.0 - 1.0 / 8.0
+    return float(np.sqrt(max(variance, 0.0)))
+
+
+def _grouped_test_patch(kind: str, rng: np.random.Generator) -> NDArrayFloatType:
+    """A whole-step patch of the named kind for the dense-reference comparison."""
+    if kind.startswith('gaussian-'):
+        return np.round(rng.uniform() + rng.normal(50.0, float(kind[9:]), (32, 32)))
+    if kind == 'few-separated-levels':
+        levels = np.array([0.0, 7.0, 50.0, 51.0])
+        return levels[rng.choice(4, size=(32, 32), p=[0.5, 0.3, 0.15, 0.05])]
+    if kind == 'outliers':
+        patch = np.round(rng.normal(100.0, 2.0, (32, 32)))
+        patch[rng.integers(0, 32, 6), rng.integers(0, 32, 6)] = 100_000.0
+        return patch
+    if kind == 'clipped':
+        return np.maximum(np.round(rng.normal(0.5, 3.0, (32, 32))), 0.0)
+    if kind == 'non-finite':
+        patch = np.round(rng.normal(100.0, 3.0, (32, 32)))
+        patch[rng.integers(0, 32, 20), rng.integers(0, 32, 20)] = np.nan
+        return patch
+    if kind == 'half-on-each-side-of-a-gap':
+        # 16 differences of +10 and 16 of -10 in every row: the cumulative fraction is
+        # exactly one half across the whole gap between them.
+        return np.tile(np.array([0.0, 10.0] * 16 + [0.0]), (32, 1))
+    if kind == 'constant':
+        return np.full((32, 32), 7.0)
+    raise ValueError(f'unknown patch kind {kind!r}')
+
+
+@pytest.mark.parametrize(
+    'kind',
+    [
+        'gaussian-0.3',
+        'gaussian-0.8',
+        'gaussian-2.5',
+        'gaussian-10',
+        'gaussian-40',
+        'few-separated-levels',
+        'outliers',
+        'clipped',
+        'non-finite',
+        'half-on-each-side-of-a-gap',
+        'constant',
+    ],
+)
+def test_grouped_differences_match_a_bin_for_every_step(kind: str) -> None:
+    """Reading only the occupied steps gives what a bin for every step of the span gives.
+
+    Noise of 10 and 40 steps, separated levels, and far outliers leave empty steps among
+    the differences, which a bin per step fills with zeros.
+    """
+    rng = np.random.default_rng(39)
+    for _ in range(5):
+        q = _grouped_test_patch(kind, rng)
+        expected = _dense_grouped_sigma(q)
+        assert noise_module._grouped_difference_sigma(q) == pytest.approx(
+            expected, rel=1e-12, abs=1e-12
+        )
+
+
+def test_an_outliers_distance_does_not_change_the_grouped_differences() -> None:
+    """One pixel 1e15 steps above the sky reads as one 1e5 steps above it does.
+
+    A histogram with a bin for every step of the wider span would need petabytes; the
+    pixel 1e5 steps above is checked against that dense histogram.
+    """
+    rng = np.random.default_rng(40)
+    near = np.round(rng.normal(100.0, 2.0, (32, 32)))
+    near[16, 16] = 1e5
+    far = near.copy()
+    far[16, 16] = 1e15
+    assert noise_module._grouped_difference_sigma(far) == pytest.approx(
+        _dense_grouped_sigma(near), rel=1e-12
+    )
+
+
 @pytest.mark.parametrize(
     ('clip', 'sigma'), [('floor', 3.0), ('ceiling', 5.0)], ids=['floor-3', 'ceiling-5']
 )

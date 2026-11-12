@@ -197,10 +197,16 @@ def _grouped_difference_sigma(q: NDArrayFloatType) -> float:
     diffs = diffs[np.isfinite(diffs)]
     if diffs.size == 0:
         return 0.0
-    lowest = int(diffs.min())
-    counts = np.bincount((diffs - lowest).astype(np.int64))
-    edges = lowest - 0.5 + np.arange(counts.size + 1, dtype=np.float64)
-    cdf = np.concatenate([[0.0], np.cumsum(counts) / diffs.size])
+    # The differences' cumulative fraction is piecewise linear with knots only at the
+    # edges of occupied steps: it rises across each occupied step and is flat across
+    # empty ones.  The mass within a radius of the center bends only where the center
+    # plus or minus the radius meets one of those edges, so the radii to those edges are
+    # its only breakpoints.  Keeping only those edges costs the number of distinct
+    # differences, however far an outlier lies.
+    values, counts = np.unique(diffs, return_counts=True)
+    edges = np.unique(np.concatenate([values - 0.5, values + 0.5]))
+    below = np.concatenate([[0], np.cumsum(counts)])
+    cdf = below[np.searchsorted(values, edges)] / diffs.size
     center = float(np.interp(0.5, cdf, edges))
     radii = np.unique(np.abs(edges - center))
     mass = np.interp(center + radii, edges, cdf) - np.interp(center - radii, edges, cdf)
