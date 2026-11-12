@@ -4522,11 +4522,12 @@ highest levels are compared with the populations the fitted model predicts for
 them, and an open end level is predicted to hold all of the model's mass beyond
 its inner edge.  When either level holds more pixels than predicted by more than
 four times the square root of the prediction, plus 0.27% of the patch and three
-pixels, the patch's sigma is not measured.  On the benchmark below, no level
-came within 3.7 pixels of that limit.  The levels between are not checked,
-because a real camera's levels need not be equally wide.  In the darkest sky of
-real Galileo frames, the fullest level holds about 1.4 times the pixels the fit
-predicts for it, and its neighbors fewer.
+pixels, the patch's sigma is not measured.  On about 12,000 patches of rounded
+Gaussian noise from 0.3 to 10 DN, flat, tilted, or curved, and clipped or not,
+no end level came within 3.7 pixels of that limit.  The levels between are not
+checked, because a real camera's levels need not be equally wide.  In the
+darkest sky of real Galileo frames, the fullest level holds about 1.4 times the
+pixels the fit predicts for it, and its neighbors fewer.
 
 Both estimates were measured on Gaussian noise rounded to whole DN, in 32 × 32
 patches at random levels.  The sky was flat, tilted by 12 DN from corner to

@@ -90,7 +90,7 @@ _EXCESS_PIXELS = 3
 # holds more pixels than the fitted model predicts for it by more than _LEVEL_SIGMAS times
 # the square root of the prediction plus _GAUSSIAN_BEYOND_FRACTION of the patch and
 # _EXCESS_PIXELS.  On rounded Gaussian noise of 0.3 to 10 steps, flat, tilted, or curved,
-# clipped or not, no level of 11,000 patches came within 3.7 pixels of that limit.  The
+# clipped or not, no level of 12,000 patches came within 3.7 pixels of that limit.  The
 # levels between are left unchecked: the darkest sky of real Galileo frames puts about
 # 1.4 times the predicted pixels on its fullest level, and few on its neighbors.
 _LEVEL_SIGMAS = 4.0
