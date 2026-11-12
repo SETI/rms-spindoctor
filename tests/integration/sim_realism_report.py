@@ -4,11 +4,12 @@ Writes one figure per figure of merit per instrument (real/sim histogram
 overlays plus the curve overlays) into ``docs/simulator_report/_figures/``
 as ``realism_<instrument>_<fom>.png``, and a deterministic JSON summary
 into ``tests/integration/realism_results/realism_summary.json`` that backs
-the report's tables (per-kind W1 divergences, per-curve density-W1
-divergences, support labels with each side's frame counts, the FOM 3
-one-sided-stratum disclosure, the FOM 1 sky pairing with its per-frame
-sigma ratios, the FOM 7 diagnostic rows, and the artifact-rate comparison
-against the catalog defaults).
+the report's tables and the regression check (the code commit it was made
+from, per-kind W1 divergences, per-curve density-W1 divergences, support
+labels with each side's frame counts, the FOM 3 one-sided-stratum
+disclosure, the FOM 1 sky pairing with its per-frame sigma ratios, the FOM
+7 diagnostic rows, and the artifact-rate comparison against the catalog
+defaults).
 
 Two fixed series colors carry sides everywhere: real cohort in blue,
 simulated frames in orange -- a colorblind-safe pair, never cycled.
@@ -17,6 +18,7 @@ simulated frames in orange -- a colorblind-safe pair, never cycled.
 from __future__ import annotations
 
 import json
+import subprocess
 import warnings
 from pathlib import Path
 from typing import Any
@@ -37,7 +39,7 @@ from tests.integration.sim_realism import (
     SkyPairStatus,
 )
 
-__all__ = ['summary_dict', 'write_figures', 'write_summary']
+__all__ = ['code_commit', 'summary_dict', 'write_figures', 'write_summary']
 
 _REPO_ROOT = Path(__file__).parent.parent.parent
 _FIGURES_ROOT = _REPO_ROOT / 'docs' / 'simulator_report' / '_figures'
@@ -489,9 +491,33 @@ def _kind_support(comparison: InstrumentComparison, kind: str) -> dict[str, Any]
     }
 
 
+def code_commit() -> str | None:
+    """The commit checked out in this repository, or None when git cannot tell.
+
+    The summary records it so the regression check
+    (:mod:`tests.integration.realism_regression`) knows which code the record holds.
+    """
+    try:
+        done = subprocess.run(
+            ['git', 'rev-parse', 'HEAD'],
+            cwd=_REPO_ROOT,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except OSError:
+        return None
+    commit = done.stdout.strip()
+    return commit if done.returncode == 0 and commit else None
+
+
 def summary_dict(results: RealismResults) -> dict[str, Any]:
     """The deterministic JSON-serializable summary."""
-    out: dict[str, Any] = {'runtime_sec': round(results.runtime_sec, 1), 'instruments': {}}
+    out: dict[str, Any] = {
+        'code_commit': code_commit(),
+        'runtime_sec': round(results.runtime_sec, 1),
+        'instruments': {},
+    }
     for instrument, comparison in sorted(results.comparisons.items()):
         defaults = resolve_detector_defaults(instrument)
         kinds: dict[str, Any] = {}
