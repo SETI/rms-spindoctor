@@ -7,10 +7,11 @@ import pytest
 
 from spindoctor.sim.realism.noise import (
     SkyPatch,
+    dark_sky_patches,
     find_uniform_patches,
+    noisy_patches,
     paired_difference_sigma,
     radial_power_spectrum,
-    sky_patches_in_band,
 )
 
 
@@ -99,28 +100,25 @@ def test_radial_power_spectrum_peaks_at_banding_frequency() -> None:
     assert freq[peak_bin] == pytest.approx(expected_freq, abs=0.5 / 16)
 
 
-def test_sky_band_scales_by_the_frame_sigma() -> None:
-    """A patch above the band is dropped however noisy it is itself.
+def test_dark_sky_is_selected_by_level_alone() -> None:
+    """A patch above the ceiling is dropped however noisy it is, and one below is kept.
 
-    The ring patch lies within three of its own sigmas of the reference, so a band
-    scaled by each patch's own noise would keep it.
+    The ring patch lies within three of its own sigmas of the ceiling, so a selection
+    scaled by any sigma could keep it.
     """
-    sky = SkyPatch(v0=0, u0=0, size=32, mean=2e-4, sigma=1e-4)
+    sky = SkyPatch(v0=0, u0=0, size=32, mean=2e-4, sigma=1e-8)
     ring = SkyPatch(v0=0, u0=32, size=32, mean=0.07, sigma=0.05)
-    assert sky_patches_in_band([sky, ring], 4e-5, 1e-4) == [sky]
+    assert dark_sky_patches([sky, ring], 2.54e-3) == [sky]
 
 
-def test_sky_band_keeps_a_patch_far_below_the_reference() -> None:
-    """The band is one-sided: a patch many sigmas below the reference is still sky."""
+def test_dark_sky_keeps_a_patch_far_below_the_ceiling() -> None:
+    """A patch far below the ceiling is dark sky."""
     dark = SkyPatch(v0=0, u0=0, size=32, mean=-1e-3, sigma=1e-4)
-    assert sky_patches_in_band([dark], 4e-5, 1e-4) == [dark]
+    assert dark_sky_patches([dark], 2.54e-3) == [dark]
 
 
-def test_sky_band_keeps_nothing_for_a_non_finite_reference() -> None:
-    """Without a finite reference no patch can be judged dark sky.
-
-    An infinite reference is the case to test: a NaN one drops every patch through the
-    comparison alone, while an infinite one would keep every patch.
-    """
-    sky = SkyPatch(v0=0, u0=0, size=32, mean=2e-4, sigma=1e-4)
-    assert sky_patches_in_band([sky], float('inf'), 1e-4) == []
+def test_a_constant_patch_has_no_noise_to_compare() -> None:
+    """A patch whose sigma is 0, such as a zero-filled tile, is dropped."""
+    constant = SkyPatch(v0=0, u0=0, size=32, mean=0.0, sigma=0.0)
+    sky = SkyPatch(v0=0, u0=32, size=32, mean=4e-5, sigma=1e-4)
+    assert noisy_patches([constant, sky]) == [sky]

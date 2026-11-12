@@ -60,7 +60,11 @@ from spindoctor.obs import ObsSnapshotInst
 from spindoctor.obs.obs_inst_sim import ObsSim
 from spindoctor.sim.instrument_catalog import realism_cohort_instruments
 from spindoctor.sim.instrument_navigator import resolve_sim_inst_config
-from spindoctor.sim.instrument_resolvers import resolve_calibrated_sky_if, resolve_data_units
+from spindoctor.sim.instrument_resolvers import (
+    resolve_calibrated_sky_if,
+    resolve_dark_sky_ceiling_if,
+    resolve_data_units,
+)
 from spindoctor.sim.realism.artifact_rates import (
     ArtifactRates,
     split_stationary_spikes,
@@ -72,7 +76,7 @@ from spindoctor.sim.realism.divergence import (
     w1_divergence,
 )
 from spindoctor.sim.realism.dynamic_range import stratify_by_exposure
-from spindoctor.sim.realism.noise import SkyPatch, sky_patches_in_band
+from spindoctor.sim.realism.noise import SkyPatch, dark_sky_patches, noisy_patches
 from spindoctor.support.types import NDArrayFloatType
 from tests.integration.checkout_guard import require_checkout_package
 from tests.integration.sidecar import LibraryRoot, Sidecar, load_sidecar
@@ -94,6 +98,7 @@ __all__ = [
     'SkyPairStatus',
     'pair_sky',
     'run_realism_match',
+    'twins_have_sky',
 ]
 
 # (mission, camera) -> sim instrument whose signal chain and units match the
@@ -205,13 +210,18 @@ class FrameRecord:
 class SkyPairStatus(StrEnum):
     """What became of one frame pair's FOM 1 sky patches.
 
+    A frame's sky patches here are its darkest-quartile uniform patches whose noise
+    sigma is positive.
+
     ``COMPARED``: both frames kept dark-sky patches, which entered the pooled sky
-    statistics.  ``DROPPED``: one frame kept none, so neither side added any.
-    ``NOT_JUDGED``: the instrument's two sides don't share a zero point, so the
-    band can't be applied and every patch of both frames entered the pools.
-    ``NO_REAL_SKY``: the real frame has no sky patches, so neither side added any.
-    ``NO_SIM_SKY``: the matched frame has no sky patches, so the real frame's
-    patches entered the real pool as they are.
+    statistics.  ``DROPPED``: neither side added any, because one frame kept no
+    dark-sky patch, or because the matched frame has no sky patches while other
+    matched frames of the instrument have some.  ``NOT_JUDGED``: the instrument
+    has no dark-sky ceiling (its products are raw DN, or its entry sets none), so
+    every patch of both frames entered the pools.  ``NO_REAL_SKY``: the real frame
+    has no sky patches, so neither side added any.  ``NO_SIM_SKY``: no matched
+    frame of the instrument has sky patches, so the real frame's patches entered
+    the real pool as they are.
     """
 
     COMPARED = 'compared'
@@ -236,8 +246,8 @@ class SkyPair:
             patches.
         n_real_patches: The real frame's sky patches.
         n_sim_patches: The matched frame's sky patches.
-        n_real_kept: The real sky patches inside the dark-sky band, or all of them
-            when the band isn't applied.
+        n_real_kept: The real sky patches at or below the dark-sky ceiling, or all
+            of them when the ceiling isn't applied.
         n_sim_kept: The same for the matched frame.
         real_sigma: The median noise sigma of the real patches that entered the
             pool, NaN when none did.
@@ -258,8 +268,22 @@ class SkyPair:
 
     @property
     def compared(self) -> bool:
-        """Whether the band kept dark-sky patches on both sides."""
+        """Whether both frames kept dark-sky patches."""
         return self.status is SkyPairStatus.COMPARED
+
+    @property
+    def real_added(self) -> bool:
+        """Whether the real frame added sky samples to the pool."""
+        return self.status in (
+            SkyPairStatus.COMPARED,
+            SkyPairStatus.NOT_JUDGED,
+            SkyPairStatus.NO_SIM_SKY,
+        )
+
+    @property
+    def sim_added(self) -> bool:
+        """Whether the matched frame added sky samples to the pool."""
+        return self.status in (SkyPairStatus.COMPARED, SkyPairStatus.NOT_JUDGED)
 
     @property
     def sigma_ratio(self) -> float:
@@ -531,69 +555,86 @@ def _median_sigma(patches: list[SkyPatch]) -> float:
     return float(np.median([p.sigma for p in patches]))
 
 
-def pair_sky(record: FrameRecord, real: FrameSamples, sim: FrameSamples) -> SkyPair:
+def _sky_patches(frame: FrameSamples) -> list[SkyPatch]:
+    """A frame's sky patches whose noise sigma is positive."""
+    return noisy_patches(frame.sky.patches) if frame.sky is not None else []
+
+
+def twins_have_sky(sims: list[FrameSamples]) -> bool:
+    """Whether any of an instrument's matched frames has sky patches.
+
+    Parameters:
+        sims: The instrument's matched frames' samples.
+
+    Returns:
+        True when at least one matched frame has a sky patch whose noise sigma is
+        positive.
+    """
+    return any(_sky_patches(sim) for sim in sims)
+
+
+def pair_sky(
+    record: FrameRecord, real: FrameSamples, sim: FrameSamples, *, twins_with_sky: bool
+) -> SkyPair:
     """Add one frame pair's FOM 1 sky samples from the patches on dark sky in both frames.
 
-    A frame's sky patches are its darkest-quartile uniform patches.  On a frame
-    filled with rings or a body they lie on that content, and comparing them with
-    the other frame's dark sky would set signal-dependent noise against sky noise.
-    So on a calibrated instrument a patch of either frame counts only when it lies
-    on dark sky (:func:`~spindoctor.sim.realism.noise.sky_patches_in_band`), and
-    the pair adds sky samples only when both frames keep at least one patch.  On
-    an instrument whose two sides don't share a zero point, every patch is added.
+    A frame's sky patches are its darkest-quartile uniform patches, less any whose
+    noise sigma is 0 (a constant tile, such as zero-filled missing data).  On a
+    frame filled with rings or a body they lie on that content, and comparing them
+    with the other frame's dark sky would set signal-dependent noise against sky
+    noise.  So on an instrument that sets a dark-sky ceiling, a patch of either
+    frame counts only when its mean lies at or below the calibrated sky residual
+    plus that ceiling, and the pair adds sky samples only when both frames keep at
+    least one patch.  On an instrument without a ceiling every patch is added.
 
     Parameters:
         record: The real frame's record.
         real: The real frame's samples; the sky samples that enter the pool are
             added to it.
         sim: The matched frame's samples, likewise.
+        twins_with_sky: Whether any matched frame of the instrument has sky
+            patches.  When none has, the real frame's sky patches are added as
+            they are; otherwise a pair whose matched frame has none is dropped.
 
     Returns:
         The pair's sky comparison.
     """
-    real_patches = real.sky.patches if real.sky is not None else []
-    sim_patches = sim.sky.patches if sim.sky is not None else []
+    real_patches = _sky_patches(real)
+    sim_patches = _sky_patches(sim)
+    ceiling = (
+        resolve_dark_sky_ceiling_if(record.instrument)
+        if resolve_data_units(record.instrument) == 'calibrated_if'
+        else None
+    )
     real_kept: list[SkyPatch] = []
     sim_kept: list[SkyPatch] = []
     added_real: list[SkyPatch] = []
     added_sim: list[SkyPatch] = []
     if not real_patches:
         status = SkyPairStatus.NO_REAL_SKY
-    elif not sim_patches:
+    elif not sim_patches and not twins_with_sky:
         status = SkyPairStatus.NO_SIM_SKY
         real_kept = added_real = real_patches
-    elif resolve_data_units(record.instrument) != 'calibrated_if':
+    elif not sim_patches:
+        status = SkyPairStatus.DROPPED
+    elif ceiling is None:
         # A raw-DN frame's zero point is its bias pedestal, which the real product
         # may have removed (LORRI science products are bias-subtracted) while the
-        # matched frame keeps the simulator's.  The levels can't be compared.
+        # matched frame keeps the simulator's, so the levels can't be compared.  A
+        # calibrated camera whose entry sets no ceiling is handled the same way.
         status = SkyPairStatus.NOT_JUDGED
         real_kept = added_real = real_patches
         sim_kept = added_sim = sim_patches
     else:
-        # Dark sky is judged on both frames against one reference and one sigma.
-        # The reference is the calibrated sky residual the simulator draws empty
-        # sky at, itself measured on real Cassini dark skies, so both frames'
-        # dark skies scatter about it.  A frame's own sky level can't serve: the
-        # matched frame's lies on the body where the body overfills the frame
-        # (N1484593951), and the darker of the two levels drops the matched
-        # frame's whole sky when the real sky lies below the simulated residual
-        # (W1580760393).
-        #
-        # The sigma is the matched frame's median sky sigma.  Measured on the
-        # cohort's captures, a sigma from the real frame (its median sky sigma, or
-        # that of its darkest quarter) grows on content and lets it through: a
-        # TABLE frame filled by a body at 0.8 I/F (N1699263827), ring frames at
-        # 0.014 to 0.08 I/F (N1863268207, N1867601758, N1867602424), and 81 of
-        # the 98 patches of a WAC frame filled by Rhea (W1637520502).  The
-        # matched frame's sigma rejects all of them.  Its cost is that a real
-        # sky sitting more than three of those sigmas above the residual drops
-        # out with the content: every NAC TABLE sky of the cohort (5e-4 to
-        # 2.3e-3 I/F above it, which the matched frames don't reproduce), and two
-        # NAC 12-bit skies (N1489256001, N1828122657).
-        reference = resolve_calibrated_sky_if(record.instrument)
-        sigma = _median_sigma(sim_patches)
-        real_kept = sky_patches_in_band(real_patches, reference, sigma)
-        sim_kept = sky_patches_in_band(sim_patches, reference, sigma)
+        # Dark sky is judged on both frames by level alone, against the calibrated
+        # sky residual the simulator draws empty sky at.  Any noise sigma in the
+        # rule would make the selection depend on the quantity being compared:
+        # the matched frame's sigma shrinks the band when the twin is too quiet,
+        # and the real frame's sigma grows on content.  The instrument config
+        # holds the ceiling and the measurement behind it.
+        ceiling_level = resolve_calibrated_sky_if(record.instrument) + ceiling
+        real_kept = dark_sky_patches(real_patches, ceiling_level)
+        sim_kept = dark_sky_patches(sim_patches, ceiling_level)
         if real_kept and sim_kept:
             status = SkyPairStatus.COMPARED
             added_real = real_kept
@@ -759,13 +800,21 @@ def run_realism_match(
             comparison.records.append(record)
             real_frames.append(frame_samples)
             comparison.real_rates.append(rates)
-        for record, real_samples in zip(comparison.records, real_frames, strict=True):
+        sim_frames: list[FrameSamples] = []
+        for record in comparison.records:
             sim_samples, sim_frame_rates = _frame_samples_sim(record)
-            comparison.sky_pairs.append(pair_sky(record, real_samples, sim_samples))
+            sim_frames.append(sim_samples)
+            comparison.sim_rates.append(sim_frame_rates)
+        with_sky = twins_have_sky(sim_frames)
+        for record, real_samples, sim_samples in zip(
+            comparison.records, real_frames, sim_frames, strict=True
+        ):
+            comparison.sky_pairs.append(
+                pair_sky(record, real_samples, sim_samples, twins_with_sky=with_sky)
+            )
             comparison.real.merge(real_samples)
             _count_fom_frames(comparison, real_samples)
             comparison.sim.merge(sim_samples)
-            comparison.sim_rates.append(sim_frame_rates)
         if not skip_fom7:
             comparison.fom7_rows = _run_fom7(comparison.records, sidecars_by_id)
         _aggregate(comparison)

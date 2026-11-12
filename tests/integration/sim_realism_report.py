@@ -510,7 +510,10 @@ def _summary_dict(results: RealismResults) -> dict[str, Any]:
             'frames': [r.image_id for r in comparison.records],
             'fom_support': dict(sorted(comparison.fom_support.items())),
             'fom_frames': dict(sorted(comparison.fom_frames.items())),
-            'n_sky_compared': sum(1 for p in comparison.sky_pairs if p.compared),
+            'n_sky_frames': {
+                'real': sum(1 for p in comparison.sky_pairs if p.real_added),
+                'sim': sum(1 for p in comparison.sky_pairs if p.sim_added),
+            },
             'divergences': kinds,
             'curve_divergences': curve_kinds,
             'limb_bins_real_only': list(comparison.limb_bins_real_only),

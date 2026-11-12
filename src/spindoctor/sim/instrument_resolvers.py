@@ -48,6 +48,7 @@ __all__ = [
     'mode_available',
     'mode_unavailable_message',
     'resolve_calibrated_sky_if',
+    'resolve_dark_sky_ceiling_if',
     'resolve_data_units',
     'resolve_detector_defaults',
     'resolve_detector_id',
@@ -229,6 +230,26 @@ def resolve_calibrated_sky_if(instrument: str | None) -> float:
     if own is not None:
         return float(own)
     return float(instrument_entry(GENERIC_INSTRUMENT)['detector']['calibrated_sky_if'])
+
+
+def resolve_dark_sky_ceiling_if(instrument: str | None) -> float | None:
+    """Return the realism comparison's dark-sky ceiling, in I/F, of a calibrated frame.
+
+    The realism comparison counts a sky patch as dark sky when its mean lies at or
+    below the calibrated sky residual plus this ceiling.
+
+    Parameters:
+        instrument: The sim instrument name, an alias, or ``None``.
+
+    Returns:
+        The instrument's ``detector.dark_sky_ceiling_if``, or None when the entry
+        doesn't set one.
+
+    Raises:
+        ValueError: If the instrument is not in the catalog.
+    """
+    ceiling = instrument_entry(instrument)['detector'].get('dark_sky_ceiling_if')
+    return float(ceiling) if ceiling is not None else None
 
 
 def downlink_table_names(instrument: str | None) -> tuple[str, ...]:

@@ -15,7 +15,7 @@ The end-to-end smoke on real frames lives in ``test_sim_realism_smoke.py``.
 from __future__ import annotations
 
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 import pytest
@@ -23,6 +23,8 @@ import pytest
 from spindoctor.sim.forward.detector.params import resolve_detector_params
 from spindoctor.sim.instrument_resolvers import (
     filter_star_flux_scale,
+    resolve_calibrated_sky_if,
+    resolve_dark_sky_ceiling_if,
     resolve_native_frame_size_px,
 )
 from spindoctor.sim.realism.noise import SkyPatch
@@ -32,13 +34,15 @@ from tests.integration.sim_realism import (
     INSTRUMENT_FOR,
     FrameRecord,
     InstrumentComparison,
+    RealismResults,
+    SkyPairStatus,
     _aggregate,
     _frame_samples_real,
     _frame_samples_sim,
     discover_cohort,
     pair_sky,
 )
-from tests.integration.sim_realism_report import _sky_comparison
+from tests.integration.sim_realism_report import _sky_comparison, _summary_dict
 from tests.integration.sim_realism_scenes import matched_scene
 from tests.integration.sim_realism_support import FrameSamples, FrameSky, _has_flat_top
 from tests.spindoctor.inst.conftest import VicarLabelStandIn
@@ -257,11 +261,24 @@ def test_aggregate_emits_density_w1_for_curve_kinds() -> None:
     assert np.isfinite(result.w1_normalized)
 
 
+# The calibrated Cassini NAC's sky residual and dark-sky ceiling, from its config.
+_REF = resolve_calibrated_sky_if('coiss_calib_nac')
+_CEILING = cast(float, resolve_dark_sky_ceiling_if('coiss_calib_nac'))
+
+
+def _sky_frame_of(patches: list[tuple[float, float]]) -> FrameSamples:
+    """A frame's samples holding one sky patch per ``(mean, sigma)``."""
+    sky_patches = [
+        SkyPatch(v0=0, u0=32 * i, size=32, mean=mean, sigma=sigma)
+        for i, (mean, sigma) in enumerate(patches)
+    ]
+    sky = FrameSky(patches=sky_patches, floor=0.0, psd_freq=np.zeros(16), psd_tiles=[])
+    return FrameSamples(sky=sky)
+
+
 def _sky_frame(mean: float, sigma: float = 1e-4) -> FrameSamples:
     """A frame's samples holding one sky patch at ``mean`` with noise ``sigma``."""
-    patch = SkyPatch(v0=0, u0=0, size=32, mean=mean, sigma=sigma)
-    sky = FrameSky(patches=[patch], floor=0.0, psd_freq=np.zeros(16), psd_tiles=[])
-    return FrameSamples(sky=sky)
+    return _sky_frame_of([(mean, sigma)])
 
 
 def _sky_record(instrument: str = 'coiss_calib_nac') -> FrameRecord:
@@ -280,16 +297,21 @@ def test_a_dark_sky_pair_adds_sky_noise_on_both_sides() -> None:
     """A pair whose patches both lie on dark sky adds its sky noise to both pools."""
     real = _sky_frame(1e-4)
     sim = _sky_frame(4e-5)
-    pair_sky(_sky_record(), real, sim)
+    pair_sky(_sky_record(), real, sim, twins_with_sky=True)
     assert 'sky_sigma' in real.samples
     assert 'sky_sigma' in sim.samples
 
 
-def test_a_content_filled_frame_leaves_both_sky_pools() -> None:
-    """A real frame whose sky patches all lie on content adds no sky noise on either side."""
-    real = _sky_frame(0.07)
-    sim = _sky_frame(3e-4)
-    pair_sky(_sky_record(), real, sim)
+def test_a_noisy_content_frame_leaves_both_sky_pools() -> None:
+    """A real frame on content is dropped however noisy its patches are.
+
+    The patches sit 5e-3 I/F above the residual with a sigma of 3e-3, like the halo
+    sky around a bright moon, so a band scaled by the real frame's sigma would keep
+    them.
+    """
+    real = _sky_frame(_REF + 5e-3, sigma=3e-3)
+    sim = _sky_frame(_REF)
+    pair_sky(_sky_record(), real, sim, twins_with_sky=True)
     assert 'sky_sigma' not in real.samples
     assert 'sky_sigma' not in sim.samples
 
@@ -298,9 +320,77 @@ def test_a_matched_frame_on_content_leaves_both_sky_pools() -> None:
     """A matched frame whose sky patches all lie on a body adds no sky noise on either side."""
     real = _sky_frame(1e-4)
     sim = _sky_frame(1e-2)
-    pair_sky(_sky_record(), real, sim)
+    pair_sky(_sky_record(), real, sim, twins_with_sky=True)
     assert 'sky_sigma' not in real.samples
     assert 'sky_sigma' not in sim.samples
+
+
+def test_a_pair_on_content_in_both_frames_is_dropped() -> None:
+    """Two frames whose patches both lie on a body are dropped, though their levels agree."""
+    pair = pair_sky(
+        _sky_record(), _sky_frame(_REF + 1e-2), _sky_frame(_REF + 1e-2), twins_with_sky=True
+    )
+    assert pair.status is SkyPairStatus.DROPPED
+
+
+def test_an_offset_table_sky_is_compared_with_a_quiet_twin() -> None:
+    """A real sky 2e-3 I/F above the residual is dark sky, though many sigmas above it.
+
+    The twin's sky lies at the residual with a sigma of 1e-4, so a band scaled by either
+    frame's sigma would drop the real sky.
+    """
+    pair = pair_sky(
+        _sky_record(),
+        _sky_frame(_REF + 2e-3, sigma=1.5e-4),
+        _sky_frame(_REF, sigma=1e-4),
+        twins_with_sky=True,
+    )
+    assert pair.status is SkyPairStatus.COMPARED
+
+
+def test_a_real_sky_far_below_the_residual_is_compared() -> None:
+    """A real sky below the residual is compared with a twin at it, whatever the sigmas.
+
+    Modeled on a long WAC star frame whose real sky lies 3.9e-5 I/F below the residual
+    with a sigma of 8.7e-8, while its twin lies at the residual with a sigma of 1.3e-7.
+    """
+    pair = pair_sky(
+        _sky_record('coiss_calib_wac'),
+        _sky_frame(_REF - 3.9e-5, sigma=8.7e-8),
+        _sky_frame(_REF - 1.5e-8, sigma=1.3e-7),
+        twins_with_sky=True,
+    )
+    assert pair.status is SkyPairStatus.COMPARED
+
+
+def test_a_patch_at_the_ceiling_counts_as_dark_sky() -> None:
+    """The ceiling is measured from the calibrated sky residual, and a patch on it is kept."""
+    pair = pair_sky(
+        _sky_record(), _sky_frame(_REF + _CEILING), _sky_frame(_REF), twins_with_sky=True
+    )
+    assert pair.status is SkyPairStatus.COMPARED
+
+
+def test_a_frame_without_real_sky_adds_nothing_on_the_sim_side() -> None:
+    """When the real frame has no sky patches, the matched frame's sky isn't added."""
+    sim = _sky_frame(_REF)
+    pair_sky(_sky_record(), FrameSamples(), sim, twins_with_sky=True)
+    assert 'sky_sigma' not in sim.samples
+
+
+def test_a_constant_patch_adds_no_sky_noise() -> None:
+    """A patch whose sigma is 0, such as a zero-filled tile, is left out of the pool."""
+    real = _sky_frame_of([(0.0, 0.0), (_REF, 1e-4)])
+    pair_sky(_sky_record(), real, _sky_frame(_REF), twins_with_sky=True)
+    assert real.samples['sky_sigma'] == [1e-4]
+
+
+def test_a_twin_whose_sky_sigma_is_undefined_is_not_compared() -> None:
+    """A twin whose only sky patch has a NaN sigma gives no ratio, so it isn't compared."""
+    pair = pair_sky(
+        _sky_record(), _sky_frame(_REF), _sky_frame(_REF, sigma=float('nan')), twins_with_sky=True
+    )
+    assert not pair.compared
 
 
 def test_a_raw_dn_pair_adds_every_patch_unjudged() -> None:
@@ -311,21 +401,50 @@ def test_a_raw_dn_pair_adds_every_patch_unjudged() -> None:
     """
     real = _sky_frame(2.18, sigma=1.1)
     sim = _sky_frame(544.5, sigma=1.05)
-    pair_sky(_sky_record('nhlorri'), real, sim)
+    pair_sky(_sky_record('nhlorri'), real, sim, twins_with_sky=True)
     assert 'sky_sigma' in sim.samples
 
 
-def test_a_frame_whose_twin_has_no_sky_keeps_its_real_sky_noise() -> None:
-    """With nothing to judge against, the real frame's sky noise is recorded as it is."""
+def test_a_calibrated_camera_without_a_ceiling_is_not_judged() -> None:
+    """A calibrated camera whose entry sets no dark-sky ceiling is handled as raw DN is."""
+    pair = pair_sky(
+        _sky_record('vgiss'), _sky_frame(0.5, sigma=2e-3), _sky_frame(0.012), twins_with_sky=True
+    )
+    assert pair.status is SkyPairStatus.NOT_JUDGED
+
+
+def test_real_sky_is_recorded_alone_when_no_twin_has_sky() -> None:
+    """When no matched frame of the instrument has sky, the real sky is recorded as it is."""
     real = _sky_frame(1e-4)
-    pair_sky(_sky_record(), real, FrameSamples())
+    pair_sky(_sky_record(), real, FrameSamples(), twins_with_sky=False)
     assert 'sky_sigma' in real.samples
+
+
+def test_a_twin_without_sky_is_dropped_when_other_twins_have_sky() -> None:
+    """A real frame isn't added alone to a pool that the other pairs compare."""
+    real = _sky_frame(1e-4)
+    pair_sky(_sky_record(), real, FrameSamples(), twins_with_sky=True)
+    assert 'sky_sigma' not in real.samples
+
+
+def test_the_summary_counts_the_frames_that_added_sky_on_each_side() -> None:
+    """Real frames recorded alone count on the real side and not on the sim side."""
+    comparison = InstrumentComparison(instrument='coiss_calib_nac')
+    for _ in range(2):
+        comparison.sky_pairs.append(
+            pair_sky(_sky_record(), _sky_frame(1e-4), FrameSamples(), twins_with_sky=False)
+        )
+    results = RealismResults(comparisons={'coiss_calib_nac': comparison}, runtime_sec=0.0)
+    summary = _summary_dict(results)
+    assert summary['instruments']['coiss_calib_nac']['n_sky_frames'] == {'real': 2, 'sim': 0}
 
 
 def test_a_frame_off_the_downlink_table_is_grouped_as_native() -> None:
     """A frame that wasn't downlinked through a companding table is grouped as native."""
     comparison = InstrumentComparison(instrument='coiss_calib_nac')
-    comparison.sky_pairs.append(pair_sky(_sky_record(), _sky_frame(1e-4), _sky_frame(4e-5)))
+    comparison.sky_pairs.append(
+        pair_sky(_sky_record(), _sky_frame(1e-4), _sky_frame(4e-5), twins_with_sky=True)
+    )
     assert list(_sky_comparison(comparison)['by_downlink']) == ['native']
 
 

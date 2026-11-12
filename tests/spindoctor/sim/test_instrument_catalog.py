@@ -152,6 +152,15 @@ _REFUSED: list[tuple[dict[str, str], str, str]] = [
         'non-positive-gain',
     ),
     (
+        {
+            'cam.yaml': _cam(
+                _with('  quantization: exact', '  quantization: exact\n  dark_sky_ceiling_if: 0.0')
+            )
+        },
+        r'cam\.yaml: cam: detector\.dark_sky_ceiling_if: expected a positive number, got 0\.0',
+        'non-positive-dark-sky-ceiling',
+    ),
+    (
         {'cam.yaml': _cam(_with('hot_pixel_fraction: 0.0', 'hot_pixel_fraction: 5.0'))},
         r'cam\.yaml: cam: detector\.hot_pixel_fraction: expected a number in \[0, 1\], got 5\.0',
         'fraction-above-one',
