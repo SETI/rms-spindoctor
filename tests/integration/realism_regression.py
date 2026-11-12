@@ -166,6 +166,8 @@ def _reject_constant(name: str) -> float:
 
 def _table_number(row: dict[str, Any], key: str, where: str, *, signed: bool) -> float:
     """One number of a band-table row, finite and, unless ``signed``, non-negative."""
+    if key not in row:
+        raise ValueError(f'{where} lacks {key!r}')
     value = row[key]
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise ValueError(f'{where} {key!r} is {value!r}, which is not a number')
@@ -179,10 +181,11 @@ def _table_number(row: dict[str, Any], key: str, where: str, *, signed: bool) ->
 def load_bands(path: Path = BANDS_PATH) -> dict[str, InstrumentBands]:
     """Read and validate the band table.
 
-    Each instrument's ``runs`` must be a whole number of at least :data:`MIN_RUNS`.  Each
-    statistic's ``value`` must be a finite number, and its ``spread`` and ``band``
-    finite and non-negative; a value may be negative, as the sky level less the
-    detector floor can be.
+    Each instrument must give ``runs``, a whole number of at least :data:`MIN_RUNS`, and
+    ``statistics``.  Each statistic must give a ``value``, a finite number, and a
+    ``spread`` and a ``band``, each finite and non-negative; a value may be negative, as
+    the sky level less the detector floor can be.  A band must be at least
+    :func:`band_rule` of its spread and value.
 
     Parameters:
         path: The table's path.
@@ -203,14 +206,23 @@ def load_bands(path: Path = BANDS_PATH) -> dict[str, InstrumentBands]:
                 f'{instrument}: runs is {runs!r}; a spread needs a whole number of at least '
                 f'{MIN_RUNS} runs'
             )
+        if 'statistics' not in entry:
+            raise ValueError(f"{instrument} lacks 'statistics'")
         statistics: dict[str, RealismBand] = {}
         for stat, row in entry['statistics'].items():
             where = f'{instrument} {stat}'
-            statistics[stat] = RealismBand(
+            band = RealismBand(
                 value=_table_number(row, 'value', where, signed=True),
                 spread=_table_number(row, 'spread', where, signed=False),
                 band=_table_number(row, 'band', where, signed=False),
             )
+            rule = band_rule(band.spread, band.value)
+            if band.band < rule:
+                raise ValueError(
+                    f"{where} 'band' is {band.band!r}, narrower than the rule's {rule!r} for "
+                    'its spread and value'
+                )
+            statistics[stat] = band
         bands[instrument] = InstrumentBands(runs=runs, statistics=statistics)
     return bands
 

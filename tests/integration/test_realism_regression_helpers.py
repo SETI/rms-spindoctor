@@ -174,7 +174,8 @@ def test_a_summary_records_the_provenance_it_is_given(tmp_path: Path) -> None:
     results = RealismResults(comparisons={}, runtime_sec=0.0)
     path = report.write_summary(results, provenance, results_root=tmp_path)
     payload = json.loads(path.read_text())
-    assert (payload['code_commit'], payload['code_dirty']) == ('a' * 40, False)
+    assert payload['code_commit'] == 'a' * 40
+    assert payload['code_dirty'] is False
 
 
 def test_the_match_outputs_leave_the_checkout_clean(
@@ -234,8 +235,28 @@ def test_the_match_outputs_leave_the_checkout_clean(
             '{"nhlorri": {"runs": 1, "statistics": {}}}',
             'nhlorri: runs is 1; a spread needs a whole number of at least 2 runs',
         ),
+        ('{"nhlorri": {"runs": 10}}', "nhlorri lacks 'statistics'"),
+        (
+            '{"nhlorri": {"runs": 10, "statistics": {"s": {"value": 1, "band": 0.02}}}}',
+            "nhlorri s lacks 'spread'",
+        ),
+        (
+            '{"nhlorri": {"runs": 10, "statistics": {"s": '
+            '{"value": 2.5, "spread": 0, "band": 0.04}}}}',
+            "nhlorri s 'band' is 0.04, narrower than the rule's 0.05 for its spread and value",
+        ),
     ],
-    ids=['nan', 'infinity', 'overflow', 'negative-spread', 'string-band', 'one-run'],
+    ids=[
+        'nan',
+        'infinity',
+        'overflow',
+        'negative-spread',
+        'string-band',
+        'one-run',
+        'missing-statistics',
+        'missing-spread',
+        'band-below-the-rule',
+    ],
 )
 def test_a_band_table_that_breaks_the_rules_is_refused(
     tmp_path: Path, text: str, message: str
