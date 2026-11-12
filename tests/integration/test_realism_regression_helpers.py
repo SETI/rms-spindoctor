@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import re
+import subprocess
 from pathlib import Path
 from typing import Any
 
@@ -174,6 +175,31 @@ def test_a_summary_records_the_provenance_it_is_given(tmp_path: Path) -> None:
     path = report.write_summary(results, provenance, results_root=tmp_path)
     payload = json.loads(path.read_text())
     assert (payload['code_commit'], payload['code_dirty']) == ('a' * 40, False)
+
+
+def test_the_match_outputs_leave_the_checkout_clean(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Uncommitted figures and summary from an earlier run don't make the checkout dirty."""
+    monkeypatch.delenv('GIT_DIR', raising=False)
+    monkeypatch.delenv('GIT_WORK_TREE', raising=False)
+    outputs = [
+        tmp_path / 'tests' / 'integration' / 'realism_results' / 'realism_summary.json',
+        tmp_path / 'docs' / 'simulator_report' / '_figures' / 'fom1.png',
+    ]
+    for output in outputs:
+        output.parent.mkdir(parents=True)
+        output.write_text('first run\n')
+    git = ['git', '-C', str(tmp_path), '-c', 'user.name=t', '-c', 'user.email=t@t']
+    subprocess.run([*git, 'init', '-q'], check=True)
+    subprocess.run([*git, 'add', '.'], check=True)
+    subprocess.run([*git, 'commit', '-q', '-m', 'outputs'], check=True)
+    for output in outputs:
+        output.write_text('second run\n')
+    monkeypatch.setattr(report, '_REPO_ROOT', tmp_path)
+    provenance = report.code_provenance()
+    assert provenance is not None
+    assert provenance.dirty is False
 
 
 @pytest.mark.parametrize(

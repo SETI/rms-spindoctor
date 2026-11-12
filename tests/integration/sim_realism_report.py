@@ -53,6 +53,12 @@ _REPO_ROOT = Path(__file__).parent.parent.parent
 _FIGURES_ROOT = _REPO_ROOT / 'docs' / 'simulator_report' / '_figures'
 _RESULTS_ROOT = Path(__file__).parent / 'realism_results'
 
+# Git pathspecs that leave the match's own outputs out of the dirty check.
+_OUTPUT_EXCLUDES = tuple(
+    f':(exclude){root.relative_to(_REPO_ROOT).as_posix()}'
+    for root in (_RESULTS_ROOT, _FIGURES_ROOT)
+)
+
 # Fixed series colors (real vs sim), used in every figure.
 _REAL_COLOR = '#31688e'
 _SIM_COLOR = '#d9752e'
@@ -528,13 +534,15 @@ def code_provenance() -> CodeProvenance | None:
 
     The summary records both so the regression check
     (:mod:`tests.integration.realism_regression`) knows which code the record holds.
-    Untracked files don't make the checkout dirty.
+    Untracked files don't make the checkout dirty, and neither do changes to the
+    match's own outputs, the figures and the summary, which an earlier run leaves
+    behind until they are committed.
 
     Returns:
         The provenance, or None when git is missing or refuses the repository.
     """
     commit = _git('rev-parse', 'HEAD')
-    status = _git('status', '--porcelain', '--untracked-files=no')
+    status = _git('status', '--porcelain', '--untracked-files=no', '--', '.', *_OUTPUT_EXCLUDES)
     if commit is None or not commit.strip() or status is None:
         return None
     return CodeProvenance(commit=commit.strip(), dirty=bool(status.strip()))
