@@ -4474,7 +4474,7 @@ combination was measured at sigmas of 0.2, 0.3, 0.5, 1, 2, 5, 10, 20, and 50 DN,
 can be measured lies within 1.1% of the true sigma at every sigma, and for
 clipped sky within 2.1%.  From a sigma of 1 DN up, the fits between the 10th and
 90th percentiles lie within 3.6% of the true sigma for unclipped sky and within
-5.4% for clipped sky.  Below 1 DN they spread wider, to 13% at 0.2 DN.
+5.4% for clipped sky.  Below 1 DN they spread wider, to about 13% at 0.2 DN.
 
 A pixel that isn't noise still enters the fit, so a contaminant raises the fit a
 little.  On a flat sky, a hot pixel and a two-pixel cosmic ray far above the
