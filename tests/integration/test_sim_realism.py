@@ -21,7 +21,10 @@ import numpy as np
 import pytest
 
 from spindoctor.sim.forward.detector.params import resolve_detector_params
-from spindoctor.sim.instrument_resolvers import resolve_native_frame_size_px
+from spindoctor.sim.instrument_resolvers import (
+    filter_star_flux_scale,
+    resolve_native_frame_size_px,
+)
 from spindoctor.sim.render import render_combined_model
 from spindoctor.sim.scene import validate_sim_params
 from tests.integration.sim_realism import (
@@ -114,6 +117,22 @@ def test_a_matched_scene_renders_on_the_cassini_table_only_for_a_table_frame(
     table = resolve_detector_params(scene).sqrt_lut
     assert table is not None
     assert bool(np.isin(img, table.levels()).all()) is on_table
+
+
+def test_a_narrow_filter_star_ladder_keeps_the_clear_ladder_flux() -> None:
+    """Through a narrow filter, the brightest rung delivers the clear ladder's star flux.
+
+    The ladder shifts brighter by the filter's throughput, so the rung's flux after the
+    filter equals the unshifted clear-filter rung's.
+    """
+    scene = matched_scene(
+        'N123', 'star_dominated', 'coiss_calib_nac', 1.2, size_vu=_NAC_FULL, filter_name='HAL+CL2'
+    )
+    brightest = min(star['vmag'] for star in scene['stars'])
+    filtered_flux = filter_star_flux_scale('coiss_calib_nac', 'HAL+CL2') * 10.0 ** (
+        -0.4 * brightest
+    )
+    assert filtered_flux == pytest.approx(10.0 ** (-0.4 * 7.0), rel=0.01)
 
 
 def test_matched_scene_is_deterministic() -> None:

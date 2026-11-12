@@ -4338,6 +4338,14 @@ negative and scattered-light frames.  Scene seeds derive from the real
 frame's image id, so the whole match is deterministic: re-running the runner
 reproduces every simulated frame and every statistic bit for bit.
 
+A star frame's matched scene places 25 stars on a magnitude ladder from V 7.0
+in steps of 0.2, which reaches the detection edge of a clear-filter frame.
+The matched scene renders through the real frame's filter, so on a frame
+taken through another filter the whole ladder shifts by 2.5 log10 of that
+filter's star throughput over the clear combination's.  The shift is
+negative for a filter dimmer than clear, so the stars get brighter and the
+ladder reaches the detection edge of the frame's own filter.
+
 Both sides then run *identical* extraction code -- the same patch finder,
 the same profile sampler, and the navigator's own feature extraction
 (``NavOrchestrator.prepare``) to place limb, ring, and star geometry -- so
