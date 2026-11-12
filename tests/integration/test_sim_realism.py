@@ -41,10 +41,18 @@ from tests.integration.sim_realism import (
     _frame_samples_sim,
     discover_cohort,
     pair_sky,
+    pool_frame_pairs,
+    twins_have_sky,
 )
 from tests.integration.sim_realism_report import _sky_comparison, _summary_dict
 from tests.integration.sim_realism_scenes import matched_scene
-from tests.integration.sim_realism_support import FrameSamples, FrameSky, _has_flat_top
+from tests.integration.sim_realism_support import (
+    FrameSamples,
+    FrameSky,
+    _has_flat_top,
+    add_sky_samples,
+    extract_pixel_samples,
+)
 from tests.spindoctor.inst.conftest import VicarLabelStandIn
 
 pytestmark = [pytest.mark.integration, pytest.mark.sim_integration]
@@ -197,7 +205,7 @@ def test_matched_ring_body_tracks_diameter_and_phase() -> None:
 
 
 def test_sim_side_extraction_is_deterministic() -> None:
-    """Two extractions of one matched record produce identical samples."""
+    """Two extractions of one matched record produce identical samples and sky patches."""
     record = FrameRecord(
         image_id='DETERMINISM_PROBE',
         scene_class='star_dominated',
@@ -211,6 +219,9 @@ def test_sim_side_extraction_is_deterministic() -> None:
     assert sorted(first.samples) == sorted(second.samples)
     for kind, values in first.samples.items():
         assert np.array_equal(np.asarray(values), np.asarray(second.samples[kind])), kind
+    assert first.sky is not None
+    assert second.sky is not None
+    assert first.sky.patches == second.sky.patches
 
 
 def test_flat_top_guard_rejects_clipped_core() -> None:
@@ -261,9 +272,11 @@ def test_aggregate_emits_density_w1_for_curve_kinds() -> None:
     assert np.isfinite(result.w1_normalized)
 
 
-# The calibrated Cassini NAC's sky residual and dark-sky ceiling, from its config.
+# The calibrated Cassini NAC's sky residual and dark-sky ceiling, and the WAC's sky
+# residual, from their configs.
 _REF = resolve_calibrated_sky_if('coiss_calib_nac')
 _CEILING = cast(float, resolve_dark_sky_ceiling_if('coiss_calib_nac'))
+_WAC_REF = resolve_calibrated_sky_if('coiss_calib_wac')
 
 
 def _sky_frame_of(patches: list[tuple[float, float]]) -> FrameSamples:
@@ -356,8 +369,8 @@ def test_a_real_sky_far_below_the_residual_is_compared() -> None:
     """
     pair = pair_sky(
         _sky_record('coiss_calib_wac'),
-        _sky_frame(_REF - 3.9e-5, sigma=8.7e-8),
-        _sky_frame(_REF - 1.5e-8, sigma=1.3e-7),
+        _sky_frame(_WAC_REF - 3.9e-5, sigma=8.7e-8),
+        _sky_frame(_WAC_REF - 1.5e-8, sigma=1.3e-7),
         twins_with_sky=True,
     )
     assert pair.status is SkyPairStatus.COMPARED
@@ -385,14 +398,6 @@ def test_a_constant_patch_adds_no_sky_noise() -> None:
     assert real.samples['sky_sigma'] == [1e-4]
 
 
-def test_a_twin_whose_sky_sigma_is_undefined_is_not_compared() -> None:
-    """A twin whose only sky patch has a NaN sigma gives no ratio, so it isn't compared."""
-    pair = pair_sky(
-        _sky_record(), _sky_frame(_REF), _sky_frame(_REF, sigma=float('nan')), twins_with_sky=True
-    )
-    assert not pair.compared
-
-
 def test_a_raw_dn_pair_adds_every_patch_unjudged() -> None:
     """On a raw-DN camera the two sides' levels can't be compared, so no patch is dropped.
 
@@ -418,6 +423,85 @@ def test_real_sky_is_recorded_alone_when_no_twin_has_sky() -> None:
     real = _sky_frame(1e-4)
     pair_sky(_sky_record(), real, FrameSamples(), twins_with_sky=False)
     assert 'sky_sigma' in real.samples
+
+
+def test_real_sky_recorded_alone_must_lie_on_dark_sky() -> None:
+    """With no matched frame on sky, a real frame on content still adds no sky noise."""
+    real = _sky_frame(_REF + 1e-2)
+    pair_sky(_sky_record(), real, FrameSamples(), twins_with_sky=False)
+    assert 'sky_sigma' not in real.samples
+
+
+@pytest.mark.parametrize(
+    ('sims', 'expected'),
+    [
+        ([_sky_frame(4e-5), FrameSamples()], True),
+        ([_sky_frame(0.0, sigma=0.0)], False),
+    ],
+    ids=['one-twin-of-two', 'constant-patch-only'],
+)
+def test_twins_have_sky_when_any_twin_has_a_noisy_sky_patch(
+    sims: list[FrameSamples], expected: bool
+) -> None:
+    """One matched frame with sky is enough, and a constant patch doesn't count as sky."""
+    assert twins_have_sky(sims) is expected
+
+
+@pytest.mark.parametrize(
+    ('real_patches', 'expected'),
+    [
+        ([(1e-4, 1e-4), (0.076, 1e-3)], 1e-4),
+        ([(0.0, 0.0), (0.076, 1e-3)], 0.076),
+    ],
+    ids=['compared', 'dropped'],
+)
+def test_the_reported_sky_level_follows_the_patches_kept(
+    real_patches: list[tuple[float, float]], expected: float
+) -> None:
+    """A frame reports the level of the patches it kept, or of all its sky when it kept none.
+
+    The compared frame also has a patch on rings, and the dropped frame a constant patch;
+    neither enters its reported level.
+    """
+    pair = pair_sky(
+        _sky_record(), _sky_frame_of(real_patches), _sky_frame(_REF), twins_with_sky=True
+    )
+    assert pair.real_level == pytest.approx(expected)
+
+
+def test_only_the_kept_patches_spectra_enter_the_sky_spectrum() -> None:
+    """A dropped patch's power spectrum stays out of the frame's sky spectrum."""
+    kept = SkyPatch(v0=0, u0=0, size=32, mean=_REF, sigma=1e-4)
+    dropped = SkyPatch(v0=0, u0=32, size=32, mean=0.076, sigma=1e-3)
+    kept_power = np.linspace(1.0, 0.0, 16)
+    sky = FrameSky(
+        patches=[kept, dropped],
+        floor=0.0,
+        psd_freq=np.linspace(0.0, 0.5, 16),
+        psd_tiles=[(kept, kept_power), (dropped, np.ones(16))],
+    )
+    frame = FrameSamples(sky=sky)
+    add_sky_samples(frame, [kept])
+    assert np.array_equal(frame.curves['sky_psd'][0][1], kept_power)
+
+
+def test_the_sky_spectrum_tiles_skip_constant_patches() -> None:
+    """The spectrum tiles sit at the darkest noisy patches, never at a zero-filled block."""
+    image = np.random.default_rng(1).normal(1e-4, 1e-5, (256, 256))
+    image[:64, :64] = 0.0
+    samples, _rates = extract_pixel_samples(
+        image, exposure_stratum='0.5s_to_5s', saturation_level=float('nan')
+    )
+    assert samples.sky is not None
+    assert min(p.sigma for p, _ in samples.sky.psd_tiles) > 0.0
+
+
+def test_the_pools_carry_the_sky_samples_each_pair_kept() -> None:
+    """Each pair's sky samples are added before its frames enter the pools."""
+    comparison = InstrumentComparison(instrument='coiss_calib_nac')
+    comparison.records.append(_sky_record())
+    pool_frame_pairs(comparison, [_sky_frame(1e-4)], [_sky_frame(4e-5)])
+    assert comparison.real.samples['sky_sigma'] == [1e-4]
 
 
 def test_a_twin_without_sky_is_dropped_when_other_twins_have_sky() -> None:

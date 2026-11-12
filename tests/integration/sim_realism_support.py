@@ -42,6 +42,7 @@ from spindoctor.sim.realism.dynamic_range import frame_dynamic_range
 from spindoctor.sim.realism.noise import (
     SkyPatch,
     find_uniform_patches,
+    noisy_patches,
     radial_power_spectrum,
 )
 from spindoctor.sim.realism.profiles import (
@@ -176,20 +177,13 @@ class FrameSky:
         floor: The frame's floor (1st percentile) in native units.
         psd_freq: The spatial-frequency grid of the sky power spectra.
         psd_tiles: ``(patch, unit-total power)`` for the 64-px tiles at up to
-            four of the darkest sky patches.
+            four of the darkest sky patches whose noise sigma is positive.
     """
 
     patches: list[SkyPatch]
     floor: float
     psd_freq: NDArrayFloatType
     psd_tiles: list[tuple[SkyPatch, NDArrayFloatType]]
-
-    @property
-    def level(self) -> float:
-        """The median sky-patch mean in native units, or NaN without patches."""
-        if not self.patches:
-            return float('nan')
-        return float(np.median([p.mean for p in self.patches]))
 
 
 @dataclass
@@ -279,9 +273,10 @@ def extract_pixel_samples(
         out.add('signal_sigma', [p.sigma for p in signal])
         # Sky power spectra from up to four 64-px tiles at the darkest sky
         # patches, normalized to unit total power per tile (the amplitude is
-        # sky_sigma's job).
+        # sky_sigma's job).  A constant patch holds no noise, so the tiles are
+        # chosen among the patches whose noise sigma is positive.
         psd_tiles: list[tuple[SkyPatch, NDArrayFloatType]] = []
-        for p in sorted(sky, key=lambda q: q.mean)[:4]:
+        for p in sorted(noisy_patches(sky), key=lambda q: q.mean)[:4]:
             if p.v0 + 64 <= arr.shape[0] and p.u0 + 64 <= arr.shape[1]:
                 _freq, power = radial_power_spectrum(
                     arr[p.v0 : p.v0 + 64, p.u0 : p.u0 + 64], n_bins=16
