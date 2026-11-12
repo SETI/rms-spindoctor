@@ -9,11 +9,13 @@ from __future__ import annotations
 import json
 import re
 import subprocess
+import sys
 from pathlib import Path
 from typing import Any
 
 import pytest
 
+import tests.integration.realism_regression as realism_regression
 import tests.integration.sim_realism_report as report
 from tests.integration.realism_regression import (
     RELATIVE_FLOOR,
@@ -277,6 +279,10 @@ def test_a_change_beside_the_match_outputs_makes_the_checkout_dirty(
         ),
         ('{"nhlorri": {"runs": 10}}', "nhlorri lacks 'statistics'"),
         (
+            '{"nhlorri": {"runs": 10, "statistics": {}}}',
+            'nhlorri holds no statistics, so it checks nothing',
+        ),
+        (
             '{"nhlorri": {"runs": 10, "statistics": {"s": {"value": 1, "band": 0.02}}}}',
             "nhlorri s lacks 'spread'",
         ),
@@ -294,6 +300,7 @@ def test_a_change_beside_the_match_outputs_makes_the_checkout_dirty(
         'string-band',
         'one-run',
         'missing-statistics',
+        'empty-statistics',
         'missing-spread',
         'band-below-the-rule',
     ],
@@ -306,6 +313,47 @@ def test_a_band_table_that_breaks_the_rules_is_refused(
     path.write_text(text)
     with pytest.raises(ValueError, match=re.escape(message)):
         load_bands(path)
+
+
+def test_a_band_table_listing_no_instruments_is_refused(tmp_path: Path) -> None:
+    """An empty table is refused by its path: every check over it would collect nothing."""
+    path = tmp_path / 'bands.json'
+    path.write_text('{}')
+    with pytest.raises(ValueError, match=re.escape(f'the band table {path} lists no instruments')):
+        load_bands(path)
+
+
+def _run_band_cli(monkeypatch: pytest.MonkeyPatch, path: Path, instruments: list[str]) -> None:
+    """Run the band CLI on the table at ``path``, measuring every instrument as ``_TABLE``.
+
+    Parameters:
+        monkeypatch: The test's monkeypatch fixture.
+        path: The band table the CLI reads and writes.
+        instruments: The instruments named on the command line.
+    """
+    monkeypatch.setattr(realism_regression, 'BANDS_PATH', path)
+    monkeypatch.setattr(realism_regression, 'measure_bands', lambda instrument, runs: _TABLE)
+    monkeypatch.setattr(sys, 'argv', ['realism_regression', *instruments])
+    realism_regression.main()
+
+
+def test_the_band_cli_fills_an_empty_table(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A table that lists no instruments is the starting point for the instruments named."""
+    path = tmp_path / 'bands.json'
+    path.write_text('{}')
+    _run_band_cli(monkeypatch, path, ['nhlorri'])
+    assert load_bands(path) == {'nhlorri': _TABLE}
+
+
+def test_the_band_cli_needs_instruments_for_an_empty_table(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """With an empty table and no instruments named, the CLI says to name them."""
+    path = tmp_path / 'bands.json'
+    path.write_text('{}')
+    with pytest.raises(SystemExit, match='2'):
+        _run_band_cli(monkeypatch, path, [])
+    assert 'name the instruments to measure; the band table lists none' in capsys.readouterr().err
 
 
 def test_a_negative_statistic_value_is_read(tmp_path: Path) -> None:

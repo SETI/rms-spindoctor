@@ -181,11 +181,14 @@ def _table_number(row: dict[str, Any], key: str, where: str, *, signed: bool) ->
 def load_bands(path: Path = BANDS_PATH) -> dict[str, InstrumentBands]:
     """Read and validate the band table.
 
-    Each instrument must give ``runs``, a whole number of at least :data:`MIN_RUNS`, and
-    ``statistics``.  Each statistic must give a ``value``, a finite number, and a
-    ``spread`` and a ``band``, each finite and non-negative; a value may be negative, as
-    the sky level less the detector floor can be.  A band must be at least
-    :func:`band_rule` of its spread and value.
+    The table must list at least one instrument, and each instrument at least one
+    statistic: the checks run once per instrument and hold each of its statistics, so
+    an empty table or entry would pass by checking nothing.  Each instrument must give
+    ``runs``, a whole number of at least :data:`MIN_RUNS`, and ``statistics``.  Each
+    statistic must give a ``value``, a finite number, and a ``spread`` and a ``band``,
+    each finite and non-negative; a value may be negative, as the sky level less the
+    detector floor can be.  A band must be at least :func:`band_rule` of its spread and
+    value.
 
     Parameters:
         path: The table's path.
@@ -194,10 +197,13 @@ def load_bands(path: Path = BANDS_PATH) -> dict[str, InstrumentBands]:
         Each instrument's bands, keyed by instrument.
 
     Raises:
-        ValueError: When the table holds NaN or Infinity, or an entry breaks one of the
-            rules above; the message names the instrument and statistic.
+        ValueError: When the table lists no instruments, holds NaN or Infinity, or an
+            entry breaks one of the rules above; the message names the table's path, or
+            the instrument and statistic.
     """
     raw: dict[str, Any] = json.loads(path.read_text(), parse_constant=_reject_constant)
+    if not raw:
+        raise ValueError(f'the band table {path} lists no instruments, so it checks nothing')
     bands: dict[str, InstrumentBands] = {}
     for instrument, entry in raw.items():
         runs = entry.get('runs')
@@ -208,6 +214,8 @@ def load_bands(path: Path = BANDS_PATH) -> dict[str, InstrumentBands]:
             )
         if 'statistics' not in entry:
             raise ValueError(f"{instrument} lacks 'statistics'")
+        if not entry['statistics']:
+            raise ValueError(f'{instrument} holds no statistics, so it checks nothing')
         statistics: dict[str, RealismBand] = {}
         for stat, row in entry['statistics'].items():
             where = f'{instrument} {stat}'
@@ -411,6 +419,23 @@ def measure_bands(instrument: str, runs: int) -> InstrumentBands:
     return InstrumentBands(runs=runs, statistics=statistics)
 
 
+def _bands_to_extend(path: Path) -> dict[str, InstrumentBands]:
+    """The band table the CLI adds its measurements to.
+
+    A table that is missing or lists no instruments is an empty starting point here,
+    although :func:`load_bands` refuses an empty table for the checks.
+
+    Parameters:
+        path: The table's path.
+
+    Returns:
+        Each listed instrument's bands, keyed by instrument.
+    """
+    if not path.exists() or not json.loads(path.read_text()):
+        return {}
+    return load_bands(path)
+
+
 def main() -> None:
     """CLI entry: measure the bands of the named instruments and write the band table."""
     parser = argparse.ArgumentParser(description='Measure the realism regression bands.')
@@ -427,14 +452,14 @@ def main() -> None:
             parser.error('--run-once takes exactly one instrument')
         _run_once(args.instruments[0], args.run_once)
         return
-    bands = load_bands() if BANDS_PATH.exists() else {}
+    bands = _bands_to_extend(BANDS_PATH)
     instruments = args.instruments or sorted(bands)
     if not instruments:
         parser.error('name the instruments to measure; the band table lists none')
     for instrument in instruments:
         bands[instrument] = measure_bands(instrument, args.runs)
         print(f'{instrument}: {len(bands[instrument].statistics)} statistics', flush=True)
-    write_bands(dict(sorted(bands.items())))
+    write_bands(dict(sorted(bands.items())), BANDS_PATH)
     print(f'Wrote {BANDS_PATH}')
 
 

@@ -4691,7 +4691,10 @@ deliberate change is accepted by regenerating the record:
    python -m tests.integration.realism_regression
 
 The second command remeasures the bands of every instrument the table lists, or
-of the instruments given on its command line, and writes the band table.
+of the instruments given on its command line, and writes the band table.  When
+the table is missing or lists no instruments, the command starts it from the
+instruments given on its command line, and it stops with an error when none are
+given.
 
 The band table is ``tests/integration/realism_regression_bands.json``.  For each
 instrument, it gives the number of runs measured and, for each held statistic,
@@ -4705,7 +4708,9 @@ can't show.  ``band_rule`` in ``tests/integration/realism_regression.py`` is the
 same rule in code.  In the LORRI measurement of 2026-11-11, all 19 held
 statistics came out identical in all 10 runs, so every band is the floor, and a
 statistic whose value is 0, such as the fraction of lost lines, is held to
-exactly 0.
+exactly 0.  Reading the table refuses one that lists no instruments, or an
+instrument that holds no statistics, because a check over either would pass by
+checking nothing.
 
 The table and the record must describe the same run.  A second check requires
 that the statistics the record holds for each listed instrument are exactly the
