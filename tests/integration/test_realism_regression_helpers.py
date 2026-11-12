@@ -139,6 +139,58 @@ def test_the_band_table_reads_back_what_was_written(tmp_path: Path) -> None:
     assert load_bands(path) == {'nhlorri': _TABLE}
 
 
+def _measure_two_runs(
+    monkeypatch: pytest.MonkeyPatch, first: float, second: float
+) -> InstrumentBands:
+    """Measure LORRI's bands from two faked runs whose star EE50 W1/IQR are the values given.
+
+    Parameters:
+        monkeypatch: The test's monkeypatch fixture, which fakes each run's process.
+        first: The statistic in the first run.
+        second: The statistic in the second run.
+    """
+    runs = iter([first, second])
+
+    def fake_run(args: list[str], **kwargs: Any) -> None:
+        out_dir = Path(args[-1])
+        out_dir.mkdir(parents=True)
+        summary = {'instruments': {'nhlorri': _entry(next(runs))}}
+        (out_dir / 'realism_summary.json').write_text(json.dumps(summary))
+
+    monkeypatch.setattr(subprocess, 'run', fake_run)
+    return measure_bands('nhlorri', 2)
+
+
+def test_a_measured_band_table_reads_back(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A spread of 0.01236 is stored as 0.0124, and its band follows the stored spread.
+
+    Three times 0.01236 rounds up to a band of 0.0371, narrower than the 0.0372 the rule
+    gives the stored spread, so a band taken before rounding is refused on reading.
+    """
+    table = _measure_two_runs(monkeypatch, 1.0, 1.01236)
+    path = tmp_path / 'bands.json'
+    write_bands({'nhlorri': table}, path)
+    assert load_bands(path) == {'nhlorri': table}
+
+
+@pytest.mark.parametrize(
+    ('first', 'second', 'stored'),
+    [(1.0, 1.012349, 0.0124), (0.0, 0.0124, 0.0124), (1.0, 1.0, 0.0)],
+    ids=['rounded-up', 'three-digits-kept', 'zero'],
+)
+def test_a_measured_spread_is_rounded_up_to_three_digits(
+    monkeypatch: pytest.MonkeyPatch, first: float, second: float, stored: float
+) -> None:
+    """A spread is stored at three digits rounded up, so its band covers 3 times the spread.
+
+    Rounded to the nearest, 0.012349 would be stored as 0.0123, whose band of 0.0369 is
+    narrower than 3 times the spread measured.  A spread of exactly 0.0124 is kept, as
+    is a spread of 0.
+    """
+    table = _measure_two_runs(monkeypatch, first, second)
+    assert table.statistics[_EE50].spread == stored
+
+
 def test_measuring_bands_needs_two_runs() -> None:
     """A spread can't be measured from fewer than two runs."""
     with pytest.raises(ValueError, match='needs at least 2 runs; got 1'):

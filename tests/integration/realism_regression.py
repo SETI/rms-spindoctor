@@ -367,6 +367,19 @@ def _run_once(instrument: str, out_dir: Path) -> None:
     write_summary(results, provenance, results_root=out_dir)
 
 
+def _round_up_three_digits(spread: float) -> float:
+    """The smallest number of three significant digits at or above ``spread``.
+
+    Parameters:
+        spread: A spread, 0 or more.
+    """
+    rounded = float(f'{spread:.3g}')
+    if rounded >= spread:
+        return rounded
+    unit = 10.0 ** (math.floor(math.log10(spread)) - 2)
+    return float(f'{rounded + unit:.3g}')
+
+
 def measure_bands(instrument: str, runs: int) -> InstrumentBands:
     """Match one instrument ``runs`` times, each in its own process, and band it.
 
@@ -375,7 +388,9 @@ def measure_bands(instrument: str, runs: int) -> InstrumentBands:
         runs: The number of runs, at least :data:`MIN_RUNS`.
 
     Returns:
-        The band for every statistic held in all the runs.
+        The band for every statistic held in all the runs: its median value rounded to
+        six significant digits, its spread rounded up to three, and :func:`band_rule` of
+        the two as rounded.
 
     Raises:
         ValueError: When ``runs`` is below :data:`MIN_RUNS`, or when no statistic is
@@ -409,13 +424,12 @@ def measure_bands(instrument: str, runs: int) -> InstrumentBands:
     statistics: dict[str, RealismBand] = {}
     for path in sorted(common):
         sample = np.array([v[path] for v in values])
-        value = float(np.median(sample))
-        spread = float(sample.max() - sample.min())
-        statistics[path] = RealismBand(
-            value=float(f'{value:.6g}'),
-            spread=float(f'{spread:.3g}'),
-            band=band_rule(spread, value),
-        )
+        # The band comes from the value and spread the table stores, so that the table
+        # reads back within the rule load_bands holds it to.  The spread is rounded up, so
+        # the band is never narrower than the rule gives the spread measured.
+        value = float(f'{float(np.median(sample)):.6g}')
+        spread = _round_up_three_digits(float(sample.max() - sample.min()))
+        statistics[path] = RealismBand(value=value, spread=spread, band=band_rule(spread, value))
     return InstrumentBands(runs=runs, statistics=statistics)
 
 

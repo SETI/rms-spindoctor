@@ -4705,12 +4705,14 @@ its own process.  The rule is that a band's half-width is the larger of 3 times
 the spread and 2% of the statistic's measured value.  The floor covers the
 arithmetic differences between machines, which a spread measured on one machine
 can't show.  ``band_rule`` in ``tests/integration/realism_regression.py`` is the
-same rule in code.  In the LORRI measurement of 2026-11-11, all 19 held
-statistics came out identical in all 10 runs, so every band is the floor, and a
-statistic whose value is 0, such as the fraction of lost lines, is held to
-exactly 0.  Reading the table refuses one that lists no instruments, or an
-instrument that holds no statistics, because a check over either would pass by
-checking nothing.
+same rule in code.  The table stores each value to six significant digits and
+each spread rounded up to three, and each band follows from those stored
+numbers, so no band is narrower than 3 times the spread measured.  In the
+LORRI measurement of 2026-11-11, all 19 held statistics came out identical in all
+10 runs, so every band is the floor, and a statistic whose value is 0, such as
+the fraction of lost lines, is held to exactly 0.  Reading the table refuses one
+that lists no instruments, or an instrument that holds no statistics, because a
+check over either would pass by checking nothing.
 
 The table and the record must describe the same run.  A second check requires
 that the statistics the record holds for each listed instrument are exactly the
