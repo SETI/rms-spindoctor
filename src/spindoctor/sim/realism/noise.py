@@ -236,7 +236,9 @@ def _grouped_difference_sigma(q: NDArrayFloatType) -> float:
         center = float(np.interp(0.5, cdf, edges))
     mad = _half_mass_plateau(values, below, center)
     if mad is None:
-        radii = np.unique(np.abs(edges - center))
+        # The mass is 0 at radius 0 and linear out to the nearest edge, so radius 0 is a
+        # breakpoint too, and the deviation may lie inside the central step.
+        radii = np.unique(np.concatenate([[0.0], np.abs(edges - center)]))
         mass = np.interp(center + radii, edges, cdf) - np.interp(center - radii, edges, cdf)
         mad = float(np.interp(0.5, mass, radii))
     variance = (mad * _MAD_TO_SIGMA) ** 2 / 2.0 - _GROUPING_VARIANCE

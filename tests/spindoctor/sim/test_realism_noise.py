@@ -328,7 +328,8 @@ def _dense_grouped_sigma(q: NDArrayFloatType) -> float:
     highest difference gets a bin, occupied or not.  Where the cumulative fraction holds
     at one half across a run of knots, the median is the run's midpoint, and where the
     mass about the median holds within 1e-9 of one half across a run of radii, the
-    median absolute deviation is that run's midpoint.
+    median absolute deviation is that run's midpoint.  The mass is 0 at radius 0, which
+    is a knot as well.
     """
     diffs = (q[:, 1:] - q[:, :-1]).ravel()
     diffs = diffs[np.isfinite(diffs)]
@@ -344,7 +345,7 @@ def _dense_grouped_sigma(q: NDArrayFloatType) -> float:
         center = 0.5 * float(edges[halves[0]] + edges[halves[-1]])
     else:
         center = float(np.interp(0.5, cdf, edges))
-    radii = np.unique(np.abs(edges - center))
+    radii = np.unique(np.concatenate([[0.0], np.abs(edges - center)]))
     mass = np.interp(center + radii, edges, cdf) - np.interp(center - radii, edges, cdf)
     at_half = np.flatnonzero(np.abs(mass - 0.5) <= 1e-9)
     if at_half.size > 1:
@@ -414,7 +415,7 @@ def test_grouped_differences_match_a_bin_for_every_step(kind: str) -> None:
 
 def _sigma_from_mad(mad: float) -> float:
     """The grouped estimator's sigma for a median absolute deviation of ``mad`` steps."""
-    return float(np.sqrt((mad * 1.4826) ** 2 / 2.0 - 1.0 / 8.0))
+    return float(np.sqrt(max((mad * 1.4826) ** 2 / 2.0 - 1.0 / 8.0, 0.0)))
 
 
 @pytest.mark.parametrize(
@@ -446,6 +447,31 @@ def test_grouped_differences_take_the_midpoint_of_an_exact_half(
     """
     assert noise_module._grouped_difference_sigma(q) == pytest.approx(
         _sigma_from_mad(mad), rel=1e-12
+    )
+
+
+@pytest.mark.parametrize(
+    ('q', 'mad'),
+    [
+        (np.array([[-10.0, -10.0]]), 0.25),
+        (np.concatenate([[0.0], np.cumsum([0.0] * 6 + [3.0, -3.0, 5.0, -5.0])])[None, :], 5 / 12),
+    ],
+    ids=['one-difference', 'six-of-ten-differences-zero'],
+)
+def test_grouped_differences_read_a_deviation_inside_the_central_step(
+    q: NDArrayFloatType, mad: float
+) -> None:
+    """A median absolute deviation smaller than the nearest step edge is read in full.
+
+    The first patch's single difference, spread across its step, puts half its mass
+    within a quarter step of the center, which reads as a sigma of 0: the spread is no
+    larger than the rounding's.  Six of the second patch's ten differences are 0 and the
+    rest lie 3 and 5 steps out, so half the mass lies within 5/12 of a step.  Both
+    deviations lie inside the half step out to the first edge, where interpolating from
+    the first edge alone would read half a step.
+    """
+    assert noise_module._grouped_difference_sigma(q) == pytest.approx(
+        _sigma_from_mad(mad), rel=1e-12, abs=1e-12
     )
 
 
