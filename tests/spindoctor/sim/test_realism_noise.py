@@ -258,16 +258,21 @@ def test_quantized_fit_of_noise_of_many_steps_counts_every_pixel(sigma: float) -
     assert float(np.median(ratios)) == pytest.approx(1.0, abs=0.01)
 
 
-def test_quantized_noise_of_two_steps_reads_between_whole_steps() -> None:
-    """Whole-DN noise of sigma 2 DN measured by paired differences gives back 2 DN.
+def _grouped(patch: NDArrayFloatType) -> float:
+    """The paired-difference estimate of a whole-DN patch, read from its histogram."""
+    return noise_module._grouped_difference_sigma(patch - patch.min())
 
-    The plain MAD of whole-step differences is a whole step here and reads about 5% high;
-    the differences read from their histogram without removing the variance the rounding
-    adds read about 2% high.  The median runs over 200 patches to resolve that.
+
+def test_paired_differences_of_quantized_noise_read_between_whole_steps() -> None:
+    """Whole-DN noise of sigma 2.5 DN read from its paired differences gives back 2.5 DN.
+
+    The plain MAD of whole-step differences is a whole or half step here and reads about
+    16% low; the differences read from their histogram without removing the variance the
+    rounding adds read about 1% high.  The median runs over 1000 patches to resolve that.
     """
     rng = np.random.default_rng(38)
-    ratios = [_fit_over_drawn_sigma(rng, 2.0, 'none') for _ in range(200)]
-    assert float(np.median(ratios)) == pytest.approx(1.0, abs=0.01)
+    ratios = [_fit_over_drawn_sigma(rng, 2.5, 'none', estimator=_grouped) for _ in range(1000)]
+    assert float(np.median(ratios)) == pytest.approx(1.0, abs=0.005)
 
 
 @pytest.mark.parametrize(
@@ -305,7 +310,8 @@ def test_a_window_that_repeats_stops_the_quantized_fit(monkeypatch: pytest.Monke
     """A window equal to one fitted before ends the iteration instead of alternating.
 
     On this patch of sigma 1 DN the window alternates between two states, and a fit that
-    stops only on an unchanged window runs all ten fits.
+    stops only on an unchanged window runs all ten fits.  How many fits it takes to reach
+    the repeat depends on the optimizer's last bits, so only the cap is held.
     """
     real_fit = noise_module._fit_censored
     fits: list[int] = []
@@ -318,7 +324,7 @@ def test_a_window_that_repeats_stops_the_quantized_fit(monkeypatch: pytest.Monke
     rng = np.random.default_rng(26)
     patch = np.round(1000.0 + rng.uniform() + rng.normal(0.0, 1.0, (32, 32)))
     lattice_noise_sigma(patch, 1.0)
-    assert len(fits) == 3
+    assert len(fits) < noise_module._MAX_WINDOW_FITS
 
 
 @pytest.mark.parametrize(
