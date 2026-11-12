@@ -178,29 +178,69 @@ def test_a_summary_records_the_provenance_it_is_given(tmp_path: Path) -> None:
     assert payload['code_dirty'] is False
 
 
+_MATCH_OUTPUTS = (
+    'tests/integration/realism_results/realism_summary.json',
+    'docs/simulator_report/_figures/realism_nhlorri_noise.png',
+)
+
+
+def _checkout_after_changing(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    tracked: tuple[str, ...],
+    changed: tuple[str, ...],
+) -> report.CodeProvenance | None:
+    """The provenance of a fresh checkout of ``tracked`` once ``changed`` are rewritten.
+
+    Parameters:
+        tmp_path: The directory the checkout is made in.
+        monkeypatch: Points the provenance at the checkout.
+        tracked: Repository-relative paths committed in the checkout.
+        changed: The tracked paths rewritten after the commit.
+    """
+    monkeypatch.delenv('GIT_DIR', raising=False)
+    monkeypatch.delenv('GIT_WORK_TREE', raising=False)
+    for name in tracked:
+        path = tmp_path / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text('first run\n')
+    git = ['git', '-C', str(tmp_path), '-c', 'user.name=t', '-c', 'user.email=t@t']
+    subprocess.run([*git, 'init', '-q'], check=True)
+    subprocess.run([*git, 'add', '.'], check=True)
+    subprocess.run([*git, 'commit', '-q', '-m', 'files'], check=True)
+    for name in changed:
+        (tmp_path / name).write_text('second run\n')
+    monkeypatch.setattr(report, '_REPO_ROOT', tmp_path)
+    return report.code_provenance()
+
+
 def test_the_match_outputs_leave_the_checkout_clean(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Uncommitted figures and summary from an earlier run don't make the checkout dirty."""
-    monkeypatch.delenv('GIT_DIR', raising=False)
-    monkeypatch.delenv('GIT_WORK_TREE', raising=False)
-    outputs = [
-        tmp_path / 'tests' / 'integration' / 'realism_results' / 'realism_summary.json',
-        tmp_path / 'docs' / 'simulator_report' / '_figures' / 'fom1.png',
-    ]
-    for output in outputs:
-        output.parent.mkdir(parents=True)
-        output.write_text('first run\n')
-    git = ['git', '-C', str(tmp_path), '-c', 'user.name=t', '-c', 'user.email=t@t']
-    subprocess.run([*git, 'init', '-q'], check=True)
-    subprocess.run([*git, 'add', '.'], check=True)
-    subprocess.run([*git, 'commit', '-q', '-m', 'outputs'], check=True)
-    for output in outputs:
-        output.write_text('second run\n')
-    monkeypatch.setattr(report, '_REPO_ROOT', tmp_path)
-    provenance = report.code_provenance()
+    provenance = _checkout_after_changing(tmp_path, monkeypatch, _MATCH_OUTPUTS, _MATCH_OUTPUTS)
     assert provenance is not None
     assert provenance.dirty is False
+
+
+@pytest.mark.parametrize(
+    'changed',
+    ['src/spindoctor/sim/realism/noise.py', 'docs/simulator_report/_figures/mismatch_axes.png'],
+    ids=['code', 'another-tools-figure'],
+)
+def test_a_change_beside_the_match_outputs_makes_the_checkout_dirty(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, changed: str
+) -> None:
+    """A tracked file the match does not write makes the checkout dirty when it changes.
+
+    That holds for another tool's figure in the directory the match writes its own
+    figures to.
+    """
+    provenance = _checkout_after_changing(
+        tmp_path, monkeypatch, (*_MATCH_OUTPUTS, changed), (changed,)
+    )
+    assert provenance is not None
+    assert provenance.dirty is True
 
 
 @pytest.mark.parametrize(

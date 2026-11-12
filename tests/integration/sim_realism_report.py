@@ -52,11 +52,14 @@ __all__ = [
 _REPO_ROOT = Path(__file__).parent.parent.parent
 _FIGURES_ROOT = _REPO_ROOT / 'docs' / 'simulator_report' / '_figures'
 _RESULTS_ROOT = Path(__file__).parent / 'realism_results'
+_SUMMARY_NAME = 'realism_summary.json'
 
-# Git pathspecs that leave the match's own outputs out of the dirty check.
-_OUTPUT_EXCLUDES = tuple(
-    f':(exclude){root.relative_to(_REPO_ROOT).as_posix()}'
-    for root in (_RESULTS_ROOT, _FIGURES_ROOT)
+# Git pathspecs that leave the match's own outputs, its summary and its realism_*.png
+# figures, out of the dirty check.  Other tools' figures in the same directory still
+# count.
+_OUTPUT_EXCLUDES = (
+    f':(exclude){(_RESULTS_ROOT / _SUMMARY_NAME).relative_to(_REPO_ROOT).as_posix()}',
+    f':(exclude,glob){_FIGURES_ROOT.relative_to(_REPO_ROOT).as_posix()}/realism_*.png',
 )
 
 # Fixed series colors (real vs sim), used in every figure.
@@ -535,8 +538,9 @@ def code_provenance() -> CodeProvenance | None:
     The summary records both so the regression check
     (:mod:`tests.integration.realism_regression`) knows which code the record holds.
     Untracked files don't make the checkout dirty, and neither do changes to the
-    match's own outputs, the figures and the summary, which an earlier run leaves
-    behind until they are committed.
+    match's own outputs, its ``realism_*.png`` figures and its summary, which an earlier
+    run leaves behind until they are committed.  A change to any other tracked file,
+    another tool's figure among them, makes it dirty.
 
     Returns:
         The provenance, or None when git is missing or refuses the repository.
@@ -656,7 +660,7 @@ def write_summary(
     """
     root = results_root if results_root is not None else _RESULTS_ROOT
     root.mkdir(parents=True, exist_ok=True)
-    path = root / 'realism_summary.json'
+    path = root / _SUMMARY_NAME
     payload = summary_dict(results)
     payload['code_commit'] = provenance.commit
     payload['code_dirty'] = provenance.dirty

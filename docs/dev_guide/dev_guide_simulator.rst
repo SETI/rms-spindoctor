@@ -4616,9 +4616,10 @@ The table lists LORRI, whose two frames take about five seconds.  The summary
 records the commit of the code that made it as ``code_commit``, and whether that
 checkout had changes to tracked files as ``code_dirty``.  Both are taken with git
 before the match starts, and the match stops with an error when git cannot tell
-the commit.  Changes to the match's own outputs, the figures and the summary, are
-left out of ``code_dirty``, because an earlier run leaves them changed until they
-are committed.  The held statistics are
+the commit.  Changes to the match's own outputs, its ``realism_*.png`` figures
+and the summary, are left out of ``code_dirty``, because an earlier run leaves
+them changed until they are committed.  A change to any other tracked file,
+including another tool's figure in the same directory, marks the checkout dirty.  The held statistics are
 every statistic whose support label is ``limited`` or ``supported``: its W1/IQR
 when that is a number, the real and simulated medians, and each curve kind's
 W1/IQR.
