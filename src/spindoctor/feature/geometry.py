@@ -97,6 +97,13 @@ class LimbPolyline:
         bbox_extfov_vu: Half-open bounding box of the polyline; a slice range
             whose integers are also the pixel corner rectangle covering
             exactly those pixels.
+        altitude_px_per_km: Optional ``(N,)`` distance (pixels) each vertex moves
+            along its normal per kilometer of the body's visible-limb altitude;
+            None when the model does not place the limb by altitude.
+        altitude_sigma_km: Uncertainty (kilometers, 1 sigma) of the body's
+            visible-limb altitude.  It is common to every vertex of the polyline,
+            so a fit propagates it as one correlated displacement rather than as
+            per-vertex noise; 0 when the altitude is known exactly.
     """
 
     vertices_vu: NDArrayFloatType
@@ -104,6 +111,23 @@ class LimbPolyline:
     sigma_normal_per_vertex_px: NDArrayFloatType
     sigma_tangent_per_vertex_px: NDArrayFloatType
     bbox_extfov_vu: tuple[int, int, int, int]
+    altitude_px_per_km: NDArrayFloatType | None = None
+    altitude_sigma_km: float = 0.0
+
+    def __post_init__(self) -> None:
+        """Reject an altitude sensitivity that does not match the vertices.
+
+        Raises:
+            ValueError: If ``altitude_px_per_km`` is given with a length other than
+                the vertex count.
+        """
+        if self.altitude_px_per_km is not None and np.shape(self.altitude_px_per_km) != (
+            np.shape(self.vertices_vu)[0],
+        ):
+            raise ValueError(
+                'altitude_px_per_km must have one entry per vertex; got '
+                f'{np.shape(self.altitude_px_per_km)} for {np.shape(self.vertices_vu)[0]} vertices'
+            )
 
 
 @dataclass(frozen=True, eq=False)
