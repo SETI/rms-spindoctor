@@ -33,6 +33,8 @@ except Exception as exc:
         allow_module_level=True,
     )
 
+from tests.main.sim_editor_waits import render_fully
+
 # The driver is an importable module under the ``spindoctor.cli`` package.
 ncsi = importlib.import_module('spindoctor.cli.sd_create_simulated_image')
 
@@ -318,9 +320,9 @@ def test_saturation_overlay_off_clears_status(model: Any) -> None:
 
 @pytest.mark.parametrize(('instrument', 'units'), [('coiss_nac', 'DN'), ('vgiss', 'I/F')])
 def test_units_label_names_the_rendered_units(model: Any, instrument: str, units: str) -> None:
-    """The status bar names the rendered frame's units after a render."""
+    """The status bar names the rendered frame's units after the full render."""
     model.sim_params['instrument'] = instrument
-    model._update_image()
+    render_fully(model)
     assert model._units_label.text().split(' ')[0] == units
 
 
@@ -356,7 +358,7 @@ def _set_body_scene(
 def test_units_label_leaves_the_vgiss_sky_out_of_the_marker_count(model: Any) -> None:
     """A vgiss frame's dark sky sits above the 0 marker, and the label stays quiet."""
     _set_body_scene(model, instrument='vgiss', axis=86.0, center_u=64.0, offset_u=0.0)
-    model._update_image()
+    render_fully(model)
     assert model._units_label.text() == 'I/F 0.01176 to 1.008'
 
 
