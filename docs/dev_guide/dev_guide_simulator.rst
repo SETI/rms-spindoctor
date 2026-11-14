@@ -233,8 +233,8 @@ applies where. The *channel* is structural:
   worked example: it comes from the resolved per-instrument config block
   (including any idealized ``instrument_config`` overrides) and is independent
   of the scene's ``noise`` block, so a scene that plants noise different from
-  the published values produces an honestly-wrong detection limit -- planted
-  model error, exactly what such a scene is for.
+  the published values gets a detection limit that does not match the scene's
+  noise. That is planted model error, exactly what such a scene is for.
 - ``tests/spindoctor/sim/test_information_boundary.py`` constructs a scene
   exercising every ``TRUTH_KEYS`` entry and asserts none is reachable through
   the filtered view. This test is the independence guarantee: any change that
@@ -290,7 +290,7 @@ mappings restricted to idealized keys, and on the navigator side they only
 ever receive entries that have already passed the boundary filter. Either
 way, truth cannot be smuggled across.
 
-The honest residual: a bug in a shared helper that makes rendered features
+One gap remains: a bug in a shared helper that makes rendered features
 subtly unlike *real* features leaves both sides consistent and recovery clean
 -- scenes wrong, measurement blind. Its detectors are the reviewed render-diff
 contact sheet (see :ref:`sim-catalog-workflow`) and the per-instrument realism
@@ -382,10 +382,10 @@ Three things, each impossible with real frames alone:
   baselines, invariants, sweeps, and the expected-outcome pins -- turns "did
   this change help" into a measured delta against known answers, instead of a
   judgment call over operator labels.
-- **Model error is priced honestly.** Because the campaign plants model error
+- **Model error has a measured price.** Because the campaign plants model error
   the navigator cannot represent, the fit learns what that error costs: the
   2.61 px limb covariance floor (unmodeled terrain bounds a limb fix's real
-  accuracy no matter how clean the fit), the terminator technique's honest
+  accuracy no matter how clean the fit), the terminator technique's low
   ~0.03-0.05 confidence plateau on a cohort with zero sub-pixel successes,
   and occlusion-aware visible-arc fractions on mutual-event scenes are all
   prices the simulator measured rather than guessed.
@@ -401,7 +401,7 @@ Three things, each impossible with real frames alone:
   a 2.5 px radial catalog error and the fused result is a success about
   1.7 px wrong. On a real frame this is indistinguishable from a good lock --
   only a frame whose truth is known by construction can *prove* the ensemble
-  absorbs this error into the offset, and keep proving it (the honest pin in
+  absorbs this error into the offset, and keep proving it (the known-error check in
   :ref:`sim-expected`) until the gap is closed.
 
 What it cannot do
@@ -422,13 +422,12 @@ What it cannot do
   today: pointing jitter within an exposure, image mid-time error, readout
   shear, and body-on-body cast shadows
   (mutual events render occlusion, not shadowing).
-- **Fix the gaps it exposes.** A confident-wrong pin is evidence, not
-  mitigation; closing it requires ensemble work (consuming declared
-  model-error bars, cross-technique vetoes). The body-witness veto closes the
-  shape-mismatch and haze-crescent modes; the remaining pinned hazard (the
-  ring planted-orbit-error lock) stands until its own fix lands (see the
-  ensemble chapter,
-  :doc:`dev_guide_orchestrator_ensemble`).
+- **Fix the gaps it exposes.** A known-error check is evidence, not
+  mitigation. Closing the gap it documents requires ensemble work (consuming
+  declared model-error bars, cross-technique vetoes). The body-witness veto
+  closes the shape-mismatch and haze-crescent modes; the remaining hazard under
+  a known-error check (the ring planted-orbit-error lock) stands until its own
+  fix lands (see the ensemble chapter, :doc:`dev_guide_orchestrator_ensemble`).
 - **Transfer its calibration to real frames by itself.** That path runs
   through the sidecar re-ratchet and a pre-stated transfer criterion (the
   proposed transfer watch in ``util/calibration/CAMPAIGN_20260718.md``), not
@@ -1642,7 +1641,7 @@ navigator should produce: a required ``status`` (``success`` / ``failed`` /
 ``conflicted``), a ``confidence_tier`` (one of the five navigation ranks, or
 null to assert the status only), an optional ``status_reason`` token, and an
 optional ``known_offset_error_px`` / ``known_offset_error_tol_px`` pair (the
-honest pin, below). It is
+known-error check, below). It is
 a **test-only** key -- read by the assertion machinery in
 ``tests/integration/sim_expected.py``, fed to neither the renderer nor the
 navigator, and stripped from ``nav_params`` by the information boundary along
@@ -1658,7 +1657,7 @@ position, or drowns a lone star in an overwhelming confounder field, the
 confident wrong offset. Each such scene carries an ``expected`` block, and the
 machinery turns "must not be confidently wrong here" into a passing assertion.
 
-**The honest pin.** A small second family inverts the reading: a scene whose
+**The known-error check.** A small second family inverts the reading: a scene whose
 measured behavior *is* a wrong offset the ensemble cannot remove -- the
 ``orbit_error_ringlet`` planted radial catalog error, whose bias survives even
 though the declared-sigma covariance channel demotes its tier. Pinning bare
@@ -1667,15 +1666,15 @@ correct behavior, so it also declares ``known_offset_error_px`` -- the measured
 fused error magnitude, from the scene's recorded baseline -- with a
 ``known_offset_error_tol_px`` band. The assertion then fails in *both*
 directions: a regression that worsens the error fails, and a genuine fix that
-shrinks it also fails loudly, prompting a deliberate re-pin (or retirement of
-the pin) instead of a silent behavior change. The pinned success is a
-documented hazard held in view, never an endorsement; the scene comments and
-the campaign record carry the analysis, and the ensemble chapter
+shrinks it also fails loudly, prompting someone to re-measure the known error
+(or retire the check) instead of a silent behavior change. The success the check
+holds is a documented hazard held in view, never an endorsement; the scene
+comments and the campaign record carry the analysis, and the ensemble chapter
 (:doc:`dev_guide_orchestrator_ensemble`) describes the failure family for the
 readers who consume tiers. The ``titan_crescent_horns`` pair left this family
 once the cross-technique body-witness veto closed it: its haze-dragged
 lone-blob offset is declined outright, so the scenes assert that ``failed``
-outcome instead of an honest-pin success.
+outcome instead of a success under a known-error check.
 
 .. _sim-floor:
 
@@ -2371,7 +2370,7 @@ reference radius and never learns the haze exists, so the soft rendered limb is
 a deliberate model mismatch. A navigator that fits the bright sunward haze ramp
 recovers a small offset toward the sunlit limb whose size tracks the
 phase-dependent apparent limb radius (and the haze parameters) -- the
-``atmosphere`` catalog scenes measure and pin that bias honestly. The
+``atmosphere`` catalog scenes measure that bias and pin the measured value. The
 low-phase ``titan_haze_limb`` scene records a sub-pixel sunward offset (a few
 tenths of a pixel in ``du``) at the medium tier, the limb DT fit and the disc
 correlation agreeing on the haze-lifted limb.
@@ -2386,14 +2385,14 @@ is the one that drives that technique. At high phase the haze is
 outright hostile: in ``titan_crescent_horns`` (155 deg) the ring of light
 defeats the disc correlation (spurious -- there is no full lit disc), the
 predicted terminator arc is emitted but dropped by the feature reliability
-gate before any technique runs (its honestly computed reliability, capped by
-``sin(155 deg)`` = 0.42, scores 0.26 against the 0.30 ``TERMINATOR_ARC``
-threshold), and the haze-dragged blob centroid alone would carry the fused
-answer roughly 30 px off in ``du``. That is exactly the lone-blob collapsed
-regime the body-witness veto (see :doc:`dev_guide_orchestrator_ensemble`)
-guards: the only surviving body offset is the bias-prone centroid while a
-sibling geometric technique on the same body self-flagged spurious, so the
-frame is declined (``failed``, ``status_reason``
+gate before any technique runs (its reliability, computed as the SPICE-backed
+model does and capped by ``sin(155 deg)`` = 0.42, scores 0.26 against the 0.30
+``TERMINATOR_ARC`` threshold), and the haze-dragged blob centroid alone would
+carry the fused answer roughly 30 px off in ``du``. That is exactly the
+lone-blob collapsed regime the body-witness veto (see
+:doc:`dev_guide_orchestrator_ensemble`) guards: the only surviving body offset
+is the bias-prone centroid while a sibling geometric technique on the same body
+self-flagged spurious, so the frame is declined (``failed``, ``status_reason``
 ``lone_blob_in_collapsed_regime``) rather than reported as a 30-px-wrong
 success -- a wrong offset that is accepted is worse than a
 declared failure. The scene asserts that decline. The noiseless
@@ -2522,8 +2521,8 @@ robust edge fit down-weights one arc, locks onto one side of the annulus,
 and absorbs the ephemeris error into the recovered offset instead of leaving
 it in the residuals -- the declared sigma prices that hazard (the widened
 covariance holds the fused result out of the high tier) but cannot remove
-the bias itself, which is what the scene's ``known_offset_error_px`` pin
-keeps in view.
+the bias itself, which is what the scene's known-error check
+(``known_offset_error_px``) keeps in view.
 
 ``navigable`` (default **false**) is the information boundary in miniature:
 the filter drops non-navigable features from ``nav_params`` entirely, so the
@@ -4117,10 +4116,10 @@ The GUI exposes the full scene parameter surface, so any scene that can be
 written by hand in YAML can also be built in the GUI. Two exceptions are
 carried through unedited rather than widget-exposed: the nested
 ``instrument_config`` override mapping, and the hand-authored
-``known_offset_error_px`` / ``known_offset_error_tol_px`` pins in the
-expected block (the expected-outcome panel preserves them across its
-enable toggle but offers no controls for them; they are baseline-measured
-values, authored in YAML). Scenes
+known-error check (``known_offset_error_px`` / ``known_offset_error_tol_px``) in
+the expected block. The expected-outcome panel keeps both keys across its enable
+toggle but offers no controls for either; they are baseline-measured values,
+authored in YAML. Scenes
 round-trip through the **Load / Save Scene (YAML)** buttons, so a scene rendered
 in the GUI can be saved as a catalog artifact and a catalog scene can be loaded
 back to edit; ``tests/main/test_sim_editor_round_trip.py`` asserts the

@@ -345,7 +345,7 @@ nothing. The wide angle camera has no such measurement.
 clock, and the ``oops`` frame that uses it caches its answer for that long. Two
 images navigated through the fallback within eighty minutes of each other **in
 one process** therefore share one attitude. The second records an attitude no
-lookup at its own midtime reproduces, and is honestly reported
+lookup at its own midtime reproduces, and is reported as
 ``no_reproducing_baseline`` rather than corrected against a baseline it did not
 use. This is a real, reachable outcome on a batch run, not a hypothetical.
 

@@ -1,7 +1,7 @@
 """Ensemble — reconcile per-technique results into a single NavResult.
 
 The ensemble is the single point in the pipeline where multiple per-technique
-estimates become one offset.  Every step is honest:
+estimates become one offset.  The steps are:
 
 1. Drop ``spurious=True`` results.
 2. Drop ``at_edge=True`` results unless dropping them would empty the set.

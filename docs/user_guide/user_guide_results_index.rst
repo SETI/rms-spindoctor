@@ -992,8 +992,9 @@ Two things it does **not** refuse:
   on. Dropping under a live pass ends that pass, which fails on a table that has
   gone; no reader is affected, because an unfinished run already reads as "not
   ingested" both before and after.
-* **Another process holding the database.** Neither backend can be asked that
-  question honestly, so the attempt is what answers it. Both the reading that
+* **Another process holding the database.** Neither backend can always tell
+  whether another process is using the database, so the drop finds out by
+  trying. Both the reading that
   precedes the question and the drop itself wait a bounded time for each table
   -- ``lock_timeout`` on PostgreSQL, the busy timeout on SQLite -- and then give
   up, and what they give up on is put back whole by the transaction around it.

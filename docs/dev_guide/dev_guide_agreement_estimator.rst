@@ -149,9 +149,9 @@ consumer of the estimator:
   measured couplings and residual caveats are in the campaign record.
 - Declaring the suspect pair covariance in an over-determined cohort
   recovers the injected coupling instead of hiding it -- the estimator's
-  mechanism for keeping a correlated pair in the solve honestly, when the
-  cohort can carry it. Otherwise the pair is excluded from joint solves
-  and only its combined covariance is reported.
+  mechanism for keeping a correlated pair in the solve with its coupling
+  accounted for, when the cohort can carry it. Otherwise the pair is
+  excluded from joint solves and only its combined covariance is reported.
 
 Scope of the verdict
 ====================

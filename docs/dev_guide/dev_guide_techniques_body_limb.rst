@@ -220,8 +220,8 @@ All numeric tunables for this technique live in ``techniques.BodyLimbNav.tuning`
   added in quadrature to the covariance's translation diagonal (see "Sources of
   uncertainty"). The 2026-07-18 calibration campaign measured 2-sigma coverage 0.68 at
   a 0.92 px floor and 0.86 at this value. The floor sits above the medium tier's 2.0 px
-  sigma cap, so a limb-only fix surfaces as a low-tier result — the honest price of a
-  limb whose position error is set by unmodeled terrain.
+  sigma cap, so a limb-only fix surfaces as a low-tier result. That tier matches the
+  accuracy of a limb whose position error is set by unmodeled terrain.
 - ``at_edge_tolerance_px`` — float, default ``1.0`` px. A converged offset whose absolute
   distance from any search-window axis bound falls within this tolerance is flagged
   :attr:`~spindoctor.nav_technique.technique_result.NavTechniqueResult.at_edge`. Matches the bilinear-DT half-cell width.
@@ -251,7 +251,7 @@ combination, see :doc:`dev_guide_techniques_confidence` for the per-term arithme
   alpha = 1.068, offset = 0.0, divisor = 1.0, no cap.
   Fraction of the polyline (weighted by surviving vertex count across consumed ``LIMB_ARC``
   features) whose vertices were not pre-rejected by the model-side shadow / FOV gates. One
-  means every offered vertex is usable. The sim limb reports its honest visible-arc
+  means every offered vertex is usable. The sim limb reports its actual visible-arc
   fraction (surviving polyline over the unclipped whole-body silhouette boundary, net of
   frame clipping and sibling-body occlusion), so the partial-arc penalty is fitted rather
   than frozen at a design prior (calibration campaign raw p5/p50/p95 = 0.33/0.76/1.0).

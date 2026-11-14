@@ -10,7 +10,7 @@ per-technique :class:`~spindoctor.nav_technique.technique_result.NavTechniqueRes
 single :class:`~spindoctor.nav_orchestrator.nav_result.NavResult`. The orchestrator invokes the
 ensemble twice per image: once after pass 1 (to derive the pass-2 prior) and once on the
 union of pass-1 and pass-2 results (to produce the final answer). The reconciliation
-discipline is honest: spurious results are dropped, at-edge results are dropped unless
+has five steps: spurious results are dropped, at-edge results are dropped unless
 removing them empties the set, the surviving results are grouped by Mahalanobis-distance
 agreement, the highest summed-confidence group wins, and the within-group results are
 fused via precision-weighted (Kalman-style) merging.
@@ -237,7 +237,7 @@ The fused confidence and the per-axis sigma are mapped to a five-bucket rank
 ``min_confidence`` / ``max_sigma_px`` thresholds. Below the ``min_confidence`` floor the
 ensemble returns ``status='failed'``.
 
-Two honesty guards then cap the tier regardless of how well the confidence and sigma
+Two guards then cap the tier regardless of how well the confidence and sigma
 score:
 
 - **Rank-deficient fused covariance.** When one translation axis is unobservable, the
@@ -305,10 +305,10 @@ into -- the edge fit from its fit vertices, the annulus correlation from the
 same edge normals painted into its composite template. Because the two ring
 techniques read one catalog model, the Step 5 independence resolution collapses
 them to a single representative witness before the merge, so the fused radial
-sigma is that one witness's honest ~2.5 px rather than the value a
+sigma is that one witness's own ~2.5 px rather than the value a
 two-independent-witness fuse would shrink it to. The biased offset then demotes
 to ``low`` (a measured confidence around 0.90 against a ~2.5 px sigma that
-covers the residual bias), and the scene keeps its measured-error pin: the
+covers the residual bias), and the scene keeps its known-error check: the
 channel prices the hazard, but it cannot remove the bias. Collapsing the ring
 pair is what stops the spurious alternative -- treating the two correlated
 views as independent, which shrank the sigma below the hazard and let the
@@ -409,14 +409,14 @@ error of that kind is not evidence against the error. The declined outcomes
 above are asserted (see :ref:`sim-expected`), so a worsening regression and a
 silent revert both fail CI.
 
-A related honesty caveat survives inside the confidence scalar itself: the
+A related caveat applies to the confidence scalar itself: the
 two-member agreement boost assumes the members' errors are independent, so two
 techniques observing the same displaced feature can fuse to a high scalar
 confidence even as the sigma-gated tier demotes the result. The Step 5
 independence resolution collapses the correlations it models -- the two ring
 techniques on one catalog, disc and limb on one veiling gradient -- to a single
 witness before the merge, so those pairs do not earn the boost; the
-planted-orbit-error scene above accordingly lands at ``low`` on its honest
+planted-orbit-error scene above accordingly lands at ``low`` on its single-witness
 ~2.5 px sigma rather than at a boosted near-cap scalar. The caveat is that any
 correlation the resolution does not model still couples two members while the
 boost treats them as independent, and on such frames the tier is the

@@ -1,4 +1,4 @@
-"""Validation tests for the scene ``expected`` block and its offset-error pins."""
+"""Validation tests for the scene ``expected`` block and its known-error check."""
 
 from __future__ import annotations
 
@@ -51,8 +51,8 @@ def test_validate_sim_params_rejects_expected_status_reason() -> None:
         validate_sim_params(params)
 
 
-def test_validate_sim_params_accepts_known_offset_error_pin() -> None:
-    """An honest-pin band (error value plus tolerance) validates on a success."""
+def test_validate_sim_params_accepts_known_error_check() -> None:
+    """A known-error check (error value plus tolerance) validates on a success."""
     params = _sim_params()
     params['expected'] = {
         'status': 'success',

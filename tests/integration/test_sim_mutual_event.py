@@ -4,7 +4,7 @@ A grazing two-body overlap must still navigate to its planted offset within
 tolerance, and the navigator-side simulated body model must predict
 occlusion-aware limbs: the near body's limb stays complete, while the far
 body's limb loses the arc hidden behind the near body's silhouette and its
-``visible_arc_fraction`` reports the loss honestly (the input the limb
+``visible_arc_fraction`` counts the hidden arc as lost (the input the limb
 reliability and BodyLimbNav's confidence formula consume).  The deeper
 overlaps' fused outcomes are pinned by their scenes' ``expected`` blocks
 (test_sim_expected) and their baselines.

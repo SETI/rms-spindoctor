@@ -191,7 +191,7 @@ def build_star_covariance(feature: NavFeature, *, residual_px: float) -> NDArray
     Uses the per-feature anisotropic CRLB covariance carried on the
     ``NavFeature.position_cov_px`` (computed from predicted SNR + smear
     by ``NavModelStars``) as the floor and inflates it by
-    ``residual_px**2`` so a noisy match honestly reports its scatter
+    ``residual_px**2`` so a noisy match reports its scatter
     rather than the noise-free CRLB lower bound.
 
     The same inflation applies in both 1-star and 2-star modes: the

@@ -264,9 +264,9 @@ Call path traced through
    ``blob_max_overflow_fraction``, append a BODY_BLOB built by the shared blob-feature
    helper on :class:`~spindoctor.nav_model.nav_model_body_base.NavModelBodyBase`, which
    also holds the blob's overflow test for both models.
-4. When the diameter and phase gates pass, append a LIMB_ARC scored honestly: the
-   silhouette boundary is sampled into a vertex polyline with outward normals and a
-   fixed per-vertex sigma, vertices hidden behind an explicitly nearer sibling body are
+4. When the diameter and phase gates pass, append a LIMB_ARC. The silhouette
+   boundary is sampled into a vertex polyline with outward normals and a fixed
+   per-vertex sigma, vertices hidden behind an explicitly nearer sibling body are
    dropped, and the visible-arc fraction compares the surviving polyline against the
    silhouette boundary of an unclipped whole-body render -- so a limb sliding off the
    frame or behind another body reports the loss instead of claiming ``1.0``.  The

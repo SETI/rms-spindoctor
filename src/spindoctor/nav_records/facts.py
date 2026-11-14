@@ -297,7 +297,7 @@ def _byte_count_or_none(value: Any) -> int | None:
         bytes is a whole number that cannot be negative, so a float, a negative
         and a boolean are each stored as nothing rather than as a number the
         reader would have to distrust.  A run on a kernel publishing no peak
-        records none, and nothing is the honest answer for it.
+        records none, and nothing is the correct answer for it.
 
         A value the index's column cannot hold is treated the same way.  The
         column is a signed 64-bit integer, and a document carrying more than
