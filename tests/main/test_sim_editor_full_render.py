@@ -259,6 +259,30 @@ def test_an_edit_discards_a_running_full_render(model: Any, gated: _GatedFullRen
     assert np.array_equal(model._current_image, _preview(model))
 
 
+def test_an_edit_drops_the_failure_of_a_running_full_render(
+    model: Any, failing: _GatedFullRender
+) -> None:
+    """A full render started before an edit doesn't report its failure after the edit."""
+    model._start_full_renders()
+    model.sim_params['bodies'][0]['center_u'] = 40.2
+    model._update_image()
+    failing.release(0)
+    wait_for_background_renders(model)
+    assert model._image_kind_label.text() == 'Fast preview'
+
+
+def test_a_refused_edit_drops_the_failure_of_a_running_full_render(
+    model: Any, failing: _GatedFullRender
+) -> None:
+    """A full render started before a refused edit doesn't report its failure after it."""
+    model._start_full_renders()
+    model.sim_params['bodies'][0]['minnaert_k'] = 0.0
+    model._update_image()
+    failing.release(0)
+    wait_for_background_renders(model)
+    assert model._image_kind_label.text() == 'Fast preview'
+
+
 def test_a_full_render_of_a_changed_scene_is_not_shown(model: Any, gated: _GatedFullRender) -> None:
     """A full render finishing after an edit, before the edit's preview, is not shown."""
     preview = model._current_image.copy()

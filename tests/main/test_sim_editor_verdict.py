@@ -193,6 +193,17 @@ def test_a_stale_verdict_never_reaches_the_label(model: Any, gated: _GatedSummar
     assert model._units_label.text() == 'DN: verdict pending'
 
 
+def test_a_verdict_for_a_changed_scene_never_reaches_the_label(
+    model: Any, gated: _GatedSummary
+) -> None:
+    """A render finishing after an edit, before the edit's preview, leaves the label pending."""
+    _edit_offset(model, 5.0)
+    model.sim_params['offset_u'] = 7.0
+    gated.release(0)
+    _wait_for_verdict(model)
+    assert model._units_label.text() == 'DN: verdict pending'
+
+
 def test_the_latest_edit_gets_its_verdict(model: Any, gated: _GatedSummary) -> None:
     """After the stale render, the newest edit's render runs and its summary is shown."""
     _edit_offset(model, 5.0)
