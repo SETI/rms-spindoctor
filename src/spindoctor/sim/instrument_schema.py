@@ -284,7 +284,8 @@ _DETECTOR_FIELDS: dict[str, Node] = {
 
 # A readout mode overrides any detector key; the keys it leaves out keep the 1x1
 # values, so none is required.  The cross-checks refuse the keys a readout mode
-# cannot change (the detector model and the vidicon chain).
+# cannot change (the detector model and the vidicon chain) and the dark-sky
+# ceiling, which the realism comparison reads from the detector block alone.
 _READOUT_MODE = Record(fields=_DETECTOR_FIELDS)
 
 _SCHEMA = Record(
