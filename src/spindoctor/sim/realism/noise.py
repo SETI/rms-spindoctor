@@ -436,7 +436,11 @@ def quantization_step(values: NDArrayFloatType) -> float | None:
     pixel far above a finely quantized sky, can't name its lattice level, and is
     neither fitted nor checked.  Float64 values get the same float32 allowance, as they
     may come from a float32 product.  The step returned is refitted across the levels
-    whose lattice index the fit pins down.
+    whose lattice index the fit pins down, those whose allowance stays under half a
+    step.  Fewer than two such levels leave the step unknown, and the sample sits on no
+    lattice.  That happens when the fitted step falls far enough below the smallest gap
+    that the central levels' own float32 allowance reaches half a step, as for a sky on
+    two levels 1.75 apart near 1e6 beside a bright pair 1.125 apart.
 
     A lattice counts only when the sample could fill it: its central 98% spans no
     more steps than there are values, and the step is far coarser than the spacing of
@@ -504,6 +508,11 @@ def quantization_step(values: NDArrayFloatType) -> float | None:
     if np.any(misfit > np.maximum(_LATTICE_TOLERANCE * step, tolerance)):
         return None
     placed = tolerance < 0.5 * step
+    # The central levels' tolerance is their float32 allowance alone, and it fits under
+    # half the starting step; a fitted step finer than the starting one can leave even
+    # those levels unplaced, and the step is then pinned down by fewer than two levels.
+    if int(np.count_nonzero(placed)) < 2:
+        return None
     placed_index = lattice_index[placed] - lattice_index[placed][0]
     return float(np.polyfit(placed_index, resolved[placed] - resolved[placed][0], 1)[0])
 

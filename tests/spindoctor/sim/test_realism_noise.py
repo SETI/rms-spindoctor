@@ -719,6 +719,24 @@ def test_a_pixel_beyond_two_to_the_31_steps_puts_the_sample_on_no_lattice(
     assert patch_noise_sigma(patch) == paired_difference_sigma(patch)
 
 
+def test_a_fitted_step_that_places_no_level_puts_the_sample_on_no_lattice() -> None:
+    """A sky on two levels near 1e6 beside a bright pair leaves the step unknown.
+
+    The sky sits on 1e6 and 1e6 + 1.75, and the bright pair sits 100 and 101.125 above
+    it.  The step starts at the pair's gap, 1.125, and the sky's two levels refit it to
+    0.875.  Each sky level's float32 allowance near 1e6 is 0.48, above half that step,
+    and the bright pair lies too far out for the fit to place.  No level pins the step
+    down, so the sample sits on no lattice, and the patch's sigma is the
+    paired-difference reading.
+    """
+    patch = np.full((32, 32), 1e6)
+    patch[:, ::2] = 1e6 + 1.75
+    patch[0, 0] = 1e6 + 100.0
+    patch[0, 1] = 1e6 + 101.125
+    assert quantization_step(patch) is None
+    assert patch_noise_sigma(patch) == paired_difference_sigma(patch)
+
+
 def test_find_uniform_patches_keeps_quantized_sky_below_one_step() -> None:
     """Whole-DN sky whose noise is below one DN still yields every patch."""
     rng = np.random.default_rng(26)

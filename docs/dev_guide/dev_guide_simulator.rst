@@ -4456,7 +4456,12 @@ within 2\ :sup:`31` steps of the central levels, which keeps the estimators'
 whole-step arithmetic exact, so a fill value such as -10\ :sup:`17` beside a sky
 in whole DN keeps the patch from counting as quantized.  A fill value inside that
 bound, around a billion steps from the sky, can still stop the quantized fit from
-converging, and the patch then reads NaN.
+converging, and the patch then reads NaN.  At least two levels must also stand for
+a single lattice level each: a level's own rounding plus the fit's uncertainty
+there must stay under half the fitted step.  Fewer than two such levels leave the
+step unknown.  A fitted step well below the smallest gap can put even the central
+levels' own rounding at half a step, and the patch then does not count as
+quantized.
 
 A quantized patch is measured from paired differences too, when they resolve the
 noise, and otherwise by fitting the quantization itself.  The differences come
