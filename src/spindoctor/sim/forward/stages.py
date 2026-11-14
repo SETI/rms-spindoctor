@@ -62,8 +62,11 @@ class SimFrame:
             boundary to the navigator side.  Pixel-space entries are carried on
             the oversampled grid and returned to the detector grid by the
             downsample stage.
-        preview: Whether this is the scene editor's fast preview.  The optics stage
-            then skips the distortion warp.  Nothing but the editor's preview sets
+        preview: Whether this is the scene editor's fast preview, which simplifies
+            the full render in three ways.  The frame is built at oversample 1,
+            whatever the scene asks for.  The radiance stage reads this flag and
+            draws each body's limb without anti-aliasing, and the optics stage reads
+            it and skips the distortion warp.  Nothing but the editor's preview sets
             it (see :func:`~spindoctor.sim.render.render_combined_model`).
     """
 

@@ -25,11 +25,11 @@ scene are bit-identical on one machine.
 
 The scene editor renders on up to three threads at once (its fast preview on the
 UI thread, and its full render and the frame the navigator reads on two workers),
-which relies on three properties of the render path: every render builds its own frame, parameter dict, and RNG
-streams; the ``lru_cache`` tables stay coherent under concurrent calls; and no
-caller writes into a cached value (this function hands out copies, and the stage
-caches' callers only read theirs).  A change that breaks one of them breaks the
-editor.
+which relies on three properties of the render path: every render builds its own
+frame, parameter dict, and RNG streams; the ``lru_cache`` tables stay coherent
+under concurrent calls; and no caller writes into a cached value (this function
+hands out copies, and the stage caches' callers only read theirs).  A change that
+breaks one of them breaks the editor.
 """
 
 import copy
@@ -146,12 +146,14 @@ def render_combined_model(
         ignore_offset: Render the unshifted, unrolled geometry, ignoring the
             planted offset and roll.  The frame the navigator reads always
             carries them; a display of the scene's geometry may not want them.
-        preview: Render the scene editor's fast preview.  The radiance is drawn on
-            the detector grid, with no oversampling, and the optics stage skips the
-            distortion warp.  The result is deterministic and has the full
-            render's image shape, but it is an approximation.  Only the scene
-            editor's on-screen preview may ask for it: every image that leaves the
-            editor, and every test, sweep, and baseline, uses the full render.
+        preview: Render the scene editor's fast preview, which simplifies the full
+            render in three ways: the radiance is drawn on the detector grid, with no
+            oversampling; each body's limb is drawn without anti-aliasing; and the
+            optics stage skips the distortion warp.  The PSF and every other stage
+            still run.  The result is deterministic and has the full render's image
+            shape, but it is an approximation.  Only the scene editor's on-screen
+            preview may ask for it: every image that leaves the editor, and every
+            test, sweep, and baseline, uses the full render.
         source: The label that begins each validation error message, such as
             the path of the scene file the parameters came from.
 
