@@ -51,8 +51,9 @@ from spindoctor.sim.scene_schema import scene_value
 _LAW_ORDER = ('lambert', 'lommel_seeliger', 'minnaert', 'lunar_lambert')
 _LAWS = tuple(law for law in _LAW_ORDER if law in PHOTOMETRIC_LAWS)
 
-# The values a group that the scene leaves out shows, so that turning it on draws
-# a visible effect.  A scene that writes the block takes the renderer's defaults.
+# The values the surge and pose-scatter groups show while the scene leaves their
+# blocks out.  Turning a group on writes its value, so the effect is visible.  If the
+# scene writes the block, the controls show the renderer's defaults instead.
 _SURGE_ENABLE_AMPLITUDE = 0.3
 _POSE_SCATTER_ENABLE_SIGMA_DEG = 1.0
 

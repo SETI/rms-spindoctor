@@ -32,10 +32,10 @@ _NULL_SHOWS: dict[str, float] = {
 """The value the renderer reads for each atmosphere key a scene may leave null."""
 
 _DETACHED_ENABLE_PX = 8.0
-"""The shell altitude the detached-shell spin shows until the scene sets one.
+"""The altitude the detached-shell spin shows until the scene sets one.
 
-A scene without ``detached_px`` draws no shell, so this is the value turning the
-shell on writes, and the renderer has no default for it."""
+If the scene leaves out ``detached_px``, the renderer does not draw a shell, so the
+key has no renderer default.  Turning the shell on writes this value."""
 
 
 def _as_map(value: Any) -> dict[str, Any]:

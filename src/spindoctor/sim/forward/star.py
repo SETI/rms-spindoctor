@@ -63,8 +63,10 @@ SKY_COUNTS_DEFAULTS: Mapping[str, float] = MappingProxyType(
         'diffuse_e_per_px': 0.0,
     }
 )
-"""The value each ``sky_counts`` key takes when a scene leaves it out or null: the
-count law at mid galactic latitude, with no density boost and no diffuse floor."""
+"""The value each ``sky_counts`` key takes when a scene leaves it out or sets it to null.
+
+Together they give the count law at mid galactic latitude.  A density factor of 1
+leaves the counts unscaled, and the diffuse floor is 0."""
 
 
 def total_flux_for_vmag(vmag: float, *, zero_point: float, exposure_sec: float) -> float:

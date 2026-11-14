@@ -35,9 +35,9 @@ from spindoctor.sim.scene_schema import scene_value
 
 _SMEAR_CLASSES: list[str] = ['all', 'stars', 'bodies', 'rings']
 
-# The reference range the spacecraft-ephemeris group shows until the scene writes
-# the block, so that turning it on plants a visible parallax.  A block without the
-# key takes the renderer's default of 0, which plants none.
+# The reference range the spacecraft-ephemeris group shows while the scene leaves
+# the block out.  Turning the group on writes it, which plants a visible parallax.
+# If the block leaves the key out, the renderer uses 0, which turns parallax off.
 _SPK_ENABLE_REFERENCE_RANGE_KM = 1000.0
 
 
@@ -63,7 +63,7 @@ class _GhostRow:
 
 
 def _has_center(block: dict[str, Any]) -> bool:
-    """Whether a block sets either center key to a value; a null reads as absent."""
+    """True when a block sets either center key to a non-null value."""
     return block.get('center_v') is not None or block.get('center_u') is not None
 
 
@@ -788,11 +788,11 @@ class OpticsTabMixin(SimEditorBase):
             self._updater.request_update()
 
     def _spk_shown(self) -> tuple[float, float, float]:
-        """The ``dv_px``, ``du_px``, and ``reference_range_km`` the spk_error group shows.
+        """Return the dv, du, and reference range the spk_error group shows.
 
-        A block the scene writes shows the renderer's value for each key, so a key
-        that is absent or null shows the renderer's default.  Without the block, the
-        group shows the values turning it on writes.
+        If the scene has the block, each spin shows the value the renderer reads, so
+        an absent or null key shows the renderer's default.  If the scene leaves the
+        block out, the spins show the values that turning the group on writes.
         """
         spk = self.sim_params.get('spk_error')
         if not isinstance(spk, dict):
@@ -806,10 +806,11 @@ class OpticsTabMixin(SimEditorBase):
     def _spk_block_from_widgets(self) -> dict[str, Any]:
         """Assemble the spk_error block the widgets describe.
 
-        Each key keeps the scene's exact value while its spin still shows it, so an
-        edit to one spin never rounds another, and a reference range finer than the
-        spin displays survives.  A reference range of 0 leaves the key out: the
-        validator refuses 0, and the renderer reads an absent key as 0.
+        While a spin still shows the scene's value for its key, the block keeps the
+        scene's exact value.  An edit to one spin therefore never rounds another, and
+        a reference range finer than the spin can display is kept.  If the reference
+        range is 0, the block leaves the key out, because the validator refuses 0 and
+        the renderer reads an absent key as 0.
         """
         spk = self.sim_params.get('spk_error')
         values = kept_or_shown(

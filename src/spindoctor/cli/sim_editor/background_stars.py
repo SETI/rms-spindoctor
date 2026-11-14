@@ -45,10 +45,11 @@ class BackgroundStarsMixin(SimEditorBase):
         return sky if isinstance(sky, dict) else None
 
     def _sky_value(self, key: str) -> float:
-        """The value a sky_counts control shows: the scene's, or the renderer's default.
+        """Return the value a sky_counts control shows.
 
-        A key that is absent or null, or a scene without the block, shows the default
-        the renderer reads, which is also what turning the block on writes.
+        If the scene sets the key, the control shows the scene's value.  If the key is
+        absent or null, or the scene leaves the block out, the control shows the
+        renderer's default.  Turning the block on writes that same default.
 
         Parameters:
             key: The ``sky_counts`` key.

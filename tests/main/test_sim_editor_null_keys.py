@@ -1,9 +1,11 @@
 """Null scene keys in the ``sd_create_simulated_image`` editor.
 
-The scene validator accepts null for every optional key and reads it as absent, and
-so does the renderer.  These tests load scenes whose optional keys are null and check
-that every editor control shows what it shows for the same scene without those keys,
-and that a body without a name or center shows the renderer's name and position.
+The scene validator and the renderer both accept null for any optional key and read it
+as absent.  These tests load scenes whose optional keys are null.  They check that each
+editor control shows the same value as when those keys are left out.  Further tests
+check that a body whose name and center are unset shows the renderer's name and the
+frame center, that unset derived values follow edits, and that loading a scene leaves
+it unchanged.
 
 Qt runs headless (offscreen platform).
 """
@@ -50,8 +52,8 @@ from spindoctor.sim.forward.body_spec import body_spec_from_params
 from spindoctor.sim.forward.star import SKY_COUNTS_DEFAULTS
 from spindoctor.sim.scene import validate_sim_params
 
-# Every key a scene body may carry, each null.  The tests below give a body's
-# sub-blocks mappings whose own keys are null.
+# Every key a scene body may carry, each set to null.  The scenes below replace some
+# of these with sub-blocks whose own keys are null.
 _NULL_BODY: dict[str, Any] = dict.fromkeys(
     (
         'albedo_texture',
@@ -137,13 +139,13 @@ _NULL_BODIES_SCENE: dict[str, Any] = {
         },
     ],
 }
-"""Two bodies, an ellipsoid and a mesh, with every optional body key null.
+"""Two bodies, an ellipsoid and a mesh, whose optional body keys are all null.
 
-Each body states its axes so that it draws, and the mesh body states a center away
-from the frame center: two bodies that overlap need a range to order them."""
+Each body sets its axes so that it is drawn.  The mesh body sets a center away from
+the frame center, because two overlapping bodies need ranges to order them."""
 
-# The spacecraft-ephemeris block needs every body to state a range, so the frame
-# blocks sit in a scene of their own.
+# The spacecraft-ephemeris block needs a range on every body, so the frame-wide
+# blocks get a scene of their own.
 _NULL_FRAME_SCENE: dict[str, Any] = {
     'instrument': 'coiss_nac',
     'size_v': 300,
@@ -182,12 +184,12 @@ _NULL_FRAME_SCENE: dict[str, Any] = {
     'artifacts': dict.fromkeys(('instrument_defaults', 'adversarial')),
     'sky_counts': dict.fromkeys(('a', 'b', 'density_factor', 'diffuse_e_per_px')),
 }
-"""The global, optics, stray-light, artifacts, and sky-count blocks, every key null."""
+"""The top-level keys and the frame-wide blocks, with every key set to null."""
 
 
 @pytest.fixture
 def qapp(monkeypatch: pytest.MonkeyPatch) -> QApplication:
-    """The shared headless Qt application, with an error dialog raising instead."""
+    """Return the shared headless Qt application, with error dialogs patched to raise."""
 
     def _raise(*args: Any, **kwargs: Any) -> None:
         raise AssertionError(f'error dialog raised: {args!r}')
@@ -222,8 +224,8 @@ def _control_state(widget: QWidget) -> Any:
         widget: Any widget inside a tab.
 
     Returns:
-        The control's displayed value, with its type name so two controls never
-        compare equal across kinds.
+        The control's type name and displayed value.  The type name keeps two
+        different kinds of control from comparing equal.
     """
     if isinstance(widget, (QDoubleSpinBox, QSpinBox)):
         return (type(widget).__name__, widget.value())
@@ -267,7 +269,7 @@ def test_null_keys_show_what_absent_keys_show(qapp: QApplication, scene: dict[st
 
 
 def test_body_without_name_or_center_shows_the_renderers(qapp: QApplication) -> None:
-    """A body without a name or center shows the renderer's name and the frame center."""
+    """An unnamed, uncentered body shows the renderer's name and the frame center."""
     model: Any = CreateSimulatedImageModel()
     model._apply_params_dict(
         {
@@ -283,7 +285,7 @@ def test_body_without_name_or_center_shows_the_renderers(qapp: QApplication) -> 
 
 
 def test_spk_edit_keeps_an_absent_reference_range_absent(qapp: QApplication) -> None:
-    """An spk_error edit leaves out a reference range the block left out, as 0 shows it."""
+    """An edit to another spin keeps an unset reference range unset."""
     model: Any = CreateSimulatedImageModel()
     model._apply_params_dict(
         {'instrument': 'coiss_nac', 'size_v': 300, 'size_u': 400, 'spk_error': {'dv_px': 1.0}}
@@ -308,7 +310,7 @@ _FRAME_300_BY_400: dict[str, Any] = {'instrument': 'coiss_nac', 'size_v': 300, '
 
 
 def test_unset_keys_show_the_renderers_defaults(qapp: QApplication) -> None:
-    """Controls for keys a scene leaves out show the values the renderer draws with."""
+    """An unset key's control shows the value the renderer draws with."""
     body = {'axis1': 40.0, 'axis2': 30.0, 'opposition_surge': {}}
     spec = body_spec_from_params(body, index=0)
     model = _loaded({**_FRAME_300_BY_400, 'bodies': [body], 'sky_counts': {}, 'spk_error': {}})
@@ -372,14 +374,14 @@ def test_a_frame_size_change_moves_an_unset_center(qapp: QApplication) -> None:
 def test_spk_edit_keeps_a_reference_range_finer_than_the_spin_shows(
     qapp: QApplication,
 ) -> None:
-    """An spk_error edit keeps a stated reference range the spin rounds to 0."""
+    """An edit to another spin keeps a reference range that its own spin rounds to 0."""
     model = _loaded({**_FRAME_300_BY_400, 'spk_error': {'dv_px': 1.0, 'reference_range_km': 0.004}})
     model._spk_du_spin.setValue(2.0)
     assert model.sim_params['spk_error']['reference_range_km'] == 0.004
 
 
 def test_an_empty_ring_modulation_starts_turned_off(qapp: QApplication) -> None:
-    """An empty azimuthal modulation block shows its group off, as the renderer skips it."""
+    """An empty azimuthal modulation block starts turned off, as the renderer skips it."""
     model: Any = CreateSimulatedImageModel()
     model._add_ring_tab()
     model.sim_params['ring_system']['azimuthal'] = {'modulation': {}}

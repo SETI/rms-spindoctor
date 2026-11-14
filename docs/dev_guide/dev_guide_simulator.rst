@@ -4114,19 +4114,19 @@ realism addition needs -- live in their own module:
        body drops its entry.
 
 The editor and the renderer read the same scene. The renderer draws the preview, and
-the editor's controls describe the scene to the author, so each control shows the
+the editor's controls show the author what the scene holds. Each control shows the
 value the renderer draws with:
 
-* **Unset and null keys.** A key the scene leaves out and a key set to null both mean
-  "use the default", and the control shows the renderer's default. The tabs take every
+* **Unset and null keys.** Leaving a key out and setting it to null both mean "use the
+  default", and the control shows the renderer's default. The tabs take every
   default from the renderer. They read each optional key through
   :func:`~spindoctor.sim.scene_schema.scene_value` with the renderer's default, or read
   the spec the renderer builds: the body tab and its appearance groups use
   :func:`~spindoctor.sim.forward.body_spec.body_spec_from_params`, and the
   background-sky controls use :data:`~spindoctor.sim.forward.star.SKY_COUNTS_DEFAULTS`.
 * **Values outside a control's range.** A control shows the nearest end of its range.
-  For example, a body that leaves out ``axis1`` is drawn with that axis as 0, and its
-  control shows its minimum, 1 pixel.
+  For example, if a body's ``axis1`` is unset, the renderer draws that axis as 0, and
+  its control shows its minimum, 1 pixel.
 * **Unnamed and uncentered bodies.** A body whose name is unset shows the name the
   renderer gives it, from :func:`~spindoctor.sim.scene_schema.default_body_name`
   (``SIM-BODY-1`` for the first body). A body whose center is unset shows the frame
@@ -4141,14 +4141,14 @@ value the renderer draws with:
   the values that turning it on writes.
 * **Groups whose default is 0.** The renderer's defaults for the opposition surge's
   amplitude, the pose scatter's sigma, and the spacecraft-ephemeris reference range are
-  all 0, so a group turned on at its default would change nothing. Turning one of these
-  groups on writes a visible starting value instead (0.3, 1.0, and 1000 km), so the
-  author sees an effect.
+  all 0, so a group turned on at its default would change nothing. If the scene leaves
+  one of these blocks out, turning its group on writes a visible starting value instead
+  (0.3, 1.0, and 1000 km), so the author sees an effect.
 * **The spacecraft-ephemeris reference range.** When the scene leaves the range out,
   its control shows ``unset``, at 0. While it shows ``unset``, the editor leaves the key
   out of the scene, because the validator refuses an explicit 0 and the renderer reads
   a missing range as 0. An edit to one of the block's other controls keeps the scene's
-  exact values for the rest, so a range finer than the control displays survives.
+  exact values for the rest, so a range finer than the control can display survives.
 
 The GUI exposes the full scene parameter surface, so any scene that can be
 written by hand in YAML can also be built in the GUI. Two exceptions are

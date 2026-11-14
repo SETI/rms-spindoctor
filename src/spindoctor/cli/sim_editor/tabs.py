@@ -467,8 +467,8 @@ class TabsMixin(SimEditorBase):
         self._tabs.addTab(self._optics_tab, 'Optics')
         self._tabs.addTab(self._artifacts_tab, 'Artifacts')
 
-        # Add body tabs (sorted by range).  A body without a range or a name takes
-        # the renderer's: its list position plus one, and SIM-BODY-<n>.
+        # Add body tabs, sorted by range.  If a body's range or name is unset, use the
+        # renderer's default: its list position plus one, or SIM-BODY-<n>.
         bodies = self.sim_params['bodies']
         body_indices = list(range(len(bodies)))
         body_indices.sort(

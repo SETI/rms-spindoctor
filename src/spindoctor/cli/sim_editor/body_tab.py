@@ -53,8 +53,8 @@ class BodyTabMixin(SimEditorBase):
         # Built from the stash-merged view, so a tab rebuilt while the body is a
         # mesh shows the values switching it back to an ellipsoid restores.
         p = self._mesh_key_stash.view(self.sim_params['bodies'][idx])
-        # Every control shows the value the renderer draws with: the body's spec
-        # applies each default, and a null key takes the default an absent key does.
+        # Every control shows the value the renderer draws with.  The body's spec
+        # fills in each default, and it reads a null key as absent.
         spec = body_spec_from_params(p, index=idx)
         w = QWidget()
         w.setProperty('kind', 'body')
@@ -70,7 +70,7 @@ class BodyTabMixin(SimEditorBase):
         center_v = QDoubleSpinBox()
         center_v.setRange(-10000.0, 20000.0)
         center_v.setDecimals(1)
-        # A body without a center sits at the frame center, as the renderer draws it.
+        # If the center is unset, the renderer draws the body at the frame center.
         center_v.setValue(
             self.sim_params['size_v'] / 2.0 if spec.center_v is None else spec.center_v
         )
@@ -95,7 +95,7 @@ class BodyTabMixin(SimEditorBase):
         rng = QDoubleSpinBox()
         rng.setRange(-1e9, 1e9)
         rng.setDecimals(3)
-        # A body without a range is painted at its list position plus one.
+        # If the range is unset, the renderer uses the body's list position plus one.
         rng.setValue(float(idx + 1) if spec.range_km is None else spec.range_km)
         rng.valueChanged.connect(
             lambda v, i=idx: self._on_body_field(i, 'range_km', v, trigger_validate=True)
@@ -324,8 +324,8 @@ class BodyTabMixin(SimEditorBase):
         # Navigation-override group: the renderer ignores it (it always draws the
         # true geometry), but the navigator predicts the body with these fields
         # overlaid, so a scene can render a mesh and predict a smooth ellipsoid or
-        # a different pose.  Unchecking it removes the override.  A null override
-        # key gives the navigator the body's own value, so the control shows it.
+        # a different pose.  Unchecking it removes the override.  If an override
+        # key is null, the navigator uses the body's own value, and so does the control.
         raw_override = p.get('nav_override')
         override: dict[str, Any] = raw_override if isinstance(raw_override, dict) else {}
         nav_group = QGroupBox('Navigation override (predicted geometry)')
@@ -410,12 +410,13 @@ class BodyTabMixin(SimEditorBase):
                 self._refresh_body_derived_spins(idx)
 
     def _refresh_body_derived_spins(self, idx: int) -> None:
-        """Show the renderer's current default in the spins of a body's derived keys.
+        """Show the renderer's current defaults in a body's unset axis3 and center spins.
 
-        A body without ``axis3`` draws it as the smaller of ``axis1`` and ``axis2``,
-        and a body without a center sits at the frame center, so an edit to the axes
-        or the frame size moves what those spins show.  A spin whose key the body
-        sets keeps its value, and the refresh writes nothing to the scene.
+        If ``axis3`` is unset, the renderer draws it as the smaller of ``axis1`` and
+        ``axis2``.  If the center is unset, the renderer draws the body at the frame
+        center.  An edit to an axis or to the frame size therefore changes what these
+        spins show.  If the body sets the key, its spin keeps its value.  The refresh
+        never writes to the scene.
 
         Parameters:
             idx: The body's index in the scene's ``bodies`` list.

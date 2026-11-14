@@ -97,7 +97,7 @@ class StrayLightMixin(SimEditorBase):
         self._stray_center_check.toggled.connect(self._on_stray_center_check)
 
     def _stray_has_center(self) -> bool:
-        """True when the scene sets either radial-bump center key; a null reads as absent."""
+        """True when the scene sets either radial-bump center key to a non-null value."""
         optics = self.sim_params.get('optics')
         stray = optics.get('stray_light') if isinstance(optics, dict) else None
         if not isinstance(stray, dict):
@@ -114,7 +114,7 @@ class StrayLightMixin(SimEditorBase):
     def _stray_value(self, key: str, default: Any) -> Any:
         """Read a value from the optics.stray_light block, or a default.
 
-        A key set to null reads as absent, as the renderer reads it.
+        Like the renderer, it reads a null key as absent.
         """
         optics = self.sim_params.get('optics')
         stray = optics.get('stray_light') if isinstance(optics, dict) else None
