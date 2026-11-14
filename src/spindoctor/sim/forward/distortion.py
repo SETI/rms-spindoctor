@@ -15,20 +15,22 @@ scene is resampled there by cubic interpolation.  The non-radial term adds a
 seeded, smooth 2-D displacement field (its own RNG stream) at the commanded
 RMS amplitude.
 
-The stage runs before the PSF, when the planes are usually zero away from the
-bodies, rings, and stars, so the warp resamples only the lit parts.  Lit pixels are
-grouped into clusters.  Each cluster is cropped with a margin of dark pixels,
-turned into cubic-spline coefficients on the crop, and interpolated over the
-crop grown by the largest displacement in the frame; the clusters' results add
-up because the warp is linear.  The spline prefilter is recursive, so a lit
-pixel's coefficients reach into the dark around it with a response that falls by
-a factor of 2 - sqrt(3), about 0.27, per pixel.  Across the margin that is a
-factor of about 1e-37.  Cropping therefore leaves every lit pixel as the
-whole-frame warp makes it, apart from rounding, and leaves zero where the
-whole-frame warp would leave values below 1e-37 of the peak.  When the crops'
-outputs would cover more than the frame, the plane is warped in one piece, exactly
-as one call over the whole frame would warp it.  That includes a plane that smear
-or a diffuse sky has made nonzero everywhere, which gains nothing.
+The stage runs before the PSF, so a plane is usually zero away from the bodies,
+rings, and stars, and the warp resamples only the lit parts.  Lit pixels are
+grouped into clusters, and each cluster is warped on its own crop, with a margin
+of dark pixels around it.  The warp is linear, so adding the clusters' results
+gives the warp of the whole plane.
+
+Before interpolating, the cubic spline computes coefficients for every pixel of
+the crop, and that prefilter spreads each lit pixel into the dark around it.  The
+spread falls by a factor of 2 - sqrt(3), about 0.27, per pixel, so by about 1e-37
+across the margin.  Every lit pixel therefore comes out as the whole-frame warp
+makes it, apart from rounding.  Where the whole-frame warp leaves values below
+1e-37 of the peak in the dark, the crops leave zero.
+
+If the crops' outputs would add up to more than the frame, the plane is warped in
+one piece instead.  A plane that smear or a diffuse sky has lit everywhere is
+warped that way, and gains nothing.
 """
 
 import math
@@ -63,8 +65,9 @@ _CLUSTER_BLOCK_PX = 32
 # this margin.  A whole number of blocks, so every crop starts on a block edge.
 _PREFILTER_MARGIN_PX = 2 * _CLUSTER_BLOCK_PX
 
-# Render-grid pixels added to the largest displacement, rounded up to a whole pixel,
-# when an output crop is grown from its input crop: the cubic spline's reach.
+# The cubic spline reads up to two pixels past a source position.  An output crop
+# therefore reaches this many render-grid pixels past its input crop, on top of the
+# largest displacement rounded up to a whole pixel.
 _SPLINE_REACH_PX = 2
 
 
@@ -174,8 +177,8 @@ def _source_coords(
         warp: The resolved warp.
         out_v: Output rows.
         out_u: Output columns.
-        origin_v: First row of the input crop the positions index.
-        origin_u: First column of the input crop the positions index.
+        origin_v: The input crop's first row; the positions are measured from it.
+        origin_u: The input crop's first column; the positions are measured from it.
 
     Returns:
         The ``(2, rows, columns)`` source positions.
@@ -200,7 +203,7 @@ def _source_coords(
 def _warp_crop(
     crop: NDArrayFloatType, in_v: slice, in_u: slice, warp: _Warp
 ) -> tuple[slice, slice, NDArrayFloatType]:
-    """Warp a cropped part of a plane, the rest of the plane taken as zero.
+    """Warp a crop of a plane, treating the rest of the plane as zero.
 
     Parameters:
         crop: The plane's values at ``(in_v, in_u)``.
@@ -229,8 +232,8 @@ def _lit_clusters(plane: NDArrayFloatType) -> tuple[NDArrayFloatType, list[tuple
         plane: The render-grid plane.
 
     Returns:
-        The cluster label of every block (0 for an unlit block; cluster ``n`` has
-        label ``n + 1``), and each cluster's bounding box in pixels.
+        The cluster label of every block, and each cluster's bounding box in
+        pixels.  An unlit block has label 0, and cluster ``n`` has label ``n + 1``.
     """
     size_v, size_u = plane.shape
     block = _CLUSTER_BLOCK_PX
@@ -263,8 +266,8 @@ def _warp_plane(plane: NDArrayFloatType, warp: _Warp) -> None:
         return
     margin = _PREFILTER_MARGIN_PX
     crops = [(_grow(v, margin, size_v), _grow(u, margin, size_u)) for v, u in boxes]
-    # Each crop is interpolated over itself grown by the reach, so that is what it
-    # costs; past the frame's area, one whole-frame warp is cheaper.
+    # A crop's cost is the area it is interpolated over: the crop grown by the
+    # reach.  Once those areas add up to the frame's, one whole-frame warp is cheaper.
     outputs = [(_grow(v, warp.reach, size_v), _grow(u, warp.reach, size_u)) for v, u in crops]
     if sum((v.stop - v.start) * (u.stop - u.start) for v, u in outputs) >= size_v * size_u:
         whole_v, whole_u = slice(0, size_v), slice(0, size_u)

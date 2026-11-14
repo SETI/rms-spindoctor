@@ -134,7 +134,7 @@ def _separate_clusters() -> np.ndarray:
 
 
 def _cut_by_the_frame_edge() -> np.ndarray:
-    """Discs cut off by the top edge and a corner of a frame that is not whole blocks."""
+    """Discs cut off by the top edge and a corner, where blocks overhang the frame."""
     signal = np.zeros((500, 470), dtype=np.float64)
     _disc(signal, 0.0, 256.0, 60.0)
     _disc(signal, 499.0, 469.0, 30.0)
@@ -159,9 +159,9 @@ def _small_discs() -> np.ndarray:
             {'k1': 0.0, 'k2': 0.0, 'nonradial_rms_px': 1.5},
             id='nonradial_wander',
         ),
-        # Each of these moves one disc by more than the crop's margin, the radial
-        # warp the outer disc by about 115 pixels and the wander the inner one by
-        # about 140, so only the output crop's reach covers where it lands.
+        # Each warp moves one disc farther than the crop's margin: the radial warp
+        # moves the outer disc about 115 pixels, and the wander moves the inner one
+        # about 140.  Only the output crop's reach covers where the disc lands.
         pytest.param(_small_discs, {'k1': 1.5, 'k2': 0.0}, id='far_radial'),
         pytest.param(
             _small_discs,
