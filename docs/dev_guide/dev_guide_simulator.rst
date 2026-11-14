@@ -749,8 +749,8 @@ exactly the optical effects it wants and leaves the rest at the floor.
    state a wider one for their documented long wings. Like the warp, the blur
    convolves each cluster of lit pixels on its own crop and adds the results.
    The smaller FFTs round differently from one whole-frame FFT, by up to about
-   1e-15 of the peak, and they leave exact zeros in the dark where a whole-frame
-   FFT leaves residue of that size. On the full-size Cassini frame above the blur
+   1e-15 of the peak. In the dark, where a whole-frame FFT leaves residue of that
+   size, they leave exact zeros. On the full-size Cassini frame above, the blur
    takes 0.15 s instead of 0.50 s. A star field with more than a few hundred
    separate stars is blurred whole.
 4. **Ghost reflections** (:mod:`~spindoctor.sim.forward.ghosts`) add displaced,

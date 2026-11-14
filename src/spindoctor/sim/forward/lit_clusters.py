@@ -1,10 +1,9 @@
 """Group the lit pixels of a render-grid plane into clusters.
 
-Before the PSF, a plane is usually zero away from the bodies, rings, and stars.
-The linear optics steps (the distortion warp and the PSF blur) then need to
-process only the lit parts: each cluster of lit pixels is processed on its own
-crop and the results are added, which is the same as processing the whole plane
-because the steps are linear.
+Until the PSF blurs it, a plane is usually zero away from the bodies, rings, and
+stars.  The distortion warp and the PSF blur are both linear, so each can process
+every cluster of lit pixels on its own crop and add the results.  The sum is the
+same as processing the whole plane.
 
 Lit pixels are grouped in square blocks.  Lit blocks that touch, diagonally
 included, form one cluster.  A crop around one cluster can take in pixels of

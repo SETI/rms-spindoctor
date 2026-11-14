@@ -159,7 +159,7 @@ def _blur(signal: np.ndarray) -> np.ndarray:
 
 
 def _ring_around_a_star() -> np.ndarray:
-    """An annulus whose box holds a separate star, on a frame not whole blocks in size."""
+    """An annulus with a separate star inside its box, where blocks overhang the frame."""
     signal = np.zeros((300, 280), dtype=np.float64)
     vv, uu = np.mgrid[0:300, 0:280]
     radius = np.hypot(vv - 150.0, uu - 140.0)

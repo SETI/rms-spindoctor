@@ -6,12 +6,13 @@ and the plane is constant outside it, so only the box is resampled.
 
 The result is bit-identical to ``scipy.ndimage.shift(plane, (dv, du), order=1,
 mode='constant', cval=cval)`` inside the translated box.  ``shift`` samples output
-pixel ``i`` at source position ``i - dv``; here each position is computed the
-same way from its whole-frame index, then the crop's first index is subtracted,
-which is exact for a whole number.  The interpolation weights are therefore the
-same bits.  The crop holds every source pixel those positions read, so a crop
-edge inside the frame is never reached.  Outside the translated box the result is
-``cval`` exactly, where ``shift`` gives ``cval`` up to rounding.
+pixel ``i`` at source position ``i - dv``.  Here each position is computed the
+same way, from the pixel's index in the whole frame, and then the crop's first
+index is subtracted.  Subtracting a whole number is exact, so the interpolation
+weights match ``shift``'s to the last bit.  The crop holds every source pixel
+those positions read, so a crop edge inside the frame is never reached.  Outside
+the translated box the result is exactly ``cval``, where ``shift`` gives ``cval``
+up to rounding.
 
 The box is resampled a strip of rows at a time, so the table of sample positions
 stays small when a body fills the frame.  Each output pixel is computed on its
@@ -28,7 +29,7 @@ from spindoctor.support.types import NDArrayFloatType
 __all__ = ['nonzero_box', 'shifted_box', 'translate_box']
 
 # Output rows resampled per pass.  The table of sample positions for one pass holds
-# two numbers per pixel of the strip, so it stays a few MB on a 4096-pixel-wide grid.
+# two numbers per pixel of the strip, about 16 MB on a 4096-pixel-wide grid.
 _STRIP_ROWS = 256
 
 
@@ -76,7 +77,7 @@ def shifted_box(box: slice, delta: float, size: int) -> slice:
 
 
 def _source_span(out: slice, delta: float, size: int) -> slice:
-    """Source pixels the order-1 interpolation reads for an output span, clipped."""
+    """The source pixels that order-1 interpolation reads for an output span, clipped."""
     return slice(
         max(math.floor(out.start - delta) - 1, 0), min(math.ceil(out.stop - 1 - delta) + 2, size)
     )

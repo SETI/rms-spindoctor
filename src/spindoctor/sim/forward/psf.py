@@ -13,15 +13,15 @@ from ``sigma_u``); the Moffat wing is isotropic.  All radii are in detector
 pixels; the kernel is sampled on the oversampled render grid, and the whole
 convolution runs there before the box downsample.
 
-A plane is usually zero away from the bodies, rings, and stars, so the blur
-convolves each cluster of lit pixels on its own crop (see the lit_clusters
-module) and adds the results, which the convolution's linearity allows.  A crop's
-blur reaches the kernel's half-width past the crop and is exactly zero beyond.
-The FFTs are smaller than the frame's, so the result differs from one
-whole-frame convolution by rounding: up to about 1e-15 of the peak on lit pixels, and
-exact zeros where the whole-frame FFT leaves residue of that size in the dark.
-When the crops' convolutions would cover more than the frame's, the plane is
-blurred in one piece.
+A plane is usually zero away from the bodies, rings, and stars.  The blur
+therefore convolves each cluster of lit pixels on its own crop (see the
+lit_clusters module) and adds the results.  Convolution is linear, so the sum is
+the blur of the whole plane.  A crop's blur reaches the kernel's half-width past
+the crop and is exactly zero beyond it.  The FFTs are smaller than the frame's,
+so they round differently from one whole-frame convolution: by up to about 1e-15
+of the peak on lit pixels.  In the dark, where the whole-frame FFT leaves residue
+of that size, the crops leave exact zeros.  When the crops' convolutions would
+cover more than the frame's, the plane is blurred in one piece.
 """
 
 from collections.abc import Mapping
