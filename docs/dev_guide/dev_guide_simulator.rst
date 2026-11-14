@@ -82,6 +82,13 @@ scene -- including every planted error, noise knob, and contaminant. It lives in
      - The ellipsoid body renderer and its topographic path (relief, photometric
        laws, surface texture, transits), and the polyhedral-mesh renderer (see
        :ref:`sim-body-renderer`).
+   * - ``translate.py``
+     - Moves a body drawn at a reference position into place by linear
+       interpolation, resampling only the box the body covers. Inside that box
+       the result is bit-identical to shifting the whole frame.
+   * - ``lit_clusters.py``
+     - Groups the lit pixels of a render-grid plane into clusters, so that the
+       distortion warp and the PSF blur process each cluster on its own crop.
    * - ``ring_system.py``
      - The optical-depth ring-system renderer: radial tau features on
        perturbed orbits, projected through the shared opening-angle
@@ -739,7 +746,13 @@ exactly the optical effects it wants and leaves the rest at the floor.
    fraction of the kernel's energy in the isotropic wing, and each term is
    normalized so the kernel conserves flux. Each instrument's config entry states
    the kernel's truncation window (``psf.truncation_px``); the Cassini cameras
-   state a wider one for their documented long wings.
+   state a wider one for their documented long wings. Like the warp, the blur
+   convolves each cluster of lit pixels on its own crop and adds the results.
+   The smaller FFTs round differently from one whole-frame FFT, by up to about
+   1e-15 of the peak. In the dark, where a whole-frame FFT leaves residue of that
+   size, they leave exact zeros. On the full-size Cassini frame above, the blur
+   takes 0.15 s instead of 0.50 s. A star field with more than a few hundred
+   separate stars is blurred whole.
 4. **Ghost reflections** (:mod:`~spindoctor.sim.forward.ghosts`) add displaced,
    defocused, low-amplitude copies of the formed focal-plane image (internal
    reflections). Each ghost copies the pre-ghost signal, so ghosts do not
