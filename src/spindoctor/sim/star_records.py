@@ -43,11 +43,11 @@ __all__ = [
 # materialize this default so the downsample's rescale returns it intact.
 DEFAULT_PSF_SIZE: tuple[int, int] = (11, 11)
 
-# The spectral class a star entry gets when the scene omits one: the Sun's.
+# The spectral class of a star entry that omits one.  G2 is the Sun's class.
 DEFAULT_SPECTRAL_CLASS = 'G2'
 
-# The Johnson B-V color index a star gets when its spectral class is one the
-# catalog cannot map to a color: the solar (G2) value.
+# The Sun's Johnson B-V color index.  A star gets this color when the star
+# catalog cannot map its spectral class to a color.
 DEFAULT_BMV = 0.63
 
 
@@ -95,8 +95,9 @@ def star_record_from_params(
     if star.temperature is None:
         star.temperature = 5780.0
     star.johnson_mag_v = star.vmag
-    # A0 maps to a B-V of exactly 0.0, so only an unmapped class (None) falls
-    # back to the default; a truthiness test would turn every A0 star solar.
+    # The lookup returns None for a class it cannot map, and only then does the
+    # star take the default color.  A0 maps to exactly 0.0, so a truthiness test
+    # would give every A0 star the solar color.
     bmv = Star.bmv_from_sclass(star.spectral_class or DEFAULT_SPECTRAL_CLASS)
     if bmv is None:
         bmv = DEFAULT_BMV
