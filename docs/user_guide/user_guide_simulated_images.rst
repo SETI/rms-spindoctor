@@ -67,6 +67,35 @@ starting from an empty one.
 
    sd_create_simulated_image /path/to/scene.yaml
 
+While you edit, the editor shows a fast preview. It draws the scene in a fraction of a
+second, even on a full-size frame, so dragging a body or changing a value feels
+immediate. It is fast because it leaves out three things that are hard to see on
+screen. It draws on the detector's own pixels instead of a finer grid, it draws each
+body's edge without smoothing, and it leaves out the camera's residual lens distortion.
+Everything you place is still there at its own brightness: bodies, rings, and stars,
+blurred by the camera's point-spread function, with the scene's noise.
+
+About a second after your last change, the editor draws the full render in the
+background. This is the same image a test or a saved frame gets. When it finishes, it
+replaces the preview. If you change something while the full render is being drawn,
+the editor drops it and goes back to fast previews. The status bar says which image is
+on screen: "Fast preview", "Fast preview (full render running)", or "Full render".
+Judge noise, blur, and exact positions on the full render only.
+
+Everything that leaves the editor comes from the full render: a saved PNG image, the
+units and verdict in the status bar, and the saturation overlay. While the preview is on
+screen, the status bar says the verdict is pending, and the saturation overlay says it
+is waiting for the full render. If you save an image while the preview is on screen,
+the editor draws the full render first, which can take a few seconds on a full-size
+frame.
+
+``--full-render-delay SECONDS`` sets how long the editor waits after your last change
+before it starts the full render. The default is 1 second.
+
+.. code-block:: bash
+
+   sd_create_simulated_image --full-render-delay 2.5 /path/to/scene.yaml
+
 On a ``polyhedral_mesh`` body the editor disables the controls for the appearance keys a
 mesh doesn't support, because the scene file would refuse them: atmosphere, photometric
 law, opposition surge, albedo texture, disc texture, transits, and the crater controls.
@@ -101,20 +130,19 @@ render.
 The status bar also warns when the navigator would refuse a render: when more than
 30% of its pixels are lost, or when the frame would read as blank, as an empty
 calibrated Cassini frame does. It reads the frame the navigator sees, with the scene's
-planted offset applied, so its verdict can differ from what the preview shows. When
-the scene plants an offset, the editor renders that frame a second time in the
-background. The preview appears immediately, the status bar shows the units followed
-by "verdict pending", and the verdict fills in a moment later, once the second render
-finishes. The editor redraws a moment after you stop changing a value, and each
-redraw replaces the pending verdict. Until that redraw, the status bar still describes
-the scene as it was before the change.
+planted offset applied, so its verdict can differ from what the picture shows. When
+the scene plants an offset, the editor draws that frame in the background too, at the
+same time as the full render. Each preview sets the status bar to the units followed by
+"verdict pending", and the verdict fills in once the background renders finish. The
+preview redraws a moment after you stop changing a value. Until then, the status bar
+still describes the scene as it was before the change.
 
 Before each redraw the editor checks the scene by the same rules it uses to load a
 scene file. An edit can leave the scene unfinished for a moment, such as when two
 bodies share a name while you retype one, or when a value is out of range. If the scene
-would be refused, the last valid preview stays on screen. The status bar shows the
+would be refused, the last valid picture stays on screen. The status bar shows the
 reason in place of a verdict, whether or not the scene plants an offset. Until then
-you cannot drag an object on the preview, because the picture shows the earlier scene;
+you cannot drag an object on the picture, because it shows the earlier scene;
 the object's tab still edits it. Once an edit makes the scene valid again, the preview
 redraws as usual.
 
