@@ -446,21 +446,21 @@ def _sky_comparison(comparison: InstrumentComparison) -> dict[str, Any]:
     """Summarize the FOM 1 sky pairing by downlink, with the per-frame values.
 
     A frame downlinked through a companding table is grouped under that table's
-    quantization name (``'sqrt_lut'``); every other frame is grouped as
+    quantization name (``'sqrt_lut'``).  Every other frame is grouped as
     ``'native'``.  Each group reports how many of its frames ended in each pairing
-    status, and the quartiles of the compared frames' simulated over real median
-    sky sigma.
+    status.  It also reports the quartiles, over its compared frames, of the ratio
+    of simulated to real median sky sigma.
 
     Parameters:
         comparison: One instrument's comparison, after the match has paired
             every frame's sky patches.
 
     Returns:
-        ``by_downlink``, keyed by downlink label, holding ``n_frames``, a
-        ``n_<status>`` count for every pairing status, and
-        ``sigma_ratio_quartiles`` (None when no frame was compared); and
-        ``frames``, one entry per frame with its downlink label, status, sky
-        levels, patch counts, and sigma ratio.
+        A mapping with two keys.  ``by_downlink`` maps each downlink label to
+        ``n_frames``, an ``n_<status>`` count for each pairing status, and
+        ``sigma_ratio_quartiles`` (None when no frame was compared).  ``frames``
+        holds one entry per frame, with its downlink label, status, sky levels,
+        patch counts, and sigma ratio.
     """
     groups: dict[str, list[SkyPair]] = {}
     for pair in comparison.sky_pairs:

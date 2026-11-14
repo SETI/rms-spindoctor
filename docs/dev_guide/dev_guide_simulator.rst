@@ -1184,8 +1184,8 @@ The keys of an entry, all directly under the instrument's top-level key:
        ``readout_dark_e`` and the cosmic-ray dwell, amplitude, and spread. Also
        optional are the calibrated-product terms (``calibrated_sky_if``,
        ``calibration_column_residual_e``, and ``calibration_pixel_residual_e``)
-       and the realism match's dark-sky ceiling, ``dark_sky_ceiling_if``, which
-       only a calibrated product's entry may set.
+       and the realism match's dark-sky ceiling, ``dark_sky_ceiling_if``. Only
+       an entry whose ``data_units`` is ``calibrated_if`` may set the ceiling.
    * - ``readout_modes``
      - yes
      - The binning factors at which the camera reads out. Each maps to the
@@ -4286,61 +4286,71 @@ instrument, on seven figures of merit:
    zero-filled missing data, can't be measured.  Such a tile is set aside before
    the darkest quarter is chosen, so a large zero-filled area can't push the
    frame's dark sky out of it.
+
    On a frame filled with rings or a body, the darkest patches lie on the rings
-   or the body, and comparing them with the other frame's dark sky would set
-   signal-dependent noise against sky noise.  So a patch of either frame counts
-   only when it lies on dark sky: its mean may sit at most the camera's dark-sky
-   ceiling above the camera's calibrated sky residual.  The residual is the
-   level at which the simulator draws empty calibrated sky, measured on real
-   dark skies.  The ceiling is ``dark_sky_ceiling_if`` in the config entry's
-   ``detector`` block, in I/F.  A frame pair adds sky statistics only when both
-   frames keep at least one patch.  The sky power spectrum is measured on 64 × 64
-   pixel tiles, each made of four sky patches.  A frame measures up to four
-   tiles, those whose brightest patch is darkest, and adds a tile's spectrum only
-   when it keeps all four of the tile's patches.  Light from a ring or a limb
-   beside a dark patch therefore stays out of the spectrum.
+   or the body.  Comparing their noise with the other frame's dark sky would set
+   signal-dependent noise against sky noise.  So a patch counts only when it lies
+   on dark sky, and the test uses two values from the camera's config entry.  The
+   first is the calibrated sky residual, the level at which the simulator draws
+   empty calibrated sky.  The second is the dark-sky ceiling,
+   ``dark_sky_ceiling_if`` in the entry's ``detector`` block, in I/F.  A patch
+   lies on dark sky when its mean is at most the ceiling above the residual.  The
+   test applies to the patches of both frames, and a frame pair adds sky
+   statistics only when both frames keep at least one patch.
 
-   The rule looks at each patch's level and at nothing else.  A rule that used
-   a noise sigma would select patches by the quantity being compared.  A band
-   scaled by the matched frame's sigma narrows when the matched frame is too
-   quiet, and then drops real dark sky.  A band scaled by the real frame's sigma
-   widens on content, because noise grows with signal.
+   The sky power spectrum is measured on 64 × 64 pixel tiles, each made of four
+   sky patches.  A frame ranks its tiles by their brightest patch and measures
+   the four darkest.  A tile's spectrum enters the comparison only when all four
+   of its patches passed the dark-sky test.  Light from a ring or a limb beside a
+   dark patch therefore stays out of the spectrum.
 
-   Because the rule separates levels, it can't tell sky from content that sits
-   at the same level.  Sky brightened by scattered light, such as ring glare,
-   glow in a ring gap or beside a limb, or the halo around a bright moon, can
-   lie on either side of the ceiling.  Below it, the brightened sky counts as
-   dark sky and is compared with the matched frame's dark sky.  Above it, the
-   brightened sky drops out with the content.  The Cassini instrument page
-   gives the CALIB cameras' ceiling and the real patch levels it was measured
-   on.
+   The test looks only at each patch's mean level.  It never uses a noise sigma,
+   because the sigma is the quantity being compared.  A tolerance scaled by the
+   matched frame's sigma would shrink whenever the matched frame is too quiet,
+   and real dark sky would then fail the test.  A tolerance scaled by the real
+   frame's sigma would grow on rings and bodies, because noise grows with signal.
 
-   A camera that sets no ceiling isn't judged, and every sky patch of both
-   frames enters the sky statistics.  A camera whose products are raw DN sets
-   none, because the real product may have had its bias pedestal removed while
-   the matched frame keeps the simulator's, so the two levels can't be compared.
-   When no matched frame of an instrument has sky patches, each real frame's
-   dark-sky patches are recorded alone, so the real sky statistics still appear.
-   On a camera that sets no ceiling, every sky patch of the real frame is
-   recorded.  When the instrument's other matched frames have sky patches, a
-   pair whose matched frame has none is dropped.  When the real frame has no sky
-   patches, neither side adds any.
+   Because the test uses only levels, it can't tell sky from content at the same
+   level.  Sky brightened by scattered light can lie on either side of the
+   ceiling.  Ring glare, glow in a ring gap or beside a limb, and the halo around
+   a bright moon all brighten the sky this way.  Below the ceiling, the
+   brightened sky counts as dark sky and is compared with the matched frame's
+   dark sky.  Above it, the brightened sky drops out with the content.  The
+   Cassini instrument page (:doc:`instruments/cassini_iss`) gives the CALIB
+   cameras' ceiling and the real patch levels it was chosen from.
 
-   The summary's ``sky_comparison`` block groups each instrument's frames by
-   downlink: ``sqrt_lut`` for a frame downlinked through a companding table,
-   and ``native`` for every other frame.  Each group counts its frames by
-   outcome (``compared``, ``dropped``, ``not_judged``, ``no_real_sky``, and
-   ``no_sim_sky``) and gives the quartiles of the compared frames' ratio of
-   simulated to real median sky sigma, with the per-frame values beneath.  In
-   each frame's entry, ``real_level`` and ``sim_level`` are the median means of
-   the patches each frame kept, or of all its sky patches when it kept none.
-   The figure's support label counts, on each side, the frames that add any of
-   its statistics.  The noise-at-signal statistic uses the uniform patches above
-   the darkest quarter, so a frame can add it while its sky drops out, and the
-   sky statistics can rest on fewer frames.  ``n_sky_frames``, beside the
-   support counts, gives the number of frames that added sky samples, once for
-   the real side and once for the simulated side.  These counts set the support
-   labels of the sky statistics themselves.
+   If a camera's entry doesn't set a ceiling, its patches aren't tested, and
+   every sky patch of both frames enters the sky statistics.  A camera whose
+   products are raw DN can't set a ceiling.  The real product may have had its
+   bias pedestal removed, while the matched frame keeps the simulator's pedestal,
+   so the two levels can't be compared.
+
+   Some instruments' matched frames don't have any sky patches.  For those
+   instruments, each real frame's dark-sky patches enter the statistics alone,
+   so the real sky statistics still appear.  If the camera doesn't set a
+   ceiling, all of the real frame's sky patches enter.  If only some of an
+   instrument's matched frames have sky patches, a pair whose matched frame has
+   none is dropped.  If the real frame has no sky patches, neither frame of the
+   pair adds any.
+
+   The JSON summary's ``sky_comparison`` block reports these outcomes for each
+   instrument.  It groups the frames by downlink: ``sqrt_lut`` holds the frames
+   downlinked through a companding table, and ``native`` holds the rest.  Each
+   group counts its frames by outcome (``compared``, ``dropped``,
+   ``not_judged``, ``no_real_sky``, and ``no_sim_sky``).  It also gives the
+   quartiles, over the compared frames, of the ratio of simulated to real median
+   sky sigma.  The block's ``frames`` list has one entry per frame.  In each
+   entry, ``real_level`` and ``sim_level`` are the median means of the patches
+   each frame kept.  If a frame didn't keep any, its level is the median mean of
+   all its sky patches.
+
+   The support label of figure 1 counts every frame that adds any of its
+   statistics.  The noise-at-signal statistic uses the uniform patches brighter
+   than the darkest quarter.  A frame can therefore add that statistic even when
+   its sky patches drop out, so the sky statistics can rest on fewer frames than
+   the label shows.  ``n_sky_frames``, beside the support counts, gives the
+   number of frames that added sky samples on the real side and on the simulated
+   side.  These counts set the support labels of the sky statistics.
 2. **Star PSF** -- star-cutout radial profiles and encircled-energy radii
    (EE50/EE80) on cohorts that contain star frames.  Where a cohort has no
    star frames, the limb profile of figure 3 is the only PSF evidence and
@@ -4372,12 +4382,12 @@ instrument, on seven figures of merit:
 7. **Technique diagnostics** -- for a handful of matched real/sim pairs the
    full navigator runs on both frames and the per-technique diagnostics
    (inlier counts, residual scatter, confidences) are tabulated side by
-   side.  The navigator predicts each star's signal without regard to the
-   frame's filter, while the matched scene brightens its star ladder by the
-   filter's throughput.  On a frame taken through a filter other than clear,
-   the star techniques' predicted SNR and brightness margin therefore can't be
-   compared between the real and simulated frames until the prediction
-   accounts for the filter.
+   side.  The navigator predicts each star's signal without allowing for the
+   frame's filter.  The matched scene, though, brightens its stars to make up
+   for the filter, as the next section describes.  On a frame taken through any
+   filter but clear, the star techniques' predicted SNR and brightness margin
+   therefore can't be compared between the real and simulated frames.  They
+   can be compared once the navigator's prediction allows for the filter.
 
    .. The star prediction's filter handling is issue 899.
 
@@ -4395,13 +4405,14 @@ negative and scattered-light frames.  Scene seeds derive from the real
 frame's image id, so the whole match is deterministic: re-running the runner
 reproduces every simulated frame and every statistic bit for bit.
 
-A star frame's matched scene places 25 stars on a magnitude ladder from V 7.0
-in steps of 0.2, which reaches the detection edge of a clear-filter frame.
-The matched scene renders through the real frame's filter, so on a frame
-taken through another filter the whole ladder shifts by 2.5 log10 of that
-filter's star throughput over the clear combination's.  The shift is
-negative for a filter dimmer than clear, so the stars get brighter and the
-ladder reaches the detection edge of the frame's own filter.
+Most star frames' matched scenes place 25 stars on a magnitude ladder.  The
+brightest star is at V magnitude 7.0, and each step is 0.2 magnitudes fainter,
+so the faintest stars reach the detection limit of a clear-filter frame.  The
+matched scene renders through the real frame's filter.  If that filter passes
+a fraction *t* of the clear combination's starlight, the whole ladder shifts by
+2.5 log10 *t* magnitudes.  For a filter dimmer than clear, *t* is below 1, so
+the shift is negative and the stars get brighter.  The ladder then reaches the
+detection limit of the frame's own filter.
 
 Both sides then run *identical* extraction code -- the same patch finder,
 the same profile sampler, and the navigator's own feature extraction

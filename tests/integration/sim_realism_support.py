@@ -195,9 +195,9 @@ class FrameSamples:
         samples: Scalar sample lists per kind (pooled by the runner).
         curves: Per-kind list of ``(x, y)`` curve pairs; the runner
             averages the y-arrays over frames on the shared x-grid.
-        sky: The frame's FOM 1 sky patches, which the runner turns into sky
-            samples with :func:`add_sky_samples` once it has judged them
-            against the matched frame's; never merged.
+        sky: The frame's FOM 1 sky patches.  The runner tests them against the
+            matched frame's, then turns the kept ones into sky samples with
+            :func:`add_sky_samples`.  :meth:`merge` doesn't copy this field.
     """
 
     samples: dict[str, list[float]] = field(default_factory=dict)
@@ -230,8 +230,8 @@ def _sky_and_signal_patches(image: NDArrayFloatType) -> tuple[list[SkyPatch], li
     """Split a frame's near-uniform 32-px patches into sky and signal strata.
 
     Only the patches whose noise sigma is measured and positive take part.  A tile
-    of one constant value, such as zero-filled missing data, holds no noise, and if
-    it counted toward the darkest quarter it could push the frame's real dark sky
+    of one constant value, such as zero-filled missing data, doesn't hold any noise.
+    If it counted toward the darkest quarter, it could push the frame's real dark sky
     out of the sky stratum.
 
     Parameters:
@@ -257,9 +257,10 @@ def _sky_psd_tiles(
 
     The patches lie on a 32-px grid, so each 64-px tile covers four of them.  A
     tile is a candidate only when all four are sky patches, so that light from a
-    ring or a limb beside one patch never reaches the spectrum.  The four tiles
-    whose brightest patch is darkest are measured, and each spectrum is
-    normalized to unit total power (the amplitude is sky_sigma's job).
+    ring or a limb beside one patch never reaches the spectrum.  The candidates
+    are ranked by their brightest patch, and the four darkest are measured.  Each
+    spectrum is normalized to unit total power, because sky_sigma measures the
+    amplitude.
 
     Parameters:
         image: The frame in its native units.
@@ -296,9 +297,9 @@ def extract_pixel_samples(
 ) -> tuple[FrameSamples, ArtifactRates]:
     """FOM 1, 5, and 6 samples from raw frame pixels.
 
-    The FOM 1 sky patches are held on the returned samples' ``sky`` rather
-    than added as samples: the runner adds them with :func:`add_sky_samples`
-    after judging them against the matched frame's.
+    The FOM 1 sky patches are held on the returned samples' ``sky`` field, and
+    they aren't added as samples here.  The runner adds them with
+    :func:`add_sky_samples` after testing them against the matched frame's.
 
     Parameters:
         image: The frame in its native units (DN or I/F).
@@ -323,7 +324,7 @@ def extract_pixel_samples(
     # bias-subtracted (LORRI sci) while the matching sim chain carries its
     # bias pedestal, and the *level above floor* is the comparable part.
     # The sky patches stay on the frame (``FrameSamples.sky``) until the
-    # runner has judged them against the matched frame's: only patches on
+    # runner has tested them against the matched frame's.  Only patches on
     # comparable content enter the pooled sky statistics (see
     # :func:`add_sky_samples`).
     frame_floor = float(np.percentile(arr[np.isfinite(arr)], 1.0)) if arr.size else 0.0
@@ -358,7 +359,7 @@ def extract_pixel_samples(
 
 
 def add_sky_samples(frame: FrameSamples, patches: list[SkyPatch]) -> None:
-    """Add a frame's FOM 1 sky samples from the sky patches its pair kept.
+    """Add a frame's FOM 1 sky samples from the sky patches kept for its pair.
 
     Parameters:
         frame: The frame, whose ``sky`` holds its floor and power spectra.

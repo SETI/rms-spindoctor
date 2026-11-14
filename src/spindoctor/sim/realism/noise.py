@@ -928,9 +928,9 @@ def noisy_patches(patches: list[SkyPatch]) -> list[SkyPatch]:
 def dark_sky_patches(patches: list[SkyPatch], ceiling_level: float) -> list[SkyPatch]:
     """Select the sky patches that lie on dark sky.
 
-    A patch is kept when its mean lies at or below ``ceiling_level``, however far
-    below.  The selection depends on each patch's level alone and never on any
-    noise sigma, so it never selects on the quantity being compared.
+    A patch is kept when its mean is at or below ``ceiling_level``, however far
+    below.  The selection uses only each patch's level.  It never uses a noise
+    sigma, because the sigma is the quantity being compared.
 
     Parameters:
         patches: One frame's sky patches.

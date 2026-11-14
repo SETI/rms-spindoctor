@@ -233,10 +233,11 @@ def resolve_calibrated_sky_if(instrument: str | None) -> float:
 
 
 def resolve_dark_sky_ceiling_if(instrument: str | None) -> float | None:
-    """Return the realism comparison's dark-sky ceiling, in I/F, of a calibrated frame.
+    """Return an instrument's dark-sky ceiling for the realism comparison, in I/F.
 
-    The realism comparison counts a sky patch as dark sky when its mean lies at or
-    below the calibrated sky residual plus this ceiling.
+    The realism comparison counts a sky patch as dark sky when its mean is at most
+    the calibrated sky residual plus this ceiling.  Only an entry for calibrated
+    products may set one.
 
     Parameters:
         instrument: The sim instrument name, an alias, or ``None``.
