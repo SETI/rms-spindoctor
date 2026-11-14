@@ -4,10 +4,12 @@ Writes one figure per figure of merit per instrument (real/sim histogram
 overlays plus the curve overlays) into ``docs/simulator_report/_figures/``
 as ``realism_<instrument>_<fom>.png``, and a deterministic JSON summary
 into ``tests/integration/realism_results/realism_summary.json`` that backs
-the report's tables (per-kind W1 divergences, per-curve density-W1
-divergences, support labels, the FOM 3 one-sided-stratum disclosure, the
-FOM 1 sky pairing with its per-frame sigma ratios, the FOM 7 diagnostic
-rows, and the artifact-rate comparison against the catalog defaults).
+the report's tables and the regression check (the code commit it was made
+from and whether its checkout was dirty, per-kind W1 divergences, per-curve
+density-W1 divergences, support labels with each side's frame counts, the
+FOM 3 one-sided-stratum disclosure, the FOM 1 sky pairing with its per-frame
+sigma ratios, the FOM 7 diagnostic rows, and the artifact-rate comparison
+against the catalog defaults).
 
 Two fixed series colors carry sides everywhere: real cohort in blue,
 simulated frames in orange -- a colorblind-safe pair, never cycled.
@@ -16,7 +18,9 @@ simulated frames in orange -- a colorblind-safe pair, never cycled.
 from __future__ import annotations
 
 import json
+import subprocess
 import warnings
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -36,10 +40,27 @@ from tests.integration.sim_realism import (
     SkyPairStatus,
 )
 
-__all__ = ['write_figures', 'write_summary']
+__all__ = [
+    'CodeProvenance',
+    'code_provenance',
+    'require_code_provenance',
+    'summary_dict',
+    'write_figures',
+    'write_summary',
+]
 
-_FIGURES_ROOT = Path(__file__).parent.parent.parent / 'docs' / 'simulator_report' / '_figures'
+_REPO_ROOT = Path(__file__).parent.parent.parent
+_FIGURES_ROOT = _REPO_ROOT / 'docs' / 'simulator_report' / '_figures'
 _RESULTS_ROOT = Path(__file__).parent / 'realism_results'
+_SUMMARY_NAME = 'realism_summary.json'
+
+# Git pathspecs that leave the match's own outputs, its summary and its realism_*.png
+# figures, out of the dirty check.  Other tools' figures in the same directory still
+# count.
+_OUTPUT_EXCLUDES = (
+    f':(exclude){(_RESULTS_ROOT / _SUMMARY_NAME).relative_to(_REPO_ROOT).as_posix()}',
+    f':(exclude,glob){_FIGURES_ROOT.relative_to(_REPO_ROOT).as_posix()}/realism_*.png',
+)
 
 # Fixed series colors (real vs sim), used in every figure.
 _REAL_COLOR = '#31688e'
@@ -478,9 +499,88 @@ def _sky_comparison(comparison: InstrumentComparison) -> dict[str, Any]:
     }
 
 
-def _summary_dict(results: RealismResults) -> dict[str, Any]:
-    """The deterministic JSON-serializable summary."""
-    out: dict[str, Any] = {'runtime_sec': round(results.runtime_sec, 1), 'instruments': {}}
+def _kind_support(comparison: InstrumentComparison, kind: str) -> dict[str, Any]:
+    """One statistic's contributing frames on each side and its support label."""
+    return {
+        'n_real_frames': comparison.kind_frames.get('real', {}).get(kind, 0),
+        'n_sim_frames': comparison.kind_frames.get('sim', {}).get(kind, 0),
+        'support': comparison.kind_support.get(kind, 'unsupported'),
+    }
+
+
+@dataclass(frozen=True)
+class CodeProvenance:
+    """The code a realism summary was made from.
+
+    Parameters:
+        commit: The full hash of the commit checked out.
+        dirty: Whether tracked files differed from that commit.
+    """
+
+    commit: str
+    dirty: bool
+
+
+def _git(*args: str) -> str | None:
+    """The output of one git command in this repository, or None when git fails."""
+    try:
+        done = subprocess.run(
+            ['git', *args], cwd=_REPO_ROOT, capture_output=True, text=True, check=False
+        )
+    except OSError:
+        return None
+    return done.stdout if done.returncode == 0 else None
+
+
+def code_provenance() -> CodeProvenance | None:
+    """The commit checked out in this repository and whether it is dirty.
+
+    The summary records both so the regression check
+    (:mod:`tests.integration.realism_regression`) knows which code the record holds.
+    Untracked files don't make the checkout dirty, and neither do changes to the
+    match's own outputs, its ``realism_*.png`` figures and its summary, which an earlier
+    run leaves behind until they are committed.  A change to any other tracked file,
+    another tool's figure among them, makes it dirty.
+
+    Returns:
+        The provenance, or None when git is missing or refuses the repository.
+    """
+    commit = _git('rev-parse', 'HEAD')
+    status = _git('status', '--porcelain', '--untracked-files=no', '--', '.', *_OUTPUT_EXCLUDES)
+    if commit is None or not commit.strip() or status is None:
+        return None
+    return CodeProvenance(commit=commit.strip(), dirty=bool(status.strip()))
+
+
+def require_code_provenance() -> CodeProvenance:
+    """The provenance a realism summary records, captured before the match runs.
+
+    The match writes tracked figures, so git status taken after it would report the
+    run's own outputs as changes.
+
+    Returns:
+        The commit checked out and whether tracked files differed from it.
+
+    Raises:
+        RuntimeError: When git cannot name the commit checked out, since a summary
+            without one can't be held to the regression bands.
+    """
+    provenance = code_provenance()
+    if provenance is None:
+        raise RuntimeError(
+            f'Cannot determine the code commit of {_REPO_ROOT} with git, so the realism '
+            'summary would not record which code made it; run from a git checkout '
+            'that git accepts.'
+        )
+    return provenance
+
+
+def summary_dict(results: RealismResults) -> dict[str, Any]:
+    """The deterministic JSON-serializable summary, without the code provenance."""
+    out: dict[str, Any] = {
+        'runtime_sec': round(results.runtime_sec, 1),
+        'instruments': {},
+    }
     for instrument, comparison in sorted(results.comparisons.items()):
         defaults = resolve_detector_defaults(instrument)
         kinds: dict[str, Any] = {}
@@ -495,6 +595,7 @@ def _summary_dict(results: RealismResults) -> dict[str, Any]:
                 'n_sim': div.n_sim,
                 'real_median': _round(float(np.median(real_values))) if real_values.size else None,
                 'sim_median': _round(float(np.median(sim_values))) if sim_values.size else None,
+                **_kind_support(comparison, kind),
             }
         curve_kinds: dict[str, Any] = {}
         for kind, div in sorted(comparison.curve_divergences.items()):
@@ -504,12 +605,16 @@ def _summary_dict(results: RealismResults) -> dict[str, Any]:
                 'real_iqr': _round(div.real_iqr),
                 'n_real_curves': len(comparison.real.curves.get(kind, [])),
                 'n_sim_curves': len(comparison.sim.curves.get(kind, [])),
+                **_kind_support(comparison, kind),
             }
         out['instruments'][instrument] = {
             'n_frames': len(comparison.records),
             'frames': [r.image_id for r in comparison.records],
             'fom_support': dict(sorted(comparison.fom_support.items())),
-            'fom_frames': dict(sorted(comparison.fom_frames.items())),
+            'fom_frames': {
+                side: dict(sorted(comparison.fom_frames.get(side, {}).items()))
+                for side in ('real', 'sim')
+            },
             'n_sky_frames': {
                 'real': sum(1 for p in comparison.sky_pairs if p.real_added),
                 'sim': sum(1 for p in comparison.sky_pairs if p.sim_added),
@@ -541,17 +646,23 @@ def _summary_dict(results: RealismResults) -> dict[str, Any]:
     return out
 
 
-def write_summary(results: RealismResults, *, results_root: Path | None = None) -> Path:
-    """Write the JSON summary; returns its path.
+def write_summary(
+    results: RealismResults, provenance: CodeProvenance, *, results_root: Path | None = None
+) -> Path:
+    """Write the JSON summary with the code's commit and dirty flag; returns its path.
 
     Parameters:
         results: The realism-match results.
+        provenance: The code the match ran on, from :func:`require_code_provenance`
+            called before the match.
         results_root: Output directory override (tests); defaults to
             ``tests/integration/realism_results``.
     """
     root = results_root if results_root is not None else _RESULTS_ROOT
     root.mkdir(parents=True, exist_ok=True)
-    path = root / 'realism_summary.json'
-    payload = _summary_dict(results)
+    path = root / _SUMMARY_NAME
+    payload = summary_dict(results)
+    payload['code_commit'] = provenance.commit
+    payload['code_dirty'] = provenance.dirty
     path.write_text(json.dumps(payload, indent=2, sort_keys=True, allow_nan=False) + '\n')
     return path

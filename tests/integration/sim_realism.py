@@ -158,13 +158,13 @@ MODELS_FOR_CLASS: dict[str, list[str]] = {
 FOM7_CLASSES: tuple[str, ...] = ('star_dominated', 'body_full_fov', 'ring_only_flat')
 FOM7_MAX_PAIRS_PER_INSTRUMENT = 3
 
-# Which sample-kind prefixes belong to which figure of merit (for support
-# labeling and reporting).
+# Which sample-kind and curve-kind prefixes belong to which figure of merit (for
+# support labeling and reporting).
 FOM_KIND_PREFIXES: dict[str, tuple[str, ...]] = {
-    'fom1_noise': ('sky_sigma', 'sky_mean_minus_floor', 'signal_sigma'),
-    'fom2_psf': ('star_ee50', 'star_ee80'),
-    'fom3_limb': ('limb_width',),
-    'fom4_ring': ('ring_edge_width',),
+    'fom1_noise': ('sky_sigma', 'sky_mean_minus_floor', 'signal_sigma', 'sky_psd'),
+    'fom2_psf': ('star_ee50', 'star_ee80', 'star_profile'),
+    'fom3_limb': ('limb_width', 'limb_profile'),
+    'fom4_ring': ('ring_edge_width', 'ring_radial_profile'),
     'fom5_dynrange': ('frac_saturated', 'frac_near_floor', 'signal_p95', 'signal_p99'),
     'fom6_artifacts': ('artifact_',),
 }
@@ -320,8 +320,16 @@ class InstrumentComparison:
             (no sim counterpart; excluded from the pooled statistic and
             disclosed in the report).
         limb_bins_sim_only: FOM 3 strata populated only on the sim side.
-        fom_frames: Contributing real-frame count per figure of merit.
-        fom_support: Cohort-support label per figure of merit.
+        frame_kinds: Per side (``'real'``, ``'sim'``), each frame's sample and
+            curve kinds once its sky has been paired, in the records' order.
+        fom_frames: Per side, the number of frames contributing to each figure
+            of merit.
+        fom_support: Cohort-support label per figure of merit, from the side
+            with fewer contributing frames.
+        kind_frames: Per side, the number of frames contributing to each sample
+            and curve kind.
+        kind_support: Cohort-support label per sample and curve kind, from the
+            side with fewer contributing frames.
         fom7_rows: Read-only technique-diagnostic rows from the matched
             navigation pairs.
         sky_pairs: Per frame, how its FOM 1 sky patches compared with the
@@ -336,8 +344,13 @@ class InstrumentComparison:
     curve_divergences: dict[str, W1Result] = field(default_factory=dict)
     limb_bins_real_only: list[str] = field(default_factory=list)
     limb_bins_sim_only: list[str] = field(default_factory=list)
-    fom_frames: dict[str, int] = field(default_factory=dict)
+    frame_kinds: dict[str, list[frozenset[str]]] = field(
+        default_factory=lambda: {'real': [], 'sim': []}
+    )
+    fom_frames: dict[str, dict[str, int]] = field(default_factory=dict)
     fom_support: dict[str, str] = field(default_factory=dict)
+    kind_frames: dict[str, dict[str, int]] = field(default_factory=dict)
+    kind_support: dict[str, str] = field(default_factory=dict)
     fom7_rows: list[dict[str, Any]] = field(default_factory=list)
     sky_pairs: list[SkyPair] = field(default_factory=list)
     real_rates: list[ArtifactRates] = field(default_factory=list)
@@ -614,14 +627,14 @@ def pair_sky(
     """Add one frame pair's FOM 1 sky samples from the patches that lie on dark sky.
 
     A frame's sky patches are the darkest quarter of its uniform patches whose noise
-    sigma is positive.  A constant tile, such as zero-filled missing data, has a
-    sigma of 0 and is left out.  On a frame filled with rings or a body, the sky
-    patches lie on that content.  Comparing them with the other frame's dark sky
-    would set signal-dependent noise against sky noise.  So on an instrument that
-    sets a dark-sky ceiling, a patch of either frame counts only when its mean is at
-    most the calibrated sky residual plus that ceiling.  The pair adds sky samples
-    only when both frames keep at least one patch.  On an instrument without a
-    ceiling, every patch is added.
+    sigma is positive.  The sigma of a constant tile, such as zero-filled missing
+    data, can't be measured, so such a tile never becomes a patch.  On a frame
+    filled with rings or a body, the sky patches lie on that content.  Comparing
+    them with the other frame's dark sky would set signal-dependent noise against
+    sky noise.  So on an instrument that sets a dark-sky ceiling, a patch of either
+    frame counts only when its mean is at most the calibrated sky residual plus that
+    ceiling.  The pair adds sky samples only when both frames keep at least one
+    patch.  On an instrument without a ceiling, every patch is added.
 
     Parameters:
         record: The real frame's record.
@@ -724,7 +737,7 @@ def _mean_curve_density(
     return np.asarray(np.clip(np.nan_to_num(mean, nan=0.0), 0.0, None), dtype=np.float64)
 
 
-def _pool_copopulated_limb_bins(comparison: InstrumentComparison) -> None:
+def _pool_copopulated_limb_bins(comparison: InstrumentComparison) -> list[str]:
     """Build the FOM 3 pooled sample from strata populated on both sides.
 
     A raw pool over every stratum compares different scene mixtures
@@ -732,7 +745,8 @@ def _pool_copopulated_limb_bins(comparison: InstrumentComparison) -> None:
     emission path may leave one empty), and the pooled W1 then measures
     the mixture difference rather than the width difference.  Only
     co-populated strata pool into ``limb_width_copop``; one-sided strata
-    are recorded on the comparison for disclosure.
+    are recorded on the comparison for disclosure.  Returns the co-populated
+    strata's kinds.
     """
     bin_kinds = sorted(
         k
@@ -755,11 +769,49 @@ def _pool_copopulated_limb_bins(comparison: InstrumentComparison) -> None:
         comparison.sim.samples['limb_width_copop'] = [
             x for k in copopulated for x in comparison.sim.samples[k]
         ]
+    return copopulated
+
+
+def _count_frames(comparison: InstrumentComparison, copopulated_limb_bins: list[str]) -> None:
+    """Count each side's contributing frames per kind and per figure of merit.
+
+    A frame contributes to a kind when it added samples or a curve of that kind, and
+    to ``limb_width_copop`` when it added samples to a co-populated limb stratum.  A
+    frame contributes to a figure of merit when it contributes to any of its kinds.
+    """
+    copop = frozenset(copopulated_limb_bins)
+    for side, kinds_per_frame in comparison.frame_kinds.items():
+        kind_counts: dict[str, int] = {}
+        fom_counts: dict[str, int] = {}
+        for kinds in kinds_per_frame:
+            frame_kinds = set(kinds)
+            if kinds & copop:
+                frame_kinds.add('limb_width_copop')
+            for kind in frame_kinds:
+                kind_counts[kind] = kind_counts.get(kind, 0) + 1
+            foms = {fom for fom in map(_fom_for_kind, frame_kinds) if fom is not None}
+            for fom in foms:
+                fom_counts[fom] = fom_counts.get(fom, 0) + 1
+        comparison.kind_frames[side] = kind_counts
+        comparison.fom_frames[side] = fom_counts
+
+
+def _two_sided_support(counts: dict[str, dict[str, int]], key: str) -> str:
+    """The support label for ``key`` from the side with fewer contributing frames."""
+    n_real = counts.get('real', {}).get(key, 0)
+    n_sim = counts.get('sim', {}).get(key, 0)
+    return cohort_support(min(n_real, n_sim)).value
 
 
 def _aggregate(comparison: InstrumentComparison) -> None:
-    """Compute divergences and support labels from the pooled samples."""
-    _pool_copopulated_limb_bins(comparison)
+    """Compute divergences and support labels from the pooled samples.
+
+    A statistic's support counts the frames on both sides and takes the smaller
+    count.  So a statistic that lacks simulated samples is labeled unsupported,
+    however many real frames it has.
+    """
+    copopulated = _pool_copopulated_limb_bins(comparison)
+    _count_frames(comparison, copopulated)
     for kind, real_values in sorted(comparison.real.samples.items()):
         sim_values = comparison.sim.samples.get(kind, [])
         comparison.divergences[kind] = w1_divergence(
@@ -780,8 +832,9 @@ def _aggregate(comparison: InstrumentComparison) -> None:
             _mean_curve_density(sim_curves),
         )
     for fom in FOM_KIND_PREFIXES:
-        n = comparison.fom_frames.get(fom, 0)
-        comparison.fom_support[fom] = cohort_support(n).value
+        comparison.fom_support[fom] = _two_sided_support(comparison.fom_frames, fom)
+    for kind in sorted(set(comparison.divergences) | set(comparison.curve_divergences)):
+        comparison.kind_support[kind] = _two_sided_support(comparison.kind_frames, kind)
     # FOM 7 support: pairs actually navigated.
     n_pairs = len({row['image_id'] for row in comparison.fom7_rows})
     comparison.fom_support['fom7_diagnostics'] = cohort_support(
@@ -794,18 +847,9 @@ def _aggregate(comparison: InstrumentComparison) -> None:
     comparison.spike_split_sim = split_stationary_spikes(comparison.sim_rates)
 
 
-def _count_fom_frames(comparison: InstrumentComparison, frame: FrameSamples) -> None:
-    """Increment per-FOM contributing-frame counts for one real frame."""
-    seen: set[str] = set()
-    for kind in frame.samples:
-        fom = _fom_for_kind(kind)
-        if fom is not None:
-            seen.add(fom)
-    for kind in frame.curves:
-        if kind == 'sky_psd':
-            seen.add('fom1_noise')
-    for fom in seen:
-        comparison.fom_frames[fom] = comparison.fom_frames.get(fom, 0) + 1
+def _kinds_of(frame: FrameSamples) -> frozenset[str]:
+    """The sample and curve kinds one frame added."""
+    return frozenset(frame.samples) | frozenset(frame.curves)
 
 
 def pool_frame_pairs(
@@ -820,8 +864,8 @@ def pool_frame_pairs(
 
     Parameters:
         comparison: The instrument's comparison, which holds one record per
-            frame.  It receives the sky pairs, the pooled samples, and the
-            per-figure frame counts.
+            frame.  It receives the sky pairs, the pooled samples, and, for each
+            side, the kinds of statistic each frame added.
         real_frames: The real frames' samples, in the records' order.
         sim_frames: The matched frames' samples, in the same order.
     """
@@ -833,8 +877,9 @@ def pool_frame_pairs(
             pair_sky(record, real_samples, sim_samples, twins_with_sky=with_sky)
         )
         comparison.real.merge(real_samples)
-        _count_fom_frames(comparison, real_samples)
         comparison.sim.merge(sim_samples)
+        comparison.frame_kinds['real'].append(_kinds_of(real_samples))
+        comparison.frame_kinds['sim'].append(_kinds_of(sim_samples))
 
 
 def run_realism_match(
@@ -885,7 +930,11 @@ def run_realism_match(
 
 def main() -> None:
     """CLI entry: run the match, write figures and the JSON summary."""
-    from tests.integration.sim_realism_report import write_figures, write_summary
+    from tests.integration.sim_realism_report import (
+        require_code_provenance,
+        write_figures,
+        write_summary,
+    )
 
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -898,13 +947,17 @@ def main() -> None:
     )
     parser.add_argument('--skip-fom7', action='store_true', help='skip the navigation pairs')
     args = parser.parse_args()
+    try:
+        provenance = require_code_provenance()
+    except RuntimeError as exc:
+        parser.error(str(exc))
     results = run_realism_match(
         instruments=args.instrument,
         max_frames_per_instrument=args.max_frames,
         skip_fom7=args.skip_fom7,
     )
     write_figures(results)
-    summary_path = write_summary(results)
+    summary_path = write_summary(results, provenance)
     print(f'realism match complete in {results.runtime_sec:.1f} s; summary: {summary_path}')
 
 

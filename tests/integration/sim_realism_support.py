@@ -229,9 +229,9 @@ class FrameSamples:
 def _sky_and_signal_patches(image: NDArrayFloatType) -> tuple[list[SkyPatch], list[SkyPatch]]:
     """Split a frame's near-uniform 32-px patches into sky and signal strata.
 
-    Only the patches whose noise sigma is positive take part.  A tile of one
-    constant value, such as zero-filled missing data, doesn't hold any noise.  If
-    it counted toward the darkest quarter, it could push the frame's real dark sky
+    Only the patches whose noise sigma is measured and positive take part.  A tile
+    of one constant value, such as zero-filled missing data, doesn't hold any noise.
+    If it counted toward the darkest quarter, it could push the frame's real dark sky
     out of the sky stratum.
 
     Parameters:
