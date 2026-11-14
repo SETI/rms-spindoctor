@@ -1097,9 +1097,10 @@ top-level value isn't a mapping. Within an entry, the load fails on:
   entry offers; a filter or polarizer spelled other than canonically; a filter
   table key that contains a polarizer, which no scene can select because a
   scene's filter folds each polarizer onto its wheel's clear element before
-  lookup; and a ``dark_sky_ceiling_if`` on an entry whose ``data_units`` is
+  lookup; a ``dark_sky_ceiling_if`` on an entry whose ``data_units`` is
   ``raw_dn``, since the realism match applies the ceiling only to calibrated
-  frames.
+  frames; and a ``dark_sky_ceiling_if`` in a readout mode, since the realism
+  match reads the ceiling from the ``detector`` block alone.
 
 Three rules shape what an entry may state. **Canonical filter spelling:** a
 scene's ``detector.filter`` is read element by element, stripped of spaces and

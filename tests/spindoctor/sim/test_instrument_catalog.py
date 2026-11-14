@@ -339,6 +339,12 @@ _REFUSED: list[tuple[dict[str, str], str, str]] = [
         'readout-mode-changing-the-model',
     ),
     (
+        {'cam.yaml': _cam(_with('  1: {}', '  1: {}\n  2: {dark_sky_ceiling_if: 2.5e-3}'))},
+        r'readout_modes\.2\.dark_sky_ceiling_if: the realism comparison reads the dark-sky '
+        r'ceiling from the detector block',
+        'readout-mode-setting-the-dark-sky-ceiling',
+    ),
+    (
         {
             'cam.yaml': _cam(
                 _with('  1: {}', '  1: {}\n  2: {gain_e_per_dn_by_state: {0: 2.0, 1: 1.0}}')

@@ -229,6 +229,13 @@ def _check_readout_modes(entry: Mapping[str, Any], *, source: str) -> None:
                     f'{path}.{key}',
                     f'a readout mode bins the same detector, so it cannot change detector.{key}',
                 )
+        if 'dark_sky_ceiling_if' in overrides:
+            raise config_error(
+                source,
+                f'{path}.dark_sky_ceiling_if',
+                'the realism comparison reads the dark-sky ceiling from the detector block, '
+                'so a readout mode cannot set it',
+            )
         if detector['detector_model'] == 'vidicon' and binning != 1:
             raise config_error(source, path, 'the vidicon DN chain has no binned readout')
         _check_readout_gain(detector, overrides, source=source, path=path)
