@@ -184,7 +184,7 @@ _NULL_FRAME_SCENE: dict[str, Any] = {
     'artifacts': dict.fromkeys(('instrument_defaults', 'adversarial')),
     'sky_counts': dict.fromkeys(('a', 'b', 'density_factor', 'diffuse_e_per_px')),
 }
-"""The top-level keys and the frame-wide blocks, with every key set to null."""
+"""The optional top-level keys and the frame-wide blocks, set to null."""
 
 
 @pytest.fixture

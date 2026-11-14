@@ -4138,17 +4138,18 @@ value the renderer draws with:
 * **On/off groups.** A group starts turned off when its block, or the key that turns it
   on, is absent or null, because the renderer then draws none of it. An empty ring
   azimuthal sub-block also starts turned off. While a group is off, its controls show
-  the values that turning it on writes.
+  the values the editor writes when the group is turned on.
 * **Groups whose default is 0.** The renderer's defaults for the opposition surge's
   amplitude, the pose scatter's sigma, and the spacecraft-ephemeris reference range are
   all 0, so a group turned on at its default would change nothing. If the scene leaves
   one of these blocks out, turning its group on writes a visible starting value instead
-  (0.3, 1.0, and 1000 km), so the author sees an effect.
-* **The spacecraft-ephemeris reference range.** When the scene leaves the range out,
-  its control shows ``unset``, at 0. While it shows ``unset``, the editor leaves the key
-  out of the scene, because the validator refuses an explicit 0 and the renderer reads
-  a missing range as 0. An edit to one of the block's other controls keeps the scene's
-  exact values for the rest, so a range finer than the control can display survives.
+  (0.3, 1 degree, and 1000 km), so the author sees an effect.
+* **The spacecraft-ephemeris reference range.** When the block is in the scene but leaves
+  the range out, its control shows ``unset``, at 0. While it shows ``unset``, the editor
+  leaves the key out of the scene, because the validator refuses an explicit 0 and the
+  renderer reads a missing range as 0. An edit to one of the block's other controls
+  keeps the scene's exact values for the rest, so a range finer than the control can
+  display survives.
 
 The GUI exposes the full scene parameter surface, so any scene that can be
 written by hand in YAML can also be built in the GUI. Two exceptions are
