@@ -99,9 +99,9 @@ For each candidate record brighter than
   pair; a match against Tycho-2 adopts Tycho-2's V and fakes the color from the candidate's
   spectral class (this pipeline discards Tycho-2's own color), setting ``johnson_mag_faked``.
 - If it matches a reference star but already agrees to within the tolerance, it is not
-  saturated and is left untouched and unflagged. This is what keeps the flag honest: a
-  genuine :math:`V \approx 7` to :math:`8` star beyond YBSC completeness matches its Tycho-2
-  reference, agrees with it, and is not mistaken for saturation.
+  saturated and is left untouched and unflagged. This keeps the flag off stars that are
+  not saturated: a genuine :math:`V \approx 7` to :math:`8` star beyond YBSC completeness
+  matches its Tycho-2 reference, agrees with it, and is not mistaken for saturation.
 - If it has no reference in either catalog -- now genuinely rare -- it is flagged
   ``photometry_saturated``, so downstream consumers treat its magnitude as an untrusted
   lower bound on brightness rather than a trustworthy reading.

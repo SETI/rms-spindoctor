@@ -289,7 +289,7 @@ def test_subject_range_comes_from_the_scene() -> None:
 
 
 def test_missing_range_is_infinite_not_zero() -> None:
-    """A body with no stated range is honestly at unknown distance."""
+    """A body that has no stated range is at an unknown, infinite distance."""
     body = _titan()
     del body['range_km']
     assert math.isinf(_model([body]).geometry_inputs.subject_range_km)

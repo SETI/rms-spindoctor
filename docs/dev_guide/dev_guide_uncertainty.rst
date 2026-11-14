@@ -75,8 +75,8 @@ form computed by
 :func:`~spindoctor.nav_technique.dt_fitting.weights.information_matrix_to_covariance`:
 the information matrix is ``J^T diag(w) J`` (Jacobian of the residual vector,
 weighted by the final robust weights), and the covariance is its
-Moore-Penrose pseudo-inverse. The pseudo-inverse is what makes degenerate
-geometry honest: a straight polyline yields a rank-1 information matrix, and
+Moore-Penrose pseudo-inverse. The pseudo-inverse is what exposes degenerate
+geometry: a straight polyline yields a rank-1 information matrix, and
 the returned covariance has unbounded variance along the unconstrained
 direction instead of a fabricated finite one.
 
@@ -90,13 +90,13 @@ derive their statistical covariance from the matched-filter (peak-curvature)
 bound, :func:`~spindoctor.support.correlate.matched_filter_covariance`: the
 Fisher information of a translation fit is built from the aligned template's
 gradients scaled by the residual noise, and inverted. Two properties keep the
-reported sigma honest. First, the template passed in shares the normalized
-intensity scale the noise was measured on, so the covariance cannot shrink
-with arbitrary template amplitude. Second, the white-noise bound is inflated
-by the residual's spatial **correlation area**, so spatially correlated model
-error is not counted as thousands of independent constraints. A degenerate
-gradient structure returns a large isotropic covariance so the result is
-de-weighted rather than trusted.
+reported sigma from understating the error. First, the template passed in
+shares the normalized intensity scale the noise was measured on, so the
+covariance cannot shrink with arbitrary template amplitude. Second, the
+white-noise bound is inflated by the residual's spatial **correlation area**,
+so spatially correlated model error is not counted as thousands of independent
+constraints. A degenerate gradient structure returns a large isotropic
+covariance so the result is de-weighted rather than trusted.
 
 Brightness centroids (blob)
 ---------------------------
@@ -241,8 +241,8 @@ offsets against each other should use the full covariance, not just
 ``sigma_px``: the off-diagonal terms matter exactly in the partially
 constrained scenes where uncertainty is most anisotropic.
 
-Honest limits
-=============
+What the covariances leave out
+==============================
 
 The covariances price statistical error and the *calibrated* model-error
 terms above; they do not price an unmodeled coherent systematic. A ring

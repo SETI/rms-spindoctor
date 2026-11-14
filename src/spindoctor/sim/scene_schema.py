@@ -390,8 +390,9 @@ _RING_FEATURE_IDEALIZED_KEYS: frozenset[str] = frozenset(
 # Henyey-Greenstein asymmetry parameter are nature's scattering behavior
 # (the navigator's ring template is geometric, never photometric), and
 # 'orbit_error' is the planted ephemeris error applied on the render side
-# only -- the navigator predicts from the catalog orbit and must absorb the
-# misplacement honestly (the ring analog of the body ephemeris-error axis).
+# only -- the navigator predicts from the catalog orbit and sees the
+# misplacement only in the rendered image (the ring analog of the body
+# ephemeris-error axis).
 _RING_FEATURE_TRUTH_KEYS: frozenset[str] = frozenset({'albedo', 'phase_g', 'orbit_error'})
 
 _RING_FEATURE_KEYS: frozenset[str] = _RING_FEATURE_IDEALIZED_KEYS | _RING_FEATURE_TRUTH_KEYS

@@ -112,7 +112,7 @@ def test_resolved_gain_selects_the_state_2_value() -> None:
 
 
 def test_read_noise_absent_is_zero_on_the_floor() -> None:
-    """With no noise block the resolved read noise is zero (the honest floor)."""
+    """With no noise block the resolved read noise is zero."""
     dp = resolve_detector_params({'instrument': 'coiss_nac', 'random_seed': 1})
     assert dp.read_noise_e == 0.0
 

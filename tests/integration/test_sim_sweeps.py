@@ -312,7 +312,7 @@ def test_irregularity_sweep_starts_matched() -> None:
     The fused offset precision-weights the disc correlation (0.07 px off
     here) against the limb DT fit (which carries the documented ~0.1 px-class
     gradient-peak/model offset and is 0.05 px off here).  With the per-technique
-    model-error floors, both report comparable honest sigmas, so the fused
+    model-error floors, both report comparable sigmas, so the fused
     value is their blend rather than whichever technique used to claim the
     tighter covariance; the bound reflects that blend, not a single
     technique's floor.

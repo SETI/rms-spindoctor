@@ -682,7 +682,7 @@ correction. A test pins the correct direction and fails if the rotation is
 introduced.
 
 The second trap is the mirror of the first: ``avflag = 0`` looks like the
-honest thing to write for a segment whose rate is unknown, and it is the one
+natural value to write for a segment whose rate is unknown, and it is the one
 value that hides the correction. SPICE does not read such a segment as "attitude
 here, rate unknown" -- it skips the segment outright for ``ckgpav`` and for
 ``sxform`` and answers from the next loaded kernel that does carry a rate for

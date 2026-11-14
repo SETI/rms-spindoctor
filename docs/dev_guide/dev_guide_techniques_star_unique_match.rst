@@ -240,7 +240,7 @@ against.
 The path reports the per-star residual (observed centroid minus predicted position) as the
 translation. The reported covariance is the per-feature Cramer-Rao lower bound from
 :attr:`~spindoctor.feature.feature.NavFeature.position_cov_px`, inflated by
-``residual_px**2`` on the diagonal so a noisy match honestly reports its scatter rather
+``residual_px**2`` on the diagonal so a noisy match reports its scatter rather
 than the noise-free CRLB floor. Rotation is unobservable on a single point match.
 
 A star's predicted SNR is synthesized from how far its catalog magnitude sits below the

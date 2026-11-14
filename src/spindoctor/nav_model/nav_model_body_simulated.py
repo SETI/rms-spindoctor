@@ -777,7 +777,7 @@ class NavModelBodySimulated(NavModelBodyBase):
         A hidden arc has no counterpart edge in the image (the occluder's
         disc covers it), so fitting it could only anchor on the occluder's
         own limb; dropping it keeps the DT fit on arcs that exist and lets
-        the visible-arc fraction report the loss honestly.
+        the visible-arc fraction count the hidden arc as lost.
 
         Parameters:
             vertices_vu: Polyline vertices, extfov coords, shape ``(N, 2)``.
@@ -865,7 +865,7 @@ class NavModelBodySimulated(NavModelBodyBase):
             vertices_vu, normals_vu = self._drop_occluded_vertices(vertices_vu, normals_vu)
             if vertices_vu.shape[0] < _MIN_LIMB_ARC_VERTICES:
                 return None
-            # Honest reliability inputs, mirroring the SPICE-backed model:
+            # Reliability inputs computed as the SPICE-backed model does:
             # the visible-arc fraction compares the surviving polyline (net
             # of frame clipping and sibling-body occlusion) against the
             # unclipped whole-body silhouette boundary, and the shared
@@ -1024,7 +1024,7 @@ class NavModelBodySimulated(NavModelBodyBase):
         n = vertices_vu.shape[0]
         sigma_normal = np.full(n, _TERMINATOR_SIGMA_NORMAL_PX, dtype=np.float64)
         sigma_tangent = np.full(n, _TERMINATOR_SIGMA_TANGENT_PX, dtype=np.float64)
-        # Honest reliability inputs, mirroring the SPICE-backed model: the
+        # Reliability inputs computed as the SPICE-backed model does: the
         # visible-arc fraction compares the surviving ridge (net of frame
         # clipping and sibling-body occlusion) against the unclipped
         # whole-body ridge, and the shared reliability formula applies the

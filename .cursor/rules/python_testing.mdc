@@ -125,7 +125,7 @@ Configure pytest under `[tool.pytest.ini_options]`; do not add separate
   `[tool.coverage.report]`); enable branch coverage and report (or fail) on
   missing lines.
 - Coverage is a floor, not the goal: high coverage with weak assertions is worse
-  than honest coverage with precise ones. Never add an assertion-free test to
+  than lower coverage with precise ones. Never add an assertion-free test to
   raise the number.
 
 ## 10. Hygiene and Debugging

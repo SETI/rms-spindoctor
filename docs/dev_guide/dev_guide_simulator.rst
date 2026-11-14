@@ -233,8 +233,8 @@ applies where. The *channel* is structural:
   worked example: it comes from the resolved per-instrument config block
   (including any idealized ``instrument_config`` overrides) and is independent
   of the scene's ``noise`` block, so a scene that plants noise different from
-  the published values produces an honestly-wrong detection limit -- planted
-  model error, exactly what such a scene is for.
+  the published values gets a detection limit that does not match the scene's
+  noise. That is planted model error, exactly what such a scene is for.
 - ``tests/spindoctor/sim/test_information_boundary.py`` constructs a scene
   exercising every ``TRUTH_KEYS`` entry and asserts none is reachable through
   the filtered view. This test is the independence guarantee: any change that
@@ -290,7 +290,7 @@ mappings restricted to idealized keys, and on the navigator side they only
 ever receive entries that have already passed the boundary filter. Either
 way, truth cannot be smuggled across.
 
-The honest residual: a bug in a shared helper that makes rendered features
+One gap remains: a bug in a shared helper that makes rendered features
 subtly unlike *real* features leaves both sides consistent and recovery clean
 -- scenes wrong, measurement blind. Its detectors are the reviewed render-diff
 contact sheet (see :ref:`sim-catalog-workflow`) and the per-instrument realism
@@ -382,10 +382,10 @@ Three things, each impossible with real frames alone:
   baselines, invariants, sweeps, and the expected-outcome pins -- turns "did
   this change help" into a measured delta against known answers, instead of a
   judgment call over operator labels.
-- **Model error is priced honestly.** Because the campaign plants model error
+- **Model error has a measured price.** Because the campaign plants model error
   the navigator cannot represent, the fit learns what that error costs: the
   2.61 px limb covariance floor (unmodeled terrain bounds a limb fix's real
-  accuracy no matter how clean the fit), the terminator technique's honest
+  accuracy no matter how clean the fit), the terminator technique's low
   ~0.03-0.05 confidence plateau on a cohort with zero sub-pixel successes,
   and occlusion-aware visible-arc fractions on mutual-event scenes are all
   prices the simulator measured rather than guessed.
@@ -2370,7 +2370,7 @@ reference radius and never learns the haze exists, so the soft rendered limb is
 a deliberate model mismatch. A navigator that fits the bright sunward haze ramp
 recovers a small offset toward the sunlit limb whose size tracks the
 phase-dependent apparent limb radius (and the haze parameters) -- the
-``atmosphere`` catalog scenes measure and pin that bias honestly. The
+``atmosphere`` catalog scenes measure that bias and pin the measured value. The
 low-phase ``titan_haze_limb`` scene records a sub-pixel sunward offset (a few
 tenths of a pixel in ``du``) at the medium tier, the limb DT fit and the disc
 correlation agreeing on the haze-lifted limb.
@@ -2385,14 +2385,14 @@ is the one that drives that technique. At high phase the haze is
 outright hostile: in ``titan_crescent_horns`` (155 deg) the ring of light
 defeats the disc correlation (spurious -- there is no full lit disc), the
 predicted terminator arc is emitted but dropped by the feature reliability
-gate before any technique runs (its honestly computed reliability, capped by
-``sin(155 deg)`` = 0.42, scores 0.26 against the 0.30 ``TERMINATOR_ARC``
-threshold), and the haze-dragged blob centroid alone would carry the fused
-answer roughly 30 px off in ``du``. That is exactly the lone-blob collapsed
-regime the body-witness veto (see :doc:`dev_guide_orchestrator_ensemble`)
-guards: the only surviving body offset is the bias-prone centroid while a
-sibling geometric technique on the same body self-flagged spurious, so the
-frame is declined (``failed``, ``status_reason``
+gate before any technique runs (its reliability, computed as the SPICE-backed
+model does and capped by ``sin(155 deg)`` = 0.42, scores 0.26 against the 0.30
+``TERMINATOR_ARC`` threshold), and the haze-dragged blob centroid alone would
+carry the fused answer roughly 30 px off in ``du``. That is exactly the
+lone-blob collapsed regime the body-witness veto (see
+:doc:`dev_guide_orchestrator_ensemble`) guards: the only surviving body offset
+is the bias-prone centroid while a sibling geometric technique on the same body
+self-flagged spurious, so the frame is declined (``failed``, ``status_reason``
 ``lone_blob_in_collapsed_regime``) rather than reported as a 30-px-wrong
 success -- a wrong offset that is accepted is worse than a
 declared failure. The scene asserts that decline. The noiseless

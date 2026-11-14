@@ -270,10 +270,10 @@ m=0 part coherently -- remains unimplemented.
 
 The ensemble consumes the widened covariance through its ordinary precision-weighted
 machinery — nothing downstream special-cases the term. A ring-edge lock on an uncertain
-orbit then carries an honestly wide radial axis: it fuses at reduced radial weight against
-any technique that constrains that axis independently, and the sigma-gated confidence tier
-demotes on its own when the widened axis exceeds a tier's sigma cap. The effective sigma
-is recorded on
+orbit then carries a radial axis widened by the orbit uncertainty. It fuses at reduced
+radial weight against any technique that constrains that axis independently, and the
+sigma-gated confidence tier demotes on its own when the widened axis exceeds a tier's
+sigma cap. The effective sigma is recorded on
 :attr:`~spindoctor.nav_technique.diagnostics.RingEdgeDiagnostics.sigma_orbit_radial_px`.
 The channel prices the hazard; it cannot remove the underlying offset bias, which is why
 the simulator's planted-orbit-error scene keeps its known-error check (see the planted

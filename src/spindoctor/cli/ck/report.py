@@ -149,7 +149,7 @@ def read_image_report_facts(metadata: dict[str, Any]) -> ImageReportFacts:
 
     A document with no ``navigation_result`` -- what an image that failed to
     load records -- yields a row with a name and a status and nothing else,
-    which is the honest report for an image that measured nothing.
+    which is all there is to report for an image that measured nothing.
 
     Parameters:
         metadata: The image's full navigation metadata dict.

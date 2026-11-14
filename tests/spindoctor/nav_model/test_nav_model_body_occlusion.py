@@ -3,7 +3,7 @@
 A nearer sibling body hides part of the target's predicted disc.  The model
 must drop the hidden limb / terminator vertices from the emitted polylines
 (so the distance-transform fit never chases an arc the image does not show),
-report an honest ``visible_arc_fraction`` that falls with occlusion depth, and
+report a ``visible_arc_fraction`` that falls with occlusion depth, and
 trim the hidden region out of the ``BODY_DISC`` correlation template (so the
 correlator does not score against disc brightness that is not present).
 

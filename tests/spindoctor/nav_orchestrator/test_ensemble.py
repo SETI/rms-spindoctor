@@ -1798,9 +1798,9 @@ def test_ensemble_scattered_light_disc_limb_are_one_witness() -> None:
 
     On a frame whose background-gradient score clears the scattered-light
     threshold, disc and limb measure the same veiling ramp, so their agreement
-    is not independent.  Collapsing them must keep the tier honest, whereas the
-    identical numbers on a clean frame legitimately earn the two-witness boost
-    and a high tier.
+    is not independent.  Collapsing them must deny the pair the two-witness
+    boost, whereas the identical numbers on a clean frame legitimately earn the
+    boost and a high tier.
     """
     tight = np.eye(2, dtype=np.float64) * 0.04
     disc = _make_result(
