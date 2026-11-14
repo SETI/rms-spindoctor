@@ -126,6 +126,8 @@ class CreateSimulatedImageModel(
         self._displayed_params: dict[str, Any] = {}
         # Whether _current_image is the full render, rather than the fast preview.
         self._showing_full_render = False
+        # Whether the full render of the preview on screen has failed.
+        self._full_render_failed = False
         self._base_pixmap = None
         # Ellipsoid-only body keys held while their body is a polyhedral mesh.
         self._mesh_key_stash = MeshKeyStash()

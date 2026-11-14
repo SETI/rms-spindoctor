@@ -49,6 +49,7 @@ class SimEditorBase(QMainWindow):
     _last_meta: dict[str, Any]
     _displayed_params: dict[str, Any]
     _showing_full_render: bool
+    _full_render_failed: bool
     _base_pixmap: QPixmap | None
     _mesh_key_stash: MeshKeyStash
 

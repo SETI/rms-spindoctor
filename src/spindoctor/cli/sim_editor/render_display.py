@@ -28,6 +28,7 @@ A preview that fails on a valid scene opens an error dialog.
 """
 
 import copy
+from collections.abc import Mapping
 from typing import Any
 
 import numpy as np
@@ -58,8 +59,33 @@ from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 PREVIEW_TEXT = 'Fast preview'
 PREVIEW_FULL_RUNNING_TEXT = 'Fast preview (full render running)'
 FULL_RENDER_TEXT = 'Full render'
-# The saturation overlay's status while the fast preview is on screen.
+# The saturation overlay's status while the fast preview is on screen, and once its
+# full render has failed.
 SATURATION_WAITING_TEXT = 'Saturated: waiting for the full render'
+SATURATION_FAILED_TEXT = 'Saturated: unknown, the full render failed'
+# The units line's words, after the units name, once an offset-free scene's full
+# render has failed: that render was the one its verdict would have come from.
+NO_VERDICT_TEXT = 'no verdict, the full render failed'
+# The most characters of a failure message the status bar shows.  A traceback's
+# message can be long, and a permanent status-bar widget grows to fit its text.
+FAILURE_TEXT_MAX_CHARS = 80
+
+
+def _short_error(error: str) -> str:
+    """Return the first line of a failure message, shortened to fit the status bar.
+
+    Parameters:
+        error: The failure message.
+
+    Returns:
+        Its first line, cut to :data:`FAILURE_TEXT_MAX_CHARS` characters, ending in
+        ``...`` when cut.
+    """
+    lines = error.splitlines()
+    line = lines[0] if lines else ''
+    if len(line) <= FAILURE_TEXT_MAX_CHARS:
+        return line
+    return line[: FAILURE_TEXT_MAX_CHARS - 3] + '...'
 
 
 def _dn_to_display_uint8(image: Any) -> Any:
@@ -158,12 +184,8 @@ class RenderDisplayMixin(SimEditorBase):
             self._full_render_runner.cancel()
             self._verdict_runner.cancel()
             self._show_picture(img, meta, copy.deepcopy(self.sim_params), full_render=False)
-            inst_config = resolve_sim_inst_config(
-                DEFAULT_CONFIG,
-                self.sim_params.get('instrument'),
-                self.sim_params.get('instrument_config'),
-            )
-            self._units_label.setText(f'{frame_units_name(inst_config)}: verdict pending')
+            units = frame_units_name(self._inst_config(self.sim_params))
+            self._units_label.setText(f'{units}: verdict pending')
             self._idle_timer.start()
         except Exception as e:
             self._stop_full_renders()
@@ -209,8 +231,20 @@ class RenderDisplayMixin(SimEditorBase):
         self._last_meta = meta
         self._displayed_params = scene
         self._showing_full_render = full_render
-        self._image_kind_label.setText(FULL_RENDER_TEXT if full_render else PREVIEW_TEXT)
+        self._full_render_failed = False
+        self._set_image_kind(FULL_RENDER_TEXT if full_render else PREVIEW_TEXT)
         self._display_image()
+
+    def _set_image_kind(self, text: str, *, detail: str = '') -> None:
+        """Say in the status bar which image is on screen.
+
+        Parameters:
+            text: The status bar's words for the image.
+            detail: Longer text shown as the words' tooltip, such as the whole
+                message of a failed full render.  Empty for no tooltip.
+        """
+        self._image_kind_label.setText(text)
+        self._image_kind_label.setToolTip(detail)
 
     def _stop_full_renders(self) -> None:
         """Stop the idle timer and drop any full render or verdict render on its way."""
@@ -218,7 +252,7 @@ class RenderDisplayMixin(SimEditorBase):
         self._full_render_runner.cancel()
         self._verdict_runner.cancel()
         if not self._showing_full_render and self._current_image is not None:
-            self._image_kind_label.setText(PREVIEW_TEXT)
+            self._set_image_kind(PREVIEW_TEXT)
 
     def _start_full_renders(self) -> None:
         """Start the full render, and the verdict render if the scene plants an offset.
@@ -232,7 +266,7 @@ class RenderDisplayMixin(SimEditorBase):
         self._full_render_runner.request(self.sim_params)
         if has_planted_offset(self.sim_params):
             self._verdict_runner.request(self.sim_params)
-        self._image_kind_label.setText(PREVIEW_FULL_RUNNING_TEXT)
+        self._set_image_kind(PREVIEW_FULL_RUNNING_TEXT)
 
     def _show_full_render(self, scene: dict[str, Any], result: FullRender) -> None:
         """Replace the preview with a finished full render, if its scene is current.
@@ -247,22 +281,45 @@ class RenderDisplayMixin(SimEditorBase):
         if scene != self.sim_params:
             # The scene changed after the render started.  The edit's own preview
             # is on its way, or already on screen.
-            self._image_kind_label.setText(PREVIEW_TEXT)
+            self._set_image_kind(PREVIEW_TEXT)
             return
         self._show_picture(result.image, result.meta, scene, full_render=True)
         if not has_planted_offset(scene):
-            inst_config = resolve_sim_inst_config(
-                DEFAULT_CONFIG, scene.get('instrument'), scene.get('instrument_config')
-            )
-            self._units_label.setText(frame_units_summary(result.image, inst_config))
+            self._units_label.setText(frame_units_summary(result.image, self._inst_config(scene)))
 
     def _show_full_render_failure(self, error: str) -> None:
         """Report a failed full render in the status bar.
 
+        The preview stays on screen.  The status bar gives the first line of the
+        error, shortened, with the whole message as its tooltip.  Without a planted
+        offset, the units line can no longer expect a verdict, so it says the full
+        render failed, and so does the saturation overlay's status.
+
         Parameters:
             error: ``'<ExceptionType>: <message>'`` from the failed render.
         """
-        self._image_kind_label.setText(f'{PREVIEW_TEXT} (full render failed: {error})')
+        self._full_render_failed = True
+        self._set_image_kind(
+            f'{PREVIEW_TEXT} (full render failed: {_short_error(error)})', detail=error
+        )
+        if not has_planted_offset(self._displayed_params):
+            units = frame_units_name(self._inst_config(self._displayed_params))
+            self._units_label.setText(f'{units}: {NO_VERDICT_TEXT}')
+        self._display_image()
+
+    @staticmethod
+    def _inst_config(scene: dict[str, Any]) -> Mapping[str, Any]:
+        """Return the instrument configuration a scene renders with.
+
+        Parameters:
+            scene: The scene mapping.
+
+        Returns:
+            The resolved instrument configuration.
+        """
+        return resolve_sim_inst_config(
+            DEFAULT_CONFIG, scene.get('instrument'), scene.get('instrument_config')
+        )
 
     def _show_verdict(self, scene: dict[str, Any], summary: str) -> None:
         """Show the navigated frame's summary, if its scene is current.
@@ -277,10 +334,13 @@ class RenderDisplayMixin(SimEditorBase):
     def _show_verdict_failure(self, error: str) -> None:
         """Report a failed navigated-frame render in the status bar.
 
+        The status bar gives the first line of the error, shortened.  The whole
+        message and its traceback go to standard error.
+
         Parameters:
             error: ``'<ExceptionType>: <message>'`` from the failed render.
         """
-        self._units_label.setText(f'verdict render failed: {error}')
+        self._units_label.setText(f'verdict render failed: {_short_error(error)}')
 
     def closeEvent(self, event: QCloseEvent | None) -> None:
         """Drop any render still on its way, then close the window.
@@ -321,7 +381,7 @@ class RenderDisplayMixin(SimEditorBase):
         produced the picture, so they stay on the picture while an edit leaves the
         scene refused.  The saturation overlay is drawn only on the full render.
         While the fast preview is on screen, the overlay's status says it is waiting
-        for the full render.
+        for the full render, or that the full render failed.
         """
         if self._current_image is None:
             return
@@ -352,7 +412,12 @@ class RenderDisplayMixin(SimEditorBase):
                 width,
                 QImage.Format.Format_Grayscale8,
             ).copy()
-            self._saturation_label.setText(SATURATION_WAITING_TEXT if overlay else '')
+            if not overlay:
+                self._saturation_label.setText('')
+            elif self._full_render_failed:
+                self._saturation_label.setText(SATURATION_FAILED_TEXT)
+            else:
+                self._saturation_label.setText(SATURATION_WAITING_TEXT)
         pixmap = QPixmap(width, height)
         pixmap.fill(QColor(0, 0, 0))
         painter = QPainter(pixmap)

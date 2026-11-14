@@ -151,6 +151,21 @@ def gated(monkeypatch: pytest.MonkeyPatch) -> _GatedFullRender:
     return stand_in
 
 
+@pytest.fixture
+def failing(monkeypatch: pytest.MonkeyPatch) -> _GatedFullRender:
+    """Replace the worker's full render with a gated stand-in that fails."""
+    stand_in = _GatedFullRender(error=RuntimeError('full boom'))
+    monkeypatch.setattr(full_render_module, 'render_full_frame', stand_in)
+    return stand_in
+
+
+def _fail_full_render(model: Any, failing: _GatedFullRender) -> None:
+    """Start the full render of the editor's scene and let it fail."""
+    model._start_full_renders()
+    failing.release(0)
+    wait_for_background_renders(model)
+
+
 def _preview(model: Any) -> Any:
     """The fast preview of the editor's scene, as the simulator renders it."""
     image, _ = render_combined_model(model.sim_params, ignore_offset=True, preview=True)
@@ -196,18 +211,42 @@ def test_the_status_bar_says_the_full_render_is_on_screen(model: Any) -> None:
 
 
 def test_a_failed_full_render_reaches_the_status_bar(
-    model: Any, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    model: Any, failing: _GatedFullRender, capsys: pytest.CaptureFixture[str]
 ) -> None:
     """A failed full render leaves the preview on screen and says why."""
-    failing = _GatedFullRender(error=RuntimeError('full boom'))
-    monkeypatch.setattr(full_render_module, 'render_full_frame', failing)
-    model._start_full_renders()
-    failing.release(0)
-    wait_for_background_renders(model)
+    _fail_full_render(model, failing)
     assert model._image_kind_label.text() == (
         'Fast preview (full render failed: RuntimeError: full boom)'
     )
     assert 'Full render failed' in capsys.readouterr().err
+
+
+def test_a_long_full_render_failure_is_shortened(
+    model: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The status bar shows only the start of a long failure message's first line."""
+    failing = _GatedFullRender(error=RuntimeError('x' * 200 + '\nsecond line'))
+    monkeypatch.setattr(full_render_module, 'render_full_frame', failing)
+    _fail_full_render(model, failing)
+    shortened = 'RuntimeError: ' + 'x' * 63 + '...'
+    assert model._image_kind_label.text() == f'Fast preview (full render failed: {shortened})'
+
+
+def test_a_failed_full_render_leaves_no_pending_verdict(
+    model: Any, failing: _GatedFullRender
+) -> None:
+    """Without a planted offset, the units line stops waiting once the full render fails."""
+    _fail_full_render(model, failing)
+    assert model._units_label.text() == 'DN: no verdict, the full render failed'
+
+
+def test_a_failed_full_render_ends_the_saturation_wait(
+    model: Any, failing: _GatedFullRender
+) -> None:
+    """The saturation overlay stops waiting once the full render fails."""
+    model._saturation_overlay_check.setChecked(True)
+    _fail_full_render(model, failing)
+    assert model._saturation_label.text() == 'Saturated: unknown, the full render failed'
 
 
 def test_an_edit_discards_a_running_full_render(model: Any, gated: _GatedFullRender) -> None:
