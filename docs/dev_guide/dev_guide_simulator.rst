@@ -1681,13 +1681,12 @@ and 15 more. Each end of the band sits outside the measured range by a margin of
 assertion fails in *both* directions. A regression that worsens the error fails.
 A genuine fix that shrinks the error also fails loudly, which prompts a
 deliberate re-pin, or retirement of the pin, instead of a silent behavior
-change. The pinned success is a documented hazard held in view, never an
-endorsement; the scene comments and the campaign record carry the analysis, and
-the ensemble chapter (:doc:`dev_guide_orchestrator_ensemble`) describes the
-failure family for the readers who consume tiers. The ``titan_crescent_horns``
-pair left this family once the cross-technique body-witness veto closed it:
-its haze-dragged lone-blob offset is declined outright, so the scenes assert
-that ``failed`` outcome instead of an honest-pin success.
+change. The pinned success marks a known hazard. The scene comments and the
+campaign record carry the analysis, and the ensemble chapter
+(:doc:`dev_guide_orchestrator_ensemble`) describes the failure family. The
+``titan_crescent_horns`` scenes are not in this family. The cross-technique
+body-witness veto declines their haze-dragged lone-blob offset, so the scenes
+assert a ``failed`` outcome.
 
 .. _sim-floor:
 
@@ -2530,12 +2529,11 @@ The measured behavior on this axis stays deliberately uncomfortable, and the
 ``orbit_error_ringlet`` scene pins it: a navigable ringlet rendered 2.5 px
 outward of its catalog orbit navigates to a success that is 1.8 to 3.2 px
 wrong, depending on the noise draw. A uniform radial misplacement has no
-exact translational equivalent, so the robust edge fit down-weights one arc,
-locks onto one side of the annulus, and absorbs the ephemeris error into the
-recovered offset instead of leaving it in the residuals -- the declared sigma
-prices that hazard (the widened covariance holds the fused result out of the
-high tier) but cannot remove the bias itself, which is what the scene's
-``known_offset_error_px`` pin keeps in view.
+exact translational equivalent. The robust edge fit therefore down-weights one
+arc, locks onto one side of the annulus, and absorbs the ephemeris error into
+the recovered offset. The declared sigma widens the covariance enough to keep
+the fused result out of the high tier, but it cannot remove the bias. The
+scene's ``known_offset_error_px`` pin keeps that bias in view.
 
 ``navigable`` (default **false**) is the information boundary in miniature:
 the filter drops non-navigable features from ``nav_params`` entirely, so the
@@ -3960,8 +3958,8 @@ change alters rendered output:
   is one in a class that checks accuracy on a frame. The other classes are
   sweeps, which vary one setting. Every validation scene is compared with its
   planted offset, and the error is the distance between the two in two
-  dimensions. Each check was measured on 16 noise seeds: the scene's own seed
-  and 15 more. One of two rules sets each check:
+  dimensions. Each check's limit was measured on 16 noise seeds: the scene's
+  own seed and 15 more. One of two rules sets each check:
 
   - An accurate answer is held to a tolerance. The tolerance is the largest
     error over the seeds plus a margin of 0.05 px or a fifth of that error,
@@ -3978,12 +3976,11 @@ change alters rendered output:
     ``planted_rank1_ring_flat`` a band holds the error across the straight
     ring edge, the only direction that scene can measure.
 
-  The default suite runs some of these checks: the algorithmic invariants, the
-  technique-pinned regression tests, and the fused check on ``mutual_grazing``
-  all read their checks from ``sim_truth.py``. The integration tier runs the
-  rest. There, ``test_sim_truth_checks.py`` checks the fused answer of every
-  validation scene outside ``algorithmic_invariants``, and every
-  single-technique band.
+  The default suite runs the algorithmic invariants, the technique-pinned
+  regression tests, and the fused check on ``mutual_grazing``, which read their
+  limits from ``sim_truth.py``. The integration tier runs the rest. There,
+  ``test_sim_truth_checks.py`` checks the fused answer of every validation scene
+  outside ``algorithmic_invariants``, and every single-technique band.
 
   The same module compares each fused error with the sigma the navigator
   reports. The error is measured in units of the reported covariance, and a
