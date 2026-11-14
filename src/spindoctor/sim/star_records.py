@@ -31,12 +31,24 @@ from starcat import Star
 from spindoctor.sim.scene_schema import scene_value
 from spindoctor.support.types import MutableStar
 
-__all__ = ['DEFAULT_PSF_SIZE', 'star_record_from_params']
+__all__ = [
+    'DEFAULT_BMV',
+    'DEFAULT_PSF_SIZE',
+    'DEFAULT_SPECTRAL_CLASS',
+    'star_record_from_params',
+]
 
 # The PSF fitting-window size a star entry gets when the scene omits one,
 # in detector pixels.  Renderer-side scaling to an oversampled grid must
 # materialize this default so the downsample's rescale returns it intact.
 DEFAULT_PSF_SIZE: tuple[int, int] = (11, 11)
+
+# The spectral class a star entry gets when the scene omits one: the Sun's.
+DEFAULT_SPECTRAL_CLASS = 'G2'
+
+# The Johnson B-V color index a star gets when its spectral class is one the
+# catalog cannot map to a color: the solar (G2) value.
+DEFAULT_BMV = 0.63
 
 
 def star_record_from_params(
@@ -77,13 +89,17 @@ def star_record_from_params(
     star.move_v = float(scene_value(star_params, 'move_v', 0.0))
     star.move_u = float(scene_value(star_params, 'move_u', 0.0))
     star.vmag = float(scene_value(star_params, 'vmag', 8.0))
-    star.spectral_class = str(scene_value(star_params, 'spectral_class', 'G2'))
+    star.spectral_class = str(scene_value(star_params, 'spectral_class', DEFAULT_SPECTRAL_CLASS))
     star.temperature = Star.temperature_from_sclass(star.spectral_class)
     star.temperature_faked = star.temperature is None
     if star.temperature is None:
         star.temperature = 5780.0
     star.johnson_mag_v = star.vmag
-    bmv = Star.bmv_from_sclass(star.spectral_class or 'G2') or 0.63
+    # A0 maps to a B-V of exactly 0.0, so only an unmapped class (None) falls
+    # back to the default; a truthiness test would turn every A0 star solar.
+    bmv = Star.bmv_from_sclass(star.spectral_class or DEFAULT_SPECTRAL_CLASS)
+    if bmv is None:
+        bmv = DEFAULT_BMV
     star.johnson_mag_b = star.johnson_mag_v + bmv
     star.johnson_mag_faked = False
     # Simulated photometry is authoritative by construction, so it is never
