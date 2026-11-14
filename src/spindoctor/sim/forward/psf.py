@@ -20,8 +20,9 @@ the blur of the whole plane.  A crop's blur reaches the kernel's half-width past
 the crop and is exactly zero beyond it.  The FFTs are smaller than the frame's,
 so they round differently from one whole-frame convolution: by up to about 1e-15
 of the peak on lit pixels.  In the dark, where the whole-frame FFT leaves residue
-of that size, the crops leave exact zeros.  When the crops' convolutions would
-cover more than the frame's, the plane is blurred in one piece.
+of that size, the crops leave exact zeros.  Each crop's FFT covers the crop
+widened by the kernel.  When those areas would add up to at least the frame's
+area widened the same way, the plane is blurred in one piece.
 """
 
 from collections.abc import Mapping
@@ -99,8 +100,9 @@ def apply_psf(
     """Convolve the signal and point-source planes with the PSF kernel in place.
 
     Both planes share every optical transform, so the same kernel blurs the
-    intensive signal (bodies, rings, sky) and the point-source electrons.  The
-    convolution is an FFT convolution (deterministic) at ``mode='same'``.
+    intensive signal (bodies, rings, sky) and the point-source electrons.  Each
+    plane is blurred by FFT convolution, cluster by cluster as the module
+    docstring describes.
 
     Parameters:
         signal: The oversampled intensive-signal plane, modified in place.

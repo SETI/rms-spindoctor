@@ -9,8 +9,8 @@ mode='constant', cval=cval)`` inside the translated box.  ``shift`` samples outp
 pixel ``i`` at source position ``i - dv``.  Here each position is computed the
 same way, from the pixel's index in the whole frame, and then the crop's first
 index is subtracted.  Subtracting a whole number is exact, so the interpolation
-weights match ``shift``'s to the last bit.  The crop holds every source pixel
-those positions read, so a crop edge inside the frame is never reached.  Outside
+weights match ``shift``'s to the last bit.  The crop includes every source pixel
+the interpolation reads, so it never reaches a crop edge inside the frame.  Outside
 the translated box the result is exactly ``cval``, where ``shift`` gives ``cval``
 up to rounding.
 
@@ -29,7 +29,7 @@ from spindoctor.support.types import NDArrayFloatType
 __all__ = ['nonzero_box', 'shifted_box', 'translate_box']
 
 # Output rows resampled per pass.  The table of sample positions for one pass holds
-# two numbers per pixel of the strip, about 16 MB on a 4096-pixel-wide grid.
+# two numbers per pixel of the strip, about 17 MB on a 4096-pixel-wide grid.
 _STRIP_ROWS = 256
 
 
@@ -98,8 +98,9 @@ def translate_box(
         plane: The plane; it must equal ``cval`` outside ``(box_v, box_u)``.
         dv: Translation along v, in pixels.
         du: Translation along u, in pixels.
-        box_v: Rows outside which the plane equals ``cval``.
-        box_u: Columns outside which the plane equals ``cval``.
+        box_v: The rows that hold the content; the plane equals ``cval`` outside them.
+        box_u: The columns that hold the content; the plane equals ``cval`` outside
+            them.
         cval: The plane's value outside the box, and the fill beyond the frame.
 
     Returns:

@@ -5,9 +5,10 @@ stars.  The distortion warp and the PSF blur are both linear, so each can proces
 every cluster of lit pixels on its own crop and add the results.  The sum is the
 same as processing the whole plane.
 
-Lit pixels are grouped in square blocks.  Lit blocks that touch, diagonally
-included, form one cluster.  A crop around one cluster can take in pixels of
-another, so ``cluster_crop`` keeps only the cluster's own blocks.
+The plane is divided into square blocks, and a block is lit when any of its
+pixels is.  Lit blocks that touch, including diagonally, form one cluster.  A
+crop around one cluster can take in pixels of another, so ``cluster_crop`` keeps
+only the cluster's own blocks.
 """
 
 from dataclasses import dataclass
@@ -19,7 +20,7 @@ from spindoctor.support.types import NDArrayFloatType, NDArrayIntType
 
 __all__ = ['CLUSTER_BLOCK_PX', 'LitClusters', 'cluster_crop', 'find_lit_clusters', 'grow']
 
-# Side of the square blocks, in render-grid pixels, in which lit pixels are grouped.
+# The blocks are squares this many render-grid pixels on a side.
 CLUSTER_BLOCK_PX = 32
 
 
@@ -79,8 +80,8 @@ def cluster_crop(
         clusters: The plane's clusters.
         plane: The plane.
         index: The cluster's index in ``clusters.boxes``.
-        rows: The crop's rows; its start must be a whole number of blocks.
-        cols: The crop's columns; its start must be a whole number of blocks.
+        rows: The crop's rows; the first must be a multiple of ``CLUSTER_BLOCK_PX``.
+        cols: The crop's columns; the first must be a multiple of ``CLUSTER_BLOCK_PX``.
 
     Returns:
         ``plane[rows, cols]`` with every pixel of another cluster set to zero.

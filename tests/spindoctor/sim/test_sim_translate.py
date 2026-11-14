@@ -2,7 +2,8 @@
 
 The translation resamples only the box holding the content.  It must give the
 same bits as ``scipy.ndimage.shift`` over the whole frame, apart from the fill
-outside the box, which is exact where ``shift`` rounds a fill of one.
+outside the box.  There the translation gives exactly the fill value, while
+``shift`` can be one rounding step off when the fill is one.
 """
 
 import numpy as np
@@ -53,7 +54,7 @@ def test_a_box_taller_than_one_strip_is_the_whole_frame_shift() -> None:
 
 
 def test_translation_with_a_fill_of_one_is_the_whole_frame_shift() -> None:
-    """With a fill of one, the frame matches the whole-frame shift to its last bit."""
+    """With a fill of one, the frame matches the whole-frame shift to a rounding step."""
     rows, cols = slice(100, 160), slice(90, 200)
     plane = _content(1.0, rows, cols)
     expected = ndimage.shift(plane, (1.3, 2.9), order=1, mode='constant', cval=1.0)

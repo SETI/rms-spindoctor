@@ -3,9 +3,9 @@
 The optics-stage PSF is a separately-normalized Gaussian core plus Moffat wing.
 These tests cover kernel normalization, the exact wing energy fraction, that a
 delta reproduces the kernel, that an edge blurs into a PSF-shaped ramp, and
-that an elliptical core respects its axis sigmas.  The blur convolves each
-cluster of lit pixels on its own crop; those tests compare it against one
-convolution of the whole frame.
+that an elliptical core respects its axis sigmas.  Further tests check that
+blurring each cluster of lit pixels on its own crop gives the same result as one
+convolution of the whole frame, to rounding.
 """
 
 from collections.abc import Callable
