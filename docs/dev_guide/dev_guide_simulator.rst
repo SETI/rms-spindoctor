@@ -1061,12 +1061,12 @@ top-level value isn't a mapping. Within an entry, the load fails on:
 * a ``data_units`` other than ``raw_dn`` or ``calibrated_if``;
 * a number that isn't finite (``.nan``, ``.inf``) or is out of its range: gains,
   the full well, the reference exposure, the plate scale, the star zero point,
-  the PSF radii, periods, filter throughputs, and the native frame size must be
-  positive; noise amplitudes, rates, the bias, the truncation radius, and the
-  bloom length must be non-negative; fractions (the hot-pixel fraction and column
-  factor, the PSF wing fraction) lie in [0, 1]; gain states are non-negative
-  integers and binnings positive ones; a shape default's value must lie in its
-  parameter's range, as a scene's must;
+  the PSF radii, periods, filter throughputs, the native frame size, and the
+  dark-sky ceiling must be positive; noise amplitudes, rates, the bias, the
+  truncation radius, and the bloom length must be non-negative; fractions (the
+  hot-pixel fraction and column factor, the PSF wing fraction) lie in [0, 1];
+  gain states are non-negative integers and binnings positive ones; a shape
+  default's value must lie in its parameter's range, as a scene's must;
 * a ``base`` that doesn't exist or that loops back on itself, an alias that is
   already an instrument's name or another entry's alias (the message gives the
   file that holds it), or a real cohort camera that two entries both claim (the
@@ -1094,10 +1094,12 @@ top-level value isn't a mapping. Within an entry, the load fails on:
   without a positive activation key; a mode the entry offers, gives shape
   defaults, or turns on although its detector model has no stage for the mode
   (see the detector-stage modes below); an unavailability reason for a mode the
-  entry offers; a filter or polarizer spelled other than canonically; and a
-  filter table key that contains a polarizer, which no scene can select because
-  a scene's filter folds each polarizer onto its wheel's clear element before
-  lookup.
+  entry offers; a filter or polarizer spelled other than canonically; a filter
+  table key that contains a polarizer, which no scene can select because a
+  scene's filter folds each polarizer onto its wheel's clear element before
+  lookup; and a ``dark_sky_ceiling_if`` on an entry whose ``data_units`` is
+  ``raw_dn``, since the realism match applies the ceiling only to calibrated
+  frames.
 
 Three rules shape what an entry may state. **Canonical filter spelling:** a
 scene's ``detector.filter`` is read element by element, stripped of spaces and
@@ -1201,9 +1203,11 @@ The keys of an entry, all directly under the instrument's top-level key:
        ``dark_current_e_per_sec``, the hot-pixel, banding, and bias-structure
        terms, and ``bloom_length``); a ``vidicon`` entry states the ``vidicon``
        DN-noise sub-map, which only a vidicon may carry. Optional:
-       ``readout_dark_e``, the cosmic-ray dwell, amplitude, and spread, and the
-       calibrated-product terms ``calibrated_sky_if``,
-       ``calibration_column_residual_e``, and ``calibration_pixel_residual_e``.
+       ``readout_dark_e`` and the cosmic-ray dwell, amplitude, and spread. Also
+       optional are the calibrated-product terms (``calibrated_sky_if``,
+       ``calibration_column_residual_e``, and ``calibration_pixel_residual_e``)
+       and the realism match's dark-sky ceiling, ``dark_sky_ceiling_if``. Only
+       an entry whose ``data_units`` is ``calibrated_if`` may set the ceiling.
    * - ``readout_modes``
      - yes
      - The binning factors at which the camera reads out. Each maps to the
@@ -4297,6 +4301,76 @@ instrument, on seven figures of merit:
    naive signal-binning would count scene texture as noise), the sky-patch
    level above the frame floor, noise at signal, and the sky spatial power
    spectrum (which catches banding and coherent noise a scalar sigma cannot).
+   The uniform 32 × 32 pixel patches lie on a grid that starts at the frame's
+   corner.  A frame's sky patches are the darkest quarter of those whose noise
+   sigma is above 0.  A tile of one constant value, such as zero-filled missing
+   data, has a sigma of 0, because it doesn't hold any noise.  It plays no part
+   in choosing the darkest quarter, so a large zero-filled area can't push the
+   frame's dark sky out of it.
+
+   On a frame filled with rings or a body, the darkest patches lie on the rings
+   or the body.  Comparing their noise with the other frame's dark sky would set
+   signal-dependent noise against sky noise.  So a patch counts only when it lies
+   on dark sky, and the test uses two values from the camera's config entry.  The
+   first is the calibrated sky residual, the level at which the simulator draws
+   empty calibrated sky.  The second is the dark-sky ceiling,
+   ``dark_sky_ceiling_if`` in the entry's ``detector`` block, in I/F.  A patch
+   lies on dark sky when its mean is at most the ceiling above the residual.  The
+   test applies to the patches of both frames, and a frame pair adds sky
+   statistics only when both frames keep at least one patch.
+
+   The sky power spectrum is measured on 64 × 64 pixel tiles, each made of four
+   sky patches.  A frame ranks its tiles by their brightest patch and measures
+   up to four of the darkest.  A tile's spectrum enters the comparison only when
+   all four of its patches passed the dark-sky test.  Light from a ring or a limb
+   beside a dark patch therefore stays out of the spectrum.
+
+   The test looks only at each patch's mean level.  It never uses a noise sigma,
+   because the sigma is the quantity being compared.  A tolerance scaled by the
+   matched frame's sigma would shrink whenever the matched frame is too quiet,
+   and real dark sky would then fail the test.  A tolerance scaled by the real
+   frame's sigma would grow on rings and bodies, because noise grows with signal.
+
+   Because the test uses only levels, it can't tell sky from content at the same
+   level.  Sky brightened by scattered light can lie on either side of the
+   ceiling.  Ring glare, glow in a ring gap or beside a limb, and the halo around
+   a bright moon all brighten the sky this way.  Below the ceiling, the
+   brightened sky counts as dark sky and is compared with the matched frame's
+   dark sky.  Above it, the brightened sky drops out with the content.  The
+   Cassini instrument page (:doc:`instruments/cassini_iss`) gives the CALIB
+   cameras' ceiling and the real patch levels it was chosen from.
+
+   If a camera's entry doesn't set a ceiling, its patches aren't tested, and
+   every sky patch of both frames enters the sky statistics.  A camera whose
+   products are raw DN can't set a ceiling.  The real product may have had its
+   bias pedestal removed, while the matched frame keeps the simulator's pedestal,
+   so the two levels can't be compared.
+
+   If none of an instrument's matched frames has sky patches, each real frame's
+   dark-sky patches enter the statistics alone, so the real sky statistics still
+   appear.  If the camera doesn't set a ceiling, all of the real frame's sky
+   patches enter.  If only some of an instrument's matched frames have sky
+   patches, a pair whose matched frame has none is dropped.  If the real frame has
+   no sky patches, neither frame of the pair adds any.
+
+   The JSON summary's ``sky_comparison`` block reports these outcomes for each
+   instrument.  It groups the frames by downlink: ``sqrt_lut`` holds the frames
+   downlinked through a companding table, and ``native`` holds the rest.  Each
+   group counts its frames by outcome (``compared``, ``dropped``,
+   ``not_judged``, ``no_real_sky``, and ``no_sim_sky``).  It also gives the
+   quartiles, over the compared frames, of the ratio of simulated to real median
+   sky sigma.  The block's ``frames`` list has one entry per frame.  In each
+   entry, ``real_level`` and ``sim_level`` are the median means of the patches
+   each frame kept.  If a frame didn't keep any, its level is the median mean of
+   all its sky patches.
+
+   The support label of figure 1 counts every frame that adds any of its
+   statistics.  The noise-at-signal statistic uses the uniform patches brighter
+   than the darkest quarter.  A frame can therefore add that statistic even when
+   its sky patches drop out, so the sky statistics can rest on fewer frames than
+   the label shows.  ``n_sky_frames``, beside the support counts, gives the
+   number of frames that added sky samples on the real side and on the simulated
+   side.
 2. **Star PSF** -- star-cutout radial profiles and encircled-energy radii
    (EE50/EE80) on cohorts that contain star frames.  Where a cohort has no
    star frames, the limb profile of figure 3 is the only PSF evidence and
@@ -4328,7 +4402,14 @@ instrument, on seven figures of merit:
 7. **Technique diagnostics** -- for a handful of matched real/sim pairs the
    full navigator runs on both frames and the per-technique diagnostics
    (inlier counts, residual scatter, confidences) are tabulated side by
-   side.
+   side.  The navigator predicts each star's signal without allowing for the
+   frame's filter.  The matched scene, though, brightens its stars to make up
+   for the filter, as the next section describes.  On a frame taken through any
+   filter but clear, the star techniques' predicted SNR and brightness margin
+   therefore can't be compared between the real and simulated frames.  They
+   can be compared once the navigator's prediction allows for the filter.
+
+   .. The star prediction's filter handling is issue 899.
 
 Matched frames
 --------------
@@ -4343,6 +4424,15 @@ frame, a multi-feature ring system for a ring frame, near-empty sky for the
 negative and scattered-light frames.  Scene seeds derive from the real
 frame's image id, so the whole match is deterministic: re-running the runner
 reproduces every simulated frame and every statistic bit for bit.
+
+Most star frames' matched scenes place 25 stars on a magnitude ladder.  The
+brightest star is at V magnitude 7.0, and each step is 0.2 magnitudes fainter,
+so the faintest stars reach the detection limit of a clear-filter frame.  The
+matched scene renders through the real frame's filter.  If that filter passes
+a fraction *t* of the clear combination's starlight, the whole ladder shifts by
+2.5 log10 *t* magnitudes.  For a filter dimmer than clear, *t* is below 1, so
+the shift is negative and the stars get brighter.  The ladder then reaches the
+detection limit of the frame's own filter.
 
 Both sides then run *identical* extraction code -- the same patch finder,
 the same profile sampler, and the navigator's own feature extraction

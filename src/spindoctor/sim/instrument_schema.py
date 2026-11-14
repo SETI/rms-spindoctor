@@ -276,6 +276,7 @@ _DETECTOR_FIELDS: dict[str, Node] = {
     'bias_col_gradient_dn': _NONNEG_NUMBER,
     'bloom_length': Scalar(_INT, bound=NONNEG),
     'calibrated_sky_if': _FINITE,
+    'dark_sky_ceiling_if': _POSITIVE_NUMBER,
     'calibration_column_residual_e': _NONNEG_NUMBER,
     'calibration_pixel_residual_e': _NONNEG_NUMBER,
     'vidicon': _VIDICON,

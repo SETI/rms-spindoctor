@@ -6,8 +6,8 @@ as ``realism_<instrument>_<fom>.png``, and a deterministic JSON summary
 into ``tests/integration/realism_results/realism_summary.json`` that backs
 the report's tables (per-kind W1 divergences, per-curve density-W1
 divergences, support labels, the FOM 3 one-sided-stratum disclosure, the
-FOM 7 diagnostic rows, and the artifact-rate comparison against the
-catalog defaults).
+FOM 1 sky pairing with its per-frame sigma ratios, the FOM 7 diagnostic
+rows, and the artifact-rate comparison against the catalog defaults).
 
 Two fixed series colors carry sides everywhere: real cohort in blue,
 simulated frames in orange -- a colorblind-safe pair, never cycled.
@@ -29,7 +29,12 @@ from matplotlib.axes import Axes
 
 from spindoctor.sim.instrument_resolvers import resolve_detector_defaults
 from spindoctor.support.types import NDArrayFloatType
-from tests.integration.sim_realism import InstrumentComparison, RealismResults
+from tests.integration.sim_realism import (
+    InstrumentComparison,
+    RealismResults,
+    SkyPair,
+    SkyPairStatus,
+)
 
 __all__ = ['write_figures', 'write_summary']
 
@@ -411,6 +416,68 @@ def _round(value: float, digits: int = 6) -> float | None:
     return float(f'{float(value):.{digits}g}')
 
 
+def _downlink_label(pair: SkyPair) -> str:
+    """The pair's downlink label: its companding table, else ``'native'``."""
+    return pair.quantization if pair.quantization is not None else 'native'
+
+
+def _sky_comparison(comparison: InstrumentComparison) -> dict[str, Any]:
+    """Summarize the FOM 1 sky pairing by downlink, with the per-frame values.
+
+    A frame downlinked through a companding table is grouped under that table's
+    quantization name (``'sqrt_lut'``).  Every other frame is grouped as
+    ``'native'``.  Each group reports how many of its frames ended in each pairing
+    status.  It also reports the quartiles, over its compared frames, of the ratio
+    of simulated to real median sky sigma.
+
+    Parameters:
+        comparison: One instrument's comparison, after the match has paired
+            every frame's sky patches.
+
+    Returns:
+        A mapping with two keys.  ``by_downlink`` maps each downlink label to
+        ``n_frames``, an ``n_<status>`` count for each pairing status, and
+        ``sigma_ratio_quartiles`` (None when no frame was compared).  ``frames``
+        holds one entry per frame, with its downlink label, status, sky levels,
+        patch counts, and sigma ratio.
+    """
+    groups: dict[str, list[SkyPair]] = {}
+    for pair in comparison.sky_pairs:
+        groups.setdefault(_downlink_label(pair), []).append(pair)
+    by_downlink: dict[str, Any] = {}
+    for name, pairs in sorted(groups.items()):
+        ratios = np.asarray([p.sigma_ratio for p in pairs if p.compared], dtype=np.float64)
+        ratios = ratios[np.isfinite(ratios)]
+        quartiles = (
+            [_round(float(q), 3) for q in np.quantile(ratios, [0.25, 0.5, 0.75])]
+            if ratios.size
+            else None
+        )
+        group: dict[str, Any] = {'n_frames': len(pairs)}
+        for status in SkyPairStatus:
+            group[f'n_{status.value}'] = sum(1 for p in pairs if p.status is status)
+        group['sigma_ratio_quartiles'] = quartiles
+        by_downlink[name] = group
+    return {
+        'by_downlink': by_downlink,
+        'frames': [
+            {
+                'image_id': p.image_id,
+                'downlink': _downlink_label(p),
+                'status': p.status.value,
+                'real_level': _round(p.real_level),
+                'sim_level': _round(p.sim_level),
+                'n_real_patches': p.n_real_patches,
+                'n_sim_patches': p.n_sim_patches,
+                'n_real_kept': p.n_real_kept,
+                'n_sim_kept': p.n_sim_kept,
+                'sigma_ratio': _round(p.sigma_ratio, 3),
+            }
+            for p in comparison.sky_pairs
+        ],
+    }
+
+
 def _summary_dict(results: RealismResults) -> dict[str, Any]:
     """The deterministic JSON-serializable summary."""
     out: dict[str, Any] = {'runtime_sec': round(results.runtime_sec, 1), 'instruments': {}}
@@ -443,6 +510,10 @@ def _summary_dict(results: RealismResults) -> dict[str, Any]:
             'frames': [r.image_id for r in comparison.records],
             'fom_support': dict(sorted(comparison.fom_support.items())),
             'fom_frames': dict(sorted(comparison.fom_frames.items())),
+            'n_sky_frames': {
+                'real': sum(1 for p in comparison.sky_pairs if p.real_added),
+                'sim': sum(1 for p in comparison.sky_pairs if p.sim_added),
+            },
             'divergences': kinds,
             'curve_divergences': curve_kinds,
             'limb_bins_real_only': list(comparison.limb_bins_real_only),
@@ -465,6 +536,7 @@ def _summary_dict(results: RealismResults) -> dict[str, Any]:
                 else None,
             },
             'fom7_rows': comparison.fom7_rows,
+            'sky_comparison': _sky_comparison(comparison),
         }
     return out
 

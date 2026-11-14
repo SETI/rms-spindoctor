@@ -2,13 +2,14 @@
 
 :mod:`spindoctor.sim.instrument_schema` checks each key on its own; this module
 checks how the parts of one entry, after inheritance, fit together: the detector
-keys the detector model calls for, the gain table and readout modes, the star zero
-point's unit, the filter table's spelling and its clear elements, the downlink
-tables, and the artifact modes an entry lists.  :func:`check_catalog` runs those
-checks on every entry, plus the two that span entries: the generic entry's
-calibrated sky residual and the realism cohort each entry claims.  Each check
-refuses a setting that the renderer could not honor or that would silently do
-nothing, with a message that gives the file, the entry, and the key path.
+keys the detector model calls for, whether a dark-sky ceiling suits the entry's
+units, the gain table and readout modes, the star zero point's unit, the filter
+table's spelling and its clear elements, the downlink tables, and the artifact
+modes an entry lists.  :func:`check_catalog` runs those checks on every entry,
+plus the two that span entries: the generic entry's calibrated sky residual and
+the realism cohort each entry claims.  Each check refuses a setting that the
+renderer could not honor or that would silently do nothing, with a message that
+gives the file, the entry, and the key path.
 """
 
 from __future__ import annotations
@@ -97,7 +98,8 @@ def check_entry(entry: Mapping[str, Any], *, source: str) -> None:
 
     The entry must carry every required key, and its parts must fit together.  The
     detector keys its model calls for are present.  The gain states are contiguous
-    and hold the default state.  The readout modes include binning 1, divide the
+    and hold the default state.  A dark-sky ceiling is set only on an entry whose
+    products are calibrated.  The readout modes include binning 1, divide the
     native frame size, and keep the detector model.  The star zero point's unit
     fits the detector model.  A filter table belongs to a CCD, is spelled
     canonically, keys no polarizer, and holds the clear filter and each polarizer's
@@ -116,6 +118,7 @@ def check_entry(entry: Mapping[str, Any], *, source: str) -> None:
     """
     check_node(instrument_schema(), entry, source=source, path='', complete=True)
     _check_detector(entry['detector'], source=source)
+    _check_dark_sky_ceiling(entry, source=source)
     _check_readout_modes(entry, source=source)
     _check_star_flux(entry, source=source)
     model = entry['detector']['detector_model']
@@ -154,6 +157,22 @@ def _check_generic(entry: Mapping[str, Any], *, source: str) -> None:
             'detector.calibrated_sky_if',
             'the generic entry states the calibrated sky residual that every entry without '
             'its own falls back on',
+        )
+
+
+def _check_dark_sky_ceiling(entry: Mapping[str, Any], *, source: str) -> None:
+    """Refuse a dark-sky ceiling on an entry whose products are raw DN.
+
+    The realism comparison applies the ceiling only to calibrated frames, because a
+    raw-DN frame's sky level depends on a bias pedestal that the real product may
+    have removed.  On a raw-DN entry the key would silently do nothing.
+    """
+    if entry['data_units'] != 'calibrated_if' and 'dark_sky_ceiling_if' in entry['detector']:
+        raise config_error(
+            source,
+            'detector.dark_sky_ceiling_if',
+            f"the dark-sky ceiling applies only to calibrated_if products, and this entry's "
+            f'data_units is {entry["data_units"]}',
         )
 
 

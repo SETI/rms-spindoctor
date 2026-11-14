@@ -22,7 +22,9 @@ from spindoctor.support.types import NDArrayFloatType
 
 __all__ = [
     'SkyPatch',
+    'dark_sky_patches',
     'find_uniform_patches',
+    'noisy_patches',
     'paired_difference_sigma',
     'radial_power_spectrum',
 ]
@@ -130,6 +132,39 @@ def find_uniform_patches(
         return candidates
     cutoff = float(np.quantile(np.asarray(means), max_mean_quantile))
     return [p for p in candidates if p.mean <= cutoff]
+
+
+def noisy_patches(patches: list[SkyPatch]) -> list[SkyPatch]:
+    """Select the patches whose noise sigma is positive.
+
+    A tile of one constant value, such as zero-filled missing data, passes the
+    uniformity test with a sigma of 0, but it doesn't hold any noise to compare.
+
+    Parameters:
+        patches: One frame's sky patches.
+
+    Returns:
+        The patches with a finite, positive sigma, in their input order.
+    """
+    return [p for p in patches if np.isfinite(p.sigma) and p.sigma > 0.0]
+
+
+def dark_sky_patches(patches: list[SkyPatch], ceiling_level: float) -> list[SkyPatch]:
+    """Select the sky patches that lie on dark sky.
+
+    A patch is kept when its mean is at or below ``ceiling_level``, however far
+    below.  The selection uses only each patch's level.  It never uses a noise
+    sigma, because the sigma is the quantity being compared.
+
+    Parameters:
+        patches: One frame's sky patches.
+        ceiling_level: The highest mean a dark-sky patch may have, in the
+            patches' units.
+
+    Returns:
+        The patches at or below the ceiling, in their input order.
+    """
+    return [p for p in patches if p.mean <= ceiling_level]
 
 
 def radial_power_spectrum(
