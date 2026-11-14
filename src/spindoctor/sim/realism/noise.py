@@ -138,7 +138,7 @@ def noisy_patches(patches: list[SkyPatch]) -> list[SkyPatch]:
     """Select the patches whose noise sigma is positive.
 
     A tile of one constant value, such as zero-filled missing data, passes the
-    uniformity test with a sigma of 0 but holds no noise to compare.
+    uniformity test with a sigma of 0, but it doesn't hold any noise to compare.
 
     Parameters:
         patches: One frame's sky patches.
@@ -152,9 +152,9 @@ def noisy_patches(patches: list[SkyPatch]) -> list[SkyPatch]:
 def dark_sky_patches(patches: list[SkyPatch], ceiling_level: float) -> list[SkyPatch]:
     """Select the sky patches that lie on dark sky.
 
-    A patch is kept when its mean lies at or below ``ceiling_level``, however far
-    below.  The selection depends on each patch's level alone and never on any
-    noise sigma, so it never selects on the quantity being compared.
+    A patch is kept when its mean is at or below ``ceiling_level``, however far
+    below.  The selection uses only each patch's level.  It never uses a noise
+    sigma, because the sigma is the quantity being compared.
 
     Parameters:
         patches: One frame's sky patches.

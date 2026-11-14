@@ -40,10 +40,10 @@ __all__ = [
 _DEFAULT_SCENE_SIZE = 512
 
 # Star classes place this many stars; magnitudes ladder from bright to the
-# detection edge of a clear-filter frame so the FOM 2 sample spans the usable
-# brightness range.  A frame taken through another filter shifts the whole ladder
-# by that filter's throughput (see star_ladder_shift_mag), so the ladder reaches
-# the detection edge of the frame's own filter.
+# detection edge of a clear-filter frame, so the FOM 2 sample spans the usable
+# brightness range.  For a frame taken through another filter, the whole ladder
+# shifts by that filter's throughput (see star_ladder_shift_mag).  The ladder then
+# reaches the detection edge of the frame's own filter.
 _STAR_COUNT = 25
 _STAR_VMAG_BRIGHT = 7.0
 _STAR_VMAG_STEP = 0.2
@@ -126,10 +126,11 @@ def _star_list(
 def star_ladder_shift_mag(instrument: str, filter_name: str | None) -> float:
     """The magnitude shift that moves the star ladder to a filter's detection edge.
 
-    A filter passing a fraction ``t`` of the clear combination's star flux dims
+    A filter that passes a fraction ``t`` of the clear combination's star flux dims
     every star by ``-2.5 log10(t)`` magnitudes, so the ladder shifts by
-    ``2.5 log10(t)``: brighter (smaller magnitudes) for a dimmer filter, which
-    keeps each rung's detected flux at its clear-filter value.
+    ``2.5 log10(t)``.  For a filter dimmer than clear, the shift is negative and the
+    stars get brighter.  Each rung's detected flux then stays at its clear-filter
+    value.
 
     Parameters:
         instrument: Sim instrument name.
@@ -174,9 +175,9 @@ def star_field_scene(
         size_vu: The real frame's (v, u) shape.
         count: The number of ladder stars.
         filter_name: The real frame's filter combination, which shifts the
-            magnitude ladder by :func:`star_ladder_shift_mag`; None leaves the
-            clear-filter ladder.  The caller still sets the scene's
-            ``detector.filter``.
+            magnitude ladder by :func:`star_ladder_shift_mag`.  None keeps the
+            clear-filter ladder.  The caller sets the scene's ``detector.filter``
+            separately.
     """
     seed = _seed_for(image_id)
     scene = _base_scene(f'realism_stars_{image_id}', instrument, exposure_sec, seed, size_vu)
@@ -377,10 +378,10 @@ def matched_scene(
             default covers frames where no body model could be built).
         phase_angle_deg: Real frame's phase angle for the limb classes
             and ring_plus_body.
-        filter_name: The real frame's filter combination, which sets the
-            sim's DN-to-I/F scale and star brightness, and shifts a star
-            class's magnitude ladder to the filter's detection edge; None
-            keeps the camera's nominal scale and the clear-filter ladder.
+        filter_name: The real frame's filter combination.  It sets the sim's
+            DN-to-I/F scale and star brightness, and it shifts a star class's
+            magnitude ladder to the filter's detection edge.  None keeps the
+            camera's nominal scale and the clear-filter ladder.
         gain_state: The real frame's gain state; None keeps the camera's
             default state.
         quantization: The real frame's downlink quantization sub-mode

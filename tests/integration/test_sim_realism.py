@@ -319,8 +319,8 @@ def test_a_noisy_content_frame_leaves_both_sky_pools() -> None:
     """A real frame on content is dropped however noisy its patches are.
 
     The patches sit 5e-3 I/F above the residual with a sigma of 3e-3, like the halo
-    sky around a bright moon, so a band scaled by the real frame's sigma would keep
-    them.
+    sky around a bright moon, so a tolerance scaled by the real frame's sigma would
+    keep them.
     """
     real = _sky_frame(_REF + 5e-3, sigma=3e-3)
     sim = _sky_frame(_REF)
@@ -330,7 +330,7 @@ def test_a_noisy_content_frame_leaves_both_sky_pools() -> None:
 
 
 def test_a_matched_frame_on_content_leaves_both_sky_pools() -> None:
-    """A matched frame whose sky patches all lie on a body adds no sky noise on either side."""
+    """If a twin's sky patches all lie on a body, neither frame adds sky noise."""
     real = _sky_frame(1e-4)
     sim = _sky_frame(1e-2)
     pair_sky(_sky_record(), real, sim, twins_with_sky=True)
@@ -349,8 +349,8 @@ def test_a_pair_on_content_in_both_frames_is_dropped() -> None:
 def test_an_offset_table_sky_is_compared_with_a_quiet_twin() -> None:
     """A real sky 2e-3 I/F above the residual is dark sky, though many sigmas above it.
 
-    The twin's sky lies at the residual with a sigma of 1e-4, so a band scaled by either
-    frame's sigma would drop the real sky.
+    The twin's sky lies at the residual with a sigma of 1e-4, so a tolerance scaled by
+    either frame's sigma would drop the real sky.
     """
     pair = pair_sky(
         _sky_record(),
@@ -399,7 +399,7 @@ def test_a_constant_patch_adds_no_sky_noise() -> None:
 
 
 def test_a_raw_dn_pair_adds_every_patch_unjudged() -> None:
-    """On a raw-DN camera the two sides' levels can't be compared, so no patch is dropped.
+    """On a raw-DN camera the two sides' levels can't be compared, so every patch is kept.
 
     The matched LORRI frame keeps the simulator's bias pedestal, about 545 DN, which the
     real bias-subtracted product doesn't have.
@@ -411,7 +411,7 @@ def test_a_raw_dn_pair_adds_every_patch_unjudged() -> None:
 
 
 def test_a_calibrated_camera_without_a_ceiling_is_not_judged() -> None:
-    """A calibrated camera whose entry sets no dark-sky ceiling is handled as raw DN is."""
+    """A calibrated camera that doesn't set a ceiling is handled like a raw-DN one."""
     pair = pair_sky(
         _sky_record('vgiss'), _sky_frame(0.5, sigma=2e-3), _sky_frame(0.012), twins_with_sky=True
     )
@@ -426,7 +426,7 @@ def test_real_sky_is_recorded_alone_when_no_twin_has_sky() -> None:
 
 
 def test_real_sky_recorded_alone_must_lie_on_dark_sky() -> None:
-    """With no matched frame on sky, a real frame on content still adds no sky noise."""
+    """When no twin has sky, a real frame on content still doesn't add sky noise."""
     real = _sky_frame(_REF + 1e-2)
     pair_sky(_sky_record(), real, FrameSamples(), twins_with_sky=False)
     assert 'sky_sigma' not in real.samples
@@ -458,10 +458,10 @@ def test_twins_have_sky_when_any_twin_has_a_noisy_sky_patch(
 def test_the_reported_sky_level_follows_the_patches_kept(
     real_patches: list[tuple[float, float]], expected: float
 ) -> None:
-    """A frame reports the level of the patches it kept, or of all its sky when it kept none.
+    """A frame reports the level of the patches it kept, or else of all its sky patches.
 
-    The compared frame also has a patch on rings, and the dropped frame a constant patch;
-    neither enters its reported level.
+    The compared frame also has a patch on rings, and the dropped frame has a constant
+    patch.  Neither of those patches enters the frame's reported level.
     """
     pair = pair_sky(
         _sky_record(), _sky_frame_of(real_patches), _sky_frame(_REF), twins_with_sky=True
@@ -494,7 +494,7 @@ def test_a_tile_enters_the_sky_spectrum_only_when_all_its_patches_were_kept() ->
 
 
 def test_the_sky_spectrum_tiles_are_made_wholly_of_sky_patches() -> None:
-    """No spectrum tile reaches past the frame's sky patches onto brighter content.
+    """Every spectrum tile lies wholly on the frame's sky patches, off brighter content.
 
     The darkest patches lie in the second row, beside the bright band below, so a
     tile anchored at a darkest patch would cover the band.
