@@ -276,7 +276,7 @@ demotes on its own when the widened axis exceeds a tier's sigma cap. The effecti
 is recorded on
 :attr:`~spindoctor.nav_technique.diagnostics.RingEdgeDiagnostics.sigma_orbit_radial_px`.
 The channel prices the hazard; it cannot remove the underlying offset bias, which is why
-the simulator's planted-orbit-error scene keeps its measured-error pin (see the planted
+the simulator's planted-orbit-error scene keeps its known-error check (see the planted
 orbit error section of :doc:`dev_guide_simulator`).
 
 Fit-quality gates

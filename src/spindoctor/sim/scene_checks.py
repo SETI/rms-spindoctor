@@ -661,7 +661,7 @@ def _check_expected(value: Any, *, source: str) -> None:
     ``conflicted`` status pins the matching tier, and those tiers require the
     matching status, but only when the tier is asserted (non-null).
 
-    ``known_offset_error_px`` is the honest-pin field: the measured fused
+    ``known_offset_error_px`` sets the known-error check: the measured fused
     offset-error magnitude a scene deliberately pins as a documented hazard (a
     confidently wrong result the ensemble cannot currently detect).  It
     requires ``status: success`` (a failed result has no offset to be wrong)
@@ -728,7 +728,7 @@ def _check_expected(value: Any, *, source: str) -> None:
     if known_error is not None and known_tol is None:
         raise SimSceneValidationError(
             f'{source}: expected.known_offset_error_px requires '
-            f'expected.known_offset_error_tol_px (the pin is a band)'
+            f'expected.known_offset_error_tol_px (the known-error check is a band)'
         )
     if known_tol is not None and known_error is None:
         raise SimSceneValidationError(

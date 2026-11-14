@@ -3,9 +3,9 @@
 A sim scene may carry a scene-level ``expected`` block declaring the outcome the
 navigator should produce: a ``status`` (``success`` / ``failed`` / ``conflicted``),
 an optional ``confidence_tier`` (one of the five navigation ranks, or null to
-assert the status only), an optional ``status_reason``, and an optional honest
-pin ``known_offset_error_px`` / ``known_offset_error_tol_px`` pair.  This module
-loads that block and asserts a
+assert the status only), an optional ``status_reason``, and an optional
+known-error check, the ``known_offset_error_px`` / ``known_offset_error_tol_px``
+pair.  This module loads that block and asserts a
 :class:`~spindoctor.nav_orchestrator.nav_result.NavResult` against it with clear
 failure messages.
 
@@ -22,15 +22,17 @@ The machinery asserts two distinct patterns:
   place, or an overwhelming confounder field, the CORRECT navigation outcome
   is a failed / low-confidence result, and the status / tier assertion turns
   that requirement into a test.
-- **Honest pins.**  A few scenes produce a confidently wrong offset the
-  ensemble cannot currently detect (a planted radial catalog error absorbed
-  into a high-tier ring lock, a high-phase haze crescent dragging the blob
-  centroid).  Their pinned ``status: success`` is NOT an endorsement -- it is
-  a documented hazard held in view.  For those scenes ``known_offset_error_px``
+- **Known-error checks.**  A scene can produce a confidently wrong offset the
+  ensemble cannot remove.  ``orbit_error_ringlet`` is the one in the catalog:
+  its planted radial catalog error is absorbed into a ring lock, and the fused
+  result is a low-tier success about 1.7 px wrong.  The ``status: success``
+  such a scene asserts is NOT an endorsement -- it is a documented hazard held
+  in view.  For those scenes ``known_offset_error_px``
   states the measured fused error magnitude and ``known_offset_error_tol_px``
   its band, and the assertion fails when the measured error leaves the band in
   either direction: a worsening regression fails, and a genuine fix also fails
-  loudly, prompting a deliberate re-pin instead of a silent behavior change.
+  loudly, prompting someone to re-measure the known error instead of a silent
+  behavior change.
 """
 
 from __future__ import annotations
@@ -58,11 +60,11 @@ class ExpectedOutcome:
             tier unasserted (assert the status only).
         status_reason: The expected ``status_reason`` value, or ``None`` to
             leave it unasserted.
-        known_offset_error_px: For an honest pin, the measured fused
+        known_offset_error_px: For a known-error check, the measured fused
             offset-error magnitude the scene documents as a standing hazard;
             ``None`` leaves the error unasserted.
         known_offset_error_tol_px: Tolerance band half-width around
-            ``known_offset_error_px``; present exactly when the pin is.
+            ``known_offset_error_px``; present exactly when that value is.
     """
 
     status: str
@@ -127,11 +129,11 @@ def assert_result_matches_expected(
 
     The status is always checked; the confidence tier and the status_reason are
     checked only when the scene asserts them (a null tier or an omitted reason
-    leaves that field unconstrained).  When the scene carries an honest pin
-    (``known_offset_error_px``), the measured fused error magnitude against the
-    planted offset must sit inside the pin's tolerance band -- below the band
-    means the hazard quietly improved (re-measure and re-pin deliberately),
-    above it means a worsening regression.
+    leaves that field unconstrained).  When the scene carries a known-error
+    check (``known_offset_error_px``), the measured fused error magnitude
+    against the planted offset must sit inside the check's tolerance band.
+    Below the band means the hazard quietly improved (re-measure the known
+    error deliberately), and above it means a worsening regression.
 
     Parameters:
         scene_name: The scene name, used in the failure messages.
@@ -176,13 +178,13 @@ def assert_result_matches_expected(
     lower = expected.known_offset_error_px - expected.known_offset_error_tol_px
     upper = expected.known_offset_error_px + expected.known_offset_error_tol_px
     assert error_px >= lower, (
-        f'{scene_name}: measured offset error {error_px:.2f} px fell below the pinned '
-        f'hazard band [{lower:.2f}, {upper:.2f}] px -- the documented confident-wrong '
-        f'behavior improved; re-measure and deliberately re-pin (or retire) the '
-        f'known_offset_error_px value'
+        f'{scene_name}: measured offset error {error_px:.2f} px fell below the '
+        f'known-error band [{lower:.2f}, {upper:.2f}] px -- the documented '
+        f'confident-wrong behavior improved; re-measure the known error and update '
+        f'(or retire) the known_offset_error_px value'
     )
     assert error_px <= upper, (
-        f'{scene_name}: measured offset error {error_px:.2f} px exceeds the pinned '
-        f'hazard band [{lower:.2f}, {upper:.2f}] px -- the documented confident-wrong '
-        f'behavior worsened'
+        f'{scene_name}: measured offset error {error_px:.2f} px exceeds the '
+        f'known-error band [{lower:.2f}, {upper:.2f}] px -- the documented '
+        f'confident-wrong behavior worsened'
     )

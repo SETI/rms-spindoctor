@@ -36,8 +36,8 @@ class ExpectedOutcomeMixin(SimEditorBase):
         expected = self.sim_params.get('expected')
         has_expected = isinstance(expected, dict)
         block: dict[str, Any] = expected if isinstance(expected, dict) else {}
-        # Keys the panel has no widgets for (the hand-authored offset-error
-        # pins) survive an uncheck/recheck cycle through this stash.
+        # Keys the panel has no widgets for (the hand-authored known-error
+        # check keys) survive an uncheck/recheck cycle through this stash.
         self._removed_expected_extras: dict[str, object] = {}
 
         self._expected_group = QGroupBox('Expected outcome (test-only)')
@@ -84,8 +84,8 @@ class ExpectedOutcomeMixin(SimEditorBase):
     def _on_expected_toggled(self, checked: bool) -> None:
         """Insert or remove the expected block from the scene.
 
-        Keys the panel has no widgets for (the hand-authored
-        ``known_offset_error_px`` / ``known_offset_error_tol_px`` pins)
+        Keys the panel has no widgets for (the hand-authored known-error
+        check, ``known_offset_error_px`` / ``known_offset_error_tol_px``)
         are preserved across an uncheck/recheck cycle rather than being
         rebuilt away: the removed block is remembered and its extra keys
         are re-attached when the group is re-enabled.

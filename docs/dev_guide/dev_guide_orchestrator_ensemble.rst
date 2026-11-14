@@ -308,7 +308,7 @@ them to a single representative witness before the merge, so the fused radial
 sigma is that one witness's honest ~2.5 px rather than the value a
 two-independent-witness fuse would shrink it to. The biased offset then demotes
 to ``low`` (a measured confidence around 0.90 against a ~2.5 px sigma that
-covers the residual bias), and the scene keeps its measured-error pin: the
+covers the residual bias), and the scene keeps its known-error check: the
 channel prices the hazard, but it cannot remove the bias. Collapsing the ring
 pair is what stops the spurious alternative -- treating the two correlated
 views as independent, which shrank the sigma below the hazard and let the
