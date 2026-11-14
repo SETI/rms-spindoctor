@@ -74,6 +74,13 @@ def test_the_preview_leaves_the_scene_unchanged() -> None:
     assert scene == before
 
 
+def test_the_preview_draws_on_the_detector_grid() -> None:
+    """The preview of a PSF scene is the same as with its oversampling set to 1."""
+    detector_grid = _scene()
+    detector_grid['oversample'] = 1
+    assert np.array_equal(_preview(_scene()), _preview(detector_grid))
+
+
 def test_the_preview_skips_the_distortion_warp() -> None:
     """The preview of a scene is the same with or without its distortion block."""
     undistorted = _scene()
