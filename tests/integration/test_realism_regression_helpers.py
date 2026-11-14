@@ -38,7 +38,9 @@ _TABLE = InstrumentBands(runs=10, statistics=_BANDS)
 _COMMITTED_BANDS = load_bands()
 
 
-def _entry(w1: float, *, support: str = 'limited', kind: str = 'star_ee50') -> dict[str, Any]:
+def _entry(
+    w1: float | None, *, support: str = 'limited', kind: str = 'star_ee50'
+) -> dict[str, Any]:
     """An instrument summary entry holding one star divergence."""
     return {
         'divergences': {
@@ -69,6 +71,32 @@ def test_a_held_statistic_without_a_band_fails() -> None:
     """A statistic without a band in the table is reported, never passed."""
     problems = compare_with_record(_entry(2.33), _entry(2.33), {})
     assert problems == [f'{_EE50} has no band in the band table.']
+
+
+_NO_LONGER_HELD = (
+    f'{_EE50} was 2.33 in the record and is no longer held '
+    '(its support dropped or its value is missing).'
+)
+
+
+@pytest.mark.parametrize(
+    ('fresh', 'record', 'expected'),
+    [
+        (_entry(2.33, support='unsupported'), _entry(2.33), _NO_LONGER_HELD),
+        (_entry(None), _entry(2.33), _NO_LONGER_HELD),
+        (
+            _entry(2.33),
+            _entry(2.33, support='unsupported'),
+            f'{_EE50} is 2.33 and the record does not hold it.',
+        ),
+    ],
+    ids=['support-dropped', 'value-missing', 'support-gained'],
+)
+def test_a_statistic_held_on_one_side_only_fails(
+    fresh: dict[str, Any], record: dict[str, Any], expected: str
+) -> None:
+    """A statistic that only the fresh run or only the record holds is reported."""
+    assert compare_with_record(fresh, record, _BANDS) == [expected]
 
 
 def test_an_unsupported_statistic_is_not_held() -> None:
@@ -261,7 +289,7 @@ def _checkout_after_changing(
     git = ['git', '-C', str(tmp_path), '-c', 'user.name=t', '-c', 'user.email=t@t']
     subprocess.run([*git, 'init', '-q'], check=True)
     subprocess.run([*git, 'add', '.'], check=True)
-    subprocess.run([*git, 'commit', '-q', '-m', 'files'], check=True)
+    subprocess.run([*git, 'commit', '-q', '--no-gpg-sign', '-m', 'files'], check=True)
     for name in changed:
         (tmp_path / name).write_text('second run\n')
     monkeypatch.setattr(report, '_REPO_ROOT', tmp_path)
