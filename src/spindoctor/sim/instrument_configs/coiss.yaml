@@ -432,11 +432,11 @@ coiss_calib_nac:
     calibration_column_residual_e: 15.0
     calibration_pixel_residual_e: 9.4
     # The dark-sky ceiling, in I/F above calibrated_sky_if.  The realism
-    # comparison counts a sky patch of a real frame or of its simulated twin as
+    # comparison counts a sky patch of a real frame or of its matched frame as
     # dark sky only when the patch's mean is at most calibrated_sky_if plus this
     # value.  The test uses the level alone.  The levels below were measured on
     # 2026-11-11, on the darkest quarter of the uniform patches in the 58-frame
-    # NAC cohort and its twins.  All are in I/F above calibrated_sky_if.
+    # NAC cohort and its matched frames.  All are in I/F above calibrated_sky_if.
     # - On 12-bit frames, real dark sky lies at -9.4e-4 to 6.9e-4.  The TABLE
     #   frames' skies sit higher and reach 2.18e-3 (N1447064164, whose whole sky
     #   lies at 2.12e-3 to 2.18e-3).
@@ -446,12 +446,14 @@ coiss_calib_nac:
     #   Keeler gaps, glow beside a limb, and halos around bright moons.
     # - The real patch levels leave one empty interval, 2.34e-3 to 2.78e-3, and
     #   the ceiling sits in it.
-    # - The twins separate cleanly: sky at most 2.8e-5, body 9.7e-3 and up.
+    # - On the matched frames, sky lies at 2.8e-5 or below, and body material at
+    #   9.7e-3 and up.
     # Any ceiling from 6e-4 to 2.5e-3 compares the same 26 12-bit frames.
     # Brightened sky below the ceiling counts as dark sky, so a few frames'
-    # brightened sky is compared with the twins' dark sky.  Two TABLE skies below
-    # the ceiling are nearly flat, with sky sigmas of 2.3e-5 (N1447064164) and
-    # 4.4e-6 (N1492091163).  They are tracked with the TABLE sky question (#977).
+    # brightened sky is compared with the matched frames' dark sky.  Two TABLE
+    # skies below the ceiling are nearly flat, with sky sigmas of 2.3e-5
+    # (N1447064164) and 4.4e-6 (N1492091163).  They are tracked with the TABLE
+    # sky question (#977).
     dark_sky_ceiling_if: 2.5e-3
 
   # The image library's CALIB frames from this camera are matched against this
@@ -502,8 +504,8 @@ coiss_calib_wac:
     # 2026-11-11 on the 4-frame WAC cohort.  Real dark sky lies at -1.4e-4 to
     # 6.5e-5, and the one TABLE frame's sky lies at 2.3e-5 to 6.5e-5.  The next
     # patches up are the halo sky around Rhea, at 4.88e-3 (W1637520502).  The
-    # twins' sky lies below calibrated_sky_if.  The NAC value falls inside this
-    # gap, so both cameras use it.
+    # matched frames' sky lies below calibrated_sky_if.  The NAC value falls
+    # inside this gap, so both cameras use it.
     dark_sky_ceiling_if: 2.5e-3
 
   # The image library's CALIB frames from this camera are matched against this

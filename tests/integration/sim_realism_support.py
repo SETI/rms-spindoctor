@@ -258,9 +258,9 @@ def _sky_psd_tiles(
     The patches lie on a 32-px grid, so each 64-px tile covers four of them.  A
     tile is a candidate only when all four are sky patches, so that light from a
     ring or a limb beside one patch never reaches the spectrum.  The candidates
-    are ranked by their brightest patch, and the four darkest are measured.  Each
-    spectrum is normalized to unit total power, because sky_sigma measures the
-    amplitude.
+    are ranked by their brightest patch, and up to four of the darkest are
+    measured.  Each spectrum is normalized to unit total power, because sky_sigma
+    measures the amplitude.
 
     Parameters:
         image: The frame in its native units.

@@ -4300,9 +4300,9 @@ instrument, on seven figures of merit:
 
    The sky power spectrum is measured on 64 × 64 pixel tiles, each made of four
    sky patches.  A frame ranks its tiles by their brightest patch and measures
-   the four darkest.  A tile's spectrum enters the comparison only when all four
-   of its patches passed the dark-sky test.  Light from a ring or a limb beside a
-   dark patch therefore stays out of the spectrum.
+   up to four of the darkest.  A tile's spectrum enters the comparison only when
+   all four of its patches passed the dark-sky test.  Light from a ring or a limb
+   beside a dark patch therefore stays out of the spectrum.
 
    The test looks only at each patch's mean level.  It never uses a noise sigma,
    because the sigma is the quantity being compared.  A tolerance scaled by the
@@ -4325,13 +4325,12 @@ instrument, on seven figures of merit:
    bias pedestal removed, while the matched frame keeps the simulator's pedestal,
    so the two levels can't be compared.
 
-   Some instruments' matched frames don't have any sky patches.  For those
-   instruments, each real frame's dark-sky patches enter the statistics alone,
-   so the real sky statistics still appear.  If the camera doesn't set a
-   ceiling, all of the real frame's sky patches enter.  If only some of an
-   instrument's matched frames have sky patches, a pair whose matched frame has
-   none is dropped.  If the real frame has no sky patches, neither frame of the
-   pair adds any.
+   If none of an instrument's matched frames has sky patches, each real frame's
+   dark-sky patches enter the statistics alone, so the real sky statistics still
+   appear.  If the camera doesn't set a ceiling, all of the real frame's sky
+   patches enter.  If only some of an instrument's matched frames have sky
+   patches, a pair whose matched frame has none is dropped.  If the real frame has
+   no sky patches, neither frame of the pair adds any.
 
    The JSON summary's ``sky_comparison`` block reports these outcomes for each
    instrument.  It groups the frames by downlink: ``sqrt_lut`` holds the frames
