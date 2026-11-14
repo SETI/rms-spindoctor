@@ -865,7 +865,7 @@ def pool_frame_pairs(
     Parameters:
         comparison: The instrument's comparison, which holds one record per
             frame.  It receives the sky pairs, the pooled samples, and, for each
-            side, the frames that added each figure's statistics.
+            side, the kinds of statistic each frame added.
         real_frames: The real frames' samples, in the records' order.
         sim_frames: The matched frames' samples, in the same order.
     """

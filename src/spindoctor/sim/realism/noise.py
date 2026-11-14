@@ -418,7 +418,7 @@ def quantization_step(values: NDArrayFloatType) -> float | None:
     sit on fewer than two levels, the fit also uses the nearest level on each side.  It
     leaves out a side's level that lies more than twice as far from the central levels
     as the other side's.  So a far level, such as a bright pixel's, stays out of the fit
-    whenever the sky has a level at most half as far away on the other side.
+    whenever the sky has a level less than half as far away on the other side.
 
     Each level is then checked against the fitted lattice.  It passes when it lies
     within a thousandth of a step of a lattice level, or within a few float32 rounding

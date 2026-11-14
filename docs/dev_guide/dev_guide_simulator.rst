@@ -4343,8 +4343,8 @@ instrument, on seven figures of merit:
    each frame kept.  If a frame didn't keep any, its level is the median mean of
    all its sky patches.
 
-   The support label of figure 1 counts every frame that adds any of its
-   statistics.  The noise-at-signal statistic uses the uniform patches brighter
+   The support label of figure 1 counts, on each side, every frame that adds any
+   of its statistics.  The noise-at-signal statistic uses the uniform patches brighter
    than the darkest quarter.  A frame can therefore add that statistic even when
    its sky patches drop out, so the sky statistics can rest on fewer frames than
    the label shows.  ``n_sky_frames``, beside the support counts, gives the
@@ -4457,7 +4457,7 @@ When the central values sit on fewer than two levels, the fit can't find a spaci
 from them alone, so it also uses the nearest level on each side.  It leaves out a
 side's level when that level is more than twice as far away as the other side's.  A
 bright pixel far above the sky therefore stays out of the fit whenever the sky has a
-level at most half as far away on the other side.
+level less than half as far away on the other side.
 
 Each level is then tested against the fitted lattice.  It passes when it lies within
 a thousandth of a step of a lattice level, or within its own float rounding error,
@@ -4465,10 +4465,10 @@ whichever is larger.  A level outside the range of the fitted levels is also all
 the fit's uncertainty at that distance.  Far enough out, that allowance reaches half
 a step, and the level passes whatever its value.
 
-Some values are too large to place at all.  When a value's own float rounding reaches
-half a step, it could stand for any of several lattice levels.  A bright pixel far
-above a finely quantized sky is an example.  Such a value is left out of both the fit
-and the test.
+Some values can't be placed on the lattice at all.  When a value's own float rounding
+reaches half a step, it could stand for any of several lattice levels.  A bright
+pixel far above a finely quantized sky is an example.  Such a value is left out of
+both the fit and the test.
 
 One level that fails the test takes the whole patch off the lattice.  A bright pixel
 500 steps up and four tenths of a step off a lattice level is enough.  The patch is
@@ -4814,15 +4814,15 @@ they disagree, or the record lacks an instrument the table lists, the check fail
 says to remeasure the bands with the command above.  This check reads only committed
 files, so it runs in the unit tier and in CI.
 
-The committed record lacks a code commit.  It also lacks the support labels that
-select the held statistics, so the band table can't describe it.  On a record without
-a code commit, the record-versus-table check is marked as an expected failure.  The
-mark is strict, so the test fails if the check passes.  Only a failed comparison
-counts as the expected failure, so an error in the check itself still fails the test.
-The fresh match skips on such a record, with a message that says so.  At the end of
-the simulator realism work, the record and the bands are regenerated together.  The
-regenerated record carries its commit, and both checks then hold it to the table
-without any edit to the tests.
+The committed record was written without a code commit.  It also lacks the support
+labels that select the held statistics, so the band table can't describe it.  On a
+record without a code commit, the record-versus-table check is marked as an expected
+failure.  The mark is strict, so the test fails if the check passes.  Only a failed
+comparison counts as the expected failure, so an error in the check itself still fails
+the test.  The fresh match skips on such a record, with a message that says so.  At
+the end of the simulator realism work, the record and the bands are regenerated
+together.  The regenerated record carries its commit, and both checks then hold it to
+the table without any edit to the tests.
 
 Setting ``SPINDOCTOR_TEST_REALISM_RECORD`` to the path of another summary points both
 checks at that summary.  Against a summary written from unchanged code, both checks

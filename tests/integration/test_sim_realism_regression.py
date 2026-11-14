@@ -7,8 +7,8 @@ instrument the table lists.  It reads real frames, so it carries the ``integrati
 marker and stays out of CI.  The band table's agreement with the record is checked in
 ``tests/integration/test_realism_record_bands.py``, which reads only committed files.
 
-The committed record predates the check, and the fresh match skips on a record that
-lacks a code commit.  The environment variable ``SPINDOCTOR_TEST_REALISM_RECORD``
+The committed record predates the check, and the fresh match skips on a record
+without a code commit.  The environment variable ``SPINDOCTOR_TEST_REALISM_RECORD``
 points the check at another summary, so that it can be shown to pass and fail against a
 record made outside the repository.
 """

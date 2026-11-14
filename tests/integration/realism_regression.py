@@ -26,7 +26,7 @@ on one machine cannot show.  :func:`band_rule` is the rule in code.
 The table and the record must describe the same run.  The statistics the record holds
 for an instrument must be exactly the table's, and each recorded value must lie within
 its band of the table's measured value.  A fresh match is never compared with a record
-that lacks a code commit, because such a record predates the check.  A deliberate change
+without a code commit, because such a record predates the check.  A deliberate change
 to the simulator, or to the statistics, is accepted by regenerating the record and then
 remeasuring the bands::
 
