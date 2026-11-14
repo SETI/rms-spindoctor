@@ -609,12 +609,9 @@ Every other stage runs as in the full render. The PSF stays, at oversample 1, wh
 its convolution takes 10 to 20 ms on a full-size frame. Without it, every star would be
 a single pixel holding its whole flux, since the PSF is a star's only shape. The
 editor's display is stretched to the frame's peak, so a one-pixel star would dim
-everything else on screen. The body still moves to its position by linear
-interpolation from its drawing at the frame center. That move costs little at
-oversample 1.
-
-.. When the full render draws each body at its exact sub-pixel position (#984), the
-   preview keeps the cached drawing and the interpolated move, which belong only to it.
+everything else on screen. The body moves to its position by linear interpolation
+from its cached drawing, as in the full render (see :ref:`placing a body
+<sim-body-placement>`). That move costs little at oversample 1.
 
 The preview is deterministic, and it never modifies the caller's scene. The flag is
 part of the render cache key, so a preview is never handed out for a full render. On a
@@ -1848,6 +1845,37 @@ copy of the scene entry, leaving out any key the scene sets to null, so a null k
 and an absent one give the same truth. The stage then puts in the render-grid
 centers and axes, fills in the name and range when the scene leaves them out, and,
 for a mesh body, adds the pose scatter it drew.
+
+.. _sim-body-placement:
+
+**Placing a body.** Each body is drawn once, centered on the frame, and the drawing
+is cached on every parameter except position. The renderer then moves the drawing to
+the body's scene position plus the planted offset by linear interpolation
+(:mod:`~spindoctor.sim.forward.translate`). An offset sweep therefore draws each body
+once and only moves it at each step. At catalog size a new drawing costs 0.03 to
+0.12 s. At 1024 x 1024 it costs 1.3 to 4.6 s, against 0.02 to 1.9 s to move a cached
+one.
+
+A move by a fraction ``f`` of a pixel blends two copies of the drawing: one at the
+whole-pixel position, weighted ``1 - f``, and one a pixel farther, weighted ``f``.
+The body's total brightness, its centroid, and the midpoint of its limb come out
+exact. The limb, though, is softer than it would be if the body were drawn at that
+position: the blend adds a variance of ``f(1 - f)`` square pixels, up to 0.25 at half
+a pixel. A scene with a PSF is drawn on a grid 4 times finer and then blurred, so
+there the softening is negligible. A scene without a PSF is drawn on the detector
+grid, and the softening reaches the image.
+
+Navigation barely notices it. On a 220 x 220 limb scene and a disc scene, both
+without a PSF, planted offsets were stepped by 0.1 px across a whole pixel, with 8
+seeds per step. Drawing each body at its exact sub-pixel position instead changed no
+technique's offset error by more than 0.025 px and no confidence by more than 0.003.
+That is at or below the scatter from noise alone. BodyLimbNav's own error varies by
+about 0.1 px with the fractional part of the offset, but it varies the same way with
+exact drawing and with a PSF, so the move does not cause it. The simulator therefore
+keeps the cached drawing and the interpolated move.
+
+.. Measured 2026-11-14 for #984, which decided against drawing at the exact
+   sub-pixel position. The BodyLimbNav ripple is #282.
 
 The topographic path
 --------------------
