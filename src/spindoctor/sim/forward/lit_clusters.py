@@ -18,7 +18,7 @@ from scipy import ndimage
 
 from spindoctor.support.types import NDArrayFloatType, NDArrayIntType
 
-__all__ = ['CLUSTER_BLOCK_PX', 'LitClusters', 'cluster_crop', 'find_lit_clusters', 'grow']
+__all__ = ['CLUSTER_BLOCK_PX', 'LitClusters', 'cluster_crop', 'find_lit_clusters', 'widen_slice']
 
 # The blocks are squares this many render-grid pixels on a side.
 CLUSTER_BLOCK_PX = 32
@@ -39,9 +39,9 @@ class LitClusters:
     boxes: list[tuple[slice, slice]]
 
 
-def grow(box: slice, by: int, size: int) -> slice:
-    """A slice widened by ``by`` on each side and clipped to ``[0, size)``."""
-    return slice(max(box.start - by, 0), min(box.stop + by, size))
+def widen_slice(span: slice, margin: int, size: int) -> slice:
+    """A slice widened by ``margin`` on each side and clipped to ``[0, size)``."""
+    return slice(max(span.start - margin, 0), min(span.stop + margin, size))
 
 
 def find_lit_clusters(plane: NDArrayFloatType) -> LitClusters:

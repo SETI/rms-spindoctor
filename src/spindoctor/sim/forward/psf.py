@@ -140,8 +140,8 @@ def _blur_plane(plane: NDArrayFloatType, kernel: NDArrayFloatType) -> None:
         return
     size_v, size_u = plane.shape
     half = kernel.shape[0] // 2
-    # An FFT convolution costs about the area it transforms: each crop grown by
-    # the kernel's width, against the whole frame grown by the same.
+    # An FFT convolution costs about the area it transforms: each crop widened by
+    # the kernel's width, against the whole frame widened by the same.
     cluster_area = sum(
         (v.stop - v.start + 2 * half) * (u.stop - u.start + 2 * half) for v, u in clusters.boxes
     )

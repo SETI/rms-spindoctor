@@ -45,7 +45,7 @@ from spindoctor.sim.forward.lit_clusters import (
     CLUSTER_BLOCK_PX,
     cluster_crop,
     find_lit_clusters,
-    grow,
+    widen_slice,
 )
 from spindoctor.sim.forward.stages import SimFrame
 from spindoctor.sim.scene_schema import scene_value
@@ -212,8 +212,8 @@ def _warp_crop(
         The output rows and columns the crop's light can reach, and the warped
         values there.
     """
-    out_v = grow(in_v, warp.reach, warp.shape[0])
-    out_u = grow(in_u, warp.reach, warp.shape[1])
+    out_v = widen_slice(in_v, warp.reach, warp.shape[0])
+    out_u = widen_slice(in_u, warp.reach, warp.shape[1])
     coeffs = ndimage.spline_filter(crop, order=3, output=np.float64, mode='constant')
     coords = _source_coords(warp, out_v, out_u, in_v.start, in_u.start)
     values = ndimage.map_coordinates(
@@ -234,10 +234,14 @@ def _warp_plane(plane: NDArrayFloatType, warp: _Warp) -> None:
     if not clusters.boxes:
         return
     margin = _PREFILTER_MARGIN_PX
-    crops = [(grow(v, margin, size_v), grow(u, margin, size_u)) for v, u in clusters.boxes]
-    # A crop's cost is the area it is interpolated over: the crop grown by the
+    crops = [
+        (widen_slice(v, margin, size_v), widen_slice(u, margin, size_u)) for v, u in clusters.boxes
+    ]
+    # A crop's cost is the area it is interpolated over: the crop widened by the
     # reach.  Once those areas add up to the frame's, one whole-frame warp is cheaper.
-    outputs = [(grow(v, warp.reach, size_v), grow(u, warp.reach, size_u)) for v, u in crops]
+    outputs = [
+        (widen_slice(v, warp.reach, size_v), widen_slice(u, warp.reach, size_u)) for v, u in crops
+    ]
     if sum((v.stop - v.start) * (u.stop - u.start) for v, u in outputs) >= size_v * size_u:
         whole_v, whole_u = slice(0, size_v), slice(0, size_u)
         _, _, values = _warp_crop(plane, whole_v, whole_u, warp)
