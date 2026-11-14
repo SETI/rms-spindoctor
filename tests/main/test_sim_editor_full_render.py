@@ -248,6 +248,20 @@ def test_the_idle_timer_starts_the_full_render(qapp: QApplication) -> None:
     assert np.array_equal(window._current_image, _full(window))
 
 
+def test_editing_the_midtime_still_ends_on_the_full_render(qapp: QApplication) -> None:
+    """A midtime typed before the idle timer fires still ends on the scene's full render.
+
+    The midtime changes no pixel, but the full render is shown only for the scene being
+    edited, so the edit has to draw a new preview and restart the idle timer.
+    """
+    window: Any = CreateSimulatedImageModel(full_render_delay_sec=0.0)
+    _set_scene(window)
+    window._updater.immediate_update()
+    window._midtime_edit.setText('2005-01-01T00:00:00')
+    process_until(lambda: window._image_kind_label.text() == 'Full render')
+    assert window._displayed_params == window.sim_params
+
+
 def test_the_saturation_overlay_waits_for_the_full_render(model: Any) -> None:
     """While the preview is on screen, the saturation overlay says it is waiting."""
     model._saturation_overlay_check.setChecked(True)

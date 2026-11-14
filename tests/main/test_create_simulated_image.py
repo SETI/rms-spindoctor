@@ -33,7 +33,7 @@ except Exception as exc:
         allow_module_level=True,
     )
 
-from tests.main.sim_editor_waits import render_fully
+from tests.main.sim_editor_waits import process_until, render_fully
 
 # The driver is an importable module under the ``spindoctor.cli`` package.
 ncsi = importlib.import_module('spindoctor.cli.sd_create_simulated_image')
@@ -509,6 +509,22 @@ def test_save_scene_names_the_removed_declaration_in_the_status_bar(
         'Removed noise.read_noise_dn from published_equals_truth: an edit made the '
         'published value differ from the planted one.'
     )
+
+
+def test_save_scene_that_removes_a_declaration_redraws_the_picture(
+    monkeypatch: pytest.MonkeyPatch, model: Any, tmp_path: Path
+) -> None:
+    """Removing a stale declaration changes the scene, so the picture is drawn again."""
+    _declare_then_edit_read_noise(model)
+    model._update_image()
+    out = tmp_path / 'stale.yaml'
+    monkeypatch.setattr(
+        QFileDialog, 'getSaveFileName', staticmethod(lambda *a, **k: (str(out), 'YAML'))
+    )
+    _no_critical(monkeypatch)
+    model._save_scene()
+    process_until(lambda: model._displayed_params == model.sim_params)
+    assert model._displayed_params['published_equals_truth'] == ['noise.bias_dn']
 
 
 def test_load_scene_populates_model(

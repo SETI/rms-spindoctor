@@ -44,7 +44,9 @@ class SceneIoMixin(SimEditorBase):
         Listing a path says its truth and published values are equal on purpose.
         An edit such as a read-noise change ends that, and the editor doesn't have a
         control for the list, so the stale paths are removed and the status bar
-        names them.  The key goes when the list empties.
+        names them.  The key goes when the list empties.  Removing a path changes the
+        scene, so it asks for an update: the full render and the verdict are shown only
+        for the scene being edited.
         """
         stale = stale_truth_declarations(self.sim_params, source='editor')
         if len(stale) == 0:
@@ -54,6 +56,7 @@ class SceneIoMixin(SimEditorBase):
             self.sim_params['published_equals_truth'] = kept
         else:
             del self.sim_params['published_equals_truth']
+        self._updater.request_update()
         status_bar = self.statusBar()
         if status_bar is not None:
             status_bar.showMessage(

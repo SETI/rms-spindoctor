@@ -197,11 +197,17 @@ class GlobalFieldsMixin(SimEditorBase):
         self._updater.request_update()
 
     def _on_midtime(self, text: str) -> None:
-        """Set or clear the informational midtime timestamp."""
+        """Set or clear the informational midtime timestamp.
+
+        The timestamp changes no pixel, but it changes the scene, and the full render
+        and the verdict are shown only for the scene being edited, so the edit asks
+        for an update like any other.
+        """
         if text.strip():
             self.sim_params['midtime_utc'] = text.strip()
         else:
             self.sim_params.pop('midtime_utc', None)
+        self._updater.request_update()
 
     def _on_random_seed(self, value: int) -> None:
         """Update the render RNG seed."""
