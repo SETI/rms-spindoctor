@@ -34,9 +34,11 @@ Extending the reference to Tycho-2 also keeps the ``photometry_saturated``
 flag off stars that are not saturated.  A genuine V7 to V8 star absent from
 YBSC used to be flagged saturated merely for sitting beyond YBSC
 completeness; Tycho-2 covers it, so it matches a reference, agrees with it,
-and is left unflagged.  Only a bright star with no reference in either
-catalog -- now genuinely rare -- is flagged, and its magnitude is treated as
-an untrusted lower bound on brightness rather than a trustworthy reading.
+and is left unflagged.  Only a bright star left without an available
+reference in either catalog -- now genuinely rare -- is flagged, and its
+magnitude is treated as an untrusted lower bound on brightness rather than a
+trustworthy reading.  A reference is unavailable when none lies within the
+match radius or when an earlier candidate has already consumed it.
 
 Because UCAC4's saturated magnitude disagrees with the Tycho-2/YBSC value
 by more than the merge's duplicate-magnitude tolerance, a bright star that
@@ -394,7 +396,8 @@ def correct_star_photometry(
     self-consistent Johnson pair; a match against Tycho-2 adopts Tycho-2's
     V and fakes the color from the candidate's spectral class.  A matched
     record is flagged ``photometry_corrected``; a bright record with no
-    reference in either catalog is flagged ``photometry_saturated`` so
+    available reference in either catalog (none in range, or each one in
+    range already consumed) is flagged ``photometry_saturated`` so
     downstream consumers know its magnitude is an untrusted lower bound.
     A record that matches a reference and already agrees with it is not
     saturated, so it is left untouched and unflagged.

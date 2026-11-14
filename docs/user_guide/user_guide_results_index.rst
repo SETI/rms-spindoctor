@@ -992,10 +992,11 @@ Two things it does **not** refuse:
   on. Dropping under a live pass ends that pass, which fails on a table that has
   gone; no reader is affected, because an unfinished run already reads as "not
   ingested" both before and after.
-* **Another process holding the database.** Neither backend can always tell
-  whether another process is using the database, so the drop finds out by
-  trying. Both the reading that
-  precedes the question and the drop itself wait a bounded time for each table
+* **Another process using the database.** Neither backend can list every
+  process that is using the database. The drop stops only at a lock that
+  blocks it, so a process holding no such lock leaves it free to go ahead. A
+  reader of a SQLite results index is one example. Both the reading that
+  precedes the drop and the drop itself wait a bounded time for each table
   -- ``lock_timeout`` on PostgreSQL, the busy timeout on SQLite -- and then give
   up, and what they give up on is put back whole by the transaction around it.
   A failure reports what the database said the cause was: a lock somebody holds, a

@@ -1667,8 +1667,9 @@ fused error magnitude, from the scene's recorded baseline -- with a
 ``known_offset_error_tol_px`` band. The assertion then fails in *both*
 directions: a regression that worsens the error fails, and a genuine fix that
 shrinks it also fails loudly, prompting someone to re-measure the known error
-(or retire the check) instead of a silent behavior change. The success the check
-holds is a documented hazard held in view, never an endorsement; the scene
+(or retire the check by removing both keys) instead of a silent behavior change.
+The success the check holds is a documented hazard held in view, never an
+endorsement; the scene
 comments and the campaign record carry the analysis, and the ensemble chapter
 (:doc:`dev_guide_orchestrator_ensemble`) describes the failure family for the
 readers who consume tiers. The ``titan_crescent_horns`` pair left this family

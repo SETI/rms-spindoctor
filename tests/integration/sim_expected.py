@@ -181,7 +181,8 @@ def assert_result_matches_expected(
         f'{scene_name}: measured offset error {error_px:.2f} px fell below the '
         f'known-error band [{lower:.2f}, {upper:.2f}] px -- the documented '
         f'confident-wrong behavior improved; re-measure the known error and update '
-        f'(or retire) the known_offset_error_px value'
+        f'known_offset_error_px, or retire the check by removing both '
+        f'known_offset_error_px and known_offset_error_tol_px'
     )
     assert error_px <= upper, (
         f'{scene_name}: measured offset error {error_px:.2f} px exceeds the '
