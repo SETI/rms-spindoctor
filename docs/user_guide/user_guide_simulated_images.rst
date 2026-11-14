@@ -78,16 +78,22 @@ blurred by the camera's point-spread function, with the scene's noise.
 About a second after your last change, the editor draws the full render in the
 background. This is the same image a test or a saved frame gets. When it finishes, it
 replaces the preview. If you change something while the full render is being drawn,
-the editor drops it and goes back to fast previews. The status bar says which image is
-on screen: "Fast preview", "Fast preview (full render running)", or "Full render".
-Judge noise, blur, and exact positions on the full render only.
+the editor discards that render and goes back to fast previews. The status bar says
+which image is on screen: "Fast preview", "Fast preview (full render running)", or
+"Full render". Judge noise, blur, and exact positions on the full render only.
 
-Everything that leaves the editor comes from the full render: a saved PNG image, the
-units and verdict in the status bar, and the saturation overlay. While the preview is on
-screen, the status bar says the verdict is pending, and the saturation overlay says it
-is waiting for the full render. If you save an image while the preview is on screen,
-the editor draws the full render first, which can take a few seconds on a full-size
-frame.
+A saved PNG image always comes from the full render. If you save an image while the
+preview is on screen, the editor draws the full render first, which can take a few
+seconds on a full-size frame, and then shows it in place of the preview.
+
+On screen, the status bar's units and verdict wait for the full render too, and so does
+the saturation overlay. Until it arrives, the status bar says the verdict is pending,
+and the saturation overlay says it is waiting for the full render. If the full render
+fails, the preview stays on screen and the status bar says the full render failed, with
+the start of the error message. Hold the pointer over that message to read all of it.
+The saturation overlay then says the full render failed, and so does the verdict. A
+scene that plants an offset is the exception: its verdict comes from a render of its
+own.
 
 ``--full-render-delay SECONDS`` sets how long the editor waits after your last change
 before it starts the full render. The default is 1 second, and the longest delay it

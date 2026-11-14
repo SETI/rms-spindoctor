@@ -37,8 +37,9 @@ Every parameter is reachable from all three; adding a physical effect means
 adding it to the renderer, the scene schema, and a GUI control together. All three
 hold a scene to the same rules: every render validates its scene first, whether
 the scene came from a file, a Python dict, or the editor. The editor's fast preview
-and its full render are both such renders. The navigator side -- how a simulated frame is turned into
-``NavFeature`` objects and navigated -- is documented in the simulated-model chapters
+and its full render are both such renders. The navigator side -- how a simulated
+frame is turned into ``NavFeature`` objects and navigated -- is documented in the
+simulated-model chapters
 (:doc:`dev_guide_navigation_models_body_simulated`,
 :doc:`dev_guide_navigation_models_ring_simulated`,
 :doc:`dev_guide_navigation_models_star_simulated`); this chapter documents the
@@ -707,8 +708,8 @@ loss puts a calibrated pixel at the marker: the artifact modes and
 The editor's status bar shows a rendered frame's units and value range and the
 share of pixels at the marker (:func:`~spindoctor.sim.instrument_navigator.frame_units_summary`).
 It reads the full render of the frame the navigator reads, with the planted offset
-applied, although the picture beside it is offset-free: the offset moves the scene within the
-frame, and can take a body near the edge out of it. When the navigator's image
+applied, although the picture beside it is offset-free: the offset moves the scene
+within the frame, and can take a body near the edge out of it. When the navigator's image
 classifier would not call that frame clean, the status bar says why, in the
 classifier's order (:func:`~spindoctor.sim.instrument_navigator.read_frame_as_navigator`):
 a peak below the blank limit first, then the overexposed share, then a marker
@@ -726,8 +727,8 @@ the saturation overlay, and the hit test read the scene behind the picture. A
 right-click leaves the selection empty while that scene differs from the edited one,
 since an object's index in the picture can belong to a different object in the edited
 scene. When a later edit makes the scene valid again, the preview renders as usual. A
-render that fails on a valid scene opens an error dialog, and so does a validator that
-fails with an error other than a refusal.
+preview that fails on a valid scene opens an error dialog, and so does a validator
+that fails with an error other than a refusal.
 
 Once a scene passes validation, the editor draws its fast preview (see
 :ref:`the fast preview <sim-editor-preview-render>`), and the status bar shows the
@@ -735,10 +736,13 @@ units followed by ``verdict pending``. When the editor has been idle for its del
 the full render runs on a worker thread. Without a planted offset, the full render is
 the frame the navigator reads, and the status bar describes it when it arrives. With
 one, the navigated frame is a render of its own, and a second worker runs it at the
-same time. Its summary replaces the pending line when it finishes. A newer edit discards both
-renders, so the status bar never shows the verdict for an older scene. A failed
-background render puts its error on the status bar and prints its traceback to
-standard error. :ref:`sim-editor-verdict-thread` describes the workers.
+same time. Its summary replaces the pending line when it finishes. A newer edit
+discards both renders, so the status bar never shows the verdict for an older scene.
+A failed background render puts the first line of its error on the status bar, cut
+to 80 characters, and prints its traceback to standard error. When the full render
+of an offset-free scene fails, the units line and the saturation overlay's status say
+so in place of waiting for it. :ref:`sim-editor-verdict-thread` describes the
+workers.
 
 .. _sim-optics-stage:
 
@@ -4248,20 +4252,30 @@ thread. ``FullRenderRunner`` in ``full_render.py`` renders the offset-free pictu
   rendered. The editor shows it only if that copy equals the edited scene. This also
   covers an edit made after the render started and still waiting out the debounce,
   which no cancel has seen yet. A full render that is shown replaces the picture, its
-  metadata, and the scene behind it, and the status bar then says ``Full render``.
+  metadata, and the scene behind it, and the status bar then says ``Full render``. A
+  failure carries no scene, so only the cancel keeps an outdated failure off the
+  status bar.
+- **Every scene change redraws.** Because both checks compare scenes, every change
+  to ``sim_params`` must request an update, even one that changes no pixel, such as
+  the midtime or a save that drops a stale ``published_equals_truth`` path. A change
+  that skips the update leaves the picture's scene behind the edited one, so the full
+  render and the verdict are never shown.
 - **What uses the full render.** A saved PNG, the units-and-verdict line, and the
   saturation overlay. Saving while the preview is on screen renders the full image
-  of the scene behind the picture on the UI thread first. The cursor's pixel readout
-  and the right-click hit test read whichever image is on screen.
+  of the scene behind the picture on the UI thread first. If that scene is still the
+  edited one, the new image replaces the preview, as a finished background render
+  would, and the background full render of that scene is canceled. An idle timer
+  that fires afterwards then starts only the verdict render. The cursor's pixel
+  readout and the right-click hit test read whichever image is on screen.
 - **Hand-back.** The worker touches no Qt object and no editor state. It writes its
   result, or its error and traceback, into its job object and then sets the job's
-  ``threading.Event``. While a render runs, a ``QTimer`` on the UI thread polls
-  that event every 25 ms, and only the UI thread reads the job, updates the picture
-  and the status bar, and prints a failure's traceback. Every Qt object is therefore
-  created, used, and destroyed on the UI thread. A worker that outlives the window writes
-  only into a job that nothing reads, because the poll timer is the runner's child
-  and is destroyed with the window. A worker that can't start reports the failure
-  on the status bar.
+  ``threading.Event``. While a render runs, a ``QTimer`` on the UI thread polls that
+  event every 25 ms, and only the UI thread reads the job, updates the picture and the
+  status bar, and prints a failure's traceback. Every Qt object is therefore created,
+  used, and destroyed on the UI thread. A worker that outlives the window writes only
+  into a job that nothing reads, because the poll timer is the runner's child and is
+  destroyed with the window. A worker that can't start reports the failure on the
+  status bar.
 - **Exit.** The worker is an ordinary, non-daemon thread, so the interpreter
   waits for it before it shuts down: quitting the editor mid-render waits for
   that render to finish. A daemon thread would be killed at shutdown in the
@@ -4277,12 +4291,12 @@ thread. ``FullRenderRunner`` in ``full_render.py`` renders the offset-free pictu
   coherent under concurrent calls, and no caller writes into a cached value:
   ``render_combined_model`` returns copies, and the stage caches' callers only
   read theirs. The configuration is loaded by the first preview, before any
-  background render is requested, and the render path only reads it. Two overlapping misses
-  on one cache key compute the same value twice, which costs time and is
-  otherwise harmless.
-- **The GIL.** The renders share the interpreter lock, so the UI thread can
-  wait for it while a background render runs. A render that rebuilds a shape holds
-  the UI longest: a mesh body's Python loop over its faces kept the UI waiting
+  background render is requested, and the render path only reads it. Two
+  overlapping misses on one cache key compute the same value twice, which costs time
+  and is otherwise harmless.
+- **The GIL.** The renders share the interpreter lock, so the UI thread can wait for
+  it while a background render runs. A render that rebuilds a shape holds the UI
+  longest: a mesh body's Python loop over its faces kept the UI waiting
   for stretches of 90 to 140 ms when every cache was cleared first. The background
   renders start only once the user has stopped editing, so the UI thread is usually
   idle while they run. The preview and the full render draw a body at different

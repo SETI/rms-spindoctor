@@ -59,8 +59,8 @@ from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 PREVIEW_TEXT = 'Fast preview'
 PREVIEW_FULL_RUNNING_TEXT = 'Fast preview (full render running)'
 FULL_RENDER_TEXT = 'Full render'
-# The saturation overlay's status while the fast preview is on screen, and once its
-# full render has failed.
+# The saturation overlay's status while the fast preview is on screen: waiting for
+# the full render, or after that render has failed.
 SATURATION_WAITING_TEXT = 'Saturated: waiting for the full render'
 SATURATION_FAILED_TEXT = 'Saturated: unknown, the full render failed'
 # The units line's words, after the units name, once an offset-free scene's full
