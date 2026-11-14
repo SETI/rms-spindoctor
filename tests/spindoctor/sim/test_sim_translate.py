@@ -78,3 +78,35 @@ def test_an_empty_box_translates_to_the_fill_value() -> None:
     rows, cols = nonzero_box(plane)
     out = translate_box(plane, 3.2, -1.7, rows, cols)
     assert np.array_equal(out, plane)
+
+
+def _plane_lit_in(rows: slice, cols: slice) -> np.ndarray:
+    """A 50 x 60 plane that is zero except for ones in a box."""
+    plane = np.zeros((50, 60), dtype=np.float64)
+    plane[rows, cols] = 1.0
+    return plane
+
+
+@pytest.mark.parametrize(
+    ('planes', 'expected'),
+    [
+        pytest.param(
+            [_plane_lit_in(slice(10, 20), slice(30, 41))],
+            (slice(10, 20), slice(30, 41)),
+            id='one_plane',
+        ),
+        pytest.param(
+            [
+                _plane_lit_in(slice(10, 20), slice(30, 41)),
+                _plane_lit_in(slice(8, 22), slice(25, 38)),
+            ],
+            (slice(8, 22), slice(25, 41)),
+            id='silhouette_beyond_the_body',
+        ),
+    ],
+)
+def test_nonzero_box_bounds_every_lit_pixel(
+    planes: list[np.ndarray], expected: tuple[slice, slice]
+) -> None:
+    """The box is the tightest one holding every nonzero pixel of every plane."""
+    assert nonzero_box(*planes) == expected
