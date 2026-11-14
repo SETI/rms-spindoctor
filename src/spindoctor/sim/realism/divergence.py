@@ -6,10 +6,10 @@ by the real distribution's interquartile range.  W1 is a transport metric in
 the variable's own units -- the actual reason to use it -- but it is not
 outlier-robust (it grows linearly with displaced-tail distance), so the clip
 keeps a noise statistic from silently measuring an artifact statistic's
-tails.  No absolute pass/fail threshold is attached: the number is reported
-per figure of merit and read by a human, and the regression check
+tails.  The number has no fixed pass/fail threshold.  It is reported per
+figure of merit and read by a human.  The regression check
 (``tests/integration/realism_regression.py``) holds each supported statistic
-to its committed value within a band measured from run-to-run variation.
+to its committed value, within a band measured from run-to-run variation.
 
 Each sample is winsorized at its *own* 1st/99th percentiles.  Clipping the
 sim sample at the real sample's bounds would cap the measured displacement of
@@ -77,11 +77,10 @@ class CohortSupport(Enum):
     distribution statement; ``LIMITED`` means a comparison is reported but
     flagged as resting on too few frames for distributional confidence; and
     ``UNSUPPORTED`` means the comparison rests on too few frames to say
-    anything about the distributions and is not held to a regression band, so
-    the instrument's sim accuracy is bounded by unverified forward-model
-    fidelity for this figure of merit.  The frames
-    are counted on both sides, real and simulated, and the smaller count sets
-    the label.
+    anything about the distributions and is not held to a regression band.
+    The instrument's sim accuracy for this figure of merit then rests on
+    unverified forward-model fidelity.  The frames are counted on both sides,
+    real and simulated, and the smaller count sets the label.
     """
 
     SUPPORTED = 'supported'

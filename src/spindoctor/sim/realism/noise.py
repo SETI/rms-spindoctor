@@ -1,29 +1,21 @@
 """Sky-region noise statistics for realism FOM 1.
 
 Science frames have no flat-field pairs, so noise is estimated inside near-uniform
-patches, and the estimator depends on whether the patch's values are quantized.
+patches.  :func:`patch_noise_sigma` measures one patch.  How it does so depends on
+whether the patch is quantized, that is, whether its values sit on a lattice of equally
+spaced levels such as whole DN (:func:`quantization_step`).
 
-A patch whose values take any real value is measured by local differencing: paired
-horizontal pixel differences cancel scene structure that varies slowly across the
-patch, and dividing the difference scale by sqrt(2) recovers the per-pixel sigma.  A
-robust (MAD-based) scale keeps residual stars, cosmic rays, and hot pixels in a patch
-from inflating the estimate; naive signal-binning would conflate scene texture with
-noise, which is exactly what this estimator avoids.
+A patch of continuous values is measured from paired horizontal pixel differences
+(:func:`paired_difference_sigma`).  The differences cancel scene structure that varies
+slowly across the patch.  Their median absolute deviation (MAD) gives the sigma, and
+the median keeps stars, cosmic rays, and hot pixels from inflating it.  Binning pixels
+by signal instead would count scene texture as noise.
 
-A patch whose values sit on a lattice of equally spaced levels, such as whole DN, is
-measured by paired differences when their estimate is at least two steps and the patch
-is not clipped, and otherwise by fitting the quantization itself
-(:func:`lattice_noise_sigma`).  Whole-step differences make the plain MAD a whole or
-half step, so on a lattice the differences' spread is read from their histogram with
-each whole-step value spread across its step, and the variance that rounding and that
-spreading add is removed.  Below two steps that estimate drifts by up to a few percent,
-and below about one step more than half the differences are 0.  The quantized fit
-models a quadratic surface plus Gaussian noise, rounded to the lattice, by maximum
-likelihood, and models clipping.  It reads every level's population as noise, so
-structure the quadratic cannot follow counts as noise there, and a patch whose lowest
-or highest level is far fuller than the fitted model predicts is not measured.  A
-patch whose differences read below two steps and whose fit reads 2.5 steps or more is
-not measured either.
+A quantized patch is measured from its paired differences too, read from their
+histogram, when they give at least two steps and the patch is not clipped.  Otherwise
+it is measured by fitting the quantization (:func:`lattice_noise_sigma`): a quadratic
+surface plus Gaussian noise, rounded to the lattice, fitted by maximum likelihood.  A
+patch the fit can't trust gives NaN.
 
 The sky spatial power spectrum (radially averaged over annuli of spatial
 frequency) catches banding and coherent noise that a scalar sigma cannot:
@@ -53,102 +45,103 @@ __all__ = [
 # MAD to sigma conversion for a normal distribution.
 _MAD_TO_SIGMA = 1.4826
 
-# A level lies on the fitted lattice when it lies within this fraction of a step of its
-# lattice level, or within _FLOAT_ROUNDING_EPS of its own magnitude, whichever is larger;
-# a level beyond the fitted ones may also be off by the fit's error there.
+# A level lies on the fitted lattice when it is within this fraction of a step of a
+# lattice level, or within _FLOAT_ROUNDING_EPS of its own magnitude, whichever is larger.
+# A level outside the fitted ones is also allowed the fit's error there.
 _LATTICE_TOLERANCE = 1e-3
 
-# The rounding error a float32 value can carry, relative to its magnitude: a few units
-# of float32's machine epsilon.  A lattice of whole DN scaled into float32, such as DN
-# times 1.234e-3 near DN 3000, sits off its levels by this much.  A single rounding to
-# float32 moves a value by at most half of _FLOAT32_EPS of its magnitude.
+# The rounding error a float32 value can carry, relative to its magnitude, is taken as a
+# few units of float32's machine epsilon.  Whole DN scaled into float32, such as DN times
+# 1.234e-3 near DN 3000, sit off their lattice levels by about this much.  One rounding
+# to float32 moves a value by at most half of _FLOAT32_EPS of its magnitude.
 _FLOAT32_EPS = float(np.finfo(np.float32).eps)
 _FLOAT_ROUNDING_EPS = 4.0 * _FLOAT32_EPS
 
-# The fit's error at a level beyond the fitted ones is taken as this many standard errors
-# of the fit carried out to that level.
+# At a level outside the fitted ones, the fit's error is taken as this many standard
+# errors of the fit carried out to that level.
 _FIT_SIGMAS = 4.0
 
 # A step at or below this fraction of a value's magnitude is the spacing of
-# floating-point numbers there, not a quantization: the float32 values near 3e-3 I/F are
-# 2.3e-10 apart.
+# floating-point numbers there, not a quantization.  For example, float32 values near
+# 3e-3 I/F are 2.3e-10 apart.
 _FLOAT_SPACING_FRACTION = 1e-6
 
-# A lattice counts only when every level lies within this many steps of the central
-# levels, resolved or not.  The noise estimators then count every pixel's whole-step
-# index from the lowest value below 2**32, where float64 holds each index and each
-# half-step edge exactly, and the quantized fit's surface near the sky's index carries a
-# rounding error of under a millionth of a step.  A pixel farther out, such as a sentinel
-# value, would break that arithmetic.  The bound keeps the arithmetic exact, and it does
-# not make the fit converge: a pixel a billion steps from the sky can still leave the
-# quantized fit reading NaN.
+# A lattice counts only when every value lies within this many steps of the lowest
+# central level.  The noise estimators count each pixel's whole-step index up from the
+# lowest value.  Below 2**32, float64 holds each index and each half-step edge exactly,
+# and the quantized fit's surface near the sky carries a rounding error under a
+# millionth of a step.  A pixel farther out, such as a sentinel value, would break that
+# arithmetic.  The bound keeps the arithmetic exact, but it does not make the fit
+# converge: a pixel a billion steps from the sky can still make the fit read NaN.
 _MAX_LEVEL_STEPS = 2.0**31
 
 # When the central values sit on fewer than two levels, the step is fitted to them and to
-# the nearest level on each side, leaving out a side's level that lies more than this
-# many times as far from them as the other side's.
+# the nearest level on each side.  A side's level is left out when it lies more than this
+# many times as far from the central values as the other side's.
 _NEIGHBOR_GAPS = 2.0
 
-# The quantized fit conditions each pixel on a window of levels around the fitted surface
-# that reaches at least this many fitted sigmas beyond the surface on each side, and at
-# least one level beyond the surface's nearest level.  A pixel outside its window counts
-# as lying beyond the window's edge.  The window is rebuilt from each fit until it
-# repeats one already fitted, or for at most _MAX_WINDOW_FITS fits.
+# The quantized fit conditions each pixel on a window of levels around the fitted
+# surface.  The window reaches at least this many fitted sigmas beyond the surface on
+# each side, and at least one level past the surface's nearest level.  A pixel outside
+# its window counts only as lying beyond the window's edge.  The window is rebuilt from
+# each fit until it repeats one already fitted, for at most _MAX_WINDOW_FITS fits.
 _WINDOW_SIGMAS = 3.0
 _MAX_WINDOW_FITS = 10
 
-# Gaussian noise puts this fraction of its pixels beyond three sigmas of the mean, on the
-# two sides together.  The quantized fit gives NaN when the pixels it censors, beyond
-# their windows or cut off from the bulk of the levels by an empty level, exceed that
-# fraction by more than _EXCESS_FRACTION of the patch plus _EXCESS_PIXELS pixels.  A
-# patch level at the edge of the bulk counts as clipped when it holds more than the same
-# margin.
+# Gaussian noise puts this fraction of its pixels more than three sigmas from the mean,
+# counting both sides.  A pixel is censored when it lies beyond its window or is cut off
+# from the bulk of the levels by empty levels.  The quantized fit gives NaN when the
+# censored pixels exceed that fraction by more than _EXCESS_FRACTION of the patch plus
+# _EXCESS_PIXELS pixels.  An end level of the patch counts as clipped when it belongs to
+# the bulk and holds more than _EXCESS_FRACTION of the patch plus _EXCESS_PIXELS pixels.
 _GAUSSIAN_BEYOND_FRACTION = 0.0027
 _EXCESS_FRACTION = 0.01
 _EXCESS_PIXELS = 3
 
-# Once fitted, a quantized patch gives NaN when the lowest or highest level of its bulk
-# holds more pixels than the fitted model predicts for it by more than _LEVEL_SIGMAS times
-# the square root of the prediction plus _GAUSSIAN_BEYOND_FRACTION of the patch and
-# _EXCESS_PIXELS.  On rounded Gaussian noise of 0.3 to 10 steps, flat, tilted, or curved,
-# clipped or not, no level of 12,000 patches came within 3.7 pixels of that limit.  The
-# levels between are left unchecked: the darkest sky of real Galileo frames puts about
-# 1.4 times the predicted pixels on its fullest level, and few on its neighbors.
+# After the fit, a quantized patch gives NaN when the lowest or highest level of its bulk
+# holds too many pixels: more than the fitted model predicts, plus _LEVEL_SIGMAS times
+# the square root of the prediction, plus _GAUSSIAN_BEYOND_FRACTION of the patch, plus
+# _EXCESS_PIXELS.  On 12,000 patches of rounded Gaussian noise from 0.3 to 10 steps,
+# flat, tilted, or curved, and clipped or not, no level came within 3.7 pixels of that
+# limit.  The levels between are not checked.  In the darkest sky of real Galileo
+# frames, the fullest level holds about 1.4 times the predicted pixels, and its
+# neighbors hold fewer.
 _LEVEL_SIGMAS = 4.0
 
-# The bulk of a quantized patch's levels is broken by a stretch of empty levels wider
-# than this many paired-difference sigmas, and by any empty level when that sigma is
-# below 1/_GAP_SIGMAS of a step.  Noise many steps wide leaves empty levels in its tails;
-# among 1024 pixels, a stretch wider than 1.5 sigmas between neighboring occupied levels
-# is rare.
+# A run of occupied levels may span a stretch of empty levels up to this many
+# paired-difference sigmas wide, and a wider stretch ends it.  When that sigma is below
+# 1/_GAP_SIGMAS of a step, any empty level ends a run.  Noise many steps wide leaves
+# empty levels in its tails, but among 1024 pixels a stretch wider than 1.5 sigmas
+# between occupied levels is rare.
 _GAP_SIGMAS = 1.5
 
-# A lattice patch is measured by paired differences when their estimate is at least this
-# many steps, and by the quantized fit below it.  From two steps up, the median estimate
-# on rounded Gaussian noise lies within 1% of the truth.
+# An unclipped lattice patch is measured by its paired differences when they give at
+# least this many steps, and by the quantized fit otherwise.  From two steps up, the
+# median estimate on rounded Gaussian noise lies within 1% of the truth.
 _DIFFERENCE_MIN_STEPS = 2.0
 
-# An unclipped lattice patch whose paired differences read below _DIFFERENCE_MIN_STEPS but
-# whose quantized fit reads at least this many steps gives NaN: the two estimators
-# disagree, as they do on a resampled product or a patch holding a block of one value.
+# An unclipped lattice patch gives NaN when its paired differences read below
+# _DIFFERENCE_MIN_STEPS but its quantized fit reads at least this many steps.  The two
+# estimators disagree this way on a resampled product, or on a patch holding a block of
+# one value.
 _DISAGREEMENT_STEPS = 2.5
 
-# The variance, in steps squared, that rounding adds to each pixel (1/12, so 1/6 to a
-# difference) and that spreading each whole-step difference across its step adds to the
-# difference (1/12 more): 1/4 per difference, 1/8 per pixel.
+# The variance, in steps squared, that rounding and spreading add.  Rounding adds 1/12
+# to each pixel, so 1/6 to a difference.  Spreading each whole-step difference evenly
+# across its step adds 1/12 more.  That makes 1/4 per difference, or 1/8 per pixel.
 _GROUPING_VARIANCE = 1.0 / 8.0
 
-# The fewest populated levels from which the quantized fit can tell the noise sigma
-# from the level and its slope: two levels fix one proportion, which any sigma can
-# match.  A level is populated when at least _MIN_LEVEL_PIXELS pixels sit on it, so one
-# stray pixel next to a two-level patch cannot make a third level.
+# The quantized fit needs at least this many populated levels to separate the noise
+# sigma from the surface.  Two levels fix only one proportion, and every sigma can match
+# it.  A level is populated when at least _MIN_LEVEL_PIXELS pixels sit on it, so one
+# stray pixel beside a two-level patch does not make a third level.
 _MIN_LEVELS = 3
 _MIN_LEVEL_PIXELS = 2
 
-# The quantized fit searches sigmas from _MIN_SIGMA_STEPS of a step, which keeps the
-# search away from sigmas whose interval probabilities underflow, up to
-# _MAX_SIGMA_SPANS times the span of the patch's levels, well beyond any sigma a patch
-# can show.
+# The quantized fit searches sigmas from _MIN_SIGMA_STEPS of a step up to
+# _MAX_SIGMA_SPANS times the span of the patch's levels.  The lower end keeps the search
+# away from sigmas whose interval probabilities underflow.  The upper end lies well
+# beyond any sigma a patch can show.
 _MIN_SIGMA_STEPS = 1e-3
 _MAX_SIGMA_SPANS = 10.0
 
@@ -200,30 +193,29 @@ def paired_difference_sigma(patch: NDArrayFloatType) -> float:
 def _grouped_difference_sigma(q: NDArrayFloatType) -> float:
     """Per-pixel noise sigma, in steps, from the paired differences of a whole-step patch.
 
-    The horizontal neighbor differences are whole steps.  Their distribution is read with
-    each whole-step value spread evenly across its step, so the median and the MAD vary
-    continuously with the noise; the MAD then scales to a sigma as for a normal
-    distribution, and the variance the rounding and the spreading add, 1/8 step squared
-    per pixel, is removed.
+    The horizontal neighbor differences are whole steps.  Each one is treated as spread
+    evenly across its step, so the median and the MAD vary smoothly with the noise.  The
+    MAD is scaled to a sigma as for a normal distribution.  Rounding and spreading add
+    1/8 step squared to each pixel's variance, and that is subtracted.
 
     Parameters:
-        q: 2-D array of whole-step level indices; a difference that touches a
+        q: 2-D array of whole-step level indices.  A difference that touches a
             non-finite index is left out.
 
     Returns:
-        The sigma in steps, 0 when the differences' spread is no larger than the
-        rounding's or when no difference is finite.
+        The sigma in steps.  It is 0 when the differences spread no more than the
+        rounding does, or when no difference is finite.
     """
     diffs = (q[:, 1:] - q[:, :-1]).ravel()
     diffs = diffs[np.isfinite(diffs)]
     if diffs.size == 0:
         return 0.0
-    # The differences' cumulative fraction is piecewise linear with knots only at the
-    # edges of occupied steps: it rises across each occupied step and is flat across
-    # empty ones.  The mass within a radius of the center bends only where the center
-    # plus or minus the radius meets one of those edges, so the radii to those edges are
-    # its only breakpoints.  Keeping only those edges costs the number of distinct
-    # differences, however far an outlier lies.
+    # The cumulative fraction of the differences is piecewise linear.  It rises across
+    # each occupied step and is flat across empty ones, so its only knots are the edges
+    # of occupied steps.  The mass within a radius of the center changes slope only where
+    # the center plus or minus the radius meets one of those edges, so the radii to those
+    # edges are its only breakpoints.  Working from those edges alone costs time in
+    # proportion to the number of distinct differences, however far out an outlier lies.
     values, counts = np.unique(diffs, return_counts=True)
     edges = np.unique(np.concatenate([values - 0.5, values + 0.5]))
     below = np.concatenate([[0], np.cumsum(counts)])
@@ -252,12 +244,12 @@ def _half_mass_plateau(
 ) -> float | None:
     """The midpoint of the radii about the center that hold exactly half the differences.
 
-    The mass within a radius of the center stays at one half over an interval of radii
-    when both ends of the radius's span lie in runs of empty steps with exactly half the
-    differences between them.  Every radius of that interval is a median absolute
-    deviation, and its midpoint is taken, as for a sample of even size.  The pair of runs
-    is found from the whole-step counts, so float rounding of the mass can't pick some
-    other point of the interval.
+    The mass within a radius of the center can stay at one half over an interval of
+    radii.  That happens when both ends of the radius's span lie in runs of empty steps,
+    and exactly half the differences lie between those runs.  Every radius in the
+    interval is a median absolute deviation, and the midpoint is taken, as for a sample
+    of even size.  The pair of runs is found from the whole-step counts, so float
+    rounding of the mass can't pick some other point of the interval.
 
     Parameters:
         values: The distinct whole-step differences, ascending.
@@ -272,8 +264,8 @@ def _half_mass_plateau(
     if total % 2:
         return None
     # The run of empty steps before values[k] starts at values[k - 1] + 0.5 and ends at
-    # values[k] - 0.5, with below[k] differences beneath it; the first run has no start
-    # and the last no end.  A run between neighboring values is a single point.
+    # values[k] - 0.5, with below[k] differences beneath it.  The first run is unbounded
+    # below and the last unbounded above.  A run between neighboring values is a point.
     starts = np.concatenate([[-np.inf], values + 0.5])
     ends = np.concatenate([values - 0.5, [np.inf]])
     outer = np.searchsorted(below, below + total // 2)
@@ -292,8 +284,8 @@ def _bulk_levels(q: NDArrayFloatType, max_gap: int) -> tuple[int, int]:
     """The lowest and highest level of the run of occupied levels holding the most pixels.
 
     A run is a stretch of occupied levels separated by at most ``max_gap`` consecutive
-    empty levels; a wider stretch of empty levels ends it.  Of equally full runs the
-    lowest is taken.
+    empty levels.  A wider stretch of empty levels ends it.  When two runs hold equally
+    many pixels, the lower one is taken.
 
     Parameters:
         q: Whole-step level indices, 0 or more, every one finite.
@@ -325,7 +317,7 @@ def _is_clipped(q: NDArrayFloatType, sigma_steps: float) -> bool:
     """Whether the patch's lowest or highest level gathers the pixels beyond it.
 
     Such a level belongs to the bulk of the levels (see :func:`lattice_noise_sigma`) and
-    holds more than _EXCESS_FRACTION of the patch plus _EXCESS_PIXELS pixels; unclipped
+    holds more than _EXCESS_FRACTION of the patch plus _EXCESS_PIXELS pixels.  Unclipped
     Gaussian noise of two steps or more leaves only a few pixels on its end levels.
 
     Parameters:
@@ -352,9 +344,10 @@ def _end_level_overflow(
 
     The model predicts a level's population as the sum, over every pixel, of the
     probability that the pixel's surface plus Gaussian noise rounds to that level.  An
-    open end level is predicted to hold the whole mass beyond its inner edge.  A level
-    overflows by the pixels it holds beyond its prediction plus _LEVEL_SIGMAS times the
-    square root of the prediction, the count's Poisson scatter.
+    open end level is predicted to hold the whole mass beyond its inner edge.  A level's
+    allowance is its prediction plus _LEVEL_SIGMAS times the square root of the
+    prediction, which is the count's Poisson scatter.  Its overflow is the number of
+    pixels it holds beyond that allowance.
 
     Parameters:
         q: Whole-step level index of each pixel.
@@ -391,8 +384,8 @@ def _widened_levels(
     """The range of the central levels widened by the nearest level on each side.
 
     A side's nearest level is left out when it lies more than _NEIGHBOR_GAPS times as far
-    from the central levels as the other side's, so a far level, such as a bright
-    pixel's, joins the fit only when no nearer level lies on the other side.
+    from the central levels as the other side's.  So a far level, such as a bright
+    pixel's, joins the fit unless the other side has a level less than half as far away.
 
     Parameters:
         levels: The distinct levels, ascending.
@@ -416,41 +409,43 @@ def _widened_levels(
 
 
 def quantization_step(values: NDArrayFloatType) -> float | None:
-    """The spacing of the lattice a sample's values sit on, or None if they sit on none.
+    """The step of the lattice a sample's values sit on, or None if they aren't quantized.
 
     The step starts as the smallest gap between distinct values.  The step and the
     lattice's origin are then fitted by least squares to the levels of the central 98%
-    of the values on their whole-step indices, so a lattice of whole DN scaled into
-    float32 is found although each level carries its own rounding error.  When the
-    central values sit on fewer than two levels, the fit adds the nearest level on each
-    side, but leaves out either one when it lies more than twice as far from the central
-    levels as the other.  A far level, such as a bright pixel's, stays out of the fit
+    of the values.  The fit lets whole DN scaled into float32 count as a lattice,
+    although each scaled level carries its own rounding error.  When the central values
+    sit on fewer than two levels, the fit also uses the nearest level on each side.  It
+    leaves out a side's level that lies more than twice as far from the central levels
+    as the other side's.  So a far level, such as a bright pixel's, stays out of the fit
     whenever the sky has a level at most half as far away on the other side.
 
     Each level is then checked against the fitted lattice.  It passes when it lies
-    within a thousandth of a step of its lattice level, or within a few float32
-    rounding errors of its own magnitude, whichever is larger.  A level beyond the
-    fitted ones may also be off by four standard errors of the fit carried out to it,
-    so a level far enough out that this allowance reaches half a step passes whatever
-    its value.  A value whose own float32 rounding reaches half a step, such as a bright
-    pixel far above a finely quantized sky, can't name its lattice level, and is
-    neither fitted nor checked.  Float64 values get the same float32 allowance, as they
-    may come from a float32 product.  The step returned is refitted across the levels
-    whose lattice index the fit pins down, those whose allowance stays under half a
-    step.  Fewer than two such levels leave the step unknown, and the sample sits on no
-    lattice.  That happens when the fitted step falls far enough below the smallest gap
-    that the central levels' own float32 allowance reaches half a step, as for a sky on
-    two levels 1.75 apart near 1e6 beside a bright pair 1.125 apart.
+    within a thousandth of a step of a lattice level, or within a few float32 rounding
+    errors of its own magnitude, whichever is larger.  Float64 values get the same
+    float32 allowance, since they may come from a float32 product.  A level outside the
+    fitted ones is also allowed four standard errors of the fit carried out to it.  Far
+    enough out, that allowance reaches half a step, and the level passes whatever its
+    value.  When a value's own float32 rounding reaches half a step, its lattice level
+    can't be told, so it is neither fitted nor checked.  A bright pixel far above a
+    finely quantized sky is an example.
 
-    A lattice counts only when the sample could fill it: its central 98% spans no
-    more steps than there are values, and the step is far coarser than the spacing of
+    The step returned is refitted across the levels the fit can place, which are those
+    whose allowance stays under half a step.  When fewer than two levels can be placed,
+    the step is unknown, and None is returned.  That happens when the fitted step falls
+    far enough below the smallest gap that even the central levels' float32 allowance
+    reaches half a step.  An example is a sky on two levels 1.75 apart near 1e6, beside a
+    bright pair 1.125 apart.
+
+    A lattice counts only when the sample could fill it.  The central 98% must span no
+    more steps than there are values, and the step must be well above the spacing of
     floating-point numbers at the central values.  Without those conditions every
     float32 frame would pass, since its values are all whole multiples of the float
-    spacing.  A lattice also counts only when every value lies within 2**31 steps of
-    the central levels, which keeps the noise estimators' whole-step arithmetic exact;
-    a sentinel value such as -1e17 beside a sky of whole DN puts the sample on none.  A
-    sentinel inside that bound, around a billion steps out, can still leave the
-    quantized fit reading NaN.
+    spacing.  Every value must also lie within 2**31 steps of the lowest central level,
+    which keeps the noise estimators' whole-step arithmetic exact.  A sentinel value
+    such as -1e17 beside a sky of whole DN breaks that bound, and None is returned.  A
+    sentinel inside the bound, around a billion steps out, can still make the quantized
+    fit read NaN.
 
     Parameters:
         values: Pixel values (any shape; non-finite entries are ignored).
@@ -470,9 +465,9 @@ def quantization_step(values: NDArrayFloatType) -> float | None:
         return None
     if step <= _FLOAT_SPACING_FRACTION * max(abs(low), abs(high)):
         return None
-    # A level whose float32 rounding reaches half a step can't say which lattice level it
-    # is on, so it is neither fitted nor checked.  Every central level is resolved, since
-    # the step passed the float-spacing condition there.
+    # A level whose float32 rounding reaches half a step could be on any of several
+    # lattice levels, so it is neither fitted nor checked.  Every central level is
+    # resolved, because the step passed the float-spacing condition there.
     resolved = levels[_FLOAT_ROUNDING_EPS * np.abs(levels) < 0.5 * step]
     first = int(np.searchsorted(resolved, low, side='left'))
     last = int(np.searchsorted(resolved, high, side='right'))
@@ -508,9 +503,9 @@ def quantization_step(values: NDArrayFloatType) -> float | None:
     if np.any(misfit > np.maximum(_LATTICE_TOLERANCE * step, tolerance)):
         return None
     placed = tolerance < 0.5 * step
-    # The central levels' tolerance is their float32 allowance alone, and it fits under
-    # half the starting step; a fitted step finer than the starting one can leave even
-    # those levels unplaced, and the step is then pinned down by fewer than two levels.
+    # The central levels' tolerance is their float32 allowance alone, which is under half
+    # the starting step.  A fitted step finer than the starting one can leave even those
+    # levels unplaced, and then fewer than two levels pin the step down.
     if int(np.count_nonzero(placed)) < 2:
         return None
     placed_index = lattice_index[placed] - lattice_index[placed][0]
@@ -533,7 +528,7 @@ def _surface(design: NDArrayFloatType, coef: NDArrayFloatType) -> NDArrayFloatTy
     """Return ``design @ coef`` as a left-to-right sum of scaled columns.
 
     The simulator keeps BLAS products out of its arithmetic, because their last bit
-    depends on the CPU's kernel; plain multiplies and adds round the same everywhere.
+    depends on the CPU's kernel.  Plain multiplies and adds round the same everywhere.
     """
     total = design[:, 0] * coef[0]
     for col in range(1, design.shape[1]):
@@ -586,7 +581,7 @@ def _first_guess(q: NDArrayFloatType, design: NDArrayFloatType) -> tuple[NDArray
     """A least-squares surface and a robust sigma, refit twice without far pixels.
 
     The guess only seeds the maximum-likelihood fit and its first window, so it need
-    not be accurate: on a clipped patch, where half the residuals share a value, its
+    not be accurate.  On a clipped patch, where half the residuals share a value, its
     sigma comes out far too small, and the fit corrects it.
     """
     near = np.ones(q.size, dtype=bool)
@@ -666,60 +661,63 @@ def lattice_noise_sigma(patch: NDArrayFloatType, step: float) -> float:
     """Noise sigma of a quantized patch, by fitting the quantization.
 
     Each pixel is modeled as a smooth surface plus Gaussian noise of sigma ``s``,
-    rounded to the nearest lattice level, so a pixel lands on level ``q`` with
-    probability ``Phi((q + step/2 - mu) / s) - Phi((q - step/2 - mu) / s)``, where
-    ``mu`` is the surface at that pixel.  The surface is a quadratic in the pixel's
-    row and column, and its six coefficients are fitted together with ``s`` by maximum
-    likelihood, so neither a gradient nor curvature across the patch is mistaken for
-    noise.  The fit recovers a sigma well below one step, which local differencing
-    reports as 0.  Structure the quadratic cannot follow, such as a textured scene,
-    widens the level distribution and reads as noise, which is why
-    :func:`patch_noise_sigma` uses this fit only for noise below two steps.
+    rounded to the nearest lattice level.  A pixel whose surface value is ``mu`` lands on
+    level ``q`` with probability
+    ``Phi((q + step/2 - mu) / s) - Phi((q - step/2 - mu) / s)``.  The surface is a
+    quadratic in the pixel's row and column.  Its six coefficients are fitted together
+    with ``s`` by maximum likelihood, so neither a gradient nor curvature across the
+    patch is read as noise.  The fit recovers a sigma well below one step, where paired
+    differences read 0.  But structure the quadratic can't follow, such as a textured
+    scene, widens the spread of levels and reads as noise.  That is why
+    :func:`patch_noise_sigma` uses this fit only for clipped patches and for noise below
+    two steps.
 
     The bulk of the patch is the run of occupied levels that holds the most pixels.  An
-    empty level ends a run, except that noise many steps wide leaves empty levels in its
-    tails, so a run may span empty stretches up to 1.5 paired-difference sigmas wide.  A
-    pixel cut off from the bulk, such as a zero-filled dropout below a sky several sigmas
-    above zero, or a hot pixel, counts only as lying beyond the bulk's end, however far
-    beyond it lies.
+    empty level ends a run, but noise many steps wide leaves empty levels in its tails.
+    So a run may span empty stretches up to 1.5 paired-difference sigmas wide.  A pixel
+    cut off from the bulk counts only as lying beyond the bulk's end, however far beyond
+    it lies.  A hot pixel is one example, and a zero-filled dropout below a sky several
+    sigmas above zero is another.
 
-    Each pixel is conditioned on a window of levels around the surface, reaching three
-    fitted sigmas beyond it on each side.  The window's end levels are open-ended: a
+    Each pixel is fitted against a window of levels around the surface, reaching three
+    fitted sigmas beyond it on each side.  The window's end levels are open-ended.  A
     pixel on or below the lowest level is known only to lie below that level's upper
     edge, and a pixel on or above the highest level only to lie above its lower edge.
     So every pixel enters the fit, and a pixel far from the noise counts only as one
-    pixel beyond the window's edge.  The window starts from a least-squares surface and a
-    robust sigma, and is rebuilt from each fit's surface and sigma until it repeats a
-    window already fitted, for at most ten fits.
+    pixel beyond the window's edge.  The first window comes from a least-squares surface
+    and a robust sigma.  Each fit's surface and sigma then rebuild the window, until it
+    repeats a window already fitted, for at most ten fits.
 
     The patch's lowest and highest levels are open-ended as well when they belong to
-    the bulk, so a patch clipped at the detector's floor or at saturation, where one
-    level gathers every value beyond it, is fitted as an unclipped one is.
+    the bulk.  A patch clipped at the detector's floor or at saturation gathers every
+    value beyond the clip onto one level.  With that level open-ended, the patch is
+    fitted as an unclipped one is.
 
-    Gaussian noise puts 0.27% of its pixels beyond three sigmas.  A patch whose pixels
-    beyond their windows or cut off from the bulk exceed that fraction by more than 1%
-    of the patch plus three pixels holds something other than noise, and returns NaN.
-    A pixel on a clipped end level is beyond its window only on the side away from the
-    clip.
+    The fit returns NaN when it can't trust the patch:
 
-    A contaminant that joins the bulk with no empty level between, such as dropout rows
-    at zero under a sky a few sigmas above the floor, piles onto one level.  On the
-    patch's lowest or highest level the fit takes it for a clip and widens to follow it.
-    So once the fit is done, the bulk's lowest and highest levels are each compared with
-    the population the fitted model predicts for them, an open end level with the
-    model's whole mass beyond its inner edge.  A patch whose end level holds more pixels
-    than predicted, by more than four times the square root of the prediction, the
-    count's Poisson scatter, plus 0.27% of the patch and three pixels, returns NaN.  The
-    levels between are not checked, because a real camera's levels need not be equally
-    wide: the darkest sky of real Galileo frames puts about 1.4 times the predicted
-    pixels on its fullest level.
-
-    The sigma is only measurable when at least three levels, counting each window's
-    end levels as holding the pixels beyond them, each hold at least two pixels.  A
-    patch whose noise is so far below one step that its pixels take only two values
-    gives one proportion along the surface, and any sigma, with a matching surface,
-    gives that proportion; such a patch returns NaN, as does a patch of one value and
-    a patch whose fit fails to converge.
+    - Too many pixels lie beyond the noise.  Gaussian noise puts 0.27% of its pixels
+      beyond three sigmas.  The fit returns NaN when the pixels beyond their windows or
+      cut off from the bulk exceed that fraction by more than 1% of the patch plus three
+      pixels.  A pixel on a clipped floor counts only when it lies below its window, and
+      a pixel on a clipped ceiling only when it lies above its window.
+    - An end level of the bulk is overfull.  A contaminant right next to the bulk, such
+      as dropout rows at zero under a sky a few sigmas above the floor, piles onto one
+      level.  On the patch's lowest or highest level, the fit takes that pile for a clip
+      and widens to follow it.  So after the fit, the bulk's lowest and highest levels
+      are each compared with the population the fitted model predicts.  An open end
+      level is predicted to hold the model's whole mass beyond its inner edge.  The fit
+      returns NaN when an end level holds more pixels than predicted by more than four
+      times the square root of the prediction, plus 0.27% of the patch, plus three
+      pixels.  The levels between are not checked, because a real camera's levels need
+      not be equally wide.  The darkest sky of real Galileo frames puts about 1.4 times
+      the predicted pixels on its fullest level.
+    - Too few levels are populated.  The sigma can be measured only when at least three
+      levels each hold at least two pixels, counting each window's end levels as
+      holding the pixels beyond them.  When the noise is so far below one step that the
+      pixels take only two values, they fix one proportion along the surface, and every
+      sigma, with a matching surface, reproduces it.  A patch of one value fails here
+      too.
+    - The optimizer fails to converge.
 
     Parameters:
         patch: 2-D array of pixel values on a lattice of spacing ``step``.
@@ -798,35 +796,37 @@ def patch_noise_sigma(patch: NDArrayFloatType) -> float:
     """Per-pixel noise sigma of one near-uniform patch, quantized or not.
 
     A patch of continuous values is measured with :func:`paired_difference_sigma`.  A
-    patch whose values sit on a lattice is measured by its paired differences, read from
-    their whole-step histogram, when that estimate is at least two steps and the patch
-    is not clipped; otherwise, it is fitted with :func:`lattice_noise_sigma`.  Paired
-    differences cancel structure that varies slowly across the patch and ignore a
-    minority of contaminated pixels, while the fit reads every level's population as
-    noise, so the differences serve wherever they resolve the noise.  A clipped patch,
-    one whose lowest or highest level belongs to the bulk of its levels and holds more
-    than 1% of its pixels plus three, has its differences shrunk by the clipped pixels,
-    and goes to the fit, which models the clipping.
+    quantized patch, one whose values sit on a lattice (:func:`quantization_step`), is
+    measured by its paired differences, read from their whole-step histogram, when they
+    give at least two steps and the patch is not clipped.  Otherwise it is fitted with
+    :func:`lattice_noise_sigma`.  The differences come first because they cancel
+    structure that varies slowly across the patch and ignore a minority of contaminated
+    pixels.  The fit reads every level's population as noise.
 
-    An unclipped patch whose differences read below two steps but whose fit reads 2.5
-    steps or more returns NaN, because the two estimators disagree.  Paired differences
-    assume neighboring pixels carry independent noise.  On a product resampled after
-    readout, which mixes neighbors, they read the noise low while the fit reads each
-    pixel's own spread, so near the switch the patch would otherwise get one estimate or
-    the other by chance.  A block of pixels on one value inside the sky's range, which
-    shrinks the differences and widens the fit, disagrees the same way.
+    A patch is clipped when its lowest or highest level belongs to the bulk of its
+    levels and holds more than 1% of its pixels plus three.  The clipped pixels shrink
+    the differences, so a clipped patch goes to the fit, which models the clipping.
 
-    Each estimate gives the sigma of the noise before any rounding.  A product that was
+    An unclipped patch returns NaN when its differences read below two steps but its fit
+    reads 2.5 steps or more, because the two estimators disagree.  Paired differences
+    assume that neighboring pixels carry independent noise.  A product resampled after
+    readout mixes neighbors, so its differences read the noise low, while the fit reads
+    each pixel's own spread.  Near two steps, such a patch would otherwise get one
+    estimate or the other by chance.  A block of pixels on one value inside the sky's
+    range shrinks the differences and widens the fit in the same way.
+
+    Each estimate gives the sigma of the noise before rounding.  A product that was
     quantized and then rescaled pixel by pixel, such as a flat-fielded frame, no longer
-    sits on a lattice, so its estimate also carries the rounding's own spread of
-    step/sqrt(12), which adds under 4% to a sigma of one step or more.
+    sits on a lattice.  Its estimate therefore also includes the rounding's own spread
+    of step/sqrt(12).  That adds about 4% to a sigma of one step, and less to a larger
+    one.
 
     Parameters:
         patch: 2-D array of pixel values (a near-uniform region).
 
     Returns:
-        The sigma in the patch's units; NaN for a degenerate patch, for a patch of
-        one value, and for a quantized patch whose sigma is not measurable.
+        The sigma in the patch's units.  NaN for a degenerate patch, for a patch of one
+        value, and for a quantized patch whose sigma can't be measured.
     """
     arr = np.asarray(patch, dtype=np.float64)
     finite = arr[np.isfinite(arr)]
@@ -912,9 +912,9 @@ def noisy_patches(patches: list[SkyPatch]) -> list[SkyPatch]:
     """Select the patches whose noise sigma is positive.
 
     A patch of continuous values whose neighbors mostly share a value, such as
-    zero-filled missing data with a few stray pixels, has a paired-difference sigma
-    of 0 and holds no noise to compare.  A tile of one value has no measurable sigma
-    and never becomes a patch.
+    zero-filled missing data with a few stray pixels, has a paired-difference sigma of
+    0, so there is no noise to compare.  A tile of one value never becomes a patch,
+    because its sigma can't be measured.
 
     Parameters:
         patches: One frame's sky patches.

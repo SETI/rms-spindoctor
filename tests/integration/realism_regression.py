@@ -3,11 +3,12 @@
 The realism match (:mod:`tests.integration.sim_realism`) writes its summary to
 ``tests/integration/realism_results/realism_summary.json``, together with the commit of
 the code that made it and whether that checkout was dirty.  The regression check reruns
-the match on each instrument listed in the band table, an instrument whose cohort
-matches in seconds, and compares every statistic the instrument supports with the
-record's value.  A statistic is held when its support label, which counts the frames on
-both sides, is ``limited`` or ``supported``.  The held values are each kind's W1/IQR
-(when it is a number), the real and simulated medians, and each curve kind's W1/IQR.
+the match on each instrument listed in the band table and compares every statistic the
+instrument supports with the record's value.  The table is meant for instruments whose
+cohort matches in seconds.  A statistic is held when its support label, which counts
+the frames on both sides, is ``limited`` or ``supported``.  The held values are each
+kind's W1/IQR and its real and simulated medians, each when it is a number, and each
+curve kind's W1/IQR.
 
 Every band is two-sided.  A statistic that moves beyond its band fails whichever way it
 moves, because a better-looking number can come from a worse simulator.
@@ -22,12 +23,12 @@ times the spread, :data:`RELATIVE_FLOOR` times the magnitude of the value measur
 The floor covers the arithmetic differences between machines, which a spread measured
 on one machine cannot show.  :func:`band_rule` is the rule in code.
 
-The table and the record must describe the same run: the statistics the record holds
-for an instrument are exactly the table's, and each recorded value lies within its band
-of the table's measured value.  A fresh match is never compared with a record that
-carries no code commit, which predates the check.  A deliberate change to the simulator,
-or to the statistics, is accepted by regenerating the record and then remeasuring the
-bands::
+The table and the record must describe the same run.  The statistics the record holds
+for an instrument must be exactly the table's, and each recorded value must lie within
+its band of the table's measured value.  A fresh match is never compared with a record
+that lacks a code commit, because such a record predates the check.  A deliberate change
+to the simulator, or to the statistics, is accepted by regenerating the record and then
+remeasuring the bands::
 
     python -m tests.integration.sim_realism
     python -m tests.integration.realism_regression
@@ -89,8 +90,8 @@ RECORD_PATH = Path(__file__).parent / 'realism_results' / 'realism_summary.json'
 """The committed realism record."""
 
 RECORD_ENV = 'SPINDOCTOR_TEST_REALISM_RECORD'
-"""Names another summary for the checks to read, so that they can be shown to pass and
-fail against a record made outside the repository."""
+"""The environment variable that points the checks at another summary, so that they can
+be shown to pass and fail against a record made outside the repository."""
 
 
 REGENERATE_HINT = (

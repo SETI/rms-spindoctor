@@ -4,11 +4,11 @@ The bands, their rule, and their measurement live in
 :mod:`tests.integration.realism_regression`, and the band table in
 ``tests/integration/realism_regression_bands.json``.  The check runs once for every
 instrument the table lists.  It reads real frames, so it carries the ``integration``
-marker and stays out of CI; the band table's agreement with the record is checked in
+marker and stays out of CI.  The band table's agreement with the record is checked in
 ``tests/integration/test_realism_record_bands.py``, which reads only committed files.
 
 The committed record predates the check, and the fresh match skips on a record that
-carries no code commit.  The environment variable ``SPINDOCTOR_TEST_REALISM_RECORD``
+lacks a code commit.  The environment variable ``SPINDOCTOR_TEST_REALISM_RECORD``
 points the check at another summary, so that it can be shown to pass and fail against a
 record made outside the repository.
 """
@@ -41,7 +41,7 @@ _BANDS = load_bands()
 
 @pytest.fixture
 def realism_record() -> dict[str, Any]:
-    """The realism record the check reads: the committed one, or the one the variable names."""
+    """The realism record the check reads, as :func:`load_record` finds it."""
     return load_record()
 
 

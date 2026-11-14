@@ -113,10 +113,10 @@ def test_zeros_cut_off_from_the_sky_are_not_measurable(
 def test_zeros_joined_to_the_sky_are_not_measurable() -> None:
     """Two dropout rows under a sky at 9 DN of sigma 3 DN, floored at 0, give NaN.
 
-    The zeros join the sky's own floored pixels with no empty level between, so the fit
-    takes them for a floor clip, and the zero level holds far more pixels than the fitted
-    model predicts for it.  A fit that accepts the clip reads about 24% high, and the
-    patch passes the structure test.
+    The zeros join the sky's own floored pixels without an empty level between, so the
+    fit takes them for a floor clip, and the zero level holds far more pixels than the
+    fitted model predicts for it.  A fit that accepts the clip reads about 24% high, and
+    the patch passes the structure test.
     """
     rng = np.random.default_rng(40)
     patch = np.maximum(np.round(9.0 + rng.normal(0.0, 3.0, (32, 32))), 0.0)
@@ -177,13 +177,13 @@ def test_quantized_noise_on_a_fractional_lattice_is_recovered() -> None:
 
 
 def test_quantization_step_is_none_for_continuous_values() -> None:
-    """Values that take any real value sit on no lattice."""
+    """Values that take any real value are not quantized."""
     rng = np.random.default_rng(24)
     assert quantization_step(rng.normal(0.0, 1.0, (32, 32))) is None
 
 
 def test_quantization_step_is_none_for_float32_values() -> None:
-    """Float32 values sit on the float spacing, which is no quantization."""
+    """Float32 values sit on the float spacing, which is not a quantization."""
     rng = np.random.default_rng(27)
     patch = rng.normal(3e-3, 2e-4, (32, 32)).astype(np.float32)
     assert quantization_step(patch) is None
@@ -205,7 +205,7 @@ def test_two_levels_and_one_stray_pixel_are_not_measurable() -> None:
 
 
 def test_a_patch_of_one_value_is_not_measurable() -> None:
-    """A tile of one value has no measurable sigma, as a two-level patch has none."""
+    """Like a two-level patch, a tile of one value gives an unmeasurable sigma."""
     assert np.isnan(patch_noise_sigma(np.full((32, 32), 7.0)))
 
 
@@ -712,8 +712,8 @@ def test_a_pixel_beyond_two_to_the_31_steps_puts_the_sample_on_no_lattice(
     """A sentinel value far below the sky leaves the sky to the paired differences.
 
     Counted in steps from that pixel, the sky's indices lose their whole-step precision
-    in float64, and the quantized estimators read NaN.  So the sample sits on no lattice,
-    and the patch's sigma is the paired-difference reading.
+    in float64, and the quantized estimators read NaN.  So the sample does not count as
+    quantized, and the patch's sigma is the paired-difference reading.
     """
     assert quantization_step(patch) is None
     assert patch_noise_sigma(patch) == paired_difference_sigma(patch)
@@ -726,7 +726,7 @@ def test_a_fitted_step_that_places_no_level_puts_the_sample_on_no_lattice() -> N
     it.  The step starts at the pair's gap, 1.125, and the sky's two levels refit it to
     0.875.  Each sky level's float32 allowance near 1e6 is 0.48, above half that step,
     and the bright pair lies too far out for the fit to place.  No level pins the step
-    down, so the sample sits on no lattice, and the patch's sigma is the
+    down, so the sample does not count as quantized, and the patch's sigma is the
     paired-difference reading.
     """
     patch = np.full((32, 32), 1e6)

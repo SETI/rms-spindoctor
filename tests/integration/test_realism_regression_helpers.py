@@ -1,7 +1,7 @@
 """Hermetic tests for the realism regression check's bands, table, and comparison.
 
-The comparison reads nothing but its arguments, so this module carries no
-environment guard and no ``integration`` marker and runs in the plain unit tier.
+The comparison reads nothing but its arguments, so this module needs neither an
+environment guard nor the ``integration`` marker, and it runs in the plain unit tier.
 """
 
 from __future__ import annotations
@@ -66,7 +66,7 @@ def test_a_move_within_the_band_passes() -> None:
 
 
 def test_a_held_statistic_without_a_band_fails() -> None:
-    """A statistic the table has no band for is reported, never passed."""
+    """A statistic without a band in the table is reported, never passed."""
     problems = compare_with_record(_entry(2.33), _entry(2.33), {})
     assert problems == [f'{_EE50} has no band in the band table.']
 
@@ -98,7 +98,7 @@ def test_a_record_without_the_instrument_fails_by_name() -> None:
 
 
 def test_a_table_entry_without_statistics_fails() -> None:
-    """A table entry that holds nothing can't pass: the check would hold nothing."""
+    """An empty table entry fails, because a check over it would hold nothing."""
     table = InstrumentBands(runs=10, statistics={})
     record = {'instruments': {'nhlorri': _entry(2.33)}}
     problems = check_record_against_bands(record, 'nhlorri', table)

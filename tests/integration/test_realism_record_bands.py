@@ -21,17 +21,17 @@ from tests.integration.realism_regression import (
 
 _BANDS = load_bands()
 
-# The record the check reads: the committed one, or the one SPINDOCTOR_TEST_REALISM_RECORD
-# names.
+# The record the check reads: the committed one, or the one that
+# SPINDOCTOR_TEST_REALISM_RECORD points to.
 _RECORD = load_record()
 
 
-# A record without a code commit predates the regression check: it was made before the
-# record carried the support fields the band statistics are drawn from, so the band table
-# cannot describe it.  The committed record is such a record until it and the band table
-# are regenerated together at the end of the simulator realism stack; the regenerated
-# record carries its commit, which arms the check.  Strict, and only a failed comparison
-# counts, so a crash in the check still fails.
+# A record without a code commit predates the regression check.  It also lacks the
+# support fields that select the held statistics, so the band table cannot describe it.
+# The committed record is such a record until it and the band table are regenerated
+# together at the end of the simulator realism stack.  The regenerated record carries its
+# commit, which arms the check.  The mark is strict, and only a failed comparison counts
+# as the expected failure, so a crash in the check still fails the test.
 _RECORD_PREDATES_THE_CHECK = pytest.mark.xfail(
     not _RECORD.get('code_commit'),
     reason='the realism record carries no code commit, so it predates the regression check',

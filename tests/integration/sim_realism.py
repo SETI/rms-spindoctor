@@ -801,8 +801,8 @@ def _aggregate(comparison: InstrumentComparison) -> None:
     """Compute divergences and support labels from the pooled samples.
 
     A statistic's support counts the frames on both sides and takes the smaller
-    count, so a statistic with no simulated samples is labeled unsupported however
-    many real frames it has.
+    count.  So a statistic that lacks simulated samples is labeled unsupported,
+    however many real frames it has.
     """
     copopulated = _pool_copopulated_limb_bins(comparison)
     _count_frames(comparison, copopulated)
