@@ -90,7 +90,8 @@ the editor draws the full render first, which can take a few seconds on a full-s
 frame.
 
 ``--full-render-delay SECONDS`` sets how long the editor waits after your last change
-before it starts the full render. The default is 1 second.
+before it starts the full render. The default is 1 second, and the longest delay it
+accepts is 2147483.647 seconds, a little under 25 days.
 
 .. code-block:: bash
 

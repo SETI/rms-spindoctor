@@ -55,6 +55,9 @@ from spindoctor.ui.common import ZoomPanController
 
 # How long the editor waits after an edit before it runs the full render.
 DEFAULT_FULL_RENDER_DELAY_SEC = 1.0
+# The longest delay a Qt timer holds: its interval is a signed 32-bit count of
+# milliseconds.
+MAX_FULL_RENDER_DELAY_SEC = (2**31 - 1) / 1000.0
 
 
 class CreateSimulatedImageModel(
@@ -438,8 +441,8 @@ class CreateSimulatedImageModel(
         self._update_display()
 
 
-def _nonnegative_seconds(text: str) -> float:
-    """Parse a command-line delay in seconds, refusing a negative or infinite one.
+def _delay_seconds(text: str) -> float:
+    """Parse a command-line delay in seconds, refusing one a Qt timer can't hold.
 
     Parameters:
         text: The option's argument.
@@ -449,7 +452,7 @@ def _nonnegative_seconds(text: str) -> float:
 
     Raises:
         argparse.ArgumentTypeError: If the text is not a finite number of seconds,
-            0 or more.
+            0 or more, or is longer than :data:`MAX_FULL_RENDER_DELAY_SEC`.
     """
     try:
         seconds = float(text)
@@ -457,6 +460,11 @@ def _nonnegative_seconds(text: str) -> float:
         raise argparse.ArgumentTypeError(f'not a number of seconds: {text!r}') from exc
     if not math.isfinite(seconds) or seconds < 0.0:
         raise argparse.ArgumentTypeError(f'must be a finite number of seconds, 0 or more: {text!r}')
+    if seconds > MAX_FULL_RENDER_DELAY_SEC:
+        raise argparse.ArgumentTypeError(
+            f'must be at most {MAX_FULL_RENDER_DELAY_SEC:.3f} seconds, the longest '
+            f'interval a Qt timer holds: {text!r}'
+        )
     return seconds
 
 
@@ -478,7 +486,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         '--full-render-delay',
-        type=_nonnegative_seconds,
+        type=_delay_seconds,
         default=DEFAULT_FULL_RENDER_DELAY_SEC,
         metavar='SECONDS',
         help=(

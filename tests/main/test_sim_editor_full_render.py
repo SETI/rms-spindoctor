@@ -297,6 +297,15 @@ def test_the_full_render_delay_option_refuses_a_negative_delay(
     assert 'must be a finite number of seconds, 0 or more' in capsys.readouterr().err
 
 
+def test_the_full_render_delay_option_refuses_a_delay_a_timer_cannot_hold(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A delay past a Qt timer's longest interval is refused with a message saying why."""
+    with pytest.raises(SystemExit):
+        build_arg_parser().parse_args(['--full-render-delay', '2147483.648'])
+    assert 'must be at most 2147483.647 seconds' in capsys.readouterr().err
+
+
 def test_the_full_render_delay_defaults_to_one_second() -> None:
     """Without the option, the editor waits 1 s before the full render."""
     args = build_arg_parser().parse_args([])
