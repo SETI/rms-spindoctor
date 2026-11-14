@@ -49,7 +49,11 @@ def navigated_frame_summary(sim_params: dict[str, Any]) -> str:
 
 
 def _summarize(sim_params: dict[str, Any]) -> str:
-    """Call :func:`navigated_frame_summary`, looked up when the worker runs.
+    """Call :func:`navigated_frame_summary` for the worker.
+
+    The runner holds this wrapper rather than the function itself, so a test can
+    replace :func:`navigated_frame_summary` in this module and the worker calls the
+    replacement.
 
     Parameters:
         sim_params: The worker's copy of the scene.

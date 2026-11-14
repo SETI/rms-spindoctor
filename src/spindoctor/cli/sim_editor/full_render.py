@@ -52,7 +52,11 @@ def render_full_frame(sim_params: dict[str, Any]) -> FullRender:
 
 
 def _render(sim_params: dict[str, Any]) -> FullRender:
-    """Call :func:`render_full_frame`, looked up when the worker runs.
+    """Call :func:`render_full_frame` for the worker.
+
+    The runner holds this wrapper rather than the function itself, so a test can
+    replace :func:`render_full_frame` in this module and the worker calls the
+    replacement.
 
     Parameters:
         sim_params: The worker's copy of the scene.
