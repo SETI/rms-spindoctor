@@ -330,7 +330,7 @@ def test_a_noisy_content_frame_leaves_both_sky_pools() -> None:
 
 
 def test_a_matched_frame_on_content_leaves_both_sky_pools() -> None:
-    """If a twin's sky patches all lie on a body, neither frame adds sky noise."""
+    """If a matched frame's patches all lie on a body, neither frame adds sky noise."""
     real = _sky_frame(1e-4)
     sim = _sky_frame(1e-2)
     pair_sky(_sky_record(), real, sim, twins_with_sky=True)
@@ -349,8 +349,8 @@ def test_a_pair_on_content_in_both_frames_is_dropped() -> None:
 def test_an_offset_table_sky_is_compared_with_a_quiet_twin() -> None:
     """A real sky 2e-3 I/F above the residual is dark sky, though many sigmas above it.
 
-    The twin's sky lies at the residual with a sigma of 1e-4, so a tolerance scaled by
-    either frame's sigma would drop the real sky.
+    The matched frame's sky lies at the residual with a sigma of 1e-4, so a tolerance
+    scaled by either frame's sigma would drop the real sky.
     """
     pair = pair_sky(
         _sky_record(),
@@ -362,10 +362,11 @@ def test_an_offset_table_sky_is_compared_with_a_quiet_twin() -> None:
 
 
 def test_a_real_sky_far_below_the_residual_is_compared() -> None:
-    """A real sky below the residual is compared with a twin at it, whatever the sigmas.
+    """A real sky below the residual is compared, whatever the two frames' sigmas.
 
     Modeled on a long WAC star frame whose real sky lies 3.9e-5 I/F below the residual
-    with a sigma of 8.7e-8, while its twin lies at the residual with a sigma of 1.3e-7.
+    with a sigma of 8.7e-8, while its matched frame's sky lies at the residual with a
+    sigma of 1.3e-7.
     """
     pair = pair_sky(
         _sky_record('coiss_calib_wac'),
@@ -426,7 +427,7 @@ def test_real_sky_is_recorded_alone_when_no_twin_has_sky() -> None:
 
 
 def test_real_sky_recorded_alone_must_lie_on_dark_sky() -> None:
-    """When no twin has sky, a real frame on content still doesn't add sky noise."""
+    """When no matched frame has sky, a real frame on content still adds no sky noise."""
     real = _sky_frame(_REF + 1e-2)
     pair_sky(_sky_record(), real, FrameSamples(), twins_with_sky=False)
     assert 'sky_sigma' not in real.samples
@@ -494,7 +495,7 @@ def test_a_tile_enters_the_sky_spectrum_only_when_all_its_patches_were_kept() ->
 
 
 def test_the_sky_spectrum_tiles_are_made_wholly_of_sky_patches() -> None:
-    """Every spectrum tile lies wholly on the frame's sky patches, off brighter content.
+    """Each spectrum tile lies wholly on sky patches, so none reaches brighter content.
 
     The darkest patches lie in the second row, beside the bright band below, so a
     tile anchored at a darkest patch would cover the band.

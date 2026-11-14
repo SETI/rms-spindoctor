@@ -226,7 +226,7 @@ class SkyPairStatus(StrEnum):
       any.
     - ``NO_SIM_SKY``: no matched frame of the instrument has sky patches.  The real
       frame's dark-sky patches entered the real pool alone.  On an instrument
-      without a ceiling, all of its sky patches did.
+      that doesn't set a ceiling, all of its sky patches did.
     """
 
     COMPARED = 'compared'
@@ -252,8 +252,9 @@ class SkyPair:
         n_real_patches: The number of the real frame's sky patches.
         n_sim_patches: The number of the matched frame's sky patches.
         n_real_kept: The number of real sky patches kept: those at or below the
-            dark-sky ceiling, or all of them on an instrument without one.  It is 0
-            when the pair is dropped because its matched frame has no sky patches.
+            dark-sky ceiling, or all of them if the instrument doesn't set one.  It
+            is 0 when the pair is dropped because its matched frame has no sky
+            patches.
         n_sim_kept: The number of the matched frame's sky patches kept, counted the
             same way.  It is 0 when either frame has no sky patches.
         real_sigma: The median noise sigma of the real patches that entered the
@@ -596,7 +597,8 @@ def _dark_sky_ceiling_level(instrument: str) -> float | None:
     """The highest mean a dark-sky patch may have on ``instrument``, or None.
 
     The level is the calibrated sky residual plus the instrument's dark-sky ceiling.
-    It is None on a raw-DN instrument and on a calibrated one without a ceiling.
+    It is None on a raw-DN instrument, and on a calibrated one whose entry doesn't set
+    a ceiling.
     """
     if resolve_data_units(instrument) != 'calibrated_if':
         return None
@@ -628,8 +630,8 @@ def pair_sky(
         sim: The matched frame's samples, which are handled the same way.
         twins_with_sky: Whether any matched frame of the instrument has sky
             patches.  If none has, the real frame's dark-sky patches are added
-            alone, or all its sky patches on an instrument without a ceiling.
-            Otherwise, a pair whose matched frame has no sky patches is dropped.
+            alone, or all its sky patches if the instrument doesn't set a ceiling.
+            If some have, a pair whose matched frame has no sky patches is dropped.
 
     Returns:
         The pair's sky comparison.
@@ -669,9 +671,9 @@ def pair_sky(
         # sky residual, the level at which the simulator draws empty sky.  A noise
         # sigma in the test would make the selection depend on the quantity being
         # compared.  A tolerance scaled by the matched frame's sigma shrinks when
-        # the twin is too quiet, and one scaled by the real frame's sigma grows on
-        # content.  The instrument config holds the ceiling and the measurements
-        # behind it.
+        # the matched frame is too quiet, and one scaled by the real frame's sigma
+        # grows on content.  The instrument config holds the ceiling and the
+        # measurements behind it.
         real_kept = dark_sky_patches(real_patches, ceiling_level)
         sim_kept = dark_sky_patches(sim_patches, ceiling_level)
         if real_kept and sim_kept:
