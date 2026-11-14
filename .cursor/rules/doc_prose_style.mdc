@@ -74,6 +74,7 @@ technique in one plain sentence and cross-reference the developer guide with
 | "exactly as every offset product has always been built" | (delete) | No implementation history. |
 | "every program accepts the same options, so what you learn for one works for the next" | "every program accepts the same options" | Delete clauses that restate the obvious. |
 | "the scene names the mode", "a run naming a results index" | "the scene sets the mode", "a run that asks for a results index" | Say what happens. See the names rule below. |
+| "keeps the converged covariance an honest expression of the inliers' precision", "the axis is honestly flagged" | "keeps the converged covariance computed from the surviving inliers alone", "the axis is flagged as unobservable" | "Honest", "honestly", "honesty", and "dishonest" judge a value without saying what it is. Say what the value is or what it measures. |
 
 ### The X-not-Y test
 
