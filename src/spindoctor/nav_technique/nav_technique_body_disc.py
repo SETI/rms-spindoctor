@@ -596,8 +596,8 @@ class BodyDiscCorrelateNav(NavTechnique):
             )
             for theta in l2_thetas
         ]
-        # A NaN quality ranks at the bottom, level with -inf; max() keeps the first
-        # of equal qualities.
+        # quality_rank_key ranks a NaN quality last, level with -inf.  max() keeps
+        # the first of equal qualities.
         l2_winner = max(l2_candidates, key=lambda c: quality_rank_key(c.ncc_result['quality']))
         sigma_theta_rad = self._rotation_sigma_from_quality(
             candidates=l2_candidates,
@@ -658,8 +658,9 @@ class BodyDiscCorrelateNav(NavTechnique):
                 consistency_tol=consistency_tol,
             )
             candidate = _RotationCandidate(theta_rad=theta, ncc_result=ncc_result)
-            # Strict > keeps the first of equal qualities; a NaN quality ranks at the
-            # bottom, level with -inf, so a NaN first sample cannot block a later one.
+            # Strict > keeps the first of equal qualities.  A NaN quality ranks last,
+            # level with -inf, so a first sample with a NaN quality cannot block a
+            # later sample.
             if best is None or quality_rank_key(ncc_result['quality']) > quality_rank_key(
                 best.ncc_result['quality']
             ):

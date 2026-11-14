@@ -108,14 +108,19 @@ Mode selection (auto / raw / gradient)
 --------------------------------------
 
 The shared NCC pyramid evaluates the correlation in two modes — raw image vs. raw template,
-and gradient image vs. gradient template — and ``auto`` mode runs both and keeps the better
-result. A non-spurious result beats a spurious one, then a peak inside the search window
-beats one at its edge, and only then does the higher quality win, with raw mode taking a
-tie. A quality that cannot be computed loses to any quality that can; when neither mode's
-quality can be computed, gradient mode is kept. Raw mode wins on smooth Lambert-shaded discs
-that fill the FOV where the per-pixel intensity carries unique-alignment signal; gradient
-mode wins when only the limb edge carries useful signal (a bright disc on a bright
-background, an over-exposed or saturated body).
+and gradient image vs. gradient template. In ``auto`` mode it runs both and keeps the
+better result, deciding in this order:
+
+1. A non-spurious result beats a spurious one.
+2. A peak inside the search window beats a peak at its edge.
+3. The higher quality wins. Raw mode wins a tie.
+
+A quality that cannot be computed loses to any quality that can. If neither mode's quality
+can be computed, gradient mode is kept.
+
+Raw mode wins on a smooth, Lambert-shaded disc that fills the FOV, because the brightness
+of each pixel helps fix the alignment. Gradient mode wins when only the limb edge carries
+useful signal: a bright disc on a bright background, or an overexposed or saturated body.
 
 Search strategy
 ---------------
@@ -126,24 +131,31 @@ NCC is evaluated coarse-to-fine, the top ``k`` peaks are kept, and consistency i
 between levels — a peak that drifts more than a documented threshold across levels is
 flagged spurious. The per-image quality metric is the peak-to-side-lobe ratio (PSR) at the
 finest level; the per-image consistency metric is the maximum Euclidean drift of the
-chosen peak across pyramid levels. The PSR cannot be computed when every valid shift lies
-within the guard radius of the peak, as on a very small body. Such a peak is flagged spurious,
-and wherever peaks, rotation samples, or the raw and gradient results are compared by quality,
-it ranks below every peak whose PSR can be computed.
+chosen peak across pyramid levels.
+
+The PSR compares the peak with the correlation values farther than a guard radius from it.
+On a very small body, every valid shift can lie inside that radius, and then the PSR
+cannot be computed. Such a peak is flagged spurious. The technique compares peaks,
+rotation samples, and the raw and gradient results by quality. In each of these
+comparisons, a peak whose PSR cannot be computed ranks below every peak whose PSR can.
 
 Rotation-aware schedule
 -----------------------
 
-When the per-instrument camera-rotation flag is on, the technique runs the rotation-aware
-schedule: the template is rotated about the body-centroid pivot at 11 angles spanning
-:math:`\pm \mathrm{max\_rotation\_deg}`, and each rotated template runs the full NCC
-pyramid. Five angles 0.5 deg apart, centered on the best of the 11, follow, and then three
-angles 0.25 deg apart, centered on the best of the five. The (dv, du, theta) triple of the
-best of the last three is returned with a 3x3 covariance whose translation block is the
-matched-filter covariance (plus model-error terms) from the chosen rotation. The technique
-reports its rotation as unobservable: the NCC-peak quality is a PSR/PMR separation ratio
-rather than a log-likelihood, so it carries no calibrated Fisher information about rotation,
-and the rotation diagonal holds the
+When the per-instrument camera-rotation flag is on, the technique tries rotations in three
+rounds. At each trial angle, it rotates the template about the body-centroid pivot and
+runs the full NCC pyramid on the rotated template.
+
+1. The first round tries 11 angles spanning :math:`\pm \mathrm{max\_rotation\_deg}`.
+2. The second round tries five angles 0.5 deg apart, centered on the best of the 11.
+3. The third round tries three angles 0.25 deg apart, centered on the best of the five.
+
+The technique returns the (dv, du, theta) triple of the best of the last three angles,
+with a 3x3 covariance. The translation block of that covariance is the matched-filter
+covariance (plus model-error terms) from the chosen rotation. The technique reports its
+rotation as unobservable. The NCC-peak quality is a PSR or PMR separation ratio rather
+than a log-likelihood. It therefore does not carry calibrated Fisher information about
+rotation, and the rotation diagonal holds the
 :data:`~spindoctor.nav_technique.nav_technique.ROTATION_UNOBSERVABLE_VARIANCE` sentinel. The
 ensemble's ``pinvh`` combine maps that to a near-zero rotation contribution, so the disc
 technique constrains translation while abstaining on rotation.
@@ -363,18 +375,18 @@ Call path traced through
      :attr:`~spindoctor.nav_technique.technique_result.NavTechniqueResult.rotation_rad` and
      :attr:`~spindoctor.nav_technique.technique_result.NavTechniqueResult.sigma_rotation_rad` are
      ``None``; the (2, 2) covariance is reported.
-   - **Rotation fit.**  Run the private 3-DoF pyramid: 11 rotation samples, then 5
-     samples centered on the best of those, then 3 samples centered on the best of the 5,
-     each sample running the full NCC pyramid. At each rotation sample the template is
-     rotated about the body-centroid pivot via the private template-rotate helper and the
-     pyramid evaluates as usual. The (dv, du, theta) triple of the best of the last 3 samples
-     is returned with a 3x3 covariance: the translation block is the CRLB from the winning
-     rotation's correlation curvature, and the rotation diagonal is always the
-     rotation-unobservable sentinel — the PSR/PMR-style peak quality is not a
-     log-likelihood, so its curvature across the rotation schedule carries no Fisher
-     information about rotation, and no calibrated curvature-to-variance map exists. The
-     disc technique contributes a translation estimate while abstaining on rotation (the
-     theory section above discusses why).
+   - **Rotation fit.**  Run the private 3-DoF pyramid in three rounds: 11 rotation
+     samples, then 5 samples centered on the best of those, then 3 samples centered on the
+     best of the 5. At each sample, the private template-rotate helper rotates the
+     template about the body-centroid pivot, and the full NCC pyramid evaluates as usual.
+     The best of the last 3 samples gives the returned (dv, du, theta) triple and its 3x3
+     covariance. The translation block is the CRLB from the winning rotation's correlation
+     curvature. The rotation diagonal is always the rotation-unobservable sentinel. The
+     PSR/PMR-style peak quality is not a log-likelihood, so its curvature across the
+     rotation samples does not carry Fisher information about rotation, and there is no
+     calibrated way to turn that curvature into a variance. The disc technique contributes
+     a translation estimate while abstaining on rotation (the theory section above
+     discusses why).
 
 5. Apply the at-edge tests against the search-window axis bounds and the rotation cap, and
    the spurious tests using the pyramid wrapper's ``spurious`` and ``consistency``
