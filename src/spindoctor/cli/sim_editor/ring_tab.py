@@ -127,7 +127,7 @@ class RingTabMixin(SimEditorBase):
         fl = QFormLayout()
         main_layout.addLayout(fl)
 
-        name_edit = QLineEdit(p.get('name', ''))
+        name_edit = QLineEdit(str(scene_value(p, 'name', '')))
         name_edit.textChanged.connect(lambda t, i=idx: self._on_ring_name(i, t))
         fl.addRow('Name:', name_edit)
 

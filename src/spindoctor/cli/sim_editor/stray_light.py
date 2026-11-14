@@ -16,6 +16,7 @@ from typing import Any
 from PyQt6.QtWidgets import QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout
 
 from spindoctor.cli.sim_editor.base import SimEditorBase
+from spindoctor.sim.scene_schema import scene_value
 
 
 class StrayLightMixin(SimEditorBase):
@@ -96,12 +97,12 @@ class StrayLightMixin(SimEditorBase):
         self._stray_center_check.toggled.connect(self._on_stray_center_check)
 
     def _stray_has_center(self) -> bool:
-        """True when the scene authors either radial-bump center key."""
+        """True when the scene sets either radial-bump center key to a non-null value."""
         optics = self.sim_params.get('optics')
         stray = optics.get('stray_light') if isinstance(optics, dict) else None
         if not isinstance(stray, dict):
             return False
-        return 'center_v' in stray or 'center_u' in stray
+        return stray.get('center_v') is not None or stray.get('center_u') is not None
 
     def _stray_center_defaults(self) -> tuple[float, float]:
         """The effective bump-center default: the frame center, in pixel corner."""
@@ -111,11 +112,14 @@ class StrayLightMixin(SimEditorBase):
         )
 
     def _stray_value(self, key: str, default: Any) -> Any:
-        """Read a value from the optics.stray_light block, or a default."""
+        """Read a value from the optics.stray_light block, or a default.
+
+        Like the renderer, it reads a null key as absent.
+        """
         optics = self.sim_params.get('optics')
         stray = optics.get('stray_light') if isinstance(optics, dict) else None
-        if isinstance(stray, dict) and key in stray:
-            return stray[key]
+        if isinstance(stray, dict):
+            return scene_value(stray, key, default)
         return default
 
     def _set_stray(self, key: str, value: Any) -> None:

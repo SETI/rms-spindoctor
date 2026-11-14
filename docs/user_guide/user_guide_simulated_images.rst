@@ -75,6 +75,14 @@ Each disabled control's tooltip says why. When you switch a body's ``shape_model
 status bar lists them. Switching back puts them back during the same session. A scene
 saved in between doesn't carry them.
 
+Each control shows the value the simulator draws the frame with. If the scene leaves a
+setting out or sets it to ``null``, its control shows the default. Some controls sit in a
+group that turns on and off as a whole, such as a body's atmosphere or opposition surge.
+If the scene leaves out such a group, or sets it to ``null``, the group starts turned
+off. If the scene does not set a body's name, the editor shows the name the simulator
+gives it, such as ``SIM-BODY-1`` for the first body in the list. If the scene does not
+set a body's center, the editor shows the center of the frame.
+
 Units of a simulated frame
 ==========================
 

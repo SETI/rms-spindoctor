@@ -13,6 +13,7 @@ from PyQt6.QtWidgets import QFileDialog, QMessageBox
 
 from spindoctor.cli.sim_editor.base import SimEditorBase
 from spindoctor.sim.scene import load_sim_scene, save_sim_scene
+from spindoctor.sim.scene_schema import scene_value
 from spindoctor.sim.scene_truth_echo import stale_truth_declarations
 
 # How long the status bar shows the dropped-declaration notice, in milliseconds.
@@ -205,21 +206,20 @@ class SceneIoMixin(SimEditorBase):
         # a scene without the block leaves the enable checkbox unchecked (and
         # the value widgets disabled, showing the would-be defaults).
         has_sky = isinstance(self.sim_params.get('sky_counts'), dict)
-        sky = self.sim_params.get('sky_counts') or {}
         self._sky_counts_check.blockSignals(True)
         self._sky_counts_check.setChecked(has_sky)
         self._sky_counts_check.blockSignals(False)
         for widget, value in (
-            (self._sky_density_spin, float(sky.get('density_factor', 0.0))),
-            (self._sky_a_spin, float(sky.get('a', -3.1))),
-            (self._sky_b_spin, float(sky.get('b', 0.34))),
-            (self._sky_diffuse_spin, float(sky.get('diffuse_e_per_px', 0.0))),
+            (self._sky_density_spin, self._sky_value('density_factor')),
+            (self._sky_a_spin, self._sky_value('a')),
+            (self._sky_b_spin, self._sky_value('b')),
+            (self._sky_diffuse_spin, self._sky_value('diffuse_e_per_px')),
         ):
             widget.blockSignals(True)
             widget.setValue(value)
             widget.blockSignals(False)
         self._sky_density_slider.blockSignals(True)
-        self._sky_density_slider.setValue(int(float(sky.get('density_factor', 0.0)) * 10))
+        self._sky_density_slider.setValue(int(self._sky_value('density_factor') * 10))
         self._sky_density_slider.blockSignals(False)
         self._set_sky_widgets_enabled(has_sky)
         # Sync the scene-level star-catalog-scatter control.
@@ -239,7 +239,9 @@ class SceneIoMixin(SimEditorBase):
         self._expected_group.setChecked(has_expected)
         self._expected_group.blockSignals(False)
         self._expected_status_combo.blockSignals(True)
-        status_index = self._expected_status_combo.findText(str(block.get('status', 'success')))
+        status_index = self._expected_status_combo.findText(
+            str(scene_value(block, 'status', 'success'))
+        )
         if status_index >= 0:
             self._expected_status_combo.setCurrentIndex(status_index)
         self._expected_status_combo.blockSignals(False)

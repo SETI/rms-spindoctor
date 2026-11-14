@@ -12,6 +12,7 @@ from typing import Any
 from PyQt6.QtWidgets import QMessageBox, QWidget
 
 from spindoctor.cli.sim_editor.base import SimEditorBase
+from spindoctor.sim.scene_schema import default_body_name, scene_value
 
 
 class TabsMixin(SimEditorBase):
@@ -157,12 +158,12 @@ class TabsMixin(SimEditorBase):
         """
         # Collect all existing names (case-insensitive)
         existing_names = set()
-        for body in self.sim_params.get('bodies', []):
-            existing_names.add(body.get('name', '').lower())
+        for body_idx, body in enumerate(self.sim_params.get('bodies', [])):
+            existing_names.add(str(scene_value(body, 'name', default_body_name(body_idx))).lower())
         for star in self.sim_params.get('stars', []):
-            existing_names.add(star.get('name', '').lower())
+            existing_names.add(str(scene_value(star, 'name', '')).lower())
         for feature in self._ring_features():
-            existing_names.add(feature.get('name', '').lower())
+            existing_names.add(str(scene_value(feature, 'name', '')).lower())
 
         # Try the base name first
         if base_name.lower() not in existing_names:
@@ -427,21 +428,25 @@ class TabsMixin(SimEditorBase):
                     widget_data_index = widget.property('data_index')
                     if widget_kind == 'body' and widget_data_index is not None:
                         if 0 <= widget_data_index < len(self.sim_params['bodies']):
-                            body_name = self.sim_params['bodies'][widget_data_index].get(
-                                'name', f'Body{widget_data_index + 1}'
+                            body_name = scene_value(
+                                self.sim_params['bodies'][widget_data_index],
+                                'name',
+                                default_body_name(widget_data_index),
                             )
                             target_tab_name = body_name
                     elif widget_kind == 'ring' and widget_data_index is not None:
                         features = self._ring_features()
                         if 0 <= widget_data_index < len(features):
-                            ring_name = features[widget_data_index].get(
-                                'name', f'Ring{widget_data_index + 1}'
+                            ring_name = scene_value(
+                                features[widget_data_index], 'name', f'Ring{widget_data_index + 1}'
                             )
                             target_tab_name = ring_name
                     elif widget_kind == 'star' and widget_data_index is not None:
                         if 0 <= widget_data_index < len(self.sim_params['stars']):
-                            star_name = self.sim_params['stars'][widget_data_index].get(
-                                'name', f'Star{widget_data_index + 1}'
+                            star_name = scene_value(
+                                self.sim_params['stars'][widget_data_index],
+                                'name',
+                                f'Star{widget_data_index + 1}',
                             )
                             target_tab_name = star_name
                     else:
@@ -462,17 +467,19 @@ class TabsMixin(SimEditorBase):
         self._tabs.addTab(self._optics_tab, 'Optics')
         self._tabs.addTab(self._artifacts_tab, 'Artifacts')
 
-        # Add body tabs (sorted by range)
-        body_indices = list(range(len(self.sim_params['bodies'])))
+        # Add body tabs, sorted by range.  If a body's range or name is unset, use the
+        # renderer's default: its list position plus one, or SIM-BODY-<n>.
+        bodies = self.sim_params['bodies']
+        body_indices = list(range(len(bodies)))
         body_indices.sort(
             key=lambda i: (
-                self.sim_params['bodies'][i].get('range_km', float('inf')),
-                self.sim_params['bodies'][i].get('name', f'Body{i + 1}').lower(),
+                float(scene_value(bodies[i], 'range_km', i + 1)),
+                str(scene_value(bodies[i], 'name', default_body_name(i))).lower(),
             )
         )
         for i in body_indices:
             tab = self._build_body_tab(i)
-            tab_name = self.sim_params['bodies'][i].get('name', f'Body{i + 1}')
+            tab_name = str(scene_value(bodies[i], 'name', default_body_name(i)))
             self._tabs.addTab(tab, tab_name)
 
         # Add ring-feature tabs (in feature-list order: the first feature's
@@ -480,17 +487,19 @@ class TabsMixin(SimEditorBase):
         ring_features = self._ring_features()
         for i in range(len(ring_features)):
             tab = self._build_ring_tab(i)
-            tab_name = ring_features[i].get('name', f'Ring{i + 1}')
+            tab_name = str(scene_value(ring_features[i], 'name', f'Ring{i + 1}'))
             self._tabs.addTab(tab, tab_name)
 
         # Add star tabs (sorted by name)
         star_indices = list(range(len(self.sim_params['stars'])))
         star_indices.sort(
-            key=lambda i: self.sim_params['stars'][i].get('name', f'Star{i + 1}').lower()
+            key=lambda i: str(
+                scene_value(self.sim_params['stars'][i], 'name', f'Star{i + 1}')
+            ).lower()
         )
         for i in star_indices:
             tab = self._build_star_tab(i)
-            tab_name = self.sim_params['stars'][i].get('name', f'Star{i + 1}')
+            tab_name = str(scene_value(self.sim_params['stars'][i], 'name', f'Star{i + 1}'))
             self._tabs.addTab(tab, tab_name)
 
         # Add "+" tab last
