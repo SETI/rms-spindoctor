@@ -9,10 +9,12 @@ exposure_sec: 1.0
 # check the saturation / cosmic-ray mask at each star's PREDICTED position and
 # zero its reliability if flagged.  A sharp star peak is itself flagged by the
 # cosmic-ray detector, so at a near-zero offset (prediction on the star) every
-# star was gated and the star techniques had nothing to navigate.  With a zero
-# planted offset the prediction coincides exactly with each star; the star field
-# must still recover it.  Magnitudes are distinct here so the detection is
-# unambiguous; the equal-magnitude sibling scene star_equal_brightness exercises
+# star was gated and the star techniques had nothing to navigate.  With a planted
+# offset of a fraction of a pixel the prediction sits on each star; the star field
+# must still recover it.  The offset is not zero, because at zero the centroid
+# error vanishes by symmetry and the truth check would measure nothing.
+# Magnitudes are distinct here so the detection is unambiguous; the
+# equal-magnitude sibling scene star_equal_brightness exercises
 # the geometric triplet canonicalisation that keeps the match deterministic when
 # the magnitudes tie.
 # Stars deposit as point masses; an explicit navigator-matched PSF gives them a
@@ -33,6 +35,6 @@ stars:
 noise:
   poisson: true
   read_noise_dn: 4.0
-offset_v: 0.0
-offset_u: 0.0
+offset_v: 0.23
+offset_u: -0.17
 offset_rotation_deg: 0.0

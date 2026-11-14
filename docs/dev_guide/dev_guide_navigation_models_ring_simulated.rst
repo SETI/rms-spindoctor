@@ -256,8 +256,9 @@ of 90) navigable ringlet centered in a 220 px frame, with radii from 60 to 85 px
 ``tau`` of 2, and plants a pointing offset of (1.43, −0.61) px. The model predicts both
 edges at their catalog position. RingEdgeNav fits the two curved polylines against the
 image's edge distance transform, and ``test_sim_algorithmic_invariants.py`` requires its
-offset to land within 1 px of the planted one on each axis. The scene's baseline pins the
-fused ensemble result at (1.42, −0.62) px.
+offset to land within 0.066 px of the planted one. That tolerance is the largest error
+measured over 16 noise seeds, plus a margin. The scene's baseline pins the fused ensemble
+result at (1.42, −0.62) px.
 
 ``ring_system/orbit_error_ringlet.yaml`` is the same kind of ringlet, but it plants
 ``orbit_error: {delta_a_px: 2.5}`` and declares ``declared_orbit_sigma: {sigma_a_px: 2.5}``.
@@ -265,4 +266,6 @@ The image shows the band 2.5 px outside the prediction. A uniform radial error d
 closed ring rather than translating it, yet the robust fit still locks onto one side and
 absorbs part of the error into the offset. The declared sigma reaches both techniques'
 covariance, so the scene expects a success at the low confidence tier with an offset error
-of 1.7 ± 1.0 px. That error bar covers how far the fix can be from the truth.
+between 1.490 and 3.457 px. The error depends on which arc the fit locks onto, and that
+depends on the noise draw. The range covers the errors measured over 16 noise seeds, plus
+a margin. The fused sigma of about 2.5 px covers how far the result can be from the truth.

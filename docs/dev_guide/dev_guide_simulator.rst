@@ -398,11 +398,12 @@ Three things, each impossible with real frames alone:
   the method's assumption does not describe.
 - **Failure modes real data cannot isolate become provable.** The worked
   example is the planted-radial-error family: ``orbit_error_ringlet`` plants
-  a 2.5 px radial catalog error and the fused result is a success about
-  1.7 px wrong. On a real frame this is indistinguishable from a good lock --
-  only a frame whose truth is known by construction can *prove* the ensemble
-  absorbs this error into the offset, and keep proving it (the honest pin in
-  :ref:`sim-expected`) until the gap is closed.
+  a 2.5 px radial catalog error. The fused result is a success that is 1.8 to
+  3.2 px wrong, depending on the noise draw. On a real frame this is
+  indistinguishable from a good lock -- only a frame whose truth is known by
+  construction can *prove* the ensemble absorbs this error into the offset,
+  and keep proving it (the honest pin in :ref:`sim-expected`) until the gap is
+  closed.
 
 What it cannot do
 -----------------
@@ -1658,24 +1659,34 @@ position, or drowns a lone star in an overwhelming confounder field, the
 confident wrong offset. Each such scene carries an ``expected`` block, and the
 machinery turns "must not be confidently wrong here" into a passing assertion.
 
-**The honest pin.** A small second family inverts the reading: a scene whose
-measured behavior *is* a wrong offset the ensemble cannot remove -- the
-``orbit_error_ringlet`` planted radial catalog error, whose bias survives even
-though the declared-sigma covariance channel demotes its tier. Pinning bare
-``status: success`` on such a scene would quietly freeze the wrong answer as
-correct behavior, so it also declares ``known_offset_error_px`` -- the measured
-fused error magnitude, from the scene's recorded baseline -- with a
-``known_offset_error_tol_px`` band. The assertion then fails in *both*
-directions: a regression that worsens the error fails, and a genuine fix that
-shrinks it also fails loudly, prompting a deliberate re-pin (or retirement of
-the pin) instead of a silent behavior change. The pinned success is a
-documented hazard held in view, never an endorsement; the scene comments and
-the campaign record carry the analysis, and the ensemble chapter
-(:doc:`dev_guide_orchestrator_ensemble`) describes the failure family for the
-readers who consume tiers. The ``titan_crescent_horns`` pair left this family
-once the cross-technique body-witness veto closed it: its haze-dragged
-lone-blob offset is declined outright, so the scenes assert that ``failed``
-outcome instead of an honest-pin success.
+**The honest pin.** A small second family inverts the reading. In these scenes
+the measured behavior *is* a wrong offset, for a reason that is understood but
+not yet fixed. There are three:
+
+- ``orbit_error_ringlet`` plants a radial catalog error. The declared-sigma
+  covariance channel demotes its tier, but the bias survives.
+- In ``relief_psf_stray_light``, the disc correlation stops at the edge of its
+  sub-pixel search window.
+- In ``planted_rotation_star_field``, the translation is fitted about the corner
+  of the extended field of view rather than the frame center.
+
+Pinning bare ``status: success`` on such a scene would quietly freeze the wrong
+answer as correct behavior. So the scene also declares ``known_offset_error_px``
+and ``known_offset_error_tol_px``, which set a band around the known error. The
+band covers the fused error measured over 16 noise seeds: the scene's own seed
+and 15 more. Each end of the band sits outside the measured range by a margin of
+0.05 px or a fifth of the spread, whichever is larger. On
+``orbit_error_ringlet`` the error is 1.77 px on the scene's own seed and up to
+3.18 px on others, so a band fitted to one seed would fail on the next. The
+assertion fails in *both* directions. A regression that worsens the error fails.
+A genuine fix that shrinks the error also fails loudly, which prompts a
+deliberate re-pin, or retirement of the pin, instead of a silent behavior
+change. The pinned success marks a known hazard. The scene comments and the
+campaign record carry the analysis, and the ensemble chapter
+(:doc:`dev_guide_orchestrator_ensemble`) describes the failure family. The
+``titan_crescent_horns`` scenes are not in this family. The cross-technique
+body-witness veto declines their haze-dragged lone-blob offset, so the scenes
+assert a ``failed`` outcome.
 
 .. _sim-floor:
 
@@ -2516,14 +2527,13 @@ in quadrature to its reported covariance along the fit's radial direction
 
 The measured behavior on this axis stays deliberately uncomfortable, and the
 ``orbit_error_ringlet`` scene pins it: a navigable ringlet rendered 2.5 px
-outward of its catalog orbit navigates to a success about 1.7 px wrong. A
-uniform radial misplacement has no exact translational equivalent, so the
-robust edge fit down-weights one arc, locks onto one side of the annulus,
-and absorbs the ephemeris error into the recovered offset instead of leaving
-it in the residuals -- the declared sigma prices that hazard (the widened
-covariance holds the fused result out of the high tier) but cannot remove
-the bias itself, which is what the scene's ``known_offset_error_px`` pin
-keeps in view.
+outward of its catalog orbit navigates to a success that is 1.8 to 3.2 px
+wrong, depending on the noise draw. A uniform radial misplacement has no
+exact translational equivalent. The robust edge fit therefore down-weights one
+arc, locks onto one side of the annulus, and absorbs the ephemeris error into
+the recovered offset. The declared sigma widens the covariance enough to keep
+the fused result out of the high tier, but it cannot remove the bias. The
+scene's ``known_offset_error_px`` pin keeps that bias in view.
 
 ``navigable`` (default **false**) is the information boundary in miniature:
 the filter drops non-navigable features from ``nav_params`` entirely, so the
@@ -3939,11 +3949,55 @@ status bar reports it.
 Catalog, baselines, and the render-diff sheet
 =============================================
 
-The scene catalog is guarded at three levels, all regenerated inside whichever
+The scene catalog is guarded at four levels, all regenerated inside whichever
 change alters rendered output:
 
 - **Structural tests** (``tests/integration/test_sim_scenes.py``): every scene
   validates, sits in a declared class, has a unique name, and renders.
+- **Truth checks** (``tests/integration/sim_truth.py``): a *validation scene*
+  is one in a class that checks accuracy on a frame. The other classes are
+  sweeps, which vary one setting. Every validation scene is compared with its
+  planted offset, and the error is the distance between the two in two
+  dimensions. Each check's limit was measured on 16 noise seeds: the scene's
+  own seed and 15 more. One of two rules sets each check:
+
+  - An accurate answer is held to a tolerance. The tolerance is the largest
+    error over the seeds plus a margin of 0.05 px or a fifth of that error,
+    whichever is larger. Each tolerance entry in ``sim_truth.py`` records the
+    error on the scene's own seed, the largest error, the spread over the
+    seeds, and the margin.
+  - A wrong answer with an understood cause is held to a band around its
+    known error, so a fix fails as visibly as a regression. A known error is a
+    bias, and its spread over the seeds is noise. The band therefore runs from
+    the smallest error to the largest, widened on each side by 0.05 px or a
+    fifth of the spread, whichever is larger. Bands hold the fused answer of a
+    few scenes (see :ref:`sim-expected`). They also hold one technique's
+    answer where that answer is far off but not flagged spurious. On
+    ``planted_rank1_ring_flat`` a band holds the error across the straight
+    ring edge, the only direction that scene can measure.
+
+  The default suite runs the algorithmic invariants, the technique-pinned
+  regression tests, and the fused check on ``mutual_grazing``, which read their
+  limits from ``sim_truth.py``. The integration tier runs the rest. There,
+  ``test_sim_truth_checks.py`` checks the fused answer of every validation scene
+  outside ``algorithmic_invariants``, and every single-technique band.
+
+  The same module compares each fused error with the sigma the navigator
+  reports. The error is measured in units of the reported covariance, and a
+  fused answer fails above 3 sigma. Over the seeds, every accurate validation
+  scene sits at or below 1.9 sigma. A few scenes sit above 3 sigma for an
+  understood reason. Each of those is held to a band on the same measure,
+  widened by 0.1 sigma or a fifth of its spread, whichever is larger, so a
+  fix moves the scene out of its band.
+
+  At an offset whose fractional part is 0 or 0.5, a disc or star error can
+  vanish by symmetry. No validation scene plants such an offset on either
+  axis, except ``disc_subpixel_offset``. That scene guards a bias that is
+  largest at whole-pixel offsets.
+
+  A truth check compares the answer with the planted offset, not with a stored
+  answer. If a regression is regenerated into the baselines, the truth check
+  still fails.
 - **Regression baselines** (``tests/integration/sim_baselines/``): every
   catalog scene re-navigates to its recorded outcome, with the same status and
   confidence rank, each offset axis within 0.02 px, and the confidence within 0.02

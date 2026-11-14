@@ -86,7 +86,7 @@ These make every later phase cheaper or safer. Most are small.
 | #954 | A last-bit geometry change can reseed every crater on a simulated body | The same fragility as #911, in the crater field instead of the noise; fixing it moves every cratered render once, so it is cheapest alongside another regeneration. |
 | #960 | Simulator tripwires depend on a single noise draw | The #911 redraw moved three of them; until each rate or band is measured over several noise seeds, the next redraw can move them again. |
 | #961 | The simulator report quotes the sweeps' earlier noise draw | Regenerate the sweep figures and their prose together in the report's end-of-stack regeneration. |
-| #905, truth-check part | Assertions are change detectors and 1 px bounds | Give validation scenes truth-based assertions before the renders start moving, so a move is judged against the planted truth. |
+| #905, truth-check part | **Done (PR #976).** Assertions are change detectors and 1 px bounds | Give validation scenes truth-based assertions before the renders start moving, so a move is judged against the planted truth. |
 | #872 | **Done (PR #927).** The baseline regenerator imports whichever installed package it finds | Regenerated baselines must come from the checkout under test before the churn starts. |
 | #900, #813 | **Done: #900 (PR #959); #813 (PR #927).** Validation skips the render path; null body keys crash; the navigator's simulated ring model reads nullable keys unsafely | Typed per-block specs on every entry point, with null meaning absent; the first slice of #915. |
 | #940 | **Done (PR #959).** An in-memory scene reaches the renderer without validation | The one entry point that renders a scene validation would refuse; closing it with #900 makes every path validate. |
@@ -288,6 +288,7 @@ Those classes are eligible for retirement in Phase 7.
 | #905 | Per-instrument accuracy numbers (the rest, beyond Phase 1) |
 | #377 | Dense, realistic ring scenes (the rest, beyond Phase 2b) |
 | #835 | Star navigation reports success at 4.9 px error under 6 px catalog scatter |
+| #975 | BodyBlobNav answers up to 36 px off on validation scenes and does not flag the answers spurious; the truth checks hold them in bands |
 
 Build the validation catalog from twins and from idealized scenes that the transfer check
 supports: every camera, real frame sizes and offsets, twist, compound content, frame-filling
