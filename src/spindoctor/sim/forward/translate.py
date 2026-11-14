@@ -12,6 +12,10 @@ which is exact for a whole number.  The interpolation weights are therefore the
 same bits.  The crop holds every source pixel those positions read, so a crop
 edge inside the frame is never reached.  Outside the translated box the result is
 ``cval`` exactly, where ``shift`` gives ``cval`` up to rounding.
+
+The box is resampled a strip of rows at a time, so the table of sample positions
+stays small when a body fills the frame.  Each output pixel is computed on its
+own, so the strips give the same bits as one pass over the whole box.
 """
 
 import math
@@ -22,6 +26,10 @@ from scipy import ndimage
 from spindoctor.support.types import NDArrayFloatType
 
 __all__ = ['nonzero_box', 'shifted_box', 'translate_box']
+
+# Output rows resampled per pass.  The table of sample positions for one pass holds
+# two numbers per pixel of the strip, so it stays a few MB on a 4096-pixel-wide grid.
+_STRIP_ROWS = 256
 
 
 def nonzero_box(*planes: NDArrayFloatType) -> tuple[slice, slice]:
@@ -102,16 +110,16 @@ def translate_box(
     out_u = shifted_box(box_u, du, size_u)
     if out_v.start >= out_v.stop or out_u.start >= out_u.stop:
         return out
-    src_v = _source_span(out_v, dv, size_v)
     src_u = _source_span(out_u, du, size_u)
-    coords = np.empty((2, out_v.stop - out_v.start, out_u.stop - out_u.start))
-    coords[0] = ((np.arange(out_v.start, out_v.stop, dtype=np.float64) - dv) - src_v.start)[
-        :, np.newaxis
-    ]
-    coords[1] = ((np.arange(out_u.start, out_u.stop, dtype=np.float64) - du) - src_u.start)[
-        np.newaxis, :
-    ]
-    out[out_v, out_u] = ndimage.map_coordinates(
-        plane[src_v, src_u], coords, order=1, mode='constant', cval=cval
-    )
+    cols = (np.arange(out_u.start, out_u.stop, dtype=np.float64) - du) - src_u.start
+    for first in range(out_v.start, out_v.stop, _STRIP_ROWS):
+        strip = slice(first, min(first + _STRIP_ROWS, out_v.stop))
+        src_v = _source_span(strip, dv, size_v)
+        rows = (np.arange(strip.start, strip.stop, dtype=np.float64) - dv) - src_v.start
+        coords = np.empty((2, rows.size, cols.size))
+        coords[0] = rows[:, np.newaxis]
+        coords[1] = cols[np.newaxis, :]
+        out[strip, out_u] = ndimage.map_coordinates(
+            plane[src_v, src_u], coords, order=1, mode='constant', cval=cval
+        )
     return out

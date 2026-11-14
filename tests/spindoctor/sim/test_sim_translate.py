@@ -9,7 +9,12 @@ import numpy as np
 import pytest
 from scipy import ndimage
 
-from spindoctor.sim.forward.translate import nonzero_box, shifted_box, translate_box
+from spindoctor.sim.forward.translate import (
+    _STRIP_ROWS,
+    nonzero_box,
+    shifted_box,
+    translate_box,
+)
 
 
 def _content(cval: float, rows: slice, cols: slice) -> np.ndarray:
@@ -36,6 +41,15 @@ def test_translation_is_the_whole_frame_shift(
     plane = _content(0.0, rows, cols)
     expected = ndimage.shift(plane, (dv, du), order=1, mode='constant', cval=0.0)
     assert np.array_equal(translate_box(plane, dv, du, rows, cols), expected)
+
+
+def test_a_box_taller_than_one_strip_is_the_whole_frame_shift() -> None:
+    """A box resampled in several strips of rows has the whole-frame shift's bits."""
+    rows, cols = slice(5, 295), slice(20, 260)
+    assert shifted_box(rows, 0.62, 300).stop - shifted_box(rows, 0.62, 300).start > _STRIP_ROWS
+    plane = _content(0.0, rows, cols)
+    expected = ndimage.shift(plane, (0.62, -1.4), order=1, mode='constant', cval=0.0)
+    assert np.array_equal(translate_box(plane, 0.62, -1.4, rows, cols), expected)
 
 
 def test_translation_with_a_fill_of_one_is_the_whole_frame_shift() -> None:
