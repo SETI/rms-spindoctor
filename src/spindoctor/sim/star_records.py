@@ -31,12 +31,24 @@ from starcat import Star
 from spindoctor.sim.scene_schema import scene_value
 from spindoctor.support.types import MutableStar
 
-__all__ = ['DEFAULT_PSF_SIZE', 'star_record_from_params']
+__all__ = [
+    'DEFAULT_BMV',
+    'DEFAULT_PSF_SIZE',
+    'DEFAULT_SPECTRAL_CLASS',
+    'star_record_from_params',
+]
 
 # The PSF fitting-window size a star entry gets when the scene omits one,
 # in detector pixels.  Renderer-side scaling to an oversampled grid must
 # materialize this default so the downsample's rescale returns it intact.
 DEFAULT_PSF_SIZE: tuple[int, int] = (11, 11)
+
+# The spectral class of a star entry that omits one.  G2 is the Sun's class.
+DEFAULT_SPECTRAL_CLASS = 'G2'
+
+# The Sun's Johnson B-V color index.  A star gets this color when the star
+# catalog cannot map its spectral class to a color.
+DEFAULT_BMV = 0.63
 
 
 def star_record_from_params(
@@ -77,13 +89,18 @@ def star_record_from_params(
     star.move_v = float(scene_value(star_params, 'move_v', 0.0))
     star.move_u = float(scene_value(star_params, 'move_u', 0.0))
     star.vmag = float(scene_value(star_params, 'vmag', 8.0))
-    star.spectral_class = str(scene_value(star_params, 'spectral_class', 'G2'))
+    star.spectral_class = str(scene_value(star_params, 'spectral_class', DEFAULT_SPECTRAL_CLASS))
     star.temperature = Star.temperature_from_sclass(star.spectral_class)
     star.temperature_faked = star.temperature is None
     if star.temperature is None:
         star.temperature = 5780.0
     star.johnson_mag_v = star.vmag
-    bmv = Star.bmv_from_sclass(star.spectral_class or 'G2') or 0.63
+    # The lookup returns None for a class it cannot map, and only then does the
+    # star take the default color.  A0 maps to exactly 0.0, so a truthiness test
+    # would give every A0 star the solar color.
+    bmv = Star.bmv_from_sclass(star.spectral_class or DEFAULT_SPECTRAL_CLASS)
+    if bmv is None:
+        bmv = DEFAULT_BMV
     star.johnson_mag_b = star.johnson_mag_v + bmv
     star.johnson_mag_faked = False
     # Simulated photometry is authoritative by construction, so it is never

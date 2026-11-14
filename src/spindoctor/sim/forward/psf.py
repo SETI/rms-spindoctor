@@ -12,6 +12,17 @@ kernel conserves flux.  The Gaussian core is elliptical (``sigma_v`` may differ
 from ``sigma_u``); the Moffat wing is isotropic.  All radii are in detector
 pixels; the kernel is sampled on the oversampled render grid, and the whole
 convolution runs there before the box downsample.
+
+A plane is usually zero away from the bodies, rings, and stars.  The blur
+therefore convolves each cluster of lit pixels on its own crop (see the
+lit_clusters module) and adds the results.  Convolution is linear, so the sum is
+the blur of the whole plane.  A crop's blur reaches the kernel's half-width past
+the crop and is exactly zero beyond it.  The FFTs are smaller than the frame's,
+so they round differently from one whole-frame convolution: by up to about 1e-15
+of the peak on lit pixels.  In the dark, where the whole-frame FFT leaves residue
+of that size, the crops leave exact zeros.  Each crop's FFT covers the crop
+widened by the kernel.  When those areas would add up to at least the frame's
+area widened the same way, the plane is blurred in one piece.
 """
 
 from collections.abc import Mapping
@@ -20,6 +31,7 @@ from functools import lru_cache
 import numpy as np
 from scipy.signal import fftconvolve
 
+from spindoctor.sim.forward.lit_clusters import cluster_crop, find_lit_clusters
 from spindoctor.support.types import NDArrayFloatType
 
 __all__ = [
@@ -88,8 +100,9 @@ def apply_psf(
     """Convolve the signal and point-source planes with the PSF kernel in place.
 
     Both planes share every optical transform, so the same kernel blurs the
-    intensive signal (bodies, rings, sky) and the point-source electrons.  The
-    convolution is an FFT convolution (deterministic) at ``mode='same'``.
+    intensive signal (bodies, rings, sky) and the point-source electrons.  Each
+    plane is blurred by FFT convolution, cluster by cluster as the module
+    docstring describes.
 
     Parameters:
         signal: The oversampled intensive-signal plane, modified in place.
@@ -111,9 +124,44 @@ def apply_psf(
         truncation_px=int(truncation_px),
         oversample=int(oversample),
     )
-    signal[:] = fftconvolve(signal, kernel, mode='same')
-    if float(np.count_nonzero(point_e)) > 0.0:
-        point_e[:] = fftconvolve(point_e, kernel, mode='same')
+    _blur_plane(signal, kernel)
+    _blur_plane(point_e, kernel)
+
+
+def _blur_plane(plane: NDArrayFloatType, kernel: NDArrayFloatType) -> None:
+    """Convolve one plane with an odd-sized kernel in place, cluster by cluster.
+
+    Parameters:
+        plane: The render-grid plane, modified in place.
+        kernel: The square kernel, of odd size ``2 * half + 1``.
+    """
+    clusters = find_lit_clusters(plane)
+    if not clusters.boxes:
+        return
+    size_v, size_u = plane.shape
+    half = kernel.shape[0] // 2
+    # An FFT convolution costs about the area it transforms: each crop widened by
+    # the kernel's width, against the whole frame widened by the same.
+    cluster_area = sum(
+        (v.stop - v.start + 2 * half) * (u.stop - u.start + 2 * half) for v, u in clusters.boxes
+    )
+    if cluster_area >= (size_v + 2 * half) * (size_u + 2 * half):
+        plane[:] = fftconvolve(plane, kernel, mode='same')
+        return
+    source = plane.copy()
+    plane[:] = 0.0
+    for index, (rows, cols) in enumerate(clusters.boxes):
+        blurred = fftconvolve(cluster_crop(clusters, source, index, rows, cols), kernel)
+        # The full convolution's first sample sits ``half`` pixels before the
+        # crop; clip it to the frame.
+        out_v = slice(max(rows.start - half, 0), min(rows.stop + half, size_v))
+        out_u = slice(max(cols.start - half, 0), min(cols.stop + half, size_u))
+        first_v = out_v.start - (rows.start - half)
+        first_u = out_u.start - (cols.start - half)
+        plane[out_v, out_u] += blurred[
+            first_v : first_v + out_v.stop - out_v.start,
+            first_u : first_u + out_u.stop - out_u.start,
+        ]
 
 
 def binned_psf_kernel(kernel: Mapping[str, float], binning: int) -> dict[str, float]:
