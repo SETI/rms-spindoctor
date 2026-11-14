@@ -135,7 +135,9 @@ def compose_scene_radiance(
             ``truth`` dict receives the renderer output metadata (``stars``,
             ``bodies``, ``ring_features``, ``inventory``, ``star_info``,
             ``body_masks``, ``ring_masks``, ``order_near_to_far``,
-            ``body_index_map``, ``body_mask_map``, ``body_occlusion``).
+            ``body_index_map``, ``body_mask_map``, ``body_occlusion``).  On the
+            scene editor's fast preview frame (``frame.preview``), each body's limb
+            is drawn without anti-aliasing supersampling.
         params: The full scene mapping.
         rng: The stage generator.  Unused directly: this stage's randomized
             sub-effects (background stars, craters) run behind parameter-keyed
@@ -294,6 +296,10 @@ def compose_scene_radiance(
             axis3=spec.axis3 * os,
             rotation_z=rotation_z,
             range_km=range_km,
+            # The editor's fast preview draws each limb without supersampling.
+            # At the default setting the limb is drawn on a grid 4 times finer in
+            # each direction, which costs most of a preview's time.
+            anti_aliasing=0.0 if frame.preview else spec.anti_aliasing,
         )
         bodies_with_ranges.append((render_spec, truth_params))
 
