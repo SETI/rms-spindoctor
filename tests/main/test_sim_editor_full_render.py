@@ -114,15 +114,19 @@ class _GatedFullRender:
     """A stand-in for the worker's full render that finishes only when released.
 
     Each call records its scene and blocks on its own gate.  The released call returns
-    the real full render of its scene, or raises ``error``.
+    ``result`` if one was given and otherwise the real full render of its scene, or
+    raises ``error``.
     """
 
-    def __init__(self, error: BaseException | None = None) -> None:
-        """Create the stand-in, optionally failing every call with ``error``."""
+    def __init__(
+        self, *, error: BaseException | None = None, result: FullRender | None = None
+    ) -> None:
+        """Create the stand-in, optionally failing with ``error`` or returning ``result``."""
         self.scenes: list[dict[str, Any]] = []
         self._gates: list[threading.Event] = []
         self._lock = threading.Lock()
         self._error = error
+        self._result = result
         self._real = full_render_module.render_full_frame
 
     def __call__(self, sim_params: dict[str, Any]) -> FullRender:
@@ -135,6 +139,8 @@ class _GatedFullRender:
             raise TimeoutError('the test never released this render')
         if self._error is not None:
             raise self._error
+        if self._result is not None:
+            return self._result
         return self._real(sim_params)
 
     def release(self, index: int) -> None:
@@ -164,6 +170,14 @@ def _fail_full_render(model: Any, failing: _GatedFullRender) -> None:
     model._start_full_renders()
     failing.release(0)
     wait_for_background_renders(model)
+
+
+def _save_png(model: Any, monkeypatch: pytest.MonkeyPatch, path: Path) -> None:
+    """Save the editor's image to ``path``, as the Save Image button does."""
+    monkeypatch.setattr(
+        QFileDialog, 'getSaveFileName', staticmethod(lambda *a, **k: (str(path), 'PNG'))
+    )
+    model._save_image()
 
 
 def _preview(model: Any) -> Any:
@@ -336,13 +350,40 @@ def test_saving_writes_the_full_render(
 ) -> None:
     """Saving while the preview is on screen writes the stretched full render."""
     path = tmp_path / 'saved.png'
-    monkeypatch.setattr(
-        QFileDialog, 'getSaveFileName', staticmethod(lambda *a, **k: (str(path), 'PNG'))
-    )
-    model._save_image()
+    _save_png(model, monkeypatch, path)
     with Image.open(path) as saved:
         pixels = np.asarray(saved)
     assert np.array_equal(pixels, _dn_to_display_uint8(_full(model)))
+
+
+def test_saving_shows_the_full_render_it_draws(
+    model: Any, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The full render a save draws while the preview is on screen replaces the preview."""
+    _save_png(model, monkeypatch, tmp_path / 'saved.png')
+    assert model._image_kind_label.text() == 'Full render'
+
+
+def test_no_full_render_starts_after_a_save_drew_it(
+    model: Any, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Once a save has drawn the full render, the idle timer starts no second one."""
+    _save_png(model, monkeypatch, tmp_path / 'saved.png')
+    model._start_full_renders()
+    assert model._full_render_runner.is_busy is False
+
+
+def test_saving_drops_the_running_full_render(
+    model: Any, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A background full render still running when a save draws one is never shown."""
+    blank = _GatedFullRender(result=FullRender(image=np.zeros((64, 64)), meta={}))
+    monkeypatch.setattr(full_render_module, 'render_full_frame', blank)
+    model._start_full_renders()
+    _save_png(model, monkeypatch, tmp_path / 'saved.png')
+    blank.release(0)
+    wait_for_background_renders(model)
+    assert np.array_equal(model._current_image, _full(model))
 
 
 def test_the_full_render_delay_option_parses_seconds() -> None:

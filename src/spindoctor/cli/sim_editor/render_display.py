@@ -259,13 +259,17 @@ class RenderDisplayMixin(SimEditorBase):
 
         The idle timer calls this once the editor has been idle for its delay.  If the
         scene on screen is no longer the edited scene, nothing starts, because a new
-        preview is on its way and restarts the timer.
+        preview is on its way and restarts the timer.  If the full render of the
+        scene is already on screen, because saving a PNG drew it, only the verdict
+        render starts.
         """
         if self._displayed_params != self.sim_params:
             return
-        self._full_render_runner.request(self.sim_params)
         if has_planted_offset(self.sim_params):
             self._verdict_runner.request(self.sim_params)
+        if self._showing_full_render:
+            return
+        self._full_render_runner.request(self.sim_params)
         self._set_image_kind(PREVIEW_FULL_RUNNING_TEXT)
 
     def _show_full_render(self, scene: dict[str, Any], result: FullRender) -> None:
@@ -653,13 +657,22 @@ class RenderDisplayMixin(SimEditorBase):
     def _full_render_image(self) -> Any:
         """Return the full render of the scene behind the picture on screen.
 
+        If the preview is on screen, the full render is drawn now, on the UI thread.
+        When the preview's scene is still the edited scene, the new render then
+        replaces the preview, as a finished background render would, and the
+        background render of that scene, if one is on its way, is dropped.
+
         Returns:
             The image on screen if it is the full render, and otherwise a new full
             render of the same scene.
         """
         if self._showing_full_render:
             return self._current_image
-        image, _ = render_combined_model(self._displayed_params, ignore_offset=True)
+        scene = copy.deepcopy(self._displayed_params)
+        image, meta = render_combined_model(scene, ignore_offset=True)
+        if scene == self.sim_params:
+            self._full_render_runner.cancel()
+            self._show_full_render(scene, FullRender(image=image, meta=meta))
         return image
 
     def _save_image(self) -> None:
@@ -667,7 +680,8 @@ class RenderDisplayMixin(SimEditorBase):
 
         The PNG is the full render's stretched image, without the marks or the
         saturation overlay.  If the fast preview is on screen, the full render of the
-        same scene is rendered now, on the UI thread, before the file is written.
+        same scene is rendered now, on the UI thread, before the file is written, and
+        shown (see :meth:`_full_render_image`).
         """
         if self._current_image is None:
             QMessageBox.warning(self, 'No Image', 'No image to save.')
