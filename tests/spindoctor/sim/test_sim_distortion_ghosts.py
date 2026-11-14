@@ -2,9 +2,10 @@
 
 Distortion tests: a radial k1 warp moves a corner point by the predicted
 amount while the center stays put, the non-radial field is deterministic per
-seed, and a disabled block is the identity.  The warp resamples only the lit
-clusters of a plane; those tests compare it against one resampling of the whole
-frame.  Ghost tests: a bright source casts a displaced, amplitude-scaled copy.
+seed, and a disabled block is the identity.  Further distortion tests check that
+warping only a plane's lit clusters gives the same result as resampling the whole
+frame at once.  Ghost tests: a bright source casts a displaced, amplitude-scaled
+copy.
 """
 
 from typing import Any
@@ -125,7 +126,7 @@ def _disc(signal: np.ndarray, center_v: float, center_u: float, radius: float) -
 
 
 def _separate_clusters() -> np.ndarray:
-    """Two discs and a star that lies inside the first disc's crop but is its own cluster."""
+    """Two discs, and a star inside the first disc's crop that is its own cluster."""
     signal = np.zeros((512, 512), dtype=np.float64)
     _disc(signal, 100.0, 100.0, 40.0)
     _disc(signal, 400.0, 380.0, 50.0)
@@ -142,7 +143,7 @@ def _cut_by_the_frame_edge() -> np.ndarray:
 
 
 def _small_discs() -> np.ndarray:
-    """Two small discs on a wide frame, placed where the strong warps below move them far."""
+    """Two small discs on a wide frame, where the strong warps below move them far."""
     signal = np.zeros((512, 1024), dtype=np.float64)
     _disc(signal, 256.0, 100.0, 8.0)
     _disc(signal, 256.0, 500.0, 8.0)

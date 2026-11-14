@@ -21,16 +21,16 @@ grouped into clusters, and each cluster is warped on its own crop, with a margin
 of dark pixels around it.  The warp is linear, so adding the clusters' results
 gives the warp of the whole plane.
 
-Before interpolating, the cubic spline computes coefficients for every pixel of
-the crop, and that prefilter spreads each lit pixel into the dark around it.  The
-spread falls by a factor of 2 - sqrt(3), about 0.27, per pixel, so by about 1e-37
-across the margin.  Every lit pixel therefore comes out as the whole-frame warp
-makes it, apart from rounding.  Where the whole-frame warp leaves values below
-1e-37 of the peak in the dark, the crops leave zero.
+Before interpolating, the cubic spline computes a coefficient for every pixel of
+the crop.  This step, the prefilter, spreads each lit pixel into the dark around
+it.  The spread falls by a factor of 2 - sqrt(3), about 0.27, per pixel, so by
+about 1e-37 across the margin.  Every lit pixel therefore comes out as the
+whole-frame warp makes it, apart from rounding.  Where the whole-frame warp leaves
+values below 1e-37 of the peak in the dark, the crops leave zero.
 
-If the crops' outputs would add up to more than the frame, the plane is warped in
-one piece instead.  A plane that smear or a diffuse sky has lit everywhere is
-warped that way, and gains nothing.
+If the areas the crops are interpolated over would add up to at least the
+frame's area, the plane is warped in one piece instead.  A plane that smear or a
+diffuse sky has lit everywhere is warped that way, and gains nothing.
 """
 
 import math
@@ -84,7 +84,8 @@ class _Warp:
         k2: Radial coefficient of ``rho^4``.
         field_v: The non-radial wander along v over the render grid, or None.
         field_u: The non-radial wander along u over the render grid, or None.
-        reach: Render-grid pixels an output crop extends past its input crop.
+        reach: How far, in render-grid pixels, an output crop extends past its
+            input crop.
     """
 
     shape: tuple[int, int]
@@ -131,9 +132,9 @@ def _largest_radial_displacement(
     """The largest radial displacement, in render-grid pixels, anywhere in the frame.
 
     The displacement at radius ``r`` is ``r * (k1*s + k2*s^2)`` with
-    ``s = (r / rho_ref)^2``.  For ``r`` from 0 to the farthest pixel its largest
-    magnitude is at that pixel or where its derivative vanishes, at
-    ``s = -3*k1 / (5*k2)``.
+    ``s = (r / rho_ref)^2``.  Between the center and the farthest pixel, its
+    magnitude peaks either at that pixel or where the displacement's derivative
+    vanishes, at ``s = -3*k1 / (5*k2)``.
 
     Parameters:
         shape: The render-grid shape.
