@@ -288,7 +288,7 @@ Those classes are eligible for retirement in Phase 7.
 | #905 | Per-instrument accuracy numbers (the rest, beyond Phase 1) |
 | #377 | Dense, realistic ring scenes (the rest, beyond Phase 2b) |
 | #835 | Star navigation reports success at 4.9 px error under 6 px catalog scatter |
-| #975 | BodyBlobNav answers 1 to 36 px off on validation scenes without flagging them spurious; the truth checks hold them in bands |
+| #975 | BodyBlobNav answers up to 36 px off on validation scenes and does not flag the answers spurious; the truth checks hold them in bands |
 
 Build the validation catalog from twins and from idealized scenes that the transfer check
 supports: every camera, real frame sizes and offsets, twist, compound content, frame-filling

@@ -2,12 +2,13 @@
 
 A grazing two-body overlap must still navigate to its planted offset within its
 truth tolerance, and the navigator-side simulated body model must predict
-occlusion-aware limbs: the near body's limb stays complete, while the far body's
-limb loses the arc hidden behind the near body's silhouette and its
-``visible_arc_fraction`` reports the loss honestly (the input the limb reliability
-and BodyLimbNav's confidence formula consume).  The deeper overlaps' fused outcomes
-are pinned by their scenes' ``expected`` blocks (test_sim_expected), their truth
-tolerances (test_sim_truth_checks), and their baselines.
+occlusion-aware limbs.  The near body's limb stays complete.  The far body's limb
+loses the arc hidden behind the near body's silhouette, and its
+``visible_arc_fraction`` reports the fraction of the limb that stays visible.  The limb
+reliability and BodyLimbNav's confidence formula both read that value.  The deeper
+overlaps' fused outcomes are pinned by their scenes' ``expected`` blocks
+(test_sim_expected), their truth tolerances (test_sim_truth_checks), and their
+baselines.
 
 Everything renders and navigates in-process (no holdings or SPICE), so this
 runs in the default suite.

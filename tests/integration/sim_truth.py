@@ -1,10 +1,11 @@
-"""Truth checks for the simulator's validation scenes: per-scene tolerances from measurement.
+"""Truth checks for the simulator's validation scenes, with tolerances measured per scene.
 
 A validation scene plants a known pointing offset, so the navigator's answer can be
-compared with the truth.  This module holds what each such comparison is held to, keyed
-by ``(scene_name, technique)``: :data:`FUSED` for the orchestrator's fused answer, or a
-technique name for one technique's answer.  Every check measures the error as a distance
-in two dimensions, ``hypot(dv_error, du_error)``, never one axis at a time.
+compared with the truth.  This module holds the limit for each comparison.  The tables are
+keyed by ``(scene_name, technique)``, where ``technique`` is :data:`FUSED` for the
+orchestrator's fused answer or a technique name for one technique's answer.  Every check
+measures the error as a distance in two dimensions, ``hypot(dv_error, du_error)``, never
+one axis at a time.
 
 The measurement.  Each scene was rendered and navigated on its committed
 ``random_seed`` and on 15 more (101, 202, ..., 1515), so that each check covers the
@@ -19,24 +20,25 @@ The two rules.
   jitter between machines; the proportional part covers seeds the measurement did not
   sample.  An entry in :data:`TRUTH_TOLERANCES` records the error on the committed seed,
   the largest error, the spread (largest minus smallest), and the margin.
-* **A known wrong answer** -- wrong for a reason an issue explains -- is held to a band
+* **A known wrong answer** is wrong for a reason an issue explains.  It is held to a band
   around its known error, so a fix shows up as a deliberate change.  A known error is a
-  bias and its spread over the seeds is its noise, so the margin scales with the spread:
-  the band runs from the smallest error minus the margin to the largest plus the margin,
-  where the margin is max(0.05 px, a fifth of the spread), and each end is rounded
+  bias, and its spread over the seeds is its noise, so the margin scales with the spread.
+  The margin is max(0.05 px, a fifth of the spread).  The band runs from the smallest
+  error minus the margin to the largest error plus the margin, with each end rounded
   outward to 0.001 px.  Bands on one technique's answer or on one component live here
-  (:data:`KNOWN_ERRORS`, :data:`RANK1_NORMAL_ERROR`); a fused band on a scene outside
-  ``algorithmic_invariants`` lives in the scene's ``expected`` block
-  (``known_offset_error_px`` / ``known_offset_error_tol_px``, asserted by
-  :mod:`tests.integration.sim_expected`).
+  (:data:`KNOWN_ERRORS`, :data:`RANK1_NORMAL_ERROR`).  A fused band on a scene outside
+  ``algorithmic_invariants`` lives in the scene's ``expected`` block, as
+  ``known_offset_error_px`` and ``known_offset_error_tol_px``, and
+  :mod:`tests.integration.sim_expected` asserts it.
 
 The fused answer is also checked against the sigma it reports: the error measured in
 units of the reported covariance must not exceed :data:`SIGMA_MULTIPLE`.  For a round
-covariance that measure is the error divided by the per-axis sigma.  Over the seeds every
-accurate validation scene sits at or below 1.9 times its reported sigma; 3 leaves room
-above that and still fails an answer that is confidently wrong.  A scene that sits above
-3 for a known reason is held to a band on that measure (:data:`SIGMA_BANDS`) with a
-margin of max(0.1, a fifth of its spread), so a fix leaves the band.
+covariance that measure is the error divided by the per-axis sigma.  Over the seeds,
+every accurate validation scene sits at or below 1.9 times its reported sigma.  A limit
+of 3 leaves room above that and still fails an answer that is confidently wrong.  A scene
+that sits above 3 for a known reason is held to a band on that measure
+(:data:`SIGMA_BANDS`) with a margin of max(0.1, a fifth of its spread), so a fix leaves
+the band.
 """
 
 from __future__ import annotations
@@ -56,10 +58,10 @@ FUSED = '*'
 """The technique key for the orchestrator's fused answer."""
 
 SEEDS_MEASURED = 16
-"""The number of noise seeds each check was measured over (the committed one and 15)."""
+"""The number of noise seeds each check covers: the committed seed and 15 others."""
 
 SIGMA_MULTIPLE = 3.0
-"""The largest fused error, in units of the reported covariance, a validation scene may show."""
+"""The largest fused error a validation scene may show, in sigmas of its covariance."""
 
 VALIDATION_CLASSES: frozenset[str] = frozenset(
     {
@@ -74,7 +76,7 @@ VALIDATION_CLASSES: frozenset[str] = frozenset(
         'star_confounder',
     }
 )
-"""The scene classes that check accuracy on a frame; the remaining classes are sweeps."""
+"""The scene classes that check accuracy on a frame.  The remaining classes are sweeps."""
 
 
 @dataclass(frozen=True)
@@ -145,13 +147,13 @@ TRUTH_TOLERANCES: dict[tuple[str, str], TruthTolerance] = {
     ('planted_offset_irregular', FUSED): _t(0.001, 0.001, 0.000, 0.05),
     ('planted_offset_limb', FUSED): _t(0.067, 0.073, 0.009, 0.05),
     ('planted_offset_limb_mesh', FUSED): _t(0.076, 0.091, 0.027, 0.05),
-    # The prediction is the smooth limit of the rendered lumpy mesh; this is the price
-    # of that shape mismatch.
+    # The prediction is the smooth limit of the rendered lumpy mesh.  This error is the
+    # cost of that mismatch.
     ('planted_offset_shapemismatch', FUSED): _t(0.667, 0.675, 0.013, 0.14),
     ('planted_offset_star_field', FUSED): _t(0.018, 0.019, 0.003, 0.05),
     ('planted_offset_star_field_bright', FUSED): _t(0.040, 0.041, 0.001, 0.05),
-    # algorithmic_invariants, one technique navigated alone (StarRefineNav read from
-    # the fused run, since it needs the pass-1 prior).
+    # algorithmic_invariants, one technique navigated alone.  StarRefineNav is read from
+    # the fused run, because it needs the pass-1 prior.
     ('planted_offset_blob', 'BodyBlobNav'): _t(0.006, 0.009, 0.007, 0.05),
     ('planted_offset_blob_crescent', 'BodyBlobNav'): _t(0.253, 0.282, 0.062, 0.06),
     ('planted_offset_blob_crescent_displaced', 'BodyBlobNav'): _t(0.252, 0.278, 0.057, 0.06),
@@ -162,15 +164,16 @@ TRUTH_TOLERANCES: dict[tuple[str, str], TruthTolerance] = {
     ('planted_unique_star_single', 'StarUniqueMatchNav'): _t(0.054, 0.058, 0.006, 0.05),
     ('planted_refine_star_field', 'StarRefineNav'): _t(0.016, 0.019, 0.003, 0.05),
     # artifact_sweep.  The scene seed also places the lost lines, so the 16 seeds would
-    # render 16 different losses.  These rows hold the placement at the committed seed
-    # and vary only the noise draw: the telemetry stages derive their own sub-seeds
-    # from the scene seed, and the measurement fixed those at the committed value.
+    # render 16 different losses.  These rows keep the lost lines where the committed
+    # seed puts them and vary only the noise draw.  The telemetry stages derive their own
+    # sub-seeds from the scene seed, and the measurement fixed those at the committed
+    # value.
     ('disc_structured_loss', FUSED): _t(0.080, 0.080, 0.004, 0.05),
     ('disc_structured_loss_adversarial', FUSED): _t(0.141, 0.141, 0.000, 0.05),
     ('star_field_structured_loss', FUSED): _t(0.067, 0.070, 0.004, 0.05),
     ('star_field_structured_loss_adversarial', FUSED): _t(0.133, 0.137, 0.005, 0.05),
-    # atmosphere.  titan_haze_limb is a haze-blind navigator fitting a hard limb under
-    # a soft haze limb.
+    # atmosphere.  In titan_haze_limb, a haze-blind navigator fits a hard limb under a
+    # soft haze limb.
     ('titan_haze', FUSED): _t(0.128, 0.137, 0.018, 0.05),
     ('titan_haze_limb', FUSED): _t(0.261, 0.269, 0.010, 0.06),
     # multi_body_geometry.
@@ -207,17 +210,19 @@ TRUTH_TOLERANCES: dict[tuple[str, str], TruthTolerance] = {
     ('saturated_star', FUSED): _t(0.019, 0.021, 0.003, 0.05),
 }
 
-# Columns: smallest and largest error over the seeds, margin, band low, band high; px.
-# A FUSED key is checked in test_sim_algorithmic_invariants.  A technique key is read
-# from the fused run's per-technique results in test_sim_truth_checks, which also
-# asserts the answer is not flagged spurious, so flagging it shows up too.
+# Columns: smallest and largest error over the seeds, margin, band low, and band high,
+# all in pixels.  test_sim_algorithmic_invariants checks a FUSED key.
+# test_sim_truth_checks checks a technique key against that technique's result in the
+# fused run.  It also asserts that the answer is not flagged spurious, so a change that
+# flags it fails too.
 KNOWN_ERRORS: dict[tuple[str, str], KnownErrorBand] = {
-    # The disc correlation stops at the edge of its +-0.5 px refinement window, 1.5 px
-    # for a planted 1.43 px (#791).
+    # The disc correlation stops at the edge of its +-0.5 px refinement window, so it
+    # answers 1.5 px for a planted 1.43 px (#791).
     ('planted_offset_disc', FUSED): _b(0.0705, 0.0705, 0.05, 0.020, 0.121),
     ('planted_offset_disc_if', FUSED): _b(0.0705, 0.0719, 0.05, 0.020, 0.122),
     ('planted_offset_small', FUSED): _b(0.0705, 0.0705, 0.05, 0.020, 0.121),
-    # BodyBlobNav answers far from the truth without flagging them spurious (#975).
+    # BodyBlobNav answers far from the truth and does not flag these answers spurious
+    # (#975).
     ('two_moons', 'BodyBlobNav'): _b(36.293, 36.309, 0.05, 36.243, 36.359),
     ('mutual_deep', 'BodyBlobNav'): _b(6.970, 6.980, 0.05, 6.920, 7.031),
     ('mutual_half', 'BodyBlobNav'): _b(8.474, 8.741, 0.0533, 8.421, 8.795),
@@ -232,7 +237,7 @@ KNOWN_ERRORS: dict[tuple[str, str], KnownErrorBand] = {
     # (#755).
     ('planted_rank1_ring_flat', 'RingEdgeNav'): _b(51.753, 51.757, 0.05, 51.703, 51.807),
     # The roll is fitted about the extended field of view's corner, so the star
-    # techniques' translations carry about 5 px (#434).
+    # techniques' translations carry about 5 px of error (#434).
     ('planted_rotation_star_field', 'StarUniqueMatchNav'): _b(5.011, 5.071, 0.05, 4.961, 5.121),
     ('planted_rotation_star_field', 'StarRefineNav'): _b(4.780, 4.870, 0.05, 4.730, 4.920),
 }
@@ -241,8 +246,8 @@ KNOWN_ERRORS: dict[tuple[str, str], KnownErrorBand] = {
 # edge normal, by about 0.52 px (#873).  The band holds that component's magnitude.
 RANK1_NORMAL_ERROR = _b(0.5158, 0.5206, 0.05, 0.465, 0.571)
 
-# Columns as KNOWN_ERRORS, in sigmas: the fused error in units of the reported
-# covariance, for the scenes that sit above SIGMA_MULTIPLE for a known reason.
+# Columns as in KNOWN_ERRORS, but in sigmas: the fused error in units of the reported
+# covariance.  These are the scenes that sit above SIGMA_MULTIPLE for a known reason.
 SIGMA_BANDS: dict[str, KnownErrorBand] = {
     # The two-star fused sigma is about 0.01 px against a steady 0.04 px error (#788).
     'lock_pair': _b(3.186, 4.479, 0.2585, 2.927, 4.738),
@@ -309,9 +314,10 @@ def error_in_sigmas(result: NavResult, scene: dict[str, Any]) -> float:
 
     This is the Mahalanobis distance ``sqrt(e^T C^+ e)`` of the error ``e`` under the
     fused 2-by-2 covariance ``C``.  The pseudo-inverse measures a rank-1 covariance
-    along its one observable axis.  It is the combine step's own, which inverts a
-    sentinel-sized unobservable variance on its own axis, so that variance cannot
-    raise the eigenvalue cutoff past the observable axis and hide a miss along it.
+    along its one observable axis.  It is the one the combine step uses.  That
+    pseudo-inverse inverts a sentinel-sized variance on an unobservable axis separately,
+    so the variance cannot raise the eigenvalue cutoff above the observable axis and
+    hide a miss along that axis.
 
     Parameters:
         result: A fused result that carries an offset.

@@ -962,9 +962,12 @@ Observations:
 
 * All scenes plant the **same** off-grid offset ``(1.43, -0.61)`` px, so the
   per-technique errors are at one common sub-pixel phase and directly comparable.
-  Each scene is held to its own truth tolerance: the largest error over 16 noise
-  seeds plus a margin of 0.05 px or a fifth of that error, whichever is larger
-  (0.03 deg for the roll). Every technique recovers inside it.
+  Each scene has its own truth check, measured over 16 noise seeds. Most scenes
+  are held to a tolerance: the largest error over the seeds plus a margin of
+  0.05 px or a fifth of that error, whichever is larger. The roll is held to
+  0.03 deg. The disc correlation stops at the edge of its sub-pixel search
+  window, so the disc scene's error is held to a band from 0.020 to 0.121 px.
+  Every technique recovers inside its check.
 * At this phase (2026-10-31 measurement) the mesh disc recovers exactly, the
   blob and the ring edge to ~0.01 px, the fused star field to ~0.04 px, the
   disc to ~0.07 px, and the limb to ~0.13 px. The limb's own fix is the

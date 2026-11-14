@@ -21,8 +21,8 @@ exposure_sec: 1.0
 # sloped background, but the fused offset is (1.57, -1.5) against the
 # planted (2.37, -1.62), a miss of 0.81 px, nearly all in v.  The limb fit
 # lands at (2.18, -1.71), about 0.2 px from the planted value.  The disc
-# correlation reports (1.57, -1.5).  Its sub-pixel refinement searches only +-0.5 px
-# around the integer NCC peak (#791), and its smooth template doesn't
+# correlation reports (1.57, -1.5).  Its sub-pixel refinement searches only
+# +-0.5 px around the integer NCC peak (#791), and its smooth template doesn't
 # carry the relief shading the frame does.  The
 # ensemble fuses the limb fit and the correlation as one witness and takes
 # the correlation's offset, so the scene pins a medium-confidence success

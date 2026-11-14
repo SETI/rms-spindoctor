@@ -16,8 +16,8 @@ exposure_sec: 1.0
 # block asserts the failure through the sim expected-outcome machinery.
 # Over 16 noise seeds (the committed one and 101, 202, ..., 1515) the scene fails
 # as expected on 15.  On seed 1111 StarUniqueMatchNav matches a coincidental star
-# and the frame is a medium-tier success 11.3 px wrong (#862), so the expected
-# failure holds on the committed seed only, not on every noise draw (#960).
+# and the frame is a medium-tier success 11.3 px wrong (#862).  The expected
+# failure is asserted on the committed seed only (#960).
 optics:
   psf:
     match_navigator: true

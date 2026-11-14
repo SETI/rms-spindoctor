@@ -3,12 +3,12 @@
 Each scene under ``sim_scenes/algorithmic_invariants/`` carries a ground-truth
 offset that is applied as the rendered offset.  A navigator predicting the
 unshifted geometry must recover it.  These tests render each scene into an
-ObsSim, navigate it, and assert success plus the scene's truth check: the error as a
-distance in two dimensions, held to a tolerance measured over noise seeds plus a margin,
-or to a band around a known error (:mod:`tests.integration.sim_truth`).  Unlike a
-baseline, a truth check compares with the planted offset, so regenerating the
-baselines cannot hide a regression.  Everything is in-process, so this runs in the
-default suite.
+ObsSim, navigate it, and assert success and the scene's truth check.  A truth check
+measures the error as a distance in two dimensions.  It holds that error to a tolerance,
+measured over noise seeds plus a margin, or to a band around a known error
+(:mod:`tests.integration.sim_truth`).  Unlike a baseline, a truth check compares with the
+planted offset, so regenerating the baselines cannot hide a regression.  Everything is
+in-process, so this runs in the default suite.
 
 Scenes split into three kinds:
 
@@ -84,7 +84,7 @@ _ROTATION_STEM_PREFIX = 'planted_rotation'
 _LIMB_STEM_PREFIX = 'planted_offset_limb'
 # Ring scenes route through a RING_EDGE the simulated ring emits.  Recovery is
 # asserted on the RingEdgeNav per-technique result, so the ring path is checked in
-# isolation; the fused answer is a high-tier success.
+# isolation.  The fused answer is a high-tier success.
 _RING_STEM_PREFIX = 'planted_offset_ring'
 # Unique-match scenes are a single unambiguous star: StarFieldFromCatalogNav's
 # pattern match is infeasible, so StarUniqueMatchNav's one-star path is the
@@ -220,11 +220,11 @@ def test_rank1_scene_reports_rank_1_only(path: Path) -> None:
 def test_rank1_scene_holds_its_known_normal_error(path: Path) -> None:
     """A flat-ring scene's edge-normal error stays inside its known band.
 
-    The along-edge component is physically unobservable (the fused offset
-    is the minimum-norm representative), so the check projects the
-    recovery error onto the observable axis -- the fused covariance's only
-    non-null eigenvector -- and holds that component's magnitude to the
-    known band: a worse miss fails, and so does a fix.
+    The along-edge component is physically unobservable, and the fused offset
+    is the minimum-norm representative.  The check therefore projects the
+    recovery error onto the observable axis, which is the fused covariance's
+    only non-null eigenvector.  It holds that component's magnitude to the
+    known band, so a worse miss fails, and so does a fix.
     """
     scene = load_sim_scene(path)
     result = _navigate(scene)
@@ -257,8 +257,9 @@ def test_invariant_scene_navigates(path: Path) -> None:
 def test_disc_scene_recovers_planted_offset(path: Path) -> None:
     """Each disc scene's fused offset meets its truth check.
 
-    Three disc scenes carry a known error at the edge of the correlation's sub-pixel
-    window and are held to a band around it; the rest are held to a tolerance.
+    Three disc scenes carry a known error, because the correlation stops at the edge of
+    its sub-pixel window.  Those scenes are held to a band around the error, and the rest
+    are held to a tolerance.
     """
     scene = load_sim_scene(path)
     result = _navigate(scene)

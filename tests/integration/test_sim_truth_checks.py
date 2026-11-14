@@ -1,14 +1,14 @@
 """Truth checks for the simulator's validation scenes.
 
-Every validation scene plants an offset, and every one whose correct outcome is a
-success is compared with that truth.  This module holds the fused answer of each
-validation scene outside ``algorithmic_invariants`` to its measured tolerance in
-:mod:`tests.integration.sim_truth` (the ``algorithmic_invariants`` scenes are checked
-by ``test_sim_algorithmic_invariants``, in the default suite).  A scene whose fused
-answer is wrong for a known reason carries a band around its known error in its
-``expected`` block instead, which ``test_sim_expected`` asserts.  The module also holds
-each known wrong answer of a single technique to its band, and checks every validation
-scene's fused error against the sigma it reports.
+Every validation scene plants an offset.  Each one whose correct outcome is a success is
+compared with that truth.  This module holds the fused answer of each validation scene
+outside ``algorithmic_invariants`` to its measured tolerance in
+:mod:`tests.integration.sim_truth`.  ``test_sim_algorithmic_invariants`` checks the
+``algorithmic_invariants`` scenes in the default suite.  If a scene's fused answer is
+wrong for a known reason, its ``expected`` block holds a band around the known error
+instead, and ``test_sim_expected`` asserts it.  This module also holds each known wrong
+answer of a single technique to its band.  Last, it checks the fused error of every
+validation scene expected to succeed against the sigma the navigator reports.
 
 The structural checks need no navigation: every validation scene has a truth check,
 every check refers to a validation scene, and no validation scene plants an offset
