@@ -62,12 +62,19 @@ class SimFrame:
             boundary to the navigator side.  Pixel-space entries are carried on
             the oversampled grid and returned to the detector grid by the
             downsample stage.
+        preview: Whether this is the scene editor's fast preview, which simplifies
+            the full render in three ways.  The frame is built at oversample 1,
+            whatever the scene asks for.  The radiance stage reads this flag and
+            draws each body's limb without anti-aliasing, and the optics stage reads
+            it and skips the distortion warp.  Nothing but the editor's preview sets
+            it (see :func:`~spindoctor.sim.render.render_combined_model`).
     """
 
     signal: NDArrayFloatType
     point_e: NDArrayFloatType
     oversample: int = 1
     truth: dict[str, Any] = field(default_factory=dict)
+    preview: bool = False
 
 
 class Stage(Protocol):
@@ -90,13 +97,16 @@ class Stage(Protocol):
     ) -> None: ...
 
 
-def new_sim_frame(size_v: int, size_u: int, *, oversample: int = 1) -> SimFrame:
+def new_sim_frame(
+    size_v: int, size_u: int, *, oversample: int = 1, preview: bool = False
+) -> SimFrame:
     """Allocate a zeroed :class:`SimFrame` for a ``(size_v, size_u)`` detector.
 
     Parameters:
         size_v: Detector-grid height in pixels.
         size_u: Detector-grid width in pixels.
         oversample: Oversampling factor of the radiance grid.
+        preview: Whether the frame is the scene editor's fast preview.
 
     Returns:
         A frame with zeroed ``signal`` and ``point_e`` planes.
@@ -106,6 +116,7 @@ def new_sim_frame(size_v: int, size_u: int, *, oversample: int = 1) -> SimFrame:
         signal=np.zeros(shape, dtype=np.float64),
         point_e=np.zeros(shape, dtype=np.float64),
         oversample=oversample,
+        preview=preview,
     )
 
 
