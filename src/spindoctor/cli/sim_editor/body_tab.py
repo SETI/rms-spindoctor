@@ -157,6 +157,7 @@ class BodyTabMixin(SimEditorBase):
         mesh_lump.setValue(spec.mesh.lumpiness)
         mesh_lump.valueChanged.connect(lambda v, i=idx: self._on_body_field(i, 'mesh_lumpiness', v))
         fl.addRow('Mesh lumpiness:', mesh_lump)
+        w.mesh_lumpiness_spin = mesh_lump  # type: ignore[attr-defined]
 
         mesh_seed = QSpinBox()
         mesh_seed.setRange(0, 2147483647)
@@ -182,6 +183,7 @@ class BodyTabMixin(SimEditorBase):
         w.mesh_n_lon_spin = mesh_n_lon  # type: ignore[attr-defined]
 
         pose = spec.mesh.pose_euler_deg
+        pose_spins = []
         for axis_i, axis_name in enumerate(('X', 'Y', 'Z')):
             pose_spin = QDoubleSpinBox()
             pose_spin.setRange(0.0, 360.0)
@@ -190,6 +192,8 @@ class BodyTabMixin(SimEditorBase):
             pose_spin.setValue(pose[axis_i])
             pose_spin.valueChanged.connect(lambda v, i=idx, a=axis_i: self._on_body_pose(i, a, v))
             fl.addRow(f'Mesh pose {axis_name} (deg):', pose_spin)
+            pose_spins.append(pose_spin)
+        w.pose_spins = pose_spins  # type: ignore[attr-defined]
 
         rz = QDoubleSpinBox()
         rz.setRange(0.0, 360.0)
@@ -338,8 +342,10 @@ class BodyTabMixin(SimEditorBase):
         # Navigation-override group: the renderer ignores it (it always draws the
         # true geometry), but the navigator predicts the body with these fields
         # overlaid, so a scene can render a mesh and predict a smooth ellipsoid or
-        # a different pose.  Unchecking it removes the override.  If an override
-        # key is null, the navigator uses the body's own value, and so does the control.
+        # a different pose.  Turning it on writes an empty override, and an edit
+        # writes only its own key.  Unchecking it removes the override.  If an
+        # override key is absent or null, the navigator uses the body's own value,
+        # and so does the control, which follows edits to the body's value.
         raw_override = p.get('nav_override')
         override: dict[str, Any] = raw_override if isinstance(raw_override, dict) else {}
         nav_group = QGroupBox('Navigation override (predicted geometry)')
@@ -368,26 +374,21 @@ class BodyTabMixin(SimEditorBase):
             sp.setDecimals(1)
             sp.setWrapping(True)
             sp.setValue(float(nav_pose[axis_i]) if axis_i < len(nav_pose) else 0.0)
+            sp.valueChanged.connect(lambda v, i=idx, a=axis_i: self._on_body_override_pose(i, a, v))
             nav_form.addRow(f'Predicted pose {axis_name} (deg):', sp)
             nav_pose_spins.append(sp)
-
-        def _update_override(_arg: Any = None, i: int = idx) -> None:
-            if not nav_group.isChecked():
-                self.sim_params['bodies'][i].pop('nav_override', None)
-            else:
-                self.sim_params['bodies'][i]['nav_override'] = {
-                    'shape_model': nav_shape.currentText(),
-                    'mesh_lumpiness': float(nav_lump.value()),
-                    'pose_euler_deg': [float(s.value()) for s in nav_pose_spins],
-                }
-            self._updater.request_update()
-
-        nav_group.toggled.connect(_update_override)
-        nav_shape.currentTextChanged.connect(_update_override)
-        nav_lump.valueChanged.connect(_update_override)
-        for sp in nav_pose_spins:
-            sp.valueChanged.connect(_update_override)
+        nav_group.toggled.connect(lambda on, i=idx: self._on_body_override_toggled(i, on))
+        nav_shape.currentTextChanged.connect(
+            lambda t, i=idx: self._on_body_override_field(i, 'shape_model', t)
+        )
+        nav_lump.valueChanged.connect(
+            lambda v, i=idx: self._on_body_override_field(i, 'mesh_lumpiness', float(v))
+        )
         fl.addRow(nav_group)
+        w.nav_override_group = nav_group  # type: ignore[attr-defined]
+        w.nav_shape_combo = nav_shape  # type: ignore[attr-defined]
+        w.nav_lump_spin = nav_lump  # type: ignore[attr-defined]
+        w.nav_pose_spins = nav_pose_spins  # type: ignore[attr-defined]
 
         # Truth-side appearance groups (relief, photometry, texture, transits,
         # mesh extras); each follows the absent-key discipline and stores its
@@ -422,6 +423,8 @@ class BodyTabMixin(SimEditorBase):
                 self._validate_ranges()
             if key in ('axis1', 'axis2'):
                 self._refresh_body_derived_spins(idx)
+            if key == 'mesh_lumpiness':
+                self._refresh_body_override_controls(idx)
 
     def _refresh_body_derived_spins(self, idx: int) -> None:
         """Show the renderer's current defaults in a body's unset axis3 and center spins.
@@ -490,6 +493,107 @@ class BodyTabMixin(SimEditorBase):
             if body.get('range_km') is not None:
                 self._on_body_field(idx, 'range_km', float(value), trigger_validate=True)
 
+    def _body_override(self, idx: int) -> dict[str, Any]:
+        """Return the body's ``nav_override`` mapping, writing an empty one if it is unset.
+
+        Parameters:
+            idx: The body's index in the scene's ``bodies`` list.
+
+        Returns:
+            The mapping stored in the body, so a write to it edits the scene.
+        """
+        body = self.sim_params['bodies'][idx]
+        override = body.get('nav_override')
+        if not isinstance(override, dict):
+            override = {}
+            body['nav_override'] = override
+        return override
+
+    def _on_body_override_toggled(self, idx: int, on: bool) -> None:
+        """Turn a body's navigation override on as an empty mapping, or remove it.
+
+        An empty override leaves every key unset, so the navigator predicts the body
+        with its own values, which is what the group's controls show.
+
+        Parameters:
+            idx: The body's index in the scene's ``bodies`` list.
+            on: Whether the group is checked.
+        """
+        if 0 <= idx < len(self.sim_params['bodies']):
+            if on:
+                self.sim_params['bodies'][idx]['nav_override'] = {}
+            else:
+                self.sim_params['bodies'][idx].pop('nav_override', None)
+            self._refresh_body_override_controls(idx)
+            self._updater.request_update()
+
+    def _on_body_override_field(self, idx: int, key: str, value: Any) -> None:
+        """Write one navigation-override key, leaving the others as they are.
+
+        Parameters:
+            idx: The body's index in the scene's ``bodies`` list.
+            key: The override key the edited control writes.
+            value: The control's value.
+        """
+        if 0 <= idx < len(self.sim_params['bodies']):
+            self._body_override(idx)[key] = value
+            self._updater.request_update()
+
+    def _on_body_override_pose(self, idx: int, axis: int, value: float) -> None:
+        """Write the override pose with one axis edited.
+
+        The other two axes keep the pose the navigator would use otherwise: the
+        override's own pose if it sets one, else the body's.
+
+        Parameters:
+            idx: The body's index in the scene's ``bodies`` list.
+            axis: The edited axis (0, 1, or 2).
+            value: The axis angle in degrees.
+        """
+        if 0 <= idx < len(self.sim_params['bodies']):
+            body = self.sim_params['bodies'][idx]
+            spec = body_spec_from_params(self._mesh_key_stash.view(body), index=idx)
+            override = self._body_override(idx)
+            pose = [
+                float(a) for a in scene_value(override, 'pose_euler_deg', spec.mesh.pose_euler_deg)
+            ]
+            pose[axis] = float(value)
+            override['pose_euler_deg'] = pose
+            self._updater.request_update()
+
+    def _refresh_body_override_controls(self, idx: int) -> None:
+        """Show the body's own values in its unset navigation-override controls.
+
+        If an override key is absent or null, the navigator uses the body's own
+        value, so an edit to the body's shape model, mesh lumpiness, or pose changes
+        what that control shows.  A control whose override key is set keeps its
+        value.  The refresh never writes to the scene.
+
+        Parameters:
+            idx: The body's index in the scene's ``bodies`` list.
+        """
+        tab_idx = self._find_tab_by_properties('body', idx)
+        tab_w: Any = self._tabs.widget(tab_idx) if tab_idx is not None else None
+        if tab_w is None:
+            return
+        body = self.sim_params['bodies'][idx]
+        spec = body_spec_from_params(self._mesh_key_stash.view(body), index=idx)
+        raw_override = body.get('nav_override')
+        override = raw_override if isinstance(raw_override, dict) else {}
+        if override.get('shape_model') is None:
+            tab_w.nav_shape_combo.blockSignals(True)
+            tab_w.nav_shape_combo.setCurrentText(spec.shape_model)
+            tab_w.nav_shape_combo.blockSignals(False)
+        if override.get('mesh_lumpiness') is None:
+            tab_w.nav_lump_spin.blockSignals(True)
+            tab_w.nav_lump_spin.setValue(spec.mesh.lumpiness)
+            tab_w.nav_lump_spin.blockSignals(False)
+        if override.get('pose_euler_deg') is None:
+            for spin, angle in zip(tab_w.nav_pose_spins, spec.mesh.pose_euler_deg, strict=True):
+                spin.blockSignals(True)
+                spin.setValue(float(angle))
+                spin.blockSignals(False)
+
     def _on_body_shape_model(self, idx: int, text: str) -> None:
         """Set the shape model and gate the shape-specific controls and keys.
 
@@ -520,6 +624,7 @@ class BodyTabMixin(SimEditorBase):
                 tab_w = self._tabs.widget(tab_idx)
                 if tab_w is not None:
                     self._sync_body_mesh_enabled(tab_w, text == 'polyhedral_mesh')
+            self._refresh_body_override_controls(idx)
             self._updater.request_update()
 
     def _on_body_seed(self, idx: int, value: int) -> None:
@@ -540,6 +645,7 @@ class BodyTabMixin(SimEditorBase):
                 pose.append(0.0)
             pose[axis] = float(value)
             body['pose_euler_deg'] = pose
+            self._refresh_body_override_controls(idx)
             self._updater.request_update()
 
     def _on_body_name(self, idx: int, text: str) -> None:

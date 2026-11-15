@@ -10,7 +10,9 @@ feature list works, that a ring kind switch fills a null required shape key, tha
 ring modulation can be turned on under a null azimuthal block, and that a body whose
 range is unset counts at its default range when the editor picks a range for an added
 body and when it warns about duplicate ranges.  The last tests check that the range box
-writes the default range its spin shows.
+writes the default range its spin shows, and that the navigation-override group writes
+only the keys the author edits and shows the body's own values for the keys it leaves
+unset.
 
 Qt runs headless (offscreen platform).
 """
@@ -498,3 +500,107 @@ def test_clearing_a_range_rechecks_the_duplicate_warning(qapp: QApplication) -> 
     _body_tab(model, 1).range_check.click()
     shown = ('range_km' in model.sim_params['bodies'][1], model._warning_label.text())
     assert shown == (False, '')
+
+
+# A mesh body whose override group is on and sets none of its keys.
+_OVERRIDE_BODY: dict[str, Any] = {
+    'axis1': 40.0,
+    'axis2': 30.0,
+    'shape_model': 'polyhedral_mesh',
+    'nav_override': {},
+}
+
+
+@pytest.mark.parametrize(
+    ('override', 'attr', 'value', 'expected'),
+    [
+        (
+            {'mesh_lumpiness': None},
+            'nav_shape_combo',
+            'ellipsoid',
+            {'mesh_lumpiness': None, 'shape_model': 'ellipsoid'},
+        ),
+        (
+            {'shape_model': None},
+            'nav_lump_spin',
+            0.5,
+            {'shape_model': None, 'mesh_lumpiness': 0.5},
+        ),
+        (
+            {'shape_model': None},
+            'nav_pose_spins',
+            30.0,
+            {'shape_model': None, 'pose_euler_deg': [30.0, 0.0, 0.0]},
+        ),
+    ],
+    ids=['shape', 'lumpiness', 'pose'],
+)
+def test_an_override_edit_writes_only_its_own_key(
+    qapp: QApplication,
+    override: dict[str, Any],
+    attr: str,
+    value: Any,
+    expected: dict[str, Any],
+) -> None:
+    """An edit to one override control writes its key and leaves the others as stored."""
+    model = _loaded({**_FRAME_300_BY_400, 'bodies': [{**_OVERRIDE_BODY, 'nav_override': override}]})
+    control = getattr(_body_tab(model, 0), attr)
+    if isinstance(control, QComboBox):
+        control.setCurrentText(value)
+    elif isinstance(control, list):
+        control[0].setValue(value)
+    else:
+        control.setValue(value)
+    assert model.sim_params['bodies'][0]['nav_override'] == expected
+
+
+def test_turning_the_override_on_writes_an_empty_override(qapp: QApplication) -> None:
+    """Turning the override group on writes an override that sets no key."""
+    body = {key: value for key, value in _OVERRIDE_BODY.items() if key != 'nav_override'}
+    model = _loaded({**_FRAME_300_BY_400, 'bodies': [body]})
+    _body_tab(model, 0).nav_override_group.setChecked(True)
+    assert model.sim_params['bodies'][0]['nav_override'] == {}
+
+
+def test_turning_the_override_back_on_shows_the_bodys_values(qapp: QApplication) -> None:
+    """Turning the override off and on again shows the body's lumpiness, not the old one."""
+    body = {**_OVERRIDE_BODY, 'mesh_lumpiness': 0.2, 'nav_override': {'mesh_lumpiness': 0.0}}
+    tab = _body_tab(_loaded({**_FRAME_300_BY_400, 'bodies': [body]}), 0)
+    tab.nav_override_group.setChecked(False)
+    tab.nav_override_group.setChecked(True)
+    assert tab.nav_lump_spin.value() == 0.2
+
+
+def test_a_body_shape_edit_moves_an_unset_predicted_shape(qapp: QApplication) -> None:
+    """Switching the body's shape moves what an unset predicted shape shows."""
+    model = _loaded({**_FRAME_300_BY_400, 'bodies': [_OVERRIDE_BODY]})
+    tab = _body_tab(model, 0)
+    tab.shape_combo.setCurrentText('ellipsoid')
+    shown = (tab.nav_shape_combo.currentText(), model.sim_params['bodies'][0]['nav_override'])
+    assert shown == ('ellipsoid', {})
+
+
+def test_a_body_lumpiness_edit_moves_an_unset_predicted_lumpiness(qapp: QApplication) -> None:
+    """Editing the body's lumpiness moves what an unset predicted lumpiness shows."""
+    model = _loaded({**_FRAME_300_BY_400, 'bodies': [_OVERRIDE_BODY]})
+    tab = _body_tab(model, 0)
+    tab.mesh_lumpiness_spin.setValue(0.5)
+    shown = (tab.nav_lump_spin.value(), model.sim_params['bodies'][0]['nav_override'])
+    assert shown == (0.5, {})
+
+
+def test_a_body_pose_edit_moves_an_unset_predicted_pose(qapp: QApplication) -> None:
+    """Editing the body's pose moves what an unset predicted pose shows."""
+    model = _loaded({**_FRAME_300_BY_400, 'bodies': [_OVERRIDE_BODY]})
+    tab = _body_tab(model, 0)
+    tab.pose_spins[0].setValue(30.0)
+    shown = (tab.nav_pose_spins[0].value(), model.sim_params['bodies'][0]['nav_override'])
+    assert shown == (30.0, {})
+
+
+def test_a_body_lumpiness_edit_keeps_a_set_predicted_lumpiness(qapp: QApplication) -> None:
+    """Editing the body's lumpiness leaves a predicted lumpiness the override sets."""
+    body = {**_OVERRIDE_BODY, 'nav_override': {'mesh_lumpiness': 0.0}}
+    tab = _body_tab(_loaded({**_FRAME_300_BY_400, 'bodies': [body]}), 0)
+    tab.mesh_lumpiness_spin.setValue(0.5)
+    assert tab.nav_lump_spin.value() == 0.0

@@ -4140,6 +4140,13 @@ value the renderer draws with:
   Clearing the box removes the range. The editor counts an unset range at its default
   when it picks a range for an added body and when it warns that two bodies share a
   range.
+* **The navigation override.** The renderer ignores a body's ``nav_override``, and for
+  an override key that is absent or null the navigator uses the body's own value.
+  Turning the group on writes an empty override, so the navigator predicts the body as
+  it is drawn until the author edits one of the group's controls. An edit writes only
+  that control's key, so a key the author has not edited stays unset. While a key is
+  unset, its control shows the body's own shape model, mesh lumpiness, or pose, and
+  updates when the author edits that value. Turning the group off removes the override.
 * **Values derived from other keys.** An unset ``axis3`` is drawn as the smaller of
   ``axis1`` and ``axis2``, and an unset center is the frame center. Their controls
   update when the author edits an axis or changes the frame size. Neither key is
