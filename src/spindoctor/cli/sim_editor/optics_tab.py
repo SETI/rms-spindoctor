@@ -30,8 +30,15 @@ from PyQt6.QtWidgets import (
 )
 
 from spindoctor.cli.sim_editor.base import SimEditorBase
+from spindoctor.cli.sim_editor.widgets import kept_or_shown
+from spindoctor.sim.scene_schema import scene_value
 
 _SMEAR_CLASSES: list[str] = ['all', 'stars', 'bodies', 'rings']
+
+# The reference range the spacecraft-ephemeris group shows while the scene leaves
+# the block out.  Turning the group on writes it, which plants a visible parallax.
+# If the block leaves the key out, the renderer uses 0, which turns parallax off.
+_SPK_ENABLE_REFERENCE_RANGE_KM = 1000.0
 
 
 @dataclass
@@ -53,6 +60,11 @@ class _GhostRow:
     du_spin: QDoubleSpinBox
     amplitude_spin: QDoubleSpinBox
     defocus_spin: QDoubleSpinBox
+
+
+def _has_center(block: dict[str, Any]) -> bool:
+    """True when a block sets either center key to a non-null value."""
+    return block.get('center_v') is not None or block.get('center_u') is not None
 
 
 def _dspin(
@@ -292,7 +304,7 @@ class OpticsTabMixin(SimEditorBase):
             maximum=200.0,
             decimals=3,
             step=0.5,
-            value=float(entry.get('dv_px', 0.0)),
+            value=float(scene_value(entry, 'dv_px', 0.0)),
             tooltip='Drift along v (px).',
         )
         du_spin = _dspin(
@@ -300,12 +312,12 @@ class OpticsTabMixin(SimEditorBase):
             maximum=200.0,
             decimals=3,
             step=0.5,
-            value=float(entry.get('du_px', 0.0)),
+            value=float(scene_value(entry, 'du_px', 0.0)),
             tooltip='Drift along u (px).',
         )
         class_combo = QComboBox()
         class_combo.addItems(_SMEAR_CLASSES)
-        class_index = class_combo.findText(str(entry.get('object_class', 'all')))
+        class_index = class_combo.findText(str(scene_value(entry, 'object_class', 'all')))
         if class_index >= 0:
             class_combo.setCurrentIndex(class_index)
         remove_btn = QPushButton('Remove')
@@ -386,7 +398,7 @@ class OpticsTabMixin(SimEditorBase):
             maximum=1.0,
             decimals=5,
             step=0.001,
-            value=float(block.get('k1', 0.0)),
+            value=float(scene_value(block, 'k1', 0.0)),
             tooltip='Radial k1 coefficient.',
         )
         form.addRow('k1:', self._distortion_k1_spin)
@@ -395,15 +407,16 @@ class OpticsTabMixin(SimEditorBase):
             maximum=1.0,
             decimals=5,
             step=0.001,
-            value=float(block.get('k2', 0.0)),
+            value=float(scene_value(block, 'k2', 0.0)),
             tooltip='Radial k2 coefficient.',
         )
         form.addRow('k2:', self._distortion_k2_spin)
         # The optical center is an optional key pair: an absent key means the
         # frame center, so a center spin only authors its own key when the
         # enable is on and the spin itself is edited (a legitimate 0.0 center
-        # is then expressible, and a partial block keeps its absent key).
-        has_center = 'center_v' in block or 'center_u' in block
+        # is then expressible, and a partial block keeps its absent key).  A null
+        # key reads as absent.
+        has_center = _has_center(block)
         self._distortion_center_check = QCheckBox('Set optical center')
         self._distortion_center_check.setChecked(has_center)
         self._distortion_center_check.setToolTip(
@@ -418,7 +431,7 @@ class OpticsTabMixin(SimEditorBase):
             maximum=20000.0,
             decimals=2,
             step=1.0,
-            value=float(block.get('center_v', default_center_v)),
+            value=float(scene_value(block, 'center_v', default_center_v)),
             tooltip='Optical-center v (px); absent = frame center.',
         )
         self._distortion_center_v_spin.setEnabled(has_center)
@@ -428,7 +441,7 @@ class OpticsTabMixin(SimEditorBase):
             maximum=20000.0,
             decimals=2,
             step=1.0,
-            value=float(block.get('center_u', default_center_u)),
+            value=float(scene_value(block, 'center_u', default_center_u)),
             tooltip='Optical-center u (px); absent = frame center.',
         )
         self._distortion_center_u_spin.setEnabled(has_center)
@@ -438,7 +451,7 @@ class OpticsTabMixin(SimEditorBase):
             maximum=50.0,
             decimals=3,
             step=0.05,
-            value=float(block.get('nonradial_rms_px', 0.0)),
+            value=float(scene_value(block, 'nonradial_rms_px', 0.0)),
             tooltip='Non-radial wander RMS in detector pixels.',
         )
         form.addRow('Non-radial RMS (px):', self._distortion_nonradial_spin)
@@ -568,7 +581,7 @@ class OpticsTabMixin(SimEditorBase):
             maximum=2000.0,
             decimals=2,
             step=1.0,
-            value=float(entry.get('dv_px', 0.0)),
+            value=float(scene_value(entry, 'dv_px', 0.0)),
             tooltip='Ghost offset along v (px).',
         )
         du_spin = _dspin(
@@ -576,7 +589,7 @@ class OpticsTabMixin(SimEditorBase):
             maximum=2000.0,
             decimals=2,
             step=1.0,
-            value=float(entry.get('du_px', 0.0)),
+            value=float(scene_value(entry, 'du_px', 0.0)),
             tooltip='Ghost offset along u (px).',
         )
         amplitude_spin = _dspin(
@@ -584,7 +597,7 @@ class OpticsTabMixin(SimEditorBase):
             maximum=1.0,
             decimals=4,
             step=0.005,
-            value=float(entry.get('amplitude', 0.0)),
+            value=float(scene_value(entry, 'amplitude', 0.0)),
             tooltip='Ghost amplitude fraction.',
         )
         defocus_spin = _dspin(
@@ -592,7 +605,7 @@ class OpticsTabMixin(SimEditorBase):
             maximum=100.0,
             decimals=2,
             step=0.5,
-            value=float(entry.get('defocus_sigma', 0.0)),
+            value=float(scene_value(entry, 'defocus_sigma', 0.0)),
             tooltip='Ghost defocus sigma (px).',
         )
         remove_btn = QPushButton('Remove')
@@ -714,13 +727,13 @@ class OpticsTabMixin(SimEditorBase):
         spk_group.setCheckable(True)
         spk_form = QFormLayout(spk_group)
         spk = self.sim_params.get('spk_error')
-        block = spk if isinstance(spk, dict) else {}
+        dv_px, du_px, reference_range_km = self._spk_shown()
         self._spk_dv_spin = _dspin(
             minimum=-500.0,
             maximum=500.0,
             decimals=3,
             step=0.5,
-            value=float(block.get('dv_px', 0.0)),
+            value=dv_px,
             tooltip='Parallax displacement along v at the reference range (px).',
         )
         spk_form.addRow('dv (px):', self._spk_dv_spin)
@@ -729,18 +742,22 @@ class OpticsTabMixin(SimEditorBase):
             maximum=500.0,
             decimals=3,
             step=0.5,
-            value=float(block.get('du_px', 0.0)),
+            value=du_px,
             tooltip='Parallax displacement along u at the reference range (px).',
         )
         spk_form.addRow('du (px):', self._spk_du_spin)
         self._spk_range_spin = _dspin(
-            minimum=0.01,
+            minimum=0.0,
             maximum=1.0e9,
             decimals=2,
             step=100.0,
-            value=float(block.get('reference_range_km', 1000.0)),
-            tooltip='Range (km) the displacement is quoted at; scales per object.',
+            value=reference_range_km,
+            tooltip=(
+                'Range (km) the displacement is quoted at; scales per object.  Unset '
+                'leaves the key out, which plants no parallax.'
+            ),
         )
+        self._spk_range_spin.setSpecialValueText('unset')
         spk_form.addRow('Reference range (km):', self._spk_range_spin)
         outer.addWidget(spk_group)
 
@@ -770,13 +787,45 @@ class OpticsTabMixin(SimEditorBase):
             self.sim_params['oversample'] = int(value)
             self._updater.request_update()
 
+    def _spk_shown(self) -> tuple[float, float, float]:
+        """Return the dv, du, and reference range the spk_error group shows.
+
+        If the scene has the block, each spin shows the value the renderer reads, so
+        an absent or null key shows the renderer's default.  If the scene leaves the
+        block out, the spins show the values that turning the group on writes.
+        """
+        spk = self.sim_params.get('spk_error')
+        if not isinstance(spk, dict):
+            return 0.0, 0.0, _SPK_ENABLE_REFERENCE_RANGE_KM
+        return (
+            float(scene_value(spk, 'dv_px', 0.0)),
+            float(scene_value(spk, 'du_px', 0.0)),
+            float(scene_value(spk, 'reference_range_km', 0.0)),
+        )
+
     def _spk_block_from_widgets(self) -> dict[str, Any]:
-        """Assemble the spk_error block the widgets describe."""
-        return {
-            'dv_px': float(self._spk_dv_spin.value()),
-            'du_px': float(self._spk_du_spin.value()),
-            'reference_range_km': float(self._spk_range_spin.value()),
-        }
+        """Assemble the spk_error block the widgets describe.
+
+        While a spin still shows the scene's value for its key, the block keeps the
+        scene's exact value.  An edit to one spin therefore never rounds another, and
+        a reference range finer than the spin can display is kept.  If the reference
+        range is 0, the block leaves the key out, because the validator refuses 0 and
+        the renderer reads an absent key as 0.
+        """
+        spk = self.sim_params.get('spk_error')
+        values = kept_or_shown(
+            {
+                'dv_px': self._spk_dv_spin,
+                'du_px': self._spk_du_spin,
+                'reference_range_km': self._spk_range_spin,
+            },
+            spk if isinstance(spk, dict) else {},
+        )
+        reference_range_km = values.pop('reference_range_km')
+        block: dict[str, Any] = dict(values)
+        if reference_range_km is not None and reference_range_km > 0.0:
+            block['reference_range_km'] = reference_range_km
+        return block
 
     def _write_spk(self) -> None:
         """Write the spk_error block when the group is enabled."""
@@ -832,14 +881,14 @@ class OpticsTabMixin(SimEditorBase):
         match = bool(block.get('match_navigator'))
         self._apply_psf_match_state(match)
         if not match:
-            sigma_v = float(block.get('sigma_v', 0.55))
+            sigma_v = float(scene_value(block, 'sigma_v', 0.55))
             self._psf_sigma_v_spin.setValue(sigma_v)
             # The renderer defaults sigma_u to sigma_v, so the widget shows
             # the same value for a block that omits sigma_u.
-            self._psf_sigma_u_spin.setValue(float(block.get('sigma_u', sigma_v)))
-            self._psf_w_spin.setValue(float(block.get('w', 0.0)))
-            self._psf_r0_spin.setValue(float(block.get('r0', 2.0)))
-            self._psf_n_spin.setValue(float(block.get('n', 3.0)))
+            self._psf_sigma_u_spin.setValue(float(scene_value(block, 'sigma_u', sigma_v)))
+            self._psf_w_spin.setValue(float(scene_value(block, 'w', 0.0)))
+            self._psf_r0_spin.setValue(float(scene_value(block, 'r0', 2.0)))
+            self._psf_n_spin.setValue(float(scene_value(block, 'n', 3.0)))
         self._psf_optics_group.setChecked(isinstance(psf, dict))
 
     def _sync_entry_list_group(
@@ -863,17 +912,21 @@ class OpticsTabMixin(SimEditorBase):
         """Sync the distortion group from sim_params."""
         distortion = self._optics_sub('distortion')
         block = distortion if isinstance(distortion, dict) else {}
-        self._distortion_k1_spin.setValue(float(block.get('k1', 0.0)))
-        self._distortion_k2_spin.setValue(float(block.get('k2', 0.0)))
-        has_center = 'center_v' in block or 'center_u' in block
+        self._distortion_k1_spin.setValue(float(scene_value(block, 'k1', 0.0)))
+        self._distortion_k2_spin.setValue(float(scene_value(block, 'k2', 0.0)))
+        has_center = _has_center(block)
         self._distortion_center_check.setChecked(has_center)
         # An absent center key displays its effective default (frame center).
         default_center_v, default_center_u = self._distortion_center_defaults()
-        self._distortion_center_v_spin.setValue(float(block.get('center_v', default_center_v)))
+        self._distortion_center_v_spin.setValue(
+            float(scene_value(block, 'center_v', default_center_v))
+        )
         self._distortion_center_v_spin.setEnabled(has_center)
-        self._distortion_center_u_spin.setValue(float(block.get('center_u', default_center_u)))
+        self._distortion_center_u_spin.setValue(
+            float(scene_value(block, 'center_u', default_center_u))
+        )
         self._distortion_center_u_spin.setEnabled(has_center)
-        self._distortion_nonradial_spin.setValue(float(block.get('nonradial_rms_px', 0.0)))
+        self._distortion_nonradial_spin.setValue(float(scene_value(block, 'nonradial_rms_px', 0.0)))
         self._distortion_group.setChecked(isinstance(distortion, dict))
 
     def _sync_stray(self) -> None:
@@ -902,8 +955,8 @@ class OpticsTabMixin(SimEditorBase):
         if isinstance(oversample, int):
             self._oversample_spin.setValue(int(oversample))
         spk = self.sim_params.get('spk_error')
-        block = spk if isinstance(spk, dict) else {}
-        self._spk_dv_spin.setValue(float(block.get('dv_px', 0.0)))
-        self._spk_du_spin.setValue(float(block.get('du_px', 0.0)))
-        self._spk_range_spin.setValue(float(block.get('reference_range_km', 1000.0)))
+        dv_px, du_px, reference_range_km = self._spk_shown()
+        self._spk_dv_spin.setValue(dv_px)
+        self._spk_du_spin.setValue(du_px)
+        self._spk_range_spin.setValue(reference_range_km)
         self._spk_error_group.setChecked(isinstance(spk, dict))

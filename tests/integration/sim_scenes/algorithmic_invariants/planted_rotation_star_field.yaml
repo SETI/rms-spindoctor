@@ -41,3 +41,17 @@ noise:
 offset_v: 1.43
 offset_u: -0.61
 offset_rotation_deg: 1.37
+# Known error: the fused translation is (5.00, -4.09) px, 4.98 px from the
+# planted (1.43, -0.61).  The roll is fitted about the corner of the extended
+# field of view, but the renderer turns the stars about the frame center (#434).
+# Over 16 noise seeds (the committed one and 101, 202, ..., 1515) the error runs
+# 4.980 to 4.988 px, a spread of 0.007 px.  Each end of the band sits a margin
+# of max(0.05 px, a fifth of the spread) outside, giving [4.930, 5.038] px.  A
+# fix to the rotation center drops the error out of the band, and the scene
+# fails until the pin is retired.  test_sim_algorithmic_invariants checks the
+# recovered roll itself.
+expected:
+  status: success
+  confidence_tier: medium
+  known_offset_error_px: 4.984
+  known_offset_error_tol_px: 0.054

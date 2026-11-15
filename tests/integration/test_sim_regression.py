@@ -3,11 +3,11 @@
 Each test pins the affected technique on one dedicated scene under
 ``sim_scenes/regression/`` and asserts the correct behavior, so the defect is
 guarded in the normal pytest run without executing the full (slow,
-runner-only) sweep suite. These tests are in-process and unmarked, so they run in
-the default suite.
+runner-only) sweep suite.  Each recovered offset is held to the scene's truth
+tolerance for the pinned technique (:mod:`tests.integration.sim_truth`).  These
+tests are in-process and unmarked, so they run in the default suite.
 """
 
-import math
 from pathlib import Path
 
 from spindoctor.nav_model import build_models_for_obs
@@ -15,16 +15,9 @@ from spindoctor.nav_orchestrator import NavOrchestrator
 from spindoctor.nav_technique.technique_result import NavTechniqueResult
 from spindoctor.obs.obs_inst_sim import ObsSim
 from spindoctor.sim.scene import load_sim_scene
+from tests.integration.sim_truth import assert_matches_truth
 
 _REGRESSION_DIR = Path(__file__).parent / 'sim_scenes' / 'regression'
-
-# A well-resolved disc must recover a whole-pixel offset to a small fraction of a
-# pixel.  The correlator upsamples to 1/128 px and reaches that on raw intensity,
-# so 0.1 px is a generous bound that the correct behavior clears comfortably.
-_DISC_SUBPIXEL_TOLERANCE_PX = 0.1
-# A star field must recover a zero offset; the moment centroid clears 0.1 px today
-# and the PSF-fit refinement tightens it further.
-_STAR_ZERO_OFFSET_TOLERANCE_PX = 0.1
 
 
 def _pin_technique(scene_name: str, technique: str) -> NavTechniqueResult:
@@ -47,16 +40,12 @@ def _pin_technique(scene_name: str, technique: str) -> NavTechniqueResult:
     return pinned
 
 
-def _technique_offset_error(scene_name: str, technique: str) -> float:
-    """Pin one technique on a regression scene; return its recovered-offset error."""
+def _assert_technique_recovers(scene_name: str, technique: str) -> None:
+    """Pin one technique on a regression scene; assert it recovers the planted offset."""
     scene = load_sim_scene(_REGRESSION_DIR / f'{scene_name}.yaml')
     pinned = _pin_technique(scene_name, technique)
     assert not pinned.spurious
-    assert pinned.offset_px is not None
-    return math.hypot(
-        pinned.offset_px[0] - scene['offset_v'],
-        pinned.offset_px[1] - scene['offset_u'],
-    )
+    assert_matches_truth(pinned.offset_px, scene, technique)
 
 
 def test_disc_recovers_whole_pixel_offset() -> None:
@@ -66,24 +55,20 @@ def test_disc_recovers_whole_pixel_offset() -> None:
     the gradient surfaces but the sub-pixel offset is refined on raw intensity, so
     a whole-pixel offset no longer carries the ~0.3 px-per-axis rectification bias.
     """
-    assert _technique_offset_error('disc_subpixel_offset', 'BodyDiscCorrelateNav') < (
-        _DISC_SUBPIXEL_TOLERANCE_PX
-    )
+    _assert_technique_recovers('disc_subpixel_offset', 'BodyDiscCorrelateNav')
 
 
-def test_star_field_recovers_zero_offset() -> None:
-    """The star field recovers a zero offset, where the prediction sits on each star.
+def test_star_field_recovers_near_zero_offset() -> None:
+    """The star field recovers a near-zero offset, where the prediction sits on each star.
 
     Guards the star reliability-gate defect: the model no longer gates a star on
     the saturation / cosmic-ray mask at its predicted position, so a sharp star
     flagged by the cosmic-ray detector is not killed when the offset is near zero.
     """
-    assert _technique_offset_error('star_zero_offset', 'StarFieldFromCatalogNav') < (
-        _STAR_ZERO_OFFSET_TOLERANCE_PX
-    )
+    _assert_technique_recovers('star_zero_offset', 'StarFieldFromCatalogNav')
 
 
-def test_star_field_recovers_zero_offset_on_equal_brightness_field() -> None:
+def test_star_field_recovers_offset_on_equal_brightness_field() -> None:
     """The star field recovers the offset when every star shares one magnitude.
 
     Guards the triplet-canonicalisation seed lottery: with equal magnitudes the
@@ -92,9 +77,7 @@ def test_star_field_recovers_zero_offset_on_equal_brightness_field() -> None:
     (opposite-side-length) canonicalisation is invariant to the tie, so recovery
     no longer depends on which equal-brightness star wins an arbitrary tie-break.
     """
-    assert _technique_offset_error('star_equal_brightness', 'StarFieldFromCatalogNav') < (
-        _STAR_ZERO_OFFSET_TOLERANCE_PX
-    )
+    _assert_technique_recovers('star_equal_brightness', 'StarFieldFromCatalogNav')
 
 
 def test_low_phase_limb_misconvergence_is_flagged_spurious() -> None:
