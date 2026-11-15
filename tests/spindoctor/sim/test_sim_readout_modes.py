@@ -22,11 +22,9 @@ from spindoctor.sim.forward.psf import binned_psf_kernel
 from spindoctor.sim.forward.scene_radiance import _nominal_read_noise
 from spindoctor.sim.forward.star import faint_sky_cutoff_mag
 from spindoctor.sim.instrument_resolvers import (
-    ReadoutModeScale,
     binning_for_frame_size,
     cataloged_binnings,
     resolve_psf_kernel,
-    resolve_readout_mode_scale,
 )
 from spindoctor.sim.render import clear_render_caches, render_combined_model
 from spindoctor.sim.scene import validate_sim_params
@@ -79,30 +77,6 @@ def test_each_camera_catalogs_its_readout_modes(
 def test_a_full_frame_names_its_binning(instrument: str, size: int, binning: int) -> None:
     """A full frame's size over the camera's native size is its binning."""
     assert binning_for_frame_size(instrument, (size, size)) == binning
-
-
-@pytest.mark.parametrize(
-    ('instrument', 'binning', 'expected'),
-    [
-        ('coiss_nac', 1, ReadoutModeScale(dn_per_electron=1.0, read_noise_dn=1.0)),
-        ('coiss_nac', 4, ReadoutModeScale(dn_per_electron=1.0, read_noise_dn=1.0)),
-        ('gossi', 2, ReadoutModeScale(dn_per_electron=1.0, read_noise_dn=44.0 / 31.0)),
-        (
-            'nhlorri',
-            4,
-            ReadoutModeScale(
-                dn_per_electron=21.0 / 19.4, read_noise_dn=(23.0 / 19.4) / (23.0 / 21.0)
-            ),
-        ),
-    ],
-)
-def test_a_readout_mode_scales_the_unbinned_dn_values(
-    instrument: str, binning: int, expected: ReadoutModeScale
-) -> None:
-    """A mode's factors are its published gain and read noise over the unbinned mode's."""
-    scale = resolve_readout_mode_scale(instrument, binning)
-    assert scale.dn_per_electron == pytest.approx(expected.dn_per_electron, rel=1e-12)
-    assert scale.read_noise_dn == pytest.approx(expected.read_noise_dn, rel=1e-12)
 
 
 def test_a_subframe_names_no_binning() -> None:

@@ -10,6 +10,7 @@ config structures.
 
 import hashlib
 import json
+import math
 from pathlib import Path
 from typing import Any
 
@@ -25,6 +26,12 @@ _CAMERA_MARKER_KEY = 'data_units'
 
 _ONE_STAR_ELLIPSE_KEY = 'one_star_ellipse_fraction'
 """Camera key: the fraction of the offset window inside which a lone star is believed."""
+
+_BY_BINNING_KEY = 'by_binning'
+"""Camera ``noise`` key: the binned readout modes' values, keyed by the binning factor."""
+
+_BY_BINNING_VALUE_KEYS = frozenset({'read_noise_dn', 'star_flux_dn_per_s_vmag0'})
+"""The values every ``noise.by_binning`` entry states."""
 
 
 def _strip_underscore_keys(value: Any) -> Any:
@@ -147,6 +154,48 @@ def _camera_blocks(config_dict: dict[str, Any]) -> list[tuple[str, dict[str, Any
             if isinstance(block, dict) and _CAMERA_MARKER_KEY in block:
                 blocks.append((f'{name}.{camera}', block))
     return blocks
+
+
+def _check_by_binning(path: str, block: dict[str, Any]) -> None:
+    """Refuse a camera's ``noise.by_binning`` table unless every entry is well formed.
+
+    Each key is a binning factor, an integer of at least 2, and each entry states a
+    finite, positive ``read_noise_dn`` and ``star_flux_dn_per_s_vmag0`` and nothing
+    else.  A camera block without the table is accepted.
+
+    Parameters:
+        path: The camera block's dotted path, for error messages.
+        block: The camera block.
+
+    Raises:
+        ValueError: If the table is not a mapping, a key is not an integer of at least
+            2, or an entry is not a mapping of exactly the two values, each a finite,
+            positive number; the message names the offending key.
+    """
+    noise = block.get('noise')
+    if not isinstance(noise, dict) or _BY_BINNING_KEY not in noise:
+        return
+    location = f'{path}.noise.{_BY_BINNING_KEY}'
+    table = noise[_BY_BINNING_KEY]
+    if not isinstance(table, dict):
+        raise ValueError(f'{location} must be a mapping keyed by binning factor')
+    for binning, entry in table.items():
+        if isinstance(binning, bool) or not isinstance(binning, int) or binning < 2:
+            raise ValueError(
+                f'{location}: a key must be a binning factor of at least 2; got {binning!r}'
+            )
+        if not isinstance(entry, dict) or set(entry) != _BY_BINNING_VALUE_KEYS:
+            raise ValueError(
+                f'{location}.{binning} must state exactly '
+                f'{", ".join(sorted(_BY_BINNING_VALUE_KEYS))}; got {entry!r}'
+            )
+        for key in sorted(_BY_BINNING_VALUE_KEYS):
+            value = entry[key]
+            is_number = isinstance(value, int | float) and not isinstance(value, bool)
+            if not is_number or not math.isfinite(value) or value <= 0.0:
+                raise ValueError(
+                    f'{location}.{binning}.{key} must be finite and positive; got {value!r}'
+                )
 
 
 def _as_str_list(value: Any, *, location: str) -> list[str]:
@@ -338,16 +387,18 @@ class Config:
             )
 
     def _validate_camera_blocks(self) -> None:
-        """Require every camera block to set a lone-star ellipse fraction in ``(0, 1]``.
+        """Check every camera block's lone-star ellipse and binned readout modes.
 
         ``one_star_ellipse_fraction`` is a property of the camera, so no technique-level
         value stands in for a camera that sets none.  A fraction of 0 would admit every
         lone star's offset and one above 1 would reach past the offset window, so a
-        fraction outside ``(0, 1]`` is refused when the configuration is loaded.
+        fraction outside ``(0, 1]`` is refused when the configuration is loaded.  A
+        ``noise.by_binning`` table is checked by :func:`_check_by_binning`.
 
         Raises:
             ValueError: If a camera block sets no fraction, or one that is not a number
-                within ``(0, 1]``; the message names the block and the key.
+                within ``(0, 1]``, or a malformed ``noise.by_binning`` table; the message
+                names the block and the key.
         """
         for path, block in _camera_blocks(self._config_dict):
             if _ONE_STAR_ELLIPSE_KEY not in block:
@@ -359,6 +410,7 @@ class Config:
                 raise ValueError(
                     f'{path}.{_ONE_STAR_ELLIPSE_KEY} must lie in (0, 1]; got {value!r}'
                 )
+            _check_by_binning(path, block)
 
     def _validate_registered_techniques(self) -> None:
         """Load + validate every registered NavTechnique's confidence spec.

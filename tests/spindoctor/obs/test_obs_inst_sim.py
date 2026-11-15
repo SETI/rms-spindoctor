@@ -12,8 +12,9 @@ how the scene path is resolved.  The path of a scene handed over in memory is on
 a label, so resolving it must not reach storage; a scene read from a file or a URL must be
 fetched before it can be parsed.
 
-Last, they check that the faint-star limit follows the frame's readout binning and
-leaves an unbinned frame's limit as it was.
+Last, they check that the faint-star limit follows the frame's readout binning, reading
+each mode's values from the navigator's own block, and leaves an unbinned frame's limit as
+it was.
 """
 
 import math
@@ -146,8 +147,8 @@ def test_scene_url_is_fetched_before_it_is_parsed(
     assert obs.sim_params['scene_name'] == 'pebble_url'
 
 
-def _star_limit(instrument: str, exposure_sec: float, binning: int | None = None) -> float:
-    """The faint-star limit of a star-free frame, binned by ``binning`` when given."""
+def _star_limit_obs(instrument: str, exposure_sec: float, *, binning: int | None = None) -> ObsSim:
+    """A star-free frame, binned by ``binning`` when given."""
     scene: dict[str, Any] = {
         'instrument': instrument,
         'size_v': 64,
@@ -157,7 +158,12 @@ def _star_limit(instrument: str, exposure_sec: float, binning: int | None = None
     }
     if binning is not None:
         scene['detector'] = {'binning': binning}
-    return ObsSim.from_file('/tmp/obs_sim_star_limit.yaml', sim_params=scene).star_max_usable_vmag()
+    return ObsSim.from_file('/tmp/obs_sim_star_limit.yaml', sim_params=scene)
+
+
+def _star_limit(instrument: str, exposure_sec: float, *, binning: int | None = None) -> float:
+    """The faint-star limit of a star-free frame, binned by ``binning`` when given."""
+    return _star_limit_obs(instrument, exposure_sec, binning=binning).star_max_usable_vmag()
 
 
 @pytest.mark.parametrize(
@@ -179,26 +185,39 @@ def test_unbinned_star_limit_is_unchanged(
 @pytest.mark.parametrize(
     ('instrument', 'binning', 'expected_shift_mag'),
     [
-        # Binned 4x4, the core covers 1/16 the pixels.  The mode's gain (19.4 e-/DN
-        # against 21) raises the zero point and the read noise in DN alike, so it
-        # cancels.
-        ('nhlorri', 4, 2.5 * math.log10(4**2)),
-        # Summed 2x2, the core covers a quarter the pixels, and the mode reads 44 e-
-        # against 31 at one gain.
-        ('gossi', 2, 2.5 * math.log10(2**2 * 31.0 / 44.0)),
-        # Summed 2x2, the 0.54 px core shrinks below one pixel, which holds it all.
-        ('coiss_nac', 2, 2.5 * math.log10(2.0 * math.pi * 0.54**2)),
+        # From the navigator's LORRI block: unbinned, 3.33e6 DN/s over 4.0 DN of read
+        # noise; binned 4x4, 3.60e6 DN/s over 1.19 DN, with the 3.0 px core shrunk to
+        # 0.75 px, so on a sixteenth of the pixels.
+        ('nhlorri', 4, 2.5 * math.log10((3.60e6 / 3.33e6) * (4.0 / 1.19) * 4**2)),
+        # From the navigator's NAC block: unbinned, 3.33e5 DN/s over 4.0 DN; summed
+        # 2x2, the same zero point over 0.400 DN, which the 1 DN floor raises to 1.0,
+        # and the 0.54 px core shrinks below one pixel, which then holds it all.
+        ('coiss_nac', 2, 2.5 * math.log10((4.0 / 1.0) * 2.0 * math.pi * 0.54**2)),
     ],
-    ids=['nhlorri-4x4', 'gossi-2x2', 'coiss_nac-2x2'],
+    ids=['nhlorri-4x4', 'coiss_nac-2x2'],
 )
-def test_binned_star_limit_follows_the_readout_mode(
+def test_binned_star_limit_reads_the_modes_values(
     instrument: str, binning: int, expected_shift_mag: float
 ) -> None:
-    """A binned frame's limit is fainter by as much as its peak pixel's SNR is higher.
+    """A binned frame's limit reads its mode's zero point and read noise.
 
     A star's total charge is the same in both frames, so the limit moves by 2.5 log10 of
-    how much the peak pixel's share of the star, over the read noise per pixel, grows.
+    how much the peak pixel's DN, over the read noise per pixel, grows.
     """
     unbinned = _star_limit(instrument, 1.0)
-    binned = _star_limit(instrument, 1.0, binning)
+    binned = _star_limit(instrument, 1.0, binning=binning)
     assert binned - unbinned == pytest.approx(expected_shift_mag, rel=0.0, abs=1e-9)
+
+
+def test_a_mode_without_values_reads_the_unbinned_ones() -> None:
+    """With no entry for its mode, a binned frame's limit moves by its smaller core alone.
+
+    The LORRI 3.0 px core shrinks to 0.75 px on a 4x4-binned frame, so the peak pixel
+    holds 16 times the share of the star at the same zero point and read noise.
+    """
+    obs = _star_limit_obs('nhlorri', 1.0, binning=4)
+    assert obs._inst_config is not None
+    noise = {k: v for k, v in obs._inst_config['noise'].items() if k != 'by_binning'}
+    obs._inst_config = {**obs._inst_config, 'noise': noise}
+    shift = obs.star_max_usable_vmag() - _star_limit('nhlorri', 1.0)
+    assert shift == pytest.approx(2.5 * math.log10(4**2), rel=0.0, abs=1e-9)

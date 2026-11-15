@@ -167,6 +167,13 @@ default of 0.0. Both are placeholders.
 in the file as an interim value sized from the electron zero point over the
 single gain state.
 
+**Binned readout mode.** ``noise.by_binning`` gives the values for the 4x4 mode,
+keyed by the binning factor. The mode's published gain is 19.4 e-/DN, so the
+read noise of one binned pixel is the published 23 e- over 19.4, or 1.19 DN, and
+the zero point is 3.33e6 times 21 over 19.4, or 3.60e6. Only the faint-star
+limit of a simulated frame reads them. The full-resolution ``read_noise_dn`` is
+still a placeholder.
+
 **Recalibrating.** The cohort's two frames for this instrument are binned four
 by four, so they cannot anchor an unbinned limiting magnitude or an unbinned
 PSF. Recalibration starts from acquiring unbinned star fields; with those, the

@@ -4,9 +4,10 @@ Each violation the loader refuses is one case, with the file, the entry, and the
 path in its message.  A camera added only as an entry in a copy of the packaged
 directory validates, resolves, and renders.  The packaged catalog's entries point at
 navigator blocks that exist and set the same units as those blocks, and each
-navigator star zero point agrees with the simulator's.  Resolving an entry's
-navigator block fails if their units differ or if the block doesn't set data_units.
-The detector chain renders in the entry's units.
+navigator star zero point agrees with the simulator's.  Each raw-DN navigator block has
+values for every binned mode its camera offers, and they agree with the simulator's.
+Resolving an entry's navigator block fails if their units differ or if the block doesn't
+set data_units.  The detector chain renders in the entry's units.
 """
 
 from collections.abc import Mapping
@@ -746,6 +747,69 @@ def test_the_navigator_zero_point_matches_the_simulators(instrument: str) -> Non
         'star_flux_dn_per_s_vmag0'
     ]
     assert zero_point == pytest.approx(stated, rel=0.0, abs=_rounding_step(stated) / 2.0)
+
+
+@pytest.mark.parametrize('instrument', _raw_dn_navigator_instruments())
+def test_the_navigator_states_values_for_each_binned_mode(instrument: str) -> None:
+    """A raw-DN navigator block has a ``by_binning`` entry for each binned mode offered.
+
+    Without one the star limit of a frame in that mode reads the unbinned values.
+    """
+    navigator = resolve_sim_inst_config(DEFAULT_CONFIG, instrument)['noise']
+    offered = {binning for binning in cataloged_binnings(instrument) if binning != 1}
+    assert set(navigator.get('by_binning', {})) == offered
+
+
+_BINNED_RAW_DN_MODES = [
+    (instrument, binning)
+    for instrument in _raw_dn_navigator_instruments()
+    for binning in cataloged_binnings(instrument)
+    if binning != 1
+]
+
+
+def _binned_mode_detector(instrument: str, binning: int) -> Any:
+    """The detector parameters a scene in this mode renders with, catalog values on."""
+    scene = {
+        'instrument': instrument,
+        'size_v': 32,
+        'size_u': 32,
+        'detector': {'binning': binning},
+        'artifacts': {'instrument_defaults': True},
+    }
+    return resolve_detector_params(scene)
+
+
+@pytest.mark.parametrize(('instrument', 'binning'), _BINNED_RAW_DN_MODES)
+def test_the_navigator_binned_zero_point_matches_the_simulators(
+    instrument: str, binning: int
+) -> None:
+    """A binned mode's DN zero point is the simulator's, within the navigator's rounding.
+
+    The simulator's electron zero point is converted through the mode's gain.
+    """
+    zero_point, domain = resolve_star_flux_zero_point(instrument)
+    assert domain == 'electrons'
+    zero_point /= _binned_mode_detector(instrument, binning).gain_e_per_dn
+    mode = resolve_sim_inst_config(DEFAULT_CONFIG, instrument)['noise']['by_binning'][binning]
+    stated = mode['star_flux_dn_per_s_vmag0']
+    assert zero_point == pytest.approx(stated, rel=0.0, abs=_rounding_step(stated) / 2.0)
+
+
+@pytest.mark.parametrize(('instrument', 'binning'), _BINNED_RAW_DN_MODES)
+def test_the_navigator_binned_read_noise_matches_the_simulators(
+    instrument: str, binning: int
+) -> None:
+    """A binned mode's read noise in DN is the simulator's, within the navigator's rounding.
+
+    The simulator's read noise for the mode, in electrons, is converted through the
+    mode's gain.
+    """
+    detector = _binned_mode_detector(instrument, binning)
+    read_noise_dn = detector.read_noise_e / detector.gain_e_per_dn
+    mode = resolve_sim_inst_config(DEFAULT_CONFIG, instrument)['noise']['by_binning'][binning]
+    stated = mode['read_noise_dn']
+    assert read_noise_dn == pytest.approx(stated, rel=0.0, abs=_rounding_step(stated) / 2.0)
 
 
 @pytest.fixture

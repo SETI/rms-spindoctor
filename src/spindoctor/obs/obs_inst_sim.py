@@ -19,7 +19,6 @@ from oops.observation import Snapshot
 from spindoctor.config import DEFAULT_CONFIG, IMAGE_LOGGER, Config, logged_section
 from spindoctor.obs.obs_snapshot_inst import ObsSnapshotInst
 from spindoctor.sim.instrument_navigator import resolve_extfov_margin, resolve_sim_inst_config
-from spindoctor.sim.instrument_resolvers import resolve_readout_mode_scale
 from spindoctor.sim.render import render_combined_model
 from spindoctor.sim.scene import build_nav_params, load_sim_scene
 from spindoctor.support.types import NDArrayAnyType, NDArrayBoolType, PathLike
@@ -218,11 +217,10 @@ class ObsSim(ObsSnapshotInst):
         detection boundary.  The peak pixel never holds more than the star's
         total, so a core narrower than a pixel counts as one pixel, as it does in
         the renderer's faint cutoff for the background sky.  The published DN zero
-        point is the camera's electron zero point over its standard gain state,
-        so a real navigator
-        could know it; the scene's truth-side noise block is deliberately not
-        consulted, so a scene that plants noise different from the published
-        values produces an honestly-wrong detection limit, which is desired model
+        point is the camera's electron zero point over its standard gain state, so
+        a real navigator could know it; the scene's truth-side noise block is
+        deliberately not consulted, so a scene that plants noise different from the
+        published values produces a wrong detection limit, which is desired model
         error, not a defect.  Keeping this physical matters beyond the faint-star
         gate: the star NavModel synthesizes each STAR feature's predicted SNR
         (and from it the CRLB position covariance and reliability score) from how
@@ -244,14 +242,13 @@ class ObsSim(ObsSnapshotInst):
         photometric knob, so the limit reads the exposure directly instead.
 
         The readout binning is read from ``nav_params`` too: a real frame's label
-        states its readout mode, so a real pipeline always knows it.  The navigator's
-        published values describe the unbinned mode, and a frame binned by ``b`` changes
-        them as the renderer's binned readout does.  A star's total charge is unchanged,
-        and its core is ``star_psf_sigma / b`` frame pixels.  The zero point in DN and
-        the read noise in DN change by the factors that the camera's published gain and
-        read noise for that mode give (see
-        :func:`~spindoctor.sim.instrument_resolvers.resolve_readout_mode_scale`).  An
-        unbinned frame uses the navigator's values unchanged.
+        states its readout mode, so a real pipeline always knows it.  On a frame binned
+        by ``b``, the zero point and the read noise come from the block's
+        ``noise.by_binning[b]`` entry, which holds the navigator's own values for that
+        mode in DN: the zero point, and the read noise of one binned pixel.  A mode the
+        block has no entry for reads with the unbinned values.  ``star_psf_sigma`` is in
+        native pixels, so the core is ``star_psf_sigma / b`` frame pixels.  An unbinned
+        frame uses the unbinned values.
 
         Returns:
             The maximum usable magnitude for stars in this observation.  For
@@ -282,13 +279,15 @@ class ObsSim(ObsSnapshotInst):
             inst_config.get('star_psf_sigma', self.config.category('sim')['star_psf_sigma'])
         )
         read_noise_dn = float(inst_noise['read_noise_dn'])
-        # The navigator's values describe the unbinned readout; a binned frame
-        # restates them in its own pixels, as the renderer does (#993).
+        # A binned frame reads its mode's values from the navigator's own block, or
+        # the unbinned values when the block has no entry for the mode, and its
+        # pixels are b native pixels on a side (#993).
         binning = int(self.nav_params['binning'])
         if binning != 1:
-            scale = resolve_readout_mode_scale(self.nav_params['instrument'], binning)
-            zero_point_dn *= scale.dn_per_electron
-            read_noise_dn *= scale.read_noise_dn
+            mode = inst_noise.get('by_binning', {}).get(binning)
+            if mode is not None:
+                zero_point_dn = float(mode['star_flux_dn_per_s_vmag0'])
+                read_noise_dn = float(mode['read_noise_dn'])
             star_psf_sigma /= binning
         # The scene's idealized exposure (navigator-visible; see the docstring
         # for why the Snapshot's reference texp is not consulted here).
