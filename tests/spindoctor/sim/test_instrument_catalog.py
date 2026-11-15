@@ -152,6 +152,27 @@ _REFUSED: list[tuple[dict[str, str], str, str]] = [
         'non-positive-gain',
     ),
     (
+        {
+            'cam.yaml': _cam(
+                _with('  quantization: exact', '  quantization: exact\n  dark_sky_ceiling_if: 0.0')
+            )
+        },
+        r'cam\.yaml: cam: detector\.dark_sky_ceiling_if: expected a positive number, got 0\.0',
+        'non-positive-dark-sky-ceiling',
+    ),
+    (
+        {
+            'cam.yaml': _cam(
+                _with(
+                    '  quantization: exact', '  quantization: exact\n  dark_sky_ceiling_if: 2.5e-3'
+                )
+            )
+        },
+        r'cam\.yaml: cam: detector\.dark_sky_ceiling_if: the dark-sky ceiling applies only to '
+        r"calibrated_if products, and this entry's data_units is raw_dn",
+        'dark-sky-ceiling-on-raw-dn',
+    ),
+    (
         {'cam.yaml': _cam(_with('hot_pixel_fraction: 0.0', 'hot_pixel_fraction: 5.0'))},
         r'cam\.yaml: cam: detector\.hot_pixel_fraction: expected a number in \[0, 1\], got 5\.0',
         'fraction-above-one',
@@ -316,6 +337,12 @@ _REFUSED: list[tuple[dict[str, str], str, str]] = [
         {'cam.yaml': _cam(_with('  1: {}', '  1: {}\n  2: {detector_model: vidicon}'))},
         r'readout_modes\.2\.detector_model: a readout mode bins the same detector',
         'readout-mode-changing-the-model',
+    ),
+    (
+        {'cam.yaml': _cam(_with('  1: {}', '  1: {}\n  2: {dark_sky_ceiling_if: 2.5e-3}'))},
+        r'readout_modes\.2\.dark_sky_ceiling_if: the realism comparison reads the dark-sky '
+        r'ceiling from the detector block',
+        'readout-mode-setting-the-dark-sky-ceiling',
     ),
     (
         {

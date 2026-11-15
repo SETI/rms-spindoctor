@@ -127,7 +127,7 @@ class RingTabMixin(SimEditorBase):
         fl = QFormLayout()
         main_layout.addLayout(fl)
 
-        name_edit = QLineEdit(p.get('name', ''))
+        name_edit = QLineEdit(str(scene_value(p, 'name', '')))
         name_edit.textChanged.connect(lambda t, i=idx: self._on_ring_name(i, t))
         fl.addRow('Name:', name_edit)
 
@@ -449,8 +449,9 @@ class RingTabMixin(SimEditorBase):
             rule = rules.get(key)
             if rule is None:
                 feature.pop(key, None)
-            elif rule == 'required':
-                feature.setdefault(key, _SHAPE_KEY_DEFAULTS[key])
+            elif rule == 'required' and feature.get(key) is None:
+                # A null shape key reads as absent, so it takes the default too.
+                feature[key] = _SHAPE_KEY_DEFAULTS[key]
 
     def _on_ring_navigable(self, idx: int, checked: bool) -> None:
         """Toggle the feature's navigability flag."""

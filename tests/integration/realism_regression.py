@@ -1,0 +1,505 @@
+"""Regression bands for the realism match: what a fresh run is held to against the record.
+
+The realism match (:mod:`tests.integration.sim_realism`) writes its summary to
+``tests/integration/realism_results/realism_summary.json``, together with the commit of
+the code that made it and whether that checkout was dirty.  The regression check reruns
+the match on each instrument listed in the band table and compares every statistic the
+instrument supports with the record's value.  The table is meant for instruments whose
+cohort matches in seconds.  A statistic is held when its support label, which counts
+the frames on both sides, is ``limited`` or ``supported``.  The held values are each
+kind's W1/IQR and its real and simulated medians, each when it is a number, and each
+curve kind's W1/IQR.
+
+Every band is two-sided.  A statistic that moves beyond its band fails whichever way it
+moves, because a better-looking number can come from a worse simulator.
+
+The band table is :data:`BANDS_PATH`, a JSON file keyed by instrument.  Each entry gives
+the number of runs measured and, for every held statistic, its measured value, its
+run-to-run spread, and its band.  Navigation is not bit-for-bit repeatable, so each band
+rests on that spread: the instrument was matched ``runs`` times on unchanged code, each
+run in its own process, and the spread is the largest value minus the smallest.  A
+statistic's band is a half-width around the recorded value: max(:data:`SPREAD_MULTIPLE`
+times the spread, :data:`RELATIVE_FLOOR` times the magnitude of the value measured).
+The floor covers the arithmetic differences between machines, which a spread measured
+on one machine cannot show.  :func:`band_rule` is the rule in code.
+
+The table and the record must describe the same run.  The statistics the record holds
+for an instrument must be exactly the table's, and each recorded value must lie within
+its band of the table's measured value.  A fresh match is never compared with a record
+without a code commit, because such a record predates the check.  A deliberate change
+to the simulator, or to the statistics, is accepted by regenerating the record and then
+remeasuring the bands::
+
+    python -m tests.integration.sim_realism
+    python -m tests.integration.realism_regression
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import math
+import os
+import subprocess
+import sys
+import tempfile
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
+
+import numpy as np
+
+from tests.integration.checkout_guard import require_checkout_package
+
+__all__ = [
+    'BANDS_PATH',
+    'MIN_RUNS',
+    'RECORD_ENV',
+    'RECORD_PATH',
+    'RELATIVE_FLOOR',
+    'SPREAD_MULTIPLE',
+    'InstrumentBands',
+    'RealismBand',
+    'band_rule',
+    'check_record_against_bands',
+    'compare_with_record',
+    'held_statistics',
+    'load_bands',
+    'load_record',
+    'made_at',
+    'measure_bands',
+    'write_bands',
+]
+
+BANDS_PATH = Path(__file__).parent / 'realism_regression_bands.json'
+"""The committed band table, keyed by instrument."""
+
+DEFAULT_RUNS = 10
+"""How many runs the CLI measures each spread over unless told otherwise."""
+
+MIN_RUNS = 2
+"""The fewest runs a spread can be measured over."""
+
+SPREAD_MULTIPLE = 3.0
+"""A band is at least this many times its statistic's measured spread."""
+
+RELATIVE_FLOOR = 0.02
+"""A band is at least this fraction of its statistic's measured magnitude."""
+
+RECORD_PATH = Path(__file__).parent / 'realism_results' / 'realism_summary.json'
+"""The committed realism record."""
+
+RECORD_ENV = 'SPINDOCTOR_TEST_REALISM_RECORD'
+"""The environment variable that points the checks at another summary, so that they can
+be shown to pass and fail against a record made outside the repository."""
+
+
+REGENERATE_HINT = (
+    'If the change is deliberate, accept it by regenerating the realism record '
+    '(python -m tests.integration.sim_realism) and remeasuring the bands '
+    '(python -m tests.integration.realism_regression).'
+)
+
+REMEASURE_HINT = (
+    'The band table no longer describes the record: remeasure the bands on the code '
+    'that made the record (python -m tests.integration.realism_regression).'
+)
+
+# The summary blocks whose entries are held, and the values held in each entry.
+_HELD_FIELDS: dict[str, tuple[str, ...]] = {
+    'divergences': ('w1_normalized', 'real_median', 'sim_median'),
+    'curve_divergences': ('w1_normalized',),
+}
+
+
+@dataclass(frozen=True)
+class RealismBand:
+    """One held statistic's measurement and the band derived from it.
+
+    Parameters:
+        value: The statistic's median over the runs measured.
+        spread: The largest minus the smallest value over the runs measured.
+        band: The half-width a fresh value may lie from the recorded value,
+            :func:`band_rule` of the spread and the value.
+    """
+
+    value: float
+    spread: float
+    band: float
+
+
+@dataclass(frozen=True)
+class InstrumentBands:
+    """One instrument's entry in the band table.
+
+    Parameters:
+        runs: How many runs on unchanged code the spreads were measured over.
+        statistics: The band of every held statistic, keyed by its path in the
+            instrument's summary entry.
+    """
+
+    runs: int
+    statistics: dict[str, RealismBand]
+
+
+def band_rule(spread: float, value: float) -> float:
+    """The band for a statistic of measured spread ``spread`` and magnitude ``value``.
+
+    Parameters:
+        spread: The statistic's run-to-run spread.
+        value: The statistic's measured value.
+
+    Returns:
+        max(SPREAD_MULTIPLE * spread, RELATIVE_FLOOR * abs(value)), rounded up at the
+        third significant digit.
+    """
+    band = max(SPREAD_MULTIPLE * spread, RELATIVE_FLOOR * abs(value))
+    if band <= 0.0:
+        return 0.0
+    scale = 10.0 ** (math.floor(math.log10(band)) - 2)
+    return float(f'{math.ceil(band / scale - 1e-9) * scale:.3g}')
+
+
+def _reject_constant(name: str) -> float:
+    """Refuse the NaN and Infinity constants Python's JSON reader accepts by default."""
+    raise ValueError(f'the band table holds {name}, which is not a number a band can use')
+
+
+def _table_number(row: dict[str, Any], key: str, where: str, *, signed: bool) -> float:
+    """One number of a band-table row, finite and, unless ``signed``, non-negative."""
+    if key not in row:
+        raise ValueError(f'{where} lacks {key!r}')
+    value = row[key]
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError(f'{where} {key!r} is {value!r}, which is not a number')
+    if not math.isfinite(value):
+        raise ValueError(f'{where} {key!r} is {value!r}, which is not finite')
+    if not signed and value < 0:
+        raise ValueError(f'{where} {key!r} is {value!r}, which is negative')
+    return float(value)
+
+
+def load_bands(path: Path = BANDS_PATH) -> dict[str, InstrumentBands]:
+    """Read and validate the band table.
+
+    The table must list at least one instrument, and each instrument at least one
+    statistic: the checks run once per instrument and hold each of its statistics, so
+    an empty table or entry would pass by checking nothing.  Each instrument must give
+    ``runs``, a whole number of at least :data:`MIN_RUNS`, and ``statistics``.  Each
+    statistic must give a ``value``, a finite number, and a ``spread`` and a ``band``,
+    each finite and non-negative; a value may be negative, as the sky level less the
+    detector floor can be.  A band must be at least :func:`band_rule` of its spread and
+    value.
+
+    Parameters:
+        path: The table's path.
+
+    Returns:
+        Each instrument's bands, keyed by instrument.
+
+    Raises:
+        ValueError: When the table lists no instruments, holds NaN or Infinity, or an
+            entry breaks one of the rules above; the message names the table's path, or
+            the instrument and statistic.
+    """
+    raw: dict[str, Any] = json.loads(path.read_text(), parse_constant=_reject_constant)
+    if not raw:
+        raise ValueError(f'the band table {path} lists no instruments, so it checks nothing')
+    bands: dict[str, InstrumentBands] = {}
+    for instrument, entry in raw.items():
+        runs = entry.get('runs')
+        if isinstance(runs, bool) or not isinstance(runs, int) or runs < MIN_RUNS:
+            raise ValueError(
+                f'{instrument}: runs is {runs!r}; a spread needs a whole number of at least '
+                f'{MIN_RUNS} runs'
+            )
+        if 'statistics' not in entry:
+            raise ValueError(f"{instrument} lacks 'statistics'")
+        if not entry['statistics']:
+            raise ValueError(f'{instrument} holds no statistics, so it checks nothing')
+        statistics: dict[str, RealismBand] = {}
+        for stat, row in entry['statistics'].items():
+            where = f'{instrument} {stat}'
+            band = RealismBand(
+                value=_table_number(row, 'value', where, signed=True),
+                spread=_table_number(row, 'spread', where, signed=False),
+                band=_table_number(row, 'band', where, signed=False),
+            )
+            rule = band_rule(band.spread, band.value)
+            if band.band < rule:
+                raise ValueError(
+                    f"{where} 'band' is {band.band!r}, narrower than the rule's {rule!r} for "
+                    'its spread and value'
+                )
+            statistics[stat] = band
+        bands[instrument] = InstrumentBands(runs=runs, statistics=statistics)
+    return bands
+
+
+def write_bands(bands: dict[str, InstrumentBands], path: Path = BANDS_PATH) -> None:
+    """Write the band table, sorted by instrument and by statistic.
+
+    Parameters:
+        bands: Each instrument's bands, keyed by instrument.
+        path: The table's path.
+    """
+    payload = {
+        instrument: {
+            'runs': entry.runs,
+            'statistics': {
+                stat: {'band': band.band, 'spread': band.spread, 'value': band.value}
+                for stat, band in entry.statistics.items()
+            },
+        }
+        for instrument, entry in bands.items()
+    }
+    path.write_text(json.dumps(payload, indent=2, sort_keys=True, allow_nan=False) + '\n')
+
+
+def held_statistics(entry: dict[str, Any]) -> dict[str, float]:
+    """Every held statistic of one instrument's summary entry, keyed by its path.
+
+    Parameters:
+        entry: One instrument's entry in a realism summary.
+
+    Returns:
+        ``{'divergences.<kind>.<field>': value}`` for each kind whose support label is
+        not ``unsupported`` and each held field whose value is a number, and the same
+        for ``curve_divergences``.
+    """
+    held: dict[str, float] = {}
+    for block, fields in _HELD_FIELDS.items():
+        for kind, stats in sorted(entry.get(block, {}).items()):
+            if stats.get('support', 'unsupported') == 'unsupported':
+                continue
+            for name in fields:
+                value = stats.get(name)
+                if value is not None:
+                    held[f'{block}.{kind}.{name}'] = float(value)
+    return held
+
+
+def check_record_against_bands(
+    record: dict[str, Any], instrument: str, bands: InstrumentBands
+) -> list[str]:
+    """Check that the band table describes the record for one instrument.
+
+    The record must hold an entry for the instrument, the statistics it holds there
+    must be exactly the table's, and each recorded value must lie within its band of
+    the table's measured value.
+
+    Parameters:
+        record: The whole realism record.
+        instrument: The instrument to check.
+        bands: The instrument's entry in the band table.
+
+    Returns:
+        One message per mismatch; empty when the table describes the record.
+    """
+    entry = record.get('instruments', {}).get(instrument)
+    if entry is None:
+        return [f'The record holds no {instrument} entry, though the band table lists it.']
+    if not bands.statistics:
+        return [f'The band table holds no statistics for {instrument}.']
+    held = held_statistics(entry)
+    problems: list[str] = []
+    for path in sorted(set(held) - set(bands.statistics)):
+        problems.append(f'{path} is held in the record and has no band.')
+    for path in sorted(set(bands.statistics) - set(held)):
+        problems.append(f'{path} has a band and is not held in the record.')
+    for path in sorted(set(held) & set(bands.statistics)):
+        band = bands.statistics[path]
+        if abs(held[path] - band.value) > band.band:
+            problems.append(
+                f'{path} is {held[path]:.6g} in the record and {band.value:.6g} in the '
+                f'band table, beyond its band of +-{band.band:.3g}.'
+            )
+    return problems
+
+
+def compare_with_record(
+    fresh: dict[str, Any], record: dict[str, Any], bands: dict[str, RealismBand]
+) -> list[str]:
+    """Compare a fresh run's held statistics with the record's, within their bands.
+
+    Parameters:
+        fresh: The instrument's entry in the fresh run's summary.
+        record: The instrument's entry in the committed record.
+        bands: The band for each held statistic.
+
+    Returns:
+        One message per statistic that moved beyond its band, appeared, disappeared,
+        or has no band; empty when every held statistic is within its band.
+    """
+    fresh_held = held_statistics(fresh)
+    record_held = held_statistics(record)
+    problems: list[str] = []
+    for path in sorted(set(fresh_held) | set(record_held)):
+        if path not in fresh_held:
+            problems.append(
+                f'{path} was {record_held[path]:.6g} in the record and is no longer held '
+                '(its support dropped or its value is missing).'
+            )
+            continue
+        if path not in record_held:
+            problems.append(f'{path} is {fresh_held[path]:.6g} and the record does not hold it.')
+            continue
+        band = bands.get(path)
+        if band is None:
+            problems.append(f'{path} has no band in the band table.')
+            continue
+        moved = fresh_held[path] - record_held[path]
+        if abs(moved) > band.band:
+            problems.append(
+                f'{path} moved from {record_held[path]:.6g} to {fresh_held[path]:.6g}, '
+                f'beyond its band of +-{band.band:.3g} (run-to-run spread '
+                f'{band.spread:.3g}).'
+            )
+    return problems
+
+
+def _run_once(instrument: str, out_dir: Path) -> None:
+    """Match one instrument once and write its summary into ``out_dir``."""
+    from tests.integration.sim_realism import run_realism_match
+    from tests.integration.sim_realism_report import require_code_provenance, write_summary
+
+    provenance = require_code_provenance()
+    results = run_realism_match(instruments=[instrument], skip_fom7=True)
+    write_summary(results, provenance, results_root=out_dir)
+
+
+def _round_up_three_digits(spread: float) -> float:
+    """The smallest number of three significant digits at or above ``spread``.
+
+    Parameters:
+        spread: A spread, 0 or more.
+    """
+    rounded = float(f'{spread:.3g}')
+    if rounded >= spread:
+        return rounded
+    unit = 10.0 ** (math.floor(math.log10(spread)) - 2)
+    return float(f'{rounded + unit:.3g}')
+
+
+def measure_bands(instrument: str, runs: int) -> InstrumentBands:
+    """Match one instrument ``runs`` times, each in its own process, and band it.
+
+    Parameters:
+        instrument: The instrument to match.
+        runs: The number of runs, at least :data:`MIN_RUNS`.
+
+    Returns:
+        The band for every statistic held in all the runs: its median value rounded to
+        six significant digits, its spread rounded up to three, and :func:`band_rule` of
+        the two as rounded.
+
+    Raises:
+        ValueError: When ``runs`` is below :data:`MIN_RUNS`, or when no statistic is
+            held in every run.
+    """
+    if runs < MIN_RUNS:
+        raise ValueError(
+            f'Measuring a run-to-run spread needs at least {MIN_RUNS} runs; got {runs}.'
+        )
+    values: list[dict[str, float]] = []
+    with tempfile.TemporaryDirectory() as tmp:
+        for i in range(runs):
+            out_dir = Path(tmp) / f'run_{i}'
+            subprocess.run(
+                [
+                    sys.executable,
+                    '-m',
+                    'tests.integration.realism_regression',
+                    instrument,
+                    '--run-once',
+                    str(out_dir),
+                ],
+                check=True,
+                stdout=subprocess.DEVNULL,
+            )
+            summary = json.loads((out_dir / 'realism_summary.json').read_text())
+            values.append(held_statistics(summary['instruments'][instrument]))
+    common = set.intersection(*(set(v) for v in values))
+    if not common:
+        raise ValueError(f'No statistic of {instrument} was held in all {runs} runs.')
+    statistics: dict[str, RealismBand] = {}
+    for path in sorted(common):
+        sample = np.array([v[path] for v in values])
+        # The band comes from the value and spread the table stores, so that the table
+        # reads back within the rule load_bands holds it to.  The spread is rounded up, so
+        # the band is never narrower than the rule gives the spread measured.
+        value = float(f'{float(np.median(sample)):.6g}')
+        spread = _round_up_three_digits(float(sample.max() - sample.min()))
+        statistics[path] = RealismBand(value=value, spread=spread, band=band_rule(spread, value))
+    return InstrumentBands(runs=runs, statistics=statistics)
+
+
+def _bands_to_extend(path: Path) -> dict[str, InstrumentBands]:
+    """The band table the CLI adds its measurements to.
+
+    A table that is missing or lists no instruments is an empty starting point here,
+    although :func:`load_bands` refuses an empty table for the checks.
+
+    Parameters:
+        path: The table's path.
+
+    Returns:
+        Each listed instrument's bands, keyed by instrument.
+    """
+    if not path.exists() or not json.loads(path.read_text()):
+        return {}
+    return load_bands(path)
+
+
+def main() -> None:
+    """CLI entry: measure the bands of the named instruments and write the band table."""
+    parser = argparse.ArgumentParser(description='Measure the realism regression bands.')
+    parser.add_argument(
+        'instruments',
+        nargs='*',
+        help='instruments to measure (default: every instrument the band table lists)',
+    )
+    parser.add_argument('--runs', type=int, default=DEFAULT_RUNS, help='runs to measure')
+    parser.add_argument('--run-once', type=Path, default=None, help=argparse.SUPPRESS)
+    args = parser.parse_args()
+    if args.run_once is not None:
+        if len(args.instruments) != 1:
+            parser.error('--run-once takes exactly one instrument')
+        _run_once(args.instruments[0], args.run_once)
+        return
+    bands = _bands_to_extend(BANDS_PATH)
+    instruments = args.instruments or sorted(bands)
+    if not instruments:
+        parser.error('name the instruments to measure; the band table lists none')
+    for instrument in instruments:
+        bands[instrument] = measure_bands(instrument, args.runs)
+        print(f'{instrument}: {len(bands[instrument].statistics)} statistics', flush=True)
+    write_bands(dict(sorted(bands.items())), BANDS_PATH)
+    print(f'Wrote {BANDS_PATH}')
+
+
+if __name__ == '__main__':
+    require_checkout_package(__file__)
+    main()
+
+
+def load_record() -> dict[str, Any]:
+    """Return the realism record the checks read: the committed one, or the one named by
+    ``SPINDOCTOR_TEST_REALISM_RECORD``."""
+    path = Path(os.environ.get(RECORD_ENV, str(RECORD_PATH)))
+    record: dict[str, Any] = json.loads(path.read_text())
+    return record
+
+
+def made_at(record: dict[str, Any]) -> str:
+    """Name the code a record was made from, with its checkout's dirty flag.
+
+    Parameters:
+        record: A realism summary.
+
+    Returns:
+        The record's commit and whether its checkout was clean, dirty, or unknown.
+    """
+    dirty = record.get('code_dirty')
+    state = 'unknown' if dirty is None else ('dirty' if dirty else 'clean')
+    return f'{record.get("code_commit") or "an unrecorded commit"} (checkout {state})'

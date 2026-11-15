@@ -19,6 +19,7 @@ from typing import Any
 from PyQt6.QtWidgets import QComboBox, QFormLayout, QGroupBox, QLineEdit
 
 from spindoctor.cli.sim_editor.base import SimEditorBase
+from spindoctor.sim.scene_schema import scene_value
 
 # The tier combo's visible choices; ``(none)`` maps to a null tier.
 _TIER_CHOICES: list[str] = ['high', 'medium', 'low', 'failed', 'conflicted', '(none)']
@@ -51,7 +52,9 @@ class ExpectedOutcomeMixin(SimEditorBase):
 
         self._expected_status_combo = QComboBox()
         self._expected_status_combo.addItems(['success', 'failed', 'conflicted'])
-        status_index = self._expected_status_combo.findText(str(block.get('status', 'success')))
+        status_index = self._expected_status_combo.findText(
+            str(scene_value(block, 'status', 'success'))
+        )
         if status_index >= 0:
             self._expected_status_combo.setCurrentIndex(status_index)
         self._expected_status_combo.currentTextChanged.connect(self._on_expected_status)

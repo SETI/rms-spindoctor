@@ -23,7 +23,8 @@ alone:
   catalogs, so CI runs them on every pull request, and so does
   ``./scripts/run-all-checks.sh`` without ``-i``. There are two exceptions. The
   simulator performance budgets measure CPU time and need a quiet host, and the
-  realism smoke (``test_sim_realism_smoke.py``) reads real frames.
+  realism smoke (``test_sim_realism_smoke.py``) and the realism regression check
+  (``test_sim_realism_regression.py``) read real frames.
 - The **postgres tier** is opted into with ``-m postgres`` (or ``-m ""``). It
   re-asks the results-index questions against a real PostgreSQL server, because
   SQLite accepts spellings a server rejects: an integer compared against a
@@ -186,8 +187,8 @@ tests need none of the archive environment above.
    * - Algorithmic invariants (``test_sim_algorithmic_invariants.py``)
      - default
      - nothing
-     - Each technique recovers its planted offset / roll on a clean scene --
-       correct by construction, so no baseline.
+     - Each technique recovers its planted offset or roll on a clean scene and
+       meets the scene's truth check.
    * - End-to-end sim nav (``test_sim_navigation.py``)
      - default
      - nothing
@@ -197,6 +198,15 @@ tests need none of the archive environment above.
      - default
      - nothing
      - Fast bug-specific scenes guarding defects the sweeps surfaced.
+   * - Sim truth checks (``test_sim_truth_checks.py``)
+     - integration (``sim_integration``)
+     - nothing
+     - Every validation scene expected to succeed has a truth check. Outside
+       ``algorithmic_invariants``, each such scene's fused offset meets its truth
+       check. The default suite checks the invariant scenes. Where a single
+       technique has a known wrong answer, that answer stays in its band. Each
+       fused error stays within 3 times the reported sigma, or inside the
+       scene's known band in sigmas.
    * - Sim regression baselines (``test_sim_baselines.py``)
      - integration (``sim_integration``)
      - nothing

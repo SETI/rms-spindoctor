@@ -15,12 +15,10 @@ boundary: they are truth keys the navigator never sees (its best model is
 the smooth Lambert ellipsoid).
 """
 
-import math
 from functools import lru_cache
 from typing import Any, cast
 
 import numpy as np
-from scipy import ndimage
 
 from spindoctor.sim.ellipsoid_geometry import (
     ellipsoid_image_normals,
@@ -35,6 +33,7 @@ from spindoctor.sim.forward.atmosphere import (
 from spindoctor.sim.forward.body_spec import BodySpec
 from spindoctor.sim.forward.body_texture import albedo_spec_from_params
 from spindoctor.sim.forward.body_topo import TopoBodyRender, TopoBodySpec, render_topographic_body
+from spindoctor.sim.forward.translate import nonzero_box, shifted_box, translate_box
 from spindoctor.sim.seeds import derive_effect_seed, stable_param_seed
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 from spindoctor.support.stable_math import stable_hypot
@@ -832,28 +831,6 @@ def render_single_body(
     )
 
 
-def _shifted_box(box: slice, delta: float, size: int) -> slice:
-    """The frame slice conservatively covering a box translated by ``delta``.
-
-    The order-1 interpolation reads one source pixel to each side, so the
-    translated content lies within the source span shifted by ``delta`` and
-    widened by one pixel each way, clipped to the frame.
-
-    Parameters:
-        box: The source slice.
-        delta: The translation along this axis, in pixels.
-        size: The frame extent along this axis.
-
-    Returns:
-        The translated, widened, clipped slice.
-    """
-    start = max(math.floor(box.start + delta) - 1, 0)
-    stop = min(math.ceil(box.stop + delta) + 1, size)
-    if start >= stop:
-        return slice(0, 0)
-    return slice(start, stop)
-
-
 def finish_single_body(
     img: NDArrayFloatType,
     body_shape: NDArrayFloatType,
@@ -911,11 +888,14 @@ def finish_single_body(
         positioned_body = body_shape
         positioned_outline = body_shape if silhouette is None else silhouette
     else:
-        positioned_body = ndimage.shift(body_shape, (dv, du), order=1, mode='constant', cval=0.0)
+        # Only the box the body covers is resampled; see the translate module.
+        lit_planes = (body_shape,) if silhouette is None else (body_shape, silhouette)
+        box_v, box_u = nonzero_box(*lit_planes)
+        positioned_body = translate_box(body_shape, dv, du, box_v, box_u)
         positioned_outline = (
             positioned_body
             if silhouette is None
-            else ndimage.shift(silhouette, (dv, du), order=1, mode='constant', cval=0.0)
+            else translate_box(silhouette, dv, du, box_v, box_u)
         )
     mask = positioned_outline > 0
     img[mask] = positioned_body[mask]
@@ -928,12 +908,12 @@ def finish_single_body(
             positioned_halo = halo
         else:
             size_v, size_u = img.shape
-            emission = ndimage.shift(halo.emission, (dv, du), order=1, mode='constant', cval=0.0)
-            transmission = ndimage.shift(
-                halo.transmission, (dv, du), order=1, mode='constant', cval=1.0
+            emission = translate_box(halo.emission, dv, du, halo.box_v, halo.box_u)
+            transmission = translate_box(
+                halo.transmission, dv, du, halo.box_v, halo.box_u, cval=1.0
             )
-            box_v = _shifted_box(halo.box_v, dv, size_v)
-            box_u = _shifted_box(halo.box_u, du, size_u)
+            box_v = shifted_box(halo.box_v, dv, size_v)
+            box_u = shifted_box(halo.box_u, du, size_u)
             # The translation's linear interpolation bleeds the halo one pixel
             # into the painted rim; a screen never overlaps its own opaque
             # paint.  Outside the box the screen is identity already.

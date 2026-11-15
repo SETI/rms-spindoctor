@@ -451,6 +451,22 @@ def default_body_name(index: int) -> str:
     return f'SIM-BODY-{index + 1}'
 
 
+def default_body_range_km(index: int) -> float:
+    """The range a scene body takes when its entry leaves ``range_km`` absent or null.
+
+    The renderer orders bodies by this range and records it in the render truth.  The
+    scene editor shows it, and counts it when it picks a range for an added body and
+    when it looks for two bodies at one range.
+
+    Parameters:
+        index: The entry's zero-based position in the scene's ``bodies`` list.
+
+    Returns:
+        ``index + 1``, such as 1.0 for the first entry.
+    """
+    return float(index + 1)
+
+
 def scene_binning(params: Mapping[str, Any]) -> int:
     """The binning factor a scene's ``detector`` block selects, 1 by default.
 

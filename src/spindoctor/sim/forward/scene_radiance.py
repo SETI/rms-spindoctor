@@ -58,7 +58,12 @@ from spindoctor.sim.forward.scene_compositing import (
     translucent_screen_ops,
 )
 from spindoctor.sim.forward.stages import SimFrame
-from spindoctor.sim.forward.star import faint_sky_cutoff_mag, render_sky_counts, render_stars
+from spindoctor.sim.forward.star import (
+    SKY_COUNTS_DEFAULTS,
+    faint_sky_cutoff_mag,
+    render_sky_counts,
+    render_stars,
+)
 from spindoctor.sim.instrument_navigator import resolve_sim_inst_config
 from spindoctor.sim.instrument_resolvers import (
     filter_star_flux_scale,
@@ -67,7 +72,7 @@ from spindoctor.sim.instrument_resolvers import (
     resolve_sky_pixel_scale_arcsec,
     resolve_star_flux_zero_point,
 )
-from spindoctor.sim.scene_schema import scene_binning, scene_value
+from spindoctor.sim.scene_schema import default_body_range_km, scene_binning, scene_value
 from spindoctor.sim.seeds import derive_effect_seed
 from spindoctor.sim.star_records import DEFAULT_PSF_SIZE
 from spindoctor.support.stable_math import stable_hypot
@@ -262,7 +267,7 @@ def compose_scene_radiance(
         # The positional default name and range are applied once here, so
         # every name-keyed consumer (render order, masks, inventory) sees the
         # same identity and two unnamed bodies cannot collide.
-        range_km = float(body_number + 1) if spec.range_km is None else spec.range_km
+        range_km = default_body_range_km(body_number) if spec.range_km is None else spec.range_km
         truth_params = {key: value for key, value in body_params.items() if value is not None}
         truth_params['name'] = spec.name
         truth_params['range_km'] = range_km
@@ -763,15 +768,19 @@ def _render_sky(
     render_sky_counts(
         plane,
         seed=seed,
-        a=float(scene_value(sky, 'a', -3.1)),
-        b=float(scene_value(sky, 'b', 0.34)),
-        density_factor=float(scene_value(sky, 'density_factor', 1.0)),
+        a=float(scene_value(sky, 'a', SKY_COUNTS_DEFAULTS['a'])),
+        b=float(scene_value(sky, 'b', SKY_COUNTS_DEFAULTS['b'])),
+        density_factor=float(
+            scene_value(sky, 'density_factor', SKY_COUNTS_DEFAULTS['density_factor'])
+        ),
         # A binned frame pixel spans binning native pixels on a side.
         pixel_scale_arcsec=resolve_sky_pixel_scale_arcsec(instrument) * scene_binning(params),
         faint_cutoff_mag=cutoff,
         zero_point=zero_point,
         exposure_sec=exposure_sec,
-        diffuse_flux_per_px=float(scene_value(sky, 'diffuse_e_per_px', 0.0)),
+        diffuse_flux_per_px=float(
+            scene_value(sky, 'diffuse_e_per_px', SKY_COUNTS_DEFAULTS['diffuse_e_per_px'])
+        ),
         oversample=os,
     )
 

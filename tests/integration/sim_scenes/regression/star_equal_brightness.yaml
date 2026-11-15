@@ -10,7 +10,7 @@ exposure_sec: 1.0
 # differently on the catalog and detection sides and the pattern match became a
 # lottery over the noise realization.  The geometric (opposite-side-length)
 # canonicalisation is invariant to that tie, so the star field recovers the
-# zero planted offset on an equal-brightness field.
+# planted offset on an equal-brightness field.
 # Stars deposit as point masses; an explicit navigator-matched PSF gives them a
 # finite (floor-form) profile instead of a 1-pixel spike.
 optics:
@@ -29,6 +29,6 @@ stars:
 noise:
   poisson: true
   read_noise_dn: 4.0
-offset_v: 0.0
-offset_u: 0.0
+offset_v: 0.41
+offset_u: -0.33
 offset_rotation_deg: 0.0

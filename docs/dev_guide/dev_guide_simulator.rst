@@ -82,6 +82,13 @@ scene -- including every planted error, noise knob, and contaminant. It lives in
      - The ellipsoid body renderer and its topographic path (relief, photometric
        laws, surface texture, transits), and the polyhedral-mesh renderer (see
        :ref:`sim-body-renderer`).
+   * - ``translate.py``
+     - Moves a body drawn at a reference position into place by linear
+       interpolation, resampling only the box the body covers. Inside that box
+       the result is bit-identical to shifting the whole frame.
+   * - ``lit_clusters.py``
+     - Groups the lit pixels of a render-grid plane into clusters, so that the
+       distortion warp and the PSF blur process each cluster on its own crop.
    * - ``ring_system.py``
      - The optical-depth ring-system renderer: radial tau features on
        perturbed orbits, projected through the shared opening-angle
@@ -398,11 +405,12 @@ Three things, each impossible with real frames alone:
   the method's assumption does not describe.
 - **Failure modes real data cannot isolate become provable.** The worked
   example is the planted-radial-error family: ``orbit_error_ringlet`` plants
-  a 2.5 px radial catalog error and the fused result is a success about
-  1.7 px wrong. On a real frame this is indistinguishable from a good lock --
-  only a frame whose truth is known by construction can *prove* the ensemble
-  absorbs this error into the offset, and keep proving it (the known-error check in
-  :ref:`sim-expected`) until the gap is closed.
+  a 2.5 px radial catalog error. The fused result is a success that is 1.8 to
+  3.2 px wrong, depending on the noise draw. On a real frame this is
+  indistinguishable from a good lock -- only a frame whose truth is known by
+  construction can *prove* the ensemble absorbs this error into the offset,
+  and keep proving it (the known-error check in :ref:`sim-expected`) until the
+  gap is closed.
 
 What it cannot do
 -----------------
@@ -721,7 +729,16 @@ exactly the optical effects it wants and leaves the rest at the floor.
    error left after the navigator applies each camera's known distortion model.
    A limb fitted at the frame edge then disagrees with a ring fitted through the
    center by the differential residual, which the navigator gets no model to
-   remove.
+   remove. The warp runs before the PSF, so the image is usually zero away from
+   the bodies, rings, and stars, and the warp resamples only the parts that hold
+   light. The image is divided into blocks of 32 x 32 render-grid pixels, and lit
+   blocks that touch form a cluster. Each cluster is warped on its own crop, with
+   a margin of 64 dark render-grid pixels. Every lit pixel comes out as it would
+   from warping the whole frame, apart from rounding. The saving depends on how
+   much of the frame is lit. On a 1024 x 1024 calibrated Cassini frame of a moon
+   that covers 13% of the image, the warp takes 0.3 s instead of 1.7 s. Smear or
+   a diffuse sky can light every pixel of a frame. A frame lit like that is
+   warped whole and gains nothing.
 3. **Whole-scene PSF** (:mod:`~spindoctor.sim.forward.psf`) convolves the image
    by a core-Gaussian-plus-Moffat-wing kernel, so the limb gradient, the
    ring-edge gradient, and every star shape inherit one profile. The core is
@@ -729,7 +746,13 @@ exactly the optical effects it wants and leaves the rest at the floor.
    fraction of the kernel's energy in the isotropic wing, and each term is
    normalized so the kernel conserves flux. Each instrument's config entry states
    the kernel's truncation window (``psf.truncation_px``); the Cassini cameras
-   state a wider one for their documented long wings.
+   state a wider one for their documented long wings. Like the warp, the blur
+   convolves each cluster of lit pixels on its own crop and adds the results.
+   The smaller FFTs round differently from one whole-frame FFT, by up to about
+   1e-15 of the peak. In the dark, where a whole-frame FFT leaves residue of that
+   size, they leave exact zeros. On the full-size Cassini frame above, the blur
+   takes 0.15 s instead of 0.50 s. A star field with more than a few hundred
+   separate stars is blurred whole.
 4. **Ghost reflections** (:mod:`~spindoctor.sim.forward.ghosts`) add displaced,
    defocused, low-amplitude copies of the formed focal-plane image (internal
    reflections). Each ghost copies the pre-ghost signal, so ghosts do not
@@ -1038,12 +1061,12 @@ top-level value isn't a mapping. Within an entry, the load fails on:
 * a ``data_units`` other than ``raw_dn`` or ``calibrated_if``;
 * a number that isn't finite (``.nan``, ``.inf``) or is out of its range: gains,
   the full well, the reference exposure, the plate scale, the star zero point,
-  the PSF radii, periods, filter throughputs, and the native frame size must be
-  positive; noise amplitudes, rates, the bias, the truncation radius, and the
-  bloom length must be non-negative; fractions (the hot-pixel fraction and column
-  factor, the PSF wing fraction) lie in [0, 1]; gain states are non-negative
-  integers and binnings positive ones; a shape default's value must lie in its
-  parameter's range, as a scene's must;
+  the PSF radii, periods, filter throughputs, the native frame size, and the
+  dark-sky ceiling must be positive; noise amplitudes, rates, the bias, the
+  truncation radius, and the bloom length must be non-negative; fractions (the
+  hot-pixel fraction and column factor, the PSF wing fraction) lie in [0, 1];
+  gain states are non-negative integers and binnings positive ones; a shape
+  default's value must lie in its parameter's range, as a scene's must;
 * a ``base`` that doesn't exist or that loops back on itself, an alias that is
   already an instrument's name or another entry's alias (the message gives the
   file that holds it), or a real cohort camera that two entries both claim (the
@@ -1071,10 +1094,13 @@ top-level value isn't a mapping. Within an entry, the load fails on:
   without a positive activation key; a mode the entry offers, gives shape
   defaults, or turns on although its detector model has no stage for the mode
   (see the detector-stage modes below); an unavailability reason for a mode the
-  entry offers; a filter or polarizer spelled other than canonically; and a
-  filter table key that contains a polarizer, which no scene can select because
-  a scene's filter folds each polarizer onto its wheel's clear element before
-  lookup.
+  entry offers; a filter or polarizer spelled other than canonically; a filter
+  table key that contains a polarizer, which no scene can select because a
+  scene's filter folds each polarizer onto its wheel's clear element before
+  lookup; a ``dark_sky_ceiling_if`` on an entry whose ``data_units`` is
+  ``raw_dn``, since the realism match applies the ceiling only to calibrated
+  frames; and a ``dark_sky_ceiling_if`` in a readout mode, since the realism
+  match reads the ceiling from the ``detector`` block alone.
 
 Three rules shape what an entry may state. **Canonical filter spelling:** a
 scene's ``detector.filter`` is read element by element, stripped of spaces and
@@ -1178,9 +1204,11 @@ The keys of an entry, all directly under the instrument's top-level key:
        ``dark_current_e_per_sec``, the hot-pixel, banding, and bias-structure
        terms, and ``bloom_length``); a ``vidicon`` entry states the ``vidicon``
        DN-noise sub-map, which only a vidicon may carry. Optional:
-       ``readout_dark_e``, the cosmic-ray dwell, amplitude, and spread, and the
-       calibrated-product terms ``calibrated_sky_if``,
-       ``calibration_column_residual_e``, and ``calibration_pixel_residual_e``.
+       ``readout_dark_e`` and the cosmic-ray dwell, amplitude, and spread. Also
+       optional are the calibrated-product terms (``calibrated_sky_if``,
+       ``calibration_column_residual_e``, and ``calibration_pixel_residual_e``)
+       and the realism match's dark-sky ceiling, ``dark_sky_ceiling_if``. Only
+       an entry whose ``data_units`` is ``calibrated_if`` may set the ceiling.
    * - ``readout_modes``
      - yes
      - The binning factors at which the camera reads out. Each maps to the
@@ -1657,25 +1685,35 @@ position, or drowns a lone star in an overwhelming confounder field, the
 confident wrong offset. Each such scene carries an ``expected`` block, and the
 machinery turns "must not be confidently wrong here" into a passing assertion.
 
-**The known-error check.** A small second family inverts the reading: a scene whose
-measured behavior *is* a wrong offset the ensemble cannot remove -- the
-``orbit_error_ringlet`` planted radial catalog error, whose bias survives even
-though the declared-sigma covariance channel demotes its tier. Pinning bare
-``status: success`` on such a scene would quietly freeze the wrong answer as
-correct behavior, so it also declares ``known_offset_error_px`` -- the measured
-fused error magnitude, from the scene's recorded baseline -- with a
-``known_offset_error_tol_px`` band. The assertion then fails in *both*
-directions: a regression that worsens the error fails, and a genuine fix that
-shrinks it also fails loudly, prompting someone to re-measure the known error
-(or retire the check by removing both keys) instead of a silent behavior change.
-The success the check holds is a documented hazard held in view, never an
-endorsement; the scene
-comments and the campaign record carry the analysis, and the ensemble chapter
-(:doc:`dev_guide_orchestrator_ensemble`) describes the failure family for the
-readers who consume tiers. The ``titan_crescent_horns`` pair left this family
-once the cross-technique body-witness veto closed it: its haze-dragged
-lone-blob offset is declined outright, so the scenes assert that ``failed``
-outcome instead of a success under a known-error check.
+**The known-error check.** A small second family inverts the reading. In these scenes
+the measured behavior *is* a wrong offset, for a reason that is understood but
+not yet fixed. There are three:
+
+- ``orbit_error_ringlet`` plants a radial catalog error. The declared-sigma
+  covariance channel demotes its tier, but the bias survives.
+- In ``relief_psf_stray_light``, the disc correlation stops at the edge of its
+  sub-pixel search window.
+- In ``planted_rotation_star_field``, the translation is fitted about the corner
+  of the extended field of view rather than the frame center.
+
+Pinning bare ``status: success`` on such a scene would quietly freeze the wrong
+answer as correct behavior. So the scene also declares ``known_offset_error_px``
+and ``known_offset_error_tol_px``, which set a band around the known error. The
+band covers the fused error measured over 16 noise seeds: the scene's own seed
+and 15 more. Each end of the band sits outside the measured range by a margin of
+0.05 px or a fifth of the spread, whichever is larger. On
+``orbit_error_ringlet`` the error is 1.77 px on the scene's own seed and up to
+3.18 px on others, so a band fitted to one seed would fail on the next. The
+assertion fails in *both* directions. A regression that worsens the error fails.
+A genuine fix that shrinks the error also fails loudly, which prompts a
+deliberate re-measurement of the known error, or retirement of the check,
+instead of a silent behavior change. The success the check holds marks a known
+hazard. The scene comments and the
+campaign record carry the analysis, and the ensemble chapter
+(:doc:`dev_guide_orchestrator_ensemble`) describes the failure family. The
+``titan_crescent_horns`` scenes are not in this family. The cross-technique
+body-witness veto declines their haze-dragged lone-blob offset, so the scenes
+assert a ``failed`` outcome.
 
 .. _sim-floor:
 
@@ -2516,14 +2554,13 @@ in quadrature to its reported covariance along the fit's radial direction
 
 The measured behavior on this axis stays deliberately uncomfortable, and the
 ``orbit_error_ringlet`` scene pins it: a navigable ringlet rendered 2.5 px
-outward of its catalog orbit navigates to a success about 1.7 px wrong. A
-uniform radial misplacement has no exact translational equivalent, so the
-robust edge fit down-weights one arc, locks onto one side of the annulus,
-and absorbs the ephemeris error into the recovered offset instead of leaving
-it in the residuals -- the declared sigma prices that hazard (the widened
-covariance holds the fused result out of the high tier) but cannot remove
-the bias itself, which is what the scene's known-error check
-(``known_offset_error_px``) keeps in view.
+outward of its catalog orbit navigates to a success that is 1.8 to 3.2 px
+wrong, depending on the noise draw. A uniform radial misplacement has no
+exact translational equivalent. The robust edge fit therefore down-weights one
+arc, locks onto one side of the annulus, and absorbs the ephemeris error into
+the recovered offset. The declared sigma widens the covariance enough to keep
+the fused result out of the high tier, but it cannot remove the bias. The
+scene's known-error check (``known_offset_error_px``) keeps that bias in view.
 
 ``navigable`` (default **false**) is the information boundary in miniature:
 the filter drops non-navigable features from ``nav_params`` entirely, so the
@@ -3340,7 +3377,8 @@ editor's kind switch follows. The switch grays out a widget the kind rejects,
 and the widget's tooltip says why. Each widget the kind takes shows the value
 the renderer will use: the stored value, or for an absent ``side`` the kind's
 default from ``RING_SIDE_DEFAULTS``, which the editor shows without writing it.
-A rejected key fails validation.
+When a switch makes a shape key required and the key is absent or null, the
+switch writes the starting value for that key. A rejected key fails validation.
 
 ===========================  ========  ========  ========  ========  ========
 key                          ringlet   gap       edge      ramp      wave
@@ -3939,11 +3977,55 @@ status bar reports it.
 Catalog, baselines, and the render-diff sheet
 =============================================
 
-The scene catalog is guarded at three levels, all regenerated inside whichever
+The scene catalog is guarded at four levels, all regenerated inside whichever
 change alters rendered output:
 
 - **Structural tests** (``tests/integration/test_sim_scenes.py``): every scene
   validates, sits in a declared class, has a unique name, and renders.
+- **Truth checks** (``tests/integration/sim_truth.py``): a *validation scene*
+  is one in a class that checks accuracy on a frame. The other classes are
+  sweeps, which vary one setting. Every validation scene is compared with its
+  planted offset, and the error is the distance between the two in two
+  dimensions. Each check's limit was measured on 16 noise seeds: the scene's
+  own seed and 15 more. One of two rules sets each check:
+
+  - An accurate answer is held to a tolerance. The tolerance is the largest
+    error over the seeds plus a margin of 0.05 px or a fifth of that error,
+    whichever is larger. Each tolerance entry in ``sim_truth.py`` records the
+    error on the scene's own seed, the largest error, the spread over the
+    seeds, and the margin.
+  - A wrong answer with an understood cause is held to a band around its
+    known error, so a fix fails as visibly as a regression. A known error is a
+    bias, and its spread over the seeds is noise. The band therefore runs from
+    the smallest error to the largest, widened on each side by 0.05 px or a
+    fifth of the spread, whichever is larger. Bands hold the fused answer of a
+    few scenes (see :ref:`sim-expected`). They also hold one technique's
+    answer where that answer is far off but not flagged spurious. On
+    ``planted_rank1_ring_flat`` a band holds the error across the straight
+    ring edge, the only direction that scene can measure.
+
+  The default suite runs the algorithmic invariants, the technique-pinned
+  regression tests, and the fused check on ``mutual_grazing``, which read their
+  limits from ``sim_truth.py``. The integration tier runs the rest. There,
+  ``test_sim_truth_checks.py`` checks the fused answer of every validation scene
+  outside ``algorithmic_invariants``, and every single-technique band.
+
+  The same module compares each fused error with the sigma the navigator
+  reports. The error is measured in units of the reported covariance, and a
+  fused answer fails above 3 sigma. Over the seeds, every accurate validation
+  scene sits at or below 1.9 sigma. A few scenes sit above 3 sigma for an
+  understood reason. Each of those is held to a band on the same measure,
+  widened by 0.1 sigma or a fifth of its spread, whichever is larger, so a
+  fix moves the scene out of its band.
+
+  At an offset whose fractional part is 0 or 0.5, a disc or star error can
+  vanish by symmetry. No validation scene plants such an offset on either
+  axis, except ``disc_subpixel_offset``. That scene guards a bias that is
+  largest at whole-pixel offsets.
+
+  A truth check compares the answer with the planted offset, not with a stored
+  answer. If a regression is regenerated into the baselines, the truth check
+  still fails.
 - **Regression baselines** (``tests/integration/sim_baselines/``): every
   catalog scene re-navigates to its recorded outcome, with the same status and
   confidence rank, each offset axis within 0.02 px, and the confidence within 0.02
@@ -4113,6 +4195,59 @@ realism addition needs -- live in their own module:
        carry the stashed keys. Load Scene clears the stash, and deleting a
        body drops its entry.
 
+The editor and the renderer read the same scene. The renderer draws the preview, and
+the editor's controls show the author what the scene holds. Each control shows the
+value the renderer draws with:
+
+* **Unset and null keys.** Leaving a key out and setting it to null both mean "use the
+  default", and the control shows the renderer's default. The tabs take every
+  default from the renderer. They read each optional key through
+  :func:`~spindoctor.sim.scene_schema.scene_value` with the renderer's default, or read
+  the spec the renderer builds: the body tab and its appearance groups use
+  :func:`~spindoctor.sim.forward.body_spec.body_spec_from_params`, and the
+  background-sky controls use :data:`~spindoctor.sim.forward.star.SKY_COUNTS_DEFAULTS`.
+* **Values outside a control's range.** A control shows the nearest end of its range.
+  For example, if a body's ``axis1`` is unset, the renderer draws that axis as 0, and
+  its control shows its minimum, 1 pixel.
+* **Bodies whose name, center, or range is unset.** A body whose name is unset shows
+  the name the renderer gives it, from
+  :func:`~spindoctor.sim.scene_schema.default_body_name` (``SIM-BODY-1`` for the first
+  body). A body whose center is unset shows the frame center. A body whose range is
+  unset shows the range the renderer gives it, from
+  :func:`~spindoctor.sim.scene_schema.default_body_range_km` (1 km for the first body),
+  and its range control stays disabled. The renderer refuses to draw two overlapping
+  bodies unless both set a range, so checking **Set range (km)** writes the range the
+  control shows, and the author can make the default explicit without changing it.
+  Clearing the box removes the range. The editor counts an unset range at its default
+  when it picks a range for an added body and when it warns that two bodies share a
+  range.
+* **The navigation override.** The renderer ignores a body's ``nav_override``, and for
+  an override key that is absent or null the navigator uses the body's own value.
+  Turning the group on writes an empty override, so the navigator predicts the body
+  with its own shape model, mesh lumpiness, and pose until the author edits one of the
+  group's controls. An edit writes only that control's key, so a key the author has not
+  edited stays unset. While a key is unset, its control shows the body's own value and
+  updates when the author edits that value. Turning the group off removes the override.
+* **Values derived from other keys.** An unset ``axis3`` is drawn as the smaller of
+  ``axis1`` and ``axis2``, and an unset center is the frame center. Their controls
+  update when the author edits an axis or changes the frame size. Neither key is
+  written to the scene until the author edits its own control.
+* **On/off groups.** A group starts turned off when its block, or the key that turns it
+  on, is absent or null, because the renderer then draws none of it. An empty ring
+  azimuthal sub-block also starts turned off. While a group is off, its controls show
+  the values the editor writes when the group is turned on.
+* **Groups whose default is 0.** The renderer's defaults for the opposition surge's
+  amplitude, the pose scatter's sigma, and the spacecraft-ephemeris reference range are
+  all 0, so a group turned on at its default would change nothing. If the scene leaves
+  one of these blocks out, turning its group on writes a visible starting value instead
+  (0.3, 1 degree, and 1000 km), so the author sees an effect.
+* **The spacecraft-ephemeris reference range.** When the block is in the scene but leaves
+  the range out, its control shows ``unset``, at 0. While it shows ``unset``, the editor
+  leaves the key out of the scene, because the validator refuses an explicit 0 and the
+  renderer reads a missing range as 0. An edit to one of the block's other controls
+  keeps the scene's exact values for the rest, so a range finer than the control can
+  display survives.
+
 The GUI exposes the full scene parameter surface, so any scene that can be
 written by hand in YAML can also be built in the GUI. Two exceptions are
 carried through unedited rather than widget-exposed: the nested
@@ -4270,11 +4405,82 @@ compares the curated real-image library
 (``tests/integration/image_library/``) against matched simulated frames, per
 instrument, on seven figures of merit:
 
-1. **Sky noise** -- per-patch noise sigma from paired pixel differences
-   inside near-uniform patches (science frames have no flat-field pairs, and
-   naive signal-binning would count scene texture as noise), the sky-patch
-   level above the frame floor, noise at signal, and the sky spatial power
-   spectrum (which catches banding and coherent noise a scalar sigma cannot).
+1. **Sky noise** -- per-patch noise sigma inside near-uniform patches
+   (science frames have no flat-field pairs, and naive signal-binning would
+   count scene texture as noise), the sky-patch level above the frame floor,
+   noise at signal, and the sky spatial power spectrum (which catches banding
+   and coherent noise a scalar sigma cannot).  The noise estimate is described
+   under :ref:`sim-realism-noise-estimate` below.  The uniform 32 × 32 pixel
+   patches lie on a grid that starts at the frame's corner.  A frame's sky
+   patches are the darkest quarter of the patches whose noise sigma can be
+   measured and is above 0.  The sigma of a tile of one constant value, such as
+   zero-filled missing data, can't be measured.  Such a tile is set aside before
+   the darkest quarter is chosen, so a large zero-filled area can't push the
+   frame's dark sky out of it.
+
+   On a frame filled with rings or a body, the darkest patches lie on the rings
+   or the body.  Comparing their noise with the other frame's dark sky would set
+   signal-dependent noise against sky noise.  So a patch counts only when it lies
+   on dark sky, and the test uses two values from the camera's config entry.  The
+   first is the calibrated sky residual, the level at which the simulator draws
+   empty calibrated sky.  The second is the dark-sky ceiling,
+   ``dark_sky_ceiling_if`` in the entry's ``detector`` block, in I/F.  A patch
+   lies on dark sky when its mean is at most the ceiling above the residual.  The
+   test applies to the patches of both frames, and a frame pair adds sky
+   statistics only when both frames keep at least one patch.
+
+   The sky power spectrum is measured on 64 × 64 pixel tiles, each made of four
+   sky patches.  A frame ranks its tiles by their brightest patch and measures
+   up to four of the darkest.  A tile's spectrum enters the comparison only when
+   all four of its patches passed the dark-sky test.  Light from a ring or a limb
+   beside a dark patch therefore stays out of the spectrum.
+
+   The test looks only at each patch's mean level.  It never uses a noise sigma,
+   because the sigma is the quantity being compared.  A tolerance scaled by the
+   matched frame's sigma would shrink whenever the matched frame is too quiet,
+   and real dark sky would then fail the test.  A tolerance scaled by the real
+   frame's sigma would grow on rings and bodies, because noise grows with signal.
+
+   Because the test uses only levels, it can't tell sky from content at the same
+   level.  Sky brightened by scattered light can lie on either side of the
+   ceiling.  Ring glare, glow in a ring gap or beside a limb, and the halo around
+   a bright moon all brighten the sky this way.  Below the ceiling, the
+   brightened sky counts as dark sky and is compared with the matched frame's
+   dark sky.  Above it, the brightened sky drops out with the content.  The
+   Cassini instrument page (:doc:`instruments/cassini_iss`) gives the CALIB
+   cameras' ceiling and the real patch levels it was chosen from.
+
+   If a camera's entry doesn't set a ceiling, its patches aren't tested, and
+   every sky patch of both frames enters the sky statistics.  A camera whose
+   products are raw DN can't set a ceiling.  The real product may have had its
+   bias pedestal removed, while the matched frame keeps the simulator's pedestal,
+   so the two levels can't be compared.
+
+   If none of an instrument's matched frames has sky patches, each real frame's
+   dark-sky patches enter the statistics alone, so the real sky statistics still
+   appear.  If the camera doesn't set a ceiling, all of the real frame's sky
+   patches enter.  If only some of an instrument's matched frames have sky
+   patches, a pair whose matched frame has none is dropped.  If the real frame has
+   no sky patches, neither frame of the pair adds any.
+
+   The JSON summary's ``sky_comparison`` block reports these outcomes for each
+   instrument.  It groups the frames by downlink: ``sqrt_lut`` holds the frames
+   downlinked through a companding table, and ``native`` holds the rest.  Each
+   group counts its frames by outcome (``compared``, ``dropped``,
+   ``not_judged``, ``no_real_sky``, and ``no_sim_sky``).  It also gives the
+   quartiles, over the compared frames, of the ratio of simulated to real median
+   sky sigma.  The block's ``frames`` list has one entry per frame.  In each
+   entry, ``real_level`` and ``sim_level`` are the median means of the patches
+   each frame kept.  If a frame didn't keep any, its level is the median mean of
+   all its sky patches.
+
+   The support label of figure 1 counts, on each side, every frame that adds any
+   of its statistics.  The noise-at-signal statistic uses the uniform patches brighter
+   than the darkest quarter.  A frame can therefore add that statistic even when
+   its sky patches drop out, so the sky statistics can rest on fewer frames than
+   the label shows.  ``n_sky_frames``, beside the support counts, gives the
+   number of frames that added sky samples on the real side and on the simulated
+   side.  These counts set the support labels of the sky statistics.
 2. **Star PSF** -- star-cutout radial profiles and encircled-energy radii
    (EE50/EE80) on cohorts that contain star frames.  Where a cohort has no
    star frames, the limb profile of figure 3 is the only PSF evidence and
@@ -4306,7 +4512,15 @@ instrument, on seven figures of merit:
 7. **Technique diagnostics** -- for a handful of matched real/sim pairs the
    full navigator runs on both frames and the per-technique diagnostics
    (inlier counts, residual scatter, confidences) are tabulated side by
-   side.
+   side.  The navigator predicts each star's signal without allowing for the
+   frame's filter.  The matched scene, though, starts its star ladder from
+   brighter stars on a filtered frame, as the next section describes.  On a
+   frame taken through any filter but clear, the star techniques' predicted SNR
+   and brightness margin therefore can't be compared between the real and
+   simulated frames.  They
+   can be compared once the navigator's prediction allows for the filter.
+
+   .. The star prediction's filter handling is issue 899.
 
 Matched frames
 --------------
@@ -4322,10 +4536,308 @@ negative and scattered-light frames.  Scene seeds derive from the real
 frame's image id, so the whole match is deterministic: re-running the runner
 reproduces every simulated frame and every statistic bit for bit.
 
+Most star frames' matched scenes place 25 made-up stars on a magnitude ladder.
+On a clear-filter frame, the brightest star is at V magnitude 7.0, and each step
+is 0.2 magnitudes fainter, so the faintest stars reach the detection limit.  The
+matched scene renders through the real frame's filter, and the renderer dims
+every star by the filter's throughput, as the real filter does.  If the filter
+passes a fraction *t* of the clear combination's starlight, the ladder starts
+2.5 log10 *t* magnitudes from V 7.0 instead, which is brighter for any filter
+dimmer than clear.  After the filter dims them, the stars span the same detected
+brightness as the clear-filter ladder, from clearly visible to the frame's
+detection limit.  A real filtered frame works the same way: the only stars it
+shows are bright ones.  For H-alpha (HAL+CL2), which passes about 2% of the
+clear combination's starlight, the ladder starts at V 2.7 instead of 7.0.
+
+The real sky holds few stars that bright, so a filtered matched frame shows
+more stars than its real frame does.  The star profiles can be compared, but
+the number of stars can't.
+
+.. Building star twins from the catalog stars at the real frame's pointing is
+   issue 989.
+
 Both sides then run *identical* extraction code -- the same patch finder,
 the same profile sampler, and the navigator's own feature extraction
 (``NavOrchestrator.prepare``) to place limb, ring, and star geometry -- so
 estimator bias cancels in the comparison.
+
+.. _sim-realism-noise-estimate:
+
+The sky-noise estimate
+----------------------
+
+The noise sigma of a near-uniform 32 × 32 patch is measured in one of two ways
+(:func:`spindoctor.sim.realism.noise.patch_noise_sigma`).  Which way depends on
+whether the patch's values are quantized.  A patch counts as near-uniform when its
+total standard deviation is at most twice its noise sigma.  This is the *structure
+test*, and it rejects patches crossed by a limb, a ring, or a bright star.
+
+Some products store values that can take any real value.  A calibrated frame that
+was flat-fielded pixel by pixel is one.  A patch of such a frame is measured from the
+differences between horizontally neighboring pixels, the *paired differences*.  The
+differences cancel scene structure that varies slowly across the patch.  The
+per-pixel sigma is their median absolute deviation times 1.4826, divided by the
+square root of 2.  Because it is built from medians, a star, a cosmic ray, or a hot
+pixel in the patch does not inflate it.
+
+Other products store values on a lattice of equally spaced levels, such as raw frames
+in whole DN or 8-bit I/F products.  The spacing of the levels is the *step*, and a
+patch whose values sit on such a lattice is *quantized*.  A quantized patch needs more
+care.  When its noise is smaller than a step, most neighboring pixels share a value,
+and most paired differences are 0.
+
+Deciding whether a patch is quantized
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The step is found by :func:`spindoctor.sim.realism.noise.quantization_step`.  Its
+first guess is the smallest gap between two distinct values in the patch.  The step
+and the lattice's origin are then fitted by least squares to the levels of the
+central 98% of the values.  The fit matters for products stored as 32-bit floats.
+Whole DN scaled into floats still form a lattice, but each scaled value carries its
+own small rounding error.
+
+When the central values sit on fewer than two levels, the fit can't find a spacing
+from them alone, so it also uses the nearest level on each side.  It leaves out a
+side's level when that level is more than twice as far away as the other side's.  A
+bright pixel far above the sky therefore stays out of the fit whenever the sky has a
+level less than half as far away on the other side.
+
+Each level is then tested against the fitted lattice.  It passes when it lies within
+a thousandth of a step of a lattice level, or within its own float rounding error,
+whichever is larger.  A level outside the range of the fitted levels is also allowed
+the fit's uncertainty at that distance.  Far enough out, that allowance reaches half
+a step, and the level passes whatever its value.
+
+Some values can't be placed on the lattice at all.  When a value's own float rounding
+reaches half a step, it could stand for any of several lattice levels.  A bright
+pixel far above a finely quantized sky is an example.  Such a value is left out of
+both the fit and the test.
+
+One level that fails the test takes the whole patch off the lattice.  A bright pixel
+500 steps up and four tenths of a step off a lattice level is enough.  The patch is
+then measured from its paired differences, as a continuous patch is.  When the noise
+is below a step, that reading is low, because most neighbors share a value.
+
+The patch must also be able to fill the lattice.  Two conditions check this.  The
+central 98% of the values must span no more steps than the patch has pixels, and the
+step must be well above the spacing of floating-point numbers at those values.
+Without these conditions, every frame stored as 32-bit floats would count as
+quantized, because its values are all whole multiples of the float spacing.
+
+Every value must lie within 2\ :sup:`31` steps of the central levels.  This keeps the
+estimators' whole-step arithmetic exact.  A fill value such as -10\ :sup:`17` beside
+a sky in whole DN is outside that bound, so the patch does not count as quantized.  A
+fill value inside the bound, around a billion steps from the sky, can still keep the
+quantized fit from converging, and the patch then reads NaN.
+
+Finally, at least two levels must each pin down a single lattice level.  A level does
+so when its own rounding plus the fit's uncertainty there stays under half the fitted
+step.  The step is refitted across those levels.  When fewer than two levels qualify,
+the step is unknown, and the patch does not count as quantized.  This can happen when
+the fitted step comes out well below the smallest gap, so that even the central
+levels' own rounding reaches half a step.
+
+Paired differences on a lattice
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+On a lattice, every paired difference is a whole number of steps.  Their plain median
+absolute deviation is then always a whole or half step, and it jumps as the noise
+changes.  On Gaussian noise rounded to whole DN, it reads 16% low at a sigma of 2.5
+DN.  At 10 and 20 DN, it can still take only values about 5% apart.
+
+So on a lattice, the differences are read from their histogram instead.  Each
+whole-step difference is treated as spread evenly across its step, from half a step
+below its value to half a step above.  The median and the median absolute deviation
+then vary smoothly with the noise.  The rounding and this spreading together add 1/8
+of a step squared to each pixel's variance, and the estimate subtracts it.
+
+The median estimate then lies within 0.6% of the true sigma from 2 DN up, and within
+2% from 1.25 DN up.  Below that it drifts as more neighbors share a value: by up to 5%
+at 0.75 DN and 15% at 0.5 DN.
+
+Two rules settle ties.  Sometimes exactly half the differences lie on each side of a
+run of empty steps.  Every point of the run is then a median, and the estimate takes
+the run's midpoint, as the median of an even number of values does.  In the same way,
+when every deviation over a range takes in exactly half the differences, the median
+absolute deviation is the middle of that range.
+
+Choosing between the differences and the fit
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+A quantized patch is measured either by its paired differences or by fitting the
+quantization itself.  The differences come first when they resolve the noise, because
+they are robust.  They cancel structure that varies slowly across the patch, and
+their median ignores a minority of contaminated pixels.  The fit reads the spread of
+every level's population as noise.  A texture its smooth surface can't follow, or a
+block of bad pixels, therefore inflates it.
+
+The *bulk* of a patch is the run of occupied levels that holds the most pixels.  An
+empty level ends a run, but noise many steps wide leaves empty levels in its tails.
+So a run may span a stretch of empty levels up to 1.5 paired-difference sigmas wide.
+A pixel separated from the bulk by a wider gap is *cut off* from it.  A hot pixel is
+one example.  A zero-filled dropout under a sky several sigmas above zero is another.
+
+A patch is *clipped* when its lowest or highest level gathers the values beyond it, as
+at the zero floor or at saturation.  To count as clipped, that level must belong to
+the bulk and hold more than 1% of the patch's pixels plus three.  Clipped pixels
+shrink the differences, and the fit models the clipping.
+
+The rule is this.  A quantized patch is measured by its paired differences when they
+give at least two steps and the patch is not clipped.  Every other quantized patch is
+fitted.
+
+Paired differences assume that neighboring pixels carry independent noise.  A product
+resampled after readout, such as a geometrically corrected frame, mixes each pixel
+with its neighbors, so its differences read the noise low.  On the 205 sky patches of
+the Voyager frame C3446143, for example, the differences gave a median of 1.68e-3 I/F.
+The fit gave 2.55e-3 on the same patches, so the differences read about a third
+lower.  The simulator can resample a Voyager frame the same way, but the matched scene
+does not turn that on.  On such a product, the two sides of the comparison are
+therefore measured differently.
+
+On a resampled product, a patch near two steps would get one estimate or the other by
+chance.  Noise of 3 DN smoothed across neighbors reads about 1.7 DN from its
+differences and 3 DN from the fit.  So an unclipped patch is not measured when its
+differences read below two steps and its fit reads 2.5 steps or more.  A block of
+pixels on one value inside the sky's range makes the two disagree in the same way: it
+shrinks the differences and widens the fit.  A zero-filled border on a sky near zero
+is an example.
+
+The quantized fit
+^^^^^^^^^^^^^^^^^
+
+The fit (:func:`spindoctor.sim.realism.noise.lattice_noise_sigma`) models each pixel
+as a smooth surface plus Gaussian noise, rounded to the nearest lattice level.  The
+surface is a quadratic in the pixel's row and column, so it follows a gradient or a
+gentle curve across the patch.  Its six coefficients and the noise sigma are fitted
+together by maximum likelihood.  Neither a gradient nor a curve is therefore read as
+noise.
+
+Each pixel is fitted against a *window* of levels around the surface.  The window
+reaches three fitted sigmas beyond the surface on each side, and its end levels are
+open-ended.  A pixel on or below the window's lowest level is known only to lie below
+that level's upper edge.  A pixel on or above the window's highest level is known
+only to lie above that level's lower edge.  So every pixel enters the fit.  The tails
+of noise many steps wide count in full.  A hot pixel or a cosmic ray counts only as
+one more pixel beyond the window's edge, however bright it is.  A pixel cut off from
+the bulk counts only as lying beyond the bulk's end.
+
+The first window comes from a least-squares surface and a robust sigma.  Each fit
+then rebuilds the window from its own surface and sigma.  The fitting stops when a
+window repeats one already fitted, or after ten fits.  A poor first guess costs only
+another fit or two.  A clipped patch, where half the values share one level, gives
+such a guess.
+
+The patch's lowest and highest levels are open-ended too, when they belong to the
+bulk.  A patch clipped at the zero floor or at saturation gathers every value beyond
+the clip onto one level.  With that level open-ended, the clipped patch is fitted as
+an unclipped one is.
+
+Patches the fit does not measure
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The fit returns NaN, and the patch is skipped, in four cases.
+
+The first is a patch with too many pixels beyond the noise.  Gaussian noise puts
+0.27% of its pixels beyond three sigmas.  The fit counts the pixels that lie beyond
+their windows or are cut off from the bulk.  When they exceed that fraction by more
+than 1% of the patch plus three pixels, the patch holds something other than noise.
+In a 32 × 32 patch, that means more than 16 pixels.  A pixel on a clipped floor
+counts only when it lies below its window, and a pixel on a clipped ceiling only when
+it lies above its window.  Where the surface dips below the floor, the floor gathers
+the values beneath it, so a floor pixel above its window is where it belongs.
+
+The second is an overfull end level.  A contaminant right next to the bulk's levels
+piles onto one level.  If that is the patch's lowest or highest level, the fit takes
+the pile for a clip and widens to follow it.  So after the fit, the bulk's lowest and
+highest levels are each compared with the number of pixels the fitted model predicts
+for them.  An open end level is predicted to hold all of the model's mass beyond its
+inner edge.  The patch is not measured when either level holds more pixels than
+predicted by more than four times the square root of the prediction, plus 0.27% of
+the patch, plus three pixels.  On about 12,000 patches of rounded Gaussian noise from
+0.3 to 10 DN, flat, tilted, or curved, and clipped or not, no end level came within
+3.7 pixels of that limit.
+
+The levels between the end levels are not checked, because a real camera's levels
+need not be equally wide.  In the darkest sky of real Galileo frames, the fullest
+level holds about 1.4 times the pixels the fit predicts for it, and its neighbors hold
+fewer.
+
+The third is a patch with too few populated levels.  The sigma can be measured only
+when at least three levels each hold at least two pixels, counting each window's end
+levels as holding the pixels beyond them.  One stray pixel on a third level does not
+count as a level.  When the pixels take only two values, they fix only one proportion
+along the surface.  Every sigma, paired with a matching surface, reproduces that
+proportion, so the sigma can't be measured.  This happens when the noise is below
+about a third of a step, most often when the sky level sits near a half step.
+
+The fourth is a fit that fails to converge.
+
+How accurate the estimate is
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Both estimates were measured on Gaussian noise rounded to whole DN, in 32 × 32 patches
+at random levels.  The sky was flat, tilted by 12 DN from corner to corner, or curved
+into a bowl 4 DN deep.  It was unclipped, clipped at the zero floor, or clipped at a
+ceiling of 4095 DN, with about half its values on the clipped level.  Each
+combination was measured at sigmas of 0.2, 0.3, 0.5, 1, 1.5, 2, 3, 5, 10, 20, and 50
+DN, with 200 patches each.
+
+The median estimate, over the patches whose sigma can be measured, lies within 1.3%
+of the true sigma at every sigma for unclipped sky.  For clipped sky, it lies within
+2.7%.  The 10th and 90th percentiles of the estimates show their spread:
+
+- For unclipped sky from 1 to 1.5 DN, which the fit measures, they lie within 3.6% of
+  the true sigma.
+- For unclipped sky from 2 DN up, which the differences measure, they lie within 5.8%.
+  The fit is more precise there, but it follows structure the differences ignore.
+- For clipped sky, which the fit measures at every sigma, they lie within 5.6% from
+  1 DN up.
+- Below 1 DN, they spread wider, to about 11% at 0.2 DN.
+
+Neither the end-level check nor the rule for disagreeing estimates turns away any of
+these patches.
+
+Both estimates give the sigma of the noise before rounding.  A product that was
+quantized and then rescaled pixel by pixel, such as a flat-fielded frame, no longer
+sits on a lattice.  Its estimate therefore also includes the rounding's own spread,
+the step divided by the square root of 12.  That adds about 4% to a sigma of one step,
+and less to a larger one.
+
+Contaminated patches
+^^^^^^^^^^^^^^^^^^^^
+
+A few contaminated pixels raise the estimate a little.  On a flat sky at 1 DN, which
+the fit measures, a hot pixel and a two-pixel cosmic ray far above the noise raise it
+by about 2%.  Four pixels four sigmas above the sky raise it by about 1%, and ten
+pixels three sigmas above the sky by about 3%.  At 0.3 DN, each of these raises it by
+up to 6%.  At 2 and 5 DN, where the differences measure, each raises it by 3% or less.
+
+An eight-pixel cosmic ray one level above the highest noise level piles onto the
+bulk's highest level.  The end-level check then refuses 82% of such patches at 0.3
+and 0.5 DN, 62% at 1 DN, and 19% at 2 DN.  On the rest, the fit reads about 3% high,
+except at 0.3 DN, where it reads about 26% high.
+
+A contaminant that covers many pixels is cut off from the bulk, caught on an end
+level, or measured by the differences.  Two rows of zeros under a sky at 9 DN with a
+sigma of 1 DN leave so many pixels beyond the bulk that the patch is not measured.
+So do 8 zero-filled columns at the edge of a sky at 100 DN.  A fit that took the zeros
+for a floor clip read 1.55 and 22.6 times the true sigma.  With a sigma of 3 DN, the
+differences measure the patch with zero-filled columns, and it fails the structure
+test.
+
+When the sky itself is floored at 0, rows of zeros join the bulk as its lowest level.
+Under a sky at 9 DN with sigmas from 1.5 to 3.5 DN, two or five such rows left 399 of
+400 patches unmeasured.  A fit that took the zeros for a clip read 1.2 to 2 times the
+true sigma, and those patches passed the structure test.  The one patch measured, two
+rows under a sky of 3.5 DN, read 21% high.
+
+One case is still measured wrongly.  When the sky's own noise reaches below zero, the
+zero rows sit inside the patch's levels.  The differences then measure the patch
+whenever they read two steps or more, and the zero rows' own differences, all 0, pull
+the estimate low.  Under a sky at 9 DN with a sigma of 3 or 4 DN, two rows read about
+8% low and five rows about 21% low, and such patches pass the structure test.  At 3
+DN, about half the patches have every pixel at 0 or above, and those are not measured.
 
 The divergence statistic
 ------------------------
@@ -4338,9 +4850,10 @@ the real distribution's interquartile range
 transport metric in the variable's own units -- a normalized value of 1.0
 means the distributions are displaced by about one real IQR -- but it is
 not outlier-robust, so the clip keeps a noise statistic from silently
-measuring an artifact statistic's tails.  **No pass/fail threshold is
-attached**; the number is reported per figure of merit and judged by a
-human against the cohort's support.
+measuring an artifact statistic's tails.  The number has no fixed pass/fail
+threshold.  It is reported per figure of merit and judged by a human against
+the cohort's support.  The regression check below holds each number that has
+enough frames behind it to its committed value, within a band.
 
 Curve kinds (the sky power spectrum and the star / limb / ring
 profiles) get the same scalar through
@@ -4357,14 +4870,118 @@ instead of width.
 Cohort support labels
 ---------------------
 
-A distribution statement needs frames.  Each figure of merit carries a
-support label per instrument -- ``supported`` (8+ contributing frames),
-``limited`` (2-7, reported with the caveat), or ``unsupported`` (fewer; the
-statistic is not reported, because an IQR of two frames is not a
-statistic).  Where a figure of merit is unsupported and no independent
-evidence exists, that instrument's simulated frames rest on *unverified
-forward-model fidelity* for that figure, and the report says exactly that
-rather than implying a match that was never measured.
+A distribution statement needs frames on both sides.  Each figure of merit, and each
+statistic within it, carries a support label per instrument:
+
+- ``supported``: 8 or more contributing frames.
+- ``limited``: 2 to 7 contributing frames.  The statistic is reported with a caveat.
+- ``unsupported``: fewer than 2, too few to say anything about the distributions.
+
+The frames are counted separately on the real side and on the simulated side, and
+the smaller count sets the label.  So a statistic that has real samples but lacks
+simulated ones is unsupported.  The summary's ``fom_frames`` gives both counts for
+each figure of merit.  Each entry under ``divergences`` and ``curve_divergences``
+gives its own ``n_real_frames``, ``n_sim_frames``, and ``support``.  An unsupported
+statistic's divergence is still written to the summary, but it says nothing about
+the distributions, and the regression check does not hold it to a band.  Where a
+figure of merit is unsupported and no independent evidence exists, that instrument's
+simulated frames rest on *unverified forward-model fidelity* for that figure.  The
+report says exactly that rather than implying a match that was never measured.
+
+.. _sim-realism-regression:
+
+The regression check
+--------------------
+
+The committed summary of the realism match is the *record*.  The regression check,
+``tests/integration/test_sim_realism_regression.py``, reruns the match and compares
+the fresh run with the record.  It runs once for each instrument listed in the band
+table, which is described below.  The table is meant for instruments whose cohort
+matches in a few seconds.  It lists LORRI, whose two frames take about five seconds.
+
+The check holds every statistic whose support label is ``limited`` or ``supported``.
+For a sample kind, it holds the normalized W1 (W1/IQR) and the real and simulated
+medians, each when it is a number.  For a curve kind, it holds the W1/IQR.
+
+The summary records the code that made it.  ``code_commit`` is the commit checked
+out, and ``code_dirty`` says whether tracked files differed from that commit.  Both
+are read with git before the match starts.  If git cannot tell the commit, the match
+stops with an error.  The match writes its own ``realism_*.png`` figures and the
+summary, and an earlier run leaves those changed until they are committed.  So changes
+to them are left out of ``code_dirty``.  A change to any other tracked file marks the
+checkout dirty, even another tool's figure in the same directory.
+
+Each statistic is held to a two-sided band around its recorded value.  A statistic
+that moves beyond its band fails whichever way it moves, because a number that looks
+better can come from a worse simulator.  For example, with the LORRI PSF core drawn
+three times too wide, the star EE50 W1/IQR falls by more than half.  A failure gives
+the statistic, its recorded and fresh values, and its band.  It also gives the
+record's commit and whether that checkout was dirty.  Finally, it says how to accept a
+deliberate change, which is to regenerate the record and then remeasure the bands:
+
+.. code-block:: bash
+
+   python -m tests.integration.sim_realism
+   python -m tests.integration.realism_regression
+
+The second command remeasures the bands and writes the band table.  By default it
+measures every instrument the table lists.  Instruments given on its command line are
+measured instead, and the table keeps the other instruments' bands.  If the table is
+missing or empty, the command starts a table from the instruments given, and it stops
+with an error if none are given.
+
+The band table is ``tests/integration/realism_regression_bands.json``.  For each
+instrument, it gives the number of runs measured.  For each held statistic, it gives
+the measured value, the run-to-run spread, and the band.  Navigation is not
+bit-for-bit repeatable, so each band rests on its statistic's measured spread.  The
+spread is the largest minus the smallest value over 10 runs on unchanged code, each
+run in its own process.  A band's half-width is the larger of 3 times the spread and
+2% of the statistic's measured value.  The 2% floor covers arithmetic differences
+between machines, which a spread measured on one machine can't show.  ``band_rule``
+in ``tests/integration/realism_regression.py`` is the same rule in code.
+
+The table stores each value to six significant digits and each spread rounded up to
+three, and each band is computed from those stored numbers.  Because the spread is
+rounded up, no band is narrower than 3 times the spread measured.  In the LORRI
+measurement of 2026-11-11, all 19 held statistics came out identical in all 10 runs.
+So every band is the 2% floor, and a statistic whose value is 0, such as the fraction
+of lost lines, is held to exactly 0.  A table is refused when it is empty or when an
+instrument's entry is empty, because a check over either would pass without checking
+anything.
+
+The table and the record must describe the same run.  A second check, in
+``tests/integration/test_realism_record_bands.py``, compares them.  For each
+instrument in the table, the statistics the record holds must be exactly the table's,
+and each recorded value must lie within its band of the table's measured value.  If
+they disagree, or the record lacks an instrument the table lists, the check fails and
+says to remeasure the bands with the command above.  This check reads only committed
+files, so it runs in the unit tier and in CI.
+
+The committed record was written without a code commit.  It also lacks the support
+labels that select the held statistics, so the band table can't describe it.  On a
+record without a code commit, the record-versus-table check is marked as an expected
+failure.  The mark is strict, so the test fails if the check passes.  Only a failed
+comparison counts as the expected failure, so an error in the check itself still fails
+the test.  The fresh match skips on such a record, with a message that says so.  At
+the end of the simulator realism work, the record and the bands are regenerated
+together.  The regenerated record carries its commit, and both checks then hold it to
+the table without any edit to the tests.
+
+Setting ``SPINDOCTOR_TEST_REALISM_RECORD`` to the path of another summary points both
+checks at that summary.  Against a summary written from unchanged code, both checks
+pass.  Two deliberately broken simulators show what the check catches.  With the
+LORRI PSF core drawn three times too wide, nine statistics leave their bands.  Among
+them is the EE50 W1/IQR, which falls from 2.36 to 1.05.  With the LORRI read noise
+ten times too high, eight statistics leave their bands.  Among them is the simulated
+signal stretch from the 50th to the 95th percentile, which rises from 2 to 20 DN.
+The LORRI sky-noise statistics themselves are unsupported, because only one real
+frame has sky patches.  So the read noise shows in the dynamic-range and star
+statistics instead.
+
+The fresh match reads real frames, so it carries the ``integration`` marker.  It runs
+only where the real frames are available, which needs both ``PDS3_HOLDINGS_DIR`` and
+``OOPS_RESOURCES`` set.  CI does not run it, because the CI workflow leaves
+``OOPS_RESOURCES`` and the star catalogs unset.
 
 The FOM 7 firewall
 ------------------
@@ -4405,8 +5022,10 @@ cost.  ``tests/integration/test_sim_realism.py`` carries the
 matched scenes are valid for every instrument and that the sim side is
 deterministic.
 ``tests/integration/test_sim_realism_smoke.py`` carries the end-to-end smoke on
-the smallest cohort. It reads real frames and carries only the ``integration``
-marker.
+the smallest cohort, and ``tests/integration/test_sim_realism_regression.py``
+carries the regression check (:ref:`sim-realism-regression`). The smoke test and
+the regression check's fresh match read real frames and carry only the
+``integration`` marker.
 
 The per-instrument match quality, the figures, and the known-gaps list
 live in the simulator report's realism section
