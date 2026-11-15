@@ -14,18 +14,24 @@ The end-to-end smoke on real frames lives in ``test_sim_realism_smoke.py``.
 
 from __future__ import annotations
 
+import random
+from dataclasses import dataclass
 from types import SimpleNamespace
 from typing import Any, cast
 
 import numpy as np
 import pytest
 
+from spindoctor.config import DEFAULT_CONFIG
 from spindoctor.sim.forward.detector.params import resolve_detector_params
+from spindoctor.sim.forward.scene_radiance import _nominal_read_noise
+from spindoctor.sim.forward.star import total_flux_for_vmag
+from spindoctor.sim.instrument_navigator import resolve_sim_inst_config
 from spindoctor.sim.instrument_resolvers import (
-    filter_star_flux_scale,
     resolve_calibrated_sky_if,
     resolve_dark_sky_ceiling_if,
     resolve_native_frame_size_px,
+    resolve_star_flux_zero_point,
 )
 from spindoctor.sim.realism.noise import SkyPatch
 from spindoctor.sim.render import render_combined_model
@@ -53,6 +59,7 @@ from tests.integration.sim_realism_support import (
     add_sky_samples,
     extract_pixel_samples,
 )
+from tests.integration.sim_realism_twin_stars import twin_faint_cutoff_vmag, twin_star_entries
 from tests.spindoctor.inst.conftest import VicarLabelStandIn
 
 pytestmark = [pytest.mark.integration, pytest.mark.sim_integration]
@@ -73,6 +80,13 @@ _ALL_CLASSES = (
 
 _NAC_FULL = (1024, 1024)
 
+# A star twin's catalog stars, as the real side builds them.
+_STARS: list[dict[str, Any]] = [
+    {'name': 'UCAC4-1', 'v': 300.0, 'u': 400.0, 'vmag': 6.5},
+    {'name': 'UCAC4-2', 'v': 650.0, 'u': 120.0, 'vmag': 7.2},
+    {'name': 'UCAC4-3', 'v': 820.0, 'u': 700.0, 'vmag': 8.0},
+]
+
 
 def _full_frame(instrument: str) -> tuple[int, int]:
     """A full unbinned frame's shape for ``instrument``: its native size on a side."""
@@ -86,14 +100,19 @@ def test_matched_scenes_validate_per_instrument(instrument: str) -> None:
     """Every scene class builds a schema-valid scene for every instrument."""
     for scene_class in _ALL_CLASSES:
         scene = matched_scene(
-            f'TEST_{scene_class}', scene_class, instrument, 0.68, size_vu=_full_frame(instrument)
+            f'TEST_{scene_class}',
+            scene_class,
+            instrument,
+            0.68,
+            size_vu=_full_frame(instrument),
+            stars=_STARS,
         )
         validate_sim_params(scene)
 
 
 def test_a_binned_cohort_frame_renders_through_its_readout_mode() -> None:
     """A 256 px LORRI frame is a 4x4 full frame: the scene selects that mode at that size."""
-    scene = matched_scene('L1', 'star_dominated', 'nhlorri', 1.0, size_vu=(256, 256))
+    scene = matched_scene('L1', 'star_dominated', 'nhlorri', 1.0, size_vu=(256, 256), stars=[])
     assert scene['detector']['binning'] == 4
     assert (scene['size_v'], scene['size_u']) == (256, 256)
 
@@ -114,7 +133,7 @@ def test_a_matched_scene_renders_the_frame_filter_gain_and_table(
 ) -> None:
     """The real frame's filter, gain state, and downlink table reach the render."""
     scene = matched_scene(
-        'N123', 'star_dominated', 'coiss_calib_nac', 1.2, size_vu=_NAC_FULL, **matching
+        'N123', 'star_dominated', 'coiss_calib_nac', 1.2, size_vu=_NAC_FULL, stars=[], **matching
     )
     assert scene.get('detector') == expected
 
@@ -129,7 +148,13 @@ def test_a_matched_scene_renders_on_the_cassini_table_only_for_a_table_frame(
 ) -> None:
     """A TABLE frame's raw render lands on the table's DN values; a 12-bit one doesn't."""
     scene = matched_scene(
-        'N123', 'star_dominated', 'coiss_nac', 1.2, size_vu=(256, 256), quantization=quantization
+        'N123',
+        'star_dominated',
+        'coiss_nac',
+        1.2,
+        size_vu=(256, 256),
+        quantization=quantization,
+        stars=[],
     )
     img, _ = render_combined_model(scene)
     table = resolve_detector_params(scene).sqrt_lut
@@ -137,33 +162,136 @@ def test_a_matched_scene_renders_on_the_cassini_table_only_for_a_table_frame(
     assert bool(np.isin(img, table.levels()).all()) is on_table
 
 
-def test_a_narrow_filter_star_ladder_keeps_the_clear_ladder_flux() -> None:
-    """Through a narrow filter, the brightest rung delivers the clear ladder's star flux.
-
-    The ladder shifts brighter by the filter's throughput, so the rung's flux after the
-    filter equals the unshifted clear-filter rung's.
-    """
+@pytest.mark.parametrize('stars', [[], _STARS], ids=['no-catalog-star', 'three-stars'])
+def test_a_star_twin_holds_its_real_frames_catalog_stars(stars: list[dict[str, Any]]) -> None:
+    """A star twin's scene holds exactly the catalog stars it is given, and none for none."""
     scene = matched_scene(
-        'N123', 'star_dominated', 'coiss_calib_nac', 1.2, size_vu=_NAC_FULL, filter_name='HAL+CL2'
+        'N123', 'star_dominated', 'coiss_calib_nac', 1.2, size_vu=_NAC_FULL, stars=stars
     )
-    brightest = min(star['vmag'] for star in scene['stars'])
-    filtered_flux = filter_star_flux_scale('coiss_calib_nac', 'HAL+CL2') * 10.0 ** (
-        -0.4 * brightest
+    assert scene['stars'] == stars
+
+
+def test_a_star_twin_without_a_catalog_list_is_refused() -> None:
+    """A star class can't be matched without its real frame's catalog stars."""
+    with pytest.raises(ValueError, match="needs its real frame's catalog star list"):
+        matched_scene('N123', 'star_dominated', 'coiss_calib_nac', 1.2, size_vu=_NAC_FULL)
+
+
+@dataclass
+class _FakeStar:
+    """A navigator catalog star record carrying the fields a twin's star list reads."""
+
+    v: float
+    u: float
+    vmag: float | None = 9.0
+    conflicts: str = ''
+    unique_number: int | None = 7
+    catalog_name: str = 'ucac4'
+
+
+def _entries(stars: list[_FakeStar], offset_vu: tuple[float, float] = (0.0, 0.0)) -> list[Any]:
+    """The twin entries of ``stars`` in a 1024-pixel frame with a V 15.5 cutoff."""
+    return twin_star_entries(stars, offset_vu=offset_vu, size_vu=_NAC_FULL, faint_cutoff_vmag=15.5)
+
+
+def test_a_twin_star_sits_at_its_prediction_moved_by_the_verified_offset() -> None:
+    """A star predicted at (v, u) appears at (v + dv, u + du)."""
+    (entry,) = _entries([_FakeStar(v=100.0, u=200.0)], offset_vu=(3.5, -33.75))
+    assert (entry['v'], entry['u']) == (103.5, 166.25)
+
+
+def test_a_twin_star_fainter_than_the_cutoff_is_left_out() -> None:
+    """Of two stars either side of the cutoff, only the brighter is kept."""
+    entries = _entries(
+        [_FakeStar(v=100.0, u=100.0, vmag=15.4), _FakeStar(v=200.0, u=200.0, vmag=15.6)]
     )
-    assert filtered_flux == pytest.approx(10.0 ** (-0.4 * 7.0), rel=0.01)
+    assert [entry['vmag'] for entry in entries] == [15.4]
+
+
+@pytest.mark.parametrize(
+    ('v', 'u', 'kept'),
+    [
+        (-1.0, 500.0, False),
+        (1024.0, 500.0, False),
+        (500.0, -1.0, False),
+        (500.0, 1024.0, False),
+        (500.0, 0.0, True),
+    ],
+    ids=['above', 'below', 'left', 'right', 'on-the-edge'],
+)
+def test_a_twin_star_moved_outside_the_frame_is_left_out(v: float, u: float, kept: bool) -> None:
+    """Each frame edge drops a star whose moved position lies past it.
+
+    Each star is predicted 10 pixels from where it lands, so a star predicted outside
+    the frame is kept when the offset moves it in.
+    """
+    entries = _entries([_FakeStar(v=v - 10.0, u=u + 10.0)], offset_vu=(10.0, -10.0))
+    assert (len(entries) == 1) is kept
+
+
+@pytest.mark.parametrize(
+    ('conflicts', 'kept'),
+    [('BODY: MIMAS', False), ('RING: SATURN', False), ('STAR', True)],
+    ids=['behind-a-body', 'behind-a-ring', 'beside-another-star'],
+)
+def test_a_twin_star_hidden_behind_a_body_or_ring_is_left_out(conflicts: str, kept: bool) -> None:
+    """A star the real frame can't show is left out; a star beside another star isn't."""
+    entries = _entries([_FakeStar(v=500.0, u=500.0, conflicts=conflicts)])
+    assert (len(entries) == 1) is kept
+
+
+def test_twin_star_entries_are_rounded_and_named_from_the_catalog() -> None:
+    """Positions and magnitudes are rounded to 0.01, and the name carries the catalog id."""
+    (entry,) = _entries([_FakeStar(v=100.1234, u=200.5678, vmag=9.8765)])
+    assert entry == {'name': 'UCAC4-7', 'v': 100.12, 'u': 200.57, 'vmag': 9.88}
+
+
+def test_twin_star_entries_do_not_depend_on_the_catalog_order() -> None:
+    """The same stars in any order give the same list."""
+    stars = [
+        _FakeStar(v=float(10 * i), u=float(20 * i), vmag=12.0 - i % 3, unique_number=i)
+        for i in range(1, 9)
+    ]
+    shuffled = list(stars)
+    random.Random(5).shuffle(shuffled)
+    assert _entries(shuffled) == _entries(stars)
+
+
+def test_the_twin_cutoff_is_where_clear_filter_flux_meets_the_read_noise() -> None:
+    """At the cutoff a star's clear-filter flux equals the read noise over its PSF core.
+
+    A 400-pixel Galileo frame is binned 2x2, so the read noise is the binned mode's and
+    the core is half as wide in its pixels.
+    """
+    cutoff = twin_faint_cutoff_vmag('gossi', 2.0, (400, 400))
+    zero_point, domain = resolve_star_flux_zero_point('gossi')
+    sigma = float(resolve_sim_inst_config(DEFAULT_CONFIG, 'gossi')['star_psf_sigma']) / 2
+    core_noise = _nominal_read_noise('gossi', domain, binning=2) * np.sqrt(
+        max(2.0 * np.pi * sigma**2, 1.0)
+    )
+    flux = total_flux_for_vmag(cutoff, zero_point=zero_point, exposure_sec=2.0)
+    assert flux == pytest.approx(core_noise)
 
 
 def test_matched_scene_is_deterministic() -> None:
     """The same image_id yields byte-identical scene dicts."""
-    a = matched_scene('N123', 'star_dominated', 'coiss_calib_nac', 1.2, size_vu=_NAC_FULL)
-    b = matched_scene('N123', 'star_dominated', 'coiss_calib_nac', 1.2, size_vu=_NAC_FULL)
+    a = matched_scene(
+        'N123', 'star_dominated', 'coiss_calib_nac', 1.2, size_vu=_NAC_FULL, stars=_STARS
+    )
+    b = matched_scene(
+        'N123', 'star_dominated', 'coiss_calib_nac', 1.2, size_vu=_NAC_FULL, stars=_STARS
+    )
     assert a == b
 
 
 def test_matched_scene_seed_varies_with_image_id() -> None:
     """Different frames draw different seeds (independent realizations)."""
-    a = matched_scene('N123', 'star_dominated', 'coiss_calib_nac', 1.2, size_vu=_NAC_FULL)
-    b = matched_scene('N456', 'star_dominated', 'coiss_calib_nac', 1.2, size_vu=_NAC_FULL)
+    a = matched_scene(
+        'N123', 'star_dominated', 'coiss_calib_nac', 1.2, size_vu=_NAC_FULL, stars=_STARS
+    )
+    b = matched_scene(
+        'N456', 'star_dominated', 'coiss_calib_nac', 1.2, size_vu=_NAC_FULL, stars=_STARS
+    )
     assert a['random_seed'] != b['random_seed']
 
 
@@ -213,6 +341,7 @@ def test_sim_side_extraction_is_deterministic() -> None:
         exposure_sec=1.2,
         stratum='0.5s_to_5s',
         offset_vu=(0.0, 0.0),
+        stars=_STARS,
     )
     first, _inc1 = _frame_samples_sim(record)
     second, _inc2 = _frame_samples_sim(record)

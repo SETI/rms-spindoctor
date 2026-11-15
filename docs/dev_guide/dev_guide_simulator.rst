@@ -4513,12 +4513,10 @@ instrument, on seven figures of merit:
    full navigator runs on both frames and the per-technique diagnostics
    (inlier counts, residual scatter, confidences) are tabulated side by
    side.  The navigator predicts each star's signal without allowing for the
-   frame's filter.  The matched scene, though, starts its star ladder from
-   brighter stars on a filtered frame, as the next section describes.  On a
-   frame taken through any filter but clear, the star techniques' predicted SNR
-   and brightness margin therefore can't be compared between the real and
-   simulated frames.  They
-   can be compared once the navigator's prediction allows for the filter.
+   frame's filter, and on a simulated calibrated frame it predicts from a fixed
+   placeholder limit.  The star techniques' predicted SNR and brightness margin
+   therefore can't be compared between the real and simulated frames.  They can
+   be compared once the navigator's prediction allows for the filter.
 
    .. The star prediction's filter handling is issue 899.
 
@@ -4536,25 +4534,28 @@ negative and scattered-light frames.  Scene seeds derive from the real
 frame's image id, so the whole match is deterministic: re-running the runner
 reproduces every simulated frame and every statistic bit for bit.
 
-Most star frames' matched scenes place 25 made-up stars on a magnitude ladder.
-On a clear-filter frame, the brightest star is at V magnitude 7.0, and each step
-is 0.2 magnitudes fainter, so the faintest stars reach the detection limit.  The
-matched scene renders through the real frame's filter, and the renderer dims
-every star by the filter's throughput, as the real filter does.  If the filter
-passes a fraction *t* of the clear combination's starlight, the ladder starts
-2.5 log10 *t* magnitudes from V 7.0 instead, which is brighter for any filter
-dimmer than clear.  After the filter dims them, the stars span the same detected
-brightness as the clear-filter ladder, from clearly visible to the frame's
-detection limit.  A real filtered frame works the same way: the only stars it
-shows are bright ones.  For H-alpha (HAL+CL2), which passes about 2% of the
-clear combination's starlight, the ladder starts at V 2.7 instead of 7.0.
+A star frame's matched scene holds the catalog stars in the real frame's field
+of view (:mod:`tests.integration.sim_realism_twin_stars`).  The navigator's star
+catalog reduction runs on the real frame and predicts where each star falls.
+Each star is then moved by the frame's operator-verified offset to where it
+appears in the real image, and it keeps its catalog magnitude.  The renderer
+dims every star by the throughput of the real frame's filter, as the real filter
+does, so the filter decides how many of the stars can be seen.  Through a narrow
+filter, only the field's few bright stars show.
 
-The real sky holds few stars that bright, so a filtered matched frame shows
-more stars than its real frame does.  The star profiles can be compared, but
-the number of stars can't.
-
-.. Building star twins from the catalog stars at the real frame's pointing is
-   issue 989.
+The list stops at a faint cutoff that depends on the camera and the exposure,
+but not on the filter.  In the simulated camera, a star at the cutoff delivers,
+through the clear filter, a total signal equal to the read noise over the star's
+core.  Finding a star takes several times that signal, so the list holds every
+star the simulated camera could show through the clear filter, and no filter
+shows a star the clear filter can't.
+Like the navigator's own list, it holds at most the 100 brightest stars
+(``stars.max_stars``).  A star that lies behind a body or an opaque ring in the
+real frame is left out, because the real frame can't show it and the matched
+star scene has no body or ring to hide it.  A field that has no catalog star
+inside the frame gives a matched frame without stars.  The catalogs and the
+SPICE kernels are deterministic, so the matched star scene is reproducible from
+the real frame.
 
 Both sides then run *identical* extraction code -- the same patch finder,
 the same profile sampler, and the navigator's own feature extraction

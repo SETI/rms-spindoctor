@@ -80,7 +80,7 @@ from spindoctor.sim.realism.noise import SkyPatch, dark_sky_patches, noisy_patch
 from spindoctor.support.types import NDArrayFloatType
 from tests.integration.checkout_guard import require_checkout_package
 from tests.integration.sidecar import LibraryRoot, Sidecar, load_sidecar
-from tests.integration.sim_realism_scenes import matched_scene
+from tests.integration.sim_realism_scenes import STAR_CLASSES, matched_scene
 from tests.integration.sim_realism_support import (
     FrameSamples,
     add_sky_samples,
@@ -89,6 +89,7 @@ from tests.integration.sim_realism_support import (
     frame_settings_reader,
     prepare_frame_features,
 )
+from tests.integration.sim_realism_twin_stars import catalog_twin_stars
 
 __all__ = [
     'FrameRecord',
@@ -192,6 +193,8 @@ class FrameRecord:
         quantization: ``'sqrt_lut'`` for a frame downlinked through a
             companding table, which the camera's default downlink table models,
             else None.
+        stars: For a star frame, its catalog stars as the twin's scene star
+            entries, at the frame's verified offset; else None.
     """
 
     image_id: str
@@ -206,6 +209,7 @@ class FrameRecord:
     filter_name: str | None = None
     gain_state: int | None = None
     quantization: str | None = None
+    stars: list[dict[str, Any]] | None = None
 
 
 class SkyPairStatus(StrEnum):
@@ -438,6 +442,10 @@ def _frame_samples_real(
         record.filter_name = settings.filter_name
         record.gain_state = settings.gain_state
         record.quantization = settings.quantization
+    if scene_class in STAR_CLASSES:
+        record.stars = catalog_twin_stars(
+            obs, instrument=instrument, exposure_sec=float(exposure), offset_vu=offset
+        )
     saturation = saturation_level(instrument)
     samples, rates = extract_pixel_samples(
         np.asarray(obs.data, dtype=np.float64),
@@ -496,6 +504,7 @@ def _sim_obs_for_record(record: FrameRecord) -> tuple[ObsSim, dict[str, Any]]:
         filter_name=record.filter_name,
         gain_state=record.gain_state,
         quantization=record.quantization,
+        stars=record.stars,
     )
     obs = ObsSim.from_file(f'/tmp/sim_realism_{record.image_id}.yaml', sim_params=scene)
     return obs, scene
