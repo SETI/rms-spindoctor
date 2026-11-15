@@ -101,7 +101,9 @@ TOP_LEVEL_IDEALIZED_KEYS: frozenset[str] = frozenset(
 )
 
 # Top-level truth keys: the planted pointing error the navigator must recover,
-# the RNG realization, and the contaminant / noise fields.
+# the RNG realization, and the contaminant / noise fields.  One value inside the
+# 'detector' block is published: build_nav_params echoes the readout binning, which
+# a real frame's label states, as a top-level 'binning' key of the navigator's view.
 TOP_LEVEL_TRUTH_KEYS: frozenset[str] = frozenset(
     {
         'random_seed',

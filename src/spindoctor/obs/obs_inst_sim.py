@@ -19,6 +19,7 @@ from oops.observation import Snapshot
 from spindoctor.config import DEFAULT_CONFIG, IMAGE_LOGGER, Config, logged_section
 from spindoctor.obs.obs_snapshot_inst import ObsSnapshotInst
 from spindoctor.sim.instrument_navigator import resolve_extfov_margin, resolve_sim_inst_config
+from spindoctor.sim.instrument_resolvers import resolve_readout_mode_scale
 from spindoctor.sim.render import render_combined_model
 from spindoctor.sim.scene import build_nav_params, load_sim_scene
 from spindoctor.support.types import NDArrayAnyType, NDArrayBoolType, PathLike
@@ -214,8 +215,11 @@ class ObsSim(ObsSnapshotInst):
         ``star_psf_sigma`` then puts a fraction ``1 / (2*pi*sigma**2)`` of that
         total in the peak pixel.  The limiting magnitude is where that peak falls
         to twice the effective per-pixel noise sigma -- the matched-filter
-        detection boundary.  The published DN zero point is the camera's
-        electron zero point over its standard gain state, so a real navigator
+        detection boundary.  The peak pixel never holds more than the star's
+        total, so a core narrower than a pixel counts as one pixel, as it does in
+        the renderer's faint cutoff for the background sky.  The published DN zero
+        point is the camera's electron zero point over its standard gain state,
+        so a real navigator
         could know it; the scene's truth-side noise block is deliberately not
         consulted, so a scene that plants noise different from the published
         values produces an honestly-wrong detection limit, which is desired model
@@ -238,6 +242,16 @@ class ObsSim(ObsSnapshotInst):
         time-dependent oops computation and the reported exposure metadata),
         and repurposing it would move the sim epoch as a side effect of a
         photometric knob, so the limit reads the exposure directly instead.
+
+        The readout binning is read from ``nav_params`` too: a real frame's label
+        states its readout mode, so a real pipeline always knows it.  The navigator's
+        published values describe the unbinned mode, and a frame binned by ``b`` changes
+        them as the renderer's binned readout does.  A star's total charge is unchanged,
+        and its core is ``star_psf_sigma / b`` frame pixels.  The zero point in DN and
+        the read noise in DN change by the factors that the camera's published gain and
+        read noise for that mode give (see
+        :func:`~spindoctor.sim.instrument_resolvers.resolve_readout_mode_scale`).  An
+        unbinned frame uses the navigator's values unchanged.
 
         Returns:
             The maximum usable magnitude for stars in this observation.  For
@@ -268,11 +282,21 @@ class ObsSim(ObsSnapshotInst):
             inst_config.get('star_psf_sigma', self.config.category('sim')['star_psf_sigma'])
         )
         read_noise_dn = float(inst_noise['read_noise_dn'])
+        # The navigator's values describe the unbinned readout; a binned frame
+        # restates them in its own pixels, as the renderer does (#993).
+        binning = int(self.nav_params['binning'])
+        if binning != 1:
+            scale = resolve_readout_mode_scale(self.nav_params['instrument'], binning)
+            zero_point_dn *= scale.dn_per_electron
+            read_noise_dn *= scale.read_noise_dn
+            star_psf_sigma /= binning
         # The scene's idealized exposure (navigator-visible; see the docstring
         # for why the Snapshot's reference texp is not consulted here).
         exposure = float(self.nav_params.get('exposure_sec', 1.0))
-        # Peak DN of a magnitude-0 star: its total over the Gaussian PSF core.
-        peak0_dn = zero_point_dn * exposure / (2.0 * math.pi * star_psf_sigma**2)
+        # Peak DN of a magnitude-0 star: its total over the Gaussian PSF core, which
+        # counts as at least one pixel.
+        core_area_px = max(2.0 * math.pi * star_psf_sigma**2, 1.0)
+        peak0_dn = zero_point_dn * exposure / core_area_px
         # Poisson shot noise on the star's own counts keeps the effective sigma
         # above ~1 DN even on a read-noise-free frame.
         sigma_eff = max(read_noise_dn, 1.0)

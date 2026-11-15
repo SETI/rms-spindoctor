@@ -229,6 +229,10 @@ applies where. The *channel* is structural:
   a body or star key that is still null after the overlay is left out, as is a
   null key of the ring system or of one of its features. Leaving a key out can
   only take information away, so neither rule lets truth across.
+  One value inside the truth-side ``detector`` block is published: the readout
+  binning, which the view carries as a top-level ``binning`` key (1 when the
+  scene sets none). A real frame's label states its readout mode, so a real
+  pipeline always knows it. No other ``detector`` key crosses.
   Nothing reachable *through the filtered view* carries truth.
 - The navigator-side models read **only** ``obs.nav_params``. None of the
   renderer's output -- rendered star records, body masks, z-order maps, all
@@ -241,7 +245,16 @@ applies where. The *channel* is structural:
   (including any idealized ``instrument_config`` overrides) and is independent
   of the scene's ``noise`` block, so a scene that plants noise different from
   the published values produces an honestly-wrong detection limit -- planted
-  model error, exactly what such a scene is for.
+  model error, exactly what such a scene is for. The navigator's published
+  values describe the unbinned readout, so on a binned frame the limit restates
+  them in frame pixels, as the renderer does: the star's total charge is
+  unchanged, its core is ``star_psf_sigma`` over the binning, and the zero point
+  and read noise in DN change by the ratios of the mode's published gain and
+  read noise to the unbinned mode's
+  (:func:`~spindoctor.sim.instrument_resolvers.resolve_readout_mode_scale`). A
+  core narrower than a pixel counts as one pixel, since the peak pixel can't
+  hold more than the whole star. On a 4x4-binned LORRI frame the limit is 3.0
+  magnitudes fainter than on a full-size frame at the same exposure.
 - ``tests/spindoctor/sim/test_information_boundary.py`` constructs a scene
   exercising every ``TRUTH_KEYS`` entry and asserts none is reachable through
   the filtered view. This test is the independence guarantee: any change that
@@ -3847,7 +3860,9 @@ pixels, shrinks by ``b``, so the star lands in fewer, brighter pixels. The hot
 pixels are the detector's native map summed into each binned pixel, the residual
 distortion's non-radial wander shrinks by ``b`` (``k1`` and ``k2`` act on the
 radius normalized to the frame), and the background sky's plate scale grows by
-``b``. The sky's faint cutoff reads the mode's read noise. Positions and sizes
+``b``. The sky's faint cutoff reads the mode's read noise. The navigator's view
+of the scene states the binning, as a real label does, and its faint-star limit
+follows the mode (see :ref:`sim-information-boundary`). Positions and sizes
 the scene states are in frame pixels whatever the mode. The realism match reads
 a cohort frame's mode from its size: a camera's full frame binned by ``b`` is
 its native size over ``b`` (the config entry's ``native_frame_size_px``).

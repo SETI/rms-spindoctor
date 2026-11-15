@@ -26,6 +26,7 @@ star color, and the PSF render the same for every filter.
 
 import copy
 from collections.abc import Mapping
+from dataclasses import dataclass
 from typing import Any
 
 from spindoctor.sim.artifact_modes import ARTIFACT_MODES
@@ -38,6 +39,7 @@ from spindoctor.sim.instrument_schema import OFFER_EVERY_MODE, canonical_filter_
 
 __all__ = [
     'FilterCatalogError',
+    'ReadoutModeScale',
     'binning_for_frame_size',
     'canonical_filter',
     'cataloged_binnings',
@@ -61,6 +63,7 @@ __all__ = [
     'resolve_psf_kernel',
     'resolve_psf_truncation_px',
     'resolve_readout_mode',
+    'resolve_readout_mode_scale',
     'resolve_sky_pixel_scale_arcsec',
     'resolve_star_flux_zero_point',
 ]
@@ -406,6 +409,53 @@ def resolve_readout_mode(instrument: str | None, binning: int) -> dict[str, Any]
     """
     modes = instrument_entry(instrument)['readout_modes']
     return copy.deepcopy(modes.get(int(binning), {}))
+
+
+@dataclass(frozen=True)
+class ReadoutModeScale:
+    """How a readout mode changes the unbinned mode's per-pixel DN values.
+
+    Both factors compare the mode's published gain and read noise with the unbinned
+    mode's, at the camera's default gain state.  The binning itself, which sums the
+    charge of ``binning**2`` native pixels, is not part of either factor.
+    """
+
+    dn_per_electron: float
+    """The DN one electron reads as in this mode, over the unbinned mode's."""
+
+    read_noise_dn: float
+    """The read noise of one frame pixel, in DN, in this mode over the unbinned mode's."""
+
+
+def resolve_readout_mode_scale(instrument: str | None, binning: int) -> ReadoutModeScale:
+    """Compare a CCD readout mode's published gain and read noise with the 1x1 mode's.
+
+    Each value is read at the camera's default gain state, from the mode's entry under
+    ``readout_modes`` over the entry's ``detector`` block, as the detector chain reads
+    them.  A mode that changes neither value, and binning 1, give factors of 1.
+
+    Parameters:
+        instrument: The sim instrument name, an alias, or ``None``.
+        binning: A binning factor from :func:`cataloged_binnings`.
+
+    Returns:
+        The mode's DN-per-electron and read-noise factors.
+
+    Raises:
+        ValueError: If the instrument is not in the catalog.
+        KeyError: If the camera's detector block isn't a CCD's, which states a gain
+            table, a default gain state, and a read noise.
+    """
+    native = resolve_detector_defaults(instrument)
+    mode = {**native, **resolve_readout_mode(instrument, binning)}
+    native_gain = float(native['gain_e_per_dn_by_state'][native['default_gain_state']])
+    mode_gain = float(mode['gain_e_per_dn_by_state'][mode['default_gain_state']])
+    native_read_noise_dn = float(native['read_noise_e']) / native_gain
+    mode_read_noise_dn = float(mode['read_noise_e']) / mode_gain
+    return ReadoutModeScale(
+        dn_per_electron=native_gain / mode_gain,
+        read_noise_dn=mode_read_noise_dn / native_read_noise_dn,
+    )
 
 
 def resolve_native_frame_size_px(instrument: str | None) -> int | None:

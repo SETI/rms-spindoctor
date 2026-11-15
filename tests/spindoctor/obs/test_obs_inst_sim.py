@@ -11,8 +11,12 @@ that a scene file is validated once although it is both loaded and rendered, and
 how the scene path is resolved.  The path of a scene handed over in memory is only
 a label, so resolving it must not reach storage; a scene read from a file or a URL must be
 fetched before it can be parsed.
+
+Last, they check that the faint-star limit follows the frame's readout binning and
+leaves an unbinned frame's limit as it was.
 """
 
+import math
 import re
 import warnings
 from pathlib import Path
@@ -140,3 +144,61 @@ def test_scene_url_is_fetched_before_it_is_parsed(
     # which an interpolated POSIX path does.
     obs = ObsSim.from_file(scene_path.as_uri())
     assert obs.sim_params['scene_name'] == 'pebble_url'
+
+
+def _star_limit(instrument: str, exposure_sec: float, binning: int | None = None) -> float:
+    """The faint-star limit of a star-free frame, binned by ``binning`` when given."""
+    scene: dict[str, Any] = {
+        'instrument': instrument,
+        'size_v': 64,
+        'size_u': 64,
+        'random_seed': 1,
+        'exposure_sec': exposure_sec,
+    }
+    if binning is not None:
+        scene['detector'] = {'binning': binning}
+    return ObsSim.from_file('/tmp/obs_sim_star_limit.yaml', sim_params=scene).star_max_usable_vmag()
+
+
+@pytest.mark.parametrize(
+    ('instrument', 'exposure_sec', 'expected'),
+    [
+        ('nhlorri', 5.0, 11.414754682632388),
+        ('coiss_nac', 1.0, 10.890967146275809),
+        ('coiss_wac', 1.0, 8.734411020746549),
+        ('gossi', 1.0, 5.692403499719424),
+    ],
+)
+def test_unbinned_star_limit_is_unchanged(
+    instrument: str, exposure_sec: float, expected: float
+) -> None:
+    """An unbinned frame's limit is the value the navigator's published block gives."""
+    assert _star_limit(instrument, exposure_sec) == pytest.approx(expected, rel=0.0, abs=1e-12)
+
+
+@pytest.mark.parametrize(
+    ('instrument', 'binning', 'expected_shift_mag'),
+    [
+        # Binned 4x4, the core covers 1/16 the pixels.  The mode's gain (19.4 e-/DN
+        # against 21) raises the zero point and the read noise in DN alike, so it
+        # cancels.
+        ('nhlorri', 4, 2.5 * math.log10(4**2)),
+        # Summed 2x2, the core covers a quarter the pixels, and the mode reads 44 e-
+        # against 31 at one gain.
+        ('gossi', 2, 2.5 * math.log10(2**2 * 31.0 / 44.0)),
+        # Summed 2x2, the 0.54 px core shrinks below one pixel, which holds it all.
+        ('coiss_nac', 2, 2.5 * math.log10(2.0 * math.pi * 0.54**2)),
+    ],
+    ids=['nhlorri-4x4', 'gossi-2x2', 'coiss_nac-2x2'],
+)
+def test_binned_star_limit_follows_the_readout_mode(
+    instrument: str, binning: int, expected_shift_mag: float
+) -> None:
+    """A binned frame's limit is fainter by as much as its peak pixel's SNR is higher.
+
+    A star's total charge is the same in both frames, so the limit moves by 2.5 log10 of
+    how much the peak pixel's share of the star, over the read noise per pixel, grows.
+    """
+    unbinned = _star_limit(instrument, 1.0)
+    binned = _star_limit(instrument, 1.0, binning)
+    assert binned - unbinned == pytest.approx(expected_shift_mag, rel=0.0, abs=1e-9)

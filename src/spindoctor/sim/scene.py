@@ -92,6 +92,7 @@ from spindoctor.sim.scene_schema import (
     TOP_LEVEL_TRUTH_KEYS,
     TRUTH_KEYS,
     SimSceneValidationError,
+    scene_binning,
 )
 from spindoctor.sim.scene_truth_echo import SimSceneTruthEchoWarning, check_truth_echo
 
@@ -408,6 +409,11 @@ def build_nav_params(sim_params: dict[str, Any]) -> dict[str, Any]:
     truth.  All values are deep copies, so navigator-side code cannot mutate the
     renderer's scene.
 
+    One value from the truth-side ``detector`` block crosses: the readout binning, as
+    a top-level ``binning`` key (1 when the scene sets none).  A real frame's label
+    states its readout mode, so a real pipeline always knows it.  Nothing else in the
+    block crosses.
+
     Where validation accepts a null, the null means the key is absent, and this view
     reads it that way.  For a key set to null inside ``nav_override``, the navigator
     sees the scene's own value.  After the overlay, a body or star key that is still
@@ -430,6 +436,9 @@ def build_nav_params(sim_params: dict[str, Any]) -> dict[str, Any]:
             nav[key] = copy.deepcopy(value)
         # Anything else (truth keys, unknown keys) stays behind the boundary:
         # the filter is default-deny.
+    # The readout binning is a commanded mode that a real frame's label states, so
+    # the navigator may know it; the rest of the detector block stays behind (#993).
+    nav['binning'] = scene_binning(sim_params)
     ring_system = sim_params.get('ring_system')
     if isinstance(ring_system, dict):
         nav['ring_system'] = _filter_ring_system(ring_system)
