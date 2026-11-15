@@ -44,7 +44,7 @@ from tests.integration.sim_realism import (
     pool_frame_pairs,
     twins_have_sky,
 )
-from tests.integration.sim_realism_report import _sky_comparison, _summary_dict
+from tests.integration.sim_realism_report import _sky_comparison, summary_dict
 from tests.integration.sim_realism_scenes import matched_scene
 from tests.integration.sim_realism_support import (
     FrameSamples,
@@ -393,7 +393,7 @@ def test_a_frame_without_real_sky_adds_nothing_on_the_sim_side() -> None:
 
 
 def test_a_constant_patch_adds_no_sky_noise() -> None:
-    """A patch whose sigma is 0, such as a zero-filled tile, is left out of the pool."""
+    """A patch whose sigma is 0 is left out of the pool."""
     real = _sky_frame_of([(0.0, 0.0), (_REF, 1e-4)])
     pair_sky(_sky_record(), real, _sky_frame(_REF), twins_with_sky=True)
     assert real.samples['sky_sigma'] == [1e-4]
@@ -549,8 +549,38 @@ def test_the_summary_counts_the_frames_that_added_sky_on_each_side() -> None:
             pair_sky(_sky_record(), _sky_frame(1e-4), FrameSamples(), twins_with_sky=False)
         )
     results = RealismResults(comparisons={'coiss_calib_nac': comparison}, runtime_sec=0.0)
-    summary = _summary_dict(results)
+    summary = summary_dict(results)
     assert summary['instruments']['coiss_calib_nac']['n_sky_frames'] == {'real': 2, 'sim': 0}
+
+
+def _pooled_star_comparison(n_real: int, n_sim: int) -> InstrumentComparison:
+    """An aggregated comparison of three frame pairs.
+
+    The first ``n_real`` real frames and the first ``n_sim`` matched frames add EE50
+    samples.
+    """
+    comparison = InstrumentComparison(instrument='coiss_calib_nac')
+    reals = [FrameSamples(samples={'star_ee50': [1.0] * 4} if i < n_real else {}) for i in range(3)]
+    sims = [FrameSamples(samples={'star_ee50': [1.2] * 4} if i < n_sim else {}) for i in range(3)]
+    comparison.records.extend(_sky_record() for _ in range(3))
+    pool_frame_pairs(comparison, reals, sims)
+    _aggregate(comparison)
+    return comparison
+
+
+def test_a_statistic_without_simulated_frames_is_unsupported() -> None:
+    """Real frames alone don't support a statistic: support counts both sides."""
+    comparison = _pooled_star_comparison(3, 0)
+    assert comparison.fom_support['fom2_psf'] == 'unsupported'
+
+
+def test_the_summary_labels_each_statistic_from_both_sides_frames() -> None:
+    """Each divergence entry carries both sides' frame counts and the smaller one's label."""
+    comparison = _pooled_star_comparison(3, 2)
+    results = RealismResults(comparisons={'coiss_calib_nac': comparison}, runtime_sec=0.0)
+    entry = summary_dict(results)['instruments']['coiss_calib_nac']['divergences']['star_ee50']
+    support = {k: entry[k] for k in ('n_real_frames', 'n_sim_frames', 'support')}
+    assert support == {'n_real_frames': 3, 'n_sim_frames': 2, 'support': 'limited'}
 
 
 def test_a_frame_off_the_downlink_table_is_grouped_as_native() -> None:

@@ -8,8 +8,8 @@ image-library cohort and matched simulated frames:
   quantile-clipped samples, normalized by the real distribution's IQR, plus
   cohort support labeling.
 - :mod:`spindoctor.sim.realism.noise`: sky-region statistics -- near-uniform
-  patch selection, the paired-difference noise estimator, and the sky spatial
-  power spectrum (FOM 1).
+  patch selection, the noise estimators for continuous and quantized patches,
+  and the sky spatial power spectrum (FOM 1).
 - :mod:`spindoctor.sim.realism.profiles`: star-cutout radial profiles and
   encircled energy (FOM 2), and edge-normal profile sampling shared by the
   limb (FOM 3) and ring-edge (FOM 4) comparisons.
@@ -47,7 +47,10 @@ from spindoctor.sim.realism.dynamic_range import (
 from spindoctor.sim.realism.noise import (
     SkyPatch,
     find_uniform_patches,
+    lattice_noise_sigma,
     paired_difference_sigma,
+    patch_noise_sigma,
+    quantization_step,
     radial_power_spectrum,
 )
 from spindoctor.sim.realism.profiles import (
@@ -68,9 +71,12 @@ __all__ = [
     'encircled_energy',
     'find_uniform_patches',
     'frame_dynamic_range',
+    'lattice_noise_sigma',
     'measure_artifact_rates',
     'paired_difference_sigma',
+    'patch_noise_sigma',
     'profile_rise_width',
+    'quantization_step',
     'radial_power_spectrum',
     'radial_profile',
     'stratify_by_exposure',
