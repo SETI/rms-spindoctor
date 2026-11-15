@@ -388,3 +388,86 @@ def test_an_empty_ring_modulation_starts_turned_off(qapp: QApplication) -> None:
     model._rebuild_dynamic_tabs()
     tab = model._tabs.widget(model._find_tab_by_properties('ring', 0))
     assert tab.azimuthal_modulation_group.isChecked() is False
+
+
+_RING_GEOMETRY: dict[str, Any] = {'opening_deg_obs': 90.0, 'opening_deg_sun': 90.0}
+
+
+@pytest.mark.parametrize(
+    'ring_system',
+    [None, {'geometry': _RING_GEOMETRY, 'features': None}],
+    ids=['null-block', 'null-features'],
+)
+def test_adding_a_ring_to_a_null_ring_system(
+    qapp: QApplication, ring_system: dict[str, Any] | None
+) -> None:
+    """Adding a ring where the ring system or its feature list is null adds one feature."""
+    scene = {**_FRAME_300_BY_400, 'random_seed': 42, 'ring_system': ring_system}
+    validate_sim_params(copy.deepcopy(scene), source='null ring scene')
+    model = _loaded(scene)
+    model._add_ring_tab()
+    assert len(model._ring_features()) == 1
+
+
+def test_a_kind_switch_fills_a_null_required_shape_key(qapp: QApplication) -> None:
+    """A switch to a kind that needs a null shape key writes the editor's starting width."""
+    feature = {
+        'name': 'Edge',
+        'kind': 'edge',
+        'tau': 1.0,
+        'width_px': None,
+        'orbit': {'a_px': 100.0},
+    }
+    scene = {
+        **_FRAME_300_BY_400,
+        'random_seed': 42,
+        'ring_system': {'geometry': _RING_GEOMETRY, 'features': [feature]},
+    }
+    validate_sim_params(copy.deepcopy(scene), source='null width scene')
+    model = _loaded(scene)
+    model._on_ring_kind(0, 'ringlet')
+    assert model.sim_params['ring_system']['features'][0]['width_px'] == 20.0
+
+
+def test_turning_on_a_ring_modulation_under_a_null_azimuthal_block(
+    qapp: QApplication,
+) -> None:
+    """Turning the modulation group on writes it when the azimuthal block is null."""
+    feature = {'name': 'Ring', 'kind': 'ringlet', 'tau': 1.0, 'width_px': 20.0}
+    scene = {
+        **_FRAME_300_BY_400,
+        'random_seed': 42,
+        'ring_system': {
+            'geometry': _RING_GEOMETRY,
+            'features': [{**feature, 'orbit': {'a_px': 100.0}}],
+            'azimuthal': None,
+        },
+    }
+    validate_sim_params(copy.deepcopy(scene), source='null azimuthal scene')
+    model = _loaded(scene)
+    model._on_ring_modulation_toggled(True)
+    assert 'modulation' in model.sim_params['ring_system']['azimuthal']
+
+
+# The first body sits at the frame center with no range, so the renderer draws it at
+# its default range of 1; the second sits apart from it.
+_UNSET_RANGE_BODY: dict[str, Any] = {'axis1': 20.0, 'axis2': 20.0, 'range_km': None}
+_APART_BODY: dict[str, Any] = {'axis1': 20.0, 'axis2': 20.0, 'center_v': 40.0, 'center_u': 40.0}
+
+
+def test_an_added_body_skips_an_unset_bodys_default_range(qapp: QApplication) -> None:
+    """A body added beside one whose range is null takes a range the other doesn't use."""
+    model = _loaded({**_FRAME_300_BY_400, 'random_seed': 42, 'bodies': [_UNSET_RANGE_BODY]})
+    model._add_body_tab()
+    assert model.sim_params['bodies'][1]['range_km'] == 2.0
+
+
+def test_an_unset_range_counts_toward_the_duplicate_warning(qapp: QApplication) -> None:
+    """A body whose null range defaults to another body's explicit range raises the warning."""
+    scene = {
+        **_FRAME_300_BY_400,
+        'random_seed': 42,
+        'bodies': [_UNSET_RANGE_BODY, {**_APART_BODY, 'range_km': 1.0}],
+    }
+    validate_sim_params(copy.deepcopy(scene), source='duplicate range scene')
+    assert _loaded(scene)._warning_label.text() == 'Warning: duplicate body ranges'

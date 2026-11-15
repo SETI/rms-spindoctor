@@ -72,7 +72,7 @@ from spindoctor.sim.instrument_resolvers import (
     resolve_sky_pixel_scale_arcsec,
     resolve_star_flux_zero_point,
 )
-from spindoctor.sim.scene_schema import scene_binning, scene_value
+from spindoctor.sim.scene_schema import default_body_range_km, scene_binning, scene_value
 from spindoctor.sim.seeds import derive_effect_seed
 from spindoctor.sim.star_records import DEFAULT_PSF_SIZE
 from spindoctor.support.stable_math import stable_hypot
@@ -267,7 +267,7 @@ def compose_scene_radiance(
         # The positional default name and range are applied once here, so
         # every name-keyed consumer (render order, masks, inventory) sees the
         # same identity and two unnamed bodies cannot collide.
-        range_km = float(body_number + 1) if spec.range_km is None else spec.range_km
+        range_km = default_body_range_km(body_number) if spec.range_km is None else spec.range_km
         truth_params = {key: value for key, value in body_params.items() if value is not None}
         truth_params['name'] = spec.name
         truth_params['range_km'] = range_km

@@ -36,7 +36,7 @@ from spindoctor.cli.sim_editor.body_mesh_keys import (
     stash_message,
 )
 from spindoctor.sim.forward.body_spec import body_spec_from_params
-from spindoctor.sim.scene_schema import default_body_name, scene_value
+from spindoctor.sim.scene_schema import default_body_name, default_body_range_km, scene_value
 
 # Tooltip for the center spin boxes, which write the scene value directly.
 _CENTER_TOOLTIP = (
@@ -95,8 +95,7 @@ class BodyTabMixin(SimEditorBase):
         rng = QDoubleSpinBox()
         rng.setRange(-1e9, 1e9)
         rng.setDecimals(3)
-        # If the range is unset, the renderer uses the body's list position plus one.
-        rng.setValue(float(idx + 1) if spec.range_km is None else spec.range_km)
+        rng.setValue(default_body_range_km(idx) if spec.range_km is None else spec.range_km)
         rng.valueChanged.connect(
             lambda v, i=idx: self._on_body_field(i, 'range_km', v, trigger_validate=True)
         )

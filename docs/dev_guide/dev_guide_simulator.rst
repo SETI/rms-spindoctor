@@ -4127,10 +4127,14 @@ value the renderer draws with:
 * **Values outside a control's range.** A control shows the nearest end of its range.
   For example, if a body's ``axis1`` is unset, the renderer draws that axis as 0, and
   its control shows its minimum, 1 pixel.
-* **Unnamed and uncentered bodies.** A body whose name is unset shows the name the
-  renderer gives it, from :func:`~spindoctor.sim.scene_schema.default_body_name`
-  (``SIM-BODY-1`` for the first body). A body whose center is unset shows the frame
-  center.
+* **Bodies whose name, center, or range is unset.** A body whose name is unset shows
+  the name the renderer gives it, from
+  :func:`~spindoctor.sim.scene_schema.default_body_name` (``SIM-BODY-1`` for the first
+  body). A body whose center is unset shows the frame center. A body whose range is
+  unset shows the range the renderer gives it, from
+  :func:`~spindoctor.sim.scene_schema.default_body_range_km` (1 for the first body).
+  The editor counts that range when it picks a range for an added body and when it
+  warns that two bodies share a range.
 * **Values derived from other keys.** An unset ``axis3`` is drawn as the smaller of
   ``axis1`` and ``axis2``, and an unset center is the frame center. Their controls
   update when the author edits an axis or changes the frame size. Neither key is

@@ -449,8 +449,9 @@ class RingTabMixin(SimEditorBase):
             rule = rules.get(key)
             if rule is None:
                 feature.pop(key, None)
-            elif rule == 'required':
-                feature.setdefault(key, _SHAPE_KEY_DEFAULTS[key])
+            elif rule == 'required' and feature.get(key) is None:
+                # A null shape key reads as absent, so it takes the default too.
+                feature[key] = _SHAPE_KEY_DEFAULTS[key]
 
     def _on_ring_navigable(self, idx: int, checked: bool) -> None:
         """Toggle the feature's navigability flag."""
