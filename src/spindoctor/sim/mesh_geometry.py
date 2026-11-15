@@ -266,6 +266,179 @@ def _light_direction(illumination_angle: float, phase_angle: float) -> NDArrayFl
     return _as_float64(light / norm)
 
 
+# Most candidate pixels one rasterization batch tests.  This bounds only the
+# per-candidate arrays (about twenty of this length, near 10 MB); larger batches
+# measured no faster.  The rest of the working memory is not bounded by it: the
+# per-(face, box row) arrays take about 130 bytes per row, so they grow with the total
+# height of all the face boxes (the mesh's face count times their size on the grid),
+# and the whole-grid buffers (depth, shade, and the int32 tie-break owner) take 20
+# bytes per grid pixel.
+_RASTER_BATCH_PIXELS = 2**16
+# Sentinel for "no face yet" in the per-pixel tie-break buffer.
+_NO_FACE = np.iinfo(np.int32).max
+
+
+def _rasterize_faces(
+    *,
+    px: NDArrayFloatType,
+    py: NDArrayFloatType,
+    depth: NDArrayFloatType,
+    faces: NDArrayIntType,
+    face_intensity: NDArrayFloatType,
+    vertex_intensity: NDArrayFloatType | None,
+    grid_size: tuple[int, int],
+) -> tuple[NDArrayFloatType, NDArrayFloatType]:
+    """Z-buffer and shade a list of projected triangles.
+
+    A face covers the pixels of its bounding box (clipped to the grid) whose centers
+    have all three barycentric weights >= 0, and a face whose projected area is below
+    1e-9 square pixels covers nothing.  At each pixel the covering face with the
+    greatest interpolated depth wins, and among faces at exactly that depth the one
+    listed first wins: the result of drawing the faces one at a time in list order
+    with a strict ``>`` depth test.
+
+    Parameters:
+        px: ``(N,)`` vertex column coordinates in pixel-corner units.
+        py: ``(N,)`` vertex row coordinates in pixel-corner units.
+        depth: ``(N,)`` vertex depths, larger nearer the observer.
+        faces: ``(M, 3)`` vertex indices of the faces to draw, in priority order.
+        face_intensity: ``(M,)`` flat shade of each face.
+        vertex_intensity: ``(N,)`` per-vertex shade interpolated across each face
+            (Gouraud), or None to shade each face with ``face_intensity``.
+        grid_size: ``(height, width)`` of the grid.
+
+    Returns:
+        The ``(height, width)`` depth buffer (``-inf`` where no face covers a pixel)
+        and the shade buffer (0 there).
+    """
+    height, width = grid_size
+    z_buffer = np.full((height, width), -np.inf, dtype=np.float64)
+    intensity = np.zeros((height, width), dtype=np.float64)
+    xs = px[faces]
+    ys = py[faces]
+    ds = depth[faces]
+
+    # Clip the boxes in floating point, before any integer conversion, so a vertex
+    # far off the grid cannot overflow the cast.
+    box_x0 = np.maximum(np.floor(xs.min(axis=1)), 0.0)
+    box_x1 = np.minimum(np.ceil(xs.max(axis=1)), float(width - 1))
+    box_y0 = np.maximum(np.floor(ys.min(axis=1)), 0.0)
+    box_y1 = np.minimum(np.ceil(ys.max(axis=1)), float(height - 1))
+    x0, x1, x2 = xs[:, 0], xs[:, 1], xs[:, 2]
+    y0, y1, y2 = ys[:, 0], ys[:, 1], ys[:, 2]
+    area = (x1 - x0) * (y2 - y0) - (x2 - x0) * (y1 - y0)
+    drawn = (box_x0 <= box_x1) & (box_y0 <= box_y1) & (np.abs(area) >= 1e-9)
+    keep = np.nonzero(drawn)[0]
+    if keep.size == 0:
+        return z_buffer, intensity
+
+    # Per-face quantities, kept faces only, in priority order.  The weight of each
+    # vertex is the edge function of the opposite edge over the area, written with
+    # exactly the operations and operand order of the one-face formula so every
+    # weight, depth, and shade is bit-identical to drawing that face alone.
+    x0, x1, x2 = x0[keep], x1[keep], x2[keep]
+    y0, y1, y2 = y0[keep], y1[keep], y2[keep]
+    d0, d1, d2 = ds[keep, 0], ds[keep, 1], ds[keep, 2]
+    area = area[keep]
+    e0x, e0y = x1 - x0, y1 - y0
+    e1x, e1y = x2 - x1, y2 - y1
+    e2x, e2y = x0 - x2, y0 - y2
+    col0 = box_x0[keep].astype(np.int64)
+    row0 = box_y0[keep].astype(np.int64)
+    n_cols = box_x1[keep].astype(np.int64) - col0 + 1
+    n_rows = box_y1[keep].astype(np.int64) - row0 + 1
+    flat_shade = face_intensity[keep]
+    vertex_shades = None if vertex_intensity is None else vertex_intensity[faces[keep]]
+
+    # One entry per (face, box row), carrying what the weight tests need.  Along a row
+    # the pixel-center v is constant, so each weight's first product is computed once
+    # per row.  The boxes are named by array rows and columns and the projected
+    # vertices are in the geometry layer's pixel corner coordinates, so the half pixel
+    # goes on to the row and column indices.
+    row_face = np.repeat(np.arange(keep.size, dtype=np.int32), n_rows)
+    row_first = np.cumsum(n_rows) - n_rows
+    row_v = row0[row_face] + (np.arange(row_face.size) - np.repeat(row_first, n_rows))
+    gy = row_v + PIXEL_CENTER_TO_CORNER_PX
+    row_a0 = e0x[row_face] * (gy - y0[row_face])
+    row_a1 = e1x[row_face] * (gy - y1[row_face])
+    row_a2 = e2x[row_face] * (gy - y2[row_face])
+    row_e0y, row_e1y, row_e2y = e0y[row_face], e1y[row_face], e2y[row_face]
+    row_x0, row_x1, row_x2 = x0[row_face], x1[row_face], x2[row_face]
+    row_area = area[row_face]
+    row_col0 = col0[row_face]
+    row_len = n_cols[row_face]
+    row_end = np.cumsum(row_len)
+
+    z_flat = z_buffer.reshape(-1)
+    shade_flat = intensity.reshape(-1)
+    owner = np.full(height * width, _NO_FACE, dtype=np.int32)
+    # The rows are drawn in batches, in face order.  The winners within a batch are
+    # resolved together, and a batch takes a pixel only from an earlier batch that
+    # holds it at a strictly smaller depth, which keeps the one-at-a-time rule exact.
+    start = 0
+    while start < row_face.size:
+        done = int(row_end[start - 1]) if start > 0 else 0
+        stop = int(np.searchsorted(row_end, done + _RASTER_BATCH_PIXELS, side='right'))
+        stop = max(stop, start + 1)
+        rows = slice(start, stop)
+        lens = row_len[rows]
+        start = stop
+
+        # Test the weights one at a time, dropping the pixels each one rejects.  The
+        # first test runs on every box pixel, so its row values are expanded by
+        # repetition rather than gathered.
+        cand_row = np.repeat(np.arange(rows.start, rows.stop), lens)
+        cand_u = np.repeat(row_col0[rows] - (np.cumsum(lens) - lens), lens)
+        cand_u += np.arange(cand_u.size)
+        gx = cand_u + PIXEL_CENTER_TO_CORNER_PX
+        w0 = (
+            np.repeat(row_a0[rows], lens)
+            - np.repeat(row_e0y[rows], lens) * (gx - np.repeat(row_x0[rows], lens))
+        ) / np.repeat(row_area[rows], lens)
+        sel = np.nonzero(w0 >= 0)[0]
+        cand_row, cand_u, w0 = cand_row[sel], cand_u[sel], w0[sel]
+        gx = cand_u + PIXEL_CENTER_TO_CORNER_PX
+        w1 = (row_a1[cand_row] - row_e1y[cand_row] * (gx - row_x1[cand_row])) / row_area[cand_row]
+        sel = np.nonzero(w1 >= 0)[0]
+        cand_row, cand_u, w0, w1 = cand_row[sel], cand_u[sel], w0[sel], w1[sel]
+        gx = cand_u + PIXEL_CENTER_TO_CORNER_PX
+        w2 = (row_a2[cand_row] - row_e2y[cand_row] * (gx - row_x2[cand_row])) / row_area[cand_row]
+        sel = np.nonzero(w2 >= 0)[0]
+        cand_row, w0, w1, w2 = cand_row[sel], w0[sel], w1[sel], w2[sel]
+        cand_face = row_face[cand_row]
+        cand_pix = row_v[cand_row] * width + cand_u[sel]
+        cand_depth = w0 * d2[cand_face] + w1 * d0[cand_face] + w2 * d1[cand_face]
+
+        # A candidate must beat what the earlier batches left at its pixel; within the
+        # batch the greatest depth wins, and an exact depth tie goes to the face
+        # listed first.
+        sel = np.nonzero(cand_depth > z_flat[cand_pix])[0]
+        cand_face, cand_pix, cand_depth = cand_face[sel], cand_pix[sel], cand_depth[sel]
+        w0, w1, w2 = w0[sel], w1[sel], w2[sel]
+        np.maximum.at(z_flat, cand_pix, cand_depth)
+        sel = np.nonzero(cand_depth == z_flat[cand_pix])[0]
+        cand_face, cand_pix, cand_depth = cand_face[sel], cand_pix[sel], cand_depth[sel]
+        w0, w1, w2 = w0[sel], w1[sel], w2[sel]
+        np.minimum.at(owner, cand_pix, cand_face)
+        sel = np.nonzero(cand_face == owner[cand_pix])[0]
+        owner[cand_pix] = _NO_FACE
+        cand_face, cand_pix = cand_face[sel], cand_pix[sel]
+        # Store the winner's own depth: of two tied zeros of opposite sign,
+        # np.maximum.at may have kept the other one.  Only the depth buffer can see
+        # this, never the shade, but it keeps that buffer bit-identical to drawing
+        # the faces one at a time.
+        z_flat[cand_pix] = cand_depth[sel]
+        if vertex_shades is None:
+            shade_flat[cand_pix] = flat_shade[cand_face]
+        else:
+            shade_flat[cand_pix] = (
+                w0[sel] * vertex_shades[cand_face, 2]
+                + w1[sel] * vertex_shades[cand_face, 0]
+                + w2[sel] * vertex_shades[cand_face, 1]
+            )
+    return z_buffer, intensity
+
+
 def render_polyhedral_body(
     *,
     size: tuple[int, int],
@@ -306,10 +479,14 @@ def render_polyhedral_body(
         A ``(size_v, size_u)`` float array in [0, 1].
 
     Raises:
-        ValueError: On an unknown shading mode.
+        ValueError: On an unknown shading mode, or a center that is not finite.
     """
     if shading not in ('flat', 'gouraud'):
         raise ValueError(f"shading must be 'flat' or 'gouraud'; got {shading!r}")
+    # A non-finite center would project every face off the grid and render a blank
+    # body without complaint.
+    if not (math.isfinite(center[0]) and math.isfinite(center[1])):
+        raise ValueError(f'center must be finite; got {center!r}')
     size_v, size_u = size
     aa_scale = int(1 + 3 * anti_aliasing) if anti_aliasing > 0 else 1
     height = size_v * aa_scale
@@ -350,50 +527,16 @@ def render_polyhedral_body(
         vertex_intensity = np.clip(stable_matmul3(vertex_normals, light), _DARK_SIDE_ILLUM, 1.0)
 
     front = (unit_normals[:, 2] > 0.0) & (norm_mag > 1e-9)
-
-    z_buffer = np.full((height, width), -np.inf, dtype=np.float64)
-    intensity = np.zeros((height, width), dtype=np.float64)
-
-    for face_idx in np.nonzero(front)[0]:
-        tri = mesh.faces[face_idx]
-        xs = px[tri]
-        ys = py[tri]
-        ds = depth[tri]
-        min_x = max(int(np.floor(xs.min())), 0)
-        max_x = min(int(np.ceil(xs.max())), width - 1)
-        min_y = max(int(np.floor(ys.min())), 0)
-        max_y = min(int(np.ceil(ys.max())), height - 1)
-        if min_x > max_x or min_y > max_y:
-            continue
-        area = (xs[1] - xs[0]) * (ys[2] - ys[0]) - (xs[2] - xs[0]) * (ys[1] - ys[0])
-        if abs(area) < 1e-9:
-            continue
-        # The face's box is named by array rows and columns and the projected
-        # vertices are in the geometry layer's pixel corner coordinates, so the
-        # half pixel goes on here.
-        gx, gy = np.meshgrid(
-            np.arange(min_x, max_x + 1) + PIXEL_CENTER_TO_CORNER_PX,
-            np.arange(min_y, max_y + 1) + PIXEL_CENTER_TO_CORNER_PX,
-        )
-        w0 = ((xs[1] - xs[0]) * (gy - ys[0]) - (ys[1] - ys[0]) * (gx - xs[0])) / area
-        w1 = ((xs[2] - xs[1]) * (gy - ys[1]) - (ys[2] - ys[1]) * (gx - xs[1])) / area
-        w2 = ((xs[0] - xs[2]) * (gy - ys[2]) - (ys[0] - ys[2]) * (gx - xs[2])) / area
-        inside = (w0 >= 0) & (w1 >= 0) & (w2 >= 0)
-        if not inside.any():
-            continue
-        # Barycentric depth: weights are the opposite-vertex sub-triangle areas.
-        depth_pix = w0 * ds[2] + w1 * ds[0] + w2 * ds[1]
-        sub = z_buffer[min_y : max_y + 1, min_x : max_x + 1]
-        win = inside & (depth_pix > sub)
-        sub[win] = depth_pix[win]
-        if vertex_intensity is None:
-            intensity[min_y : max_y + 1, min_x : max_x + 1][win] = float(face_intensity[face_idx])
-        else:
-            # Gouraud: interpolate the vertex intensities with the same
-            # barycentric weight-to-vertex pairing as the depth above.
-            iv = vertex_intensity[tri]
-            shade_pix = w0 * iv[2] + w1 * iv[0] + w2 * iv[1]
-            intensity[min_y : max_y + 1, min_x : max_x + 1][win] = shade_pix[win]
+    front_idx = np.nonzero(front)[0]
+    _, intensity = _rasterize_faces(
+        px=px,
+        py=py,
+        depth=depth,
+        faces=mesh.faces[front_idx],
+        face_intensity=face_intensity[front_idx],
+        vertex_intensity=vertex_intensity,
+        grid_size=(height, width),
+    )
 
     if aa_scale > 1:
         intensity = intensity.reshape(size_v, aa_scale, size_u, aa_scale).mean(axis=(1, 3))
