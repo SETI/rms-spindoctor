@@ -4574,10 +4574,11 @@ on the ring plane (``stars.ring_occlusion_min_opaque_fraction``).  The navigator
 skips the test for a star that overlaps another star, because it already leaves
 such a star out of navigation.  The matched scene applies the test to every
 star, since in a dense field most stars overlap another: 8,600 of the 9,393 stars
-in and around W1580760393 do.  It tests all the stars together, which takes about
-half a minute on W1580760393.  A field that has no catalog star inside the frame
-gives a matched frame without stars.  The catalogs and the SPICE kernels are deterministic, so the
-matched star scene is reproducible from the real frame.
+in and around W1580760393 do.  It tests up to 2,000 stars at a time in one
+geometry pass, which takes about half a minute for the five passes on
+W1580760393.  A field that has no catalog star inside the frame gives a matched
+frame without stars.  The catalogs and the SPICE kernels are deterministic, so
+the matched star scene is reproducible from the real frame.
 
 The simulator's star brightness is not yet tied to a brightness scale measured on
 real star images.  A simulated star can come out fainter than a real star of the
@@ -5042,12 +5043,12 @@ navigation pairs.  Outputs:
   committed record backing the report's tables (divergences, support
   labels, FOM 7 rows, runtime).
 
-The full-cohort run (75 frames as of 2026-07-18) takes 20 to 22 minutes
-on a workstation with local holdings.  The recorded 2026-07-17/18 runs took
-18.8 to 21.3 minutes, and building the 19 star frames' catalog star lists
-adds about one minute (62 seconds measured on 2026-11-15, 45 of them on
-W1580760393).  The cost is dominated by the navigator's feature extraction
-on the real frames and the full-size matched renders.  ``--skip-fom7`` saves about 17% -- the navigation
+The full-cohort run takes about 38 minutes on a workstation with local
+holdings.  The committed record of 2026-11-07 took 37 minutes (2,231 seconds),
+and building the 19 star frames' catalog star lists adds about one minute
+(62 seconds measured on 2026-11-15, 45 of them on W1580760393).  The cost is
+dominated by the navigator's feature extraction on the real frames and the
+full-size matched renders.  ``--skip-fom7`` saves about 17% -- the navigation
 pairs are a handful of frames per instrument, not a large share of the
 cost.  ``tests/integration/test_sim_realism.py`` carries the
 ``sim_integration`` tests, which the default selection runs. They check that the

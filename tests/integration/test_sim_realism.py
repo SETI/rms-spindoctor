@@ -395,6 +395,30 @@ def test_a_twin_star_behind_a_body_or_ring_is_left_out(
     assert (len(entries) == 1) is kept
 
 
+@pytest.mark.parametrize('stars_per_backplane', [2000, 2], ids=['one-batch', 'three-batches'])
+def test_each_twin_star_reads_its_own_window(
+    monkeypatch: pytest.MonkeyPatch, stars_per_backplane: int
+) -> None:
+    """Hidden and visible stars in mixed order keep exactly the visible ones.
+
+    Five stars lie on Saturn's disc, open sky, open sky, the B ring, and open sky, an
+    order that reads differently backward, so a flag read from the wrong star's window,
+    a batch read twice, or flags returned in the wrong order keep a hidden star or drop
+    a visible one.  With two stars to a backplane the five stars span three batches, the
+    last one partial.
+    """
+    monkeypatch.setattr(sim_realism_twin_stars, '_STARS_PER_BACKPLANE', stars_per_backplane)
+    stars = [
+        _FakeStar(v=500.0, u=200.0, unique_number=1),
+        _FakeStar(v=500.0, u=500.0, unique_number=2),
+        _FakeStar(v=600.0, u=600.0, unique_number=3),
+        _FakeStar(v=950.0, u=500.0, unique_number=4),
+        _FakeStar(v=700.0, u=700.0, unique_number=5),
+    ]
+    entries, _ = _twin_stars_from_fake_catalog(monkeypatch, stars)
+    assert sorted(entry['name'] for entry in entries) == ['UCAC4-2', 'UCAC4-3', 'UCAC4-5']
+
+
 def test_matched_scene_is_deterministic() -> None:
     """The same image_id yields byte-identical scene dicts."""
     a = matched_scene(
