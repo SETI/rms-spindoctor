@@ -22,20 +22,19 @@ from typing import Any, cast
 import numpy as np
 import pytest
 
-from spindoctor.config import DEFAULT_CONFIG
+from spindoctor.config import DEFAULT_CONFIG, Config
+from spindoctor.obs import ObsSnapshotInst
 from spindoctor.sim.forward.detector.params import resolve_detector_params
-from spindoctor.sim.forward.scene_radiance import _nominal_read_noise
-from spindoctor.sim.forward.star import total_flux_for_vmag
-from spindoctor.sim.instrument_navigator import resolve_sim_inst_config
+from spindoctor.sim.forward.scene_radiance import sky_star_faint_cutoff_mag
 from spindoctor.sim.instrument_resolvers import (
     resolve_calibrated_sky_if,
     resolve_dark_sky_ceiling_if,
     resolve_native_frame_size_px,
-    resolve_star_flux_zero_point,
 )
 from spindoctor.sim.realism.noise import SkyPatch
 from spindoctor.sim.render import render_combined_model
 from spindoctor.sim.scene import validate_sim_params
+from tests.integration import sim_realism_twin_stars
 from tests.integration.sim_realism import (
     INSTRUMENT_FOR,
     FrameRecord,
@@ -59,7 +58,11 @@ from tests.integration.sim_realism_support import (
     add_sky_samples,
     extract_pixel_samples,
 )
-from tests.integration.sim_realism_twin_stars import twin_faint_cutoff_vmag, twin_star_entries
+from tests.integration.sim_realism_twin_stars import (
+    catalog_twin_stars,
+    twin_faint_cutoff_vmag,
+    twin_star_entries,
+)
 from tests.spindoctor.inst.conftest import VicarLabelStandIn
 
 pytestmark = [pytest.mark.integration, pytest.mark.sim_integration]
@@ -215,15 +218,17 @@ def test_a_twin_star_fainter_than_the_cutoff_is_left_out() -> None:
         (1024.0, 500.0, False),
         (500.0, -1.0, False),
         (500.0, 1024.0, False),
+        (0.0, 500.0, True),
         (500.0, 0.0, True),
     ],
-    ids=['above', 'below', 'left', 'right', 'on-the-edge'],
+    ids=['above', 'below', 'left', 'right', 'on-the-top-edge', 'on-the-left-edge'],
 )
 def test_a_twin_star_moved_outside_the_frame_is_left_out(v: float, u: float, kept: bool) -> None:
     """Each frame edge drops a star whose moved position lies past it.
 
-    Each star is predicted 10 pixels from where it lands, so a star predicted outside
-    the frame is kept when the offset moves it in.
+    Each star is predicted 10 pixels above and to the right of where it lands.  The
+    star on the top edge is predicted outside the frame, and it is kept because the
+    offset moves it in.
     """
     entries = _entries([_FakeStar(v=v - 10.0, u=u + 10.0)], offset_vu=(10.0, -10.0))
     assert (len(entries) == 1) is kept
@@ -238,6 +243,23 @@ def test_a_twin_star_hidden_behind_a_body_or_ring_is_left_out(conflicts: str, ke
     """A star the real frame can't show is left out; a star beside another star isn't."""
     entries = _entries([_FakeStar(v=500.0, u=500.0, conflicts=conflicts)])
     assert (len(entries) == 1) is kept
+
+
+@pytest.mark.parametrize(
+    ('second', 'count'),
+    [
+        (_FakeStar(v=500.0, u=500.0), 1),
+        (_FakeStar(v=500.0, u=500.0, catalog_name='tycho2'), 2),
+        (_FakeStar(v=500.0, u=500.0, unique_number=8), 2),
+    ],
+    ids=['listed-twice', 'other-catalog', 'other-number'],
+)
+def test_a_twin_star_listed_twice_by_its_catalog_is_kept_once(
+    second: _FakeStar, count: int
+) -> None:
+    """A second entry with the same catalog and catalog number is dropped; others aren't."""
+    entries = _entries([_FakeStar(v=500.0, u=500.0), second])
+    assert len(entries) == count
 
 
 def test_twin_star_entries_are_rounded_and_named_from_the_catalog() -> None:
@@ -257,20 +279,80 @@ def test_twin_star_entries_do_not_depend_on_the_catalog_order() -> None:
     assert _entries(shuffled) == _entries(stars)
 
 
-def test_the_twin_cutoff_is_where_clear_filter_flux_meets_the_read_noise() -> None:
-    """At the cutoff a star's clear-filter flux equals the read noise over its PSF core.
+def test_the_twin_cutoff_is_the_renderers_sky_star_cutoff_for_its_clear_scene() -> None:
+    """The twin cutoff is the renderer's background-sky-star cutoff for the twin's scene.
 
-    A 400-pixel Galileo frame is binned 2x2, so the read noise is the binned mode's and
-    the core is half as wide in its pixels.
+    A 400-pixel Galileo frame is binned 2x2, so the scene's read noise is the binned
+    mode's and its PSF is the camera's kernel in binned pixels.
     """
+    scene = matched_scene('G1', 'star_dominated', 'gossi', 2.0, size_vu=(400, 400), stars=[])
     cutoff = twin_faint_cutoff_vmag('gossi', 2.0, (400, 400))
-    zero_point, domain = resolve_star_flux_zero_point('gossi')
-    sigma = float(resolve_sim_inst_config(DEFAULT_CONFIG, 'gossi')['star_psf_sigma']) / 2
-    core_noise = _nominal_read_noise('gossi', domain, binning=2) * np.sqrt(
-        max(2.0 * np.pi * sigma**2, 1.0)
+    assert cutoff == sky_star_faint_cutoff_mag(scene)
+
+
+def _twin_stars_from_fake_catalog(
+    monkeypatch: pytest.MonkeyPatch, stars: list[_FakeStar], *, hidden: frozenset[int]
+) -> tuple[list[dict[str, Any]], dict[str, float]]:
+    """Run the twin's catalog query on a 1.2 s NAC frame against a fake catalog.
+
+    Parameters:
+        monkeypatch: The test's monkeypatch fixture.
+        stars: The fake catalog's stars in the frame.  The fake reduction returns at
+            most as many of them as the config's ``stars.max_stars`` allows.
+        hidden: The catalog numbers the fake body and ring check marks as behind a
+            body.
+
+    Returns:
+        The twin's scene star entries, and the faint limit the reduction was given
+        under ``'faint_vmag'``.
+    """
+    asked: dict[str, float] = {}
+
+    def reduce(obs: ObsSnapshotInst, config: Config, **_: Any) -> list[_FakeStar]:
+        asked['faint_vmag'] = obs.star_max_usable_vmag()
+        return list(stars[: config.stars.max_stars])
+
+    def mark(_obs: ObsSnapshotInst, _config: Config, found: list[_FakeStar]) -> None:
+        for star in found:
+            if star.unique_number in hidden:
+                star.conflicts = 'BODY: MIMAS'
+
+    monkeypatch.setattr(sim_realism_twin_stars, 'reduce_catalogs', reduce)
+    monkeypatch.setattr(sim_realism_twin_stars, 'mark_body_and_ring_conflicts', mark)
+    # The navigator's own faint limit is far brighter than the twin's cutoff.
+    obs = SimpleNamespace(data_shape_vu=_NAC_FULL, star_max_usable_vmag=lambda: 9.5)
+    entries = catalog_twin_stars(
+        cast(ObsSnapshotInst, obs),
+        instrument='coiss_calib_nac',
+        exposure_sec=1.2,
+        offset_vu=(0.0, 0.0),
     )
-    flux = total_flux_for_vmag(cutoff, zero_point=zero_point, exposure_sec=2.0)
-    assert flux == pytest.approx(core_noise)
+    return entries, asked
+
+
+def test_the_twin_catalog_query_reaches_the_twin_cutoff(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The catalog reduction is asked for stars down to the twin cutoff."""
+    _, asked = _twin_stars_from_fake_catalog(
+        monkeypatch, [_FakeStar(v=500.0, u=500.0)], hidden=frozenset()
+    )
+    assert asked['faint_vmag'] == twin_faint_cutoff_vmag('coiss_calib_nac', 1.2, _NAC_FULL)
+
+
+def test_the_twin_catalog_query_keeps_more_stars_than_the_navigators_cap(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A field denser than the navigator's star cap keeps every star in the twin."""
+    count = int(DEFAULT_CONFIG.stars.max_stars) + 50
+    stars = [_FakeStar(v=5.0 + 6.0 * i, u=500.0, unique_number=i) for i in range(count)]
+    entries, _ = _twin_stars_from_fake_catalog(monkeypatch, stars, hidden=frozenset())
+    assert len(entries) == count
+
+
+def test_a_twin_star_the_conflict_check_hides_is_left_out(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The body and ring check runs on the twin's stars, and a hidden star is left out."""
+    stars = [_FakeStar(v=100.0, u=100.0, unique_number=1), _FakeStar(v=200.0, u=200.0)]
+    entries, _ = _twin_stars_from_fake_catalog(monkeypatch, stars, hidden=frozenset({1}))
+    assert [entry['name'] for entry in entries] == ['UCAC4-7']
 
 
 def test_matched_scene_is_deterministic() -> None:

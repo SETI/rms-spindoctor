@@ -4515,10 +4515,12 @@ instrument, on seven figures of merit:
    side.  The navigator predicts each star's signal without allowing for the
    frame's filter, and on a simulated calibrated frame it predicts from a fixed
    placeholder limit.  The star techniques' predicted SNR and brightness margin
-   therefore can't be compared between the real and simulated frames.  They can
-   be compared once the navigator's prediction allows for the filter.
+   therefore can't be compared between the real and simulated frames.  Two things
+   have to change before they can be: the prediction has to allow for the filter,
+   and the simulated frame needs a star limit worked out from the camera in place
+   of the placeholder.
 
-   .. The star prediction's filter handling is issue 899.
+   .. The star prediction's filter handling and the placeholder limit are issue 899.
 
 Matched frames
 --------------
@@ -4543,19 +4545,38 @@ dims every star by the throughput of the real frame's filter, as the real filter
 does, so the filter decides how many of the stars can be seen.  Through a narrow
 filter, only the field's few bright stars show.
 
-The list stops at a faint cutoff that depends on the camera and the exposure,
-but not on the filter.  In the simulated camera, a star at the cutoff delivers,
-through the clear filter, a total signal equal to the read noise over the star's
-core.  Finding a star takes several times that signal, so the list holds every
-star the simulated camera could show through the clear filter, and no filter
-shows a star the clear filter can't.
-Like the navigator's own list, it holds at most the 100 brightest stars
-(``stars.max_stars``).  A star that lies behind a body or an opaque ring in the
-real frame is left out, because the real frame can't show it and the matched
-star scene has no body or ring to hide it.  A field that has no catalog star
-inside the frame gives a matched frame without stars.  The catalogs and the
-SPICE kernels are deterministic, so the matched star scene is reproducible from
-the real frame.
+The list stops at a faint cutoff that depends on the camera, the exposure, and
+the readout binning, but not on the filter.  It is the cutoff the renderer uses
+for its background sky stars
+(:func:`spindoctor.sim.forward.scene_radiance.sky_star_faint_cutoff_mag`), worked
+out for the matched scene through the clear filter.  A star at the cutoff delivers
+a total signal equal to the camera's read noise over the star's core.  The core
+covers 2π σ² pixels, where σ is the Gaussian width of the matched scene's star
+image along its wider axis, and never less than one pixel.  The read noise is the
+camera's published value for its readout mode, never taken as less than 1 in the
+camera's own units.  Finding a star takes several times that signal, so the list
+holds every star the simulated camera could show through the clear filter, and no
+filter shows a star the clear filter can't.
+
+The list holds every catalog star inside the frame down to the cutoff.  The
+navigator keeps only the 100 brightest stars in and around the frame
+(``stars.max_stars``), which is plenty to navigate on.  A dense field holds far
+more stars than that down to the cutoff: the 26-second wide-angle frame W1580760393
+holds 9,081.  The catalog reduction can list a star twice, and the matched scene
+keeps one copy, since two would draw the star at twice its brightness.  A star
+that lies behind a body or an opaque ring in the real frame is left out, because
+the real frame can't show it and the matched star scene has no body or ring to
+hide it.  A field that has no catalog star inside the frame gives a matched frame
+without stars.  The catalogs and the SPICE kernels are deterministic, so the
+matched star scene is reproducible from the real frame.
+
+The simulator's star brightness is not yet tied to a brightness scale measured on
+real star images.  A simulated star can come out fainter than a real star of the
+same catalog magnitude, so the matched star frames give fewer star cutouts than
+their real frames, and their stars stand less far above the noise.
+
+.. Measuring the simulated star brightness scale on real frames is issue 895.  The
+   catalog reduction's repeated star is issue 994.
 
 Both sides then run *identical* extraction code -- the same patch finder,
 the same profile sampler, and the navigator's own feature extraction
