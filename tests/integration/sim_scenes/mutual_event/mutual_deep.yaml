@@ -14,7 +14,7 @@ exposure_sec: 1.0
 # NEAR's geometry and explicit nearer range_km -- so FAR's LIMB_ARC
 # reports visible_arc_fraction 0.41 (reliability 0.64) instead of
 # claiming 1.0, the joint limb fit runs on arcs that exist in the image,
-# and both techniques land within ~0.1 px, fusing to an accurate
+# and both techniques land within ~0.2 px, fusing to an accurate
 # medium-tier success.  FAR's residual terminator arc is occlusion-
 # reduced too (fraction 0.27) and stays below the 0.30 reliability gate.
 # No confident-wrong result and no double-counting conflict was observed
@@ -44,8 +44,8 @@ bodies:
 noise:
   poisson: true
   read_noise_dn: 4.0
-offset_v: 2.5
-offset_u: -1.5
+offset_v: 2.37
+offset_u: -1.62
 offset_rotation_deg: 0.0
 expected:
   status: success

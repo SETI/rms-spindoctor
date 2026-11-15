@@ -29,8 +29,8 @@ bodies:
 noise:
   poisson: true
   read_noise_dn: 4.0
-offset_v: 0.0
-offset_u: 0.0
+offset_v: -0.74
+offset_u: 1.19
 offset_rotation_deg: 0.0
 expected:
   status: success
