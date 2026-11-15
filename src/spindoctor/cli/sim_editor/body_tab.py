@@ -100,8 +100,9 @@ class BodyTabMixin(SimEditorBase):
         rng_check = QCheckBox('Set range (km)')
         rng_check.setChecked(has_range)
         rng_check.setToolTip(
-            'Write range_km on the body (depth ordering; two overlapping bodies need '
-            'it on both).  Clear to use the default for its position in the list.'
+            'Write range_km on the body.  Two overlapping bodies each need it to set '
+            'their depth order, and a scene with spk_error needs it on every body.  '
+            "Clear the box to use the default for the body's position in the list."
         )
         rng = QDoubleSpinBox()
         rng.setRange(-1e9, 1e9)

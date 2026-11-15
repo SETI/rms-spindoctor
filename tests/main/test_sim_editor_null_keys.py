@@ -482,24 +482,52 @@ def test_an_unset_range_counts_toward_the_duplicate_warning(qapp: QApplication) 
     assert _loaded(scene)._warning_label.text() == 'Warning: duplicate body ranges'
 
 
+# The second body's range is unset, so its default is 2, which no other body's range
+# or index default matches.
+_SECOND_UNSET_SCENE: dict[str, Any] = {
+    **_FRAME_300_BY_400,
+    'random_seed': 42,
+    'bodies': [_APART_BODY, _UNSET_RANGE_BODY],
+}
+
+
+@pytest.mark.parametrize(
+    ('range_km', 'enabled'), [(None, False), (2.0, True)], ids=['unset', 'set']
+)
+def test_the_range_spin_is_enabled_only_for_a_set_range(
+    qapp: QApplication, range_km: float | None, enabled: bool
+) -> None:
+    """The range spin starts disabled for an unset range and enabled for a set one."""
+    scene = copy.deepcopy(_SECOND_UNSET_SCENE)
+    scene['bodies'][1]['range_km'] = range_km
+    assert _body_tab(_loaded(scene), 1).range_spin.isEnabled() is enabled
+
+
 def test_setting_an_unset_range_writes_the_shown_default(qapp: QApplication) -> None:
-    """Checking an unset body's range box writes the default range its spin shows."""
-    model = _loaded({**_FRAME_300_BY_400, 'random_seed': 42, 'bodies': [_UNSET_RANGE_BODY]})
-    _body_tab(model, 0).range_check.click()
-    assert model.sim_params['bodies'][0]['range_km'] == 1.0
+    """Checking an unset body's range box writes the default its spin shows and enables it."""
+    model = _loaded(_SECOND_UNSET_SCENE)
+    tab = _body_tab(model, 1)
+    tab.range_check.click()
+    assert model.sim_params['bodies'][1]['range_km'] == pytest.approx(2.0)
+    assert tab.range_spin.isEnabled()
 
 
 def test_clearing_a_range_rechecks_the_duplicate_warning(qapp: QApplication) -> None:
-    """Clearing a range that duplicates another body's lets the default end the warning."""
-    scene = {
-        **_FRAME_300_BY_400,
-        'random_seed': 42,
-        'bodies': [{**_UNSET_RANGE_BODY, 'range_km': 1.0}, {**_APART_BODY, 'range_km': 1.0}],
-    }
+    """Clearing a range that duplicates another body's puts the default back in its spin.
+
+    The default ends the duplicate warning, and the spin is disabled.
+    """
+    scene = copy.deepcopy(_SECOND_UNSET_SCENE)
+    scene['bodies'][0]['range_km'] = 1.0
+    scene['bodies'][1]['range_km'] = 1.0
     model = _loaded(scene)
-    _body_tab(model, 1).range_check.click()
-    shown = ('range_km' in model.sim_params['bodies'][1], model._warning_label.text())
-    assert shown == (False, '')
+    tab = _body_tab(model, 1)
+    assert model._warning_label.text() == 'Warning: duplicate body ranges'
+    tab.range_check.click()
+    assert 'range_km' not in model.sim_params['bodies'][1]
+    assert model._warning_label.text() == ''
+    assert tab.range_spin.value() == pytest.approx(2.0)
+    assert not tab.range_spin.isEnabled()
 
 
 # A mesh body whose override group is on and sets none of its keys.
@@ -509,6 +537,37 @@ _OVERRIDE_BODY: dict[str, Any] = {
     'shape_model': 'polyhedral_mesh',
     'nav_override': {},
 }
+
+
+def _set_control(control: Any, value: Any) -> None:
+    """Set a combo box's text, a spin's value, or the first spin of a list of spins.
+
+    Parameters:
+        control: A combo box, a spin box, or a list of spin boxes.
+        value: The text or value to set.
+    """
+    if isinstance(control, QComboBox):
+        control.setCurrentText(value)
+    elif isinstance(control, list):
+        control[0].setValue(value)
+    else:
+        control.setValue(value)
+
+
+def _control_value(control: Any) -> Any:
+    """Return a combo box's text, a spin's value, or the first spin's value of a list.
+
+    Parameters:
+        control: A combo box, a spin box, or a list of spin boxes.
+
+    Returns:
+        The text or value the control shows.
+    """
+    if isinstance(control, QComboBox):
+        return control.currentText()
+    if isinstance(control, list):
+        return control[0].value()
+    return control.value()
 
 
 @pytest.mark.parametrize(
@@ -524,16 +583,22 @@ _OVERRIDE_BODY: dict[str, Any] = {
             {'shape_model': None},
             'nav_lump_spin',
             0.5,
-            {'shape_model': None, 'mesh_lumpiness': 0.5},
+            {'shape_model': None, 'mesh_lumpiness': pytest.approx(0.5)},
         ),
         (
             {'shape_model': None},
             'nav_pose_spins',
             30.0,
-            {'shape_model': None, 'pose_euler_deg': [30.0, 0.0, 0.0]},
+            {'shape_model': None, 'pose_euler_deg': pytest.approx([30.0, 0.0, 0.0])},
+        ),
+        (
+            {'pose_euler_deg': [10.0, 20.0, 30.0]},
+            'nav_pose_spins',
+            40.0,
+            {'pose_euler_deg': pytest.approx([40.0, 20.0, 30.0])},
         ),
     ],
-    ids=['shape', 'lumpiness', 'pose'],
+    ids=['shape', 'lumpiness', 'pose', 'set-pose'],
 )
 def test_an_override_edit_writes_only_its_own_key(
     qapp: QApplication,
@@ -542,15 +607,12 @@ def test_an_override_edit_writes_only_its_own_key(
     value: Any,
     expected: dict[str, Any],
 ) -> None:
-    """An edit to one override control writes its key and leaves the others as stored."""
+    """An edit to one override control writes its key and leaves the others as stored.
+
+    A pose edit keeps the other two axes of a pose the override sets.
+    """
     model = _loaded({**_FRAME_300_BY_400, 'bodies': [{**_OVERRIDE_BODY, 'nav_override': override}]})
-    control = getattr(_body_tab(model, 0), attr)
-    if isinstance(control, QComboBox):
-        control.setCurrentText(value)
-    elif isinstance(control, list):
-        control[0].setValue(value)
-    else:
-        control.setValue(value)
+    _set_control(getattr(_body_tab(model, 0), attr), value)
     assert model.sim_params['bodies'][0]['nav_override'] == expected
 
 
@@ -568,7 +630,7 @@ def test_turning_the_override_back_on_shows_the_bodys_values(qapp: QApplication)
     tab = _body_tab(_loaded({**_FRAME_300_BY_400, 'bodies': [body]}), 0)
     tab.nav_override_group.setChecked(False)
     tab.nav_override_group.setChecked(True)
-    assert tab.nav_lump_spin.value() == 0.2
+    assert tab.nav_lump_spin.value() == pytest.approx(0.2)
 
 
 def test_a_body_shape_edit_moves_an_unset_predicted_shape(qapp: QApplication) -> None:
@@ -576,8 +638,8 @@ def test_a_body_shape_edit_moves_an_unset_predicted_shape(qapp: QApplication) ->
     model = _loaded({**_FRAME_300_BY_400, 'bodies': [_OVERRIDE_BODY]})
     tab = _body_tab(model, 0)
     tab.shape_combo.setCurrentText('ellipsoid')
-    shown = (tab.nav_shape_combo.currentText(), model.sim_params['bodies'][0]['nav_override'])
-    assert shown == ('ellipsoid', {})
+    assert tab.nav_shape_combo.currentText() == 'ellipsoid'
+    assert model.sim_params['bodies'][0]['nav_override'] == {}
 
 
 def test_a_body_lumpiness_edit_moves_an_unset_predicted_lumpiness(qapp: QApplication) -> None:
@@ -585,8 +647,8 @@ def test_a_body_lumpiness_edit_moves_an_unset_predicted_lumpiness(qapp: QApplica
     model = _loaded({**_FRAME_300_BY_400, 'bodies': [_OVERRIDE_BODY]})
     tab = _body_tab(model, 0)
     tab.mesh_lumpiness_spin.setValue(0.5)
-    shown = (tab.nav_lump_spin.value(), model.sim_params['bodies'][0]['nav_override'])
-    assert shown == (0.5, {})
+    assert tab.nav_lump_spin.value() == pytest.approx(0.5)
+    assert model.sim_params['bodies'][0]['nav_override'] == {}
 
 
 def test_a_body_pose_edit_moves_an_unset_predicted_pose(qapp: QApplication) -> None:
@@ -594,13 +656,41 @@ def test_a_body_pose_edit_moves_an_unset_predicted_pose(qapp: QApplication) -> N
     model = _loaded({**_FRAME_300_BY_400, 'bodies': [_OVERRIDE_BODY]})
     tab = _body_tab(model, 0)
     tab.pose_spins[0].setValue(30.0)
-    shown = (tab.nav_pose_spins[0].value(), model.sim_params['bodies'][0]['nav_override'])
-    assert shown == (30.0, {})
+    assert tab.nav_pose_spins[0].value() == pytest.approx(30.0)
+    assert model.sim_params['bodies'][0]['nav_override'] == {}
 
 
-def test_a_body_lumpiness_edit_keeps_a_set_predicted_lumpiness(qapp: QApplication) -> None:
-    """Editing the body's lumpiness leaves a predicted lumpiness the override sets."""
-    body = {**_OVERRIDE_BODY, 'nav_override': {'mesh_lumpiness': 0.0}}
+@pytest.mark.parametrize(
+    ('override', 'attr', 'value', 'nav_attr', 'kept'),
+    [
+        (
+            {'shape_model': 'polyhedral_mesh'},
+            'shape_combo',
+            'ellipsoid',
+            'nav_shape_combo',
+            'polyhedral_mesh',
+        ),
+        ({'mesh_lumpiness': 0.0}, 'mesh_lumpiness_spin', 0.5, 'nav_lump_spin', pytest.approx(0.0)),
+        (
+            {'pose_euler_deg': [0.0, 0.0, 0.0]},
+            'pose_spins',
+            30.0,
+            'nav_pose_spins',
+            pytest.approx(0.0),
+        ),
+    ],
+    ids=['shape', 'lumpiness', 'pose'],
+)
+def test_a_body_edit_keeps_a_set_predicted_value(
+    qapp: QApplication,
+    override: dict[str, Any],
+    attr: str,
+    value: Any,
+    nav_attr: str,
+    kept: Any,
+) -> None:
+    """Editing a body value leaves the matching predicted value the override sets."""
+    body = {**_OVERRIDE_BODY, 'nav_override': override}
     tab = _body_tab(_loaded({**_FRAME_300_BY_400, 'bodies': [body]}), 0)
-    tab.mesh_lumpiness_spin.setValue(0.5)
-    assert tab.nav_lump_spin.value() == 0.0
+    _set_control(getattr(tab, attr), value)
+    assert _control_value(getattr(tab, nav_attr)) == kept
