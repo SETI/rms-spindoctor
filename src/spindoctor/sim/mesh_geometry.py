@@ -266,10 +266,13 @@ def _light_direction(illumination_angle: float, phase_angle: float) -> NDArrayFl
     return _as_float64(light / norm)
 
 
-# Most candidate pixels one rasterization batch tests.  A batch holds about twenty
-# working arrays of this length, so 2**16 caps it near 10 MB however much of the frame
-# the body covers; larger batches measured no faster.  The whole-grid buffers (depth,
-# shade, and the int32 tie-break owner) are 20 bytes per grid pixel on top of that.
+# Most candidate pixels one rasterization batch tests.  This bounds only the
+# per-candidate arrays (about twenty of this length, near 10 MB); larger batches
+# measured no faster.  The rest of the working memory is not bounded by it: the
+# per-(face, box row) arrays take about 130 bytes per row, so they grow with the total
+# height of all the face boxes (the mesh's face count times their size on the grid),
+# and the whole-grid buffers (depth, shade, and the int32 tie-break owner) take 20
+# bytes per grid pixel.
 _RASTER_BATCH_PIXELS = 2**16
 # Sentinel for "no face yet" in the per-pixel tie-break buffer.
 _NO_FACE = np.iinfo(np.int32).max
@@ -421,7 +424,9 @@ def _rasterize_faces(
         owner[cand_pix] = _NO_FACE
         cand_face, cand_pix = cand_face[sel], cand_pix[sel]
         # Store the winner's own depth: of two tied zeros of opposite sign,
-        # np.maximum.at may have kept the other one.
+        # np.maximum.at may have kept the other one.  Only the depth buffer can see
+        # this, never the shade, but it keeps that buffer bit-identical to drawing
+        # the faces one at a time.
         z_flat[cand_pix] = cand_depth[sel]
         if vertex_shades is None:
             shade_flat[cand_pix] = flat_shade[cand_face]
@@ -474,10 +479,14 @@ def render_polyhedral_body(
         A ``(size_v, size_u)`` float array in [0, 1].
 
     Raises:
-        ValueError: On an unknown shading mode.
+        ValueError: On an unknown shading mode, or a center that is not finite.
     """
     if shading not in ('flat', 'gouraud'):
         raise ValueError(f"shading must be 'flat' or 'gouraud'; got {shading!r}")
+    # A non-finite center would project every face off the grid and render a blank
+    # body without complaint.
+    if not (math.isfinite(center[0]) and math.isfinite(center[1])):
+        raise ValueError(f'center must be finite; got {center!r}')
     size_v, size_u = size
     aa_scale = int(1 + 3 * anti_aliasing) if anti_aliasing > 0 else 1
     height = size_v * aa_scale

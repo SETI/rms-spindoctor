@@ -60,20 +60,38 @@ def test_shared_edge_tie_holds_across_batches(monkeypatch: pytest.MonkeyPatch) -
     assert image[10, 10] == pytest.approx(_RIGHT_FACE_SHADE)
 
 
-def test_nearer_face_wins_whatever_its_order() -> None:
-    """A face in front of an earlier-listed face shows over it."""
-    vertices = np.array(
-        [
-            [0.0, 0.0, -10.0],  # far face, facing the observer (shade 1)
-            [20.0, 0.0, -10.0],
-            [0.0, 20.0, -10.0],
-            [2.0, 2.0, 0.0],  # near face, tilted (shade 2/sqrt(5))
-            [10.0, 2.0, -4.0],
-            [2.0, 10.0, 0.0],
-        ]
-    )
-    mesh = Mesh(vertices=vertices, faces=np.array([[0, 1, 2], [3, 4, 5]]))
-    image = _render(mesh)
+# A far face square to the line of sight (shade 1) and a smaller tilted face wholly
+# in front of it (shade 2/sqrt(5)), overlapping at pixel (4, 4).
+_FAR_AND_NEAR = np.array(
+    [
+        [0.0, 0.0, -10.0],
+        [20.0, 0.0, -10.0],
+        [0.0, 20.0, -10.0],
+        [2.0, 2.0, 0.0],
+        [10.0, 2.0, -4.0],
+        [2.0, 10.0, 0.0],
+    ]
+)
+_FAR_FACE = [0, 1, 2]
+_NEAR_FACE = [3, 4, 5]
+
+
+@pytest.mark.parametrize(
+    ('faces', 'batch_pixels'),
+    [
+        ([_NEAR_FACE, _FAR_FACE], None),
+        ([_FAR_FACE, _NEAR_FACE], None),
+        ([_FAR_FACE, _NEAR_FACE], 1),
+    ],
+    ids=['near-listed-first', 'near-listed-second', 'near-second-one-row-per-batch'],
+)
+def test_nearer_face_wins_whatever_its_order(
+    monkeypatch: pytest.MonkeyPatch, faces: list[list[int]], batch_pixels: int | None
+) -> None:
+    """The nearer face shows over the farther one in either order and batching."""
+    if batch_pixels is not None:
+        monkeypatch.setattr(mesh_geometry, '_RASTER_BATCH_PIXELS', batch_pixels)
+    image = _render(Mesh(vertices=_FAR_AND_NEAR, faces=np.array(faces)))
     assert image[4, 4] == pytest.approx(2.0 / math.sqrt(5.0))
 
 
@@ -88,6 +106,17 @@ def test_back_facing_triangle_is_culled() -> None:
     """The same triangle wound away from the observer covers nothing."""
     image = _render(Mesh(vertices=_OVERHANG, faces=np.array([[0, 2, 1]])), size=16)
     assert not image.any()
+
+
+def test_non_finite_center_is_rejected() -> None:
+    """A NaN center raises rather than rendering a blank body."""
+    with pytest.raises(ValueError, match=r'center must be finite; got \(nan, 0\.0\)'):
+        render_polyhedral_body(
+            size=(16, 16),
+            center=(math.nan, 0.0),
+            mesh=Mesh(vertices=_OVERHANG, faces=np.array([[0, 1, 2]])),
+            semi_axes_px=(1.0, 1.0, 1.0),
+        )
 
 
 def test_gouraud_shades_a_shared_vertex_with_the_averaged_normal() -> None:
