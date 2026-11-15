@@ -41,9 +41,10 @@ _DEFAULT_SCENE_SIZE = 512
 
 # Star classes place this many stars; magnitudes ladder from bright to the
 # detection edge of a clear-filter frame, so the FOM 2 sample spans the usable
-# brightness range.  For a frame taken through another filter, the whole ladder
-# shifts by that filter's throughput (see star_ladder_shift_mag).  The ladder then
-# reaches the detection edge of the frame's own filter.
+# brightness range.  The renderer dims each star by the frame's filter.  For a frame
+# taken through another filter, the ladder starts from brighter stars by that
+# filter's throughput (see star_ladder_shift_mag), so after the filter dims them they
+# still reach from bright to the detection edge.
 _STAR_COUNT = 25
 _STAR_VMAG_BRIGHT = 7.0
 _STAR_VMAG_STEP = 0.2
@@ -124,13 +125,13 @@ def _star_list(
 
 
 def star_ladder_shift_mag(instrument: str, filter_name: str | None) -> float:
-    """The magnitude shift that moves the star ladder to a filter's detection edge.
+    """The magnitude shift that picks the star ladder's stars for a filter.
 
     A filter that passes a fraction ``t`` of the clear combination's star flux dims
-    every star by ``-2.5 log10(t)`` magnitudes, so the ladder shifts by
-    ``2.5 log10(t)``.  For a filter dimmer than clear, the shift is negative and the
-    stars get brighter.  Each rung's detected flux then stays at its clear-filter
-    value.
+    every star by ``-2.5 log10(t)`` magnitudes, and the renderer applies that
+    dimming.  The ladder therefore starts ``2.5 log10(t)`` magnitudes from its
+    clear-filter start: brighter stars for a filter dimmer than clear.  After the
+    filter dims them, each rung's detected flux equals its clear-filter value.
 
     Parameters:
         instrument: Sim instrument name.
