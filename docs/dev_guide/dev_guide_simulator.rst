@@ -4444,6 +4444,9 @@ The real sky holds few stars that bright, so a filtered matched frame shows
 more stars than its real frame does.  The star profiles can be compared, but
 the number of stars can't.
 
+.. Building star twins from the catalog stars at the real frame's pointing is
+   issue 989.
+
 Both sides then run *identical* extraction code -- the same patch finder,
 the same profile sampler, and the navigator's own feature extraction
 (``NavOrchestrator.prepare``) to place limb, ring, and star geometry -- so
