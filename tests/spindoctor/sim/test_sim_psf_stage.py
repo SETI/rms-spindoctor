@@ -3,10 +3,16 @@
 The optics-stage PSF is a separately-normalized Gaussian core plus Moffat wing.
 These tests cover kernel normalization, the exact wing energy fraction, that a
 delta reproduces the kernel, that an edge blurs into a PSF-shaped ramp, and
-that an elliptical core respects its axis sigmas.
+that an elliptical core respects its axis sigmas.  Further tests check that
+blurring each cluster of lit pixels on its own crop gives the same result as one
+convolution of the whole frame, to rounding.
 """
 
+from collections.abc import Callable
+
 import numpy as np
+import pytest
+from scipy.signal import fftconvolve
 
 from spindoctor.sim.forward.psf import apply_psf, psf_kernel
 from spindoctor.sim.instrument_resolvers import resolve_psf_truncation_px
@@ -133,6 +139,64 @@ def test_point_source_plane_is_also_blurred() -> None:
     assert float(point_e[20, 20]) < 100.0
     assert float(point_e[20, 21]) > 0.0
     assert abs(float(point_e.sum()) - 100.0) < 1e-6
+
+
+def _blur(signal: np.ndarray) -> np.ndarray:
+    """Blur a copy of a signal plane with the default kernel, no stars."""
+    out = signal.copy()
+    apply_psf(
+        out,
+        np.zeros_like(out),
+        sigma_v=0.7,
+        sigma_u=0.7,
+        w=0.1,
+        r0=2.0,
+        n=3.0,
+        truncation_px=8,
+        oversample=2,
+    )
+    return out
+
+
+def _ring_around_a_star() -> np.ndarray:
+    """An annulus with a separate star inside its box, where blocks overhang the frame."""
+    signal = np.zeros((300, 280), dtype=np.float64)
+    vv, uu = np.mgrid[0:300, 0:280]
+    radius = np.hypot(vv - 150.0, uu - 140.0)
+    signal[(radius > 90.0) & (radius < 100.0)] = 0.4
+    signal[150, 140] = 7.0
+    return signal
+
+
+def _cut_by_the_frame_edge() -> np.ndarray:
+    """Content touching the top edge and the bottom-right corner."""
+    signal = np.zeros((300, 280), dtype=np.float64)
+    signal[0:20, 100:160] = 0.5
+    signal[290:300, 260:280] = 0.8
+    return signal
+
+
+@pytest.mark.parametrize(
+    'make_signal',
+    [
+        pytest.param(_ring_around_a_star, id='cluster_inside_another_box'),
+        pytest.param(_cut_by_the_frame_edge, id='frame_edge'),
+    ],
+)
+def test_cluster_blur_matches_the_whole_frame_convolution(
+    make_signal: Callable[[], np.ndarray],
+) -> None:
+    """Blurring each lit cluster on its own crop gives the whole-frame blur to rounding."""
+    signal = make_signal()
+    expected = fftconvolve(signal, _kernel(), mode='same')
+    out = _blur(signal)
+    assert float(np.max(np.abs(out - expected))) <= 1e-14 * float(np.max(expected))
+
+
+def test_a_fully_lit_plane_gives_the_whole_frame_convolution_exactly() -> None:
+    """A plane lit everywhere gives exactly one whole-frame convolution."""
+    signal = np.random.default_rng(5).uniform(0.0, 1.0, size=(120, 100))
+    assert np.array_equal(_blur(signal), fftconvolve(signal, _kernel(), mode='same'))
 
 
 def test_coiss_uses_a_wider_truncation_window() -> None:
