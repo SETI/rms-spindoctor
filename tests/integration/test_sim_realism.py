@@ -21,6 +21,7 @@ from typing import Any, cast
 
 import numpy as np
 import pytest
+from polymath import Pair
 
 from spindoctor.config import DEFAULT_CONFIG, Config
 from spindoctor.obs import ObsSnapshotInst
@@ -235,17 +236,6 @@ def test_a_twin_star_moved_outside_the_frame_is_left_out(v: float, u: float, kep
 
 
 @pytest.mark.parametrize(
-    ('conflicts', 'kept'),
-    [('BODY: MIMAS', False), ('RING: SATURN', False), ('STAR', True)],
-    ids=['behind-a-body', 'behind-a-ring', 'beside-another-star'],
-)
-def test_a_twin_star_hidden_behind_a_body_or_ring_is_left_out(conflicts: str, kept: bool) -> None:
-    """A star the real frame can't show is left out; a star beside another star isn't."""
-    entries = _entries([_FakeStar(v=500.0, u=500.0, conflicts=conflicts)])
-    assert (len(entries) == 1) is kept
-
-
-@pytest.mark.parametrize(
     ('second', 'count'),
     [
         (_FakeStar(v=500.0, u=500.0), 1),
@@ -290,17 +280,43 @@ def test_the_twin_cutoff_is_the_renderers_sky_star_cutoff_for_its_clear_scene() 
     assert cutoff == sky_star_faint_cutoff_mag(scene)
 
 
+class _FakeBackplane:
+    """A backplane over a fake Saturn frame, read at the meshgrid's samples.
+
+    Saturn's disc covers every sample left of u = 300, and the B ring covers every
+    sample past v = 900.  Every other sample lies on the ring plane outside the opaque
+    annuli, at 150,000 km, where nothing hides a star.  The answers depend only on
+    where a sample lies, never on what the star records carry.
+    """
+
+    def __init__(self, obs: Any, meshgrid: Any) -> None:
+        del obs
+        uv = np.asarray(meshgrid.uv.vals, dtype=np.float64)
+        self._u = uv[..., 0]
+        self._v = uv[..., 1]
+
+    def where_intercepted(self, body_name: str) -> SimpleNamespace:
+        """Saturn's disc, and no other body."""
+        on_disc = self._u < 300.0 if body_name == 'SATURN' else np.zeros(self._u.shape, bool)
+        return SimpleNamespace(vals=on_disc)
+
+    def ring_radius(self, ring_target: str) -> SimpleNamespace:
+        """The B ring's radius past v = 900, and 150,000 km short of it."""
+        del ring_target
+        return SimpleNamespace(vals=np.where(self._v > 900.0, 100_000.0, 150_000.0), mask=False)
+
+
 def _twin_stars_from_fake_catalog(
-    monkeypatch: pytest.MonkeyPatch, stars: list[_FakeStar], *, hidden: frozenset[int]
+    monkeypatch: pytest.MonkeyPatch, stars: list[_FakeStar]
 ) -> tuple[list[dict[str, Any]], dict[str, float]]:
-    """Run the twin's catalog query on a 1.2 s NAC frame against a fake catalog.
+    """Run the twin's catalog query on a 1.2 s NAC frame of Saturn against a fake catalog.
+
+    The body and ring check runs on :class:`_FakeBackplane`.
 
     Parameters:
         monkeypatch: The test's monkeypatch fixture.
         stars: The fake catalog's stars in the frame.  The fake reduction returns at
             most as many of them as the config's ``stars.max_stars`` allows.
-        hidden: The catalog numbers the fake body and ring check marks as behind a
-            body.
 
     Returns:
         The twin's scene star entries, and the faint limit the reduction was given
@@ -312,15 +328,15 @@ def _twin_stars_from_fake_catalog(
         asked['faint_vmag'] = obs.star_max_usable_vmag()
         return list(stars[: config.stars.max_stars])
 
-    def mark(_obs: ObsSnapshotInst, _config: Config, found: list[_FakeStar]) -> None:
-        for star in found:
-            if star.unique_number in hidden:
-                star.conflicts = 'BODY: MIMAS'
-
     monkeypatch.setattr(sim_realism_twin_stars, 'reduce_catalogs', reduce)
-    monkeypatch.setattr(sim_realism_twin_stars, 'mark_body_and_ring_conflicts', mark)
+    monkeypatch.setattr(sim_realism_twin_stars, 'Backplane', _FakeBackplane)
     # The navigator's own faint limit is far brighter than the twin's cutoff.
-    obs = SimpleNamespace(data_shape_vu=_NAC_FULL, star_max_usable_vmag=lambda: 9.5)
+    obs = SimpleNamespace(
+        data_shape_vu=_NAC_FULL,
+        star_max_usable_vmag=lambda: 9.5,
+        closest_planet='SATURN',
+        fov=SimpleNamespace(uv_shape=Pair(_NAC_FULL)),
+    )
     entries = catalog_twin_stars(
         cast(ObsSnapshotInst, obs),
         instrument='coiss_calib_nac',
@@ -332,9 +348,7 @@ def _twin_stars_from_fake_catalog(
 
 def test_the_twin_catalog_query_reaches_the_twin_cutoff(monkeypatch: pytest.MonkeyPatch) -> None:
     """The catalog reduction is asked for stars down to the twin cutoff."""
-    _, asked = _twin_stars_from_fake_catalog(
-        monkeypatch, [_FakeStar(v=500.0, u=500.0)], hidden=frozenset()
-    )
+    _, asked = _twin_stars_from_fake_catalog(monkeypatch, [_FakeStar(v=500.0, u=500.0)])
     assert asked['faint_vmag'] == twin_faint_cutoff_vmag('coiss_calib_nac', 1.2, _NAC_FULL)
 
 
@@ -343,16 +357,42 @@ def test_the_twin_catalog_query_keeps_more_stars_than_the_navigators_cap(
 ) -> None:
     """A field denser than the navigator's star cap keeps every star in the twin."""
     count = int(DEFAULT_CONFIG.stars.max_stars) + 50
-    stars = [_FakeStar(v=5.0 + 6.0 * i, u=500.0, unique_number=i) for i in range(count)]
-    entries, _ = _twin_stars_from_fake_catalog(monkeypatch, stars, hidden=frozenset())
+    stars = [_FakeStar(v=5.0 + 5.0 * i, u=500.0, unique_number=i) for i in range(count)]
+    entries, _ = _twin_stars_from_fake_catalog(monkeypatch, stars)
     assert len(entries) == count
 
 
-def test_a_twin_star_the_conflict_check_hides_is_left_out(monkeypatch: pytest.MonkeyPatch) -> None:
-    """The body and ring check runs on the twin's stars, and a hidden star is left out."""
-    stars = [_FakeStar(v=100.0, u=100.0, unique_number=1), _FakeStar(v=200.0, u=200.0)]
-    entries, _ = _twin_stars_from_fake_catalog(monkeypatch, stars, hidden=frozenset({1}))
-    assert [entry['name'] for entry in entries] == ['UCAC4-7']
+@pytest.mark.parametrize(
+    ('v', 'u', 'conflicts', 'kept'),
+    [
+        (500.0, 304.0, '', False),
+        (500.0, 304.0, 'STAR', False),
+        (898.0, 500.0, 'STAR', False),
+        (897.0, 500.0, 'STAR', True),
+        (500.0, 500.0, 'STAR', True),
+    ],
+    ids=[
+        'planet-within-the-margin',
+        'planet-within-the-margin-beside-another-star',
+        'ring-over-3-of-11-rows-beside-another-star',
+        'ring-over-2-of-11-rows-beside-another-star',
+        'sky-beside-another-star',
+    ],
+)
+def test_a_twin_star_behind_a_body_or_ring_is_left_out(
+    monkeypatch: pytest.MonkeyPatch, v: float, u: float, conflicts: str, kept: bool
+) -> None:
+    """A star whose window a body or an opaque ring covers is left out, whatever its tag.
+
+    A star's window reaches 5 pixels from it along each axis, in 11 rows.  The star at
+    u = 304 lies off the disc, but its window reaches u = 299.  The B ring hides a star
+    when it covers at least a quarter of the window: 3 rows of 11 do, and 2 don't.  The
+    navigator tags a star ``'STAR'`` when it overlaps another star and then skips it in
+    its own body and ring check, and the twin checks such a star like any other.
+    """
+    star = _FakeStar(v=v, u=u, conflicts=conflicts)
+    entries, _ = _twin_stars_from_fake_catalog(monkeypatch, [star])
+    assert (len(entries) == 1) is kept
 
 
 def test_matched_scene_is_deterministic() -> None:

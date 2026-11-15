@@ -4566,8 +4566,17 @@ holds 9,081.  The catalog reduction can list a star twice, and the matched scene
 keeps one copy, since two would draw the star at twice its brightness.  A star
 that lies behind a body or an opaque ring in the real frame is left out, because
 the real frame can't show it and the matched star scene has no body or ring to
-hide it.  A field that has no catalog star inside the frame gives a matched frame
-without stars.  The catalogs and the SPICE kernels are deterministic, so the
+hide it.  The test is the navigator's own.  It looks at a grid of points around
+the star, out to 5 pixels along each axis (``stars.body_conflict_margin``).  The
+star is hidden if the planet or one of its moons covers any of those points.  It
+is also hidden if an opaque ring covers at least a quarter of the points that lie
+on the ring plane (``stars.ring_occlusion_min_opaque_fraction``).  The navigator
+skips the test for a star that overlaps another star, because it already leaves
+such a star out of navigation.  The matched scene applies the test to every
+star, since in a dense field most stars overlap another: 8,600 of the 9,393 stars
+in and around W1580760393 do.  It tests all the stars together, which takes about
+half a minute on W1580760393.  A field that has no catalog star inside the frame
+gives a matched frame without stars.  The catalogs and the SPICE kernels are deterministic, so the
 matched star scene is reproducible from the real frame.
 
 The simulator's star brightness is not yet tied to a brightness scale measured on
@@ -4919,7 +4928,7 @@ The committed summary of the realism match is the *record*.  The regression chec
 ``tests/integration/test_sim_realism_regression.py``, reruns the match and compares
 the fresh run with the record.  It runs once for each instrument listed in the band
 table, which is described below.  The table is meant for instruments whose cohort
-matches in a few seconds.  It lists LORRI, whose two frames take about five seconds.
+matches in a few seconds.  It lists LORRI, whose two frames take about seven seconds.
 
 The check holds every statistic whose support label is ``limited`` or ``supported``.
 For a sample kind, it holds the normalized W1 (W1/IQR) and the real and simulated
@@ -5033,11 +5042,12 @@ navigation pairs.  Outputs:
   committed record backing the report's tables (divergences, support
   labels, FOM 7 rows, runtime).
 
-The full-cohort run (75 frames as of 2026-07-18) takes 19 to 21 minutes
-on a workstation with local holdings (measured 18.8-21.3 minutes over
-the recorded 2026-07-17/18 runs); the cost is dominated by the
-navigator's feature extraction on the real frames and the full-size
-matched renders.  ``--skip-fom7`` saves about 17% -- the navigation
+The full-cohort run (75 frames as of 2026-07-18) takes 20 to 22 minutes
+on a workstation with local holdings.  The recorded 2026-07-17/18 runs took
+18.8 to 21.3 minutes, and building the 19 star frames' catalog star lists
+adds about one minute (62 seconds measured on 2026-11-15, 45 of them on
+W1580760393).  The cost is dominated by the navigator's feature extraction
+on the real frames and the full-size matched renders.  ``--skip-fom7`` saves about 17% -- the navigation
 pairs are a handful of frames per instrument, not a large share of the
 cost.  ``tests/integration/test_sim_realism.py`` carries the
 ``sim_integration`` tests, which the default selection runs. They check that the

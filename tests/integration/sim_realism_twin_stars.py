@@ -12,17 +12,38 @@ the twin is reproducible from the real frame: the catalogs and the SPICE kernels
 deterministic.  The reduction runs deeper than the navigator's: it goes down to the
 twin's own faint cutoff, and it keeps every star in the frame down to that cutoff, where
 the navigator keeps only the brightest ``stars.max_stars``.
+
+A star that lies behind a body or an opaque ring in the real frame is left out, because
+the real frame can't show it and the twin has no body or ring to hide it.  The test is
+the navigator's (``mark_body_and_ring_conflicts``), with the same bodies, the same window
+of ``stars.body_conflict_margin`` pixels around the star, the same opaque annuli, and the
+same opaque fraction.  The navigator skips a star that already carries a conflict, such
+as ``'STAR'`` for a star that overlaps another, because any conflict keeps the star out
+of navigation.  In a dense field most stars carry ``'STAR'``, so the twin tests every
+star itself.  The navigator builds one small backplane per star.  The twin puts the
+windows of up to ``_STARS_PER_BACKPLANE`` stars into one backplane, which takes about
+half a minute on the cohort's densest field, where one backplane per star would take
+about ten minutes.
 """
 
 from __future__ import annotations
 
 import sys
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 from typing import Any, Protocol, cast
+
+import numpy as np
+from oops import Meshgrid
+from oops.backplane import Backplane
 
 from spindoctor.config import DEFAULT_CONFIG, Config
 from spindoctor.nav_model.stars.catalog import reduce_catalogs
-from spindoctor.nav_model.stars.conflicts import mark_body_and_ring_conflicts
+from spindoctor.nav_model.stars.conflicts import (
+    _cast_dict,
+    _conflict_body_list,
+    _ring_opaque_fraction,
+    parse_ring_occlusion_annuli,
+)
 from spindoctor.obs import ObsSnapshotInst
 from spindoctor.sim.forward.scene_radiance import sky_star_faint_cutoff_mag
 from spindoctor.sim.instrument_resolvers import binning_for_frame_size
@@ -31,22 +52,22 @@ from spindoctor.support.attrdict import AttrDict
 __all__ = [
     'CatalogStar',
     'catalog_twin_stars',
+    'stars_behind_a_body_or_ring',
     'twin_faint_cutoff_vmag',
     'twin_star_entries',
 ]
 
-# The conflict prefixes the navigator's star model gives a star whose predicted position
-# lies on a body or on an opaque ring annulus.  The real frame can't show such a star,
-# and a star twin has no body or ring to hide it, so the twin leaves it out.
-_HIDDEN_CONFLICT_PREFIXES = ('BODY', 'RING')
+# The number of stars whose body and ring windows share one backplane.  A star's window
+# holds about 121 samples, so a backplane holds at most about 250,000, which bounds the
+# memory a dense field's check takes.
+_STARS_PER_BACKPLANE = 2000
 
 
 class CatalogStar(Protocol):
     """The fields of a navigator star record that a twin's star list reads.
 
     ``v`` and ``u`` are the predicted position in pixel corner coordinates in the
-    nominal frame.  ``vmag`` is the catalog magnitude, and ``conflicts`` starts with
-    ``'BODY'`` or ``'RING'`` when the star lies behind a body or an opaque ring.
+    nominal frame, and ``vmag`` is the catalog magnitude.
     """
 
     unique_number: int | None
@@ -54,7 +75,6 @@ class CatalogStar(Protocol):
     v: float
     u: float
     vmag: float | None
-    conflicts: str
 
 
 def twin_faint_cutoff_vmag(instrument: str, exposure_sec: float, size_vu: tuple[int, int]) -> float:
@@ -67,10 +87,9 @@ def twin_faint_cutoff_vmag(instrument: str, exposure_sec: float, size_vu: tuple[
     nominal read noise, taken as at least 1, over the core of the twin's PSF, which
     covers at least one pixel.  That is a signal-to-noise ratio of 1 even with every
     electron in the core and a dark sky, while a star technique needs several times
-    that to find a star.  So the cutoff
-    includes every star the simulated camera could show through the clear filter.  A
-    filter only dims stars, so no filter shows a star the clear filter can't, and the
-    cutoff doesn't depend on the frame's filter.
+    that to find a star.  So the cutoff includes every star the simulated camera could
+    show through the clear filter.  A filter only dims stars, so no filter shows a star
+    the clear filter can't, and the cutoff doesn't depend on the frame's filter.
 
     Parameters:
         instrument: The sim instrument the frame is matched against.
@@ -102,8 +121,9 @@ def twin_star_entries(
 
     Each star moves from its predicted position by the real frame's verified offset:
     a star predicted at ``(v, u)`` appears at ``(v + dv, u + du)``.  A star is left out
-    when it is fainter than the cutoff, when it lies behind a body or an opaque ring,
-    or when its moved position is outside the frame.  A star listed more than once
+    when it is fainter than the cutoff or when its moved position is outside the frame.
+    The caller leaves out the stars hidden behind a body or a ring (see
+    :func:`stars_behind_a_body_or_ring`).  A star listed more than once
     under the same catalog and catalog number is kept once.  Positions and magnitudes
     are rounded to 0.01, and the entries are sorted by magnitude and then by position,
     so the same stars in any order give the same list.
@@ -136,8 +156,6 @@ def twin_star_entries(
         vmag = float(cast(float, star.vmag))
         if vmag > faint_cutoff_vmag:
             continue
-        if star.conflicts.startswith(_HIDDEN_CONFLICT_PREFIXES):
-            continue
         v = float(star.v) + dv
         u = float(star.u) + du
         if not (0.0 <= v < size_v and 0.0 <= u < size_u):
@@ -152,6 +170,116 @@ def twin_star_entries(
         )
     entries.sort(key=lambda entry: (entry['vmag'], entry['v'], entry['u'], entry['name']))
     return entries
+
+
+def stars_behind_a_body_or_ring(
+    obs: ObsSnapshotInst, config: Config, stars: Sequence[CatalogStar]
+) -> list[bool]:
+    """Which stars lie behind a body or an opaque ring in the real frame.
+
+    The rule is the navigator's body and ring check, applied to every star whatever
+    conflict it already carries.  A star's window is the grid of samples one pixel
+    apart from ``stars.body_conflict_margin`` pixels before the star to the same
+    distance past it, along each axis, as the navigator builds it.  The star is hidden
+    when any window sample intercepts the closest planet or one of its satellites.
+    When ``stars.ring_occlusion_enabled`` is true and the closest planet has opaque
+    annuli, the star is also hidden when the window has a sample on the ring plane and
+    at least ``stars.ring_occlusion_min_opaque_fraction`` of those samples fall inside
+    an opaque annulus.
+
+    Parameters:
+        obs: The real observation.
+        config: The project config that sets the bodies, the window, and the ring rule.
+        stars: The catalog stars at the real frame's pointing.
+
+    Returns:
+        One flag per star, in the order of ``stars``: True when the star is hidden.
+    """
+    stars_config = config.stars
+    margin = float(stars_config.body_conflict_margin)
+    body_list = _conflict_body_list(obs, config)
+    planet = obs.closest_planet
+    annuli: list[tuple[float, float]] = []
+    if bool(stars_config.ring_occlusion_enabled) and planet is not None:
+        all_annuli = parse_ring_occlusion_annuli(_cast_dict(stars_config.ring_occlusion_radii_km))
+        annuli = all_annuli.get(planet.upper(), [])
+    min_opaque_fraction = float(stars_config.ring_occlusion_min_opaque_fraction)
+    hidden: list[bool] = []
+    for start in range(0, len(stars), _STARS_PER_BACKPLANE):
+        hidden += _stars_hidden_in_one_backplane(
+            obs,
+            stars[start : start + _STARS_PER_BACKPLANE],
+            margin=margin,
+            body_list=body_list,
+            annuli=annuli,
+            min_opaque_fraction=min_opaque_fraction,
+        )
+    return hidden
+
+
+def _stars_hidden_in_one_backplane(
+    obs: ObsSnapshotInst,
+    stars: Sequence[CatalogStar],
+    *,
+    margin: float,
+    body_list: list[str],
+    annuli: list[tuple[float, float]],
+    min_opaque_fraction: float,
+) -> list[bool]:
+    """Apply the body and ring rule to a batch of stars through one backplane.
+
+    Every star's window samples go into one meshgrid, end to end, and each star reads
+    its own run of samples back out of the backplane.
+
+    Parameters:
+        obs: The real observation.
+        stars: The stars of this batch.
+        margin: The window's half-width in pixels.
+        body_list: The bodies a window sample must not intercept.
+        annuli: The closest planet's opaque ``(inner_km, outer_km)`` annuli; empty when
+            rings don't hide stars.
+        min_opaque_fraction: The fraction of a window's ring-plane samples that must be
+            opaque for the ring to hide the star.
+
+    Returns:
+        One flag per star, in the order of ``stars``: True when the star is hidden.
+    """
+    if not stars:
+        return []
+    # Meshgrid.for_fov builds the window exactly as the navigator's check does, so the
+    # twin samples the same points.
+    windows = [
+        np.asarray(
+            Meshgrid.for_fov(
+                obs.fov,
+                origin=(star.u - margin, star.v - margin),
+                limit=(star.u + margin, star.v + margin),
+            ).uv.vals,
+            dtype=np.float64,
+        ).reshape(-1, 2)
+        for star in stars
+    ]
+    bounds = np.cumsum([0] + [len(window) for window in windows])
+    n_samples = int(bounds[-1])
+    backplane = Backplane(obs, Meshgrid(obs.fov, np.concatenate(windows)))
+    hidden = np.zeros(len(stars), dtype=bool)
+    for body_name in body_list:
+        intercepted = np.broadcast_to(
+            np.asarray(backplane.where_intercepted(body_name).vals, dtype=bool), (n_samples,)
+        )
+        hidden |= np.logical_or.reduceat(intercepted, bounds[:-1])
+    if annuli and obs.closest_planet is not None:
+        radii = backplane.ring_radius(f'{obs.closest_planet.lower()}:ring')
+        radii_km = np.broadcast_to(np.asarray(radii.vals, dtype=np.float64), (n_samples,))
+        on_ring = ~np.broadcast_to(np.asarray(radii.mask, dtype=bool), (n_samples,))
+        for index in np.flatnonzero(~hidden):
+            window = slice(int(bounds[index]), int(bounds[index + 1]))
+            if not on_ring[window].any():
+                continue
+            fraction = _ring_opaque_fraction(radii_km[window], on_ring[window], annuli)
+            if fraction >= min_opaque_fraction:
+                hidden[index] = True
+    return [bool(flag) for flag in hidden]
 
 
 class _DeepCatalogObs:
@@ -208,10 +336,10 @@ def catalog_twin_stars(
     """The scene star entries for one real star frame's twin.
 
     The navigator's catalog reduction runs on the real observation down to
-    :func:`twin_faint_cutoff_vmag`, with no cap on the number of stars, and its body and
-    ring check marks the stars hidden behind a body or a ring.
-    :func:`twin_star_entries` then moves each star by the verified offset and keeps the
-    ones the twin holds.
+    :func:`twin_faint_cutoff_vmag`, with no cap on the number of stars, and
+    :func:`stars_behind_a_body_or_ring` leaves out the stars hidden behind a body or a
+    ring.  :func:`twin_star_entries` then moves each star by the verified offset and
+    keeps the ones the twin holds.
 
     Parameters:
         obs: The real observation.
@@ -226,5 +354,8 @@ def catalog_twin_stars(
     cutoff = twin_faint_cutoff_vmag(instrument, exposure_sec, size_vu)
     deep_obs = cast(ObsSnapshotInst, _DeepCatalogObs(obs, cutoff))
     stars = reduce_catalogs(deep_obs, cast(Config, _UncappedConfig(DEFAULT_CONFIG)))
-    mark_body_and_ring_conflicts(obs, DEFAULT_CONFIG, stars)
-    return twin_star_entries(stars, offset_vu=offset_vu, size_vu=size_vu, faint_cutoff_vmag=cutoff)
+    hidden = stars_behind_a_body_or_ring(obs, DEFAULT_CONFIG, stars)
+    visible = [star for star, is_hidden in zip(stars, hidden, strict=True) if not is_hidden]
+    return twin_star_entries(
+        visible, offset_vu=offset_vu, size_vu=size_vu, faint_cutoff_vmag=cutoff
+    )
