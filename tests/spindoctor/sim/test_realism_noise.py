@@ -6,7 +6,10 @@ import numpy as np
 import pytest
 
 from spindoctor.sim.realism.noise import (
+    SkyPatch,
+    dark_sky_patches,
     find_uniform_patches,
+    noisy_patches,
     paired_difference_sigma,
     radial_power_spectrum,
 )
@@ -95,3 +98,27 @@ def test_radial_power_spectrum_peaks_at_banding_frequency() -> None:
     peak_bin = int(np.nanargmax(power))
     expected_freq = 1.0 / period_px
     assert freq[peak_bin] == pytest.approx(expected_freq, abs=0.5 / 16)
+
+
+def test_dark_sky_is_selected_by_level_alone() -> None:
+    """A patch above the ceiling is dropped however noisy it is, and one below is kept.
+
+    The ring patch lies within three of its own sigmas of the ceiling, so a selection
+    scaled by any sigma could keep it.
+    """
+    sky = SkyPatch(v0=0, u0=0, size=32, mean=2e-4, sigma=1e-8)
+    ring = SkyPatch(v0=0, u0=32, size=32, mean=0.07, sigma=0.05)
+    assert dark_sky_patches([sky, ring], 2.54e-3) == [sky]
+
+
+def test_dark_sky_keeps_a_patch_far_below_the_ceiling() -> None:
+    """A patch far below the ceiling is dark sky."""
+    dark = SkyPatch(v0=0, u0=0, size=32, mean=-1e-3, sigma=1e-4)
+    assert dark_sky_patches([dark], 2.54e-3) == [dark]
+
+
+def test_a_constant_patch_has_no_noise_to_compare() -> None:
+    """A patch whose sigma is 0, such as a zero-filled tile, is dropped."""
+    constant = SkyPatch(v0=0, u0=0, size=32, mean=0.0, sigma=0.0)
+    sky = SkyPatch(v0=0, u0=32, size=32, mean=4e-5, sigma=1e-4)
+    assert noisy_patches([constant, sky]) == [sky]
