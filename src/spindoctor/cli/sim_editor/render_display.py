@@ -1,24 +1,34 @@
 """Render, display, PSF preview, selection, and image-save panel.
 
-Drives the live preview, which validates the scene before it renders, as every
-render does.  The panel stretches DN to a grayscale pixmap (with an optional
-saturation overlay and visual aids), applies the zoom scaling, hit-tests
-right-clicks to select and drag scene objects, renders the instrument PSF inset,
-and saves the current preview to PNG.  The status bar gives the frame's units and
-range, the share of pixels at the missing-data
-marker, and the navigator's verdict when it would not call the frame clean,
-because the preview stretch hides all of them: a ``vgiss`` frame in I/F looks
-the same as a ``coiss_nac`` frame in DN.  The preview is offset-free, but the
-status bar reads the frame the navigator reads, with the planted offset applied.
-When a scene plants an offset, that frame is a second render, which runs off the UI
-thread (:mod:`spindoctor.cli.sim_editor.verdict`): the preview appears at once, the
-status bar says the verdict is pending, and the navigated frame's summary replaces
-that when the second render finishes.  When validation refuses a scene, the last
-valid picture stays on screen and the status bar shows the reason in place of a
-verdict.  A render that fails on a valid scene opens an error dialog.
+The picture is drawn in two passes.  Each edit draws the simulator's fast preview
+on the UI thread, which takes a fraction of a second.  Once the editor has been idle
+for a moment, the full render runs on a worker thread
+(:mod:`spindoctor.cli.sim_editor.full_render`).  When it finishes, it replaces the
+preview, provided the scene has not changed since it started.  A new edit discards a
+full render that is still running.  The status bar says which of the two images is
+on screen.
+
+Every render validates the scene first.  The panel stretches DN to a grayscale
+pixmap (with an optional saturation overlay and visual aids), applies the zoom
+scaling, hit-tests right-clicks to select and drag scene objects, renders the
+instrument PSF inset, and saves the full render to PNG.  The status bar gives the
+frame's units and range, the share of pixels at the missing-data marker, and the
+navigator's verdict when it would not call the frame clean, because the display
+stretch hides all of them: a ``vgiss`` frame in I/F looks the same as a
+``coiss_nac`` frame in DN.  That summary, the saturation overlay, and a saved PNG
+all come from the full render, never from the preview.
+
+The picture is offset-free, but the summary reads the frame the navigator reads,
+with the planted offset applied.  When a scene plants an offset, that frame is a
+render of its own, which runs off the UI thread beside the full render
+(:mod:`spindoctor.cli.sim_editor.verdict`).  Until the summary arrives, the status
+bar says the verdict is pending.  When validation refuses a scene, the last valid
+picture stays on screen and the status bar shows the reason in place of a verdict.
+A preview that fails on a valid scene opens an error dialog.
 """
 
 import copy
+from collections.abc import Mapping
 from typing import Any
 
 import numpy as np
@@ -27,10 +37,10 @@ from PyQt6.QtGui import QCloseEvent, QColor, QImage, QPainter, QPen, QPixmap
 from PyQt6.QtWidgets import QFileDialog, QFormLayout, QGroupBox, QLabel, QMessageBox, QVBoxLayout
 
 from spindoctor.cli.sim_editor.base import SimEditorBase
+from spindoctor.cli.sim_editor.full_render import FullRender, render_full_frame
 from spindoctor.config import DEFAULT_CONFIG
 from spindoctor.sim.instrument_navigator import (
     frame_units_name,
-    frame_units_summary,
     has_planted_offset,
     resolve_sim_inst_config,
 )
@@ -43,6 +53,38 @@ from spindoctor.sim.scene_schema import (
     scene_value,
 )
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
+
+# The status bar's words for the image on screen.
+PREVIEW_TEXT = 'Fast preview'
+PREVIEW_FULL_RUNNING_TEXT = 'Fast preview (full render running)'
+FULL_RENDER_TEXT = 'Full render'
+# The saturation overlay's status while the fast preview is on screen: waiting for
+# the full render, or after that render has failed.
+SATURATION_WAITING_TEXT = 'Saturated: waiting for the full render'
+SATURATION_FAILED_TEXT = 'Saturated: unknown, the full render failed'
+# The units line's words, after the units name, once an offset-free scene's full
+# render has failed: that render was the one its verdict would have come from.
+NO_VERDICT_TEXT = 'no verdict, the full render failed'
+# The most characters of a failure message the status bar shows.  A traceback's
+# message can be long, and a permanent status-bar widget grows to fit its text.
+FAILURE_TEXT_MAX_CHARS = 80
+
+
+def _short_error(error: str) -> str:
+    """Return the first line of a failure message, shortened to fit the status bar.
+
+    Parameters:
+        error: The failure message.
+
+    Returns:
+        Its first line, cut to :data:`FAILURE_TEXT_MAX_CHARS` characters, ending in
+        ``...`` when cut.
+    """
+    lines = error.splitlines()
+    line = lines[0] if lines else ''
+    if len(line) <= FAILURE_TEXT_MAX_CHARS:
+        return line
+    return line[: FAILURE_TEXT_MAX_CHARS - 3] + '...'
 
 
 def _dn_to_display_uint8(image: Any) -> Any:
@@ -120,17 +162,14 @@ class RenderDisplayMixin(SimEditorBase):
 
     # ---- Rendering ----
     def _update_image(self) -> None:
-        """Re-render the preview, refresh the display, and update the status bar.
+        """Draw the fast preview, refresh the display, and update the status bar.
 
         The scene is validated first, on the UI thread.  If validation refuses it,
         the last valid picture stays on screen and the status bar shows the reason in
-        place of a verdict.  A valid scene renders its offset-free preview.  Without a
-        planted offset the status bar then describes the preview itself.  With one,
-        the navigator reads a different frame, since the offset moves the scene
-        within the frame (a body near the edge can leave it); the status bar then
-        shows the units with ``verdict pending`` and asks the verdict runner for
-        that frame, which supersedes any verdict still on its
-        way for an earlier edit.
+        place of a verdict.  A valid scene renders its offset-free fast preview, which
+        replaces the picture.  Any full render or verdict render still on its way is
+        discarded, the status bar shows the units with ``verdict pending``, and the
+        idle timer restarts.  When it fires, :meth:`_start_full_renders` runs.
 
         Any other failure, of the render or of the validator itself, opens an error
         dialog that reports it.
@@ -140,35 +179,23 @@ class RenderDisplayMixin(SimEditorBase):
                 return
             # The check above stored this scene in the shared validation cache, so
             # the render's own validation finds it there.
-            img, meta = render_combined_model(self.sim_params, ignore_offset=True)
-            displayed = copy.deepcopy(self.sim_params)
-            self._current_image = img
-            self._last_meta = meta
-            self._displayed_params = displayed
-            inst_config = resolve_sim_inst_config(
-                DEFAULT_CONFIG,
-                self.sim_params.get('instrument'),
-                self.sim_params.get('instrument_config'),
-            )
-            planted = has_planted_offset(self.sim_params)
-            if planted:
-                self._units_label.setText(f'{frame_units_name(inst_config)}: verdict pending')
-            else:
-                self._verdict_runner.cancel()
-                self._units_label.setText(frame_units_summary(img, inst_config))
-            self._display_image()
-            if planted:
-                self._verdict_runner.request(self.sim_params)
-        except Exception as e:
+            img, meta = render_combined_model(self.sim_params, ignore_offset=True, preview=True)
+            self._full_render_runner.cancel()
             self._verdict_runner.cancel()
+            self._show_picture(img, meta, copy.deepcopy(self.sim_params), full_render=False)
+            units = frame_units_name(self._inst_config(self.sim_params))
+            self._units_label.setText(f'{units}: verdict pending')
+            self._idle_timer.start()
+        except Exception as e:
+            self._stop_full_renders()
             self._units_label.setText('')
             QMessageBox.critical(self, 'Error', f'Failed to preview the scene:\n{e!s}')
 
     def _report_refusal(self) -> bool:
         """Validate the scene and, if validation refuses it, say why in the status bar.
 
-        A refused scene does not start a verdict render, and any verdict render
-        already on its way is dropped.  An exception other than
+        A refused scene starts no full render or verdict render, and any already on
+        their way are dropped.  An exception other than
         :class:`~spindoctor.sim.scene_schema.SimSceneValidationError` propagates to
         the caller.
 
@@ -178,34 +205,153 @@ class RenderDisplayMixin(SimEditorBase):
         try:
             validate_scene(self.sim_params)
         except SimSceneValidationError as e:
-            self._verdict_runner.cancel()
+            self._stop_full_renders()
             self._units_label.setText(f'scene would be refused: {e}')
             return True
         return False
 
-    def _show_verdict(self, summary: str) -> None:
-        """Show the navigated frame's summary, delivered by the verdict runner.
+    def _show_picture(
+        self,
+        image: Any,
+        meta: dict[str, Any],
+        scene: dict[str, Any],
+        *,
+        full_render: bool,
+    ) -> None:
+        """Put a rendered image on screen and say in the status bar which image it is.
 
         Parameters:
-            summary: The status text for the latest scene's navigated frame.
+            image: The rendered image.
+            meta: The renderer's output metadata for the image.
+            scene: The editor's own copy of the scene that produced the image.
+            full_render: True for the full render, False for the fast preview.
         """
-        self._units_label.setText(summary)
+        self._current_image = image
+        self._last_meta = meta
+        self._displayed_params = scene
+        self._showing_full_render = full_render
+        self._full_render_failed = False
+        self._set_image_kind(FULL_RENDER_TEXT if full_render else PREVIEW_TEXT)
+        self._display_image()
 
-    def _show_verdict_failure(self, error: str) -> None:
-        """Report a failed navigated-frame render in the status bar.
+    def _set_image_kind(self, text: str, *, detail: str = '') -> None:
+        """Say in the status bar which image is on screen.
+
+        Parameters:
+            text: The status bar's words for the image.
+            detail: Longer text shown as the words' tooltip, such as the whole
+                message of a failed full render.  Empty for no tooltip.
+        """
+        self._image_kind_label.setText(text)
+        self._image_kind_label.setToolTip(detail)
+
+    def _stop_full_renders(self) -> None:
+        """Stop the idle timer and drop any full render or verdict render on its way."""
+        self._idle_timer.stop()
+        self._full_render_runner.cancel()
+        self._verdict_runner.cancel()
+        if not self._showing_full_render and self._current_image is not None:
+            self._set_image_kind(PREVIEW_TEXT)
+
+    def _start_full_renders(self) -> None:
+        """Start the full render, and the verdict render if the scene plants an offset.
+
+        The idle timer calls this once the editor has been idle for its delay.  If the
+        scene on screen is no longer the edited scene, nothing starts, because a new
+        preview is on its way and restarts the timer.  If the full render of the
+        scene is already on screen, because saving a PNG drew it, only the verdict
+        render starts.
+        """
+        if self._displayed_params != self.sim_params:
+            return
+        if has_planted_offset(self.sim_params):
+            self._verdict_runner.request(self.sim_params)
+        if self._showing_full_render:
+            return
+        self._full_render_runner.request(self.sim_params)
+        self._set_image_kind(PREVIEW_FULL_RUNNING_TEXT)
+
+    def _show_full_render(self, scene: dict[str, Any], result: FullRender) -> None:
+        """Replace the preview with a finished full render, if its scene is current.
+
+        Without a planted offset, the status bar then describes the full render.  With
+        one, the verdict runner describes the navigated frame instead.
+
+        Parameters:
+            scene: The worker's copy of the scene it rendered.
+            result: The full render.
+        """
+        if scene != self.sim_params:
+            # The scene changed after the render started.  The edit's own preview
+            # is on its way, or already on screen.
+            self._set_image_kind(PREVIEW_TEXT)
+            return
+        self._show_picture(result.image, result.meta, scene, full_render=True)
+        if not has_planted_offset(scene):
+            self._units_label.setText(result.units_summary)
+
+    def _show_full_render_failure(self, error: str) -> None:
+        """Report a failed full render in the status bar.
+
+        The preview stays on screen.  The status bar gives the first line of the
+        error, shortened, with the whole message as its tooltip.  Without a planted
+        offset, the units line can no longer expect a verdict, so it says the full
+        render failed, and so does the saturation overlay's status.
 
         Parameters:
             error: ``'<ExceptionType>: <message>'`` from the failed render.
         """
-        self._units_label.setText(f'verdict render failed: {error}')
+        self._full_render_failed = True
+        self._set_image_kind(
+            f'{PREVIEW_TEXT} (full render failed: {_short_error(error)})', detail=error
+        )
+        if not has_planted_offset(self._displayed_params):
+            units = frame_units_name(self._inst_config(self._displayed_params))
+            self._units_label.setText(f'{units}: {NO_VERDICT_TEXT}')
+        self._display_image()
+
+    @staticmethod
+    def _inst_config(scene: dict[str, Any]) -> Mapping[str, Any]:
+        """Return the instrument configuration a scene renders with.
+
+        Parameters:
+            scene: The scene mapping.
+
+        Returns:
+            The resolved instrument configuration.
+        """
+        return resolve_sim_inst_config(
+            DEFAULT_CONFIG, scene.get('instrument'), scene.get('instrument_config')
+        )
+
+    def _show_verdict(self, scene: dict[str, Any], summary: str) -> None:
+        """Show the navigated frame's summary, if its scene is current.
+
+        Parameters:
+            scene: The worker's copy of the scene it rendered.
+            summary: The status text for that scene's navigated frame.
+        """
+        if scene == self.sim_params:
+            self._units_label.setText(summary)
+
+    def _show_verdict_failure(self, error: str) -> None:
+        """Report a failed navigated-frame render in the status bar.
+
+        The status bar gives the first line of the error, shortened.  The whole
+        message and its traceback go to standard error.
+
+        Parameters:
+            error: ``'<ExceptionType>: <message>'`` from the failed render.
+        """
+        self._units_label.setText(f'verdict render failed: {_short_error(error)}')
 
     def closeEvent(self, event: QCloseEvent | None) -> None:
-        """Drop any verdict still on its way, then close the window.
+        """Drop any render still on its way, then close the window.
 
         Parameters:
             event: The close event.
         """
-        self._verdict_runner.cancel()
+        self._stop_full_renders()
         super().closeEvent(event)
 
     def _toggle_saturation_overlay(self, checked: bool) -> None:
@@ -232,11 +378,13 @@ class RenderDisplayMixin(SimEditorBase):
         return float(noise['saturation_dn'])
 
     def _display_image(self) -> None:
-        """Compose the preview pixmap from the current DN image and redraw.
+        """Compose the displayed pixmap from the current DN image and redraw.
 
         The marks for bodies, stars, and the ring center come from the scene that
         produced the picture, so they stay on the picture while an edit leaves the
-        scene refused.
+        scene refused.  The saturation overlay is drawn only on the full render.
+        While the fast preview is on screen, the overlay's status says it is waiting
+        for the full render, or that the full render failed.
         """
         if self._current_image is None:
             return
@@ -244,7 +392,8 @@ class RenderDisplayMixin(SimEditorBase):
         img_uint8 = _dn_to_display_uint8(self._current_image)
         height, width = img_uint8.shape
         saturation_dn = self._current_saturation_dn()
-        if self._show_saturation_overlay and saturation_dn is not None:
+        overlay = self._show_saturation_overlay and saturation_dn is not None
+        if overlay and self._showing_full_render:
             rgb = np.repeat(img_uint8[:, :, np.newaxis], 3, axis=2)
             sat_mask = self._current_image >= saturation_dn
             rgb[sat_mask] = (255, 0, 0)
@@ -266,7 +415,12 @@ class RenderDisplayMixin(SimEditorBase):
                 width,
                 QImage.Format.Format_Grayscale8,
             ).copy()
-            self._saturation_label.setText('')
+            if not overlay:
+                self._saturation_label.setText('')
+            elif self._full_render_failed:
+                self._saturation_label.setText(SATURATION_FAILED_TEXT)
+            else:
+                self._saturation_label.setText(SATURATION_WAITING_TEXT)
         pixmap = QPixmap(width, height)
         pixmap.fill(QColor(0, 0, 0))
         painter = QPainter(pixmap)
@@ -499,8 +653,35 @@ class RenderDisplayMixin(SimEditorBase):
         self._last_drag_img_vu = (img_v, img_u)
 
     # ---- Save image ----
+    def _full_render_image(self) -> Any:
+        """Return the full render of the scene behind the picture on screen.
+
+        If the preview is on screen, the full render is drawn now, on the UI thread.
+        When the preview's scene is still the edited scene, the new render then
+        replaces the preview, as a finished background render would, and the
+        background render of that scene, if one is on its way, is dropped.
+
+        Returns:
+            The image on screen if it is the full render, and otherwise a new full
+            render of the same scene.
+        """
+        if self._showing_full_render:
+            return self._current_image
+        scene = copy.deepcopy(self._displayed_params)
+        full = render_full_frame(scene)
+        if scene == self.sim_params:
+            self._full_render_runner.cancel()
+            self._show_full_render(scene, full)
+        return full.image
+
     def _save_image(self) -> None:
-        """Save the current preview to a PNG file."""
+        """Save the full render of the picture on screen to a PNG file.
+
+        The PNG is the full render's stretched image, without the marks or the
+        saturation overlay.  If the fast preview is on screen, the full render of the
+        same scene is rendered now, on the UI thread, before the file is written, and
+        shown (see :meth:`_full_render_image`).
+        """
         if self._current_image is None:
             QMessageBox.warning(self, 'No Image', 'No image to save.')
             return
@@ -514,7 +695,7 @@ class RenderDisplayMixin(SimEditorBase):
             try:
                 from PIL import Image
 
-                img_uint8 = _dn_to_display_uint8(self._current_image)
+                img_uint8 = _dn_to_display_uint8(self._full_render_image())
                 Image.fromarray(img_uint8, mode='L').save(filename)
             except Exception as e:
                 QMessageBox.critical(self, 'Error', f'Failed to save image:\n{e!s}')
