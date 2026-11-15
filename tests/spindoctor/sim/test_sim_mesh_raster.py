@@ -128,3 +128,16 @@ def test_gouraud_shades_a_shared_vertex_with_the_averaged_normal() -> None:
     """
     image = _render(_FOLD, shading='gouraud')
     assert image[2, 10] == pytest.approx(256.0 / math.hypot(64.0, 256.0))
+
+
+def test_gouraud_blends_three_vertices_inside_a_face() -> None:
+    """An interior pixel takes the barycentric blend of its face's vertex intensities.
+
+    Pixel (10, 7) has its center at u = 7.5, v = 10.5 on the left face, with weight
+    0.375 on the left foot and 0.3125 on each ridge vertex.  The ridge vertices carry
+    the averaged normal's intensity and the foot carries the left face's own, 2/sqrt(5).
+    """
+    image = _render(_FOLD, shading='gouraud')
+    ridge = 256.0 / math.hypot(64.0, 256.0)
+    expected = 0.625 * ridge + 0.375 * 2.0 / math.sqrt(5.0)
+    assert image[10, 7] == pytest.approx(expected)
