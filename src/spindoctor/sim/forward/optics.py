@@ -191,7 +191,9 @@ def apply_optics(
 
     Runs the smear, distortion, PSF, ghost, and stray-light sub-stages in the
     fixed internal order documented at the module level.  A sub-stage whose
-    block is absent from the scene ``optics`` mapping contributes nothing.
+    block is absent from the scene ``optics`` mapping contributes nothing.  On the
+    scene editor's fast preview frame (``frame.preview``), the distortion warp is
+    skipped.
 
     Parameters:
         frame: The frame whose signal and point-source planes are modified.
@@ -206,9 +208,12 @@ def apply_optics(
     if smear:
         apply_smear(frame, smear=smear, oversample=oversample)
 
-    apply_distortion(
-        frame, params=params, oversample=oversample, distortion=_effective_distortion(params)
-    )
+    # The residual warp moves light by under a pixel for most cameras, which the
+    # editor's preview can't show, and it is one of the slowest optics steps.
+    if not frame.preview:
+        apply_distortion(
+            frame, params=params, oversample=oversample, distortion=_effective_distortion(params)
+        )
 
     psf = effective_psf(params)
     if isinstance(psf, dict):

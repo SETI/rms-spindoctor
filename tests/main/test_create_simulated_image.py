@@ -33,6 +33,8 @@ except Exception as exc:
         allow_module_level=True,
     )
 
+from tests.main.sim_editor_waits import process_until, render_fully
+
 # The driver is an importable module under the ``spindoctor.cli`` package.
 ncsi = importlib.import_module('spindoctor.cli.sd_create_simulated_image')
 
@@ -318,9 +320,9 @@ def test_saturation_overlay_off_clears_status(model: Any) -> None:
 
 @pytest.mark.parametrize(('instrument', 'units'), [('coiss_nac', 'DN'), ('vgiss', 'I/F')])
 def test_units_label_names_the_rendered_units(model: Any, instrument: str, units: str) -> None:
-    """The status bar names the rendered frame's units after a render."""
+    """The status bar names the rendered frame's units after the full render."""
     model.sim_params['instrument'] = instrument
-    model._update_image()
+    render_fully(model)
     assert model._units_label.text().split(' ')[0] == units
 
 
@@ -356,7 +358,7 @@ def _set_body_scene(
 def test_units_label_leaves_the_vgiss_sky_out_of_the_marker_count(model: Any) -> None:
     """A vgiss frame's dark sky sits above the 0 marker, and the label stays quiet."""
     _set_body_scene(model, instrument='vgiss', semi_px=43.0, center_u=64.0, offset_u=0.0)
-    model._update_image()
+    render_fully(model)
     assert model._units_label.text() == 'I/F 0.01176 to 1.008'
 
 
@@ -507,6 +509,22 @@ def test_save_scene_names_the_removed_declaration_in_the_status_bar(
         'Removed noise.read_noise_dn from published_equals_truth: an edit made the '
         'published value differ from the planted one.'
     )
+
+
+def test_save_scene_that_removes_a_declaration_redraws_the_picture(
+    monkeypatch: pytest.MonkeyPatch, model: Any, tmp_path: Path
+) -> None:
+    """Removing a stale declaration changes the scene, so the picture is drawn again."""
+    _declare_then_edit_read_noise(model)
+    model._update_image()
+    out = tmp_path / 'stale.yaml'
+    monkeypatch.setattr(
+        QFileDialog, 'getSaveFileName', staticmethod(lambda *a, **k: (str(out), 'YAML'))
+    )
+    _no_critical(monkeypatch)
+    model._save_scene()
+    process_until(lambda: model._displayed_params == model.sim_params)
+    assert model._displayed_params['published_equals_truth'] == ['noise.bias_dn']
 
 
 def test_load_scene_populates_model(

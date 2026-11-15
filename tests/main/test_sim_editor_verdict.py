@@ -2,8 +2,10 @@
 
 With a planted offset, the status bar first names the units with ``verdict
 pending`` and then shows the navigated frame's summary when the worker's render
-finishes.  Most tests replace the worker's render with a gated stand-in, so they
-decide when each render finishes; one renders a real scene end to end.
+finishes.  The editor asks for that render once it has been idle for a moment; these
+tests ask for it directly, as the idle timer would.  Most tests replace the worker's
+render with a gated stand-in, so they decide when each render finishes; one renders a
+real scene end to end.
 
 Qt runs headless (offscreen platform).
 """
@@ -13,7 +15,6 @@ import subprocess
 import sys
 import threading
 import time
-from collections.abc import Callable
 from pathlib import Path
 from typing import Any, cast
 
@@ -42,13 +43,17 @@ except Exception as exc:
 
 from spindoctor.cli.sim_editor import CreateSimulatedImageModel
 from spindoctor.cli.sim_editor import verdict as verdict_module
+from spindoctor.cli.sim_editor import worker as worker_module
 from spindoctor.config import DEFAULT_CONFIG
 from spindoctor.sim.instrument_navigator import frame_units_summary, resolve_sim_inst_config
 from spindoctor.sim.render import render_combined_model
-
-# Generous: a gated render finishes as soon as it is released, and the one real
-# render is a 128 x 128 frame.
-_TIMEOUT_SEC = 20.0
+from tests.main.sim_editor_waits import (
+    NEVER_IDLE_SEC,
+    TIMEOUT_SEC,
+    process_until,
+    render_fully,
+    wait_for_background_renders,
+)
 
 
 @pytest.fixture
@@ -63,22 +68,12 @@ def qapp() -> QApplication:
 @pytest.fixture
 def model(qapp: QApplication) -> Any:
     """A freshly constructed simulated-image editor model on its default scene."""
-    return CreateSimulatedImageModel()
-
-
-def _process_until(condition: Callable[[], bool]) -> None:
-    """Run the Qt event loop until ``condition`` holds, failing after the timeout."""
-    deadline = time.monotonic() + _TIMEOUT_SEC
-    while not condition():
-        if time.monotonic() > deadline:
-            pytest.fail('timed out waiting for the verdict runner')
-        QApplication.processEvents()
-        time.sleep(0.005)
+    return CreateSimulatedImageModel(full_render_delay_sec=NEVER_IDLE_SEC)
 
 
 def _wait_for_verdict(model: Any) -> None:
     """Run the Qt event loop until no verdict render is running or waiting."""
-    _process_until(lambda: not model._verdict_runner.is_busy)
+    process_until(lambda: not model._verdict_runner.is_busy)
 
 
 class _GatedSummary:
@@ -106,7 +101,7 @@ class _GatedSummary:
             self.scenes.append(sim_params)
             self.threads.append(threading.current_thread())
             self._gates.append(gate)
-        if not gate.wait(_TIMEOUT_SEC):
+        if not gate.wait(TIMEOUT_SEC):
             raise TimeoutError('the test never released this render')
         if self._error is not None:
             raise self._error
@@ -114,7 +109,7 @@ class _GatedSummary:
 
     def release(self, index: int) -> None:
         """Let call ``index`` finish, running the event loop until it has started."""
-        _process_until(lambda: len(self._gates) > index)
+        process_until(lambda: len(self._gates) > index)
         self._gates[index].set()
 
 
@@ -137,13 +132,14 @@ def gated(monkeypatch: pytest.MonkeyPatch) -> _GatedSummary:
 
 
 def _edit_offset(model: Any, offset_u: float) -> None:
-    """Plant ``offset_u`` and re-render, as an edit of the offset spin box does."""
+    """Plant ``offset_u``, draw the preview, and start the background renders."""
     model.sim_params['offset_u'] = offset_u
     model._update_image()
+    model._start_full_renders()
 
 
-def _preview_summary(model: Any) -> str:
-    """The status text of the current preview itself, under the scene's instrument."""
+def _shown_summary(model: Any) -> str:
+    """The status text of the image on screen, under the scene's instrument."""
     inst_config = resolve_sim_inst_config(DEFAULT_CONFIG, model.sim_params['instrument'])
     return frame_units_summary(model._current_image, inst_config)
 
@@ -183,8 +179,7 @@ def test_units_label_says_the_verdict_is_pending_after_the_preview(model: Any) -
 def test_units_label_reads_the_navigated_frame(model: Any) -> None:
     """The label says blank when the planted offset moves the only body out of the frame."""
     _set_offscreen_body_scene(model)
-    model._update_image()
-    _wait_for_verdict(model)
+    render_fully(model)
     assert '(peak below 0.0001: the navigator classifies it blank)' in model._units_label.text()
 
 
@@ -194,7 +189,18 @@ def test_a_stale_verdict_never_reaches_the_label(model: Any, gated: _GatedSummar
     _edit_offset(model, 7.0)
     gated.release(0)
     # The newer request starts only once the stale render has been collected.
-    _process_until(lambda: len(gated.calls) == 2)
+    process_until(lambda: len(gated.calls) == 2)
+    assert model._units_label.text() == 'DN: verdict pending'
+
+
+def test_a_verdict_for_a_changed_scene_never_reaches_the_label(
+    model: Any, gated: _GatedSummary
+) -> None:
+    """A render finishing after an edit, before the edit's preview, leaves the label pending."""
+    _edit_offset(model, 5.0)
+    model.sim_params['offset_u'] = 7.0
+    gated.release(0)
+    _wait_for_verdict(model)
     assert model._units_label.text() == 'DN: verdict pending'
 
 
@@ -329,11 +335,10 @@ def test_a_thread_that_fails_to_start_reaches_the_label(
 def test_a_scene_without_an_offset_starts_no_verdict_render(
     model: Any, gated: _GatedSummary
 ) -> None:
-    """An offset-free scene's status text comes from the preview, with no worker."""
-    model._update_image()
-    assert model._verdict_runner.is_busy is False
+    """An offset-free scene's status text comes from the full render, with no verdict."""
+    render_fully(model)
     assert gated.calls == []
-    assert model._units_label.text() == _preview_summary(model)
+    assert model._units_label.text() == _shown_summary(model)
 
 
 _ZERO_K_REFUSAL = (
@@ -383,12 +388,13 @@ def test_a_refused_scene_keeps_its_marks_on_the_last_picture(model: Any) -> None
     assert model._base_pixmap.toImage() == valid_pixmap
 
 
-def test_the_preview_leaves_out_the_planted_offset(model: Any, gated: _GatedSummary) -> None:
+def test_the_preview_leaves_out_the_planted_offset(model: Any) -> None:
     """The preview draws the scene without its planted offset and roll."""
     model._add_body_tab()
-    _edit_offset(model, 5.0)
-    offset_free, _ = render_combined_model(model.sim_params, ignore_offset=True)
-    navigated, _ = render_combined_model(model.sim_params, ignore_offset=False)
+    model.sim_params['offset_u'] = 5.0
+    model._update_image()
+    offset_free, _ = render_combined_model(model.sim_params, ignore_offset=True, preview=True)
+    navigated, _ = render_combined_model(model.sim_params, ignore_offset=False, preview=True)
     assert np.array_equal(model._current_image, offset_free)
     assert not np.array_equal(model._current_image, navigated)
 
@@ -405,7 +411,7 @@ def test_fixing_a_refused_scene_renders_the_new_picture(model: Any) -> None:
     tab = _minnaert_body_tab(model)
     _set_minnaert_k(model, tab, 0.0)
     _set_minnaert_k(model, tab, 1.0)
-    expected, _ = render_combined_model(model.sim_params, ignore_offset=True)
+    expected, _ = render_combined_model(model.sim_params, ignore_offset=True, preview=True)
     assert np.array_equal(model._current_image, expected)
 
 
@@ -473,8 +479,8 @@ def test_clearing_the_offset_drops_the_running_verdict(model: Any, gated: _Gated
     _edit_offset(model, 5.0)
     _edit_offset(model, 0.0)
     gated.release(0)
-    _wait_for_verdict(model)
-    assert model._units_label.text() == _preview_summary(model)
+    wait_for_background_renders(model)
+    assert model._units_label.text() == _shown_summary(model)
 
 
 def test_a_failed_preview_drops_the_running_verdict(
@@ -523,8 +529,8 @@ def test_deleting_the_editor_mid_render_is_safe(
     sip.delete(model)
     assert sip.isdeleted(poll_timer)
     gated.release(0)
-    gated.threads[0].join(_TIMEOUT_SEC)
-    deadline = time.monotonic() + 8 * verdict_module._POLL_INTERVAL_MS / 1000.0
+    gated.threads[0].join(TIMEOUT_SEC)
+    deadline = time.monotonic() + 8 * worker_module.POLL_INTERVAL_MS / 1000.0
     while time.monotonic() < deadline:
         QApplication.processEvents()
         time.sleep(0.005)
@@ -555,8 +561,10 @@ window = CreateSimulatedImageModel()
 window.show()
 window.sim_params['offset_u'] = 3.0
 window._update_image()
+window._start_full_renders()
 window.sim_params['offset_u'] = 4.0
 window._update_image()
+window._start_full_renders()
 assert window._verdict_runner.is_busy
 QTimer.singleShot(50, window.close)
 sys.exit(app.exec())
