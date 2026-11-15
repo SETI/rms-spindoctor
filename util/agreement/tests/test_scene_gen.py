@@ -54,11 +54,11 @@ def test_limb_disc_body_fully_in_frame() -> None:
     """The limb_disc body silhouette stays inside the frame."""
     for _, params, _ in generate_scenes('limb_disc', 25, campaign_seed=_SEED):
         body = params['bodies'][0]
-        radius = body['axis1'] / 2.0
+        radius = body['semi_a_px']
         for key, center in (('center_v', body['center_v']), ('center_u', body['center_u'])):
             assert center - radius > 0.0, key
             assert center + radius < FRAME_SIZE, key
-        assert body['axis1'] >= 104.0
+        assert body['semi_a_px'] >= 52.0
 
 
 def test_limb_disc_psf_authors_matched_psf() -> None:
@@ -74,7 +74,7 @@ def test_limb_disc_psf_body_fully_in_frame() -> None:
     for _, params, _ in generate_scenes('limb_disc_psf', 15, campaign_seed=_SEED):
         assert len(params['bodies']) == 1
         body = params['bodies'][0]
-        radius = body['axis1'] / 2.0
+        radius = body['semi_a_px']
         assert body['center_v'] - radius > 0.0
         assert body['center_v'] + radius < FRAME_SIZE
 
@@ -104,7 +104,7 @@ def test_ring_line_clears_framed_body() -> None:
         dist = abs(
             (body['center_v'] - pv) * math.cos(phi) + (body['center_u'] - pu) * math.sin(phi)
         )
-        assert dist > body['axis1'] / 2.0 + 8.0
+        assert dist > body['semi_a_px'] + 8.0
 
 
 def test_aniso_ring_line_clears_clipped_body() -> None:
@@ -120,7 +120,7 @@ def test_aniso_ring_line_clears_clipped_body() -> None:
             dist = abs(
                 (body['center_v'] - pv) * math.cos(phi) + (body['center_u'] - pu) * math.sin(phi)
             )
-            assert dist > body['axis1'] / 2.0 + 8.0, family
+            assert dist > body['semi_a_px'] + 8.0, family
 
 
 def test_fixed_families_freeze_their_angles() -> None:
@@ -159,4 +159,4 @@ def test_multi_body_names_and_separation() -> None:
         assert geometry['body_names'] == ['RHEA', 'DIONE']
         b1, b2 = params['bodies']
         gap = math.hypot(b1['center_v'] - b2['center_v'], b1['center_u'] - b2['center_u'])
-        assert gap > (b1['axis1'] + b2['axis1']) / 2.0 + 20.0
+        assert gap > b1['semi_a_px'] + b2['semi_a_px'] + 20.0

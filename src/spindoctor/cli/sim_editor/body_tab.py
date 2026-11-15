@@ -117,31 +117,28 @@ class BodyTabMixin(SimEditorBase):
         w.range_check = rng_check  # type: ignore[attr-defined]
         w.range_spin = rng  # type: ignore[attr-defined]
 
-        smaj = QDoubleSpinBox()
-        smaj.setRange(1.0, 5000.0)
-        smaj.setDecimals(1)
-        smaj.setValue(spec.axis1)
-        smaj.valueChanged.connect(lambda v, i=idx: self._on_body_field(i, 'axis1', v))
-        fl.addRow('Axis 1:', smaj)
-        smin = QDoubleSpinBox()
-        smin.setRange(1.0, 5000.0)
-        smin.setDecimals(1)
-        smin.setValue(spec.axis2)
-        smin.valueChanged.connect(lambda v, i=idx: self._on_body_field(i, 'axis2', v))
-        fl.addRow('Axis 2:', smin)
-        sc = QDoubleSpinBox()
-        sc.setRange(1.0, 5000.0)
-        sc.setDecimals(1)
-        sc.setValue(spec.axis3)
-        sc.valueChanged.connect(lambda v, i=idx: self._on_body_field(i, 'axis3', v))
-        fl.addRow('Axis 3:', sc)
-        w.axis1_spin = smaj  # type: ignore[attr-defined]
-        w.axis2_spin = smin  # type: ignore[attr-defined]
-        w.axis3_spin = sc  # type: ignore[attr-defined]
+        # The three semi-axes, each half the body's width along its axis.  Two
+        # decimals hold half of any width given to a tenth of a pixel, and the
+        # half-pixel step changes the width by one pixel.
+        semi_spins = []
+        for key, label, value in (
+            ('semi_a_px', 'Semi-axis a (px):', spec.semi_a_px),
+            ('semi_b_px', 'Semi-axis b (px):', spec.semi_b_px),
+            ('semi_c_px', 'Semi-axis c (px):', spec.semi_c_px),
+        ):
+            semi_spin = QDoubleSpinBox()
+            semi_spin.setRange(0.5, 2500.0)
+            semi_spin.setDecimals(2)
+            semi_spin.setSingleStep(0.5)
+            semi_spin.setValue(value)
+            semi_spin.valueChanged.connect(lambda v, i=idx, k=key: self._on_body_field(i, k, v))
+            fl.addRow(label, semi_spin)
+            semi_spins.append(semi_spin)
+        w.semi_a_spin, w.semi_b_spin, w.semi_c_spin = semi_spins  # type: ignore[attr-defined]
 
         # Shape model (B7): ellipsoid or an irregular polyhedral mesh.  For a
         # mesh, lumpiness/seed pick the shape and pose_euler_deg orients it; the
-        # axes above scale it.  The mesh fields are inert for an ellipsoid.
+        # semi-axes above scale it.  The mesh fields are inert for an ellipsoid.
         shape_combo = QComboBox()
         shape_combo.addItems(['ellipsoid', 'polyhedral_mesh'])
         shape_index = shape_combo.findText(spec.shape_model)
@@ -422,19 +419,19 @@ class BodyTabMixin(SimEditorBase):
             self._updater.request_update()
             if trigger_validate and key == 'range_km':
                 self._validate_ranges()
-            if key in ('axis1', 'axis2'):
+            if key in ('semi_a_px', 'semi_b_px'):
                 self._refresh_body_derived_spins(idx)
             if key == 'mesh_lumpiness':
                 self._refresh_body_override_controls(idx)
 
     def _refresh_body_derived_spins(self, idx: int) -> None:
-        """Show the renderer's current defaults in a body's unset axis3 and center spins.
+        """Show the renderer's defaults in a body's unset semi-axis c and center spins.
 
-        If ``axis3`` is unset, the renderer draws it as the smaller of ``axis1`` and
-        ``axis2``.  If the center is unset, the renderer draws the body at the frame
-        center.  An edit to an axis or to the frame size therefore changes what these
-        spins show.  If the body sets the key, its spin keeps its value.  The refresh
-        never writes to the scene.
+        If ``semi_c_px`` is unset, the renderer draws it as the smaller of ``semi_a_px``
+        and ``semi_b_px``.  If the center is unset, the renderer draws the body at the
+        frame center.  An edit to a semi-axis or to the frame size therefore changes
+        what these spins show.  If the body sets the key, its spin keeps its value.  The
+        refresh never writes to the scene.
 
         Parameters:
             idx: The body's index in the scene's ``bodies`` list.
@@ -446,7 +443,7 @@ class BodyTabMixin(SimEditorBase):
         body = self.sim_params['bodies'][idx]
         spec = body_spec_from_params(self._mesh_key_stash.view(body), index=idx)
         derived = (
-            (tab_w.axis3_spin, 'axis3', spec.axis3),  # type: ignore[attr-defined]
+            (tab_w.semi_c_spin, 'semi_c_px', spec.semi_c_px),  # type: ignore[attr-defined]
             (tab_w.center_v_spin, 'center_v', self.sim_params['size_v'] / 2.0),  # type: ignore[attr-defined]
             (tab_w.center_u_spin, 'center_u', self.sim_params['size_u'] / 2.0),  # type: ignore[attr-defined]
         )

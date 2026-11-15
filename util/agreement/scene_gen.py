@@ -132,9 +132,9 @@ def _framed_body(rng: random.Random) -> tuple[dict[str, Any], float, float]:
         'name': rng.choice(_BODY_NAMES),
         'center_v': center_v,
         'center_u': center_u,
-        'axis1': diameter,
-        'axis2': diameter * rng.uniform(0.97, 1.0),
-        'axis3': diameter * rng.uniform(0.96, 1.0),
+        'semi_a_px': diameter / 2.0,
+        'semi_b_px': diameter / 2.0 * rng.uniform(0.97, 1.0),
+        'semi_c_px': diameter / 2.0 * rng.uniform(0.96, 1.0),
         'illumination_angle': rng.uniform(0.0, 360.0),
         'phase_angle': rng.uniform(10.0, 45.0),
     }
@@ -304,14 +304,13 @@ def _gen_limb_ring_aniso(
     dist = rng.uniform(0.55, 0.65) * radius
     center_v = _FRAME_CENTER + dist * math.cos(theta)
     center_u = _FRAME_CENTER + dist * math.sin(theta)
-    diameter = 2.0 * radius
     body = {
         'name': rng.choice(_BODY_NAMES),
         'center_v': center_v,
         'center_u': center_u,
-        'axis1': diameter,
-        'axis2': diameter * rng.uniform(0.985, 1.0),
-        'axis3': diameter * rng.uniform(0.98, 1.0),
+        'semi_a_px': radius,
+        'semi_b_px': radius * rng.uniform(0.985, 1.0),
+        'semi_c_px': radius * rng.uniform(0.98, 1.0),
         'illumination_angle': rng.uniform(0.0, 360.0),
         'phase_angle': rng.uniform(8.0, 14.0),
     }
@@ -376,9 +375,9 @@ def _gen_multi_body(rng: random.Random) -> tuple[dict[str, Any], dict[str, Any]]
                 'name': name,
                 'center_v': base_v + rng.uniform(-6.0, 6.0),
                 'center_u': base_u + rng.uniform(-6.0, 6.0),
-                'axis1': diameter,
-                'axis2': diameter * rng.uniform(0.97, 1.0),
-                'axis3': diameter * rng.uniform(0.96, 1.0),
+                'semi_a_px': diameter / 2.0,
+                'semi_b_px': diameter / 2.0 * rng.uniform(0.97, 1.0),
+                'semi_c_px': diameter / 2.0 * rng.uniform(0.96, 1.0),
                 'illumination_angle': illumination,
                 'phase_angle': phase,
             }

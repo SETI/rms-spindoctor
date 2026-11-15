@@ -179,7 +179,7 @@ def test_matched_limb_scene_tracks_diameter_and_phase() -> None:
         phase_angle_deg=17.7,
     )
     body = scene['bodies'][0]
-    assert body['axis1'] == pytest.approx(155.0)
+    assert body['semi_a_px'] == pytest.approx(77.5)
     assert body['phase_angle'] == pytest.approx(17.7)
 
 
@@ -200,7 +200,7 @@ def test_matched_ring_body_tracks_diameter_and_phase() -> None:
         phase_angle_deg=126.3,
     )
     body = scene['bodies'][0]
-    assert body['axis1'] == pytest.approx(55.0)
+    assert body['semi_a_px'] == pytest.approx(27.5)
     assert body['phase_angle'] == pytest.approx(126.3)
 
 

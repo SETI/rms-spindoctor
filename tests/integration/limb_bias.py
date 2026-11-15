@@ -200,9 +200,9 @@ def build_body_scene(
                 'shape_model': 'ellipsoid',
                 'center_v': center,
                 'center_u': center,
-                'axis1': diameter_px,
-                'axis2': diameter_px,
-                'axis3': diameter_px,
+                'semi_a_px': diameter_px / 2.0,
+                'semi_b_px': diameter_px / 2.0,
+                'semi_c_px': diameter_px / 2.0,
                 'illumination_angle': illumination_deg,
                 'phase_angle': phase_deg,
             }
@@ -344,9 +344,9 @@ def renderer_centroid_offset(
     img = create_simulated_body(
         size=(size_px, size_px),
         center=center_vu,
-        axis1=diameter_px,
-        axis2=diameter_px,
-        axis3=diameter_px,
+        semi_a_px=diameter_px / 2.0,
+        semi_b_px=diameter_px / 2.0,
+        semi_c_px=diameter_px / 2.0,
         illumination_angle=0.0,
         phase_angle=0.0,
         anti_aliasing=1,
@@ -388,9 +388,9 @@ def ridge_inset_phase_zero(*, diameter_px: float, size_px: int = 260) -> float:
     img = create_simulated_body(
         size=(size_px, size_px),
         center=(center, center),
-        axis1=diameter_px,
-        axis2=diameter_px,
-        axis3=diameter_px,
+        semi_a_px=diameter_px / 2.0,
+        semi_b_px=diameter_px / 2.0,
+        semi_c_px=diameter_px / 2.0,
         illumination_angle=90.0,
         phase_angle=0.0,
         anti_aliasing=1,
@@ -432,7 +432,7 @@ def sweep_scenes(
         if axis == 'phase':
             body['phase_angle'] = value
         elif axis == 'diameter':
-            body['axis1'] = body['axis2'] = body['axis3'] = value
+            body['semi_a_px'] = body['semi_b_px'] = body['semi_c_px'] = value / 2.0
         elif axis == 'illumination':
             body['illumination_angle'] = value
         elif axis == 'offset_v':

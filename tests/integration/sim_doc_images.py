@@ -61,9 +61,9 @@ def _ellipsoid(**over: Any) -> dict[str, Any]:
         'name': 'BODY',
         'center_v': 110.0,
         'center_u': 110.0,
-        'axis1': 160.0,
-        'axis2': 120.0,
-        'axis3': 110.0,
+        'semi_a_px': 80.0,
+        'semi_b_px': 60.0,
+        'semi_c_px': 55.0,
         'illumination_angle': 25.0,
         'phase_angle': 35.0,
     }
@@ -142,7 +142,7 @@ _GUI_GALLERY: list[tuple[str, dict[str, Any], dict[str, Any]]] = [
     ),
     (
         'body_craters',
-        _scene([_ellipsoid(axis2=150.0, crater_fill=0.5, crater_max_radius=0.3)]),
+        _scene([_ellipsoid(semi_b_px=75.0, crater_fill=0.5, crater_max_radius=0.3)]),
         {'gamma': 1.1},
     ),
     ('crescent_body', _scene([_mesh(phase_angle=130.0)]), {'gamma': 1.4}),
@@ -161,9 +161,9 @@ _GUI_GALLERY: list[tuple[str, dict[str, Any], dict[str, Any]]] = [
         _scene(
             [
                 _ellipsoid(
-                    axis1=170.0,
-                    axis2=170.0,
-                    axis3=170.0,
+                    semi_a_px=85.0,
+                    semi_b_px=85.0,
+                    semi_c_px=85.0,
                     illumination_angle=90.0,
                     phase_angle=40.0,
                     atmosphere={'scale_height_px': 8.0, 'tau_ref': 3.0, 'g': 0.6},
@@ -177,9 +177,9 @@ _GUI_GALLERY: list[tuple[str, dict[str, Any], dict[str, Any]]] = [
         _scene(
             [
                 _ellipsoid(
-                    axis1=170.0,
-                    axis2=170.0,
-                    axis3=170.0,
+                    semi_a_px=85.0,
+                    semi_b_px=85.0,
+                    semi_c_px=85.0,
                     illumination_angle=90.0,
                     phase_angle=150.0,
                     atmosphere={'scale_height_px': 8.0, 'tau_ref': 3.0, 'g': 0.75},
@@ -193,9 +193,9 @@ _GUI_GALLERY: list[tuple[str, dict[str, Any], dict[str, Any]]] = [
         _scene(
             [
                 _ellipsoid(
-                    axis1=180.0,
-                    axis2=180.0,
-                    axis3=180.0,
+                    semi_a_px=90.0,
+                    semi_b_px=90.0,
+                    semi_c_px=90.0,
                     illumination_angle=20.0,
                     phase_angle=25.0,
                     disc_texture={
@@ -241,9 +241,9 @@ _GUI_GALLERY: list[tuple[str, dict[str, Any], dict[str, Any]]] = [
                     name='FAR',
                     center_v=110.0,
                     center_u=95.0,
-                    axis1=110.0,
-                    axis2=110.0,
-                    axis3=110.0,
+                    semi_a_px=55.0,
+                    semi_b_px=55.0,
+                    semi_c_px=55.0,
                     illumination_angle=20.0,
                     phase_angle=30.0,
                     range_km=700000.0,
@@ -252,9 +252,9 @@ _GUI_GALLERY: list[tuple[str, dict[str, Any], dict[str, Any]]] = [
                     name='NEAR',
                     center_v=110.0,
                     center_u=125.0,
-                    axis1=120.0,
-                    axis2=120.0,
-                    axis3=120.0,
+                    semi_a_px=60.0,
+                    semi_b_px=60.0,
+                    semi_c_px=60.0,
                     illumination_angle=20.0,
                     phase_angle=30.0,
                     range_km=500000.0,
@@ -463,7 +463,7 @@ _GUI_GALLERY: list[tuple[str, dict[str, Any], dict[str, Any]]] = [
     (
         'body_and_stars',
         _scene(
-            [_ellipsoid(axis1=120.0, axis2=95.0, axis3=85.0)],
+            [_ellipsoid(semi_a_px=60.0, semi_b_px=47.5, semi_c_px=42.5)],
             optics={'psf': {'match_navigator': True}},
             stars=_scatter_stars(28, 5),
             sky_counts={'a': -1.8, 'b': 0.34, 'density_factor': 1.0},
@@ -476,11 +476,28 @@ _GUI_GALLERY: list[tuple[str, dict[str, Any], dict[str, Any]]] = [
         _scene(
             [
                 _ellipsoid(
-                    name='A', center_v=70.0, center_u=70.0, axis1=90.0, axis2=80.0, axis3=75.0
+                    name='A',
+                    center_v=70.0,
+                    center_u=70.0,
+                    semi_a_px=45.0,
+                    semi_b_px=40.0,
+                    semi_c_px=37.5,
                 ),
-                _mesh(name='B', center_v=150.0, center_u=150.0, axis1=70.0, axis2=55.0, axis3=50.0),
+                _mesh(
+                    name='B',
+                    center_v=150.0,
+                    center_u=150.0,
+                    semi_a_px=35.0,
+                    semi_b_px=27.5,
+                    semi_c_px=25.0,
+                ),
                 _ellipsoid(
-                    name='C', center_v=60.0, center_u=160.0, axis1=40.0, axis2=36.0, axis3=34.0
+                    name='C',
+                    center_v=60.0,
+                    center_u=160.0,
+                    semi_a_px=20.0,
+                    semi_b_px=18.0,
+                    semi_c_px=17.0,
                 ),
             ]
         ),
@@ -489,7 +506,7 @@ _GUI_GALLERY: list[tuple[str, dict[str, Any], dict[str, Any]]] = [
     (
         'detector_noise',
         _scene(
-            [_ellipsoid(axis1=120.0, axis2=95.0, axis3=85.0)],
+            [_ellipsoid(semi_a_px=60.0, semi_b_px=47.5, semi_c_px=42.5)],
             noise={
                 'poisson': True,
                 'read_noise_dn': 8.0,
@@ -505,9 +522,9 @@ _GUI_GALLERY: list[tuple[str, dict[str, Any], dict[str, Any]]] = [
         _scene(
             [
                 _ellipsoid(
-                    axis1=150.0,
-                    axis2=150.0,
-                    axis3=150.0,
+                    semi_a_px=75.0,
+                    semi_b_px=75.0,
+                    semi_c_px=75.0,
                     illumination_angle=25.0,
                     phase_angle=30.0,
                 )
@@ -522,7 +539,7 @@ _GUI_GALLERY: list[tuple[str, dict[str, Any], dict[str, Any]]] = [
     (
         'stray_light_gradient',
         _scene(
-            [_ellipsoid(axis1=120.0, axis2=95.0, axis3=85.0)],
+            [_ellipsoid(semi_a_px=60.0, semi_b_px=47.5, semi_c_px=42.5)],
             optics={'stray_light': {'amplitude': 0.5, 'direction_deg': 35.0, 'model': 'linear'}},
         ),
         {'gamma': 1.2},
@@ -535,9 +552,9 @@ _GUI_GALLERY: list[tuple[str, dict[str, Any], dict[str, Any]]] = [
                     name='MOON',
                     center_v=140.0,
                     center_u=95.0,
-                    axis1=90.0,
-                    axis2=72.0,
-                    axis3=66.0,
+                    semi_a_px=45.0,
+                    semi_b_px=36.0,
+                    semi_c_px=33.0,
                     range_km=500000.0,
                 )
             ],

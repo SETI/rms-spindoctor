@@ -53,8 +53,8 @@ def _scene() -> dict[str, Any]:
                 'name': 'RHEA',
                 'center_v': 10.0,
                 'center_u': 10.0,
-                'axis1': 8.0,
-                'axis2': 8.0,
+                'semi_a_px': 4.0,
+                'semi_b_px': 4.0,
                 'range_km': 500000.0,
             }
         ],

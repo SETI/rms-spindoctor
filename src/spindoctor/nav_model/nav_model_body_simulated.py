@@ -264,8 +264,8 @@ class NavModelBodySimulated(NavModelBodyBase):
             - ``name``
             - ``center_v``, ``center_u`` (pixel coordinates of the center)
             - ``range_km`` (km; subject distance, defaults to inf)
-            - ``axis1``, ``axis2``, ``axis3`` (pixels; full widths of the
-              ellipsoid axes)
+            - ``semi_a_px``, ``semi_b_px``, ``semi_c_px`` (pixels; the
+              ellipsoid's semi-axes)
             - ``rotation_z`` (deg; rotation about the line of sight)
             - ``rotation_tilt`` (deg; tilt of the body)
             - ``illumination_angle`` (deg)
@@ -437,14 +437,14 @@ class NavModelBodySimulated(NavModelBodyBase):
         else:
             center_v = float(p.get('center_v', data_size_v / 2.0))
             center_u = float(p.get('center_u', data_size_u / 2.0))
-        axis1 = float(p.get('axis1', 0.0))
-        axis2 = float(p.get('axis2', 0.0))
-        axis3 = float(p.get('axis3', min(axis1, axis2)))
+        semi_a_px = float(p.get('semi_a_px', 0.0))
+        semi_b_px = float(p.get('semi_b_px', 0.0))
+        semi_c_px = float(p.get('semi_c_px', min(semi_a_px, semi_b_px)))
         if str(p.get('shape_model', 'ellipsoid')) == 'polyhedral_mesh':
             return render_mesh_body_image(
                 size=(data_size_v, data_size_u),
                 center=(center_v, center_u),
-                semi_axes_px=(axis1 / 2.0, axis2 / 2.0, axis3 / 2.0),
+                semi_axes_px=(semi_a_px, semi_b_px, semi_c_px),
                 spec=mesh_spec_from_params(p),
                 illumination_angle=illumination_angle_rad,
                 phase_angle=phase_angle_rad,
@@ -453,9 +453,9 @@ class NavModelBodySimulated(NavModelBodyBase):
         return create_simulated_body(
             size=(data_size_v, data_size_u),
             center=(center_v, center_u),
-            axis1=axis1,
-            axis2=axis2,
-            axis3=axis3,
+            semi_a_px=semi_a_px,
+            semi_b_px=semi_b_px,
+            semi_c_px=semi_c_px,
             rotation_z=rotation_z_rad,
             rotation_tilt=rotation_tilt_rad,
             illumination_angle=illumination_angle_rad,
@@ -553,14 +553,15 @@ class NavModelBodySimulated(NavModelBodyBase):
             cover a pixel.
         """
         p = self._sim_params
-        max_axis = max(
-            float(p.get('axis1', 0.0)),
-            float(p.get('axis2', 0.0)),
-            float(p.get('axis3', 0.0)),
+        max_semi = max(
+            float(p.get('semi_a_px', 0.0)),
+            float(p.get('semi_b_px', 0.0)),
+            float(p.get('semi_c_px', 0.0)),
         )
-        # Half again the longest axis (mesh relief can push past the
-        # ellipsoid bound) plus a fixed margin, as the arc fractions use.
-        reach = max_axis * 0.75
+        # Half again the longest semi-axis (mesh relief can push past the
+        # ellipsoid bound), and a canvas of half again the longest diameter plus
+        # a fixed margin, as the arc fractions use.
+        reach = max_semi * 1.5
         if (
             center_v - reach >= 0.0
             and center_u - reach >= 0.0
@@ -568,7 +569,7 @@ class NavModelBodySimulated(NavModelBodyBase):
             and center_u + reach <= float(self.obs.data_shape_u)
         ):
             return 0.0
-        canvas = math.ceil(max_axis * 1.5) + 16
+        canvas = math.ceil(max_semi * 3.0) + 16
         factor = max(1, math.ceil(canvas / _OVERFLOW_CANVAS_MAX_PX))
         if factor == 1:
             half = canvas // 2
@@ -584,7 +585,7 @@ class NavModelBodySimulated(NavModelBodyBase):
         else:
             small = math.ceil(canvas / factor)
             scaled = dict(p)
-            for axis in ('axis1', 'axis2', 'axis3'):
+            for axis in ('semi_a_px', 'semi_b_px', 'semi_c_px'):
                 if axis in scaled:
                     scaled[axis] = float(scaled[axis]) / factor
             small_img = self._render_body_image(
@@ -816,15 +817,15 @@ class NavModelBodySimulated(NavModelBodyBase):
             has no boundary to compare against (a degenerate geometry).
         """
         p = self._sim_params
-        max_axis = max(
-            float(p.get('axis1', 0.0)),
-            float(p.get('axis2', 0.0)),
-            float(p.get('axis3', 0.0)),
+        max_semi = max(
+            float(p.get('semi_a_px', 0.0)),
+            float(p.get('semi_b_px', 0.0)),
+            float(p.get('semi_c_px', 0.0)),
         )
         # Canvas comfortably larger than the silhouette: half again the
-        # longest axis (mesh relief can push past the ellipsoid bound)
+        # longest diameter (mesh relief can push past the ellipsoid bound)
         # plus a fixed margin.
-        canvas = math.ceil(max_axis * 1.5) + 16
+        canvas = math.ceil(max_semi * 3.0) + 16
         full_img = self._render_body_image(
             float(np.radians(p.get('phase_angle', 0.0))),
             size=(canvas, canvas),
@@ -970,15 +971,15 @@ class NavModelBodySimulated(NavModelBodyBase):
             has no ridge to compare against (a degenerate geometry).
         """
         p = self._sim_params
-        max_axis = max(
-            float(p.get('axis1', 0.0)),
-            float(p.get('axis2', 0.0)),
-            float(p.get('axis3', 0.0)),
+        max_semi = max(
+            float(p.get('semi_a_px', 0.0)),
+            float(p.get('semi_b_px', 0.0)),
+            float(p.get('semi_c_px', 0.0)),
         )
         # Canvas comfortably larger than the silhouette: half again the
-        # longest axis (mesh relief can push past the ellipsoid bound)
+        # longest diameter (mesh relief can push past the ellipsoid bound)
         # plus a fixed margin.
-        canvas = math.ceil(max_axis * 1.5) + 16
+        canvas = math.ceil(max_semi * 3.0) + 16
         full_img = self._render_body_image(
             float(np.radians(p.get('phase_angle', 0.0))),
             size=(canvas, canvas),

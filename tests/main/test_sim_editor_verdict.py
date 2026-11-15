@@ -162,9 +162,9 @@ def _set_offscreen_body_scene(model: Any) -> None:
                     'name': 'RHEA',
                     'center_v': 64.0,
                     'center_u': 118.0,
-                    'axis1': 6.0,
-                    'axis2': 6.0,
-                    'axis3': 6.0,
+                    'semi_a_px': 3.0,
+                    'semi_b_px': 3.0,
+                    'semi_c_px': 3.0,
                     'illumination_angle': 0.0,
                     'phase_angle': 0.0,
                 }

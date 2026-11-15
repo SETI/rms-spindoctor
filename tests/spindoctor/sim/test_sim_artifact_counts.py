@@ -40,9 +40,9 @@ _BASE_SCENE: dict[str, Any] = {
             'name': 'RHEA',
             'center_v': 100.0,
             'center_u': 100.0,
-            'axis1': 80.0,
-            'axis2': 80.0,
-            'axis3': 80.0,
+            'semi_a_px': 40.0,
+            'semi_b_px': 40.0,
+            'semi_c_px': 40.0,
             'illumination_angle': 25.0,
             'phase_angle': 30.0,
         }

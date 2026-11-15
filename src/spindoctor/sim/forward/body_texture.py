@@ -24,8 +24,8 @@ renderer's unit-sphere parameterization ``(x, y, z)`` with
 ``x = v_rot / semi_a``, ``y = u_rot / semi_b``, ``z = sqrt(1 - x^2 - y^2)``
 (so ``x^2 + y^2 + z^2 = 1`` on the disc).  Every texture -- the albedo
 noise field, albedo spots, bands, and storms -- lives in one body-polar
-frame: the pole is the body's axis1 direction (``lat = arcsin(x)``), and
-longitude is measured from +axis2 toward the observer
+frame: the pole is the direction of the body's semi-axis a (``lat = arcsin(x)``),
+and longitude is measured from the +b direction toward the observer
 (``lon = atan2(z, y)``; 90 deg = the sub-observer meridian).  Texture is
 terrain attached to the body, so it rotates in the image with the body's
 ``rotation_z`` pose, bands follow the planet's belts, and the lat-lon
@@ -287,8 +287,8 @@ def surface_texture_factor(
     Parameters:
         albedo: The body's albedo-texture spec, or None.
         disc_texture: The body's disc-texture spec, or None.
-        x: Unit-sphere axis1 component per shading pixel (``v_rot / a``).
-        y: Unit-sphere axis2 component per shading pixel (``u_rot / b``).
+        x: Unit-sphere a-axis component per shading pixel (``v_rot / a``).
+        y: Unit-sphere b-axis component per shading pixel (``u_rot / b``).
         z: Unit-sphere toward-observer component (0 outside the disc, so
             off-disc pixels carry limb values for the upsample continuity).
         mean_radius_px: Mean projected body radius in shading-grid (detector)
@@ -301,8 +301,8 @@ def surface_texture_factor(
     if albedo is None and disc_texture is None:
         return None
     factor = np.ones_like(x)
-    # One body-polar frame for every texture: pole along axis1 (x),
-    # longitudes from +axis2 (y) toward the observer (z).
+    # One body-polar frame for every texture: pole along the a axis (x),
+    # longitudes from +b (y) toward the observer (z).
     lat_p = np.arcsin(np.clip(x, -1.0, 1.0))
 
     if albedo is not None:

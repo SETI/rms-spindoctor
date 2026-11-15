@@ -23,9 +23,9 @@ def _body(**extra: Any) -> dict[str, Any]:
         'name': 'NEAR',
         'center_v': _CENTER,
         'center_u': _CENTER,
-        'axis1': 60.0,
-        'axis2': 60.0,
-        'axis3': 60.0,
+        'semi_a_px': 30.0,
+        'semi_b_px': 30.0,
+        'semi_c_px': 30.0,
         'phase_angle': 0.0,
         'illumination_angle': 0.0,
         'range_km': 1.0e6,
@@ -82,7 +82,7 @@ def test_a_star_behind_a_full_umbra_is_hidden() -> None:
 
 def test_a_farther_body_behind_a_full_umbra_is_hidden() -> None:
     """A larger, farther body behind the umbra doesn't show through it."""
-    far = {**_body(name='FAR', axis1=100.0, axis2=100.0, axis3=100.0), 'range_km': 5.0e6}
+    far = {**_body(name='FAR', semi_a_px=50.0, semi_b_px=50.0, semi_c_px=50.0), 'range_km': 5.0e6}
     alone, _meta = render_combined_model(_scene(_umbra_body()))
     stacked, _meta = render_combined_model(_scene(_umbra_body(), far))
     assert stacked[64, 64] == alone[64, 64]

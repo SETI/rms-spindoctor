@@ -34,9 +34,9 @@ def _disc(instrument: str, **extra: Any) -> dict[str, Any]:
                 'name': 'RHEA',
                 'center_v': 48.0,
                 'center_u': 48.0,
-                'axis1': 50.0,
-                'axis2': 50.0,
-                'axis3': 50.0,
+                'semi_a_px': 25.0,
+                'semi_b_px': 25.0,
+                'semi_c_px': 25.0,
                 'illumination_angle': 18.0,
                 'phase_angle': 30.0,
             }

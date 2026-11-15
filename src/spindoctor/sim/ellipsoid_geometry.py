@@ -87,10 +87,10 @@ class EllipsoidProjection:
 def project_ellipsoid(
     size: tuple[int, int],
     center: tuple[float, float],
-    axis1: float,
+    semi_a_px: float,
     *,
-    axis2: float,
-    axis3: float,
+    semi_b_px: float,
+    semi_c_px: float,
     rotation_z: float = 0.0,
     rotation_tilt: float = 0.0,
     anti_aliasing: float = 0.0,
@@ -109,9 +109,9 @@ def project_ellipsoid(
         center: Tuple of (v, u) giving the center position in floating-point
             pixels.  (0.0, 0.0) is the top-left corner of pixel (0,0),
             (0.5, 0.5) is the center of pixel (0,0).
-        axis1: The full width of axis 1 (a) of the ellipsoid in pixels.
-        axis2: The full width of axis 2 (b) of the ellipsoid in pixels.
-        axis3: The full width of axis 3 (c) of the ellipsoid in pixels (depth).
+        semi_a_px: Semi-axis a of the ellipsoid in pixels, half its width along axis 1.
+        semi_b_px: Semi-axis b of the ellipsoid in pixels, half its width along axis 2.
+        semi_c_px: Semi-axis c of the ellipsoid in pixels, half its depth along axis 3.
         rotation_z: Rotation angle around the viewing axis in radians.
         rotation_tilt: Tilt angle of the ellipsoid in radians (0 to pi/2).
         anti_aliasing: Anti-aliasing amount in [0, 1]; > 0 supersamples the
@@ -122,11 +122,6 @@ def project_ellipsoid(
         The :class:`EllipsoidProjection` working grids.
     """
     size_v, size_u = size
-
-    # Convert full-width axes to half-widths for ellipsoid math
-    semi_major_axis = axis1 / 2.0
-    semi_minor_axis = axis2 / 2.0
-    semi_c_axis = axis3 / 2.0
 
     # Determine anti-aliasing scale factor (only for limb smoothing)
     if anti_aliasing > 0:
@@ -140,9 +135,9 @@ def project_ellipsoid(
     work_u = size_u * aa_scale
     work_center_v = center[0] * aa_scale
     work_center_u = center[1] * aa_scale
-    work_semi_major = semi_major_axis * aa_scale
-    work_semi_minor = semi_minor_axis * aa_scale
-    work_semi_c = semi_c_axis * aa_scale
+    work_semi_major = semi_a_px * aa_scale
+    work_semi_minor = semi_b_px * aa_scale
+    work_semi_c = semi_c_px * aa_scale
 
     # Create coordinate grids at pixel centers.  The grid starts as array rows
     # and columns and the projection works in the geometry layer's pixel corner

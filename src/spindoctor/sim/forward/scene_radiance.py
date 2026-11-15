@@ -286,7 +286,7 @@ def compose_scene_radiance(
             truth_params['rotation_z'] = rotation_z
         truth_params['center_v'] = cv * os
         truth_params['center_u'] = cu * os
-        for axis_key in ('axis1', 'axis2', 'axis3'):
+        for axis_key in ('semi_a_px', 'semi_b_px', 'semi_c_px'):
             axis_val = body_params.get(axis_key)
             if axis_val is not None:
                 truth_params[axis_key] = float(axis_val) * os
@@ -294,9 +294,9 @@ def compose_scene_radiance(
             spec,
             center_v=cv * os,
             center_u=cu * os,
-            axis1=spec.axis1 * os,
-            axis2=spec.axis2 * os,
-            axis3=spec.axis3 * os,
+            semi_a_px=spec.semi_a_px * os,
+            semi_b_px=spec.semi_b_px * os,
+            semi_c_px=spec.semi_c_px * os,
             rotation_z=rotation_z,
             range_km=range_km,
         )

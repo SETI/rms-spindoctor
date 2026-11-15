@@ -15,9 +15,9 @@ bodies:
     pose_euler_deg: [10.0, 35.0, 0.0]
     center_v: 64.0
     center_u: 64.0
-    axis1: 90.0
-    axis2: 64.0
-    axis3: 56.0
+    semi_a_px: 45.0
+    semi_b_px: 32.0
+    semi_c_px: 28.0
     illumination_angle: 25.0
     phase_angle: 40.0
 noise:

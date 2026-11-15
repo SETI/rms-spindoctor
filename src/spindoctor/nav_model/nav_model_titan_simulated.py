@@ -54,10 +54,16 @@ from spindoctor.support.types import NDArrayBoolType
 __all__ = ['REQUIRED_SIM_PARAMS', 'NavModelTitanSimulated']
 
 
-REQUIRED_SIM_PARAMS: tuple[str, ...] = ('center_v', 'center_u', 'axis1', 'axis2', 'km_per_pixel')
+REQUIRED_SIM_PARAMS: tuple[str, ...] = (
+    'center_v',
+    'center_u',
+    'semi_a_px',
+    'semi_b_px',
+    'km_per_pixel',
+)
 """Body parameters a simulated Titan scene must supply for a model to build.
 
-The center and the two image-plane axes give the predicted disc; the pixel
+The center and the two image-plane semi-axes give the predicted disc; the pixel
 scale is what turns the configured atmosphere height (kilometers) into an
 envelope radius (pixels), and without it the envelope -- the outer bound of
 everything the fit samples -- would have to be invented.  A scene missing any
@@ -69,10 +75,9 @@ degenerate feature.
 def _mean_semi_axis_px(body_params: dict[str, Any]) -> float:
     """Mean image-plane semi-axis of a simulated body, in pixels.
 
-    The scene states full axis lengths, so the semi-axis is half of each;
-    the haze fit works from one circular radius, so the two image-plane axes
-    are averaged the way the real model averages the two per-axis center
-    resolutions.
+    The haze fit works from one circular radius, so the two image-plane
+    semi-axes are averaged the way the real model averages the two per-axis
+    center resolutions.
 
     Parameters:
         body_params: One idealized body entry.
@@ -80,7 +85,7 @@ def _mean_semi_axis_px(body_params: dict[str, Any]) -> float:
     Returns:
         The mean semi-axis in pixels.
     """
-    return 0.25 * (float(body_params['axis1']) + float(body_params['axis2']))
+    return 0.5 * (float(body_params['semi_a_px']) + float(body_params['semi_b_px']))
 
 
 def _render_silhouette(
@@ -102,12 +107,15 @@ def _render_silhouette(
     img = create_simulated_body(
         size=shape_vu,
         center=(float(body_params.get('center_v', 0.0)), float(body_params.get('center_u', 0.0))),
-        axis1=float(body_params.get('axis1', 0.0)),
-        axis2=float(body_params.get('axis2', 0.0)),
-        axis3=float(
+        semi_a_px=float(body_params.get('semi_a_px', 0.0)),
+        semi_b_px=float(body_params.get('semi_b_px', 0.0)),
+        semi_c_px=float(
             body_params.get(
-                'axis3',
-                min(float(body_params.get('axis1', 0.0)), float(body_params.get('axis2', 0.0))),
+                'semi_c_px',
+                min(
+                    float(body_params.get('semi_a_px', 0.0)),
+                    float(body_params.get('semi_b_px', 0.0)),
+                ),
             )
         ),
         rotation_z=math.radians(float(body_params.get('rotation_z', 0.0))),
@@ -419,8 +427,8 @@ class NavModelTitanSimulated(NavModelTitan):
         center_u = sibling.get('center_u')
         if center_v is None or center_u is None:
             return
-        half_v = 0.5 * float(sibling.get('axis1', 0.0))
-        half_u = 0.5 * float(sibling.get('axis2', 0.0))
+        half_v = float(sibling.get('semi_a_px', 0.0))
+        half_u = float(sibling.get('semi_b_px', 0.0))
         rows, cols = mask.shape
         v_lo = max(0, math.floor(float(center_v) - half_v) + margin_vu[0])
         v_hi = min(rows, math.ceil(float(center_v) + half_v) + margin_vu[0] + 1)

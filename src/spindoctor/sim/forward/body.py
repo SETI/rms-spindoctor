@@ -45,10 +45,10 @@ __all__ = ['create_simulated_body', 'render_single_body']
 def create_simulated_body(
     size: tuple[int, int],
     center: tuple[float, float],
-    axis1: float,
+    semi_a_px: float,
     *,
-    axis2: float,
-    axis3: float,
+    semi_b_px: float,
+    semi_c_px: float,
     rotation_z: float = 0.0,
     rotation_tilt: float = 0.0,
     illumination_angle: float = 0.0,
@@ -72,9 +72,9 @@ def create_simulated_body(
         center: Tuple of (v, u) giving the center position in floating-point pixels.
             (0.0, 0.0) is the top-left corner of pixel (0,0), (0.5, 0.5) is the
             center of pixel (0,0).
-        axis1: The full width of axis 1 (a) of the ellipsoid in pixels.
-        axis2: The full width of axis 2 (b) of the ellipsoid in pixels.
-        axis3: The full width of axis 3 (c) of the ellipsoid in pixels (depth).
+        semi_a_px: Semi-axis a of the ellipsoid in pixels, half its width along axis 1.
+        semi_b_px: Semi-axis b of the ellipsoid in pixels, half its width along axis 2.
+        semi_c_px: Semi-axis c of the ellipsoid in pixels, half its depth along axis 3.
         rotation_z: Rotation angle around the viewing axis (z-axis) in radians (0 to 2pi).
         rotation_tilt: Tilt angle of the ellipsoid in radians (0 to pi/2).
             Controls how much the ellipsoid is tilted toward/away from the viewer.
@@ -85,8 +85,8 @@ def create_simulated_body(
             pi/2 = side illumination (half illuminated),
             pi = back illumination (no visible illumination).
         crater_fill: Approximate fraction of the ellipse to fill with craters.
-        crater_min_radius: Minimum radius of a crater as a fraction of axis1.
-        crater_max_radius: Maximum radius of a crater as a fraction of axis1.
+        crater_min_radius: Minimum radius of a crater as a fraction of ``semi_a_px``.
+        crater_max_radius: Maximum radius of a crater as a fraction of ``semi_a_px``.
         crater_power_law_exponent: Power law exponent for the crater radius distribution.
         crater_relief_scale: Scale factor for the crater depth.
         anti_aliasing: Float between 0 and 1 controlling anti-aliasing amount at the limb.
@@ -106,15 +106,14 @@ def create_simulated_body(
     proj = project_ellipsoid(
         size,
         center,
-        axis1,
-        axis2=axis2,
-        axis3=axis3,
+        semi_a_px,
+        semi_b_px=semi_b_px,
+        semi_c_px=semi_c_px,
         rotation_z=rotation_z,
         rotation_tilt=rotation_tilt,
         anti_aliasing=anti_aliasing,
     )
     aa_scale = proj.aa_scale
-    semi_major_axis = axis1 / 2.0
     work_center_v = proj.work_center_v
     work_center_u = proj.work_center_u
     work_semi_major = proj.work_semi_major
@@ -132,7 +131,7 @@ def create_simulated_body(
 
     if crater_fill > 0:
         total_area = np.sum(proj.inside_mask)
-        avg_crater_area = (crater_max_radius * semi_major_axis * aa_scale) ** 2
+        avg_crater_area = (crater_max_radius * semi_a_px * aa_scale) ** 2
         n_craters = np.clip(int(crater_fill * total_area / avg_crater_area), 0, 1000)
 
         # Use the provided seed, or fall back to a process-stable seed derived
@@ -141,7 +140,13 @@ def create_simulated_body(
         if seed is not None:
             seed_value = int(seed) & 0x7FFFFFFF
         else:
-            seed_value = stable_param_seed(axis1, axis2, axis3, center) & 0x7FFFFFFF
+            # The fallback seed is keyed on the full widths, twice the semi-axes, so a
+            # seed-less body draws the same craters it drew before the size keys became
+            # semi-axes (#913).
+            seed_value = (
+                stable_param_seed(2.0 * semi_a_px, 2.0 * semi_b_px, 2.0 * semi_c_px, center)
+                & 0x7FFFFFFF
+            )
         rng = np.random.default_rng(seed_value)
         # Choose crater centers strictly inside the ellipse (exclude AA rim and exterior)
         ellipse_mask_nz = ellipse_dist_sq < 1.0
@@ -154,8 +159,8 @@ def create_simulated_body(
             nz=nz,  # indices of non-zero ellipse pixels (list/array of (v,u))
             rng=rng,
             n_craters=n_craters,
-            R_min=crater_min_radius * semi_major_axis,
-            R_max=crater_max_radius * semi_major_axis,
+            R_min=crater_min_radius * semi_a_px,
+            R_max=crater_max_radius * semi_a_px,
             crater_power_law_exponent=crater_power_law_exponent,
             crater_relief_scale=crater_relief_scale,
             work_center_v=work_center_v,
@@ -514,10 +519,10 @@ def perturb_normals_by_height(
 def _render_body_shape_cached(
     size_v: int,
     size_u: int,
-    axis1: float,
+    semi_a_px: float,
     *,
-    axis2: float,
-    axis3: float,
+    semi_b_px: float,
+    semi_c_px: float,
     rotation_z: float,
     rotation_tilt: float,
     illumination_angle: float,
@@ -542,9 +547,9 @@ def _render_body_shape_cached(
     sim_body = create_simulated_body(
         size=(size_v, size_u),
         center=(ref_center_v, ref_center_u),
-        axis1=axis1,
-        axis2=axis2,
-        axis3=axis3,
+        semi_a_px=semi_a_px,
+        semi_b_px=semi_b_px,
+        semi_c_px=semi_c_px,
         rotation_z=rotation_z,
         rotation_tilt=rotation_tilt,
         illumination_angle=illumination_angle,
@@ -627,9 +632,9 @@ def render_single_body(
     center_v = (size_v / 2.0 if spec.center_v is None else spec.center_v) + offset_v
     center_u = (size_u / 2.0 if spec.center_u is None else spec.center_u) + offset_u
 
-    axis1 = spec.axis1
-    axis2 = spec.axis2
-    axis3 = spec.axis3
+    semi_a_px = spec.semi_a_px
+    semi_b_px = spec.semi_b_px
+    semi_c_px = spec.semi_c_px
 
     rotation_z = np.radians(spec.rotation_z)
     rotation_tilt = np.radians(spec.rotation_tilt)
@@ -662,15 +667,13 @@ def render_single_body(
         body_seed = spec.seed
 
     # Projected half-extents of the body in the image plane.  The rendered
-    # silhouette is the axis1/axis2 ellipse rotated in-plane by rotation_z
-    # (axis3 is the depth axis and does not project), so the bounding
-    # half-extents along the image axes follow from the rotated ellipse.
-    semi_1 = axis1 / 2.0
-    semi_2 = axis2 / 2.0
+    # silhouette is the ellipse of semi-axes a and b rotated in-plane by
+    # rotation_z (semi-axis c is the depth axis and does not project), so the
+    # bounding half-extents along the image axes follow from the rotated ellipse.
     cos_rz = float(np.cos(rotation_z))
     sin_rz = float(np.sin(rotation_z))
-    half_extent_v = float(stable_hypot(semi_1 * cos_rz, semi_2 * sin_rz))
-    half_extent_u = float(stable_hypot(semi_1 * sin_rz, semi_2 * cos_rz))
+    half_extent_v = float(stable_hypot(semi_a_px * cos_rz, semi_b_px * sin_rz))
+    half_extent_u = float(stable_hypot(semi_a_px * sin_rz, semi_b_px * cos_rz))
 
     # Get cached body shape (at reference center).  An irregular body renders
     # from a polyhedral mesh at a scene-supplied pose; otherwise an ellipsoid.
@@ -685,9 +688,9 @@ def render_single_body(
             body_name,
             center_v=center_v,
             center_u=center_u,
-            axis1=axis1,
-            axis2=axis2,
-            axis3=axis3,
+            semi_a_px=semi_a_px,
+            semi_b_px=semi_b_px,
+            semi_c_px=semi_c_px,
             illumination_angle=float(illumination_angle),
             phase_angle=float(phase_angle),
             # Silhouette anti-aliasing is consumed only at oversample 1,
@@ -733,15 +736,20 @@ def render_single_body(
             elif spec.seed is not None:
                 identity_seed = spec.seed & 0x7FFFFFFF
             else:
-                identity_seed = stable_param_seed(axis1, axis2, axis3, body_index, body_name)
+                # The fallback seed is keyed on the full widths, twice the semi-axes, so a
+                # seed-less body draws the same terrain it drew before the size keys became
+                # semi-axes (#913).
+                identity_seed = stable_param_seed(
+                    2.0 * semi_a_px, 2.0 * semi_b_px, 2.0 * semi_c_px, body_index, body_name
+                )
             if limb_relief_rms > 0.0:
                 relief_seed = derive_effect_seed(identity_seed, 'relief')
             if spec.albedo_texture is not None:
                 albedo_seed = derive_effect_seed(identity_seed, 'albedo')
         topo_spec = TopoBodySpec(
-            axis1=axis1,
-            axis2=axis2,
-            axis3=axis3,
+            semi_a_px=semi_a_px,
+            semi_b_px=semi_b_px,
+            semi_c_px=semi_c_px,
             rotation_z=float(rotation_z),
             rotation_tilt=float(rotation_tilt),
             illumination_angle=float(illumination_angle),
@@ -772,9 +780,9 @@ def render_single_body(
         body_shape = _render_body_shape_cached(
             size_v,
             size_u,
-            axis1,
-            axis2=axis2,
-            axis3=axis3,
+            semi_a_px,
+            semi_b_px=semi_b_px,
+            semi_c_px=semi_c_px,
             rotation_z=rotation_z,
             rotation_tilt=rotation_tilt,
             illumination_angle=illumination_angle,
@@ -803,9 +811,9 @@ def render_single_body(
             atmosphere_spec,
             center_v=ref_center_v,
             center_u=ref_center_u,
-            semi_a=axis1 / 2.0,
-            semi_b=axis2 / 2.0,
-            semi_c=axis3 / 2.0,
+            semi_a=semi_a_px,
+            semi_b=semi_b_px,
+            semi_c=semi_c_px,
             rotation_z=float(rotation_z),
             rotation_tilt=float(rotation_tilt),
             illumination_angle=float(illumination_angle),

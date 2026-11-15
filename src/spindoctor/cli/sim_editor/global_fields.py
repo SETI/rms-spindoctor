@@ -169,7 +169,7 @@ class GlobalFieldsMixin(SimEditorBase):
         self._updater.request_update()
 
     def _refresh_all_body_derived_spins(self) -> None:
-        """Refresh the unset axis3 and center spins on every body tab."""
+        """Refresh the unset semi-axis c and center spins on every body tab."""
         for idx in range(len(self.sim_params['bodies'])):
             self._refresh_body_derived_spins(idx)
 

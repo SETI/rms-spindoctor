@@ -2640,14 +2640,14 @@ The panels below are rendered by ``python -m tests.integration.sim_doc_images``
    :width: 45%
    :align: center
 
-   Ellipsoidal body (Lambertian, moderate phase). ``axis1`` is the vertical
-   extent, ``axis2`` the horizontal.
+   Ellipsoidal body (Lambertian, moderate phase). ``semi_a_px`` is half the
+   vertical extent, and ``semi_b_px`` is half the horizontal extent.
 
 .. figure:: _sim_images/mesh_body.png
    :width: 45%
    :align: center
 
-   Irregular polyhedral-mesh body of the same axes at a three-axis pose.
+   Irregular polyhedral-mesh body of the same semi-axes at a three-axis pose.
 
 .. figure:: _sim_images/mesh_body_gouraud.png
    :width: 45%
@@ -2859,9 +2859,9 @@ ring, a couple of stars, and a planted offset the navigator must recover -- read
        pose_euler_deg: [10.0, 35.0, 0.0]
        center_v: 110.0
        center_u: 110.0
-       axis1: 150.0
-       axis2: 110.0
-       axis3: 95.0
+       semi_a_px: 75.0
+       semi_b_px: 55.0
+       semi_c_px: 47.5
        illumination_angle: 25.0
        phase_angle: 40.0
    ring_system:
@@ -3171,12 +3171,15 @@ null. Common fields:
      - idealized
      - Body center in pixels, as a pixel corner (see
        :ref:`sim-pixel-convention`).
-   * - ``axis1`` / ``axis2`` / ``axis3``
-     - float
+   * - ``semi_a_px`` / ``semi_b_px`` / ``semi_c_px``
+     - float (px)
      - 0.0
      - idealized
-     - Full extents of the three body axes in pixels (``axis3`` defaults to
-       ``min(axis1, axis2)``).
+     - The three semi-axes of the body in pixels, each half the body's width
+       along that axis, like a radius. ``semi_a_px`` runs along the image's
+       ``v`` axis and ``semi_b_px`` along ``u`` before ``rotation_z`` turns the
+       body, and ``semi_c_px`` points toward the observer.
+       ``semi_c_px`` defaults to ``min(semi_a_px, semi_b_px)``.
    * - ``illumination_angle``
      - float (deg)
      - 0.0
@@ -3273,10 +3276,11 @@ refused on a ``polyhedral_mesh`` body (see :ref:`sim-mesh-appearance`).
 
 .. note::
 
-   **Axis convention.** Both body renderers use the same mapping: ``axis1`` is
-   the vertical (``v``) extent and ``axis2`` the horizontal (``u``) extent. An
-   ellipsoid and a mesh declared with identical ``axis1``/``axis2`` are oriented
-   the same way, so the two are interchangeable for the same geometry.
+   **Axis convention.** Both body renderers use the same mapping: ``semi_a_px`` is
+   half the vertical (``v``) extent and ``semi_b_px`` half the horizontal (``u``)
+   extent. An ellipsoid and a mesh declared with identical ``semi_a_px`` and
+   ``semi_b_px`` are oriented the same way, so the two are interchangeable for the
+   same geometry.
 
 **Render geometry vs navigation geometry.** By default the navigator predicts
 the body from the same idealized parameters the renderer drew, so it knows the
@@ -4207,8 +4211,8 @@ value the renderer draws with:
   :func:`~spindoctor.sim.forward.body_spec.body_spec_from_params`, and the
   background-sky controls use :data:`~spindoctor.sim.forward.star.SKY_COUNTS_DEFAULTS`.
 * **Values outside a control's range.** A control shows the nearest end of its range.
-  For example, if a body's ``axis1`` is unset, the renderer draws that axis as 0, and
-  its control shows its minimum, 1 pixel.
+  For example, if a body's ``semi_a_px`` is unset, the renderer draws that semi-axis as
+  0, and its control shows its minimum, half a pixel.
 * **Bodies whose name, center, or range is unset.** A body whose name is unset shows
   the name the renderer gives it, from
   :func:`~spindoctor.sim.scene_schema.default_body_name` (``SIM-BODY-1`` for the first
@@ -4228,9 +4232,9 @@ value the renderer draws with:
   group's controls. An edit writes only that control's key, so a key the author has not
   edited stays unset. While a key is unset, its control shows the body's own value and
   updates when the author edits that value. Turning the group off removes the override.
-* **Values derived from other keys.** An unset ``axis3`` is drawn as the smaller of
-  ``axis1`` and ``axis2``, and an unset center is the frame center. Their controls
-  update when the author edits an axis or changes the frame size. Neither key is
+* **Values derived from other keys.** An unset ``semi_c_px`` is drawn as the smaller of
+  ``semi_a_px`` and ``semi_b_px``, and an unset center is the frame center. Their
+  controls update when the author edits a semi-axis or changes the frame size. Neither key is
   written to the scene until the author edits its own control.
 * **On/off groups.** A group starts turned off when its block, or the key that turns it
   on, is absent or null, because the renderer then draws none of it. An empty ring

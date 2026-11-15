@@ -151,7 +151,7 @@ def _navigate_one(task: tuple[str, str, dict[str, Any]]) -> dict[str, Any]:
         'family': family,
         'planted': {'dv': planted_v, 'du': planted_u},
         'geometry': {
-            'r_solid_px': 0.5 * float(body['axis1']),
+            'r_solid_px': float(body['semi_a_px']),
             'phase_deg': float(body['phase_angle']),
             'illumination_deg': float(body['illumination_angle']),
             'read_noise_dn': float(sim_params['noise']['read_noise_dn']),

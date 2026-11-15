@@ -162,9 +162,9 @@ def _truth_exercising_scene() -> dict[str, Any]:
                 'shape_model': 'polyhedral_mesh',
                 'center_v': 40.0,
                 'center_u': 40.0,
-                'axis1': 30.0,
-                'axis2': 26.0,
-                'axis3': 26.0,
+                'semi_a_px': 15.0,
+                'semi_b_px': 13.0,
+                'semi_c_px': 13.0,
                 'illumination_angle': 20.0,
                 'phase_angle': 30.0,
                 'range_km': 500000.0,
@@ -184,9 +184,9 @@ def _truth_exercising_scene() -> dict[str, Any]:
                 'name': 'ROUND',
                 'center_v': 70.0,
                 'center_u': 24.0,
-                'axis1': 20.0,
-                'axis2': 18.0,
-                'axis3': 18.0,
+                'semi_a_px': 10.0,
+                'semi_b_px': 9.0,
+                'semi_c_px': 9.0,
                 'illumination_angle': 40.0,
                 'phase_angle': 60.0,
                 'range_km': 800000.0,
@@ -534,7 +534,7 @@ def test_nav_params_values_are_isolated_copies() -> None:
     """Mutating the filtered view cannot reach back into the scene."""
     scene = _truth_exercising_scene()
     nav = build_nav_params(scene)
-    nav['bodies'][0]['axis1'] = 999.0
+    nav['bodies'][0]['semi_a_px'] = 999.0
     nav['ring_system']['features'][0]['orbit']['a_px'] = 999.0
-    assert scene['bodies'][0]['axis1'] == 30.0
+    assert scene['bodies'][0]['semi_a_px'] == 15.0
     assert scene['ring_system']['features'][0]['orbit']['a_px'] == 4.0

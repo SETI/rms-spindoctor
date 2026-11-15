@@ -121,9 +121,9 @@ def _render_mesh_body(body: dict[str, Any]) -> NDArrayFloatType:
         'LUMP',
         center_v=_CENTER,
         center_u=_CENTER,
-        axis1=2.0 * _RADIUS,
-        axis2=2.0 * _RADIUS,
-        axis3=2.0 * _RADIUS,
+        semi_a_px=_RADIUS,
+        semi_b_px=_RADIUS,
+        semi_c_px=_RADIUS,
         illumination_angle=0.0,
         phase_angle=math.radians(5.0),
         anti_aliasing=0.0,
@@ -187,9 +187,9 @@ def _pose_scatter_scene(
         'pose_euler_deg': pose_override if pose_override is not None else [10.0, 35.0, 0.0],
         'center_v': 110.0,
         'center_u': 110.0,
-        'axis1': 150.0,
-        'axis2': 110.0,
-        'axis3': 95.0,
+        'semi_a_px': 75.0,
+        'semi_b_px': 55.0,
+        'semi_c_px': 47.5,
         'illumination_angle': 25.0,
         'phase_angle': 30.0,
     }
@@ -227,9 +227,9 @@ def test_pose_scatter_draw_is_returned_with_the_body_info() -> None:
         'LUMP',
         center_v=_CENTER,
         center_u=_CENTER,
-        axis1=2.0 * _RADIUS,
-        axis2=2.0 * _RADIUS,
-        axis3=2.0 * _RADIUS,
+        semi_a_px=_RADIUS,
+        semi_b_px=_RADIUS,
+        semi_c_px=_RADIUS,
         illumination_angle=0.0,
         phase_angle=math.radians(5.0),
         anti_aliasing=0.0,
@@ -287,9 +287,9 @@ def test_mesh_anti_aliasing_suppressed_on_oversampled_grid(
     body_params: dict[str, Any] = {
         'name': 'LUMPY',
         'shape_model': 'polyhedral_mesh',
-        'axis1': 24.0,
-        'axis2': 20.0,
-        'axis3': 18.0,
+        'semi_a_px': 12.0,
+        'semi_b_px': 10.0,
+        'semi_c_px': 9.0,
         'mesh_lumpiness': 0.3,
         'mesh_seed': 5,
         'anti_aliasing': 1.0,
@@ -305,7 +305,7 @@ def test_mesh_anti_aliasing_suppressed_on_oversampled_grid(
     )
     img_os = np.zeros((128, 128), dtype=np.float64)
     scaled = dict(body_params)
-    for axis_key in ('axis1', 'axis2', 'axis3'):
+    for axis_key in ('semi_a_px', 'semi_b_px', 'semi_c_px'):
         scaled[axis_key] = float(cast(float, scaled[axis_key])) * 2
     render_single_body(
         img_os,

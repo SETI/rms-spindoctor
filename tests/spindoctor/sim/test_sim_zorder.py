@@ -61,9 +61,9 @@ def _scene(ring_range_km: float | None) -> dict[str, Any]:
                 'name': 'B',
                 'center_v': 30.0,
                 'center_u': 30.0,
-                'axis1': 20.0,
-                'axis2': 20.0,
-                'axis3': 20.0,
+                'semi_a_px': 10.0,
+                'semi_b_px': 10.0,
+                'semi_c_px': 10.0,
                 'phase_angle': 0.0,
                 'range_km': 1.0e6,
             }
@@ -114,9 +114,9 @@ def test_non_overlapping_objects_need_no_range_km() -> None:
     # Move the body clear of the band (ring outer edge 16 px from center).
     scene['bodies'][0]['center_v'] = 30.0
     scene['bodies'][0]['center_u'] = 52.0
-    scene['bodies'][0]['axis1'] = 8.0
-    scene['bodies'][0]['axis2'] = 8.0
-    scene['bodies'][0]['axis3'] = 8.0
+    scene['bodies'][0]['semi_a_px'] = 4.0
+    scene['bodies'][0]['semi_b_px'] = 4.0
+    scene['bodies'][0]['semi_c_px'] = 4.0
     _img, meta = render_combined_model(scene)
     assert bool(meta['body_masks'][0].any())
     assert bool(meta['ring_masks'][0].any())

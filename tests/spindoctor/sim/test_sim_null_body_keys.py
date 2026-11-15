@@ -66,9 +66,9 @@ def _ellipsoid_body() -> dict[str, Any]:
         'shape_model': 'ellipsoid',
         'center_v': 15.0,
         'center_u': 17.0,
-        'axis1': 14.0,
-        'axis2': 12.0,
-        'axis3': 11.0,
+        'semi_a_px': 7.0,
+        'semi_b_px': 6.0,
+        'semi_c_px': 5.5,
         'rotation_z': 20.0,
         'rotation_tilt': 10.0,
         'illumination_angle': 30.0,
@@ -116,9 +116,9 @@ def _mesh_body() -> dict[str, Any]:
         'shape_model': 'polyhedral_mesh',
         'center_v': 16.0,
         'center_u': 16.0,
-        'axis1': 14.0,
-        'axis2': 11.0,
-        'axis3': 10.0,
+        'semi_a_px': 7.0,
+        'semi_b_px': 5.5,
+        'semi_c_px': 5.0,
         'illumination_angle': 30.0,
         'phase_angle': 40.0,
         'mesh_lumpiness': 0.2,
@@ -228,7 +228,7 @@ def test_null_body_keys_render_as_absent(shape: str) -> None:
     The body keeps its name and geometry, and every other key its renderer reads
     is null.
     """
-    kept = {'name', 'shape_model', 'center_v', 'center_u', 'axis1', 'axis2', 'axis3'}
+    kept = {'name', 'shape_model', 'center_v', 'center_u', 'semi_a_px', 'semi_b_px', 'semi_c_px'}
     full = _mesh_body() if shape == 'mesh' else _ellipsoid_body()
     absent = {key: value for key, value in full.items() if key in kept}
     stated = {**absent, **{key: None for key in full if key not in kept}}
@@ -240,14 +240,14 @@ def test_null_body_keys_render_as_absent(shape: str) -> None:
 def _null_geometry_scenes() -> tuple[dict[str, Any], dict[str, Any]]:
     """A rolled scene with null body geometry keys, and the same scene without them.
 
-    The body sets its center, axis3, range, and in-plane rotation to null.  The
+    The body sets its center, semi-axis c, range, and in-plane rotation to null.  The
     radiance stage reads each of these keys itself, to place the body, scale it to
     the render grid, add the camera roll to its rotation, and write its render truth.
     """
     absent = {
         'name': 'RHEA',
-        'axis1': 14.0,
-        'axis2': 12.0,
+        'semi_a_px': 7.0,
+        'semi_b_px': 6.0,
         'illumination_angle': 30.0,
         'phase_angle': 40.0,
     }
@@ -255,7 +255,7 @@ def _null_geometry_scenes() -> tuple[dict[str, Any], dict[str, Any]]:
         **absent,
         'center_v': None,
         'center_u': None,
-        'axis3': None,
+        'semi_c_px': None,
         'range_km': None,
         'rotation_z': None,
     }
@@ -266,7 +266,7 @@ def _null_geometry_scenes() -> tuple[dict[str, Any], dict[str, Any]]:
 
 
 def test_null_body_geometry_renders_as_absent() -> None:
-    """Null center, axis3, range, and rotation keys render as the absent keys do."""
+    """Null center, semi-axis c, range, and rotation keys render as the absent keys do."""
     stated, absent = _null_geometry_scenes()
     image, _ = render_combined_model(stated)
     expected, _ = render_combined_model(absent)
@@ -276,13 +276,13 @@ def test_null_body_geometry_renders_as_absent() -> None:
 def test_null_body_keys_write_the_truth_of_absent_keys() -> None:
     """A body's render truth leaves its null keys out, as if the scene never set them.
 
-    The body keeps its name and two axes, and every other key is null.  The
+    The body keeps its name and two semi-axes, and every other key is null.  The
     radiance stage overwrites the center and range with the rendered values, so
-    their nulls never reach the truth.  Any other key, including axis3 and
+    their nulls never reach the truth.  Any other key, including semi_c_px and
     rotation_z, would reach the truth as a null if the stage copied it.
     """
     full = _ellipsoid_body()
-    absent = {key: full[key] for key in ('name', 'axis1', 'axis2')}
+    absent = {key: full[key] for key in ('name', 'semi_a_px', 'semi_b_px')}
     stated = {**absent, **{key: None for key in full if key not in absent}}
     _, meta = render_combined_model(_scene(stated))
     _, expected = render_combined_model(_scene(absent))
@@ -310,7 +310,7 @@ def test_null_nav_override_key_leaves_the_scene_value() -> None:
 
 def test_null_body_name_takes_the_positional_name() -> None:
     """A null body name keys the render truth by the positional default."""
-    body = {'name': None, 'center_v': 16.0, 'center_u': 16.0, 'axis1': 10.0, 'axis2': 10.0}
+    body = {'name': None, 'center_v': 16.0, 'center_u': 16.0, 'semi_a_px': 5.0, 'semi_b_px': 5.0}
     _, meta = render_combined_model(_scene(body))
     assert meta['order_near_to_far'] == ['SIM-BODY-1']
 

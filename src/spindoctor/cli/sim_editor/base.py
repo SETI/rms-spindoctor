@@ -263,7 +263,7 @@ class SimEditorBase(QMainWindow):
         raise NotImplementedError
 
     def _refresh_body_derived_spins(self, idx: int) -> None:
-        """Refresh a body's unset axis3 and center spins (implemented in BodyTabMixin)."""
+        """Refresh a body's unset semi-axis c and center spins (implemented in BodyTabMixin)."""
         raise NotImplementedError
 
     def _sky_value(self, key: str) -> float:
