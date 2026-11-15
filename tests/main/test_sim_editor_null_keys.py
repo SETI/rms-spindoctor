@@ -571,27 +571,31 @@ def _control_value(control: Any) -> Any:
 
 
 @pytest.mark.parametrize(
-    ('override', 'attr', 'value', 'expected'),
+    ('body_pose', 'override', 'attr', 'value', 'expected'),
     [
         (
+            None,
             {'mesh_lumpiness': None},
             'nav_shape_combo',
             'ellipsoid',
             {'mesh_lumpiness': None, 'shape_model': 'ellipsoid'},
         ),
         (
+            None,
             {'shape_model': None},
             'nav_lump_spin',
             0.5,
             {'shape_model': None, 'mesh_lumpiness': pytest.approx(0.5)},
         ),
         (
+            [10.0, 20.0, 30.0],
             {'shape_model': None},
             'nav_pose_spins',
-            30.0,
-            {'shape_model': None, 'pose_euler_deg': pytest.approx([30.0, 0.0, 0.0])},
+            40.0,
+            {'shape_model': None, 'pose_euler_deg': pytest.approx([40.0, 20.0, 30.0])},
         ),
         (
+            None,
             {'pose_euler_deg': [10.0, 20.0, 30.0]},
             'nav_pose_spins',
             40.0,
@@ -602,6 +606,7 @@ def _control_value(control: Any) -> Any:
 )
 def test_an_override_edit_writes_only_its_own_key(
     qapp: QApplication,
+    body_pose: list[float] | None,
     override: dict[str, Any],
     attr: str,
     value: Any,
@@ -609,9 +614,13 @@ def test_an_override_edit_writes_only_its_own_key(
 ) -> None:
     """An edit to one override control writes its key and leaves the others as stored.
 
-    A pose edit keeps the other two axes of a pose the override sets.
+    A pose edit keeps the other two axes of the pose the navigator would otherwise use:
+    the override's own pose if it sets one, else the body's.
     """
-    model = _loaded({**_FRAME_300_BY_400, 'bodies': [{**_OVERRIDE_BODY, 'nav_override': override}]})
+    body = {**_OVERRIDE_BODY, 'nav_override': override}
+    if body_pose is not None:
+        body['pose_euler_deg'] = body_pose
+    model = _loaded({**_FRAME_300_BY_400, 'bodies': [body]})
     _set_control(getattr(_body_tab(model, 0), attr), value)
     assert model.sim_params['bodies'][0]['nav_override'] == expected
 
