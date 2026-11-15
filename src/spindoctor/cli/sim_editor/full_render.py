@@ -14,6 +14,8 @@ from typing import Any
 from PyQt6.QtCore import QObject
 
 from spindoctor.cli.sim_editor.worker import LatestRequestRunner
+from spindoctor.config import DEFAULT_CONFIG
+from spindoctor.sim.instrument_navigator import frame_units_summary, resolve_sim_inst_config
 from spindoctor.sim.render import render_combined_model
 from spindoctor.support.types import NDArrayFloatType
 
@@ -27,14 +29,22 @@ class FullRender:
     Parameters:
         image: The rendered image.
         meta: The renderer's output metadata.
+        units_summary: The status bar's line for the image: its units, value range,
+            marker share, and the navigator's verdict when it would not call the
+            frame clean.
     """
 
     image: NDArrayFloatType
     meta: dict[str, Any]
+    units_summary: str
 
 
 def render_full_frame(sim_params: dict[str, Any]) -> FullRender:
     """Render the full, offset-free image of a scene, as the editor displays it.
+
+    The status bar's line for the image is computed here too, so that on the worker
+    thread an error in it is reported as a failed full render, as an error in the
+    render itself is.
 
     Parameters:
         sim_params: The scene mapping.  The caller owns it; it is only read.
@@ -42,13 +52,20 @@ def render_full_frame(sim_params: dict[str, Any]) -> FullRender:
     Returns:
         The image and metadata of
         :func:`~spindoctor.sim.render.render_combined_model` with
-        ``ignore_offset=True``.
+        ``ignore_offset=True``, and
+        :func:`~spindoctor.sim.instrument_navigator.frame_units_summary` of the image
+        under the scene's resolved instrument block.
 
     Raises:
         SimSceneValidationError: If the scene fails validation.
     """
     image, meta = render_combined_model(sim_params, ignore_offset=True)
-    return FullRender(image=image, meta=meta)
+    inst_config = resolve_sim_inst_config(
+        DEFAULT_CONFIG,
+        sim_params.get('instrument'),
+        sim_params.get('instrument_config'),
+    )
+    return FullRender(image=image, meta=meta, units_summary=frame_units_summary(image, inst_config))
 
 
 def _render(sim_params: dict[str, Any]) -> FullRender:

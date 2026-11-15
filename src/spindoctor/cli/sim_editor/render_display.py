@@ -37,11 +37,10 @@ from PyQt6.QtGui import QCloseEvent, QColor, QImage, QPainter, QPen, QPixmap
 from PyQt6.QtWidgets import QFileDialog, QFormLayout, QGroupBox, QLabel, QMessageBox, QVBoxLayout
 
 from spindoctor.cli.sim_editor.base import SimEditorBase
-from spindoctor.cli.sim_editor.full_render import FullRender
+from spindoctor.cli.sim_editor.full_render import FullRender, render_full_frame
 from spindoctor.config import DEFAULT_CONFIG
 from spindoctor.sim.instrument_navigator import (
     frame_units_name,
-    frame_units_summary,
     has_planted_offset,
     resolve_sim_inst_config,
 )
@@ -289,7 +288,7 @@ class RenderDisplayMixin(SimEditorBase):
             return
         self._show_picture(result.image, result.meta, scene, full_render=True)
         if not has_planted_offset(scene):
-            self._units_label.setText(frame_units_summary(result.image, self._inst_config(scene)))
+            self._units_label.setText(result.units_summary)
 
     def _show_full_render_failure(self, error: str) -> None:
         """Report a failed full render in the status bar.
@@ -669,11 +668,11 @@ class RenderDisplayMixin(SimEditorBase):
         if self._showing_full_render:
             return self._current_image
         scene = copy.deepcopy(self._displayed_params)
-        image, meta = render_combined_model(scene, ignore_offset=True)
+        full = render_full_frame(scene)
         if scene == self.sim_params:
             self._full_render_runner.cancel()
-            self._show_full_render(scene, FullRender(image=image, meta=meta))
-        return image
+            self._show_full_render(scene, full)
+        return full.image
 
     def _save_image(self) -> None:
         """Save the full render of the picture on screen to a PNG file.

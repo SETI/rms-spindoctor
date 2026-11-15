@@ -246,6 +246,22 @@ def test_a_long_full_render_failure_is_shortened(
     assert model._image_kind_label.text() == f'Fast preview (full render failed: {shortened})'
 
 
+def test_a_failed_units_summary_is_a_failed_full_render(
+    model: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An error in the full render's status line reaches the status bar as a failure."""
+
+    def _boom(*args: Any) -> str:
+        raise ValueError('bad threshold')
+
+    monkeypatch.setattr(full_render_module, 'frame_units_summary', _boom)
+    model._start_full_renders()
+    wait_for_background_renders(model)
+    assert model._image_kind_label.text() == (
+        'Fast preview (full render failed: ValueError: bad threshold)'
+    )
+
+
 def test_a_failed_full_render_leaves_no_pending_verdict(
     model: Any, failing: _GatedFullRender
 ) -> None:
@@ -377,7 +393,9 @@ def test_saving_drops_the_running_full_render(
     model: Any, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """A background full render still running when a save draws one is never shown."""
-    blank = _GatedFullRender(result=FullRender(image=np.zeros((64, 64)), meta={}))
+    blank = _GatedFullRender(
+        result=FullRender(image=np.zeros((64, 64)), meta={}, units_summary='DN 0 to 0')
+    )
     monkeypatch.setattr(full_render_module, 'render_full_frame', blank)
     model._start_full_renders()
     _save_png(model, monkeypatch, tmp_path / 'saved.png')
