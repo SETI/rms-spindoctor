@@ -4133,9 +4133,13 @@ value the renderer draws with:
   :func:`~spindoctor.sim.scene_schema.default_body_name` (``SIM-BODY-1`` for the first
   body). A body whose center is unset shows the frame center. A body whose range is
   unset shows the range the renderer gives it, from
-  :func:`~spindoctor.sim.scene_schema.default_body_range_km` (1 km for the first body).
-  The editor counts that range when it picks a range for an added body and when it
-  warns that two bodies share a range.
+  :func:`~spindoctor.sim.scene_schema.default_body_range_km` (1 km for the first body),
+  and its range control stays disabled. The renderer refuses to draw two overlapping
+  bodies unless both set a range, so checking **Set range (km)** writes the range the
+  control shows, and the author can make the default explicit without changing it.
+  Clearing the box removes the range. The editor counts an unset range at its default
+  when it picks a range for an added body and when it warns that two bodies share a
+  range.
 * **Values derived from other keys.** An unset ``axis3`` is drawn as the smaller of
   ``axis1`` and ``axis2``, and an unset center is the frame center. Their controls
   update when the author edits an axis or changes the frame size. Neither key is

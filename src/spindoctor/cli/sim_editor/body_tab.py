@@ -15,6 +15,7 @@ from typing import Any
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
+    QCheckBox,
     QComboBox,
     QDoubleSpinBox,
     QFormLayout,
@@ -91,15 +92,29 @@ class BodyTabMixin(SimEditorBase):
         w.center_v_spin = center_v  # type: ignore[attr-defined]
         w.center_u_spin = center_u  # type: ignore[attr-defined]
 
-        # Range field (for layering/ordering)
+        # Range (for layering/ordering).  If the range is unset, the spin shows the
+        # renderer's default for the body's list position and stays disabled.  Two
+        # overlapping bodies need an explicit range each, so checking the box writes
+        # the range the spin shows, and clearing it removes the key.
+        has_range = spec.range_km is not None
+        rng_check = QCheckBox('Set range (km)')
+        rng_check.setChecked(has_range)
+        rng_check.setToolTip(
+            'Write range_km on the body (depth ordering; two overlapping bodies need '
+            'it on both).  Clear to use the default for its position in the list.'
+        )
         rng = QDoubleSpinBox()
         rng.setRange(-1e9, 1e9)
         rng.setDecimals(3)
         rng.setValue(default_body_range_km(idx) if spec.range_km is None else spec.range_km)
-        rng.valueChanged.connect(
-            lambda v, i=idx: self._on_body_field(i, 'range_km', v, trigger_validate=True)
+        rng.setEnabled(has_range)
+        rng_check.clicked.connect(
+            lambda checked, i=idx, spin=rng: self._on_body_range_enabled(i, checked, spin)
         )
-        fl.addRow('Range:', rng)
+        rng.valueChanged.connect(lambda v, i=idx: self._on_body_range_value(i, v))
+        fl.addRow(rng_check, rng)
+        w.range_check = rng_check  # type: ignore[attr-defined]
+        w.range_spin = rng  # type: ignore[attr-defined]
 
         smaj = QDoubleSpinBox()
         smaj.setRange(1.0, 5000.0)
@@ -436,6 +451,44 @@ class BodyTabMixin(SimEditorBase):
                 spin.blockSignals(True)
                 spin.setValue(shown)
                 spin.blockSignals(False)
+
+    def _on_body_range_enabled(self, idx: int, enabled: bool, spin: QDoubleSpinBox) -> None:
+        """Write the range the spin shows, or remove the body's range.
+
+        Checking the box writes the spin's value, which for an unset range is the
+        renderer's default, so the author can make that default explicit without
+        changing it.  Clearing the box removes ``range_km`` and puts the default
+        back in the spin.
+
+        Parameters:
+            idx: The body's index in the scene's ``bodies`` list.
+            enabled: Whether the range box is checked.
+            spin: The body tab's range spin.
+        """
+        if 0 <= idx < len(self.sim_params['bodies']):
+            body = self.sim_params['bodies'][idx]
+            if enabled:
+                body['range_km'] = float(spin.value())
+            else:
+                body.pop('range_km', None)
+                spin.blockSignals(True)
+                spin.setValue(default_body_range_km(idx))
+                spin.blockSignals(False)
+            spin.setEnabled(enabled)
+            self._updater.request_update()
+            self._validate_ranges()
+
+    def _on_body_range_value(self, idx: int, value: float) -> None:
+        """Write an edited range when the body sets one.
+
+        Parameters:
+            idx: The body's index in the scene's ``bodies`` list.
+            value: The range spin's value.
+        """
+        if 0 <= idx < len(self.sim_params['bodies']):
+            body = self.sim_params['bodies'][idx]
+            if body.get('range_km') is not None:
+                self._on_body_field(idx, 'range_km', float(value), trigger_validate=True)
 
     def _on_body_shape_model(self, idx: int, text: str) -> None:
         """Set the shape model and gate the shape-specific controls and keys.

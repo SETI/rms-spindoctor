@@ -9,7 +9,8 @@ it unchanged.  The remaining tests check that adding a ring to a null ring block
 feature list works, that a ring kind switch fills a null required shape key, that a
 ring modulation can be turned on under a null azimuthal block, and that a body whose
 range is unset counts at its default range when the editor picks a range for an added
-body and when it warns about duplicate ranges.
+body and when it warns about duplicate ranges.  The last tests check that the range box
+writes the default range its spin shows.
 
 Qt runs headless (offscreen platform).
 """
@@ -477,3 +478,23 @@ def test_an_unset_range_counts_toward_the_duplicate_warning(qapp: QApplication) 
     }
     validate_sim_params(copy.deepcopy(scene), source='duplicate range scene')
     assert _loaded(scene)._warning_label.text() == 'Warning: duplicate body ranges'
+
+
+def test_setting_an_unset_range_writes_the_shown_default(qapp: QApplication) -> None:
+    """Checking an unset body's range box writes the default range its spin shows."""
+    model = _loaded({**_FRAME_300_BY_400, 'random_seed': 42, 'bodies': [_UNSET_RANGE_BODY]})
+    _body_tab(model, 0).range_check.click()
+    assert model.sim_params['bodies'][0]['range_km'] == 1.0
+
+
+def test_clearing_a_range_rechecks_the_duplicate_warning(qapp: QApplication) -> None:
+    """Clearing a range that duplicates another body's lets the default end the warning."""
+    scene = {
+        **_FRAME_300_BY_400,
+        'random_seed': 42,
+        'bodies': [{**_UNSET_RANGE_BODY, 'range_km': 1.0}, {**_APART_BODY, 'range_km': 1.0}],
+    }
+    model = _loaded(scene)
+    _body_tab(model, 1).range_check.click()
+    shown = ('range_km' in model.sim_params['bodies'][1], model._warning_label.text())
+    assert shown == (False, '')
