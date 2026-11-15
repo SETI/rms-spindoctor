@@ -245,10 +245,10 @@ class ObsSim(ObsSnapshotInst):
         states its readout mode, so a real pipeline always knows it.  On a frame binned
         by ``b``, the zero point and the read noise come from the block's
         ``noise.by_binning[b]`` entry, which holds the navigator's own values for that
-        mode in DN: the zero point, and the read noise of one binned pixel.  A mode the
-        block has no entry for reads with the unbinned values.  ``star_psf_sigma`` is in
-        native pixels, so the core is ``star_psf_sigma / b`` frame pixels.  An unbinned
-        frame uses the unbinned values.
+        mode: the zero point in DN per second, and the read noise of one binned pixel in
+        DN.  A mode the block has no entry for reads with the unbinned values.
+        ``star_psf_sigma`` is in native pixels, so the core is ``star_psf_sigma / b``
+        frame pixels.  An unbinned frame uses the unbinned values.
 
         Returns:
             The maximum usable magnitude for stars in this observation.  For

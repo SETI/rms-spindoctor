@@ -178,7 +178,13 @@ def _star_limit(instrument: str, exposure_sec: float, *, binning: int | None = N
 def test_unbinned_star_limit_is_unchanged(
     instrument: str, exposure_sec: float, expected: float
 ) -> None:
-    """An unbinned frame's limit is the value the navigator's published block gives."""
+    """An unbinned frame's limit is the value the navigator's published block gives.
+
+    The expected limits are fixed numbers on purpose: they pin the unbinned limits as
+    they stood before the binned path was added, so a change to the formula or to the
+    values it reads shows here, where an expected value derived through the same
+    formula would change with it.
+    """
     assert _star_limit(instrument, exposure_sec) == pytest.approx(expected, rel=0.0, abs=1e-12)
 
 
@@ -186,9 +192,9 @@ def test_unbinned_star_limit_is_unchanged(
     ('instrument', 'binning', 'expected_shift_mag'),
     [
         # From the navigator's LORRI block: unbinned, 3.33e6 DN/s over 4.0 DN of read
-        # noise; binned 4x4, 3.60e6 DN/s over 1.19 DN, with the 3.0 px core shrunk to
+        # noise; binned 4x4, 3.61e6 DN/s over 1.19 DN, with the 3.0 px core shrunk to
         # 0.75 px, so on a sixteenth of the pixels.
-        ('nhlorri', 4, 2.5 * math.log10((3.60e6 / 3.33e6) * (4.0 / 1.19) * 4**2)),
+        ('nhlorri', 4, 2.5 * math.log10((3.61e6 / 3.33e6) * (4.0 / 1.19) * 4**2)),
         # From the navigator's NAC block: unbinned, 3.33e5 DN/s over 4.0 DN; summed
         # 2x2, the same zero point over 0.400 DN, which the 1 DN floor raises to 1.0,
         # and the 0.54 px core shrinks below one pixel, which then holds it all.

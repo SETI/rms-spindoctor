@@ -11,6 +11,7 @@ config structures.
 import hashlib
 import json
 import math
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
@@ -30,7 +31,7 @@ _ONE_STAR_ELLIPSE_KEY = 'one_star_ellipse_fraction'
 _BY_BINNING_KEY = 'by_binning'
 """Camera ``noise`` key: the binned readout modes' values, keyed by the binning factor."""
 
-_BY_BINNING_VALUE_KEYS = frozenset({'read_noise_dn', 'star_flux_dn_per_s_vmag0'})
+BY_BINNING_VALUE_KEYS = frozenset({'read_noise_dn', 'star_flux_dn_per_s_vmag0'})
 """The values every ``noise.by_binning`` entry states."""
 
 
@@ -156,12 +157,14 @@ def _camera_blocks(config_dict: dict[str, Any]) -> list[tuple[str, dict[str, Any
     return blocks
 
 
-def _check_by_binning(path: str, block: dict[str, Any]) -> None:
+def check_by_binning(path: str, block: Mapping[str, Any]) -> None:
     """Refuse a camera's ``noise.by_binning`` table unless every entry is well formed.
 
     Each key is a binning factor, an integer of at least 2, and each entry states a
     finite, positive ``read_noise_dn`` and ``star_flux_dn_per_s_vmag0`` and nothing
-    else.  A camera block without the table is accepted.
+    else.  A camera block without the table is accepted.  The configuration loader
+    checks each camera block with it, and the simulated-scene validator checks the
+    block a scene's ``instrument_config`` overrides resolve to.
 
     Parameters:
         path: The camera block's dotted path, for error messages.
@@ -184,12 +187,12 @@ def _check_by_binning(path: str, block: dict[str, Any]) -> None:
             raise ValueError(
                 f'{location}: a key must be a binning factor of at least 2; got {binning!r}'
             )
-        if not isinstance(entry, dict) or set(entry) != _BY_BINNING_VALUE_KEYS:
+        if not isinstance(entry, dict) or set(entry) != BY_BINNING_VALUE_KEYS:
             raise ValueError(
                 f'{location}.{binning} must state exactly '
-                f'{", ".join(sorted(_BY_BINNING_VALUE_KEYS))}; got {entry!r}'
+                f'{", ".join(sorted(BY_BINNING_VALUE_KEYS))}; got {entry!r}'
             )
-        for key in sorted(_BY_BINNING_VALUE_KEYS):
+        for key in sorted(BY_BINNING_VALUE_KEYS):
             value = entry[key]
             is_number = isinstance(value, int | float) and not isinstance(value, bool)
             if not is_number or not math.isfinite(value) or value <= 0.0:
@@ -393,7 +396,7 @@ class Config:
         value stands in for a camera that sets none.  A fraction of 0 would admit every
         lone star's offset and one above 1 would reach past the offset window, so a
         fraction outside ``(0, 1]`` is refused when the configuration is loaded.  A
-        ``noise.by_binning`` table is checked by :func:`_check_by_binning`.
+        ``noise.by_binning`` table is checked by :func:`check_by_binning`.
 
         Raises:
             ValueError: If a camera block sets no fraction, or one that is not a number
@@ -410,7 +413,7 @@ class Config:
                 raise ValueError(
                     f'{path}.{_ONE_STAR_ELLIPSE_KEY} must lie in (0, 1]; got {value!r}'
                 )
-            _check_by_binning(path, block)
+            check_by_binning(path, block)
 
     def _validate_registered_techniques(self) -> None:
         """Load + validate every registered NavTechnique's confidence spec.

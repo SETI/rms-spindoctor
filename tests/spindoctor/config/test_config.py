@@ -87,11 +87,21 @@ def _by_binning_override(tmp_path: Path, table: str) -> Path:
             r'cassini_iss\.wac\.noise\.by_binning\.2 must state exactly read_noise_dn, '
             r'star_flux_dn_per_s_vmag0',
         ),
+        (
+            '{8: {read_noise_dn: 1.0}}',
+            r'cassini_iss\.wac\.noise\.by_binning\.8 must state exactly read_noise_dn, '
+            r'star_flux_dn_per_s_vmag0',
+        ),
+        (
+            '{2: {star_flux_dn_per_s_vmag0: -9.29e4}}',
+            r'cassini_iss\.wac\.noise\.by_binning\.2\.star_flux_dn_per_s_vmag0 must be '
+            r'finite and positive',
+        ),
     ],
-    ids=['not_a_mapping', 'binning_one', 'unknown_value'],
+    ids=['not_a_mapping', 'binning_one', 'unknown_value', 'missing_value', 'bad_zero_point'],
 )
 def test_a_malformed_by_binning_table_is_refused(tmp_path: Path, table: str, message: str) -> None:
-    """A binned-mode table that is not keyed by binning factor to the two values fails."""
+    """A binned-mode table not keyed by binning factor to the two positive values fails."""
     config = Config()
     with pytest.raises(ValueError, match=message):
         config.update_config(_by_binning_override(tmp_path, table))

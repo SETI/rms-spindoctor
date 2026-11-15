@@ -352,11 +352,16 @@ def validate_sim_params(
         sim_params.get('fit_camera_rotation'), 'fit_camera_rotation', source=source
     )
     _check_noise(sim_params.get('noise'), source=source)
-    _check_instrument_config(sim_params.get('instrument_config'), source=source)
     _check_optional_positive_int(sim_params.get('oversample'), 'oversample', source=source)
     _check_ring_system(sim_params.get('ring_system'), source=source)
     _check_optics(sim_params.get('optics'), source=source)
     _check_detector(sim_params.get('detector'), instrument=instrument, source=source)
+    _check_instrument_config(
+        sim_params.get('instrument_config'),
+        instrument=instrument,
+        binning=scene_binning(sim_params),
+        source=source,
+    )
     _check_artifacts(
         sim_params.get('artifacts'),
         instrument=instrument,

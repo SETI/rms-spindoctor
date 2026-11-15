@@ -26,14 +26,16 @@ newhorizons_lorri:
     # the electron zero point over the single gain state.
     star_flux_dn_per_s_vmag0: 3.33e6
     # The binned readout mode, keyed by the binning factor: the read noise of one
-    # binned pixel and the zero point, both in DN.  A mode this table leaves out
+    # binned pixel in DN and the zero point in DN/s.  A mode this table leaves out
     # reads with the values above.  The 4x4 mode's published gain is 19.4 e-/DN,
     # against 21 e-/DN at 1x1 (see _sources below), so the published 23 e- read
-    # noise is 23 / 19.4 = 1.19 DN (read_noise_dn above is a placeholder).
-    # Binning on the chip keeps a star's charge, so the zero point above,
-    # 3.33e6 DN/s at 21 e-/DN, reads 3.33e6 * 21 / 19.4 = 3.60e6 DN/s.
+    # noise is 23 / 19.4 = 1.19 DN.  Binning on the chip keeps a star's charge, so
+    # the electron zero point the value above is sized from, 7.0e7 e-/s, reads
+    # 7.0e7 / 19.4 = 3.61e6 DN/s.  read_noise_dn above is a placeholder above the
+    # published 23 / 21 = 1.10 DN, so part of the step from the unbinned star limit
+    # to the binned one comes from the placeholder.
     by_binning:
-      4: {read_noise_dn: 1.19, star_flux_dn_per_s_vmag0: 3.60e6}
+      4: {read_noise_dn: 1.19, star_flux_dn_per_s_vmag0: 3.61e6}
   image_quality_thresholds:
     blank_max_dn: 5.0              # PLACEHOLDER — calibrate in Phase 10
     saturation_threshold_dn: 4095  # 12-bit ADC

@@ -3,15 +3,13 @@
 Each violation the loader refuses is one case, with the file, the entry, and the key
 path in its message.  A camera added only as an entry in a copy of the packaged
 directory validates, resolves, and renders.  The packaged catalog's entries point at
-navigator blocks that exist and set the same units as those blocks, and each
-navigator star zero point agrees with the simulator's.  Each raw-DN navigator block has
-values for every binned mode its camera offers, and they agree with the simulator's.
-Resolving an entry's navigator block fails if their units differ or if the block doesn't
-set data_units.  The detector chain renders in the entry's units.
+navigator blocks that exist and set the same units as those blocks.  Resolving an
+entry's navigator block fails if their units differ or if the block doesn't set
+data_units.  The detector chain renders in the entry's units.  The navigator's star
+values are checked against the catalog in ``test_navigator_star_values.py``.
 """
 
 from collections.abc import Mapping
-from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
@@ -41,7 +39,6 @@ from spindoctor.sim.instrument_navigator import resolve_sim_inst_config
 from spindoctor.sim.instrument_resolvers import (
     cataloged_binnings,
     resolve_data_units,
-    resolve_star_flux_zero_point,
 )
 from spindoctor.sim.render import render_combined_model
 from spindoctor.sim.scene import validate_sim_params
@@ -693,123 +690,6 @@ def test_the_frame_units_follow_the_entry(
     monkeypatch.setattr(instrument_navigator, '_check_units_agree', lambda *_, **__: None)
     params = resolve_detector_params({'instrument': calibrated_cam_on_raw_block})
     assert params.data_units == 'calibrated_if'
-
-
-def _raw_dn_navigator_instruments() -> list[str]:
-    """The entries whose navigator block reads raw DN, so it uses a DN star zero point.
-
-    The navigator's star limit (``ObsSim.star_max_usable_vmag``) reads
-    ``star_flux_dn_per_s_vmag0`` exactly when the block's ``data_units`` is
-    ``raw_dn``; a calibrated block never consults it.  It reads each entry's own units
-    instead of resolving its navigator block, so a block without units fails its own
-    test instead of breaking collection of this file.
-    """
-    return [
-        name
-        for name in (*sim_instrument_names(), GENERIC_INSTRUMENT)
-        if resolve_data_units(name) == 'raw_dn'
-    ]
-
-
-def _rounding_step(value: float) -> float:
-    """The place value of the last significant digit ``value`` is written with."""
-    exponent = Decimal(repr(value)).normalize().as_tuple().exponent
-    assert isinstance(exponent, int)
-    return float(Decimal(1).scaleb(exponent))
-
-
-@pytest.mark.parametrize('instrument', _raw_dn_navigator_instruments())
-def test_the_navigator_states_a_zero_point_for_a_raw_dn_block(instrument: str) -> None:
-    """A raw-DN navigator block states its own DN zero point.
-
-    Without one the navigator falls back to the generic block's value silently.
-    """
-    navigator = resolve_sim_inst_config(DEFAULT_CONFIG, instrument)['noise']
-    assert 'star_flux_dn_per_s_vmag0' in navigator
-
-
-@pytest.mark.parametrize('instrument', _raw_dn_navigator_instruments())
-def test_the_navigator_zero_point_matches_the_simulators(instrument: str) -> None:
-    """The navigator's DN zero point is the simulator's, within its own rounding.
-
-    The navigator states its value separately, so the information boundary holds;
-    this test detects the two drifting apart by more than half the rounding step of
-    the navigator's stated value (the place value of its last significant digit), so
-    a difference the navigator's rounding explains passes.  A CCD's zero point is in
-    electrons, converted through the gain that a scene with no detector settings
-    renders with; a vidicon's is already DN.
-    """
-    zero_point, domain = resolve_star_flux_zero_point(instrument)
-    if domain == 'electrons':
-        zero_point /= resolve_detector_params({'instrument': instrument}).gain_e_per_dn
-    # A block without the key fails here and in the test above, which says why.
-    stated = resolve_sim_inst_config(DEFAULT_CONFIG, instrument)['noise'][
-        'star_flux_dn_per_s_vmag0'
-    ]
-    assert zero_point == pytest.approx(stated, rel=0.0, abs=_rounding_step(stated) / 2.0)
-
-
-@pytest.mark.parametrize('instrument', _raw_dn_navigator_instruments())
-def test_the_navigator_states_values_for_each_binned_mode(instrument: str) -> None:
-    """A raw-DN navigator block has a ``by_binning`` entry for each binned mode offered.
-
-    Without one the star limit of a frame in that mode reads the unbinned values.
-    """
-    navigator = resolve_sim_inst_config(DEFAULT_CONFIG, instrument)['noise']
-    offered = {binning for binning in cataloged_binnings(instrument) if binning != 1}
-    assert set(navigator.get('by_binning', {})) == offered
-
-
-_BINNED_RAW_DN_MODES = [
-    (instrument, binning)
-    for instrument in _raw_dn_navigator_instruments()
-    for binning in cataloged_binnings(instrument)
-    if binning != 1
-]
-
-
-def _binned_mode_detector(instrument: str, binning: int) -> Any:
-    """The detector parameters a scene in this mode renders with, catalog values on."""
-    scene = {
-        'instrument': instrument,
-        'size_v': 32,
-        'size_u': 32,
-        'detector': {'binning': binning},
-        'artifacts': {'instrument_defaults': True},
-    }
-    return resolve_detector_params(scene)
-
-
-@pytest.mark.parametrize(('instrument', 'binning'), _BINNED_RAW_DN_MODES)
-def test_the_navigator_binned_zero_point_matches_the_simulators(
-    instrument: str, binning: int
-) -> None:
-    """A binned mode's DN zero point is the simulator's, within the navigator's rounding.
-
-    The simulator's electron zero point is converted through the mode's gain.
-    """
-    zero_point, domain = resolve_star_flux_zero_point(instrument)
-    assert domain == 'electrons'
-    zero_point /= _binned_mode_detector(instrument, binning).gain_e_per_dn
-    mode = resolve_sim_inst_config(DEFAULT_CONFIG, instrument)['noise']['by_binning'][binning]
-    stated = mode['star_flux_dn_per_s_vmag0']
-    assert zero_point == pytest.approx(stated, rel=0.0, abs=_rounding_step(stated) / 2.0)
-
-
-@pytest.mark.parametrize(('instrument', 'binning'), _BINNED_RAW_DN_MODES)
-def test_the_navigator_binned_read_noise_matches_the_simulators(
-    instrument: str, binning: int
-) -> None:
-    """A binned mode's read noise in DN is the simulator's, within the navigator's rounding.
-
-    The simulator's read noise for the mode, in electrons, is converted through the
-    mode's gain.
-    """
-    detector = _binned_mode_detector(instrument, binning)
-    read_noise_dn = detector.read_noise_e / detector.gain_e_per_dn
-    mode = resolve_sim_inst_config(DEFAULT_CONFIG, instrument)['noise']['by_binning'][binning]
-    stated = mode['read_noise_dn']
-    assert read_noise_dn == pytest.approx(stated, rel=0.0, abs=_rounding_step(stated) / 2.0)
 
 
 @pytest.fixture

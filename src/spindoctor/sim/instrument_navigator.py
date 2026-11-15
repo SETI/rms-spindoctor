@@ -59,6 +59,7 @@ __all__ = [
     'read_frame_as_navigator',
     'resolve_extfov_margin',
     'resolve_sim_inst_config',
+    'with_integer_binning_keys',
 ]
 
 # The navigator's defaults for the image_quality_thresholds keys its classifier
@@ -92,6 +93,32 @@ def _deep_merge(base: Mapping[str, Any], overrides: Mapping[str, Any]) -> dict[s
     return merged
 
 
+def with_integer_binning_keys(overrides: Mapping[str, Any]) -> Mapping[str, Any]:
+    """Return ``overrides`` with each digit-string ``noise.by_binning`` key read as an integer.
+
+    The navigator block keys its binned readout modes by the binning factor, an
+    integer.  JSON object keys are strings, so a scene that passes through JSON, as
+    every validated scene does, carries a key ``2`` as ``'2'``; both spellings name the
+    same mode.  Any other key is left for the block's check to refuse.
+
+    Parameters:
+        overrides: A scene's ``instrument_config`` overrides.
+
+    Returns:
+        ``overrides`` itself when it sets no ``noise.by_binning`` mapping, otherwise a
+        copy whose table has integer keys where the scene wrote digits.
+    """
+    noise = overrides.get('noise')
+    if not isinstance(noise, Mapping) or not isinstance(noise.get('by_binning'), Mapping):
+        return overrides
+    table: Mapping[Any, Any] = noise['by_binning']
+    keyed = {
+        int(key) if isinstance(key, str) and key.isascii() and key.isdigit() else key: value
+        for key, value in table.items()
+    }
+    return {**overrides, 'noise': {**noise, 'by_binning': keyed}}
+
+
 def resolve_sim_inst_config(
     config: Config,
     instrument: str | None,
@@ -109,7 +136,8 @@ def resolve_sim_inst_config(
             block. Overridden keys are pinned to the scene; the rest continue to
             track the instrument. Any key except ``data_units`` can be overridden,
             so the generic block with every other key overridden is a fully
-            self-specified scene config.
+            self-specified scene config.  A ``noise.by_binning`` key written as a
+            string of digits names the binning factor it spells.
 
     Returns:
         The resolved per-instrument config mapping (a fresh dict when ``overrides``
@@ -131,7 +159,7 @@ def resolve_sim_inst_config(
     base = _resolve_base_block(config, instrument)
     if not overrides:
         return base
-    return _deep_merge(base, overrides)
+    return _deep_merge(base, with_integer_binning_keys(overrides))
 
 
 def _resolve_base_block(config: Config, instrument: str | None) -> Mapping[str, Any]:
