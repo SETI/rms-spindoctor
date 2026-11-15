@@ -5,7 +5,11 @@ as absent.  These tests load scenes whose optional keys are null.  They check th
 editor control shows the same value as when those keys are left out.  Further tests
 check that a body whose name and center are unset shows the renderer's name and the
 frame center, that unset derived values follow edits, and that loading a scene leaves
-it unchanged.
+it unchanged.  The remaining tests check that adding a ring to a null ring block or
+feature list works, that a ring kind switch fills a null required shape key, that a
+ring modulation can be turned on under a null azimuthal block, and that a body whose
+range is unset counts at its default range when the editor picks a range for an added
+body and when it warns about duplicate ranges.
 
 Qt runs headless (offscreen platform).
 """
@@ -457,7 +461,9 @@ _APART_BODY: dict[str, Any] = {'axis1': 20.0, 'axis2': 20.0, 'center_v': 40.0, '
 
 def test_an_added_body_skips_an_unset_bodys_default_range(qapp: QApplication) -> None:
     """A body added beside one whose range is null takes a range the other doesn't use."""
-    model = _loaded({**_FRAME_300_BY_400, 'random_seed': 42, 'bodies': [_UNSET_RANGE_BODY]})
+    scene = {**_FRAME_300_BY_400, 'random_seed': 42, 'bodies': [_UNSET_RANGE_BODY]}
+    validate_sim_params(copy.deepcopy(scene), source='unset range scene')
+    model = _loaded(scene)
     model._add_body_tab()
     assert model.sim_params['bodies'][1]['range_km'] == 2.0
 

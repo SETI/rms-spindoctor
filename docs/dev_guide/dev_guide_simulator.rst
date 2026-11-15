@@ -3340,7 +3340,8 @@ editor's kind switch follows. The switch grays out a widget the kind rejects,
 and the widget's tooltip says why. Each widget the kind takes shows the value
 the renderer will use: the stored value, or for an absent ``side`` the kind's
 default from ``RING_SIDE_DEFAULTS``, which the editor shows without writing it.
-A rejected key fails validation.
+When a switch makes a shape key required and the key is absent or null, the
+switch writes the starting value for that key. A rejected key fails validation.
 
 ===========================  ========  ========  ========  ========  ========
 key                          ringlet   gap       edge      ramp      wave
@@ -4132,7 +4133,7 @@ value the renderer draws with:
   :func:`~spindoctor.sim.scene_schema.default_body_name` (``SIM-BODY-1`` for the first
   body). A body whose center is unset shows the frame center. A body whose range is
   unset shows the range the renderer gives it, from
-  :func:`~spindoctor.sim.scene_schema.default_body_range_km` (1 for the first body).
+  :func:`~spindoctor.sim.scene_schema.default_body_range_km` (1 km for the first body).
   The editor counts that range when it picks a range for an added body and when it
   warns that two bodies share a range.
 * **Values derived from other keys.** An unset ``axis3`` is drawn as the smaller of
