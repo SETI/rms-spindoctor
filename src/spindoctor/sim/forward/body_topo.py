@@ -745,9 +745,8 @@ def _crater_heights(grid: _Grid, spec: TopoBodySpec) -> NDArrayFloatType:
     if spec.crater_seed is not None:
         seed_value = int(spec.crater_seed) & 0x7FFFFFFF
     else:
-        # The fallback seed is keyed on the full widths, twice the semi-axes, so
-        # a seed-less body draws the same craters it drew before the size keys
-        # became semi-axes (#913).
+        # The fallback seed is keyed on the full widths, twice the semi-axes; the
+        # craters of the committed seed-less scenes depend on this key (#913).
         widths = (2.0 * spec.semi_a_px, 2.0 * spec.semi_b_px, 2.0 * spec.semi_c_px)
         seed_value = stable_param_seed(*widths, grid.center)
         seed_value &= 0x7FFFFFFF

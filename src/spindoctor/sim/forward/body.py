@@ -140,9 +140,8 @@ def create_simulated_body(
         if seed is not None:
             seed_value = int(seed) & 0x7FFFFFFF
         else:
-            # The fallback seed is keyed on the full widths, twice the semi-axes, so a
-            # seed-less body draws the same craters it drew before the size keys became
-            # semi-axes (#913).
+            # The fallback seed is keyed on the full widths, twice the semi-axes; the
+            # craters of the committed seed-less scenes depend on this key (#913).
             seed_value = (
                 stable_param_seed(2.0 * semi_a_px, 2.0 * semi_b_px, 2.0 * semi_c_px, center)
                 & 0x7FFFFFFF
@@ -736,9 +735,8 @@ def render_single_body(
             elif spec.seed is not None:
                 identity_seed = spec.seed & 0x7FFFFFFF
             else:
-                # The fallback seed is keyed on the full widths, twice the semi-axes, so a
-                # seed-less body draws the same terrain it drew before the size keys became
-                # semi-axes (#913).
+                # The fallback seed is keyed on the full widths, twice the semi-axes; the
+                # terrain of the committed seed-less scenes depends on this key (#913).
                 identity_seed = stable_param_seed(
                     2.0 * semi_a_px, 2.0 * semi_b_px, 2.0 * semi_c_px, body_index, body_name
                 )

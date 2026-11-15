@@ -325,8 +325,8 @@ def _base_scene(rng: random.Random, seed: int) -> tuple[dict[str, Any], float]:
     offset_dir = rng.uniform(0.0, 2.0 * math.pi)
     illumination_deg = round(rng.uniform(0.0, 360.0), 4)
     log_lo, log_hi = math.log(MIN_READ_NOISE_DN), math.log(MAX_READ_NOISE_DN)
-    # Half the full width rounded to 4 decimals, so the scenes draw the body at
-    # the size the campaign has always drawn.
+    # Half the full width rounded to 4 decimals, which keeps the campaign's
+    # committed body sizes exact.
     semi_px = round(2.0 * r_solid_px, 4) / 2.0
     sim_params: dict[str, Any] = {
         'instrument': 'coiss_nac',

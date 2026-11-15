@@ -136,9 +136,8 @@ def _mesh_identity_seed(
         return derive_effect_seed(seed, f'body:{body_index}:{body_name}')
     if body_seed is not None:
         return body_seed & 0x7FFFFFFF
-    # The fallback seed is keyed on the full widths, twice the semi-axes, so a
-    # seed-less body draws the same terrain it drew before the size keys became
-    # semi-axes (#913).
+    # The fallback seed is keyed on the full widths, twice the semi-axes; the
+    # terrain of the committed seed-less scenes depends on this key (#913).
     widths = (2.0 * semi_a_px, 2.0 * semi_b_px, 2.0 * semi_c_px)
     return stable_param_seed(*widths, body_index, body_name) & 0x7FFFFFFF
 
