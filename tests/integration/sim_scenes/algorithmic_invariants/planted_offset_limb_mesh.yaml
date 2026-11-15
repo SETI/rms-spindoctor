@@ -11,11 +11,11 @@ exposure_sec: 1.0
 # emits a LIMB_ARC from the rendered silhouette boundary; with the predicted mesh
 # identical to the rendered one, BodyLimbNav's distance-transform fit aligns the
 # two silhouettes and recovers the planted offset to a few tenths of a pixel.
-# The body is large (axis1 = 150 px) so it clears the 100 px limb-emission floor,
-# and the phase is 30 deg so most of the boundary is the sunward lit limb (a
-# sharp image edge) rather than terminator.  The full ensemble also recovers via
-# the disc correlation, so this doubles as a disc scene; the dedicated test pins
-# BodyLimbNav to prove the mesh-limb path.
+# The body is large (150 px across, so semi_a_px is 75) so it clears the 100 px
+# limb-emission floor, and the phase is 30 deg so most of the boundary is the
+# sunward lit limb (a sharp image edge) rather than terminator.  The full
+# ensemble also recovers via the disc correlation, so this doubles as a disc
+# scene; the dedicated test pins BodyLimbNav to prove the mesh-limb path.
 bodies:
   - name: HYPERION
     shape_model: polyhedral_mesh
@@ -26,9 +26,9 @@ bodies:
     pose_euler_deg: [10.0, 35.0, 0.0]
     center_v: 110.0
     center_u: 110.0
-    axis1: 150.0
-    axis2: 110.0
-    axis3: 95.0
+    semi_a_px: 75.0
+    semi_b_px: 55.0
+    semi_c_px: 47.5
     illumination_angle: 25.0
     phase_angle: 30.0
 noise:

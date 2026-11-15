@@ -33,9 +33,9 @@ def _limb_spec(*, rms: float, seed: int) -> TopoBodySpec:
     interior pixel is bright, so the mask boundary is the limb.
     """
     return TopoBodySpec(
-        axis1=160.0,
-        axis2=160.0,
-        axis3=160.0,
+        semi_a_px=80.0,
+        semi_b_px=80.0,
+        semi_c_px=80.0,
         photometric_law='lommel_seeliger',
         oversample=4,
         limb_relief_rms=rms,
@@ -110,9 +110,9 @@ def test_rendered_limb_rms_tracks_the_commanded_value() -> None:
 def _terminator_spec(*, rms: float) -> TopoBodySpec:
     """A high-phase crescent with the sun from the right."""
     return TopoBodySpec(
-        axis1=240.0,
-        axis2=240.0,
-        axis3=240.0,
+        semi_a_px=120.0,
+        semi_b_px=120.0,
+        semi_c_px=120.0,
         illumination_angle=math.radians(90.0),
         phase_angle=math.radians(100.0),
         oversample=4,
@@ -195,9 +195,9 @@ def _sun_elevation_deg(
 def _moon_spec(seed: int, *, rms: float = _RMS, **extra: Any) -> TopoBodySpec:
     """An 85 px moon at phase 58 degrees, the geometry that once cut wedges through its disc."""
     return TopoBodySpec(
-        axis1=170.0,
-        axis2=168.0,
-        axis3=164.0,
+        semi_a_px=85.0,
+        semi_b_px=84.0,
+        semi_c_px=82.0,
         illumination_angle=math.radians(28.0),
         phase_angle=math.radians(58.0),
         photometric_law='lommel_seeliger',
@@ -258,9 +258,9 @@ def _surface_normals(field: ReliefField, points: NDArrayFloatType) -> NDArrayFlo
 def _lambert_relief_disc(*, rms: float, corr_deg: float) -> tuple[TopoBodySpec, Any, ReliefField]:
     """A 75 px Lambert sphere with relief, shaded at the render grid, and its grid and field."""
     spec = TopoBodySpec(
-        axis1=150.0,
-        axis2=150.0,
-        axis3=150.0,
+        semi_a_px=75.0,
+        semi_b_px=75.0,
+        semi_c_px=75.0,
         illumination_angle=math.radians(40.0),
         phase_angle=math.radians(35.0),
         anti_aliasing=0.0,
@@ -346,9 +346,9 @@ def test_shadow_march_resolves_fine_relief_on_a_small_body(
     shadowed pixels.
     """
     spec = TopoBodySpec(
-        axis1=60.0,
-        axis2=60.0,
-        axis3=60.0,
+        semi_a_px=30.0,
+        semi_b_px=30.0,
+        semi_c_px=30.0,
         illumination_angle=math.radians(80.0),
         phase_angle=math.radians(70.0),
         anti_aliasing=0.0,
@@ -382,9 +382,9 @@ def _body_scene(*, oversample: int | None, body_extra: dict[str, Any]) -> dict[s
         'name': 'B',
         'center_v': 40.0,
         'center_u': 40.0,
-        'axis1': 44.0,
-        'axis2': 40.0,
-        'axis3': 40.0,
+        'semi_a_px': 22.0,
+        'semi_b_px': 20.0,
+        'semi_c_px': 20.0,
         'illumination_angle': 30.0,
         'phase_angle': 70.0,
         'crater_fill': 0.3,
@@ -438,18 +438,18 @@ def test_non_lambert_law_changes_the_disc() -> None:
 def test_opposition_surge_scales_the_disc_by_the_documented_factor() -> None:
     """The surge dims a high-phase disc by (1 + A exp(-a/w)) / (1 + A)."""
     spec = TopoBodySpec(
-        axis1=120.0,
-        axis2=120.0,
-        axis3=120.0,
+        semi_a_px=60.0,
+        semi_b_px=60.0,
+        semi_c_px=60.0,
         illumination_angle=math.radians(30.0),
         phase_angle=math.radians(70.0),
         oversample=2,
     )
     plain = create_topographic_body((160, 160), (80.0, 80.0), spec)
     surged_spec = TopoBodySpec(
-        axis1=120.0,
-        axis2=120.0,
-        axis3=120.0,
+        semi_a_px=60.0,
+        semi_b_px=60.0,
+        semi_c_px=60.0,
         illumination_angle=math.radians(30.0),
         phase_angle=math.radians(70.0),
         oversample=2,
@@ -493,9 +493,9 @@ def test_two_identical_bodies_get_independent_terrains() -> None:
                 'name': 'FIRST',
                 'center_v': 30.0,
                 'center_u': 30.0,
-                'axis1': 40.0,
-                'axis2': 40.0,
-                'axis3': 40.0,
+                'semi_a_px': 20.0,
+                'semi_b_px': 20.0,
+                'semi_c_px': 20.0,
                 'limb_relief_rms': 0.03,
                 'range_km': 1.0,
             },
@@ -503,9 +503,9 @@ def test_two_identical_bodies_get_independent_terrains() -> None:
                 'name': 'SECOND',
                 'center_v': 88.0,
                 'center_u': 88.0,
-                'axis1': 40.0,
-                'axis2': 40.0,
-                'axis3': 40.0,
+                'semi_a_px': 20.0,
+                'semi_b_px': 20.0,
+                'semi_c_px': 20.0,
                 'limb_relief_rms': 0.03,
                 'range_km': 2.0,
             },

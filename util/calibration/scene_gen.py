@@ -240,11 +240,14 @@ def _catalog_body(
     # Irregular bodies get genuinely tri-axial base ellipsoids; the
     # near-spherical regulars keep modest axis spreads.
     if name in _IRREGULAR_BODIES:
-        axis2 = radius * rng.uniform(0.75, 0.95)
-        axis3 = radius * rng.uniform(0.6, 0.85)
+        b_fraction = rng.uniform(0.75, 0.95)
+        c_fraction = rng.uniform(0.6, 0.85)
     else:
-        axis2 = radius * rng.uniform(0.97, 1.0)
-        axis3 = radius * rng.uniform(0.95, 1.0)
+        b_fraction = rng.uniform(0.97, 1.0)
+        c_fraction = rng.uniform(0.95, 1.0)
+    # The semi-axes are half the radius, so every body draws at half its
+    # apparent size; that slip is tracked as #898 and kept here on purpose.
+    semi_a_px = radius / 2.0
     body: dict[str, Any] = {
         'name': name,
         'shape_model': 'polyhedral_mesh',
@@ -253,9 +256,9 @@ def _catalog_body(
         'pose_euler_deg': pose,
         'center_v': center_v,
         'center_u': center_u,
-        'axis1': radius,
-        'axis2': axis2,
-        'axis3': axis3,
+        'semi_a_px': semi_a_px,
+        'semi_b_px': semi_a_px * b_fraction,
+        'semi_c_px': semi_a_px * c_fraction,
         'illumination_angle': illumination,
         'phase_angle': phase,
         'km_per_pixel': mean_radius_km / radius,
@@ -812,9 +815,9 @@ def gen_titan(rng: random.Random) -> dict[str, Any]:
             'shape_model': 'ellipsoid',
             'center_v': center,
             'center_u': center,
-            'axis1': 2.0 * r_solid_px,
-            'axis2': 2.0 * r_solid_px,
-            'axis3': 2.0 * r_solid_px,
+            'semi_a_px': r_solid_px,
+            'semi_b_px': r_solid_px,
+            'semi_c_px': r_solid_px,
             'illumination_angle': illumination_deg,
             # The structure keys split hemispheres on the body-frame first
             # axis; this roll puts that split line along the sun axis, which

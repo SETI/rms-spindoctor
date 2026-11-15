@@ -76,9 +76,9 @@ def _bright_scene(*, size: int = 64) -> dict[str, Any]:
                 'name': 'B',
                 'center_v': size / 2,
                 'center_u': size / 2,
-                'axis1': size * 0.6,
-                'axis2': size * 0.5,
-                'axis3': size * 0.5,
+                'semi_a_px': size * 0.3,
+                'semi_b_px': size * 0.25,
+                'semi_c_px': size * 0.25,
             }
         ],
     }

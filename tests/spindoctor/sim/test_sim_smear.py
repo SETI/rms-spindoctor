@@ -65,7 +65,9 @@ def _star_and_body_scene(*, smear: list[dict[str, Any]] | None) -> dict[str, Any
         'random_seed': 5,
         'instrument': 'coiss_nac',
         'noise': {'poisson': False, 'read_noise_dn': 0.0, 'bias_dn': 0.0},
-        'bodies': [{'name': 'B', 'center_v': 40.0, 'center_u': 40.0, 'axis1': 16.0, 'axis2': 16.0}],
+        'bodies': [
+            {'name': 'B', 'center_v': 40.0, 'center_u': 40.0, 'semi_a_px': 8.0, 'semi_b_px': 8.0}
+        ],
         # A faint star (unsaturated at the coiss_nac zero point) so its trail
         # lowers the peak rather than clipping it flat.
         'stars': [{'name': 'S', 'v': 14.0, 'u': 14.0, 'vmag': 9.0}],

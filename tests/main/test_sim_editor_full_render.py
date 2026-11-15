@@ -90,9 +90,9 @@ def _set_scene(model: Any) -> None:
                     'name': 'RHEA',
                     'center_v': 30.3,
                     'center_u': 33.7,
-                    'axis1': 30.0,
-                    'axis2': 30.0,
-                    'axis3': 30.0,
+                    'semi_a_px': 15.0,
+                    'semi_b_px': 15.0,
+                    'semi_c_px': 15.0,
                     'illumination_angle': 20.0,
                     'phase_angle': 30.0,
                 }

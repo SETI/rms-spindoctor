@@ -39,9 +39,9 @@ def _body_scene(*, oversample: int | None) -> dict[str, Any]:
                 'name': 'B',
                 'center_v': 30.0,
                 'center_u': 30.0,
-                'axis1': 24.0,
-                'axis2': 24.0,
-                'axis3': 24.0,
+                'semi_a_px': 12.0,
+                'semi_b_px': 12.0,
+                'semi_c_px': 12.0,
                 'phase_angle': 0.0,
             }
         ],
@@ -118,16 +118,16 @@ def test_oversampled_smooth_body_matches_the_navigator_model() -> None:
         size,
         center,
         TopoBodySpec(
-            axis1=96.0,
-            axis2=96.0,
-            axis3=96.0,
+            semi_a_px=48.0,
+            semi_b_px=48.0,
+            semi_c_px=48.0,
             illumination_angle=0.7,
             phase_angle=0.9,
             oversample=4,
         ),
     )
     predicted = create_simulated_body(
-        size, center, 96.0, axis2=96.0, axis3=96.0, illumination_angle=0.7, phase_angle=0.9
+        size, center, 48.0, semi_b_px=48.0, semi_c_px=48.0, illumination_angle=0.7, phase_angle=0.9
     )
     np.testing.assert_allclose(rendered, predicted, rtol=0.0, atol=1e-12)
 
@@ -144,9 +144,9 @@ def test_anti_aliased_smooth_body_matches_the_navigator_model() -> None:
         size,
         center,
         TopoBodySpec(
-            axis1=96.0,
-            axis2=96.0,
-            axis3=96.0,
+            semi_a_px=48.0,
+            semi_b_px=48.0,
+            semi_c_px=48.0,
             illumination_angle=0.7,
             phase_angle=0.9,
             anti_aliasing=1.0,
@@ -155,9 +155,9 @@ def test_anti_aliased_smooth_body_matches_the_navigator_model() -> None:
     predicted = create_simulated_body(
         size,
         center,
-        96.0,
-        axis2=96.0,
-        axis3=96.0,
+        48.0,
+        semi_b_px=48.0,
+        semi_c_px=48.0,
         illumination_angle=0.7,
         phase_angle=0.9,
         anti_aliasing=1.0,
@@ -169,7 +169,7 @@ def test_oversampled_smooth_body_matches_the_navigator_model_on_the_detector_gri
     """A smooth sphere rendered at oversample 4 and downsampled matches the navigator model.
 
     The scene goes through the pipeline's own stages up to and including the downsample,
-    so the scaling of its center and axes onto the 4x grid and the box downsample back
+    so the scaling of its center and semi-axes onto the 4x grid and the box downsample back
     to the detector grid both act on it.  The navigator's model is the detector-size
     template at full anti-aliasing, which shades on the same 4x grid; a shift of a
     thousandth of a pixel in either stage changes the image by about 2e-4.  The body's
@@ -188,9 +188,9 @@ def test_oversampled_smooth_body_matches_the_navigator_model_on_the_detector_gri
                 'name': 'B',
                 'center_v': center[0],
                 'center_u': center[1],
-                'axis1': 24.0,
-                'axis2': 24.0,
-                'axis3': 24.0,
+                'semi_a_px': 12.0,
+                'semi_b_px': 12.0,
+                'semi_c_px': 12.0,
                 'illumination_angle': 40.0,
                 'phase_angle': 51.6,
             }
@@ -204,9 +204,9 @@ def test_oversampled_smooth_body_matches_the_navigator_model_on_the_detector_gri
     predicted = create_simulated_body(
         (size, size),
         center,
-        24.0,
-        axis2=24.0,
-        axis3=24.0,
+        12.0,
+        semi_b_px=12.0,
+        semi_c_px=12.0,
         illumination_angle=np.radians(40.0),
         phase_angle=np.radians(51.6),
         anti_aliasing=1.0,
@@ -234,9 +234,9 @@ def test_inert_surface_setting_keeps_the_smooth_shading(setting: str) -> None:
         setting: The key into ``_INERT_SURFACES`` naming the inert setting.
     """
     smooth = TopoBodySpec(
-        axis1=96.0,
-        axis2=96.0,
-        axis3=96.0,
+        semi_a_px=48.0,
+        semi_b_px=48.0,
+        semi_c_px=48.0,
         illumination_angle=0.7,
         phase_angle=0.9,
         oversample=4,
@@ -267,9 +267,9 @@ def test_active_surface_setting_changes_the_shading(setting: str) -> None:
         setting: The key into ``_ACTIVE_SURFACES`` naming the active setting.
     """
     smooth = TopoBodySpec(
-        axis1=96.0,
-        axis2=96.0,
-        axis3=96.0,
+        semi_a_px=48.0,
+        semi_b_px=48.0,
+        semi_c_px=48.0,
         illumination_angle=0.7,
         phase_angle=0.9,
         oversample=4,

@@ -120,9 +120,9 @@ def _body_psf_detector_scene(size: int) -> dict[str, Any]:
             'name': 'BUDGET-BODY',
             'center_v': size / 2.0,
             'center_u': size / 2.0,
-            'axis1': size * 0.7,
-            'axis2': size * 0.7,
-            'axis3': size * 0.7,
+            'semi_a_px': size * 0.35,
+            'semi_b_px': size * 0.35,
+            'semi_c_px': size * 0.35,
             'illumination_angle': 30.0,
             'phase_angle': 70.0,
             'limb_relief_rms': 0.01,
@@ -145,15 +145,15 @@ def _haze_body_psf_detector_scene(size: int) -> dict[str, Any]:
     single-core budgets as the plain body scene.
     """
     scene = _body_psf_detector_scene(size)
-    # The body shrinks from the plain scene's 0.7 frame widths to 0.55: at
+    # The body shrinks from the plain scene's 0.7 frame widths across to 0.55: at
     # 0.7 the thin-haze 1024 render measured 7.0-7.7 s CPU against the 8 s
     # budget on quiet serial runs of the reference host (as little as ~4%
     # headroom on the slower runs -- flake territory); at 0.55 it measures
     # 6.0-6.3 s best-of-3 across quiet serial runs on the same host (21-25%
     # headroom), while the disc still dominates the frame and the full haze
     # stack stays exercised.
-    for axis_key in ('axis1', 'axis2', 'axis3'):
-        scene['bodies'][0][axis_key] = size * 0.55
+    for axis_key in ('semi_a_px', 'semi_b_px', 'semi_c_px'):
+        scene['bodies'][0][axis_key] = size * 0.275
     # A realistically thin haze (scale height a few pixels) relative to the
     # large body, so the halo adds only a narrow margin to the body's own
     # bounding box.  A thick variant (scale_height_px 20, detached_px 60)

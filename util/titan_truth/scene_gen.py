@@ -325,6 +325,9 @@ def _base_scene(rng: random.Random, seed: int) -> tuple[dict[str, Any], float]:
     offset_dir = rng.uniform(0.0, 2.0 * math.pi)
     illumination_deg = round(rng.uniform(0.0, 360.0), 4)
     log_lo, log_hi = math.log(MIN_READ_NOISE_DN), math.log(MAX_READ_NOISE_DN)
+    # Half the full width rounded to 4 decimals, which keeps the campaign's
+    # committed body sizes exact.
+    semi_px = round(2.0 * r_solid_px, 4) / 2.0
     sim_params: dict[str, Any] = {
         'instrument': 'coiss_nac',
         'size_v': FRAME_PX,
@@ -340,9 +343,9 @@ def _base_scene(rng: random.Random, seed: int) -> tuple[dict[str, Any], float]:
                 'shape_model': 'ellipsoid',
                 'center_v': CENTER_PX,
                 'center_u': CENTER_PX,
-                'axis1': round(2.0 * r_solid_px, 4),
-                'axis2': round(2.0 * r_solid_px, 4),
-                'axis3': round(2.0 * r_solid_px, 4),
+                'semi_a_px': semi_px,
+                'semi_b_px': semi_px,
+                'semi_c_px': semi_px,
                 'illumination_angle': illumination_deg,
                 'rotation_z': round(illumination_deg + BODY_ROLL_FROM_SUN_DEG, 4),
                 'phase_angle': round(rng.uniform(MIN_PHASE_DEG, MAX_PHASE_DEG), 4),

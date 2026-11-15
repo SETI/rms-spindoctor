@@ -1,8 +1,8 @@
 """Inventory bounding boxes follow the projected, rotated silhouette (SIM-7).
 
-A body's inventory bbox uses the per-axis half-extents of the axis1/axis2
-ellipse rotated in-plane by rotation_z (axis3 is the depth axis and does not
-project): sqrt((a cos t)^2 + (b sin t)^2) along v and
+A body's inventory bbox uses the per-axis half-extents of the ellipse of
+semi-axes a and b rotated in-plane by rotation_z (semi-axis c is the depth axis
+and does not project): sqrt((a cos t)^2 + (b sin t)^2) along v and
 sqrt((a sin t)^2 + (b cos t)^2) along u.  These tests plant an elongated,
 tilted body and check the bbox against both the analytic values and the
 rendered silhouette.
@@ -17,8 +17,8 @@ from spindoctor.sim.render import render_combined_model
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 
 _CENTER = 64.0
-_SEMI_MAJOR = 30.0  # axis1 / 2
-_SEMI_MINOR = 10.0  # axis2 / 2
+_SEMI_MAJOR = 30.0
+_SEMI_MINOR = 10.0
 _ROTATION_Z_DEG = 30.0
 
 _COS_T = np.cos(np.radians(_ROTATION_Z_DEG))
@@ -49,9 +49,9 @@ def _scene() -> dict[str, Any]:
                 'name': 'SLAB',
                 'center_v': _CENTER,
                 'center_u': _CENTER,
-                'axis1': 2 * _SEMI_MAJOR,
-                'axis2': 2 * _SEMI_MINOR,
-                'axis3': 2 * _SEMI_MINOR,
+                'semi_a_px': _SEMI_MAJOR,
+                'semi_b_px': _SEMI_MINOR,
+                'semi_c_px': _SEMI_MINOR,
                 'rotation_z': _ROTATION_Z_DEG,
                 'phase_angle': 0.0,
                 'anti_aliasing': 0.0,

@@ -27,9 +27,9 @@ def _disc_scene(*, offset_v: float = 0.0, offset_u: float = 0.0) -> dict[str, An
                 'name': 'RHEA',
                 'center_v': 64.0,
                 'center_u': 64.0,
-                'axis1': 86.0,
-                'axis2': 86.0,
-                'axis3': 86.0,
+                'semi_a_px': 43.0,
+                'semi_b_px': 43.0,
+                'semi_c_px': 43.0,
                 'illumination_angle': 18.0,
                 'phase_angle': 30.0,
             }

@@ -19,9 +19,9 @@ bodies:
   - name: RHEA
     center_v: 110.0
     center_u: 110.0
-    axis1: 90.0
-    axis2: 90.0
-    axis3: 90.0
+    semi_a_px: 45.0
+    semi_b_px: 45.0
+    semi_c_px: 45.0
     illumination_angle: 25.0
     phase_angle: 30.0
     photometric_law: minnaert

@@ -486,9 +486,9 @@ def _vgiss_render_with_garble_and_spikes(
                 'name': 'B',
                 'center_v': 64.0,
                 'center_u': 64.0,
-                'axis1': 40.0,
-                'axis2': 40.0,
-                'axis3': 40.0,
+                'semi_a_px': 20.0,
+                'semi_b_px': 20.0,
+                'semi_c_px': 20.0,
                 'range_km': 1.0,
             }
         ],

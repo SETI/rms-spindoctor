@@ -327,7 +327,7 @@ def test_units_label_names_the_rendered_units(model: Any, instrument: str, units
 
 
 def _set_body_scene(
-    model: Any, *, instrument: str, axis: float, center_u: float, offset_u: float
+    model: Any, *, instrument: str, semi_px: float, center_u: float, offset_u: float
 ) -> None:
     """Set the editor's scene to a 128 x 128 frame holding one full-phase Rhea."""
     model.sim_params.pop('noise', None)
@@ -344,9 +344,9 @@ def _set_body_scene(
                     'name': 'RHEA',
                     'center_v': 64.0,
                     'center_u': center_u,
-                    'axis1': axis,
-                    'axis2': axis,
-                    'axis3': axis,
+                    'semi_a_px': semi_px,
+                    'semi_b_px': semi_px,
+                    'semi_c_px': semi_px,
                     'illumination_angle': 0.0,
                     'phase_angle': 0.0,
                 }
@@ -357,7 +357,7 @@ def _set_body_scene(
 
 def test_units_label_leaves_the_vgiss_sky_out_of_the_marker_count(model: Any) -> None:
     """A vgiss frame's dark sky sits above the 0 marker, and the label stays quiet."""
-    _set_body_scene(model, instrument='vgiss', axis=86.0, center_u=64.0, offset_u=0.0)
+    _set_body_scene(model, instrument='vgiss', semi_px=43.0, center_u=64.0, offset_u=0.0)
     render_fully(model)
     assert model._units_label.text() == 'I/F 0.01176 to 1.008'
 
@@ -553,7 +553,7 @@ def test_scene_round_trips_through_gui(
     model.sim_params['size_v'] = 100
     model.sim_params['size_u'] = 100
     model.sim_params['bodies'] = [
-        {'name': 'B', 'center_v': 50.0, 'center_u': 50.0, 'axis1': 40.0, 'axis2': 40.0}
+        {'name': 'B', 'center_v': 50.0, 'center_u': 50.0, 'semi_a_px': 20.0, 'semi_b_px': 20.0}
     ]
     out = tmp_path / 'rt.yaml'
     monkeypatch.setattr(
@@ -657,9 +657,9 @@ def test_full_parameter_round_trip(
                     'name': 'B',
                     'center_v': 64.0,
                     'center_u': 64.0,
-                    'axis1': 90.0,
-                    'axis2': 70.0,
-                    'axis3': 60.0,
+                    'semi_a_px': 45.0,
+                    'semi_b_px': 35.0,
+                    'semi_c_px': 30.0,
                     'shape_model': 'polyhedral_mesh',
                     'mesh_lumpiness': 0.4,
                     'mesh_seed': 3,
@@ -763,9 +763,9 @@ def test_load_scene_file_opens_scene(
                 'name': 'RHEA',
                 'center_v': 48.0,
                 'center_u': 48.0,
-                'axis1': 40.0,
-                'axis2': 32.0,
-                'axis3': 30.0,
+                'semi_a_px': 20.0,
+                'semi_b_px': 16.0,
+                'semi_c_px': 15.0,
             }
         ],
     }

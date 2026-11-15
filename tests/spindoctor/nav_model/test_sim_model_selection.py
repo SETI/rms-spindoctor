@@ -60,9 +60,9 @@ def _body(name: str, center: float) -> dict[str, Any]:
         'name': name,
         'center_v': center,
         'center_u': center,
-        'axis1': 50.0,
-        'axis2': 50.0,
-        'axis3': 50.0,
+        'semi_a_px': 25.0,
+        'semi_b_px': 25.0,
+        'semi_c_px': 25.0,
         'illumination_angle': 20.0,
         'phase_angle': 30.0,
         # The soft anti-aliased rims of the two-body fixture overlap by a
@@ -160,7 +160,7 @@ def test_sim_titan_without_pixel_scale_builds_no_model() -> None:
 def test_sim_titan_without_axes_builds_no_model() -> None:
     """A simulated Titan with no stated size yields no model."""
     body = _titan_body()
-    del body['axis2']
+    del body['semi_b_px']
     obs = _fake_obs(is_simulated=True, nav_params={'bodies': [body]})
     assert NavModelTitanSimulated.instances_for_obs(obs) == []
 

@@ -1097,7 +1097,7 @@ toward 0.69 as the shrinking lit fraction softens the correlation diagnostics.
 Body-size (range) sweep
 -----------------------
 
-Shrinking ``bodies.0.axis{1,2,3}`` together from well-resolved to unnavigable.
+Shrinking ``bodies.0.semi_a_px``, ``semi_b_px``, and ``semi_c_px`` together from well-resolved to unnavigable.
 This is the technique ladder the range regime is meant to exercise:
 
 .. list-table:: Body-size response

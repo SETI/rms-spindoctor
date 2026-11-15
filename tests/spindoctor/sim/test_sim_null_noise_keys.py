@@ -36,9 +36,9 @@ def _scene(instrument: str, *, instrument_defaults: bool, **extra: Any) -> dict[
                 'name': 'RHEA',
                 'center_v': 16.0,
                 'center_u': 16.0,
-                'axis1': 8.0,
-                'axis2': 8.0,
-                'axis3': 8.0,
+                'semi_a_px': 4.0,
+                'semi_b_px': 4.0,
+                'semi_c_px': 4.0,
                 'illumination_angle': 0.0,
                 'phase_angle': 0.0,
             }

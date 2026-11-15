@@ -10,9 +10,9 @@ bodies:
     shape_model: ellipsoid
     center_v: 64.0
     center_u: 64.0
-    axis1: 8.0
-    axis2: 8.0
-    axis3: 8.0
+    semi_a_px: 4.0
+    semi_b_px: 4.0
+    semi_c_px: 4.0
     illumination_angle: 20.0
     phase_angle: 35.0
     range_km: 1500000.0

@@ -57,9 +57,9 @@ def _body(**overrides: Any) -> dict[str, Any]:
         'name': 'MIMAS',
         'center_v': 32.0,
         'center_u': 32.0,
-        'axis1': 32.0,
-        'axis2': 32.0,
-        'axis3': 32.0,
+        'semi_a_px': 16.0,
+        'semi_b_px': 16.0,
+        'semi_c_px': 16.0,
         'illumination_angle': 0.0,
         'phase_angle': 0.0,
     }

@@ -25,9 +25,9 @@ bodies:
     shape_model: ellipsoid
     center_v: 128.0
     center_u: 95.0
-    axis1: 120.0
-    axis2: 120.0
-    axis3: 120.0
+    semi_a_px: 60.0
+    semi_b_px: 60.0
+    semi_c_px: 60.0
     illumination_angle: 20.0
     phase_angle: 30.0
     range_km: 700000.0
@@ -35,9 +35,9 @@ bodies:
     shape_model: ellipsoid
     center_v: 128.0
     center_u: 110.0
-    axis1: 130.0
-    axis2: 130.0
-    axis3: 130.0
+    semi_a_px: 65.0
+    semi_b_px: 65.0
+    semi_c_px: 65.0
     illumination_angle: 20.0
     phase_angle: 30.0
     range_km: 500000.0

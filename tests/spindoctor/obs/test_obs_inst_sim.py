@@ -43,8 +43,8 @@ def _body_scene() -> dict[str, Any]:
                 'name': 'PEBBLE',
                 'center_v': _SIZE / 2.0,
                 'center_u': _SIZE / 2.0,
-                'axis1': 40.0,
-                'axis2': 30.0,
+                'semi_a_px': 20.0,
+                'semi_b_px': 15.0,
             }
         ],
     }
