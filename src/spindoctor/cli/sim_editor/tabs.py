@@ -12,6 +12,7 @@ from typing import Any
 from PyQt6.QtWidgets import QMessageBox, QWidget
 
 from spindoctor.cli.sim_editor.base import SimEditorBase
+from spindoctor.sim.scene_schema import default_body_name, default_body_range_km, scene_value
 
 
 class TabsMixin(SimEditorBase):
@@ -157,12 +158,12 @@ class TabsMixin(SimEditorBase):
         """
         # Collect all existing names (case-insensitive)
         existing_names = set()
-        for body in self.sim_params.get('bodies', []):
-            existing_names.add(body.get('name', '').lower())
+        for body_idx, body in enumerate(self.sim_params.get('bodies', [])):
+            existing_names.add(str(scene_value(body, 'name', default_body_name(body_idx))).lower())
         for star in self.sim_params.get('stars', []):
-            existing_names.add(star.get('name', '').lower())
+            existing_names.add(str(scene_value(star, 'name', '')).lower())
         for feature in self._ring_features():
-            existing_names.add(feature.get('name', '').lower())
+            existing_names.add(str(scene_value(feature, 'name', '')).lower())
 
         # Try the base name first
         if base_name.lower() not in existing_names:
@@ -233,9 +234,11 @@ class TabsMixin(SimEditorBase):
 
     def _add_ring_tab(self, params: dict[str, Any] | None = None) -> None:
         """Append a ring_system feature (creating the block) and select its tab."""
-        ring_system = self.sim_params.setdefault(
-            'ring_system',
-            {
+        # A block or feature list set to null reads as absent, so it is replaced
+        # the same way a missing one is installed.
+        ring_system = self.sim_params.get('ring_system')
+        if ring_system is None:
+            ring_system = {
                 'geometry': {
                     'center_v': self.sim_params['size_v'] / 2.0,
                     'center_u': self.sim_params['size_u'] / 2.0,
@@ -244,9 +247,12 @@ class TabsMixin(SimEditorBase):
                     'node_deg': 0.0,
                 },
                 'features': [],
-            },
-        )
-        features = ring_system.setdefault('features', [])
+            }
+            self.sim_params['ring_system'] = ring_system
+        features = ring_system.get('features')
+        if features is None:
+            features = []
+            ring_system['features'] = features
         if params is None:
             default_name = f'Ring{len(features) + 1}'
             unique_name = self._find_unique_name(default_name)
@@ -427,21 +433,25 @@ class TabsMixin(SimEditorBase):
                     widget_data_index = widget.property('data_index')
                     if widget_kind == 'body' and widget_data_index is not None:
                         if 0 <= widget_data_index < len(self.sim_params['bodies']):
-                            body_name = self.sim_params['bodies'][widget_data_index].get(
-                                'name', f'Body{widget_data_index + 1}'
+                            body_name = scene_value(
+                                self.sim_params['bodies'][widget_data_index],
+                                'name',
+                                default_body_name(widget_data_index),
                             )
                             target_tab_name = body_name
                     elif widget_kind == 'ring' and widget_data_index is not None:
                         features = self._ring_features()
                         if 0 <= widget_data_index < len(features):
-                            ring_name = features[widget_data_index].get(
-                                'name', f'Ring{widget_data_index + 1}'
+                            ring_name = scene_value(
+                                features[widget_data_index], 'name', f'Ring{widget_data_index + 1}'
                             )
                             target_tab_name = ring_name
                     elif widget_kind == 'star' and widget_data_index is not None:
                         if 0 <= widget_data_index < len(self.sim_params['stars']):
-                            star_name = self.sim_params['stars'][widget_data_index].get(
-                                'name', f'Star{widget_data_index + 1}'
+                            star_name = scene_value(
+                                self.sim_params['stars'][widget_data_index],
+                                'name',
+                                f'Star{widget_data_index + 1}',
                             )
                             target_tab_name = star_name
                     else:
@@ -462,17 +472,19 @@ class TabsMixin(SimEditorBase):
         self._tabs.addTab(self._optics_tab, 'Optics')
         self._tabs.addTab(self._artifacts_tab, 'Artifacts')
 
-        # Add body tabs (sorted by range)
-        body_indices = list(range(len(self.sim_params['bodies'])))
+        # Add body tabs, sorted by range.  If a body's name is unset, use the
+        # renderer's default, SIM-BODY-<n>.
+        bodies = self.sim_params['bodies']
+        body_indices = list(range(len(bodies)))
         body_indices.sort(
             key=lambda i: (
-                self.sim_params['bodies'][i].get('range_km', float('inf')),
-                self.sim_params['bodies'][i].get('name', f'Body{i + 1}').lower(),
+                self._body_range_km(i),
+                str(scene_value(bodies[i], 'name', default_body_name(i))).lower(),
             )
         )
         for i in body_indices:
             tab = self._build_body_tab(i)
-            tab_name = self.sim_params['bodies'][i].get('name', f'Body{i + 1}')
+            tab_name = str(scene_value(bodies[i], 'name', default_body_name(i)))
             self._tabs.addTab(tab, tab_name)
 
         # Add ring-feature tabs (in feature-list order: the first feature's
@@ -480,17 +492,19 @@ class TabsMixin(SimEditorBase):
         ring_features = self._ring_features()
         for i in range(len(ring_features)):
             tab = self._build_ring_tab(i)
-            tab_name = ring_features[i].get('name', f'Ring{i + 1}')
+            tab_name = str(scene_value(ring_features[i], 'name', f'Ring{i + 1}'))
             self._tabs.addTab(tab, tab_name)
 
         # Add star tabs (sorted by name)
         star_indices = list(range(len(self.sim_params['stars'])))
         star_indices.sort(
-            key=lambda i: self.sim_params['stars'][i].get('name', f'Star{i + 1}').lower()
+            key=lambda i: str(
+                scene_value(self.sim_params['stars'][i], 'name', f'Star{i + 1}')
+            ).lower()
         )
         for i in star_indices:
             tab = self._build_star_tab(i)
-            tab_name = self.sim_params['stars'][i].get('name', f'Star{i + 1}')
+            tab_name = str(scene_value(self.sim_params['stars'][i], 'name', f'Star{i + 1}'))
             self._tabs.addTab(tab, tab_name)
 
         # Add "+" tab last
@@ -539,13 +553,19 @@ class TabsMixin(SimEditorBase):
         # This ensures bodies and stars are always sorted by name
         self._rebuild_dynamic_tabs()
 
+    def _body_range_km(self, idx: int) -> float:
+        """The range the renderer draws the body at ``idx`` with.
+
+        An unset range takes the renderer's default for the body's list position.
+        """
+        body = self.sim_params['bodies'][idx]
+        return float(scene_value(body, 'range_km', default_body_range_km(idx)))
+
     def _find_unique_range(self) -> float:
         """Find a unique range value by incrementing from 1 until one doesn't exist."""
-        existing_ranges = set()
-        for body in self.sim_params.get('bodies', []):
-            range_val = body.get('range_km')
-            if range_val is not None:
-                existing_ranges.add(float(range_val))
+        existing_ranges = {
+            self._body_range_km(idx) for idx in range(len(self.sim_params['bodies']))
+        }
         ring_system = self.sim_params.get('ring_system')
         if isinstance(ring_system, dict) and ring_system.get('range_km') is not None:
             existing_ranges.add(float(ring_system['range_km']))
@@ -558,10 +578,6 @@ class TabsMixin(SimEditorBase):
 
     def _validate_ranges(self) -> None:
         """Check for duplicate body ranges and display a warning if found."""
-        ranges = []
-        for i in range(len(self.sim_params['bodies'])):
-            range_val = self.sim_params['bodies'][i].get('range_km')
-            if range_val is not None:
-                ranges.append(float(range_val))
+        ranges = [self._body_range_km(idx) for idx in range(len(self.sim_params['bodies']))]
         duplicates = len(ranges) != len(set(ranges))
         self._warning_label.setText('Warning: duplicate body ranges' if duplicates else '')
