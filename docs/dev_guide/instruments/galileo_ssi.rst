@@ -162,6 +162,15 @@ entry with a default of 0.0. Both are placeholders.
 in the file as an interim value sized from the electron zero point over the
 standard gain state.
 
+**Summed readout mode.** ``noise.by_binning`` gives the values for the 2x2
+summation mode, keyed by the binning factor: the read noise of one summed pixel,
+the published 44 e- over the 187 e-/DN of gain state 2, or 0.235 DN, and the
+zero point, which stays 2.14e4 because the mode has no gain of its own. Only the
+faint-star limit of a simulated frame reads them. The full-resolution
+``read_noise_dn`` is a placeholder of 1.0 DN. The limit's noise is at least 1 DN,
+so it reads 1 DN with or without summation, and the step from an unbinned frame's
+limit to a summed one's, 1.5 mag, comes from the narrower star core alone.
+
 **Recalibrating.** Nothing here rests on a measured frame, so recalibration
 starts from acquiring star fields: the curated image cohort holds none for this
 instrument, which is also what leaves the simulator PSF unverified. With star
