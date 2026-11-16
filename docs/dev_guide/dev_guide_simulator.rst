@@ -4054,29 +4054,38 @@ that skipped validation. For rendering, the top-level ``noise`` block wins over
 ``instrument_config.noise``.
 
 ``instrument_config.noise`` must be a mapping. A null navigator key there keeps
-the navigator's meaning, so a null ``marker_value`` marks lost lines with NaN. The
-binned-mode table ``noise.by_binning`` has no null meaning, and validation refuses
-a null anywhere in it, with a message that gives the key's path and tells the
-author to leave the key out to take its default. On a binned frame the star limit reads its zero point
-and read noise from the ``noise.by_binning`` entry for the frame's binning. So a
-binned scene that pins ``instrument_config.noise.read_noise_dn`` or
+the navigator's meaning where it has one, so a null ``marker_value`` marks lost
+lines with NaN. The binned-mode table ``noise.by_binning`` has no null meaning, and
+validation refuses a null anywhere in it, with a message that gives the key's path
+and tells the author to leave the key out to take its default. On a binned frame
+the star limit reads its zero point and read noise from the ``noise.by_binning``
+entry for the frame's binning. So a binned scene that pins
+``instrument_config.noise.read_noise_dn`` or
 ``instrument_config.noise.star_flux_dn_per_s_vmag0`` must also pin the same key
 under ``instrument_config.noise.by_binning.<b>``, where ``<b>`` is the binning, and
 validation refuses one that doesn't. A block with no entry for the mode, such as a
 calibrated-unit camera's, has no mode value to pin, so there the unbinned key is
-accepted alone. Validation checks the ``noise.by_binning`` table a scene's overrides
-leave as the configuration loader checks the packaged one, at every binning and on
-every block: each key is a binning factor of at least 2, and each entry states a
-finite, positive ``read_noise_dn`` and ``star_flux_dn_per_s_vmag0``. A key may be
-written only as an integer or as a string of ASCII digits, since a scene read
-through JSON carries every key as a string. Validation refuses any other key before the
-scene's table is merged over the navigator's, so a float key such as ``2.0``, which
-would otherwise merge into the navigator's key ``2``, gets the same answer as the
-``'2.0'`` it becomes when the scene is read through JSON. Validation also refuses a
-key with a leading zero, such as ``'02'``, a table that writes one binning both
-ways, and an entry that no frame reads: one for a binning the instrument's readout
-modes don't offer, and any table on a calibrated-unit camera, whose star limit is a
-constant that reads no noise value. See :doc:`dev_guide_observations`.
+accepted alone.
+
+A scene is where values from outside the packaged configuration enter the navigator
+block, so scene validation checks every value the faint-star limit reads in the
+block that a scene's overrides leave, for every binning and every block. Every read
+noise must be a finite number of at least 0, the unbinned one and each binned
+mode's alike. A read noise of 0 is an ideal detector, which the limit reads at its
+1 DN noise floor. Every zero point must be a finite, positive number, and so must
+``star_psf_sigma``. Each key of ``noise.by_binning`` is a binning factor of at
+least 2, and each entry states exactly ``read_noise_dn`` and
+``star_flux_dn_per_s_vmag0``, so a scene's entry for a mode the navigator's table
+lacks must state both. A key may be written only as an integer or as a string of
+ASCII digits, since a scene read through JSON carries every key as a string.
+Validation refuses any other key before the scene's table is merged over the
+navigator's, so a float key such as ``2.0``, which would otherwise merge into the
+navigator's key ``2``, gets the same answer as the ``'2.0'`` it becomes when the
+scene is read through JSON. Validation also refuses a key with a leading zero, such
+as ``'02'``, a table that writes one binning both ways, and an entry that no frame
+reads: one for a binning the instrument's readout modes don't offer, and any table
+on a calibrated-unit camera, whose star limit is a constant that reads no noise
+value. See :doc:`dev_guide_observations`.
 
 ``instrument_config`` is idealized and crosses the information boundary
 unfiltered. A planted value copied into it reaches the navigator as published

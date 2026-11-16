@@ -5,11 +5,14 @@ camera offers, the mode's read noise and zero point.  Each value agrees with the
 simulator's camera within the digits the navigator's config file writes it with.
 
 A scene's ``instrument_config.noise`` overrides must be a mapping, and their binned-mode
-table holds no null.  The table is checked as the configuration loader checks the table, at every
-binning and on every block, spells each binning once, and holds only entries some frame
-of the instrument reads.  A binned scene can't set an unbinned value that its frame
-reads from the table instead, and the limit of a binned frame reads the value the scene
-pins for its mode.
+table holds no null.  The scene validator checks every value the faint-star limit reads
+from the block a scene's overrides resolve to, unbinned and binned, at every binning and
+on every block: a read noise is a finite number of at least 0, and a zero point and the
+PSF width are finite and positive.  The table spells each binning once, holds only
+entries some frame of the instrument reads, and each of its entries states exactly a read
+noise and a zero point.  A binned scene can't set an unbinned value that its frame reads
+from the table instead, and the limit of a binned frame reads the value the scene pins
+for its mode.
 """
 
 import json
@@ -215,30 +218,98 @@ def _scene(
         (
             {2: {'star_flux_dn_per_s_vmag0': -3.33e5}},
             r'instrument_config\.noise\.by_binning\.2\.star_flux_dn_per_s_vmag0 must be '
-            r'finite and positive',
+            r'a finite number greater than 0; got -333000\.0$',
         ),
         (
             {'x2': {'read_noise_dn': 1.0, 'star_flux_dn_per_s_vmag0': 1.0}},
             r'instrument_config\.noise\.by_binning: a key must be an integer binning factor '
             r"of at least 2; got 'x2'",
         ),
+        (
+            {2: {'gain_e_per_dn': 28.0}},
+            r'instrument_config\.noise\.by_binning\.2 must state exactly read_noise_dn, '
+            r'star_flux_dn_per_s_vmag0; got ',
+        ),
+        (
+            {2: 5.0},
+            r'instrument_config\.noise\.by_binning\.2 must state exactly read_noise_dn, '
+            r'star_flux_dn_per_s_vmag0; got 5\.0$',
+        ),
     ],
-    ids=['not_a_mapping', 'negative_zero_point', 'not_a_binning'],
+    ids=[
+        'not_a_mapping',
+        'negative_zero_point',
+        'not_a_binning',
+        'unknown_value',
+        'entry_not_a_mapping',
+    ],
 )
 def test_a_scene_with_a_malformed_by_binning_override_is_refused(table: Any, message: str) -> None:
-    """A scene's binned-mode table is checked as the configuration loader checks it."""
+    """A scene's binned-mode table must map binning factors to the two usable values."""
     scene = _scene({'noise': {'by_binning': table}})
     with pytest.raises(SimSceneValidationError, match=message):
         validate_scene(scene, source='by_binning_probe')
 
 
 def test_an_unbinned_scene_with_a_malformed_by_binning_override_is_refused() -> None:
-    """An unbinned frame never reads the table, but the table is checked all the same."""
+    """An unbinned frame never reads the table, but the table is checked all the same.
+
+    The entry's negative read noise is refused under the rule for an unbinned one.
+    """
     scene = _scene({'noise': {'by_binning': {2: {'read_noise_dn': -1.0}}}}, binning=1)
     with pytest.raises(
         SimSceneValidationError,
-        match=r'instrument_config\.noise\.by_binning\.2\.read_noise_dn must be finite and '
-        r'positive',
+        match=r'instrument_config\.noise\.by_binning\.2\.read_noise_dn must be a finite '
+        r'number of at least 0; got -1\.0$',
+    ):
+        validate_sim_params(scene, source='by_binning_probe')
+
+
+@pytest.mark.parametrize(
+    ('value', 'shown'),
+    [(math.inf, 'inf'), ('abc', "'abc'"), (True, 'True')],
+    ids=['infinite', 'text', 'boolean'],
+)
+def test_a_binned_read_noise_that_is_not_a_finite_number_is_refused(value: Any, shown: str) -> None:
+    """A binned mode's read noise must be a finite number, and a boolean isn't one."""
+    scene = _scene({'noise': {'by_binning': {2: {'read_noise_dn': value}}}})
+    with pytest.raises(
+        SimSceneValidationError,
+        match=r'instrument_config\.noise\.by_binning\.2\.read_noise_dn must be a finite '
+        rf'number of at least 0; got {re.escape(shown)}$',
+    ):
+        validate_sim_params(scene, source='by_binning_probe')
+
+
+def test_an_unbinned_negative_read_noise_is_refused() -> None:
+    """The unbinned read noise follows the same rule as a binned mode's."""
+    scene = _scene({'noise': {'read_noise_dn': -1.0}}, binning=1)
+    with pytest.raises(
+        SimSceneValidationError,
+        match=r'instrument_config\.noise\.read_noise_dn must be a finite number of at '
+        r'least 0; got -1\.0$',
+    ):
+        validate_sim_params(scene, source='by_binning_probe')
+
+
+def test_an_unbinned_zero_point_of_zero_is_refused() -> None:
+    """A zero point of 0 leaves no star above the noise, so it must be positive."""
+    scene = _scene({'noise': {'star_flux_dn_per_s_vmag0': 0.0}}, binning=1)
+    with pytest.raises(
+        SimSceneValidationError,
+        match=r'instrument_config\.noise\.star_flux_dn_per_s_vmag0 must be a finite number '
+        r'greater than 0; got 0\.0$',
+    ):
+        validate_sim_params(scene, source='by_binning_probe')
+
+
+def test_a_star_psf_sigma_of_zero_is_refused() -> None:
+    """The faint-star limit divides by the PSF width, so it must be positive."""
+    scene = _scene({'star_psf_sigma': 0.0}, binning=1)
+    with pytest.raises(
+        SimSceneValidationError,
+        match=r'instrument_config\.star_psf_sigma must be a finite number greater than 0; '
+        r'got 0\.0$',
     ):
         validate_sim_params(scene, source='by_binning_probe')
 
@@ -445,6 +516,21 @@ def test_a_binned_scene_that_sets_the_mode_value_too_is_accepted() -> None:
     """A binned scene may set an unbinned value when it sets its mode's value as well."""
     params = _pinned_mode_scene(2.0)
     assert validate_sim_params(params, source='by_binning_probe') is params
+
+
+def test_a_binned_read_noise_of_zero_is_accepted() -> None:
+    """A mode's read noise of 0 is an ideal detector, which the star limit can read."""
+    params = _pinned_mode_scene(0.0)
+    assert validate_sim_params(params, source='by_binning_probe') is params
+
+
+def test_the_binned_star_limit_floors_a_zero_read_noise_at_1_dn() -> None:
+    """The limit of a 2x2 frame whose mode has no read noise is the limit at 1 DN."""
+    ideal = ObsSim.from_file('/tmp/pinned_mode.yaml', sim_params=_pinned_mode_scene(0.0))
+    floor = ObsSim.from_file('/tmp/pinned_mode.yaml', sim_params=_pinned_mode_scene(1.0))
+    assert ideal.star_max_usable_vmag() == pytest.approx(
+        floor.star_max_usable_vmag(), rel=0.0, abs=1e-12
+    )
 
 
 def test_the_binned_star_limit_reads_the_pinned_mode_value() -> None:

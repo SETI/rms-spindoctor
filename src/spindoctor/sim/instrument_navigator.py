@@ -99,7 +99,7 @@ def with_integer_binning_keys(overrides: Mapping[str, Any]) -> Mapping[str, Any]
     The navigator block keys its binned readout modes by the binning factor, an
     integer.  JSON object keys are strings, so a scene that passes through JSON, as
     every validated scene does, carries a key ``2`` as ``'2'``; both spellings name the
-    same mode.  Any other key is left for the block's check to refuse.
+    same mode.  Any other key is left for scene validation to refuse.
 
     Parameters:
         overrides: A scene's ``instrument_config`` overrides.
