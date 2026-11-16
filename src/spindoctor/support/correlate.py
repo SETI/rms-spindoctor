@@ -393,10 +393,12 @@ def _masked_ncc_bidir(
     # stopped being needed rather than allocating a new one per step, because
     # a step allocates as much as a whole surface and there are a dozen of
     # them.  An accepted shift divides by its exact count.  A rejected shift's
-    # score is discarded, but its spreads still enter the largest spread the
-    # variance floor below is drawn from, so they are computed with the
-    # fraction of the largest overlap as the divisor, which is never zero,
-    # rather than with the shift's own count, which may be.
+    # score is discarded, but its spreads still enter the largest spread that
+    # the variance floor below is drawn from, so its divisor sets where that
+    # floor sits.  Rejected shifts therefore divide by the fraction of the
+    # largest overlap, which keeps the floor where it has always been;
+    # dividing them by their own counts would change which shifts pass it.
+    # The variance floor's dependence on rejected lags is #997.
     safe_w = w_d
     w_floor = max(float(_NCC_BIDIR_W_FRAC_MIN) * w_d_max, _NCC_EPS)
     np.copyto(safe_w, w_floor, where=~overlap_ok)

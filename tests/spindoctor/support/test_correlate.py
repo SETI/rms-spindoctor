@@ -993,29 +993,92 @@ class TestMaskedNccBidirectional:
         # spectrum does.
         assert all(ref() is None for ref in spectra)
 
-    def test_the_scores_match_a_direct_evaluation(self) -> None:
-        """Every shift's score is the one a transform-free evaluation gives."""
+    @staticmethod
+    def _scene(
+        layout: str,
+    ) -> tuple[NDArrayFloatType, NDArrayFloatType, NDArrayBoolType, NDArrayBoolType]:
+        """Build an image, model, mask, and data mask for a direct evaluation.
+
+        ``dense`` scatters both masks over the whole frame, so every shift overlaps
+        nearly as much as the best one and none is rejected.  ``padded`` puts the
+        data in a 12 x 12 corner of a 24 x 24 frame, as the correlator pads it, and
+        the mask in an 8 x 6 block: the largest overlap is 48 pixels and the floor
+        30 percent of it, 14.4, so shifts overlapping 14 or fewer pixels are
+        rejected and ones overlapping 15 or more are kept.
+
+        Parameters:
+            layout: ``dense`` or ``padded``.
+
+        Returns:
+            ``(image, model, mask, data_mask)``, the image zero outside the data mask.
+        """
         rng = np.random.default_rng(4242)
-        rows, cols = 10, 12
-        data_mask = rng.random((rows, cols)) > 0.25
+        if layout == 'dense':
+            rows, cols = 10, 12
+            data_mask = rng.random((rows, cols)) > 0.25
+            mask = rng.random((rows, cols)) > 0.35
+        else:
+            rows, cols = 24, 24
+            data_mask = np.zeros((rows, cols), bool)
+            data_mask[:12, :12] = True
+            mask = np.zeros((rows, cols), bool)
+            mask[:8, :6] = True
         image = rng.normal(size=(rows, cols)) * data_mask
         model = rng.normal(size=(rows, cols))
-        mask = rng.random((rows, cols)) > 0.35
+        return image, model, mask, data_mask
+
+    @pytest.mark.parametrize('layout', ['dense', 'padded'])
+    def test_the_scores_match_a_direct_evaluation(self, layout: str) -> None:
+        """Every shift's score is the one a transform-free evaluation gives."""
+        image, model, mask, data_mask = self._scene(layout)
         ncc, _ = _masked_ncc_bidir(image, model, mask, data_mask)
         expected_ncc, _ = self._brute_force_ncc(image, model, mask, data_mask)
         assert np.allclose(ncc, expected_ncc, rtol=1e-9, atol=1e-9, equal_nan=True)
 
-    def test_the_numerator_matches_a_direct_evaluation(self) -> None:
+    @pytest.mark.parametrize('layout', ['dense', 'padded'])
+    def test_the_numerator_matches_a_direct_evaluation(self, layout: str) -> None:
         """The unnormalized cross term likewise survives the transform."""
-        rng = np.random.default_rng(4242)
-        rows, cols = 10, 12
-        data_mask = rng.random((rows, cols)) > 0.25
-        image = rng.normal(size=(rows, cols)) * data_mask
-        model = rng.normal(size=(rows, cols))
-        mask = rng.random((rows, cols)) > 0.35
+        image, model, mask, data_mask = self._scene(layout)
         _, num = _masked_ncc_bidir(image, model, mask, data_mask)
         _, expected_num = self._brute_force_ncc(image, model, mask, data_mask)
         assert np.allclose(num, expected_num, rtol=1e-9, atol=1e-9)
+
+    def test_an_empty_mask_rejects_every_shift_without_dividing_by_zero(self) -> None:
+        """With no pixel overlapping anywhere, every shift is rejected cleanly.
+
+        The suite turns warnings into errors, so a division by a zero overlap fails
+        here as well as a non-finite numerator does.
+        """
+        rng = np.random.default_rng(5)
+        rows, cols = 12, 12
+        data_mask = np.ones((rows, cols), bool)
+        image = rng.normal(size=(rows, cols))
+        model = rng.normal(size=(rows, cols))
+        mask = np.zeros((rows, cols), bool)
+        ncc, num = _masked_ncc_bidir(image, model, mask, data_mask)
+        assert np.all(np.isneginf(ncc))
+        assert np.all(np.isfinite(num))
+
+    def test_a_brightness_offset_keeps_the_present_variance_floor(self) -> None:
+        """Pin how many shifts survive when the largest spread is at a rejected shift.
+
+        A constant brightness added to the data makes the image spread largest at
+        shifts the overlap floor rejects, so the divisor used at those shifts decides
+        where the variance floor sits and how many accepted shifts pass it.  This pins
+        the present behavior, in which rejected shifts divide by the fractional floor;
+        making the variance floor independent of rejected shifts will change it.
+        """
+        # The variance floor's dependence on rejected lags is #997.
+        rng = np.random.default_rng(997)
+        rows, cols = 64, 64
+        data_mask = np.zeros((rows, cols), bool)
+        data_mask[:32, :32] = True
+        image = (rng.normal(size=(rows, cols)) + 10.0) * data_mask
+        model = rng.normal(size=(rows, cols))
+        mask = np.zeros((rows, cols), bool)
+        mask[:12, :12] = True
+        ncc, _ = _masked_ncc_bidir(image, model, mask, data_mask)
+        assert int(np.isfinite(ncc).sum()) == 533
 
     def test_a_perfect_match_is_the_strongest_shift(self) -> None:
         """An unshifted copy of the image scores highest at zero shift."""
@@ -1051,9 +1114,10 @@ class TestMaskedNccBidirectional:
         depends on the FFT library, the transform length, and the CPU.  Every inverse
         transform is offset here by a tiny amount of each sign in turn, standing in
         for two libraries that round the same count in opposite directions.  The
-        mask is a 10 x 10 block and the data a 16 x 16 corner, so the largest overlap
-        is 100 pixels, and a shift of 13 rows leaves 3 of the block's rows on the
-        data: an overlap of 30, which is the floor exactly.
+        mask is a square block as many pixels on a side as the floor fraction's
+        denominator, and the data a corner twice that size, so the largest overlap is
+        the denominator squared.  A downward shift that leaves as many of the block's
+        rows on the data as the fraction's numerator overlaps the floor exactly.
         """
         real_irfft2 = scipy.fft.irfft2
 
@@ -1071,18 +1135,17 @@ class TestMaskedNccBidirectional:
             return real_irfft2(a, *args, **kwargs) + rounding
 
         monkeypatch.setattr('spindoctor.support.correlate.irfft2', rounding_irfft2)
+        side = _NCC_BIDIR_W_FRAC_MIN.denominator
         rng = np.random.default_rng(944)
-        rows, cols = 32, 32
+        rows, cols = 4 * side, 4 * side
         data_mask = np.zeros((rows, cols), bool)
-        data_mask[:16, :16] = True
+        data_mask[: 2 * side, : 2 * side] = True
         image = rng.normal(size=(rows, cols)) * data_mask
         model = rng.normal(size=(rows, cols))
         mask = np.zeros((rows, cols), bool)
-        mask[:10, :10] = True
-        # The geometry is a tie only while the floor is 30 percent of the largest overlap.
-        assert _NCC_BIDIR_W_FRAC_MIN * 100 == 30
+        mask[:side, :side] = True
         ncc, _ = _masked_ncc_bidir(image, model, mask, data_mask)
-        assert np.isfinite(ncc[13, 0])
+        assert np.isfinite(ncc[2 * side - _NCC_BIDIR_W_FRAC_MIN.numerator, 0])
 
 
 # =========================================================================
