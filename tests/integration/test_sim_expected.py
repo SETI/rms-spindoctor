@@ -5,10 +5,11 @@ navigates it in-process, and asserts the fused outcome matches the declaration
 through the :mod:`tests.integration.sim_expected` machinery.  Two scene kinds
 live here: the false-positive-characterization scenes (a wrong-catalog or
 overwhelming-clutter frame whose CORRECT outcome is failure / low confidence,
-asserted so a confident wrong offset is a test failure) and the honest pins
-(scenes whose confidently wrong offset is a documented, currently unmitigated
-hazard: ``known_offset_error_px`` bands the measured error so a worsening
-regression fails and a genuine fix fails loudly for a deliberate re-pin).
+asserted so a confident wrong offset is a test failure) and the known-error
+checks (scenes whose confidently wrong offset is a documented, currently
+unmitigated hazard: ``known_offset_error_px`` bands the measured error so a
+worsening regression fails, and a genuine fix fails loudly so that someone
+re-measures the known error).
 
 Navigation is heavier than the structural checks (each scene renders and runs
 the full ensemble), so the module is ``@pytest.mark.integration`` -- the same

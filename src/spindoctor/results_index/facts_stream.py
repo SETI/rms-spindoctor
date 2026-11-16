@@ -11,8 +11,8 @@ Nothing here is fetched whole.  All three statements are streamed in server-side
 chunks, and the merge holds one image's children at a time, so a pass over an
 archive-scale root costs what one image costs.
 
-How the merge stays honest
---------------------------
+How the merge pairs rows with images
+------------------------------------
 
 All three statements order on the key, which is what puts each image's child rows
 next to each other and in the same sequence as the images they belong to.  That

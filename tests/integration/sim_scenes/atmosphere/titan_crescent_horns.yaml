@@ -34,15 +34,15 @@ offset_rotation_deg: 0.0
 # disc correlation is spurious (no full lit disc to correlate), and the ring of
 # light drags the lit-weighted blob centroid ~30 px in du from the planted
 # offset.  The predicted TERMINATOR_ARC is emitted but never fitted: with its
-# honestly computed reliability (visible-arc fraction ~1.0, the albedo penalty,
-# and the sin(155 deg) = 0.42 phase cap) it scores 0.26 against the 0.30
-# TERMINATOR_ARC reliability gate, so BodyBlobNav is the only surviving
-# technique.  Its centroid carries a systematic photometric bias no blob
-# diagnostic can see, and the disc correlation on the same body self-flagged
-# spurious, so the lone-blob-in-collapsed-regime body-witness veto declines the
-# frame rather than reporting a low-tier success ~30 px wrong: a wrong offset
-# that passed the acceptance gate was worse than a declared failure.  This
-# scene asserts that decline -- a haze crescent whose only surviving
+# reliability computed as the SPICE-backed model does (visible-arc fraction
+# ~1.0, the albedo penalty, and the sin(155 deg) = 0.42 phase cap), it scores
+# 0.26 against the 0.30 TERMINATOR_ARC reliability gate, so BodyBlobNav is the
+# only surviving technique.  Its centroid carries a systematic photometric bias
+# no blob diagnostic can see, and the disc correlation on the same body
+# self-flagged spurious, so the lone-blob-in-collapsed-regime body-witness veto
+# declines the frame rather than reporting a low-tier success ~30 px wrong: a
+# wrong offset that passed the acceptance gate was worse than a declared
+# failure.  This scene asserts that decline -- a haze crescent whose only surviving
 # technique is the bias-prone centroid is correctly refused.
 expected:
   status: failed

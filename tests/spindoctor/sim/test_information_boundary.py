@@ -450,8 +450,8 @@ def test_star_limit_is_independent_of_scene_noise() -> None:
     report the same ``star_max_usable_vmag``: the navigator's limiting
     magnitude comes from the emulated instrument's published detector model,
     so the scene's planted noise cannot leak through this channel.  A scene
-    that plants noise different from the published values gets an
-    honestly-wrong detection limit by design.
+    that plants noise different from the published values gets a
+    detection limit that does not match the scene's noise, by design.
     """
     scene_quiet = _truth_exercising_scene()
     scene_noisy = _truth_exercising_scene()

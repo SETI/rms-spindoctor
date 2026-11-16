@@ -445,8 +445,8 @@ def test_terminator_arc_fraction_drops_when_frame_clips_it() -> None:
 
     Center the body near the frame edge so part of the lit/unlit boundary
     falls outside the render; the visible-arc fraction must report the
-    surviving portion, not 1.0 (the honest input BodyTerminatorNav's
-    confidence needs).
+    surviving portion, not 1.0, because BodyTerminatorNav's confidence
+    reads it.
     """
     clipped = _terminator_feature(_limb_obs(), _large_body(phase_angle=90.0, center_v=20.0))
     assert clipped is not None
@@ -579,7 +579,7 @@ def test_blob_snr_ignores_off_sensor_flux() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Honest limb visible-arc fraction and sibling-body occlusion
+# Limb visible-arc fraction and sibling-body occlusion
 # ---------------------------------------------------------------------------
 
 
@@ -612,8 +612,8 @@ def test_limb_arc_fraction_drops_when_frame_clips_it() -> None:
 
     Center the body near the frame edge so part of the silhouette boundary
     falls outside the render; the visible-arc fraction must report the
-    surviving portion, not 1.0 (the honest input BodyLimbNav's
-    visible_limb_arc_fraction confidence term needs).
+    surviving portion, not 1.0, because BodyLimbNav's
+    visible_limb_arc_fraction confidence term reads it.
     """
     clipped = _limb_feature(_limb_obs(), _large_body(center_v=20.0))
     assert clipped is not None

@@ -231,8 +231,8 @@ caller divides each raw DT residual by the per-vertex prior sigma before the biw
 applied, so the cutoff is interpreted in sigma units rather than raw pixels. Vertices whose
 scaled residuals exceed the cutoff are dropped completely. Recomputing the weights after each
 accepted LM step (iteratively-reweighted least squares) makes the Tukey-rejected vertices
-truly drop out of the information matrix and keeps the converged covariance an honest
-expression of the surviving inliers' precision.
+truly drop out of the information matrix and keeps the converged covariance computed
+from the surviving inliers alone.
 
 .. _dt-uncertainty:
 
@@ -305,11 +305,12 @@ The per-technique covariance returned to the orchestrator is the M-estimator pse
 form*: invert each covariance, sum, invert again. :func:`scipy.linalg.pinvh` is used at every
 inversion and the same ``rtol`` propagates throughout, so a single rank-1 ring constraint plus
 any other rank-2 result yields a fully-resolved 2-D answer; a single rank-1 ring constraint
-alone yields a rank-1 final covariance with the unobservable axis honestly flagged. This is
-why the per-technique result must report :math:`I^{+}` rather than a regularized dense
-inverse: the ensemble's rank-deficiency-aware fusion depends on the unobservable directions
-being explicit zeros in the per-technique information matrix, not finite values driven by an
-arbitrary regulariser.
+alone yields a rank-1 final covariance, which the ensemble reports as an unobservable axis
+(an infinite ``sigma_along_unobservable_px``). This is why the per-technique result must
+report :math:`I^{+}` rather than a regularized dense inverse: the ensemble's
+rank-deficiency-aware fusion depends on the unobservable directions being explicit zeros
+in the per-technique information matrix, not finite values driven by an arbitrary
+regularizer.
 
 Restrictions and assumptions
 ----------------------------

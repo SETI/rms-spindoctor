@@ -4,7 +4,7 @@ Two failures are prevented here, and both are silent under review. A registered
 instrument with no chapter reads as an instrument nobody has documented rather
 than as one whose documentation was forgotten. A chapter missing one of the
 template's sections reads as a question nobody thought to ask, rather than as
-one whose honest answer is "none" -- which is why the template requires the
+one whose answer is "none" -- which is why the template requires the
 heading to be present even when the section says ``None.``
 
 The chapter a registered instrument must have is derived from that instrument's

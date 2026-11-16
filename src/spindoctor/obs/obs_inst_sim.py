@@ -217,14 +217,14 @@ class ObsSim(ObsSnapshotInst):
         detection boundary.  The published DN zero point is the camera's
         electron zero point over its standard gain state, so a real navigator
         could know it; the scene's truth-side noise block is deliberately not
-        consulted, so a scene that plants noise different from the published
-        values produces an honestly-wrong detection limit, which is desired model
-        error, not a defect.  Keeping this physical matters beyond the faint-star
-        gate: the star NavModel synthesizes each STAR feature's predicted SNR
-        (and from it the CRLB position covariance and reliability score) from how
-        far the star sits above this limit, so an arbitrarily permissive
-        placeholder inflates every simulated star's SNR by tens of orders of
-        magnitude and collapses its covariance to zero.
+        consulted, so a scene that plants noise different from the published values
+        gets a detection limit that does not match the scene's noise. That is desired
+        model error, not a defect.  Keeping this physical matters beyond the
+        faint-star gate: the star NavModel synthesizes each STAR feature's predicted
+        SNR (and from it the CRLB position covariance and reliability score) from how
+        far the star sits above this limit, so an arbitrarily permissive placeholder
+        inflates every simulated star's SNR by tens of orders of magnitude and
+        collapses its covariance to zero.
 
         The exposure the flux formula scales by is the scene's idealized
         ``exposure_sec``, read from the navigator-visible ``nav_params`` view:
