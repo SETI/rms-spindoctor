@@ -3,7 +3,8 @@
 ``instrument_config`` crosses the information boundary unfiltered, so a planted
 value copied into it reaches the navigator as published knowledge.  The validator
 warns for each such coincidence, naming both sites, unless the scene lists the
-truth path in ``published_equals_truth``.
+truth path in ``published_equals_truth``.  On a binned frame the binned mode's entry
+the frame reads counts as a published site too.
 """
 
 import warnings
@@ -77,6 +78,30 @@ def test_each_repeated_value_is_listed() -> None:
         ('noise.vidicon.read_noise_line_dn', 'instrument_config.noise.vidicon.read_noise_line_dn'),
         ('optics.psf.sigma_v', 'instrument_config.star_psf_sigma'),
     ]
+
+
+@pytest.mark.parametrize('written', [2, '2'], ids=['integer_key', 'digit_key'])
+def test_a_binned_mode_that_repeats_the_planted_read_noise_is_listed(written: Any) -> None:
+    """A binned frame's limit reads its mode's read noise, so a copy there is an echo.
+
+    A scene read through JSON carries the mode's key as digits, so both spellings count.
+    """
+    scene = _scene(
+        detector={'binning': 2},
+        instrument_config={'noise': {'by_binning': {written: {'read_noise_dn': 4.0}}}},
+    )
+    assert truth_echoes(scene) == [
+        ('noise.read_noise_dn', 'instrument_config.noise.by_binning.2.read_noise_dn')
+    ]
+
+
+def test_a_mode_other_than_the_frames_binning_is_not_compared() -> None:
+    """A frame summed 2x2 never reads the 4x4 entry, so a copy there isn't an echo."""
+    scene = _scene(
+        detector={'binning': 2},
+        instrument_config={'noise': {'by_binning': {4: {'read_noise_dn': 4.0}}}},
+    )
+    assert truth_echoes(scene) == []
 
 
 @pytest.mark.parametrize(

@@ -293,6 +293,19 @@ placeholders.
 NAC and 9.29e4 for the WAC, described in the file as interim values sized from
 each camera's electron zero point over its standard gain state.
 
+**Summed readout modes.** ``noise.by_binning`` gives each raw camera's values
+for the SUM2 and SUM4 modes, keyed by the binning factor: the read noise of one
+summed pixel and the zero point, both in DN. Only the faint-star limit of a
+simulated frame reads them. The published sources give the summation modes no
+read noise or gain of their own, so each entry is the full-resolution camera at
+gain state 2. For the NAC that is the published 12 e- over 30 e-/DN, or
+0.400 DN; for the WAC it is 12 e- over an estimated 28 e-/DN, or 0.429 DN. The
+zero points stay 3.33e5 and 9.29e4. Each full-resolution ``read_noise_dn`` is a
+placeholder above the published value, so part of the step from an unbinned
+frame's star limit to a summed one's comes from the placeholder: 1.5 of 2.2 mag
+on the NAC, and 1.5 of 2.9 mag on the WAC. Both summed read noises are below the
+limit's 1 DN noise floor, so the limit reads 1 DN in these modes.
+
 **Recalibrating.** The anchors are the two frames named above; re-measure the
 faintest usable star on each and update the anchor and its comment together.
 The placeholders are all in the config file rather than in code, so a

@@ -66,9 +66,13 @@ Restrictions and assumptions
   computes it; the saturation / cosmic-ray mask is not consulted to reject stars in either
   the parent or the simulated model.
 - The synthesized effective SNR follows the parent's magnitude-margin formula against
-  ``obs.star_max_usable_vmag()``; on a simulated observation that limit is generous, so
-  reliability saturates toward 1.0 and the recovered *offset* -- not the calibrated
-  confidence -- is the quantity the simulated star tests assert.
+  ``obs.star_max_usable_vmag()``. On a simulated observation from a raw-DN camera that
+  limit is a matched-filter limit built from the navigator's published zero point, read
+  noise, and PSF width, and it follows the frame's binning (see
+  :ref:`sim-information-boundary`). On a calibrated-unit camera it is a fixed magnitude
+  of 30, so every star's margin is large and reliability saturates toward 1.0. The
+  recovered *offset* -- not the calibrated confidence -- is the quantity the simulated
+  star tests assert.
 
 Sources of uncertainty
 ----------------------
