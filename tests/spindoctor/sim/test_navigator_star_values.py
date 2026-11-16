@@ -4,8 +4,8 @@ Each raw-DN navigator block states its own DN zero point and, for every binned m
 camera offers, the mode's read noise and zero point.  Each value agrees with the
 simulator's camera within the digits the navigator's config file writes it with.
 
-A scene's ``instrument_config.noise`` overrides must be a mapping without nulls.  Their
-binned-mode table is checked as the configuration loader checks the table, at every
+A scene's ``instrument_config.noise`` overrides must be a mapping, and their binned-mode
+table holds no null.  The table is checked as the configuration loader checks the table, at every
 binning and on every block, spells each binning once, and holds only entries some frame
 of the instrument reads.  A binned scene can't set an unbinned value that its frame
 reads from the table instead, and the limit of a binned frame reads the value the scene
@@ -265,16 +265,16 @@ def test_a_noise_override_that_is_not_a_mapping_is_refused(noise: Any) -> None:
     ('instrument_config', 'path'),
     [
         ({'noise': None}, r'instrument_config\.noise'),
-        ({'noise': {'read_noise_dn': None}}, r'instrument_config\.noise\.read_noise_dn'),
+        ({'noise': {'by_binning': None}}, r'instrument_config\.noise\.by_binning'),
         (
             {'noise': {'by_binning': {2: {'read_noise_dn': None}}}},
             r'instrument_config\.noise\.by_binning\.2\.read_noise_dn',
         ),
     ],
-    ids=['noise', 'unbinned_value', 'mode_value'],
+    ids=['noise', 'table', 'mode_value'],
 )
-def test_a_null_noise_override_is_refused(instrument_config: Any, path: str) -> None:
-    """A null under ``instrument_config.noise`` is refused with the way to take the default."""
+def test_a_null_noise_block_or_binned_value_is_refused(instrument_config: Any, path: str) -> None:
+    """A null noise block or binned-mode value is refused with the way to take the default."""
     with pytest.raises(
         SimSceneValidationError,
         match=rf'{path} is null; leave the key out to take its default',

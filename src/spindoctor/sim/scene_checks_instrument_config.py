@@ -130,7 +130,9 @@ def _check_instrument_config(value: Any, *, instrument: str, binning: int, sourc
     frame's units come only from the instrument's config entry; for other units, a
     scene uses another instrument.
 
-    When the block sets ``noise``, that must be a mapping with no null at any depth; a
+    When the block sets ``noise``, that must be a mapping.  A null value of a navigator
+    key there keeps the navigator's meaning (a null ``marker_value`` is NaN), but the
+    binned-mode table has no null meaning, so a null at any depth of it is refused: a
     scene leaves a key out to take its default.  The binned-mode table
     ``noise.by_binning`` may write a key as an integer or as a string of digits, since
     a scene read through JSON carries every key as a string, but each binning only
@@ -151,8 +153,8 @@ def _check_instrument_config(value: Any, *, instrument: str, binning: int, sourc
 
     Raises:
         SimSceneValidationError: If the block isn't a mapping, it sets ``data_units``,
-            its ``noise`` isn't a mapping or holds a null, its ``noise.by_binning``
-            table spells a binning twice, holds an entry no frame reads, or is
+            its ``noise`` isn't a mapping, its ``noise.by_binning`` table holds a
+            null, spells a binning twice, holds an entry no frame reads, or is
             malformed, or it sets an unbinned noise value that a frame of this binning
             reads from the table.
     """
@@ -172,8 +174,12 @@ def _check_instrument_config(value: Any, *, instrument: str, binning: int, sourc
         )
     if not isinstance(value['noise'], Mapping):
         raise SimSceneValidationError(f'{source}: {_NOISE_PATH} must be a mapping when present')
-    _refuse_nulls(value['noise'], _NOISE_PATH, source=source)
+    if 'by_binning' in value['noise'] and value['noise']['by_binning'] is None:
+        raise SimSceneValidationError(
+            f'{source}: {_TABLE_PATH} is null; leave the key out to take its default'
+        )
     if isinstance(value['noise'].get('by_binning'), Mapping):
+        _refuse_nulls(value['noise']['by_binning'], _TABLE_PATH, source=source)
         _check_binning_keys(value['noise']['by_binning'], source=source)
     override = with_integer_binning_keys(value)
     noise = override['noise']

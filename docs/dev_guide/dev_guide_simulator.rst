@@ -4053,9 +4053,11 @@ instrument's config entry. Scene validation refuses the key, and so does
 that skipped validation. For rendering, the top-level ``noise`` block wins over
 ``instrument_config.noise``.
 
-``instrument_config.noise`` must be a mapping, and validation refuses a null
-anywhere in it. The message gives the key's path and tells the author to leave the
-key out to take its default. On a binned frame the star limit reads its zero point
+``instrument_config.noise`` must be a mapping. A null navigator key there keeps
+the navigator's meaning, so a null ``marker_value`` marks lost lines with NaN. The
+binned-mode table ``noise.by_binning`` has no null meaning, and validation refuses
+a null anywhere in it, with a message that gives the key's path and tells the
+author to leave the key out to take its default. On a binned frame the star limit reads its zero point
 and read noise from the ``noise.by_binning`` entry for the frame's binning. So a
 binned scene that pins ``instrument_config.noise.read_noise_dn`` or
 ``instrument_config.noise.star_flux_dn_per_s_vmag0`` must also pin the same key
