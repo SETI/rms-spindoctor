@@ -219,8 +219,8 @@ def _scene(
         ),
         (
             {'x2': {'read_noise_dn': 1.0, 'star_flux_dn_per_s_vmag0': 1.0}},
-            r'instrument_config\.noise\.by_binning: a key must be a binning factor of at '
-            r"least 2; got 'x2'",
+            r'instrument_config\.noise\.by_binning: a key must be an integer binning factor '
+            r"of at least 2; got 'x2'",
         ),
     ],
     ids=['not_a_mapping', 'negative_zero_point', 'not_a_binning'],
@@ -323,10 +323,59 @@ def test_a_binning_key_written_as_a_float_is_refused(through_json: bool, shown: 
         scene = json.loads(json.dumps(scene))
     with pytest.raises(
         SimSceneValidationError,
-        match=r'instrument_config\.noise\.by_binning: a key must be a binning factor of at '
-        rf'least 2; got {re.escape(shown)}$',
+        match=r'instrument_config\.noise\.by_binning: a key must be an integer binning factor '
+        rf'of at least 2; got {re.escape(shown)}$',
     ):
         validate_sim_params(scene, source='by_binning_probe')
+
+
+@pytest.mark.parametrize(
+    ('key', 'through_json', 'shown'),
+    [
+        (-1, False, '-1'),
+        (-1, True, "'-1'"),
+        (0, False, '0'),
+        (0, True, "'0'"),
+        (1, False, '1'),
+        (1, True, "'1'"),
+    ],
+    ids=[
+        'minus_one_as_written',
+        'minus_one_through_json',
+        'zero_as_written',
+        'zero_through_json',
+        'one_as_written',
+        'one_through_json',
+    ],
+)
+def test_a_binning_key_below_2_is_refused(key: int, through_json: bool, shown: str) -> None:
+    """A key below 2 gets the same refusal whether read as written or through JSON."""
+    table = {key: {'read_noise_dn': 1.0, 'star_flux_dn_per_s_vmag0': 1.0e6}}
+    scene = _scene({'noise': {'by_binning': table}})
+    if through_json:
+        scene = json.loads(json.dumps(scene))
+    with pytest.raises(
+        SimSceneValidationError,
+        match=r'instrument_config\.noise\.by_binning: a key must be an integer binning factor '
+        rf'of at least 2; got {re.escape(shown)}$',
+    ):
+        validate_sim_params(scene, source='by_binning_probe')
+
+
+def test_a_float_key_beside_its_digits_is_refused_for_its_form() -> None:
+    """A table holding ``'2'`` and ``2.0`` is refused for the float key.
+
+    Every key's form is checked before any two keys are compared, so the float isn't
+    reported as a second spelling of binning 2.
+    """
+    entry = {'read_noise_dn': 1.0, 'star_flux_dn_per_s_vmag0': 1.0e6}
+    table = {'2': dict(entry), 2.0: dict(entry)}
+    with pytest.raises(
+        SimSceneValidationError,
+        match=r'instrument_config\.noise\.by_binning: a key must be an integer binning factor '
+        r'of at least 2; got 2\.0$',
+    ):
+        validate_sim_params(_scene({'noise': {'by_binning': table}}), source='by_binning_probe')
 
 
 def test_a_binning_key_with_a_leading_zero_is_refused() -> None:

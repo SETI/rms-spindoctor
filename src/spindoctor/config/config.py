@@ -185,7 +185,8 @@ def check_by_binning(path: str, block: Mapping[str, Any]) -> None:
     for binning, entry in table.items():
         if isinstance(binning, bool) or not isinstance(binning, int) or binning < 2:
             raise ValueError(
-                f'{location}: a key must be a binning factor of at least 2; got {binning!r}'
+                f'{location}: a key must be an integer binning factor of at least 2; '
+                f'got {binning!r}'
             )
         if not isinstance(entry, dict) or set(entry) != BY_BINNING_VALUE_KEYS:
             raise ValueError(

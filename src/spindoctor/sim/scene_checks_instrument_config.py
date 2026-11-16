@@ -56,18 +56,37 @@ def _refuse_nulls(value: Mapping[Any, Any], path: str, *, source: str) -> None:
             _refuse_nulls(item, f'{path}.{key}', source=source)
 
 
+def _binning_of_key(key: Any) -> int | None:
+    """The binning a binned-mode table key spells, or None when it spells none.
+
+    Parameters:
+        key: A key of the scene's ``noise.by_binning`` mapping, as written.
+
+    Returns:
+        The key itself when it is an integer, its value when it is a string of ASCII
+        digits, and None for any other key.
+    """
+    if isinstance(key, int) and not isinstance(key, bool):
+        return key
+    if isinstance(key, str) and key.isascii() and key.isdigit():
+        return int(key)
+    return None
+
+
 def _check_binning_keys(table: Mapping[Any, Any], *, source: str) -> None:
     """Refuse a binned-mode table key that doesn't name exactly one binning.
 
-    A key must be an integer or a string of ASCII digits, since a scene read through
-    JSON carries every key as a string.  Any other key is refused here, before the
-    scene's table is merged over the navigator's: a float ``2.0`` equals and hashes as
-    the integer ``2``, so the merge would fold it into the navigator's own key and
-    the table's check would never see it, while the same scene read through JSON
-    carries ``'2.0'`` and is refused.  A key written as a string of digits names the
-    binning it spells, so a key with a leading zero would name a binning under a
-    second spelling, and a table holding a binning both as an integer and as its
-    digits would set one mode twice.
+    A key must be an integer or a string of ASCII digits, since a scene read through JSON
+    carries every key as a string, and the binning it spells must be at least 2.  Any
+    other key is refused here, before the scene's table is merged over the navigator's, so
+    the key ``-1`` gets the same answer as the ``'-1'`` it becomes through JSON.  A float
+    ``2.0`` equals and hashes as the integer ``2``, so the merge would fold it into the
+    navigator's own key and the table's check would never see it.  Every key's form is
+    checked before any two keys are compared, so a float that equals a digit-string key is
+    refused for its form.  A key written as a string of digits names the binning it
+    spells, so a key with a leading zero would name a binning under a second spelling, and
+    a table holding a binning both as an integer and as its digits would set one mode
+    twice.
 
     Parameters:
         table: The scene's ``noise.by_binning`` mapping, keys as written.
@@ -75,17 +94,19 @@ def _check_binning_keys(table: Mapping[Any, Any], *, source: str) -> None:
 
     Raises:
         SimSceneValidationError: If a key is neither an integer nor a string of ASCII
-            digits, a key has a leading zero, or the table holds an integer key and its
-            digits.
+            digits, a key spells a binning below 2, a key has a leading zero, or the
+            table holds an integer key and its digits.
     """
     for key in table:
-        if isinstance(key, int) and not isinstance(key, bool):
-            continue
-        if not (isinstance(key, str) and key.isascii() and key.isdigit()):
+        binning = _binning_of_key(key)
+        if binning is None or binning < 2:
             raise SimSceneValidationError(
-                f'{source}: {_TABLE_PATH}: a key must be a binning factor of at least 2; '
-                f'got {key!r}'
+                f'{source}: {_TABLE_PATH}: a key must be an integer binning factor of at '
+                f'least 2; got {key!r}'
             )
+    for key in table:
+        if not isinstance(key, str):
+            continue
         if key != str(int(key)):
             raise SimSceneValidationError(
                 f'{source}: {_TABLE_PATH}: the key {key!r} has a leading zero; write it '
@@ -106,8 +127,8 @@ def _check_table_is_read(
     The star limit reads the table only on a raw-DN block, and there only the entry
     for the frame's binning.  A calibrated-unit block's limit is a constant that reads
     no noise value, so any table there is refused, and on a raw-DN block an entry for
-    a binning the instrument's readout modes don't offer is refused.  A key that isn't
-    a binning factor is left for the table's own check.
+    a binning the instrument's readout modes don't offer is refused.  Every key here is
+    a binning factor of at least 2, since the key check refuses any other key first.
 
     Parameters:
         table: The scene's ``noise.by_binning`` mapping, keys read as integers.
@@ -127,7 +148,7 @@ def _check_table_is_read(
         )
     offered = cataloged_binnings(instrument)
     for key in table:
-        if isinstance(key, int) and not isinstance(key, bool) and key not in offered:
+        if key not in offered:
             listed = ', '.join(str(binning) for binning in offered)
             raise SimSceneValidationError(
                 f'{source}: {_TABLE_PATH}.{key} is never read: instrument '
@@ -146,10 +167,10 @@ def _check_instrument_config(value: Any, *, instrument: str, binning: int, sourc
     key there keeps the navigator's meaning (a null ``marker_value`` is NaN), but the
     binned-mode table has no null meaning, so a null at any depth of it is refused: a
     scene leaves a key out to take its default.  The binned-mode table
-    ``noise.by_binning`` may write a key only as an integer or as a string of digits,
-    since a scene read through JSON carries every key as a string, and each binning
-    only once and without a leading zero.  Each entry must be one that a frame of the
-    scene's instrument reads: none on a calibrated-unit block, and only the binnings
+    ``noise.by_binning`` may write a key only as an integer or as a string of ASCII
+    digits, since a scene read through JSON carries every key as a string, and each
+    binning only once and without a leading zero.  Each entry must be one that a frame of
+    the scene's instrument reads: none on a calibrated-unit block, and only the binnings
     the instrument offers on a raw-DN block.  The navigator block the overrides resolve to
     (over the default configuration) must then hold a well-formed table, checked as the
     configuration loader checks it.  On a binned frame the star limit reads the mode's
@@ -166,9 +187,10 @@ def _check_instrument_config(value: Any, *, instrument: str, binning: int, sourc
     Raises:
         SimSceneValidationError: If the block isn't a mapping, it sets ``data_units``,
             its ``noise`` isn't a mapping, its ``noise.by_binning`` table holds a
-            null or a key that is neither an integer nor digits, spells a binning
-            twice, holds an entry no frame reads, or is malformed, or it sets an
-            unbinned noise value that a frame of this binning reads from the table.
+            null or a key that is neither an integer nor a string of ASCII digits,
+            spells a binning twice, holds an entry no frame reads, or is malformed, or
+            it sets an unbinned noise value that a frame of this binning reads from the
+            table.
     """
     _check_optional_mapping(value, 'instrument_config', source=source)
     if value is None:

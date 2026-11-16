@@ -79,8 +79,8 @@ def _by_binning_override(tmp_path: Path, table: str) -> Path:
         ('[2, 4]', r'cassini_iss\.wac\.noise\.by_binning must be a mapping'),
         (
             '{1: {read_noise_dn: 1.0, star_flux_dn_per_s_vmag0: 1.0}}',
-            r'cassini_iss\.wac\.noise\.by_binning: a key must be a binning factor of at '
-            r'least 2; got 1',
+            r'cassini_iss\.wac\.noise\.by_binning: a key must be an integer binning factor '
+            r'of at least 2; got 1',
         ),
         (
             '{2: {gain_e_per_dn: 28.0}}',

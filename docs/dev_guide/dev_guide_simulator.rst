@@ -4068,8 +4068,8 @@ accepted alone. Validation checks the ``noise.by_binning`` table a scene's overr
 leave as the configuration loader checks the packaged one, at every binning and on
 every block: each key is a binning factor of at least 2, and each entry states a
 finite, positive ``read_noise_dn`` and ``star_flux_dn_per_s_vmag0``. A key may be
-written only as an integer or as a string of digits, since a scene read through
-JSON carries every key as a string. Validation refuses any other key before the
+written only as an integer or as a string of ASCII digits, since a scene read
+through JSON carries every key as a string. Validation refuses any other key before the
 scene's table is merged over the navigator's, so a float key such as ``2.0``, which
 would otherwise merge into the navigator's key ``2``, gets the same answer as the
 ``'2.0'`` it becomes when the scene is read through JSON. Validation also refuses a
