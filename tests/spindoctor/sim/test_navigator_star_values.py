@@ -2,12 +2,17 @@
 
 Each raw-DN navigator block states its own DN zero point and, for every binned mode its
 camera offers, the mode's read noise and zero point.  Each value agrees with the
-simulator's camera within the digits the navigator's config file writes it with.  A
-scene's ``instrument_config`` overrides of the binned-mode table are checked as the
-configuration loader checks the table, and a binned scene can't set an unbinned value
-that its frame reads from the table instead.
+simulator's camera within the digits the navigator's config file writes it with.
+
+A scene's ``instrument_config.noise`` overrides must be a mapping without nulls.  Their
+binned-mode table is checked as the configuration loader checks the table, at every
+binning and on every block, spells each binning once, and holds only entries some frame
+of the instrument reads.  A binned scene can't set an unbinned value that its frame
+reads from the table instead, and the limit of a binned frame reads the value the scene
+pins for its mode.
 """
 
+import math
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
@@ -18,6 +23,7 @@ from ruamel.yaml.nodes import MappingNode, Node
 
 import spindoctor
 from spindoctor.config import DEFAULT_CONFIG
+from spindoctor.obs.obs_inst_sim import ObsSim
 from spindoctor.sim.forward.detector.params import resolve_detector_params
 from spindoctor.sim.instrument_catalog import (
     GENERIC_INSTRUMENT,
@@ -30,7 +36,7 @@ from spindoctor.sim.instrument_resolvers import (
     resolve_data_units,
     resolve_star_flux_zero_point,
 )
-from spindoctor.sim.scene import validate_scene
+from spindoctor.sim.scene import validate_scene, validate_sim_params
 from spindoctor.sim.scene_schema import SimSceneValidationError
 
 _CONFIG_FILES_DIR = Path(spindoctor.__file__).parent / 'config_files'
@@ -184,16 +190,20 @@ def test_the_navigator_binned_read_noise_matches_the_simulators(
     assert read_noise_dn == pytest.approx(mode['read_noise_dn'], rel=0.0, abs=step / 2.0)
 
 
-def _binned_scene(instrument_config: dict[str, Any], *, instrument: str = 'coiss_nac') -> Any:
-    """A scene summed 2x2 with the given ``instrument_config`` overrides."""
-    return {
+def _scene(
+    instrument_config: Any, *, instrument: str = 'coiss_nac', binning: int = 2
+) -> dict[str, Any]:
+    """A scene with the given ``instrument_config`` overrides, summed 2x2 by default."""
+    scene: dict[str, Any] = {
         'instrument': instrument,
         'size_v': 32,
         'size_u': 32,
         'random_seed': 1,
-        'detector': {'binning': 2},
         'instrument_config': instrument_config,
     }
+    if binning != 1:
+        scene['detector'] = {'binning': binning}
+    return scene
 
 
 @pytest.mark.parametrize(
@@ -215,9 +225,61 @@ def _binned_scene(instrument_config: dict[str, Any], *, instrument: str = 'coiss
 )
 def test_a_scene_with_a_malformed_by_binning_override_is_refused(table: Any, message: str) -> None:
     """A scene's binned-mode table is checked as the configuration loader checks it."""
-    scene = _binned_scene({'noise': {'by_binning': table}})
+    scene = _scene({'noise': {'by_binning': table}})
     with pytest.raises(SimSceneValidationError, match=message):
         validate_scene(scene, source='by_binning_probe')
+
+
+def test_an_unbinned_scene_with_a_malformed_by_binning_override_is_refused() -> None:
+    """An unbinned frame never reads the table, but the table is checked all the same."""
+    scene = _scene({'noise': {'by_binning': {2: {'read_noise_dn': -1.0}}}}, binning=1)
+    with pytest.raises(
+        SimSceneValidationError,
+        match=r'instrument_config\.noise\.by_binning\.2\.read_noise_dn must be finite and '
+        r'positive',
+    ):
+        validate_sim_params(scene, source='by_binning_probe')
+
+
+def test_a_generic_scene_with_a_malformed_by_binning_override_is_refused() -> None:
+    """The generic block, which has no table of its own, is checked too."""
+    scene = _scene({'noise': {'by_binning': [2]}}, instrument=GENERIC_INSTRUMENT, binning=1)
+    with pytest.raises(
+        SimSceneValidationError,
+        match=r'instrument_config\.noise\.by_binning must be a mapping keyed by binning',
+    ):
+        validate_sim_params(scene, source='by_binning_probe')
+
+
+@pytest.mark.parametrize('noise', [[2], 'read_noise_dn'], ids=['list', 'string'])
+def test_a_noise_override_that_is_not_a_mapping_is_refused(noise: Any) -> None:
+    """``instrument_config.noise`` must be a mapping, or the frame's star limit can't read it."""
+    with pytest.raises(
+        SimSceneValidationError,
+        match=r'instrument_config\.noise must be a mapping when present',
+    ):
+        validate_sim_params(_scene({'noise': noise}), source='by_binning_probe')
+
+
+@pytest.mark.parametrize(
+    ('instrument_config', 'path'),
+    [
+        ({'noise': None}, r'instrument_config\.noise'),
+        ({'noise': {'read_noise_dn': None}}, r'instrument_config\.noise\.read_noise_dn'),
+        (
+            {'noise': {'by_binning': {2: {'read_noise_dn': None}}}},
+            r'instrument_config\.noise\.by_binning\.2\.read_noise_dn',
+        ),
+    ],
+    ids=['noise', 'unbinned_value', 'mode_value'],
+)
+def test_a_null_noise_override_is_refused(instrument_config: Any, path: str) -> None:
+    """A null under ``instrument_config.noise`` is refused with the way to take the default."""
+    with pytest.raises(
+        SimSceneValidationError,
+        match=rf'{path} is null; leave the key out to take its default',
+    ):
+        validate_sim_params(_scene(instrument_config), source='by_binning_probe')
 
 
 def test_a_binning_key_written_as_digits_names_that_mode() -> None:
@@ -231,10 +293,60 @@ def test_a_binning_key_written_as_digits_names_that_mode() -> None:
     assert noise['by_binning'][2]['read_noise_dn'] == 3.0
 
 
+def test_a_binning_written_both_as_an_integer_and_as_digits_is_refused() -> None:
+    """Keys ``2`` and ``'2'`` name one mode, so a table holding both sets it twice."""
+    table = {2: {'read_noise_dn': 3.0}, '2': {'read_noise_dn': 1.0}}
+    with pytest.raises(
+        SimSceneValidationError,
+        match=r"instrument_config\.noise\.by_binning holds both 2 and '2', which name the "
+        r'same binning; keep one',
+    ):
+        validate_sim_params(_scene({'noise': {'by_binning': table}}), source='by_binning_probe')
+
+
+def test_a_binning_key_with_a_leading_zero_is_refused() -> None:
+    """A key ``'02'`` would be a second spelling of binning 2."""
+    table = {'02': {'read_noise_dn': 3.0}}
+    with pytest.raises(
+        SimSceneValidationError,
+        match=r"instrument_config\.noise\.by_binning: the key '02' has a leading zero; "
+        r'write it as 2',
+    ):
+        validate_sim_params(_scene({'noise': {'by_binning': table}}), source='by_binning_probe')
+
+
+def test_an_entry_for_a_binning_the_instrument_does_not_offer_is_refused() -> None:
+    """No frame of the instrument reads an entry for a binning its readout modes lack."""
+    table = {2: {'read_noise_dn': 1.0, 'star_flux_dn_per_s_vmag0': 1.0e6}}
+    scene = _scene({'noise': {'by_binning': table}}, instrument='nhlorri', binning=1)
+    with pytest.raises(
+        SimSceneValidationError,
+        match=r"instrument_config\.noise\.by_binning\.2 is never read: instrument 'nhlorri' "
+        r'offers binnings 1, 4\. Leave the entry out\.',
+    ):
+        validate_sim_params(scene, source='by_binning_probe')
+
+
+def test_a_by_binning_override_on_a_calibrated_unit_camera_is_refused() -> None:
+    """A calibrated-unit camera's star limit is a constant that reads no noise value.
+
+    The camera offers 2x2 summing, but no frame's limit reads the table, at any binning.
+    """
+    table = {2: {'read_noise_dn': 1.0, 'star_flux_dn_per_s_vmag0': 1.0e6}}
+    scene = _scene({'noise': {'by_binning': table}}, instrument='coiss_calib_nac')
+    with pytest.raises(
+        SimSceneValidationError,
+        match=r'instrument_config\.noise\.by_binning is never read: instrument '
+        r"'coiss_calib_nac' renders calibrated_if frames, whose star limit reads no noise "
+        r'value\. Leave the table out\.',
+    ):
+        validate_sim_params(scene, source='by_binning_probe')
+
+
 @pytest.mark.parametrize('key', ['read_noise_dn', 'star_flux_dn_per_s_vmag0'])
 def test_a_binned_scene_that_sets_only_an_unbinned_value_is_refused(key: str) -> None:
     """A summed frame reads its mode's value, so setting only the unbinned one fails."""
-    scene = _binned_scene({'noise': {key: 3.0}})
+    scene = _scene({'noise': {key: 3.0}})
     with pytest.raises(
         SimSceneValidationError,
         match=(
@@ -246,20 +358,42 @@ def test_a_binned_scene_that_sets_only_an_unbinned_value_is_refused(key: str) ->
         validate_scene(scene, source='by_binning_probe')
 
 
-@pytest.mark.parametrize(
-    ('instrument', 'noise'),
-    [
-        ('coiss_nac', {'read_noise_dn': 3.0, 'by_binning': {2: {'read_noise_dn': 0.75}}}),
-        ('coiss_calib_nac', {'read_noise_dn': 3.0}),
-    ],
-    ids=['mode_value_set', 'no_mode_entry'],
-)
-def test_a_binned_scene_may_set_an_unbinned_value_its_frame_reads(
-    instrument: str, noise: dict[str, Any]
-) -> None:
-    """A binned scene may set an unbinned value when its mode's value is set as well.
+def _pinned_mode_scene(mode_read_noise_dn: float) -> dict[str, Any]:
+    """A 2x2 NAC scene that pins the unbinned read noise and the 2x2 mode's."""
+    noise = {
+        'read_noise_dn': 3.0,
+        'by_binning': {2: {'read_noise_dn': mode_read_noise_dn}},
+    }
+    return _scene({'noise': noise})
 
-    A camera whose block has no entry for the mode reads the unbinned value, so it
-    needs no mode value.
+
+def test_a_binned_scene_that_sets_the_mode_value_too_is_accepted() -> None:
+    """A binned scene may set an unbinned value when it sets its mode's value as well."""
+    params = _pinned_mode_scene(2.0)
+    assert validate_sim_params(params, source='by_binning_probe') is params
+
+
+def test_the_binned_star_limit_reads_the_pinned_mode_value() -> None:
+    """The limit of a frame summed 2x2 reads the read noise the scene pins for 2x2.
+
+    Both read noises sit above the limit's 1 DN floor, so doubling the mode's value
+    moves the limit by 2.5 log10(2) brighter; the unbinned value, the same in both
+    scenes, would move it by nothing.
     """
-    validate_scene(_binned_scene({'noise': noise}, instrument=instrument), source='probe')
+    low = ObsSim.from_file('/tmp/pinned_mode.yaml', sim_params=_pinned_mode_scene(2.0))
+    high = ObsSim.from_file('/tmp/pinned_mode.yaml', sim_params=_pinned_mode_scene(4.0))
+    shift = high.star_max_usable_vmag() - low.star_max_usable_vmag()
+    assert shift == pytest.approx(-2.5 * math.log10(2.0), rel=0.0, abs=1e-12)
+
+
+def test_a_binned_calibrated_unit_scene_may_set_an_unbinned_noise_value() -> None:
+    """A binned scene on a calibrated-unit camera may set an unbinned noise value alone.
+
+    The camera's block has no binned-mode table, so the requirement to set the mode's
+    value as well doesn't apply; its star limit is a constant that reads neither value.
+    Every raw-DN block has an entry for each binned mode its camera offers, and a
+    scene's overrides can add to the table but not remove an entry, so no raw-DN scene
+    reaches this case.
+    """
+    params = _scene({'noise': {'read_noise_dn': 3.0}}, instrument='coiss_calib_nac')
+    assert validate_sim_params(params, source='by_binning_probe') is params

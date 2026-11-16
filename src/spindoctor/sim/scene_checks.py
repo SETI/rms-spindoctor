@@ -2,15 +2,16 @@
 
 The ``_check_*`` / ``_require_*`` helpers here enforce the per-field types of
 every scene block: the per-object stars entries, the optics sub-blocks (PSF,
-smear, distortion, ghosts, stray light), the noise, instrument_config, detector, and
-spk_error blocks, plus the primitive scalar checks they all share.  Each block's key
+smear, distortion, ghosts, stray light), the noise, detector, and spk_error blocks,
+plus the primitive scalar checks they all share.  Each block's key
 inventory lives beside its checker (unknown keys fail validation, so a typo
 cannot silently render an un-blurred or clean frame).  The ``bodies``-entry
 checkers, the schema's largest block, live in the sibling
 :mod:`spindoctor.sim.scene_checks_body`, the ``ring_system`` block's checkers in
-:mod:`spindoctor.sim.scene_checks_ring`, and the ``artifacts`` block's checkers
-in :mod:`spindoctor.sim.scene_checks_artifacts`; all three build on the same
-primitives.
+:mod:`spindoctor.sim.scene_checks_ring`, the ``artifacts`` block's checkers
+in :mod:`spindoctor.sim.scene_checks_artifacts`, and the ``instrument_config``
+block's checker in :mod:`spindoctor.sim.scene_checks_instrument_config`; all four
+build on the same primitives.
 
 :func:`spindoctor.sim.scene.validate_sim_params` drives these helpers; every
 violation raises :class:`spindoctor.sim.scene_schema.SimSceneValidationError`.
@@ -21,13 +22,7 @@ from __future__ import annotations
 import math
 from typing import Any
 
-from spindoctor.config import DEFAULT_CONFIG
-from spindoctor.config.config import BY_BINNING_VALUE_KEYS, check_by_binning
 from spindoctor.sim.artifact_modes import DETECTOR_MODELS, QUANTIZATION_MODES
-from spindoctor.sim.instrument_navigator import (
-    resolve_sim_inst_config,
-    with_integer_binning_keys,
-)
 from spindoctor.sim.instrument_resolvers import (
     FilterCatalogError,
     cataloged_binnings,
@@ -380,62 +375,6 @@ def _check_noise(value: Any, *, source: str) -> None:
         raise SimSceneValidationError(f'{source}: noise.vidicon: unknown keys: {sorted(unknown)}')
     for key in _VIDICON_NOISE_KEYS:
         _check_optional_nonnegative_number(vidicon.get(key), f'noise.vidicon.{key}', source=source)
-
-
-def _check_instrument_config(value: Any, *, instrument: str, binning: int, source: str) -> None:
-    """Validate the scene-level ``instrument_config`` block.
-
-    The block can override any key of the navigator block except ``data_units``.  A
-    frame's units come only from the instrument's config entry; for other units, a
-    scene uses another instrument.
-
-    When the block sets ``noise``, the navigator block the overrides resolve to (over
-    the default configuration) must hold a well-formed ``noise.by_binning`` table,
-    checked as the configuration loader checks it.  A table key written as a string of
-    digits names the binning it spells, since a scene read through JSON carries every
-    key as a string.  On a binned frame the star limit reads the mode's
-    ``read_noise_dn`` and ``star_flux_dn_per_s_vmag0`` from that table, so a scene
-    that sets either unbinned value must set the mode's value as well, or the value it
-    sets would never be read.
-
-    Parameters:
-        value: The ``instrument_config`` mapping, or None when the block is absent.
-        instrument: The scene's (already validated) instrument name.
-        binning: The scene's (already validated) readout binning.
-        source: Label used in error messages.
-
-    Raises:
-        SimSceneValidationError: If the block isn't a mapping, it sets
-            ``data_units``, its ``noise.by_binning`` table is malformed, or it sets an
-            unbinned noise value that a frame of this binning reads from the table.
-    """
-    _check_optional_mapping(value, 'instrument_config', source=source)
-    if value is None:
-        return
-    if 'data_units' in value:
-        raise SimSceneValidationError(
-            f"{source}: instrument_config: a scene can't set data_units. Choose an "
-            'instrument whose entry renders the units you want.'
-        )
-    if not isinstance(value.get('noise'), dict):
-        return
-    override = with_integer_binning_keys(value)
-    noise = override['noise']
-    resolved = resolve_sim_inst_config(DEFAULT_CONFIG, instrument, override)
-    try:
-        check_by_binning('instrument_config', resolved)
-    except ValueError as exc:
-        raise SimSceneValidationError(f'{source}: {exc}') from exc
-    if binning not in resolved['noise'].get('by_binning', {}):
-        return
-    mode = noise.get('by_binning', {}).get(binning, {})
-    for key in sorted(BY_BINNING_VALUE_KEYS):
-        if key in noise and key not in mode:
-            raise SimSceneValidationError(
-                f'{source}: instrument_config.noise.{key} is set, but a frame binned by '
-                f'{binning} reads instrument_config.noise.by_binning.{binning}.{key} '
-                f'instead. Set instrument_config.noise.by_binning.{binning}.{key} too.'
-            )
 
 
 def _check_detector(value: Any, *, instrument: str, source: str) -> None:

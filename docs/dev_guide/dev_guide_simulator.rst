@@ -4046,20 +4046,28 @@ everything. To fully self-specify, choose ``generic`` and override every key exc
 ``data_units``, which a scene can't set here. A frame's units come only from the
 instrument's config entry. Scene validation refuses the key, and so does
 :func:`~spindoctor.sim.instrument_navigator.resolve_sim_inst_config` for a scene
-that skipped validation. The top-level ``noise`` block still wins over
-``instrument_config.noise`` for rendering. On a binned frame the star limit reads
-its zero point and read noise from the ``noise.by_binning`` entry for the frame's
-binning. So a binned scene that pins ``instrument_config.noise.read_noise_dn`` or
+that skipped validation. For rendering, the top-level ``noise`` block wins over
+``instrument_config.noise``.
+
+``instrument_config.noise`` must be a mapping, and validation refuses a null
+anywhere in it. The message gives the key's path and tells the author to leave the
+key out to take its default. On a binned frame the star limit reads its zero point
+and read noise from the ``noise.by_binning`` entry for the frame's binning. So a
+binned scene that pins ``instrument_config.noise.read_noise_dn`` or
 ``instrument_config.noise.star_flux_dn_per_s_vmag0`` must also pin the same key
-under ``instrument_config.noise.by_binning.<b>``, where ``<b>`` is the binning,
-and validation refuses one that doesn't. A camera whose block has no entry for the
-mode reads the unbinned values, so there the unbinned key is enough. Validation
-checks the ``noise.by_binning`` table a scene's overrides leave as the
-configuration loader checks the packaged one: each key is a binning factor of at
-least 2, and each entry states a finite, positive ``read_noise_dn`` and
-``star_flux_dn_per_s_vmag0``. A key may be written as an integer or as a string
-of digits, since a scene read through JSON carries every key as a string. See
-:doc:`dev_guide_observations`.
+under ``instrument_config.noise.by_binning.<b>``, where ``<b>`` is the binning, and
+validation refuses one that doesn't. A block with no entry for the mode, such as a
+calibrated-unit camera's, has no mode value to pin, so there the unbinned key is
+accepted alone. Validation checks the ``noise.by_binning`` table a scene's overrides
+leave as the configuration loader checks the packaged one, at every binning and on
+every block: each key is a binning factor of at least 2, and each entry states a
+finite, positive ``read_noise_dn`` and ``star_flux_dn_per_s_vmag0``. A key may be
+written as an integer or as a string of digits, since a scene read through JSON
+carries every key as a string, but validation refuses a key with a leading zero,
+such as ``'02'``, and a table that writes one binning both ways. It also refuses an
+entry that no frame reads: one for a binning the instrument's readout modes don't
+offer, and any table on a calibrated-unit camera, whose star limit is a constant
+that reads no noise value. See :doc:`dev_guide_observations`.
 
 ``instrument_config`` is idealized and crosses the information boundary
 unfiltered. A planted value copied into it reaches the navigator as published
@@ -4070,7 +4078,10 @@ author from doing that, so the validator warns instead, with
 :class:`~spindoctor.sim.scene_truth_echo.SimSceneTruthEchoWarning`, which gives both
 sites. It compares each ``noise`` key, ``noise.vidicon`` included, with the
 ``instrument_config.noise`` key of the same name, and ``optics.psf.sigma_v`` and
-``sigma_u`` with ``instrument_config.star_psf_sigma``. The ``detector`` block
+``sigma_u`` with ``instrument_config.star_psf_sigma``. On a binned frame it also
+compares each ``noise`` key with the same key under
+``instrument_config.noise.by_binning.<b>`` for the frame's binning ``<b>``, which
+is the value the frame's star limit reads. The ``detector`` block
 doesn't share a key with the instrument config and isn't compared. The
 navigator doesn't read the vidicon keys, so a ``noise.vidicon`` warning says
 only that the published config carries the scene's realization. When the two

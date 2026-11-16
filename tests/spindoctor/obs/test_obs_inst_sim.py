@@ -13,8 +13,8 @@ a label, so resolving it must not reach storage; a scene read from a file or a U
 fetched before it can be parsed.
 
 Last, they check that the faint-star limit follows the frame's readout binning, reading
-each mode's values from the navigator's own block, and leaves an unbinned frame's limit as
-it was.
+each mode's values from the navigator's own block, and that an unbinned frame's limit
+reads the unbinned values.
 """
 
 import math
@@ -180,10 +180,10 @@ def test_unbinned_star_limit_is_unchanged(
 ) -> None:
     """An unbinned frame's limit is the value the navigator's published block gives.
 
-    The expected limits are fixed numbers on purpose: they pin the unbinned limits as
-    they stood before the binned path was added, so a change to the formula or to the
-    values it reads shows here, where an expected value derived through the same
-    formula would change with it.
+    The expected limits are fixed numbers on purpose: each is the limit the formula
+    gives from the camera's unbinned zero point, read noise, and PSF core at that
+    exposure, so a change to the formula or to the values it reads shows here, where an
+    expected value derived through the same formula would change with it.
     """
     assert _star_limit(instrument, exposure_sec) == pytest.approx(expected, rel=0.0, abs=1e-12)
 

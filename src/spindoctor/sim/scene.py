@@ -20,7 +20,8 @@ dependency): the key inventory and boundary classification live in
 :mod:`spindoctor.sim.scene_checks` (body entries:
 :mod:`spindoctor.sim.scene_checks_body`; the ring_system block:
 :mod:`spindoctor.sim.scene_checks_ring`; the artifacts block:
-:mod:`spindoctor.sim.scene_checks_artifacts`); this module is the public entry point
+:mod:`spindoctor.sim.scene_checks_artifacts`; the instrument_config block:
+:mod:`spindoctor.sim.scene_checks_instrument_config`); this module is the public entry point
 and re-exports the boundary names.
 
 **The information boundary.**  Every key in the schema is classified as either
@@ -50,7 +51,6 @@ from spindoctor.sim.scene_checks import (
     _check_detector,
     _check_downlink_table_used,
     _check_expected,
-    _check_instrument_config,
     _check_noise,
     _check_optics,
     _check_optional_bool,
@@ -74,6 +74,7 @@ from spindoctor.sim.scene_checks_body import (
     _check_body_names_unique,
     _check_body_object,
 )
+from spindoctor.sim.scene_checks_instrument_config import _check_instrument_config
 from spindoctor.sim.scene_checks_ring import _check_ring_system
 
 # The two private inventories keep their redundant aliases: they are explicit
