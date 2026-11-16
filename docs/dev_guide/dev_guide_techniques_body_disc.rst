@@ -55,12 +55,14 @@ over the integer offsets :math:`(\Delta v, \Delta u)` in the per-instrument sear
 where :math:`\langle \cdot, \cdot \rangle_{M}` denotes the masked inner product (only pixels
 where :math:`M = \mathrm{True}` contribute). Sub-pixel refinement comes from a localized
 upsampled-DFT (Guizar-Sicairos) of the cross-power spectrum around the integer peak,
-reaching a 1/128 px resolution. The refinement is evaluated on the **raw-intensity**
-surfaces even when the integer peak was chosen on the gradient surfaces, so a gradient-mode
-peak does not carry the gradient-magnitude rectification bias (the magnitude rectifies the
-signal, making the cross-power peak non-smooth at its apex) into the reported offset; the
-template gradient structure provides the matched-filter statistical covariance term (see
-"Sources of uncertainty").
+reaching a 1/128 px resolution, on every pass of the pyramid. The refinement is evaluated
+on the **raw-intensity** surfaces even when the integer peak was chosen on the gradient
+surfaces, so a gradient-mode peak does not carry the gradient-magnitude rectification bias
+(the magnitude rectifies the signal, making the cross-power peak non-smooth at its apex)
+into the reported offset; the template gradient structure provides the matched-filter
+statistical covariance term (see "Sources of uncertainty"). The ring annulus technique
+refines its final pass on the NCC surface instead; see
+:doc:`dev_guide_techniques_ring_annulus`.
 
 Sub-pixel refinement band-limit (``refine_lowpass_sigma_px``)
 -------------------------------------------------------------

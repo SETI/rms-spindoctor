@@ -55,12 +55,45 @@ template and the observed image (or a mode-selected gradient of it):
                                           I_{\Delta v, \Delta u} \rangle_{M}}}
 
 over the integer offsets in the per-instrument search window, with the masked inner product
-restricted to pixels where the annulus mask is True. Sub-pixel refinement comes from a
-localized upsampled DFT around the integer peak (the Guizar-Sicairos efficient
-subpixel-registration method, ``upsampled_dft`` in ``src/spindoctor/support/correlate.py``,
-applied by :func:`~spindoctor.support.correlate.navigate_with_pyramid_kpeaks`); the template
-gradient structure provides the matched-filter statistical covariance term (see "Sources of
-uncertainty").
+restricted to pixels where the annulus mask is True. The template gradient structure
+provides the matched-filter statistical covariance term (see "Sources of uncertainty").
+
+Sub-pixel refinement
+--------------------
+
+Each pass of the correlation pyramid first finds the best whole-pixel offset on the NCC
+surface, then refines it to a fraction of a pixel. The technique refines in two ways:
+
+- **Coarser pyramid levels.** The refinement interpolates the raw cross-power of the image
+  and the template with a localized upsampled DFT (the Guizar-Sicairos efficient
+  subpixel-registration method). It takes the largest value within half a pixel of the
+  whole-pixel peak, on a 1/128 px grid. The body disc technique refines this way on every
+  pass; see :doc:`dev_guide_techniques_body_disc`.
+- **Final full-resolution pass.** The refinement fits a quadratic surface to the 3x3 block
+  of NCC values centered on the whole-pixel peak and moves to the top of that surface. The
+  move is at most one pixel along each axis. If the fit has no maximum, the offset stays on
+  the whole pixel. That happens when one of the nine values comes from an invalid shift, or
+  when the fitted surface does not curve downward along both axes.
+
+The NCC allows for how much the image brightness varies under the shifted template mask,
+and the raw cross-power does not. On real ring frames, the raw cross-power often peaks 0.7
+to 2.1 px from the NCC peak. A refinement confined to half a pixel then stops at the
+edge of its window, and many of its answers land exactly half a pixel from the whole pixel.
+Measured against reference pointing on real Cassini ring frames, the quadratic fit lowers
+the median error of this technique's offset from 0.56 px to between 0.33 and 0.42 px,
+depending on the camera.
+
+The coarser levels keep the cross-power refinement because of the pyramid's consistency
+test. That test marks a result spurious when the level offsets disagree by more than
+2.0 px. Refining the coarser levels on the NCC as well moves some real frames across that
+limit and marks good results spurious. With the fit confined to the final pass, the consistency
+test does not depend on it.
+
+The quadratic fit is
+:func:`~spindoctor.support.correlate_subpixel.ncc_quadratic_vertex`. The technique selects
+it through the ``final_refinement`` parameter of
+:func:`~spindoctor.support.correlate.navigate_with_pyramid_kpeaks`. The fit reads only the
+NCC surface, so the final pass skips building the cross-power spectrum.
 
 Mode selection (auto / raw / gradient)
 --------------------------------------
@@ -261,6 +294,9 @@ Source files:
 - ``src/spindoctor/support/correlate.py`` —
   :func:`~spindoctor.support.correlate.navigate_with_pyramid_kpeaks`, the shared pyramid-NCC entry
   point.
+- ``src/spindoctor/support/correlate_subpixel.py`` —
+  :func:`~spindoctor.support.correlate_subpixel.ncc_quadratic_vertex`, the quadratic fit that
+  refines the final pass.
 - ``src/spindoctor/nav_technique/confidence.py`` — sigmoid-combination evaluator; documented at
   :doc:`dev_guide_techniques_confidence`.
 - ``src/spindoctor/nav_technique/diagnostics.py`` —
@@ -318,7 +354,8 @@ Call path traced through
 3. Read the search-window margin off the observation via
    :func:`~spindoctor.nav_technique.nav_technique.search_window_for_obs`.
 4. Run :func:`~spindoctor.support.correlate.navigate_with_pyramid_kpeaks` on the composite
-   template against the extfov image. The pyramid returns the chosen peak's
+   template against the extfov image, with the quadratic NCC fit as the final pass's
+   sub-pixel refinement. The pyramid returns the chosen peak's
    ``(dv, du)``, the 2x2 CRLB covariance, ``quality``, ``consistency``, ``spurious``,
    ``at_edge``, ``used_gradient``, and the top-``k`` peak telemetry.
 5. Widen the (2, 2) covariance by the radial orbit-uncertainty channel: aggregate the
