@@ -33,6 +33,11 @@ spindoctor.support
    :undoc-members:
    :show-inheritance:
 
+.. automodule:: spindoctor.support.correlate_subpixel
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 .. automodule:: spindoctor.support.distance_transform
    :members:
    :undoc-members:

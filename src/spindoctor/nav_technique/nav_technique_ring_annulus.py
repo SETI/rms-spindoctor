@@ -49,6 +49,7 @@ from spindoctor.nav_technique.ring_edge_geometry import (
 )
 from spindoctor.nav_technique.technique_result import NavTechniqueResult
 from spindoctor.support.correlate import navigate_with_pyramid_kpeaks, peak_to_runner_up_ratio
+from spindoctor.support.correlate_subpixel import SubpixelRefinement
 from spindoctor.support.types import NDArrayFloatType
 
 if TYPE_CHECKING:  # pragma: no cover - typing-only import
@@ -69,6 +70,19 @@ peak grid into multi-gigabyte allocations and effectively hang the
 process; raise ``ValueError`` instead.  The bound is generous — the
 shipped default is 128 — so legitimate per-instrument tuning is never
 clipped.
+"""
+
+
+# Measured against reference pointing on real Cassini ring frames, the NCC fit lowered
+# the median error of this technique's offset from 0.56 to 0.33 px on the narrow-angle
+# camera and from 0.56 to 0.42 px on the wide-angle camera.  Under the cross-power
+# refinement, 25% (narrow-angle) and 39% (wide-angle) of those answers sat at the edge of
+# its half-pixel window in v (#929).
+_FINAL_REFINEMENT: SubpixelRefinement = 'ncc_quadratic'
+"""Sub-pixel refinement of the correlation's final full-resolution pass.
+
+The final pass refines each candidate with a quadratic fit to the NCC surface; the coarser
+pyramid levels keep the cross-power refinement.
 """
 
 
@@ -274,6 +288,7 @@ class RingAnnulusNav(NavTechnique):
                 use_gradient='auto',
                 localization_uncertainty_scale=self._cov_tuning.localization_uncertainty_scale,
                 logger=self.logger,
+                final_refinement=_FINAL_REFINEMENT,
             )
             dv = float(ncc_result['offset'][0])
             du = float(ncc_result['offset'][1])
