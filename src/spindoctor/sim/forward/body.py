@@ -412,13 +412,9 @@ def carve_crater_heights(
         u_dist = u_abs - (u_crater + PIXEL_CENTER_TO_CORNER_PX)
         crater_dist = np.sqrt(v_dist**2 + u_dist**2)
 
-        # Mask where crater affects height (slightly beyond radius for rim).  A
-        # crater whose reach covers no interior pixel carves nothing; its draws came
-        # from its own stream, so skipping it leaves every other crater unchanged.
+        # Mask where crater affects height (slightly beyond radius for rim)
         # TODO make config parameter
         crater_mask = (crater_dist < crater_radius * 1.1) & ellipse_mask_nz
-        if not np.any(crater_mask):
-            continue
 
         r = crater_dist[crater_mask]
         D = 2.0 * crater_radius  # diameter

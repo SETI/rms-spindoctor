@@ -35,10 +35,11 @@ def _render(*, rotation_z: float, rotation_tilt: float, crater_fill: float) -> n
         phase_angle=_PHASE_ANGLE,
         crater_fill=crater_fill,
         anti_aliasing=1.0,
-        # A fixed realization whose crater-placement asymmetry sits well below
-        # the tolerance (worst-axis delta ~0.15 px); the guarded shading-frame
-        # defect displaced the centroid by ~9 px, so the margin is wide.
-        seed=0,
+        # A fixed realization that puts craters on the lit side in both poses
+        # while its crater-placement asymmetry sits well below the tolerance
+        # (worst-axis delta ~0.03 px); the guarded shading-frame defect
+        # displaced the centroid by ~9 px, so the margin is wide.
+        seed=52,
     )
 
 
