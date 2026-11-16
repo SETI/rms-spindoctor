@@ -394,7 +394,7 @@ Single-frame accuracy is 1 pixel or better across the symmetry line and 3 pixels
 along it. Two consequences are worth planning around.
 
 An image whose only navigable content is Titan reaches the ``medium`` tier at best,
-because the honest along-line uncertainty of one nearly circular feature is larger than
+because the along-line uncertainty of one nearly circular feature is larger than
 the ``high`` tier allows. Adding a star field or a second, resolved moon to the frame is
 what lifts such an image higher.
 

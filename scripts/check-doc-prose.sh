@@ -299,6 +299,12 @@ COROTATION_HYPHENATED='\bco-rotat'  # codespell:ignore rotat -- deliberate stem
 report ERROR 'spell corotation and corotating without a hyphen' \
     "$(hits "$COROTATION_HYPHENATED" "$PROSE_ALL")"
 
+# "Honest" judges a value without saying what it is. The pattern also catches
+# "honestly", "honesty", "dishonest", and a hyphenated compound, because a
+# hyphen ends a word.
+report ERROR '"honest" judges a value -- say what the value is or what it measures' \
+    "$(hits '(?i)\b(dis)?honest(ly|y)?\b' "$PROSE_ALL")"
+
 report ERROR 'PDS3 is not an image format -- images are VICAR, or FITS for LORRI' \
     "$(hits '(?i)PDS3[- ](format|formatted)' "$PROSE_ALL")"
 

@@ -5,7 +5,7 @@ single combined translation by minimizing the joint distance-transform
 cost.  When every input ring edge is flagged ``is_straight_line`` the
 combined Jacobian is rank-deficient — all parallel ring edges share a
 single ring-plane normal, so the along-edge axis is unobservable.  The
-returned covariance is honestly rank-1 in that case; the ensemble
+returned covariance is rank-1 in that case; the ensemble
 combine fuses it with any orthogonal-axis result (a star, body limb,
 body blob) before declaring a final answer.
 """

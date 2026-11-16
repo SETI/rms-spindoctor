@@ -548,7 +548,7 @@ def test_correct_star_photometry_genuine_faint_star_not_flagged() -> None:
 
     The star is beyond YBSC completeness but agrees with its Tycho-2
     reference, so it is neither corrected nor flagged: using Tycho-2 as a
-    reference is what keeps the flag honest.
+    reference is what keeps the flag off a star that is not saturated.
     """
     star = _ucac4(*_ETA_TAU, 7.3)
     ref = _tycho2(*_ETA_TAU, 7.3)

@@ -48,7 +48,7 @@ offset_rotation_deg: 1.37
 # 4.980 to 4.988 px, a spread of 0.007 px.  Each end of the band sits a margin
 # of max(0.05 px, a fifth of the spread) outside, giving [4.930, 5.038] px.  A
 # fix to the rotation center drops the error out of the band, and the scene
-# fails until the pin is retired.  test_sim_algorithmic_invariants checks the
+# fails until the check is retired.  test_sim_algorithmic_invariants checks the
 # recovered roll itself.
 expected:
   status: success

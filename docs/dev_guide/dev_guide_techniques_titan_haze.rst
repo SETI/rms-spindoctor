@@ -254,8 +254,9 @@ three held on real-frame evidence rather than on the simulator's tighter numbers
 One consequence of the along-track floor is worth stating plainly: ``hypot(1.00, 0.20)`` is
 1.02 px against the ``high`` confidence tier's ``max_sigma_px`` of 0.5 in
 ``config_540_orchestrator.yaml``, so a frame whose only content is a hazy body caps at the
-``medium`` tier however good the fit. For a single quasi-circular feature whose along-track
-coordinate is degenerate with a free radius, that is the honest statement.
+``medium`` tier however good the fit. The cap comes from the configured floor. The floor
+is set conservatively because a single quasi-circular feature's along-track coordinate is
+partly degenerate with a free radius.
 
 Configuration
 =============

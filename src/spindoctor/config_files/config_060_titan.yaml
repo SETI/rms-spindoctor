@@ -166,8 +166,8 @@ titan:
       # errors -- and on them the estimator reports sigma too NARROW, not too
       # wide (their own z-scores run to an rms near 3).  Shrinking this
       # multiplier would narrow the reported uncertainty on exactly the
-      # frames that are wrong, buying a better-looking all-row statistic by
-      # making the honest minority dishonest.
+      # frames that are wrong, buying a better-looking all-row statistic at
+      # the cost of the few frames whose wide sigma is correct.
       #
       along_sigma_scale: 1.0
       # Held at 1.00 on real-frame evidence, NOT cut to the 0.63 px the
@@ -177,9 +177,9 @@ titan:
       # quadrature with the model-error floor) is if anything optimistic.
       # The consequence is deliberate: hypot(1.00, 0.20) exceeds the 0.5 px
       # max_sigma_px of the high confidence tier, so a Titan-only frame caps
-      # at medium.  For a single quasi-circular feature whose along-track
-      # coordinate is degenerate with a free radius, that is the honest
-      # statement.
+      # at medium.  A single quasi-circular feature cannot do better,
+      # because its along-track coordinate is degenerate with a free
+      # radius.
       sigma_floor_along_px: 1.00
   annotation:
     # Sample spacing that turns the overlay's curves from solid into

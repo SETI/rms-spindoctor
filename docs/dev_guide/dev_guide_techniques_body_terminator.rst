@@ -170,8 +170,8 @@ All numeric tunables for this technique live in ``techniques.BodyTerminatorNav.t
 - ``model_error_floor_px`` — float, default ``4.32`` px. Model-error floor added in
   quadrature to the covariance's translation diagonal, solved on the technique's own
   calibration-campaign rows: the DT fit's reported sigma (~1.2 px) sits far below its
-  actual recovery error (median 5.2 px), so the floor carries nearly all of the honest
-  uncertainty. The campaign measured 2-sigma coverage 0.04 before flooring and 0.87
+  actual recovery error (median 5.2 px), so nearly all of the reported uncertainty comes
+  from the floor. The campaign measured 2-sigma coverage 0.04 before flooring and 0.87
   after. A terminator fix is therefore always a low-tier result, consistent with its
   fallback-only ensemble role.
 - ``at_edge_tolerance_px`` — float, default ``1.0`` px. A converged offset whose absolute
@@ -216,7 +216,7 @@ The spec is fitted against the simulated-scene calibration campaign, whose termi
 are single-class: zero of 116 usable rows recovered within 1 px (median error 5.2 px,
 p5 2.6 px). On randomized crescents the DT fit settles several pixels from the planted
 truth, systematically toward the bright limb-side gradient, and no diagnostic separates a
-closer result from a farther one, so the L2-regularized fit converges to an honest low
+closer result from a farther one, so the L2-regularized fit converges to a low
 plateau (confidence ~0.03-0.05): a terminator fix cannot reach the ensemble's 0.35
 minimum confidence on
 its own or outweigh a calibrated technique. The arc-fraction, arc-length, and phase terms

@@ -7,7 +7,7 @@ navigable features' catalog orbits, shapes, and declared orbit
 uncertainties.  Non-navigable features never reach this model (the boundary
 filter drops them), and the planted per-feature ``orbit_error`` is a truth
 key this model cannot see -- the navigator predicts catalog positions and
-must absorb the planted misplacement honestly.
+sees the planted misplacement only in the rendered image.
 
 One model instance per navigable feature.  Each banded feature (ringlet)
 emits a ``RING_ANNULUS`` template for the correlation path; every feature

@@ -883,7 +883,7 @@ def test_lm_subpixel_refine_degenerate_when_all_vertices_rejected() -> None:
     strictly positive), so the polarity filter rejects every vertex.
     Each rejected vertex gets the infinity penalty, the Tukey biweight
     zeroes its weight, and no evidence remains to constrain the fit.  The
-    result must advertise this honestly: ``rms_px`` is ``+inf`` (not the
+    result must say so: ``rms_px`` is ``+inf`` (not the
     misleading ``0.0`` that downstream spurious gates would read as a
     perfect fit), ``degenerate`` is True, and the covariance is all-inf.
     """

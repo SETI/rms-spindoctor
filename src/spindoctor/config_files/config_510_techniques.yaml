@@ -55,7 +55,7 @@
 # reach.
 # BodyTerminatorNav carries its first sim-anchored fit (#223): the
 # campaign's terminator rows are single-class (zero of 116 usable rows
-# within 1 px), so its formula is an honest low plateau -- see the
+# within 1 px), so its formula gives a low plateau -- see the
 # technique block.  Its trust label additionally stays provisional
 # because the phase-H realism match computed the limb-rise figure of
 # merit on the limb side only; no terminator-side divergence verdict
@@ -250,11 +250,11 @@ techniques:
     # which is exactly the regime the fit must price in.
     alpha0: 0.132
     terms:
-      # The sim limb now reports its honest visible-arc fraction
+      # The sim limb reports its actual visible-arc fraction
       # (surviving polyline over the unclipped whole-body silhouette
       # boundary, net of frame clipping and sibling-body occlusion),
-      # so the partial-arc penalty is FITTED for the first time
-      # instead of frozen at the design prior.  Campaign raw
+      # so the partial-arc penalty is FITTED instead of frozen at
+      # the design prior.  Campaign raw
       # p5/p50/p95 = 0.33/0.76/1.0.
       - feature: visible_limb_arc_fraction
         alpha: 1.068
@@ -367,8 +367,8 @@ techniques:
       # previous 0.92 floor, 0.86 at this value
       # (util/calibration/fit_floors).  Note the floor now sits above
       # the medium tier's 2.0 px sigma cap, so a limb-only fix
-      # surfaces as a low-tier result -- the honest price of a limb
-      # whose position error is set by unmodeled terrain.
+      # surfaces as a low-tier result.  That tier matches the accuracy
+      # of a limb whose position error is set by unmodeled terrain.
       model_error_floor_px: 2.61
       # Shared DT fit-quality gates (dt_fit_gates.py).  A fit neither the
       # DT-LM nor the gradient-ridge stage verified (both exited at their
@@ -421,7 +421,7 @@ techniques:
     # pixels from the planted truth, systematically toward the bright
     # limb-side gradient, and no diagnostic separates a closer result
     # from a farther one.  The L2-regularized fit therefore converges
-    # to an honest low plateau (confidence ~0.03-0.05): a terminator
+    # to a low plateau (confidence ~0.03-0.05): a terminator
     # fix cannot pass the ensemble's 0.35 gate on its own or outweigh a
     # calibrated technique, which also ends the uncalibrated-default
     # era in which terminator locks at ~0.7 confidence dragged fused
@@ -483,8 +483,8 @@ techniques:
       # Model-error floor (px), solved on the technique's own campaign
       # rows for the first time (#210, seed 20260718): the DT fit's
       # reported sigma (~1.2 px) sits far below its actual recovery
-      # error (median 5.2 px), so the floor carries nearly all of the
-      # honest uncertainty.  2-sigma coverage 0.04 before flooring,
+      # error (median 5.2 px), so nearly all of the reported
+      # uncertainty comes from the floor.  2-sigma coverage 0.04 before flooring,
       # 0.87 after (util/calibration/fit_floors).  A terminator fix is
       # therefore always a low-tier result, consistent with its
       # fallback-only ensemble role.
