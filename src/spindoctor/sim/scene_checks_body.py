@@ -103,9 +103,9 @@ def _check_body_object(obj: dict[str, Any], *, index: int, source: str) -> None:
     for key in (
         'center_v',
         'center_u',
-        'axis1',
-        'axis2',
-        'axis3',
+        'semi_a_px',
+        'semi_b_px',
+        'semi_c_px',
         'rotation_z',
         'rotation_tilt',
         'illumination_angle',
@@ -183,7 +183,7 @@ def _check_crater_shape_keys(obj: dict[str, Any], *, label: str, source: str) ->
     """Validate one body's crater radius band and power-law exponent.
 
     The crater radii are sampled from ``p(R) ~ R**-alpha`` over
-    ``[crater_min_radius, crater_max_radius]`` (fractions of axis1), which
+    ``[crater_min_radius, crater_max_radius]`` (fractions of semi-axis a), which
     needs a strictly positive band with ``min < max`` and ``alpha > 1``;
     out-of-domain values validated before and then crashed (or raised) deep
     inside the sampler, so the domain is enforced here instead.
@@ -437,7 +437,7 @@ def _check_haze_structure(value: dict[str, Any], *, label: str, source: str) -> 
 
 # The multiplicative albedo texture: a band-limited noise field (rms +
 # correlation length in detector pixels on the disc) plus discrete circular
-# spots in the body-polar surface frame (pole along axis1; longitude 90 deg
+# spots in the body-polar surface frame (pole along semi-axis a; longitude 90 deg
 # is the sub-observer meridian).
 _ALBEDO_TEXTURE_KEYS: frozenset[str] = frozenset({'rms', 'corr_px', 'spots'})
 _SURFACE_SPOT_KEYS: frozenset[str] = frozenset(
@@ -489,8 +489,8 @@ def _check_albedo_texture(value: Any, *, label: str, source: str) -> None:
 
 # The giant-planet disc texture: a low-frequency latitude-banded
 # multiplicative pattern (cosine in body-polar latitude) plus discrete
-# storm ovals in the body-polar frame (the pole is the body's axis1
-# direction, so bands rotate with the rotation_z pose).
+# storm ovals in the body-polar frame (the pole is the direction of the
+# body's semi-axis a, so bands rotate with the rotation_z pose).
 _DISC_TEXTURE_KEYS: frozenset[str] = frozenset(
     {'band_amplitude', 'band_wavenumber', 'band_phase_deg', 'storms'}
 )

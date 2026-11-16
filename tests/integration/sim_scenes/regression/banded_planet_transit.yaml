@@ -20,9 +20,9 @@ bodies:
     shape_model: ellipsoid
     center_v: 128.0
     center_u: 128.0
-    axis1: 200.0
-    axis2: 200.0
-    axis3: 200.0
+    semi_a_px: 100.0
+    semi_b_px: 100.0
+    semi_c_px: 100.0
     illumination_angle: 20.0
     phase_angle: 30.0
     disc_texture:

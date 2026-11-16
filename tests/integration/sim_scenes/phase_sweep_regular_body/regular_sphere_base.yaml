@@ -8,16 +8,16 @@ exposure_sec: 1.0
 # A clean, well-resolved sphere with a planted offset, sized with room to spare.
 # It is the base scene the T3 single-variable sweeps drive: the noise sweep
 # varies ``noise.read_noise_dn``, the phase sweep varies ``bodies.0.phase_angle``,
-# and the range sweep shrinks ``bodies.0.axis{1,2,3}`` together.  At its base
-# value (axis 90, phase 30, read-noise 4) it navigates by the disc correlation and
-# recovers the planted offset exactly.
+# and the range sweep shrinks ``bodies.0.semi_{a,b,c}_px`` together.  At its base
+# value (semi-axes 45, so 90 px across, phase 30, read-noise 4) it navigates by
+# the disc correlation and recovers the planted offset exactly.
 bodies:
   - name: RHEA
     center_v: 110.0
     center_u: 110.0
-    axis1: 90.0
-    axis2: 90.0
-    axis3: 90.0
+    semi_a_px: 45.0
+    semi_b_px: 45.0
+    semi_c_px: 45.0
     illumination_angle: 25.0
     phase_angle: 30.0
 noise:

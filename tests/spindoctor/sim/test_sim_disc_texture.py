@@ -41,9 +41,9 @@ def _spec(
     probe below is exact.
     """
     return TopoBodySpec(
-        axis1=2.0 * _RADIUS,
-        axis2=2.0 * _RADIUS,
-        axis3=2.0 * _RADIUS,
+        semi_a_px=_RADIUS,
+        semi_b_px=_RADIUS,
+        semi_c_px=_RADIUS,
         rotation_z=rotation_z,
         phase_angle=_PHASE,
         surge_amplitude=1.0,

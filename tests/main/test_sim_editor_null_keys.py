@@ -66,9 +66,6 @@ _NULL_BODY: dict[str, Any] = dict.fromkeys(
         'albedo_texture',
         'anti_aliasing',
         'atmosphere',
-        'axis1',
-        'axis2',
-        'axis3',
         'center_u',
         'center_v',
         'crater_fill',
@@ -98,6 +95,9 @@ _NULL_BODY: dict[str, Any] = dict.fromkeys(
         'rotation_tilt',
         'rotation_z',
         'seed',
+        'semi_a_px',
+        'semi_b_px',
+        'semi_c_px',
         'shading',
         'shape_model',
         'transits',
@@ -114,8 +114,8 @@ _NULL_BODIES_SCENE: dict[str, Any] = {
     'bodies': [
         {
             **_NULL_BODY,
-            'axis1': 40.0,
-            'axis2': 30.0,
+            'semi_a_px': 20.0,
+            'semi_b_px': 15.0,
             'opposition_surge': dict.fromkeys(('amplitude', 'width_deg')),
             'albedo_texture': {'rms': None, 'corr_px': None, 'spots': [dict(_NULL_SPOT)]},
             'disc_texture': {
@@ -139,8 +139,8 @@ _NULL_BODIES_SCENE: dict[str, Any] = {
             **_NULL_BODY,
             'center_v': 40.0,
             'center_u': 40.0,
-            'axis1': 40.0,
-            'axis2': 30.0,
+            'semi_a_px': 20.0,
+            'semi_b_px': 15.0,
             'shape_model': 'polyhedral_mesh',
             'pose_scatter': {'sigma_deg': None},
         },
@@ -283,7 +283,7 @@ def test_body_without_name_or_center_shows_the_renderers(qapp: QApplication) -> 
             'instrument': 'coiss_nac',
             'size_v': 300,
             'size_u': 400,
-            'bodies': [{'axis1': 40.0, 'axis2': 30.0}],
+            'bodies': [{'semi_a_px': 20.0, 'semi_b_px': 15.0}],
         }
     )
     tab: Any = model._tabs.widget(model._find_tab_by_properties('body', 0))
@@ -318,20 +318,20 @@ _FRAME_300_BY_400: dict[str, Any] = {'instrument': 'coiss_nac', 'size_v': 300, '
 
 def test_unset_keys_show_the_renderers_defaults(qapp: QApplication) -> None:
     """An unset key's control shows the value the renderer draws with."""
-    body = {'axis1': 40.0, 'axis2': 30.0, 'opposition_surge': {}}
+    body = {'semi_a_px': 20.0, 'semi_b_px': 15.0, 'opposition_surge': {}}
     spec = body_spec_from_params(body, index=0)
     model = _loaded({**_FRAME_300_BY_400, 'bodies': [body], 'sky_counts': {}, 'spk_error': {}})
     tab = _body_tab(model, 0)
     shown = (
         tab.anti_aliasing_spin.value(),
-        tab.axis3_spin.value(),
+        tab.semi_c_spin.value(),
         tab.surge_amplitude_spin.value(),
         model._sky_density_spin.value(),
         model._spk_range_spin.value(),
     )
     assert shown == (
         spec.anti_aliasing,
-        spec.axis3,
+        spec.semi_c_px,
         spec.surge_amplitude,
         SKY_COUNTS_DEFAULTS['density_factor'],
         0.0,
@@ -361,18 +361,18 @@ def test_loading_a_scene_leaves_it_unchanged(qapp: QApplication) -> None:
     assert _loaded(scene).sim_params == scene
 
 
-def test_an_axis_edit_moves_an_unset_axis3(qapp: QApplication) -> None:
-    """Editing axis1 moves what an unset axis3 shows, without writing axis3."""
-    model = _loaded({**_FRAME_300_BY_400, 'bodies': [{'axis1': 40.0, 'axis2': 30.0}]})
+def test_a_semi_axis_edit_moves_an_unset_semi_c(qapp: QApplication) -> None:
+    """Editing semi_a_px moves what an unset semi_c_px shows, without writing it."""
+    model = _loaded({**_FRAME_300_BY_400, 'bodies': [{'semi_a_px': 20.0, 'semi_b_px': 15.0}]})
     tab = _body_tab(model, 0)
-    tab.axis1_spin.setValue(20.0)
-    shown = (tab.axis3_spin.value(), 'axis3' in model.sim_params['bodies'][0])
-    assert shown == (20.0, False)
+    tab.semi_a_spin.setValue(10.0)
+    shown = (tab.semi_c_spin.value(), 'semi_c_px' in model.sim_params['bodies'][0])
+    assert shown == (10.0, False)
 
 
 def test_a_frame_size_change_moves_an_unset_center(qapp: QApplication) -> None:
     """Changing the frame height moves what an unset center shows, without writing it."""
-    model = _loaded({**_FRAME_300_BY_400, 'bodies': [{'axis1': 40.0, 'axis2': 30.0}]})
+    model = _loaded({**_FRAME_300_BY_400, 'bodies': [{'semi_a_px': 20.0, 'semi_b_px': 15.0}]})
     model._size_v_spin.setValue(600)
     shown = (_body_tab(model, 0).center_v_spin.value(), 'center_v' in model.sim_params['bodies'][0])
     assert shown == (300.0, False)
@@ -458,8 +458,13 @@ def test_turning_on_a_ring_modulation_under_a_null_azimuthal_block(
 
 # The first body sits at the frame center with no range, so the renderer draws it at
 # its default range of 1; the second sits apart from it.
-_UNSET_RANGE_BODY: dict[str, Any] = {'axis1': 20.0, 'axis2': 20.0, 'range_km': None}
-_APART_BODY: dict[str, Any] = {'axis1': 20.0, 'axis2': 20.0, 'center_v': 40.0, 'center_u': 40.0}
+_UNSET_RANGE_BODY: dict[str, Any] = {'semi_a_px': 10.0, 'semi_b_px': 10.0, 'range_km': None}
+_APART_BODY: dict[str, Any] = {
+    'semi_a_px': 10.0,
+    'semi_b_px': 10.0,
+    'center_v': 40.0,
+    'center_u': 40.0,
+}
 
 
 def test_an_added_body_skips_an_unset_bodys_default_range(qapp: QApplication) -> None:
@@ -532,8 +537,8 @@ def test_clearing_a_range_rechecks_the_duplicate_warning(qapp: QApplication) -> 
 
 # A mesh body whose override group is on and sets none of its keys.
 _OVERRIDE_BODY: dict[str, Any] = {
-    'axis1': 40.0,
-    'axis2': 30.0,
+    'semi_a_px': 20.0,
+    'semi_b_px': 15.0,
     'shape_model': 'polyhedral_mesh',
     'nav_override': {},
 }

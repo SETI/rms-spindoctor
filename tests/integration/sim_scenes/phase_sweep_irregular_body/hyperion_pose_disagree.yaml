@@ -31,9 +31,9 @@ bodies:
     pose_euler_deg: [10.0, 35.0, 0.0]
     center_v: 110.0
     center_u: 110.0
-    axis1: 150.0
-    axis2: 110.0
-    axis3: 95.0
+    semi_a_px: 75.0
+    semi_b_px: 55.0
+    semi_c_px: 47.5
     illumination_angle: 25.0
     phase_angle: 30.0
     nav_override:

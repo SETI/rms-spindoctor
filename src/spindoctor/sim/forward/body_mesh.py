@@ -73,10 +73,10 @@ def _perturb_mesh_radially(mesh: Mesh, field: ReliefField) -> Mesh:
 def _render_mesh_shape_cached(
     size_v: int,
     size_u: int,
-    axis1: float,
+    semi_a_px: float,
     *,
-    axis2: float,
-    axis3: float,
+    semi_b_px: float,
+    semi_c_px: float,
     spec: MeshBodySpec,
     illumination_angle: float,
     phase_angle: float,
@@ -107,7 +107,7 @@ def _render_mesh_shape_cached(
         size=(size_v, size_u),
         center=(size_v / 2.0, size_u / 2.0),
         mesh=mesh,
-        semi_axes_px=(axis1 / 2.0, axis2 / 2.0, axis3 / 2.0),
+        semi_axes_px=(semi_a_px, semi_b_px, semi_c_px),
         pose_euler_deg=spec.pose_euler_deg,
         illumination_angle=illumination_angle,
         phase_angle=phase_angle,
@@ -122,9 +122,9 @@ def _mesh_identity_seed(
     seed: int | None,
     body_index: int,
     body_name: str,
-    axis1: float,
-    axis2: float,
-    axis3: float,
+    semi_a_px: float,
+    semi_b_px: float,
+    semi_c_px: float,
 ) -> int:
     """The per-body identity seed the mesh truth streams derive from.
 
@@ -136,7 +136,10 @@ def _mesh_identity_seed(
         return derive_effect_seed(seed, f'body:{body_index}:{body_name}')
     if body_seed is not None:
         return body_seed & 0x7FFFFFFF
-    return stable_param_seed(axis1, axis2, axis3, body_index, body_name) & 0x7FFFFFFF
+    # The fallback seed is keyed on the full widths, twice the semi-axes; the
+    # terrain of the committed seed-less scenes depends on this key (#913).
+    widths = (2.0 * semi_a_px, 2.0 * semi_b_px, 2.0 * semi_c_px)
+    return stable_param_seed(*widths, body_index, body_name) & 0x7FFFFFFF
 
 
 def render_single_mesh_body(
@@ -146,9 +149,9 @@ def render_single_mesh_body(
     *,
     center_v: float,
     center_u: float,
-    axis1: float,
-    axis2: float,
-    axis3: float,
+    semi_a_px: float,
+    semi_b_px: float,
+    semi_c_px: float,
     illumination_angle: float,
     phase_angle: float,
     anti_aliasing: float,
@@ -168,9 +171,9 @@ def render_single_mesh_body(
         body_name: Upper-cased body name for the inventory keys.
         center_v: Body center V in the image (offset already applied).
         center_u: Body center U in the image (offset already applied).
-        axis1: Full width of ellipsoidal-envelope axis 1 in pixels.
-        axis2: Full width of ellipsoidal-envelope axis 2 in pixels.
-        axis3: Full width of ellipsoidal-envelope axis 3 in pixels.
+        semi_a_px: Semi-axis a of the ellipsoidal envelope in pixels.
+        semi_b_px: Semi-axis b of the ellipsoidal envelope in pixels.
+        semi_c_px: Semi-axis c of the ellipsoidal envelope in pixels.
         illumination_angle: Image-plane light azimuth in radians.
         phase_angle: Phase angle in radians.
         anti_aliasing: Limb supersampling control.
@@ -203,9 +206,9 @@ def render_single_mesh_body(
             seed=seed,
             body_index=body_index,
             body_name=body_name,
-            axis1=axis1,
-            axis2=axis2,
-            axis3=axis3,
+            semi_a_px=semi_a_px,
+            semi_b_px=semi_b_px,
+            semi_c_px=semi_c_px,
         )
         if relief_rms > 0.0:
             relief_seed = derive_effect_seed(identity_seed, 'relief')
@@ -225,9 +228,9 @@ def render_single_mesh_body(
     body_shape = _render_mesh_shape_cached(
         size_v,
         size_u,
-        axis1,
-        axis2=axis2,
-        axis3=axis3,
+        semi_a_px,
+        semi_b_px=semi_b_px,
+        semi_c_px=semi_c_px,
         spec=spec,
         illumination_angle=illumination_angle,
         phase_angle=phase_angle,
@@ -239,7 +242,7 @@ def render_single_mesh_body(
     )
     # A mesh body's pose is an arbitrary 3D rotation, so fall back to the
     # bounding sphere of the ellipsoidal envelope for both image axes.
-    mesh_half_extent = max(axis1, axis2, axis3) / 2.0
+    mesh_half_extent = max(semi_a_px, semi_b_px, semi_c_px)
     mask, body_info = finish_single_body(
         img,
         body_shape,

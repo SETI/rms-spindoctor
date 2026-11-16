@@ -91,11 +91,11 @@ def _silhouette(
         pose_euler_deg=base.pose_euler_deg,
         detail_octaves=base.detail_octaves,
     )
-    axes = (float(body['axis1']), float(body['axis2']), float(body['axis3']))
+    semi = (float(body['semi_a_px']), float(body['semi_b_px']), float(body['semi_c_px']))
     image = render_mesh_body_image(
         size=(size[0] * _SCALE, size[1] * _SCALE),
         center=(float(body['center_v']) * _SCALE, float(body['center_u']) * _SCALE),
-        semi_axes_px=(axes[0] / 2.0 * _SCALE, axes[1] / 2.0 * _SCALE, axes[2] / 2.0 * _SCALE),
+        semi_axes_px=(semi[0] * _SCALE, semi[1] * _SCALE, semi[2] * _SCALE),
         spec=spec,
         anti_aliasing=0.0,
     )

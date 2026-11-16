@@ -30,9 +30,9 @@ _PHASE = 1.0
 def _spec(albedo: AlbedoTextureSpec | None) -> TopoBodySpec:
     """A sphere at moderate phase with an optional albedo texture."""
     return TopoBodySpec(
-        axis1=2.0 * _RADIUS,
-        axis2=2.0 * _RADIUS,
-        axis3=2.0 * _RADIUS,
+        semi_a_px=_RADIUS,
+        semi_b_px=_RADIUS,
+        semi_c_px=_RADIUS,
         phase_angle=_PHASE,
         albedo_texture=albedo,
     )
@@ -157,9 +157,9 @@ def _scene(seed: int) -> dict[str, Any]:
                 'name': 'MOON',
                 'center_v': 64.0,
                 'center_u': 64.0,
-                'axis1': 80.0,
-                'axis2': 80.0,
-                'axis3': 80.0,
+                'semi_a_px': 40.0,
+                'semi_b_px': 40.0,
+                'semi_c_px': 40.0,
                 'phase_angle': 45.0,
                 'albedo_texture': {'rms': 0.2, 'corr_px': 10.0},
             }

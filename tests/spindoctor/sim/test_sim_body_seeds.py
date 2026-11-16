@@ -14,9 +14,9 @@ from spindoctor.sim import render
 from spindoctor.sim.forward import body as forward_body
 
 _BODY_GEOMETRY: dict[str, Any] = {
-    'axis1': 40.0,
-    'axis2': 32.0,
-    'axis3': 32.0,
+    'semi_a_px': 20.0,
+    'semi_b_px': 16.0,
+    'semi_c_px': 16.0,
     'crater_fill': 0.4,
 }
 

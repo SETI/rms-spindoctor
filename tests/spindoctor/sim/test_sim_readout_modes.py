@@ -176,9 +176,9 @@ _LIT_BODY: dict[str, Any] = {
             'name': 'B',
             'center_v': 32.0,
             'center_u': 32.0,
-            'axis1': 40.0,
-            'axis2': 40.0,
-            'axis3': 40.0,
+            'semi_a_px': 20.0,
+            'semi_b_px': 20.0,
+            'semi_c_px': 20.0,
             'phase_angle': 0.0,
             'illumination_angle': 0.0,
         }

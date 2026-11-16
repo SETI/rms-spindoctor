@@ -31,9 +31,9 @@ def _scene() -> dict[str, Any]:
                 'name': 'B',
                 'center_v': 30.3,
                 'center_u': 22.6,
-                'axis1': 26.0,
-                'axis2': 24.0,
-                'axis3': 24.0,
+                'semi_a_px': 13.0,
+                'semi_b_px': 12.0,
+                'semi_c_px': 12.0,
                 'illumination_angle': 30.0,
                 'phase_angle': 40.0,
             }

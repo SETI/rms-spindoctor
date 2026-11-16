@@ -26,9 +26,9 @@ def _disc(instrument: str, *, size: int = 64, **extra: Any) -> dict[str, Any]:
                 'name': 'B',
                 'center_v': size / 2,
                 'center_u': size / 2,
-                'axis1': size * 0.4,
-                'axis2': size * 0.35,
-                'axis3': size * 0.35,
+                'semi_a_px': size * 0.2,
+                'semi_b_px': size * 0.175,
+                'semi_c_px': size * 0.175,
             }
         ],
     }
@@ -210,7 +210,7 @@ def _flat_defaults_scene(**noise_extra: Any) -> dict[str, Any]:
     scene = _disc('generic', size=128, oversample=1, artifacts={'instrument_defaults': True})
     # A disc much larger than the frame makes the center region flat; the
     # signal clips at 1.0, which only flattens it further.
-    scene['bodies'][0].update({'axis1': 400.0, 'axis2': 400.0, 'axis3': 400.0})
+    scene['bodies'][0].update({'semi_a_px': 200.0, 'semi_b_px': 200.0, 'semi_c_px': 200.0})
     if noise_extra:
         scene['noise'] = dict(noise_extra)
     return scene

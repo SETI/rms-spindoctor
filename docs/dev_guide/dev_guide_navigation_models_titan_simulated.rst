@@ -100,11 +100,11 @@ The model consumes the same ``titan`` configuration block as its catalog-driven 
 
 Scene-side, the body parameters it requires are
 :data:`~spindoctor.nav_model.nav_model_titan_simulated.REQUIRED_SIM_PARAMS` -- ``center_v``,
-``center_u``, ``axis1``, ``axis2``, and ``km_per_pixel``. The center and the two image-plane
-axes give the predicted disc; the pixel scale is what turns the configured atmosphere height in
-kilometers into an envelope radius in pixels, and without it the envelope -- the outer bound of
-everything the fit samples -- would have to be invented. ``phase_angle``,
-``illumination_angle``, ``rotation_z``, and ``range_km`` are read when present.
+``center_u``, ``semi_a_px``, ``semi_b_px``, and ``km_per_pixel``. The center and the two
+image-plane semi-axes give the predicted disc; the pixel scale is what turns the configured
+atmosphere height in kilometers into an envelope radius in pixels, and without it the envelope
+-- the outer bound of everything the fit samples -- would have to be invented.
+``phase_angle``, ``illumination_angle``, ``rotation_z``, and ``range_km`` are read when present.
 
 The haze the scene actually renders is configured by the body's ``atmosphere`` block, documented
 at :ref:`sim-atmosphere`; those keys are truth and are invisible to this model.

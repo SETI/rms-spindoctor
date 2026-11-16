@@ -171,9 +171,9 @@ def _sphere_at(center_v: float, center_u: float) -> dict[str, object]:
     return {
         'center_v': center_v,
         'center_u': center_u,
-        'axis1': 20.0,
-        'axis2': 20.0,
-        'axis3': 20.0,
+        'semi_a_px': 10.0,
+        'semi_b_px': 10.0,
+        'semi_c_px': 10.0,
         'phase_angle': 0.0,
         'illumination_angle': 0.0,
     }
