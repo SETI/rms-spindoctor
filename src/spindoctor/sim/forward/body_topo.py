@@ -722,8 +722,8 @@ def _crater_heights(grid: _Grid, spec: TopoBodySpec) -> NDArrayFloatType:
     """Carve the crater height field on the shading grid.
 
     Uses the classic path's carving loop (count law, radius power law, and
-    per-crater rng consumption) at the shading grid's resolution, seeded by
-    the same per-body crater seed the classic path derives.
+    per-crater draw rule) at the shading grid's resolution, seeded by the same
+    per-body crater seed the classic path derives.
 
     Parameters:
         grid: The shading-resolution geometry.
@@ -754,8 +754,7 @@ def _crater_heights(grid: _Grid, spec: TopoBodySpec) -> NDArrayFloatType:
         inside_strict,
         grid.v_ctr,
         grid.u_ctr,
-        nz=np.argwhere(inside_strict),
-        rng=np.random.default_rng(seed_value),
+        crater_seed=seed_value,
         n_craters=n_craters,
         R_min=spec.crater_min_radius * grid.semi_a,
         R_max=spec.crater_max_radius * grid.semi_a,
