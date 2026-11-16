@@ -16,6 +16,7 @@ from spindoctor.obs.obs_inst_sim import ObsSim
 from spindoctor.sim.render import render_combined_model
 from spindoctor.sim.scene import (
     ATMOSPHERE_KEYS,
+    TOP_LEVEL_IDEALIZED_KEYS,
     TOP_LEVEL_TEST_ONLY_KEYS,
     TOP_LEVEL_TRUTH_KEYS,
     TRUTH_KEYS,
@@ -497,6 +498,28 @@ def test_star_limit_scales_with_scene_exposure() -> None:
     ).star_max_usable_vmag()
     assert short == pytest.approx(reference - 2.5, abs=1e-9)
     assert long_exp == pytest.approx(reference + 2.5, abs=1e-9)
+
+
+def test_the_readout_binning_crosses_the_boundary() -> None:
+    """A binned scene's ``nav_params`` states its binning, which a real label states."""
+    scene = _truth_exercising_scene()
+    scene['detector'] = {**scene['detector'], 'binning': 2}
+    nav = build_nav_params(validate_sim_params(scene, source='boundary_probe'))
+    assert nav['binning'] == 2
+
+
+def test_the_binning_is_the_only_detector_value_that_crosses() -> None:
+    """Every top-level key of ``nav_params`` is idealized except the echoed binning."""
+    scene = _truth_exercising_scene()
+    scene['detector'] = {**scene['detector'], 'binning': 2}
+    nav = build_nav_params(validate_sim_params(scene, source='boundary_probe'))
+    assert set(nav) - TOP_LEVEL_IDEALIZED_KEYS == {'binning'}
+
+
+def test_an_unbinned_scene_states_binning_one() -> None:
+    """A scene that sets no binning is read out unbinned, and ``nav_params`` says so."""
+    nav = build_nav_params(_star_only_scene(1.0))
+    assert nav['binning'] == 1
 
 
 def test_test_only_keys_are_stripped_from_nav_params() -> None:

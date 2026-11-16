@@ -214,17 +214,19 @@ class ObsSim(ObsSnapshotInst):
         ``star_psf_sigma`` then puts a fraction ``1 / (2*pi*sigma**2)`` of that
         total in the peak pixel.  The limiting magnitude is where that peak falls
         to twice the effective per-pixel noise sigma -- the matched-filter
-        detection boundary.  The published DN zero point is the camera's
-        electron zero point over its standard gain state, so a real navigator
-        could know it; the scene's truth-side noise block is deliberately not
-        consulted, so a scene that plants noise different from the published values
-        gets a detection limit that does not match the scene's noise. That is desired
-        model error, not a defect.  Keeping this physical matters beyond the
-        faint-star gate: the star NavModel synthesizes each STAR feature's predicted
-        SNR (and from it the CRLB position covariance and reliability score) from how
-        far the star sits above this limit, so an arbitrarily permissive placeholder
-        inflates every simulated star's SNR by tens of orders of magnitude and
-        collapses its covariance to zero.
+        detection boundary.  The peak pixel never holds more than the star's
+        total, so a core narrower than a pixel counts as one pixel, as it does in
+        the renderer's faint cutoff for the background sky.  The published DN zero
+        point is the camera's electron zero point over its standard gain state, so
+        a real navigator could know it; the scene's truth-side noise block is
+        deliberately not consulted, so a scene that plants noise different from the
+        published values gets a detection limit that does not match the scene's
+        noise.  That is desired model error, not a defect.  Keeping this physical
+        matters beyond the faint-star gate: the star NavModel synthesizes each STAR
+        feature's predicted SNR (and from it the CRLB position covariance and
+        reliability score) from how far the star sits above this limit, so an
+        arbitrarily permissive placeholder inflates every simulated star's SNR by
+        tens of orders of magnitude and collapses its covariance to zero.
 
         The exposure the flux formula scales by is the scene's idealized
         ``exposure_sec``, read from the navigator-visible ``nav_params`` view:
@@ -238,6 +240,15 @@ class ObsSim(ObsSnapshotInst):
         time-dependent oops computation and the reported exposure metadata),
         and repurposing it would move the sim epoch as a side effect of a
         photometric knob, so the limit reads the exposure directly instead.
+
+        The readout binning is read from ``nav_params`` too: a real frame's label
+        states its readout mode, so a real pipeline always knows it.  On a frame binned
+        by ``b``, the zero point and the read noise come from the block's
+        ``noise.by_binning[b]`` entry, which holds the navigator's own values for that
+        mode: the zero point in DN per second, and the read noise of one binned pixel in
+        DN.  A mode the block has no entry for reads with the unbinned values.
+        ``star_psf_sigma`` is in native pixels, so the core is ``star_psf_sigma / b``
+        frame pixels.  An unbinned frame uses the unbinned values.
 
         Returns:
             The maximum usable magnitude for stars in this observation.  For
@@ -268,11 +279,23 @@ class ObsSim(ObsSnapshotInst):
             inst_config.get('star_psf_sigma', self.config.category('sim')['star_psf_sigma'])
         )
         read_noise_dn = float(inst_noise['read_noise_dn'])
+        # A binned frame reads its mode's values from the navigator's own block, or
+        # the unbinned values when the block has no entry for the mode, and its
+        # pixels are b native pixels on a side (#993).
+        binning = int(self.nav_params['binning'])
+        if binning != 1:
+            mode = inst_noise.get('by_binning', {}).get(binning)
+            if mode is not None:
+                zero_point_dn = float(mode['star_flux_dn_per_s_vmag0'])
+                read_noise_dn = float(mode['read_noise_dn'])
+            star_psf_sigma /= binning
         # The scene's idealized exposure (navigator-visible; see the docstring
         # for why the Snapshot's reference texp is not consulted here).
         exposure = float(self.nav_params.get('exposure_sec', 1.0))
-        # Peak DN of a magnitude-0 star: its total over the Gaussian PSF core.
-        peak0_dn = zero_point_dn * exposure / (2.0 * math.pi * star_psf_sigma**2)
+        # Peak DN of a magnitude-0 star: its total over the Gaussian PSF core, which
+        # counts as at least one pixel.
+        core_area_px = max(2.0 * math.pi * star_psf_sigma**2, 1.0)
+        peak0_dn = zero_point_dn * exposure / core_area_px
         # Poisson shot noise on the star's own counts keeps the effective sigma
         # above ~1 DN even on a read-noise-free frame.
         sigma_eff = max(read_noise_dn, 1.0)

@@ -230,6 +230,10 @@ applies where. The *channel* is structural:
   a body or star key that is still null after the overlay is left out, as is a
   null key of the ring system or of one of its features. Leaving a key out can
   only take information away, so neither rule lets truth across.
+  One value inside the truth-side ``detector`` block is published: the readout
+  binning, which the view carries as a top-level ``binning`` key (1 when the
+  scene sets none). A real frame's label states its readout mode, so a real
+  pipeline always knows it. No other ``detector`` key crosses.
   Nothing reachable *through the filtered view* carries truth.
 - The navigator-side models read **only** ``obs.nav_params``. None of the
   renderer's output -- rendered star records, body masks, z-order maps, all
@@ -242,7 +246,25 @@ applies where. The *channel* is structural:
   (including any idealized ``instrument_config`` overrides) and is independent
   of the scene's ``noise`` block, so a scene that plants noise different from
   the published values gets a detection limit that does not match the scene's
-  noise. That is planted model error, exactly what such a scene is for.
+  noise. That is planted model error, exactly what such a scene is for. On a
+  binned frame the limit reads the zero point and the read noise from that
+  block's ``noise.by_binning`` entry for the frame's binning, which holds the
+  navigator's own values for that mode in DN: the zero point, and the read noise
+  of one binned pixel. A block with no entry for the mode leaves the limit on
+  its unbinned values. Every raw-DN camera's block has an entry for each binned
+  mode the simulator offers (see :ref:`sim-instrument-files` for the tests that
+  hold them to the catalog). The limit takes ``star_psf_sigma`` in native pixels
+  and divides it by the binning, and a core narrower than a pixel counts as one
+  pixel, since the peak pixel can't hold more than the whole star. The limit's
+  noise is at least 1 DN, so a mode's read noise below 1 DN gives the same limit
+  as 1 DN. Where a camera's unbinned ``read_noise_dn`` is a placeholder above
+  its published read noise, part of the step from the unbinned limit to the
+  binned one comes from that placeholder; each instrument chapter gives its
+  camera's share. The renderer shrinks the catalog's PSF kernel by the binning
+  too, but a scene's own ``optics.psf`` block, the ``match_navigator`` form
+  included, is in frame pixels and isn't shrunk, so on a binned frame such a
+  scene renders a wider core than the limit assumes. Nothing in the limit reads
+  the simulator's camera tables.
 - ``tests/spindoctor/sim/test_information_boundary.py`` constructs a scene
   exercising every ``TRUTH_KEYS`` entry and asserts none is reachable through
   the filtered view. This test is the independence guarantee: any change that
@@ -1196,10 +1218,13 @@ navigator block whose ``data_units`` is ``raw_dn`` reads a DN zero point for its
 star limit, so it must state ``star_flux_dn_per_s_vmag0``; without it the
 navigator would take the generic block's value. That value must match the entry's
 star zero point, converted to DN through the default gain state for a CCD, within
-half the place value of the navigator value's last significant digit. The
-navigator states its own value, so a simulator retune does not move what the
-navigator knows; the test fails when the two drift apart by more than the
-navigator value's rounding.
+half the place value of the last digit the navigator's config file writes, so
+``3.61e6`` is held to 5e3 and ``0.400`` to 5e-4. The navigator states its own
+value, so a simulator retune does not move what the navigator knows; the test
+fails when the two drift apart by more than the navigator value's rounding.
+Each binned mode an entry offers needs its own values in a raw-DN navigator
+block, under ``noise.by_binning``, and their zero point and read noise must match
+the simulator's, converted through the mode's gain, within the same rounding.
 
 The keys of an entry, all directly under the instrument's top-level key:
 
@@ -3924,10 +3949,13 @@ pixels, shrinks by ``b``, so the star lands in fewer, brighter pixels. The hot
 pixels are the detector's native map summed into each binned pixel, the residual
 distortion's non-radial wander shrinks by ``b`` (``k1`` and ``k2`` act on the
 radius normalized to the frame), and the background sky's plate scale grows by
-``b``. The sky's faint cutoff reads the mode's read noise. Positions and sizes
-the scene states are in frame pixels whatever the mode. The realism match reads
-a cohort frame's mode from its size: a camera's full frame binned by ``b`` is
-its native size over ``b`` (the config entry's ``native_frame_size_px``).
+``b``. The sky's faint cutoff reads the mode's read noise. The navigator's view
+of the scene states the binning, as a real label does, and its faint-star limit
+reads the mode's values from the navigator's own configuration (see
+:ref:`sim-information-boundary`). Positions and sizes the scene states are in
+frame pixels whatever the mode. The realism match reads a cohort frame's mode
+from its size: a camera's full frame binned by ``b`` is its native size over
+``b`` (the config entry's ``native_frame_size_px``).
 
 .. _sim-artifacts-block:
 
@@ -4026,8 +4054,41 @@ everything. To fully self-specify, choose ``generic`` and override every key exc
 ``data_units``, which a scene can't set here. A frame's units come only from the
 instrument's config entry. Scene validation refuses the key, and so does
 :func:`~spindoctor.sim.instrument_navigator.resolve_sim_inst_config` for a scene
-that skipped validation. The top-level ``noise`` block still wins over
-``instrument_config.noise`` for rendering. See :doc:`dev_guide_observations`.
+that skipped validation. For rendering, the top-level ``noise`` block wins over
+``instrument_config.noise``.
+
+``instrument_config.noise`` must be a mapping. A null navigator key there keeps the
+navigator's meaning where it has one, so a null ``marker_value`` marks lost lines
+with NaN. The values the faint-star limit reads have no null meaning, and neither
+has the binned-mode table ``noise.by_binning``. Validation refuses a null for any
+of those values and anywhere in the table, with a message that gives the key's path
+and tells the author to leave the key out to take its default. On a binned frame
+the star limit reads its zero point and read noise from the ``noise.by_binning``
+entry for the frame's binning. So a binned scene that pins
+``instrument_config.noise.read_noise_dn`` or
+``instrument_config.noise.star_flux_dn_per_s_vmag0`` must also pin the same key
+under ``instrument_config.noise.by_binning.<b>``, where ``<b>`` is the binning, and
+validation refuses one that doesn't.
+
+A scene is where values from outside the packaged configuration enter the navigator
+block, so scene validation checks every value a scene sets that the faint-star
+limit reads, at every binning. Every read noise must be a finite number of at least
+0, the unbinned one and each binned mode's alike. A read noise of 0 is an ideal
+detector, which the limit reads at its 1 DN noise floor. Every zero point must be a
+finite, positive number, and so must ``star_psf_sigma``. Each key of
+``noise.by_binning`` is a binning factor of at least 2, and each entry is a mapping
+that sets nothing but ``read_noise_dn`` and ``star_flux_dn_per_s_vmag0``. A key may
+be written only as an integer or as a string of ASCII digits, since a scene read
+through JSON carries every key as a string. Validation refuses any other key before
+the scene's table is merged over the navigator's, so a float key such as ``2.0``,
+which would otherwise merge into the navigator's key ``2``, gets the same answer as
+the ``'2.0'`` it becomes when the scene is read through JSON. Validation also
+refuses a key with a leading zero, such as ``'02'``, and a table that writes one
+binning both ways. It refuses a noise value that no frame of the instrument reads:
+an entry for a binning the instrument's readout modes don't offer, and on a
+calibrated-unit camera, whose star limit is a constant that reads no noise value,
+any table and any unbinned ``read_noise_dn`` or ``star_flux_dn_per_s_vmag0``. See
+:doc:`dev_guide_observations`.
 
 ``instrument_config`` is idealized and crosses the information boundary
 unfiltered. A planted value copied into it reaches the navigator as published
@@ -4038,7 +4099,10 @@ author from doing that, so the validator warns instead, with
 :class:`~spindoctor.sim.scene_truth_echo.SimSceneTruthEchoWarning`, which gives both
 sites. It compares each ``noise`` key, ``noise.vidicon`` included, with the
 ``instrument_config.noise`` key of the same name, and ``optics.psf.sigma_v`` and
-``sigma_u`` with ``instrument_config.star_psf_sigma``. The ``detector`` block
+``sigma_u`` with ``instrument_config.star_psf_sigma``. On a binned frame it also
+compares each ``noise`` key with the same key under
+``instrument_config.noise.by_binning.<b>`` for the frame's binning ``<b>``, which
+is the value the frame's star limit reads. The ``detector`` block
 doesn't share a key with the instrument config and isn't compared. The
 navigator doesn't read the vidicon keys, so a ``noise.vidicon`` warning says
 only that the published config carries the scene's realization. When the two

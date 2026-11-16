@@ -14,6 +14,10 @@ the published config repeats exactly:
 
 - ``noise.<key>`` (and ``noise.vidicon.<key>``) against
   ``instrument_config.noise.<key>``, which share their key names.
+- On a binned frame, ``noise.<key>`` against
+  ``instrument_config.noise.by_binning.<b>.<key>`` for the frame's binning ``<b>``,
+  the value the navigator's star limit reads on that frame in place of
+  ``instrument_config.noise.<key>``.
 - ``optics.psf.sigma_v`` and ``optics.psf.sigma_u`` against
   ``instrument_config.star_psf_sigma``, the navigator's PSF sigma.
 
@@ -27,7 +31,7 @@ import warnings
 from collections.abc import Iterator, Mapping
 from typing import Any
 
-from spindoctor.sim.scene_schema import SimSceneValidationError
+from spindoctor.sim.scene_schema import SimSceneValidationError, scene_binning
 
 __all__ = [
     'SimSceneTruthEchoWarning',
@@ -56,6 +60,31 @@ def _noise_echoes(
             yield f'noise{prefix}.{key}', f'instrument_config.noise{prefix}.{key}'
 
 
+def _binned_mode_echoes(
+    truth: Mapping[str, Any], published: Mapping[str, Any], binning: int
+) -> Iterator[tuple[str, str]]:
+    """Yield the ``(truth path, published path)`` pairs where a binned mode repeats truth.
+
+    Parameters:
+        truth: The scene's ``noise`` block.
+        published: The scene's ``instrument_config.noise`` block.
+        binning: The scene's readout binning.
+    """
+    table = published.get('by_binning')
+    if binning == 1 or not isinstance(table, Mapping):
+        return
+    # A scene may write the mode's key as an integer or as its digits.
+    for written in (binning, str(binning)):
+        mode = table.get(written)
+        if not isinstance(mode, Mapping):
+            continue
+        for key, value in truth.items():
+            if value is None or isinstance(value, Mapping) or key not in mode:
+                continue
+            if mode[key] == value:
+                yield f'noise.{key}', f'instrument_config.noise.by_binning.{written}.{key}'
+
+
 def truth_echoes(sim_params: Mapping[str, Any]) -> list[tuple[str, str]]:
     """List each truth value that the scene's ``instrument_config`` repeats.
 
@@ -65,8 +94,8 @@ def truth_echoes(sim_params: Mapping[str, Any]) -> list[tuple[str, str]]:
     Returns:
         ``(truth path, published path)`` pairs, such as
         ``('noise.read_noise_dn', 'instrument_config.noise.read_noise_dn')``, in
-        the order the noise block and then the PSF list them.  Empty when the
-        scene doesn't carry an ``instrument_config``.
+        the order the noise block, the frame's binned mode, and then the PSF list
+        them.  Empty when the scene doesn't carry an ``instrument_config``.
     """
     published = sim_params.get('instrument_config')
     if not isinstance(published, Mapping):
@@ -76,6 +105,7 @@ def truth_echoes(sim_params: Mapping[str, Any]) -> list[tuple[str, str]]:
     published_noise = published.get('noise')
     if isinstance(noise, Mapping) and isinstance(published_noise, Mapping):
         echoes.extend(_noise_echoes(noise, published_noise, ''))
+        echoes.extend(_binned_mode_echoes(noise, published_noise, scene_binning(sim_params)))
     optics = sim_params.get('optics')
     psf = optics.get('psf') if isinstance(optics, Mapping) else None
     sigma = published.get('star_psf_sigma')
