@@ -12,7 +12,9 @@ reads from the table instead, and the limit of a binned frame reads the value th
 pins for its mode.
 """
 
+import json
 import math
+import re
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
@@ -302,6 +304,29 @@ def test_a_binning_written_both_as_an_integer_and_as_digits_is_refused() -> None
         r'same binning; keep one',
     ):
         validate_sim_params(_scene({'noise': {'by_binning': table}}), source='by_binning_probe')
+
+
+@pytest.mark.parametrize(
+    ('through_json', 'shown'),
+    [(False, '2.0'), (True, "'2.0'")],
+    ids=['as_written', 'through_json'],
+)
+def test_a_binning_key_written_as_a_float_is_refused(through_json: bool, shown: str) -> None:
+    """A key ``2.0`` is refused whether the scene is read as written or through JSON.
+
+    As written, ``2.0`` equals and hashes as the packaged table's key ``2``, so it must
+    be refused before the scene's table is merged over the packaged one.
+    """
+    table = {2.0: {'read_noise_dn': 1.0, 'star_flux_dn_per_s_vmag0': 1.0e6}}
+    scene = _scene({'noise': {'by_binning': table}})
+    if through_json:
+        scene = json.loads(json.dumps(scene))
+    with pytest.raises(
+        SimSceneValidationError,
+        match=r'instrument_config\.noise\.by_binning: a key must be a binning factor of at '
+        rf'least 2; got {re.escape(shown)}$',
+    ):
+        validate_sim_params(scene, source='by_binning_probe')
 
 
 def test_a_binning_key_with_a_leading_zero_is_refused() -> None:
