@@ -36,9 +36,10 @@ The simulator has three equally valid entry points (the "three peers"):
 Every parameter is reachable from all three; adding a physical effect means
 adding it to the renderer, the scene schema, and a GUI control together. All three
 hold a scene to the same rules: every render validates its scene first, whether
-the scene came from a file, a Python dict, or the editor. The editor's live preview
-is one such render. The navigator side -- how a simulated frame is turned into
-``NavFeature`` objects and navigated -- is documented in the simulated-model chapters
+the scene came from a file, a Python dict, or the editor. The editor's fast preview
+and its full render are both such renders. The navigator side -- how a simulated
+frame is turned into ``NavFeature`` objects and navigated -- is documented in the
+simulated-model chapters
 (:doc:`dev_guide_navigation_models_body_simulated`,
 :doc:`dev_guide_navigation_models_ring_simulated`,
 :doc:`dev_guide_navigation_models_star_simulated`); this chapter documents the
@@ -556,9 +557,10 @@ same way (background stars, cosmic rays, crater placement).
 ``sim_params`` dict and returns ``(image, metadata)``. It encodes the scene as
 deterministic sorted-key JSON, validates the scene with
 :func:`spindoctor.sim.scene.validate_sim_params`, runs the pipeline on a fresh frame,
-and caches the result on a key built from that JSON. The render cache holds two
-entries (``lru_cache(maxsize=2)``), and the body, mesh, and star renderers keep small
-shape caches of their own. ``clear_render_caches`` drops them all for determinism
+and caches the result on a key built from that JSON. The render cache holds three
+entries (``lru_cache(maxsize=3)``), one each for the scene editor's fast preview, its
+full render, and the frame the navigator reads. The body, mesh, and star renderers keep
+small shape caches of their own. ``clear_render_caches`` drops them all for determinism
 tests. The caching contract: scene parameters are JSON-serializable scalars, lists,
 and maps, no wall-clock or global RNG state is consulted, and two renders of the same
 scene are bit-identical on one machine.
@@ -581,13 +583,46 @@ with the label the caller gave.
 
 Before each preview the editor calls :func:`spindoctor.sim.scene.validate_scene`, so
 the author sees why a scene would be refused. A refused scene leaves the last valid
-preview on screen. A scene that passes renders through
-:func:`~spindoctor.sim.render.render_combined_model` with ``ignore_offset=True``, which
-draws it without its planted offset and roll. The editor's check and the render's own
-check use the same label, so the render finds the editor's check in the cache. The
-editor's first check of a loaded scene misses the load's entry and runs in full: it
-uses the editor's own label, and the editor rebuilds a loaded scene with its defaults
-filled in, so the contents differ from the file's.
+picture on screen. A scene that passes renders through
+:func:`~spindoctor.sim.render.render_combined_model` with ``ignore_offset=True`` and
+``preview=True``, which draws its fast preview without its planted offset and roll.
+The editor's check and the render's own check use the same label, so the render finds
+the editor's check in the cache. The editor's first check of a loaded scene misses the
+load's entry and runs in full: it uses the editor's own label, and the editor rebuilds
+a loaded scene with its defaults filled in, so the contents differ from the file's.
+
+.. _sim-editor-preview-render:
+
+**The editor's fast preview.** ``render_combined_model(..., preview=True)`` renders
+the approximate image the scene editor shows while its user edits. The flag reaches the
+stages as ``SimFrame.preview`` and simplifies three of them:
+
+- **Oversampling.** The radiance is drawn on the detector grid. A scene with a PSF
+  would otherwise draw on a grid 4 times finer in each direction, 16 times the pixels,
+  and every later stage would pay for that.
+- **Limb anti-aliasing.** Each body is drawn with ``anti_aliasing`` 0. On the detector
+  grid, the default ``anti_aliasing`` of 1 draws the limb on a supersampling grid 4
+  times finer in each direction, which on a full-size frame costs most of a preview's
+  time. A 418-pixel disc took 1.3 s with it and 0.1 s without it.
+- **Distortion.** The optics stage skips the residual distortion warp. It moves light
+  by a fraction of a pixel for most cameras, and it is one of the slowest optics steps.
+
+Every other stage runs as in the full render. The PSF stays, at oversample 1, where
+its convolution takes 10 to 20 ms on a full-size frame. Without it, every star would be
+a single pixel holding its whole flux, since the PSF is a star's only shape. The
+editor's display is stretched to the frame's peak, so a one-pixel star would dim
+everything else on screen. The body moves to its position by linear interpolation
+from its cached drawing, as in the full render (see :ref:`placing a body
+<sim-body-placement>`). That move costs little at oversample 1.
+
+The preview is deterministic, and it never modifies the caller's scene. The flag is
+part of the render cache key, so a preview is never handed out for a full render. On a
+1024 x 1024 Cassini narrow-angle frame of one 418-pixel sphere with
+``instrument_defaults`` on, the preview took 0.22 s, and 0.18 s after an edit that
+reused the cached body drawing. The full render took 2.4 to 3.1 s, and 1.2 to 1.4 s
+after such an edit. These were measured on one core of a shared machine under load.
+Nothing but the editor's on-screen picture may ask for a preview: a test, sweep,
+baseline, saved PNG, or any other image that leaves the editor uses the full render.
 
 .. _sim-instruments:
 
@@ -673,39 +708,42 @@ loss puts a calibrated pixel at the marker: the artifact modes and
 
 The editor's status bar shows a rendered frame's units and value range and the
 share of pixels at the marker (:func:`~spindoctor.sim.instrument_navigator.frame_units_summary`).
-It reads the frame the navigator reads, with the planted offset applied, although
-the preview beside it is offset-free: the offset moves the scene within the
-frame, and can take a body near the edge out of it. When the navigator's image
+It reads the full render of the frame the navigator reads, with the planted offset
+applied, although the picture beside it is offset-free: the offset moves the scene
+within the frame, and can take a body near the edge out of it. When the navigator's image
 classifier would not call that frame clean, the status bar says why, in the
 classifier's order (:func:`~spindoctor.sim.instrument_navigator.read_frame_as_navigator`):
 a peak below the blank limit first, then the overexposed share, then a marker
 share above ``max_missing_frac_clean``. An empty ``coiss_calib_nac`` frame's sky
 residual is below the blank limit, so the navigator calls it blank; an empty
-``vgiss`` frame's is above it. The preview stretch is relative to the frame, so
+``vgiss`` frame's is above it. The display stretch is relative to the frame, so
 the units are otherwise invisible: a ``vgiss`` frame spanning about 0 to 1 looks
 the same as a ``coiss_nac`` frame spanning 20 to 4095.
 
 The editor validates the scene on the UI thread before it renders the preview. If
-validation refuses the scene, the last valid preview stays on screen, the status bar
-shows ``scene would be refused:`` and the reason, and the editor does not start a
-verdict render. It cancels any verdict render already running or waiting. The marks,
+validation refuses the scene, the last valid picture stays on screen, the status bar
+shows ``scene would be refused:`` and the reason, and the editor starts no background
+render. It cancels any background render already running or waiting. The marks,
 the saturation overlay, and the hit test read the scene behind the picture. A
 right-click leaves the selection empty while that scene differs from the edited one,
 since an object's index in the picture can belong to a different object in the edited
 scene. When a later edit makes the scene valid again, the preview renders as usual. A
-render that fails on a valid scene opens an error dialog, and so does a validator that
-fails with an error other than a refusal.
+preview that fails on a valid scene opens an error dialog, and so does a validator
+that fails with an error other than a refusal.
 
-Once a scene passes validation and renders, what happens next depends on the planted
-offset. Without one, the preview is the frame the navigator reads, and the status bar
-describes it as soon as it renders. With one, the navigated frame is a second render,
-and the editor runs it on a worker thread so that an edit never waits for it. The
-preview appears at once, and the status bar shows the units followed by
-``verdict pending``. When the second render finishes, its summary replaces that line.
-A newer edit supersedes the verdict on its way, so the status bar never shows the
-verdict for an older scene. A failed second render puts its error on the status bar
-and prints its traceback to standard
-error. :ref:`sim-editor-verdict-thread` describes the worker.
+Once a scene passes validation, the editor draws its fast preview (see
+:ref:`the fast preview <sim-editor-preview-render>`), and the status bar shows the
+units followed by ``verdict pending``. When the editor has been idle for its delay,
+the full render runs on a worker thread. Without a planted offset, the full render is
+the frame the navigator reads, and the status bar describes it when it arrives. With
+one, the navigated frame is a render of its own, and a second worker runs it at the
+same time. Its summary replaces the pending line when it finishes. A newer edit
+discards both renders, so the status bar never shows the verdict for an older scene.
+A failed background render puts the first line of its error on the status bar, cut
+to 80 characters, and prints its traceback to standard error. When the full render
+of an offset-free scene fails, the units line and the saturation overlay's status say
+so in place of waiting for it. :ref:`sim-editor-verdict-thread` describes the
+workers.
 
 .. _sim-optics-stage:
 
@@ -1827,6 +1865,37 @@ copy of the scene entry, leaving out any key the scene sets to null, so a null k
 and an absent one give the same truth. The stage then puts in the render-grid
 centers and axes, fills in the name and range when the scene leaves them out, and,
 for a mesh body, adds the pose scatter it drew.
+
+.. _sim-body-placement:
+
+**Placing a body.** Each body is drawn once, centered on the frame, and the drawing
+is cached on every parameter except position. The renderer then moves the drawing to
+the body's scene position plus the planted offset by linear interpolation
+(:mod:`~spindoctor.sim.forward.translate`). An offset sweep therefore draws each body
+once and only moves it at each step. At catalog size a new drawing costs 0.03 to
+0.12 s. At 1024 x 1024 it costs 1.3 to 4.6 s, against 0.02 to 1.9 s to move a cached
+one.
+
+A move by a fraction ``f`` of a pixel blends two copies of the drawing: one at the
+whole-pixel position, weighted ``1 - f``, and one a pixel farther, weighted ``f``.
+The body's total brightness, its centroid, and the midpoint of its limb come out
+exact. The limb, though, is softer than it would be if the body were drawn at that
+position: the blend adds a variance of ``f(1 - f)`` square pixels, up to 0.25 at half
+a pixel. A scene with a PSF is drawn on a grid 4 times finer and then blurred, so
+there the softening is negligible. A scene without a PSF is drawn on the detector
+grid, and the softening reaches the image.
+
+Navigation barely notices it. On a 220 x 220 limb scene and a disc scene, both
+without a PSF, planted offsets were stepped by 0.1 px across a whole pixel, with 8
+seeds per step. Drawing each body at its exact sub-pixel position instead changed no
+technique's offset error by more than 0.025 px and no confidence by more than 0.003.
+That is at or below the scatter from noise alone. BodyLimbNav's own error varies by
+about 0.1 px with the fractional part of the offset, but it varies the same way with
+exact drawing and with a PSF, so the move does not cause it. The simulator therefore
+keeps the cached drawing and the interpolated move.
+
+.. Measured 2026-11-14 for #984, which decided against drawing at the exact
+   sub-pixel position. The BodyLimbNav ripple is #282.
 
 The topographic path
 --------------------
@@ -4173,11 +4242,17 @@ realism addition needs -- live in their own module:
    * - ``scene_io.py``
      - Load / Save Scene (YAML) via :mod:`spindoctor.sim.scene`.
    * - ``render_display.py``
-     - The live preview (render, stretch, zoom, saturation overlay) and the
-       units-and-verdict line of the status bar.
+     - The picture (fast preview, then full render), its stretch, zoom, and
+       saturation overlay, PNG export, and the status bar's units-and-verdict line
+       and its word for the image on screen.
+   * - ``full_render.py``
+     - The full render of the picture, run on a worker thread once the editor is
+       idle (see :ref:`sim-editor-verdict-thread`).
    * - ``verdict.py``
      - The navigated frame's verdict, rendered on a worker thread (see
        :ref:`sim-editor-verdict-thread`).
+   * - ``worker.py``
+     - ``LatestRequestRunner``, the worker-thread runner both background renders use.
    * - ``widgets.py`` / ``base.py``
      - Shared widget helpers and the mixin-facing protocol.
    * - ``body_mesh_keys.py``
@@ -4265,40 +4340,63 @@ authoritative.
 
 .. _sim-editor-verdict-thread:
 
-The verdict render's worker thread
-----------------------------------
+The editor's worker threads
+---------------------------
 
-The status bar reports the navigator's verdict on the frame the navigator reads.
-For a scene with a planted offset that frame is a second render (see
-:ref:`Instruments <sim-instruments>`), which ``VerdictRunner`` in ``verdict.py`` runs on a
-worker thread while the preview stays on the UI thread.
+The editor draws its picture in two passes. Each edit, after the 140 ms debounce,
+renders the fast preview on the UI thread and restarts an idle timer (1 s by default,
+set by ``--full-render-delay``). When the timer fires, the editor asks two runners for
+full renders, each a ``LatestRequestRunner`` from ``worker.py`` on its own worker
+thread. ``FullRenderRunner`` in ``full_render.py`` renders the offset-free picture.
+``VerdictRunner`` in ``verdict.py`` renders the frame the navigator reads (see
+:ref:`Instruments <sim-instruments>`), and only for a scene with a planted offset.
 
-- **Requests.** Each preview of a valid scene with a planted offset asks for a
-  verdict, which takes the next generation number and an independent deep copy of
-  ``sim_params``. At most one verdict render runs. A request made while one runs
-  waits, and replaces any request already waiting. A render whose generation is
-  older than the latest request is discarded when it finishes. An offset-free
-  preview, a scene that validation refuses, a failed preview, and closing the
-  window each cancel, by taking a generation number that no request uses. A
+- **Requests.** A request takes the next generation number and an independent deep
+  copy of ``sim_params``. At most one render per runner runs. A request made while
+  one runs waits, and replaces any request already waiting. A render whose
+  generation is older than the latest request is discarded when it finishes. A new
+  preview, a scene that validation refuses, a failed preview, and closing the window
+  each cancel both runners, by taking a generation number that no request uses. A
   running render can't be interrupted, so a stale one runs to the end before the
-  waiting request starts.
+  waiting request starts. If the idle timer fires while the picture shows a scene
+  other than the edited one, nothing starts, because the edit's preview is on its way
+  and restarts the timer.
+- **Acceptance.** A finished render reaches the editor with the copy of the scene it
+  rendered. The editor shows it only if that copy equals the edited scene. This also
+  covers an edit made after the render started and still waiting out the debounce,
+  which no cancel has seen yet. A full render that is shown replaces the picture, its
+  metadata, and the scene behind it, and the status bar then says ``Full render``. A
+  failure carries no scene, so only the cancel keeps an outdated failure off the
+  status bar.
+- **Every scene change redraws.** Because both checks compare scenes, every change
+  to ``sim_params`` must request an update, even one that changes no pixel, such as
+  the midtime or a save that drops a stale ``published_equals_truth`` path. A change
+  that skips the update leaves the picture's scene behind the edited one, so the full
+  render and the verdict are never shown.
+- **What uses the full render.** A saved PNG, the units-and-verdict line, and the
+  saturation overlay. Saving while the preview is on screen renders the full image
+  of the scene behind the picture on the UI thread first. If that scene is still the
+  edited one, the new image replaces the preview, as a finished background render
+  would, and the background full render of that scene is canceled. An idle timer
+  that fires afterwards then starts only the verdict render. The cursor's pixel
+  readout and the right-click hit test read whichever image is on screen.
 - **Hand-back.** The worker touches no Qt object and no editor state. It writes its
-  summary, or its error and traceback, into its job object and then sets the job's
-  ``threading.Event``. While a render runs, a ``QTimer`` on the UI thread polls
-  that event every 25 ms, and only the UI thread reads the job, writes the status
-  bar, and prints a failure's traceback. Every Qt object is therefore created,
-  used, and destroyed on the UI thread. A worker that outlives the window writes
-  only into a job that nothing reads, because the poll timer is the runner's child
-  and is destroyed with the window. A worker that can't start reports the failure
-  on the status bar.
+  result, or its error and traceback, into its job object and then sets the job's
+  ``threading.Event``. While a render runs, a ``QTimer`` on the UI thread polls that
+  event every 25 ms, and only the UI thread reads the job, updates the picture and the
+  status bar, and prints a failure's traceback. Every Qt object is therefore created,
+  used, and destroyed on the UI thread. A worker that outlives the window writes only
+  into a job that nothing reads, because the poll timer is the runner's child and is
+  destroyed with the window. A worker that can't start reports the failure on the
+  status bar.
 - **Exit.** The worker is an ordinary, non-daemon thread, so the interpreter
   waits for it before it shuts down: quitting the editor mid-render waits for
   that render to finish. A daemon thread would be killed at shutdown in the
   middle of the render's numerical code, which aborts the process. Only the UI
   thread's poll starts a waiting request, and closing the window drops it, so
-  exit waits for at most one render.
-- **Two renders at once.** The worker's render can overlap a preview render on
-  the UI thread. That is safe because each render builds its own
+  exit waits for at most one render per runner.
+- **Three renders at once.** The two workers' renders can overlap each other and a
+  preview render on the UI thread. That is safe because each render builds its own
   ``SimFrame``, its own parameter dict (decoded from the cache key), and its own
   per-stage ``numpy.random.Generator`` streams, and the sim package keeps no
   other module state and does not log. Its ``lru_cache`` tables (the scene cache
@@ -4306,17 +4404,16 @@ worker thread while the preview stays on the UI thread.
   coherent under concurrent calls, and no caller writes into a cached value:
   ``render_combined_model`` returns copies, and the stage caches' callers only
   read theirs. The configuration is loaded by the first preview, before any
-  verdict is requested, and the render path only reads it. Two overlapping misses
-  on one cache key compute the same value twice, which costs time and is
-  otherwise harmless.
-- **The GIL.** The two renders share the interpreter lock, so the UI thread can
-  wait for it while a verdict render runs. A render that rebuilds a shape holds
-  the UI longest: a mesh body's Python loop over its faces kept the UI waiting
-  for stretches of 90 to 140 ms when every cache was cleared first. In the editor
-  the stall stays short in practice, because the worker renders the scene whose
-  preview the UI thread has just drawn, so the shape, star, relief, and PSF caches
-  are warm and the navigated render reuses them; across the shipped offset scenes
-  the UI waited at most about 10 ms.
+  background render is requested, and the render path only reads it. Two
+  overlapping misses on one cache key compute the same value twice, which costs time
+  and is otherwise harmless.
+- **The GIL.** The renders share the interpreter lock, so the UI thread can wait for
+  it while a background render runs. A render that rebuilds a shape holds the UI
+  longest: a mesh body's Python loop over its faces kept the UI waiting
+  for stretches of 90 to 140 ms when every cache was cleared first. The background
+  renders start only once the user has stopped editing, so the UI thread is usually
+  idle while they run. The preview and the full render draw a body at different
+  resolutions, so they do not share its cached drawing.
 
 Running navigation on a simulated image
 =======================================

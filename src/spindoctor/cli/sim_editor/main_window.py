@@ -8,12 +8,13 @@ later phases) new control tabs live in their own mixin module.
 """
 
 import argparse
+import math
 import sys
 from pathlib import Path
 from typing import Any, cast
 
 import numpy as np
-from PyQt6.QtCore import QPointF, Qt
+from PyQt6.QtCore import QPointF, Qt, QTimer
 from PyQt6.QtGui import QMouseEvent, QWheelEvent
 from PyQt6.QtWidgets import (
     QApplication,
@@ -37,6 +38,7 @@ from spindoctor.cli.sim_editor.body_atmosphere import BodyAtmosphereMixin
 from spindoctor.cli.sim_editor.body_mesh_keys import MeshKeyStash
 from spindoctor.cli.sim_editor.body_tab import BodyTabMixin
 from spindoctor.cli.sim_editor.expected_outcome import ExpectedOutcomeMixin
+from spindoctor.cli.sim_editor.full_render import FullRenderRunner
 from spindoctor.cli.sim_editor.global_fields import GlobalFieldsMixin
 from spindoctor.cli.sim_editor.noise import NoiseMixin
 from spindoctor.cli.sim_editor.optics_tab import OpticsTabMixin
@@ -50,6 +52,12 @@ from spindoctor.cli.sim_editor.tabs import TabsMixin
 from spindoctor.cli.sim_editor.verdict import VerdictRunner
 from spindoctor.cli.sim_editor.widgets import ImageLabel, ParameterUpdater
 from spindoctor.ui.common import ZoomPanController
+
+# How long the editor waits after an edit before it runs the full render.
+DEFAULT_FULL_RENDER_DELAY_SEC = 1.0
+# The longest delay a Qt timer holds: its interval is a signed 32-bit count of
+# milliseconds.
+MAX_FULL_RENDER_DELAY_SEC = (2**31 - 1) / 1000.0
 
 
 class CreateSimulatedImageModel(
@@ -73,8 +81,14 @@ class CreateSimulatedImageModel(
 ):
     """Interactive editor for a simulated-image scene with a live preview."""
 
-    def __init__(self) -> None:
-        """Initialize the data model, build the UI, and render the first frame."""
+    def __init__(self, *, full_render_delay_sec: float = DEFAULT_FULL_RENDER_DELAY_SEC) -> None:
+        """Initialize the data model, build the UI, and render the first frame.
+
+        Parameters:
+            full_render_delay_sec: How long, in seconds, the editor waits after the
+                last edit before it starts the full render.  Until then it shows the
+                simulator's fast preview.
+        """
         super().__init__()
         # The docs call this tool the sd_create_simulated_image scene editor.
         self.setWindowTitle('SpinDoctor Scene Editor')
@@ -110,6 +124,10 @@ class CreateSimulatedImageModel(
         # refused, the overlays and the hit test read this copy, so they match
         # the picture on screen.
         self._displayed_params: dict[str, Any] = {}
+        # Whether _current_image is the full render, rather than the fast preview.
+        self._showing_full_render = False
+        # Whether the full render of the preview on screen has failed.
+        self._full_render_failed = False
         self._base_pixmap = None
         # Ellipsoid-only body keys held while their body is a polyhedral mesh.
         self._mesh_key_stash = MeshKeyStash()
@@ -134,6 +152,15 @@ class CreateSimulatedImageModel(
         self._verdict_runner = VerdictRunner(self)
         self._verdict_runner.ready.connect(self._show_verdict)
         self._verdict_runner.failed.connect(self._show_verdict_failure)
+        # Each edit draws the fast preview.  Once the editor has been idle for the
+        # delay, the full render runs off the UI thread (see full_render.py).
+        self._full_render_runner = FullRenderRunner(self)
+        self._full_render_runner.ready.connect(self._show_full_render)
+        self._full_render_runner.failed.connect(self._show_full_render_failure)
+        self._idle_timer = QTimer(self)
+        self._idle_timer.setSingleShot(True)
+        self._idle_timer.setInterval(round(full_render_delay_sec * 1000.0))
+        self._idle_timer.timeout.connect(self._start_full_renders)
 
         self._setup_ui()
         self._update_image()
@@ -191,6 +218,8 @@ class CreateSimulatedImageModel(
         status_bar.addPermanentWidget(self._saturation_label)
         self._units_label = QLabel('')
         status_bar.addPermanentWidget(self._units_label)
+        self._image_kind_label = QLabel('')
+        status_bar.addPermanentWidget(self._image_kind_label)
         self._zoom_label = QLabel('Zoom: 1.00x')
         status_bar.addPermanentWidget(self._zoom_label)
         self.setStatusBar(status_bar)
@@ -414,6 +443,33 @@ class CreateSimulatedImageModel(
         self._update_display()
 
 
+def _delay_seconds(text: str) -> float:
+    """Parse a command-line delay in seconds, refusing one a Qt timer can't hold.
+
+    Parameters:
+        text: The option's argument.
+
+    Returns:
+        The delay in seconds.
+
+    Raises:
+        argparse.ArgumentTypeError: If the text is not a finite number of seconds,
+            0 or more, or is longer than :data:`MAX_FULL_RENDER_DELAY_SEC`.
+    """
+    try:
+        seconds = float(text)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(f'not a number of seconds: {text!r}') from exc
+    if not math.isfinite(seconds) or seconds < 0.0:
+        raise argparse.ArgumentTypeError(f'must be a finite number of seconds, 0 or more: {text!r}')
+    if seconds > MAX_FULL_RENDER_DELAY_SEC:
+        raise argparse.ArgumentTypeError(
+            f'must be at most {MAX_FULL_RENDER_DELAY_SEC:.3f} seconds, the longest '
+            f'interval a Qt timer holds: {text!r}'
+        )
+    return seconds
+
+
 def build_arg_parser() -> argparse.ArgumentParser:
     """The scene editor's command-line parser.
 
@@ -428,6 +484,16 @@ def build_arg_parser() -> argparse.ArgumentParser:
         description=(
             'SpinDoctor Scene Editor: an interactive editor for simulated-image '
             'scenes with a live preview.'
+        ),
+    )
+    parser.add_argument(
+        '--full-render-delay',
+        type=_delay_seconds,
+        default=DEFAULT_FULL_RENDER_DELAY_SEC,
+        metavar='SECONDS',
+        help=(
+            'how long to wait after the last edit before replacing the fast preview '
+            f'with the full render (default: {DEFAULT_FULL_RENDER_DELAY_SEC:g})'
         ),
     )
     parser.add_argument(
@@ -453,7 +519,7 @@ def main(argv: list[str] | None = None) -> None:
     """
     args = build_arg_parser().parse_args(argv)
     app = QApplication(sys.argv)
-    window = CreateSimulatedImageModel()
+    window = CreateSimulatedImageModel(full_render_delay_sec=args.full_render_delay)
     if args.scene is not None:
         window.load_scene_file(args.scene)
     window.show()

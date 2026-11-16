@@ -13,6 +13,7 @@ are never invoked on the base itself).
 from typing import Any
 
 import numpy as np
+from PyQt6.QtCore import QTimer
 from PyQt6.QtGui import QPixmap
 from PyQt6.QtWidgets import (
     QCheckBox,
@@ -33,6 +34,7 @@ from PyQt6.QtWidgets import (
 )
 
 from spindoctor.cli.sim_editor.body_mesh_keys import MeshKeyStash
+from spindoctor.cli.sim_editor.full_render import FullRenderRunner
 from spindoctor.cli.sim_editor.verdict import VerdictRunner
 from spindoctor.cli.sim_editor.widgets import ImageLabel, ParameterUpdater
 from spindoctor.ui.common import ZoomPanController
@@ -46,6 +48,8 @@ class SimEditorBase(QMainWindow):
     _current_image: np.ndarray | None
     _last_meta: dict[str, Any]
     _displayed_params: dict[str, Any]
+    _showing_full_render: bool
+    _full_render_failed: bool
     _base_pixmap: QPixmap | None
     _mesh_key_stash: MeshKeyStash
 
@@ -61,6 +65,8 @@ class SimEditorBase(QMainWindow):
     _syncing: bool
     _updater: ParameterUpdater
     _verdict_runner: VerdictRunner
+    _full_render_runner: FullRenderRunner
+    _idle_timer: QTimer
     _zoom_ctl: ZoomPanController
 
     # ---- Left image panel ----
@@ -69,6 +75,7 @@ class SimEditorBase(QMainWindow):
     _status_label: QLabel
     _saturation_label: QLabel
     _units_label: QLabel
+    _image_kind_label: QLabel
     _zoom_label: QLabel
 
     # ---- Right tabs panel ----
