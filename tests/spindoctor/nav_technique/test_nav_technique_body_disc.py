@@ -11,6 +11,7 @@ from tests.spindoctor.nav_technique.conftest import (
     NavContextFactory,
 )
 
+import spindoctor.nav_technique.nav_technique_body_disc as disc_module
 from spindoctor.feature.feature import NavFeature, NavReliabilityBreakdown
 from spindoctor.feature.feature_type import NavFeatureType
 from spindoctor.feature.flags import BodyDiscFlags
@@ -25,6 +26,7 @@ from spindoctor.nav_technique.nav_technique_body_disc import (
     _RotationCandidate,
 )
 from spindoctor.nav_technique.technique_result import NavTechniqueResult
+from spindoctor.support.correlate import navigate_with_pyramid_kpeaks
 from spindoctor.support.filters import NavFilterKind, NavFilterSpec
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 
@@ -499,3 +501,49 @@ def test_rotation_level_two_skips_a_nan_first_sample(monkeypatch: pytest.MonkeyP
     _stub_rotation_qualities(monkeypatch, technique, [5.0] * 16 + [float('nan'), 4.0, 3.0])
     _, ncc_result, _ = technique._run_3dof_pyramid(max_rotation_deg=5.0, **_ROTATION_STUB_INPUTS)
     assert ncc_result['call'] == 17
+
+
+def _record_pyramid_refinements(monkeypatch: pytest.MonkeyPatch) -> list[str]:
+    """Record the final-pass refinement of every pyramid the disc technique runs.
+
+    Parameters:
+        monkeypatch: The pytest monkeypatch fixture.
+
+    Returns:
+        The list each pyramid call appends its refinement to; a call that names none
+        records the default.
+    """
+    calls: list[str] = []
+
+    def _spy(*args: Any, **kwargs: Any) -> dict[str, Any]:
+        calls.append(kwargs.get('final_refinement', 'cross_power'))
+        return navigate_with_pyramid_kpeaks(*args, **kwargs)
+
+    monkeypatch.setattr(disc_module, 'navigate_with_pyramid_kpeaks', _spy)
+    return calls
+
+
+def test_body_disc_translation_keeps_the_cross_power_refinement(
+    monkeypatch: pytest.MonkeyPatch,
+    disc_image: DiscImageFactory,
+    make_nav_context: NavContextFactory,
+) -> None:
+    """The translation-only correlation refines its final pass on the cross-power."""
+    calls = _record_pyramid_refinements(monkeypatch)
+    shape = (160, 160)
+    feature = _make_disc_feature(
+        'moonA', extfov_shape=shape, image_center_vu=(80.0, 80.0), radius=20.0
+    )
+    context = make_nav_context(disc_image(shape, (80.0, 80.0), 20.0), extfov_margin_vu=(16, 16))
+    BodyDiscCorrelateNav().navigate([feature], context)
+    assert calls == ['cross_power']
+
+
+def test_body_disc_rotation_samples_keep_the_cross_power_refinement(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Each rotation sample's correlation refines its final pass on the cross-power."""
+    calls = _record_pyramid_refinements(monkeypatch)
+    inputs = {**_ROTATION_STUB_INPUTS, 'image': np.ones((8, 8))}
+    BodyDiscCorrelateNav()._ncc_at_rotation(theta_rad=0.0, **inputs)
+    assert calls == ['cross_power']

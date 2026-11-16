@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 import numpy as np
 import pytest
 from tests.spindoctor.nav_technique.conftest import NavContextFactory
 
+import spindoctor.nav_technique.nav_technique_ring_annulus as annulus_module
 from spindoctor.feature.feature import NavFeature, NavReliabilityBreakdown
 from spindoctor.feature.feature_type import NavFeatureType
 from spindoctor.feature.flags import RingAnnulusFlags
@@ -17,6 +20,7 @@ from spindoctor.nav_technique.nav_technique_ring_annulus import (
     _annulus_orbit_channel,
 )
 from spindoctor.nav_technique.technique_result import NavTechniqueResult
+from spindoctor.support.correlate import navigate_with_pyramid_kpeaks
 from spindoctor.support.filters import NavFilterKind, NavFilterSpec
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 
@@ -657,3 +661,29 @@ def test_annulus_orbit_channel_empty_when_no_sigma() -> None:
     g, sigma = _annulus_orbit_channel([feat])
     assert sigma == 0.0
     assert float(np.linalg.norm(g)) == 0.0
+
+
+def test_ring_annulus_refines_its_final_pass_on_the_ncc(
+    monkeypatch: pytest.MonkeyPatch,
+    make_nav_context: NavContextFactory,
+) -> None:
+    """The annulus correlation asks for the NCC quadratic refinement on its final pass."""
+    calls: list[str] = []
+
+    def _spy(*args: Any, **kwargs: Any) -> dict[str, Any]:
+        calls.append(kwargs.get('final_refinement', 'cross_power'))
+        return navigate_with_pyramid_kpeaks(*args, **kwargs)
+
+    monkeypatch.setattr(annulus_module, 'navigate_with_pyramid_kpeaks', _spy)
+    shape = (180, 180)
+    image = _render_annulus_image(shape, (90.0, 90.0), 14.0, 28.0)
+    feature = _make_annulus_feature(
+        'SATURN',
+        extfov_shape=shape,
+        image_center_vu=(90.0, 90.0),
+        inner_radius=14.0,
+        outer_radius=28.0,
+        planted_offset_vu=(1.0, 1.0),
+    )
+    RingAnnulusNav().navigate([feature], make_nav_context(image, extfov_margin_vu=(16, 16)))
+    assert calls == ['ncc_quadratic']
