@@ -3,11 +3,11 @@
 A scene's ``instrument_config`` overrides keys of the navigator block its instrument
 resolves to.  The overrides are published knowledge: they cross the information
 boundary, and the navigator's faint-star limit reads its zero point, read noise, and PSF
-width from the block they leave.  This module checks every value of that block the limit
-reads, including the binned-mode table ``noise.by_binning``, so that every value a scene
-pins is a value the limit can use and some frame of that scene reads.  A scene is the
-only outside source of these values, so the scene validator is the one place that
-checks them.  The scalar primitives it shares with the other block checkers stay in
+width from the block they leave.  This module checks every one of those values a scene
+sets, including the binned-mode table ``noise.by_binning``, so that every value a scene
+pins is a value the limit can use and a frame of the scene's instrument reads.  A scene
+is the only outside source of these values, so the scene validator is the one place
+that checks them.  The scalar primitives it shares with the other block checkers stay in
 :mod:`spindoctor.sim.scene_checks`, which also documents the overall validation contract
 (every violation raises :class:`spindoctor.sim.scene_schema.SimSceneValidationError`).
 
@@ -123,35 +123,47 @@ def _check_binning_keys(table: Mapping[Any, Any], *, source: str) -> None:
             )
 
 
-def _check_table_is_read(
-    table: Mapping[Any, Any], resolved: Mapping[str, Any], *, instrument: str, source: str
+def _check_noise_is_read(
+    noise: Mapping[Any, Any], resolved: Mapping[str, Any], *, instrument: str, source: str
 ) -> None:
-    """Refuse a binned-mode table entry that no frame of the instrument reads.
+    """Refuse a star-limit noise value that no frame of the instrument reads.
 
-    The star limit reads the table only on a raw-DN block, and there only the entry
-    for the frame's binning.  A calibrated-unit block's limit is a constant that reads
-    no noise value, so any table there is refused, and on a raw-DN block an entry for
-    a binning the instrument's readout modes don't offer is refused.  Every key here is
-    a binning factor of at least 2, since the key check refuses any other key first.
+    The star limit reads noise values only on a raw-DN block, and there only the
+    binned-mode entry for the frame's binning.  A calibrated-unit block's limit is a
+    constant that reads no noise value, so a binned-mode table and an unbinned
+    ``read_noise_dn`` or ``star_flux_dn_per_s_vmag0`` are refused there, and on a raw-DN
+    block an entry for a binning the instrument's readout modes don't offer is refused.
+    Every key of the table is a binning factor of at least 2, since the key check refuses
+    any other key first.
 
     Parameters:
-        table: The scene's ``noise.by_binning`` mapping, keys read as integers.
+        noise: The scene's ``noise`` overrides, table keys read as integers.
         resolved: The navigator block the scene's overrides resolve to.
         instrument: The scene's (already validated) instrument name.
         source: Label used in error messages.
 
     Raises:
-        SimSceneValidationError: If the table is set on a calibrated-unit block, or it
-            holds an entry for a binning the instrument doesn't offer.
+        SimSceneValidationError: If the table or an unbinned star-limit value is set on
+            a calibrated-unit block, or the table holds an entry for a binning the
+            instrument doesn't offer.
     """
     units = resolved['data_units']
     if units != 'raw_dn':
-        raise SimSceneValidationError(
-            f'{source}: {_TABLE_PATH} is never read: instrument {instrument!r} renders '
-            f'{units} frames, whose star limit reads no noise value. Leave the table out.'
-        )
+        unread = f'renders {units} frames, whose star limit reads no noise value'
+        if 'by_binning' in noise:
+            raise SimSceneValidationError(
+                f'{source}: {_TABLE_PATH} is never read: instrument {instrument!r} '
+                f'{unread}. Leave the table out.'
+            )
+        for key in sorted(BY_BINNING_VALUE_KEYS):
+            if key in noise:
+                raise SimSceneValidationError(
+                    f'{source}: {_NOISE_PATH}.{key} is never read: instrument '
+                    f'{instrument!r} {unread}. Leave the key out.'
+                )
+        return
     offered = cataloged_binnings(instrument)
-    for key in table:
+    for key in noise.get('by_binning', {}):
         if key not in offered:
             listed = ', '.join(str(binning) for binning in offered)
             raise SimSceneValidationError(
@@ -163,19 +175,30 @@ def _check_table_is_read(
 def _check_finite_number(value: Any, path: str, *, positive: bool, source: str) -> None:
     """Refuse a value that isn't a finite number within its range.
 
+    The value has no null meaning, so a null is refused with the way to take the
+    default.  An integer too large for a float is refused as not finite.
+
     Parameters:
-        value: The value as the resolved navigator block holds it.
+        value: The value as the scene sets it.
         path: The value's dotted key path, for error messages.
         positive: True when the value must be greater than 0, False when it must be at
             least 0.
         source: Label used in error messages.
 
     Raises:
-        SimSceneValidationError: If the value is a boolean, isn't an integer or a float,
-            isn't finite, or lies outside its range.
+        SimSceneValidationError: If the value is null, is a boolean, isn't an integer or
+            a float, isn't finite as a float, or lies outside its range.
     """
+    if value is None:
+        raise SimSceneValidationError(
+            f'{source}: {path} is null; leave the key out to take its default'
+        )
     is_number = isinstance(value, int | float) and not isinstance(value, bool)
-    in_range = is_number and math.isfinite(value) and (value > 0 if positive else value >= 0)
+    try:
+        is_finite = is_number and math.isfinite(value)
+    except OverflowError:
+        is_finite = False
+    in_range = is_finite and (value > 0 if positive else value >= 0)
     if not in_range:
         rule = 'greater than 0' if positive else 'of at least 0'
         raise SimSceneValidationError(
@@ -212,39 +235,42 @@ def _check_noise_values(noise: Mapping[Any, Any], path: str, *, source: str) -> 
         )
 
 
-def _check_star_limit_values(resolved: Mapping[str, Any], *, source: str) -> None:
-    """Refuse a resolved block holding a value the faint-star limit can't use.
+def _check_star_limit_values(override: Mapping[str, Any], *, source: str) -> None:
+    """Refuse a scene override of a value the faint-star limit can't use.
 
-    The limit reads ``star_psf_sigma``, which must be a finite, positive number, and the
-    unbinned ``read_noise_dn`` and ``star_flux_dn_per_s_vmag0``.  On a binned frame it
-    reads the two values from the ``noise.by_binning`` entry for the frame's binning, so
-    every entry of the resolved table must state exactly those two values, under the same
-    rule as the unbinned ones.  A scene's entry for a mode the navigator's table lacks
-    would otherwise leave that entry incomplete.
+    The limit reads ``star_psf_sigma``, which must be a finite, positive number on every
+    block, since other navigator code reads it too.  On a raw-DN block it reads the
+    unbinned ``read_noise_dn`` and ``star_flux_dn_per_s_vmag0``, and on a binned frame
+    the two values from the ``noise.by_binning`` entry for the frame's binning, so each
+    entry the scene sets must be a mapping that sets no other key, and every value under
+    the same rule as the unbinned ones.  Every binning a raw-DN block offers has a
+    complete entry in the navigator's table, so a scene's entry can't leave one
+    incomplete.  A calibrated-unit block's noise values are refused as never read before
+    this check.
 
     Parameters:
-        resolved: The navigator block the scene's overrides resolve to.
+        override: The scene's ``instrument_config``, table keys read as integers.
         source: Label used in error messages.
 
     Raises:
-        SimSceneValidationError: If a value the limit reads is out of range, or an entry
-            of the binned-mode table isn't a mapping of exactly the two values.
+        SimSceneValidationError: If a value the limit reads is null or out of range, or
+            an entry of the binned-mode table isn't a mapping or sets another key.
     """
-    if 'star_psf_sigma' in resolved:
+    if 'star_psf_sigma' in override:
         _check_finite_number(
-            resolved['star_psf_sigma'],
+            override['star_psf_sigma'],
             'instrument_config.star_psf_sigma',
             positive=True,
             source=source,
         )
-    noise = resolved.get('noise') or {}
+    noise = override.get('noise', {})
     _check_noise_values(noise, _NOISE_PATH, source=source)
     for key, entry in noise.get('by_binning', {}).items():
         path = f'{_TABLE_PATH}.{key}'
-        if not isinstance(entry, Mapping) or set(entry) != BY_BINNING_VALUE_KEYS:
+        if not isinstance(entry, Mapping) or not set(entry) <= BY_BINNING_VALUE_KEYS:
             raise SimSceneValidationError(
-                f'{source}: {path} must state exactly '
-                f'{", ".join(sorted(BY_BINNING_VALUE_KEYS))}; got {entry!r}'
+                f'{source}: {path} must be a mapping that sets only '
+                f'{" and ".join(sorted(BY_BINNING_VALUE_KEYS))}; got {entry!r}'
             )
         _check_noise_values(entry, path, source=source)
 
@@ -292,22 +318,22 @@ def _check_instrument_config(value: Any, *, instrument: str, binning: int, sourc
     scene uses another instrument.
 
     When the block sets ``noise``, that must be a mapping.  A null value of a navigator
-    key there keeps the navigator's meaning (a null ``marker_value`` is NaN), but a value
-    the faint-star limit reads must be a number, and the binned-mode table has no null
-    meaning, so a null at any depth of it is refused: a scene leaves a key out to take
-    its default.  The binned-mode table
-    ``noise.by_binning`` may write a key only as an integer or as a string of ASCII
-    digits, since a scene read through JSON carries every key as a string, and each
-    binning only once and without a leading zero.  Each entry must be one that a frame of
-    the scene's instrument reads: none on a calibrated-unit block, and only the binnings
-    the instrument offers on a raw-DN block.  Every value the faint-star limit reads from
-    the navigator block the overrides resolve to (over the default configuration) must
-    then be one it can use: a read noise is a finite number of at least 0, and a zero
-    point and ``star_psf_sigma`` are finite, positive numbers, and each entry of the
-    binned-mode table states exactly a read noise and a zero point.  On a binned frame
-    the star limit reads the mode's ``read_noise_dn`` and ``star_flux_dn_per_s_vmag0``
-    from that table, so a scene that sets either unbinned value must set the mode's value
-    as well, or the value it sets would never be read.
+    key there keeps the navigator's meaning where it has one (a null ``marker_value`` is
+    NaN).  A value the faint-star limit reads has no null meaning, and neither has the
+    binned-mode table, so a null there, or at any depth of the table, is refused: a scene
+    leaves a key out to take its default.  The binned-mode table ``noise.by_binning`` may
+    write a key only as an integer or as a string of ASCII digits, since a scene read
+    through JSON carries every key as a string, and each binning only once and without a
+    leading zero.  Each noise value the star limit reads must be one that a frame of the
+    scene's instrument reads: none on a calibrated-unit block, and on a raw-DN block only
+    the binnings the instrument offers.  The navigator block the overrides resolve to,
+    over the default configuration, sets the units.  Every value the scene sets that the
+    faint-star limit reads must then be one it can use: a read noise is a finite number of
+    at least 0, a zero point and ``star_psf_sigma`` are finite, positive numbers, and each
+    entry of the binned-mode table is a mapping that sets nothing but a read noise and a
+    zero point.  On a binned frame the star limit reads the mode's ``read_noise_dn`` and
+    ``star_flux_dn_per_s_vmag0`` from that table, so a scene that sets either unbinned
+    value must set the mode's value as well, or the value it sets would never be read.
 
     Parameters:
         value: The ``instrument_config`` mapping, or None when the block is absent.
@@ -319,10 +345,11 @@ def _check_instrument_config(value: Any, *, instrument: str, binning: int, sourc
         SimSceneValidationError: If the block isn't a mapping, it sets ``data_units``,
             its ``noise`` isn't a mapping, its ``noise.by_binning`` table isn't a
             mapping, holds a null or a key that is neither an integer nor a string of
-            ASCII digits, spells a binning twice, or holds an entry no frame reads, a
-            value the star limit reads is out of range or missing from a binned-mode
-            entry, or the block sets an unbinned noise value that a frame of this
-            binning reads from the table.
+            ASCII digits, spells a binning twice, or holds an entry no frame reads, the
+            block sets an unbinned noise value on a calibrated-unit block, a value the
+            star limit reads is null or out of range, a binned-mode entry sets another
+            key, or the block sets an unbinned noise value that a frame of this binning
+            reads from the table.
     """
     _check_optional_mapping(value, 'instrument_config', source=source)
     if value is None:
@@ -337,9 +364,8 @@ def _check_instrument_config(value: Any, *, instrument: str, binning: int, sourc
     override = with_integer_binning_keys(value)
     noise = override.get('noise', {})
     resolved = resolve_sim_inst_config(DEFAULT_CONFIG, instrument, override)
-    if 'by_binning' in noise:
-        _check_table_is_read(noise['by_binning'], resolved, instrument=instrument, source=source)
-    _check_star_limit_values(resolved, source=source)
+    _check_noise_is_read(noise, resolved, instrument=instrument, source=source)
+    _check_star_limit_values(override, source=source)
     if binning not in (resolved.get('noise') or {}).get('by_binning', {}):
         return
     mode = noise.get('by_binning', {}).get(binning, {})
