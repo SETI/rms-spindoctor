@@ -572,7 +572,11 @@ of its scenes' noise realization: renaming a stage reseeds every scene that
 exercises it and regenerates the affected baselines -- allowed, but not to be
 done idly. (The seed derivation is a stable digest, never Python's per-process
 salted ``hash``.) Sub-effects inside a stage derive their own named streams the
-same way (background stars, cosmic rays, crater placement).
+same way (background stars, cosmic rays, crater placement). Crater placement
+goes one level further: each crater draws from its own stream, named by the
+crater's index on its body, so a small change to the body's outline moves only
+a crater whose center lands on a changed pixel and leaves the rest of the
+crater field where it was.
 
 **The driver.** :func:`spindoctor.sim.render.render_combined_model` takes a
 ``sim_params`` dict and returns ``(image, metadata)``. It encodes the scene as
