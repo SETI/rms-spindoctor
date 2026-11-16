@@ -1,7 +1,8 @@
 """Sub-pixel refinement of a correlation peak by a quadratic fit to the NCC surface.
 
 :func:`~spindoctor.support.correlate.evaluate_candidate` turns a whole-pixel correlation
-peak into a sub-pixel offset in one of two ways, named by :data:`SubpixelRefinement`:
+peak into a sub-pixel offset in one of two ways; :data:`SubpixelRefinement` lists their
+names:
 
 - ``'cross_power'`` interpolates the raw cross-power of image and model with a localized
   upsampled DFT, within half a pixel of the whole-pixel peak, on a grid of
@@ -39,11 +40,11 @@ that axis.
 def ncc_quadratic_vertex(corr: NDArrayFloatType, rc: tuple[int, int]) -> tuple[float, float] | None:
     """Return the maximum of a quadratic fitted to the 3x3 NCC values around one cell.
 
-    The fit is the least-squares surface ``c0 + cv*v + cu*u + cvv*v**2 + cuu*u**2 + cvu*v*u``
-    over the nine cells whose row and column lie within one of ``rc``.  The surface is
-    circular, as a correlation surface is, so a neighbor past an edge of the array is read
-    from the opposite edge.  Each axis of the result is limited to
-    ``NCC_QUADRATIC_MAX_SHIFT_PX`` in magnitude.
+    The fit is the least-squares surface
+    ``c0 + cv*v + cu*u + cvv*v**2 + cuu*u**2 + cvu*v*u`` over the nine cells whose row
+    and column lie within one of ``rc``.  The surface is circular, as a correlation surface
+    is, so a neighbor past an edge of the array is read from the opposite edge.  Each axis
+    of the result is limited to ``NCC_QUADRATIC_MAX_SHIFT_PX`` in magnitude.
 
     Parameters:
         corr: The circular NCC surface.  It must be at least 3 cells along each axis.
@@ -51,10 +52,11 @@ def ncc_quadratic_vertex(corr: NDArrayFloatType, rc: tuple[int, int]) -> tuple[f
 
     Returns:
         ``(dv, du)``, the fitted maximum's position relative to ``rc`` in pixels, each
-        limited to ``[-NCC_QUADRATIC_MAX_SHIFT_PX, NCC_QUADRATIC_MAX_SHIFT_PX]``.  ``None``
-        when the fit cannot place a maximum: when any of the nine values is not finite (an
-        invalid lag reads ``-inf``), or when the fitted surface is not curved downward along
-        both axes (a minimum, a saddle, or a flat or ridge-shaped surface).
+        limited to ``[-NCC_QUADRATIC_MAX_SHIFT_PX, NCC_QUADRATIC_MAX_SHIFT_PX]``.
+        ``None`` when the fit cannot place a maximum: when any of the nine values is not
+        finite (an invalid lag reads ``-inf``), or when the fitted surface is not curved
+        downward along both axes (a minimum, a saddle, or a flat or ridge-shaped
+        surface).
     """
     rows = np.arange(rc[0] - 1, rc[0] + 2) % corr.shape[0]
     cols = np.arange(rc[1] - 1, rc[1] + 2) % corr.shape[1]

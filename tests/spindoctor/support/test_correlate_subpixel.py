@@ -146,6 +146,20 @@ def test_vertex_beyond_the_cap_is_limited_on_that_axis() -> None:
     )
 
 
+def test_vertex_of_a_non_quadratic_block_is_the_least_squares_fit() -> None:
+    """On nine values no quadratic fits exactly, the vertex is the least-squares surface's."""
+    block = np.array([[0.20, 0.45, 0.30], [0.50, 0.90, 0.62], [0.35, 0.60, 0.41]], dtype=np.float64)
+    v, u = np.mgrid[-1:2, -1:2].astype(np.float64)
+    design = np.stack(
+        [np.ones(9), v.ravel(), u.ravel(), v.ravel() ** 2, u.ravel() ** 2, (v * u).ravel()],
+        axis=1,
+    )
+    _, cv, cu, cvv, cuu, cvu = np.linalg.lstsq(design, block.ravel(), rcond=None)[0]
+    hessian = np.array([[2.0 * cvv, cvu], [cvu, 2.0 * cuu]])
+    expected = np.linalg.solve(hessian, [-cv, -cu])
+    assert ncc_quadratic_vertex(block, (1, 1)) == pytest.approx(tuple(expected), abs=1e-12)
+
+
 def test_a_non_finite_neighbor_gives_no_vertex() -> None:
     """An invalid lag (``-inf``) among the nine values leaves the fit unusable."""
     corr = _quadratic_surface((7, 7), (3, 3), (0.2, 0.1))
@@ -202,6 +216,20 @@ def test_prior_penalty_is_measured_from_the_refined_offset() -> None:
     assert with_prior['quality'] == pytest.approx(plain['quality'], abs=1e-12)
 
 
+def test_residual_is_measured_at_the_refined_offset(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The model is shifted by the fitted offset, not the whole pixel, before the residual."""
+    shifts: list[tuple[float, float]] = []
+    real_shift = correlate_module.fourier_shift
+
+    def _spy(img: NDArrayFloatType, dy: float, dx: float) -> NDArrayFloatType:
+        shifts.append((dy, dx))
+        return real_shift(img, dy, dx)
+
+    monkeypatch.setattr(correlate_module, 'fourier_shift', _spy)
+    evaluate_candidate(**_single_candidate_inputs((0.7, 0.0)), refinement='ncc_quadratic')
+    assert shifts == [pytest.approx((0.7, 0.0), abs=1e-12)]
+
+
 def test_cross_power_refinement_without_a_spectrum_is_refused() -> None:
     """The cross-power refinement cannot run without its spectrum."""
     inputs = _single_candidate_inputs((0.7, 0.0))
@@ -254,6 +282,15 @@ def test_auto_mode_gives_both_final_passes_the_refinement(
     assert calls == ['cross_power'] * 3 + ['ncc_quadratic'] + ['cross_power'] * 3 + [
         'ncc_quadratic'
     ]
+
+
+def test_an_unknown_final_refinement_is_refused_before_any_pass(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A bad final refinement name is refused before the first pyramid level runs."""
+    unknown: Any = 'spline'
+    with pytest.raises(ValueError, match=r"final_refinement must be one of .*not 'spline'"):
+        _record_single_scale_refinements(monkeypatch, final_refinement=unknown)
 
 
 def test_consistency_does_not_depend_on_the_final_refinement() -> None:

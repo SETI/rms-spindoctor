@@ -8,6 +8,7 @@ from scipy.ndimage import gaussian_filter, sobel
 
 from spindoctor.config import IMAGE_LOGGER, logged_section
 from spindoctor.support.correlate_subpixel import (
+    NCC_QUADRATIC_MAX_SHIFT_PX,
     SUBPIXEL_REFINEMENTS,
     SubpixelRefinement,
     ncc_quadratic_vertex,
@@ -849,6 +850,13 @@ def evaluate_candidate(
                     'keeping the whole-pixel offset'
                 )
             vertex = (0.0, 0.0)
+        elif logger is not None and max(abs(vertex[0]), abs(vertex[1])) >= (
+            NCC_QUADRATIC_MAX_SHIFT_PX
+        ):
+            logger.debug(
+                f'  Candidate {p}, {q}: the NCC quadratic fit reaches its '
+                f'{NCC_QUADRATIC_MAX_SHIFT_PX} px limit at ({vertex[0]:.4f}, {vertex[1]:.4f})'
+            )
         dy = dy_i + vertex[0]
         dx = dx_i + vertex[1]
     else:
@@ -1304,6 +1312,14 @@ def navigate_with_pyramid_kpeaks(
           Ratio of the squared peak value to the total correlation energy (sum of squares);
           reflects how much of the total response energy is concentrated in the main peak.
     """
+
+    # Refuse a bad name before any pass runs; otherwise it would surface only in the final
+    # pass, or not at all when no level finds a peak.
+    if final_refinement not in SUBPIXEL_REFINEMENTS:
+        raise ValueError(
+            f'final_refinement must be one of {", ".join(SUBPIXEL_REFINEMENTS)}, '
+            f'not {final_refinement!r}'
+        )
 
     if logger is None:
         logger = IMAGE_LOGGER

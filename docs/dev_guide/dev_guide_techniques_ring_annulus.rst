@@ -73,7 +73,9 @@ surface, then refines it to a fraction of a pixel. The technique refines in two 
   of NCC values centered on the whole-pixel peak and moves to the top of that surface. The
   move is at most one pixel along each axis. If the fit has no maximum, the offset stays on
   the whole pixel. That happens when one of the nine values comes from an invalid shift, or
-  when the fitted surface does not curve downward along both axes.
+  when the fitted surface does not curve downward along both axes. Neither the one-pixel
+  limit nor a fit without a maximum changes the result's uncertainty or its spurious flag;
+  each is written only to the debug log.
 
 The NCC allows for how much the image brightness varies under the shifted template mask,
 and the raw cross-power does not. On real ring frames, the raw cross-power often peaks 0.7
@@ -86,8 +88,8 @@ depending on the camera.
 The coarser levels keep the cross-power refinement because of the pyramid's consistency
 test. That test marks a result spurious when the level offsets disagree by more than
 2.0 px. Refining the coarser levels on the NCC as well moves some real frames across that
-limit and marks good results spurious. With the fit confined to the final pass, the consistency
-test does not depend on it.
+limit and marks good results spurious. With the fit confined to the final pass, the
+consistency test does not depend on it.
 
 The quadratic fit is
 :func:`~spindoctor.support.correlate_subpixel.ncc_quadratic_vertex`. The technique selects
