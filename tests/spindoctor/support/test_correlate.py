@@ -1,5 +1,6 @@
 """Tests for spindoctor.support.correlate, focused on masked NCC and pyramid navigation."""
 
+import math
 import weakref
 from itertools import pairwise
 from typing import Any
@@ -902,8 +903,9 @@ class TestMaskedNccBidirectional:
         """
         s = cls._brute_force_sums(image, model, mask, data_mask)
         w_d = s['w_d']
-        w_floor = max(_NCC_BIDIR_W_FRAC_MIN * float(w_d.max()), _NCC_EPS)
-        overlap_ok = w_d >= w_floor
+        w_d_max = int(w_d.max())
+        overlap_ok = w_d >= max(math.ceil(_NCC_BIDIR_W_FRAC_MIN * w_d_max), 1)
+        w_floor = max(float(_NCC_BIDIR_W_FRAC_MIN) * w_d_max, _NCC_EPS)
         safe_w = np.where(overlap_ok, w_d, w_floor)
         num = s['sum_imw'] - (s['sum_iw'] / safe_w) * s['sum_mw']
         ssd_iw = np.maximum(s['sum_i2w'] - s['sum_iw'] ** 2 / safe_w, 0.0)
@@ -1038,6 +1040,49 @@ class TestMaskedNccBidirectional:
         finite = ncc[np.isfinite(ncc)]
         assert finite.size > 0
         assert float(np.max(np.abs(finite))) <= 1.0
+
+    @pytest.mark.parametrize('rounding', [1e-9, -1e-9], ids=['rounded_up', 'rounded_down'])
+    def test_an_overlap_on_the_floor_is_valid_however_it_rounds(
+        self, monkeypatch: pytest.MonkeyPatch, rounding: float
+    ) -> None:
+        """A shift whose overlap is exactly the floor keeps its score either way.
+
+        The transforms return each overlap count with a rounding error whose sign
+        depends on the FFT library, the transform length, and the CPU.  Every inverse
+        transform is offset here by a tiny amount of each sign in turn, standing in
+        for two libraries that round the same count in opposite directions.  The
+        mask is a 10 x 10 block and the data a 16 x 16 corner, so the largest overlap
+        is 100 pixels, and a shift of 13 rows leaves 3 of the block's rows on the
+        data: an overlap of 30, which is the floor exactly.
+        """
+        real_irfft2 = scipy.fft.irfft2
+
+        def rounding_irfft2(a: Any, *args: Any, **kwargs: Any) -> Any:
+            """Stand in for ``irfft2``, adding a rounding-sized offset to its output.
+
+            Parameters:
+                a: Spectrum to inverse-transform.
+                *args: Passed through.
+                **kwargs: Passed through.
+
+            Returns:
+                The transform scipy would have returned, plus ``rounding``.
+            """
+            return real_irfft2(a, *args, **kwargs) + rounding
+
+        monkeypatch.setattr('spindoctor.support.correlate.irfft2', rounding_irfft2)
+        rng = np.random.default_rng(944)
+        rows, cols = 32, 32
+        data_mask = np.zeros((rows, cols), bool)
+        data_mask[:16, :16] = True
+        image = rng.normal(size=(rows, cols)) * data_mask
+        model = rng.normal(size=(rows, cols))
+        mask = np.zeros((rows, cols), bool)
+        mask[:10, :10] = True
+        # The geometry is a tie only while the floor is 30 percent of the largest overlap.
+        assert _NCC_BIDIR_W_FRAC_MIN * 100 == 30
+        ncc, _ = _masked_ncc_bidir(image, model, mask, data_mask)
+        assert np.isfinite(ncc[13, 0])
 
 
 # =========================================================================
