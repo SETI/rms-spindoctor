@@ -5214,10 +5214,11 @@ navigation pairs.  Outputs:
   committed record backing the report's tables (divergences, support
   labels, FOM 7 rows, runtime).
 
-The full-cohort run takes about 38 minutes on a workstation with local
-holdings.  The committed record of 2026-11-07 took 37 minutes (2,231 seconds),
-and building the 19 star frames' catalog star lists adds about one minute
-(62 seconds measured on 2026-11-15, 45 of them on W1580760393).  The cost is
+The full-cohort run takes 36 to 39 minutes on a workstation with local
+holdings.  The committed record of 2026-11-17 took 36 minutes (2,161 seconds).
+That includes building the 19 star frames' catalog star lists, which takes
+about one minute (62 seconds measured on 2026-11-15, 45 of them on
+W1580760393).  The cost is
 dominated by the navigator's feature extraction on the real frames and the
 full-size matched renders.  ``--skip-fom7`` saves about 17% -- the navigation
 pairs are a handful of frames per instrument, not a large share of the
