@@ -1214,6 +1214,11 @@ asserts the generated half matches the registries.
   freezes the current grouping into a schema. #712 (renumber the
   configuration files, so the `config_NN_*` merge order carries the same
   axis) is the filename half of the same question and moves with it.
+  The shared schema core #118 builds on is #1021 (plain frozen dataclasses
+  parsed by pydantic), in the simulator plan's Phase 2a. Its first
+  consumer, `results_tree`, is not moved by #427, so #1021 does not wait;
+  #1029 (the navigator camera blocks) settles #427's grouping question
+  first, and the remaining sections wait for #427.
 - **#141 / #142** — dedup the CLI driver preamble and cloud-task loop;
   fix the dropped `extra_params` and the ImageFiles cardinality
   disagreement.

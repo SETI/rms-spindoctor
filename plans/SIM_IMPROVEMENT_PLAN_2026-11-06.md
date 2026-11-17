@@ -29,7 +29,7 @@ The code that produces them should look designed rather than accreted:
 - no special cases, compatibility layers, or tests of behavior that no longer exists
 - documentation that describes the code as it is
 
-Phases 1b, 2a, 3b, and 8 carry that work. The other phases follow it as they go.
+Phases 1b, 2 (#1011, #1012), 2a, 3b, and 8 carry that work. The other phases follow it as they go.
 
 **Terms.**
 
@@ -66,7 +66,8 @@ kilometer radii, and #896 keeps an authored shadow beside the geometric one.
 - **One fact, one issue.** Each phase names the issues it closes; anything found along the way is
   filed, not folded silently into a PR.
 - **Restructure where it is cheapest and safest.**
-  - A refactor that should move no pixel lands while the baselines are still, so the baselines prove it.
+  - A refactor that should move no pixel lands while the baselines are still, so the baselines prove
+    it.
   - A change to the scene format lands before scenes are written in it.
   - A change to the renderer's shape lands before the physics that would otherwise be written into
     the old shape.
@@ -149,14 +150,18 @@ apart from a physics change.
 | Issue | Subject | Why now |
 |---|---|---|
 | #923 | Duplicate image classifier, test-only `artifact_counts.py`, no shared scene fixtures, plan codenames, and the navigator-side `sim_params` name | Shared scene fixtures first, so every later schema change edits one place instead of 50 test files. |
-| #1005 | Lay out the simulator package by concern | Every later issue creates its modules in their final places, and the boundary guard checks packages instead of file names. Lands when no other simulator PR is open. |
+| #1005 | Lay out the simulator package by concern | Every later issue creates its modules in their final places, and the boundary guard checks packages instead of file names. Lands right after Phase 1's realism-record regeneration, when no other simulator PR is open. |
 | #1006 | Exact copies and dead defaults | Each later change would otherwise have to find and edit every copy. |
 | #1007 | Names that describe history or one of several meanings | One glossary before the typed scene model fixes names into types. |
-| #1008 | The simulated body model is over 1,000 lines, and the simulated-or-real model choice is spread over eight guards | The one module over the limit. |
+| #1008 | The simulated body model is over 1,000 lines, and its limb and terminator arc code is two near-copies | The one module over the limit. |
+| #1030 | The simulated-or-real model choice is spread over eight guards; each model class declares the inputs it needs instead | One place to choose models, and the shape Phase 5 needs, where a twin provides both kinds of input. Gated also on the library regression tier, because it touches model selection on real frames. |
 | #1009 | Light direction and phase function derived twice | A shared convention with two copies can plant an unmeasured systematic. If a render moves, the move is that systematic and is explained. |
 | #1010 | The stage protocol says each stage is seeded by its generator; most stages discard it | Seeding by name is the rule every later stage must follow. |
 
 #923's fixtures and #1005 go first. The others can land in any order after them.
+
+Decisions needed before the work starts, asked one at a time: the three choices #923 lists (its
+plan-note comment).
 
 **Exit:** the issues above are closed. Every committed render and baseline reproduced unchanged
 through them, or a move under #1009 is explained in its PR. No simulator module is over 1,000 lines.
@@ -165,16 +170,18 @@ through them, or a move under #1009 is explained in its PR. No simulator module 
 
 These are defects that put pixels in the wrong place. They come before any new physics, because
 new physics on a wrong canvas is wasted work. #901 goes first: until the classic body renderer is
-retired, every body fix has to be made twice. #1011 lands with #901 or right after it, so the one
-body path also has one projection. #1012 follows #901, because #901 removes the classic renderer
-from the module #1012 splits. #1015 is the fix for #931.
+retired, every body fix has to be made twice. #931 lands with #901, so the topographic baselines
+regenerate once. #1011 follows, so the one body path also has one projection, built for both of the
+topographic renderer's grids. #1012 follows #901, because #901 removes the classic renderer from the
+module #1012 splits. The render grid that removes hand-threaded oversampling (#1015) waits for the
+typed scene, in Phase 3b.
 
 | Issue | Subject |
 |---|---|
 | #901 | Classic and topographic body renderers disagree; retire the classic path (part of #915) |
 | #1011 | The topographic body renderer projects through its own copy of the ellipsoid projection, while the navigator predicts through the shared one |
 | #1012 | The body renderer modules import each other through hidden cycles, and the body identity seed is written out in several places |
-| #931, #1015 | Coarse-grid shading shifts relief, textured, and cratered bodies at oversample above 1 (smooth bodies fixed by #916); oversampling is threaded by hand through 14 modules, and #1015's render grid fixes both |
+| #931 | Coarse-grid shading shifts relief, textured, and cratered bodies at oversample above 1 (smooth bodies fixed by #916); lands with #901 |
 | #1013 | A scene with instrument defaults oversamples 4x even when its camera has no PSF |
 | #1014 | The simulated Titan model predicts a mesh occluder as an ellipsoid, and at pixel (0, 0) when no center is given |
 | #890 | A body larger than half the frame and off center is clipped or vanishes |
@@ -189,7 +196,8 @@ from the module #1012 splits. #1015 is the fix for #931.
 **Exit:** a frame-filling planet renders at its true position with light from beyond the frame
 edge; a rolled scene behaves as the ruling on #644 decides; a lone ring edge lands within 0.05 px
 of its authored radius; the simulated limb's gradient peak is checked against real limbs; every
-moved baseline is explained.
+moved baseline is explained. One ellipsoid projection serves both sides, one function seeds every
+body, and no body module imports another inside a function.
 
 ## Phase 2a: settle the scene format
 
@@ -201,17 +209,24 @@ so, and each moved baseline is explained.
 
 | Issue | Subject | Why now |
 |---|---|---|
-| #988 | Refuse null keys in simulated scenes (operator ruling, 2026-11-15) | The typed scene needs "unset" to mean absent, never null. |
+| #988, #986, #987, #990 | Refuse null keys in simulated scenes (operator ruling, 2026-11-15); a null noise value crashes the renderer; values inside `nav_override` are not validated | The typed scene needs "unset" to mean absent, never null. A null inside `nav_override` is refused like any other. |
 | #1021 | One typed schema core for configuration and scene files: plain frozen dataclasses parsed by pydantic (operator decision, 2026-11-16), and one layered YAML merge with a null policy per family | Every later typing step builds on it. Its first consumer is the navigator's `results_tree` section, so the core is shaped by both trees from the start. |
 | #1022 | The instrument catalog and the artifact-mode parameters, parsed through the core | Typed detector fields, which the scene's noise and detector blocks reuse. One mode-parameter interpreter, not two. |
+| #1029 | The navigator camera blocks typed through the core, and a scene's `instrument_config` overlay parsed through the same types | Replaces the simulator's 378-line validator of navigator values, and gives the typed scene (Phase 3b) its `instrument_config` type. Check #427's grouping question first. |
+| #806, naming part | Split the `vgiss` entry into four per-camera entries, renaming the scene's instrument value | Renames a scene value before Phase 2b writes Voyager scenes. The per-camera values stay in Phase 4e. |
 | #1017 | Detector effects modeled twice, once in the noise block and once as an artifact mode | Removes or merges scene keys. |
 | #1023 | Image-side detector physics comes from two configuration trees, and the noise block holds keys that are not noise | Moves scene keys, and lets a scene plant a mismatch between the true and believed saturation ceilings. |
 
-Order: #988 and #1021 first, then #1022, then #1017 and #1023 one at a time.
+Order: #988 and #1021 first, then #1022 and #1029, then #1017, #1023, and #806's naming part one at
+a time.
+
+Decisions needed before the work starts, asked one at a time: for #1017, whether each pair (banding,
+dark signal, hot pixels) is one effect or two; for #1029, #427's question of grouping the camera
+sections.
 
 **Exit:** the issues above are closed. No scene key is renamed or moved after this phase except by
-an issue that adds new physics. The simulator's instrument catalog is typed. Image-side detector
-physics has one source.
+an issue that adds new physics. The simulator's instrument catalog and the navigator's camera
+blocks are typed. Image-side detector physics has one source.
 
 ## Phase 2b: realistic guard scenes
 
@@ -264,24 +279,33 @@ pixel, and must be done before Phase 4 starts.
 
 | Issue | Subject | Why now |
 |---|---|---|
-| #1024 | Parse every scene once into typed scene dataclasses that are the scene's field table (5 to 7 PRs, block by block) | Each Phase 4 key is then declared once: type, range, default, boundary class, and editor hint. Validation, the key inventories, and the defaults come from the types. |
-| #1026 | A typed idealized view of the scene for the navigator side | The information boundary becomes a type the navigator cannot see past, checked by mypy (#310). |
-| #1025 | One shared per-kind layout for ring features on both sides | #909 and #910 add ring kinds. |
+| #1024 | Parse every scene into typed scene dataclasses that are its field table, and make that parse the only validation (3 to 5 PRs, block by block) | Each Phase 4 key is then declared once: type, range, default, boundary class, and editor hint. The boundary is structural: truth types extend idealized types. |
+| #1028 | Resolve each render's settings once into a `RenderSettings` record on the frame (after #1024) | One place interprets switches such as `instrument_defaults`; the detector parameters resolve once per render. |
+| #1027 | Every render stage reads the typed scene (after #1024 and #1028; a few PRs, by stage) | Deletes about 200 raw scene reads, `scene_value`, and the render-time validation backstops. |
+| #1015 | Render through a grid object that owns oversampling (after #1028) | Removes the factor from 14 modules before Phase 4 adds pixel-unit keys. |
+| #1026 | A typed idealized view of the scene for the navigator side (after #1027) | The navigator's simulated models accept only idealized types, checked by mypy. |
+| #310 | Move the truth attributes off `ObsSim` into a truth record (after #1026) | Completes the structural boundary. |
+| #1025 | One shared per-kind layout for ring features on both sides (after #1027) | #909 and #910 add ring kinds. |
 | #1016 | Every artifact mode applied through its registry entry, one loop per stage (after #1017) | #906, #919, #935, and #850 add or change modes. |
-| #1018 | The radiance stage split into named sub-steps over the typed scene (after #1024) | #895 and #896 change this stage. |
-| #1019 | Each render logs what it resolved (after #1024) | Phase 4's realism work needs to see which values a render used. |
+| #1018 | The radiance stage split into named sub-steps (after #1027 and #1028) | #895 and #896 change this stage. |
+| #1019 | Each render logs its `RenderSettings` (after #1028) | Phase 4's realism work needs to see which values a render used. |
+| #1020 | The simulated-image editor rebuilt from per-block panels generated from the typed scene's field metadata (after #1024) | Each Phase 4 key then gets its editor control from its declaration, not from hand wiring that a later rewrite throws away. Closes #902, #947, and #967. |
 
-Order: #1024 first. Then #1026, #1025, #1018, and #1019 can follow in any order. #1016 needs only
-#1017.
+Order: #1024, then #1028, then #1027. #1015, #1026, #1025, #1018, #1019, and #1020 follow in any
+order their own dependencies allow; #310 follows #1026. #1016 needs only #1017.
 
 **Exit:** the issues above are closed. No forward module reads the scene dict. The navigator's
-simulated models accept only the idealized types. Each stage applies its artifact modes in one loop
-over the registry. No function in the radiance, atmosphere, or ring modules is longer than about
-100 lines. Every committed render reproduced unchanged through the phase.
+simulated models accept only the idealized types, and `ObsSim` holds no truth attribute. Each stage
+applies its artifact modes in one loop over the registry. No function in the radiance, atmosphere,
+ring, body, or detector-parameter modules is longer than about 100 lines. Every scene key has an
+editor control generated from its declaration, or a documented exception. Every committed render
+reproduced unchanged through the phase.
 
 ## Phase 4: physics, in order of how many real frames need it
 
-Phase 4 starts once Phase 3b's exit is met. Its items are ordered by the share of real frames each
+Phase 4 starts once Phase 3b's exit is met, including the editor (#1020), so each new key gets its
+type, validation, default, and editor control from one declaration. Its items are ordered by the
+share of real frames each
 gap affects, from the critique's population counts.
 
 **4a. Radiometry and shadows (every frame with more than one object type):**
@@ -327,7 +351,7 @@ model does not gain them.
 
 | Issue | Subject |
 |---|---|
-| #806 | One `vgiss` key for four cameras; split per spacecraft and camera |
+| #806, per-camera values | One `vgiss` key for four cameras; the split of the entry and the scene value is Phase 2a; this part gives each camera its own values |
 | #907 | GEOMED plate scale, beam-bend sign, reseau lattice, and a fixed DN scale with no exposure term |
 | #804 | Noise keys inert on the vidicon and on calibrated frames |
 | #935 | The vidicon chain renders no fixed-pattern structure, so `vgiss` does not offer `fixed_pattern`; measure the residual pattern on calibrated frames before adding a stage |
@@ -415,22 +439,37 @@ retired and retained library classes.
 
 | Issue | Subject |
 |---|---|
-| #915 | **Now tracked through its slices, each its own issue: #1005 to #1026, #901, and #923, in Phases 1b, 2, 2a, 3b, and here.** It closes when they have all closed. Restructure below the core: typed specs (begun in #900), one body path (begun in #901), and smaller stages |
-| #1020 | Build the simulated-image editor from per-block panels driven by the typed scene's field metadata (#1024). It closes #902, #947, and #967. |
+| #915 | **Now tracked through its slices, each its own issue: #1005 to #1030, #901, #923, and #310, in Phases 1b, 2, 2a, and 3b.** It closes when they have all closed. Restructure below the core: typed specs (begun in #900), one body path (begun in #901), and smaller stages |
+| #1020 | **Moved to Phase 3b.** Build the simulated-image editor from per-block panels driven by the typed scene's field metadata (#1024) |
 | #923 | **Moved to Phase 1b.** Duplicate classifier, test-only module, missing fixtures, and codenames |
-| #902 | **Closed by #1020.** 26 scene keys without editor controls |
-| #947 | **Closed by #1020.** The simulated-image editor shows 0 for parameters the renderer fills from the detector block or another key |
-| #967 | **Closed by #1020.** The simulated-image editor's controls can build scenes that validation refuses: ranges wider than the rules, conflicting settings, settings left behind by a camera switch, and duplicate names |
-| #956 | **Fixed in #1024**, which gives the name one default. Unnamed simulated bodies get different default names in the renderer and the navigator |
+| #902 | **Closes with #1020 (Phase 3b).** 26 scene keys without editor controls |
+| #947 | **Closes with #1020 (Phase 3b).** The simulated-image editor shows 0 for parameters the renderer fills from the detector block or another key |
+| #967 | **Closes with #1020 (Phase 3b).** The simulated-image editor's controls can build scenes that validation refuses: ranges wider than the rules, conflicting settings, settings left behind by a camera switch, and duplicate names |
+| #956 | **Fixed by #1024 and #1026**: one default name, read on both sides. Unnamed simulated bodies get different default names in the renderer and the navigator |
 | #856 | The simulated-image editor segfaults intermittently (reopened after the fix in PR #917); recheck it against #1020's structure |
-| #914, the rest | User chapter around a complete scene, developer guide split, and one schema reference. The schema reference is generated from the typed scene (#1024). |
-| #310 | **Advanced by #1005 (package-level import guard) and closed by #1026 (the boundary as types).** Structural information-boundary guard |
+| #914, the rest | User chapter around a complete scene, developer guide split, and one schema reference. The schema reference page is generated from the typed scene's field metadata by #1024. |
+| #310 | **Moved to Phase 3b.** Advanced by #1005 (package-level import guard) and #1026 (the navigator view as types); its own change moves the truth attributes off `ObsSim`. Structural information-boundary guard |
 
 Each phase updates the docs for what it changes, with per-camera values on the instrument pages
-after #924 (done). This phase finishes the editor (#1020) and the guide split once the schema has
-settled. The rest of the restructuring is placed earlier, where it is cheapest: Phase 1b while the
-baselines are still, Phase 2 beside the body fixes, Phase 2a before scenes are written, and Phase 3b
-before the physics.
+after #924 (done). This phase finishes the guide split once the schema has settled. The
+restructuring is placed earlier, where it is cheapest: Phase 1b while the baselines are still,
+Phase 2 beside the body fixes, Phase 2a before scenes are written, and Phase 3b before the physics.
+
+Code-structure critique items not taken, with the reason for each:
+
+- **Making the validator's private primitives public (critique step 4, O8).** #1024 deletes the
+  hand-written checkers, so publishing their primitives first would be work thrown away.
+- **The two private `nav_model_stars` helpers used outside their module (O8).** #1026 replaces the
+  navigator side's dict reads; recheck after it.
+- **`realism/noise.py` at 984 lines (F2).** It is under the limit. The rule in `CLAUDE.md` splits it
+  by concern when Phase 6's work would push it over; no issue is needed before then.
+- **The parallel `full_render.py` and `verdict.py` modules (D6).** #1020 rebuilds the editor around
+  them and decides whether one module serves both.
+- **The critique's layout names `artifacts/registry.py`, `forward/frame.py`, and
+  `schema/nodes.py`.**
+  The artifact registry stays one module (`artifact_modes.py`), `stages.py` keeps `SimFrame`, and
+  the schema core is the top-level `spindoctor/schema/` package (#1021), shared with the navigator
+  config.
 #856 can land whenever its fix is ready.
 
 ## Track R: real-frame confidence (parallel)
@@ -497,12 +536,13 @@ Phase 8: alongside, finished last
   not a setback: the class keeps its library frames and the gap is filed.
 - **Scope.** Phases 4c through 4f are long. Work them by which library class is next in line, not
   in table order.
-- **Restructuring delays the physics.** Phases 1b, 2a, and 3b add about 20 issues before Phase 4.
+- **Restructuring delays the physics.** Phases 1b, 2a, and 3b add about 25 issues before Phase 4.
   Mitigation: each is pixel-neutral or moves only what it names, so each lands on the baselines'
   evidence alone. Phase 3b runs alongside Phases 2b and 3. Phase 4 then adds keys, modes, and
   ring kinds at one place each.
 - **A refactor hides a physics change.** Mitigation: every pixel-neutral issue requires the
   integration tier to reproduce with nothing regenerated. The work that touches the most code
   lands in Phase 1b, before the baselines start moving. Phase 3b lands after Phase 2's moves and
-  before Phase 4's, when renders are stable again. A 3b PR never shares a merge window with a PR
-  that regenerates baselines.
+  before Phase 4's, when renders are stable again. A pixel-neutral PR (Phase 3b, #1012) is rebased
+  onto main after the last merge that regenerated baselines, and the integration tier is rerun on it
+  with nothing regenerated, before it merges.

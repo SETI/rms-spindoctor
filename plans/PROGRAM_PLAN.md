@@ -582,7 +582,8 @@ cloud-operation audit (#108, #67, #141, #142, and the cloud-task items the
 logging work left open, #418 and #424), performance and safe parallelism for
 campaign scale (#236, #103, #134, #126), and config validation (#118, which
 should follow the namespace reorganization #427 rather than freeze the current
-grouping into a schema), and two command-line inconsistencies: `--profile`
+grouping into a schema; its foundation, the shared schema core #1021, is in
+the simulator plan's Phase 2a), and two command-line inconsistencies: `--profile`
 produces no profile in `sd_offset` and does nothing in `sd_backplanes` (#734),
 and `sd_create_ck` and `sd_stats_report` cannot select images with the options
 the other six programs share (#735). The user-guide completion items are

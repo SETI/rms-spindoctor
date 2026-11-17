@@ -575,7 +575,9 @@ Independent review before done; all CI gates; one PR."
   capture strategy changed first); #429 (give the `util/` tooling the same
   logging surface); #731 (log file names are stamped in UTC and log records
   in local time). #427 (reorganize the config namespace) is larger and
-  should precede #118.
+  should precede #118. #1021 (the shared schema core #118 builds on) does not
+  wait for it; #1029 (the navigator camera blocks) asks its grouping question
+  first.
 - **Sim realism residual (#227)**: the de-circularization is done and on
   main; #227 stays open only for the realism proof and closes at the
   operator's realism-verdict gate, itself gated on #309. #309
