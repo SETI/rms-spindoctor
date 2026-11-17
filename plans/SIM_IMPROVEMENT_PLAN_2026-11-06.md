@@ -204,7 +204,7 @@ body, and no body module imports another inside a function.
 Phase 2b writes realistic guard scenes, and Phase 3 repairs the calibration generator, which writes
 scenes too. The changes that move or remove scene keys land first, so those scenes are written
 once, in the format that stays. The same changes build the shared schema core that the typed scene
-(Phase 3b) and, later, a typed navigator config use. Renders move here only where an issue says
+(Phase 3b) and the typed navigator config (#1032) use. Renders move here only where an issue says
 so, and each moved baseline is explained.
 
 | Issue | Subject | Why now |
@@ -212,13 +212,15 @@ so, and each moved baseline is explained.
 | #988, #986, #987, #990 | Refuse null keys in simulated scenes (operator ruling, 2026-11-15); a null noise value crashes the renderer; values inside `nav_override` are not validated | The typed scene needs "unset" to mean absent, never null. A null inside `nav_override` is refused like any other. |
 | #1021 | One typed schema core for configuration and scene files: plain frozen dataclasses parsed by pydantic (operator decision, 2026-11-16), and one layered YAML merge with a null policy per family | Every later typing step builds on it. Its first consumer is the navigator's `results_tree` section, so the core is shaped by both trees from the start. |
 | #1022 | The instrument catalog and the artifact-mode parameters, parsed through the core | Typed detector fields, which the scene's noise and detector blocks reuse. One mode-parameter interpreter, not two. |
-| #1029 | The navigator camera blocks typed through the core, and a scene's `instrument_config` overlay parsed through the same types | Replaces the simulator's 378-line validator of navigator values, and gives the typed scene (Phase 3b) its `instrument_config` type. Check #427's grouping question first. |
+| #1029 | The navigator camera blocks typed through the core, and a scene's `instrument_config` overlay parsed through the same types | Replaces the simulator's 378-line validator of navigator values, and gives the typed scene (Phase 3b) its `instrument_config` type. Check #427's grouping question first. The first PR of #1032 (deleting the config keys nothing reads) lands before it, so the type never declares a dead key. |
 | #806, naming part | Split the `vgiss` entry into four per-camera entries, renaming the scene's instrument value | Renames a scene value before Phase 2b writes Voyager scenes. The per-camera values stay in Phase 4e. |
 | #1017 | Detector effects modeled twice, once in the noise block and once as an artifact mode | Removes or merges scene keys. |
 | #1023 | Image-side detector physics comes from two configuration trees, and the noise block holds keys that are not noise | Moves scene keys, and lets a scene plant a mismatch between the true and believed saturation ceilings. |
 
 Order: #988 and #1021 first, then #1022 and #1029, then #1017, #1023, and #806's naming part one at
-a time.
+a time. #1032's key-deletion PR needs nothing else and lands before #1029. The rest of #1032, typing
+the remaining navigator sections, is navigator work tracked in `ENGINEERING_PLAN.md`; it starts
+after #1021 and runs alongside this plan.
 
 Decisions needed before the work starts, asked one at a time: for #1017, whether each pair (banding,
 dark signal, hot pixels) is one effect or two; for #1029, #427's question of grouping the camera

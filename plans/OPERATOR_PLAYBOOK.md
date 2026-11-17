@@ -577,7 +577,10 @@ Independent review before done; all CI gates; one PR."
   in local time). #427 (reorganize the config namespace) is larger and
   should precede #118. #1021 (the shared schema core #118 builds on) does not
   wait for it; #1029 (the navigator camera blocks) asks its grouping question
-  first.
+  first. #1032 (the remaining navigator sections, and deleting the keys
+  nothing reads) asks #411's snake_case question before its technique PRs.
+  It deletes the unimplemented `bootstrap` section's placeholder keys unless
+  the operator objects.
 - **Sim realism residual (#227)**: the de-circularization is done and on
   main; #227 stays open only for the realism proof and closes at the
   operator's realism-verdict gate, itself gated on #309. #309
