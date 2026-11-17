@@ -154,7 +154,7 @@ apart from a physics change.
 | Issue | Subject | Why now |
 |---|---|---|
 | #923 | Duplicate image classifier, test-only `artifact_counts.py`, no shared scene fixtures, plan codenames, and the navigator-side `sim_params` name | Shared scene fixtures first, so every later schema change edits one place instead of 50 test files. |
-| #1005 | Lay out the simulator package by concern | Every later issue creates its modules in their final places, and the boundary guard checks packages instead of file names. Lands right after Phase 1's realism-record regeneration, when no other simulator PR is open. |
+| #1005 | Lay out the simulator package by concern; the image side's `forward/` package becomes `render/`, with the `render.py` entry point inside it (operator, 2026-11-17) | Every later issue creates its modules in their final places, and the boundary guard checks packages instead of file names. Lands right after Phase 1's realism-record regeneration, when no other simulator PR is open. |
 | #1006 | Exact copies and dead defaults | Each later change would otherwise have to find and edit every copy. |
 | #1007 | Names that describe history or one of several meanings | One glossary before the typed scene model fixes names into types. |
 | #1008 | The simulated body model is over 1,000 lines, and its limb and terminator arc code is two near-copies | The one module over the limit. |
@@ -303,7 +303,7 @@ scaled wrongly; each such move is explained in its PR.
 Order: #1024, then #1028, then #1027, then #1026. #1015, #1016, #1018, #1019, and #1020 follow in
 any order their own dependencies allow; #310 and #1025 follow #1026.
 
-**Exit:** the issues above are closed. No forward module reads the scene dict. The navigator's
+**Exit:** the issues above are closed. No render module reads the scene dict. The navigator's
 simulated models accept only the idealized types, and `ObsSim` holds no truth attribute. Each stage
 applies its artifact modes in one loop over the registry. No function in the radiance, atmosphere,
 ring, body, or detector-parameter modules is longer than about 100 lines. Every scene key has an
