@@ -14,43 +14,35 @@ image_id, so re-running the runner re-renders identical frames.
 
 The matched scenes plant **zero offset**: realism statistics measure image
 texture, not recovery, so predicted feature positions equal actual ones and
-no shifting is needed on the sim side.
+no shifting is needed on the sim side.  A star twin's stars are the real
+frame's catalog stars, placed where they appear in the real frame (see
+:mod:`tests.integration.sim_realism_twin_stars`).
 """
 
 from __future__ import annotations
 
-import math
 import zlib
 from typing import Any
 
-from spindoctor.sim.instrument_resolvers import binning_for_frame_size, filter_star_flux_scale
+from spindoctor.sim.instrument_resolvers import binning_for_frame_size
 from spindoctor.sim.scene import validate_sim_params
 
 __all__ = [
+    'STAR_CLASSES',
     'limb_scene',
     'matched_scene',
     'ring_scene',
     'sky_scene',
     'star_field_scene',
-    'star_ladder_shift_mag',
 ]
 
 # The frame size the ring scene's geometry is laid out for; a matched ring
 # scene scales it to the real frame's size.
 _DEFAULT_SCENE_SIZE = 512
 
-# Star classes place this many stars; magnitudes ladder from bright to the
-# detection edge of a clear-filter frame, so the FOM 2 sample spans the usable
-# brightness range.  The renderer dims each star by the frame's filter.  For a frame
-# taken through another filter, the ladder starts from brighter stars by that
-# filter's throughput (see star_ladder_shift_mag), so after the filter dims them they
-# still reach from bright to the detection edge.
-_STAR_COUNT = 25
-_STAR_VMAG_BRIGHT = 7.0
-_STAR_VMAG_STEP = 0.2
-
-# Scene classes mapped to matched content builders (sidecar primary tags).
-_STAR_CLASSES = frozenset(
+# Scene classes mapped to matched content builders (sidecar primary tags).  A star
+# class's twin holds its real frame's catalog stars.
+STAR_CLASSES = frozenset(
     {
         'star_dominated',
         'stars_plus_body',
@@ -124,26 +116,6 @@ def _star_list(
     return stars
 
 
-def star_ladder_shift_mag(instrument: str, filter_name: str | None) -> float:
-    """The magnitude shift that picks the star ladder's stars for a filter.
-
-    A filter that passes a fraction ``t`` of the clear combination's star flux dims
-    every star by ``-2.5 log10(t)`` magnitudes, and the renderer applies that
-    dimming.  The ladder therefore starts ``2.5 log10(t)`` magnitudes from its
-    clear-filter start: brighter stars for a filter dimmer than clear.  After the
-    filter dims them, each rung's detected flux equals its clear-filter value.
-
-    Parameters:
-        instrument: Sim instrument name.
-        filter_name: The real frame's filter combination, or None for the
-            camera's clear combination.
-
-    Returns:
-        The shift in magnitudes, zero for None or the clear combination.
-    """
-    return 2.5 * math.log10(filter_star_flux_scale(instrument, filter_name))
-
-
 def sky_scene(
     image_id: str, instrument: str, exposure_sec: float, size_vu: tuple[int, int]
 ) -> dict[str, Any]:
@@ -164,8 +136,7 @@ def star_field_scene(
     exposure_sec: float,
     size_vu: tuple[int, int],
     *,
-    count: int = _STAR_COUNT,
-    filter_name: str | None = None,
+    stars: list[dict[str, Any]],
 ) -> dict[str, Any]:
     """A matched star-field frame for the star scene classes.
 
@@ -174,18 +145,14 @@ def star_field_scene(
         instrument: Sim instrument name.
         exposure_sec: The real frame's exposure.
         size_vu: The real frame's (v, u) shape.
-        count: The number of ladder stars.
-        filter_name: The real frame's filter combination, which shifts the
-            magnitude ladder by :func:`star_ladder_shift_mag`.  None keeps the
-            clear-filter ladder.  The caller sets the scene's ``detector.filter``
-            separately.
+        stars: The real frame's catalog stars as scene star entries, from
+            :func:`tests.integration.sim_realism_twin_stars.catalog_twin_stars`.  The
+            scene holds a copy of each entry; an empty list gives a frame without
+            stars.
     """
     seed = _seed_for(image_id)
     scene = _base_scene(f'realism_stars_{image_id}', instrument, exposure_sec, seed, size_vu)
-    vmag_bright = _STAR_VMAG_BRIGHT + star_ladder_shift_mag(instrument, filter_name)
-    scene['stars'] = _star_list(
-        seed, count, size_vu, vmag_bright=vmag_bright, vmag_step=_STAR_VMAG_STEP
-    )
+    scene['stars'] = [dict(star) for star in stars]
     return scene
 
 
@@ -362,6 +329,7 @@ def matched_scene(
     filter_name: str | None = None,
     gain_state: int | None = None,
     quantization: str | None = None,
+    stars: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """The matched sim scene for one real cohort frame.
 
@@ -380,26 +348,30 @@ def matched_scene(
         phase_angle_deg: Real frame's phase angle for the limb classes
             and ring_plus_body.
         filter_name: The real frame's filter combination.  It sets the sim's
-            DN-to-I/F scale and star brightness, and it shifts a star class's
-            magnitude ladder to the filter's detection edge.  None keeps the
-            camera's nominal scale and the clear-filter ladder.
+            DN-to-I/F scale and dims every star by the filter's throughput.  None
+            keeps the camera's nominal scale and the clear filter.
         gain_state: The real frame's gain state; None keeps the camera's
             default state.
         quantization: The real frame's downlink quantization sub-mode
             (``'sqrt_lut'`` for a frame downlinked through a companding table);
             None keeps the camera's default.
+        stars: The real frame's catalog stars as scene star entries, which a star
+            class's scene holds (see :func:`star_field_scene`).  The other classes
+            don't read it.
 
     Returns:
         A validated scene mapping.
+
+    Raises:
+        ValueError: If ``scene_class`` is a star class and ``stars`` is None.
     """
-    if scene_class in _STAR_CLASSES:
-        count = {
-            'one_bright_star_no_body': 1,
-            'two_bright_stars_no_body': 2,
-        }.get(scene_class, _STAR_COUNT)
-        scene = star_field_scene(
-            image_id, instrument, exposure_sec, size_vu, count=count, filter_name=filter_name
-        )
+    if scene_class in STAR_CLASSES:
+        if stars is None:
+            raise ValueError(
+                f"the {scene_class!r} scene of {image_id!r} needs its real frame's "
+                'catalog star list'
+            )
+        scene = star_field_scene(image_id, instrument, exposure_sec, size_vu, stars=stars)
     elif scene_class in _LIMB_CLASSES:
         scene = limb_scene(
             image_id,

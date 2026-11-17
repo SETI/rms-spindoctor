@@ -7,7 +7,8 @@ conserves the per-star detector-grid sum.  A floor scene's rendered star sigma
 equals the navigator's configured sigma, an ``instrument_defaults`` star
 reproduces the catalog kernel, and the flux scales as expected with exposure and
 magnitude.  The background sky field draws its counts from a star-count law and
-renders them through the same path.
+renders them through the same path, down to a faint cutoff where a star's total flux
+equals the read noise over its PSF core.
 """
 
 import math
@@ -17,10 +18,18 @@ import numpy as np
 import pytest
 from scipy.signal import fftconvolve
 
+from spindoctor.config import DEFAULT_CONFIG
 from spindoctor.sim.forward.detector.params import calibration_map, resolve_detector_params
 from spindoctor.sim.forward.psf import psf_kernel
+from spindoctor.sim.forward.scene_radiance import _nominal_read_noise, sky_star_faint_cutoff_mag
 from spindoctor.sim.forward.star import faint_sky_cutoff_mag, render_sky_counts
-from spindoctor.sim.instrument_resolvers import resolve_psf_kernel, resolve_psf_truncation_px
+from spindoctor.sim.instrument_navigator import resolve_sim_inst_config
+from spindoctor.sim.instrument_resolvers import (
+    filter_star_flux_scale,
+    resolve_psf_kernel,
+    resolve_psf_truncation_px,
+    resolve_star_flux_zero_point,
+)
 from spindoctor.sim.render import clear_render_caches, render_combined_model
 
 # Explicit zeroing of every stochastic detector knob, so the star-profile
@@ -363,6 +372,67 @@ def test_faint_cutoff_counts_at_least_one_pixel_of_read_noise(psf_sigma: float) 
     assert faint_sky_cutoff_mag(**kwargs, psf_sigma=psf_sigma) == pytest.approx(
         faint_sky_cutoff_mag(**kwargs, psf_sigma=one_pixel_sigma), abs=1e-12
     )
+
+
+def _cutoff_from_formula(
+    zero_point: float, exposure_sec: float, read_noise: float, psf_sigma: float
+) -> float:
+    """The magnitude whose total flux equals the read noise over a Gaussian PSF core.
+
+    Parameters:
+        zero_point: Flux a magnitude-0 star deposits per second.
+        exposure_sec: The exposure in seconds.
+        read_noise: The per-pixel read noise, in the zero point's units.
+        psf_sigma: The core's Gaussian sigma in frame pixels.
+
+    Returns:
+        ``2.5 log10(zero_point * exposure_sec / (read_noise * sqrt(area)))``, where the
+        core's area is ``2 pi psf_sigma**2`` pixels.
+    """
+    core_area_px = 2.0 * math.pi * psf_sigma**2
+    return 2.5 * math.log10(zero_point * exposure_sec / (read_noise * math.sqrt(core_area_px)))
+
+
+def test_the_sky_cutoff_without_a_psf_narrows_the_star_sigma_by_the_binning() -> None:
+    """A binned scene without a PSF takes the configured star sigma in binned pixels.
+
+    Galileo's configured star sigma is 3 native pixels, so a 2x2 summed frame's core
+    sigma is 1.5 of its pixels.
+    """
+    scene = {'instrument': 'gossi', 'exposure_sec': 2.0, 'detector': {'binning': 2}}
+    zero_point, domain = resolve_star_flux_zero_point('gossi')
+    sigma = float(resolve_sim_inst_config(DEFAULT_CONFIG, 'gossi')['star_psf_sigma']) / 2
+    read_noise = _nominal_read_noise('gossi', domain, binning=2)
+    expected = _cutoff_from_formula(zero_point, 2.0, read_noise, sigma)
+    assert sky_star_faint_cutoff_mag(scene) == pytest.approx(expected, abs=1e-9)
+
+
+def test_the_sky_cutoff_takes_the_wider_axis_of_the_scene_psf() -> None:
+    """A PSF wider along u than along v sets the core from its u sigma."""
+    scene = {
+        'instrument': 'coiss_nac',
+        'exposure_sec': 1.0,
+        'optics': {'psf': {'sigma_v': 1.0, 'sigma_u': 2.0}},
+    }
+    zero_point, domain = resolve_star_flux_zero_point('coiss_nac')
+    read_noise = _nominal_read_noise('coiss_nac', domain, binning=1)
+    expected = _cutoff_from_formula(zero_point, 1.0, read_noise, 2.0)
+    assert sky_star_faint_cutoff_mag(scene) == pytest.approx(expected, abs=1e-9)
+
+
+def test_the_sky_cutoff_dims_the_zero_point_by_the_scene_filter() -> None:
+    """Through a narrow filter, the zero point is the clear one times the filter's throughput.
+
+    The H-alpha filter passes about 2% of the clear filter's star flux, which brings the
+    cutoff over 4 magnitudes brighter.
+    """
+    scene = {'instrument': 'coiss_nac', 'exposure_sec': 1.0, 'detector': {'filter': 'HAL+CL2'}}
+    clear_zero_point, domain = resolve_star_flux_zero_point('coiss_nac')
+    zero_point = clear_zero_point * filter_star_flux_scale('coiss_nac', 'HAL+CL2')
+    sigma = float(resolve_sim_inst_config(DEFAULT_CONFIG, 'coiss_nac')['star_psf_sigma'])
+    read_noise = _nominal_read_noise('coiss_nac', domain, binning=1)
+    expected = _cutoff_from_formula(zero_point, 1.0, read_noise, sigma)
+    assert sky_star_faint_cutoff_mag(scene) == pytest.approx(expected, abs=1e-9)
 
 
 def test_sky_diffuse_floor_adds_a_flat_pedestal() -> None:
