@@ -574,12 +574,12 @@ Independent review before done; all CI gates; one PR."
   records to stdout; about ten tests capture that fallback and need their
   capture strategy changed first); #429 (give the `util/` tooling the same
   logging surface); #731 (log file names are stamped in UTC and log records
-  in local time). #427 (reorganize the config namespace) is larger and
-  should precede #118. #1021 (the shared schema core #118 builds on) does not
-  wait for it; #1029 (the navigator camera blocks) asks its grouping question
-  first. #1032 (the remaining navigator sections, and deleting the keys
-  nothing reads) asks #411's snake_case question before its technique PRs.
-  It deletes the unimplemented `bootstrap` section's placeholder keys unless
+  in local time). #427 (reorganize the config namespace) needs a decision
+  first: which sections it covers, and whether it lands before #1029 (the
+  navigator camera blocks) and #1032 (the remaining sections) type them.
+  #1021 (the shared schema core #118 builds on) does not wait for it.
+  #1032 asks #411's snake_case question before its technique PRs, and it
+  deletes the unimplemented `bootstrap` section's placeholder keys unless
   the operator objects.
 - **Sim realism residual (#227)**: the de-circularization is done and on
   main; #227 stays open only for the realism proof and closes at the
@@ -770,8 +770,9 @@ deferred until an instrument fits rotation again; a test fails if one does.
 - **#423** the GUI viewers print library log records to stdout through
   pdslogger's handler-less fallback
 - **#424** remove `sd_create_bundle_cloud_tasks`
-- **#427** the config namespace is organized on no stated axis; sequence
-  before #118
+- **#427** the config namespace is organized on no stated axis; decide
+  which sections it covers and whether it precedes their typing (#1029,
+  #1032)
 - **#428** upstream registry-eviction request to `rms-pdslogger`
 - **#429** give the `util/` tooling the same logging surface
 - **#731** log file names are stamped in UTC while the records inside them are

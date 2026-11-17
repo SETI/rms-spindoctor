@@ -119,7 +119,7 @@ These make every later phase cheaper or safer. Most are small.
 | #969 | **Done (PR #985).** The scene editor renders the whole pipeline on every edit, freezing for a second or more on a full-size frame | Editing should feel immediate: a fast approximate preview while the user edits, replaced by the full render once they pause. |
 | #970 | **Decided: fix the camera models instead (SETI/rms-host-galileo#3, SETI/rms-host-cassini#4, SETI/rms-host-new-horizons#1, SETI/rms-host-voyager#2).** Decide whether to keep the simulated residual distortion for cameras where it is tiny (Cassini NAC and WAC at most 0.05 px, LORRI 0.2 px, Galileo 0.8 px, in the corners) | Measured on full-frame scenes, the residual moves fused answers by 0.002 px (WAC) to 0.09 px (Galileo SSI), as its coefficients predict, and changes no status or tier. Each camera keeps its simulated residual until its updated model is in the host SpinDoctor uses; then the star-field campaign is rerun and that camera's residual is removed or replaced, regenerating the scenes that use camera defaults. |
 | #984 | **Decided: not implemented; documented (PR #985).** A simulated body moved by a fraction of a pixel has a softer limb than one drawn there | Measured: drawing at the exact sub-pixel position changes no technique's offset error by more than 0.025 px and no confidence by more than 0.003, at or below the noise scatter, so the cached drawing and interpolated move stay and the developer guide explains them. Original rationale: In scenes without a PSF the limb's sharpness changes with the planted fractional offset, which no real image does. Measure the effect on navigation first; then draw each body at its true sub-pixel position in every render that leaves the editor, keeping the cached drawing and interpolated move only for dragging in the editor (#969). Fixing the canvas also fixes #890. |
-| #854 | Simulated stars clip below the navigator's saturation level | Small; star brightness is wrong until it lands. |
+| #854 | **On hold (operator).** Simulated stars clip below the navigator's saturation level | Star brightness is wrong until it lands. Not started unless the operator lifts the hold. |
 | #955 | **Done (PR #972).** Simulated A0 stars get B-V 0.63 instead of 0.00 | Small; every A0 star has the wrong color until it lands. |
 | #925 | **Content match and star ladder done (PR #978). The star-count criterion stays open with #989. The realism record is regenerated at the end of the stack.** The realism match compares mismatched content on content-filled and narrowband frames | **Done:** on a camera with a dark-sky ceiling, sky noise is compared only on patches that lie on dark sky in both frames. A patch lies on dark sky when its mean is at most a per-camera dark-sky ceiling above the calibrated sky residual, and the test uses the level alone. The ceiling is 2.5e-3 I/F on both Cassini CALIB cameras and is set in the instrument config. A camera without a ceiling compares every sky patch. On a filtered frame, the matched star ladder starts from brighter stars by the filter's throughput, so the renderer's filter dimming leaves them detectable. With both changes, the statistics the regression check holds for the cameras with a ceiling measure only the simulator. **Open with #989:** N1459552012's twin shows 25 stars against the real frame's 4. The twin's made-up ladder holds 25 stars bright enough to see through the filter, while the real field holds about 4. Building star twins from the catalog stars at the real frame's pointing fixes the count. Separately, the navigator's star prediction ignores the filter (#899), so the star SNR and brightness-margin fields can't be compared on filtered frames until it is fixed. **Moved to #977:** whether the TABLE path is too quiet. On the 12 NAC TABLE frames compared, the simulated-to-real sky sigma ratio has a median of 0.37 (quartiles 0.25 to 0.59), against 0.88 on the 26 12-bit frames. The real TABLE skies also sit 4.5e-4 to 2.3e-3 I/F above the residual, which the twins don't reproduce. |
 | #989 | Realism star twins hold a made-up magnitude ladder, not the real frame's stars | Build each star twin from the catalog stars at the real frame's pointing, so a filtered twin shows as many stars as its real frame and the ladder shift by filter goes away. Closes #925's star-count criterion. |
@@ -137,6 +137,10 @@ camera's tables is a YAML edit (met by #876).
 The last step of Phase 1 is the realism-record regeneration, after #989 lands. It arms the
 regression bands of #903 and so meets the "realism match fails on a planted regression"
 criterion. #961 regenerates the report's sweep figures in the same pass.
+
+Phase 1b starts when #989 and the realism-record regeneration (with #961) have landed. #854 (on
+hold), #960, and #126/#945 do not hold it up; a later PR among them that moves renders follows the
+rebase rule in the Risks section.
 
 ## Phase 1b: pixel-neutral restructuring
 
@@ -212,19 +216,20 @@ so, and each moved baseline is explained.
 | #988, #986, #987, #990 | Refuse null keys in simulated scenes (operator ruling, 2026-11-15); a null noise value crashes the renderer; values inside `nav_override` are not validated | The typed scene needs "unset" to mean absent, never null. A null inside `nav_override` is refused like any other. |
 | #1021 | One typed schema core for configuration and scene files: plain frozen dataclasses parsed by pydantic (operator decision, 2026-11-16), and one layered YAML merge with a null policy per family | Every later typing step builds on it. Its first consumer is the navigator's `results_tree` section, so the core is shaped by both trees from the start. |
 | #1022 | The instrument catalog and the artifact-mode parameters, parsed through the core | Typed detector fields, which the scene's noise and detector blocks reuse. One mode-parameter interpreter, not two. |
-| #1029 | The navigator camera blocks typed through the core, and a scene's `instrument_config` overlay parsed through the same types | Replaces the simulator's 378-line validator of navigator values, and gives the typed scene (Phase 3b) its `instrument_config` type. Check #427's grouping question first. The first PR of #1032 (deleting the config keys nothing reads) lands before it, so the type never declares a dead key. |
+| #1029 | The navigator camera blocks typed through the core, and a scene's `instrument_config` overlay parsed through the same types | Replaces the simulator's 378-line validator of navigator values, and gives the typed scene (Phase 3b) its `instrument_config` type. Lands after #1023, which moves the image-side keys out of the navigator's `sim` block, so every block the loader collects, `sim` included, parses as a camera block with no interim type. Check #427 first. The first PR of #1032 (deleting the config keys nothing reads) lands before it, so the type never declares a dead key. |
 | #806, naming part | Split the `vgiss` entry into four per-camera entries, renaming the scene's instrument value | Renames a scene value before Phase 2b writes Voyager scenes. The per-camera values stay in Phase 4e. |
 | #1017 | Detector effects modeled twice, once in the noise block and once as an artifact mode | Removes or merges scene keys. |
 | #1023 | Image-side detector physics comes from two configuration trees, and the noise block holds keys that are not noise | Moves scene keys, and lets a scene plant a mismatch between the true and believed saturation ceilings. |
 
-Order: #988 and #1021 first, then #1022 and #1029, then #1017, #1023, and #806's naming part one at
-a time. #1032's key-deletion PR needs nothing else and lands before #1029. The rest of #1032, typing
-the remaining navigator sections, is navigator work tracked in `ENGINEERING_PLAN.md`; it starts
-after #1021 and runs alongside this plan.
+Order: #988 and #1021 first, then #1022, #1017, #1023, and #1029, one at a time; #806's naming part
+lands whenever it is ready. #1032's key-deletion PR needs nothing else and lands before #1029. The
+rest of #1032, typing the remaining navigator sections, is navigator work tracked in
+`ENGINEERING_PLAN.md`; it starts after #1021 and runs alongside this plan.
 
 Decisions needed before the work starts, asked one at a time: for #1017, whether each pair (banding,
-dark signal, hot pixels) is one effect or two; for #1029, #427's question of grouping the camera
-sections.
+dark signal, hot pixels) is one effect or two; for #1029 and #1032, which sections
+#427's reorganization of the config namespace covers and whether it lands before they are typed
+(the camera grouping, for example under `instruments:`, is one of them).
 
 **Exit:** the issues above are closed. No scene key is renamed or moved after this phase except by
 an issue that adds new physics. The simulator's instrument catalog and the navigator's camera
@@ -276,37 +281,39 @@ move is recorded in `plans/VALIDATION_AND_CALIBRATION_PLAN.md`.
 Phase 4 adds most of the simulator's remaining physics, and with it many new scene keys and stages.
 Under the current structure, each new key is written in up to six places, each new artifact mode
 needs its own dispatch, and every stage reads the scene dict with its own defaults. This phase
-gives the renderer the shape Phase 4 builds on. It runs alongside Phases 2b and 3, changes no
-pixel, and must be done before Phase 4 starts.
+gives the renderer the shape Phase 4 builds on. It runs alongside Phases 2b and 3, and must be done
+before Phase 4 starts. It changes no pixel, except where #1015 finds a hand-scaled key that was
+scaled wrongly; each such move is explained in its PR.
 
 | Issue | Subject | Why now |
 |---|---|---|
 | #1024 | Parse every scene into typed scene dataclasses that are its field table, and make that parse the only validation (3 to 5 PRs, block by block) | Each Phase 4 key is then declared once: type, range, default, boundary class, and editor hint. The boundary is structural: truth types extend idealized types. |
 | #1028 | Resolve each render's settings once into a `RenderSettings` record on the frame (after #1024) | One place interprets switches such as `instrument_defaults`; the detector parameters resolve once per render. |
-| #1027 | Every render stage reads the typed scene (after #1024 and #1028; a few PRs, by stage) | Deletes about 200 raw scene reads, `scene_value`, and the render-time validation backstops. |
+| #1027 | Every render stage reads the typed scene (after #1024 and #1028; a few PRs, by stage) | Deletes about 200 raw scene reads in the image-side stages and the render-time validation backstops. |
 | #1015 | Render through a grid object that owns oversampling (after #1028) | Removes the factor from 14 modules before Phase 4 adds pixel-unit keys. |
-| #1026 | A typed idealized view of the scene for the navigator side (after #1027) | The navigator's simulated models accept only idealized types, checked by mypy. |
+| #1026 | A typed idealized view of the scene for the navigator side (after #1027) | The navigator's simulated models accept only idealized types, checked by mypy. The shared helpers take typed records, and `scene_value` and the per-object parse functions go. |
 | #310 | Move the truth attributes off `ObsSim` into a truth record (after #1026) | Completes the structural boundary. |
-| #1025 | One shared per-kind layout for ring features on both sides (after #1027) | #909 and #910 add ring kinds. |
-| #1016 | Every artifact mode applied through its registry entry, one loop per stage (after #1017) | #906, #919, #935, and #850 add or change modes. |
+| #1025 | One shared per-kind layout for ring features on both sides (after #1026) | #909 and #910 add ring kinds. |
+| #1016 | Every artifact mode applied through its registry entry, one loop per stage (after #1017 and #1028, which owns activation) | #906, #919, #935, and #850 add or change modes. |
 | #1018 | The radiance stage split into named sub-steps (after #1027 and #1028) | #895 and #896 change this stage. |
 | #1019 | Each render logs its `RenderSettings` (after #1028) | Phase 4's realism work needs to see which values a render used. |
-| #1020 | The simulated-image editor rebuilt from per-block panels generated from the typed scene's field metadata (after #1024) | Each Phase 4 key then gets its editor control from its declaration, not from hand wiring that a later rewrite throws away. Closes #902, #947, and #967. |
+| #1020 | The simulated-image editor rebuilt from per-block panels generated from the typed scene's field metadata (after #1024 and #1028) | Each Phase 4 key then gets its editor control from its declaration, not from hand wiring that a later rewrite throws away. Closes #902, #947, and #967. |
 
-Order: #1024, then #1028, then #1027. #1015, #1026, #1025, #1018, #1019, and #1020 follow in any
-order their own dependencies allow; #310 follows #1026. #1016 needs only #1017.
+Order: #1024, then #1028, then #1027, then #1026. #1015, #1016, #1018, #1019, and #1020 follow in
+any order their own dependencies allow; #310 and #1025 follow #1026.
 
 **Exit:** the issues above are closed. No forward module reads the scene dict. The navigator's
 simulated models accept only the idealized types, and `ObsSim` holds no truth attribute. Each stage
 applies its artifact modes in one loop over the registry. No function in the radiance, atmosphere,
 ring, body, or detector-parameter modules is longer than about 100 lines. Every scene key has an
 editor control generated from its declaration, or a documented exception. Every committed render
-reproduced unchanged through the phase.
+reproduced unchanged through the phase, apart from #1015's explained moves.
 
 ## Phase 4: physics, in order of how many real frames need it
 
 Phase 4 starts once Phase 3b's exit is met, including the editor (#1020), so each new key gets its
-type, validation, default, and editor control from one declaration. Its items are ordered by the
+type, validation, default, and editor control from one declaration, and once Phase 2b's guard
+scenes are committed, so they guard Phase 4's changes. Its items are ordered by the
 share of real frames each
 gap affects, from the critique's population counts.
 
@@ -472,6 +479,7 @@ Code-structure critique items not taken, with the reason for each:
   The artifact registry stays one module (`artifact_modes.py`), `stages.py` keeps `SimFrame`, and
   the schema core is the top-level `spindoctor/schema/` package (#1021), shared with the navigator
   config.
+
 #856 can land whenever its fix is ready.
 
 ## Track R: real-frame confidence (parallel)
@@ -514,11 +522,11 @@ exposure-scaled DN.
 
 ```text
 Phase 0 -> Phase 1 -> Phase 1b -> Phase 2 -> Phase 2a -> Phase 2b
-                                              |
-                                              +-> Phase 3 ----------------+
-                                              +-> Phase 3b -> Phase 4a, 4b +-> Phase 5 -> Phase 6 -> Phase 7
-                                                          +-> Phase 4c-4f (parallel with Phase 5)
-Phase 3b runs alongside Phases 2b and 3; Phase 4 waits for it.
+Phase 2a -> Phase 3 -> Phase 5
+Phase 2a -> Phase 3b
+Phase 2b and Phase 3b -> Phase 4a, 4b -> Phase 5 -> Phase 6 -> Phase 7
+Phase 4a, 4b -> Phase 4c-4f (parallel with Phase 5)
+Phase 3b runs alongside Phases 2b and 3; Phase 4 waits for both Phase 3b and Phase 2b.
 Phase 1 (#876, done) -> Phase 4d-4f, Phase 5
 Track R: #334, #225, #342 now -> #230 real-frame part;
          #230 remainder, then #153's other parts, after Phase 6
