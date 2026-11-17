@@ -208,32 +208,32 @@ body, and no body module imports another inside a function.
 Phase 2b writes realistic guard scenes, and Phase 3 repairs the calibration generator, which writes
 scenes too. The changes that move or remove scene keys land first, so those scenes are written
 once, in the format that stays. The same changes build the shared schema core that the typed scene
-(Phase 3b) and the typed navigator config (#1032) use. Renders move here only where an issue says
-so, and each moved baseline is explained.
+(Phase 3b) uses. Renders move here only where an issue says so, and each moved baseline is
+explained.
+
+The navigator config is left alone for now (operator, 2026-11-17). Typing it is deferred and
+tracked in `ENGINEERING_PLAN.md`: the camera blocks (#1029), and every other section with the
+deletion of the keys nothing reads (#1032). No issue in this plan changes a navigator config file.
 
 | Issue | Subject | Why now |
 |---|---|---|
 | #988, #986, #987, #990 | Refuse null keys in simulated scenes (operator ruling, 2026-11-15); a null noise value crashes the renderer; values inside `nav_override` are not validated | The typed scene needs "unset" to mean absent, never null. A null inside `nav_override` is refused like any other. |
-| #1021 | One typed schema core for configuration and scene files: plain frozen dataclasses parsed by pydantic (operator decision, 2026-11-16), and one layered YAML merge with a null policy per family | Every later typing step builds on it. Its first consumer is the navigator's `results_tree` section, so the core is shaped by both trees from the start. |
+| #1021 | One typed schema core for configuration and scene files: plain frozen dataclasses parsed by pydantic (operator decision, 2026-11-16), and one layered YAML merge with a null policy per family | Every later typing step builds on it. Its first consumer is the instrument catalog (#1022). It changes nothing in the navigator config. |
 | #1022 | The instrument catalog and the artifact-mode parameters, parsed through the core | Typed detector fields, which the scene's noise and detector blocks reuse. One mode-parameter interpreter, not two. |
-| #1029 | The navigator camera blocks typed through the core, and a scene's `instrument_config` overlay parsed through the same types | Replaces the simulator's 378-line validator of navigator values, and gives the typed scene (Phase 3b) its `instrument_config` type. Lands after #1023, which moves the image-side keys out of the navigator's `sim` block, so every block the loader collects, `sim` included, parses as a camera block with no interim type. Check #427 first. The first PR of #1032 (deleting the config keys nothing reads) lands before it, so the type never declares a dead key. |
+| #1029 | The navigator camera blocks typed through the core, and a scene's `instrument_config` overlay parsed through the same types | **Deferred (operator, 2026-11-17).** Navigator config work, tracked with #1032 in `ENGINEERING_PLAN.md`. Until it lands, the typed scene (#1024) gives the scene's `instrument_config` overlay its own type, which repeats the camera keys' ranges (the operator accepted the duplication), and replaces the simulator's 378-line overlay validator. |
 | #806, naming part | Split the `vgiss` entry into four per-camera entries, renaming the scene's instrument value | Renames a scene value before Phase 2b writes Voyager scenes. The per-camera values stay in Phase 4e. |
 | #1017 | Detector effects modeled twice, once in the noise block and once as an artifact mode | Removes or merges scene keys. |
-| #1023 | Image-side detector physics comes from two configuration trees, and the noise block holds keys that are not noise | Moves scene keys, and lets a scene plant a mismatch between the true and believed saturation ceilings. |
+| #1023 | Image-side detector physics comes from two configuration trees, and the noise block holds keys that are not noise | Moves scene keys, and lets a scene plant a mismatch between the true and believed saturation ceilings. The image-side keys it stops reading stay in the navigator's files, unread, until #1032 deletes them. |
 
-Order: #988 and #1021 first, then #1022, #1017, #1023, and #1029, one at a time; #806's naming part
-lands whenever it is ready. #1032's key-deletion PR needs nothing else and lands before #1029. The
-rest of #1032, typing the remaining navigator sections, is navigator work tracked in
-`ENGINEERING_PLAN.md`; it starts after #1021 and runs alongside this plan.
+Order: #988 and #1021 first, then #1022, #1017, and #1023, one at a time; #806's naming part lands
+whenever it is ready.
 
 Decisions needed before the work starts, asked one at a time: for #1017, whether each pair (banding,
-dark signal, hot pixels) is one effect or two; for #1029 and #1032, which sections
-#427's reorganization of the config namespace covers and whether it lands before they are typed
-(the camera grouping, for example under `instruments:`, is one of them).
+dark signal, hot pixels) is one effect or two.
 
-**Exit:** the issues above are closed. No scene key is renamed or moved after this phase except by
-an issue that adds new physics. The simulator's instrument catalog and the navigator's camera
-blocks are typed. Image-side detector physics has one source.
+**Exit:** the issues above are closed, except the deferred #1029. No scene key is renamed or moved
+after this phase except by an issue that adds new physics. The simulator's instrument catalog is
+typed. Image-side detector physics has one source.
 
 ## Phase 2b: realistic guard scenes
 
@@ -477,8 +477,8 @@ Code-structure critique items not taken, with the reason for each:
 - **The critique's layout names `artifacts/registry.py`, `forward/frame.py`, and
   `schema/nodes.py`.**
   The artifact registry stays one module (`artifact_modes.py`), `stages.py` keeps `SimFrame`, and
-  the schema core is the top-level `spindoctor/schema/` package (#1021), shared with the navigator
-  config.
+  the schema core is the top-level `spindoctor/schema/` package (#1021), which the navigator config
+  will share once its deferred typing (#1029 and #1032) lands.
 
 #856 can land whenever its fix is ready.
 

@@ -1215,14 +1215,15 @@ asserts the generated half matches the registries.
   configuration files, so the `config_NN_*` merge order carries the same
   axis) is the filename half of the same question and moves with it.
   The shared schema core #118 builds on is #1021 (plain frozen dataclasses
-  parsed by pydantic), in the simulator plan's Phase 2a. Its first
-  consumer, `results_tree`, is not moved by #427, so #1021 does not wait;
-  #1029 (the navigator camera blocks) and #1032 (every other section,
-  and deleting the packaged keys nothing reads) type the rest. Which
-  sections this reorganization covers, and whether it lands before they
-  are typed, is an operator decision to record on #427; until it is
-  recorded, each typing PR checks #427 first and does any move it asks
-  for in the same PR.
+  parsed by pydantic), in the simulator plan's Phase 2a; it serves the
+  simulator only and changes no navigator config. **Deferred (operator,
+  2026-11-17):** the navigator config is left alone for now, so #427,
+  #1029 (the navigator camera blocks), and #1032 (every other section,
+  and deleting the packaged keys nothing reads) wait. When the work
+  resumes, which sections this reorganization covers, and whether it
+  lands before they are typed, is an operator decision to record on
+  #427; until it is recorded, each typing PR checks #427 first and does
+  any move it asks for in the same PR.
 - **#141 / #142** — dedup the CLI driver preamble and cloud-task loop;
   fix the dropped `extra_params` and the ImageFiles cardinality
   disagreement.
@@ -1254,21 +1255,27 @@ asserts the generated half matches the registries.
 - **#118** — config validation system: schema per section, unknown-key
   rejection, type/range checks at load
   (`src/spindoctor/config/config.py`); pairs well with #176's
-  constants-into-config completion. Delivered by three issues: #1021 (the
-  shared schema core, with `results_tree`), #1029 (the camera blocks), and
-  #1032 (every other section, then `AttrDict` retired from the config
-  path). #1032 lands in about ten PRs in a stated order, each typing PR
-  checking #427 first (see the #427 entry above):
+  constants-into-config completion. **Deferred (operator, 2026-11-17),**
+  with #427 (see its entry above). Delivered on #1021 (the shared schema
+  core, which the simulator builds first) by two issues: #1029 (the
+  camera blocks) and #1032 (every other section, then `AttrDict` retired
+  from the config path). Meanwhile the typed scene (#1024) types the
+  scene's `instrument_config` overlay itself, repeating the camera keys'
+  ranges until #1029 lands. #1032 lands in about ten PRs in a stated
+  order, each typing PR checking #427 first:
   - [ ] delete the packaged keys nothing reads, at least 60 of them
-    including the whole `bootstrap` section (needs nothing else; lands
-    before #1029)
+    including the whole `bootstrap` section and the image-side keys
+    #1023 stops reading (needs nothing else; lands before #1029)
+  - [ ] #1029: the camera blocks, with the core's VALUE null policy and
+    the loader's merge moved onto the core
   - [ ] the orchestrator section
   - [ ] technique confidence and tuning, two or three PRs by family
     (decide #411's snake_case rename first)
   - [ ] the logging section
   - [ ] `bodies`, `stars`, `titan`, `rings`, `body_shape`, `satellites`,
     and `feature_emission`
-  - [ ] `general`, `environment`, `offset`, `backplanes`, and `pds4`
+  - [ ] `general`, `environment`, `offset`, `results_tree`, `backplanes`,
+    and `pds4`
   - [ ] `load_nav_config`, `AttrDict` off the config path, and one test
     fixture for config overrides; #118 and #1001 close here
 

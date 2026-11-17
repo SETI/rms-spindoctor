@@ -581,10 +581,9 @@ Plus, not gated on decisions: the capability matrix itself (#231),
 cloud-operation audit (#108, #67, #141, #142, and the cloud-task items the
 logging work left open, #418 and #424), performance and safe parallelism for
 campaign scale (#236, #103, #134, #126), and config validation (#118: its
-foundation, the shared schema core #1021, is in the simulator plan's Phase 2a,
-and #1029 and #1032 type the sections; which sections the namespace
-reorganization #427 covers, and whether it lands first, is an operator
-decision), and two
+foundation, the shared schema core #1021, is in the simulator plan's Phase 2a;
+#1029 and #1032, which type the sections, are deferred with the namespace
+reorganization #427, and the navigator config is left alone for now), and two
 command-line inconsistencies: `--profile`
 produces no profile in `sd_offset` and does nothing in `sd_backplanes` (#734),
 and `sd_create_ck` and `sd_stats_report` cannot select images with the options
