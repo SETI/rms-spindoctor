@@ -15,6 +15,8 @@ The end-to-end smoke on real frames lives in ``test_sim_realism_smoke.py``.
 from __future__ import annotations
 
 import random
+import runpy
+import warnings
 from dataclasses import dataclass
 from types import SimpleNamespace
 from typing import Any, cast
@@ -35,7 +37,7 @@ from spindoctor.sim.instrument_resolvers import (
 from spindoctor.sim.realism.noise import SkyPatch
 from spindoctor.sim.render import render_combined_model
 from spindoctor.sim.scene import validate_sim_params
-from tests.integration import sim_realism_twin_stars
+from tests.integration import sim_realism, sim_realism_twin_stars
 from tests.integration.sim_realism import (
     INSTRUMENT_FOR,
     FrameRecord,
@@ -868,6 +870,22 @@ def test_a_frame_off_the_downlink_table_is_grouped_as_native() -> None:
         pair_sky(_sky_record(), _sky_frame(1e-4), _sky_frame(4e-5), twins_with_sky=True)
     )
     assert list(_sky_comparison(comparison)['by_downlink']) == ['native']
+
+
+def test_the_command_line_runs_the_package_copy_of_the_module(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Run as a script, the module calls the main of its copy imported by package name.
+
+    The report module counts frame pairs by their status class, which it imports by
+    package name, so a run that built them from the ``__main__`` copy counted none.
+    """
+    calls: list[str] = []
+    monkeypatch.setattr(sim_realism, 'main', lambda: calls.append('package'))
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore', RuntimeWarning)
+        runpy.run_module('tests.integration.sim_realism', run_name='__main__')
+    assert calls == ['package']
 
 
 def test_cohort_discovery_covers_known_instruments() -> None:
