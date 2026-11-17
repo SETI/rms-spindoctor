@@ -1,6 +1,7 @@
 """Flat-schema validation, boundary classification, and save/load round-trip."""
 
 import math
+import re
 from pathlib import Path
 from typing import Any
 
@@ -30,7 +31,7 @@ def _sim_params() -> dict[str, Any]:
         'instrument': 'coiss_nac',
         'offset_v': 3.0,
         'offset_u': -2.0,
-        'bodies': [{'name': 'RHEA', 'center_v': 64.0, 'center_u': 64.0, 'axis1': 80.0}],
+        'bodies': [{'name': 'RHEA', 'center_v': 64.0, 'center_u': 64.0, 'semi_a_px': 40.0}],
         'noise': {'poisson': True, 'read_noise_dn': 4.0},
         'sky_counts': {'density_factor': 12.0},
     }
@@ -394,6 +395,16 @@ def test_validate_sim_params_rejects_v1_body_range_key() -> None:
         validate_sim_params(params)
 
 
+def test_validate_sim_params_rejects_axis1_as_an_unknown_body_key() -> None:
+    """A body size given as axis1 fails as an unknown key."""
+    params = _sim_params()
+    params['bodies'][0]['axis1'] = 80.0
+    with pytest.raises(
+        SimSceneValidationError, match=re.escape("bodies[0]: unknown keys: ['axis1']")
+    ):
+        validate_sim_params(params)
+
+
 def test_validate_sim_params_accepts_body_range_km() -> None:
     """The per-body 'range_km' key validates."""
     params = _sim_params()
@@ -516,9 +527,9 @@ def _mesh_body() -> dict[str, Any]:
     return {
         'name': 'LUMPY',
         'shape_model': 'polyhedral_mesh',
-        'axis1': 30.0,
-        'axis2': 26.0,
-        'axis3': 24.0,
+        'semi_a_px': 15.0,
+        'semi_b_px': 13.0,
+        'semi_c_px': 12.0,
         'mesh_lumpiness': 0.4,
         'mesh_seed': 3,
     }
@@ -643,7 +654,7 @@ def test_validate_sim_params_refuses_a_null_top_level_number(key: str) -> None:
 def test_a_null_top_level_block_validates_and_renders(key: str) -> None:
     """A top-level block or list set to null renders exactly as the scene without it."""
     params = _sim_params()
-    params['bodies'][0].update(axis2=60.0, axis3=50.0)
+    params['bodies'][0].update(semi_b_px=30.0, semi_c_px=25.0)
     params['stars'] = [{'name': 'S1', 'v': 20.0, 'u': 20.0, 'vmag': 8.0}]
     absent = {name: value for name, value in params.items() if name != key}
     params[key] = None
@@ -656,7 +667,7 @@ def test_a_null_top_level_block_validates_and_renders(key: str) -> None:
 def test_validate_sim_params_rejects_duplicate_body_names() -> None:
     """Two bodies with the same name fail (name-keyed truth would collide)."""
     params = _sim_params()
-    params['bodies'] = [{'name': 'RHEA', 'axis1': 40.0}, {'name': 'RHEA', 'axis1': 20.0}]
+    params['bodies'] = [{'name': 'RHEA', 'semi_a_px': 20.0}, {'name': 'RHEA', 'semi_a_px': 10.0}]
     with pytest.raises(SimSceneValidationError, match="share the effective name 'RHEA'"):
         validate_sim_params(params)
 
@@ -664,7 +675,7 @@ def test_validate_sim_params_rejects_duplicate_body_names() -> None:
 def test_validate_sim_params_rejects_case_colliding_body_names() -> None:
     """Body names collide case-insensitively (truth keys are upper-cased)."""
     params = _sim_params()
-    params['bodies'] = [{'name': 'Rhea', 'axis1': 40.0}, {'name': 'RHEA', 'axis1': 20.0}]
+    params['bodies'] = [{'name': 'Rhea', 'semi_a_px': 20.0}, {'name': 'RHEA', 'semi_a_px': 10.0}]
     with pytest.raises(SimSceneValidationError, match='share the effective name'):
         validate_sim_params(params)
 
@@ -672,7 +683,7 @@ def test_validate_sim_params_rejects_case_colliding_body_names() -> None:
 def test_validate_sim_params_rejects_body_name_colliding_with_default() -> None:
     """An explicit name colliding with an unnamed body's positional default fails."""
     params = _sim_params()
-    params['bodies'] = [{'axis1': 40.0}, {'name': 'SIM-BODY-1', 'axis1': 20.0}]
+    params['bodies'] = [{'semi_a_px': 20.0}, {'name': 'SIM-BODY-1', 'semi_a_px': 10.0}]
     with pytest.raises(SimSceneValidationError, match="share the effective name 'SIM-BODY-1'"):
         validate_sim_params(params)
 
@@ -680,7 +691,7 @@ def test_validate_sim_params_rejects_body_name_colliding_with_default() -> None:
 def test_validate_sim_params_accepts_distinct_body_names() -> None:
     """Distinctly named (and defaulted) bodies validate."""
     params = _sim_params()
-    params['bodies'] = [{'name': 'RHEA', 'axis1': 40.0}, {'axis1': 20.0}]
+    params['bodies'] = [{'name': 'RHEA', 'semi_a_px': 20.0}, {'semi_a_px': 10.0}]
     assert validate_sim_params(params) is params
 
 

@@ -193,8 +193,8 @@ def _absorbed_orbit_sensitivity(
 
     The absorbed translation is therefore ``t = d * g`` with ``g = M^{+} b``,
     and a radial uncertainty ``sigma`` contributes ``sigma**2 g g^{T}`` to the
-    reported covariance.  Returning ``g`` (not a unit direction) is what makes
-    the geometry honest:
+    reported covariance.  Returning ``g`` (not a unit direction) is what lets
+    the covariance follow the geometry:
 
     - A short arc has nearly parallel normals: ``g`` is a unit vector along
       them, and the full variance lands on the radial axis.
@@ -254,7 +254,7 @@ def _absorbed_orbit_sensitivity(
     Directions holding less than ``_MIN_CONSTRAINED_EIGENVALUE_RATIO`` of the
     dominant eigenvalue are therefore dropped from the solve, so opposed
     geometry contributes nothing and falls through to the caller's isotropic
-    term at ``sigma`` -- the same honest "no predictable direction" statement
+    term at ``sigma`` -- the same "no predictable direction" statement
     the closed-annulus limit gets.  Clamping the divergence to a plausible
     number instead would have hidden that the geometry is pathological.
 

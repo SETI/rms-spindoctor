@@ -27,10 +27,10 @@ __all__ = ['create_simulated_body']
 def create_simulated_body(
     size: tuple[int, int],
     center: tuple[float, float],
-    axis1: float,
+    semi_a_px: float,
     *,
-    axis2: float,
-    axis3: float,
+    semi_b_px: float,
+    semi_c_px: float,
     rotation_z: float = 0.0,
     rotation_tilt: float = 0.0,
     illumination_angle: float = 0.0,
@@ -48,9 +48,9 @@ def create_simulated_body(
         center: Tuple of (v, u) giving the center position in floating-point pixels.
             (0.0, 0.0) is the top-left corner of pixel (0,0), (0.5, 0.5) is the
             center of pixel (0,0).
-        axis1: The full width of axis 1 (a) of the ellipsoid in pixels.
-        axis2: The full width of axis 2 (b) of the ellipsoid in pixels.
-        axis3: The full width of axis 3 (c) of the ellipsoid in pixels (depth).
+        semi_a_px: Semi-axis a of the ellipsoid in pixels, half its width along axis 1.
+        semi_b_px: Semi-axis b of the ellipsoid in pixels, half its width along axis 2.
+        semi_c_px: Semi-axis c of the ellipsoid in pixels, half its depth along axis 3.
         rotation_z: Rotation angle around the viewing axis (z-axis) in radians (0 to 2pi).
         rotation_tilt: Tilt angle of the ellipsoid in radians (0 to pi/2).
             Controls how much the ellipsoid is tilted toward/away from the viewer.
@@ -76,9 +76,9 @@ def create_simulated_body(
     proj = project_ellipsoid(
         size,
         center,
-        axis1,
-        axis2=axis2,
-        axis3=axis3,
+        semi_a_px,
+        semi_b_px=semi_b_px,
+        semi_c_px=semi_c_px,
         rotation_z=rotation_z,
         rotation_tilt=rotation_tilt,
         anti_aliasing=anti_aliasing,

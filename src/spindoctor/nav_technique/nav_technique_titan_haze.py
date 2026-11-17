@@ -7,7 +7,7 @@ sub-solar point.  The image displacement perpendicular to that line
 because the limb arc facing the sub-solar point is close to circular, a
 circle fit with FREE radius to that arc pins the displacement along the line
 ("along-track") without assuming a haze altitude.  Together the two
-constraints give a full ``(dv, du)`` offset whose uncertainty is honestly
+constraints give a full ``(dv, du)`` offset whose uncertainty is
 anisotropic: the cross-track direction is far better determined than the
 along-track one.
 
@@ -78,7 +78,7 @@ the perfect one a bare zero would imply.  Unreachable in practice: the
 _UNDEFINED_QUALITY_SENTINEL: float = 0.0
 """Quality score substituted when the symmetry scan left it undefined.
 
-Zero is the honest floor for a rising quality term -- no measured symmetry
+Zero is the floor for a rising quality term -- no measured symmetry
 means no evidence.  Unreachable in practice: the ``peak_score`` gate rejects
 the only case that produces it.
 """

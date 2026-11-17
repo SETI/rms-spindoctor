@@ -71,9 +71,9 @@ def _mesh_body(**extra: Any) -> dict[str, Any]:
         'center_v': 64.0,
         'center_u': 64.0,
         'shape_model': 'polyhedral_mesh',
-        'axis1': 30.0,
-        'axis2': 26.0,
-        'axis3': 24.0,
+        'semi_a_px': 15.0,
+        'semi_b_px': 13.0,
+        'semi_c_px': 12.0,
         **extra,
     }
 
@@ -87,7 +87,7 @@ def test_the_table_holds_exactly_the_twelve_ellipsoid_only_keys() -> None:
 def test_every_refused_key_validates_on_an_ellipsoid() -> None:
     """Each table key, with its test value, is a valid ellipsoid key."""
     body = {key: value for key, value in _VALID_VALUES.items() if key != 'minnaert_k'}
-    body.update(name='ROUND', center_v=64.0, center_u=64.0, axis1=30.0, minnaert_k=0.6)
+    body.update(name='ROUND', center_v=64.0, center_u=64.0, semi_a_px=15.0, minnaert_k=0.6)
     validate_sim_params(_scene(body))
 
 

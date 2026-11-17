@@ -59,7 +59,7 @@ techniques agree, the boost never exceeds this multiplier.
 COMBINED_CONFIDENCE_CAP: float = 0.99
 """Maximum value the precision-weighted combined confidence may take.
 
-Two correlated estimators agreeing strongly is treated as honest 0.99,
+Two correlated estimators that agree strongly reach at most 0.99,
 never 1.0 — confidence is a calibrated proxy, not a probability.
 """
 

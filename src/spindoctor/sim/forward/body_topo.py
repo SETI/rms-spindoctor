@@ -88,16 +88,16 @@ class TopoBodySpec:
     oversampled grid when ``oversample`` > 1).
 
     Parameters:
-        axis1: Full width of ellipsoid axis 1 (a) in pixels.
-        axis2: Full width of ellipsoid axis 2 (b) in pixels.
-        axis3: Full width of ellipsoid axis 3 (c, depth) in pixels.
+        semi_a_px: Semi-axis a of the ellipsoid in pixels.
+        semi_b_px: Semi-axis b of the ellipsoid in pixels.
+        semi_c_px: Semi-axis c of the ellipsoid (the depth axis) in pixels.
         rotation_z: In-plane rotation about the viewing axis, radians.
         rotation_tilt: Tilt toward/away from the viewer, radians.
         illumination_angle: In-plane light direction, radians (0 = top).
         phase_angle: Phase angle in radians (0 fully lit, pi backlit).
         crater_fill: Approximate crater coverage fraction (0 = none).
-        crater_min_radius: Minimum crater radius as a fraction of axis1.
-        crater_max_radius: Maximum crater radius as a fraction of axis1.
+        crater_min_radius: Minimum crater radius as a fraction of ``semi_a_px``.
+        crater_max_radius: Maximum crater radius as a fraction of ``semi_a_px``.
         crater_power_law_exponent: Crater radius power-law exponent.
         crater_relief_scale: Crater depth scale factor.
         anti_aliasing: Silhouette anti-aliasing amount in [0, 1]; only
@@ -125,9 +125,9 @@ class TopoBodySpec:
             rendered disc).
     """
 
-    axis1: float
-    axis2: float
-    axis3: float
+    semi_a_px: float
+    semi_b_px: float
+    semi_c_px: float
     rotation_z: float = 0.0
     rotation_tilt: float = 0.0
     illumination_angle: float = 0.0
@@ -346,7 +346,7 @@ def render_topographic_body(
     cos_rz = float(np.cos(spec.rotation_z))
     sin_rz = float(np.sin(spec.rotation_z))
     cos_rt = float(np.cos(spec.rotation_tilt))
-    semi = (spec.axis1 / 2.0, spec.axis2 / 2.0, spec.axis3 / 2.0)
+    semi = (spec.semi_a_px, spec.semi_b_px, spec.semi_c_px)
 
     def _detector_grid() -> _Grid:
         """The body's geometry on the detector grid, where featured shading is done."""
@@ -722,8 +722,8 @@ def _crater_heights(grid: _Grid, spec: TopoBodySpec) -> NDArrayFloatType:
     """Carve the crater height field on the shading grid.
 
     Uses the classic path's carving loop (count law, radius power law, and
-    per-crater rng consumption) at the shading grid's resolution, seeded by
-    the same per-body crater seed the classic path derives.
+    per-crater draw rule) at the shading grid's resolution, seeded by the same
+    per-body crater seed the classic path derives.
 
     Parameters:
         grid: The shading-resolution geometry.
@@ -745,14 +745,16 @@ def _crater_heights(grid: _Grid, spec: TopoBodySpec) -> NDArrayFloatType:
     if spec.crater_seed is not None:
         seed_value = int(spec.crater_seed) & 0x7FFFFFFF
     else:
-        seed_value = stable_param_seed(spec.axis1, spec.axis2, spec.axis3, grid.center)
+        # The fallback seed is keyed on the full widths, twice the semi-axes; the
+        # craters of the committed seed-less scenes depend on this key (#913).
+        widths = (2.0 * spec.semi_a_px, 2.0 * spec.semi_b_px, 2.0 * spec.semi_c_px)
+        seed_value = stable_param_seed(*widths, grid.center)
         seed_value &= 0x7FFFFFFF
     return carve_crater_heights(
         inside_strict,
         grid.v_ctr,
         grid.u_ctr,
-        nz=np.argwhere(inside_strict),
-        rng=np.random.default_rng(seed_value),
+        crater_seed=seed_value,
         n_craters=n_craters,
         R_min=spec.crater_min_radius * grid.semi_a,
         R_max=spec.crater_max_radius * grid.semi_a,

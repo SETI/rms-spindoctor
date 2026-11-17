@@ -30,8 +30,8 @@ def _scene(**extra: Any) -> dict[str, Any]:
                 'name': 'PEBBLE',
                 'center_v': _SIZE / 2.0,
                 'center_u': _SIZE / 2.0,
-                'axis1': 12.0,
-                'axis2': 10.0,
+                'semi_a_px': 6.0,
+                'semi_b_px': 5.0,
             }
         ],
     }

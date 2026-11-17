@@ -62,9 +62,9 @@ def _titan(**overrides: Any) -> dict[str, Any]:
         'shape_model': 'ellipsoid',
         'center_v': _CENTER,
         'center_u': _CENTER,
-        'axis1': 2.0 * _SOLID_RADIUS_PX,
-        'axis2': 2.0 * _SOLID_RADIUS_PX,
-        'axis3': 2.0 * _SOLID_RADIUS_PX,
+        'semi_a_px': _SOLID_RADIUS_PX,
+        'semi_b_px': _SOLID_RADIUS_PX,
+        'semi_c_px': _SOLID_RADIUS_PX,
         'illumination_angle': 90.0,
         'phase_angle': 45.0,
         'km_per_pixel': _KM_PER_PIXEL,
@@ -230,7 +230,7 @@ def test_predicted_center_is_the_rendered_disc_center() -> None:
 
 def test_solid_radius_is_the_mean_image_plane_semi_axis() -> None:
     """The solid radius averages the two image-plane semi-axes."""
-    body = _titan(axis1=100.0, axis2=140.0)
+    body = _titan(semi_a_px=50.0, semi_b_px=70.0)
     assert _model([body]).geometry_inputs.r_solid_px == pytest.approx(60.0)
 
 
@@ -289,7 +289,7 @@ def test_subject_range_comes_from_the_scene() -> None:
 
 
 def test_missing_range_is_infinite_not_zero() -> None:
-    """A body with no stated range is honestly at unknown distance."""
+    """A body that has no stated range is at an unknown, infinite distance."""
     body = _titan()
     del body['range_km']
     assert math.isinf(_model([body]).geometry_inputs.subject_range_km)
@@ -317,9 +317,9 @@ def _sibling(center: float, *, range_km: float) -> dict[str, Any]:
         'name': 'MOON',
         'center_v': center,
         'center_u': center,
-        'axis1': 20.0,
-        'axis2': 20.0,
-        'axis3': 20.0,
+        'semi_a_px': 10.0,
+        'semi_b_px': 10.0,
+        'semi_c_px': 10.0,
         'illumination_angle': 90.0,
         'phase_angle': 45.0,
         'range_km': range_km,
@@ -447,7 +447,7 @@ def test_tiny_titan_is_hard_zero_reliability() -> None:
     through the standard statuses with an attributing record, rather than
     vanishing.
     """
-    body = _titan(axis1=20.0, axis2=20.0, axis3=20.0, km_per_pixel=2575.0 / 10.0)
+    body = _titan(semi_a_px=10.0, semi_b_px=10.0, semi_c_px=10.0, km_per_pixel=2575.0 / 10.0)
     model = _model([body])
     model.create_model()
     features = model.to_features(None)

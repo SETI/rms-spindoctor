@@ -11,8 +11,13 @@ that a scene file is validated once although it is both loaded and rendered, and
 how the scene path is resolved.  The path of a scene handed over in memory is only
 a label, so resolving it must not reach storage; a scene read from a file or a URL must be
 fetched before it can be parsed.
+
+Last, they check that the faint-star limit follows the frame's readout binning, reading
+each mode's values from the navigator's own block, and that an unbinned frame's limit
+reads the unbinned values.
 """
 
+import math
 import re
 import warnings
 from pathlib import Path
@@ -43,8 +48,8 @@ def _body_scene() -> dict[str, Any]:
                 'name': 'PEBBLE',
                 'center_v': _SIZE / 2.0,
                 'center_u': _SIZE / 2.0,
-                'axis1': 40.0,
-                'axis2': 30.0,
+                'semi_a_px': 20.0,
+                'semi_b_px': 15.0,
             }
         ],
     }
@@ -140,3 +145,85 @@ def test_scene_url_is_fetched_before_it_is_parsed(
     # which an interpolated POSIX path does.
     obs = ObsSim.from_file(scene_path.as_uri())
     assert obs.sim_params['scene_name'] == 'pebble_url'
+
+
+def _star_limit_obs(instrument: str, exposure_sec: float, *, binning: int | None = None) -> ObsSim:
+    """A star-free frame, binned by ``binning`` when given."""
+    scene: dict[str, Any] = {
+        'instrument': instrument,
+        'size_v': 64,
+        'size_u': 64,
+        'random_seed': 1,
+        'exposure_sec': exposure_sec,
+    }
+    if binning is not None:
+        scene['detector'] = {'binning': binning}
+    return ObsSim.from_file('/tmp/obs_sim_star_limit.yaml', sim_params=scene)
+
+
+def _star_limit(instrument: str, exposure_sec: float, *, binning: int | None = None) -> float:
+    """The faint-star limit of a star-free frame, binned by ``binning`` when given."""
+    return _star_limit_obs(instrument, exposure_sec, binning=binning).star_max_usable_vmag()
+
+
+@pytest.mark.parametrize(
+    ('instrument', 'exposure_sec', 'expected'),
+    [
+        ('nhlorri', 5.0, 11.414754682632388),
+        ('coiss_nac', 1.0, 10.890967146275809),
+        ('coiss_wac', 1.0, 8.734411020746549),
+        ('gossi', 1.0, 5.692403499719424),
+    ],
+)
+def test_unbinned_star_limit_is_unchanged(
+    instrument: str, exposure_sec: float, expected: float
+) -> None:
+    """An unbinned frame's limit is the value the navigator's published block gives.
+
+    The expected limits are fixed numbers on purpose: each is the limit the formula
+    gives from the camera's unbinned zero point, read noise, and PSF core at that
+    exposure, so a change to the formula or to the values it reads shows here, where an
+    expected value derived through the same formula would change with it.
+    """
+    assert _star_limit(instrument, exposure_sec) == pytest.approx(expected, rel=0.0, abs=1e-12)
+
+
+@pytest.mark.parametrize(
+    ('instrument', 'binning', 'expected_shift_mag'),
+    [
+        # From the navigator's LORRI block: unbinned, 3.33e6 DN/s over 4.0 DN of read
+        # noise; binned 4x4, 3.61e6 DN/s over 1.19 DN, with the 3.0 px core shrunk to
+        # 0.75 px, so on a sixteenth of the pixels.
+        ('nhlorri', 4, 2.5 * math.log10((3.61e6 / 3.33e6) * (4.0 / 1.19) * 4**2)),
+        # From the navigator's NAC block: unbinned, 3.33e5 DN/s over 4.0 DN; summed
+        # 2x2, the same zero point over 0.400 DN, which the 1 DN floor raises to 1.0,
+        # and the 0.54 px core shrinks below one pixel, which then holds it all.
+        ('coiss_nac', 2, 2.5 * math.log10((4.0 / 1.0) * 2.0 * math.pi * 0.54**2)),
+    ],
+    ids=['nhlorri-4x4', 'coiss_nac-2x2'],
+)
+def test_binned_star_limit_reads_the_modes_values(
+    instrument: str, binning: int, expected_shift_mag: float
+) -> None:
+    """A binned frame's limit reads its mode's zero point and read noise.
+
+    A star's total charge is the same in both frames, so the limit moves by 2.5 log10 of
+    how much the peak pixel's DN, over the read noise per pixel, grows.
+    """
+    unbinned = _star_limit(instrument, 1.0)
+    binned = _star_limit(instrument, 1.0, binning=binning)
+    assert binned - unbinned == pytest.approx(expected_shift_mag, rel=0.0, abs=1e-9)
+
+
+def test_a_mode_without_values_reads_the_unbinned_ones() -> None:
+    """With no entry for its mode, a binned frame's limit moves by its smaller core alone.
+
+    The LORRI 3.0 px core shrinks to 0.75 px on a 4x4-binned frame, so the peak pixel
+    holds 16 times the share of the star at the same zero point and read noise.
+    """
+    obs = _star_limit_obs('nhlorri', 1.0, binning=4)
+    assert obs._inst_config is not None
+    noise = {k: v for k, v in obs._inst_config['noise'].items() if k != 'by_binning'}
+    obs._inst_config = {**obs._inst_config, 'noise': noise}
+    shift = obs.star_max_usable_vmag() - _star_limit('nhlorri', 1.0)
+    assert shift == pytest.approx(2.5 * math.log10(4**2), rel=0.0, abs=1e-9)

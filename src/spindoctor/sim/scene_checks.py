@@ -2,15 +2,16 @@
 
 The ``_check_*`` / ``_require_*`` helpers here enforce the per-field types of
 every scene block: the per-object stars entries, the optics sub-blocks (PSF,
-smear, distortion, ghosts, stray light), the noise, instrument_config, detector, and
-spk_error blocks, plus the primitive scalar checks they all share.  Each block's key
+smear, distortion, ghosts, stray light), the noise, detector, and spk_error blocks,
+plus the primitive scalar checks they all share.  Each block's key
 inventory lives beside its checker (unknown keys fail validation, so a typo
 cannot silently render an un-blurred or clean frame).  The ``bodies``-entry
 checkers, the schema's largest block, live in the sibling
 :mod:`spindoctor.sim.scene_checks_body`, the ``ring_system`` block's checkers in
-:mod:`spindoctor.sim.scene_checks_ring`, and the ``artifacts`` block's checkers
-in :mod:`spindoctor.sim.scene_checks_artifacts`; all three build on the same
-primitives.
+:mod:`spindoctor.sim.scene_checks_ring`, the ``artifacts`` block's checkers
+in :mod:`spindoctor.sim.scene_checks_artifacts`, and the ``instrument_config``
+block's checker in :mod:`spindoctor.sim.scene_checks_instrument_config`; all four
+build on the same primitives.
 
 :func:`spindoctor.sim.scene.validate_sim_params` drives these helpers; every
 violation raises :class:`spindoctor.sim.scene_schema.SimSceneValidationError`.
@@ -376,29 +377,6 @@ def _check_noise(value: Any, *, source: str) -> None:
         _check_optional_nonnegative_number(vidicon.get(key), f'noise.vidicon.{key}', source=source)
 
 
-def _check_instrument_config(value: Any, *, source: str) -> None:
-    """Validate the scene-level ``instrument_config`` block.
-
-    The block can override any key of the navigator block except ``data_units``.  A
-    frame's units come only from the instrument's config entry; for other units, a
-    scene uses another instrument.
-
-    Parameters:
-        value: The ``instrument_config`` mapping, or None when the block is absent.
-        source: Label used in error messages.
-
-    Raises:
-        SimSceneValidationError: If the block isn't a mapping, or it sets
-            ``data_units``.
-    """
-    _check_optional_mapping(value, 'instrument_config', source=source)
-    if value is not None and 'data_units' in value:
-        raise SimSceneValidationError(
-            f"{source}: instrument_config: a scene can't set data_units. Choose an "
-            'instrument whose entry renders the units you want.'
-        )
-
-
 def _check_detector(value: Any, *, instrument: str, source: str) -> None:
     """Validate the scene-level ``detector`` block's field types.
 
@@ -661,7 +639,7 @@ def _check_expected(value: Any, *, source: str) -> None:
     ``conflicted`` status pins the matching tier, and those tiers require the
     matching status, but only when the tier is asserted (non-null).
 
-    ``known_offset_error_px`` is the honest-pin field: the measured fused
+    ``known_offset_error_px`` sets the known-error check: the measured fused
     offset-error magnitude a scene deliberately pins as a documented hazard (a
     confidently wrong result the ensemble cannot currently detect).  It
     requires ``status: success`` (a failed result has no offset to be wrong)
@@ -728,7 +706,7 @@ def _check_expected(value: Any, *, source: str) -> None:
     if known_error is not None and known_tol is None:
         raise SimSceneValidationError(
             f'{source}: expected.known_offset_error_px requires '
-            f'expected.known_offset_error_tol_px (the pin is a band)'
+            f'expected.known_offset_error_tol_px (the known-error check is a band)'
         )
     if known_tol is not None and known_error is None:
         raise SimSceneValidationError(

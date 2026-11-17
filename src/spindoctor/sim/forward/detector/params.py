@@ -566,7 +566,7 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
 
     # Read noise: a scene DN override wins (converted to electrons via gain);
     # otherwise the catalog electrons value when instrument_defaults is on;
-    # otherwise the honest floor (no read noise).
+    # otherwise zero (no read noise).
     if 'read_noise_dn' in scene_noise:
         read_noise_e = float(scene_noise['read_noise_dn']) * gain_e_per_dn
     elif instrument_defaults:

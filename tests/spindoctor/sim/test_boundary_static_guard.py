@@ -28,7 +28,9 @@ deliberate mismatch for.
 A third scan covers imports.  The simulated instrument catalog and the artifact-mode
 registry describe how the image side renders a frame, so no navigator-side module
 imports ``spindoctor.sim.instrument_*`` or ``spindoctor.sim.artifact_modes``.  A
-navigator-side model reads what the navigator would know from its own config.
+navigator-side model reads what the navigator would know from its own config.  The scan
+also covers the simulated observation (``obs/obs_inst_sim.py``), whose star limit is
+navigator-side; its sanctioned imports are listed in ``_ALLOWED_IMAGE_SIDE_IMPORTS``.
 
 Legitimate exceptions, should one ever exist, go in ``_ALLOWED_REFERENCES``:
 a mapping from ``(module path relative to the spindoctor package, name)`` to a
@@ -86,6 +88,19 @@ _PACKAGE_ROOT = Path(spindoctor.__file__).parent
 # instrument catalog and its readers, and the artifact-mode registry.
 _IMAGE_SIDE_MODULE_PREFIX = 'spindoctor.sim.instrument_'
 _IMAGE_SIDE_MODULES: frozenset[str] = frozenset({'spindoctor.sim.artifact_modes'})
+
+# Navigator-side modules outside the navigator packages whose imports the scan also
+# covers, relative to the spindoctor package.
+_NAVIGATOR_MODULES: tuple[str, ...] = ('obs/obs_inst_sim.py',)
+
+# Sanctioned image-side imports: (module path relative to the spindoctor package,
+# imported module) -> one-line justification.  An entry covers the names imported
+# from that module too.
+_ALLOWED_IMAGE_SIDE_IMPORTS: dict[tuple[str, str], str] = {
+    ('obs/obs_inst_sim.py', 'spindoctor.sim.instrument_navigator'): (
+        'it finds which navigator config section and detector to load for the instrument'
+    ),
+}
 
 
 def _module_package(path: Path) -> str:
@@ -239,18 +254,46 @@ def test_navigator_package_mentions_no_atmosphere_truth_key(package: str) -> Non
     )
 
 
+def _is_allowed_import(rel: str, module: str) -> bool:
+    """Whether an allowlist entry sanctions ``module``, or the module a name comes from."""
+    return any(
+        rel == allowed_rel and (module == allowed or module.startswith(f'{allowed}.'))
+        for allowed_rel, allowed in _ALLOWED_IMAGE_SIDE_IMPORTS
+    )
+
+
+def _image_side_import_violations(paths: list[Path]) -> list[str]:
+    """Return each non-allowlisted image-side import in ``paths``, formatted."""
+    violations: list[str] = []
+    for path in paths:
+        rel = path.relative_to(_PACKAGE_ROOT).as_posix()
+        violations.extend(
+            f'{rel}:{lineno}: imports {module}'
+            for lineno, module in _image_side_imports(
+                path.read_text(encoding='utf-8'), package=_module_package(path)
+            )
+            if not _is_allowed_import(rel, module)
+        )
+    return violations
+
+
 @pytest.mark.parametrize('package', _NAVIGATOR_PACKAGES)
 def test_navigator_package_imports_no_image_side_simulator_module(package: str) -> None:
     """No navigator-side module imports the instrument catalog or the mode registry."""
-    violations = [
-        f'{path.relative_to(_PACKAGE_ROOT).as_posix()}:{lineno}: imports {module}'
-        for path in sorted((_PACKAGE_ROOT / package).rglob('*.py'))
-        for lineno, module in _image_side_imports(
-            path.read_text(encoding='utf-8'), package=_module_package(path)
-        )
-    ]
+    violations = _image_side_import_violations(sorted((_PACKAGE_ROOT / package).rglob('*.py')))
     assert not violations, (
         'navigator-side code imports an image-side simulator module:\n' + '\n'.join(violations)
+    )
+
+
+@pytest.mark.parametrize('module', _NAVIGATOR_MODULES)
+def test_navigator_module_imports_only_sanctioned_image_side_modules(module: str) -> None:
+    """A navigator-side module outside the packages imports only allowlisted modules."""
+    violations = _image_side_import_violations([_PACKAGE_ROOT / module])
+    assert not violations, (
+        'navigator-side code imports an image-side simulator module (add an '
+        '_ALLOWED_IMAGE_SIDE_IMPORTS entry with a justification if it is sanctioned):\n'
+        + '\n'.join(violations)
     )
 
 
@@ -298,5 +341,5 @@ def test_guard_flags_a_string_literal_evasion() -> None:
 
 def test_allowlist_entries_name_existing_modules() -> None:
     """Every allowlist entry points at a module that still exists."""
-    for rel, _name in _ALLOWED_REFERENCES:
+    for rel, _name in [*_ALLOWED_REFERENCES, *_ALLOWED_IMAGE_SIDE_IMPORTS]:
         assert (_PACKAGE_ROOT / rel).is_file(), f'stale allowlist entry: {rel}'

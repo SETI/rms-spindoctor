@@ -16,7 +16,7 @@ the smooth Lambert ellipsoid).
 """
 
 from functools import lru_cache
-from typing import Any, cast
+from typing import Any
 
 import numpy as np
 
@@ -37,7 +37,7 @@ from spindoctor.sim.forward.translate import nonzero_box, shifted_box, translate
 from spindoctor.sim.seeds import derive_effect_seed, stable_param_seed
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 from spindoctor.support.stable_math import stable_hypot
-from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType, NDArrayIntType
+from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 
 __all__ = ['create_simulated_body', 'render_single_body']
 
@@ -45,10 +45,10 @@ __all__ = ['create_simulated_body', 'render_single_body']
 def create_simulated_body(
     size: tuple[int, int],
     center: tuple[float, float],
-    axis1: float,
+    semi_a_px: float,
     *,
-    axis2: float,
-    axis3: float,
+    semi_b_px: float,
+    semi_c_px: float,
     rotation_z: float = 0.0,
     rotation_tilt: float = 0.0,
     illumination_angle: float = 0.0,
@@ -72,9 +72,9 @@ def create_simulated_body(
         center: Tuple of (v, u) giving the center position in floating-point pixels.
             (0.0, 0.0) is the top-left corner of pixel (0,0), (0.5, 0.5) is the
             center of pixel (0,0).
-        axis1: The full width of axis 1 (a) of the ellipsoid in pixels.
-        axis2: The full width of axis 2 (b) of the ellipsoid in pixels.
-        axis3: The full width of axis 3 (c) of the ellipsoid in pixels (depth).
+        semi_a_px: Semi-axis a of the ellipsoid in pixels, half its width along axis 1.
+        semi_b_px: Semi-axis b of the ellipsoid in pixels, half its width along axis 2.
+        semi_c_px: Semi-axis c of the ellipsoid in pixels, half its depth along axis 3.
         rotation_z: Rotation angle around the viewing axis (z-axis) in radians (0 to 2pi).
         rotation_tilt: Tilt angle of the ellipsoid in radians (0 to pi/2).
             Controls how much the ellipsoid is tilted toward/away from the viewer.
@@ -85,8 +85,8 @@ def create_simulated_body(
             pi/2 = side illumination (half illuminated),
             pi = back illumination (no visible illumination).
         crater_fill: Approximate fraction of the ellipse to fill with craters.
-        crater_min_radius: Minimum radius of a crater as a fraction of axis1.
-        crater_max_radius: Maximum radius of a crater as a fraction of axis1.
+        crater_min_radius: Minimum radius of a crater as a fraction of ``semi_a_px``.
+        crater_max_radius: Maximum radius of a crater as a fraction of ``semi_a_px``.
         crater_power_law_exponent: Power law exponent for the crater radius distribution.
         crater_relief_scale: Scale factor for the crater depth.
         anti_aliasing: Float between 0 and 1 controlling anti-aliasing amount at the limb.
@@ -106,15 +106,14 @@ def create_simulated_body(
     proj = project_ellipsoid(
         size,
         center,
-        axis1,
-        axis2=axis2,
-        axis3=axis3,
+        semi_a_px,
+        semi_b_px=semi_b_px,
+        semi_c_px=semi_c_px,
         rotation_z=rotation_z,
         rotation_tilt=rotation_tilt,
         anti_aliasing=anti_aliasing,
     )
     aa_scale = proj.aa_scale
-    semi_major_axis = axis1 / 2.0
     work_center_v = proj.work_center_v
     work_center_u = proj.work_center_u
     work_semi_major = proj.work_semi_major
@@ -132,7 +131,7 @@ def create_simulated_body(
 
     if crater_fill > 0:
         total_area = np.sum(proj.inside_mask)
-        avg_crater_area = (crater_max_radius * semi_major_axis * aa_scale) ** 2
+        avg_crater_area = (crater_max_radius * semi_a_px * aa_scale) ** 2
         n_craters = np.clip(int(crater_fill * total_area / avg_crater_area), 0, 1000)
 
         # Use the provided seed, or fall back to a process-stable seed derived
@@ -141,21 +140,23 @@ def create_simulated_body(
         if seed is not None:
             seed_value = int(seed) & 0x7FFFFFFF
         else:
-            seed_value = stable_param_seed(axis1, axis2, axis3, center) & 0x7FFFFFFF
-        rng = np.random.default_rng(seed_value)
-        # Choose crater centers strictly inside the ellipse (exclude AA rim and exterior)
+            # The fallback seed is keyed on the full widths, twice the semi-axes; the
+            # craters of the committed seed-less scenes depend on this key (#913).
+            seed_value = (
+                stable_param_seed(2.0 * semi_a_px, 2.0 * semi_b_px, 2.0 * semi_c_px, center)
+                & 0x7FFFFFFF
+            )
+        # Crater centers lie strictly inside the ellipse (exclude AA rim and exterior)
         ellipse_mask_nz = ellipse_dist_sq < 1.0
-        nz = np.argwhere(ellipse_mask_nz)
 
         intensity = _add_craters_and_shading(
             ellipse_mask_nz,
             v_coords,
             u_coords,
-            nz=nz,  # indices of non-zero ellipse pixels (list/array of (v,u))
-            rng=rng,
+            crater_seed=seed_value,
             n_craters=n_craters,
-            R_min=crater_min_radius * semi_major_axis,
-            R_max=crater_max_radius * semi_major_axis,
+            R_min=crater_min_radius * semi_a_px,
+            R_max=crater_max_radius * semi_a_px,
             crater_power_law_exponent=crater_power_law_exponent,
             crater_relief_scale=crater_relief_scale,
             work_center_v=work_center_v,
@@ -213,8 +214,7 @@ def _add_craters_and_shading(
     v_coords: NDArrayFloatType,
     u_coords: NDArrayFloatType,
     *,
-    nz: NDArrayIntType,
-    rng: np.random.Generator,
+    crater_seed: int,
     n_craters: int,
     R_min: float,
     R_max: float,
@@ -246,8 +246,7 @@ def _add_craters_and_shading(
         ellipse_mask_nz: Boolean mask of pixels strictly inside the ellipse.
         v_coords: Centered v pixel coordinates at working resolution.
         u_coords: Centered u pixel coordinates at working resolution.
-        nz: Array of (v, u) indices of pixels inside the ellipse.
-        rng: Seeded random stream for crater placement and sizes.
+        crater_seed: The body's crater seed, from which each crater derives its stream.
         n_craters: Number of craters to place.
         R_min: Minimum crater radius in pixels (before aa scaling).
         R_max: Maximum crater radius in pixels (before aa scaling).
@@ -275,8 +274,7 @@ def _add_craters_and_shading(
         ellipse_mask_nz,
         v_coords,
         u_coords,
-        nz=nz,
-        rng=rng,
+        crater_seed=crater_seed,
         n_craters=n_craters,
         R_min=R_min,
         R_max=R_max,
@@ -328,8 +326,7 @@ def carve_crater_heights(
     v_coords: NDArrayFloatType,
     u_coords: NDArrayFloatType,
     *,
-    nz: NDArrayIntType,
-    rng: np.random.Generator,
+    crater_seed: int,
     n_craters: int,
     R_min: float,
     R_max: float,
@@ -343,20 +340,27 @@ def carve_crater_heights(
 
     Shared by both body render paths: the classic Lambert path shades the
     working grid with these heights directly, and the topographic path
-    carves them on its shading grid.  The rng consumption order (center,
-    radius, depth noise per crater) is the paths' shared determinism
-    contract for a given seed and grid.
+    carves them on its shading grid.  The draw rule below is the paths'
+    shared determinism contract for a given seed and grid.
+
+    Each crater draws from its own stream, seeded by
+    ``derive_effect_seed(crater_seed, 'crater:<index>')``: one uniform value for the
+    radius, then one normal value for the depth scatter, then its center (see
+    :func:`_draw_crater_center`).  A crater's values therefore depend only on the
+    seed, its index, the grid's dimensions, and the mask at the candidate pixels
+    its own stream picks.  Changing one interior pixel moves only a crater whose
+    center search reaches that pixel, and a change in the crater count adds or
+    drops craters at the end of the list without touching the others.
 
     Parameters:
         ellipse_mask_nz: Boolean mask of pixels strictly inside the ellipse.
         v_coords: Centered v pixel coordinates at working resolution.
         u_coords: Centered u pixel coordinates at working resolution.
-        nz: Array of (v, u) indices of pixels inside the ellipse.
-        rng: Seeded random stream for crater placement and sizes.
+        crater_seed: The body's crater seed, from which each crater derives its stream.
         n_craters: Number of craters to place.
         R_min: Minimum crater radius in pixels (before aa scaling).
         R_max: Maximum crater radius in pixels (before aa scaling).
-        crater_power_law_exponent: Power law exponent for crater radii.
+        crater_power_law_exponent: Power law exponent for crater radii, above 1.
         crater_relief_scale: Scale factor for crater depth.
         work_center_v: Body center v at working resolution.
         work_center_u: Body center u at working resolution.
@@ -364,64 +368,53 @@ def carve_crater_heights(
 
     Returns:
         The crater height field over the working grid.
+
+    Raises:
+        ValueError: If ``crater_power_law_exponent`` is not above 1 and a crater is
+            placed.
     """
 
     # ------------------------------------------------------------------
     # 0. Heightmap we will add craters to
     # ------------------------------------------------------------------
     height = np.zeros_like(ellipse_mask_nz, dtype=float)
+    if n_craters <= 0 or not ellipse_mask_nz.any():
+        return height
+    if crater_power_law_exponent <= 1:
+        raise ValueError('alpha must be > 1 for a proper power law.')
 
     # ------------------------------------------------------------------
-    # 1. Radius distribution: power law in [R_min, R_max]
+    # 1. Radius distribution: power law p(R) ~ R^(-alpha) on [R_min, R_max]
     # ------------------------------------------------------------------
-    def power_law_radius(
-        rng: np.random.Generator,
-        R_min: float,
-        R_max: float,
-        *,
-        alpha: float,
-        size: int | None = None,
-    ) -> NDArrayFloatType:
-        """Sample R from p(R) ~ R^(-alpha) on [R_min, R_max], alpha > 1."""
-        if alpha <= 1:
-            raise ValueError('alpha must be > 1 for a proper power law.')
-        a = 1.0 - alpha
-        R_min_a = R_min**a
-        R_max_a = R_max**a
-        u = rng.uniform(0.0, 1.0, size=size)
-        R = (R_min_a + u * (R_max_a - R_min_a)) ** (1.0 / a)
-        return cast(NDArrayFloatType, R)
+    power = 1.0 - crater_power_law_exponent
+    R_min_a = (R_min * aa_scale) ** power
+    R_max_a = (R_max * aa_scale) ** power
+
+    # Distances from each crater center are taken in the frame's own pixel
+    # corner coordinates so the two frames cannot disagree.  v_coords and
+    # u_coords are pixel corner coordinates with the body center already taken
+    # off, so adding it back restores them.
+    v_abs = v_coords + work_center_v
+    u_abs = u_coords + work_center_u
 
     # ------------------------------------------------------------------
     # 2. Crater placement + geometry
     # ------------------------------------------------------------------
-    for _ in range(n_craters):
-        # Random crater center in non-zero ellipse area
-        v_crater, u_crater = nz[int(rng.integers(len(nz)))]
+    for index in range(n_craters):
+        rng = np.random.default_rng(derive_effect_seed(crater_seed, f'crater:{index}'))
+        crater_radius = float((R_min_a + rng.uniform() * (R_max_a - R_min_a)) ** (1.0 / power))
+        # Multiplicative depth scatter around the size-dependent mean of 2a
+        noise = np.exp(rng.normal(loc=0.0, scale=0.25))
+        v_crater, u_crater = _draw_crater_center(ellipse_mask_nz, rng)
 
-        # Radius from power-law distribution
-        crater_radius = power_law_radius(
-            rng, R_min * aa_scale, R_max * aa_scale, alpha=crater_power_law_exponent
-        )
-
-        # Distances from the crater center, taken in the frame's own pixel
-        # corner coordinates so the two frames cannot disagree.  v_coords and
-        # u_coords are pixel corner coordinates with the body center already
-        # taken off, so adding it back restores them.  The crater center picked
-        # above is an array row and column, so the half pixel goes on here.
-        v_abs = v_coords + work_center_v
-        u_abs = u_coords + work_center_u
-        center_v_abs = float(v_crater) + PIXEL_CENTER_TO_CORNER_PX
-        center_u_abs = float(u_crater) + PIXEL_CENTER_TO_CORNER_PX
-        v_dist = v_abs - center_v_abs
-        u_dist = u_abs - center_u_abs
+        # The crater center is an array row and column, so the half pixel goes on here.
+        v_dist = v_abs - (v_crater + PIXEL_CENTER_TO_CORNER_PX)
+        u_dist = u_abs - (u_crater + PIXEL_CENTER_TO_CORNER_PX)
         crater_dist = np.sqrt(v_dist**2 + u_dist**2)
 
         # Mask where crater affects height (slightly beyond radius for rim)
         # TODO make config parameter
         crater_mask = (crater_dist < crater_radius * 1.1) & ellipse_mask_nz
-        if not np.any(crater_mask):
-            continue
 
         r = crater_dist[crater_mask]
         D = 2.0 * crater_radius  # diameter
@@ -437,9 +430,6 @@ def carve_crater_heights(
         t = np.clip((D - D_small) / (D_large - D_small + 1e-9), 0.0, 1.0)
         # d/D: small -> 0.20, large -> 0.07
         d_over_D_mean = (1.0 - t) * 0.20 + t * 0.07
-
-        # Multiplicative noise around mean
-        noise = np.exp(rng.normal(loc=0.0, scale=0.25))  # adjust scatter
         d_over_D = d_over_D_mean * noise
 
         crater_depth = crater_relief_scale * d_over_D * D
@@ -473,6 +463,35 @@ def carve_crater_heights(
         height[crater_mask] += local_profile
 
     return height
+
+
+# Candidate pixels drawn per round of the crater center search
+_CENTER_CANDIDATES_PER_ROUND = 256
+
+
+def _draw_crater_center(mask: NDArrayBoolType, rng: np.random.Generator) -> tuple[int, int]:
+    """Draw a crater center uniformly among a mask's pixels.
+
+    Candidates are drawn in rounds of a fixed number of pixels, each uniform over
+    the whole grid, and the first candidate inside the mask is the center.  The
+    candidates depend only on the stream and the grid's dimensions, never on the
+    mask, so changing one mask pixel changes the center only when one of the
+    candidates up to and including the chosen one is that pixel.
+
+    Parameters:
+        mask: The pixels a center may land on; at least one must be set.
+        rng: The crater's own random stream.
+
+    Returns:
+        The center's array row and column.
+    """
+    flat = mask.ravel()
+    while True:
+        candidates = rng.integers(flat.size, size=_CENTER_CANDIDATES_PER_ROUND)
+        hits = candidates[flat[candidates]]
+        if hits.size:
+            row, col = divmod(int(hits[0]), mask.shape[1])
+            return row, col
 
 
 def perturb_normals_by_height(
@@ -514,10 +533,10 @@ def perturb_normals_by_height(
 def _render_body_shape_cached(
     size_v: int,
     size_u: int,
-    axis1: float,
+    semi_a_px: float,
     *,
-    axis2: float,
-    axis3: float,
+    semi_b_px: float,
+    semi_c_px: float,
     rotation_z: float,
     rotation_tilt: float,
     illumination_angle: float,
@@ -542,9 +561,9 @@ def _render_body_shape_cached(
     sim_body = create_simulated_body(
         size=(size_v, size_u),
         center=(ref_center_v, ref_center_u),
-        axis1=axis1,
-        axis2=axis2,
-        axis3=axis3,
+        semi_a_px=semi_a_px,
+        semi_b_px=semi_b_px,
+        semi_c_px=semi_c_px,
         rotation_z=rotation_z,
         rotation_tilt=rotation_tilt,
         illumination_angle=illumination_angle,
@@ -627,9 +646,9 @@ def render_single_body(
     center_v = (size_v / 2.0 if spec.center_v is None else spec.center_v) + offset_v
     center_u = (size_u / 2.0 if spec.center_u is None else spec.center_u) + offset_u
 
-    axis1 = spec.axis1
-    axis2 = spec.axis2
-    axis3 = spec.axis3
+    semi_a_px = spec.semi_a_px
+    semi_b_px = spec.semi_b_px
+    semi_c_px = spec.semi_c_px
 
     rotation_z = np.radians(spec.rotation_z)
     rotation_tilt = np.radians(spec.rotation_tilt)
@@ -662,15 +681,13 @@ def render_single_body(
         body_seed = spec.seed
 
     # Projected half-extents of the body in the image plane.  The rendered
-    # silhouette is the axis1/axis2 ellipse rotated in-plane by rotation_z
-    # (axis3 is the depth axis and does not project), so the bounding
-    # half-extents along the image axes follow from the rotated ellipse.
-    semi_1 = axis1 / 2.0
-    semi_2 = axis2 / 2.0
+    # silhouette is the ellipse of semi-axes a and b rotated in-plane by
+    # rotation_z (semi-axis c is the depth axis and does not project), so the
+    # bounding half-extents along the image axes follow from the rotated ellipse.
     cos_rz = float(np.cos(rotation_z))
     sin_rz = float(np.sin(rotation_z))
-    half_extent_v = float(stable_hypot(semi_1 * cos_rz, semi_2 * sin_rz))
-    half_extent_u = float(stable_hypot(semi_1 * sin_rz, semi_2 * cos_rz))
+    half_extent_v = float(stable_hypot(semi_a_px * cos_rz, semi_b_px * sin_rz))
+    half_extent_u = float(stable_hypot(semi_a_px * sin_rz, semi_b_px * cos_rz))
 
     # Get cached body shape (at reference center).  An irregular body renders
     # from a polyhedral mesh at a scene-supplied pose; otherwise an ellipsoid.
@@ -685,9 +702,9 @@ def render_single_body(
             body_name,
             center_v=center_v,
             center_u=center_u,
-            axis1=axis1,
-            axis2=axis2,
-            axis3=axis3,
+            semi_a_px=semi_a_px,
+            semi_b_px=semi_b_px,
+            semi_c_px=semi_c_px,
             illumination_angle=float(illumination_angle),
             phase_angle=float(phase_angle),
             # Silhouette anti-aliasing is consumed only at oversample 1,
@@ -733,15 +750,19 @@ def render_single_body(
             elif spec.seed is not None:
                 identity_seed = spec.seed & 0x7FFFFFFF
             else:
-                identity_seed = stable_param_seed(axis1, axis2, axis3, body_index, body_name)
+                # The fallback seed is keyed on the full widths, twice the semi-axes; the
+                # terrain of the committed seed-less scenes depends on this key (#913).
+                identity_seed = stable_param_seed(
+                    2.0 * semi_a_px, 2.0 * semi_b_px, 2.0 * semi_c_px, body_index, body_name
+                )
             if limb_relief_rms > 0.0:
                 relief_seed = derive_effect_seed(identity_seed, 'relief')
             if spec.albedo_texture is not None:
                 albedo_seed = derive_effect_seed(identity_seed, 'albedo')
         topo_spec = TopoBodySpec(
-            axis1=axis1,
-            axis2=axis2,
-            axis3=axis3,
+            semi_a_px=semi_a_px,
+            semi_b_px=semi_b_px,
+            semi_c_px=semi_c_px,
             rotation_z=float(rotation_z),
             rotation_tilt=float(rotation_tilt),
             illumination_angle=float(illumination_angle),
@@ -772,9 +793,9 @@ def render_single_body(
         body_shape = _render_body_shape_cached(
             size_v,
             size_u,
-            axis1,
-            axis2=axis2,
-            axis3=axis3,
+            semi_a_px,
+            semi_b_px=semi_b_px,
+            semi_c_px=semi_c_px,
             rotation_z=rotation_z,
             rotation_tilt=rotation_tilt,
             illumination_angle=illumination_angle,
@@ -803,9 +824,9 @@ def render_single_body(
             atmosphere_spec,
             center_v=ref_center_v,
             center_u=ref_center_u,
-            semi_a=axis1 / 2.0,
-            semi_b=axis2 / 2.0,
-            semi_c=axis3 / 2.0,
+            semi_a=semi_a_px,
+            semi_b=semi_b_px,
+            semi_c=semi_c_px,
             rotation_z=float(rotation_z),
             rotation_tilt=float(rotation_tilt),
             illumination_angle=float(illumination_angle),

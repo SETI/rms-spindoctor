@@ -418,7 +418,14 @@ def _disc(instrument: str, **extra: Any) -> dict[str, Any]:
         'instrument': instrument,
         'exposure_sec': 1.0,
         'bodies': [
-            {'name': 'B', 'center_v': 48, 'center_u': 48, 'axis1': 30, 'axis2': 28, 'axis3': 28}
+            {
+                'name': 'B',
+                'center_v': 48,
+                'center_u': 48,
+                'semi_a_px': 15.0,
+                'semi_b_px': 14.0,
+                'semi_c_px': 14.0,
+            }
         ],
     }
     scene.update(extra)

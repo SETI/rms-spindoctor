@@ -79,7 +79,7 @@ _SNAPPED_TOL_EXPOSURE_DIVISOR = 48.0
 # that uses it caches its answer for that long: two Voyager images navigated
 # through the fallback within eighty minutes of each other in one process share
 # one attitude.  The second then records an attitude no lookup at its own
-# midtime reproduces, and is honestly refused rather than corrected against a
+# midtime reproduces, and is refused rather than corrected against a
 # baseline it did not use.
 
 # The fixed rotation from a frozen-attitude object's frame to the camera frame

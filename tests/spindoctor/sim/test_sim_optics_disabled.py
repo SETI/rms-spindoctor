@@ -24,7 +24,9 @@ def _base_scene(**extra: Any) -> dict[str, Any]:
         'random_seed': 4,
         'instrument': 'coiss_nac',
         'noise': {'poisson': False, 'read_noise_dn': 0.0, 'bias_dn': 0.0},
-        'bodies': [{'name': 'B', 'center_v': 30.0, 'center_u': 30.0, 'axis1': 20.0, 'axis2': 20.0}],
+        'bodies': [
+            {'name': 'B', 'center_v': 30.0, 'center_u': 30.0, 'semi_a_px': 10.0, 'semi_b_px': 10.0}
+        ],
         'stars': [{'name': 'S', 'v': 12.0, 'u': 48.0, 'vmag': 0.0}],
     }
     scene.update(extra)

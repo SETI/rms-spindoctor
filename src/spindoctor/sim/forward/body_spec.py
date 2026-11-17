@@ -39,11 +39,11 @@ __all__ = [
 
 CRATER_MIN_RADIUS_DEFAULT: float = 0.05
 """The smallest crater radius a body draws when it leaves the key out, as a
-fraction of axis1."""
+fraction of semi-axis a."""
 
 CRATER_MAX_RADIUS_DEFAULT: float = 0.25
 """The largest crater radius a body draws when it leaves the key out, as a
-fraction of axis1."""
+fraction of semi-axis a."""
 
 _CRATER_POWER_LAW_EXPONENT_DEFAULT = 3.0
 _CRATER_RELIEF_SCALE_DEFAULT = 0.6
@@ -59,13 +59,13 @@ class BodySpec:
     """One scene body with every default applied.
 
     Most fields carry the scene key of the same name, in the scene's units:
-    pixels for centers and axes, and degrees for angles.  The entries below note
-    the fields that come from other keys.
+    pixels for centers and semi-axes, and degrees for angles.  The entries below
+    note the fields that come from other keys.
 
     When the scene radiance stage renders a body, it fills the spec with
     render-grid values.  It shifts the center by the ephemeris parallax and
     applies the planted roll, which rotates the center about the frame center and
-    adds to ``rotation_z``.  It then scales the center and axes by the
+    adds to ``rotation_z``.  It then scales the center and semi-axes by the
     oversampling factor.  :func:`~spindoctor.sim.forward.body.render_single_body`
     adds the planted translation when it draws the body.
 
@@ -77,10 +77,10 @@ class BodySpec:
             center.
         center_u: The body center's u coordinate, or None for the frame
             center.
-        axis1: The full width along axis 1.
-        axis2: The full width along axis 2.
-        axis3: The full width along axis 3, which defaults to the smaller of
-            ``axis1`` and ``axis2``.
+        semi_a_px: Semi-axis a, half the width along axis 1.
+        semi_b_px: Semi-axis b, half the width along axis 2.
+        semi_c_px: Semi-axis c, half the depth along axis 3, which defaults to
+            the smaller of ``semi_a_px`` and ``semi_b_px``.
         rotation_z: The in-plane rotation, in degrees.
         rotation_tilt: The tilt of the polar axis toward the observer, in
             degrees.
@@ -88,8 +88,8 @@ class BodySpec:
         phase_angle: The phase angle, in degrees.
         range_km: The observer distance, or None when the scene leaves it out.
         crater_fill: The fraction of the surface covered by craters.
-        crater_min_radius: The smallest crater radius, a fraction of axis1.
-        crater_max_radius: The largest crater radius, a fraction of axis1.
+        crater_min_radius: The smallest crater radius, a fraction of ``semi_a_px``.
+        crater_max_radius: The largest crater radius, a fraction of ``semi_a_px``.
         crater_power_law_exponent: The exponent of the crater-radius
             distribution.
         crater_relief_scale: The crater depth scale.
@@ -120,9 +120,9 @@ class BodySpec:
     shape_model: str
     center_v: float | None
     center_u: float | None
-    axis1: float
-    axis2: float
-    axis3: float
+    semi_a_px: float
+    semi_b_px: float
+    semi_c_px: float
     rotation_z: float
     rotation_tilt: float
     illumination_angle: float
@@ -177,8 +177,8 @@ def body_spec_from_params(body_params: Mapping[str, Any], *, index: int) -> Body
     Returns:
         The parsed body.
     """
-    axis1 = float(scene_value(body_params, 'axis1', 0.0))
-    axis2 = float(scene_value(body_params, 'axis2', 0.0))
+    semi_a_px = float(scene_value(body_params, 'semi_a_px', 0.0))
+    semi_b_px = float(scene_value(body_params, 'semi_b_px', 0.0))
     seed = body_params.get('seed')
     surge = scene_value(body_params, 'opposition_surge', {})
     scatter = scene_value(body_params, 'pose_scatter', {})
@@ -188,9 +188,9 @@ def body_spec_from_params(body_params: Mapping[str, Any], *, index: int) -> Body
         shape_model=str(scene_value(body_params, 'shape_model', 'ellipsoid')),
         center_v=_optional_float(body_params, 'center_v'),
         center_u=_optional_float(body_params, 'center_u'),
-        axis1=axis1,
-        axis2=axis2,
-        axis3=float(scene_value(body_params, 'axis3', min(axis1, axis2))),
+        semi_a_px=semi_a_px,
+        semi_b_px=semi_b_px,
+        semi_c_px=float(scene_value(body_params, 'semi_c_px', min(semi_a_px, semi_b_px))),
         rotation_z=float(scene_value(body_params, 'rotation_z', 0.0)),
         rotation_tilt=float(scene_value(body_params, 'rotation_tilt', 0.0)),
         illumination_angle=float(scene_value(body_params, 'illumination_angle', 0.0)),

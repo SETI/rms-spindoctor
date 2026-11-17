@@ -36,10 +36,10 @@ ingested" to every consumer, so no reader is told anything different before and
 after.
 
 **Another process holding the database does not stop a drop either.**  Neither
-backend can be asked the question honestly: SQLite's readers take no lock to
-observe under write-ahead logging, and a PostgreSQL role need not be allowed to
-read the server's activity view.  What can be done is to make the attempt fail
-rather than hang, which
+backend can always tell whether another process holds the database: SQLite's readers take
+no lock to observe under write-ahead logging, and a PostgreSQL role need not be
+allowed to read the server's activity view.  What can be done is to make the
+attempt fail rather than hang, which
 :data:`~spindoctor.results_index.drop.DROP_LOCK_TIMEOUT_MS` does for the reading
 and for the drop alike, and to leave nothing half-finished when it does, which
 the transaction around the drop does on both backends.  So the database itself

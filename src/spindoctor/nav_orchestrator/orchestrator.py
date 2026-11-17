@@ -1103,7 +1103,7 @@ class NavOrchestrator(NavBase):
         A technique failing among several is closer to a normal outcome than
         a model failing to build, and treating it as one was considered; the
         reason it is not exempted is that the pipeline has no way to record
-        the exemption honestly.  A technique with nothing to contribute
+        the exemption in its results.  A technique with nothing to contribute
         already has two ways to say so -- ``is_feasible`` returning false,
         and a result marked spurious -- and both leave a trace in the
         per-technique inventory.  An exception leaves none, so an exempted

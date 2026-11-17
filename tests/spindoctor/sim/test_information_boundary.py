@@ -16,6 +16,7 @@ from spindoctor.obs.obs_inst_sim import ObsSim
 from spindoctor.sim.render import render_combined_model
 from spindoctor.sim.scene import (
     ATMOSPHERE_KEYS,
+    TOP_LEVEL_IDEALIZED_KEYS,
     TOP_LEVEL_TEST_ONLY_KEYS,
     TOP_LEVEL_TRUTH_KEYS,
     TRUTH_KEYS,
@@ -162,9 +163,9 @@ def _truth_exercising_scene() -> dict[str, Any]:
                 'shape_model': 'polyhedral_mesh',
                 'center_v': 40.0,
                 'center_u': 40.0,
-                'axis1': 30.0,
-                'axis2': 26.0,
-                'axis3': 26.0,
+                'semi_a_px': 15.0,
+                'semi_b_px': 13.0,
+                'semi_c_px': 13.0,
                 'illumination_angle': 20.0,
                 'phase_angle': 30.0,
                 'range_km': 500000.0,
@@ -184,9 +185,9 @@ def _truth_exercising_scene() -> dict[str, Any]:
                 'name': 'ROUND',
                 'center_v': 70.0,
                 'center_u': 24.0,
-                'axis1': 20.0,
-                'axis2': 18.0,
-                'axis3': 18.0,
+                'semi_a_px': 10.0,
+                'semi_b_px': 9.0,
+                'semi_c_px': 9.0,
                 'illumination_angle': 40.0,
                 'phase_angle': 60.0,
                 'range_km': 800000.0,
@@ -450,8 +451,8 @@ def test_star_limit_is_independent_of_scene_noise() -> None:
     report the same ``star_max_usable_vmag``: the navigator's limiting
     magnitude comes from the emulated instrument's published detector model,
     so the scene's planted noise cannot leak through this channel.  A scene
-    that plants noise different from the published values gets an
-    honestly-wrong detection limit by design.
+    that plants noise different from the published values gets a
+    detection limit that does not match the scene's noise, by design.
     """
     scene_quiet = _truth_exercising_scene()
     scene_noisy = _truth_exercising_scene()
@@ -499,6 +500,28 @@ def test_star_limit_scales_with_scene_exposure() -> None:
     assert long_exp == pytest.approx(reference + 2.5, abs=1e-9)
 
 
+def test_the_readout_binning_crosses_the_boundary() -> None:
+    """A binned scene's ``nav_params`` states its binning, which a real label states."""
+    scene = _truth_exercising_scene()
+    scene['detector'] = {**scene['detector'], 'binning': 2}
+    nav = build_nav_params(validate_sim_params(scene, source='boundary_probe'))
+    assert nav['binning'] == 2
+
+
+def test_the_binning_is_the_only_detector_value_that_crosses() -> None:
+    """Every top-level key of ``nav_params`` is idealized except the echoed binning."""
+    scene = _truth_exercising_scene()
+    scene['detector'] = {**scene['detector'], 'binning': 2}
+    nav = build_nav_params(validate_sim_params(scene, source='boundary_probe'))
+    assert set(nav) - TOP_LEVEL_IDEALIZED_KEYS == {'binning'}
+
+
+def test_an_unbinned_scene_states_binning_one() -> None:
+    """A scene that sets no binning is read out unbinned, and ``nav_params`` says so."""
+    nav = build_nav_params(_star_only_scene(1.0))
+    assert nav['binning'] == 1
+
+
 def test_test_only_keys_are_stripped_from_nav_params() -> None:
     """The scene-level ``expected`` block is a third class the navigator never sees.
 
@@ -534,7 +557,7 @@ def test_nav_params_values_are_isolated_copies() -> None:
     """Mutating the filtered view cannot reach back into the scene."""
     scene = _truth_exercising_scene()
     nav = build_nav_params(scene)
-    nav['bodies'][0]['axis1'] = 999.0
+    nav['bodies'][0]['semi_a_px'] = 999.0
     nav['ring_system']['features'][0]['orbit']['a_px'] = 999.0
-    assert scene['bodies'][0]['axis1'] == 30.0
+    assert scene['bodies'][0]['semi_a_px'] == 15.0
     assert scene['ring_system']['features'][0]['orbit']['a_px'] == 4.0

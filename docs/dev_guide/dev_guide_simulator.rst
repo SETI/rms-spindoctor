@@ -230,6 +230,10 @@ applies where. The *channel* is structural:
   a body or star key that is still null after the overlay is left out, as is a
   null key of the ring system or of one of its features. Leaving a key out can
   only take information away, so neither rule lets truth across.
+  One value inside the truth-side ``detector`` block is published: the readout
+  binning, which the view carries as a top-level ``binning`` key (1 when the
+  scene sets none). A real frame's label states its readout mode, so a real
+  pipeline always knows it. No other ``detector`` key crosses.
   Nothing reachable *through the filtered view* carries truth.
 - The navigator-side models read **only** ``obs.nav_params``. None of the
   renderer's output -- rendered star records, body masks, z-order maps, all
@@ -241,8 +245,26 @@ applies where. The *channel* is structural:
   worked example: it comes from the resolved per-instrument config block
   (including any idealized ``instrument_config`` overrides) and is independent
   of the scene's ``noise`` block, so a scene that plants noise different from
-  the published values produces an honestly-wrong detection limit -- planted
-  model error, exactly what such a scene is for.
+  the published values gets a detection limit that does not match the scene's
+  noise. That is planted model error, exactly what such a scene is for. On a
+  binned frame the limit reads the zero point and the read noise from that
+  block's ``noise.by_binning`` entry for the frame's binning, which holds the
+  navigator's own values for that mode in DN: the zero point, and the read noise
+  of one binned pixel. A block with no entry for the mode leaves the limit on
+  its unbinned values. Every raw-DN camera's block has an entry for each binned
+  mode the simulator offers (see :ref:`sim-instrument-files` for the tests that
+  hold them to the catalog). The limit takes ``star_psf_sigma`` in native pixels
+  and divides it by the binning, and a core narrower than a pixel counts as one
+  pixel, since the peak pixel can't hold more than the whole star. The limit's
+  noise is at least 1 DN, so a mode's read noise below 1 DN gives the same limit
+  as 1 DN. Where a camera's unbinned ``read_noise_dn`` is a placeholder above
+  its published read noise, part of the step from the unbinned limit to the
+  binned one comes from that placeholder; each instrument chapter gives its
+  camera's share. The renderer shrinks the catalog's PSF kernel by the binning
+  too, but a scene's own ``optics.psf`` block, the ``match_navigator`` form
+  included, is in frame pixels and isn't shrunk, so on a binned frame such a
+  scene renders a wider core than the limit assumes. Nothing in the limit reads
+  the simulator's camera tables.
 - ``tests/spindoctor/sim/test_information_boundary.py`` constructs a scene
   exercising every ``TRUTH_KEYS`` entry and asserts none is reachable through
   the filtered view. This test is the independence guarantee: any change that
@@ -298,7 +320,7 @@ mappings restricted to idealized keys, and on the navigator side they only
 ever receive entries that have already passed the boundary filter. Either
 way, truth cannot be smuggled across.
 
-The honest residual: a bug in a shared helper that makes rendered features
+One gap remains: a bug in a shared helper that makes rendered features
 subtly unlike *real* features leaves both sides consistent and recovery clean
 -- scenes wrong, measurement blind. Its detectors are the reviewed render-diff
 contact sheet (see :ref:`sim-catalog-workflow`) and the per-instrument realism
@@ -390,10 +412,10 @@ Three things, each impossible with real frames alone:
   baselines, invariants, sweeps, and the expected-outcome pins -- turns "did
   this change help" into a measured delta against known answers, instead of a
   judgment call over operator labels.
-- **Model error is priced honestly.** Because the campaign plants model error
+- **Model error has a measured price.** Because the campaign plants model error
   the navigator cannot represent, the fit learns what that error costs: the
   2.61 px limb covariance floor (unmodeled terrain bounds a limb fix's real
-  accuracy no matter how clean the fit), the terminator technique's honest
+  accuracy no matter how clean the fit), the terminator technique's low
   ~0.03-0.05 confidence plateau on a cohort with zero sub-pixel successes,
   and occlusion-aware visible-arc fractions on mutual-event scenes are all
   prices the simulator measured rather than guessed.
@@ -410,8 +432,8 @@ Three things, each impossible with real frames alone:
   3.2 px wrong, depending on the noise draw. On a real frame this is
   indistinguishable from a good lock -- only a frame whose truth is known by
   construction can *prove* the ensemble absorbs this error into the offset,
-  and keep proving it (the honest pin in :ref:`sim-expected`) until the gap is
-  closed.
+  and keep proving it (the known-error check in :ref:`sim-expected`) until the
+  gap is closed.
 
 What it cannot do
 -----------------
@@ -431,13 +453,12 @@ What it cannot do
   today: pointing jitter within an exposure, image mid-time error, readout
   shear, and body-on-body cast shadows
   (mutual events render occlusion, not shadowing).
-- **Fix the gaps it exposes.** A confident-wrong pin is evidence, not
-  mitigation; closing it requires ensemble work (consuming declared
-  model-error bars, cross-technique vetoes). The body-witness veto closes the
-  shape-mismatch and haze-crescent modes; the remaining pinned hazard (the
-  ring planted-orbit-error lock) stands until its own fix lands (see the
-  ensemble chapter,
-  :doc:`dev_guide_orchestrator_ensemble`).
+- **Fix the gaps it exposes.** A known-error check is evidence, not
+  mitigation. Closing the gap it documents requires ensemble work (consuming
+  declared model-error bars, cross-technique vetoes). The body-witness veto
+  closes the shape-mismatch and haze-crescent modes; the remaining hazard under
+  a known-error check (the ring planted-orbit-error lock) stands until its own
+  fix lands (see the ensemble chapter, :doc:`dev_guide_orchestrator_ensemble`).
 - **Transfer its calibration to real frames by itself.** That path runs
   through the sidecar re-ratchet and a pre-stated transfer criterion (the
   proposed transfer watch in ``util/calibration/CAMPAIGN_20260718.md``), not
@@ -551,7 +572,11 @@ of its scenes' noise realization: renaming a stage reseeds every scene that
 exercises it and regenerates the affected baselines -- allowed, but not to be
 done idly. (The seed derivation is a stable digest, never Python's per-process
 salted ``hash``.) Sub-effects inside a stage derive their own named streams the
-same way (background stars, cosmic rays, crater placement).
+same way (background stars, cosmic rays, crater placement). Crater placement
+goes one level further: each crater draws from its own stream, named by the
+crater's index on its body, so a small change to the body's outline moves only
+a crater whose center lands on a changed pixel and leaves the rest of the
+crater field where it was.
 
 **The driver.** :func:`spindoctor.sim.render.render_combined_model` takes a
 ``sim_params`` dict and returns ``(image, metadata)``. It encodes the scene as
@@ -1193,10 +1218,13 @@ navigator block whose ``data_units`` is ``raw_dn`` reads a DN zero point for its
 star limit, so it must state ``star_flux_dn_per_s_vmag0``; without it the
 navigator would take the generic block's value. That value must match the entry's
 star zero point, converted to DN through the default gain state for a CCD, within
-half the place value of the navigator value's last significant digit. The
-navigator states its own value, so a simulator retune does not move what the
-navigator knows; the test fails when the two drift apart by more than the
-navigator value's rounding.
+half the place value of the last digit the navigator's config file writes, so
+``3.61e6`` is held to 5e3 and ``0.400`` to 5e-4. The navigator states its own
+value, so a simulator retune does not move what the navigator knows; the test
+fails when the two drift apart by more than the navigator value's rounding.
+Each binned mode an entry offers needs its own values in a raw-DN navigator
+block, under ``noise.by_binning``, and their zero point and read noise must match
+the simulator's, converted through the mode's gain, within the same rounding.
 
 The keys of an entry, all directly under the instrument's top-level key:
 
@@ -1708,7 +1736,7 @@ navigator should produce: a required ``status`` (``success`` / ``failed`` /
 ``conflicted``), a ``confidence_tier`` (one of the five navigation ranks, or
 null to assert the status only), an optional ``status_reason`` token, and an
 optional ``known_offset_error_px`` / ``known_offset_error_tol_px`` pair (the
-honest pin, below). It is
+known-error check, below). It is
 a **test-only** key -- read by the assertion machinery in
 ``tests/integration/sim_expected.py``, fed to neither the renderer nor the
 navigator, and stripped from ``nav_params`` by the information boundary along
@@ -1724,7 +1752,7 @@ position, or drowns a lone star in an overwhelming confounder field, the
 confident wrong offset. Each such scene carries an ``expected`` block, and the
 machinery turns "must not be confidently wrong here" into a passing assertion.
 
-**The honest pin.** A small second family inverts the reading. In these scenes
+**The known-error check.** A small second family inverts the reading. In these scenes
 the measured behavior *is* a wrong offset, for a reason that is understood but
 not yet fixed. There are three:
 
@@ -1745,8 +1773,9 @@ and 15 more. Each end of the band sits outside the measured range by a margin of
 3.18 px on others, so a band fitted to one seed would fail on the next. The
 assertion fails in *both* directions. A regression that worsens the error fails.
 A genuine fix that shrinks the error also fails loudly, which prompts a
-deliberate re-pin, or retirement of the pin, instead of a silent behavior
-change. The pinned success marks a known hazard. The scene comments and the
+deliberate re-measurement of the known error, or retirement of the check,
+instead of a silent behavior change. The success the check holds marks a known
+hazard. The scene comments and the
 campaign record carry the analysis, and the ensemble chapter
 (:doc:`dev_guide_orchestrator_ensemble`) describes the failure family. The
 ``titan_crescent_horns`` scenes are not in this family. The cross-technique
@@ -2478,7 +2507,7 @@ reference radius and never learns the haze exists, so the soft rendered limb is
 a deliberate model mismatch. A navigator that fits the bright sunward haze ramp
 recovers a small offset toward the sunlit limb whose size tracks the
 phase-dependent apparent limb radius (and the haze parameters) -- the
-``atmosphere`` catalog scenes measure and pin that bias honestly. The
+``atmosphere`` catalog scenes measure that bias and pin the measured value. The
 low-phase ``titan_haze_limb`` scene records a sub-pixel sunward offset (a few
 tenths of a pixel in ``du``) at the medium tier, the limb DT fit and the disc
 correlation agreeing on the haze-lifted limb.
@@ -2493,14 +2522,14 @@ is the one that drives that technique. At high phase the haze is
 outright hostile: in ``titan_crescent_horns`` (155 deg) the ring of light
 defeats the disc correlation (spurious -- there is no full lit disc), the
 predicted terminator arc is emitted but dropped by the feature reliability
-gate before any technique runs (its honestly computed reliability, capped by
-``sin(155 deg)`` = 0.42, scores 0.26 against the 0.30 ``TERMINATOR_ARC``
-threshold), and the haze-dragged blob centroid alone would carry the fused
-answer roughly 30 px off in ``du``. That is exactly the lone-blob collapsed
-regime the body-witness veto (see :doc:`dev_guide_orchestrator_ensemble`)
-guards: the only surviving body offset is the bias-prone centroid while a
-sibling geometric technique on the same body self-flagged spurious, so the
-frame is declined (``failed``, ``status_reason``
+gate before any technique runs (its reliability, computed as the SPICE-backed
+model does and capped by ``sin(155 deg)`` = 0.42, scores 0.26 against the 0.30
+``TERMINATOR_ARC`` threshold), and the haze-dragged blob centroid alone would
+carry the fused answer roughly 30 px off in ``du``. That is exactly the
+lone-blob collapsed regime the body-witness veto (see
+:doc:`dev_guide_orchestrator_ensemble`) guards: the only surviving body offset
+is the bias-prone centroid while a sibling geometric technique on the same body
+self-flagged spurious, so the frame is declined (``failed``, ``status_reason``
 ``lone_blob_in_collapsed_regime``) rather than reported as a 30-px-wrong
 success -- a wrong offset that is accepted is worse than a
 declared failure. The scene asserts that decline. The noiseless
@@ -2629,7 +2658,7 @@ exact translational equivalent. The robust edge fit therefore down-weights one
 arc, locks onto one side of the annulus, and absorbs the ephemeris error into
 the recovered offset. The declared sigma widens the covariance enough to keep
 the fused result out of the high tier, but it cannot remove the bias. The
-scene's ``known_offset_error_px`` pin keeps that bias in view.
+scene's known-error check (``known_offset_error_px``) keeps that bias in view.
 
 ``navigable`` (default **false**) is the information boundary in miniature:
 the filter drops non-navigable features from ``nav_params`` entirely, so the
@@ -2709,14 +2738,14 @@ The panels below are rendered by ``python -m tests.integration.sim_doc_images``
    :width: 45%
    :align: center
 
-   Ellipsoidal body (Lambertian, moderate phase). ``axis1`` is the vertical
-   extent, ``axis2`` the horizontal.
+   Ellipsoidal body (Lambertian, moderate phase). ``semi_a_px`` is half the
+   vertical extent, and ``semi_b_px`` is half the horizontal extent.
 
 .. figure:: _sim_images/mesh_body.png
    :width: 45%
    :align: center
 
-   Irregular polyhedral-mesh body of the same axes at a three-axis pose.
+   Irregular polyhedral-mesh body of the same semi-axes at a three-axis pose.
 
 .. figure:: _sim_images/mesh_body_gouraud.png
    :width: 45%
@@ -2928,9 +2957,9 @@ ring, a couple of stars, and a planted offset the navigator must recover -- read
        pose_euler_deg: [10.0, 35.0, 0.0]
        center_v: 110.0
        center_u: 110.0
-       axis1: 150.0
-       axis2: 110.0
-       axis3: 95.0
+       semi_a_px: 75.0
+       semi_b_px: 55.0
+       semi_c_px: 47.5
        illumination_angle: 25.0
        phase_angle: 40.0
    ring_system:
@@ -3240,12 +3269,15 @@ null. Common fields:
      - idealized
      - Body center in pixels, as a pixel corner (see
        :ref:`sim-pixel-convention`).
-   * - ``axis1`` / ``axis2`` / ``axis3``
-     - float
+   * - ``semi_a_px`` / ``semi_b_px`` / ``semi_c_px``
+     - float (px)
      - 0.0
      - idealized
-     - Full extents of the three body axes in pixels (``axis3`` defaults to
-       ``min(axis1, axis2)``).
+     - The three semi-axes of the body in pixels, each half the body's width
+       along that axis, like a radius. ``semi_a_px`` runs along the image's
+       ``v`` axis and ``semi_b_px`` along ``u`` before ``rotation_z`` turns the
+       body, and ``semi_c_px`` points toward the observer.
+       ``semi_c_px`` defaults to ``min(semi_a_px, semi_b_px)``.
    * - ``illumination_angle``
      - float (deg)
      - 0.0
@@ -3342,10 +3374,11 @@ refused on a ``polyhedral_mesh`` body (see :ref:`sim-mesh-appearance`).
 
 .. note::
 
-   **Axis convention.** Both body renderers use the same mapping: ``axis1`` is
-   the vertical (``v``) extent and ``axis2`` the horizontal (``u``) extent. An
-   ellipsoid and a mesh declared with identical ``axis1``/``axis2`` are oriented
-   the same way, so the two are interchangeable for the same geometry.
+   **Axis convention.** Both body renderers use the same mapping: ``semi_a_px`` is
+   half the vertical (``v``) extent and ``semi_b_px`` half the horizontal (``u``)
+   extent. An ellipsoid and a mesh declared with identical ``semi_a_px`` and
+   ``semi_b_px`` are oriented the same way, so the two are interchangeable for the
+   same geometry.
 
 **Render geometry vs navigation geometry.** By default the navigator predicts
 the body from the same idealized parameters the renderer drew, so it knows the
@@ -3916,10 +3949,13 @@ pixels, shrinks by ``b``, so the star lands in fewer, brighter pixels. The hot
 pixels are the detector's native map summed into each binned pixel, the residual
 distortion's non-radial wander shrinks by ``b`` (``k1`` and ``k2`` act on the
 radius normalized to the frame), and the background sky's plate scale grows by
-``b``. The sky's faint cutoff reads the mode's read noise. Positions and sizes
-the scene states are in frame pixels whatever the mode. The realism match reads
-a cohort frame's mode from its size: a camera's full frame binned by ``b`` is
-its native size over ``b`` (the config entry's ``native_frame_size_px``).
+``b``. The sky's faint cutoff reads the mode's read noise. The navigator's view
+of the scene states the binning, as a real label does, and its faint-star limit
+reads the mode's values from the navigator's own configuration (see
+:ref:`sim-information-boundary`). Positions and sizes the scene states are in
+frame pixels whatever the mode. The realism match reads a cohort frame's mode
+from its size: a camera's full frame binned by ``b`` is its native size over
+``b`` (the config entry's ``native_frame_size_px``).
 
 .. _sim-artifacts-block:
 
@@ -4018,8 +4054,41 @@ everything. To fully self-specify, choose ``generic`` and override every key exc
 ``data_units``, which a scene can't set here. A frame's units come only from the
 instrument's config entry. Scene validation refuses the key, and so does
 :func:`~spindoctor.sim.instrument_navigator.resolve_sim_inst_config` for a scene
-that skipped validation. The top-level ``noise`` block still wins over
-``instrument_config.noise`` for rendering. See :doc:`dev_guide_observations`.
+that skipped validation. For rendering, the top-level ``noise`` block wins over
+``instrument_config.noise``.
+
+``instrument_config.noise`` must be a mapping. A null navigator key there keeps the
+navigator's meaning where it has one, so a null ``marker_value`` marks lost lines
+with NaN. The values the faint-star limit reads have no null meaning, and neither
+has the binned-mode table ``noise.by_binning``. Validation refuses a null for any
+of those values and anywhere in the table, with a message that gives the key's path
+and tells the author to leave the key out to take its default. On a binned frame
+the star limit reads its zero point and read noise from the ``noise.by_binning``
+entry for the frame's binning. So a binned scene that pins
+``instrument_config.noise.read_noise_dn`` or
+``instrument_config.noise.star_flux_dn_per_s_vmag0`` must also pin the same key
+under ``instrument_config.noise.by_binning.<b>``, where ``<b>`` is the binning, and
+validation refuses one that doesn't.
+
+A scene is where values from outside the packaged configuration enter the navigator
+block, so scene validation checks every value a scene sets that the faint-star
+limit reads, at every binning. Every read noise must be a finite number of at least
+0, the unbinned one and each binned mode's alike. A read noise of 0 is an ideal
+detector, which the limit reads at its 1 DN noise floor. Every zero point must be a
+finite, positive number, and so must ``star_psf_sigma``. Each key of
+``noise.by_binning`` is a binning factor of at least 2, and each entry is a mapping
+that sets nothing but ``read_noise_dn`` and ``star_flux_dn_per_s_vmag0``. A key may
+be written only as an integer or as a string of ASCII digits, since a scene read
+through JSON carries every key as a string. Validation refuses any other key before
+the scene's table is merged over the navigator's, so a float key such as ``2.0``,
+which would otherwise merge into the navigator's key ``2``, gets the same answer as
+the ``'2.0'`` it becomes when the scene is read through JSON. Validation also
+refuses a key with a leading zero, such as ``'02'``, and a table that writes one
+binning both ways. It refuses a noise value that no frame of the instrument reads:
+an entry for a binning the instrument's readout modes don't offer, and on a
+calibrated-unit camera, whose star limit is a constant that reads no noise value,
+any table and any unbinned ``read_noise_dn`` or ``star_flux_dn_per_s_vmag0``. See
+:doc:`dev_guide_observations`.
 
 ``instrument_config`` is idealized and crosses the information boundary
 unfiltered. A planted value copied into it reaches the navigator as published
@@ -4030,7 +4099,10 @@ author from doing that, so the validator warns instead, with
 :class:`~spindoctor.sim.scene_truth_echo.SimSceneTruthEchoWarning`, which gives both
 sites. It compares each ``noise`` key, ``noise.vidicon`` included, with the
 ``instrument_config.noise`` key of the same name, and ``optics.psf.sigma_v`` and
-``sigma_u`` with ``instrument_config.star_psf_sigma``. The ``detector`` block
+``sigma_u`` with ``instrument_config.star_psf_sigma``. On a binned frame it also
+compares each ``noise`` key with the same key under
+``instrument_config.noise.by_binning.<b>`` for the frame's binning ``<b>``, which
+is the value the frame's star limit reads. The ``detector`` block
 doesn't share a key with the instrument config and isn't compared. The
 navigator doesn't read the vidicon keys, so a ``noise.vidicon`` warning says
 only that the published config carries the scene's realization. When the two
@@ -4282,8 +4354,8 @@ value the renderer draws with:
   :func:`~spindoctor.sim.forward.body_spec.body_spec_from_params`, and the
   background-sky controls use :data:`~spindoctor.sim.forward.star.SKY_COUNTS_DEFAULTS`.
 * **Values outside a control's range.** A control shows the nearest end of its range.
-  For example, if a body's ``axis1`` is unset, the renderer draws that axis as 0, and
-  its control shows its minimum, 1 pixel.
+  For example, if a body's ``semi_a_px`` is unset, the renderer draws that semi-axis as
+  0, and its control shows its minimum, half a pixel.
 * **Bodies whose name, center, or range is unset.** A body whose name is unset shows
   the name the renderer gives it, from
   :func:`~spindoctor.sim.scene_schema.default_body_name` (``SIM-BODY-1`` for the first
@@ -4303,9 +4375,9 @@ value the renderer draws with:
   group's controls. An edit writes only that control's key, so a key the author has not
   edited stays unset. While a key is unset, its control shows the body's own value and
   updates when the author edits that value. Turning the group off removes the override.
-* **Values derived from other keys.** An unset ``axis3`` is drawn as the smaller of
-  ``axis1`` and ``axis2``, and an unset center is the frame center. Their controls
-  update when the author edits an axis or changes the frame size. Neither key is
+* **Values derived from other keys.** An unset ``semi_c_px`` is drawn as the smaller of
+  ``semi_a_px`` and ``semi_b_px``, and an unset center is the frame center. Their
+  controls update when the author edits a semi-axis or changes the frame size. Neither key is
   written to the scene until the author edits its own control.
 * **On/off groups.** A group starts turned off when its block, or the key that turns it
   on, is absent or null, because the renderer then draws none of it. An empty ring
@@ -4327,10 +4399,10 @@ The GUI exposes the full scene parameter surface, so any scene that can be
 written by hand in YAML can also be built in the GUI. Two exceptions are
 carried through unedited rather than widget-exposed: the nested
 ``instrument_config`` override mapping, and the hand-authored
-``known_offset_error_px`` / ``known_offset_error_tol_px`` pins in the
-expected block (the expected-outcome panel preserves them across its
-enable toggle but offers no controls for them; they are baseline-measured
-values, authored in YAML). Scenes
+known-error check (``known_offset_error_px`` / ``known_offset_error_tol_px``) in
+the expected block. The expected-outcome panel keeps both keys across its enable
+toggle but offers no controls for either; they are baseline-measured values,
+authored in YAML. Scenes
 round-trip through the **Load / Save Scene (YAML)** buttons, so a scene rendered
 in the GUI can be saved as a catalog artifact and a catalog scene can be loaded
 back to edit; ``tests/main/test_sim_editor_round_trip.py`` asserts the

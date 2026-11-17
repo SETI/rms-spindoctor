@@ -15,7 +15,7 @@ from spindoctor.sim.forward.body import create_simulated_body
 
 _SIZE = (101, 101)
 _CENTER = (50.5, 50.5)
-_AXES = (70.0, 30.0, 30.0)
+_AXES = (35.0, 15.0, 15.0)
 _ILLUMINATION_ANGLE = np.pi / 4
 _PHASE_ANGLE = np.pi / 2
 _CENTROID_TOLERANCE = 0.5
@@ -27,18 +27,19 @@ def _render(*, rotation_z: float, rotation_tilt: float, crater_fill: float) -> n
         _SIZE,
         _CENTER,
         _AXES[0],
-        axis2=_AXES[1],
-        axis3=_AXES[2],
+        semi_b_px=_AXES[1],
+        semi_c_px=_AXES[2],
         rotation_z=rotation_z,
         rotation_tilt=rotation_tilt,
         illumination_angle=_ILLUMINATION_ANGLE,
         phase_angle=_PHASE_ANGLE,
         crater_fill=crater_fill,
         anti_aliasing=1.0,
-        # A fixed realization whose crater-placement asymmetry sits well below
-        # the tolerance (worst-axis delta ~0.15 px); the guarded shading-frame
-        # defect displaced the centroid by ~9 px, so the margin is wide.
-        seed=0,
+        # A fixed realization that puts craters on the lit side in both poses
+        # while its crater-placement asymmetry sits well below the tolerance
+        # (worst-axis delta ~0.03 px); the guarded shading-frame defect
+        # displaced the centroid by ~9 px, so the margin is wide.
+        seed=52,
     )
 
 

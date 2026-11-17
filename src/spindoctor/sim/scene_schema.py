@@ -101,7 +101,9 @@ TOP_LEVEL_IDEALIZED_KEYS: frozenset[str] = frozenset(
 )
 
 # Top-level truth keys: the planted pointing error the navigator must recover,
-# the RNG realization, and the contaminant / noise fields.
+# the RNG realization, and the contaminant / noise fields.  One value inside the
+# 'detector' block is published: build_nav_params echoes the readout binning, which
+# a real frame's label states, as a top-level 'binning' key of the navigator's view.
 TOP_LEVEL_TRUTH_KEYS: frozenset[str] = frozenset(
     {
         'random_seed',
@@ -140,9 +142,9 @@ _BODY_IDEALIZED_KEYS: frozenset[str] = frozenset(
         'shape_model',
         'center_v',
         'center_u',
-        'axis1',
-        'axis2',
-        'axis3',
+        'semi_a_px',
+        'semi_b_px',
+        'semi_c_px',
         'rotation_z',
         'rotation_tilt',
         'illumination_angle',
@@ -390,8 +392,9 @@ _RING_FEATURE_IDEALIZED_KEYS: frozenset[str] = frozenset(
 # Henyey-Greenstein asymmetry parameter are nature's scattering behavior
 # (the navigator's ring template is geometric, never photometric), and
 # 'orbit_error' is the planted ephemeris error applied on the render side
-# only -- the navigator predicts from the catalog orbit and must absorb the
-# misplacement honestly (the ring analog of the body ephemeris-error axis).
+# only -- the navigator predicts from the catalog orbit and sees the
+# misplacement only in the rendered image (the ring analog of the body
+# ephemeris-error axis).
 _RING_FEATURE_TRUTH_KEYS: frozenset[str] = frozenset({'albedo', 'phase_g', 'orbit_error'})
 
 _RING_FEATURE_KEYS: frozenset[str] = _RING_FEATURE_IDEALIZED_KEYS | _RING_FEATURE_TRUTH_KEYS

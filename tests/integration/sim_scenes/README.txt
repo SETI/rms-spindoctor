@@ -250,17 +250,75 @@ editor's status bar shows each render's units, range, and marker share, counted
 on the frame the navigator reads (planted offset applied), and the navigator's
 verdict when it is blank, overexposed, or mostly missing data.
 
-Body params follow the renderer: shape_model (ellipsoid | polyhedral_mesh),
-center_v, center_u, axis1, axis2, axis3, illumination_angle, phase_angle,
-range_km, and -- for polyhedral_mesh -- mesh_lumpiness (the non-ellipsoidal
-relief's RMS is mesh_lumpiness / 8 of the radius), mesh_seed (which shape),
-mesh_n_lat / mesh_n_lon (tessellation, default 16 / 32; the catalog's mesh
-scenes use 64 / 128 so no facets show), mesh_detail_octaves, and
-pose_euler_deg.  Every body key, and every optional key inside a body's blocks,
-may be null, and a null key renders as the absent key does.  The navigator
-reads it as absent too.  For a key set to null inside nav_override, the
-navigator sees the scene's own value.  An entry of a list such as
-pose_euler_deg can't be null.
+Every body key is optional.  The geometry keys are what the navigator knows:
+
+  name                 the body's label (default SIM-BODY-1 for the first
+                       body, SIM-BODY-2 for the second, and so on)
+  shape_model          ellipsoid (the default) or polyhedral_mesh
+  center_v, center_u   the body center in image pixels, a pixel corner
+                       (default the frame center)
+  semi_a_px            semi-axis a in image pixels: half the body's extent
+                       along v before rotation_z turns it, like a radius.  A
+                       sphere 90 px across has 45.0 in all three semi-axes.
+  semi_b_px            semi-axis b in image pixels: half the body's extent
+                       along u before rotation_z turns it
+  semi_c_px            semi-axis c in image pixels: half the body's depth
+                       toward the observer (default the smaller of
+                       semi_a_px and semi_b_px)
+  rotation_z           (ellipsoid) the in-plane rotation, in degrees
+  rotation_tilt        (ellipsoid) the tilt of the polar axis toward the
+                       observer, in degrees
+  illumination_angle   the image-plane direction the light comes from, in
+                       degrees (0 from the top, 90 from the right)
+  phase_angle          the phase angle, in degrees (0 fully lit, 180 lit
+                       from behind)
+  range_km             the distance from the observer, in km; a nearer body
+                       is drawn in front (default the body's list position
+                       plus 1)
+  km_per_pixel         the physical scale at the body, in km per image
+                       pixel, which only the navigator reads
+  mesh_lumpiness       (polyhedral_mesh) the relief amplitude, a number: the
+                       non-ellipsoidal relief's RMS is mesh_lumpiness / 8 of
+                       the radius (default 0.3)
+  mesh_seed            (polyhedral_mesh) which irregular shape, an integer
+                       (default 0)
+  mesh_n_lat,          (polyhedral_mesh) the tessellation, in latitude and
+  mesh_n_lon           longitude steps (default 16 / 32; the catalog's mesh
+                       scenes use 64 / 128 so no facets show)
+  mesh_detail_octaves  (polyhedral_mesh) the number of bands of higher
+                       harmonic degrees, an integer (default 0)
+  pose_euler_deg       (polyhedral_mesh) three intrinsic X, Y, Z Euler angles,
+                       in degrees (default [0, 0, 0])
+
+The appearance keys are truth, which the navigator never sees:
+
+  crater_fill          roughly the fraction of the disc covered by craters
+                       (default 0)
+  crater_min_radius,   the smallest and largest crater radius, as fractions of
+  crater_max_radius    semi_a_px (default 0.05 and 0.25)
+  crater_power_law_exponent
+                       the exponent of the crater-radius distribution, above 1
+                       (default 3)
+  crater_relief_scale  the crater depth scale, a number (default 0.6)
+  anti_aliasing        the limb supersampling, from 0 to 1 (default 1)
+  limb_relief_rms      the limb relief's RMS as a fraction of the radius, at
+                       most 0.05 (default 0, no relief)
+  limb_relief_corr_deg the relief's correlation length, in degrees of surface
+                       arc (default 15)
+  photometric_law      lambert (the default), lommel_seeliger, minnaert, or
+                       lunar_lambert
+  minnaert_k           the Minnaert exponent, a number (default 0.5)
+  seed                 the body's own crater, texture, and relief
+                       realization, an integer
+  shading              (polyhedral_mesh) flat (the default) or gouraud
+  opposition_surge, albedo_texture, disc_texture, transits, atmosphere, and
+  pose_scatter are blocks; the developer guide's simulator chapter describes
+  each of their keys.
+
+Every body key, and every optional key inside a body's blocks, may be null,
+and a null key renders as the absent key does.  The navigator reads it as
+absent too.  For a key set to null inside nav_override, the navigator sees the
+scene's own value.  An entry of a list such as pose_euler_deg can't be null.
 
 A polyhedral_mesh body refuses a non-null value of any of the twelve
 ellipsoid-only appearance keys, which the mesh renderer would silently ignore

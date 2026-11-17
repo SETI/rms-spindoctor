@@ -177,7 +177,7 @@ _NEW_HORIZONS_NAME_RULES: tuple[tuple[re.Pattern[str], KernelClass], ...] = (
 # be mission-specific only by the accident of matching one mission's names.
 # Voyager and Galileo are listed with no rules: each holds one kind of C-kernel
 # and neither names it anywhere in a basename, so ``UNCLASSIFIED`` is the
-# honest answer and the tie-break falls through to the basename for them.
+# correct answer and the tie-break falls through to the basename for them.
 _MISSION_NAME_RULES: tuple[_MissionNameRules, ...] = (
     _MissionNameRules(mission='Cassini', rules=_CASSINI_NAME_RULES),
     _MissionNameRules(mission='New Horizons', rules=_NEW_HORIZONS_NAME_RULES),

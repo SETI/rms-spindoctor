@@ -337,9 +337,9 @@ def _vgiss_bent_body(rate: float, seed: int) -> np.ndarray:
                 'name': 'RHEA',
                 'center_v': 64.0,
                 'center_u': 64.0,
-                'axis1': 60.0,
-                'axis2': 60.0,
-                'axis3': 60.0,
+                'semi_a_px': 30.0,
+                'semi_b_px': 30.0,
+                'semi_c_px': 30.0,
                 'illumination_angle': 0.0,
                 'phase_angle': 0.0,
             }

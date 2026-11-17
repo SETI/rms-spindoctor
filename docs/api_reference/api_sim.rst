@@ -218,6 +218,11 @@ spindoctor.sim
    :undoc-members:
    :show-inheritance:
 
+.. automodule:: spindoctor.sim.scene_checks_instrument_config
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 .. automodule:: spindoctor.sim.scene_checks_ring
    :members:
    :undoc-members:

@@ -1,4 +1,4 @@
-"""Navigator-side ring_system predictions: projection, boundary, honesty.
+"""Navigator-side ring_system predictions: projection, boundary, and hidden truth.
 
 ``NavModelRingsSimulated`` consumes only the filtered idealized view: the
 shared projection geometry and the navigable features' catalog orbits.

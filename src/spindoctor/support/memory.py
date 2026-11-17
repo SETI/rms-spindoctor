@@ -39,7 +39,7 @@ what a unit of work reports is what the process reached while it ran rather than
 what the work itself allocated.  For a process handling one image the two are
 the same.  For a process handling several they are not: memory an earlier image
 left resident and unreturnable is inside the floor the next one is measured from.
-That is the honest figure for sizing a worker, which has to hold the whole
+That is the right figure for sizing a worker, which has to hold the whole
 process, and the wrong one for asking how much memory a single image uses on
 its own.
 

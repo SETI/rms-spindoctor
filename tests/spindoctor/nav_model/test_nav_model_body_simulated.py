@@ -44,9 +44,9 @@ def _body_params(**overrides: Any) -> dict[str, Any]:
         'name': 'HYPERION',
         'center_v': _SIZE / 2.0,
         'center_u': _SIZE / 2.0,
-        'axis1': 60.0,
-        'axis2': 46.0,
-        'axis3': 46.0,
+        'semi_a_px': 30.0,
+        'semi_b_px': 23.0,
+        'semi_c_px': 23.0,
         'illumination_angle': 30.0,
         'phase_angle': 45.0,
     }
@@ -216,9 +216,9 @@ def _large_body(**overrides: Any) -> dict[str, Any]:
         'name': 'RHEA',
         'center_v': _LIMB_SIZE / 2.0,
         'center_u': _LIMB_SIZE / 2.0,
-        'axis1': 130.0,
-        'axis2': 130.0,
-        'axis3': 130.0,
+        'semi_a_px': 65.0,
+        'semi_b_px': 65.0,
+        'semi_c_px': 65.0,
         'illumination_angle': 25.0,
         'phase_angle': 30.0,
     }
@@ -234,7 +234,7 @@ def test_large_low_phase_body_emits_limb_arc() -> None:
 def test_small_body_emits_no_limb_arc() -> None:
     """A body below the limb-resolution floor emits no LIMB_ARC."""
     assert 'LIMB_ARC' not in _body_feature_types(
-        _limb_obs(), _large_body(axis1=40.0, axis2=40.0, axis3=40.0)
+        _limb_obs(), _large_body(semi_a_px=20.0, semi_b_px=20.0, semi_c_px=20.0)
     )
 
 
@@ -292,7 +292,7 @@ def test_gates_off_high_phase_body_emits_limb_arc() -> None:
 
 def test_gates_off_small_body_emits_limb_arc() -> None:
     """With the gates off, a body below the resolution floor still emits."""
-    vertices = _ungated_limb_vertices(_large_body(axis1=40.0, axis2=40.0, axis3=40.0))
+    vertices = _ungated_limb_vertices(_large_body(semi_a_px=20.0, semi_b_px=20.0, semi_c_px=20.0))
     assert vertices.shape[0] > 0
 
 
@@ -445,8 +445,8 @@ def test_terminator_arc_fraction_drops_when_frame_clips_it() -> None:
 
     Center the body near the frame edge so part of the lit/unlit boundary
     falls outside the render; the visible-arc fraction must report the
-    surviving portion, not 1.0 (the honest input BodyTerminatorNav's
-    confidence needs).
+    surviving portion, not 1.0, because BodyTerminatorNav's confidence
+    reads it.
     """
     clipped = _terminator_feature(_limb_obs(), _large_body(phase_angle=90.0, center_v=20.0))
     assert clipped is not None
@@ -493,9 +493,9 @@ def _small_body(obs: ObsSim) -> dict[str, Any]:
         'name': 'RHEA',
         'center_v': obs.data_shape_v / 2.0,
         'center_u': obs.data_shape_u / 2.0,
-        'axis1': 12.0,
-        'axis2': 12.0,
-        'axis3': 12.0,
+        'semi_a_px': 6.0,
+        'semi_b_px': 6.0,
+        'semi_c_px': 6.0,
         'illumination_angle': 0.0,
         'phase_angle': 10.0,
     }
@@ -560,7 +560,7 @@ def test_blob_snr_ignores_off_sensor_flux() -> None:
     # Body centered 2 px inside the frame edge: roughly half the 20 px
     # silhouette hangs past the sensor into the extfov margin.
     params = dict(_small_body(obs))
-    params.update(center_v=2.0, axis1=20.0, axis2=20.0, axis3=20.0)
+    params.update(center_v=2.0, semi_a_px=10.0, semi_b_px=10.0, semi_c_px=10.0)
     image = _noise_image(obs, seed=20260712)
     mv, mu = int(obs.extfov_margin_v), int(obs.extfov_margin_u)
     # Sensor mask covers only the data region, as on a real frame.
@@ -579,7 +579,7 @@ def test_blob_snr_ignores_off_sensor_flux() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Honest limb visible-arc fraction and sibling-body occlusion
+# Limb visible-arc fraction and sibling-body occlusion
 # ---------------------------------------------------------------------------
 
 
@@ -612,8 +612,8 @@ def test_limb_arc_fraction_drops_when_frame_clips_it() -> None:
 
     Center the body near the frame edge so part of the silhouette boundary
     falls outside the render; the visible-arc fraction must report the
-    surviving portion, not 1.0 (the honest input BodyLimbNav's
-    visible_limb_arc_fraction confidence term needs).
+    surviving portion, not 1.0, because BodyLimbNav's
+    visible_limb_arc_fraction confidence term reads it.
     """
     clipped = _limb_feature(_limb_obs(), _large_body(center_v=20.0))
     assert clipped is not None
@@ -640,9 +640,9 @@ def _near_sibling(**overrides: Any) -> dict[str, Any]:
         'name': 'DIONE',
         'center_v': _LIMB_SIZE / 2.0,
         'center_u': _LIMB_SIZE / 2.0 + 55.0,
-        'axis1': 100.0,
-        'axis2': 100.0,
-        'axis3': 100.0,
+        'semi_a_px': 50.0,
+        'semi_b_px': 50.0,
+        'semi_c_px': 50.0,
         'illumination_angle': 25.0,
         'phase_angle': 30.0,
         'range_km': 500000.0,
@@ -710,7 +710,9 @@ def test_deeply_occluded_limb_is_not_emitted() -> None:
     body = _large_body(range_km=700000.0)
     # A nearer sibling almost concentric with and larger than the body
     # hides nearly the whole silhouette boundary.
-    occluder = _near_sibling(center_u=_LIMB_SIZE / 2.0 + 8.0, axis1=150.0, axis2=150.0, axis3=150.0)
+    occluder = _near_sibling(
+        center_u=_LIMB_SIZE / 2.0 + 8.0, semi_a_px=75.0, semi_b_px=75.0, semi_c_px=75.0
+    )
     limb = _limb_feature(_limb_obs(), body, sibling_bodies=[occluder])
     assert limb is None
 
@@ -850,7 +852,12 @@ def test_instances_for_obs_wires_siblings() -> None:
 def _sphere(center_u: float) -> dict[str, Any]:
     """A 60 px lit sphere centered on the frame's middle row at ``center_u``."""
     return _body_params(
-        name='MIMAS', axis1=60.0, axis2=60.0, axis3=60.0, phase_angle=20.0, center_u=center_u
+        name='MIMAS',
+        semi_a_px=30.0,
+        semi_b_px=30.0,
+        semi_c_px=30.0,
+        phase_angle=20.0,
+        center_u=center_u,
     )
 
 
@@ -912,7 +919,7 @@ def test_a_frame_filling_body_counts_its_overflow_on_a_bounded_canvas(
     """
     from spindoctor.nav_model import nav_model_body_simulated as module
 
-    body = _sphere(_SIZE / 2.0) | {'axis1': 300.0, 'axis2': 300.0, 'axis3': 300.0}
+    body = _sphere(_SIZE / 2.0) | {'semi_a_px': 150.0, 'semi_b_px': 150.0, 'semi_c_px': 150.0}
     full = _overflow_model(body)._overflow_fraction
     sizes: list[int] = []
     original = NavModelBodySimulated._render_body_image

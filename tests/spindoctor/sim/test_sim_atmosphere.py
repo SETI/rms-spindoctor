@@ -70,9 +70,9 @@ def _render_haze_body(
         'name': 'HAZE',
         'center_v': _CENTER,
         'center_u': _CENTER,
-        'axis1': 2.0 * _RADIUS,
-        'axis2': 2.0 * _RADIUS,
-        'axis3': 2.0 * _RADIUS,
+        'semi_a_px': _RADIUS,
+        'semi_b_px': _RADIUS,
+        'semi_c_px': _RADIUS,
         'illumination_angle': illumination_deg,
         'phase_angle': phase_deg,
         'anti_aliasing': 1.0,
@@ -592,9 +592,9 @@ def _compose_body(*, atmosphere: bool = True, **extra: Any) -> dict[str, Any]:
         'name': 'TITAN',
         'center_v': _C_CENTER,
         'center_u': _C_CENTER,
-        'axis1': 2.0 * _C_RADIUS,
-        'axis2': 2.0 * _C_RADIUS,
-        'axis3': 2.0 * _C_RADIUS,
+        'semi_a_px': _C_RADIUS,
+        'semi_b_px': _C_RADIUS,
+        'semi_c_px': _C_RADIUS,
         'illumination_angle': 0.0,
         'phase_angle': 0.0,
     }
@@ -694,7 +694,7 @@ def test_halo_overlap_without_ranges_is_ambiguous() -> None:
     """
     haze_body = _compose_body(center_u=30.0)
     plain = _compose_body(
-        atmosphere=False, name='PLAIN', center_u=78.0, axis1=16.0, axis2=16.0, axis3=16.0
+        atmosphere=False, name='PLAIN', center_u=78.0, semi_a_px=8.0, semi_b_px=8.0, semi_c_px=8.0
     )
     expected = r"halo of body 'TITAN' overlaps body 'PLAIN'"
     with pytest.raises(SimSceneValidationError, match=expected):
@@ -713,9 +713,9 @@ def test_halo_overlap_orders_by_explicit_ranges() -> None:
         atmosphere=False,
         name='PLAIN',
         center_u=78.0,
-        axis1=16.0,
-        axis2=16.0,
-        axis3=16.0,
+        semi_a_px=8.0,
+        semi_b_px=8.0,
+        semi_c_px=8.0,
         range_km=2.0e6,
     )
     probe = (48, 72)

@@ -34,9 +34,9 @@ bodies:
     shape_model: ellipsoid
     center_v: 180.0
     center_u: 180.0
-    axis1: 120.0
-    axis2: 120.0
-    axis3: 120.0
+    semi_a_px: 60.0
+    semi_b_px: 60.0
+    semi_c_px: 60.0
     illumination_angle: 90.0
     phase_angle: 60.0
     km_per_pixel: 42.917

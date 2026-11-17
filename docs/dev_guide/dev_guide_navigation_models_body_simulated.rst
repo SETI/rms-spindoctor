@@ -62,7 +62,7 @@ Theory
 
 Simulated body rendering is a controlled-input version of the same silhouette-extraction
 pipeline that drives :class:`~spindoctor.nav_model.nav_model_body.NavModelBody`. The operator
-specifies a body in image-plane coordinates (center and per-axis full widths) plus a phase /
+specifies a body in image-plane coordinates (center and semi-axes) plus a phase /
 lighting geometry, and the renderer paints the corresponding ellipsoidal body onto an
 extended-FOV image plus matching mask.
 
@@ -122,8 +122,9 @@ in via the per-body entry of the observation's filtered scene view
 - ``center_v``, ``center_u`` — the body center, in pixel-corner coordinates (see
   :ref:`coordinate-systems`).
 - ``range_km`` — subject distance in km (defaults to ``+inf``).
-- ``axis1``, ``axis2``, ``axis3`` — full widths of the three ellipsoid axes, in
-  pixels. ``axis3`` defaults to ``min(axis1, axis2)``.
+- ``semi_a_px``, ``semi_b_px``, ``semi_c_px`` — the three semi-axes of the ellipsoid in
+  pixels, each half its width along that axis. ``semi_c_px`` defaults to
+  ``min(semi_a_px, semi_b_px)``.
 - ``rotation_z`` — rotation about the line of sight (degrees).
 - ``rotation_tilt`` — tilt of the body (degrees).
 - ``illumination_angle`` — degrees.
@@ -230,7 +231,7 @@ Call path traced through
 1. Open a logged section. Read the operator-supplied sim parameters off the per-instance
    dict.
 2. Convert per-axis rotations and angle parameters from degrees to radians.
-3. Call :func:`~spindoctor.nav_model.sim_body.create_simulated_body` with the per-axis full widths and
+3. Call :func:`~spindoctor.nav_model.sim_body.create_simulated_body` with the semi-axes and
    geometry; the helper returns the rendered simulated body image.
 4. Derive the body mask from the rendered image (every non-zero pixel is on the body).
 5. Compute the limb mask via
@@ -264,9 +265,9 @@ Call path traced through
    ``blob_max_overflow_fraction``, append a BODY_BLOB built by the shared blob-feature
    helper on :class:`~spindoctor.nav_model.nav_model_body_base.NavModelBodyBase`, which
    also holds the blob's overflow test for both models.
-4. When the diameter and phase gates pass, append a LIMB_ARC scored honestly: the
-   silhouette boundary is sampled into a vertex polyline with outward normals and a
-   fixed per-vertex sigma, vertices hidden behind an explicitly nearer sibling body are
+4. When the diameter and phase gates pass, append a LIMB_ARC. The silhouette
+   boundary is sampled into a vertex polyline with outward normals and a fixed
+   per-vertex sigma, vertices hidden behind an explicitly nearer sibling body are
    dropped, and the visible-arc fraction compares the surviving polyline against the
    silhouette boundary of an unclipped whole-body render -- so a limb sliding off the
    frame or behind another body reports the loss instead of claiming ``1.0``.  The

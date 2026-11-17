@@ -56,7 +56,7 @@ noise rather than the body's position.  The floor admits the
 operator-curated ``below_resolution_body`` exemplars (a 6 px Enceladus
 whose sidecar requires ``BodyBlobNav`` to run); on the sim calibration
 campaign the 5-8 px band recovers planted offsets to under 0.15 px
-with honest 2-sigma coverage, so precision above the floor is the
+with well-calibrated 2-sigma coverage, so precision above the floor is the
 covariance's and the confidence formula's job, not the emission
 gate's.  The per-body shape table can override this floor upward for
 known difficult bodies (gas giants use 20).

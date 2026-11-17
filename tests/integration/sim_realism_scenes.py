@@ -183,18 +183,18 @@ def limb_scene(
     """
     seed = _seed_for(image_id)
     scene = _base_scene(f'realism_limb_{image_id}', instrument, exposure_sec, seed, size_vu)
-    # The scene 'axis' values are apparent extents in pixels (a body with
-    # axis1 = D renders a D-px-diameter silhouette).
-    axis = max(40.0, float(diameter_px))
+    # The scene's semi-axes are half the apparent diameter in pixels (a body
+    # with semi_a_px = D / 2 renders a D-px-diameter silhouette).
+    semi_px = max(40.0, float(diameter_px)) / 2.0
     center = min(size_vu) / 2.0
     scene['bodies'] = [
         {
             'name': 'REALISM_BODY',
             'center_v': center,
             'center_u': center,
-            'axis1': axis,
-            'axis2': axis,
-            'axis3': axis,
+            'semi_a_px': semi_px,
+            'semi_b_px': semi_px,
+            'semi_c_px': semi_px,
             'illumination_angle': 0.0,
             'phase_angle': float(min(max(phase_angle_deg, 0.0), 179.0)),
             # Content matching, not tuning: the cohort's limb frames are
@@ -296,15 +296,15 @@ def ring_scene(
         ],
     }
     if with_body:
-        axis = max(40.0, float(diameter_px))
+        semi_px = max(40.0, float(diameter_px)) / 2.0
         scene['bodies'] = [
             {
                 'name': 'REALISM_PLANET',
                 'center_v': center_v,
                 'center_u': center_u,
-                'axis1': axis,
-                'axis2': axis,
-                'axis3': axis,
+                'semi_a_px': semi_px,
+                'semi_b_px': semi_px,
+                'semi_c_px': semi_px,
                 'illumination_angle': 0.0,
                 'phase_angle': float(min(max(phase_angle_deg, 0.0), 179.0)),
                 # Same content-matching choice as the limb scenes: airless
