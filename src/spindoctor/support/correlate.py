@@ -1,4 +1,5 @@
 import math
+from fractions import Fraction
 from typing import Any, Literal, cast
 
 import numpy as np
@@ -166,8 +167,9 @@ def upsampled_dft(
 # max(w); ``var_frac_min`` similarly rejects shifts where the image or
 # model variance under the mask is a tiny fraction of the best case, which
 # is where floating-point noise in the denominator would otherwise produce
-# spurious |NCC| >> 1.
-_NCC_BIDIR_W_FRAC_MIN: float = 0.3
+# spurious |NCC| >> 1.  The overlap fraction is a ratio of integers because
+# the overlap is a whole-number count and is compared against it exactly.
+_NCC_BIDIR_W_FRAC_MIN: Fraction = Fraction(3, 10)
 _NCC_BIDIR_VAR_FRAC_MIN: float = 0.1
 
 
@@ -345,11 +347,20 @@ def _masked_ncc_bidir(
     del dmask_f
     mask_fft = rfft2(mask_f)
 
-    # Effective overlap weight at each shift.
+    # Effective overlap weight at each shift: the number of pixels inside both
+    # the shifted mask and the data mask.  The transforms deliver it with
+    # rounding error (251.99999999999994 for 252), and a shift whose count sits
+    # exactly on the floor would then fall on either side of it depending on
+    # the FFT library, the transform length, or the CPU.  Rounding to the whole
+    # count first, and taking the floor in integer arithmetic as the smallest
+    # count that is at least the fraction of the largest, makes the test exact.
+    # A shift whose overlap equals the floor is valid.  At least one pixel must
+    # overlap, so a frame where nothing overlaps anywhere has no valid shift.
     w_d = _correlate_from_spectra(dmask_fft, mask_fft, shape)
-    w_d_max = float(w_d.max())
-    w_floor = max(_NCC_BIDIR_W_FRAC_MIN * w_d_max, _NCC_EPS)
-    overlap_ok = w_d >= w_floor
+    np.rint(w_d, out=w_d)
+    w_d_max = int(w_d.max())
+    w_min = max(math.ceil(_NCC_BIDIR_W_FRAC_MIN * w_d_max), 1)
+    overlap_ok = w_d >= w_min
 
     # Shift-wise sums.  ``image`` is already zero outside data_mask, so the
     # I*mask and I^2*mask sums are equivalent to dmask*I*mask and
@@ -387,10 +398,16 @@ def _masked_ncc_bidir(
     # The normalization from here down writes into surfaces that have just
     # stopped being needed rather than allocating a new one per step, because
     # a step allocates as much as a whole surface and there are a dozen of
-    # them.  ``np.maximum`` against the floor is what ``np.where(overlap_ok,
-    # w_d, w_floor)`` computed, on values already known to be non-negative.
+    # them.  An accepted shift divides by its exact count.  A rejected shift's
+    # score is discarded, but its spreads still enter the largest spread that
+    # the variance floor below is drawn from, so its divisor sets where that
+    # floor sits.  Rejected shifts therefore divide by the fraction of the
+    # largest overlap, which keeps the floor where it has always been;
+    # dividing them by their own counts would change which shifts pass it.
+    # The variance floor's dependence on rejected lags is #997.
     safe_w = w_d
-    np.maximum(safe_w, w_floor, out=safe_w)
+    w_floor = max(float(_NCC_BIDIR_W_FRAC_MIN) * w_d_max, _NCC_EPS)
+    np.copyto(safe_w, w_floor, where=~overlap_ok)
 
     mean_i = sum_iw / safe_w
     num = sum_imw
