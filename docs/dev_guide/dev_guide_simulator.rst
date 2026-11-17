@@ -4682,14 +4682,14 @@ instrument, on seven figures of merit:
    full navigator runs on both frames and the per-technique diagnostics
    (inlier counts, residual scatter, confidences) are tabulated side by
    side.  The navigator predicts each star's signal without allowing for the
-   frame's filter.  The matched scene, though, starts its star ladder from
-   brighter stars on a filtered frame, as the next section describes.  On a
-   frame taken through any filter but clear, the star techniques' predicted SNR
-   and brightness margin therefore can't be compared between the real and
-   simulated frames.  They
-   can be compared once the navigator's prediction allows for the filter.
+   frame's filter, and on a simulated calibrated frame it predicts from a fixed
+   placeholder limit.  The star techniques' predicted SNR and brightness margin
+   therefore can't be compared between the real and simulated frames.  Two things
+   have to change before they can be: the prediction has to allow for the filter,
+   and the simulated frame needs a star limit worked out from the camera in place
+   of the placeholder.
 
-   .. The star prediction's filter handling is issue 899.
+   .. The star prediction's filter handling and the placeholder limit are issue 899.
 
 Matched frames
 --------------
@@ -4705,25 +4705,59 @@ negative and scattered-light frames.  Scene seeds derive from the real
 frame's image id, so the whole match is deterministic: re-running the runner
 reproduces every simulated frame and every statistic bit for bit.
 
-Most star frames' matched scenes place 25 made-up stars on a magnitude ladder.
-On a clear-filter frame, the brightest star is at V magnitude 7.0, and each step
-is 0.2 magnitudes fainter, so the faintest stars reach the detection limit.  The
-matched scene renders through the real frame's filter, and the renderer dims
-every star by the filter's throughput, as the real filter does.  If the filter
-passes a fraction *t* of the clear combination's starlight, the ladder starts
-2.5 log10 *t* magnitudes from V 7.0 instead, which is brighter for any filter
-dimmer than clear.  After the filter dims them, the stars span the same detected
-brightness as the clear-filter ladder, from clearly visible to the frame's
-detection limit.  A real filtered frame works the same way: the only stars it
-shows are bright ones.  For H-alpha (HAL+CL2), which passes about 2% of the
-clear combination's starlight, the ladder starts at V 2.7 instead of 7.0.
+A star frame's matched scene holds the catalog stars in the real frame's field
+of view (:mod:`tests.integration.sim_realism_twin_stars`).  The navigator's star
+catalog reduction runs on the real frame and predicts where each star falls.
+Each star is then moved by the frame's operator-verified offset to where it
+appears in the real image, and it keeps its catalog magnitude.  The offset is a
+correction to the pointing given by the SPICE kernels furnished when the real
+frame was navigated.  The renderer
+dims every star by the throughput of the real frame's filter, as the real filter
+does, so the filter decides how many of the stars can be seen.  Through a narrow
+filter, only the field's few bright stars show.
 
-The real sky holds few stars that bright, so a filtered matched frame shows
-more stars than its real frame does.  The star profiles can be compared, but
-the number of stars can't.
+The list stops at a faint cutoff that depends on the camera, the exposure, and
+the readout binning, but not on the filter.  It is the cutoff the renderer uses
+for its background sky stars
+(:func:`spindoctor.sim.forward.scene_radiance.sky_star_faint_cutoff_mag`), worked
+out for the matched scene through the clear filter.  A star at the cutoff delivers
+a total signal equal to the camera's read noise over the star's core.  The core
+covers 2π σ² pixels, where σ is the Gaussian width of the matched scene's star
+image along its wider axis, and never less than one pixel.  The read noise is the
+camera's published value for its readout mode, never taken as less than 1 in the
+camera's own units.  Finding a star takes several times that signal, so the list
+holds every star the simulated camera could show through the clear filter, and no
+filter shows a star the clear filter can't.
 
-.. Building star twins from the catalog stars at the real frame's pointing is
-   issue 989.
+The list holds every catalog star inside the frame down to the cutoff.  The
+navigator keeps only the 100 brightest stars in and around the frame
+(``stars.max_stars``), which is plenty to navigate on.  A dense field holds far
+more stars than that down to the cutoff: the 26-second wide-angle frame W1580760393
+holds 9,081.  The catalog reduction can list a star twice, and the matched scene
+keeps one copy, since two would draw the star at twice its brightness.  A star
+that lies behind a body or an opaque ring in the real frame is left out, because
+the real frame can't show it and the matched star scene has no body or ring to
+hide it.  The test is the navigator's own.  It looks at a grid of points around
+the star, out to 5 pixels along each axis (``stars.body_conflict_margin``).  The
+star is hidden if the planet or one of its moons covers any of those points.  It
+is also hidden if an opaque ring covers at least a quarter of the points that lie
+on the ring plane (``stars.ring_occlusion_min_opaque_fraction``).  The navigator
+skips the test for a star that overlaps another star, because it already leaves
+such a star out of navigation.  The matched scene applies the test to every
+star, since in a dense field most stars overlap another: 8,600 of the 9,393 stars
+in and around W1580760393 do.  It tests up to 2,000 stars at a time in one
+geometry pass, which takes about half a minute for the five passes on
+W1580760393.  A field that has no catalog star inside the frame gives a matched
+frame without stars.  The catalogs and the SPICE kernels are deterministic, so
+the matched star scene is reproducible from the real frame.
+
+The simulator's star brightness is not yet tied to a brightness scale measured on
+real star images.  A simulated star can come out fainter than a real star of the
+same catalog magnitude, so the matched star frames give fewer star cutouts than
+their real frames, and their stars stand less far above the noise.
+
+.. Measuring the simulated star brightness scale on real frames is issue 895.  The
+   catalog reduction's repeated star is issue 994.
 
 Both sides then run *identical* extraction code -- the same patch finder,
 the same profile sampler, and the navigator's own feature extraction
@@ -5066,7 +5100,7 @@ The committed summary of the realism match is the *record*.  The regression chec
 ``tests/integration/test_sim_realism_regression.py``, reruns the match and compares
 the fresh run with the record.  It runs once for each instrument listed in the band
 table, which is described below.  The table is meant for instruments whose cohort
-matches in a few seconds.  It lists LORRI, whose two frames take about five seconds.
+matches in a few seconds.  It lists LORRI, whose two frames take about seven seconds.
 
 The check holds every statistic whose support label is ``limited`` or ``supported``.
 For a sample kind, it holds the normalized W1 (W1/IQR) and the real and simulated
@@ -5180,11 +5214,12 @@ navigation pairs.  Outputs:
   committed record backing the report's tables (divergences, support
   labels, FOM 7 rows, runtime).
 
-The full-cohort run (75 frames as of 2026-07-18) takes 19 to 21 minutes
-on a workstation with local holdings (measured 18.8-21.3 minutes over
-the recorded 2026-07-17/18 runs); the cost is dominated by the
-navigator's feature extraction on the real frames and the full-size
-matched renders.  ``--skip-fom7`` saves about 17% -- the navigation
+The full-cohort run takes about 38 minutes on a workstation with local
+holdings.  The committed record of 2026-11-07 took 37 minutes (2,231 seconds),
+and building the 19 star frames' catalog star lists adds about one minute
+(62 seconds measured on 2026-11-15, 45 of them on W1580760393).  The cost is
+dominated by the navigator's feature extraction on the real frames and the
+full-size matched renders.  ``--skip-fom7`` saves about 17% -- the navigation
 pairs are a handful of frames per instrument, not a large share of the
 cost.  ``tests/integration/test_sim_realism.py`` carries the
 ``sim_integration`` tests, which the default selection runs. They check that the

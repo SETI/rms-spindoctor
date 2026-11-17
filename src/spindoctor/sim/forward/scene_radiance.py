@@ -78,7 +78,7 @@ from spindoctor.sim.star_records import DEFAULT_PSF_SIZE
 from spindoctor.support.stable_math import stable_hypot
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType, NDArrayIntType
 
-__all__ = ['compose_scene_radiance']
+__all__ = ['compose_scene_radiance', 'sky_star_faint_cutoff_mag']
 
 
 def _star_zero_point(params: Mapping[str, Any]) -> tuple[float, str]:
@@ -730,6 +730,45 @@ def _body_occlusion_truth(
     return occlusion
 
 
+def sky_star_faint_cutoff_mag(params: Mapping[str, Any]) -> float:
+    """The faint magnitude at which a scene's background sky stars stop.
+
+    The cutoff is where a star's total flux equals the camera's nominal read noise over
+    the star's PSF core (:func:`~spindoctor.sim.forward.star.faint_sky_cutoff_mag`).
+    The flux comes from the camera's star zero point, scaled by the scene filter's
+    throughput, and the scene exposure.  The core's sigma is the wider axis of the
+    scene's PSF (:func:`~spindoctor.sim.forward.optics.effective_psf`), or, for a scene
+    without one, the instrument's configured ``star_psf_sigma`` over the readout
+    binning; the core covers ``2 pi sigma**2`` pixels, and at least one.  The read noise
+    is the camera's published value for the scene's readout mode, whether or not the
+    scene enables read noise, and at least 1 (electron, or DN on the vidicon).
+
+    Parameters:
+        params: The full scene mapping.
+
+    Returns:
+        The faint cutoff magnitude.
+    """
+    instrument = params.get('instrument')
+    zero_point, domain = _star_zero_point(params)
+    binning = scene_binning(params)
+    scene_psf = effective_psf(params)
+    if scene_psf is not None:
+        sigma_v_psf = float(scene_psf['sigma_v'])
+        psf_sigma = max(sigma_v_psf, float(scene_value(scene_psf, 'sigma_u', sigma_v_psf)))
+    else:
+        inst_config = resolve_sim_inst_config(
+            DEFAULT_CONFIG, instrument, params.get('instrument_config')
+        )
+        psf_sigma = float(inst_config['star_psf_sigma']) / binning
+    return faint_sky_cutoff_mag(
+        zero_point=zero_point,
+        exposure_sec=float(params.get('exposure_sec', 1.0)),
+        read_noise=_nominal_read_noise(instrument, domain, binning=binning),
+        psf_sigma=psf_sigma,
+    )
+
+
 def _render_sky(
     plane: NDArrayFloatType,
     params: Mapping[str, Any],
@@ -739,9 +778,10 @@ def _render_sky(
 ) -> None:
     """Render the background-sky star field into a point-source plane in place.
 
-    Reads the scene ``sky_counts`` block (absent = no sky).  The faint cutoff is
-    derived from the camera's nominal read noise and the scene PSF core, so the
-    count integral stops where a star drops below the sky background.
+    Reads the scene ``sky_counts`` block (absent = no sky).  The faint cutoff
+    (:func:`sky_star_faint_cutoff_mag`) is derived from the camera's nominal read noise
+    and the scene PSF core, so the count integral stops where a star drops below the
+    sky background.
 
     Parameters:
         plane: The oversampled point-source plane to deposit into.
@@ -753,24 +793,9 @@ def _render_sky(
     if not isinstance(sky, Mapping):
         return
     instrument = params.get('instrument')
-    zero_point, domain = _star_zero_point(params)
+    zero_point, _ = _star_zero_point(params)
     exposure_sec = float(params.get('exposure_sec', 1.0))
-    inst_config = resolve_sim_inst_config(
-        DEFAULT_CONFIG, instrument, params.get('instrument_config')
-    )
-    scene_psf = effective_psf(params)
-    if scene_psf is not None:
-        sigma_v_psf = float(scene_psf['sigma_v'])
-        rendered_sigma_det = max(sigma_v_psf, float(scene_value(scene_psf, 'sigma_u', sigma_v_psf)))
-    else:
-        rendered_sigma_det = float(inst_config['star_psf_sigma']) / scene_binning(params)
-    read_noise = _nominal_read_noise(instrument, domain, binning=scene_binning(params))
-    cutoff = faint_sky_cutoff_mag(
-        zero_point=zero_point,
-        exposure_sec=exposure_sec,
-        read_noise=read_noise,
-        psf_sigma=rendered_sigma_det,
-    )
+    cutoff = sky_star_faint_cutoff_mag(params)
     render_sky_counts(
         plane,
         seed=seed,
