@@ -1208,9 +1208,10 @@ asserts the generated half matches the registries.
 - **#427** — the config top-level namespace mixes domain objects, pipeline
   stages, instruments, output products, and infrastructure on no stated
   axis, with `general` as the catch-all. Lifting `logging` out of `general`
-  fixed the worst instance and left the pattern. Sequence this **before**
-  #118 (config validation): a schema per section is easier to write and to
-  keep honest once the sections are organized, and doing it the other way
+  fixed the worst instance and left the pattern. By default, sequence this
+  **before** #118 (config validation), unless the operator decision below
+  says otherwise: a schema per section is easier to write and to keep
+  accurate once the sections are organized, and doing it the other way
   freezes the current grouping into a schema. #712 (renumber the
   configuration files, so the `config_NN_*` merge order carries the same
   axis) is the filename half of the same question and moves with it.
