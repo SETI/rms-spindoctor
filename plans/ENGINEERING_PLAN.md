@@ -1263,9 +1263,9 @@ asserts the generated half matches the registries.
   scene's `instrument_config` overlay itself, repeating the camera keys'
   ranges until #1029 lands. #1032 lands in about ten PRs in a stated
   order, each typing PR checking #427 first:
-  - [ ] delete the packaged keys nothing reads, at least 60 of them
-    including the whole `bootstrap` section and the image-side keys
-    #1023 stops reading (needs nothing else; lands before #1029)
+  - [ ] delete the packaged keys nothing reads, at least 54 of them
+    including the whole `bootstrap` section (needs nothing else; #1023
+    deletes the camera blocks' dead keys)
   - [ ] #1029: the camera blocks, with the core's VALUE null policy and
     the loader's merge moved onto the core
   - [ ] the orchestrator section

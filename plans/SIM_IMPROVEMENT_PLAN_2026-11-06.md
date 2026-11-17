@@ -213,7 +213,8 @@ explained.
 
 The navigator config is left alone for now (operator, 2026-11-17). Typing it is deferred and
 tracked in `ENGINEERING_PLAN.md`: the camera blocks (#1029), and every other section with the
-deletion of the keys nothing reads (#1032). No issue in this plan changes a navigator config file.
+deletion of the keys nothing reads (#1032). No issue in this plan changes navigator code; #1023
+edits the navigator's config files only to delete the camera-block keys nothing reads.
 
 | Issue | Subject | Why now |
 |---|---|---|
@@ -223,7 +224,7 @@ deletion of the keys nothing reads (#1032). No issue in this plan changes a navi
 | #1029 | The navigator camera blocks typed through the core, and a scene's `instrument_config` overlay parsed through the same types | **Deferred (operator, 2026-11-17).** Navigator config work, tracked with #1032 in `ENGINEERING_PLAN.md`. Until it lands, the typed scene (#1024) gives the scene's `instrument_config` overlay its own type, which repeats the camera keys' ranges (the operator accepted the duplication), and replaces the simulator's 378-line overlay validator. |
 | #806, naming part | Split the `vgiss` entry into four per-camera entries, renaming the scene's instrument value | Renames a scene value before Phase 2b writes Voyager scenes. The per-camera values stay in Phase 4e. |
 | #1017 | Detector effects modeled twice, once in the noise block and once as an artifact mode | Removes or merges scene keys. |
-| #1023 | Image-side detector physics comes from two configuration trees, and the noise block holds keys that are not noise | Moves scene keys, and lets a scene plant a mismatch between the true and believed saturation ceilings. The image-side keys it stops reading stay in the navigator's files, unread, until #1032 deletes them. |
+| #1023 | Image-side detector physics comes from two configuration trees, and the noise block holds keys that are not noise | Moves scene keys, and lets a scene plant a mismatch between the true and believed saturation ceilings. It also deletes the camera-block keys nothing reads, the image-side keys it stops reading among them. |
 
 Order: #988 and #1021 first, then #1022, #1017, and #1023, one at a time; #806's naming part lands
 whenever it is ready.
