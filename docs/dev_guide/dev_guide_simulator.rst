@@ -4709,7 +4709,9 @@ A star frame's matched scene holds the catalog stars in the real frame's field
 of view (:mod:`tests.integration.sim_realism_twin_stars`).  The navigator's star
 catalog reduction runs on the real frame and predicts where each star falls.
 Each star is then moved by the frame's operator-verified offset to where it
-appears in the real image, and it keeps its catalog magnitude.  The renderer
+appears in the real image, and it keeps its catalog magnitude.  The offset is a
+correction to the pointing given by the SPICE kernels furnished when the real
+frame was navigated.  The renderer
 dims every star by the throughput of the real frame's filter, as the real filter
 does, so the filter decides how many of the stars can be seen.  Through a narrow
 filter, only the field's few bright stars show.

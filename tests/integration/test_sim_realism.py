@@ -207,7 +207,10 @@ def test_a_twin_star_sits_at_its_prediction_moved_by_the_verified_offset() -> No
 def test_a_twin_star_fainter_than_the_cutoff_is_left_out() -> None:
     """Of two stars either side of the cutoff, only the brighter is kept."""
     entries = _entries(
-        [_FakeStar(v=100.0, u=100.0, vmag=15.4), _FakeStar(v=200.0, u=200.0, vmag=15.6)]
+        [
+            _FakeStar(v=100.0, u=100.0, vmag=15.4, unique_number=1),
+            _FakeStar(v=200.0, u=200.0, vmag=15.6, unique_number=2),
+        ]
     )
     assert [entry['vmag'] for entry in entries] == [15.4]
 
