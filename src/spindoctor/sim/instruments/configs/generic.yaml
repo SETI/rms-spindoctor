@@ -15,7 +15,7 @@ generic:
   # Frames are raw DN, which is what the navigator block below expects.
   data_units: raw_dn
 
-  # The navigator's flat 'sim' config block.
+  # The navigator block is the navigator's flat 'sim' section.
   navigator:
     section: sim
 

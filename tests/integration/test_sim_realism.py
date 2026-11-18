@@ -35,7 +35,7 @@ from spindoctor.sim.instruments.resolvers import (
 )
 from spindoctor.sim.realism.noise import SkyPatch
 from spindoctor.sim.render.detector.params import resolve_detector_params
-from spindoctor.sim.render.driver import render_combined_model
+from spindoctor.sim.render.driver import render_scene
 from spindoctor.sim.render.radiance.compose import sky_star_faint_cutoff_mag
 from spindoctor.sim.scene.validate import validate_sim_params
 from tests.integration import sim_realism, sim_realism_report, sim_realism_twin_stars
@@ -163,7 +163,7 @@ def test_a_matched_scene_renders_on_the_cassini_table_only_for_a_table_frame(
         quantization=quantization,
         stars=[],
     )
-    img, _ = render_combined_model(scene)
+    img, _ = render_scene(scene)
     table = resolve_detector_params(scene).sqrt_lut
     assert table is not None
     assert bool(np.isin(img, table.levels()).all()) is on_table

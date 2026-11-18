@@ -32,7 +32,7 @@ from spindoctor.sim.instruments.navigator_link import (
     read_frame_as_navigator,
     resolve_sim_inst_config,
 )
-from spindoctor.sim.render.driver import render_combined_model
+from spindoctor.sim.render.driver import render_scene
 from spindoctor.sim.render.stages import SimFrame
 from spindoctor.sim.render.telemetry.stage import apply_telemetry
 
@@ -162,7 +162,7 @@ def test_lost_lines_carry_a_null_marker_as_the_navigator_reads_it(instrument: st
 )
 def test_summary_names_the_unit_class(instrument: str, units: str) -> None:
     """The summary opens with the instrument's units."""
-    img, _ = render_combined_model(_disc_scene(instrument), ignore_offset=True)
+    img, _ = render_scene(_disc_scene(instrument), ignore_offset=True)
     inst_config = resolve_sim_inst_config(DEFAULT_CONFIG, instrument)
     assert frame_units_summary(img, inst_config).split(' ')[0] == units
 
@@ -192,7 +192,7 @@ _NAVIGATED_SCENES = {
 
 
 def _inst_config_of(params: dict[str, Any]) -> Any:
-    """The resolved config block of a scene, with its instrument_config overrides."""
+    """The navigator block of a scene, with its instrument_config merged over it."""
     return resolve_sim_inst_config(
         DEFAULT_CONFIG, params['instrument'], params.get('instrument_config')
     )
@@ -202,7 +202,7 @@ def _inst_config_of(params: dict[str, Any]) -> Any:
 def test_reading_matches_the_orchestrator_on_the_navigated_frame(name: str) -> None:
     """The frame the navigator reads gets the class the orchestrator gives it."""
     params = _NAVIGATED_SCENES[name]
-    img, _ = render_combined_model(params)
+    img, _ = render_scene(params)
     reading = read_frame_as_navigator(img, _inst_config_of(params))
     assert reading.image_class == _orchestrator_class(params)
 
@@ -228,7 +228,7 @@ def test_navigated_scenes_land_where_the_comparison_needs_them(name: str, image_
 def test_offset_moves_the_edge_scene_across_the_blank_limit() -> None:
     """The offset-free preview of the edge scene, its body still in the frame, is clean."""
     params = _NAVIGATED_SCENES['calib-offset-leaves-frame']
-    img, _ = render_combined_model(params, ignore_offset=True)
+    img, _ = render_scene(params, ignore_offset=True)
     inst_config = resolve_sim_inst_config(DEFAULT_CONFIG, 'coiss_calib_nac')
     assert read_frame_as_navigator(img, inst_config).image_class == 'clean'
 
@@ -244,14 +244,14 @@ def test_offset_moves_the_edge_scene_across_the_blank_limit() -> None:
 def test_summary_states_the_orchestrator_verdict(name: str, image_class: str, phrase: str) -> None:
     """The summary carries a verdict's phrase exactly when the orchestrator reaches it."""
     params = _NAVIGATED_SCENES[name]
-    img, _ = render_combined_model(params)
+    img, _ = render_scene(params)
     summary = frame_units_summary(img, _inst_config_of(params))
     assert (phrase in summary) == (_orchestrator_class(params) == image_class)
 
 
 def test_empty_vgiss_summary_reads_the_sky_residual() -> None:
     """An empty vgiss frame reads its 1.5 DN sky residual and no marker pixel."""
-    img, _ = render_combined_model(_empty_scene('vgiss'))
+    img, _ = render_scene(_empty_scene('vgiss'))
     summary = frame_units_summary(img, resolve_sim_inst_config(DEFAULT_CONFIG, 'vgiss'))
     assert summary == 'I/F 0.01176 to 0.01176'
 
@@ -330,7 +330,7 @@ def test_reading_matches_the_classifier_exactly_at_each_limit(instrument: str) -
 
 
 class _InstConfigOnly:
-    """A stand-in observation carrying only an instrument config block."""
+    """A stand-in observation carrying only a navigator block."""
 
     def __init__(self, inst_config: dict[str, Any]) -> None:
         """Hold ``inst_config`` as the navigator's settings reader expects."""
@@ -343,7 +343,7 @@ def test_raised_missing_limit_from_the_scene_is_honored() -> None:
         **_NAVIGATED_SCENES['vgiss-disc-lost-lines'],
         'instrument_config': {'image_quality_thresholds': {'max_missing_frac_clean': 0.70}},
     }
-    img, _ = render_combined_model(params)
+    img, _ = render_scene(params)
     inst_config = resolve_sim_inst_config(DEFAULT_CONFIG, 'vgiss', params['instrument_config'])
     summary = frame_units_summary(img, inst_config)
     assert summary.endswith('of pixels')
@@ -356,7 +356,7 @@ def test_lowered_missing_limit_from_the_scene_is_honored() -> None:
         **_with_lost_lines(_NAVIGATED_SCENES['vgiss-offset'], 6.0),
         'instrument_config': {'image_quality_thresholds': {'max_missing_frac_clean': 0.02}},
     }
-    img, _ = render_combined_model(params)
+    img, _ = render_scene(params)
     inst_config = resolve_sim_inst_config(DEFAULT_CONFIG, 'vgiss', params['instrument_config'])
     assert '(over 2%: the navigator refuses it as missing data)' in frame_units_summary(
         img, inst_config
@@ -401,7 +401,7 @@ def test_units_name_follows_the_data_units(inst_config: dict[str, Any], units: s
 
 def test_vgiss_dark_sky_stays_out_of_the_marker_count() -> None:
     """A vgiss frame's dark sky sits above the 0 marker, so the summary names no marker."""
-    img, _ = render_combined_model(_disc_scene('vgiss'), ignore_offset=True)
+    img, _ = render_scene(_disc_scene('vgiss'), ignore_offset=True)
     summary = frame_units_summary(img, resolve_sim_inst_config(DEFAULT_CONFIG, 'vgiss'))
     assert summary == f'I/F {float(img.min()):.4g} to {float(img.max()):.4g}'
 

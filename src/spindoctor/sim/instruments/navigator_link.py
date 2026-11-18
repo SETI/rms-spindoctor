@@ -1,13 +1,13 @@
-"""Mapping from a sim instrument name to its per-instrument config block.
+"""Mapping from a sim instrument name to its navigator block.
 
 The simulator can render a frame as though it came from a specific camera, so
 that a 'sim COISS NAC raw' frame goes through the same per-instrument noise,
 saturation, marker, and unit settings the navigator applies to a real frame.
-This module resolves a sim ``instrument`` name to the navigator config block that
-the instrument's config entry points at (its ``navigator`` section and detector; see
+This module resolves a sim ``instrument`` name to the navigator block that
+the instrument entry points at (its ``navigator`` section and detector; see
 :mod:`spindoctor.sim.instruments.catalog`); physical parameters then delegate to
 that block, while sim-only knobs (signal full-scale, cosmic-ray rate, dropout
-rate) stay in the ``sim`` config block.
+rate) stay in the navigator's ``sim`` configuration section.
 
 A value of ``None`` (or the generic entry and its aliases) selects the standalone
 ``sim`` block, preserving the instrument-agnostic defaults.
@@ -24,7 +24,7 @@ Overriding a key pins it to the scene, so a later change to the real camera's
 config cannot silently shift a sim test's behavior for that key; the non-overridden
 keys continue to track the instrument.
 
-A rendered frame's units come from the instrument's config entry (``data_units``).
+A rendered frame's units come from the instrument entry (``data_units``).
 The navigator reads the frame in the units its block sets, so resolving the block
 fails if the two differ.  It also fails if the block doesn't set ``data_units``,
 which the navigator requires.  A ``raw_dn`` instrument renders detector counts
@@ -123,7 +123,7 @@ def resolve_sim_inst_config(
     instrument: str | None,
     overrides: Mapping[str, Any] | None = None,
 ) -> Mapping[str, Any]:
-    """Resolve a sim instrument name to its per-instrument config block.
+    """Resolve a sim instrument name to its navigator block.
 
     Parameters:
         config: The active configuration.
@@ -139,8 +139,8 @@ def resolve_sim_inst_config(
             string of digits names the binning factor it spells.
 
     Returns:
-        The resolved per-instrument config mapping (a fresh dict when ``overrides``
-        are supplied, otherwise the live config block).
+        The navigator block with ``overrides`` merged over it, as a fresh dict.
+        Without ``overrides`` it is the live config block itself.
 
     Raises:
         ValueError: If ``instrument`` is unrecognized, the referenced config section
@@ -162,7 +162,7 @@ def resolve_sim_inst_config(
 
 
 def _resolve_base_block(config: Config, instrument: str | None) -> Mapping[str, Any]:
-    """Resolve the unmodified per-instrument (or generic) config block."""
+    """Resolve the unmodified navigator block of an instrument (or the generic one)."""
     catalog = load_instrument_catalog()
     navigator = catalog.entry(instrument)['navigator']
     section: str = navigator['section']
@@ -267,7 +267,7 @@ def resolve_extfov_margin(
     image size; when it does not, the generic ``sim`` block's margin is used.
 
     Parameters:
-        inst_config: The resolved per-instrument config block.
+        inst_config: The navigator block.
         fallback_config: The generic ``sim`` block to fall back to.
         size_v: The sim image height in pixels (the margin-table key).
 
@@ -337,7 +337,7 @@ def read_frame_as_navigator(
 
     Parameters:
         image: The frame the navigator reads, with the planted offset applied.
-        inst_config: The resolved per-instrument config block of that frame.
+        inst_config: The navigator block of that frame.
 
     Returns:
         The reading, with the class and the limits that decided it.
@@ -364,7 +364,7 @@ def frame_units_name(inst_config: Mapping[str, Any]) -> str:
     """Return the units in which the navigator reads this block's frames.
 
     Parameters:
-        inst_config: A resolved per-instrument config block.
+        inst_config: A navigator block.
 
     Returns:
         ``'DN'`` for a ``raw_dn`` block, ``'I/F'`` for a ``calibrated_if`` one.
@@ -402,8 +402,7 @@ def frame_units_summary(image: NDArrayFloatType, inst_config: Mapping[str, Any])
 
     Parameters:
         image: The rendered frame.
-        inst_config: The resolved per-instrument config block the frame was
-            rendered with.
+        inst_config: The navigator block the frame was rendered with.
 
     Returns:
         One line of text for a status display.

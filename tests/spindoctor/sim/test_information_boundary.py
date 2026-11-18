@@ -3,7 +3,7 @@
 This is the independence guarantee of the simulator-realism program: the
 navigator-side models consume only ``obs.nav_params``, and this test builds a
 scene exercising EVERY entry of the schema's ``TRUTH_KEYS`` inventory and
-asserts none is reachable through the filtered view.  The test iterates the
+asserts none is reachable through the navigator view.  The test iterates the
 frozenset itself, so a truth key added to the schema without a filter/test
 extension fails here, not silently.
 """
@@ -14,7 +14,7 @@ import pytest
 from tests.spindoctor.sim.scenes import frame_scene, star_entry
 
 from spindoctor.obs.obs_inst_sim import ObsSim
-from spindoctor.sim.render.driver import render_combined_model
+from spindoctor.sim.render.driver import render_scene
 from spindoctor.sim.scene.boundary import (
     TOP_LEVEL_IDEALIZED_KEYS,
     TOP_LEVEL_TEST_ONLY_KEYS,
@@ -299,7 +299,7 @@ def test_every_truth_key_has_an_exercising_sample() -> None:
 
 @pytest.mark.parametrize('truth_key', sorted(TRUTH_KEYS))
 def test_truth_key_unreachable_through_nav_params(truth_key: str) -> None:
-    """No TRUTH_KEYS entry is reachable through the filtered view."""
+    """No TRUTH_KEYS entry is reachable through the navigator view."""
     nav = build_nav_params(_truth_exercising_scene())
     if '.' in truth_key:
         objects, leaf = _addressed_objects(nav, truth_key)
@@ -425,12 +425,12 @@ def test_non_navigable_ring_feature_is_dropped_but_still_renders() -> None:
     nav_with = build_nav_params(with_confounder)
     assert nav_with['ring_system'] == nav_without['ring_system']
 
-    img_without, _meta0 = render_combined_model(scene)
-    img_with, _meta1 = render_combined_model(with_confounder)
+    img_without, _meta0 = render_scene(scene)
+    img_with, _meta1 = render_scene(with_confounder)
     assert bool((img_with != img_without).any())
 
 
-def test_obs_sim_exposes_only_the_filtered_view() -> None:
+def test_obs_sim_exposes_only_the_navigator_view() -> None:
     """ObsSim publishes nav_params and no renderer star records."""
     obs = ObsSim.from_file('/tmp/boundary_probe.yaml', sim_params=_truth_exercising_scene())
     for truth_key in TRUTH_KEYS:
@@ -548,7 +548,7 @@ def test_non_navigable_star_is_dropped_but_still_a_catalog_star_for_others() -> 
 
 
 def test_nav_params_values_are_isolated_copies() -> None:
-    """Mutating the filtered view cannot reach back into the scene."""
+    """Mutating the navigator view cannot reach back into the scene."""
     scene = _truth_exercising_scene()
     nav = build_nav_params(scene)
     nav['bodies'][0]['semi_a_px'] = 999.0

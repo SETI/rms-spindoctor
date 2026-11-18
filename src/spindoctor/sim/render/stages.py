@@ -67,7 +67,7 @@ class SimFrame:
             whatever the scene asks for.  The radiance stage reads this flag and
             draws each body's limb without anti-aliasing, and the optics stage reads
             it and skips the distortion warp.  Nothing but the editor's preview sets
-            it (see :func:`~spindoctor.sim.render.driver.render_combined_model`).
+            it (see :func:`~spindoctor.sim.render.driver.render_scene`).
     """
 
     signal: NDArrayFloatType

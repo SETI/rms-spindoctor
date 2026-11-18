@@ -43,7 +43,7 @@ from spindoctor.sim.instruments.navigator_link import (
     resolve_sim_inst_config,
 )
 from spindoctor.sim.instruments.resolvers import resolve_data_units
-from spindoctor.sim.render.driver import render_combined_model
+from spindoctor.sim.render.driver import render_scene
 from spindoctor.sim.scene.errors import SimSceneValidationError
 from spindoctor.sim.scene.fields import default_body_name, scene_value
 from spindoctor.sim.scene.validate import validate_scene
@@ -176,7 +176,7 @@ class RenderDisplayMixin(SimEditorBase):
                 return
             # The check above stored this scene in the shared validation cache, so
             # the render's own validation finds it there.
-            img, meta = render_combined_model(self.sim_params, ignore_offset=True, preview=True)
+            img, meta = render_scene(self.sim_params, ignore_offset=True, preview=True)
             self._full_render_runner.cancel()
             self._verdict_runner.cancel()
             self._show_picture(img, meta, copy.deepcopy(self.sim_params), full_render=False)

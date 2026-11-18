@@ -13,7 +13,7 @@ models and the quantization modes that the scene validator, the instrument
 schema, and the sim editor accept.
 
 **Availability.**  Which instruments offer a mode is not part of the registry:
-each simulated instrument's config entry lists the modes it offers (see
+each instrument entry lists the modes it offers (see
 :mod:`spindoctor.sim.instruments.catalog`), and may state why it does not offer
 one.  If a scene sets a mode that its instrument does not offer, validation fails
 with that reason, or with a message that lists the instruments that offer it.  The

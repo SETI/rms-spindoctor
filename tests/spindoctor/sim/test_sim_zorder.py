@@ -14,7 +14,7 @@ import numpy as np
 import pytest
 from tests.spindoctor.sim.scenes import disc_body, frame_scene, quiet_noise, ring_system_block
 
-from spindoctor.sim.render.driver import render_combined_model
+from spindoctor.sim.render.driver import render_scene
 from spindoctor.sim.scene.errors import SimSceneValidationError
 
 
@@ -48,8 +48,8 @@ def _scene(ring_range_km: float | None) -> dict[str, Any]:
 def test_ring_with_larger_range_km_renders_behind_the_body() -> None:
     """A ring at range_km 2e6 sorts behind a body at 1e6: the body occludes it."""
     body_only = {k: v for k, v in _scene(2.0e6).items() if k != 'ring_system'}
-    body_img, body_meta = render_combined_model(body_only)
-    behind_img, behind_meta = render_combined_model(_scene(2.0e6))
+    body_img, body_meta = render_scene(body_only)
+    behind_img, behind_meta = render_scene(_scene(2.0e6))
     mask = behind_meta['body_masks'][0]
     assert bool(mask.any())
     assert np.array_equal(behind_img[mask], body_img[body_meta['body_masks'][0]])
@@ -58,8 +58,8 @@ def test_ring_with_larger_range_km_renders_behind_the_body() -> None:
 def test_ring_with_smaller_range_km_renders_in_front_of_the_body() -> None:
     """A ring at range_km 5e5 screens the same body and changes its pixels."""
     body_only = {k: v for k, v in _scene(5.0e5).items() if k != 'ring_system'}
-    body_img, _ = render_combined_model(body_only)
-    front_img, front_meta = render_combined_model(_scene(5.0e5))
+    body_img, _ = render_scene(body_only)
+    front_img, front_meta = render_scene(_scene(5.0e5))
     mask = front_meta['body_masks'][0]
     assert not np.array_equal(front_img[mask], body_img[mask])
 
@@ -68,7 +68,7 @@ def test_overlapping_ring_without_range_km_is_an_error() -> None:
     """A ring system with no range_km overlapping a body has no defined stacking."""
     scene = _scene(None)
     with pytest.raises(SimSceneValidationError, match=r'overlap.*range_km'):
-        render_combined_model(scene)
+        render_scene(scene)
 
 
 def test_overlapping_bodies_without_range_km_are_an_error() -> None:
@@ -77,7 +77,7 @@ def test_overlapping_bodies_without_range_km_are_an_error() -> None:
     del scene['bodies'][0]['range_km']
     scene['bodies'].append(dict(scene['bodies'][0], name='B2', center_v=34.0))
     with pytest.raises(SimSceneValidationError, match=r"'B2' and 'B' overlap"):
-        render_combined_model(scene)
+        render_scene(scene)
 
 
 def test_non_overlapping_objects_need_no_range_km() -> None:
@@ -90,6 +90,6 @@ def test_non_overlapping_objects_need_no_range_km() -> None:
     scene['bodies'][0]['semi_a_px'] = 4.0
     scene['bodies'][0]['semi_b_px'] = 4.0
     scene['bodies'][0]['semi_c_px'] = 4.0
-    _img, meta = render_combined_model(scene)
+    _img, meta = render_scene(scene)
     assert bool(meta['body_masks'][0].any())
     assert bool(meta['ring_masks'][0].any())

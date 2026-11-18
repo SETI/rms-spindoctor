@@ -50,7 +50,7 @@ from typing import Any
 import pytest
 from threadpoolctl import threadpool_limits
 
-from spindoctor.sim.render.driver import clear_render_caches, render_combined_model
+from spindoctor.sim.render.driver import clear_render_caches, render_scene
 
 pytestmark = pytest.mark.integration
 
@@ -241,7 +241,7 @@ def _warm_non_render_costs() -> None:
     deferred module imports; the render caches are then cleared again so the
     timed render stays genuinely cold on the render paths themselves.
     """
-    render_combined_model(
+    render_scene(
         {
             'size_v': 8,
             'size_u': 8,
@@ -264,7 +264,7 @@ def _cold_render_seconds(scene: dict[str, Any]) -> tuple[float, float]:
         clear_render_caches()
         cpu_start = time.process_time()
         wall_start = time.perf_counter()
-        render_combined_model(scene)
+        render_scene(scene)
         return time.process_time() - cpu_start, time.perf_counter() - wall_start
 
 

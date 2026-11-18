@@ -23,7 +23,7 @@ subpackages:
 - :mod:`spindoctor.sim.render.telemetry`: the telemetry stage.
 
 The navigator-side simulated NavModels never import from this package; they
-consume only the filtered idealized view (``obs.nav_params``) built at the
+consume only the navigator view (``obs.nav_params``) built at the
 ``ObsSim`` boundary.  Conventions shared with the navigator side live in
 :mod:`spindoctor.sim.shared`.
 """

@@ -31,7 +31,7 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from matplotlib.axes import Axes
 
-from spindoctor.sim.instruments.resolvers import resolve_detector_defaults
+from spindoctor.sim.instruments.resolvers import resolve_detector_defaults_native
 from spindoctor.support.types import NDArrayFloatType
 from tests.integration.sim_realism import (
     InstrumentComparison,
@@ -380,7 +380,7 @@ def _figure_artifacts(comparison: InstrumentComparison, out: Path) -> bool:
         xlabel='fraction of pixels',
         log_x=True,
     )
-    defaults = resolve_detector_defaults(comparison.instrument)
+    defaults = resolve_detector_defaults_native(comparison.instrument)
     hot_default = float(defaults.get('hot_pixel_fraction', 0.0))
     if hot_default > 0.0:
         axes[1].axvline(
@@ -582,7 +582,7 @@ def summary_dict(results: RealismResults) -> dict[str, Any]:
         'instruments': {},
     }
     for instrument, comparison in sorted(results.comparisons.items()):
-        defaults = resolve_detector_defaults(instrument)
+        defaults = resolve_detector_defaults_native(instrument)
         kinds: dict[str, Any] = {}
         for kind, div in sorted(comparison.divergences.items()):
             real_values = np.asarray(comparison.real.samples.get(kind, []), dtype=np.float64)

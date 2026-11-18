@@ -29,7 +29,7 @@ from spindoctor.sim.render.detector.params import (
     calibration_map,
     resolve_detector_params,
 )
-from spindoctor.sim.render.driver import render_combined_model
+from spindoctor.sim.render.driver import render_scene
 from spindoctor.sim.render.feature_loci import FeatureLoci, choose_pixels, extract_feature_loci
 from spindoctor.sim.render.stages import SimFrame
 from spindoctor.sim.render.telemetry.loss import apply_line_garble, apply_pixel_spikes
@@ -254,8 +254,8 @@ def test_alternating_lines_keep_blanks_all_but_every_nth() -> None:
     assert np.all(frame.signal[4] == 1.0)
 
 
-def test_gossi_catalog_defaults_alternating_lines_to_keep() -> None:
-    """The Galileo catalog's HMA/HCA 'keep' default is honored by the loss loop."""
+def test_gossi_entry_default_alternating_lines_to_keep() -> None:
+    """The Galileo instrument entry's HMA/HCA 'keep' default is honored by the loss loop."""
     frame = _frame()
     record = _render(
         frame, {'alternating_lines': {'probability': 1.0, 'period': 4}}, instrument='gossi'
@@ -491,7 +491,7 @@ def _vgiss_render_with_garble_and_spikes(
             'line_garble': {'expected_events': 4.0},
             'pixel_spikes': {'expected_events': 40.0, 'amplitude': 'bitflip'},
         }
-    return render_combined_model(scene)
+    return render_scene(scene)
 
 
 def test_a_vgiss_render_keeps_garble_and_spikes_on_the_calibrated_scale() -> None:

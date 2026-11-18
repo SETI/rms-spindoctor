@@ -13,8 +13,8 @@ import numpy as np
 import pytest
 from tests.spindoctor.sim.scenes import disc_body, frame_scene
 
-from spindoctor.sim.instruments.resolvers import resolve_detector_defaults
-from spindoctor.sim.render.driver import render_combined_model
+from spindoctor.sim.instruments.resolvers import resolve_detector_defaults_native
+from spindoctor.sim.render.driver import render_scene
 
 _CALIBRATED = ('coiss_calib_nac', 'coiss_calib_wac', 'vgiss')
 _RENDERS = {'floor': {}, 'instrument_defaults': {'artifacts': {'instrument_defaults': True}}}
@@ -38,8 +38,8 @@ def _disc(instrument: str, **extra: Any) -> dict[str, Any]:
 
 def _sky(instrument: str, render: str) -> np.ndarray:
     """The dark-sky pixels of the disc frame: those at the floor render's minimum."""
-    floor, _ = render_combined_model(_disc(instrument))
-    img, _ = render_combined_model(_disc(instrument, **_RENDERS[render]))
+    floor, _ = render_scene(_disc(instrument))
+    img, _ = render_scene(_disc(instrument, **_RENDERS[render]))
     return np.asarray(img[floor == floor.min()])
 
 
@@ -47,7 +47,7 @@ def _sky(instrument: str, render: str) -> np.ndarray:
 @pytest.mark.parametrize('instrument', _CALIBRATED)
 def test_no_pixel_of_a_calibrated_frame_reads_zero(instrument: str, render: str) -> None:
     """A calibrated frame without planted loss carries no pixel at the 0 marker."""
-    img, _ = render_combined_model(_disc(instrument, **_RENDERS[render]))
+    img, _ = render_scene(_disc(instrument, **_RENDERS[render]))
     assert int((img == 0.0).sum()) == 0
 
 
@@ -81,7 +81,7 @@ def _cassini_coincidences(instrument: str) -> list[tuple[int, float]]:
     difference is a whole number of DN, so an integer DN lands on exactly 0 I/F,
     at ``k * gain / (dark_current - residual * frac * full_well)`` seconds.
     """
-    catalog = resolve_detector_defaults(instrument)
+    catalog = resolve_detector_defaults_native(instrument)
     per_sec = float(catalog['dark_current_e_per_sec']) - 4.0e-5 * 0.5 * float(
         catalog['full_well_e']
     )
@@ -111,7 +111,7 @@ def test_no_pixel_reads_zero_where_the_lattice_crosses_it(
         detector={'gain_state': gain_state},
         artifacts={'instrument_defaults': True},
     )
-    img, _ = render_combined_model(params)
+    img, _ = render_scene(params)
     assert int((img == 0.0).sum()) == 0
 
 
@@ -121,7 +121,7 @@ def test_vgiss_sky_never_reads_zero_at_any_noise_level(sigma_dn: float) -> None:
     params = frame_scene(
         instrument='vgiss', seed=3, noise={'vidicon': {'read_noise_pixel_dn': sigma_dn}}
     )
-    img, _ = render_combined_model(params)
+    img, _ = render_scene(params)
     assert int((img == 0.0).sum()) == 0
 
 

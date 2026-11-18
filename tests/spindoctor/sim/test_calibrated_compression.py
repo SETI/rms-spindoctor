@@ -19,7 +19,7 @@ from spindoctor.sim.instruments.navigator_link import (
     resolve_sim_inst_config,
 )
 from spindoctor.sim.render.detector.params import calibration_map, resolve_detector_params
-from spindoctor.sim.render.driver import render_combined_model
+from spindoctor.sim.render.driver import render_scene
 from spindoctor.sim.render.telemetry.artifacts import apply_compression_dct
 
 _COMPRESSION = {'compression_dct': {'probability': 1.0}}
@@ -58,7 +58,7 @@ def test_a_compressed_calibrated_frame_has_no_pixel_at_the_marker(
     instrument: str, case: str
 ) -> None:
     """No pixel of a compressed calibrated frame reads 0."""
-    img, _ = render_combined_model(_disc(instrument, **_CASES[case]))
+    img, _ = render_scene(_disc(instrument, **_CASES[case]))
     assert int((img == 0.0).sum()) == 0
 
 
@@ -67,7 +67,7 @@ def test_a_compressed_calibrated_frame_has_no_pixel_at_the_marker(
 def test_a_compressed_calibrated_frame_classifies_clean(instrument: str, case: str) -> None:
     """The navigator reads a compressed calibrated disc frame as clean."""
     params = _disc(instrument, **_CASES[case])
-    img, _ = render_combined_model(params)
+    img, _ = render_scene(params)
     inst_config = resolve_sim_inst_config(DEFAULT_CONFIG, instrument)
     assert read_frame_as_navigator(img, inst_config).image_class == 'clean'
 
@@ -81,8 +81,8 @@ def test_the_codec_keeps_a_flat_dark_sky_at_its_level(instrument: str) -> None:
     """
     plain = _disc(instrument)
     plain['artifacts'] = {}
-    before, _ = render_combined_model(plain)
-    after, _ = render_combined_model(_disc(instrument))
+    before, _ = render_scene(plain)
+    after, _ = render_scene(_disc(instrument))
     sky_blocks = (before == before.min()).reshape(12, 8, 12, 8).all(axis=(1, 3))
     sky = np.repeat(np.repeat(sky_blocks, 8, axis=0), 8, axis=1)
     assert int(sky.sum()) > 1000

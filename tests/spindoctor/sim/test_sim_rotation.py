@@ -19,7 +19,7 @@ from tests.spindoctor.sim.scenes import frame_scene, quiet_noise, ring_system_bl
 
 from spindoctor.nav_orchestrator.instrument_config import instrument_settings_from_obs
 from spindoctor.obs.obs_inst_sim import ObsSim
-from spindoctor.sim.render.driver import render_combined_model
+from spindoctor.sim.render.driver import render_scene
 
 _SIZE = 128
 
@@ -60,7 +60,7 @@ def test_roll_rotates_star_about_boresight() -> None:
         offset_rotation_deg=90.0,
         stars=[star_entry(40.5, 90.5, 2.0, psf_sigma=2.0)],
     )
-    img, _meta = render_combined_model(params)
+    img, _meta = render_scene(params)
     centroid_v, centroid_u = _centroid(img)
     assert abs(centroid_v - 37.0) < 0.05
     assert abs(centroid_u - 40.0) < 0.05
@@ -72,7 +72,7 @@ def test_zero_roll_leaves_star_in_place() -> None:
         offset_rotation_deg=0.0,
         stars=[star_entry(40.5, 90.5, 2.0, psf_sigma=2.0)],
     )
-    img, _meta = render_combined_model(params)
+    img, _meta = render_scene(params)
     centroid_v, centroid_u = _centroid(img)
     assert abs(centroid_v - 40.0) < 0.05
     assert abs(centroid_u - 90.0) < 0.05
@@ -89,7 +89,7 @@ def test_star_record_keeps_unrolled_position() -> None:
         offset_rotation_deg=30.0,
         stars=[star_entry(40.5, 90.5, 2.0)],
     )
-    _img, meta = render_combined_model(params)
+    _img, meta = render_scene(params)
     star = meta['stars'][0]
     assert star.v == 40.5
     assert star.u == 90.5
@@ -139,10 +139,10 @@ def test_roll_turns_the_whole_ring_pattern_a_quarter_turn() -> None:
     the second assertion states outright: a pattern equal to its own half turn
     would satisfy the first assertion under either sense of the roll.
     """
-    rolled, _rolled_meta = render_combined_model(
+    rolled, _rolled_meta = render_scene(
         _noiseless_params(offset_rotation_deg=90.0, ring_system=_CHIRAL_RING_SYSTEM)
     )
-    unrolled, _unrolled_meta = render_combined_model(
+    unrolled, _unrolled_meta = render_scene(
         _noiseless_params(offset_rotation_deg=0.0, ring_system=_CHIRAL_RING_SYSTEM)
     )
     assert not np.array_equal(unrolled, np.rot90(unrolled, 2))
@@ -201,14 +201,14 @@ def test_roll_turns_stars_and_geometry_about_one_point(
     Parameters:
         make_geometry: Builds the scene keys placing the ring or sphere.
     """
-    star_img, _star_meta = render_combined_model(
+    star_img, _star_meta = render_scene(
         _noiseless_params(
             offset_rotation_deg=_PIVOT_PROBE_ROLL_DEG,
             stars=[star_entry(_PIVOT_PROBE_V, _PIVOT_PROBE_U, 2.0, psf_sigma=2.0)],
         )
     )
     star_v, star_u = _centroid(star_img)
-    geometry_img, _geometry_meta = render_combined_model(
+    geometry_img, _geometry_meta = render_scene(
         _noiseless_params(offset_rotation_deg=_PIVOT_PROBE_ROLL_DEG, **make_geometry())
     )
     geometry_v, geometry_u = _centroid(geometry_img)

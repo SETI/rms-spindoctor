@@ -5,7 +5,7 @@ records from a scene's per-star mappings: the image-side renderer
 (``spindoctor.sim.render.radiance.stars``) to know what to draw and to report in its
 output metadata, and the navigator-side star model
 (``spindoctor.nav_model.simulated.stars``) to build its
-catalog from the filtered idealized view (``obs.nav_params``).  Sharing one
+catalog from the navigator view (``obs.nav_params``).  Sharing one
 builder keeps the two sides' defaults (position, magnitude, spectral class,
 PSF window) identical, so a scene that omits a field cannot silently give
 the renderer and the navigator different catalogs.

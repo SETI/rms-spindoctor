@@ -33,8 +33,8 @@ from spindoctor.feature.geometry import RingAnnulusGeometry, RingEdgePolyline
 from spindoctor.nav_model.nav_model import NavModel
 from spindoctor.nav_model.nav_model_rings_base import NavModelRingsBase
 from spindoctor.nav_model.simulated.predict_ring import (
-    PredictedRingEdge,
-    PredictedRingFeature,
+    RingEdgePredicted,
+    RingFeaturePredicted,
     predict_ring_feature,
 )
 from spindoctor.obs import ObsSnapshotInst
@@ -105,7 +105,7 @@ class NavModelRingsSimulated(NavModelRingsBase):
 
         Parameters:
             name: Model instance name.
-            obs: Observation carrying the filtered scene view.
+            obs: Observation carrying the navigator view.
             feature_name: The feature's name, upper-cased for labels.
             feature_params: The feature's idealized mapping from
                 ``nav_params['ring_system']['features']``.
@@ -118,12 +118,12 @@ class NavModelRingsSimulated(NavModelRingsBase):
         self._feature_params: dict[str, Any] = dict(feature_params)
         self._ring_system: dict[str, Any] = dict(ring_system)
         # Scene time and ring epoch are idealized (catalog) values read from
-        # the filtered view; obs stand-ins without nav_params get the same
+        # the navigator view; obs stand-ins without nav_params get the same
         # defaults the renderer uses.
         nav_params = getattr(obs, 'nav_params', None) or {}
         self._time: float = float(nav_params.get('time', 0.0))
         self._epoch: float = float(nav_params.get('ring_epoch', 0.0))
-        self._prediction: PredictedRingFeature | None = None
+        self._prediction: RingFeaturePredicted | None = None
         self._predicted_center_vu: tuple[float, float] = (0.0, 0.0)
         self._subject_range_km: float = float(ring_system.get('range_km') or float('inf'))
         self._bbox_extfov_vu: tuple[int, int, int, int] = (0, 0, 0, 0)
@@ -134,7 +134,7 @@ class NavModelRingsSimulated(NavModelRingsBase):
     ) -> list[NavModel]:
         """Build one simulated ring model per navigable ring_system feature.
 
-        Reads the filtered idealized view (``obs.nav_params['ring_system']``),
+        Reads the navigator view (``obs.nav_params['ring_system']``),
         whose feature list carries exactly the navigable subset; returns an
         empty list for a real obs so the SPICE-backed ``NavModelRings``
         handles those instead.
@@ -260,7 +260,7 @@ class NavModelRingsSimulated(NavModelRingsBase):
             dtype=np.float64,
         )
 
-    def _declared_orbit_sigma_px(self, edges: list[PredictedRingEdge]) -> float:
+    def _declared_orbit_sigma_px(self, edges: list[RingEdgePredicted]) -> float:
         """The declared 1-sigma radial orbit uncertainty of this feature, in image pixels.
 
         The semimajor-axis, radial-amplitude, and pericenter-longitude errors are
@@ -287,7 +287,7 @@ class NavModelRingsSimulated(NavModelRingsBase):
         displacement = np.concatenate(partials, axis=0) * self._declared_sigmas()
         return float(np.sqrt(np.sum(displacement * displacement, axis=1)).max())
 
-    def _declared_radial_sigma_px(self, edge: PredictedRingEdge) -> NDArrayFloatType:
+    def _declared_radial_sigma_px(self, edge: RingEdgePredicted) -> NDArrayFloatType:
         """The per-vertex radial sigma of one edge from the declared orbit uncertainty.
 
         Each vertex adds, LINEARLY, the image-plane distance each declared

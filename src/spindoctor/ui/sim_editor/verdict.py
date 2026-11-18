@@ -14,7 +14,7 @@ from PyQt6.QtCore import QObject
 
 from spindoctor.config import DEFAULT_CONFIG
 from spindoctor.sim.instruments.navigator_link import frame_units_summary, resolve_sim_inst_config
-from spindoctor.sim.render.driver import render_combined_model
+from spindoctor.sim.render.driver import render_scene
 from spindoctor.ui.sim_editor.worker import LatestRequestRunner
 
 __all__ = ['VerdictRunner', 'navigated_frame_summary']
@@ -39,7 +39,7 @@ def navigated_frame_summary(sim_params: dict[str, Any]) -> str:
     Raises:
         SimSceneValidationError: If the scene fails validation.
     """
-    image, _ = render_combined_model(sim_params, ignore_offset=False)
+    image, _ = render_scene(sim_params, ignore_offset=False)
     inst_config = resolve_sim_inst_config(
         DEFAULT_CONFIG,
         sim_params.get('instrument'),

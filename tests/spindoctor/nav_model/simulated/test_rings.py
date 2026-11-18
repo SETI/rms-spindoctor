@@ -343,7 +343,7 @@ def _factory_outputs(ring_system: dict[str, Any]) -> list[Any]:
 
     The ring system rides an observation's scene parameters, and the model comes
     from ``NavModelRingsSimulated.instances_for_obs``, so the observation's
-    filtered idealized view sits between the scene and the model, as in navigation.
+    navigator view sits between the scene and the model, as in navigation.
 
     Parameters:
         ring_system: The ``ring_system`` block, holding the centered ringlet of

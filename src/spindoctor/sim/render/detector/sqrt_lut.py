@@ -6,7 +6,7 @@ table's decode curve is quadratic in the code, so the encoding is a square root
 and the quantization step grows with the signal, tracking the photon noise; a
 tabulated table lists each code's decoded DN, so it can describe a curve of any
 shape.  A camera lists its tables under ``downlink_tables`` in its instrument
-config entry and sets one as the default, and a scene may select another with
+entry and sets one as the default, and a scene may select another with
 ``detector.downlink_table``.  If a camera lists no table, it gets the plain
 square-root curve scaled to its ADC ceiling.
 """
@@ -23,8 +23,8 @@ from spindoctor.support.types import NDArrayFloatType
 __all__ = [
     'DEFAULT_SQRT_LUT_CODES',
     'DownlinkCurve',
-    'SqrtLut',
-    'TabulatedLut',
+    'LUTSqrt',
+    'LUTTabulated',
     'check_curve_ceiling',
     'resolve_sqrt_lut',
 ]
@@ -34,7 +34,7 @@ DEFAULT_SQRT_LUT_CODES = 256
 
 
 @dataclass(frozen=True)
-class SqrtLut:
+class LUTSqrt:
     """The decode curve of a companding table.
 
     Code ``c``, from 0 to ``codes - 1``, decodes to
@@ -65,7 +65,7 @@ class SqrtLut:
 
 
 @dataclass(frozen=True)
-class TabulatedLut:
+class LUTTabulated:
     """The decode curve of a companding table that lists each code's decoded DN.
 
     The encoder sends each DN as the code whose decoded value is nearest.
@@ -83,7 +83,7 @@ class TabulatedLut:
 
 
 # The decode curve of either kind of table.
-DownlinkCurve = SqrtLut | TabulatedLut
+DownlinkCurve = LUTSqrt | LUTTabulated
 
 
 def resolve_sqrt_lut(entry: Mapping[str, Any] | None, *, saturation_dn: float) -> DownlinkCurve:
@@ -109,14 +109,14 @@ def resolve_sqrt_lut(entry: Mapping[str, Any] | None, *, saturation_dn: float) -
     """
     if entry is None:
         top_code = DEFAULT_SQRT_LUT_CODES - 1
-        return SqrtLut(
+        return LUTSqrt(
             codes=DEFAULT_SQRT_LUT_CODES,
             linear_dn=0.0,
             quadratic_dn=saturation_dn / top_code**2,
             whole_dn=False,
         )
     if 'decoded_dn' in entry:
-        return TabulatedLut(decoded_dn=tuple(float(dn) for dn in entry['decoded_dn']))
+        return LUTTabulated(decoded_dn=tuple(float(dn) for dn in entry['decoded_dn']))
     raw_codes = float(entry['codes'])
     if not raw_codes.is_integer():
         raise ValueError(f'sqrt_lut codes must be a whole number, got {raw_codes}')
@@ -131,7 +131,7 @@ def resolve_sqrt_lut(entry: Mapping[str, Any] | None, *, saturation_dn: float) -
             f'sqrt_lut coefficients must be finite, got linear_dn {linear_dn} '
             f'and quadratic_dn {quadratic_dn}'
         )
-    return SqrtLut(
+    return LUTSqrt(
         codes=codes,
         linear_dn=linear_dn,
         quadratic_dn=quadratic_dn,

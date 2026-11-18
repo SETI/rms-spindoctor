@@ -14,10 +14,9 @@ grid.  It applies its sub-effects in the physical order of transmission:
    (commanded frame shapes, then line losses, then block losses, then garble,
    then per-pixel losses, then the row-0 header), with the commanded
    ``truth_window`` carve-out resolved first and passed to ``missing_blocks``.
-   Each mode is honored only where the instrument's config offers it, and its
-   shape parameters resolve through the per-instrument
-   catalog (scene value over catalog default over registry default), like the
-   flanking artifact loops.
+   Each mode is honored only where the instrument entry offers it, and its shape
+   parameters resolve scene value over the instrument entry's shape default over the
+   registry default, like the flanking artifact loops.
 3. Archive-processing scars, applied to the already-loss-bearing frame.  A ground
    pipeline leaves them in its product when it removes reseau marks and resamples
    the frame onto a corrected geometry: ``reseau_scars`` (reseau-removal smudges

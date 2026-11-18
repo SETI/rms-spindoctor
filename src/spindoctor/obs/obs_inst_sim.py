@@ -4,7 +4,7 @@
 FOV and dummy geometry, so the standard navigation pipeline runs on it exactly
 as on a real frame.  The rendered image and the full scene (truth included)
 stay on the snapshot for renderer-side consumers; the navigator-side models
-see only the filtered idealized view exposed as ``obs.nav_params`` (the
+see only the navigator view exposed as ``obs.nav_params`` (the
 information boundary -- see :func:`spindoctor.sim.scene.boundary.build_nav_params`).
 """
 
@@ -19,7 +19,7 @@ from oops.observation import Snapshot
 from spindoctor.config import DEFAULT_CONFIG, IMAGE_LOGGER, Config, logged_section
 from spindoctor.obs.obs_snapshot_inst import ObsSnapshotInst
 from spindoctor.sim.instruments.navigator_link import resolve_extfov_margin, resolve_sim_inst_config
-from spindoctor.sim.render.driver import render_combined_model
+from spindoctor.sim.render.driver import render_scene
 from spindoctor.sim.scene.boundary import build_nav_params
 from spindoctor.sim.scene.io import load_sim_scene
 from spindoctor.support.types import NDArrayAnyType, NDArrayBoolType, PathLike
@@ -86,7 +86,7 @@ class ObsSim(ObsSnapshotInst):
         Returns:
             The :class:`ObsSim` wrapping the rendered scene: the rendered
             image as ``data``, the full scene and renderer truth metadata on
-            the snapshot, and the filtered idealized view as ``nav_params``.
+            the snapshot, and the navigator view as ``nav_params``.
             Its ``abspath`` is the local file the scene was read from, or,
             for a scene supplied in memory, ``path`` rendered absolute
             without any storage being touched.
@@ -126,7 +126,7 @@ class ObsSim(ObsSnapshotInst):
         # supplied in memory keeps the label its caller gave.
         label = str(abspath) if provided_sim_params is None else str(scene_path)
         logger.debug('Rendering combined simulated model')
-        img_rendered, meta = render_combined_model(sim_params, source=label)
+        img_rendered, meta = render_scene(sim_params, source=label)
         size_v = int(sim_params['size_v'])
         size_u = int(sim_params['size_u'])
         offset_v = float(sim_params.get('offset_v', 0.0))
@@ -143,7 +143,7 @@ class ObsSim(ObsSnapshotInst):
         )
         snapshot.insert_subfield('data', img_rendered)
 
-        # Select the per-instrument config block the sim is emulating, so the
+        # Select the navigator block of the camera the sim is emulating, so the
         # orchestrator sees the right units / noise / saturation settings.
         # Validation requires every scene to set its instrument.
         sim_block = config.category('sim')
@@ -179,7 +179,7 @@ class ObsSim(ObsSnapshotInst):
         # renderer-side consumers: the test harnesses that score recovery
         # against planted truth and the backplane writer that consumes the
         # rendered masks.  The navigator-side models consume ONLY the
-        # filtered idealized view built below.
+        # navigator view built below.
         new_obs.sim_params = sim_params
         new_obs.sim_offset_v = offset_v
         new_obs.sim_offset_u = offset_u
@@ -246,8 +246,9 @@ class ObsSim(ObsSnapshotInst):
         states its readout mode, so a real pipeline always knows it.  On a frame binned
         by ``b``, the zero point and the read noise come from the block's
         ``noise.by_binning[b]`` entry, which holds the navigator's own values for that
-        mode: the zero point in DN per second, and the read noise of one binned pixel in
-        DN.  A mode the block has no entry for reads with the unbinned values.
+        readout mode: the zero point in DN per second, and the read noise of one binned
+        pixel in DN.  If the block has no entry for the readout mode, the frame reads
+        the unbinned values.
         ``star_psf_sigma`` is in native pixels, so the core is ``star_psf_sigma / b``
         frame pixels.  An unbinned frame uses the unbinned values.
 
@@ -268,9 +269,9 @@ class ObsSim(ObsSnapshotInst):
             # calibrated_if: no published DN zero point to anchor the limit, so
             # the navigator-side detection limit is a generous constant.
             return 30.0
-        # Published values only: the resolved per-instrument block (which already
-        # carries any idealized instrument_config overrides), with the generic
-        # sim block supplying any key the instrument block leaves unset.  The
+        # Published values only: the navigator block, with any idealized
+        # instrument_config overrides already merged over it, and the generic
+        # sim block supplying any key the navigator block leaves unset.  The
         # scene's truth-side noise block is deliberately not consulted.
         sim_noise = self.config.category('sim')['noise']
         zero_point_dn = float(
@@ -280,8 +281,8 @@ class ObsSim(ObsSnapshotInst):
             inst_config.get('star_psf_sigma', self.config.category('sim')['star_psf_sigma'])
         )
         read_noise_dn = float(inst_noise['read_noise_dn'])
-        # A binned frame reads its mode's values from the navigator's own block, or
-        # the unbinned values when the block has no entry for the mode, and its
+        # A binned frame reads its readout mode's values from the navigator block, or
+        # the unbinned values when the block has no entry for the readout mode, and its
         # pixels are b native pixels on a side (#993).
         binning = int(self.nav_params['binning'])
         if binning != 1:

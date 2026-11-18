@@ -288,7 +288,7 @@ star-field distortion analysis. The radial term is a mid-field hump close to
 the measurement floor; this camera's significant geometric signature is the
 twist, not the distortion.
 
-**Artifact-mode availability.** The config entry's ``artifact_modes.offered``
+**Artifact-mode availability.** The instrument entry's ``artifact_modes.offered``
 lists its modes, and the simulator guide's mode tables
 (:ref:`sim-telemetry-modes` and :ref:`sim-detector-modes`) give each mode's
 cameras. Its detector model is ``ccd``. The entry lists

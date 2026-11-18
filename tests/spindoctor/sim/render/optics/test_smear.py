@@ -10,7 +10,7 @@ from typing import Any
 import numpy as np
 from tests.spindoctor.sim.scenes import frame_scene, quiet_noise, star_entry
 
-from spindoctor.sim.render.driver import render_combined_model
+from spindoctor.sim.render.driver import render_scene
 from spindoctor.sim.render.optics.smear import apply_smear, smear_kernel
 from spindoctor.sim.render.radiance.compose import compose_scene_radiance
 from spindoctor.sim.render.stages import new_sim_frame
@@ -107,8 +107,8 @@ def test_star_layer_render_matches_primary_deposit() -> None:
 
 def test_differential_smear_trails_stars_but_not_bodies() -> None:
     """A stars-only smear spreads the star while the body stays sharp."""
-    plain, _ = render_combined_model(_star_and_body_scene(smear=None))
-    trailed, _ = render_combined_model(
+    plain, _ = render_scene(_star_and_body_scene(smear=None))
+    trailed, _ = render_scene(
         _star_and_body_scene(smear=[{'dv_px': 8.0, 'du_px': 0.0, 'object_class': 'stars'}])
     )
     # The body region is untouched by a stars-only smear.

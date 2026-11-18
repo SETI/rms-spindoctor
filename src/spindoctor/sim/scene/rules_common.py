@@ -28,8 +28,8 @@ from spindoctor.sim.instruments.resolvers import (
     cataloged_binnings,
     downlink_table_names,
     instrument_default_modes,
-    resolve_detector_catalog,
     resolve_detector_defaults,
+    resolve_detector_defaults_native,
     resolve_filter_throughput,
 )
 from spindoctor.sim.scene.errors import SimSceneValidationError
@@ -327,7 +327,7 @@ _VIDICON_NOISE_KEYS: frozenset[str] = frozenset(
 # the exposure the well fraction references (or the filter whose measured
 # throughput sets it), the ADC quantization sub-mode, and the downlink table the
 # sqrt_lut quantization decodes through.  Per-instrument defaults, filter
-# throughputs, and downlink tables come from the instrument's config entry; scene
+# throughputs, and downlink tables come from the instrument entry; scene
 # keys override them.
 _DETECTOR_KEYS: frozenset[str] = frozenset(
     {
@@ -406,7 +406,8 @@ def _check_detector(value: Any, *, instrument: str, source: str) -> None:
         # validation, with the cataloged alternatives in the message; the
         # render-time resolver keeps its own guard as a backstop for scenes
         # that bypass validation.
-        table = resolve_detector_defaults(instrument).get('gain_e_per_dn_by_state') or {0: 1.0}
+        native = resolve_detector_defaults_native(instrument)
+        table = native.get('gain_e_per_dn_by_state') or {0: 1.0}
         if gain_state not in table:
             raise SimSceneValidationError(
                 f'{source}: detector.gain_state {gain_state} is not cataloged for '
@@ -509,8 +510,8 @@ def _check_downlink_table_used(
     quantization = detector.get('quantization')
     if quantization is None:
         binning = detector.get('binning')
-        catalog = resolve_detector_catalog(instrument, 1 if binning is None else binning)
-        quantization = catalog.get('quantization', 'exact')
+        detector_defaults = resolve_detector_defaults(instrument, 1 if binning is None else binning)
+        quantization = detector_defaults.get('quantization', 'exact')
     if quantization == 'sqrt_lut':
         return
     raise SimSceneValidationError(

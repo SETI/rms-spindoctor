@@ -23,7 +23,7 @@ from tests.spindoctor.sim.artifact_counts import (
 )
 from tests.spindoctor.sim.scenes import body_scene
 
-from spindoctor.sim.render.driver import render_combined_model
+from spindoctor.sim.render.driver import render_scene
 
 
 # A biased, well-resolved disc: the bias floor lifts the sky above the zero
@@ -45,12 +45,12 @@ def _render_with(artifacts: dict[str, Any]) -> tuple[np.ndarray, dict[str, Any]]
     """Render the base scene with one artifacts block; return image and truth."""
     scene = _base_scene()
     scene['artifacts'] = artifacts
-    return render_combined_model(scene)
+    return render_scene(scene)
 
 
 def test_planted_artifact_counts_empty_without_artifacts() -> None:
     """A frame with no artifacts records no planted artifacts."""
-    _img, truth = render_combined_model(_base_scene())
+    _img, truth = render_scene(_base_scene())
     assert planted_artifact_counts(truth) == {}
 
 

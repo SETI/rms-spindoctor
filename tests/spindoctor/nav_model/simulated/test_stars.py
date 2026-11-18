@@ -4,7 +4,7 @@
 catalog entries (``obs.nav_params['stars']``) instead of a catalog reduction,
 then reuses the catalog-driven ``NavModelStars`` feature-emission machinery.
 These tests cover the obs-gated instance construction, that the model builds
-its catalog from the filtered view, and that it emits one STAR feature per
+its catalog from the navigator view, and that it emits one STAR feature per
 star at the *unshifted* predicted position (so a technique recovers the
 planted offset).
 """

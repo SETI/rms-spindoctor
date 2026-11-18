@@ -12,7 +12,7 @@ import numpy as np
 from tests.spindoctor.sim.scenes import frame_scene
 
 from spindoctor.sim.render.detector import apply_saturation
-from spindoctor.sim.render.driver import render_combined_model
+from spindoctor.sim.render.driver import render_scene
 
 _FULL_WELL_E = 110.0e3
 _NAC_GAIN = 30.0
@@ -84,7 +84,7 @@ def _bright_scene(*, size: int = 64) -> dict[str, Any]:
 
 def test_render_saturates_at_physical_full_well() -> None:
     """A bright scene clips at full_well_e / gain, below the 4095 ADC ceiling."""
-    img, _ = render_combined_model(_bright_scene())
+    img, _ = render_scene(_bright_scene())
     expected = round(_FULL_WELL_E / _NAC_GAIN + _NAC_BIAS)
     assert float(img.max()) == expected
     assert expected < 4095.0

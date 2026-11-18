@@ -10,7 +10,7 @@ from typing import Any
 import numpy as np
 from tests.spindoctor.sim.scenes import frame_scene, star_entry
 
-from spindoctor.sim.render.driver import clear_render_caches, render_combined_model
+from spindoctor.sim.render.driver import clear_render_caches, render_scene
 from spindoctor.sim.seeds import derive_effect_seed, stable_param_seed
 
 # Pinned values guard against an accidental switch to a salted hash (e.g. the
@@ -88,29 +88,29 @@ def test_stable_param_seed_in_randomstate_range() -> None:
 def test_render_is_byte_identical_across_cache_clears() -> None:
     """Re-rendering a scene after clearing caches reproduces identical pixels."""
     _clear_render_caches()
-    img_a, _ = render_combined_model(_scene())
+    img_a, _ = render_scene(_scene())
     _clear_render_caches()
-    img_b, _ = render_combined_model(_scene())
+    img_b, _ = render_scene(_scene())
     assert np.array_equal(img_a, img_b)
 
 
 def test_render_body_index_map_identical_across_cache_clears() -> None:
     """The body index map is also reproduced byte-for-byte."""
     _clear_render_caches()
-    _, meta_a = render_combined_model(_scene())
+    _, meta_a = render_scene(_scene())
     _clear_render_caches()
-    _, meta_b = render_combined_model(_scene())
+    _, meta_b = render_scene(_scene())
     assert np.array_equal(meta_a['body_index_map'], meta_b['body_index_map'])
 
 
 def test_different_scene_seed_changes_pixels() -> None:
     """Changing only the scene seed changes the rendered noise field."""
     _clear_render_caches()
-    img_a, _ = render_combined_model(_scene())
+    img_a, _ = render_scene(_scene())
     other = _scene()
     other['random_seed'] = 7
     _clear_render_caches()
-    img_b, _ = render_combined_model(other)
+    img_b, _ = render_scene(other)
     assert not np.array_equal(img_a, img_b)
 
 
@@ -150,7 +150,7 @@ def _full_stack_scene() -> dict[str, Any]:
 def test_full_stack_render_is_byte_identical_across_cache_clears() -> None:
     """The whole optics + detector + instrument_defaults stack is reproducible."""
     _clear_render_caches()
-    img_a, _ = render_combined_model(_full_stack_scene())
+    img_a, _ = render_scene(_full_stack_scene())
     _clear_render_caches()
-    img_b, _ = render_combined_model(_full_stack_scene())
+    img_b, _ = render_scene(_full_stack_scene())
     assert np.array_equal(img_a, img_b)

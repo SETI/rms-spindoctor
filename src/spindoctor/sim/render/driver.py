@@ -1,6 +1,6 @@
 """Entry point for rendering a simulated scene: params in, image + meta out.
 
-``render_combined_model`` is a thin, cached driver over the render pipeline
+``render_scene`` is a thin, cached driver over the render pipeline
 (:mod:`spindoctor.sim.render.pipeline`): it encodes the scene as
 deterministic sorted-key JSON, validates the scene, runs the pipeline on a fresh
 :class:`~spindoctor.sim.render.stages.SimFrame` (cached on a key built from
@@ -58,7 +58,7 @@ def clear_render_caches() -> None:
     from spindoctor.sim.render.optics import psf
     from spindoctor.sim.render.radiance import stars as radiance_stars
 
-    _render_combined_model_cached.cache_clear()
+    _render_scene_cached.cache_clear()
     clear_validation_cache()
     radiance_stars._render_stars_cached.cache_clear()
     radiance_stars._render_sky_counts_cached.cache_clear()
@@ -74,13 +74,13 @@ def clear_render_caches() -> None:
 # An offset-only edit then re-renders only the last.  The preview flag is part of
 # the key, so a preview is never handed out for a full render.
 @lru_cache(maxsize=3)
-def _render_combined_model_cached(
+def _render_scene_cached(
     sim_params_json: str,
     *,
     ignore_offset: bool,
     preview: bool,
 ) -> tuple[NDArrayFloatType, dict[str, Any]]:
-    """Internal cached function to compute combined model rendering."""
+    """Render a scene from its sorted-key JSON through the pipeline, cached."""
     sim_params = json.loads(sim_params_json)
     if ignore_offset:
         # The editor's display: render the unshifted, unrolled geometry.
@@ -125,7 +125,7 @@ def resolve_oversample(sim_params: dict[str, Any]) -> int:
     return 4 if (psf_active or instrument_defaults_on(sim_params)) else 1
 
 
-def render_combined_model(
+def render_scene(
     sim_params: dict[str, Any],
     *,
     ignore_offset: bool = False,
@@ -140,7 +140,7 @@ def render_combined_model(
     and ``source``, so rendering one scene repeatedly validates it once.
 
     Parameters:
-        sim_params: The parameters describing the simulated model.
+        sim_params: The scene.
         ignore_offset: Render the unshifted, unrolled geometry, ignoring the
             planted offset and roll.  The frame the navigator reads always
             carries them; a display of the scene's geometry may not want them.
@@ -198,7 +198,7 @@ def _render(
             {k: v for k, v in sim_params.items() if k not in PLANTED_POINTING_KEYS},
             sort_keys=True,
         )
-    cached_img, cached_meta = _render_combined_model_cached(
+    cached_img, cached_meta = _render_scene_cached(
         render_key, ignore_offset=ignore_offset, preview=preview
     )
     # Return copies to avoid cache modification

@@ -37,8 +37,8 @@ from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 
 __all__ = [
-    'PredictedRingEdge',
-    'PredictedRingFeature',
+    'RingEdgePredicted',
+    'RingFeaturePredicted',
     'predict_ring_feature',
 ]
 
@@ -51,7 +51,7 @@ _LONG_PERI_STEP_DEG = 1e-3
 
 
 @dataclass(frozen=True)
-class PredictedRingEdge:
+class RingEdgePredicted:
     """One predicted catalog edge of a ring feature.
 
     Parameters:
@@ -80,7 +80,7 @@ class PredictedRingEdge:
 
 
 @dataclass(frozen=True)
-class PredictedRingFeature:
+class RingFeaturePredicted:
     """The navigator's rendered prediction of one ring feature.
 
     Parameters:
@@ -94,7 +94,7 @@ class PredictedRingFeature:
 
     template: NDArrayFloatType | None
     mask: NDArrayBoolType
-    edges: list[PredictedRingEdge]
+    edges: list[RingEdgePredicted]
 
 
 def _border_from_signed_distance(diff: NDArrayFloatType) -> NDArrayBoolType:
@@ -174,7 +174,7 @@ def _edge_from_diff(
     orbit: RingOrbit,
     epoch: float,
     time: float,
-) -> PredictedRingEdge:
+) -> RingEdgePredicted:
     """Build a predicted edge (border mask, vertices, outward normals).
 
     The normal at each border pixel is the normalized gradient of the
@@ -199,7 +199,7 @@ def _edge_from_diff(
     mask = _border_from_signed_distance(diff)
     if not mask.any():
         empty: NDArrayFloatType = np.empty((0, 2), dtype=np.float64)
-        return PredictedRingEdge(
+        return RingEdgePredicted(
             edge_type=edge_type,
             mask=mask,
             vertices_vu=empty,
@@ -216,7 +216,7 @@ def _edge_from_diff(
     norms[norms == 0.0] = 1.0
     normals_vu = normals / norms[:, None]
     partials = _orbit_partials(lam[vs, us], orbit, epoch=epoch, time=time) / norms[:, None]
-    return PredictedRingEdge(
+    return RingEdgePredicted(
         edge_type=edge_type,
         mask=mask,
         vertices_vu=vertices_vu,
@@ -235,7 +235,7 @@ def predict_ring_feature(
     node_deg: float,
     time: float = 0.0,
     epoch: float = 0.0,
-) -> PredictedRingFeature:
+) -> RingFeaturePredicted:
     """Predict one ring_system feature on the given (extfov) grid.
 
     Parameters:
@@ -249,13 +249,13 @@ def predict_ring_feature(
         epoch: Ring epoch in TDB seconds.
 
     Returns:
-        The rendered :class:`PredictedRingFeature`.  Empty (no edges, no
+        The rendered :class:`RingFeaturePredicted`.  Empty (no edges, no
         coverage) for an exactly edge-on geometry, which renders nothing.
     """
     size_v, size_u = shape
     empty_mask: NDArrayBoolType = np.zeros(shape, dtype=np.bool_)
     if math.sin(math.radians(opening_deg_obs)) == 0.0:
-        return PredictedRingFeature(template=None, mask=empty_mask, edges=[])
+        return RingFeaturePredicted(template=None, mask=empty_mask, edges=[])
 
     # The grid starts as array rows and columns and the projection works in
     # the geometry layer's pixel corner coordinates, where the center the
@@ -301,7 +301,7 @@ def predict_ring_feature(
         # A gap reveals the background rather than emitting, so it carries
         # no correlation template; its edges are still fittable boundaries.
         template = coverage if kind == 'ringlet' else None
-        return PredictedRingFeature(template=template, mask=band_mask, edges=edges)
+        return RingFeaturePredicted(template=template, mask=band_mask, edges=edges)
 
     if kind == 'ramp':
         # Only the ramp's sharp end is a fittable boundary; the linear end
@@ -319,7 +319,7 @@ def predict_ring_feature(
             epoch=epoch,
             time=time,
         )
-        return PredictedRingFeature(template=None, mask=edge.mask, edges=[edge])
+        return RingFeaturePredicted(template=None, mask=edge.mask, edges=[edge])
 
     # 'edge' (a one-sided step) and 'wave' (a train launched at the orbit
     # radius) each predict the single catalog boundary.
@@ -331,4 +331,4 @@ def predict_ring_feature(
         epoch=epoch,
         time=time,
     )
-    return PredictedRingFeature(template=None, mask=edge.mask, edges=[edge])
+    return RingFeaturePredicted(template=None, mask=edge.mask, edges=[edge])

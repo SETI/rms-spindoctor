@@ -41,8 +41,8 @@ from spindoctor.sim.instruments.resolvers import (
     resolve_data_units,
 )
 from spindoctor.sim.render.detector.params import DetectorParamError, resolve_detector_params
-from spindoctor.sim.render.detector.sqrt_lut import SqrtLut, TabulatedLut
-from spindoctor.sim.render.driver import render_combined_model
+from spindoctor.sim.render.detector.sqrt_lut import LUTSqrt, LUTTabulated
+from spindoctor.sim.render.driver import render_scene
 from spindoctor.sim.scene.errors import SimSceneValidationError
 from spindoctor.sim.scene.validate import validate_sim_params
 
@@ -611,7 +611,7 @@ def test_the_load_check_decodes_a_parametric_table_as_the_renderer_does(
 ) -> None:
     """The load check's decoded levels are the levels the companding stage decodes to."""
     checked = np.unique(_parametric_decoded_dn(table))
-    np.testing.assert_array_equal(checked, SqrtLut(**table).levels())
+    np.testing.assert_array_equal(checked, LUTSqrt(**table).levels())
 
 
 @pytest.mark.parametrize('instrument', [*sim_instrument_names(), GENERIC_INSTRUMENT])
@@ -722,7 +722,7 @@ def test_a_camera_added_as_an_entry_validates_and_renders(fictional_camera: str)
     """A scene using the camera's filter, binning, gain, and table validates and renders."""
     scene = _fictional_scene(fictional_camera)
     validate_sim_params(scene)
-    image, _ = render_combined_model(scene)
+    image, _ = render_scene(scene)
     assert image.shape == (32, 32)
 
 
@@ -747,7 +747,7 @@ def test_a_camera_added_as_an_entry_scales_its_signal_by_the_filter(
 def test_a_camera_added_as_an_entry_decodes_through_its_named_table(fictional_camera: str) -> None:
     """The scene's downlink table is the tabulated one the entry lists."""
     curve = resolve_detector_params(_fictional_scene(fictional_camera)).sqrt_lut
-    assert curve == TabulatedLut(
+    assert curve == LUTTabulated(
         decoded_dn=(0.0, 10.0, 30.0, 70.0, 150.0, 310.0, 630.0, 1270.0, 4095.0)
     )
 

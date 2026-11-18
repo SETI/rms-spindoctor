@@ -120,7 +120,7 @@ def render_scene_png(
 
     Parameters:
         sim_params: The scene parameters consumed by
-            :func:`spindoctor.sim.render.driver.render_combined_model`.
+            :func:`spindoctor.sim.render.driver.render_scene`.
         path: Destination ``.png`` path.
         ignore_offset: Render the unshifted geometry (the planted navigation
             offset is a small sub-pixel shift that is not meant to be visible);
@@ -133,9 +133,9 @@ def render_scene_png(
     Returns:
         The written path.
     """
-    from spindoctor.sim.render.driver import render_combined_model
+    from spindoctor.sim.render.driver import render_scene
 
-    img, _ = render_combined_model(sim_params, ignore_offset=ignore_offset)
+    img, _ = render_scene(sim_params, ignore_offset=ignore_offset)
     return save_png(
         img,
         path,

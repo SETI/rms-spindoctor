@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from spindoctor.sim.render.driver import render_combined_model
+from spindoctor.sim.render.driver import render_scene
 from spindoctor.sim.scene.errors import SimSceneValidationError
 from spindoctor.sim.scene.io import (
     DECLARED_SIM_SCENE_CLASSES,
@@ -54,7 +54,7 @@ def test_scene_validates(path: Path) -> None:
 def test_scene_renders(path: Path) -> None:
     """Each scene's sim params render without error and produce signal."""
     scene = load_sim_scene(path)
-    img, _ = render_combined_model(scene)
+    img, _ = render_scene(scene)
     assert img.shape == (scene['size_v'], scene['size_u'])
     assert float(img.max()) > 0.0
 

@@ -27,7 +27,7 @@ from spindoctor.nav_model.simulated.body import NavModelBodySimulated
 from spindoctor.nav_model.simulated.rings import NavModelRingsSimulated
 from spindoctor.nav_model.simulated.titan import NavModelTitanSimulated
 from spindoctor.obs.obs_inst_sim import ObsSim
-from spindoctor.sim.render.driver import render_combined_model
+from spindoctor.sim.render.driver import render_scene
 from spindoctor.support.types import NDArrayFloatType
 
 _SIZE = 128
@@ -101,7 +101,7 @@ def _centroid_of_weights(weights: NDArrayFloatType) -> tuple[float, float]:
 @pytest.mark.parametrize('kind', list(_SCENES), ids=list(_SCENES))
 def test_a_stated_corner_position_renders_on_its_pixel(kind: str) -> None:
     """Each kind of object stated at ``(60.5, 60.5)`` renders centered on pixel ``(60, 60)``."""
-    image, _meta = render_combined_model(_SCENES[kind]())
+    image, _meta = render_scene(_SCENES[kind]())
     centroid_v, centroid_u = _centroid(image)
     assert centroid_v == pytest.approx(_PIXEL, abs=_TOLERANCE_PX)
     assert centroid_u == pytest.approx(_PIXEL, abs=_TOLERANCE_PX)
@@ -144,7 +144,7 @@ def _payloads(kind: str, feature_type: NavFeatureType) -> tuple[list[NavFeature]
 
 def _rendered_centroid(kind: str) -> tuple[float, float]:
     """The rendered centroid of a scene of ``kind``, in array indices."""
-    image, _meta = render_combined_model(_SCENES[kind]())
+    image, _meta = render_scene(_SCENES[kind]())
     return _centroid(image)
 
 

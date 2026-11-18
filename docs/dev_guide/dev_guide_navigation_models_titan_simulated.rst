@@ -34,7 +34,7 @@ Theory
 Information boundary
 --------------------
 
-Every quantity this model reads comes from the filtered ``nav_params`` view: the body's center,
+Everything this model reads comes from the navigator view (``nav_params``): the body's center,
 its image-plane axes, its pixel scale, its phase, and its illumination direction -- catalog
 geometry a real pipeline would read from SPICE. The ``atmosphere`` block that gives the rendered
 body its soft haze limb is truth and is never read here. The envelope radius comes from the same

@@ -1,6 +1,6 @@
 """Navigator-side ring_system predictions: projection, boundary, and hidden truth.
 
-``NavModelRingsSimulated`` consumes only the filtered idealized view: the
+``NavModelRingsSimulated`` consumes only the navigator view: the
 shared projection geometry and the navigable features' catalog orbits.
 These tests pin that a predicted edge lands on the rendered feature
 boundary for an inclined, rotated system (both sides project through the

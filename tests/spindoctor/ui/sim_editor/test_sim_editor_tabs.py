@@ -349,7 +349,7 @@ def test_detector_group_toggles_key(model: Any) -> None:
     """The detector group inserts an empty block and removes it when disabled.
 
     The block starts empty (per-key discipline): unedited keys stay absent so
-    the instrument's catalog defaults keep applying.
+    the instrument's detector defaults keep applying.
     """
     model._detector_group.setChecked(True)
     assert model.sim_params['detector'] == {}
@@ -396,7 +396,7 @@ def test_the_gain_state_spin_spans_the_instruments_cataloged_states(model: Any) 
 def test_a_camera_added_as_an_entry_is_in_the_instrument_list(
     qapp: QApplication, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A camera added only as a config entry appears in the drop-down."""
+    """A camera added only as an instrument entry appears in the drop-down."""
     directory = catalog_dir_with(tmp_path, {f'{FICTIONAL_CAMERA_NAME}.yaml': FICTIONAL_CAMERA})
     monkeypatch.setattr(instrument_catalog, 'INSTRUMENT_CONFIG_DIR', directory)
     model = CreateSimulatedImageModel()
@@ -449,7 +449,7 @@ def test_choosing_a_binning_writes_only_the_binning(mode_gain_camera: Any) -> No
     assert mode_gain_camera.sim_params['detector'] == {'binning': 2}
 
 
-def test_reenabling_the_detector_group_shows_the_catalog_defaults(model: Any) -> None:
+def test_reenabling_the_detector_group_shows_the_detector_defaults(model: Any) -> None:
     """Turning the group off and on again resets each widget to what the renderer reads."""
     model._instrument_combo.setCurrentText('coiss_nac')
     model._detector_group.setChecked(True)
@@ -507,13 +507,13 @@ def test_choosing_the_camera_default_drops_an_unlisted_table(model: Any) -> None
     assert [combo.itemText(i) for i in range(combo.count())] == ['camera default']
 
 
-def test_null_detector_keys_show_the_catalog_defaults(model: Any) -> None:
-    """A loaded detector block of nulls shows the catalog values, as the renderer reads it."""
+def test_null_detector_keys_show_the_detector_defaults(model: Any) -> None:
+    """A loaded detector block of nulls shows the detector defaults, as the renderer reads it."""
     from spindoctor.sim.instruments.resolvers import resolve_detector_defaults
 
     keys = ('gain_state', 'detector_model', 'exposure_ref_sec', 'quantization')
     model._apply_params_dict({'instrument': 'coiss_nac', 'detector': dict.fromkeys(keys)})
-    catalog = resolve_detector_defaults('coiss_nac')
+    detector_defaults = resolve_detector_defaults('coiss_nac', 1)
     shown = (
         model._detector_gain_state_spin.value(),
         model._detector_model_combo.currentText(),
@@ -521,10 +521,10 @@ def test_null_detector_keys_show_the_catalog_defaults(model: Any) -> None:
         model._detector_quantization_combo.currentText(),
     )
     assert shown == (
-        catalog.get('default_gain_state', 0),
-        catalog['detector_model'],
-        catalog.get('exposure_ref_sec', 1.0),
-        catalog.get('quantization', 'exact'),
+        detector_defaults.get('default_gain_state', 0),
+        detector_defaults['detector_model'],
+        detector_defaults.get('exposure_ref_sec', 1.0),
+        detector_defaults.get('quantization', 'exact'),
     )
 
 

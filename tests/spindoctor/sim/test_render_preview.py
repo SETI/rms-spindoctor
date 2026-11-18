@@ -1,4 +1,4 @@
-"""The scene editor's fast preview render (``render_combined_model(..., preview=True)``).
+"""The scene editor's fast preview render (``render_scene(..., preview=True)``).
 
 The preview draws on the detector grid, without limb anti-aliasing or the distortion
 warp.  These tests render one scene that carries a PSF, a distortion warp, a body, and
@@ -13,7 +13,7 @@ from typing import Any
 import numpy as np
 from tests.spindoctor.sim.scenes import frame_scene, star_entry
 
-from spindoctor.sim.render.driver import clear_render_caches, render_combined_model
+from spindoctor.sim.render.driver import clear_render_caches, render_scene
 
 
 def _scene() -> dict[str, Any]:
@@ -42,13 +42,13 @@ def _scene() -> dict[str, Any]:
 
 def _preview(scene: dict[str, Any]) -> Any:
     """The preview image of ``scene``."""
-    image, _ = render_combined_model(scene, preview=True)
+    image, _ = render_scene(scene, preview=True)
     return image
 
 
 def _full(scene: dict[str, Any]) -> Any:
     """The full render's image of ``scene``."""
-    image, _ = render_combined_model(scene)
+    image, _ = render_scene(scene)
     return image
 
 

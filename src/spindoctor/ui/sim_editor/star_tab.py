@@ -156,7 +156,7 @@ class StarTabMixin(SimEditorBase):
         # Navigable flag (idealized): absent means navigable, so the box is
         # checked by default and writes ``navigable: false`` (a present key)
         # only when unchecked.  A non-navigable star renders but is dropped from
-        # the navigator's filtered view entirely.
+        # the navigator view entirely.
         navigable_check = QCheckBox('Navigable (unchecked plants a non-navigable star)')
         navigable_check.setChecked(bool(scene_value(p, 'navigable', True)))
         navigable_check.setToolTip(
