@@ -2,7 +2,8 @@
 
 *Explicit operator instructions — commands to run, files to modify, and
 prompts to hand to agent sessions — for every next step in
-`plans/PROGRAM_PLAN.md` as of 2026-10-14. Work through Section 0 first; after
+`plans/PROGRAM_PLAN.md` and `plans/SIM_IMPROVEMENT_PLAN.md`. Last reconciled
+against the tracker on 2026-11-17. Work through Section 0 first; after
 it, independent and unblocked work can be dispatched in parallel as agent
 sessions. Where a section states an order or a dependency -- Section 0.3's
 groups, or anything gated on #288 -- that order governs.
@@ -47,7 +48,12 @@ Each is a scope commitment the downstream work waits on:
   the one integration frame that would do it no longer navigates. Pick a
   frame that still navigates, or close it behind the image-library
   regression (#288).
-- **The star-frame library pins (ten frames, Section 1)**: the sparse-star-field
+- **The star-frame library pins (ten frames, Section 1)** -- **decided
+  2026-10-31, as recommended, and applied (PR #754, merged 2026-11-03):** the
+  nine tier pins took the new tiers, `N1571691490_1` took its truth from the
+  three stars, `N1492091163_1` was pinned as a success at the stars' offset,
+  and the two #346 Encke gap frames' `primary_technique` pins were moved with
+  their tiers. The question as it was put: the sparse-star-field
   fixes and the star-centroid fix moved ten star-frame pins. Nine keep
   their offsets: three one-star answers are capped at low, four frames whose
   star techniques share their stars drop from high to medium (within 0.12 px
@@ -97,6 +103,47 @@ Each is a scope commitment the downstream work waits on:
   uncertainty. Legitimate blob-only answers on irregular bodies reach 18.85
   px, so any ceiling is a calibration choice; it interacts with the #230
   recalibration.
+- **#462 the SQLite write lock a consumer takes**: every open of a SQLite
+  results index probes with a write transaction, so a reader beside a
+  running ingest waits 30 s and then fails with a message that prescribes a
+  server. Probe a read-only open with a read instead, or keep the plan's
+  rule that refuses in both modes.
+- **#880 which stars judge a lone star's absent-star test**: one faint star
+  showing nothing refutes a lone star today; three measured judge sets each
+  recover answers and each add wrong lone answers. Choose the set. It
+  matters once the photometric star limit of the frozen ring/star PR stack
+  lands (#766), so it waits with that stack.
+- **#867 three library truths the image stars contradict**
+  (`N1597846115_2`, `N1550270436_1`, `N1633925572_1`): check each against a
+  star overlay and re-record it if the stars confirm the new position. Found
+  while validating the frozen stack, but it does not wait for it: the check
+  needs only a star overlay and can run any time.
+
+**The simulator's decisions** (order and context in
+`plans/SIM_IMPROVEMENT_PLAN.md`; ask them one at a time):
+
+- **#923, before Phase 1b starts** -- **decided 2026-11-18.** The three
+  choices were: (1) have the simulator call the navigator's image
+  classifier, or move the pure decision to a neutral module both import;
+  (2) move the test-only `artifact_counts.py` beside `realism/` or under
+  `tests/`; (3) whether the "Phase 10 §" labels outside the simulator are
+  in scope. Ruling: (1) a neutral module; (2) under `tests/`; (3) out of
+  scope, tracked in #1035.
+- **#1017, before Phase 2a's detector work** -- for each effect modeled
+  twice (banding, dark signal, and hot pixels), whether the scene's `noise`
+  knobs and the artifact mode are one effect or two.
+- **#854 simulated star saturation** -- on hold by the operator
+  (2026-11-10). Do not start it, or file the real-frame gain-2 question
+  separately, until the hold is lifted.
+- **#970 residual distortion on tiny-residual cameras** -- **decided
+  2026-11-14:** fix the camera models upstream instead
+  (SETI/rms-host-galileo#3, SETI/rms-host-cassini#4,
+  SETI/rms-host-new-horizons#1, SETI/rms-host-voyager#2, all unassigned).
+  Each camera keeps its simulated residual until its updated model is in the
+  host SpinDoctor uses.
+- **#427 the config namespace** -- deferred with the navigator config work
+  (2026-11-17), together with #1029 and #1032; nothing in the simulator plan
+  waits on it (Section 3, logging follow-ups).
 
 ```bash
 gh issue comment 316 --body "Decision: <ship default | ratchet fraction | wander decomposition>"
@@ -114,6 +161,10 @@ gh issue comment 677 --body "Decision: <per the enumerated options>"
 gh issue comment 748 --body "Decision: <one limit | a separate witness limit derived from the veto tolerance>"
 gh issue comment 751 --body "Decision: <no ceiling | ceiling of <N> px on the low tier>"
 gh issue comment 730 --body "Decision: <store full precision | keep rounding for <values>, because <reason>>"
+gh issue comment 462 --body "Decision: <probe a read-only open with a read | keep the write probe in both modes>"
+gh issue comment 880 --body "Decision: <judge set>"
+gh issue comment 923 --body "Decisions: <classifier home>; <artifact_counts.py home>; <Phase 10 labels in or out of scope>"
+gh issue comment 1017 --body "Decisions: banding <one | two>; dark signal <one | two>; hot pixels <one | two>"
 ```
 
 - **#557 where the confidence scale should saturate**: the combined
@@ -130,8 +181,9 @@ gh issue comment 730 --body "Decision: <store full precision | keep rounding for
 ### 0.1c Labels and assignees: check five inferred priorities
 
 The tracker is fully labeled. Every open issue carries exactly one Priority
-and one Effort label, at least one each of A-type and B-location, and
-`rfrenchseti` as an assignee. The `Priority TBD` label is unused and can be
+and one Effort label and at least one each of A-type and B-location, and
+every one but #928 (Python 3.15 is not declared or tested) has `rfrenchseti`
+as an assignee; assign that one. The `Priority TBD` label is unused and can be
 deleted from the repository if you want it gone.
 
 Five priorities were assigned by inference from these plans rather than by
@@ -162,20 +214,17 @@ instrument.
 
 **Group 1 — evidence integrity.** Nothing above this in the whole project.
 
-1. **#288 resolution** — 19 of 75 frames are red (measured 2026-10-31), and
-   every one is attributed and owned. Ten are the star-frame pins awaiting
-   ratification (Section 0.1). Of the frames re-pinned on 2026-10-27 (the five
-   `ring_only_flat` rank-1 constraints, the tiers of #346's two Encke gap
-   frames, and the tier of `N1633925572_1`, all in Section 1), the two Encke
-   gap frames are still red on their `primary_technique` pins. Two are the
-   Galileo frames awaiting the #744 decision (Section 0.1); the other five are
-   under #288. One is #346's `N1492091163`, now red on its `failed` pin while
-   it navigates to the offset two bright stars confirm (see the table below);
-   one is
-   `N1853392805`, held out by the highly-irregular-body policy and owned by
-   the #338 decision; one is
-   `N1484593951`, a real limb bias deliberately pinned red; and two are stale
-   or wrong `primary_technique` pins batched onto #483. Nothing is
+1. **#288 resolution** — 6 of 75 frames are red on `main` (measured
+   2026-11-16 and 2026-11-17 by PRs #1003 and #999, the same six with the
+   same messages on each branch and its base), and every one is attributed
+   and owned. The ten star-frame pins, `N1492091163`, and the two Encke gap
+   frames' `primary_technique` pins were re-pinned on the operator's
+   2026-10-31 decisions (PR #754), and every frame re-pinned on 2026-10-27
+   now passes (Section 1). Of the six, two are the Galileo frames awaiting
+   the #744 decision (Section 0.1); one is `N1853392805`, held out by the
+   highly-irregular-body policy and owned by the #338 decision; one is
+   `N1484593951`, a real limb bias deliberately pinned red (#350); and two
+   are stale or wrong `primary_technique` pins batched onto #483. Nothing is
    unattributed, and no `expected.*` field is moved to match current behavior.
    Closing the issue is therefore closing #483 and the frames' owning issues,
    not a separate investigation.
@@ -185,8 +234,11 @@ as one piece. Both gate the Track A study, which consumes ensemble output at
 scale.
 
 *The ring-lock family:* **#346** (three library frames once locked onto the
-wrong ring feature), **#373** (the coarse seed against competing edge
-populations) and **#755** (along-edge error on nearly straight edges);
+wrong ring feature; all three now pass on their pins, and it stays open as
+the record of the confident wrong-lock failure mode, with the two F ring
+observations its 2026-09-12 comment adds), **#373** (the coarse seed
+against competing edge populations) and **#755** (along-edge error on
+nearly straight edges);
 **#476** (RingEdgeNav's round trip under a planted shift) closed with the
 work described here.
 The coarse seed now checks the overlap seed against edge strength
@@ -208,14 +260,30 @@ component, where it is met; the along-edge part of the raw sweep rows is
 #755's.
 The Saturn
 routing decision (annulus composite at and above 25 km/px radial resolution,
-per-edge fit below) limits the family's exposure to the sub-25 km/px regime.
+per-edge fit below) limits the family's exposure to the sub-25 km/px regime
+today, but it is no longer the intended routing: on 2026-10-28 the operator
+ruled on #822 that resolved catalog ring edges are to be navigated at coarse
+scales too, after the full spokes run refused 601 of 936 NAC frames with
+sharp catalog edges in view. #822's work waits with the frozen stack.
+**Not dispatchable while frozen:** the fixes for #755 (PR #766) and #373
+(PR #779) sit in the ring/star PR stack (#766, #773, #774, #779, #782, #784,
+and #789), which the operator froze on 2026-11-06 pending a cross-mission
+benchmark. The issues stay open; start that benchmark before any new work
+on them.
 
-*The sparse-star-field family:* **#621** (star navigation navigates 74.9% of
-the F ring movie `ISS_006RI_LPHRLFMOV001_PRIME`, none of it wrong, against the
-published bundle's 96.6%, and the refusals still come in runs of up to 25
-frames; most remaining refused frames show one usable star or none). It is
-measured against the published F ring bundle's own per-frame pointing, so it
-has an outside answer to fix against.
+*The sparse-star-field family:* **#621** (star navigation refused half the
+F ring movie `ISS_006RI_LPHRLFMOV001_PRIME`, in runs of up to 30 frames).
+PR #754 (merged 2026-11-03) did not meet the issue's criterion on `main`:
+there star navigation navigates 771 of the movie's 1030 frames (74.9%),
+every one within 2 px of the published F ring bundle, against the bundle's
+96.6% by stars, and the refusals still come in runs of up to 25 frames. The
+2026-10-22 run that navigated 1006 frames (97.7%, longest refusal run two
+frames) used code a263e966, which combined #754 with the frozen #766 branch
+and with #756 (merged 2026-10-29), so nothing it measured is on `main`. The
+remainder, cosmic-ray hits crowding the star field's detections (#764) and
+faint stars against ring texture (#769, PR #782), waits with the frozen
+stack. It is measured against the published F ring bundle's own per-frame
+pointing, so it has an outside answer to fix against.
 
 **Group 3 — parallel fill, any order, any number at once.**
 
@@ -235,15 +303,27 @@ has an outside answer to fix against.
   dataset without PDS4 support ends in a traceback); #716 (check a bundle at
   a remote results root). #708, the draft run over a real COISS volume,
   carries the cohort choice and needs your frame approval first.
-- **Simulator scene fidelity:** four features render something other than
-  what they name — #625 (`limb_relief_rms` carves radial wedges out of the
-  disc), #626 (`polyhedral_mesh` bodies render as banded shells), #627 (the
-  two haze terms seam the halo at the equator) and #644 (a planted roll turns
-  positions but not smear, companions or sky field) — plus #646 (the
-  limb-bias harness measures a ridge half a pixel from the deployed one), #750
-  (the simulated body model keeps the disc and witness blob that production
-  withholds on a body overflowing the frame), and the scene-language batch
-  #629, #630, #631, #632, #633, #641 with #409.
+- **Simulator:** dispatch in the order of `plans/SIM_IMPROVEMENT_PLAN.md`.
+  The next sessions are (1) the end-of-stack realism-record regeneration,
+  with #961's sweep figures, in progress in another session (its
+  prerequisite #989 landed in PR #1004 on 2026-11-17), and then (2) Phase 1b,
+  the pixel-neutral restructuring, starting with #923's shared scene fixtures
+  and #1005's package layout (`sim/forward/` becomes `sim/render/`); #923's
+  three choices are decided (Section 0.1). Phase 1b starts only after the
+  regeneration lands.
+- **Simulator scene fidelity** (the batch this group listed): four features
+  rendered something other than what they name — #625 (`limb_relief_rms`
+  carved radial wedges out of the disc), #626 (`polyhedral_mesh` bodies
+  rendered as banded shells), and #627 (the two haze terms seamed the halo at
+  the equator), **done (PR #796)**, and #644 (a planted roll turns positions
+  but not smear, companions or sky field; it also asks for a ruling on what a
+  roll turns), open — plus #646 (the limb-bias harness measures a ridge half
+  a pixel from the deployed one), open; #750 (the simulated body model kept
+  the disc and witness blob that production withholds on a body overflowing
+  the frame), **done (PR #845)**; and the scene-language batch #629, #630,
+  #631, #632, #633, **done (PR #819)**, and #641 with #409, **done (PR #840;
+  #641 closed as a duplicate of #409)**. #644 and #646 sit in the simulator
+  plan's Phase 2.
 - **Reprojection and mosaic products:** #634 (longitudes recorded west on an
   east grid), #638 (a remote product is never fetched), #701 (body backplanes
   read silhouette or visible extent depending on which truth field is
@@ -255,10 +335,15 @@ has an outside answer to fix against.
 - **Test debt:** #241 and #242 first, because the plan wants tested ground
   under any serious PDS4 or backplane work; then #243, #177, #524,
   #525, #530, #473.
-- **CI:** #324, #336 and #426 — the agreement-estimator tests, the
-  data-independent simulator suites and the stale committed render, none of
-  which run in Actions today. #391 pins the lint tools so a release cannot
-  turn `main` red on its own.
+- **Image library curation:** #727 (land the ring-truth curation campaign:
+  branch `origin/rf_ring_curation_campaign` holds 954 rows of your screening
+  verdicts and a 75-frame ring shortlist and was never opened as a PR; it
+  needs a check against `main` and a developer-guide paragraph on the
+  staging directory).
+- **CI:** #324, the agreement-estimator tests, which do not run in Actions.
+  #336 (the data-independent simulator suites) is **done (PR #834)**, and
+  #426 (the stale committed render) is **done (fixed by PR #680)**. #391 pins
+  the lint tools so a release cannot turn `main` red on its own.
 - **Products:** #520 (move the pointing selection out of the reprojection
   CLI package); #495 (raw-product dataset names for Cassini ISS).
 - **Command-line programs:** #734 (`--profile` produces no profile in
@@ -272,7 +357,9 @@ has an outside answer to fix against.
 (Sphinx nitpicky-clean) wants #443 settled first, since that decides whether
 `spindoctor.cli` subpackages get autodoc pages at all. #418 is a policy
 question before it is a coding one. #464's affordability depends
-on #466. #552 waits on an upstream oops fix. #239's cohort scan is agent work but the
+on #466. #552 waits on an upstream oops fix. The work in the frozen
+ring/star PR stack (#755, #373, #321, and the star issues it addresses)
+waits on the cross-mission benchmark. #239's cohort scan is agent work but the
 sidecars it produces need your votes. And the two largest Track A
 items, #225 and #172/#235, are gated on your frame approvals and batch votes, which
 is what makes Group 1 worth starting today.
@@ -280,12 +367,15 @@ is what makes Group 1 worth starting today.
 ## 1. The library regression, and the deliberately-red set
 
 **Read this before trusting a library run.** In the local integration
-environment 19 of 75 sidecars disagree (measured 2026-10-31): five under
-#288, two under #744, two Encke gap frames under #346 whose
-`primary_technique` pins still name BodyBlobNav, and ten star-frame pins,
-exactly the tables below, entry for entry. Every one is owned by an open
-issue or by your decision. The two under #744 and the ten star pins await
-your decision in Section 0.1. Three of the five are
+environment 6 of 75 sidecars disagree on `main` (measured 2026-11-16 and
+2026-11-17 by PRs #1003 and #999): `C0059894800R` and `C0059899900R` under
+#744, `N1484593951_2` under #350, `N1487595731_1` and `N1686349893_1` under
+#483, and `N1853392805_1` under #338, exactly the rows of the table below
+not marked re-pinned. Every one is owned by an open issue or by your
+decision. The two under #744 await your decision in Section 0.1. (On
+2026-10-31 the count was 19: the ten star-frame pins, `N1492091163`, and the
+two Encke gap frames' `primary_technique` pins have since been re-pinned on
+your decisions, PR #754.) Three of the six are
 unresolved judgments rather than settled pins — the two
 `primary_technique` flips on #483, and `N1484593951`'s limb bias — which
 is why #288 is open, and why the gate a navigation-affecting branch
@@ -301,17 +391,17 @@ frame no longer navigates).
 
 | frame(s) | disagreement | owner |
 |---|---|---|
-| N1492091163 | expects `failed`; now navigates to (5.21, -26.02) at medium tier, 1.70 px in du from operator truth: RingEdgeNav converges 1.1 px from truth and a two-star StarRefineNav moves the fused answer 0.7 px in du (the sparse-star family). The expectation predates a working ring fit | #346 |
+| N1492091163 | **Re-pinned 2026-10-31 (PR #754): pinned as a success at the stars' offset; passes.** Expected `failed`; navigates to (5.21, -26.02) at medium tier, 1.70 px in du from operator truth: RingEdgeNav converges 1.1 px from truth and a two-star StarRefineNav moves the fused answer 0.7 px in du (the sparse-star family). The expectation predated a working ring fit | #346 |
 | N1853392805 | highly-irregular exclusion discards the terminator fit; the ring fit is right across the edge but about 8 px off along it, so the ensemble reports `conflicted` | #338 |
 | N1484593951 | dv error 2.687 px, a limb bias pinned red on purpose | #350 |
 | N1487595731_1 | expects BodyDiscCorrelateNav primary, gets BodyLimbNav; the pin is stale | #483 |
 | N1686349893_1 | expects BodyLimbNav primary, gets BodyDiscCorrelateNav, which matches operator truth to 1e-4 px; the pin names the worse answer | #483 |
-| N1867601758_1, N1867602424_1 | expect BodyBlobNav primary, get RingEdgeNav; their tiers were re-pinned on 2026-10-27, their primaries were not | #346 |
+| N1867601758_1, N1867602424_1 | **Re-pinned 2026-10-31 (PR #754): RingEdgeNav primary; both pass.** Expected BodyBlobNav primary, got RingEdgeNav; their tiers were re-pinned on 2026-10-27, their primaries were not | #346 |
 | C0059894800R, C0059899900R | du error 5.709 px and dv error 3.051 px: the recorded truth is the rotation-fitted answer #560 retired; the star techniques, StarUniqueMatchNav now among them, agree with one another 6 px from it | #744 |
-| N1461997416_1, N1555145539_1, W1449079117_1 | expects the medium tier, gets low: the offset rests on one star, so it is `single_star_only` and capped at low; offsets unchanged | Section 0.1 |
-| N1459552012_1, N1488823805_1, W1580760393_1, N1489603610_2 | expects high, gets medium: the star techniques on the same stars are one witness, whose blended confidence is under the high tier's 0.85; offsets within 0.12 px of `main` and within 0.42 px of truth | Section 0.1 |
-| N1484688342_1, N1489256001_1 | expects medium, gets low: refinement no longer measures the sources that had pulled each answer 0.81 and 0.66 px from truth, so each lands 0.14 and 0.27 px from it, inside the truth's own resolution, on fewer stars with a sigma over 2 px | Section 0.1 |
-| N1571691490_1 | expects low at the body blob's offset, gets medium 9.4 px away: three stars measure 0.24 to 0.75 px from the new offset and show nothing at the pinned one | Section 0.1 |
+| N1461997416_1, N1555145539_1, W1449079117_1 | **Re-pinned 2026-10-31 (PR #754) to low; pass.** Expected the medium tier, got low: the offset rests on one star, so it is `single_star_only` and capped at low; offsets unchanged | Section 0.1 (decided) |
+| N1459552012_1, N1488823805_1, W1580760393_1, N1489603610_2 | **Re-pinned 2026-10-31 (PR #754) to medium; pass.** Expected high, got medium: the star techniques on the same stars are one witness, whose blended confidence is under the high tier's 0.85; offsets within 0.12 px of `main` and within 0.42 px of truth | Section 0.1 (decided) |
+| N1484688342_1, N1489256001_1 | **Re-pinned 2026-10-31 (PR #754) to low; pass.** Expected medium, got low: refinement no longer measures the sources that had pulled each answer 0.81 and 0.66 px from truth, so each lands 0.14 and 0.27 px from it, inside the truth's own resolution, on fewer stars with a sigma over 2 px | Section 0.1 (decided) |
+| N1571691490_1 | **Truth re-recorded 2026-10-31 from the three stars (PR #754); passes.** Expected low at the body blob's offset, got medium 9.4 px away: three stars measure 0.24 to 0.75 px from the new offset and show nothing at the pinned one | Section 0.1 (decided) |
 
 `N1530185128_1` left this table when #639 closed: StarUniqueMatchNav pairs
 its two smeared stars again and the answer lies 0.1 px from truth.
@@ -322,10 +412,19 @@ but since the Saturn routing decision (150.6 km/px routes it to the annulus
 composite) it no longer runs RingEdgeNav. Its `low` tier now comes from
 BodyLimbNav and a one-star StarUniqueMatchNav, fused to a sigma of 2.49 px
 (2.50 px with the ring lock), so the operator re-pinned the tier to `low`;
-whether that sigma is sized right is a sigma-calibration matter (#788). It is
-expected to pass and has not been run since. The frames in the table are
-pins, not regressions; do not re-ratchet them until the owning issue
-closes.
+whether that sigma is sized right is a sigma-calibration matter (#788). It
+passes on `main` (it is not among the six). Whether its recorded truth
+carries a half-pixel datum error is part of #867 (Section 0.1). The frames in
+the table not marked re-pinned are pins, not regressions; do not re-ratchet
+them until the owning issue closes.
+
+**Proposed re-pins for the photometric Cassini star limit.** #866 tracks the
+library sidecars the frozen ring/star PR stack moves (19 frames). Its table,
+"Proposed re-pins for the photometric Cassini star limit", is in this file
+on the stack's branch (`rf_ring_edge_along_755`, PR #766) and arrives with
+it; it is not on `main`. No sidecar has been edited for it, and nothing is
+re-pinned until the stack's last PR merges and the library is run on
+`main`.
 
 **Re-pins for the rank-1 axis fix (operator decision, applied 2026-10-27).**
 RingEdgeNav now takes a straight ring edge's rank-1 axis from the line itself
@@ -340,8 +439,8 @@ raw fit projects onto the new normal within 0.004 px of the new value, and
 the pinned `(dv, du)` is the foot of the new constraint line. The original
 votes were cast on overlays rendered at the old representative point, 14 to
 19 px across the edge on four of the five, so a fresh operator look at each
-raw fit is still welcome. The library has not been run since the re-pins, so
-the five are expected to pass rather than measured green.
+raw fit is still welcome. All five pass on `main` (none is among the six red
+frames measured on 2026-11-16).
 
 | frame | old pin: normal / along-normal | new pin: normal / along-normal | measured answer vs new pin |
 |---|---|---|---|
@@ -357,8 +456,10 @@ ensemble keeps the body blob and lands on operator truth (N1867601758_1 at
 (2.50, 11.34)), and each then reported the `low` tier against a `medium`
 pin, because the ring orbit channel puts the fused sigma just over 2 px.
 Both tier pins were re-pinned to `low` on 2026-10-27, as N1867602424's own
-sidecar note asked; they too are expected to pass and have not been run
-since. #346 stays open on its third frame, N1492091163.
+sidecar note asked, and their primaries to RingEdgeNav on 2026-10-31 (PR
+#754); both pass on `main`. N1492091163, #346's third frame, was pinned as a
+success at the stars' offset on 2026-10-31 and passes too; #346 stays open as
+the record of the wrong-lock failure mode (Section 0.3, Group 2).
 
 **After any navigation-affecting merge, compare against `main` rather than
 against the table:**
@@ -366,7 +467,7 @@ against the table:**
 ```bash
 export OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 NUMEXPR_NUM_THREADS=1
 pytest tests/integration/test_autonomous_nav.py -m '' -n 4 --dist=loadfile
-# Expect, while #288 is open: the same red set as main — the nineteen frames
+# Expect, while #288 is open: the same red set as main — the six frames
 # above. Any delta either way must be attributed in the merging PR.
 ```
 
@@ -462,9 +563,10 @@ gates from the estimator findings above:
 ### 2.3 The finish line (dispatch after 2.2 produces data)
 
 - **#229 / WS-4** — real images in CI: "Wire a small cached real-image
-  tier into every-PR CI and the full suite on a schedule, per WS-4." Related:
-  the data-independent sim suites still never run in Actions (#336) and there
-  is no canonical environment for the committed sim baselines (#335).
+  tier into every-PR CI and the full suite on a schedule, per WS-4." Related,
+  both **done (PR #834)**: the data-independent sim suites run in Actions
+  (#336), and the committed sim baselines have a canonical environment
+  (#335).
 - **#230 / WS-5** — re-anchor confidence on real evidence. The correlated
   ring-witness fix (#317) is done, so the calibration no longer trains
   against rows where two ring techniques on one catalog were fused as
@@ -481,7 +583,8 @@ gates from the estimator findings above:
   provisional label and the sim-anchored coefficients get their real-world
   upgrade.
 - **Accuracy tail** — #233, #150/#128 (design first; see Section 3),
-  plus #234 and #232.
+  plus #232; #234 (the detector-noise model for the calibrated render path)
+  is **done (PR #888)**.
 
 ## 3. Parallel fill (independent agent sessions, any order)
 
@@ -506,7 +609,9 @@ Independent review before done; all CI gates; one PR."
   #447 fix held as #128's base, and lands it: the edge-offset correction, the
   simulated body model adopting the same sub-pixel vertex rule, and the pins
   the fix moves, which go to #483. The measurements are on #447.
-- **#373 (coarse-lock remainder)**: "Make the RingEdgeNav coarse seed
+- **#373 (coarse-lock remainder)** *(frozen: PR #779, in the ring/star
+  stack, waits on the cross-mission benchmark; do not dispatch until then)*:
+  "Make the RingEdgeNav coarse seed
   robust against competing edge populations per #373 where the edge-strength
   check does not reach: a competitor stronger than the cataloged edge, such
   as a body limb in the search window, and the held-out frames still wrong
@@ -535,7 +640,10 @@ Independent review before done; all CI gates; one PR."
   (the New Horizons pointing family) are operator decisions, not
   dispatchable work — Section 0.1.
 - **Navigation correctness, in order**: the ring-lock family, #346, #373
-  and #755, scoped to sub-25 km/px Saturn scenes by the routing decision.
+  and #755, scoped to sub-25 km/px Saturn scenes by the routing decision,
+  which the operator's 2026-10-28 ruling on #822 overrules (navigate
+  resolved catalog ring edges at coarse scales too; #822's work waits with
+  the frozen stack).
   #476 (RingEdgeNav's round trip under a planted shift) has closed on its
   criterion as restated on 2026-10-27, the across-edge component: measured
   across the edge normal, RingEdgeNav's own round trip on the library's ring
@@ -544,20 +652,26 @@ Independent review before done; all CI gates; one PR."
   worst 17 px). The raw sweep rows still carry the along-edge part (median
   4.2 / 1.7 px v/u), lying along straight or nearly straight edges, which
   #755 tracks. The five `ring_only_flat` constraint pins whose recorded
-  normal angle was the old quantized axis were re-pinned (Section 1).
+  normal angle was the old quantized axis were re-pinned (Section 1). The
+  fixes for #755 and #373 are in the frozen ring/star stack (PRs #766 and
+  #779), so this line waits on the cross-mission benchmark.
 - **Gates and the body-witness veto**: #747 (the combined polarity gate keys
   on an LM convergence flag that reads false on most healthy fits; re-derive
   its discriminant against labeled healthy and mis-locked fits, adding the
   healthy frames it cites to the library first) and #749 (the multi-body
   exclusion counts bodies with results rather than bodies in the frame). #748
   is an operator decision first (Section 0.1).
-- **Sparse star fields**: what is left of #621 (frames showing one usable
-  star or none, which need evidence beyond the frame). All 1030 frames of
-  `ISS_006RI_LPHRLFMOV001_PRIME` are the measurement harness, and the
-  published F ring bundle's per-frame pointing is the outside answer, so a
-  fix is verifiable without operator adjudication. A single-star rule
-  loosened to close #621 is where silent wrong answers come from; measure the
-  wrong count beside the rate.
+- **Sparse star fields**: #621 is not met on `main`, where PR #754 (merged
+  2026-11-03) navigates 771 of the movie's 1030 frames (74.9%) with refusal
+  runs of up to 25 frames; the 97.7% run of 2026-10-22 combined #754 with
+  the frozen #766 branch. The remainder, #764 (cosmic-ray hits crowding the
+  star field's detections) and #769 (faint stars against ring texture, PR
+  #782), waits with the frozen ring/star stack. All
+  1030 frames of `ISS_006RI_LPHRLFMOV001_PRIME` are the measurement harness,
+  and the published F ring bundle's per-frame pointing is the outside
+  answer, so a fix is verifiable without operator adjudication. A
+  single-star rule loosened to close #621 is where silent wrong answers come
+  from; measure the wrong count beside the rate.
 - **Results-index follow-ups** (the index shipped 2026-08-25; none of these
   blocks anything): #515 and #516 together (a cloud-share ingest can write
   another root's document into this root's rows, and the test that should
@@ -574,16 +688,26 @@ Independent review before done; all CI gates; one PR."
   records to stdout; about ten tests capture that fallback and need their
   capture strategy changed first); #429 (give the `util/` tooling the same
   logging surface); #731 (log file names are stamped in UTC and log records
-  in local time). #427 (reorganize the config namespace) is larger and
-  should precede #118.
+  in local time). The navigator config work is deferred (operator,
+  2026-11-17): #427 (reorganize the config namespace), #1029 (the
+  navigator camera blocks), and #1032 (the remaining sections) wait. When
+  it resumes, #427 needs a decision first: which sections it covers, and
+  whether it lands before #1029 and #1032 type them. #1032 then asks
+  #411's snake_case question before its technique PRs, and it deletes the
+  unimplemented `bootstrap` section's placeholder keys unless the operator
+  objects.
 - **Sim realism residual (#227)**: the de-circularization is done and on
   main; #227 stays open only for the realism proof and closes at the
   operator's realism-verdict gate, itself gated on #309. #309
   (realism-configured multi-instrument campaign — biggest
-  calibration-credibility win available; consumes the fidelity gaps #325,
-  #329-#333, #341-#345, #290, #377) is the load-bearing step, with #310
-  (structural boundary enforcement) and #311 (mirror-parity guard) hardening
-  the partition. Each issue body is a prompt basis.
+  calibration-credibility win available) is the load-bearing step. Of the
+  fidelity gaps it consumes, #325, #329, #330, #331, #332, #344, #345, and
+  #290 are **done** (PRs #846, #886, #887, #846, #849, #846, #838, and the
+  split-resolution body renderer), and #333, #341, #342, #343, and #377 are
+  open. #310 (structural boundary enforcement) and #311 (mirror-parity guard)
+  harden the partition. All of these are placed and ordered in
+  `plans/SIM_IMPROVEMENT_PLAN.md` (#309 in Phase 3, #310 in Phase 3b);
+  dispatch from there. Each issue body is a prompt basis.
 - **#355 (Voyager sim distortion per camera)**: re-measure and split the
   Voyager distortion defaults once the star-lock rate improves.
 
@@ -623,11 +747,11 @@ with assignee rfrenchseti.
 
 **Evidence integrity (do first; everything else reads what these produce):**
 
-- **#288** 19 of 75 library sidecars disagree locally (measured
-  2026-10-31), all attributed (two to #744, ten to the star-frame
-  ratification in Section 0.1); what is left on it is two stale
-  `primary_technique` pins on #483, one limb bias that stays red, and the
-  frames owned by #346 and #338; blocks #483 and #547
+- **#288** 6 of 75 library sidecars disagree on `main` (measured
+  2026-11-16), all attributed: two to #744, two stale `primary_technique`
+  pins on #483, one limb bias that stays red (#350), and the frame owned by
+  #338; the ten star-frame pins and #346's frames were re-pinned on the
+  operator's 2026-10-31 decisions (PR #754); blocks #483 and #547
 - **#744** two Galileo library frames record the rotation-fitted answer #560
   retired, so both are red; re-record their truth from an outside measurement
   or pin them red under #434 (Section 0.1 decision)
@@ -659,20 +783,24 @@ deferred until an instrument fits rotation again; a test fails if one does.
   index, so their filters always walk the tree
 - **#472, #497, #524, #533, #534, #535, #538, #540, #541** the small tail
 
-**Confident-wrong / ensemble honesty (sequence with #230/WS-5):**
+**Confident-wrong answers and the ensemble (sequence with #230/WS-5):**
 
-- **#346** three library frames once locked onto the wrong ring feature
-  (owns the N1492091163 red pin); the lattice lock on N1492091163 is gone
-  and its pin wants a decision (a two-star refine moves its answer 0.7 px
-  off the ring fit); the two Encke gap frames land on operator truth and
-  their tier pins were re-pinned to `low` on 2026-10-27, so they are
-  expected to pass (not yet run); exposure is limited to sub-25 km/px Saturn
-  scenes by the routing decision
+- **#346** three library frames once locked onto the wrong ring feature;
+  all three now pass: N1492091163 was pinned as a success at the stars'
+  offset and the two Encke gap frames' tier and primary pins were moved
+  (2026-10-27 and 2026-10-31, PRs #756 and #754); it stays open as the
+  record of the wrong-lock failure mode, with two F ring observations wrong
+  nearly everywhere RingEdgeNav carried them; exposure is limited to
+  sub-25 km/px Saturn scenes by the routing decision
+- **#822** NAC spoke frames show sharp catalog ring edges but navigate on
+  none of them; the operator's 2026-10-28 ruling on it overrules the
+  sub-25 km/px routing cut (navigate resolved catalog ring edges at coarse
+  scales too), and its work waits with the frozen ring/star stack
 - **#755** RingEdgeNav reports along-edge error on nearly straight edges at
   the medium tier with a sub-pixel sigma (115 of 1,041 held-out F ring
   frames, a median 3.0 px along the edge); it also carries the along-edge
   part of the planted-shift sweep that #476 left when it closed on the
-  across-edge criterion
+  across-edge criterion; its fix is PR #766, frozen with the ring/star stack
 - **#482** BodyDiscCorrelateNav misses by up to ~1 px on a weakly-constrained
   axis, the residual the #447 fix leaves (held on `rf_shift_equivariance_v2`
   for #128)
@@ -682,9 +810,11 @@ deferred until an instrument fits rotation again; a test fails if one does.
   fit an explicit cross-covariance once #225 measures real-frame rho
 - **#400** the ensemble merge and tier logic have never been exercised on the
   strongly anisotropic covariance the Titan haze fit reports
-- **#621** star navigation still refuses 25% of the F ring movie it was
-  measured on, in runs of up to 25 frames; the frames show one usable star or
-  none
+- **#621** star navigation refused half the F ring movie it was measured
+  on; after PR #754 (merged 2026-11-03) `main` navigates 74.9% of it, with
+  refusal runs of up to 25 frames; the 97.7% run combined #754 with the
+  frozen #766 branch, and the remainder (#764, #769) waits with the frozen
+  stack
 - **#591** the sparse 16x16 ring pre-check can skip a frame whose rings fall
   between its samples
 - **#747** the combined polarity gate keys on an LM convergence flag that most
@@ -694,54 +824,64 @@ deferred until an instrument fits rotation again; a test fails if one does.
 - **#748**, **#751** decisions (Section 0.1): the witness blob's own overflow
   limit, and a sigma ceiling on the low tier
 
-**Simulator fidelity gaps (feed #309 and the sim follow-ups in Section 3):**
+**Simulator fidelity gaps (feed #309 and the sim follow-ups in Section 3;
+every simulator issue is placed and ordered in
+`plans/SIM_IMPROVEMENT_PLAN.md`, which is the register for the simulator):**
 
-- **#325** simulated stars shine through dark limbs; star-technique success is
-  optimistic
-- **#329** simulated calibrated products floor at 1 LSB; real products dither
-  below it (WAC diverges 8x)
-- **#330** instrument chains render cosmic-ray transients at zero
-- **#331** simulated hot pixels are per-scene, not per-detector
-- **#332** PSF catalog has one kernel per instrument; binned/summed readout
-  modes are inexpressible
+- **#325** simulated stars shone through dark limbs -- **done (PR #846)**
+- **#329** simulated calibrated products floored at 1 LSB -- **done
+  (PR #886)**
+- **#330** instrument chains rendered cosmic-ray transients at zero --
+  **done (PR #887)**
+- **#331** simulated hot pixels were per-scene, not per-detector -- **done
+  (PR #846)**
+- **#332** PSF catalog had one kernel per instrument; binned/summed readout
+  modes were inexpressible -- **done (PR #849)**
 - **#333** four physical error axes are unmodeled
-- **#290** body renderer exceeds the sim render-time budget on oversampled grids
+- **#290** body renderer exceeded the sim render-time budget on oversampled
+  grids -- **done** (the split-resolution body renderer; closed 2026-11-01)
 - **#377** sim rings are single annuli; build realistic nested-ringlet scenes
   and tests
 - **#341** the campaign's scene mixture is authored, unvalidated against real
   frames
 - **#342** star_psf_sigma is a 3.0 placeholder on Galileo, Voyager, LORRI
 - **#343** the tuned NAC PSF wing may be absorbing operator registration error
-- **#344** haze brightness is a module constant
-- **#345** a scene can echo truth-side noise into instrument_config with no
-  validator warning
-- **#625** `limb_relief_rms` carves radial wedges out of the disc instead of
-  roughening the limb; **#626** `polyhedral_mesh` bodies render as banded
-  shells and the shipped Hyperion scene renders as a torus; **#627** the two
-  haze terms seam the halo at the equator; **#644** a planted roll turns
-  positions but not smear, companions or sky field
+- **#344** haze brightness was a module constant -- **done (PR #846)**
+- **#345** a scene could echo truth-side noise into instrument_config with no
+  validator warning -- **done (PR #838)**
+- **#625** `limb_relief_rms` carved radial wedges out of the disc instead of
+  roughening the limb; **#626** `polyhedral_mesh` bodies rendered as banded
+  shells and the shipped Hyperion scene as a torus; **#627** the two haze
+  terms seamed the halo at the equator -- all three **done (PR #796)**;
+  **#644** a planted roll turns positions but not smear, companions or sky
+  field (open; asks for a ruling on what a roll turns)
 - **#646** the limb-bias harness measures a simulated ridge half a pixel from
   the deployed one
-- **#750** the simulated body model has no silhouette overflow handling, so it
-  keeps the disc and witness blob that production withholds
-- **#641** with **#409** stars sit on pixel indices beside bodies on pixel
-  corners; **#629** one artifact key names three quantities; **#630** a
-  fluence per cm^2 is documented per pixel; **#631** a Voyager scene renders
-  in I/F under a raw-DN marker; **#632** ring scene keys carry no units;
-  **#633** the editor authors mesh scenes its own validator refuses
+- **#750** the simulated body model had no silhouette overflow handling --
+  **done (PR #845)**
+- **#641** with **#409** stars sat on pixel indices beside bodies on pixel
+  corners -- **done (PR #840; #641 closed as a duplicate of #409)**;
+  **#629** one artifact key named three quantities; **#630** a fluence per
+  cm^2 was documented per pixel; **#631** a Voyager scene rendered in I/F
+  under a raw-DN marker; **#632** ring scene keys carried no units; **#633**
+  the editor authored mesh scenes its own validator refused -- all five
+  **done (PR #819)**
+- **#1017** decision (Section 0.1) before the simulator plan's Phase 2a
+  (#923 decided 2026-11-18); **#854** on hold (operator); **#970** decided (fix the
+  camera models upstream)
 
 **Calibration governance / CI (gate WS-5 and the CI tier in Section 2.3):**
 
 - **#334** calibration has no armed falsification criterion and its real-frame
   gate is suspended (owns the Section 0.2 transfer-watch step)
 - **#335** no canonical environment for committed sim baselines (0.99 vs
-  0.81-0.84 across machines)
-- **#336** data-independent simulator integration suites never run in Actions
-  (relates to #229/WS-4)
+  0.81-0.84 across machines) -- **done (PR #834)**
+- **#336** data-independent simulator integration suites never ran in
+  Actions (relates to #229/WS-4) -- **done (PR #834)**
 - **#340** library_crosscheck records only a yes/no primary-technique flag,
   not the winning technique
-- **#426** a committed sim render is stale on `main` and the test that would
-  say so is integration-marked, so nothing catches it per PR
+- **#426** a committed sim render was stale on `main` -- **done (fixed by
+  PR #680; closed 2026-10-31)**
 
 **Titan haze refinements (the method ships; these are measured limits):**
 
@@ -765,8 +905,9 @@ deferred until an instrument fits rotation again; a test fails if one does.
 - **#423** the GUI viewers print library log records to stdout through
   pdslogger's handler-less fallback
 - **#424** remove `sd_create_bundle_cloud_tasks`
-- **#427** the config namespace is organized on no stated axis; sequence
-  before #118
+- **#427** the config namespace is organized on no stated axis; decide
+  which sections it covers and whether it precedes their typing (#1029,
+  #1032), when the deferred navigator config work resumes
 - **#428** upstream registry-eviction request to `rms-pdslogger`
 - **#429** give the `util/` tooling the same logging surface
 - **#731** log file names are stamped in UTC while the records inside them are
@@ -795,7 +936,9 @@ these are what it owes and what generalizes it):**
   cannot enumerate it; **#705** the spelling gate would read the shipped
   schemas; **#614** a dataset without PDS4 support ends in a traceback;
   **#716** check a bundle at a remote bundle results root
-- **#600**, **#720**, **#677**, **#710** scope decisions (Section 0.1)
+- **#600**, **#720**, **#677** scope decisions (Section 0.1); **#710** (a
+  global navigation index in the bundle) **decided 2026-09-15: deferred**,
+  the prototype bundle finishes without it
 - **#53** with **#67**, **#79**, **#30**, **#63** the generalization to
   Voyager, Galileo and New Horizons; **#595**-**#599** the user guides;
   **#687** cite the calibrated PDS4 product once its bundle exists
@@ -813,7 +956,8 @@ these are what it owes and what generalizes it):**
 - **#361** disc-NCC sub-pixel resolution floors the smallest limb-disc coupling
   detectable (Important)
 - **#321** partial-arc limb fits carry an undiagnosed inward radial bias of
-  about 2 px (navigation finding)
+  about 2 px (navigation finding); PR #789 addresses it and is frozen with
+  the ring/star stack
 - **#322** cross-body limb errors correlate at +0.72; multi-body frames are
   not independent measurements
 - **#324** agreement estimator tests do not run in CI
@@ -844,12 +988,17 @@ these are what it owes and what generalizes it):**
 ## 5. Sequencing summary
 
 ```text
-0.1 decisions (#316, #407, #338, #548, #547, #459, #468, #466, #557,
-    #600, #720, #677, #730, #744, #748, #751)                   (operator, minutes)
+0.1 decisions (#316, #407, #338, #548, #547, #459, #468, #466, #462, #557,
+    #600, #720, #677, #730, #744, #748, #751, #867; #880 with the
+    frozen stack; simulator #1017; #923 decided)               (operator, minutes)
+    star-frame pins: decided 2026-10-31 and applied (PR #754)   (done)
 0.2 adopt transfer watch (#334)                                 (operator, minutes)
 --- then, before Track A collects anything at scale
 --- #288 library regression reconcile    (agent session; unblocks #483 and #547)
---- the confidently-wrong families: #346/#373/#755, and #621
+--- the confidently-wrong families: #346/#373/#755, and #621's re-check on
+    main (#373 and #755 wait on the frozen ring/star stack's benchmark)
+--- simulator, in parallel: realism-record regeneration with #961
+    (in progress) -> Phase 1b, starting with #923 and #1005
 --- then ---
 2.1 library growth (batch-006 + continued)   (agent session; your votes gate it)
 2.2 agreement study bulk   (after 2.1 cohorts; you approve frames)

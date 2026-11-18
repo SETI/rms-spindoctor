@@ -25,13 +25,38 @@ Ordering within the track: the confidently-wrong defects (#346, #755, #350), bec
 ensemble output at scale and several curated library frames pin these as
 standing red regressions. Then the coarse-lock remainder (#373), then the
 investigation/design items (#25, #128/#150), with the smaller decision items
-(#130, #239, #338) as fill.
+(#130, #239, #338) as fill. #558 records why the confidently-wrong family
+comes first: confidence calibration (WS-5) anchors on the cross-technique
+agreement study, and a technique that answers confidently wrong corrupts the
+agreement statistic itself, so either the family closes before the study
+collects or the study leaves out every frame such a technique contributed to.
+
+### #949 — 2,812 Cassini frames timed one exposure late (Priority 2, upstream)
+
+Cassini ISS frames are read through rms-host-cassini 0.1.1 (since #952),
+which starts each exposure at the label's `START_TIME`. On 2,812 of 443,177
+COISS frames that time equals `IMAGE_TIME`, the shutter-close time, so the
+frame's geometry is computed one whole exposure late (1200 s late for
+N1459611003_1): 2,385 frames with the shutter disabled, across COISS_1xxx
+and about 70 tour volumes, and 427 with it enabled, all on COISS_1001. The
+rms-oops 0.3.0 reader ended every exposure at `IMAGE_TIME` and timed them
+right. None of the 75 library frames is affected, so no test shows it.
+
+The fix is upstream: SETI/rms-host-cassini#3, open. Until a fixed release
+ships, every navigation of those frames is at the wrong time, which matters
+for any full Cassini run. When it ships: raise the floor in
+`pyproject.toml`, confirm that N1459611003_1 and a COISS_1001 frame such as
+W1294561143_1 end at `IMAGE_TIME`, and re-navigate any of these frames
+navigated in the meantime. Their documents also fail the C-matrix reader's
+midtime check against documents written before the move.
 
 The rotation work sits outside that ordering and has its own sequence: one
 convention about the image center first (#434), then wider distortion cohorts
 (#561), and only then any decision to fit rotation again. A conflicted result
 dropping its fitted rotation (#521) waits on the same convention and cannot
-fire until fitting is enabled somewhere.
+fire until fitting is enabled somewhere, and so does the star pair search's
+fitted rotation, which `StarUniqueMatchNav` neither bounds by
+`max_rotation_deg` nor compares between pairs (#863).
 
 The ensemble-independence family (#222 seeded single-star refine, #317 two
 ring techniques on one catalog, #339 scattered-light disc/limb) is closed by
@@ -48,7 +73,11 @@ background-gradient score
 uses the conservative rho=1 (fully-correlated) model; #380 tracks the
 follow-up to fit an explicit per-family cross-covariance from the agreement
 study and recover the partially-correlated precision, gated on real-frame rho
-measurements (#225).
+measurements (#225). A related ensemble question is open as #557: the
+combined confidence caps at 0.99 (`COMBINED_CONFIDENCE_CAP`, with
+`AGREEMENT_FACTOR_CAP`), and two significant results whose weighted mean
+confidence reaches 0.66 already reach it, so a monotonic calibration map
+cannot separate the frames the cap collapses onto one value.
 
 The confident-wrong body-nav family (#328 high-phase haze crescent, #291
 extreme-shape-mismatch disc/limb consensus) is closed by the cross-technique
@@ -190,8 +219,8 @@ floor, the ensemble's error there was the rank-1 axis quantization fixed
 below, and #476 closed on that across-edge criterion, leaving the along-edge
 part to #755); `BodyDiscCorrelateNav` still misses by
 up to ~1 px on a weakly-constrained axis (#482); and the library pins the fix
-moves need re-ratcheting when it lands (#483, which cannot be done honestly
-until #288 is reconciled).
+moves need re-ratcheting when it lands (#483, which cannot be done
+meaningfully until #288 is reconciled).
 
 ### The ring routing decision, and #346 — the remaining confident-wrong ring-lock
 
@@ -220,6 +249,15 @@ it (#567). Measured as a basin selector below 25 km/px, the annulus
 correlation was right across the edge on F ring movie frames but 30 to 115 px
 wrong on N1492091163, N1467344214, N1867602424 and the Keeler gap frames,
 where the edge fit is right, so the hybrid as filed would regress them.
+
+The 25 km/px cut is no longer the intended routing. On 2026-10-28 the
+operator ruled, on #822, that a resolved catalog edge (the B ring outer
+edge, the Cassini Division, the A ring edges, the Encke and Keeler gaps) is
+to be navigated on at coarse scales too, including 90-130 km/px NAC and
+coarse WAC frames: the full spokes run refused 601 of 936 NAC frames with
+sharp catalog edges in view, because the rings model emits no edge at those
+scales and the annulus correlation runs to the edge of its search window.
+That work waits with the frozen stack below.
 
 The lattice lock itself is addressed in the coarse seed. The mask-overlap
 seed counts every detected edge pixel alike, so where a ring's interior
@@ -257,8 +295,9 @@ What remains of the family:
   normal and went red; on 2026-10-27 the operator re-pinned them along the
   line's own normal (the values are recorded in the Operator Playbook), and
   re-pinned the two Encke gap frames' tier from `medium` to `low`, the ring
-  orbit channel's. All seven are expected to pass; the library has not been
-  run since the re-pins.
+  orbit channel's. Their `primary_technique` pins, which named BodyBlobNav
+  where RingEdgeNav now carries the answer, were moved to RingEdgeNav with
+  #754's re-pins (commit 7617c81e), and both frames pass on `main`.
 - **Along-edge error on nearly straight edges (open).** An edge that is not
   flagged straight but barely curves across the frame constrains the
   along-edge component only weakly, and the reported covariance does not show
@@ -279,7 +318,10 @@ What remains of the family:
   Together the sample went from 179 right and 68 wrong to 170 and 80. The
   untried design keeps the ensemble covariance as it is and lowers only
   RingEdgeNav's own confidence on a nearly straight edge, and is tracked
-  as #755.
+  as #755. #766 carries a fix (the edge's covariance taken from the arc's
+  own geometry rather than the distance transform's staircase), frozen with
+  the rest of the stack below; #755 stays open until a full F ring bundle
+  run on merged code confirms it.
 - **One strong step, two cataloged edges (open).** Where cataloged edges lie
   a few tens of pixels apart, the strongest alignment can lay the wrong one
   on the strong step: 5 of the 1,041 held-out frames, 7 to 49 px across the
@@ -310,9 +352,10 @@ What remains of the family:
   `failed` pin wants a decision, and the issue stays open on it. The two
   Encke gap frames are the rank-1 axis above: their offsets now land on
   operator truth at the `low` tier, and on 2026-10-27 the operator re-pinned
-  their tier from `medium` to `low`, so both are expected to pass (the
-  library has not been run since). Exposure is limited to the sub-25 km/px
-  regime by the routing decision above.
+  their tier from `medium` to `low`; #754's re-pins moved their
+  `primary_technique` pins to RingEdgeNav, and both pass on `main`.
+  Exposure is limited to the sub-25 km/px regime by the routing decision
+  above.
 - **#476** (closed) — its acceptance criterion read: "any fix should drive
   the RingEdgeNav rows of the shift-equivariance sweep toward the
   DT-technique floor (~0.06 px) on the `ring_only_*` and `ring_plus_body`
@@ -358,9 +401,20 @@ most of the lattice locks (alias locks across the edge from 188 to 4 on the
   N1851226701; 3.8 to 45 px), all at the medium tier;
 - the issue's own calibration datapoint, `N1467344214_2`, has not been
   re-measured against the issue's gate (the #179 no-net-new-failures gate
-  over the `ring_only_*` library set).
+  over the `ring_only_*` library set);
+- whole movies locked across the edge: all answered frames of the 2007
+  spokes movie ISS_037RI_SPKMRHPDF002 (#778) and the two F ring radial
+  locks N1601496278 and N1492071146. #779, in the frozen stack below,
+  checks the seed against nearby edges and does not move #778's frames.
 
 ### #621 — the sparse star frames still refused
+
+Status: the work below merged as #754 on 2026-11-03 and closed #622, #623,
+#639, and #763; the measurements in this section are of that code. #621
+stays open. The fixes for the refusals it left (cosmic-ray hits crowding
+the star field's detections, #764, and faint stars against ring texture,
+#769) are in the frozen stack below; on that stack's code the F ring movie
+navigated 1006 of its 1030 frames.
 
 Measured on all 1030 frames of the `ISS_006RI_LPHRLFMOV001_PRIME` F ring
 movie, where stars are the only technique that can navigate at all (the ring
@@ -371,9 +425,9 @@ fixed so far: the star field's detections were ring pixels until isolated
 sources were required; the unique match tried only the brightest two
 predictions inside a window smaller than the 43 px pointing error; and its
 centroid took the brightest pixel of the window, so a ring, a neighbor, or a
-cosmic ray won the star's window (#639). A one-star solution is marked
+cosmic ray won the star's window (#639, done). A one-star solution is marked
 `single_star_only` and capped at the low tier, and a shared star counts as one
-witness (#622, #623).
+witness (#622, #623, both done).
 
 The same code was measured on every star-navigated frame of the published F
 ring bundle (305 observations), with one third of the observations held out
@@ -526,9 +580,10 @@ filter, centroid box, isolation annulus and shared-star agreement to each
 instrument's point-spread function is the fix, and it needs Galileo frames
 with an outside answer to set and check it (#753).
 
-One residual is known: a coincidental pair among few stars. On the held-out
-frame `N1760833094` two of four predicted stars agree to 0.75 px at an offset
-35.7 px wrong, reported at the medium tier; the brightest star is detected
+One residual is known, and is tracked as #862: a coincidental pair among few
+stars. On the held-out frame `N1760833094` two of four predicted stars agree
+to 0.75 px at an offset 35.7 px wrong, reported at the medium tier; the
+brightest star is detected
 elsewhere and the fourth not at all, so no rule that refuses a pair the other
 stars contradict can see it without also refusing correct pairs. Requiring
 every other searched star to be found and to disagree costs 8 correct
@@ -536,6 +591,127 @@ two-star answers on the tuning frames and catches none there; capping
 two-star answers over a 0.7 px residual at the low tier lowers 43 correct
 ones and catches one answer 2.7 px wrong. It is the only answer more than
 3 px wrong among the 2338 two-star answers measured, tuning and held-out.
+
+### The frozen ring, star, and ensemble PR stack (waits for a cross-mission benchmark)
+
+The operator froze this stack on 2026-11-06. Its rules were tuned on F ring
+and spokes bundle frames, about 5% of Cassini, yet apply to every mission;
+its PRs' benchmarks cannot be compared with each other; and there is no
+clean held-out test. No further work goes into these PRs until a
+cross-mission benchmark exists; #1033 builds it. On revisit, the principled
+pieces (star photometry, smear, ring-edge axes) are re-landed and measured
+on that benchmark, each ensemble rule earns its place on it, and #822's
+catalog-edge work is finished. #754, #756, and #758 merged before the
+freeze and stay in `main`. Every issue the stack addresses stays open until
+code that fixes it reaches `main`.
+
+| PR | Based on | What it does | Closes |
+|---|---|---|---|
+| #766 | `main` | Along-edge ring covariance from the arc's geometry, the Cassini photometric star limit, ensemble compromise rules (refs #755, #130, #765, #566, #767, #844, #836) | #762, #764 |
+| #779 | #766 | Checks the ring-edge seed against nearby edges (refs #373) | none |
+| #773 | #766 | Centroids smeared stars at their streak centers | #765 |
+| #774 | #773 | Predicts Cassini star smear from the as-flown C-kernels | #768 |
+| #782 | #774 | Matches faint stars against ring texture within reach | #769 |
+| #784 | #782 | Holds set joiners to the ensemble's sharper members | #767 |
+| #789 | `main` | Fits Saturn's partial limb arcs to the visible haze edge (refs #321, #760); waits behind the rest, and the operator merges it only after their own review | none |
+
+The open issues of the family, by what they concern. Each waits for the
+benchmark; where a PR above addresses one, it is named.
+
+Ring edges and the ring annulus:
+
+- **#822** (Priority 2) — NAC spoke frames show sharp catalog ring edges and
+  navigate on none of them; the operator's ruling is in the ring routing
+  section above. Its local branch `rf_ring_edges_822` (last commit
+  2026-10-28) is parked with the frozen stack.
+- **#761** — the A ring outer edge sits up to 34 km (6 px) off the ring
+  catalog in rev 087, enough for the edge fit to lock the wrong edge; with
+  #779 three 2005 F ring frames get about 1 px worse until it is corrected.
+- **#778** — RingEdgeNav aliases Cassini Division edges onto B ring texture
+  on every answered frame of a 2007 spokes movie; #779 does not move them.
+- **#831** — bound the ring-edge basin tolerance and make the basin-check
+  test pin which offset it uses (from #779's review).
+- **#770** — the 2009 NAC spoke movies sit a steady 2.5-3.6 px from the
+  spokes bundle on ring annulus answers, and the image stars cannot say which
+  side is right; decide it independently of both navigations.
+- **#760** — the WAC spoke movies of revs 199-201 navigate barely better than
+  SPICE against the F ring bundle; partly fixed on the stack's code, and
+  ISS_201RI_SPOKEMOV009, a limb case, remains (#789 refers to it).
+
+Stars:
+
+- **#762** (#766) — a conflicted pass 1 keeps StarRefineNav from testing a
+  star answer.
+- **#764** (#766, #782) — cosmic-ray hits crowd stars out of
+  StarFieldFromCatalogNav's detections.
+- **#765** (#773) — star centroids land at random points along a smeared
+  streak.
+- **#768** (#774) — the predicted star smear is often wrong in length and
+  direction, because the reconstructed C-kernels repeat attitudes.
+- **#769** (#782) — the star techniques refuse WAC spoke frames whose faint
+  stars are measurable.
+- **#771** — pass-2 arbitration counts refined stars whatever their
+  residual, so stars a wrong prior reaches (more of them through a streak
+  box) can refuse a right answer.
+- **#772** — split `_star_helpers.py` once the star PRs meet; combined they
+  take it over the 1000-line cap.
+- **#780** — StarUniqueMatchNav's near-rival rule refuses a faint
+  ring-background star; left as it is by #782.
+- **#781** — record the star field's set-aside source count in its
+  diagnostics (a follow-up of #782).
+- **#785** — WAC star answers near the extended-FOV margin are zeroed by the
+  `at_edge` rule though the star windows reach farther, refusing whole
+  observations the stars answer (one window per camera is #830).
+- **#787** — the star model emits no features when its noise estimate is 0;
+  five of eleven such frames were navigable on stars.
+- **#852** — StarRefineNav gives a clipped star the largest weight although
+  its centroid is the least reliable; #754 handles a flat clipped core in
+  raw frames, not a calibrated one.
+- **#862** — the coincidental two-star pair answered 35.7 px wrong at the
+  medium tier (the residual above), with a simulator case of the same kind;
+  re-navigate it once the stack merges.
+- **#864** — a collapsed star set is represented by a looser fit than one of
+  its members; a candidate fix survives as the archived ref
+  `refs/archive/branch/rf_754_rep_f`.
+- **#865** — three F ring frames stay refused on ring-versus-star conflicts;
+  re-measure them once the stack merges.
+- **#868** — measure the predicted star smear for Voyager, Galileo, and
+  LORRI with #768's method (a follow-up of #774).
+- **#880** — choose which stars judge a lone star's absent-star test: with
+  #766's photometric limit the model predicts 20 to 99 stars per frame, and
+  one faint absent star refutes right answers.
+
+The ensemble:
+
+- **#767** (#784) — the ensemble fuses single results that agree only
+  through the pixel floor.
+- **#783** — two single results inside the 5 px floor still fuse however far
+  apart they are statistically, and two bridging cases remain (a follow-up
+  of #784).
+- **#786** — a geometry-seeded StarRefineNav on one or two stars counts as a
+  second witness and raises the tier.
+- **#869** — each ensemble leave-out rule should log its own reason (a
+  follow-up of #784).
+
+The visible limb (#789):
+
+- **#858** (Effort 1) — make the visible-limb altitude a property of the
+  body and the wavelength, shared by every mission (operator, 2026-11-03).
+- **#878** (Effort 1) — calibrate the altitude from a full Cassini
+  navigation, with a separate tool run afterward that measures the limb only
+  on frames a star, ring, or moon technique answered on its own; #789's
+  calibration is interim.
+- **#857** — Saturn's Cassini ISS table ignores filter, latitude, season,
+  and NAC scales below 123 km/px.
+- **#855** — the summary overlay draws the silhouette while the limb fit
+  uses the placed visible limb, so a right answer looks misplaced.
+- **#859** — limb and terminator fits still use vertices beside
+  missing-data edges, and the terminator fit still uses vertices in the
+  frame margin.
+- **#860** — Saturn limb answers on the rev 36-37 SPKMRHPDF observations sit
+  4-9 px from every reference, with or without the visible-limb placement.
+- **#861** — Tethys' image limb sits 2-3 km inside its PCK ellipsoid; decide
+  whether it is a size or a shape error and where a correction belongs.
 
 ### #128 / #150 — Limb navigation redesign and the ~0.1 px systematic
 
@@ -549,7 +725,8 @@ diagnosis attributes the dominant term to the photometric roll-off, not DT
 quantization, and ranks the fixes: (1) fit a photometric limb (predict the
 limb-darkened-disc-convolved-with-PSF brightness profile and match it, #150);
 (2) a matched-filter sub-pixel edge estimator to remove the interpolation
-ripple (#282); (3) a pixel-center convention audit (#283). **Constraint:** do
+ripple (#282); (3) a pixel-center convention audit (#283, done: closed by
+#840 after the repository-wide audit below). **Constraint:** do
 not enable a fitter change until
 the real-image measurement exists (Track A #225 provides it) — the current
 partial cancellation is accidental and a well-meaning "fix" can make real
@@ -557,7 +734,11 @@ accuracy worse. On real frames the fitter contributes only ~0.1 px while
 spacecraft-position / ephemeris error dominates (0.4-1.7 px), so the
 higher-leverage pointing-kernel side (#50) was built first and is
 delivered. #128 is the fuller redesign (all body types and illuminations)
-and starts with a design document, not code.
+and starts with a design document, not code. A real-frame measurement made
+for #789 sharpens the case: on the library's moon frames BodyLimbNav's
+answer sits a mean 0.7 px inward of the star answer, several times the
+~0.1 px of the simulation and in the same direction, and #789 addresses
+only Saturn's haze.
 
 **#128 now carries landing the held #447 fix.** The redesign starts from
 `rf_shift_equivariance_v2` rather than from `main`, and landing that branch
@@ -576,7 +757,12 @@ which are #483's.
 **#646 gates the measurement.** The harness that exists to calibrate the limb
 bias puts its simulated limb ridge in a different place from the catalog model
 the real frames use, about half a pixel away, so it measures the harness rather
-than the fitter. Fix it before reading any number it produces.
+than the fitter. Fix it before reading any number it produces. Making the
+simulated ridge match the catalog model's would tune the measurement, so the
+work is filed as #843 (navigate simulated frames with `NavModelBody` itself,
+independent of the renderer) and #842 (check the simulated limb's gradient
+peak against star-navigated real frames and fix the simulator's photometry
+where they differ).
 
 ### Smaller Track B items
 
@@ -599,59 +785,96 @@ than the fitter. Fix it before reading any number it produces.
 - **#579** — the logged star-smear summary projects one sky direction, the
   frame center, so it reads zero on a rolling frame where the smear is
   largest at the corners. A log line, not a navigation input.
+- **#836 / #994** — the star model sometimes emits one catalog star twice
+  under one feature ID (#836, 23 of 1986 F ring and spokes frames). #994 is
+  a likely cause: the catalog reduction queries magnitude bins whose ends
+  are both inclusive, so a star exactly on a bin edge comes back twice, and
+  the duplicate check compares only stars from different catalogs.
+- **The correlation techniques** — the disc and ring annulus correlations
+  share `support/correlate.py`, and five items on them are open.
+  - **#791** (Priority 2) — `BodyDiscCorrelateNav`'s sub-pixel refinement
+    cannot leave a +-0.5 px window around the integer peak and reports the
+    window edge unflagged, and the raw cross-power peak it climbs is itself
+    biased by about a pixel on a scene with stray light and limb relief.
+    #929 fixed the clamp for the ring annulus only (#1003, a quadratic fit
+    of the NCC surface on the final pass); the disc stays as it is by
+    decision, since on 29 real disc frames no candidate refinement beat the
+    current one, and #929's disc criteria moved here.
+  - **#1002** — when the annulus quadratic fit cannot be used, or its
+    maximum lies more than a pixel away, the answer stays on the whole pixel
+    with nothing marking it: no wider uncertainty, no spurious flag.
+  - **#997** — a constant brightness offset can make the masked correlation
+    reject every shift, because the variance floor takes its maximum over
+    shifts the overlap floor already rejected.
+  - **#585** — the PSR's background region is 20 times the search window;
+    it also carries #941, the missing minimum background size that lets a
+    small body's PSR rest on a few cells.
+  - **#951** — RingAnnulusNav's answer on N1489603610_2_CALIB moves 32 px,
+    and its raw-versus-gradient choice flips, under a 1e-8 s time change;
+    find the comparison sitting on a tie. Its `ncc_peak` field holds the
+    PSR, which the name does not say.
+- **#824** — a `calibrated_if` camera block that omits `noise.marker_value`
+  defaults to NaN, but every real calibrated product the navigator reads
+  (Cassini CALIB, Voyager GEOMED) marks missing pixels with 0; comments
+  across the orchestrator state the NaN convention as fact.
+- **#815** — `NavImageClassifier.classify` called without `missing_frac`
+  reads the peak before the marker pixels are filled, so for a non-zero
+  marker it disagrees with the orchestrator's verdict; have `classify` fill
+  the marker itself.
 - **#338** — decision: the highly-irregular exclusion discards a
   ground-truth terminator fit on N1853392805; implement whichever option the
   operator picks (accept the 2-px-class ground truth, keep TERMINATOR_ARC for
   SPICE-known synchronous rotators, or shape models per #23).
-- **#635** — the star pixel datum: a star record carries oops uv (a pixel's
-  corner) and every star technique measures array indices (a pixel's center),
-  so every star-derived offset was short by half a pixel in both axes. Fixed
-  by declaring the convention on `MutableStar` and converting at each point of
-  use (`STAR_UV_DATUM_PX`). The library's star-derived ground truths carried
-  the same bias and 17 of them were corrected by the datum, each one a pin the
-  sidecar records as a star technique's own offset or as a run in which only
-  star techniques emitted. Four were left: three fused pins whose correction is
-  the datum times a star weight that can only be reconstructed, and
-  N1633925572, whose sidecar then carried an operator ruling not to
-  re-ratchet. That ruling ended on 2026-10-27, when the tier was re-pinned to
-  `low`, but the truth (the one-star match's own offset) still carries the
-  uncorrected datum, and correcting it is an open operator decision.
-  W1444747627 was pinned by hand against an overlay the notes describe as star
-  and body together, so which half the drag followed is not recorded.
-  N1530185128 flipped to a different lock (18.2 px -> 1.2 px, confidence
-  0.72 -> 0.40) because `StarUniqueMatchNav`'s search window took the
-  brightest pixel inside a slab whose integer bounds moved with the
+- **#635** (done, #643) — the star pixel datum: a star record carries oops uv
+  (a pixel's corner) and every star technique measures array indices (a
+  pixel's center), so every star-derived offset was short by half a pixel in
+  both axes. Fixed by declaring the convention on `MutableStar` and converting
+  at each point of use (`STAR_UV_DATUM_PX`). The library's star-derived ground
+  truths carried the same bias and 17 of them were corrected by the datum,
+  each one a pin the sidecar records as a star technique's own offset or as a
+  run in which only star techniques emitted. Four were left: three fused pins
+  whose correction is the datum times a star weight that can only be
+  reconstructed, and N1633925572, whose sidecar then carried an operator
+  ruling not to re-ratchet. That ruling ended on 2026-10-27, when the tier was
+  re-pinned to `low`, but the truth (the one-star match's own offset) still
+  carries the uncorrected datum, and correcting it is an open operator
+  decision. W1444747627 was pinned by hand against an overlay the notes
+  describe as star and body together, so which half the drag followed is not
+  recorded. N1530185128 flipped to a different lock (18.2 px -> 1.2 px,
+  confidence 0.72 -> 0.40) because `StarUniqueMatchNav`'s search window took
+  the brightest pixel inside a slab whose integer bounds moved with the
   prediction, and a single-pixel cosmic ray on the row the datum added won it
-  -- a fragility the datum change tipped rather than caused. The window is
-  now centered and odd-width, its detection is the strongest matched-filter
-  peak that is not sharper than a star, and the isolation test allows for a
-  star's smear; the frame commits its two-star fix 0.1 px from truth again.
-- **#641** — a simulator scene states every position that places something in
-  it as a pixel corner, which is the same oops uv a star record carries, so
-  the record builder copies a scene position through. The shipped scenes moved
-  by half a pixel in the files, and every one of the 64 renders byte-identical
-  to what it rendered before.
-- **#642** — the simulator turns a planted roll about one point: the frame's
-  center in pixel corner coordinates, where the body and ring paths already
-  pivoted. `render_stars` was reading `size / 2` as a pixel centric coordinate,
-  half a detector pixel away, so a rolled scene planted a star truth its own
-  bodies and rings disagreed with. Moving a pivot by `d` shifts every rendered
-  position by `(I - R) d`, a rigid `2 |d| sin(theta / 2)` the same near the
-  center as far from it, so the one shipped scene with a roll moved its whole
-  star field by 0.0169 px and the other 63 render byte-identical. That scene's
-  baseline flipped from `conflicted` to `success`: `StarUniqueMatchNav` had been
-  confidently answering it 11 px wrong and now declines, which is the
-  brightest-pixel window fragility (#639) tipping on a 0.01 px render change in
-  either direction, not a
-  navigation improvement this earned. One finding from the same audit is filed
-  and left out of that change: a roll rotates positions and poses but not a
-  star's smear vector, a companion's position angle, or the background sky field
+  -- a fragility the datum change tipped rather than caused. The window is now
+  centered and odd-width, its detection is the strongest matched-filter peak
+  that is not sharper than a star, and the isolation test allows for a star's
+  smear; the frame commits its two-star fix 0.1 px from truth again.
+- **#641** (done; closed by #840 as a duplicate of #409) — a simulator scene
+  states every position that places something in it as a pixel corner, which
+  is the same oops uv a star record carries, so the record builder copies a
+  scene position through. The shipped scenes moved by half a pixel in the
+  files, and every one of the 64 renders byte-identical to what it rendered
+  before.
+- **#642** (done, #647) — the simulator turns a planted roll about one point:
+  the frame's center in pixel corner coordinates, where the body and ring
+  paths already pivoted. `render_stars` was reading `size / 2` as a pixel
+  centric coordinate, half a detector pixel away, so a rolled scene planted a
+  star truth its own bodies and rings disagreed with. Moving a pivot by `d`
+  shifts every rendered position by `(I - R) d`, a rigid `2 |d| sin(theta /
+  2)` the same near the center as far from it, so the one shipped scene with a
+  roll moved its whole star field by 0.0169 px and the other 63 render
+  byte-identical. That scene's baseline flipped from `conflicted` to
+  `success`: `StarUniqueMatchNav` had been confidently answering it 11 px
+  wrong and now declines, which is the brightest-pixel window fragility (#639)
+  tipping on a 0.01 px render change in either direction, not a navigation
+  improvement this earned. One finding from the same audit is filed and left
+  out of that change: a roll rotates positions and poses but not a star's
+  smear vector, a companion's position angle, or the background sky field
   (#644).
-- **#640** — the star edge cull expresses the four extended-FOV bounds in uv
-  before it tests six uv positions against them, so the gate no longer sits
-  half a pixel inside the edge it names. Across the 75 library frames one
-  star changes state, on `lor_0030713597_0x633_sci`; it lands ten rows into
-  the zero-filled extfov margin, so no frame's navigation moves.
+- **#640** (done, #643) — the star edge cull expresses the four extended-FOV
+  bounds in uv before it tests six uv positions against them, so the gate no
+  longer sits half a pixel inside the edge it names. Across the 75 library
+  frames one star changes state, on `lor_0030713597_0x633_sci`; it lands ten
+  rows into the zero-filled extfov margin, so no frame's navigation moves.
 - **The pixel-convention audit** — every use of a pixel coordinate in the
   repository was read against the two systems the code names with
   `PIXEL_CENTER_TO_CORNER_PX`: pixel corner, which the `oops` geometry calls
@@ -703,7 +926,11 @@ than the fitter. Fix it before reading any number it produces.
   cap that behaves as a size-dependent gate (#404), the uncharacterized
   extreme-phase edge (#401), and opaque-ring masking that refuses frames
   visible through the C ring or the gaps (#402). The ensemble has never been
-  exercised on the oblique covariance the fit reports (#400).
+  exercised on the oblique covariance the fit reports (#400). Two
+  extensions are filed: a haze-radius table accumulated from production
+  fitted radii, which would pin the radius and remove the dominant
+  along-track error (#397), and a correlation refinement stage on the
+  methane surface-window (CB3) frames against a cartographic model (#398).
 - **#747** — `lm_unconverged_with_polarity_rejection` hard-rejects a
   `BodyLimbNav` or `BodyTerminatorNav` fit when `LMRefineResult.converged` is
   False and the polarity rejection fraction is at least 0.10, and below 0.35
@@ -716,7 +943,9 @@ than the fitter. Fix it before reading any number it produces.
   below tolerance as convergence would disarm the gate on four fits it rejects
   today, so the discriminant has to be re-derived against labeled healthy and
   mis-locked fits; the healthy frames the gate cites (`N1702389073`,
-  `N1702389662`, `N1702390017`) have to join the library first.
+  `N1702389662`, `N1702390017`) have to join the library first. #789 adds a
+  second consumer of the same missing information (its mis-lock refit
+  check); an LM that reports why it stopped would decide both.
 - **#748** — decision: a body's witness blob serves the body-witness veto as
   well as standing as an answer, and the veto's 2-sigma tolerance survives
   more clipping than the answer's 0.05 R centroid-bias allowance. On a
@@ -735,18 +964,19 @@ than the fitter. Fix it before reading any number it produces.
 
 ## Track C — Statistics and QA
 
-- **#240** — coverage-matrix invariant test: every scene class >= 2
-  sidecars, every autonomous technique the expected primary somewhere.
-  Lives with the library structural tests
-  (`tests/integration/test_image_library.py`); runs in the deliberate
-  tier, marked expected-incomplete until #235 fills `faint_stars` and
-  `ring_only_flat`.
+- **#240** (done, #833, 2026-11-02) — coverage-matrix invariant test:
+  every scene class >= 2 sidecars, every autonomous technique the expected
+  primary somewhere. It is in
+  `tests/integration/test_image_library_coverage.py`, in the integration
+  tier, with the known gaps (`body_mostly_offscreen`, `faint_stars`,
+  `RingAnnulusNav` #871, `TitanHazeNav` #405) reported as expected failures
+  until filled.
 - **#533** — a file that could not be retrieved is counted by a tree-backed
   report and by no index-backed one. The ingest deliberately records no
   refusal for a retrieval that failed, because a retrieval that failed once
   is worth trying again; that is right for the ingest and it makes the two
   storages disagree about one of the six refusal kinds. Close it by deciding
-  which count is the honest one, not by making the ingest lie.
+  which count is the right one, not by making the ingest lie.
 - **#535** — the statistics report retains more than it prints under
   `--top-n`. Small; the fix is to bound what the accumulator keeps.
 - **#340** — `library_crosscheck` records only a yes/no primary-technique
@@ -757,9 +987,9 @@ than the fitter. Fix it before reading any number it produces.
   merge: `util/calibration/library_crosscheck.py` over the full library,
   every per-image delta accounted for; `sd_stats_report` over campaign
   outputs as the accuracy checkpoint. Note that the practice is currently
-  degraded: with 19 of 75 library frames red locally (#288, #744, and ten
-  star-frame pins awaiting ratification), a cross-check can only be read
-  as "no *new* deltas against `main`".
+  degraded: with 6 of 75 library frames red on `main` (measured 2026-11-16
+  beside PRs #999 and #1003; #288, #744, #350, #483, and #338), a
+  cross-check can only be read as "no *new* deltas against `main`".
 
 ## Track D — Capability completion
 
@@ -815,8 +1045,9 @@ Work items, in dependency order:
    indexes (#710).
 4. **#595 through #599** — the backplanes user guides. Every bundle's document
    collection declares a `Product_Document` naming a PDF that does not exist;
-   #595 is the shared LaTeX template and #596-#599 are the per-instrument
-   guides.
+   #595 is the shared LaTeX template and #596, #597, #598, and #599 are the
+   per-instrument guides (Cassini ISS, Voyager ISS, Galileo SSI, and New
+   Horizons LORRI).
 5. **#30** — backplane label design (couples to the #55 backplane-set
    decision).
 6. **#79** — scrape the PDS4 context products to maintain the targets
@@ -980,6 +1211,14 @@ Operationally, the program is still hard to run: locating the kernels it
 needs takes several `--kernel-dir` flags and still misses some. That is the
 practical face of #448 (locate C-kernel inputs through `spyceman` instead of
 a kernel directory tree) and should be weighed when #448 is scheduled.
+
+One input-side decision is open: whether Cassini navigation reads the
+predicted C-kernels, which represent slew rates better and lack the
+reconstructed set's glitches and ripples (#459, operator guidance). The
+implementation is one config key and is on the pushed, unmerged branch
+`rf_ck_cassini_predicted`; the issue records the measured consequences that
+make it a decision rather than a change, and the pipeline reads the
+reconstructed kernels until it is made.
 
 ### The results index: delivered, and what it left open
 
@@ -1204,16 +1443,29 @@ asserts the generated half matches the registries.
   log comparable against other timestamped records.
 - **#411** — migrate the technique config keys to snake_case, so the
   configuration spells component names the way `log_key_for` and the rest
-  of the config system already do.
+  of the config system already do. Deferred with #427: decide it before
+  #1032's first technique-tuning PR, which does the rename if it is wanted,
+  so the keys are typed once under their final names.
 - **#427** — the config top-level namespace mixes domain objects, pipeline
   stages, instruments, output products, and infrastructure on no stated
   axis, with `general` as the catch-all. Lifting `logging` out of `general`
-  fixed the worst instance and left the pattern. Sequence this **before**
-  #118 (config validation): a schema per section is easier to write and to
-  keep honest once the sections are organized, and doing it the other way
+  fixed the worst instance and left the pattern. By default, sequence this
+  **before** #118 (config validation), unless the operator decision below
+  says otherwise: a schema per section is easier to write and to keep
+  accurate once the sections are organized, and doing it the other way
   freezes the current grouping into a schema. #712 (renumber the
   configuration files, so the `config_NN_*` merge order carries the same
   axis) is the filename half of the same question and moves with it.
+  The shared schema core #118 builds on is #1021 (plain frozen dataclasses
+  parsed by pydantic), in the simulator plan's Phase 2a; it serves the
+  simulator only and changes no navigator config. **Deferred (operator,
+  2026-11-17):** the navigator config is left alone for now, so #427,
+  #1029 (the navigator camera blocks), and #1032 (every other section,
+  and deleting the packaged keys nothing reads) wait. When the work
+  resumes, which sections this reorganization covers, and whether it
+  lands before they are typed, is an operator decision to record on
+  #427; until it is recorded, each typing PR checks #427 first and does
+  any move it asks for in the same PR.
 - **#141 / #142** — dedup the CLI driver preamble and cloud-task loop;
   fix the dropped `extra_params` and the ImageFiles cardinality
   disagreement.
@@ -1245,7 +1497,31 @@ asserts the generated half matches the registries.
 - **#118** — config validation system: schema per section, unknown-key
   rejection, type/range checks at load
   (`src/spindoctor/config/config.py`); pairs well with #176's
-  constants-into-config completion.
+  constants-into-config completion, whose single source of truth #1032
+  enforces (section types declare fields with no Python default, and the
+  `DEFAULT_*` copies are deleted). **Deferred (operator, 2026-11-17),**
+  with #427 (see its entry above). Delivered on #1021 (the shared schema
+  core, which the simulator builds first) by two issues: #1029 (the
+  camera blocks) and #1032 (every other section, then `AttrDict` retired
+  from the config path). Meanwhile the typed scene (#1024) types the
+  scene's `instrument_config` overlay itself, repeating the camera keys'
+  ranges until #1029 lands. #1032 lands in about ten PRs in a stated
+  order, each typing PR checking #427 first:
+  - [ ] delete the packaged keys nothing reads, at least 54 of them
+    including the whole `bootstrap` section (needs nothing else; #1023
+    deletes the camera blocks' dead keys)
+  - [ ] #1029: the camera blocks, with the core's VALUE null policy and
+    the loader's merge moved onto the core
+  - [ ] the orchestrator section
+  - [ ] technique confidence and tuning, two or three PRs by family
+    (decide #411's snake_case rename first)
+  - [ ] the logging section
+  - [ ] `bodies`, `stars`, `titan`, `rings`, `body_shape`, `satellites`,
+    and `feature_emission`
+  - [ ] `general`, `environment`, `offset`, `results_tree`, `backplanes`,
+    and `pds4`
+  - [ ] `load_nav_config`, `AttrDict` off the config path, and one test
+    fixture for config overrides; #118 and #1001 close here
 
 ## Track E — Test and documentation debt
 
@@ -1256,26 +1532,28 @@ asserts the generated half matches the registries.
   the broader sd_*-driver test effort. The backplane suite carries strict
   xfails for #251, #252, #253, ready to flip when each fix lands.
 - **#288** — image-library regression reconciliation, and the piece of test
-  debt with the widest blast radius. In the local integration environment 19
-  of 75 sidecars disagree (measured 2026-10-31), each one attributed and
-  owned, but the set is still wider than the deliberately-pinned one below,
-  so the regression instrument cannot yet be read as clean. Of the eight
-  frames re-pinned on 2026-10-27 (five `ring_only_flat` frames whose pins
-  recorded the old quantized rank-1 axis, the tier pins of #346's two Encke
-  gap frames, and the tier pin of `N1633925572_1`, which no longer runs
-  RingEdgeNav; the values are recorded in the Operator Playbook), the two
-  Encke gap frames are still red on their `primary_technique` pins, which
-  name BodyBlobNav where RingEdgeNav now carries the answer. Two, the Galileo
-  frames `C0059894800R` and `C0059899900R`, record the rotation-fitted
-  answer that the change in #560 retired; re-recording their truth from an
-  outside measurement, or pinning them red under #434, is the operator
-  decision in #744. Ten are star-frame pins the sparse-star-field and
-  star-centroid fixes moved, awaiting the operator's ratification. Two consequences to hold
-  onto: a navigation-affecting branch can only be gated on *no new failures against `main`*, and #547
-  (the one place a built product is compared between the results tree and
-  the results index) is blocked because the frame it needs no longer
-  navigates. Reconciling this is prerequisite to #483's re-ratchet and to
-  reading the Track A cohorts with confidence.
+  debt with the widest blast radius. In the local integration environment 6
+  of 75 sidecars disagree on `main` (measured 2026-11-16, when PRs #999 and
+  #1003 each ran `tests/integration/test_autonomous_nav.py` on `main` beside
+  their branches: 6 failed and 69 passed, the same frames and messages both
+  times). Each one is attributed and owned, but the set is still wider than
+  the deliberately-pinned one below, so the regression instrument cannot yet
+  be read as clean. Two, the Galileo frames `C0059894800R` and
+  `C0059899900R`, record the rotation-fitted answer that the change in #560
+  retired; re-recording their truth from an outside measurement, or pinning
+  them red under #434, is the operator decision in #744. `N1484593951_2` is
+  #350's limb bias, `N1487595731_1` and `N1686349893_1` are stale
+  `primary_technique` pins on #483, and `N1853392805_1` is #338's
+  highly-irregular exclusion. The ten star-frame pins the sparse-star-field
+  and star-centroid fixes moved were ratified by the operator on 2026-10-31
+  and applied with #754 (commit 7617c81e), along with the `primary_technique`
+  pins of #346's two Encke gap frames, which now pass. Two consequences to
+  hold onto: a navigation-affecting branch can only be gated on *no new
+  failures against `main`*, and #547 (the one place a built product is
+  compared between the results tree and the results index) is blocked
+  because the frame it needs no longer navigates. Reconciling this is
+  prerequisite to #483's re-ratchet and to reading the Track A cohorts with
+  confidence.
 
   The intended steady state, and what the pins mean when it is reached: the
   standing red set reduced to the deliberately-pinned frames, each owned by an
@@ -1345,13 +1623,16 @@ asserts the generated half matches the registries.
   as one.
 - **#483** — re-ratchet the library pins the shift-equivariance fix (#447)
   moves. Those deltas arrive with `rf_shift_equivariance_v2` when #128 lands
-  it. Gated on #288: pins cannot be re-ratcheted honestly
-  against a baseline that is itself 10/75 red.
+  it. Gated on #288: pins cannot be re-ratcheted meaningfully against a
+  baseline that is itself 6/75 red (measured 2026-11-16), two of the six
+  being this issue's own stale `primary_technique` pins (`N1487595731_1` and
+  `N1686349893_1`).
+
 - **#524** — consolidate `test_record_source.py` onto the shared
   results-index fixtures, which already exist and are built by the writer
   that makes real results trees.
-- **#525** — seventeen test modules exceed the 1000-line module cap the
-  rulebook sets for source.
+- **#525** — 29 test modules exceed the 1000-line module cap the rulebook
+  sets for source (counted 2026-11-17).
 - **#473** — the test suite claims Windows support while using POSIX-only
   constructs. Decide which is true and make the suite match it.
 - **#530** — Cassini fixture clock seconds do not follow from their epochs,
@@ -1394,6 +1675,46 @@ asserts the generated half matches the registries.
   gets an autodoc page rather than the nitpick-ignore every other
   `spindoctor.cli` subpackage has, so it sequences before #129/#438.
 
+CI and test infrastructure:
+
+- **#820** (Priority 2) — the PDS3 dataset unit tests download index files
+  from the live archive on every CI run without the `integration` marker,
+  so a slow server fails the unit suite on unrelated PRs. #829 reduced it
+  (CI caches the index files between runs, and the Voyager test scans two
+  volumes rather than 91); the cause, a live download in a unit test,
+  remains.
+- **#832** — CI test jobs have hung for six hours and segfaulted in a PyQt6
+  editor test, on code that passes on every other Python version of the
+  same commit. Check whether the Qt tests run headless, and whether a
+  per-test timeout should make a hang fail in minutes and name the test.
+- **#928** — Python 3.15 is neither declared nor tested: add it to the CI
+  matrix, non-blocking until its dependencies are ready, then add the
+  classifier and make the job blocking.
+- **#814** — the simulator's ring render performance test measured 7.97 s
+  against its 8 s limit on a loaded machine; set the limit from an idle
+  measurement with headroom, or time it on a CPU-time clock.
+- **#870** — no test exercises `DataSetPDS3`'s cross-volume early stop or
+  Voyager's opt-out from it, so removing either passes the suite.
+- **#953** — the shared-directory cleanup in `tests/conftest.py` calls
+  `rmtree` on a directory symlink, which raises and leaves the link; check
+  `is_symlink()` first. No test leaves one there today.
+
+Documentation bugs:
+
+- **#1035** — about 42 lines outside the simulator name phases of an
+  archived plan ("PLACEHOLDER — calibrate in Phase 10" in the camera
+  blocks, "Phase 10 §F" in a user-visible message); replace each with a
+  plain description, leaving the lines #1023 deletes to it. The
+  simulator's own labels are #923's.
+- **#807** — `InstrumentSettings.marker_value` and the image classifier's
+  docstrings say calibrated products use a NaN marker; Voyager ISS uses 0
+  (and Cassini CALIB does too, per #824 above).
+- **#939** — the LORRI filespec check's comment and `ValueError` message
+  describe the directory as `ddddddd_ddddddd`; the real layout, which the
+  check itself enforces, is `yyyymmdd_dddddd`.
+- **#379** — four wording nits in the star-saturation write-up of the star
+  model's developer guide, left from a review; one documentation commit.
+
 ## Track F — Instruments, features, hardening
 
 ### Instrument enablement (Phase-2 of the old roadmap)
@@ -1430,67 +1751,76 @@ issue), #183 polarity-aware ring matching, #187 chaotic-rotator
 (Hyperion) pose handling, #186 manual-nav dialog redesign, #185
 gated-feature styling on summary PNGs, #182 stop-after-features
 flag, #23 body shape models (topographic meshes; also feeds Track A's sim
-realism), sim polish: #84 ring edges/gaps overwrite, #78 CraterMaker
-craters, #151 flux-correct star smear, #152 diffraction spikes, #157
-line-based missing data, #158 smooth-shaded meshes.
+realism), sim polish: #84 ring edges/gaps overwrite (probably fixed: the
+ring system has composited by optical depth since #313, so confirm on a
+ring-over-body scene and close it; scheduled in the simulator plan's Phase
+2), #78 CraterMaker craters, #151 flux-correct star smear (scheduled in the
+simulator plan's Phase 4d), #152 diffraction spikes, #157 line-based missing
+data (done: closed 2026-11-04, already covered by the telemetry artifact
+modes), #158 smooth-shaded meshes (done: closed 2026-11-01, landed in
+#313).
 
 ### Simulator scene authoring
 
 An audit of what a scene file can say, and what the renderer does with it,
 found three keys that render garbage and six that document something other
-than what they mean. None of them affects a shipped scene's navigation
-baseline, and all of them mislead the next person to author a scene.
+than what they mean. None of them affected a shipped scene's navigation
+baseline. All nine are done: #796 fixed the rendering (#625, #626, #627) and
+#819 the naming, units, and tooling (#629 to #633), both merged 2026-10-28.
 
-- **Renders wrong:** `limb_relief_rms` carves radial wedges out of the disc
-  at every value instead of roughening the limb (#625); `polyhedral_mesh`
-  bodies render as banded shells, and the shipped Hyperion scene renders as a
-  torus (#626); and the north and south haze terms seam the halo at the
-  equator instead of blending across it (#627).
-- **Says one thing and means another:** the artifact key `incidence` names
-  three different quantities and collides with the illumination angle
-  (#629); `cosmic_ray_rate_per_sec` is a fluence per cm^2 and two places
-  document it per pixel (#630); a `vgiss` scene renders in I/F with a raw-DN
-  marker and full well, matching neither documented unit class (#631); and
-  the ring scene keys carry no units beside keys in the same block that do
-  (#632).
-- **Tooling:** the scene editor authors mesh body scenes its own validator
-  refuses to load (#633).
+- **Renders wrong (done, #796):** `limb_relief_rms` carves radial wedges out
+  of the disc at every value instead of roughening the limb (#625);
+  `polyhedral_mesh` bodies render as banded shells, and the shipped Hyperion
+  scene renders as a torus (#626); and the north and south haze terms seam the
+  halo at the equator instead of blending across it (#627).
+- **Says one thing and means another (done, #819):** the artifact key
+  `incidence` names three different quantities and collides with the
+  illumination angle (#629); `cosmic_ray_rate_per_sec` is a fluence per cm^2
+  and two places document it per pixel (#630); a `vgiss` scene renders in I/F
+  with a raw-DN marker and full well, matching neither documented unit class
+  (#631); and the ring scene keys carry no units beside keys in the same block
+  that do (#632).
+- **Tooling (done, #819):** the scene editor authors mesh body scenes its own
+  validator refuses to load (#633).
 - **#644** — a planted roll turns the scene's positions and poses but not a
   star's smear vector, a companion's position angle, or the background sky
   field. Filed out of the pivot audit (#642) and deliberately left out of it.
+  A fourth direction a roll does not turn, a body's illumination, is #825.
 
 ### Hardening / cleanup tail
 
-Mostly small, any time, no ordering: #15 overlay
-occlusion of background models, #21 metadata inventory cleanup, #38
-filecache config, #39 AttrDict, #65 exception class, #92 dependency groups, #96 dead code, #97 oversized
-modules, #98 registry consolidation, #99 orphan report_profile, #100
-root-path getters, #101 ArgumentParser.error, #102 CLI globals, #103
-thread-unsafe caches, #105 typed interop
-boundaries, #109 safe-path helpers, #110 scalar validation helpers, #119 PNG
-creation location, #135 from_file dedup, #137 dead validation
-helper, #140 geometry-union access, #143 viewer cursor after pan, #144
-QApplication lifetime, #147 confidence-context dedup, #155
-display-scaling consolidation, #388 body-occluder bbox pre-filter (skip
-the full `where_in_front` depth test for siblings whose predicted bbox
-does not overlap, avoiding the O(bodies^2) grid pass in busy frames),
-#212 xdist worker nondeterminism
-(software-only scope; the faulty CPU cores are permanently offlined and
-nothing gates on hardware), #428 the upstream `rms-pdslogger`
-registry-eviction request (nothing in this repo depends on it; the
-constraint is worth recording where the next person to reach for a
-logger-per-image design will find it), #494 Cassini BOTSIM pairs defined two
-different ways (one definition, before #27 builds on either), #518 state
-the encoding wherever a document or text file is read or written, and #552
-remove the `AttrDict` `_IS_IMMUTABLE` marker once oops confines its
-mutability bookkeeping to its own objects, #554 the 82 test call sites that
-wrap a `Path` in `str()` to build an `FCPath`, #590 the remaining
-function-level imports that do not qualify for the GUI exemption, #604 a
-second `load_default_and_user_config` in one process silently keeping the
-first load, #612 `library_entry` resolving the PDS3 holdings root in a
-different order from `DataSetPDS3` while its docstring says the two agree,
-#711 hashing every static-data configuration file into a navigation's
-provenance rather than the instrument configuration it actually used.
+Mostly small, any time, no ordering: #15 overlay occlusion of background
+models, #21 metadata inventory cleanup, #38 filecache config, #39 AttrDict
+(#1032 takes it off the config path), #65 exception class, #92 dependency
+groups, #96 dead code, #97 oversized modules (23 `src/` modules over 1000
+lines on 2026-11-04), #98 registry consolidation, #99 orphan report_profile,
+#100 root-path getters, #101 ArgumentParser.error, #102 CLI globals, #103
+thread-unsafe caches, #105 typed interop boundaries (the metadata TypedDicts
+and the `obs` Protocol; its config part is #1032), #109 safe-path helpers,
+#110 scalar validation helpers, #119 PNG creation location, #135 from_file
+dedup, #137 dead validation helper, #140 geometry-union access, #143 viewer
+cursor after pan, #144 QApplication lifetime, #147 confidence-context dedup,
+#155 display-scaling consolidation, #388 body-occluder bbox pre-filter (skip
+the full `where_in_front` depth test for siblings whose predicted bbox does
+not overlap, avoiding the O(bodies^2) grid pass in busy frames), #212 xdist
+worker nondeterminism (done, #834, 2026-11-02; software-only scope, the faulty
+CPU cores permanently offlined), #428 the upstream `rms-pdslogger`
+registry-eviction request (nothing in this repo depends on it; the constraint
+is worth recording where the next person to reach for a logger-per-image
+design will find it), #494 Cassini BOTSIM pairs defined two different ways
+(one definition, before #27 builds on either), #518 state the encoding
+wherever a document or text file is read or written, and #552 remove the
+`AttrDict` `_IS_IMMUTABLE` marker once oops confines its mutability
+bookkeeping to its own objects, #554 the 82 test call sites that wrap a `Path`
+in `str()` to build an `FCPath`, #590 the remaining function-level imports
+that do not qualify for the GUI exemption, #604 a second
+`load_default_and_user_config` in one process silently keeping the first load,
+#612 `library_entry` resolving the PDS3 holdings root in a different order
+from `DataSetPDS3` while its docstring says the two agree, #711 hashing every
+static-data configuration file into a navigation's provenance rather than the
+instrument configuration it actually used, #628 choosing the source of the
+observation block's spacecraft clock counts (on two of the four missions a
+label's counts do not mark the exposure).
 
 #552 is worth reading before touching `AttrDict` (#39), because it records
 a live constraint rather than a wish: an `AttrDict` is its own instance

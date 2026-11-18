@@ -66,29 +66,29 @@ on that baseline; each has a tracking issue (cross-map below).
 rather than methodology, and it silently corrupts what every workstream below
 reads:
 
-- **#288** — 19 of the 75 curated library sidecars disagree in the local
-  integration environment (measured 2026-10-31), so the regression instrument
-  that is supposed to detect a navigation change cannot currently do so.
-  Until it is reconciled, a navigation-affecting change can only be gated on
-  *no new failures against `main`*, and the library's own tiers cannot be
-  read as verified expectations. Two are the Galileo frames whose recorded
-  truth is the rotation-fitted answer that #560 retired, an operator decision
-  in #744, and ten are star frames whose pins the sparse-star-field fixes
-  moved, awaiting the operator's ratification. Of the eight frames re-pinned
-  on 2026-10-27 (five `ring_only_flat` frames whose pins recorded the old
-  quantized rank-1 axis of a straight ring edge; two of #346's Encke gap
-  frames, which land on operator truth and whose `medium` tier pins became
-  `low`; and `N1633925572_1`, whose `medium` tier pin became `low` after it
-  stopped running RingEdgeNav, leaving a limb answer and a one-star answer,
-  whose fused sigma of about 2.49 px is a sigma-calibration matter, #788),
-  the two Encke gap frames are still red on `primary_technique` pins that
-  name BodyBlobNav where RingEdgeNav now carries the answer. The other five
-  are attributed rather than mysterious: one is #346's remaining ring frame,
-  red on a `failed` expectation predating a working ring fit, two pin
-  `primary_technique` to a technique the code correctly declines to prefer
-  and await an operator call (#483), one is the ~2.7 px `dv` limb bias on a
-  partially overflowing limb arc that WS-10 owns, and one is the standing
-  highly-irregular exclusion of #338.
+- **#288** — 6 of the 75 curated library sidecars disagree on `main` in the
+  local integration environment (measured 2026-11-16, when PRs #999 and #1003
+  each ran the library suite on `main` beside their branches: 6 failed and 69
+  passed, the same frames both times), so the regression instrument that is
+  supposed to detect a navigation change cannot currently do so. Until it is
+  reconciled, a navigation-affecting change can only be gated on *no new
+  failures against `main`*, and the library's own tiers cannot be read as
+  verified expectations. Two are the Galileo frames whose recorded truth is
+  the rotation-fitted answer that #560 retired, an operator decision in
+  #744. Two pin `primary_technique` to a technique the code correctly
+  declines to prefer and await an operator call (#483), one is the ~2.7 px
+  `dv` limb bias on a partially overflowing limb arc that WS-10 owns (#350),
+  and one is the standing highly-irregular exclusion of #338. The ten star
+  frames whose pins the sparse-star-field fixes moved were ratified by the
+  operator on 2026-10-31 and re-pinned with #754, and #346's two Encke gap
+  frames, whose `primary_technique` pins were moved with them, now pass. Of
+  the eight frames re-pinned on 2026-10-27 (five `ring_only_flat` frames
+  whose pins recorded the old quantized rank-1 axis of a straight ring edge;
+  the two Encke gap frames, which land on operator truth and whose `medium`
+  tier pins became `low`; and `N1633925572_1`, whose `medium` tier pin
+  became `low` after it stopped running RingEdgeNav, leaving a limb answer
+  and a one-star answer, whose fused sigma of about 2.49 px is a
+  sigma-calibration matter, #788), all eight pass.
 
 It does not block writing methodology or building tooling. It blocks
 collecting the numbers.
@@ -106,7 +106,8 @@ star path, the simulator, the mosaic viewer, the scene editor, the
 operator-facing readouts, the feature-geometry payloads and the documentation.
 `PIXEL_CENTER_TO_CORNER_PX` now names the half pixel and `feature/geometry.py`
 states which direction a crossing converts in, and the standing open instances
-are listed under the workstreams that own them (#641, #644, #646, #634).
+are listed under the workstreams that own them (#644, #646, #634; #641, the
+scene's star-index versus body-corner split, is done, fixed by #840).
 
 The bearing on this plan is direct and applies to every workstream in it:
 
@@ -157,18 +158,18 @@ carry the methodology and acceptance criteria):
 | WS-0 | #358, #359, #360, #361 | Estimator proven on sims (identifiability + bias-independence); residual is the real-frame reliability-vs-error coupling and PSF-coupling probes feeding WS-1. |
 | WS-1 | #225 (+ #558, #346, #755, #621) | The agreement study. The statistics system reports metadata statistics and consumes WS-1's per-frame disagreement metric; it is not the agreement study. The trailing issues are confidently-wrong contributors that move the anchor before it is measured. |
 | WS-1b | #226 | Reprojection consistency. |
-| WS-2 | #227 (+ #223, #309, #341, #377, #409, #625, #626, #627, #629, #630, #631, #632, #633, #641, #644, #750) | De-circularization done; #227 open only for the realism residual (realism-anchored calibration #309, terminator verdict #223, sim-fidelity gaps, the scene-coordinate convention split #409 where stars are the outlier, and the scene-authoring defects that make a rendered scene not the scene its keys describe). |
+| WS-2 | #227 (+ #223, #309, #341, #377, #409, #625, #626, #627, #629, #630, #631, #632, #633, #641, #644, #750) | De-circularization done; #227 open only for the realism residual (realism-anchored calibration #309, terminator verdict #223, sim-fidelity gaps, and the scene-authoring defects that make a rendered scene not the scene its keys describe). Done: the scene-coordinate convention split #409 and #641 (both by #840), the scene-authoring defects #625-#627 (#796) and #629-#633 (#819), and the simulated body's overflow gates #750 (#845). Open: #644 (a planted roll), #223, #309, #341, #377. |
 | WS-17 | #355, #561 | Distortion measured from star fields; the residuals are the per-camera Voyager sim split and the single-sequence cohorts behind the twist verdicts (#561). |
-| WS-3 | #172, #174, #235, #288, #483 | 47-image stage first (#172), then the >=120 growth target (#235); discovery/review workflow in `plans/COHORT_CURATION_PLAN.md`. #288 is the standing regression: 19 of the 75 sidecars disagree locally (two of them the Galileo frames of #744, and ten star-frame pins awaiting ratification), so the library's tiers are not currently verified expectations, and two of the five under #288 are pins awaiting the operator call in #483. |
-| WS-4 | #229, #426, #324, #336, #335, #340, #548 | CI integration tiers, plus what does not run in Actions today: the agreement-estimator tests (#324), the data-independent simulator suites (#336), the committed sim baselines that have no canonical environment (#335), the cross-check's yes/no primary-technique flag (#340), and the measured 79% line coverage that nothing enforces (#548). |
+| WS-3 | #172, #174, #235, #288, #483 | 47-image stage first (#172), then the >=120 growth target (#235); discovery/review workflow in `plans/COHORT_CURATION_PLAN.md`. #288 is the standing regression: 6 of the 75 sidecars disagree on `main` (measured 2026-11-16 beside PRs #999 and #1003: the two Galileo frames of #744, two stale `primary_technique` pins awaiting the operator call in #483, #350's limb bias, and #338's highly-irregular exclusion), so the library's tiers are not currently verified expectations. |
+| WS-4 | #229, #426, #324, #336, #335, #340, #548 | CI integration tiers, plus what does not run in Actions today: the agreement-estimator tests (#324), the cross-check's yes/no primary-technique flag (#340), and the measured 79% line coverage that nothing enforces (#548). Done: the stale committed render (#426, fixed by #680), and the data-independent simulator suites in Actions (#336) with a canonical environment for the committed sim baselines (#335), both by #834. |
 | WS-5 | #230, #176, #557, #558, #751 | Real-anchored recalibration once WS-1 anchors exist; the confidence axis is censored from above (#557), the anchor is contaminated until #558 is closed, and whether the low tier carries a sigma ceiling is an operator decision (#751). |
 | WS-6 | #231 | Capability matrix. |
 | WS-7 | #397, #398, #399, #400, #401, #402, #403, #404, #405, #407 | Titan haze navigation delivered and validated (#60 closed); open items are the deferred refinements and the operator ratification bundle (#407). |
 | WS-8 | #53, #67, #677, #687 | Output bundles for all four instruments (required). The Cassini ISS Saturn path is complete and schema-validated; Voyager, Galileo and NH remain. PDS4 input (#34) is availability-contingent and not required for completion. |
 | WS-9 | #233, #130, #176, #557, #675 | Measured star SNR + sensitivity tests (#233); constants inventory (#176); limiting magnitudes (#130); where the confidence scale saturates (#557); the agreement gap and the terminator coarse search (#675). |
-| WS-10 | #150, #128, #282, #283, #321, #646 | Limb bias root cause and redesign, plus the harness defect (#646) that displaces the measured bias and the undiagnosed partial-arc radial bias (#321). |
+| WS-10 | #150, #128, #282, #283, #321, #646 | Limb bias root cause and redesign, plus the harness defect (#646) that displaces the measured bias and the undiagnosed partial-arc radial bias (#321). The pixel-center-convention audit (#283) is done (#840). |
 | WS-12 | -- | Per-instrument guide chapters. Delivered; each instrument's workstream now updates its own pair. |
-| WS-13 | #234 (+ #153, #631) | Detector-noise model for the I/F render path; #631 is a scene rendering in I/F with a raw-DN marker. |
+| WS-13 | #234 (+ #153, #631) | Detector-noise model for the I/F render path: done, #234 closed by #888 (with #886 and #887); #631, a scene rendering in I/F with a raw-DN marker, is done (#819). Real calibrated products in the agreement study ride #225; #153 (the sim calibration test layer) is open. |
 | WS-15 | #236, #103, #134, #126 | Thread safety, profiling, batch-parallel throughput. |
 | WS-18 | #232 (+ #28, #634, #638) | End-product accuracy checks, plus the reprojection products' east/west longitude disagreement (#634) and remote reads that never fetch (#638). |
 
@@ -569,16 +570,16 @@ ring/multi-body geometry." The pairwise layer carries low risk and no external-d
 need.
 
 **The anchor must not be contaminated before it is measured (#558).** This
-workstream's product is cross-technique *disagreement*, and a technique that
-reports a confidently wrong answer contributes a disagreement that is a property of
-the defect rather than of the scene. The confidently-wrong ring locks
-(#346, #476) were the measured case: on `N1633925572_1_CALIB`, measured 2026-08-26, a body fit
-and a star fit agree to 0.08 px while `RingEdgeNav` converges 39 px away on 452 of
-6786 inliers, is not flagged spurious, and enters the combine. Feeding that frame to
-this workstream does not merely add noise -- it moves the anchor WS-5 then
-calibrates against, so a calibration fitted before those defects are closed learns
-to distrust ring evidence everywhere and has to be redone once they are. Either fix
-that family first, or exclude from the agreement product any frame whose
+workstream's product is cross-technique *disagreement*, and a technique that reports
+a confidently wrong answer contributes a disagreement that is a property of the
+defect rather than of the scene. The confidently-wrong ring locks (#346, open; #476,
+done by #756) were the measured case: on `N1633925572_1_CALIB`, measured 2026-08-26,
+a body fit and a star fit agree to 0.08 px while `RingEdgeNav` converges 39 px away
+on 452 of 6786 inliers, is not flagged spurious, and enters the combine. Feeding
+that frame to this workstream does not merely add noise -- it moves the anchor WS-5
+then calibrates against, so a calibration fitted before those defects are closed
+learns to distrust ring evidence everywhere and has to be redone once they are.
+Either fix that family first, or exclude from the agreement product any frame whose
 contributing technique self-reports an inlier fraction below a stated floor, and say
 which was chosen.
 
@@ -644,7 +645,8 @@ sufficient — the image side must also be **realistic**, and that is not yet
 underwritten: the calibration is not fitted on the realism-anchored renderer
 configuration (#309), the terminator deliverable is degenerate with no realism
 verdict (#223), realism is Cassini-only with the authored scene mixture
-unvalidated (#309, #341), and the cataloged sim-fidelity gaps (#325-#345) and
+unvalidated (#309, #341), and the cataloged sim-fidelity gaps (#325-#345; of
+those, #333, #342 and #343 are open beside #341, the rest done) and
 single-annulus rings vs realistic nested ringlets (#377) remain. Closing #227 is
 the operator's realism-verdict gate, gated on #309.
 
@@ -662,7 +664,9 @@ a scene places stars on pixel indices and bodies on pixel corners (#641), and a
 planted roll turns positions but not smear, companions or sky field (#644).
 Each is a way the model-mismatch sweep axes sweep something other than the
 quantity they are labeled with, so the mismatch curves cannot be read as
-accuracy until they are settled.
+accuracy until they are settled. **Status:** done for all but one: #625, #626
+and #627 by #796, #629 through #633 by #819, and #641 by #840. The planted roll
+(#644) is open.
 
 **The simulated body model must withhold what production withholds.**
 `NavModelBodySimulated` renders only inside the sensor and hard-codes its
@@ -675,7 +679,10 @@ the calibration measures an ensemble that keeps a disc and a witness blob
 production would drop, including how often the body-witness veto catches a
 wrong limb. Compute the fraction from the simulated model's own predicted
 geometry, never the planted truth, apply the same gates, then re-run the
-limb-scene calibration and re-ratchet whatever moves.
+limb-scene calibration and re-ratchet whatever moves. **Status:** the gates are
+done (#750, closed by #845; no committed scene clips a body, so no baseline
+moved). The limb-scene re-run is not: the calibration scene generator cannot
+build the limb family until #837 is fixed.
 
 **Approach for the residual.** The navigator uses its *best available* model — do
 **not** preserve a known-worse model just to manufacture a gap. The image side is
@@ -842,8 +849,10 @@ the growth beyond that stage is #235.
 **Closes:** "CI never runs integration tests."
 
 **Problem.** `.github/workflows/run-tests.yml` runs
-`-m "not integration and not postgres"`; nothing real is exercised
-automatically. The workflow does carry a weekly `schedule` cron, so the
+`-m "(not integration or sim_integration) and not postgres"`: the
+data-independent simulator suites run on every PR (#336, done by #834), but
+nothing real is exercised automatically. The workflow does carry a weekly
+`schedule` cron, so the
 scheduled tier below has somewhere to attach. Measured line coverage of the
 suite that does run is 79%, and nothing enforces a figure (#548), so no
 criterion anywhere in this plan may cite a coverage target as met.
@@ -863,6 +872,8 @@ criterion anywhere in this plan may cite a coverage target as met.
  default run — and one of those renders is already stale on `main` without
  anyone noticing (#426). Fix the stale render, then decide which tier owns
  that check; it needs no network, so the per-PR sim tier can carry it.
+ **Done:** #426 closed as fixed by #680, and #834 marked
+ `test_render_diffs.py` `sim_integration`, so the per-PR sim tier runs it.
 
 **Acceptance criteria.**
 - Every PR runs at least the `integration_fast` tier with real images.
@@ -1228,7 +1239,8 @@ and match it) rather than aligning a geometric edge to the gradient ridge
 ripple (#282); (3) gate low-phase (<~15 deg) fits (#281, shipped: a
 `BodyLimbNav` coarse-seed mis-lock below 15 deg phase is flagged spurious by
 an unconverged-at-trust-boundary gate); (4) a minor
-pixel-center-convention audit (#283). Harness and full report:
+pixel-center-convention audit (#283, done: #840 pinned one stated scene position
+across the renderer and every simulated model). Harness and full report:
 `util/calibration/limb_bias/limb_navigation_bias_diagnosis.md`.
 
 **The harness measures a different limb from the deployed one (#646), so every
@@ -1275,7 +1287,8 @@ adopting the same sub-pixel vertex rule.
  (#150 — the dominant, illumination-tracking term), the matched-filter
  sub-pixel edge estimator (#282), and the
  pixel-center-convention audit (#283). The low-phase gate (#281) is
- already shipped. The earlier candidate fixes (modeling
+ already shipped, and the pixel-center-convention audit (#283) is done
+ (#840). The earlier candidate fixes (modeling
  a PSF-inward offset in `nav_model_body.py`; a continuous sub-pixel DT) are
  superseded: the diagnosis showed the dominant term is the photometric
  roll-off, not DT quantization.
@@ -1290,7 +1303,17 @@ default; no reliance on accidental cancellation documented as a feature.
 genuine algorithmic problem the team has already struggled with.
 
 ### WS-13: Make the calibrated (I/F) path realistic and tested
-**Closes:** "the calibrated (I/F) path is essentially untested."
+**Closes:** "the calibrated (I/F) path is essentially untested." **Status:**
+delivered on the simulator side. #886 and #887 gave the calibrated path a
+measured detector model (filter scale, readout dark, calibration residual,
+Cassini table quantization, fitted cosmic rays), #888 swept it and added a
+calibrated-path section to the simulator report (closing #234), and #819
+settled the unit class of the vgiss scene (#631). The calibrated disc's steady
+0.013-0.017 px bias was attributed by #916 (done 2026-11-08, PR #933): it
+came from shading a smooth body at detector resolution and interpolating it
+onto the oversampled grid, which is fixed; the larger error at three offsets
+is the disc correlation's refinement clamp (#791). Real calibrated products
+in the WS-1 study ride #225.
 
 **Tasks.** Add a detector-noise model to the I/F render path in `sim/render.py`
 (Poisson shot noise in electrons before conversion, read noise, full-well
@@ -1409,6 +1432,7 @@ survives reflow.
   and **WS-12** (per-instrument chapters) are delivered; their remaining issues
   are independent.
 - **WS-9 / WS-10 / WS-13** (constants / limb bias / I/F) — WS-1 and/or WS-2.
+  WS-13's simulator side is delivered (#234); its real-product part rides WS-1.
 - **WS-15** (performance) — independent; start anytime.
 - **WS-18** (end-product accuracy) — WS-1b + WS-2 + WS-8.
 
@@ -1460,7 +1484,7 @@ common-mode/identifiability/bias caveats together are the honest result.
 | 8 | Limb bias, fix disabled | WS-10 | bias ≤ target on real+mismatched data, fix enabled |
 | 9a | Slow (~35 s/frame), O(M³) matcher | WS-15 | per-frame budget cut; matcher bounded; throughput published |
 | 9b | Reprojection thread-unsafe | WS-15 | per-thread state + proving concurrency test |
-| 9d | I/F path noise-light/untested | WS-13 | realistic detector model + I/F in accuracy report |
+| 9d | I/F path noise-light/untested | WS-13 | realistic detector model + I/F in accuracy report; simulator side closed (#234: measured detector model, calibrated sweeps and report section), real calibrated products in the agreement study open under #225 |
 | 10 | End products (backplanes/mosaics/PDS4) accuracy untested | WS-18 | backplanes match sim truth; mosaic seams quantified; PDS4 geometry matches source |
 
 ---
