@@ -27,10 +27,11 @@ deliberate mismatch for.
 
 A third scan makes the boundary follow the package layout.  The neutral simulator
 modules are ``spindoctor.sim.shared`` and ``spindoctor.sim.scene.fields``.  A module of
-a navigator-side package imports nothing else from ``spindoctor.sim``: not the renderer,
-not the scene rules, and not the simulated instrument catalog or the artifact-mode
-registry, which describe how the image side renders a frame (a navigator-side model
-reads what the navigator would know from its own config).  Neither does a module of
+a navigator-side package imports nothing else from ``spindoctor.sim`` or from the scene
+editor (``spindoctor.ui.sim_editor``): not the renderer, not the scene rules, and not
+the simulated instrument catalog or the artifact-mode registry, which describe how the
+image side renders a frame (a navigator-side model reads what the navigator would know
+from its own config).  Neither does a module of
 ``sim/shared/``, so the shared conventions never pull in the renderer, the scene rules,
 or the editor.
 
@@ -98,9 +99,11 @@ _IMAGE_SIDE_MODULES: tuple[str, ...] = (
     'spindoctor.sim.artifact_modes',
 )
 
+# The simulator's packages, the scene editor among them.
+_SIMULATOR_PACKAGES: tuple[str, ...] = ('spindoctor.sim', 'spindoctor.ui.sim_editor')
 # The simulator modules both sides may import.  The modules of the navigator packages
 # and of the shared directory below (relative to the spindoctor package) may import
-# nothing else from the simulator.
+# nothing else from the simulator's packages.
 _NEUTRAL_SIM_MODULES: tuple[str, ...] = ('spindoctor.sim.shared', 'spindoctor.sim.scene.fields')
 _SHARED_DIR = 'sim/shared'
 
@@ -170,7 +173,7 @@ def _image_side_imports(source: str, *, package: str) -> list[tuple[int, str]]:
 
 
 def _non_neutral_sim_imports(source: str, *, package: str) -> list[tuple[int, str]]:
-    """Return each import of a simulator module other than the neutral modules.
+    """Return each import of a simulator or editor module other than the neutral modules.
 
     A ``from`` import passes when the module it reads from is neutral, or when the name
     it imports is a neutral module, as in ``from spindoctor.sim.scene import fields``.
@@ -198,7 +201,7 @@ def _non_neutral_sim_imports(source: str, *, package: str) -> list[tuple[int, st
         imports.extend(
             (node.lineno, target)
             for target in targets
-            if _within(target, ('spindoctor.sim',)) and not _within(target, _NEUTRAL_SIM_MODULES)
+            if _within(target, _SIMULATOR_PACKAGES) and not _within(target, _NEUTRAL_SIM_MODULES)
         )
     return imports
 
@@ -375,7 +378,7 @@ def test_navigator_package_imports_only_neutral_simulator_modules(package: str) 
     """A navigator-side module imports only sim.shared and sim.scene.fields."""
     violations = _non_neutral_violations(package)
     assert not violations, (
-        'navigator-side code imports a simulator module other than '
+        'navigator-side code imports a simulator or scene-editor module other than '
         'spindoctor.sim.shared and spindoctor.sim.scene.fields:\n' + '\n'.join(violations)
     )
 
@@ -384,8 +387,8 @@ def test_shared_modules_import_only_neutral_simulator_modules() -> None:
     """A module of sim/shared imports only sim.shared and sim.scene.fields."""
     violations = _non_neutral_violations(_SHARED_DIR)
     assert not violations, (
-        'a sim/shared module imports a simulator module other than spindoctor.sim.shared '
-        'and spindoctor.sim.scene.fields:\n' + '\n'.join(violations)
+        'a sim/shared module imports a simulator or scene-editor module other than '
+        'spindoctor.sim.shared and spindoctor.sim.scene.fields:\n' + '\n'.join(violations)
     )
 
 
@@ -403,6 +406,14 @@ def test_neutral_guard_flags_a_scene_rules_import_in_a_shared_module() -> None:
         'from ..scene.rules_body import ATMOSPHERE_KEYS\n', package='spindoctor.sim.shared'
     )
     assert imports == [(1, 'spindoctor.sim.scene.rules_body.ATMOSPHERE_KEYS')]
+
+
+def test_neutral_guard_flags_an_editor_import_in_a_shared_module() -> None:
+    """The neutral-import scanner flags a shared module importing the scene editor."""
+    imports = _non_neutral_sim_imports(
+        'from spindoctor.ui import sim_editor\n', package='spindoctor.sim.shared'
+    )
+    assert imports == [(1, 'spindoctor.ui.sim_editor')]
 
 
 def test_atmosphere_guard_covers_the_structure_keys() -> None:

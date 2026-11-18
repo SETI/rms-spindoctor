@@ -173,8 +173,7 @@ tests need none of the archive environment above.
        ``nav_override`` channel, scene-schema validation, and the information
        boundary (``test_information_boundary.py``: no truth key is reachable
        through ``obs.nav_params``).
-   * - GUI smoke (``tests/main/test_create_simulated_image.py``,
-       ``tests/main/test_sim_editor_round_trip.py``)
+   * - GUI smoke (``tests/spindoctor/ui/sim_editor/**``)
      - default
      - PyQt6
      - Each GUI control wires to the right ``sim_params`` field and a YAML
