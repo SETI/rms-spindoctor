@@ -44,7 +44,7 @@ from spindoctor.sim.render.bodies.texture import (
 from spindoctor.sim.scene.fields import scene_value
 from spindoctor.ui.sim_editor.base import SimEditorBase
 from spindoctor.ui.sim_editor.body_mesh_keys import sync_mesh_refused_widgets
-from spindoctor.ui.sim_editor.widgets import make_dspin as _dspin
+from spindoctor.ui.sim_editor.widgets import as_map, make_dspin
 
 # The photometric-law vocabulary, Lambert first so the combo opens on the
 # navigator-matched default when a scene enables the group without a law.
@@ -56,11 +56,6 @@ _LAWS = tuple(law for law in _LAW_ORDER if law in PHOTOMETRIC_LAWS)
 # scene writes the block, the controls show the renderer's defaults instead.
 _SURGE_ENABLE_AMPLITUDE = 0.3
 _POSE_SCATTER_ENABLE_SIGMA_DEG = 1.0
-
-
-def _as_map(value: Any) -> dict[str, Any]:
-    """Return ``value`` when it is a mapping, else an empty dict."""
-    return value if isinstance(value, dict) else {}
 
 
 def _as_list(value: Any) -> list[Any]:
@@ -138,7 +133,7 @@ class BodyAppearanceMixin(SimEditorBase):
         group = QGroupBox('Limb relief')
         group.setCheckable(True)
         form = QFormLayout(group)
-        rms = _dspin(
+        rms = make_dspin(
             minimum=0.0,
             maximum=MAX_LIMB_RELIEF_RMS,
             decimals=4,
@@ -149,7 +144,7 @@ class BodyAppearanceMixin(SimEditorBase):
                 '100-pixel-radius body by 2 pixels RMS (0 disables the field).'
             ),
         )
-        corr = _dspin(
+        corr = make_dspin(
             minimum=MIN_LIMB_RELIEF_CORR_DEG,
             maximum=180.0,
             decimals=1,
@@ -208,7 +203,7 @@ class BodyAppearanceMixin(SimEditorBase):
         law_idx = combo.findText(spec.photometric_law)
         if law_idx >= 0:
             combo.setCurrentIndex(law_idx)
-        minnaert_k = _dspin(
+        minnaert_k = make_dspin(
             minimum=0.0,
             maximum=2.0,
             decimals=3,
@@ -277,7 +272,7 @@ class BodyAppearanceMixin(SimEditorBase):
         group = QGroupBox('Opposition surge')
         group.setCheckable(True)
         form = QFormLayout(group)
-        amplitude = _dspin(
+        amplitude = make_dspin(
             minimum=0.0,
             maximum=10.0,
             decimals=3,
@@ -285,7 +280,7 @@ class BodyAppearanceMixin(SimEditorBase):
             value=spec.surge_amplitude if has_surge else _SURGE_ENABLE_AMPLITUDE,
             tooltip='Surge amplitude at exact opposition (0 disables the factor).',
         )
-        width = _dspin(
+        width = make_dspin(
             minimum=0.1,
             maximum=90.0,
             decimals=2,
@@ -298,9 +293,11 @@ class BodyAppearanceMixin(SimEditorBase):
         group.setChecked(has_surge)
         group.toggled.connect(lambda on, i=idx: self._on_body_surge_toggled(i, on))
         amplitude.valueChanged.connect(
-            lambda v, i=idx: self._on_body_surge_value(i, 'amplitude', v)
+            lambda v, i=idx: self._on_body_block_value(i, 'opposition_surge', 'amplitude', v)
         )
-        width.valueChanged.connect(lambda v, i=idx: self._on_body_surge_value(i, 'width_deg', v))
+        width.valueChanged.connect(
+            lambda v, i=idx: self._on_body_block_value(i, 'opposition_surge', 'width_deg', v)
+        )
         w.surge_group = group  # type: ignore[attr-defined]
         w.surge_amplitude_spin = amplitude  # type: ignore[attr-defined]
         w.surge_width_spin = width  # type: ignore[attr-defined]
@@ -325,21 +322,32 @@ class BodyAppearanceMixin(SimEditorBase):
             body.pop('opposition_surge', None)
         self._updater.request_update()
 
-    def _on_body_surge_value(self, idx: int, key: str, value: float) -> None:
-        """Update one opposition-surge component when the map is present."""
+    def _on_body_block_value(self, idx: int, block_key: str, key: str, value: float) -> None:
+        """Update one scalar of a body's appearance block when the block is present.
+
+        A group that is turned off has removed its block, so an edit to one of its
+        spins writes nothing.
+
+        Parameters:
+            idx: The body's index.
+            block_key: The body key of the block, such as ``opposition_surge``,
+                ``albedo_texture``, or ``disc_texture``.
+            key: The key inside the block.
+            value: The spin's value.
+        """
         body = self._body(idx)
         if body is None:
             return
-        surge = body.get('opposition_surge')
-        if isinstance(surge, dict):
-            surge[key] = float(value)
+        block = body.get(block_key)
+        if isinstance(block, dict):
+            block[key] = float(value)
             self._updater.request_update()
 
     # ---- Albedo texture ----
 
     def _build_albedo_texture_group(self, w: QWidget, idx: int, p: dict[str, Any]) -> QGroupBox:
         """Build the albedo-texture group (noise field + a spots list)."""
-        block = _as_map(p.get('albedo_texture'))
+        block = as_map(p.get('albedo_texture'))
         # The seed only places the noise field, which the controls do not show.
         albedo = albedo_spec_from_params(block, seed=0)
         assert albedo is not None
@@ -348,7 +356,7 @@ class BodyAppearanceMixin(SimEditorBase):
         outer = QVBoxLayout(group)
         form = QFormLayout()
         outer.addLayout(form)
-        rms = _dspin(
+        rms = make_dspin(
             minimum=0.0,
             maximum=2.0,
             decimals=4,
@@ -356,7 +364,7 @@ class BodyAppearanceMixin(SimEditorBase):
             value=albedo.rms,
             tooltip='Global RMS of the multiplicative noise field (0 disables it).',
         )
-        corr_px = _dspin(
+        corr_px = make_dspin(
             minimum=0.0,
             maximum=1000.0,
             decimals=2,
@@ -378,8 +386,12 @@ class BodyAppearanceMixin(SimEditorBase):
 
         group.setChecked(isinstance(p.get('albedo_texture'), dict))
         group.toggled.connect(lambda on, i=idx: self._on_body_albedo_toggled(i, on))
-        rms.valueChanged.connect(lambda v, i=idx: self._on_body_albedo_scalar(i, 'rms', v))
-        corr_px.valueChanged.connect(lambda v, i=idx: self._on_body_albedo_scalar(i, 'corr_px', v))
+        rms.valueChanged.connect(
+            lambda v, i=idx: self._on_body_block_value(i, 'albedo_texture', 'rms', v)
+        )
+        corr_px.valueChanged.connect(
+            lambda v, i=idx: self._on_body_block_value(i, 'albedo_texture', 'corr_px', v)
+        )
         add_btn.clicked.connect(lambda _c=False, i=idx: self._on_body_add_spot(i))
         w.albedo_group = group  # type: ignore[attr-defined]
         w.albedo_rms_spin = rms  # type: ignore[attr-defined]
@@ -402,16 +414,6 @@ class BodyAppearanceMixin(SimEditorBase):
             body.pop('albedo_texture', None)
         self._updater.request_update()
 
-    def _on_body_albedo_scalar(self, idx: int, key: str, value: float) -> None:
-        """Update one albedo-texture scalar when the map is present."""
-        body = self._body(idx)
-        if body is None:
-            return
-        block = body.get('albedo_texture')
-        if isinstance(block, dict):
-            block[key] = float(value)
-            self._updater.request_update()
-
     def _on_body_add_spot(self, idx: int) -> None:
         """Append an albedo spot row and rewrite the spots list."""
         w = self._body_tab_widget(idx)
@@ -424,7 +426,7 @@ class BodyAppearanceMixin(SimEditorBase):
 
     def _build_disc_texture_group(self, w: QWidget, idx: int, p: dict[str, Any]) -> QGroupBox:
         """Build the disc-texture group (latitude bands + a storms list)."""
-        block = _as_map(p.get('disc_texture'))
+        block = as_map(p.get('disc_texture'))
         disc = disc_texture_spec_from_params({'disc_texture': block})
         assert disc is not None
         group = QGroupBox('Disc texture (bands and storms)')
@@ -432,7 +434,7 @@ class BodyAppearanceMixin(SimEditorBase):
         outer = QVBoxLayout(group)
         form = QFormLayout()
         outer.addLayout(form)
-        amplitude = _dspin(
+        amplitude = make_dspin(
             minimum=0.0,
             maximum=2.0,
             decimals=4,
@@ -440,7 +442,7 @@ class BodyAppearanceMixin(SimEditorBase):
             value=disc.band_amplitude,
             tooltip='Multiplicative contrast of the banded pattern (0 disables it).',
         )
-        wavenumber = _dspin(
+        wavenumber = make_dspin(
             minimum=0.0,
             maximum=64.0,
             decimals=2,
@@ -448,7 +450,7 @@ class BodyAppearanceMixin(SimEditorBase):
             value=disc.band_wavenumber,
             tooltip='Cosine cycles per radian of body-polar latitude.',
         )
-        phase = _dspin(
+        phase = make_dspin(
             minimum=0.0,
             maximum=360.0,
             decimals=1,
@@ -472,13 +474,13 @@ class BodyAppearanceMixin(SimEditorBase):
         group.setChecked(isinstance(p.get('disc_texture'), dict))
         group.toggled.connect(lambda on, i=idx: self._on_body_disc_toggled(i, on))
         amplitude.valueChanged.connect(
-            lambda v, i=idx: self._on_body_disc_scalar(i, 'band_amplitude', v)
+            lambda v, i=idx: self._on_body_block_value(i, 'disc_texture', 'band_amplitude', v)
         )
         wavenumber.valueChanged.connect(
-            lambda v, i=idx: self._on_body_disc_scalar(i, 'band_wavenumber', v)
+            lambda v, i=idx: self._on_body_block_value(i, 'disc_texture', 'band_wavenumber', v)
         )
         phase.valueChanged.connect(
-            lambda v, i=idx: self._on_body_disc_scalar(i, 'band_phase_deg', v)
+            lambda v, i=idx: self._on_body_block_value(i, 'disc_texture', 'band_phase_deg', v)
         )
         add_btn.clicked.connect(lambda _c=False, i=idx: self._on_body_add_storm(i))
         w.disc_group = group  # type: ignore[attr-defined]
@@ -504,16 +506,6 @@ class BodyAppearanceMixin(SimEditorBase):
             body.pop('disc_texture', None)
         self._updater.request_update()
 
-    def _on_body_disc_scalar(self, idx: int, key: str, value: float) -> None:
-        """Update one disc-texture scalar when the map is present."""
-        body = self._body(idx)
-        if body is None:
-            return
-        block = body.get('disc_texture')
-        if isinstance(block, dict):
-            block[key] = float(value)
-            self._updater.request_update()
-
     def _on_body_add_storm(self, idx: int) -> None:
         """Append a storm row and rewrite the storms list."""
         w = self._body_tab_widget(idx)
@@ -529,28 +521,28 @@ class BodyAppearanceMixin(SimEditorBase):
         container = QWidget()
         row = QHBoxLayout(container)
         row.setContentsMargins(0, 0, 0, 0)
-        lat = _dspin(
+        lat = make_dspin(
             minimum=-90.0,
             maximum=90.0,
             decimals=1,
             step=1.0,
             value=float(scene_value(entry, 'lat_deg', 0.0)),
         )
-        lon = _dspin(
+        lon = make_dspin(
             minimum=0.0,
             maximum=360.0,
             decimals=1,
             step=1.0,
             value=float(scene_value(entry, 'lon_deg', 90.0)),
         )
-        radius = _dspin(
+        radius = make_dspin(
             minimum=0.0,
             maximum=180.0,
             decimals=1,
             step=1.0,
             value=float(scene_value(entry, 'radius_deg', 10.0)),
         )
-        factor = _dspin(
+        factor = make_dspin(
             minimum=0.0,
             maximum=5.0,
             decimals=3,
@@ -661,36 +653,36 @@ class BodyAppearanceMixin(SimEditorBase):
         """Append one transit row with a moon sub-group and a shadow sub-group."""
         moon_present = isinstance(entry.get('moon'), dict)
         shadow_present = isinstance(entry.get('shadow'), dict)
-        moon = _as_map(entry.get('moon'))
-        shadow = _as_map(entry.get('shadow'))
+        moon = as_map(entry.get('moon'))
+        shadow = as_map(entry.get('shadow'))
         container = QGroupBox('Transit')
         vbox = QVBoxLayout(container)
 
         moon_group = QGroupBox('Moon disc')
         moon_group.setCheckable(True)
         moon_form = QFormLayout(moon_group)
-        moon_dv = _dspin(
+        moon_dv = make_dspin(
             minimum=-5000.0,
             maximum=5000.0,
             decimals=2,
             step=1.0,
             value=float(scene_value(moon, 'dv_px', 0.0)),
         )
-        moon_du = _dspin(
+        moon_du = make_dspin(
             minimum=-5000.0,
             maximum=5000.0,
             decimals=2,
             step=1.0,
             value=float(scene_value(moon, 'du_px', 0.0)),
         )
-        moon_radius = _dspin(
+        moon_radius = make_dspin(
             minimum=0.0,
             maximum=5000.0,
             decimals=2,
             step=1.0,
             value=float(scene_value(moon, 'radius_px', 5.0)),
         )
-        moon_factor = _dspin(
+        moon_factor = make_dspin(
             minimum=0.0,
             maximum=5.0,
             decimals=3,
@@ -709,28 +701,28 @@ class BodyAppearanceMixin(SimEditorBase):
         shadow_group = QGroupBox('Cast shadow')
         shadow_group.setCheckable(True)
         shadow_form = QFormLayout(shadow_group)
-        shadow_dv = _dspin(
+        shadow_dv = make_dspin(
             minimum=-5000.0,
             maximum=5000.0,
             decimals=2,
             step=1.0,
             value=float(scene_value(shadow, 'dv_px', 0.0)),
         )
-        shadow_du = _dspin(
+        shadow_du = make_dspin(
             minimum=-5000.0,
             maximum=5000.0,
             decimals=2,
             step=1.0,
             value=float(scene_value(shadow, 'du_px', 0.0)),
         )
-        shadow_radius = _dspin(
+        shadow_radius = make_dspin(
             minimum=0.0,
             maximum=5000.0,
             decimals=2,
             step=1.0,
             value=float(scene_value(shadow, 'radius_px', 5.0)),
         )
-        shadow_darkness = _dspin(
+        shadow_darkness = make_dspin(
             minimum=0.0,
             maximum=1.0,
             decimals=3,
@@ -872,7 +864,7 @@ class BodyAppearanceMixin(SimEditorBase):
         scatter_group = QGroupBox('Pose scatter')
         scatter_group.setCheckable(True)
         scatter_form = QFormLayout(scatter_group)
-        sigma = _dspin(
+        sigma = make_dspin(
             minimum=0.0,
             maximum=45.0,
             decimals=3,

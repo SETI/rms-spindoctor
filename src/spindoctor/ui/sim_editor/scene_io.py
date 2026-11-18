@@ -15,6 +15,7 @@ from spindoctor.sim.scene.fields import scene_value
 from spindoctor.sim.scene.io import load_sim_scene, save_sim_scene
 from spindoctor.sim.scene.truth_echo import stale_truth_declarations
 from spindoctor.ui.sim_editor.base import SimEditorBase
+from spindoctor.ui.sim_editor.global_fields import NEW_SCENE_RANDOM_SEED
 
 # How long the status bar shows the dropped-declaration notice, in milliseconds.
 _STALE_DECLARATION_MESSAGE_MS = 10000
@@ -107,7 +108,7 @@ class SceneIoMixin(SimEditorBase):
             'offset_u': float(params.get('offset_u', 0.0)),
             'offset_rotation_deg': float(params.get('offset_rotation_deg', 0.0)),
             'exposure_sec': float(params.get('exposure_sec', 1.0)),
-            'random_seed': int(params.get('random_seed', 42)),
+            'random_seed': int(params.get('random_seed', NEW_SCENE_RANDOM_SEED)),
             'instrument': str(params.get('instrument', 'generic')),
             'time': float(params.get('time', 0.0)),
             'ring_epoch': float(params.get('ring_epoch', 0.0)),
@@ -176,30 +177,7 @@ class SceneIoMixin(SimEditorBase):
             self._closest_planet_combo.setCurrentIndex(index)
         else:
             self._closest_planet_combo.setCurrentText(closest_planet)
-        # Update detector-noise controls from the loaded noise block.
-        self._poisson_check.blockSignals(True)
-        self._poisson_check.setChecked(bool(self._noise_value('poisson', True)))
-        self._poisson_check.blockSignals(False)
-        self._read_noise_spin.blockSignals(True)
-        self._read_noise_spin.setValue(float(self._noise_value('read_noise_dn', 4.0)))
-        self._read_noise_spin.blockSignals(False)
-        self._cosmic_ray_spin.blockSignals(True)
-        self._cosmic_ray_spin.setValue(
-            float(self._noise_value('cosmic_ray_events_per_pixel_per_sec', 0.0))
-        )
-        self._cosmic_ray_spin.blockSignals(False)
-        self._missing_data_spin.blockSignals(True)
-        self._missing_data_spin.setValue(float(self._noise_value('missing_data_rate', 0.0)))
-        self._missing_data_spin.blockSignals(False)
-        self._bias_spin.blockSignals(True)
-        self._bias_spin.setValue(float(self._noise_value('bias_dn', 20.0)))
-        self._bias_spin.blockSignals(False)
-        self._bloom_spin.blockSignals(True)
-        self._bloom_spin.setValue(int(self._noise_value('bloom_length', 0)))
-        self._bloom_spin.blockSignals(False)
-        self._signal_frac_spin.blockSignals(True)
-        self._signal_frac_spin.setValue(float(self._noise_value('signal_full_scale_frac', 0.5)))
-        self._signal_frac_spin.blockSignals(False)
+        self._sync_noise_from_params()
         # The Optics-tab controls (PSF, smear, distortion, ghosts, stray
         # light, oversample, spk_error) and the Artifacts-tab controls
         # (instrument defaults, detector override) sync from their own blocks.

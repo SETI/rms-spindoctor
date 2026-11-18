@@ -40,7 +40,7 @@ from spindoctor.ui.sim_editor.body_mesh_keys import MeshKeyStash
 from spindoctor.ui.sim_editor.body_tab import BodyTabMixin
 from spindoctor.ui.sim_editor.expected_outcome import ExpectedOutcomeMixin
 from spindoctor.ui.sim_editor.full_render import FullRenderRunner
-from spindoctor.ui.sim_editor.global_fields import GlobalFieldsMixin
+from spindoctor.ui.sim_editor.global_fields import NEW_SCENE_RANDOM_SEED, GlobalFieldsMixin
 from spindoctor.ui.sim_editor.noise import NoiseMixin
 from spindoctor.ui.sim_editor.optics_tab import OpticsTabMixin
 from spindoctor.ui.sim_editor.render_display import RenderDisplayMixin
@@ -102,7 +102,7 @@ class CreateSimulatedImageModel(
             'offset_u': 0.0,
             'offset_rotation_deg': 0.0,
             'exposure_sec': 1.0,
-            'random_seed': 42,
+            'random_seed': NEW_SCENE_RANDOM_SEED,
             'instrument': 'generic',
             'closest_planet': 'SATURN',
             'time': 0.0,

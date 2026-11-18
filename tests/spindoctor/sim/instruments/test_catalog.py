@@ -690,7 +690,7 @@ def test_the_frame_units_follow_the_entry(
     # The check refuses an entry whose units differ from its block's, so switch it off to
     # see which of the two the frame follows.
     monkeypatch.setattr(navigator_link, '_check_units_agree', lambda *_, **__: None)
-    params = resolve_detector_params({'instrument': calibrated_cam_on_raw_block})
+    params = resolve_detector_params({'instrument': calibrated_cam_on_raw_block, 'random_seed': 42})
     assert params.data_units == 'calibrated_if'
 
 
@@ -865,7 +865,7 @@ def test_a_table_decoding_above_the_adc_ceiling_fails(
     monkeypatch.setattr(
         instrument_catalog, 'INSTRUMENT_CONFIG_DIR', catalog_dir_with(tmp_path, {'cam.yaml': text})
     )
-    scene = {'instrument': 'cam', 'detector': {'quantization': 'sqrt_lut'}}
+    scene = {'instrument': 'cam', 'random_seed': 42, 'detector': {'quantization': 'sqrt_lut'}}
     with pytest.raises(
         DetectorParamError, match=r'above the ADC ceiling \(saturation_dn\) of 4095 DN'
     ):

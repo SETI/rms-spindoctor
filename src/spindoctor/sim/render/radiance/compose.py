@@ -49,8 +49,7 @@ from spindoctor.config import DEFAULT_CONFIG
 from spindoctor.sim.instruments.navigator_link import resolve_sim_inst_config
 from spindoctor.sim.instruments.resolvers import (
     filter_star_flux_scale,
-    resolve_detector_defaults,
-    resolve_readout_mode,
+    resolve_detector_catalog,
     resolve_sky_pixel_scale_arcsec,
     resolve_star_flux_zero_point,
 )
@@ -118,7 +117,7 @@ def _nominal_read_noise(instrument: str | None, domain: str, *, binning: int) ->
     Returns:
         The nominal read noise in the zero point's unit domain.
     """
-    catalog = {**resolve_detector_defaults(instrument), **resolve_readout_mode(instrument, binning)}
+    catalog = resolve_detector_catalog(instrument, binning)
     if domain == 'dn':
         vidicon = catalog.get('vidicon') or {}
         line = float(vidicon.get('read_noise_line_dn', 1.0))
@@ -160,7 +159,7 @@ def compose_scene_radiance(
     # ``os == 1`` every scale factor is an exact multiply-by-one, so a scene
     # with no optics block renders identically to a detector-grid render.
     os = int(frame.oversample)
-    random_seed = int(params.get('random_seed', 42))
+    random_seed = int(params['random_seed'])
     # Sub-effect stream names follow the established 'scene_radiance/<effect>'
     # convention and are frozen once committed scenes draw from them: renaming
     # one (including 'scene_radiance/background_stars') would reseed its stream

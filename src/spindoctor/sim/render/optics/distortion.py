@@ -310,7 +310,7 @@ def apply_distortion(
     field_v: NDArrayFloatType | None = None
     field_u: NDArrayFloatType | None = None
     if nonradial_rms > 0.0:
-        seed = derive_effect_seed(int(params.get('random_seed', 42)), 'optics/distortion')
+        seed = derive_effect_seed(int(params['random_seed']), 'optics/distortion')
         field_v, field_u = _nonradial_field((size_v, size_u), nonradial_rms * oversample, seed)
         largest += float(np.sqrt(np.max(field_v**2 + field_u**2)))
 

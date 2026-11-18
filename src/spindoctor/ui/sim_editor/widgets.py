@@ -4,9 +4,11 @@
 callbacks so the main window can own the pan / zoom / selection logic,
 ``ParameterUpdater`` coalesces rapid parameter edits into a single debounced
 re-render request, ``make_dspin`` builds a fully configured double spin box in
-one call for the mixins that lay out many numeric fields, and
+one call for the mixins that lay out many numeric fields,
 ``kept_or_shown`` rebuilds a toggled group's map from its spins without
-rounding a loaded value.
+rounding a loaded value, ``as_map`` reads a scene value that should be a map,
+and ``frame_center_px`` gives the default center of an optical-center or
+stray-light group.
 """
 
 from collections.abc import Callable, Mapping
@@ -47,6 +49,38 @@ def make_dspin(
     if tooltip:
         spin.setToolTip(tooltip)
     return spin
+
+
+def as_map(value: Any) -> dict[str, Any]:
+    """Return ``value`` when it is a mapping, else an empty dict.
+
+    Parameters:
+        value: A scene value that should be a map, such as a block that may be
+            absent or null.
+
+    Returns:
+        ``value`` itself when it is a dict, otherwise a fresh empty dict.
+    """
+    return value if isinstance(value, dict) else {}
+
+
+def frame_center_px(sim_params: Mapping[str, Any]) -> tuple[float, float]:
+    """The frame center in pixel-corner coordinates, the default of a center key.
+
+    The residual-distortion optical center and the stray-light bump center both
+    default to the center of the frame.
+
+    Parameters:
+        sim_params: The scene mapping; its ``size_v`` and ``size_u`` are read, 512
+            when absent.
+
+    Returns:
+        ``(size_v / 2, size_u / 2)``.
+    """
+    return (
+        float(sim_params.get('size_v', 512)) / 2.0,
+        float(sim_params.get('size_u', 512)) / 2.0,
+    )
 
 
 def kept_or_shown(

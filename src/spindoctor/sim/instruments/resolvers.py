@@ -50,6 +50,7 @@ __all__ = [
     'resolve_calibrated_sky_if',
     'resolve_dark_sky_ceiling_if',
     'resolve_data_units',
+    'resolve_detector_catalog',
     'resolve_detector_defaults',
     'resolve_detector_id',
     'resolve_detector_model',
@@ -476,6 +477,27 @@ def resolve_detector_defaults(instrument: str | None) -> dict[str, Any]:
     return defaults
 
 
+def resolve_detector_catalog(instrument: str | None, binning: int) -> dict[str, Any]:
+    """Return a sim instrument's detector defaults in one readout mode.
+
+    Where the readout mode sets a key, its value replaces the native one; the keys
+    it leaves out keep the native values.
+
+    Parameters:
+        instrument: The sim instrument name, an alias, or ``None`` for the generic
+            entry.
+        binning: A binning factor from :func:`cataloged_binnings`.
+
+    Returns:
+        A fresh dict: :func:`resolve_detector_defaults` updated with
+        :func:`resolve_readout_mode`.
+
+    Raises:
+        ValueError: If the instrument is not in the catalog.
+    """
+    return {**resolve_detector_defaults(instrument), **resolve_readout_mode(instrument, binning)}
+
+
 def resolve_detector_model(instrument: str | None, detector: Mapping[str, Any] | None) -> str:
     """The detector model a scene renders with, read as the detector resolver reads it.
 
@@ -499,10 +521,7 @@ def resolve_detector_model(instrument: str | None, detector: Mapping[str, Any] |
     if model is not None:
         return str(model)
     binning = block.get('binning')
-    catalog = {
-        **resolve_detector_defaults(instrument),
-        **resolve_readout_mode(instrument, 1 if binning is None else binning),
-    }
+    catalog = resolve_detector_catalog(instrument, 1 if binning is None else binning)
     return str(catalog['detector_model'])
 
 

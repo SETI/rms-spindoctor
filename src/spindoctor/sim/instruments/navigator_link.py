@@ -56,6 +56,7 @@ from spindoctor.support.image_class import (
 from spindoctor.support.types import NDArrayFloatType
 
 __all__ = [
+    'PLANTED_POINTING_KEYS',
     'NavigatorFrameReading',
     'frame_units_name',
     'frame_units_summary',
@@ -67,8 +68,9 @@ __all__ = [
     'with_integer_binning_keys',
 ]
 
-# The offset keys a navigated frame applies and an editor preview zeroes.
-_PLANTED_OFFSET_KEYS = ('offset_v', 'offset_u', 'offset_rotation_deg')
+# The planted pointing keys: the navigated frame applies them, and an offset-free
+# render zeroes them and leaves them out of its cache key.
+PLANTED_POINTING_KEYS: tuple[str, ...] = ('offset_v', 'offset_u', 'offset_rotation_deg')
 
 
 def _deep_merge(base: Mapping[str, Any], overrides: Mapping[str, Any]) -> dict[str, Any]:
@@ -380,7 +382,7 @@ def has_planted_offset(sim_params: Mapping[str, Any]) -> bool:
         True when any of ``offset_v``, ``offset_u``, or ``offset_rotation_deg``
         is non-zero, so the navigated frame differs from an offset-free preview.
     """
-    return any(float(sim_params.get(key) or 0.0) != 0.0 for key in _PLANTED_OFFSET_KEYS)
+    return any(float(sim_params.get(key) or 0.0) != 0.0 for key in PLANTED_POINTING_KEYS)
 
 
 def frame_units_summary(image: NDArrayFloatType, inst_config: Mapping[str, Any]) -> str:

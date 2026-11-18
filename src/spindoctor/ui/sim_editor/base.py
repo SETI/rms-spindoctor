@@ -261,6 +261,10 @@ class SimEditorBase(QMainWindow):
         """Read from the noise block (implemented in NoiseMixin)."""
         raise NotImplementedError
 
+    def _sync_noise_from_params(self) -> None:
+        """Set the detector-noise controls from the noise block (NoiseMixin)."""
+        raise NotImplementedError
+
     def _stray_value(self, key: str, default: Any) -> Any:
         """Read from the stray_light block (implemented in StrayLightMixin)."""
         raise NotImplementedError
@@ -291,10 +295,6 @@ class SimEditorBase(QMainWindow):
 
     def _stray_has_center(self) -> bool:
         """True when a stray-light center key is authored (StrayLightMixin)."""
-        raise NotImplementedError
-
-    def _stray_center_defaults(self) -> tuple[float, float]:
-        """The effective stray-light center default (StrayLightMixin)."""
         raise NotImplementedError
 
     def _build_optics_tab(self) -> QWidget:

@@ -125,7 +125,9 @@ def test_the_navigator_zero_point_matches_the_simulators(instrument: str) -> Non
     """
     zero_point, domain = resolve_star_flux_zero_point(instrument)
     if domain == 'electrons':
-        zero_point /= resolve_detector_params({'instrument': instrument}).gain_e_per_dn
+        zero_point /= resolve_detector_params(
+            {'instrument': instrument, 'random_seed': 42}
+        ).gain_e_per_dn
     # A block without the key fails here and in the test above, which says why.
     stated = resolve_sim_inst_config(DEFAULT_CONFIG, instrument)['noise'][
         'star_flux_dn_per_s_vmag0'
@@ -159,6 +161,7 @@ def _binned_mode_detector(instrument: str, binning: int) -> Any:
         'instrument': instrument,
         'size_v': 32,
         'size_u': 32,
+        'random_seed': 42,
         'detector': {'binning': binning},
         'artifacts': {'instrument_defaults': True},
     }

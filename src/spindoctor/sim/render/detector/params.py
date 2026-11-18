@@ -50,18 +50,19 @@ from spindoctor.sim.instruments.resolvers import (
     mode_available,
     resolve_calibrated_sky_if,
     resolve_data_units,
-    resolve_detector_defaults,
+    resolve_detector_catalog,
     resolve_detector_id,
     resolve_downlink_table,
     resolve_filter_throughput,
     resolve_mode_with_catalog,
-    resolve_readout_mode,
 )
 from spindoctor.sim.render.detector.sqrt_lut import (
     DownlinkCurve,
     check_curve_ceiling,
     resolve_sqrt_lut,
 )
+from spindoctor.sim.render.optics.stage import instrument_defaults_on
+from spindoctor.sim.scene.fields import scene_binning
 from spindoctor.sim.seeds import derive_effect_seed
 from spindoctor.support.image_class import missing_data_marker
 from spindoctor.support.types import NDArrayFloatType
@@ -195,7 +196,7 @@ class DetectorParams:
     dark_dn: float
     calibrated_sky_if: float
     marker_value: float
-    random_seed: int = 42
+    random_seed: int
     detector_id: str = 'generic'
     binning: int = 1
     instrument_defaults: bool = False
@@ -281,11 +282,12 @@ def _default_or_zero(
     return 0.0
 
 
-def _resolve_binning(detector_block: Mapping[str, Any], *, instrument: str | None) -> int:
-    """Select the readout mode's binning factor from the scene ``detector`` block.
+def _cataloged_binning(params: Mapping[str, Any], *, instrument: str | None) -> int:
+    """Read the scene's binning factor and refuse one the instrument does not catalog.
 
     Parameters:
-        detector_block: The scene ``detector`` block (may set ``binning``).
+        params: The full scene mapping, read by
+            :func:`~spindoctor.sim.scene.fields.scene_binning`.
         instrument: The sim instrument name, for the catalog lookup.
 
     Returns:
@@ -295,13 +297,10 @@ def _resolve_binning(detector_block: Mapping[str, Any], *, instrument: str | Non
         DetectorParamError: If the binning isn't an integer (a bool counts as
             neither), or the instrument doesn't catalog it.
     """
-    binning = detector_block.get('binning')
-    if binning is None:
-        return 1
-    if isinstance(binning, bool) or not isinstance(binning, int):
-        raise DetectorParamError(
-            f'sim instrument {instrument!r}: detector.binning must be an integer, got {binning!r}'
-        )
+    try:
+        binning = scene_binning(params)
+    except ValueError as exc:
+        raise DetectorParamError(f'sim instrument {instrument!r}: {exc}') from exc
     available = cataloged_binnings(instrument)
     if binning not in available:
         raise DetectorParamError(
@@ -505,9 +504,9 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
     inst_noise = inst_config.get('noise') or {}
     sim_noise = DEFAULT_CONFIG.category('sim')['noise']
     detector_block = params.get('detector') or {}
-    binning = _resolve_binning(detector_block, instrument=instrument)
+    binning = _cataloged_binning(params, instrument=instrument)
     # The readout mode's published values replace the native ones it names.
-    catalog = {**resolve_detector_defaults(instrument), **resolve_readout_mode(instrument, binning)}
+    catalog = resolve_detector_catalog(instrument, binning)
     # A binned pixel collects the charge of its binning**2 native pixels.
     pixels_per_frame_pixel = float(binning * binning)
 
@@ -515,7 +514,7 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
     # default, so noise: {poisson: null} keeps the instrument_defaults shot noise.
     scene_noise = _set_keys(params.get('noise') or {})
     artifacts = params.get('artifacts') or {}
-    instrument_defaults = bool(artifacts.get('instrument_defaults', False))
+    instrument_defaults = instrument_defaults_on(params)
 
     detector_model = str(
         _scene_or_default(detector_block, 'detector_model', catalog['detector_model'])
@@ -725,7 +724,7 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
     detector_modes = _resolve_detector_modes(
         artifacts,
         instrument,
-        int(params.get('random_seed', 42)),
+        int(params['random_seed']),
         instrument_defaults=instrument_defaults,
     )
     contour_step = 8
@@ -798,7 +797,7 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
             catalog.get('calibrated_sky_if', resolve_calibrated_sky_if(instrument))
         ),
         marker_value=missing_data_marker(inst_config),
-        random_seed=int(params.get('random_seed', 42)),
+        random_seed=int(params['random_seed']),
         detector_id=resolve_detector_id(instrument),
         binning=binning,
         instrument_defaults=instrument_defaults,

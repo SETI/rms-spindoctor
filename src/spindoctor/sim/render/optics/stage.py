@@ -47,7 +47,7 @@ __all__ = ['apply_optics', 'apply_stray_light', 'effective_psf', 'instrument_def
 def instrument_defaults_on(params: Mapping[str, Any]) -> bool:
     """Whether the scene opts into the instrument's physical signal chain."""
     artifacts = params.get('artifacts')
-    return isinstance(artifacts, dict) and bool(artifacts.get('instrument_defaults', False))
+    return isinstance(artifacts, Mapping) and bool(artifacts.get('instrument_defaults', False))
 
 
 def effective_psf(params: Mapping[str, Any]) -> dict[str, Any] | None:

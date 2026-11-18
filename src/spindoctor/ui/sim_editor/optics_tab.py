@@ -31,7 +31,7 @@ from PyQt6.QtWidgets import (
 
 from spindoctor.sim.scene.fields import scene_value
 from spindoctor.ui.sim_editor.base import SimEditorBase
-from spindoctor.ui.sim_editor.widgets import kept_or_shown
+from spindoctor.ui.sim_editor.widgets import frame_center_px, kept_or_shown, make_dspin
 
 _SMEAR_CLASSES: list[str] = ['all', 'stars', 'bodies', 'rings']
 
@@ -65,26 +65,6 @@ class _GhostRow:
 def _has_center(block: dict[str, Any]) -> bool:
     """True when a block sets either center key to a non-null value."""
     return block.get('center_v') is not None or block.get('center_u') is not None
-
-
-def _dspin(
-    *,
-    minimum: float,
-    maximum: float,
-    decimals: int,
-    step: float,
-    value: float,
-    tooltip: str = '',
-) -> QDoubleSpinBox:
-    """Build a configured ``QDoubleSpinBox``."""
-    spin = QDoubleSpinBox()
-    spin.setRange(minimum, maximum)
-    spin.setDecimals(decimals)
-    spin.setSingleStep(step)
-    spin.setValue(value)
-    if tooltip:
-        spin.setToolTip(tooltip)
-    return spin
 
 
 class OpticsTabMixin(SimEditorBase):
@@ -152,7 +132,7 @@ class OpticsTabMixin(SimEditorBase):
         )
         form.addRow('Match navigator:', self._psf_match_nav_check)
 
-        self._psf_sigma_v_spin = _dspin(
+        self._psf_sigma_v_spin = make_dspin(
             minimum=0.01,
             maximum=20.0,
             decimals=3,
@@ -161,7 +141,7 @@ class OpticsTabMixin(SimEditorBase):
             tooltip='Gaussian core sigma along v, in detector pixels.',
         )
         form.addRow('Sigma V (px):', self._psf_sigma_v_spin)
-        self._psf_sigma_u_spin = _dspin(
+        self._psf_sigma_u_spin = make_dspin(
             minimum=0.01,
             maximum=20.0,
             decimals=3,
@@ -170,7 +150,7 @@ class OpticsTabMixin(SimEditorBase):
             tooltip='Gaussian core sigma along u, in detector pixels.',
         )
         form.addRow('Sigma U (px):', self._psf_sigma_u_spin)
-        self._psf_w_spin = _dspin(
+        self._psf_w_spin = make_dspin(
             minimum=0.0,
             maximum=1.0,
             decimals=4,
@@ -179,7 +159,7 @@ class OpticsTabMixin(SimEditorBase):
             tooltip='Moffat wing energy fraction in [0, 1].',
         )
         form.addRow('Wing fraction w:', self._psf_w_spin)
-        self._psf_r0_spin = _dspin(
+        self._psf_r0_spin = make_dspin(
             minimum=0.01,
             maximum=50.0,
             decimals=3,
@@ -188,7 +168,7 @@ class OpticsTabMixin(SimEditorBase):
             tooltip='Moffat core radius in detector pixels.',
         )
         form.addRow('Moffat r0 (px):', self._psf_r0_spin)
-        self._psf_n_spin = _dspin(
+        self._psf_n_spin = make_dspin(
             minimum=0.1,
             maximum=20.0,
             decimals=3,
@@ -299,7 +279,7 @@ class OpticsTabMixin(SimEditorBase):
         container = QWidget()
         row = QHBoxLayout(container)
         row.setContentsMargins(0, 0, 0, 0)
-        dv_spin = _dspin(
+        dv_spin = make_dspin(
             minimum=-200.0,
             maximum=200.0,
             decimals=3,
@@ -307,7 +287,7 @@ class OpticsTabMixin(SimEditorBase):
             value=float(scene_value(entry, 'dv_px', 0.0)),
             tooltip='Drift along v (px).',
         )
-        du_spin = _dspin(
+        du_spin = make_dspin(
             minimum=-200.0,
             maximum=200.0,
             decimals=3,
@@ -393,7 +373,7 @@ class OpticsTabMixin(SimEditorBase):
         form = QFormLayout(group)
         distortion = self._optics_sub('distortion')
         block = distortion if isinstance(distortion, dict) else {}
-        self._distortion_k1_spin = _dspin(
+        self._distortion_k1_spin = make_dspin(
             minimum=-1.0,
             maximum=1.0,
             decimals=5,
@@ -402,7 +382,7 @@ class OpticsTabMixin(SimEditorBase):
             tooltip='Radial k1 coefficient.',
         )
         form.addRow('k1:', self._distortion_k1_spin)
-        self._distortion_k2_spin = _dspin(
+        self._distortion_k2_spin = make_dspin(
             minimum=-1.0,
             maximum=1.0,
             decimals=5,
@@ -425,8 +405,8 @@ class OpticsTabMixin(SimEditorBase):
             'renderer uses the frame center).'
         )
         form.addRow(self._distortion_center_check)
-        default_center_v, default_center_u = self._distortion_center_defaults()
-        self._distortion_center_v_spin = _dspin(
+        default_center_v, default_center_u = frame_center_px(self.sim_params)
+        self._distortion_center_v_spin = make_dspin(
             minimum=0.0,
             maximum=20000.0,
             decimals=2,
@@ -436,7 +416,7 @@ class OpticsTabMixin(SimEditorBase):
         )
         self._distortion_center_v_spin.setEnabled(has_center)
         form.addRow('Center V (px):', self._distortion_center_v_spin)
-        self._distortion_center_u_spin = _dspin(
+        self._distortion_center_u_spin = make_dspin(
             minimum=0.0,
             maximum=20000.0,
             decimals=2,
@@ -446,7 +426,7 @@ class OpticsTabMixin(SimEditorBase):
         )
         self._distortion_center_u_spin.setEnabled(has_center)
         form.addRow('Center U (px):', self._distortion_center_u_spin)
-        self._distortion_nonradial_spin = _dspin(
+        self._distortion_nonradial_spin = make_dspin(
             minimum=0.0,
             maximum=50.0,
             decimals=3,
@@ -467,13 +447,6 @@ class OpticsTabMixin(SimEditorBase):
         self._distortion_center_check.toggled.connect(self._on_distortion_center_check)
         group.toggled.connect(self._on_distortion_group_toggled)
         return group
-
-    def _distortion_center_defaults(self) -> tuple[float, float]:
-        """The effective optical-center default: the frame center, in pixels."""
-        return (
-            float(self.sim_params.get('size_v', 512)) / 2.0,
-            float(self.sim_params.get('size_u', 512)) / 2.0,
-        )
 
     def _set_distortion_key(self, key: str, value: Any) -> None:
         """Write one distortion key, preserving every other authored key."""
@@ -522,7 +495,7 @@ class OpticsTabMixin(SimEditorBase):
         # The keys are now absent, so show the effective default.  The spins
         # are disabled and their handlers check the enable, so this never
         # writes the keys back.
-        default_center_v, default_center_u = self._distortion_center_defaults()
+        default_center_v, default_center_u = frame_center_px(self.sim_params)
         self._distortion_center_v_spin.setValue(default_center_v)
         self._distortion_center_u_spin.setValue(default_center_u)
 
@@ -576,7 +549,7 @@ class OpticsTabMixin(SimEditorBase):
         container = QWidget()
         row = QHBoxLayout(container)
         row.setContentsMargins(0, 0, 0, 0)
-        dv_spin = _dspin(
+        dv_spin = make_dspin(
             minimum=-2000.0,
             maximum=2000.0,
             decimals=2,
@@ -584,7 +557,7 @@ class OpticsTabMixin(SimEditorBase):
             value=float(scene_value(entry, 'dv_px', 0.0)),
             tooltip='Ghost offset along v (px).',
         )
-        du_spin = _dspin(
+        du_spin = make_dspin(
             minimum=-2000.0,
             maximum=2000.0,
             decimals=2,
@@ -592,7 +565,7 @@ class OpticsTabMixin(SimEditorBase):
             value=float(scene_value(entry, 'du_px', 0.0)),
             tooltip='Ghost offset along u (px).',
         )
-        amplitude_spin = _dspin(
+        amplitude_spin = make_dspin(
             minimum=0.0,
             maximum=1.0,
             decimals=4,
@@ -600,7 +573,7 @@ class OpticsTabMixin(SimEditorBase):
             value=float(scene_value(entry, 'amplitude', 0.0)),
             tooltip='Ghost amplitude fraction.',
         )
-        defocus_spin = _dspin(
+        defocus_spin = make_dspin(
             minimum=0.0,
             maximum=100.0,
             decimals=2,
@@ -728,7 +701,7 @@ class OpticsTabMixin(SimEditorBase):
         spk_form = QFormLayout(spk_group)
         spk = self.sim_params.get('spk_error')
         dv_px, du_px, reference_range_km = self._spk_shown()
-        self._spk_dv_spin = _dspin(
+        self._spk_dv_spin = make_dspin(
             minimum=-500.0,
             maximum=500.0,
             decimals=3,
@@ -737,7 +710,7 @@ class OpticsTabMixin(SimEditorBase):
             tooltip='Parallax displacement along v at the reference range (px).',
         )
         spk_form.addRow('dv (px):', self._spk_dv_spin)
-        self._spk_du_spin = _dspin(
+        self._spk_du_spin = make_dspin(
             minimum=-500.0,
             maximum=500.0,
             decimals=3,
@@ -746,7 +719,7 @@ class OpticsTabMixin(SimEditorBase):
             tooltip='Parallax displacement along u at the reference range (px).',
         )
         spk_form.addRow('du (px):', self._spk_du_spin)
-        self._spk_range_spin = _dspin(
+        self._spk_range_spin = make_dspin(
             minimum=0.0,
             maximum=1.0e9,
             decimals=2,
@@ -917,7 +890,7 @@ class OpticsTabMixin(SimEditorBase):
         has_center = _has_center(block)
         self._distortion_center_check.setChecked(has_center)
         # An absent center key displays its effective default (frame center).
-        default_center_v, default_center_u = self._distortion_center_defaults()
+        default_center_v, default_center_u = frame_center_px(self.sim_params)
         self._distortion_center_v_spin.setValue(
             float(scene_value(block, 'center_v', default_center_v))
         )
@@ -940,7 +913,7 @@ class OpticsTabMixin(SimEditorBase):
         has_center = self._stray_has_center()
         self._stray_center_check.setChecked(has_center)
         # An absent center key displays its effective default (frame center).
-        default_center_v, default_center_u = self._stray_center_defaults()
+        default_center_v, default_center_u = frame_center_px(self.sim_params)
         self._stray_center_v_spin.setValue(float(self._stray_value('center_v', default_center_v)))
         self._stray_center_v_spin.setEnabled(has_center)
         self._stray_center_u_spin.setValue(float(self._stray_value('center_u', default_center_u)))
