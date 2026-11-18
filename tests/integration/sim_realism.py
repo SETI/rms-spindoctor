@@ -972,4 +972,10 @@ def main() -> None:
 
 if __name__ == '__main__':
     require_checkout_package(__file__)
-    main()
+    # Run the copy of this module imported under its package name.  The report module
+    # imports this module by that name, so a run of this ``__main__`` copy would build
+    # its frame pairs from one copy of the classes while the report counts them against
+    # the other's, and every identity check between the two would fail.
+    from tests.integration.sim_realism import main as _package_main
+
+    _package_main()

@@ -175,8 +175,8 @@ frame looks like a real one is a precondition for reading any of them as a
 statement about real frames, and this section measures it, per instrument,
 with labels for how far each cohort reaches.  It is a precondition only: a
 close image match doesn't show that simulated navigation error predicts real
-error, and the match itself has no pass threshold and was tuned on the same
-frames that report it.
+error.  The match also has no threshold for how close is close enough, and it
+was tuned on the same frames that report it.
 
 The realism runner (``python -m tests.integration.sim_realism``; see
 :ref:`sim-realism-match` for the machinery) compares the curated real-image
@@ -186,14 +186,32 @@ figures of merit, per instrument.  Each compared statistic is reported as a
 distribution overlay plus one scalar: the Wasserstein-1 distance on
 quantile-clipped samples, normalized by the real distribution's IQR (a
 value of 1.0 means the two distributions are displaced by about one real
-IQR).  **No pass/fail threshold is attached**; the numbers below are read
-against each cohort's support.  Figure of merit 7 (technique diagnostics)
-is read-only and was not consulted for any tuned value -- it is built from
+IQR).  The numbers below are read against each cohort's support.
+
+A regression check holds the simulator to the committed record.  It reruns the
+match on the two LORRI frames, which takes seconds, and compares selected values
+with the record.  For each statistic whose support is *limited* or *supported*
+(defined below), it holds the normalized W1, the real median, and the
+simulated median, each when the record gives a number.  For each curve with that support, it holds
+the curve's normalized W1.  On LORRI that is 19 values.  It doesn't hold the raw
+W1 distances, the real IQRs, or the frame and sample counts, so a change that
+moves only those goes unnoticed.  Each held value must stay within a band: the larger of 3 times its run-to-run spread over 10 runs and 2%
+of its value.  The bands are two-sided, because a better-looking number can come
+from a worse simulator.  A second test requires the record and the band table to
+agree, and it reads only committed files.  The record stores the commit of the
+code that made it.  The current record was made at commit ``ea3c5442`` on
+2026-11-17.
+
+Figure of merit 7 (technique diagnostics) is read-only and was not consulted
+for any tuned value -- it is built from
 the navigator's own outputs, and tuning the image side until the
 navigator's diagnostics agree would re-admit circularity through parameter
 fitting.
 
-Cohort support (measured 2026-07-18, 75 frames):
+Cohort support (2026-11-17 record, 75 frames).  A label counts the frames that
+contribute to the figure of merit on each side, real and simulated, and the
+smaller count sets it: *unsupported* below 2 frames, *limited* for 2 to 7, and
+*supported* for 8 or more.
 
 .. list-table::
    :header-rows: 1
@@ -210,7 +228,7 @@ Cohort support (measured 2026-07-18, 75 frames):
    * - Cassini NAC (CALIB)
      - 58
      - supported
-     - supported
+     - limited
      - supported
      - supported
      - supported
@@ -225,7 +243,7 @@ Cohort support (measured 2026-07-18, 75 frames):
      - limited
    * - Galileo SSI (REDR)
      - 8
-     - limited
+     - supported
      - unsupported
      - unsupported
      - unsupported
@@ -336,7 +354,7 @@ rendered frames match the real Cassini cohort on FOMs 1-6.  The instrument
 config entries under ``sim/instrument_configs/`` state each tuned value, with its
 tuning date and cohort statistics in the comment beside it.  This table records
 the headline divergences before that pass and in the current record
-(2026-11-07; normalized W1; smaller is better, ~1 means displaced by one
+(2026-11-17; normalized W1; smaller is better, ~1 means displaced by one
 real IQR):
 
 .. list-table::
@@ -350,39 +368,39 @@ real IQR):
      - n real
      - n sim
    * - sky noise sigma (FOM 1)
-     - 2.1e-4 I/F
+     - 1.9e-4 I/F
      - 10.0
-     - 1.44 [#table]_
-     - 5263
-     - 11283
+     - 0.73 [#table]_
+     - 4502
+     - 7332
    * - sky level above floor (FOM 1)
-     - 3.8e-4 I/F
+     - 3.2e-4 I/F
      - 13.9
-     - 31.4 [#tail]_
-     - 5263
-     - 11283
+     - 1.64 [#tail]_
+     - 4502
+     - 7332
    * - noise at signal (FOM 1)
      - 2.8e-4 I/F
      - 13.8
      - 1.53
      - 15700
-     - 33763
+     - 33791
    * - star EE50 (FOM 2)
      - 0.91 px
      - 1.09
-     - 0.98
+     - 1.14
      - 25
-     - 32
+     - 9
    * - star EE80 (FOM 2)
      - 1.79 px
      - 1.28
-     - 0.35
+     - 1.10
      - 25
-     - 32
+     - 9
    * - limb rise width, co-populated strata (FOM 3)
      - 2.54 px
      - -- [#copop]_
-     - 0.10
+     - 0.12
      - 3742
      - 4345
    * - ring-edge rise width (FOM 4)
@@ -390,7 +408,7 @@ real IQR):
      - 0.47
      - 0.49
      - 3163
-     - 21950
+     - 21945
    * - near-floor fraction, 0.05-0.5 s (FOM 5)
      - 0.107
      - 0.76
@@ -410,24 +428,28 @@ real IQR):
      - 58
      - 58
 
-.. [#table] The pooled value hides a split by downlink format.  On the 31
-   12-bit frames with sky patches on both sides, the per-frame ratio of
-   simulated to real median sky sigma has a median of 0.88 (quartiles
-   0.79-1.02).  On the 17 TABLE frames it has a median of 0.26 (quartiles
-   0.08-0.38), and 9 more TABLE frames yield no real sky patch at all.
-   Most of that is content: TABLE frames are mostly ring- and body-filled,
-   so their darkest-quartile real patches lie on rings and bodies (0.02 to
-   0.88 I/F on the six lowest-ratio frames) while the matched frames' lie
-   on dark sky near 3e-4 I/F (see the matched-frame content known gap).
-   Where the two sides' patch levels agree within a factor of three, the
-   TABLE ratios still run low, 0.26-5.1 with a median of 0.48 over eight
-   frames, which hints at a residual TABLE noise shortfall that too few
-   frames can confirm.
+.. [#table] Sky patches count only where they lie on dark sky in both
+   frames.  The *calibrated sky residual* is the level at which the
+   simulator draws empty sky on a calibrated Cassini frame, 4e-5 I/F on
+   both cameras.  The *dark-sky ceiling* is 2.5e-3 I/F above it, and a
+   patch lies on dark sky when its mean is at or below the ceiling.  On a
+   ring- or body-filled frame the darkest patches lie
+   on that content, and this test leaves them out.  It keeps 38 of the 58
+   NAC frame pairs.  The 12-bit frames keep 26 of 32: 5 are dropped
+   because one of the two frames has no patch on dark sky, and 1 has no
+   real sky patch.  Their per-frame ratio of simulated to real median sky
+   sigma has a median of 0.88 (quartiles 0.82-1.02).  The TABLE frames
+   keep 12 of 26: 5 are dropped, and 9 have no real sky patch.  Their
+   ratio has a median of 0.37 (quartiles 0.25-0.59), so on dark sky the
+   simulated TABLE frames are still far quieter than the real ones.  The
+   real TABLE skies also sit 4.5e-4 to 2.3e-3 I/F above the residual,
+   while the matched frames' skies sit within 5e-5 I/F of it.  Whether
+   the simulator's TABLE path is too quiet is an open question.
 
-.. [#tail] Medians agree to 20% (3.0e-4 sim vs 3.8e-4 real); the large W1
-   is carried by a tail of simulated sky patches near bright content in
-   body- and ring-bearing frames -- residual halo and shading structure
-   the darkest-quartile patch selection admits on the sim side.
+.. [#tail] The medians differ by about 3% (3.3e-4 sim vs 3.2e-4 I/F real).
+   In the 2026-11-07 record the W1/IQR was 31.4, carried by a tail of
+   simulated sky patches near bright content in body- and ring-bearing
+   frames.  The dark-sky test leaves such patches out.
 
 .. [#copop] The pooled FOM 3 statistic is computed over strata populated
    on *both* sides.  Earlier records pooled every stratum, but the
@@ -443,7 +465,7 @@ real IQR):
    like-for-like "before" number cannot be reconstructed for the
    pre-tuning model, so the cell is blank.
 
-The FOM 3 strata behind the pooled number (2026-11-07; p = phase bin
+The FOM 3 strata behind the pooled number (2026-11-17; p = phase bin
 < 60 / 60-120 / > 120 deg, r = diameter bin < 100 / 100-400 / > 400 px):
 
 .. list-table::
@@ -457,83 +479,88 @@ The FOM 3 strata behind the pooled number (2026-11-07; p = phase bin
      - n real
      - n sim
    * - p0 r0
-     - 0.25
+     - 0.27
      - 2.87
-     - 2.58
+     - 2.55
      - 522
      - 1408
    * - p0 r1
-     - 0.37
+     - 0.33
      - 2.75
-     - 2.62
+     - 2.58
      - 400
      - 400
    * - p0 r2
-     - 0.68
+     - 0.69
      - 3.09
-     - 2.60
+     - 2.59
      - 733
      - 781
    * - p1 r0
-     - 0.70
+     - 0.76
      - 2.18
-     - 2.48
+     - 2.51
      - 435
      - 400
    * - p1 r1
-     - 0.62
+     - 0.63
      - 2.24
-     - 2.49
+     - 2.48
      - 909
      - 800
    * - p1 r2
      - 0.34
      - 2.58
-     - 2.45
+     - 2.50
      - 525
      - 200
    * - p2 r0
-     - 1.47
+     - 1.52
      - 1.75
-     - 2.35
+     - 2.36
      - 70
      - 156
    * - p2 r1
-     - 2.56
+     - 2.66
      - 1.71
      - 2.53
      - 148
      - 200
 
-The headline reading: the star PSF matches the cohort's medians through
-the same estimator on both sides (EE50 0.84 sim vs 0.91 real; EE80 1.56
-vs 1.79).  The 25 real cutouts spread wider than the simulated ones (EE50
-W1/IQR 0.98), and the simulated cutouts number 32, down from 79, because
-each matched star frame now renders through its own filter and the
-narrowband frames' stars dim with it.  The stationary artifact rate
-matches (1.6e-5 of pixels on both sides, hot pixels recurring at fixed
-detector positions on both sides), while the transient (cosmic-ray) share
-comes from the catalog's fitted cosmic-ray terms (see the
-measured-transients known gap).  Limb rise widths agree in the
-like-for-like pool (co-populated-strata medians 2.542 sim vs 2.540 px
-real, W1/IQR 0.10) with per-stratum divergences from 0.25 to 2.56, worst
+The headline reading: each matched star frame now holds the catalog stars
+of its real frame's field, and the simulated star cutouts number 9, from 6
+of the matched frames, against 25 real cutouts from 11 frames.  The record
+before (2026-11-07) had 32 simulated cutouts, drawn from a made-up magnitude
+ladder.  The simulator draws NAC stars fainter than real stars of the same
+catalog magnitude, so most of each field's stars fall below detection, and
+FOM 2 is only limited on the NAC.  On those 9 cutouts the simulated EE50 and
+EE80 medians are 0.76 and 1.33 px, against 0.91 and 1.79 px real (W1/IQR
+1.14 and 1.10).  The tuned kernel itself is unchanged.  The stationary
+artifact rate matches (1.6e-5 of pixels on both sides, hot pixels recurring
+at fixed detector positions on both sides), while the transient
+(cosmic-ray) share comes from the catalog's fitted cosmic-ray terms (see
+the measured-transients known gap).  Limb rise widths agree in the
+like-for-like pool (co-populated-strata medians 2.539 sim vs 2.540 px
+real, W1/IQR 0.12) with per-stratum divergences from 0.27 to 2.66, worst
 at high phase, where the simulated crescent limb measures *wider* than
-the real one (2.35-2.53 px vs 1.71-1.75 px medians).  Ring-edge widths
+the real one (2.36-2.53 px vs 1.71-1.75 px medians).  Ring-edge widths
 differ by 0.9 px (2.47 sim vs 3.36 px real, W1/IQR 0.49).  The sky-noise
-distribution matches far closer than before (W1/IQR 1.44, from 4.95),
-with the simulated median below the real one (1.5e-4 vs 2.1e-4 I/F),
-and the pooled value hides the split by downlink format in the table's
-first footnote.  The low-phase limb residual is not a PSF error -- FOM 2
-pins the PSF independently -- but limb content (real topography, the
-Lommel-Seeliger approximation); the high-phase excess runs the other way
+distribution matches closer than in the 2026-11-07 record (W1/IQR 0.73,
+from 1.44), with the simulated median below the real one (1.7e-4 vs
+1.9e-4 I/F).  Only patches on dark sky enter it now, and the split by
+downlink format remains (the table's first footnote).  The record doesn't
+separate the causes of the low-phase limb residual.  Limb content may
+contribute (real topography, the Lommel-Seeliger approximation), and so may
+the rendered PSF, since the simulated star cutouts are narrower than the
+real ones at both EE50 and EE80.  The high-phase excess runs the other way
 and points at the crescent shading model.  The curve *shapes* agree
 closer than the scalar samples: the density-W1 of the frame-averaged
-curves is 0.29 for the sky power spectrum, 0.20 for the star radial
-profile, 0.02 for the limb profile, and 0.08 for the ring radial profile
+curves is 0.06 for the sky power spectrum, 0.19 for the star radial
+profile, 0.03 for the limb profile, and 0.08 for the ring radial profile
 (axis units over the real IQR; ``curve_divergences`` in the summary).
-The sky power spectrum's distance rose from 0.07 in the 2026-11-01
-record, alongside the calibrated noise floor and per-frame filters this
-record adds; the record doesn't isolate which term moved it.
+The sky power spectrum's distance fell from 0.29 in the 2026-11-07
+record.  A tile's spectrum now enters only when all four of its patches
+lie on dark sky, so light from a ring or a limb beside the tile stays out.
 
 Two caveats apply to every FOM 2/3 width above.  First, a registration
 asymmetry: real-side star cutouts and limb profiles are centered through
@@ -558,8 +585,8 @@ the absolute value is not.
    :width: 100%
    :alt: Cassini NAC star radial profile and encircled energy, real vs sim
 
-   FOM 2, Cassini NAC: star radial profiles and encircled-energy radii.
-   The tuned kernel reproduces the cohort's EE50/EE80.
+   FOM 2, Cassini NAC: star radial profiles and encircled-energy radii of
+   the real cutouts and of the matched frames' catalog stars.
 
 .. figure:: _figures/realism_coiss_calib_nac_limb.png
    :width: 100%
@@ -593,76 +620,69 @@ The other instruments
 
 **Cassini WAC** (4 frames, limited).  The cohort's two star frames give
 9 usable real star cutouts that pin the tuned WAC kernel: cohort
-EE50/EE80 = 1.30/2.00 px against simulated 1.15/1.92 px over 8 cutouts,
-normalized W1 0.53 and 0.53 (from 1.32 and 3.16 before tuning).  The
+EE50/EE80 = 1.30/2.00 px against simulated 1.24/2.09 px over 9 cutouts,
+normalized W1 0.22 and 0.43 (from 1.32 and 3.16 before tuning).  The
 matched scenes render each frame's own filter, gain state, and downlink
 table and the calibration residual (see the calibrated-product known
-gap), so every frame contributes sky patches on both sides.  Pooled, the
-simulated sky sigma sits at 2.4e-4 I/F against 1.9e-4 real (W1/IQR 3.3,
-from 94 at the nominal DN-to-I/F scale), noise at signal at W1/IQR 9.9
-(from 98), and the sky level above the floor at 5.0e-4 against 3.2e-4
-I/F (W1/IQR 190, from 2377).  Frame by frame, the median sky-patch sigma
-in I/F:
+gap).  Three of the four frame pairs have sky patches on dark sky in both
+frames.  Pooled, the simulated sky sigma sits at 2.4e-4 I/F against
+1.9e-4 real (W1/IQR 1.32, from 94 at the nominal DN-to-I/F scale), noise
+at signal at W1/IQR 9.9 (from 98), and the sky level above the floor at
+5.0e-4 against 3.1e-4 I/F (W1/IQR 5.0, from 2377).  Frame by frame:
 
 .. list-table::
    :header-rows: 1
-   :widths: 24 10 12 11 9 9 10 10 9
+   :widths: 22 10 12 11 12 12 11 10
 
    * - Frame
      - Exposure
      - Filter
      - Downlink
-     - Real patches
-     - Sim patches
-     - Real
-     - Sim
-     - Sim/real
+     - Real patches kept
+     - Sim patches kept
+     - Sim/real sigma
+     - Outcome
    * - W1444747627
      - 1.8 s
      - CL1+VIO
      - TABLE
-     - 90
-     - 247
-     - 4.9e-4
-     - 2.3e-4
+     - 90 of 90
+     - 248 of 248
      - 0.47
+     - compared
    * - W1449079117
      - 25 ms
      - CL1+RED
      - 12-bit
-     - 209
-     - 245
-     - 1.9e-4
-     - 3.1e-4
-     - 1.68
+     - 209 of 209
+     - 245 of 245
+     - 1.67
+     - compared
    * - W1580760393
      - 26 s
      - CL1+CL2
      - 12-bit
-     - 79
-     - 222
-     - 8.7e-8
-     - 1.3e-7
-     - 1.53
+     - 79 of 79
+     - 194 of 194
+     - 1.52
+     - compared
    * - W1637520502
      - 5 ms
      - CL1+CL2
      - TABLE
-     - 98
-     - 95
-     - 3.0e-3
-     - 7.3e-4
-     - 0.24
+     - 0 of 98
+     - 94 of 94
+     - --
+     - dropped
 
-The 12-bit frames run 1.5-1.7 times noisier in the simulation and the
-TABLE frames 0.2-0.5 times as noisy, the NAC's split by downlink format
-again.  W1637520502 is a full-frame body whose real patches sit 2.5 times
-brighter than the matched frame's, the content mismatch; W1444747627's
-patch levels agree within 40%.  The pooled sim median now comes from all
-four frames, where before the regeneration the two shortest frames
-yielded 3 simulated patches between them and the 26 s frame supplied 257
-of 378.  The remaining WAC statistics rest on 1-2 frames per stratum and
-are reported in the summary JSON without distributional claims.
+The two 12-bit frames run 1.5-1.7 times noisier in the simulation and the
+TABLE frame half as noisy, the NAC's split by downlink format again.
+W1637520502 is a full-frame view of Rhea.  Its darkest real patches are
+sky brightened by light scattered from the moon, at 6.3e-3 I/F, above the
+dark-sky ceiling (defined in the NAC table's first footnote), so the pair
+drops out.  The remaining WAC statistics rest on 1-2
+frames per stratum and are reported in the summary JSON without
+distributional claims.
 
 **Galileo SSI** (8 frames).  Every Galileo frame in the library is a
 negative case, so FOMs 2-4 are unsupported and *the gossi PSF and shape
@@ -671,34 +691,39 @@ star-calibration frames land.  What the cohort does support:
 FOM 6 -- the stationary spike fraction, 1.4e-6, is the catalog's
 hot-pixel fraction, and the real transient fraction, 1.2e-4 of pixels,
 meets 1.6e-4 from the catalog's fitted cosmic-ray terms (spike-fraction
-W1/IQR 0.45; the measured-transients known gap) -- and the
-observation that the real REDR sky floor
-is quantization-locked at exactly 1 LSB while the frames carry an extended
+W1/IQR 0.44; the measured-transients known gap) -- and FOM 1.  Every frame
+pair contributes sky patches, and the matched frames have about a quarter
+of the real sky noise: 0.22 DN against 0.96 DN, over 435 simulated and 822
+real sky patches (W1/IQR 8.2).  The real frames also carry an extended
 background glow the matched sky frames do not model (see the known gaps).
 
 **Voyager ISS** (3 frames, limited).  The GEOMED star frame gives 6 real
-star cutouts (EE50 median 1.26 px) against two simulated ones (EE50
-median 4.12 px, after the plateau guard rejects the brightest simulated
-core, whose noise-free 8-bit quantization ties its central pixels at 1-2
-LSB -- a quantization plateau with no sub-pixel shape information, not a
-clipped core) -- one frame and two noise-dominated cutouts
-constrain nothing, so the vgiss PSF comparison is *unconstrained*: the
-retained interim sigma stands on its published-range provenance alone,
-not on cohort evidence.  The vidicon read noise was tuned down from its
-high-gain interim value (see the catalog); the sky-noise floor itself is
-quantization-limited on the sim side (known gaps).
+star cutouts (EE50 median 1.26 px).  Its matched frame holds the field's
+catalog stars, and none of them yields a usable simulated cutout, so the
+vgiss PSF comparison is *unconstrained*: the retained interim sigma
+stands on its published-range provenance alone, not on cohort evidence.
+The vidicon read noise was tuned down from its high-gain interim value
+(see the catalog).  The simulated sky noise is 3.1e-3 I/F against 1.8e-3
+real (W1/IQR 0.45, over 737 simulated and 612 real patches), but the
+comparison is not like for like.  The real frames are resampled, which
+correlates neighboring pixels, so the paired-difference estimate reads
+their noise about a third low.  The matched scenes don't turn on the
+simulator's resampling mode.  And one of the three frames is filled by a
+cloud deck, so its darkest quarter of tiles is cloud.
 
 .. The LORRI wing is tracked as issue #848.
 
 **New Horizons LORRI** (2 frames, limited).  Both frames are 4x4-binned
 star fields, and the matched frames render through the 4x4 readout mode,
-where the catalog's native kernel is rescaled to binned pixels.  The core
-lands near the cohort (EE50 0.48 sim vs 0.59 px real), but the wing does
-not (EE80 0.66 vs 1.23 px; normalized W1 2.3 and 2.0 over 16 cutouts a
-side): the real profile carries far more energy between the two radii
-than the kernel's interim 1.2% wing allows, the signature the NAC kernel
-showed before its wing was tuned, and the frames' bright tail is short by
-the same mechanism (p99 - p50 stretch 3.0 vs 26.8 DN).  The 4x4 frames
+where the catalog's native kernel is rescaled to binned pixels.  Each
+matched frame holds its field's catalog stars, and the two sides give 16
+star cutouts each.  The simulated stars are narrower than the real ones
+at both radii (EE50 0.38 sim vs 0.59 px real, EE80 0.67 vs 1.23 px;
+normalized W1 2.0 and 2.3), and the wing falls further short: the real
+profile carries far more energy between the two radii than the kernel's
+interim 1.2% wing allows, the signature the NAC kernel showed before its
+wing was tuned.  The frames' bright tail is short by the same mechanism
+(p99 - p50 stretch 3.5 vs 26.8 DN).  The 4x4 frames
 test the native kernel only through the rescaling, and say its wing is too
 weak; they say nothing separate about a 1x1 frame.  The sky statistics are
 pedestal-invariant by construction (the sci products are bias-subtracted;
@@ -711,12 +736,12 @@ For a handful of matched pairs per instrument (at most three: one star
 field, one limb frame, one ring frame) the full navigator ran on both the
 real frame and its matched simulated frame; the per-technique diagnostics
 are recorded in the summary JSON (``fom7_rows``).  Headline reading of the
-2026-11-07 pairs:
+2026-11-17 pairs:
 
 - Star-field pairs behave comparably where both sides lock:
   ``StarFieldFromCatalogNav`` reports 0.95 confidence on both sides of the
   WAC and LORRI star pairs, with the simulated inlier residuals tighter
-  than the real ones (0.02-0.06 px vs 0.06-0.33 px) -- the sim errs
+  than the real ones (0.02-0.12 px vs 0.06-0.32 px) -- the sim errs
   optimistic on star sharpness.
 - The Cassini ring pair separates on residual texture: ``RingEdgeNav``
   reports 0.71 on the real frame versus 0.94 on its matched render.
@@ -725,20 +750,20 @@ are recorded in the summary JSON (``fom7_rows``).  Headline reading of the
   and the ring-vocabulary calibration prices that residual, so the sim
   errs optimistic on ring-scene sharpness.
 - Both limb pairs succeed on both sides.  On the NAC pair (0.77 real vs
-  0.65 sim) the simulated DT residual is three times the real one.  On
+  0.66 sim) the simulated DT residual is three times the real one.  On
   the WAC pair (0.76 real vs 0.81 sim) the simulated fit is the tighter
-  (DT RMS 0.43 vs 0.62 px); the matched render, which the 2026-11-01
-  record's ensemble discarded, now carries the frame's filter and
-  downlink table.
-- The NAC star pair fails on the simulated side.  The real frame, an
-  H-alpha (HAL+CL2) exposure, predicts 4 catalog stars and locks at only
-  0.6, a wide-offset lock on 3 inliers (a known caveat of that cohort
-  frame).  Its matched render predicts 25 stars, renders them through the
-  narrowband filter, and finds 2 inliers, so it doesn't lock; the
-  2026-11-01 record's clear-scale render locked at 0.95 on 16.  The
-  matched star scene always places 25 stars on a magnitude ladder (V 7.0
-  to 11.8) that reaches the detection edge of a clear frame, so through a
-  narrowband filter most of them fall below it.
+  (DT RMS 0.43 vs 0.62 px).
+- The NAC and Voyager star pairs fail on the simulated side.  The NAC
+  frame, an H-alpha (HAL+CL2) exposure, predicts 4 catalog stars and locks
+  at only 0.6, a wide-offset lock on 3 inliers (a known caveat of that
+  cohort frame).  Its matched render holds the field's catalog stars, and
+  through the narrowband filter only a few of them show.  But the
+  navigator ranks 30 predicted stars on it, the most the star-field fit
+  takes, because its star prediction ignores the filter and uses a
+  placeholder star limit on a simulated calibrated frame.  The fit finds 2
+  inliers and doesn't lock.  The Voyager frame locks at 0.94 on 7 of 11
+  predicted stars, while its matched render predicts 5, finds no inliers,
+  and doesn't lock.
 
 These rows are the evidence a human reads to judge whether the techniques
 *behave* comparably on matched frames.  They were not consulted during
@@ -784,28 +809,30 @@ cannot close, it is recorded here rather than force-fitted:
    would misattribute the difference and was not done.  On the TABLE
    frames and a few 12-bit ones the real uniform patches lie on rings and
    bodies (mean I/F up to 0.9) while the matched sim's lie on dark sky, so
-   their FOM 1 compares signal-dependent noise against sky noise (the
-   matched-frame content gap below).  Voyager GEOMED products sit below
-   the LSB (~0.22 DN), because the geometric resampling interpolates and
-   dithers the quantization; the sim's GEOMED path doesn't resample, so
-   its floor stays at ~1 DN.
+   FOM 1 leaves those frames out (the matched-frame content gap below).
+   Voyager GEOMED products are resampled, which interpolates the values,
+   dithers the quantization, and correlates neighboring pixels.  The
+   matched scenes don't turn on the simulator's resampling mode, so the
+   Voyager sky noise is not compared like for like (see the Voyager
+   subsection).
 2. **Matched-frame content limits.**  Simulated ring edges are sharp
    optical-depth steps and simulated matched bodies are relief-free
    ellipsoids, so residual FOM 3/4 width differences fold in real edge
-   structure (ring radial profiles, limb topography) beyond the PSF that
-   FOM 2 pins independently.  The Galileo negative frames carry an
+   structure (ring radial profiles, limb topography) as well as any PSF
+   difference FOM 2 shows.  The Galileo negative frames carry an
    extended background glow (scattered light) that matched sky frames do
    not model, which dominates that cohort's FOM 5 comparison.  FOM 1 takes
-   each frame's darkest-quartile uniform patches as sky, so on a ring- or
-   body-filled frame the real patches lie on that content while the
-   matched frame's lie on dark sky; the Cassini TABLE frames, mostly
-   content-filled, carry the NAC's low per-frame sky-noise ratios for this
-   reason (the match table's first footnote).  And the matched star scene
-   places the same 25-star magnitude ladder on every star frame, reaching
-   the detection edge of a clear frame, so a narrowband frame's ladder
-   falls mostly below detection.
+   each frame's darkest-quartile uniform patches as sky, and on a ring- or
+   body-filled frame those lie on the content.  On the Cassini cameras a
+   patch therefore counts only where it lies on dark sky in both frames
+   (the match table's first footnote).  The test reads only a patch's
+   level, so sky brightened by scattered light below the dark-sky ceiling
+   still counts as dark sky.  A matched star frame holds its field's catalog
+   stars, but the simulator draws NAC stars fainter than real stars of the
+   same catalog magnitude, so the matched NAC star frames give 9 star
+   cutouts against the real frames' 25.
 
-   .. The matched-content comparison is tracked as issue #925.
+   .. The simulated star brightness scale is tracked as issue #895.
 3. **Measured transients.**  The Cassini and Galileo transients come from
    cosmic-ray terms fitted in closed loop.  The cosmic-ray stage collects hits
    during the exposure and a readout dwell, deposits a modest charge, and
@@ -1428,39 +1455,41 @@ genuinely unknown orientation testable.
    * - ``planted_offset_limb_mesh``
      - BodyLimbNav (mesh = mesh)
      - (1.43, -0.61) px
-     - (1.66, -0.47) px
-     - 0.27 px
+     - (1.51, -0.45) px
+     - 0.18 px
    * - ``planted_offset_blob_mesh_crescent``
      - BodyBlobNav (mesh, 120 deg)
      - (1.43, -0.61) px
-     - (0.97, -0.42) px
-     - 0.50 px
+     - (0.98, -0.42) px
+     - 0.49 px
    * - ``planted_offset_shapemismatch``
      - full ensemble (predict ellipsoid)
      - (1.43, -0.61) px
-     - (1.46, -1.28) px
+     - (1.47, -1.28) px
      - 0.67 px
 
 When the predicted geometry matches the rendered mesh, these three scenes, the
 mesh disc, mesh limb, and mesh crescent, recover the planted offset to half a
-pixel or better (0.00-0.50 px; 2026-10-27 measurement). Each renders one mesh
-shape, and other shapes spread around these figures, as the limb and crescent
-seed ranges below show. The limb row pins ``BodyLimbNav`` and
-reports its own fix; the full ensemble on the same scene fuses it with the disc
-correlation and recovers (1.52, -0.58), 0.10 px off, the offset the scene's
-regression baseline holds. The limb's 0.27 px is the fit's error on a lumpy
-silhouette, measured by varying one thing at a time. With the noise off it is
-0.22 px, so noise adds about 0.05 px. On the smooth (zero-lumpiness) mesh it is
-0.07 px, so most of it comes from the relief. Over mesh
-seeds 0 to 12 it ranges from 0.11 to 0.47 px (median 0.26 px), so this shape is
-typical. Tessellation matters too: at the default 16 by 32 the same fit errs
-0.50 px on this shape and 0.75 px on the smooth mesh, which is one reason the
-mesh scenes use 64 by 128. The mesh crescent is the loosest at
-0.50 px, against 0.24 px for the ellipsoid crescent: its body is clearly
+pixel or better (0.00-0.49 px; 2026-11-17 measurement, as is every number in
+this paragraph). Each renders one mesh shape, and other shapes spread around
+these figures, as the limb and crescent seed ranges below show. The limb row
+pins ``BodyLimbNav`` and reports its own fix; the full ensemble on the same
+scene fuses it with the disc correlation and recovers (1.50, -0.58), 0.08 px
+off, the offset the scene's regression baseline holds. The limb's 0.18 px is
+the fit's error on a lumpy silhouette, measured by varying one thing at a time.
+With the noise off it is 0.22 px, so on this noise draw the noise moves it by
+about 0.04 px, toward the planted offset. On the smooth (zero-lumpiness) mesh
+it is 0.11 px, so the relief adds about 0.07 px. Over mesh seeds 0 to 12 it
+ranges from 0.10 to 0.44 px, and this shape's 0.18 px is the median, so the
+shape is typical. Tessellation matters too: at the default 16 by 32 the same
+fit errs 0.50 px on this shape and 0.70 px on the smooth mesh, which is one
+reason the mesh scenes use 64 by 128. The mesh crescent is the loosest at
+0.49 px, against 0.25 px for the ellipsoid crescent: its body is clearly
 irregular (``mesh_lumpiness`` 0.2), and only a thin lit sliver of it constrains
-the centroid. Over mesh seeds 0 to 12 the same pinned blob errs 0.35 to 0.61 px
-(median 0.50 px), and 6 of the 13 shapes land above half a pixel, so this
-shape is typical and half a pixel is the crescent's typical error, not a bound.
+the centroid. Over mesh seeds 0 to 12 the same pinned blob errs 0.33 to 0.56 px
+(median 0.45 px), and 5 of the 13 shapes land above half a pixel, so this
+shape is typical and about half a pixel is the crescent's typical error, not a
+bound.
 The fourth row is the shape-mismatch case: the frame renders a
 mildly irregular mesh (``mesh_lumpiness`` 0.1, a 1.25% RMS non-ellipsoidal
 relief) but the navigator predicts its smooth (ellipsoidal) limit at the same
@@ -1481,44 +1510,52 @@ term is meant to capture.
 
    Recovered-offset error (red) and fused confidence (blue) vs rendered mesh
    lumpiness for one mesh realization (``mesh_seed`` 4), with the prediction
-   pinned to the zero-relief limit. On this shape the error grows from 0.00 px
-   to 5.2 px at lumpiness 0.7 and never falls between steps, which holds for
-   only 4 of the 13 shapes below. The confidence holds at 0.99 through lumpiness
-   0.2, dips to 0.72-0.79, returns to 0.99 at 0.6, and ends at 0.40, where the
-   blob carries a success. The shape-lock veto doesn't fire on this shape. Which
-   of these behaviors hold for other shapes is set out below the figure.
+   pinned to the zero-relief limit. On this shape the error grows from 0.06 px
+   to 5.2 px at lumpiness 0.7. It holds at 2.89 px from lumpiness 0.4 to 0.6
+   and rises at every other step. The confidence holds at 0.99 through
+   lumpiness 0.2, falls step by step from 0.82 to 0.74, and ends at 0.40, where
+   the blob carries a success. The shape-lock veto doesn't fire on this shape.
+   Which of these behaviors hold for other shapes is set out below the figure.
 
 The walk is a single realization. The scene's ``mesh_seed`` follows a rule fixed
 before any navigation: among seeds 0 to 12, the one whose silhouette at
 lumpiness 0.7 has the median mismatch with the predicted smooth silhouette (see
 the scene file). It is a typical shape, chosen without regard to how it
-navigates. On it the error is 0.00, 0.68, 1.26, 1.89, 2.89, 2.89, 3.44, and
-5.24 px at lumpiness 0.0 through 0.7 (2026-10-27 measurement). The fused
-confidence is 0.99 through lumpiness 0.2, a 1.3 px error, then 0.79, 0.72, and
-0.72. It returns to 0.99 at lumpiness 0.6, with a 3.4 px error, and ends at 0.40
-at 0.7. Every step reports ``success``. At 0.7 the disc and limb lock onto the
-mismatched shape and the pose-free blob carries the fused result.
+navigates. On it the error is 0.06, 0.67, 1.26, 1.89, 2.89, 2.89, 2.89, and
+5.25 px at lumpiness 0.0 through 0.7 (2026-11-17 measurement). At lumpiness 0.6
+it falls by less than a thousandth of a pixel. The fused confidence is 0.99
+through lumpiness 0.2, a 1.3 px error, then 0.82, 0.79, 0.77, and 0.74, and it
+ends at 0.40 at 0.7. Every step reports ``success``. At 0.7 the disc and limb
+lock onto the mismatched shape and the pose-free blob carries the fused result.
 
 The same walk over mesh seeds 0 to 12 separates what holds for every shape from
-what belongs to one realization:
+what belongs to one realization (2026-11-17 measurement, one noise draw):
 
-- Every walk starts at 0.00 px and ends 2.7 to 12.9 px off at lumpiness 0.7.
-  The error never falls from one step to the next on 4 of the 13 shapes
-  (seeds 4, 5, 9, and 10). On the other 9, it rises and falls between steps,
-  often where the primary technique changes among the disc, the limb, and the
-  blob.
-- Every walk's confidence dips at least 0.3 below the clean step's 0.99
-  somewhere. Ten of the 13 walks also report 0.99 at some mismatched step, so
-  the confidence doesn't track the error step by step. On 6 of them every such
-  step is within 1.8 px of the planted offset. The other 4 (seeds 2, 3, 4, and
-  10) report 0.99 at a step 2.4 to 7.7 px off.
-- At lumpiness 0.7 the shape-lock veto reports 4 of the 13 shapes
-  ``conflicted`` (see :doc:`/dev_guide/dev_guide_orchestrator_ensemble`). The
-  other 9 end in a ``success``, all but one at 0.56 confidence or below. That
-  one ends a 0.91-confidence success 12.7 px off: its blob is displaced along
-  with the disc lock, so the blob agrees with the shape-locked disc. This
-  confident wrong result is a known gap in the veto, held by a strict
-  expected-failure test until the veto catches it.
+- Every walk starts 0.06 px off and ends 2.7 to 12.7 px off at lumpiness 0.7.
+  The error never falls from one step to the next on 6 of the 13 shapes
+  (seeds 2, 5, 7, 9, 10, and 12). On the other 7 it rises and falls between
+  steps, and at about half of those falls the primary technique changes
+  among the disc, the limb, and the blob.
+- On 12 of the 13 walks the confidence dips at least 0.3 below the clean
+  step's 0.99 somewhere; the smallest of those dips is seed 9's, 0.37. Seed 7
+  dips only 0.10, to 0.89 at lumpiness 0.7, while 5.1 px off. Twelve of the
+  13 walks also report a confidence of 0.98 or more at some mismatched step,
+  so the confidence doesn't track the error step by step. On 6 of them every
+  such step is within 1.9 px of the planted offset. The other 6 (seeds 2, 3,
+  6, 7, 9, and 10) report such a confidence at a step 1.99 to 7.71 px off.
+- At lumpiness 0.7 the shape-lock veto reports 1 of the 13 shapes
+  ``conflicted`` (seed 5; see
+  :doc:`/dev_guide/dev_guide_orchestrator_ensemble`). A second shape (seed 2)
+  also ends ``conflicted``, but because its disc and limb disagree with each
+  other, and the veto plays no part. The other 11 end in a ``success``. Eight
+  of them are carried by the blob at 0.40 confidence, and seed 9 ends at 0.62.
+  Seed 7 ends at 0.89, 5.1 px off. Seed 10 ends a 0.91-confidence success
+  12.7 px off: its blob is displaced along with the disc lock, so the blob
+  agrees with the shape-locked disc. This confident wrong result is a known
+  gap in the veto, held by a strict expected-failure test until the veto
+  catches it. On the noise draw before the simulator drew shot noise pixel
+  by pixel, the veto fired on 3 of the 13 shapes, so these counts are one
+  draw's measurement.
 
   .. The veto gap is tracked as issue #790.
 
@@ -1551,19 +1588,20 @@ limb fit:
 
    Pinned-limb recovered-offset error vs the predicted pose's disagreement with
    the true (rendered) pose (a tumble about the body's long axis). The limb's
-   error climbs from 0.18 px at the true pose to 4.5 px at a 75 deg disagreement.
-   At 55 deg (the dashed line) the pinned limb self-flags spurious and the frame
-   fails, so the curve breaks there.
+   error climbs from 0.17 px at the true pose to 5.4 px at a 75 deg disagreement.
+   At 10 and 55 deg (the dashed lines) the pinned limb self-flags spurious and
+   the frame fails, so no line joins the three points it does read.
 
-The limb error climbs from 0.18 px at the true pose through 1.00 px and 1.20 px
-at 10 and 20 deg of disagreement to 4.53 px at 75 deg (2026-10-27
-measurement), still reporting ``success`` at 0.51-0.63 confidence. At 55 deg of
-disagreement the limb self-flags spurious and the frame fails, so the error
-there is not plotted.
+The limb error climbs from 0.17 px at the true pose through 1.26 px at 20 deg
+of disagreement to 5.39 px at 75 deg (2026-11-17 measurement), still reporting
+``success`` at 0.55-0.62 confidence. At 10 and 55 deg of disagreement the limb
+self-flags spurious and the frame fails, so the error there is not plotted.
+Which steps self-flag depends on the noise draw: on the draw before the
+simulator drew shot noise pixel by pixel, only the 55 deg step did.
 A wrong in-plane roll degrades the limb far more
-sharply: a 20 deg roll puts it 20.8 px off, and there it does self-flag
-spurious. The pose-free blob centroid, by contrast, stays within 0.66 px on the
-same wrong-pose body. This body's relief is low (``mesh_lumpiness`` 0.1), so its
+sharply: a 20 deg roll puts it 19.9 px off, and there it does self-flag
+spurious (2026-11-17 measurement). The pose-free blob centroid, by contrast,
+stays within 0.66 px on the same wrong-pose body. This body's relief is low (``mesh_lumpiness`` 0.1), so its
 shape is mostly the scene's triaxial ellipsoid, and its lit-weighted centroid
 barely moves under rotation. This is the behavior the ``test_sim_irregular_pose``
 per-technique test pins: on a wrong-pose body the
@@ -1850,16 +1888,18 @@ Summary
   0.17 px cross-track and 0.82 px along-track on clean scenes.
 * On the three mesh scenes whose predicted geometry matches the rendered one,
   irregular (mesh) bodies navigate to half a pixel or better (mesh disc
-  0.00 px, limb 0.27 px, and crescent 0.50 px, against 0.24 px for the
+  0.00 px, limb 0.18 px, and crescent 0.49 px, against 0.25 px for the
   ellipsoid crescent). Over 13 mesh shapes the crescent's error ranges from
-  0.35 to 0.61 px. When the navigator predicts the wrong shape, the error grows
-  with the rendered relief: over 13 mesh shapes it ends 2.7 to 12.9 px off at an
-  8.75% RMS non-ellipsoidal relief. The confidence follows the error only
-  loosely. Every walk dips at least 0.3 below the clean confidence somewhere.
-  Ten of the 13 also report 0.99 at some mismatched step, but only 4 of them do
-  so 2 px or more off (2.4 to 7.7 px). At the extreme step the shape-lock veto
-  declines 4 of the 13 shapes, and one shape ends a 0.91-confidence success
-  12.7 px off, a known gap in the veto. When it
+  0.33 to 0.56 px. When the navigator predicts the wrong shape, the error tends
+  to grow with the rendered relief, though on 7 of 13 mesh shapes it falls at
+  some step: over the 13 shapes it ends 2.7 to 12.7 px off at an 8.75% RMS
+  non-ellipsoidal relief. The confidence follows the error only
+  loosely. All walks but one dip at least 0.3 below the clean confidence
+  somewhere. Twelve of the 13 also report a confidence of 0.98 or more at some
+  mismatched step, and 6 of them do so about 2 px or more off (1.99 to
+  7.71 px). At the extreme step the
+  shape-lock veto declines 1 of the 13 shapes, and one shape ends a
+  0.91-confidence success 12.7 px off, a known gap in the veto. When it
   predicts the wrong pose the limb degrades to a confidently-wrong fix (or, for a
   wrong in-plane roll, far enough that it self-flags) while the pose-free blob
   holds -- the demote-to-pose-free behavior a chaotic rotator needs.

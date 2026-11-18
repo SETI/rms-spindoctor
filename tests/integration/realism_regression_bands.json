@@ -3,9 +3,9 @@
     "runs": 10,
     "statistics": {
       "curve_divergences.star_profile.w1_normalized": {
-        "band": 0.00468,
+        "band": 0.00724,
         "spread": 0.0,
-        "value": 0.233617
+        "value": 0.361732
       },
       "divergences.artifact_missing_line_frac.real_median": {
         "band": 0.0,
@@ -23,9 +23,9 @@
         "value": 0.00108337
       },
       "divergences.artifact_spike_frac.sim_median": {
-        "band": 3.12e-05,
+        "band": 1.18e-05,
         "spread": 0.0,
-        "value": 0.0015564
+        "value": 0.000587463
       },
       "divergences.frac_near_floor_ge_5s.real_median": {
         "band": 0.000911,
@@ -33,9 +33,9 @@
         "value": 0.0455399
       },
       "divergences.frac_near_floor_ge_5s.sim_median": {
-        "band": 0.00186,
+        "band": 0.00187,
         "spread": 0.0,
-        "value": 0.0927658
+        "value": 0.0931168
       },
       "divergences.frac_saturated_ge_5s.real_median": {
         "band": 0.0,
@@ -43,9 +43,9 @@
         "value": 0.0
       },
       "divergences.frac_saturated_ge_5s.sim_median": {
-        "band": 4.28e-06,
+        "band": 0.0,
         "spread": 0.0,
-        "value": 0.000213623
+        "value": 0.0
       },
       "divergences.signal_p95_minus_p50_ge_5s.real_median": {
         "band": 0.0898,
@@ -53,9 +53,9 @@
         "value": 4.48988
       },
       "divergences.signal_p95_minus_p50_ge_5s.sim_median": {
-        "band": 0.04,
+        "band": 0.05,
         "spread": 0.0,
-        "value": 2.0
+        "value": 2.5
       },
       "divergences.signal_p99_minus_p50_ge_5s.real_median": {
         "band": 0.536,
@@ -63,9 +63,9 @@
         "value": 26.7749
       },
       "divergences.signal_p99_minus_p50_ge_5s.sim_median": {
-        "band": 0.06,
+        "band": 0.07,
         "spread": 0.0,
-        "value": 3.0
+        "value": 3.5
       },
       "divergences.star_ee50.real_median": {
         "band": 0.0118,
@@ -73,14 +73,14 @@
         "value": 0.5869
       },
       "divergences.star_ee50.sim_median": {
-        "band": 0.00971,
+        "band": 0.00759,
         "spread": 0.0,
-        "value": 0.485347
+        "value": 0.379257
       },
       "divergences.star_ee50.w1_normalized": {
-        "band": 0.0473,
+        "band": 0.0392,
         "spread": 0.0,
-        "value": 2.36477
+        "value": 1.95652
       },
       "divergences.star_ee80.real_median": {
         "band": 0.0247,
@@ -88,14 +88,14 @@
         "value": 1.2307
       },
       "divergences.star_ee80.sim_median": {
-        "band": 0.0132,
+        "band": 0.0135,
         "spread": 0.0,
-        "value": 0.656682
+        "value": 0.671656
       },
       "divergences.star_ee80.w1_normalized": {
-        "band": 0.042,
+        "band": 0.0451,
         "spread": 0.0,
-        "value": 2.09637
+        "value": 2.25249
       }
     }
   }
