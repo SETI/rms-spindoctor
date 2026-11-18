@@ -9,14 +9,14 @@ from pathlib import Path
 
 import pytest
 
-from spindoctor.sim.render import render_combined_model
+from spindoctor.sim.render.driver import render_combined_model
+from spindoctor.sim.scene.errors import SimSceneValidationError
 from spindoctor.sim.scene.io import (
     DECLARED_SIM_SCENE_CLASSES,
     iter_scene_paths,
     load_sim_scene,
     scene_class_for_path,
 )
-from spindoctor.sim.scene.rules_common import SimSceneValidationError
 
 # The catalog root is co-located with this test module.
 _SCENES_ROOT = Path(__file__).parent / 'sim_scenes'

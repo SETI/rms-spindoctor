@@ -22,8 +22,8 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from spindoctor.sim.render import render_combined_model
 from spindoctor.sim.render.bodies.atmosphere import DEFAULT_HAZE_ALBEDO
+from spindoctor.sim.render.driver import render_combined_model
 from tests.integration.sim_sweep import (
     SweepRow,
     build_sweep_params,

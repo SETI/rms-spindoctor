@@ -43,7 +43,7 @@ from spindoctor.sim.instruments.resolvers import (
     resolve_star_flux_zero_point,
 )
 from spindoctor.sim.render.detector.params import resolve_detector_params
-from spindoctor.sim.scene.rules_common import SimSceneValidationError
+from spindoctor.sim.scene.errors import SimSceneValidationError
 from spindoctor.sim.scene.validate import validate_scene, validate_sim_params
 
 _CONFIG_FILES_DIR = Path(spindoctor.__file__).parent / 'config_files'

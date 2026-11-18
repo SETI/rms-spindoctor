@@ -42,7 +42,7 @@ from spindoctor.cli.sim_editor import full_render as full_render_module
 from spindoctor.cli.sim_editor.full_render import FullRender
 from spindoctor.cli.sim_editor.main_window import build_arg_parser
 from spindoctor.cli.sim_editor.render_display import _dn_to_display_uint8
-from spindoctor.sim.render import render_combined_model
+from spindoctor.sim.render.driver import render_combined_model
 from tests.main.sim_editor_waits import (
     NEVER_IDLE_SEC,
     TIMEOUT_SEC,

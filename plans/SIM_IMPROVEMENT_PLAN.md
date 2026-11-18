@@ -473,7 +473,7 @@ retired and retained library classes.
 | #956 | **Fixed by #1024 and #1026**: one default name, read on both sides. Unnamed simulated bodies get different default names in the renderer and the navigator |
 | #856 | The simulated-image editor segfaults intermittently (reopened after the fix in PR #917); recheck it against #1020's structure |
 | #1000 | The editor's null-keys test can see body controls that are pending deletion, so it fails intermittently in CI; collect the controls only after pending deletions run |
-| #957 | The `sqrt_lut` detector module has no entry in the simulator API reference; after #1005 its path is under `render/` |
+| #957 | **Done (PR #MMM).** The `sqrt_lut` detector module has no entry in the simulator API reference; after #1005 its path is under `render/` |
 | #816 | The developer guide's detector quantization list omits `ls8b` and `contour_8bit` |
 | #914, the rest | User chapter around a complete scene, developer guide split, and one schema reference. The schema reference page is generated from the typed scene's field metadata by #1024. |
 | #310 | **Moved to Phase 3b.** Advanced by #1005 (package-level import guard) and #1026 (the navigator view as types); its own change moves the truth attributes off `ObsSim`. Structural information-boundary guard |

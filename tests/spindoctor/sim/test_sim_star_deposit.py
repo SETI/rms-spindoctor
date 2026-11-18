@@ -27,8 +27,8 @@ from spindoctor.sim.instruments.resolvers import (
     resolve_psf_truncation_px,
     resolve_star_flux_zero_point,
 )
-from spindoctor.sim.render import clear_render_caches, render_combined_model
 from spindoctor.sim.render.detector.params import calibration_map, resolve_detector_params
+from spindoctor.sim.render.driver import clear_render_caches, render_combined_model
 from spindoctor.sim.render.optics.psf import psf_kernel
 from spindoctor.sim.render.radiance.compose import _nominal_read_noise, sky_star_faint_cutoff_mag
 from spindoctor.sim.render.radiance.stars import faint_sky_cutoff_mag, render_sky_counts

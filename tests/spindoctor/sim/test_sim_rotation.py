@@ -19,7 +19,7 @@ from tests.spindoctor.sim.scenes import frame_scene, quiet_noise, ring_system_bl
 
 from spindoctor.nav_orchestrator.instrument_config import instrument_settings_from_obs
 from spindoctor.obs.obs_inst_sim import ObsSim
-from spindoctor.sim.render import render_combined_model
+from spindoctor.sim.render.driver import render_combined_model
 
 _SIZE = 128
 

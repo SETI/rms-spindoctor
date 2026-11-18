@@ -22,11 +22,11 @@ from typing import Any
 
 from spindoctor.sim.instruments.catalog import load_instrument_catalog
 from spindoctor.sim.scene.boundary import _ALLOWED_KEYS, _OBJECT_BLOCKS
+from spindoctor.sim.scene.errors import SimSceneValidationError
 from spindoctor.sim.scene.fields import scene_binning
 from spindoctor.sim.scene.rules_artifacts import _check_artifacts
 from spindoctor.sim.scene.rules_body import _check_body_names_unique, _check_body_object
 from spindoctor.sim.scene.rules_common import (
-    SimSceneValidationError,
     _check_detector,
     _check_downlink_table_used,
     _check_expected,

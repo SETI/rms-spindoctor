@@ -31,8 +31,8 @@ import warnings
 from collections.abc import Iterator, Mapping
 from typing import Any
 
+from spindoctor.sim.scene.errors import SimSceneValidationError
 from spindoctor.sim.scene.fields import scene_binning
-from spindoctor.sim.scene.rules_common import SimSceneValidationError
 
 __all__ = [
     'SimSceneTruthEchoWarning',
@@ -121,7 +121,7 @@ def _declared_paths(sim_params: Mapping[str, Any], source: str) -> list[str]:
     """Return the scene's ``published_equals_truth`` list, empty when the key is unset.
 
     Raises:
-        spindoctor.sim.scene.rules_common.SimSceneValidationError: If the value isn't a
+        spindoctor.sim.scene.errors.SimSceneValidationError: If the value isn't a
             list of strings.
     """
     declared = sim_params.get('published_equals_truth')
@@ -147,7 +147,7 @@ def stale_truth_declarations(sim_params: Mapping[str, Any], *, source: str) -> l
         Empty when every listed path coincides or the key is unset.
 
     Raises:
-        spindoctor.sim.scene.rules_common.SimSceneValidationError: If
+        spindoctor.sim.scene.errors.SimSceneValidationError: If
             ``published_equals_truth`` isn't a list of strings.
     """
     declared = _declared_paths(sim_params, source)
@@ -175,7 +175,7 @@ def check_truth_echo(sim_params: Mapping[str, Any], *, source: str) -> None:
         source: Label used in the warning and error messages.
 
     Raises:
-        spindoctor.sim.scene.rules_common.SimSceneValidationError: If
+        spindoctor.sim.scene.errors.SimSceneValidationError: If
             ``published_equals_truth`` isn't a list of strings, or lists a path
             whose values don't coincide.
     """

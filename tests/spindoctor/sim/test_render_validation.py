@@ -1,7 +1,7 @@
 """Rendering validates its scene.
 
 A scene built in memory must meet the rules a scene file meets when it loads, so
-:func:`~spindoctor.sim.render.render_combined_model` refuses one that fails
+:func:`~spindoctor.sim.render.driver.render_combined_model` refuses one that fails
 validation.  Validation is cached on the scene's JSON, and a scene file that JSON
 cannot encode is still validated.
 """
@@ -13,9 +13,9 @@ from typing import Any
 import pytest
 from tests.spindoctor.sim.scenes import frame_scene
 
-from spindoctor.sim.render import render_combined_model
+from spindoctor.sim.render.driver import render_combined_model
+from spindoctor.sim.scene.errors import SimSceneValidationError
 from spindoctor.sim.scene.io import load_sim_scene
-from spindoctor.sim.scene.rules_common import SimSceneValidationError
 
 _SIZE = 32
 

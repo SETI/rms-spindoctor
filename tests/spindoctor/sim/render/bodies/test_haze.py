@@ -45,8 +45,8 @@ from spindoctor.sim.render.bodies.haze import (
 )
 from spindoctor.sim.render.bodies.render import render_single_body
 from spindoctor.sim.render.bodies.spec import body_spec_from_params
+from spindoctor.sim.scene.errors import SimSceneValidationError
 from spindoctor.sim.scene.rules_body import MIN_SECTOR_SHARPNESS_GRADIENT
-from spindoctor.sim.scene.rules_common import SimSceneValidationError
 from spindoctor.sim.scene.validate import validate_sim_params
 from spindoctor.support.types import NDArrayFloatType
 

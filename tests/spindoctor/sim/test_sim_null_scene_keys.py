@@ -15,7 +15,7 @@ from typing import Any
 import numpy as np
 import pytest
 
-from spindoctor.sim.render import render_combined_model
+from spindoctor.sim.render.driver import render_combined_model
 from spindoctor.sim.scene.boundary import _STAR_KEYS
 from spindoctor.sim.scene.rules_common import (
     _COMPANION_KEYS,

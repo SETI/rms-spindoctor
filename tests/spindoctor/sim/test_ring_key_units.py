@@ -20,6 +20,7 @@ import pytest
 from tests.spindoctor.sim.scenes import frame_scene
 
 from spindoctor.sim.scene.boundary import _RING_FEATURE_KEYS
+from spindoctor.sim.scene.errors import SimSceneValidationError
 from spindoctor.sim.scene.fields import (
     RING_KEY_DESCRIPTIONS,
     RING_KIND_SHAPE_KEYS,
@@ -27,7 +28,6 @@ from spindoctor.sim.scene.fields import (
     RING_SIDE_DEFAULTS,
     ring_key_description,
 )
-from spindoctor.sim.scene.rules_common import SimSceneValidationError
 from spindoctor.sim.scene.rules_ring import (
     _RING_EDGE_WAVE_KEYS,
     _RING_FEATURE_ORBIT_KEYS,

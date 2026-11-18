@@ -18,8 +18,8 @@ from spindoctor.sim.instruments.navigator_link import (
     read_frame_as_navigator,
     resolve_sim_inst_config,
 )
-from spindoctor.sim.render import render_combined_model
 from spindoctor.sim.render.detector.params import calibration_map, resolve_detector_params
+from spindoctor.sim.render.driver import render_combined_model
 from spindoctor.sim.render.telemetry.artifacts import apply_compression_dct
 
 _COMPRESSION = {'compression_dct': {'probability': 1.0}}

@@ -1,4 +1,4 @@
-"""The fixed-order stage pipeline of the forward model.
+"""The fixed-order stage pipeline of the renderer.
 
 Stage order is physical and does not vary per scene: scene radiance is
 composed, passes through the optics, is downsampled to the detector grid,

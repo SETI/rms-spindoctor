@@ -7,7 +7,7 @@ texture, transits).  The checkers for that entry live here, beside their key
 inventories; the scalar primitives they share with the other block checkers
 stay in :mod:`spindoctor.sim.scene.rules_common`, which also documents the overall
 validation contract (unknown keys fail, every violation raises
-:class:`spindoctor.sim.scene.rules_common.SimSceneValidationError`).
+:class:`spindoctor.sim.scene.errors.SimSceneValidationError`).
 
 :func:`spindoctor.sim.scene.validate.validate_sim_params` drives ``_check_body_object``
 once per ``bodies`` entry.
@@ -26,6 +26,7 @@ from spindoctor.sim.render.bodies.photometry import PHOTOMETRIC_LAWS
 from spindoctor.sim.render.bodies.relief import MAX_LIMB_RELIEF_RMS, MIN_LIMB_RELIEF_CORR_DEG
 from spindoctor.sim.render.bodies.spec import CRATER_MAX_RADIUS_DEFAULT, CRATER_MIN_RADIUS_DEFAULT
 from spindoctor.sim.scene.boundary import _BODY_IDEALIZED_KEYS
+from spindoctor.sim.scene.errors import SimSceneValidationError
 from spindoctor.sim.scene.fields import (
     ELLIPSOID_UNSUPPORTED_KEYS,
     MESH_UNSUPPORTED_KEYS,
@@ -35,7 +36,6 @@ from spindoctor.sim.scene.fields import (
     scene_value,
 )
 from spindoctor.sim.scene.rules_common import (
-    SimSceneValidationError,
     _check_optional_mapping_list,
     _check_optional_nonnegative_int,
     _check_optional_nonnegative_number,
@@ -310,7 +310,7 @@ def _check_body_relief_and_photometry(obj: dict[str, Any], *, label: str, source
 # reference altitude, the Henyey-Greenstein asymmetry (forward-scattering
 # when positive), an optional detached-shell altitude, and the haze's
 # single-scattering albedo (in [0, 1]) are optional.  The
-# structure keys folded in from the forward model break the column's mirror
+# structure keys folded in from the renderer break the column's mirror
 # symmetry (axis tilt, hemispheric and azimuthal falloff scaling, hemispheric
 # brightness, an axial interior ramp, and clouds); all are optional.
 ATMOSPHERE_KEYS: frozenset[str] = (

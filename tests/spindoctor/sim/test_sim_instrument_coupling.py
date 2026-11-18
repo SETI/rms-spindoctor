@@ -17,7 +17,7 @@ from spindoctor.nav_orchestrator.instrument_config import instrument_settings_fr
 from spindoctor.obs.obs_inst_sim import ObsSim
 from spindoctor.sim.instruments.navigator_link import resolve_sim_inst_config
 from spindoctor.sim.instruments.resolvers import resolve_detector_defaults
-from spindoctor.sim.render import render_combined_model
+from spindoctor.sim.render.driver import render_combined_model
 
 
 def _obs(instrument: str, *, size: int = 64) -> ObsSim:

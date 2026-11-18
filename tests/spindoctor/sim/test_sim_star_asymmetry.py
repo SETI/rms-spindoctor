@@ -14,7 +14,7 @@ from typing import Any
 import numpy as np
 from tests.spindoctor.sim.scenes import frame_scene, quiet_noise, star_entry
 
-from spindoctor.sim.render import clear_render_caches, render_combined_model
+from spindoctor.sim.render.driver import clear_render_caches, render_combined_model
 
 
 def _scene(stars: list[dict[str, Any]], **extra: Any) -> dict[str, Any]:

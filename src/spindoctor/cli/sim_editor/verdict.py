@@ -15,7 +15,7 @@ from PyQt6.QtCore import QObject
 from spindoctor.cli.sim_editor.worker import LatestRequestRunner
 from spindoctor.config import DEFAULT_CONFIG
 from spindoctor.sim.instruments.navigator_link import frame_units_summary, resolve_sim_inst_config
-from spindoctor.sim.render import render_combined_model
+from spindoctor.sim.render.driver import render_combined_model
 
 __all__ = ['VerdictRunner', 'navigated_frame_summary']
 

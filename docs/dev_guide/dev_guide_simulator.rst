@@ -26,7 +26,7 @@ can and cannot establish.
 
 The simulator has three equally valid entry points (the "three peers"):
 
-- the **Python API** (:func:`spindoctor.sim.render.render_combined_model`, a thin
+- the **Python API** (:func:`spindoctor.sim.render.driver.render_combined_model`, a thin
   cached driver over the stage pipeline in :mod:`spindoctor.sim.render`),
 - the **YAML scene catalog** under ``tests/integration/sim_scenes/`` (validated by
   :mod:`spindoctor.sim.scene`), which is the durable test artifact, and
@@ -68,7 +68,7 @@ relative to ``sim/render/``):
    * - Module
      - Role
    * - ``driver.py``
-     - The entry point, :func:`~spindoctor.sim.render.render_combined_model`: it
+     - The entry point, :func:`~spindoctor.sim.render.driver.render_combined_model`: it
        validates the scene and runs the pipeline on a fresh frame, behind a render
        cache (see :ref:`sim-stage-pipeline`).
    * - ``stages.py``
@@ -293,7 +293,7 @@ the information-boundary test suite above, the static guard test
 (``tests/spindoctor/sim/test_boundary_static_guard.py``, which walks the AST
 of every module under ``nav_model/``, ``nav_technique/``, and
 ``nav_orchestrator/`` and fails on any reference to a truth attribute name,
-and which also holds the simulated models to the import rule described below),
+and which also holds those modules to the import rule described below),
 and code review. The guarantee is mechanical for the channel and
 mechanical-plus-review for the consumers; the assessment behind this
 phrasing is recorded in ``critiques/archive/SIM_REALISM_CRITIQUE_2026-07-18.md``.
@@ -329,11 +329,13 @@ mappings restricted to idealized keys, and on the navigator side they only
 ever receive entries that have already passed the boundary filter. Either
 way, truth cannot be smuggled across.
 
-The shared helpers live in :mod:`spindoctor.sim.shared`. A navigator-side
-simulated model may import that package and :mod:`spindoctor.sim.scene.fields`, the
-field helpers every scene reader shares, and nothing else from the simulator. A
-module of ``sim/shared/`` follows the same rule. The static guard checks both rules
-by package.
+The shared helpers live in :mod:`spindoctor.sim.shared`. A module under
+``nav_model/``, ``nav_technique/``, or ``nav_orchestrator/`` may import that package
+and :mod:`spindoctor.sim.scene.fields`, the field helpers every scene reader shares,
+and nothing else from the simulator. A module of ``sim/shared/`` follows the same
+rule. The simulated observation, which renders the image and builds the filtered
+view, is the one navigator-side module that may import the renderer. The static
+guard checks these rules by package.
 
 One gap remains: a bug in a shared helper that makes rendered features
 subtly unlike *real* features leaves both sides consistent and recovery clean
@@ -491,7 +493,7 @@ basis and the cross-check numbers live in
 The stage pipeline
 ==================
 
-The forward model renders in a fixed physical order that does not vary per
+The renderer draws a frame in a fixed physical order that does not vary per
 scene (:mod:`spindoctor.sim.render.pipeline`):
 
 .. list-table::
@@ -588,7 +590,7 @@ crater's index on its body, so a small change to the body's outline moves only
 a crater whose center lands on a changed pixel and leaves the rest of the
 crater field where it was.
 
-**The driver.** :func:`spindoctor.sim.render.render_combined_model` takes a
+**The driver.** :func:`spindoctor.sim.render.driver.render_combined_model` takes a
 ``sim_params`` dict and returns ``(image, metadata)``. It encodes the scene as
 deterministic sorted-key JSON, validates the scene with
 :func:`spindoctor.sim.scene.validate.validate_sim_params`, runs the pipeline on a fresh frame,
@@ -608,7 +610,7 @@ same cache. A scene file that is loaded and then rendered is therefore checked o
 A scene rendered many times is checked once, too. A scene that passes prints each
 truth-echo warning once. A scene that changes after a check misses the cache and is
 checked again. A refused scene raises the same
-:class:`~spindoctor.sim.scene.rules_common.SimSceneValidationError` that loading it from a
+:class:`~spindoctor.sim.scene.errors.SimSceneValidationError` that loading it from a
 file would raise.
 
 :class:`~spindoctor.obs.obs_inst_sim.ObsSim` renders a scene file under the label it
@@ -619,7 +621,7 @@ with the label the caller gave.
 Before each preview the editor calls :func:`spindoctor.sim.scene.validate.validate_scene`, so
 the author sees why a scene would be refused. A refused scene leaves the last valid
 picture on screen. A scene that passes renders through
-:func:`~spindoctor.sim.render.render_combined_model` with ``ignore_offset=True`` and
+:func:`~spindoctor.sim.render.driver.render_combined_model` with ``ignore_offset=True`` and
 ``preview=True``, which draws its fast preview without its planted offset and roll.
 The editor's check and the render's own check use the same label, so the render finds
 the editor's check in the cache. The editor's first check of a loaded scene misses the
@@ -848,7 +850,7 @@ The detector stage
 ==================
 
 The detector stage (:mod:`spindoctor.sim.render.detector`, a package) is the
-normative unit chain of the forward model. For a CCD instrument the composed
+normative unit chain of the renderer. For a CCD instrument the composed
 intensive signal passes through the electron unit chain in
 :func:`~spindoctor.sim.render.detector.chain.apply_detector`:
 
@@ -4514,7 +4516,7 @@ A simulated image is navigated through the same pipeline as a real frame, via th
 
 The ``sim`` dataset (``DataSetSim``) builds an :class:`~spindoctor.obs.obs_inst_sim.ObsSim`
 that loads the scene via :func:`spindoctor.sim.scene.io.load_sim_scene`, renders the
-frame through the forward model, and exposes the navigator the filtered
+frame with the simulator's renderer, and exposes the navigator the filtered
 idealized scene view ``obs.nav_params`` (see
 :ref:`sim-information-boundary`). The model-selection layer routes a simulated
 obs to the simulated NavModels -- ``NavModelBodySimulated``,
@@ -4688,7 +4690,7 @@ instrument, on seven figures of merit:
 5. **Dynamic range** -- fraction saturated, fraction near the frame floor,
    and signal-percentile stretch, always inside exposure strata: an
    unstratified comparison measures what the spacecraft pointed at, not the
-   forward model.
+   renderer.
 6. **Artifact rates** -- measured rates of lost/interpolated lines and
    single-pixel spikes, with a cross-frame split of spikes into stationary
    (hot pixels, which recur at fixed detector positions) and transient

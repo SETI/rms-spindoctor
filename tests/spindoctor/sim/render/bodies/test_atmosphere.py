@@ -35,8 +35,8 @@ from spindoctor.sim.render.bodies.render import render_single_body
 from spindoctor.sim.render.bodies.spec import body_spec_from_params
 from spindoctor.sim.render.radiance.compose import compose_scene_radiance
 from spindoctor.sim.render.stages import new_sim_frame
+from spindoctor.sim.scene.errors import SimSceneValidationError
 from spindoctor.sim.scene.rules_body import ATMOSPHERE_KEYS
-from spindoctor.sim.scene.rules_common import SimSceneValidationError
 from spindoctor.sim.scene.validate import validate_sim_params
 from spindoctor.sim.shared.ellipsoid import illumination_vector
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX

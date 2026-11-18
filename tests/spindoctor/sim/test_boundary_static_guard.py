@@ -25,18 +25,19 @@ haze navigator that makes it worth closing: a simulated Titan model reads the
 body's idealized geometry and must never read the haze that geometry is a
 deliberate mismatch for.
 
-A third scan covers imports.  The simulated instrument catalog and the artifact-mode
-registry describe how the image side renders a frame, so no navigator-side module
-imports ``spindoctor.sim.instruments`` or ``spindoctor.sim.artifact_modes``.  A
-navigator-side model reads what the navigator would know from its own config.  The scan
-also covers the simulated observation (``obs/obs_inst_sim.py``), whose star limit is
-navigator-side; its sanctioned imports are listed in ``_ALLOWED_IMAGE_SIDE_IMPORTS``.
+A third scan makes the boundary follow the package layout.  The neutral simulator
+modules are ``spindoctor.sim.shared`` and ``spindoctor.sim.scene.fields``.  A module of
+a navigator-side package imports nothing else from ``spindoctor.sim``: not the renderer,
+not the scene rules, and not the simulated instrument catalog or the artifact-mode
+registry, which describe how the image side renders a frame (a navigator-side model
+reads what the navigator would know from its own config).  Neither does a module of
+``sim/shared/``, so the shared conventions never pull in the renderer, the scene rules,
+or the editor.
 
-A fourth scan makes the boundary follow the package layout.  The neutral simulator
-modules are ``spindoctor.sim.shared`` and ``spindoctor.sim.scene.fields``.  A
-navigator-side simulated model (``nav_model/simulated/``) imports nothing else from
-``spindoctor.sim``, and neither does a module of ``sim/shared/``, so the shared
-conventions never pull in the renderer, the scene rules, or the editor.
+A fourth scan covers the simulated observation (``obs/obs_inst_sim.py``), the bridge
+that renders the image and builds ``nav_params``.  It may import the renderer, but its
+star limit is navigator-side, so it imports neither ``spindoctor.sim.instruments`` nor
+``spindoctor.sim.artifact_modes`` except as ``_ALLOWED_IMAGE_SIDE_IMPORTS`` sanctions.
 
 Legitimate exceptions, should one ever exist, go in ``_ALLOWED_REFERENCES``:
 a mapping from ``(module path relative to the spindoctor package, name)`` to a
@@ -90,21 +91,21 @@ _ALLOWED_REFERENCES: dict[tuple[str, str], str] = {}
 
 _PACKAGE_ROOT = Path(spindoctor.__file__).parent
 
-# The image-side simulator modules no navigator-side module may import: the
+# The image-side simulator modules the simulated observation may not import: the
 # instrument catalog package, and the artifact-mode registry.
 _IMAGE_SIDE_MODULES: tuple[str, ...] = (
     'spindoctor.sim.instruments',
     'spindoctor.sim.artifact_modes',
 )
 
-# The simulator modules both sides may import, and the directories, relative to the
-# spindoctor package, whose modules may import nothing else from the simulator.
+# The simulator modules both sides may import.  The modules of the navigator packages
+# and of the shared directory below (relative to the spindoctor package) may import
+# nothing else from the simulator.
 _NEUTRAL_SIM_MODULES: tuple[str, ...] = ('spindoctor.sim.shared', 'spindoctor.sim.scene.fields')
-_SIMULATED_MODELS_DIR = 'nav_model/simulated'
 _SHARED_DIR = 'sim/shared'
 
-# Navigator-side modules outside the navigator packages whose imports the scan also
-# covers, relative to the spindoctor package.
+# Navigator-side modules outside the navigator packages whose image-side imports the
+# fourth scan covers, relative to the spindoctor package.
 _NAVIGATOR_MODULES: tuple[str, ...] = ('obs/obs_inst_sim.py',)
 
 # Sanctioned image-side imports: (module path relative to the spindoctor package,
@@ -328,15 +329,6 @@ def _image_side_import_violations(paths: list[Path]) -> list[str]:
     return violations
 
 
-@pytest.mark.parametrize('package', _NAVIGATOR_PACKAGES)
-def test_navigator_package_imports_no_image_side_simulator_module(package: str) -> None:
-    """No navigator-side module imports the instrument catalog or the mode registry."""
-    violations = _image_side_import_violations(sorted((_PACKAGE_ROOT / package).rglob('*.py')))
-    assert not violations, (
-        'navigator-side code imports an image-side simulator module:\n' + '\n'.join(violations)
-    )
-
-
 @pytest.mark.parametrize('module', _NAVIGATOR_MODULES)
 def test_navigator_module_imports_only_sanctioned_image_side_modules(module: str) -> None:
     """A navigator-side module outside the packages imports only allowlisted modules."""
@@ -378,11 +370,12 @@ def _non_neutral_violations(directory: str) -> list[str]:
     return violations
 
 
-def test_simulated_models_import_only_neutral_simulator_modules() -> None:
-    """A navigator-side simulated model imports only sim.shared and sim.scene.fields."""
-    violations = _non_neutral_violations(_SIMULATED_MODELS_DIR)
+@pytest.mark.parametrize('package', _NAVIGATOR_PACKAGES)
+def test_navigator_package_imports_only_neutral_simulator_modules(package: str) -> None:
+    """A navigator-side module imports only sim.shared and sim.scene.fields."""
+    violations = _non_neutral_violations(package)
     assert not violations, (
-        'a navigator-side simulated model imports a simulator module other than '
+        'navigator-side code imports a simulator module other than '
         'spindoctor.sim.shared and spindoctor.sim.scene.fields:\n' + '\n'.join(violations)
     )
 

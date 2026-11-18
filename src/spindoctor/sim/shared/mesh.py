@@ -7,7 +7,7 @@ through a scene-supplied pose and rasterizes the shaded silhouette.  It is
 sim-only: the body's orientation is ground truth from the scene, not from
 SPICE.
 
-This module is deliberately shared between the image-side forward renderer
+This module is deliberately shared between the image-side renderer
 (``spindoctor.sim.render.bodies.mesh``) and the navigator-side predicted-body
 renderer (``spindoctor.nav_model.simulated.body``): the mesh shape,
 pose, and rasterization conventions are idealized information both sides may

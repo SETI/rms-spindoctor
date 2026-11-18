@@ -354,7 +354,7 @@ sibling of each model family. These are used both by
 - :mod:`spindoctor.nav_model.simulated.body`
 - :mod:`spindoctor.nav_model.simulated.rings`
 - :mod:`spindoctor.nav_model.simulated.titan`
-- :mod:`spindoctor.sim` — the scene schema, the image-side forward model, and the
+- :mod:`spindoctor.sim` — the scene schema, the image-side renderer, and the
   geometry helpers shared across the information boundary:
 
   - :mod:`spindoctor.sim.scene` — schema, validation, and the boundary filter

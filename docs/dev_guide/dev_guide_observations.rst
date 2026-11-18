@@ -366,8 +366,8 @@ Shipping subclasses:
   values pass through). Delegates to
   ``oops.hosts.newhorizons.lorri.from_file``.
 - :class:`~spindoctor.obs.obs_inst_sim.ObsSim` — simulated-image observation
-  backed by a validated YAML scene (bodies, rings, stars); renders the frame via
-  the forward model and exposes the navigator the filtered idealized scene view
+  backed by a validated YAML scene (bodies, rings, stars); renders the frame with
+  the simulator's renderer and exposes the navigator the filtered idealized scene view
   ``obs.nav_params`` (see :doc:`dev_guide_simulator`).
 
 Each subclass overrides :meth:`~spindoctor.obs.obs_inst.ObsInst.from_file` to pull the right
@@ -407,7 +407,7 @@ camera-config edit cannot reach a pinned key. Full self-specification (generic +
 complete overrides) makes a scene immune to *all* instrument-config drift. The
 merge is applied identically in both consumers -- :meth:`ObsSim.from_file
 <spindoctor.obs.obs_inst_sim.ObsSim.from_file>` and
-:func:`~spindoctor.sim.render.render_combined_model` -- so the rendered image
+:func:`~spindoctor.sim.render.driver.render_combined_model` -- so the rendered image
 and the navigator's instrument settings stay consistent. The one precedence
 subtlety: the top-level scene ``noise`` block (the primary noise control) still
 wins over ``instrument_config.noise`` for rendering, so ``instrument_config`` is

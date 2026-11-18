@@ -8,6 +8,7 @@
   class of every key, and the navigator's filtered view of a scene.
 - :mod:`spindoctor.sim.scene.fields`: the field helpers and tables every reader of
   a scene shares, the navigator-side simulated models included.
+- :mod:`spindoctor.sim.scene.errors`: the error a scene that fails validation raises.
 - :mod:`spindoctor.sim.scene.truth_echo`: the warning for a published instrument
   config that repeats the scene's planted truth.
 - The rules the validator applies, one module per block:

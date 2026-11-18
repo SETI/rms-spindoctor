@@ -1,4 +1,4 @@
-"""The detector stage of the forward model (electron chain, vidicon, calibration).
+"""The renderer's detector stage (electron chain, vidicon, calibration).
 
 Re-exports the pipeline entry point and the tested primitives; the
 implementation is split across :mod:`~spindoctor.sim.render.detector.params`

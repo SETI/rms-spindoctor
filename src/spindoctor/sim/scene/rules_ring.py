@@ -8,7 +8,7 @@ azimuthal / moonlet clutter.  Its checkers live here, beside their key
 inventories; the scalar primitives they share with the other block checkers
 stay in :mod:`spindoctor.sim.scene.rules_common`, which also documents the overall
 validation contract (unknown keys fail, every violation raises
-:class:`spindoctor.sim.scene.rules_common.SimSceneValidationError`).
+:class:`spindoctor.sim.scene.errors.SimSceneValidationError`).
 
 :func:`spindoctor.sim.scene.validate.validate_sim_params` drives ``_check_ring_system``
 once per scene.
@@ -24,9 +24,9 @@ from spindoctor.sim.scene.boundary import (
     _RING_SYSTEM_GEOMETRY_KEYS,
     _RING_SYSTEM_KEYS,
 )
+from spindoctor.sim.scene.errors import SimSceneValidationError
 from spindoctor.sim.scene.fields import RING_KIND_SHAPE_KEYS, RING_SHAPE_KEYS, scene_value
 from spindoctor.sim.scene.rules_common import (
-    SimSceneValidationError,
     _check_optional_bool,
     _check_optional_mapping_list,
     _check_optional_nonnegative_number,

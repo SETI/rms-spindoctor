@@ -21,7 +21,7 @@ import numpy as np
 
 from spindoctor.sim.render.bodies.atmosphere import HaloScreen
 from spindoctor.sim.render.rings.render import RingSystemMaps
-from spindoctor.sim.scene.rules_common import SimSceneValidationError
+from spindoctor.sim.scene.errors import SimSceneValidationError
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 
 __all__ = [
@@ -162,7 +162,7 @@ def check_depth_ambiguity(
         explicit_depth: Whether the body carries an explicit ``range_km``.
 
     Raises:
-        spindoctor.sim.scene.rules_common.SimSceneValidationError: If the new
+        spindoctor.sim.scene.errors.SimSceneValidationError: If the new
             object overlaps a painted one and either of the pair lacks an
             explicit ``range_km``.
     """
@@ -228,7 +228,7 @@ def check_halo_ambiguity(
             for every atmospheric body, in render order.
 
     Raises:
-        spindoctor.sim.scene.rules_common.SimSceneValidationError: If a halo
+        spindoctor.sim.scene.errors.SimSceneValidationError: If a halo
             overlaps another body's paint or halo and either body lacks an
             explicit ``range_km``.
     """
@@ -284,7 +284,7 @@ def check_ring_system_ambiguity(
             ``range_km``.
 
     Raises:
-        spindoctor.sim.scene.rules_common.SimSceneValidationError: On any overlap
+        spindoctor.sim.scene.errors.SimSceneValidationError: On any overlap
             without a defined depth relation.
     """
     if not ring_mask.any():

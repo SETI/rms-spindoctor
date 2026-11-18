@@ -11,7 +11,7 @@ import numpy as np
 import pytest
 from tests.spindoctor.sim.scenes import frame_scene
 
-from spindoctor.sim.render import render_combined_model
+from spindoctor.sim.render.driver import render_combined_model
 from spindoctor.sim.render.optics.stage import apply_stray_light
 from spindoctor.support.filters import NavFilterKind, NavFilterSpec, apply_filter
 

@@ -17,7 +17,7 @@ import numpy as np
 import pytest
 from tests.spindoctor.sim.scenes import disc_body, frame_scene, ring_system_block, star_entry
 
-from spindoctor.sim.render import render_combined_model
+from spindoctor.sim.render.driver import render_combined_model
 from spindoctor.sim.render.radiance.compose import compose_scene_radiance
 from spindoctor.sim.render.rings.render import (
     RING_ALBEDO_DEFAULT,
@@ -28,7 +28,7 @@ from spindoctor.sim.render.rings.render import (
     ring_reflection_factor,
 )
 from spindoctor.sim.render.stages import new_sim_frame
-from spindoctor.sim.scene.rules_common import SimSceneValidationError
+from spindoctor.sim.scene.errors import SimSceneValidationError
 from spindoctor.sim.scene.validate import validate_sim_params
 from spindoctor.sim.shared.ring import (
     ring_orbit_from_mapping,

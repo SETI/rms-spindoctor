@@ -6,7 +6,7 @@ navigator should recover.  The catalog is laid out as
 ``<scene_class>/<scene_name>.yaml`` (the directory is the registry).
 
 The YAML fields are the flat runtime parameter names that the renderer
-(:func:`spindoctor.sim.render.render_combined_model`),
+(:func:`spindoctor.sim.render.driver.render_combined_model`),
 :class:`spindoctor.obs.obs_inst_sim.ObsSim`, and the GUI consume, so a validated scene
 file IS the ``sim_params`` mapping with no translation layer.  ``load_sim_scene``
 parses and validates a file and returns that dict; ``save_sim_scene`` validates a
@@ -22,8 +22,8 @@ from typing import Any
 
 from ruamel.yaml import YAML
 
+from spindoctor.sim.scene.errors import SimSceneValidationError
 from spindoctor.sim.scene.rules_common import (
-    SimSceneValidationError,
     _require_int,
     _require_str,
 )
@@ -78,7 +78,7 @@ def load_sim_scene(path: Path) -> dict[str, Any]:
     """Parse and validate a sim scene YAML into a flat ``sim_params`` dict.
 
     The returned mapping is exactly what
-    :func:`spindoctor.sim.render.render_combined_model` and
+    :func:`spindoctor.sim.render.driver.render_combined_model` and
     :class:`spindoctor.obs.obs_inst_sim.ObsSim` consume; the ``schema_version`` and
     ``scene_name`` keys are metadata the renderer ignores.
 

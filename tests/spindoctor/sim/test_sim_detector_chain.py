@@ -11,7 +11,7 @@ import numpy as np
 import pytest
 from tests.spindoctor.sim.scenes import frame_scene
 
-from spindoctor.sim.render import render_combined_model
+from spindoctor.sim.render.driver import render_combined_model
 
 
 def _disc(instrument: str, *, size: int = 64, **extra: Any) -> dict[str, Any]:
@@ -106,7 +106,7 @@ def test_instrument_defaults_activates_the_physical_chain() -> None:
 
 def test_instrument_defaults_defaults_oversample_when_psf_active() -> None:
     """instrument_defaults implies a PSF, which oversamples the radiance grid."""
-    from spindoctor.sim.render import resolve_oversample
+    from spindoctor.sim.render.driver import resolve_oversample
 
     assert resolve_oversample(_disc('coiss_nac', artifacts={'instrument_defaults': True})) == 4
     assert resolve_oversample(_disc('coiss_nac')) == 1

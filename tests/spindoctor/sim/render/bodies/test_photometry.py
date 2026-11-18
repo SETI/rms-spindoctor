@@ -1,4 +1,4 @@
-"""Analytic point checks of the forward renderer's photometric laws.
+"""Analytic point checks of the renderer's photometric laws.
 
 Each law is asserted against its closed form at known (mu0, mu, k) values,
 the lunar-Lambert blend against its endpoints (pure Lommel-Seeliger at

@@ -33,6 +33,11 @@ spindoctor.sim.scene
    :undoc-members:
    :show-inheritance:
 
+.. automodule:: spindoctor.sim.scene.errors
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 .. automodule:: spindoctor.sim.scene.boundary
    :members:
    :undoc-members:
@@ -138,13 +143,10 @@ spindoctor.sim.render
 
 .. automodule:: spindoctor.sim.render
 
-.. autofunction:: spindoctor.sim.render.render_combined_model
-
-.. autofunction:: spindoctor.sim.render.resolve_oversample
-
-.. autofunction:: spindoctor.sim.render.clear_render_caches
-
 .. automodule:: spindoctor.sim.render.driver
+   :members:
+   :undoc-members:
+   :show-inheritance:
 
 .. automodule:: spindoctor.sim.render.pipeline
    :members:
@@ -231,6 +233,11 @@ spindoctor.sim.render.bodies
    :undoc-members:
    :show-inheritance:
 
+.. automodule:: spindoctor.sim.render.bodies.translate
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 spindoctor.sim.render.rings
 ---------------------------
 
@@ -271,6 +278,11 @@ spindoctor.sim.render.optics
    :undoc-members:
    :show-inheritance:
 
+.. automodule:: spindoctor.sim.render.optics.lit_clusters
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 spindoctor.sim.render.detector
 ------------------------------
 
@@ -300,6 +312,11 @@ spindoctor.sim.render.detector
    :show-inheritance:
 
 .. automodule:: spindoctor.sim.render.detector.electronics_stages
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: spindoctor.sim.render.detector.sqrt_lut
    :members:
    :undoc-members:
    :show-inheritance:

@@ -12,7 +12,7 @@ import numpy as np
 import pytest
 from tests.spindoctor.sim.scenes import frame_scene, star_entry
 
-from spindoctor.sim.render import render_combined_model
+from spindoctor.sim.render.driver import render_combined_model
 
 _SIZE = 128
 _CENTER = 64.0

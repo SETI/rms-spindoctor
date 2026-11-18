@@ -9,7 +9,7 @@ schema; ``instrument_defaults`` must not turn on a mode that the scene's detecto
 chain never renders.  The scalar primitives they share with the other block checkers
 stay in :mod:`spindoctor.sim.scene.rules_common`, which also documents the overall
 validation contract (unknown keys fail, every violation raises
-:class:`spindoctor.sim.scene.rules_common.SimSceneValidationError`).
+:class:`spindoctor.sim.scene.errors.SimSceneValidationError`).
 
 :func:`spindoctor.sim.scene.validate.validate_sim_params` drives ``_check_artifacts``
 once per scene.
@@ -31,8 +31,8 @@ from spindoctor.sim.instruments.resolvers import (
     mode_unavailable_message,
     resolve_detector_model,
 )
+from spindoctor.sim.scene.errors import SimSceneValidationError
 from spindoctor.sim.scene.rules_common import (
-    SimSceneValidationError,
     _check_optional_bool,
     _check_optional_nonnegative_int,
     _check_optional_nonnegative_number,

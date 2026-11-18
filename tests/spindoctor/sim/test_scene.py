@@ -8,7 +8,7 @@ from typing import Any
 import numpy as np
 import pytest
 
-from spindoctor.sim.render import render_combined_model
+from spindoctor.sim.render.driver import render_combined_model
 from spindoctor.sim.scene.boundary import (
     _ALLOWED_KEYS,
     _OBJECT_BLOCKS,
@@ -17,8 +17,8 @@ from spindoctor.sim.scene.boundary import (
     TOP_LEVEL_TRUTH_KEYS,
     TRUTH_KEYS,
 )
+from spindoctor.sim.scene.errors import SimSceneValidationError
 from spindoctor.sim.scene.io import load_sim_scene, save_sim_scene
-from spindoctor.sim.scene.rules_common import SimSceneValidationError
 from spindoctor.sim.scene.validate import validate_sim_params
 
 

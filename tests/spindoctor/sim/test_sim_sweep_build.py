@@ -14,7 +14,7 @@ from pathlib import Path
 import pytest
 from tests.integration.sim_sweep import build_sweep_params, iter_sweep_paths, load_sweep
 
-from spindoctor.sim.scene.rules_common import SimSceneValidationError
+from spindoctor.sim.scene.errors import SimSceneValidationError
 
 _SWEEPS_ROOT = Path(__file__).parents[2] / 'integration' / 'sim_sweeps'
 

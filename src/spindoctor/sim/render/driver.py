@@ -1,7 +1,7 @@
 """Entry point for rendering a simulated scene: params in, image + meta out.
 
-``render_combined_model`` is a thin, cached driver over the forward-model
-stage pipeline (:mod:`spindoctor.sim.render`): it encodes the scene as
+``render_combined_model`` is a thin, cached driver over the render pipeline
+(:mod:`spindoctor.sim.render.pipeline`): it encodes the scene as
 deterministic sorted-key JSON, validates the scene, runs the pipeline on a fresh
 :class:`~spindoctor.sim.render.stages.SimFrame` (cached on a key built from
 that JSON), and returns the rendered image with the renderer's output metadata.
@@ -54,19 +54,19 @@ def clear_render_caches() -> None:
     stale in production, but determinism tests must re-execute the cached
     paths to prove reproducibility.
     """
-    from spindoctor.sim.render.bodies import mesh as body_mesh
+    from spindoctor.sim.render.bodies import mesh as bodies_mesh
     from spindoctor.sim.render.bodies import relief
-    from spindoctor.sim.render.bodies import render as body
+    from spindoctor.sim.render.bodies import render as bodies_render
     from spindoctor.sim.render.optics import psf
-    from spindoctor.sim.render.radiance import stars as star
+    from spindoctor.sim.render.radiance import stars as radiance_stars
 
     _render_combined_model_cached.cache_clear()
     clear_validation_cache()
-    star._render_stars_cached.cache_clear()
-    star._render_sky_counts_cached.cache_clear()
-    body._render_body_shape_cached.cache_clear()
-    body._render_topo_shape_cached.cache_clear()
-    body_mesh._render_mesh_shape_cached.cache_clear()
+    radiance_stars._render_stars_cached.cache_clear()
+    radiance_stars._render_sky_counts_cached.cache_clear()
+    bodies_render._render_body_shape_cached.cache_clear()
+    bodies_render._render_topo_shape_cached.cache_clear()
+    bodies_mesh._render_mesh_shape_cached.cache_clear()
     relief.clear_relief_caches()
     psf.psf_kernel.cache_clear()
 
@@ -170,7 +170,7 @@ def render_combined_model(
         ``occluded_limb_arc_deg`` against every nearer body).
 
     Raises:
-        ~spindoctor.sim.scene.rules_common.SimSceneValidationError: If the scene fails
+        ~spindoctor.sim.scene.errors.SimSceneValidationError: If the scene fails
             validation.
     """
     validate_scene(sim_params, source=source)

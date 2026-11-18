@@ -16,9 +16,9 @@ import pytest
 from scipy import ndimage
 from tests.spindoctor.sim.scenes import frame_scene
 
-from spindoctor.sim.render import render_combined_model
 from spindoctor.sim.render.bodies.mesh import render_single_mesh_body
 from spindoctor.sim.render.bodies.spec import body_spec_from_params
+from spindoctor.sim.render.driver import render_combined_model
 from spindoctor.sim.scene.boundary import build_nav_params
 from spindoctor.sim.shared.mesh import (
     make_irregular_mesh,

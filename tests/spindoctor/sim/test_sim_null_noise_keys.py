@@ -14,8 +14,8 @@ import numpy as np
 import pytest
 from tests.spindoctor.sim.scenes import body_scene
 
-from spindoctor.sim.render import render_combined_model
 from spindoctor.sim.render.detector.params import resolve_detector_params
+from spindoctor.sim.render.driver import render_combined_model
 from spindoctor.sim.scene.rules_common import _NOISE_KEYS, _VIDICON_NOISE_KEYS
 from spindoctor.sim.scene.validate import validate_sim_params
 

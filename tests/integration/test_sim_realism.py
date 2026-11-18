@@ -34,8 +34,8 @@ from spindoctor.sim.instruments.resolvers import (
     resolve_native_frame_size_px,
 )
 from spindoctor.sim.realism.noise import SkyPatch
-from spindoctor.sim.render import render_combined_model
 from spindoctor.sim.render.detector.params import resolve_detector_params
+from spindoctor.sim.render.driver import render_combined_model
 from spindoctor.sim.render.radiance.compose import sky_star_faint_cutoff_mag
 from spindoctor.sim.scene.validate import validate_sim_params
 from tests.integration import sim_realism, sim_realism_report, sim_realism_twin_stars

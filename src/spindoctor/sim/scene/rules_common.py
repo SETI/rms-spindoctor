@@ -14,8 +14,7 @@ block's checker in :mod:`spindoctor.sim.scene.rules_instrument_config`; all four
 build on the same primitives.
 
 :func:`spindoctor.sim.scene.validate.validate_sim_params` drives these helpers; every
-violation raises :class:`SimSceneValidationError`, which this module defines because
-every rules module builds on its primitives.
+violation raises :class:`~spindoctor.sim.scene.errors.SimSceneValidationError`.
 """
 
 from __future__ import annotations
@@ -33,12 +32,8 @@ from spindoctor.sim.instruments.resolvers import (
     resolve_filter_throughput,
     resolve_readout_mode,
 )
+from spindoctor.sim.scene.errors import SimSceneValidationError
 from spindoctor.support.status_reason import NavStatusReason
-
-
-class SimSceneValidationError(ValueError):
-    """Raised when a sim scene YAML is missing or malformed."""
-
 
 # The scene-level ``expected`` block's allowed vocabularies.  These mirror the
 # image-library sidecar taxonomy (status / confidence tier / status_reason) but

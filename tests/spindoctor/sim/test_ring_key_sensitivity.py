@@ -21,7 +21,7 @@ import numpy as np
 import pytest
 
 from spindoctor.nav_model.simulated.predict_ring import predict_ring_feature
-from spindoctor.sim.render import render_combined_model
+from spindoctor.sim.render.driver import render_combined_model
 from spindoctor.sim.scene.boundary import build_nav_params
 from spindoctor.sim.scene.validate import validate_sim_params
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType

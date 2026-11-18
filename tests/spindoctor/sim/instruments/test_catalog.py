@@ -40,10 +40,10 @@ from spindoctor.sim.instruments.resolvers import (
     cataloged_binnings,
     resolve_data_units,
 )
-from spindoctor.sim.render import render_combined_model
 from spindoctor.sim.render.detector.params import DetectorParamError, resolve_detector_params
 from spindoctor.sim.render.detector.sqrt_lut import SqrtLut, TabulatedLut
-from spindoctor.sim.scene.rules_common import SimSceneValidationError
+from spindoctor.sim.render.driver import render_combined_model
+from spindoctor.sim.scene.errors import SimSceneValidationError
 from spindoctor.sim.scene.validate import validate_sim_params
 
 # A complete camera entry, written out so each case changes one thing in it.

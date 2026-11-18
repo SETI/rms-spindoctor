@@ -17,7 +17,6 @@ import numpy as np
 import pytest
 from tests.spindoctor.sim.scenes import frame_scene
 
-from spindoctor.sim.render import render_combined_model
 from spindoctor.sim.render.detector.electronics_stages import (
     add_bright_dark_pairs,
     add_coherent_banding,
@@ -32,6 +31,7 @@ from spindoctor.sim.render.detector.electronics_stages import (
 )
 from spindoctor.sim.render.detector.params import resolve_detector_params
 from spindoctor.sim.render.detector.sqrt_lut import SqrtLut
+from spindoctor.sim.render.driver import render_combined_model
 
 _SIZE = 64
 

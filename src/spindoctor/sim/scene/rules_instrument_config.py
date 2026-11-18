@@ -10,7 +10,7 @@ is the only outside source of these values, so the scene validator is the one pl
 that checks them.  The scalar primitives it shares with the other block checkers stay in
 :mod:`spindoctor.sim.scene.rules_common`, which also documents the overall validation
 contract (every violation raises
-:class:`spindoctor.sim.scene.rules_common.SimSceneValidationError`).
+:class:`spindoctor.sim.scene.errors.SimSceneValidationError`).
 
 :func:`spindoctor.sim.scene.validate.validate_sim_params` drives
 ``_check_instrument_config`` once per scene.
@@ -28,7 +28,8 @@ from spindoctor.sim.instruments.navigator_link import (
     with_integer_binning_keys,
 )
 from spindoctor.sim.instruments.resolvers import cataloged_binnings
-from spindoctor.sim.scene.rules_common import SimSceneValidationError, _check_optional_mapping
+from spindoctor.sim.scene.errors import SimSceneValidationError
+from spindoctor.sim.scene.rules_common import _check_optional_mapping
 
 BY_BINNING_VALUE_KEYS = frozenset({'read_noise_dn', 'star_flux_dn_per_s_vmag0'})
 """The values every entry of a navigator block's ``noise.by_binning`` table states."""

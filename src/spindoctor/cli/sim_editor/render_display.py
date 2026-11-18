@@ -45,9 +45,9 @@ from spindoctor.sim.instruments.navigator_link import (
     resolve_sim_inst_config,
 )
 from spindoctor.sim.instruments.resolvers import resolve_data_units
-from spindoctor.sim.render import render_combined_model
+from spindoctor.sim.render.driver import render_combined_model
+from spindoctor.sim.scene.errors import SimSceneValidationError
 from spindoctor.sim.scene.fields import default_body_name, scene_value
-from spindoctor.sim.scene.rules_common import SimSceneValidationError
 from spindoctor.sim.scene.validate import validate_scene
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 
@@ -193,7 +193,7 @@ class RenderDisplayMixin(SimEditorBase):
 
         A refused scene starts no full render or verdict render, and any already on
         their way are dropped.  An exception other than
-        :class:`~spindoctor.sim.scene.rules_common.SimSceneValidationError` propagates to
+        :class:`~spindoctor.sim.scene.errors.SimSceneValidationError` propagates to
         the caller.
 
         Returns:

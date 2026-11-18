@@ -19,7 +19,7 @@ from oops.observation import Snapshot
 from spindoctor.config import DEFAULT_CONFIG, IMAGE_LOGGER, Config, logged_section
 from spindoctor.obs.obs_snapshot_inst import ObsSnapshotInst
 from spindoctor.sim.instruments.navigator_link import resolve_extfov_margin, resolve_sim_inst_config
-from spindoctor.sim.render import render_combined_model
+from spindoctor.sim.render.driver import render_combined_model
 from spindoctor.sim.scene.boundary import build_nav_params
 from spindoctor.sim.scene.io import load_sim_scene
 from spindoctor.support.types import NDArrayAnyType, NDArrayBoolType, PathLike
@@ -92,7 +92,7 @@ class ObsSim(ObsSnapshotInst):
             without any storage being touched.
 
         Raises:
-            ~spindoctor.sim.scene.rules_common.SimSceneValidationError: If the scene fails
+            ~spindoctor.sim.scene.errors.SimSceneValidationError: If the scene fails
                 validation.
         """
 

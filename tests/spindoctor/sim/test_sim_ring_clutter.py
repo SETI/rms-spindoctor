@@ -16,7 +16,7 @@ import numpy as np
 import pytest
 from tests.spindoctor.sim.scenes import frame_scene, ring_system_block, star_entry
 
-from spindoctor.sim.render import render_combined_model
+from spindoctor.sim.render.driver import render_combined_model
 from spindoctor.sim.render.rings.render import RingSystemMaps, render_ring_system
 from spindoctor.sim.scene.validate import validate_sim_params
 

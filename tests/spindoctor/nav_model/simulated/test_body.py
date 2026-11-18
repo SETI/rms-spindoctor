@@ -19,7 +19,7 @@ from spindoctor.nav_model.body_shape import load_body_shape
 from spindoctor.nav_model.simulated.body import NavModelBodySimulated
 from spindoctor.nav_orchestrator.nav_context import NavContext
 from spindoctor.obs.obs_inst_sim import ObsSim
-from spindoctor.sim.render import render_combined_model
+from spindoctor.sim.render.driver import render_combined_model
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 
 _SIZE = 96

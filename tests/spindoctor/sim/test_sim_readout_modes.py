@@ -20,15 +20,15 @@ from spindoctor.sim.instruments.resolvers import (
     cataloged_binnings,
     resolve_psf_kernel,
 )
-from spindoctor.sim.render import clear_render_caches, render_combined_model
 from spindoctor.sim.render.detector.noise_stages import detector_hot_pixel_map
 from spindoctor.sim.render.detector.params import DetectorParamError, resolve_detector_params
+from spindoctor.sim.render.driver import clear_render_caches, render_combined_model
 from spindoctor.sim.render.optics.psf import binned_psf_kernel
 from spindoctor.sim.render.optics.stage import effective_psf
 from spindoctor.sim.render.radiance import compose as scene_radiance
 from spindoctor.sim.render.radiance.compose import _nominal_read_noise
 from spindoctor.sim.render.radiance.stars import faint_sky_cutoff_mag
-from spindoctor.sim.scene.rules_common import SimSceneValidationError
+from spindoctor.sim.scene.errors import SimSceneValidationError
 from spindoctor.sim.scene.validate import validate_sim_params
 
 

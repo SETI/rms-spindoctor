@@ -6,7 +6,7 @@ parses each body once into a typed spec.  A body with a null key and the same
 body without the key parse to equal specs, so the two scenes render the same frame
 and write the same render truth.  The navigator's filtered view leaves a null key
 out, so it reads the absent key too.  Atmosphere keys are covered in
-``test_sim_atmosphere.py``.
+``render/bodies/test_atmosphere.py``.
 """
 
 import copy
@@ -18,12 +18,13 @@ import numpy as np
 import pytest
 from tests.spindoctor.sim.scenes import frame_scene
 
-from spindoctor.sim.render import render_combined_model
 from spindoctor.sim.render.bodies.atmosphere import AtmosphereSpec, atmosphere_spec_from_params
 from spindoctor.sim.render.bodies.haze import CLOUD_BLOB_KEYS
 from spindoctor.sim.render.bodies.spec import BodySpec, body_spec_from_params
 from spindoctor.sim.render.bodies.texture import AlbedoTextureSpec, albedo_spec_from_params
+from spindoctor.sim.render.driver import render_combined_model
 from spindoctor.sim.scene.boundary import _BODY_IDEALIZED_KEYS, _BODY_KEYS, build_nav_params
+from spindoctor.sim.scene.errors import SimSceneValidationError
 from spindoctor.sim.scene.fields import ELLIPSOID_UNSUPPORTED_KEYS, default_body_name
 from spindoctor.sim.scene.rules_body import (
     _ALBEDO_TEXTURE_KEYS,
@@ -34,7 +35,6 @@ from spindoctor.sim.scene.rules_body import (
     _TRANSIT_MOON_KEYS,
     _TRANSIT_SHADOW_KEYS,
 )
-from spindoctor.sim.scene.rules_common import SimSceneValidationError
 from spindoctor.sim.scene.validate import validate_sim_params
 
 _SIZE = 32

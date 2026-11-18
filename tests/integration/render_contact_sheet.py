@@ -45,7 +45,7 @@ import numpy as np
 from PIL import Image, ImageDraw
 
 from spindoctor.sim.png_export import stretch_to_uint8
-from spindoctor.sim.render import render_combined_model
+from spindoctor.sim.render.driver import render_combined_model
 from spindoctor.sim.scene.io import iter_scene_paths, load_sim_scene, scene_class_for_path
 from spindoctor.support.types import NDArrayUint8Type
 from tests.integration.checkout_guard import require_checkout_package

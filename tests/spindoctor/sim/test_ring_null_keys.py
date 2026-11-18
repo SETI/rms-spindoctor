@@ -15,7 +15,7 @@ from typing import Any
 import numpy as np
 import pytest
 
-from spindoctor.sim.render import render_combined_model
+from spindoctor.sim.render.driver import render_combined_model
 from spindoctor.sim.scene.boundary import build_nav_params
 from spindoctor.sim.scene.fields import scene_value
 from spindoctor.sim.scene.io import load_sim_scene

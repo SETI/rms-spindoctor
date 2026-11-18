@@ -14,8 +14,8 @@ from typing import Any
 import pytest
 from tests.spindoctor.sim.scenes import frame_scene
 
+from spindoctor.sim.scene.errors import SimSceneValidationError
 from spindoctor.sim.scene.fields import MESH_UNSUPPORTED_KEYS, mesh_unsupported_message
-from spindoctor.sim.scene.rules_common import SimSceneValidationError
 from spindoctor.sim.scene.validate import validate_sim_params
 
 _REPO = Path(__file__).resolve().parents[3]

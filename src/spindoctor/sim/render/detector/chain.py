@@ -1,6 +1,6 @@
 """The detector stage: composed signal to digitized detector counts.
 
-This is the normative unit chain of the forward model.  For a CCD the composed
+This is the normative unit chain of the renderer.  For a CCD the composed
 intensive signal is converted to electrons through the exposure, the point-source
 electron plane is added, and the frame passes through Poisson shot noise,
 electron-domain full-well bloom, read noise, coherent banding, gain to DN, bias

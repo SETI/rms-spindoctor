@@ -11,7 +11,7 @@ scene error is the only error in a recovery measurement.
 
 The ring-plane projection helpers here are the single implementation of the
 optical-depth ring system's opening-angle geometry, shared by design: the
-forward renderer draws the full system through them and the navigator-side
+renderer draws the full system through them and the navigator-side
 ring model predicts navigable edges through the same functions, so predicted
 edges land in projected positions by construction.  The conventions:
 
@@ -321,7 +321,7 @@ def ring_orbit_from_mapping(orbit: Mapping[str, Any]) -> RingOrbit:
     """Parse a validated per-feature ``orbit`` scene mapping into a RingOrbit.
 
     This is the single interpretation of the idealized orbit block, shared by
-    the forward renderer and the navigator-side model so both sides apply
+    the image-side renderer and the navigator-side model so both sides apply
     the same defaults to the same catalog values.  An optional key set to null
     takes the default an absent key does, as the validator reads it.
 

@@ -1,6 +1,6 @@
 """Photometric surface-scattering laws for the image-side body renderer.
 
-The forward renderer shades body discs with a scene-selected law --
+The renderer shades body discs with a scene-selected law --
 Lambert, Lommel-Seeliger, Minnaert(k), or a lunar-Lambert blend -- plus an
 optional opposition-surge factor.  The law is a truth key: the navigator's
 predicted-body model always shades with Lambert

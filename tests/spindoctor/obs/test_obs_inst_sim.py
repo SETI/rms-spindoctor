@@ -27,8 +27,8 @@ import numpy as np
 import pytest
 
 from spindoctor.obs.obs_inst_sim import ObsSim
+from spindoctor.sim.scene.errors import SimSceneValidationError
 from spindoctor.sim.scene.io import save_sim_scene
-from spindoctor.sim.scene.rules_common import SimSceneValidationError
 from spindoctor.sim.scene.truth_echo import SimSceneTruthEchoWarning
 
 _SIZE = 96
