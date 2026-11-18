@@ -20,7 +20,7 @@ from typing import Any
 import numpy as np
 import pytest
 
-from spindoctor.nav_model.sim_ring import predict_ring_feature
+from spindoctor.nav_model.simulated.predict_ring import predict_ring_feature
 from spindoctor.sim.render import render_combined_model
 from spindoctor.sim.scene import build_nav_params, validate_sim_params
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType

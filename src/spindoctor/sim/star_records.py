@@ -4,7 +4,7 @@ Both simulator sides build :class:`~spindoctor.support.types.MutableStar`
 records from a scene's per-star mappings: the image-side renderer
 (``spindoctor.sim.forward.star``) to know what to draw and to report in its
 output metadata, and the navigator-side star model
-(``spindoctor.nav_model.stars.nav_model_stars_simulated``) to build its
+(``spindoctor.nav_model.simulated.stars``) to build its
 catalog from the filtered idealized view (``obs.nav_params``).  Sharing one
 builder keeps the two sides' defaults (position, magnitude, spectral class,
 PSF window) identical, so a scene that omits a field cannot silently give

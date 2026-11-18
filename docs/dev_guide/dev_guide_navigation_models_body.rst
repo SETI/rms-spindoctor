@@ -23,7 +23,7 @@ a few pixels, falling back to the point-like
 :data:`~spindoctor.feature.feature_type.NavFeatureType.BODY_BLOB` (see *Feature emission gates*
 below).
 
-A simulated-image sibling (:class:`~spindoctor.nav_model.nav_model_body_simulated.NavModelBodySimulated`)
+A simulated-image sibling (:class:`~spindoctor.nav_model.simulated.body.NavModelBodySimulated`)
 renders a body from operator-supplied ellipsoid parameters instead of SPICE prediction; both
 classes share the silhouette / annotation helpers on
 :class:`~spindoctor.nav_model.nav_model_body_base.NavModelBodyBase`. Per-body shape, albedo, and SPICE

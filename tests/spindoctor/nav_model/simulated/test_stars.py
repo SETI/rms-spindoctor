@@ -16,7 +16,7 @@ import numpy as np
 
 from spindoctor.feature.feature_type import NavFeatureType
 from spindoctor.feature.geometry import StarGeometry
-from spindoctor.nav_model.stars.nav_model_stars_simulated import NavModelStarsSimulated
+from spindoctor.nav_model.simulated.stars import NavModelStarsSimulated
 from spindoctor.nav_orchestrator.nav_context import NavContext
 from spindoctor.obs.obs_inst_sim import ObsSim
 

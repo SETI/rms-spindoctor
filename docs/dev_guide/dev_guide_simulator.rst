@@ -177,15 +177,17 @@ without a deliberate mismatch is the navigator's own template plus a shift and
 noise. For stars that holds only when the scene's PSF is the navigator's own,
 ``optics: {psf: {match_navigator: true}}`` (see :ref:`sim-floor`); without an
 ``optics`` block a star renders as a point, which the navigator's Gaussian
-doesn't match. Its renderers live under
-``nav_model/`` so the package layout states who owns them:
-:mod:`spindoctor.nav_model.sim_body` and :mod:`spindoctor.nav_model.sim_ring`
-draw the predicted templates that
-:class:`~spindoctor.nav_model.nav_model_body_simulated.NavModelBodySimulated` and
-:class:`~spindoctor.nav_model.nav_model_rings_simulated.NavModelRingsSimulated`
-emit as features, and
-:class:`~spindoctor.nav_model.stars.nav_model_stars_simulated.NavModelStarsSimulated`
-builds its catalog star records directly.
+doesn't match. Its models and renderers live under
+``nav_model/simulated/`` so the package layout states who owns them.
+:mod:`spindoctor.nav_model.simulated.predict_body` draws the predicted template of an
+ellipsoid body, and :mod:`spindoctor.nav_model.simulated.predict_ring` draws the
+predicted rings. :class:`~spindoctor.nav_model.simulated.body.NavModelBodySimulated`
+and :class:`~spindoctor.nav_model.simulated.rings.NavModelRingsSimulated` emit those
+templates as features. A ``polyhedral_mesh`` body is drawn by
+:func:`~spindoctor.sim.mesh_geometry.render_mesh_body_image` instead, and the body
+model emits that image as its template in the same way.
+:class:`~spindoctor.nav_model.simulated.stars.NavModelStarsSimulated` builds its
+catalog star records directly.
 
 .. _sim-information-boundary:
 

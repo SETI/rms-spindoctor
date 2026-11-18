@@ -41,7 +41,7 @@ from spindoctor.config import DEFAULT_CONFIG, IMAGE_LOGGER, Config
 from spindoctor.nav_model.nav_model import NavModel
 from spindoctor.nav_model.nav_model_body import TITAN_BODY_NAME
 from spindoctor.nav_model.nav_model_titan import NavModelTitan
-from spindoctor.nav_model.sim_body import create_simulated_body
+from spindoctor.nav_model.simulated.predict_body import create_simulated_body
 from spindoctor.nav_model.titan_geometry import (
     TitanGeometryInputs,
     occluded_disc_fraction,

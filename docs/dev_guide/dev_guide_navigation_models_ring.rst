@@ -16,7 +16,7 @@ compress" path) when individual edges fall below the resolvability threshold.
 
 The orchestrator constructs one model instance per planet whose ring system overlaps the
 extfov. A simulated-image sibling
-(:class:`~spindoctor.nav_model.nav_model_rings_simulated.NavModelRingsSimulated`) renders rings
+(:class:`~spindoctor.nav_model.simulated.rings.NavModelRingsSimulated`) renders rings
 from operator-supplied parameters instead of the catalog; both classes share annotation
 helpers on :class:`~spindoctor.nav_model.nav_model_rings_base.NavModelRingsBase`.
 
@@ -370,7 +370,7 @@ base. One helper lives there:
   :class:`~spindoctor.annotation.annotations.Annotations` collection for the summary PNG.
   Consumes the ``label_*`` keys documented above. Used by both
   :class:`~spindoctor.nav_model.nav_model_rings.NavModelRings` and
-  :class:`~spindoctor.nav_model.nav_model_rings_simulated.NavModelRingsSimulated`.
+  :class:`~spindoctor.nav_model.simulated.rings.NavModelRingsSimulated`.
 
 The per-edge anti-aliasing math invoked from
 :class:`~spindoctor.nav_model.rings.ring_feature.RingFeature` lives in

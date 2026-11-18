@@ -5,7 +5,7 @@ Simulated Ring Navigation Model
 Overview
 ========
 
-:class:`~spindoctor.nav_model.nav_model_rings_simulated.NavModelRingsSimulated` predicts the
+:class:`~spindoctor.nav_model.simulated.rings.NavModelRingsSimulated` predicts the
 rings of a simulated frame. The SPICE-backed
 :class:`~spindoctor.nav_model.nav_model_rings.NavModelRings` predicts a real frame's rings
 from a ring catalog and the spacecraft's pointing. A simulated frame has neither, so this
@@ -176,10 +176,10 @@ boundary, but this model doesn't read them.
 Implementation
 ==============
 
-Source files: ``src/spindoctor/nav_model/nav_model_rings_simulated.py`` holds
-:class:`~spindoctor.nav_model.nav_model_rings_simulated.NavModelRingsSimulated`, and
-``src/spindoctor/nav_model/sim_ring.py`` holds the prediction,
-:func:`~spindoctor.nav_model.sim_ring.predict_ring_feature`.
+Source files: ``src/spindoctor/nav_model/simulated/rings.py`` holds
+:class:`~spindoctor.nav_model.simulated.rings.NavModelRingsSimulated`, and
+``src/spindoctor/nav_model/simulated/predict_ring.py`` holds the prediction,
+:func:`~spindoctor.nav_model.simulated.predict_ring.predict_ring_feature`.
 
 The class derives from :class:`~spindoctor.nav_model.nav_model_rings_base.NavModelRingsBase`.
 It overrides :meth:`~spindoctor.nav_model.nav_model.NavModel.instances_for_obs` to return one
@@ -191,11 +191,11 @@ simulated frames from this class and real frames from the parent.
 
 Public methods (autodocumented at :doc:`/api_reference/api_nav_model`):
 
-- :meth:`~spindoctor.nav_model.nav_model_rings_simulated.NavModelRingsSimulated.create_model`
+- :meth:`~spindoctor.nav_model.simulated.rings.NavModelRingsSimulated.create_model`
   predicts the feature's template and edges on the extended-FOV grid.
-- :meth:`~spindoctor.nav_model.nav_model_rings_simulated.NavModelRingsSimulated.to_features`
+- :meth:`~spindoctor.nav_model.simulated.rings.NavModelRingsSimulated.to_features`
   emits the RING_ANNULUS for a ringlet and one RING_EDGE per predicted edge.
-- :meth:`~spindoctor.nav_model.nav_model_rings_simulated.NavModelRingsSimulated.to_annotations`
+- :meth:`~spindoctor.nav_model.simulated.rings.NavModelRingsSimulated.to_annotations`
   draws each edge and its label (``SATURN INNER EDGE``, or ``NAME EDGE`` for a
   single-boundary kind) onto the summary PNG through the annotation helper on
   :class:`~spindoctor.nav_model.nav_model_rings_base.NavModelRingsBase`.
@@ -208,12 +208,12 @@ Inherited :class:`~spindoctor.nav_model.nav_model.NavModel` properties:
 Call path
 ---------
 
-:meth:`~spindoctor.nav_model.nav_model_rings_simulated.NavModelRingsSimulated.create_model`:
+:meth:`~spindoctor.nav_model.simulated.rings.NavModelRingsSimulated.create_model`:
 
 1. Opens a logged section and reads the feature's mapping and the shared ``geometry``
    block. It shifts the projected center by the extended-FOV margins.
-2. Calls :func:`~spindoctor.nav_model.sim_ring.predict_ring_feature`. That function builds
-   the pixel grid in pixel-corner coordinates, projects it to ring-plane
+2. Calls :func:`~spindoctor.nav_model.simulated.predict_ring.predict_ring_feature`. That
+   function builds the pixel grid in pixel-corner coordinates, projects it to ring-plane
    :math:`(r, \lambda)` with :func:`~spindoctor.sim.ring_geometry.ring_plane_from_sky`, and
    evaluates the orbit with :func:`~spindoctor.sim.ring_geometry.compute_orbit_radii`. It
    then rasterizes the coverage template and one border mask per edge, with each vertex's
@@ -222,7 +222,7 @@ Call path
    ``to_features``. The grid is in pixel-corner coordinates and the feature payload is
    pixel-centered, so the half pixel comes off the center here.
 
-:meth:`~spindoctor.nav_model.nav_model_rings_simulated.NavModelRingsSimulated.to_features`:
+:meth:`~spindoctor.nav_model.simulated.rings.NavModelRingsSimulated.to_features`:
 
 1. Computes :math:`\sigma_{\mathrm{orbit}}` once over every predicted vertex of the
    feature.

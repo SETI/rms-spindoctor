@@ -9,7 +9,7 @@ SPICE.
 
 This module is deliberately shared between the image-side forward renderer
 (``spindoctor.sim.forward.body_mesh``) and the navigator-side predicted-body
-renderer (``spindoctor.nav_model.nav_model_body_simulated``): the mesh shape,
+renderer (``spindoctor.nav_model.simulated.body``): the mesh shape,
 pose, and rasterization conventions are idealized information both sides may
 know, and sharing one implementation guarantees that a scene's planted
 geometry error (via ``nav_override``) is the only difference between the

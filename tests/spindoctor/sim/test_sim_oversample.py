@@ -18,7 +18,7 @@ import numpy as np
 import pytest
 from tests.spindoctor.sim.scenes import disc_body, frame_scene, quiet_noise, star_entry
 
-from spindoctor.nav_model.sim_body import create_simulated_body
+from spindoctor.nav_model.simulated.predict_body import create_simulated_body
 from spindoctor.sim.forward.body_texture import AlbedoTextureSpec, DiscTextureSpec, TransitSpec
 from spindoctor.sim.forward.body_topo import TopoBodySpec, create_topographic_body
 from spindoctor.sim.forward.pipeline import STAGES

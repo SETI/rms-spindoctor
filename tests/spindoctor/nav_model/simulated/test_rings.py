@@ -14,8 +14,8 @@ import pytest
 
 from spindoctor.feature.composition import compose_template_features
 from spindoctor.feature.geometry import RingEdgePolyline
-from spindoctor.nav_model.nav_model_rings_simulated import NavModelRingsSimulated
-from spindoctor.nav_model.sim_ring import predict_ring_feature
+from spindoctor.nav_model.simulated.predict_ring import predict_ring_feature
+from spindoctor.nav_model.simulated.rings import NavModelRingsSimulated
 from spindoctor.nav_orchestrator.nav_context import NavContext
 from spindoctor.obs.obs_inst_sim import ObsSim
 

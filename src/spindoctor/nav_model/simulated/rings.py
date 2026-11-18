@@ -13,8 +13,8 @@ One model instance per navigable feature.  Each banded feature (ringlet)
 emits a ``RING_ANNULUS`` template for the correlation path; every feature
 emits one ``RING_EDGE`` polyline per predicted catalog boundary for the
 distance-transform fit.  Rendering is delegated to
-:mod:`spindoctor.nav_model.sim_ring`, whose projection and orbit math are
-shared with the image-side renderer by design.
+:mod:`spindoctor.nav_model.simulated.predict_ring`, whose projection and orbit
+math are shared with the image-side renderer by design.
 """
 
 from __future__ import annotations
@@ -32,7 +32,7 @@ from spindoctor.feature.flags import RingAnnulusFlags, RingEdgeFlags
 from spindoctor.feature.geometry import RingAnnulusGeometry, RingEdgePolyline
 from spindoctor.nav_model.nav_model import NavModel
 from spindoctor.nav_model.nav_model_rings_base import NavModelRingsBase
-from spindoctor.nav_model.sim_ring import (
+from spindoctor.nav_model.simulated.predict_ring import (
     PredictedRingEdge,
     PredictedRingFeature,
     predict_ring_feature,

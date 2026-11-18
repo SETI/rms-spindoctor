@@ -1,13 +1,13 @@
 """Shared ellipsoid shading geometry for the simulator's two sides.
 
 The image-side forward renderer (``spindoctor.sim.forward.body``) and the
-navigator-side predicted-body renderer (``spindoctor.nav_model.sim_body``)
-must shade an ellipsoid with byte-identical conventions: the same surface
-normals, the same light direction, and the same Lambert clamp.  With shared
-conventions the planted scene error is the only error in a recovery
-measurement; independent implementations would each carry their own
-conventions and any delta between them would contaminate the measurement as
-an unknown systematic.
+navigator-side predicted-body renderer
+(``spindoctor.nav_model.simulated.predict_body``) must shade an ellipsoid
+with byte-identical conventions: the same surface normals, the same light
+direction, and the same Lambert clamp.  With shared conventions the planted
+scene error is the only error in a recovery measurement; independent
+implementations would each carry their own conventions and any delta between
+them would contaminate the measurement as an unknown systematic.
 
 These helpers take explicit geometry arguments only.  They never read a
 scene parameter mapping, so they cannot carry truth-side information across

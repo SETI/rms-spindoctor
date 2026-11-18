@@ -40,7 +40,7 @@ from spindoctor.nav_model.nav_model_body import (
     terminator_reliability,
 )
 from spindoctor.nav_model.nav_model_body_base import BODY_BLOB_MIN_DIAMETER_PX, NavModelBodyBase
-from spindoctor.nav_model.sim_body import create_simulated_body
+from spindoctor.nav_model.simulated.predict_body import create_simulated_body
 from spindoctor.obs import ObsSnapshotInst
 from spindoctor.sim.ellipsoid_geometry import DARK_SIDE_ILLUM_STRENGTH
 from spindoctor.sim.mesh_geometry import mesh_spec_from_params, render_mesh_body_image
