@@ -1,10 +1,12 @@
 """The shared base scenes validate, and no scene shares a mapping with its inputs."""
 
+import copy
 from collections.abc import Callable
 from typing import Any
 
 import pytest
 from tests.spindoctor.sim.scenes import (
+    body_scene,
     disc_body,
     frame_scene,
     quiet_noise,
@@ -47,9 +49,22 @@ def test_each_block_validates_in_a_frame(name: str) -> None:
     assert validate_sim_params(scene) is scene
 
 
-def test_a_scene_keeps_no_reference_to_a_block_it_was_given() -> None:
-    """Changing a block after building the scene leaves the scene as it was built."""
-    noise = quiet_noise()
-    scene = frame_scene(noise=noise)
-    noise['poisson'] = True
-    assert scene['noise']['poisson'] is False
+# Each builder, handed a nested mapping through each argument that copies a value in.
+_ISOLATION_CASES: dict[str, Callable[[dict[str, Any]], dict[str, Any]]] = {
+    'frame_scene': lambda given: frame_scene(extra=given),
+    'body_scene': lambda given: body_scene(body={'extra': given}),
+    'disc_body': lambda given: disc_body(0.0, 0.0, 1.0, extra=given),
+    'star_entry': lambda given: star_entry(0.0, 0.0, 1.0, extra=given),
+    'ring_system_block_features': lambda given: ring_system_block(0.0, 0.0, [{'orbit': given}]),
+    'ring_system_block_keys': lambda given: ring_system_block(0.0, 0.0, [], extra=given),
+}
+
+
+@pytest.mark.parametrize('name', sorted(_ISOLATION_CASES))
+def test_a_built_mapping_keeps_no_reference_to_its_inputs(name: str) -> None:
+    """Changing a nested input after building leaves the built mapping as it was built."""
+    given: dict[str, Any] = {'inner': {'value': 1.0}}
+    built = _ISOLATION_CASES[name](given)
+    expected = copy.deepcopy(built)
+    given['inner']['value'] = 2.0
+    assert built == expected
