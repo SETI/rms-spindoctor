@@ -5,10 +5,11 @@ marker.  The calibrated instruments (the calibrated Cassini cameras and ``vgiss`
 render I/F with a ``0`` marker, because the Cassini CALIB and Voyager GEOMED
 products the navigator reads fill lost pixels with zero.  In every class the
 simulator writes the marker the navigator applies to the same frame, and
-:func:`~spindoctor.sim.instrument_navigator.read_frame_as_navigator` reads the frame the
-navigator reads (planted offset applied) to the verdict the navigator's
+:func:`~spindoctor.sim.instruments.navigator_link.read_frame_as_navigator` reads the
+frame the navigator reads (planted offset applied) to the verdict the navigator's
 classifier reaches, blank before missing data.
-:func:`~spindoctor.sim.instrument_navigator.frame_units_summary` states that verdict.
+:func:`~spindoctor.sim.instruments.navigator_link.frame_units_summary` states that
+verdict.
 """
 
 import math
@@ -16,31 +17,31 @@ from typing import Any
 
 import numpy as np
 import pytest
+from tests.spindoctor.sim.scenes import disc_body, frame_scene
 
 from spindoctor.config import DEFAULT_CONFIG
 from spindoctor.nav_orchestrator import NavOrchestrator
 from spindoctor.nav_orchestrator.image_classifier import NavImageClassifier
 from spindoctor.nav_orchestrator.instrument_config import instrument_settings_from_obs
 from spindoctor.obs.obs_inst_sim import ObsSim
-from spindoctor.sim.forward.stages import SimFrame
-from spindoctor.sim.forward.telemetry import apply_telemetry
-from spindoctor.sim.instrument_catalog import sim_instrument_names
-from spindoctor.sim.instrument_navigator import (
+from spindoctor.sim.instruments.catalog import sim_instrument_names
+from spindoctor.sim.instruments.navigator_link import (
     frame_units_name,
     frame_units_summary,
     has_planted_offset,
     read_frame_as_navigator,
     resolve_sim_inst_config,
 )
-from spindoctor.sim.render import render_combined_model
+from spindoctor.sim.render.driver import render_scene
+from spindoctor.sim.render.stages import SimFrame
+from spindoctor.sim.render.telemetry.stage import apply_telemetry
 
 _ALL_INSTRUMENTS = [*sim_instrument_names(), 'generic']
 
 
 def _navigator_marker(instrument: str, overrides: dict[str, Any] | None = None) -> float:
     """The marker the navigator's instrument settings apply to a sim frame."""
-    params: dict[str, Any] = {'size_v': 32, 'size_u': 32, 'random_seed': 1}
-    params['instrument'] = instrument
+    params = frame_scene(instrument=instrument, size=32)
     if overrides is not None:
         params['instrument_config'] = overrides
     obs = ObsSim.from_file('/tmp/sim_unit_classes.json', sim_params=params)
@@ -61,26 +62,23 @@ def _body_scene(
     light: tuple[float, float] = (0.0, 0.0),
 ) -> dict[str, Any]:
     """A 128 x 128 frame with one Rhea-like body and a planted offset."""
-    return {
-        'size_v': 128,
-        'size_u': 128,
-        'instrument': instrument,
-        'random_seed': 42,
-        'offset_v': offset_vu[0],
-        'offset_u': offset_vu[1],
-        'bodies': [
-            {
-                'name': 'RHEA',
-                'center_v': 64.0,
-                'center_u': center_u,
-                'semi_a_px': semi_px,
-                'semi_b_px': semi_px,
-                'semi_c_px': semi_px,
-                'illumination_angle': light[0],
-                'phase_angle': light[1],
-            }
+    return frame_scene(
+        instrument=instrument,
+        size=128,
+        seed=42,
+        offset_v=offset_vu[0],
+        offset_u=offset_vu[1],
+        bodies=[
+            disc_body(
+                64.0,
+                center_u,
+                semi_px,
+                name='RHEA',
+                illumination_angle=light[0],
+                phase_angle=light[1],
+            )
         ],
-    }
+    )
 
 
 def _with_lost_lines(params: dict[str, Any], expected_events: float) -> dict[str, Any]:
@@ -90,7 +88,7 @@ def _with_lost_lines(params: dict[str, Any], expected_events: float) -> dict[str
 
 def _empty_scene(instrument: str) -> dict[str, Any]:
     """A 64 x 64 frame with nothing in it."""
-    return {'size_v': 64, 'size_u': 64, 'instrument': instrument, 'random_seed': 1}
+    return frame_scene(instrument=instrument)
 
 
 def _orchestrator_class(params: dict[str, Any]) -> str:
@@ -101,24 +99,14 @@ def _orchestrator_class(params: dict[str, Any]) -> str:
 
 def _disc_scene(instrument: str) -> dict[str, Any]:
     """A 128 x 128 frame whose lit disc covers about a third of the pixels."""
-    return {
-        'size_v': 128,
-        'size_u': 128,
-        'instrument': instrument,
-        'random_seed': 42,
-        'bodies': [
-            {
-                'name': 'RHEA',
-                'center_v': 64.0,
-                'center_u': 64.0,
-                'semi_a_px': 43.0,
-                'semi_b_px': 43.0,
-                'semi_c_px': 43.0,
-                'illumination_angle': 18.0,
-                'phase_angle': 30.0,
-            }
+    return frame_scene(
+        instrument=instrument,
+        size=128,
+        seed=42,
+        bodies=[
+            disc_body(64.0, 64.0, 43.0, name='RHEA', illumination_angle=18.0, phase_angle=30.0)
         ],
-    }
+    )
 
 
 def _telemetry_frame(signal: np.ndarray, params: dict[str, Any]) -> SimFrame:
@@ -174,7 +162,7 @@ def test_lost_lines_carry_a_null_marker_as_the_navigator_reads_it(instrument: st
 )
 def test_summary_names_the_unit_class(instrument: str, units: str) -> None:
     """The summary opens with the instrument's units."""
-    img, _ = render_combined_model(_disc_scene(instrument), ignore_offset=True)
+    img, _ = render_scene(_disc_scene(instrument), ignore_offset=True)
     inst_config = resolve_sim_inst_config(DEFAULT_CONFIG, instrument)
     assert frame_units_summary(img, inst_config).split(' ')[0] == units
 
@@ -204,7 +192,7 @@ _NAVIGATED_SCENES = {
 
 
 def _inst_config_of(params: dict[str, Any]) -> Any:
-    """The resolved config block of a scene, with its instrument_config overrides."""
+    """The navigator block of a scene, with its instrument_config merged over it."""
     return resolve_sim_inst_config(
         DEFAULT_CONFIG, params['instrument'], params.get('instrument_config')
     )
@@ -214,7 +202,7 @@ def _inst_config_of(params: dict[str, Any]) -> Any:
 def test_reading_matches_the_orchestrator_on_the_navigated_frame(name: str) -> None:
     """The frame the navigator reads gets the class the orchestrator gives it."""
     params = _NAVIGATED_SCENES[name]
-    img, _ = render_combined_model(params)
+    img, _ = render_scene(params)
     reading = read_frame_as_navigator(img, _inst_config_of(params))
     assert reading.image_class == _orchestrator_class(params)
 
@@ -240,7 +228,7 @@ def test_navigated_scenes_land_where_the_comparison_needs_them(name: str, image_
 def test_offset_moves_the_edge_scene_across_the_blank_limit() -> None:
     """The offset-free preview of the edge scene, its body still in the frame, is clean."""
     params = _NAVIGATED_SCENES['calib-offset-leaves-frame']
-    img, _ = render_combined_model(params, ignore_offset=True)
+    img, _ = render_scene(params, ignore_offset=True)
     inst_config = resolve_sim_inst_config(DEFAULT_CONFIG, 'coiss_calib_nac')
     assert read_frame_as_navigator(img, inst_config).image_class == 'clean'
 
@@ -256,14 +244,14 @@ def test_offset_moves_the_edge_scene_across_the_blank_limit() -> None:
 def test_summary_states_the_orchestrator_verdict(name: str, image_class: str, phrase: str) -> None:
     """The summary carries a verdict's phrase exactly when the orchestrator reaches it."""
     params = _NAVIGATED_SCENES[name]
-    img, _ = render_combined_model(params)
+    img, _ = render_scene(params)
     summary = frame_units_summary(img, _inst_config_of(params))
     assert (phrase in summary) == (_orchestrator_class(params) == image_class)
 
 
 def test_empty_vgiss_summary_reads_the_sky_residual() -> None:
     """An empty vgiss frame reads its 1.5 DN sky residual and no marker pixel."""
-    img, _ = render_combined_model(_empty_scene('vgiss'))
+    img, _ = render_scene(_empty_scene('vgiss'))
     summary = frame_units_summary(img, resolve_sim_inst_config(DEFAULT_CONFIG, 'vgiss'))
     assert summary == 'I/F 0.01176 to 0.01176'
 
@@ -342,7 +330,7 @@ def test_reading_matches_the_classifier_exactly_at_each_limit(instrument: str) -
 
 
 class _InstConfigOnly:
-    """A stand-in observation carrying only an instrument config block."""
+    """A stand-in observation carrying only a navigator block."""
 
     def __init__(self, inst_config: dict[str, Any]) -> None:
         """Hold ``inst_config`` as the navigator's settings reader expects."""
@@ -355,7 +343,7 @@ def test_raised_missing_limit_from_the_scene_is_honored() -> None:
         **_NAVIGATED_SCENES['vgiss-disc-lost-lines'],
         'instrument_config': {'image_quality_thresholds': {'max_missing_frac_clean': 0.70}},
     }
-    img, _ = render_combined_model(params)
+    img, _ = render_scene(params)
     inst_config = resolve_sim_inst_config(DEFAULT_CONFIG, 'vgiss', params['instrument_config'])
     summary = frame_units_summary(img, inst_config)
     assert summary.endswith('of pixels')
@@ -368,7 +356,7 @@ def test_lowered_missing_limit_from_the_scene_is_honored() -> None:
         **_with_lost_lines(_NAVIGATED_SCENES['vgiss-offset'], 6.0),
         'instrument_config': {'image_quality_thresholds': {'max_missing_frac_clean': 0.02}},
     }
-    img, _ = render_combined_model(params)
+    img, _ = render_scene(params)
     inst_config = resolve_sim_inst_config(DEFAULT_CONFIG, 'vgiss', params['instrument_config'])
     assert '(over 2%: the navigator refuses it as missing data)' in frame_units_summary(
         img, inst_config
@@ -413,7 +401,7 @@ def test_units_name_follows_the_data_units(inst_config: dict[str, Any], units: s
 
 def test_vgiss_dark_sky_stays_out_of_the_marker_count() -> None:
     """A vgiss frame's dark sky sits above the 0 marker, so the summary names no marker."""
-    img, _ = render_combined_model(_disc_scene('vgiss'), ignore_offset=True)
+    img, _ = render_scene(_disc_scene('vgiss'), ignore_offset=True)
     summary = frame_units_summary(img, resolve_sim_inst_config(DEFAULT_CONFIG, 'vgiss'))
     assert summary == f'I/F {float(img.min()):.4g} to {float(img.max()):.4g}'
 

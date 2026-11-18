@@ -4,9 +4,9 @@ The validator accepts null for every key of a ``bodies`` entry and for every
 optional key of the body's sub-blocks, and reads it as absent.  The renderer
 parses each body once into a typed spec.  A body with a null key and the same
 body without the key parse to equal specs, so the two scenes render the same frame
-and write the same render truth.  The navigator's filtered view leaves a null key
+and write the same render truth.  The navigator view leaves a null key
 out, so it reads the absent key too.  Atmosphere keys are covered in
-``test_sim_atmosphere.py``.
+``render/bodies/test_atmosphere.py``.
 """
 
 import copy
@@ -16,14 +16,17 @@ from typing import Any
 
 import numpy as np
 import pytest
+from tests.spindoctor.sim.scenes import frame_scene
 
-from spindoctor.sim.forward.atmosphere import AtmosphereSpec, atmosphere_spec_from_params
-from spindoctor.sim.forward.body_spec import BodySpec, body_spec_from_params
-from spindoctor.sim.forward.body_texture import AlbedoTextureSpec, albedo_spec_from_params
-from spindoctor.sim.forward.haze_structure import CLOUD_BLOB_KEYS
-from spindoctor.sim.render import render_combined_model
-from spindoctor.sim.scene import SimSceneValidationError, build_nav_params, validate_sim_params
-from spindoctor.sim.scene_checks_body import (
+from spindoctor.sim.render.bodies.atmosphere import AtmosphereSpec, atmosphere_spec_from_params
+from spindoctor.sim.render.bodies.haze import CLOUD_BLOB_KEYS
+from spindoctor.sim.render.bodies.spec import BodySpec, body_spec_from_params
+from spindoctor.sim.render.bodies.texture import AlbedoTextureSpec, albedo_spec_from_params
+from spindoctor.sim.render.driver import render_scene
+from spindoctor.sim.scene.boundary import _BODY_IDEALIZED_KEYS, _BODY_KEYS, build_nav_params
+from spindoctor.sim.scene.errors import SimSceneValidationError
+from spindoctor.sim.scene.fields import ELLIPSOID_UNSUPPORTED_KEYS, default_body_name
+from spindoctor.sim.scene.rules_body import (
     _ALBEDO_TEXTURE_KEYS,
     _DISC_TEXTURE_KEYS,
     _OPPOSITION_SURGE_KEYS,
@@ -32,12 +35,7 @@ from spindoctor.sim.scene_checks_body import (
     _TRANSIT_MOON_KEYS,
     _TRANSIT_SHADOW_KEYS,
 )
-from spindoctor.sim.scene_schema import (
-    _BODY_IDEALIZED_KEYS,
-    _BODY_KEYS,
-    ELLIPSOID_UNSUPPORTED_KEYS,
-    default_body_name,
-)
+from spindoctor.sim.scene.validate import validate_sim_params
 
 _SIZE = 32
 
@@ -136,13 +134,7 @@ def _mesh_body() -> dict[str, Any]:
 
 def _scene(body: dict[str, Any]) -> dict[str, Any]:
     """A small coiss_nac scene holding ``body``."""
-    return {
-        'size_v': _SIZE,
-        'size_u': _SIZE,
-        'instrument': 'coiss_nac',
-        'random_seed': 7,
-        'bodies': [body],
-    }
+    return frame_scene(size=_SIZE, seed=7, bodies=[body])
 
 
 def _base_body(key: str) -> dict[str, Any]:
@@ -232,8 +224,8 @@ def test_null_body_keys_render_as_absent(shape: str) -> None:
     full = _mesh_body() if shape == 'mesh' else _ellipsoid_body()
     absent = {key: value for key, value in full.items() if key in kept}
     stated = {**absent, **{key: None for key in full if key not in kept}}
-    image, _ = render_combined_model(_scene(stated))
-    expected, _ = render_combined_model(_scene(absent))
+    image, _ = render_scene(_scene(stated))
+    expected, _ = render_scene(_scene(absent))
     np.testing.assert_array_equal(image, expected)
 
 
@@ -268,8 +260,8 @@ def _null_geometry_scenes() -> tuple[dict[str, Any], dict[str, Any]]:
 def test_null_body_geometry_renders_as_absent() -> None:
     """Null center, semi-axis c, range, and rotation keys render as the absent keys do."""
     stated, absent = _null_geometry_scenes()
-    image, _ = render_combined_model(stated)
-    expected, _ = render_combined_model(absent)
+    image, _ = render_scene(stated)
+    expected, _ = render_scene(absent)
     np.testing.assert_array_equal(image, expected)
 
 
@@ -284,8 +276,8 @@ def test_null_body_keys_write_the_truth_of_absent_keys() -> None:
     full = _ellipsoid_body()
     absent = {key: full[key] for key in ('name', 'semi_a_px', 'semi_b_px')}
     stated = {**absent, **{key: None for key in full if key not in absent}}
-    _, meta = render_combined_model(_scene(stated))
-    _, expected = render_combined_model(_scene(absent))
+    _, meta = render_scene(_scene(stated))
+    _, expected = render_scene(_scene(absent))
     assert meta['bodies'] == expected['bodies']
 
 
@@ -311,7 +303,7 @@ def test_null_nav_override_key_leaves_the_scene_value() -> None:
 def test_null_body_name_takes_the_positional_name() -> None:
     """A null body name keys the render truth by the positional default."""
     body = {'name': None, 'center_v': 16.0, 'center_u': 16.0, 'semi_a_px': 5.0, 'semi_b_px': 5.0}
-    _, meta = render_combined_model(_scene(body))
+    _, meta = render_scene(_scene(body))
     assert meta['order_near_to_far'] == ['SIM-BODY-1']
 
 

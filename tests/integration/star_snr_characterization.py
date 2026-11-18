@@ -31,7 +31,7 @@ from spindoctor.nav_model import build_models_for_obs
 from spindoctor.nav_orchestrator import NavOrchestrator
 from spindoctor.nav_technique.nav_technique_star_field import StarFieldFromCatalogNav
 from spindoctor.obs.obs_inst_sim import ObsSim
-from spindoctor.sim.scene import load_sim_scene
+from spindoctor.sim.scene.io import load_sim_scene
 from tests.integration.checkout_guard import require_checkout_package
 
 _TECHNIQUE = 'StarFieldFromCatalogNav'

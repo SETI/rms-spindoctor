@@ -29,7 +29,8 @@ from typing import Any
 import numpy as np
 
 from spindoctor.sim.png_export import render_scene_png
-from spindoctor.sim.scene import load_sim_scene, validate_sim_params
+from spindoctor.sim.scene.io import load_sim_scene
+from spindoctor.sim.scene.validate import validate_sim_params
 from tests.integration.checkout_guard import require_checkout_package
 
 _DOCS = Path(__file__).parent.parent.parent / 'docs'

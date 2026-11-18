@@ -173,8 +173,7 @@ tests need none of the archive environment above.
        ``nav_override`` channel, scene-schema validation, and the information
        boundary (``test_information_boundary.py``: no truth key is reachable
        through ``obs.nav_params``).
-   * - GUI smoke (``tests/main/test_create_simulated_image.py``,
-       ``tests/main/test_sim_editor_round_trip.py``)
+   * - GUI smoke (``tests/spindoctor/ui/sim_editor/**``)
      - default
      - PyQt6
      - Each GUI control wires to the right ``sim_params`` field and a YAML
@@ -240,6 +239,29 @@ tests need none of the archive environment above.
 The simulator's role across these tiers is summarized in
 :doc:`dev_guide_simulator`. The operator-curated real-image cohort is documented
 in :doc:`dev_guide_image_library`.
+
+Simulator test scenes
+=====================
+
+The simulator unit tests build their scenes from shared helpers in
+``tests/spindoctor/sim/scenes.py``. ``frame_scene`` returns an empty frame: the
+instrument, the image size, and the random seed, which default to ``coiss_nac``, 64 by
+64 pixels, and 1. Every other top-level scene key is passed to it as a keyword.
+``body_scene`` adds one fully lit spherical body at the center of the frame.
+``disc_body``, ``star_entry``, and ``ring_system_block`` build a body entry, a star
+entry, and a ``ring_system`` block. ``quiet_noise`` returns a ``noise`` block with shot
+noise, read noise, and the bias pedestal turned off.
+
+Each helper returns a fresh mapping and copies the values it is given, so a test can
+change its scene without touching any other test's scene. The helpers are plain
+functions, so a module can build its parametrize lists from them when it is imported.
+For a test that would rather take a fixture, ``tests/spindoctor/sim/conftest.py``
+offers the empty frame as ``empty_frame`` and the one-body frame as
+``lit_body_frame``. Most tests take their frame keys and common blocks from these
+helpers, so a change to those scene keys is made in few places. A test writes its
+scene out in full when the scene is tuned to a threshold, when its assertions read
+back the scene's own values, or when it is a partial scene the helpers cannot build,
+such as one with no instrument.
 
 Characterization runners and updaters
 =====================================

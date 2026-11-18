@@ -33,7 +33,8 @@ from ruamel.yaml import YAML
 from spindoctor.nav_model import build_models_for_obs
 from spindoctor.nav_orchestrator import NavOrchestrator
 from spindoctor.obs.obs_inst_sim import ObsSim
-from spindoctor.sim.scene import load_sim_scene, validate_sim_params
+from spindoctor.sim.scene.io import load_sim_scene
+from spindoctor.sim.scene.validate import validate_sim_params
 
 _SCENES_ROOT = Path(__file__).parent / 'sim_scenes'
 

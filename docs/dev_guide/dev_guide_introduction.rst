@@ -48,7 +48,7 @@ The repo is a standard ``src``-layout Python package:
          reproj/                 # BodyMosaic, RingMosaic, cartographic_model
          sim/                    # simulated-image renderer
          support/                # cross-cutting helpers (filters, types, file, time, ...)
-         ui/                     # PyQt6 widgets (manual nav dialog, mosaic viewer)
+         ui/                     # PyQt6 widgets (manual nav dialog, mosaic viewer, scene editor)
          navigate_image_files.py # top-level driver called by sd_offset
        backplanes/               # per-pixel geometry products (driven by sd_backplanes)
        pds4/                     # PDS4 bundle generation (driven by sd_create_bundle)

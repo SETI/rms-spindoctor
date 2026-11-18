@@ -40,8 +40,8 @@ from typing import Any
 import numpy as np
 from scipy import ndimage
 
-from spindoctor.sim.mesh_geometry import MeshBodySpec, mesh_spec_from_params, render_mesh_body_image
-from spindoctor.sim.scene import load_sim_scene
+from spindoctor.sim.scene.io import load_sim_scene
+from spindoctor.sim.shared.mesh import MeshBodySpec, mesh_spec_from_params, render_mesh_body_image
 from spindoctor.support.types import NDArrayBoolType
 from tests.integration.checkout_guard import require_checkout_package
 from tests.integration.sim_sweep import load_sweep

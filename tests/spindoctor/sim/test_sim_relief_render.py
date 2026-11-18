@@ -14,12 +14,13 @@ from typing import Any, cast
 
 import numpy as np
 import pytest
+from tests.spindoctor.sim.scenes import disc_body, frame_scene, quiet_noise
 
-from spindoctor.sim import render
-from spindoctor.sim.forward import body_topo
-from spindoctor.sim.forward.body_topo import TopoBodySpec, create_topographic_body
-from spindoctor.sim.forward.photometry import DARK_SIDE_FLOOR
-from spindoctor.sim.forward.relief import ReliefField, cast_shadows, synthesize_relief_field
+from spindoctor.sim.render.bodies import topo as body_topo
+from spindoctor.sim.render.bodies.photometry import DARK_SIDE_FLOOR
+from spindoctor.sim.render.bodies.relief import ReliefField, cast_shadows, synthesize_relief_field
+from spindoctor.sim.render.bodies.topo import TopoBodySpec, create_topographic_body
+from spindoctor.sim.render.driver import render_scene
 from spindoctor.support.types import NDArrayFloatType
 
 _RMS = 0.02
@@ -391,14 +392,7 @@ def _body_scene(*, oversample: int | None, body_extra: dict[str, Any]) -> dict[s
         'crater_max_radius': 0.2,
     }
     body.update(body_extra)
-    scene: dict[str, Any] = {
-        'size_v': 80,
-        'size_u': 80,
-        'random_seed': 11,
-        'instrument': 'coiss_nac',
-        'noise': {'poisson': False, 'read_noise_dn': 0.0, 'bias_dn': 0.0},
-        'bodies': [body],
-    }
+    scene = frame_scene(size=80, seed=11, noise=quiet_noise(), bodies=[body])
     if oversample is not None:
         scene['oversample'] = oversample
     return scene
@@ -407,8 +401,8 @@ def _body_scene(*, oversample: int | None, body_extra: dict[str, Any]) -> dict[s
 def test_relief_rms_zero_reproduces_the_relief_free_render_bit_identically() -> None:
     """limb_relief_rms 0.0 and an absent key render byte-identically (os 1 and 4)."""
     for oversample in (None, 4):
-        absent, _ = render.render_combined_model(_body_scene(oversample=oversample, body_extra={}))
-        zero, _ = render.render_combined_model(
+        absent, _ = render_scene(_body_scene(oversample=oversample, body_extra={}))
+        zero, _ = render_scene(
             _body_scene(
                 oversample=oversample,
                 body_extra={'limb_relief_rms': 0.0, 'limb_relief_corr_deg': 15.0},
@@ -419,8 +413,8 @@ def test_relief_rms_zero_reproduces_the_relief_free_render_bit_identically() -> 
 
 def test_explicit_lambert_law_reproduces_the_default_bit_identically() -> None:
     """photometric_law 'lambert' and an absent key take the same render path."""
-    absent, _ = render.render_combined_model(_body_scene(oversample=None, body_extra={}))
-    explicit, _ = render.render_combined_model(
+    absent, _ = render_scene(_body_scene(oversample=None, body_extra={}))
+    explicit, _ = render_scene(
         _body_scene(oversample=None, body_extra={'photometric_law': 'lambert'})
     )
     assert np.array_equal(absent, explicit)
@@ -428,8 +422,8 @@ def test_explicit_lambert_law_reproduces_the_default_bit_identically() -> None:
 
 def test_non_lambert_law_changes_the_disc() -> None:
     """A non-Lambert law renders a different disc profile than Lambert."""
-    lambert, _ = render.render_combined_model(_body_scene(oversample=None, body_extra={}))
-    minnaert, _ = render.render_combined_model(
+    lambert, _ = render_scene(_body_scene(oversample=None, body_extra={}))
+    minnaert, _ = render_scene(
         _body_scene(oversample=None, body_extra={'photometric_law': 'minnaert'})
     )
     assert not np.array_equal(lambert, minnaert)
@@ -469,49 +463,27 @@ def test_relief_terrain_is_stable_when_craters_toggle() -> None:
     Toggling craters must not reseed the limb: the silhouette (where only
     relief acts) stays identical while the disc shading changes.
     """
-    with_craters, _ = render.render_combined_model(
+    with_craters, _ = render_scene(
         _body_scene(oversample=None, body_extra={'limb_relief_rms': 0.02})
     )
     body_extra: dict[str, Any] = {'limb_relief_rms': 0.02, 'crater_fill': 0.0}
-    without_craters, _ = render.render_combined_model(
-        _body_scene(oversample=None, body_extra=body_extra)
-    )
+    without_craters, _ = render_scene(_body_scene(oversample=None, body_extra=body_extra))
     assert np.array_equal(with_craters > 0.0, without_craters > 0.0)
     assert not np.array_equal(with_craters, without_craters)
 
 
 def test_two_identical_bodies_get_independent_terrains() -> None:
     """Per-body identity seeds two same-geometry bodies' relief independently."""
-    scene: dict[str, Any] = {
-        'size_v': 120,
-        'size_u': 120,
-        'random_seed': 11,
-        'instrument': 'coiss_nac',
-        'noise': {'poisson': False, 'read_noise_dn': 0.0, 'bias_dn': 0.0},
-        'bodies': [
-            {
-                'name': 'FIRST',
-                'center_v': 30.0,
-                'center_u': 30.0,
-                'semi_a_px': 20.0,
-                'semi_b_px': 20.0,
-                'semi_c_px': 20.0,
-                'limb_relief_rms': 0.03,
-                'range_km': 1.0,
-            },
-            {
-                'name': 'SECOND',
-                'center_v': 88.0,
-                'center_u': 88.0,
-                'semi_a_px': 20.0,
-                'semi_b_px': 20.0,
-                'semi_c_px': 20.0,
-                'limb_relief_rms': 0.03,
-                'range_km': 2.0,
-            },
+    scene = frame_scene(
+        size=120,
+        seed=11,
+        noise=quiet_noise(),
+        bodies=[
+            disc_body(30.0, 30.0, 20.0, name='FIRST', limb_relief_rms=0.03, range_km=1.0),
+            disc_body(88.0, 88.0, 20.0, name='SECOND', limb_relief_rms=0.03, range_km=2.0),
         ],
-    }
-    img, _meta = render.render_combined_model(scene)
+    )
+    img, _meta = render_scene(scene)
     first = img[0:60, 0:60] > 0.0
     second = img[58:118, 58:118] > 0.0
     assert not np.array_equal(first, second)

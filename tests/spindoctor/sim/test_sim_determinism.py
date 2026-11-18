@@ -8,8 +8,9 @@ byte-identical pixels even after the render caches are cleared.
 from typing import Any
 
 import numpy as np
+from tests.spindoctor.sim.scenes import frame_scene, star_entry
 
-from spindoctor.sim import render
+from spindoctor.sim.render.driver import clear_render_caches, render_scene
 from spindoctor.sim.seeds import derive_effect_seed, stable_param_seed
 
 # Pinned values guard against an accidental switch to a salted hash (e.g. the
@@ -24,29 +25,23 @@ _SEED_CEILING = 2**32
 
 def _clear_render_caches() -> None:
     """Drop every render-path lru_cache so RNG paths re-run."""
-    render.clear_render_caches()
+    clear_render_caches()
 
 
 def _scene() -> dict[str, Any]:
     """A scene exercising the background sky and crater RNG paths."""
-    return {
-        'size_v': 64,
-        'size_u': 64,
-        'random_seed': 42,
-        'instrument': 'generic',
-        'sky_counts': {'density_factor': 500.0},
-        'bodies': [
-            {
-                'name': 'SIM-BODY-1',
-                'center_v': 32.0,
-                'center_u': 32.0,
-                'semi_a_px': 15.0,
-                'semi_b_px': 12.0,
-                'semi_c_px': 12.0,
-                'crater_fill': 0.3,
-            }
-        ],
+    body = {
+        'name': 'SIM-BODY-1',
+        'center_v': 32.0,
+        'center_u': 32.0,
+        'semi_a_px': 15.0,
+        'semi_b_px': 12.0,
+        'semi_c_px': 12.0,
+        'crater_fill': 0.3,
     }
+    return frame_scene(
+        instrument='generic', seed=42, sky_counts={'density_factor': 500.0}, bodies=[body]
+    )
 
 
 def test_derive_effect_seed_is_process_stable() -> None:
@@ -93,52 +88,50 @@ def test_stable_param_seed_in_randomstate_range() -> None:
 def test_render_is_byte_identical_across_cache_clears() -> None:
     """Re-rendering a scene after clearing caches reproduces identical pixels."""
     _clear_render_caches()
-    img_a, _ = render.render_combined_model(_scene())
+    img_a, _ = render_scene(_scene())
     _clear_render_caches()
-    img_b, _ = render.render_combined_model(_scene())
+    img_b, _ = render_scene(_scene())
     assert np.array_equal(img_a, img_b)
 
 
 def test_render_body_index_map_identical_across_cache_clears() -> None:
     """The body index map is also reproduced byte-for-byte."""
     _clear_render_caches()
-    _, meta_a = render.render_combined_model(_scene())
+    _, meta_a = render_scene(_scene())
     _clear_render_caches()
-    _, meta_b = render.render_combined_model(_scene())
+    _, meta_b = render_scene(_scene())
     assert np.array_equal(meta_a['body_index_map'], meta_b['body_index_map'])
 
 
 def test_different_scene_seed_changes_pixels() -> None:
     """Changing only the scene seed changes the rendered noise field."""
     _clear_render_caches()
-    img_a, _ = render.render_combined_model(_scene())
+    img_a, _ = render_scene(_scene())
     other = _scene()
     other['random_seed'] = 7
     _clear_render_caches()
-    img_b, _ = render.render_combined_model(other)
+    img_b, _ = render_scene(other)
     assert not np.array_equal(img_a, img_b)
 
 
 def _full_stack_scene() -> dict[str, Any]:
     """A scene exercising the whole optics + detector + instrument_defaults stack."""
-    return {
-        'size_v': 96,
-        'size_u': 96,
-        'random_seed': 5,
-        'instrument': 'coiss_nac',
-        'exposure_sec': 1.0,
-        'artifacts': {'instrument_defaults': True},
-        'optics': {
+    return frame_scene(
+        size=96,
+        seed=5,
+        exposure_sec=1.0,
+        artifacts={'instrument_defaults': True},
+        optics={
             'psf': {'sigma_v': 0.6, 'sigma_u': 0.6, 'w': 0.02, 'r0': 2.0, 'n': 3.0},
             'smear': [{'dv_px': 1.0, 'du_px': 0.5, 'object_class': 'all'}],
         },
-        'noise': {
+        noise={
             'poisson': True,
             'read_noise_dn': 4.0,
             'cosmic_ray_events_per_pixel_per_sec': 0.001,
             'bloom_length': 2,
         },
-        'bodies': [
+        bodies=[
             {
                 'name': 'B',
                 'center_v': 48.0,
@@ -150,14 +143,14 @@ def _full_stack_scene() -> dict[str, Any]:
                 'phase_angle': 30.0,
             }
         ],
-        'stars': [{'name': 'S', 'v': 20.0, 'u': 70.0, 'vmag': 5.0}],
-    }
+        stars=[star_entry(20.0, 70.0, 5.0)],
+    )
 
 
 def test_full_stack_render_is_byte_identical_across_cache_clears() -> None:
     """The whole optics + detector + instrument_defaults stack is reproducible."""
     _clear_render_caches()
-    img_a, _ = render.render_combined_model(_full_stack_scene())
+    img_a, _ = render_scene(_full_stack_scene())
     _clear_render_caches()
-    img_b, _ = render.render_combined_model(_full_stack_scene())
+    img_b, _ = render_scene(_full_stack_scene())
     assert np.array_equal(img_a, img_b)

@@ -14,9 +14,10 @@ from typing import Any
 
 import numpy as np
 import pytest
+from tests.spindoctor.sim.scenes import ring_system_block
 
-from spindoctor.sim.forward.ring_system import render_ring_system
-from spindoctor.sim.ring_geometry import (
+from spindoctor.sim.render.rings.render import render_ring_system
+from spindoctor.sim.shared.ring import (
     RingEdgeWave,
     RingOrbit,
     RingOrbitMode,
@@ -210,16 +211,7 @@ _CENTER = 48.5
 
 
 def _system(features: list[dict[str, Any]], **extra: Any) -> dict[str, Any]:
-    system: dict[str, Any] = {
-        'geometry': {
-            'center_v': _CENTER,
-            'center_u': _CENTER,
-            'opening_deg_obs': 90.0,
-            'opening_deg_sun': 90.0,
-            'node_deg': 0.0,
-        },
-        'features': features,
-    }
+    system = ring_system_block(_CENTER, _CENTER, features)
     system.update(extra)
     return system
 
@@ -440,16 +432,14 @@ def test_m_mode_peri_lives_in_the_ring_plane_frame() -> None:
     }
     maps = render_ring_system(
         (_SIZE, _SIZE),
-        {
-            'geometry': {
-                'center_v': _CENTER,
-                'center_u': _CENTER,
-                'opening_deg_obs': b_obs,
-                'opening_deg_sun': b_obs,
-                'node_deg': node,
-            },
-            'features': [feature],
-        },
+        ring_system_block(
+            _CENTER,
+            _CENTER,
+            [feature],
+            opening_deg_obs=b_obs,
+            opening_deg_sun=b_obs,
+            node_deg=node,
+        ),
         center_v=_CENTER,
         center_u=_CENTER,
         node_deg=node,

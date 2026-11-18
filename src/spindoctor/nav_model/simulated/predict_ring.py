@@ -1,0 +1,334 @@
+"""The navigator's predicted-ring renderer for simulated scenes.
+
+Predicts a ``ring_system`` feature's appearance from its idealized catalog
+view (the ``obs.nav_params['ring_system']`` block): the shared projection
+geometry, the feature's kind/shape keys, and its catalog orbit -- never the
+planted ``orbit_error`` or the photometric truth, which the boundary filter
+strips before this code can see them.  Projection and orbit math are shared
+with the image-side renderer through :mod:`spindoctor.sim.shared.ring`, so
+a predicted edge lands where the rendered edge would land if the scene
+planted no error: the planted pointing offset and the planted orbit error
+are the only discrepancies, by construction.
+
+The prediction is geometric, not photometric: a banded feature yields a
+solid anti-aliased coverage template (the navigator's opaque-annulus
+convention; the tau photometry is truth) plus one border polyline per
+catalog edge with outward radial normals for the distance-transform fit.
+"""
+
+from __future__ import annotations
+
+import math
+from dataclasses import dataclass, replace
+from typing import Any, cast
+
+import numpy as np
+
+from spindoctor.sim.scene.fields import RING_SIDE_DEFAULTS, scene_value
+from spindoctor.sim.shared.ring import (
+    RingOrbit,
+    compute_antialiasing_shade,
+    compute_orbit_radii,
+    ring_orbit_from_mapping,
+    ring_plane_from_sky,
+    ring_radial_scale,
+)
+from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
+from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
+
+__all__ = [
+    'RingEdgePredicted',
+    'RingFeaturePredicted',
+    'predict_ring_feature',
+]
+
+# Half-steps of the central differences that measure an edge's sensitivity to
+# its orbit elements (semimajor axis and radial amplitude in pixels, pericenter
+# longitude in degrees): small next to any declared sigma, large enough that the
+# radius difference stays well above float64 rounding.
+_ORBIT_STEP_PX = 1e-3
+_LONG_PERI_STEP_DEG = 1e-3
+
+
+@dataclass(frozen=True)
+class RingEdgePredicted:
+    """One predicted catalog edge of a ring feature.
+
+    Parameters:
+        edge_type: 'inner' or 'outer' (the banded kinds), or 'edge' (the
+            single-boundary kinds).
+        mask: Boolean border mask on the prediction grid (1-pixel polyline).
+        vertices_vu: ``(N, 2)`` border-pixel positions.
+        normals_vu: ``(N, 2)`` unit normals pointing radially outward in the
+            ring plane (the direction of increasing ring radius on the sky).
+        orbit_partials_px: ``(N, 3)`` image-plane distance each vertex moves
+            along its normal per unit change of the orbit's semimajor axis (px
+            per px), radial amplitude ``ae`` (px per px), and mode-1 pericenter
+            longitude (px per radian).  Each column is the derivative of the
+            exact orbit radius divided by the gradient magnitude of the signed
+            distance field at the vertex, which is how far the edge's zero
+            level moves along the normal, so on a face-on circular ring it is
+            about ``(1, -cos(lam - peri), -ae sin(lam - peri))``, and an
+            inclined ring's foreshortening shrinks it.
+    """
+
+    edge_type: str
+    mask: NDArrayBoolType
+    vertices_vu: NDArrayFloatType
+    normals_vu: NDArrayFloatType
+    orbit_partials_px: NDArrayFloatType
+
+
+@dataclass(frozen=True)
+class RingFeaturePredicted:
+    """The navigator's rendered prediction of one ring feature.
+
+    Parameters:
+        template: Solid anti-aliased coverage in [0, 1] for the correlation
+            path, or None for kinds with no bounded band (edge / ramp /
+            wave, and gaps, which reveal rather than emit).
+        mask: Pixels the feature's band covers (or its border for the
+            single-boundary kinds); the annotation avoid mask.
+        edges: The predicted catalog edges.
+    """
+
+    template: NDArrayFloatType | None
+    mask: NDArrayBoolType
+    edges: list[RingEdgePredicted]
+
+
+def _border_from_signed_distance(diff: NDArrayFloatType) -> NDArrayBoolType:
+    """The 1-pixel border where a signed distance field changes sign.
+
+    A pixel joins the border when its sign differs from a 4-neighbor's and
+    it is at least as close to the zero crossing (mirroring the historical
+    border-atop rasterization, so predicted edges keep their established
+    1-pixel sampling).
+
+    Parameters:
+        diff: Per-pixel signed distance to the edge (any consistent units).
+
+    Returns:
+        The border mask.
+    """
+    sign = np.sign(diff)
+    abs_diff = np.abs(diff)
+    border: NDArrayBoolType = abs_diff == 0.0
+    border[:-1, :] |= (sign[:-1, :] == -sign[1:, :]) & (abs_diff[:-1, :] <= abs_diff[1:, :])
+    border[1:, :] |= (sign[1:, :] == -sign[:-1, :]) & (abs_diff[1:, :] <= abs_diff[:-1, :])
+    border[:, :-1] |= (sign[:, :-1] == -sign[:, 1:]) & (abs_diff[:, :-1] <= abs_diff[:, 1:])
+    border[:, 1:] |= (sign[:, 1:] == -sign[:, :-1]) & (abs_diff[:, 1:] <= abs_diff[:, :-1])
+    return border
+
+
+def _orbit_partials(
+    lam: NDArrayFloatType, orbit: RingOrbit, *, epoch: float, time: float
+) -> NDArrayFloatType:
+    """The derivatives of an orbit's radius with respect to its mode-1 elements.
+
+    Central differences of :func:`compute_orbit_radii` over the semimajor axis,
+    the radial amplitude ``ae``, and the pericenter longitude, so they follow the
+    exact conic and the full orbit model; the m >= 2 modes and the edge wave keep
+    their own amplitudes and longitudes.  The axis and amplitude step shrinks on a
+    nearly parabolic orbit so neither side of the difference reaches ``e = 1``.
+
+    Parameters:
+        lam: Ring-plane longitudes from the ascending node, in radians.
+        orbit: The edge's orbit.
+        epoch: Ring epoch in TDB seconds.
+        time: Scene time in TDB seconds.
+
+    Returns:
+        An ``(N, 3)`` array: the derivatives with respect to ``a`` and ``ae``
+        (radial unit per radial unit) and to the pericenter longitude (radial
+        unit per radian).
+    """
+    step = min(_ORBIT_STEP_PX, 0.25 * (orbit.a - orbit.ae))
+    peri_step = _LONG_PERI_STEP_DEG
+    pairs = (
+        (replace(orbit, a=orbit.a + step), replace(orbit, a=orbit.a - step), 2.0 * step),
+        (replace(orbit, ae=orbit.ae + step), replace(orbit, ae=orbit.ae - step), 2.0 * step),
+        (
+            replace(orbit, long_peri=orbit.long_peri + peri_step),
+            replace(orbit, long_peri=orbit.long_peri - peri_step),
+            2.0 * math.radians(peri_step),
+        ),
+    )
+    columns = [
+        (
+            compute_orbit_radii(lam, ahead, epoch=epoch, time=time)
+            - compute_orbit_radii(lam, behind, epoch=epoch, time=time)
+        )
+        / span
+        for ahead, behind, span in pairs
+    ]
+    result: NDArrayFloatType = np.stack(columns, axis=1)
+    return result
+
+
+def _edge_from_diff(
+    diff: NDArrayFloatType,
+    edge_type: str,
+    *,
+    lam: NDArrayFloatType,
+    orbit: RingOrbit,
+    epoch: float,
+    time: float,
+) -> RingEdgePredicted:
+    """Build a predicted edge (border mask, vertices, outward normals).
+
+    The normal at each border pixel is the normalized gradient of the
+    signed radial distance field: the sky-plane direction of increasing
+    ring-plane radius, which is the outward radial direction however the
+    projection foreshortens the edge.  A change ``dr`` in the edge radius
+    moves the field's zero level by ``dr / |grad|`` along that normal, so the
+    same gradient magnitude converts the orbit partials to image pixels.
+
+    Parameters:
+        diff: Per-pixel ``r - r_edge(lam)`` signed distance field.
+        edge_type: The edge label ('inner' / 'outer' / 'edge').
+        lam: Per-pixel ring-plane longitudes, in radians.
+        orbit: The edge's orbit, for its sensitivity to its elements at each
+            vertex.
+        epoch: Ring epoch in TDB seconds.
+        time: Scene time in TDB seconds.
+
+    Returns:
+        The predicted edge.
+    """
+    mask = _border_from_signed_distance(diff)
+    if not mask.any():
+        empty: NDArrayFloatType = np.empty((0, 2), dtype=np.float64)
+        return RingEdgePredicted(
+            edge_type=edge_type,
+            mask=mask,
+            vertices_vu=empty,
+            normals_vu=empty,
+            orbit_partials_px=np.empty((0, 3), dtype=np.float64),
+        )
+    grads = np.gradient(diff)
+    grad_v = cast(NDArrayFloatType, grads[0])
+    grad_u = cast(NDArrayFloatType, grads[1])
+    vs, us = np.where(mask)
+    vertices_vu = np.stack([vs.astype(np.float64), us.astype(np.float64)], axis=1)
+    normals = np.stack([grad_v[vs, us], grad_u[vs, us]], axis=1)
+    norms = np.hypot(normals[:, 0], normals[:, 1])
+    norms[norms == 0.0] = 1.0
+    normals_vu = normals / norms[:, None]
+    partials = _orbit_partials(lam[vs, us], orbit, epoch=epoch, time=time) / norms[:, None]
+    return RingEdgePredicted(
+        edge_type=edge_type,
+        mask=mask,
+        vertices_vu=vertices_vu,
+        normals_vu=normals_vu,
+        orbit_partials_px=partials,
+    )
+
+
+def predict_ring_feature(
+    shape: tuple[int, int],
+    feature: dict[str, Any],
+    *,
+    center_v: float,
+    center_u: float,
+    opening_deg_obs: float,
+    node_deg: float,
+    time: float = 0.0,
+    epoch: float = 0.0,
+) -> RingFeaturePredicted:
+    """Predict one ring_system feature on the given (extfov) grid.
+
+    Parameters:
+        shape: The prediction-grid shape (detector resolution).
+        feature: The feature's idealized mapping from ``nav_params``.
+        center_v: Projected ring center v on the prediction grid.
+        center_u: Projected ring center u on the prediction grid.
+        opening_deg_obs: Observer ring opening angle B in degrees.
+        node_deg: Sky position angle of the ascending node in degrees.
+        time: Scene time in TDB seconds.
+        epoch: Ring epoch in TDB seconds.
+
+    Returns:
+        The rendered :class:`RingFeaturePredicted`.  Empty (no edges, no
+        coverage) for an exactly edge-on geometry, which renders nothing.
+    """
+    size_v, size_u = shape
+    empty_mask: NDArrayBoolType = np.zeros(shape, dtype=np.bool_)
+    if math.sin(math.radians(opening_deg_obs)) == 0.0:
+        return RingFeaturePredicted(template=None, mask=empty_mask, edges=[])
+
+    # The grid starts as array rows and columns and the projection works in
+    # the geometry layer's pixel corner coordinates, where the center the
+    # caller hands in is stated, so the half pixel goes on here.
+    v_coords = np.arange(size_v, dtype=np.float64) + PIXEL_CENTER_TO_CORNER_PX
+    u_coords = np.arange(size_u, dtype=np.float64) + PIXEL_CENTER_TO_CORNER_PX
+    v_grid, u_grid = np.meshgrid(v_coords, u_coords, indexing='ij')
+    r, lam, x, y = ring_plane_from_sky(
+        v_grid - center_v, u_grid - center_u, opening_deg_obs=opening_deg_obs, node_deg=node_deg
+    )
+    radial_scale = ring_radial_scale(r, x, y, opening_deg_obs=opening_deg_obs)
+
+    kind = str(feature.get('kind'))
+    orbit = ring_orbit_from_mapping(feature.get('orbit') or {})
+    r_edge = compute_orbit_radii(lam, orbit, epoch=epoch, time=time)
+
+    if kind in ('ringlet', 'gap'):
+        width = float(scene_value(feature, 'width_px', 0.0))
+        outer_orbit = orbit.widened(width)
+        r_outer = compute_orbit_radii(lam, outer_orbit, epoch=epoch, time=time)
+        inner_shade = compute_antialiasing_shade((r - r_edge) / radial_scale, 1.0)
+        outer_shade = compute_antialiasing_shade((r_outer - r) / radial_scale, 1.0)
+        coverage = cast(NDArrayFloatType, np.minimum(inner_shade, outer_shade))
+        band_mask: NDArrayBoolType = coverage > 0.0
+        edges = [
+            _edge_from_diff(
+                cast(NDArrayFloatType, r - r_edge),
+                'inner',
+                lam=lam,
+                orbit=orbit,
+                epoch=epoch,
+                time=time,
+            ),
+            _edge_from_diff(
+                cast(NDArrayFloatType, r - r_outer),
+                'outer',
+                lam=lam,
+                orbit=outer_orbit,
+                epoch=epoch,
+                time=time,
+            ),
+        ]
+        # A gap reveals the background rather than emitting, so it carries
+        # no correlation template; its edges are still fittable boundaries.
+        template = coverage if kind == 'ringlet' else None
+        return RingFeaturePredicted(template=template, mask=band_mask, edges=edges)
+
+    if kind == 'ramp':
+        # Only the ramp's sharp end is a fittable boundary; the linear end
+        # fades into the background with no gradient to fit.
+        width = float(scene_value(feature, 'width_px', 0.0))
+        side = str(scene_value(feature, 'side', RING_SIDE_DEFAULTS['ramp']))
+        sharp_orbit = orbit.widened(width) if side == 'out' else orbit
+        r_sharp = compute_orbit_radii(lam, sharp_orbit, epoch=epoch, time=time)
+        edge_type = 'outer' if side == 'out' else 'inner'
+        edge = _edge_from_diff(
+            cast(NDArrayFloatType, r - r_sharp),
+            edge_type,
+            lam=lam,
+            orbit=sharp_orbit,
+            epoch=epoch,
+            time=time,
+        )
+        return RingFeaturePredicted(template=None, mask=edge.mask, edges=[edge])
+
+    # 'edge' (a one-sided step) and 'wave' (a train launched at the orbit
+    # radius) each predict the single catalog boundary.
+    edge = _edge_from_diff(
+        cast(NDArrayFloatType, r - r_edge),
+        'edge',
+        lam=lam,
+        orbit=orbit,
+        epoch=epoch,
+        time=time,
+    )
+    return RingFeaturePredicted(template=None, mask=edge.mask, edges=[edge])

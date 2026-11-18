@@ -17,7 +17,7 @@ from pathlib import Path
 
 import pytest
 
-from spindoctor.sim.scene import iter_scene_paths, load_sim_scene
+from spindoctor.sim.scene.io import iter_scene_paths, load_sim_scene
 from tests.integration.sim_baseline import (
     CONFIDENCE_TOLERANCE,
     OFFSET_TOLERANCE_PX,

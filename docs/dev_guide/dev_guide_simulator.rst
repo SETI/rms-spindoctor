@@ -26,11 +26,11 @@ can and cannot establish.
 
 The simulator has three equally valid entry points (the "three peers"):
 
-- the **Python API** (:func:`spindoctor.sim.render.render_combined_model`, a thin
-  cached driver over the stage pipeline in :mod:`spindoctor.sim.forward`),
+- the **Python API** (:func:`spindoctor.sim.render.driver.render_scene`, a thin
+  cached driver over the stage pipeline in :mod:`spindoctor.sim.render`),
 - the **YAML scene catalog** under ``tests/integration/sim_scenes/`` (validated by
   :mod:`spindoctor.sim.scene`), which is the durable test artifact, and
-- the **GUI** ``sd_create_simulated_image`` (the ``spindoctor.cli.sim_editor``
+- the **GUI** ``sd_create_simulated_image`` (the ``spindoctor.ui.sim_editor``
   package), an interactive editor for the same parameters.
 
 Every parameter is reachable from all three; adding a physical effect means
@@ -45,6 +45,41 @@ simulated-model chapters
 :doc:`dev_guide_navigation_models_star_simulated`); this chapter documents the
 architecture, the rendering side, and the scene formats.
 
+.. _sim-glossary:
+
+Terms
+=====
+
+The simulator's code and its developer guide pages use these words with one meaning
+each:
+
+- **scene**: the full scene mapping a render reads, with every idealized, truth, and
+  test-only key; a scene file holds one.
+- **navigator view**: the filtered copy of the scene the navigator side reads,
+  ``obs.nav_params``, built by :func:`~spindoctor.sim.scene.boundary.build_nav_params`
+  (see :ref:`sim-information-boundary`).
+- **instrument entry**: one simulated camera's entry in the instrument catalog,
+  read from a file under ``sim/instruments/configs/`` (see :ref:`sim-instrument-files`).
+- **navigator block**: the navigator's configuration block that an instrument entry
+  points at, for the camera the entry emulates.
+  :func:`~spindoctor.sim.instruments.navigator_link.resolve_sim_inst_config` returns it
+  with the scene's ``instrument_config`` merged over it.
+- **detector defaults**: an instrument entry's ``detector`` block with the scene's
+  readout mode merged over it. They also carry the entry's per-mode artifact shape
+  defaults, under ``artifact_modes``, when the entry states any.
+  :func:`~spindoctor.sim.instruments.resolvers.resolve_detector_defaults` returns them.
+  :func:`~spindoctor.sim.instruments.resolvers.resolve_detector_defaults_native`
+  returns the entry's native values, before any readout mode is merged.
+- **truth**: information only the test knows, which the navigator side must never
+  see. It is carried by the scene's truth keys
+  (:data:`~spindoctor.sim.scene.boundary.TRUTH_KEYS`) and by what the render produced
+  about the image, the frame's
+  :attr:`~spindoctor.sim.render.stages.SimFrame.truth` (masks, index maps, the star
+  inventory, and realized artifact counts).
+- **mode**: an artifact mode (see :ref:`sim-artifact-framework`). Every other kind of
+  mode carries its qualifier: readout mode, orbit m-mode, quantization mode, and
+  shading mode.
+
 .. _sim-two-sided:
 
 The two-sided architecture
@@ -58,7 +93,8 @@ error the scene planted.
 
 **The image side** renders the frame the navigator is given, reading the *full*
 scene -- including every planted error, noise knob, and contaminant. It lives in
-:mod:`spindoctor.sim.forward`:
+:mod:`spindoctor.sim.render`, whose stages each have a subpackage (paths are
+relative to ``sim/render/``):
 
 .. list-table::
    :widths: 30 70
@@ -66,38 +102,45 @@ scene -- including every planted error, noise knob, and contaminant. It lives in
 
    * - Module
      - Role
+   * - ``driver.py``
+     - The entry point, :func:`~spindoctor.sim.render.driver.render_scene`: it
+       validates the scene and runs the pipeline on a fresh frame, behind a render
+       cache (see :ref:`sim-stage-pipeline`).
    * - ``stages.py``
-     - The :class:`~spindoctor.sim.forward.stages.SimFrame` dataclass and the
-       :class:`~spindoctor.sim.forward.stages.Stage` protocol (see
+     - The :class:`~spindoctor.sim.render.stages.SimFrame` dataclass and the
+       :class:`~spindoctor.sim.render.stages.Stage` protocol (see
        :ref:`sim-stage-pipeline`).
    * - ``pipeline.py``
      - The fixed-order stage registry and ``run_pipeline`` driver.
-   * - ``scene_radiance.py``
+   * - ``radiance/compose.py``
      - Composes the noise-free signal image: background stars, catalog stars,
        and the body/ring stack depth-sorted far to near.
-   * - ``scene_compositing.py``
+   * - ``radiance/compositing.py``
      - The radiance stage's translucent-screen machinery: orders the ring
        system and body halos far to near for compositing and enforces the
        explicit-``range_km`` depth contract on every overlap.
-   * - ``body.py`` / ``body_topo.py`` / ``body_texture.py`` / ``body_mesh.py``
+   * - ``bodies/render.py`` / ``bodies/topo.py`` / ``bodies/texture.py`` /
+       ``bodies/mesh.py``
      - The ellipsoid body renderer and its topographic path (relief, photometric
        laws, surface texture, transits), and the polyhedral-mesh renderer (see
-       :ref:`sim-body-renderer`).
-   * - ``translate.py``
+       :ref:`sim-body-renderer`). The parsed body entry (``bodies/spec.py``), the
+       relief field (``bodies/relief.py``), and the photometric laws
+       (``bodies/photometry.py``) sit beside them.
+   * - ``bodies/translate.py``
      - Moves a body drawn at a reference position into place by linear
        interpolation, resampling only the box the body covers. Inside that box
        the result is bit-identical to shifting the whole frame.
-   * - ``lit_clusters.py``
+   * - ``optics/lit_clusters.py``
      - Groups the lit pixels of a render-grid plane into clusters, so that the
        distortion warp and the PSF blur process each cluster on its own crop.
-   * - ``ring_system.py``
+   * - ``rings/render.py``
      - The optical-depth ring-system renderer: radial tau features on
        perturbed orbits, projected through the shared opening-angle
        geometry, lit by the single-scattering closed forms, and composited
        as a transmission screen (see :ref:`sim-ring-system`).
-   * - ``star.py``
+   * - ``radiance/stars.py``
      - Star and background-star-field renderers.
-   * - ``optics.py``
+   * - ``optics/stage.py``
      - The optical-path stage: it runs motion smear, residual distortion, the
        whole-scene PSF, ghost reflections, and the stray-light field in a fixed
        internal order (see :ref:`sim-optics-stage`). The smear, distortion,
@@ -105,39 +148,44 @@ scene -- including every planted error, noise knob, and contaminant. It lives in
        ``distortion.py``, ``psf.py``, and ``ghosts.py``.
    * - ``detector/``
      - The detector stage as a package: the CCD electron unit chain
-       (``chain.py``), the resolved-parameter view (``params.py``), and the
-       stochastic / structured noise sub-effects (``noise_stages.py`` -- dark,
-       hot pixels, banding, bias structure, cosmic rays). Carries the vidicon
-       DN path and the calibrated-I/F inversion (see :ref:`sim-detector-stage`).
-   * - ``telemetry.py``
+       (``chain.py``), the resolved-parameter view (``params.py``), the per-pixel
+       Poisson sampler (``shot_noise.py``), the stochastic / structured noise
+       sub-effects (``noise_stages.py`` -- dark, hot pixels, banding, bias
+       structure, cosmic rays), the detector-stage artifact-mode mechanics
+       (``electronics_stages.py``), and the companding tables
+       (``sqrt_lut.py``). Carries the vidicon DN path and the calibrated-I/F
+       inversion (see :ref:`sim-detector-stage`).
+   * - ``telemetry/stage.py``
      - Transmission loss; carries the per-pixel missing-data markers and
        drives the structured loss modes in their fixed physical order.
-   * - ``telemetry_loss.py``
+   * - ``telemetry/loss.py``
      - The structured telemetry-loss appliers (missing / partial /
        alternating lines, missing blocks, garble, dead pixels, commanded
        frame shapes), each recording its realized geometry into the frame
        truth. The test helper ``tests/spindoctor/sim/artifact_counts.py``
        counts those records (see :ref:`sim-artifact-truth`).
-   * - ``telemetry_artifacts.py``
+   * - ``telemetry/artifacts.py``
      - Telemetry-stage artifacts beyond packet loss: lossy DCT compression
-       blockiness and the Voyager GEOMED archive-processing scars.
+       blockiness and the scars of a ground pipeline's geometric correction
+       (reseau-removal patches on a lattice and the resample texture).
    * - ``feature_loci.py``
      - Navigation-feature loci (body / ring rows, limb and star pixels)
        extracted from the frame truth for adversarial artifact placement.
-   * - ``atmosphere.py``
+   * - ``bodies/atmosphere.py``
      - The haze-limb layer for atmospheric (Titan-class) bodies: an
        exponential haze column composited onto the disc, giving a soft limb, a
        terminator that brightens past 90 deg, and a forward-scattering ring of
        light at high phase (see :ref:`sim-atmosphere`).
-   * - ``haze_structure.py``
+   * - ``bodies/haze.py``
      - The optional symmetry-breaking structure of that haze layer: axis tilt,
        hemispheric and azimuthal falloff variation, an interior brightness
        ramp, and cloud blobs. Bypassed entirely when a body's ``atmosphere``
        block sets none of its keys (see :ref:`sim-atmosphere`).
 
-The image side reads each simulated camera's settings, and the artifact modes it
-can plant, from modules that sit beside :mod:`spindoctor.sim.forward` in
-:mod:`spindoctor.sim`:
+The image side reads each simulated camera's settings from the instrument
+catalog, :mod:`spindoctor.sim.instruments`, whose configuration files are under
+``sim/instruments/configs/``, and the artifact modes it can plant from the
+registry beside it in :mod:`spindoctor.sim` (paths are relative to ``sim/``):
 
 .. list-table::
    :widths: 30 70
@@ -145,22 +193,22 @@ can plant, from modules that sit beside :mod:`spindoctor.sim.forward` in
 
    * - Module
      - Role
-   * - ``instrument_catalog.py``
-     - Reads the instrument config files, merges their entries, resolves each
+   * - ``instruments/catalog.py``
+     - Reads the instrument files, merges their entries, resolves each
        entry's ``base``, and checks the result (see :ref:`sim-instrument-files`).
-   * - ``instrument_schema.py``
+   * - ``instruments/schema.py``
      - The key inventory of an entry: each key's type and range, and which keys
        an entry must carry.
-   * - ``instrument_checks.py``
+   * - ``instruments/checks.py``
      - The checks of how the parts of one entry fit together, and the checks
        that span entries.
-   * - ``instrument_resolvers.py``
+   * - ``instruments/resolvers.py``
      - The functions the rest of the simulator calls to read an entry: the PSF
        and its truncation radius, distortion residual, detector chain, readout
        modes, star zero point, plate scale, downlink tables, filter throughputs,
        and offered artifact modes.
-   * - ``instrument_navigator.py``
-     - Finds the navigator config block a sim instrument emulates, and reads a
+   * - ``instruments/navigator_link.py``
+     - Finds the navigator block a sim instrument emulates, and reads a
        rendered frame the way the navigator would (see
        :ref:`Instruments <sim-instruments>`).
    * - ``artifact_modes.py``
@@ -177,15 +225,17 @@ without a deliberate mismatch is the navigator's own template plus a shift and
 noise. For stars that holds only when the scene's PSF is the navigator's own,
 ``optics: {psf: {match_navigator: true}}`` (see :ref:`sim-floor`); without an
 ``optics`` block a star renders as a point, which the navigator's Gaussian
-doesn't match. Its renderers live under
-``nav_model/`` so the package layout states who owns them:
-:mod:`spindoctor.nav_model.sim_body` and :mod:`spindoctor.nav_model.sim_ring`
-draw the predicted templates that
-:class:`~spindoctor.nav_model.nav_model_body_simulated.NavModelBodySimulated` and
-:class:`~spindoctor.nav_model.nav_model_rings_simulated.NavModelRingsSimulated`
-emit as features, and
-:class:`~spindoctor.nav_model.stars.nav_model_stars_simulated.NavModelStarsSimulated`
-builds its catalog star records directly.
+doesn't match. Its models and renderers live under
+``nav_model/simulated/`` so the package layout states who owns them.
+:mod:`spindoctor.nav_model.simulated.predict_body` draws the predicted template of an
+ellipsoid body, and :mod:`spindoctor.nav_model.simulated.predict_ring` draws the
+predicted rings. :class:`~spindoctor.nav_model.simulated.body.NavModelBodySimulated`
+and :class:`~spindoctor.nav_model.simulated.rings.NavModelRingsSimulated` emit those
+templates as features. A ``polyhedral_mesh`` body is drawn by
+:func:`~spindoctor.sim.shared.mesh.render_mesh_body_image` instead, and the body
+model emits that image as its template in the same way.
+:class:`~spindoctor.nav_model.simulated.stars.NavModelStarsSimulated` builds its
+catalog star records directly.
 
 .. _sim-information-boundary:
 
@@ -207,18 +257,18 @@ channel. **Test-only** keys are the
 scene's declared navigation outcome (the ``expected`` block), read only by the
 integration suite's assertion machinery, and the ``published_equals_truth``
 list, read only by the validator; neither the renderer nor the navigator reads
-them. :data:`spindoctor.sim.scene.TRUTH_KEYS` is the machine-readable truth
-inventory; an import-time assertion in :mod:`spindoctor.sim.scene` fails if any
+them. :data:`spindoctor.sim.scene.boundary.TRUTH_KEYS` is the machine-readable truth
+inventory; an import-time assertion in :mod:`spindoctor.sim.scene.boundary` fails if any
 schema key is left unclassified or lands in two classes, so a schema change
 cannot dodge the classification. The boundary filter is default-deny, so the
-test-only keys are stripped from the navigator's view alongside the truth keys.
+test-only keys are stripped from the navigator view alongside the truth keys.
 
 The boundary's enforcement has two distinct strengths, and it matters which
 applies where. The *channel* is structural:
 
 - :class:`~spindoctor.obs.obs_inst_sim.ObsSim` exposes the navigator-side
-  models a **filtered view**, ``obs.nav_params``, built by
-  :func:`spindoctor.sim.scene.build_nav_params`: every truth key is stripped
+  models a filtered copy of the scene, the **navigator view** ``obs.nav_params``, built by
+  :func:`spindoctor.sim.scene.boundary.build_nav_params`: every truth key is stripped
   (the filter is default-deny -- an unclassified or unknown key stays behind),
   a body's ``nav_override`` mapping is overlaid onto its idealized view and
   then dropped (the navigator sees what it *believes*, never the true values
@@ -231,7 +281,7 @@ applies where. The *channel* is structural:
   binning, which the view carries as a top-level ``binning`` key (1 when the
   scene sets none). A real frame's label states its readout mode, so a real
   pipeline always knows it. No other ``detector`` key crosses.
-  Nothing reachable *through the filtered view* carries truth.
+  Nothing reachable *through the navigator view* carries truth.
 - The navigator-side models read **only** ``obs.nav_params``. None of the
   renderer's output -- rendered star records, body masks, z-order maps, all
   accumulated on the frame's ``truth`` metadata -- ever crosses.
@@ -239,22 +289,22 @@ applies where. The *channel* is structural:
   emulated instrument's **published** configuration, never from the scene's
   truth-side blocks. The star detection limit
   (:meth:`~spindoctor.obs.obs_inst_sim.ObsSim.star_max_usable_vmag`) is the
-  worked example: it comes from the resolved per-instrument config block
-  (including any idealized ``instrument_config`` overrides) and is independent
+  worked example: it comes from the navigator block, with any idealized
+  ``instrument_config`` overrides merged over it, and is independent
   of the scene's ``noise`` block, so a scene that plants noise different from
   the published values gets a detection limit that does not match the scene's
   noise. That is planted model error, exactly what such a scene is for. On a
   binned frame the limit reads the zero point and the read noise from that
   block's ``noise.by_binning`` entry for the frame's binning, which holds the
-  navigator's own values for that mode in DN: the zero point, and the read noise
-  of one binned pixel. A block with no entry for the mode leaves the limit on
-  its unbinned values. Every raw-DN camera's block has an entry for each binned
-  mode the simulator offers (see :ref:`sim-instrument-files` for the tests that
-  hold them to the catalog). The limit takes ``star_psf_sigma`` in native pixels
-  and divides it by the binning, and a core narrower than a pixel counts as one
-  pixel, since the peak pixel can't hold more than the whole star. The limit's
-  noise is at least 1 DN, so a mode's read noise below 1 DN gives the same limit
-  as 1 DN. Where a camera's unbinned ``read_noise_dn`` is a placeholder above
+  navigator's own values for that readout mode in DN: the zero point, and the read
+  noise of one binned pixel. A block with no entry for the readout mode leaves the
+  limit on its unbinned values. Every raw-DN camera's block has an entry for each
+  binned readout mode the simulator offers (see :ref:`sim-instrument-files` for the
+  tests that hold them to the catalog). The limit takes ``star_psf_sigma`` in native
+  pixels and divides it by the binning, and a core narrower than a pixel counts as
+  one pixel, since the peak pixel can't hold more than the whole star. The limit's
+  noise is at least 1 DN, so a readout mode's read noise below 1 DN gives the same
+  limit as 1 DN. Where a camera's unbinned ``read_noise_dn`` is a placeholder above
   its published read noise, part of the step from the unbinned limit to the
   binned one comes from that placeholder; each instrument chapter gives its
   camera's share. The renderer shrinks the catalog's PSF kernel by the binning
@@ -264,7 +314,7 @@ applies where. The *channel* is structural:
   the simulator's camera tables.
 - ``tests/spindoctor/sim/test_information_boundary.py`` constructs a scene
   exercising every ``TRUTH_KEYS`` entry and asserts none is reachable through
-  the filtered view. This test is the independence guarantee: any change that
+  the navigator view. This test is the independence guarantee: any change that
   adds a truth key must extend it in the same change (the test iterates the
   frozenset, so an unextended sample table fails loudly).
 
@@ -276,12 +326,13 @@ attributes (``sim_params``, ``sim_offset_v`` / ``sim_offset_u``, ``sim_time``,
 and the renderer output records ``sim_body_models``, ``sim_inventory``,
 ``sim_body_order_near_to_far``, ``sim_body_index_map``,
 ``sim_body_mask_map``), each one attribute access away. What stands between
-navigator-side code and those attributes is that the filtered view is the
+navigator-side code and those attributes is that the navigator view is the
 only channel current navigator-side code reads, held there by three guards:
 the information-boundary test suite above, the static guard test
 (``tests/spindoctor/sim/test_boundary_static_guard.py``, which walks the AST
 of every module under ``nav_model/``, ``nav_technique/``, and
-``nav_orchestrator/`` and fails on any reference to a truth attribute name),
+``nav_orchestrator/`` and fails on any reference to a truth attribute name,
+and which also holds those modules to the import rule described below),
 and code review. The guarantee is mechanical for the channel and
 mechanical-plus-review for the consumers; the assessment behind this
 phrasing is recorded in ``critiques/archive/SIM_REALISM_CRITIQUE_2026-07-18.md``.
@@ -300,8 +351,8 @@ Sharing code is fine; sharing information is not
 ------------------------------------------------
 
 Both sides deliberately call the same geometry helpers --
-:mod:`spindoctor.sim.ellipsoid_geometry`, :mod:`spindoctor.sim.mesh_geometry`,
-:mod:`spindoctor.sim.ring_geometry`, and :mod:`spindoctor.sim.star_records`.
+:mod:`spindoctor.sim.shared.ellipsoid`, :mod:`spindoctor.sim.shared.mesh`,
+:mod:`spindoctor.sim.shared.ring`, and :mod:`spindoctor.sim.shared.stars`.
 This is not a boundary leak; it is what makes the measurement clean. With
 shared conventions (the coordinate systems, the sign of ``dv``, edge
 rasterization, record defaults) the planted error is the *only* error in a recovery
@@ -309,13 +360,21 @@ measurement. Independent implementations would each carry their own
 conventions, and any delta between them would land as an unknown systematic
 inside the measured error -- contaminating the truth reference every simulator
 result rests on. The discipline the shared helpers follow: they never read the
-scene dict and never accept a truth key. Most take explicit geometry
+scene and never accept a truth key. Most take explicit geometry
 arguments; the two record parsers
-(:func:`spindoctor.sim.star_records.star_record_from_params` and
-:func:`spindoctor.sim.mesh_geometry.mesh_spec_from_params`) parse per-object
+(:func:`spindoctor.sim.shared.stars.star_record_from_params` and
+:func:`spindoctor.sim.shared.mesh.mesh_spec_from_params`) parse per-object
 mappings restricted to idealized keys, and on the navigator side they only
 ever receive entries that have already passed the boundary filter. Either
 way, truth cannot be smuggled across.
+
+The shared helpers live in :mod:`spindoctor.sim.shared`. A module under
+``nav_model/``, ``nav_technique/``, or ``nav_orchestrator/`` may import that package
+and :mod:`spindoctor.sim.scene.fields`, the field helpers every scene reader shares,
+and nothing else from the simulator or the scene editor. A module of ``sim/shared/``
+follows the same rule. The simulated observation, which renders the image and builds
+the navigator view, is the one navigator-side module that may import the renderer.
+The static guard checks these rules by package.
 
 One gap remains: a bug in a shared helper that makes rendered features
 subtly unlike *real* features leaves both sides consistent and recovery clean
@@ -324,7 +383,7 @@ contact sheet (see :ref:`sim-catalog-workflow`) and the per-instrument realism
 comparison against real cohorts, not any structural test.
 
 One working rule follows from the blind spot. When implementing or extending
-the image-side renderers in ``sim/forward/``, derive behavior from instrument
+the image-side renderers in ``sim/render/``, derive behavior from instrument
 references and physics, **not** by consulting the navigator-side predicted
 renderers. Copying the navigator's rendering choices manufactures exactly the
 shared assumption the boundary cannot detect; the shared geometry helpers are
@@ -473,8 +532,8 @@ basis and the cross-check numbers live in
 The stage pipeline
 ==================
 
-The forward model renders in a fixed physical order that does not vary per
-scene (:mod:`spindoctor.sim.forward.pipeline`):
+The renderer draws a frame in a fixed physical order that does not vary per
+scene (:mod:`spindoctor.sim.render.pipeline`):
 
 .. list-table::
    :widths: 20 30 50
@@ -484,7 +543,7 @@ scene (:mod:`spindoctor.sim.forward.pipeline`):
      - Callable
      - What it does
    * - ``scene_radiance``
-     - :func:`~spindoctor.sim.forward.scene_radiance.compose_scene_radiance`
+     - :func:`~spindoctor.sim.render.radiance.compose.compose_scene_radiance`
      - Composes the noise-free signal: bodies depth-sorted far to near
        (nearer bodies overwrite) into ``frame.signal``, with the ring
        system composited over the stack as a per-pixel transmission
@@ -495,18 +554,18 @@ scene (:mod:`spindoctor.sim.forward.pipeline`):
        whole-scene PSF (see :ref:`sim-star-params`). Accumulates feature truth
        (star records, masks, inventory, z-order) into ``frame.truth``.
    * - ``optics``
-     - :func:`~spindoctor.sim.forward.optics.apply_optics`
+     - :func:`~spindoctor.sim.render.optics.stage.apply_optics`
      - Applies the optical-path effects in a fixed internal order -- motion
        smear, residual distortion, the whole-scene PSF, ghost reflections, then
        the stray-light field -- each contributing only when its ``optics``
        sub-block is present (see :ref:`sim-optics-stage`).
    * - ``downsample``
-     - :func:`~spindoctor.sim.forward.stages.downsample_to_detector`
+     - :func:`~spindoctor.sim.render.stages.downsample_to_detector`
      - Box-downsamples the oversampled planes to the detector grid. A scene
        with an active PSF renders on a 4x oversampled grid and downsamples here;
        with no PSF the factor is 1 and this is a no-op.
    * - ``detector``
-     - :func:`~spindoctor.sim.forward.detector.apply_detector`
+     - :func:`~spindoctor.sim.render.detector.apply_detector`
      - Runs the electron unit chain: converts the composed [0, 1] signal to
        electrons through the exposure, applies Poisson shot noise, full-well
        bloom, read noise, banding, gain to DN, bias structure, quantization, and
@@ -514,13 +573,13 @@ scene (:mod:`spindoctor.sim.forward.pipeline`):
        the DN-domain path; a calibrated instrument inverts the calibration
        transform afterward.
    * - ``telemetry``
-     - :func:`~spindoctor.sim.forward.telemetry.apply_telemetry`
+     - :func:`~spindoctor.sim.render.telemetry.stage.apply_telemetry`
      - Applies the per-pixel missing-data markers.
 
 Each stage is a callable matching the
-:class:`~spindoctor.sim.forward.stages.Stage` protocol: it mutates a
-:class:`~spindoctor.sim.forward.stages.SimFrame` in place, reads its parameters
-from the full scene mapping, and draws randomness only from the
+:class:`~spindoctor.sim.render.stages.Stage` protocol: it mutates a
+:class:`~spindoctor.sim.render.stages.SimFrame` in place, reads its parameters
+from the scene, and draws randomness only from the
 ``numpy.random.Generator`` it is handed. Every effect is **off unless asked
 for**: with no ``stray_light`` block no field is added, with no
 ``missing_data_rate`` no pixels are dropped, and with no ``noise``, ``detector``,
@@ -531,7 +590,7 @@ and structured noise activates only through a scene ``noise`` block (which pins
 the individual parameters, e.g. ``poisson: true`` with a ``read_noise_dn``) or
 the ``artifacts: {instrument_defaults: true}`` opt-in (which turns on the
 emulated camera's physical signal chain -- including Poisson shot noise and the
-catalog full-well bloom -- at catalog values). A scene with none of those
+full-well bloom -- at its detector defaults). A scene with none of those
 blocks renders a clean DN frame: the self-consistency floor. A single-variable
 sweep therefore relies on every other block staying absent so it attributes
 error to the one effect it varies.
@@ -570,10 +629,10 @@ crater's index on its body, so a small change to the body's outline moves only
 a crater whose center lands on a changed pixel and leaves the rest of the
 crater field where it was.
 
-**The driver.** :func:`spindoctor.sim.render.render_combined_model` takes a
-``sim_params`` dict and returns ``(image, metadata)``. It encodes the scene as
+**The driver.** :func:`spindoctor.sim.render.driver.render_scene` takes a
+scene and returns ``(image, metadata)``. It encodes the scene as
 deterministic sorted-key JSON, validates the scene with
-:func:`spindoctor.sim.scene.validate_sim_params`, runs the pipeline on a fresh frame,
+:func:`spindoctor.sim.scene.validate.validate_sim_params`, runs the pipeline on a fresh frame,
 and caches the result on a key built from that JSON. The render cache holds three
 entries (``lru_cache(maxsize=3)``), one each for the scene editor's fast preview, its
 full render, and the frame the navigator reads. The body, mesh, and star renderers keep
@@ -582,7 +641,7 @@ tests. The caching contract: scene parameters are JSON-serializable scalars, lis
 and maps, no wall-clock or global RNG state is consulted, and two renders of the same
 scene are bit-identical on one machine.
 
-The render validates through :func:`spindoctor.sim.scene.validate_scene`. It keeps a
+The render validates through :func:`spindoctor.sim.scene.validate.validate_scene`. It keeps a
 small cache keyed on the scene's full JSON and on the ``source`` label that begins
 each error message. That key always includes the planted offset and roll, which the
 render cache key leaves out for an offset-free render. Loading a scene file uses the
@@ -590,7 +649,7 @@ same cache. A scene file that is loaded and then rendered is therefore checked o
 A scene rendered many times is checked once, too. A scene that passes prints each
 truth-echo warning once. A scene that changes after a check misses the cache and is
 checked again. A refused scene raises the same
-:class:`~spindoctor.sim.scene_schema.SimSceneValidationError` that loading it from a
+:class:`~spindoctor.sim.scene.errors.SimSceneValidationError` that loading it from a
 file would raise.
 
 :class:`~spindoctor.obs.obs_inst_sim.ObsSim` renders a scene file under the label it
@@ -598,10 +657,10 @@ loaded the file with, so the render finds the load's check in the cache. A scene
 handed to ``ObsSim`` in memory is checked by the render, and the error message starts
 with the label the caller gave.
 
-Before each preview the editor calls :func:`spindoctor.sim.scene.validate_scene`, so
+Before each preview the editor calls :func:`spindoctor.sim.scene.validate.validate_scene`, so
 the author sees why a scene would be refused. A refused scene leaves the last valid
 picture on screen. A scene that passes renders through
-:func:`~spindoctor.sim.render.render_combined_model` with ``ignore_offset=True`` and
+:func:`~spindoctor.sim.render.driver.render_scene` with ``ignore_offset=True`` and
 ``preview=True``, which draws its fast preview without its planted offset and roll.
 The editor's check and the render's own check use the same label, so the render finds
 the editor's check in the cache. The editor's first check of a loaded scene misses the
@@ -610,7 +669,7 @@ a loaded scene with its defaults filled in, so the contents differ from the file
 
 .. _sim-editor-preview-render:
 
-**The editor's fast preview.** ``render_combined_model(..., preview=True)`` renders
+**The editor's fast preview.** ``render_scene(..., preview=True)`` renders
 the approximate image the scene editor shows while its user edits. The flag reaches the
 stages as ``SimFrame.preview`` and simplifies three of them:
 
@@ -643,9 +702,9 @@ baseline, saved PNG, or any other image that leaves the editor uses the full ren
 
 .. _sim-instruments:
 
-**Instruments.** The ``instrument`` field selects which instrument config entry
-(see :ref:`sim-instrument-files`) and which navigator configuration block drive
-the detector model and PSF (:mod:`spindoctor.sim.instrument_navigator`). The
+**Instruments.** The ``instrument`` field selects which instrument entry
+(see :ref:`sim-instrument-files`) and which navigator block drive
+the detector model and PSF (:mod:`spindoctor.sim.instruments.navigator_link`). The
 recognized names are the entries' top-level keys, ``coiss_nac``, ``coiss_wac``,
 ``coiss_calib_nac``, ``coiss_calib_wac``, ``gossi``, ``nhlorri``, and ``vgiss``,
 plus ``generic`` (alias ``sim``) for the instrument-agnostic defaults. A scene
@@ -653,7 +712,7 @@ can pin or override individual instrument settings with ``instrument_config``
 (see :ref:`sim-instrument-config`).
 
 Each instrument renders into one of two unit classes, set by the ``data_units``
-key of its config entry (see :ref:`sim-instrument-files`). A scene can't change
+key of its instrument entry (see :ref:`sim-instrument-files`). A scene can't change
 them. For frames in the other units, use an instrument that renders them. Every
 shipped navigator block marks a lost pixel with ``0`` (``noise.marker_value``):
 
@@ -689,8 +748,8 @@ The inverse subtracts the bias and dark pedestals, which would put a noise-free
 dark sky at exactly 0 I/F, the marker. A real calibrated product's dark sky keeps
 a residual level, so the inverse then adds the instrument's calibrated sky
 residual to every pixel
-(:func:`~spindoctor.sim.instrument_resolvers.resolve_calibrated_sky_if`).
-The value is ``calibrated_sky_if`` in the config entry's ``detector`` block. If
+(:func:`~spindoctor.sim.instruments.resolvers.resolve_calibrated_sky_if`).
+The value is ``calibrated_sky_if`` in the instrument entry's ``detector`` block. If
 the entry sets none, as when a scene pins a raw camera to ``calibrated_if``, the
 generic entry's value applies. The generic value is the Cassini CALIB cameras'
 value. Each camera's value, and
@@ -710,7 +769,7 @@ doesn't carry. Two noise keys reproduce it, both in electrons per native pixel:
 * ``calibration_pixel_residual_e`` is a Gaussian per pixel, drawn per frame.
 
 Both are 0 unless the scene sets them or ``instrument_defaults`` takes the
-catalog's values, and only the calibrated Cassini products catalog them (the
+detector defaults, and only the calibrated Cassini products' entries set them (the
 Cassini page gives the measured values). A binned pixel sums
 its native pixels: a column's ``b`` rows add coherently and its ``b`` columns
 independently, and the pixel term adds in quadrature.
@@ -724,12 +783,12 @@ loss puts a calibrated pixel at the marker: the artifact modes and
 ``noise.missing_data_rate``, which work on both classes.
 
 The editor's status bar shows a rendered frame's units and value range and the
-share of pixels at the marker (:func:`~spindoctor.sim.instrument_navigator.frame_units_summary`).
+share of pixels at the marker (:func:`~spindoctor.sim.instruments.navigator_link.frame_units_summary`).
 It reads the full render of the frame the navigator reads, with the planted offset
 applied, although the picture beside it is offset-free: the offset moves the scene
 within the frame, and can take a body near the edge out of it. When the navigator's image
 classifier would not call that frame clean, the status bar says why, in the
-classifier's order (:func:`~spindoctor.sim.instrument_navigator.read_frame_as_navigator`,
+classifier's order (:func:`~spindoctor.sim.instruments.navigator_link.read_frame_as_navigator`,
 which calls the navigator's own decision in :mod:`spindoctor.support.image_class`):
 a peak below the blank limit first, then the overexposed share, then a marker
 share above ``max_missing_frac_clean``. An empty ``coiss_calib_nac`` frame's sky
@@ -770,17 +829,17 @@ The optics stage
 
 The optics stage runs on the oversampled radiance image in a fixed internal
 order that mirrors image formation
-(:func:`~spindoctor.sim.forward.optics.apply_optics`). Each sub-stage
+(:func:`~spindoctor.sim.render.optics.stage.apply_optics`). Each sub-stage
 contributes only when its ``optics`` sub-block is present, so a scene states
 exactly the optical effects it wants and leaves the rest at the floor.
 
-1. **Motion smear** (:mod:`~spindoctor.sim.forward.smear`) averages the
+1. **Motion smear** (:mod:`~spindoctor.sim.render.optics.smear`) averages the
    radiance over the exposure along the pointing drift. It runs first, while
    the per-object-class radiance layers are still separable, so the optics
    below form the image of the time-averaged radiance. A single
    ``object_class: all`` entry smears the whole scene; several entries give
    differential smear, where each class carries its own drift vector.
-2. **Residual distortion** (:mod:`~spindoctor.sim.forward.distortion`) warps
+2. **Residual distortion** (:mod:`~spindoctor.sim.render.optics.distortion`) warps
    the geometric image by the low-order radial polynomial (``k1``, ``k2`` about
    the optical center) plus an optional seeded non-radial wander -- the field
    error left after the navigator applies each camera's known distortion model.
@@ -796,12 +855,12 @@ exactly the optical effects it wants and leaves the rest at the floor.
    that covers 13% of the image, the warp takes 0.3 s instead of 1.7 s. Smear or
    a diffuse sky can light every pixel of a frame. A frame lit like that is
    warped whole and gains nothing.
-3. **Whole-scene PSF** (:mod:`~spindoctor.sim.forward.psf`) convolves the image
+3. **Whole-scene PSF** (:mod:`~spindoctor.sim.render.optics.psf`) convolves the image
    by a core-Gaussian-plus-Moffat-wing kernel, so the limb gradient, the
    ring-edge gradient, and every star shape inherit one profile. The core is
    elliptical (``sigma_v`` may differ from ``sigma_u``); ``w`` is exactly the
    fraction of the kernel's energy in the isotropic wing, and each term is
-   normalized so the kernel conserves flux. Each instrument's config entry states
+   normalized so the kernel conserves flux. Each instrument entry states
    the kernel's truncation window (``psf.truncation_px``); the Cassini cameras
    state a wider one for their documented long wings. Like the warp, the blur
    convolves each cluster of lit pixels on its own crop and adds the results.
@@ -810,7 +869,7 @@ exactly the optical effects it wants and leaves the rest at the floor.
    size, they leave exact zeros. On the full-size Cassini frame above, the blur
    takes 0.15 s instead of 0.50 s. A star field with more than a few hundred
    separate stars is blurred whole.
-4. **Ghost reflections** (:mod:`~spindoctor.sim.forward.ghosts`) add displaced,
+4. **Ghost reflections** (:mod:`~spindoctor.sim.render.optics.ghosts`) add displaced,
    defocused, low-amplitude copies of the formed focal-plane image (internal
    reflections). Each ghost copies the pre-ghost signal, so ghosts do not
    reflect one another.
@@ -829,10 +888,10 @@ distortion, an amplitude-0 ghost) renders bit-identically to one without it.
 The detector stage
 ==================
 
-The detector stage (:mod:`spindoctor.sim.forward.detector`, a package) is the
-normative unit chain of the forward model. For a CCD instrument the composed
+The detector stage (:mod:`spindoctor.sim.render.detector`, a package) is the
+normative unit chain of the renderer. For a CCD instrument the composed
 intensive signal passes through the electron unit chain in
-:func:`~spindoctor.sim.forward.detector.chain.apply_detector`:
+:func:`~spindoctor.sim.render.detector.chain.apply_detector`:
 
 1. **Signal to electrons.** The intensive [0, 1] signal is scaled to electrons
    through ``signal_full_scale_frac * full_well_e * (exposure_sec /
@@ -852,7 +911,7 @@ intensive signal passes through the electron unit chain in
    CISSCAL's dark model does, and keeps its shot noise. Poisson shot noise then
    acts on the electron image, one pixel at a time. The chain draws one uniform
    value per pixel and turns it into a count through that pixel's own Poisson
-   distribution (:func:`~spindoctor.sim.forward.detector.shot_noise.sample_poisson`).
+   distribution (:func:`~spindoctor.sim.render.detector.shot_noise.sample_poisson`).
    How the count is found depends on the pixel's mean. Below 30 electrons it is
    the exact Poisson quantile, found by adding up the chances of 0, 1, 2, and more
    counts until the total reaches the uniform value. A pixel whose total lands
@@ -898,7 +957,7 @@ intensive signal passes through the electron unit chain in
 
 The stochastic and structured sub-effects (dark, hot pixels, banding, bias
 structure, cosmic rays) live in
-:mod:`~spindoctor.sim.forward.detector.noise_stages`; the chain draws each one
+:mod:`~spindoctor.sim.render.detector.noise_stages`; the chain draws each one
 an independent RNG stream from the scene seed, so toggling one never perturbs
 another's realization. The deterministic signal-to-DN conversion always runs --
 it is what makes a DN frame -- while each stochastic sub-effect is a no-op when
@@ -935,13 +994,13 @@ sub-mode: ``quantization_sqrt_lut``, ``quantization_ls8b``, and
 key's sub-mode and is recorded as active in that frame's truth.
 
 The ``sqrt_lut`` sub-mode decodes through one of the tables listed under
-``downlink_tables`` in the camera's config entry (see
+``downlink_tables`` in the camera's instrument entry (see
 :ref:`sim-instrument-files`): the one the scene selects with
 ``detector.downlink_table``, or else the entry's default. A parametric table
 sends ``codes`` codes (256 for an 8-bit code word), and code ``c`` decodes to
 ``linear_dn * c + quadratic_dn * c**2`` DN, rounded to whole DN when
 ``whole_dn`` is set. A tabulated table lists the DN each code decodes to, in
-code order, under ``decoded_dn``, so a curve of any shape takes a config entry
+code order, under ``decoded_dn``, so a curve of any shape takes an instrument entry
 and no code; the load requires at least two distinct values, none of them
 negative. When a frame is companded through a listed table, the detector
 resolver refuses a table whose largest decoded value lies above the ADC ceiling,
@@ -969,11 +1028,11 @@ frame-transfer smear as integrated charge, the anti-blooming pairs and radiation
 transients after the shot term, coherent banding in electrons before the gain
 divide, and the additive fixed pattern and serial tail on the digitized DN.
 Their mechanics live in
-:mod:`~spindoctor.sim.forward.detector.electronics_stages`, each drawn its own
+:mod:`~spindoctor.sim.render.detector.electronics_stages`, each drawn its own
 seeded stream and a no-op when its activation key is 0.
 
 **The vidicon path.** The Voyager vidicon
-(:func:`~spindoctor.sim.forward.detector.chain.apply_detector`, vidicon branch)
+(:func:`~spindoctor.sim.render.detector.chain.apply_detector`, vidicon branch)
 is not photon-noise dominated, so it skips the electron conversion: the signal
 maps straight to the 8-bit DN full scale and the noise is applied in DN -- a
 line-correlated read-noise term (a per-line offset plus a within-line white
@@ -1009,13 +1068,13 @@ reference exposure round-trips to I/F 1.0. The inverse then adds the calibrated
 sky residual and keeps every pixel off a numeric marker (see
 :ref:`Instruments <sim-instruments>`).
 
-:func:`~spindoctor.sim.forward.detector.params.resolve_detector_params`
-collapses the emulated instrument's config block, the per-instrument catalog
-defaults, the scene ``detector`` / ``noise`` blocks, and the
+:func:`~spindoctor.sim.render.detector.params.resolve_detector_params`
+collapses the emulated instrument's navigator block, its detector defaults, the
+scene ``detector`` / ``noise`` blocks, and the
 ``artifacts.instrument_defaults`` switch into one flat
-:class:`~spindoctor.sim.forward.detector.params.DetectorParams` view the chain
+:class:`~spindoctor.sim.render.detector.params.DetectorParams` view the chain
 reads. Resolution precedence, highest first: an explicit scene key (``detector``
-block, then ``noise`` block), then the catalog value when ``instrument_defaults``
+block, then ``noise`` block), then the detector default when ``instrument_defaults``
 is on, then the disabled floor -- the physical-chain artifacts default to zero,
 so an unconfigured scene renders a clean DN frame. A scene that selects a gain
 state the instrument does not catalog is a validation error, not a silent
@@ -1027,9 +1086,9 @@ The instrument-defaults switch and the artifacts catalog
 ========================================================
 
 ``artifacts: {instrument_defaults: true}`` opts the whole scene into the
-emulated camera's physical signal chain at catalog values: the whole-scene PSF
-kernel and the residual-distortion amplitude
-(:func:`~spindoctor.sim.forward.optics.instrument_defaults_on` gates the optics
+emulated camera's physical signal chain at its instrument entry's values: the
+whole-scene PSF kernel and the residual-distortion amplitude
+(:func:`~spindoctor.sim.render.optics.stage.instrument_defaults_on` gates the optics
 side), and the detector electron chain's Poisson shot noise, read noise, dark
 current, hot pixels, full-well bloom, banding, bias structure, and cosmic rays
 (the detector side reads the same switch). The Cassini cameras and Galileo SSI
@@ -1041,16 +1100,17 @@ under instrument defaults. It turns on only the *physical* chain: the artifact m
 the like) keep their activation keys at zero, so a defaults scene is a
 clean-but-realistic frame, not a damaged one.
 
-Each instrument's config entry is the single home for those per-instrument
+Each instrument entry is the single home for those per-instrument
 values (see :ref:`sim-instrument-files`): the PSF kernel, the residual
 distortion, the full electron-chain, gain-table, read-noise, and vidicon
 numbers, and the per-mode shape defaults -- banding amplitudes and periods,
 frame-transfer scrub/transfer times, fixed-pattern components, and the rest. If
 a scene sets only an artifact mode's activation key, the mode inherits these
 shapes: ``resolve_mode_with_catalog`` takes the scene's value first, then the
-catalog default, then the registry default. The activation keys themselves are
-never cataloged, so choosing an instrument never plants a defect on its own.
-There is one exception: if the config entry lists a mode under
+instrument entry's shape default, then the registry default. The activation keys
+themselves are never cataloged, so choosing an instrument never plants a defect on
+its own.
+There is one exception: if the instrument entry lists a mode under
 ``artifact_modes.instrument_defaults``, ``instrument_defaults`` turns that mode
 on, as it does LORRI's frame-transfer smear. Every value carries its provenance
 in a YAML comment beside it. Most are interim, sized from published FWHMs, gain
@@ -1064,13 +1124,13 @@ well equals its DN depth at unit gain.
 
 .. _sim-instrument-files:
 
-Instrument config files
------------------------
+Instrument files
+----------------
 
 Each mission's simulated cameras share one YAML file in
-``src/spindoctor/sim/instrument_configs/``, as the navigator's config files group
+``src/spindoctor/sim/instruments/configs/``, as the navigator's config files group
 a mission's instrument blocks. Each
-top-level key of a file is one simulated instrument, and a scene selects it by
+top-level key of a file holds one instrument entry, and a scene selects it by
 writing that key in ``instrument``; the file's name plays no part. ``coiss.yaml``
 holds four instruments (``coiss_nac``, ``coiss_wac``, ``coiss_calib_nac``, and
 ``coiss_calib_wac``), and ``gossi.yaml``, ``nhlorri.yaml``, ``vgiss.yaml``, and
@@ -1096,11 +1156,11 @@ base's whole list, so an item has nothing to remove. ``aliases`` and
 ``realism_cohort`` belong to one entry only. A base doesn't pass them on, and a
 null for either fails.
 
-:func:`~spindoctor.sim.instrument_catalog.load_instrument_catalog` reads every
+:func:`~spindoctor.sim.instruments.catalog.load_instrument_catalog` reads every
 file once per directory (the result is cached) and merges the top-level keys of
 all of them. It checks each entry against the schema in
-:mod:`spindoctor.sim.instrument_schema` and the cross-checks in
-:mod:`spindoctor.sim.instrument_checks`. Every message about an entry gives the
+:mod:`spindoctor.sim.instruments.schema` and the cross-checks in
+:mod:`spindoctor.sim.instruments.checks`. Every message about an entry gives the
 file, the entry, and the key path, as in ``coiss.yaml: coiss_calib_nac:
 detector.gain_e_per_dn_by_state: ...``. A message about a whole file gives the
 file, and a message about the directory, such as a stray file or a missing
@@ -1179,12 +1239,12 @@ The loader takes a ``config_dir`` keyword so a test can load a directory of its
 own.
 
 The rest of the simulator reads the catalog only through the resolver functions
-in :mod:`spindoctor.sim.instrument_resolvers`. They cover the frame units, the
+in :mod:`spindoctor.sim.instruments.resolvers`. They cover the frame units, the
 detector defaults, readout modes, native frame size, star zero point, plate scale,
 PSF kernel and truncation radius, distortion residual, detector identity,
 calibrated sky, downlink tables, filters, and artifact-mode availability and shape
 defaults. The navigator block an entry points at is read by
-:func:`~spindoctor.sim.instrument_navigator.resolve_sim_inst_config`. Each of these
+:func:`~spindoctor.sim.instruments.navigator_link.resolve_sim_inst_config`. Each of these
 raises :class:`ValueError` for an instrument that no entry defines. Scene
 validation's allowed names, the scene editor's instrument list, and the realism
 match's cohort map all come from the catalog.
@@ -1215,9 +1275,10 @@ half the place value of the last digit the navigator's config file writes, so
 ``3.61e6`` is held to 5e3 and ``0.400`` to 5e-4. The navigator states its own
 value, so a simulator retune does not move what the navigator knows; the test
 fails when the two drift apart by more than the navigator value's rounding.
-Each binned mode an entry offers needs its own values in a raw-DN navigator
+Each binned readout mode an entry offers needs its own values in a raw-DN navigator
 block, under ``noise.by_binning``, and their zero point and read noise must match
-the simulator's, converted through the mode's gain, within the same rounding.
+the simulator's, converted through the readout mode's gain, within the same
+rounding.
 
 The keys of an entry, all directly under the instrument's top-level key:
 
@@ -1246,7 +1307,7 @@ The keys of an entry, all directly under the instrument's top-level key:
    * - ``navigator``
      - yes
      - ``section`` (and ``detector`` for a block with one entry per camera):
-       the navigator config block that the simulated frame takes its marker,
+       the navigator block that the simulated frame takes its marker,
        noise, PSF sigma, and thresholds from. The navigator reads the frame in
        this block's units.
    * - ``detector_id``
@@ -1273,8 +1334,8 @@ The keys of an entry, all directly under the instrument's top-level key:
      - yes
      - The binning factors at which the camera reads out. Each maps to the
        ``detector`` keys that its published characterization changes, and an
-       empty map keeps every 1x1 value. Binning 1 is required. A mode may not
-       change ``detector_model`` or the ``vidicon`` block, and a vidicon has
+       empty map keeps every 1x1 value. Binning 1 is required. A readout mode
+       may not change ``detector_model`` or the ``vidicon`` block, and a vidicon has
        binning 1 only.
    * - ``native_frame_size_px``
      - no
@@ -1363,10 +1424,10 @@ is their single source of truth. Each :class:`~spindoctor.sim.artifact_modes.Art
 fixes the mode's name, its rendering stage (``telemetry`` or ``detector``), the
 :class:`~spindoctor.sim.artifact_modes.ModeParam` schema of its
 parameters, and its activation key with that key's meaning for the mode. Each
-instrument config entry's ``artifact_modes`` list says which modes that
+instrument entry's ``artifact_modes`` list says which modes that
 instrument offers (see :ref:`sim-instrument-files`). Every consumer reads that
 description rather than carrying its own copy: the scene validator
-(:func:`spindoctor.sim.scene_checks_artifacts._check_artifacts`), the telemetry
+(:func:`spindoctor.sim.scene.rules_artifacts._check_artifacts`), the telemetry
 and detector stages, and the scene-editor GUI all iterate the registry, so
 registering a mode is the whole job of adding one editor row, one validation
 entry, and one dispatch slot.
@@ -1375,7 +1436,7 @@ The block's two non-mode keys are switches: ``instrument_defaults`` (the
 physical-chain opt-in above) and ``adversarial`` (placement, below). Every other
 key must be a registered mode name, and an unknown key or an unimplemented mode
 fails validation. If a scene sets a mode on an instrument that doesn't offer it,
-validation fails with the reason the instrument's config entry states or, when
+validation fails with the reason the instrument entry states or, when
 the entry states none, with a list of the instruments that offer it.
 
 .. _sim-artifact-activation-keys:
@@ -1549,7 +1610,7 @@ registry entry lists as
 ``hot_pixels``, ``bloom``, ``radiation_transients``, ``bright_dark_pairs``,
 ``frame_transfer_smear``, ``serial_tail``, and ``fixed_pattern`` act in the CCD
 electron chain alone; ``beam_bend`` and ``residual_image`` act in the vidicon DN
-chain alone; the rest act in both. A config entry may not offer, give shape
+chain alone; the rest act in both. An instrument entry may not offer, give shape
 defaults to, or turn on a mode its detector model never renders. If a scene
 asks for a mode that its detector model never renders, scene validation refuses
 it. The scene's detector model is its own ``detector.detector_model``, else its
@@ -1629,8 +1690,9 @@ on a mode that the scene's detector model never renders.
 Precedence
 ----------
 
-A mode's parameter value is resolved scene value over catalog default over
-registry default (:func:`~spindoctor.sim.instrument_resolvers.resolve_mode_with_catalog`),
+A mode's parameter value is resolved scene value over the instrument entry's shape
+default over the registry default
+(:func:`~spindoctor.sim.instruments.resolvers.resolve_mode_with_catalog`),
 so a scene that sets a mode with only its activation key inherits the
 instrument's cataloged shape. The activation keys and ``count`` are never
 cataloged. Where a mode shares a
@@ -1643,7 +1705,7 @@ Adversarial placement
 ``artifacts: {adversarial: true}`` biases every enabled mode's stochastic
 placement onto the navigation features -- a lost line crosses the disc, a dead
 pixel lands on a star -- through the shared
-:mod:`spindoctor.sim.forward.feature_loci` helpers; placement is uniform when the
+:mod:`spindoctor.sim.render.feature_loci` helpers; placement is uniform when the
 switch is off or absent. Purely periodic or commanded shapes (``alternating_lines``,
 the frame-level edits) ignore the switch: their geometry is fixed once active.
 The switch is one scene-level flag, so a scene is either adversarial for all its
@@ -1862,19 +1924,19 @@ The body renderer
 =================
 
 A body is drawn by one of two renderers chosen by ``shape_model``: the
-ellipsoid renderer (``body.py``) and the polyhedral-mesh renderer
-(``body_mesh.py``), both sharing the axis convention below. A smooth Lambert
+ellipsoid renderer (``bodies/render.py``) and the polyhedral-mesh renderer
+(``bodies/mesh.py``), both sharing the axis convention below. A smooth Lambert
 ellipsoid at oversample 1 renders through the classic path unchanged. Whenever
 an ellipsoid body needs more than that -- a limb-relief field, a non-Lambert
 photometric law or opposition surge, a surface texture or a transit, or simply
 an oversampled radiance grid -- it dispatches to the *topographic path*
-(``body_topo.py``). All of the extra ingredients are truth keys: the
+(``bodies/topo.py``). All of the extra ingredients are truth keys: the
 navigator's predicted body is always the smooth Lambert template, so every one
 plants a known model error the technique must survive.
 
 **The body spec.** The scene radiance stage parses each ``bodies`` entry once into a
-frozen :class:`~spindoctor.sim.forward.body_spec.BodySpec`
-(:func:`~spindoctor.sim.forward.body_spec.body_spec_from_params`). Every default is
+frozen :class:`~spindoctor.sim.render.bodies.spec.BodySpec`
+(:func:`~spindoctor.sim.render.bodies.spec.body_spec_from_params`). Every default is
 applied there, and a key set to null gets the same default as an absent key. The
 stage then shifts each center by the ephemeris parallax, applies the planted roll to the
 center and to ``rotation_z``, and scales the centers and axes to the render grid. The body
@@ -1882,8 +1944,8 @@ renderer adds the planted translation when it draws the body. Both renderers rea
 spec. Two sub-blocks stay as their validated mappings, because their specs depend on the
 render: the ``atmosphere`` block's pixel lengths scale with the oversampling factor, and
 the ``albedo_texture`` noise draws its seed from the body's identity. The renderer builds
-them with :func:`~spindoctor.sim.forward.atmosphere.atmosphere_spec_from_params` and
-:func:`~spindoctor.sim.forward.body_texture.albedo_spec_from_params`, which read a null
+them with :func:`~spindoctor.sim.render.bodies.atmosphere.atmosphere_spec_from_params` and
+:func:`~spindoctor.sim.render.bodies.texture.albedo_spec_from_params`, which read a null
 key as absent too.
 
 The stage also writes each body's entry in the render truth. The entry starts as a
@@ -1897,7 +1959,7 @@ for a mesh body, adds the pose scatter it drew.
 **Placing a body.** Each body is drawn once, centered on the frame, and the drawing
 is cached on every parameter except position. The renderer then moves the drawing to
 the body's scene position plus the planted offset by linear interpolation
-(:mod:`~spindoctor.sim.forward.translate`). An offset sweep therefore draws each body
+(:mod:`~spindoctor.sim.render.bodies.translate`). An offset sweep therefore draws each body
 once and only moves it at each step. At catalog size a new drawing costs 0.03 to
 0.12 s. At 1024 x 1024 it costs 1.3 to 4.6 s, against 0.02 to 1.9 s to move a cached
 one.
@@ -2165,7 +2227,7 @@ Surface texture and transits
 
 Three multiplicative-texture families sit on the body *shading* (never the
 silhouette), so they change what disc correlation sees without moving the limb
-the navigator fits (``body_texture.py``):
+the navigator fits (``bodies/texture.py``):
 
 - ``albedo_texture`` (truth): a band-limited multiplicative noise field
   (``rms``, ``corr_px`` in detector pixels on the disc) plus discrete circular
@@ -2200,12 +2262,12 @@ Mesh shading, detail, relief, and pose scatter
 ----------------------------------------------
 
 The mesh renderer builds the same irregular polyhedron the navigator predicts
-(the primitives live in the shared ``mesh_geometry`` module). The polyhedron is a
+(the primitives live in the shared :mod:`spindoctor.sim.shared.mesh` module). The polyhedron is a
 latitude-longitude sphere of ``mesh_n_lat`` bands and ``mesh_n_lon`` divisions.
 Each vertex sits at radius ``1 + mesh_lumpiness * h(u)`` along its unit direction
 ``u``, floored at 0.2. The relief ``h`` is a random sum of real spherical
 harmonics of degrees 2 to 5, drawn from ``mesh_seed`` with the same synthesis the
-limb-relief field uses (:mod:`spindoctor.sim.spherical_harmonics`). Because ``h``
+limb-relief field uses (:mod:`spindoctor.sim.shared.spherical_harmonics`). Because ``h``
 is a function on the sphere, the surface is smooth everywhere, including at the
 mesh's poles, and raising ``mesh_n_lat`` and ``mesh_n_lon`` samples the same
 surface more finely.
@@ -2286,7 +2348,7 @@ twelve ellipsoid-only appearance keys on a ``polyhedral_mesh`` body:
 ``crater_relief_scale``. A null value reads as an absent key. The mesh renderer
 would silently ignore these keys, and a scene that asks for an effect must render
 it or fail loudly. The list is ``MESH_UNSUPPORTED_KEYS`` in
-:mod:`spindoctor.sim.scene_schema`, and ``mesh_unsupported_message`` there
+:mod:`spindoctor.sim.scene.fields`, and ``mesh_unsupported_message`` there
 builds the refusal. The sim editor reads both: on a mesh body it disables every
 control that writes one of these keys, and it shows the refusal as the tooltip
 of that control and of every control and label inside it, so hovering any of
@@ -2398,7 +2460,7 @@ one exponential column, one illumination weight, no azimuthal or hemispheric
 structure. That is a problem for grading
 :doc:`the haze solar-symmetry fit <dev_guide_techniques_titan_haze>`, which
 measures pointing FROM that symmetry and would otherwise be scored against a
-scene built from its own assumption. ``haze_structure.py`` supplies six optional
+scene built from its own assumption. ``bodies/haze.py`` supplies six optional
 truth keys inside the same ``atmosphere`` block that break it, each with its own
 render-level test asserting the effect is measurably present:
 
@@ -2546,7 +2608,7 @@ The ring renderer
 =================
 
 The whole ring system of a scene is one ``ring_system`` block drawn by one
-renderer (``ring_system.py``): a list of radial optical-depth features
+renderer (``rings/render.py``): a list of radial optical-depth features
 composed into a single tau map in ring-plane coordinates, projected through
 the shared opening-angle geometry, lit by the single-scattering closed forms,
 and composited over the body stack as a per-pixel transmission screen. The
@@ -2909,14 +2971,14 @@ version is converted, not accommodated.
 
 The scene catalog (:mod:`spindoctor.sim.scene`) is the durable test artifact, laid out
 as ``tests/integration/sim_scenes/<scene_class>/<scene_name>.yaml`` (the
-directory is the registry). :func:`spindoctor.sim.scene.load_sim_scene` parses and
+directory is the registry). :func:`spindoctor.sim.scene.io.load_sim_scene` parses and
 validates a file and returns the flat ``sim_params`` dict the renderer consumes;
 the GUI's "Save Scene (YAML)" / "Load Scene (YAML)" buttons read and write the
-same format via :func:`spindoctor.sim.scene.save_sim_scene`; and programmatic
+same format via :func:`spindoctor.sim.scene.io.save_sim_scene`; and programmatic
 scene authors -- the calibration-campaign generator
 ``util/calibration/scene_gen.py`` and the doc-gallery definitions in
 ``tests/integration/sim_doc_images.py`` -- validate their in-memory dicts
-through the same core, :func:`spindoctor.sim.scene.validate_sim_params`. Every
+through the same core, :func:`spindoctor.sim.scene.validate.validate_sim_params`. Every
 render calls it too, so a dict that skips this step is still checked before it
 renders.
 Validation is strict: an unknown key at the top level or inside a ``bodies`` /
@@ -2992,7 +3054,7 @@ ignores; ``scene_name`` must equal the filename stem. Every other key is a flat
 through ``obs.nav_params``; *truth* keys are readable only by the image-side
 renderer. The tables below state each key's side. A key added to the schema
 without a classification fails the import-time completeness assertion in
-:mod:`spindoctor.sim.scene`, so every schema change must extend the boundary in
+:mod:`spindoctor.sim.scene.boundary`, so every schema change must extend the boundary in
 the same change.
 
 .. _sim-pixel-convention:
@@ -3059,8 +3121,8 @@ default. A top-level block or list set to null reads as unset. Inside the ``bodi
 ``stars``, ``optics``, ``sky_counts``, ``spk_error``, ``noise``, ``detector``,
 ``artifacts``, and ``ring_system`` blocks, an optional key that validation accepts as
 null renders exactly as an absent key does. The navigator reads it as absent too:
-:func:`~spindoctor.sim.scene.build_nav_params` leaves a null body, star, or ring key
-out of the navigator's view. For a key set to null inside ``nav_override``, the navigator
+:func:`~spindoctor.sim.scene.boundary.build_nav_params` leaves a null body, star, or ring key
+out of the navigator view. For a key set to null inside ``nav_override``, the navigator
 sees the scene's own value. Validation refuses null on a few optional keys, which the
 author leaves out instead: ``optics.psf.match_navigator``, an ``optics.smear`` entry's
 ``object_class``, and the map of an artifact mode inside ``artifacts``. A parameter
@@ -3213,7 +3275,7 @@ inside a mode's map may be null and takes its default.
      - dict
      - none
      - idealized
-     - Per-instrument config overrides (see :ref:`sim-instrument-config`).
+     - Overrides of the navigator block (see :ref:`sim-instrument-config`).
    * - ``expected``
      - map
      - none
@@ -3241,7 +3303,7 @@ a scene plants shape error through ``nav_override``, not by hiding the mesh).
 Every body key, and every optional key inside a body's sub-blocks, may be null. A
 null key renders exactly as an absent key does (see the body spec in
 :ref:`sim-body-renderer`), gives the same render truth, and is left out of the
-navigator's view. For a key set to null inside ``nav_override``, the navigator sees
+navigator view. For a key set to null inside ``nav_override``, the navigator sees
 the scene's own value. An entry of a
 fixed-length list, such as ``pose_euler_deg`` or a cloud's ``center_vu``, can't be
 null. Common fields:
@@ -3380,7 +3442,7 @@ refused on a ``polyhedral_mesh`` body (see :ref:`sim-mesh-appearance`).
 **Render geometry vs navigation geometry.** By default the navigator predicts
 the body from the same idealized parameters the renderer drew, so it knows the
 geometry exactly. A body may carry an optional ``nav_override`` mapping that
-the boundary filter (:func:`spindoctor.sim.scene.build_nav_params`) overlays
+the boundary filter (:func:`spindoctor.sim.scene.boundary.build_nav_params`) overlays
 onto the body's idealized view before the navigator sees it -- the renderer
 ignores it and always draws the true geometry, and the overridden true values
 never cross. This separates the *render geometry* (ground truth) from the
@@ -3414,7 +3476,7 @@ near/far-arm asymmetry real ring images have; ``|B| = 90`` reduces to
 sky-plane circles. Ring-plane longitude is measured from the ascending node
 *in the ring plane*: every orbital angle lives in that frame, and the node
 angle enters only the final sky rotation. Both sides project through the
-same helpers (:mod:`spindoctor.sim.ring_geometry`), so predicted edges land
+same helpers (:mod:`spindoctor.sim.shared.ring`), so predicted edges land
 in projected positions by construction.
 
 **Photometry and compositing.** Brightness derives from the composed tau and
@@ -3441,7 +3503,7 @@ distance. The one exception is a moonlet's ``radius_px``, the radius of its
 disc in image pixels: the disc is drawn on the sky, so it isn't foreshortened.
 Every angle is in degrees and carries ``_deg`` in its name, and the renderer
 converts to radians internally. Every longitude is measured in the ring plane
-from the ascending node. ``RING_KEY_DESCRIPTIONS`` in :mod:`spindoctor.sim.scene_schema` says
+from the ascending node. ``RING_KEY_DESCRIPTIONS`` in :mod:`spindoctor.sim.scene.fields` says
 what each length and angle key the sim editor's tooltips describe holds, and
 the tooltips read their descriptions from it. Every mapping in the block,
 down to each orbit, m-mode, edge wave, modulation, spokes, and moonlet entry,
@@ -3450,7 +3512,7 @@ accepts only its own keys, so an unknown key anywhere in it fails validation.
 **Null keys.** An optional key set to null anywhere in the block counts as unset:
 the validator, the renderer, the orbit parser the navigator-side model shares
 (``ring_orbit_from_mapping``), and the sim editor all read it as the absent key,
-through ``scene_value`` in :mod:`spindoctor.sim.scene_schema`. A required key
+through ``scene_value`` in :mod:`spindoctor.sim.scene.fields`. A required key
 set to null is refused as missing.
 
 **Features.** Each entry of ``features`` carries ``name``, ``kind``, ``tau``
@@ -3471,7 +3533,7 @@ and ``navigable`` (default false). The kinds and their shape keys:
 
 Every kind requires ``kind``, ``tau``, and an ``orbit`` with ``orbit.a_px``.
 The shape keys follow one table, ``RING_KIND_SHAPE_KEYS`` in
-:mod:`spindoctor.sim.scene_schema`, which the validator enforces and the sim
+:mod:`spindoctor.sim.scene.fields`, which the validator enforces and the sim
 editor's kind switch follows. The switch grays out a widget the kind rejects,
 and the widget's tooltip says why. Each widget the kind takes shows the value
 the renderer will use: the stored value, or for an absent ``side`` the kind's
@@ -3557,7 +3619,7 @@ per-star smear vector
 two-integer list), and an optional ``navigable`` flag. All of those are
 idealized -- they are the catalog and instrument knowledge a real pipeline has.
 ``navigable`` defaults to true when absent; setting it to ``false`` renders the
-star but drops it from the navigator's filtered view entirely, so a *surviving*
+star but drops it from the navigator view entirely, so a *surviving*
 star's flag is always true and carries no hidden truth (which is why it is
 idealized, not truth).
 
@@ -3621,7 +3683,7 @@ explicit ``optics.psf`` block.
 
 The faint sky-count integral is truncated at the magnitude where a star's matched-filter
 signal drops to the read-noise floor over its PSF core
-(:func:`spindoctor.sim.forward.star.faint_sky_cutoff_mag`): fainter draws add nothing
+(:func:`spindoctor.sim.render.radiance.stars.faint_sky_cutoff_mag`): fainter draws add nothing
 above the noise. The core counts as at least one pixel, since a core narrower than a
 pixel, as in a binned frame, still lands in one. That cutoff is an image-side rendering
 economy and is distinct from the navigator's own published-config detection limit
@@ -3637,8 +3699,8 @@ Detector-noise block
 The optional ``noise`` dict (truth-side) pins the truth-side detector noise the
 scene plants. The detector stage consumes most of it; the missing-data markers
 are applied by the telemetry stage. Each field is off at the floor unless the
-block sets it (or ``artifacts.instrument_defaults`` turns on the catalog
-chain); an explicit noise key always wins over the catalog value. A key set to
+block sets it (or ``artifacts.instrument_defaults`` turns on the camera's
+physical chain); an explicit noise key always wins over the detector default. A key set to
 null, here or in ``noise.vidicon``, counts as unset and resolves as if it were
 absent, as a null ``detector`` key does, so ``noise: {poisson: null}`` keeps the
 shot noise ``instrument_defaults`` turns on. The validator checks the block
@@ -3661,8 +3723,8 @@ against exactly this inventory, so an unknown noise key fails loudly.
      - float
      - 0 (off)
      - Gaussian read-noise sigma in DN (converted to electrons through the
-       resolved gain). ``instrument_defaults`` supplies the catalog
-       electrons value instead.
+       resolved gain). ``instrument_defaults`` supplies the detector
+       defaults' value in electrons instead.
    * - ``bias_dn``
      - float
      - instrument
@@ -3675,7 +3737,7 @@ against exactly this inventory, so an unknown noise key fails loudly.
      - Expected cosmic-ray events per pixel per second the detector collects: a
        frame's event count is a Poisson draw with mean rate x
        (``exposure_sec`` + ``cosmic_ray_readout_dwell_sec``) x pixel count.
-       ``instrument_defaults`` supplies the catalog rate, which each camera's
+       ``instrument_defaults`` supplies the detector defaults' rate, which each camera's
        instrument page (:doc:`instruments/instruments`) gives. The CCD chain
        deposits the hits in electrons; the vidicon chain deposits full-scale
        hits in DN and adds no readout dwell (see :ref:`sim-detector-stage`).
@@ -3688,13 +3750,13 @@ against exactly this inventory, so an unknown noise key fails loudly.
      - float
      - full well
      - Smallest deposit per cosmic-ray event, in electrons; an event leaves
-       this times one plus a standard lognormal draw. The catalog's fitted
+       this times one plus a standard lognormal draw. The detector defaults' fitted
        deposits give modest hits; unset, every hit is full-well scale.
    * - ``cosmic_ray_spread_px``
      - float
      - 0.0
-     - Gaussian charge-diffusion sigma of each cosmic-ray event. The catalog
-       states it in native pixels, so a binned frame sees it shrink by the
+     - Gaussian charge-diffusion sigma of each cosmic-ray event. The detector
+       defaults state it in native pixels, so a binned frame sees it shrink by the
        binning; a scene value is the frame pixel's own.
    * - ``missing_data_rate``
      - float
@@ -3705,7 +3767,7 @@ against exactly this inventory, so an unknown noise key fails loudly.
      - int
      - 0 (off)
      - Full-well column-bloom half-length in pixels; ``instrument_defaults``
-       supplies the catalog value.
+       supplies the detector default.
    * - ``signal_full_scale_frac``
      - float
      - instrument
@@ -3726,11 +3788,11 @@ against exactly this inventory, so an unknown noise key fails loudly.
      - Fraction of pixels that are hot (the emulated detector's fixed map).
    * - ``hot_pixel_amplitude_e``
      - float
-     - catalog
+     - detector default
      - Hot-pixel charge scale in electrons (exponentially distributed).
    * - ``hot_pixel_column_factor``
      - float
-     - catalog
+     - detector default
      - Fraction of a hot pixel's TOTAL charge bled up its column (the warm
        streak's integral, frame-size-invariant).
    * - ``banding_amplitude_e``
@@ -3739,7 +3801,7 @@ against exactly this inventory, so an unknown noise key fails loudly.
      - Coherent horizontal-banding amplitude in electrons.
    * - ``banding_period_px``
      - float
-     - catalog
+     - detector default
      - Banding spatial period along the row axis, in pixels.
    * - ``bias_pedestal_sigma_dn``
      - float
@@ -3762,7 +3824,7 @@ against exactly this inventory, so an unknown noise key fails loudly.
        electrons per native pixel (calibrated frames only).
    * - ``vidicon``
      - dict
-     - catalog
+     - detector default
      - Vidicon DN-noise sub-map (vidicon path only): ``read_noise_line_dn``,
        ``read_noise_pixel_dn``, ``coherent_amplitude_dn``,
        ``coherent_period_px``.
@@ -3882,14 +3944,14 @@ exposure the signal full-scale fraction references), ``filter`` (below),
 ``sqrt_lut``, ``ls8b``, or ``contour_8bit``), and ``downlink_table`` (the name
 of the downlink table that the ``sqrt_lut`` sub-mode decodes through; see
 :ref:`sim-detector-stage` for when a scene may set it). Omitted keys, and keys
-set to null, fall back to the instrument's catalog defaults.
+set to null, fall back to the instrument's detector defaults.
 
 ``filter`` sets the filter combination the frame was shot through, written as
 the product label writes it (``CL1+CL2``). It sets how many electrons per second
 a native pixel collects from a surface at I/F 1.0, so the raw DN, a calibrated
 product's DN-to-I/F scale, and the star brightness all follow the filter. Only
 the Cassini NAC and WAC and their calibrated products have filter tables, in
-their config entries, which :mod:`spindoctor.sim.instrument_resolvers` reads.
+their instrument entries, which :mod:`spindoctor.sim.instruments.resolvers` reads.
 The values come from Cassini raw/CALIB pairs: the CISSCAL efficiency and
 absolute-correction factors in each CALIB label, times a camera constant fitted
 on 12-bit pairs, with measured values for the combinations that 12-bit pairs
@@ -3899,16 +3961,16 @@ CISSCAL treats it. Setting a filter on a camera without a table, or one the
 table doesn't list, is a validation error, and so is setting ``filter``
 together with ``exposure_ref_sec``.
 
-A scene that doesn't name a filter keeps the nominal scale its catalog entry derives. For
-the NAC that is 55,000 e-/s per I/F, close to its IR3 and HAL filters; for the WAC it is
-47,500, close to its MT3 filter. The throughput is the only part of the rendering that
-depends on the filter. Haze, body photometry, star color, and the PSF render the same for
-every filter.
+A scene that doesn't name a filter keeps the nominal scale its instrument entry
+derives. For the NAC that is 55,000 e-/s per I/F, close to its IR3 and HAL filters; for
+the WAC it is 47,500, close to its MT3 filter. The throughput is the only part of the
+rendering that depends on the filter. Haze, body photometry, star color, and the PSF render
+the same for every filter.
 
 ``binning`` selects a binned or summed readout mode, 1 by default: each frame
-pixel sums a ``b`` by ``b`` block of native pixels. Each instrument config
-file's ``readout_modes`` lists the camera's modes, and a mode it doesn't list is
-a validation error:
+pixel sums a ``b`` by ``b`` block of native pixels. Each instrument entry's
+``readout_modes`` lists the camera's readout modes, and choosing one it doesn't list
+is a validation error:
 
 .. list-table::
    :widths: 25 20 55
@@ -3916,17 +3978,17 @@ a validation error:
 
    * - Instrument
      - Binnings
-     - Published values the binned mode changes
+     - Published values the readout mode changes
    * - ``coiss_nac``, ``coiss_wac`` (and their calibrated products)
      - 1, 2, 4
-     - None in the catalog's sources; the SUM2 and SUM4 modes keep the 1x1
+     - None in the catalog's sources; the SUM2 and SUM4 readout modes keep the 1x1
        gain, read noise, and well.
    * - ``gossi``
      - 1, 2
-     - The summation mode reads 44 e- (31 e- at full resolution).
+     - The summation readout mode reads 44 e- (31 e- at full resolution).
    * - ``nhlorri``
      - 1, 4
-     - The 4x4 mode reads about 19.4 e-/DN (21 at 1x1).
+     - The 4x4 readout mode reads about 19.4 e-/DN (21 at 1x1).
    * - ``vgiss``
      - 1
      - The vidicon has no binned readout.
@@ -3934,25 +3996,25 @@ a validation error:
 The vidicon DN path has no binned readout on any camera, so a scene that pairs
 a binning above 1 with ``detector_model: vidicon`` is a validation error too.
 
-Whatever the mode, a binned pixel is the sum of its native pixels. An extended
-source deposits ``b**2`` times a native pixel's charge, and so do the catalog's
-dark current and cosmic-ray rate (a ``noise`` key the scene sets states the
-frame pixel's own value). A calibrated product's DN-to-I/F scale grows by the
-same factor, so a summed frame calibrates to the same I/F. A binned pixel
+Whatever the readout mode, a binned pixel is the sum of its native pixels. An
+extended source deposits ``b**2`` times a native pixel's charge, and so do the
+instrument entry's dark current and cosmic-ray rate (a ``noise`` key the scene sets
+states the frame pixel's own value). A calibrated product's DN-to-I/F scale grows by
+the same factor, so a summed frame calibrates to the same I/F. A binned pixel
 saturates at ``b**2`` native wells, the charge its block holds, so a bright
 extended source keeps that I/F up to the ADC clip. A star's total charge is
-unchanged, and the instrument PSF kernel, which the catalog states in native
-pixels, shrinks by ``b``, so the star lands in fewer, brighter pixels. The hot
-pixels are the detector's native map summed into each binned pixel, the residual
+unchanged, and the instrument PSF kernel, which the instrument entry states in
+native pixels, shrinks by ``b``, so the star lands in fewer, brighter pixels. The
+hot pixels are the detector's native map summed into each binned pixel, the residual
 distortion's non-radial wander shrinks by ``b`` (``k1`` and ``k2`` act on the
 radius normalized to the frame), and the background sky's plate scale grows by
-``b``. The sky's faint cutoff reads the mode's read noise. The navigator's view
-of the scene states the binning, as a real label does, and its faint-star limit
-reads the mode's values from the navigator's own configuration (see
+``b``. The sky's faint cutoff reads the readout mode's read noise. The navigator
+view states the binning, as a real label does, and its faint-star limit reads the
+readout mode's values from the navigator's own configuration (see
 :ref:`sim-information-boundary`). Positions and sizes the scene states are in
-frame pixels whatever the mode. The realism match reads a cohort frame's mode
-from its size: a camera's full frame binned by ``b`` is its native size over
-``b`` (the config entry's ``native_frame_size_px``).
+frame pixels whatever the readout mode. The realism match reads a cohort frame's
+readout mode from its size: a camera's full frame binned by ``b`` is its native
+size over ``b`` (the instrument entry's ``native_frame_size_px``).
 
 .. _sim-artifacts-block:
 
@@ -3966,7 +4028,7 @@ switch ``instrument_defaults`` (see :ref:`sim-artifacts-catalog`), the
 residual, and detector noise chain render at their per-instrument values. The
 artifact modes' activation keys stay at zero, because choosing an instrument
 selects a signal chain and plants no defects. There is one exception: if the
-instrument's config entry lists a mode under
+instrument entry lists a mode under
 ``artifact_modes.instrument_defaults``, that mode turns on. LORRI's entry lists
 ``frame_transfer_smear``, its defining artifact, which renders at the entry's
 nominal scrub and transfer times. Leaving ``instrument_defaults``
@@ -3975,7 +4037,7 @@ off keeps those keys absent (the self-consistency floor).
 The artifact modes are registered once in
 :mod:`spindoctor.sim.artifact_modes` -- the single source of truth for
 each mode's rendering stage (``detector`` or ``telemetry``) and parameter
-schema; the instrument config files say which instruments offer it. Every mode
+schema; the instrument entries say which instruments offer it. Every mode
 carries one activation key (see :ref:`sim-artifact-activation-keys`):
 ``expected_events`` for a count mode (the expected number of events per frame,
 drawn Poisson), ``expected_events_per_sec``
@@ -4007,12 +4069,12 @@ brightness-dependent limb bias and erase-cycle ghost), ``fixed_pattern``
 (stitch combs, vignetting, dust donuts, jail bars, PRNU), and the quantization
 modes ``quantization_sqrt_lut``, ``quantization_ls8b``, and
 ``quantization_contour_8bit``. The mechanics live in
-:mod:`spindoctor.sim.forward.detector.electronics_stages`; an explicit mode
+:mod:`spindoctor.sim.render.detector.electronics_stages`; an explicit mode
 wins over the generic noise-block knob for the same mechanic (banding, bias,
 bloom, quantization), the precedence ``hot_pixels`` already uses.
 
 **Telemetry-artifact modes** flank the structured loss loop in the telemetry
-stage (:mod:`spindoctor.sim.forward.telemetry_artifacts`):
+stage (:mod:`spindoctor.sim.render.telemetry.artifacts`):
 ``compression_dct`` runs first (the lossy 8x8 DCT blockiness a codec plants
 before packets drop, leaving any commanded ``truth_window`` clean; on a calibrated
 frame it quantizes the DN the spacecraft transmitted, pedestal included, and maps
@@ -4030,8 +4092,8 @@ worst-case. Deterministic-shape modes (banding, fixed pattern, frame-transfer
 smear, the quantization modes) are unaffected by the flag -- their shape does not
 depend on where the features are.
 
-Per-instrument shape defaults for every mode live in each instrument config
-file's ``artifact_modes.shape_defaults`` (see :ref:`sim-instrument-files`). If
+Per-instrument shape defaults for every mode live in each instrument entry's
+``artifact_modes.shape_defaults`` (see :ref:`sim-instrument-files`). If
 a scene sets only a mode's activation key, the mode takes these defaults, and
 any parameter the scene spells out overrides its default. The test helper
 ``tests/spindoctor/sim/artifact_counts.py`` reads back the geometry each mode
@@ -4041,16 +4103,16 @@ class are in :ref:`sim-artifact-framework`.
 
 .. _sim-instrument-config:
 
-Instrument-config overrides
----------------------------
+Navigator-block overrides
+-------------------------
 
-The optional ``instrument_config`` dict is deep-merged over the resolved
-per-instrument block, so a scene can pin individual settings (PSF sigma, noise,
-extfov margin) without tracking later camera-config edits. Omit it to inherit
+The optional ``instrument_config`` dict is deep-merged over the navigator block, so
+a scene can pin individual settings (PSF sigma, noise, extfov margin) without
+tracking later camera-config edits. Omit it to inherit
 everything. To fully self-specify, choose ``generic`` and override every key except
 ``data_units``, which a scene can't set here. A frame's units come only from the
-instrument's config entry. Scene validation refuses the key, and so does
-:func:`~spindoctor.sim.instrument_navigator.resolve_sim_inst_config` for a scene
+instrument entry. Scene validation refuses the key, and so does
+:func:`~spindoctor.sim.instruments.navigator_link.resolve_sim_inst_config` for a scene
 that skipped validation. For rendering, the top-level ``noise`` block wins over
 ``instrument_config.noise``.
 
@@ -4070,7 +4132,7 @@ validation refuses one that doesn't.
 A scene is where values from outside the packaged configuration enter the navigator
 block, so scene validation checks every value a scene sets that the faint-star
 limit reads, at every binning. Every read noise must be a finite number of at least
-0, the unbinned one and each binned mode's alike. A read noise of 0 is an ideal
+0, the unbinned one and each binned readout mode's alike. A read noise of 0 is an ideal
 detector, which the limit reads at its 1 DN noise floor. Every zero point must be a
 finite, positive number, and so must ``star_psf_sigma``. Each key of
 ``noise.by_binning`` is a binning factor of at least 2, and each entry is a mapping
@@ -4093,14 +4155,14 @@ knowledge: a scene whose ``instrument_config.noise.read_noise_dn`` equals its
 truth-side ``noise.read_noise_dn`` lets the navigator's SNR model adapt to the
 planted noise, and the recovery looks better than it should. Nothing can stop an
 author from doing that, so the validator warns instead, with
-:class:`~spindoctor.sim.scene_truth_echo.SimSceneTruthEchoWarning`, which gives both
+:class:`~spindoctor.sim.scene.truth_echo.SimSceneTruthEchoWarning`, which gives both
 sites. It compares each ``noise`` key, ``noise.vidicon`` included, with the
 ``instrument_config.noise`` key of the same name, and ``optics.psf.sigma_v`` and
 ``sigma_u`` with ``instrument_config.star_psf_sigma``. On a binned frame it also
 compares each ``noise`` key with the same key under
 ``instrument_config.noise.by_binning.<b>`` for the frame's binning ``<b>``, which
 is the value the frame's star limit reads. The ``detector`` block
-doesn't share a key with the instrument config and isn't compared. The
+doesn't share a key with the navigator block and isn't compared. The
 navigator doesn't read the vidicon keys, so a ``noise.vidicon`` warning says
 only that the published config carries the scene's realization. When the two
 are equal on purpose, the scene lists the truth paths in
@@ -4237,7 +4299,7 @@ live preview. Launch it with:
 
    sd_create_simulated_image
 
-The editor is the :mod:`spindoctor.cli.sim_editor` package: a single
+The editor is the :mod:`spindoctor.ui.sim_editor` package: a single
 ``QMainWindow`` (``CreateSimulatedImageModel``) composed from one mixin per
 schema block, so each block's controls -- and any control group a later
 realism addition needs -- live in their own module:
@@ -4346,19 +4408,19 @@ value the renderer draws with:
 * **Unset and null keys.** Leaving a key out and setting it to null both mean "use the
   default", and the control shows the renderer's default. The tabs take every
   default from the renderer. They read each optional key through
-  :func:`~spindoctor.sim.scene_schema.scene_value` with the renderer's default, or read
+  :func:`~spindoctor.sim.scene.fields.scene_value` with the renderer's default, or read
   the spec the renderer builds: the body tab and its appearance groups use
-  :func:`~spindoctor.sim.forward.body_spec.body_spec_from_params`, and the
-  background-sky controls use :data:`~spindoctor.sim.forward.star.SKY_COUNTS_DEFAULTS`.
+  :func:`~spindoctor.sim.render.bodies.spec.body_spec_from_params`, and the
+  background-sky controls use :data:`~spindoctor.sim.render.radiance.stars.SKY_COUNTS_DEFAULTS`.
 * **Values outside a control's range.** A control shows the nearest end of its range.
   For example, if a body's ``semi_a_px`` is unset, the renderer draws that semi-axis as
   0, and its control shows its minimum, half a pixel.
 * **Bodies whose name, center, or range is unset.** A body whose name is unset shows
   the name the renderer gives it, from
-  :func:`~spindoctor.sim.scene_schema.default_body_name` (``SIM-BODY-1`` for the first
+  :func:`~spindoctor.sim.scene.fields.default_body_name` (``SIM-BODY-1`` for the first
   body). A body whose center is unset shows the frame center. A body whose range is
   unset shows the range the renderer gives it, from
-  :func:`~spindoctor.sim.scene_schema.default_body_range_km` (1 km for the first body),
+  :func:`~spindoctor.sim.scene.fields.default_body_range_km` (1 km for the first body),
   and its range control stays disabled. The renderer refuses to draw two overlapping
   bodies unless both set a range, so checking **Set range (km)** writes the range the
   control shows, and the author can make the default explicit without changing it.
@@ -4402,9 +4464,9 @@ toggle but offers no controls for either; they are baseline-measured values,
 authored in YAML. Scenes
 round-trip through the **Load / Save Scene (YAML)** buttons, so a scene rendered
 in the GUI can be saved as a catalog artifact and a catalog scene can be loaded
-back to edit; ``tests/main/test_sim_editor_round_trip.py`` asserts the
-round-trip is loss-free over the full key inventory. The GUI is one peer, not
-the sole control surface; the YAML and the Python API are equally
+back to edit; ``tests/spindoctor/ui/sim_editor/test_sim_editor_round_trip.py``
+asserts the round-trip is loss-free over the full key inventory. The GUI is one
+peer, not the sole control surface; the YAML and the Python API are equally
 authoritative.
 
 .. _sim-editor-verdict-thread:
@@ -4469,9 +4531,9 @@ thread. ``FullRenderRunner`` in ``full_render.py`` renders the offset-free pictu
   ``SimFrame``, its own parameter dict (decoded from the cache key), and its own
   per-stage ``numpy.random.Generator`` streams, and the sim package keeps no
   other module state and does not log. Its ``lru_cache`` tables (the scene cache
-  in ``render.py`` and the star, body, mesh, relief, and PSF stage caches) stay
+  in ``render/driver.py`` and the star, body, mesh, relief, and PSF stage caches) stay
   coherent under concurrent calls, and no caller writes into a cached value:
-  ``render_combined_model`` returns copies, and the stage caches' callers only
+  ``render_scene`` returns copies, and the stage caches' callers only
   read theirs. The configuration is loaded by the first preview, before any
   background render is requested, and the render path only reads it. Two
   overlapping misses on one cache key compute the same value twice, which costs time
@@ -4495,13 +4557,13 @@ A simulated image is navigated through the same pipeline as a real frame, via th
    sd_offset sim /path/to/scene.yaml
 
 The ``sim`` dataset (``DataSetSim``) builds an :class:`~spindoctor.obs.obs_inst_sim.ObsSim`
-that loads the scene via :func:`spindoctor.sim.scene.load_sim_scene`, renders the
-frame through the forward model, and exposes the navigator the filtered
-idealized scene view ``obs.nav_params`` (see
+that loads the scene via :func:`spindoctor.sim.scene.io.load_sim_scene`, renders the
+frame with the simulator's renderer, and exposes the navigator view
+``obs.nav_params`` to the navigator (see
 :ref:`sim-information-boundary`). The model-selection layer routes a simulated
 obs to the simulated NavModels -- ``NavModelBodySimulated``,
 ``NavModelRingsSimulated``, ``NavModelStarsSimulated`` -- which build one
-feature set per body / ring / star field from that filtered view, while the
+feature set per body / ring / star field from that navigator view, while the
 SPICE-backed models decline a simulated obs. From there the same techniques run
 and produce the same ``NavResult``. In tests the scene is usually driven
 directly:
@@ -4587,7 +4649,7 @@ instrument, on seven figures of merit:
    On a frame filled with rings or a body, the darkest patches lie on the rings
    or the body.  Comparing their noise with the other frame's dark sky would set
    signal-dependent noise against sky noise.  So a patch counts only when it lies
-   on dark sky, and the test uses two values from the camera's config entry.  The
+   on dark sky, and the test uses two values from the camera's instrument entry.  The
    first is the calibrated sky residual, the level at which the simulator draws
    empty calibrated sky.  The second is the dark-sky ceiling,
    ``dark_sky_ceiling_if`` in the entry's ``detector`` block, in I/F.  A patch
@@ -4670,11 +4732,11 @@ instrument, on seven figures of merit:
 5. **Dynamic range** -- fraction saturated, fraction near the frame floor,
    and signal-percentile stretch, always inside exposure strata: an
    unstratified comparison measures what the spacecraft pointed at, not the
-   forward model.
+   renderer.
 6. **Artifact rates** -- measured rates of lost/interpolated lines and
    single-pixel spikes, with a cross-frame split of spikes into stationary
    (hot pixels, which recur at fixed detector positions) and transient
-   (cosmic rays), compared against the artifacts-catalog defaults.
+   (cosmic rays), compared against the detector defaults.
 7. **Technique diagnostics** -- for a handful of matched real/sim pairs the
    full navigator runs on both frames and the per-technique diagnostics
    (inlier counts, residual scatter, confidences) are tabulated side by
@@ -4716,7 +4778,7 @@ filter, only the field's few bright stars show.
 The list stops at a faint cutoff that depends on the camera, the exposure, and
 the readout binning, but not on the filter.  It is the cutoff the renderer uses
 for its background sky stars
-(:func:`spindoctor.sim.forward.scene_radiance.sky_star_faint_cutoff_mag`), worked
+(:func:`spindoctor.sim.render.radiance.compose.sky_star_faint_cutoff_mag`), worked
 out for the matched scene through the clear filter.  A star at the cutoff delivers
 a total signal equal to the camera's read noise over the star's core.  The core
 covers 2π σ² pixels, where σ is the Gaussian width of the matched scene's star
@@ -5231,8 +5293,8 @@ the regression check's fresh match read real frames and carry only the
 
 The per-instrument match quality, the figures, and the known-gaps list
 live in the simulator report's realism section
-(:doc:`/simulator_report/simulator_report`).  Tuned catalog defaults in the
-instrument config files (``src/spindoctor/sim/instrument_configs/``) carry their
+(:doc:`/simulator_report/simulator_report`).  Tuned defaults in the
+instrument files (``src/spindoctor/sim/instruments/configs/``) carry their
 provenance in a comment next to the value: which cohort statistic moved them,
 measured when, replacing what.
 

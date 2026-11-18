@@ -52,7 +52,7 @@ import numpy as np
 
 from spindoctor.nav_orchestrator.ensemble_observability import mixed_scale_pinvh
 from spindoctor.nav_orchestrator.nav_result import NavResult
-from spindoctor.sim.scene import iter_scene_paths, scene_class_for_path
+from spindoctor.sim.scene.io import iter_scene_paths, scene_class_for_path
 
 FUSED = '*'
 """The technique key for the orchestrator's fused answer."""

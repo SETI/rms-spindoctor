@@ -278,8 +278,8 @@ Artifact-rate defaults and provenance
 -------------------------------------
 
 The per-instrument artifact-rate defaults the forward model applies live
-in the ``detector`` block of each instrument's config entry under
-``sim/instrument_configs/``, resolved by ``resolve_detector_defaults``.  A
+in the ``detector`` block of each instrument entry under
+``sim/instruments/configs/``, resolved by ``resolve_detector_defaults_native``.  A
 calibrated Cassini entry states only what calibration changes and sets its raw
 camera as its ``base``, inheriting every other value from that entry.  Its
 cosmic-ray terms, and their provenance, are therefore in the ``coiss_nac`` and
@@ -351,7 +351,7 @@ Cassini match quality
 
 The tuning pass (2026-07-17) adjusted the forward-model defaults so that
 rendered frames match the real Cassini cohort on FOMs 1-6.  The instrument
-config entries under ``sim/instrument_configs/`` state each tuned value, with its
+entries under ``sim/instruments/configs/`` state each tuned value, with its
 tuning date and cohort statistics in the comment beside it.  This table records
 the headline divergences before that pass and in the current record
 (2026-11-17; normalized W1; smaller is better, ~1 means displaced by one
@@ -613,7 +613,7 @@ the absolute value is not.
    :alt: Cassini NAC artifact rates, real vs sim
 
    FOM 6, Cassini NAC: measured line-loss and single-pixel-spike rates
-   against the catalog defaults.
+   against the detector defaults.
 
 The other instruments
 ---------------------

@@ -12,11 +12,12 @@ from typing import Any
 
 import numpy as np
 import pytest
+from tests.spindoctor.sim.scenes import body_scene
 
-from spindoctor.sim.forward.detector.params import resolve_detector_params
-from spindoctor.sim.render import render_combined_model
-from spindoctor.sim.scene import validate_sim_params
-from spindoctor.sim.scene_checks import _NOISE_KEYS, _VIDICON_NOISE_KEYS
+from spindoctor.sim.render.detector.params import resolve_detector_params
+from spindoctor.sim.render.driver import render_scene
+from spindoctor.sim.scene.rules_common import _NOISE_KEYS, _VIDICON_NOISE_KEYS
+from spindoctor.sim.scene.validate import validate_sim_params
 
 _NOISE_VALUE_KEYS = sorted(_NOISE_KEYS - {'vidicon'})
 _INSTRUMENTS = ('coiss_nac', 'vgiss', 'coiss_calib_nac', 'generic')
@@ -24,26 +25,7 @@ _INSTRUMENTS = ('coiss_nac', 'vgiss', 'coiss_calib_nac', 'generic')
 
 def _scene(instrument: str, *, instrument_defaults: bool, **extra: Any) -> dict[str, Any]:
     """A small disc scene on ``instrument``, with the physical chain on or off."""
-    scene: dict[str, Any] = {
-        'schema_version': 2,
-        'scene_name': 'null_noise',
-        'size_v': 32,
-        'size_u': 32,
-        'random_seed': 7,
-        'instrument': instrument,
-        'bodies': [
-            {
-                'name': 'RHEA',
-                'center_v': 16.0,
-                'center_u': 16.0,
-                'semi_a_px': 4.0,
-                'semi_b_px': 4.0,
-                'semi_c_px': 4.0,
-                'illumination_angle': 0.0,
-                'phase_angle': 0.0,
-            }
-        ],
-    }
+    scene = body_scene(4.0, instrument=instrument, size=32, seed=7, scene_name='null_noise')
     if instrument_defaults:
         scene['artifacts'] = {'instrument_defaults': True}
     scene.update(extra)
@@ -82,6 +64,6 @@ def test_null_missing_data_rate_renders_as_absent() -> None:
     """A null missing_data_rate renders the frame a scene without the key renders."""
     scene = _scene('coiss_nac', instrument_defaults=False, noise={'missing_data_rate': None})
     validate_sim_params(scene, source='null')
-    image, _ = render_combined_model(scene)
-    expected, _ = render_combined_model(_scene('coiss_nac', instrument_defaults=False))
+    image, _ = render_scene(scene)
+    expected, _ = render_scene(_scene('coiss_nac', instrument_defaults=False))
     np.testing.assert_array_equal(image, expected)

@@ -10,7 +10,7 @@ import math
 import numpy as np
 import pytest
 
-from spindoctor.sim.ring_geometry import compute_edge_radii_array, compute_edge_radius_at_angle
+from spindoctor.sim.shared.ring import compute_edge_radii_array, compute_edge_radius_at_angle
 
 
 def test_scalar_edge_radius_raises_on_impossible_eccentricity() -> None:

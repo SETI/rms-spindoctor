@@ -13,8 +13,8 @@ models and the quantization modes that the scene validator, the instrument
 schema, and the sim editor accept.
 
 **Availability.**  Which instruments offer a mode is not part of the registry:
-each simulated instrument's config entry lists the modes it offers (see
-:mod:`spindoctor.sim.instrument_catalog`), and may state why it does not offer
+each instrument entry lists the modes it offers (see
+:mod:`spindoctor.sim.instruments.catalog`), and may state why it does not offer
 one.  If a scene sets a mode that its instrument does not offer, validation fails
 with that reason, or with a message that lists the instruments that offer it.  The
 instrument-agnostic generic entry offers every mode, which keeps unit scenes free
@@ -608,7 +608,7 @@ def resolve_mode_config(mode_name: str, raw_config: Mapping[str, Any]) -> dict[s
     Returns:
         A fresh dict carrying every parameter, scene value overriding default.
         A key set to ``None`` reads as unset and takes the default, as in
-        :func:`~spindoctor.sim.instrument_resolvers.resolve_mode_with_catalog`.
+        :func:`~spindoctor.sim.instruments.resolvers.resolve_mode_with_catalog`.
     """
     mode = ARTIFACT_MODES[mode_name]
     resolved: dict[str, Any] = {}

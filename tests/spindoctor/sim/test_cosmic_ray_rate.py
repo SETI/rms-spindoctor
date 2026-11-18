@@ -17,16 +17,17 @@ from typing import Any, cast
 import numpy as np
 import pytest
 from scipy import ndimage
+from tests.spindoctor.sim.scenes import body_scene, frame_scene
 
 from spindoctor.config import DEFAULT_CONFIG
-from spindoctor.sim.forward.detector import apply_detector, chain
-from spindoctor.sim.forward.detector.noise_stages import add_cosmic_rays
-from spindoctor.sim.forward.detector.params import resolve_detector_params
-from spindoctor.sim.forward.stages import SimFrame
-from spindoctor.sim.instrument_catalog import instrument_entry, sim_instrument_names
-from spindoctor.sim.instrument_resolvers import resolve_detector_defaults
-from spindoctor.sim.render import render_combined_model
-from spindoctor.sim.scene import validate_sim_params
+from spindoctor.sim.instruments.catalog import instrument_entry, sim_instrument_names
+from spindoctor.sim.instruments.resolvers import resolve_detector_defaults_native
+from spindoctor.sim.render.detector import apply_detector, chain
+from spindoctor.sim.render.detector.noise_stages import add_cosmic_rays
+from spindoctor.sim.render.detector.params import resolve_detector_params
+from spindoctor.sim.render.driver import render_scene
+from spindoctor.sim.render.stages import SimFrame
+from spindoctor.sim.scene.validate import validate_sim_params
 from spindoctor.sim.seeds import derive_effect_seed
 
 _KEY = 'cosmic_ray_events_per_pixel_per_sec'
@@ -57,14 +58,7 @@ class _RecordingRng:
 
 def _scene(instrument: str, noise: dict[str, Any], **extra: Any) -> dict[str, Any]:
     """A minimal valid scene on ``instrument`` carrying ``noise``."""
-    scene: dict[str, Any] = {
-        'size_v': 32,
-        'size_u': 32,
-        'random_seed': 4,
-        'instrument': instrument,
-        'exposure_sec': 1.0,
-        'noise': noise,
-    }
+    scene = frame_scene(instrument=instrument, size=32, seed=4, exposure_sec=1.0, noise=noise)
     scene.update(extra)
     return scene
 
@@ -325,27 +319,15 @@ def test_a_vidicon_hit_core_holds_the_full_scale_under_the_readout_noise() -> No
 
 def _vgiss_bent_body(rate: float, seed: int) -> np.ndarray:
     """A 128 x 128 vgiss frame of a full-phase body with the beam bend on."""
-    scene = {
-        'size_v': 128,
-        'size_u': 128,
-        'instrument': 'vgiss',
-        'random_seed': seed,
-        'noise': {_KEY: rate},
-        'artifacts': {'beam_bend': {'amplitude_px': 1.0, 'probability': 1.0}},
-        'bodies': [
-            {
-                'name': 'RHEA',
-                'center_v': 64.0,
-                'center_u': 64.0,
-                'semi_a_px': 30.0,
-                'semi_b_px': 30.0,
-                'semi_c_px': 30.0,
-                'illumination_angle': 0.0,
-                'phase_angle': 0.0,
-            }
-        ],
-    }
-    img, _ = render_combined_model(scene)
+    scene = body_scene(
+        30.0,
+        instrument='vgiss',
+        size=128,
+        seed=seed,
+        noise={_KEY: rate},
+        artifacts={'beam_bend': {'amplitude_px': 1.0, 'probability': 1.0}},
+    )
+    img, _ = render_scene(scene)
     return img
 
 
@@ -367,7 +349,7 @@ def test_a_vidicon_hit_bends_the_beam_only_near_itself(seed: int) -> None:
 def test_null_detector_model_resolves_to_the_catalog_model(instrument: str) -> None:
     """An explicit null detector model renders through the instrument's default model."""
     scene = _scene(instrument, {}, detector={'detector_model': None})
-    expected = resolve_detector_defaults(instrument)['detector_model']
+    expected = resolve_detector_defaults_native(instrument)['detector_model']
     assert resolve_detector_params(scene).detector_model == expected
 
 

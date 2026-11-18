@@ -18,15 +18,16 @@ from typing import Any
 import numpy as np
 import pytest
 from tests.shims import bare_nav_context
+from tests.spindoctor.sim.scenes import disc_body, frame_scene, ring_system_block, star_entry
 
 from spindoctor.feature.feature import NavFeature
 from spindoctor.feature.feature_type import NavFeatureType
 from spindoctor.nav_model.nav_model import NavModel
-from spindoctor.nav_model.nav_model_body_simulated import NavModelBodySimulated
-from spindoctor.nav_model.nav_model_rings_simulated import NavModelRingsSimulated
-from spindoctor.nav_model.nav_model_titan_simulated import NavModelTitanSimulated
+from spindoctor.nav_model.simulated.body import NavModelBodySimulated
+from spindoctor.nav_model.simulated.rings import NavModelRingsSimulated
+from spindoctor.nav_model.simulated.titan import NavModelTitanSimulated
 from spindoctor.obs.obs_inst_sim import ObsSim
-from spindoctor.sim.render import render_combined_model
+from spindoctor.sim.render.driver import render_scene
 from spindoctor.support.types import NDArrayFloatType
 
 _SIZE = 128
@@ -37,30 +38,21 @@ _TOLERANCE_PX = 0.01
 
 def _scene(**content: Any) -> dict[str, Any]:
     """A noiseless coiss_nac scene holding ``content``."""
-    return {
-        'instrument': 'coiss_nac',
-        'size_v': _SIZE,
-        'size_u': _SIZE,
-        'random_seed': 1,
-        'exposure_sec': 1.0,
-        **content,
-    }
+    return frame_scene(size=_SIZE, exposure_sec=1.0, **content)
 
 
 def _sphere(name: str = 'BODY', **extra: Any) -> dict[str, Any]:
     """A head-on, fully lit sphere stated at the probe position."""
-    return {
-        'name': name,
-        'center_v': _STATED,
-        'center_u': _STATED,
-        'semi_a_px': 10.0,
-        'semi_b_px': 10.0,
-        'semi_c_px': 10.0,
-        'phase_angle': 0.0,
-        'illumination_angle': 0.0,
-        'range_km': 1.0e6,
+    return disc_body(
+        _STATED,
+        _STATED,
+        10.0,
+        name=name,
+        phase_angle=0.0,
+        illumination_angle=0.0,
+        range_km=1.0e6,
         **extra,
-    }
+    )
 
 
 def _titan() -> dict[str, Any]:
@@ -74,31 +66,19 @@ def _titan() -> dict[str, Any]:
 
 def _ring_system() -> dict[str, Any]:
     """A face-on circular ringlet centered on the probe position."""
-    return {
-        'geometry': {
-            'center_v': _STATED,
-            'center_u': _STATED,
-            'opening_deg_obs': 90.0,
-            'opening_deg_sun': 90.0,
-            'node_deg': 0.0,
-        },
-        'features': [
-            {
-                'name': 'RINGLET',
-                'kind': 'ringlet',
-                'tau': 1.0,
-                'width_px': 4.0,
-                'navigable': True,
-                'orbit': {'a_px': 20.0},
-            }
-        ],
+    feature = {
+        'name': 'RINGLET',
+        'kind': 'ringlet',
+        'tau': 1.0,
+        'width_px': 4.0,
+        'navigable': True,
+        'orbit': {'a_px': 20.0},
     }
+    return ring_system_block(_STATED, _STATED, [feature])
 
 
 _SCENES: dict[str, Callable[[], dict[str, Any]]] = {
-    'star': lambda: _scene(
-        stars=[{'name': 'S', 'v': _STATED, 'u': _STATED, 'vmag': 2.0, 'psf_sigma': 2.0}]
-    ),
+    'star': lambda: _scene(stars=[star_entry(_STATED, _STATED, 2.0, psf_sigma=2.0)]),
     'body': lambda: _scene(bodies=[_sphere()]),
     'titan': lambda: _scene(bodies=[_titan()]),
     'ringlet': lambda: _scene(ring_system=_ring_system()),
@@ -121,7 +101,7 @@ def _centroid_of_weights(weights: NDArrayFloatType) -> tuple[float, float]:
 @pytest.mark.parametrize('kind', list(_SCENES), ids=list(_SCENES))
 def test_a_stated_corner_position_renders_on_its_pixel(kind: str) -> None:
     """Each kind of object stated at ``(60.5, 60.5)`` renders centered on pixel ``(60, 60)``."""
-    image, _meta = render_combined_model(_SCENES[kind]())
+    image, _meta = render_scene(_SCENES[kind]())
     centroid_v, centroid_u = _centroid(image)
     assert centroid_v == pytest.approx(_PIXEL, abs=_TOLERANCE_PX)
     assert centroid_u == pytest.approx(_PIXEL, abs=_TOLERANCE_PX)
@@ -164,7 +144,7 @@ def _payloads(kind: str, feature_type: NavFeatureType) -> tuple[list[NavFeature]
 
 def _rendered_centroid(kind: str) -> tuple[float, float]:
     """The rendered centroid of a scene of ``kind``, in array indices."""
-    image, _meta = render_combined_model(_SCENES[kind]())
+    image, _meta = render_scene(_SCENES[kind]())
     return _centroid(image)
 
 

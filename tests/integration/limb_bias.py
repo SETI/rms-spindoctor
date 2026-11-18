@@ -51,7 +51,7 @@ import numpy as np
 from spindoctor.nav_model import build_models_for_obs
 from spindoctor.nav_orchestrator import NavOrchestrator
 from spindoctor.obs.obs_inst_sim import ObsSim
-from spindoctor.sim.forward.body import create_simulated_body
+from spindoctor.sim.render.bodies.render import create_simulated_body
 
 __all__ = [
     'LimbBiasSample',
