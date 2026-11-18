@@ -45,7 +45,7 @@ import numpy as np
 from PIL import Image, ImageDraw
 
 from spindoctor.sim.png_export import stretch_to_uint8
-from spindoctor.sim.render.driver import render_combined_model
+from spindoctor.sim.render.driver import render_scene
 from spindoctor.sim.scene.io import iter_scene_paths, load_sim_scene, scene_class_for_path
 from spindoctor.support.types import NDArrayUint8Type
 from tests.integration.checkout_guard import require_checkout_package
@@ -177,7 +177,7 @@ def generate(*, before_dir: Path | None = None) -> list[Path]:
         # Read the before image FIRST: when src is current/, the write below
         # replaces it.
         before = _load_before(src, path.stem)
-        img, _ = render_combined_model(scene)
+        img, _ = render_scene(scene)
         after = stretch_to_uint8(img)
         rows_by_class.setdefault(scene_class_for_path(path), []).append(
             _SceneRow(

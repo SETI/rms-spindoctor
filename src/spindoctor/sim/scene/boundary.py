@@ -11,7 +11,7 @@ navigation outcome: read by the integration-test assertion machinery, and by
 neither the renderer nor the navigator).  :data:`TRUTH_KEYS` is the
 machine-readable truth set the ObsSim boundary filter strips and the
 structural boundary test iterates; the test-only keys are likewise stripped
-from the filtered view (default-deny), so they never reach the navigator
+from the navigator view (default-deny), so they never reach the navigator
 either.  The import-time completeness assertion below keeps the classification
 complete and disjoint over all three classes, so a key added to the schema
 without a classification fails everything loudly, not just one test.
@@ -108,7 +108,7 @@ TOP_LEVEL_IDEALIZED_KEYS: frozenset[str] = frozenset(
 # Top-level truth keys: the planted pointing error the navigator must recover,
 # the RNG realization, and the contaminant / noise fields.  One value inside the
 # 'detector' block is published: build_nav_params echoes the readout binning, which
-# a real frame's label states, as a top-level 'binning' key of the navigator's view.
+# a real frame's label states, as a top-level 'binning' key of the navigator view.
 TOP_LEVEL_TRUTH_KEYS: frozenset[str] = frozenset(
     {
         'random_seed',
@@ -384,7 +384,7 @@ _assert_boundary_classification_complete()
 
 
 def build_nav_params(sim_params: dict[str, Any]) -> dict[str, Any]:
-    """Build the navigator's filtered idealized view of a scene.
+    """Build the navigator view of a scene.
 
     This is the information boundary (the independence guarantee of the
     simulator-realism program): the returned mapping contains only keys
@@ -451,7 +451,7 @@ def build_nav_params(sim_params: dict[str, Any]) -> dict[str, Any]:
 
 
 def _filter_ring_system(ring_system: dict[str, Any]) -> dict[str, Any]:
-    """The navigator's view of the ``ring_system`` block.
+    """The navigator view of the ``ring_system`` block.
 
     Block-level idealized keys (the shared projection geometry, range, pixel
     scale, phase angle) pass through as deep copies.  Features cross only

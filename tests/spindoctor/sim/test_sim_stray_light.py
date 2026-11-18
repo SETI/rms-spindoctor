@@ -11,7 +11,7 @@ import numpy as np
 import pytest
 from tests.spindoctor.sim.scenes import frame_scene
 
-from spindoctor.sim.render.driver import render_combined_model
+from spindoctor.sim.render.driver import render_scene
 from spindoctor.sim.render.optics.stage import apply_stray_light
 from spindoctor.support.filters import NavFilterKind, NavFilterSpec, apply_filter
 
@@ -76,10 +76,8 @@ def _scene(*, stray: dict[str, Any] | None) -> dict[str, Any]:
 
 def test_render_stray_light_raises_background() -> None:
     """A scene with stray light renders brighter than one without."""
-    plain, _ = render_combined_model(_scene(stray=None))
-    lit, _ = render_combined_model(
-        _scene(stray={'amplitude': 0.3, 'direction_deg': 0.0, 'model': 'linear'})
-    )
+    plain, _ = render_scene(_scene(stray=None))
+    lit, _ = render_scene(_scene(stray={'amplitude': 0.3, 'direction_deg': 0.0, 'model': 'linear'}))
     assert float(lit.mean()) > float(plain.mean())
 
 
@@ -113,7 +111,7 @@ def test_radial_stray_center_is_detector_coordinates_at_oversample() -> None:
                 },
             },
         )
-        img, _ = render_combined_model(scene)
+        img, _ = render_scene(scene)
         v, u = np.unravel_index(np.argmax(img), img.shape)
         return int(v), int(u)
 

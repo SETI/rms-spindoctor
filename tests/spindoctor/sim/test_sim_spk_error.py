@@ -12,7 +12,7 @@ import numpy as np
 import pytest
 from tests.spindoctor.sim.scenes import frame_scene, quiet_noise, star_entry
 
-from spindoctor.sim.render.driver import render_combined_model
+from spindoctor.sim.render.driver import render_scene
 from spindoctor.sim.scene.boundary import build_nav_params
 from spindoctor.sim.scene.errors import SimSceneValidationError
 from spindoctor.sim.scene.validate import validate_sim_params
@@ -51,10 +51,10 @@ def _body_scene(*, range_km: float, spk: dict[str, Any] | None) -> dict[str, Any
 def test_near_body_displaces_more_than_far_body() -> None:
     """Parallax scales as 1/range: the nearer body shifts twice as far."""
     spk = {'dv_px': 4.0, 'du_px': 0.0, 'reference_range_km': 100000.0}
-    base_near, _ = render_combined_model(_body_scene(range_km=100000.0, spk=None))
-    near, _ = render_combined_model(_body_scene(range_km=100000.0, spk=spk))
-    base_far, _ = render_combined_model(_body_scene(range_km=200000.0, spk=None))
-    far, _ = render_combined_model(_body_scene(range_km=200000.0, spk=spk))
+    base_near, _ = render_scene(_body_scene(range_km=100000.0, spk=None))
+    near, _ = render_scene(_body_scene(range_km=100000.0, spk=spk))
+    base_far, _ = render_scene(_body_scene(range_km=200000.0, spk=None))
+    far, _ = render_scene(_body_scene(range_km=200000.0, spk=spk))
     window = (slice(20, 45), slice(20, 41))
     shift_near = _centroid_v(near, *window) - _centroid_v(base_near, *window)
     shift_far = _centroid_v(far, *window) - _centroid_v(base_far, *window)
@@ -69,8 +69,8 @@ def test_stars_are_not_displaced_by_spk_error() -> None:
     scene['stars'] = [star_entry(12.0, 48.0, 0.0)]
     plain = dict(scene)
     plain.pop('spk_error')
-    with_spk, _ = render_combined_model(scene)
-    without, _ = render_combined_model(plain)
+    with_spk, _ = render_scene(scene)
+    without, _ = render_scene(plain)
     star_window = (slice(6, 19), slice(42, 55))
     assert abs(_centroid_v(with_spk, *star_window) - _centroid_v(without, *star_window)) < 0.05
 

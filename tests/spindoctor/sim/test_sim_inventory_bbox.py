@@ -14,7 +14,7 @@ import numpy as np
 import pytest
 from tests.spindoctor.sim.scenes import frame_scene, quiet_noise
 
-from spindoctor.sim.render.driver import render_combined_model
+from spindoctor.sim.render.driver import render_scene
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 
 _CENTER = 64.0
@@ -55,14 +55,14 @@ def _scene() -> dict[str, Any]:
 
 def _inventory() -> dict[str, float]:
     """Render the scene and return the planted body's inventory entry."""
-    _, meta = render_combined_model(_scene())
+    _, meta = render_scene(_scene())
     inventory: dict[str, float] = meta['inventory']['SLAB']
     return inventory
 
 
 def _mask_extents() -> tuple[float, float, float, float]:
     """Render the scene and return (v_min, v_max, u_min, u_max) of the mask."""
-    _, meta = render_combined_model(_scene())
+    _, meta = render_scene(_scene())
     mask = meta['body_masks'][0]
     rows = np.where(mask.any(axis=1))[0]
     cols = np.where(mask.any(axis=0))[0]
@@ -71,7 +71,7 @@ def _mask_extents() -> tuple[float, float, float, float]:
 
 def _mask_centroid() -> tuple[float, float]:
     """Render the scene and return the silhouette's (v, u) centroid in rows and columns."""
-    _, meta = render_combined_model(_scene())
+    _, meta = render_scene(_scene())
     mask = meta['body_masks'][0]
     vv, uu = np.indices(mask.shape)
     return float(vv[mask].mean()), float(uu[mask].mean())

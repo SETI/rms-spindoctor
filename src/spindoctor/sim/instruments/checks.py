@@ -1,4 +1,4 @@
-"""The cross-checks of a simulated instrument's config entry.
+"""The cross-checks of an instrument entry.
 
 :mod:`spindoctor.sim.instruments.schema` checks each key on its own; this module
 checks how the parts of one entry, after inheritance, fit together: the detector
@@ -398,7 +398,7 @@ def _check_downlink_tables(tables: Mapping[str, Any] | None, *, source: str) -> 
 def _parametric_decoded_dn(table: Mapping[str, Any]) -> np.ndarray[Any, np.dtype[np.float64]]:
     """The DN each code of a parametric table decodes to, in code order.
 
-    This is the curve :class:`~spindoctor.sim.render.detector.sqrt_lut.SqrtLut`
+    This is the curve :class:`~spindoctor.sim.render.detector.sqrt_lut.LutSqrt`
     decodes through: ``linear_dn * c + quadratic_dn * c**2`` for code ``c``, rounded
     to whole DN when ``whole_dn`` is set.
     """

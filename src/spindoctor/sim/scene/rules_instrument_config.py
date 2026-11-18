@@ -315,7 +315,7 @@ def _check_instrument_config(value: Any, *, instrument: str, binning: int, sourc
     """Validate the scene-level ``instrument_config`` block.
 
     The block can override any key of the navigator block except ``data_units``.  A
-    frame's units come only from the instrument's config entry; for other units, a
+    frame's units come only from the instrument entry; for other units, a
     scene uses another instrument.
 
     When the block sets ``noise``, that must be a mapping.  A null value of a navigator

@@ -14,7 +14,7 @@ import pytest
 from tests.spindoctor.sim.scenes import frame_scene, quiet_noise
 
 from spindoctor.sim.render.detector.params import resolve_detector_params
-from spindoctor.sim.render.driver import render_combined_model
+from spindoctor.sim.render.driver import render_scene
 
 
 def _scene(instrument: str, noise: dict[str, Any], **extra: Any) -> dict[str, Any]:
@@ -32,7 +32,7 @@ def test_a_raw_frame_ramps_from_zero_to_the_readout_dark(exposure_sec: float) ->
     scene = _scene(
         'coiss_nac', {**quiet_noise(), 'readout_dark_e': 300.0}, exposure_sec=exposure_sec
     )
-    img, _ = render_combined_model(scene)
+    img, _ = render_scene(scene)
     gain = resolve_detector_params(scene).gain_e_per_dn
     expected = 300.0 / gain * np.linspace(0.0, 1.0, 128)
     assert float(np.abs(img.mean(axis=1) - expected).max()) <= 0.5
@@ -62,15 +62,15 @@ def test_the_readout_dark_is_off_without_the_physical_chain() -> None:
 
 def test_a_calibrated_vidicon_frame_subtracts_no_readout_dark() -> None:
     """The vidicon chain adds no readout dark, so its calibration removes none."""
-    plain, _ = render_combined_model(_scene('vgiss', {}))
-    keyed, _ = render_combined_model(_scene('vgiss', {'readout_dark_e': 300.0}))
+    plain, _ = render_scene(_scene('vgiss', {}))
+    keyed, _ = render_scene(_scene('vgiss', {'readout_dark_e': 300.0}))
     assert np.array_equal(plain, keyed)
 
 
 def test_a_calibrated_product_removes_the_readout_dark() -> None:
     """The calibration inverse subtracts the ramp, leaving a flat calibrated sky."""
     scene = _scene('coiss_calib_nac', {**quiet_noise(), 'readout_dark_e': 300.0})
-    img, _ = render_combined_model(scene)
+    img, _ = render_scene(scene)
     row_means = img.mean(axis=1)
     # One DN at this exposure bounds the rounding of the ramp before it is removed.
     dp = resolve_detector_params(scene)

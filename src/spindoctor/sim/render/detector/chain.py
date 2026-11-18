@@ -98,7 +98,7 @@ def _hot_pixel_pool(
     return _feature_pool(frame)
 
 
-def _mode_seed(dp: DetectorParams, mode_name: str) -> np.random.Generator:
+def _mode_rng(dp: DetectorParams, mode_name: str) -> np.random.Generator:
     """A generator seeded independently for one detector artifact mode."""
     return _stage_rng(dp.random_seed, mode_name)
 
@@ -269,7 +269,7 @@ def _apply_ccd(frame: SimFrame, dp: DetectorParams, rng: np.random.Generator) ->
             prnu_rms=float(cfg.get('prnu_rms') or 0.0),
             vignetting_frac=float(cfg.get('vignetting_frac') or 0.0),
             dust_donut_count=int(cfg.get('dust_donut_count') or 0),
-            rng=_mode_seed(dp, 'fixed_pattern'),
+            rng=_mode_rng(dp, 'fixed_pattern'),
         )
     add_dark_current(
         electrons,
@@ -345,7 +345,7 @@ def _apply_ccd(frame: SimFrame, dp: DetectorParams, rng: np.random.Generator) ->
             freq_step_factor=float(cfg.get('freq_step_factor', 1.0)),
             dark_step_dn=float(cfg.get('dark_step_dn', 0.0)),
             gain_e_per_dn=dp.gain_e_per_dn,
-            rng=_mode_seed(dp, 'banding_coherent'),
+            rng=_mode_rng(dp, 'banding_coherent'),
         )
     else:
         add_banding(
@@ -369,7 +369,7 @@ def _apply_ccd(frame: SimFrame, dp: DetectorParams, rng: np.random.Generator) ->
             stitch_period_px=int(cfg.get('stitch_period_px') or 0),
             stitch_amplitude_dn=float(cfg.get('stitch_amplitude_dn') or 0.0),
             jail_bar_dn=float(cfg.get('jail_bar_dn') or 0.0),
-            rng=_mode_seed(dp, 'fixed_pattern_dn'),
+            rng=_mode_rng(dp, 'fixed_pattern_dn'),
         )
         records['fixed_pattern'] = {**records.get('fixed_pattern', {}), **dn_record, 'active': True}
     if 'serial_tail' in modes:
@@ -412,7 +412,7 @@ def _apply_dark_ramp(
         # The RBI flavor enhances the columns read out above hot pixels; a seeded
         # set of columns stands in for that population so the flavor is stable
         # per seed and independent of the hot-pixel realization.
-        col_rng = _mode_seed(dp, 'dark_ramp_columns')
+        col_rng = _mode_rng(dp, 'dark_ramp_columns')
         n_cols = max(1, electrons.shape[1] // 32)
         hot_columns = col_rng.integers(0, electrons.shape[1], size=n_cols)
     return add_dark_ramp(
@@ -432,7 +432,7 @@ def _apply_bright_dark_pairs(
     ``expected_events_per_sec`` is a rate per second of exposure, so the frame's
     expected pair count is that rate times the exposure time.
     """
-    rng = _mode_seed(dp, 'bright_dark_pairs')
+    rng = _mode_rng(dp, 'bright_dark_pairs')
     expected = float(cfg['expected_events_per_sec']) * dp.exposure_sec
     count = int(rng.poisson(expected)) if expected > 0.0 else 0
     pool = _feature_pool(frame) if dp.artifacts_adversarial else None
@@ -467,7 +467,7 @@ def _apply_radiation_transients(
     expected = rate * environment * (exposure + dwell)
     amplitude = cfg.get('amplitude_e')
     amplitude_e = float(amplitude) if amplitude is not None else dp.full_well_e
-    rng = _mode_seed(dp, 'radiation_transients')
+    rng = _mode_rng(dp, 'radiation_transients')
     n_events = int(rng.poisson(expected)) if expected > 0.0 else 0
     deposit_morphological_events(
         electrons,
@@ -560,7 +560,7 @@ def _apply_vidicon(frame: SimFrame, dp: DetectorParams, rng: np.random.Generator
             freq_step_factor=float(cfg.get('freq_step_factor', 1.0)),
             dark_step_dn=float(cfg.get('dark_step_dn', 0.0)),
             gain_e_per_dn=1.0,
-            rng=_mode_seed(dp, 'banding_coherent'),
+            rng=_mode_rng(dp, 'banding_coherent'),
         )
     if 'bias_structure' in modes:
         add_bias_structure(

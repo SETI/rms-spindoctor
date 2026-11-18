@@ -1,16 +1,16 @@
 """Resolved detector parameters for one scene render.
 
-:class:`DetectorParams` collapses the emulated instrument's config block, the
-per-instrument catalog defaults (:mod:`spindoctor.sim.instruments.resolvers`),
+:class:`DetectorParams` collapses the emulated instrument's navigator block, its
+detector defaults (:mod:`spindoctor.sim.instruments.resolvers`),
 the scene ``detector`` / ``noise`` blocks, and the ``artifacts.instrument_defaults``
 switch into one flat, resolved view the detector stage reads.
 
 Resolution precedence, highest first: an explicit scene key (``detector`` block,
-then ``noise`` block), then the catalog value when ``instrument_defaults`` is on,
+then ``noise`` block), then the detector default when ``instrument_defaults`` is on,
 then the disabled floor (physical-chain artifacts default to zero so an
 unconfigured scene renders a clean DN frame, per the stage-activation rule).
 ``instrument_defaults`` turns on the whole physical chain, including Poisson
-shot noise, the catalog's electron-domain full-well bloom, and the catalog's
+shot noise, the detector defaults' electron-domain full-well bloom, and their
 ``cosmic_ray_events_per_pixel_per_sec`` (radiation on the detector is physics
 of the environment, not a transmission defect; every CCD entry records either a
 cohort-measured rate or a retained zero); the
@@ -50,7 +50,7 @@ from spindoctor.sim.instruments.resolvers import (
     mode_available,
     resolve_calibrated_sky_if,
     resolve_data_units,
-    resolve_detector_catalog,
+    resolve_detector_defaults_for_binning,
     resolve_detector_id,
     resolve_downlink_table,
     resolve_filter_throughput,
@@ -81,7 +81,7 @@ class DetectorParams:
     Parameters:
         detector_model: 'ccd' (electron chain) or 'vidicon' (DN chain).
         data_units: The frame's units, 'raw_dn' or 'calibrated_if', from the
-            instrument's config entry.
+            instrument entry.
         signal_full_scale_frac: Well fraction a signal of 1.0 fills at the
             reference exposure.
         full_well_e: Full well in electrons (CCD path).
@@ -101,7 +101,8 @@ class DetectorParams:
         cosmic_ray_readout_dwell_sec: Effective seconds the detector collects
             cosmic rays outside the exposure, while the frame waits to be read.
         cosmic_ray_amplitude_e: Smallest cosmic-ray deposit per event, in
-            electrons (the full well unless the scene or catalog sets one).
+            electrons (the full well unless the scene or the detector defaults set
+            one).
         cosmic_ray_spread_px: Cosmic-ray charge-diffusion sigma in frame pixels;
             0 keeps each deposit where it lands.
         dark_current_e_per_sec: Dark current (electrons / sec); 0 disables.
@@ -117,7 +118,7 @@ class DetectorParams:
         calibration_scale_dn_per_s_per_if: Derived I/F calibration scale.
         dark_dn: Dark pedestal in DN subtracted before the I/F divide.
         calibrated_sky_if: The calibrated sky residual in I/F, added after the
-            I/F divide on a calibrated frame: the instrument's catalog value,
+            I/F divide on a calibrated frame: the instrument's detector default,
             else the generic entry's (see
             :func:`~spindoctor.sim.instruments.resolvers.resolve_calibrated_sky_if`).
         marker_value: The missing-data marker the navigator applies to the frame
@@ -125,11 +126,11 @@ class DetectorParams:
             possibly NaN; the calibration inverse keeps every pixel off it.
         random_seed: The scene seed for the per-effect sub-streams.
         detector_id: The emulated detector the fixed hot-pixel map belongs to:
-            the instrument config's ``detector_id`` (a calibrated product's entry
+            the instrument entry's ``detector_id`` (a calibrated product's entry
             sets it to its raw camera), else the instrument name, and ``generic``
             for a generic scene.
         binning: The readout mode's binning factor ``b``: each frame pixel
-            sums a ``b`` by ``b`` block of native pixels.  The catalog's
+            sums a ``b`` by ``b`` block of native pixels.  The detector defaults'
             native dark current and cosmic-ray rate are already scaled by
             ``b**2`` here, and the chain scales the extended signal and the
             saturation well the same way.
@@ -269,16 +270,16 @@ def calibration_map(dp: DetectorParams) -> CalibrationMap | None:
 
 def _default_or_zero(
     scene_noise: Mapping[str, Any],
-    catalog: Mapping[str, Any],
+    detector_defaults: Mapping[str, Any],
     key: str,
     *,
     instrument_defaults: bool,
 ) -> float:
-    """A physical-chain knob: scene override, else catalog (if on), else 0."""
+    """A physical-chain knob: scene override, else detector default (if on), else 0."""
     if key in scene_noise:
         return float(scene_noise[key])
     if instrument_defaults:
-        return float(catalog.get(key, 0.0))
+        return float(detector_defaults.get(key, 0.0))
     return 0.0
 
 
@@ -311,13 +312,17 @@ def _cataloged_binning(params: Mapping[str, Any], *, instrument: str | None) -> 
 
 
 def _resolve_gain(
-    catalog: Mapping[str, Any], detector_block: Mapping[str, Any], *, instrument: str | None
+    detector_defaults: Mapping[str, Any],
+    detector_block: Mapping[str, Any],
+    *,
+    instrument: str | None,
 ) -> float:
-    """Select ``gain_e_per_dn`` from the catalog table by the scene gain state.
+    """Select ``gain_e_per_dn`` from the detector defaults' table by the scene gain state.
 
     Parameters:
-        catalog: The instrument's detector defaults (see
-            :func:`~spindoctor.sim.instruments.resolvers.resolve_detector_defaults`).
+        detector_defaults: The instrument's detector defaults in the scene's readout
+            mode (see
+            :func:`~spindoctor.sim.instruments.resolvers.resolve_detector_defaults_for_binning`).
         detector_block: The scene ``detector`` block (may set ``gain_state``).
         instrument: The sim instrument name, for error messages.
 
@@ -327,10 +332,10 @@ def _resolve_gain(
     Raises:
         DetectorParamError: If the selected state has no catalog entry.
     """
-    table = catalog.get('gain_e_per_dn_by_state') or {0: 1.0}
+    table = detector_defaults.get('gain_e_per_dn_by_state') or {0: 1.0}
     state = detector_block.get('gain_state')
     if state is None:
-        state = int(catalog.get('default_gain_state', 0))
+        state = int(detector_defaults.get('default_gain_state', 0))
     state = int(state)
     if state not in table:
         raise DetectorParamError(
@@ -452,7 +457,7 @@ def _set_keys(block: Mapping[str, Any]) -> dict[str, Any]:
 
     A null scene key reads as absent everywhere in the resolver, as a null
     ``detector`` key does (see :func:`_scene_or_default`), so it falls through to
-    the catalog or configuration default instead of reaching ``float()`` or
+    the detector default or the configuration default instead of reaching ``float()`` or
     ``bool()``.
     """
     return {key: value for key, value in block.items() if value is not None}
@@ -469,7 +474,7 @@ def _scene_or_default(block: Mapping[str, Any], key: str, default: Any) -> Any:
     Parameters:
         block: The scene ``detector`` mapping.
         key: The detector key to read.
-        default: The catalog value used when the key is absent or null.
+        default: The detector default used when the key is absent or null.
 
     Returns:
         The scene's value, or ``default`` when the scene leaves it unset or null.
@@ -479,14 +484,14 @@ def _scene_or_default(block: Mapping[str, Any], key: str, default: Any) -> Any:
 
 
 def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
-    """Collapse the scene, config, and catalog into a resolved detector view.
+    """Collapse the scene, navigator block, and detector defaults into one detector view.
 
     A scene ``noise`` or ``noise.vidicon`` key set to null reads as absent, as a
     null ``detector`` key does: it resolves to the value the scene would get
     without the key.
 
     Parameters:
-        params: The full scene ``sim_params`` mapping.
+        params: The scene.
 
     Returns:
         The resolved :class:`DetectorParams`.
@@ -506,18 +511,18 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
     detector_block = params.get('detector') or {}
     binning = _cataloged_binning(params, instrument=instrument)
     # The readout mode's published values replace the native ones it names.
-    catalog = resolve_detector_catalog(instrument, binning)
+    detector_defaults = resolve_detector_defaults_for_binning(instrument, binning)
     # A binned pixel collects the charge of its binning**2 native pixels.
     pixels_per_frame_pixel = float(binning * binning)
 
-    # A null noise key reads as absent: it takes the catalog or configuration
-    # default, so noise: {poisson: null} keeps the instrument_defaults shot noise.
+    # A null noise key reads as absent: it takes the detector default or the
+    # configuration default, so noise: {poisson: null} keeps the instrument_defaults shot noise.
     scene_noise = _set_keys(params.get('noise') or {})
     artifacts = params.get('artifacts') or {}
     instrument_defaults = instrument_defaults_on(params)
 
     detector_model = str(
-        _scene_or_default(detector_block, 'detector_model', catalog['detector_model'])
+        _scene_or_default(detector_block, 'detector_model', detector_defaults['detector_model'])
     )
     if detector_model == 'vidicon' and binning != 1:
         raise DetectorParamError(
@@ -527,10 +532,14 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
     data_units = resolve_data_units(instrument)
     exposure_sec = float(params.get('exposure_sec', 1.0))
     exposure_ref_sec = float(
-        _scene_or_default(detector_block, 'exposure_ref_sec', catalog.get('exposure_ref_sec', 1.0))
+        _scene_or_default(
+            detector_block, 'exposure_ref_sec', detector_defaults.get('exposure_ref_sec', 1.0)
+        )
     )
     quantization = str(
-        _scene_or_default(detector_block, 'quantization', catalog.get('quantization', 'exact'))
+        _scene_or_default(
+            detector_block, 'quantization', detector_defaults.get('quantization', 'exact')
+        )
     )
 
     signal_full_scale_frac = float(
@@ -540,19 +549,19 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
         )
     )
     bias_dn = float(
-        scene_noise.get('bias_dn', catalog.get('bias_dn', sim_noise.get('bias_dn', 0.0)))
+        scene_noise.get('bias_dn', detector_defaults.get('bias_dn', sim_noise.get('bias_dn', 0.0)))
     )
     saturation_dn = float(inst_noise.get('saturation_dn', sim_noise['saturation_dn']))
     full_well_dn = float(inst_noise.get('full_well_dn', sim_noise['full_well_dn']))
 
-    gain_e_per_dn = _resolve_gain(catalog, detector_block, instrument=instrument)
-    full_well_e = float(catalog.get('full_well_e', full_well_dn * gain_e_per_dn))
-    # The smallest cosmic-ray deposit: a scene value, else the catalog's when
+    gain_e_per_dn = _resolve_gain(detector_defaults, detector_block, instrument=instrument)
+    full_well_e = float(detector_defaults.get('full_well_e', full_well_dn * gain_e_per_dn))
+    # The smallest cosmic-ray deposit: a scene value, else the detector default when
     # instrument_defaults is on, else the full well, so every hit clips.
     if 'cosmic_ray_amplitude_e' in scene_noise:
         cosmic_ray_amplitude = float(scene_noise['cosmic_ray_amplitude_e'])
-    elif instrument_defaults and 'cosmic_ray_amplitude_e' in catalog:
-        cosmic_ray_amplitude = float(catalog['cosmic_ray_amplitude_e'])
+    elif instrument_defaults and 'cosmic_ray_amplitude_e' in detector_defaults:
+        cosmic_ray_amplitude = float(detector_defaults['cosmic_ray_amplitude_e'])
     else:
         cosmic_ray_amplitude = full_well_e
     filter_name = detector_block.get('filter')
@@ -565,12 +574,12 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
         )
 
     # Read noise: a scene DN override wins (converted to electrons via gain);
-    # otherwise the catalog electrons value when instrument_defaults is on;
+    # otherwise the detector default in electrons when instrument_defaults is on;
     # otherwise zero (no read noise).
     if 'read_noise_dn' in scene_noise:
         read_noise_e = float(scene_noise['read_noise_dn']) * gain_e_per_dn
     elif instrument_defaults:
-        read_noise_e = float(catalog.get('read_noise_e', 0.0))
+        read_noise_e = float(detector_defaults.get('read_noise_e', 0.0))
     else:
         read_noise_e = 0.0
 
@@ -582,92 +591,117 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
     else:
         poisson = instrument_defaults
     # Full-well bloom follows the same precedence: explicit scene value, else
-    # the catalog's electron-domain bloom when instrument_defaults is on, else
+    # the detector defaults' electron-domain bloom when instrument_defaults is on, else
     # the disabled floor.
     if 'bloom_length' in scene_noise:
         bloom_length = int(scene_noise['bloom_length'])
     elif instrument_defaults:
-        bloom_length = int(catalog.get('bloom_length', 0))
+        bloom_length = int(detector_defaults.get('bloom_length', 0))
     else:
         bloom_length = int(sim_noise.get('bloom_length', 0))
     # Cosmic rays (expected events per pixel per second): scene value, else the
-    # catalog's rate when instrument_defaults is on, else the config floor.
+    # detector defaults' rate when instrument_defaults is on, else the config floor.
     cr_key = 'cosmic_ray_events_per_pixel_per_sec'
     if cr_key in scene_noise:
         cosmic_ray_rate = float(scene_noise[cr_key])
-    elif instrument_defaults and cr_key in catalog:
-        cosmic_ray_rate = float(catalog[cr_key]) * pixels_per_frame_pixel
+    elif instrument_defaults and cr_key in detector_defaults:
+        cosmic_ray_rate = float(detector_defaults[cr_key]) * pixels_per_frame_pixel
     else:
         cosmic_ray_rate = float(sim_noise.get(cr_key, 0.0))
     cosmic_ray_dwell = _default_or_zero(
         scene_noise,
-        catalog,
+        detector_defaults,
         'cosmic_ray_readout_dwell_sec',
         instrument_defaults=instrument_defaults,
     )
     cosmic_ray_spread = _default_or_zero(
-        scene_noise, catalog, 'cosmic_ray_spread_px', instrument_defaults=instrument_defaults
+        scene_noise,
+        detector_defaults,
+        'cosmic_ray_spread_px',
+        instrument_defaults=instrument_defaults,
     )
-    # The catalog states the spread in native pixels, so a binned pixel sees
+    # The detector defaults state the spread in native pixels, so a binned pixel sees
     # it shrink by the binning, as the PSF kernel does; a scene key states the
     # frame pixel's own value.
     if 'cosmic_ray_spread_px' not in scene_noise:
         cosmic_ray_spread /= binning
 
     dark_current = _default_or_zero(
-        scene_noise, catalog, 'dark_current_e_per_sec', instrument_defaults=instrument_defaults
+        scene_noise,
+        detector_defaults,
+        'dark_current_e_per_sec',
+        instrument_defaults=instrument_defaults,
     )
     if 'dark_current_e_per_sec' not in scene_noise:
         dark_current *= pixels_per_frame_pixel
     readout_dark = _default_or_zero(
-        scene_noise, catalog, 'readout_dark_e', instrument_defaults=instrument_defaults
+        scene_noise, detector_defaults, 'readout_dark_e', instrument_defaults=instrument_defaults
     )
     if 'readout_dark_e' not in scene_noise:
         readout_dark *= pixels_per_frame_pixel
     hot_pixel_fraction = _default_or_zero(
-        scene_noise, catalog, 'hot_pixel_fraction', instrument_defaults=instrument_defaults
+        scene_noise,
+        detector_defaults,
+        'hot_pixel_fraction',
+        instrument_defaults=instrument_defaults,
     )
     banding_amplitude = _default_or_zero(
-        scene_noise, catalog, 'banding_amplitude_e', instrument_defaults=instrument_defaults
+        scene_noise,
+        detector_defaults,
+        'banding_amplitude_e',
+        instrument_defaults=instrument_defaults,
     )
     bias_pedestal_sigma = _default_or_zero(
-        scene_noise, catalog, 'bias_pedestal_sigma_dn', instrument_defaults=instrument_defaults
+        scene_noise,
+        detector_defaults,
+        'bias_pedestal_sigma_dn',
+        instrument_defaults=instrument_defaults,
     )
     bias_row_gradient = _default_or_zero(
-        scene_noise, catalog, 'bias_row_gradient_dn', instrument_defaults=instrument_defaults
+        scene_noise,
+        detector_defaults,
+        'bias_row_gradient_dn',
+        instrument_defaults=instrument_defaults,
     )
     bias_col_gradient = _default_or_zero(
-        scene_noise, catalog, 'bias_col_gradient_dn', instrument_defaults=instrument_defaults
+        scene_noise,
+        detector_defaults,
+        'bias_col_gradient_dn',
+        instrument_defaults=instrument_defaults,
     )
     calibration_column_residual = _default_or_zero(
         scene_noise,
-        catalog,
+        detector_defaults,
         'calibration_column_residual_e',
         instrument_defaults=instrument_defaults,
     )
     calibration_pixel_residual = _default_or_zero(
         scene_noise,
-        catalog,
+        detector_defaults,
         'calibration_pixel_residual_e',
         instrument_defaults=instrument_defaults,
     )
-    # Shape parameters (period, amplitude scales) track the catalog; they never
+    # Shape parameters (period, amplitude scales) track the detector defaults; they never
     # activate a stage on their own (the amplitude/fraction gate does that).
     hot_pixel_amplitude = float(
-        scene_noise.get('hot_pixel_amplitude_e', catalog.get('hot_pixel_amplitude_e', 0.0))
+        scene_noise.get(
+            'hot_pixel_amplitude_e', detector_defaults.get('hot_pixel_amplitude_e', 0.0)
+        )
     )
     hot_pixel_column_factor = float(
-        scene_noise.get('hot_pixel_column_factor', catalog.get('hot_pixel_column_factor', 0.0))
+        scene_noise.get(
+            'hot_pixel_column_factor', detector_defaults.get('hot_pixel_column_factor', 0.0)
+        )
     )
     banding_period_px = float(
-        scene_noise.get('banding_period_px', catalog.get('banding_period_px', 64.0))
+        scene_noise.get('banding_period_px', detector_defaults.get('banding_period_px', 64.0))
     )
 
     # The hot_pixels artifact mode (routed here from the registry) wins over the
     # noise-block / instrument_defaults hot-pixel knobs: an explicit mode is a
     # deliberate placement, so it overrides the generic stress path.  Its
     # pixel_fraction is the hot-pixel fraction; amplitude and column factor
-    # fall back to the catalog when the mode leaves them unset.  The mode is
+    # fall back to the detector defaults when the mode leaves them unset.  The mode is
     # honored only where it is available (validation already rejects it
     # elsewhere, e.g. LORRI).
     hot_pixel_adversarial = False
@@ -681,20 +715,20 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
         if mode_amplitude is not None:
             hot_pixel_amplitude = float(mode_amplitude)
         elif hot_pixel_amplitude <= 0.0:
-            hot_pixel_amplitude = float(catalog.get('hot_pixel_amplitude_e', 0.0))
+            hot_pixel_amplitude = float(detector_defaults.get('hot_pixel_amplitude_e', 0.0))
         mode_column_factor = resolved.get('column_factor')
         if mode_column_factor is not None:
             hot_pixel_column_factor = float(mode_column_factor)
         elif hot_pixel_column_factor <= 0.0:
-            hot_pixel_column_factor = float(catalog.get('hot_pixel_column_factor', 0.0))
+            hot_pixel_column_factor = float(detector_defaults.get('hot_pixel_column_factor', 0.0))
         hot_pixel_adversarial = bool(artifacts.get('adversarial', False))
 
     # The vidicon DN-noise sub-parameters activate on the vidicon path only, and
     # like every physical-chain artifact stay disabled until instrument_defaults
     # is on or the scene sets them explicitly (the stage-activation floor).
-    catalog_vidicon = dict(catalog.get('vidicon') or {}) if instrument_defaults else {}
+    default_vidicon = dict(detector_defaults.get('vidicon') or {}) if instrument_defaults else {}
     scene_vidicon = _set_keys(scene_noise.get('vidicon') or {})
-    vidicon = {**catalog_vidicon, **{k: float(v) for k, v in scene_vidicon.items()}}
+    vidicon = {**default_vidicon, **{k: float(v) for k, v in scene_vidicon.items()}}
 
     # Derived I/F calibration scale: a noise-free signal of 1.0 round-trips
     # through the inverse transform to I/F 1.0.  Uses the image-side DN well
@@ -794,7 +828,7 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
         calibration_scale_dn_per_s_per_if=calibration_scale,
         dark_dn=dark_dn,
         calibrated_sky_if=float(
-            catalog.get('calibrated_sky_if', resolve_calibrated_sky_if(instrument))
+            detector_defaults.get('calibrated_sky_if', resolve_calibrated_sky_if(instrument))
         ),
         marker_value=missing_data_marker(inst_config),
         random_seed=int(params['random_seed']),

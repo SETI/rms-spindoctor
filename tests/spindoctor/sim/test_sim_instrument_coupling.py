@@ -17,7 +17,7 @@ from spindoctor.nav_orchestrator.instrument_config import instrument_settings_fr
 from spindoctor.obs.obs_inst_sim import ObsSim
 from spindoctor.sim.instruments.navigator_link import resolve_sim_inst_config
 from spindoctor.sim.instruments.resolvers import resolve_detector_defaults
-from spindoctor.sim.render.driver import render_combined_model
+from spindoctor.sim.render.driver import render_scene
 
 
 def _obs(instrument: str, *, size: int = 64) -> ObsSim:
@@ -104,14 +104,14 @@ def _lit_body_scene(instrument: str, *, size: int = 64) -> dict[str, Any]:
 
 def test_raw_dn_render_is_in_dn() -> None:
     """A raw_dn instrument render reaches DN well above the [0, 1] signal range."""
-    img, _ = render_combined_model(_lit_body_scene('coiss_nac'))
+    img, _ = render_scene(_lit_body_scene('coiss_nac'))
     assert float(img.max()) > 100.0
 
 
 def test_gossi_scales_to_8bit_well() -> None:
     """The gossi render is bounded by its 8-bit ADC ceiling, unlike 12-bit coiss."""
-    gossi_img, _ = render_combined_model(_lit_body_scene('gossi'))
-    coiss_img, _ = render_combined_model(_lit_body_scene('coiss_nac'))
+    gossi_img, _ = render_scene(_lit_body_scene('gossi'))
+    coiss_img, _ = render_scene(_lit_body_scene('coiss_nac'))
     # Galileo's 8-bit ADC clips at 255 DN (the CCD full well sits above it in DN),
     # while the Cassini 12-bit chain reaches well past 255.
     assert float(gossi_img.max()) <= 255.0
@@ -120,7 +120,7 @@ def test_gossi_scales_to_8bit_well() -> None:
 
 def test_calibrated_if_render_stays_in_if_range() -> None:
     """A calibrated_if render stays in I/F: at most 1 above the calibrated sky residual."""
-    img, _ = render_combined_model(_lit_body_scene('vgiss'))
+    img, _ = render_scene(_lit_body_scene('vgiss'))
     residual = float(resolve_detector_defaults('vgiss')['calibrated_sky_if'])
     assert float(img.max()) <= 1.0 + residual
 

@@ -9,7 +9,7 @@ Overview
 the simulated-image counterpart of
 :class:`~spindoctor.nav_model.stars.nav_model_stars.NavModelStars`. It is a thin subclass
 of the catalog-driven model: it builds its star list from the scene's catalog star
-entries in the filtered idealized view (``obs.nav_params``, see
+entries in the navigator view (``obs.nav_params``, see
 :doc:`dev_guide_simulator`) rather than from a catalog reduction, and inherits the parent's
 :data:`~spindoctor.feature.feature_type.NavFeatureType.STAR` feature emission, CRLB
 covariance, reliability gate, and annotations unchanged. A simulated star field is
@@ -86,7 +86,7 @@ Configuration
 =============
 
 The model consumes no YAML configuration of its own; it reads the ``stars`` entries of
-the observation's filtered scene view (``obs.nav_params``). The per-star geometry comes
+the observation's navigator view (``obs.nav_params``). The per-star geometry comes
 from the scene's ``stars`` entries (see :doc:`dev_guide_simulator`); the truth-side
 per-star ``psf_sigma`` override is stripped by the boundary filter, so the model knows
 only the instrument's published PSF.

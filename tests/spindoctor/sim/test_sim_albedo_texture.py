@@ -17,7 +17,7 @@ from tests.spindoctor.sim.scenes import disc_body, frame_scene
 from spindoctor.sim.render.bodies.relief import synthesize_albedo_field
 from spindoctor.sim.render.bodies.texture import AlbedoTextureSpec
 from spindoctor.sim.render.bodies.topo import TopoBodySpec, create_topographic_body
-from spindoctor.sim.render.driver import render_combined_model
+from spindoctor.sim.render.driver import render_scene
 from spindoctor.support.types import NDArrayFloatType
 
 _SIZE = 200
@@ -161,8 +161,8 @@ def _scene(seed: int) -> dict[str, Any]:
 
 def test_scene_albedo_texture_draws_its_own_seeded_stream() -> None:
     """The scene seed selects the albedo realization deterministically."""
-    img_a, _ = render_combined_model(_scene(1))
-    img_b, _ = render_combined_model(_scene(2))
+    img_a, _ = render_scene(_scene(1))
+    img_b, _ = render_scene(_scene(2))
     assert not np.array_equal(img_a, img_b)
-    img_a2, _ = render_combined_model(_scene(1))
+    img_a2, _ = render_scene(_scene(1))
     assert np.array_equal(img_a, img_a2)

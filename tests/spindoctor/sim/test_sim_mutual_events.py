@@ -13,7 +13,7 @@ from typing import Any
 import pytest
 from tests.spindoctor.sim.scenes import disc_body, frame_scene
 
-from spindoctor.sim.render.driver import render_combined_model
+from spindoctor.sim.render.driver import render_scene
 
 _R_FAR = 60.0
 _R_NEAR = 50.0
@@ -63,7 +63,7 @@ def _analytic_occlusion(d: float, r1: float, r2: float) -> tuple[float, float]:
 @pytest.mark.parametrize('separation_px', [100.0, 70.0, 55.0])
 def test_far_body_occlusion_matches_two_circle_geometry(separation_px: float) -> None:
     """visible_fraction and occluded_limb_arc_deg match the closed forms."""
-    _, meta = render_combined_model(_two_circle_scene(separation_px))
+    _, meta = render_scene(_two_circle_scene(separation_px))
     truth = meta['body_occlusion']['FAR']
     visible_expected, arc_expected = _analytic_occlusion(separation_px, _R_FAR, _R_NEAR)
     assert truth['visible_fraction'] == pytest.approx(visible_expected, abs=0.02)
@@ -72,7 +72,7 @@ def test_far_body_occlusion_matches_two_circle_geometry(separation_px: float) ->
 
 def test_near_body_is_recorded_fully_visible() -> None:
     """The occluding (nearer) body carries no occlusion of its own."""
-    _, meta = render_combined_model(_two_circle_scene(70.0))
+    _, meta = render_scene(_two_circle_scene(70.0))
     truth = meta['body_occlusion']['NEAR']
     assert truth['visible_fraction'] == 1.0
     assert truth['occluded_limb_arc_deg'] == 0.0
@@ -80,7 +80,7 @@ def test_near_body_is_recorded_fully_visible() -> None:
 
 def test_disjoint_bodies_record_no_occlusion() -> None:
     """Non-overlapping bodies record full visibility on both sides."""
-    _, meta = render_combined_model(_two_circle_scene(140.0))
+    _, meta = render_scene(_two_circle_scene(140.0))
     for name in ('FAR', 'NEAR'):
         assert meta['body_occlusion'][name]['visible_fraction'] == 1.0
         assert meta['body_occlusion'][name]['occluded_limb_arc_deg'] == 0.0
@@ -90,7 +90,7 @@ def test_single_body_scene_records_trivial_occlusion() -> None:
     """A one-body scene still carries the truth block, trivially unoccluded."""
     scene = _two_circle_scene(70.0)
     scene['bodies'] = scene['bodies'][:1]
-    _, meta = render_combined_model(scene)
+    _, meta = render_scene(scene)
     assert meta['body_occlusion'] == {
         'FAR': {'visible_fraction': 1.0, 'occluded_limb_arc_deg': 0.0}
     }

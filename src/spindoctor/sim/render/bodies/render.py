@@ -597,7 +597,7 @@ def render_single_body(
     offset_v: float,
     *,
     offset_u: float,
-    seed: int | None = None,
+    body_streams_seed: int | None = None,
     body_index: int = 0,
     ref_center_v: float,
     ref_center_u: float,
@@ -615,11 +615,15 @@ def render_single_body(
             the topographic renderer shades those features at the detector grid.
         offset_v: V offset to apply.
         offset_u: U offset to apply.
-        seed: Scene-level crater seed; a per-body sub-seed is derived from it
-            so bodies with identical geometry get independent crater patterns
-            (and, further derived, independent relief terrains).
+        body_streams_seed: The scene's seed for every body's random streams.  Each
+            body mixes its index and name into it to get its own identity seed,
+            and its craters, relief terrain, albedo noise, and mesh pose scatter
+            each draw from a named stream of that identity seed, so bodies with
+            identical geometry still get independent surfaces.  None falls back
+            to the body's own ``seed`` and then to a seed derived from its
+            geometry.
         body_index: Stable index of this body in the scene's body list, mixed
-            into the per-body crater sub-seed alongside the body name.
+            into the body's identity seed alongside the body name.
         ref_center_v: Reference center V for body shape caching.
         ref_center_u: Reference center U for body shape caching.
         oversample: The render grid's oversampling factor.  A factor above 1
@@ -667,18 +671,18 @@ def render_single_body(
     photometric_law = spec.photometric_law
 
     # Mix a stable per-body identity (scene index and name) into the scene's
-    # crater seed so two bodies with identical geometry draw independent crater
+    # body streams seed so two bodies with identical geometry draw independent crater
     # patterns and occupy distinct shape-cache entries.  The derivation is
     # SHA-256 based (never Python's salted hash), so it is process-stable.  A
     # body without craters never consumes the seed; None keeps identical
     # smooth bodies sharing one cached shape.
-    body_seed: int | None
+    crater_seed: int | None
     if crater_fill <= 0.0:
-        body_seed = None
-    elif seed is not None:
-        body_seed = derive_effect_seed(seed, f'body:{body_index}:{body_name}')
+        crater_seed = None
+    elif body_streams_seed is not None:
+        crater_seed = derive_effect_seed(body_streams_seed, f'body:{body_index}:{body_name}')
     else:
-        body_seed = spec.seed
+        crater_seed = spec.seed
 
     # Projected half-extents of the body in the image plane.  The rendered
     # silhouette is the ellipse of semi-axes a and b rotated in-plane by
@@ -715,7 +719,7 @@ def render_single_body(
             anti_aliasing=anti_aliasing if oversample == 1 else 0.0,
             ref_center_v=ref_center_v,
             ref_center_u=ref_center_u,
-            seed=seed,
+            body_streams_seed=body_streams_seed,
             body_index=body_index,
         )
 
@@ -745,8 +749,10 @@ def render_single_body(
         relief_seed = 0
         albedo_seed = 0
         if limb_relief_rms > 0.0 or spec.albedo_texture is not None:
-            if seed is not None:
-                identity_seed = derive_effect_seed(seed, f'body:{body_index}:{body_name}')
+            if body_streams_seed is not None:
+                identity_seed = derive_effect_seed(
+                    body_streams_seed, f'body:{body_index}:{body_name}'
+                )
             elif spec.seed is not None:
                 identity_seed = spec.seed & 0x7FFFFFFF
             else:
@@ -773,7 +779,7 @@ def render_single_body(
             crater_power_law_exponent=crater_power_law_exponent,
             crater_relief_scale=crater_relief_scale,
             anti_aliasing=anti_aliasing,
-            crater_seed=body_seed,
+            crater_seed=crater_seed,
             oversample=int(oversample),
             limb_relief_rms=limb_relief_rms,
             limb_relief_corr_deg=limb_relief_corr_deg,
@@ -806,7 +812,7 @@ def render_single_body(
             crater_power_law_exponent=crater_power_law_exponent,
             crater_relief_scale=crater_relief_scale,
             anti_aliasing=anti_aliasing,
-            body_seed=body_seed,
+            body_seed=crater_seed,
         )
 
     # The exponential haze layer evaluates over the reference-centered disc

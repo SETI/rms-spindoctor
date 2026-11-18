@@ -1,6 +1,6 @@
-"""Every typed read of a simulated instrument's config entry.
+"""Every typed read of an instrument entry.
 
-Every value here comes from the simulated instrument's config entry (see
+Every value here comes from a simulated camera's instrument entry (see
 :mod:`spindoctor.sim.instruments.catalog`): the units a frame is written in, the
 detector chain an ``instrument_defaults`` scene turns on, the readout modes, the star
 zero point, the plate scale the background-sky star count uses, the whole-scene PSF
@@ -50,8 +50,8 @@ __all__ = [
     'resolve_calibrated_sky_if',
     'resolve_dark_sky_ceiling_if',
     'resolve_data_units',
-    'resolve_detector_catalog',
     'resolve_detector_defaults',
+    'resolve_detector_defaults_for_binning',
     'resolve_detector_id',
     'resolve_detector_model',
     'resolve_distortion_residual',
@@ -81,7 +81,7 @@ def resolve_data_units(instrument: str | None) -> str:
         instrument: The sim instrument name, an alias, or ``None``.
 
     Returns:
-        The config's ``data_units``: ``'raw_dn'`` for detector counts, or
+        The entry's ``data_units``: ``'raw_dn'`` for detector counts, or
         ``'calibrated_if'`` for calibrated I/F.
 
     Raises:
@@ -163,7 +163,7 @@ def resolve_psf_truncation_px(instrument: str | None) -> int:
             entry.
 
     Returns:
-        The instrument config's ``psf.truncation_px``.
+        The instrument entry's ``psf.truncation_px``.
 
     Raises:
         ValueError: If the instrument is not in the catalog.
@@ -203,7 +203,7 @@ def resolve_detector_id(instrument: str | None) -> str:
         instrument: The sim instrument name, an alias, or ``None``.
 
     Returns:
-        The config's ``detector_id``, else the instrument's own catalog name
+        The entry's ``detector_id``, else the instrument's own catalog name
         (``generic`` for ``None`` and the generic aliases).
 
     Raises:
@@ -261,7 +261,7 @@ def downlink_table_names(instrument: str | None) -> tuple[str, ...]:
         instrument: The sim instrument name, an alias, or ``None``.
 
     Returns:
-        The table names its config's ``downlink_tables`` lists; empty for an
+        The table names its entry's ``downlink_tables`` lists; empty for an
         instrument that lists none.
 
     Raises:
@@ -360,7 +360,7 @@ def instrument_default_modes(instrument: str | None) -> dict[str, dict[str, Any]
         instrument: The sim instrument name, an alias, or ``None``.
 
     Returns:
-        A fresh copy of the config's ``artifact_modes.instrument_defaults``: each
+        A fresh copy of the entry's ``artifact_modes.instrument_defaults``: each
         mode's scene map, which the detector resolver uses when the scene has not
         set the mode itself.  Empty for an instrument that turns no mode on.
 
@@ -378,7 +378,7 @@ def cataloged_binnings(instrument: str | None) -> tuple[int, ...]:
         instrument: The sim instrument name, an alias, or ``None``.
 
     Returns:
-        The factors the config's ``readout_modes`` lists; ``(1,)`` for a camera
+        The factors the entry's ``readout_modes`` lists; ``(1,)`` for a camera
         without binned modes.
 
     Raises:
@@ -416,7 +416,7 @@ def resolve_native_frame_size_px(instrument: str | None) -> int | None:
         instrument: The sim instrument name, an alias, or ``None``.
 
     Returns:
-        The config's ``native_frame_size_px``, or None for a camera that states
+        The entry's ``native_frame_size_px``, or None for a camera that states
         none.
 
     Raises:
@@ -455,15 +455,15 @@ def binning_for_frame_size(instrument: str | None, size_vu: tuple[int, int]) -> 
 
 
 def resolve_detector_defaults(instrument: str | None) -> dict[str, Any]:
-    """Return the detector-parameter defaults for a sim instrument.
+    """Return a sim instrument's native detector defaults, before any readout mode.
 
     Parameters:
         instrument: The sim instrument name, an alias, or ``None`` for the generic
             entry.
 
     Returns:
-        A fresh copy of the config's ``detector`` block, plus, under
-        ``artifact_modes``, the config's per-mode shape defaults
+        A fresh copy of the instrument entry's ``detector`` block, plus, under
+        ``artifact_modes``, the entry's per-mode shape defaults
         (``artifact_modes.shape_defaults``) when it states any.
 
     Raises:
@@ -477,7 +477,7 @@ def resolve_detector_defaults(instrument: str | None) -> dict[str, Any]:
     return defaults
 
 
-def resolve_detector_catalog(instrument: str | None, binning: int) -> dict[str, Any]:
+def resolve_detector_defaults_for_binning(instrument: str | None, binning: int) -> dict[str, Any]:
     """Return a sim instrument's detector defaults in one readout mode.
 
     Where the readout mode sets a key, its value replaces the native one; the keys
@@ -521,8 +521,10 @@ def resolve_detector_model(instrument: str | None, detector: Mapping[str, Any] |
     if model is not None:
         return str(model)
     binning = block.get('binning')
-    catalog = resolve_detector_catalog(instrument, 1 if binning is None else binning)
-    return str(catalog['detector_model'])
+    detector_defaults = resolve_detector_defaults_for_binning(
+        instrument, 1 if binning is None else binning
+    )
+    return str(detector_defaults['detector_model'])
 
 
 def resolve_mode_with_catalog(

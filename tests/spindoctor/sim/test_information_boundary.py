@@ -14,7 +14,7 @@ import pytest
 from tests.spindoctor.sim.scenes import frame_scene, star_entry
 
 from spindoctor.obs.obs_inst_sim import ObsSim
-from spindoctor.sim.render.driver import render_combined_model
+from spindoctor.sim.render.driver import render_scene
 from spindoctor.sim.scene.boundary import (
     TOP_LEVEL_IDEALIZED_KEYS,
     TOP_LEVEL_TEST_ONLY_KEYS,
@@ -425,8 +425,8 @@ def test_non_navigable_ring_feature_is_dropped_but_still_renders() -> None:
     nav_with = build_nav_params(with_confounder)
     assert nav_with['ring_system'] == nav_without['ring_system']
 
-    img_without, _meta0 = render_combined_model(scene)
-    img_with, _meta1 = render_combined_model(with_confounder)
+    img_without, _meta0 = render_scene(scene)
+    img_with, _meta1 = render_scene(with_confounder)
     assert bool((img_with != img_without).any())
 
 

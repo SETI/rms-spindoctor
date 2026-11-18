@@ -30,8 +30,8 @@ from spindoctor.sim.render.detector.electronics_stages import (
     apply_frame_transfer_smear,
 )
 from spindoctor.sim.render.detector.params import resolve_detector_params
-from spindoctor.sim.render.detector.sqrt_lut import SqrtLut
-from spindoctor.sim.render.driver import render_combined_model
+from spindoctor.sim.render.detector.sqrt_lut import LutSqrt
+from spindoctor.sim.render.driver import render_scene
 
 _SIZE = 64
 
@@ -215,7 +215,7 @@ def test_generic_instrument_defaults_injects_no_frame_transfer_smear() -> None:
 
 def test_generic_instrument_defaults_records_no_smear_truth() -> None:
     """A generic instrument_defaults render writes no frame_transfer_smear record."""
-    _img, truth = render_combined_model(_disc('generic', artifacts={'instrument_defaults': True}))
+    _img, truth = render_scene(_disc('generic', artifacts={'instrument_defaults': True}))
     assert 'frame_transfer_smear' not in truth.get('artifacts', {})
 
 
@@ -457,7 +457,7 @@ def test_quantization_sqrt_lut_mode_routes_to_the_cassini_table(instrument: str)
         _disc(instrument, artifacts={'quantization_sqrt_lut': {'probability': 1.0}})
     )
     assert dp.quantization == 'sqrt_lut'
-    assert dp.sqrt_lut == SqrtLut(codes=256, linear_dn=2.0, quadratic_dn=0.055, whole_dn=True)
+    assert dp.sqrt_lut == LutSqrt(codes=256, linear_dn=2.0, quadratic_dn=0.055, whole_dn=True)
 
 
 def test_bias_structure_mode_overrides_the_generic_knob() -> None:
@@ -499,7 +499,7 @@ def test_banding_mode_silences_the_generic_banding() -> None:
 
 def test_detector_mode_records_truth() -> None:
     """A rendered detector mode records its realized geometry in the frame truth."""
-    _img, truth = render_combined_model(
+    _img, truth = render_scene(
         _disc('coiss_nac', artifacts={'fixed_pattern': {'probability': 1.0, 'dust_donut_count': 3}})
     )
     artifacts = truth.get('artifacts', {})
@@ -657,7 +657,7 @@ def test_hot_pixels_mode_records_truth_end_to_end() -> None:
         'coiss_nac', artifacts={'hot_pixels': {'pixel_fraction': 0.002, 'amplitude_e': 4.0e4}}
     )
     scene['bodies'] = []
-    img, truth = render_combined_model(scene)
+    img, truth = render_scene(scene)
     record = truth['artifacts']['hot_pixels']
     assert record['pixels']
     assert len(record['amplitudes_e']) == len(record['pixels'])
@@ -672,7 +672,7 @@ def _hot_pixels_of(instrument: str, seed: int) -> list[list[int]]:
     scene = _disc(instrument, artifacts={'hot_pixels': {'pixel_fraction': 0.002}})
     scene['bodies'] = []
     scene['random_seed'] = seed
-    _img, truth = render_combined_model(scene)
+    _img, truth = render_scene(scene)
     return cast(list[list[int]], truth['artifacts']['hot_pixels']['pixels'])
 
 
@@ -688,11 +688,11 @@ def test_a_calibrated_product_shares_its_cameras_hot_pixels() -> None:
 
 def test_generic_hot_pixel_knob_records_no_truth() -> None:
     """The instrument_defaults hot-pixel path stays unrecorded (not an explicit mode)."""
-    _img, truth = render_combined_model(_disc('coiss_nac', artifacts={'instrument_defaults': True}))
+    _img, truth = render_scene(_disc('coiss_nac', artifacts={'instrument_defaults': True}))
     assert 'hot_pixels' not in truth.get('artifacts', {})
 
 
 def test_floor_scene_records_no_detector_artifacts() -> None:
     """A scene with no artifact modes records no detector-artifact truth."""
-    _img, truth = render_combined_model(_disc('coiss_nac'))
+    _img, truth = render_scene(_disc('coiss_nac'))
     assert 'artifacts' not in truth or not truth['artifacts']

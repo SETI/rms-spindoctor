@@ -17,7 +17,7 @@ from tests.spindoctor.sim.scenes import frame_scene
 from spindoctor.sim.instruments.resolvers import resolve_detector_defaults
 from spindoctor.sim.render.detector.noise_stages import detector_column_map
 from spindoctor.sim.render.detector.params import calibration_map, resolve_detector_params
-from spindoctor.sim.render.driver import render_combined_model
+from spindoctor.sim.render.driver import render_scene
 from spindoctor.sim.scene.errors import SimSceneValidationError
 from spindoctor.sim.scene.validate import validate_sim_params
 
@@ -44,7 +44,7 @@ def _residual_only(column_e: float, pixel_e: float) -> dict[str, Any]:
 
 def _electrons(scene: dict[str, Any]) -> np.ndarray:
     """Render ``scene`` and convert its calibrated I/F back to electrons."""
-    img, _ = render_combined_model(scene)
+    img, _ = render_scene(scene)
     dp = resolve_detector_params(scene)
     cal = calibration_map(dp)
     assert cal is not None
@@ -125,9 +125,7 @@ def test_two_scenes_share_the_column_pattern() -> None:
 
 def test_an_instrument_defaults_calibrated_sky_is_continuous() -> None:
     """The cataloged residual takes the calibrated sky off the integer DN lattice."""
-    img, _ = render_combined_model(
-        _scene('coiss_calib_nac', {}, artifacts={'instrument_defaults': True})
-    )
+    img, _ = render_scene(_scene('coiss_calib_nac', {}, artifacts={'instrument_defaults': True}))
     assert np.unique(img).size > 10_000
 
 
@@ -141,8 +139,8 @@ def test_each_calibrated_camera_catalogs_both_terms(instrument: str) -> None:
 
 def test_a_raw_product_ignores_the_residual() -> None:
     """A raw DN frame has no calibration inverse, so the keys change nothing."""
-    plain, _ = render_combined_model(_scene('coiss_nac', _residual_only(0.0, 0.0)))
-    keyed, _ = render_combined_model(_scene('coiss_nac', _residual_only(15.0, 9.4)))
+    plain, _ = render_scene(_scene('coiss_nac', _residual_only(0.0, 0.0)))
+    keyed, _ = render_scene(_scene('coiss_nac', _residual_only(15.0, 9.4)))
     assert np.array_equal(plain, keyed)
 
 

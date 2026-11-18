@@ -4,7 +4,7 @@
 FOV and dummy geometry, so the standard navigation pipeline runs on it exactly
 as on a real frame.  The rendered image and the full scene (truth included)
 stay on the snapshot for renderer-side consumers; the navigator-side models
-see only the filtered idealized view exposed as ``obs.nav_params`` (the
+see only the navigator view exposed as ``obs.nav_params`` (the
 information boundary -- see :func:`spindoctor.sim.scene.boundary.build_nav_params`).
 """
 
@@ -19,7 +19,7 @@ from oops.observation import Snapshot
 from spindoctor.config import DEFAULT_CONFIG, IMAGE_LOGGER, Config, logged_section
 from spindoctor.obs.obs_snapshot_inst import ObsSnapshotInst
 from spindoctor.sim.instruments.navigator_link import resolve_extfov_margin, resolve_sim_inst_config
-from spindoctor.sim.render.driver import render_combined_model
+from spindoctor.sim.render.driver import render_scene
 from spindoctor.sim.scene.boundary import build_nav_params
 from spindoctor.sim.scene.io import load_sim_scene
 from spindoctor.support.types import NDArrayAnyType, NDArrayBoolType, PathLike
@@ -86,7 +86,7 @@ class ObsSim(ObsSnapshotInst):
         Returns:
             The :class:`ObsSim` wrapping the rendered scene: the rendered
             image as ``data``, the full scene and renderer truth metadata on
-            the snapshot, and the filtered idealized view as ``nav_params``.
+            the snapshot, and the navigator view as ``nav_params``.
             Its ``abspath`` is the local file the scene was read from, or,
             for a scene supplied in memory, ``path`` rendered absolute
             without any storage being touched.
@@ -126,7 +126,7 @@ class ObsSim(ObsSnapshotInst):
         # supplied in memory keeps the label its caller gave.
         label = str(abspath) if provided_sim_params is None else str(scene_path)
         logger.debug('Rendering combined simulated model')
-        img_rendered, meta = render_combined_model(sim_params, source=label)
+        img_rendered, meta = render_scene(sim_params, source=label)
         size_v = int(sim_params['size_v'])
         size_u = int(sim_params['size_u'])
         offset_v = float(sim_params.get('offset_v', 0.0))
@@ -179,7 +179,7 @@ class ObsSim(ObsSnapshotInst):
         # renderer-side consumers: the test harnesses that score recovery
         # against planted truth and the backplane writer that consumes the
         # rendered masks.  The navigator-side models consume ONLY the
-        # filtered idealized view built below.
+        # navigator view built below.
         new_obs.sim_params = sim_params
         new_obs.sim_offset_v = offset_v
         new_obs.sim_offset_u = offset_u

@@ -152,7 +152,7 @@ Configuration
 =============
 
 The model doesn't have YAML configuration of its own. Everything it reads comes from the
-observation's filtered scene view, ``obs.nav_params``:
+observation's navigator view, ``obs.nav_params``:
 
 - ``ring_system.geometry``: the shared projection block. The model reads ``center_v`` and
   ``center_u`` (the projected ring center, in pixel-corner coordinates),

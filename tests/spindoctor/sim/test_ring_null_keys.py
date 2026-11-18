@@ -15,7 +15,7 @@ from typing import Any
 import numpy as np
 import pytest
 
-from spindoctor.sim.render.driver import render_combined_model
+from spindoctor.sim.render.driver import render_scene
 from spindoctor.sim.scene.boundary import build_nav_params
 from spindoctor.sim.scene.fields import scene_value
 from spindoctor.sim.scene.io import load_sim_scene
@@ -106,7 +106,7 @@ def _case_id(case: tuple[str, _Path, str]) -> str:
 
 def _render(scene: dict[str, Any]) -> np.ndarray:
     """Validate ``scene`` and render it, returning the image."""
-    image, _meta = render_combined_model(validate_sim_params(scene, source='case'))
+    image, _meta = render_scene(validate_sim_params(scene, source='case'))
     return np.asarray(image)
 
 

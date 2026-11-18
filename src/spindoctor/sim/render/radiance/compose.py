@@ -49,7 +49,7 @@ from spindoctor.config import DEFAULT_CONFIG
 from spindoctor.sim.instruments.navigator_link import resolve_sim_inst_config
 from spindoctor.sim.instruments.resolvers import (
     filter_star_flux_scale,
-    resolve_detector_catalog,
+    resolve_detector_defaults_for_binning,
     resolve_sky_pixel_scale_arcsec,
     resolve_star_flux_zero_point,
 )
@@ -104,7 +104,7 @@ def _star_zero_point(params: Mapping[str, Any]) -> tuple[float, str]:
 def _nominal_read_noise(instrument: str | None, domain: str, *, binning: int) -> float:
     """The camera's nominal per-pixel read noise for the faint-sky cutoff.
 
-    Read from the per-instrument catalog regardless of whether the scene enables
+    Read from the instrument's detector defaults regardless of whether the scene enables
     read noise -- the cutoff asks whether a star could ever clear the camera's
     noise floor, a physical property of the detector.  A binned readout mode's
     published read noise replaces the native one.
@@ -117,13 +117,13 @@ def _nominal_read_noise(instrument: str | None, domain: str, *, binning: int) ->
     Returns:
         The nominal read noise in the zero point's unit domain.
     """
-    catalog = resolve_detector_catalog(instrument, binning)
+    detector_defaults = resolve_detector_defaults_for_binning(instrument, binning)
     if domain == 'dn':
-        vidicon = catalog.get('vidicon') or {}
+        vidicon = detector_defaults.get('vidicon') or {}
         line = float(vidicon.get('read_noise_line_dn', 1.0))
         pixel = float(vidicon.get('read_noise_pixel_dn', 1.0))
         return float(stable_hypot(line, pixel))
-    return float(catalog.get('read_noise_e', 1.0))
+    return float(detector_defaults.get('read_noise_e', 1.0))
 
 
 def compose_scene_radiance(
@@ -165,9 +165,11 @@ def compose_scene_radiance(
     # one (including 'scene_radiance/background_stars') would reseed its stream
     # and change every scene that uses it.  Ring-system randomized effects
     # derive 'scene_radiance/ring_system/<effect>' streams; the spoke field is
-    # the only one today.
+    # the only one today.  The bodies' streams keep the 'scene_radiance/craters'
+    # name although they also seed each body's relief, albedo noise, and mesh
+    # pose scatter.
     background_stars_seed = derive_effect_seed(random_seed, 'scene_radiance/background_stars')
-    crater_seed = derive_effect_seed(random_seed, 'scene_radiance/craters')
+    body_streams_seed = derive_effect_seed(random_seed, 'scene_radiance/craters')
     catalog_scatter_seed = derive_effect_seed(random_seed, 'scene_radiance/catalog_scatter')
     ring_spokes_seed = derive_effect_seed(random_seed, 'scene_radiance/ring_system/spokes')
     # Scene-level per-star position-scatter sigma (detector pixels), scaled to
@@ -382,7 +384,7 @@ def compose_scene_radiance(
             item_spec,
             offset_v,
             offset_u=offset_u,
-            seed=crater_seed,
+            body_streams_seed=body_streams_seed,
             body_index=orig_idx,
             ref_center_v=ref_center_v,
             ref_center_u=ref_center_u,
@@ -534,7 +536,7 @@ def compose_scene_radiance(
                 item_spec,
                 offset_v,
                 offset_u=offset_u,
-                seed=crater_seed,
+                body_streams_seed=body_streams_seed,
                 body_index=orig_idx,
                 ref_center_v=ref_center_v,
                 ref_center_u=ref_center_u,

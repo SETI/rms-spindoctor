@@ -18,10 +18,10 @@ import numpy as np
 import pytest
 from tests.spindoctor.sim.scenes import disc_body, frame_scene, quiet_noise, star_entry
 
-from spindoctor.nav_model.simulated.predict_body import create_simulated_body
+from spindoctor.nav_model.simulated.predict_body import predict_body_image
 from spindoctor.sim.render.bodies.texture import AlbedoTextureSpec, DiscTextureSpec, TransitSpec
 from spindoctor.sim.render.bodies.topo import TopoBodySpec, create_topographic_body
-from spindoctor.sim.render.driver import render_combined_model, resolve_oversample
+from spindoctor.sim.render.driver import render_scene, resolve_oversample
 from spindoctor.sim.render.pipeline import STAGES
 from spindoctor.sim.render.stages import downsample_to_detector, new_sim_frame
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
@@ -66,28 +66,28 @@ def test_resolve_oversample_explicit_key_wins() -> None:
 
 def test_no_optics_render_is_deterministic() -> None:
     """Two renders of the same no-optics scene are bit-identical."""
-    first, _ = render_combined_model(_body_scene(oversample=None))
-    second, _ = render_combined_model(_body_scene(oversample=None))
+    first, _ = render_scene(_body_scene(oversample=None))
+    second, _ = render_scene(_body_scene(oversample=None))
     assert np.array_equal(first, second)
 
 
 def test_oversampled_render_returns_detector_grid() -> None:
     """The downsample returns the image to the detector grid."""
-    img, _ = render_combined_model(_body_scene(oversample=4))
+    img, _ = render_scene(_body_scene(oversample=4))
     assert img.shape == (60, 60)
 
 
 def test_oversample_conserves_body_flux() -> None:
     """Oversampling then averaging preserves the body's total signal."""
-    plain, _ = render_combined_model(_body_scene(oversample=None))
-    fine, _ = render_combined_model(_body_scene(oversample=4))
+    plain, _ = render_scene(_body_scene(oversample=None))
+    fine, _ = render_scene(_body_scene(oversample=4))
     assert abs(float(fine.sum()) - float(plain.sum())) < 0.02 * float(plain.sum())
 
 
 def test_oversample_keeps_body_centered() -> None:
     """The oversampled body lands at the same detector centroid as os 1."""
-    plain, _ = render_combined_model(_body_scene(oversample=None))
-    fine, _ = render_combined_model(_body_scene(oversample=4))
+    plain, _ = render_scene(_body_scene(oversample=None))
+    fine, _ = render_scene(_body_scene(oversample=4))
     cv_plain, cu_plain = _centroid(plain)
     cv_fine, cu_fine = _centroid(fine)
     assert abs(cv_fine - cv_plain) < 0.2
@@ -115,7 +115,7 @@ def test_oversampled_smooth_body_matches_the_navigator_model() -> None:
             oversample=4,
         ),
     )
-    predicted = create_simulated_body(
+    predicted = predict_body_image(
         size, center, 48.0, semi_b_px=48.0, semi_c_px=48.0, illumination_angle=0.7, phase_angle=0.9
     )
     np.testing.assert_allclose(rendered, predicted, rtol=0.0, atol=1e-12)
@@ -141,7 +141,7 @@ def test_anti_aliased_smooth_body_matches_the_navigator_model() -> None:
             anti_aliasing=1.0,
         ),
     )
-    predicted = create_simulated_body(
+    predicted = predict_body_image(
         size,
         center,
         48.0,
@@ -181,7 +181,7 @@ def test_oversampled_smooth_body_matches_the_navigator_model_on_the_detector_gri
         stage(frame, params=scene, rng=np.random.default_rng(0))
         if name == 'downsample':
             break
-    predicted = create_simulated_body(
+    predicted = predict_body_image(
         (size, size),
         center,
         12.0,
@@ -264,7 +264,7 @@ def test_active_surface_setting_changes_the_shading(setting: str) -> None:
 
 def test_oversample_inventory_is_detector_scale() -> None:
     """The body inventory bbox is reported in detector pixels, not os pixels."""
-    _, meta = render_combined_model(_body_scene(oversample=4))
+    _, meta = render_scene(_body_scene(oversample=4))
     inv = meta['inventory']['B']
     assert abs(inv['v_pixel_size'] - 24.0) < 1.0
 
@@ -287,7 +287,7 @@ def test_oversample_star_records_are_detector_scale() -> None:
         noise=quiet_noise(),
         stars=[star_entry(20.5, 24.5, 5.0, move_v=2.0, move_u=-4.0, psf_size=[11, 11])],
     )
-    _, meta = render_combined_model(scene)
+    _, meta = render_scene(scene)
     star = meta['stars'][0]
     assert star.v == 20.5
     assert star.u == 24.5
@@ -323,7 +323,7 @@ def test_oversample_defaulted_psf_size_survives_the_round_trip() -> None:
         noise=quiet_noise(),
         stars=[star_entry(20.5, 24.5, 5.0)],
     )
-    _, meta = render_combined_model(scene)
+    _, meta = render_scene(scene)
     assert meta['stars'][0].psf_size == (11, 11)
 
 
@@ -331,8 +331,8 @@ def test_optics_scene_renders_deterministically() -> None:
     """A PSF scene (oversample 4) is bit-identical across renders."""
     scene = _body_scene(oversample=None)
     scene['optics'] = {'psf': {'sigma_v': 1.0, 'sigma_u': 1.0, 'w': 0.02}}
-    first, _ = render_combined_model(scene)
-    second, _ = render_combined_model(scene)
+    first, _ = render_scene(scene)
+    second, _ = render_scene(scene)
     assert np.array_equal(first, second)
     assert first.shape == (60, 60)
 
@@ -347,7 +347,7 @@ def test_oversample_body_mask_lands_where_the_body_rendered() -> None:
     and silhouette are both symmetric about the same point, so the two
     centroids coincide and any preference shows up as a separation.
     """
-    img, meta = render_combined_model(_body_scene(oversample=4))
+    img, meta = render_scene(_body_scene(oversample=4))
     image_v, image_u = _centroid(img)
     mask_v, mask_u = _centroid(np.asarray(meta['body_masks'][0], dtype=np.float64))
     assert abs(mask_v - image_v) < 0.01
@@ -360,7 +360,7 @@ def test_oversample_body_index_map_lands_where_the_body_rendered() -> None:
     The index map reduces through its own rule and reaches the simulated
     backplanes, so it gets the same check the boolean masks get.
     """
-    img, meta = render_combined_model(_body_scene(oversample=4))
+    img, meta = render_scene(_body_scene(oversample=4))
     image_v, image_u = _centroid(img)
     painted = (np.asarray(meta['body_index_map']) == 1).astype(np.float64)
     index_v, index_u = _centroid(painted)

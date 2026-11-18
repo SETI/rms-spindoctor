@@ -1,7 +1,7 @@
 """Polyhedral irregular-body renderer and navigation-geometry override.
 
 Covers the standalone mesh renderer (shape, pose, shading, determinism), its
-hook into the combined render path, and the ``nav_override`` channel that builds
+hook into the scene render path, and the ``nav_override`` channel that builds
 the predicted body from a divergent geometry (the render-vs-navigation
 separation the shape-mismatch and pose-disagreement scenarios rely on).
 """
@@ -17,7 +17,7 @@ from tests.spindoctor.sim.scenes import frame_scene, quiet_noise
 from spindoctor.nav_model import build_models_for_obs
 from spindoctor.nav_model.simulated.body import NavModelBodySimulated
 from spindoctor.obs.obs_inst_sim import ObsSim
-from spindoctor.sim.render.driver import render_combined_model
+from spindoctor.sim.render.driver import render_scene
 from spindoctor.sim.scene.boundary import build_nav_params
 from spindoctor.sim.shared.mesh import make_irregular_mesh, render_polyhedral_body
 
@@ -113,24 +113,24 @@ def _mesh_scene(**body: Any) -> dict[str, Any]:
     return frame_scene(size=96, noise=quiet_noise(), bodies=[base])
 
 
-def test_combined_render_mesh_differs_from_ellipsoid() -> None:
+def test_scene_render_mesh_differs_from_ellipsoid() -> None:
     """A mesh body and an ellipsoid body of equal axes render different shapes."""
-    mesh_img, _ = render_combined_model(_mesh_scene())
-    ell_img, _ = render_combined_model(_mesh_scene(shape_model='ellipsoid'))
+    mesh_img, _ = render_scene(_mesh_scene())
+    ell_img, _ = render_scene(_mesh_scene(shape_model='ellipsoid'))
     assert int(((mesh_img > 0) != (ell_img > 0)).sum()) > 50
 
 
-def test_combined_render_mesh_pose_changes_shape() -> None:
-    """The body pose drives the rendered mesh silhouette in the combined path."""
-    a, _ = render_combined_model(_mesh_scene())
-    b, _ = render_combined_model(_mesh_scene(pose_euler_deg=[0.0, 90.0, 30.0]))
+def test_scene_render_mesh_pose_changes_shape() -> None:
+    """The body pose drives the rendered mesh silhouette in a scene render."""
+    a, _ = render_scene(_mesh_scene())
+    b, _ = render_scene(_mesh_scene(pose_euler_deg=[0.0, 90.0, 30.0]))
     assert int(((a > 0) != (b > 0)).sum()) > 50
 
 
-def test_combined_render_mesh_is_deterministic() -> None:
+def test_scene_render_mesh_is_deterministic() -> None:
     """Re-rendering the same mesh scene is byte-identical."""
-    a, _ = render_combined_model(_mesh_scene())
-    b, _ = render_combined_model(_mesh_scene())
+    a, _ = render_scene(_mesh_scene())
+    b, _ = render_scene(_mesh_scene())
     assert np.array_equal(a, b)
 
 

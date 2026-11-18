@@ -1,7 +1,7 @@
 """Rendering validates its scene.
 
 A scene built in memory must meet the rules a scene file meets when it loads, so
-:func:`~spindoctor.sim.render.driver.render_combined_model` refuses one that fails
+:func:`~spindoctor.sim.render.driver.render_scene` refuses one that fails
 validation.  Validation is cached on the scene's JSON, and a scene file that JSON
 cannot encode is still validated.
 """
@@ -13,7 +13,7 @@ from typing import Any
 import pytest
 from tests.spindoctor.sim.scenes import frame_scene
 
-from spindoctor.sim.render.driver import render_combined_model
+from spindoctor.sim.render.driver import render_scene
 from spindoctor.sim.scene.errors import SimSceneValidationError
 from spindoctor.sim.scene.io import load_sim_scene
 
@@ -40,7 +40,7 @@ def test_render_refuses_an_invalid_scene() -> None:
         SimSceneValidationError,
         match=re.escape("sim_params: unknown scene keys: ['exposure_seconds']"),
     ):
-        render_combined_model(_scene(exposure_seconds=2.0))
+        render_scene(_scene(exposure_seconds=2.0))
 
 
 def test_a_scene_file_json_cannot_encode_is_validated(tmp_path: Path) -> None:

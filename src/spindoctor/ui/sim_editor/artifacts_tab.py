@@ -45,7 +45,7 @@ from spindoctor.sim.artifact_modes import ARTIFACT_MODES, DETECTOR_MODELS, QUANT
 from spindoctor.sim.instruments.resolvers import (
     cataloged_binnings,
     downlink_table_names,
-    resolve_detector_catalog,
+    resolve_detector_defaults_for_binning,
     resolve_detector_model,
 )
 from spindoctor.sim.render.optics.stage import instrument_defaults_on
@@ -227,7 +227,7 @@ class ArtifactsTabMixin(SimEditorBase):
 
     # ---- Detector override group ----
 
-    def _detector_catalog(self, binning: int) -> dict[str, Any]:
+    def _detector_defaults(self, binning: int) -> dict[str, Any]:
         """The selected instrument's detector defaults in one readout mode.
 
         Where the readout mode sets a key, its value replaces the native one, as
@@ -237,7 +237,7 @@ class ArtifactsTabMixin(SimEditorBase):
         Parameters:
             binning: The scene's readout-mode binning.
         """
-        return resolve_detector_catalog(self.sim_params.get('instrument'), binning)
+        return resolve_detector_defaults_for_binning(self.sim_params.get('instrument'), binning)
 
     def _detector_block(self) -> dict[str, Any]:
         """The scene's detector keys that carry a value; a null reads as absent."""
@@ -315,11 +315,11 @@ class ArtifactsTabMixin(SimEditorBase):
         return group
 
     def _set_detector_widget_values(self) -> None:
-        """Show each detector key's scene value, or the instrument catalog default.
+        """Show each detector key's scene value, or the instrument's detector default.
 
         Only display state: nothing is written back to ``sim_params``, so a
         key the operator never edits stays absent and keeps tracking the
-        catalog.
+        detector defaults.
         """
         binning = int(self._detector_block().get('binning', 1))
         self._set_binning_choices(binning)
@@ -337,23 +337,25 @@ class ArtifactsTabMixin(SimEditorBase):
             binning: The readout-mode binning the defaults come from.
         """
         block = self._detector_block()
-        catalog = self._detector_catalog(binning)
-        gain_state = int(block.get('gain_state', catalog.get('default_gain_state', 0)))
-        self._set_gain_state_range(catalog, gain_state)
+        detector_defaults = self._detector_defaults(binning)
+        gain_state = int(block.get('gain_state', detector_defaults.get('default_gain_state', 0)))
+        self._set_gain_state_range(detector_defaults, gain_state)
         self._detector_gain_state_spin.setValue(gain_state)
-        model = str(block.get('detector_model', catalog.get('detector_model', 'ccd')))
+        model = str(block.get('detector_model', detector_defaults.get('detector_model', 'ccd')))
         model_index = self._detector_model_combo.findText(model)
         if model_index >= 0:
             self._detector_model_combo.setCurrentIndex(model_index)
         self._detector_exposure_ref_spin.setValue(
-            float(block.get('exposure_ref_sec', catalog.get('exposure_ref_sec', 1.0)))
+            float(block.get('exposure_ref_sec', detector_defaults.get('exposure_ref_sec', 1.0)))
         )
-        quantization = str(block.get('quantization', catalog.get('quantization', 'exact')))
+        quantization = str(
+            block.get('quantization', detector_defaults.get('quantization', 'exact'))
+        )
         quantization_index = self._detector_quantization_combo.findText(quantization)
         if quantization_index >= 0:
             self._detector_quantization_combo.setCurrentIndex(quantization_index)
 
-    def _set_gain_state_range(self, catalog: dict[str, Any], gain_state: int) -> None:
+    def _set_gain_state_range(self, detector_defaults: dict[str, Any], gain_state: int) -> None:
         """Span the gain-state spin over the instrument's cataloged states.
 
         The catalog requires an instrument's gain states to be contiguous
@@ -363,10 +365,10 @@ class ArtifactsTabMixin(SimEditorBase):
         it.  If the instrument has no gain table (a vidicon), its single state is 0.
 
         Parameters:
-            catalog: The instrument's detector defaults.
+            detector_defaults: The instrument's detector defaults.
             gain_state: The state the spin is about to show.
         """
-        states = {*(catalog.get('gain_e_per_dn_by_state') or {0: 1.0}), gain_state}
+        states = {*(detector_defaults.get('gain_e_per_dn_by_state') or {0: 1.0}), gain_state}
         self._detector_gain_state_spin.setRange(min(states), max(states))
 
     def _set_binning_choices(self, binning: int) -> None:

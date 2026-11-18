@@ -27,7 +27,7 @@ from spindoctor.sim.artifact_modes import (
     resolve_mode_config,
 )
 from spindoctor.sim.render.detector.params import resolve_detector_params
-from spindoctor.sim.render.driver import render_combined_model
+from spindoctor.sim.render.driver import render_scene
 from spindoctor.sim.render.stages import SimFrame
 from spindoctor.sim.render.telemetry.stage import apply_telemetry
 from spindoctor.sim.scene.errors import SimSceneValidationError
@@ -250,7 +250,7 @@ def _pair_count(rate_per_sec: float, exposure_sec: float) -> int:
     sim = _scene({'bright_dark_pairs': {EXPECTED_EVENTS_PER_SEC: rate_per_sec}}, 'coiss_nac')
     sim['exposure_sec'] = exposure_sec
     validate_sim_params(sim)
-    _image, truth = render_combined_model(sim, ignore_offset=True)
+    _image, truth = render_scene(sim, ignore_offset=True)
     return len(truth['artifacts']['bright_dark_pairs']['pairs'])
 
 

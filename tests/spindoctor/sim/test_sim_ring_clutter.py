@@ -16,7 +16,7 @@ import numpy as np
 import pytest
 from tests.spindoctor.sim.scenes import frame_scene, ring_system_block, star_entry
 
-from spindoctor.sim.render.driver import render_combined_model
+from spindoctor.sim.render.driver import render_scene
 from spindoctor.sim.render.rings.render import RingSystemMaps, render_ring_system
 from spindoctor.sim.scene.validate import validate_sim_params
 
@@ -179,8 +179,8 @@ def test_moonlet_extinguishes_a_background_star() -> None:
             )
         )
 
-    with_star, _m0 = render_combined_model(_scene([star_entry(48.5, 68.5, 6.0)]))
-    without_star, _m1 = render_combined_model(_scene([]))
+    with_star, _m0 = render_scene(_scene([star_entry(48.5, 68.5, 6.0)]))
+    without_star, _m1 = render_scene(_scene([]))
     np.testing.assert_array_equal(with_star, without_star)
 
 
@@ -227,6 +227,6 @@ def test_full_scene_with_spokes_renders_deterministically() -> None:
             ),
         )
     )
-    img_a, _m0 = render_combined_model(scene)
-    img_b, _m1 = render_combined_model(scene)
+    img_a, _m0 = render_scene(scene)
+    img_b, _m1 = render_scene(scene)
     np.testing.assert_array_equal(img_a, img_b)

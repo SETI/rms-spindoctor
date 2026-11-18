@@ -39,7 +39,7 @@ import pytest
 from PIL import Image
 
 from spindoctor.sim.png_export import stretch_to_uint8
-from spindoctor.sim.render.driver import render_combined_model
+from spindoctor.sim.render.driver import render_scene
 from spindoctor.sim.scene.io import iter_scene_paths, load_sim_scene, scene_class_for_path
 from spindoctor.support.types import NDArrayUint8Type
 from tests.integration.render_contact_sheet import encode_current_png
@@ -102,7 +102,7 @@ def test_every_scene_has_a_current_render(tmp_path_factory: pytest.TempPathFacto
     examined = 0
     for path in _scene_paths():
         examined += 1
-        img, _ = render_combined_model(load_sim_scene(path))
+        img, _ = render_scene(load_sim_scene(path))
         fresh = stretch_to_uint8(img)
         mismatch = _mismatch(_CURRENT_DIR / f'{path.stem}.png', fresh)
         if mismatch is not None:

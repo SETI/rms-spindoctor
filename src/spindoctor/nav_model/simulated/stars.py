@@ -4,7 +4,7 @@ Emits STAR ``NavFeature`` instances for a simulated frame exactly the way
 :class:`~spindoctor.nav_model.stars.nav_model_stars.NavModelStars` does for a real
 frame -- same predicted-SNR, covariance, reliability, and annotation
 machinery -- but builds its star list from the scene's catalog entries in
-the filtered idealized view (``obs.nav_params``) rather than reducing real
+the navigator view (``obs.nav_params``) rather than reducing real
 catalogs.  The renderer's output star records never cross the information
 boundary: the navigator knows the catalog, not what was drawn.
 

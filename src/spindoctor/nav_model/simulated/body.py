@@ -40,7 +40,7 @@ from spindoctor.nav_model.nav_model_body import (
     terminator_reliability,
 )
 from spindoctor.nav_model.nav_model_body_base import BODY_BLOB_MIN_DIAMETER_PX, NavModelBodyBase
-from spindoctor.nav_model.simulated.predict_body import create_simulated_body
+from spindoctor.nav_model.simulated.predict_body import predict_body_image
 from spindoctor.obs import ObsSnapshotInst
 from spindoctor.sim.shared.ellipsoid import DARK_SIDE_ILLUM_STRENGTH
 from spindoctor.sim.shared.mesh import mesh_spec_from_params, render_mesh_body_image
@@ -259,8 +259,8 @@ class NavModelBodySimulated(NavModelBodyBase):
         obs: Observation containing image geometry (used for output shapes
             and extfov margins).
         body_name: Logical body name used in metadata and labels.
-        nav_body: The navigator's filtered view of one body: its entry from
-            the idealized ``obs.nav_params['bodies']`` list, which carries no
+        nav_body: One body's entry in the navigator view, from the
+            ``obs.nav_params['bodies']`` list, which carries no
             truth keys.  Expected keys:
 
             - ``name``
@@ -319,7 +319,7 @@ class NavModelBodySimulated(NavModelBodyBase):
     ) -> list[NavModel]:
         """Build one simulated body model per body of a simulated obs.
 
-        Reads the per-body entries of the filtered idealized view
+        Reads the per-body entries of the navigator view
         (``obs.nav_params['bodies']``) -- never the full scene, whose truth
         keys stay behind the information boundary.  Returns an empty list for
         a real obs, so the SPICE-backed ``NavModelBody`` handles those instead.
@@ -456,7 +456,7 @@ class NavModelBodySimulated(NavModelBodyBase):
                 phase_angle=phase_angle_rad,
                 anti_aliasing=1.0,
             )
-        return create_simulated_body(
+        return predict_body_image(
             size=(data_size_v, data_size_u),
             center=(center_v, center_u),
             semi_a_px=semi_a_px,

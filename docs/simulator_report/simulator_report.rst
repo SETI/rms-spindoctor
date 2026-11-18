@@ -278,7 +278,7 @@ Artifact-rate defaults and provenance
 -------------------------------------
 
 The per-instrument artifact-rate defaults the forward model applies live
-in the ``detector`` block of each instrument's config entry under
+in the ``detector`` block of each instrument entry under
 ``sim/instruments/configs/``, resolved by ``resolve_detector_defaults``.  A
 calibrated Cassini entry states only what calibration changes and sets its raw
 camera as its ``base``, inheriting every other value from that entry.  Its

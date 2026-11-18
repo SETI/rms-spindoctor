@@ -31,7 +31,7 @@ from spindoctor.nav_model.stars.nav_model_stars import (
 )
 from spindoctor.nav_orchestrator.nav_context import NavContext
 from spindoctor.nav_technique._star_helpers import local_centroid
-from spindoctor.sim.render.driver import render_combined_model
+from spindoctor.sim.render.driver import render_scene
 from spindoctor.sim.shared.stars import star_record_from_params
 from spindoctor.support.types import MutableStar
 
@@ -98,7 +98,7 @@ def _rendered_scene_star(entry: dict[str, Any]) -> np.ndarray:
         'noise': {'poisson': False, 'read_noise_dn': 0.0, 'bias_dn': 0.0},
         'stars': [entry],
     }
-    img, _meta = render_combined_model(scene)
+    img, _meta = render_scene(scene)
     return img
 
 

@@ -15,7 +15,7 @@ import pytest
 from tests.spindoctor.sim.scenes import body_scene
 
 from spindoctor.sim.render.detector.params import resolve_detector_params
-from spindoctor.sim.render.driver import render_combined_model
+from spindoctor.sim.render.driver import render_scene
 from spindoctor.sim.scene.rules_common import _NOISE_KEYS, _VIDICON_NOISE_KEYS
 from spindoctor.sim.scene.validate import validate_sim_params
 
@@ -64,6 +64,6 @@ def test_null_missing_data_rate_renders_as_absent() -> None:
     """A null missing_data_rate renders the frame a scene without the key renders."""
     scene = _scene('coiss_nac', instrument_defaults=False, noise={'missing_data_rate': None})
     validate_sim_params(scene, source='null')
-    image, _ = render_combined_model(scene)
-    expected, _ = render_combined_model(_scene('coiss_nac', instrument_defaults=False))
+    image, _ = render_scene(scene)
+    expected, _ = render_scene(_scene('coiss_nac', instrument_defaults=False))
     np.testing.assert_array_equal(image, expected)

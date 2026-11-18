@@ -119,7 +119,7 @@ def _render_mesh_shape_cached(
 def _mesh_identity_seed(
     body_seed: int | None,
     *,
-    seed: int | None,
+    body_streams_seed: int | None,
     body_index: int,
     body_name: str,
     semi_a_px: float,
@@ -128,12 +128,12 @@ def _mesh_identity_seed(
 ) -> int:
     """The per-body identity seed the mesh truth streams derive from.
 
-    Mirrors the ellipsoid path's chain exactly: the scene sub-seed mixed
-    with the body's stable identity when available, else the explicit
+    Mirrors the ellipsoid path's chain exactly: the scene's body streams seed
+    mixed with the body's stable identity when available, else the explicit
     per-body seed, else a geometry-derived process-stable seed.
     """
-    if seed is not None:
-        return derive_effect_seed(seed, f'body:{body_index}:{body_name}')
+    if body_streams_seed is not None:
+        return derive_effect_seed(body_streams_seed, f'body:{body_index}:{body_name}')
     if body_seed is not None:
         return body_seed & 0x7FFFFFFF
     # The fallback seed is keyed on the full widths, twice the semi-axes; the
@@ -157,7 +157,7 @@ def render_single_mesh_body(
     anti_aliasing: float,
     ref_center_v: float,
     ref_center_u: float,
-    seed: int | None = None,
+    body_streams_seed: int | None = None,
     body_index: int = 0,
 ) -> tuple[NDArrayBoolType, dict[str, Any]]:
     """Render one polyhedral-mesh body into the image in place.
@@ -179,7 +179,9 @@ def render_single_mesh_body(
         anti_aliasing: Limb supersampling control.
         ref_center_v: Reference center V for shape caching.
         ref_center_u: Reference center U for shape caching.
-        seed: Scene-level sub-seed the per-body truth streams derive from.
+        body_streams_seed: The scene's seed for every body's random streams; this
+            body's relief and pose-scatter streams derive from it, mixed with the
+            body's index and name.
         body_index: Stable index of this body in the scene's body list.
 
     Returns:
@@ -203,7 +205,7 @@ def render_single_mesh_body(
     if relief_rms > 0.0 or scatter_sigma_deg > 0.0:
         identity_seed = _mesh_identity_seed(
             body.seed,
-            seed=seed,
+            body_streams_seed=body_streams_seed,
             body_index=body_index,
             body_name=body_name,
             semi_a_px=semi_a_px,

@@ -5,7 +5,7 @@
 - :mod:`spindoctor.sim.scene.validate`: validate a scene, through a cache that
   loading and rendering share.
 - :mod:`spindoctor.sim.scene.boundary`: the key inventory, the information-boundary
-  class of every key, and the navigator's filtered view of a scene.
+  class of every key, and the navigator view of a scene.
 - :mod:`spindoctor.sim.scene.fields`: the field helpers and tables every reader of
   a scene shares, the navigator-side simulated models included.
 - :mod:`spindoctor.sim.scene.errors`: the error a scene that fails validation raises.

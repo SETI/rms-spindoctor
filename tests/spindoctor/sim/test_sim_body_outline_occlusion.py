@@ -12,7 +12,7 @@ import numpy as np
 import pytest
 from tests.spindoctor.sim.scenes import frame_scene, star_entry
 
-from spindoctor.sim.render.driver import render_combined_model
+from spindoctor.sim.render.driver import render_scene
 
 _SIZE = 128
 _CENTER = 64.0
@@ -48,23 +48,21 @@ def _scene(*bodies: dict[str, Any], **extra: Any) -> dict[str, Any]:
 
 def _star_light(scene: dict[str, Any], v: float, u: float) -> float:
     """The most light a bright star at ``(v, u)`` adds to ``scene``'s render."""
-    without, _meta = render_combined_model(scene)
-    with_star, _meta = render_combined_model(
-        {**scene, 'stars': [star_entry(v, u, 2.0, psf_sigma=1.0)]}
-    )
+    without, _meta = render_scene(scene)
+    with_star, _meta = render_scene({**scene, 'stars': [star_entry(v, u, 2.0, psf_sigma=1.0)]})
     return float(np.max(with_star - without))
 
 
 def test_a_full_umbra_renders_black_inside_the_body() -> None:
     """The fixture's umbra really is black, so the tests below probe a zero pixel."""
-    image, _meta = render_combined_model(_scene(_umbra_body()))
-    sky, _meta = render_combined_model(_scene())
+    image, _meta = render_scene(_scene(_umbra_body()))
+    sky, _meta = render_scene(_scene())
     assert image[64, 64] == sky[64, 64]
 
 
 def test_the_body_mask_covers_a_full_umbra() -> None:
     """A black umbra pixel still belongs to the body's mask."""
-    _image, meta = render_combined_model(_scene(_umbra_body()))
+    _image, meta = render_scene(_scene(_umbra_body()))
     assert bool(meta['body_masks'][0][64, 64])
 
 
@@ -76,8 +74,8 @@ def test_a_star_behind_a_full_umbra_is_hidden() -> None:
 def test_a_farther_body_behind_a_full_umbra_is_hidden() -> None:
     """A larger, farther body behind the umbra doesn't show through it."""
     far = {**_body(name='FAR', semi_a_px=50.0, semi_b_px=50.0, semi_c_px=50.0), 'range_km': 5.0e6}
-    alone, _meta = render_combined_model(_scene(_umbra_body()))
-    stacked, _meta = render_combined_model(_scene(_umbra_body(), far))
+    alone, _meta = render_scene(_scene(_umbra_body()))
+    stacked, _meta = render_scene(_scene(_umbra_body(), far))
     assert stacked[64, 64] == alone[64, 64]
 
 
@@ -99,7 +97,7 @@ def _relief_outline_pixel(kind: str) -> tuple[int, int]:
     relief outline; a ``bump`` lies more than half a pixel outside the ellipse
     but inside the outline.
     """
-    _image, meta = render_combined_model(_scene(_body(limb_relief_rms=0.03)))
+    _image, meta = render_scene(_scene(_body(limb_relief_rms=0.03)))
     mask = meta['body_masks'][0]
     offsets = np.arange(_SIZE) + 0.5 - _CENTER
     radius = np.sqrt(offsets[:, None] ** 2 + offsets[None, :] ** 2)
@@ -113,8 +111,8 @@ def test_relief_moves_the_occluding_outline_off_the_ellipse(kind: str, visible: 
     """A star in a relief notch shows, and one behind a relief bump is hidden."""
     scene = _scene(_body(limb_relief_rms=0.03))
     v, u = _relief_outline_pixel(kind)
-    without, _meta = render_combined_model(scene)
-    with_star, _meta = render_combined_model(
+    without, _meta = render_scene(scene)
+    with_star, _meta = render_scene(
         {
             **scene,
             'stars': [star_entry(v + 0.5, u + 0.5, 2.0, psf_sigma=1.0)],

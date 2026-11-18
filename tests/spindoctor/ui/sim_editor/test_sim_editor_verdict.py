@@ -51,7 +51,7 @@ from tests.spindoctor.ui.sim_editor.sim_editor_waits import (
 
 from spindoctor.config import DEFAULT_CONFIG
 from spindoctor.sim.instruments.navigator_link import frame_units_summary, resolve_sim_inst_config
-from spindoctor.sim.render.driver import render_combined_model
+from spindoctor.sim.render.driver import render_scene
 from spindoctor.ui.sim_editor import CreateSimulatedImageModel
 from spindoctor.ui.sim_editor import verdict as verdict_module
 from spindoctor.ui.sim_editor import worker as worker_module
@@ -394,8 +394,8 @@ def test_the_preview_leaves_out_the_planted_offset(model: Any) -> None:
     model._add_body_tab()
     model.sim_params['offset_u'] = 5.0
     model._update_image()
-    offset_free, _ = render_combined_model(model.sim_params, ignore_offset=True, preview=True)
-    navigated, _ = render_combined_model(model.sim_params, ignore_offset=False, preview=True)
+    offset_free, _ = render_scene(model.sim_params, ignore_offset=True, preview=True)
+    navigated, _ = render_scene(model.sim_params, ignore_offset=False, preview=True)
     assert np.array_equal(model._current_image, offset_free)
     assert not np.array_equal(model._current_image, navigated)
 
@@ -412,7 +412,7 @@ def test_fixing_a_refused_scene_renders_the_new_picture(model: Any) -> None:
     tab = _minnaert_body_tab(model)
     _set_minnaert_k(model, tab, 0.0)
     _set_minnaert_k(model, tab, 1.0)
-    expected, _ = render_combined_model(model.sim_params, ignore_offset=True, preview=True)
+    expected, _ = render_scene(model.sim_params, ignore_offset=True, preview=True)
     assert np.array_equal(model._current_image, expected)
 
 
@@ -450,7 +450,7 @@ def test_a_preview_that_fails_on_a_valid_scene_opens_the_error_dialog(
     def _fail(*args: Any, **kwargs: Any) -> Any:
         raise RuntimeError('preview failed')
 
-    monkeypatch.setattr('spindoctor.ui.sim_editor.render_display.render_combined_model', _fail)
+    monkeypatch.setattr('spindoctor.ui.sim_editor.render_display.render_scene', _fail)
     monkeypatch.setattr(
         QMessageBox, 'critical', staticmethod(lambda *args: dialogs.append(args[2]))
     )
@@ -493,7 +493,7 @@ def test_a_failed_preview_drops_the_running_verdict(
     def _fail(*args: Any, **kwargs: Any) -> Any:
         raise RuntimeError('preview failed')
 
-    monkeypatch.setattr('spindoctor.ui.sim_editor.render_display.render_combined_model', _fail)
+    monkeypatch.setattr('spindoctor.ui.sim_editor.render_display.render_scene', _fail)
     monkeypatch.setattr(
         'spindoctor.ui.sim_editor.render_display.QMessageBox.critical',
         lambda *args, **kwargs: None,

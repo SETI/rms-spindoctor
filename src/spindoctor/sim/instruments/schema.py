@@ -1,4 +1,4 @@
-"""The schema of a simulated instrument's config entry.
+"""The schema of an instrument entry.
 
 Every simulated camera is one top-level entry of a YAML file in
 ``spindoctor/sim/instruments/configs/`` (see :mod:`spindoctor.sim.instruments.catalog`).
@@ -124,7 +124,7 @@ _NULL_IN_LIST = (
 
 
 class InstrumentConfigError(ValueError):
-    """A simulated instrument's config entry breaks the schema."""
+    """An instrument entry breaks the schema."""
 
 
 @dataclass(frozen=True)
@@ -384,7 +384,7 @@ def canonical_filter_elements(filter_name: str) -> list[str]:
 
 
 def instrument_schema() -> Record:
-    """The root node of an instrument config entry's schema."""
+    """The root node of an instrument entry's schema."""
     return _SCHEMA
 
 
@@ -641,7 +641,7 @@ def _check_mode_map(
 
 
 def check_own_entry(entry: Any, *, source: str) -> dict[str, Any]:
-    """Check one config entry on its own, before inheritance.
+    """Check one instrument entry on its own, before inheritance.
 
     Unknown keys, types, and ranges are checked; required keys are not, since an
     entry with a ``base`` inherits them.  A null is accepted only in an entry with a

@@ -18,7 +18,8 @@ geometry arguments; none reads the scene mapping, so no truth-side
 information can cross the boundary here (``mesh_spec_from_params`` parses a
 body parameter mapping, but only its idealized mesh keys).
 
-The output contract matches ``create_simulated_body``: a ``(size_v, size_u)``
+The output contract matches the ellipsoid renderers (``create_simulated_body`` on
+the image side, ``predict_body_image`` on the navigator side): a ``(size_v, size_u)``
 float array in [0, 1], lit by the same Lambertian convention so a mesh body and
 an ellipsoid body can be compared directly.
 """

@@ -5,7 +5,7 @@ The config files live in ``spindoctor/sim/instruments/configs/``, one per missio
 the instrument-agnostic entry).  Each top-level key of a file is one simulated
 instrument, and the key is the name a scene writes; the file's own name plays no
 part.  An entry holds everything the simulator knows about the camera: the units
-its frames are written in, the navigator config block it emulates, its detector
+its frames are written in, the navigator block it emulates, its detector
 chain, readout modes, star zero point, plate scale, PSF, residual distortion,
 filter throughputs, and which artifact modes it offers with their shape defaults.
 The provenance of each value is a YAML comment beside it.  Adding a camera is adding
@@ -33,7 +33,7 @@ directory (a stray file, or no ``generic`` entry) gives the directory.
 
 The rest of the simulator reads the catalog through the resolvers in
 :mod:`spindoctor.sim.instruments.resolvers`, and through
-:mod:`spindoctor.sim.instruments.navigator_link` for the navigator config block an entry
+:mod:`spindoctor.sim.instruments.navigator_link` for the navigator block an entry
 emulates.
 """
 

@@ -413,7 +413,7 @@ holdings make multiple reproducing candidates ordinary rather than exceptional.
 Simulator model
 ===============
 
-**Instrument keys.** Four, each a top-level entry of the instrument config file
+**Instrument keys.** Four, each a top-level instrument entry of the file
 ``src/spindoctor/sim/instruments/configs/coiss.yaml``, which holds the values
 below. ``coiss_nac`` and ``coiss_wac`` resolve to the ``cassini_iss`` block's two
 detectors, and ``coiss_calib_nac`` and ``coiss_calib_wac`` to the
@@ -430,7 +430,7 @@ lost pixel reads 0, and the dark sky sits on the 4.0e-5 I/F calibrated sky
 residual, the median sky of 13 dark NAC CALIB frames, so it reads as dark and
 never as missing (see :ref:`Instruments <sim-instruments>`). The generic entry
 carries the same value, so the simulator also uses it when a scene pins an
-instrument to calibrated I/F and the instrument's config entry sets no sky
+instrument to calibrated I/F and the instrument entry sets no sky
 residual.
 Those real frames' sky scatters around 0 with a sigma of 1.9e-4 I/F, and under
 ``instrument_defaults`` about 28% of the pixels of a disc scene a third of the

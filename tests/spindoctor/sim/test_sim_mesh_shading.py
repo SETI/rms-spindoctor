@@ -18,7 +18,7 @@ from tests.spindoctor.sim.scenes import frame_scene
 
 from spindoctor.sim.render.bodies.mesh import render_single_mesh_body
 from spindoctor.sim.render.bodies.spec import body_spec_from_params
-from spindoctor.sim.render.driver import render_combined_model
+from spindoctor.sim.render.driver import render_scene
 from spindoctor.sim.scene.boundary import build_nav_params
 from spindoctor.sim.shared.mesh import (
     make_irregular_mesh,
@@ -130,7 +130,7 @@ def _render_mesh_body(body: dict[str, Any]) -> NDArrayFloatType:
         anti_aliasing=0.0,
         ref_center_v=_CENTER,
         ref_center_u=_CENTER,
-        seed=99,
+        body_streams_seed=99,
         body_index=0,
     )
     return img
@@ -201,12 +201,12 @@ def _pose_scatter_scene(
 
 def test_pose_scatter_moves_the_render_by_the_recorded_drawn_amount() -> None:
     """The scattered render equals a render at catalog pose + the drawn angles."""
-    scattered_img, meta = render_combined_model(_pose_scatter_scene(sigma_deg=3.0))
+    scattered_img, meta = render_scene(_pose_scatter_scene(sigma_deg=3.0))
     drawn = meta['bodies']['HYPERION']['pose_scatter_drawn_deg']
     assert len(drawn) == 3
     assert any(abs(d) > 1e-6 for d in drawn)
     equivalent_pose = [10.0 + drawn[0], 35.0 + drawn[1], 0.0 + drawn[2]]
-    explicit_img, _ = render_combined_model(
+    explicit_img, _ = render_scene(
         _pose_scatter_scene(sigma_deg=0.0, pose_override=equivalent_pose)
     )
     assert np.array_equal(scattered_img, explicit_img)
@@ -230,7 +230,7 @@ def test_pose_scatter_draw_is_returned_with_the_body_info() -> None:
         anti_aliasing=0.0,
         ref_center_v=_CENTER,
         ref_center_u=_CENTER,
-        seed=99,
+        body_streams_seed=99,
         body_index=0,
     )
     drawn = info['pose_scatter_drawn_deg']
@@ -240,8 +240,8 @@ def test_pose_scatter_draw_is_returned_with_the_body_info() -> None:
 
 def test_pose_scatter_changes_the_rendered_frame() -> None:
     """The scattered frame differs from the catalog-pose frame."""
-    scattered_img, _ = render_combined_model(_pose_scatter_scene(sigma_deg=3.0))
-    catalog_img, _ = render_combined_model(_pose_scatter_scene(sigma_deg=0.0))
+    scattered_img, _ = render_scene(_pose_scatter_scene(sigma_deg=3.0))
+    catalog_img, _ = render_scene(_pose_scatter_scene(sigma_deg=0.0))
     assert not np.array_equal(scattered_img, catalog_img)
 
 

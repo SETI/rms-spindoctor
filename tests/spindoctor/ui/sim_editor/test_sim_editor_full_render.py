@@ -44,7 +44,7 @@ from tests.spindoctor.ui.sim_editor.sim_editor_waits import (
     wait_for_background_renders,
 )
 
-from spindoctor.sim.render.driver import render_combined_model
+from spindoctor.sim.render.driver import render_scene
 from spindoctor.ui.sim_editor import CreateSimulatedImageModel
 from spindoctor.ui.sim_editor import full_render as full_render_module
 from spindoctor.ui.sim_editor.full_render import FullRender
@@ -182,13 +182,13 @@ def _save_png(model: Any, monkeypatch: pytest.MonkeyPatch, path: Path) -> None:
 
 def _preview(model: Any) -> Any:
     """The fast preview of the editor's scene, as the simulator renders it."""
-    image, _ = render_combined_model(model.sim_params, ignore_offset=True, preview=True)
+    image, _ = render_scene(model.sim_params, ignore_offset=True, preview=True)
     return image
 
 
 def _full(model: Any) -> Any:
     """The full render of the editor's scene, as the simulator renders it."""
-    image, _ = render_combined_model(model.sim_params, ignore_offset=True)
+    image, _ = render_scene(model.sim_params, ignore_offset=True)
     return image
 
 

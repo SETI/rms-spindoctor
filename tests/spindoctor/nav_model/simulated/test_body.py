@@ -19,7 +19,7 @@ from spindoctor.nav_model.body_shape import load_body_shape
 from spindoctor.nav_model.simulated.body import NavModelBodySimulated
 from spindoctor.nav_orchestrator.nav_context import NavContext
 from spindoctor.obs.obs_inst_sim import ObsSim
-from spindoctor.sim.render.driver import render_combined_model
+from spindoctor.sim.render.driver import render_scene
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 
 _SIZE = 96
@@ -139,7 +139,7 @@ def test_mesh_prediction_matches_rendered_data() -> None:
     obs = _obs()
     body = _mesh_params()
     predicted = _data_region(obs, _predicted_mask(obs, body))
-    img, _ = render_combined_model(
+    img, _ = render_scene(
         {
             'size_v': _SIZE,
             'size_u': _SIZE,

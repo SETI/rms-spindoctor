@@ -25,7 +25,7 @@ from spindoctor.sim.instruments.resolvers import resolve_detector_defaults
 from spindoctor.sim.render.detector import apply_detector, chain
 from spindoctor.sim.render.detector.noise_stages import add_cosmic_rays
 from spindoctor.sim.render.detector.params import resolve_detector_params
-from spindoctor.sim.render.driver import render_combined_model
+from spindoctor.sim.render.driver import render_scene
 from spindoctor.sim.render.stages import SimFrame
 from spindoctor.sim.scene.validate import validate_sim_params
 from spindoctor.sim.seeds import derive_effect_seed
@@ -327,7 +327,7 @@ def _vgiss_bent_body(rate: float, seed: int) -> np.ndarray:
         noise={_KEY: rate},
         artifacts={'beam_bend': {'amplitude_px': 1.0, 'probability': 1.0}},
     )
-    img, _ = render_combined_model(scene)
+    img, _ = render_scene(scene)
     return img
 
 

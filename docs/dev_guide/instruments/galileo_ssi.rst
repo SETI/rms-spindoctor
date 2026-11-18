@@ -275,7 +275,7 @@ second, a 4.33 s readout dwell (half the full-frame readout), a 6,000 e-
 deposit scale, and 0.4 native pixels of diffusion. The simulator report's
 artifact-rate table gives the fit's evidence.
 
-**Artifact-mode availability.** The config entry's ``artifact_modes.offered``
+**Artifact-mode availability.** The instrument entry's ``artifact_modes.offered``
 lists its modes, and the simulator guide's mode tables
 (:ref:`sim-telemetry-modes` and :ref:`sim-detector-modes`) give each mode's
 cameras. Its detector model is ``ccd``. ``alternating_lines`` defaults to

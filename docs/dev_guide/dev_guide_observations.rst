@@ -407,7 +407,7 @@ camera-config edit cannot reach a pinned key. Full self-specification (generic +
 complete overrides) makes a scene immune to *all* instrument-config drift. The
 merge is applied identically in both consumers -- :meth:`ObsSim.from_file
 <spindoctor.obs.obs_inst_sim.ObsSim.from_file>` and
-:func:`~spindoctor.sim.render.driver.render_combined_model` -- so the rendered image
+:func:`~spindoctor.sim.render.driver.render_scene` -- so the rendered image
 and the navigator's instrument settings stay consistent. The one precedence
 subtlety: the top-level scene ``noise`` block (the primary noise control) still
 wins over ``instrument_config.noise`` for rendering, so ``instrument_config`` is

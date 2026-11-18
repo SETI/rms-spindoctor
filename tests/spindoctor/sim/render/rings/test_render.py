@@ -17,7 +17,7 @@ import numpy as np
 import pytest
 from tests.spindoctor.sim.scenes import disc_body, frame_scene, ring_system_block, star_entry
 
-from spindoctor.sim.render.driver import render_combined_model
+from spindoctor.sim.render.driver import render_scene
 from spindoctor.sim.render.radiance.compose import compose_scene_radiance
 from spindoctor.sim.render.rings.render import (
     RING_ALBEDO_DEFAULT,
@@ -399,24 +399,22 @@ def test_ring_system_over_body_requires_both_ranges() -> None:
     ring_system = _system([_ringlet(20.0, 4.0, 1.0)], b_obs=30.0, b_sun=30.0)
     scene = _scene(bodies=[_body_at_center(1.0e6)], ring_system=ring_system)
     with pytest.raises(SimSceneValidationError, match=r"ring_system and body 'DISC' overlap"):
-        render_combined_model(scene)
+        render_scene(scene)
 
 
 def test_planted_offset_translates_the_ring_system() -> None:
     """The planted pointing offset shifts the projected system rigidly."""
     ring_system = _system([_ringlet(15.0, 5.0, 1.0)], b_obs=40.0, b_sun=40.0, node=25.0)
-    base, _m0 = render_combined_model(_scene(ring_system=ring_system))
-    shifted, _m1 = render_combined_model(
-        _scene(ring_system=ring_system, offset_v=5.0, offset_u=-3.0)
-    )
+    base, _m0 = render_scene(_scene(ring_system=ring_system))
+    shifted, _m1 = render_scene(_scene(ring_system=ring_system, offset_v=5.0, offset_u=-3.0))
     np.testing.assert_allclose(shifted[5:, :-3], base[: 96 - 5, 3:], atol=1e-12)
 
 
 def test_oversampled_interior_matches_detector_grid_render() -> None:
     """The band interior is grid-independent; only the AA edges differ."""
     ring_system = _system([_ringlet(16.0, 10.0, 1.0)], b_obs=35.0, b_sun=25.0, node=10.0)
-    at_1, _m1 = render_combined_model(_scene(ring_system=ring_system))
-    at_4, _m4 = render_combined_model(_scene(ring_system=ring_system, oversample=4))
+    at_1, _m1 = render_scene(_scene(ring_system=ring_system))
+    at_4, _m4 = render_scene(_scene(ring_system=ring_system, oversample=4))
     both_on = (at_1 > 0.0) & (at_4 > 0.0)
     interior = both_on & (np.abs(at_1 - at_4) < 1e-3)
     # The overwhelming majority of lit pixels agree to 1e-3; the disagreeing
@@ -434,8 +432,8 @@ def test_differential_smear_layers_recompose_the_ring_system_exactly() -> None:
         'stars': [star_entry(10.5, 80.5, 6.0)],
         'ring_system': ring_system,
     }
-    plain, _m0 = render_combined_model(_scene(**common))
-    layered, _m1 = render_combined_model(
+    plain, _m0 = render_scene(_scene(**common))
+    layered, _m1 = render_scene(
         _scene(**common, optics={'smear': [{'dv_px': 0.0, 'du_px': 0.0, 'object_class': 'rings'}]})
     )
     np.testing.assert_allclose(layered, plain, atol=1e-9)

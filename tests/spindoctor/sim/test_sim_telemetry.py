@@ -29,7 +29,7 @@ from spindoctor.sim.render.detector.params import (
     calibration_map,
     resolve_detector_params,
 )
-from spindoctor.sim.render.driver import render_combined_model
+from spindoctor.sim.render.driver import render_scene
 from spindoctor.sim.render.feature_loci import FeatureLoci, choose_pixels, extract_feature_loci
 from spindoctor.sim.render.stages import SimFrame
 from spindoctor.sim.render.telemetry.loss import apply_line_garble, apply_pixel_spikes
@@ -491,7 +491,7 @@ def _vgiss_render_with_garble_and_spikes(
             'line_garble': {'expected_events': 4.0},
             'pixel_spikes': {'expected_events': 40.0, 'amplitude': 'bitflip'},
         }
-    return render_combined_model(scene)
+    return render_scene(scene)
 
 
 def test_a_vgiss_render_keeps_garble_and_spikes_on_the_calibrated_scale() -> None:

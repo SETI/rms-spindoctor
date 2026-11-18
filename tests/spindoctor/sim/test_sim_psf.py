@@ -15,7 +15,7 @@ from tests.spindoctor.sim.scenes import frame_scene, quiet_noise, star_entry
 
 from spindoctor.config import DEFAULT_CONFIG
 from spindoctor.sim.instruments.navigator_link import resolve_sim_inst_config
-from spindoctor.sim.render.driver import render_combined_model
+from spindoctor.sim.render.driver import render_scene
 
 
 def _rms_spread(image: np.ndarray) -> float:
@@ -37,7 +37,7 @@ def _render_one_star(sigma: float) -> np.ndarray:
         optics={'psf': {'sigma_v': sigma, 'sigma_u': sigma, 'w': 0.0, 'r0': 2.0, 'n': 3.0}},
         stars=[star_entry(20.0, 20.0, 8.0, name='s')],
     )
-    img, _ = render_combined_model(scene)
+    img, _ = render_scene(scene)
     return img
 
 
@@ -77,6 +77,6 @@ def _match_navigator_star_scene(instrument: str, *, size: int = 41) -> dict[str,
 
 def test_render_uses_instrument_psf_sigma() -> None:
     """A coiss frame renders tighter stars than a gossi frame end-to-end."""
-    coiss_img, _ = render_combined_model(_match_navigator_star_scene('coiss_nac'))
-    gossi_img, _ = render_combined_model(_match_navigator_star_scene('gossi'))
+    coiss_img, _ = render_scene(_match_navigator_star_scene('coiss_nac'))
+    gossi_img, _ = render_scene(_match_navigator_star_scene('gossi'))
     assert _rms_spread(coiss_img) < _rms_spread(gossi_img)
