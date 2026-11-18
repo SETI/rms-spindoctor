@@ -7,7 +7,11 @@ import pytest
 
 import spindoctor.support.correlate as correlate_module
 from spindoctor.support.correlate import navigate_single_scale_kpeaks, navigate_with_pyramid_kpeaks
-from spindoctor.support.correlate_subpixel import HIGHPASS_SIGMA_PX, ncc_vertex_window_steps
+from spindoctor.support.correlate_subpixel import (
+    HIGHPASS_SIGMA_PX,
+    SubpixelRefinement,
+    ncc_vertex_window_steps,
+)
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 
 _SHAPE = (64, 64)
@@ -52,7 +56,7 @@ def _quadratic_ncc(vertex_vu: tuple[float, float]) -> NDArrayFloatType:
     )
 
 
-def _refine_sloped_scene(refinement: Any) -> tuple[float, float]:
+def _refine_sloped_scene(refinement: SubpixelRefinement) -> tuple[float, float]:
     """Return the single-scale offset of the sloped scene under one refinement."""
     image, model, mask = _sloped_scene()
     result = navigate_single_scale_kpeaks(
@@ -99,6 +103,69 @@ def test_highpass_refinement_recovers_the_offset_on_a_sloped_background() -> Non
     """The high-pass refinement ignores the smooth background and recovers the offset."""
     offset = _refine_sloped_scene('highpass_cross_power')
     assert offset == pytest.approx(_TRUE_SHIFT_VU, abs=1.0 / 128.0)
+
+
+def _ncc_peaking_at(vertex_vu: tuple[float, float]) -> Any:
+    """Return a stand-in for ``masked_ncc`` whose surface is a quadratic maximal at a lag.
+
+    The surface has the correlator's circular layout: index ``j`` along an axis of length
+    ``n`` holds lag ``j`` for ``j < n // 2`` and lag ``j - n`` otherwise.
+    """
+
+    def _fake(
+        image: NDArrayFloatType, model: NDArrayFloatType, mask: NDArrayBoolType, **_: Any
+    ) -> tuple[NDArrayFloatType, NDArrayFloatType]:
+        lags = [
+            np.where(np.arange(n) < n // 2, np.arange(n), np.arange(n) - n) for n in image.shape
+        ]
+        surface = np.asarray(
+            1.0
+            - 0.001 * (lags[0][:, None] - vertex_vu[0]) ** 2
+            - 0.001 * (lags[1][None, :] - vertex_vu[1]) ** 2,
+            np.float64,
+        )
+        return surface, surface
+
+    return _fake
+
+
+def _refine_with_ncc_vertex(monkeypatch: pytest.MonkeyPatch, refinement: SubpixelRefinement) -> Any:
+    """Return the single-scale offset of a blob 0.3 px off when the NCC peaks at 0.75 px.
+
+    The blob lies ``(0.3, -0.3)`` px from the model's on a flat background, and the NCC
+    is replaced by a quadratic maximal at ``(0.75, -0.75)``, so its whole-pixel peak is
+    ``(1, -1)`` and the window around that pixel, ``0.5`` to ``1.5`` px on v, misses the
+    cross-power maximum.
+    """
+    monkeypatch.setattr(correlate_module, 'masked_ncc', _ncc_peaking_at((0.75, -0.75)))
+    center = (_SHAPE[0] / 2.0, _SHAPE[1] / 2.0)
+    model = _blob(center)
+    mask: NDArrayBoolType = model > 1e-3
+    result = navigate_single_scale_kpeaks(
+        image=_blob((center[0] + 0.3, center[1] - 0.3)),
+        model=model,
+        mask=mask,
+        upsample_factor=128,
+        refinement=refinement,
+        logger=None,
+    )
+    return result['offset']
+
+
+def test_cross_power_window_around_the_whole_pixel_misses_the_maximum(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Centered on the whole pixel (1, -1), the raw window stops at (0.5, -0.5)."""
+    offset = _refine_with_ncc_vertex(monkeypatch, 'cross_power')
+    assert offset == pytest.approx((0.5, -0.5), abs=1e-12)
+
+
+def test_highpass_window_centered_on_the_ncc_vertex_reaches_the_maximum(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Centered on the NCC vertex (0.75, -0.75), the window reaches the true (0.3, -0.3)."""
+    offset = _refine_with_ncc_vertex(monkeypatch, 'highpass_cross_power')
+    assert offset == pytest.approx((0.3, -0.3), abs=1.0 / 128.0)
 
 
 # =========================================================================

@@ -799,14 +799,15 @@ def test_atmosphere_haze_floor_recovers() -> None:
     assert rows[0].offset_error_px < _RECOVERY_TOLERANCE_PX
 
 
-# The fused answer is the disc correlation's, whose high-pass refinement ignores the
-# haze's smooth glow, so the haze no longer biases it (#791).  Over the sweep the
-# error rises 0.034 px (thickness) and 0.071 px (albedo) above the haze-free row.
+# The fused answer is the disc correlation's, whose high-pass refinement weakens the
+# haze's smooth glow, so the haze barely biases it (#791).  Over the sweep the error
+# rises 0.034 px (thickness) and 0.071 px (albedo) above the haze-free row.  The rows
+# record only the error's size, so these tests bound how much the error grows.
 _HAZE_FUSED_RISE_BOUND_PX = 0.1
 
 
-def test_atmosphere_haze_leaves_the_fused_offset() -> None:
-    """The thickest haze moves the fused recovery less than 0.1 px from the bare limb's."""
+def test_atmosphere_haze_barely_raises_the_fused_error() -> None:
+    """The thickest haze raises the fused error less than 0.1 px above the bare limb's."""
     rows = _rows('atmosphere_haze')
     assert rows[0].offset_error_px is not None
     assert rows[-1].offset_error_px is not None
@@ -822,8 +823,8 @@ def test_atmosphere_haze_albedo_floor_recovers() -> None:
     assert rows[0].offset_error_px < _RECOVERY_TOLERANCE_PX
 
 
-def test_atmosphere_haze_albedo_leaves_the_fused_offset() -> None:
-    """The brightest haze moves the fused recovery less than 0.1 px from the bare limb's."""
+def test_atmosphere_haze_albedo_barely_raises_the_fused_error() -> None:
+    """The brightest haze raises the fused error less than 0.1 px above the bare limb's."""
     rows = _rows('atmosphere_haze_albedo')
     assert rows[0].offset_error_px is not None
     assert rows[-1].offset_error_px is not None

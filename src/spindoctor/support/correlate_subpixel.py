@@ -20,8 +20,10 @@ NCC normalizes away the image variance under the shifted mask; the raw cross-pow
 not, so its maximum can lie more than half a pixel from the NCC peak, and the cross-power
 answer then stops at the edge of its half-pixel window.  Smooth light the model leaves
 out, such as stray light or a sloped background, moves the raw cross-power maximum too.
-The high-pass refinement removes that smooth light from both surfaces and centers its
-window on the NCC's own estimate, so it reaches a maximum the raw window cannot.
+The high-pass refinement weakens that smooth light in both surfaces and centers its
+window on the NCC's own estimate, so it can reach a maximum the raw window cannot.  It does
+not guarantee the maximum lies inside its own window either: an answer can still stop at
+that window's edge.
 """
 
 from typing import Literal, TypeAlias

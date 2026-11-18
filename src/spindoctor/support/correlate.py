@@ -815,8 +815,8 @@ def evaluate_candidate(
         model_pad: The padded model.
         corr: The correlation matrix.
         refine_spectrum: The cross-power spectrum from
-            :func:`refinement_cross_spectrum` that the ``'cross_power'`` refinement
-            interpolates, the same shape as ``corr``.  It may be ``None`` only with
+            :func:`refinement_cross_spectrum` that the two cross-power refinements
+            interpolate, the same shape as ``corr``.  It may be ``None`` only with
             the ``'ncc_quadratic'`` refinement, which does not read it.
         rc: The row and column of the candidate.
         upsample_factor: The upsample factor.
@@ -1131,7 +1131,7 @@ def navigate_single_scale_kpeaks(
     # same arrays, so the refinement is unchanged.  The NCC quadratic refinement
     # reads only ``corr``, so it is spared the spectrum's two full-period transforms.
     refine_spectrum: NDArrayComplexType | None = None
-    if refinement != 'ncc_quadratic':
+    if refinement in ('cross_power', 'highpass_cross_power'):
         if use_gradient:
             refine_image_pad = pad_top_left(image_raw, padded_h, padded_w)
             refine_model_pad = pad_top_left(model_raw, padded_h, padded_w)
