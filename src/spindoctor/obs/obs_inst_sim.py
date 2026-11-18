@@ -5,7 +5,7 @@ FOV and dummy geometry, so the standard navigation pipeline runs on it exactly
 as on a real frame.  The rendered image and the full scene (truth included)
 stay on the snapshot for renderer-side consumers; the navigator-side models
 see only the filtered idealized view exposed as ``obs.nav_params`` (the
-information boundary -- see :func:`spindoctor.sim.scene.build_nav_params`).
+information boundary -- see :func:`spindoctor.sim.scene.boundary.build_nav_params`).
 """
 
 import math
@@ -18,9 +18,10 @@ from oops.observation import Snapshot
 
 from spindoctor.config import DEFAULT_CONFIG, IMAGE_LOGGER, Config, logged_section
 from spindoctor.obs.obs_snapshot_inst import ObsSnapshotInst
-from spindoctor.sim.instrument_navigator import resolve_extfov_margin, resolve_sim_inst_config
-from spindoctor.sim.render import render_combined_model
-from spindoctor.sim.scene import build_nav_params, load_sim_scene
+from spindoctor.sim.instruments.navigator_link import resolve_extfov_margin, resolve_sim_inst_config
+from spindoctor.sim.render.driver import render_combined_model
+from spindoctor.sim.scene.boundary import build_nav_params
+from spindoctor.sim.scene.io import load_sim_scene
 from spindoctor.support.types import NDArrayAnyType, NDArrayBoolType, PathLike
 
 
@@ -91,7 +92,7 @@ class ObsSim(ObsSnapshotInst):
             without any storage being touched.
 
         Raises:
-            ~spindoctor.sim.scene_schema.SimSceneValidationError: If the scene fails
+            ~spindoctor.sim.scene.errors.SimSceneValidationError: If the scene fails
                 validation.
         """
 
@@ -187,7 +188,7 @@ class ObsSim(ObsSnapshotInst):
         # The information boundary: nav_params is sim_params with every
         # truth key stripped and per-body nav_override overlaid (the
         # navigator sees the geometry it believes, never the true values
-        # underneath).  See spindoctor.sim.scene.build_nav_params.
+        # underneath).  See spindoctor.sim.scene.boundary.build_nav_params.
         new_obs.nav_params = build_nav_params(sim_params)
 
         # Renderer output metadata (truth side; never read by NavModels).
@@ -210,7 +211,7 @@ class ObsSim(ObsSnapshotInst):
         what a real pipeline could know about the camera.  The renderer
         flux-normalizes a star (its total signal is
         ``star_flux_dn_per_s_vmag0 * 10**(-0.4 * vmag) * exposure``, see
-        ``spindoctor.sim.forward``); a Gaussian core of the published
+        ``spindoctor.sim.render``); a Gaussian core of the published
         ``star_psf_sigma`` then puts a fraction ``1 / (2*pi*sigma**2)`` of that
         total in the peak pixel.  The limiting magnitude is where that peak falls
         to twice the effective per-pixel noise sigma -- the matched-filter

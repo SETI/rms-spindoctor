@@ -21,7 +21,7 @@ from spindoctor.feature.geometry import RingEdgePolyline
 from spindoctor.nav_model.simulated.rings import NavModelRingsSimulated
 from spindoctor.nav_orchestrator.nav_context import NavContext
 from spindoctor.obs.obs_inst_sim import ObsSim
-from spindoctor.sim.scene import validate_sim_params
+from spindoctor.sim.scene.validate import validate_sim_params
 from spindoctor.support.types import NDArrayBoolType
 
 _SIZE = 160

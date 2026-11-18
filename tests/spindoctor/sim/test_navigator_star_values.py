@@ -31,20 +31,20 @@ from tests.spindoctor.sim.scenes import frame_scene
 import spindoctor
 from spindoctor.config import DEFAULT_CONFIG
 from spindoctor.obs.obs_inst_sim import ObsSim
-from spindoctor.sim.forward.detector.params import resolve_detector_params
-from spindoctor.sim.instrument_catalog import (
+from spindoctor.sim.instruments.catalog import (
     GENERIC_INSTRUMENT,
     load_instrument_catalog,
     sim_instrument_names,
 )
-from spindoctor.sim.instrument_navigator import resolve_sim_inst_config
-from spindoctor.sim.instrument_resolvers import (
+from spindoctor.sim.instruments.navigator_link import resolve_sim_inst_config
+from spindoctor.sim.instruments.resolvers import (
     cataloged_binnings,
     resolve_data_units,
     resolve_star_flux_zero_point,
 )
-from spindoctor.sim.scene import validate_scene, validate_sim_params
-from spindoctor.sim.scene_schema import SimSceneValidationError
+from spindoctor.sim.render.detector.params import resolve_detector_params
+from spindoctor.sim.scene.errors import SimSceneValidationError
+from spindoctor.sim.scene.validate import validate_scene, validate_sim_params
 
 _CONFIG_FILES_DIR = Path(spindoctor.__file__).parent / 'config_files'
 

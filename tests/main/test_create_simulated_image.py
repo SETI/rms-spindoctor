@@ -452,7 +452,7 @@ def test_save_scene_writes_valid_yaml(
     monkeypatch: pytest.MonkeyPatch, model: Any, tmp_path: Path
 ) -> None:
     """Saving a scene writes a YAML the schema validates."""
-    from spindoctor.sim.scene import load_sim_scene
+    from spindoctor.sim.scene.io import load_sim_scene
 
     model.sim_params['instrument'] = 'coiss_nac'
     model.sim_params['size_v'] = 128
@@ -482,7 +482,7 @@ def test_save_scene_removes_a_declaration_an_edit_made_stale(
     monkeypatch: pytest.MonkeyPatch, model: Any, tmp_path: Path
 ) -> None:
     """A declared path whose values an edit separated leaves the saved list; the rest stay."""
-    from spindoctor.sim.scene import load_sim_scene
+    from spindoctor.sim.scene.io import load_sim_scene
 
     _declare_then_edit_read_noise(model)
     out = tmp_path / 'stale.yaml'

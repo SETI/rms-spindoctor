@@ -60,7 +60,7 @@ over the grid, and everything the model emits comes from it:
   background instead of emitting light. It doesn't carry a template, but its two edges are
   still fitted.
 
-The projection and the orbit evaluation come from :mod:`spindoctor.sim.ring_geometry`, the
+The projection and the orbit evaluation come from :mod:`spindoctor.sim.shared.ring`, the
 same code the renderer uses to draw the ring. So a predicted edge lands exactly where the
 rendered edge would land if the scene planted no error. In a recovery measurement, the only
 differences between prediction and image are the planted pointing offset and each
@@ -214,8 +214,8 @@ Call path
    block. It shifts the projected center by the extended-FOV margins.
 2. Calls :func:`~spindoctor.nav_model.simulated.predict_ring.predict_ring_feature`. That
    function builds the pixel grid in pixel-corner coordinates, projects it to ring-plane
-   :math:`(r, \lambda)` with :func:`~spindoctor.sim.ring_geometry.ring_plane_from_sky`, and
-   evaluates the orbit with :func:`~spindoctor.sim.ring_geometry.compute_orbit_radii`. It
+   :math:`(r, \lambda)` with :func:`~spindoctor.sim.shared.ring.ring_plane_from_sky`, and
+   evaluates the orbit with :func:`~spindoctor.sim.shared.ring.compute_orbit_radii`. It
    then rasterizes the coverage template and one border mask per edge, with each vertex's
    outward normal and its shifts :math:`p_{a}`, :math:`p_{ae}`, and :math:`p_{\varpi}`.
 3. Records the prediction, the predicted center, and the extended-FOV bounding box for

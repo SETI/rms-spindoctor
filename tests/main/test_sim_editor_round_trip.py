@@ -41,7 +41,8 @@ except Exception as exc:
     )
 
 from spindoctor.cli.sim_editor import CreateSimulatedImageModel
-from spindoctor.sim.scene import _ALLOWED_KEYS, load_sim_scene, save_sim_scene
+from spindoctor.sim.scene.boundary import _ALLOWED_KEYS
+from spindoctor.sim.scene.io import load_sim_scene, save_sim_scene
 
 # A v2 scene exercising the full current key inventory: every top-level key,
 # and every per-object idealized and truth key across two bodies (one per
@@ -634,7 +635,7 @@ def test_vgiss_scene_stays_vidicon_through_an_edit(
     resaved = load_sim_scene(out)
     assert resaved['detector'] == {'exposure_ref_sec': 3.0}
 
-    from spindoctor.sim.forward.detector.params import resolve_detector_params
+    from spindoctor.sim.render.detector.params import resolve_detector_params
 
     assert resolve_detector_params(resaved).detector_model == 'vidicon'
 
@@ -860,9 +861,14 @@ def test_gui_authored_ring_system_reaches_every_schema_key(
     ring_system inventory.
     """
     # The block / geometry / feature inventories come from the schema's
-    # boundary classification (scene_checks_ring re-uses the same sets), so
+    # boundary classification (rules_ring re-uses the same sets), so
     # a key added to the schema alone reaches this coverage assertion.
-    from spindoctor.sim.scene_checks_ring import (
+    from spindoctor.sim.scene.boundary import (
+        _RING_FEATURE_KEYS,
+        _RING_SYSTEM_GEOMETRY_KEYS,
+        _RING_SYSTEM_KEYS,
+    )
+    from spindoctor.sim.scene.rules_ring import (
         _RING_AZIMUTHAL_KEYS,
         _RING_EDGE_WAVE_KEYS,
         _RING_FEATURE_ORBIT_KEYS,
@@ -874,11 +880,6 @@ def test_gui_authored_ring_system_reaches_every_schema_key(
         _RING_PROPELLER_KEYS,
         _RING_SHADOW_KEYS,
         _RING_SPOKES_KEYS,
-    )
-    from spindoctor.sim.scene_schema import (
-        _RING_FEATURE_KEYS,
-        _RING_SYSTEM_GEOMETRY_KEYS,
-        _RING_SYSTEM_KEYS,
     )
 
     model.sim_params['instrument'] = 'coiss_nac'

@@ -35,7 +35,7 @@ techniques consume:
 The terminator is distinct from the limb: the limb is the silhouette edge against sky,
 while the terminator cuts *across* the disc where the lit hemisphere meets the unlit one.
 Because the shading floors the visible-but-unlit hemisphere at a small constant
-(:data:`~spindoctor.sim.ellipsoid_geometry.DARK_SIDE_ILLUM_STRENGTH`), the rendered body mask
+(:data:`~spindoctor.sim.shared.ellipsoid.DARK_SIDE_ILLUM_STRENGTH`), the rendered body mask
 (brightness above zero) is the whole visible disc, and the lit region is the part brighter
 than that floor; the terminator polyline is the lit pixels adjacent to the interior unlit
 disc, with the limb ring excluded so the polyline stays interior to the disc -- except at
@@ -132,7 +132,7 @@ in via the per-body entry of the observation's filtered scene view
   degrees).
 - ``shape_model`` — ``ellipsoid`` (default) or ``polyhedral_mesh`` for an irregular body;
   a mesh reads ``mesh_lumpiness``, ``mesh_seed``, and ``pose_euler_deg`` (see
-  :func:`~spindoctor.sim.mesh_geometry.mesh_spec_from_params`).
+  :func:`~spindoctor.sim.shared.mesh.mesh_spec_from_params`).
 - ``km_per_pixel`` — optional physical scale at the limb; when absent the
   phase-irregularity factor collapses to the regular-body case.
 - ``nav_override`` — optional scene mapping overlaid onto the body's idealized view by
@@ -158,7 +158,7 @@ renderer drew, so the navigator knows the truth (the agreeing case).
 
 An optional ``nav_override`` mapping breaks that tie. The renderer ignores it and
 always draws the true geometry; the boundary filter
-(:func:`~spindoctor.sim.scene.build_nav_params`) overlays ``nav_override`` onto the
+(:func:`~spindoctor.sim.scene.boundary.build_nav_params`) overlays ``nav_override`` onto the
 body's idealized view and drops the key, so the predicted body is built from what the
 navigator *believes* without the true values underneath. A key set to null inside
 ``nav_override`` leaves the idealized value in place, and a body key that is still
@@ -205,7 +205,7 @@ Public methods (autodocumented at :doc:`/api_reference/api_nav_model`):
 - :meth:`~spindoctor.nav_model.simulated.body.NavModelBodySimulated.create_model` —
   renders the simulated body (ellipsoid via
   :func:`~spindoctor.nav_model.simulated.predict_body.create_simulated_body`, or a mesh via
-  :func:`~spindoctor.sim.mesh_geometry.render_mesh_body_image`), computes the limb mask via
+  :func:`~spindoctor.sim.shared.mesh.render_mesh_body_image`), computes the limb mask via
   the shared :class:`~spindoctor.nav_model.nav_model_body_base.NavModelBodyBase` helper, and
   records the predicted diameter, tight bounding box, and silhouette overflow fraction
   that decide which features it emits.

@@ -38,7 +38,7 @@ from spindoctor.nav_model.simulated.predict_ring import (
     predict_ring_feature,
 )
 from spindoctor.obs import ObsSnapshotInst
-from spindoctor.sim.scene_schema import scene_value
+from spindoctor.sim.scene.fields import scene_value
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 from spindoctor.support.filters import NavFilterKind, NavFilterSpec
 from spindoctor.support.time import now_dt

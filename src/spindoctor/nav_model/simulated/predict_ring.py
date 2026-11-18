@@ -5,7 +5,7 @@ view (the ``obs.nav_params['ring_system']`` block): the shared projection
 geometry, the feature's kind/shape keys, and its catalog orbit -- never the
 planted ``orbit_error`` or the photometric truth, which the boundary filter
 strips before this code can see them.  Projection and orbit math are shared
-with the image-side renderer through :mod:`spindoctor.sim.ring_geometry`, so
+with the image-side renderer through :mod:`spindoctor.sim.shared.ring`, so
 a predicted edge lands where the rendered edge would land if the scene
 planted no error: the planted pointing offset and the planted orbit error
 are the only discrepancies, by construction.
@@ -24,7 +24,8 @@ from typing import Any, cast
 
 import numpy as np
 
-from spindoctor.sim.ring_geometry import (
+from spindoctor.sim.scene.fields import RING_SIDE_DEFAULTS, scene_value
+from spindoctor.sim.shared.ring import (
     RingOrbit,
     compute_antialiasing_shade,
     compute_orbit_radii,
@@ -32,7 +33,6 @@ from spindoctor.sim.ring_geometry import (
     ring_plane_from_sky,
     ring_radial_scale,
 )
-from spindoctor.sim.scene_schema import RING_SIDE_DEFAULTS, scene_value
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 

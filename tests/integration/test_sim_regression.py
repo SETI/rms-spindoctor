@@ -14,7 +14,7 @@ from spindoctor.nav_model import build_models_for_obs
 from spindoctor.nav_orchestrator import NavOrchestrator
 from spindoctor.nav_technique.technique_result import NavTechniqueResult
 from spindoctor.obs.obs_inst_sim import ObsSim
-from spindoctor.sim.scene import load_sim_scene
+from spindoctor.sim.scene.io import load_sim_scene
 from tests.integration.sim_truth import assert_matches_truth
 
 _REGRESSION_DIR = Path(__file__).parent / 'sim_scenes' / 'regression'

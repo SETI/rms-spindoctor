@@ -21,8 +21,8 @@ from PyQt6.QtWidgets import QCheckBox, QFormLayout, QGroupBox, QWidget
 from spindoctor.cli.sim_editor.base import SimEditorBase
 from spindoctor.cli.sim_editor.widgets import kept_or_shown
 from spindoctor.cli.sim_editor.widgets import make_dspin as _dspin
-from spindoctor.sim.forward.atmosphere import DEFAULT_HAZE_ALBEDO
-from spindoctor.sim.scene_schema import scene_value
+from spindoctor.sim.render.bodies.atmosphere import DEFAULT_HAZE_ALBEDO
+from spindoctor.sim.scene.fields import scene_value
 
 _NULL_SHOWS: dict[str, float] = {
     'ref_altitude_px': 0.0,

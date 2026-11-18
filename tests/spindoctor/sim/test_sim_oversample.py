@@ -19,11 +19,11 @@ import pytest
 from tests.spindoctor.sim.scenes import disc_body, frame_scene, quiet_noise, star_entry
 
 from spindoctor.nav_model.simulated.predict_body import create_simulated_body
-from spindoctor.sim.forward.body_texture import AlbedoTextureSpec, DiscTextureSpec, TransitSpec
-from spindoctor.sim.forward.body_topo import TopoBodySpec, create_topographic_body
-from spindoctor.sim.forward.pipeline import STAGES
-from spindoctor.sim.forward.stages import downsample_to_detector, new_sim_frame
-from spindoctor.sim.render import render_combined_model, resolve_oversample
+from spindoctor.sim.render.bodies.texture import AlbedoTextureSpec, DiscTextureSpec, TransitSpec
+from spindoctor.sim.render.bodies.topo import TopoBodySpec, create_topographic_body
+from spindoctor.sim.render.driver import render_combined_model, resolve_oversample
+from spindoctor.sim.render.pipeline import STAGES
+from spindoctor.sim.render.stages import downsample_to_detector, new_sim_frame
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 
 

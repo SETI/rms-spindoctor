@@ -26,11 +26,12 @@ from spindoctor.sim.artifact_modes import (
     PROBABILITY,
     resolve_mode_config,
 )
-from spindoctor.sim.forward.detector.params import resolve_detector_params
-from spindoctor.sim.forward.stages import SimFrame
-from spindoctor.sim.forward.telemetry import apply_telemetry
-from spindoctor.sim.render import render_combined_model
-from spindoctor.sim.scene import SimSceneValidationError, validate_sim_params
+from spindoctor.sim.render.detector.params import resolve_detector_params
+from spindoctor.sim.render.driver import render_combined_model
+from spindoctor.sim.render.stages import SimFrame
+from spindoctor.sim.render.telemetry.stage import apply_telemetry
+from spindoctor.sim.scene.errors import SimSceneValidationError
+from spindoctor.sim.scene.validate import validate_sim_params
 from spindoctor.support.types import NDArrayFloatType
 
 # The modes whose activation key is a Poisson expected event count per frame: the

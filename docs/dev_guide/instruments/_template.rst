@@ -64,7 +64,7 @@ Simulator model
 ===============
 
 The simulated camera's values live in its instrument config entry, a top-level key of its
-mission's file, ``src/spindoctor/sim/instrument_configs/<mission>.yaml`` (see the
+mission's file, ``src/spindoctor/sim/instruments/configs/<mission>.yaml`` (see the
 simulator chapter). This section covers that entry and how each of its values was
 measured; the units its frames are written in; PSF and distortion parameters;
 artifact-mode availability as a link to the simulator guide's mode tables, plus the

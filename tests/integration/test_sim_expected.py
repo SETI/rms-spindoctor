@@ -20,7 +20,7 @@ from pathlib import Path
 
 import pytest
 
-from spindoctor.sim.scene import load_sim_scene
+from spindoctor.sim.scene.io import load_sim_scene
 from tests.integration.sim_expected import (
     assert_result_matches_expected,
     expected_from_scene,

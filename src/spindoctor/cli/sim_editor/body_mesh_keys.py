@@ -1,9 +1,9 @@
 """Keep each body inside the keys the scene validator accepts for its shape model.
 
 The scene validator refuses a non-null value of every key in
-:data:`spindoctor.sim.scene_schema.MESH_UNSUPPORTED_KEYS` on a
+:data:`spindoctor.sim.scene.fields.MESH_UNSUPPORTED_KEYS` on a
 ``shape_model: polyhedral_mesh`` body, and of every key in
-:data:`spindoctor.sim.scene_schema.ELLIPSOID_UNSUPPORTED_KEYS` on an ellipsoid
+:data:`spindoctor.sim.scene.fields.ELLIPSOID_UNSUPPORTED_KEYS` on an ellipsoid
 body.  This module is the editor's side of those rules, read from the same
 tables so the two cannot drift:
 
@@ -26,7 +26,7 @@ from typing import Any
 
 from PyQt6.QtWidgets import QAbstractSpinBox, QComboBox, QWidget
 
-from spindoctor.sim.scene_schema import (
+from spindoctor.sim.scene.fields import (
     ELLIPSOID_UNSUPPORTED_KEYS,
     MESH_UNSUPPORTED_KEYS,
     mesh_unsupported_message,
@@ -91,8 +91,8 @@ def refused_keys(shape_model: str) -> tuple[str, ...]:
         shape_model: ``'polyhedral_mesh'``, or anything else for an ellipsoid.
 
     Returns:
-        :data:`~spindoctor.sim.scene_schema.MESH_UNSUPPORTED_KEYS` for a mesh, else
-        :data:`~spindoctor.sim.scene_schema.ELLIPSOID_UNSUPPORTED_KEYS`.
+        :data:`~spindoctor.sim.scene.fields.MESH_UNSUPPORTED_KEYS` for a mesh, else
+        :data:`~spindoctor.sim.scene.fields.ELLIPSOID_UNSUPPORTED_KEYS`.
     """
     if shape_model == 'polyhedral_mesh':
         return MESH_UNSUPPORTED_KEYS
@@ -131,7 +131,7 @@ def sync_mesh_refused_widgets(w: QWidget, is_mesh: bool) -> None:
     On a mesh body every control in :data:`MESH_REFUSED_WIDGETS` is disabled, and
     its tooltip, and that of every control and label inside it (a group's spin
     boxes, check boxes, and row labels), becomes
-    :func:`~spindoctor.sim.scene_schema.mesh_unsupported_message` for the keys the
+    :func:`~spindoctor.sim.scene.fields.mesh_unsupported_message` for the keys the
     control writes, the sentence the validator raises.  Hovering any of them
     explains the refusal.  On an ellipsoid the controls are enabled and every one
     of those widgets gets its own tooltip back.

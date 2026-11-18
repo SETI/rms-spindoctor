@@ -27,8 +27,8 @@ except Exception as exc:
     pytest.skip(f'PyQt6 QApplication init failed: {exc}', allow_module_level=True)
 
 from spindoctor.cli.sim_editor import CreateSimulatedImageModel
-from spindoctor.sim.instrument_catalog import sim_instrument_names
-from spindoctor.sim.scene import validate_sim_params
+from spindoctor.sim.instruments.catalog import sim_instrument_names
+from spindoctor.sim.scene.validate import validate_sim_params
 
 # Every control the noise panel builds.
 _NOISE_CONTROLS = (

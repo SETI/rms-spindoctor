@@ -14,16 +14,16 @@ import pytest
 from tests.spindoctor.sim.scenes import frame_scene, star_entry
 
 from spindoctor.obs.obs_inst_sim import ObsSim
-from spindoctor.sim.render import render_combined_model
-from spindoctor.sim.scene import (
-    ATMOSPHERE_KEYS,
+from spindoctor.sim.render.driver import render_combined_model
+from spindoctor.sim.scene.boundary import (
     TOP_LEVEL_IDEALIZED_KEYS,
     TOP_LEVEL_TEST_ONLY_KEYS,
     TOP_LEVEL_TRUTH_KEYS,
     TRUTH_KEYS,
     build_nav_params,
-    validate_sim_params,
 )
+from spindoctor.sim.scene.rules_body import ATMOSPHERE_KEYS
+from spindoctor.sim.scene.validate import validate_sim_params
 
 # One concrete exercising value per truth key.  The completeness check below
 # fails if TRUTH_KEYS gains an entry with no sample here, so a later phase

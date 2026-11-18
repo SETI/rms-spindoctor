@@ -17,9 +17,9 @@ from tests.spindoctor.sim.scenes import frame_scene, quiet_noise
 from spindoctor.nav_model import build_models_for_obs
 from spindoctor.nav_model.simulated.body import NavModelBodySimulated
 from spindoctor.obs.obs_inst_sim import ObsSim
-from spindoctor.sim.mesh_geometry import make_irregular_mesh, render_polyhedral_body
-from spindoctor.sim.render import render_combined_model
-from spindoctor.sim.scene import build_nav_params
+from spindoctor.sim.render.driver import render_combined_model
+from spindoctor.sim.scene.boundary import build_nav_params
+from spindoctor.sim.shared.mesh import make_irregular_mesh, render_polyhedral_body
 
 
 def _boundary_radial_cv(mask: np.ndarray) -> float:

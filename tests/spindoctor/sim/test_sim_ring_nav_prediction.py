@@ -20,8 +20,8 @@ from spindoctor.feature.geometry import RingEdgePolyline
 from spindoctor.nav_model.simulated.rings import NavModelRingsSimulated
 from spindoctor.nav_orchestrator.nav_context import NavContext
 from spindoctor.obs.obs_inst_sim import ObsSim
-from spindoctor.sim.ring_geometry import ring_plane_from_sky, ring_radial_scale
-from spindoctor.sim.scene import validate_sim_params
+from spindoctor.sim.scene.validate import validate_sim_params
+from spindoctor.sim.shared.ring import ring_plane_from_sky, ring_radial_scale
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 from spindoctor.support.types import NDArrayFloatType
 

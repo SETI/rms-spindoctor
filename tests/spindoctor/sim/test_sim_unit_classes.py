@@ -5,10 +5,11 @@ marker.  The calibrated instruments (the calibrated Cassini cameras and ``vgiss`
 render I/F with a ``0`` marker, because the Cassini CALIB and Voyager GEOMED
 products the navigator reads fill lost pixels with zero.  In every class the
 simulator writes the marker the navigator applies to the same frame, and
-:func:`~spindoctor.sim.instrument_navigator.read_frame_as_navigator` reads the frame the
-navigator reads (planted offset applied) to the verdict the navigator's
+:func:`~spindoctor.sim.instruments.navigator_link.read_frame_as_navigator` reads the
+frame the navigator reads (planted offset applied) to the verdict the navigator's
 classifier reaches, blank before missing data.
-:func:`~spindoctor.sim.instrument_navigator.frame_units_summary` states that verdict.
+:func:`~spindoctor.sim.instruments.navigator_link.frame_units_summary` states that
+verdict.
 """
 
 import math
@@ -23,17 +24,17 @@ from spindoctor.nav_orchestrator import NavOrchestrator
 from spindoctor.nav_orchestrator.image_classifier import NavImageClassifier
 from spindoctor.nav_orchestrator.instrument_config import instrument_settings_from_obs
 from spindoctor.obs.obs_inst_sim import ObsSim
-from spindoctor.sim.forward.stages import SimFrame
-from spindoctor.sim.forward.telemetry import apply_telemetry
-from spindoctor.sim.instrument_catalog import sim_instrument_names
-from spindoctor.sim.instrument_navigator import (
+from spindoctor.sim.instruments.catalog import sim_instrument_names
+from spindoctor.sim.instruments.navigator_link import (
     frame_units_name,
     frame_units_summary,
     has_planted_offset,
     read_frame_as_navigator,
     resolve_sim_inst_config,
 )
-from spindoctor.sim.render import render_combined_model
+from spindoctor.sim.render.driver import render_combined_model
+from spindoctor.sim.render.stages import SimFrame
+from spindoctor.sim.render.telemetry.stage import apply_telemetry
 
 _ALL_INSTRUMENTS = [*sim_instrument_names(), 'generic']
 

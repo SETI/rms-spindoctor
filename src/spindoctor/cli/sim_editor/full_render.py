@@ -15,8 +15,8 @@ from PyQt6.QtCore import QObject
 
 from spindoctor.cli.sim_editor.worker import LatestRequestRunner
 from spindoctor.config import DEFAULT_CONFIG
-from spindoctor.sim.instrument_navigator import frame_units_summary, resolve_sim_inst_config
-from spindoctor.sim.render import render_combined_model
+from spindoctor.sim.instruments.navigator_link import frame_units_summary, resolve_sim_inst_config
+from spindoctor.sim.render.driver import render_combined_model
 from spindoctor.support.types import NDArrayFloatType
 
 __all__ = ['FullRender', 'FullRenderRunner', 'render_full_frame']
@@ -51,10 +51,10 @@ def render_full_frame(sim_params: dict[str, Any]) -> FullRender:
 
     Returns:
         The image and metadata of
-        :func:`~spindoctor.sim.render.render_combined_model` with
+        :func:`~spindoctor.sim.render.driver.render_combined_model` with
         ``ignore_offset=True``, and
-        :func:`~spindoctor.sim.instrument_navigator.frame_units_summary` of the image
-        under the scene's resolved instrument block.
+        :func:`~spindoctor.sim.instruments.navigator_link.frame_units_summary` of the
+        image under the scene's resolved instrument block.
 
     Raises:
         SimSceneValidationError: If the scene fails validation.

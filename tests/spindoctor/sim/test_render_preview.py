@@ -13,7 +13,7 @@ from typing import Any
 import numpy as np
 from tests.spindoctor.sim.scenes import frame_scene, star_entry
 
-from spindoctor.sim.render import clear_render_caches, render_combined_model
+from spindoctor.sim.render.driver import clear_render_caches, render_combined_model
 
 
 def _scene() -> dict[str, Any]:

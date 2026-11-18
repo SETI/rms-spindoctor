@@ -13,8 +13,8 @@ import math
 import numpy as np
 import pytest
 
-from spindoctor.sim.forward.body_texture import DiscTextureSpec, TransitSpec
-from spindoctor.sim.forward.body_topo import TopoBodySpec, create_topographic_body
+from spindoctor.sim.render.bodies.texture import DiscTextureSpec, TransitSpec
+from spindoctor.sim.render.bodies.topo import TopoBodySpec, create_topographic_body
 from spindoctor.support.types import NDArrayFloatType
 
 _SIZE = 200

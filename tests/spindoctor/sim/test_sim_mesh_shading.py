@@ -16,14 +16,14 @@ import pytest
 from scipy import ndimage
 from tests.spindoctor.sim.scenes import frame_scene
 
-from spindoctor.sim.forward.body_mesh import render_single_mesh_body
-from spindoctor.sim.forward.body_spec import body_spec_from_params
-from spindoctor.sim.mesh_geometry import (
+from spindoctor.sim.render.bodies.mesh import render_single_mesh_body
+from spindoctor.sim.render.bodies.spec import body_spec_from_params
+from spindoctor.sim.render.driver import render_combined_model
+from spindoctor.sim.scene.boundary import build_nav_params
+from spindoctor.sim.shared.mesh import (
     make_irregular_mesh,
     render_polyhedral_body,
 )
-from spindoctor.sim.render import render_combined_model
-from spindoctor.sim.scene import build_nav_params
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 
 _SIZE = 220
@@ -268,8 +268,8 @@ def test_mesh_anti_aliasing_suppressed_on_oversampled_grid(
     dispatch hands the mesh rasterizer anti_aliasing 0 there; supersampling
     on top of the oversampled grid would only multiply the render cost.
     """
-    from spindoctor.sim.forward import body_mesh
-    from spindoctor.sim.forward.body import render_single_body
+    from spindoctor.sim.render.bodies import mesh as body_mesh
+    from spindoctor.sim.render.bodies.render import render_single_body
 
     captured: list[float] = []
     real = body_mesh.render_single_mesh_body

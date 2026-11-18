@@ -23,7 +23,7 @@ from tests.spindoctor.sim.artifact_counts import (
 )
 from tests.spindoctor.sim.scenes import body_scene
 
-from spindoctor.sim.render import render_combined_model
+from spindoctor.sim.render.driver import render_combined_model
 
 
 # A biased, well-resolved disc: the bias floor lifts the sky above the zero

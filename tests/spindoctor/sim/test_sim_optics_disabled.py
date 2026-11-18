@@ -12,9 +12,9 @@ from typing import Any
 import numpy as np
 from tests.spindoctor.sim.scenes import frame_scene, quiet_noise, star_entry
 
-from spindoctor.sim.forward.optics import apply_optics
-from spindoctor.sim.forward.stages import new_sim_frame
-from spindoctor.sim.render import render_combined_model
+from spindoctor.sim.render.driver import render_combined_model
+from spindoctor.sim.render.optics.stage import apply_optics
+from spindoctor.sim.render.stages import new_sim_frame
 
 
 def _base_scene(**extra: Any) -> dict[str, Any]:

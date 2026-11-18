@@ -17,7 +17,7 @@ import numpy as np
 import pytest
 from tests.spindoctor.sim.scenes import frame_scene
 
-from spindoctor.sim.forward.detector.electronics_stages import (
+from spindoctor.sim.render.detector.electronics_stages import (
     add_bright_dark_pairs,
     add_coherent_banding,
     add_dark_ramp,
@@ -29,9 +29,9 @@ from spindoctor.sim.forward.detector.electronics_stages import (
     apply_exposure_shading,
     apply_frame_transfer_smear,
 )
-from spindoctor.sim.forward.detector.params import resolve_detector_params
-from spindoctor.sim.forward.detector.sqrt_lut import SqrtLut
-from spindoctor.sim.render import render_combined_model
+from spindoctor.sim.render.detector.params import resolve_detector_params
+from spindoctor.sim.render.detector.sqrt_lut import SqrtLut
+from spindoctor.sim.render.driver import render_combined_model
 
 _SIZE = 64
 
@@ -513,7 +513,7 @@ def _radiation_expected(
     exposure_sec: float, rate: float, environment_factor: float, readout_dwell_sec: float
 ) -> float:
     """The radiation_transients stage's expected hit count for one frame."""
-    from spindoctor.sim.forward.detector.chain import _apply_radiation_transients
+    from spindoctor.sim.render.detector.chain import _apply_radiation_transients
 
     dp = resolve_detector_params({'instrument': 'coiss_nac', 'random_seed': 5})
     dp = dataclasses.replace(dp, exposure_sec=exposure_sec)
@@ -566,7 +566,7 @@ def test_radiation_transients_expect_the_rate_times_the_exposed_seconds(
 
 def test_radiation_amplitudes_fall_steeply() -> None:
     """The radiation regime's exponential amplitudes fall steeply below the scale."""
-    from spindoctor.sim.forward.detector.noise_stages import deposit_morphological_events
+    from spindoctor.sim.render.detector.noise_stages import deposit_morphological_events
 
     electrons = np.zeros((256, 256), dtype=np.float64)
     deposit_morphological_events(
@@ -579,7 +579,7 @@ def test_radiation_amplitudes_fall_steeply() -> None:
 
 def test_cosmic_amplitudes_sit_above_the_scale() -> None:
     """The cosmic-ray lognormal amplitudes sit at or above the deposit scale."""
-    from spindoctor.sim.forward.detector.noise_stages import deposit_morphological_events
+    from spindoctor.sim.render.detector.noise_stages import deposit_morphological_events
 
     electrons = np.zeros((256, 256), dtype=np.float64)
     deposit_morphological_events(
@@ -594,7 +594,7 @@ def test_radiation_morphology_mix_present() -> None:
     """The event mix carries single-pixel hits plus multi-pixel streaks / splatters."""
     from scipy import ndimage
 
-    from spindoctor.sim.forward.detector.noise_stages import deposit_morphological_events
+    from spindoctor.sim.render.detector.noise_stages import deposit_morphological_events
 
     electrons = np.zeros((256, 256), dtype=np.float64)
     deposit_morphological_events(
@@ -611,7 +611,7 @@ def test_radiation_morphology_mix_present() -> None:
 
 def test_quantize_ls8b_wraps_modulo_256() -> None:
     """LS8B keeps the low 8 bits: 256 -> 0, 300 -> 44, 4095 -> 255."""
-    from spindoctor.sim.forward.detector.chain import quantize_dn
+    from spindoctor.sim.render.detector.chain import quantize_dn
 
     out = quantize_dn(np.array([256.0, 300.0, 4095.0]), mode='ls8b', saturation_dn=4095.0)
     assert out.tolist() == [0.0, 44.0, 255.0]
@@ -619,7 +619,7 @@ def test_quantize_ls8b_wraps_modulo_256() -> None:
 
 def test_quantize_contour_8bit_posterizes_to_step_multiples() -> None:
     """contour_8bit posterizes the 8-bit word to DN multiples of the step."""
-    from spindoctor.sim.forward.detector.chain import quantize_dn
+    from spindoctor.sim.render.detector.chain import quantize_dn
 
     dn = np.arange(0, 256, dtype=np.float64)
     out = quantize_dn(dn, mode='contour_8bit', saturation_dn=255.0, contour_step=8)
@@ -635,7 +635,7 @@ def test_quantize_contour_8bit_posterizes_to_step_multiples() -> None:
 
 def test_hot_pixels_record_matches_planted_pixels() -> None:
     """The record's coordinates carry the record's charge on the electron plane."""
-    from spindoctor.sim.forward.detector.noise_stages import add_hot_pixels
+    from spindoctor.sim.render.detector.noise_stages import add_hot_pixels
 
     electrons = np.zeros((_SIZE, _SIZE), dtype=np.float64)
     record = add_hot_pixels(

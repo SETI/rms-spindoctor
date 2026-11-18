@@ -14,10 +14,10 @@ import numpy as np
 import pytest
 from scipy import ndimage
 
-from spindoctor.sim.forward import distortion as distortion_module
-from spindoctor.sim.forward.distortion import apply_distortion
-from spindoctor.sim.forward.ghosts import apply_ghosts
-from spindoctor.sim.forward.stages import new_sim_frame
+from spindoctor.sim.render.optics import distortion as distortion_module
+from spindoctor.sim.render.optics.distortion import apply_distortion
+from spindoctor.sim.render.optics.ghosts import apply_ghosts
+from spindoctor.sim.render.stages import new_sim_frame
 from spindoctor.sim.seeds import derive_effect_seed
 
 

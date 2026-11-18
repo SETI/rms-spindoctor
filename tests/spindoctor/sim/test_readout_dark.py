@@ -13,8 +13,8 @@ import numpy as np
 import pytest
 from tests.spindoctor.sim.scenes import frame_scene, quiet_noise
 
-from spindoctor.sim.forward.detector.params import resolve_detector_params
-from spindoctor.sim.render import render_combined_model
+from spindoctor.sim.render.detector.params import resolve_detector_params
+from spindoctor.sim.render.driver import render_combined_model
 
 
 def _scene(instrument: str, noise: dict[str, Any], **extra: Any) -> dict[str, Any]:

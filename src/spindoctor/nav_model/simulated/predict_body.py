@@ -4,9 +4,9 @@ Renders the smooth Lambert ellipsoid ``NavModelBodySimulated`` predicts
 from a scene's idealized body geometry.  This is deliberately the
 navigator's *best model*, not the image: surface texture (craters, relief)
 is truth-side information rendered only by the image-side twin
-(``spindoctor.sim.forward.body``), and the difference between the two is
+(``spindoctor.sim.render.bodies.render``), and the difference between the two is
 exactly the model error a scene plants.  Shading conventions are shared
-with the image side through :mod:`spindoctor.sim.ellipsoid_geometry`, so
+with the image side through :mod:`spindoctor.sim.shared.ellipsoid`, so
 that planted difference is the only difference.
 """
 
@@ -14,7 +14,7 @@ from typing import cast
 
 import numpy as np
 
-from spindoctor.sim.ellipsoid_geometry import (
+from spindoctor.sim.shared.ellipsoid import (
     ellipsoid_image_normals,
     lambert_from_normals,
     project_ellipsoid,

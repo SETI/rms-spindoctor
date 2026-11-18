@@ -55,9 +55,9 @@ except Exception as exc:
     )
 
 from spindoctor.cli.sim_editor import CreateSimulatedImageModel
-from spindoctor.sim.forward.body_spec import body_spec_from_params
-from spindoctor.sim.forward.star import SKY_COUNTS_DEFAULTS
-from spindoctor.sim.scene import validate_sim_params
+from spindoctor.sim.render.bodies.spec import body_spec_from_params
+from spindoctor.sim.render.radiance.stars import SKY_COUNTS_DEFAULTS
+from spindoctor.sim.scene.validate import validate_sim_params
 
 # Every key a scene body may carry, each set to null.  The scenes below replace some
 # of these with sub-blocks whose own keys are null.

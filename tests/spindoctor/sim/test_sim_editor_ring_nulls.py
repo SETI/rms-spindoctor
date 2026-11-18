@@ -23,7 +23,8 @@ except Exception as exc:
     pytest.skip(f'PyQt6 QApplication init failed: {exc}', allow_module_level=True)
 
 from spindoctor.cli.sim_editor import CreateSimulatedImageModel
-from spindoctor.sim.scene import load_sim_scene, validate_sim_params
+from spindoctor.sim.scene.io import load_sim_scene
+from spindoctor.sim.scene.validate import validate_sim_params
 
 _SCENES = Path(__file__).parents[2] / 'integration' / 'sim_scenes'
 

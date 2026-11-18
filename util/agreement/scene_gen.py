@@ -421,7 +421,7 @@ def generate_scenes(
     Raises:
         ValueError: for an unknown family name.
     """
-    from spindoctor.sim.scene import validate_sim_params
+    from spindoctor.sim.scene.validate import validate_sim_params
 
     if family not in _GENERATORS:
         raise ValueError(f'unknown scene family {family!r}; valid: {sorted(_GENERATORS)}')

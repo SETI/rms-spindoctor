@@ -10,12 +10,13 @@ from typing import Any
 import numpy as np
 import pytest
 
-from spindoctor.sim.forward.detector import (
+from spindoctor.sim.instruments.resolvers import resolve_downlink_table
+from spindoctor.sim.render.detector import (
     apply_detector,
     quantize_dn,
     resolve_detector_params,
 )
-from spindoctor.sim.forward.detector.noise_stages import (
+from spindoctor.sim.render.detector.noise_stages import (
     add_banding,
     add_bias_structure,
     add_cosmic_rays,
@@ -23,9 +24,8 @@ from spindoctor.sim.forward.detector.noise_stages import (
     add_hot_pixels,
     detector_hot_pixel_map,
 )
-from spindoctor.sim.forward.detector.sqrt_lut import SqrtLut, resolve_sqrt_lut
-from spindoctor.sim.forward.stages import SimFrame
-from spindoctor.sim.instrument_resolvers import resolve_downlink_table
+from spindoctor.sim.render.detector.sqrt_lut import SqrtLut, resolve_sqrt_lut
+from spindoctor.sim.render.stages import SimFrame
 from spindoctor.sim.seeds import derive_effect_seed
 
 # coiss_nac catalog: full well 110k e-, gain state 2 = 30 e-/DN, bias 20 DN.

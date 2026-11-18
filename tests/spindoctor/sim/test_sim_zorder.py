@@ -14,8 +14,8 @@ import numpy as np
 import pytest
 from tests.spindoctor.sim.scenes import disc_body, frame_scene, quiet_noise, ring_system_block
 
-from spindoctor.sim.render import render_combined_model
-from spindoctor.sim.scene_schema import SimSceneValidationError
+from spindoctor.sim.render.driver import render_combined_model
+from spindoctor.sim.scene.errors import SimSceneValidationError
 
 
 def _scene(ring_range_km: float | None) -> dict[str, Any]:

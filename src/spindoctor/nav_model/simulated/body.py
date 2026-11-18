@@ -42,8 +42,8 @@ from spindoctor.nav_model.nav_model_body import (
 from spindoctor.nav_model.nav_model_body_base import BODY_BLOB_MIN_DIAMETER_PX, NavModelBodyBase
 from spindoctor.nav_model.simulated.predict_body import create_simulated_body
 from spindoctor.obs import ObsSnapshotInst
-from spindoctor.sim.ellipsoid_geometry import DARK_SIDE_ILLUM_STRENGTH
-from spindoctor.sim.mesh_geometry import mesh_spec_from_params, render_mesh_body_image
+from spindoctor.sim.shared.ellipsoid import DARK_SIDE_ILLUM_STRENGTH
+from spindoctor.sim.shared.mesh import mesh_spec_from_params, render_mesh_body_image
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX, containing_pixel
 from spindoctor.support.filters import NavFilterKind, NavFilterSpec
 from spindoctor.support.image import shift_array

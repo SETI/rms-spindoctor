@@ -1,7 +1,7 @@
 """Scene file I/O glue: save, load, and apply a validated scene dict.
 
-Wraps :func:`spindoctor.sim.scene.save_sim_scene` /
-:func:`spindoctor.sim.scene.load_sim_scene` behind file dialogs and rebuilds
+Wraps :func:`spindoctor.sim.scene.io.save_sim_scene` /
+:func:`spindoctor.sim.scene.io.load_sim_scene` behind file dialogs and rebuilds
 the whole editor state from a loaded ``sim_params`` mapping, syncing every
 General-tab widget and rebuilding the object tabs.
 """
@@ -12,9 +12,9 @@ from typing import Any
 from PyQt6.QtWidgets import QFileDialog, QMessageBox
 
 from spindoctor.cli.sim_editor.base import SimEditorBase
-from spindoctor.sim.scene import load_sim_scene, save_sim_scene
-from spindoctor.sim.scene_schema import scene_value
-from spindoctor.sim.scene_truth_echo import stale_truth_declarations
+from spindoctor.sim.scene.fields import scene_value
+from spindoctor.sim.scene.io import load_sim_scene, save_sim_scene
+from spindoctor.sim.scene.truth_echo import stale_truth_declarations
 
 # How long the status bar shows the dropped-declaration notice, in milliseconds.
 _STALE_DECLARATION_MESSAGE_MS = 10000

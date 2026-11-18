@@ -32,10 +32,10 @@ The simulated path is the calibration regime for the star techniques: a develope
 probe star matching with a field whose true offset, photometry, and (planted) camera
 roll are known by construction.
 
-The image-side renderer (``spindoctor.sim.forward.star``) draws each scene star at its
+The image-side renderer (``spindoctor.sim.render.radiance.stars``) draws each scene star at its
 catalog ``(v, u)`` shifted by the scene's planted offset and camera roll. This model
 independently builds the *unshifted* catalog positions from the same scene entries --
-via the shared record builder :func:`~spindoctor.sim.star_records.star_record_from_params`,
+via the shared record builder :func:`~spindoctor.sim.shared.stars.star_record_from_params`,
 so the two sides' defaults are identical while no rendered values cross the information
 boundary -- and adopts them as its prediction. A technique that detects the shifted
 peak therefore recovers the planted transform: the same prediction / observation split
@@ -107,7 +107,7 @@ Public methods (autodocumented at :doc:`/api_reference/api_nav_model`):
   has no stars.
 - :meth:`~spindoctor.nav_model.simulated.stars.NavModelStarsSimulated.create_model`
   -- builds one catalog record per ``nav_params`` star entry via
-  :func:`~spindoctor.sim.star_records.star_record_from_params`, sets a zero smear
+  :func:`~spindoctor.sim.shared.stars.star_record_from_params`, sets a zero smear
   vector, and populates the same metadata fields the parent records.
 - ``to_features`` / ``to_annotations`` -- inherited unchanged from
   :class:`~spindoctor.nav_model.stars.nav_model_stars.NavModelStars`.

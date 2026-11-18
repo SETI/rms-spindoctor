@@ -20,18 +20,18 @@ from scipy.signal import fftconvolve
 from tests.spindoctor.sim.scenes import frame_scene, star_entry
 
 from spindoctor.config import DEFAULT_CONFIG
-from spindoctor.sim.forward.detector.params import calibration_map, resolve_detector_params
-from spindoctor.sim.forward.psf import psf_kernel
-from spindoctor.sim.forward.scene_radiance import _nominal_read_noise, sky_star_faint_cutoff_mag
-from spindoctor.sim.forward.star import faint_sky_cutoff_mag, render_sky_counts
-from spindoctor.sim.instrument_navigator import resolve_sim_inst_config
-from spindoctor.sim.instrument_resolvers import (
+from spindoctor.sim.instruments.navigator_link import resolve_sim_inst_config
+from spindoctor.sim.instruments.resolvers import (
     filter_star_flux_scale,
     resolve_psf_kernel,
     resolve_psf_truncation_px,
     resolve_star_flux_zero_point,
 )
-from spindoctor.sim.render import clear_render_caches, render_combined_model
+from spindoctor.sim.render.detector.params import calibration_map, resolve_detector_params
+from spindoctor.sim.render.driver import clear_render_caches, render_combined_model
+from spindoctor.sim.render.optics.psf import psf_kernel
+from spindoctor.sim.render.radiance.compose import _nominal_read_noise, sky_star_faint_cutoff_mag
+from spindoctor.sim.render.radiance.stars import faint_sky_cutoff_mag, render_sky_counts
 
 # Explicit zeroing of every stochastic detector knob, so the star-profile
 # measurements below see only the deterministic signal chain.

@@ -13,7 +13,7 @@ from typing import Any
 import pytest
 from tests.spindoctor.sim.scenes import disc_body, frame_scene
 
-from spindoctor.sim.render import render_combined_model
+from spindoctor.sim.render.driver import render_combined_model
 
 _R_FAR = 60.0
 _R_NEAR = 50.0

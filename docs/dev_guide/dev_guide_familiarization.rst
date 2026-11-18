@@ -354,18 +354,17 @@ sibling of each model family. These are used both by
 - :mod:`spindoctor.nav_model.simulated.body`
 - :mod:`spindoctor.nav_model.simulated.rings`
 - :mod:`spindoctor.nav_model.simulated.titan`
-- :mod:`spindoctor.sim` — the scene schema, the image-side forward model, and the
+- :mod:`spindoctor.sim` — the scene schema, the image-side renderer, and the
   geometry helpers shared across the information boundary:
 
   - :mod:`spindoctor.sim.scene` — schema, validation, and the boundary filter
-  - :mod:`spindoctor.sim.render` — the cached driver over the stage pipeline
-  - :mod:`spindoctor.sim.forward` — the image-side stage pipeline
-    (:mod:`~spindoctor.sim.forward.pipeline`, :mod:`~spindoctor.sim.forward.stages`,
-    and the per-stage renderer modules)
-  - :mod:`spindoctor.sim.ellipsoid_geometry`, :mod:`spindoctor.sim.mesh_geometry`,
-    :mod:`spindoctor.sim.ring_geometry`, :mod:`spindoctor.sim.star_records` —
-    geometry/record helpers both sides share
-  - :mod:`spindoctor.sim.instrument_navigator`
+  - :mod:`spindoctor.sim.render` — the image-side stage pipeline: the cached driver
+    (:mod:`~spindoctor.sim.render.driver`), :mod:`~spindoctor.sim.render.pipeline`,
+    :mod:`~spindoctor.sim.render.stages`, and the per-stage subpackages
+  - :mod:`spindoctor.sim.shared` (:mod:`~spindoctor.sim.shared.ellipsoid`,
+    :mod:`~spindoctor.sim.shared.mesh`, :mod:`~spindoctor.sim.shared.ring`,
+    :mod:`~spindoctor.sim.shared.stars`) — geometry/record helpers both sides share
+  - :mod:`spindoctor.sim.instruments.navigator_link`
   - :mod:`spindoctor.sim.seeds`
   - :mod:`spindoctor.sim.png_export`
 

@@ -16,7 +16,7 @@ from typing import Any
 from PyQt6.QtWidgets import QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout
 
 from spindoctor.cli.sim_editor.base import SimEditorBase
-from spindoctor.sim.scene_schema import scene_value
+from spindoctor.sim.scene.fields import scene_value
 
 
 class StrayLightMixin(SimEditorBase):

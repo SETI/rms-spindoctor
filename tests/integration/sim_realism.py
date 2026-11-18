@@ -58,9 +58,9 @@ from spindoctor.nav_model import build_models_for_obs
 from spindoctor.nav_orchestrator import NavOrchestrator
 from spindoctor.obs import ObsSnapshotInst
 from spindoctor.obs.obs_inst_sim import ObsSim
-from spindoctor.sim.instrument_catalog import realism_cohort_instruments
-from spindoctor.sim.instrument_navigator import resolve_sim_inst_config
-from spindoctor.sim.instrument_resolvers import (
+from spindoctor.sim.instruments.catalog import realism_cohort_instruments
+from spindoctor.sim.instruments.navigator_link import resolve_sim_inst_config
+from spindoctor.sim.instruments.resolvers import (
     resolve_calibrated_sky_if,
     resolve_dark_sky_ceiling_if,
     resolve_data_units,

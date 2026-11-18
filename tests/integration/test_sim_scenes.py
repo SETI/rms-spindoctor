@@ -9,10 +9,10 @@ from pathlib import Path
 
 import pytest
 
-from spindoctor.sim.render import render_combined_model
-from spindoctor.sim.scene import (
+from spindoctor.sim.render.driver import render_combined_model
+from spindoctor.sim.scene.errors import SimSceneValidationError
+from spindoctor.sim.scene.io import (
     DECLARED_SIM_SCENE_CLASSES,
-    SimSceneValidationError,
     iter_scene_paths,
     load_sim_scene,
     scene_class_for_path,

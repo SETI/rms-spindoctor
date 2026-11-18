@@ -14,7 +14,7 @@ import numpy as np
 import pytest
 from tests.spindoctor.sim.scenes import frame_scene, quiet_noise
 
-from spindoctor.sim.render import render_combined_model
+from spindoctor.sim.render.driver import render_combined_model
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 
 _CENTER = 64.0

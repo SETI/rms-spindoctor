@@ -31,7 +31,7 @@ from PyQt6.QtWidgets import (
 
 from spindoctor.cli.sim_editor.base import SimEditorBase
 from spindoctor.cli.sim_editor.widgets import kept_or_shown
-from spindoctor.sim.scene_schema import scene_value
+from spindoctor.sim.scene.fields import scene_value
 
 _SMEAR_CLASSES: list[str] = ['all', 'stars', 'bodies', 'rings']
 

@@ -19,8 +19,16 @@ from typing import Any
 import pytest
 from tests.spindoctor.sim.scenes import frame_scene
 
-from spindoctor.sim.scene import SimSceneValidationError, validate_sim_params
-from spindoctor.sim.scene_checks_ring import (
+from spindoctor.sim.scene.boundary import _RING_FEATURE_KEYS
+from spindoctor.sim.scene.errors import SimSceneValidationError
+from spindoctor.sim.scene.fields import (
+    RING_KEY_DESCRIPTIONS,
+    RING_KIND_SHAPE_KEYS,
+    RING_SHAPE_KEYS,
+    RING_SIDE_DEFAULTS,
+    ring_key_description,
+)
+from spindoctor.sim.scene.rules_ring import (
     _RING_EDGE_WAVE_KEYS,
     _RING_FEATURE_ORBIT_KEYS,
     _RING_MODULATION_KEYS,
@@ -28,14 +36,7 @@ from spindoctor.sim.scene_checks_ring import (
     _RING_ORBIT_MODE_KEYS,
     _RING_SPOKES_KEYS,
 )
-from spindoctor.sim.scene_schema import (
-    _RING_FEATURE_KEYS,
-    RING_KEY_DESCRIPTIONS,
-    RING_KIND_SHAPE_KEYS,
-    RING_SHAPE_KEYS,
-    RING_SIDE_DEFAULTS,
-    ring_key_description,
-)
+from spindoctor.sim.scene.validate import validate_sim_params
 
 _REPO = Path(__file__).resolve().parents[3]
 _DEV_GUIDE = _REPO / 'docs' / 'dev_guide' / 'dev_guide_simulator.rst'

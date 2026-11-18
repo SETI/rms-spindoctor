@@ -14,20 +14,20 @@ import numpy as np
 import pytest
 from tests.spindoctor.sim.scenes import disc_body, frame_scene, quiet_noise, star_entry
 
-from spindoctor.sim.forward.detector.params import (
-    DetectorParamError,
-    calibration_map,
-    resolve_detector_params,
-)
-from spindoctor.sim.instrument_resolvers import (
+from spindoctor.sim.instruments.resolvers import (
     FilterCatalogError,
     canonical_filter,
     filter_star_flux_scale,
     resolve_filter_throughput,
 )
-from spindoctor.sim.render import render_combined_model
-from spindoctor.sim.scene import validate_sim_params
-from spindoctor.sim.scene_schema import SimSceneValidationError
+from spindoctor.sim.render.detector.params import (
+    DetectorParamError,
+    calibration_map,
+    resolve_detector_params,
+)
+from spindoctor.sim.render.driver import render_combined_model
+from spindoctor.sim.scene.errors import SimSceneValidationError
+from spindoctor.sim.scene.validate import validate_sim_params
 
 _NAC_CLEAR = resolve_filter_throughput('coiss_nac', 'CL1+CL2')
 _NAC_GREEN = resolve_filter_throughput('coiss_nac', 'CL1+GRN')

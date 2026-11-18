@@ -19,7 +19,7 @@ from typing import Any
 from PyQt6.QtWidgets import QComboBox, QFormLayout, QGroupBox, QLineEdit
 
 from spindoctor.cli.sim_editor.base import SimEditorBase
-from spindoctor.sim.scene_schema import scene_value
+from spindoctor.sim.scene.fields import scene_value
 
 # The tier combo's visible choices; ``(none)`` maps to a null tier.
 _TIER_CHOICES: list[str] = ['high', 'medium', 'low', 'failed', 'conflicted', '(none)']

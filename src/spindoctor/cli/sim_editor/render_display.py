@@ -39,19 +39,16 @@ from PyQt6.QtWidgets import QFileDialog, QFormLayout, QGroupBox, QLabel, QMessag
 from spindoctor.cli.sim_editor.base import SimEditorBase
 from spindoctor.cli.sim_editor.full_render import FullRender, render_full_frame
 from spindoctor.config import DEFAULT_CONFIG
-from spindoctor.sim.instrument_navigator import (
+from spindoctor.sim.instruments.navigator_link import (
     frame_units_name,
     has_planted_offset,
     resolve_sim_inst_config,
 )
-from spindoctor.sim.instrument_resolvers import resolve_data_units
-from spindoctor.sim.render import render_combined_model
-from spindoctor.sim.scene import validate_scene
-from spindoctor.sim.scene_schema import (
-    SimSceneValidationError,
-    default_body_name,
-    scene_value,
-)
+from spindoctor.sim.instruments.resolvers import resolve_data_units
+from spindoctor.sim.render.driver import render_combined_model
+from spindoctor.sim.scene.errors import SimSceneValidationError
+from spindoctor.sim.scene.fields import default_body_name, scene_value
+from spindoctor.sim.scene.validate import validate_scene
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 
 # The status bar's words for the image on screen.
@@ -196,7 +193,7 @@ class RenderDisplayMixin(SimEditorBase):
 
         A refused scene starts no full render or verdict render, and any already on
         their way are dropped.  An exception other than
-        :class:`~spindoctor.sim.scene_schema.SimSceneValidationError` propagates to
+        :class:`~spindoctor.sim.scene.errors.SimSceneValidationError` propagates to
         the caller.
 
         Returns:
