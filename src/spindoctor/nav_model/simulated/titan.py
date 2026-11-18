@@ -179,8 +179,7 @@ class NavModelTitanSimulated(NavModelTitan):
 
         Reads the navigator view (``obs.nav_params``) and never the
         full scene, whose truth keys -- the haze among them -- stay behind
-        the information boundary.  Returns an empty list for a real obs, so
-        the catalog-driven model handles those instead.
+        the information boundary.
 
         Parameters:
             obs: Observation snapshot.
@@ -191,8 +190,6 @@ class NavModelTitanSimulated(NavModelTitan):
             One ``NavModelTitanSimulated`` per adequately configured
             simulated Titan; an empty list otherwise.
         """
-        if not getattr(obs, 'is_simulated', False):
-            return []
         nav_params = getattr(obs, 'nav_params', None)
         if not isinstance(nav_params, dict):
             return []

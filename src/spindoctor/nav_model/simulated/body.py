@@ -323,8 +323,7 @@ class NavModelBodySimulated(NavModelBodyBase):
 
         Reads the per-body entries of the navigator view
         (``obs.nav_params['bodies']``) -- never the full scene, whose truth
-        keys stay behind the information boundary.  Returns an empty list for
-        a real obs, so the SPICE-backed ``NavModelBody`` handles those instead.
+        keys stay behind the information boundary.
 
         A scene body may carry a ``nav_override`` mapping: the renderer draws
         the true shape, while the boundary filter overlays the override onto
@@ -357,8 +356,6 @@ class NavModelBodySimulated(NavModelBodyBase):
             One ``NavModelBodySimulated`` per non-Titan body in the sim
             scene.
         """
-        if not getattr(obs, 'is_simulated', False):
-            return []
         nav_params = getattr(obs, 'nav_params', None)
         if not isinstance(nav_params, dict):
             return []

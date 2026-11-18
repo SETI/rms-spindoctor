@@ -137,9 +137,7 @@ class NavModelRingsSimulated(NavModelRingsBase):
         """Build one simulated ring model per navigable ring_system feature.
 
         Reads the navigator view (``obs.nav_params['ring_system']``),
-        whose feature list carries exactly the navigable subset; returns an
-        empty list for a real obs so the SPICE-backed ``NavModelRings``
-        handles those instead.
+        whose feature list carries exactly the navigable subset.
 
         Parameters:
             obs: Observation snapshot.
@@ -149,8 +147,6 @@ class NavModelRingsSimulated(NavModelRingsBase):
         Returns:
             One ``NavModelRingsSimulated`` per navigable feature.
         """
-        if not getattr(obs, 'is_simulated', False):
-            return []
         nav_params = getattr(obs, 'nav_params', None)
         if not isinstance(nav_params, dict):
             return []

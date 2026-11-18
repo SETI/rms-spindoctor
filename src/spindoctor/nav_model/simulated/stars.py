@@ -58,9 +58,8 @@ class NavModelStarsSimulated(NavModelStars):
     ) -> list[NavModel]:
         """Return one star model for a simulated obs whose scene has stars.
 
-        Returns an empty list for a real obs (the catalog-driven
-        :class:`NavModelStars` handles those) and for a simulated obs whose
-        scene lists no stars (so the orchestrator builds no empty star model).
+        Returns an empty list for a simulated obs whose scene lists no stars,
+        so the orchestrator builds no empty star model.
 
         Parameters:
             obs: Observation snapshot.
@@ -68,11 +67,9 @@ class NavModelStarsSimulated(NavModelStars):
                 uses ``DEFAULT_CONFIG``.
 
         Returns:
-            ``[NavModelStarsSimulated('stars', obs)]`` for a simulated obs
-            with at least one scene star, else ``[]``.
+            ``[NavModelStarsSimulated('stars', obs)]`` for an obs whose scene
+            has at least one star, else ``[]``.
         """
-        if not getattr(obs, 'is_simulated', False):
-            return []
         nav_params = getattr(obs, 'nav_params', None)
         if not isinstance(nav_params, dict) or not nav_params.get('stars'):
             return []
