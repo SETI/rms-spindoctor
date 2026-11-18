@@ -1493,7 +1493,11 @@ asserts the generated half matches the registries.
   `Backplane` objects, no shared `obs`).
 - **#126** — rotation-pyramid cost (~10 min on 1024^2); only bites
   rotation-fitting instruments (Galileo, Voyager); coordinate with
-  Track F instrument enablement.
+  Track F instrument enablement. Cost part done: each rotation sample
+  is scored by one correlation and the pyramid runs only at the winner
+  (5-12x faster, same answers). Accuracy part open as #1040 (the
+  sampled score misses a planted roll); turning rotation on for Voyager
+  stays an operator decision.
 - **#118** — config validation system: schema per section, unknown-key
   rejection, type/range checks at load
   (`src/spindoctor/config/config.py`); pairs well with #176's
