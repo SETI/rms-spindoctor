@@ -123,9 +123,9 @@ The thresholds and the marker come from
 :func:`~spindoctor.support.image_class.image_quality_thresholds` and
 :func:`~spindoctor.support.image_class.missing_data_marker`, which the simulated-image
 editor's verdict also calls, so both read a block the same way. They refuse an
-unrecognized ``data_units``, a missing ``image_quality_thresholds`` block, a missing or
-non-finite required threshold, and a ``saturation_threshold_if`` on a calibrated block.
-The module's private helper ``_required_float`` validates ``noise.saturation_dn``.
+unrecognized ``data_units``, a missing ``image_quality_thresholds`` block, a required
+threshold that is missing, not a number, or not finite, and a ``saturation_threshold_if``
+on a calibrated block.
 
 Examples
 ========

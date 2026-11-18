@@ -68,7 +68,7 @@ from spindoctor.support.exceptions import (
     NavPointingError,
 )
 from spindoctor.support.filters import NavFilterKind, NavFilterSpec, apply_filter
-from spindoctor.support.image_class import ImageQualityThresholds
+from spindoctor.support.image_class import ImageQualityThresholds, missing_data_mask
 from spindoctor.support.image_quality import cosmic_ray_mask, saturation_mask
 from spindoctor.support.memory import release_transient_memory
 from spindoctor.support.nav_base import NavBase
@@ -1232,11 +1232,7 @@ class NavOrchestrator(NavBase):
         # noise path always sees finite data.  The *true* missing fraction
         # is threaded into the classifier so missing/dropout detection
         # still fires for calibrated images.
-        marker = settings.marker_value
-        if np.isnan(marker):
-            missing_mask = np.isnan(raw_image)
-        else:
-            missing_mask = raw_image == marker
+        missing_mask = missing_data_mask(raw_image, settings.marker_value)
         if missing_mask.any():
             raw_image = np.where(missing_mask, 0.0, raw_image)
         sensor_missing = missing_mask & sensor_mask

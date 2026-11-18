@@ -390,8 +390,8 @@ def frame_units_summary(image: NDArrayFloatType, inst_config: Mapping[str, Any])
     ``'I/F 0 to 1.48'``.  The units are ``DN`` for a ``raw_dn`` block and ``I/F`` for
     a ``calibrated_if`` one.  When any pixel equals the navigator's marker (see
     :func:`~spindoctor.support.image_class.missing_data_marker`; NaN pixels when the
-    marker is NaN), it adds the
-    marker and the share of pixels carrying it.  When the navigator's classifier
+    marker is NaN), it adds the marker and the share of pixels carrying it.  When
+    the navigator's classifier
     (see :func:`read_frame_as_navigator`) would not call the frame clean, it adds
     the reason, in the classifier's order: below the blank limit, over the
     overexposed share, or over ``max_missing_frac_clean``, in which case the

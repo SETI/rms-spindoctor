@@ -22,6 +22,7 @@ from spindoctor.support.image_class import (
     ImageQualityThresholds,
     image_quality_thresholds,
     missing_data_marker,
+    required_finite_float,
 )
 
 __all__ = [
@@ -66,23 +67,6 @@ class InstrumentSettings:
     thresholds: ImageQualityThresholds
     fit_camera_rotation: bool
     max_rotation_deg: float
-
-
-def _required_float(block: Any, key: str, *, location: str) -> float:
-    """Read a required finite numeric field from a YAML mapping.
-
-    Raises ``ValueError`` with a path-aware error message when the key
-    is missing, non-numeric, or non-finite (NaN / +-Inf).
-    """
-    if block is None or key not in block:
-        raise ValueError(f'{location} missing required field {key!r}')
-    value = block[key]
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
-        raise ValueError(f'{location}.{key} must be numeric; got {type(value).__name__}={value!r}')
-    coerced = float(value)
-    if not math.isfinite(coerced):
-        raise ValueError(f'{location}.{key} must be a finite numeric value; got {value!r}')
-    return coerced
 
 
 def instrument_settings_from_obs(obs: Any) -> InstrumentSettings:
@@ -138,7 +122,7 @@ def instrument_settings_from_obs(obs: Any) -> InstrumentSettings:
             raise ValueError(
                 "instrument config with data_units='raw_dn' missing required noise block"
             )
-        saturation_dn = _required_float(noise, 'saturation_dn', location='noise')
+        saturation_dn = required_finite_float(noise, 'saturation_dn', location='noise')
     # A calibrated_if block has no saturation mask: the same physical full-well
     # DN maps to a different I/F for every combination of exposure time, filter,
     # and gain.  The orchestrator emits an empty saturation mask (see

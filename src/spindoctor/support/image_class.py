@@ -19,7 +19,7 @@ imports neither the navigator packages nor the simulator.
 A ``raw_dn`` block quotes its limits in DN.  A ``calibrated_if`` block quotes
 them in I/F and has no saturation check: the same full-well count maps to a
 different I/F for every exposure, filter, and gain, so the saturation threshold
-is infinite and such a frame is never ``fully_overexposed``.
+is infinite and no finite pixel counts as saturated.
 """
 
 import math
@@ -40,6 +40,7 @@ __all__ = [
     'measure_image_quality',
     'missing_data_marker',
     'missing_data_mask',
+    'required_finite_float',
 ]
 
 
@@ -60,10 +61,9 @@ class ImageQualityThresholds:
             the image is ``fully_overexposed``.
         max_missing_frac_clean: Above this fraction of missing pixels the
             image is ``mostly_missing_data``.
-        partial_dropout_min_frac: Below this missing fraction, no
-            ``partial_dropout`` flag is raised.  At or above this fraction
-            (and below ``max_missing_frac_clean``) the ``partial_dropout``
-            advisory flag is set on the result.
+        partial_dropout_min_frac: Above this missing fraction (and at or
+            below ``max_missing_frac_clean``) the ``partial_dropout`` advisory
+            flag is set on the result.
         blank_max_dn: If the image's max DN is below this, the image is
             ``blank``.
         noisy_threshold: Above this MAD-noise sigma, the ``noisy`` flag is
@@ -106,12 +106,20 @@ def _coerce_marker(value: Any) -> float:
     return float(value)
 
 
-def _required_float(block: Mapping[str, Any], key: str, *, location: str) -> float:
+def required_finite_float(block: Mapping[str, Any], key: str, *, location: str) -> float:
     """Read a required finite numeric field from a config mapping.
 
-    Raises ``ValueError`` with a path-aware message when the key is missing,
-    non-numeric, or non-finite (NaN or infinite), because the value becomes a
-    threshold the classifier compares against pixel data.
+    Parameters:
+        block: The config mapping.
+        key: The field to read.
+        location: The mapping's path, for the error message.
+
+    Returns:
+        The value as a float.
+
+    Raises:
+        ValueError: If the key is missing, or its value is not a number (a bool
+            is refused) or is not finite.
     """
     if key not in block:
         raise ValueError(f'{location} missing required field {key!r}')
@@ -203,7 +211,7 @@ def image_quality_thresholds(inst_config: Mapping[str, Any]) -> ImageQualityThre
     marker = missing_data_marker(inst_config)
     location = 'image_quality_thresholds'
     if data_units == 'raw_dn':
-        saturation = _required_float(iqt_block, 'saturation_threshold_dn', location=location)
+        saturation = required_finite_float(iqt_block, 'saturation_threshold_dn', location=location)
         suffix = 'dn'
     else:
         if 'saturation_threshold_if' in iqt_block:
@@ -221,8 +229,10 @@ def image_quality_thresholds(inst_config: Mapping[str, Any]) -> ImageQualityThre
         max_saturation_frac_clean=float(iqt_block.get('max_overexposed_frac_clean', 0.80)),
         max_missing_frac_clean=float(iqt_block.get('max_missing_frac_clean', 0.30)),
         partial_dropout_min_frac=float(iqt_block.get('partial_dropout_min_frac', 0.05)),
-        blank_max_dn=_required_float(iqt_block, f'blank_max_{suffix}', location=location),
-        noisy_threshold=_required_float(iqt_block, f'noisy_threshold_{suffix}', location=location),
+        blank_max_dn=required_finite_float(iqt_block, f'blank_max_{suffix}', location=location),
+        noisy_threshold=required_finite_float(
+            iqt_block, f'noisy_threshold_{suffix}', location=location
+        ),
     )
 
 

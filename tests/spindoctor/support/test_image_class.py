@@ -36,17 +36,27 @@ _CALIBRATED_BLOCK: dict[str, Any] = {
     ('block', 'expected'),
     [
         ({'data_units': 'raw_dn'}, 0.0),
-        ({'data_units': 'calibrated_if', 'noise': {}}, math.nan),
-        ({'data_units': 'calibrated_if', 'noise': {'marker_value': None}}, math.nan),
-        ({'data_units': 'calibrated_if', 'noise': {'marker_value': 'nan'}}, math.nan),
         ({'data_units': 'raw_dn', 'noise': {'marker_value': 7}}, 7.0),
     ],
-    ids=['raw-default', 'calibrated-default', 'null', 'nan-string', 'explicit'],
+    ids=['raw-default', 'explicit'],
 )
-def test_marker_reading(block: dict[str, Any], expected: float) -> None:
-    """The marker defaults by unit class, and null or 'NaN' reads as NaN."""
-    marker = missing_data_marker(block)
-    assert (math.isnan(marker) and math.isnan(expected)) or marker == expected
+def test_numeric_marker(block: dict[str, Any], expected: float) -> None:
+    """A raw block's marker defaults to 0, and an explicit number is taken as is."""
+    assert missing_data_marker(block) == expected
+
+
+@pytest.mark.parametrize(
+    'block',
+    [
+        {'data_units': 'calibrated_if', 'noise': {}},
+        {'data_units': 'calibrated_if', 'noise': {'marker_value': None}},
+        {'data_units': 'calibrated_if', 'noise': {'marker_value': 'nan'}},
+    ],
+    ids=['calibrated-default', 'null', 'nan-string'],
+)
+def test_nan_marker(block: dict[str, Any]) -> None:
+    """A calibrated block's marker defaults to NaN, and null or 'NaN' reads as NaN."""
+    assert math.isnan(missing_data_marker(block))
 
 
 def test_marker_rejects_a_non_nan_string() -> None:
