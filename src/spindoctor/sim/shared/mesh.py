@@ -33,6 +33,7 @@ import numpy as np
 
 from spindoctor.sim.scene.fields import scene_value
 from spindoctor.sim.shared.ellipsoid import DARK_SIDE_ILLUM_STRENGTH
+from spindoctor.sim.shared.lighting import illumination_vector
 from spindoctor.sim.shared.spherical_harmonics import (
     degree_mean_square,
     draw_sh_coefficients,
@@ -247,24 +248,6 @@ def make_irregular_mesh(
 
     face_arr = np.array(faces, dtype=np.int64)
     return Mesh(vertices=vertices, faces=_orient_faces_outward(vertices, face_arr))
-
-
-def _light_direction(illumination_angle: float, phase_angle: float) -> NDArrayFloatType:
-    """Unit light direction in camera (u, v, depth) coordinates.
-
-    Matches the convention in
-    ``spindoctor.sim.shared.ellipsoid.lambert_from_normals``: v increases
-    downward, depth is positive toward the observer; phase 0 lights the visible
-    face, phase pi back-lights it.
-    """
-    illum_u = np.sin(illumination_angle) * np.sin(phase_angle)
-    illum_v = -np.cos(illumination_angle) * np.sin(phase_angle)
-    illum_z = np.cos(phase_angle)
-    light = np.array([illum_u, illum_v, illum_z], dtype=np.float64)
-    norm = float(np.linalg.norm(light))
-    if norm < 1e-10:
-        return np.array([0.0, 0.0, 1.0], dtype=np.float64)
-    return _as_float64(light / norm)
 
 
 # Most candidate pixels one rasterization batch tests.  This bounds only the
@@ -512,7 +495,12 @@ def render_polyhedral_body(
     norm_mag = np.linalg.norm(normals, axis=1)
     norm_mag = np.maximum(norm_mag, 1e-12)
     unit_normals = normals / norm_mag[:, None]
-    light = _light_direction(illumination_angle, phase_angle)
+    # The shared light direction is ordered (v, u, depth); the camera frame here is
+    # (u, v, depth).
+    light_v, light_u, light_z = illumination_vector(
+        illumination_angle=illumination_angle, phase_angle=phase_angle
+    )
+    light = np.array([light_u, light_v, light_z], dtype=np.float64)
     face_intensity = np.clip(stable_matmul3(unit_normals, light), _DARK_SIDE_ILLUM, 1.0)
 
     vertex_intensity: NDArrayFloatType | None = None

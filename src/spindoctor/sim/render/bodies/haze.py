@@ -84,6 +84,7 @@ from typing import Any
 import numpy as np
 
 from spindoctor.sim.scene.fields import scene_value
+from spindoctor.sim.shared.lighting import in_plane_light_direction
 from spindoctor.support.stable_math import stable_hypot
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 
@@ -588,5 +589,4 @@ def tilted_illumination_2d(
         light, using the renderer's convention that v increases downward.
     """
     tilt = 0.0 if structure is None else math.radians(structure.axis_tilt_deg)
-    angle = illumination_angle + tilt
-    return -math.cos(angle), math.sin(angle)
+    return in_plane_light_direction(illumination_angle + tilt)

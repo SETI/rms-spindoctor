@@ -34,8 +34,9 @@ radial units: the scene's ring-plane pixels times the oversampling factor):
   lobes subtract from the composed tau.
 
 Photometry (the normative equation set), with ``mu = |sin B_obs|``,
-``mu0 = |sin B_sun|``, lit iff ``sign(B_obs) == sign(B_sun)``, and one-term
-Henyey-Greenstein ``P(g, alpha)``:
+``mu0 = |sin B_sun|``, lit iff ``sign(B_obs) == sign(B_sun)``, and the one-term
+Henyey-Greenstein ``P(g, alpha)`` of
+:func:`~spindoctor.sim.shared.lighting.henyey_greenstein_phase`:
 
 - lit:   ``I = A/4 * P * mu0/(mu0 + mu) * (1 - exp(-tau*(1/mu0 + 1/mu)))``
 - unlit: ``I = A/4 * P * mu0/(mu0 - mu) * (exp(-tau/mu0) - exp(-tau/mu))``,
@@ -72,6 +73,7 @@ from typing import Any, cast
 import numpy as np
 
 from spindoctor.sim.scene.fields import RING_SIDE_DEFAULTS, scene_value
+from spindoctor.sim.shared.lighting import henyey_greenstein_phase
 from spindoctor.sim.shared.ring import (
     RingOrbit,
     compute_antialiasing_shade,
@@ -90,7 +92,6 @@ __all__ = [
     'RING_ALBEDO_DEFAULT',
     'RING_PHASE_G_DEFAULT',
     'RingSystemMaps',
-    'henyey_greenstein_phase',
     'render_ring_system',
     'ring_reflection_factor',
 ]
@@ -133,25 +134,6 @@ class RingSystemMaps:
     transmission: NDArrayFloatType
     mask: NDArrayBoolType
     depth_km: NDArrayFloatType | None
-
-
-def henyey_greenstein_phase(g: float, alpha_deg: float) -> float:
-    """One-term Henyey-Greenstein phase function at phase angle ``alpha``.
-
-    ``P = (1 - g**2) / (1 + g**2 + 2*g*cos(alpha))**1.5`` with alpha the
-    phase angle (0 at opposition): negative ``g`` backscatters (bright at
-    low phase), positive ``g`` forward-scatters (dusty features brighten
-    strongly toward alpha = 180).
-
-    Parameters:
-        g: Asymmetry parameter, strictly inside (-1, 1).
-        alpha_deg: Phase angle in degrees, [0, 180].
-
-    Returns:
-        The phase function value (positive).
-    """
-    cos_alpha = math.cos(math.radians(alpha_deg))
-    return float((1.0 - g * g) / (1.0 + g * g + 2.0 * g * cos_alpha) ** 1.5)
 
 
 def ring_reflection_factor(
@@ -251,7 +233,7 @@ def render_ring_system(
     mu = abs(math.sin(math.radians(b_obs)))
     mu0 = abs(math.sin(math.radians(b_sun)))
     lit = (b_obs > 0.0) == (b_sun > 0.0)
-    alpha_deg = float(scene_value(ring_system, 'phase_deg', 0.0))
+    phase_angle = math.radians(float(scene_value(ring_system, 'phase_deg', 0.0)))
 
     # Pixel centers relative to the projected ring center, mapped back to the
     # ring plane through the shared inverse projection.  The grid starts as
@@ -329,7 +311,7 @@ def render_ring_system(
             tau_view[sel] += contribution
             albedo = float(scene_value(feature, 'albedo', RING_ALBEDO_DEFAULT))
             phase_g = float(scene_value(feature, 'phase_g', RING_PHASE_G_DEFAULT))
-            ap = albedo / 4.0 * henyey_greenstein_phase(phase_g, alpha_deg)
+            ap = albedo / 4.0 * henyey_greenstein_phase(phase_g, phase_angle)
             positive = np.clip(contribution, 0.0, None)
             ap_weighted_view = ap_weighted[sub_v, sub_u]
             ap_weighted_view[sel] += ap * positive

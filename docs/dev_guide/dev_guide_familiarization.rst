@@ -363,8 +363,9 @@ sibling of each model family. These are used both by
     (:mod:`~spindoctor.sim.render.driver`), :mod:`~spindoctor.sim.render.pipeline`,
     :mod:`~spindoctor.sim.render.stages`, and the per-stage subpackages
   - :mod:`spindoctor.sim.shared` (:mod:`~spindoctor.sim.shared.ellipsoid`,
-    :mod:`~spindoctor.sim.shared.mesh`, :mod:`~spindoctor.sim.shared.ring`,
-    :mod:`~spindoctor.sim.shared.stars`) — geometry/record helpers both sides share
+    :mod:`~spindoctor.sim.shared.lighting`, :mod:`~spindoctor.sim.shared.mesh`,
+    :mod:`~spindoctor.sim.shared.ring`, :mod:`~spindoctor.sim.shared.stars`) —
+    geometry/record helpers both sides share
   - :mod:`spindoctor.sim.instruments.navigator_link`
   - :mod:`spindoctor.sim.seeds`
   - :mod:`spindoctor.sim.png_export`

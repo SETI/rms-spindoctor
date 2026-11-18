@@ -166,7 +166,7 @@ apart from a physics change.
 | #1007 | **Done (PR #1054).** Names that describe history or one of several meanings | One glossary before the typed scene model fixes names into types. |
 | #1008 | **Done (PR #1059).** The simulated body model is over 1,000 lines, and its limb and terminator arc code is two near-copies | The one module over the limit. |
 | #1030 | **Done (PR #1064).** The simulated-or-real model choice is spread over eight guards; each model class declares the inputs it needs instead | One place to choose models, and the shape Phase 5 needs, where a twin provides both kinds of input. Gated also on the library regression tier, because it touches model selection on real frames. |
-| #1009 | Light direction and phase function derived twice | A shared convention with two copies can plant an unmeasured systematic. If a render moves, the move is that systematic and is explained. |
+| #1009 | **Done (PR #TBD).** Light direction and phase function derived twice | A shared convention with two copies can plant an unmeasured systematic. If a render moves, the move is that systematic and is explained. |
 | #1010 | **Done (PR #1058).** The stage protocol says each stage is seeded by its generator; most stages discard it | Seeding by name is the rule every later stage must follow. |
 
 #923's fixtures and #1005 go first. The others can land in any order after them.

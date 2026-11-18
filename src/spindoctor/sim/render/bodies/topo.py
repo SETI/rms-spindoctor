@@ -61,7 +61,8 @@ from spindoctor.sim.render.bodies.texture import (
     apply_transits,
     surface_texture_factor,
 )
-from spindoctor.sim.shared.ellipsoid import ellipsoid_image_normals, illumination_vector
+from spindoctor.sim.shared.ellipsoid import ellipsoid_image_normals
+from spindoctor.sim.shared.lighting import illumination_vector
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 from spindoctor.support.stable_math import stable_matmul3
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType, NDArrayIntType

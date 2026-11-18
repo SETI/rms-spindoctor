@@ -28,7 +28,6 @@ from spindoctor.sim.render.bodies.atmosphere import (
     AtmosphereSpec,
     apply_atmosphere,
     atmosphere_spec_from_params,
-    hg_phase_factor,
     tangent_optical_depth,
 )
 from spindoctor.sim.render.bodies.render import render_single_body
@@ -38,7 +37,7 @@ from spindoctor.sim.render.stages import new_sim_frame
 from spindoctor.sim.scene.errors import SimSceneValidationError
 from spindoctor.sim.scene.rules_body import ATMOSPHERE_KEYS
 from spindoctor.sim.scene.validate import validate_sim_params
-from spindoctor.sim.shared.ellipsoid import illumination_vector
+from spindoctor.sim.shared.lighting import illumination_vector
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 from spindoctor.support.types import NDArrayFloatType
 
@@ -270,16 +269,6 @@ def test_apparent_limb_radius_exceeds_the_geometric_radius() -> None:
 # ---------------------------------------------------------------------------
 # The pure helpers.
 # ---------------------------------------------------------------------------
-
-
-def test_hg_phase_factor_is_unity_when_isotropic() -> None:
-    """The Henyey-Greenstein factor is 1 at every phase when g = 0."""
-    assert hg_phase_factor(0.0, math.radians(75.0)) == pytest.approx(1.0)
-
-
-def test_hg_phase_factor_peaks_forward_at_high_phase() -> None:
-    """Forward scattering peaks at high phase (small scattering angle)."""
-    assert hg_phase_factor(0.6, math.radians(170.0)) > hg_phase_factor(0.6, math.radians(10.0))
 
 
 def test_tangent_optical_depth_is_exponential() -> None:

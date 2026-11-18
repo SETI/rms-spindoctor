@@ -5,6 +5,8 @@ renderer draws and the prediction the navigator makes follow the same geometry, 
 the planted scene error is the only error in a recovery measurement:
 
 - :mod:`spindoctor.sim.shared.ellipsoid`: ellipsoid shading geometry.
+- :mod:`spindoctor.sim.shared.lighting`: the light direction and the Henyey-Greenstein
+  phase function.
 - :mod:`spindoctor.sim.shared.mesh`: polyhedral-mesh geometry for irregular bodies.
 - :mod:`spindoctor.sim.shared.ring`: ring-edge geometry.
 - :mod:`spindoctor.sim.shared.stars`: catalog star records built from scene star

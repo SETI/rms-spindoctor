@@ -84,7 +84,7 @@ from spindoctor.sim.render.bodies.haze import (
     scale_height_field,
     tilted_illumination_2d,
 )
-from spindoctor.sim.shared.ellipsoid import illumination_vector
+from spindoctor.sim.shared.lighting import henyey_greenstein_phase, illumination_vector
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 from spindoctor.support.stable_math import stable_hypot
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
@@ -96,7 +96,6 @@ __all__ = [
     'HaloScreen',
     'apply_atmosphere',
     'atmosphere_spec_from_params',
-    'hg_phase_factor',
 ]
 
 DEFAULT_HAZE_ALBEDO: float = 0.6
@@ -124,6 +123,11 @@ _TAU_EPS = 1e-3
 # emulated ADC word (12 bits, 2.4e-4 of full scale), so the halo's outer edge
 # doesn't show as a step however bright a forward-scattering haze makes it.
 _HALO_EPS = 1e-5
+
+# Floor on the Henyey-Greenstein denominator.  As ``|g|`` approaches 1 the
+# denominator vanishes at phase 0 or pi, so the floor keeps the phase factor
+# finite and the halo bounded instead of dividing by zero.
+_HG_DENOMINATOR_FLOOR = 1e-12  # See #1057.
 
 # Floor on cos(emission) for the on-disc slant path, so the limb (where the
 # emergent-cosine vanishes) saturates smoothly instead of dividing by zero.
@@ -264,27 +268,6 @@ def atmosphere_spec_from_params(
         albedo=DEFAULT_HAZE_ALBEDO if albedo is None else float(albedo),
         structure=haze_structure_from_params(atmosphere, oversample=os_factor),
     )
-
-
-def hg_phase_factor(g: float, phase_angle: float) -> float:
-    """The Henyey-Greenstein phase factor at a phase angle (1 at ``g`` = 0).
-
-    Single scattering turns light through a scattering angle
-    ``Theta = pi - phase``, so ``cos(Theta) = -cos(phase)``; a positive ``g``
-    peaks at ``Theta`` = 0 (phase = pi), which is why forward-scattering haze
-    is brightest at high phase.  The factor is normalized to 1 at ``g`` = 0
-    for every phase, so it is a pure angular modulation of the haze source.
-
-    Parameters:
-        g: Henyey-Greenstein asymmetry parameter in (-1, 1).
-        phase_angle: Phase angle in radians.
-
-    Returns:
-        The multiplicative phase factor (> 0).
-    """
-    cos_theta = -math.cos(phase_angle)
-    denom = (1.0 + g * g - 2.0 * g * cos_theta) ** 1.5
-    return float((1.0 - g * g) / max(denom, 1e-12))
 
 
 def tangent_optical_depth(
@@ -541,7 +524,7 @@ def apply_atmosphere(
         float(_vertical_optical_depth(spec, r_mean, height_max)),
     )
     structure = spec.structure
-    hg = hg_phase_factor(spec.g, phase_angle)
+    hg = henyey_greenstein_phase(spec.g, phase_angle, denominator_floor=_HG_DENOMINATOR_FLOOR)
     brightening = 1.0 + max(0.0, 0.0 if structure is None else structure.ns_asymmetry_amplitude)
     e_outer = 1.0 + _outer_altitude(spec, peak_glow=spec.albedo * hg * brightening) / r_mean
     # Inside, the excess column tau_vert * (1 / mu - 1) drops below _TAU_EPS
