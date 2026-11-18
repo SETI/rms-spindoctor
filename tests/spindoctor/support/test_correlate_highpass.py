@@ -129,7 +129,9 @@ def _ncc_peaking_at(vertex_vu: tuple[float, float]) -> Any:
     return _fake
 
 
-def _refine_with_ncc_vertex(monkeypatch: pytest.MonkeyPatch, refinement: SubpixelRefinement) -> Any:
+def _refine_with_ncc_vertex(
+    monkeypatch: pytest.MonkeyPatch, refinement: SubpixelRefinement
+) -> tuple[float, float]:
     """Return the single-scale offset of a blob 0.3 px off when the NCC peaks at 0.75 px.
 
     The blob lies ``(0.3, -0.3)`` px from the model's on a flat background, and the NCC
@@ -149,7 +151,8 @@ def _refine_with_ncc_vertex(monkeypatch: pytest.MonkeyPatch, refinement: Subpixe
         refinement=refinement,
         logger=None,
     )
-    return result['offset']
+    offset_v, offset_u = result['offset']
+    return float(offset_v), float(offset_u)
 
 
 def test_cross_power_window_around_the_whole_pixel_misses_the_maximum(

@@ -805,15 +805,20 @@ where they differ).
     NAC frames the median per-axis error fell from 0.29 / 0.30 to 0.23 /
     0.23 px; the median radial error stayed flat (0.467 to 0.470 px), the
     mean fell (0.747 to 0.634 px), and the maximum rose (5.21 to 6.20 px).
-    On all 76 measured frames the window-edge answers fell from 61% to 7%;
-    on the 10 of them with bright unmodeled structure beside the limb the
+    On all 76 measured frames the answers that stop at the refinement
+    window's edge with the surface still rising fell from 61% to 7%; on
+    the 10 of them with bright unmodeled structure beside the limb the
     median radial error rose from 1.64 to 2.03 px. The at-edge flag now
     tests the integer peak as well, since the window can carry the answer
     1.5 px from it. Still open: an answer that still stops at its window
     edge is not flagged. The strict #790 expectation was removed from the
     sim sweeps entirely, because mesh seed 10 now ends conflicted (the veto
-    fires on seeds 5 and 10). Its pull toward bright structure the
-    template leaves out is #1050.
+    fires on seeds 5 and 10). The refinement's pull toward bright
+    structure the template leaves out is #1050. On real irregular moons
+    the disc is spurious on 46 of 47 frames with star truth, so that sim
+    regime is barely testable; smeared and short-exposure frames improved
+    (PR #1053 lists the numbers). An Iapetus disc lock found there is
+    #1055.
   - **#1002** — when the annulus quadratic fit cannot be used, or its
     maximum lies more than a pixel away, the answer stays on the whole pixel
     with nothing marking it: no wider uncertainty, no spurious flag.

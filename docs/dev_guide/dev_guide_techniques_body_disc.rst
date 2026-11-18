@@ -148,9 +148,11 @@ while 15 get worse by as much. Over all 76 frames, 7% of the high-pass answers s
 window edge with the surface still rising, and nothing marks them.
 
 That half-pixel window is unrelated to the result's ``at_edge`` flag, which marks a peak
-at the edge of the whole translation search window. The flag tests the integer peak as
-well as the answer. An integer peak one pixel inside the search window's edge is flagged
-even when the high-pass window has carried the answer more than a pixel inward from it.
+at the edge of the whole translation search window. Either of two conditions sets it: the
+integer peak lies one pixel inside the search window's edge, or the answer lies within
+2 px of that edge. The first catches a peak at the edge even when the high-pass window has
+carried the answer more than a pixel inward from it; the second flags an answer near the
+edge even when its integer peak is not one pixel inside it.
 
 **Known weakness.** Bright structure that the template leaves out, lying against a modeled
 limb, pulls the high-pass maximum about 2.7 times further than the raw one. Examples are a
