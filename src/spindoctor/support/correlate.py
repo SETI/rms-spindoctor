@@ -1,8 +1,10 @@
 import math
+from dataclasses import dataclass
 from fractions import Fraction
 from typing import Any, Literal, cast
 
 import numpy as np
+import numpy.typing as npt
 from pdslogger import PdsLogger
 from scipy.fft import fft2, fftfreq, ifftshift, irfft, irfft2, next_fast_len, rfft, rfft2
 from scipy.ndimage import gaussian_filter, sobel
@@ -451,6 +453,74 @@ def _masked_ncc_bidir(
     np.clip(ncc, -1.0, 1.0, out=ncc)
     ncc[~valid] = -np.inf
     return ncc, num
+
+
+@dataclass(frozen=True)
+class _PaddedNcc:
+    """The masked NCC surface of one image and model, with the padded inputs behind it.
+
+    Parameters:
+        image_pad: The image, zero-padded at the bottom and right to the transform
+            shape.
+        model_pad: The model, padded the same way.
+        mask_pad: The model mask, padded the same way.
+        corr: The NCC surface at the period ``image + model`` on each axis, laid out
+            as :func:`_crop_circular` describes.
+    """
+
+    image_pad: npt.NDArray[np.float64]
+    model_pad: npt.NDArray[np.float64]
+    mask_pad: NDArrayBoolType
+    corr: NDArrayFloatType
+
+
+def _padded_ncc_surface(
+    image: NDArrayFloatType,
+    model: NDArrayFloatType,
+    mask: NDArrayBoolType,
+    *,
+    data_mask: NDArrayBoolType | None,
+) -> _PaddedNcc:
+    """Compute the linear masked NCC surface of an image and a model.
+
+    Parameters:
+        image: The image surface, unpadded.
+        model: The model surface, unpadded.
+        mask: The model mask, the shape of ``model``.
+        data_mask: Where ``image`` holds sensor data, the shape of ``image``, or
+            ``None``; see :func:`masked_ncc`.
+
+    Returns:
+        The surface and the padded arrays it was computed from.
+    """
+    model_h, model_w = model.shape
+    image_h, image_w = image.shape
+    # The correlation is linear rather than circular once each axis is at least
+    # image + model long, and padding further only adds lags at which image and
+    # model do not overlap.  The NCC transforms are therefore run at the next
+    # length with small prime factors, which is several times faster than an
+    # arbitrary image + model length (#912), and the surface is cropped back to
+    # image + model so its lags, the peak search, and the quality statistics are
+    # those of an unrounded transform.  A half-spectrum transform is real only
+    # along its last axis and complex along the first, and each axis gets the
+    # length that is fast for its kind of transform.
+    fft_h = next_fast_len(image_h + model_h)
+    fft_w = next_fast_len(image_w + model_w, real=True)
+
+    image_pad = pad_top_left(np.asarray(image, np.float64), fft_h, fft_w)
+    model_pad = pad_top_left(np.asarray(model, np.float64), fft_h, fft_w)
+    mask_pad = pad_top_left(mask, fft_h, fft_w)
+    data_mask_pad: NDArrayBoolType | None = None
+    if data_mask is not None:
+        data_mask_pad = pad_top_left(data_mask.astype(bool), fft_h, fft_w)
+
+    corr_fft, corr_num = masked_ncc(image_pad, model_pad, mask_pad, data_mask=data_mask_pad)
+    # The numerator is a diagnostic that peak selection deliberately does not
+    # use (see masked_ncc); holding the name would keep a full-size surface
+    # alive through the candidate evaluations that follow.
+    del corr_num
+    corr = _crop_circular(corr_fft, (image_h, image_w), (model_h, model_w))
+    return _PaddedNcc(image_pad=image_pad, model_pad=model_pad, mask_pad=mask_pad, corr=corr)
 
 
 # ==============================================================
@@ -1066,32 +1136,9 @@ def navigate_single_scale_kpeaks(
             f'image is not supported (pad the model to at least image size first)'
         )
     padded_h, padded_w = image_h + model_h, image_w + model_w
-    # The correlation is linear rather than circular once each axis is at least
-    # image + model long, and padding further only adds lags at which image and
-    # model do not overlap.  The NCC transforms are therefore run at the next
-    # length with small prime factors, which is several times faster than an
-    # arbitrary image + model length (#912), and the surface is cropped back to
-    # image + model so its lags, the peak search, and the quality statistics are
-    # those of an unrounded transform.  A half-spectrum transform is real only
-    # along its last axis and complex along the first, and each axis gets the
-    # length that is fast for its kind of transform.
-    fft_h = next_fast_len(padded_h)
-    fft_w = next_fast_len(padded_w, real=True)
-
-    image_pad = pad_top_left(image_orig, fft_h, fft_w)
-    model_pad = pad_top_left(model_arr, fft_h, fft_w)
-    mask_pad = pad_top_left(mask, fft_h, fft_w)
-    data_mask_pad: NDArrayBoolType | None = None
-    if data_mask is not None:
-        data_mask_pad = pad_top_left(data_mask.astype(bool), fft_h, fft_w)
-
-    corr_fft, corr_num = masked_ncc(image_pad, model_pad, mask_pad, data_mask=data_mask_pad)
-    # The numerator is a diagnostic that peak selection deliberately does not
-    # use (see masked_ncc); holding the name would keep a full-size surface
-    # alive through the candidate evaluations below.
-    del corr_num
-    corr = _crop_circular(corr_fft, (image_h, image_w), (model_h, model_w))
-    del corr_fft
+    surface = _padded_ncc_surface(image_orig, model_arr, mask, data_mask=data_mask)
+    image_pad, model_pad, mask_pad = surface.image_pad, surface.model_pad, surface.mask_pad
+    corr = surface.corr
 
     # Use the NCC (Pearson r) itself for peak localization, not the unnormalized
     # numerator.  The numerator scales with sqrt(image-variance-under-mask), and
@@ -1699,3 +1746,74 @@ def navigate_with_pyramid_kpeaks(
     )
 
     return ret
+
+
+# ==============================================================
+# Whole-pixel peak quality alone
+# ==============================================================
+
+
+@dataclass(frozen=True)
+class NccPeak:
+    """The strongest whole-pixel peak of a masked NCC surface and its quality.
+
+    Parameters:
+        offset_vu: The ``(dv, du)`` shift of the peak, in whole pixels, with the sign
+            convention of :func:`navigate_single_scale_kpeaks`.
+        quality: The peak's peak-to-sidelobe ratio (:func:`psr_metric`), or ``-inf``
+            when no shift in the search limit is valid.  It can be NaN, as
+            :func:`psr_metric` can.
+    """
+
+    offset_vu: tuple[int, int]
+    quality: float
+
+
+def ncc_peak_quality(
+    image: NDArrayFloatType,
+    model: NDArrayFloatType,
+    mask: NDArrayBoolType,
+    *,
+    max_offset_vu: tuple[int, int] | None,
+    data_mask: NDArrayBoolType | None = None,
+) -> NccPeak:
+    """Find the strongest masked NCC peak and its quality, refining nothing.
+
+    The surface, the search limit, and the peak are those of
+    :func:`navigate_single_scale_kpeaks` called on the same surfaces with
+    ``use_gradient=False`` and ``max_peaks=1``, and the quality is the
+    peak-to-sidelobe ratio that function reports for that peak with no prior.  The
+    peak is not refined to a fraction of a pixel and no covariance is measured, so a
+    call costs one masked NCC and its peak search.  A caller comparing many models
+    against one image, such as a search over a rotation of the model, gets the same
+    ranking of models from these qualities as from that function's, at a fraction of
+    its cost.
+
+    The model must be at least as large as the image in both dimensions, as it must
+    be for :func:`navigate_single_scale_kpeaks`.  That function raises
+    ``ValueError`` for a smaller model before it searches.  This one does not check,
+    and its peak and quality for a smaller model are not defined.
+
+    Parameters:
+        image: The image surface, unpadded.
+        model: The model surface, unpadded, at least as large as ``image`` in both
+            dimensions.
+        mask: The model mask, the shape of ``model``.
+        max_offset_vu: The search limit ``(max_dv, max_du)`` in pixels, applied as
+            :func:`nms_topk` applies it, or ``None`` for no limit.
+        data_mask: Where ``image`` holds sensor data, or ``None``; see
+            :func:`masked_ncc`.
+
+    Returns:
+        The peak's whole-pixel shift and its quality.  When no shift in the search
+        limit is valid, the shift is ``(0, 0)`` and the quality ``-inf``.
+    """
+    corr = _padded_ncc_surface(image, model, mask, data_mask=data_mask).corr
+    peaks = nms_topk(corr, k=1, max_offset_vu=max_offset_vu)
+    if not peaks:
+        return NccPeak(offset_vu=(0, 0), quality=-math.inf)
+    row, col, _ = peaks[0]
+    return NccPeak(
+        offset_vu=(int_to_signed(row, corr.shape[0]), int_to_signed(col, corr.shape[1])),
+        quality=psr_metric(corr, (row, col)),
+    )
