@@ -193,7 +193,7 @@ ellipsoid body, and :mod:`spindoctor.nav_model.simulated.predict_ring` draws the
 predicted rings. :class:`~spindoctor.nav_model.simulated.body.NavModelBodySimulated`
 and :class:`~spindoctor.nav_model.simulated.rings.NavModelRingsSimulated` emit those
 templates as features. A ``polyhedral_mesh`` body is drawn by
-:func:`~spindoctor.sim.mesh_geometry.render_mesh_body_image` instead, and the body
+:func:`~spindoctor.sim.shared.mesh.render_mesh_body_image` instead, and the body
 model emits that image as its template in the same way.
 :class:`~spindoctor.nav_model.simulated.stars.NavModelStarsSimulated` builds its
 catalog star records directly.
