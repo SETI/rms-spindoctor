@@ -5,6 +5,7 @@ vidicon DN path, and the ``instrument_defaults`` physical-chain opt-in against t
 disabled floor (a scene with neither an artifacts nor a noise block).
 """
 
+from types import MappingProxyType
 from typing import Any
 
 import numpy as np
@@ -12,6 +13,7 @@ import pytest
 from tests.spindoctor.sim.scenes import frame_scene
 
 from spindoctor.sim.render.driver import render_combined_model
+from spindoctor.sim.render.optics.stage import instrument_defaults_on
 
 
 def _disc(instrument: str, *, size: int = 64, **extra: Any) -> dict[str, Any]:
@@ -102,6 +104,12 @@ def test_instrument_defaults_activates_the_physical_chain() -> None:
     assert not np.array_equal(floor, physical)
     # The physical chain lifts the sky off the flat bias with dark + banding.
     assert float(physical[:8, :8].std()) > 0.0
+
+
+def test_instrument_defaults_on_accepts_any_mapping() -> None:
+    """A read-only artifacts mapping opts into the physical chain as a dict does."""
+    scene = {'artifacts': MappingProxyType({'instrument_defaults': True})}
+    assert instrument_defaults_on(scene)
 
 
 def test_instrument_defaults_defaults_oversample_when_psf_active() -> None:
