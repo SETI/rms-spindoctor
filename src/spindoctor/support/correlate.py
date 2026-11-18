@@ -777,14 +777,10 @@ def refinement_cross_spectrum(
 
 def evaluate_candidate(
     *,
-    image_pad: NDArrayFloatType,
-    model_pad: NDArrayFloatType,
     corr: NDArrayFloatType,
     refine_spectrum: NDArrayComplexType | None,
     rc: tuple[int, int],
     upsample_factor: int,
-    model_shape: tuple[int, int],
-    image_shape: tuple[int, int],
     logger: PdsLogger | None,
     prior_shift: tuple[float, float] | None = None,
     prior_weight: float = 0.0,
@@ -792,11 +788,14 @@ def evaluate_candidate(
     refinement: SubpixelRefinement = 'cross_power',
 ) -> dict[str, Any]:
     """
-    Evaluate a candidate for the navigation.
+    Refine one candidate peak to a sub-pixel offset and score it.
+
+    The candidate's covariance is not measured here: the residual it needs is the most
+    expensive part of a candidate, and only the winning candidate's covariance is used,
+    so :func:`navigate_single_scale_kpeaks` measures it with
+    :func:`_candidate_covariance` once the winner is chosen.
 
     Parameters:
-        image_pad: The padded image.
-        model_pad: The padded model.
         corr: The correlation matrix.
         refine_spectrum: The cross-power spectrum from
             :func:`refinement_cross_spectrum` that the ``'cross_power'`` refinement
@@ -804,8 +803,7 @@ def evaluate_candidate(
             the ``'ncc_quadratic'`` refinement, which does not read it.
         rc: The row and column of the candidate.
         upsample_factor: The upsample factor.
-        model_shape: The shape of the model.
-        image_shape: The shape of the image.
+        logger: The logger for the refinement's debug lines, or ``None`` for none.
         prior_shift: The prior shift.
         prior_weight: The prior weight.
         metric: The metric to use for the navigation.
@@ -818,36 +816,24 @@ def evaluate_candidate(
             computes it, at most one pixel from the candidate on each axis; when
             that fit cannot place a maximum, the offset is the whole-pixel
             candidate itself.  ``refine_spectrum`` and ``upsample_factor`` are not
-            used by ``'ncc_quadratic'``.  The residual, covariance, quality, and
-            prior penalty are computed at whichever offset the refinement gives.
+            used by ``'ncc_quadratic'``.  The prior penalty is computed at whichever
+            offset the refinement gives.
 
     Returns:
-        A dictionary containing the navigation result.  Its ``offset`` is the
-        ``(dv, du)`` displacement that carries the model onto the image.  A
-        displacement is a difference of two positions, so it belongs to no
-        pixel coordinate system and crosses between them unchanged.
+        A dictionary with the candidate's ``offset``, ``quality``, ``peak_val`` (the
+        correlation at the candidate), and ``rc`` (the candidate's row and column in
+        ``corr``).  The ``offset`` is the ``(dv, du)`` displacement that carries the
+        model onto the image.  A displacement is a difference of two positions, so it
+        belongs to no pixel coordinate system and crosses between them unchanged.
 
     Raises:
-        ValueError: If the model is smaller than the image in either dimension
-            (the model must be at least image-sized; pad it with
-            ``pad_top_left`` first).  This is validated here so the failure is a
-            clear contract error rather than an opaque ``crop_center`` error two
-            calls deep.  Also raised when ``refinement`` is not one of the names
-            above, or when it is ``'cross_power'`` and ``refine_spectrum`` is
-            ``None``.
+        ValueError: If ``refinement`` is not one of the names above, or when it is
+            ``'cross_power'`` and ``refine_spectrum`` is ``None``.
     """
 
     if refinement not in SUBPIXEL_REFINEMENTS:
         raise ValueError(
             f'refinement must be one of {", ".join(SUBPIXEL_REFINEMENTS)}, not {refinement!r}'
-        )
-    model_h, model_w = model_shape
-    image_h, image_w = image_shape
-    if image_h > model_h or image_w > model_w:
-        raise ValueError(
-            f'model shape {model_shape} must be at least as large as the image '
-            f'shape {image_shape} in both dimensions; a model smaller than the '
-            f'image is not supported (pad the model to at least image size first)'
         )
 
     corr_v, corr_u = corr.shape
@@ -900,29 +886,6 @@ def evaluate_candidate(
         dy = dy_i + (upy - oy) / upsample_factor
         dx = dx_i + (upx - ox) / upsample_factor
 
-    # Align combined model and compute residual stats (model_h/w, image_h/w
-    # were unpacked and validated at the top of the function).
-    model_shift = fourier_shift(model_pad[:model_h, :model_w], dy, dx)
-    model_crop = crop_center(model_shift, (image_h, image_w))
-    image_crop = image_pad[:image_h, :image_w]
-    # Normalize both surfaces to zero-mean unit-std before the residual so
-    # the residual noise and the template gradients that feed the
-    # matched-filter covariance share one intensity scale (a raw-DN
-    # template would otherwise shrink the covariance by its own variance).
-    model_norm = normalize_array(model_crop)
-    resid = normalize_array(image_crop) - model_norm
-    sigma_n = mad_std(resid)
-    if sigma_n <= 1e-12:
-        # Near-perfect match (or a constant residual): fall back to the plain
-        # std so the covariance stays finite rather than dividing by zero.
-        sigma_n = max(resid.std(), 1e-6)
-    # Inflate the white-noise bound by the residual correlation area: the
-    # residual is spatially correlated (PSF, anti-alias / refine low-pass,
-    # and coherent silhouette / photometric model error), so its pixels are
-    # not independent samples.
-    correlation_area = _residual_correlation_area(resid)
-    cov = matched_filter_covariance(model_norm, sigma_n, correlation_area=correlation_area)
-
     # Quality metric
     peak_val = corr[p, q]
     if metric == 'psr':
@@ -947,12 +910,63 @@ def evaluate_candidate(
 
     return {
         'offset': (float(dy), float(dx)),
-        'cov': cov,
-        'sigma_xy': (float(np.sqrt(cov[0, 0])), float(np.sqrt(cov[1, 1]))),
         'quality': float(quality.real),
         'peak_val': float(peak_val.real),
         'rc': (int(p), int(q)),
     }
+
+
+def _candidate_covariance(
+    *,
+    image_pad: NDArrayFloatType,
+    model_pad: NDArrayFloatType,
+    offset: tuple[float, float],
+    model_shape: tuple[int, int],
+    image_shape: tuple[int, int],
+) -> NDArrayFloatType:
+    """Matched-filter covariance of a candidate at its refined offset.
+
+    The model is shifted by ``offset`` with :func:`fourier_shift` and cropped to the
+    image, and both are normalized to zero mean and unit standard deviation.  The
+    residual noise is the MAD standard deviation of their difference (its plain
+    standard deviation, at least ``1e-6``, when that is ``1e-12`` or less), and the
+    covariance is :func:`matched_filter_covariance` of the normalized model at that
+    noise, inflated by the residual's :func:`_residual_correlation_area`.
+
+    Parameters:
+        image_pad: The padded image; its top-left ``image_shape`` block is the image.
+        model_pad: The padded model; its top-left ``model_shape`` block is the model,
+            which must be at least as large as the image on both axes.
+        offset: The candidate's refined ``(dv, du)`` offset.
+        model_shape: The shape of the model.
+        image_shape: The shape of the image.
+
+    Returns:
+        The ``2x2`` translation covariance in pixels squared.
+    """
+    model_h, model_w = model_shape
+    image_h, image_w = image_shape
+    dy, dx = offset
+    model_shift = fourier_shift(model_pad[:model_h, :model_w], dy, dx)
+    model_crop = crop_center(model_shift, (image_h, image_w))
+    image_crop = image_pad[:image_h, :image_w]
+    # Normalize both surfaces to zero-mean unit-std before the residual so
+    # the residual noise and the template gradients that feed the
+    # matched-filter covariance share one intensity scale (a raw-DN
+    # template would otherwise shrink the covariance by its own variance).
+    model_norm = normalize_array(model_crop)
+    resid = normalize_array(image_crop) - model_norm
+    sigma_n = mad_std(resid)
+    if sigma_n <= 1e-12:
+        # Near-perfect match (or a constant residual): fall back to the plain
+        # std so the covariance stays finite rather than dividing by zero.
+        sigma_n = max(resid.std(), 1e-6)
+    # Inflate the white-noise bound by the residual correlation area: the
+    # residual is spatially correlated (PSF, anti-alias / refine low-pass,
+    # and coherent silhouette / photometric model error), so its pixels are
+    # not independent samples.
+    correlation_area = _residual_correlation_area(resid)
+    return matched_filter_covariance(model_norm, sigma_n, correlation_area=correlation_area)
 
 
 def navigate_single_scale_kpeaks(
@@ -972,6 +986,7 @@ def navigate_single_scale_kpeaks(
     use_gradient: bool = False,
     refine_lowpass_sigma_px: float = 0.0,
     refinement: SubpixelRefinement = 'cross_power',
+    covariance: bool = True,
 ) -> dict[str, Any]:
     """
     One-scale masked NCC + top-K candidate evaluation.
@@ -1009,9 +1024,24 @@ def navigate_single_scale_kpeaks(
         refinement: The sub-pixel refinement every candidate receives; see
             :func:`evaluate_candidate`.  With ``'ncc_quadratic'`` the cross-power
             spectrum is not built, so ``refine_lowpass_sigma_px`` has no effect.
+        covariance: When True, measure the winning candidate's matched-filter
+            covariance at its refined offset (see :func:`_candidate_covariance`).  When
+            False, skip it, for a caller that reads only the offset and quality.
 
     Returns:
-        A dictionary containing the navigation result.
+        A dictionary with the winning candidate's ``offset``, ``quality``,
+        ``peak_val``, and ``rc`` (see :func:`evaluate_candidate`), and
+        ``all_candidates``, every evaluated candidate with those four keys, sorted by
+        quality with the winner first.  With ``covariance`` True it also has ``cov``,
+        the winner's ``2x2`` covariance, and ``sigma_xy``, the square roots of its
+        diagonal; the other candidates carry no covariance.  When no peak survives,
+        the offset is ``(0.0, 0.0)``, the quality ``-inf``, ``all_candidates`` empty,
+        and the covariance (when requested) ``1e6`` on each axis.
+
+    Raises:
+        ValueError: If the model is smaller than the image in either dimension (the
+            model must be at least image-sized; pad it with ``pad_top_left`` first),
+            or as :func:`evaluate_candidate` raises.
     """
 
     # Use original image for correlation surfaces; masked NCC computes its own
@@ -1027,6 +1057,14 @@ def navigate_single_scale_kpeaks(
         model_arr = model_raw
     model_h, model_w = model_arr.shape
     image_h, image_w = image_orig.shape
+    if image_h > model_h or image_w > model_w:
+        # Validated up front so the failure is a clear contract error rather than an
+        # opaque ``crop_center`` error in the covariance.
+        raise ValueError(
+            f'model shape {(model_h, model_w)} must be at least as large as the image '
+            f'shape {(image_h, image_w)} in both dimensions; a model smaller than the '
+            f'image is not supported (pad the model to at least image size first)'
+        )
     padded_h, padded_w = image_h + model_h, image_w + model_w
     # The correlation is linear rather than circular once each axis is at least
     # image + model long, and padding further only adds lags at which image and
@@ -1079,15 +1117,17 @@ def navigate_single_scale_kpeaks(
         # (e.g. ``navigate_with_pyramid_kpeaks`` debug log) can read every
         # key without a KeyError when the search collapses.  Returning before the
         # refinement spectrum is built spares its two full-period transforms.
-        return {
+        no_peak: dict[str, Any] = {
             'offset': (0.0, 0.0),
-            'cov': np.diag([1e6, 1e6]),
-            'sigma_xy': (1e3, 1e3),
             'quality': -np.inf,
             'peak_val': 0.0,
             'rc': (0, 0),
             'all_candidates': [],
         }
+        if covariance:
+            no_peak['cov'] = np.diag([1e6, 1e6])
+            no_peak['sigma_xy'] = (1e3, 1e3)
+        return no_peak
 
     # The sub-pixel refinement interpolates the correlation between integer lags
     # with the trigonometric interpolant at the transform's period, so its
@@ -1119,14 +1159,10 @@ def navigate_single_scale_kpeaks(
     candidates = []
     for p, q, _ in peaks:
         evaluation = evaluate_candidate(
-            image_pad=image_pad,
-            model_pad=model_pad,
             corr=corr,
             refine_spectrum=refine_spectrum,
             rc=(p, q),
             upsample_factor=upsample_factor,
-            model_shape=(model_h, model_w),
-            image_shape=(image_h, image_w),
             prior_shift=prior_shift,
             prior_weight=prior_weight,
             metric=metric,
@@ -1138,8 +1174,6 @@ def navigate_single_scale_kpeaks(
             logger.debug(
                 f'  Candidate {p}, {q} results: '
                 f'offset {evaluation["offset"][0]:.3f}, {evaluation["offset"][1]:.3f}; '
-                f'sigma_xy {evaluation["sigma_xy"][0]:.3f}, '
-                f'{evaluation["sigma_xy"][1]:.3f}; '
                 f'quality {evaluation["quality"]:.3f}; '
                 f'peak_val {evaluation["peak_val"]:.3f}'
             )
@@ -1162,6 +1196,27 @@ def navigate_single_scale_kpeaks(
     )
     result = dict(winner)
     result['all_candidates'] = sorted_candidates
+    if covariance:
+        # The residual behind the covariance is measured for the winner alone: no
+        # caller reads another candidate's covariance, and it is the most expensive
+        # part of a candidate (#945).
+        cov = _candidate_covariance(
+            image_pad=image_pad,
+            model_pad=model_pad,
+            offset=winner['offset'],
+            model_shape=(model_h, model_w),
+            image_shape=(image_h, image_w),
+        )
+        result['cov'] = cov
+        result['sigma_xy'] = (float(np.sqrt(cov[0, 0])), float(np.sqrt(cov[1, 1])))
+        if logger is not None:
+            logger.debug(
+                '  Winning candidate %d, %d: sigma_xy %.3f, %.3f',
+                winner['rc'][0],
+                winner['rc'][1],
+                result['sigma_xy'][0],
+                result['sigma_xy'][1],
+            )
     return result
 
 
@@ -1307,7 +1362,8 @@ def navigate_with_pyramid_kpeaks(
         - offset: The ``(dv, du)`` displacement that carries the model onto the
           image.  A displacement is a difference of two positions, so it belongs
           to no pixel coordinate system and crosses between them unchanged.
-        - cov: The covariance matrix.
+        - cov: The covariance matrix, measured at the final pass's winning peak (the
+          coarser levels measure none).
         - sigma_xy: The sigma_xy.
         - quality: The quality of the navigation.
         - metric: The metric used for the navigation.
@@ -1517,12 +1573,14 @@ def navigate_with_pyramid_kpeaks(
             max_offset_vu=max_offset_at_scale,
             data_mask=data_mask_downsampled,
             use_gradient=use_gradient,
+            # A level contributes only its offset (the next level's prior and the
+            # consistency test) and nothing reads its covariance, so it is not measured.
+            covariance=False,
             logger=logger,
         )
         logger.debug(
             f'Correlation pyramid level {lvl} results: '
             f'offset {res_lvl["offset"][0] * s:.3f}, {res_lvl["offset"][1] * s:.3f}; '
-            f'sigma_xy {res_lvl["sigma_xy"][0] * s:.3f}, {res_lvl["sigma_xy"][1] * s:.3f}; '
             f'quality {res_lvl["quality"]:.3f}; '
             f'peak_val {res_lvl["peak_val"]:.3f}'
         )

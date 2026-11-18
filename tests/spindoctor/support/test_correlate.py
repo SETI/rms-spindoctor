@@ -1,6 +1,7 @@
 """Tests for spindoctor.support.correlate, focused on masked NCC and pyramid navigation."""
 
 import math
+import uuid
 import weakref
 from itertools import pairwise
 from typing import Any
@@ -8,6 +9,7 @@ from typing import Any
 import numpy as np
 import pytest
 import scipy.fft
+from pdslogger import PdsLogger
 from scipy.ndimage import gaussian_filter
 
 import spindoctor.support.correlate as correlate_module
@@ -358,6 +360,151 @@ class TestSingleScale:
             logger=None,
         )
         assert result['all_candidates'] == []
+
+    def test_no_candidates_without_covariance_has_no_covariance(self) -> None:
+        """A search with no surviving peak and no covariance requested returns none."""
+        result = navigate_single_scale_kpeaks(
+            image=np.zeros((16, 16), dtype=np.float64),
+            model=np.zeros((16, 16), dtype=np.float64),
+            mask=np.ones((16, 16), dtype=bool),
+            max_peaks=3,
+            upsample_factor=8,
+            max_offset_vu=(0, 0),
+            covariance=False,
+            logger=None,
+        )
+        assert sorted(result) == ['all_candidates', 'offset', 'peak_val', 'quality', 'rc']
+
+    def test_a_model_smaller_than_the_image_is_refused(self) -> None:
+        """The model must be at least as large as the image on both axes."""
+        with pytest.raises(ValueError, match='must be at least as large as the image'):
+            navigate_single_scale_kpeaks(
+                image=np.zeros((16, 16), dtype=np.float64),
+                model=np.zeros((16, 12), dtype=np.float64),
+                mask=np.ones((16, 12), dtype=bool),
+                logger=None,
+            )
+
+
+def _multi_star_single_scale(**kwargs: Any) -> dict[str, Any]:
+    """Run one scale on the three-star scene, which yields several candidates.
+
+    Parameters:
+        **kwargs: Further keyword arguments for ``navigate_single_scale_kpeaks``.
+
+    Returns:
+        The single-scale result.
+    """
+    image, model, mask = _make_multi_star(image_offset=(1.3, -0.6))
+    return navigate_single_scale_kpeaks(
+        image=image, model=model, mask=mask, max_peaks=5, upsample_factor=16, **kwargs
+    )
+
+
+def _record_covariance_offsets(monkeypatch: pytest.MonkeyPatch) -> list[tuple[float, float]]:
+    """Record the offset of every covariance measurement.
+
+    Parameters:
+        monkeypatch: The pytest monkeypatch fixture.
+
+    Returns:
+        The list each measured offset is appended to.
+    """
+    offsets: list[tuple[float, float]] = []
+    real_covariance = correlate_module._candidate_covariance
+
+    def _spy(**kwargs: Any) -> NDArrayFloatType:
+        offsets.append(kwargs['offset'])
+        return real_covariance(**kwargs)
+
+    monkeypatch.setattr(correlate_module, '_candidate_covariance', _spy)
+    return offsets
+
+
+class TestWinnerCovariance:
+    """The covariance is measured once per scale, for the winning candidate."""
+
+    def test_the_scene_has_several_candidates(self) -> None:
+        """The three-star scene gives the tests below losing candidates to skip."""
+        result = _multi_star_single_scale(logger=None)
+        assert len(result['all_candidates']) > 1
+
+    def test_covariance_is_measured_once_at_the_winning_offset(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """One measurement per scale, at the winner's refined offset."""
+        offsets = _record_covariance_offsets(monkeypatch)
+        result = _multi_star_single_scale(logger=None)
+        assert offsets == [result['offset']]
+
+    def test_covariance_is_the_winners_matched_filter_covariance(self) -> None:
+        """The returned covariance is the residual covariance at the winner's offset."""
+        image, model, _mask = _make_multi_star(image_offset=(1.3, -0.6))
+        result = _multi_star_single_scale(logger=None)
+        expected = correlate_module._candidate_covariance(
+            image_pad=image,
+            model_pad=model,
+            offset=result['offset'],
+            model_shape=model.shape,
+            image_shape=image.shape,
+        )
+        np.testing.assert_array_equal(result['cov'], expected)
+
+    def test_sigma_xy_is_the_root_of_the_covariance_diagonal(self) -> None:
+        """Each axis's sigma is the square root of its covariance diagonal entry."""
+        result = _multi_star_single_scale(logger=None)
+        assert result['sigma_xy'] == (
+            math.sqrt(result['cov'][0, 0]),
+            math.sqrt(result['cov'][1, 1]),
+        )
+
+    def test_candidates_carry_no_covariance(self) -> None:
+        """Every listed candidate has its offset and scores but no covariance."""
+        result = _multi_star_single_scale(logger=None)
+        assert {frozenset(c) for c in result['all_candidates']} == {
+            frozenset({'offset', 'quality', 'peak_val', 'rc'})
+        }
+
+    def test_covariance_false_measures_none(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Without a covariance requested, none is measured or returned."""
+        offsets = _record_covariance_offsets(monkeypatch)
+        result = _multi_star_single_scale(covariance=False, logger=None)
+        assert offsets == []
+        assert 'cov' not in result
+
+    def test_covariance_false_keeps_the_answer(self) -> None:
+        """Skipping the covariance changes no offset, score, or candidate."""
+        full = _multi_star_single_scale(logger=None)
+        lean = _multi_star_single_scale(covariance=False, logger=None)
+        del full['cov'], full['sigma_xy']
+        assert lean == full
+
+    def test_debug_log_reports_the_winners_sigma(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """The debug log gives the winner's sigma after the candidate lines."""
+        result = _multi_star_single_scale(logger=PdsLogger(f'correlate_{uuid.uuid4().hex}'))
+        rc = result['rc']
+        sigma = result['sigma_xy']
+        assert (
+            f'Winning candidate {rc[0]}, {rc[1]}: sigma_xy {sigma[0]:.3f}, {sigma[1]:.3f}'
+            in capsys.readouterr().out
+        )
+
+
+def test_pyramid_measures_covariance_only_in_the_final_pass(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Every pyramid level skips the covariance and the final full-size pass measures it."""
+    requested: list[bool] = []
+    real_single = correlate_module.navigate_single_scale_kpeaks
+
+    def _spy(**kwargs: Any) -> dict[str, Any]:
+        requested.append(kwargs.get('covariance', True))
+        return real_single(**kwargs)
+
+    monkeypatch.setattr(correlate_module, 'navigate_single_scale_kpeaks', _spy)
+    image, model, mask = _make_single_star(image_offset=(1.3, -0.6))
+    navigate_with_pyramid_kpeaks(image, model, mask, pyramid_levels=3)
+    assert requested == [False, False, False, True]
 
 
 def test_a_longer_transform_cropped_is_the_image_plus_model_surface() -> None:
@@ -1171,8 +1318,6 @@ def _stub_quality_sequence(
         quality = qualities[len(returned)]
         evaluation = {
             'offset': (float(len(returned)), 0.0),
-            'cov': np.eye(2),
-            'sigma_xy': (1.0, 1.0),
             'quality': quality,
             'peak_val': 0.5,
             'rc': kwargs['rc'],
