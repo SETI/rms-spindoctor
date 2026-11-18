@@ -20,7 +20,7 @@ narrow cohort silently invalidates it.
 
 ---
 
-## Status board (2026-09-21)
+## Status board (2026-11-17)
 
 The five-stage workflow of section 4 is built and has been run end to end
 for review batches 001 through 006. What is unfinished is the curation
@@ -33,8 +33,8 @@ is untouched for three of the four instruments.
 | **A — query** | Done, reusable | Nothing; `scan_stage_a.py` covers every class, `scatter_prescan.py` covers the pixel-level `scattered_light` gate, and `spice_coverage.json` filters out-of-coverage epochs |
 | **B — triage** | Done, reusable | Nothing structural; the ten-glob-per-frame results-tree scan is the pain the results index does not yet serve (#465) |
 | **C — review** | Done, reusable | Batch 006's seven manual-nav follow-ups are still queued (`_work/cohort_curation/batch_006_followups.yaml`), with three class reassignments to apply during that pass |
-| **D — sidecars** | Partly done | 75 sidecars committed; `faint_stars` is empty and `body_mostly_offscreen` holds 1 of its 4 (#172), and the per-class minima are not enforced by any test (#240) |
-| **E — baselines and consumption** | Partly done | Baselines exist and are re-ratcheted per change, but 19 of the 75 frames disagree with their sidecars locally (#288, #744, and ten star-frame pins awaiting ratification); no consumer study has been run (#230, #225, #355) |
+| **D — sidecars** | Partly done | 75 sidecars committed; `faint_stars` is empty and `body_mostly_offscreen` holds 1 of its 4 (#172). The coverage test (#240, done by #833) checks at least two sidecars per class and every technique as some sidecar's primary, with the known gaps pinned as expected failures (`faint_stars`, `body_mostly_offscreen`; `RingAnnulusNav` #871, `TitanHazeNav` #405); the higher budget minima are not enforced by any test |
+| **E — baselines and consumption** | Partly done | Baselines exist and are re-ratcheted per change, but 6 of the 75 frames disagree with their sidecars on `main` (measured 2026-11-16 beside PRs #999 and #1003: #744, #483, #350, and #338); the frozen star and ring PR stack changes the tier or primary technique of 19 frames, to be re-pinned once it merges (#866) and three truths need re-checking against image stars (#867); no consumer study has been run (#230, #225, #355) |
 
 **Library state.** `tests/integration/image_library/images/` holds 75
 sidecars. Per class against the first-stage budget in the appendix:
@@ -280,7 +280,9 @@ analyses never run per-PR.
 2. **Not started.** Top up all classes to the per-class minima; verify
    mission spread (>=1 image from each of the four missions; >=1 Cassini
    `_CALIB`). All four missions and a `_CALIB` frame are present, so this
-   step is now only the per-class top-up.
+   step is now only the per-class top-up, plus one frame whose expected
+   primary technique is `RingAnnulusNav`, which no sidecar names yet (#871,
+   priority 4). The `TitanHazeNav` counterpart is #405.
 3. **Not started.** Sweep for the scarce cohorts (Route 3 star tie-points,
    over-determined frames) across ALL volumes — these are kept whenever
    found, and they gate the most valuable science (absolute attitude,
@@ -293,14 +295,38 @@ analyses never run per-PR.
    can be fully automated).
 
 A sixth stream runs alongside rather than after: the library that exists is
-red. Nineteen of the 75 frames disagree with their sidecars in the local
-integration environment (#288, #744, and ten star-frame pins the
-sparse-star-field fixes moved), which makes "no new failures against `main`"
-the only gate a navigation-affecting branch can clear. Some of the reds are
-curation decisions: the pins awaiting the call in #483, the ten star-frame
-pins awaiting ratification, and the Galileo truth in #744. Reconciling those
-is curation work and belongs to this plan. The rest are navigation defects
-owned by their issues (#346 and #350).
+red. Six of the 75 frames disagree with their sidecars on `main` in the
+local integration environment (measured 2026-11-16, when PRs #999 and #1003
+each ran the library suite on `main` beside their branches): the two Galileo
+frames of #744, two stale `primary_technique` pins under #483, #350's limb
+bias, and #338's highly-irregular exclusion. That makes "no new failures
+against `main`" the only gate a navigation-affecting branch can clear. Some
+of the reds are curation decisions: the pins awaiting the call in #483 and
+the Galileo truth in #744. Reconciling those is curation work and belongs to
+this plan. The rest are navigation defects owned by their issues (#350 and
+#338). The ten star-frame pins the sparse-star-field fixes moved were
+ratified on 2026-10-31 and re-pinned with #754, and #346's frames pass.
+
+Two more curation items wait on the star and ring PR stack, which is frozen
+pending a cross-mission benchmark (operator, 2026-11-06). Once the stack
+merges, the 19 frames whose tier or primary technique it changes are run on
+`main` and re-pinned to what the merged code gives, or kept with a dated note
+(#866, priority 3). Before two of them are re-pinned, three recorded truths
+that the image stars contradict are checked against a star overlay:
+`N1597846115_2`, `N1550270436_1`, and `N1633925572_1`, whose truth sits
+exactly half a pixel from its star in each axis, which looks like a datum
+error (#867, priority 3; the check is the operator's and can run before the
+stack merges).
+
+The ring-truth curation campaign is built but has never landed (#727,
+priority 3, easy). Branch `origin/rf_ring_curation_campaign` (one commit,
+`8dc718a3`, 2026-08-31) holds the ring shortlist tooling and 954 rows of
+operator screening verdicts (654 in `screen.csv`, 300 in `background.csv`)
+that cannot be regenerated from metadata, plus a 75-frame ring shortlist
+that feeds the ring cohorts of step 4. It was never opened as a PR. Landing
+it takes a check against `main` and a paragraph in the image-library
+developer guide on the staging directory the regression suite does not see.
+It depends on nothing and can land at any time.
 
 Checkpoint with the operator between numbered steps, not within them.
 
@@ -329,12 +355,16 @@ Checkpoint with the operator between numbered steps, not within them.
 |---|---|---|
 | #172 | First-stage budget of 47 images across 17 scene classes | Order of work step 1 |
 | #235 | Growth to >=20 per instrument / >=120 total | Order of work steps 3-4 |
-| #240 | Coverage-matrix and per-class-minimum invariants in the structural test | Appendix budget table |
-| #288 | Eight of the 75 frames disagree with their sidecars locally, beside the two of #744 | Order of work, the sixth stream |
-| #346 | Three library frames lock confidently onto the wrong ring feature | Same |
+| #727 | Land the ring-truth curation campaign: branch `origin/rf_ring_curation_campaign` holds 954 rows of operator screening verdicts and a 75-frame ring shortlist, and was never opened as a PR | Order of work, after the sixth stream; feeds step 4 |
+| #240 | Coverage-matrix invariants (at least two sidecars per class, every technique some sidecar's primary). Done by #833, with the known gaps pinned as expected failures | Appendix budget table |
+| #871 | No sidecar expects `RingAnnulusNav` as its primary technique | Order of work step 2 |
+| #288 | Six of the 75 frames disagree with their sidecars on `main` (measured 2026-11-16 beside PRs #999 and #1003): the two of #744, two under #483, one under #350, and one under #338 | Order of work, the sixth stream |
+| #346 | Three library frames that once locked confidently onto the wrong ring feature; none is a wrong lock now and all three pass, and it stays open as the record of the failure mode | Same |
 | #350 | A resolved-body frame misses offset tolerance by ~2 px | Same |
 | #483 | Re-ratchet library pins moved by the shift-equivariance fix | Same |
 | #744 | Two Galileo frames record the rotation-fitted answer #560 retired | Same |
+| #866 | Re-pin the 19 sidecars the frozen star and ring PR stack moves, once it merges | Same |
+| #867 | Re-verify three library truths that image stars contradict | Same |
 | #239 | Decision: sub-5 px bodies — relaxed disc or expected-failure curation | Class assignment for `below_resolution_body` / `negative_cases` |
 | #319 | Opposed-ansae ring geometry has no library coverage | A wide-field Cassini WAC both-ansae sweep, Stage A |
 | #399 | Voyager ISS validation cohort for the haze-symmetry fit | Titan curation |
@@ -385,7 +415,12 @@ budget (#172). They are a budget only: `tests/integration/test_image_library.py`
 enforces the tree's shape — every directory is a declared scene class, every
 sidecar validates, the primary scene tag matches its directory, `image_id` is
 unique, and the filename matches the `image_id` — and asserts no per-class
-count. The coverage-matrix and per-class-minimum invariants are #240. The
+count. The coverage invariants (#240, done by #833) are in
+`tests/integration/test_image_library_coverage.py`, in the integration tier:
+at least two sidecars per class and every shipped technique the primary of
+some sidecar, with the known gaps (`body_mostly_offscreen`, `faint_stars`,
+`RingAnnulusNav` #871, `TitanHazeNav` #405) reported as expected failures
+until filled. The per-class minima above are not enforced. The
 WS-3 growth target (>=20 per instrument, >=120 total; #235) continues the
 same classes.
 

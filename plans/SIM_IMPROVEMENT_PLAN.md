@@ -1,7 +1,8 @@
 # Simulator Improvement Plan
 
 *The order in which to work the simulator issues raised by
-`critiques/SIMULATOR_REALISM_CRITIQUE_2026-11-06.md`, with the reason for each step and the
+`critiques/SIMULATOR_REALISM_CRITIQUE_2026-11-06.md` and
+`critiques/SIMULATOR_CODE_STRUCTURE_CRITIQUE_2026-11-16.md`, with the reason for each step and the
 condition that ends it.*
 
 ---
@@ -17,7 +18,18 @@ The simulator serves two purposes:
    instrument defects, compound content, real frame sizes and offsets, and every camera.
 
 The goal of the second purpose is that simulated scenes, done properly, stand in for most of the
-real image library.
+real image library. That means synthetic frames for every supported camera, as realistic as they
+need to be to check navigation accuracy, and no more.
+
+The code that produces them should look designed rather than accreted:
+- one declaration for each scene key
+- one implementation of each effect
+- one path for each body type
+- modules split by concern, never at the line limit
+- no special cases, compatibility layers, or tests of behavior that no longer exists
+- documentation that describes the code as it is
+
+Phases 1b, 2 (#1011, #1012), 2a, 3b, and 8 carry that work. The other phases follow it as they go.
 
 **Terms.**
 
@@ -53,6 +65,12 @@ kilometer radii, and #896 keeps an authored shadow beside the geometric one.
   confidence work runs in parallel with all of this (Track R).
 - **One fact, one issue.** Each phase names the issues it closes; anything found along the way is
   filed, not folded silently into a PR.
+- **Restructure where it is cheapest and safest.**
+  - A refactor that should move no pixel lands while the baselines are still, so the baselines prove
+    it.
+  - A change to the scene format lands before scenes are written in it.
+  - A change to the renderer's shape lands before the physics that would otherwise be written into
+    the old shape.
 
 ## Phase 0: land the open stack (done)
 
@@ -80,6 +98,11 @@ is confined to.
 
 These make every later phase cheaper or safer. Most are small.
 
+**Status (2026-11-17):** every row below is done, decided, or moved, except these: the
+realism-record regeneration with #961 (in progress), #960, #126 and #945, #854 (on hold), and
+#925's star-count criterion, which closes with #899 and #895 in Phase 4a. #970 waits on the
+upstream camera-model fixes.
+
 | Issue | Subject | Why now |
 |---|---|---|
 | #914, framing part | **Done (PR #932).** Docs present self-consistency as accuracy | Stop the overclaim immediately: simulated results are reproducibility and self-consistency on the Cassini NAC, and confidence values are provisional. Docs only. |
@@ -87,7 +110,7 @@ These make every later phase cheaper or safer. Most are small.
 | #911, including per-pixel variates | **Done (PR #962).** One frame-wide Poisson stream | Every later fix would otherwise turn into a new noise field across the whole frame. |
 | #954 | **Done (PR #998): each crater draws from its own stream, and its center from a search that does not depend on the body's exact shape.** A last-bit geometry change can reseed every crater on a simulated body | The same fragility as #911, in the crater field instead of the noise; fixing it moves every cratered render once, so it is cheapest alongside another regeneration. |
 | #960 | Simulator tripwires depend on a single noise draw | The #911 redraw moved three of them; until each rate or band is measured over several noise seeds, the next redraw can move them again. |
-| #961 | The simulator report quotes the sweeps' earlier noise draw | Regenerate the sweep figures and their prose together in the report's end-of-stack regeneration. |
+| #961 | **In progress, with the end-of-stack realism-record regeneration.** The simulator report quotes the sweeps' earlier noise draw | Regenerate the sweep figures and their prose together in the report's end-of-stack regeneration. |
 | #905, truth-check part | **Done (PR #976).** Assertions are change detectors and 1 px bounds | Give validation scenes truth-based assertions before the renders start moving, so a move is judged against the planted truth. |
 | #872 | **Done (PR #927).** The baseline regenerator imports whichever installed package it finds | Regenerated baselines must come from the checkout under test before the churn starts. |
 | #900, #813 | **Done: #900 (PR #959); #813 (PR #927).** Validation skips the render path; null body keys crash; the navigator's simulated ring model reads nullable keys unsafely | Typed per-block specs on every entry point, with null meaning absent; the first slice of #915. |
@@ -101,34 +124,83 @@ These make every later phase cheaper or safer. Most are small.
 | #969 | **Done (PR #985).** The scene editor renders the whole pipeline on every edit, freezing for a second or more on a full-size frame | Editing should feel immediate: a fast approximate preview while the user edits, replaced by the full render once they pause. |
 | #970 | **Decided: fix the camera models instead (SETI/rms-host-galileo#3, SETI/rms-host-cassini#4, SETI/rms-host-new-horizons#1, SETI/rms-host-voyager#2).** Decide whether to keep the simulated residual distortion for cameras where it is tiny (Cassini NAC and WAC at most 0.05 px, LORRI 0.2 px, Galileo 0.8 px, in the corners) | Measured on full-frame scenes, the residual moves fused answers by 0.002 px (WAC) to 0.09 px (Galileo SSI), as its coefficients predict, and changes no status or tier. Each camera keeps its simulated residual until its updated model is in the host SpinDoctor uses; then the star-field campaign is rerun and that camera's residual is removed or replaced, regenerating the scenes that use camera defaults. |
 | #984 | **Decided: not implemented; documented (PR #985).** A simulated body moved by a fraction of a pixel has a softer limb than one drawn there | Measured: drawing at the exact sub-pixel position changes no technique's offset error by more than 0.025 px and no confidence by more than 0.003, at or below the noise scatter, so the cached drawing and interpolated move stay and the developer guide explains them. Original rationale: In scenes without a PSF the limb's sharpness changes with the planted fractional offset, which no real image does. Measure the effect on navigation first; then draw each body at its true sub-pixel position in every render that leaves the editor, keeping the cached drawing and interpolated move only for dragging in the editor (#969). Fixing the canvas also fixes #890. |
-| #854 | Simulated stars clip below the navigator's saturation level | Small; star brightness is wrong until it lands. |
+| #854 | **On hold (operator).** Simulated stars clip below the navigator's saturation level | Star brightness is wrong until it lands. Not started unless the operator lifts the hold. |
 | #955 | **Done (PR #972).** Simulated A0 stars get B-V 0.63 instead of 0.00 | Small; every A0 star has the wrong color until it lands. |
-| #925 | **Content match and star ladder done (PR #978). Star twins built from catalog stars with #989. The star-count criterion stays open with #899 and #895. The realism record is regenerated at the end of the stack.** The realism match compares mismatched content on content-filled and narrowband frames | **Done:** on a camera with a dark-sky ceiling, sky noise is compared only on patches that lie on dark sky in both frames. A patch lies on dark sky when its mean is at most a per-camera dark-sky ceiling above the calibrated sky residual, and the test uses the level alone. The ceiling is 2.5e-3 I/F on both Cassini CALIB cameras and is set in the instrument config. A camera without a ceiling compares every sky patch. On a filtered frame, the matched star ladder starts from brighter stars by the filter's throughput, so the renderer's filter dimming leaves them detectable (#989 replaces the ladder with catalog stars). With both changes, the statistics the regression check holds for the cameras with a ceiling measure only the simulator. **Open (star count):** N1459552012's twin showed 25 stars against the real frame's 4, because its made-up ladder held 25 stars bright enough to see through the filter. With #989 a star twin holds the catalog stars of the real field: N1459552012's twin plants the field's 50 catalog stars down to its clear-filter cutoff, of which 3 are bright enough to show through HAL+CL2 (at least 5 times the noise over the star's core), and it gives 2 star cutouts against the real frame's 3. Two things keep the criterion open. The twin's navigator predicts 50 stars against the real frame's 4, because the calibrated simulated frame's star limit is a placeholder (#899). Over the 13 NAC star frames the twins give 9 star cutouts against 25 real (73 with the ladder), because the simulated NAC stars are about 3.5 mag fainter than real ones at the same catalog magnitude (#895). The binned LORRI twins hold all 311 of their stars, and with #993 the navigator on a binned twin keeps the stars it shows: the LORRI twins give 16 star cutouts against the real frames' 16. The navigator's star prediction also ignores the filter (#899), so the star SNR and brightness-margin fields can't be compared on filtered frames until it is fixed. **Moved to #977:** whether the TABLE path is too quiet. On the 12 NAC TABLE frames compared, the simulated-to-real sky sigma ratio has a median of 0.37 (quartiles 0.25 to 0.59), against 0.88 on the 26 12-bit frames. The real TABLE skies also sit 4.5e-4 to 2.3e-3 I/F above the residual, which the twins don't reproduce. |
-| #989 | **Done.** Realism star twins hold a made-up magnitude ladder, not the real frame's stars | Each star twin holds every catalog star in the real frame down to a clear-filter cutoff, at the real frame's pointing moved by its verified offset, and the ladder shift by filter is gone. The filter then decides how many of the twin's stars show, as it does in the real frame. The twins do not close #925's star-count criterion, which stays open with #899 and #895. |
-| #993 | **Done.** The simulated frame's faint-star limit ignores readout binning | **Done:** the navigator's view of a simulated scene states its readout binning, which a real frame's label states, and no other detector key. On a binned frame the star limit reads the zero point and read noise from the navigator block's `noise.by_binning` entry for the mode, which each raw-DN camera's block carries for every binned mode the simulator offers, from the camera's published gain and read noise; a mode without an entry keeps the unbinned values. Scene validation checks every value of a scene's `instrument_config` that the limit reads, unbinned and binned: a read noise is a finite number of at least 0, a zero point and `star_psf_sigma` are finite and positive, none of them is null, and each `by_binning` entry sets nothing but the two values. On a calibrated-unit camera, whose limit reads no noise value, validation refuses both the table and the unbinned values as never read. The configuration loader doesn't check the packaged table, which tests hold to the simulator's tables. Validation also refuses a binned scene that pins an unbinned noise value without pinning the mode's value too. The limit divides `star_psf_sigma` by the binning and counts the core as at least one pixel. It reads none of the simulator's camera tables. A 4x4-binned LORRI frame's limit moves from 11.41 to 15.83 at 5 s; an unbinned frame's limit is unchanged. A scene's own `optics.psf`, `match_navigator` included, is not shrunk on a binned frame, so such a scene renders a wider core than the limit assumes. #989's LORRI smoke test needs it. |
+| #925 | **Content match and star ladder done (PR #978). Star twins built from catalog stars with #989 (PR #1004). Closes with PR #1034, the end-of-stack realism regeneration (operator, 2026-11-18); its star-count criterion moved to #899 and #895, with the real frames' count as the target.** The realism match compares mismatched content on content-filled and narrowband frames | **Done:** on a camera with a dark-sky ceiling, sky noise is compared only on patches that lie on dark sky in both frames. A patch lies on dark sky when its mean is at most a per-camera dark-sky ceiling above the calibrated sky residual, and the test uses the level alone. The ceiling is 2.5e-3 I/F on both Cassini CALIB cameras and is set in the instrument config. A camera without a ceiling compares every sky patch. On a filtered frame, the matched star ladder starts from brighter stars by the filter's throughput, so the renderer's filter dimming leaves them detectable (#989 replaces the ladder with catalog stars). With both changes, the statistics the regression check holds for the cameras with a ceiling measure only the simulator. **Open (star count):** N1459552012's twin showed 25 stars against the real frame's 4, because its made-up ladder held 25 stars bright enough to see through the filter. With #989 a star twin holds the catalog stars of the real field: N1459552012's twin plants the field's 50 catalog stars down to its clear-filter cutoff, of which 3 are bright enough to show through HAL+CL2 (at least 5 times the noise over the star's core), and it gives 2 star cutouts against the real frame's 3. Two things keep the criterion open. The twin's navigator predicts 50 stars against the real frame's 4, because the calibrated simulated frame's star limit is a placeholder (#899). Over the 13 NAC star frames the twins give 9 star cutouts against 25 real (73 with the ladder), because the simulated NAC stars are about 3.5 mag fainter than real ones at the same catalog magnitude (#895). The binned LORRI twins hold all 311 of their stars, and with #993 the navigator on a binned twin keeps the stars it shows: the LORRI twins give 16 star cutouts against the real frames' 16. The navigator's star prediction also ignores the filter (#899), so the star SNR and brightness-margin fields can't be compared on filtered frames until it is fixed. **Moved to #977:** whether the TABLE path is too quiet. On the 12 NAC TABLE frames compared, the simulated-to-real sky sigma ratio has a median of 0.37 (quartiles 0.25 to 0.59), against 0.88 on the 26 12-bit frames. The real TABLE skies also sit 4.5e-4 to 2.3e-3 I/F above the residual, which the twins don't reproduce. |
+| #989 | **Done (PR #1004).** Realism star twins hold a made-up magnitude ladder, not the real frame's stars | Each star twin holds every catalog star in the real frame down to a clear-filter cutoff, at the real frame's pointing moved by its verified offset, and the ladder shift by filter is gone. The filter then decides how many of the twin's stars show, as it does in the real frame. The twins do not close #925's star-count criterion, which stays open with #899 and #895. |
+| #993 | **Done (PR #996).** The simulated frame's faint-star limit ignores readout binning | **Done:** the navigator's view of a simulated scene states its readout binning, which a real frame's label states, and no other detector key. On a binned frame the star limit reads the zero point and read noise from the navigator block's `noise.by_binning` entry for the mode, which each raw-DN camera's block carries for every binned mode the simulator offers, from the camera's published gain and read noise; a mode without an entry keeps the unbinned values. Scene validation checks every value of a scene's `instrument_config` that the limit reads, unbinned and binned: a read noise is a finite number of at least 0, a zero point and `star_psf_sigma` are finite and positive, none of them is null, and each `by_binning` entry sets nothing but the two values. On a calibrated-unit camera, whose limit reads no noise value, validation refuses both the table and the unbinned values as never read. The configuration loader doesn't check the packaged table, which tests hold to the simulator's tables. Validation also refuses a binned scene that pins an unbinned noise value without pinning the mode's value too. The limit divides `star_psf_sigma` by the binning and counts the core as at least one pixel. It reads none of the simulator's camera tables. A 4x4-binned LORRI frame's limit moves from 11.41 to 15.83 at 5 s; an unbinned frame's limit is unchanged. A scene's own `optics.psf`, `match_navigator` included, is not shrunk on a binned frame, so such a scene renders a wider core than the limit assumes; that, and the navigator's other star values on a binned frame, are #995 (Phase 4d). #989's LORRI smoke test needs it. |
 | #930 | **Done (PR #946).** Peak suppression and PSR ignore wrap-around | Disc and ring confidence rose about 0.08; no library frame's final offset, status, or tier moved. |
 | #941, #943, #944 | **#943 done (PR #974). #944 done (PR #999). #941 moved to #585 (operator, 2026-11-15): the minimum background size is settled with the background region.** The PSR has no minimum background size; a NaN quality makes candidate selection order-dependent; the overlap floor flips a lag's validity on rounding ties | Since #930, a 4 px body navigates on a PSR from about five background cells and a NaN quality is reachable for small bodies; the smallest range-sweep body is an expected failure until #585 settles the background, #941 included. #944 showed only in contrived small geometries; a constant brightness offset that empties the variance floor is #997. |
 | #929 | **Done for the ring annulus correlation (PR #1003): its final full-resolution pass refines on a 3x3 quadratic fit of the NCC surface, and the coarser pyramid levels keep the cross-power refinement. The disc correlation is unchanged by decision: no refinement measured beat the cross-power one against strong star solutions on real disc frames; its clamp stays open as #791. An answer the fit cannot refine stays on the whole pixel with nothing to mark it (#1002). No library frame's final offset, status, or tier moved, and no simulated scene's or sweep step's final answer moved; the annulus's own answer moved on the six catalog scenes that run it.** The correlation refinement clamps at ±0.5 px from the integer peak | A navigator defect the simulator found; committed baselines record clamped answers, so it lands before the guard scenes and the Phase 3 re-ratchet. It is measured on real frames first, and its fix keeps the expected failures failing. |
 | #903, regression part | **Done (PR #980); its bands arm at the end-of-stack regeneration of the realism record, the first record to carry a code commit.** The realism match cannot fail | **Done:** a fresh run of each instrument in the committed band table (LORRI) is compared with the committed summary. Each statistic is held to a two-sided band: the larger of 3 times its run-to-run spread over 10 runs and 2% of its value. So later physics changes are caught when they move realism either way. A second check requires that the band table describes the record. The summary records its code commit and whether the checkout was dirty; the run's own `realism_*.png` figures and summary don't count toward the dirty flag. Both are read before the match, which stops when git cannot tell the commit. On a record without a code commit, which predates the check, the record-versus-table check is a strict expected failure that counts only a failed comparison, and the fresh match skips. The end-of-stack regeneration writes a record with its commit, which arms both checks without editing the tests. Support counts frames on both sides, so a statistic that lacks simulated samples is unsupported. Quantized sky patches are measured by paired differences, read from their whole-step histogram, when that estimate is at least two steps and the patch is not clipped. Otherwise they are measured by a maximum-likelihood fit of the quantization: a quadratic sky surface plus rounded Gaussian noise, each pixel conditioned on an iterated window three fitted sigmas wide. Pixels beyond their windows, or cut off from the bulk of the levels by empty levels, count as censored. The fit gives NaN when censored pixels exceed 0.27% by more than 1% of the patch plus three pixels. It also gives NaN when the bulk's lowest or highest level holds more pixels than the fitted model predicts by more than four times the prediction's square root plus 0.27% of the patch and three pixels. An unclipped patch whose differences read below two steps and whose fit reads 2.5 steps or more gives NaN too. As a result, a camera whose simulated sky noise is below one DN step contributes sky samples, texture is not read as noise once the noise spans two steps, and zero-filled blocks cut off from the sky make a tile unmeasurable. Dropout rows that pile onto the floor level of a floored sky also make a tile unmeasurable (399 of 400 test patches under a sky at 9 DN of 1.5 to 3.5 DN, where a fit that followed them read 1.2 to 2 times the true sigma). So do the zero-filled border tiles of resampled Voyager frames (33 of the 37 fitted sky tiles on C3446143 and C3448723). The levels between the end levels are not checked, because real Galileo sky puts about 1.4 times the predicted pixels on its fullest level. Dropout rows inside the sky's levels, where the sky's noise reaches below zero, are measured by the differences and read low: about 8% for two rows and 21% for five, at 3 to 4 DN. On the 2026-11-11 frames, Galileo's matched frames give 435 simulated sky patches on 8 frames (0 before), and Voyager's give 730 on 3; the Cassini and LORRI figures are unchanged. Galileo: simulated 0.215 DN against real 0.960 DN (822 real patches, W1/IQR 8.2). Voyager: simulated 3.09e-3 against real 1.85e-3 I/F (611 real patches, W1/IQR 0.45). Per frame, real against simulated: C1205021 6.86e-3 against 3.16e-3 (202 against 241 patches), C3446143 1.69e-3 against 3.09e-3 (205 against 241), and C3448723 1.70e-3 against 2.98e-3 (204 against 248). The Voyager comparison is not like for like. The real frames are resampled (GEOMED), which correlates neighboring pixels, so paired differences read their noise about a third low (on C3446143's 205 sky patches, 1.68e-3 I/F against 2.55e-3 from the fit on the same patches). The matched scene does not turn on the simulator's resampling mode (`resample_texture`), which the Voyager config describes as correlating noise the way GEOMED does. And C1205021 is filled by a cloud deck, so its darkest quarter of tiles is cloud, not sky. The hold-out and transfer parts come in Phase 6. |
 
 **Exit:** changing the signal in one region of a frame leaves the noise elsewhere in that frame
-unchanged; validation scenes assert against their planted truth; a null body key behaves exactly
-as an absent one on every entry point; the realism match fails on a planted regression; adding a
-camera's tables is a YAML edit (met by #876).
+unchanged (met by #911); validation scenes assert against their planted truth (met by #905's
+truth-check part); a null body key behaves exactly as an absent one on every entry point (met by
+#900, #940, and #958); the realism match fails on a planted regression (arms with the
+regeneration below); adding a camera's tables is a YAML edit (met by #876).
+
+The last step of Phase 1 is the realism-record regeneration. #989 landed on 2026-11-17 (PR #1004),
+and the regeneration is in progress. It arms the regression bands of #903 and so meets the
+"realism match fails on a planted regression" criterion. #961 regenerates the report's sweep
+figures in the same pass.
+
+Phase 1b starts when the realism-record regeneration (with #961) has landed; #989, its other
+prerequisite, is done. #854 (on hold), #960, and #126/#945 do not hold it up; a later PR among
+them that moves renders follows the rebase rule in the Risks section.
+
+## Phase 1b: pixel-neutral restructuring
+
+The code-structure critique (`critiques/SIMULATOR_CODE_STRUCTURE_CRITIQUE_2026-11-16.md`) found the
+simulator's core well designed: the stage pipeline, the artifact-mode registry, the instrument
+catalog, and the information boundary. It found much of the rest accreted. The restructuring that
+changes no pixel lands now, while the committed baselines are still and can prove each change
+neutral. From Phase 2 on, nearly every PR moves renders, and a refactor can no longer be told
+apart from a physics change.
+
+| Issue | Subject | Why now |
+|---|---|---|
+| #923 | Duplicate image classifier, test-only `artifact_counts.py`, no shared scene fixtures, plan codenames, and the navigator-side `sim_params` name | Shared scene fixtures first, so every later schema change edits one place instead of 50 test files. |
+| #1005 | Lay out the simulator package by concern; the image side's `forward/` package becomes `render/`, with the `render.py` entry point inside it (operator, 2026-11-17) | Every later issue creates its modules in their final places, and the boundary guard checks packages instead of file names. Lands right after Phase 1's realism-record regeneration, when no other simulator PR is open. |
+| #1006 | Exact copies and dead defaults | Each later change would otherwise have to find and edit every copy. |
+| #1007 | Names that describe history or one of several meanings | One glossary before the typed scene model fixes names into types. |
+| #1008 | The simulated body model is over 1,000 lines, and its limb and terminator arc code is two near-copies | The one module over the limit. |
+| #1030 | The simulated-or-real model choice is spread over eight guards; each model class declares the inputs it needs instead | One place to choose models, and the shape Phase 5 needs, where a twin provides both kinds of input. Gated also on the library regression tier, because it touches model selection on real frames. |
+| #1009 | Light direction and phase function derived twice | A shared convention with two copies can plant an unmeasured systematic. If a render moves, the move is that systematic and is explained. |
+| #1010 | The stage protocol says each stage is seeded by its generator; most stages discard it | Seeding by name is the rule every later stage must follow. |
+
+#923's fixtures and #1005 go first. The others can land in any order after them.
+
+#923's three choices are decided (operator, 2026-11-18): the classifying decision moves to a
+neutral module both sides import, as its own small PR first, because the navigator's classifier
+is in a file the navigator work also edits; `artifact_counts.py` moves under `tests/`; and the
+plan-phase labels outside the simulator are out of scope, tracked in #1035.
+
+**Exit:** the issues above are closed. Every committed render and baseline reproduced unchanged
+through them, or a move under #1009 is explained in its PR. No simulator module is over 1,000 lines.
 
 ## Phase 2: rendering correctness
 
 These are defects that put pixels in the wrong place. They come before any new physics, because
 new physics on a wrong canvas is wasted work. #901 goes first: until the classic body renderer is
-retired, every body fix has to be made twice.
+retired, every body fix has to be made twice. #931 lands with #901, so the topographic baselines
+regenerate once. #1011 follows, so the one body path also has one projection, built for both of the
+topographic renderer's grids. #1012 follows #901, because #901 removes the classic renderer from the
+module #1012 splits. The render grid that removes hand-threaded oversampling (#1015) waits for the
+typed scene, in Phase 3b.
 
 | Issue | Subject |
 |---|---|
 | #901 | Classic and topographic body renderers disagree; retire the classic path (part of #915) |
-| #931 | Coarse-grid shading shifts relief, textured, and cratered bodies at oversample above 1 (smooth bodies fixed by #916) |
+| #1011 | The topographic body renderer projects through its own copy of the ellipsoid projection, while the navigator predicts through the shared one |
+| #1012 | The body renderer modules import each other through hidden cycles, and the body identity seed is written out in several places |
+| #931 | Coarse-grid shading shifts relief, textured, and cratered bodies at oversample above 1 (smooth bodies fixed by #916); lands with #901 |
+| #1013 | A scene with instrument defaults oversamples 4x even when its camera has no PSF |
+| #1014 | The simulated Titan model predicts a mesh occluder as an ellipsoid, and at pixel (0, 0) when no center is given |
 | #890 | A body larger than half the frame and off center is clipped or vanishes |
 | #825, #644 | A planted roll turns ellipsoids the wrong way, mesh bodies and the lit side not at all, and leaves smear, companions, and sky unturned; #644 also asks for a ruling on what a roll turns |
 | #891, #873 | Ring-edge anti-aliasing on optical depth shifts lone edges up to 0.7 px; a rank-1 ring scene misses its planted shift by 0.52 px |
+| #84 | Simulated rings were copied in place, so ring edges overwrote brighter objects behind them and gaps erased what lay in them. The ring system has composited by optical depth since PR #313, so a gap or a faint ring shows what lies behind it; confirm on a ring-over-body scene and close |
 | #892 | PSF and smear zero-pad the frame: darkened edges, no light from outside it |
 | #893 | Limb seam, coverage-blind star extinction, and `rotation_tilt` stretch |
 | #894 | Night-side 1% floor and clipped photometric laws |
@@ -138,13 +210,47 @@ retired, every body fix has to be made twice.
 **Exit:** a frame-filling planet renders at its true position with light from beyond the frame
 edge; a rolled scene behaves as the ruling on #644 decides; a lone ring edge lands within 0.05 px
 of its authored radius; the simulated limb's gradient peak is checked against real limbs; every
-moved baseline is explained.
+moved baseline is explained. One ellipsoid projection serves both sides, one function seeds every
+body, and no body module imports another inside a function.
+
+## Phase 2a: settle the scene format
+
+Phase 2b writes realistic guard scenes, and Phase 3 repairs the calibration generator, which writes
+scenes too. The changes that move or remove scene keys land first, so those scenes are written
+once, in the format that stays. The same changes build the shared schema core that the typed scene
+(Phase 3b) uses. Renders move here only where an issue says so, and each moved baseline is
+explained.
+
+The navigator config is left alone for now (operator, 2026-11-17). Typing it is deferred and
+tracked in `ENGINEERING_PLAN.md`: the camera blocks (#1029), and every other section with the
+deletion of the keys nothing reads (#1032). No issue in this plan changes navigator code; #1023
+edits the navigator's config files only to delete the camera-block keys nothing reads.
+
+| Issue | Subject | Why now |
+|---|---|---|
+| #988, #986, #987, #990 | Refuse null keys in simulated scenes (operator ruling, 2026-11-15); a null noise value crashes the renderer; values inside `nav_override` are not validated | The typed scene needs "unset" to mean absent, never null. A null inside `nav_override` is refused like any other. |
+| #1021 | One typed schema core for configuration and scene files: plain frozen dataclasses parsed by pydantic (operator decision, 2026-11-16), and one layered YAML merge with a null policy per family | Every later typing step builds on it. Its first consumer is the instrument catalog (#1022). It changes nothing in the navigator config. |
+| #1022 | The instrument catalog and the artifact-mode parameters, parsed through the core | Typed detector fields, which the scene's noise and detector blocks reuse. One mode-parameter interpreter, not two. |
+| #1029 | The navigator camera blocks typed through the core, and a scene's `instrument_config` overlay parsed through the same types | **Deferred (operator, 2026-11-17).** Navigator config work, tracked with #1032 in `ENGINEERING_PLAN.md`. Until it lands, the typed scene (#1024) gives the scene's `instrument_config` overlay its own type, which repeats the camera keys' ranges (the operator accepted the duplication), and replaces the simulator's 378-line overlay validator. |
+| #806, naming part | Split the `vgiss` entry into four per-camera entries, renaming the scene's instrument value | Renames a scene value before Phase 2b writes Voyager scenes. The per-camera values stay in Phase 4e. |
+| #1017 | Detector effects modeled twice, once in the noise block and once as an artifact mode | Removes or merges scene keys. |
+| #1023 | Image-side detector physics comes from two configuration trees, and the noise block holds keys that are not noise | Moves scene keys, and lets a scene plant a mismatch between the true and believed saturation ceilings. It also deletes the camera-block keys nothing reads, the image-side keys it stops reading among them. |
+
+Order: #988 and #1021 first, then #1022, #1017, and #1023, one at a time; #806's naming part lands
+whenever it is ready.
+
+Decisions needed before the work starts, asked one at a time: for #1017, whether each pair (banding,
+dark signal, hot pixels) is one effect or two.
+
+**Exit:** the issues above are closed, except the deferred #1029. No scene key is renamed or moved
+after this phase except by an issue that adds new physics. The simulator's instrument catalog is
+typed. Image-side detector physics has one source.
 
 ## Phase 2b: realistic guard scenes
 
-Once pixels land where they should, write the validation scenes that YAML can express today, so
-they guard the churn of Phases 3 and 4. These are the authorable parts of #904 and the ring-only
-part of #377:
+Once pixels land where they should and the scene format has settled (Phase 2a), write the
+validation scenes that YAML can express today, so they guard the churn of Phases 3 and 4. These
+are the authorable parts of #904 and the ring-only part of #377:
 
 - every camera the simulator catalogs, at real frame sizes and real offsets, with twist;
 - star fields with a body, and rings with a body;
@@ -172,6 +278,7 @@ scenes are not built on the same slip.
 | #309 | The campaign does not run the realism-anchored configuration (chain off, NAC only) |
 | #793, #874 | Refit on the repaired renderers and generator, under the overflow limits, and re-ratchet the moved coefficients |
 | #942 | Disc and ring confidence was fitted on runner-up ratios that wrap-around depressed before #930; the refit covers them |
+| #794 | The Titan haze calibration (`cross_sigma_scale` and the `TitanHazeNav` confidence anchors) was fitted on the haze render with the equator seam that #627 (done) removed; rerun the Titan campaign on the shipping render and refit both |
 | #341 | The campaign's scene mixture is authored, with no data that it matches real frames |
 
 Track R replaces simulation-fitted values with real-anchored ones wherever real anchors exist;
@@ -181,18 +288,55 @@ this phase keeps the remaining simulation-fitted values correct until then.
 instrument chain on, the refit coefficients are re-ratcheted as #793 and #874 require, and each
 move is recorded in `plans/VALIDATION_AND_CALIBRATION_PLAN.md`.
 
+## Phase 3b: restructure the renderer before the physics
+
+Phase 4 adds most of the simulator's remaining physics, and with it many new scene keys and stages.
+Under the current structure, each new key is written in up to six places, each new artifact mode
+needs its own dispatch, and every stage reads the scene dict with its own defaults. This phase
+gives the renderer the shape Phase 4 builds on. It runs alongside Phases 2b and 3, and must be done
+before Phase 4 starts. It changes no pixel, except where #1015 finds a hand-scaled key that was
+scaled wrongly; each such move is explained in its PR.
+
+| Issue | Subject | Why now |
+|---|---|---|
+| #1024 | Parse every scene into typed scene dataclasses that are its field table, and make that parse the only validation (3 to 5 PRs, block by block) | Each Phase 4 key is then declared once: type, range, default, boundary class, and editor hint. The boundary is structural: truth types extend idealized types. |
+| #1028 | Resolve each render's settings once into a `RenderSettings` record on the frame (after #1024) | One place interprets switches such as `instrument_defaults`; the detector parameters resolve once per render. |
+| #1027 | Every render stage reads the typed scene (after #1024 and #1028; a few PRs, by stage) | Deletes about 200 raw scene reads in the image-side stages and the render-time validation backstops. |
+| #1015 | Render through a grid object that owns oversampling (after #1028) | Removes the factor from 14 modules before Phase 4 adds pixel-unit keys. |
+| #1026 | A typed idealized view of the scene for the navigator side (after #1027) | The navigator's simulated models accept only idealized types, checked by mypy. The shared helpers take typed records, and `scene_value` and the per-object parse functions go. |
+| #310 | Move the truth attributes off `ObsSim` into a truth record (after #1026) | Completes the structural boundary. |
+| #1025 | One shared per-kind layout for ring features on both sides (after #1026) | #909 and #910 add ring kinds. |
+| #1016 | Every artifact mode applied through its registry entry, one loop per stage (after #1017 and #1028, which owns activation) | #906, #919, #935, and #850 add or change modes. |
+| #1018 | The radiance stage split into named sub-steps (after #1027 and #1028) | #895 and #896 change this stage. |
+| #1019 | Each render logs its `RenderSettings` (after #1028) | Phase 4's realism work needs to see which values a render used. |
+| #1020 | The simulated-image editor rebuilt from per-block panels generated from the typed scene's field metadata (after #1024 and #1028) | Each Phase 4 key then gets its editor control from its declaration, not from hand wiring that a later rewrite throws away. Closes #902, #947, and #967. |
+
+Order: #1024, then #1028, then #1027, then #1026. #1015, #1016, #1018, #1019, and #1020 follow in
+any order their own dependencies allow; #310 and #1025 follow #1026.
+
+**Exit:** the issues above are closed. No render module reads the scene dict. The navigator's
+simulated models accept only the idealized types, and `ObsSim` holds no truth attribute. Each stage
+applies its artifact modes in one loop over the registry. No function in the radiance, atmosphere,
+ring, body, or detector-parameter modules is longer than about 100 lines. Every scene key has an
+editor control generated from its declaration, or a documented exception. Every committed render
+reproduced unchanged through the phase, apart from #1015's explained moves.
+
 ## Phase 4: physics, in order of how many real frames need it
 
-Ordered by the share of real frames each gap affects, from the critique's population counts.
+Phase 4 starts once Phase 3b's exit is met, including the editor (#1020), so each new key gets its
+type, validation, default, and editor control from one declaration, and once Phase 2b's guard
+scenes are committed, so they guard Phase 4's changes. Its items are ordered by the
+share of real frames each
+gap affects, from the critique's population counts.
 
 **4a. Radiometry and shadows (every frame with more than one object type):**
 
 | Issue | Subject |
 |---|---|
-| #895 | Stars, bodies, and rings share no radiometric scale |
+| #895 | Stars, bodies, and rings share no radiometric scale; also the simulated NAC star-cutout count comparable to the real frames' (from #925) |
 | #896 | No ring-body shadows; the planet's shadow is a fixed wedge |
 | #921 | Background star counts 3 to 10 times too sparse |
-| #899 | Navigator star limit: 30.0 on calibrated frames, filter ignored on raw ones (the Cassini part here; the Voyager part follows #907, and the Galileo, Voyager, and LORRI limits follow #342) |
+| #899 | Navigator star limit: 30.0 on calibrated frames, filter ignored on raw ones (the Cassini part here; the Voyager part follows #907, and the Galileo, Voyager, and LORRI limits follow #342); also the NAC star pair's predicted star count comparable to the real frame's (from #925) |
 
 **4b. Ring geometry and structure (the largest real population: 177,540 Cassini ring frames):**
 
@@ -215,6 +359,9 @@ model does not gain them.
 | Issue | Subject |
 |---|---|
 | #906 | Hot pixels ignore exposure; bloom discards charge; LORRI bloom contradiction |
+| #977 | Simulated Cassini TABLE-downlink skies are about a third as noisy as real ones (NAC median ratio 0.37 against 0.88 at 12 bits) and lack the real skies' offset; split from #925 |
+| #979 | Simulated Galileo SSI skies are about a quarter as noisy as real ones (0.22 DN against 0.96 DN on 8 frames each), measured with #903's quantized-noise fit; the Voyager comparison waits on modeling the GEOMED resampling in the twins |
+| #995 | On a binned simulated frame the navigator's star blur, star box sizes, and per-pixel thresholds stay in unbinned pixels, and a `match_navigator` PSF is not divided by the binning. #993 (done) fixed only the faint-star limit, so none of these is covered yet. No committed scene or sweep sets binning; the realism twins do, with the catalog kernel |
 | #920 | WAC and Galileo gain states, Galileo ICT, and LORRI frame-transfer smear and calibrated mode |
 | #919 | Ghosts translate with the scene; dust donuts move between scenes |
 | #850 | The DCT codec rebuilds values outside the ADC word |
@@ -228,7 +375,7 @@ model does not gain them.
 
 | Issue | Subject |
 |---|---|
-| #806 | One `vgiss` key for four cameras; split per spacecraft and camera |
+| #806, per-camera values | One `vgiss` key for four cameras; the split of the entry and the scene value is Phase 2a; this part gives each camera its own values |
 | #907 | GEOMED plate scale, beam-bend sign, reseau lattice, and a fixed DN scale with no exposure term |
 | #804 | Noise keys inert on the vidicon and on calibrated frames |
 | #935 | The vidicon chain renders no fixed-pattern structure, so `vgiss` does not offer `fixed_pattern`; measure the residual pattern on calibrated frames before adding a stage |
@@ -296,6 +443,7 @@ Those classes are eligible for retirement in Phase 7.
 | #377 | Dense, realistic ring scenes (the rest, beyond Phase 2b) |
 | #835 | Star navigation reports success at 4.9 px error under 6 px catalog scatter |
 | #975 | BodyBlobNav answers up to 36 px off on validation scenes and does not flag the answers spurious; the truth checks hold them in bands |
+| #790 | The shape-lock veto misses confident wrong solutions on irregular mesh bodies: successes at 0.9 or more confidence 3 to 13 px off on most mesh seeds. A navigator fix the simulator found (Priority 2), listed here with the other navigator failures the simulator found; no phase waits on it, and a strict expected failure over mesh seeds holds it until it lands |
 
 Build the validation catalog from twins and from idealized scenes that the transfer check
 supports: every camera, real frame sizes and offsets, twist, compound content, frame-filling
@@ -316,19 +464,42 @@ retired and retained library classes.
 
 | Issue | Subject |
 |---|---|
-| #915 | Restructure below the core: typed specs (begun in #900), one body path (begun in #901), and smaller stages |
-| #923 | Duplicate classifier, test-only module, missing fixtures, and codenames |
-| #902 | 26 scene keys without editor controls |
-| #947 | The simulated-image editor shows 0 for parameters the renderer fills from the detector block or another key |
-| #967 | The simulated-image editor's controls can build scenes that validation refuses: ranges wider than the rules, conflicting settings, settings left behind by a camera switch, and duplicate names |
-| #956 | Unnamed simulated bodies get different default names in the renderer and the navigator |
-| #856 | The simulated-image editor segfaults intermittently (reopened after the fix in PR #917) |
-| #914, the rest | User chapter around a complete scene, developer guide split, and one schema reference |
-| #310 | Structural information-boundary guard |
+| #915 | **Now tracked through its slices, each its own issue: #1005 to #1030, #901, #923, and #310, in Phases 1b, 2, 2a, and 3b (#1029 is deferred; see Phase 2a).** It closes when its slices close, except the deferred #1029, which moved to the navigator config work in `ENGINEERING_PLAN.md`. Restructure below the core: typed specs (begun in #900), one body path (begun in #901), and smaller stages |
+| #1020 | **Moved to Phase 3b.** Build the simulated-image editor from per-block panels driven by the typed scene's field metadata (#1024) |
+| #923 | **Moved to Phase 1b.** Duplicate classifier, test-only module, missing fixtures, and codenames |
+| #902 | **Closes with #1020 (Phase 3b).** 26 scene keys without editor controls |
+| #947 | **Closes with #1020 (Phase 3b).** The simulated-image editor shows 0 for parameters the renderer fills from the detector block or another key |
+| #967 | **Closes with #1020 (Phase 3b).** The simulated-image editor's controls can build scenes that validation refuses: ranges wider than the rules, conflicting settings, settings left behind by a camera switch, and duplicate names |
+| #956 | **Fixed by #1024 and #1026**: one default name, read on both sides. Unnamed simulated bodies get different default names in the renderer and the navigator |
+| #856 | The simulated-image editor segfaults intermittently (reopened after the fix in PR #917); recheck it against #1020's structure |
+| #1000 | The editor's null-keys test can see body controls that are pending deletion, so it fails intermittently in CI; collect the controls only after pending deletions run |
+| #957 | The `sqrt_lut` detector module has no entry in the simulator API reference; after #1005 its path is under `render/` |
+| #816 | The developer guide's detector quantization list omits `ls8b` and `contour_8bit` |
+| #914, the rest | User chapter around a complete scene, developer guide split, and one schema reference. The schema reference page is generated from the typed scene's field metadata by #1024. |
+| #310 | **Moved to Phase 3b.** Advanced by #1005 (package-level import guard) and #1026 (the navigator view as types); its own change moves the truth attributes off `ObsSim`. Structural information-boundary guard |
 
 Each phase updates the docs for what it changes, with per-camera values on the instrument pages
-after #924 (done); this phase finishes the restructuring and the guide split once the schema has settled.
-#856 can land whenever its fix is ready.
+after #924 (done). This phase finishes the guide split once the schema has settled. The
+restructuring is placed earlier, where it is cheapest: Phase 1b while the baselines are still,
+Phase 2 beside the body fixes, Phase 2a before scenes are written, and Phase 3b before the physics.
+
+Code-structure critique items not taken, with the reason for each:
+
+- **Making the validator's private primitives public (critique step 4, O8).** #1024 deletes the
+  hand-written checkers, so publishing their primitives first would be work thrown away.
+- **The two private `nav_model_stars` helpers used outside their module (O8).** #1026 replaces the
+  navigator side's dict reads; recheck after it.
+- **`realism/noise.py` at 984 lines (F2).** It is under the limit. The rule in `CLAUDE.md` splits it
+  by concern when Phase 6's work would push it over; no issue is needed before then.
+- **The parallel `full_render.py` and `verdict.py` modules (D6).** #1020 rebuilds the editor around
+  them and decides whether one module serves both.
+- **The critique's layout names `artifacts/registry.py`, `forward/frame.py`, and
+  `schema/nodes.py`.**
+  The artifact registry stays one module (`artifact_modes.py`), `stages.py` keeps `SimFrame`, and
+  the schema core is the top-level `spindoctor/schema/` package (#1021), which the navigator config
+  will share once its deferred typing (#1029 and #1032) lands.
+
+#856, #1000, #957, and #816 can land whenever their fixes are ready.
 
 ## Track R: real-frame confidence (parallel)
 
@@ -365,15 +536,18 @@ exposure-scaled DN.
 
 - #152, diffraction spikes: the issue marks itself lowest priority, and no navigation result
   depends on it yet.
+- #78, craters drawn with the CraterMaker package: deferred by priority; the simulator's own crater
+  field serves navigation testing.
 
 ## Dependencies at a glance
 
 ```text
-Phase 0 -> Phase 1 -> Phase 2 -> Phase 2b
-                        |
-                        +-> Phase 3 ----------------+
-                        +-> Phase 4a, 4b -----------+-> Phase 5 -> Phase 6 -> Phase 7
-                        +-> Phase 4c-4f (parallel with Phase 5)
+Phase 0 -> Phase 1 -> Phase 1b -> Phase 2 -> Phase 2a -> Phase 2b
+Phase 2a -> Phase 3 -> Phase 5
+Phase 2a -> Phase 3b
+Phase 2b and Phase 3b -> Phase 4a, 4b -> Phase 5 -> Phase 6 -> Phase 7
+Phase 4a, 4b -> Phase 4c-4f (parallel with Phase 5)
+Phase 3b runs alongside Phases 2b and 3; Phase 4 waits for both Phase 3b and Phase 2b.
 Phase 1 (#876, done) -> Phase 4d-4f, Phase 5
 Track R: #334, #225, #342 now -> #230 real-frame part;
          #230 remainder, then #153's other parts, after Phase 6
@@ -393,3 +567,13 @@ Phase 8: alongside, finished last
   not a setback: the class keeps its library frames and the gap is filed.
 - **Scope.** Phases 4c through 4f are long. Work them by which library class is next in line, not
   in table order.
+- **Restructuring delays the physics.** Phases 1b, 2a, and 3b add about 25 issues before Phase 4.
+  Mitigation: each is pixel-neutral or moves only what it names, so each lands on the baselines'
+  evidence alone. Phase 3b runs alongside Phases 2b and 3. Phase 4 then adds keys, modes, and
+  ring kinds at one place each.
+- **A refactor hides a physics change.** Mitigation: every pixel-neutral issue requires the
+  integration tier to reproduce with nothing regenerated. The work that touches the most code
+  lands in Phase 1b, before the baselines start moving. Phase 3b lands after Phase 2's moves and
+  before Phase 4's, when renders are stable again. A pixel-neutral PR (Phase 3b, #1012) is rebased
+  onto main after the last merge that regenerated baselines, and the integration tier is rerun on it
+  with nothing regenerated, before it merges.
