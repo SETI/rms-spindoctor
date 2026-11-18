@@ -600,15 +600,14 @@ class BodyDiscCorrelateNav(NavTechnique):
         result is the one returned; when the winner is zero rotation, the first
         pyramid's result is returned.
 
-        The samples are therefore ranked differently from a search that runs the full
-        pyramid at every sample.  That search ranks each sample by the quality of the
-        candidate its pyramid picks among several, after the penalty of
-        ``prior_weight_final`` (0.25) times that candidate's distance from the coarser
-        levels' answer, and in a mode chosen anew at that sample.  Those qualities can
-        differ from the scores here by enough to reorder the samples, so the two
-        searches can pick different winners.  The final pyramid at the winner also
-        chooses its mode anew, so the mode it returns, and the quality that goes with
-        it, can differ from the mode the samples were scored in.
+        A sample's score leaves out three things the full pyramid's quality includes:
+        the choice among several candidate peaks, the penalty of
+        ``prior_weight_final`` (0.25) times the chosen peak's distance from the coarser
+        levels' answer, and a mode chosen anew at that sample.  The winning sample can
+        therefore differ from the sample whose full pyramid would have the highest
+        quality.  The final pyramid at the winner chooses its mode anew, so the mode it
+        returns, and the quality that goes with it, can differ from the mode the
+        samples were scored in.
 
         Parameters:
             image: Source ext-FOV image.

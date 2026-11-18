@@ -409,14 +409,17 @@ Call path traced through
      rotation-aware schedule above: the full NCC pyramid on the unrotated template picks
      the correlation mode; 11 rotation samples, then 5 centered on the best of those, then
      3 centered on the best of the 5, each scored by one correlation in that mode; then the
-     full NCC pyramid at the best of the last 3. That pyramid gives the returned
-     (dv, du, theta) triple and its 3x3 covariance. The translation block is the CRLB from
-     the winning rotation's correlation curvature. The rotation diagonal is always the
-     rotation-unobservable sentinel. The PSR/PMR-style peak quality is not a
-     log-likelihood, so its curvature across the rotation samples does not carry Fisher
-     information about rotation, and there is no calibrated way to turn that curvature
-     into a variance. The disc technique contributes a translation estimate while
-     abstaining on rotation (the theory section above discusses why).
+     full NCC pyramid at the best of the last 3, or the first pyramid's result when the
+     best angle is zero. That pyramid gives the (dv, du) estimate and a 2x2 CRLB
+     covariance from the winning rotation's correlation curvature. The technique adds the
+     model-error terms to that covariance, takes theta from the search, and returns the
+     (dv, du, theta) triple with a 3x3 covariance whose translation block is the adjusted
+     2x2 covariance. The rotation diagonal is always the rotation-unobservable sentinel.
+     The PSR/PMR-style peak quality is not a log-likelihood, so its curvature across the
+     rotation samples does not carry Fisher information about rotation, and there is no
+     calibrated way to turn that curvature into a variance. The disc technique
+     contributes a translation estimate while abstaining on rotation (the theory section
+     above discusses why).
 
 5. Apply the at-edge tests against the search-window axis bounds and the rotation cap, and
    the spurious tests using the pyramid wrapper's ``spurious`` and ``consistency``

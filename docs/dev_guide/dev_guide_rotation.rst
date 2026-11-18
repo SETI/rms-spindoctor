@@ -121,6 +121,8 @@ Each sample pre-rotates the composite template about the technique's
 pivot and is scored by a single full-resolution NCC in the correlation
 mode the unrotated pyramid chose. The full translation pyramid then runs
 at the level-2 winner, and its answer is reported with that rotation.
+When the winner is zero rotation, the unrotated pyramid's answer is
+reported and no second pyramid runs.
 The rotation diagonal of the 3x3 covariance carries the unobservable
 sentinel, because the NCC quality is not a likelihood and its curvature
 along the rotation axis carries no calibrated variance.

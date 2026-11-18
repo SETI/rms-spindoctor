@@ -1493,8 +1493,9 @@ asserts the generated half matches the registries.
   `Backplane` objects, no shared `obs`).
 - **#126** — rotation-pyramid cost (~10 min on 1024^2); only bites
   rotation-fitting instruments (Galileo, Voyager); coordinate with
-  Track F instrument enablement. Cost part done: each rotation sample
-  is scored by one correlation and the pyramid runs only at the winner
+  Track F instrument enablement. Cost part done: the full pyramid runs
+  at zero rotation, each rotation sample is scored by one correlation,
+  and the full pyramid runs again only at a nonzero winner
   (5.7-12x faster; the winning angle can differ from the old grid's,
   see PR #1042). Accuracy part open as #1040 (the
   sampled score misses a planted roll); turning rotation on for Voyager
