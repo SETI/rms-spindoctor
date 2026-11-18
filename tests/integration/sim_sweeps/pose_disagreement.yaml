@@ -1,5 +1,5 @@
 sweep_name: pose_disagreement
-# B7 scenario 3 degradation curve: walk the navigator's assumed pose away from the
+# Pose-disagreement degradation curve: walk the navigator's assumed pose away from the
 # true (rendered) pose and watch the limb fit degrade.  The base scene renders the
 # mesh at Y-Euler 35 deg; each step moves the predicted nav_override pose Y-Euler
 # further from it, so the predicted silhouette boundary swings off the rendered

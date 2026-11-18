@@ -1,5 +1,5 @@
 sweep_name: irregularity_shape_mismatch
-# B7 scenario 2 characterization: hold the navigator's prediction at the smooth
+# Shape-mismatch characterization: hold the navigator's prediction at the smooth
 # (zero-relief) ellipsoidal limit and walk the rendered body's surface relief up.
 # The base scene's nav_override pins the predicted mesh_lumpiness to 0.0, so each
 # step widens the shape mismatch between the rendered (lumpy) body and the

@@ -116,14 +116,11 @@ scene -- including every planted error, noise knob, and contaminant. It lives in
      - The structured telemetry-loss appliers (missing / partial /
        alternating lines, missing blocks, garble, dead pixels, commanded
        frame shapes), each recording its realized geometry into the frame
-       truth.
+       truth. The test helper ``tests/spindoctor/sim/artifact_counts.py``
+       counts those records (see :ref:`sim-artifact-truth`).
    * - ``telemetry_artifacts.py``
      - Telemetry-stage artifacts beyond packet loss: lossy DCT compression
        blockiness and the Voyager GEOMED archive-processing scars.
-   * - ``artifact_counts.py``
-     - Artifact counts: the planted event counts read from
-       the frame truth and the marker-based image estimators that recover
-       them from the DN image alone (the realism match compares the two).
    * - ``feature_loci.py``
      - Navigation-feature loci (body / ring rows, limb and star pixels)
        extracted from the frame truth for adversarial artifact placement.
@@ -1658,26 +1655,30 @@ feature pixels within 3 px of it. Those are the odds of picking a feature pixel,
 then jittering it, and the draw is without replacement. The neighborhood can be small, such as a
 lone star's 49 pixels, and a draw asking for more pixels than it holds plants each
 of them once. The truth record then lists that smaller set, and
-:func:`~spindoctor.sim.forward.artifact_counts.planted_artifact_counts` counts it.
+``planted_artifact_counts``, in the test helper described below, counts it.
+
+.. _sim-artifact-truth:
 
 Truth bookkeeping and the planted-versus-measured match
 -------------------------------------------------------
 
 Each applied mode records its realized geometry -- which lines, blocks, or pixels
 it touched -- into ``frame.truth['artifacts'][<mode>]``, so a later measurement
-can compare *planted* against *measured*.
-:mod:`spindoctor.sim.forward.artifact_counts` carries both sides:
-:func:`~spindoctor.sim.forward.artifact_counts.planted_artifact_counts` reads
-the truth records into a realized event count per mode (exact by construction),
-and the ``measured_*`` estimators recover the same counts from the DN image
-alone, the way a detector run against a real archive frame would. The image
-estimators key on the marker, so they are exact for the marker-based structural modes
-(``missing_lines``, ``partial_lines``, ``missing_blocks``, ``dead_pixels``) on a
-frame whose scene floor sits above the marker. Modes that plant wrong values
-rather than the marker -- garble, spikes, and the detector-electronics modes --
-are not recoverable pixel-by-pixel from a single frame (distinguishing them from
-scene structure needs multi-frame or noise statistics), so for those the truth
-side is authoritative.
+can compare *planted* against *measured*. The counting lives in the test helpers,
+in ``tests/spindoctor/sim/artifact_counts.py``, which carries both sides.
+``planted_artifact_counts`` reads the truth records into a realized event count
+per mode (exact by construction). The ``measured_*`` estimators recover the same
+counts from the DN image alone, the way a detector run against a real archive
+frame would. The image estimators key on the marker, so each is exact for its
+marker-based structural mode (``missing_lines``, ``partial_lines``,
+``missing_blocks``, or ``dead_pixels``) when that mode is the only one planting
+the marker, on a frame whose scene floor sits above the marker. When two of these
+modes overlap, one mode's pixels can be counted under another: every row of a
+missing block also reads as a missing line, and a dead pixel inside a lost line
+is not counted. Modes that plant wrong values rather than the marker -- garble, spikes,
+and the detector-electronics modes -- are not recoverable pixel-by-pixel from a
+single frame (distinguishing them from scene structure needs multi-frame or noise
+statistics), so for those the truth side is authoritative.
 
 The artifact-sweep scene class
 ------------------------------
@@ -4032,11 +4033,11 @@ depend on where the features are.
 Per-instrument shape defaults for every mode live in each instrument config
 file's ``artifact_modes.shape_defaults`` (see :ref:`sim-instrument-files`). If
 a scene sets only a mode's activation key, the mode takes these defaults, and
-any parameter the scene spells out overrides its default.
-:mod:`spindoctor.sim.forward.artifact_counts` reads back the geometry each mode
-records for the planted-versus-measured match. The conceptual overview, the full
-mode tables, and the ``artifact_sweep`` scene class are in
-:ref:`sim-artifact-framework`.
+any parameter the scene spells out overrides its default. The test helper
+``tests/spindoctor/sim/artifact_counts.py`` reads back the geometry each mode
+records for the planted-versus-measured match (see :ref:`sim-artifact-truth`).
+The conceptual overview, the full mode tables, and the ``artifact_sweep`` scene
+class are in :ref:`sim-artifact-framework`.
 
 .. _sim-instrument-config:
 

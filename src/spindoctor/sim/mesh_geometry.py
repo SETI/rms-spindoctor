@@ -20,7 +20,7 @@ body parameter mapping, but only its idealized mesh keys).
 
 The output contract matches ``create_simulated_body``: a ``(size_v, size_u)``
 float array in [0, 1], lit by the same Lambertian convention so a mesh body and
-an ellipsoid body can be compared directly (the B7 shape-mismatch fixture).
+an ellipsoid body can be compared directly.
 """
 
 import math

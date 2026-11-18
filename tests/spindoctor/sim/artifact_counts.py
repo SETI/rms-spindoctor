@@ -1,7 +1,7 @@
-"""Artifact counts: planted truth vs image-measured counts.
+"""Test helper for artifact counts: planted truth vs image-measured counts.
 
-The realism match compares how many defects a scene *planted* against how many a
-detector could *measure* on the rendered frame.  This module carries both sides:
+The artifact tests compare how many defects a scene *planted* against how many a
+detector could *measure* on the rendered frame.  This helper carries both sides:
 
 * :func:`planted_artifact_counts` reads the realized geometry the telemetry stage
   wrote into ``frame.truth['artifacts']`` and returns a realized event count per

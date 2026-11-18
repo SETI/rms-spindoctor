@@ -6,8 +6,8 @@ size_u: 220
 random_seed: 42
 midtime_utc: '2010-01-01T00:00:00Z'
 exposure_sec: 1.0
-# B7 scenario 3 base: mesh rendered at the true pose, predicted at a pose the
-# navigator can be made to disagree with.  At the base the predicted pose equals
+# The pose-disagreement fixture's base: mesh rendered at the true pose, predicted
+# at a pose the navigator can be made to disagree with.  At the base the predicted pose equals
 # the rendered pose (nav_override.pose_euler_deg matches the body pose), so the
 # body navigates cleanly -- the baseline.  The pose_disagreement sweep walks
 # nav_override.pose_euler_deg[1] (the Y Euler angle) away from the true 35 deg and

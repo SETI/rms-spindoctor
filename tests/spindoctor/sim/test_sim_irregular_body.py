@@ -1,4 +1,4 @@
-"""Polyhedral irregular-body renderer and navigation-geometry override (B7).
+"""Polyhedral irregular-body renderer and navigation-geometry override.
 
 Covers the standalone mesh renderer (shape, pose, shading, determinism), its
 hook into the combined render path, and the ``nav_override`` channel that builds
@@ -179,9 +179,9 @@ def _body_sim_model(body: dict[str, Any]) -> NavModelBodySimulated:
 def test_nav_override_predicts_the_overridden_shape() -> None:
     """The predicted silhouette follows nav_override, not the rendered shape.
 
-    A body rendered lumpy but predicted smooth (the B7 scenario-2 channel) yields
-    the same predicted silhouette as a body that is smooth on both sides, and a
-    different one from a body predicted lumpy.
+    A body rendered lumpy but predicted smooth (the channel the shape-mismatch
+    fixture uses) yields the same predicted silhouette as a body that is smooth on
+    both sides, and a different one from a body predicted lumpy.
     """
     overridden = _body_sim_model(
         {'mesh_lumpiness': 0.4, 'nav_override': {'mesh_lumpiness': 0.0}}

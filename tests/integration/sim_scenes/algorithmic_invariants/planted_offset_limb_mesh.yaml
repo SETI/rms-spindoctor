@@ -5,8 +5,8 @@ size_v: 220
 size_u: 220
 random_seed: 7
 exposure_sec: 1.0
-# B7 scenario 1: mesh vs mesh, same pose.  A well-resolved irregular (mesh) body
-# at low phase whose render and navigation geometry are the same mesh + pose, so
+# The matched-mesh fixture: mesh vs mesh, same pose.  A well-resolved irregular
+# (mesh) body at low phase whose render and navigation geometry are the same mesh + pose, so
 # the resolved-mesh limb path is exact by construction.  NavModelBodySimulated
 # emits a LIMB_ARC from the rendered silhouette boundary; with the predicted mesh
 # identical to the rendered one, BodyLimbNav's distance-transform fit aligns the

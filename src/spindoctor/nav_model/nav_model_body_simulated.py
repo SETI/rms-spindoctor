@@ -259,7 +259,9 @@ class NavModelBodySimulated(NavModelBodyBase):
         obs: Observation containing image geometry (used for output shapes
             and extfov margins).
         body_name: Logical body name used in metadata and labels.
-        sim_params: Dictionary of simulation parameters.  Expected keys:
+        nav_body: The navigator's filtered view of one body: its entry from
+            the idealized ``obs.nav_params['bodies']`` list, which carries no
+            truth keys.  Expected keys:
 
             - ``name``
             - ``center_v``, ``center_u`` (pixel coordinates of the center)
@@ -271,8 +273,10 @@ class NavModelBodySimulated(NavModelBodyBase):
             - ``illumination_angle`` (deg)
             - ``phase_angle`` (deg)
 
-            Crater and anti-aliasing keys are accepted but ignored;
-            anti-aliasing is always maximal here.
+            Built by ``instances_for_obs``, the entry has no crater or
+            anti-aliasing keys, since they are truth.  A direct caller may
+            pass them; they are ignored, and anti-aliasing is always maximal
+            here.
         config: Optional ``Config`` override.
         sibling_bodies: Idealized parameter dicts of the OTHER bodies in the
             same scene (from the same filtered ``nav_params['bodies']`` list
@@ -288,7 +292,7 @@ class NavModelBodySimulated(NavModelBodyBase):
         name: str,
         obs: ObsSnapshotInst,
         body_name: str,
-        sim_params: dict[str, Any],
+        nav_body: dict[str, Any],
         *,
         config: Config | None = None,
         sibling_bodies: list[dict[str, Any]] | None = None,
@@ -296,7 +300,7 @@ class NavModelBodySimulated(NavModelBodyBase):
         super().__init__(name, obs, config=config)
         self.apply_limb_emission_gates: bool = True
         self._body_name = body_name.upper()
-        self._sim_params: dict[str, Any] = dict(sim_params)
+        self._nav_body: dict[str, Any] = dict(nav_body)
         self._sibling_bodies: list[dict[str, Any]] = [dict(s) for s in sibling_bodies or []]
         self._model_img: NDArrayFloatType | None = None
         self._body_mask: NDArrayBoolType | None = None
@@ -324,10 +328,12 @@ class NavModelBodySimulated(NavModelBodyBase):
         the true shape, while the boundary filter overlays the override onto
         the idealized view this model consumes -- the channel that makes the
         navigation geometry diverge from the render geometry.  A scene renders
-        an irregular mesh at the true pose yet predicts an ellipsoid (shape
-        mismatch, B7 scenario 2), or the same mesh at a different pose
-        (chaotic-rotator pose disagreement, B7 scenario 3), without touching
-        the rendered image.  The override never changes the center, so the
+        an irregular mesh at the true pose yet predicts the same mesh with zero
+        relief (the shape-mismatch fixture), or the same mesh at a different
+        pose (the pose-disagreement fixture for a chaotic rotator), without
+        touching the rendered image.  An override may set any idealized body
+        key, including ``center_v`` and ``center_u``, which moves the predicted
+        center; the shipped fixtures override only shape or pose, so their
         predicted body stays at the unshifted position the planted offset is
         measured from.
 
@@ -414,13 +420,13 @@ class NavModelBodySimulated(NavModelBodyBase):
             center: Optional body center ``(v, u)`` on that canvas; defaults
                 to the rendered params' own predicted center.
             params: Optional body-parameter dict to render instead of this
-                model's own ``sim_params``.  The occlusion path renders each
+                model's own ``nav_body``.  The occlusion path renders each
                 nearer sibling's predicted silhouette through this.
 
         Returns:
             The rendered image on the requested canvas.
         """
-        p = self._sim_params if params is None else params
+        p = self._nav_body if params is None else params
         data_size_v, data_size_u = (
             size
             if size is not None
@@ -465,7 +471,7 @@ class NavModelBodySimulated(NavModelBodyBase):
 
     def _render(self) -> None:
         """Generate the simulated image and the matching masks."""
-        p = self._sim_params
+        p = self._nav_body
         data_size_v = int(self.obs.data_shape_v)
         data_size_u = int(self.obs.data_shape_u)
         ext_margin_v = int(self.obs.extfov_margin_v)
@@ -552,7 +558,7 @@ class NavModelBodySimulated(NavModelBodyBase):
             The overflow fraction in [0, 1]; 1 for a silhouette too small to
             cover a pixel.
         """
-        p = self._sim_params
+        p = self._nav_body
         max_semi = max(
             float(p.get('semi_a_px', 0.0)),
             float(p.get('semi_b_px', 0.0)),
@@ -743,9 +749,9 @@ class NavModelBodySimulated(NavModelBodyBase):
         # Occlusion requires a known depth order: without the subject's own
         # explicit range there is nothing to compare against, so no sibling is
         # treated as nearer and the template is left whole rather than erased.
-        if 'range_km' not in self._sim_params:
+        if 'range_km' not in self._nav_body:
             return None
-        own_range = float(self._sim_params['range_km'])
+        own_range = float(self._nav_body['range_km'])
         occluders = [
             s for s in self._sibling_bodies if 'range_km' in s and float(s['range_km']) < own_range
         ]
@@ -816,7 +822,7 @@ class NavModelBodySimulated(NavModelBodyBase):
             The [0, 1] visible-arc fraction.  1.0 when the unclipped render
             has no boundary to compare against (a degenerate geometry).
         """
-        p = self._sim_params
+        p = self._nav_body
         max_semi = max(
             float(p.get('semi_a_px', 0.0)),
             float(p.get('semi_b_px', 0.0)),
@@ -970,7 +976,7 @@ class NavModelBodySimulated(NavModelBodyBase):
             The [0, 1] visible-arc fraction.  1.0 when the unclipped render
             has no ridge to compare against (a degenerate geometry).
         """
-        p = self._sim_params
+        p = self._nav_body
         max_semi = max(
             float(p.get('semi_a_px', 0.0)),
             float(p.get('semi_b_px', 0.0)),

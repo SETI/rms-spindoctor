@@ -375,7 +375,8 @@ def gen_limb(rng: random.Random) -> dict[str, Any]:
     center_v = size / 2 + displacement * math.sin(theta)
     center_u = size / 2 + displacement * math.cos(theta)
     # A pose-error slice keeps the "confidently wrong limb" failure mode
-    # in the cohort (the trained-away B7-3 scenario).
+    # in the cohort (the trained-away pose-disagreement scenario, where the mesh
+    # is predicted at a different pose than it was rendered at).
     pose_error = rng.uniform(2.0, 35.0) if rng.random() < 0.2 else 0.0
     body = _catalog_body(
         rng,

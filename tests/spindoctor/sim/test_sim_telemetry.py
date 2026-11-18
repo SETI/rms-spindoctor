@@ -14,6 +14,7 @@ from typing import Any
 
 import numpy as np
 import pytest
+from tests.spindoctor.sim.artifact_counts import planted_artifact_counts
 
 from spindoctor.sim.artifact_modes import (
     ARTIFACT_MODES,
@@ -21,7 +22,6 @@ from spindoctor.sim.artifact_modes import (
     STRUCTURED_LOSS_ORDER,
     resolve_mode_config,
 )
-from spindoctor.sim.forward.artifact_counts import planted_artifact_counts
 from spindoctor.sim.forward.detector.params import (
     CalibrationMap,
     calibration_map,
