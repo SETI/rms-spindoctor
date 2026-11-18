@@ -8,19 +8,18 @@ from typing import Any
 import numpy as np
 import pytest
 
-from spindoctor.sim.render import render_combined_model
-from spindoctor.sim.scene import (
+from spindoctor.sim.render.driver import render_scene
+from spindoctor.sim.scene.boundary import (
     _ALLOWED_KEYS,
     _OBJECT_BLOCKS,
     TOP_LEVEL_IDEALIZED_KEYS,
     TOP_LEVEL_TEST_ONLY_KEYS,
     TOP_LEVEL_TRUTH_KEYS,
     TRUTH_KEYS,
-    SimSceneValidationError,
-    load_sim_scene,
-    save_sim_scene,
-    validate_sim_params,
 )
+from spindoctor.sim.scene.errors import SimSceneValidationError
+from spindoctor.sim.scene.io import load_sim_scene, save_sim_scene
+from spindoctor.sim.scene.validate import validate_sim_params
 
 
 def _sim_params() -> dict[str, Any]:
@@ -659,9 +658,7 @@ def test_a_null_top_level_block_validates_and_renders(key: str) -> None:
     absent = {name: value for name, value in params.items() if name != key}
     params[key] = None
     validate_sim_params(params)
-    np.testing.assert_array_equal(
-        render_combined_model(params)[0], render_combined_model(absent)[0]
-    )
+    np.testing.assert_array_equal(render_scene(params)[0], render_scene(absent)[0])
 
 
 def test_validate_sim_params_rejects_duplicate_body_names() -> None:

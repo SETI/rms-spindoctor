@@ -45,8 +45,8 @@ from spindoctor.nav_model.stars.conflicts import (
     parse_ring_occlusion_annuli,
 )
 from spindoctor.obs import ObsSnapshotInst
-from spindoctor.sim.forward.scene_radiance import sky_star_faint_cutoff_mag
-from spindoctor.sim.instrument_resolvers import binning_for_frame_size
+from spindoctor.sim.instruments.resolvers import binning_for_frame_size
+from spindoctor.sim.render.radiance.compose import sky_star_faint_cutoff_mag
 from spindoctor.support.attrdict import AttrDict
 
 __all__ = [
@@ -81,7 +81,7 @@ def twin_faint_cutoff_vmag(instrument: str, exposure_sec: float, size_vu: tuple[
     """The faintest catalog magnitude a star twin holds.
 
     The cutoff is the renderer's cutoff for its background sky stars
-    (:func:`~spindoctor.sim.forward.scene_radiance.sky_star_faint_cutoff_mag`), for the
+    (:func:`~spindoctor.sim.render.radiance.compose.sky_star_faint_cutoff_mag`), for the
     twin's camera, exposure, readout binning, and instrument signal chain, through the
     clear filter.  A star at the cutoff deposits a total flux equal to the camera's
     nominal read noise, taken as at least 1, over the core of the twin's PSF, which

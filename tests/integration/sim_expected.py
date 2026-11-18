@@ -46,7 +46,7 @@ from spindoctor.nav_model import build_models_for_obs
 from spindoctor.nav_orchestrator import NavOrchestrator
 from spindoctor.nav_orchestrator.nav_result import NavResult
 from spindoctor.obs.obs_inst_sim import ObsSim
-from spindoctor.sim.scene import iter_scene_paths, load_sim_scene
+from spindoctor.sim.scene.io import iter_scene_paths, load_sim_scene
 
 
 @dataclass(frozen=True)

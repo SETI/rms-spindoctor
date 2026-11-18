@@ -11,8 +11,9 @@ import math
 from typing import Any
 
 import pytest
+from tests.spindoctor.sim.scenes import disc_body, frame_scene
 
-from spindoctor.sim.render import render_combined_model
+from spindoctor.sim.render.driver import render_scene
 
 _R_FAR = 60.0
 _R_NEAR = 50.0
@@ -21,36 +22,30 @@ _FAR_U = 95.0
 
 def _two_circle_scene(separation_px: float) -> dict[str, Any]:
     """Two spheres at controlled center separation, far body first."""
-    return {
-        'instrument': 'coiss_nac',
-        'size_v': 256,
-        'size_u': 256,
-        'random_seed': 42,
-        'bodies': [
-            {
-                'name': 'FAR',
-                'center_v': 128.0,
-                'center_u': _FAR_U,
-                'semi_a_px': _R_FAR,
-                'semi_b_px': _R_FAR,
-                'semi_c_px': _R_FAR,
-                'illumination_angle': 20.0,
-                'phase_angle': 30.0,
-                'range_km': 700000.0,
-            },
-            {
-                'name': 'NEAR',
-                'center_v': 128.0,
-                'center_u': _FAR_U + separation_px,
-                'semi_a_px': _R_NEAR,
-                'semi_b_px': _R_NEAR,
-                'semi_c_px': _R_NEAR,
-                'illumination_angle': 20.0,
-                'phase_angle': 30.0,
-                'range_km': 500000.0,
-            },
+    return frame_scene(
+        size=256,
+        seed=42,
+        bodies=[
+            disc_body(
+                128.0,
+                _FAR_U,
+                _R_FAR,
+                name='FAR',
+                illumination_angle=20.0,
+                phase_angle=30.0,
+                range_km=700000.0,
+            ),
+            disc_body(
+                128.0,
+                _FAR_U + separation_px,
+                _R_NEAR,
+                name='NEAR',
+                illumination_angle=20.0,
+                phase_angle=30.0,
+                range_km=500000.0,
+            ),
         ],
-    }
+    )
 
 
 def _analytic_occlusion(d: float, r1: float, r2: float) -> tuple[float, float]:
@@ -68,7 +63,7 @@ def _analytic_occlusion(d: float, r1: float, r2: float) -> tuple[float, float]:
 @pytest.mark.parametrize('separation_px', [100.0, 70.0, 55.0])
 def test_far_body_occlusion_matches_two_circle_geometry(separation_px: float) -> None:
     """visible_fraction and occluded_limb_arc_deg match the closed forms."""
-    _, meta = render_combined_model(_two_circle_scene(separation_px))
+    _, meta = render_scene(_two_circle_scene(separation_px))
     truth = meta['body_occlusion']['FAR']
     visible_expected, arc_expected = _analytic_occlusion(separation_px, _R_FAR, _R_NEAR)
     assert truth['visible_fraction'] == pytest.approx(visible_expected, abs=0.02)
@@ -77,7 +72,7 @@ def test_far_body_occlusion_matches_two_circle_geometry(separation_px: float) ->
 
 def test_near_body_is_recorded_fully_visible() -> None:
     """The occluding (nearer) body carries no occlusion of its own."""
-    _, meta = render_combined_model(_two_circle_scene(70.0))
+    _, meta = render_scene(_two_circle_scene(70.0))
     truth = meta['body_occlusion']['NEAR']
     assert truth['visible_fraction'] == 1.0
     assert truth['occluded_limb_arc_deg'] == 0.0
@@ -85,7 +80,7 @@ def test_near_body_is_recorded_fully_visible() -> None:
 
 def test_disjoint_bodies_record_no_occlusion() -> None:
     """Non-overlapping bodies record full visibility on both sides."""
-    _, meta = render_combined_model(_two_circle_scene(140.0))
+    _, meta = render_scene(_two_circle_scene(140.0))
     for name in ('FAR', 'NEAR'):
         assert meta['body_occlusion'][name]['visible_fraction'] == 1.0
         assert meta['body_occlusion'][name]['occluded_limb_arc_deg'] == 0.0
@@ -95,7 +90,7 @@ def test_single_body_scene_records_trivial_occlusion() -> None:
     """A one-body scene still carries the truth block, trivially unoccluded."""
     scene = _two_circle_scene(70.0)
     scene['bodies'] = scene['bodies'][:1]
-    _, meta = render_combined_model(scene)
+    _, meta = render_scene(scene)
     assert meta['body_occlusion'] == {
         'FAR': {'visible_fraction': 1.0, 'occluded_limb_arc_deg': 0.0}
     }

@@ -11,7 +11,7 @@ the smooth path's for rotated poses.
 import numpy as np
 import pytest
 
-from spindoctor.sim.forward.body import create_simulated_body
+from spindoctor.sim.render.bodies.render import create_simulated_body
 
 _SIZE = (101, 101)
 _CENTER = (50.5, 50.5)

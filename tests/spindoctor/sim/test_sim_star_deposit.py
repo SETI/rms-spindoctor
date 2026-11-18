@@ -17,20 +17,21 @@ from typing import Any
 import numpy as np
 import pytest
 from scipy.signal import fftconvolve
+from tests.spindoctor.sim.scenes import frame_scene, star_entry
 
 from spindoctor.config import DEFAULT_CONFIG
-from spindoctor.sim.forward.detector.params import calibration_map, resolve_detector_params
-from spindoctor.sim.forward.psf import psf_kernel
-from spindoctor.sim.forward.scene_radiance import _nominal_read_noise, sky_star_faint_cutoff_mag
-from spindoctor.sim.forward.star import faint_sky_cutoff_mag, render_sky_counts
-from spindoctor.sim.instrument_navigator import resolve_sim_inst_config
-from spindoctor.sim.instrument_resolvers import (
+from spindoctor.sim.instruments.navigator_link import resolve_sim_inst_config
+from spindoctor.sim.instruments.resolvers import (
     filter_star_flux_scale,
     resolve_psf_kernel,
     resolve_psf_truncation_px,
     resolve_star_flux_zero_point,
 )
-from spindoctor.sim.render import clear_render_caches, render_combined_model
+from spindoctor.sim.render.detector.params import calibration_map, resolve_detector_params
+from spindoctor.sim.render.driver import clear_render_caches, render_scene
+from spindoctor.sim.render.optics.psf import psf_kernel
+from spindoctor.sim.render.radiance.compose import _nominal_read_noise, sky_star_faint_cutoff_mag
+from spindoctor.sim.render.radiance.stars import faint_sky_cutoff_mag, render_sky_counts
 
 # Explicit zeroing of every stochastic detector knob, so the star-profile
 # measurements below see only the deterministic signal chain.
@@ -54,15 +55,12 @@ def _star_scene(instrument: str, *, vmag: float = 4.0, **extra: Any) -> dict[str
     The default magnitude is bright enough to sample the PSF well but below
     saturation at the coiss_wac zero point the profile tests use.
     """
-    scene: dict[str, Any] = {
-        'size_v': 64,
-        'size_u': 64,
-        'random_seed': 1,
-        'instrument': instrument,
-        'exposure_sec': 1.0,
-        'noise': dict(_QUIET_NOISE),
-        'stars': [{'name': 'S', 'v': 32.5, 'u': 32.5, 'vmag': vmag}],
-    }
+    scene = frame_scene(
+        instrument=instrument,
+        exposure_sec=1.0,
+        noise=dict(_QUIET_NOISE),
+        stars=[star_entry(32.5, 32.5, vmag)],
+    )
     scene.update(extra)
     return scene
 
@@ -94,7 +92,7 @@ def _star_window_sum(instrument: str, *, vmag: float, exposure_sec: float) -> fl
         exposure_sec=exposure_sec,
         optics={'psf': {'match_navigator': True}},
     )
-    img, _ = render_combined_model(scene)
+    img, _ = render_scene(scene)
     return float(img[20:45, 20:45].sum())
 
 
@@ -120,7 +118,7 @@ def _point_mass_conservation(oversample: int) -> tuple[float, float]:
         optics={'psf': {'match_navigator': True}},
         oversample=oversample,
     )
-    img, meta = render_combined_model(scene)
+    img, meta = render_scene(scene)
     total_flux = float(meta['star_info'][0]['total_flux'])
     # Generic detector: gain 1, bias 0 in _QUIET_NOISE, so DN == electrons.
     return float(img[20:45, 20:45].sum()), total_flux
@@ -141,7 +139,7 @@ def test_point_mass_conserves_flux_at_os4() -> None:
 def test_floor_star_sigma_equals_the_navigator_sigma() -> None:
     """A match_navigator floor star renders at the configured 0.77, not 0.77*sqrt(2)."""
     scene = _star_scene('coiss_wac', optics={'psf': {'match_navigator': True}})
-    img, _ = render_combined_model(scene)
+    img, _ = render_scene(scene)
     _, _, sigma_v, sigma_u = _moment_stats(img, 32, 8)
     assert abs(sigma_v - 0.77) < 0.02 * 0.77
     assert abs(sigma_u - 0.77) < 0.02 * 0.77
@@ -150,7 +148,7 @@ def test_floor_star_sigma_equals_the_navigator_sigma() -> None:
 def test_floor_star_centroid_lands_at_the_catalog_position() -> None:
     """The point-mass deposit puts the star centroid exactly at its position."""
     scene = _star_scene('coiss_wac', optics={'psf': {'match_navigator': True}})
-    img, _ = render_combined_model(scene)
+    img, _ = render_scene(scene)
     cv, cu, _, _ = _moment_stats(img, 32, 8)
     assert abs(cv - 32.0) < 0.05
     assert abs(cu - 32.0) < 0.05
@@ -159,7 +157,7 @@ def test_floor_star_centroid_lands_at_the_catalog_position() -> None:
 def test_floor_star_truth_records_the_rendered_sigma() -> None:
     """The star hit-test metadata carries the scene-PSF sigma, not a pre-spread one."""
     scene = _star_scene('coiss_wac', optics={'psf': {'match_navigator': True}})
-    _, meta = render_combined_model(scene)
+    _, meta = render_scene(scene)
     assert meta['star_info'][0]['sigma'] == 0.77
 
 
@@ -171,14 +169,14 @@ def test_no_psf_star_truth_records_zero_sigma() -> None:
     PSF-matched and hide the mismatch from floor-integrity checks.
     """
     scene = _star_scene('coiss_wac')
-    _, meta = render_combined_model(scene)
+    _, meta = render_scene(scene)
     assert meta['star_info'][0]['sigma'] == 0.0
 
 
 def test_no_psf_star_pixels_unchanged_by_sigma_record() -> None:
     """The recorded sigma is metadata only: the no-PSF deposit stays a spike."""
     scene = _star_scene('coiss_wac')
-    img, _ = render_combined_model(scene)
+    img, _ = render_scene(scene)
     cutout = img[28:37, 28:37]
     # A 1-px spike concentrates essentially all cutout flux in one pixel.
     assert float(cutout.max()) / float(cutout.sum()) > 0.9
@@ -201,7 +199,7 @@ def test_instrument_defaults_star_reproduces_the_catalog_kernel() -> None:
         # profile comparison sees only the PSF.
         optics={'distortion': {'k1': 0.0, 'k2': 0.0, 'nonradial_rms_px': 0.0}},
     )
-    img, _ = render_combined_model(scene)
+    img, _ = render_scene(scene)
     radius = 10
     cut = img[32 - radius : 32 + radius + 1, 32 - radius : 32 + radius + 1].astype(np.float64)
 
@@ -248,7 +246,7 @@ def test_vidicon_star_renders_in_the_dn_domain() -> None:
         vmag=1.2,
         optics={'psf': {'match_navigator': True}},
     )
-    img, meta = render_combined_model(scene)
+    img, meta = render_scene(scene)
     calibration = calibration_map(resolve_detector_params(scene))
     assert calibration is not None
     total_dn = float(meta['star_info'][0]['total_flux'])
@@ -267,7 +265,7 @@ def test_ghost_of_a_star_exists() -> None:
             'ghosts': [{'dv_px': dv, 'du_px': du, 'amplitude': 0.2, 'defocus_sigma': 1.0}],
         },
     )
-    img, _ = render_combined_model(scene)
+    img, _ = render_scene(scene)
     # The main star sits at (32, 32); its ghost sits at (32 + dv, 32 + du).
     ghost = img[32 + dv - 3 : 32 + dv + 4, 32 + du - 3 : 32 + du + 4]
     assert float(ghost.max()) > 1.0
@@ -462,7 +460,7 @@ def test_render_caches_cleared_between_sky_renders() -> None:
         optics={'psf': {'match_navigator': True}},
         sky_counts={'density_factor': 500.0},
     )
-    first, _ = render_combined_model(scene)
+    first, _ = render_scene(scene)
     clear_render_caches()
-    second, _ = render_combined_model(scene)
+    second, _ = render_scene(scene)
     assert np.array_equal(first, second)

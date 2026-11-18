@@ -5,7 +5,7 @@ Simulated Body Navigation Model
 Overview
 ========
 
-:class:`~spindoctor.nav_model.nav_model_body_simulated.NavModelBodySimulated` is the
+:class:`~spindoctor.nav_model.simulated.body.NavModelBodySimulated` is the
 simulated-image variant of the body navigation model. It renders a body from
 operator-supplied ellipsoid (or polyhedral-mesh) parameters -- center, axes, rotation,
 lighting -- instead of from SPICE prediction, then emits the body features the navigation
@@ -35,7 +35,7 @@ techniques consume:
 The terminator is distinct from the limb: the limb is the silhouette edge against sky,
 while the terminator cuts *across* the disc where the lit hemisphere meets the unlit one.
 Because the shading floors the visible-but-unlit hemisphere at a small constant
-(:data:`~spindoctor.sim.ellipsoid_geometry.DARK_SIDE_ILLUM_STRENGTH`), the rendered body mask
+(:data:`~spindoctor.sim.shared.ellipsoid.DARK_SIDE_ILLUM_STRENGTH`), the rendered body mask
 (brightness above zero) is the whole visible disc, and the lit region is the part brighter
 than that floor; the terminator polyline is the lit pixels adjacent to the interior unlit
 disc, with the limb ring excluded so the polyline stays interior to the disc -- except at
@@ -82,7 +82,7 @@ Restrictions and assumptions
 
 - The operator must supply finite, positive ellipsoid axes. Degenerate inputs (zero
   radius, negative axes) are rejected by
-  :func:`~spindoctor.nav_model.sim_body.create_simulated_body`.
+  :func:`~spindoctor.nav_model.simulated.predict_body.create_predicted_body_image`.
 - The body appearance keys -- crater terrain, the limb-relief field, the photometric
   law and opposition surge, the albedo and disc textures and transits, the atmospheric
   haze layer, the mesh shading mode and pose scatter, and anti-aliasing -- are truth
@@ -99,7 +99,7 @@ Restrictions and assumptions
   parameters), and the ``atmosphere`` catalog scenes pin that measured bias. Those
   scenes carry a body named ``HAZEMOON`` so they stay in this haze-blind regime; a
   simulated body named ``TITAN`` is claimed by
-  :class:`~spindoctor.nav_model.nav_model_titan_simulated.NavModelTitanSimulated`
+  :class:`~spindoctor.nav_model.simulated.titan.NavModelTitanSimulated`
   instead, which predicts the haze envelope rather than a hard limb.
 - The simulated body is rendered onto a fixed extfov image without per-instrument noise
   or PSF smearing; the operator's downstream noise-injection pipeline supplies those.
@@ -115,7 +115,7 @@ Configuration
 =============
 
 The simulated body model consumes no YAML configuration of its own; every parameter comes
-in via the per-body entry of the observation's filtered scene view
+in via the per-body entry of the observation's navigator view
 (``obs.nav_params['bodies']``, see :doc:`dev_guide_simulator`). Expected keys:
 
 - ``name`` — body label used in metadata and the summary PNG.
@@ -132,7 +132,7 @@ in via the per-body entry of the observation's filtered scene view
   degrees).
 - ``shape_model`` — ``ellipsoid`` (default) or ``polyhedral_mesh`` for an irregular body;
   a mesh reads ``mesh_lumpiness``, ``mesh_seed``, and ``pose_euler_deg`` (see
-  :func:`~spindoctor.sim.mesh_geometry.mesh_spec_from_params`).
+  :func:`~spindoctor.sim.shared.mesh.mesh_spec_from_params`).
 - ``km_per_pixel`` — optional physical scale at the limb; when absent the
   phase-irregularity factor collapses to the regular-body case.
 - ``nav_override`` — optional scene mapping overlaid onto the body's idealized view by
@@ -158,7 +158,7 @@ renderer drew, so the navigator knows the truth (the agreeing case).
 
 An optional ``nav_override`` mapping breaks that tie. The renderer ignores it and
 always draws the true geometry; the boundary filter
-(:func:`~spindoctor.sim.scene.build_nav_params`) overlays ``nav_override`` onto the
+(:func:`~spindoctor.sim.scene.boundary.build_nav_params`) overlays ``nav_override`` onto the
 body's idealized view and drops the key, so the predicted body is built from what the
 navigator *believes* without the true values underneath. A key set to null inside
 ``nav_override`` leaves the idealized value in place, and a body key that is still
@@ -188,10 +188,10 @@ unshifted position the planted offset is measured from.
 Implementation
 ==============
 
-Source file: ``src/spindoctor/nav_model/nav_model_body_simulated.py`` —
-:class:`~spindoctor.nav_model.nav_model_body_simulated.NavModelBodySimulated`.
+Source file: ``src/spindoctor/nav_model/simulated/body.py`` —
+:class:`~spindoctor.nav_model.simulated.body.NavModelBodySimulated`.
 
-Public class :class:`~spindoctor.nav_model.nav_model_body_simulated.NavModelBodySimulated`, base
+Public class :class:`~spindoctor.nav_model.simulated.body.NavModelBodySimulated`, base
 :class:`~spindoctor.nav_model.nav_model_body_base.NavModelBodyBase`. The class overrides
 :meth:`~spindoctor.nav_model.nav_model.NavModel.instances_for_obs` to build one instance per body
 of a simulated observation; the parent
@@ -202,17 +202,17 @@ this subclass.
 
 Public methods (autodocumented at :doc:`/api_reference/api_nav_model`):
 
-- :meth:`~spindoctor.nav_model.nav_model_body_simulated.NavModelBodySimulated.create_model` —
-  renders the simulated body (ellipsoid via
-  :func:`~spindoctor.nav_model.sim_body.create_simulated_body`, or a mesh via
-  :func:`~spindoctor.sim.mesh_geometry.render_mesh_body_image`), computes the limb mask via
+- :meth:`~spindoctor.nav_model.simulated.body.NavModelBodySimulated.create_model` —
+  renders the simulated body (an ellipsoid via
+  :func:`~spindoctor.nav_model.simulated.predict_body.create_predicted_body_image`,
+  or a mesh via :func:`~spindoctor.sim.shared.mesh.render_mesh_body_image`), computes the limb mask via
   the shared :class:`~spindoctor.nav_model.nav_model_body_base.NavModelBodyBase` helper, and
   records the predicted diameter, tight bounding box, and silhouette overflow fraction
   that decide which features it emits.
-- :meth:`~spindoctor.nav_model.nav_model_body_simulated.NavModelBodySimulated.to_features` — emits
+- :meth:`~spindoctor.nav_model.simulated.body.NavModelBodySimulated.to_features` — emits
   the BODY_DISC, BODY_BLOB, LIMB_ARC, and TERMINATOR_ARC features described under
   *Overview*, each under the conditions listed there.
-- :meth:`~spindoctor.nav_model.nav_model_body_simulated.NavModelBodySimulated.to_annotations` —
+- :meth:`~spindoctor.nav_model.simulated.body.NavModelBodySimulated.to_annotations` —
   reuses the shared body annotation helper on
   :class:`~spindoctor.nav_model.nav_model_body_base.NavModelBodyBase` to render body silhouette
   and labels onto the summary PNG.
@@ -226,13 +226,14 @@ Call path
 ---------
 
 Call path traced through
-:meth:`~spindoctor.nav_model.nav_model_body_simulated.NavModelBodySimulated.create_model`:
+:meth:`~spindoctor.nav_model.simulated.body.NavModelBodySimulated.create_model`:
 
 1. Open a logged section. Read the operator-supplied sim parameters off the per-instance
    dict.
 2. Convert per-axis rotations and angle parameters from degrees to radians.
-3. Call :func:`~spindoctor.nav_model.sim_body.create_simulated_body` with the semi-axes and
-   geometry; the helper returns the rendered simulated body image.
+3. Call
+   :func:`~spindoctor.nav_model.simulated.predict_body.create_predicted_body_image`
+   with the semi-axes and geometry; the helper returns the rendered simulated body image.
 4. Derive the body mask from the rendered image (every non-zero pixel is on the body).
 5. Compute the limb mask via
    :class:`~spindoctor.nav_model.nav_model_body_base.NavModelBodyBase`'s shared discrete-mask
@@ -249,7 +250,7 @@ Call path traced through
    downsampled by a whole factor and its count is scaled back, so memory stays bounded.
 
 Call path traced through
-:meth:`~spindoctor.nav_model.nav_model_body_simulated.NavModelBodySimulated.to_features`:
+:meth:`~spindoctor.nav_model.simulated.body.NavModelBodySimulated.to_features`:
 
 1. Crop the rendered template image and mask to the per-instance tight bounding box (the
    silhouette bbox plus slop, matching the SPICE-backed model, so a downstream moment
@@ -287,7 +288,7 @@ Call path traced through
    construction and the correlation technique carries its own quality diagnostics),
    while the blob carries the shared detection-SNR reliability from the base class.
    Body-body occlusion is resolved from the sibling bodies' idealized geometry: each
-   model instance receives the OTHER bodies of the same filtered scene view, and a
+   model instance receives the OTHER bodies of the same navigator view, and a
    sibling occludes only when both bodies carry an explicit ``range_km`` and the
    sibling's is strictly nearer -- the navigator-side mirror of the renderer's rule
    that overlapping bodies must all declare their depth.  The disc template itself is

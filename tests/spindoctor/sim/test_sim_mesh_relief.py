@@ -34,7 +34,7 @@ import numpy as np
 import pytest
 from scipy.special import sph_legendre_p
 
-from spindoctor.sim.mesh_geometry import Mesh, make_irregular_mesh, mesh_spec_from_params
+from spindoctor.sim.shared.mesh import Mesh, make_irregular_mesh, mesh_spec_from_params
 from spindoctor.support.types import NDArrayComplexType, NDArrayFloatType
 
 _CASES = [(0.08, 0), (0.3, 0), (0.45, 7), (0.52, 3)]

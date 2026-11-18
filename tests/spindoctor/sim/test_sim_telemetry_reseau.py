@@ -8,7 +8,7 @@ that the mode is a no-op at probability 0.
 
 import numpy as np
 
-from spindoctor.sim.forward.telemetry_artifacts import _reseau_lattice, apply_reseau_scars
+from spindoctor.sim.render.telemetry.artifacts import _reseau_lattice, apply_reseau_scars
 
 
 def test_reseau_scars_smooth_lattice_patches() -> None:

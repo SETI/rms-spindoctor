@@ -15,7 +15,7 @@ Registered concrete subclasses:
 - :class:`~spindoctor.nav_model.stars.nav_model_stars.NavModelStars` — catalog-driven star
   navigation; one instance per observation. Documented at
   :doc:`dev_guide_navigation_models_star`.
-- :class:`~spindoctor.nav_model.stars.nav_model_stars_simulated.NavModelStarsSimulated` —
+- :class:`~spindoctor.nav_model.simulated.stars.NavModelStarsSimulated` —
   the simulated-image sibling. Emits STAR features exactly the way ``NavModelStars``
   does, but builds the star list from the scene's catalog entries in the filtered
   idealized view (``obs.nav_params``) rather than reducing real catalogs. Documented at
@@ -24,9 +24,9 @@ Registered concrete subclasses:
 The :mod:`spindoctor.nav_model.stars` subpackage carries the catalog reduction
 (``catalog.py``), per-star body / ring conflict marking (``conflicts.py``), the raw-DN
 photometry diagnostic and B-V color mapping (``predicted_snr.py``), smear-aware PSF
-construction (``smeared_psf.py``), on-image source detection (``detection.py``), and the
-simulated-scene model (``nav_model_stars_simulated.py``). Each helper is independently
-testable so the per-step assumptions can be exercised in isolation.
+construction (``smeared_psf.py``), and on-image source detection (``detection.py``). Each
+helper is independently testable so the per-step assumptions can be exercised in isolation.
+The simulated-scene model lives in :mod:`spindoctor.nav_model.simulated.stars`.
 
 .. toctree::
    :maxdepth: 4

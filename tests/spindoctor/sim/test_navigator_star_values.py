@@ -26,24 +26,25 @@ from typing import Any
 import pytest
 from ruamel.yaml import YAML
 from ruamel.yaml.nodes import MappingNode, Node
+from tests.spindoctor.sim.scenes import frame_scene
 
 import spindoctor
 from spindoctor.config import DEFAULT_CONFIG
 from spindoctor.obs.obs_inst_sim import ObsSim
-from spindoctor.sim.forward.detector.params import resolve_detector_params
-from spindoctor.sim.instrument_catalog import (
+from spindoctor.sim.instruments.catalog import (
     GENERIC_INSTRUMENT,
     load_instrument_catalog,
     sim_instrument_names,
 )
-from spindoctor.sim.instrument_navigator import resolve_sim_inst_config
-from spindoctor.sim.instrument_resolvers import (
+from spindoctor.sim.instruments.navigator_link import resolve_sim_inst_config
+from spindoctor.sim.instruments.resolvers import (
     cataloged_binnings,
     resolve_data_units,
     resolve_star_flux_zero_point,
 )
-from spindoctor.sim.scene import validate_scene, validate_sim_params
-from spindoctor.sim.scene_schema import SimSceneValidationError
+from spindoctor.sim.render.detector.params import resolve_detector_params
+from spindoctor.sim.scene.errors import SimSceneValidationError
+from spindoctor.sim.scene.validate import validate_scene, validate_sim_params
 
 _CONFIG_FILES_DIR = Path(spindoctor.__file__).parent / 'config_files'
 
@@ -124,7 +125,9 @@ def test_the_navigator_zero_point_matches_the_simulators(instrument: str) -> Non
     """
     zero_point, domain = resolve_star_flux_zero_point(instrument)
     if domain == 'electrons':
-        zero_point /= resolve_detector_params({'instrument': instrument}).gain_e_per_dn
+        zero_point /= resolve_detector_params(
+            {'instrument': instrument, 'random_seed': 42}
+        ).gain_e_per_dn
     # A block without the key fails here and in the test above, which says why.
     stated = resolve_sim_inst_config(DEFAULT_CONFIG, instrument)['noise'][
         'star_flux_dn_per_s_vmag0'
@@ -158,6 +161,7 @@ def _binned_mode_detector(instrument: str, binning: int) -> Any:
         'instrument': instrument,
         'size_v': 32,
         'size_u': 32,
+        'random_seed': 42,
         'detector': {'binning': binning},
         'artifacts': {'instrument_defaults': True},
     }
@@ -200,13 +204,7 @@ def _scene(
     instrument_config: Any, *, instrument: str = 'coiss_nac', binning: int = 2
 ) -> dict[str, Any]:
     """A scene with the given ``instrument_config`` overrides, summed 2x2 by default."""
-    scene: dict[str, Any] = {
-        'instrument': instrument,
-        'size_v': 32,
-        'size_u': 32,
-        'random_seed': 1,
-        'instrument_config': instrument_config,
-    }
+    scene = frame_scene(instrument=instrument, size=32, instrument_config=instrument_config)
     if binning != 1:
         scene['detector'] = {'binning': binning}
     return scene

@@ -10,23 +10,19 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from tests.spindoctor.sim.scenes import frame_scene
 
 from spindoctor.config import DEFAULT_CONFIG
 from spindoctor.nav_orchestrator.instrument_config import instrument_settings_from_obs
 from spindoctor.obs.obs_inst_sim import ObsSim
-from spindoctor.sim.instrument_navigator import resolve_sim_inst_config
-from spindoctor.sim.instrument_resolvers import resolve_detector_defaults
-from spindoctor.sim.render import render_combined_model
+from spindoctor.sim.instruments.navigator_link import resolve_sim_inst_config
+from spindoctor.sim.instruments.resolvers import resolve_detector_defaults_native
+from spindoctor.sim.render.driver import render_scene
 
 
 def _obs(instrument: str, *, size: int = 64) -> ObsSim:
     """Build an ObsSim for the given instrument from a minimal scene."""
-    params: dict[str, Any] = {
-        'size_v': size,
-        'size_u': size,
-        'random_seed': 1,
-        'instrument': instrument,
-    }
+    params = frame_scene(instrument=instrument, size=size)
     return ObsSim.from_file('/tmp/sim_test.json', sim_params=params)
 
 
@@ -88,12 +84,10 @@ def test_settings_generic_defaults_to_raw_dn() -> None:
 
 def _lit_body_scene(instrument: str, *, size: int = 64) -> dict[str, Any]:
     """A scene with a single lit body for the given instrument."""
-    return {
-        'size_v': size,
-        'size_u': size,
-        'random_seed': 1,
-        'instrument': instrument,
-        'bodies': [
+    return frame_scene(
+        instrument=instrument,
+        size=size,
+        bodies=[
             {
                 'name': 'B',
                 'center_v': size / 2,
@@ -105,19 +99,19 @@ def _lit_body_scene(instrument: str, *, size: int = 64) -> dict[str, Any]:
                 'phase_angle': 30.0,
             }
         ],
-    }
+    )
 
 
 def test_raw_dn_render_is_in_dn() -> None:
     """A raw_dn instrument render reaches DN well above the [0, 1] signal range."""
-    img, _ = render_combined_model(_lit_body_scene('coiss_nac'))
+    img, _ = render_scene(_lit_body_scene('coiss_nac'))
     assert float(img.max()) > 100.0
 
 
 def test_gossi_scales_to_8bit_well() -> None:
     """The gossi render is bounded by its 8-bit ADC ceiling, unlike 12-bit coiss."""
-    gossi_img, _ = render_combined_model(_lit_body_scene('gossi'))
-    coiss_img, _ = render_combined_model(_lit_body_scene('coiss_nac'))
+    gossi_img, _ = render_scene(_lit_body_scene('gossi'))
+    coiss_img, _ = render_scene(_lit_body_scene('coiss_nac'))
     # Galileo's 8-bit ADC clips at 255 DN (the CCD full well sits above it in DN),
     # while the Cassini 12-bit chain reaches well past 255.
     assert float(gossi_img.max()) <= 255.0
@@ -126,8 +120,8 @@ def test_gossi_scales_to_8bit_well() -> None:
 
 def test_calibrated_if_render_stays_in_if_range() -> None:
     """A calibrated_if render stays in I/F: at most 1 above the calibrated sky residual."""
-    img, _ = render_combined_model(_lit_body_scene('vgiss'))
-    residual = float(resolve_detector_defaults('vgiss')['calibrated_sky_if'])
+    img, _ = render_scene(_lit_body_scene('vgiss'))
+    residual = float(resolve_detector_defaults_native('vgiss')['calibrated_sky_if'])
     assert float(img.max()) <= 1.0 + residual
 
 
@@ -148,7 +142,7 @@ def test_overrides_deep_merge_nested_block() -> None:
 
 
 def test_overrides_do_not_mutate_the_live_block() -> None:
-    """Resolving with overrides leaves the underlying config block untouched."""
+    """Resolving with overrides leaves the navigator block untouched."""
     before = float(resolve_sim_inst_config(DEFAULT_CONFIG, 'coiss_nac')['star_psf_sigma'])
     resolve_sim_inst_config(DEFAULT_CONFIG, 'coiss_nac', {'star_psf_sigma': 9.0})
     after = float(resolve_sim_inst_config(DEFAULT_CONFIG, 'coiss_nac')['star_psf_sigma'])
@@ -184,13 +178,7 @@ def test_no_overrides_returns_the_live_block() -> None:
 
 def test_overrides_reach_the_obs_inst_config() -> None:
     """A scene's instrument_config override is visible on the obs inst config."""
-    params: dict[str, Any] = {
-        'size_v': 64,
-        'size_u': 64,
-        'random_seed': 1,
-        'instrument': 'coiss_nac',
-        'instrument_config': {'noise': {'read_noise_dn': 12.0}},
-    }
+    params = frame_scene(instrument_config={'noise': {'read_noise_dn': 12.0}})
     obs = ObsSim.from_file('/tmp/sim_test.json', sim_params=params)
     assert obs._inst_config is not None
     assert float(obs._inst_config['noise']['read_noise_dn']) == 12.0
@@ -198,15 +186,12 @@ def test_overrides_reach_the_obs_inst_config() -> None:
 
 def test_instrument_config_round_trips_through_the_scene_schema(tmp_path: Path) -> None:
     """instrument_config survives a scene save/load round-trip (GUI save path)."""
-    from spindoctor.sim.scene import load_sim_scene, save_sim_scene
+    from spindoctor.sim.scene.io import load_sim_scene, save_sim_scene
 
-    sim_params: dict[str, Any] = {
-        'size_v': 64,
-        'size_u': 64,
-        'random_seed': 1,
-        'instrument': 'generic',
-        'instrument_config': {'star_psf_sigma': 1.5, 'noise': {'read_noise_dn': 3.0}},
-    }
+    sim_params = frame_scene(
+        instrument='generic',
+        instrument_config={'star_psf_sigma': 1.5, 'noise': {'read_noise_dn': 3.0}},
+    )
     path = tmp_path / 'example.yaml'
     save_sim_scene(sim_params, path)
     scene = load_sim_scene(path)
@@ -215,7 +200,7 @@ def test_instrument_config_round_trips_through_the_scene_schema(tmp_path: Path) 
 
 def test_extfov_margin_unmatched_size_names_the_available_keys() -> None:
     """An uncovered image size fails with the size and the fallback keys."""
-    from spindoctor.sim.instrument_navigator import resolve_extfov_margin
+    from spindoctor.sim.instruments.navigator_link import resolve_extfov_margin
 
     with pytest.raises(ValueError, match=r'image size 777.*fallback sizes.*\[64, 512\]'):
         resolve_extfov_margin(
@@ -227,7 +212,7 @@ def test_extfov_margin_unmatched_size_names_the_available_keys() -> None:
 
 def test_extfov_margin_fallback_covers_uncatalogued_size() -> None:
     """A size the instrument table lacks resolves through the generic table."""
-    from spindoctor.sim.instrument_navigator import resolve_extfov_margin
+    from spindoctor.sim.instruments.navigator_link import resolve_extfov_margin
 
     margin = resolve_extfov_margin(
         {'extfov_margin_vu': {512: [10, 10]}},

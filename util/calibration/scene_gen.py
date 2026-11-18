@@ -570,7 +570,7 @@ def gen_ring(rng: random.Random) -> dict[str, Any]:
     """
     import numpy as np
 
-    from spindoctor.sim.ring_geometry import ring_plane_from_sky
+    from spindoctor.sim.shared.ring import ring_plane_from_sky
 
     size = 220
     params = _base(rng, size=size)
@@ -883,7 +883,7 @@ def generate_scenes(
     """
     # Local import keeps this module importable without the package installed
     # (mirrors the deferred config import above).
-    from spindoctor.sim.scene import validate_sim_params
+    from spindoctor.sim.scene.validate import validate_sim_params
 
     if family not in _GENERATORS:
         raise ValueError(f'unknown scene family {family!r}; valid: {sorted(_GENERATORS)}')

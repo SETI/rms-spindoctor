@@ -405,16 +405,16 @@ star navigation, one instance per observation),
 per-body silhouette navigation),
 :class:`~spindoctor.nav_model.nav_model_rings.NavModelRings` (catalog-driven
 per-planet ring navigation), the simulated-image siblings
-:class:`~spindoctor.nav_model.stars.nav_model_stars_simulated.NavModelStarsSimulated`
+:class:`~spindoctor.nav_model.simulated.stars.NavModelStarsSimulated`
 (builds the star list from the scene's catalog entries in ``obs.nav_params``),
-:class:`~spindoctor.nav_model.nav_model_body_simulated.NavModelBodySimulated`,
+:class:`~spindoctor.nav_model.simulated.body.NavModelBodySimulated`,
 and
-:class:`~spindoctor.nav_model.nav_model_rings_simulated.NavModelRingsSimulated`
+:class:`~spindoctor.nav_model.simulated.rings.NavModelRingsSimulated`
 (rendered from operator-supplied parameters), and
 :class:`~spindoctor.nav_model.nav_model_titan.NavModelTitan` (active whenever
 Titan is in the extended FOV; emits the haze-envelope geometry a solar-symmetry
 fit needs) with its simulated-image sibling
-:class:`~spindoctor.nav_model.nav_model_titan_simulated.NavModelTitanSimulated`.
+:class:`~spindoctor.nav_model.simulated.titan.NavModelTitanSimulated`.
 
 Per-family data models live alongside the renderer classes:
 
@@ -442,7 +442,7 @@ Per-family data models live alongside the renderer classes:
   :func:`~spindoctor.nav_model.titan_geometry.geometry_from_obs`), so
   everything the model does downstream of it is a pure function of one frozen
   dataclass;
-  :class:`~spindoctor.nav_model.nav_model_titan_simulated.NavModelTitanSimulated`
+  :class:`~spindoctor.nav_model.simulated.titan.NavModelTitanSimulated`
   builds the same dataclass from operator parameters. See
   :doc:`dev_guide_navigation_models_titan` for details.
 

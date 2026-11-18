@@ -15,6 +15,7 @@ from typing import Any
 
 import numpy as np
 import pytest
+from tests.spindoctor.sim.scenes import frame_scene
 
 from spindoctor.sim.artifact_modes import (
     ACTIVATION_KEYS,
@@ -25,11 +26,12 @@ from spindoctor.sim.artifact_modes import (
     PROBABILITY,
     resolve_mode_config,
 )
-from spindoctor.sim.forward.detector.params import resolve_detector_params
-from spindoctor.sim.forward.stages import SimFrame
-from spindoctor.sim.forward.telemetry import apply_telemetry
-from spindoctor.sim.render import render_combined_model
-from spindoctor.sim.scene import SimSceneValidationError, validate_sim_params
+from spindoctor.sim.render.detector.params import resolve_detector_params
+from spindoctor.sim.render.driver import render_scene
+from spindoctor.sim.render.stages import SimFrame
+from spindoctor.sim.render.telemetry.stage import apply_telemetry
+from spindoctor.sim.scene.errors import SimSceneValidationError
+from spindoctor.sim.scene.validate import validate_sim_params
 from spindoctor.support.types import NDArrayFloatType
 
 # The modes whose activation key is a Poisson expected event count per frame: the
@@ -56,15 +58,7 @@ _DEAD_MODES = ('dead_pixels', 'dead_columns')
 
 def _scene(artifacts: dict[str, Any], instrument: str = 'generic') -> dict[str, Any]:
     """A minimal valid scene carrying an artifacts block."""
-    return {
-        'schema_version': 2,
-        'scene_name': 'probe',
-        'instrument': instrument,
-        'size_v': 64,
-        'size_u': 64,
-        'random_seed': 1,
-        'artifacts': artifacts,
-    }
+    return frame_scene(instrument=instrument, scene_name='probe', artifacts=artifacts)
 
 
 def _scene_for(mode_name: str, artifacts: dict[str, Any]) -> dict[str, Any]:
@@ -256,7 +250,7 @@ def _pair_count(rate_per_sec: float, exposure_sec: float) -> int:
     sim = _scene({'bright_dark_pairs': {EXPECTED_EVENTS_PER_SEC: rate_per_sec}}, 'coiss_nac')
     sim['exposure_sec'] = exposure_sec
     validate_sim_params(sim)
-    _image, truth = render_combined_model(sim, ignore_offset=True)
+    _image, truth = render_scene(sim, ignore_offset=True)
     return len(truth['artifacts']['bright_dark_pairs']['pairs'])
 
 

@@ -12,39 +12,32 @@ from typing import Any
 
 import numpy as np
 import pytest
+from tests.spindoctor.sim.scenes import disc_body, frame_scene, quiet_noise, star_entry
 
-from spindoctor.sim.forward.detector.params import (
-    DetectorParamError,
-    calibration_map,
-    resolve_detector_params,
-)
-from spindoctor.sim.instrument_resolvers import (
+from spindoctor.sim.instruments.resolvers import (
     FilterCatalogError,
     canonical_filter,
     filter_star_flux_scale,
     resolve_filter_throughput,
 )
-from spindoctor.sim.render import render_combined_model
-from spindoctor.sim.scene import validate_sim_params
-from spindoctor.sim.scene_schema import SimSceneValidationError
+from spindoctor.sim.render.detector.params import (
+    DetectorParamError,
+    calibration_map,
+    resolve_detector_params,
+)
+from spindoctor.sim.render.driver import render_scene
+from spindoctor.sim.scene.errors import SimSceneValidationError
+from spindoctor.sim.scene.validate import validate_sim_params
 
 _NAC_CLEAR = resolve_filter_throughput('coiss_nac', 'CL1+CL2')
 _NAC_GREEN = resolve_filter_throughput('coiss_nac', 'CL1+GRN')
-_QUIET = {'poisson': False, 'read_noise_dn': 0.0, 'bias_dn': 0.0}
 
 
 def _scene(
     instrument: str, *, detector: dict[str, Any] | None = None, **extra: Any
 ) -> dict[str, Any]:
     """A noise-free 64 x 64 scene on ``instrument``."""
-    scene: dict[str, Any] = {
-        'size_v': 64,
-        'size_u': 64,
-        'random_seed': 5,
-        'instrument': instrument,
-        'exposure_sec': 0.01,
-        'noise': dict(_QUIET),
-    }
+    scene = frame_scene(instrument=instrument, seed=5, exposure_sec=0.01, noise=quiet_noise())
     if detector is not None:
         scene['detector'] = detector
     scene.update(extra)
@@ -53,16 +46,7 @@ def _scene(
 
 def _body(**overrides: Any) -> dict[str, Any]:
     """A full-phase sphere filling half the frame."""
-    body = {
-        'name': 'MIMAS',
-        'center_v': 32.0,
-        'center_u': 32.0,
-        'semi_a_px': 16.0,
-        'semi_b_px': 16.0,
-        'semi_c_px': 16.0,
-        'illumination_angle': 0.0,
-        'phase_angle': 0.0,
-    }
+    body = disc_body(32.0, 32.0, 16.0, name='MIMAS', illumination_angle=0.0, phase_angle=0.0)
     body.update(overrides)
     return body
 
@@ -233,10 +217,10 @@ def test_raw_dn_scale_with_the_filter_throughput(
 ) -> None:
     """An unsaturated body's total raw DN scales by the throughput ratio."""
     exposure = body_exposure
-    clear, _ = render_combined_model(
+    clear, _ = render_scene(
         _scene(instrument, detector={'filter': 'CL1+CL2'}, bodies=[_body()], exposure_sec=exposure)
     )
-    filtered, _ = render_combined_model(
+    filtered, _ = render_scene(
         _scene(
             instrument, detector={'filter': filter_name}, bodies=[_body()], exposure_sec=exposure
         )
@@ -248,10 +232,10 @@ def test_raw_dn_scale_with_the_filter_throughput(
 
 def test_a_calibrated_product_renders_the_same_if_through_any_filter() -> None:
     """The divisor follows the throughput, so I/F agrees to the quantization step."""
-    clear, _ = render_combined_model(
+    clear, _ = render_scene(
         _scene('coiss_calib_nac', detector={'filter': 'CL1+CL2'}, bodies=[_body()])
     )
-    green, _ = render_combined_model(
+    green, _ = render_scene(
         _scene('coiss_calib_nac', detector={'filter': 'CL1+GRN'}, bodies=[_body()])
     )
     # One green-filter DN in I/F bounds the two products' rounding.
@@ -264,13 +248,13 @@ def test_a_star_dims_by_the_throughput_ratio(
     instrument: str, filter_name: str, body_exposure: float, star_exposure: float
 ) -> None:
     """A star's total DN through a filter is the clear total times the throughput ratio."""
-    star = [{'name': 'S', 'v': 32.0, 'u': 32.0, 'vmag': 4.0}]
+    stars = [star_entry(32.0, 32.0, 4.0)]
     exposure = star_exposure
-    clear, _ = render_combined_model(
-        _scene(instrument, detector={'filter': 'CL1+CL2'}, stars=star, exposure_sec=exposure)
+    clear, _ = render_scene(
+        _scene(instrument, detector={'filter': 'CL1+CL2'}, stars=stars, exposure_sec=exposure)
     )
-    filtered, _ = render_combined_model(
-        _scene(instrument, detector={'filter': filter_name}, stars=star, exposure_sec=exposure)
+    filtered, _ = render_scene(
+        _scene(instrument, detector={'filter': filter_name}, stars=stars, exposure_sec=exposure)
     )
     assert float(clear.max()) < 4000.0
     ratio = float(filtered.sum()) / float(clear.sum())
@@ -279,9 +263,9 @@ def test_a_star_dims_by_the_throughput_ratio(
 
 def test_a_clear_filter_star_matches_an_unnamed_filter_star() -> None:
     """The zero point refers to the clear filter, so naming it leaves stars unchanged."""
-    star = [{'name': 'S', 'v': 32.0, 'u': 32.0, 'vmag': 4.0}]
-    unnamed, _ = render_combined_model(_scene('coiss_nac', stars=star, exposure_sec=0.1))
-    clear, _ = render_combined_model(
-        _scene('coiss_nac', detector={'filter': 'CL1+CL2'}, stars=star, exposure_sec=0.1)
+    stars = [star_entry(32.0, 32.0, 4.0)]
+    unnamed, _ = render_scene(_scene('coiss_nac', stars=stars, exposure_sec=0.1))
+    clear, _ = render_scene(
+        _scene('coiss_nac', detector={'filter': 'CL1+CL2'}, stars=stars, exposure_sec=0.1)
     )
     assert np.array_equal(unnamed, clear)

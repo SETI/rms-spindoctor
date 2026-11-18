@@ -8,6 +8,7 @@ import pytest
 import spindoctor.support.correlate as correlate_module
 from spindoctor.support.correlate import (
     evaluate_candidate,
+    navigate_single_scale_kpeaks,
     navigate_with_pyramid_kpeaks,
     refinement_cross_spectrum,
 )
@@ -80,14 +81,10 @@ def _single_candidate_inputs(true_shift_vu: tuple[float, float]) -> dict[str, An
     mask_pad = pad_top_left(mask, period, period)
     spectrum: NDArrayComplexType = refinement_cross_spectrum(image_pad, model_pad, mask_pad)
     return {
-        'image_pad': image_pad,
-        'model_pad': model_pad,
         'corr': _signed_lag_surface(true_shift_vu),
         'refine_spectrum': spectrum,
         'rc': (0, 0),
         'upsample_factor': 128,
-        'model_shape': (_TILE, _TILE),
-        'image_shape': (_TILE, _TILE),
         'logger': None,
     }
 
@@ -226,8 +223,11 @@ def test_residual_is_measured_at_the_refined_offset(monkeypatch: pytest.MonkeyPa
         return real_shift(img, dy, dx)
 
     monkeypatch.setattr(correlate_module, 'fourier_shift', _spy)
-    evaluate_candidate(**_single_candidate_inputs((0.7, 0.0)), refinement='ncc_quadratic')
-    assert shifts == [pytest.approx((0.7, 0.0), abs=1e-12)]
+    image, model, mask = _star_scene()
+    result = navigate_single_scale_kpeaks(
+        image=image, model=model, mask=mask, refinement='ncc_quadratic', logger=None
+    )
+    assert shifts == [result['offset']]
 
 
 def test_cross_power_refinement_without_a_spectrum_is_refused() -> None:

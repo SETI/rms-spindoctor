@@ -10,12 +10,13 @@ from typing import Any
 import numpy as np
 import pytest
 
-from spindoctor.sim.forward.detector import (
+from spindoctor.sim.instruments.resolvers import resolve_downlink_table
+from spindoctor.sim.render.detector import (
     apply_detector,
     quantize_dn,
     resolve_detector_params,
 )
-from spindoctor.sim.forward.detector.noise_stages import (
+from spindoctor.sim.render.detector.noise_stages import (
     add_banding,
     add_bias_structure,
     add_cosmic_rays,
@@ -23,9 +24,8 @@ from spindoctor.sim.forward.detector.noise_stages import (
     add_hot_pixels,
     detector_hot_pixel_map,
 )
-from spindoctor.sim.forward.detector.sqrt_lut import SqrtLut, resolve_sqrt_lut
-from spindoctor.sim.forward.stages import SimFrame
-from spindoctor.sim.instrument_resolvers import resolve_downlink_table
+from spindoctor.sim.render.detector.sqrt_lut import LUTSqrt, resolve_sqrt_lut
+from spindoctor.sim.render.stages import SimFrame
 from spindoctor.sim.seeds import derive_effect_seed
 
 # coiss_nac catalog: full well 110k e-, gain state 2 = 30 e-/DN, bias 20 DN.
@@ -196,7 +196,7 @@ def test_the_sqrt_lut_keeps_a_nan_pixel_nan() -> None:
 def test_a_camera_without_a_table_gets_the_plain_square_root_curve() -> None:
     """Without a catalog entry the curve is a pure square root topping out at the ADC ceiling."""
     curve = resolve_sqrt_lut(None, saturation_dn=4095.0)
-    assert curve == SqrtLut(
+    assert curve == LUTSqrt(
         codes=256, linear_dn=0.0, quadratic_dn=4095.0 / 255.0**2, whole_dn=False
     )
     assert float(curve.levels()[-1]) == pytest.approx(4095.0)

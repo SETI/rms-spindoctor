@@ -23,11 +23,6 @@ spindoctor.nav_model
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: spindoctor.nav_model.nav_model_body_simulated
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
 .. automodule:: spindoctor.nav_model.nav_model_rings
    :members:
    :undoc-members:
@@ -38,27 +33,7 @@ spindoctor.nav_model
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: spindoctor.nav_model.nav_model_rings_simulated
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-.. automodule:: spindoctor.nav_model.sim_body
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-.. automodule:: spindoctor.nav_model.sim_ring
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
 .. automodule:: spindoctor.nav_model.nav_model_titan
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-.. automodule:: spindoctor.nav_model.nav_model_titan_simulated
    :members:
    :undoc-members:
    :show-inheritance:
@@ -113,11 +88,6 @@ spindoctor.nav_model.stars
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: spindoctor.nav_model.stars.nav_model_stars_simulated
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
 .. automodule:: spindoctor.nav_model.stars.catalog
    :members:
    :undoc-members:
@@ -144,6 +114,41 @@ spindoctor.nav_model.stars
    :show-inheritance:
 
 .. automodule:: spindoctor.nav_model.stars.detection
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+spindoctor.nav_model.simulated
+------------------------------
+
+.. automodule:: spindoctor.nav_model.simulated
+
+.. automodule:: spindoctor.nav_model.simulated.body
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: spindoctor.nav_model.simulated.rings
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: spindoctor.nav_model.simulated.titan
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: spindoctor.nav_model.simulated.stars
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: spindoctor.nav_model.simulated.predict_body
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: spindoctor.nav_model.simulated.predict_ring
    :members:
    :undoc-members:
    :show-inheritance:

@@ -17,7 +17,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-from spindoctor.sim.scene import iter_scene_paths, load_sim_scene
+from spindoctor.sim.scene.io import iter_scene_paths, load_sim_scene
 from tests.integration.checkout_guard import require_checkout_package
 from tests.integration.sim_baseline import baseline_for_scene, sim_baseline_path
 

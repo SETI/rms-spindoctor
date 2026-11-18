@@ -21,7 +21,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from spindoctor.sim.render import render_combined_model
+from spindoctor.sim.render.driver import render_scene
 from tests.integration.sim_sweep import (
     SweepRow,
     build_sweep_params,
@@ -101,7 +101,7 @@ def test_calibrated_noise_sweep_raises_the_rendered_sky_noise_at_every_step() ->
     steps = build_sweep_params(load_sweep(_SWEEPS_ROOT / 'noise_read_noise_calib.yaml'))
     sky_noise = []
     for _, sim_params in steps:
-        img, _ = render_combined_model(sim_params)
+        img, _ = render_scene(sim_params)
         corner = np.asarray(img, dtype=np.float64)[:32, :32]
         sky_noise.append(float(np.std(np.diff(corner, axis=1)) / np.sqrt(2.0)))
     assert sky_noise == sorted(sky_noise)
@@ -715,7 +715,7 @@ def test_psf_wings_change_the_rendered_image() -> None:
     for _, sim_params in (steps[0], steps[-1]):
         quiet = copy.deepcopy(sim_params)
         quiet['noise'] = {'poisson': False, 'read_noise_dn': 0.0}
-        img, _ = render_combined_model(quiet)
+        img, _ = render_scene(quiet)
         frames.append(np.asarray(img, dtype=np.float64))
     assert not np.array_equal(frames[0], frames[1])
 
