@@ -160,7 +160,7 @@ apart from a physics change.
 
 | Issue | Subject | Why now |
 |---|---|---|
-| #923 | Duplicate image classifier, test-only `artifact_counts.py`, no shared scene fixtures, plan codenames, and the navigator-side `sim_params` name. **The classifier part is done (PR #PRNUM):** the thresholds, their reading from a camera block, and the ordered decision are in `spindoctor.support.image_class`, which the navigator's classifier and the editor's verdict both call. | Shared scene fixtures first, so every later schema change edits one place instead of 50 test files. |
+| #923 | Duplicate image classifier, test-only `artifact_counts.py`, no shared scene fixtures, plan codenames, and the navigator-side `sim_params` name. **The classifier part is done (PR #1036):** the thresholds, their reading from a camera block, and the ordered decision are in `spindoctor.support.image_class`, which the navigator's classifier and the editor's verdict both call. | Shared scene fixtures first, so every later schema change edits one place instead of 50 test files. |
 | #1005 | Lay out the simulator package by concern; the image side's `forward/` package becomes `render/`, with the `render.py` entry point inside it (operator, 2026-11-17) | Every later issue creates its modules in their final places, and the boundary guard checks packages instead of file names. Lands right after Phase 1's realism-record regeneration, when no other simulator PR is open. |
 | #1006 | Exact copies and dead defaults | Each later change would otherwise have to find and edit every copy. |
 | #1007 | Names that describe history or one of several meanings | One glossary before the typed scene model fixes names into types. |
