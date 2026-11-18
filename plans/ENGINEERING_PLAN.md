@@ -799,7 +799,14 @@ where they differ).
     #929 fixed the clamp for the ring annulus only (#1003, a quadratic fit
     of the NCC surface on the final pass); the disc stays as it is by
     decision, since on 29 real disc frames no candidate refinement beat the
-    current one, and #929's disc criteria moved here.
+    current one, and #929's disc criteria moved here. Partly done (PR #1053): the disc's final pass now refines on a
+    high-pass cross-power surface, in a window centered on the NCC
+    quadratic vertex; on 69 real NAC frames the median per-axis error fell
+    from 0.29 / 0.30 to 0.23 / 0.23 px and window-edge answers from 61% to
+    7%. Still open: an answer that still stops at its window edge is not
+    flagged, and the #790 expectation is no longer strict because mesh
+    seed 10 now ends conflicted. Its pull toward bright structure the
+    template leaves out is #1050.
   - **#1002** — when the annulus quadratic fit cannot be used, or its
     maximum lies more than a pixel away, the answer stays on the whole pixel
     with nothing marking it: no wider uncertainty, no spurious flag.
