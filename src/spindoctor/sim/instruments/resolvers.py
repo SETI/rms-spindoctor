@@ -51,7 +51,7 @@ __all__ = [
     'resolve_dark_sky_ceiling_if',
     'resolve_data_units',
     'resolve_detector_defaults',
-    'resolve_detector_defaults_for_binning',
+    'resolve_detector_defaults_native',
     'resolve_detector_id',
     'resolve_detector_model',
     'resolve_distortion_residual',
@@ -454,8 +454,10 @@ def binning_for_frame_size(instrument: str | None, size_vu: tuple[int, int]) -> 
     )
 
 
-def resolve_detector_defaults(instrument: str | None) -> dict[str, Any]:
-    """Return a sim instrument's native detector defaults, before any readout mode.
+def resolve_detector_defaults_native(instrument: str | None) -> dict[str, Any]:
+    """Return a sim instrument's native detector values, before a readout mode is merged.
+
+    :func:`resolve_detector_defaults` merges a readout mode over these values.
 
     Parameters:
         instrument: The sim instrument name, an alias, or ``None`` for the generic
@@ -477,11 +479,12 @@ def resolve_detector_defaults(instrument: str | None) -> dict[str, Any]:
     return defaults
 
 
-def resolve_detector_defaults_for_binning(instrument: str | None, binning: int) -> dict[str, Any]:
+def resolve_detector_defaults(instrument: str | None, binning: int) -> dict[str, Any]:
     """Return a sim instrument's detector defaults in one readout mode.
 
     Where the readout mode sets a key, its value replaces the native one; the keys
-    it leaves out keep the native values.
+    it leaves out keep the native values.  The result also carries the entry's
+    per-mode artifact shape defaults under ``artifact_modes`` when it states any.
 
     Parameters:
         instrument: The sim instrument name, an alias, or ``None`` for the generic
@@ -489,13 +492,16 @@ def resolve_detector_defaults_for_binning(instrument: str | None, binning: int) 
         binning: A binning factor from :func:`cataloged_binnings`.
 
     Returns:
-        A fresh dict: :func:`resolve_detector_defaults` updated with
+        A fresh dict: :func:`resolve_detector_defaults_native` updated with
         :func:`resolve_readout_mode`.
 
     Raises:
         ValueError: If the instrument is not in the catalog.
     """
-    return {**resolve_detector_defaults(instrument), **resolve_readout_mode(instrument, binning)}
+    return {
+        **resolve_detector_defaults_native(instrument),
+        **resolve_readout_mode(instrument, binning),
+    }
 
 
 def resolve_detector_model(instrument: str | None, detector: Mapping[str, Any] | None) -> str:
@@ -521,9 +527,7 @@ def resolve_detector_model(instrument: str | None, detector: Mapping[str, Any] |
     if model is not None:
         return str(model)
     binning = block.get('binning')
-    detector_defaults = resolve_detector_defaults_for_binning(
-        instrument, 1 if binning is None else binning
-    )
+    detector_defaults = resolve_detector_defaults(instrument, 1 if binning is None else binning)
     return str(detector_defaults['detector_model'])
 
 
@@ -549,7 +553,7 @@ def resolve_mode_with_catalog(
     Returns:
         A fresh dict carrying every parameter at its resolved value.
     """
-    catalog_modes = resolve_detector_defaults(instrument).get('artifact_modes') or {}
+    catalog_modes = resolve_detector_defaults_native(instrument).get('artifact_modes') or {}
     catalog = catalog_modes.get(mode_name) or {}
     mode = ARTIFACT_MODES[mode_name]
     scene_only = {mode.activation, mode.count_alternative}

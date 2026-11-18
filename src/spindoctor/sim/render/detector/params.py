@@ -50,7 +50,7 @@ from spindoctor.sim.instruments.resolvers import (
     mode_available,
     resolve_calibrated_sky_if,
     resolve_data_units,
-    resolve_detector_defaults_for_binning,
+    resolve_detector_defaults,
     resolve_detector_id,
     resolve_downlink_table,
     resolve_filter_throughput,
@@ -322,7 +322,7 @@ def _resolve_gain(
     Parameters:
         detector_defaults: The instrument's detector defaults in the scene's readout
             mode (see
-            :func:`~spindoctor.sim.instruments.resolvers.resolve_detector_defaults_for_binning`).
+            :func:`~spindoctor.sim.instruments.resolvers.resolve_detector_defaults`).
         detector_block: The scene ``detector`` block (may set ``gain_state``).
         instrument: The sim instrument name, for error messages.
 
@@ -386,11 +386,11 @@ def _resolve_detector_modes(
 ) -> dict[str, dict[str, Any]]:
     """Resolve the active detector-stage artifact modes for a render.
 
-    Each present, available, and active mode is resolved (scene value over
-    catalog default over registry default) and returned keyed by name.  Under
-    ``instrument_defaults``, if the instrument's config lists a mode in
+    Each present, available, and active mode is resolved (scene value over the
+    instrument entry's shape default over the registry default) and returned keyed by
+    name.  Under ``instrument_defaults``, if the instrument entry lists a mode in
     ``artifact_modes.instrument_defaults`` and the scene has not set that mode, the
-    mode gets the config's scene map for it (for example a probability of 1), so
+    mode gets the entry's scene map for it (for example a probability of 1), so
     the instrument's defining physical-chain artifact renders with its shape
     defaults.
     """
@@ -511,7 +511,7 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
     detector_block = params.get('detector') or {}
     binning = _cataloged_binning(params, instrument=instrument)
     # The readout mode's published values replace the native ones it names.
-    detector_defaults = resolve_detector_defaults_for_binning(instrument, binning)
+    detector_defaults = resolve_detector_defaults(instrument, binning)
     # A binned pixel collects the charge of its binning**2 native pixels.
     pixels_per_frame_pixel = float(binning * binning)
 

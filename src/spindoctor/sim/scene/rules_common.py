@@ -29,7 +29,7 @@ from spindoctor.sim.instruments.resolvers import (
     downlink_table_names,
     instrument_default_modes,
     resolve_detector_defaults,
-    resolve_detector_defaults_for_binning,
+    resolve_detector_defaults_native,
     resolve_filter_throughput,
 )
 from spindoctor.sim.scene.errors import SimSceneValidationError
@@ -406,7 +406,8 @@ def _check_detector(value: Any, *, instrument: str, source: str) -> None:
         # validation, with the cataloged alternatives in the message; the
         # render-time resolver keeps its own guard as a backstop for scenes
         # that bypass validation.
-        table = resolve_detector_defaults(instrument).get('gain_e_per_dn_by_state') or {0: 1.0}
+        native = resolve_detector_defaults_native(instrument)
+        table = native.get('gain_e_per_dn_by_state') or {0: 1.0}
         if gain_state not in table:
             raise SimSceneValidationError(
                 f'{source}: detector.gain_state {gain_state} is not cataloged for '
@@ -509,9 +510,7 @@ def _check_downlink_table_used(
     quantization = detector.get('quantization')
     if quantization is None:
         binning = detector.get('binning')
-        detector_defaults = resolve_detector_defaults_for_binning(
-            instrument, 1 if binning is None else binning
-        )
+        detector_defaults = resolve_detector_defaults(instrument, 1 if binning is None else binning)
         quantization = detector_defaults.get('quantization', 'exact')
     if quantization == 'sqrt_lut':
         return

@@ -254,8 +254,8 @@ def test_alternating_lines_keep_blanks_all_but_every_nth() -> None:
     assert np.all(frame.signal[4] == 1.0)
 
 
-def test_gossi_catalog_defaults_alternating_lines_to_keep() -> None:
-    """The Galileo catalog's HMA/HCA 'keep' default is honored by the loss loop."""
+def test_gossi_entry_default_alternating_lines_to_keep() -> None:
+    """The Galileo instrument entry's HMA/HCA 'keep' default is honored by the loss loop."""
     frame = _frame()
     record = _render(
         frame, {'alternating_lines': {'probability': 1.0, 'period': 4}}, instrument='gossi'

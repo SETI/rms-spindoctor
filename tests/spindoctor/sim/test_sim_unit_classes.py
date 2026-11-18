@@ -192,7 +192,7 @@ _NAVIGATED_SCENES = {
 
 
 def _inst_config_of(params: dict[str, Any]) -> Any:
-    """The resolved config block of a scene, with its instrument_config overrides."""
+    """The navigator block of a scene, with its instrument_config merged over it."""
     return resolve_sim_inst_config(
         DEFAULT_CONFIG, params['instrument'], params.get('instrument_config')
     )
@@ -330,7 +330,7 @@ def test_reading_matches_the_classifier_exactly_at_each_limit(instrument: str) -
 
 
 class _InstConfigOnly:
-    """A stand-in observation carrying only an instrument config block."""
+    """A stand-in observation carrying only a navigator block."""
 
     def __init__(self, inst_config: dict[str, Any]) -> None:
         """Hold ``inst_config`` as the navigator's settings reader expects."""

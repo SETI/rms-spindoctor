@@ -50,7 +50,8 @@ architecture, the rendering side, and the scene formats.
 Terms
 =====
 
-This chapter, and the simulator's code, use these words with one meaning each:
+The simulator's code and its developer guide pages use these words with one meaning
+each:
 
 - **scene**: the full scene mapping a render reads, with every idealized, truth, and
   test-only key; a scene file holds one.
@@ -59,14 +60,16 @@ This chapter, and the simulator's code, use these words with one meaning each:
   (see :ref:`sim-information-boundary`).
 - **instrument entry**: one simulated camera's entry in the instrument catalog,
   read from a file under ``sim/instruments/configs/`` (see :ref:`sim-instrument-files`).
-- **navigator block**: the navigator's configuration block for the camera a sim
-  instrument emulates, with the scene's ``instrument_config`` overrides merged in, as
-  :func:`~spindoctor.sim.instruments.navigator_link.resolve_sim_inst_config` returns it.
+- **navigator block**: the navigator's configuration block that an instrument entry
+  points at, for the camera the entry emulates.
+  :func:`~spindoctor.sim.instruments.navigator_link.resolve_sim_inst_config` returns it
+  with the scene's ``instrument_config`` merged over it.
 - **detector defaults**: an instrument entry's ``detector`` block with the scene's
-  readout mode merged over it, as
-  :func:`~spindoctor.sim.instruments.resolvers.resolve_detector_defaults_for_binning`
-  returns them; :func:`~spindoctor.sim.instruments.resolvers.resolve_detector_defaults`
-  returns the entry's native values, before any readout mode.
+  readout mode merged over it. They also carry the entry's per-mode artifact shape
+  defaults, under ``artifact_modes``, when the entry states any.
+  :func:`~spindoctor.sim.instruments.resolvers.resolve_detector_defaults` returns them.
+  :func:`~spindoctor.sim.instruments.resolvers.resolve_detector_defaults_native`
+  returns the entry's native values, before any readout mode is merged.
 - **truth**: information only the test knows, which the navigator side must never
   see. It is carried by the scene's truth keys
   (:data:`~spindoctor.sim.scene.boundary.TRUTH_KEYS`) and by what the render produced
@@ -286,22 +289,22 @@ applies where. The *channel* is structural:
   emulated instrument's **published** configuration, never from the scene's
   truth-side blocks. The star detection limit
   (:meth:`~spindoctor.obs.obs_inst_sim.ObsSim.star_max_usable_vmag`) is the
-  worked example: it comes from the navigator block
-  (including any idealized ``instrument_config`` overrides) and is independent
+  worked example: it comes from the navigator block, with any idealized
+  ``instrument_config`` overrides merged over it, and is independent
   of the scene's ``noise`` block, so a scene that plants noise different from
   the published values gets a detection limit that does not match the scene's
   noise. That is planted model error, exactly what such a scene is for. On a
   binned frame the limit reads the zero point and the read noise from that
   block's ``noise.by_binning`` entry for the frame's binning, which holds the
-  navigator's own values for that mode in DN: the zero point, and the read noise
-  of one binned pixel. A block with no entry for the mode leaves the limit on
-  its unbinned values. Every raw-DN camera's block has an entry for each binned
-  mode the simulator offers (see :ref:`sim-instrument-files` for the tests that
-  hold them to the catalog). The limit takes ``star_psf_sigma`` in native pixels
-  and divides it by the binning, and a core narrower than a pixel counts as one
-  pixel, since the peak pixel can't hold more than the whole star. The limit's
-  noise is at least 1 DN, so a mode's read noise below 1 DN gives the same limit
-  as 1 DN. Where a camera's unbinned ``read_noise_dn`` is a placeholder above
+  navigator's own values for that readout mode in DN: the zero point, and the read
+  noise of one binned pixel. A block with no entry for the readout mode leaves the
+  limit on its unbinned values. Every raw-DN camera's block has an entry for each
+  binned readout mode the simulator offers (see :ref:`sim-instrument-files` for the
+  tests that hold them to the catalog). The limit takes ``star_psf_sigma`` in native
+  pixels and divides it by the binning, and a core narrower than a pixel counts as
+  one pixel, since the peak pixel can't hold more than the whole star. The limit's
+  noise is at least 1 DN, so a readout mode's read noise below 1 DN gives the same
+  limit as 1 DN. Where a camera's unbinned ``read_noise_dn`` is a placeholder above
   its published read noise, part of the step from the unbinned limit to the
   binned one comes from that placeholder; each instrument chapter gives its
   camera's share. The renderer shrinks the catalog's PSF kernel by the binning
@@ -369,9 +372,9 @@ The shared helpers live in :mod:`spindoctor.sim.shared`. A module under
 ``nav_model/``, ``nav_technique/``, or ``nav_orchestrator/`` may import that package
 and :mod:`spindoctor.sim.scene.fields`, the field helpers every scene reader shares,
 and nothing else from the simulator or the scene editor. A module of ``sim/shared/``
-follows the same rule. The simulated observation, which renders the image and builds the filtered
-view, is the one navigator-side module that may import the renderer. The static
-guard checks these rules by package.
+follows the same rule. The simulated observation, which renders the image and builds
+the navigator view, is the one navigator-side module that may import the renderer.
+The static guard checks these rules by package.
 
 One gap remains: a bug in a shared helper that makes rendered features
 subtly unlike *real* features leaves both sides consistent and recovery clean
@@ -1104,8 +1107,9 @@ numbers, and the per-mode shape defaults -- banding amplitudes and periods,
 frame-transfer scrub/transfer times, fixed-pattern components, and the rest. If
 a scene sets only an artifact mode's activation key, the mode inherits these
 shapes: ``resolve_mode_with_catalog`` takes the scene's value first, then the
-catalog default, then the registry default. The activation keys themselves are
-never cataloged, so choosing an instrument never plants a defect on its own.
+instrument entry's shape default, then the registry default. The activation keys
+themselves are never cataloged, so choosing an instrument never plants a defect on
+its own.
 There is one exception: if the instrument entry lists a mode under
 ``artifact_modes.instrument_defaults``, ``instrument_defaults`` turns that mode
 on, as it does LORRI's frame-transfer smear. Every value carries its provenance
@@ -1271,9 +1275,10 @@ half the place value of the last digit the navigator's config file writes, so
 ``3.61e6`` is held to 5e3 and ``0.400`` to 5e-4. The navigator states its own
 value, so a simulator retune does not move what the navigator knows; the test
 fails when the two drift apart by more than the navigator value's rounding.
-Each binned mode an entry offers needs its own values in a raw-DN navigator
+Each binned readout mode an entry offers needs its own values in a raw-DN navigator
 block, under ``noise.by_binning``, and their zero point and read noise must match
-the simulator's, converted through the mode's gain, within the same rounding.
+the simulator's, converted through the readout mode's gain, within the same
+rounding.
 
 The keys of an entry, all directly under the instrument's top-level key:
 
@@ -1329,8 +1334,8 @@ The keys of an entry, all directly under the instrument's top-level key:
      - yes
      - The binning factors at which the camera reads out. Each maps to the
        ``detector`` keys that its published characterization changes, and an
-       empty map keeps every 1x1 value. Binning 1 is required. A mode may not
-       change ``detector_model`` or the ``vidicon`` block, and a vidicon has
+       empty map keeps every 1x1 value. Binning 1 is required. A readout mode
+       may not change ``detector_model`` or the ``vidicon`` block, and a vidicon has
        binning 1 only.
    * - ``native_frame_size_px``
      - no
@@ -1685,8 +1690,9 @@ on a mode that the scene's detector model never renders.
 Precedence
 ----------
 
-A mode's parameter value is resolved scene value over catalog default over
-registry default (:func:`~spindoctor.sim.instruments.resolvers.resolve_mode_with_catalog`),
+A mode's parameter value is resolved scene value over the instrument entry's shape
+default over the registry default
+(:func:`~spindoctor.sim.instruments.resolvers.resolve_mode_with_catalog`),
 so a scene that sets a mode with only its activation key inherits the
 instrument's cataloged shape. The activation keys and ``count`` are never
 cataloged. Where a mode shares a
@@ -3945,7 +3951,7 @@ the product label writes it (``CL1+CL2``). It sets how many electrons per second
 a native pixel collects from a surface at I/F 1.0, so the raw DN, a calibrated
 product's DN-to-I/F scale, and the star brightness all follow the filter. Only
 the Cassini NAC and WAC and their calibrated products have filter tables, in
-their config entries, which :mod:`spindoctor.sim.instruments.resolvers` reads.
+their instrument entries, which :mod:`spindoctor.sim.instruments.resolvers` reads.
 The values come from Cassini raw/CALIB pairs: the CISSCAL efficiency and
 absolute-correction factors in each CALIB label, times a camera constant fitted
 on 12-bit pairs, with measured values for the combinations that 12-bit pairs
@@ -3963,8 +3969,8 @@ the same for every filter.
 
 ``binning`` selects a binned or summed readout mode, 1 by default: each frame
 pixel sums a ``b`` by ``b`` block of native pixels. Each instrument entry's
-``readout_modes`` lists the camera's modes, and a mode it doesn't list is
-a validation error:
+``readout_modes`` lists the camera's readout modes, and choosing one it doesn't list
+is a validation error:
 
 .. list-table::
    :widths: 25 20 55
@@ -3972,17 +3978,17 @@ a validation error:
 
    * - Instrument
      - Binnings
-     - Published values the binned mode changes
+     - Published values the readout mode changes
    * - ``coiss_nac``, ``coiss_wac`` (and their calibrated products)
      - 1, 2, 4
-     - None in the catalog's sources; the SUM2 and SUM4 modes keep the 1x1
+     - None in the catalog's sources; the SUM2 and SUM4 readout modes keep the 1x1
        gain, read noise, and well.
    * - ``gossi``
      - 1, 2
-     - The summation mode reads 44 e- (31 e- at full resolution).
+     - The summation readout mode reads 44 e- (31 e- at full resolution).
    * - ``nhlorri``
      - 1, 4
-     - The 4x4 mode reads about 19.4 e-/DN (21 at 1x1).
+     - The 4x4 readout mode reads about 19.4 e-/DN (21 at 1x1).
    * - ``vgiss``
      - 1
      - The vidicon has no binned readout.
@@ -3990,25 +3996,25 @@ a validation error:
 The vidicon DN path has no binned readout on any camera, so a scene that pairs
 a binning above 1 with ``detector_model: vidicon`` is a validation error too.
 
-Whatever the mode, a binned pixel is the sum of its native pixels. An extended
-source deposits ``b**2`` times a native pixel's charge, and so do the catalog's
-dark current and cosmic-ray rate (a ``noise`` key the scene sets states the
-frame pixel's own value). A calibrated product's DN-to-I/F scale grows by the
-same factor, so a summed frame calibrates to the same I/F. A binned pixel
+Whatever the readout mode, a binned pixel is the sum of its native pixels. An
+extended source deposits ``b**2`` times a native pixel's charge, and so do the
+instrument entry's dark current and cosmic-ray rate (a ``noise`` key the scene sets
+states the frame pixel's own value). A calibrated product's DN-to-I/F scale grows by
+the same factor, so a summed frame calibrates to the same I/F. A binned pixel
 saturates at ``b**2`` native wells, the charge its block holds, so a bright
 extended source keeps that I/F up to the ADC clip. A star's total charge is
-unchanged, and the instrument PSF kernel, which the catalog states in native
-pixels, shrinks by ``b``, so the star lands in fewer, brighter pixels. The hot
-pixels are the detector's native map summed into each binned pixel, the residual
+unchanged, and the instrument PSF kernel, which the instrument entry states in
+native pixels, shrinks by ``b``, so the star lands in fewer, brighter pixels. The
+hot pixels are the detector's native map summed into each binned pixel, the residual
 distortion's non-radial wander shrinks by ``b`` (``k1`` and ``k2`` act on the
 radius normalized to the frame), and the background sky's plate scale grows by
-``b``. The sky's faint cutoff reads the mode's read noise. The navigator view
-states the binning, as a real label does, and its faint-star limit
-reads the mode's values from the navigator's own configuration (see
+``b``. The sky's faint cutoff reads the readout mode's read noise. The navigator
+view states the binning, as a real label does, and its faint-star limit reads the
+readout mode's values from the navigator's own configuration (see
 :ref:`sim-information-boundary`). Positions and sizes the scene states are in
-frame pixels whatever the mode. The realism match reads a cohort frame's mode
-from its size: a camera's full frame binned by ``b`` is its native size over
-``b`` (the instrument entry's ``native_frame_size_px``).
+frame pixels whatever the readout mode. The realism match reads a cohort frame's
+readout mode from its size: a camera's full frame binned by ``b`` is its native
+size over ``b`` (the instrument entry's ``native_frame_size_px``).
 
 .. _sim-artifacts-block:
 
@@ -4126,7 +4132,7 @@ validation refuses one that doesn't.
 A scene is where values from outside the packaged configuration enter the navigator
 block, so scene validation checks every value a scene sets that the faint-star
 limit reads, at every binning. Every read noise must be a finite number of at least
-0, the unbinned one and each binned mode's alike. A read noise of 0 is an ideal
+0, the unbinned one and each binned readout mode's alike. A read noise of 0 is an ideal
 detector, which the limit reads at its 1 DN noise floor. Every zero point must be a
 finite, positive number, and so must ``star_psf_sigma``. Each key of
 ``noise.by_binning`` is a binning factor of at least 2, and each entry is a mapping
@@ -4730,7 +4736,7 @@ instrument, on seven figures of merit:
 6. **Artifact rates** -- measured rates of lost/interpolated lines and
    single-pixel spikes, with a cross-frame split of spikes into stationary
    (hot pixels, which recur at fixed detector positions) and transient
-   (cosmic rays), compared against the artifacts-catalog defaults.
+   (cosmic rays), compared against the detector defaults.
 7. **Technique diagnostics** -- for a handful of matched real/sim pairs the
    full navigator runs on both frames and the per-technique diagnostics
    (inlier counts, residual scatter, confidences) are tabulated side by

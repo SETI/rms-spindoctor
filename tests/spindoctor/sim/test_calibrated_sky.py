@@ -13,7 +13,7 @@ import numpy as np
 import pytest
 from tests.spindoctor.sim.scenes import disc_body, frame_scene
 
-from spindoctor.sim.instruments.resolvers import resolve_detector_defaults
+from spindoctor.sim.instruments.resolvers import resolve_detector_defaults_native
 from spindoctor.sim.render.driver import render_scene
 
 _CALIBRATED = ('coiss_calib_nac', 'coiss_calib_wac', 'vgiss')
@@ -81,7 +81,7 @@ def _cassini_coincidences(instrument: str) -> list[tuple[int, float]]:
     difference is a whole number of DN, so an integer DN lands on exactly 0 I/F,
     at ``k * gain / (dark_current - residual * frac * full_well)`` seconds.
     """
-    catalog = resolve_detector_defaults(instrument)
+    catalog = resolve_detector_defaults_native(instrument)
     per_sec = float(catalog['dark_current_e_per_sec']) - 4.0e-5 * 0.5 * float(
         catalog['full_well_e']
     )

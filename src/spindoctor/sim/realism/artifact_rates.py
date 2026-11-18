@@ -1,11 +1,11 @@
 """Measured artifact rates for realism FOM 6.
 
 These detectors measure, per frame, the rates of the artifact classes the
-catalog defaults describe: line loss (missing / interpolated rows),
+detector defaults describe: line loss (missing / interpolated rows),
 stationary hot pixels, and transient single-pixel spikes (cosmic rays and
 radiation hits).  The same detectors run on real cohort frames and matched
 sim frames, so a detector's bias cancels in the comparison; the absolute
-rates additionally document the cohort against the catalog's per-instrument
+rates additionally document the cohort against each instrument's detector
 defaults (loss modes stay off under instrument_defaults, their activation
 keys at zero -- FOM 6 is the evidence for keeping or replacing those zeros).
 

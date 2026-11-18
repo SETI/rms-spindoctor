@@ -15,8 +15,8 @@ emulates that camera.
 Dark current, hot pixels, banding, and cosmic rays act in the electron domain
 (the vidicon chain, which has no electron domain, deposits its cosmic rays in DN);
 bias structure acts in the DN domain (the amplifier pedestal and the read-out
-row/column gradients ride on the digitized signal).  Per-instrument
-parameterizations come with the catalog defaults; these are the generic shapes.
+row/column gradients ride on the digitized signal).  Each instrument
+entry states its own parameterizations; these are the generic shapes.
 """
 
 from __future__ import annotations

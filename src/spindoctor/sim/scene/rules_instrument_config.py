@@ -1,7 +1,7 @@
 """The ``instrument_config`` block's validator for the sim-scene schema.
 
 A scene's ``instrument_config`` overrides keys of the navigator block its instrument
-resolves to.  The overrides are published knowledge: they cross the information
+entry points at.  The overrides are published knowledge: they cross the information
 boundary, and the navigator's faint-star limit reads its zero point, read noise, and PSF
 width from the block they leave.  This module checks every one of those values a scene
 sets, including the binned-mode table ``noise.by_binning``, so that every value a scene
@@ -139,7 +139,7 @@ def _check_noise_is_read(
 
     Parameters:
         noise: The scene's ``noise`` overrides, table keys read as integers.
-        resolved: The navigator block the scene's overrides resolve to.
+        resolved: The navigator block with the scene's overrides merged over it.
         instrument: The scene's (already validated) instrument name.
         source: Label used in error messages.
 
@@ -327,14 +327,15 @@ def _check_instrument_config(value: Any, *, instrument: str, binning: int, sourc
     through JSON carries every key as a string, and each binning only once and without a
     leading zero.  Each noise value the star limit reads must be one that a frame of the
     scene's instrument reads: none on a calibrated-unit block, and on a raw-DN block only
-    the binnings the instrument offers.  The navigator block the overrides resolve to,
-    over the default configuration, sets the units.  Every value the scene sets that the
-    faint-star limit reads must then be one it can use: a read noise is a finite number of
-    at least 0, a zero point and ``star_psf_sigma`` are finite, positive numbers, and each
-    entry of the binned-mode table is a mapping that sets nothing but a read noise and a
-    zero point.  On a binned frame the star limit reads the mode's ``read_noise_dn`` and
+    the binnings the instrument offers.  The navigator block, read from the default
+    configuration, sets the units.  Every value the scene sets that the faint-star limit
+    reads must then be one it can use: a read noise is a finite number of at least 0, a
+    zero point and ``star_psf_sigma`` are finite, positive numbers, and each entry of the
+    binned-mode table is a mapping that sets nothing but a read noise and a zero point.
+    On a binned frame the star limit reads the readout mode's ``read_noise_dn`` and
     ``star_flux_dn_per_s_vmag0`` from that table, so a scene that sets either unbinned
-    value must set the mode's value as well, or the value it sets would never be read.
+    value must set the readout mode's value as well, or the value it sets would never be
+    read.
 
     Parameters:
         value: The ``instrument_config`` mapping, or None when the block is absent.

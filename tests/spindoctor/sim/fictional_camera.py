@@ -1,6 +1,6 @@
-"""A fictional simulated camera, added as one config entry in a copy of the catalog.
+"""A fictional simulated camera, added as one instrument entry in a copy of the catalog.
 
-It serves the tests that show a camera needs nothing but its config entry.  It has a
+It serves the tests that show a camera needs nothing but its instrument entry.  It has a
 filter table with a clear filter, a binned readout mode beside a native frame
 size, two downlink tables (one parametric, one tabulated), three gain states, and
 an artifact mode it does not offer, with the reason.

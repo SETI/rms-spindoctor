@@ -14,7 +14,7 @@ an editor row with no change here.  The whole tab keeps one discipline: an
 unchecked switch or mode leaves its key absent, an enabled mode starts as an
 empty map, and every parameter key -- including the detector override's -- appears
 only once its widget is edited, so keys the operator never touched track the
-per-instrument catalog defaults.  If the scene's instrument doesn't offer a mode,
+instrument's detector defaults.  If the scene's instrument doesn't offer a mode,
 or the scene's detector chain can't render it, the mode's row is disabled, and its
 tooltip says why.  If the scene already includes such a mode, its row stays enabled
 until the author turns the mode off.  The rows refresh when the instrument, the
@@ -45,7 +45,7 @@ from spindoctor.sim.artifact_modes import ARTIFACT_MODES, DETECTOR_MODELS, QUANT
 from spindoctor.sim.instruments.resolvers import (
     cataloged_binnings,
     downlink_table_names,
-    resolve_detector_defaults_for_binning,
+    resolve_detector_defaults,
     resolve_detector_model,
 )
 from spindoctor.sim.render.optics.stage import instrument_defaults_on
@@ -237,7 +237,7 @@ class ArtifactsTabMixin(SimEditorBase):
         Parameters:
             binning: The scene's readout-mode binning.
         """
-        return resolve_detector_defaults_for_binning(self.sim_params.get('instrument'), binning)
+        return resolve_detector_defaults(self.sim_params.get('instrument'), binning)
 
     def _detector_block(self) -> dict[str, Any]:
         """The scene's detector keys that carry a value; a null reads as absent."""
@@ -400,8 +400,8 @@ class ArtifactsTabMixin(SimEditorBase):
         combo.addItems([_CAMERA_DEFAULT_TABLE, *choices])
         combo.setCurrentIndex(0 if selected is None else choices.index(str(selected)) + 1)
 
-    def _refresh_detector_catalog_defaults(self) -> None:
-        """Refresh the displayed catalog defaults after an instrument change.
+    def _refresh_detector_defaults(self) -> None:
+        """Refresh the displayed detector defaults after an instrument change.
 
         Restores the caller's _syncing state on exit, so a refresh nested
         inside a wider sync never re-enables widget writes early.
@@ -436,7 +436,7 @@ class ArtifactsTabMixin(SimEditorBase):
     def _on_detector_group_toggled(self, on: bool) -> None:
         """Insert an empty detector block, or remove the block entirely.
 
-        The block starts empty so unedited keys stay absent (the catalog
+        The block starts empty so unedited keys stay absent (the detector
         defaults keep applying); each widget edit then writes only its key.
         Turning the group on shows the new block's values, so no widget keeps
         an edit the removed block held.
@@ -446,7 +446,7 @@ class ArtifactsTabMixin(SimEditorBase):
         if on:
             if not isinstance(self.sim_params.get('detector'), dict):
                 self.sim_params['detector'] = {}
-            self._refresh_detector_catalog_defaults()
+            self._refresh_detector_defaults()
         else:
             self.sim_params.pop('detector', None)
         self._refresh_artifact_mode_availability()

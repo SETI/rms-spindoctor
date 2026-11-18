@@ -143,7 +143,7 @@ class ObsSim(ObsSnapshotInst):
         )
         snapshot.insert_subfield('data', img_rendered)
 
-        # Select the per-instrument config block the sim is emulating, so the
+        # Select the navigator block of the camera the sim is emulating, so the
         # orchestrator sees the right units / noise / saturation settings.
         # Validation requires every scene to set its instrument.
         sim_block = config.category('sim')
@@ -246,8 +246,9 @@ class ObsSim(ObsSnapshotInst):
         states its readout mode, so a real pipeline always knows it.  On a frame binned
         by ``b``, the zero point and the read noise come from the block's
         ``noise.by_binning[b]`` entry, which holds the navigator's own values for that
-        mode: the zero point in DN per second, and the read noise of one binned pixel in
-        DN.  A mode the block has no entry for reads with the unbinned values.
+        readout mode: the zero point in DN per second, and the read noise of one binned
+        pixel in DN.  If the block has no entry for the readout mode, the frame reads
+        the unbinned values.
         ``star_psf_sigma`` is in native pixels, so the core is ``star_psf_sigma / b``
         frame pixels.  An unbinned frame uses the unbinned values.
 
@@ -268,9 +269,9 @@ class ObsSim(ObsSnapshotInst):
             # calibrated_if: no published DN zero point to anchor the limit, so
             # the navigator-side detection limit is a generous constant.
             return 30.0
-        # Published values only: the resolved per-instrument block (which already
-        # carries any idealized instrument_config overrides), with the generic
-        # sim block supplying any key the instrument block leaves unset.  The
+        # Published values only: the navigator block, with any idealized
+        # instrument_config overrides already merged over it, and the generic
+        # sim block supplying any key the navigator block leaves unset.  The
         # scene's truth-side noise block is deliberately not consulted.
         sim_noise = self.config.category('sim')['noise']
         zero_point_dn = float(
@@ -280,8 +281,8 @@ class ObsSim(ObsSnapshotInst):
             inst_config.get('star_psf_sigma', self.config.category('sim')['star_psf_sigma'])
         )
         read_noise_dn = float(inst_noise['read_noise_dn'])
-        # A binned frame reads its mode's values from the navigator's own block, or
-        # the unbinned values when the block has no entry for the mode, and its
+        # A binned frame reads its readout mode's values from the navigator block, or
+        # the unbinned values when the block has no entry for the readout mode, and its
         # pixels are b native pixels on a side (#993).
         binning = int(self.nav_params['binning'])
         if binning != 1:

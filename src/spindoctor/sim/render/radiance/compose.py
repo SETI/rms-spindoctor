@@ -49,7 +49,7 @@ from spindoctor.config import DEFAULT_CONFIG
 from spindoctor.sim.instruments.navigator_link import resolve_sim_inst_config
 from spindoctor.sim.instruments.resolvers import (
     filter_star_flux_scale,
-    resolve_detector_defaults_for_binning,
+    resolve_detector_defaults,
     resolve_sky_pixel_scale_arcsec,
     resolve_star_flux_zero_point,
 )
@@ -117,7 +117,7 @@ def _nominal_read_noise(instrument: str | None, domain: str, *, binning: int) ->
     Returns:
         The nominal read noise in the zero point's unit domain.
     """
-    detector_defaults = resolve_detector_defaults_for_binning(instrument, binning)
+    detector_defaults = resolve_detector_defaults(instrument, binning)
     if domain == 'dn':
         vidicon = detector_defaults.get('vidicon') or {}
         line = float(vidicon.get('read_noise_line_dn', 1.0))

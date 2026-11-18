@@ -623,7 +623,7 @@ def test_vgiss_scene_stays_vidicon_through_an_edit(
     )
     _no_critical(monkeypatch)
     model._load_scene()
-    # The widgets display the vgiss catalog defaults for unauthored keys.
+    # The widgets display the vgiss detector defaults for unauthored keys.
     assert model._detector_model_combo.currentText() == 'vidicon'
     model._detector_exposure_ref_spin.setValue(3.0)
 

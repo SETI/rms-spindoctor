@@ -16,7 +16,7 @@ from spindoctor.config import DEFAULT_CONFIG
 from spindoctor.nav_orchestrator.instrument_config import instrument_settings_from_obs
 from spindoctor.obs.obs_inst_sim import ObsSim
 from spindoctor.sim.instruments.navigator_link import resolve_sim_inst_config
-from spindoctor.sim.instruments.resolvers import resolve_detector_defaults
+from spindoctor.sim.instruments.resolvers import resolve_detector_defaults_native
 from spindoctor.sim.render.driver import render_scene
 
 
@@ -121,7 +121,7 @@ def test_gossi_scales_to_8bit_well() -> None:
 def test_calibrated_if_render_stays_in_if_range() -> None:
     """A calibrated_if render stays in I/F: at most 1 above the calibrated sky residual."""
     img, _ = render_scene(_lit_body_scene('vgiss'))
-    residual = float(resolve_detector_defaults('vgiss')['calibrated_sky_if'])
+    residual = float(resolve_detector_defaults_native('vgiss')['calibrated_sky_if'])
     assert float(img.max()) <= 1.0 + residual
 
 
@@ -142,7 +142,7 @@ def test_overrides_deep_merge_nested_block() -> None:
 
 
 def test_overrides_do_not_mutate_the_live_block() -> None:
-    """Resolving with overrides leaves the underlying config block untouched."""
+    """Resolving with overrides leaves the navigator block untouched."""
     before = float(resolve_sim_inst_config(DEFAULT_CONFIG, 'coiss_nac')['star_psf_sigma'])
     resolve_sim_inst_config(DEFAULT_CONFIG, 'coiss_nac', {'star_psf_sigma': 9.0})
     after = float(resolve_sim_inst_config(DEFAULT_CONFIG, 'coiss_nac')['star_psf_sigma'])

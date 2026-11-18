@@ -4,7 +4,7 @@ The validator accepts null for every key of a ``bodies`` entry and for every
 optional key of the body's sub-blocks, and reads it as absent.  The renderer
 parses each body once into a typed spec.  A body with a null key and the same
 body without the key parse to equal specs, so the two scenes render the same frame
-and write the same render truth.  The navigator's filtered view leaves a null key
+and write the same render truth.  The navigator view leaves a null key
 out, so it reads the absent key too.  Atmosphere keys are covered in
 ``render/bodies/test_atmosphere.py``.
 """

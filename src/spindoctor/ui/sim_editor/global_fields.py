@@ -249,10 +249,10 @@ class GlobalFieldsMixin(SimEditorBase):
         """Update the emulated instrument and refresh the PSF preview."""
         self.sim_params['instrument'] = text or 'generic'
         self._update_psf_preview()
-        # The Artifacts tab displays the instrument's detector catalog
-        # defaults for keys the scene does not override, and its mode rows
+        # The Artifacts tab displays the instrument's detector defaults
+        # for keys the scene does not override, and its mode rows
         # enable or disable by the new instrument's availability.
-        self._refresh_detector_catalog_defaults()
+        self._refresh_detector_defaults()
         self._refresh_artifact_mode_availability()
         self._updater.request_update()
 

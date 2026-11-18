@@ -250,7 +250,7 @@ def test_navigator_view_is_unmoved_by_pose_scatter_and_shading() -> None:
 
     The navigator predicts the catalog pose with flat shading by
     construction: pose_scatter and shading are truth keys the boundary
-    filter strips, so the filtered views of a scattered/gouraud scene and
+    filter strips, so the navigator views of a scattered/gouraud scene and
     the plain scene are equal and the predicted mesh cannot move.
     """
     plain = _pose_scatter_scene(sigma_deg=0.0)

@@ -21,7 +21,7 @@ from tests.spindoctor.sim.scenes import body_scene, frame_scene
 
 from spindoctor.config import DEFAULT_CONFIG
 from spindoctor.sim.instruments.catalog import instrument_entry, sim_instrument_names
-from spindoctor.sim.instruments.resolvers import resolve_detector_defaults
+from spindoctor.sim.instruments.resolvers import resolve_detector_defaults_native
 from spindoctor.sim.render.detector import apply_detector, chain
 from spindoctor.sim.render.detector.noise_stages import add_cosmic_rays
 from spindoctor.sim.render.detector.params import resolve_detector_params
@@ -349,7 +349,7 @@ def test_a_vidicon_hit_bends_the_beam_only_near_itself(seed: int) -> None:
 def test_null_detector_model_resolves_to_the_catalog_model(instrument: str) -> None:
     """An explicit null detector model renders through the instrument's default model."""
     scene = _scene(instrument, {}, detector={'detector_model': None})
-    expected = resolve_detector_defaults(instrument)['detector_model']
+    expected = resolve_detector_defaults_native(instrument)['detector_model']
     assert resolve_detector_params(scene).detector_model == expected
 
 

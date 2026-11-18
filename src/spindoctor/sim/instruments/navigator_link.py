@@ -7,7 +7,7 @@ This module resolves a sim ``instrument`` name to the navigator block that
 the instrument entry points at (its ``navigator`` section and detector; see
 :mod:`spindoctor.sim.instruments.catalog`); physical parameters then delegate to
 that block, while sim-only knobs (signal full-scale, cosmic-ray rate, dropout
-rate) stay in the ``sim`` config block.
+rate) stay in the navigator's ``sim`` configuration section.
 
 A value of ``None`` (or the generic entry and its aliases) selects the standalone
 ``sim`` block, preserving the instrument-agnostic defaults.
@@ -139,8 +139,8 @@ def resolve_sim_inst_config(
             string of digits names the binning factor it spells.
 
     Returns:
-        The navigator block: a fresh dict when ``overrides`` are supplied, otherwise
-        the live config block.
+        The navigator block with ``overrides`` merged over it, as a fresh dict.
+        Without ``overrides`` it is the live config block itself.
 
     Raises:
         ValueError: If ``instrument`` is unrecognized, the referenced config section
