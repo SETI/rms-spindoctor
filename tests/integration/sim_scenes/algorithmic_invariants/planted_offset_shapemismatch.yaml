@@ -5,8 +5,8 @@ size_v: 220
 size_u: 220
 random_seed: 42
 exposure_sec: 1.0
-# B7 scenario 2: mesh vs ellipsoid, same pose.  The frame renders an irregular
-# (lumpy) mesh body, but the navigator predicts a smooth body at the same pose,
+# The shape-mismatch fixture: mesh vs ellipsoid, same pose.  The frame renders an
+# irregular (lumpy) mesh body, but the navigator predicts a smooth body at the same pose,
 # axes, and center -- the only difference is shape.  mesh_lumpiness 0.1 is a
 # 1.25% RMS non-ellipsoidal relief (lumpiness / 8 of the radius).  The prediction is realized
 # through the body's nav_override mapping: the renderer draws the true geometry

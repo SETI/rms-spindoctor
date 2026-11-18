@@ -14,8 +14,7 @@ from typing import Any
 
 import numpy as np
 import pytest
-
-from spindoctor.sim.forward.artifact_counts import (
+from tests.spindoctor.sim.artifact_counts import (
     marker_mask,
     measured_missing_blocks,
     measured_missing_lines,
@@ -23,6 +22,7 @@ from spindoctor.sim.forward.artifact_counts import (
     measured_pixel_dropouts,
     planted_artifact_counts,
 )
+
 from spindoctor.sim.render import render_combined_model
 
 # A biased, well-resolved disc: the bias floor lifts the sky above the zero

@@ -5,7 +5,7 @@ size_v: 220
 size_u: 220
 random_seed: 42
 exposure_sec: 1.0
-# B7 scenario 4: centroid-only navigation of an irregular (mesh) body.  This is
+# Centroid-only navigation of an irregular (mesh) body.  This is
 # the realistic chaotic-rotator path -- a body whose orientation we cannot trust,
 # navigated by the orientation-free lit-weighted centroid rather than an oriented
 # limb or disc model.  It is the mesh-rendered variant of the existing ellipsoid

@@ -136,7 +136,7 @@ class BodyTabMixin(SimEditorBase):
             semi_spins.append(semi_spin)
         w.semi_a_spin, w.semi_b_spin, w.semi_c_spin = semi_spins  # type: ignore[attr-defined]
 
-        # Shape model (B7): ellipsoid or an irregular polyhedral mesh.  For a
+        # Shape model: ellipsoid or an irregular polyhedral mesh.  For a
         # mesh, lumpiness/seed pick the shape and pose_euler_deg orients it; the
         # semi-axes above scale it.  The mesh fields are inert for an ellipsoid.
         shape_combo = QComboBox()

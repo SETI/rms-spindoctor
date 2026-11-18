@@ -1,4 +1,4 @@
-"""Navigator-side simulated body model, including mesh prediction (B7).
+"""Navigator-side simulated body model, including mesh prediction.
 
 ``NavModelBodySimulated`` renders the *predicted* body silhouette from its own
 params, which need not match what was rendered into the image.  These tests
@@ -841,7 +841,7 @@ def test_instances_for_obs_wires_siblings() -> None:
     for model in models:
         assert isinstance(model, NavModelBodySimulated)
         assert len(model._sibling_bodies) == 1
-        assert model._sibling_bodies[0]['name'] != model._sim_params['name']
+        assert model._sibling_bodies[0]['name'] != model._nav_body['name']
 
 
 # ---------------------------------------------------------------------------

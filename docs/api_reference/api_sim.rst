@@ -148,11 +148,6 @@ spindoctor.sim
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: spindoctor.sim.forward.artifact_counts
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
 .. automodule:: spindoctor.sim.forward.feature_loci
    :members:
    :undoc-members:
