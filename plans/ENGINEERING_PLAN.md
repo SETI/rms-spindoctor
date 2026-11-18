@@ -792,15 +792,16 @@ where they differ).
   the duplicate check compares only stars from different catalogs.
 - **The correlation techniques** — the disc and ring annulus correlations
   share `support/correlate.py`, and five items on them are open.
-  - **#791** (Priority 2) — `BodyDiscCorrelateNav`'s sub-pixel refinement
+  - **#791** (Priority 2; done by PR #1053, the rest moved to #1061, #1062,
+    and #1050) — `BodyDiscCorrelateNav`'s sub-pixel refinement
     cannot leave a +-0.5 px window around the integer peak and reports the
     window edge unflagged, and the raw cross-power peak it climbs is itself
     biased by about a pixel on a scene with stray light and limb relief.
     #929 fixed the clamp for the ring annulus only (#1003, a quadratic fit
     of the NCC surface on the final pass); the disc stays as it is by
     decision, since on 29 real disc frames no candidate refinement beat the
-    current one, and #929's disc criteria moved here. Partly done (PR
-    #1053): the disc's final pass now refines on a high-pass cross-power
+    current one, and #929's disc criteria moved here. Done (PR #1053):
+    the disc's final pass now refines on a high-pass cross-power
     surface, in a window centered on the NCC quadratic vertex. On 69 real
     NAC frames the median per-axis error fell from 0.29 / 0.30 to 0.23 /
     0.23 px; the median radial error stayed flat (0.467 to 0.470 px), the
@@ -810,11 +811,14 @@ where they differ).
     the 10 of them with bright unmodeled structure beside the limb the
     median radial error rose from 1.64 to 2.03 px. The at-edge flag now
     tests the integer peak as well, since the window can carry the answer
-    1.5 px from it. Still open: an answer that still stops at its window
-    edge is not flagged. The strict #790 expectation was removed from the
-    sim sweeps entirely, because mesh seed 10 now ends conflicted (the veto
-    fires on seeds 5 and 10). The refinement's pull toward bright
-    structure the template leaves out is #1050. On real irregular moons
+    1.5 px from it. Moved out (operator, 2026-11-18): flagging an answer
+    that still stops at its window edge is #1061. The strict #790
+    expectation was removed from the sim sweeps entirely, because mesh seed
+    10 now ends conflicted (the veto fires on seeds 5 and 10); a new strict
+    reproduction is #1062. The refinement's pull toward bright structure
+    the template leaves out is #1050, which also carries the wide-angle
+    regression on saturated frames and the remaining bias on the
+    stray-light-and-relief scene #791 was opened on. On real irregular moons
     the disc is spurious on 46 of 47 frames with star truth, so that sim
     regime is barely testable; smeared and short-exposure frames improved
     (PR #1053 lists the numbers). An Iapetus disc lock found there is
