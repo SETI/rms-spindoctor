@@ -10,7 +10,7 @@ import shutil
 import textwrap
 from pathlib import Path
 
-from spindoctor.sim.instrument_catalog import INSTRUMENT_CONFIG_DIR
+from spindoctor.sim.instruments.catalog import INSTRUMENT_CONFIG_DIR
 
 __all__ = ['FICTIONAL_CAMERA', 'FICTIONAL_CAMERA_NAME', 'catalog_dir_with', 'keyed']
 
@@ -93,7 +93,7 @@ def catalog_dir_with(tmp_path: Path, files: dict[str, str]) -> Path:
     Returns:
         The copy's path.
     """
-    directory = tmp_path / 'instrument_configs'
+    directory = tmp_path / 'configs'
     shutil.copytree(INSTRUMENT_CONFIG_DIR, directory)
     for name, text in files.items():
         (directory / name).write_text(text)

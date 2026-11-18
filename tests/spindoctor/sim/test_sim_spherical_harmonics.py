@@ -13,7 +13,7 @@ import numpy as np
 import pytest
 from scipy import special
 
-from spindoctor.sim.spherical_harmonics import (
+from spindoctor.sim.shared.spherical_harmonics import (
     degree_mean_square,
     draw_sh_coefficients,
     evaluate_at_directions,

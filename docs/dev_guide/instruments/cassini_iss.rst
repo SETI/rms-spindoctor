@@ -414,7 +414,7 @@ Simulator model
 ===============
 
 **Instrument keys.** Four, each a top-level entry of the instrument config file
-``src/spindoctor/sim/instrument_configs/coiss.yaml``, which holds the values
+``src/spindoctor/sim/instruments/configs/coiss.yaml``, which holds the values
 below. ``coiss_nac`` and ``coiss_wac`` resolve to the ``cassini_iss`` block's two
 detectors, and ``coiss_calib_nac`` and ``coiss_calib_wac`` to the
 ``cassini_iss_calib`` block's. Each calibrated entry sets its raw camera as its

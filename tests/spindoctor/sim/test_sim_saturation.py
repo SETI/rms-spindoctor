@@ -11,8 +11,8 @@ from typing import Any
 import numpy as np
 from tests.spindoctor.sim.scenes import frame_scene
 
-from spindoctor.sim.forward.detector import apply_saturation
 from spindoctor.sim.render import render_combined_model
+from spindoctor.sim.render.detector import apply_saturation
 
 _FULL_WELL_E = 110.0e3
 _NAC_GAIN = 30.0

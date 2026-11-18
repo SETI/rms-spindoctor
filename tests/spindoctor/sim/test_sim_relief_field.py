@@ -19,7 +19,7 @@ import numpy as np
 import pytest
 from scipy import special
 
-from spindoctor.sim.forward.relief import ReliefField, cast_shadows, synthesize_relief_field
+from spindoctor.sim.render.bodies.relief import ReliefField, cast_shadows, synthesize_relief_field
 from spindoctor.support.types import NDArrayComplexType
 
 _RMS = 0.01

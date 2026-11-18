@@ -49,7 +49,7 @@ from PyQt6.QtWidgets import (
 )
 
 from spindoctor.cli.sim_editor.base import SimEditorBase
-from spindoctor.sim.scene_schema import scene_value
+from spindoctor.sim.scene.fields import scene_value
 
 # Tooltip for the position spin boxes, which write the scene value directly.
 _POSITION_TOOLTIP = (

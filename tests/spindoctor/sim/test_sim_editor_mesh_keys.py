@@ -60,13 +60,10 @@ from spindoctor.cli.sim_editor.body_mesh_keys import (
     _hover_targets,
     stash_message,
 )
-from spindoctor.sim.scene import (
-    SimSceneValidationError,
-    load_sim_scene,
-    save_sim_scene,
-    validate_sim_params,
-)
-from spindoctor.sim.scene_schema import ELLIPSOID_UNSUPPORTED_KEYS, MESH_UNSUPPORTED_KEYS
+from spindoctor.sim.scene.fields import ELLIPSOID_UNSUPPORTED_KEYS, MESH_UNSUPPORTED_KEYS
+from spindoctor.sim.scene.io import load_sim_scene, save_sim_scene
+from spindoctor.sim.scene.rules_common import SimSceneValidationError
+from spindoctor.sim.scene.validate import validate_sim_params
 
 # An ellipsoid body carrying every refused key with a non-default value, so a
 # lost or defaulted key is visible after a round trip.

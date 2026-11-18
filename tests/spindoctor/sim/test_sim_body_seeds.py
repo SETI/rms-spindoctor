@@ -12,7 +12,7 @@ import numpy as np
 from tests.spindoctor.sim.scenes import frame_scene, quiet_noise
 
 from spindoctor.sim import render
-from spindoctor.sim.forward import body as forward_body
+from spindoctor.sim.render.bodies import render as body_render
 
 _BODY_GEOMETRY: dict[str, Any] = {
     'semi_a_px': 20.0,
@@ -67,7 +67,7 @@ def test_twin_bodies_occupy_distinct_shape_cache_entries() -> None:
     """The shape cache holds one entry per body rather than colliding on one."""
     _clear_render_caches()
     render.render_combined_model(_twin_body_scene())
-    info = forward_body._render_body_shape_cached.cache_info()
+    info = body_render._render_body_shape_cached.cache_info()
     assert info.currsize == 2
 
 
@@ -75,5 +75,5 @@ def test_twin_bodies_do_not_share_a_cached_shape_array() -> None:
     """The second body never receives the first body's cached array (no hits)."""
     _clear_render_caches()
     render.render_combined_model(_twin_body_scene())
-    info = forward_body._render_body_shape_cached.cache_info()
+    info = body_render._render_body_shape_cached.cache_info()
     assert info.hits == 0

@@ -14,12 +14,12 @@ import numpy as np
 import pytest
 from tests.spindoctor.sim.scenes import frame_scene
 
-from spindoctor.sim.forward.detector.noise_stages import detector_column_map
-from spindoctor.sim.forward.detector.params import calibration_map, resolve_detector_params
-from spindoctor.sim.instrument_resolvers import resolve_detector_defaults
+from spindoctor.sim.instruments.resolvers import resolve_detector_defaults
 from spindoctor.sim.render import render_combined_model
-from spindoctor.sim.scene import validate_sim_params
-from spindoctor.sim.scene_schema import SimSceneValidationError
+from spindoctor.sim.render.detector.noise_stages import detector_column_map
+from spindoctor.sim.render.detector.params import calibration_map, resolve_detector_params
+from spindoctor.sim.scene.rules_common import SimSceneValidationError
+from spindoctor.sim.scene.validate import validate_sim_params
 
 _SIZE = 256
 

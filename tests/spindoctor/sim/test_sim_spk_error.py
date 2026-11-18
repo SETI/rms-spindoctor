@@ -13,7 +13,9 @@ import pytest
 from tests.spindoctor.sim.scenes import frame_scene, quiet_noise, star_entry
 
 from spindoctor.sim.render import render_combined_model
-from spindoctor.sim.scene import SimSceneValidationError, build_nav_params, validate_sim_params
+from spindoctor.sim.scene.boundary import build_nav_params
+from spindoctor.sim.scene.rules_common import SimSceneValidationError
+from spindoctor.sim.scene.validate import validate_sim_params
 
 
 def _centroid_v(image: np.ndarray, v_slice: slice, u_slice: slice) -> float:

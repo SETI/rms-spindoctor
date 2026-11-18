@@ -26,7 +26,7 @@ from typing import Any
 import pytest
 
 from spindoctor.nav_orchestrator.nav_result import NavResult
-from spindoctor.sim.scene import load_sim_scene, scene_class_for_path
+from spindoctor.sim.scene.io import load_sim_scene, scene_class_for_path
 from tests.integration.sim_expected import navigate_scene
 from tests.integration.sim_truth import (
     FUSED,

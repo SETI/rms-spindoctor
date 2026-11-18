@@ -37,14 +37,14 @@ from PyQt6.QtWidgets import (
 from spindoctor.cli.sim_editor.base import SimEditorBase
 from spindoctor.cli.sim_editor.body_mesh_keys import sync_mesh_refused_widgets
 from spindoctor.cli.sim_editor.widgets import make_dspin as _dspin
-from spindoctor.sim.forward.body_spec import body_spec_from_params
-from spindoctor.sim.forward.body_texture import (
+from spindoctor.sim.render.bodies.photometry import PHOTOMETRIC_LAWS
+from spindoctor.sim.render.bodies.relief import MAX_LIMB_RELIEF_RMS, MIN_LIMB_RELIEF_CORR_DEG
+from spindoctor.sim.render.bodies.spec import body_spec_from_params
+from spindoctor.sim.render.bodies.texture import (
     albedo_spec_from_params,
     disc_texture_spec_from_params,
 )
-from spindoctor.sim.forward.photometry import PHOTOMETRIC_LAWS
-from spindoctor.sim.forward.relief import MAX_LIMB_RELIEF_RMS, MIN_LIMB_RELIEF_CORR_DEG
-from spindoctor.sim.scene_schema import scene_value
+from spindoctor.sim.scene.fields import scene_value
 
 # The photometric-law vocabulary, Lambert first so the combo opens on the
 # navigator-matched default when a scene enables the group without a law.

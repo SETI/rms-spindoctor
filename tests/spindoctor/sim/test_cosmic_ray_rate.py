@@ -20,14 +20,14 @@ from scipy import ndimage
 from tests.spindoctor.sim.scenes import body_scene, frame_scene
 
 from spindoctor.config import DEFAULT_CONFIG
-from spindoctor.sim.forward.detector import apply_detector, chain
-from spindoctor.sim.forward.detector.noise_stages import add_cosmic_rays
-from spindoctor.sim.forward.detector.params import resolve_detector_params
-from spindoctor.sim.forward.stages import SimFrame
-from spindoctor.sim.instrument_catalog import instrument_entry, sim_instrument_names
-from spindoctor.sim.instrument_resolvers import resolve_detector_defaults
+from spindoctor.sim.instruments.catalog import instrument_entry, sim_instrument_names
+from spindoctor.sim.instruments.resolvers import resolve_detector_defaults
 from spindoctor.sim.render import render_combined_model
-from spindoctor.sim.scene import validate_sim_params
+from spindoctor.sim.render.detector import apply_detector, chain
+from spindoctor.sim.render.detector.noise_stages import add_cosmic_rays
+from spindoctor.sim.render.detector.params import resolve_detector_params
+from spindoctor.sim.render.stages import SimFrame
+from spindoctor.sim.scene.validate import validate_sim_params
 from spindoctor.sim.seeds import derive_effect_seed
 
 _KEY = 'cosmic_ray_events_per_pixel_per_sec'

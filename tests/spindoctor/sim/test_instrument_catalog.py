@@ -25,25 +25,26 @@ from tests.spindoctor.sim.fictional_camera import (
 from tests.spindoctor.sim.scenes import frame_scene
 
 from spindoctor.config import DEFAULT_CONFIG
-from spindoctor.sim import instrument_catalog, instrument_navigator
-from spindoctor.sim.forward.detector.params import DetectorParamError, resolve_detector_params
-from spindoctor.sim.forward.detector.sqrt_lut import SqrtLut, TabulatedLut
-from spindoctor.sim.instrument_catalog import (
+from spindoctor.sim.instruments import catalog as instrument_catalog
+from spindoctor.sim.instruments import navigator_link
+from spindoctor.sim.instruments.catalog import (
     GENERIC_INSTRUMENT,
     INSTRUMENT_CONFIG_DIR,
     InstrumentConfigError,
     load_instrument_catalog,
     sim_instrument_names,
 )
-from spindoctor.sim.instrument_checks import _parametric_decoded_dn
-from spindoctor.sim.instrument_navigator import resolve_sim_inst_config
-from spindoctor.sim.instrument_resolvers import (
+from spindoctor.sim.instruments.checks import _parametric_decoded_dn
+from spindoctor.sim.instruments.navigator_link import resolve_sim_inst_config
+from spindoctor.sim.instruments.resolvers import (
     cataloged_binnings,
     resolve_data_units,
 )
 from spindoctor.sim.render import render_combined_model
-from spindoctor.sim.scene import validate_sim_params
-from spindoctor.sim.scene_schema import SimSceneValidationError
+from spindoctor.sim.render.detector.params import DetectorParamError, resolve_detector_params
+from spindoctor.sim.render.detector.sqrt_lut import SqrtLut, TabulatedLut
+from spindoctor.sim.scene.rules_common import SimSceneValidationError
+from spindoctor.sim.scene.validate import validate_sim_params
 
 # A complete camera entry, written out so each case changes one thing in it.
 _CAMERA = """\
@@ -688,7 +689,7 @@ def test_the_frame_units_follow_the_entry(
     """The detector chain renders in the entry's units, not the navigator block's."""
     # The check refuses an entry whose units differ from its block's, so switch it off to
     # see which of the two the frame follows.
-    monkeypatch.setattr(instrument_navigator, '_check_units_agree', lambda *_, **__: None)
+    monkeypatch.setattr(navigator_link, '_check_units_agree', lambda *_, **__: None)
     params = resolve_detector_params({'instrument': calibrated_cam_on_raw_block})
     assert params.data_units == 'calibrated_if'
 

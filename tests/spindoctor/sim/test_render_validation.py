@@ -14,7 +14,8 @@ import pytest
 from tests.spindoctor.sim.scenes import frame_scene
 
 from spindoctor.sim.render import render_combined_model
-from spindoctor.sim.scene import SimSceneValidationError, load_sim_scene
+from spindoctor.sim.scene.io import load_sim_scene
+from spindoctor.sim.scene.rules_common import SimSceneValidationError
 
 _SIZE = 32
 

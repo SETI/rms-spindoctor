@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from spindoctor.sim.scene import SimSceneValidationError, validate_sim_params
+from spindoctor.sim.scene.rules_common import SimSceneValidationError
+from spindoctor.sim.scene.validate import validate_sim_params
 
 from .test_scene import _sim_params
 

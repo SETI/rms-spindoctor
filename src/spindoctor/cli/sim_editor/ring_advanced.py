@@ -38,7 +38,7 @@ from PyQt6.QtWidgets import (
 from spindoctor.cli.sim_editor.base import SimEditorBase
 from spindoctor.cli.sim_editor.widgets import kept_or_shown
 from spindoctor.cli.sim_editor.widgets import make_dspin as _dspin
-from spindoctor.sim.scene_schema import ring_key_description, scene_value
+from spindoctor.sim.scene.fields import ring_key_description, scene_value
 
 
 def _key_tooltip(block: str, key: str) -> str:
@@ -50,7 +50,7 @@ def _key_tooltip(block: str, key: str) -> str:
 
     Returns:
         ``'<key>: <description>.'``, the description read from
-        :data:`~spindoctor.sim.scene_schema.RING_KEY_DESCRIPTIONS`.
+        :data:`~spindoctor.sim.scene.fields.RING_KEY_DESCRIPTIONS`.
     """
     return f'{key}: {ring_key_description(block, key)}.'
 

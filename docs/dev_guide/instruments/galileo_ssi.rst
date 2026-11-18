@@ -254,7 +254,7 @@ Simulator model
 ===============
 
 **Instrument key.** ``gossi``, resolving to the flat ``galileo_ssi`` block. The
-``gossi`` entry in ``src/spindoctor/sim/instrument_configs/gossi.yaml`` holds the
+``gossi`` entry in ``src/spindoctor/sim/instruments/configs/gossi.yaml`` holds the
 values below.
 
 **PSF kernel.** ``{sigma_v: 0.80, sigma_u: 0.80, w: 1.2e-2, r0: 2.0, n: 3.0}``,

@@ -14,7 +14,7 @@ from PyQt6.QtCore import QObject
 
 from spindoctor.cli.sim_editor.worker import LatestRequestRunner
 from spindoctor.config import DEFAULT_CONFIG
-from spindoctor.sim.instrument_navigator import frame_units_summary, resolve_sim_inst_config
+from spindoctor.sim.instruments.navigator_link import frame_units_summary, resolve_sim_inst_config
 from spindoctor.sim.render import render_combined_model
 
 __all__ = ['VerdictRunner', 'navigated_frame_summary']
@@ -26,7 +26,7 @@ def navigated_frame_summary(sim_params: dict[str, Any]) -> str:
     The frame carries the planted offset and roll (``ignore_offset=False``).  The
     scene is validated before it renders, as it is for every render, so this
     function raises for a scene that fails validation.  The text is
-    :func:`~spindoctor.sim.instrument_navigator.frame_units_summary` of that frame
+    :func:`~spindoctor.sim.instruments.navigator_link.frame_units_summary` of that frame
     under the scene's resolved instrument block.
 
     Parameters:

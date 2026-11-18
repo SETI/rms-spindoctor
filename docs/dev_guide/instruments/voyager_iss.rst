@@ -365,7 +365,7 @@ Simulator model
 **Instrument key.** ``vgiss``, one key for two spacecraft and four cameras.
 That is the model's sharpest simplification, and the instrument's config entry
 says so. The entry sits under the ``vgiss`` key of
-``src/spindoctor/sim/instrument_configs/vgiss.yaml`` and holds the values below.
+``src/spindoctor/sim/instruments/configs/vgiss.yaml`` and holds the values below.
 It states ``data_units: calibrated_if``, the units of the GEOMED product and of
 the ``voyager_iss`` block, so a simulated frame is in I/F.
 

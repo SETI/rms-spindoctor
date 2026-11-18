@@ -10,10 +10,10 @@ from typing import Any
 import numpy as np
 from tests.spindoctor.sim.scenes import frame_scene, quiet_noise, star_entry
 
-from spindoctor.sim.forward.scene_radiance import compose_scene_radiance
-from spindoctor.sim.forward.smear import apply_smear, smear_kernel
-from spindoctor.sim.forward.stages import new_sim_frame
 from spindoctor.sim.render import render_combined_model
+from spindoctor.sim.render.optics.smear import apply_smear, smear_kernel
+from spindoctor.sim.render.radiance.compose import compose_scene_radiance
+from spindoctor.sim.render.stages import new_sim_frame
 
 
 def test_zero_length_kernel_is_none() -> None:

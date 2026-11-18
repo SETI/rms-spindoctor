@@ -13,7 +13,7 @@ import numpy as np
 import pytest
 from tests.spindoctor.sim.scenes import disc_body, frame_scene
 
-from spindoctor.sim.instrument_resolvers import resolve_detector_defaults
+from spindoctor.sim.instruments.resolvers import resolve_detector_defaults
 from spindoctor.sim.render import render_combined_model
 
 _CALIBRATED = ('coiss_calib_nac', 'coiss_calib_wac', 'vgiss')

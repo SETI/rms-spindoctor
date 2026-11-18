@@ -12,7 +12,7 @@ from typing import Any
 from PyQt6.QtWidgets import QMessageBox, QWidget
 
 from spindoctor.cli.sim_editor.base import SimEditorBase
-from spindoctor.sim.scene_schema import default_body_name, default_body_range_km, scene_value
+from spindoctor.sim.scene.fields import default_body_name, default_body_range_km, scene_value
 
 
 class TabsMixin(SimEditorBase):

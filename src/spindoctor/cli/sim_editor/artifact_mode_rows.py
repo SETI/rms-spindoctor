@@ -50,7 +50,7 @@ from spindoctor.sim.artifact_modes import (
     ArtifactMode,
     ModeParam,
 )
-from spindoctor.sim.instrument_resolvers import (
+from spindoctor.sim.instruments.resolvers import (
     mode_available,
     mode_unavailable_message,
     resolve_mode_with_catalog,

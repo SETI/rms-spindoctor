@@ -34,7 +34,7 @@ from PyQt6.QtWidgets import (
 )
 
 from spindoctor.cli.sim_editor.base import SimEditorBase
-from spindoctor.sim.scene_schema import (
+from spindoctor.sim.scene.fields import (
     RING_KIND_SHAPE_KEYS,
     RING_SHAPE_KEYS,
     RING_SIDE_DEFAULTS,

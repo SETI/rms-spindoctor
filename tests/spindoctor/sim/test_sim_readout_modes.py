@@ -15,21 +15,21 @@ import numpy as np
 import pytest
 from tests.spindoctor.sim.scenes import disc_body, frame_scene, star_entry
 
-from spindoctor.sim.forward import scene_radiance
-from spindoctor.sim.forward.detector.noise_stages import detector_hot_pixel_map
-from spindoctor.sim.forward.detector.params import DetectorParamError, resolve_detector_params
-from spindoctor.sim.forward.optics import effective_psf
-from spindoctor.sim.forward.psf import binned_psf_kernel
-from spindoctor.sim.forward.scene_radiance import _nominal_read_noise
-from spindoctor.sim.forward.star import faint_sky_cutoff_mag
-from spindoctor.sim.instrument_resolvers import (
+from spindoctor.sim.instruments.resolvers import (
     binning_for_frame_size,
     cataloged_binnings,
     resolve_psf_kernel,
 )
 from spindoctor.sim.render import clear_render_caches, render_combined_model
-from spindoctor.sim.scene import validate_sim_params
-from spindoctor.sim.scene_schema import SimSceneValidationError
+from spindoctor.sim.render.detector.noise_stages import detector_hot_pixel_map
+from spindoctor.sim.render.detector.params import DetectorParamError, resolve_detector_params
+from spindoctor.sim.render.optics.psf import binned_psf_kernel
+from spindoctor.sim.render.optics.stage import effective_psf
+from spindoctor.sim.render.radiance import compose as scene_radiance
+from spindoctor.sim.render.radiance.compose import _nominal_read_noise
+from spindoctor.sim.render.radiance.stars import faint_sky_cutoff_mag
+from spindoctor.sim.scene.rules_common import SimSceneValidationError
+from spindoctor.sim.scene.validate import validate_sim_params
 
 
 def _scene(instrument: str, binning: int | None = None, **extra: Any) -> dict[str, Any]:

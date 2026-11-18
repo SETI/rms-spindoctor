@@ -40,7 +40,7 @@ from PIL import Image
 
 from spindoctor.sim.png_export import stretch_to_uint8
 from spindoctor.sim.render import render_combined_model
-from spindoctor.sim.scene import iter_scene_paths, load_sim_scene, scene_class_for_path
+from spindoctor.sim.scene.io import iter_scene_paths, load_sim_scene, scene_class_for_path
 from spindoctor.support.types import NDArrayUint8Type
 from tests.integration.render_contact_sheet import encode_current_png
 

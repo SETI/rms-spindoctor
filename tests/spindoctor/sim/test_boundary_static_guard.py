@@ -27,10 +27,16 @@ deliberate mismatch for.
 
 A third scan covers imports.  The simulated instrument catalog and the artifact-mode
 registry describe how the image side renders a frame, so no navigator-side module
-imports ``spindoctor.sim.instrument_*`` or ``spindoctor.sim.artifact_modes``.  A
+imports ``spindoctor.sim.instruments`` or ``spindoctor.sim.artifact_modes``.  A
 navigator-side model reads what the navigator would know from its own config.  The scan
 also covers the simulated observation (``obs/obs_inst_sim.py``), whose star limit is
 navigator-side; its sanctioned imports are listed in ``_ALLOWED_IMAGE_SIDE_IMPORTS``.
+
+A fourth scan makes the boundary follow the package layout.  The neutral simulator
+modules are ``spindoctor.sim.shared`` and ``spindoctor.sim.scene.fields``.  A
+navigator-side simulated model (``nav_model/simulated/``) imports nothing else from
+``spindoctor.sim``, and neither does a module of ``sim/shared/``, so the shared
+conventions never pull in the renderer, the scene rules, or the editor.
 
 Legitimate exceptions, should one ever exist, go in ``_ALLOWED_REFERENCES``:
 a mapping from ``(module path relative to the spindoctor package, name)`` to a
@@ -44,7 +50,7 @@ from pathlib import Path
 import pytest
 
 import spindoctor
-from spindoctor.sim.scene import ATMOSPHERE_KEYS
+from spindoctor.sim.scene.rules_body import ATMOSPHERE_KEYS
 
 # Truth-bearing attribute names stored on the simulated observation by
 # ObsSim.from_file (src/spindoctor/obs/obs_inst_sim.py), plus the historical
@@ -85,9 +91,17 @@ _ALLOWED_REFERENCES: dict[tuple[str, str], str] = {}
 _PACKAGE_ROOT = Path(spindoctor.__file__).parent
 
 # The image-side simulator modules no navigator-side module may import: the
-# instrument catalog and its readers, and the artifact-mode registry.
-_IMAGE_SIDE_MODULE_PREFIX = 'spindoctor.sim.instrument_'
-_IMAGE_SIDE_MODULES: frozenset[str] = frozenset({'spindoctor.sim.artifact_modes'})
+# instrument catalog package, and the artifact-mode registry.
+_IMAGE_SIDE_MODULES: tuple[str, ...] = (
+    'spindoctor.sim.instruments',
+    'spindoctor.sim.artifact_modes',
+)
+
+# The simulator modules both sides may import, and the directories, relative to the
+# spindoctor package, whose modules may import nothing else from the simulator.
+_NEUTRAL_SIM_MODULES: tuple[str, ...] = ('spindoctor.sim.shared', 'spindoctor.sim.scene.fields')
+_SIMULATED_MODELS_DIR = 'nav_model/simulated'
+_SHARED_DIR = 'sim/shared'
 
 # Navigator-side modules outside the navigator packages whose imports the scan also
 # covers, relative to the spindoctor package.
@@ -97,10 +111,15 @@ _NAVIGATOR_MODULES: tuple[str, ...] = ('obs/obs_inst_sim.py',)
 # imported module) -> one-line justification.  An entry covers the names imported
 # from that module too.
 _ALLOWED_IMAGE_SIDE_IMPORTS: dict[tuple[str, str], str] = {
-    ('obs/obs_inst_sim.py', 'spindoctor.sim.instrument_navigator'): (
+    ('obs/obs_inst_sim.py', 'spindoctor.sim.instruments.navigator_link'): (
         'it finds which navigator config section and detector to load for the instrument'
     ),
 }
+
+
+def _within(module: str, packages: tuple[str, ...]) -> bool:
+    """Whether ``module`` is one of ``packages`` or lies inside one of them."""
+    return any(module == package or module.startswith(f'{package}.') for package in packages)
 
 
 def _module_package(path: Path) -> str:
@@ -139,14 +158,46 @@ def _image_side_imports(source: str, *, package: str) -> list[tuple[int, str]]:
             modules = [alias.name for alias in node.names]
         elif isinstance(node, ast.ImportFrom):
             module = _imported_module(node, package=package)
-            # ``from spindoctor.sim import instrument_catalog`` imports the module itself.
+            # ``from spindoctor.sim import instruments`` imports the package itself.
             modules = [module, *(f'{module}.{alias.name}' for alias in node.names)]
         else:
             continue
         imports.extend(
-            (node.lineno, module)
-            for module in modules
-            if module.startswith(_IMAGE_SIDE_MODULE_PREFIX) or module in _IMAGE_SIDE_MODULES
+            (node.lineno, module) for module in modules if _within(module, _IMAGE_SIDE_MODULES)
+        )
+    return imports
+
+
+def _non_neutral_sim_imports(source: str, *, package: str) -> list[tuple[int, str]]:
+    """Return each import of a simulator module other than the neutral modules.
+
+    A ``from`` import passes when the module it reads from is neutral, or when the name
+    it imports is a neutral module, as in ``from spindoctor.sim.scene import fields``.
+
+    Parameters:
+        source: Python source text to scan.
+        package: The dotted package the source's module belongs to, against which
+            a relative import resolves.
+
+    Returns:
+        List of ``(line number, module)`` tuples, one per imported name; a name read
+        from a module appears as ``<module>.<name>``.
+    """
+    imports: list[tuple[int, str]] = []
+    for node in ast.walk(ast.parse(source)):
+        if isinstance(node, ast.Import):
+            targets = [alias.name for alias in node.names]
+        elif isinstance(node, ast.ImportFrom):
+            module = _imported_module(node, package=package)
+            if _within(module, _NEUTRAL_SIM_MODULES):
+                continue
+            targets = [f'{module}.{alias.name}' for alias in node.names]
+        else:
+            continue
+        imports.extend(
+            (node.lineno, target)
+            for target in targets
+            if _within(target, ('spindoctor.sim',)) and not _within(target, _NEUTRAL_SIM_MODULES)
         )
     return imports
 
@@ -298,11 +349,11 @@ def test_navigator_module_imports_only_sanctioned_image_side_modules(module: str
 
 
 def test_import_guard_flags_a_module_import() -> None:
-    """The import scanner detects ``from spindoctor.sim import instrument_catalog``."""
+    """The import scanner detects ``from spindoctor.sim import instruments``."""
     imports = _image_side_imports(
-        'from spindoctor.sim import instrument_catalog\n', package='spindoctor.nav_model'
+        'from spindoctor.sim import instruments\n', package='spindoctor.nav_model'
     )
-    assert imports == [(1, 'spindoctor.sim.instrument_catalog')]
+    assert imports == [(1, 'spindoctor.sim.instruments')]
 
 
 def test_import_guard_flags_a_relative_import() -> None:
@@ -313,6 +364,54 @@ def test_import_guard_flags_a_relative_import() -> None:
     assert imports == [(1, 'spindoctor.sim.artifact_modes')]
 
 
+def _non_neutral_violations(directory: str) -> list[str]:
+    """Return each non-neutral simulator import of the modules in ``directory``."""
+    violations: list[str] = []
+    for path in sorted((_PACKAGE_ROOT / directory).rglob('*.py')):
+        rel = path.relative_to(_PACKAGE_ROOT).as_posix()
+        violations.extend(
+            f'{rel}:{lineno}: imports {module}'
+            for lineno, module in _non_neutral_sim_imports(
+                path.read_text(encoding='utf-8'), package=_module_package(path)
+            )
+        )
+    return violations
+
+
+def test_simulated_models_import_only_neutral_simulator_modules() -> None:
+    """A navigator-side simulated model imports only sim.shared and sim.scene.fields."""
+    violations = _non_neutral_violations(_SIMULATED_MODELS_DIR)
+    assert not violations, (
+        'a navigator-side simulated model imports a simulator module other than '
+        'spindoctor.sim.shared and spindoctor.sim.scene.fields:\n' + '\n'.join(violations)
+    )
+
+
+def test_shared_modules_import_only_neutral_simulator_modules() -> None:
+    """A module of sim/shared imports only sim.shared and sim.scene.fields."""
+    violations = _non_neutral_violations(_SHARED_DIR)
+    assert not violations, (
+        'a sim/shared module imports a simulator module other than spindoctor.sim.shared '
+        'and spindoctor.sim.scene.fields:\n' + '\n'.join(violations)
+    )
+
+
+def test_neutral_guard_flags_a_render_import_in_a_simulated_model() -> None:
+    """The neutral-import scanner flags a simulated model importing the driver."""
+    imports = _non_neutral_sim_imports(
+        'from spindoctor.sim.render import driver\n', package='spindoctor.nav_model.simulated'
+    )
+    assert imports == [(1, 'spindoctor.sim.render.driver')]
+
+
+def test_neutral_guard_flags_a_scene_rules_import_in_a_shared_module() -> None:
+    """The neutral-import scanner flags a shared module importing scene rules."""
+    imports = _non_neutral_sim_imports(
+        'from ..scene.rules_body import ATMOSPHERE_KEYS\n', package='spindoctor.sim.shared'
+    )
+    assert imports == [(1, 'spindoctor.sim.scene.rules_body.ATMOSPHERE_KEYS')]
+
+
 def test_atmosphere_guard_covers_the_structure_keys() -> None:
     """The scanned name set includes every symmetry-breaking structure key.
 
@@ -320,7 +419,7 @@ def test_atmosphere_guard_covers_the_structure_keys() -> None:
     deny-set comment); every key that describes structure is long enough to
     scan for, so none may be dropped silently.
     """
-    from spindoctor.sim.forward.haze_structure import HAZE_STRUCTURE_KEYS
+    from spindoctor.sim.render.bodies.haze import HAZE_STRUCTURE_KEYS
 
     assert HAZE_STRUCTURE_KEYS <= ATMOSPHERE_TRUTH_KEY_NAMES
 

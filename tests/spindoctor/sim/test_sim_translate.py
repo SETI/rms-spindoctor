@@ -10,7 +10,7 @@ import numpy as np
 import pytest
 from scipy import ndimage
 
-from spindoctor.sim.forward.translate import (
+from spindoctor.sim.render.bodies.translate import (
     _STRIP_ROWS,
     nonzero_box,
     shifted_box,

@@ -122,7 +122,7 @@ def test_gain_state_selection_changes_dn_scale() -> None:
 
 def test_instrument_defaults_turns_on_poisson_and_catalog_bloom() -> None:
     """The physical-chain opt-in resolves shot noise on and the catalog bloom."""
-    from spindoctor.sim.forward.detector.params import resolve_detector_params
+    from spindoctor.sim.render.detector.params import resolve_detector_params
 
     resolved = resolve_detector_params(_disc('coiss_nac', artifacts={'instrument_defaults': True}))
     assert resolved.poisson is True
@@ -141,7 +141,7 @@ def test_instrument_defaults_adopt_the_fitted_cosmic_ray_terms(
     instrument: str, expected: tuple[float, float, float, float]
 ) -> None:
     """Each CCD with a fitted cohort carries its rate, dwell, deposit scale, and spread."""
-    from spindoctor.sim.forward.detector.params import resolve_detector_params
+    from spindoctor.sim.render.detector.params import resolve_detector_params
 
     resolved = resolve_detector_params(_disc(instrument, artifacts={'instrument_defaults': True}))
     assert (
@@ -154,7 +154,7 @@ def test_instrument_defaults_adopt_the_fitted_cosmic_ray_terms(
 
 def test_cosmic_ray_scene_value_activates_the_stage() -> None:
     """A scene noise value still turns the cosmic-ray stage on."""
-    from spindoctor.sim.forward.detector.params import resolve_detector_params
+    from spindoctor.sim.render.detector.params import resolve_detector_params
 
     resolved = resolve_detector_params(
         _disc(
@@ -168,7 +168,7 @@ def test_cosmic_ray_scene_value_activates_the_stage() -> None:
 
 def test_cosmic_ray_retained_zero_for_lorri() -> None:
     """The LORRI catalog entry explicitly retains a zero cosmic-ray rate."""
-    from spindoctor.sim.forward.detector.params import resolve_detector_params
+    from spindoctor.sim.render.detector.params import resolve_detector_params
 
     resolved = resolve_detector_params(_disc('nhlorri', artifacts={'instrument_defaults': True}))
     assert resolved.cosmic_ray_events_per_pixel_per_sec == 0.0
@@ -176,7 +176,7 @@ def test_cosmic_ray_retained_zero_for_lorri() -> None:
 
 def test_floor_resolves_poisson_off_and_no_bloom() -> None:
     """Without artifacts or a noise block, shot noise and bloom stay disabled."""
-    from spindoctor.sim.forward.detector.params import resolve_detector_params
+    from spindoctor.sim.render.detector.params import resolve_detector_params
 
     resolved = resolve_detector_params(_disc('coiss_nac'))
     assert resolved.poisson is False
@@ -187,7 +187,7 @@ def test_floor_resolves_poisson_off_and_no_bloom() -> None:
 
 def test_explicit_noise_override_beats_instrument_defaults() -> None:
     """noise: {poisson: false} wins over the instrument_defaults opt-in."""
-    from spindoctor.sim.forward.detector.params import resolve_detector_params
+    from spindoctor.sim.render.detector.params import resolve_detector_params
 
     resolved = resolve_detector_params(
         _disc(

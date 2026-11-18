@@ -18,13 +18,14 @@ import numpy as np
 import pytest
 from tests.spindoctor.sim.scenes import frame_scene
 
-from spindoctor.sim.forward.atmosphere import AtmosphereSpec, atmosphere_spec_from_params
-from spindoctor.sim.forward.body_spec import BodySpec, body_spec_from_params
-from spindoctor.sim.forward.body_texture import AlbedoTextureSpec, albedo_spec_from_params
-from spindoctor.sim.forward.haze_structure import CLOUD_BLOB_KEYS
 from spindoctor.sim.render import render_combined_model
-from spindoctor.sim.scene import SimSceneValidationError, build_nav_params, validate_sim_params
-from spindoctor.sim.scene_checks_body import (
+from spindoctor.sim.render.bodies.atmosphere import AtmosphereSpec, atmosphere_spec_from_params
+from spindoctor.sim.render.bodies.haze import CLOUD_BLOB_KEYS
+from spindoctor.sim.render.bodies.spec import BodySpec, body_spec_from_params
+from spindoctor.sim.render.bodies.texture import AlbedoTextureSpec, albedo_spec_from_params
+from spindoctor.sim.scene.boundary import _BODY_IDEALIZED_KEYS, _BODY_KEYS, build_nav_params
+from spindoctor.sim.scene.fields import ELLIPSOID_UNSUPPORTED_KEYS, default_body_name
+from spindoctor.sim.scene.rules_body import (
     _ALBEDO_TEXTURE_KEYS,
     _DISC_TEXTURE_KEYS,
     _OPPOSITION_SURGE_KEYS,
@@ -33,12 +34,8 @@ from spindoctor.sim.scene_checks_body import (
     _TRANSIT_MOON_KEYS,
     _TRANSIT_SHADOW_KEYS,
 )
-from spindoctor.sim.scene_schema import (
-    _BODY_IDEALIZED_KEYS,
-    _BODY_KEYS,
-    ELLIPSOID_UNSUPPORTED_KEYS,
-    default_body_name,
-)
+from spindoctor.sim.scene.rules_common import SimSceneValidationError
+from spindoctor.sim.scene.validate import validate_sim_params
 
 _SIZE = 32
 

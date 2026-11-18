@@ -26,7 +26,7 @@ from spindoctor.nav_model.stars.nav_model_stars import (
     _star_summary,
 )
 from spindoctor.obs import ObsSnapshotInst
-from spindoctor.sim.star_records import star_record_from_params
+from spindoctor.sim.shared.stars import star_record_from_params
 from spindoctor.support.time import now_dt
 
 if TYPE_CHECKING:  # pragma: no cover - typing-only import

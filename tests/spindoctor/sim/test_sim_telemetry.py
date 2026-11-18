@@ -23,18 +23,19 @@ from spindoctor.sim.artifact_modes import (
     STRUCTURED_LOSS_ORDER,
     resolve_mode_config,
 )
-from spindoctor.sim.forward.detector.params import (
+from spindoctor.sim.instruments.resolvers import mode_available
+from spindoctor.sim.render import render_combined_model
+from spindoctor.sim.render.detector.params import (
     CalibrationMap,
     calibration_map,
     resolve_detector_params,
 )
-from spindoctor.sim.forward.feature_loci import FeatureLoci, choose_pixels, extract_feature_loci
-from spindoctor.sim.forward.stages import SimFrame
-from spindoctor.sim.forward.telemetry import apply_telemetry
-from spindoctor.sim.forward.telemetry_loss import apply_line_garble, apply_pixel_spikes
-from spindoctor.sim.instrument_resolvers import mode_available
-from spindoctor.sim.render import render_combined_model
-from spindoctor.sim.scene import SimSceneValidationError, validate_sim_params
+from spindoctor.sim.render.feature_loci import FeatureLoci, choose_pixels, extract_feature_loci
+from spindoctor.sim.render.stages import SimFrame
+from spindoctor.sim.render.telemetry.loss import apply_line_garble, apply_pixel_spikes
+from spindoctor.sim.render.telemetry.stage import apply_telemetry
+from spindoctor.sim.scene.rules_common import SimSceneValidationError
+from spindoctor.sim.scene.validate import validate_sim_params
 from spindoctor.support.types import NDArrayFloatType
 
 _SIZE = 64
@@ -181,8 +182,8 @@ def test_partial_lines_two_column_frame_truncates_without_error() -> None:
     on a 2-column line the segment draw used to request an empty integer
     range and crash, so the degenerate width must fall back to truncation.
     """
-    from spindoctor.sim.forward.feature_loci import FeatureLoci
-    from spindoctor.sim.forward.telemetry_loss import apply_partial_lines
+    from spindoctor.sim.render.feature_loci import FeatureLoci
+    from spindoctor.sim.render.telemetry.loss import apply_partial_lines
 
     signal = np.ones((16, 2), dtype=np.float64)
     empty = np.empty(0, dtype=np.int64)
@@ -732,8 +733,8 @@ def test_uniform_placement_ignores_features() -> None:
 
 def test_adversarial_hot_pixels_concentrate_on_features() -> None:
     """Adversarial hot pixels land on and beside the navigation features."""
-    from spindoctor.sim.forward.detector.noise_stages import add_hot_pixels
-    from spindoctor.sim.forward.feature_loci import dilated_pixels, extract_feature_loci
+    from spindoctor.sim.render.detector.noise_stages import add_hot_pixels
+    from spindoctor.sim.render.feature_loci import dilated_pixels, extract_feature_loci
 
     truth = _body_truth(28, 36, 28, 36)
     loci = extract_feature_loci(truth, (_SIZE, _SIZE))
@@ -756,7 +757,7 @@ def test_adversarial_hot_pixels_concentrate_on_features() -> None:
 
 def test_empty_loci_pool_falls_back_to_uniform() -> None:
     """With no features the dilation pool is empty and placement is uniform."""
-    from spindoctor.sim.forward.feature_loci import dilated_pixels, extract_feature_loci
+    from spindoctor.sim.render.feature_loci import dilated_pixels, extract_feature_loci
 
     loci = extract_feature_loci({}, (_SIZE, _SIZE))
     pool_v, pool_u = dilated_pixels(loci, radius=3, shape=(_SIZE, _SIZE))
@@ -851,7 +852,7 @@ def test_resolve_mode_config_fills_defaults() -> None:
 
 def test_compression_dct_changes_the_frame_and_is_blockwise() -> None:
     """DCT compression quantizes 8x8 coefficients, altering a textured frame."""
-    from spindoctor.sim.forward.telemetry_artifacts import apply_compression_dct
+    from spindoctor.sim.render.telemetry.artifacts import apply_compression_dct
 
     rng = np.random.default_rng(0)
     signal = rng.uniform(0.0, 100.0, size=(_SIZE, _SIZE))
@@ -868,7 +869,7 @@ def test_compression_dct_changes_the_frame_and_is_blockwise() -> None:
 
 def test_compression_dct_leaves_the_truth_window_clean() -> None:
     """A protected truth window survives compression untouched."""
-    from spindoctor.sim.forward.telemetry_artifacts import apply_compression_dct
+    from spindoctor.sim.render.telemetry.artifacts import apply_compression_dct
 
     rng = np.random.default_rng(2)
     signal = rng.uniform(0.0, 100.0, size=(_SIZE, _SIZE))
@@ -885,7 +886,7 @@ def test_compression_dct_leaves_the_truth_window_clean() -> None:
 
 def test_compression_dct_disabled_at_zero_probability() -> None:
     """A zero probability leaves the frame untouched."""
-    from spindoctor.sim.forward.telemetry_artifacts import apply_compression_dct
+    from spindoctor.sim.render.telemetry.artifacts import apply_compression_dct
 
     rng = np.random.default_rng(3)
     signal = rng.uniform(0.0, 100.0, size=(_SIZE, _SIZE))
@@ -902,7 +903,7 @@ def test_compression_dct_disabled_at_zero_probability() -> None:
 
 def test_resample_texture_blank_border_zeroes_the_edge() -> None:
     """The resample blank border zeroes a frame of the requested width."""
-    from spindoctor.sim.forward.telemetry_artifacts import apply_resample_texture
+    from spindoctor.sim.render.telemetry.artifacts import apply_resample_texture
 
     signal = np.full((_SIZE, _SIZE), 50.0, dtype=np.float64)
     record = apply_resample_texture(
@@ -923,7 +924,7 @@ def test_resample_texture_blank_border_zeroes_the_edge() -> None:
 
 def test_resample_texture_disabled_at_zero_probability() -> None:
     """A zero probability leaves the frame untouched."""
-    from spindoctor.sim.forward.telemetry_artifacts import apply_resample_texture
+    from spindoctor.sim.render.telemetry.artifacts import apply_resample_texture
 
     signal = np.full((_SIZE, _SIZE), 50.0, dtype=np.float64)
     before = signal.copy()

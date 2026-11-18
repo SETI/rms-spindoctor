@@ -16,9 +16,11 @@ import numpy as np
 import pytest
 
 from spindoctor.sim.render import render_combined_model
-from spindoctor.sim.ring_geometry import ring_orbit_from_mapping
-from spindoctor.sim.scene import build_nav_params, load_sim_scene, validate_sim_params
-from spindoctor.sim.scene_schema import scene_value
+from spindoctor.sim.scene.boundary import build_nav_params
+from spindoctor.sim.scene.fields import scene_value
+from spindoctor.sim.scene.io import load_sim_scene
+from spindoctor.sim.scene.validate import validate_sim_params
+from spindoctor.sim.shared.ring import ring_orbit_from_mapping
 
 _SCENES = Path(__file__).parents[2] / 'integration' / 'sim_scenes'
 

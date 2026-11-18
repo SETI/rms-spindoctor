@@ -14,7 +14,7 @@ from tests.spindoctor.sim.scenes import (
     star_entry,
 )
 
-from spindoctor.sim.scene import validate_sim_params
+from spindoctor.sim.scene.validate import validate_sim_params
 
 _RINGLET = {
     'name': 'RINGLET',

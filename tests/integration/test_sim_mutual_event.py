@@ -22,7 +22,7 @@ import numpy as np
 from spindoctor.feature.feature_type import NavFeatureType
 from spindoctor.nav_model import build_models_for_obs
 from spindoctor.obs.obs_inst_sim import ObsSim
-from spindoctor.sim.scene import load_sim_scene
+from spindoctor.sim.scene.io import load_sim_scene
 from tests.integration.sim_expected import navigate_scene
 from tests.integration.sim_truth import FUSED, assert_matches_truth
 from tests.shims.context import bare_nav_context

@@ -8,7 +8,7 @@ star takes the Sun's B-V instead.
 
 import pytest
 
-from spindoctor.sim.star_records import star_record_from_params
+from spindoctor.sim.shared.stars import star_record_from_params
 
 
 def test_an_a0_star_has_equal_b_and_v_magnitudes() -> None:

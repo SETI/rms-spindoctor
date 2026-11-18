@@ -381,7 +381,7 @@ A simulated scene sets an ``instrument`` (``coiss_nac``, ``vgiss``, ...) so its
 rendered frame and its :class:`~spindoctor.obs.obs_inst_sim.ObsSim` go through
 the same per-instrument units, noise, saturation, and PSF the navigator applies
 to a real frame.
-:func:`~spindoctor.sim.instrument_navigator.resolve_sim_inst_config` maps that
+:func:`~spindoctor.sim.instruments.navigator_link.resolve_sim_inst_config` maps that
 name to the matching ``config_4N0_inst_*.yaml`` block (or the standalone ``sim``
 block for the ``generic`` alias).
 

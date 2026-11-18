@@ -14,8 +14,8 @@ import numpy as np
 import pytest
 from scipy.signal import fftconvolve
 
-from spindoctor.sim.forward.psf import apply_psf, psf_kernel
-from spindoctor.sim.instrument_resolvers import resolve_psf_truncation_px
+from spindoctor.sim.instruments.resolvers import resolve_psf_truncation_px
+from spindoctor.sim.render.optics.psf import apply_psf, psf_kernel
 
 
 def _kernel(**over: float) -> np.ndarray:

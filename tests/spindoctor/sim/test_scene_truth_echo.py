@@ -13,13 +13,10 @@ from typing import Any
 import pytest
 from tests.spindoctor.sim.scenes import frame_scene
 
-from spindoctor.sim.scene import (
-    SimSceneTruthEchoWarning,
-    SimSceneValidationError,
-    build_nav_params,
-    validate_sim_params,
-)
-from spindoctor.sim.scene_truth_echo import truth_echoes
+from spindoctor.sim.scene.boundary import build_nav_params
+from spindoctor.sim.scene.rules_common import SimSceneValidationError
+from spindoctor.sim.scene.truth_echo import SimSceneTruthEchoWarning, truth_echoes
+from spindoctor.sim.scene.validate import validate_sim_params
 
 
 def _scene(**extra: Any) -> dict[str, Any]:

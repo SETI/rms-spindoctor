@@ -9,18 +9,17 @@ import numpy as np
 import pytest
 
 from spindoctor.sim.render import render_combined_model
-from spindoctor.sim.scene import (
+from spindoctor.sim.scene.boundary import (
     _ALLOWED_KEYS,
     _OBJECT_BLOCKS,
     TOP_LEVEL_IDEALIZED_KEYS,
     TOP_LEVEL_TEST_ONLY_KEYS,
     TOP_LEVEL_TRUTH_KEYS,
     TRUTH_KEYS,
-    SimSceneValidationError,
-    load_sim_scene,
-    save_sim_scene,
-    validate_sim_params,
 )
+from spindoctor.sim.scene.io import load_sim_scene, save_sim_scene
+from spindoctor.sim.scene.rules_common import SimSceneValidationError
+from spindoctor.sim.scene.validate import validate_sim_params
 
 
 def _sim_params() -> dict[str, Any]:

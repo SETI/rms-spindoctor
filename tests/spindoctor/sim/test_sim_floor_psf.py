@@ -16,10 +16,11 @@ import numpy as np
 from tests.spindoctor.sim.scenes import frame_scene
 
 from spindoctor.config import DEFAULT_CONFIG
-from spindoctor.sim.forward.optics import effective_psf
-from spindoctor.sim.forward.psf import psf_kernel
-from spindoctor.sim.instrument_navigator import resolve_sim_inst_config
-from spindoctor.sim.scene import load_sim_scene, save_sim_scene, validate_sim_params
+from spindoctor.sim.instruments.navigator_link import resolve_sim_inst_config
+from spindoctor.sim.render.optics.psf import psf_kernel
+from spindoctor.sim.render.optics.stage import effective_psf
+from spindoctor.sim.scene.io import load_sim_scene, save_sim_scene
+from spindoctor.sim.scene.validate import validate_sim_params
 
 
 def _floor_scene(instrument: str) -> dict[str, Any]:

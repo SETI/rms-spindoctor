@@ -44,7 +44,7 @@ from PyQt6.QtWidgets import (
 from spindoctor.cli.sim_editor.artifact_mode_rows import ModeRow
 from spindoctor.cli.sim_editor.base import SimEditorBase
 from spindoctor.sim.artifact_modes import ARTIFACT_MODES, DETECTOR_MODELS, QUANTIZATION_MODES
-from spindoctor.sim.instrument_resolvers import (
+from spindoctor.sim.instruments.resolvers import (
     cataloged_binnings,
     downlink_table_names,
     resolve_detector_defaults,

@@ -23,8 +23,7 @@ import numpy as np
 import pytest
 from tests.spindoctor.sim.scenes import disc_body, frame_scene, star_entry
 
-from spindoctor.sim.ellipsoid_geometry import illumination_vector
-from spindoctor.sim.forward.atmosphere import (
+from spindoctor.sim.render.bodies.atmosphere import (
     DEFAULT_HAZE_ALBEDO,
     AtmosphereSpec,
     apply_atmosphere,
@@ -32,12 +31,14 @@ from spindoctor.sim.forward.atmosphere import (
     hg_phase_factor,
     tangent_optical_depth,
 )
-from spindoctor.sim.forward.body import render_single_body
-from spindoctor.sim.forward.body_spec import body_spec_from_params
-from spindoctor.sim.forward.scene_radiance import compose_scene_radiance
-from spindoctor.sim.forward.stages import new_sim_frame
-from spindoctor.sim.scene import ATMOSPHERE_KEYS, validate_sim_params
-from spindoctor.sim.scene_schema import SimSceneValidationError
+from spindoctor.sim.render.bodies.render import render_single_body
+from spindoctor.sim.render.bodies.spec import body_spec_from_params
+from spindoctor.sim.render.radiance.compose import compose_scene_radiance
+from spindoctor.sim.render.stages import new_sim_frame
+from spindoctor.sim.scene.rules_body import ATMOSPHERE_KEYS
+from spindoctor.sim.scene.rules_common import SimSceneValidationError
+from spindoctor.sim.scene.validate import validate_sim_params
+from spindoctor.sim.shared.ellipsoid import illumination_vector
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 from spindoctor.support.types import NDArrayFloatType
 

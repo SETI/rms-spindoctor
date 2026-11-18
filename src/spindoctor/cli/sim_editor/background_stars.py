@@ -22,8 +22,8 @@ from PyQt6.QtWidgets import (
 )
 
 from spindoctor.cli.sim_editor.base import SimEditorBase
-from spindoctor.sim.forward.star import SKY_COUNTS_DEFAULTS
-from spindoctor.sim.scene_schema import scene_value
+from spindoctor.sim.render.radiance.stars import SKY_COUNTS_DEFAULTS
+from spindoctor.sim.scene.fields import scene_value
 
 
 class BackgroundStarsMixin(SimEditorBase):

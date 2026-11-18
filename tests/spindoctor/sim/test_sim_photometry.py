@@ -12,7 +12,7 @@ import math
 import numpy as np
 import pytest
 
-from spindoctor.sim.forward.photometry import (
+from spindoctor.sim.render.bodies.photometry import (
     DARK_SIDE_FLOOR,
     incidence_cosines,
     shade_surface,
@@ -149,7 +149,7 @@ def test_incidence_cosines_match_the_lambert_renderer() -> None:
     Away from the clip band (cos_i in (0.01, 1)), the Lambert renderer's
     output IS the incidence cosine, so the two paths must agree exactly.
     """
-    from spindoctor.sim.ellipsoid_geometry import lambert_from_normals
+    from spindoctor.sim.shared.ellipsoid import lambert_from_normals
 
     rng = np.random.default_rng(4)
     normal_v = rng.uniform(-0.4, 0.4, 32)

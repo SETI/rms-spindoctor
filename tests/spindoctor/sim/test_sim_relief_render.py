@@ -17,10 +17,10 @@ import pytest
 from tests.spindoctor.sim.scenes import disc_body, frame_scene, quiet_noise
 
 from spindoctor.sim import render
-from spindoctor.sim.forward import body_topo
-from spindoctor.sim.forward.body_topo import TopoBodySpec, create_topographic_body
-from spindoctor.sim.forward.photometry import DARK_SIDE_FLOOR
-from spindoctor.sim.forward.relief import ReliefField, cast_shadows, synthesize_relief_field
+from spindoctor.sim.render.bodies import topo as body_topo
+from spindoctor.sim.render.bodies.photometry import DARK_SIDE_FLOOR
+from spindoctor.sim.render.bodies.relief import ReliefField, cast_shadows, synthesize_relief_field
+from spindoctor.sim.render.bodies.topo import TopoBodySpec, create_topographic_body
 from spindoctor.support.types import NDArrayFloatType
 
 _RMS = 0.02

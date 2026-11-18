@@ -14,10 +14,10 @@ import numpy as np
 import pytest
 from tests.spindoctor.sim.scenes import disc_body, frame_scene
 
-from spindoctor.sim.forward.body_texture import AlbedoTextureSpec
-from spindoctor.sim.forward.body_topo import TopoBodySpec, create_topographic_body
-from spindoctor.sim.forward.relief import synthesize_albedo_field
 from spindoctor.sim.render import render_combined_model
+from spindoctor.sim.render.bodies.relief import synthesize_albedo_field
+from spindoctor.sim.render.bodies.texture import AlbedoTextureSpec
+from spindoctor.sim.render.bodies.topo import TopoBodySpec, create_topographic_body
 from spindoctor.support.types import NDArrayFloatType
 
 _SIZE = 200

@@ -14,10 +14,10 @@ import numpy as np
 import pytest
 from tests.spindoctor.sim.scenes import body_scene
 
-from spindoctor.sim.forward.detector.params import resolve_detector_params
 from spindoctor.sim.render import render_combined_model
-from spindoctor.sim.scene import validate_sim_params
-from spindoctor.sim.scene_checks import _NOISE_KEYS, _VIDICON_NOISE_KEYS
+from spindoctor.sim.render.detector.params import resolve_detector_params
+from spindoctor.sim.scene.rules_common import _NOISE_KEYS, _VIDICON_NOISE_KEYS
+from spindoctor.sim.scene.validate import validate_sim_params
 
 _NOISE_VALUE_KEYS = sorted(_NOISE_KEYS - {'vidicon'})
 _INSTRUMENTS = ('coiss_nac', 'vgiss', 'coiss_calib_nac', 'generic')

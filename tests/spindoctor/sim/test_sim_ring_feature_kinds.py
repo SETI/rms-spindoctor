@@ -16,8 +16,8 @@ import numpy as np
 import pytest
 from tests.spindoctor.sim.scenes import ring_system_block
 
-from spindoctor.sim.forward.ring_system import render_ring_system
-from spindoctor.sim.ring_geometry import (
+from spindoctor.sim.render.rings.render import render_ring_system
+from spindoctor.sim.shared.ring import (
     RingEdgeWave,
     RingOrbit,
     RingOrbitMode,

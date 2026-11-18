@@ -36,8 +36,8 @@ from spindoctor.cli.sim_editor.body_mesh_keys import (
     refused_keys,
     stash_message,
 )
-from spindoctor.sim.forward.body_spec import body_spec_from_params
-from spindoctor.sim.scene_schema import default_body_name, default_body_range_km, scene_value
+from spindoctor.sim.render.bodies.spec import body_spec_from_params
+from spindoctor.sim.scene.fields import default_body_name, default_body_range_km, scene_value
 
 # Tooltip for the center spin boxes, which write the scene value directly.
 _CENTER_TOOLTIP = (

@@ -13,7 +13,7 @@ prefer them.
 import copy
 from typing import Any
 
-from spindoctor.sim.scene import CURRENT_SCHEMA_VERSION
+from spindoctor.sim.scene.validate import CURRENT_SCHEMA_VERSION
 
 __all__ = [
     'body_scene',

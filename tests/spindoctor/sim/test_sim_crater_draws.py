@@ -10,8 +10,8 @@ import numpy as np
 import pytest
 from scipy import ndimage
 
-from spindoctor.sim.forward import body as forward_body
-from spindoctor.sim.forward.body import carve_crater_heights
+from spindoctor.sim.render.bodies import render as body_render
+from spindoctor.sim.render.bodies.render import carve_crater_heights
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 
 _SIZE = (64, 64)
@@ -111,7 +111,7 @@ def test_clearing_a_pixel_moves_only_craters_centered_on_it(
     pixel, and at least one crater must move, so the comparison is not empty.
     """
     centers: list[tuple[int, int]] = []
-    draw_center = forward_body._draw_crater_center
+    draw_center = body_render._draw_crater_center
 
     def recording_draw(mask: NDArrayBoolType, rng: np.random.Generator) -> tuple[int, int]:
         """Draw a crater center as the carver does and record it.
@@ -127,7 +127,7 @@ def test_clearing_a_pixel_moves_only_craters_centered_on_it(
         centers.append(center)
         return center
 
-    monkeypatch.setattr(forward_body, '_draw_crater_center', recording_draw)
+    monkeypatch.setattr(body_render, '_draw_crater_center', recording_draw)
     mask_full, v_coords, u_coords = _ellipse(_SMALL_SIZE, _SMALL_CENTER, *_SMALL_SEMI_AXES)
     mask_cleared = mask_full.copy()
     mask_cleared[_CLEARED_PIXEL] = False

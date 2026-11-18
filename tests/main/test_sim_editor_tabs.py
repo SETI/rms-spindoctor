@@ -37,9 +37,9 @@ except Exception as exc:
     )
 
 from spindoctor.cli.sim_editor import CreateSimulatedImageModel
-from spindoctor.sim import instrument_catalog
-from spindoctor.sim.forward.atmosphere import DEFAULT_HAZE_ALBEDO
-from spindoctor.sim.scene import validate_sim_params
+from spindoctor.sim.instruments import catalog as instrument_catalog
+from spindoctor.sim.render.bodies.atmosphere import DEFAULT_HAZE_ALBEDO
+from spindoctor.sim.scene.validate import validate_sim_params
 from tests.spindoctor.sim.fictional_camera import (
     FICTIONAL_CAMERA,
     FICTIONAL_CAMERA_NAME,
@@ -508,7 +508,7 @@ def test_choosing_the_camera_default_drops_an_unlisted_table(model: Any) -> None
 
 def test_null_detector_keys_show_the_catalog_defaults(model: Any) -> None:
     """A loaded detector block of nulls shows the catalog values, as the renderer reads it."""
-    from spindoctor.sim.instrument_resolvers import resolve_detector_defaults
+    from spindoctor.sim.instruments.resolvers import resolve_detector_defaults
 
     keys = ('gain_state', 'detector_model', 'exposure_ref_sec', 'quantization')
     model._apply_params_dict({'instrument': 'coiss_nac', 'detector': dict.fromkeys(keys)})

@@ -3,256 +3,6 @@ spindoctor.sim
 
 .. automodule:: spindoctor.sim
 
-.. automodule:: spindoctor.sim.render
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-.. automodule:: spindoctor.sim.forward
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-.. automodule:: spindoctor.sim.forward.stages
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-.. automodule:: spindoctor.sim.forward.pipeline
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-.. automodule:: spindoctor.sim.forward.scene_radiance
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-.. automodule:: spindoctor.sim.forward.scene_compositing
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-.. automodule:: spindoctor.sim.forward.body
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-.. automodule:: spindoctor.sim.forward.body_spec
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-.. automodule:: spindoctor.sim.forward.body_mesh
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-.. automodule:: spindoctor.sim.forward.body_topo
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-.. automodule:: spindoctor.sim.forward.body_texture
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-.. automodule:: spindoctor.sim.forward.relief
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-.. automodule:: spindoctor.sim.forward.photometry
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-.. automodule:: spindoctor.sim.forward.ring_system
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-.. automodule:: spindoctor.sim.forward.star
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-.. automodule:: spindoctor.sim.forward.optics
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-.. automodule:: spindoctor.sim.forward.smear
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-.. automodule:: spindoctor.sim.forward.distortion
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-.. automodule:: spindoctor.sim.forward.psf
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-.. automodule:: spindoctor.sim.forward.ghosts
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-.. automodule:: spindoctor.sim.forward.detector
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-.. automodule:: spindoctor.sim.forward.detector.params
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-.. automodule:: spindoctor.sim.forward.detector.chain
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-.. automodule:: spindoctor.sim.forward.detector.shot_noise
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-.. automodule:: spindoctor.sim.forward.detector.noise_stages
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-.. automodule:: spindoctor.sim.forward.detector.electronics_stages
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-.. automodule:: spindoctor.sim.forward.telemetry
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-.. automodule:: spindoctor.sim.forward.telemetry_loss
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-.. automodule:: spindoctor.sim.forward.telemetry_artifacts
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-.. automodule:: spindoctor.sim.forward.feature_loci
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-.. automodule:: spindoctor.sim.forward.atmosphere
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-.. automodule:: spindoctor.sim.forward.haze_structure
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-.. automodule:: spindoctor.sim.ellipsoid_geometry
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-.. automodule:: spindoctor.sim.mesh_geometry
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-.. automodule:: spindoctor.sim.spherical_harmonics
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-.. automodule:: spindoctor.sim.ring_geometry
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-.. automodule:: spindoctor.sim.star_records
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-.. automodule:: spindoctor.sim.scene
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-.. automodule:: spindoctor.sim.scene_schema
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-.. automodule:: spindoctor.sim.scene_checks
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-.. automodule:: spindoctor.sim.scene_checks_artifacts
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-.. automodule:: spindoctor.sim.scene_checks_body
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-.. automodule:: spindoctor.sim.scene_checks_instrument_config
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-.. automodule:: spindoctor.sim.scene_checks_ring
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-.. automodule:: spindoctor.sim.scene_truth_echo
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-.. automodule:: spindoctor.sim.instrument_catalog
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-.. automodule:: spindoctor.sim.instrument_schema
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-.. automodule:: spindoctor.sim.instrument_checks
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-.. automodule:: spindoctor.sim.instrument_resolvers
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-.. automodule:: spindoctor.sim.instrument_navigator
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
 .. automodule:: spindoctor.sim.artifact_modes
    :members:
    :undoc-members:
@@ -267,6 +17,315 @@ spindoctor.sim
    :members:
    :undoc-members:
    :show-inheritance:
+
+spindoctor.sim.scene
+--------------------
+
+.. automodule:: spindoctor.sim.scene
+
+.. automodule:: spindoctor.sim.scene.io
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: spindoctor.sim.scene.validate
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: spindoctor.sim.scene.boundary
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: spindoctor.sim.scene.fields
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: spindoctor.sim.scene.truth_echo
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: spindoctor.sim.scene.rules_common
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: spindoctor.sim.scene.rules_body
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: spindoctor.sim.scene.rules_ring
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: spindoctor.sim.scene.rules_artifacts
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: spindoctor.sim.scene.rules_instrument_config
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+spindoctor.sim.instruments
+--------------------------
+
+.. automodule:: spindoctor.sim.instruments
+
+.. automodule:: spindoctor.sim.instruments.catalog
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: spindoctor.sim.instruments.schema
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: spindoctor.sim.instruments.checks
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: spindoctor.sim.instruments.resolvers
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: spindoctor.sim.instruments.navigator_link
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+spindoctor.sim.shared
+---------------------
+
+.. automodule:: spindoctor.sim.shared
+
+.. automodule:: spindoctor.sim.shared.ellipsoid
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: spindoctor.sim.shared.mesh
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: spindoctor.sim.shared.ring
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: spindoctor.sim.shared.stars
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: spindoctor.sim.shared.spherical_harmonics
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+spindoctor.sim.render
+---------------------
+
+.. automodule:: spindoctor.sim.render
+
+.. autofunction:: spindoctor.sim.render.render_combined_model
+
+.. autofunction:: spindoctor.sim.render.resolve_oversample
+
+.. autofunction:: spindoctor.sim.render.clear_render_caches
+
+.. automodule:: spindoctor.sim.render.driver
+
+.. automodule:: spindoctor.sim.render.pipeline
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: spindoctor.sim.render.stages
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: spindoctor.sim.render.feature_loci
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+spindoctor.sim.render.radiance
+------------------------------
+
+.. automodule:: spindoctor.sim.render.radiance
+
+.. automodule:: spindoctor.sim.render.radiance.compose
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: spindoctor.sim.render.radiance.compositing
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: spindoctor.sim.render.radiance.stars
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+spindoctor.sim.render.bodies
+----------------------------
+
+.. automodule:: spindoctor.sim.render.bodies
+
+.. automodule:: spindoctor.sim.render.bodies.render
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: spindoctor.sim.render.bodies.topo
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: spindoctor.sim.render.bodies.mesh
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: spindoctor.sim.render.bodies.spec
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: spindoctor.sim.render.bodies.texture
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: spindoctor.sim.render.bodies.relief
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: spindoctor.sim.render.bodies.photometry
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: spindoctor.sim.render.bodies.atmosphere
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: spindoctor.sim.render.bodies.haze
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+spindoctor.sim.render.rings
+---------------------------
+
+.. automodule:: spindoctor.sim.render.rings
+
+.. automodule:: spindoctor.sim.render.rings.render
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+spindoctor.sim.render.optics
+----------------------------
+
+.. automodule:: spindoctor.sim.render.optics
+
+.. automodule:: spindoctor.sim.render.optics.stage
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: spindoctor.sim.render.optics.smear
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: spindoctor.sim.render.optics.distortion
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: spindoctor.sim.render.optics.psf
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: spindoctor.sim.render.optics.ghosts
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+spindoctor.sim.render.detector
+------------------------------
+
+.. automodule:: spindoctor.sim.render.detector
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: spindoctor.sim.render.detector.params
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: spindoctor.sim.render.detector.chain
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: spindoctor.sim.render.detector.shot_noise
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: spindoctor.sim.render.detector.noise_stages
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: spindoctor.sim.render.detector.electronics_stages
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+spindoctor.sim.render.telemetry
+-------------------------------
+
+.. automodule:: spindoctor.sim.render.telemetry
+
+.. automodule:: spindoctor.sim.render.telemetry.stage
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: spindoctor.sim.render.telemetry.loss
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: spindoctor.sim.render.telemetry.artifacts
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+spindoctor.sim.realism
+----------------------
 
 .. automodule:: spindoctor.sim.realism
 

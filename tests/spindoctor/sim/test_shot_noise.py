@@ -15,13 +15,13 @@ import pytest
 from scipy import special, stats
 from scipy.signal import fftconvolve
 
-from spindoctor.sim.forward.detector import apply_detector
-from spindoctor.sim.forward.detector.shot_noise import (
+from spindoctor.sim.render.detector import apply_detector
+from spindoctor.sim.render.detector.shot_noise import (
     EXACT_MEAN_LIMIT,
     poisson_inverse_cdf,
     sample_poisson,
 )
-from spindoctor.sim.forward.stages import SimFrame
+from spindoctor.sim.render.stages import SimFrame
 from spindoctor.sim.seeds import derive_effect_seed
 
 # The coiss_nac floor converts a signal of 1.0 to 0.5 * 110k electrons.

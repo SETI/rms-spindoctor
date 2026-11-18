@@ -10,8 +10,8 @@ import math
 import numpy as np
 import pytest
 
-from spindoctor.sim import mesh_geometry
-from spindoctor.sim.mesh_geometry import Mesh, render_polyhedral_body
+from spindoctor.sim.shared import mesh as shared_mesh
+from spindoctor.sim.shared.mesh import Mesh, render_polyhedral_body
 from spindoctor.support.types import NDArrayFloatType
 
 # A fold: two faces sharing a vertical ridge through the pixel centers of column 10
@@ -55,7 +55,7 @@ def test_shared_edge_tie_goes_to_the_face_listed_first() -> None:
 
 def test_shared_edge_tie_holds_across_batches(monkeypatch: pytest.MonkeyPatch) -> None:
     """With one box row per batch, the later face still cannot take a tied pixel."""
-    monkeypatch.setattr(mesh_geometry, '_RASTER_BATCH_PIXELS', 1)
+    monkeypatch.setattr(shared_mesh, '_RASTER_BATCH_PIXELS', 1)
     image = _render(_FOLD)
     assert image[10, 10] == pytest.approx(_RIGHT_FACE_SHADE)
 
@@ -90,7 +90,7 @@ def test_nearer_face_wins_whatever_its_order(
 ) -> None:
     """The nearer face shows over the farther one in either order and batching."""
     if batch_pixels is not None:
-        monkeypatch.setattr(mesh_geometry, '_RASTER_BATCH_PIXELS', batch_pixels)
+        monkeypatch.setattr(shared_mesh, '_RASTER_BATCH_PIXELS', batch_pixels)
     image = _render(Mesh(vertices=_FAR_AND_NEAR, faces=np.array(faces)))
     assert image[4, 4] == pytest.approx(2.0 / math.sqrt(5.0))
 
