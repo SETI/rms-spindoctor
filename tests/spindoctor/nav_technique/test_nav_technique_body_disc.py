@@ -523,12 +523,12 @@ def _record_pyramid_refinements(monkeypatch: pytest.MonkeyPatch) -> list[str]:
     return calls
 
 
-def test_body_disc_translation_keeps_the_cross_power_refinement(
+def test_body_disc_translation_refines_on_the_highpass_cross_power(
     monkeypatch: pytest.MonkeyPatch,
     disc_image: DiscImageFactory,
     make_nav_context: NavContextFactory,
 ) -> None:
-    """The translation-only correlation refines its final pass on the cross-power."""
+    """The translation-only correlation refines its final pass on the high-pass surface."""
     calls = _record_pyramid_refinements(monkeypatch)
     shape = (160, 160)
     feature = _make_disc_feature(
@@ -536,14 +536,14 @@ def test_body_disc_translation_keeps_the_cross_power_refinement(
     )
     context = make_nav_context(disc_image(shape, (80.0, 80.0), 20.0), extfov_margin_vu=(16, 16))
     BodyDiscCorrelateNav().navigate([feature], context)
-    assert calls == ['cross_power']
+    assert calls == ['highpass_cross_power']
 
 
-def test_body_disc_rotation_samples_keep_the_cross_power_refinement(
+def test_body_disc_rotation_samples_refine_on_the_highpass_cross_power(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Each rotation sample's correlation refines its final pass on the cross-power."""
+    """Each rotation sample's correlation refines its final pass on the high-pass surface."""
     calls = _record_pyramid_refinements(monkeypatch)
     inputs = {**_ROTATION_STUB_INPUTS, 'image': np.ones((8, 8))}
     BodyDiscCorrelateNav()._ncc_at_rotation(theta_rad=0.0, **inputs)
-    assert calls == ['cross_power']
+    assert calls == ['highpass_cross_power']

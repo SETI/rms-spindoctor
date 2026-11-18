@@ -46,12 +46,22 @@ from spindoctor.support.correlate import (
     peak_to_runner_up_ratio,
     quality_rank_key,
 )
+from spindoctor.support.correlate_subpixel import SubpixelRefinement
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 
 if TYPE_CHECKING:  # pragma: no cover - typing-only import
     from spindoctor.nav_orchestrator.nav_context import NavContext
 
 __all__ = ['BodyDiscCorrelateNav']
+
+# Measured against strong star solutions on 76 real disc frames, 69 of them Cassini
+# narrow-angle, the high-pass refinement lowered the narrow-angle median per-axis error of
+# this technique's offset from 0.29 / 0.30 px to 0.23 / 0.23 px, and the share of answers
+# whose surface still rises past the window edge from 61% to 7%.  It is more easily pulled
+# than the raw cross-power by bright structure the template leaves out beside a limb (#791,
+# #1050).
+_FINAL_REFINEMENT: SubpixelRefinement = 'highpass_cross_power'
+"""Sub-pixel refinement of the correlation's final full-resolution pass."""
 
 
 def _filter_disc_features(features: list[NavFeature]) -> list[NavFeature]:
@@ -345,6 +355,7 @@ class BodyDiscCorrelateNav(NavTechnique):
                     data_mask=context.sensor_mask_ext,
                     use_gradient='auto',
                     refine_lowpass_sigma_px=self._refine_lowpass_sigma_px,
+                    final_refinement=_FINAL_REFINEMENT,
                     localization_uncertainty_scale=(
                         self._cov_tuning.localization_uncertainty_scale
                     ),
@@ -716,6 +727,7 @@ class BodyDiscCorrelateNav(NavTechnique):
             data_mask=data_mask,
             use_gradient='auto',
             refine_lowpass_sigma_px=self._refine_lowpass_sigma_px,
+            final_refinement=_FINAL_REFINEMENT,
             localization_uncertainty_scale=self._cov_tuning.localization_uncertainty_scale,
             logger=self.logger,
         )

@@ -54,8 +54,10 @@ technique maximizes the normalized cross-correlation
 over the integer offsets :math:`(\Delta v, \Delta u)` in the per-instrument search window,
 where :math:`\langle \cdot, \cdot \rangle_{M}` denotes the masked inner product (only pixels
 where :math:`M = \mathrm{True}` contribute). Sub-pixel refinement comes from a localized
-upsampled-DFT (Guizar-Sicairos) of the cross-power spectrum around the integer peak,
-reaching a 1/128 px resolution, on every pass of the pyramid. The refinement is evaluated
+upsampled-DFT (Guizar-Sicairos) of the cross-power spectrum, reaching a 1/128 px
+resolution. The coarser pyramid levels search within half a pixel of the integer peak; the
+final full-resolution pass refines on a high-pass surface around the NCC's own sub-pixel
+estimate (see "High-pass refinement on the final pass"). The refinement is evaluated
 on the **raw-intensity** surfaces even when the integer peak was chosen on the gradient
 surfaces, so a gradient-mode peak does not carry the gradient-magnitude rectification bias
 (the magnitude rectifies the signal, making the cross-power peak non-smooth at its apex)
@@ -93,6 +95,51 @@ applied **only** to the final full-resolution refine; the coarse pyramid levels 
 sharp surfaces so integer-peak selection is unaffected. It must low-pass the *mask-multiplied*
 template, not the bare template -- low-passing before the mask multiply lets the hard mask
 edge re-sharpen the model and makes the bias worse, not better.
+
+High-pass refinement on the final pass
+--------------------------------------
+
+The final full-resolution pass runs
+:func:`~spindoctor.support.correlate.navigate_with_pyramid_kpeaks` with
+``final_refinement='highpass_cross_power'``. Two things differ from the coarser levels.
+
+- **The surface.** After the low-pass above, each of the two surfaces has its own Gaussian
+  blur subtracted, with a sigma of
+  :data:`~spindoctor.support.correlate_subpixel.HIGHPASS_SIGMA_PX` (3 px). What remains is
+  the limb, the terminator, and surface detail. Light that changes slowly across the body,
+  such as stray light, a sloped background, or a broad photometric mismatch with the
+  Lambert template, no longer pulls the maximum.
+- **The window.** The search covers half a pixel around the maximum of a quadratic fitted to
+  the 3x3 block of NCC values at the integer peak, rounded to the 1/128 px grid
+  (:func:`~spindoctor.support.correlate_subpixel.ncc_vertex_window_steps`). When that fit
+  has no maximum, the window stays on the integer peak.
+
+**Why.** The integer peak comes from the NCC, which in gradient mode is computed on
+gradient magnitudes. The cross-power maximum can then sit more than half a pixel from it,
+and a window confined to half a pixel around the integer peak stops at its edge. With
+such a window, 61% of the disc answers on 76 real frames with strong star solutions stop
+there with the surface still rising past the edge. A typical case is a body whose true offset is 1.43 px: the gradient NCC peaks at
+2, the window spans 1.5 to 2.5, and the answer is 1.5. Centering the window on the NCC's
+sub-pixel estimate puts the true maximum inside it.
+
+On the 69 Cassini narrow-angle frames among them, the high-pass refinement gives a median
+per-axis error of 0.23 / 0.23 px against the stars, where the half-pixel window around the
+integer peak gives 0.29 / 0.30 px. Over all 76 frames, 7% of its answers stop at its
+window edge with the surface still rising.
+
+**Known weakness.** Bright structure that the template leaves out, lying against a modeled
+limb, pulls the high-pass maximum about 2.7 times further than the raw one. Examples are a
+far body hidden behind a near one except for a crescent (a body below 40% visible lit
+fraction emits no ``BODY_DISC`` template), rings or Saturn behind a moon, and saturation
+spill around an overexposed body. On real frames with such structure the net effect was
+mixed: better on 5 of 10 frames with star truth, worse on 3, all three of them saturated and
+more than 1.7 px off with either refinement. On the six Cassini wide-angle frames in the
+measurement the high-pass refinement is worse overall, because two of them are such
+saturated frames.
+
+**Cost.** The high-pass spectrum replaces the raw one on the final pass, so the added work
+per correlation is two Gaussian filters of the padded surfaces and one 3x3 quadratic fit
+per candidate peak.
 
 **Alternative considered and rejected: a render-time PSF.** Since the bias comes from sharp
 edges, an obvious idea is to convolve the simulated body (and, to match, the template) with

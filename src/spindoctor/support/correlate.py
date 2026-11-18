@@ -9,10 +9,12 @@ from scipy.ndimage import gaussian_filter, sobel
 
 from spindoctor.config import IMAGE_LOGGER, logged_section
 from spindoctor.support.correlate_subpixel import (
+    HIGHPASS_SIGMA_PX,
     NCC_QUADRATIC_MAX_SHIFT_PX,
     SUBPIXEL_REFINEMENTS,
     SubpixelRefinement,
     ncc_quadratic_vertex,
+    ncc_vertex_window_steps,
 )
 from spindoctor.support.image import crop_center, normalize_array, pad_top_left, real_ifft2
 from spindoctor.support.misc import mad_std
@@ -726,6 +728,7 @@ def refinement_cross_spectrum(
     mask_pad: NDArrayBoolType,
     *,
     lowpass_sigma_px: float = 0.0,
+    highpass_sigma_px: float = 0.0,
 ) -> NDArrayComplexType:
     """Cross-power spectrum that the sub-pixel refinement interpolates.
 
@@ -745,6 +748,10 @@ def refinement_cross_spectrum(
         mask_pad: Zero-padded model mask, the same shape as ``image_pad``.
         lowpass_sigma_px: Sigma in pixels of the Gaussian low-pass applied to the
             image and to the masked model before the transform; ``0.0`` applies none.
+        highpass_sigma_px: Sigma in pixels of the Gaussian blur subtracted from the
+            image and from the masked model after the low-pass, which leaves each
+            surface's edges and detail and removes its smooth brightness; ``0.0``
+            subtracts nothing.
 
     Returns:
         The complex cross-power spectrum, of the inputs' shape.
@@ -764,6 +771,15 @@ def refinement_cross_spectrum(
     if lowpass_sigma_px > 0.0:
         refine_image = gaussian_filter(refine_image, lowpass_sigma_px)
         refine_model_masked = gaussian_filter(refine_model_masked, lowpass_sigma_px)
+    # Subtracting each surface's own blur removes light that varies slowly across the
+    # body, such as stray light or a sloped background the model leaves out, which
+    # otherwise drags the cross-power maximum away from the edges that carry the
+    # alignment (#791).
+    if highpass_sigma_px > 0.0:
+        refine_image = refine_image - gaussian_filter(refine_image, highpass_sigma_px)
+        refine_model_masked = refine_model_masked - gaussian_filter(
+            refine_model_masked, highpass_sigma_px
+        )
     # Conjugate and multiply into the model's own transform rather than
     # building a conjugate and a product beside it: at the full-resolution
     # scale each of those is one of the largest arrays in the process, and
@@ -812,7 +828,13 @@ def evaluate_candidate(
         refinement: How the whole-pixel candidate becomes a sub-pixel offset.
             ``'cross_power'`` takes the maximum of the upsampled
             ``refine_spectrum`` within half a pixel of the candidate, on a grid of
-            ``1 / upsample_factor`` px.  ``'ncc_quadratic'`` takes the maximum of a
+            ``1 / upsample_factor`` px.  ``'highpass_cross_power'`` does the same within
+            half a pixel of the NCC quadratic fit's maximum rounded to that grid (see
+            :func:`~spindoctor.support.correlate_subpixel.ncc_vertex_window_steps`), or
+            of the candidate when that fit cannot place a maximum; its
+            ``refine_spectrum`` is the one :func:`refinement_cross_spectrum` builds with
+            ``highpass_sigma_px``, and like ``'cross_power'`` it raises ``ValueError``
+            without one.  ``'ncc_quadratic'`` takes the maximum of a
             quadratic fitted to the 3x3 block of ``corr`` around the candidate, as
             :func:`~spindoctor.support.correlate_subpixel.ncc_quadratic_vertex`
             computes it, at most one pixel from the candidate on each axis; when
@@ -878,7 +900,7 @@ def evaluate_candidate(
         dx = dx_i + vertex[1]
     else:
         if refine_spectrum is None:
-            raise ValueError('the cross_power refinement needs a refine_spectrum')
+            raise ValueError(f'the {refinement} refinement needs a refine_spectrum')
         # Subpixel refinement: local upsampled DFT of the cross-power spectrum.
         # Center of the local upsampled DFT window should be the middle of the
         # evaluation region (e.g., 3x3 -> center index 1), not half the upsample
@@ -890,15 +912,26 @@ def evaluate_candidate(
         region_u = upsample_factor + 1
         oy = region_v // 2
         ox = region_u // 2
+        # The window's center, in steps of 1 / upsample_factor px.  The NCC picked the
+        # whole pixel; on a gradient surface, or when light the model leaves out moves
+        # the cross-power maximum, the true maximum can lie more than half a pixel
+        # from it, so the high-pass refinement centers on the NCC's own sub-pixel
+        # estimate instead (#791).
+        center_v = dy_i * upsample_factor
+        center_u = dx_i * upsample_factor
+        if refinement == 'highpass_cross_power':
+            steps_v, steps_u = ncc_vertex_window_steps(corr, (p, q), upsample_factor)
+            center_v += steps_v
+            center_u += steps_u
         Up = upsampled_dft(
             refine_spectrum,
             upsample_factor,
             (region_v, region_u),
-            (oy - dy_i * upsample_factor, ox - dx_i * upsample_factor),
+            (oy - center_v, ox - center_u),
         )
         upy, upx = np.unravel_index(np.argmax(np.abs(Up)), Up.shape)
-        dy = dy_i + (upy - oy) / upsample_factor
-        dx = dx_i + (upx - ox) / upsample_factor
+        dy = center_v / upsample_factor + (upy - oy) / upsample_factor
+        dx = center_u / upsample_factor + (upx - ox) / upsample_factor
 
     # Align combined model and compute residual stats (model_h/w, image_h/w
     # were unpacked and validated at the top of the function).
@@ -1004,7 +1037,7 @@ def navigate_single_scale_kpeaks(
             or overflows the FOV, where the only unique-alignment signal is
             at the limb.
         refine_lowpass_sigma_px: Sigma in pixels of the Gaussian low-pass that
-            :func:`refinement_cross_spectrum` applies before the ``'cross_power'``
+            :func:`refinement_cross_spectrum` applies before either cross-power
             refinement; ``0.0`` applies none.
         refinement: The sub-pixel refinement every candidate receives; see
             :func:`evaluate_candidate`.  With ``'ncc_quadratic'`` the cross-power
@@ -1098,7 +1131,7 @@ def navigate_single_scale_kpeaks(
     # same arrays, so the refinement is unchanged.  The NCC quadratic refinement
     # reads only ``corr``, so it is spared the spectrum's two full-period transforms.
     refine_spectrum: NDArrayComplexType | None = None
-    if refinement == 'cross_power':
+    if refinement != 'ncc_quadratic':
         if use_gradient:
             refine_image_pad = pad_top_left(image_raw, padded_h, padded_w)
             refine_model_pad = pad_top_left(model_raw, padded_h, padded_w)
@@ -1110,6 +1143,7 @@ def navigate_single_scale_kpeaks(
             refine_model_pad,
             mask_pad[:padded_h, :padded_w],
             lowpass_sigma_px=refine_lowpass_sigma_px,
+            highpass_sigma_px=HIGHPASS_SIGMA_PX if refinement == 'highpass_cross_power' else 0.0,
         )
         del refine_image_pad, refine_model_pad
 
