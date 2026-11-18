@@ -802,8 +802,8 @@ where they differ).
     current one, and #929's disc criteria moved here. Partly done (PR #1053): the disc's final pass now refines on a
     high-pass cross-power surface, in a window centered on the NCC
     quadratic vertex; on 69 real NAC frames the median per-axis error fell
-    from 0.29 / 0.30 to 0.23 / 0.23 px and window-edge answers from 61% to
-    7%. Still open: an answer that still stops at its window edge is not
+    from 0.29 / 0.30 to 0.23 / 0.23 px, and on all 76 measured frames the
+    window-edge answers fell from 61% to 7%. Still open: an answer that still stops at its window edge is not
     flagged, and the #790 expectation is no longer strict because mesh
     seed 10 now ends conflicted. Its pull toward bright structure the
     template leaves out is #1050.
