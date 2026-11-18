@@ -1,6 +1,7 @@
 from fractions import Fraction
 from typing import Any, cast
 
+import host_voyager
 import numpy as np
 from filecache import FCPath
 
@@ -168,14 +169,11 @@ class ObsVoyagerISS(ObsSnapshotInst, HostLabel):
             An ObsVoyagerISS object containing the image data and metadata.
         """
 
-        import oops.hosts.voyager.iss
-
         config = config or DEFAULT_CONFIG
         logger = IMAGE_LOGGER
 
         logger.debug(f'Reading Voyager ISS image {path}')
-        # The host module publishes no type information for from_file.
-        obs = oops.hosts.voyager.iss.from_file(path)  # type: ignore[no-untyped-call]
+        obs = host_voyager.VoyagerISS.from_file(path)
         fc_path = FCPath(path)
 
         inst_config = config.category('voyager_iss')
