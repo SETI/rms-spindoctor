@@ -122,11 +122,13 @@ Each is a scope commitment the downstream work waits on:
 **The simulator's decisions** (order and context in
 `plans/SIM_IMPROVEMENT_PLAN.md`; ask them one at a time):
 
-- **#923, before Phase 1b starts** -- three choices: (1) have the simulator
-  call the navigator's image classifier, or move the pure decision to a
-  neutral module both import; (2) move the test-only `artifact_counts.py`
-  beside `realism/` or under `tests/`; (3) whether the "Phase 10 §" labels
-  outside the simulator are in scope.
+- **#923, before Phase 1b starts** -- **decided 2026-11-18.** The three
+  choices were: (1) have the simulator call the navigator's image
+  classifier, or move the pure decision to a neutral module both import;
+  (2) move the test-only `artifact_counts.py` beside `realism/` or under
+  `tests/`; (3) whether the "Phase 10 §" labels outside the simulator are
+  in scope. Ruling: (1) a neutral module; (2) under `tests/`; (3) out of
+  scope, tracked in #1035.
 - **#1017, before Phase 2a's detector work** -- for each effect modeled
   twice (banding, dark signal, and hot pixels), whether the scene's `noise`
   knobs and the artifact mode are one effect or two.
@@ -306,9 +308,9 @@ pointing, so it has an outside answer to fix against.
   with #961's sweep figures, in progress in another session (its
   prerequisite #989 landed in PR #1004 on 2026-11-17), and then (2) Phase 1b,
   the pixel-neutral restructuring, starting with #923's shared scene fixtures
-  and #1005's package layout (`sim/forward/` becomes `sim/render/`) once the
-  operator has answered #923's three choices (Section 0.1). Phase 1b starts
-  only after the regeneration lands.
+  and #1005's package layout (`sim/forward/` becomes `sim/render/`); #923's
+  three choices are decided (Section 0.1). Phase 1b starts only after the
+  regeneration lands.
 - **Simulator scene fidelity** (the batch this group listed): four features
   rendered something other than what they name — #625 (`limb_relief_rms`
   carved radial wedges out of the disc), #626 (`polyhedral_mesh` bodies
@@ -864,8 +866,8 @@ every simulator issue is placed and ordered in
   under a raw-DN marker; **#632** ring scene keys carried no units; **#633**
   the editor authored mesh scenes its own validator refused -- all five
   **done (PR #819)**
-- **#923**, **#1017** decisions (Section 0.1) before the simulator plan's
-  Phases 1b and 2a; **#854** on hold (operator); **#970** decided (fix the
+- **#1017** decision (Section 0.1) before the simulator plan's Phase 2a
+  (#923 decided 2026-11-18); **#854** on hold (operator); **#970** decided (fix the
   camera models upstream)
 
 **Calibration governance / CI (gate WS-5 and the CI tier in Section 2.3):**
@@ -988,7 +990,7 @@ these are what it owes and what generalizes it):**
 ```text
 0.1 decisions (#316, #407, #338, #548, #547, #459, #468, #466, #462, #557,
     #600, #720, #677, #730, #744, #748, #751, #867; #880 with the
-    frozen stack; simulator #923 and #1017)                     (operator, minutes)
+    frozen stack; simulator #1017; #923 decided)               (operator, minutes)
     star-frame pins: decided 2026-10-31 and applied (PR #754)   (done)
 0.2 adopt transfer watch (#334)                                 (operator, minutes)
 --- then, before Track A collects anything at scale

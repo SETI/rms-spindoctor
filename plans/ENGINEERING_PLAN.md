@@ -1701,6 +1701,11 @@ CI and test infrastructure:
 
 Documentation bugs:
 
+- **#1035** — about 42 lines outside the simulator name phases of an
+  archived plan ("PLACEHOLDER — calibrate in Phase 10" in the camera
+  blocks, "Phase 10 §F" in a user-visible message); replace each with a
+  plain description, leaving the lines #1023 deletes to it. The
+  simulator's own labels are #923's.
 - **#807** — `InstrumentSettings.marker_value` and the image classifier's
   docstrings say calibrated products use a NaN marker; Voyager ISS uses 0
   (and Cassini CALIB does too, per #824 above).

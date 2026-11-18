@@ -171,8 +171,10 @@ apart from a physics change.
 
 #923's fixtures and #1005 go first. The others can land in any order after them.
 
-Decisions needed before the work starts, asked one at a time: the three choices #923 lists (its
-plan-note comment).
+#923's three choices are decided (operator, 2026-11-18): the classifying decision moves to a
+neutral module both sides import, as its own small PR first, because the navigator's classifier
+is in a file the navigator work also edits; `artifact_counts.py` moves under `tests/`; and the
+plan-phase labels outside the simulator are out of scope, tracked in #1035.
 
 **Exit:** the issues above are closed. Every committed render and baseline reproduced unchanged
 through them, or a move under #1009 is explained in its PR. No simulator module is over 1,000 lines.
