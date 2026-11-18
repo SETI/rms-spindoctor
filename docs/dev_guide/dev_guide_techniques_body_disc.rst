@@ -55,10 +55,11 @@ over the integer offsets :math:`(\Delta v, \Delta u)` in the per-instrument sear
 where :math:`\langle \cdot, \cdot \rangle_{M}` denotes the masked inner product (only pixels
 where :math:`M = \mathrm{True}` contribute). Sub-pixel refinement comes from a localized
 upsampled-DFT (Guizar-Sicairos) of the cross-power spectrum, reaching a resolution of
-``1 / correlation_fft_upsample_factor`` px (1/128 px by default). The coarser pyramid levels search within half a pixel of the integer peak; the
-final full-resolution pass refines on a high-pass surface around the NCC's own sub-pixel
-estimate (see "High-pass refinement on the final pass"). The refinement is evaluated
-on the **raw-intensity** surfaces even when the integer peak was chosen on the gradient
+``1 / correlation_fft_upsample_factor`` px (1/128 px by default). The coarser pyramid
+levels search within half a pixel of the integer peak; the final full-resolution pass
+refines on a high-pass surface around the NCC's own sub-pixel estimate (see "High-pass
+refinement on the final pass"). The refinement is evaluated on the **raw-intensity**
+surfaces even when the integer peak was chosen on the gradient
 surfaces, so a gradient-mode peak does not carry the gradient-magnitude rectification bias
 (the magnitude rectifies the signal, making the cross-power peak non-smooth at its apex)
 into the reported offset; the template gradient structure provides the matched-filter
@@ -126,7 +127,8 @@ The final full-resolution pass runs
   the 3x3 block of NCC values at the integer peak, rounded to the refinement grid of
   ``1 / correlation_fft_upsample_factor`` px
   (:func:`~spindoctor.support.correlate_subpixel.ncc_vertex_window_steps`). When that fit
-  has no maximum, the window stays on the integer peak.
+  has no maximum, the window stays on the integer peak. The fit moves at most one pixel
+  along each axis, so the answer can lie up to 1.5 px from the integer peak.
 
 **Why.** The integer peak comes from the NCC, which in gradient mode is computed on
 gradient magnitudes. The cross-power maximum can then sit more than half a pixel from it,
@@ -139,28 +141,36 @@ maximum inside it.
 
 On the 69 Cassini narrow-angle frames among them, the high-pass refinement gives a median
 per-axis error of 0.23 / 0.23 px against the stars, where the half-pixel window around the
-integer peak gives 0.29 / 0.30 px. Over all 76 frames, 7% of its answers still stop at its
-window edge with the surface still rising, and nothing marks them. That half-pixel window
-is unrelated to the result's ``at_edge`` flag, which marks a peak at the edge of the
-whole translation search window.
+integer peak gives 0.29 / 0.30 px. The median distance from the star solution hardly
+changes, from 0.467 to 0.470 px. The mean distance falls from 0.747 to 0.634 px, the
+largest distance rises from 5.21 to 6.20 px, and 42 frames improve by more than 0.05 px
+while 15 get worse by as much. Over all 76 frames, 7% of the high-pass answers still stop at the
+window edge with the surface still rising, and nothing marks them.
+
+That half-pixel window is unrelated to the result's ``at_edge`` flag, which marks a peak
+at the edge of the whole translation search window. The flag tests the integer peak as
+well as the answer. An integer peak one pixel inside the search window's edge is flagged
+even when the high-pass window has carried the answer more than a pixel inward from it.
 
 **Known weakness.** Bright structure that the template leaves out, lying against a modeled
 limb, pulls the high-pass maximum about 2.7 times further than the raw one. Examples are a
 far body hidden behind a near one except for a crescent (a body below 40% visible lit
 fraction emits no ``BODY_DISC`` template), rings or Saturn behind a moon, and saturation
-spill around an overexposed body. On real frames with such structure the net effect was
-mixed: better on 5 of 10 frames with star truth, worse on 3, all three of them saturated and
-more than 1.7 px off with either refinement. On the six Cassini wide-angle frames in the
-measurement the high-pass refinement is worse overall, because two of them are such
-saturated frames.
+spill around an overexposed body. On the 10 real frames with such structure, the
+high-pass refinement is better on 5 and worse on 3, but the median distance from the star
+solution rises from 1.64 to 2.03 px. The three that get worse are all saturated and more
+than 1.7 px off with either refinement. On the other 66 frames the median distance moves
+from 0.47 to 0.49 px. On the six Cassini wide-angle frames in the measurement the high-pass
+refinement is worse overall, because two of them are such saturated frames.
 
 **Cost.** The high-pass spectrum replaces the raw one on the final pass, so the added work
 per correlation is two Gaussian filters of the padded surfaces and one 3x3 quadratic fit
 per candidate peak: about 0.14 s per final pass on a 1100 px extended frame, where the
 whole correlation takes about 8.5 s. In ``auto`` mode both the raw and the gradient
-pyramids run a final pass, so the estimate is about 0.27 s per image. With rotation
-fitting on, each of the 19 rotation samples runs its own pyramid, so up to 38 final passes
-build a high-pass spectrum, an estimated 5 s more per image of that size.
+pyramids run a final pass, so the estimate is about 0.27 s per image. Rotation fitting,
+which no camera turns on by default, runs the complete search in both modes at each of the
+19 rotation samples (see "Rotation-aware schedule"). Each of those 38 searches ends with a
+final pass that builds a high-pass spectrum, an estimated 5 s more per image of that size.
 
 Mode selection (auto / raw / gradient)
 --------------------------------------

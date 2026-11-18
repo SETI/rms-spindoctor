@@ -57,8 +57,12 @@ __all__ = ['BodyDiscCorrelateNav']
 # Measured against strong star solutions on 76 real disc frames, 69 of them Cassini
 # narrow-angle, the high-pass refinement lowered the narrow-angle median per-axis error of
 # this technique's offset from 0.29 / 0.30 px to 0.23 / 0.23 px, and the share of answers
-# whose surface still rises past the window edge from 61% to 7%.  It is more easily pulled
-# than the raw cross-power by bright structure the template leaves out beside a limb (#791,
+# whose surface still rises past the window edge from 61% to 7%.  The narrow-angle median
+# distance from the star solution hardly moved (0.467 to 0.470 px); its mean fell from 0.747
+# to 0.634 px, its maximum rose from 5.21 to 6.20 px, and 42 frames improved by more than
+# 0.05 px while 15 got worse.  It is more easily pulled than the raw cross-power by bright
+# structure the template leaves out beside a limb: on the 10 frames with such structure the
+# median distance rose from 1.64 to 2.03 px, and on the other 66 from 0.47 to 0.49 px (#791,
 # #1050).
 _FINAL_REFINEMENT: SubpixelRefinement = 'highpass_cross_power'
 """Sub-pixel refinement of the correlation's final full-resolution pass."""

@@ -799,13 +799,20 @@ where they differ).
     #929 fixed the clamp for the ring annulus only (#1003, a quadratic fit
     of the NCC surface on the final pass); the disc stays as it is by
     decision, since on 29 real disc frames no candidate refinement beat the
-    current one, and #929's disc criteria moved here. Partly done (PR #1053): the disc's final pass now refines on a
-    high-pass cross-power surface, in a window centered on the NCC
-    quadratic vertex; on 69 real NAC frames the median per-axis error fell
-    from 0.29 / 0.30 to 0.23 / 0.23 px, and on all 76 measured frames the
-    window-edge answers fell from 61% to 7%. Still open: an answer that still stops at its window edge is not
-    flagged, and the #790 expectation is no longer strict because mesh
-    seed 10 now ends conflicted. Its pull toward bright structure the
+    current one, and #929's disc criteria moved here. Partly done (PR
+    #1053): the disc's final pass now refines on a high-pass cross-power
+    surface, in a window centered on the NCC quadratic vertex. On 69 real
+    NAC frames the median per-axis error fell from 0.29 / 0.30 to 0.23 /
+    0.23 px; the median radial error stayed flat (0.467 to 0.470 px), the
+    mean fell (0.747 to 0.634 px), and the maximum rose (5.21 to 6.20 px).
+    On all 76 measured frames the window-edge answers fell from 61% to 7%;
+    on the 10 of them with bright unmodeled structure beside the limb the
+    median radial error rose from 1.64 to 2.03 px. The at-edge flag now
+    tests the integer peak as well, since the window can carry the answer
+    1.5 px from it. Still open: an answer that still stops at its window
+    edge is not flagged. The strict #790 expectation was removed from the
+    sim sweeps entirely, because mesh seed 10 now ends conflicted (the veto
+    fires on seeds 5 and 10). Its pull toward bright structure the
     template leaves out is #1050.
   - **#1002** — when the annulus quadratic fit cannot be used, or its
     maximum lies more than a pixel away, the answer stays on the whole pixel
