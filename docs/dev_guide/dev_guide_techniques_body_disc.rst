@@ -148,11 +148,10 @@ When the per-instrument camera-rotation flag is on, the technique first runs the
 pyramid on the unrotated template, in both raw and gradient modes, exactly as it does with
 rotation off. The mode that pyramid picks is then used for every trial angle. At each
 trial angle, the technique rotates the template about the body-centroid pivot and scores
-it with a single full-resolution correlation
-(:func:`~spindoctor.support.correlate.ncc_peak_quality`): the PSR of the strongest
-whole-pixel peak inside the search window. That is the quality the pyramid's final pass
-gives the same peak before its small penalty for distance from the coarser levels' answer.
-The angles come in three rounds:
+it with a single full-resolution correlation in that mode
+(:func:`~spindoctor.support.correlate.ncc_peak_quality`). The score is the PSR of the
+strongest whole-pixel peak inside the search window. It does not include the pyramid's
+distance penalty or its choice among candidate peaks. The angles come in three rounds:
 
 1. The first round tries 11 angles spanning :math:`\pm \mathrm{max\_rotation\_deg}`.
 2. The second round tries five angles 0.5 deg apart, centered on the best of the 11.
@@ -169,11 +168,17 @@ to 32 candidate peaks. The search therefore costs about as much as two
 translation-only fits plus at most 19 correlations, or one translation-only fit plus the
 correlations when the best angle is zero.
 
-Ranking the angles this way can pick a different angle from ranking each angle by its
-own full pyramid, as a search that ran the full pyramid at every angle would. The
-pyramid's final quality subtracts 0.25 times the distance between its answer and the
-coarser levels' answer, and a pyramid at one angle may pick the other mode. Where two
-angles' qualities differ by less than those effects, the two rankings can disagree.
+This ranking can choose a different angle than running the full pyramid at every angle
+would. A full pyramid scores an angle by the quality of the candidate peak it picks, after
+subtracting 0.25 times that peak's distance from the coarser levels' answer, and it
+chooses the raw or gradient mode anew at each angle. The trial-angle score leaves out the
+candidate choice, the distance penalty, and the per-angle mode choice. The two scores can
+differ by more than neighboring angles' scores differ from each other, so the two
+rankings do not always agree on the best angle.
+
+The final pyramid at the best angle also runs in both modes and keeps the better one. So
+the mode it reports, and the quality that goes with it, can differ from the mode that
+ranked the angles.
 
 The technique returns the (dv, du, theta) triple from that final pyramid, with a 3x3
 covariance. The translation block of that covariance is the matched-filter
@@ -406,12 +411,12 @@ Call path traced through
      3 centered on the best of the 5, each scored by one correlation in that mode; then the
      full NCC pyramid at the best of the last 3. That pyramid gives the returned
      (dv, du, theta) triple and its 3x3 covariance. The translation block is the CRLB from
-     the winning rotation's correlation curvature. The rotation diagonal is always the rotation-unobservable sentinel. The
-     PSR/PMR-style peak quality is not a log-likelihood, so its curvature across the
-     rotation samples does not carry Fisher information about rotation, and there is no
-     calibrated way to turn that curvature into a variance. The disc technique contributes
-     a translation estimate while abstaining on rotation (the theory section above
-     discusses why).
+     the winning rotation's correlation curvature. The rotation diagonal is always the
+     rotation-unobservable sentinel. The PSR/PMR-style peak quality is not a
+     log-likelihood, so its curvature across the rotation samples does not carry Fisher
+     information about rotation, and there is no calibrated way to turn that curvature
+     into a variance. The disc technique contributes a translation estimate while
+     abstaining on rotation (the theory section above discusses why).
 
 5. Apply the at-edge tests against the search-window axis bounds and the rotation cap, and
    the spurious tests using the pyramid wrapper's ``spurious`` and ``consistency``

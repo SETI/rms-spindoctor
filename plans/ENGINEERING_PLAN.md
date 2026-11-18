@@ -1495,7 +1495,8 @@ asserts the generated half matches the registries.
   rotation-fitting instruments (Galileo, Voyager); coordinate with
   Track F instrument enablement. Cost part done: each rotation sample
   is scored by one correlation and the pyramid runs only at the winner
-  (7-12x faster, same answers). Accuracy part open as #1040 (the
+  (5.7-12x faster; the winning angle can differ from the old grid's,
+  see PR #1042). Accuracy part open as #1040 (the
   sampled score misses a planted roll); turning rotation on for Voyager
   stays an operator decision.
 - **#118** — config validation system: schema per section, unknown-key
@@ -1731,7 +1732,9 @@ same change.
 
 - **Voyager ISS:** #19 — star navigation broken; overlaps the per-camera
   Voyager distortion split (#355) and limiting-magnitude (#130) work, so
-  schedule together. Rotation fitting is currently off for cost (#126).
+  schedule together. Rotation fitting is off: its cost is fixed (#126,
+  done), and turning it on waits on its accuracy (#1040) and an
+  operator decision.
 - **Galileo SSI:** #18 — star navigation broken (same cluster).
 - **New Horizons LORRI:** #2 — PSF sigma calibration; #138 — decide and
   enforce the `_eng` product policy; #33 (deferred) — new instrument

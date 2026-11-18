@@ -1731,9 +1731,15 @@ def ncc_peak_quality(
     ranking of models from these qualities as from that function's, at a fraction of
     its cost.
 
+    The model must be at least as large as the image in both dimensions, as it must
+    be for :func:`navigate_single_scale_kpeaks`.  That function raises
+    ``ValueError`` for a smaller model; this one does not check, and its peak and
+    quality for a smaller model are not defined.
+
     Parameters:
         image: The image surface, unpadded.
-        model: The model surface, unpadded.
+        model: The model surface, unpadded, at least as large as ``image`` in both
+            dimensions.
         mask: The model mask, the shape of ``model``.
         max_offset_vu: The search limit ``(max_dv, max_du)`` in pixels, applied as
             :func:`nms_topk` applies it, or ``None`` for no limit.
