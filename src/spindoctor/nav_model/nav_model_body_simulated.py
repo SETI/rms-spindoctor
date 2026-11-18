@@ -273,8 +273,10 @@ class NavModelBodySimulated(NavModelBodyBase):
             - ``illumination_angle`` (deg)
             - ``phase_angle`` (deg)
 
-            Crater and anti-aliasing keys are accepted but ignored;
-            anti-aliasing is always maximal here.
+            Built by ``instances_for_obs``, the entry has no crater or
+            anti-aliasing keys, since they are truth.  A direct caller may
+            pass them; they are ignored, and anti-aliasing is always maximal
+            here.
         config: Optional ``Config`` override.
         sibling_bodies: Idealized parameter dicts of the OTHER bodies in the
             same scene (from the same filtered ``nav_params['bodies']`` list
