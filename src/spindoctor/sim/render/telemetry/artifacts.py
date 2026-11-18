@@ -48,10 +48,10 @@ def apply_compression_dct(
 ) -> dict[str, Any]:
     """Quantize the frame's 8x8 DCT coefficients, planting blockiness and ringing.
 
-    The lossy downlink codec (Galileo ICT, Cassini lossy, LORRI lossy) transforms
-    each ``block`` x ``block`` tile to the DCT domain, quantizes the coefficients
-    to a step of ``scale_factor``, and inverts -- coarser steps give visible
-    block edges and ringing around high-contrast features.  Any commanded truth
+    The on-board lossy downlink codec transforms each ``block`` x ``block`` tile to
+    the DCT domain, quantizes the coefficients to a step of ``scale_factor``, and
+    inverts -- coarser steps give visible block edges and ringing around
+    high-contrast features.  Any commanded truth
     window (``protect``) is restored clean afterward, the losslessly-coded
     carve-out.  Frame rows/columns past the last whole block are left unchanged.
     A mode that does not fire is a no-op.

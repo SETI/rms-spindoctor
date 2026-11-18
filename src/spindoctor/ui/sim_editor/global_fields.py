@@ -15,8 +15,8 @@ from spindoctor.sim.instruments.catalog import (
 )
 from spindoctor.ui.sim_editor.base import SimEditorBase
 
-# The seed a scene starts with when the editor supplies it: a new scene, or a loaded
-# dict that leaves the key out.
+# The seed the editor gives a scene it builds: a new scene, and a partial scene applied
+# to the editor, which fills every absent header key with its default.
 NEW_SCENE_RANDOM_SEED = 42
 
 
