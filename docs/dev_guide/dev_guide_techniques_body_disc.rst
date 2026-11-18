@@ -96,6 +96,18 @@ sharp surfaces so integer-peak selection is unaffected. It must low-pass the *ma
 template, not the bare template -- low-passing before the mask multiply lets the hard mask
 edge re-sharpen the model and makes the bias worse, not better.
 
+**Alternative considered and rejected: a render-time PSF.** Since the bias comes from sharp
+edges, an obvious idea is to convolve the simulated body (and, to match, the template) with
+the instrument point-spread function so the edges are realistically soft. This does not work
+as a fix. Blurring only the rendered image at the camera's own ~0.54 px sigma leaves it
+mismatched against the still-sharp template -- a soft image against a sharp template is a
+worse mismatch than two matched sharp surfaces -- and it destabilizes the integer-peak choice
+at some phases; a larger blur is monotonically worse. It is also the wrong layer: the bias is
+in the navigator's correlation, which applies to real PSF-blurred images too, so it must be
+fixed in the correlator (the band-limit above) rather than in the simulator. The band-limit
+removes the bias for both simulated and real images and changes neither the rendered image nor
+the template.
+
 High-pass refinement on the final pass
 --------------------------------------
 
@@ -118,9 +130,10 @@ The final full-resolution pass runs
 gradient magnitudes. The cross-power maximum can then sit more than half a pixel from it,
 and a window confined to half a pixel around the integer peak stops at its edge. With
 such a window, 61% of the disc answers on 76 real frames with strong star solutions stop
-there with the surface still rising past the edge. A typical case is a body whose true offset is 1.43 px: the gradient NCC peaks at
-2, the window spans 1.5 to 2.5, and the answer is 1.5. Centering the window on the NCC's
-sub-pixel estimate puts the true maximum inside it.
+there with the surface still rising past the edge. A typical case is a body whose true
+offset is 1.43 px: the gradient NCC peaks at 2, the window spans 1.5 to 2.5, and the
+answer is 1.5. Centering the window on the NCC's sub-pixel estimate puts the true maximum
+inside it.
 
 On the 69 Cassini narrow-angle frames among them, the high-pass refinement gives a median
 per-axis error of 0.23 / 0.23 px against the stars, where the half-pixel window around the
@@ -139,19 +152,9 @@ saturated frames.
 
 **Cost.** The high-pass spectrum replaces the raw one on the final pass, so the added work
 per correlation is two Gaussian filters of the padded surfaces and one 3x3 quadratic fit
-per candidate peak.
-
-**Alternative considered and rejected: a render-time PSF.** Since the bias comes from sharp
-edges, an obvious idea is to convolve the simulated body (and, to match, the template) with
-the instrument point-spread function so the edges are realistically soft. This does not work
-as a fix. Blurring only the rendered image at the camera's own ~0.54 px sigma leaves it
-mismatched against the still-sharp template -- a soft image against a sharp template is a
-worse mismatch than two matched sharp surfaces -- and it destabilizes the integer-peak choice
-at some phases; a larger blur is monotonically worse. It is also the wrong layer: the bias is
-in the navigator's correlation, which applies to real PSF-blurred images too, so it must be
-fixed in the correlator (the band-limit above) rather than in the simulator. The band-limit
-removes the bias for both simulated and real images and changes neither the rendered image nor
-the template.
+per candidate peak: about 0.14 s per final pass on a 1100 px extended frame, where the
+whole correlation takes about 8.5 s. In ``auto`` mode both the raw and the gradient
+pyramids run a final pass.
 
 Mode selection (auto / raw / gradient)
 --------------------------------------
