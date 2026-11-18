@@ -9,6 +9,7 @@ and render a bright scene end-to-end.
 from typing import Any
 
 import numpy as np
+from tests.spindoctor.sim.scenes import frame_scene
 
 from spindoctor.sim.forward.detector import apply_saturation
 from spindoctor.sim.render import render_combined_model
@@ -64,14 +65,11 @@ def test_bloom_conserves_excess_floor() -> None:
 
 def _bright_scene(*, size: int = 64) -> dict[str, Any]:
     """A coiss scene bright enough to drive the lit body into saturation."""
-    return {
-        'size_v': size,
-        'size_u': size,
-        'random_seed': 1,
-        'instrument': 'coiss_nac',
-        'exposure_sec': 1.0,
-        'noise': {'signal_full_scale_frac': 2.0},
-        'bodies': [
+    return frame_scene(
+        size=size,
+        exposure_sec=1.0,
+        noise={'signal_full_scale_frac': 2.0},
+        bodies=[
             {
                 'name': 'B',
                 'center_v': size / 2,
@@ -81,7 +79,7 @@ def _bright_scene(*, size: int = 64) -> dict[str, Any]:
                 'semi_c_px': size * 0.25,
             }
         ],
-    }
+    )
 
 
 def test_render_saturates_at_physical_full_well() -> None:

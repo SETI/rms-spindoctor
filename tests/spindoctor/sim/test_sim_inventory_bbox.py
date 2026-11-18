@@ -12,6 +12,7 @@ from typing import Any
 
 import numpy as np
 import pytest
+from tests.spindoctor.sim.scenes import frame_scene, quiet_noise
 
 from spindoctor.sim.render import render_combined_model
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
@@ -38,26 +39,18 @@ _TIGHTNESS_BOUND_PX = 1.0
 
 def _scene() -> dict[str, Any]:
     """A noiseless scene with one fully lit, elongated, rotated body."""
-    return {
-        'size_v': 128,
-        'size_u': 128,
-        'random_seed': 3,
-        'instrument': 'coiss_nac',
-        'noise': {'poisson': False, 'read_noise_dn': 0.0, 'bias_dn': 0.0},
-        'bodies': [
-            {
-                'name': 'SLAB',
-                'center_v': _CENTER,
-                'center_u': _CENTER,
-                'semi_a_px': _SEMI_MAJOR,
-                'semi_b_px': _SEMI_MINOR,
-                'semi_c_px': _SEMI_MINOR,
-                'rotation_z': _ROTATION_Z_DEG,
-                'phase_angle': 0.0,
-                'anti_aliasing': 0.0,
-            }
-        ],
+    body = {
+        'name': 'SLAB',
+        'center_v': _CENTER,
+        'center_u': _CENTER,
+        'semi_a_px': _SEMI_MAJOR,
+        'semi_b_px': _SEMI_MINOR,
+        'semi_c_px': _SEMI_MINOR,
+        'rotation_z': _ROTATION_Z_DEG,
+        'phase_angle': 0.0,
+        'anti_aliasing': 0.0,
     }
+    return frame_scene(size=128, seed=3, noise=quiet_noise(), bodies=[body])
 
 
 def _inventory() -> dict[str, float]:

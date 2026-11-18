@@ -12,6 +12,7 @@ from typing import Any
 
 import numpy as np
 import pytest
+from tests.spindoctor.sim.scenes import body_scene
 
 from spindoctor.sim.forward.detector.params import resolve_detector_params
 from spindoctor.sim.render import render_combined_model
@@ -24,26 +25,7 @@ _INSTRUMENTS = ('coiss_nac', 'vgiss', 'coiss_calib_nac', 'generic')
 
 def _scene(instrument: str, *, instrument_defaults: bool, **extra: Any) -> dict[str, Any]:
     """A small disc scene on ``instrument``, with the physical chain on or off."""
-    scene: dict[str, Any] = {
-        'schema_version': 2,
-        'scene_name': 'null_noise',
-        'size_v': 32,
-        'size_u': 32,
-        'random_seed': 7,
-        'instrument': instrument,
-        'bodies': [
-            {
-                'name': 'RHEA',
-                'center_v': 16.0,
-                'center_u': 16.0,
-                'semi_a_px': 4.0,
-                'semi_b_px': 4.0,
-                'semi_c_px': 4.0,
-                'illumination_angle': 0.0,
-                'phase_angle': 0.0,
-            }
-        ],
-    }
+    scene = body_scene(4.0, instrument=instrument, size=32, seed=7, scene_name='null_noise')
     if instrument_defaults:
         scene['artifacts'] = {'instrument_defaults': True}
     scene.update(extra)

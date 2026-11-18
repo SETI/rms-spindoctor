@@ -9,6 +9,7 @@ distinct entries in the body shape cache instead of colliding on one.
 from typing import Any
 
 import numpy as np
+from tests.spindoctor.sim.scenes import frame_scene, quiet_noise
 
 from spindoctor.sim import render
 from spindoctor.sim.forward import body as forward_body
@@ -28,17 +29,15 @@ def _clear_render_caches() -> None:
 
 def _twin_body_scene() -> dict[str, Any]:
     """A noiseless scene with two cratered bodies of identical geometry."""
-    return {
-        'size_v': 96,
-        'size_u': 160,
-        'random_seed': 42,
-        'instrument': 'coiss_nac',
-        'noise': {'poisson': False, 'read_noise_dn': 0.0, 'bias_dn': 0.0},
-        'bodies': [
+    return frame_scene(
+        size=(96, 160),
+        seed=42,
+        noise=quiet_noise(),
+        bodies=[
             {'name': 'ALPHA', 'center_v': 48.0, 'center_u': 44.0, **_BODY_GEOMETRY},
             {'name': 'BETA', 'center_v': 48.0, 'center_u': 116.0, **_BODY_GEOMETRY},
         ],
-    }
+    )
 
 
 def _body_crops(img: np.ndarray) -> tuple[np.ndarray, np.ndarray]:

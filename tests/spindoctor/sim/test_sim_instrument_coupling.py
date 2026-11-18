@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from tests.spindoctor.sim.scenes import frame_scene
 
 from spindoctor.config import DEFAULT_CONFIG
 from spindoctor.nav_orchestrator.instrument_config import instrument_settings_from_obs
@@ -21,12 +22,7 @@ from spindoctor.sim.render import render_combined_model
 
 def _obs(instrument: str, *, size: int = 64) -> ObsSim:
     """Build an ObsSim for the given instrument from a minimal scene."""
-    params: dict[str, Any] = {
-        'size_v': size,
-        'size_u': size,
-        'random_seed': 1,
-        'instrument': instrument,
-    }
+    params = frame_scene(instrument=instrument, size=size)
     return ObsSim.from_file('/tmp/sim_test.json', sim_params=params)
 
 
@@ -88,12 +84,10 @@ def test_settings_generic_defaults_to_raw_dn() -> None:
 
 def _lit_body_scene(instrument: str, *, size: int = 64) -> dict[str, Any]:
     """A scene with a single lit body for the given instrument."""
-    return {
-        'size_v': size,
-        'size_u': size,
-        'random_seed': 1,
-        'instrument': instrument,
-        'bodies': [
+    return frame_scene(
+        instrument=instrument,
+        size=size,
+        bodies=[
             {
                 'name': 'B',
                 'center_v': size / 2,
@@ -105,7 +99,7 @@ def _lit_body_scene(instrument: str, *, size: int = 64) -> dict[str, Any]:
                 'phase_angle': 30.0,
             }
         ],
-    }
+    )
 
 
 def test_raw_dn_render_is_in_dn() -> None:
@@ -184,13 +178,7 @@ def test_no_overrides_returns_the_live_block() -> None:
 
 def test_overrides_reach_the_obs_inst_config() -> None:
     """A scene's instrument_config override is visible on the obs inst config."""
-    params: dict[str, Any] = {
-        'size_v': 64,
-        'size_u': 64,
-        'random_seed': 1,
-        'instrument': 'coiss_nac',
-        'instrument_config': {'noise': {'read_noise_dn': 12.0}},
-    }
+    params = frame_scene(instrument_config={'noise': {'read_noise_dn': 12.0}})
     obs = ObsSim.from_file('/tmp/sim_test.json', sim_params=params)
     assert obs._inst_config is not None
     assert float(obs._inst_config['noise']['read_noise_dn']) == 12.0
@@ -200,13 +188,10 @@ def test_instrument_config_round_trips_through_the_scene_schema(tmp_path: Path) 
     """instrument_config survives a scene save/load round-trip (GUI save path)."""
     from spindoctor.sim.scene import load_sim_scene, save_sim_scene
 
-    sim_params: dict[str, Any] = {
-        'size_v': 64,
-        'size_u': 64,
-        'random_seed': 1,
-        'instrument': 'generic',
-        'instrument_config': {'star_psf_sigma': 1.5, 'noise': {'read_noise_dn': 3.0}},
-    }
+    sim_params = frame_scene(
+        instrument='generic',
+        instrument_config={'star_psf_sigma': 1.5, 'noise': {'read_noise_dn': 3.0}},
+    )
     path = tmp_path / 'example.yaml'
     save_sim_scene(sim_params, path)
     scene = load_sim_scene(path)

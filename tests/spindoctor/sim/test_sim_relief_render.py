@@ -14,6 +14,7 @@ from typing import Any, cast
 
 import numpy as np
 import pytest
+from tests.spindoctor.sim.scenes import disc_body, frame_scene, quiet_noise
 
 from spindoctor.sim import render
 from spindoctor.sim.forward import body_topo
@@ -391,14 +392,7 @@ def _body_scene(*, oversample: int | None, body_extra: dict[str, Any]) -> dict[s
         'crater_max_radius': 0.2,
     }
     body.update(body_extra)
-    scene: dict[str, Any] = {
-        'size_v': 80,
-        'size_u': 80,
-        'random_seed': 11,
-        'instrument': 'coiss_nac',
-        'noise': {'poisson': False, 'read_noise_dn': 0.0, 'bias_dn': 0.0},
-        'bodies': [body],
-    }
+    scene = frame_scene(size=80, seed=11, noise=quiet_noise(), bodies=[body])
     if oversample is not None:
         scene['oversample'] = oversample
     return scene
@@ -482,35 +476,15 @@ def test_relief_terrain_is_stable_when_craters_toggle() -> None:
 
 def test_two_identical_bodies_get_independent_terrains() -> None:
     """Per-body identity seeds two same-geometry bodies' relief independently."""
-    scene: dict[str, Any] = {
-        'size_v': 120,
-        'size_u': 120,
-        'random_seed': 11,
-        'instrument': 'coiss_nac',
-        'noise': {'poisson': False, 'read_noise_dn': 0.0, 'bias_dn': 0.0},
-        'bodies': [
-            {
-                'name': 'FIRST',
-                'center_v': 30.0,
-                'center_u': 30.0,
-                'semi_a_px': 20.0,
-                'semi_b_px': 20.0,
-                'semi_c_px': 20.0,
-                'limb_relief_rms': 0.03,
-                'range_km': 1.0,
-            },
-            {
-                'name': 'SECOND',
-                'center_v': 88.0,
-                'center_u': 88.0,
-                'semi_a_px': 20.0,
-                'semi_b_px': 20.0,
-                'semi_c_px': 20.0,
-                'limb_relief_rms': 0.03,
-                'range_km': 2.0,
-            },
+    scene = frame_scene(
+        size=120,
+        seed=11,
+        noise=quiet_noise(),
+        bodies=[
+            disc_body(30.0, 30.0, 20.0, name='FIRST', limb_relief_rms=0.03, range_km=1.0),
+            disc_body(88.0, 88.0, 20.0, name='SECOND', limb_relief_rms=0.03, range_km=2.0),
         ],
-    }
+    )
     img, _meta = render.render_combined_model(scene)
     first = img[0:60, 0:60] > 0.0
     second = img[58:118, 58:118] > 0.0

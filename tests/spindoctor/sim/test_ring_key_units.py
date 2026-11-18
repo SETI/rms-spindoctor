@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from tests.spindoctor.sim.scenes import frame_scene
 
 from spindoctor.sim.scene import SimSceneValidationError, validate_sim_params
 from spindoctor.sim.scene_checks_ring import (
@@ -132,13 +133,7 @@ def _feature(kind: str) -> dict[str, Any]:
 
 def _scene(ring_system: dict[str, Any]) -> dict[str, Any]:
     """A minimal scene around ``ring_system``."""
-    return {
-        'size_v': 128,
-        'size_u': 128,
-        'random_seed': 7,
-        'instrument': 'coiss_nac',
-        'ring_system': ring_system,
-    }
+    return frame_scene(size=128, seed=7, ring_system=ring_system)
 
 
 def _full_scene() -> dict[str, Any]:

@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from tests.spindoctor.sim.scenes import frame_scene
 
 from spindoctor.sim.render import render_combined_model
 from spindoctor.sim.scene import SimSceneValidationError, load_sim_scene
@@ -20,21 +21,14 @@ _SIZE = 32
 
 def _scene(**extra: Any) -> dict[str, Any]:
     """A small valid scene with one body, updated with ``extra``."""
-    scene: dict[str, Any] = {
-        'size_v': _SIZE,
-        'size_u': _SIZE,
-        'instrument': 'coiss_nac',
-        'random_seed': 1,
-        'bodies': [
-            {
-                'name': 'PEBBLE',
-                'center_v': _SIZE / 2.0,
-                'center_u': _SIZE / 2.0,
-                'semi_a_px': 6.0,
-                'semi_b_px': 5.0,
-            }
-        ],
+    body = {
+        'name': 'PEBBLE',
+        'center_v': _SIZE / 2.0,
+        'center_u': _SIZE / 2.0,
+        'semi_a_px': 6.0,
+        'semi_b_px': 5.0,
     }
+    scene = frame_scene(size=_SIZE, bodies=[body])
     scene.update(extra)
     return scene
 

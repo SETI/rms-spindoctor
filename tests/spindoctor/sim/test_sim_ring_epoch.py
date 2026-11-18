@@ -15,6 +15,7 @@ either side.
 from typing import Any, cast
 
 import numpy as np
+from tests.spindoctor.sim.scenes import frame_scene, ring_system_block
 
 from spindoctor.feature.geometry import RingEdgePolyline
 from spindoctor.nav_model.nav_model_rings_simulated import NavModelRingsSimulated
@@ -32,40 +33,28 @@ _RATE_PERI = 15.0  # deg/day: epochs 0 and _EPOCH differ by 60 deg of pericenter
 
 def _scene(ring_epoch: float) -> dict[str, Any]:
     """A noise-free (calibrated) scene with one precessing eccentric ringlet."""
-    scene: dict[str, Any] = {
-        'schema_version': 2,
-        'scene_name': 'ring_epoch_probe',
-        'instrument': 'coiss_calib_nac',
-        'size_v': _SIZE,
-        'size_u': _SIZE,
-        'random_seed': 5,
-        'time': _TIME,
-        'ring_epoch': ring_epoch,
-        'ring_system': {
-            'geometry': {
-                'center_v': _CENTER,
-                'center_u': _CENTER,
-                'opening_deg_obs': 90.0,
-                'opening_deg_sun': 90.0,
-                'node_deg': 0.0,
-            },
-            'features': [
-                {
-                    'name': 'PRECESSING',
-                    'kind': 'ringlet',
-                    'tau': 2.0,
-                    'width_px': 15.0,
-                    'navigable': True,
-                    'orbit': {
-                        'a_px': 40.0,
-                        'ae_px': 8.0,
-                        'long_peri_deg': 20.0,
-                        'rate_peri_deg_per_day': _RATE_PERI,
-                    },
-                }
-            ],
+    feature = {
+        'name': 'PRECESSING',
+        'kind': 'ringlet',
+        'tau': 2.0,
+        'width_px': 15.0,
+        'navigable': True,
+        'orbit': {
+            'a_px': 40.0,
+            'ae_px': 8.0,
+            'long_peri_deg': 20.0,
+            'rate_peri_deg_per_day': _RATE_PERI,
         },
     }
+    scene = frame_scene(
+        instrument='coiss_calib_nac',
+        size=_SIZE,
+        seed=5,
+        scene_name='ring_epoch_probe',
+        time=_TIME,
+        ring_epoch=ring_epoch,
+        ring_system=ring_system_block(_CENTER, _CENTER, [feature]),
+    )
     return validate_sim_params(scene, source='ring_epoch_probe')
 
 

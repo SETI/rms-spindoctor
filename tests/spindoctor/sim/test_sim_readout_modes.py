@@ -13,6 +13,7 @@ from typing import Any
 
 import numpy as np
 import pytest
+from tests.spindoctor.sim.scenes import disc_body, frame_scene, star_entry
 
 from spindoctor.sim.forward import scene_radiance
 from spindoctor.sim.forward.detector.noise_stages import detector_hot_pixel_map
@@ -33,14 +34,8 @@ from spindoctor.sim.scene_schema import SimSceneValidationError
 
 def _scene(instrument: str, binning: int | None = None, **extra: Any) -> dict[str, Any]:
     """A minimal scene on ``instrument``, binned by ``binning`` when given."""
-    scene: dict[str, Any] = {
-        'instrument': instrument,
-        'size_v': 64,
-        'size_u': 64,
-        'random_seed': 1,
-        'exposure_sec': 1.0,
-        **extra,
-    }
+    scene = frame_scene(instrument=instrument, exposure_sec=1.0)
+    scene.update(extra)
     if binning is not None:
         scene['detector'] = {'binning': binning}
     return scene
@@ -171,18 +166,7 @@ def test_binning_scales_the_native_dark_current() -> None:
 
 
 _LIT_BODY: dict[str, Any] = {
-    'bodies': [
-        {
-            'name': 'B',
-            'center_v': 32.0,
-            'center_u': 32.0,
-            'semi_a_px': 20.0,
-            'semi_b_px': 20.0,
-            'semi_c_px': 20.0,
-            'phase_angle': 0.0,
-            'illumination_angle': 0.0,
-        }
-    ],
+    'bodies': [disc_body(32.0, 32.0, 20.0, phase_angle=0.0, illumination_angle=0.0)],
     'noise': {'poisson': False},
     # Short enough that four native pixels' charge stays below the ADC clip.
     'exposure_sec': 0.2,
@@ -200,7 +184,7 @@ def test_a_binned_pixel_collects_the_extended_signal_of_its_block() -> None:
 
 def test_a_star_keeps_its_total_charge_when_binned() -> None:
     """Binning concentrates a star into fewer pixels without changing its total."""
-    star = {'stars': [{'name': 'S', 'v': 32.5, 'u': 32.5, 'vmag': 6.0, 'psf_sigma': 1.5}]}
+    star = {'stars': [star_entry(32.5, 32.5, 6.0, psf_sigma=1.5)]}
     totals = []
     for binning in (None, 2):
         image, _meta = render_combined_model(_scene('coiss_nac', binning, **star))

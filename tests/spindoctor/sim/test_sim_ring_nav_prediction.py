@@ -13,6 +13,7 @@ from typing import Any, cast
 
 import numpy as np
 import pytest
+from tests.spindoctor.sim.scenes import frame_scene, ring_system_block
 
 from spindoctor.feature.feature import NavFeature
 from spindoctor.feature.geometry import RingEdgePolyline
@@ -41,25 +42,21 @@ _EDGE_MEAN_BOUND_PX = 0.1
 
 def _scene(feature: dict[str, Any], **extra: Any) -> dict[str, Any]:
     """A noise-free calibrated scene with one inclined, rotated feature."""
-    scene: dict[str, Any] = {
-        'schema_version': 2,
-        'scene_name': 'ring_nav_probe',
-        'instrument': 'coiss_calib_nac',
-        'size_v': _SIZE,
-        'size_u': _SIZE,
-        'random_seed': 5,
-        'ring_system': {
-            'geometry': {
-                'center_v': _CENTER,
-                'center_u': _CENTER,
-                'opening_deg_obs': 35.0,
-                'opening_deg_sun': 25.0,
-                'node_deg': 25.0,
-            },
-            'features': [feature],
-        },
-    }
-    scene.update(extra)
+    scene = frame_scene(
+        instrument='coiss_calib_nac',
+        size=_SIZE,
+        seed=5,
+        scene_name='ring_nav_probe',
+        ring_system=ring_system_block(
+            _CENTER,
+            _CENTER,
+            [feature],
+            opening_deg_obs=35.0,
+            opening_deg_sun=25.0,
+            node_deg=25.0,
+        ),
+        **extra,
+    )
     return validate_sim_params(scene, source='ring_nav_probe')
 
 

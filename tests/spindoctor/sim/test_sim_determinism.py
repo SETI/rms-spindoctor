@@ -8,6 +8,7 @@ byte-identical pixels even after the render caches are cleared.
 from typing import Any
 
 import numpy as np
+from tests.spindoctor.sim.scenes import frame_scene, star_entry
 
 from spindoctor.sim import render
 from spindoctor.sim.seeds import derive_effect_seed, stable_param_seed
@@ -29,24 +30,18 @@ def _clear_render_caches() -> None:
 
 def _scene() -> dict[str, Any]:
     """A scene exercising the background sky and crater RNG paths."""
-    return {
-        'size_v': 64,
-        'size_u': 64,
-        'random_seed': 42,
-        'instrument': 'generic',
-        'sky_counts': {'density_factor': 500.0},
-        'bodies': [
-            {
-                'name': 'SIM-BODY-1',
-                'center_v': 32.0,
-                'center_u': 32.0,
-                'semi_a_px': 15.0,
-                'semi_b_px': 12.0,
-                'semi_c_px': 12.0,
-                'crater_fill': 0.3,
-            }
-        ],
+    body = {
+        'name': 'SIM-BODY-1',
+        'center_v': 32.0,
+        'center_u': 32.0,
+        'semi_a_px': 15.0,
+        'semi_b_px': 12.0,
+        'semi_c_px': 12.0,
+        'crater_fill': 0.3,
     }
+    return frame_scene(
+        instrument='generic', seed=42, sky_counts={'density_factor': 500.0}, bodies=[body]
+    )
 
 
 def test_derive_effect_seed_is_process_stable() -> None:
@@ -121,24 +116,22 @@ def test_different_scene_seed_changes_pixels() -> None:
 
 def _full_stack_scene() -> dict[str, Any]:
     """A scene exercising the whole optics + detector + instrument_defaults stack."""
-    return {
-        'size_v': 96,
-        'size_u': 96,
-        'random_seed': 5,
-        'instrument': 'coiss_nac',
-        'exposure_sec': 1.0,
-        'artifacts': {'instrument_defaults': True},
-        'optics': {
+    return frame_scene(
+        size=96,
+        seed=5,
+        exposure_sec=1.0,
+        artifacts={'instrument_defaults': True},
+        optics={
             'psf': {'sigma_v': 0.6, 'sigma_u': 0.6, 'w': 0.02, 'r0': 2.0, 'n': 3.0},
             'smear': [{'dv_px': 1.0, 'du_px': 0.5, 'object_class': 'all'}],
         },
-        'noise': {
+        noise={
             'poisson': True,
             'read_noise_dn': 4.0,
             'cosmic_ray_events_per_pixel_per_sec': 0.001,
             'bloom_length': 2,
         },
-        'bodies': [
+        bodies=[
             {
                 'name': 'B',
                 'center_v': 48.0,
@@ -150,8 +143,8 @@ def _full_stack_scene() -> dict[str, Any]:
                 'phase_angle': 30.0,
             }
         ],
-        'stars': [{'name': 'S', 'v': 20.0, 'u': 70.0, 'vmag': 5.0}],
-    }
+        stars=[star_entry(20.0, 70.0, 5.0)],
+    )
 
 
 def test_full_stack_render_is_byte_identical_across_cache_clears() -> None:

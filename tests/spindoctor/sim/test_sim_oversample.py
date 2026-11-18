@@ -16,6 +16,7 @@ from typing import Any
 
 import numpy as np
 import pytest
+from tests.spindoctor.sim.scenes import disc_body, frame_scene, quiet_noise, star_entry
 
 from spindoctor.nav_model.sim_body import create_simulated_body
 from spindoctor.sim.forward.body_texture import AlbedoTextureSpec, DiscTextureSpec, TransitSpec
@@ -28,24 +29,12 @@ from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 
 def _body_scene(*, oversample: int | None) -> dict[str, Any]:
     """A single centered coiss body, optionally forcing an oversample factor."""
-    scene: dict[str, Any] = {
-        'size_v': 60,
-        'size_u': 60,
-        'random_seed': 3,
-        'instrument': 'coiss_nac',
-        'noise': {'poisson': False, 'read_noise_dn': 0.0, 'bias_dn': 0.0},
-        'bodies': [
-            {
-                'name': 'B',
-                'center_v': 30.0,
-                'center_u': 30.0,
-                'semi_a_px': 12.0,
-                'semi_b_px': 12.0,
-                'semi_c_px': 12.0,
-                'phase_angle': 0.0,
-            }
-        ],
-    }
+    scene = frame_scene(
+        size=60,
+        seed=3,
+        noise=quiet_noise(),
+        bodies=[disc_body(30.0, 30.0, 12.0, phase_angle=0.0)],
+    )
     if oversample is not None:
         scene['oversample'] = oversample
     return scene
@@ -184,16 +173,7 @@ def test_oversampled_smooth_body_matches_the_navigator_model_on_the_detector_gri
         'random_seed': 3,
         'oversample': 4,
         'bodies': [
-            {
-                'name': 'B',
-                'center_v': center[0],
-                'center_u': center[1],
-                'semi_a_px': 12.0,
-                'semi_b_px': 12.0,
-                'semi_c_px': 12.0,
-                'illumination_angle': 40.0,
-                'phase_angle': 51.6,
-            }
+            disc_body(center[0], center[1], 12.0, illumination_angle=40.0, phase_angle=51.6)
         ],
     }
     frame = new_sim_frame(size, size, oversample=4)
@@ -298,27 +278,15 @@ def test_oversample_star_records_are_detector_scale() -> None:
     factor of the oversample.  A record's position is the scene's own pixel corner coordinates,
     so it comes back the number the scene stated.
     """
-    scene: dict[str, Any] = {
-        'size_v': 60,
-        'size_u': 60,
-        'random_seed': 3,
-        'instrument': 'coiss_nac',
-        'oversample': 4,
-        'offset_v': 2.0,
-        'offset_u': -1.0,
-        'noise': {'poisson': False, 'read_noise_dn': 0.0, 'bias_dn': 0.0},
-        'stars': [
-            {
-                'name': 'S',
-                'v': 20.5,
-                'u': 24.5,
-                'vmag': 5.0,
-                'move_v': 2.0,
-                'move_u': -4.0,
-                'psf_size': [11, 11],
-            }
-        ],
-    }
+    scene = frame_scene(
+        size=60,
+        seed=3,
+        oversample=4,
+        offset_v=2.0,
+        offset_u=-1.0,
+        noise=quiet_noise(),
+        stars=[star_entry(20.5, 24.5, 5.0, move_v=2.0, move_u=-4.0, psf_size=[11, 11])],
+    )
     _, meta = render_combined_model(scene)
     star = meta['stars'][0]
     assert star.v == 20.5
@@ -348,15 +316,13 @@ def test_oversample_defaulted_psf_size_survives_the_round_trip() -> None:
     window alongside the explicit entries, so the downsample's divide returns
     it to the default detector-pixel size instead of (11 // os, 11 // os).
     """
-    scene: dict[str, Any] = {
-        'size_v': 60,
-        'size_u': 60,
-        'random_seed': 3,
-        'instrument': 'coiss_nac',
-        'oversample': 4,
-        'noise': {'poisson': False, 'read_noise_dn': 0.0, 'bias_dn': 0.0},
-        'stars': [{'name': 'S', 'v': 20.5, 'u': 24.5, 'vmag': 5.0}],
-    }
+    scene = frame_scene(
+        size=60,
+        seed=3,
+        oversample=4,
+        noise=quiet_noise(),
+        stars=[star_entry(20.5, 24.5, 5.0)],
+    )
     _, meta = render_combined_model(scene)
     assert meta['stars'][0].psf_size == (11, 11)
 

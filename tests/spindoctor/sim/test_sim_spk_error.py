@@ -10,6 +10,7 @@ from typing import Any
 
 import numpy as np
 import pytest
+from tests.spindoctor.sim.scenes import frame_scene, quiet_noise, star_entry
 
 from spindoctor.sim.render import render_combined_model
 from spindoctor.sim.scene import SimSceneValidationError, build_nav_params, validate_sim_params
@@ -25,13 +26,11 @@ def _centroid_v(image: np.ndarray, v_slice: slice, u_slice: slice) -> float:
 
 def _body_scene(*, range_km: float, spk: dict[str, Any] | None) -> dict[str, Any]:
     """A single interior body at a given physical range, optional SPK error."""
-    scene: dict[str, Any] = {
-        'size_v': 60,
-        'size_u': 60,
-        'random_seed': 2,
-        'instrument': 'coiss_nac',
-        'noise': {'poisson': False, 'read_noise_dn': 0.0, 'bias_dn': 0.0},
-        'bodies': [
+    scene = frame_scene(
+        size=60,
+        seed=2,
+        noise=quiet_noise(),
+        bodies=[
             {
                 'name': 'B',
                 'center_v': 30.0,
@@ -41,7 +40,7 @@ def _body_scene(*, range_km: float, spk: dict[str, Any] | None) -> dict[str, Any
                 'range_km': range_km,
             }
         ],
-    }
+    )
     if spk is not None:
         scene['spk_error'] = spk
     return scene
@@ -65,7 +64,7 @@ def test_stars_are_not_displaced_by_spk_error() -> None:
     """The star field stays put while the body parallax-shifts."""
     spk = {'dv_px': 5.0, 'du_px': 0.0, 'reference_range_km': 100000.0}
     scene = _body_scene(range_km=100000.0, spk=spk)
-    scene['stars'] = [{'name': 'S', 'v': 12.0, 'u': 48.0, 'vmag': 0.0}]
+    scene['stars'] = [star_entry(12.0, 48.0, 0.0)]
     plain = dict(scene)
     plain.pop('spk_error')
     with_spk, _ = render_combined_model(scene)
@@ -86,13 +85,10 @@ def test_spk_error_is_absent_from_nav_params() -> None:
 
 def test_spk_error_requires_range_km_on_bodies() -> None:
     """A body-bearing scene with SPK error must give each body a range_km."""
-    scene: dict[str, Any] = {
-        'instrument': 'coiss_nac',
-        'size_v': 32,
-        'size_u': 32,
-        'random_seed': 1,
-        'bodies': [{'name': 'B', 'center_v': 16.0, 'center_u': 16.0, 'semi_a_px': 4.0}],
-        'spk_error': {'dv_px': 1.0, 'du_px': 0.0, 'reference_range_km': 1000.0},
-    }
+    scene = frame_scene(
+        size=32,
+        bodies=[{'name': 'B', 'center_v': 16.0, 'center_u': 16.0, 'semi_a_px': 4.0}],
+        spk_error={'dv_px': 1.0, 'du_px': 0.0, 'reference_range_km': 1000.0},
+    )
     with pytest.raises(SimSceneValidationError, match='range_km'):
         validate_sim_params(scene)

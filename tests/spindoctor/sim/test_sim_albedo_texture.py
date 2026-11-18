@@ -12,6 +12,7 @@ from typing import Any
 
 import numpy as np
 import pytest
+from tests.spindoctor.sim.scenes import disc_body, frame_scene
 
 from spindoctor.sim.forward.body_texture import AlbedoTextureSpec
 from spindoctor.sim.forward.body_topo import TopoBodySpec, create_topographic_body
@@ -147,24 +148,15 @@ def test_silhouette_is_untouched_by_albedo_texture() -> None:
 
 def _scene(seed: int) -> dict[str, Any]:
     """A minimal one-body scene with an albedo texture."""
-    return {
-        'instrument': 'coiss_nac',
-        'size_v': 128,
-        'size_u': 128,
-        'random_seed': seed,
-        'bodies': [
-            {
-                'name': 'MOON',
-                'center_v': 64.0,
-                'center_u': 64.0,
-                'semi_a_px': 40.0,
-                'semi_b_px': 40.0,
-                'semi_c_px': 40.0,
-                'phase_angle': 45.0,
-                'albedo_texture': {'rms': 0.2, 'corr_px': 10.0},
-            }
-        ],
-    }
+    body = disc_body(
+        64.0,
+        64.0,
+        40.0,
+        name='MOON',
+        phase_angle=45.0,
+        albedo_texture={'rms': 0.2, 'corr_px': 10.0},
+    )
+    return frame_scene(size=128, seed=seed, bodies=[body])
 
 
 def test_scene_albedo_texture_draws_its_own_seeded_stream() -> None:

@@ -11,6 +11,7 @@ extension fails here, not silently.
 from typing import Any
 
 import pytest
+from tests.spindoctor.sim.scenes import frame_scene, star_entry
 
 from spindoctor.obs.obs_inst_sim import ObsSim
 from spindoctor.sim.render import render_combined_model
@@ -469,14 +470,7 @@ def test_star_limit_is_independent_of_scene_noise() -> None:
 
 def _star_only_scene(exposure_sec: float) -> dict[str, Any]:
     """A minimal star-only scene at the given exposure."""
-    return {
-        'instrument': 'coiss_nac',
-        'size_v': 64,
-        'size_u': 64,
-        'random_seed': 5,
-        'exposure_sec': exposure_sec,
-        'stars': [{'name': 'S', 'v': 32.0, 'u': 32.0, 'vmag': 4.0}],
-    }
+    return frame_scene(seed=5, exposure_sec=exposure_sec, stars=[star_entry(32.0, 32.0, 4.0)])
 
 
 def test_star_limit_scales_with_scene_exposure() -> None:
@@ -545,8 +539,8 @@ def test_non_navigable_star_is_dropped_but_still_a_catalog_star_for_others() -> 
     """
     scene = _truth_exercising_scene()
     scene['stars'] = [
-        {'name': 'KNOWN', 'v': 40.0, 'u': 40.0, 'vmag': 4.0, 'navigable': True},
-        {'name': 'CONFOUNDER', 'v': 60.0, 'u': 60.0, 'vmag': 4.2, 'navigable': False},
+        star_entry(40.0, 40.0, 4.0, name='KNOWN', navigable=True),
+        star_entry(60.0, 60.0, 4.2, name='CONFOUNDER', navigable=False),
     ]
     nav = build_nav_params(validate_sim_params(scene, source='boundary_probe'))
     names = {star['name'] for star in nav['stars']}

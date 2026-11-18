@@ -241,6 +241,28 @@ The simulator's role across these tiers is summarized in
 :doc:`dev_guide_simulator`. The operator-curated real-image cohort is documented
 in :doc:`dev_guide_image_library`.
 
+Simulator test scenes
+=====================
+
+The simulator unit tests build their scenes from shared helpers in
+``tests/spindoctor/sim/scenes.py``. ``frame_scene`` returns an empty frame: the
+instrument, the image size, and the random seed, which default to ``coiss_nac``, 64 by
+64 pixels, and 1. Every other top-level scene key is passed to it as a keyword.
+``body_scene`` adds one fully lit spherical body at the center of the frame.
+``disc_body``, ``star_entry``, and ``ring_system_block`` build a body entry, a star
+entry, and a ``ring_system`` block. ``quiet_noise`` returns a ``noise`` block with shot
+noise, read noise, and the bias pedestal turned off.
+
+Each helper returns a fresh mapping and copies the values it is given, so a test can
+change its scene without touching any other test's scene. The helpers are plain
+functions, so a module can build its parametrize lists from them when it is imported.
+For a test that would rather take a fixture, ``tests/spindoctor/sim/conftest.py``
+offers the empty frame as ``empty_frame`` and the one-body frame as
+``lit_body_frame``. The frame keys and the common blocks are written out only in these
+helpers, so a change to those scene keys is made there once. A test whose scene is
+tuned to a threshold, or whose assertions read back the scene's own values, writes its
+scene out in full.
+
 Characterization runners and updaters
 =====================================
 

@@ -15,6 +15,7 @@ from typing import Any
 
 import numpy as np
 import pytest
+from tests.spindoctor.sim.scenes import disc_body, frame_scene, ring_system_block, star_entry
 
 from spindoctor.sim.forward.ring_system import (
     RING_ALBEDO_DEFAULT,
@@ -110,18 +111,9 @@ def _system(
     **extra: Any,
 ) -> dict[str, Any]:
     """A ring_system mapping centered for a 96x96 frame."""
-    system: dict[str, Any] = {
-        'geometry': {
-            'center_v': 48.0,
-            'center_u': 48.0,
-            'opening_deg_obs': b_obs,
-            'opening_deg_sun': b_sun,
-            'node_deg': node,
-        },
-        'features': features,
-    }
-    system.update(extra)
-    return system
+    return ring_system_block(
+        48.0, 48.0, features, opening_deg_obs=b_obs, opening_deg_sun=b_sun, node_deg=node, **extra
+    )
 
 
 def _ringlet(a: float, width: float, tau: float, **extra: Any) -> dict[str, Any]:
@@ -285,29 +277,13 @@ def test_edge_on_system_renders_nothing() -> None:
 
 def _scene(**extra: Any) -> dict[str, Any]:
     """A minimal noiseless 96x96 scene."""
-    params: dict[str, Any] = {
-        'instrument': 'coiss_nac',
-        'size_v': 96,
-        'size_u': 96,
-        'random_seed': 3,
-        'exposure_sec': 1.0,
-    }
-    params.update(extra)
-    return validate_sim_params(params)
+    return validate_sim_params(frame_scene(size=96, seed=3, exposure_sec=1.0, **extra))
 
 
 def _body_at_center(range_km: float) -> dict[str, Any]:
-    return {
-        'name': 'DISC',
-        'center_v': 48.0,
-        'center_u': 48.0,
-        'semi_a_px': 15.0,
-        'semi_b_px': 15.0,
-        'semi_c_px': 15.0,
-        'illumination_angle': 0.0,
-        'phase_angle': 0.0,
-        'range_km': range_km,
-    }
+    return disc_body(
+        48.0, 48.0, 15.0, name='DISC', illumination_angle=0.0, phase_angle=0.0, range_km=range_km
+    )
 
 
 def _signal_after_radiance(scene: dict[str, Any]) -> NDArrayFloatType:
@@ -353,7 +329,7 @@ def _point_e_after_radiance(scene: dict[str, Any]) -> NDArrayFloatType:
 
 def test_star_behind_tau2_ring_attenuates_by_exp_minus_4() -> None:
     """A star behind the B ring (tau = 2) at B = 30 loses > 98% of its flux."""
-    star = {'name': 'S', 'v': 59.5, 'u': 48.5, 'vmag': 6.0}
+    star = star_entry(59.5, 48.5, 6.0)
     ring_system = _system([_ringlet(15.0, 14.0, 2.0)], b_obs=30.0, b_sun=30.0)
     with_ring = _point_e_after_radiance(_scene(stars=[star], ring_system=ring_system))
     without = _point_e_after_radiance(_scene(stars=[star]))
@@ -365,7 +341,7 @@ def test_star_behind_tau2_ring_attenuates_by_exp_minus_4() -> None:
 
 def test_gap_reveals_the_background_star() -> None:
     """A gap carved into a sheet lets the background through unattenuated."""
-    star = {'name': 'S', 'v': 59.5, 'u': 48.5, 'vmag': 6.0}
+    star = star_entry(59.5, 48.5, 6.0)
     sheet = _ringlet(5.0, 35.0, 2.0)
     gap = dict(_ringlet(18.0, 10.0, 2.0), kind='gap')
     with_gap = _point_e_after_radiance(
@@ -401,7 +377,7 @@ def test_gap_reveals_the_body_behind_the_sheet() -> None:
 
 def test_star_behind_an_opaque_body_vanishes() -> None:
     """A lit body silhouette extinguishes the point sources behind it."""
-    star = {'name': 'S', 'v': 48.5, 'u': 48.5, 'vmag': 6.0}
+    star = star_entry(48.5, 48.5, 6.0)
     with_body = _point_e_after_radiance(_scene(stars=[star], bodies=[_body_at_center(1.0e6)]))
     without = _point_e_after_radiance(_scene(stars=[star]))
     region = np.s_[45:53, 45:53]
@@ -411,7 +387,7 @@ def test_star_behind_an_opaque_body_vanishes() -> None:
 
 def test_star_clear_of_the_body_is_untouched() -> None:
     """Extinction is per pixel: a star off the silhouette keeps its flux."""
-    star = {'name': 'S', 'v': 10.5, 'u': 10.5, 'vmag': 6.0}
+    star = star_entry(10.5, 10.5, 6.0)
     with_body = _point_e_after_radiance(_scene(stars=[star], bodies=[_body_at_center(1.0e6)]))
     without = _point_e_after_radiance(_scene(stars=[star]))
     region = np.s_[7:15, 7:15]
@@ -455,7 +431,7 @@ def test_differential_smear_layers_recompose_the_ring_system_exactly() -> None:
     )
     common: dict[str, Any] = {
         'bodies': [_body_at_center(1.0e6)],
-        'stars': [{'name': 'S', 'v': 10.5, 'u': 80.5, 'vmag': 6.0}],
+        'stars': [star_entry(10.5, 80.5, 6.0)],
         'ring_system': ring_system,
     }
     plain, _m0 = render_combined_model(_scene(**common))

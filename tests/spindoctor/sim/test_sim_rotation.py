@@ -15,6 +15,7 @@ from collections.abc import Callable
 
 import numpy as np
 import pytest
+from tests.spindoctor.sim.scenes import frame_scene, quiet_noise, ring_system_block, star_entry
 
 from spindoctor.nav_orchestrator.instrument_config import instrument_settings_from_obs
 from spindoctor.obs.obs_inst_sim import ObsSim
@@ -25,17 +26,15 @@ _SIZE = 128
 
 def _noiseless_params(**overrides: object) -> dict[str, object]:
     """coiss_nac sim params with detector noise suppressed for exact geometry."""
-    params: dict[str, object] = {
-        'size_v': _SIZE,
-        'size_u': _SIZE,
-        'random_seed': 7,
-        'instrument': 'coiss_nac',
-        'exposure_sec': 1.0,
-        'offset_v': 0.0,
-        'offset_u': 0.0,
-        'bodies': [],
-        'noise': {'poisson': False, 'read_noise_dn': 0.0, 'bias_dn': 0.0},
-    }
+    params = frame_scene(
+        size=_SIZE,
+        seed=7,
+        exposure_sec=1.0,
+        offset_v=0.0,
+        offset_u=0.0,
+        bodies=[],
+        noise=quiet_noise(),
+    )
     params.update(overrides)
     return params
 
@@ -59,7 +58,7 @@ def test_roll_rotates_star_about_boresight() -> None:
     """
     params = _noiseless_params(
         offset_rotation_deg=90.0,
-        stars=[{'name': 'S', 'v': 40.5, 'u': 90.5, 'vmag': 2.0, 'psf_sigma': 2.0}],
+        stars=[star_entry(40.5, 90.5, 2.0, psf_sigma=2.0)],
     )
     img, _meta = render_combined_model(params)
     centroid_v, centroid_u = _centroid(img)
@@ -71,7 +70,7 @@ def test_zero_roll_leaves_star_in_place() -> None:
     """A zero roll renders the star at its catalog position (no displacement)."""
     params = _noiseless_params(
         offset_rotation_deg=0.0,
-        stars=[{'name': 'S', 'v': 40.5, 'u': 90.5, 'vmag': 2.0, 'psf_sigma': 2.0}],
+        stars=[star_entry(40.5, 90.5, 2.0, psf_sigma=2.0)],
     )
     img, _meta = render_combined_model(params)
     centroid_v, centroid_u = _centroid(img)
@@ -88,7 +87,7 @@ def test_star_record_keeps_unrolled_position() -> None:
     """
     params = _noiseless_params(
         offset_rotation_deg=30.0,
-        stars=[{'name': 'S', 'v': 40.5, 'u': 90.5, 'vmag': 2.0}],
+        stars=[star_entry(40.5, 90.5, 2.0)],
     )
     _img, meta = render_combined_model(params)
     star = meta['stars'][0]
@@ -96,15 +95,10 @@ def test_star_record_keeps_unrolled_position() -> None:
     assert star.u == 90.5
 
 
-_CHIRAL_RING_SYSTEM: dict[str, object] = {
-    'geometry': {
-        'center_v': 44.0,
-        'center_u': 76.0,
-        'opening_deg_obs': 35.0,
-        'opening_deg_sun': 35.0,
-        'node_deg': 20.0,
-    },
-    'features': [
+_CHIRAL_RING_SYSTEM = ring_system_block(
+    44.0,
+    76.0,
+    [
         {
             'kind': 'ringlet',
             'tau': 1.0,
@@ -117,7 +111,10 @@ _CHIRAL_RING_SYSTEM: dict[str, object] = {
             },
         }
     ],
-}
+    opening_deg_obs=35.0,
+    opening_deg_sun=35.0,
+    node_deg=20.0,
+)
 
 
 def test_roll_turns_the_whole_ring_pattern_a_quarter_turn() -> None:
@@ -154,16 +151,8 @@ def test_roll_turns_the_whole_ring_pattern_a_quarter_turn() -> None:
 
 def _ring_system_at(center_v: float, center_u: float) -> dict[str, object]:
     """A face-on circular ringlet centered on ``(center_v, center_u)``."""
-    return {
-        'geometry': {
-            'center_v': center_v,
-            'center_u': center_u,
-            'opening_deg_obs': 90.0,
-            'opening_deg_sun': 90.0,
-            'node_deg': 0.0,
-        },
-        'features': [{'kind': 'ringlet', 'tau': 1.0, 'width_px': 4.0, 'orbit': {'a_px': 20.0}}],
-    }
+    feature = {'kind': 'ringlet', 'tau': 1.0, 'width_px': 4.0, 'orbit': {'a_px': 20.0}}
+    return ring_system_block(center_v, center_u, [feature])
 
 
 def _sphere_at(center_v: float, center_u: float) -> dict[str, object]:
@@ -215,15 +204,7 @@ def test_roll_turns_stars_and_geometry_about_one_point(
     star_img, _star_meta = render_combined_model(
         _noiseless_params(
             offset_rotation_deg=_PIVOT_PROBE_ROLL_DEG,
-            stars=[
-                {
-                    'name': 'S',
-                    'v': _PIVOT_PROBE_V,
-                    'u': _PIVOT_PROBE_U,
-                    'vmag': 2.0,
-                    'psf_sigma': 2.0,
-                }
-            ],
+            stars=[star_entry(_PIVOT_PROBE_V, _PIVOT_PROBE_U, 2.0, psf_sigma=2.0)],
         )
     )
     star_v, star_u = _centroid(star_img)

@@ -12,24 +12,21 @@ and the existing star deposit is byte-identical when the new keys default off.
 from typing import Any
 
 import numpy as np
+from tests.spindoctor.sim.scenes import frame_scene, quiet_noise, star_entry
 
 from spindoctor.sim.render import clear_render_caches, render_combined_model
-
-_QUIET_NOISE: dict[str, Any] = {'poisson': False, 'read_noise_dn': 0.0, 'bias_dn': 0.0}
 
 
 def _scene(stars: list[dict[str, Any]], **extra: Any) -> dict[str, Any]:
     """A quiet single-frame star scene with a navigator-matched PSF."""
-    scene: dict[str, Any] = {
-        'size_v': 128,
-        'size_u': 128,
-        'random_seed': 7,
-        'instrument': 'coiss_nac',
-        'exposure_sec': 1.0,
-        'optics': {'psf': {'match_navigator': True}},
-        'noise': dict(_QUIET_NOISE),
-        'stars': stars,
-    }
+    scene = frame_scene(
+        size=128,
+        seed=7,
+        exposure_sec=1.0,
+        optics={'psf': {'match_navigator': True}},
+        noise=quiet_noise(),
+        stars=stars,
+    )
     scene.update(extra)
     return scene
 
@@ -47,16 +44,7 @@ def _centroid(img: np.ndarray, center_v: int, center_u: int, radius: int) -> tup
 def test_catalog_error_displaces_the_rendered_star() -> None:
     """An explicit catalog_error moves the rendered star off its catalog position."""
     scene = _scene(
-        [
-            {
-                'name': 'A',
-                'v': 64.5,
-                'u': 64.5,
-                'vmag': 4.0,
-                'catalog_error_v': 2.0,
-                'catalog_error_u': -1.5,
-            }
-        ]
+        [star_entry(64.5, 64.5, 4.0, name='A', catalog_error_v=2.0, catalog_error_u=-1.5)]
     )
     img, _ = render_combined_model(scene)
     cv, cu = _centroid(img, 66, 62, 6)
@@ -67,16 +55,7 @@ def test_catalog_error_displaces_the_rendered_star() -> None:
 def test_catalog_error_recorded_in_truth() -> None:
     """The truth metadata carries the realized rendered-vs-catalog position delta."""
     scene = _scene(
-        [
-            {
-                'name': 'A',
-                'v': 64.5,
-                'u': 64.5,
-                'vmag': 4.0,
-                'catalog_error_v': 2.0,
-                'catalog_error_u': -1.5,
-            }
-        ]
+        [star_entry(64.5, 64.5, 4.0, name='A', catalog_error_v=2.0, catalog_error_u=-1.5)]
     )
     _, meta = render_combined_model(scene)
     info = meta['star_info'][0]
@@ -87,7 +66,7 @@ def test_catalog_error_recorded_in_truth() -> None:
 def test_scene_scatter_adds_to_explicit_error() -> None:
     """The scene scatter draw adds to any explicit per-star catalog error."""
     scene = _scene(
-        [{'name': 'A', 'v': 64.5, 'u': 64.5, 'vmag': 4.0, 'catalog_error_v': 2.0}],
+        [star_entry(64.5, 64.5, 4.0, name='A', catalog_error_v=2.0)],
         star_catalog_scatter_px=3.0,
     )
     _, meta = render_combined_model(scene)
@@ -97,7 +76,7 @@ def test_scene_scatter_adds_to_explicit_error() -> None:
 
 def test_scene_scatter_is_deterministic() -> None:
     """The same seed reproduces the same scatter realization bit-for-bit."""
-    scene = _scene([{'name': 'A', 'v': 64.5, 'u': 64.5, 'vmag': 4.0}], star_catalog_scatter_px=4.0)
+    scene = _scene([star_entry(64.5, 64.5, 4.0, name='A')], star_catalog_scatter_px=4.0)
     clear_render_caches()
     first, _ = render_combined_model(scene)
     clear_render_caches()
@@ -114,11 +93,11 @@ def test_scene_scatter_survives_differential_star_smear() -> None:
     (catalog plus the realized draw), never snapping back to the catalog one.
     """
     base = _scene(
-        [{'name': 'A', 'v': 64.5, 'u': 64.5, 'vmag': 4.0}],
+        [star_entry(64.5, 64.5, 4.0, name='A')],
         star_catalog_scatter_px=5.0,
     )
     smeared = _scene(
-        [{'name': 'A', 'v': 64.5, 'u': 64.5, 'vmag': 4.0}],
+        [star_entry(64.5, 64.5, 4.0, name='A')],
         star_catalog_scatter_px=5.0,
     )
     smeared['optics'] = {
@@ -147,8 +126,8 @@ def test_scene_scatter_survives_differential_star_smear() -> None:
 
 def test_variable_star_renders_fainter() -> None:
     """A positive delta_mag renders the star fainter than its catalog vmag."""
-    catalog = _scene([{'name': 'A', 'v': 64.5, 'u': 64.5, 'vmag': 4.0}])
-    variable = _scene([{'name': 'A', 'v': 64.5, 'u': 64.5, 'vmag': 4.0, 'delta_mag': 2.5}])
+    catalog = _scene([star_entry(64.5, 64.5, 4.0, name='A')])
+    variable = _scene([star_entry(64.5, 64.5, 4.0, name='A', delta_mag=2.5)])
     img_c, _ = render_combined_model(catalog)
     img_v, _ = render_combined_model(variable)
     sum_c = float(img_c[54:75, 54:75].sum())
@@ -159,16 +138,16 @@ def test_variable_star_renders_fainter() -> None:
 
 def test_companion_pulls_the_photocenter() -> None:
     """An unresolved companion shifts the blended photocenter toward it."""
-    single = _scene([{'name': 'A', 'v': 64.5, 'u': 64.5, 'vmag': 4.0}])
+    single = _scene([star_entry(64.5, 64.5, 4.0, name='A')])
     binary = _scene(
         [
-            {
-                'name': 'A',
-                'v': 64.5,
-                'u': 64.5,
-                'vmag': 4.0,
-                'companion': {'sep_px': 4.0, 'delta_mag': 0.5, 'angle_deg': 0.0},
-            }
+            star_entry(
+                64.5,
+                64.5,
+                4.0,
+                name='A',
+                companion={'sep_px': 4.0, 'delta_mag': 0.5, 'angle_deg': 0.0},
+            )
         ]
     )
     img_s, _ = render_combined_model(single)
@@ -184,8 +163,8 @@ def test_navigable_flag_recorded_but_star_still_renders() -> None:
     """A non-navigable star renders and its flag is recorded in the truth."""
     scene = _scene(
         [
-            {'name': 'KNOWN', 'v': 40.5, 'u': 40.5, 'vmag': 4.0, 'navigable': True},
-            {'name': 'CONF', 'v': 88.5, 'u': 88.5, 'vmag': 4.0, 'navigable': False},
+            star_entry(40.5, 40.5, 4.0, name='KNOWN', navigable=True),
+            star_entry(88.5, 88.5, 4.0, name='CONF', navigable=False),
         ]
     )
     img, meta = render_combined_model(scene)
@@ -197,19 +176,19 @@ def test_navigable_flag_recorded_but_star_still_renders() -> None:
 
 def test_defaulted_keys_render_byte_identical() -> None:
     """A scene without the new keys renders identically to one that sets their defaults."""
-    plain = _scene([{'name': 'A', 'v': 50.5, 'u': 70.5, 'vmag': 3.5}])
+    plain = _scene([star_entry(50.5, 70.5, 3.5, name='A')])
     explicit = _scene(
         [
-            {
-                'name': 'A',
-                'v': 50.5,
-                'u': 70.5,
-                'vmag': 3.5,
-                'catalog_error_v': 0.0,
-                'catalog_error_u': 0.0,
-                'delta_mag': 0.0,
-                'navigable': True,
-            }
+            star_entry(
+                50.5,
+                70.5,
+                3.5,
+                name='A',
+                catalog_error_v=0.0,
+                catalog_error_u=0.0,
+                delta_mag=0.0,
+                navigable=True,
+            )
         ]
     )
     img_plain, _ = render_combined_model(plain)

@@ -10,6 +10,7 @@ from typing import Any
 
 import numpy as np
 import pytest
+from tests.spindoctor.sim.scenes import frame_scene, star_entry
 
 from spindoctor.sim.render import render_combined_model
 
@@ -42,22 +43,14 @@ def _umbra_body() -> dict[str, Any]:
 
 def _scene(*bodies: dict[str, Any], **extra: Any) -> dict[str, Any]:
     """A noiseless coiss_nac frame holding ``bodies``."""
-    return {
-        'instrument': 'coiss_nac',
-        'size_v': _SIZE,
-        'size_u': _SIZE,
-        'random_seed': 1,
-        'exposure_sec': 1.0,
-        'bodies': list(bodies),
-        **extra,
-    }
+    return frame_scene(size=_SIZE, exposure_sec=1.0, bodies=list(bodies), **extra)
 
 
 def _star_light(scene: dict[str, Any], v: float, u: float) -> float:
     """The most light a bright star at ``(v, u)`` adds to ``scene``'s render."""
     without, _meta = render_combined_model(scene)
     with_star, _meta = render_combined_model(
-        {**scene, 'stars': [{'name': 'S', 'v': v, 'u': u, 'vmag': 2.0, 'psf_sigma': 1.0}]}
+        {**scene, 'stars': [star_entry(v, u, 2.0, psf_sigma=1.0)]}
     )
     return float(np.max(with_star - without))
 
@@ -124,7 +117,7 @@ def test_relief_moves_the_occluding_outline_off_the_ellipse(kind: str, visible: 
     with_star, _meta = render_combined_model(
         {
             **scene,
-            'stars': [{'name': 'S', 'v': v + 0.5, 'u': u + 0.5, 'vmag': 2.0, 'psf_sigma': 1.0}],
+            'stars': [star_entry(v + 0.5, u + 0.5, 2.0, psf_sigma=1.0)],
         }
     )
     assert bool(with_star[v, u] > without[v, u]) == visible

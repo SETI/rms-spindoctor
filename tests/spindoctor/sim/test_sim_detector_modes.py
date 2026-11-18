@@ -15,6 +15,7 @@ from typing import Any, cast
 
 import numpy as np
 import pytest
+from tests.spindoctor.sim.scenes import frame_scene
 
 from spindoctor.sim.forward.detector.electronics_stages import (
     add_bright_dark_pairs,
@@ -411,13 +412,12 @@ def test_bright_dark_pairs_adversarial_land_on_the_pool() -> None:
 
 def _disc(instrument: str, **extra: Any) -> dict[str, Any]:
     """A centered lit disc scene for the given instrument."""
-    scene: dict[str, Any] = {
-        'size_v': 96,
-        'size_u': 96,
-        'random_seed': 3,
-        'instrument': instrument,
-        'exposure_sec': 1.0,
-        'bodies': [
+    scene = frame_scene(
+        instrument=instrument,
+        size=96,
+        seed=3,
+        exposure_sec=1.0,
+        bodies=[
             {
                 'name': 'B',
                 'center_v': 48,
@@ -427,7 +427,7 @@ def _disc(instrument: str, **extra: Any) -> dict[str, Any]:
                 'semi_c_px': 14.0,
             }
         ],
-    }
+    )
     scene.update(extra)
     return scene
 

@@ -9,19 +9,19 @@ from typing import Any
 
 import numpy as np
 import pytest
+from tests.spindoctor.sim.scenes import frame_scene
 
 from spindoctor.sim.render import render_combined_model
 
 
 def _disc(instrument: str, *, size: int = 64, **extra: Any) -> dict[str, Any]:
     """A centered lit disc scene for the given instrument."""
-    scene: dict[str, Any] = {
-        'size_v': size,
-        'size_u': size,
-        'random_seed': 3,
-        'instrument': instrument,
-        'exposure_sec': 1.0,
-        'bodies': [
+    scene = frame_scene(
+        instrument=instrument,
+        size=size,
+        seed=3,
+        exposure_sec=1.0,
+        bodies=[
             {
                 'name': 'B',
                 'center_v': size / 2,
@@ -31,7 +31,7 @@ def _disc(instrument: str, *, size: int = 64, **extra: Any) -> dict[str, Any]:
                 'semi_c_px': size * 0.175,
             }
         ],
-    }
+    )
     scene.update(extra)
     return scene
 

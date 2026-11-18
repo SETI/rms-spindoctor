@@ -14,6 +14,7 @@ from typing import Any, cast
 import numpy as np
 import pytest
 from scipy import ndimage
+from tests.spindoctor.sim.scenes import frame_scene
 
 from spindoctor.sim.forward.body_mesh import render_single_mesh_body
 from spindoctor.sim.forward.body_spec import body_spec_from_params
@@ -195,13 +196,7 @@ def _pose_scatter_scene(
     }
     if sigma_deg > 0.0:
         body['pose_scatter'] = {'sigma_deg': sigma_deg}
-    return {
-        'instrument': 'coiss_nac',
-        'size_v': _SIZE,
-        'size_u': _SIZE,
-        'random_seed': 42,
-        'bodies': [body],
-    }
+    return frame_scene(size=_SIZE, seed=42, bodies=[body])
 
 
 def test_pose_scatter_moves_the_render_by_the_recorded_drawn_amount() -> None:

@@ -11,35 +11,33 @@ import copy
 from typing import Any
 
 import numpy as np
+from tests.spindoctor.sim.scenes import frame_scene, star_entry
 
 from spindoctor.sim.render import clear_render_caches, render_combined_model
 
 
 def _scene() -> dict[str, Any]:
     """A Cassini frame with a PSF, a distortion warp, a body, and a star."""
-    return {
-        'size_v': 64,
-        'size_u': 48,
-        'random_seed': 11,
-        'instrument': 'coiss_nac',
-        'optics': {
+    body = {
+        'name': 'B',
+        'center_v': 30.3,
+        'center_u': 22.6,
+        'semi_a_px': 13.0,
+        'semi_b_px': 12.0,
+        'semi_c_px': 12.0,
+        'illumination_angle': 30.0,
+        'phase_angle': 40.0,
+    }
+    return frame_scene(
+        size=(64, 48),
+        seed=11,
+        optics={
             'psf': {'sigma_v': 1.2, 'sigma_u': 1.2},
             'distortion': {'k1': 0.02, 'k2': 0.0},
         },
-        'bodies': [
-            {
-                'name': 'B',
-                'center_v': 30.3,
-                'center_u': 22.6,
-                'semi_a_px': 13.0,
-                'semi_b_px': 12.0,
-                'semi_c_px': 12.0,
-                'illumination_angle': 30.0,
-                'phase_angle': 40.0,
-            }
-        ],
-        'stars': [{'name': 'S', 'v': 8.5, 'u': 40.5, 'vmag': 5.0}],
-    }
+        bodies=[body],
+        stars=[star_entry(8.5, 40.5, 5.0)],
+    )
 
 
 def _preview(scene: dict[str, Any]) -> Any:

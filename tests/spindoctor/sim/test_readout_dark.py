@@ -11,23 +11,17 @@ from typing import Any
 
 import numpy as np
 import pytest
+from tests.spindoctor.sim.scenes import frame_scene, quiet_noise
 
 from spindoctor.sim.forward.detector.params import resolve_detector_params
 from spindoctor.sim.render import render_combined_model
 
-_QUIET = {'poisson': False, 'read_noise_dn': 0.0, 'bias_dn': 0.0}
-
 
 def _scene(instrument: str, noise: dict[str, Any], **extra: Any) -> dict[str, Any]:
     """A dark 128 x 64 scene on ``instrument``."""
-    scene: dict[str, Any] = {
-        'size_v': 128,
-        'size_u': 64,
-        'random_seed': 3,
-        'instrument': instrument,
-        'exposure_sec': 0.1,
-        'noise': noise,
-    }
+    scene = frame_scene(
+        instrument=instrument, size=(128, 64), seed=3, exposure_sec=0.1, noise=noise
+    )
     scene.update(extra)
     return scene
 
@@ -35,7 +29,9 @@ def _scene(instrument: str, noise: dict[str, Any], **extra: Any) -> dict[str, An
 @pytest.mark.parametrize('exposure_sec', [0.01, 10.0], ids=['short', 'long'])
 def test_a_raw_frame_ramps_from_zero_to_the_readout_dark(exposure_sec: float) -> None:
     """Row means rise linearly to readout_dark_e / gain at the last line, at any exposure."""
-    scene = _scene('coiss_nac', {**_QUIET, 'readout_dark_e': 300.0}, exposure_sec=exposure_sec)
+    scene = _scene(
+        'coiss_nac', {**quiet_noise(), 'readout_dark_e': 300.0}, exposure_sec=exposure_sec
+    )
     img, _ = render_combined_model(scene)
     gain = resolve_detector_params(scene).gain_e_per_dn
     expected = 300.0 / gain * np.linspace(0.0, 1.0, 128)
@@ -73,7 +69,7 @@ def test_a_calibrated_vidicon_frame_subtracts_no_readout_dark() -> None:
 
 def test_a_calibrated_product_removes_the_readout_dark() -> None:
     """The calibration inverse subtracts the ramp, leaving a flat calibrated sky."""
-    scene = _scene('coiss_calib_nac', {**_QUIET, 'readout_dark_e': 300.0})
+    scene = _scene('coiss_calib_nac', {**quiet_noise(), 'readout_dark_e': 300.0})
     img, _ = render_combined_model(scene)
     row_means = img.mean(axis=1)
     # One DN at this exposure bounds the rounding of the ramp before it is removed.

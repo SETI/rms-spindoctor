@@ -21,6 +21,7 @@ from typing import Any, cast
 
 import numpy as np
 import pytest
+from tests.spindoctor.sim.scenes import disc_body, frame_scene, star_entry
 
 from spindoctor.sim.ellipsoid_geometry import illumination_vector
 from spindoctor.sim.forward.atmosphere import (
@@ -66,17 +67,15 @@ def _render_haze_body(
         The rendered signal image.
     """
     img = np.zeros((_SIZE, _SIZE), dtype=np.float64)
-    body_params: dict[str, object] = {
-        'name': 'HAZE',
-        'center_v': _CENTER,
-        'center_u': _CENTER,
-        'semi_a_px': _RADIUS,
-        'semi_b_px': _RADIUS,
-        'semi_c_px': _RADIUS,
-        'illumination_angle': illumination_deg,
-        'phase_angle': phase_deg,
-        'anti_aliasing': 1.0,
-    }
+    body_params = disc_body(
+        _CENTER,
+        _CENTER,
+        _RADIUS,
+        name='HAZE',
+        illumination_angle=illumination_deg,
+        phase_angle=phase_deg,
+        anti_aliasing=1.0,
+    )
     if atmosphere is not None:
         body_params['atmosphere'] = atmosphere
     _mask, body_info = render_single_body(
@@ -378,14 +377,7 @@ def _albedo_scene(albedo: float) -> dict[str, Any]:
     """A minimal scene whose one atmospheric body states ``albedo``."""
     body = _compose_body()
     body['atmosphere']['albedo'] = albedo
-    return {
-        'instrument': 'coiss_nac',
-        'size_v': _C_SIZE,
-        'size_u': _C_SIZE,
-        'random_seed': 3,
-        'exposure_sec': 1.0,
-        'bodies': [body],
-    }
+    return frame_scene(size=_C_SIZE, seed=3, exposure_sec=1.0, bodies=[body])
 
 
 @pytest.mark.parametrize('albedo', [0.0, 0.4, 1.0])
@@ -588,16 +580,9 @@ _C_SPEC = AtmosphereSpec(scale_height_px=5.0, tau_ref=2.0, g=0.6)
 
 def _compose_body(*, atmosphere: bool = True, **extra: Any) -> dict[str, Any]:
     """The compositing scenes' centered atmospheric body entry."""
-    body: dict[str, Any] = {
-        'name': 'TITAN',
-        'center_v': _C_CENTER,
-        'center_u': _C_CENTER,
-        'semi_a_px': _C_RADIUS,
-        'semi_b_px': _C_RADIUS,
-        'semi_c_px': _C_RADIUS,
-        'illumination_angle': 0.0,
-        'phase_angle': 0.0,
-    }
+    body = disc_body(
+        _C_CENTER, _C_CENTER, _C_RADIUS, name='TITAN', illumination_angle=0.0, phase_angle=0.0
+    )
     if atmosphere:
         body['atmosphere'] = {
             'scale_height_px': _C_SPEC.scale_height_px,
@@ -610,13 +595,7 @@ def _compose_body(*, atmosphere: bool = True, **extra: Any) -> dict[str, Any]:
 
 def _compose_scene(**extra: Any) -> Any:
     """Run the radiance stage on a minimal noiseless scene; return the frame."""
-    params: dict[str, Any] = {
-        'instrument': 'coiss_nac',
-        'size_v': _C_SIZE,
-        'size_u': _C_SIZE,
-        'random_seed': 3,
-        'exposure_sec': 1.0,
-    }
+    params = frame_scene(size=_C_SIZE, seed=3, exposure_sec=1.0)
     params.update(extra)
     scene = validate_sim_params(params)
     frame = new_sim_frame(_C_SIZE, _C_SIZE)
@@ -666,7 +645,7 @@ def test_body_index_map_excludes_the_halo() -> None:
 
 def test_star_behind_the_halo_attenuates_by_the_tangent_extinction() -> None:
     """A star behind the halo dims by exp(-tau); it is not erased."""
-    star = {'name': 'S', 'v': float(_HALO_PIXEL[0]), 'u': float(_HALO_PIXEL[1]), 'vmag': 8.0}
+    star = star_entry(float(_HALO_PIXEL[0]), float(_HALO_PIXEL[1]), 8.0)
     with_halo = _compose_scene(stars=[star], bodies=[_compose_body()]).point_e
     without = _compose_scene(stars=[star]).point_e
     assert float(without[_HALO_PIXEL]) > 0.0
@@ -677,7 +656,7 @@ def test_star_behind_the_halo_attenuates_by_the_tangent_extinction() -> None:
 
 def test_star_behind_the_solid_disc_vanishes() -> None:
     """The opaque silhouette still extinguishes point sources entirely."""
-    star = {'name': 'S', 'v': float(_DISC_PIXEL[0]), 'u': float(_DISC_PIXEL[1]), 'vmag': 8.0}
+    star = star_entry(float(_DISC_PIXEL[0]), float(_DISC_PIXEL[1]), 8.0)
     with_body = _compose_scene(stars=[star], bodies=[_compose_body()]).point_e
     without = _compose_scene(stars=[star]).point_e
     assert float(without[_DISC_PIXEL]) > 0.0

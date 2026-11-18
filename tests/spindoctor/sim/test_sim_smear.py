@@ -8,6 +8,7 @@ the right length and direction), the zero-length no-op, and differential smear
 from typing import Any
 
 import numpy as np
+from tests.spindoctor.sim.scenes import frame_scene, quiet_noise, star_entry
 
 from spindoctor.sim.forward.scene_radiance import compose_scene_radiance
 from spindoctor.sim.forward.smear import apply_smear, smear_kernel
@@ -59,19 +60,17 @@ def _star_and_body_scene(*, smear: list[dict[str, Any]] | None) -> dict[str, Any
     Returns:
         The scene mapping, ready to render.
     """
-    scene: dict[str, Any] = {
-        'size_v': 60,
-        'size_u': 60,
-        'random_seed': 5,
-        'instrument': 'coiss_nac',
-        'noise': {'poisson': False, 'read_noise_dn': 0.0, 'bias_dn': 0.0},
-        'bodies': [
+    scene = frame_scene(
+        size=60,
+        seed=5,
+        noise=quiet_noise(),
+        bodies=[
             {'name': 'B', 'center_v': 40.0, 'center_u': 40.0, 'semi_a_px': 8.0, 'semi_b_px': 8.0}
         ],
         # A faint star (unsaturated at the coiss_nac zero point) so its trail
         # lowers the peak rather than clipping it flat.
-        'stars': [{'name': 'S', 'v': 14.0, 'u': 14.0, 'vmag': 9.0}],
-    }
+        stars=[star_entry(14.0, 14.0, 9.0)],
+    )
     if smear is not None:
         scene['optics'] = {'smear': smear}
     return scene
@@ -86,23 +85,20 @@ def test_star_layer_render_matches_primary_deposit() -> None:
     omission would silently undo that effect for smeared-star scenes; asserting
     exact equality guards the whole argument family at once.
     """
-    params: dict[str, Any] = {
-        'size_v': 64,
-        'size_u': 64,
-        'random_seed': 11,
-        'instrument': 'coiss_nac',
-        'exposure_sec': 2.0,
-        'offset_v': 1.5,
-        'offset_u': -0.5,
-        'offset_rotation_deg': 2.0,
-        'star_catalog_scatter_px': 2.0,
-        'sky_counts': {'a': -0.5, 'b': 0.34, 'density_factor': 30.0},
-        'stars': [
-            {'name': 'A', 'v': 20.0, 'u': 24.0, 'vmag': 4.0},
-            {'name': 'B', 'v': 44.0, 'u': 40.0, 'vmag': 5.0, 'catalog_error_v': 1.0},
+    params = frame_scene(
+        seed=11,
+        exposure_sec=2.0,
+        offset_v=1.5,
+        offset_u=-0.5,
+        offset_rotation_deg=2.0,
+        star_catalog_scatter_px=2.0,
+        sky_counts={'a': -0.5, 'b': 0.34, 'density_factor': 30.0},
+        stars=[
+            star_entry(20.0, 24.0, 4.0, name='A'),
+            star_entry(44.0, 40.0, 5.0, name='B', catalog_error_v=1.0),
         ],
-        'optics': {'smear': [{'dv_px': 2.0, 'du_px': 0.0, 'object_class': 'stars'}]},
-    }
+        optics={'smear': [{'dv_px': 2.0, 'du_px': 0.0, 'object_class': 'stars'}]},
+    )
     frame = new_sim_frame(64, 64)
     compose_scene_radiance(frame, params=params, rng=np.random.default_rng(0))
     layers = frame.truth['radiance_layers']

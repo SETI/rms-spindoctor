@@ -18,6 +18,7 @@ from typing import Any
 import numpy as np
 import pytest
 from tests.shims import bare_nav_context
+from tests.spindoctor.sim.scenes import disc_body, frame_scene, ring_system_block, star_entry
 
 from spindoctor.feature.feature import NavFeature
 from spindoctor.feature.feature_type import NavFeatureType
@@ -37,30 +38,21 @@ _TOLERANCE_PX = 0.01
 
 def _scene(**content: Any) -> dict[str, Any]:
     """A noiseless coiss_nac scene holding ``content``."""
-    return {
-        'instrument': 'coiss_nac',
-        'size_v': _SIZE,
-        'size_u': _SIZE,
-        'random_seed': 1,
-        'exposure_sec': 1.0,
-        **content,
-    }
+    return frame_scene(size=_SIZE, exposure_sec=1.0, **content)
 
 
 def _sphere(name: str = 'BODY', **extra: Any) -> dict[str, Any]:
     """A head-on, fully lit sphere stated at the probe position."""
-    return {
-        'name': name,
-        'center_v': _STATED,
-        'center_u': _STATED,
-        'semi_a_px': 10.0,
-        'semi_b_px': 10.0,
-        'semi_c_px': 10.0,
-        'phase_angle': 0.0,
-        'illumination_angle': 0.0,
-        'range_km': 1.0e6,
+    return disc_body(
+        _STATED,
+        _STATED,
+        10.0,
+        name=name,
+        phase_angle=0.0,
+        illumination_angle=0.0,
+        range_km=1.0e6,
         **extra,
-    }
+    )
 
 
 def _titan() -> dict[str, Any]:
@@ -74,31 +66,19 @@ def _titan() -> dict[str, Any]:
 
 def _ring_system() -> dict[str, Any]:
     """A face-on circular ringlet centered on the probe position."""
-    return {
-        'geometry': {
-            'center_v': _STATED,
-            'center_u': _STATED,
-            'opening_deg_obs': 90.0,
-            'opening_deg_sun': 90.0,
-            'node_deg': 0.0,
-        },
-        'features': [
-            {
-                'name': 'RINGLET',
-                'kind': 'ringlet',
-                'tau': 1.0,
-                'width_px': 4.0,
-                'navigable': True,
-                'orbit': {'a_px': 20.0},
-            }
-        ],
+    feature = {
+        'name': 'RINGLET',
+        'kind': 'ringlet',
+        'tau': 1.0,
+        'width_px': 4.0,
+        'navigable': True,
+        'orbit': {'a_px': 20.0},
     }
+    return ring_system_block(_STATED, _STATED, [feature])
 
 
 _SCENES: dict[str, Callable[[], dict[str, Any]]] = {
-    'star': lambda: _scene(
-        stars=[{'name': 'S', 'v': _STATED, 'u': _STATED, 'vmag': 2.0, 'psf_sigma': 2.0}]
-    ),
+    'star': lambda: _scene(stars=[star_entry(_STATED, _STATED, 2.0, psf_sigma=2.0)]),
     'body': lambda: _scene(bodies=[_sphere()]),
     'titan': lambda: _scene(bodies=[_titan()]),
     'ringlet': lambda: _scene(ring_system=_ring_system()),
