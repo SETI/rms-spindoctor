@@ -198,7 +198,7 @@ def _render_dead(mode_name: str, config: dict[str, Any]) -> tuple[NDArrayFloatTy
     )
     params = {'instrument': 'coiss_nac', 'random_seed': 7, 'artifacts': {mode_name: config}}
     validate_sim_params(_scene({mode_name: config}, instrument='coiss_nac'))
-    apply_telemetry(frame, params=params, rng=np.random.default_rng(0))
+    apply_telemetry(frame, params=params)
     record: dict[str, Any] = frame.truth['artifacts'][mode_name]
     return frame.signal, record
 

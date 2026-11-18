@@ -22,7 +22,6 @@ from spindoctor.sim.render.detector.shot_noise import (
     sample_poisson,
 )
 from spindoctor.sim.render.stages import SimFrame
-from spindoctor.sim.seeds import derive_effect_seed
 
 # The coiss_nac floor converts a signal of 1.0 to 0.5 * 110k electrons.
 _NAC_ELECTRONS_PER_SIGNAL = 55.0e3
@@ -246,8 +245,7 @@ def _detector_dn(signal: np.ndarray, *, noise: dict[str, float] | None = None) -
         'exposure_sec': 1.0,
         'noise': {'poisson': True, 'read_noise_dn': 5.0, **(noise or {})},
     }
-    rng = np.random.default_rng(derive_effect_seed(_SEED, 'detector'))
-    apply_detector(frame, params=params, rng=rng)
+    apply_detector(frame, params=params)
     return frame.signal
 
 

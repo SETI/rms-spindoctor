@@ -100,7 +100,7 @@ def test_star_layer_render_matches_primary_deposit() -> None:
         optics={'smear': [{'dv_px': 2.0, 'du_px': 0.0, 'object_class': 'stars'}]},
     )
     frame = new_sim_frame(64, 64)
-    compose_scene_radiance(frame, params=params, rng=np.random.default_rng(0))
+    compose_scene_radiance(frame, params=params)
     layers = frame.truth['radiance_layers']
     assert np.array_equal(layers['stars'], frame.point_e)
 

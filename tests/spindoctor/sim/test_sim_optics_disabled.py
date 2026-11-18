@@ -36,7 +36,7 @@ def test_apply_optics_with_no_block_is_a_noop() -> None:
     frame = new_sim_frame(40, 40)
     frame.signal[10:20, 10:20] = 0.5
     before = frame.signal.copy()
-    apply_optics(frame, params={'instrument': 'coiss_nac'}, rng=np.random.default_rng(0))
+    apply_optics(frame, params={'instrument': 'coiss_nac'})
     assert np.array_equal(frame.signal, before)
 
 

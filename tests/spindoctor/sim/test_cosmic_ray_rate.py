@@ -74,8 +74,7 @@ def _detector_dn(scene: dict[str, Any]) -> np.ndarray:
         signal=np.zeros(shape, dtype=np.float64),
         point_e=np.zeros(shape, dtype=np.float64),
     )
-    rng = np.random.default_rng(derive_effect_seed(int(scene['random_seed']), 'detector'))
-    apply_detector(frame, params=scene, rng=rng)
+    apply_detector(frame, params=scene)
     return frame.signal.copy()
 
 

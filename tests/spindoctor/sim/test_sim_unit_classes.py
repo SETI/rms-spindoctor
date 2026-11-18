@@ -117,7 +117,7 @@ def _telemetry_frame(signal: np.ndarray, params: dict[str, Any]) -> SimFrame:
         oversample=1,
         truth={},
     )
-    apply_telemetry(frame, params=params, rng=np.random.default_rng(0))
+    apply_telemetry(frame, params=params)
     return frame
 
 

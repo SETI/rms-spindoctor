@@ -60,7 +60,6 @@ def _render(
     apply_telemetry(
         frame,
         params={'instrument': instrument, 'random_seed': seed, 'artifacts': artifacts},
-        rng=np.random.default_rng(0),
     )
     record: dict[str, Any] = frame.truth.get('artifacts', {})
     return record

@@ -539,10 +539,10 @@ scene (:mod:`spindoctor.sim.render.pipeline`):
    :widths: 20 30 50
    :header-rows: 1
 
-   * - Stage name
+   * - Stage
      - Callable
      - What it does
-   * - ``scene_radiance``
+   * - Scene radiance
      - :func:`~spindoctor.sim.render.radiance.compose.compose_scene_radiance`
      - Composes the noise-free signal: bodies depth-sorted far to near
        (nearer bodies overwrite) into ``frame.signal``, with the ring
@@ -553,18 +553,18 @@ scene (:mod:`spindoctor.sim.render.pipeline`):
        masses shaped only by the
        whole-scene PSF (see :ref:`sim-star-params`). Accumulates feature truth
        (star records, masks, inventory, z-order) into ``frame.truth``.
-   * - ``optics``
+   * - Optics
      - :func:`~spindoctor.sim.render.optics.stage.apply_optics`
      - Applies the optical-path effects in a fixed internal order -- motion
        smear, residual distortion, the whole-scene PSF, ghost reflections, then
        the stray-light field -- each contributing only when its ``optics``
        sub-block is present (see :ref:`sim-optics-stage`).
-   * - ``downsample``
+   * - Downsampling
      - :func:`~spindoctor.sim.render.stages.downsample_to_detector`
      - Box-downsamples the oversampled planes to the detector grid. A scene
        with an active PSF renders on a 4x oversampled grid and downsamples here;
        with no PSF the factor is 1 and this is a no-op.
-   * - ``detector``
+   * - Detector
      - :func:`~spindoctor.sim.render.detector.apply_detector`
      - Runs the electron unit chain: converts the composed [0, 1] signal to
        electrons through the exposure, applies Poisson shot noise, full-well
@@ -572,15 +572,15 @@ scene (:mod:`spindoctor.sim.render.pipeline`):
        the ADC clip (see :ref:`sim-detector-stage`). The Voyager vidicon takes
        the DN-domain path; a calibrated instrument inverts the calibration
        transform afterward.
-   * - ``telemetry``
+   * - Telemetry
      - :func:`~spindoctor.sim.render.telemetry.stage.apply_telemetry`
      - Applies the per-pixel missing-data markers.
 
 Each stage is a callable matching the
 :class:`~spindoctor.sim.render.stages.Stage` protocol: it mutates a
 :class:`~spindoctor.sim.render.stages.SimFrame` in place, reads its parameters
-from the scene, and draws randomness only from the
-``numpy.random.Generator`` it is handed. Every effect is **off unless asked
+from the scene, and draws randomness only from streams it seeds by name (see
+*Seeding by name* below). Every effect is **off unless asked
 for**: with no ``stray_light`` block no field is added, with no
 ``missing_data_rate`` no pixels are dropped, and with no ``noise``, ``detector``,
 or ``artifacts`` block the detector adds no shot noise, read noise, dark, hot
@@ -614,20 +614,33 @@ error to the one effect it varies.
 - ``truth`` -- renderer output metadata (rendered star records, body masks,
   inventory, z-order maps). None of it crosses the information boundary.
 
-**Per-stage seeding.** Each stage receives its own generator seeded via
-:func:`spindoctor.sim.seeds.derive_effect_seed` from the scene's single
-``random_seed`` and the stage's registry name, so one stage's noise realization
-is independent of which other stages are enabled, and adding a stage later
-leaves existing stages' realizations unchanged. A stage name is therefore part
-of its scenes' noise realization: renaming a stage reseeds every scene that
-exercises it and regenerates the affected baselines -- allowed, but not to be
-done idly. (The seed derivation is a stable digest, never Python's per-process
-salted ``hash``.) Sub-effects inside a stage derive their own named streams the
-same way (background stars, cosmic rays, crater placement). Crater placement
-goes one level further: each crater draws from its own stream, named by the
-crater's index on its body, so a small change to the body's outline moves only
-a crater whose center lands on a changed pixel and leaves the rest of the
-crater field where it was.
+**Seeding by name.** A stage is handed only the frame and the scene. Each stage
+derives every random stream it needs with
+:func:`spindoctor.sim.seeds.derive_effect_seed`, from the scene's single
+``random_seed`` and a name that begins with the stage's prefix: ``scene_radiance``
+for scene radiance, ``optics`` for optics, ``detector`` for the detector, and
+``telemetry`` for telemetry. Downsampling draws nothing. The detector's shot and
+read noise draw from the stream ``detector`` and its hot pixels from
+``detector/hot_pixels``. The missing-data losses draw from ``telemetry`` and the
+missing-lines mode from ``telemetry/missing_lines``. The background stars draw
+from ``scene_radiance/background_stars`` and the distortion field from
+``optics/distortion``.
+
+A stream may in turn seed its own named sub-streams. The bodies work this way:
+``scene_radiance/craters`` seeds one stream for each body, named
+``body:<index>:<name>``, and that stream seeds the body's ``relief``, ``albedo``,
+and ``pose_scatter`` streams and one ``crater:<k>`` stream for each crater.
+Because each crater draws from its own stream, a small change to the body's
+outline moves only a crater whose center lands on a changed pixel and leaves the
+rest of the crater field where it was.
+
+The derivation is a stable digest, never Python's per-process salted ``hash``, so
+a stream's seed is the same in every process and on every run. A stream's seed is
+computed from nothing but its name and the seed it is derived from. One stage's
+realization is therefore the same whichever other stages are enabled, and adding
+a stream never reseeds the others. A stream name is part of the noise realization
+of every scene that uses it: renaming one reseeds those scenes and moves their
+committed renders, so a stream name must never change.
 
 **The driver.** :func:`spindoctor.sim.render.driver.render_scene` takes a
 scene and returns ``(image, metadata)``. It encodes the scene as
@@ -878,10 +891,10 @@ exactly the optical effects it wants and leaves the rest at the floor.
    brightens dark sky as well as lit features; the navigator's source-image
    background filter is meant to remove it.
 
-Only the distortion non-radial field draws randomness, and it derives its own
-seeded stream from the scene seed, so the optics stage does not consume the
-pipeline generator. A sub-stage whose block is a true no-op (all-zero radial
-distortion, an amplitude-0 ghost) renders bit-identically to one without it.
+Only the distortion non-radial field draws randomness, from its own stream
+``optics/distortion`` derived from the scene seed. A sub-stage whose block is a
+true no-op (all-zero radial distortion, an amplitude-0 ghost) renders
+bit-identically to one without it.
 
 .. _sim-detector-stage:
 

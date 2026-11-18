@@ -701,30 +701,28 @@ def _apply_calibration_inverse(frame: SimFrame, dp: DetectorParams) -> None:
     frame.signal[:] = calibrated
 
 
-def apply_detector(
-    frame: SimFrame,
-    *,
-    params: Mapping[str, Any],
-    rng: np.random.Generator,
-) -> None:
+def apply_detector(frame: SimFrame, *, params: Mapping[str, Any]) -> None:
     """Detector stage: convert the composed signal to detector counts in place.
 
     All signal is composed before this stage runs, so the shot term sees the
     noise-free signal it should grow with.  Feature masks in ``frame.truth`` were
     derived from the noise-free signal and are unaffected.
 
+    The shot and read noise draw from the stream ``detector``.  The CCD chain draws one
+    uniform per pixel for the shot noise and then one normal per pixel for the read
+    noise; the vidicon chain draws its line and pixel read noise.  The number of values
+    drawn depends only on the frame's dimensions and the enabled terms, never on the
+    signal.  Each structured sub-effect draws from its own ``detector/<effect>`` stream.
+
     Parameters:
         frame: The frame whose signal plane is converted in place.
         params: The full scene mapping; resolved into detector parameters via
             :func:`spindoctor.sim.render.detector.params.resolve_detector_params`.
-        rng: The stage generator.  The CCD chain draws one uniform per pixel
-            for the shot noise and then one normal per pixel for the read noise;
-            the vidicon chain draws its line and pixel read noise.  The number of
-            values drawn depends only on the frame's dimensions and the enabled
-            terms, never on the signal.  The structured sub-effects derive their
-            own named streams from the scene seed.
     """
     dp = resolve_detector_params(params)
+    # The stream carries the stage's own name and must never be renamed: it seeds the
+    # shot and read noise of every committed scene that has them.
+    rng = np.random.default_rng(derive_effect_seed(dp.random_seed, 'detector'))
     if dp.detector_model == 'vidicon':
         _apply_vidicon(frame, dp, rng)
     else:

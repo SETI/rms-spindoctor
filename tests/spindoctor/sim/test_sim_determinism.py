@@ -1,7 +1,8 @@
 """Determinism guarantees for the simulator's randomized effects.
 
 These tests pin the seed-derivation contract (process-stable, per-effect
-independent sub-seeds) and assert that rendering the same scene twice produces
+independent sub-seeds), pin the names of the streams the detector and telemetry
+stages seed for themselves, and assert that rendering the same scene twice produces
 byte-identical pixels even after the render caches are cleared.
 """
 
@@ -10,7 +11,10 @@ from typing import Any
 import numpy as np
 from tests.spindoctor.sim.scenes import frame_scene, star_entry
 
+from spindoctor.sim.render.detector import chain, resolve_detector_params
 from spindoctor.sim.render.driver import clear_render_caches, render_scene
+from spindoctor.sim.render.stages import SimFrame
+from spindoctor.sim.render.telemetry.stage import apply_telemetry
 from spindoctor.sim.seeds import derive_effect_seed, stable_param_seed
 
 # Pinned values guard against an accidental switch to a salted hash (e.g. the
@@ -154,3 +158,60 @@ def test_full_stack_render_is_byte_identical_across_cache_clears() -> None:
     _clear_render_caches()
     img_b, _ = render_scene(_full_stack_scene())
     assert np.array_equal(img_a, img_b)
+
+
+def _flat_frame(value: float) -> SimFrame:
+    """A 48 x 48 detector-grid frame whose signal plane holds ``value`` everywhere."""
+    return SimFrame(
+        signal=np.full((48, 48), value, dtype=np.float64),
+        point_e=np.zeros((48, 48), dtype=np.float64),
+    )
+
+
+def test_detector_noise_draws_from_the_detector_stream() -> None:
+    """The detector stage's shot and read noise come from the stream ``detector``."""
+    params: dict[str, Any] = {
+        'instrument': 'coiss_nac',
+        'random_seed': 11,
+        'exposure_sec': 1.0,
+        'noise': {'poisson': True, 'read_noise_dn': 5.0},
+    }
+    staged = _flat_frame(0.3)
+    chain.apply_detector(staged, params=params)
+    expected = _flat_frame(0.3)
+    chain._apply_ccd(
+        expected,
+        resolve_detector_params(params),
+        np.random.default_rng(derive_effect_seed(11, 'detector')),
+    )
+    assert np.array_equal(staged.signal, expected.signal)
+
+
+def test_vidicon_noise_draws_from_the_detector_stream() -> None:
+    """The vidicon chain's line and pixel read noise come from the stream ``detector``."""
+    params: dict[str, Any] = {
+        'instrument': 'vgiss',
+        'random_seed': 11,
+        'exposure_sec': 1.0,
+        'noise': {'vidicon': {'read_noise_line_dn': 1.5, 'read_noise_pixel_dn': 3.0}},
+    }
+    staged = _flat_frame(0.3)
+    chain.apply_detector(staged, params=params)
+    dp = resolve_detector_params(params)
+    expected = _flat_frame(0.3)
+    chain._apply_vidicon(expected, dp, np.random.default_rng(derive_effect_seed(11, 'detector')))
+    # vgiss renders calibrated I/F, so the stage ends with the calibration inverse.
+    chain._apply_calibration_inverse(expected, dp)
+    assert np.array_equal(staged.signal, expected.signal)
+
+
+def test_missing_data_losses_draw_from_the_telemetry_stream() -> None:
+    """The per-pixel missing-data losses come from the stream ``telemetry``."""
+    rate = 0.3
+    frame = _flat_frame(50.0)
+    apply_telemetry(
+        frame,
+        params={'instrument': 'generic', 'random_seed': 11, 'noise': {'missing_data_rate': rate}},
+    )
+    draws = np.random.default_rng(derive_effect_seed(11, 'telemetry')).random(size=(48, 48))
+    assert np.array_equal(frame.signal != 50.0, draws < rate)
