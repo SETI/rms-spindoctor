@@ -43,10 +43,7 @@ from spindoctor.nav_orchestrator.ensemble import (
     ensemble,
 )
 from spindoctor.nav_orchestrator.feature_summary import NavFeatureSummary
-from spindoctor.nav_orchestrator.image_classifier import (
-    ImageQualityThresholds,
-    NavImageClassifier,
-)
+from spindoctor.nav_orchestrator.image_classifier import NavImageClassifier
 from spindoctor.nav_orchestrator.image_classifier_result import NavImageClassifierResult
 from spindoctor.nav_orchestrator.image_derivatives import (
     ImageDerivativesConfig,
@@ -64,7 +61,6 @@ __all__ = [
     'STATUS_REASON_INFO_TEMPLATE',
     'EnsembleConfig',
     'ImageDerivativesConfig',
-    'ImageQualityThresholds',
     'NavContext',
     'NavFeatureSummary',
     'NavImageClassifier',

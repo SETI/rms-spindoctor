@@ -3,10 +3,8 @@
 import numpy as np
 import pytest
 
-from spindoctor.nav_orchestrator.image_classifier import (
-    ImageQualityThresholds,
-    NavImageClassifier,
-)
+from spindoctor.nav_orchestrator.image_classifier import NavImageClassifier
+from spindoctor.support.image_class import ImageQualityThresholds
 
 
 def test_classifier_clean_image_no_flags() -> None:

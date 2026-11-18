@@ -29,7 +29,6 @@ from spindoctor.sim.instrument_navigator import (
     frame_units_name,
     frame_units_summary,
     has_planted_offset,
-    navigator_marker_value,
     read_frame_as_navigator,
     resolve_sim_inst_config,
 )
@@ -167,43 +166,6 @@ def test_lost_lines_carry_a_null_marker_as_the_navigator_reads_it(instrument: st
     overrides = {'noise': {'marker_value': None}}
     written = _lost_line_value(instrument, overrides)
     assert _same(written, _navigator_marker(instrument, overrides))
-
-
-@pytest.mark.parametrize('instrument', _ALL_INSTRUMENTS)
-def test_marker_helper_agrees_with_the_navigator(instrument: str) -> None:
-    """navigator_marker_value reads each instrument's marker as the navigator does."""
-    inst_config = resolve_sim_inst_config(DEFAULT_CONFIG, instrument)
-    assert _same(navigator_marker_value(inst_config), _navigator_marker(instrument))
-
-
-@pytest.mark.parametrize(
-    ('instrument', 'overrides', 'expected'),
-    [
-        ('vgiss', {'noise': {'marker_value': None}}, math.nan),
-        ('vgiss', {'noise': {'marker_value': 'nan'}}, math.nan),
-        ('generic', {'noise': {'marker_value': 7}}, 7.0),
-    ],
-    ids=['calibrated-null', 'calibrated-nan-string', 'raw-explicit'],
-)
-def test_marker_helper_follows_an_overridden_marker(
-    instrument: str, overrides: dict[str, Any], expected: float
-) -> None:
-    """An instrument_config marker override reads the same in the helper and navigator."""
-    inst_config = resolve_sim_inst_config(DEFAULT_CONFIG, instrument, overrides)
-    helper = navigator_marker_value(inst_config)
-    assert _same(helper, _navigator_marker(instrument, overrides))
-    assert _same(helper, expected)
-
-
-def test_marker_helper_defaults_a_calibrated_block_to_nan() -> None:
-    """A calibrated block that omits marker_value defaults to NaN, as in the navigator."""
-    assert math.isnan(navigator_marker_value({'data_units': 'calibrated_if', 'noise': {}}))
-
-
-def test_marker_helper_rejects_a_non_nan_string() -> None:
-    """A marker string other than NaN is refused with the navigator's message."""
-    with pytest.raises(ValueError, match='must be "NaN" or numeric'):
-        navigator_marker_value({'data_units': 'raw_dn', 'noise': {'marker_value': 'zero'}})
 
 
 @pytest.mark.parametrize(

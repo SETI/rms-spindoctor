@@ -25,7 +25,6 @@ from spindoctor.feature.geometry import (
     TitanHazeGeometry,
 )
 from spindoctor.nav_model import NavModel
-from spindoctor.nav_orchestrator.image_classifier import ImageQualityThresholds
 from spindoctor.nav_orchestrator.nav_context import NavContext
 from spindoctor.nav_orchestrator.orchestrator import NavOrchestrator
 from spindoctor.nav_technique.diagnostics import StarFieldDiagnostics
@@ -35,6 +34,7 @@ from spindoctor.nav_technique.technique_result import NavTechniqueResult
 from spindoctor.support.cmatrix import PointingSolution
 from spindoctor.support.exceptions import NavContractError, NavPointingError
 from spindoctor.support.filters import NavFilterKind, NavFilterSpec
+from spindoctor.support.image_class import ImageQualityThresholds
 from spindoctor.support.status_reason import NavStatusReason
 
 

@@ -57,9 +57,10 @@ from spindoctor.sim.forward.telemetry_artifacts import (
     apply_reseau_scars,
 )
 from spindoctor.sim.forward.telemetry_loss import LOSS_APPLIERS
-from spindoctor.sim.instrument_navigator import navigator_marker_value, resolve_sim_inst_config
+from spindoctor.sim.instrument_navigator import resolve_sim_inst_config
 from spindoctor.sim.instrument_resolvers import mode_available, resolve_mode_with_catalog
 from spindoctor.sim.seeds import derive_effect_seed
+from spindoctor.support.image_class import missing_data_marker
 
 __all__ = ['apply_telemetry']
 
@@ -101,7 +102,7 @@ def apply_telemetry(
     inst_config = resolve_sim_inst_config(
         DEFAULT_CONFIG, params.get('instrument'), params.get('instrument_config')
     )
-    marker_dn = navigator_marker_value(inst_config)
+    marker_dn = missing_data_marker(inst_config)
     dn_ceiling = _saturation_value(inst_config)
     random_seed = int(params.get('random_seed', 42))
     adversarial = bool(artifacts.get('adversarial', False))

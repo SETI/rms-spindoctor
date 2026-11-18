@@ -78,7 +78,7 @@ The per-instrument YAML schema consumed by
   exactly 0 I/F therefore counts as missing; a valid calibrated pixel is never exactly
   0.
 - ``image_quality_thresholds`` — block consumed by
-  :class:`~spindoctor.nav_orchestrator.image_classifier.ImageQualityThresholds`. See
+  :class:`~spindoctor.support.image_class.ImageQualityThresholds`. See
   :doc:`dev_guide_orchestrator_image_classifier` for the field-by-field schema.
 - ``fit_camera_rotation`` — bool, top-level in the per-camera block, default ``False``.
   When ``True`` every technique adds in-plane camera rotation as a third parameter.
@@ -108,7 +108,7 @@ Public surface (autodocumented at :doc:`/api_reference/api_nav_orchestrator`):
   - :attr:`~spindoctor.nav_orchestrator.instrument_config.InstrumentSettings.marker_value` —
     float. Missing-data sentinel.
   - :attr:`~spindoctor.nav_orchestrator.instrument_config.InstrumentSettings.thresholds` —
-    :class:`~spindoctor.nav_orchestrator.image_classifier.ImageQualityThresholds` for the
+    :class:`~spindoctor.support.image_class.ImageQualityThresholds` for the
     classifier.
   - :attr:`~spindoctor.nav_orchestrator.instrument_config.InstrumentSettings.fit_camera_rotation`
     — bool.
@@ -119,8 +119,13 @@ Public surface (autodocumented at :doc:`/api_reference/api_nav_orchestrator`):
   per-camera YAML mapping off ``obs.inst_config`` and returns a populated
   :class:`~spindoctor.nav_orchestrator.instrument_config.InstrumentSettings`.
 
-The module's private helpers ``_coerce_marker_value`` and ``_required_float`` validate
-the YAML values; the public function is the only entry point external callers use.
+The thresholds and the marker come from
+:func:`~spindoctor.support.image_class.image_quality_thresholds` and
+:func:`~spindoctor.support.image_class.missing_data_marker`, which the simulated-image
+editor's verdict also calls, so both read a block the same way. They refuse an
+unrecognized ``data_units``, a missing ``image_quality_thresholds`` block, a required
+threshold that is missing, not a number, or not finite, and a ``saturation_threshold_if``
+on a calibrated block.
 
 Examples
 ========
