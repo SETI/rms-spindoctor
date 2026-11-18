@@ -21,10 +21,10 @@ from spindoctor.sim.shared.ellipsoid import (
 )
 from spindoctor.support.types import NDArrayFloatType
 
-__all__ = ['predict_body_image']
+__all__ = ['create_predicted_body_image']
 
 
-def predict_body_image(
+def create_predicted_body_image(
     size: tuple[int, int],
     center: tuple[float, float],
     semi_a_px: float,

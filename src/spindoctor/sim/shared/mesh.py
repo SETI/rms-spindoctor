@@ -19,9 +19,9 @@ information can cross the boundary here (``mesh_spec_from_params`` parses a
 body parameter mapping, but only its idealized mesh keys).
 
 The output contract matches the ellipsoid renderers (``create_simulated_body`` on
-the image side, ``predict_body_image`` on the navigator side): a ``(size_v, size_u)``
-float array in [0, 1], lit by the same Lambertian convention so a mesh body and
-an ellipsoid body can be compared directly.
+the image side, ``create_predicted_body_image`` on the navigator side): a
+``(size_v, size_u)`` float array in [0, 1], lit by the same Lambertian convention so
+a mesh body and an ellipsoid body can be compared directly.
 """
 
 import math

@@ -82,7 +82,7 @@ Restrictions and assumptions
 
 - The operator must supply finite, positive ellipsoid axes. Degenerate inputs (zero
   radius, negative axes) are rejected by
-  :func:`~spindoctor.nav_model.simulated.predict_body.predict_body_image`.
+  :func:`~spindoctor.nav_model.simulated.predict_body.create_predicted_body_image`.
 - The body appearance keys -- crater terrain, the limb-relief field, the photometric
   law and opposition surge, the albedo and disc textures and transits, the atmospheric
   haze layer, the mesh shading mode and pose scatter, and anti-aliasing -- are truth
@@ -203,9 +203,9 @@ this subclass.
 Public methods (autodocumented at :doc:`/api_reference/api_nav_model`):
 
 - :meth:`~spindoctor.nav_model.simulated.body.NavModelBodySimulated.create_model` —
-  renders the simulated body (ellipsoid via
-  :func:`~spindoctor.nav_model.simulated.predict_body.predict_body_image`, or a mesh via
-  :func:`~spindoctor.sim.shared.mesh.render_mesh_body_image`), computes the limb mask via
+  renders the simulated body (an ellipsoid via
+  :func:`~spindoctor.nav_model.simulated.predict_body.create_predicted_body_image`,
+  or a mesh via :func:`~spindoctor.sim.shared.mesh.render_mesh_body_image`), computes the limb mask via
   the shared :class:`~spindoctor.nav_model.nav_model_body_base.NavModelBodyBase` helper, and
   records the predicted diameter, tight bounding box, and silhouette overflow fraction
   that decide which features it emits.
@@ -231,8 +231,9 @@ Call path traced through
 1. Open a logged section. Read the operator-supplied sim parameters off the per-instance
    dict.
 2. Convert per-axis rotations and angle parameters from degrees to radians.
-3. Call :func:`~spindoctor.nav_model.simulated.predict_body.predict_body_image` with the
-   semi-axes and geometry; the helper returns the rendered simulated body image.
+3. Call
+   :func:`~spindoctor.nav_model.simulated.predict_body.create_predicted_body_image`
+   with the semi-axes and geometry; the helper returns the rendered simulated body image.
 4. Derive the body mask from the rendered image (every non-zero pixel is on the body).
 5. Compute the limb mask via
    :class:`~spindoctor.nav_model.nav_model_body_base.NavModelBodyBase`'s shared discrete-mask

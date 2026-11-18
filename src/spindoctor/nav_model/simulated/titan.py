@@ -41,7 +41,7 @@ from spindoctor.config import DEFAULT_CONFIG, IMAGE_LOGGER, Config
 from spindoctor.nav_model.nav_model import NavModel
 from spindoctor.nav_model.nav_model_body import TITAN_BODY_NAME
 from spindoctor.nav_model.nav_model_titan import NavModelTitan
-from spindoctor.nav_model.simulated.predict_body import predict_body_image
+from spindoctor.nav_model.simulated.predict_body import create_predicted_body_image
 from spindoctor.nav_model.titan_geometry import (
     TitanGeometryInputs,
     occluded_disc_fraction,
@@ -104,7 +104,7 @@ def _render_silhouette(
     Returns:
         The boolean silhouette mask.
     """
-    img = predict_body_image(
+    img = create_predicted_body_image(
         size=shape_vu,
         center=(float(body_params.get('center_v', 0.0)), float(body_params.get('center_u', 0.0))),
         semi_a_px=float(body_params.get('semi_a_px', 0.0)),

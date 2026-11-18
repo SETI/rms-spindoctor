@@ -18,7 +18,7 @@ import numpy as np
 import pytest
 from tests.spindoctor.sim.scenes import disc_body, frame_scene, quiet_noise, star_entry
 
-from spindoctor.nav_model.simulated.predict_body import predict_body_image
+from spindoctor.nav_model.simulated.predict_body import create_predicted_body_image
 from spindoctor.sim.render.bodies.texture import AlbedoTextureSpec, DiscTextureSpec, TransitSpec
 from spindoctor.sim.render.bodies.topo import TopoBodySpec, create_topographic_body
 from spindoctor.sim.render.driver import render_scene, resolve_oversample
@@ -115,7 +115,7 @@ def test_oversampled_smooth_body_matches_the_navigator_model() -> None:
             oversample=4,
         ),
     )
-    predicted = predict_body_image(
+    predicted = create_predicted_body_image(
         size, center, 48.0, semi_b_px=48.0, semi_c_px=48.0, illumination_angle=0.7, phase_angle=0.9
     )
     np.testing.assert_allclose(rendered, predicted, rtol=0.0, atol=1e-12)
@@ -141,7 +141,7 @@ def test_anti_aliased_smooth_body_matches_the_navigator_model() -> None:
             anti_aliasing=1.0,
         ),
     )
-    predicted = predict_body_image(
+    predicted = create_predicted_body_image(
         size,
         center,
         48.0,
@@ -181,7 +181,7 @@ def test_oversampled_smooth_body_matches_the_navigator_model_on_the_detector_gri
         stage(frame, params=scene, rng=np.random.default_rng(0))
         if name == 'downsample':
             break
-    predicted = predict_body_image(
+    predicted = create_predicted_body_image(
         (size, size),
         center,
         12.0,

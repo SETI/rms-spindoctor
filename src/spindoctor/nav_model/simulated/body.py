@@ -40,7 +40,7 @@ from spindoctor.nav_model.nav_model_body import (
     terminator_reliability,
 )
 from spindoctor.nav_model.nav_model_body_base import BODY_BLOB_MIN_DIAMETER_PX, NavModelBodyBase
-from spindoctor.nav_model.simulated.predict_body import predict_body_image
+from spindoctor.nav_model.simulated.predict_body import create_predicted_body_image
 from spindoctor.obs import ObsSnapshotInst
 from spindoctor.sim.shared.ellipsoid import DARK_SIDE_ILLUM_STRENGTH
 from spindoctor.sim.shared.mesh import mesh_spec_from_params, render_mesh_body_image
@@ -456,7 +456,7 @@ class NavModelBodySimulated(NavModelBodyBase):
                 phase_angle=phase_angle_rad,
                 anti_aliasing=1.0,
             )
-        return predict_body_image(
+        return create_predicted_body_image(
             size=(data_size_v, data_size_u),
             center=(center_v, center_u),
             semi_a_px=semi_a_px,
