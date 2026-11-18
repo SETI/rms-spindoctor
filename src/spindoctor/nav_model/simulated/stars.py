@@ -50,6 +50,8 @@ class NavModelStarsSimulated(NavModelStars):
         config: Optional ``Config`` override.
     """
 
+    inputs = 'scene_view'
+
     @classmethod
     def instances_for_obs(
         cls, obs: ObsSnapshotInst, *, config: Config | None = None

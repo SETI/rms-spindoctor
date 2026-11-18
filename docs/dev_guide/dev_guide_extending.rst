@@ -169,6 +169,10 @@ any instrument-specific helpers. Update the instrument registry in
    from spindoctor.support.types import PathLike
 
    class ObsNewInstrument(ObsSnapshotInst):
+       # A real camera's frames are navigated with the models that predict
+       # them from SPICE geometry.
+       model_source = 'spice'
+
        def __init__(self, obs, *, config=None, **kwargs):
            super().__init__(obs, config=config, **kwargs)
 
@@ -226,20 +230,28 @@ Adding a new NavModel
    :class:`~spindoctor.nav_model.nav_model.NavModel` (or from one of the abstract
    bases such as
    :class:`~spindoctor.nav_model.nav_model_body_base.NavModelBodyBase`).
-2. Implement :meth:`~spindoctor.nav_model.nav_model.NavModel.create_model`,
+2. Set ``inputs`` in the class body to the model source the model builds from:
+   ``'spice'`` when it predicts the scene from SPICE geometry and the catalogs,
+   ``'scene_view'`` when it reads a simulated scene's ``obs.nav_params``.
+   :func:`~spindoctor.nav_model.nav_model.build_models_for_obs` asks the class for
+   instances only for an observation whose ``model_source`` matches, and a concrete
+   class without its own ``inputs`` raises ``TypeError`` when it is defined.
+3. Implement :meth:`~spindoctor.nav_model.nav_model.NavModel.create_model`,
    :meth:`~spindoctor.nav_model.nav_model.NavModel.to_features`, and
    :meth:`~spindoctor.nav_model.nav_model.NavModel.to_annotations`.
-3. Override :meth:`~spindoctor.nav_model.nav_model.NavModel.instances_for_obs` if
+4. Override :meth:`~spindoctor.nav_model.nav_model.NavModel.instances_for_obs` if
    the model auto-instantiates per-observation (one instance per body in
-   FOV, one per planet with visible rings, one stars model). Subclasses
-   that require operator parameters (simulated models populated from GUI
-   JSON) inherit the empty default; the caller constructs them directly.
+   FOV, one per planet with visible rings, one stars model). A model that
+   does not override it inherits the empty default, and the caller that uses
+   it constructs it directly.
 
 .. code-block:: python
 
    from spindoctor.nav_model.nav_model import NavModel
 
    class NavModelNewFeature(NavModel):
+       inputs = 'spice'
+
        def __init__(self, name, obs, *, config=None):
            super().__init__(name, obs, config=config)
 

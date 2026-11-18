@@ -63,6 +63,9 @@ class ObsNewHorizonsLORRI(ObsSnapshotInst):
     Horizons LORRI image data.
     """
 
+    model_source = 'spice'
+    """The frame is navigated with the models that predict it from SPICE geometry."""
+
     _label_clock_counts: tuple[str | None, str | None]
     """The start and stop clock counts of the PDS3 label beside the image."""
 

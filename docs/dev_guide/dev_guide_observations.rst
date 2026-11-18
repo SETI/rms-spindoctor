@@ -337,6 +337,16 @@ must implement:
   etc.) for the per-image sidecar. Read the camera from
   :attr:`~spindoctor.obs.obs_inst.ObsInst.camera` rather than repeating a
   literal, so the name has one source.
+- :attr:`~spindoctor.obs.obs_inst.ObsInst.model_source` — the model source the
+  observation supplies, one of the
+  :data:`~spindoctor.obs.obs_inst.ModelSource` values. Every concrete observation
+  class sets it: the real cameras set ``'spice'`` and
+  :class:`~spindoctor.obs.obs_inst_sim.ObsSim` sets ``'scene_view'``.
+  :func:`~spindoctor.nav_model.nav_model.build_models_for_obs` builds only the
+  navigation models whose ``inputs`` equals it. A concrete class that does not set it
+  in its own class body raises ``TypeError`` when it is defined; a shared base such as
+  :class:`~spindoctor.obs.obs_snapshot_inst.ObsSnapshotInst` sets ``_abstract = True``
+  instead.
 
 The :attr:`~spindoctor.obs.obs_inst.ObsInst.inst_config` property exposes the
 per-instrument YAML block loaded from
@@ -423,7 +433,9 @@ The end-to-end checklist lives at
 :doc:`dev_guide_extending`; the obs-side bullet is:
 
 1. Subclass :class:`~spindoctor.obs.obs_snapshot_inst.ObsSnapshotInst` in
-   ``src/spindoctor/obs/obs_inst_<mission>_<inst>.py``.
+   ``src/spindoctor/obs/obs_inst_<mission>_<inst>.py``, and set
+   :attr:`~spindoctor.obs.obs_inst.ObsInst.model_source` to ``'spice'`` in the
+   class body.
 2. Implement :meth:`~spindoctor.obs.obs_inst.ObsInst.from_file` (delegate to the mission's
    ``oops`` host: a class-style host package such as ``rms-host-cassini`` where one exists,
    otherwise the ``oops.hosts.<mission>.<inst>`` module),

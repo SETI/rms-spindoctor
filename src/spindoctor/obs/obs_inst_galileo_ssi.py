@@ -60,6 +60,9 @@ class ObsGalileoSSI(ObsSnapshotInst, HostLabel):
     SSI image data.
     """
 
+    model_source = 'spice'
+    """The frame is navigated with the models that predict it from SPICE geometry."""
+
     filter: str
     """The filter, as the label names it."""
 

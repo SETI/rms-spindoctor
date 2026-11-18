@@ -20,6 +20,8 @@ class HostLabel:
 class ObsSnapshotInst(ObsSnapshot, ObsInst):
     """Mix-in of ObsSnapshot and ObsInst."""
 
+    _abstract = True
+
     def __init__(self, snapshot: Snapshot, **kwargs: Any) -> None:
         """Initializes a new ObsSnapshotInst instance.
 

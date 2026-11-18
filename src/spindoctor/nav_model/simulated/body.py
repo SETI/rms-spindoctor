@@ -287,6 +287,8 @@ class NavModelBodySimulated(NavModelBodyBase):
             SPICE-backed model's per-vertex drops feed its arc fraction.
     """
 
+    inputs = 'scene_view'
+
     def __init__(
         self,
         name: str,

@@ -21,12 +21,11 @@ body parameters. It could not have reused
 function needs backplanes a simulated observation does not carry. Because the simulated path
 reads operator parameters directly, the simulated inventory needs no projected-center key.
 
-Model selection is exclusive in both directions.
-:meth:`~spindoctor.nav_model.nav_model_titan.NavModelTitan.instances_for_obs` returns nothing
-for a simulated observation, this class returns nothing for a real one, and
+Exactly one model claims a simulated Titan. This class sets ``inputs`` to ``'scene_view'``
+and :class:`~spindoctor.nav_model.nav_model_titan.NavModelTitan` sets ``'spice'``, so the model
+builder asks only one of the two for any observation, and
 :class:`~spindoctor.nav_model.simulated.body.NavModelBodySimulated` excludes Titan
-unconditionally -- mirroring the real path's exclusion, so exactly one model claims a simulated
-Titan.
+unconditionally, mirroring the real path's exclusion.
 
 Theory
 ======

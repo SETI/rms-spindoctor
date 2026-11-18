@@ -35,7 +35,7 @@ it returns.
 from __future__ import annotations
 
 import math
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, ClassVar
 
 import numpy as np
 
@@ -59,6 +59,7 @@ from spindoctor.nav_model.nav_model import NavModel
 from spindoctor.nav_model.nav_model_body import TITAN_BODY_NAME, bodies_in_extfov
 from spindoctor.nav_model.titan_geometry import TitanGeometryInputs, geometry_from_obs
 from spindoctor.obs import ObsSnapshotInst
+from spindoctor.obs.obs_inst import ModelSource
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 from spindoctor.support.filters import NavFilterKind, NavFilterSpec
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
@@ -470,6 +471,9 @@ class NavModelTitan(NavModel):
         config: Optional ``Config`` override.
     """
 
+    # Typed as the full ModelSource so the simulated subclass can set its own.
+    inputs: ClassVar[ModelSource] = 'spice'
+
     def __init__(
         self,
         name: str,
@@ -499,10 +503,6 @@ class NavModelTitan(NavModel):
             A single ``NavModelTitan`` when Titan is present in the extfov,
             otherwise an empty list.
         """
-        # Simulated obs drive model selection from operator parameters, not the
-        # SPICE inventory; mirror NavModelBody and build nothing here.
-        if getattr(obs, 'is_simulated', False):
-            return []
         if config is None:
             config = DEFAULT_CONFIG
         in_extfov = bodies_in_extfov(obs, config=config)

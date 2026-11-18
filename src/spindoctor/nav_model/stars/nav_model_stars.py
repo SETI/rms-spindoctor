@@ -10,7 +10,7 @@ registry sees.
 from __future__ import annotations
 
 import math
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, ClassVar
 
 import numpy as np
 
@@ -43,6 +43,7 @@ from spindoctor.nav_model.stars.predicted_snr import (
 )
 from spindoctor.nav_model.stars.smeared_psf import compute_smear_vector_px, smear_length_px
 from spindoctor.obs import ObsSnapshotInst
+from spindoctor.obs.obs_inst import ModelSource
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX, containing_pixel
 from spindoctor.support.flux import clean_sclass
 from spindoctor.support.image import draw_rect
@@ -94,6 +95,8 @@ class NavModelStars(NavModel):
     """
 
     _abstract = False
+    # Typed as the full ModelSource so the simulated subclass can set its own.
+    inputs: ClassVar[ModelSource] = 'spice'
 
     def __init__(
         self,
@@ -111,10 +114,7 @@ class NavModelStars(NavModel):
     def instances_for_obs(
         cls, obs: ObsSnapshotInst, *, config: Config | None = None
     ) -> list[NavModel]:
-        """Return one star NavModel per real observation.
-
-        Simulated obs have no real star-catalog pointing, so no star model is
-        built for them (the sim renders its own stars).
+        """Return one star NavModel per observation.
 
         Parameters:
             obs: Observation snapshot.
@@ -122,10 +122,8 @@ class NavModelStars(NavModel):
                 uses ``DEFAULT_CONFIG``.
 
         Returns:
-            ``[NavModelStars('stars', obs)]`` for a real obs, else ``[]``.
+            ``[NavModelStars('stars', obs)]``.
         """
-        if getattr(obs, 'is_simulated', False):
-            return []
         return [cls('stars', obs, config=config)]
 
     @property

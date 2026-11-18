@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, ClassVar, Literal
 
 from psfmodel import PSF, GaussianPSF
 from starcat import Star
@@ -10,6 +10,15 @@ from spindoctor.support.types import PathLike
 if TYPE_CHECKING:
     from spindoctor.obs import Obs
 
+ModelSource = Literal['scene_view', 'spice']
+"""What an observation's navigation models build their predictions from.
+
+With ``'spice'`` the models predict the scene from SPICE geometry and the star, body,
+and ring catalogs; with ``'scene_view'`` they read the navigator's view of a simulated
+scene.  An observation supplies one of them, and each navigation model class builds
+from one.
+"""
+
 
 class ObsInst(ABC):
     """Mix-in class for instrument models representing spacecraft cameras.
@@ -17,6 +26,35 @@ class ObsInst(ABC):
     This class provides default functionality for methods related to instruments
     and abstract methods for instrument-specific functionality.
     """
+
+    model_source: ClassVar[ModelSource]
+    """What this observation's navigation models build from.
+
+    Each concrete observation class sets it, and the model builder makes only the
+    model classes whose inputs match it.
+    """
+
+    _abstract: ClassVar[bool] = True
+    """True on a class that exists only as a shared base, which need not set
+    ``model_source``; set in that class's own body."""
+
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        """Require every concrete observation class to set ``model_source``.
+
+        Shared bases opt out by setting ``_abstract = True`` in their own class body.
+
+        Raises:
+            TypeError: If a concrete subclass does not set ``model_source`` in its own
+                class body.  A value inherited from a parent does not count, so each
+                instrument states its model source where it is defined.
+        """
+        super().__init_subclass__(**kwargs)
+        if cls.__dict__.get('_abstract', False):
+            return
+        if 'model_source' not in cls.__dict__:
+            raise TypeError(
+                f'{cls.__qualname__} must set model_source to the model source it supplies'
+            )
 
     def __init__(self, **kwargs: Any) -> None:
         super().__init__(**kwargs)

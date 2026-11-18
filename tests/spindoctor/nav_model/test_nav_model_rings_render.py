@@ -949,12 +949,6 @@ def test_instances_for_obs_returns_model_for_cataloged_planet() -> None:
     assert [inst.name for inst in instances] == ['rings:SATURN']
 
 
-def test_instances_for_obs_skips_simulated_obs() -> None:
-    """Simulated observations use the sim sibling, so no instances here."""
-    obs = types.SimpleNamespace(is_simulated=True)
-    assert NavModelRings.instances_for_obs(cast(Any, obs)) == []
-
-
 def test_instances_for_obs_requires_closest_planet() -> None:
     """No closest planet means no ring model."""
     obs = types.SimpleNamespace(closest_planet=None)

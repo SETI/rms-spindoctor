@@ -21,9 +21,9 @@ is.
 
 Unlike :class:`~spindoctor.nav_model.stars.nav_model_stars.NavModelStars`, this model *does*
 override :meth:`~spindoctor.nav_model.nav_model.NavModel.instances_for_obs`: it builds one
-instance for a simulated observation that rendered at least one star, and the parent
-declines simulated observations, so the autonomous registry routes simulated frames to
-this subclass and real frames to the parent.
+instance for a simulated observation that rendered at least one star. The subclass sets
+``inputs`` to ``'scene_view'`` and the parent sets ``'spice'``, so the model builder asks
+this subclass for a simulated frame's stars and the parent for a real frame's.
 
 Theory
 ======

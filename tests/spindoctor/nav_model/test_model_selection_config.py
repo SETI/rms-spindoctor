@@ -15,7 +15,6 @@ from spindoctor.nav_model.nav_model_rings import NavModelRings
 class _FakeJupiterObs:
     """Observation stand-in exposing what ring-model selection inspects."""
 
-    is_simulated = False
     closest_planet = 'jupiter'
     extdata_shape_vu = (10, 10)
     ext_bp = object()
@@ -50,7 +49,6 @@ def test_rings_selection_honors_config_override(tmp_path: Path) -> None:
 class _FakeSaturnObs:
     """Observation stand-in with an inventory for body-model selection."""
 
-    is_simulated = False
     closest_planet = 'saturn'
 
     def inventory(self, body_list: list[str], return_type: str = 'full') -> dict[str, Any]:

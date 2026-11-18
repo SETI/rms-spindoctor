@@ -1,10 +1,9 @@
 """Model selection for simulated observations.
 
 A simulated obs must build the sim-params-driven NavModels (not the SPICE-backed
-ones), and the real models must opt out of a simulated obs.  Titan is the one
-body routed away from the generic body model on both sides: its haze hides the
-surface an ellipsoid prediction assumes, so it belongs to the haze model alone
-and the two must never both claim it.
+ones).  Titan is the one body routed away from the generic body model on both
+sides: its haze hides the surface an ellipsoid prediction assumes, so it belongs
+to the haze model alone and the two must never both claim it.
 """
 
 from typing import Any, cast
@@ -12,8 +11,6 @@ from typing import Any, cast
 import pytest
 
 from spindoctor.nav_model import NavModel, build_models_for_obs
-from spindoctor.nav_model.nav_model_body import NavModelBody
-from spindoctor.nav_model.nav_model_titan import NavModelTitan
 from spindoctor.nav_model.simulated.body import NavModelBodySimulated
 from spindoctor.nav_model.simulated.titan import (
     REQUIRED_SIM_PARAMS,
@@ -90,20 +87,9 @@ def test_sim_obs_builds_one_model_per_body() -> None:
     assert len(body_models) == 2
 
 
-def test_sim_obs_skips_spice_body_model() -> None:
-    """The SPICE-backed body model is not built for a simulated obs."""
-    models = build_models_for_obs(_sim_obs([_body('RHEA', 48.0)]))
-    assert not any(isinstance(m, NavModelBody) for m in models)
-
-
 def test_simulated_model_empty_for_real_obs() -> None:
     """NavModelBodySimulated builds nothing for a non-simulated obs."""
     assert NavModelBodySimulated.instances_for_obs(_fake_obs(is_simulated=False)) == []
-
-
-def test_spice_model_empty_for_simulated_obs() -> None:
-    """NavModelBody builds nothing for a simulated obs."""
-    assert NavModelBody.instances_for_obs(_fake_obs(is_simulated=True)) == []
 
 
 def test_sim_titan_builds_the_haze_model() -> None:
@@ -188,11 +174,6 @@ def test_required_sim_param_is_load_bearing(key: str) -> None:
 def test_titan_sim_model_empty_for_real_obs() -> None:
     """NavModelTitanSimulated builds nothing for a non-simulated obs."""
     assert NavModelTitanSimulated.instances_for_obs(_fake_obs(is_simulated=False)) == []
-
-
-def test_spice_titan_model_empty_for_simulated_obs() -> None:
-    """NavModelTitan builds nothing for a simulated obs."""
-    assert NavModelTitan.instances_for_obs(_fake_obs(is_simulated=True)) == []
 
 
 def test_registry_lists_each_real_model_before_its_simulated_sibling() -> None:

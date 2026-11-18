@@ -169,6 +169,8 @@ def test_it_is_one_line_per_image(tmp_path: Path) -> None:
 class _FakeSnapshot:
     """Minimal stand-in for an observation the driver can navigate."""
 
+    model_source = 'spice'
+
     def __init__(self) -> None:
         """Build a snapshot with a plain noise field."""
         rng = np.random.default_rng(seed=99)
