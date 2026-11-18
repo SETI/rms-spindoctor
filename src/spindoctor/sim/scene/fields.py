@@ -181,11 +181,21 @@ def scene_binning(params: Mapping[str, Any]) -> int:
         params: The full scene mapping.
 
     Returns:
-        The stated ``detector.binning``, or 1 when the scene leaves it out.
+        The stated ``detector.binning``, or 1 when the scene leaves the block or the
+        key out or sets either to null.
+
+    Raises:
+        ValueError: If ``detector.binning`` is set to anything but an integer (a bool
+            counts as neither).  Validation refuses such a scene first; the check
+            keeps a scene that skips validation from truncating a fraction to a mode.
     """
     detector = params.get('detector') or {}
     binning = detector.get('binning') if isinstance(detector, Mapping) else None
-    return 1 if binning is None else int(binning)
+    if binning is None:
+        return 1
+    if isinstance(binning, bool) or not isinstance(binning, int):
+        raise ValueError(f'detector.binning must be an integer, got {binning!r}')
+    return binning
 
 
 # What each ring-plane length and angle key the sim editor's tooltips describe

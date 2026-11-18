@@ -40,7 +40,6 @@ class NoiseMixin(SimEditorBase):
         # The controls that change nothing on some detector paths (see the module
         # docstring) are tracked as #804.
         self._poisson_check = QCheckBox()
-        self._poisson_check.setChecked(bool(self._noise_value('poisson', True)))
         self._poisson_check.setToolTip('Signal-dependent Poisson shot noise (usually on).')
         self._poisson_check.toggled.connect(self._on_poisson)
         gen_layout.addRow('Poisson shot noise:', self._poisson_check)
@@ -48,7 +47,6 @@ class NoiseMixin(SimEditorBase):
         self._read_noise_spin = QDoubleSpinBox()
         self._read_noise_spin.setRange(0.0, 50.0)
         self._read_noise_spin.setDecimals(2)
-        self._read_noise_spin.setValue(float(self._noise_value('read_noise_dn', 4.0)))
         self._read_noise_spin.setToolTip('Gaussian read-noise floor in DN.')
         self._read_noise_spin.valueChanged.connect(self._on_read_noise)
         gen_layout.addRow('Read noise (DN):', self._read_noise_spin)
@@ -57,9 +55,6 @@ class NoiseMixin(SimEditorBase):
         self._cosmic_ray_spin.setRange(0.0, 0.01)
         self._cosmic_ray_spin.setDecimals(5)
         self._cosmic_ray_spin.setSingleStep(0.0001)
-        self._cosmic_ray_spin.setValue(
-            float(self._noise_value('cosmic_ray_events_per_pixel_per_sec', 0.0))
-        )
         self._cosmic_ray_spin.setToolTip(_COSMIC_RAY_TOOLTIP)
         self._cosmic_ray_spin.valueChanged.connect(self._on_cosmic_ray)
         gen_layout.addRow('Cosmic rays (/px/s):', self._cosmic_ray_spin)
@@ -68,7 +63,6 @@ class NoiseMixin(SimEditorBase):
         self._missing_data_spin.setRange(0.0, 0.3)
         self._missing_data_spin.setDecimals(3)
         self._missing_data_spin.setSingleStep(0.005)
-        self._missing_data_spin.setValue(float(self._noise_value('missing_data_rate', 0.0)))
         self._missing_data_spin.setToolTip(_MISSING_DATA_TOOLTIP)
         self._missing_data_spin.valueChanged.connect(self._on_missing_data)
         gen_layout.addRow('Missing data rate:', self._missing_data_spin)
@@ -76,14 +70,12 @@ class NoiseMixin(SimEditorBase):
         self._bias_spin = QDoubleSpinBox()
         self._bias_spin.setRange(0.0, 10000.0)
         self._bias_spin.setDecimals(2)
-        self._bias_spin.setValue(float(self._noise_value('bias_dn', 20.0)))
         self._bias_spin.setToolTip('Additive bias pedestal in DN (lifts dark sky off zero).')
         self._bias_spin.valueChanged.connect(self._on_bias)
         gen_layout.addRow('Bias (DN):', self._bias_spin)
 
         self._bloom_spin = QSpinBox()
         self._bloom_spin.setRange(0, 200)
-        self._bloom_spin.setValue(int(self._noise_value('bloom_length', 0)))
         self._bloom_spin.setToolTip('Saturation column-bloom half-length in pixels (0 = none).')
         self._bloom_spin.valueChanged.connect(self._on_bloom)
         gen_layout.addRow('Bloom length (px):', self._bloom_spin)
@@ -92,12 +84,38 @@ class NoiseMixin(SimEditorBase):
         self._signal_frac_spin.setRange(0.001, 1.0)
         self._signal_frac_spin.setDecimals(3)
         self._signal_frac_spin.setSingleStep(0.05)
-        self._signal_frac_spin.setValue(float(self._noise_value('signal_full_scale_frac', 0.5)))
         self._signal_frac_spin.setToolTip(
             'Signal of 1.0 maps to this fraction of the camera full well.'
         )
         self._signal_frac_spin.valueChanged.connect(self._on_signal_frac)
         gen_layout.addRow('Signal full-scale frac:', self._signal_frac_spin)
+        self._sync_noise_from_params()
+
+    def _sync_noise_from_params(self) -> None:
+        """Set every detector-noise control from the scene's ``noise`` block.
+
+        A key the block leaves out or sets to null shows the control's default.  The
+        controls' signals are blocked, so syncing writes nothing back to the scene.
+        """
+        values: tuple[tuple[QCheckBox | QDoubleSpinBox | QSpinBox, Any], ...] = (
+            (self._poisson_check, bool(self._noise_value('poisson', True))),
+            (self._read_noise_spin, float(self._noise_value('read_noise_dn', 4.0))),
+            (
+                self._cosmic_ray_spin,
+                float(self._noise_value('cosmic_ray_events_per_pixel_per_sec', 0.0)),
+            ),
+            (self._missing_data_spin, float(self._noise_value('missing_data_rate', 0.0))),
+            (self._bias_spin, float(self._noise_value('bias_dn', 20.0))),
+            (self._bloom_spin, int(self._noise_value('bloom_length', 0))),
+            (self._signal_frac_spin, float(self._noise_value('signal_full_scale_frac', 0.5))),
+        )
+        for widget, value in values:
+            widget.blockSignals(True)
+            if isinstance(widget, QCheckBox):
+                widget.setChecked(value)
+            else:
+                widget.setValue(value)
+            widget.blockSignals(False)
 
     def _noise_value(self, key: str, default: Any) -> Any:
         """Read a value from the sim_params noise block, or a default.

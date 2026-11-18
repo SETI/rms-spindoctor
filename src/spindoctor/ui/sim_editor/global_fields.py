@@ -15,6 +15,10 @@ from spindoctor.sim.instruments.catalog import (
 )
 from spindoctor.ui.sim_editor.base import SimEditorBase
 
+# The seed a scene starts with when the editor supplies it: a new scene, or a loaded
+# dict that leaves the key out.
+NEW_SCENE_RANDOM_SEED = 42
+
 
 class GlobalFieldsMixin(SimEditorBase):
     """Builds and handles the General tab's global scene fields."""

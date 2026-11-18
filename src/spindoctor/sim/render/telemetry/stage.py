@@ -104,7 +104,7 @@ def apply_telemetry(
     )
     marker_dn = missing_data_marker(inst_config)
     dn_ceiling = _saturation_value(inst_config)
-    random_seed = int(params.get('random_seed', 42))
+    random_seed = int(params['random_seed'])
     adversarial = bool(artifacts.get('adversarial', False))
     loci = extract_feature_loci(frame.truth, frame.signal.shape) if adversarial else _EMPTY_LOCI
 

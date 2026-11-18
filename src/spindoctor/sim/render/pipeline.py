@@ -46,7 +46,7 @@ def run_pipeline(frame: SimFrame, params: Mapping[str, Any]) -> None:
         params: The full scene ``sim_params`` mapping (already stripped of
             the planted offset when rendering a GUI preview).
     """
-    random_seed = int(params.get('random_seed', 42))
+    random_seed = int(params['random_seed'])
     for stage_name, stage in STAGES:
         rng = np.random.default_rng(derive_effect_seed(random_seed, stage_name))
         stage(frame, params=params, rng=rng)

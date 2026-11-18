@@ -37,8 +37,7 @@ from PyQt6.QtWidgets import (
 
 from spindoctor.sim.scene.fields import ring_key_description, scene_value
 from spindoctor.ui.sim_editor.base import SimEditorBase
-from spindoctor.ui.sim_editor.widgets import kept_or_shown
-from spindoctor.ui.sim_editor.widgets import make_dspin as _dspin
+from spindoctor.ui.sim_editor.widgets import as_map, kept_or_shown, make_dspin
 
 
 def _key_tooltip(block: str, key: str) -> str:
@@ -53,11 +52,6 @@ def _key_tooltip(block: str, key: str) -> str:
         :data:`~spindoctor.sim.scene.fields.RING_KEY_DESCRIPTIONS`.
     """
     return f'{key}: {ring_key_description(block, key)}.'
-
-
-def _as_map(value: Any) -> dict[str, Any]:
-    """Return ``value`` when it is a mapping, else an empty dict."""
-    return value if isinstance(value, dict) else {}
 
 
 @dataclass
@@ -146,7 +140,7 @@ class RingAdvancedMixin(SimEditorBase):
         outer.addWidget(add_btn)
         w.mode_rows = []  # type: ignore[attr-defined]
         w.mode_rows_layout = rows_layout  # type: ignore[attr-defined]
-        orbit = _as_map(p.get('orbit'))
+        orbit = as_map(p.get('orbit'))
         for mode in orbit.get('modes') or []:
             self._add_ring_mode_row(w, idx, mode)
         add_btn.clicked.connect(lambda _c=False, i=idx: self._on_ring_add_mode(i))
@@ -163,7 +157,7 @@ class RingAdvancedMixin(SimEditorBase):
         m_spin.setRange(2, 50)
         m_spin.setValue(int(scene_value(entry, 'm', 2)))
         m_spin.setToolTip('m: the mode number, an integer of at least 2.')
-        amp = _dspin(
+        amp = make_dspin(
             minimum=0.0,
             maximum=1000.0,
             decimals=2,
@@ -171,7 +165,7 @@ class RingAdvancedMixin(SimEditorBase):
             value=float(scene_value(entry, 'amp_px', 2.0)),
             tooltip=_key_tooltip(block, 'amp_px'),
         )
-        peri = _dspin(
+        peri = make_dspin(
             minimum=-360.0,
             maximum=360.0,
             decimals=1,
@@ -240,8 +234,8 @@ class RingAdvancedMixin(SimEditorBase):
 
     def _build_ring_edge_wave_group(self, w: QWidget, idx: int, p: dict[str, Any]) -> QGroupBox:
         """Build the edge-wave group (amp_px, wavelength_px, edge_wave_damping_deg, lam0_deg)."""
-        orbit = _as_map(p.get('orbit'))
-        wave = _as_map(orbit.get('edge_wave'))
+        orbit = as_map(p.get('orbit'))
+        wave = as_map(orbit.get('edge_wave'))
         block = 'ring_system.features.orbit.edge_wave'
         group = QGroupBox('Satellite edge wave')
         group.setCheckable(True)
@@ -250,7 +244,7 @@ class RingAdvancedMixin(SimEditorBase):
             'perturbing moon at lam0_deg. Unchecked leaves the key absent.'
         )
         form = QFormLayout(group)
-        amp = _dspin(
+        amp = make_dspin(
             minimum=0.0,
             maximum=1000.0,
             decimals=2,
@@ -258,7 +252,7 @@ class RingAdvancedMixin(SimEditorBase):
             value=float(scene_value(wave, 'amp_px', 1.0)),
             tooltip=_key_tooltip(block, 'amp_px'),
         )
-        wavelength = _dspin(
+        wavelength = make_dspin(
             minimum=0.1,
             maximum=10000.0,
             decimals=1,
@@ -268,7 +262,7 @@ class RingAdvancedMixin(SimEditorBase):
         )
         # Qt rounds the maximum to the spin's two decimals (114.59), just
         # inside the validator's 360/pi cap.
-        damp = _dspin(
+        damp = make_dspin(
             minimum=0.5,
             maximum=360.0 / math.pi,
             decimals=2,
@@ -279,7 +273,7 @@ class RingAdvancedMixin(SimEditorBase):
                 '360/pi, about 114.59 degrees, to keep the modular wrap seam small.'
             ),
         )
-        lam0 = _dspin(
+        lam0 = make_dspin(
             minimum=-360.0,
             maximum=360.0,
             decimals=1,
@@ -343,7 +337,7 @@ class RingAdvancedMixin(SimEditorBase):
         feature = self._ring_feature(idx)
         if feature is None:
             return
-        wave = _as_map(feature.get('orbit')).get('edge_wave')
+        wave = as_map(feature.get('orbit')).get('edge_wave')
         if isinstance(wave, dict):
             wave[key] = float(value)
             self._updater.request_update()
@@ -352,7 +346,7 @@ class RingAdvancedMixin(SimEditorBase):
 
     def _build_ring_orbit_error_group(self, w: QWidget, idx: int, p: dict[str, Any]) -> QGroupBox:
         """Build the planted orbit-error group (truth-side radial model error)."""
-        error = _as_map(p.get('orbit_error'))
+        error = as_map(p.get('orbit_error'))
         group = QGroupBox('Planted orbit error (truth)')
         group.setCheckable(True)
         group.setToolTip(
@@ -361,7 +355,7 @@ class RingAdvancedMixin(SimEditorBase):
             'Unchecked leaves the key absent.'
         )
         form = QFormLayout(group)
-        delta_a = _dspin(
+        delta_a = make_dspin(
             minimum=-1000.0,
             maximum=1000.0,
             decimals=2,
@@ -369,7 +363,7 @@ class RingAdvancedMixin(SimEditorBase):
             value=float(scene_value(error, 'delta_a_px', 0.0)),
             tooltip='Semimajor-axis error in px (positive renders outward).',
         )
-        delta_ae = _dspin(
+        delta_ae = make_dspin(
             minimum=-1000.0,
             maximum=1000.0,
             decimals=2,
@@ -377,7 +371,7 @@ class RingAdvancedMixin(SimEditorBase):
             value=float(scene_value(error, 'delta_ae_px', 0.0)),
             tooltip='Radial-eccentricity-amplitude error in px.',
         )
-        delta_peri = _dspin(
+        delta_peri = make_dspin(
             minimum=-360.0,
             maximum=360.0,
             decimals=1,
@@ -435,7 +429,7 @@ class RingAdvancedMixin(SimEditorBase):
 
     def _build_ring_sigma_group(self, w: QWidget, idx: int, p: dict[str, Any]) -> QGroupBox:
         """Build the declared orbit-uncertainty group (idealized error bars)."""
-        sigma = _as_map(p.get('declared_orbit_sigma'))
+        sigma = as_map(p.get('declared_orbit_sigma'))
         group = QGroupBox('Declared orbit sigma')
         group.setCheckable(True)
         group.setToolTip(
@@ -444,7 +438,7 @@ class RingAdvancedMixin(SimEditorBase):
             'absent.'
         )
         form = QFormLayout(group)
-        sigma_a = _dspin(
+        sigma_a = make_dspin(
             minimum=0.0,
             maximum=1000.0,
             decimals=2,
@@ -452,7 +446,7 @@ class RingAdvancedMixin(SimEditorBase):
             value=float(scene_value(sigma, 'sigma_a_px', 0.0)),
             tooltip='One-sigma semimajor-axis uncertainty in px.',
         )
-        sigma_ae = _dspin(
+        sigma_ae = make_dspin(
             minimum=0.0,
             maximum=1000.0,
             decimals=2,
@@ -460,7 +454,7 @@ class RingAdvancedMixin(SimEditorBase):
             value=float(scene_value(sigma, 'sigma_ae_px', 0.0)),
             tooltip='One-sigma radial-eccentricity-amplitude uncertainty in px.',
         )
-        sigma_peri = _dspin(
+        sigma_peri = make_dspin(
             minimum=0.0,
             maximum=360.0,
             decimals=1,
@@ -522,7 +516,7 @@ class RingAdvancedMixin(SimEditorBase):
         disabling it removes the sub-map and prunes an emptied block.
         """
         ring_system = self._ring_system_map() or {}
-        azimuthal = _as_map(ring_system.get('azimuthal'))
+        azimuthal = as_map(ring_system.get('azimuthal'))
         group = QGroupBox('Azimuthal structure (truth)')
         group.setToolTip(
             'Non-navigable intensity structure crossing the features '
@@ -531,11 +525,11 @@ class RingAdvancedMixin(SimEditorBase):
         )
         outer = QVBoxLayout(group)
 
-        modulation = _as_map(azimuthal.get('modulation'))
+        modulation = as_map(azimuthal.get('modulation'))
         mod_group = QGroupBox('Brightness modulation')
         mod_group.setCheckable(True)
         mod_form = QFormLayout(mod_group)
-        mod_amplitude = _dspin(
+        mod_amplitude = make_dspin(
             minimum=0.0,
             maximum=10.0,
             decimals=3,
@@ -547,7 +541,7 @@ class RingAdvancedMixin(SimEditorBase):
         mod_m.setRange(1, 50)
         mod_m.setValue(int(scene_value(modulation, 'm', 1)))
         mod_m.setToolTip('Azimuthal wavenumber, an integer of at least 1 (1 = one bright arc).')
-        mod_phase = _dspin(
+        mod_phase = make_dspin(
             minimum=-360.0,
             maximum=360.0,
             decimals=1,
@@ -563,11 +557,11 @@ class RingAdvancedMixin(SimEditorBase):
         mod_group.setChecked(bool(azimuthal.get('modulation')))
         outer.addWidget(mod_group)
 
-        shadow = _as_map(azimuthal.get('shadow'))
+        shadow = as_map(azimuthal.get('shadow'))
         shadow_group = QGroupBox('Planet-shadow wedge')
         shadow_group.setCheckable(True)
         shadow_form = QFormLayout(shadow_group)
-        shadow_start = _dspin(
+        shadow_start = make_dspin(
             minimum=-360.0,
             maximum=360.0,
             decimals=1,
@@ -575,7 +569,7 @@ class RingAdvancedMixin(SimEditorBase):
             value=float(scene_value(shadow, 'start_deg', 0.0)),
             tooltip='Leading edge of the shadow wedge, in ring-plane degrees.',
         )
-        shadow_extent = _dspin(
+        shadow_extent = make_dspin(
             minimum=0.1,
             maximum=360.0,
             decimals=1,
@@ -583,7 +577,7 @@ class RingAdvancedMixin(SimEditorBase):
             value=float(scene_value(shadow, 'extent_deg', 30.0)),
             tooltip='Angular extent of the wedge in degrees.',
         )
-        shadow_darkness = _dspin(
+        shadow_darkness = make_dspin(
             minimum=0.0,
             maximum=1.0,
             decimals=3,
@@ -597,7 +591,7 @@ class RingAdvancedMixin(SimEditorBase):
         shadow_group.setChecked(bool(azimuthal.get('shadow')))
         outer.addWidget(shadow_group)
 
-        spokes = _as_map(azimuthal.get('spokes'))
+        spokes = as_map(azimuthal.get('spokes'))
         spokes_group = QGroupBox('Spokes')
         spokes_group.setCheckable(True)
         spokes_form = QFormLayout(spokes_group)
@@ -605,7 +599,7 @@ class RingAdvancedMixin(SimEditorBase):
         spokes_count.setRange(1, 100)
         spokes_count.setValue(int(scene_value(spokes, 'count', 5)))
         spokes_count.setToolTip('Number of seeded spoke wedges.')
-        spokes_r_inner = _dspin(
+        spokes_r_inner = make_dspin(
             minimum=0.1,
             maximum=100000.0,
             decimals=1,
@@ -616,7 +610,7 @@ class RingAdvancedMixin(SimEditorBase):
                 'It must be below r_outer_px.'
             ),
         )
-        spokes_r_outer = _dspin(
+        spokes_r_outer = make_dspin(
             minimum=0.1,
             maximum=100000.0,
             decimals=1,
@@ -627,7 +621,7 @@ class RingAdvancedMixin(SimEditorBase):
                 'It must exceed r_inner_px.'
             ),
         )
-        spokes_width = _dspin(
+        spokes_width = make_dspin(
             minimum=0.1,
             maximum=360.0,
             decimals=1,
@@ -635,7 +629,7 @@ class RingAdvancedMixin(SimEditorBase):
             value=float(scene_value(spokes, 'width_deg', 10.0)),
             tooltip='Azimuthal full width of each spoke in degrees.',
         )
-        spokes_contrast = _dspin(
+        spokes_contrast = make_dspin(
             minimum=-5.0,
             maximum=5.0,
             decimals=3,
@@ -781,7 +775,7 @@ class RingAdvancedMixin(SimEditorBase):
         ring_system = self._ring_system_map()
         if ring_system is None:
             return
-        block = _as_map(ring_system.get('azimuthal')).get(sub)
+        block = as_map(ring_system.get('azimuthal')).get(sub)
         if isinstance(block, dict):
             block[key] = value
             self._updater.request_update()
@@ -816,12 +810,12 @@ class RingAdvancedMixin(SimEditorBase):
     def _add_ring_moonlet_row(self, w: QWidget, entry: dict[str, Any]) -> None:
         """Append one moonlet row with its optional propeller sub-group."""
         propeller_present = isinstance(entry.get('propeller'), dict)
-        propeller = _as_map(entry.get('propeller'))
+        propeller = as_map(entry.get('propeller'))
         container = QGroupBox('Moonlet')
         vbox = QVBoxLayout(container)
         form = QFormLayout()
         vbox.addLayout(form)
-        a_spin = _dspin(
+        a_spin = make_dspin(
             minimum=0.1,
             maximum=100000.0,
             decimals=1,
@@ -829,7 +823,7 @@ class RingAdvancedMixin(SimEditorBase):
             value=float(scene_value(entry, 'a_px', 60.0)),
             tooltip=_key_tooltip('ring_system.moonlets', 'a_px'),
         )
-        lam_spin = _dspin(
+        lam_spin = make_dspin(
             minimum=-360.0,
             maximum=360.0,
             decimals=1,
@@ -837,7 +831,7 @@ class RingAdvancedMixin(SimEditorBase):
             value=float(scene_value(entry, 'lam_deg', 0.0)),
             tooltip='Ring-plane longitude in degrees from the ascending node.',
         )
-        radius_spin = _dspin(
+        radius_spin = make_dspin(
             minimum=0.1,
             maximum=1000.0,
             decimals=2,
@@ -848,7 +842,7 @@ class RingAdvancedMixin(SimEditorBase):
                 "sky, so it isn't foreshortened)."
             ),
         )
-        amplitude_spin = _dspin(
+        amplitude_spin = make_dspin(
             minimum=0.0,
             maximum=10.0,
             decimals=3,
@@ -864,7 +858,7 @@ class RingAdvancedMixin(SimEditorBase):
         propeller_group = QGroupBox('Propeller')
         propeller_group.setCheckable(True)
         propeller_form = QFormLayout(propeller_group)
-        prop_length = _dspin(
+        prop_length = make_dspin(
             minimum=0.1,
             maximum=360.0,
             decimals=1,
@@ -872,7 +866,7 @@ class RingAdvancedMixin(SimEditorBase):
             value=float(scene_value(propeller, 'length_deg', 20.0)),
             tooltip='Azimuthal length of each tau lobe in degrees.',
         )
-        prop_width = _dspin(
+        prop_width = make_dspin(
             minimum=0.1,
             maximum=1000.0,
             decimals=2,
@@ -880,7 +874,7 @@ class RingAdvancedMixin(SimEditorBase):
             value=float(scene_value(propeller, 'width_px', 2.0)),
             tooltip='Radial width of each tau lobe in px.',
         )
-        prop_contrast = _dspin(
+        prop_contrast = make_dspin(
             minimum=-5.0,
             maximum=5.0,
             decimals=3,

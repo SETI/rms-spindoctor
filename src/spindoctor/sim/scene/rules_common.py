@@ -28,9 +28,9 @@ from spindoctor.sim.instruments.resolvers import (
     cataloged_binnings,
     downlink_table_names,
     instrument_default_modes,
+    resolve_detector_catalog,
     resolve_detector_defaults,
     resolve_filter_throughput,
-    resolve_readout_mode,
 )
 from spindoctor.sim.scene.errors import SimSceneValidationError
 from spindoctor.support.status_reason import NavStatusReason
@@ -508,11 +508,8 @@ def _check_downlink_table_used(
         return
     quantization = detector.get('quantization')
     if quantization is None:
-        catalog = resolve_detector_defaults(instrument)
         binning = detector.get('binning')
-        if binning is None:
-            binning = 1
-        catalog.update(resolve_readout_mode(instrument, binning))
+        catalog = resolve_detector_catalog(instrument, 1 if binning is None else binning)
         quantization = catalog.get('quantization', 'exact')
     if quantization == 'sqrt_lut':
         return

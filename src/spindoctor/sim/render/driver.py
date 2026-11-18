@@ -37,14 +37,12 @@ import json
 from functools import lru_cache
 from typing import Any
 
+from spindoctor.sim.instruments.navigator_link import PLANTED_POINTING_KEYS
+from spindoctor.sim.render.optics.stage import instrument_defaults_on
 from spindoctor.sim.render.pipeline import run_pipeline
 from spindoctor.sim.render.stages import new_sim_frame
 from spindoctor.sim.scene.validate import clear_validation_cache, validate_scene
 from spindoctor.support.types import NDArrayFloatType
-
-# The planted pointing keys an offset-free render zeroes, and so leaves out of
-# its cache key: previews differing only in planted pointing share one render.
-_PLANTED_POINTING_KEYS: tuple[str, ...] = ('offset_v', 'offset_u', 'offset_rotation_deg')
 
 
 def clear_render_caches() -> None:
@@ -86,7 +84,7 @@ def _render_combined_model_cached(
     sim_params = json.loads(sim_params_json)
     if ignore_offset:
         # The editor's display: render the unshifted, unrolled geometry.
-        for key in _PLANTED_POINTING_KEYS:
+        for key in PLANTED_POINTING_KEYS:
             sim_params[key] = 0.0
     size_v = int(sim_params['size_v'])
     size_u = int(sim_params['size_u'])
@@ -124,11 +122,7 @@ def resolve_oversample(sim_params: dict[str, Any]) -> int:
         return max(1, int(explicit))
     optics = sim_params.get('optics')
     psf_active = isinstance(optics, dict) and isinstance(optics.get('psf'), dict)
-    artifacts = sim_params.get('artifacts')
-    instrument_defaults = isinstance(artifacts, dict) and bool(
-        artifacts.get('instrument_defaults', False)
-    )
-    return 4 if (psf_active or instrument_defaults) else 1
+    return 4 if (psf_active or instrument_defaults_on(sim_params)) else 1
 
 
 def render_combined_model(
@@ -201,7 +195,7 @@ def _render(
         # The cached function zeroes the planted offset and roll, so all three
         # keys stay out of the cache key.
         render_key = json.dumps(
-            {k: v for k, v in sim_params.items() if k not in _PLANTED_POINTING_KEYS},
+            {k: v for k, v in sim_params.items() if k not in PLANTED_POINTING_KEYS},
             sort_keys=True,
         )
     cached_img, cached_meta = _render_combined_model_cached(

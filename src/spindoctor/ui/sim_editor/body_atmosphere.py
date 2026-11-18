@@ -21,8 +21,7 @@ from PyQt6.QtWidgets import QCheckBox, QFormLayout, QGroupBox, QWidget
 from spindoctor.sim.render.bodies.atmosphere import DEFAULT_HAZE_ALBEDO
 from spindoctor.sim.scene.fields import scene_value
 from spindoctor.ui.sim_editor.base import SimEditorBase
-from spindoctor.ui.sim_editor.widgets import kept_or_shown
-from spindoctor.ui.sim_editor.widgets import make_dspin as _dspin
+from spindoctor.ui.sim_editor.widgets import as_map, kept_or_shown, make_dspin
 
 _NULL_SHOWS: dict[str, float] = {
     'ref_altitude_px': 0.0,
@@ -36,11 +35,6 @@ _DETACHED_ENABLE_PX = 8.0
 
 If the scene leaves out ``detached_px``, the renderer does not draw a shell, so the
 key has no renderer default.  Turning the shell on writes this value."""
-
-
-def _as_map(value: Any) -> dict[str, Any]:
-    """Return ``value`` when it is a mapping, else an empty dict."""
-    return value if isinstance(value, dict) else {}
 
 
 def _shown(atmosphere: dict[str, Any], key: str) -> float:
@@ -57,8 +51,8 @@ class BodyAtmosphereMixin(SimEditorBase):
         group = QGroupBox('Atmosphere (haze)')
         group.setCheckable(True)
         form = QFormLayout(group)
-        atmosphere = _as_map(p.get('atmosphere'))
-        scale_height = _dspin(
+        atmosphere = as_map(p.get('atmosphere'))
+        scale_height = make_dspin(
             minimum=0.1,
             maximum=200.0,
             decimals=2,
@@ -66,7 +60,7 @@ class BodyAtmosphereMixin(SimEditorBase):
             value=float(atmosphere.get('scale_height_px', 8.0)),
             tooltip='Haze e-folding scale height in pixels.',
         )
-        tau_ref = _dspin(
+        tau_ref = make_dspin(
             minimum=0.01,
             maximum=50.0,
             decimals=3,
@@ -74,7 +68,7 @@ class BodyAtmosphereMixin(SimEditorBase):
             value=float(atmosphere.get('tau_ref', 1.0)),
             tooltip='Tangent optical depth at the reference altitude.',
         )
-        ref_altitude = _dspin(
+        ref_altitude = make_dspin(
             minimum=0.0,
             maximum=200.0,
             decimals=2,
@@ -82,7 +76,7 @@ class BodyAtmosphereMixin(SimEditorBase):
             value=_shown(atmosphere, 'ref_altitude_px'),
             tooltip='Altitude where the tangent optical depth equals tau_ref, in pixels.',
         )
-        asymmetry = _dspin(
+        asymmetry = make_dspin(
             minimum=-0.99,
             maximum=0.99,
             decimals=3,
@@ -90,7 +84,7 @@ class BodyAtmosphereMixin(SimEditorBase):
             value=_shown(atmosphere, 'g'),
             tooltip='Henyey-Greenstein asymmetry (positive is forward-scattering).',
         )
-        albedo = _dspin(
+        albedo = make_dspin(
             minimum=0.0,
             maximum=1.0,
             decimals=3,
@@ -99,7 +93,7 @@ class BodyAtmosphereMixin(SimEditorBase):
             tooltip='Haze brightness scale (0 adds no light; the halo still dims what is behind).',
         )
         shell_check = QCheckBox('Detached shell')
-        detached = _dspin(
+        detached = make_dspin(
             minimum=0.1,
             maximum=200.0,
             decimals=2,

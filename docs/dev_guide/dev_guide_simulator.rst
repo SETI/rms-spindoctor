@@ -128,7 +128,8 @@ relative to ``sim/render/``):
        counts those records (see :ref:`sim-artifact-truth`).
    * - ``telemetry/artifacts.py``
      - Telemetry-stage artifacts beyond packet loss: lossy DCT compression
-       blockiness and the Voyager GEOMED archive-processing scars.
+       blockiness and the scars of a ground pipeline's geometric correction
+       (reseau-removal patches on a lattice and the resample texture).
    * - ``feature_loci.py``
      - Navigation-feature loci (body / ring rows, limb and star pixels)
        extracted from the frame truth for adversarial artifact placement.

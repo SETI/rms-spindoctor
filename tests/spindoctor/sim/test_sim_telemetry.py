@@ -417,7 +417,9 @@ def test_pixel_spikes_flip_pixels_without_zeroing() -> None:
 
 def _vgiss_calibration() -> CalibrationMap:
     """The DN-to-I/F map of a vgiss frame, which renders calibrated I/F."""
-    calibration = calibration_map(resolve_detector_params({'instrument': 'vgiss'}))
+    calibration = calibration_map(
+        resolve_detector_params({'instrument': 'vgiss', 'random_seed': 42})
+    )
     assert calibration is not None
     return calibration
 

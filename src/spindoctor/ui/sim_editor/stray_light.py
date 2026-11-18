@@ -17,6 +17,7 @@ from PyQt6.QtWidgets import QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout
 
 from spindoctor.sim.scene.fields import scene_value
 from spindoctor.ui.sim_editor.base import SimEditorBase
+from spindoctor.ui.sim_editor.widgets import frame_center_px
 
 
 class StrayLightMixin(SimEditorBase):
@@ -70,7 +71,7 @@ class StrayLightMixin(SimEditorBase):
             'uses the frame center).'
         )
         gen_layout.addRow(self._stray_center_check)
-        default_center_v, default_center_u = self._stray_center_defaults()
+        default_center_v, default_center_u = frame_center_px(self.sim_params)
 
         self._stray_center_v_spin = QDoubleSpinBox()
         self._stray_center_v_spin.setRange(-10000.0, 20000.0)
@@ -103,13 +104,6 @@ class StrayLightMixin(SimEditorBase):
         if not isinstance(stray, dict):
             return False
         return stray.get('center_v') is not None or stray.get('center_u') is not None
-
-    def _stray_center_defaults(self) -> tuple[float, float]:
-        """The effective bump-center default: the frame center, in pixel corner."""
-        return (
-            float(self.sim_params.get('size_v', 512)) / 2.0,
-            float(self.sim_params.get('size_u', 512)) / 2.0,
-        )
 
     def _stray_value(self, key: str, default: Any) -> Any:
         """Read a value from the optics.stray_light block, or a default.
@@ -173,7 +167,7 @@ class StrayLightMixin(SimEditorBase):
         # The keys are now absent, so show the effective default.  The spins are
         # disabled and their handler checks the enable, so this never writes the
         # keys back.
-        default_center_v, default_center_u = self._stray_center_defaults()
+        default_center_v, default_center_u = frame_center_px(self.sim_params)
         self._stray_center_v_spin.setValue(default_center_v)
         self._stray_center_u_spin.setValue(default_center_u)
 

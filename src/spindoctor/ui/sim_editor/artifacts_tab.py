@@ -45,10 +45,10 @@ from spindoctor.sim.artifact_modes import ARTIFACT_MODES, DETECTOR_MODELS, QUANT
 from spindoctor.sim.instruments.resolvers import (
     cataloged_binnings,
     downlink_table_names,
-    resolve_detector_defaults,
+    resolve_detector_catalog,
     resolve_detector_model,
-    resolve_readout_mode,
 )
+from spindoctor.sim.render.optics.stage import instrument_defaults_on
 from spindoctor.ui.sim_editor.artifact_mode_rows import ModeRow
 from spindoctor.ui.sim_editor.base import SimEditorBase
 
@@ -95,7 +95,7 @@ class ArtifactsTabMixin(SimEditorBase):
             'values (PSF, distortion residual, shot noise, dark / hot / bloom '
             '/ banding / bias noise).'
         )
-        self._instrument_defaults_check.setChecked(self._instrument_defaults_on())
+        self._instrument_defaults_check.setChecked(instrument_defaults_on(self.sim_params))
         form.addRow('Instrument defaults:', self._instrument_defaults_check)
         self._instrument_defaults_check.toggled.connect(self._on_instrument_defaults)
 
@@ -108,11 +108,6 @@ class ArtifactsTabMixin(SimEditorBase):
         form.addRow('Adversarial placement:', self._adversarial_check)
         self._adversarial_check.toggled.connect(self._on_adversarial)
         return group
-
-    def _instrument_defaults_on(self) -> bool:
-        """Whether the scene opts into the instrument physical chain."""
-        artifacts = self.sim_params.get('artifacts')
-        return isinstance(artifacts, dict) and bool(artifacts.get('instrument_defaults', False))
 
     def _adversarial_on(self) -> bool:
         """Whether the scene requests adversarial artifact placement."""
@@ -242,11 +237,7 @@ class ArtifactsTabMixin(SimEditorBase):
         Parameters:
             binning: The scene's readout-mode binning.
         """
-        instrument = self.sim_params.get('instrument')
-        return {
-            **resolve_detector_defaults(instrument),
-            **resolve_readout_mode(instrument, binning),
-        }
+        return resolve_detector_catalog(self.sim_params.get('instrument'), binning)
 
     def _detector_block(self) -> dict[str, Any]:
         """The scene's detector keys that carry a value; a null reads as absent."""
@@ -523,7 +514,7 @@ class ArtifactsTabMixin(SimEditorBase):
         """Rebuild every Artifacts-tab widget from the current sim_params."""
         self._syncing = True
         try:
-            self._instrument_defaults_check.setChecked(self._instrument_defaults_on())
+            self._instrument_defaults_check.setChecked(instrument_defaults_on(self.sim_params))
             self._adversarial_check.setChecked(self._adversarial_on())
             self._set_detector_widget_values()
             self._detector_group.setChecked(isinstance(self.sim_params.get('detector'), dict))

@@ -54,6 +54,7 @@ __all__ = [
     'apply_partial_lines',
     'apply_pixel_spikes',
     'apply_truncated_frame',
+    'mode_activated',
 ]
 
 
@@ -64,8 +65,18 @@ def _poisson_count(rng: np.random.Generator, expected_events: float, cap: int) -
     return int(min(cap, rng.poisson(expected_events)))
 
 
-def _activated(rng: np.random.Generator, probability: float) -> bool:
-    """Whether a commanded / periodic mode activates this frame, with ``probability``."""
+def mode_activated(rng: np.random.Generator, probability: float) -> bool:
+    """Whether a commanded or periodic telemetry mode fires this frame.
+
+    Parameters:
+        rng: The mode's seeded generator; one draw is taken when ``probability`` is
+            positive.
+        probability: The mode's per-frame ``probability``.
+
+    Returns:
+        False when ``probability`` is 0 or less, otherwise whether the draw falls
+        below it.
+    """
     if probability <= 0.0:
         return False
     return bool(rng.random() < probability)
@@ -207,7 +218,7 @@ def apply_alternating_lines(
     phase = int(cfg['phase']) % period
     line_mode = str(cfg['mode'])
     size_v = signal.shape[0]
-    if not _activated(rng, probability):
+    if not mode_activated(rng, probability):
         return {'active': False, 'lines': []}
     if line_mode == 'keep':
         lines = [row for row in range(size_v) if (row - phase) % period != 0]
@@ -234,7 +245,7 @@ def apply_edited_frame(
     renders the band shape).  A commanded mode: activation is by ``probability``.
     """
     probability = float(cfg['probability'])
-    if not _activated(rng, probability):
+    if not mode_activated(rng, probability):
         return {'active': False}
     size_v, size_u = signal.shape
     if bool(cfg.get('half_frame')):
@@ -270,7 +281,7 @@ def apply_truncated_frame(
     default of 0.25 gives a bare probability the common quarter-frame truncation.
     """
     probability = float(cfg['probability'])
-    if not _activated(rng, probability):
+    if not mode_activated(rng, probability):
         return {'active': False}
     size_v = signal.shape[0]
     lines_param = cfg.get('lines')
@@ -514,7 +525,7 @@ def apply_embedded_header(
     fallback.  A commanded mode: activation is by ``probability``.
     """
     probability = float(cfg['probability'])
-    if not _activated(rng, probability):
+    if not mode_activated(rng, probability):
         return {'active': False}
     size_u = signal.shape[1]
     header_px = min(int(cfg['header_px']), size_u)
@@ -539,7 +550,7 @@ def apply_cutout_window(
     ``probability``.
     """
     probability = float(cfg['probability'])
-    if not _activated(rng, probability):
+    if not mode_activated(rng, probability):
         return {'active': False}
     size_v, size_u = signal.shape
     rect = cfg.get('rect')
