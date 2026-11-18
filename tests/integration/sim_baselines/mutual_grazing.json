@@ -1,8 +1,8 @@
 {
-  "confidence": 0.8386922494093758,
+  "confidence": 0.8386973197233047,
   "confidence_rank": "medium",
-  "offset_du_px": -1.7298192975879323,
-  "offset_dv_px": 2.3602233107813424,
+  "offset_du_px": -1.8012806374654626,
+  "offset_dv_px": 2.3387861890945154,
   "scene_name": "mutual_grazing",
   "status": "success"
 }

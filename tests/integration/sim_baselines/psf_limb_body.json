@@ -1,8 +1,8 @@
 {
   "confidence": 0.99,
   "confidence_rank": "medium",
-  "offset_du_px": -0.6032568470311387,
-  "offset_dv_px": 1.4953719876319989,
+  "offset_du_px": -0.6173117280273487,
+  "offset_dv_px": 1.4321251442402443,
   "scene_name": "psf_limb_body",
   "status": "success"
 }

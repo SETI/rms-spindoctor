@@ -18,21 +18,22 @@ exposure_sec: 1.0
 # navigator fits its smooth sharp Lambert template against the blurred
 # ragged limb and the relief's slope shading over a sloped background.
 # Measured behavior: all three body techniques survive the blur and the
-# sloped background, but the fused offset is (1.57, -1.5) against the
-# planted (2.37, -1.62), a miss of 0.81 px, nearly all in v.  The limb fit
+# sloped background, but the fused offset is (1.43, -2.01) against the
+# planted (2.37, -1.62), a miss of 1.02 px, mostly in v.  The limb fit
 # lands at (2.18, -1.71), about 0.2 px from the planted value.  The disc
-# correlation reports (1.57, -1.5).  Its sub-pixel refinement searches only
-# +-0.5 px around the integer NCC peak (#791), and its smooth template doesn't
-# carry the relief shading the frame does.  The
+# correlation reports (1.43, -2.01).  Its high-pass refinement does not
+# stop at a window edge; the high-pass surface's own maximum lies 1.0 px
+# from the planted offset, because the smooth template doesn't carry the
+# relief's ragged limb and slope shading the frame does (#791).  The
 # ensemble fuses the limb fit and the correlation as one witness and takes
 # the correlation's offset, so the scene pins a medium-confidence success
 # whose error is the correlation's.
 # Known error: over 16 noise seeds (the committed one and 101, 202, ...,
-# 1515) the fused error runs 0.655 to 3.252 px, because which window edge
-# the correlation stops at depends on the noise draw (#791).  Each end of the
-# band sits a margin of max(0.05 px, a fifth of the 2.597 px spread) outside,
-# giving [0.135, 3.772] px.  A worse miss fails, and so does a fix that brings
-# the error under 0.135 px.
+# 1515) the fused error runs 0.192 to 2.617 px, because where the relief
+# and the noise put the high-pass maximum depends on the noise draw (#791).
+# Each end of the band sits a margin of max(0.05 px, a fifth of the
+# 2.426 px spread) outside; the lower end would fall below zero, so it
+# stops at zero, giving [0.000, 3.103] px.  A worse miss fails.
 bodies:
   - name: RUGGED
     shape_model: ellipsoid
@@ -63,5 +64,5 @@ offset_rotation_deg: 0.0
 expected:
   status: success
   confidence_tier: medium
-  known_offset_error_px: 1.9535
-  known_offset_error_tol_px: 1.8185
+  known_offset_error_px: 1.5515
+  known_offset_error_tol_px: 1.5515

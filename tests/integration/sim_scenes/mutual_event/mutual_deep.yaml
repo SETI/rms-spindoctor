@@ -13,13 +13,17 @@ exposure_sec: 1.0
 # FAR's hidden arc from the predicted polyline -- its idealized view knows
 # NEAR's geometry and explicit nearer range_km -- so FAR's LIMB_ARC
 # reports visible_arc_fraction 0.41 (reliability 0.64) instead of
-# claiming 1.0, the joint limb fit runs on arcs that exist in the image,
-# and both techniques land within ~0.2 px, fusing to an accurate
-# medium-tier success.  FAR's residual terminator arc is occlusion-
+# claiming 1.0, and the joint limb fit runs on arcs that exist in the image
+# and lands within ~0.1 px.  FAR's residual terminator arc is occlusion-
 # reduced too (fraction 0.27) and stays below the 0.30 reliability gate.
-# No confident-wrong result and no double-counting conflict was observed
-# at any overlap depth; the expected block pins that measured outcome so
-# a regression toward hidden-arc lock-on fails loudly.
+# FAR is below the 40% visible lit fraction a disc template needs, so the
+# disc correlation's template holds NEAR alone, and FAR's bright crescent
+# against NEAR's dim limb pulls the correlation's high-pass refinement
+# about 0.6 px (#1050).  The fused answer takes the correlation's offset,
+# a medium-tier success 0.60 px off; over the committed seed and 101,
+# 202, ..., 1515 it runs 0.595 to 0.611 px, and the expected block holds
+# it to that range plus a 0.05 px margin on each side.  No double-
+# counting conflict was observed at any overlap depth.
 bodies:
   - name: FAR
     shape_model: ellipsoid
@@ -50,3 +54,5 @@ offset_rotation_deg: 0.0
 expected:
   status: success
   confidence_tier: medium
+  known_offset_error_px: 0.6035
+  known_offset_error_tol_px: 0.0585

@@ -16,13 +16,11 @@ step navigate nothing and run with the unit suite, in
 
 import copy
 import functools
-import itertools
 from pathlib import Path
 
 import numpy as np
 import pytest
 
-from spindoctor.sim.forward.atmosphere import DEFAULT_HAZE_ALBEDO
 from spindoctor.sim.render import render_combined_model
 from tests.integration.sim_sweep import (
     SweepRow,
@@ -137,15 +135,13 @@ def test_calibrated_exposure_sweep_fails_between_1_ms_and_0_3_ms() -> None:
         assert by_exposure[exposure].status == 'failed', exposure
 
 
-# The calibrated disc's steady sub-pixel error, and the bump it carries at offsets
-# of 0.31, 0.382, and 0.45 px.  The steady bound sits above the measured maximum
-# of 0.0062 px over 8 seeds x 23 steps, the raw twin's own level.  Each bump offset
-# has its own bound above its measured error, which is the same on every seed:
-# 0.190 and 0.118 px at 0.31 and 0.382 (16 seeds), 0.050 px at 0.45.  The bump is
-# the correlation's sub-pixel refinement window, which spans half a pixel either
-# side of the integer peak (#929).
+# The calibrated disc's steady sub-pixel error.  The bound sits above the measured
+# maximum of 0.0078 px over the 23 steps, one step of the 1/128 px refinement grid,
+# which the high-pass refinement shows at whole-pixel offsets.  The high-pass
+# refinement also removed the bump of 0.190, 0.118, and 0.050 px at 0.31, 0.382,
+# and 0.45 px, where the half-pixel window around the integer peak stopped at its
+# edge (#929, #791).
 _CALIB_DISC_STEADY_BIAS_PX = 0.008
-_CALIB_DISC_BUMP_BOUNDS_PX = {0.31: 0.25, 0.382: 0.25, 0.45: 0.06}
 
 
 def test_calibrated_disc_offset_sweep_recovers_every_offset() -> None:
@@ -159,11 +155,10 @@ def test_calibrated_disc_offset_sweep_recovers_every_offset() -> None:
 
 
 def test_calibrated_disc_offset_sweep_holds_its_bias() -> None:
-    """Outside the 0.31-0.45 px bump the error stays below a hundredth of a pixel."""
+    """At every offset the error stays below a hundredth of a pixel."""
     for row in _rows('disc_offset_fine_calib'):
         assert row.offset_error_px is not None
-        bound = _CALIB_DISC_BUMP_BOUNDS_PX.get(row.value, _CALIB_DISC_STEADY_BIAS_PX)
-        assert row.offset_error_px < bound, row.value
+        assert row.offset_error_px < _CALIB_DISC_STEADY_BIAS_PX, row.value
 
 
 def test_phase_sweep_navigates_every_phase() -> None:
@@ -397,12 +392,11 @@ def test_irregularity_population_veto_rate_at_extreme_mismatch() -> None:
     assert len(vetoed) >= _IRREGULARITY_MIN_VETOED
 
 
-@pytest.mark.xfail(
-    strict=True,
-    raises=AssertionError,
-    reason='#790: the shape-lock veto misses confident wrong solutions on irregular mesh '
-    'bodies; mesh seed 10 ends a 0.91-confidence success 12.7 px off at lumpiness 0.7',
-)
+# Mesh seed 10, the case #790 describes, ends conflicted at 0.27 confidence since the
+# disc correlation's final pass refines on the high-pass surface (#791), so the
+# population no longer shows a confident wrong success.  The shape-lock veto #790
+# describes is unchanged: mesh seed 7 ends a 0.88-confidence success 5.2 px off, just
+# under the confidence this test counts.
 def test_irregularity_population_never_confidently_wrong() -> None:
     """No mesh shape at lumpiness 0.7 is a confident (>= 0.9) success more than 5 px off.
 
@@ -805,12 +799,18 @@ def test_atmosphere_haze_floor_recovers() -> None:
     assert rows[0].offset_error_px < _RECOVERY_TOLERANCE_PX
 
 
-def test_atmosphere_haze_biases_limb() -> None:
-    """A thickening haze lifts and blurs the limb, biasing the recovery."""
+# The fused answer is the disc correlation's, whose high-pass refinement ignores the
+# haze's smooth glow, so the haze no longer biases it (#791).  Over the sweep the
+# error rises 0.034 px (thickness) and 0.071 px (albedo) above the haze-free row.
+_HAZE_FUSED_RISE_BOUND_PX = 0.1
+
+
+def test_atmosphere_haze_leaves_the_fused_offset() -> None:
+    """The thickest haze moves the fused recovery less than 0.1 px from the bare limb's."""
     rows = _rows('atmosphere_haze')
     assert rows[0].offset_error_px is not None
     assert rows[-1].offset_error_px is not None
-    assert rows[-1].offset_error_px > rows[0].offset_error_px + 0.1
+    assert rows[-1].offset_error_px < rows[0].offset_error_px + _HAZE_FUSED_RISE_BOUND_PX
 
 
 def test_atmosphere_haze_albedo_floor_recovers() -> None:
@@ -822,35 +822,12 @@ def test_atmosphere_haze_albedo_floor_recovers() -> None:
     assert rows[0].offset_error_px < _RECOVERY_TOLERANCE_PX
 
 
-def test_atmosphere_haze_albedo_biases_limb() -> None:
-    """A brighter haze of the same column lifts the limb, biasing the recovery."""
+def test_atmosphere_haze_albedo_leaves_the_fused_offset() -> None:
+    """The brightest haze moves the fused recovery less than 0.1 px from the bare limb's."""
     rows = _rows('atmosphere_haze_albedo')
     assert rows[0].offset_error_px is not None
     assert rows[-1].offset_error_px is not None
-    assert rows[-1].offset_error_px > rows[0].offset_error_px + 0.1
-
-
-# The smallest rise in recovered-offset error between successive albedo steps up
-# to the scene default.  The steps measure 0.06, 0.12, and 0.21 px.
-_ALBEDO_STEP_RISE_PX = 0.05
-
-
-def test_atmosphere_haze_albedo_bias_grows_up_to_the_default_albedo() -> None:
-    """Each brighter haze up to the default albedo lifts the limb farther.
-
-    Past the default the error levels off (0.42 px at 0.6, 0.40 px at 1.0), so
-    the brighter rows are left unordered.
-    """
-    rows = [row for row in _rows('atmosphere_haze_albedo') if row.value <= DEFAULT_HAZE_ALBEDO]
-    errors = [row.offset_error_px for row in rows]
-    assert [row.value for row in rows] == [0.0, 0.15, 0.3, 0.6]
-    rises = [
-        later - earlier
-        for earlier, later in itertools.pairwise(errors)
-        if earlier is not None and later is not None
-    ]
-    assert len(rises) == len(rows) - 1
-    assert min(rises) > _ALBEDO_STEP_RISE_PX
+    assert rows[-1].offset_error_px < rows[0].offset_error_px + _HAZE_FUSED_RISE_BOUND_PX
 
 
 # The per-technique dense and wide offset sweeps (``*_offset_fine`` /
