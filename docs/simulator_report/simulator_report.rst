@@ -425,8 +425,11 @@ real IQR):
      - 58
 
 .. [#table] Sky patches count only where they lie on dark sky in both
-   frames: a patch's mean must be at most 2.5e-3 I/F above the calibrated
-   sky residual.  On a ring- or body-filled frame the darkest patches lie
+   frames.  The *calibrated sky residual* is the level at which the
+   simulator draws empty sky on a calibrated Cassini frame, 4e-5 I/F on
+   both cameras.  The *dark-sky ceiling* is 2.5e-3 I/F above it, and a
+   patch lies on dark sky when its mean is at or below the ceiling.  On a
+   ring- or body-filled frame the darkest patches lie
    on that content, and this test leaves them out.  It keeps 38 of the 58
    NAC frame pairs.  The 12-bit frames keep 26 of 32: 5 are dropped
    because one of the two frames has no patch on dark sky, and 1 has no
@@ -439,7 +442,7 @@ real IQR):
    while the matched frames' skies sit within 5e-5 I/F of it.  Whether
    the simulator's TABLE path is too quiet is an open question.
 
-.. [#tail] The medians agree within 3% (3.3e-4 sim vs 3.2e-4 I/F real).
+.. [#tail] The medians differ by about 3% (3.3e-4 sim vs 3.2e-4 I/F real).
    In the 2026-11-07 record the W1/IQR was 31.4, carried by a tail of
    simulated sky patches near bright content in body- and ring-bearing
    frames.  The dark-sky test leaves such patches out.
@@ -669,9 +672,10 @@ at signal at W1/IQR 9.9 (from 98), and the sky level above the floor at
 
 The two 12-bit frames run 1.5-1.7 times noisier in the simulation and the
 TABLE frame half as noisy, the NAC's split by downlink format again.
-W1637520502 is a full-frame view of Rhea, and its darkest real patches
-are the halo sky around the moon, at 6.3e-3 I/F, above the dark-sky
-ceiling, so the pair drops out.  The remaining WAC statistics rest on 1-2
+W1637520502 is a full-frame view of Rhea.  Its darkest real patches are
+sky brightened by light scattered from the moon, at 6.3e-3 I/F, above the
+dark-sky ceiling (defined in the NAC table's first footnote), so the pair
+drops out.  The remaining WAC statistics rest on 1-2
 frames per stratum and are reported in the summary JSON without
 distributional claims.
 
@@ -817,8 +821,8 @@ cannot close, it is recorded here rather than force-fitted:
    body-filled frame those lie on the content.  On the Cassini cameras a
    patch therefore counts only where it lies on dark sky in both frames
    (the match table's first footnote).  The test reads only a patch's
-   level, so sky brightened by scattered light below the ceiling still
-   counts as dark sky.  A matched star frame holds its field's catalog
+   level, so sky brightened by scattered light below the dark-sky ceiling
+   still counts as dark sky.  A matched star frame holds its field's catalog
    stars, but the simulator draws NAC stars fainter than real stars of the
    same catalog magnitude, so the matched NAC star frames give 9 star
    cutouts against the real frames' 25.
@@ -1446,39 +1450,41 @@ genuinely unknown orientation testable.
    * - ``planted_offset_limb_mesh``
      - BodyLimbNav (mesh = mesh)
      - (1.43, -0.61) px
-     - (1.66, -0.47) px
-     - 0.27 px
+     - (1.51, -0.45) px
+     - 0.18 px
    * - ``planted_offset_blob_mesh_crescent``
      - BodyBlobNav (mesh, 120 deg)
      - (1.43, -0.61) px
-     - (0.97, -0.42) px
-     - 0.50 px
+     - (0.98, -0.42) px
+     - 0.49 px
    * - ``planted_offset_shapemismatch``
      - full ensemble (predict ellipsoid)
      - (1.43, -0.61) px
-     - (1.46, -1.28) px
+     - (1.47, -1.28) px
      - 0.67 px
 
 When the predicted geometry matches the rendered mesh, these three scenes, the
 mesh disc, mesh limb, and mesh crescent, recover the planted offset to half a
-pixel or better (0.00-0.50 px; 2026-10-27 measurement). Each renders one mesh
-shape, and other shapes spread around these figures, as the limb and crescent
-seed ranges below show. The limb row pins ``BodyLimbNav`` and
-reports its own fix; the full ensemble on the same scene fuses it with the disc
-correlation and recovers (1.52, -0.58), 0.10 px off, the offset the scene's
-regression baseline holds. The limb's 0.27 px is the fit's error on a lumpy
-silhouette, measured by varying one thing at a time. With the noise off it is
-0.22 px, so noise adds about 0.05 px. On the smooth (zero-lumpiness) mesh it is
-0.07 px, so most of it comes from the relief. Over mesh
-seeds 0 to 12 it ranges from 0.11 to 0.47 px (median 0.26 px), so this shape is
-typical. Tessellation matters too: at the default 16 by 32 the same fit errs
-0.50 px on this shape and 0.75 px on the smooth mesh, which is one reason the
-mesh scenes use 64 by 128. The mesh crescent is the loosest at
-0.50 px, against 0.24 px for the ellipsoid crescent: its body is clearly
+pixel or better (0.00-0.49 px; 2026-11-17 measurement, as is every number in
+this paragraph). Each renders one mesh shape, and other shapes spread around
+these figures, as the limb and crescent seed ranges below show. The limb row
+pins ``BodyLimbNav`` and reports its own fix; the full ensemble on the same
+scene fuses it with the disc correlation and recovers (1.50, -0.58), 0.08 px
+off, the offset the scene's regression baseline holds. The limb's 0.18 px is
+the fit's error on a lumpy silhouette, measured by varying one thing at a time.
+With the noise off it is 0.22 px, so on this noise draw the noise moves it by
+about 0.04 px, toward the planted offset. On the smooth (zero-lumpiness) mesh
+it is 0.11 px, so the relief adds about 0.07 px. Over mesh seeds 0 to 12 it
+ranges from 0.10 to 0.44 px, and this shape's 0.18 px is the median, so the
+shape is typical. Tessellation matters too: at the default 16 by 32 the same
+fit errs 0.50 px on this shape and 0.70 px on the smooth mesh, which is one
+reason the mesh scenes use 64 by 128. The mesh crescent is the loosest at
+0.49 px, against 0.25 px for the ellipsoid crescent: its body is clearly
 irregular (``mesh_lumpiness`` 0.2), and only a thin lit sliver of it constrains
-the centroid. Over mesh seeds 0 to 12 the same pinned blob errs 0.35 to 0.61 px
-(median 0.50 px), and 6 of the 13 shapes land above half a pixel, so this
-shape is typical and half a pixel is the crescent's typical error, not a bound.
+the centroid. Over mesh seeds 0 to 12 the same pinned blob errs 0.33 to 0.56 px
+(median 0.45 px), and 5 of the 13 shapes land above half a pixel, so this
+shape is typical and about half a pixel is the crescent's typical error, not a
+bound.
 The fourth row is the shape-mismatch case: the frame renders a
 mildly irregular mesh (``mesh_lumpiness`` 0.1, a 1.25% RMS non-ellipsoidal
 relief) but the navigator predicts its smooth (ellipsoidal) limit at the same
@@ -1528,10 +1534,10 @@ what belongs to one realization (2026-11-17 measurement, one noise draw):
 - On 12 of the 13 walks the confidence dips at least 0.3 below the clean
   step's 0.99 somewhere; the smallest of those dips is seed 9's, 0.37. Seed 7
   dips only 0.10, to 0.89 at lumpiness 0.7, while 5.1 px off. Twelve of the
-  13 walks also report 0.99 at some mismatched step, so the confidence
-  doesn't track the error step by step. On 6 of them every such step is at
-  most 1.8 px from the planted offset. The other 6 (seeds 2, 3, 6, 7, 9, and
-  10) report 0.99 at a step 2.0 to 7.7 px off.
+  13 walks also report a confidence of 0.98 or more at some mismatched step,
+  so the confidence doesn't track the error step by step. On 6 of them every
+  such step is within 1.9 px of the planted offset. The other 6 (seeds 2, 3,
+  6, 7, 9, and 10) report such a confidence at a step 1.99 to 7.71 px off.
 - At lumpiness 0.7 the shape-lock veto reports 1 of the 13 shapes
   ``conflicted`` (seed 5; see
   :doc:`/dev_guide/dev_guide_orchestrator_ensemble`). A second shape (seed 2)
@@ -1588,9 +1594,9 @@ self-flags spurious and the frame fails, so the error there is not plotted.
 Which steps self-flag depends on the noise draw: on the draw before the
 simulator drew shot noise pixel by pixel, only the 55 deg step did.
 A wrong in-plane roll degrades the limb far more
-sharply: a 20 deg roll puts it 20.8 px off, and there it does self-flag
-spurious. The pose-free blob centroid, by contrast, stays within 0.66 px on the
-same wrong-pose body. This body's relief is low (``mesh_lumpiness`` 0.1), so its
+sharply: a 20 deg roll puts it 19.9 px off, and there it does self-flag
+spurious (2026-11-17 measurement). The pose-free blob centroid, by contrast,
+stays within 0.66 px on the same wrong-pose body. This body's relief is low (``mesh_lumpiness`` 0.1), so its
 shape is mostly the scene's triaxial ellipsoid, and its lit-weighted centroid
 barely moves under rotation. This is the behavior the ``test_sim_irregular_pose``
 per-technique test pins: on a wrong-pose body the
@@ -1877,14 +1883,15 @@ Summary
   0.17 px cross-track and 0.82 px along-track on clean scenes.
 * On the three mesh scenes whose predicted geometry matches the rendered one,
   irregular (mesh) bodies navigate to half a pixel or better (mesh disc
-  0.00 px, limb 0.27 px, and crescent 0.50 px, against 0.24 px for the
+  0.00 px, limb 0.18 px, and crescent 0.49 px, against 0.25 px for the
   ellipsoid crescent). Over 13 mesh shapes the crescent's error ranges from
-  0.35 to 0.61 px. When the navigator predicts the wrong shape, the error grows
+  0.33 to 0.56 px. When the navigator predicts the wrong shape, the error grows
   with the rendered relief: over 13 mesh shapes it ends 2.7 to 12.7 px off at an
   8.75% RMS non-ellipsoidal relief. The confidence follows the error only
   loosely. All walks but one dip at least 0.3 below the clean confidence
-  somewhere. Twelve of the 13 also report 0.99 at some mismatched step, and 6
-  of them do so 2 px or more off (2.0 to 7.7 px). At the extreme step the
+  somewhere. Twelve of the 13 also report a confidence of 0.98 or more at some
+  mismatched step, and 6 of them do so about 2 px or more off (1.99 to
+  7.71 px). At the extreme step the
   shape-lock veto declines 1 of the 13 shapes, and one shape ends a
   0.91-confidence success 12.7 px off, a known gap in the veto. When it
   predicts the wrong pose the limb degrades to a confidently-wrong fix (or, for a

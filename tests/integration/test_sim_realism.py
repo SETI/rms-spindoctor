@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import random
 import runpy
+import sys
 import warnings
 from dataclasses import dataclass
 from types import SimpleNamespace
@@ -37,7 +38,7 @@ from spindoctor.sim.instrument_resolvers import (
 from spindoctor.sim.realism.noise import SkyPatch
 from spindoctor.sim.render import render_combined_model
 from spindoctor.sim.scene import validate_sim_params
-from tests.integration import sim_realism, sim_realism_twin_stars
+from tests.integration import sim_realism, sim_realism_report, sim_realism_twin_stars
 from tests.integration.sim_realism import (
     INSTRUMENT_FOR,
     FrameRecord,
@@ -880,8 +881,17 @@ def test_the_command_line_runs_the_package_copy_of_the_module(
     The report module counts frame pairs by their status class, which it imports by
     package name, so a run that built them from the ``__main__`` copy counted none.
     """
+
+    def refuse_to_run() -> None:
+        raise AssertionError('the __main__ copy of the module started a realism match')
+
     calls: list[str] = []
     monkeypatch.setattr(sim_realism, 'main', lambda: calls.append('package'))
+    # Should the script run its own copy's main instead, that main must stop before it
+    # renders anything or writes the tracked figures and summary.  Its first step after
+    # parsing the command line is to read the code provenance.
+    monkeypatch.setattr(sim_realism_report, 'require_code_provenance', refuse_to_run)
+    monkeypatch.setattr(sys, 'argv', ['sim_realism'])
     with warnings.catch_warnings():
         warnings.simplefilter('ignore', RuntimeWarning)
         runpy.run_module('tests.integration.sim_realism', run_name='__main__')
