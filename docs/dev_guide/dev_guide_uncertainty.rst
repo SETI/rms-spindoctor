@@ -97,10 +97,11 @@ white-noise bound is inflated by the residual's spatial **correlation area**,
 so spatially correlated model error is not counted as thousands of independent
 constraints. A degenerate gradient structure returns a large isotropic
 covariance so the result is de-weighted rather than trusted. Measuring the
-residual costs more than the rest of a peak's refinement, so the correlator
-computes the covariance once, for the peak the final full-resolution pass
-chooses. The coarser pyramid levels and the losing peaks are ranked on quality
-alone, which does not depend on the covariance.
+residual costs more than the rest of a peak's refinement, so each correlation
+pass computes the covariance once, for the peak its final full-resolution level
+chooses. The peaks at the coarser pyramid levels, and the losing peaks at the
+final level, are ranked on quality alone, which does not depend on the
+covariance.
 
 Brightness centroids (blob)
 ---------------------------
