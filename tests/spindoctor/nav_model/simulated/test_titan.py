@@ -25,7 +25,7 @@ import pytest
 from spindoctor.feature.feature_type import NavFeatureType
 from spindoctor.feature.geometry import TitanHazeGeometry
 from spindoctor.nav_model.nav_model_titan import NavModelTitan
-from spindoctor.nav_model.nav_model_titan_simulated import (
+from spindoctor.nav_model.simulated.titan import (
     NavModelTitanSimulated,
 )
 from spindoctor.obs.obs_inst_sim import ObsSim

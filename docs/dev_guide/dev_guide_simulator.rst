@@ -177,14 +177,14 @@ without a deliberate mismatch is the navigator's own template plus a shift and
 noise. For stars that holds only when the scene's PSF is the navigator's own,
 ``optics: {psf: {match_navigator: true}}`` (see :ref:`sim-floor`); without an
 ``optics`` block a star renders as a point, which the navigator's Gaussian
-doesn't match. Its renderers live under
-``nav_model/`` so the package layout states who owns them:
-:mod:`spindoctor.nav_model.sim_body` and :mod:`spindoctor.nav_model.sim_ring`
-draw the predicted templates that
-:class:`~spindoctor.nav_model.nav_model_body_simulated.NavModelBodySimulated` and
-:class:`~spindoctor.nav_model.nav_model_rings_simulated.NavModelRingsSimulated`
+doesn't match. Its models and renderers live under
+``nav_model/simulated/`` so the package layout states who owns them:
+:mod:`spindoctor.nav_model.simulated.predict_body` and
+:mod:`spindoctor.nav_model.simulated.predict_ring` draw the predicted templates that
+:class:`~spindoctor.nav_model.simulated.body.NavModelBodySimulated` and
+:class:`~spindoctor.nav_model.simulated.rings.NavModelRingsSimulated`
 emit as features, and
-:class:`~spindoctor.nav_model.stars.nav_model_stars_simulated.NavModelStarsSimulated`
+:class:`~spindoctor.nav_model.simulated.stars.NavModelStarsSimulated`
 builds its catalog star records directly.
 
 .. _sim-information-boundary:

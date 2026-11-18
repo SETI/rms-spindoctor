@@ -5,7 +5,7 @@ Simulated Titan Navigation Model
 Overview
 ========
 
-:class:`~spindoctor.nav_model.nav_model_titan_simulated.NavModelTitanSimulated` is the
+:class:`~spindoctor.nav_model.simulated.titan.NavModelTitanSimulated` is the
 simulated-image counterpart of
 :class:`~spindoctor.nav_model.nav_model_titan.NavModelTitan`. It subclasses the catalog-driven
 model and replaces exactly one thing: how the geometry dataclass is obtained. Feature emission,
@@ -24,7 +24,7 @@ reads operator parameters directly, the simulated inventory needs no projected-c
 Model selection is exclusive in both directions.
 :meth:`~spindoctor.nav_model.nav_model_titan.NavModelTitan.instances_for_obs` returns nothing
 for a simulated observation, this class returns nothing for a real one, and
-:class:`~spindoctor.nav_model.nav_model_body_simulated.NavModelBodySimulated` excludes Titan
+:class:`~spindoctor.nav_model.simulated.body.NavModelBodySimulated` excludes Titan
 unconditionally -- mirroring the real path's exclusion, so exactly one model claims a simulated
 Titan.
 
@@ -99,7 +99,7 @@ The model consumes the same ``titan`` configuration block as its catalog-driven 
 :doc:`dev_guide_navigation_models_titan`) and adds no keys of its own.
 
 Scene-side, the body parameters it requires are
-:data:`~spindoctor.nav_model.nav_model_titan_simulated.REQUIRED_SIM_PARAMS` -- ``center_v``,
+:data:`~spindoctor.nav_model.simulated.titan.REQUIRED_SIM_PARAMS` -- ``center_v``,
 ``center_u``, ``semi_a_px``, ``semi_b_px``, and ``km_per_pixel``. The center and the two
 image-plane semi-axes give the predicted disc; the pixel scale is what turns the configured
 atmosphere height in kilometers into an envelope radius in pixels, and without it the envelope
@@ -112,22 +112,22 @@ at :ref:`sim-atmosphere`; those keys are truth and are invisible to this model.
 Implementation
 ==============
 
-Source file: ``src/spindoctor/nav_model/nav_model_titan_simulated.py`` --
-:class:`~spindoctor.nav_model.nav_model_titan_simulated.NavModelTitanSimulated`.
+Source file: ``src/spindoctor/nav_model/simulated/titan.py`` --
+:class:`~spindoctor.nav_model.simulated.titan.NavModelTitanSimulated`.
 
 Public class
-:class:`~spindoctor.nav_model.nav_model_titan_simulated.NavModelTitanSimulated`, base
+:class:`~spindoctor.nav_model.simulated.titan.NavModelTitanSimulated`, base
 :class:`~spindoctor.nav_model.nav_model_titan.NavModelTitan`. Self-registers via
 ``__init_subclass__``.
 
 Public members (autodocumented at :doc:`/api_reference/api_nav_model`):
 
-- :meth:`~spindoctor.nav_model.nav_model_titan_simulated.NavModelTitanSimulated.instances_for_obs`
+- :meth:`~spindoctor.nav_model.simulated.titan.NavModelTitanSimulated.instances_for_obs`
   -- returns one instance named ``titan_sim:TITAN`` per adequately configured simulated Titan,
   and an empty list for a real observation.
-- :attr:`~spindoctor.nav_model.nav_model_titan_simulated.NavModelTitanSimulated.geometry_inputs`
+- :attr:`~spindoctor.nav_model.simulated.titan.NavModelTitanSimulated.geometry_inputs`
   -- the geometry dataclass built from operator parameters on first access.
-- :data:`~spindoctor.nav_model.nav_model_titan_simulated.REQUIRED_SIM_PARAMS`.
+- :data:`~spindoctor.nav_model.simulated.titan.REQUIRED_SIM_PARAMS`.
 
 ``create_model``, ``to_features``, and ``to_annotations`` are inherited without override.
 

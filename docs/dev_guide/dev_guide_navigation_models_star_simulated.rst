@@ -5,7 +5,7 @@ Simulated Star Navigation Model
 Overview
 ========
 
-:class:`~spindoctor.nav_model.stars.nav_model_stars_simulated.NavModelStarsSimulated` is
+:class:`~spindoctor.nav_model.simulated.stars.NavModelStarsSimulated` is
 the simulated-image counterpart of
 :class:`~spindoctor.nav_model.stars.nav_model_stars.NavModelStars`. It is a thin subclass
 of the catalog-driven model: it builds its star list from the scene's catalog star
@@ -94,18 +94,18 @@ only the instrument's published PSF.
 Implementation
 ==============
 
-Source file: ``src/spindoctor/nav_model/stars/nav_model_stars_simulated.py`` --
-:class:`~spindoctor.nav_model.stars.nav_model_stars_simulated.NavModelStarsSimulated`, base
+Source file: ``src/spindoctor/nav_model/simulated/stars.py`` --
+:class:`~spindoctor.nav_model.simulated.stars.NavModelStarsSimulated`, base
 :class:`~spindoctor.nav_model.stars.nav_model_stars.NavModelStars`. The subclass self-registers
 via ``__init_subclass__``.
 
 Public methods (autodocumented at :doc:`/api_reference/api_nav_model`):
 
-- :meth:`~spindoctor.nav_model.stars.nav_model_stars_simulated.NavModelStarsSimulated.instances_for_obs`
+- :meth:`~spindoctor.nav_model.simulated.stars.NavModelStarsSimulated.instances_for_obs`
   -- returns one instance for a simulated observation whose ``nav_params`` lists at
   least one star; an empty list for a real observation or a simulated one whose scene
   has no stars.
-- :meth:`~spindoctor.nav_model.stars.nav_model_stars_simulated.NavModelStarsSimulated.create_model`
+- :meth:`~spindoctor.nav_model.simulated.stars.NavModelStarsSimulated.create_model`
   -- builds one catalog record per ``nav_params`` star entry via
   :func:`~spindoctor.sim.star_records.star_record_from_params`, sets a zero smear
   vector, and populates the same metadata fields the parent records.

@@ -22,7 +22,7 @@ from spindoctor.config import (
 from spindoctor.config.logging_keys import OTHER_LOG_KEYS
 from spindoctor.nav_model.nav_model_body import NavModelBody
 from spindoctor.nav_model.nav_model_rings import NavModelRings
-from spindoctor.nav_model.nav_model_rings_simulated import NavModelRingsSimulated
+from spindoctor.nav_model.simulated.rings import NavModelRingsSimulated
 from spindoctor.nav_technique.nav_technique_body_limb import BodyLimbNav
 from spindoctor.nav_technique.nav_technique_titan_haze import TitanHazeNav
 from spindoctor.support.nav_base import NavBase

@@ -23,9 +23,9 @@ from tests.spindoctor.sim.scenes import disc_body, frame_scene, ring_system_bloc
 from spindoctor.feature.feature import NavFeature
 from spindoctor.feature.feature_type import NavFeatureType
 from spindoctor.nav_model.nav_model import NavModel
-from spindoctor.nav_model.nav_model_body_simulated import NavModelBodySimulated
-from spindoctor.nav_model.nav_model_rings_simulated import NavModelRingsSimulated
-from spindoctor.nav_model.nav_model_titan_simulated import NavModelTitanSimulated
+from spindoctor.nav_model.simulated.body import NavModelBodySimulated
+from spindoctor.nav_model.simulated.rings import NavModelRingsSimulated
+from spindoctor.nav_model.simulated.titan import NavModelTitanSimulated
 from spindoctor.obs.obs_inst_sim import ObsSim
 from spindoctor.sim.render import render_combined_model
 from spindoctor.support.types import NDArrayFloatType

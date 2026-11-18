@@ -40,7 +40,6 @@ from spindoctor.nav_model.stars.detection import (
     matched_filter_image,
 )
 from spindoctor.nav_model.stars.nav_model_stars import NavModelStars
-from spindoctor.nav_model.stars.nav_model_stars_simulated import NavModelStarsSimulated
 from spindoctor.nav_model.stars.predicted_snr import (
     SCLASS_TO_B_MINUS_V,
     integrated_signal_dn,
@@ -70,7 +69,6 @@ __all__ = [
     'UCAC4_SATURATION_VMAG_LIMIT',
     'DetectedSource',
     'NavModelStars',
-    'NavModelStarsSimulated',
     'aberrate_star',
     'apply_shape_cuts',
     'centroid_gaussian_fit',

@@ -16,7 +16,7 @@ from tests.shims import bare_nav_context
 from spindoctor.annotation import Annotations
 from spindoctor.feature.feature import NavFeature
 from spindoctor.nav_model.body_shape import load_body_shape
-from spindoctor.nav_model.nav_model_body_simulated import NavModelBodySimulated
+from spindoctor.nav_model.simulated.body import NavModelBodySimulated
 from spindoctor.nav_orchestrator.nav_context import NavContext
 from spindoctor.obs.obs_inst_sim import ObsSim
 from spindoctor.sim.render import render_combined_model
@@ -917,7 +917,7 @@ def test_a_frame_filling_body_counts_its_overflow_on_a_bounded_canvas(
     its overflow then matches the full-resolution count to within a percent, and
     no render exceeds the cap.
     """
-    from spindoctor.nav_model import nav_model_body_simulated as module
+    from spindoctor.nav_model.simulated import body as module
 
     body = _sphere(_SIZE / 2.0) | {'semi_a_px': 150.0, 'semi_b_px': 150.0, 'semi_c_px': 150.0}
     full = _overflow_model(body)._overflow_fraction

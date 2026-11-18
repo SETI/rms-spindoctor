@@ -13,9 +13,9 @@ import pytest
 
 from spindoctor.nav_model import build_models_for_obs
 from spindoctor.nav_model.nav_model_body import NavModelBody
-from spindoctor.nav_model.nav_model_body_simulated import NavModelBodySimulated
 from spindoctor.nav_model.nav_model_titan import NavModelTitan
-from spindoctor.nav_model.nav_model_titan_simulated import (
+from spindoctor.nav_model.simulated.body import NavModelBodySimulated
+from spindoctor.nav_model.simulated.titan import (
     REQUIRED_SIM_PARAMS,
     NavModelTitanSimulated,
 )

@@ -70,7 +70,7 @@ class RingFeature:
     Owns backplane-based rendering for real observations.  (Simulated
     observations never build RingFeatures: ``NavModelRingsSimulated``
     predicts scene ring_system features through
-    ``spindoctor.nav_model.sim_ring`` instead.)
+    ``spindoctor.nav_model.simulated.predict_ring`` instead.)
     """
 
     key: str

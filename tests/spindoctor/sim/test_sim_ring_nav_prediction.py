@@ -17,7 +17,7 @@ from tests.spindoctor.sim.scenes import frame_scene, ring_system_block
 
 from spindoctor.feature.feature import NavFeature
 from spindoctor.feature.geometry import RingEdgePolyline
-from spindoctor.nav_model.nav_model_rings_simulated import NavModelRingsSimulated
+from spindoctor.nav_model.simulated.rings import NavModelRingsSimulated
 from spindoctor.nav_orchestrator.nav_context import NavContext
 from spindoctor.obs.obs_inst_sim import ObsSim
 from spindoctor.sim.ring_geometry import ring_plane_from_sky, ring_radial_scale
