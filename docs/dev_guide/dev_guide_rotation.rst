@@ -112,8 +112,8 @@ the existing translation pyramid
 (:class:`~spindoctor.nav_technique.nav_technique_body_disc.BodyDiscCorrelateNav`
 is the one that does; see :doc:`dev_guide_techniques_body_disc`):
 
-* Level 0: 11 rotation samples spanning ``±max_rotation_deg`` in 1°
-  steps.
+* Level 0: 11 rotation samples spanning ``±max_rotation_deg``, spaced
+  ``2 * max_rotation_deg / 10`` apart (1° at the default 5° cap).
 * Level 1: 5 samples in 0.5° steps centered on the level-0 winner.
 * Level 2: 3 samples in 0.25° steps centered on the level-1 winner.
 

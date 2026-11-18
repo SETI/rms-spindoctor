@@ -600,6 +600,13 @@ class BodyDiscCorrelateNav(NavTechnique):
         result is the one returned; when the winner is zero rotation, the first
         pyramid's result is returned.
 
+        The sample qualities omit two things a full pyramid at each sample would fold
+        into its quality: the penalty of the pyramid's ``prior_weight_final`` (0.25)
+        times the distance from the coarser pyramid levels' answer, and a mode chosen
+        anew at that sample.
+        Samples whose qualities differ by less than those effects can therefore rank
+        in a different order than their full pyramids would.
+
         Parameters:
             image: Source ext-FOV image.
             template_img: Composite body-disc template (pre-rotation).

@@ -166,8 +166,14 @@ angle is zero, the first pyramid's answer is reported.
 A trial angle costs one full-resolution correlation. The full pyramid in both modes costs
 four full-resolution correlations, four smaller ones, and the sub-pixel refinement of up
 to 32 candidate peaks. The search therefore costs about as much as two
-translation-only fits plus at most 19 correlations, and one translation-only fit when the
-best angle is zero.
+translation-only fits plus at most 19 correlations, or one translation-only fit plus the
+correlations when the best angle is zero.
+
+Ranking the angles this way can pick a different angle from ranking each angle by its
+own full pyramid, as a search that ran the full pyramid at every angle would. The
+pyramid's final quality subtracts 0.25 times the distance between its answer and the
+coarser levels' answer, and a pyramid at one angle may pick the other mode. Where two
+angles' qualities differ by less than those effects, the two rankings can disagree.
 
 The technique returns the (dv, du, theta) triple from that final pyramid, with a 3x3
 covariance. The translation block of that covariance is the matched-filter
