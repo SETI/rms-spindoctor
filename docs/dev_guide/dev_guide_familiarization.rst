@@ -278,7 +278,6 @@ Stars (model + star techniques)
   - :mod:`spindoctor.nav_model.stars.smeared_psf`
   - :mod:`spindoctor.nav_model.stars.conflicts`
   - :mod:`spindoctor.nav_model.stars.nav_model_stars`
-  - :mod:`spindoctor.nav_model.simulated.stars`
 
 - :mod:`spindoctor.nav_technique.nav_technique_star_unique_match`
 - :mod:`spindoctor.nav_technique.nav_technique_star_refine`
@@ -371,7 +370,8 @@ sibling of each model family. These are used both by
   - :mod:`spindoctor.sim.png_export`
 
 - :mod:`spindoctor.nav_model.simulated.predict_body` and
-  :mod:`spindoctor.nav_model.simulated.predict_ring` — the navigator-side predicted-template renderers the simulated NavModels drive.
+  :mod:`spindoctor.nav_model.simulated.predict_ring` — the navigator-side
+  predicted-template renderers the simulated NavModels drive.
 
 - ``src/spindoctor/dataset/dataset_sim.py`` and ``src/spindoctor/obs/obs_inst_sim.py``
   — the simulated-image dataset and observation wrappers (not autodoc'd).

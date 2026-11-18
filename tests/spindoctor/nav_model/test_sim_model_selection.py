@@ -11,7 +11,7 @@ from typing import Any, cast
 
 import pytest
 
-from spindoctor.nav_model import build_models_for_obs
+from spindoctor.nav_model import NavModel, build_models_for_obs
 from spindoctor.nav_model.nav_model_body import NavModelBody
 from spindoctor.nav_model.nav_model_titan import NavModelTitan
 from spindoctor.nav_model.simulated.body import NavModelBodySimulated
@@ -193,3 +193,24 @@ def test_titan_sim_model_empty_for_real_obs() -> None:
 def test_spice_titan_model_empty_for_simulated_obs() -> None:
     """NavModelTitan builds nothing for a simulated obs."""
     assert NavModelTitan.instances_for_obs(_fake_obs(is_simulated=True)) == []
+
+
+def test_registry_lists_each_real_model_before_its_simulated_sibling() -> None:
+    """The shipped models register real-then-simulated, family by family.
+
+    ``build_models_for_obs`` builds models in registration order, and the order comes from
+    the import blocks in ``spindoctor.nav_model``; re-sorting those imports would change it.
+    """
+    shipped = [
+        cls.__name__ for cls in NavModel._registry if cls.__module__.startswith('spindoctor.')
+    ]
+    assert shipped == [
+        'NavModelStars',
+        'NavModelStarsSimulated',
+        'NavModelBody',
+        'NavModelBodySimulated',
+        'NavModelRings',
+        'NavModelRingsSimulated',
+        'NavModelTitan',
+        'NavModelTitanSimulated',
+    ]
