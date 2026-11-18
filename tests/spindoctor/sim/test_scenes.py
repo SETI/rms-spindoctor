@@ -35,7 +35,7 @@ _BLOCK_SCENES: dict[str, Callable[[], dict[str, Any]]] = {
 
 @pytest.mark.parametrize('fixture_name', ['empty_frame', 'lit_body_frame'])
 def test_each_fixture_scene_validates(fixture_name: str, request: pytest.FixtureRequest) -> None:
-    """The fixture scenes pass scene validation unchanged."""
+    """The fixture scenes pass scene validation, which returns the scene itself."""
     scene = request.getfixturevalue(fixture_name)
     assert validate_sim_params(scene) is scene
 

@@ -258,10 +258,11 @@ change its scene without touching any other test's scene. The helpers are plain
 functions, so a module can build its parametrize lists from them when it is imported.
 For a test that would rather take a fixture, ``tests/spindoctor/sim/conftest.py``
 offers the empty frame as ``empty_frame`` and the one-body frame as
-``lit_body_frame``. The frame keys and the common blocks are written out only in these
-helpers, so a change to those scene keys is made there once. A test whose scene is
-tuned to a threshold, or whose assertions read back the scene's own values, writes its
-scene out in full.
+``lit_body_frame``. Most tests take their frame keys and common blocks from these
+helpers, so a change to those scene keys is made in few places. A test writes its
+scene out in full when the scene is tuned to a threshold, when its assertions read
+back the scene's own values, or when it is a partial scene the helpers cannot build,
+such as one with no instrument.
 
 Characterization runners and updaters
 =====================================
