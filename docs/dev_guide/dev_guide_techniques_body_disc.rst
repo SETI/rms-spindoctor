@@ -170,9 +170,12 @@ per correlation is two Gaussian filters of the padded surfaces and one 3x3 quadr
 per candidate peak: about 0.14 s per final pass on a 1100 px extended frame, where the
 whole correlation takes about 8.5 s. In ``auto`` mode both the raw and the gradient
 pyramids run a final pass, so the estimate is about 0.27 s per image. Rotation fitting,
-which no camera turns on by default, runs the complete search in both modes at each of the
-19 rotation samples (see "Rotation-aware schedule"). Each of those 38 searches ends with a
-final pass that builds a high-pass spectrum, an estimated 5 s more per image of that size.
+which no camera turns on by default, scores its trial angles with a single correlation
+each, which refines nothing and builds no high-pass spectrum (see "Rotation-aware
+schedule"). Only its full pyramids run a final pass: the one on the unrotated template,
+and the one at the best angle when that angle is not zero. Each runs in both modes, so
+rotation fitting adds about 0.27 s more per image of that size, and nothing when the best
+angle is zero.
 
 Mode selection (auto / raw / gradient)
 --------------------------------------
