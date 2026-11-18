@@ -188,3 +188,34 @@ def test_only_the_final_pass_builds_a_highpass_spectrum(monkeypatch: pytest.Monk
         image, model, mask, pyramid_levels=3, final_refinement='highpass_cross_power'
     )
     assert sigmas == [0.0, 0.0, 0.0, HIGHPASS_SIGMA_PX]
+
+
+def test_a_boundary_peak_refined_more_than_a_pixel_inward_is_at_edge(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A whole-pixel peak one pixel inside the search window's edge is flagged at_edge.
+
+    The NCC is replaced by a quadratic maximal at 9.4 px on v and the search window is
+    10 px, so the whole-pixel peak is 9 px, the eligible lag nearest the edge.  The NCC
+    fit's maximum is set a full pixel inward of it, the farthest the fit may move, so the
+    high-pass window spans 7.5 to 8.5 px and reaches the blob's true 7.6 px: the reported
+    offset lies more than 2 px inside the edge, where an offset test alone misses it.
+    """
+    monkeypatch.setattr(correlate_module, 'masked_ncc', _ncc_peaking_at((9.4, 0.0)))
+    monkeypatch.setattr(correlate_module, 'ncc_vertex_window_steps', lambda *_args: (-128, 0))
+    center = (_SHAPE[0] / 2.0, _SHAPE[1] / 2.0)
+    model = _blob(center)
+    mask: NDArrayBoolType = model > 1e-3
+    result = navigate_with_pyramid_kpeaks(
+        _blob((center[0] + 7.6, center[1])),
+        model,
+        mask,
+        pyramid_levels=3,
+        upsample_factor=128,
+        quality_thresh=-np.inf,
+        consistency_tol=100.0,
+        max_offset_vu=(10, 10),
+        final_refinement='highpass_cross_power',
+    )
+    assert result['offset'][0] == pytest.approx(7.6, abs=1.0 / 128.0)
+    assert result['at_edge']

@@ -542,8 +542,9 @@ def nms_topk(
             ``|dU| < max_offset_vu[1]`` are eligible (strict inequality:
             peaks at the exact window boundary are excluded because they
             signal a clipped search and cannot be trusted; the pyramid
-            driver additionally marks any final result within 1 pixel of
-            the boundary as spurious). Signed offsets are derived from the
+            driver additionally marks a final peak one pixel inside the
+            boundary, and any final result within 2 pixels of it, as
+            spurious). Signed offsets are derived from the
             FFT-convention wrap-around used by :func:`int_to_signed`.
 
     The surface is circular, so the suppression distance is taken around its edges:
@@ -1044,7 +1045,10 @@ def navigate_single_scale_kpeaks(
             spectrum is not built, so ``refine_lowpass_sigma_px`` has no effect.
 
     Returns:
-        A dictionary containing the navigation result.
+        The winning candidate's :func:`evaluate_candidate` result, plus
+        ``'all_candidates'``, every evaluated candidate sorted by quality, and
+        ``'peak_vu'``, the winner's whole-pixel peak as a signed ``(v, u)`` lag
+        before refinement.
     """
 
     # Use original image for correlation surfaces; masked NCC computes its own
@@ -1119,6 +1123,7 @@ def navigate_single_scale_kpeaks(
             'quality': -np.inf,
             'peak_val': 0.0,
             'rc': (0, 0),
+            'peak_vu': (0, 0),
             'all_candidates': [],
         }
 
@@ -1196,6 +1201,13 @@ def navigate_single_scale_kpeaks(
     )
     result = dict(winner)
     result['all_candidates'] = sorted_candidates
+    # The winner's whole-pixel peak as a signed lag, before any sub-pixel refinement;
+    # the pyramid driver tests it against the search window's edge.
+    corr_v, corr_u = corr.shape
+    result['peak_vu'] = (
+        int_to_signed(winner['rc'][0], corr_v),
+        int_to_signed(winner['rc'][1], corr_u),
+    )
     return result
 
 
@@ -1601,13 +1613,20 @@ def navigate_with_pyramid_kpeaks(
 
     at_edge = False
     if max_offset_vu is not None:
-        # 2-pixel margin: the integer NMS argmax can land at |signed| = max - 1
-        # (one row inside the strict-inequality exclusion), and subpixel
-        # refinement can move the reported offset up to another 0.5 pixel (1 pixel
-        # with the NCC quadratic fit). Flag anything within 2 px of the boundary as
-        # an unreliable boundary peak.
+        # The integer NMS argmax can land at |signed| = max - 1, one row inside the
+        # strict-inequality exclusion: a boundary peak, which cannot be trusted.  The
+        # refinement then moves the reported offset from that whole pixel by up to
+        # 0.5 px with the raw cross-power, 1 px with the NCC quadratic fit, and 1.5 px
+        # with the high-pass cross-power, whose half-pixel window is centered up to
+        # 1 px from the whole pixel (#791).  So the whole-pixel peak itself is tested
+        # against the edge, and any reported offset within 2 px of the boundary is
+        # flagged as well.  For the two refinements that move at most 1 px, the offset
+        # test alone already catches every boundary peak.
+        peak_v, peak_u = result['peak_vu']
         at_edge = (
-            abs(result['offset'][0]) >= max_offset_vu[0] - 2.0
+            abs(peak_v) >= max_offset_vu[0] - 1
+            or abs(peak_u) >= max_offset_vu[1] - 1
+            or abs(result['offset'][0]) >= max_offset_vu[0] - 2.0
             or abs(result['offset'][1]) >= max_offset_vu[1] - 2.0
         )
     # Written so a NaN quality fails it: the PSR is NaN when every valid shift lies
@@ -1618,7 +1637,8 @@ def navigate_with_pyramid_kpeaks(
     spurious = (not quality_ok) or (consistency > consistency_tol) or at_edge
     if at_edge:
         logger.debug(
-            'Correlation peak within 2 pixels of max-offset window edge; marking result spurious'
+            'Correlation peak at the max-offset window edge, or within 2 pixels of it; '
+            'marking result spurious'
         )
 
     # Surface the per-peak telemetry from the final-pass single-scale
