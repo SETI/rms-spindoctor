@@ -1669,10 +1669,13 @@ in ``tests/spindoctor/sim/artifact_counts.py``, which carries both sides.
 ``planted_artifact_counts`` reads the truth records into a realized event count
 per mode (exact by construction). The ``measured_*`` estimators recover the same
 counts from the DN image alone, the way a detector run against a real archive
-frame would. The image estimators key on the marker, so they are exact for the
-marker-based structural modes (``missing_lines``, ``partial_lines``,
-``missing_blocks``, ``dead_pixels``) on a frame whose scene floor sits above the
-marker. Modes that plant wrong values rather than the marker -- garble, spikes,
+frame would. The image estimators key on the marker, so each is exact for its
+marker-based structural mode (``missing_lines``, ``partial_lines``,
+``missing_blocks``, or ``dead_pixels``) when that mode is the only one planting
+the marker, on a frame whose scene floor sits above the marker. When two of these
+modes overlap, one mode's pixels can be counted under another: every row of a
+missing block also reads as a missing line, and a dead pixel inside a lost line
+is not counted. Modes that plant wrong values rather than the marker -- garble, spikes,
 and the detector-electronics modes -- are not recoverable pixel-by-pixel from a
 single frame (distinguishing them from scene structure needs multi-frame or noise
 statistics), so for those the truth side is authoritative.

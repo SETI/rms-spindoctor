@@ -328,10 +328,12 @@ class NavModelBodySimulated(NavModelBodyBase):
         the true shape, while the boundary filter overlays the override onto
         the idealized view this model consumes -- the channel that makes the
         navigation geometry diverge from the render geometry.  A scene renders
-        an irregular mesh at the true pose yet predicts an ellipsoid (the
-        shape-mismatch fixture), or the same mesh at a different pose (the
-        pose-disagreement fixture for a chaotic rotator), without touching the
-        rendered image.  The override never changes the center, so the
+        an irregular mesh at the true pose yet predicts the same mesh with zero
+        relief (the shape-mismatch fixture), or the same mesh at a different
+        pose (the pose-disagreement fixture for a chaotic rotator), without
+        touching the rendered image.  An override may set any idealized body
+        key, including ``center_v`` and ``center_u``, which moves the predicted
+        center; the shipped fixtures override only shape or pose, so their
         predicted body stays at the unshifted position the planted offset is
         measured from.
 
