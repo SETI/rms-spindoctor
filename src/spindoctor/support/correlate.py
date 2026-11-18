@@ -1791,8 +1791,7 @@ def ncc_peak_quality(
 
     The model must be at least as large as the image in both dimensions, as it must
     be for :func:`navigate_single_scale_kpeaks`.  That function raises
-    ``ValueError`` for a smaller model when it evaluates a candidate peak, and returns
-    its no-peak result without raising when it finds none.  This one does not check,
+    ``ValueError`` for a smaller model before it searches.  This one does not check,
     and its peak and quality for a smaller model are not defined.
 
     Parameters:
