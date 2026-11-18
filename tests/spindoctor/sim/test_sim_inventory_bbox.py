@@ -12,8 +12,9 @@ from typing import Any
 
 import numpy as np
 import pytest
+from tests.spindoctor.sim.scenes import frame_scene, quiet_noise
 
-from spindoctor.sim.render import render_combined_model
+from spindoctor.sim.render.driver import render_scene
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 
 _CENTER = 64.0
@@ -38,38 +39,30 @@ _TIGHTNESS_BOUND_PX = 1.0
 
 def _scene() -> dict[str, Any]:
     """A noiseless scene with one fully lit, elongated, rotated body."""
-    return {
-        'size_v': 128,
-        'size_u': 128,
-        'random_seed': 3,
-        'instrument': 'coiss_nac',
-        'noise': {'poisson': False, 'read_noise_dn': 0.0, 'bias_dn': 0.0},
-        'bodies': [
-            {
-                'name': 'SLAB',
-                'center_v': _CENTER,
-                'center_u': _CENTER,
-                'semi_a_px': _SEMI_MAJOR,
-                'semi_b_px': _SEMI_MINOR,
-                'semi_c_px': _SEMI_MINOR,
-                'rotation_z': _ROTATION_Z_DEG,
-                'phase_angle': 0.0,
-                'anti_aliasing': 0.0,
-            }
-        ],
+    body = {
+        'name': 'SLAB',
+        'center_v': _CENTER,
+        'center_u': _CENTER,
+        'semi_a_px': _SEMI_MAJOR,
+        'semi_b_px': _SEMI_MINOR,
+        'semi_c_px': _SEMI_MINOR,
+        'rotation_z': _ROTATION_Z_DEG,
+        'phase_angle': 0.0,
+        'anti_aliasing': 0.0,
     }
+    return frame_scene(size=128, seed=3, noise=quiet_noise(), bodies=[body])
 
 
 def _inventory() -> dict[str, float]:
     """Render the scene and return the planted body's inventory entry."""
-    _, meta = render_combined_model(_scene())
+    _, meta = render_scene(_scene())
     inventory: dict[str, float] = meta['inventory']['SLAB']
     return inventory
 
 
 def _mask_extents() -> tuple[float, float, float, float]:
     """Render the scene and return (v_min, v_max, u_min, u_max) of the mask."""
-    _, meta = render_combined_model(_scene())
+    _, meta = render_scene(_scene())
     mask = meta['body_masks'][0]
     rows = np.where(mask.any(axis=1))[0]
     cols = np.where(mask.any(axis=0))[0]
@@ -78,7 +71,7 @@ def _mask_extents() -> tuple[float, float, float, float]:
 
 def _mask_centroid() -> tuple[float, float]:
     """Render the scene and return the silhouette's (v, u) centroid in rows and columns."""
-    _, meta = render_combined_model(_scene())
+    _, meta = render_scene(_scene())
     mask = meta['body_masks'][0]
     vv, uu = np.indices(mask.shape)
     return float(vv[mask].mean()), float(uu[mask].mean())

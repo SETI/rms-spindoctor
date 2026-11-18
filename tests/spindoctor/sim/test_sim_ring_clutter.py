@@ -14,10 +14,11 @@ from typing import Any
 
 import numpy as np
 import pytest
+from tests.spindoctor.sim.scenes import frame_scene, ring_system_block, star_entry
 
-from spindoctor.sim.forward.ring_system import RingSystemMaps, render_ring_system
-from spindoctor.sim.render import render_combined_model
-from spindoctor.sim.scene import validate_sim_params
+from spindoctor.sim.render.driver import render_scene
+from spindoctor.sim.render.rings.render import RingSystemMaps, render_ring_system
+from spindoctor.sim.scene.validate import validate_sim_params
 
 _SIZE = 96
 _CENTER = 48.5
@@ -29,16 +30,7 @@ def _sheet(tau: float = 1.0) -> dict[str, Any]:
 
 
 def _render(system_extra: dict[str, Any], *, spokes_seed: int = 0) -> RingSystemMaps:
-    system: dict[str, Any] = {
-        'geometry': {
-            'center_v': _CENTER,
-            'center_u': _CENTER,
-            'opening_deg_obs': 90.0,
-            'opening_deg_sun': 90.0,
-            'node_deg': 0.0,
-        },
-        'features': [_sheet()],
-    }
+    system = ring_system_block(_CENTER, _CENTER, [_sheet()])
     system.update(system_extra)
     return render_ring_system(
         (_SIZE, _SIZE),
@@ -174,32 +166,21 @@ def test_moonlet_extinguishes_a_background_star() -> None:
 
     def _scene(stars: list[dict[str, Any]]) -> dict[str, Any]:
         return validate_sim_params(
-            {
-                'instrument': 'coiss_nac',
-                'size_v': _SIZE,
-                'size_u': _SIZE,
-                'random_seed': 3,
-                'stars': stars,
-                'ring_system': {
-                    'geometry': {
-                        'center_v': _CENTER,
-                        'center_u': _CENTER,
-                        'opening_deg_obs': 90.0,
-                        'opening_deg_sun': 90.0,
-                        'node_deg': 0.0,
-                    },
-                    'features': [],
-                    'moonlets': [
-                        {'a_px': 20.0, 'lam_deg': 0.0, 'radius_px': 3.0, 'amplitude': 0.0}
-                    ],
-                },
-            }
+            frame_scene(
+                size=_SIZE,
+                seed=3,
+                stars=stars,
+                ring_system=ring_system_block(
+                    _CENTER,
+                    _CENTER,
+                    [],
+                    moonlets=[{'a_px': 20.0, 'lam_deg': 0.0, 'radius_px': 3.0, 'amplitude': 0.0}],
+                ),
+            )
         )
 
-    with_star, _m0 = render_combined_model(
-        _scene([{'name': 'S', 'v': 48.5, 'u': 68.5, 'vmag': 6.0}])
-    )
-    without_star, _m1 = render_combined_model(_scene([]))
+    with_star, _m0 = render_scene(_scene([star_entry(48.5, 68.5, 6.0)]))
+    without_star, _m1 = render_scene(_scene([]))
     np.testing.assert_array_equal(with_star, without_star)
 
 
@@ -227,21 +208,14 @@ def test_propeller_carves_local_tau_dips() -> None:
 def test_full_scene_with_spokes_renders_deterministically() -> None:
     """Two renders of a spoked scene are bit-identical (seeded stream)."""
     scene = validate_sim_params(
-        {
-            'instrument': 'coiss_nac',
-            'size_v': _SIZE,
-            'size_u': _SIZE,
-            'random_seed': 11,
-            'ring_system': {
-                'geometry': {
-                    'center_v': _CENTER,
-                    'center_u': _CENTER,
-                    'opening_deg_obs': 90.0,
-                    'opening_deg_sun': 90.0,
-                    'node_deg': 0.0,
-                },
-                'features': [_sheet()],
-                'azimuthal': {
+        frame_scene(
+            size=_SIZE,
+            seed=11,
+            ring_system=ring_system_block(
+                _CENTER,
+                _CENTER,
+                [_sheet()],
+                azimuthal={
                     'spokes': {
                         'count': 4,
                         'r_inner_px': 10.0,
@@ -250,9 +224,9 @@ def test_full_scene_with_spokes_renders_deterministically() -> None:
                         'width_deg': 12.0,
                     }
                 },
-            },
-        }
+            ),
+        )
     )
-    img_a, _m0 = render_combined_model(scene)
-    img_b, _m1 = render_combined_model(scene)
+    img_a, _m0 = render_scene(scene)
+    img_b, _m1 = render_scene(scene)
     np.testing.assert_array_equal(img_a, img_b)

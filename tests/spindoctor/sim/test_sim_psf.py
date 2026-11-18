@@ -11,10 +11,11 @@ moment measurement sees the whole profile.
 from typing import Any
 
 import numpy as np
+from tests.spindoctor.sim.scenes import frame_scene, quiet_noise, star_entry
 
 from spindoctor.config import DEFAULT_CONFIG
-from spindoctor.sim.instrument_navigator import resolve_sim_inst_config
-from spindoctor.sim.render import render_combined_model
+from spindoctor.sim.instruments.navigator_link import resolve_sim_inst_config
+from spindoctor.sim.render.driver import render_scene
 
 
 def _rms_spread(image: np.ndarray) -> float:
@@ -29,17 +30,14 @@ def _rms_spread(image: np.ndarray) -> float:
 
 def _render_one_star(sigma: float) -> np.ndarray:
     """Render a single centered faint star through a scene PSF of the given sigma."""
-    scene: dict[str, Any] = {
-        'size_v': 41,
-        'size_u': 41,
-        'random_seed': 1,
-        'instrument': 'coiss_nac',
-        'exposure_sec': 1.0,
-        'noise': {'poisson': False, 'read_noise_dn': 0.0, 'bias_dn': 0.0},
-        'optics': {'psf': {'sigma_v': sigma, 'sigma_u': sigma, 'w': 0.0, 'r0': 2.0, 'n': 3.0}},
-        'stars': [{'name': 's', 'v': 20.0, 'u': 20.0, 'vmag': 8.0}],
-    }
-    img, _ = render_combined_model(scene)
+    scene = frame_scene(
+        size=41,
+        exposure_sec=1.0,
+        noise=quiet_noise(),
+        optics={'psf': {'sigma_v': sigma, 'sigma_u': sigma, 'w': 0.0, 'r0': 2.0, 'n': 3.0}},
+        stars=[star_entry(20.0, 20.0, 8.0, name='s')],
+    )
+    img, _ = render_scene(scene)
     return img
 
 
@@ -65,22 +63,20 @@ def test_coiss_and_gossi_psf_sigmas_differ() -> None:
 
 def _match_navigator_star_scene(instrument: str, *, size: int = 41) -> dict[str, Any]:
     """A single faint star through the instrument's navigator-matched PSF."""
-    return {
-        'size_v': size,
-        'size_u': size,
-        'random_seed': 1,
-        'instrument': instrument,
-        'exposure_sec': 1.0,
-        'noise': {'poisson': False, 'read_noise_dn': 0.0, 'bias_dn': 0.0},
-        'optics': {'psf': {'match_navigator': True}},
+    return frame_scene(
+        instrument=instrument,
+        size=size,
+        exposure_sec=1.0,
+        noise=quiet_noise(),
+        optics={'psf': {'match_navigator': True}},
         # Bright enough to survive gossi's coarse gain, faint enough to stay
         # below the coiss_nac full well: both frames keep an unclipped profile.
-        'stars': [{'name': 's', 'v': size / 2, 'u': size / 2, 'vmag': 5.5}],
-    }
+        stars=[star_entry(size / 2, size / 2, 5.5, name='s')],
+    )
 
 
 def test_render_uses_instrument_psf_sigma() -> None:
     """A coiss frame renders tighter stars than a gossi frame end-to-end."""
-    coiss_img, _ = render_combined_model(_match_navigator_star_scene('coiss_nac'))
-    gossi_img, _ = render_combined_model(_match_navigator_star_scene('gossi'))
+    coiss_img, _ = render_scene(_match_navigator_star_scene('coiss_nac'))
+    gossi_img, _ = render_scene(_match_navigator_star_scene('gossi'))
     assert _rms_spread(coiss_img) < _rms_spread(gossi_img)

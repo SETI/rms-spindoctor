@@ -15,9 +15,9 @@ from typing import Any
 import numpy as np
 import pytest
 
-from spindoctor.sim.render import render_combined_model
-from spindoctor.sim.scene import validate_sim_params
-from spindoctor.sim.scene_checks import (
+from spindoctor.sim.render.driver import render_scene
+from spindoctor.sim.scene.boundary import _STAR_KEYS
+from spindoctor.sim.scene.rules_common import (
     _COMPANION_KEYS,
     _DETECTOR_KEYS,
     _DISTORTION_KEYS,
@@ -29,8 +29,8 @@ from spindoctor.sim.scene_checks import (
     _SPK_ERROR_KEYS,
     _STRAY_LIGHT_KEYS,
 )
-from spindoctor.sim.scene_schema import _STAR_KEYS
-from spindoctor.sim.star_records import star_record_from_params
+from spindoctor.sim.scene.validate import validate_sim_params
+from spindoctor.sim.shared.stars import star_record_from_params
 
 _SIZE = 32
 
@@ -125,8 +125,8 @@ def _scenes(path: _Path, key: str) -> tuple[dict[str, Any], dict[str, Any]]:
 
 def _assert_renders_alike(stated: dict[str, Any], absent: dict[str, Any]) -> None:
     """Both scenes render the same frame and record the same star truth."""
-    image, meta = render_combined_model(stated)
-    expected, expected_meta = render_combined_model(absent)
+    image, meta = render_scene(stated)
+    expected, expected_meta = render_scene(absent)
     np.testing.assert_array_equal(image, expected)
     assert meta['star_info'] == expected_meta['star_info']
 

@@ -12,9 +12,11 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from tests.spindoctor.sim.scenes import frame_scene
 
-from spindoctor.sim.scene import SimSceneValidationError, validate_sim_params
-from spindoctor.sim.scene_schema import MESH_UNSUPPORTED_KEYS, mesh_unsupported_message
+from spindoctor.sim.scene.errors import SimSceneValidationError
+from spindoctor.sim.scene.fields import MESH_UNSUPPORTED_KEYS, mesh_unsupported_message
+from spindoctor.sim.scene.validate import validate_sim_params
 
 _REPO = Path(__file__).resolve().parents[3]
 _DEV_GUIDE = _REPO / 'docs' / 'dev_guide' / 'dev_guide_simulator.rst'
@@ -55,13 +57,7 @@ _VALID_VALUES: dict[str, Any] = {
 
 def _scene(body: dict[str, Any]) -> dict[str, Any]:
     """A minimal valid scene holding ``body`` as its only body."""
-    return {
-        'size_v': 128,
-        'size_u': 128,
-        'random_seed': 7,
-        'instrument': 'coiss_nac',
-        'bodies': [body],
-    }
+    return frame_scene(size=128, seed=7, bodies=[body])
 
 
 def _mesh_body(**extra: Any) -> dict[str, Any]:

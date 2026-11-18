@@ -28,22 +28,22 @@ Registered concrete models, grouped by feature family:
 - **Stars** (:doc:`dev_guide_navigation_models_stars`) —
   :class:`~spindoctor.nav_model.stars.nav_model_stars.NavModelStars` (catalog-driven; one
   instance per observation) and the simulated-image sibling
-  :class:`~spindoctor.nav_model.stars.nav_model_stars_simulated.NavModelStarsSimulated`
+  :class:`~spindoctor.nav_model.simulated.stars.NavModelStarsSimulated`
   (sources the star list from the sim renderer's output; documented at
   :doc:`dev_guide_navigation_models_star_simulated`).
 - **Bodies** (:doc:`dev_guide_navigation_models_bodies`) —
   :class:`~spindoctor.nav_model.nav_model_body.NavModelBody` (catalog-driven; one instance per
   body whose bounding box overlaps the extended FOV) and
-  :class:`~spindoctor.nav_model.nav_model_body_simulated.NavModelBodySimulated`
+  :class:`~spindoctor.nav_model.simulated.body.NavModelBodySimulated`
   (simulated-image GUI variant). Titan is a body too, but its surface is hidden by haze, so
   :class:`~spindoctor.nav_model.nav_model_titan.NavModelTitan` emits a haze-envelope feature
   instead of shape features, and
-  :class:`~spindoctor.nav_model.nav_model_titan_simulated.NavModelTitanSimulated` is its
+  :class:`~spindoctor.nav_model.simulated.titan.NavModelTitanSimulated` is its
   simulated-image sibling.
 - **Rings** (:doc:`dev_guide_navigation_models_rings`) —
   :class:`~spindoctor.nav_model.nav_model_rings.NavModelRings` (catalog-driven; one instance per
   planet whose ring system is configured and visible) and
-  :class:`~spindoctor.nav_model.nav_model_rings_simulated.NavModelRingsSimulated`
+  :class:`~spindoctor.nav_model.simulated.rings.NavModelRingsSimulated`
   (simulated-image GUI variant).
 
 Shared annotation helpers live on

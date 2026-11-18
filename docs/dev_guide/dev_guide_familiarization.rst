@@ -278,7 +278,6 @@ Stars (model + star techniques)
   - :mod:`spindoctor.nav_model.stars.smeared_psf`
   - :mod:`spindoctor.nav_model.stars.conflicts`
   - :mod:`spindoctor.nav_model.stars.nav_model_stars`
-  - :mod:`spindoctor.nav_model.stars.nav_model_stars_simulated`
 
 - :mod:`spindoctor.nav_technique.nav_technique_star_unique_match`
 - :mod:`spindoctor.nav_technique.nav_technique_star_refine`
@@ -351,27 +350,27 @@ sibling of each model family. These are used both by
 - :doc:`dev_guide_navigation_models_body_simulated`
 - :doc:`dev_guide_navigation_models_ring_simulated`
 - :doc:`dev_guide_navigation_models_titan_simulated`
-- :mod:`spindoctor.nav_model.stars.nav_model_stars_simulated`
-- :mod:`spindoctor.nav_model.nav_model_body_simulated`
-- :mod:`spindoctor.nav_model.nav_model_rings_simulated`
-- :mod:`spindoctor.nav_model.nav_model_titan_simulated`
-- :mod:`spindoctor.sim` — the scene schema, the image-side forward model, and the
+- :mod:`spindoctor.nav_model.simulated.stars`
+- :mod:`spindoctor.nav_model.simulated.body`
+- :mod:`spindoctor.nav_model.simulated.rings`
+- :mod:`spindoctor.nav_model.simulated.titan`
+- :mod:`spindoctor.sim` — the scene schema, the image-side renderer, and the
   geometry helpers shared across the information boundary:
 
   - :mod:`spindoctor.sim.scene` — schema, validation, and the boundary filter
-  - :mod:`spindoctor.sim.render` — the cached driver over the stage pipeline
-  - :mod:`spindoctor.sim.forward` — the image-side stage pipeline
-    (:mod:`~spindoctor.sim.forward.pipeline`, :mod:`~spindoctor.sim.forward.stages`,
-    and the per-stage renderer modules)
-  - :mod:`spindoctor.sim.ellipsoid_geometry`, :mod:`spindoctor.sim.mesh_geometry`,
-    :mod:`spindoctor.sim.ring_geometry`, :mod:`spindoctor.sim.star_records` —
-    geometry/record helpers both sides share
-  - :mod:`spindoctor.sim.instrument_navigator`
+  - :mod:`spindoctor.sim.render` — the image-side stage pipeline: the cached driver
+    (:mod:`~spindoctor.sim.render.driver`), :mod:`~spindoctor.sim.render.pipeline`,
+    :mod:`~spindoctor.sim.render.stages`, and the per-stage subpackages
+  - :mod:`spindoctor.sim.shared` (:mod:`~spindoctor.sim.shared.ellipsoid`,
+    :mod:`~spindoctor.sim.shared.mesh`, :mod:`~spindoctor.sim.shared.ring`,
+    :mod:`~spindoctor.sim.shared.stars`) — geometry/record helpers both sides share
+  - :mod:`spindoctor.sim.instruments.navigator_link`
   - :mod:`spindoctor.sim.seeds`
   - :mod:`spindoctor.sim.png_export`
 
-- :mod:`spindoctor.nav_model.sim_body` and :mod:`spindoctor.nav_model.sim_ring` —
-  the navigator-side predicted-template renderers the simulated NavModels drive.
+- :mod:`spindoctor.nav_model.simulated.predict_body` and
+  :mod:`spindoctor.nav_model.simulated.predict_ring` — the navigator-side
+  predicted-template renderers the simulated NavModels drive.
 
 - ``src/spindoctor/dataset/dataset_sim.py`` and ``src/spindoctor/obs/obs_inst_sim.py``
   — the simulated-image dataset and observation wrappers (not autodoc'd).

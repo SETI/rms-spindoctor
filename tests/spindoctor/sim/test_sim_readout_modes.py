@@ -13,34 +13,29 @@ from typing import Any
 
 import numpy as np
 import pytest
+from tests.spindoctor.sim.scenes import disc_body, frame_scene, star_entry
 
-from spindoctor.sim.forward import scene_radiance
-from spindoctor.sim.forward.detector.noise_stages import detector_hot_pixel_map
-from spindoctor.sim.forward.detector.params import DetectorParamError, resolve_detector_params
-from spindoctor.sim.forward.optics import effective_psf
-from spindoctor.sim.forward.psf import binned_psf_kernel
-from spindoctor.sim.forward.scene_radiance import _nominal_read_noise
-from spindoctor.sim.forward.star import faint_sky_cutoff_mag
-from spindoctor.sim.instrument_resolvers import (
+from spindoctor.sim.instruments.resolvers import (
     binning_for_frame_size,
     cataloged_binnings,
     resolve_psf_kernel,
 )
-from spindoctor.sim.render import clear_render_caches, render_combined_model
-from spindoctor.sim.scene import validate_sim_params
-from spindoctor.sim.scene_schema import SimSceneValidationError
+from spindoctor.sim.render.detector.noise_stages import detector_hot_pixel_map
+from spindoctor.sim.render.detector.params import DetectorParamError, resolve_detector_params
+from spindoctor.sim.render.driver import clear_render_caches, render_scene
+from spindoctor.sim.render.optics.psf import binned_psf_kernel
+from spindoctor.sim.render.optics.stage import effective_psf
+from spindoctor.sim.render.radiance import compose as scene_radiance
+from spindoctor.sim.render.radiance.compose import _nominal_read_noise
+from spindoctor.sim.render.radiance.stars import faint_sky_cutoff_mag
+from spindoctor.sim.scene.errors import SimSceneValidationError
+from spindoctor.sim.scene.validate import validate_sim_params
 
 
 def _scene(instrument: str, binning: int | None = None, **extra: Any) -> dict[str, Any]:
     """A minimal scene on ``instrument``, binned by ``binning`` when given."""
-    scene: dict[str, Any] = {
-        'instrument': instrument,
-        'size_v': 64,
-        'size_u': 64,
-        'random_seed': 1,
-        'exposure_sec': 1.0,
-        **extra,
-    }
+    scene = frame_scene(instrument=instrument, exposure_sec=1.0)
+    scene.update(extra)
     if binning is not None:
         scene['detector'] = {'binning': binning}
     return scene
@@ -158,7 +153,7 @@ def test_a_summed_sky_scene_passes_its_mode_read_noise_to_the_cutoff(
 
     monkeypatch.setattr(scene_radiance, 'faint_sky_cutoff_mag', spy)
     clear_render_caches()
-    render_combined_model(_scene('gossi', 2, sky_counts={'density_factor': 1.0}))
+    render_scene(_scene('gossi', 2, sky_counts={'density_factor': 1.0}))
     assert seen == [44.0]
 
 
@@ -171,18 +166,7 @@ def test_binning_scales_the_native_dark_current() -> None:
 
 
 _LIT_BODY: dict[str, Any] = {
-    'bodies': [
-        {
-            'name': 'B',
-            'center_v': 32.0,
-            'center_u': 32.0,
-            'semi_a_px': 20.0,
-            'semi_b_px': 20.0,
-            'semi_c_px': 20.0,
-            'phase_angle': 0.0,
-            'illumination_angle': 0.0,
-        }
-    ],
+    'bodies': [disc_body(32.0, 32.0, 20.0, phase_angle=0.0, illumination_angle=0.0)],
     'noise': {'poisson': False},
     # Short enough that four native pixels' charge stays below the ADC clip.
     'exposure_sec': 0.2,
@@ -191,8 +175,8 @@ _LIT_BODY: dict[str, Any] = {
 
 def test_a_binned_pixel_collects_the_extended_signal_of_its_block() -> None:
     """A lit disc renders four times the native DN above bias at 2x2."""
-    native, _meta = render_combined_model(_scene('coiss_nac', **_LIT_BODY))
-    binned, _meta = render_combined_model(_scene('coiss_nac', 2, **_LIT_BODY))
+    native, _meta = render_scene(_scene('coiss_nac', **_LIT_BODY))
+    binned, _meta = render_scene(_scene('coiss_nac', 2, **_LIT_BODY))
     bias = float(resolve_detector_params(_scene('coiss_nac')).bias_dn)
     ratio = (float(binned[32, 32]) - bias) / (float(native[32, 32]) - bias)
     assert ratio == pytest.approx(4.0, rel=0.01)
@@ -200,10 +184,10 @@ def test_a_binned_pixel_collects_the_extended_signal_of_its_block() -> None:
 
 def test_a_star_keeps_its_total_charge_when_binned() -> None:
     """Binning concentrates a star into fewer pixels without changing its total."""
-    star = {'stars': [{'name': 'S', 'v': 32.5, 'u': 32.5, 'vmag': 6.0, 'psf_sigma': 1.5}]}
+    star = {'stars': [star_entry(32.5, 32.5, 6.0, psf_sigma=1.5)]}
     totals = []
     for binning in (None, 2):
-        image, _meta = render_combined_model(_scene('coiss_nac', binning, **star))
+        image, _meta = render_scene(_scene('coiss_nac', binning, **star))
         totals.append(float(np.sum(image - np.median(image))))
     assert totals[1] == pytest.approx(totals[0], rel=0.02)
 
@@ -245,8 +229,8 @@ def test_binned_psf_kernel_scales_only_the_radii() -> None:
 
 def test_a_calibrated_frame_keeps_its_i_over_f_when_summed() -> None:
     """Summing collects four times the charge and calibrates back to the same I/F."""
-    native, _meta = render_combined_model(_scene('coiss_calib_nac', **_LIT_BODY))
-    summed, _meta = render_combined_model(_scene('coiss_calib_nac', 2, **_LIT_BODY))
+    native, _meta = render_scene(_scene('coiss_calib_nac', **_LIT_BODY))
+    summed, _meta = render_scene(_scene('coiss_calib_nac', 2, **_LIT_BODY))
     assert float(summed[32, 32]) == pytest.approx(float(native[32, 32]), rel=1e-3)
 
 
@@ -262,6 +246,6 @@ def test_a_summed_pixel_saturates_at_its_blocks_well() -> None:
     native_scene['detector'] = {'gain_state': 0}
     summed_scene = _scene('coiss_calib_nac', 2, **bright)
     summed_scene['detector']['gain_state'] = 0
-    native, _meta = render_combined_model(native_scene)
-    summed, _meta = render_combined_model(summed_scene)
+    native, _meta = render_scene(native_scene)
+    summed, _meta = render_scene(summed_scene)
     assert float(summed[32, 32]) == pytest.approx(float(native[32, 32]), rel=1.0 / 236.0)

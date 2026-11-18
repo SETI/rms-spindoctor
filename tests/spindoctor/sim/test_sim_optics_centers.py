@@ -17,9 +17,9 @@ from typing import Any
 import numpy as np
 import pytest
 
-from spindoctor.sim.forward.distortion import apply_distortion
-from spindoctor.sim.forward.optics import apply_optics, apply_stray_light
-from spindoctor.sim.forward.stages import new_sim_frame
+from spindoctor.sim.render.optics.distortion import apply_distortion
+from spindoctor.sim.render.optics.stage import apply_optics, apply_stray_light
+from spindoctor.sim.render.stages import new_sim_frame
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 
 _SIZE = 64

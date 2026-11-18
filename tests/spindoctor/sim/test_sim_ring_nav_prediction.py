@@ -1,6 +1,6 @@
 """Navigator-side ring_system predictions: projection, boundary, and hidden truth.
 
-``NavModelRingsSimulated`` consumes only the filtered idealized view: the
+``NavModelRingsSimulated`` consumes only the navigator view: the
 shared projection geometry and the navigable features' catalog orbits.
 These tests pin that a predicted edge lands on the rendered feature
 boundary for an inclined, rotated system (both sides project through the
@@ -13,14 +13,15 @@ from typing import Any, cast
 
 import numpy as np
 import pytest
+from tests.spindoctor.sim.scenes import frame_scene, ring_system_block
 
 from spindoctor.feature.feature import NavFeature
 from spindoctor.feature.geometry import RingEdgePolyline
-from spindoctor.nav_model.nav_model_rings_simulated import NavModelRingsSimulated
+from spindoctor.nav_model.simulated.rings import NavModelRingsSimulated
 from spindoctor.nav_orchestrator.nav_context import NavContext
 from spindoctor.obs.obs_inst_sim import ObsSim
-from spindoctor.sim.ring_geometry import ring_plane_from_sky, ring_radial_scale
-from spindoctor.sim.scene import validate_sim_params
+from spindoctor.sim.scene.validate import validate_sim_params
+from spindoctor.sim.shared.ring import ring_plane_from_sky, ring_radial_scale
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 from spindoctor.support.types import NDArrayFloatType
 
@@ -41,25 +42,21 @@ _EDGE_MEAN_BOUND_PX = 0.1
 
 def _scene(feature: dict[str, Any], **extra: Any) -> dict[str, Any]:
     """A noise-free calibrated scene with one inclined, rotated feature."""
-    scene: dict[str, Any] = {
-        'schema_version': 2,
-        'scene_name': 'ring_nav_probe',
-        'instrument': 'coiss_calib_nac',
-        'size_v': _SIZE,
-        'size_u': _SIZE,
-        'random_seed': 5,
-        'ring_system': {
-            'geometry': {
-                'center_v': _CENTER,
-                'center_u': _CENTER,
-                'opening_deg_obs': 35.0,
-                'opening_deg_sun': 25.0,
-                'node_deg': 25.0,
-            },
-            'features': [feature],
-        },
-    }
-    scene.update(extra)
+    scene = frame_scene(
+        instrument='coiss_calib_nac',
+        size=_SIZE,
+        seed=5,
+        scene_name='ring_nav_probe',
+        ring_system=ring_system_block(
+            _CENTER,
+            _CENTER,
+            [feature],
+            opening_deg_obs=35.0,
+            opening_deg_sun=25.0,
+            node_deg=25.0,
+        ),
+        **extra,
+    )
     return validate_sim_params(scene, source='ring_nav_probe')
 
 

@@ -31,7 +31,7 @@ from spindoctor.feature import NavFeatureType
 from spindoctor.feature.feature import NavFeature
 from spindoctor.feature.geometry import LimbPolyline, RingEdgePolyline, StarGeometry
 from spindoctor.nav_model import build_models_for_obs
-from spindoctor.nav_model.nav_model_body_simulated import NavModelBodySimulated
+from spindoctor.nav_model.simulated.body import NavModelBodySimulated
 from spindoctor.nav_orchestrator import NavOrchestrator
 from spindoctor.obs import ObsSnapshotInst
 from spindoctor.sim.realism.artifact_rates import (

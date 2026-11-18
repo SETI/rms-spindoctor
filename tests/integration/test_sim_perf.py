@@ -1,4 +1,4 @@
-"""Single-core cold-render performance budget for the forward model.
+"""Single-core cold-render performance budget for the renderer.
 
 A 512x512 scene with a whole-scene PSF plus the full detector stack at
 oversample 4 must render in under 2 s single-core, and a 1024x1024
@@ -50,7 +50,7 @@ from typing import Any
 import pytest
 from threadpoolctl import threadpool_limits
 
-from spindoctor.sim import render
+from spindoctor.sim.render.driver import clear_render_caches, render_scene
 
 pytestmark = pytest.mark.integration
 
@@ -241,7 +241,7 @@ def _warm_non_render_costs() -> None:
     deferred module imports; the render caches are then cleared again so the
     timed render stays genuinely cold on the render paths themselves.
     """
-    render.render_combined_model(
+    render_scene(
         {
             'size_v': 8,
             'size_u': 8,
@@ -250,7 +250,7 @@ def _warm_non_render_costs() -> None:
             'noise': {'read_noise_dn': 1.0},
         }
     )
-    render.clear_render_caches()
+    clear_render_caches()
 
 
 def _cold_render_seconds(scene: dict[str, Any]) -> tuple[float, float]:
@@ -261,10 +261,10 @@ def _cold_render_seconds(scene: dict[str, Any]) -> tuple[float, float]:
         reads the CPU time; the wall time is reported for context.
     """
     with _single_core():
-        render.clear_render_caches()
+        clear_render_caches()
         cpu_start = time.process_time()
         wall_start = time.perf_counter()
-        render.render_combined_model(scene)
+        render_scene(scene)
         return time.process_time() - cpu_start, time.perf_counter() - wall_start
 
 

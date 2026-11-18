@@ -12,7 +12,7 @@ import math
 import numpy as np
 import pytest
 
-from spindoctor.sim.ring_geometry import (
+from spindoctor.sim.shared.ring import (
     ring_los_depth,
     ring_plane_from_sky,
     ring_radial_scale,

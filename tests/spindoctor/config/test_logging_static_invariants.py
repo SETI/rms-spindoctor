@@ -34,9 +34,9 @@ _PRINT_ONLY = [
     'cli/sd_stats_report.py',
     'cli/sd_backplane_viewer.py',
     'cli/sd_create_simulated_image.py',
-    'cli/sim_editor',
     'cli/sd_mosaic_display.py',
     'ui/mosaic_viewer',
+    'ui/sim_editor',
 ]
 
 _LOGGER_NAMES = frozenset({'IMAGE_LOGGER', 'MAIN_LOGGER'})

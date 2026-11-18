@@ -12,27 +12,21 @@ from typing import Any
 
 import numpy as np
 import pytest
+from tests.spindoctor.sim.scenes import frame_scene
 
-from spindoctor.sim.forward.detector.noise_stages import detector_column_map
-from spindoctor.sim.forward.detector.params import calibration_map, resolve_detector_params
-from spindoctor.sim.instrument_resolvers import resolve_detector_defaults
-from spindoctor.sim.render import render_combined_model
-from spindoctor.sim.scene import validate_sim_params
-from spindoctor.sim.scene_schema import SimSceneValidationError
+from spindoctor.sim.instruments.resolvers import resolve_detector_defaults_native
+from spindoctor.sim.render.detector.noise_stages import detector_column_map
+from spindoctor.sim.render.detector.params import calibration_map, resolve_detector_params
+from spindoctor.sim.render.driver import render_scene
+from spindoctor.sim.scene.errors import SimSceneValidationError
+from spindoctor.sim.scene.validate import validate_sim_params
 
 _SIZE = 256
 
 
 def _scene(instrument: str, noise: dict[str, Any], **extra: Any) -> dict[str, Any]:
     """A dark-sky scene on ``instrument`` with ``noise``."""
-    scene: dict[str, Any] = {
-        'size_v': _SIZE,
-        'size_u': _SIZE,
-        'random_seed': 11,
-        'instrument': instrument,
-        'exposure_sec': 0.1,
-        'noise': noise,
-    }
+    scene = frame_scene(instrument=instrument, size=_SIZE, seed=11, exposure_sec=0.1, noise=noise)
     scene.update(extra)
     return scene
 
@@ -50,7 +44,7 @@ def _residual_only(column_e: float, pixel_e: float) -> dict[str, Any]:
 
 def _electrons(scene: dict[str, Any]) -> np.ndarray:
     """Render ``scene`` and convert its calibrated I/F back to electrons."""
-    img, _ = render_combined_model(scene)
+    img, _ = render_scene(scene)
     dp = resolve_detector_params(scene)
     cal = calibration_map(dp)
     assert cal is not None
@@ -131,24 +125,22 @@ def test_two_scenes_share_the_column_pattern() -> None:
 
 def test_an_instrument_defaults_calibrated_sky_is_continuous() -> None:
     """The cataloged residual takes the calibrated sky off the integer DN lattice."""
-    img, _ = render_combined_model(
-        _scene('coiss_calib_nac', {}, artifacts={'instrument_defaults': True})
-    )
+    img, _ = render_scene(_scene('coiss_calib_nac', {}, artifacts={'instrument_defaults': True}))
     assert np.unique(img).size > 10_000
 
 
 @pytest.mark.parametrize('instrument', ['coiss_calib_nac', 'coiss_calib_wac'])
 def test_each_calibrated_camera_catalogs_both_terms(instrument: str) -> None:
     """Both calibrated Cassini products carry a measured, positive residual."""
-    entry = resolve_detector_defaults(instrument)
+    entry = resolve_detector_defaults_native(instrument)
     assert entry['calibration_column_residual_e'] > 0.0
     assert entry['calibration_pixel_residual_e'] > 0.0
 
 
 def test_a_raw_product_ignores_the_residual() -> None:
     """A raw DN frame has no calibration inverse, so the keys change nothing."""
-    plain, _ = render_combined_model(_scene('coiss_nac', _residual_only(0.0, 0.0)))
-    keyed, _ = render_combined_model(_scene('coiss_nac', _residual_only(15.0, 9.4)))
+    plain, _ = render_scene(_scene('coiss_nac', _residual_only(0.0, 0.0)))
+    keyed, _ = render_scene(_scene('coiss_nac', _residual_only(15.0, 9.4)))
     assert np.array_equal(plain, keyed)
 
 

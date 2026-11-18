@@ -1,0 +1,256 @@
+"""Keep each body inside the keys the scene validator accepts for its shape model.
+
+The scene validator refuses a non-null value of every key in
+:data:`spindoctor.sim.scene.fields.MESH_UNSUPPORTED_KEYS` on a
+``shape_model: polyhedral_mesh`` body, and of every key in
+:data:`spindoctor.sim.scene.fields.ELLIPSOID_UNSUPPORTED_KEYS` on an ellipsoid
+body.  This module is the editor's side of those rules, read from the same
+tables so the two cannot drift:
+
+- :data:`MESH_REFUSED_WIDGETS` names, for each refused key, the body-tab widget
+  attributes whose controls write it.  Every key in the table must have an entry;
+  a key without one raises ``KeyError`` the first time a body tab is built.
+- :func:`sync_mesh_refused_widgets` disables those controls on a mesh body and
+  gives each, and every control and label inside it, the validator's own
+  sentence as its tooltip, then restores both on an ellipsoid.
+- :class:`MeshKeyStash` holds the refused keys a body carried when its shape
+  model was switched.  Switching moves them out of the scene, so a body the
+  editor holds or saves never carries a key its shape refuses, and switching
+  back puts them back.  The mesh-only controls sit in one group that an
+  ellipsoid body disables.  :func:`stash_message` is the status-bar sentence
+  that tells the operator which keys moved.
+"""
+
+from collections.abc import Iterable
+from typing import Any
+
+from PyQt6.QtWidgets import QAbstractSpinBox, QComboBox, QWidget
+
+from spindoctor.sim.scene.fields import (
+    ELLIPSOID_UNSUPPORTED_KEYS,
+    MESH_UNSUPPORTED_KEYS,
+    mesh_unsupported_message,
+)
+
+# The body-tab widget attributes that write each refused key.  A key written by
+# a checkable group maps to the group: disabling it disables every control
+# inside, and leaves the children's own enable state (the Minnaert exponent's
+# law gating) to come back when the group is re-enabled.
+MESH_REFUSED_WIDGETS: dict[str, tuple[str, ...]] = {
+    'atmosphere': ('atmosphere_group',),
+    'photometric_law': ('photometry_group',),
+    'minnaert_k': ('photometry_group',),
+    'opposition_surge': ('surge_group',),
+    'albedo_texture': ('albedo_group',),
+    'disc_texture': ('disc_group',),
+    'transits': ('transits_group',),
+    'crater_fill': ('crater_fill_slider', 'crater_fill_spin'),
+    'crater_min_radius': ('crater_min_radius_spin',),
+    'crater_max_radius': ('crater_max_radius_spin',),
+    'crater_power_law_exponent': ('crater_exponent_spin',),
+    'crater_relief_scale': ('crater_relief_scale_spin',),
+}
+
+# Dynamic property holding a widget's own (ellipsoid) tooltip while a mesh body
+# shows the refusal in its place; it is cleared when the tooltip is restored, so
+# a tooltip the editor changes on an ellipsoid is the one the next switch keeps.
+_OWN_TOOLTIP = 'ellipsoid_tooltip'
+
+# How long the status bar shows the stash message, in milliseconds.
+STASH_MESSAGE_MS = 15000
+
+
+def stash_message(body_name: str, keys: Iterable[str], shape_model: str) -> str:
+    """The status-bar sentence shown when a shape-model switch stashes keys.
+
+    Parameters:
+        body_name: The body's name, as its tab shows it.
+        keys: The keys the switch moved out of the scene.
+        shape_model: The shape model switched to, ``'polyhedral_mesh'`` or
+            ``'ellipsoid'``.
+
+    Returns:
+        A sentence naming the keys, saying that switching the body back to the
+        other shape model restores them in this editor session, and that a saved
+        scene file doesn't carry them.
+    """
+    other = 'ellipsoid' if shape_model == 'polyhedral_mesh' else 'polyhedral_mesh'
+    short = 'mesh' if shape_model == 'polyhedral_mesh' else 'ellipsoid'
+    article = 'an' if shape_model == 'ellipsoid' else 'a'
+    return (
+        f'{body_name}: moved {", ".join(keys)} out of the scene, because {article} '
+        f"{shape_model} body doesn't support them. Switching back to {other} "
+        f"restores them in this session; a saved {short} scene file doesn't carry them."
+    )
+
+
+def refused_keys(shape_model: str) -> tuple[str, ...]:
+    """The keys the scene validator refuses on a body of ``shape_model``.
+
+    Parameters:
+        shape_model: ``'polyhedral_mesh'``, or anything else for an ellipsoid.
+
+    Returns:
+        :data:`~spindoctor.sim.scene.fields.MESH_UNSUPPORTED_KEYS` for a mesh, else
+        :data:`~spindoctor.sim.scene.fields.ELLIPSOID_UNSUPPORTED_KEYS`.
+    """
+    if shape_model == 'polyhedral_mesh':
+        return MESH_UNSUPPORTED_KEYS
+    return ELLIPSOID_UNSUPPORTED_KEYS
+
+
+def _refused_keys_by_widget() -> dict[str, list[str]]:
+    """Map each widget attribute to the refused keys it writes, in table order."""
+    by_widget: dict[str, list[str]] = {}
+    for key in MESH_UNSUPPORTED_KEYS:
+        for attr in MESH_REFUSED_WIDGETS[key]:
+            by_widget.setdefault(attr, []).append(key)
+    return by_widget
+
+
+def _hover_targets(widget: QWidget) -> list[QWidget]:
+    """``widget`` and every control and label inside it.
+
+    The walk goes down from ``widget`` through each widget's own children and stops
+    at a spin box or combo box: hovering the parts it is built from (its line edit,
+    its popup) shows the compound control's own tooltip.  The walk never touches
+    those parts, which Qt creates and deletes on its own.
+    """
+    targets = [widget]
+    if isinstance(widget, (QAbstractSpinBox, QComboBox)):
+        return targets
+    for child in widget.children():
+        if isinstance(child, QWidget):
+            targets.extend(_hover_targets(child))
+    return targets
+
+
+def sync_mesh_refused_widgets(w: QWidget, is_mesh: bool) -> None:
+    """Disable a mesh body's refused controls and show why, or restore them.
+
+    On a mesh body every control in :data:`MESH_REFUSED_WIDGETS` is disabled, and
+    its tooltip, and that of every control and label inside it (a group's spin
+    boxes, check boxes, and row labels), becomes
+    :func:`~spindoctor.sim.scene.fields.mesh_unsupported_message` for the keys the
+    control writes, the sentence the validator raises.  Hovering any of them
+    explains the refusal.  On an ellipsoid the controls are enabled and every one
+    of those widgets gets its own tooltip back.
+
+    Parameters:
+        w: A built body tab carrying the attributes the table names.
+        is_mesh: Whether the body is a ``polyhedral_mesh`` body.
+
+    Raises:
+        KeyError: If a key in ``MESH_UNSUPPORTED_KEYS`` has no table entry.
+        AttributeError: If ``w`` lacks a widget the table names.
+    """
+    for attr, keys in _refused_keys_by_widget().items():
+        widget: QWidget = getattr(w, attr)
+        widget.setEnabled(not is_mesh)
+        refusal = mesh_unsupported_message(keys)
+        for target in _hover_targets(widget):
+            own = target.property(_OWN_TOOLTIP)
+            if is_mesh:
+                if own is None:
+                    target.setProperty(_OWN_TOOLTIP, target.toolTip())
+                target.setToolTip(refusal)
+            elif own is not None:
+                target.setToolTip(str(own))
+                target.setProperty(_OWN_TOOLTIP, None)
+
+
+class MeshKeyStash:
+    """The refused keys each body carried when the editor switched its shape model.
+
+    Entries are keyed by the body dict's identity and keep the dict itself, so an
+    entry follows its body through tab rebuilds and index shifts, and a deleted
+    body's id cannot be reused by another body while its entry lives.
+    """
+
+    def __init__(self) -> None:
+        """Start with an empty stash."""
+        self._entries: dict[int, tuple[dict[str, Any], dict[str, Any]]] = {}
+
+    def stashed(self, body: dict[str, Any]) -> dict[str, Any]:
+        """The refused keys stashed for ``body``.
+
+        Parameters:
+            body: A scene body dict, matched by identity.
+
+        Returns:
+            The stashed keys and values (the stash's own mapping; callers must not
+            edit it), or an empty dict when nothing is stashed for ``body``.
+        """
+        entry = self._entries.get(id(body))
+        if entry is None or entry[0] is not body:
+            return {}
+        return entry[1]
+
+    def take(self, body: dict[str, Any], keys: Iterable[str]) -> list[str]:
+        """Move every one of ``keys`` that ``body`` carries into the stash.
+
+        Parameters:
+            body: The scene's body dict, edited in place: afterwards it carries none
+                of ``keys``.
+            keys: The keys to move, such as :func:`refused_keys` for the body's new
+                shape model.
+
+        Returns:
+            The keys moved, in ``keys`` order; empty when the body carried none.
+        """
+        taken = {key: body.pop(key) for key in keys if key in body}
+        if taken:
+            self._entries[id(body)] = (body, {**self.stashed(body), **taken})
+        return list(taken)
+
+    def give_back(self, body: dict[str, Any], keys: Iterable[str]) -> None:
+        """Return those of ``keys`` stashed for ``body`` to it and forget them.
+
+        A key the body carries again keeps its current value.  Stashed keys outside
+        ``keys`` stay stashed.
+
+        Parameters:
+            body: The scene's body dict, edited in place.
+            keys: The keys to return, such as the keys the body's old shape model
+                refused.
+        """
+        stashed = self.stashed(body)
+        returned = [key for key in keys if key in stashed]
+        for key in returned:
+            body.setdefault(key, stashed[key])
+        rest = {key: value for key, value in stashed.items() if key not in returned}
+        if rest:
+            self._entries[id(body)] = (body, rest)
+        else:
+            self._entries.pop(id(body), None)
+
+    def view(self, body: dict[str, Any]) -> dict[str, Any]:
+        """``body`` with its stashed keys merged in, for building its controls.
+
+        A tab rebuilt while the body is a mesh shows the values that switching back
+        to an ellipsoid restores.
+
+        Parameters:
+            body: The scene's body dict.
+
+        Returns:
+            A new mapping holding the stashed keys overlaid by the body's own keys.
+            Edits belong in the scene's body dict.
+        """
+        return {**self.stashed(body), **body}
+
+    def prune(self, bodies: list[dict[str, Any]]) -> None:
+        """Forget the entries of bodies that are no longer in the scene.
+
+        Parameters:
+            bodies: The scene's body list; an entry whose body dict is not one of
+                these (by identity) is dropped.
+        """
+        live = {id(body): body for body in bodies}
+        self._entries = {
+            key: entry for key, entry in self._entries.items() if live.get(key) is entry[0]
+        }
+
+    def clear(self) -> None:
+        """Forget every entry, as loading a scene does."""
+        self._entries.clear()

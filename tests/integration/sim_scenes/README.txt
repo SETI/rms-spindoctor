@@ -8,7 +8,7 @@ as:
 
 The directory is the registry: <scene_class> is the immediate parent directory
 and must be one of the declared classes; <scene_name> must equal the filename
-stem.  The schema is defined and validated by src/spindoctor/sim/scene.py; the
+stem.  The schema is defined and validated by src/spindoctor/sim/scene/; the
 structural invariants are enforced by tests/integration/test_sim_scenes.py.
 
 The fields are the flat runtime sim_params names the renderer consumes, so a

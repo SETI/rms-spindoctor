@@ -363,9 +363,9 @@ Simulator model
 ===============
 
 **Instrument key.** ``vgiss``, one key for two spacecraft and four cameras.
-That is the model's sharpest simplification, and the instrument's config entry
+That is the model's sharpest simplification, and the instrument entry
 says so. The entry sits under the ``vgiss`` key of
-``src/spindoctor/sim/instrument_configs/vgiss.yaml`` and holds the values below.
+``src/spindoctor/sim/instruments/configs/vgiss.yaml`` and holds the values below.
 It states ``data_units: calibrated_if``, the units of the GEOMED product and of
 the ``voyager_iss`` block, so a simulated frame is in I/F.
 
@@ -380,11 +380,11 @@ Voyager references publish no FWHM to fall back on.
 ``{k1: -6.88e-03, k2: 1.46e-02, nonradial_rms_px: 0.2}``. The non-radial wander
 is non-zero: the resampled vidicon geometry carries coherent tangential
 distortion that a radial polynomial cannot represent. The block is the
-Voyager 2 wide angle measurement, and the config entry says plainly that one key
+Voyager 2 wide angle measurement, and the instrument entry says plainly that one key
 under-represents the spread across two spacecraft and two optics until
 per-camera keys and locked frames for each exist.
 
-**Artifact-mode availability.** The config entry's ``artifact_modes.offered``
+**Artifact-mode availability.** The instrument entry's ``artifact_modes.offered``
 lists its modes, and the simulator guide's mode tables
 (:ref:`sim-telemetry-modes` and :ref:`sim-detector-modes`) give each mode's
 cameras. Its detector model is ``vidicon``, so the modes that act in the CCD

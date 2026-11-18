@@ -9,7 +9,6 @@ the marker (garble, spikes, detector electronics) are out of scope for the
 image estimators and are covered only through :func:`planted_artifact_counts`.
 """
 
-import copy
 from typing import Any
 
 import numpy as np
@@ -22,45 +21,36 @@ from tests.spindoctor.sim.artifact_counts import (
     measured_pixel_dropouts,
     planted_artifact_counts,
 )
+from tests.spindoctor.sim.scenes import body_scene
 
-from spindoctor.sim.render import render_combined_model
+from spindoctor.sim.render.driver import render_scene
+
 
 # A biased, well-resolved disc: the bias floor lifts the sky above the zero
 # marker so a dropped pixel is exactly distinguishable from dark sky.
-_BASE_SCENE: dict[str, Any] = {
-    'schema_version': 2,
-    'scene_name': 'artifact_counts_base',
-    'instrument': 'coiss_nac',
-    'size_v': 200,
-    'size_u': 200,
-    'random_seed': 7,
-    'exposure_sec': 1.0,
-    'bodies': [
-        {
-            'name': 'RHEA',
-            'center_v': 100.0,
-            'center_u': 100.0,
-            'semi_a_px': 40.0,
-            'semi_b_px': 40.0,
-            'semi_c_px': 40.0,
-            'illumination_angle': 25.0,
-            'phase_angle': 30.0,
-        }
-    ],
-    'noise': {'poisson': True, 'read_noise_dn': 4.0, 'bias_dn': 20.0},
-}
+def _base_scene() -> dict[str, Any]:
+    """The base disc scene, a fresh mapping on each call."""
+    return body_scene(
+        40.0,
+        size=200,
+        seed=7,
+        scene_name='artifact_counts_base',
+        exposure_sec=1.0,
+        noise={'poisson': True, 'read_noise_dn': 4.0, 'bias_dn': 20.0},
+        body={'illumination_angle': 25.0, 'phase_angle': 30.0},
+    )
 
 
 def _render_with(artifacts: dict[str, Any]) -> tuple[np.ndarray, dict[str, Any]]:
     """Render the base scene with one artifacts block; return image and truth."""
-    scene = copy.deepcopy(_BASE_SCENE)
+    scene = _base_scene()
     scene['artifacts'] = artifacts
-    return render_combined_model(scene)
+    return render_scene(scene)
 
 
 def test_planted_artifact_counts_empty_without_artifacts() -> None:
     """A frame with no artifacts records no planted artifacts."""
-    _img, truth = render_combined_model(copy.deepcopy(_BASE_SCENE))
+    _img, truth = render_scene(_base_scene())
     assert planted_artifact_counts(truth) == {}
 
 

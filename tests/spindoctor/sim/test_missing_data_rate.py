@@ -10,12 +10,13 @@ from typing import Any
 
 import numpy as np
 import pytest
+from tests.spindoctor.sim.scenes import body_scene
 
 from spindoctor.config import DEFAULT_CONFIG
-from spindoctor.sim.instrument_catalog import sim_instrument_names
-from spindoctor.sim.instrument_navigator import resolve_sim_inst_config
-from spindoctor.sim.render import render_combined_model
-from spindoctor.sim.scene import validate_sim_params
+from spindoctor.sim.instruments.catalog import sim_instrument_names
+from spindoctor.sim.instruments.navigator_link import resolve_sim_inst_config
+from spindoctor.sim.render.driver import render_scene
+from spindoctor.sim.scene.validate import validate_sim_params
 from spindoctor.support.image_class import missing_data_marker
 
 # The shipped entries cover both unit classes.
@@ -29,27 +30,13 @@ def _scene(instrument: str, rate: float, *, marker: float | None = None) -> dict
     ``marker``, when given, overrides the instrument block's missing-data marker
     through ``instrument_config``.
     """
-    scene: dict[str, Any] = {
-        'schema_version': 2,
-        'scene_name': 'missing_data_rate',
-        'size_v': 64,
-        'size_u': 64,
-        'random_seed': 5,
-        'instrument': instrument,
-        'noise': {'missing_data_rate': rate},
-        'bodies': [
-            {
-                'name': 'RHEA',
-                'center_v': 32.0,
-                'center_u': 32.0,
-                'semi_a_px': 10.0,
-                'semi_b_px': 10.0,
-                'semi_c_px': 10.0,
-                'illumination_angle': 0.0,
-                'phase_angle': 0.0,
-            }
-        ],
-    }
+    scene = body_scene(
+        10.0,
+        instrument=instrument,
+        seed=5,
+        scene_name='missing_data_rate',
+        noise={'missing_data_rate': rate},
+    )
     if marker is not None:
         scene['instrument_config'] = {'noise': {'marker_value': marker}}
     return scene
@@ -57,9 +44,9 @@ def _scene(instrument: str, rate: float, *, marker: float | None = None) -> dict
 
 def _lost(instrument: str, *, marker: float | None = None) -> tuple[np.ndarray, float]:
     """The values of the pixels the rate changed, and the frame's navigator marker."""
-    without, _ = render_combined_model(_scene(instrument, 0.0, marker=marker))
+    without, _ = render_scene(_scene(instrument, 0.0, marker=marker))
     params = _scene(instrument, _RATE, marker=marker)
-    with_rate, _ = render_combined_model(params)
+    with_rate, _ = render_scene(params)
     inst_config = resolve_sim_inst_config(
         DEFAULT_CONFIG, instrument, params.get('instrument_config')
     )
@@ -108,8 +95,8 @@ def test_the_validator_accepts_a_rate_everywhere(instrument: str) -> None:
 @pytest.mark.parametrize('instrument', ['coiss_nac', 'coiss_calib_nac', 'vgiss'])
 def test_a_nan_marker_override_puts_nan_on_exactly_the_lost_pixels(instrument: str) -> None:
     """Under a scene's NaN marker, the lost pixels read NaN, and no other pixel is NaN or 0."""
-    without, _ = render_combined_model(_scene(instrument, 0.0, marker=math.nan))
-    with_rate, _ = render_combined_model(_scene(instrument, _RATE, marker=math.nan))
+    without, _ = render_scene(_scene(instrument, 0.0, marker=math.nan))
+    with_rate, _ = render_scene(_scene(instrument, _RATE, marker=math.nan))
     lost = np.isnan(with_rate)
     assert int(lost.sum()) > 0
     assert np.array_equal(with_rate[~lost], without[~lost])
