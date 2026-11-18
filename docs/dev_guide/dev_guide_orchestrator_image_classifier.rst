@@ -73,30 +73,30 @@ Configuration
 =============
 
 Per-instrument thresholds live in
-:class:`~spindoctor.nav_orchestrator.image_classifier.ImageQualityThresholds`, populated by
+:class:`~spindoctor.support.image_class.ImageQualityThresholds`, populated by
 :func:`~spindoctor.nav_orchestrator.instrument_config.instrument_settings_from_obs` from the
 ``image_quality_thresholds`` block in ``config_4N0_inst_*.yaml``. Documented at
 :doc:`dev_guide_orchestrator_instrument_config`.
 
 The thresholds dataclass:
 
-- :attr:`~spindoctor.nav_orchestrator.image_classifier.ImageQualityThresholds.saturation_threshold_dn`
+- :attr:`~spindoctor.support.image_class.ImageQualityThresholds.saturation_threshold_dn`
   — float, default ``4095.0`` DN. Pixels at or above this DN are flagged saturated.
-- :attr:`~spindoctor.nav_orchestrator.image_classifier.ImageQualityThresholds.missing_data_marker_dn`
+- :attr:`~spindoctor.support.image_class.ImageQualityThresholds.missing_data_marker_dn`
   — float, default ``0.0`` DN. Pixels exactly equal to this value are missing data; when
   the marker is ``NaN``, the classifier detects missing data via ``np.isnan`` instead.
-- :attr:`~spindoctor.nav_orchestrator.image_classifier.ImageQualityThresholds.max_saturation_frac_clean`
+- :attr:`~spindoctor.support.image_class.ImageQualityThresholds.max_saturation_frac_clean`
   — float, default ``0.80`` (dimensionless). Above this fraction of saturated pixels the
   image is ``fully_overexposed``.
-- :attr:`~spindoctor.nav_orchestrator.image_classifier.ImageQualityThresholds.max_missing_frac_clean`
+- :attr:`~spindoctor.support.image_class.ImageQualityThresholds.max_missing_frac_clean`
   — float, default ``0.30`` (dimensionless). Above this fraction of missing pixels the
   image is ``mostly_missing_data``.
-- :attr:`~spindoctor.nav_orchestrator.image_classifier.ImageQualityThresholds.partial_dropout_min_frac`
+- :attr:`~spindoctor.support.image_class.ImageQualityThresholds.partial_dropout_min_frac`
   — float, default ``0.05`` (dimensionless). At or above this fraction (and below
   ``max_missing_frac_clean``) the ``partial_dropout`` advisory flag is set.
-- :attr:`~spindoctor.nav_orchestrator.image_classifier.ImageQualityThresholds.blank_max_dn` —
+- :attr:`~spindoctor.support.image_class.ImageQualityThresholds.blank_max_dn` —
   float, default ``5.0`` DN. Below this maximum sensor DN the image is ``blank``.
-- :attr:`~spindoctor.nav_orchestrator.image_classifier.ImageQualityThresholds.noisy_threshold` —
+- :attr:`~spindoctor.support.image_class.ImageQualityThresholds.noisy_threshold` —
   float, default ``10.0`` DN. Above this MAD-noise sigma the ``noisy`` advisory flag is
   set.
 
@@ -106,8 +106,17 @@ Implementation
 Source files:
 
 - ``src/spindoctor/nav_orchestrator/image_classifier.py`` —
-  :class:`~spindoctor.nav_orchestrator.image_classifier.NavImageClassifier` and
-  :class:`~spindoctor.nav_orchestrator.image_classifier.ImageQualityThresholds`.
+  :class:`~spindoctor.nav_orchestrator.image_classifier.NavImageClassifier`.
+- ``src/spindoctor/support/image_class.py`` — the decision itself:
+  :class:`~spindoctor.support.image_class.ImageQualityThresholds`, the reader that fills
+  it from an instrument block
+  (:func:`~spindoctor.support.image_class.image_quality_thresholds` and
+  :func:`~spindoctor.support.image_class.missing_data_marker`), the three sensor
+  measurements (:func:`~spindoctor.support.image_class.measure_image_quality`), and the
+  ordered checks (:func:`~spindoctor.support.image_class.decide_image_class`). The
+  simulated-image editor's verdict calls the same functions, so a scene author is told
+  exactly what the navigator will decide. The module imports neither the navigator
+  packages nor the simulator.
 - ``src/spindoctor/nav_orchestrator/image_classifier_result.py`` —
   :class:`~spindoctor.nav_orchestrator.image_classifier_result.NavImageClassifierResult` plus the
   ``ImageClass`` and ``ImageFlag`` Literal aliases.
@@ -123,8 +132,9 @@ Public classes (autodocumented at :doc:`/api_reference/api_nav_orchestrator`):
   three-statistic readout plus the decision tree and returns a
   :class:`~spindoctor.nav_orchestrator.image_classifier_result.NavImageClassifierResult`.
 
-- :class:`~spindoctor.nav_orchestrator.image_classifier.ImageQualityThresholds` — frozen
-  dataclass carrying the seven thresholds documented above.
+- :class:`~spindoctor.support.image_class.ImageQualityThresholds` — frozen
+  dataclass carrying the seven thresholds documented above (autodocumented at
+  :doc:`/api_reference/api_support`).
 
 - :class:`~spindoctor.nav_orchestrator.image_classifier_result.NavImageClassifierResult` — frozen
   dataclass returned by ``classify``. Public fields:

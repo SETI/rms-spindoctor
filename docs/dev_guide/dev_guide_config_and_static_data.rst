@@ -216,7 +216,7 @@ Loader rules
 Numeric values are typed by YAML; downstream consumers convert with explicit
 casts where the section schema is mixed (e.g. the per-instrument
 ``image_quality_thresholds`` block constructs a frozen
-:class:`~spindoctor.nav_orchestrator.image_classifier.ImageQualityThresholds`
+:class:`~spindoctor.support.image_class.ImageQualityThresholds`
 dataclass).
 
 Path resolution

@@ -13,7 +13,9 @@ cheap statistics drive the decision:
 
 Per-instrument thresholds live in ``config_4N0_inst_*.yaml``; this module
 takes them as constructor parameters so it stays pure-Python and unit-
-testable without loading config.
+testable without loading config.  The thresholds type, the measurements, and
+the decision itself live in :mod:`spindoctor.support.image_class`, which the
+simulated-image editor's verdict shares.
 """
 
 from dataclasses import dataclass, field
@@ -25,45 +27,17 @@ from spindoctor.nav_orchestrator.image_classifier_result import (
     NavImageClassifierResult,
 )
 from spindoctor.support.background_gradient import background_gradient_score
+from spindoctor.support.image_class import (
+    ImageQualityThresholds,
+    decide_image_class,
+    measure_image_quality,
+)
 from spindoctor.support.noise_estimate import estimate_image_noise_sigma
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 
 __all__ = [
-    'ImageQualityThresholds',
     'NavImageClassifier',
 ]
-
-
-@dataclass(frozen=True)
-class ImageQualityThresholds:
-    """Per-instrument configuration for the image-quality classifier.
-
-    Parameters:
-        saturation_threshold_dn: Pixels at or above this DN are flagged
-            saturated.
-        missing_data_marker_dn: Pixels exactly equal to this value are
-            treated as missing data (instrument-specific dropout marker).
-        max_saturation_frac_clean: Above this fraction of saturated pixels
-            the image is ``fully_overexposed``.
-        max_missing_frac_clean: Above this fraction of missing pixels the
-            image is ``mostly_missing_data``.
-        partial_dropout_min_frac: Below this missing fraction, no
-            ``partial_dropout`` flag is raised.  At or above this fraction
-            (and below ``max_missing_frac_clean``) the ``partial_dropout``
-            advisory flag is set on the result.
-        blank_max_dn: If the image's max DN is below this, the image is
-            ``blank``.
-        noisy_threshold: Above this MAD-noise sigma, the ``noisy`` flag is
-            raised (image stays ``clean``).
-    """
-
-    saturation_threshold_dn: float = 4095.0
-    missing_data_marker_dn: float = 0.0
-    max_saturation_frac_clean: float = 0.80
-    max_missing_frac_clean: float = 0.30
-    partial_dropout_min_frac: float = 0.05
-    blank_max_dn: float = 5.0
-    noisy_threshold: float = 10.0
 
 
 @dataclass
@@ -127,31 +101,12 @@ class NavImageClassifier:
             if not sensor_mask.any():
                 raise ValueError('sensor_mask must select at least one sensor pixel')
             sensor = image[sensor_mask]
-        # Compute statistics on the sensor pixels only.
-        sat_mask = sensor >= self.thresholds.saturation_threshold_dn
-        n_total = max(sensor.size, 1)
-        saturation_frac = float(sat_mask.sum()) / float(n_total)
-        # The missing-data marker is NaN for calibrated-IF instruments, so
-        # ``sensor == marker`` can never match (NaN != NaN).  Detect the NaN
-        # marker explicitly via ``np.isnan`` so missing/dropout detection is
-        # not silently dead for calibrated images.  When the orchestrator
-        # supplies a pre-computed ``missing_frac`` (from the true missing
-        # mask before NaN sanitization), trust it.
-        if missing_frac is None:
-            marker = self.thresholds.missing_data_marker_dn
-            if np.isnan(marker):
-                miss_mask = np.isnan(sensor)
-            else:
-                miss_mask = sensor == marker
-            missing_frac = float(miss_mask.sum()) / float(n_total)
+        # The sensor statistics and the class come from the shared decision in
+        # spindoctor.support.image_class, which the simulated-image editor's verdict
+        # also uses.  When the orchestrator supplies ``missing_frac`` (from the true
+        # missing mask, before the NaN marker was filled), it is trusted.
+        statistics = measure_image_quality(sensor, self.thresholds, missing_frac=missing_frac)
         noise_sigma = estimate_image_noise_sigma(image, sensor_mask)
-        # ``np.nanmax`` ignores any NaN missing-data markers that survive in
-        # the sensor pixels; an all-NaN (or empty) sensor falls back to 0.0
-        # so the blank short-circuit and noise estimate are not poisoned.
-        if sensor.size > 0 and np.isfinite(sensor).any():
-            max_dn = float(np.nanmax(sensor))
-        else:
-            max_dn = 0.0
         # Low-order brightness-ramp score over the 2-D frame (the block-median
         # affine fit needs spatial structure, so it runs on the image array
         # rather than the flattened sensor selection).  The sensor mask keeps
@@ -160,50 +115,20 @@ class NavImageClassifier:
         # scattered-light threshold on full-frame images.  Recorded on every
         # verdict; the ensemble reads it when resolving disc/limb correlations.
         background_gradient = background_gradient_score(image, sensor_mask)
+        image_class = decide_image_class(statistics, self.thresholds)
+        # A clean image may carry advisory flags.
         flags: list[ImageFlag] = []
-        # Outcome decision: blank check runs first so a near-zero image with
-        # missing-data marker == 0 isn't mis-classified as "mostly_missing".
-        if max_dn < self.thresholds.blank_max_dn:
-            return NavImageClassifierResult(
-                image_class='blank',
-                saturation_frac=saturation_frac,
-                missing_frac=missing_frac,
-                noise_sigma=noise_sigma,
-                max_dn=max_dn,
-                background_gradient_score=background_gradient,
-                flags=flags,
-            )
-        if saturation_frac > self.thresholds.max_saturation_frac_clean:
-            return NavImageClassifierResult(
-                image_class='fully_overexposed',
-                saturation_frac=saturation_frac,
-                missing_frac=missing_frac,
-                noise_sigma=noise_sigma,
-                max_dn=max_dn,
-                background_gradient_score=background_gradient,
-                flags=flags,
-            )
-        if missing_frac > self.thresholds.max_missing_frac_clean:
-            return NavImageClassifierResult(
-                image_class='mostly_missing_data',
-                saturation_frac=saturation_frac,
-                missing_frac=missing_frac,
-                noise_sigma=noise_sigma,
-                max_dn=max_dn,
-                background_gradient_score=background_gradient,
-                flags=flags,
-            )
-        # Otherwise the image is clean (with optional advisory flags).
-        if missing_frac > self.thresholds.partial_dropout_min_frac:
-            flags.append('partial_dropout')
-        if noise_sigma > self.thresholds.noisy_threshold:
-            flags.append('noisy')
+        if image_class == 'clean':
+            if statistics.missing_frac > self.thresholds.partial_dropout_min_frac:
+                flags.append('partial_dropout')
+            if noise_sigma > self.thresholds.noisy_threshold:
+                flags.append('noisy')
         return NavImageClassifierResult(
-            image_class='clean',
-            saturation_frac=saturation_frac,
-            missing_frac=missing_frac,
+            image_class=image_class,
+            saturation_frac=statistics.saturation_frac,
+            missing_frac=statistics.missing_frac,
             noise_sigma=noise_sigma,
-            max_dn=max_dn,
+            max_dn=statistics.max_dn,
             background_gradient_score=background_gradient,
             flags=flags,
         )

@@ -147,7 +147,7 @@ Per-instrument YAML keys (read via
 - ``noise.saturation_dn`` — saturation DN threshold (``raw_dn`` only).
 - ``noise.marker_value`` — missing-data marker DN.
 - ``image_quality_thresholds.*`` — the per-instrument
-  :class:`~spindoctor.nav_orchestrator.image_classifier.ImageQualityThresholds` values.
+  :class:`~spindoctor.support.image_class.ImageQualityThresholds` values.
 - ``fit_camera_rotation`` — bool, top-level in the per-camera block; turns on 3-DoF
   technique fits.
 - ``max_rotation_deg`` — float, top-level in the per-camera block; rotation cap.
@@ -163,7 +163,7 @@ Constructor-level overrides:
 - ``ensemble_config`` — optional
   :class:`~spindoctor.nav_orchestrator.ensemble.EnsembleConfig` override.
 - ``image_quality_thresholds`` — optional
-  :class:`~spindoctor.nav_orchestrator.image_classifier.ImageQualityThresholds` override.
+  :class:`~spindoctor.support.image_class.ImageQualityThresholds` override.
 - ``image_derivatives_config`` — optional
   :class:`~spindoctor.nav_orchestrator.image_derivatives.ImageDerivativesConfig` override.
 - ``spindoctor_version`` — string written into provenance.

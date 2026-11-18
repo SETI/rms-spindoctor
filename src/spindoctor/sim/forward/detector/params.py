@@ -47,7 +47,7 @@ from spindoctor.sim.forward.detector.sqrt_lut import (
     check_curve_ceiling,
     resolve_sqrt_lut,
 )
-from spindoctor.sim.instrument_navigator import navigator_marker_value, resolve_sim_inst_config
+from spindoctor.sim.instrument_navigator import resolve_sim_inst_config
 from spindoctor.sim.instrument_resolvers import (
     FilterCatalogError,
     cataloged_binnings,
@@ -63,6 +63,7 @@ from spindoctor.sim.instrument_resolvers import (
     resolve_readout_mode,
 )
 from spindoctor.sim.seeds import derive_effect_seed
+from spindoctor.support.image_class import missing_data_marker
 from spindoctor.support.types import NDArrayFloatType
 
 __all__ = ['CalibrationMap', 'DetectorParams', 'calibration_map', 'resolve_detector_params']
@@ -119,7 +120,7 @@ class DetectorParams:
             else the generic entry's (see
             :func:`~spindoctor.sim.instrument_resolvers.resolve_calibrated_sky_if`).
         marker_value: The missing-data marker the navigator applies to the frame
-            (see :func:`~spindoctor.sim.instrument_navigator.navigator_marker_value`),
+            (see :func:`~spindoctor.support.image_class.missing_data_marker`),
             possibly NaN; the calibration inverse keeps every pixel off it.
         random_seed: The scene seed for the per-effect sub-streams.
         detector_id: The emulated detector the fixed hot-pixel map belongs to:
@@ -796,7 +797,7 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
         calibrated_sky_if=float(
             catalog.get('calibrated_sky_if', resolve_calibrated_sky_if(instrument))
         ),
-        marker_value=navigator_marker_value(inst_config),
+        marker_value=missing_data_marker(inst_config),
         random_seed=int(params.get('random_seed', 42)),
         detector_id=resolve_detector_id(instrument),
         binning=binning,

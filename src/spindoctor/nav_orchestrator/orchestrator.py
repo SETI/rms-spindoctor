@@ -34,10 +34,7 @@ from spindoctor.feature.reliability import FeatureReliabilityGate, GatedFeatureR
 from spindoctor.nav_model import NavModel
 from spindoctor.nav_orchestrator.ensemble import EnsembleConfig, ensemble
 from spindoctor.nav_orchestrator.feature_summary import NavFeatureSummary
-from spindoctor.nav_orchestrator.image_classifier import (
-    ImageQualityThresholds,
-    NavImageClassifier,
-)
+from spindoctor.nav_orchestrator.image_classifier import NavImageClassifier
 from spindoctor.nav_orchestrator.image_classifier_result import (
     ImageClass,
     NavImageClassifierResult,
@@ -71,6 +68,7 @@ from spindoctor.support.exceptions import (
     NavPointingError,
 )
 from spindoctor.support.filters import NavFilterKind, NavFilterSpec, apply_filter
+from spindoctor.support.image_class import ImageQualityThresholds
 from spindoctor.support.image_quality import cosmic_ray_mask, saturation_mask
 from spindoctor.support.memory import release_transient_memory
 from spindoctor.support.nav_base import NavBase

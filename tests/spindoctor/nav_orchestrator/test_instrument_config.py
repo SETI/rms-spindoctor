@@ -7,11 +7,11 @@ from typing import Any
 
 import pytest
 
-from spindoctor.nav_orchestrator.image_classifier import ImageQualityThresholds
 from spindoctor.nav_orchestrator.instrument_config import (
     InstrumentSettings,
     instrument_settings_from_obs,
 )
+from spindoctor.support.image_class import ImageQualityThresholds
 
 
 class _FakeObs:

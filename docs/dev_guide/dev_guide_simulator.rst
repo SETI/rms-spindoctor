@@ -669,7 +669,7 @@ shipped navigator block marks a lost pixel with ``0`` (``noise.marker_value``):
   ceiling.
 
 The telemetry stage writes the marker the navigator applies to the same frame
-(:func:`~spindoctor.sim.instrument_navigator.navigator_marker_value`), so a lost line
+(:func:`~spindoctor.support.image_class.missing_data_marker`), so a lost line
 reads as missing data in both classes.
 
 Calibrated scenes render through the full DN chain and then invert the
@@ -732,7 +732,8 @@ It reads the full render of the frame the navigator reads, with the planted offs
 applied, although the picture beside it is offset-free: the offset moves the scene
 within the frame, and can take a body near the edge out of it. When the navigator's image
 classifier would not call that frame clean, the status bar says why, in the
-classifier's order (:func:`~spindoctor.sim.instrument_navigator.read_frame_as_navigator`):
+classifier's order (:func:`~spindoctor.sim.instrument_navigator.read_frame_as_navigator`,
+which calls the navigator's own decision in :mod:`spindoctor.support.image_class`):
 a peak below the blank limit first, then the overexposed share, then a marker
 share above ``max_missing_frac_clean``. An empty ``coiss_calib_nac`` frame's sky
 residual is below the blank limit, so the navigator calls it blank; an empty

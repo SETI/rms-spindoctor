@@ -31,10 +31,10 @@ which the navigator requires.  A ``raw_dn`` instrument renders detector counts
 with a ``0`` missing-data marker.  A ``calibrated_if`` instrument (the calibrated
 Cassini cameras and Voyager ISS) renders I/F, also with a ``0`` marker, because the
 archived Cassini CALIB and Voyager GEOMED products fill lost pixels with zero.
-:func:`navigator_marker_value` reads the marker the way the navigator does,
-:func:`read_frame_as_navigator` classifies a frame the way the navigator's image
-classifier does, and :func:`frame_units_summary` states a rendered frame's
-units, range, marker share, and that verdict for a scene author.
+:func:`read_frame_as_navigator` classifies a frame with the navigator's own image
+quality decision (:mod:`spindoctor.support.image_class`), and
+:func:`frame_units_summary` states a rendered frame's units, range, marker share,
+and that verdict for a scene author.
 """
 
 import math
@@ -47,6 +47,12 @@ import numpy as np
 from spindoctor.config import Config
 from spindoctor.sim.instrument_catalog import InstrumentCatalog, load_instrument_catalog
 from spindoctor.sim.instrument_schema import config_error
+from spindoctor.support.image_class import (
+    decide_image_class,
+    image_quality_thresholds,
+    measure_image_quality,
+    missing_data_mask,
+)
 from spindoctor.support.types import NDArrayFloatType
 
 __all__ = [
@@ -54,7 +60,6 @@ __all__ = [
     'frame_units_name',
     'frame_units_summary',
     'has_planted_offset',
-    'navigator_marker_value',
     'navigator_matched_psf',
     'read_frame_as_navigator',
     'resolve_extfov_margin',
@@ -62,14 +67,6 @@ __all__ = [
     'with_integer_binning_keys',
 ]
 
-# The navigator's defaults for the image_quality_thresholds keys its classifier
-# reads (nav_orchestrator.instrument_config and ImageQualityThresholds).  The
-# blank and saturation limits are required keys there; every shipped block sets
-# them, and the classifier's own defaults stand in for a block that omits them.
-_DEFAULT_MAX_MISSING_FRAC = 0.30
-_DEFAULT_MAX_OVEREXPOSED_FRAC = 0.80
-_DEFAULT_BLANK_MAX = 5.0
-_DEFAULT_SATURATION_THRESHOLD_DN = 4095.0
 # The offset keys a navigated frame applies and an editor preview zeroes.
 _PLANTED_OFFSET_KEYS = ('offset_v', 'offset_u', 'offset_rotation_deg')
 
@@ -297,43 +294,14 @@ def resolve_extfov_margin(
     return fallback_entry
 
 
-def navigator_marker_value(inst_config: Mapping[str, Any]) -> float:
-    """Return the missing-data marker the navigator applies to a frame of this block.
-
-    Reads ``noise.marker_value`` the way the navigator's instrument settings do: a
-    number is taken as is, the string ``'NaN'`` (any case) or ``None`` is NaN, and an
-    absent key defaults to ``0`` for a ``raw_dn`` block and to NaN for a
-    ``calibrated_if`` block.  The telemetry stage writes this value on a lost pixel,
-    so a simulated frame marks lost data exactly as the navigator expects.
-
-    Parameters:
-        inst_config: A resolved per-instrument config block.
-
-    Returns:
-        The marker value, possibly NaN.
-
-    Raises:
-        ValueError: If ``noise.marker_value`` is a string other than ``'NaN'``.
-    """
-    noise = inst_config.get('noise') or {}
-    raw_dn = str(inst_config['data_units']) == 'raw_dn'
-    value = noise.get('marker_value', 0 if raw_dn else None)
-    if value is None:
-        return math.nan
-    if isinstance(value, str):
-        if value.strip().lower() == 'nan':
-            return math.nan
-        raise ValueError(f'noise.marker_value string {value!r} must be "NaN" or numeric')
-    return float(value)
-
-
 @dataclass(frozen=True)
 class NavigatorFrameReading:
     """How the navigator's image classifier reads a frame's marker and peak.
 
     Parameters:
         units: ``'DN'`` for a ``raw_dn`` block, ``'I/F'`` for a ``calibrated_if`` one.
-        marker: The missing-data marker (see :func:`navigator_marker_value`).
+        marker: The missing-data marker (see
+            :func:`~spindoctor.support.image_class.missing_data_marker`).
         missing_frac: Fraction of pixels carrying the marker (NaN pixels when the
             marker is NaN).
         image_class: The classifier's outcome: ``'blank'``, ``'fully_overexposed'``,
@@ -358,16 +326,12 @@ def read_frame_as_navigator(
 ) -> NavigatorFrameReading:
     """Classify a frame's sensor pixels the way the navigator's image classifier does.
 
-    The navigator counts the pixels carrying the marker, fills them with 0, and
-    then decides in a fixed order: a frame whose peak is below the blank limit
-    (``image_quality_thresholds.blank_max_dn`` for a ``raw_dn`` block,
-    ``blank_max_if`` for a ``calibrated_if`` one) is ``blank``; else a frame
-    with more than ``max_overexposed_frac_clean`` (0.80) of its pixels at or
-    above ``saturation_threshold_dn`` is ``fully_overexposed`` (never for a
-    calibrated block, which has no saturation gate); else a frame with more than
-    ``max_missing_frac_clean`` (0.30) of its pixels at the marker is
-    ``mostly_missing_data``; else it is ``clean``.  ``image`` is the sensor
-    frame without extended-FOV padding, which the navigator masks out.
+    The thresholds and the decision are the navigator's own
+    (:func:`~spindoctor.support.image_class.image_quality_thresholds` and
+    :func:`~spindoctor.support.image_class.decide_image_class`).  Like the
+    navigator, this counts the pixels carrying the marker and fills them with 0
+    before it measures the frame.  ``image`` is the sensor frame without
+    extended-FOV padding, which the navigator masks out.
 
     Parameters:
         image: The frame the navigator reads, with the planted offset applied.
@@ -377,41 +341,20 @@ def read_frame_as_navigator(
         The reading, with the class and the limits that decided it.
     """
     arr = np.asarray(image, dtype=np.float64)
-    units = frame_units_name(inst_config)
-    raw_dn = units == 'DN'
-    thresholds = inst_config.get('image_quality_thresholds') or {}
-    marker = navigator_marker_value(inst_config)
-    missing = np.isnan(arr) if math.isnan(marker) else arr == marker
+    thresholds = image_quality_thresholds(inst_config)
+    marker = thresholds.missing_data_marker_dn
+    missing = missing_data_mask(arr, marker)
     missing_frac = float(missing.mean()) if arr.size else 0.0
     filled = np.where(missing, 0.0, arr)
-    finite = filled[np.isfinite(filled)]
-    peak = float(finite.max()) if finite.size else 0.0
-    blank_key = 'blank_max_dn' if raw_dn else 'blank_max_if'
-    blank_max = float(thresholds.get(blank_key, _DEFAULT_BLANK_MAX))
-    max_missing = float(thresholds.get('max_missing_frac_clean', _DEFAULT_MAX_MISSING_FRAC))
-    max_overexposed = float(
-        thresholds.get('max_overexposed_frac_clean', _DEFAULT_MAX_OVEREXPOSED_FRAC)
-    )
-    saturated_frac = 0.0
-    if raw_dn and arr.size:
-        limit = float(thresholds.get('saturation_threshold_dn', _DEFAULT_SATURATION_THRESHOLD_DN))
-        saturated_frac = float((filled >= limit).mean())
-    if peak < blank_max:
-        image_class = 'blank'
-    elif saturated_frac > max_overexposed:
-        image_class = 'fully_overexposed'
-    elif missing_frac > max_missing:
-        image_class = 'mostly_missing_data'
-    else:
-        image_class = 'clean'
+    statistics = measure_image_quality(filled, thresholds, missing_frac=missing_frac)
     return NavigatorFrameReading(
-        units=units,
+        units=frame_units_name(inst_config),
         marker=marker,
         missing_frac=missing_frac,
-        image_class=image_class,
-        blank_max=blank_max,
-        max_missing_frac=max_missing,
-        max_overexposed_frac=max_overexposed,
+        image_class=decide_image_class(statistics, thresholds),
+        blank_max=thresholds.blank_max_dn,
+        max_missing_frac=thresholds.max_missing_frac_clean,
+        max_overexposed_frac=thresholds.max_saturation_frac_clean,
     )
 
 
@@ -446,7 +389,8 @@ def frame_units_summary(image: NDArrayFloatType, inst_config: Mapping[str, Any])
     The text gives the frame's units and its finite value range, for example
     ``'I/F 0 to 1.48'``.  The units are ``DN`` for a ``raw_dn`` block and ``I/F`` for
     a ``calibrated_if`` one.  When any pixel equals the navigator's marker (see
-    :func:`navigator_marker_value`; NaN pixels when the marker is NaN), it adds the
+    :func:`~spindoctor.support.image_class.missing_data_marker`; NaN pixels when the
+    marker is NaN), it adds the
     marker and the share of pixels carrying it.  When the navigator's classifier
     (see :func:`read_frame_as_navigator`) would not call the frame clean, it adds
     the reason, in the classifier's order: below the blank limit, over the

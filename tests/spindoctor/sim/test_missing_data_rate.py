@@ -13,9 +13,10 @@ import pytest
 
 from spindoctor.config import DEFAULT_CONFIG
 from spindoctor.sim.instrument_catalog import sim_instrument_names
-from spindoctor.sim.instrument_navigator import navigator_marker_value, resolve_sim_inst_config
+from spindoctor.sim.instrument_navigator import resolve_sim_inst_config
 from spindoctor.sim.render import render_combined_model
 from spindoctor.sim.scene import validate_sim_params
+from spindoctor.support.image_class import missing_data_marker
 
 # The shipped entries cover both unit classes.
 _INSTRUMENTS = (*sim_instrument_names(), 'generic')
@@ -63,7 +64,7 @@ def _lost(instrument: str, *, marker: float | None = None) -> tuple[np.ndarray, 
         DEFAULT_CONFIG, instrument, params.get('instrument_config')
     )
     changed = with_rate[with_rate != without]
-    return changed, navigator_marker_value(inst_config)
+    return changed, missing_data_marker(inst_config)
 
 
 @pytest.mark.parametrize('instrument', _INSTRUMENTS)
