@@ -30,7 +30,7 @@ The simulator has three equally valid entry points (the "three peers"):
   cached driver over the stage pipeline in :mod:`spindoctor.sim.render`),
 - the **YAML scene catalog** under ``tests/integration/sim_scenes/`` (validated by
   :mod:`spindoctor.sim.scene`), which is the durable test artifact, and
-- the **GUI** ``sd_create_simulated_image`` (the ``spindoctor.cli.sim_editor``
+- the **GUI** ``sd_create_simulated_image`` (the ``spindoctor.ui.sim_editor``
   package), an interactive editor for the same parameters.
 
 Every parameter is reachable from all three; adding a physical effect means
@@ -332,8 +332,8 @@ way, truth cannot be smuggled across.
 The shared helpers live in :mod:`spindoctor.sim.shared`. A module under
 ``nav_model/``, ``nav_technique/``, or ``nav_orchestrator/`` may import that package
 and :mod:`spindoctor.sim.scene.fields`, the field helpers every scene reader shares,
-and nothing else from the simulator. A module of ``sim/shared/`` follows the same
-rule. The simulated observation, which renders the image and builds the filtered
+and nothing else from the simulator or the scene editor. A module of ``sim/shared/``
+follows the same rule. The simulated observation, which renders the image and builds the filtered
 view, is the one navigator-side module that may import the renderer. The static
 guard checks these rules by package.
 
@@ -4257,7 +4257,7 @@ live preview. Launch it with:
 
    sd_create_simulated_image
 
-The editor is the :mod:`spindoctor.cli.sim_editor` package: a single
+The editor is the :mod:`spindoctor.ui.sim_editor` package: a single
 ``QMainWindow`` (``CreateSimulatedImageModel``) composed from one mixin per
 schema block, so each block's controls -- and any control group a later
 realism addition needs -- live in their own module:
@@ -4422,9 +4422,9 @@ toggle but offers no controls for either; they are baseline-measured values,
 authored in YAML. Scenes
 round-trip through the **Load / Save Scene (YAML)** buttons, so a scene rendered
 in the GUI can be saved as a catalog artifact and a catalog scene can be loaded
-back to edit; ``tests/main/test_sim_editor_round_trip.py`` asserts the
-round-trip is loss-free over the full key inventory. The GUI is one peer, not
-the sole control surface; the YAML and the Python API are equally
+back to edit; ``tests/spindoctor/ui/sim_editor/test_sim_editor_round_trip.py``
+asserts the round-trip is loss-free over the full key inventory. The GUI is one
+peer, not the sole control surface; the YAML and the Python API are equally
 authoritative.
 
 .. _sim-editor-verdict-thread:
