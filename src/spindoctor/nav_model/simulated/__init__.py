@@ -11,6 +11,8 @@ Modules:
 
     ``body``
         ``NavModelBodySimulated``, the body model.
+    ``body_arcs``
+        The body model's limb and terminator arcs.
     ``rings``
         ``NavModelRingsSimulated``, one model per navigable ring feature.
     ``titan``
