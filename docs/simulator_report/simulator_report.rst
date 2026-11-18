@@ -189,9 +189,13 @@ value of 1.0 means the two distributions are displaced by about one real
 IQR).  The numbers below are read against each cohort's support.
 
 A regression check holds the simulator to the committed record.  It reruns the
-match on the two LORRI frames, which takes seconds, and compares each statistic
-that has enough frames behind it with the record.  Each statistic must stay
-within a band: the larger of 3 times its run-to-run spread over 10 runs and 2%
+match on the two LORRI frames, which takes seconds, and compares selected values
+with the record.  For each statistic whose support is *limited* or *supported*
+(defined below), it holds the normalized W1, the real median, and the
+simulated median, each when the record gives a number.  For each curve with that support, it holds
+the curve's normalized W1.  On LORRI that is 19 values.  It doesn't hold the raw
+W1 distances, the real IQRs, or the frame and sample counts, so a change that
+moves only those goes unnoticed.  Each held value must stay within a band: the larger of 3 times its run-to-run spread over 10 runs and 2%
 of its value.  The bands are two-sided, because a better-looking number can come
 from a worse simulator.  A second test requires the record and the band table to
 agree, and it reads only committed files.  The record stores the commit of the
@@ -544,10 +548,11 @@ differ by 0.9 px (2.47 sim vs 3.36 px real, W1/IQR 0.49).  The sky-noise
 distribution matches closer than in the 2026-11-07 record (W1/IQR 0.73,
 from 1.44), with the simulated median below the real one (1.7e-4 vs
 1.9e-4 I/F).  Only patches on dark sky enter it now, and the split by
-downlink format remains (the table's first footnote).  The low-phase limb
-residual is not a PSF error -- the tuned kernel was fitted to the real
-stars' encircled energy -- but limb content (real topography, the
-Lommel-Seeliger approximation); the high-phase excess runs the other way
+downlink format remains (the table's first footnote).  The record doesn't
+separate the causes of the low-phase limb residual.  Limb content may
+contribute (real topography, the Lommel-Seeliger approximation), and so may
+the rendered PSF, since the simulated star cutouts are narrower than the
+real ones at both EE50 and EE80.  The high-phase excess runs the other way
 and points at the crescent shading model.  The curve *shapes* agree
 closer than the scalar samples: the density-W1 of the frame-averaged
 curves is 0.06 for the sky power spectrum, 0.19 for the star radial
@@ -813,8 +818,8 @@ cannot close, it is recorded here rather than force-fitted:
 2. **Matched-frame content limits.**  Simulated ring edges are sharp
    optical-depth steps and simulated matched bodies are relief-free
    ellipsoids, so residual FOM 3/4 width differences fold in real edge
-   structure (ring radial profiles, limb topography) beyond the PSF that
-   FOM 2 pins independently.  The Galileo negative frames carry an
+   structure (ring radial profiles, limb topography) as well as any PSF
+   difference FOM 2 shows.  The Galileo negative frames carry an
    extended background glow (scattered light) that matched sky frames do
    not model, which dominates that cohort's FOM 5 comparison.  FOM 1 takes
    each frame's darkest-quartile uniform patches as sky, and on a ring- or
@@ -1885,9 +1890,10 @@ Summary
   irregular (mesh) bodies navigate to half a pixel or better (mesh disc
   0.00 px, limb 0.18 px, and crescent 0.49 px, against 0.25 px for the
   ellipsoid crescent). Over 13 mesh shapes the crescent's error ranges from
-  0.33 to 0.56 px. When the navigator predicts the wrong shape, the error grows
-  with the rendered relief: over 13 mesh shapes it ends 2.7 to 12.7 px off at an
-  8.75% RMS non-ellipsoidal relief. The confidence follows the error only
+  0.33 to 0.56 px. When the navigator predicts the wrong shape, the error tends
+  to grow with the rendered relief, though on 7 of 13 mesh shapes it falls at
+  some step: over the 13 shapes it ends 2.7 to 12.7 px off at an 8.75% RMS
+  non-ellipsoidal relief. The confidence follows the error only
   loosely. All walks but one dip at least 0.3 below the clean confidence
   somewhere. Twelve of the 13 also report a confidence of 0.98 or more at some
   mismatched step, and 6 of them do so about 2 px or more off (1.99 to

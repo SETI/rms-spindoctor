@@ -374,20 +374,15 @@ curve becomes a statement about real frames only for a class of frame where
 simulated navigation error has been shown to predict real error, and no such
 comparison has been made. The realism match (:ref:`sim-realism-match`) is a
 precondition for that, not the comparison itself: it measures how closely
-simulated image statistics resemble a real cohort's. It has no pass
-threshold, and its tuned values were fitted on the same frames that report
-them. For the Cassini NAC several image statistics match closely: the tuned
-star PSF reproduces the cohort's encircled-energy radii through the same
-estimator on both sides (EE50 0.84 px sim vs 0.91 real, EE80 1.56 vs 1.79,
-over 25 real cutouts from the cohort's 11 contributing star frames), limb rise
-widths agree in the like-for-like pool (medians 2.54 px on both sides,
-normalized W1 0.10), and the sky-noise distributions sit at a normalized W1 of
-1.44. Others don't: the sky level above the frame floor diverges at a
-normalized W1 of 31, and at high phase the simulated limb measures wider than
-the real one (normalized W1 1.5 and 2.6 in the two high-phase strata). The WAC
-cohort is four frames, and the Galileo, Voyager, and LORRI cohorts support
-fragments at most. On every instrument, the simulator's error numbers are
-reproducibility statements.
+simulated image statistics resemble a real cohort's. It has no threshold for
+how close is close enough, though a regression check holds it to its committed
+record (:ref:`sim-realism-regression`). Its tuned values were fitted on the
+same frames that report them. The Cassini NAC is the best-supported cohort.
+The simulator report's realism section
+(:doc:`/simulator_report/simulator_report`) gives its current match: which
+statistics agree, and which don't. The WAC cohort is four frames, and the
+Galileo, Voyager, and LORRI cohorts support fragments at most. On every
+instrument, the simulator's error numbers are reproducibility statements.
 
 **Calibration is fitted on simulation, so it is provisional.** The
 confidence formulas and tier boundaries have exact meaning on
@@ -5160,15 +5155,15 @@ they disagree, or the record lacks an instrument the table lists, the check fail
 says to remeasure the bands with the command above.  This check reads only committed
 files, so it runs in the unit tier and in CI.
 
-The committed record was written without a code commit.  It also lacks the support
-labels that select the held statistics, so the band table can't describe it.  On a
-record without a code commit, the record-versus-table check is marked as an expected
-failure.  The mark is strict, so the test fails if the check passes.  Only a failed
-comparison counts as the expected failure, so an error in the check itself still fails
-the test.  The fresh match skips on such a record, with a message that says so.  At
-the end of the simulator realism work, the record and the bands are regenerated
-together.  The regenerated record carries its commit, and both checks then hold it to
-the table without any edit to the tests.
+The committed record carries its code commit and the support labels, so both checks
+are active: the record-versus-table check holds the record to the table, and the fresh
+match holds a new run to the record.  A record written without a code commit predates
+the check.  It also lacks the support labels that select the held statistics, so the
+band table can't describe it.  On such a record, the record-versus-table check is
+marked as an expected failure.  The mark is strict, so the test fails if the check
+passes.  Only a failed comparison counts as the expected failure, so an error in the
+check itself still fails the test.  The fresh match skips on such a record, with a
+message that says so.
 
 Setting ``SPINDOCTOR_TEST_REALISM_RECORD`` to the path of another summary points both
 checks at that summary.  Against a summary written from unchanged code, both checks
