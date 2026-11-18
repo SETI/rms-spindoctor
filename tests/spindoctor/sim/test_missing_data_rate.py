@@ -10,6 +10,7 @@ from typing import Any
 
 import numpy as np
 import pytest
+from tests.spindoctor.sim.scenes import body_scene
 
 from spindoctor.config import DEFAULT_CONFIG
 from spindoctor.sim.instrument_catalog import sim_instrument_names
@@ -29,27 +30,13 @@ def _scene(instrument: str, rate: float, *, marker: float | None = None) -> dict
     ``marker``, when given, overrides the instrument block's missing-data marker
     through ``instrument_config``.
     """
-    scene: dict[str, Any] = {
-        'schema_version': 2,
-        'scene_name': 'missing_data_rate',
-        'size_v': 64,
-        'size_u': 64,
-        'random_seed': 5,
-        'instrument': instrument,
-        'noise': {'missing_data_rate': rate},
-        'bodies': [
-            {
-                'name': 'RHEA',
-                'center_v': 32.0,
-                'center_u': 32.0,
-                'semi_a_px': 10.0,
-                'semi_b_px': 10.0,
-                'semi_c_px': 10.0,
-                'illumination_angle': 0.0,
-                'phase_angle': 0.0,
-            }
-        ],
-    }
+    scene = body_scene(
+        10.0,
+        instrument=instrument,
+        seed=5,
+        scene_name='missing_data_rate',
+        noise={'missing_data_rate': rate},
+    )
     if marker is not None:
         scene['instrument_config'] = {'noise': {'marker_value': marker}}
     return scene

@@ -22,6 +22,7 @@ from tests.spindoctor.sim.fictional_camera import (
     catalog_dir_with,
     keyed,
 )
+from tests.spindoctor.sim.scenes import frame_scene
 
 from spindoctor.config import DEFAULT_CONFIG
 from spindoctor.sim import instrument_catalog, instrument_navigator
@@ -702,20 +703,18 @@ def fictional_camera(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> str:
 
 def _fictional_scene(instrument: str) -> dict[str, Any]:
     """A binned, filtered, companded scene on the fictional camera."""
-    return {
-        'instrument': instrument,
-        'size_v': 32,
-        'size_u': 32,
-        'random_seed': 1,
-        'detector': {
+    return frame_scene(
+        instrument=instrument,
+        size=32,
+        detector={
             'binning': 2,
             'filter': 'red',
             'gain_state': 2,
             'quantization': 'sqrt_lut',
             'downlink_table': 'stepped',
         },
-        'artifacts': {'instrument_defaults': True},
-    }
+        artifacts={'instrument_defaults': True},
+    )
 
 
 def test_a_camera_added_as_an_entry_validates_and_renders(fictional_camera: str) -> None:
@@ -776,13 +775,7 @@ def test_a_scene_naming_a_mode_its_detector_chain_ignores_fails(
     instrument: str, detector: dict[str, Any] | None, mode: str, model: str
 ) -> None:
     """A scene may set a mode only when its detector model's chain applies it."""
-    scene: dict[str, Any] = {
-        'instrument': instrument,
-        'size_v': 32,
-        'size_u': 32,
-        'random_seed': 1,
-        'artifacts': {mode: {'probability': 1.0}},
-    }
+    scene = frame_scene(instrument=instrument, size=32, artifacts={mode: {'probability': 1.0}})
     if detector is not None:
         scene['detector'] = detector
     with pytest.raises(
@@ -795,14 +788,12 @@ def test_a_scene_naming_a_mode_its_detector_chain_ignores_fails(
 
 def test_instrument_defaults_turning_on_a_mode_the_chain_ignores_fails() -> None:
     """instrument_defaults may not turn on a mode the scene's own detector model ignores."""
-    scene = {
-        'instrument': 'nhlorri',
-        'size_v': 32,
-        'size_u': 32,
-        'random_seed': 1,
-        'detector': {'detector_model': 'vidicon'},
-        'artifacts': {'instrument_defaults': True},
-    }
+    scene = frame_scene(
+        instrument='nhlorri',
+        size=32,
+        detector={'detector_model': 'vidicon'},
+        artifacts={'instrument_defaults': True},
+    )
     with pytest.raises(
         SimSceneValidationError,
         match=r"instrument_defaults turns on artifact mode 'frame_transfer_smear', which "
@@ -814,13 +805,9 @@ def test_instrument_defaults_turning_on_a_mode_the_chain_ignores_fails() -> None
 
 def test_vgiss_states_why_it_has_no_fixed_pattern() -> None:
     """A vgiss scene that sets fixed_pattern fails with the reason the vgiss entry states."""
-    scene = {
-        'instrument': 'vgiss',
-        'size_v': 32,
-        'size_u': 32,
-        'random_seed': 1,
-        'artifacts': {'fixed_pattern': {'probability': 1.0}},
-    }
+    scene = frame_scene(
+        instrument='vgiss', size=32, artifacts={'fixed_pattern': {'probability': 1.0}}
+    )
     with pytest.raises(
         SimSceneValidationError, match=r'vidicon DN chain has no fixed-pattern stage'
     ):
@@ -829,26 +816,14 @@ def test_vgiss_states_why_it_has_no_fixed_pattern() -> None:
 
 def test_a_scene_naming_an_unlisted_downlink_table_fails() -> None:
     """A scene's downlink table must be one its camera lists."""
-    scene = {
-        'instrument': 'coiss_nac',
-        'size_v': 32,
-        'size_u': 32,
-        'random_seed': 1,
-        'detector': {'downlink_table': 'x'},
-    }
+    scene = frame_scene(size=32, detector={'downlink_table': 'x'})
     with pytest.raises(SimSceneValidationError, match=r"available tables: \['table_12_to_8'\]"):
         validate_sim_params(scene)
 
 
 def test_a_downlink_table_no_quantization_reads_fails() -> None:
     """A scene may set a downlink table only when its frame is companded."""
-    scene = {
-        'instrument': 'coiss_nac',
-        'size_v': 32,
-        'size_u': 32,
-        'random_seed': 1,
-        'detector': {'downlink_table': 'table_12_to_8'},
-    }
+    scene = frame_scene(size=32, detector={'downlink_table': 'table_12_to_8'})
     with pytest.raises(
         SimSceneValidationError,
         match=r"detector\.downlink_table 'table_12_to_8' has no effect: only the sqrt_lut "
@@ -867,13 +842,9 @@ def test_a_downlink_table_companded_by_the_native_readout_mode_passes(
     assert text != FICTIONAL_CAMERA
     directory = catalog_dir_with(tmp_path, {f'{FICTIONAL_CAMERA_NAME}.yaml': text})
     monkeypatch.setattr(instrument_catalog, 'INSTRUMENT_CONFIG_DIR', directory)
-    scene = {
-        'instrument': FICTIONAL_CAMERA_NAME,
-        'size_v': 32,
-        'size_u': 32,
-        'random_seed': 1,
-        'detector': {'downlink_table': 'stepped'},
-    }
+    scene = frame_scene(
+        instrument=FICTIONAL_CAMERA_NAME, size=32, detector={'downlink_table': 'stepped'}
+    )
     assert validate_sim_params(scene)['detector'] == {'downlink_table': 'stepped'}
 
 

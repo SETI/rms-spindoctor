@@ -51,6 +51,8 @@ try:
 except Exception as exc:
     pytest.skip(f'PyQt6 QApplication init failed: {exc}', allow_module_level=True)
 
+from tests.spindoctor.sim.scenes import frame_scene
+
 from spindoctor.cli.sim_editor import CreateSimulatedImageModel
 from spindoctor.cli.sim_editor.body_mesh_keys import (
     MESH_REFUSED_WIDGETS,
@@ -135,13 +137,7 @@ def _full_ellipsoid() -> dict[str, Any]:
 
 def _scene(body: dict[str, Any]) -> dict[str, Any]:
     """A minimal valid scene holding ``body`` as its only body."""
-    return {
-        'size_v': 64,
-        'size_u': 64,
-        'random_seed': 7,
-        'instrument': 'coiss_nac',
-        'bodies': [body],
-    }
+    return frame_scene(seed=7, bodies=[body])
 
 
 def _refusal(keys: list[str]) -> str:

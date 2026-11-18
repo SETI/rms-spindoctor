@@ -17,6 +17,7 @@ from typing import Any, cast
 import numpy as np
 import pytest
 from scipy import ndimage
+from tests.spindoctor.sim.scenes import body_scene, frame_scene
 
 from spindoctor.config import DEFAULT_CONFIG
 from spindoctor.sim.forward.detector import apply_detector, chain
@@ -57,14 +58,7 @@ class _RecordingRng:
 
 def _scene(instrument: str, noise: dict[str, Any], **extra: Any) -> dict[str, Any]:
     """A minimal valid scene on ``instrument`` carrying ``noise``."""
-    scene: dict[str, Any] = {
-        'size_v': 32,
-        'size_u': 32,
-        'random_seed': 4,
-        'instrument': instrument,
-        'exposure_sec': 1.0,
-        'noise': noise,
-    }
+    scene = frame_scene(instrument=instrument, size=32, seed=4, exposure_sec=1.0, noise=noise)
     scene.update(extra)
     return scene
 
@@ -325,26 +319,14 @@ def test_a_vidicon_hit_core_holds_the_full_scale_under_the_readout_noise() -> No
 
 def _vgiss_bent_body(rate: float, seed: int) -> np.ndarray:
     """A 128 x 128 vgiss frame of a full-phase body with the beam bend on."""
-    scene = {
-        'size_v': 128,
-        'size_u': 128,
-        'instrument': 'vgiss',
-        'random_seed': seed,
-        'noise': {_KEY: rate},
-        'artifacts': {'beam_bend': {'amplitude_px': 1.0, 'probability': 1.0}},
-        'bodies': [
-            {
-                'name': 'RHEA',
-                'center_v': 64.0,
-                'center_u': 64.0,
-                'semi_a_px': 30.0,
-                'semi_b_px': 30.0,
-                'semi_c_px': 30.0,
-                'illumination_angle': 0.0,
-                'phase_angle': 0.0,
-            }
-        ],
-    }
+    scene = body_scene(
+        30.0,
+        instrument='vgiss',
+        size=128,
+        seed=seed,
+        noise={_KEY: rate},
+        artifacts={'beam_bend': {'amplitude_px': 1.0, 'probability': 1.0}},
+    )
     img, _ = render_combined_model(scene)
     return img
 

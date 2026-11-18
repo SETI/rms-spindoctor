@@ -12,6 +12,7 @@ from typing import Any
 
 import numpy as np
 import pytest
+from tests.spindoctor.sim.scenes import frame_scene
 
 from spindoctor.sim.forward.detector.noise_stages import detector_column_map
 from spindoctor.sim.forward.detector.params import calibration_map, resolve_detector_params
@@ -25,14 +26,7 @@ _SIZE = 256
 
 def _scene(instrument: str, noise: dict[str, Any], **extra: Any) -> dict[str, Any]:
     """A dark-sky scene on ``instrument`` with ``noise``."""
-    scene: dict[str, Any] = {
-        'size_v': _SIZE,
-        'size_u': _SIZE,
-        'random_seed': 11,
-        'instrument': instrument,
-        'exposure_sec': 0.1,
-        'noise': noise,
-    }
+    scene = frame_scene(instrument=instrument, size=_SIZE, seed=11, exposure_sec=0.1, noise=noise)
     scene.update(extra)
     return scene
 

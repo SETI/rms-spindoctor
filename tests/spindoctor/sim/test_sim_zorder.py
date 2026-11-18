@@ -12,6 +12,7 @@ from typing import Any
 
 import numpy as np
 import pytest
+from tests.spindoctor.sim.scenes import disc_body, frame_scene, quiet_noise, ring_system_block
 
 from spindoctor.sim.render import render_combined_model
 from spindoctor.sim.scene_schema import SimSceneValidationError
@@ -24,52 +25,24 @@ def _scene(ring_range_km: float | None) -> dict[str, Any]:
     plane, so the whole band sits exactly at ``ring_range_km`` and the
     depth ordering against the body is unambiguous everywhere.
     """
-    ring_system: dict[str, Any] = {
-        'geometry': {
-            'center_v': 30.0,
-            'center_u': 30.0,
-            'opening_deg_obs': 90.0,
-            'opening_deg_sun': 90.0,
-            'node_deg': 0.0,
-        },
-        'features': [
-            {
-                'name': 'R',
-                'kind': 'ringlet',
-                'tau': 1.5,
-                'width_px': 8.0,
-                'orbit': {
-                    'a_px': 8.0,
-                    'ae_px': 0.0,
-                    'long_peri_deg': 0.0,
-                    'rate_peri_deg_per_day': 0.0,
-                },
-            }
-        ],
+    feature = {
+        'name': 'R',
+        'kind': 'ringlet',
+        'tau': 1.5,
+        'width_px': 8.0,
+        'orbit': {'a_px': 8.0, 'ae_px': 0.0, 'long_peri_deg': 0.0, 'rate_peri_deg_per_day': 0.0},
     }
+    ring_system = ring_system_block(30.0, 30.0, [feature])
     if ring_range_km is not None:
         ring_system['range_km'] = ring_range_km
         ring_system['km_per_pixel'] = 1000.0
-    return {
-        'size_v': 60,
-        'size_u': 60,
-        'random_seed': 5,
-        'instrument': 'coiss_nac',
-        'noise': {'poisson': False, 'read_noise_dn': 0.0, 'bias_dn': 0.0},
-        'bodies': [
-            {
-                'name': 'B',
-                'center_v': 30.0,
-                'center_u': 30.0,
-                'semi_a_px': 10.0,
-                'semi_b_px': 10.0,
-                'semi_c_px': 10.0,
-                'phase_angle': 0.0,
-                'range_km': 1.0e6,
-            }
-        ],
-        'ring_system': ring_system,
-    }
+    return frame_scene(
+        size=60,
+        seed=5,
+        noise=quiet_noise(),
+        bodies=[disc_body(30.0, 30.0, 10.0, phase_angle=0.0, range_km=1.0e6)],
+        ring_system=ring_system,
+    )
 
 
 def test_ring_with_larger_range_km_renders_behind_the_body() -> None:

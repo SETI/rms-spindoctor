@@ -30,6 +30,7 @@ from typing import Any, cast
 
 import numpy as np
 import pytest
+from tests.spindoctor.sim.scenes import disc_body, frame_scene
 
 from spindoctor.sim.forward.atmosphere import HaloScreen, atmosphere_spec_from_params
 from spindoctor.sim.forward.body import render_single_body
@@ -832,25 +833,8 @@ def test_cloud_blob_stays_inside_the_silhouette() -> None:
 
 def _scene_with_atmosphere(atmosphere: dict[str, Any]) -> dict[str, Any]:
     """A minimal one-body scene carrying the given atmosphere block."""
-    return {
-        'schema_version': 2,
-        'scene_name': 'probe',
-        'instrument': 'coiss_nac',
-        'size_v': 64,
-        'size_u': 64,
-        'random_seed': 1,
-        'bodies': [
-            {
-                'name': 'HAZE',
-                'center_v': 32.0,
-                'center_u': 32.0,
-                'semi_a_px': 15.0,
-                'semi_b_px': 15.0,
-                'semi_c_px': 15.0,
-                'atmosphere': atmosphere,
-            }
-        ],
-    }
+    body = disc_body(32.0, 32.0, 15.0, name='HAZE', atmosphere=atmosphere)
+    return frame_scene(scene_name='probe', bodies=[body])
 
 
 def test_validator_accepts_every_structure_key() -> None:

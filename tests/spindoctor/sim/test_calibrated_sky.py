@@ -11,6 +11,7 @@ from typing import Any
 
 import numpy as np
 import pytest
+from tests.spindoctor.sim.scenes import disc_body, frame_scene
 
 from spindoctor.sim.instrument_resolvers import resolve_detector_defaults
 from spindoctor.sim.render import render_combined_model
@@ -21,26 +22,16 @@ _RENDERS = {'floor': {}, 'instrument_defaults': {'artifacts': {'instrument_defau
 
 def _disc(instrument: str, **extra: Any) -> dict[str, Any]:
     """A 128 x 128 frame whose lit disc leaves about two thirds of it dark sky."""
-    scene: dict[str, Any] = {
-        'size_v': 128,
-        'size_u': 128,
-        'instrument': instrument,
-        'random_seed': 42,
-        'offset_v': 3.0,
-        'offset_u': -2.0,
-        'bodies': [
-            {
-                'name': 'RHEA',
-                'center_v': 64.0,
-                'center_u': 64.0,
-                'semi_a_px': 43.0,
-                'semi_b_px': 43.0,
-                'semi_c_px': 43.0,
-                'illumination_angle': 18.0,
-                'phase_angle': 30.0,
-            }
+    scene = frame_scene(
+        instrument=instrument,
+        size=128,
+        seed=42,
+        offset_v=3.0,
+        offset_u=-2.0,
+        bodies=[
+            disc_body(64.0, 64.0, 43.0, name='RHEA', illumination_angle=18.0, phase_angle=30.0)
         ],
-    }
+    )
     scene.update(extra)
     return scene
 
@@ -113,15 +104,13 @@ def test_no_pixel_reads_zero_where_the_lattice_crosses_it(
     instrument: str, gain_state: int, exposure_sec: float
 ) -> None:
     """At an exposure whose DN lattice crosses 0 I/F, no sky pixel reads exactly 0."""
-    params = {
-        'size_v': 64,
-        'size_u': 64,
-        'instrument': instrument,
-        'random_seed': 3,
-        'exposure_sec': exposure_sec,
-        'detector': {'gain_state': gain_state},
-        'artifacts': {'instrument_defaults': True},
-    }
+    params = frame_scene(
+        instrument=instrument,
+        seed=3,
+        exposure_sec=exposure_sec,
+        detector={'gain_state': gain_state},
+        artifacts={'instrument_defaults': True},
+    )
     img, _ = render_combined_model(params)
     assert int((img == 0.0).sum()) == 0
 
@@ -129,13 +118,9 @@ def test_no_pixel_reads_zero_where_the_lattice_crosses_it(
 @pytest.mark.parametrize('sigma_dn', [0.25, 1.0, 3.0])
 def test_vgiss_sky_never_reads_zero_at_any_noise_level(sigma_dn: float) -> None:
     """The vidicon's residual is half a DN off the DN grid, so noise never lands on 0."""
-    params = {
-        'size_v': 64,
-        'size_u': 64,
-        'instrument': 'vgiss',
-        'random_seed': 3,
-        'noise': {'vidicon': {'read_noise_pixel_dn': sigma_dn}},
-    }
+    params = frame_scene(
+        instrument='vgiss', seed=3, noise={'vidicon': {'read_noise_pixel_dn': sigma_dn}}
+    )
     img, _ = render_combined_model(params)
     assert int((img == 0.0).sum()) == 0
 

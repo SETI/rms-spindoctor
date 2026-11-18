@@ -15,6 +15,7 @@ from typing import Any
 import numpy as np
 import pytest
 from tests.spindoctor.sim.artifact_counts import planted_artifact_counts
+from tests.spindoctor.sim.scenes import disc_body, frame_scene
 
 from spindoctor.sim.artifact_modes import (
     ARTIFACT_MODES,
@@ -476,23 +477,12 @@ def _vgiss_render_with_garble_and_spikes(
 
     With ``corrupted`` False the scene leaves out its artifacts block.
     """
-    scene: dict[str, Any] = {
-        'instrument': 'vgiss',
-        'size_v': 128,
-        'size_u': 128,
-        'random_seed': 3,
-        'bodies': [
-            {
-                'name': 'B',
-                'center_v': 64.0,
-                'center_u': 64.0,
-                'semi_a_px': 20.0,
-                'semi_b_px': 20.0,
-                'semi_c_px': 20.0,
-                'range_km': 1.0,
-            }
-        ],
-    }
+    scene = frame_scene(
+        instrument='vgiss',
+        size=128,
+        seed=3,
+        bodies=[disc_body(64.0, 64.0, 20.0, range_km=1.0)],
+    )
     if corrupted:
         scene['artifacts'] = {
             'line_garble': {'expected_events': 4.0},
@@ -779,14 +769,7 @@ def test_empty_loci_pool_falls_back_to_uniform() -> None:
 
 def _base_scene(instrument: str = 'generic') -> dict[str, Any]:
     """A minimal validatable scene mapping for the given instrument."""
-    return {
-        'schema_version': 2,
-        'scene_name': 'probe',
-        'instrument': instrument,
-        'size_v': 64,
-        'size_u': 64,
-        'random_seed': 1,
-    }
+    return frame_scene(instrument=instrument, scene_name='probe')
 
 
 def test_unknown_artifact_key_fails() -> None:

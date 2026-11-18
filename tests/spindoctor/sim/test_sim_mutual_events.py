@@ -11,6 +11,7 @@ import math
 from typing import Any
 
 import pytest
+from tests.spindoctor.sim.scenes import disc_body, frame_scene
 
 from spindoctor.sim.render import render_combined_model
 
@@ -21,36 +22,30 @@ _FAR_U = 95.0
 
 def _two_circle_scene(separation_px: float) -> dict[str, Any]:
     """Two spheres at controlled center separation, far body first."""
-    return {
-        'instrument': 'coiss_nac',
-        'size_v': 256,
-        'size_u': 256,
-        'random_seed': 42,
-        'bodies': [
-            {
-                'name': 'FAR',
-                'center_v': 128.0,
-                'center_u': _FAR_U,
-                'semi_a_px': _R_FAR,
-                'semi_b_px': _R_FAR,
-                'semi_c_px': _R_FAR,
-                'illumination_angle': 20.0,
-                'phase_angle': 30.0,
-                'range_km': 700000.0,
-            },
-            {
-                'name': 'NEAR',
-                'center_v': 128.0,
-                'center_u': _FAR_U + separation_px,
-                'semi_a_px': _R_NEAR,
-                'semi_b_px': _R_NEAR,
-                'semi_c_px': _R_NEAR,
-                'illumination_angle': 20.0,
-                'phase_angle': 30.0,
-                'range_km': 500000.0,
-            },
+    return frame_scene(
+        size=256,
+        seed=42,
+        bodies=[
+            disc_body(
+                128.0,
+                _FAR_U,
+                _R_FAR,
+                name='FAR',
+                illumination_angle=20.0,
+                phase_angle=30.0,
+                range_km=700000.0,
+            ),
+            disc_body(
+                128.0,
+                _FAR_U + separation_px,
+                _R_NEAR,
+                name='NEAR',
+                illumination_angle=20.0,
+                phase_angle=30.0,
+                range_km=500000.0,
+            ),
         ],
-    }
+    )
 
 
 def _analytic_occlusion(d: float, r1: float, r2: float) -> tuple[float, float]:

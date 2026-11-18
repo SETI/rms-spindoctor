@@ -16,6 +16,7 @@ from typing import Any
 
 import numpy as np
 import pytest
+from tests.spindoctor.sim.scenes import frame_scene
 
 from spindoctor.sim.forward.atmosphere import AtmosphereSpec, atmosphere_spec_from_params
 from spindoctor.sim.forward.body_spec import BodySpec, body_spec_from_params
@@ -136,13 +137,7 @@ def _mesh_body() -> dict[str, Any]:
 
 def _scene(body: dict[str, Any]) -> dict[str, Any]:
     """A small coiss_nac scene holding ``body``."""
-    return {
-        'size_v': _SIZE,
-        'size_u': _SIZE,
-        'instrument': 'coiss_nac',
-        'random_seed': 7,
-        'bodies': [body],
-    }
+    return frame_scene(size=_SIZE, seed=7, bodies=[body])
 
 
 def _base_body(key: str) -> dict[str, Any]:

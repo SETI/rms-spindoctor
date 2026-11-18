@@ -11,6 +11,7 @@ import warnings
 from typing import Any
 
 import pytest
+from tests.spindoctor.sim.scenes import frame_scene
 
 from spindoctor.sim.scene import (
     SimSceneTruthEchoWarning,
@@ -23,15 +24,12 @@ from spindoctor.sim.scene_truth_echo import truth_echoes
 
 def _scene(**extra: Any) -> dict[str, Any]:
     """A minimal scene with a planted noise block and a Gaussian PSF."""
-    return {
-        'size_v': 64,
-        'size_u': 64,
-        'random_seed': 7,
-        'instrument': 'coiss_nac',
-        'noise': {'poisson': True, 'read_noise_dn': 4.0, 'bias_dn': 20.0},
-        'optics': {'psf': {'sigma_v': 1.3, 'sigma_u': 1.1}},
+    return frame_scene(
+        seed=7,
+        noise={'poisson': True, 'read_noise_dn': 4.0, 'bias_dn': 20.0},
+        optics={'psf': {'sigma_v': 1.3, 'sigma_u': 1.1}},
         **extra,
-    }
+    )
 
 
 def test_copying_the_planted_read_noise_warns_naming_both_sites() -> None:

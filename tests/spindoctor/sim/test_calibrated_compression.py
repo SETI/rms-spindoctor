@@ -11,6 +11,7 @@ from typing import Any
 
 import numpy as np
 import pytest
+from tests.spindoctor.sim.scenes import disc_body, frame_scene
 
 from spindoctor.config import DEFAULT_CONFIG
 from spindoctor.sim.forward.detector.params import calibration_map, resolve_detector_params
@@ -23,25 +24,15 @@ _COMPRESSION = {'compression_dct': {'probability': 1.0}}
 
 def _disc(instrument: str, **extra: Any) -> dict[str, Any]:
     """A 96 x 96 frame with a lit disc and dark sky, its codec on."""
-    scene: dict[str, Any] = {
-        'size_v': 96,
-        'size_u': 96,
-        'instrument': instrument,
-        'random_seed': 7,
-        'artifacts': dict(_COMPRESSION),
-        'bodies': [
-            {
-                'name': 'RHEA',
-                'center_v': 48.0,
-                'center_u': 48.0,
-                'semi_a_px': 25.0,
-                'semi_b_px': 25.0,
-                'semi_c_px': 25.0,
-                'illumination_angle': 18.0,
-                'phase_angle': 30.0,
-            }
+    scene = frame_scene(
+        instrument=instrument,
+        size=96,
+        seed=7,
+        artifacts=dict(_COMPRESSION),
+        bodies=[
+            disc_body(48.0, 48.0, 25.0, name='RHEA', illumination_angle=18.0, phase_angle=30.0)
         ],
-    }
+    )
     scene.update(extra)
     return scene
 

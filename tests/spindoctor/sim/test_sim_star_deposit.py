@@ -17,6 +17,7 @@ from typing import Any
 import numpy as np
 import pytest
 from scipy.signal import fftconvolve
+from tests.spindoctor.sim.scenes import frame_scene, star_entry
 
 from spindoctor.config import DEFAULT_CONFIG
 from spindoctor.sim.forward.detector.params import calibration_map, resolve_detector_params
@@ -54,15 +55,12 @@ def _star_scene(instrument: str, *, vmag: float = 4.0, **extra: Any) -> dict[str
     The default magnitude is bright enough to sample the PSF well but below
     saturation at the coiss_wac zero point the profile tests use.
     """
-    scene: dict[str, Any] = {
-        'size_v': 64,
-        'size_u': 64,
-        'random_seed': 1,
-        'instrument': instrument,
-        'exposure_sec': 1.0,
-        'noise': dict(_QUIET_NOISE),
-        'stars': [{'name': 'S', 'v': 32.5, 'u': 32.5, 'vmag': vmag}],
-    }
+    scene = frame_scene(
+        instrument=instrument,
+        exposure_sec=1.0,
+        noise=dict(_QUIET_NOISE),
+        stars=[star_entry(32.5, 32.5, vmag)],
+    )
     scene.update(extra)
     return scene
 

@@ -16,6 +16,7 @@ from typing import Any
 
 import numpy as np
 import pytest
+from tests.spindoctor.sim.scenes import disc_body, frame_scene
 
 from spindoctor.config import DEFAULT_CONFIG
 from spindoctor.nav_orchestrator import NavOrchestrator
@@ -39,8 +40,7 @@ _ALL_INSTRUMENTS = [*sim_instrument_names(), 'generic']
 
 def _navigator_marker(instrument: str, overrides: dict[str, Any] | None = None) -> float:
     """The marker the navigator's instrument settings apply to a sim frame."""
-    params: dict[str, Any] = {'size_v': 32, 'size_u': 32, 'random_seed': 1}
-    params['instrument'] = instrument
+    params = frame_scene(instrument=instrument, size=32)
     if overrides is not None:
         params['instrument_config'] = overrides
     obs = ObsSim.from_file('/tmp/sim_unit_classes.json', sim_params=params)
@@ -61,26 +61,23 @@ def _body_scene(
     light: tuple[float, float] = (0.0, 0.0),
 ) -> dict[str, Any]:
     """A 128 x 128 frame with one Rhea-like body and a planted offset."""
-    return {
-        'size_v': 128,
-        'size_u': 128,
-        'instrument': instrument,
-        'random_seed': 42,
-        'offset_v': offset_vu[0],
-        'offset_u': offset_vu[1],
-        'bodies': [
-            {
-                'name': 'RHEA',
-                'center_v': 64.0,
-                'center_u': center_u,
-                'semi_a_px': semi_px,
-                'semi_b_px': semi_px,
-                'semi_c_px': semi_px,
-                'illumination_angle': light[0],
-                'phase_angle': light[1],
-            }
+    return frame_scene(
+        instrument=instrument,
+        size=128,
+        seed=42,
+        offset_v=offset_vu[0],
+        offset_u=offset_vu[1],
+        bodies=[
+            disc_body(
+                64.0,
+                center_u,
+                semi_px,
+                name='RHEA',
+                illumination_angle=light[0],
+                phase_angle=light[1],
+            )
         ],
-    }
+    )
 
 
 def _with_lost_lines(params: dict[str, Any], expected_events: float) -> dict[str, Any]:
@@ -90,7 +87,7 @@ def _with_lost_lines(params: dict[str, Any], expected_events: float) -> dict[str
 
 def _empty_scene(instrument: str) -> dict[str, Any]:
     """A 64 x 64 frame with nothing in it."""
-    return {'size_v': 64, 'size_u': 64, 'instrument': instrument, 'random_seed': 1}
+    return frame_scene(instrument=instrument)
 
 
 def _orchestrator_class(params: dict[str, Any]) -> str:
@@ -101,24 +98,14 @@ def _orchestrator_class(params: dict[str, Any]) -> str:
 
 def _disc_scene(instrument: str) -> dict[str, Any]:
     """A 128 x 128 frame whose lit disc covers about a third of the pixels."""
-    return {
-        'size_v': 128,
-        'size_u': 128,
-        'instrument': instrument,
-        'random_seed': 42,
-        'bodies': [
-            {
-                'name': 'RHEA',
-                'center_v': 64.0,
-                'center_u': 64.0,
-                'semi_a_px': 43.0,
-                'semi_b_px': 43.0,
-                'semi_c_px': 43.0,
-                'illumination_angle': 18.0,
-                'phase_angle': 30.0,
-            }
+    return frame_scene(
+        instrument=instrument,
+        size=128,
+        seed=42,
+        bodies=[
+            disc_body(64.0, 64.0, 43.0, name='RHEA', illumination_angle=18.0, phase_angle=30.0)
         ],
-    }
+    )
 
 
 def _telemetry_frame(signal: np.ndarray, params: dict[str, Any]) -> SimFrame:

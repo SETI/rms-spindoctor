@@ -15,6 +15,7 @@ from typing import Any
 
 import numpy as np
 import pytest
+from tests.spindoctor.sim.scenes import frame_scene
 
 from spindoctor.sim.artifact_modes import (
     ACTIVATION_KEYS,
@@ -56,15 +57,7 @@ _DEAD_MODES = ('dead_pixels', 'dead_columns')
 
 def _scene(artifacts: dict[str, Any], instrument: str = 'generic') -> dict[str, Any]:
     """A minimal valid scene carrying an artifacts block."""
-    return {
-        'schema_version': 2,
-        'scene_name': 'probe',
-        'instrument': instrument,
-        'size_v': 64,
-        'size_u': 64,
-        'random_seed': 1,
-        'artifacts': artifacts,
-    }
+    return frame_scene(instrument=instrument, scene_name='probe', artifacts=artifacts)
 
 
 def _scene_for(mode_name: str, artifacts: dict[str, Any]) -> dict[str, Any]:

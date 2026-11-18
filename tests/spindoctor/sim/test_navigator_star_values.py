@@ -26,6 +26,7 @@ from typing import Any
 import pytest
 from ruamel.yaml import YAML
 from ruamel.yaml.nodes import MappingNode, Node
+from tests.spindoctor.sim.scenes import frame_scene
 
 import spindoctor
 from spindoctor.config import DEFAULT_CONFIG
@@ -200,13 +201,7 @@ def _scene(
     instrument_config: Any, *, instrument: str = 'coiss_nac', binning: int = 2
 ) -> dict[str, Any]:
     """A scene with the given ``instrument_config`` overrides, summed 2x2 by default."""
-    scene: dict[str, Any] = {
-        'instrument': instrument,
-        'size_v': 32,
-        'size_u': 32,
-        'random_seed': 1,
-        'instrument_config': instrument_config,
-    }
+    scene = frame_scene(instrument=instrument, size=32, instrument_config=instrument_config)
     if binning != 1:
         scene['detector'] = {'binning': binning}
     return scene

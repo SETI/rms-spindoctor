@@ -10,6 +10,7 @@ only its own effect when present.
 from typing import Any
 
 import numpy as np
+from tests.spindoctor.sim.scenes import frame_scene, quiet_noise, star_entry
 
 from spindoctor.sim.forward.optics import apply_optics
 from spindoctor.sim.forward.stages import new_sim_frame
@@ -18,19 +19,16 @@ from spindoctor.sim.render import render_combined_model
 
 def _base_scene(**extra: Any) -> dict[str, Any]:
     """A coiss body-plus-star scene with an optional extra top-level block."""
-    scene: dict[str, Any] = {
-        'size_v': 60,
-        'size_u': 60,
-        'random_seed': 4,
-        'instrument': 'coiss_nac',
-        'noise': {'poisson': False, 'read_noise_dn': 0.0, 'bias_dn': 0.0},
-        'bodies': [
+    return frame_scene(
+        size=60,
+        seed=4,
+        noise=quiet_noise(),
+        bodies=[
             {'name': 'B', 'center_v': 30.0, 'center_u': 30.0, 'semi_a_px': 10.0, 'semi_b_px': 10.0}
         ],
-        'stars': [{'name': 'S', 'v': 12.0, 'u': 48.0, 'vmag': 0.0}],
-    }
-    scene.update(extra)
-    return scene
+        stars=[star_entry(12.0, 48.0, 0.0)],
+        **extra,
+    )
 
 
 def test_apply_optics_with_no_block_is_a_noop() -> None:
