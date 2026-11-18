@@ -212,16 +212,44 @@ comparisons, a peak whose PSR cannot be computed ranks below every peak whose PS
 Rotation-aware schedule
 -----------------------
 
-When the per-instrument camera-rotation flag is on, the technique tries rotations in three
-rounds. At each trial angle, it rotates the template about the body-centroid pivot and
-runs the full NCC pyramid on the rotated template.
+When the per-instrument camera-rotation flag is on, the technique first runs the full NCC
+pyramid on the unrotated template, in both raw and gradient modes, exactly as it does with
+rotation off. The mode that pyramid picks is then used for every trial angle. At each
+trial angle, the technique rotates the template about the body-centroid pivot and scores
+it with a single full-resolution correlation in that mode
+(:func:`~spindoctor.support.correlate.ncc_peak_quality`). The score is the PSR of the
+strongest whole-pixel peak inside the search window. It does not include the pyramid's
+distance penalty or its choice among candidate peaks. The angles come in three rounds:
 
 1. The first round tries 11 angles spanning :math:`\pm \mathrm{max\_rotation\_deg}`.
 2. The second round tries five angles 0.5 deg apart, centered on the best of the 11.
 3. The third round tries three angles 0.25 deg apart, centered on the best of the five.
 
-The technique returns the (dv, du, theta) triple of the best of the last three angles,
-with a 3x3 covariance. The translation block of that covariance is the matched-filter
+Every angle is clamped to :math:`\pm \mathrm{max\_rotation\_deg}`, and an angle tried in
+an earlier round is not scored again. The full pyramid, in both modes, then runs once more
+at the best of the last three angles, and its answer is the one reported. When the best
+angle is zero, the first pyramid's answer is reported.
+
+A trial angle costs one full-resolution correlation. The full pyramid in both modes costs
+four full-resolution correlations, four smaller ones, and the sub-pixel refinement of up
+to 32 candidate peaks. The search therefore costs about as much as two
+translation-only fits plus at most 19 correlations, or one translation-only fit plus the
+correlations when the best angle is zero.
+
+This ranking can choose a different angle than running the full pyramid at every angle
+would. A full pyramid scores an angle by the quality of the candidate peak it picks, after
+subtracting 0.25 times that peak's distance from the coarser levels' answer, and it
+chooses the raw or gradient mode anew at each angle. The trial-angle score leaves out the
+candidate choice, the distance penalty, and the per-angle mode choice. The two scores can
+differ by more than neighboring angles' scores differ from each other, so the two
+rankings do not always agree on the best angle.
+
+The final pyramid at the best angle also runs in both modes and keeps the better one. So
+the mode it reports, and the quality that goes with it, can differ from the mode that
+ranked the angles.
+
+The technique returns the (dv, du, theta) triple from that final pyramid, with a 3x3
+covariance. The translation block of that covariance is the matched-filter
 covariance (plus model-error terms) from the chosen rotation. The technique reports its
 rotation as unobservable. The NCC-peak quality is a PSR or PMR separation ratio rather
 than a log-likelihood. It therefore does not carry calibrated Fisher information about
@@ -445,18 +473,21 @@ Call path traced through
      :attr:`~spindoctor.nav_technique.technique_result.NavTechniqueResult.rotation_rad` and
      :attr:`~spindoctor.nav_technique.technique_result.NavTechniqueResult.sigma_rotation_rad` are
      ``None``; the (2, 2) covariance is reported.
-   - **Rotation fit.**  Run the private 3-DoF pyramid in three rounds: 11 rotation
-     samples, then 5 samples centered on the best of those, then 3 samples centered on the
-     best of the 5. At each sample, the private template-rotate helper rotates the
-     template about the body-centroid pivot, and the full NCC pyramid evaluates as usual.
-     The best of the last 3 samples gives the returned (dv, du, theta) triple and its 3x3
-     covariance. The translation block is the CRLB from the winning rotation's correlation
-     curvature. The rotation diagonal is always the rotation-unobservable sentinel. The
-     PSR/PMR-style peak quality is not a log-likelihood, so its curvature across the
+   - **Rotation fit.**  Run the private rotation search described under the
+     rotation-aware schedule above: the full NCC pyramid on the unrotated template picks
+     the correlation mode; 11 rotation samples, then 5 centered on the best of those, then
+     3 centered on the best of the 5, each scored by one correlation in that mode; then the
+     full NCC pyramid at the best of the last 3, or the first pyramid's result when the
+     best angle is zero. That pyramid gives the (dv, du) estimate and a 2x2 CRLB
+     covariance from the winning rotation's correlation curvature. The technique adds the
+     model-error terms to that covariance, takes theta from the search, and returns the
+     (dv, du, theta) triple with a 3x3 covariance whose translation block is the adjusted
+     2x2 covariance. The rotation diagonal is always the rotation-unobservable sentinel.
+     The PSR/PMR-style peak quality is not a log-likelihood, so its curvature across the
      rotation samples does not carry Fisher information about rotation, and there is no
-     calibrated way to turn that curvature into a variance. The disc technique contributes
-     a translation estimate while abstaining on rotation (the theory section above
-     discusses why).
+     calibrated way to turn that curvature into a variance. The disc technique
+     contributes a translation estimate while abstaining on rotation (the theory section
+     above discusses why).
 
 5. Apply the at-edge tests against the search-window axis bounds and the rotation cap, and
    the spurious tests using the pyramid wrapper's ``spurious`` and ``consistency``

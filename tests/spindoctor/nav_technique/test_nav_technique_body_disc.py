@@ -362,9 +362,9 @@ def test_rotation_sigma_from_quality_reports_unobservable() -> None:
     calibrated angular variance can be derived from its curvature.
     """
     candidates = [
-        _RotationCandidate(theta_rad=-0.1, ncc_result={'quality': 8.0}),
-        _RotationCandidate(theta_rad=0.0, ncc_result={'quality': 12.0}),
-        _RotationCandidate(theta_rad=0.1, ncc_result={'quality': 8.0}),
+        _RotationCandidate(theta_rad=-0.1, quality=8.0, offset_vu=(0, 0)),
+        _RotationCandidate(theta_rad=0.0, quality=12.0, offset_vu=(0, 0)),
+        _RotationCandidate(theta_rad=0.1, quality=8.0, offset_vu=(0, 0)),
     ]
     winner = candidates[1]
     sigma = BodyDiscCorrelateNav._rotation_sigma_from_quality(
@@ -446,32 +446,6 @@ def test_body_disc_size_term_scales_covariance_with_diameter(
         )
 
 
-def _stub_rotation_qualities(
-    monkeypatch: pytest.MonkeyPatch,
-    technique: BodyDiscCorrelateNav,
-    qualities: list[float],
-) -> list[dict[str, Any]]:
-    """Make the per-rotation NCC return the given qualities, one per call, in order.
-
-    Parameters:
-        monkeypatch: The pytest monkeypatch fixture.
-        technique: The technique whose per-rotation NCC is replaced.
-        qualities: The quality for each successive rotation sample.
-
-    Returns:
-        The list the stub appends each returned NCC result to.
-    """
-    returned: list[dict[str, Any]] = []
-
-    def _ncc_at_rotation(**_kwargs: Any) -> dict[str, Any]:
-        ncc_result = {'quality': qualities[len(returned)], 'call': len(returned)}
-        returned.append(ncc_result)
-        return ncc_result
-
-    monkeypatch.setattr(technique, '_ncc_at_rotation', _ncc_at_rotation)
-    return returned
-
-
 _ROTATION_STUB_INPUTS: dict[str, Any] = {
     'image': np.zeros((8, 8)),
     'template_img': np.zeros((8, 8)),
@@ -484,23 +458,204 @@ _ROTATION_STUB_INPUTS: dict[str, Any] = {
 }
 
 
+def _stub_search_inputs(*, use_gradient: bool = False) -> disc_module._RotationSearchInputs:
+    """Return rotation-search inputs for tests that stub the per-sample score.
+
+    Parameters:
+        use_gradient: The search mode the inputs carry.
+
+    Returns:
+        Inputs built from ``_ROTATION_STUB_INPUTS``.
+    """
+    return disc_module._RotationSearchInputs(
+        image_surface=_ROTATION_STUB_INPUTS['image'],
+        template_img=_ROTATION_STUB_INPUTS['template_img'],
+        template_mask=_ROTATION_STUB_INPUTS['template_mask'],
+        pivot_vu=_ROTATION_STUB_INPUTS['pivot_vu'],
+        max_offset_vu=_ROTATION_STUB_INPUTS['max_offset_vu'],
+        data_mask=None,
+        use_gradient=use_gradient,
+    )
+
+
+def _stub_rotation_scores(
+    monkeypatch: pytest.MonkeyPatch,
+    technique: BodyDiscCorrelateNav,
+    quality_for: Any,
+) -> list[float]:
+    """Replace the per-sample score with ``quality_for(theta_deg)``.
+
+    Parameters:
+        monkeypatch: The pytest monkeypatch fixture.
+        technique: The technique whose per-sample score is replaced.
+        quality_for: Maps a rotation in degrees to the sample's quality.
+
+    Returns:
+        The list each scored rotation, in radians, is appended to.
+    """
+    scored: list[float] = []
+
+    def _score_rotation(
+        theta_rad: float, search: disc_module._RotationSearchInputs
+    ) -> _RotationCandidate:
+        scored.append(theta_rad)
+        return _RotationCandidate(
+            theta_rad=theta_rad, quality=quality_for(np.rad2deg(theta_rad)), offset_vu=(0, 0)
+        )
+
+    monkeypatch.setattr(technique, '_score_rotation', _score_rotation)
+    return scored
+
+
+def _stub_pyramids(
+    monkeypatch: pytest.MonkeyPatch, technique: BodyDiscCorrelateNav, *, used_gradient: bool
+) -> list[float]:
+    """Replace the full NCC pyramid with a stub that records each rotation it runs at.
+
+    Parameters:
+        monkeypatch: The pytest monkeypatch fixture.
+        technique: The technique whose pyramid is replaced.
+        used_gradient: The mode the stub reports picking.
+
+    Returns:
+        The list each pyramid's rotation, in radians, is appended to.
+    """
+    thetas: list[float] = []
+
+    def _ncc_at_rotation(*, theta_rad: float, **_kwargs: Any) -> dict[str, Any]:
+        thetas.append(theta_rad)
+        return {'quality': 9.0, 'used_gradient': used_gradient, 'theta_rad': theta_rad}
+
+    monkeypatch.setattr(technique, '_ncc_at_rotation', _ncc_at_rotation)
+    return thetas
+
+
 def test_rotation_samples_skip_a_nan_first_sample(monkeypatch: pytest.MonkeyPatch) -> None:
     """A NaN-quality first rotation sample does not block a later finite one."""
     technique = BodyDiscCorrelateNav()
-    _stub_rotation_qualities(monkeypatch, technique, [float('nan'), 4.0, 3.0])
-    best = technique._evaluate_rotation_samples(
-        thetas_rad=[-0.01, 0.0, 0.01], **_ROTATION_STUB_INPUTS
+    qualities = {-1.0: float('nan'), 0.0: 4.0, 1.0: 3.0}
+    _stub_rotation_scores(monkeypatch, technique, lambda deg: qualities[round(deg)])
+    best = technique._best_rotation_sample(
+        list(np.deg2rad([-1.0, 0.0, 1.0])), _stub_search_inputs(), {}
     )
-    assert best.ncc_result['call'] == 1
+    assert best.theta_rad == 0.0
 
 
-def test_rotation_level_two_skips_a_nan_first_sample(monkeypatch: pytest.MonkeyPatch) -> None:
-    """The level-2 pick passes over a NaN-quality first sample for a finite one."""
+def test_rotation_samples_are_scored_once(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A rotation already scored in the search is taken from the record, not rescored."""
     technique = BodyDiscCorrelateNav()
-    # 11 level-0 and 5 level-1 samples, all equal, then the three level-2 samples.
-    _stub_rotation_qualities(monkeypatch, technique, [5.0] * 16 + [float('nan'), 4.0, 3.0])
-    _, ncc_result, _ = technique._run_3dof_pyramid(max_rotation_deg=5.0, **_ROTATION_STUB_INPUTS)
-    assert ncc_result['call'] == 17
+    scored = _stub_rotation_scores(monkeypatch, technique, lambda deg: -abs(deg))
+    record: dict[float, _RotationCandidate] = {}
+    technique._best_rotation_sample([0.0, 0.01], _stub_search_inputs(), record)
+    technique._best_rotation_sample([0.01, 0.02, 0.01], _stub_search_inputs(), record)
+    assert scored == [0.0, 0.01, 0.02]
+
+
+def test_rotation_search_returns_the_pyramid_at_the_winner(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The search pins the best sample and reports the full pyramid run at that rotation."""
+    technique = BodyDiscCorrelateNav()
+    # Peaked at +1.3 deg: level 0 picks 1, level 1 picks 1.5, and level 2 picks 1.25.
+    _stub_rotation_scores(monkeypatch, technique, lambda deg: -abs(deg - 1.3))
+    pyramid_thetas = _stub_pyramids(monkeypatch, technique, used_gradient=False)
+    theta, ncc_result, sigma = technique._search_rotation(
+        max_rotation_deg=5.0, **_ROTATION_STUB_INPUTS
+    )
+    assert theta == pytest.approx(np.deg2rad(1.25))
+    assert pyramid_thetas == [0.0, theta]
+    assert ncc_result['theta_rad'] == theta
+    assert sigma is None
+
+
+def test_rotation_search_reuses_the_unrotated_pyramid_at_zero(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """When zero rotation wins, the unrotated pyramid is the result and none reruns."""
+    technique = BodyDiscCorrelateNav()
+    _stub_rotation_scores(monkeypatch, technique, lambda deg: -abs(deg))
+    pyramid_thetas = _stub_pyramids(monkeypatch, technique, used_gradient=False)
+    theta, _, _ = technique._search_rotation(max_rotation_deg=5.0, **_ROTATION_STUB_INPUTS)
+    assert theta == 0.0
+    assert pyramid_thetas == [0.0]
+
+
+@pytest.mark.parametrize('used_gradient', [False, True], ids=['raw', 'gradient'])
+def test_rotation_search_scores_in_the_unrotated_pyramids_mode(
+    monkeypatch: pytest.MonkeyPatch, used_gradient: bool
+) -> None:
+    """Every rotation sample is scored in the mode the unrotated pyramid picked."""
+    technique = BodyDiscCorrelateNav()
+    modes: list[bool] = []
+
+    def _score_rotation(
+        theta_rad: float, search: disc_module._RotationSearchInputs
+    ) -> _RotationCandidate:
+        modes.append(search.use_gradient)
+        return _RotationCandidate(theta_rad=theta_rad, quality=-abs(theta_rad), offset_vu=(0, 0))
+
+    monkeypatch.setattr(technique, '_score_rotation', _score_rotation)
+    _stub_pyramids(monkeypatch, technique, used_gradient=used_gradient)
+    technique._search_rotation(max_rotation_deg=5.0, **_ROTATION_STUB_INPUTS)
+    assert set(modes) == {used_gradient}
+
+
+def test_rotation_search_stays_within_the_cap(monkeypatch: pytest.MonkeyPatch) -> None:
+    """No rotation sample exceeds max_rotation_deg, even when the best lies at the cap."""
+    technique = BodyDiscCorrelateNav()
+    scored = _stub_rotation_scores(monkeypatch, technique, lambda deg: deg)
+    _stub_pyramids(monkeypatch, technique, used_gradient=False)
+    theta, _, _ = technique._search_rotation(max_rotation_deg=2.0, **_ROTATION_STUB_INPUTS)
+    assert max(scored) == pytest.approx(np.deg2rad(2.0))
+    assert theta == pytest.approx(np.deg2rad(2.0))
+
+
+def _elongated_template(shape: tuple[int, int]) -> tuple[NDArrayFloatType, NDArrayBoolType]:
+    """Build a shaded ellipse template centered in ``shape``, long along u.
+
+    Parameters:
+        shape: The template's shape.
+
+    Returns:
+        The template image and its mask.
+    """
+    vs, us = np.meshgrid(np.arange(shape[0]), np.arange(shape[1]), indexing='ij')
+    dv = (vs - (shape[0] - 1) / 2.0) / 14.0
+    du = (us - (shape[1] - 1) / 2.0) / 40.0
+    inside = dv**2 + du**2 <= 1.0
+    template = np.where(inside, 50.0 + 40.0 * du + 20.0 * dv, 0.0)
+    return template.astype(np.float64), inside
+
+
+def test_rotation_search_recovers_a_planted_rotation() -> None:
+    """A frame showing the template turned by 1.5 deg and shifted is recovered in full."""
+    shape = (120, 140)
+    template, mask = _elongated_template(shape)
+    pivot = ((shape[0] - 1) / 2.0, (shape[1] - 1) / 2.0)
+    rotated, _ = disc_module._rotate_template(template, mask, pivot, np.deg2rad(1.5))
+    image = np.roll(rotated, (2, -3), axis=(0, 1))
+    theta, ncc_result, _ = BodyDiscCorrelateNav()._search_rotation(
+        image=image,
+        template_img=template,
+        template_mask=mask,
+        pivot_vu=pivot,
+        max_offset_vu=(10, 10),
+        data_mask=None,
+        upsample_factor=16,
+        max_rotation_deg=5.0,
+        consistency_tol=5.0,
+    )
+    assert np.rad2deg(theta) == pytest.approx(1.5)
+    # The pyramid at the winner refines the gradient-mode peak on raw intensity, which
+    # on this small sharp-edged template lands 0.125 px from the whole-pixel shift.
+    assert ncc_result['offset'][0] == pytest.approx(2.0, abs=0.25)
+    assert ncc_result['offset'][1] == pytest.approx(-3.0, abs=0.25)
+
+
+def test_clamped_rotation_samples_clamp_to_the_cap() -> None:
+    """Samples past the cap are moved onto it, in the order of the multiples."""
+    samples = disc_module._clamped_rotation_samples(0.9, 0.5, (-2, -1, 0, 1, 2), 1.0)
+    assert samples == pytest.approx([-0.1, 0.4, 0.9, 1.0, 1.0])
 
 
 def _record_pyramid_refinements(monkeypatch: pytest.MonkeyPatch) -> list[str]:
