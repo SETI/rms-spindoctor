@@ -620,8 +620,11 @@ derives every random stream it needs with
 ``random_seed`` and a name that begins with the stage's prefix: ``scene_radiance``
 for scene radiance, ``optics`` for optics, ``detector`` for the detector, and
 ``telemetry`` for telemetry. Downsampling draws nothing. The detector's shot and
-read noise draw from the stream ``detector`` and its hot pixels from
-``detector/hot_pixels``. The missing-data losses draw from ``telemetry`` and the
+read noise draw from the stream ``detector``. The usual hot pixels come from the
+detector's own fixed map, which depends only on the detector's name. Every
+scene that emulates that detector has the same hot pixels. Only hot pixels
+placed adversarially on the navigation features draw from ``detector/hot_pixels``.
+The missing-data losses draw from ``telemetry`` and the
 missing-lines mode from ``telemetry/missing_lines``. The background stars draw
 from ``scene_radiance/background_stars`` and the distortion field from
 ``optics/distortion``.
@@ -636,9 +639,12 @@ rest of the crater field where it was.
 
 The derivation is a stable digest, never Python's per-process salted ``hash``, so
 a stream's seed is the same in every process and on every run. A stream's seed is
-computed from nothing but its name and the seed it is derived from. One stage's
-realization is therefore the same whichever other stages are enabled, and adding
-a stream never reseeds the others. A stream name is part of the noise realization
+computed from nothing but its name and the seed it is derived from. Enabling or
+disabling a stage therefore never changes another stage's seeds, and adding a
+stream never reseeds the others. A stage's output can still change when an
+earlier stage changes its input: an optics PSF changes the signal reaching the
+detector, and so the detector's shot noise, though the detector draws from the
+same stream. A stream name is part of the noise realization
 of every scene that uses it: renaming one reseeds those scenes and moves their
 committed renders, so a stream name must never change.
 
