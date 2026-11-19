@@ -21,11 +21,12 @@ from spindoctor.obs.obs_inst_sim import ObsSim
 
 
 class _FakeObs:
-    """Minimal stand-in carrying only a ``nav_params`` mapping.
+    """Minimal stand-in that carries only a ``nav_params`` mapping.
 
-    A selection rule can then be exercised on a body the renderer could not
-    draw (a body with no stated size renders as a divide-by-zero ellipse,
-    which would fail the fixture before the rule under test ran).
+    Because nothing is rendered, a selection rule can be exercised on a body
+    the renderer could not draw (a body with no stated size renders as a
+    divide-by-zero ellipse, which would fail the fixture before the rule under
+    test ran).
     """
 
     def __init__(self, nav_params: dict[str, Any]) -> None:

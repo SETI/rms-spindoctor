@@ -122,7 +122,7 @@ Public members (autodocumented at :doc:`/api_reference/api_nav_model`):
 
 - :meth:`~spindoctor.nav_model.simulated.titan.NavModelTitanSimulated.instances_for_obs`
   -- returns one instance named ``titan_sim:TITAN`` per adequately configured simulated Titan,
-  and an empty list when the scene has none.
+  and an empty list otherwise.
 - :attr:`~spindoctor.nav_model.simulated.titan.NavModelTitanSimulated.geometry_inputs`
   -- the geometry dataclass built from operator parameters on first access.
 - :data:`~spindoctor.nav_model.simulated.titan.REQUIRED_SIM_PARAMS`.
