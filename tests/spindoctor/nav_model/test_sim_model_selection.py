@@ -24,7 +24,7 @@ class _FakeObs:
     """Minimal stand-in that carries only a ``nav_params`` mapping.
 
     Because nothing is rendered, a selection rule can be exercised on a body
-    the renderer could not draw (a body with no stated size renders as a
+    the renderer could not draw (a body that states no size renders as a
     divide-by-zero ellipse, which would fail the fixture before the rule under
     test ran).
     """

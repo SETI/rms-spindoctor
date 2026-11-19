@@ -58,7 +58,7 @@ class NavModelStarsSimulated(NavModelStars):
     ) -> list[NavModel]:
         """Return one star model for a simulated obs whose scene has stars.
 
-        A scene with no stars gets no star model, so the orchestrator never
+        A scene that has no stars gets no star model, so the orchestrator never
         carries an empty one.
 
         Parameters:
