@@ -52,6 +52,7 @@ _FULL_SCENE: dict[str, Any] = {
     'size_v': 128,
     'size_u': 128,
     'random_seed': 7,
+    'noise_seed': 11,
     'exposure_sec': 2.5,
     'offset_v': 1.25,
     'offset_u': -0.75,

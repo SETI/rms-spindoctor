@@ -179,6 +179,8 @@ def validate_sim_params(
     _require_positive_int(sim_params, 'size_v', source=source)
     _require_positive_int(sim_params, 'size_u', source=source)
     _require_int(sim_params, 'random_seed', source=source)
+    if 'noise_seed' in sim_params:
+        _require_int(sim_params, 'noise_seed', source=source)
     null_numbers = [
         key for key in _NON_NULL_TOP_LEVEL_NUMBERS if key in sim_params and sim_params[key] is None
     ]

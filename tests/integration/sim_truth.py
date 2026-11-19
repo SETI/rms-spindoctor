@@ -10,7 +10,14 @@ one axis at a time.
 The measurement.  Each scene was rendered and navigated on its committed
 ``random_seed`` and on 15 more (101, 202, ..., 1515), so that each check covers the
 spread over noise draws rather than one draw.  A scene that fails on some seeds is
-measured over the seeds where it succeeds.
+measured over the seeds where it succeeds.  Where a scene's ``random_seed`` also draws
+part of the scene, the seeds varied that part too: the spokes of ``spoked_sheet``, the
+confounder stars of ``lock_single_dense``, and the catalog scatter of ``wrong_catalog``.
+``textured_moon_offset`` and ``relief_psf_stray_light`` were measured on 16 draws of the
+detector noise alone instead: the committed draw and the scene key ``noise_seed`` at 101,
+202, ..., 1515.  Those draws keep the albedo texture and the limb relief the test
+renders, which a new ``random_seed`` would redraw.  Every check also holds on 9 draws of
+the detector noise alone, ``noise_seed`` at 101 to 808.
 
 The two rules.
 
@@ -189,7 +196,8 @@ TRUTH_TOLERANCES: dict[tuple[str, str], TruthTolerance] = {
     ('low_phase_limb_misconverge', FUSED): _t(0.004, 0.004, 0.000, 0.05),
     ('star_equal_brightness', FUSED): _t(0.033, 0.033, 0.002, 0.05),
     ('star_zero_offset', FUSED): _t(0.044, 0.044, 0.003, 0.05),
-    ('textured_moon_offset', FUSED): _t(0.261, 0.630, 0.526, 0.13),
+    # Measured on the 16 noise draws, which keep the albedo texture: 0.259 to 0.279 px.
+    ('textured_moon_offset', FUSED): _t(0.261, 0.279, 0.020, 0.06),
     # regression, one technique navigated alone.
     ('disc_subpixel_offset', 'BodyDiscCorrelateNav'): _t(0.000, 0.000, 0.000, 0.05),
     ('star_equal_brightness', 'StarFieldFromCatalogNav'): _t(0.033, 0.033, 0.002, 0.05),
@@ -230,9 +238,10 @@ KNOWN_ERRORS: dict[tuple[str, str], KnownErrorBand] = {
     ('titan_crescent_horns', 'BodyBlobNav'): _b(28.230, 30.533, 0.4604, 27.770, 30.994),
     ('titan_crescent_horns_noiseless', 'BodyBlobNav'): _b(30.407, 30.408, 0.05, 30.357, 30.458),
     ('titan_haze_limb', 'BodyBlobNav'): _b(1.241, 1.347, 0.05, 1.191, 1.397),
-    ('textured_moon_offset', 'BodyBlobNav'): _b(0.427, 2.440, 0.4023, 0.025, 2.842),
-    # The band's lower end would fall below zero, so it stops at zero.
-    ('relief_psf_stray_light', 'BodyBlobNav'): _b(0.193, 1.920, 0.3454, 0.000, 2.266),
+    # These two are measured on the 16 noise draws, which keep the albedo texture and
+    # the limb relief.  The spreads are 0.008 px and 0.059 px.
+    ('textured_moon_offset', 'BodyBlobNav'): _b(0.623, 0.631, 0.05, 0.573, 0.682),
+    ('relief_psf_stray_light', 'BodyBlobNav'): _b(1.796, 1.856, 0.05, 1.746, 1.906),
     # RingEdgeNav lands 51.8 px off along the straight edge, the unobservable axis
     # (#755).
     ('planted_rank1_ring_flat', 'RingEdgeNav'): _b(51.753, 51.757, 0.05, 51.703, 51.807),

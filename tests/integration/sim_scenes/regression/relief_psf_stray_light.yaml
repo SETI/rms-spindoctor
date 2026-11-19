@@ -27,12 +27,15 @@ exposure_sec: 1.0
 # ensemble fuses the limb fit and the correlation as one witness and takes
 # the correlation's offset, so the scene pins a medium-confidence success
 # whose error is the correlation's.
-# Known error: over 16 noise seeds (the committed one and 101, 202, ...,
-# 1515) the fused error runs 0.655 to 3.252 px, because which window edge
-# the correlation stops at depends on the noise draw (#791).  Each end of the
-# band sits a margin of max(0.05 px, a fifth of the 2.597 px spread) outside,
-# giving [0.135, 3.772] px.  A worse miss fails, and so does a fix that brings
-# the error under 0.135 px.
+# Known error: over 16 draws of the detector noise alone (the committed draw
+# and noise_seed 101, 202, ..., 1515), which keep this scene's limb relief,
+# the fused error is 0.809 px on every draw (spread under 0.001 px).  Each end
+# of the band sits a margin of max(0.05 px, a fifth of the spread) = 0.05 px
+# outside, giving [0.758, 0.859] px.  A worse miss fails, and so does a fix
+# that brings the error under 0.758 px.  The relief decides the error: over 16
+# values of random_seed, which redraw the relief too, it runs 0.655 to
+# 3.252 px, because which window edge the correlation stops at depends on the
+# relief drawn (#791).
 bodies:
   - name: RUGGED
     shape_model: ellipsoid
@@ -63,5 +66,5 @@ offset_rotation_deg: 0.0
 expected:
   status: success
   confidence_tier: medium
-  known_offset_error_px: 1.9535
-  known_offset_error_tol_px: 1.8185
+  known_offset_error_px: 0.8085
+  known_offset_error_tol_px: 0.0505

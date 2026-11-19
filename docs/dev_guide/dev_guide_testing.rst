@@ -219,6 +219,12 @@ tests need none of the archive environment above.
      - Each single-variable sweep responds as expected (a technique transition, a
        degradation to failure, recovery within tolerance). Heavier -- each sweep
        navigates several frames.
+   * - Irregular-shape population (``test_sim_irregularity_population.py``)
+     - integration (``sim_integration``)
+     - nothing
+     - Over 13 irregular shapes at the irregularity sweep's extreme step, each on
+       five noise draws, the shape-lock veto still declines some of the frames.
+       Heavier -- it navigates 65 frames.
    * - Pose behavioral (``test_sim_irregular_pose.py``)
      - integration (``sim_integration``)
      - nothing

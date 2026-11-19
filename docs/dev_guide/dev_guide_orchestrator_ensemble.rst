@@ -377,16 +377,19 @@ a regression test, and the first also shows where the veto's coverage ends:
   extreme mesh-vs-ellipsoid shape mismatch (``mesh_lumpiness`` 0.7, a
   non-ellipsoidal relief of 8.75% of the radius RMS) the disc correlation and
   the limb fit lock onto the mismatched model. Over mesh seeds 0 to 12 the
-  veto fires on one of the 13 shapes and reports it ``conflicted``, with the
-  status reason ``body_shape_lock_suspect``. On that shape the pose-free blob,
-  which does not chase the shape, sits pixels from the consensus, and its
-  separation clears both the body-scaled pixel floor and the Mahalanobis
-  threshold. ``test_sim_sweeps`` counts that status reason and asserts the rate
-  as a floor. A second shape also ends ``conflicted``, but because its disc and
-  limb disagree with each other, and the veto plays no part. On the remaining
-  shapes the blob either carries the result itself at low confidence or is
-  displaced together with the lock, so the disagreement the veto reads never
-  appears. One shape ends a 0.91-confidence success 12.7 px off. That
+  veto fires on 0 to 3 of the 13 shapes, depending on the noise draw, and
+  reports each one ``conflicted``, with the status reason
+  ``body_shape_lock_suspect``. On such a shape the pose-free blob, which does
+  not chase the shape, sits pixels from the consensus, and its separation clears
+  both the body-scaled pixel floor and the Mahalanobis threshold.
+  ``test_sim_irregularity_population`` counts that status reason over the 13
+  shapes on five noise draws and asserts the count as a floor. Another shape
+  usually ends ``conflicted`` too, but because its disc and limb disagree with
+  each other, and the veto plays no part. On the remaining shapes the blob
+  either carries the result itself at low confidence or is displaced together
+  with the lock, so the disagreement the veto reads never appears. One shape ends a
+  0.91-confidence success 12.7 px off on the scene's own draw, and is
+  confidently wrong on most other draws as well. That
   confident wrong result is a known gap, held by a strict expected-failure
   test until the veto catches it. The sweep's own walk uses a typical shape
   (``mesh_seed`` 4, chosen by its silhouette mismatch): its extreme step is a

@@ -649,6 +649,15 @@ def test_validate_sim_params_refuses_a_null_top_level_number(key: str) -> None:
         validate_sim_params(params)
 
 
+@pytest.mark.parametrize('value', [None, 1.5])
+def test_validate_sim_params_refuses_a_noise_seed_that_is_not_an_integer(value: Any) -> None:
+    """A noise_seed must be an integer, as random_seed must; a null is refused too."""
+    params = _sim_params()
+    params['noise_seed'] = value
+    with pytest.raises(SimSceneValidationError, match='noise_seed must be an integer'):
+        validate_sim_params(params)
+
+
 @pytest.mark.parametrize('key', ['noise', 'optics', 'detector', 'artifacts', 'bodies', 'stars'])
 def test_a_null_top_level_block_validates_and_renders(key: str) -> None:
     """A top-level block or list set to null renders exactly as the scene without it."""
