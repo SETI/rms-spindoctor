@@ -1,8 +1,8 @@
 """The mesh renderer's fallback seed and its shape cache.
 
 A mesh body drawn with neither a scene seed nor a seed of its own seeds its relief
-and its pose scatter from a digest of its geometry, index, and name, keeping the
-digest's low 31 bits.  The body's terrain depends on exactly that seed.  Each body's
+and its pose scatter from a digest of its geometry, index, and name.  The digest
+hashes the key's ``repr``, so the test compares that.  Each body's
 drawing is cached at the reference center until the cache is cleared.
 """
 
@@ -13,16 +13,16 @@ from spindoctor.sim.render.bodies import mesh as body_mesh
 from spindoctor.sim.render.bodies.spec import BodySpec, body_identity_seed, body_spec_from_params
 
 
-def _record_fallbacks(monkeypatch: pytest.MonkeyPatch) -> list[tuple[tuple[object, ...], bool]]:
-    """Record the fallback key and mask of every identity seed the mesh renderer asks for.
+def _record_fallback_keys(monkeypatch: pytest.MonkeyPatch) -> list[tuple[object, ...]]:
+    """Record the fallback key of every identity seed the mesh renderer asks for.
 
     Parameters:
         monkeypatch: The test's monkeypatch fixture.
 
     Returns:
-        The list the ``(fallback_key, mask_fallback)`` pairs are appended to.
+        The list the fallback keys are appended to, in call order.
     """
-    calls: list[tuple[tuple[object, ...], bool]] = []
+    keys: list[tuple[object, ...]] = []
 
     def recording(
         scene_seed: int | None,
@@ -30,27 +30,23 @@ def _record_fallbacks(monkeypatch: pytest.MonkeyPatch) -> list[tuple[tuple[objec
         body_index: int,
         *,
         fallback_key: tuple[object, ...],
-        mask_fallback: bool = False,
     ) -> int:
-        """Record the fallback key and mask and return the real identity seed.
+        """Record the fallback key and return the real identity seed.
 
         Parameters:
             scene_seed: The scene's seed for the bodies' streams.
             body: The body.
             body_index: The body's position in the scene's body list.
             fallback_key: The values the fallback digest hashes.
-            mask_fallback: Whether the fallback digest keeps its low 31 bits.
 
         Returns:
             The body's identity seed.
         """
-        calls.append((fallback_key, mask_fallback))
-        return body_identity_seed(
-            scene_seed, body, body_index, fallback_key=fallback_key, mask_fallback=mask_fallback
-        )
+        keys.append(fallback_key)
+        return body_identity_seed(scene_seed, body, body_index, fallback_key=fallback_key)
 
     monkeypatch.setattr(body_mesh, 'body_identity_seed', recording)
-    return calls
+    return keys
 
 
 def _render_seedless_mesh_body() -> None:
@@ -80,13 +76,13 @@ def _render_seedless_mesh_body() -> None:
     )
 
 
-def test_mesh_fallback_is_the_masked_digest_of_widths_index_and_name(
+def test_mesh_fallback_key_is_the_widths_index_and_name(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The mesh seed falls back on the full widths, index, and name, masked to 31 bits."""
-    calls = _record_fallbacks(monkeypatch)
+    """The mesh seed falls back on the full widths, index, and name."""
+    keys = _record_fallback_keys(monkeypatch)
     _render_seedless_mesh_body()
-    assert calls == [((40.0, 36.0, 32.0, 3, 'LUMP'), True)]
+    assert repr(keys) == "[(40.0, 36.0, 32.0, 3, 'LUMP')]"
 
 
 def test_clear_mesh_shape_caches_empties_the_shape_cache() -> None:

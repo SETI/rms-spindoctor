@@ -255,14 +255,12 @@ def _draw_mesh_streams(
     mesh = body.mesh
     if body.limb_relief_rms <= 0.0 and body.pose_scatter_sigma_deg <= 0.0:
         return _MeshStreams(mesh=mesh, relief_seed=0, drawn_deg=None)
-    # The fallback digest hashes the full widths and keeps its low 31 bits, so a
-    # body drawn without seeds keeps its terrain (#913).
+    # The fallback digest hashes the full widths, twice the semi-axes (#913).
     identity_seed = body_identity_seed(
         body_streams_seed,
         body,
         body_index,
         fallback_key=(*widths, body_index, body.name.upper()),
-        mask_fallback=True,
     )
     relief_seed = 0
     if body.limb_relief_rms > 0.0:

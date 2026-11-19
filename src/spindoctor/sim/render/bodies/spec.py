@@ -57,7 +57,7 @@ _LIMB_RELIEF_CORR_DEG_DEFAULT = 15.0
 _PHOTOMETRIC_LAW_DEFAULT = 'lambert'
 _MINNAERT_K_DEFAULT = 0.5
 _SURGE_WIDTH_DEG_DEFAULT = 6.0
-# A seed the body supplies keeps its low 31 bits.
+# A body's own seed and its fallback digest each keep their low 31 bits.
 _SEED_31_BITS = 0x7FFFFFFF
 
 
@@ -244,7 +244,6 @@ def body_identity_seed(
     body_index: int,
     *,
     fallback_key: tuple[object, ...],
-    mask_fallback: bool = False,
 ) -> int:
     """The seed every random stream of one body derives from.
 
@@ -254,24 +253,24 @@ def body_identity_seed(
        upper-cased name, so two bodies of the same geometry draw independent
        surfaces: ``derive_effect_seed(scene_seed, 'body:<index>:<NAME>')``.
     2. The body's own ``seed``, keeping its low 31 bits.
-    3. A digest of ``fallback_key``: ``stable_param_seed(*fallback_key)``.  Each
-       caller supplies the values it keys a body on, since the surfaces already
-       drawn from this digest depend on exactly those values.
+    3. A digest of ``fallback_key``, ``stable_param_seed(*fallback_key)``, keeping
+       its low 31 bits.
+
+    A scene render always supplies the first, so only a renderer called directly
+    reaches the other two.
 
     Parameters:
         scene_seed: The scene's seed for the bodies' streams, or None.
         body: The body (its name and its own seed are read).
         body_index: The body's position in the scene's body list.
         fallback_key: The values the fallback digest hashes, in order.
-        mask_fallback: Whether the fallback digest keeps only its low 31 bits, as the
-            body's own seed does.
 
     Returns:
-        The body's identity seed, a non-negative integer below 2**32.
+        The body's identity seed: below 2**32 from the scene's seed, and below
+        2**31 otherwise.
     """
     if scene_seed is not None:
         return derive_effect_seed(scene_seed, f'body:{body_index}:{body.name.upper()}')
     if body.seed is not None:
         return body.seed & _SEED_31_BITS
-    digest = stable_param_seed(*fallback_key)
-    return digest & _SEED_31_BITS if mask_fallback else digest
+    return stable_param_seed(*fallback_key) & _SEED_31_BITS

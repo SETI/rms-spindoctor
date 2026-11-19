@@ -266,8 +266,7 @@ def _surface_seeds(
     if spec.crater_fill > 0.0:
         # The fallback digest hashes the full widths, twice the semi-axes, and the
         # body center on the detector grid, where the craters are carved, of the
-        # shape drawn at the frame center.  A body drawn without seeds keeps its
-        # craters (#913).
+        # shape drawn at the frame center (#913).
         os_in = max(1, int(oversample))
         crater_seed = body_identity_seed(
             body_streams_seed,
@@ -284,8 +283,7 @@ def _surface_seeds(
     relief_seed = 0
     albedo_seed = 0
     if spec.limb_relief_rms > 0.0 or spec.albedo_texture is not None:
-        # The fallback digest hashes the full widths, twice the semi-axes, so a body
-        # drawn without seeds keeps its terrain (#913).
+        # The fallback digest hashes the full widths, twice the semi-axes (#913).
         identity_seed = body_identity_seed(
             body_streams_seed,
             spec,

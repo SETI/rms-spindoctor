@@ -1,10 +1,11 @@
 """The ellipsoid path's fallback seeds and its shape cache.
 
 A body drawn with neither a scene seed nor a seed of its own seeds its craters, its
-relief, and its albedo noise from a digest of its geometry.  The craters and the
-other streams hash different values, and a body's surface depends on exactly those
-values.  Each body's drawing is cached at the reference center until the cache is
-cleared.
+relief, and its albedo noise from a digest.  The craters' digest hashes the body's
+widths and center, and the other streams' digest its widths, index, and name.  The
+digest hashes the keys' ``repr``, so the tests compare that: ``16`` and ``16.0`` are
+different keys.  Each body's drawing is cached at the reference center until the
+cache is cleared.
 """
 
 from typing import Any
@@ -33,7 +34,6 @@ def _record_fallback_keys(monkeypatch: pytest.MonkeyPatch) -> list[tuple[object,
         body_index: int,
         *,
         fallback_key: tuple[object, ...],
-        mask_fallback: bool = False,
     ) -> int:
         """Record the fallback key and return the real identity seed.
 
@@ -42,15 +42,12 @@ def _record_fallback_keys(monkeypatch: pytest.MonkeyPatch) -> list[tuple[object,
             body: The body.
             body_index: The body's position in the scene's body list.
             fallback_key: The values the fallback digest hashes.
-            mask_fallback: Whether the fallback digest keeps its low 31 bits.
 
         Returns:
             The body's identity seed.
         """
         keys.append(fallback_key)
-        return body_identity_seed(
-            scene_seed, body, body_index, fallback_key=fallback_key, mask_fallback=mask_fallback
-        )
+        return body_identity_seed(scene_seed, body, body_index, fallback_key=fallback_key)
 
     monkeypatch.setattr(body_render, 'body_identity_seed', recording)
     return keys
@@ -82,7 +79,7 @@ def test_crater_fallback_key_is_the_widths_and_the_detector_grid_center(
     """The crater seed falls back on the full widths and the detector-grid center."""
     keys = _record_fallback_keys(monkeypatch)
     _render_seedless_body(crater_fill=0.4)
-    assert keys == [(40.0, 36.0, 32.0, (16.0, 24.0))]
+    assert repr(keys) == '[(40.0, 36.0, 32.0, (16.0, 24.0))]'
 
 
 def test_surface_fallback_key_is_the_widths_index_and_name(
@@ -91,7 +88,7 @@ def test_surface_fallback_key_is_the_widths_index_and_name(
     """The relief and albedo seeds fall back on the full widths, index, and name."""
     keys = _record_fallback_keys(monkeypatch)
     _render_seedless_body(limb_relief_rms=0.02)
-    assert keys == [(40.0, 36.0, 32.0, 3, 'B')]
+    assert repr(keys) == "[(40.0, 36.0, 32.0, 3, 'B')]"
 
 
 def test_clear_ellipsoid_shape_caches_empties_the_shape_cache() -> None:

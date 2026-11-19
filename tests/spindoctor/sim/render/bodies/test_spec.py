@@ -18,7 +18,14 @@ _BODY_SEED = 3_000_000_000
 
 
 def _body(**keys: Any) -> BodySpec:
-    """A body named in lower case, so the seed's upper-casing of the name shows."""
+    """A body named in lower case, so the seed's upper-casing of the name shows.
+
+    Parameters:
+        **keys: Further scene keys of the body, such as ``seed``.
+
+    Returns:
+        The parsed body, at index 1.
+    """
     return body_spec_from_params({'name': 'mimas', 'semi_a_px': 20.0, **keys}, index=1)
 
 
@@ -45,13 +52,7 @@ def test_body_seed_keeps_its_low_31_bits() -> None:
     assert seed == _BODY_SEED & 0x7FFFFFFF
 
 
-def test_fallback_is_the_full_digest_of_the_key() -> None:
-    """With neither seed, the seed is the digest of the fallback key, all 32 bits."""
+def test_fallback_digest_keeps_its_low_31_bits() -> None:
+    """With neither seed, the seed is the fallback key's digest, keeping its low 31 bits."""
     seed = body_identity_seed(None, _body(), 1, fallback_key=_FALLBACK_KEY)
-    assert seed == stable_param_seed(*_FALLBACK_KEY)
-
-
-def test_masked_fallback_keeps_the_digest_low_31_bits() -> None:
-    """With ``mask_fallback``, the fallback digest keeps its low 31 bits."""
-    seed = body_identity_seed(None, _body(), 1, fallback_key=_FALLBACK_KEY, mask_fallback=True)
     assert seed == stable_param_seed(*_FALLBACK_KEY) & 0x7FFFFFFF
