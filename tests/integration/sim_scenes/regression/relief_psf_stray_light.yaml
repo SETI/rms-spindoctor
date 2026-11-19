@@ -8,8 +8,8 @@ exposure_sec: 1.0
 # A lit body with limb relief under a whole-scene PSF and an off-center
 # radial stray-light bump.  The explicit PSF activates oversample 4, so
 # this is the catalog's pin on the ellipsoid renderer's oversampled
-# relief body (working-grid shading with the relief tilt and shadows
-# interpolated from the detector grid), the defaulted PSF kernel size at
+# relief body (working-grid shading with the relief tilt interpolated
+# from the detector grid), the defaulted PSF kernel size at
 # oversample, and the stray-light center_v/center_u scaling onto the
 # oversampled grid.  A change to that mapping moves the rendered image;
 # it does not necessarily move the recorded result, which is what this
@@ -20,8 +20,11 @@ exposure_sec: 1.0
 # Measured behavior: all three body techniques survive the blur and the
 # sloped background, but the fused offset is (1.59, -1.5) against the
 # planted (2.37, -1.62), a miss of 0.79 px, nearly all in v.  The limb fit
-# lands at (2.12, -1.74), about 0.27 px from the planted value.  The disc
-# correlation reports (1.59, -1.5).  Its sub-pixel refinement searches only
+# lands at (2.12, -1.74), about 0.27 px from the planted value.  It was 0.21 px
+# when the disc was shaded on the detector grid (#931): the fit follows the
+# brightness gradient just inside the ragged limb, which the oversampled grid
+# now resolves, and the move is well inside the fit's spread over noise seeds
+# (1.3 to 2.7 px in v).  The disc correlation reports (1.59, -1.5).  Its sub-pixel refinement searches only
 # +-0.5 px around the integer NCC peak (#791), and its smooth template doesn't
 # carry the relief shading the frame does.  The
 # ensemble fuses the limb fit and the correlation as one witness and takes

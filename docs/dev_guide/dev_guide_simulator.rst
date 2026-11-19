@@ -2194,9 +2194,9 @@ lit. Against a march at a quarter of that step, the decisions differ on under
 0.3% of the shadowed pixels, for bodies from 30 to 300 pixels in radius with
 relief from 1 to 12 degrees across.
 
-On an oversampled or anti-aliased body, most of the relief's shading and shadows are
-computed once per detector pixel and interpolated. :ref:`sim-shading-grids` explains
-where and why.
+On an oversampled or anti-aliased body, the relief's tilt is computed once per detector
+pixel and interpolated over most of the disc. :ref:`sim-shading-grids` explains where
+and why.
 
 .. _sim-shading-grids:
 
@@ -2213,43 +2213,55 @@ thousandths of a pixel away from the Sun, a shift the navigator's predicted body
 does not share.
 
 Relief and craters are laid out on the *detector grid*, one point per detector
-pixel, and interpolated bilinearly onto the working grid: the tilt the relief gives
-each normal, the relief's cast shadows, and the crater slopes. Computing the relief
-once per detector pixel instead of once per working pixel is what lets a large
-relief body meet the render budget below. In two places the interpolation isn't
-good enough, so there the relief's normals and shadows are computed on the working
-grid too:
+pixel, and interpolated onto the working grid. The tilt the relief gives each normal
+is interpolated with a cubic spline, and the crater slopes bilinearly. Computing the
+relief once per detector pixel instead of once per working pixel is what lets a large
+relief body meet the render budget below. In three places interpolation isn't good
+enough, so there the relief's normals and its cast shadows are computed on the
+working grid:
 
 - A band along the limb, 3 detector pixels beyond the reach of the relief
   outline on either side, where the relief's tilt turns with the smooth normal.
 - The detector cells along the relief's own day-night edge, widened by 3 cells.
   An interpolated tilt varies less than the terrain does, and where the law clips
   at the terminator, that smaller variation darkens the disc.
+- Every detector cell a cast shadow reaches, with its neighbors, because a shadow's
+  edge is sharp.
 
-Elsewhere the interpolated tilt is added to the smooth normal as it is, without
-scaling the sum back to unit length. A Lambert surface's brightness is then the
-interpolated difference between its relief and smooth brightness. Rescaling the sum
-would brighten rough terrain.
+Outside those places the interpolated tilt is added to the smooth normal as it is,
+without scaling the sum back to unit length. On the day side a Lambert surface's
+brightness is then the smooth brightness plus the interpolated difference between the
+relief and smooth brightness. Rescaling the sum would brighten rough terrain slightly.
+Only the rectangle a relief or cratered body covers is shaded.
 
 The craters are carved on the detector grid and their slopes taken there by
 central differences. On a finer grid those slopes are interpolated, so a body has
-the same craters at every oversampling factor. Surface textures and transits are
-drawn on the working grid, because their spots, storms, and discs have sharp edges.
+the same craters at every oversampling factor. The price is that a crater is no
+finer than the detector grid it is carved on: a crater about a pixel across is a
+pixel-sized dimple, even at oversample 4 or under full anti-aliasing.
 
-A body that has no relief, no craters, no texture, and no transits is shaded wholly
-on its working grid. A surface setting that changes nothing leaves a body smooth: a
-crater fill too small to place a crater at detector resolution, an albedo texture
-that has no noise field and no spots, banding of zero amplitude without storms, or a
-transit that has neither a moon nor a shadow. A setting at an effectively zero value
-renders as the smooth body: a relief of 1e-9 of the radius changes no pixel by more
-than about 1e-8 of the peak. Only the rectangle the body covers is shaded.
+A body that has no relief and no craters is shaded wholly on its working grid,
+textures and transits included, because their spots, storms, and discs have sharp
+edges. A surface setting that changes nothing leaves a body smooth: a crater fill too
+small to place a crater at detector resolution, an albedo texture that has no noise
+field and no spots, banding of zero amplitude without storms, or a transit that has
+neither a moon nor a shadow. A setting at an effectively zero value renders as the
+smooth body: a relief of 1e-9 of the radius changes no pixel by more than about 1e-8
+of the peak.
 
-A body with 2% relief at a 12-degree correlation length puts the center of its light
-within 0.0035 px of where the same body shaded wholly on its working grid puts it,
-over three relief seeds at phases of 30 and 70 degrees. A small body at oversample 4
-puts its light within 0.016 px of a render 8 times finer when it is 4 px across, and
-within 0.022 px when it is 8 px across, at 90 degrees of phase, whether or not it
-carries relief.
+Measured against the same body shaded wholly on its working grid, the center of a
+relief body's light lands within 0.0015 px on 14 test bodies with 2% relief at a
+12-degree correlation length. They include 36 px bodies at several seeds and phases, a
+crescent, a Minnaert body, a cratered body, a rotated and tilted triaxial body, a body
+clipped by the frame edge, and a 5 px body. On a 150 px body with rougher relief (an
+RMS of 3% to 5% at a 5-degree correlation length) at a phase of 80 degrees, it lands
+within 0.0007 px. A cratered or textured body has nothing to compare: shading it wholly
+on the working grid uses the same interpolated crater slopes and the same texture.
+
+A small body at oversample 4 misses a render 8 times finer by the sampling of the
+working grid, with or without relief. Over 17 sub-pixel centers at 90 degrees of
+phase, its light lands within 0.023 px and its brightness within 4.7% at 4 px across,
+within 0.022 px and 1.6% at 8 px, and within 0.008 px and 0.5% at 16 px.
 
 The navigator's predicted body is shaded on a grid four times finer than the
 detector's. A smooth body whose working grid has that same factor (oversample 4,
@@ -2847,8 +2859,8 @@ Cassini-class scene in under 8 s (``tests/integration/test_sim_perf.py``).
 The harness holds two scene families to those budgets: a star field (the PSF
 convolution on the oversampled grid and the electron chain) and a frame
 dominated by a large lit body with limb relief (the ellipsoid renderer's
-working-grid shading with relief tilt and cast shadows interpolated from the
-detector grid, see :ref:`sim-shading-grids`). The budget is a *cold-render* budget:
+working-grid shading with the relief tilt interpolated from the detector grid, see
+:ref:`sim-shading-grids`). The budget is a *cold-render* budget:
 the render caches are cleared so the timed render pays the kernel-build and
 compile costs a first render pays, while one-time non-render costs (the lazy
 config-YAML load) are paid by an untimed warm-up first. The harness pins

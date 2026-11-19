@@ -109,7 +109,7 @@ def _body_psf_detector_scene(size: int) -> dict[str, Any]:
 
     A large lit body with limb relief at oversample 4 exercises the ellipsoid
     renderer under the same budgets as the star field: shading on the oversampled
-    grid with the relief tilt and shadows interpolated from the detector grid,
+    grid with the relief tilt interpolated from the detector grid,
     the relief-perturbed silhouette, and the capped terminator shadow march,
     followed by the PSF convolution and the detector stack.  The high phase angle
     puts the terminator across the disc so the march band is fully active.
