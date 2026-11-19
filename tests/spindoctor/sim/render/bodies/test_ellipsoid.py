@@ -24,12 +24,13 @@ from spindoctor.sim.render.bodies.ellipsoid import (
     create_ellipsoid_body,
     render_ellipsoid_body,
 )
-from spindoctor.sim.render.bodies.ellipsoid_grid import body_grid, limb_band
+from spindoctor.sim.render.bodies.ellipsoid_grid import limb_band
 from spindoctor.sim.render.bodies.relief import synthesize_relief_field
 from spindoctor.sim.render.bodies.render import render_single_body
 from spindoctor.sim.render.bodies.spec import body_spec_from_params
 from spindoctor.sim.render.bodies.texture import AlbedoTextureSpec
 from spindoctor.sim.render.driver import render_scene
+from spindoctor.sim.shared.ellipsoid import project_ellipsoid
 from spindoctor.support.types import NDArrayFloatType
 
 
@@ -357,7 +358,7 @@ def test_limbs_touching_at_one_sample_need_no_ranges() -> None:
 
 def test_limb_band_reaching_the_center_includes_it() -> None:
     """A limb band whose inner edge reaches the body center includes the center sample."""
-    grid = body_grid((9, 9), (4.5, 4.5), (2.0, 2.0, 2.0), cos_rz=1.0, sin_rz=0.0, cos_rt=1.0)
+    grid = project_ellipsoid((9, 9), (4.5, 4.5), 2.0, semi_b_px=2.0, semi_c_px=2.0)
     band = limb_band(grid, synthesize_relief_field(0.02, 15.0, 4), width_px=3.0)
     assert bool(band[4, 4])
 
