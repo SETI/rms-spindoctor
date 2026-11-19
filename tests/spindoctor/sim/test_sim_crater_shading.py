@@ -1,17 +1,17 @@
 """Crater and no-crater shading share one illumination convention (SIM-3).
 
-The cratered shading path derives its base-surface normals from the same
-analytic formula (including the rotation_z back-rotation to image coordinates)
-as the smooth path, so a cratered body's lit hemisphere and terminator match
-the same body rendered without craters at any pose.  Before the fix the crater
-path shaded against the raw depth-field gradient, whose frame diverges from
-the smooth path's for rotated poses.
+A cratered body tilts the same base-surface normals a smooth body is shaded
+with (including the rotation_z back-rotation to image coordinates), so a
+cratered body's lit hemisphere and terminator match the same body rendered
+without craters at any pose.  Shading against the raw depth-field gradient
+instead would put the craters in a frame that diverges from the smooth
+body's for rotated poses.
 """
 
 import numpy as np
 import pytest
 
-from spindoctor.sim.render.bodies.render import create_simulated_body
+from spindoctor.sim.render.bodies.ellipsoid import EllipsoidBodySpec, create_ellipsoid_body
 
 _SIZE = (101, 101)
 _CENTER = (50.5, 50.5)
@@ -23,23 +23,25 @@ _CENTROID_TOLERANCE = 0.5
 
 def _render(*, rotation_z: float, rotation_tilt: float, crater_fill: float) -> np.ndarray:
     """Render the reference body at the given pose and crater fill."""
-    return create_simulated_body(
+    return create_ellipsoid_body(
         _SIZE,
         _CENTER,
-        _AXES[0],
-        semi_b_px=_AXES[1],
-        semi_c_px=_AXES[2],
-        rotation_z=rotation_z,
-        rotation_tilt=rotation_tilt,
-        illumination_angle=_ILLUMINATION_ANGLE,
-        phase_angle=_PHASE_ANGLE,
-        crater_fill=crater_fill,
-        anti_aliasing=1.0,
-        # A fixed realization that puts craters on the lit side in both poses
-        # while its crater-placement asymmetry sits well below the tolerance
-        # (worst-axis delta ~0.03 px); the guarded shading-frame defect
-        # displaced the centroid by ~9 px, so the margin is wide.
-        seed=52,
+        EllipsoidBodySpec(
+            semi_a_px=_AXES[0],
+            semi_b_px=_AXES[1],
+            semi_c_px=_AXES[2],
+            rotation_z=rotation_z,
+            rotation_tilt=rotation_tilt,
+            illumination_angle=_ILLUMINATION_ANGLE,
+            phase_angle=_PHASE_ANGLE,
+            crater_fill=crater_fill,
+            anti_aliasing=1.0,
+            # A fixed realization that puts craters on the lit side in both poses
+            # while its crater-placement asymmetry sits well below the tolerance;
+            # the guarded shading-frame defect displaced the centroid by ~9 px, so
+            # the margin is wide.
+            crater_seed=52,
+        ),
     )
 
 

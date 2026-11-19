@@ -1,8 +1,8 @@
 """The body renderers of the scene-radiance stage.
 
-- :mod:`spindoctor.sim.render.bodies.render`: the ellipsoid renderer and the dispatch
-  among the render paths.
-- :mod:`spindoctor.sim.render.bodies.topo`: the topographic ellipsoid renderer.
+- :mod:`spindoctor.sim.render.bodies.render`: the placement of one body in the frame,
+  and the crater carving.
+- :mod:`spindoctor.sim.render.bodies.ellipsoid`: the ellipsoid renderer.
 - :mod:`spindoctor.sim.render.bodies.mesh`: the polyhedral-mesh renderer.
 - :mod:`spindoctor.sim.render.bodies.spec`: the typed, frozen form of one scene
   ``bodies`` entry.

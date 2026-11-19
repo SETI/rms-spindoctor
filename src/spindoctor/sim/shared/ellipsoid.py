@@ -1,6 +1,6 @@
 """Shared ellipsoid shading geometry for the simulator's two sides.
 
-The image-side renderer (``spindoctor.sim.render.bodies.render``) and the
+The image-side ellipsoid renderer (``spindoctor.sim.render.bodies.ellipsoid``) and the
 navigator-side predicted-body renderer
 (``spindoctor.nav_model.simulated.predict_body``) must shade an ellipsoid
 with byte-identical conventions: the same surface normals, the same light

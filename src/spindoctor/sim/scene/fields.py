@@ -20,7 +20,7 @@ from collections.abc import Iterable, Mapping
 from typing import Any
 
 # Body keys the polyhedral-mesh render path does not consume: the ellipsoid
-# renderer's crater carving, the topographic path's photometric laws and
+# renderer's crater carving, photometric laws, and
 # surface texture, and the ellipsoid-frame atmosphere halo (whose geometry is
 # built from rotation_z / rotation_tilt around the ellipse, which a mesh's
 # arbitrary Euler pose and lumpy limb do not follow).  A mesh body giving one

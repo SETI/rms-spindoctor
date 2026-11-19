@@ -1,4 +1,4 @@
-"""Truth-side multiplicative surface textures for the topographic body renderer.
+"""Truth-side multiplicative surface textures for the ellipsoid body renderer.
 
 Three texture families live here, all applied to the body's SHADING (the
 photometric-law output on the detector-resolution shading grid) and never to
@@ -19,7 +19,7 @@ limb the navigator fits:
   shadow is the sharp, high-contrast circular *false crater* that disc
   correlation and blob techniques can lock onto.
 
-**Coordinate convention.**  Surface points come from the topographic
+**Coordinate convention.**  Surface points come from the ellipsoid
 renderer's unit-sphere parameterization ``(x, y, z)`` with
 ``x = v_rot / semi_a``, ``y = u_rot / semi_b``, ``z = sqrt(1 - x^2 - y^2)``
 (so ``x^2 + y^2 + z^2 = 1`` on the disc).  Every texture -- the albedo

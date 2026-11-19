@@ -198,7 +198,7 @@ spindoctor.sim.render.bodies
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: spindoctor.sim.render.bodies.topo
+.. automodule:: spindoctor.sim.render.bodies.ellipsoid
    :members:
    :undoc-members:
    :show-inheritance:

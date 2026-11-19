@@ -1,14 +1,11 @@
-"""Image-side ellipsoid body renderer and its render-path dispatch.
+"""Image-side body placement: one body into the frame, plus crater carving.
 
-A smooth Lambert ellipsoid at oversample 1 renders through the classic
-path here (:func:`create_simulated_body`, optionally with procedural
-crater texture).  A body that needs more -- a limb-relief field, a
-non-Lambert photometric law, an opposition surge, or an oversampled
-radiance grid -- dispatches to the topographic renderer
-(:mod:`spindoctor.sim.render.bodies.topo`), which shares this module's
-crater carving and the ellipsoid shading conventions of
-:mod:`spindoctor.sim.shared.ellipsoid`, so a scene's planted geometry
-error is the only difference between rendered and predicted silhouettes.
+:func:`render_single_body` draws one scene body.  An ellipsoid goes to the
+ellipsoid renderer (:mod:`spindoctor.sim.render.bodies.ellipsoid`) and a
+polyhedral-mesh body to the mesh renderer
+(:mod:`spindoctor.sim.render.bodies.mesh`); either way the body is drawn once at
+a reference center, cached, and translated into place.  The crater carving the
+ellipsoid renderer uses lives here too.
 
 The crater and relief knobs live only on this side of the information
 boundary: they are truth keys the navigator never sees (its best model is
@@ -25,300 +22,20 @@ from spindoctor.sim.render.bodies.atmosphere import (
     apply_atmosphere,
     atmosphere_spec_from_params,
 )
+from spindoctor.sim.render.bodies.ellipsoid import (
+    EllipsoidBodyRender,
+    EllipsoidBodySpec,
+    render_ellipsoid_body,
+)
 from spindoctor.sim.render.bodies.spec import BodySpec
 from spindoctor.sim.render.bodies.texture import albedo_spec_from_params
-from spindoctor.sim.render.bodies.topo import TopoBodyRender, TopoBodySpec, render_topographic_body
 from spindoctor.sim.render.bodies.translate import nonzero_box, shifted_box, translate_box
 from spindoctor.sim.seeds import derive_effect_seed, stable_param_seed
-from spindoctor.sim.shared.ellipsoid import (
-    ellipsoid_image_normals,
-    lambert_from_normals,
-    project_ellipsoid,
-)
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 from spindoctor.support.stable_math import stable_hypot
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 
-__all__ = ['create_simulated_body', 'render_single_body']
-
-
-def create_simulated_body(
-    size: tuple[int, int],
-    center: tuple[float, float],
-    semi_a_px: float,
-    *,
-    semi_b_px: float,
-    semi_c_px: float,
-    rotation_z: float = 0.0,
-    rotation_tilt: float = 0.0,
-    illumination_angle: float = 0.0,
-    phase_angle: float = 0.0,
-    crater_fill: float = 0.0,
-    crater_min_radius: float = 0.05,
-    crater_max_radius: float = 0.25,
-    crater_power_law_exponent: float = 3.0,
-    crater_relief_scale: float = 0.6,
-    anti_aliasing: float = 0.0,
-    seed: int | None = None,
-) -> NDArrayFloatType:
-    """Create a simulated planetary body as an ellipsoid with shading and surface features.
-
-    The body is modeled as a 3D ellipsoid projected onto 2D. The ellipsoid can have internal
-    craters of varying sizes and depths. The body is illuminated using Lambertian shading
-    (cos(incidence)) based on the illumination direction and phase angle.
-
-    Parameters:
-        size: Tuple of (size_v, size_u) giving the image dimensions in pixels.
-        center: Tuple of (v, u) giving the center position in floating-point pixels.
-            (0.0, 0.0) is the top-left corner of pixel (0,0), (0.5, 0.5) is the
-            center of pixel (0,0).
-        semi_a_px: Semi-axis a of the ellipsoid in pixels, half its width along axis 1.
-        semi_b_px: Semi-axis b of the ellipsoid in pixels, half its width along axis 2.
-        semi_c_px: Semi-axis c of the ellipsoid in pixels, half its depth along axis 3.
-        rotation_z: Rotation angle around the viewing axis (z-axis) in radians (0 to 2pi).
-        rotation_tilt: Tilt angle of the ellipsoid in radians (0 to pi/2).
-            Controls how much the ellipsoid is tilted toward/away from the viewer.
-        illumination_angle: Direction of illumination in the image plane in radians (0 to 2pi).
-            0 radians is at the top of the image, pi/2 is to the right.
-        phase_angle: Phase angle in radians (0 to pi).
-            0 = head-on illumination (fully illuminated),
-            pi/2 = side illumination (half illuminated),
-            pi = back illumination (no visible illumination).
-        crater_fill: Approximate fraction of the ellipse to fill with craters.
-        crater_min_radius: Minimum radius of a crater as a fraction of ``semi_a_px``.
-        crater_max_radius: Maximum radius of a crater as a fraction of ``semi_a_px``.
-        crater_power_law_exponent: Power law exponent for the crater radius distribution.
-        crater_relief_scale: Scale factor for the crater depth.
-        anti_aliasing: Float between 0 and 1 controlling anti-aliasing amount at the limb.
-            0 = no anti-aliasing, 1 = maximum anti-aliasing. Only affects the edge.
-        seed: Random seed for crater generation. If None, uses a hash-based seed.
-
-    Returns:
-        A 2D numpy array of shape (size_v, size_u) with float values from 0.0 to 1.0,
-        where 0.0 is black and 1.0 is full white.
-    """
-    size_v, size_u = size
-
-    # The projection grids (working-resolution coordinate frames, hemisphere
-    # depth, coverage mask) come from the shared geometry module, so this
-    # image-side renderer and the navigator-side predicted-body renderer
-    # project through one implementation.
-    proj = project_ellipsoid(
-        size,
-        center,
-        semi_a_px,
-        semi_b_px=semi_b_px,
-        semi_c_px=semi_c_px,
-        rotation_z=rotation_z,
-        rotation_tilt=rotation_tilt,
-        anti_aliasing=anti_aliasing,
-    )
-    aa_scale = proj.aa_scale
-    work_center_v = proj.work_center_v
-    work_center_u = proj.work_center_u
-    work_semi_major = proj.work_semi_major
-    work_semi_minor = proj.work_semi_minor
-    work_semi_c = proj.work_semi_c
-    cos_rz = proj.cos_rz
-    sin_rz = proj.sin_rz
-    v_coords = proj.v_coords
-    u_coords = proj.u_coords
-    v_rot = proj.v_rot
-    u_rot = proj.u_rot
-    z_coords = proj.z_coords
-    ellipse_dist_sq = proj.ellipse_dist_sq
-    ellipse_mask = proj.ellipse_mask
-
-    if crater_fill > 0:
-        total_area = np.sum(proj.inside_mask)
-        avg_crater_area = (crater_max_radius * semi_a_px * aa_scale) ** 2
-        n_craters = np.clip(int(crater_fill * total_area / avg_crater_area), 0, 1000)
-
-        # Use the provided seed, or fall back to a process-stable seed derived
-        # from the body geometry.  The built-in hash is salted per process for
-        # some types, so it cannot be used where determinism is required.
-        if seed is not None:
-            seed_value = int(seed) & 0x7FFFFFFF
-        else:
-            # The fallback seed is keyed on the full widths, twice the semi-axes; the
-            # craters of the committed seed-less scenes depend on this key (#913).
-            seed_value = (
-                stable_param_seed(2.0 * semi_a_px, 2.0 * semi_b_px, 2.0 * semi_c_px, center)
-                & 0x7FFFFFFF
-            )
-        # Crater centers lie strictly inside the ellipse (exclude AA rim and exterior)
-        ellipse_mask_nz = ellipse_dist_sq < 1.0
-
-        intensity = _add_craters_and_shading(
-            ellipse_mask_nz,
-            v_coords,
-            u_coords,
-            crater_seed=seed_value,
-            n_craters=n_craters,
-            R_min=crater_min_radius * semi_a_px,
-            R_max=crater_max_radius * semi_a_px,
-            crater_power_law_exponent=crater_power_law_exponent,
-            crater_relief_scale=crater_relief_scale,
-            work_center_v=work_center_v,
-            work_center_u=work_center_u,
-            aa_scale=aa_scale,
-            lighting_angle=illumination_angle,  # 0 = from top, pi/2 = from right
-            phase_angle=phase_angle,  # 0 = from front, pi/2 = from side, pi = from back
-            ellipse_mask=ellipse_mask,
-            z_coords=z_coords,
-            v_rot=v_rot,
-            u_rot=u_rot,
-            work_semi_major=work_semi_major,
-            work_semi_minor=work_semi_minor,
-            work_semi_c=work_semi_c,
-            cos_rz=cos_rz,
-            sin_rz=sin_rz,
-        )
-
-    else:
-        normal_v, normal_u, normal_z = ellipsoid_image_normals(
-            ellipse_mask,
-            v_rot,
-            u_rot,
-            z_coords=z_coords,
-            work_semi_major=work_semi_major,
-            work_semi_minor=work_semi_minor,
-            work_semi_c=work_semi_c,
-            cos_rz=cos_rz,
-            sin_rz=sin_rz,
-        )
-        intensity = (
-            lambert_from_normals(
-                normal_v,
-                normal_u,
-                normal_z,
-                illumination_angle=illumination_angle,
-                phase_angle=phase_angle,
-            )
-            * ellipse_mask
-        )
-
-    # Downsample if anti-aliasing was used
-    if aa_scale > 1:
-        # Simple box filter downsampling
-        intensity = intensity.reshape(size_v, aa_scale, size_u, aa_scale).mean(axis=(1, 3))
-
-    # Ensure values are in [0, 1] range
-    intensity = np.clip(intensity, 0.0, 1.0)
-
-    return intensity
-
-
-def _add_craters_and_shading(
-    ellipse_mask_nz: NDArrayBoolType,
-    v_coords: NDArrayFloatType,
-    u_coords: NDArrayFloatType,
-    *,
-    crater_seed: int,
-    n_craters: int,
-    R_min: float,
-    R_max: float,
-    crater_power_law_exponent: float,
-    crater_relief_scale: float,
-    work_center_v: float,
-    work_center_u: float,
-    aa_scale: int,
-    lighting_angle: float,
-    phase_angle: float,
-    ellipse_mask: NDArrayFloatType,
-    z_coords: NDArrayFloatType,
-    v_rot: NDArrayFloatType,
-    u_rot: NDArrayFloatType,
-    work_semi_major: float,
-    work_semi_minor: float,
-    work_semi_c: float,
-    cos_rz: float,
-    sin_rz: float,
-) -> NDArrayFloatType:
-    """Carve craters into the ellipsoid surface and apply Lambertian shading.
-
-    The base-surface normals and the Lambertian illumination model are shared
-    with the smooth (no-crater) path via ``ellipsoid_image_normals`` and
-    ``lambert_from_normals``, so a cratered body and a smooth body with the
-    same pose and illumination shade identically outside the craters.
-
-    Parameters:
-        ellipse_mask_nz: Boolean mask of pixels strictly inside the ellipse.
-        v_coords: Centered v pixel coordinates at working resolution.
-        u_coords: Centered u pixel coordinates at working resolution.
-        crater_seed: The body's crater seed, from which each crater derives its stream.
-        n_craters: Number of craters to place.
-        R_min: Minimum crater radius in pixels (before aa scaling).
-        R_max: Maximum crater radius in pixels (before aa scaling).
-        crater_power_law_exponent: Power law exponent for crater radii.
-        crater_relief_scale: Scale factor for crater depth.
-        work_center_v: Body center v at working resolution.
-        work_center_u: Body center u at working resolution.
-        aa_scale: Anti-aliasing supersampling factor.
-        lighting_angle: In-plane light direction in radians (0 = from top).
-        phase_angle: Phase angle in radians (0 = fully lit, pi = backlit).
-        ellipse_mask: Ellipse coverage mask including the soft AA rim.
-        z_coords: Depth of the visible ellipsoid surface at each pixel.
-        v_rot: Rotated-frame v coordinate of each pixel.
-        u_rot: Rotated-frame u coordinate of each pixel.
-        work_semi_major: Semi-major axis (a) at working resolution.
-        work_semi_minor: Semi-minor axis (b) at working resolution.
-        work_semi_c: Depth semi-axis (c) at working resolution.
-        cos_rz: Cosine of the rotation_z angle.
-        sin_rz: Sine of the rotation_z angle.
-
-    Returns:
-        New intensity array with craters and lighting applied.
-    """
-    height = carve_crater_heights(
-        ellipse_mask_nz,
-        v_coords,
-        u_coords,
-        crater_seed=crater_seed,
-        n_craters=n_craters,
-        R_min=R_min,
-        R_max=R_max,
-        crater_power_law_exponent=crater_power_law_exponent,
-        crater_relief_scale=crater_relief_scale,
-        work_center_v=work_center_v,
-        work_center_u=work_center_u,
-        aa_scale=aa_scale,
-    )
-
-    # ----------------------------------------------------------------------
-    # Lambertian shading: base-ellipsoid normals perturbed by crater relief
-    # ----------------------------------------------------------------------
-    # The base-surface normal comes from the same analytic formula (and the
-    # same rotation_z back-rotation to image coordinates) as the smooth,
-    # no-crater path, so both shading paths share one illumination convention.
-    normal_v, normal_u, normal_z = ellipsoid_image_normals(
-        ellipse_mask,
-        v_rot,
-        u_rot,
-        z_coords=z_coords,
-        work_semi_major=work_semi_major,
-        work_semi_minor=work_semi_minor,
-        work_semi_c=work_semi_c,
-        cos_rz=cos_rz,
-        sin_rz=sin_rz,
-    )
-    perturbed_v, perturbed_u, perturbed_z = perturb_normals_by_height(
-        normal_v, normal_u, normal_z, height
-    )
-
-    lambert = lambert_from_normals(
-        perturbed_v,
-        perturbed_u,
-        perturbed_z,
-        illumination_angle=lighting_angle,
-        phase_angle=phase_angle,
-    )
-
-    # Apply ellipse mask (with AA edge)
-    intensity_out = lambert * ellipse_mask
-    # Ensure area strictly outside the ellipse is zeroed, to avoid any bleed with AA
-    intensity_out[~ellipse_mask_nz] = 0.0
-    return intensity_out
+__all__ = ['render_single_body']
 
 
 def carve_crater_heights(
@@ -334,14 +51,11 @@ def carve_crater_heights(
     crater_relief_scale: float,
     work_center_v: float,
     work_center_u: float,
-    aa_scale: int,
 ) -> NDArrayFloatType:
     """Carve the crater height field (bowl + walls + raised rim per crater).
 
-    Shared by both body render paths: the classic Lambert path shades the
-    working grid with these heights directly, and the topographic path
-    carves them on its shading grid.  The draw rule below is the paths'
-    shared determinism contract for a given seed and grid.
+    The ellipsoid renderer carves its craters on the detector grid; the draw rule
+    below is its determinism contract for a given seed and grid.
 
     Each crater draws from its own stream, seeded by
     ``derive_effect_seed(crater_seed, 'crater:<index>')``: one uniform value for the
@@ -354,20 +68,19 @@ def carve_crater_heights(
 
     Parameters:
         ellipse_mask_nz: Boolean mask of pixels strictly inside the ellipse.
-        v_coords: Centered v pixel coordinates at working resolution.
-        u_coords: Centered u pixel coordinates at working resolution.
+        v_coords: Centered v pixel coordinates of the grid.
+        u_coords: Centered u pixel coordinates of the grid.
         crater_seed: The body's crater seed, from which each crater derives its stream.
         n_craters: Number of craters to place.
-        R_min: Minimum crater radius in pixels (before aa scaling).
-        R_max: Maximum crater radius in pixels (before aa scaling).
+        R_min: Minimum crater radius in pixels.
+        R_max: Maximum crater radius in pixels.
         crater_power_law_exponent: Power law exponent for crater radii, above 1.
         crater_relief_scale: Scale factor for crater depth.
-        work_center_v: Body center v at working resolution.
-        work_center_u: Body center u at working resolution.
-        aa_scale: Anti-aliasing supersampling factor of the working grid.
+        work_center_v: Body center v on the grid.
+        work_center_u: Body center u on the grid.
 
     Returns:
-        The crater height field over the working grid.
+        The crater height field over the grid, in its pixels.
 
     Raises:
         ValueError: If ``crater_power_law_exponent`` is not above 1 and a crater is
@@ -387,8 +100,8 @@ def carve_crater_heights(
     # 1. Radius distribution: power law p(R) ~ R^(-alpha) on [R_min, R_max]
     # ------------------------------------------------------------------
     power = 1.0 - crater_power_law_exponent
-    R_min_a = (R_min * aa_scale) ** power
-    R_max_a = (R_max * aa_scale) ** power
+    R_min_a = R_min**power
+    R_max_a = R_max**power
 
     # Distances from each crater center are taken in the frame's own pixel
     # corner coordinates so the two frames cannot disagree.  v_coords and
@@ -423,7 +136,7 @@ def carve_crater_heights(
         # 2a. Depth as function of size (small craters deeper, large shallower)
         # ------------------------------------------------------------------
         # Choose size range where we blend d/D ratio
-        D_small = 10.0 * aa_scale
+        D_small = 10.0
         D_large = R_max * 2.0  # roughly largest diameters
 
         # Blend factor in [0,1]
@@ -494,13 +207,14 @@ def _draw_crater_center(mask: NDArrayBoolType, rng: np.random.Generator) -> tupl
             return row, col
 
 
-def perturb_normals_by_height(
+def perturb_normals_by_slope(
     normal_v: NDArrayFloatType,
     normal_u: NDArrayFloatType,
     normal_z: NDArrayFloatType,
-    height: NDArrayFloatType,
+    slope_v: NDArrayFloatType,
+    slope_u: NDArrayFloatType,
 ) -> tuple[NDArrayFloatType, NDArrayFloatType, NDArrayFloatType]:
-    """Perturb base-surface unit normals by a height field carved along z.
+    """Perturb base-surface unit normals by the slopes of a height field carved along z.
 
     The height field is carved along the viewing axis, so the exact normal
     of the combined surface (base + height) is proportional to
@@ -513,14 +227,15 @@ def perturb_normals_by_height(
         normal_v: V component of the base unit surface normal.
         normal_u: U component of the base unit surface normal.
         normal_z: Z (toward-observer) component of the base unit normal.
-        height: The height field on the same grid.
+        slope_v: The height field's slope along v (height per pixel of the same
+            length unit).
+        slope_u: The height field's slope along u.
 
     Returns:
         Tuple of (v, u, z) perturbed unit-normal component arrays.
     """
-    dheight_dv, dheight_du = np.gradient(height)
-    perturbed_v = normal_v - normal_z * dheight_dv
-    perturbed_u = normal_u - normal_z * dheight_du
+    perturbed_v = normal_v - normal_z * slope_v
+    perturbed_u = normal_u - normal_z * slope_u
     perturbed_mag = np.sqrt(perturbed_v**2 + perturbed_u**2 + normal_z**2)
     perturbed_mag = np.maximum(perturbed_mag, 1e-10)  # Avoid division by zero
     perturbed_v /= perturbed_mag
@@ -530,65 +245,16 @@ def perturb_normals_by_height(
 
 
 @lru_cache(maxsize=30)
-def _render_body_shape_cached(
-    size_v: int,
-    size_u: int,
-    semi_a_px: float,
-    *,
-    semi_b_px: float,
-    semi_c_px: float,
-    rotation_z: float,
-    rotation_tilt: float,
-    illumination_angle: float,
-    phase_angle: float,
-    crater_fill: float,
-    crater_min_radius: float,
-    crater_max_radius: float,
-    crater_power_law_exponent: float,
-    crater_relief_scale: float,
-    anti_aliasing: float,
-    body_seed: int | None,
-) -> NDArrayFloatType:
-    """First layer cache: compute body shape at reference center (image center).
-
-    Caches body shapes based on all parameters except center_v/center_u.
-    Max size 30 allows caching up to 30 different body configurations.
-    """
-    # Use image center as reference - we'll translate when positioning
-    ref_center_v = size_v / 2.0
-    ref_center_u = size_u / 2.0
-
-    sim_body = create_simulated_body(
-        size=(size_v, size_u),
-        center=(ref_center_v, ref_center_u),
-        semi_a_px=semi_a_px,
-        semi_b_px=semi_b_px,
-        semi_c_px=semi_c_px,
-        rotation_z=rotation_z,
-        rotation_tilt=rotation_tilt,
-        illumination_angle=illumination_angle,
-        phase_angle=phase_angle,
-        crater_fill=crater_fill,
-        crater_min_radius=crater_min_radius,
-        crater_max_radius=crater_max_radius,
-        crater_power_law_exponent=crater_power_law_exponent,
-        crater_relief_scale=crater_relief_scale,
-        anti_aliasing=anti_aliasing,
-        seed=body_seed,
-    )
-    return sim_body
-
-
-@lru_cache(maxsize=30)
-def _render_topo_shape_cached(size_v: int, size_u: int, spec: TopoBodySpec) -> TopoBodyRender:
-    """Cache topographic body shapes at the reference center (image center).
+def _render_ellipsoid_shape_cached(
+    size_v: int, size_u: int, spec: EllipsoidBodySpec
+) -> EllipsoidBodyRender:
+    """Cache ellipsoid body shapes at the reference center (image center).
 
     The frozen spec is the cache key, so bodies differing in any geometry,
     texture, relief, or photometry knob occupy distinct entries; the caller
-    translates the shape and its silhouette into place exactly as the classic
-    path translates its shape.
+    translates the shape and its silhouette into place.
     """
-    return render_topographic_body((size_v, size_u), (size_v / 2.0, size_u / 2.0), spec)
+    return render_ellipsoid_body((size_v, size_u), (size_v / 2.0, size_u / 2.0), spec)
 
 
 def render_single_body(
@@ -611,8 +277,8 @@ def render_single_body(
             :func:`~spindoctor.sim.render.bodies.spec.body_spec_from_params`.
             Its centers and axes must already be scaled to the render grid.  Its
             atmosphere's pixel lengths are scaled here, by ``oversample``.  Its
-            surface texture and transit lengths stay in detector pixels, because
-            the topographic renderer shades those features at the detector grid.
+            surface texture and transit lengths stay in detector pixels, the grid
+            the ellipsoid renderer lays surface detail out on.
         offset_v: V offset to apply.
         offset_u: U offset to apply.
         body_streams_seed: The scene's seed for every body's random streams.  Each
@@ -626,18 +292,10 @@ def render_single_body(
             into the body's identity seed alongside the body name.
         ref_center_v: Reference center V for body shape caching.
         ref_center_u: Reference center U for body shape caching.
-        oversample: The render grid's oversampling factor.  A factor above 1
-            sends every ellipsoid to the topographic renderer.  At factor 1 the
-            topographic renderer runs only for relief, a
-            non-Lambert law, an opposition surge, a surface texture, or
-            transits; every other ellipsoid, craters or not, takes the classic
-            path, which shades the body, craters included, on its
-            anti-aliasing supersample grid.  The topographic renderer shades a
-            body whose relief, craters, surface texture, or transits change its
-            shading at the detector grid and bilinearly upsamples it to its
-            working grid (the oversampled grid, or the anti-aliasing
-            supersample grid at factor 1), and shades any other body on the
-            working grid itself.
+        oversample: The render grid's oversampling factor.  An ellipsoid is shaded
+            on its working grid, the oversampled grid or, at factor 1, its
+            anti-aliasing supersample grid (see
+            :class:`~spindoctor.sim.render.bodies.ellipsoid.EllipsoidBodySpec`).
 
     Returns:
         Tuple of (body_mask, body_info_dict) where body_info_dict contains
@@ -712,7 +370,7 @@ def render_single_body(
             illumination_angle=float(illumination_angle),
             phase_angle=float(phase_angle),
             # Silhouette anti-aliasing is consumed only at oversample 1,
-            # matching the topographic path: an oversampled scene already
+            # matching the ellipsoid renderer: an oversampled scene already
             # resolves the limb on its own grid, and supersampling the mesh
             # rasterizer on top of it would multiply the render cost for no
             # rendered difference worth having.
@@ -723,101 +381,63 @@ def render_single_body(
             body_index=body_index,
         )
 
-    # The classic smooth-Lambert path stays byte-for-byte for the scenes it
-    # has always rendered; anything more (relief, a non-Lambert law, a surge,
-    # surface texture / transits, or an oversampled grid, where the
-    # split-resolution shading is also the render-time fast path for a body with
-    # relief, craters, or texture) goes to the topographic renderer.
-    use_topo = (
-        oversample > 1
-        or limb_relief_rms > 0.0
-        or photometric_law != 'lambert'
-        or spec.surge_amplitude > 0.0
-        or spec.has_texture
+    # The relief terrain and the albedo noise field each draw from their own
+    # named stream of the per-body identity seed, so they are independent of the
+    # crater draws (and of each other) and stable when other randomized features
+    # are toggled.
+    relief_seed = 0
+    albedo_seed = 0
+    if limb_relief_rms > 0.0 or spec.albedo_texture is not None:
+        if body_streams_seed is not None:
+            identity_seed = derive_effect_seed(body_streams_seed, f'body:{body_index}:{body_name}')
+        elif spec.seed is not None:
+            identity_seed = spec.seed & 0x7FFFFFFF
+        else:
+            # The fallback seed is keyed on the full widths, twice the semi-axes; the
+            # terrain of the committed seed-less scenes depends on this key (#913).
+            identity_seed = stable_param_seed(
+                2.0 * semi_a_px, 2.0 * semi_b_px, 2.0 * semi_c_px, body_index, body_name
+            )
+        if limb_relief_rms > 0.0:
+            relief_seed = derive_effect_seed(identity_seed, 'relief')
+        if spec.albedo_texture is not None:
+            albedo_seed = derive_effect_seed(identity_seed, 'albedo')
+    ellipsoid_spec = EllipsoidBodySpec(
+        semi_a_px=semi_a_px,
+        semi_b_px=semi_b_px,
+        semi_c_px=semi_c_px,
+        rotation_z=float(rotation_z),
+        rotation_tilt=float(rotation_tilt),
+        illumination_angle=float(illumination_angle),
+        phase_angle=float(phase_angle),
+        crater_fill=crater_fill,
+        crater_min_radius=crater_min_radius,
+        crater_max_radius=crater_max_radius,
+        crater_power_law_exponent=crater_power_law_exponent,
+        crater_relief_scale=crater_relief_scale,
+        anti_aliasing=anti_aliasing,
+        crater_seed=crater_seed,
+        oversample=int(oversample),
+        limb_relief_rms=limb_relief_rms,
+        limb_relief_corr_deg=limb_relief_corr_deg,
+        relief_seed=relief_seed,
+        photometric_law=photometric_law,
+        minnaert_k=spec.minnaert_k,
+        surge_amplitude=spec.surge_amplitude,
+        surge_width_deg=spec.surge_width_deg,
+        albedo_texture=albedo_spec_from_params(spec.albedo_texture, seed=albedo_seed),
+        disc_texture=spec.disc_texture,
+        transits=spec.transits or (),
     )
-    # The classic path never renders a pixel inside the body at zero (every
-    # visible-hemisphere pixel sits at or above the dark-side floor), so its
-    # painted pixels are its silhouette.  The topographic path returns its
-    # silhouette separately: a transit umbra or a zero-albedo spot renders
-    # black but still belongs to the body.
-    silhouette: NDArrayFloatType | None = None
-    if use_topo:
-        # The relief terrain and the albedo noise field each draw from their
-        # own named stream of the per-body identity seed, so they are
-        # independent of the crater draws (and of each other) and stable when
-        # other randomized features are toggled.
-        relief_seed = 0
-        albedo_seed = 0
-        if limb_relief_rms > 0.0 or spec.albedo_texture is not None:
-            if body_streams_seed is not None:
-                identity_seed = derive_effect_seed(
-                    body_streams_seed, f'body:{body_index}:{body_name}'
-                )
-            elif spec.seed is not None:
-                identity_seed = spec.seed & 0x7FFFFFFF
-            else:
-                # The fallback seed is keyed on the full widths, twice the semi-axes; the
-                # terrain of the committed seed-less scenes depends on this key (#913).
-                identity_seed = stable_param_seed(
-                    2.0 * semi_a_px, 2.0 * semi_b_px, 2.0 * semi_c_px, body_index, body_name
-                )
-            if limb_relief_rms > 0.0:
-                relief_seed = derive_effect_seed(identity_seed, 'relief')
-            if spec.albedo_texture is not None:
-                albedo_seed = derive_effect_seed(identity_seed, 'albedo')
-        topo_spec = TopoBodySpec(
-            semi_a_px=semi_a_px,
-            semi_b_px=semi_b_px,
-            semi_c_px=semi_c_px,
-            rotation_z=float(rotation_z),
-            rotation_tilt=float(rotation_tilt),
-            illumination_angle=float(illumination_angle),
-            phase_angle=float(phase_angle),
-            crater_fill=crater_fill,
-            crater_min_radius=crater_min_radius,
-            crater_max_radius=crater_max_radius,
-            crater_power_law_exponent=crater_power_law_exponent,
-            crater_relief_scale=crater_relief_scale,
-            anti_aliasing=anti_aliasing,
-            crater_seed=crater_seed,
-            oversample=int(oversample),
-            limb_relief_rms=limb_relief_rms,
-            limb_relief_corr_deg=limb_relief_corr_deg,
-            relief_seed=relief_seed,
-            photometric_law=photometric_law,
-            minnaert_k=spec.minnaert_k,
-            surge_amplitude=spec.surge_amplitude,
-            surge_width_deg=spec.surge_width_deg,
-            albedo_texture=albedo_spec_from_params(spec.albedo_texture, seed=albedo_seed),
-            disc_texture=spec.disc_texture,
-            transits=spec.transits or (),
-        )
-        topo_render = _render_topo_shape_cached(size_v, size_u, topo_spec)
-        body_shape = topo_render.intensity
-        silhouette = topo_render.silhouette
-    else:
-        body_shape = _render_body_shape_cached(
-            size_v,
-            size_u,
-            semi_a_px,
-            semi_b_px=semi_b_px,
-            semi_c_px=semi_c_px,
-            rotation_z=rotation_z,
-            rotation_tilt=rotation_tilt,
-            illumination_angle=illumination_angle,
-            phase_angle=phase_angle,
-            crater_fill=crater_fill,
-            crater_min_radius=crater_min_radius,
-            crater_max_radius=crater_max_radius,
-            crater_power_law_exponent=crater_power_law_exponent,
-            crater_relief_scale=crater_relief_scale,
-            anti_aliasing=anti_aliasing,
-            body_seed=crater_seed,
-        )
+    # The silhouette comes back separately from the radiance: a transit umbra or a
+    # zero-albedo spot renders black but still belongs to the body.
+    ellipsoid_render = _render_ellipsoid_shape_cached(size_v, size_u, ellipsoid_spec)
+    body_shape = ellipsoid_render.intensity
+    silhouette = ellipsoid_render.silhouette
 
     # The exponential haze layer evaluates over the reference-centered disc
-    # after shading, so the same call serves both render paths; a body with no
-    # 'atmosphere' block never enters the haze code and renders hard-limbed.
+    # after shading; a body with no 'atmosphere' block never enters the haze
+    # code and renders hard-limbed.
     # The on-disc haze joins the opaque disc paint; the above-limb glow rides
     # along as a translucent halo screen the radiance stage composites.
     # apply_atmosphere returns fresh arrays, so the shared render cache the

@@ -1,12 +1,11 @@
-"""Topographic ellipsoid body renderer: relief limb, ragged terminator, laws.
+"""Ellipsoid body renderer: smooth or relief limb, ragged terminator, laws.
 
-This is the image-side body render path used whenever a body needs more
-than the classic smooth-Lambert ellipsoid: a limb-relief field
+This is the image side's one renderer for an ellipsoid body.
+:func:`spindoctor.sim.render.bodies.render.render_single_body` sends every ellipsoid
+here, whatever its settings: a smooth Lambert disc, a limb-relief field
 (:mod:`spindoctor.sim.render.bodies.relief`), a non-Lambert photometric law or
-opposition surge (:mod:`spindoctor.sim.render.bodies.photometry`), or an
-oversampled radiance grid (where it is also the fast path -- see below).
-:func:`spindoctor.sim.render.bodies.render.render_single_body` dispatches here; a
-smooth Lambert body at oversample 1 keeps the classic path byte-for-byte.
+opposition surge (:mod:`spindoctor.sim.render.bodies.photometry`), craters, and
+surface textures and transits.
 
 **Split-resolution rendering.**  Disc shading is low-frequency by
 construction -- relief moves the silhouette and the terminator, never the
@@ -67,7 +66,12 @@ from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 from spindoctor.support.stable_math import stable_matmul3
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType, NDArrayIntType
 
-__all__ = ['TopoBodyRender', 'TopoBodySpec', 'create_topographic_body', 'render_topographic_body']
+__all__ = [
+    'EllipsoidBodyRender',
+    'EllipsoidBodySpec',
+    'create_ellipsoid_body',
+    'render_ellipsoid_body',
+]
 
 # The cast-shadow band: points with |tan(sun elevation)| below the field's
 # slope bound (over 1 + h_min) are marched.  The bound is the grid's own
@@ -82,8 +86,8 @@ _MARCH_SAMPLES_PER_CELL = 8.0
 
 
 @dataclass(frozen=True)
-class TopoBodySpec:
-    """Everything the topographic renderer needs beyond size and center.
+class EllipsoidBodySpec:
+    """Everything the ellipsoid renderer needs beyond size and center.
 
     All pixel quantities are in units of the incoming render grid (the
     oversampled grid when ``oversample`` > 1).
@@ -103,7 +107,7 @@ class TopoBodySpec:
         crater_relief_scale: Crater depth scale factor.
         anti_aliasing: Silhouette anti-aliasing amount in [0, 1]; only
             consumed at ``oversample`` 1, where it supersamples the
-            silhouette (and a smooth body's shading) as the classic path
+            silhouette (and a smooth body's shading) as the navigator's model
             does (an oversampled scene already resolves the limb on its own
             grid).
         crater_seed: Seed for crater placement (None with no craters).
@@ -192,7 +196,7 @@ def _body_grid(
     """Build the rotated-frame coordinates and radial function for one grid.
 
     The conventions (the grid built in pixel corner coordinates, rotation then
-    tilt compression) match the classic renderer exactly.
+    tilt compression) match the shared projection exactly.
 
     Parameters:
         dims: Grid dimensions (rows, columns).
@@ -266,8 +270,8 @@ def _bilinear_upsample(field: NDArrayFloatType, factor: int) -> NDArrayFloatType
 
 
 @dataclass(frozen=True)
-class TopoBodyRender:
-    """One topographic body render: its radiance and its solid silhouette.
+class EllipsoidBodyRender:
+    """One ellipsoid body render: its radiance and its solid silhouette.
 
     Parameters:
         intensity: The intensity image in [0, 1], 0 outside the body.  A
@@ -281,12 +285,12 @@ class TopoBodyRender:
     silhouette: NDArrayFloatType
 
 
-def create_topographic_body(
+def create_ellipsoid_body(
     size: tuple[int, int],
     center: tuple[float, float],
-    spec: TopoBodySpec,
+    spec: EllipsoidBodySpec,
 ) -> NDArrayFloatType:
-    """Render one topographic ellipsoid body onto a black frame.
+    """Render one ellipsoid body onto a black frame.
 
     Parameters:
         size: Frame dimensions (rows, columns) on the incoming render grid.
@@ -295,20 +299,20 @@ def create_topographic_body(
 
     Returns:
         The ``size`` intensity image in [0, 1] (0 outside the body); the
-        intensity of :func:`render_topographic_body`.
+        intensity of :func:`render_ellipsoid_body`.
 
     Raises:
         ValueError: If the frame size is not divisible by the oversample.
     """
-    return render_topographic_body(size, center, spec).intensity
+    return render_ellipsoid_body(size, center, spec).intensity
 
 
-def render_topographic_body(
+def render_ellipsoid_body(
     size: tuple[int, int],
     center: tuple[float, float],
-    spec: TopoBodySpec,
-) -> TopoBodyRender:
-    """Render one topographic ellipsoid body and its solid silhouette.
+    spec: EllipsoidBodySpec,
+) -> EllipsoidBodyRender:
+    """Render one ellipsoid body and its solid silhouette.
 
     The silhouette is the relief-perturbed outline's pixel coverage, taken
     before any shading, so a pixel that renders black inside the body (a
@@ -320,7 +324,7 @@ def render_topographic_body(
         spec: The body's geometry, texture, relief, and photometry.
 
     Returns:
-        The :class:`TopoBodyRender` on the ``size`` grid.
+        The :class:`EllipsoidBodyRender` on the ``size`` grid.
 
     Raises:
         ValueError: If the frame size is not divisible by the oversample.
@@ -331,7 +335,7 @@ def render_topographic_body(
         raise ValueError(f'frame size {size} is not divisible by oversample {os_in}')
 
     # At oversample 1 the anti-aliasing knob supersamples the silhouette,
-    # exactly as the classic path scales its working grid; an oversampled
+    # exactly as the navigator scales its working grid; an oversampled
     # scene already resolves the limb, so its work grid IS the render grid.
     aa_scale = int(1 + 3 * spec.anti_aliasing) if (os_in == 1 and spec.anti_aliasing > 0) else 1
     work_dims = (size_v * aa_scale, size_u * aa_scale)
@@ -405,12 +409,12 @@ def render_topographic_body(
             axis=(1, 3)
         )
         mask = mask.reshape(size_v, aa_scale, size_u, aa_scale).mean(axis=(1, 3))
-    return TopoBodyRender(intensity=np.clip(intensity_work, 0.0, 1.0), silhouette=mask)
+    return EllipsoidBodyRender(intensity=np.clip(intensity_work, 0.0, 1.0), silhouette=mask)
 
 
 def _shade_disc(
     grid: _Grid,
-    spec: TopoBodySpec,
+    spec: EllipsoidBodySpec,
     field: ReliefField | None,
     *,
     cos_rz: float,
@@ -474,10 +478,10 @@ def _shade_disc(
         height = _crater_heights(grid, spec)
         # Local import: render.py imports this module's spec for dispatch, so
         # the crater helpers resolve lazily to keep the import graph acyclic.
-        from spindoctor.sim.render.bodies.render import perturb_normals_by_height
+        from spindoctor.sim.render.bodies.render import perturb_normals_by_slope
 
-        normal_v, normal_u, normal_z = perturb_normals_by_height(
-            normal_v, normal_u, normal_z, height
+        normal_v, normal_u, normal_z = perturb_normals_by_slope(
+            normal_v, normal_u, normal_z, *np.gradient(height)
         )
         cos_i = incidence_cosines(
             normal_v,
@@ -511,7 +515,7 @@ def _shade_disc(
 
 def _relief_shading(
     grid: _Grid,
-    spec: TopoBodySpec,
+    spec: EllipsoidBodySpec,
     field: ReliefField,
     near: NDArrayBoolType,
     *,
@@ -598,7 +602,7 @@ def _relief_shading(
 def _apply_surface_textures(
     intensity: NDArrayFloatType,
     grid: _Grid,
-    spec: TopoBodySpec,
+    spec: EllipsoidBodySpec,
     field: ReliefField | None,
 ) -> NDArrayFloatType:
     """Apply the spec's multiplicative textures and transits to the shading.
@@ -650,7 +654,9 @@ def _apply_surface_textures(
     return textured
 
 
-def _without_inert_surface(spec: TopoBodySpec, detector_grid: _Grid | None) -> TopoBodySpec:
+def _without_inert_surface(
+    spec: EllipsoidBodySpec, detector_grid: _Grid | None
+) -> EllipsoidBodySpec:
     """The spec with the recognized no-op surface settings removed.
 
     A crater fill is inert when it places no crater on the detector grid, the grid the
@@ -686,7 +692,7 @@ def _without_inert_surface(spec: TopoBodySpec, detector_grid: _Grid | None) -> T
     return replace(spec, **changes) if changes else spec
 
 
-def _is_featureless(spec: TopoBodySpec) -> bool:
+def _is_featureless(spec: EllipsoidBodySpec) -> bool:
     """Whether the spec carries no craters, no surface texture, and no transits.
 
     Parameters:
@@ -704,7 +710,7 @@ def _is_featureless(spec: TopoBodySpec) -> bool:
     )
 
 
-def _crater_count(grid: _Grid, spec: TopoBodySpec) -> int:
+def _crater_count(grid: _Grid, spec: EllipsoidBodySpec) -> int:
     """The number of craters the spec's crater fill places on a grid.
 
     Parameters:
@@ -719,12 +725,12 @@ def _crater_count(grid: _Grid, spec: TopoBodySpec) -> int:
     return int(np.clip(int(spec.crater_fill * total_area / avg_crater_area), 0, 1000))
 
 
-def _crater_heights(grid: _Grid, spec: TopoBodySpec) -> NDArrayFloatType:
+def _crater_heights(grid: _Grid, spec: EllipsoidBodySpec) -> NDArrayFloatType:
     """Carve the crater height field on the shading grid.
 
-    Uses the classic path's carving loop (count law, radius power law, and
-    per-crater draw rule) at the shading grid's resolution, seeded by the same
-    per-body crater seed the classic path derives.
+    Uses the crater carving loop (count law, radius power law, and
+    per-crater draw rule) at the shading grid's resolution, seeded by the
+    per-body crater seed.
 
     Parameters:
         grid: The shading-resolution geometry.
@@ -763,7 +769,6 @@ def _crater_heights(grid: _Grid, spec: TopoBodySpec) -> NDArrayFloatType:
         crater_relief_scale=spec.crater_relief_scale,
         work_center_v=grid.center[0],
         work_center_u=grid.center[1],
-        aa_scale=1,
     )
 
 
