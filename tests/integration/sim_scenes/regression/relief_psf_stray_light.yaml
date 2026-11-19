@@ -7,9 +7,9 @@ random_seed: 31
 exposure_sec: 1.0
 # A lit body with limb relief under a whole-scene PSF and an off-center
 # radial stray-light bump.  The explicit PSF activates oversample 4, so
-# this is the catalog's pin on the topographic renderer's
-# split-resolution path (detector-grid shading upsampled under the
-# oversampled relief silhouette), the defaulted PSF kernel size at
+# this is the catalog's pin on the ellipsoid renderer's oversampled
+# relief body (working-grid shading with the relief tilt and shadows
+# interpolated from the detector grid), the defaulted PSF kernel size at
 # oversample, and the stray-light center_v/center_u scaling onto the
 # oversampled grid.  A change to that mapping moves the rendered image;
 # it does not necessarily move the recorded result, which is what this
@@ -18,10 +18,10 @@ exposure_sec: 1.0
 # navigator fits its smooth sharp Lambert template against the blurred
 # ragged limb and the relief's slope shading over a sloped background.
 # Measured behavior: all three body techniques survive the blur and the
-# sloped background, but the fused offset is (1.57, -1.5) against the
-# planted (2.37, -1.62), a miss of 0.81 px, nearly all in v.  The limb fit
-# lands at (2.18, -1.71), about 0.2 px from the planted value.  The disc
-# correlation reports (1.57, -1.5).  Its sub-pixel refinement searches only
+# sloped background, but the fused offset is (1.59, -1.5) against the
+# planted (2.37, -1.62), a miss of 0.79 px, nearly all in v.  The limb fit
+# lands at (2.12, -1.74), about 0.27 px from the planted value.  The disc
+# correlation reports (1.59, -1.5).  Its sub-pixel refinement searches only
 # +-0.5 px around the integer NCC peak (#791), and its smooth template doesn't
 # carry the relief shading the frame does.  The
 # ensemble fuses the limb fit and the correlation as one witness and takes
@@ -35,7 +35,8 @@ exposure_sec: 1.0
 # that brings the error under 0.758 px.  The relief decides the error: over 16
 # values of random_seed, which redraw the relief too, it runs 0.655 to
 # 3.252 px, because which window edge the correlation stops at depends on the
-# relief drawn (#791).
+# relief drawn (#791).  With the body shaded on its oversampled grid
+# (2026-11-19, #931) the same 16 values run 0.404 to 3.249 px.
 bodies:
   - name: RUGGED
     shape_model: ellipsoid

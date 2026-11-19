@@ -4,9 +4,10 @@ A 512x512 scene with a whole-scene PSF plus the full detector stack at
 oversample 4 must render in under 2 s single-core, and a 1024x1024
 Cassini-class scene in under 8 s -- for a star-field frame (the optics +
 detector stack), for a frame dominated by a large lit body with limb
-relief (the topographic body renderer's split-resolution path plus the
-terminator shadow march), and for a twelve-feature ring system (the
-annulus-bounded ring stage's scaling with feature count).  The budget is a
+relief (the ellipsoid renderer's working-grid shading, with the relief
+laid out on the detector grid, plus the terminator shadow march), and for
+a twelve-feature ring system (the annulus-bounded ring stage's scaling with
+feature count).  The budget is a
 *cold-render* budget: the render caches are cleared so the timed render pays
 the kernel-build and compile costs a first render pays.  One-time costs that are not render
 cost -- the lazy YAML config load, module imports -- are paid by an untimed
@@ -106,12 +107,12 @@ def _psf_detector_scene(size: int) -> dict[str, Any]:
 def _body_psf_detector_scene(size: int) -> dict[str, Any]:
     """A size x size body-dominated frame with relief, a PSF, and the detector stack.
 
-    A large lit body with limb relief at oversample 4 exercises the topographic
-    body renderer under the same budgets as the star field: detector-resolution
-    shading upsampled to the oversampled grid, the relief-perturbed silhouette,
-    and the capped terminator shadow march, followed by the PSF convolution and
-    the detector stack.  The high phase angle puts the terminator across the
-    disc so the march band is fully active.
+    A large lit body with limb relief at oversample 4 exercises the ellipsoid
+    renderer under the same budgets as the star field: shading on the oversampled
+    grid with the relief tilt and shadows interpolated from the detector grid,
+    the relief-perturbed silhouette, and the capped terminator shadow march,
+    followed by the PSF convolution and the detector stack.  The high phase angle
+    puts the terminator across the disc so the march band is fully active.
     """
     scene = _psf_detector_scene(size)
     del scene['sky_counts']
@@ -138,7 +139,7 @@ def _haze_body_psf_detector_scene(size: int) -> dict[str, Any]:
     The lit relief body of the plain budget scene at reduced semi-axes, plus
     an ``atmosphere`` block with a detached shell at oversample 4: the haze
     evaluation and its halo transmission screen run on top of the
-    topographic render, the PSF convolution, and the detector stack.  The
+    ellipsoid render, the PSF convolution, and the detector stack.  The
     haze cost scales with the bounding box of the body plus its halo (all
     coordinate grids and per-pixel terms are built only inside that box),
     not with the frame, so this holds the same 2 s (512) and 8 s (1024)
@@ -308,7 +309,8 @@ def test_1024_cassini_render_under_8s() -> None:
 
 # Body-bearing budget scenes (#290): the previous body renderer's
 # per-subsample shading overran these budgets ~4x at oversample 4; the
-# topographic renderer's split-resolution path must hold them.
+# ellipsoid renderer, which lays the relief out on the detector grid, must
+# hold them.
 
 
 def test_512_body_render_under_2s() -> None:
