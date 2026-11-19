@@ -4,7 +4,8 @@ A setting at an effectively zero value renders the smooth body.  A small body at
 oversample 4 matches an 8 times finer render of the same body.  A relief body has
 its light where the same body shaded wholly on its working grid has it, although
 its relief is laid out on the detector grid, and so does a body smaller than a
-pixel.  An albedo spot's edge is drawn on the working grid.
+pixel.  An albedo spot's edge is drawn on the working grid.  A sample exactly on a
+smooth body's limb lies outside the body.
 """
 
 import dataclasses
@@ -13,7 +14,9 @@ from typing import Any
 
 import numpy as np
 import pytest
+from tests.spindoctor.sim.scenes import disc_body, frame_scene
 
+from spindoctor.nav_model.simulated.predict_body import create_predicted_body_image
 from spindoctor.sim.render.bodies import ellipsoid
 from spindoctor.sim.render.bodies.ellipsoid import (
     EllipsoidBodySpec,
@@ -23,6 +26,7 @@ from spindoctor.sim.render.bodies.ellipsoid import (
 from spindoctor.sim.render.bodies.render import render_single_body
 from spindoctor.sim.render.bodies.spec import body_spec_from_params
 from spindoctor.sim.render.bodies.texture import AlbedoTextureSpec
+from spindoctor.sim.render.driver import render_scene
 from spindoctor.support.types import NDArrayFloatType
 
 
@@ -301,3 +305,47 @@ def test_relief_body_smaller_than_a_pixel_renders_its_light(
     monkeypatch.setattr(ellipsoid, '_lays_detail_on_detector_grid', lambda spec, field: False)
     reference = render_ellipsoid_body((size, size), center, spec).intensity
     assert float(rendered.sum()) == pytest.approx(float(reference.sum()), rel=1e-9)
+
+
+# ----------------------------------------------------------------------------
+# Samples exactly on the smooth limb
+# ----------------------------------------------------------------------------
+
+
+def test_exact_limb_sample_renders_as_the_predicted_body() -> None:
+    """A smooth body with a working sample exactly on its limb renders as predicted.
+
+    A radius-2 sphere at (4.5, 4.5) drawn at anti-aliasing 0.75 puts a sample of its
+    3 times supersample grid exactly on each of its four axis limbs.  The surface
+    there faces sideways, so at 90 deg phase the navigator's predicted body leaves
+    the sunward one dark, and so must the renderer.
+    """
+    spec = EllipsoidBodySpec(2.0, 2.0, 2.0, phase_angle=math.pi / 2.0, anti_aliasing=0.75)
+    rendered = create_ellipsoid_body((9, 9), (4.5, 4.5), spec)
+    predicted = create_predicted_body_image(
+        (9, 9),
+        (4.5, 4.5),
+        2.0,
+        semi_b_px=2.0,
+        semi_c_px=2.0,
+        phase_angle=math.pi / 2.0,
+        anti_aliasing=0.75,
+    )
+    np.testing.assert_array_equal(rendered, predicted)
+
+
+def test_limbs_touching_at_one_sample_need_no_ranges() -> None:
+    """Two smooth bodies whose limbs meet at one sample do not overlap.
+
+    The sample both limbs pass through lies outside both bodies, so neither claims
+    it and the scene renders without the ranges that order overlapping bodies.
+    """
+    scene = frame_scene(
+        size=17,
+        bodies=[
+            disc_body(8.5, 8.5, 2.0, name='A', anti_aliasing=0.0),
+            disc_body(8.5, 12.5, 2.0, name='C', anti_aliasing=0.0),
+        ],
+    )
+    _, meta = render_scene(scene)
+    assert not np.any(meta['body_masks'][0] & meta['body_masks'][1])

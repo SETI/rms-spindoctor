@@ -460,8 +460,9 @@ def _apply_law(
     The clamped-depth parametrization has no far hemisphere, and relief normals
     are mirrored onto the near one (``normal_z >= 0`` everywhere; night still floors
     through ``mu0 <= 0``), so the emission cosine is kept strictly positive: the
-    visibility gate must not zero the exact-limb ring, whose values continue the
-    shading across the silhouette boundary.
+    visibility gate must not zero a relief normal that lies in the sky plane.  A
+    smooth body's normals lie in the sky plane only on and past its limb, which
+    its silhouette leaves out, so the clamp lights none of its pixels.
 
     Parameters:
         cos_i: Incidence cosine per pixel (negative on the night side).
@@ -798,8 +799,8 @@ def _apply_surface_textures(
     transiting moon discs overwrite on top (from the pre-texture smooth-law
     shading -- a foreground moon does not inherit the parent's texture).
     The silhouette is rasterized separately, so it is untouched by
-    construction.  Transits reach the body's outline: the relief outline when
-    the body has relief, else the smooth limb.
+    construction.  Transits reach every sample of the body's silhouette: the
+    relief outline when the body has relief, else the smooth limb.
 
     Parameters:
         intensity: The law-shaded intensity on ``grid``.
@@ -825,7 +826,7 @@ def _apply_surface_textures(
             base_intensity=intensity,
             v_ctr=grid.v_ctr / scale,
             u_ctr=grid.u_ctr / scale,
-            disc_mask=grid.e2 < 1.0 if field is None else silhouette_mask(grid, field) > 0.0,
+            disc_mask=silhouette_mask(grid, field) > 0.0,
         )
     return textured
 
