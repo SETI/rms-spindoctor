@@ -38,6 +38,19 @@ from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 __all__ = ['clear_ellipsoid_shape_caches', 'render_single_body']
 
 
+def _reference_center(size_v: int, size_u: int) -> tuple[float, float]:
+    """The center an ellipsoid is drawn at for the shape cache: the frame center.
+
+    Parameters:
+        size_v: The render grid's rows.
+        size_u: The render grid's columns.
+
+    Returns:
+        The center (v, u) in pixel corner coordinates.
+    """
+    return size_v / 2.0, size_u / 2.0
+
+
 @lru_cache(maxsize=30)
 def _render_ellipsoid_shape_cached(
     size_v: int, size_u: int, spec: EllipsoidBodySpec
@@ -48,7 +61,7 @@ def _render_ellipsoid_shape_cached(
     texture, relief, or photometry knob occupy distinct entries; the caller
     translates the shape and its silhouette into place.
     """
-    return render_ellipsoid_body((size_v, size_u), (size_v / 2.0, size_u / 2.0), spec)
+    return render_ellipsoid_body((size_v, size_u), _reference_center(size_v, size_u), spec)
 
 
 def clear_ellipsoid_shape_caches() -> None:
@@ -266,8 +279,10 @@ def _surface_seeds(
     if spec.crater_fill > 0.0:
         # The fallback digest hashes the full widths, twice the semi-axes, and the
         # body center on the detector grid, where the craters are carved, of the
-        # shape drawn at the frame center (#913).
+        # shape drawn at the reference center (#913).  render_ellipsoid_body builds
+        # its detector grid at that center divided by the same factor.
         os_in = max(1, int(oversample))
+        ref_v, ref_u = _reference_center(size_v, size_u)
         crater_seed = body_identity_seed(
             body_streams_seed,
             spec,
@@ -276,7 +291,7 @@ def _surface_seeds(
                 2.0 * semi_a_px,
                 2.0 * semi_b_px,
                 2.0 * semi_c_px,
-                (size_v / 2.0 / os_in, size_u / 2.0 / os_in),
+                (ref_v / os_in, ref_u / os_in),
             ),
         )
 
