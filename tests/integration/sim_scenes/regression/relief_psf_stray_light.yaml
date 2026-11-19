@@ -24,9 +24,10 @@ exposure_sec: 1.0
 # when the disc was shaded on the detector grid (#931): the fit follows the
 # brightness gradient just inside the ragged limb, which the oversampled grid
 # now resolves, and the move is well inside the fit's spread over noise seeds
-# (1.3 to 2.7 px in v).  The disc correlation reports (1.59, -1.5).  Its sub-pixel refinement searches only
-# +-0.5 px around the integer NCC peak (#791), and its smooth template doesn't
-# carry the relief shading the frame does.  The
+# (0.86 to 2.73 px in v over the 16 seeds below).  The disc correlation
+# reports (1.59, -1.5).  Its sub-pixel refinement searches only +-0.5 px
+# around the integer NCC peak (#791), and its smooth template doesn't carry
+# the relief shading the frame does.  The
 # ensemble fuses the limb fit and the correlation as one witness and takes
 # the correlation's offset, so the scene pins a medium-confidence success
 # whose error is the correlation's.
