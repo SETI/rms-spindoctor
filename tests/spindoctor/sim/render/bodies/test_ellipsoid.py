@@ -307,6 +307,7 @@ def test_relief_body_smaller_than_a_pixel_renders_its_light(
     rendered = render_ellipsoid_body((size, size), center, spec).intensity
     monkeypatch.setattr(ellipsoid, '_lays_detail_on_detector_grid', lambda spec, field: False)
     reference = render_ellipsoid_body((size, size), center, spec).intensity
+    assert float(reference.sum()) > 0.0
     assert float(rendered.sum()) == pytest.approx(float(reference.sum()), rel=1e-9)
 
 
