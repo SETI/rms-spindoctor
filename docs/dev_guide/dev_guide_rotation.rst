@@ -107,23 +107,25 @@ central differences on the rotated-vertex DT samples; the M-estimator
 information matrix at convergence is inverted via ``pinvh`` to produce
 the 3x3 covariance.
 
-Template-NCC techniques run a 3-D NCC pyramid that augments the
-existing translation pyramid with a rotation-sample schedule per
-:doc:`dev_guide_techniques`:
+Template-NCC techniques search rotation with a sample schedule around
+the existing translation pyramid
+(:class:`~spindoctor.nav_technique.nav_technique_body_disc.BodyDiscCorrelateNav`
+is the one that does; see :doc:`dev_guide_techniques_body_disc`):
 
-* Level 0 (coarsest): 11 rotation samples spanning
-  ``±max_rotation_deg`` in 1° steps.
+* Level 0: 11 rotation samples spanning ``±max_rotation_deg``, spaced
+  ``2 * max_rotation_deg / 10`` apart (1° at the default 5° cap).
 * Level 1: 5 samples in 0.5° steps centered on the level-0 winner.
 * Level 2: 3 samples in 0.25° steps centered on the level-1 winner.
-* Level 3 (full resolution): one sample at the level-2 winner; sub-deg
-  refinement falls out of the per-level NCC peak interpolation.
 
-Each level pre-rotates the composite template about the technique's
-pivot; the NCC kernel itself is unchanged. The technique builds a 3x3
-covariance from the NCC peak's local curvature in ``(dv, du, theta)``;
-the translation block derives from the existing 2-D peak curvature and
-the rotation block is the second-difference along the rotation axis at
-the converged estimate.
+Each sample pre-rotates the composite template about the technique's
+pivot and is scored by a single full-resolution NCC in the correlation
+mode the unrotated pyramid chose. The full translation pyramid then runs
+at the level-2 winner, and its answer is reported with that rotation.
+When the winner is zero rotation, the unrotated pyramid's answer is
+reported and no second pyramid runs.
+The rotation diagonal of the 3x3 covariance carries the unobservable
+sentinel, because the NCC quality is not a likelihood and its curvature
+along the rotation axis carries no calibrated variance.
 
 Star techniques fit a 2-D similarity transform (rotation + translation,
 no scale).
