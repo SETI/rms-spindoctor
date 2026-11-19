@@ -30,8 +30,8 @@ from typing import Any
 
 import numpy as np
 
+from spindoctor.sim.render.bodies.placement import finish_single_body
 from spindoctor.sim.render.bodies.relief import ReliefField, synthesize_relief_field
-from spindoctor.sim.render.bodies.render import finish_single_body
 from spindoctor.sim.render.bodies.spec import BodySpec
 from spindoctor.sim.seeds import derive_effect_seed, stable_param_seed
 from spindoctor.sim.shared.mesh import (
