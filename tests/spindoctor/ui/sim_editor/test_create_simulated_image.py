@@ -626,6 +626,14 @@ def test_noise_seed_handler_omits_at_minus_one(model: Any) -> None:
     assert 'noise_seed' not in model.sim_params
 
 
+def test_scene_without_noise_seed_shows_random_seed(model: Any) -> None:
+    """A scene that leaves noise_seed out loads with the spin box at -1, shown as Random seed."""
+    model._on_noise_seed(9)
+    model._apply_params_dict({'size_v': 64, 'size_u': 64})
+    assert model._noise_seed_spin.value() == -1
+    assert model._noise_seed_spin.text() == 'Random seed'
+
+
 def test_body_seed_auto_omits(model: Any) -> None:
     """A crater seed of -1 (Auto) removes the key; a value sets it."""
     model.sim_params['bodies'] = [{'name': 'B'}]
