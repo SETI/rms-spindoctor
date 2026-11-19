@@ -648,19 +648,20 @@ same stream. A stream name is part of the noise realization
 of every scene that uses it: renaming one reseeds those scenes and moves their
 committed renders, so a stream name must never change.
 
-A scene may also set ``noise_seed``, an integer. The detector's per-frame streams then
-derive from it in place of ``random_seed``, under the same names. A real camera draws
-these again for every frame: the shot and read noise (``detector``), the cosmic rays,
-both kinds of banding, the bias structure, the calibrated product's per-pixel residual,
-the vidicon's coherent phase, the anti-blooming pairs, and the radiation transients.
-Everything else stays on ``random_seed``. That covers the scene itself (stars, surfaces,
-and spokes), the optics' distortion, the telemetry losses, and whether each artifact
-mode is active. It also covers the detector's fixed pattern, which a real camera shows
-in every frame: the hot pixels, the pattern the ``fixed_pattern`` mode draws, and the
-warm columns of the ``dark_ramp`` mode. A new ``noise_seed`` therefore renders the same
-scene on the same camera with a new draw of the noise. A scene that leaves the key out
-renders exactly as it would with ``noise_seed`` equal to its ``random_seed``. The
-integration tests use the key to measure a check over several noise draws.
+A scene may also set ``noise_seed``, zero or a positive integer. The detector's
+per-frame streams then derive from it in place of ``random_seed``, under the same names.
+A real camera draws these again for every frame: the shot and read noise (``detector``),
+the cosmic rays, both kinds of banding, the bias structure, the calibrated product's
+per-pixel residual, the vidicon's coherent phase, the anti-blooming pairs, and the
+radiation transients. Everything else stays on ``random_seed``. That covers the scene
+itself (stars, surfaces, and spokes), the optics' distortion, the telemetry losses, and
+whether each artifact mode is active. It also covers the detector's fixed pattern, which
+a real camera shows in every frame: the hot pixels, the pattern the ``fixed_pattern``
+mode draws, and the warm columns of the ``dark_ramp`` mode. A new ``noise_seed``
+therefore renders the same scene on the same camera with a new draw of the noise. A
+scene that leaves the key out renders exactly as it would with ``noise_seed`` equal to
+its ``random_seed``. The integration tests use the key to measure a check over several
+noise draws.
 
 **The driver.** :func:`spindoctor.sim.render.driver.render_scene` takes a
 scene and returns ``(image, metadata)``. It encodes the scene as

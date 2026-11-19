@@ -658,6 +658,14 @@ def test_validate_sim_params_refuses_a_noise_seed_that_is_not_an_integer(value: 
         validate_sim_params(params)
 
 
+def test_validate_sim_params_refuses_a_negative_noise_seed() -> None:
+    """A negative noise_seed is refused, so the editor's -1 can only mean the key is absent."""
+    params = _sim_params()
+    params['noise_seed'] = -1
+    with pytest.raises(SimSceneValidationError, match='noise_seed must be zero or a positive'):
+        validate_sim_params(params)
+
+
 @pytest.mark.parametrize('key', ['noise', 'optics', 'detector', 'artifacts', 'bodies', 'stars'])
 def test_a_null_top_level_block_validates_and_renders(key: str) -> None:
     """A top-level block or list set to null renders exactly as the scene without it."""

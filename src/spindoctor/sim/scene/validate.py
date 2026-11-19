@@ -179,8 +179,10 @@ def validate_sim_params(
     _require_positive_int(sim_params, 'size_v', source=source)
     _require_positive_int(sim_params, 'size_u', source=source)
     _require_int(sim_params, 'random_seed', source=source)
-    if 'noise_seed' in sim_params:
-        _require_int(sim_params, 'noise_seed', source=source)
+    # The scene editor shows -1 as an absent noise_seed, so a negative value could not
+    # be told apart from leaving the key out.
+    if 'noise_seed' in sim_params and _require_int(sim_params, 'noise_seed', source=source) < 0:
+        raise SimSceneValidationError(f'{source}: noise_seed must be zero or a positive integer')
     null_numbers = [
         key for key in _NON_NULL_TOP_LEVEL_NUMBERS if key in sim_params and sim_params[key] is None
     ]
