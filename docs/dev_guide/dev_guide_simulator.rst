@@ -125,8 +125,8 @@ relative to ``sim/render/``):
    * - ``bodies/ellipsoid.py`` / ``bodies/ellipsoid_grid.py`` / ``bodies/craters.py`` /
        ``bodies/texture.py`` / ``bodies/mesh.py``
      - The ellipsoid renderer (relief, photometric laws, craters, surface texture,
-       transits), the grids it works on, and its crater carving, and the
-       polyhedral-mesh renderer. The parsed body entry and the body's identity seed
+       transits) with its grids and its crater carving, and the polyhedral-mesh
+       renderer. The parsed body entry and the body's identity seed
        (``bodies/spec.py``), the relief field (``bodies/relief.py``), and the
        photometric laws (``bodies/photometry.py``) sit beside them.
    * - ``bodies/translate.py``
@@ -690,17 +690,13 @@ The integration tests use the key to measure a check over several noise draws.
 
 Every random stream of one body (its craters, its relief terrain, its albedo noise,
 and a mesh body's pose scatter) derives from one identity seed, which
-:func:`~spindoctor.sim.render.bodies.spec.body_identity_seed` chooses. The first
-choice is a seed drawn from the scene's ``random_seed`` and mixed with the body's
-index and name, so two bodies of the same geometry get independent surfaces. Without
-one, the body's own ``seed`` is used, and without that, a digest of the body's
-geometry. The scene radiance stage always supplies the first, so the other two apply
-only when a test or a tool calls a body renderer directly. The craters are seeded
-with the identity seed itself, and each other effect with a named stream of it. The
-digest hashes different values for the craters and for the rest, and a body drawn
-without seeds depends on exactly those values. The craters hash the full widths and
-the body center on the detector grid, and the other effects hash the full widths,
-the index, and the name. The mesh renderer keeps only the low 31 bits of its digest.
+:func:`~spindoctor.sim.render.bodies.spec.body_identity_seed` chooses. In a scene
+render that seed comes from the scene's ``random_seed``, mixed with the body's index
+and name, so two bodies of the same geometry get independent surfaces. The craters
+are seeded with the identity seed itself, and each other effect with a named stream
+of it. A body renderer called directly without a scene seed uses the body's own
+``seed`` if it has one, and otherwise falls back to a digest of the body's widths
+and its center (for the craters) or its index and name (for the other effects).
 
 **The driver.** :func:`spindoctor.sim.render.driver.render_scene` takes a
 scene and returns ``(image, metadata)``. It encodes the scene as

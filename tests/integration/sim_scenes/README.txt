@@ -308,8 +308,9 @@ The appearance keys are truth, which the navigator never sees:
   photometric_law      lambert (the default), lommel_seeliger, minnaert, or
                        lunar_lambert
   minnaert_k           the Minnaert exponent, a number (default 0.5)
-  seed                 the body's own crater, texture, and relief
-                       realization, an integer
+  seed                 an integer, which changes nothing in a scene render:
+                       each body's craters, texture, and relief draw from the
+                       scene's random_seed
   shading              (polyhedral_mesh) flat (the default) or gouraud
   opposition_surge, albedo_texture, disc_texture, transits, atmosphere, and
   pose_scatter are blocks; the developer guide's simulator chapter describes

@@ -95,8 +95,7 @@ class EllipsoidProjection:
         the values it has in the whole projection.  The center stays in the whole
         grid's coordinates, so adding it to the cropped coordinates still gives each
         pixel's position on the whole grid.  The image side's crater carving needs
-        both: it places craters by those positions, and its fallback crater seed is
-        keyed on the center, which a crop must not change.
+        both, since it places craters by those positions.
 
         Parameters:
             rows: The box's rows.
