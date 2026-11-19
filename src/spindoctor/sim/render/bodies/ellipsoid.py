@@ -425,7 +425,12 @@ def _crater_slopes(
     Returns:
         ``(slope_v, slope_u)`` on that grid, height per unit of length.
     """
-    slope_v, slope_u = np.gradient(_crater_heights(detector_grid, spec))
+    heights = _crater_heights(detector_grid, spec)
+    # A frame one detector pixel tall or wide has no slope across that axis.
+    slope_v, slope_u = (
+        np.gradient(heights, axis=axis) if heights.shape[axis] > 1 else np.zeros_like(heights)
+        for axis in (0, 1)
+    )
     return (
         bilinear_upsample(np.asarray(slope_v, dtype=np.float64), scale),
         bilinear_upsample(np.asarray(slope_u, dtype=np.float64), scale),

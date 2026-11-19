@@ -5,7 +5,8 @@ oversample 4 matches an 8 times finer render of the same body.  A relief body ha
 its light where the same body shaded wholly on its working grid has it, although
 its relief is laid out on the detector grid, and so does a body smaller than a
 pixel.  An albedo spot's edge is drawn on the working grid.  A sample exactly on a
-smooth body's limb lies outside the body.
+smooth body's limb lies outside the body, and a cratered body renders in a frame
+one detector pixel tall or wide.
 """
 
 import dataclasses
@@ -349,3 +350,24 @@ def test_limbs_touching_at_one_sample_need_no_ranges() -> None:
     )
     _, meta = render_scene(scene)
     assert not np.any(meta['body_masks'][0] & meta['body_masks'][1])
+
+
+# ----------------------------------------------------------------------------
+# A frame one detector pixel tall or wide
+# ----------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(('size', 'center'), [((1, 8), (0.5, 4.0)), ((8, 1), (4.0, 0.5))])
+def test_cratered_body_renders_on_a_one_pixel_axis(
+    size: tuple[int, int], center: tuple[float, float]
+) -> None:
+    """A cratered body in a frame one detector pixel tall or wide renders its light.
+
+    Parameters:
+        size: The frame dimensions (rows, columns).
+        center: The body center (v, u).
+    """
+    spec = EllipsoidBodySpec(
+        2.0, 2.0, 2.0, crater_fill=0.25, anti_aliasing=1.0, crater_seed=3, phase_angle=0.3
+    )
+    assert float(create_ellipsoid_body(size, center, spec).sum()) > 0.0
