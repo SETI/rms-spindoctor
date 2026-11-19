@@ -239,6 +239,9 @@ Call path traced through
 3. Call
    :func:`~spindoctor.nav_model.simulated.predict_body.create_predicted_body_image`
    with the semi-axes and geometry; the helper returns the rendered simulated body image.
+   It projects the body with :func:`~spindoctor.sim.shared.ellipsoid.project_ellipsoid`
+   and shades it with :func:`~spindoctor.sim.shared.ellipsoid.render_lambert_ellipsoid`,
+   so it places the body on the grid exactly as the image-side renderer does.
 4. Derive the body mask from the rendered image (every non-zero pixel is on the body).
 5. Compute the limb mask via
    :class:`~spindoctor.nav_model.nav_model_body_base.NavModelBodyBase`'s shared discrete-mask

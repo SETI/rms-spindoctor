@@ -360,7 +360,21 @@ rasterization, record defaults) the planted error is the *only* error in a recov
 measurement. Independent implementations would each carry their own
 conventions, and any delta between them would land as an unknown systematic
 inside the measured error -- contaminating the truth reference every simulator
-result rests on. For the same reason both sides derive the light direction in one
+result rests on.
+
+An ellipsoid body shows how far the sharing goes. Both sides place it on a pixel
+grid with :func:`~spindoctor.sim.shared.ellipsoid.project_ellipsoid`, which returns
+an :class:`~spindoctor.sim.shared.ellipsoid.EllipsoidProjection`, and both take its
+surface normals from :func:`~spindoctor.sim.shared.ellipsoid.ellipsoid_image_normals`.
+The navigator's predicted body is
+:func:`~spindoctor.sim.shared.ellipsoid.render_lambert_ellipsoid` applied to that
+projection. The image-side renderer projects each body onto its working grid and its
+detector grid (see :ref:`sim-shading-grids`) and builds its own image from there,
+with relief, craters, photometric laws, and textures. So the two sides agree on
+where every pixel of the body lies and which way its surface faces, but each draws
+its own limb.
+
+For the same reason both sides derive the light direction in one
 place, :mod:`spindoctor.sim.shared.lighting`, which every ellipsoid, mesh, and haze
 shading path uses. The rings and the haze, both on the image side, also take their
 Henyey-Greenstein phase function from that module, so a scattering asymmetry ``g``
