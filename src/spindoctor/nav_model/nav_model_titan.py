@@ -471,7 +471,7 @@ class NavModelTitan(NavModel):
         config: Optional ``Config`` override.
     """
 
-    # Typed as the full ModelSource so the simulated subclass can set its own.
+    # Annotated so that mypy accepts NavModelTitanSimulated's 'scene_view'.
     inputs: ClassVar[ModelSource] = 'spice'
 
     def __init__(

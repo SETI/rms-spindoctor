@@ -4560,13 +4560,11 @@ The ``sim`` dataset (``DataSetSim``) builds an :class:`~spindoctor.obs.obs_inst_
 that loads the scene via :func:`spindoctor.sim.scene.io.load_sim_scene`, renders the
 frame with the simulator's renderer, and exposes the navigator view
 ``obs.nav_params`` to the navigator (see
-:ref:`sim-information-boundary`). ``ObsSim`` declares the model source
-``scene_view``, and every simulated NavModel -- ``NavModelBodySimulated``,
-``NavModelRingsSimulated``, ``NavModelStarsSimulated``, and
-``NavModelTitanSimulated`` -- declares the same value as its inputs, so
-``build_models_for_obs`` builds those models and none of the SPICE-backed ones.
-They make one feature set per body / ring / star field / Titan from that
-navigator view. From there the same techniques run and produce the same
+:ref:`sim-information-boundary`). Because ``ObsSim``'s ``model_source`` is
+``scene_view``, the navigator builds only the simulated models
+(``NavModelBodySimulated``, ``NavModelRingsSimulated``, ``NavModelStarsSimulated``,
+and ``NavModelTitanSimulated``), which read that navigator view, and none of the
+models that need SPICE. From there the same techniques run and produce the same
 ``NavResult``. In tests the scene is usually driven directly:
 
 .. code-block:: python

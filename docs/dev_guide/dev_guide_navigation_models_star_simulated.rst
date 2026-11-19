@@ -19,11 +19,11 @@ therefore navigated by exactly the same
 :class:`~spindoctor.nav_technique.nav_technique_star_refine.StarRefineNav` code a real frame
 is.
 
-Unlike :class:`~spindoctor.nav_model.stars.nav_model_stars.NavModelStars`, this model *does*
-override :meth:`~spindoctor.nav_model.nav_model.NavModel.instances_for_obs`: it builds one
-instance for a simulated observation that rendered at least one star. The subclass sets
-``inputs`` to ``'scene_view'`` and the parent sets ``'spice'``, so the model builder asks
-this subclass for a simulated frame's stars and the parent for a real frame's.
+The model overrides :meth:`~spindoctor.nav_model.nav_model.NavModel.instances_for_obs` to
+build one instance for a simulated observation that rendered at least one star. It also
+sets its own ``inputs``, ``'scene_view'``, in place of the parent's ``'spice'``. The model
+builder then asks this class for a simulated frame's stars and asks the parent for a real
+frame's.
 
 Theory
 ======

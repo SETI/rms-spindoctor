@@ -11,12 +11,12 @@ contribute features and annotations to the navigation pipeline:
 - ``to_annotations(context)`` returns an ``Annotations`` collection for
   the summary PNG.
 
-Concrete NavModel subclasses self-register via ``__init_subclass__``, and each
-declares in ``inputs`` the model source it builds from.  The module-level
-``build_models_for_obs`` function iterates the registry and asks each subclass
-whose ``inputs`` matches the observation's ``model_source`` to construct whatever
-instances apply to the observation; this is what the top-level navigation driver
-uses so it does not need to know which scene categories exist.
+Concrete NavModel subclasses self-register via ``__init_subclass__``.  The
+module-level ``build_models_for_obs`` function iterates the registry and asks
+each subclass to construct whatever instances apply to the observation, skipping
+a subclass whose ``inputs`` does not match the observation's ``model_source``;
+this is what the top-level navigation driver uses so it does not need to know
+which scene categories exist.
 
 Every NavModel inherits from ``NavBase`` so it gets the project logger and
 config plumbing automatically.
@@ -44,10 +44,10 @@ class NavModel(NavBase, ABC):
     """Base class for predicted-scene generators.
 
     Class attributes:
-        inputs: The model source the class builds its predictions from.  Every
-            concrete subclass sets it in its own class body; the builder asks the
-            class for instances only when it equals the observation's
-            ``model_source``.
+        inputs: What the class predicts the scene from, ``'spice'`` or
+            ``'scene_view'``.  Every concrete subclass sets it in its own class
+            body, and the class is built only for observations whose
+            ``model_source`` matches.
         _registry: List of every concrete subclass discovered at import
             time.  Iterated by ``build_models_for_obs`` to construct the
             per-image NavModel set.
@@ -69,21 +69,20 @@ class NavModel(NavBase, ABC):
 
         Subclasses that exist only as shared bases (annotation helpers,
         for example) opt out by setting ``_abstract: ClassVar[bool] =
-        True`` in the class body, and so do test fakes that are constructed
-        directly and must stay out of the registry.
+        True`` in the class body, and so does any class that is only ever
+        constructed directly.
 
         Raises:
             TypeError: If a concrete subclass does not set ``inputs`` in its own
-                class body.  A value inherited from a concrete parent does not
-                count, so a simulated sibling of a production model cannot
-                silently take the parent's model source.
+                class body.  Inheriting it does not count: a simulated model that
+                subclasses a real one would otherwise quietly inherit ``'spice'``.
         """
         super().__init_subclass__(**kwargs)
         if cls.__dict__.get('_abstract', False):
             return
         if 'inputs' not in cls.__dict__:
             raise TypeError(
-                f'{cls.__qualname__} must set inputs to the model source it builds from'
+                f"{cls.__qualname__} must set inputs ('spice' or 'scene_view') in its class body"
             )
         NavModel._registry.append(cls)
 
@@ -119,9 +118,9 @@ class NavModel(NavBase, ABC):
         appropriate set of instances — typically one per body in FOV, one
         per planet with visible rings, one stars model.
 
-        ``build_models_for_obs`` calls this only for an observation whose
-        ``model_source`` equals the class's ``inputs``, so an override need
-        not check what kind of observation it was given.
+        ``build_models_for_obs`` calls this only when the observation's
+        ``model_source`` matches the class's ``inputs``, so an override does
+        not need to check whether the observation is real or simulated.
 
         Parameters:
             obs: Observation snapshot to inspect.
@@ -181,13 +180,12 @@ def build_models_for_obs(obs: ObsSnapshotInst, *, config: Config | None = None) 
     """Construct every NavModel applicable to ``obs``.
 
     Iterates ``NavModel._registry`` and lets each registered concrete
-    subclass whose ``inputs`` equals ``obs.model_source`` build whatever
-    instances apply; a class that builds from another model source is never
-    asked.  That one comparison is the whole choice between the models that
-    predict a frame from SPICE geometry and the ones that read a simulated
-    scene.  The top-level navigation driver uses this so the choice of which
-    scene categories are represented (stars, body, rings, ...) lives entirely
-    inside the NavModel subclasses, not in the driver.
+    subclass whose ``inputs`` matches ``obs.model_source`` build whatever
+    instances apply.  This comparison is what keeps the SPICE-based models off
+    simulated frames and the simulated models off real ones.  The top-level
+    navigation driver uses this so the choice of which scene categories are
+    represented (stars, body, rings, ...) lives entirely inside the NavModel
+    subclasses, not in the driver.
 
     Parameters:
         obs: Observation snapshot.

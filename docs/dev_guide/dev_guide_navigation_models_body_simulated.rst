@@ -53,10 +53,9 @@ low plateau -- see ``config_510_techniques.yaml``), and a terminator fix stays
 which is the condition on which trust in its confidences depends.
 
 The model overrides :meth:`~spindoctor.nav_model.nav_model.NavModel.instances_for_obs` to build
-one instance per body of a simulated observation. It sets ``inputs`` to ``'scene_view'``, the
-model source :class:`~spindoctor.obs.obs_inst_sim.ObsSim` supplies, so the model builder asks
-it, and never the SPICE-backed :class:`~spindoctor.nav_model.nav_model_body.NavModelBody`, for a
-simulated frame's bodies.
+one instance per body of a simulated observation. Its ``inputs`` is ``'scene_view'``, so a
+simulated frame's bodies come from this model and never from
+:class:`~spindoctor.nav_model.nav_model_body.NavModelBody`, which needs SPICE.
 
 Theory
 ======
@@ -195,11 +194,7 @@ Source file: ``src/spindoctor/nav_model/simulated/body.py`` —
 Public class :class:`~spindoctor.nav_model.simulated.body.NavModelBodySimulated`, base
 :class:`~spindoctor.nav_model.nav_model_body_base.NavModelBodyBase`. The class overrides
 :meth:`~spindoctor.nav_model.nav_model.NavModel.instances_for_obs` to build one instance per body
-of a simulated observation. Its ``inputs`` is ``'scene_view'`` and the SPICE-backed
-:class:`~spindoctor.nav_model.nav_model_body.NavModelBody` has ``'spice'``, so
-:func:`~spindoctor.nav_model.nav_model.build_models_for_obs` builds this class for an
-observation whose ``model_source`` is ``'scene_view'`` and the SPICE-backed one for an
-observation whose ``model_source`` is ``'spice'``.
+of a simulated observation, and sets the class attribute ``inputs = 'scene_view'``.
 
 Public methods (autodocumented at :doc:`/api_reference/api_nav_model`):
 

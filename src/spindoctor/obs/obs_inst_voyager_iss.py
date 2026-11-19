@@ -135,7 +135,6 @@ class ObsVoyagerISS(ObsSnapshotInst, HostLabel):
     """
 
     model_source = 'spice'
-    """The frame is navigated with the models that predict it from SPICE geometry."""
 
     detector: str
     """The camera, ``'NAC'`` or ``'WAC'``."""

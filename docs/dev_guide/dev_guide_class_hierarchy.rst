@@ -398,10 +398,9 @@ predicted-scene generators. Subclasses implement three methods:
   :attr:`~spindoctor.nav_orchestrator.nav_result.NavResult.annotations`.
 
 Concrete subclasses self-register via ``__init_subclass__`` unless they
-opt out with ``_abstract = True``. Each concrete subclass sets ``inputs`` to
-the model source it builds from, ``'spice'`` or ``'scene_view'``, and
-``build_models_for_obs`` asks only the classes whose ``inputs`` equals the
-observation's ``model_source``. The class method
+opt out with ``_abstract = True``. Each one also sets ``inputs`` to
+``'spice'`` or ``'scene_view'``, and is built only for observations whose
+``model_source`` matches (see :doc:`dev_guide_navigation_models`). The class method
 ``instances_for_obs(obs)`` is the per-class hook that
 ``build_models_for_obs`` iterates. Today's concrete subclasses are
 :class:`~spindoctor.nav_model.stars.nav_model_stars.NavModelStars` (catalog-driven

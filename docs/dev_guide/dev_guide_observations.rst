@@ -337,16 +337,15 @@ must implement:
   etc.) for the per-image sidecar. Read the camera from
   :attr:`~spindoctor.obs.obs_inst.ObsInst.camera` rather than repeating a
   literal, so the name has one source.
-- :attr:`~spindoctor.obs.obs_inst.ObsInst.model_source` — the model source the
-  observation supplies, one of the
-  :data:`~spindoctor.obs.obs_inst.ModelSource` values. Every concrete observation
-  class sets it: the real cameras set ``'spice'`` and
-  :class:`~spindoctor.obs.obs_inst_sim.ObsSim` sets ``'scene_view'``.
-  :func:`~spindoctor.nav_model.nav_model.build_models_for_obs` builds only the
-  navigation models whose ``inputs`` equals it. A concrete class that does not set it
-  in its own class body raises ``TypeError`` when it is defined; a shared base such as
-  :class:`~spindoctor.obs.obs_snapshot_inst.ObsSnapshotInst` sets ``_abstract = True``
-  instead.
+- :attr:`~spindoctor.obs.obs_inst.ObsInst.model_source` — the input this
+  observation provides to the navigation models, one of the
+  :data:`~spindoctor.obs.obs_inst.ModelSource` values: ``'spice'`` for a real
+  camera, ``'scene_view'`` for :class:`~spindoctor.obs.obs_inst_sim.ObsSim`. Only the
+  models whose ``inputs`` matches are built for the image. Set it in the class body
+  itself; a class that leaves it out raises ``TypeError`` as soon as it is defined.
+  A shared base such as
+  :class:`~spindoctor.obs.obs_snapshot_inst.ObsSnapshotInst` sets
+  ``_abstract = True`` instead.
 
 The :attr:`~spindoctor.obs.obs_inst.ObsInst.inst_config` property exposes the
 per-instrument YAML block loaded from

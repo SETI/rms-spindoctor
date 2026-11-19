@@ -160,8 +160,10 @@ Adding a new instrument
 To add an instrument, implement a subclass of
 :class:`~spindoctor.obs.obs_snapshot_inst.ObsSnapshotInst` in ``src/spindoctor/obs/`` that
 provides :meth:`~spindoctor.obs.obs_snapshot_inst.ObsSnapshotInst.from_file` and
-any instrument-specific helpers. Update the instrument registry in
-``src/spindoctor/obs/__init__.py`` so datasets can resolve the instrument class.
+any instrument-specific helpers, and that sets ``model_source = 'spice'`` so its
+images are navigated with the models built from SPICE geometry. Update the
+instrument registry in ``src/spindoctor/obs/__init__.py`` so datasets can resolve
+the instrument class.
 
 .. code-block:: python
 
@@ -169,8 +171,6 @@ any instrument-specific helpers. Update the instrument registry in
    from spindoctor.support.types import PathLike
 
    class ObsNewInstrument(ObsSnapshotInst):
-       # A real camera's frames are navigated with the models that predict
-       # them from SPICE geometry.
        model_source = 'spice'
 
        def __init__(self, obs, *, config=None, **kwargs):
@@ -230,20 +230,19 @@ Adding a new NavModel
    :class:`~spindoctor.nav_model.nav_model.NavModel` (or from one of the abstract
    bases such as
    :class:`~spindoctor.nav_model.nav_model_body_base.NavModelBodyBase`).
-2. Set ``inputs`` in the class body to the model source the model builds from:
-   ``'spice'`` when it predicts the scene from SPICE geometry and the catalogs,
-   ``'scene_view'`` when it reads a simulated scene's ``obs.nav_params``.
-   :func:`~spindoctor.nav_model.nav_model.build_models_for_obs` asks the class for
-   instances only for an observation whose ``model_source`` matches, and a concrete
-   class without its own ``inputs`` raises ``TypeError`` when it is defined.
+2. Set ``inputs`` in the class body: ``'spice'`` if the model works from SPICE
+   geometry and the catalogs, or ``'scene_view'`` if it reads a simulated scene's
+   ``obs.nav_params``. The model is built only for observations whose
+   ``model_source`` matches. A class that leaves it out raises ``TypeError`` as soon
+   as it is defined.
 3. Implement :meth:`~spindoctor.nav_model.nav_model.NavModel.create_model`,
    :meth:`~spindoctor.nav_model.nav_model.NavModel.to_features`, and
    :meth:`~spindoctor.nav_model.nav_model.NavModel.to_annotations`.
 4. Override :meth:`~spindoctor.nav_model.nav_model.NavModel.instances_for_obs` if
    the model auto-instantiates per-observation (one instance per body in
-   FOV, one per planet with visible rings, one stars model). A model that
-   does not override it inherits the empty default, and the caller that uses
-   it constructs it directly.
+   FOV, one per planet with visible rings, one stars model). The default
+   returns no instances, so a model that keeps it is never built
+   automatically; code that needs one constructs it directly.
 
 .. code-block:: python
 

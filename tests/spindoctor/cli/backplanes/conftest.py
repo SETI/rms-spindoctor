@@ -42,8 +42,8 @@ class HermeticObs(ObsSnapshotInst):
     recorded on ``inventory_calls``.
     """
 
-    # Required of every concrete observation class; the backplane code under test
-    # reads ``is_simulated`` and never builds navigation models.
+    # Every concrete observation class must set this.  The backplane code under
+    # test builds no navigation models, so nothing reads it here.
     model_source = 'spice'
 
     sim_inventory: dict[str, Any]

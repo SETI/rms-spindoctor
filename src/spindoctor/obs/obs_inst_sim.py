@@ -29,7 +29,7 @@ class ObsSim(ObsSnapshotInst):
     """Observation backed by a description of simulated bodies and stars."""
 
     model_source = 'scene_view'
-    """The frame is navigated with the models that read ``nav_params``."""
+    """Its navigation models build from the scene's navigator view, ``nav_params``."""
 
     sim_params: dict[str, Any]
     """The full scene, truth included, for the renderer-side consumers."""

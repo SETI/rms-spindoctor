@@ -1,7 +1,7 @@
 """The NavModel registry and the builder's choice of model classes.
 
 ``build_models_for_obs`` asks a registered class for instances only when the class's
-``inputs`` equals the observation's ``model_source``.  These tests record which
+``inputs`` matches the observation's ``model_source``.  These tests record which
 classes the builder asks, so they need no SPICE geometry and no rendered scene.
 """
 
@@ -59,7 +59,7 @@ def test_scene_view_observation_asks_only_the_simulated_models(
 def test_spice_observation_asks_only_the_production_models(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A frame with SPICE geometry gets its models from the production classes."""
+    """A real frame's models come from the classes that work from SPICE geometry."""
     assert _classes_asked(monkeypatch, 'spice') == [
         'NavModelStars',
         'NavModelBody',

@@ -11,12 +11,11 @@ if TYPE_CHECKING:
     from spindoctor.obs import Obs
 
 ModelSource = Literal['scene_view', 'spice']
-"""What an observation's navigation models build their predictions from.
+"""The two kinds of input a navigation model can predict the scene from.
 
-With ``'spice'`` the models predict the scene from SPICE geometry and the star, body,
-and ring catalogs; with ``'scene_view'`` they read the navigator's view of a simulated
-scene.  An observation supplies one of them, and each navigation model class builds
-from one.
+``'spice'`` is SPICE geometry with the star, body, and ring catalogs, which is what a
+real camera's image provides.  ``'scene_view'`` is the navigator's view of a simulated
+scene.  An observation provides one of them, and each navigation model class uses one.
 """
 
 
@@ -28,32 +27,30 @@ class ObsInst(ABC):
     """
 
     model_source: ClassVar[ModelSource]
-    """What this observation's navigation models build from.
+    """The input this observation provides to its navigation models.
 
-    Each concrete observation class sets it, and the model builder makes only the
-    model classes whose inputs match it.
+    Only the model classes whose ``inputs`` matches it are built for the image.
     """
 
     _abstract: ClassVar[bool] = True
-    """True on a class that exists only as a shared base, which need not set
-    ``model_source``; set in that class's own body."""
+    """Set to True in the body of a class that is only a shared base, so that it need
+    not set ``model_source``."""
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
         """Require every concrete observation class to set ``model_source``.
 
-        Shared bases opt out by setting ``_abstract = True`` in their own class body.
-
         Raises:
             TypeError: If a concrete subclass does not set ``model_source`` in its own
-                class body.  A value inherited from a parent does not count, so each
-                instrument states its model source where it is defined.
+                class body.  Inheriting it does not count, so each instrument's
+                choice is written where the instrument is defined.
         """
         super().__init_subclass__(**kwargs)
         if cls.__dict__.get('_abstract', False):
             return
         if 'model_source' not in cls.__dict__:
             raise TypeError(
-                f'{cls.__qualname__} must set model_source to the model source it supplies'
+                f"{cls.__qualname__} must set model_source ('spice' or 'scene_view') "
+                'in its class body'
             )
 
     def __init__(self, **kwargs: Any) -> None:

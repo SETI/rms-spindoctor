@@ -95,7 +95,7 @@ class NavModelStars(NavModel):
     """
 
     _abstract = False
-    # Typed as the full ModelSource so the simulated subclass can set its own.
+    # Annotated so that mypy accepts NavModelStarsSimulated's 'scene_view'.
     inputs: ClassVar[ModelSource] = 'spice'
 
     def __init__(
