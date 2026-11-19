@@ -1,9 +1,14 @@
 """The shared ellipsoid projection, its normals, and the smooth Lambert render.
 
-A cropped projection keeps each pixel's values, the normals outside the limb lie in
-the image plane, and the Lambert render shades each pixel by its cosine of incidence,
-leaves the sky dark, and averages its supersampled grid down to the caller's.
+The projection measures each pixel from its center, rotates and then tilts it as a
+hand computation does, and stretches the outline by the tilt.  A cropped projection
+keeps each pixel's values and its position on the whole grid.  The normals face the
+way the outline does, lie in the image plane outside the limb, and have unit length.
+The Lambert render shades each pixel by its cosine of incidence, leaves the sky
+dark, and averages its supersampled grid down to the caller's.
 """
+
+import math
 
 import numpy as np
 import pytest
@@ -14,6 +19,28 @@ from spindoctor.sim.shared.ellipsoid import (
     project_ellipsoid,
     render_lambert_ellipsoid,
 )
+
+# A hand-computed pixel: row 23, column 15 of a body centered at (20.0, 18.0), whose
+# pixel center lies 3.5 px below and 2.5 px left of the body center.
+_ROW, _COL = 23, 15
+_CENTER = (20.0, 18.0)
+_V, _U = 3.5, -2.5
+_ROTATION_Z = 0.5
+_TILT = 0.6
+_SEMI_A, _SEMI_B = 12.0, 7.0
+
+
+def _hand_body(*, rotation_tilt: float) -> EllipsoidProjection:
+    """The body the hand-computed pixel belongs to, at a chosen tilt."""
+    return project_ellipsoid(
+        (48, 40),
+        _CENTER,
+        _SEMI_A,
+        semi_b_px=_SEMI_B,
+        semi_c_px=9.0,
+        rotation_z=_ROTATION_Z,
+        rotation_tilt=rotation_tilt,
+    )
 
 
 def _tilted_body(*, anti_aliasing: float = 0.0) -> EllipsoidProjection:
@@ -30,6 +57,54 @@ def _tilted_body(*, anti_aliasing: float = 0.0) -> EllipsoidProjection:
     )
 
 
+def test_projection_measures_from_pixel_centers() -> None:
+    """A pixel's coordinates run from the body center to the pixel's center."""
+    projection = _hand_body(rotation_tilt=_TILT)
+    assert projection.v_coords[_ROW, _COL] == pytest.approx(_V, abs=1e-12)
+    assert projection.u_coords[_ROW, _COL] == pytest.approx(_U, abs=1e-12)
+
+
+def test_projection_rotates_then_tilts_a_pixel() -> None:
+    """The rotated frame turns by rotation_z, then the tilt scales its v by cos(tilt)."""
+    projection = _hand_body(rotation_tilt=_TILT)
+    cos_rz, sin_rz = math.cos(_ROTATION_Z), math.sin(_ROTATION_Z)
+    expected_v_rot = (_V * cos_rz - _U * sin_rz) * math.cos(_TILT)
+    expected_u_rot = _V * sin_rz + _U * cos_rz
+    assert projection.v_rot[_ROW, _COL] == pytest.approx(expected_v_rot, abs=1e-12)
+    assert projection.u_rot[_ROW, _COL] == pytest.approx(expected_u_rot, abs=1e-12)
+
+
+def test_projection_stretches_the_outline_by_the_tilt() -> None:
+    """A 10 px sphere tilted by 1 radian reaches 10 / cos(1) = 18.51 px along v.
+
+    One column of pixel centers runs through the body center, and the rows whose
+    centers lie 0.5 to 18.5 px above and below it fall within that reach: 38 rows.
+    """
+    projection = project_ellipsoid(
+        (64, 48), (32.0, 24.5), 10.0, semi_b_px=10.0, semi_c_px=10.0, rotation_tilt=1.0
+    )
+    covered_rows = int(np.any(projection.ellipse_dist_sq <= 1.0, axis=1).sum())
+    assert covered_rows == 38
+
+
+def test_normals_face_the_way_the_outline_does() -> None:
+    """On an untilted rotated body the in-plane normal follows the ellipse's gradient.
+
+    The gradient of ``(v_rot / a)**2 + (u_rot / b)**2`` with respect to the image
+    coordinates comes from the chain rule through the rotation.
+    """
+    normal_v, normal_u, _ = ellipsoid_image_normals(_hand_body(rotation_tilt=0.0))
+    cos_rz, sin_rz = math.cos(_ROTATION_Z), math.sin(_ROTATION_Z)
+    v_rot = _V * cos_rz - _U * sin_rz
+    u_rot = _V * sin_rz + _U * cos_rz
+    grad_v = v_rot * cos_rz / _SEMI_A**2 + u_rot * sin_rz / _SEMI_B**2
+    grad_u = -v_rot * sin_rz / _SEMI_A**2 + u_rot * cos_rz / _SEMI_B**2
+    in_plane = math.hypot(normal_v[_ROW, _COL], normal_u[_ROW, _COL])
+    grad = math.hypot(grad_v, grad_u)
+    assert normal_v[_ROW, _COL] / in_plane == pytest.approx(grad_v / grad, abs=1e-12)
+    assert normal_u[_ROW, _COL] / in_plane == pytest.approx(grad_u / grad, abs=1e-12)
+
+
 @pytest.mark.parametrize('name', ['v_coords', 'u_coords', 'v_rot', 'u_rot', 'ellipse_dist_sq'])
 def test_crop_keeps_each_pixels_values(name: str) -> None:
     """A box cropped from a supersampled working grid reads the whole grid's values."""
@@ -37,6 +112,18 @@ def test_crop_keeps_each_pixels_values(name: str) -> None:
     rows, cols = slice(37, 141), slice(12, 97)
     cropped = whole.crop(rows, cols)
     np.testing.assert_array_equal(getattr(cropped, name), getattr(whole, name)[rows, cols])
+
+
+def test_crop_keeps_each_pixels_position_on_the_whole_grid() -> None:
+    """Adding the center to a cropped coordinate gives the pixel center on the whole grid."""
+    rows, cols = slice(37, 141), slice(12, 97)
+    cropped = _tilted_body(anti_aliasing=1.0).crop(rows, cols)
+    np.testing.assert_allclose(
+        cropped.v_coords[:, 0] + cropped.center[0], np.arange(37, 141) + 0.5, atol=1e-12
+    )
+    np.testing.assert_allclose(
+        cropped.u_coords[0, :] + cropped.center[1], np.arange(12, 97) + 0.5, atol=1e-12
+    )
 
 
 def test_normals_outside_the_limb_lie_in_the_image_plane() -> None:
