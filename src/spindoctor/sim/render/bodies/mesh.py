@@ -42,7 +42,7 @@ from spindoctor.sim.shared.mesh import (
 )
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 
-__all__ = ['render_single_mesh_body']
+__all__ = ['clear_mesh_shape_caches', 'render_single_mesh_body']
 
 
 def _perturb_mesh_radially(mesh: Mesh, field: ReliefField) -> Mesh:
@@ -114,6 +114,11 @@ def _render_mesh_shape_cached(
         anti_aliasing=anti_aliasing,
         shading=shading,
     )
+
+
+def clear_mesh_shape_caches() -> None:
+    """Drop the cached mesh body shapes (test/tooling helper)."""
+    _render_mesh_shape_cached.cache_clear()
 
 
 def render_single_mesh_body(

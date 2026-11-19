@@ -1,8 +1,9 @@
-"""The key the mesh renderer's identity seed falls back on.
+"""The mesh renderer's fallback seed and its shape cache.
 
 A mesh body drawn with neither a scene seed nor a seed of its own seeds its relief
 and its pose scatter from a digest of its geometry, index, and name, keeping the
-digest's low 31 bits.  The body's terrain depends on exactly that seed.
+digest's low 31 bits.  The body's terrain depends on exactly that seed.  Each body's
+drawing is cached at the reference center until the cache is cleared.
 """
 
 import numpy as np
@@ -52,11 +53,8 @@ def _record_fallbacks(monkeypatch: pytest.MonkeyPatch) -> list[tuple[tuple[objec
     return calls
 
 
-def test_mesh_fallback_is_the_masked_digest_of_widths_index_and_name(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """The mesh seed falls back on the full widths, index, and name, masked to 31 bits."""
-    calls = _record_fallbacks(monkeypatch)
+def _render_seedless_mesh_body() -> None:
+    """Render one seedless mesh body with relief, index 3, onto a 64 x 64 frame."""
     params = {
         'name': 'lump',
         'shape_model': 'polyhedral_mesh',
@@ -81,4 +79,20 @@ def test_mesh_fallback_is_the_masked_digest_of_widths_index_and_name(
         ref_center_u=32.0,
         body_index=3,
     )
+
+
+def test_mesh_fallback_is_the_masked_digest_of_widths_index_and_name(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The mesh seed falls back on the full widths, index, and name, masked to 31 bits."""
+    calls = _record_fallbacks(monkeypatch)
+    _render_seedless_mesh_body()
     assert calls == [((40.0, 36.0, 32.0, 3, 'LUMP'), True)]
+
+
+def test_clear_mesh_shape_caches_empties_the_shape_cache() -> None:
+    """After a mesh body is drawn, clearing leaves the mesh shape cache empty."""
+    _render_seedless_mesh_body()
+    assert body_mesh._render_mesh_shape_cached.cache_info().currsize > 0
+    body_mesh.clear_mesh_shape_caches()
+    assert body_mesh._render_mesh_shape_cached.cache_info().currsize == 0

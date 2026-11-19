@@ -38,8 +38,13 @@ from functools import lru_cache
 from typing import Any
 
 from spindoctor.sim.instruments.navigator_link import PLANTED_POINTING_KEYS
+from spindoctor.sim.render.bodies.mesh import clear_mesh_shape_caches
+from spindoctor.sim.render.bodies.relief import clear_relief_caches
+from spindoctor.sim.render.bodies.render import clear_ellipsoid_shape_caches
+from spindoctor.sim.render.optics.psf import clear_psf_caches
 from spindoctor.sim.render.optics.stage import instrument_defaults_on
 from spindoctor.sim.render.pipeline import run_pipeline
+from spindoctor.sim.render.radiance.stars import clear_star_caches
 from spindoctor.sim.render.stages import new_sim_frame
 from spindoctor.sim.scene.validate import clear_validation_cache, validate_scene
 from spindoctor.support.types import NDArrayFloatType
@@ -52,20 +57,13 @@ def clear_render_caches() -> None:
     stale in production, but determinism tests must re-execute the cached
     paths to prove reproducibility.
     """
-    from spindoctor.sim.render.bodies import mesh as bodies_mesh
-    from spindoctor.sim.render.bodies import relief
-    from spindoctor.sim.render.bodies import render as bodies_render
-    from spindoctor.sim.render.optics import psf
-    from spindoctor.sim.render.radiance import stars as radiance_stars
-
     _render_scene_cached.cache_clear()
     clear_validation_cache()
-    radiance_stars._render_stars_cached.cache_clear()
-    radiance_stars._render_sky_counts_cached.cache_clear()
-    bodies_render._render_ellipsoid_shape_cached.cache_clear()
-    bodies_mesh._render_mesh_shape_cached.cache_clear()
-    relief.clear_relief_caches()
-    psf.psf_kernel.cache_clear()
+    clear_star_caches()
+    clear_ellipsoid_shape_caches()
+    clear_mesh_shape_caches()
+    clear_relief_caches()
+    clear_psf_caches()
 
 
 # Three entries: the scene editor renders a scene's fast preview, its full

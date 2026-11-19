@@ -69,6 +69,7 @@ __all__ = [
     'MIN_LIMB_RELIEF_CORR_DEG',
     'ReliefField',
     'cast_shadows',
+    'clear_relief_caches',
     'synthesize_albedo_field',
     'synthesize_relief_field',
 ]

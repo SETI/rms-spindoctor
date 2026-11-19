@@ -35,7 +35,7 @@ from spindoctor.sim.seeds import derive_effect_seed
 from spindoctor.support.stable_math import stable_hypot
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 
-__all__ = ['render_single_body']
+__all__ = ['clear_ellipsoid_shape_caches', 'render_single_body']
 
 
 @lru_cache(maxsize=30)
@@ -49,6 +49,11 @@ def _render_ellipsoid_shape_cached(
     translates the shape and its silhouette into place.
     """
     return render_ellipsoid_body((size_v, size_u), (size_v / 2.0, size_u / 2.0), spec)
+
+
+def clear_ellipsoid_shape_caches() -> None:
+    """Drop the cached ellipsoid body shapes (test/tooling helper)."""
+    _render_ellipsoid_shape_cached.cache_clear()
 
 
 def render_single_body(

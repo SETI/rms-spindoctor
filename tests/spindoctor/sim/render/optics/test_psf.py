@@ -15,7 +15,7 @@ import pytest
 from scipy.signal import fftconvolve
 
 from spindoctor.sim.instruments.resolvers import resolve_psf_truncation_px
-from spindoctor.sim.render.optics.psf import apply_psf, psf_kernel
+from spindoctor.sim.render.optics.psf import apply_psf, clear_psf_caches, psf_kernel
 
 
 def _kernel(**over: float) -> np.ndarray:
@@ -204,3 +204,11 @@ def test_coiss_uses_a_wider_truncation_window() -> None:
     assert resolve_psf_truncation_px('coiss_nac') == 32
     assert resolve_psf_truncation_px('gossi') == 16
     assert resolve_psf_truncation_px(None) == 16
+
+
+def test_clear_psf_caches_empties_the_kernel_cache() -> None:
+    """After a kernel is built, clearing leaves the kernel cache empty."""
+    _kernel()
+    assert psf_kernel.cache_info().currsize > 0
+    clear_psf_caches()
+    assert psf_kernel.cache_info().currsize == 0

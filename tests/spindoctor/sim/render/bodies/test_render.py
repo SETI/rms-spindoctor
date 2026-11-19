@@ -1,9 +1,10 @@
-"""The keys the ellipsoid path's identity seeds fall back on.
+"""The ellipsoid path's fallback seeds and its shape cache.
 
 A body drawn with neither a scene seed nor a seed of its own seeds its craters, its
 relief, and its albedo noise from a digest of its geometry.  The craters and the
 other streams hash different values, and a body's surface depends on exactly those
-values.
+values.  Each body's drawing is cached at the reference center until the cache is
+cleared.
 """
 
 from typing import Any
@@ -91,3 +92,11 @@ def test_surface_fallback_key_is_the_widths_index_and_name(
     keys = _record_fallback_keys(monkeypatch)
     _render_seedless_body(limb_relief_rms=0.02)
     assert keys == [(40.0, 36.0, 32.0, 3, 'B')]
+
+
+def test_clear_ellipsoid_shape_caches_empties_the_shape_cache() -> None:
+    """After a body is drawn, clearing leaves the ellipsoid shape cache empty."""
+    _render_seedless_body()
+    assert body_render._render_ellipsoid_shape_cached.cache_info().currsize > 0
+    body_render.clear_ellipsoid_shape_caches()
+    assert body_render._render_ellipsoid_shape_cached.cache_info().currsize == 0
