@@ -3,6 +3,8 @@
 - :mod:`spindoctor.sim.render.bodies.render`: the placement of one body in the frame,
   and the crater carving.
 - :mod:`spindoctor.sim.render.bodies.ellipsoid`: the ellipsoid renderer.
+- :mod:`spindoctor.sim.render.bodies.ellipsoid_grid`: the pixel grids the ellipsoid
+  renderer works on.
 - :mod:`spindoctor.sim.render.bodies.mesh`: the polyhedral-mesh renderer.
 - :mod:`spindoctor.sim.render.bodies.spec`: the typed, frozen form of one scene
   ``bodies`` entry.

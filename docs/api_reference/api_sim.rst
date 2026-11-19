@@ -203,6 +203,11 @@ spindoctor.sim.render.bodies
    :undoc-members:
    :show-inheritance:
 
+.. automodule:: spindoctor.sim.render.bodies.ellipsoid_grid
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 .. automodule:: spindoctor.sim.render.bodies.mesh
    :members:
    :undoc-members:

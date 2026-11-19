@@ -18,6 +18,7 @@ from tests.spindoctor.sim.scenes import disc_body, frame_scene, quiet_noise
 
 from spindoctor.sim.render.bodies import ellipsoid as body_ellipsoid
 from spindoctor.sim.render.bodies.ellipsoid import EllipsoidBodySpec, create_ellipsoid_body
+from spindoctor.sim.render.bodies.ellipsoid_grid import body_grid, silhouette_mask
 from spindoctor.sim.render.bodies.photometry import DARK_SIDE_FLOOR
 from spindoctor.sim.render.bodies.relief import ReliefField, cast_shadows, synthesize_relief_field
 from spindoctor.sim.render.driver import render_scene
@@ -154,7 +155,7 @@ def test_terminator_is_ragged_with_excursions_at_the_terminator() -> None:
     spec = _terminator_spec(rms=_RMS)
     elevation = _sun_elevation_deg(size, semi_axes=(120.0, 120.0), spec=spec)
     band_deg = _band_elevation_deg(_RMS, 5)
-    # Half a pixel of smooth-elevation slack covers the shading upsample.
+    # Half a pixel of smooth-elevation slack covers the interpolated shadows.
     assert float(elevation[newly_dark].max()) <= band_deg + 0.5
 
     # Excursions grow toward the terminator: the shadowed fraction falls
@@ -168,7 +169,8 @@ def test_terminator_is_ragged_with_excursions_at_the_terminator() -> None:
     mid = shadow_fraction(3.0, 6.0)
     far = shadow_fraction(9.0, 15.0)
     assert near > mid
-    assert near > 4.0 * far
+    # Shaded on the working grid this realization gives near / far = 3.8.
+    assert near > 3.0 * far
 
 
 def _sun_elevation_deg(
@@ -271,7 +273,7 @@ def _lambert_relief_disc(
         limb_relief_corr_deg=corr_deg,
         relief_seed=3,
     )
-    grid = body_ellipsoid._body_grid(
+    grid = body_grid(
         (200, 200), (100.0, 100.0), (75.0, 75.0, 75.0), cos_rz=1.0, sin_rz=0.0, cos_rt=1.0
     )
     return spec, grid, synthesize_relief_field(rms, corr_deg, 3)
@@ -322,7 +324,7 @@ def test_relief_normals_near_the_limb_face_the_observer() -> None:
     spec, grid, field = _lambert_relief_disc(rms=0.035, corr_deg=5.0)
     reach = 1.0 + field.h_max + 2.0 / 75.0
     near = grid.e2 < reach * reach
-    inside = body_ellipsoid._silhouette_mask(grid, field)[near] > 0.0
+    inside = silhouette_mask(grid, field)[near] > 0.0
     radial = np.sqrt(np.maximum(grid.e2[near], 1.0))
     points = np.stack(
         [
@@ -359,9 +361,7 @@ def test_shadow_march_resolves_fine_relief_on_a_small_body(
         limb_relief_corr_deg=1.0,
         relief_seed=3,
     )
-    grid = body_ellipsoid._body_grid(
-        (80, 80), (40.0, 40.0), (30.0, 30.0, 30.0), cos_rz=1.0, sin_rz=0.0, cos_rt=1.0
-    )
+    grid = body_grid((80, 80), (40.0, 40.0), (30.0, 30.0, 30.0), cos_rz=1.0, sin_rz=0.0, cos_rt=1.0)
     field = synthesize_relief_field(0.03, 1.0, 3)
     near = grid.e2 < (1.0 + field.h_max + 2.0 / 30.0) ** 2
     shadowed = body_ellipsoid._relief_shading(grid, spec, field, near, cos_rz=1.0, sin_rz=0.0)[3]

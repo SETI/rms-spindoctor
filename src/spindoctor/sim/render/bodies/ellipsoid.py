@@ -1,43 +1,48 @@
-"""Ellipsoid body renderer: smooth or relief limb, ragged terminator, laws.
+"""Ellipsoid body renderer: smooth or relief limb, ragged terminator, laws, textures.
 
 This is the image side's one renderer for an ellipsoid body.
 :func:`spindoctor.sim.render.bodies.render.render_single_body` sends every ellipsoid
 here, whatever its settings: a smooth Lambert disc, a limb-relief field
 (:mod:`spindoctor.sim.render.bodies.relief`), a non-Lambert photometric law or
 opposition surge (:mod:`spindoctor.sim.render.bodies.photometry`), craters, and
-surface textures and transits.
+surface textures and transits (:mod:`spindoctor.sim.render.bodies.texture`).
 
-**Split-resolution rendering.**  Disc shading is low-frequency by
-construction -- relief moves the silhouette and the terminator, never the
-disc shading -- so for a body with relief, craters, a surface texture, or
-transits the shading field (surface normals, crater texture, photometric law)
-is computed once at detector resolution and bilinearly upsampled to the
-working grid (the oversampled grid, or the anti-aliasing supersample grid at
-oversample 1), while the sharp content is rasterized at the full working
-grid: the silhouette mask (with the relief-perturbed limb) and the
-terminator shadow march.  This replaces the per-subsample shading that made
-an oversampled body render ~16x more expensive than its detector-grid
-equivalent, and is what lets a body-bearing scene meet the render-time
-budget (see ``tests/integration/test_sim_perf.py``).  A smooth body (none of
-those four, counting only settings that change the shading: a crater fill that
-places no crater, a texture with no contrast and no spots, or an empty transit
-does not count) is shaded on the working grid itself, as the navigator's
-predicted body is, because the bilinear upsample would move its light a few
-thousandths of a pixel away from the sun.
+**Working grid and detector grid.**  The body is drawn on its *working grid*: the
+oversampled grid, or at oversample 1 the anti-aliasing supersample grid.  The
+silhouette, the smooth ellipsoid's surface normals, and the photometric law are
+all evaluated there, so a body is shaded where its outline is drawn.  This matters
+most near the limb, where the normal turns as the square root of the distance from
+the edge, and at the terminator, where the law clips; shading coarsely and
+interpolating would move the light a few thousandths of a pixel away from the sun.
+A smooth body renders exactly as the navigator's predicted body when the working
+grid has the same factor.
+
+The relief and the craters are laid out on the *detector grid*, one point per
+detector pixel, and interpolated bilinearly onto the working grid: the tilt the
+relief gives the normals, its cast shadows, and the crater slopes.  Detail at the
+detector's own scale interpolates well, and computing the relief once per detector
+pixel instead of once per working pixel keeps a large body within the render-time
+budget (see ``tests/integration/test_sim_perf.py``).  Two regions of a relief body
+are computed on the working grid instead: a band along the limb, where the relief
+turns with the smooth normal, and the cells along the relief's own day-night edge,
+where the law's clip would darken interpolated tilts.  Surface textures and
+transits, whose spots and discs have sharp edges, are drawn on the working grid.
+A body without relief, craters, textures, or transits (counting only settings that
+change the shading: a crater fill that places no crater, a texture with no contrast
+and no spots, or an empty transit does not count) is shaded wholly on the working
+grid.  Only the box the body covers is shaded.
 
 **Relief application.**  The renderer's normalized ellipse radial function
 ``e(p)`` (1 exactly at the unperturbed limb) becomes
 ``e_adj(p) = e(p) / (1 + delta(theta))``, placing the limb at
 ``r_ellipse * (1 + delta)``; ``delta`` is the relief surface's own outline,
 the envelope ``max over lat of (1 + h) cos(lat) - 1`` along each azimuth.
-On the shading grid the relief tilts every normal by the field's surface
-gradient, so slopes facing the sun brighten and slopes facing away darken,
-and an exact ray march through the relief shell (both in
-:mod:`spindoctor.sim.render.bodies.relief`) casts terrain shadows, which render as
-night.  Only points whose sun elevation lies within the field's steepest
-slope can be shadowed, so the march visits those alone.  Shading and
-shadows are evaluated per shading pixel and bilinearly upsampled with the
-rest of the shading, so a shadow's edge is as soft as the shading grid.
+The relief tilts every normal by the field's surface gradient, so slopes facing
+the sun brighten and slopes facing away darken, and an exact ray march through
+the relief shell (both in :mod:`spindoctor.sim.render.bodies.relief`) casts
+terrain shadows, which render as night.  Only points whose sun elevation lies
+within the field's steepest slope can be shadowed, so the march visits those
+alone.
 
 The mesh-body path does not dispatch here: a polyhedral-mesh body applies
 the relief field as a per-vertex radial perturbation in
@@ -51,6 +56,17 @@ from typing import Any
 
 import numpy as np
 
+from spindoctor.sim.render.bodies.ellipsoid_grid import (
+    BodyGrid,
+    bilinear_upsample,
+    body_box,
+    body_grid,
+    crop_grid,
+    day_night_edge_cells,
+    expand_to_working_grid,
+    limb_band,
+    silhouette_mask,
+)
 from spindoctor.sim.render.bodies.photometry import incidence_cosines, shade_surface
 from spindoctor.sim.render.bodies.relief import ReliefField, cast_shadows, synthesize_relief_field
 from spindoctor.sim.render.bodies.texture import (
@@ -62,9 +78,8 @@ from spindoctor.sim.render.bodies.texture import (
 )
 from spindoctor.sim.shared.ellipsoid import ellipsoid_image_normals
 from spindoctor.sim.shared.lighting import illumination_vector
-from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 from spindoctor.support.stable_math import stable_matmul3
-from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType, NDArrayIntType
+from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 
 __all__ = [
     'EllipsoidBodyRender',
@@ -83,6 +98,10 @@ _SLOPE_BAND_MARGIN = 1.5
 # tied to the shading pixel would skip ridge tips on a small body with fine
 # relief and leave their shadows lit.
 _MARCH_SAMPLES_PER_CELL = 8.0
+# Half-width, in detector pixels beyond the relief outline's reach, of the band at
+# the limb where a supersampled body's relief normals and shadows are computed on
+# the working grid instead of interpolated from the detector grid.
+_LIMB_BAND_PX = 3.0
 
 
 @dataclass(frozen=True)
@@ -105,17 +124,15 @@ class EllipsoidBodySpec:
         crater_max_radius: Maximum crater radius as a fraction of ``semi_a_px``.
         crater_power_law_exponent: Crater radius power-law exponent.
         crater_relief_scale: Crater depth scale factor.
-        anti_aliasing: Silhouette anti-aliasing amount in [0, 1]; only
-            consumed at ``oversample`` 1, where it supersamples the
-            silhouette (and a smooth body's shading) as the navigator's model
-            does (an oversampled scene already resolves the limb on its own
-            grid).
+        anti_aliasing: Anti-aliasing amount in [0, 1]; only consumed at
+            ``oversample`` 1, where it supersamples the body by up to 4 (an
+            oversampled scene already resolves the limb on its own grid).
         crater_seed: Seed for crater placement (None with no craters).
-        oversample: The incoming grid's oversampling factor.  A body whose
-            relief, craters, surface texture, or transits change its shading is
-            shaded at the detector grid ``size / oversample``; any other body is
-            smooth and is shaded on the working grid (the incoming grid, or its
-            anti-aliasing supersample at oversample 1).
+        oversample: The incoming grid's oversampling factor.  The body is drawn
+            and shaded on its working grid: the incoming grid, or its
+            anti-aliasing supersample at oversample 1.  Surface detail (relief,
+            craters, and textures) is laid out on the detector grid
+            ``size / oversample`` (see :func:`render_ellipsoid_body`).
         limb_relief_rms: Commanded limb-slice relief RMS (h/R; 0 = off).
         limb_relief_corr_deg: Relief correlation length, degrees of arc.
         relief_seed: Seed of the relief-field realization.
@@ -157,121 +174,9 @@ class EllipsoidBodySpec:
     transits: tuple[TransitSpec, ...] = ()
 
 
-@dataclass
-class _Grid:
-    """One resolution level of the body geometry.
-
-    Parameters:
-        v_ctr: Centered (unrotated) v coordinate of each pixel.
-        u_ctr: Centered (unrotated) u coordinate of each pixel.
-        v_rot: Rotated-frame v coordinate of each pixel.
-        u_rot: Rotated-frame u coordinate of each pixel.
-        e2: Squared normalized ellipse radial function ``e(p)**2``.
-        center: Body center (v, u) in this grid's pixels.
-        semi_a: Semi-axis a at this grid's resolution, pixels.
-        semi_b: Semi-axis b at this grid's resolution, pixels.
-        semi_c: Depth semi-axis c at this grid's resolution, pixels.
-    """
-
-    v_ctr: NDArrayFloatType
-    u_ctr: NDArrayFloatType
-    v_rot: NDArrayFloatType
-    u_rot: NDArrayFloatType
-    e2: NDArrayFloatType
-    center: tuple[float, float]
-    semi_a: float
-    semi_b: float
-    semi_c: float
-
-
-def _body_grid(
-    dims: tuple[int, int],
-    center: tuple[float, float],
-    semi_axes: tuple[float, float, float],
-    *,
-    cos_rz: float,
-    sin_rz: float,
-    cos_rt: float,
-) -> _Grid:
-    """Build the rotated-frame coordinates and radial function for one grid.
-
-    The conventions (the grid built in pixel corner coordinates, rotation then
-    tilt compression) match the shared projection exactly.
-
-    Parameters:
-        dims: Grid dimensions (rows, columns).
-        center: Body center (v, u) in this grid's pixels.
-        semi_axes: Semi-axes (a, b, c) in this grid's pixels.
-        cos_rz: Cosine of the in-plane rotation.
-        sin_rz: Sine of the in-plane rotation.
-        cos_rt: Cosine of the tilt.
-
-    Returns:
-        The populated :class:`_Grid`.
-    """
-    size_v, size_u = dims
-    semi_a, semi_b, semi_c = semi_axes
-    # The grid starts as array rows and columns and the body center is stated
-    # in pixel corner coordinates, so the half pixel goes on before the center
-    # comes off.
-    v_coords, u_coords = np.mgrid[0:size_v, 0:size_u].astype(float)
-    v_coords += PIXEL_CENTER_TO_CORNER_PX - center[0]
-    u_coords += PIXEL_CENTER_TO_CORNER_PX - center[1]
-    v_rot1 = v_coords * cos_rz - u_coords * sin_rz
-    u_rot1 = v_coords * sin_rz + u_coords * cos_rz
-    v_rot = v_rot1 * cos_rt
-    e2 = (v_rot / semi_a) ** 2 + (u_rot1 / semi_b) ** 2
-    return _Grid(
-        v_ctr=v_coords,
-        u_ctr=u_coords,
-        v_rot=v_rot,
-        u_rot=u_rot1,
-        e2=e2,
-        center=center,
-        semi_a=semi_a,
-        semi_b=semi_b,
-        semi_c=semi_c,
-    )
-
-
-def _bilinear_upsample(field: NDArrayFloatType, factor: int) -> NDArrayFloatType:
-    """Bilinearly upsample a field by an integer factor (pixel-center aligned).
-
-    Output sample ``i`` lands at ``(i + PIXEL_CENTER_TO_CORNER_PX) / factor -
-    PIXEL_CENTER_TO_CORNER_PX`` in the input field's pixel centric coordinates:
-    the output row is lifted to pixel corner coordinates, rescaled to the input
-    grid, and lowered again for the array lookup.  Borders clamp to the nearest
-    input sample.
-
-    Parameters:
-        field: The 2-D input field.
-        factor: Integer upsampling factor (1 returns the input unchanged).
-
-    Returns:
-        The ``(rows * factor, cols * factor)`` upsampled field.
-    """
-    if factor == 1:
-        return field
-    n_v, n_u = field.shape
-
-    def _axis(n: int) -> tuple[NDArrayIntType, NDArrayIntType, NDArrayFloatType]:
-        centers = (
-            np.arange(n * factor, dtype=np.float64) + PIXEL_CENTER_TO_CORNER_PX
-        ) / factor - PIXEL_CENTER_TO_CORNER_PX
-        low = np.clip(np.floor(centers).astype(np.intp), 0, n - 1)
-        high = np.minimum(low + 1, n - 1)
-        weight = np.clip(centers - low, 0.0, 1.0)
-        return low, high, weight
-
-    row_lo, row_hi, row_w = _axis(n_v)
-    col_lo, col_hi, col_w = _axis(n_u)
-    rows = field[row_lo, :] * (1.0 - row_w)[:, np.newaxis] + field[row_hi, :] * row_w[:, np.newaxis]
-    return rows[:, col_lo] * (1.0 - col_w) + rows[:, col_hi] * col_w
-
-
 @dataclass(frozen=True)
 class EllipsoidBodyRender:
-    """One ellipsoid body render: its radiance and its solid silhouette.
+    """One topographic body render: its radiance and its solid silhouette.
 
     Parameters:
         intensity: The intensity image in [0, 1], 0 outside the body.  A
@@ -290,7 +195,7 @@ def create_ellipsoid_body(
     center: tuple[float, float],
     spec: EllipsoidBodySpec,
 ) -> NDArrayFloatType:
-    """Render one ellipsoid body onto a black frame.
+    """Render one topographic ellipsoid body onto a black frame.
 
     Parameters:
         size: Frame dimensions (rows, columns) on the incoming render grid.
@@ -334,11 +239,11 @@ def render_ellipsoid_body(
     if size_v % os_in or size_u % os_in:
         raise ValueError(f'frame size {size} is not divisible by oversample {os_in}')
 
-    # At oversample 1 the anti-aliasing knob supersamples the silhouette,
-    # exactly as the navigator scales its working grid; an oversampled
+    # At oversample 1 the anti-aliasing knob supersamples the body; an oversampled
     # scene already resolves the limb, so its work grid IS the render grid.
     aa_scale = int(1 + 3 * spec.anti_aliasing) if (os_in == 1 and spec.anti_aliasing > 0) else 1
     work_dims = (size_v * aa_scale, size_u * aa_scale)
+    up_factor = os_in * aa_scale
 
     field: ReliefField | None = None
     if spec.limb_relief_rms > 0.0:
@@ -353,37 +258,7 @@ def render_ellipsoid_body(
     cos_rt = float(np.cos(spec.rotation_tilt))
     semi = (spec.semi_a_px, spec.semi_b_px, spec.semi_c_px)
 
-    def _detector_grid() -> _Grid:
-        """The body's geometry on the detector grid, where featured shading is done."""
-        return _body_grid(
-            (size_v // os_in, size_u // os_in),
-            (center[0] / os_in, center[1] / os_in),
-            (semi[0] / os_in, semi[1] / os_in, semi[2] / os_in),
-            cos_rz=cos_rz,
-            sin_rz=sin_rz,
-            cos_rt=cos_rt,
-        )
-
-    # A smooth body shades on the working grid, oversampled or anti-aliased, as the
-    # navigator's model of it does.  Shading it at the detector grid and upsampling
-    # bilinearly moves its light about 0.007 px away from the sun (#916).  Relief,
-    # craters, textures, and transits still shade at the detector grid (#931).  A
-    # surface setting that changes nothing (a crater fill that places no crater on
-    # the detector grid, a texture with no contrast and no spots, a transit with
-    # neither a moon nor a shadow) leaves the body smooth, and is dropped from the
-    # spec it is shaded with.
-    up_factor = os_in * aa_scale
-    shading_spec = spec
-    detector_grid: _Grid | None = None
-    if up_factor > 1:
-        if spec.crater_fill > 0.0:
-            detector_grid = _detector_grid()
-        active_spec = _without_inert_surface(spec, detector_grid)
-        if field is None and _is_featureless(active_spec):
-            shading_spec = active_spec
-            up_factor = 1
-
-    work_grid = _body_grid(
+    work_grid = body_grid(
         work_dims,
         (center[0] * aa_scale, center[1] * aa_scale),
         (semi[0] * aa_scale, semi[1] * aa_scale, semi[2] * aa_scale),
@@ -391,17 +266,47 @@ def render_ellipsoid_body(
         sin_rz=sin_rz,
         cos_rt=cos_rt,
     )
-    if up_factor == 1:
-        shade_grid = work_grid
-    elif detector_grid is not None:
-        shade_grid = detector_grid
+    # The detector grid is where craters are drawn and where surface detail is laid
+    # out.
+    detector_grid = work_grid
+    shading_spec = spec
+    if up_factor > 1:
+        detector_grid = body_grid(
+            (size_v // os_in, size_u // os_in),
+            (center[0] / os_in, center[1] / os_in),
+            (semi[0] / os_in, semi[1] / os_in, semi[2] / os_in),
+            cos_rz=cos_rz,
+            sin_rz=sin_rz,
+            cos_rt=cos_rt,
+        )
+        # A surface setting that changes nothing (a crater fill that places no
+        # crater on the detector grid, a texture with no contrast and no spots, a
+        # transit with neither a moon nor a shadow) is dropped from the spec the
+        # body is shaded with, so it renders exactly as the smooth body.
+        shading_spec = _without_inert_surface(spec, detector_grid)
+
+    if up_factor > 1 and _lays_detail_on_detector_grid(shading_spec, field):
+        intensity_work = _shade_disc_with_detector_detail(
+            work_grid,
+            detector_grid,
+            shading_spec,
+            field,
+            up_factor=up_factor,
+            cos_rz=cos_rz,
+            sin_rz=sin_rz,
+        )
     else:
-        shade_grid = _detector_grid()
+        intensity_work = _shade_disc(
+            work_grid,
+            shading_spec,
+            field,
+            detector_grid=detector_grid,
+            scale=up_factor,
+            cos_rz=cos_rz,
+            sin_rz=sin_rz,
+        )
 
-    intensity_shade = _shade_disc(shade_grid, shading_spec, field, cos_rz=cos_rz, sin_rz=sin_rz)
-
-    mask = _silhouette_mask(work_grid, field)
-    intensity_work = _bilinear_upsample(intensity_shade, up_factor)
+    mask = silhouette_mask(work_grid, field)
     intensity_work *= mask
 
     if aa_scale > 1:
@@ -412,37 +317,44 @@ def render_ellipsoid_body(
     return EllipsoidBodyRender(intensity=np.clip(intensity_work, 0.0, 1.0), silhouette=mask)
 
 
-def _shade_disc(
-    grid: _Grid,
-    spec: EllipsoidBodySpec,
-    field: ReliefField | None,
-    *,
-    cos_rz: float,
-    sin_rz: float,
-) -> NDArrayFloatType:
-    """Shade the disc at the shading grid under the spec's photometric law.
+def _lays_detail_on_detector_grid(spec: EllipsoidBodySpec, field: ReliefField | None) -> bool:
+    """Whether a supersampled body's relief or craters are laid out on the detector grid.
 
-    Normals are computed everywhere with the depth clamped to the visible
-    hemisphere, so pixels just outside the limb carry the limb's shading
-    values: the bilinear upsample then continues the disc shading smoothly
-    across the (sharper) silhouette boundary instead of blending to black.
-    With relief the normals are the relief surface's and the terrain casts
-    shadows (:func:`_relief_shading`).
+    The relief tilt, its cast shadows, and the crater slopes are computed on the
+    detector grid and interpolated onto the working grid, which keeps a large body's
+    render within its time budget.  Any other body is shaded wholly on its working
+    grid.
 
     Parameters:
-        grid: The shading-resolution geometry.
-        spec: The body spec (crater texture and photometric law are read).
-        field: The relief realization, or None for the smooth surface; it sets
-            the outline the transits reach.
+        spec: The body spec, with its inert surface settings already dropped.
+        field: The relief realization, or None for the smooth surface.
+
+    Returns:
+        True when the body carries relief or craters.
+    """
+    return field is not None or spec.crater_fill > 0.0
+
+
+def _smooth_normals(
+    grid: BodyGrid, *, cos_rz: float, sin_rz: float
+) -> tuple[NDArrayFloatType, NDArrayFloatType, NDArrayFloatType]:
+    """The smooth ellipsoid's image-frame unit normals on one grid.
+
+    The depth is clamped to the visible hemisphere, so a pixel just outside the
+    limb carries the limb's normal: shading then continues smoothly across the
+    silhouette, which masks it.
+
+    Parameters:
+        grid: The geometry to evaluate on.
         cos_rz: Cosine of the in-plane rotation.
         sin_rz: Sine of the in-plane rotation.
 
     Returns:
-        The intensity on the shading grid.
+        ``(normal_v, normal_u, normal_z)`` on the grid.
     """
     z_coords = grid.semi_c * np.sqrt(np.maximum(0.0, 1.0 - grid.e2))
     everywhere = np.ones_like(grid.e2)
-    normal_v, normal_u, normal_z = ellipsoid_image_normals(
+    return ellipsoid_image_normals(
         everywhere,
         grid.v_rot,
         grid.u_rot,
@@ -453,55 +365,112 @@ def _shade_disc(
         cos_rz=cos_rz,
         sin_rz=sin_rz,
     )
-    shadowed: NDArrayBoolType | None = None
-    if field is not None:
-        # Relief reaches only pixels inside its outline, plus the shading
-        # pixel the upsample reads beyond it; farther out the smooth limb
-        # normals carry the continuity and the silhouette masks them.
-        reach = 1.0 + max(field.h_max, 0.0) + 2.0 / max(min(grid.semi_a, grid.semi_b), 1.0)
-        near = grid.e2 < reach * reach
-        relief_v, relief_u, relief_z, shadowed = _relief_shading(
-            grid, spec, field, near, cos_rz=cos_rz, sin_rz=sin_rz
-        )
-        normal_v[near] = relief_v
-        normal_u[near] = relief_u
-        normal_z[near] = relief_z
-    cos_i = incidence_cosines(
-        normal_v,
-        normal_u,
-        normal_z,
-        illumination_angle=spec.illumination_angle,
-        phase_angle=spec.phase_angle,
+
+
+def _relief_normals(
+    grid: BodyGrid,
+    spec: EllipsoidBodySpec,
+    field: ReliefField,
+    normals: tuple[NDArrayFloatType, NDArrayFloatType, NDArrayFloatType],
+    *,
+    cos_rz: float,
+    sin_rz: float,
+) -> tuple[NDArrayFloatType, NDArrayFloatType, NDArrayFloatType, NDArrayBoolType]:
+    """Replace the smooth normals with the relief surface's, and cast its shadows.
+
+    Parameters:
+        grid: The geometry to evaluate on.
+        spec: The body spec (illumination geometry is read).
+        field: The relief realization.
+        normals: The smooth normals on ``grid``; the arrays are updated in place
+            where the relief reaches.
+        cos_rz: Cosine of the in-plane rotation.
+        sin_rz: Sine of the in-plane rotation.
+
+    Returns:
+        ``(normal_v, normal_u, normal_z, shadowed)``: the relief normals and the
+        relief's cast-shadow mask on ``grid``.
+    """
+    normal_v, normal_u, normal_z = normals
+    # Relief reaches only pixels inside its outline, plus the pixel an
+    # interpolation reads beyond it; farther out the smooth limb normals carry
+    # the continuity and the silhouette masks them.
+    reach = 1.0 + max(field.h_max, 0.0) + 2.0 / max(min(grid.semi_a, grid.semi_b), 1.0)
+    near = grid.e2 < reach * reach
+    relief_v, relief_u, relief_z, shadowed = _relief_shading(
+        grid, spec, field, near, cos_rz=cos_rz, sin_rz=sin_rz
+    )
+    normal_v[near] = relief_v
+    normal_u[near] = relief_u
+    normal_z[near] = relief_z
+    return normal_v, normal_u, normal_z, shadowed
+
+
+def _crater_slopes(
+    spec: EllipsoidBodySpec, *, detector_grid: BodyGrid, scale: int
+) -> tuple[NDArrayFloatType, NDArrayFloatType]:
+    """The slopes of the body's crater field on a grid ``scale`` times the detector's.
+
+    The craters are carved on the detector grid, where their slopes are taken by
+    central differences.  On a finer grid those slopes are interpolated bilinearly,
+    so every grid shades the same cratered surface, with normals that turn
+    continuously.
+
+    Parameters:
+        spec: The body spec (crater keys are read).
+        detector_grid: The detector-grid geometry.
+        scale: Pixels of the grid evaluated on per detector pixel.
+
+    Returns:
+        ``(slope_v, slope_u)`` on that grid, height per unit of length.
+    """
+    slope_v, slope_u = np.gradient(_crater_heights(detector_grid, spec))
+    return (
+        bilinear_upsample(np.asarray(slope_v, dtype=np.float64), scale),
+        bilinear_upsample(np.asarray(slope_u, dtype=np.float64), scale),
     )
 
-    if spec.crater_fill > 0.0:
-        height = _crater_heights(grid, spec)
-        # Local import: render.py imports this module's spec for dispatch, so
-        # the crater helpers resolve lazily to keep the import graph acyclic.
-        from spindoctor.sim.render.bodies.render import perturb_normals_by_slope
 
-        normal_v, normal_u, normal_z = perturb_normals_by_slope(
-            normal_v, normal_u, normal_z, *np.gradient(height)
-        )
-        cos_i = incidence_cosines(
-            normal_v,
-            normal_u,
-            normal_z,
-            illumination_angle=spec.illumination_angle,
-            phase_angle=spec.phase_angle,
-        )
-    if shadowed is not None:
-        # A cast shadow is night: the law floors it like the far side of the
-        # terminator.
-        cos_i = np.where(shadowed, -1.0, cos_i)
+def _perturb_by_craters(
+    normals: tuple[NDArrayFloatType, NDArrayFloatType, NDArrayFloatType],
+    slopes: tuple[NDArrayFloatType, NDArrayFloatType],
+) -> tuple[NDArrayFloatType, NDArrayFloatType, NDArrayFloatType]:
+    """Tilt normals by crater slopes.
 
-    # The clamped-depth parametrization has no far hemisphere, and relief
-    # normals are mirrored onto the near one (normal_z >= 0 everywhere; night
-    # still floors through mu0 <= 0), so the emission
-    # cosine is kept strictly positive: the visibility gate must not zero
-    # the exact-limb ring, whose values the upsample continues across the
-    # sharper silhouette boundary.
-    intensity = shade_surface(
+    Parameters:
+        normals: The ``(v, u, z)`` unit normals.
+        slopes: The crater field's ``(slope_v, slope_u)`` on the same grid.
+
+    Returns:
+        The tilted ``(v, u, z)`` unit normals.
+    """
+    # Local import: render.py imports this module's spec for dispatch, so the
+    # crater helpers resolve lazily to keep the import graph acyclic.
+    from spindoctor.sim.render.bodies.render import perturb_normals_by_slope
+
+    return perturb_normals_by_slope(*normals, *slopes)
+
+
+def _apply_law(
+    cos_i: NDArrayFloatType, normal_z: NDArrayFloatType, spec: EllipsoidBodySpec
+) -> NDArrayFloatType:
+    """Shade incidence cosines under the spec's photometric law and surge.
+
+    The clamped-depth parametrization has no far hemisphere, and relief normals
+    are mirrored onto the near one (``normal_z >= 0`` everywhere; night still floors
+    through ``mu0 <= 0``), so the emission cosine is kept strictly positive: the
+    visibility gate must not zero the exact-limb ring, whose values continue the
+    shading across the silhouette boundary.
+
+    Parameters:
+        cos_i: Incidence cosine per pixel (negative on the night side).
+        normal_z: The normal's toward-observer component per pixel.
+        spec: The body spec (law, Minnaert exponent, and surge are read).
+
+    Returns:
+        The brightness per pixel.
+    """
+    return shade_surface(
         cos_i,
         np.maximum(normal_z, 1e-12),
         law=spec.photometric_law,
@@ -510,11 +479,196 @@ def _shade_disc(
         surge_amplitude=spec.surge_amplitude,
         surge_width_deg=spec.surge_width_deg,
     )
-    return _apply_surface_textures(intensity, grid, spec, field)
+
+
+def _shade_disc(
+    grid: BodyGrid,
+    spec: EllipsoidBodySpec,
+    field: ReliefField | None,
+    *,
+    detector_grid: BodyGrid,
+    scale: int,
+    cos_rz: float,
+    sin_rz: float,
+) -> NDArrayFloatType:
+    """Shade the disc on one grid, with all its surface detail evaluated there.
+
+    Normals are computed everywhere with the depth clamped to the visible
+    hemisphere, so pixels just outside the limb carry the limb's shading values.
+    With relief the normals are the relief surface's and the terrain casts
+    shadows (:func:`_relief_shading`), which render as night.
+
+    Parameters:
+        grid: The geometry to shade on.
+        spec: The body spec (crater texture and photometric law are read).
+        field: The relief realization, or None for the smooth surface; it sets
+            the outline the transits reach.
+        detector_grid: The detector-grid geometry the craters are carved on (``grid``
+            itself when ``scale`` is 1).
+        scale: Pixels of ``grid`` per detector pixel, the unit of texture and
+            transit lengths.
+        cos_rz: Cosine of the in-plane rotation.
+        sin_rz: Sine of the in-plane rotation.
+
+    Returns:
+        The intensity on the grid.
+    """
+    normals = _smooth_normals(grid, cos_rz=cos_rz, sin_rz=sin_rz)
+    shadowed: NDArrayBoolType | None = None
+    if field is not None:
+        *relief, shadowed = _relief_normals(
+            grid, spec, field, normals, cos_rz=cos_rz, sin_rz=sin_rz
+        )
+        normals = (relief[0], relief[1], relief[2])
+    if spec.crater_fill > 0.0:
+        normals = _perturb_by_craters(
+            normals, _crater_slopes(spec, detector_grid=detector_grid, scale=scale)
+        )
+    normal_v, normal_u, normal_z = normals
+    cos_i = incidence_cosines(
+        normal_v,
+        normal_u,
+        normal_z,
+        illumination_angle=spec.illumination_angle,
+        phase_angle=spec.phase_angle,
+    )
+    if shadowed is not None:
+        # A cast shadow is night: the law floors it like the far side of the
+        # terminator.
+        cos_i = np.where(shadowed, -1.0, cos_i)
+    intensity = _apply_law(cos_i, normal_z, spec)
+    factor = _texture_factor(grid, spec, scale=scale)
+    return _apply_surface_textures(intensity, grid, spec, field, factor=factor, scale=scale)
+
+
+def _shade_disc_with_detector_detail(
+    work_grid: BodyGrid,
+    detector_grid: BodyGrid,
+    spec: EllipsoidBodySpec,
+    field: ReliefField | None,
+    *,
+    up_factor: int,
+    cos_rz: float,
+    sin_rz: float,
+) -> NDArrayFloatType:
+    """Shade the disc on the working grid, with relief and craters from the detector grid.
+
+    The smooth ellipsoid's normals and the photometric law are evaluated on the
+    working grid, where they are exact: near the limb the normal turns as the square
+    root of the distance from the edge, which no interpolation follows.  The relief
+    and the craters are computed on the detector grid and interpolated bilinearly
+    onto the working grid: the tilt the relief gives each normal, the relief's cast
+    shadows on the sunward side, and the crater slopes.  Within
+    :data:`_LIMB_BAND_PX` detector pixels of the limb, and along the relief's own
+    day-night edge, the relief's normals and shadows are computed on the working
+    grid too.  Textures and transits are drawn on the working grid.  Only the box
+    the body covers is shaded.
+
+    Parameters:
+        work_grid: The working-grid geometry.
+        detector_grid: The detector-grid geometry.
+        spec: The body spec.
+        field: The relief realization, or None for the smooth surface.
+        up_factor: Pixels of the working grid per detector pixel.
+        cos_rz: Cosine of the in-plane rotation.
+        sin_rz: Sine of the in-plane rotation.
+
+    Returns:
+        The intensity on the working grid.
+    """
+    full_shape = work_grid.e2.shape
+    box = body_box(detector_grid, field)
+    if box is None:
+        return np.zeros(full_shape)
+    rows, cols = box
+    work_rows = slice(rows.start * up_factor, rows.stop * up_factor)
+    work_cols = slice(cols.start * up_factor, cols.stop * up_factor)
+    crater_slopes: tuple[NDArrayFloatType, NDArrayFloatType] | None = None
+    if spec.crater_fill > 0.0:
+        # The craters are drawn on the whole detector grid, whose dimensions their
+        # draw depends on, and cropped afterward.
+        slope_v, slope_u = _crater_slopes(spec, detector_grid=detector_grid, scale=1)
+        crater_slopes = (slope_v[rows, cols], slope_u[rows, cols])
+    detector_grid = crop_grid(detector_grid, rows, cols)
+    work_grid = crop_grid(work_grid, work_rows, work_cols)
+
+    normal_v, normal_u, normal_z = _smooth_normals(work_grid, cos_rz=cos_rz, sin_rz=sin_rz)
+    detector_cast: NDArrayBoolType | None = None
+    band: NDArrayBoolType | None = None
+    band_shadowed: NDArrayBoolType | None = None
+    if field is not None:
+        base_v, base_u, base_z = _smooth_normals(detector_grid, cos_rz=cos_rz, sin_rz=sin_rz)
+        relief_v, relief_u, relief_z, detector_shadowed = _relief_normals(
+            detector_grid,
+            spec,
+            field,
+            (base_v.copy(), base_u.copy(), base_z.copy()),
+            cos_rz=cos_rz,
+            sin_rz=sin_rz,
+        )
+        # The tilt is added without renormalizing: interpolation shortens the tilt
+        # but not the normal's second-order shrink toward the smooth normal, so a
+        # renormalized sum would brighten rough terrain.  As it is, a Lambert
+        # surface's brightness is the interpolated difference between the relief
+        # and smooth brightness.
+        normal_v += bilinear_upsample(relief_v - base_v, up_factor)
+        normal_u += bilinear_upsample(relief_u - base_u, up_factor)
+        normal_z += bilinear_upsample(relief_z - base_z, up_factor)
+        relief_cos_i = incidence_cosines(
+            relief_v,
+            relief_u,
+            relief_z,
+            illumination_angle=spec.illumination_angle,
+            phase_angle=spec.phase_angle,
+        )
+        # Only a pixel facing the sun is darkened by a cast shadow; one facing away
+        # is night by its own normal, which the working grid resolves.
+        detector_cast = detector_shadowed & (relief_cos_i > 0.0)
+        band = limb_band(work_grid, field, width_px=_LIMB_BAND_PX * up_factor)
+        band |= expand_to_working_grid(day_night_edge_cells(relief_cos_i > 0.0), up_factor)
+        band_v, band_u, band_z, band_shadowed = _relief_shading(
+            work_grid, spec, field, band, cos_rz=cos_rz, sin_rz=sin_rz
+        )
+        normal_v[band] = band_v
+        normal_u[band] = band_u
+        normal_z[band] = band_z
+    if crater_slopes is not None:
+        normal_v, normal_u, normal_z = _perturb_by_craters(
+            (normal_v, normal_u, normal_z),
+            (
+                bilinear_upsample(crater_slopes[0], up_factor),
+                bilinear_upsample(crater_slopes[1], up_factor),
+            ),
+        )
+    cos_i = incidence_cosines(
+        normal_v,
+        normal_u,
+        normal_z,
+        illumination_angle=spec.illumination_angle,
+        phase_angle=spec.phase_angle,
+    )
+    if band_shadowed is not None:
+        cos_i = np.where(band_shadowed, -1.0, cos_i)
+    intensity = _apply_law(cos_i, normal_z, spec)
+    if detector_cast is not None and band is not None and detector_cast.any():
+        fraction = bilinear_upsample(detector_cast.astype(np.float64), up_factor)
+        fraction[band] = 0.0
+        touched = fraction > 0.0
+        night = _apply_law(np.full(int(touched.sum()), -1.0), normal_z[touched], spec)
+        intensity[touched] += fraction[touched] * (night - intensity[touched])
+    # The texture factor is cheap to evaluate, and its spots and storms have sharp
+    # edges, so it is evaluated on the working grid, where a sampled edge cannot
+    # move the light.
+    factor = _texture_factor(work_grid, spec, scale=up_factor)
+    full = np.zeros(full_shape)
+    full[work_rows, work_cols] = _apply_surface_textures(
+        intensity, work_grid, spec, field, factor=factor, scale=up_factor
+    )
+    return full
 
 
 def _relief_shading(
-    grid: _Grid,
+    grid: BodyGrid,
     spec: EllipsoidBodySpec,
     field: ReliefField,
     near: NDArrayBoolType,
@@ -599,46 +753,68 @@ def _relief_shading(
     return normal_v, normal_u, normal_z, shadowed
 
 
-def _apply_surface_textures(
-    intensity: NDArrayFloatType,
-    grid: _Grid,
-    spec: EllipsoidBodySpec,
-    field: ReliefField | None,
-) -> NDArrayFloatType:
-    """Apply the spec's multiplicative textures and transits to the shading.
-
-    Texture layering: the albedo/disc texture factor multiplies the law
-    shading first, then transit shadows multiply the textured result, then
-    transiting moon discs overwrite on top (from the pre-texture smooth-law
-    shading -- a foreground moon does not inherit the parent's texture).
-    Everything happens on the shading grid, so the silhouette (rasterized
-    separately on the working grid) is untouched by construction.  Transits
-    reach the body's outline: the relief outline when the body has relief,
-    else the smooth limb.
+def _texture_factor(
+    grid: BodyGrid, spec: EllipsoidBodySpec, *, scale: int
+) -> NDArrayFloatType | None:
+    """The spec's multiplicative surface-texture factor on one grid.
 
     Parameters:
-        intensity: The law-shaded intensity on the shading grid.
-        grid: The shading-resolution geometry.
-        spec: The body spec (texture and transit fields are read).
-        field: The relief realization, or None for the smooth limb.
+        grid: The geometry to evaluate on.
+        spec: The body spec (texture fields are read).
+        scale: Pixels of ``grid`` per detector pixel, the unit of the albedo
+            correlation length.
 
     Returns:
-        The textured intensity (the input array, unchanged, when the spec
-        has no texture and no transits).
+        The factor per pixel, or None when the spec has no albedo or disc texture.
     """
-    if spec.albedo_texture is None and spec.disc_texture is None and not spec.transits:
-        return intensity
+    if spec.albedo_texture is None and spec.disc_texture is None:
+        return None
     x = grid.v_rot / grid.semi_a
     y = grid.u_rot / grid.semi_b
     z = np.sqrt(np.maximum(0.0, 1.0 - grid.e2))
-    factor = surface_texture_factor(
+    return surface_texture_factor(
         spec.albedo_texture,
         spec.disc_texture,
         x=x,
         y=y,
         z=z,
-        mean_radius_px=(grid.semi_a + grid.semi_b) / 2.0,
+        mean_radius_px=(grid.semi_a + grid.semi_b) / 2.0 / scale,
     )
+
+
+def _apply_surface_textures(
+    intensity: NDArrayFloatType,
+    grid: BodyGrid,
+    spec: EllipsoidBodySpec,
+    field: ReliefField | None,
+    *,
+    factor: NDArrayFloatType | None,
+    scale: int,
+) -> NDArrayFloatType:
+    """Apply a texture factor and the spec's transits to the shading.
+
+    Texture layering: the albedo/disc texture factor multiplies the law
+    shading first, then transit shadows multiply the textured result, then
+    transiting moon discs overwrite on top (from the pre-texture smooth-law
+    shading -- a foreground moon does not inherit the parent's texture).
+    The silhouette is rasterized separately, so it is untouched by
+    construction.  Transits reach the body's outline: the relief outline when
+    the body has relief, else the smooth limb.
+
+    Parameters:
+        intensity: The law-shaded intensity on ``grid``.
+        grid: The geometry the intensity lies on.
+        spec: The body spec (transit fields are read).
+        field: The relief realization, or None for the smooth limb.
+        factor: The texture factor on ``grid``, or None for no texture.
+        scale: Pixels of ``grid`` per detector pixel, the unit of transit lengths.
+
+    Returns:
+        The textured intensity (the input array, unchanged, when there is no
+        texture and no transit).
+    """
+    if factor is None and not spec.transits:
+        return intensity
     textured = intensity if factor is None else np.clip(intensity * factor, 0.0, 1.0)
     if spec.transits:
         if textured is intensity:
@@ -647,38 +823,31 @@ def _apply_surface_textures(
             textured,
             spec.transits,
             base_intensity=intensity,
-            v_ctr=grid.v_ctr,
-            u_ctr=grid.u_ctr,
-            disc_mask=grid.e2 < 1.0 if field is None else _silhouette_mask(grid, field) > 0.0,
+            v_ctr=grid.v_ctr / scale,
+            u_ctr=grid.u_ctr / scale,
+            disc_mask=grid.e2 < 1.0 if field is None else silhouette_mask(grid, field) > 0.0,
         )
     return textured
 
 
-def _without_inert_surface(
-    spec: EllipsoidBodySpec, detector_grid: _Grid | None
-) -> EllipsoidBodySpec:
+def _without_inert_surface(spec: EllipsoidBodySpec, detector_grid: BodyGrid) -> EllipsoidBodySpec:
     """The spec with the recognized no-op surface settings removed.
 
     A crater fill is inert when it places no crater on the detector grid, the grid the
-    craters are carved on when they shade at all; an albedo texture when its noise field
-    is off (zero RMS or zero correlation length) and it has no spots; a disc texture
-    when its bands have zero amplitude and it has no storms; and a transit when it has
-    neither a moon nor a shadow.
+    craters are drawn on; an albedo texture when its noise field is off (zero RMS or
+    zero correlation length) and it has no spots; a disc texture when its bands have
+    zero amplitude and it has no storms; and a transit when it has neither a moon nor
+    a shadow.
 
     Parameters:
         spec: The body spec.
-        detector_grid: The detector-grid geometry the crater count is taken on, or
-            None, in which case the crater fill is kept as it is.
+        detector_grid: The detector-grid geometry the crater count is taken on.
 
     Returns:
         The spec with the inert settings cleared (``spec`` itself when none is inert).
     """
     changes: dict[str, Any] = {}
-    if (
-        spec.crater_fill > 0.0
-        and detector_grid is not None
-        and _crater_count(detector_grid, spec) == 0
-    ):
+    if spec.crater_fill > 0.0 and _crater_count(detector_grid, spec) == 0:
         changes['crater_fill'] = 0.0
     albedo = spec.albedo_texture
     if albedo is not None and not (albedo.rms > 0.0 and albedo.corr_px > 0.0) and not albedo.spots:
@@ -692,25 +861,7 @@ def _without_inert_surface(
     return replace(spec, **changes) if changes else spec
 
 
-def _is_featureless(spec: EllipsoidBodySpec) -> bool:
-    """Whether the spec carries no craters, no surface texture, and no transits.
-
-    Parameters:
-        spec: The body spec.
-
-    Returns:
-        True when the spec's surface is smooth apart from any relief, which the caller
-        checks separately.
-    """
-    return (
-        spec.crater_fill <= 0.0
-        and spec.albedo_texture is None
-        and spec.disc_texture is None
-        and not spec.transits
-    )
-
-
-def _crater_count(grid: _Grid, spec: EllipsoidBodySpec) -> int:
+def _crater_count(grid: BodyGrid, spec: EllipsoidBodySpec) -> int:
     """The number of craters the spec's crater fill places on a grid.
 
     Parameters:
@@ -725,19 +876,18 @@ def _crater_count(grid: _Grid, spec: EllipsoidBodySpec) -> int:
     return int(np.clip(int(spec.crater_fill * total_area / avg_crater_area), 0, 1000))
 
 
-def _crater_heights(grid: _Grid, spec: EllipsoidBodySpec) -> NDArrayFloatType:
-    """Carve the crater height field on the shading grid.
+def _crater_heights(grid: BodyGrid, spec: EllipsoidBodySpec) -> NDArrayFloatType:
+    """Carve the crater height field on the detector grid.
 
-    Uses the crater carving loop (count law, radius power law, and
-    per-crater draw rule) at the shading grid's resolution, seeded by the
-    per-body crater seed.
+    Uses the crater carving loop (count law, radius power law, and per-crater draw
+    rule), seeded by the per-body crater seed.
 
     Parameters:
-        grid: The shading-resolution geometry.
+        grid: The detector-grid geometry.
         spec: The body spec (crater knobs and seed are read).
 
     Returns:
-        The crater height field over the shading grid.
+        The crater height field over the grid.
     """
     # Local import: render.py imports this module's spec for dispatch, so the
     # crater helpers resolve lazily to keep the import graph acyclic.
@@ -770,42 +920,3 @@ def _crater_heights(grid: _Grid, spec: EllipsoidBodySpec) -> NDArrayFloatType:
         work_center_v=grid.center[0],
         work_center_u=grid.center[1],
     )
-
-
-def _silhouette_mask(grid: _Grid, field: ReliefField | None) -> NDArrayFloatType:
-    """The body's silhouette on the working grid, relief-perturbed when on.
-
-    With relief, ``e_adj = e / (1 + delta(theta))`` places the limb at
-    ``r_ellipse * (1 + delta)``, with ``delta`` the relief surface's outline
-    envelope (:meth:`~spindoctor.sim.render.bodies.relief.ReliefField.outline_delta`);
-    the perturbation only matters in a band ``|e - 1| <= |delta|_max`` around
-    the smooth limb, so azimuths and the outline are evaluated on that band
-    only.
-
-    The relief azimuth ``phi`` is the elliptical parametric angle in the
-    body's rotated frame, NOT the image azimuth about the body center: the
-    relief field is attached to the body, so the outline, the shading, and
-    the cast shadows read one consistent surface under any in-plane rotation.
-    For a circular disc the two conventions coincide.
-
-    Parameters:
-        grid: The working-grid geometry.
-        field: The relief realization, or None for the smooth limb.
-
-    Returns:
-        Float mask (1 inside the body, 0 outside).
-    """
-    mask = grid.e2 <= 1.0
-    if field is not None:
-        delta_cap = max(abs(field.h_min), abs(field.h_max)) * 1.001 + 1e-12
-        low = max(0.0, 1.0 - delta_cap)
-        high = 1.0 + delta_cap
-        band = (grid.e2 > low * low) & (grid.e2 < high * high)
-        if band.any():
-            e_band = np.sqrt(grid.e2[band])
-            # Body-attached azimuth: the rotated-frame elliptical parametric
-            # angle (identical to the image azimuth for a circular disc).
-            phi = np.arctan2(grid.u_rot[band] / grid.semi_b, grid.v_rot[band] / grid.semi_a)
-            delta = field.outline_delta(phi)
-            mask[band] = e_band <= 1.0 + delta
-    return mask.astype(np.float64)

@@ -1,9 +1,8 @@
 """Truth-side multiplicative surface textures for the ellipsoid body renderer.
 
 Three texture families live here, all applied to the body's SHADING (the
-photometric-law output on the detector-resolution shading grid) and never to
-the silhouette, so they change what disc correlation sees without moving the
-limb the navigator fits:
+photometric-law output) and never to the silhouette, so they change what disc
+correlation sees without moving the limb the navigator fits:
 
 - **Albedo texture** (``albedo_texture``): a band-limited multiplicative
   noise field on the surface plus discrete circular albedo spots -- the
@@ -39,10 +38,10 @@ field's equator crosses the disc center) and foreshortens toward the limb
 the way real surface texture does.
 
 Transit geometry (``dv_px`` / ``du_px`` offsets from the body center and
-``radius_px``) is in detector pixels on the image plane, consumed directly
-on the detector-resolution shading grid.  A transiting disc renders only
-where it overlaps the parent silhouette -- a moon off the limb is a
-separate scene body, not a transit entry.
+``radius_px``) is in detector pixels on the image plane; the renderer scales it
+to the grid it draws transits on.  A transiting disc renders only where it
+overlaps the parent silhouette -- a moon off the limb is a separate scene body,
+not a transit entry.
 
 All keys here are truth keys: the navigator's predicted body is always the
 untextured smooth-law template, so every texture is planted model error by
@@ -291,7 +290,7 @@ def surface_texture_factor(
         y: Unit-sphere b-axis component per shading pixel (``u_rot / b``).
         z: Unit-sphere toward-observer component (0 outside the disc, so
             off-disc pixels carry limb values for the upsample continuity).
-        mean_radius_px: Mean projected body radius in shading-grid (detector)
+        mean_radius_px: Mean projected body radius in detector
             pixels, the ``corr_px`` -> surface-arc conversion scale.
 
     Returns:
