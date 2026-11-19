@@ -124,7 +124,6 @@ def clear_mesh_shape_caches() -> None:
 def render_single_mesh_body(
     img: NDArrayFloatType,
     body: BodySpec,
-    body_name: str,
     *,
     center_v: float,
     center_u: float,
@@ -145,9 +144,9 @@ def render_single_mesh_body(
         img: Image array to modify in-place.
         body: The body, parsed by
             :func:`~spindoctor.sim.render.bodies.spec.body_spec_from_params`.
-            Its mesh shape and pose, and the truth fields ``shading``,
-            ``limb_relief_*``, and ``pose_scatter_sigma_deg``, are read here.
-        body_name: Upper-cased body name for the inventory keys.
+            Its name, its mesh shape and pose, and the truth fields ``shading``,
+            ``limb_relief_*``, and ``pose_scatter_sigma_deg``, are read here.  The
+            upper-cased name keys the inventory and the body's identity seed.
         center_v: Body center V in the image (offset already applied).
         center_u: Body center U in the image (offset already applied).
         semi_a_px: Semi-axis a of the ellipsoidal envelope in pixels.
@@ -169,9 +168,9 @@ def render_single_mesh_body(
         per-axis angles in degrees as ``pose_scatter_drawn_deg``.
     """
     size_v, size_u = img.shape
+    body_name = body.name.upper()
     streams = _draw_mesh_streams(
         body,
-        body_name,
         body_streams_seed=body_streams_seed,
         body_index=body_index,
         widths=(2.0 * semi_a_px, 2.0 * semi_b_px, 2.0 * semi_c_px),
@@ -230,7 +229,6 @@ class _MeshStreams:
 
 def _draw_mesh_streams(
     body: BodySpec,
-    body_name: str,
     *,
     body_streams_seed: int | None,
     body_index: int,
@@ -244,15 +242,15 @@ def _draw_mesh_streams(
     through the returned body info.
 
     Parameters:
-        body: The body (its mesh, relief, pose scatter, and seed are read).
-        body_name: The upper-cased body name.
+        body: The body (its name, mesh, relief, pose scatter, and seed are read).
         body_streams_seed: The scene's seed for every body's random streams, or None.
         body_index: The body's position in the scene's body list.
         widths: The full widths of the ellipsoidal envelope, twice its semi-axes, in
             pixels.
 
     Returns:
-        The rendered mesh, the relief seed, and the drawn pose scatter.
+        The mesh spec to render, with the drawn pose scatter added to its pose, the
+        relief seed, and the drawn pose scatter.
     """
     mesh = body.mesh
     if body.limb_relief_rms <= 0.0 and body.pose_scatter_sigma_deg <= 0.0:
@@ -263,7 +261,7 @@ def _draw_mesh_streams(
         body_streams_seed,
         body,
         body_index,
-        fallback_key=(*widths, body_index, body_name),
+        fallback_key=(*widths, body_index, body.name.upper()),
         mask_fallback=True,
     )
     relief_seed = 0

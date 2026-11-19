@@ -120,7 +120,6 @@ def _render_mesh_body(body: dict[str, Any]) -> NDArrayFloatType:
     render_single_mesh_body(
         img,
         body_spec_from_params(body, index=0),
-        'LUMP',
         center_v=_CENTER,
         center_u=_CENTER,
         semi_a_px=_RADIUS,
@@ -220,7 +219,6 @@ def test_pose_scatter_draw_is_returned_with_the_body_info() -> None:
     _, info = render_single_mesh_body(
         img,
         body_spec_from_params(body, index=0),
-        'LUMP',
         center_v=_CENTER,
         center_u=_CENTER,
         semi_a_px=_RADIUS,

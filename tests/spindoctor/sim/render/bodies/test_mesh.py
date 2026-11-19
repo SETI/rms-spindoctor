@@ -66,7 +66,6 @@ def _render_seedless_mesh_body() -> None:
     body_mesh.render_single_mesh_body(
         np.zeros((64, 64)),
         body_spec_from_params(params, index=3),
-        'LUMP',
         center_v=32.0,
         center_u=32.0,
         semi_a_px=20.0,

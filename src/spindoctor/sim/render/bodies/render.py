@@ -103,7 +103,6 @@ def render_single_body(
         pose scatter drew a perturbation, ``pose_scatter_drawn_deg``.
     """
     size_v, size_u = img.shape
-    body_name = spec.name.upper()
     center_v = (size_v / 2.0 if spec.center_v is None else spec.center_v) + offset_v
     center_u = (size_u / 2.0 if spec.center_u is None else spec.center_u) + offset_u
 
@@ -113,7 +112,6 @@ def render_single_body(
         return render_single_mesh_body(
             img,
             spec,
-            body_name,
             center_v=center_v,
             center_u=center_u,
             semi_a_px=spec.semi_a_px,
@@ -136,7 +134,6 @@ def render_single_body(
     return _render_single_ellipsoid_body(
         img,
         spec,
-        body_name,
         center_v=center_v,
         center_u=center_u,
         body_streams_seed=body_streams_seed,
@@ -150,7 +147,6 @@ def render_single_body(
 def _render_single_ellipsoid_body(
     img: NDArrayFloatType,
     spec: BodySpec,
-    body_name: str,
     *,
     center_v: float,
     center_u: float,
@@ -168,7 +164,6 @@ def _render_single_ellipsoid_body(
     Parameters:
         img: Image array to modify in-place.
         spec: The body, scaled to the render grid.
-        body_name: The upper-cased body name.
         center_v: Body center V in the image (offset already applied).
         center_u: Body center U in the image (offset already applied).
         body_streams_seed: The scene's seed for every body's random streams, or None.
@@ -183,7 +178,6 @@ def _render_single_ellipsoid_body(
     size_v, size_u = img.shape
     seeds = _surface_seeds(
         spec,
-        body_name,
         body_streams_seed=body_streams_seed,
         body_index=body_index,
         size=(size_v, size_u),
@@ -205,7 +199,7 @@ def _render_single_ellipsoid_body(
     return finish_single_body(
         img,
         body_shape,
-        body_name=body_name,
+        body_name=spec.name.upper(),
         center_v=center_v,
         center_u=center_u,
         half_extent_v=half_extent_v,
@@ -236,7 +230,6 @@ class _SurfaceSeeds:
 
 def _surface_seeds(
     spec: BodySpec,
-    body_name: str,
     *,
     body_streams_seed: int | None,
     body_index: int,
@@ -252,8 +245,7 @@ def _surface_seeds(
     other, and stable when other randomized features are toggled.
 
     Parameters:
-        spec: The body.
-        body_name: The upper-cased body name.
+        spec: The body (its name, geometry, surface keys, and seed are read).
         body_streams_seed: The scene's seed for every body's random streams, or None.
         body_index: The body's position in the scene's body list.
         size: The render grid's dimensions (rows, columns).
@@ -298,7 +290,13 @@ def _surface_seeds(
             body_streams_seed,
             spec,
             body_index,
-            fallback_key=(2.0 * semi_a_px, 2.0 * semi_b_px, 2.0 * semi_c_px, body_index, body_name),
+            fallback_key=(
+                2.0 * semi_a_px,
+                2.0 * semi_b_px,
+                2.0 * semi_c_px,
+                body_index,
+                spec.name.upper(),
+            ),
         )
         if spec.limb_relief_rms > 0.0:
             relief_seed = derive_effect_seed(identity_seed, 'relief')
