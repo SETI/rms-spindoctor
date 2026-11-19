@@ -79,7 +79,6 @@ from spindoctor.sim.render.bodies.texture import (
     apply_transits,
     surface_texture_factor,
 )
-from spindoctor.sim.seeds import stable_param_seed
 from spindoctor.sim.shared.ellipsoid import (
     EllipsoidProjection,
     ellipsoid_image_normals,
@@ -136,7 +135,8 @@ class EllipsoidBodySpec:
         anti_aliasing: Anti-aliasing amount in [0, 1]; only consumed at
             ``oversample`` 1, where it supersamples the body by up to 4 (an
             oversampled scene already resolves the limb on its own grid).
-        crater_seed: Seed for crater placement (None with no craters).
+        crater_seed: Seed for crater placement, of which the low 31 bits are used.
+            None suits only a body that places no crater.
         oversample: The incoming grid's oversampling factor.  The body is drawn
             and shaded on its working grid: the incoming grid, or its
             anti-aliasing supersample at oversample 1.  Relief and craters are
@@ -217,7 +217,8 @@ def create_ellipsoid_body(
         intensity of :func:`render_ellipsoid_body`.
 
     Raises:
-        ValueError: If the frame size is not divisible by the oversample.
+        ValueError: If the frame size is not divisible by the oversample, or if the
+            spec places a crater but has no crater seed.
     """
     return render_ellipsoid_body(size, center, spec).intensity
 
@@ -242,7 +243,8 @@ def render_ellipsoid_body(
         The :class:`EllipsoidBodyRender` on the ``size`` grid.
 
     Raises:
-        ValueError: If the frame size is not divisible by the oversample.
+        ValueError: If the frame size is not divisible by the oversample, or if the
+            spec places a crater but has no crater seed.
     """
     size_v, size_u = size
     os_in = max(1, int(spec.oversample))
@@ -820,25 +822,22 @@ def _crater_heights(grid: EllipsoidProjection, spec: EllipsoidBodySpec) -> NDArr
 
     Returns:
         The crater height field over the grid.
+
+    Raises:
+        ValueError: If the spec places a crater on the grid but has no crater seed.
     """
     inside_strict = grid.ellipse_dist_sq < 1.0
     n_craters = _crater_count(grid, spec)
     if n_craters == 0 or not inside_strict.any():
         return np.zeros_like(grid.ellipse_dist_sq)
 
-    if spec.crater_seed is not None:
-        seed_value = int(spec.crater_seed) & 0x7FFFFFFF
-    else:
-        # The fallback seed is keyed on the full widths, twice the semi-axes; the
-        # craters of the committed seed-less scenes depend on this key (#913).
-        widths = (2.0 * spec.semi_a_px, 2.0 * spec.semi_b_px, 2.0 * spec.semi_c_px)
-        seed_value = stable_param_seed(*widths, grid.center)
-        seed_value &= 0x7FFFFFFF
+    if spec.crater_seed is None:
+        raise ValueError('a body that places craters needs a crater seed')
     return carve_crater_heights(
         inside_strict,
         grid.v_coords,
         grid.u_coords,
-        crater_seed=seed_value,
+        crater_seed=int(spec.crater_seed) & 0x7FFFFFFF,
         n_craters=n_craters,
         R_min=spec.crater_min_radius * grid.semi_a,
         R_max=spec.crater_max_radius * grid.semi_a,

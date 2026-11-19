@@ -28,9 +28,9 @@ from spindoctor.sim.render.bodies.ellipsoid import (
 )
 from spindoctor.sim.render.bodies.mesh import render_single_mesh_body
 from spindoctor.sim.render.bodies.placement import finish_single_body
-from spindoctor.sim.render.bodies.spec import BodySpec
+from spindoctor.sim.render.bodies.spec import BodySpec, body_identity_seed
 from spindoctor.sim.render.bodies.texture import albedo_spec_from_params
-from spindoctor.sim.seeds import derive_effect_seed, stable_param_seed
+from spindoctor.sim.seeds import derive_effect_seed
 from spindoctor.support.stable_math import stable_hypot
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 
@@ -121,19 +121,28 @@ def render_single_body(
     limb_relief_corr_deg = spec.limb_relief_corr_deg
     photometric_law = spec.photometric_law
 
-    # Mix a stable per-body identity (scene index and name) into the scene's
-    # body streams seed so two bodies with identical geometry draw independent crater
-    # patterns and occupy distinct shape-cache entries.  The derivation is
-    # SHA-256 based (never Python's salted hash), so it is process-stable.  A
-    # body without craters never consumes the seed; None keeps identical
-    # smooth bodies sharing one cached shape.
-    crater_seed: int | None
-    if crater_fill <= 0.0:
-        crater_seed = None
-    elif body_streams_seed is not None:
-        crater_seed = derive_effect_seed(body_streams_seed, f'body:{body_index}:{body_name}')
-    else:
-        crater_seed = spec.seed
+    # Each body's craters draw from its identity seed, so two bodies with identical
+    # geometry draw independent crater patterns and occupy distinct shape-cache
+    # entries.  A body without craters never consumes the seed; None keeps
+    # identical smooth bodies sharing one cached shape.
+    crater_seed: int | None = None
+    if crater_fill > 0.0:
+        # The fallback digest hashes the full widths, twice the semi-axes, and the
+        # body center on the detector grid, where the craters are carved, of the
+        # shape drawn at the frame center.  A body drawn without seeds keeps its
+        # craters (#913).
+        os_in = max(1, int(oversample))
+        crater_seed = body_identity_seed(
+            body_streams_seed,
+            spec,
+            body_index,
+            fallback_key=(
+                2.0 * semi_a_px,
+                2.0 * semi_b_px,
+                2.0 * semi_c_px,
+                (size_v / 2.0 / os_in, size_u / 2.0 / os_in),
+            ),
+        )
 
     # Projected half-extents of the body in the image plane.  The rendered
     # silhouette is the ellipse of semi-axes a and b rotated in-plane by
@@ -177,16 +186,14 @@ def render_single_body(
     relief_seed = 0
     albedo_seed = 0
     if limb_relief_rms > 0.0 or spec.albedo_texture is not None:
-        if body_streams_seed is not None:
-            identity_seed = derive_effect_seed(body_streams_seed, f'body:{body_index}:{body_name}')
-        elif spec.seed is not None:
-            identity_seed = spec.seed & 0x7FFFFFFF
-        else:
-            # The fallback seed is keyed on the full widths, twice the semi-axes; the
-            # terrain of the committed seed-less scenes depends on this key (#913).
-            identity_seed = stable_param_seed(
-                2.0 * semi_a_px, 2.0 * semi_b_px, 2.0 * semi_c_px, body_index, body_name
-            )
+        # The fallback digest hashes the full widths, twice the semi-axes, so a body
+        # drawn without seeds keeps its terrain (#913).
+        identity_seed = body_identity_seed(
+            body_streams_seed,
+            spec,
+            body_index,
+            fallback_key=(2.0 * semi_a_px, 2.0 * semi_b_px, 2.0 * semi_c_px, body_index, body_name),
+        )
         if limb_relief_rms > 0.0:
             relief_seed = derive_effect_seed(identity_seed, 'relief')
         if spec.albedo_texture is not None:

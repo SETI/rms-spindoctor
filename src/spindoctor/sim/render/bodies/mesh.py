@@ -32,8 +32,8 @@ import numpy as np
 
 from spindoctor.sim.render.bodies.placement import finish_single_body
 from spindoctor.sim.render.bodies.relief import ReliefField, synthesize_relief_field
-from spindoctor.sim.render.bodies.spec import BodySpec
-from spindoctor.sim.seeds import derive_effect_seed, stable_param_seed
+from spindoctor.sim.render.bodies.spec import BodySpec, body_identity_seed
+from spindoctor.sim.seeds import derive_effect_seed
 from spindoctor.sim.shared.mesh import (
     Mesh,
     MeshBodySpec,
@@ -116,32 +116,6 @@ def _render_mesh_shape_cached(
     )
 
 
-def _mesh_identity_seed(
-    body_seed: int | None,
-    *,
-    body_streams_seed: int | None,
-    body_index: int,
-    body_name: str,
-    semi_a_px: float,
-    semi_b_px: float,
-    semi_c_px: float,
-) -> int:
-    """The per-body identity seed the mesh truth streams derive from.
-
-    Mirrors the ellipsoid path's chain exactly: the scene's body streams seed
-    mixed with the body's stable identity when available, else the explicit
-    per-body seed, else a geometry-derived process-stable seed.
-    """
-    if body_streams_seed is not None:
-        return derive_effect_seed(body_streams_seed, f'body:{body_index}:{body_name}')
-    if body_seed is not None:
-        return body_seed & 0x7FFFFFFF
-    # The fallback seed is keyed on the full widths, twice the semi-axes; the
-    # terrain of the committed seed-less scenes depends on this key (#913).
-    widths = (2.0 * semi_a_px, 2.0 * semi_b_px, 2.0 * semi_c_px)
-    return stable_param_seed(*widths, body_index, body_name) & 0x7FFFFFFF
-
-
 def render_single_mesh_body(
     img: NDArrayFloatType,
     body: BodySpec,
@@ -197,20 +171,20 @@ def render_single_mesh_body(
     scatter_sigma_deg = body.pose_scatter_sigma_deg
 
     # The relief terrain and the pose scatter each draw from their own named
-    # stream of the per-body identity seed, mirroring the ellipsoid path, so
-    # they are independent of each other and of any crater draws.  The drawn
-    # scatter travels to the render truth through the returned body info.
+    # stream of the per-body identity seed, as the ellipsoid path's streams do, so
+    # they are independent of each other.  The drawn scatter travels to the render
+    # truth through the returned body info.
     drawn_deg: list[float] | None = None
     relief_seed = 0
     if relief_rms > 0.0 or scatter_sigma_deg > 0.0:
-        identity_seed = _mesh_identity_seed(
-            body.seed,
-            body_streams_seed=body_streams_seed,
-            body_index=body_index,
-            body_name=body_name,
-            semi_a_px=semi_a_px,
-            semi_b_px=semi_b_px,
-            semi_c_px=semi_c_px,
+        # The fallback digest hashes the full widths, twice the semi-axes, and keeps
+        # its low 31 bits, so a body drawn without seeds keeps its terrain (#913).
+        identity_seed = body_identity_seed(
+            body_streams_seed,
+            body,
+            body_index,
+            fallback_key=(2.0 * semi_a_px, 2.0 * semi_b_px, 2.0 * semi_c_px, body_index, body_name),
+            mask_fallback=True,
         )
         if relief_rms > 0.0:
             relief_seed = derive_effect_seed(identity_seed, 'relief')
