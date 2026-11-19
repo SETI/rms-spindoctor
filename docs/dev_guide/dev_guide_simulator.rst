@@ -119,11 +119,14 @@ relative to ``sim/render/``):
      - The radiance stage's translucent-screen machinery: orders the ring
        system and body halos far to near for compositing and enforces the
        explicit-``range_km`` depth contract on every overlap.
-   * - ``bodies/render.py`` / ``bodies/ellipsoid.py`` / ``bodies/ellipsoid_grid.py`` /
+   * - ``bodies/render.py`` / ``bodies/placement.py``
+     - Sends each body to the renderer that draws it, and moves the drawing into the
+       frame (see :ref:`sim-body-renderer`).
+   * - ``bodies/ellipsoid.py`` / ``bodies/ellipsoid_grid.py`` / ``bodies/craters.py`` /
        ``bodies/texture.py`` / ``bodies/mesh.py``
-     - Placing one body in the frame, the ellipsoid renderer (relief, photometric
-       laws, craters, surface texture, transits) and the grids it works on, and the
-       polyhedral-mesh renderer (see :ref:`sim-body-renderer`). The parsed body entry
+     - The ellipsoid renderer (relief, photometric laws, craters, surface texture,
+       transits), the grids it works on, and its crater carving, and the
+       polyhedral-mesh renderer. The parsed body entry and the body's identity seed
        (``bodies/spec.py``), the relief field (``bodies/relief.py``), and the
        photometric laws (``bodies/photometry.py``) sit beside them.
    * - ``bodies/translate.py``
@@ -682,7 +685,22 @@ a real camera shows in every frame: the hot pixels, the pattern the ``fixed_patt
 mode draws, and the warm columns of the ``dark_ramp`` mode. A new ``noise_seed``
 therefore renders the same scene on the same camera with a new draw of the noise. A
 scene that leaves the key out draws its noise from ``random_seed``. It renders exactly as
-it would with ``noise_seed`` set to that value, whenever the value is in the range above. The integration tests use the key to measure a check over several noise draws.
+it would with ``noise_seed`` set to that value, whenever the value is in the range above.
+The integration tests use the key to measure a check over several noise draws.
+
+Every random stream of one body (its craters, its relief terrain, its albedo noise,
+and a mesh body's pose scatter) derives from one identity seed, which
+:func:`~spindoctor.sim.render.bodies.spec.body_identity_seed` chooses. The first
+choice is a seed drawn from the scene's ``random_seed`` and mixed with the body's
+index and name, so two bodies of the same geometry get independent surfaces. Without
+one, the body's own ``seed`` is used, and without that, a digest of the body's
+geometry. The scene radiance stage always supplies the first, so the other two apply
+only when a test or a tool calls a body renderer directly. The craters are seeded
+with the identity seed itself, and each other effect with a named stream of it. The
+digest hashes different values for the craters and for the rest, and a body drawn
+without seeds depends on exactly those values. The craters hash the full widths and
+the body center on the detector grid, and the other effects hash the full widths,
+the index, and the name. The mesh renderer keeps only the low 31 bits of its digest.
 
 **The driver.** :func:`spindoctor.sim.render.driver.render_scene` takes a
 scene and returns ``(image, metadata)``. It encodes the scene as
@@ -690,9 +708,17 @@ deterministic sorted-key JSON, validates the scene with
 :func:`spindoctor.sim.scene.validate.validate_sim_params`, runs the pipeline on a fresh frame,
 and caches the result on a key built from that JSON. The render cache holds three
 entries (``lru_cache(maxsize=3)``), one each for the scene editor's fast preview, its
-full render, and the frame the navigator reads. The body, mesh, and star renderers keep
-small shape caches of their own. ``clear_render_caches`` drops them all for determinism
-tests. The caching contract: scene parameters are JSON-serializable scalars, lists,
+full render, and the frame the navigator reads. The star renderer, the ellipsoid and
+mesh body renderers, the relief field, and the PSF keep small caches of their own, and
+each of their modules has a public function that drops them:
+:func:`~spindoctor.sim.render.radiance.stars.clear_star_caches`,
+:func:`~spindoctor.sim.render.bodies.render.clear_ellipsoid_shape_caches`,
+:func:`~spindoctor.sim.render.bodies.mesh.clear_mesh_shape_caches`,
+:func:`~spindoctor.sim.render.bodies.relief.clear_relief_caches`, and
+:func:`~spindoctor.sim.render.optics.psf.clear_psf_caches`.
+:func:`~spindoctor.sim.render.driver.clear_render_caches` calls each of them and also
+drops the scene and validation caches, so a determinism test can render from cold
+caches. The caching contract: scene parameters are JSON-serializable scalars, lists,
 and maps, no wall-clock or global RNG state is consulted, and two renders of the same
 scene are bit-identical on one machine.
 
@@ -1998,6 +2024,17 @@ one plants a known model error the technique must survive. The navigator predict
 mesh body as the same mesh without the limb relief, flat-shaded, and at the catalog
 pose, unless ``nav_override`` changes it. A mesh body's limb relief, ``shading``,
 and ``pose_scatter`` are among the errors it plants.
+
+**The modules.** :func:`~spindoctor.sim.render.bodies.render.render_single_body` reads
+``shape_model`` and sends the body to the mesh renderer or down the ellipsoid path,
+which builds the ellipsoid renderer's spec and draws the body through a shape cache.
+The ellipsoid renderer carves its craters with
+:mod:`~spindoctor.sim.render.bodies.craters`. Both paths end in
+:func:`~spindoctor.sim.render.bodies.placement.finish_single_body`, which moves the
+drawing into the frame (see :ref:`placing a body <sim-body-placement>`). The
+imports run one way. The dispatcher imports both renderers and the placement, the
+ellipsoid renderer imports the crater carving, and the mesh renderer imports the
+placement. No body module imports the dispatcher.
 
 **The body spec.** The scene radiance stage parses each ``bodies`` entry once into a
 frozen :class:`~spindoctor.sim.render.bodies.spec.BodySpec`
@@ -3548,8 +3585,9 @@ keys and the mesh extras. A non-null value of a key in a row marked
      - ``{sigma_deg}`` -- a seeded per-frame Gaussian perturbation of the
        *rendered* mesh pose only; the navigator predicts the catalog pose.
    * - ``seed``
-     - The crater / texture / relief realization (a stable hash of the body
-       geometry when absent).
+     - The body's own seed for its craters, texture, relief, and pose scatter. The
+       scene's ``random_seed`` comes first, so only a body renderer called directly
+       without a scene seed uses it (see :ref:`sim-stage-pipeline`).
    * - ``anti_aliasing``
      - Image-side rendering-fidelity knob; the predicted template always
        renders at full anti-aliasing.

@@ -81,11 +81,12 @@ def render_single_body(
         offset_v: V offset to apply.
         offset_u: U offset to apply.
         body_streams_seed: The scene's seed for every body's random streams.  Each
-            body mixes its index and name into it to get its own identity seed,
-            and its craters, relief terrain, albedo noise, and mesh pose scatter
-            each draw from a named stream of that identity seed, so bodies with
-            identical geometry still get independent surfaces.  None falls back
-            to the body's own ``seed`` and then to a seed derived from its
+            body mixes its index and name into it to get its own identity seed (see
+            :func:`~spindoctor.sim.render.bodies.spec.body_identity_seed`).  Its
+            craters draw from that identity seed, and its relief terrain, albedo
+            noise, and mesh pose scatter each from a named stream of it, so bodies
+            with identical geometry still get independent surfaces.  None falls
+            back to the body's own ``seed`` and then to a seed derived from its
             geometry.
         body_index: Stable index of this body in the scene's body list, mixed
             into the body's identity seed alongside the body name.

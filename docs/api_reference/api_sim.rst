@@ -208,7 +208,17 @@ spindoctor.sim.render.bodies
    :undoc-members:
    :show-inheritance:
 
+.. automodule:: spindoctor.sim.render.bodies.craters
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 .. automodule:: spindoctor.sim.render.bodies.mesh
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: spindoctor.sim.render.bodies.placement
    :members:
    :undoc-members:
    :show-inheritance:
