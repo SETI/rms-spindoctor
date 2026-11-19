@@ -1978,10 +1978,10 @@ renderer draws every ellipsoid body, whatever its settings: a smooth Lambert dis
 a limb-relief field, a non-Lambert photometric law or opposition surge, craters,
 and surface textures and transits. All of those extra ingredients are truth keys:
 the navigator predicts an ellipsoid body as the smooth Lambert template, so every
-one plants a known model error the technique must survive. It predicts a mesh body
-as the same mesh without the limb relief, flat-shaded, and at the catalog pose,
-unless ``nav_override`` changes it. A mesh body's limb relief, ``shading``, and
-``pose_scatter`` are therefore the errors it plants.
+one plants a known model error the technique must survive. The navigator predicts a
+mesh body as the same mesh without the limb relief, flat-shaded, and at the catalog
+pose, unless ``nav_override`` changes it. A mesh body's limb relief, ``shading``,
+and ``pose_scatter`` are among the errors it plants.
 
 **The body spec.** The scene radiance stage parses each ``bodies`` entry once into a
 frozen :class:`~spindoctor.sim.render.bodies.spec.BodySpec`
@@ -3484,12 +3484,10 @@ resolution, defaults 16 / 32; 64 / 128 hides the facets on a large body),
 ``mesh_detail_octaves`` (bands of higher harmonic degrees, default 0), and
 ``pose_euler_deg`` (intrinsic X, Y, Z Euler angles, default ``[0, 0, 0]``).
 
-The truth-side body keys never reach the navigator. The ellipsoid renderer
-consumes the relief, photometry, texture, and transit keys, and the mesh renderer
-consumes the relief keys and the mesh extras (see :ref:`sim-body-renderer`). The
-navigator predicts an ellipsoid body as the smooth Lambert template, and a mesh
-body as the same mesh without its relief, flat-shaded, and at the catalog pose,
-unless ``nav_override`` changes it. A non-null value of a key in a row marked
+The truth-side body keys never reach the navigator, which predicts each body as
+described in :ref:`sim-body-renderer`. The ellipsoid renderer consumes the relief,
+photometry, texture, and transit keys, and the mesh renderer consumes the relief
+keys and the mesh extras. A non-null value of a key in a row marked
 *ellipsoid only*, or of the ``atmosphere`` block, is refused on a
 ``polyhedral_mesh`` body (see :ref:`sim-mesh-appearance`).
 
