@@ -48,14 +48,17 @@ DARK_SIDE_ILLUM_STRENGTH: float = 0.01
 class EllipsoidProjection:
     """An ellipsoid projected onto one pixel grid.
 
-    Produced by :func:`project_ellipsoid`.  Every array has the grid's dimensions,
-    and every length is in the grid's pixels.  The grid is the one the caller stated
-    the geometry on, supersampled by ``aa_scale``.
+    Produced by :func:`project_ellipsoid`.  Every array covers the whole grid, or the
+    box that :meth:`crop` selects from it, and every length is in the grid's pixels.
+    The grid is the one the caller stated the geometry on, supersampled by
+    ``aa_scale``.
 
     Parameters:
         aa_scale: Pixels of this grid per pixel of the grid the caller stated the
             geometry on, along each axis.
-        center: Body center (v, u) in this grid's pixel corner coordinates.
+        center: Body center (v, u) in the whole grid's pixel corner coordinates.  A
+            crop keeps it unchanged, so ``v_coords + center[0]`` and
+            ``u_coords + center[1]`` are always a pixel's position on the whole grid.
         semi_a: Semi-axis a in this grid's pixels.
         semi_b: Semi-axis b in this grid's pixels.
         semi_c: Depth semi-axis c in this grid's pixels.
@@ -65,8 +68,8 @@ class EllipsoidProjection:
             before rotation.  It is a read-only view of one value per row.
         u_coords: The u coordinate of each pixel center relative to the body center,
             before rotation.  It is a read-only view of one value per column.
-        v_rot: The v coordinate of each pixel in the body's rotated frame, shortened
-            by the tilt.
+        v_rot: The v coordinate of each pixel in the body's rotated frame, multiplied
+            by the cosine of the tilt.
         u_rot: The u coordinate of each pixel in the body's rotated frame.
         ellipse_dist_sq: The squared normalized ellipse distance of each pixel,
             ``(v_rot / semi_a)**2 + (u_rot / semi_b)**2``, which is 1 on the limb.
@@ -89,7 +92,11 @@ class EllipsoidProjection:
         """The part of the projection inside a box on its grid.
 
         The coordinates keep their origin at the body center, so each pixel keeps
-        the values it has in the whole projection.
+        the values it has in the whole projection.  The center stays in the whole
+        grid's coordinates, so adding it to the cropped coordinates still gives each
+        pixel's position on the whole grid.  The image side's crater carving needs
+        both: it places craters by those positions, and its fallback crater seed is
+        keyed on the center, which a crop must not change.
 
         Parameters:
             rows: The box's rows.
@@ -121,11 +128,11 @@ def project_ellipsoid(
 ) -> EllipsoidProjection:
     """Project an ellipsoid onto a pixel grid.
 
-    Every simulated ellipsoid is placed on its grid here.  The navigator's predicted
-    body is projected onto its supersampled frame, and the image-side renderer
-    projects each body onto its working grid and its detector grid.  The body is
-    rotated in the image plane by ``rotation_z``, and then its rotated v axis is
-    shortened by the cosine of ``rotation_tilt``.
+    The navigator's predicted body is projected onto its supersampled frame here, and
+    the image side's ellipsoid renderer projects each body onto its working grid and
+    its detector grid.  The body is rotated in the image plane by ``rotation_z``.
+    Then its rotated v coordinate is multiplied by the cosine of ``rotation_tilt``,
+    which stretches the outline along that axis by ``1 / cos(rotation_tilt)``.
 
     Parameters:
         size: Tuple of (size_v, size_u) giving the image dimensions in pixels.
@@ -168,8 +175,10 @@ def project_ellipsoid(
     v_rot1 = (v_axis * cos_rz)[:, np.newaxis] - (u_axis * sin_rz)[np.newaxis, :]
     u_rot = (v_axis * sin_rz)[:, np.newaxis] + (u_axis * cos_rz)[np.newaxis, :]
 
-    # The tilt turns the body about its rotated u axis, toward or away from the
-    # viewer, which foreshortens the rotated v axis by cos(tilt).
+    # The tilt multiplies the rotated v coordinate by cos(tilt), so the outline
+    # reaches 1 / cos(tilt) times farther along that axis.  A body tilted toward or
+    # away from the viewer should look shorter there, not longer; the stretch is a
+    # known defect (#893).
     v_rot = v_rot1 * np.cos(rotation_tilt)
 
     # The projected outline is the ellipse (v_rot/a)^2 + (u_rot/b)^2 = 1.

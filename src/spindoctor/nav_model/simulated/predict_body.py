@@ -52,8 +52,10 @@ def create_predicted_body_image(
             0 = head-on illumination (fully illuminated),
             pi/2 = side illumination (half illuminated),
             pi = back illumination (no visible illumination).
-        anti_aliasing: Float between 0 and 1 controlling anti-aliasing amount at the limb.
-            0 = no anti-aliasing, 1 = maximum anti-aliasing. Only affects the edge.
+        anti_aliasing: Anti-aliasing amount between 0 and 1.  The body is shaded on a
+            grid ``int(1 + 3 * anti_aliasing)`` times finer along each axis, and each
+            output pixel is the mean of its block of that grid.  An amount below 1/3
+            leaves the grid at the image's own resolution; 1 shades it 4 times finer.
 
     Returns:
         A 2D numpy array of shape (size_v, size_u) with float values from 0.0 to 1.0,
