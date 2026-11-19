@@ -1040,12 +1040,6 @@ def test_disc_template_matches_model_crop(monkeypatch: pytest.MonkeyPatch) -> No
 # ---------------------------------------------------------------------------
 
 
-def test_instances_for_obs_skips_simulated_obs() -> None:
-    """Simulated observations use the sim sibling, so no instances here."""
-    obs = types.SimpleNamespace(is_simulated=True)
-    assert NavModelBody.instances_for_obs(cast(Any, obs)) == []
-
-
 def test_instances_for_obs_requires_closest_planet() -> None:
     """No closest planet means no candidate body list."""
     obs = types.SimpleNamespace(closest_planet=None)

@@ -154,6 +154,8 @@ class NavModelTitanSimulated(NavModelTitan):
         config: Optional ``Config`` override.
     """
 
+    inputs = 'scene_view'
+
     def __init__(
         self,
         name: str,

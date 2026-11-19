@@ -15,6 +15,8 @@ class _ConcreteObsInst(ObsInst):
     without a real ``Obs`` / ``oops.Observation`` backing it.
     """
 
+    model_source = 'spice'
+
     @staticmethod
     def from_file(path: Any, **kwargs: Any) -> Any:
         raise NotImplementedError
@@ -81,3 +83,15 @@ def test_star_psf_size_wrong_length_raises() -> None:
 def test_shutter_mode_defaults_to_none() -> None:
     """An instrument whose host exposes no shutter mode reports None."""
     assert _ConcreteObsInst().shutter_mode is None
+
+
+def test_concrete_observation_must_set_its_own_model_source() -> None:
+    """A concrete class that only inherits ``model_source`` is refused at definition.
+
+    Without the check, an instrument that forgot it would load its images and then fail
+    every one of them when the models are built.
+    """
+    with pytest.raises(TypeError, match='_Forgetful must set model_source'):
+
+        class _Forgetful(_ConcreteObsInst):
+            pass

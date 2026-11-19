@@ -53,9 +53,9 @@ low plateau -- see ``config_510_techniques.yaml``), and a terminator fix stays
 which is the condition on which trust in its confidences depends.
 
 The model overrides :meth:`~spindoctor.nav_model.nav_model.NavModel.instances_for_obs` to build
-one instance per body of a simulated observation; the parent
-:class:`~spindoctor.nav_model.nav_model_body.NavModelBody` declines simulated observations, so the
-autonomous registry routes simulated frames here.
+one instance per body of a simulated observation. Its ``inputs`` is ``'scene_view'``, so a
+simulated frame's bodies come from this model and never from
+:class:`~spindoctor.nav_model.nav_model_body.NavModelBody`, which needs SPICE.
 
 Theory
 ======
@@ -194,11 +194,7 @@ Source file: ``src/spindoctor/nav_model/simulated/body.py`` —
 Public class :class:`~spindoctor.nav_model.simulated.body.NavModelBodySimulated`, base
 :class:`~spindoctor.nav_model.nav_model_body_base.NavModelBodyBase`. The class overrides
 :meth:`~spindoctor.nav_model.nav_model.NavModel.instances_for_obs` to build one instance per body
-of a simulated observation; the parent
-:class:`~spindoctor.nav_model.nav_model_body.NavModelBody` returns an empty list for a simulated
-observation, so the orchestrator's
-:func:`~spindoctor.nav_model.nav_model.build_models_for_obs` driver routes simulated frames to
-this subclass.
+of a simulated observation, and sets the class attribute ``inputs = 'scene_view'``.
 
 Public methods (autodocumented at :doc:`/api_reference/api_nav_model`):
 
