@@ -31,9 +31,8 @@ what kind of observation it was given.
 Every concrete subclass sets ``inputs`` in its own class body; if it doesn't, defining
 the class raises ``TypeError``. Two of the simulated models subclass the real ones
 (:class:`~spindoctor.nav_model.simulated.stars.NavModelStarsSimulated` and
-:class:`~spindoctor.nav_model.simulated.titan.NavModelTitanSimulated`), and without
-this rule a missing value would be inherited from the parent as ``'spice'`` with no
-warning.
+:class:`~spindoctor.nav_model.simulated.titan.NavModelTitanSimulated`). Without this
+rule, one that left ``inputs`` out would quietly inherit its parent's ``'spice'``.
 
 The class method
 :meth:`~spindoctor.nav_model.nav_model.NavModel.instances_for_obs` is the per-class hook that
