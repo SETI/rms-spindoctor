@@ -1,12 +1,13 @@
 """Accuracy of the ellipsoid renderer's shading on its working grid.
 
-Three properties: a setting at an effectively zero value renders the smooth body;
-a small body at oversample 4 matches an 8 times finer render of the same body; and a
-body with relief, craters, or a texture has its light where the same body shaded
-wholly on its working grid has it, although its relief and craters are laid out on
-the detector grid.
+A setting at an effectively zero value renders the smooth body.  A small body at
+oversample 4 matches an 8 times finer render of the same body.  A relief body has
+its light where the same body shaded wholly on its working grid has it, although
+its relief is laid out on the detector grid, and so does a body smaller than a
+pixel.  An albedo spot's edge is drawn on the working grid.
 """
 
+import dataclasses
 import math
 from typing import Any
 
@@ -14,7 +15,11 @@ import numpy as np
 import pytest
 
 from spindoctor.sim.render.bodies import ellipsoid
-from spindoctor.sim.render.bodies.ellipsoid import EllipsoidBodySpec, create_ellipsoid_body
+from spindoctor.sim.render.bodies.ellipsoid import (
+    EllipsoidBodySpec,
+    create_ellipsoid_body,
+    render_ellipsoid_body,
+)
 from spindoctor.sim.render.bodies.render import render_single_body
 from spindoctor.sim.render.bodies.spec import body_spec_from_params
 from spindoctor.sim.render.bodies.texture import AlbedoTextureSpec
@@ -134,77 +139,167 @@ def test_small_body_at_oversample_4_matches_a_finer_render(diameter: float) -> N
 
 
 # ----------------------------------------------------------------------------
-# Surface detail against shading wholly on the working grid
+# Relief against shading wholly on the working grid
 # ----------------------------------------------------------------------------
 
-_DETAIL_SIZE = 128
-_DETAIL_CENTER = (64.3, 63.6)
-_DETAIL_RADIUS = 36.0
-
-_DETAIL_SURFACES: dict[str, dict[str, Any]] = {
-    'relief': {'limb_relief_rms': 0.02, 'limb_relief_corr_deg': 12.0, 'relief_seed': 77},
-    'craters': {'crater_fill': 0.3, 'crater_seed': 52},
-    'texture': {
-        'albedo_texture': AlbedoTextureSpec(
-            rms=0.25,
-            corr_px=12.0,
-            spots=((40.0, 30.0, 12.0, 0.55), (10.0, 300.0, 9.0, 1.4)),
-            seed=11,
-        )
+# Relief bodies, each placing its error where one part of the renderer handles it.
+# The crescent's light depends on the tilt interpolated over its disc and terminator,
+# the small body's on the band along its limb, and the rough body at low sun on its
+# long cast shadows.  Each runs at oversample 4; the crescent also runs at
+# oversample 1 with full anti-aliasing, the other working grid four times the
+# detector's.
+_RELIEF_CASES: dict[str, dict[str, Any]] = {
+    'crescent': {
+        'size': 128,
+        'radius': 36.0,
+        'sun': 90.0,
+        'phase': 120.0,
+        'rms': 0.02,
+        'corr': 12.0,
+        'seed': 5,
+    },
+    'crescent_anti_aliased': {
+        'size': 128,
+        'radius': 36.0,
+        'sun': 90.0,
+        'phase': 120.0,
+        'rms': 0.02,
+        'corr': 12.0,
+        'seed': 5,
+        'aa': True,
+    },
+    'small': {
+        'size': 32,
+        'radius': 8.0,
+        'sun': 70.0,
+        'phase': 60.0,
+        'rms': 0.02,
+        'corr': 12.0,
+        'seed': 6,
+    },
+    'rough_low_sun': {
+        'size': 160,
+        'radius': 60.0,
+        'sun': 57.0,
+        'phase': 80.0,
+        'rms': 0.04,
+        'corr': 6.0,
+        'seed': 2,
     },
 }
 
 # The light's center may sit this far, along each axis, from where shading wholly on
-# the working grid puts it.  Measured on these bodies: relief 0.0011 px, and craters
-# and texture 0 px, whose detail is the same on both; across three relief seeds at
-# phases 30 and 70 deg the relief reached 0.0035 px.  Shading these bodies at
-# detector resolution instead put the light 0.0046, 0.026, and 0.0079 px off.
-_DETAIL_CENTROID_BOUND_PX = 0.004
+# the working grid puts it.  Measured: crescent 0.00012 px, small body 0.00008 px,
+# rough body 0.00017 px.  The crescent reaches 0.0037 px with the tilt interpolated
+# bilinearly, the small body 0.0028 px with a limb band of half a pixel, and the
+# rough body 0.014 px when its cast shadows are interpolated; shading them on the
+# detector grid and upsampling put the light 0.013, 0.032, and 0.048 px off.
+_RELIEF_CENTROID_BOUND_PX = 0.0005
 
 
-def _detail_body(surface: str, *, oversample: int, anti_aliasing: float) -> NDArrayFloatType:
-    """A detailed body at 50 deg phase, averaged onto the detector grid."""
+def _relief_body(case: dict[str, Any]) -> NDArrayFloatType:
+    """A relief case's body, averaged onto the detector grid."""
+    oversample, anti_aliasing = (1, 1.0) if case.get('aa') else (4, 0.0)
+    scale = oversample
     spec = EllipsoidBodySpec(
-        semi_a_px=_DETAIL_RADIUS * oversample,
-        semi_b_px=_DETAIL_RADIUS * oversample,
-        semi_c_px=_DETAIL_RADIUS * oversample,
-        illumination_angle=math.radians(40.0),
-        phase_angle=math.radians(50.0),
+        semi_a_px=case['radius'] * scale,
+        semi_b_px=case['radius'] * scale,
+        semi_c_px=case['radius'] * scale,
+        illumination_angle=math.radians(case['sun']),
+        phase_angle=math.radians(case['phase']),
         oversample=oversample,
         anti_aliasing=anti_aliasing,
-        **_DETAIL_SURFACES[surface],
+        limb_relief_rms=case['rms'],
+        limb_relief_corr_deg=case['corr'],
+        relief_seed=case['seed'],
     )
-    size = _DETAIL_SIZE * oversample
-    center = (_DETAIL_CENTER[0] * oversample, _DETAIL_CENTER[1] * oversample)
-    return _detector(create_ellipsoid_body((size, size), center, spec), oversample)
+    size = case['size'] * scale
+    center = (size / 2.0 + 0.3 * scale, size / 2.0 - 0.65 * scale)
+    img = create_ellipsoid_body((size, size), center, spec)
+    return _detector(img, scale)
 
 
-def _detail_centroid_error(
-    surface: str, monkeypatch: pytest.MonkeyPatch, *, oversample: int, anti_aliasing: float
-) -> float:
-    """The largest axis offset between the rendered light's center and the reference's."""
-    rendered = _detail_body(surface, oversample=oversample, anti_aliasing=anti_aliasing)
-    with monkeypatch.context() as patch:
-        patch.setattr(ellipsoid, '_lays_detail_on_detector_grid', lambda spec, field: False)
-        reference = _detail_body(surface, oversample=oversample, anti_aliasing=anti_aliasing)
-    return float(np.abs(_centroid(rendered) - _centroid(reference)).max())
-
-
-@pytest.mark.parametrize('surface', sorted(_DETAIL_SURFACES))
-def test_detailed_body_light_matches_working_grid_shading(
-    surface: str, monkeypatch: pytest.MonkeyPatch
+@pytest.mark.parametrize('case', sorted(_RELIEF_CASES))
+def test_relief_body_light_matches_working_grid_shading(
+    case: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """The light's center matches the body shaded wholly on its working grid.
-
-    Checked at oversample 4 and at oversample 1 with full anti-aliasing, the two
-    working grids four times the detector's.
+    """A relief body's light sits where shading wholly on its working grid puts it.
 
     Parameters:
-        surface: The key into ``_DETAIL_SURFACES``.
+        case: The key into ``_RELIEF_CASES``.
         monkeypatch: Switches the reference render to shade everything on the
             working grid.
     """
-    oversampled = _detail_centroid_error(surface, monkeypatch, oversample=4, anti_aliasing=0.0)
-    anti_aliased = _detail_centroid_error(surface, monkeypatch, oversample=1, anti_aliasing=1.0)
-    assert oversampled < _DETAIL_CENTROID_BOUND_PX
-    assert anti_aliased < _DETAIL_CENTROID_BOUND_PX
+    rendered = _relief_body(_RELIEF_CASES[case])
+    monkeypatch.setattr(ellipsoid, '_lays_detail_on_detector_grid', lambda spec, field: False)
+    reference = _relief_body(_RELIEF_CASES[case])
+    error = float(np.abs(_centroid(rendered) - _centroid(reference)).max())
+    assert error < _RELIEF_CENTROID_BOUND_PX
+
+
+# ----------------------------------------------------------------------------
+# Surface textures on the working grid
+# ----------------------------------------------------------------------------
+
+
+def test_albedo_spot_edge_is_sharp_on_the_working_grid() -> None:
+    """At oversample 4 an albedo spot darkens whole working-grid pixels.
+
+    The textured render divided by the smooth one is the spot's factor or 1 at every
+    pixel, so no pixel of the working grid blends the two across the spot's edge.
+    """
+    size, oversample = 64, 4
+    smooth = EllipsoidBodySpec(
+        semi_a_px=24.0 * oversample,
+        semi_b_px=24.0 * oversample,
+        semi_c_px=24.0 * oversample,
+        illumination_angle=0.6,
+        phase_angle=0.4,
+        oversample=oversample,
+    )
+    spotted = dataclasses.replace(
+        smooth, albedo_texture=AlbedoTextureSpec(rms=0.0, spots=((20.0, 80.0, 25.0, 0.5),))
+    )
+    frame = (size * oversample, size * oversample)
+    center = (size * oversample / 2.0 + 1.0, size * oversample / 2.0 - 3.0)
+    plain = create_ellipsoid_body(frame, center, smooth)
+    textured = create_ellipsoid_body(frame, center, spotted)
+    lit = plain > 0.0
+    ratio = np.round(textured[lit] / plain[lit], 12)
+    assert set(np.unique(ratio).tolist()) == {0.5, 1.0}
+
+
+# ----------------------------------------------------------------------------
+# A body smaller than a pixel
+# ----------------------------------------------------------------------------
+
+
+def test_relief_body_smaller_than_a_pixel_renders_its_light(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A relief body 0.4 px across, centered on a pixel corner, renders its light.
+
+    Its silhouette covers parts of four detector pixels, none of whose centers it
+    reaches; its light must land there as it does when shaded wholly on the working
+    grid.
+
+    Parameters:
+        monkeypatch: Switches the reference render to shade everything on the
+            working grid.
+    """
+    oversample = 4
+    spec = EllipsoidBodySpec(
+        semi_a_px=0.2 * oversample,
+        semi_b_px=0.2 * oversample,
+        semi_c_px=0.2 * oversample,
+        phase_angle=0.3,
+        oversample=oversample,
+        limb_relief_rms=0.02,
+        relief_seed=4,
+    )
+    size = 16 * oversample
+    center = (size / 2.0, size / 2.0)
+    rendered = render_ellipsoid_body((size, size), center, spec).intensity
+    monkeypatch.setattr(ellipsoid, '_lays_detail_on_detector_grid', lambda spec, field: False)
+    reference = render_ellipsoid_body((size, size), center, spec).intensity
+    assert float(rendered.sum()) == pytest.approx(float(reference.sum()), rel=1e-9)

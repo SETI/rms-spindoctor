@@ -289,7 +289,7 @@ def surface_texture_factor(
         x: Unit-sphere a-axis component per shading pixel (``v_rot / a``).
         y: Unit-sphere b-axis component per shading pixel (``u_rot / b``).
         z: Unit-sphere toward-observer component (0 outside the disc, so
-            off-disc pixels carry limb values for the upsample continuity).
+            pixels just past the limb carry the limb's values).
         mean_radius_px: Mean projected body radius in detector
             pixels, the ``corr_px`` -> surface-arc conversion scale.
 
