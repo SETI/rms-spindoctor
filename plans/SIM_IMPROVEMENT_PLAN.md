@@ -191,10 +191,10 @@ typed scene, in Phase 3b.
 
 | Issue | Subject |
 |---|---|
-| #901 | Classic and topographic body renderers disagree; retire the classic path (part of #915) |
+| #901 | **Done (PR #TBD).** One renderer, `bodies/ellipsoid.py`, now draws every ellipsoid; the classic path and the path choice are gone. A setting at an effectively zero value renders the smooth body (a relief of 1e-9 to 1.2e-8 of peak, where it changed 628 pixels by up to 1%), and a small body with relief at oversample 4 matches an 8x finer render as closely as a smooth one. Classic and topographic body renderers disagree; retire the classic path (part of #915) |
 | #1011 | The topographic body renderer projects through its own copy of the ellipsoid projection, while the navigator predicts through the shared one |
 | #1012 | The body renderer modules import each other through hidden cycles, and the body identity seed is written out in several places |
-| #931 | Coarse-grid shading shifts relief, textured, and cratered bodies at oversample above 1 (smooth bodies fixed by #916); lands with #901 |
+| #931 | **Done (PR #TBD).** Every ellipsoid is shaded on its working grid; the relief tilt, cast shadows, and crater slopes are interpolated from the detector grid except in a limb band and along the relief's day-night edge, and textures and transits are drawn on the working grid. Against working-grid shading the light moves at most 0.0035 px on relief bodies, where coarse shading moved it up to 0.026 px on cratered and 0.008 px on textured ones; three regression baselines moved toward their planted offsets. Coarse-grid shading shifts relief, textured, and cratered bodies at oversample above 1 (smooth bodies fixed by #916); lands with #901 |
 | #1013 | A scene with instrument defaults oversamples 4x even when its camera has no PSF |
 | #1014 | The simulated Titan model predicts a mesh occluder as an ellipsoid, and at pixel (0, 0) when no center is given |
 | #890 | A body larger than half the frame and off center is clipped or vanishes |
