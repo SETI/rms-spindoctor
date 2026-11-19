@@ -51,7 +51,7 @@ the photometric-law, surface-texture, crater, and atmosphere keys on mesh
 bodies rather than letting them silently not render.
 """
 
-from dataclasses import dataclass, replace
+from dataclasses import KW_ONLY, dataclass, replace
 from typing import Any
 
 import numpy as np
@@ -111,7 +111,8 @@ class EllipsoidBodySpec:
     """Everything the ellipsoid renderer needs beyond size and center.
 
     All pixel quantities are in units of the incoming render grid (the
-    oversampled grid when ``oversample`` > 1).
+    oversampled grid when ``oversample`` > 1).  The three semi-axes may be given
+    by position; every other field is keyword-only.
 
     Parameters:
         semi_a_px: Semi-axis a of the ellipsoid in pixels.
@@ -152,6 +153,7 @@ class EllipsoidBodySpec:
     semi_a_px: float
     semi_b_px: float
     semi_c_px: float
+    _: KW_ONLY
     rotation_z: float = 0.0
     rotation_tilt: float = 0.0
     illumination_angle: float = 0.0
