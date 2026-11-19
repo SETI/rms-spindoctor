@@ -11,6 +11,7 @@ boundary: they are truth keys the navigator never sees (its best model is
 the smooth Lambert ellipsoid).
 """
 
+from dataclasses import dataclass
 from functools import lru_cache
 from typing import Any
 
@@ -97,36 +98,174 @@ def render_single_body(
     """
     size_v, size_u = img.shape
     body_name = spec.name.upper()
-
     center_v = (size_v / 2.0 if spec.center_v is None else spec.center_v) + offset_v
     center_u = (size_u / 2.0 if spec.center_u is None else spec.center_u) + offset_u
 
+    # An irregular body renders from a polyhedral mesh at a scene-supplied pose;
+    # every other body is an ellipsoid.
+    if spec.shape_model == 'polyhedral_mesh':
+        return render_single_mesh_body(
+            img,
+            spec,
+            body_name,
+            center_v=center_v,
+            center_u=center_u,
+            semi_a_px=spec.semi_a_px,
+            semi_b_px=spec.semi_b_px,
+            semi_c_px=spec.semi_c_px,
+            illumination_angle=float(np.radians(spec.illumination_angle)),
+            phase_angle=float(np.radians(spec.phase_angle)),
+            # Silhouette anti-aliasing is consumed only at oversample 1,
+            # matching the ellipsoid renderer: an oversampled scene already
+            # resolves the limb on its own grid, and supersampling the mesh
+            # rasterizer on top of it would multiply the render cost for no
+            # rendered difference worth having.
+            anti_aliasing=spec.anti_aliasing if oversample == 1 else 0.0,
+            ref_center_v=ref_center_v,
+            ref_center_u=ref_center_u,
+            body_streams_seed=body_streams_seed,
+            body_index=body_index,
+        )
+
+    return _render_single_ellipsoid_body(
+        img,
+        spec,
+        body_name,
+        center_v=center_v,
+        center_u=center_u,
+        body_streams_seed=body_streams_seed,
+        body_index=body_index,
+        ref_center_v=ref_center_v,
+        ref_center_u=ref_center_u,
+        oversample=oversample,
+    )
+
+
+def _render_single_ellipsoid_body(
+    img: NDArrayFloatType,
+    spec: BodySpec,
+    body_name: str,
+    *,
+    center_v: float,
+    center_u: float,
+    body_streams_seed: int | None,
+    body_index: int,
+    ref_center_v: float,
+    ref_center_u: float,
+    oversample: int,
+) -> tuple[NDArrayBoolType, dict[str, Any]]:
+    """Render one ellipsoid body into the image in place.
+
+    The body is drawn at the reference center through the shape cache, given its
+    haze layer, and translated into place.
+
+    Parameters:
+        img: Image array to modify in-place.
+        spec: The body, scaled to the render grid.
+        body_name: The upper-cased body name.
+        center_v: Body center V in the image (offset already applied).
+        center_u: Body center U in the image (offset already applied).
+        body_streams_seed: The scene's seed for every body's random streams, or None.
+        body_index: The body's position in the scene's body list.
+        ref_center_v: Reference center V for body shape caching.
+        ref_center_u: Reference center U for body shape caching.
+        oversample: The render grid's oversampling factor.
+
+    Returns:
+        Tuple of (body_mask, body_info_dict), as :func:`render_single_body` returns.
+    """
+    size_v, size_u = img.shape
+    seeds = _surface_seeds(
+        spec,
+        body_name,
+        body_streams_seed=body_streams_seed,
+        body_index=body_index,
+        size=(size_v, size_u),
+        oversample=oversample,
+    )
+    # The silhouette comes back separately from the radiance: a transit umbra or a
+    # zero-albedo spot renders black but still belongs to the body.
+    ellipsoid_render = _render_ellipsoid_shape_cached(
+        size_v, size_u, _ellipsoid_spec(spec, seeds, oversample=oversample)
+    )
+    body_shape, halo = _apply_body_atmosphere(
+        ellipsoid_render,
+        spec,
+        ref_center_v=ref_center_v,
+        ref_center_u=ref_center_u,
+        oversample=oversample,
+    )
+    half_extent_v, half_extent_u = _projected_half_extents(spec)
+    return finish_single_body(
+        img,
+        body_shape,
+        body_name=body_name,
+        center_v=center_v,
+        center_u=center_u,
+        half_extent_v=half_extent_v,
+        half_extent_u=half_extent_u,
+        ref_center_v=ref_center_v,
+        ref_center_u=ref_center_u,
+        range_km=spec.range_km,
+        halo=halo,
+        silhouette=ellipsoid_render.silhouette,
+    )
+
+
+@dataclass(frozen=True)
+class _SurfaceSeeds:
+    """The seeds of an ellipsoid's randomized surface detail.
+
+    Parameters:
+        crater_seed: The crater seed, or None for a body without craters.
+        relief_seed: The seed of the relief terrain (0 for a body without relief).
+        albedo_seed: The seed of the albedo noise field (0 for a body without an
+            albedo texture).
+    """
+
+    crater_seed: int | None
+    relief_seed: int
+    albedo_seed: int
+
+
+def _surface_seeds(
+    spec: BodySpec,
+    body_name: str,
+    *,
+    body_streams_seed: int | None,
+    body_index: int,
+    size: tuple[int, int],
+    oversample: int,
+) -> _SurfaceSeeds:
+    """The seeds of an ellipsoid's craters, relief terrain, and albedo noise.
+
+    All three derive from the body's identity seed
+    (:func:`~spindoctor.sim.render.bodies.spec.body_identity_seed`).  The craters
+    take the identity seed itself; the relief and the albedo noise each take their
+    own named stream of it, so they are independent of the craters and of each
+    other, and stable when other randomized features are toggled.
+
+    Parameters:
+        spec: The body.
+        body_name: The upper-cased body name.
+        body_streams_seed: The scene's seed for every body's random streams, or None.
+        body_index: The body's position in the scene's body list.
+        size: The render grid's dimensions (rows, columns).
+        oversample: The render grid's oversampling factor.
+
+    Returns:
+        The body's surface seeds.
+    """
+    size_v, size_u = size
     semi_a_px = spec.semi_a_px
     semi_b_px = spec.semi_b_px
     semi_c_px = spec.semi_c_px
 
-    rotation_z = np.radians(spec.rotation_z)
-    rotation_tilt = np.radians(spec.rotation_tilt)
-    illumination_angle = np.radians(spec.illumination_angle)
-    phase_angle = np.radians(spec.phase_angle)
-
-    crater_fill = spec.crater_fill
-    crater_min_radius = spec.crater_min_radius
-    crater_max_radius = spec.crater_max_radius
-    crater_power_law_exponent = spec.crater_power_law_exponent
-    crater_relief_scale = spec.crater_relief_scale
-    anti_aliasing = spec.anti_aliasing
-
-    limb_relief_rms = spec.limb_relief_rms
-    limb_relief_corr_deg = spec.limb_relief_corr_deg
-    photometric_law = spec.photometric_law
-
-    # Each body's craters draw from its identity seed, so two bodies with identical
-    # geometry draw independent crater patterns and occupy distinct shape-cache
-    # entries.  A body without craters never consumes the seed; None keeps
-    # identical smooth bodies sharing one cached shape.
+    # Two bodies with identical geometry draw independent crater patterns and
+    # occupy distinct shape-cache entries.  A body without craters never consumes
+    # the seed; None keeps identical smooth bodies sharing one cached shape.
     crater_seed: int | None = None
-    if crater_fill > 0.0:
+    if spec.crater_fill > 0.0:
         # The fallback digest hashes the full widths, twice the semi-axes, and the
         # body center on the detector grid, where the craters are carved, of the
         # shape drawn at the frame center.  A body drawn without seeds keeps its
@@ -144,48 +283,9 @@ def render_single_body(
             ),
         )
 
-    # Projected half-extents of the body in the image plane.  The rendered
-    # silhouette is the ellipse of semi-axes a and b rotated in-plane by
-    # rotation_z (semi-axis c is the depth axis and does not project), so the
-    # bounding half-extents along the image axes follow from the rotated ellipse.
-    cos_rz = float(np.cos(rotation_z))
-    sin_rz = float(np.sin(rotation_z))
-    half_extent_v = float(stable_hypot(semi_a_px * cos_rz, semi_b_px * sin_rz))
-    half_extent_u = float(stable_hypot(semi_a_px * sin_rz, semi_b_px * cos_rz))
-
-    # Get cached body shape (at reference center).  An irregular body renders
-    # from a polyhedral mesh at a scene-supplied pose; otherwise an ellipsoid.
-    if spec.shape_model == 'polyhedral_mesh':
-        return render_single_mesh_body(
-            img,
-            spec,
-            body_name,
-            center_v=center_v,
-            center_u=center_u,
-            semi_a_px=semi_a_px,
-            semi_b_px=semi_b_px,
-            semi_c_px=semi_c_px,
-            illumination_angle=float(illumination_angle),
-            phase_angle=float(phase_angle),
-            # Silhouette anti-aliasing is consumed only at oversample 1,
-            # matching the ellipsoid renderer: an oversampled scene already
-            # resolves the limb on its own grid, and supersampling the mesh
-            # rasterizer on top of it would multiply the render cost for no
-            # rendered difference worth having.
-            anti_aliasing=anti_aliasing if oversample == 1 else 0.0,
-            ref_center_v=ref_center_v,
-            ref_center_u=ref_center_u,
-            body_streams_seed=body_streams_seed,
-            body_index=body_index,
-        )
-
-    # The relief terrain and the albedo noise field each draw from their own
-    # named stream of the per-body identity seed, so they are independent of the
-    # crater draws (and of each other) and stable when other randomized features
-    # are toggled.
     relief_seed = 0
     albedo_seed = 0
-    if limb_relief_rms > 0.0 or spec.albedo_texture is not None:
+    if spec.limb_relief_rms > 0.0 or spec.albedo_texture is not None:
         # The fallback digest hashes the full widths, twice the semi-axes, so a body
         # drawn without seeds keeps its terrain (#913).
         identity_seed = body_identity_seed(
@@ -194,81 +294,118 @@ def render_single_body(
             body_index,
             fallback_key=(2.0 * semi_a_px, 2.0 * semi_b_px, 2.0 * semi_c_px, body_index, body_name),
         )
-        if limb_relief_rms > 0.0:
+        if spec.limb_relief_rms > 0.0:
             relief_seed = derive_effect_seed(identity_seed, 'relief')
         if spec.albedo_texture is not None:
             albedo_seed = derive_effect_seed(identity_seed, 'albedo')
-    ellipsoid_spec = EllipsoidBodySpec(
-        semi_a_px=semi_a_px,
-        semi_b_px=semi_b_px,
-        semi_c_px=semi_c_px,
-        rotation_z=float(rotation_z),
-        rotation_tilt=float(rotation_tilt),
-        illumination_angle=float(illumination_angle),
-        phase_angle=float(phase_angle),
-        crater_fill=crater_fill,
-        crater_min_radius=crater_min_radius,
-        crater_max_radius=crater_max_radius,
-        crater_power_law_exponent=crater_power_law_exponent,
-        crater_relief_scale=crater_relief_scale,
-        anti_aliasing=anti_aliasing,
-        crater_seed=crater_seed,
+    return _SurfaceSeeds(crater_seed=crater_seed, relief_seed=relief_seed, albedo_seed=albedo_seed)
+
+
+def _ellipsoid_spec(spec: BodySpec, seeds: _SurfaceSeeds, *, oversample: int) -> EllipsoidBodySpec:
+    """The ellipsoid renderer's spec for one body: its angles in radians, its seeds set.
+
+    Parameters:
+        spec: The body.
+        seeds: The body's surface seeds.
+        oversample: The render grid's oversampling factor.
+
+    Returns:
+        The ellipsoid spec, which is also the body's shape-cache key.
+    """
+    return EllipsoidBodySpec(
+        semi_a_px=spec.semi_a_px,
+        semi_b_px=spec.semi_b_px,
+        semi_c_px=spec.semi_c_px,
+        rotation_z=float(np.radians(spec.rotation_z)),
+        rotation_tilt=float(np.radians(spec.rotation_tilt)),
+        illumination_angle=float(np.radians(spec.illumination_angle)),
+        phase_angle=float(np.radians(spec.phase_angle)),
+        crater_fill=spec.crater_fill,
+        crater_min_radius=spec.crater_min_radius,
+        crater_max_radius=spec.crater_max_radius,
+        crater_power_law_exponent=spec.crater_power_law_exponent,
+        crater_relief_scale=spec.crater_relief_scale,
+        anti_aliasing=spec.anti_aliasing,
+        crater_seed=seeds.crater_seed,
         oversample=int(oversample),
-        limb_relief_rms=limb_relief_rms,
-        limb_relief_corr_deg=limb_relief_corr_deg,
-        relief_seed=relief_seed,
-        photometric_law=photometric_law,
+        limb_relief_rms=spec.limb_relief_rms,
+        limb_relief_corr_deg=spec.limb_relief_corr_deg,
+        relief_seed=seeds.relief_seed,
+        photometric_law=spec.photometric_law,
         minnaert_k=spec.minnaert_k,
         surge_amplitude=spec.surge_amplitude,
         surge_width_deg=spec.surge_width_deg,
-        albedo_texture=albedo_spec_from_params(spec.albedo_texture, seed=albedo_seed),
+        albedo_texture=albedo_spec_from_params(spec.albedo_texture, seed=seeds.albedo_seed),
         disc_texture=spec.disc_texture,
         transits=spec.transits or (),
     )
-    # The silhouette comes back separately from the radiance: a transit umbra or a
-    # zero-albedo spot renders black but still belongs to the body.
-    ellipsoid_render = _render_ellipsoid_shape_cached(size_v, size_u, ellipsoid_spec)
-    body_shape = ellipsoid_render.intensity
-    silhouette = ellipsoid_render.silhouette
 
-    # The exponential haze layer evaluates over the reference-centered disc
-    # after shading; a body with no 'atmosphere' block never enters the haze
-    # code and renders hard-limbed.
-    # The on-disc haze joins the opaque disc paint; the above-limb glow rides
-    # along as a translucent halo screen the radiance stage composites.
-    # apply_atmosphere returns fresh arrays, so the shared render cache the
-    # shape may come from is never mutated.
-    halo: HaloScreen | None = None
+
+def _apply_body_atmosphere(
+    ellipsoid_render: EllipsoidBodyRender,
+    spec: BodySpec,
+    *,
+    ref_center_v: float,
+    ref_center_u: float,
+    oversample: int,
+) -> tuple[NDArrayFloatType, HaloScreen | None]:
+    """Add a body's haze layer to its reference-centered drawing.
+
+    The exponential haze layer evaluates over the reference-centered disc after
+    shading.  The on-disc haze joins the opaque disc paint, and the above-limb glow
+    rides along as a translucent halo screen the radiance stage composites.  A body
+    that has no ``atmosphere`` block never enters the haze code and renders
+    hard-limbed.
+
+    Parameters:
+        ellipsoid_render: The body drawn at the reference center.
+        spec: The body (its atmosphere and geometry are read).
+        ref_center_v: Reference center V the body was drawn at.
+        ref_center_u: Reference center U the body was drawn at.
+        oversample: The render grid's oversampling factor, which scales the
+            atmosphere's pixel lengths.
+
+    Returns:
+        The body's opaque intensity and its halo screen, or the drawing's own
+        intensity and None for a body without an atmosphere.
+    """
     atmosphere_spec = atmosphere_spec_from_params(spec.atmosphere, oversample=int(oversample))
-    if atmosphere_spec is not None:
-        layers = apply_atmosphere(
-            body_shape,
-            atmosphere_spec,
-            center_v=ref_center_v,
-            center_u=ref_center_u,
-            semi_a=semi_a_px,
-            semi_b=semi_b_px,
-            semi_c=semi_c_px,
-            rotation_z=float(rotation_z),
-            rotation_tilt=float(rotation_tilt),
-            illumination_angle=float(illumination_angle),
-            phase_angle=float(phase_angle),
-            silhouette=silhouette,
-        )
-        body_shape = layers.disc
-        halo = layers.halo
-
-    return finish_single_body(
-        img,
-        body_shape,
-        body_name=body_name,
-        center_v=center_v,
-        center_u=center_u,
-        half_extent_v=half_extent_v,
-        half_extent_u=half_extent_u,
-        ref_center_v=ref_center_v,
-        ref_center_u=ref_center_u,
-        range_km=spec.range_km,
-        halo=halo,
-        silhouette=silhouette,
+    if atmosphere_spec is None:
+        return ellipsoid_render.intensity, None
+    # apply_atmosphere returns fresh arrays, so the shared render cache the
+    # drawing may come from is never mutated.
+    layers = apply_atmosphere(
+        ellipsoid_render.intensity,
+        atmosphere_spec,
+        center_v=ref_center_v,
+        center_u=ref_center_u,
+        semi_a=spec.semi_a_px,
+        semi_b=spec.semi_b_px,
+        semi_c=spec.semi_c_px,
+        rotation_z=float(np.radians(spec.rotation_z)),
+        rotation_tilt=float(np.radians(spec.rotation_tilt)),
+        illumination_angle=float(np.radians(spec.illumination_angle)),
+        phase_angle=float(np.radians(spec.phase_angle)),
+        silhouette=ellipsoid_render.silhouette,
     )
+    return layers.disc, layers.halo
+
+
+def _projected_half_extents(spec: BodySpec) -> tuple[float, float]:
+    """The half-extents of an ellipsoid's silhouette along the image axes.
+
+    The rendered silhouette is the ellipse of semi-axes a and b rotated in-plane by
+    ``rotation_z``; semi-axis c is the depth axis and does not project.
+
+    Parameters:
+        spec: The body.
+
+    Returns:
+        The half-extents along v and u, in render-grid pixels.
+    """
+    rotation_z = np.radians(spec.rotation_z)
+    cos_rz = float(np.cos(rotation_z))
+    sin_rz = float(np.sin(rotation_z))
+    half_extent_v = float(stable_hypot(spec.semi_a_px * cos_rz, spec.semi_b_px * sin_rz))
+    half_extent_u = float(stable_hypot(spec.semi_a_px * sin_rz, spec.semi_b_px * cos_rz))
+    return half_extent_v, half_extent_u

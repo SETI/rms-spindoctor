@@ -24,7 +24,7 @@ its truth-key upgrades, none of which the navigator's prediction consumes:
   records it in the render truth.
 """
 
-import dataclasses
+from dataclasses import dataclass, replace
 from functools import lru_cache
 from typing import Any
 
@@ -164,57 +164,27 @@ def render_single_mesh_body(
         per-axis angles in degrees as ``pose_scatter_drawn_deg``.
     """
     size_v, size_u = img.shape
-    spec = body.mesh
-    shading = body.shading
-    relief_rms = body.limb_relief_rms
-    relief_corr_deg = body.limb_relief_corr_deg
-    scatter_sigma_deg = body.pose_scatter_sigma_deg
-
-    # The relief terrain and the pose scatter each draw from their own named
-    # stream of the per-body identity seed, as the ellipsoid path's streams do, so
-    # they are independent of each other.  The drawn scatter travels to the render
-    # truth through the returned body info.
-    drawn_deg: list[float] | None = None
-    relief_seed = 0
-    if relief_rms > 0.0 or scatter_sigma_deg > 0.0:
-        # The fallback digest hashes the full widths, twice the semi-axes, and keeps
-        # its low 31 bits, so a body drawn without seeds keeps its terrain (#913).
-        identity_seed = body_identity_seed(
-            body_streams_seed,
-            body,
-            body_index,
-            fallback_key=(2.0 * semi_a_px, 2.0 * semi_b_px, 2.0 * semi_c_px, body_index, body_name),
-            mask_fallback=True,
-        )
-        if relief_rms > 0.0:
-            relief_seed = derive_effect_seed(identity_seed, 'relief')
-        if scatter_sigma_deg > 0.0:
-            rng = np.random.default_rng(derive_effect_seed(identity_seed, 'pose_scatter'))
-            drawn = rng.normal(0.0, scatter_sigma_deg, size=3)
-            drawn_deg = [float(d) for d in drawn]
-            spec = dataclasses.replace(
-                spec,
-                pose_euler_deg=(
-                    spec.pose_euler_deg[0] + float(drawn[0]),
-                    spec.pose_euler_deg[1] + float(drawn[1]),
-                    spec.pose_euler_deg[2] + float(drawn[2]),
-                ),
-            )
-
+    streams = _draw_mesh_streams(
+        body,
+        body_name,
+        body_streams_seed=body_streams_seed,
+        body_index=body_index,
+        widths=(2.0 * semi_a_px, 2.0 * semi_b_px, 2.0 * semi_c_px),
+    )
     body_shape = _render_mesh_shape_cached(
         size_v,
         size_u,
         semi_a_px,
         semi_b_px=semi_b_px,
         semi_c_px=semi_c_px,
-        spec=spec,
+        spec=streams.mesh,
         illumination_angle=illumination_angle,
         phase_angle=phase_angle,
         anti_aliasing=anti_aliasing,
-        shading=shading,
-        relief_rms=relief_rms,
-        relief_corr_deg=relief_corr_deg,
-        relief_seed=relief_seed,
+        shading=body.shading,
+        relief_rms=body.limb_relief_rms,
+        relief_corr_deg=body.limb_relief_corr_deg,
+        relief_seed=streams.relief_seed,
     )
     # A mesh body's pose is an arbitrary 3D rotation, so fall back to the
     # bounding sphere of the ellipsoidal envelope for both image axes.
@@ -231,6 +201,80 @@ def render_single_mesh_body(
         ref_center_u=ref_center_u,
         range_km=body.range_km,
     )
-    if drawn_deg is not None:
-        body_info['pose_scatter_drawn_deg'] = drawn_deg
+    if streams.drawn_deg is not None:
+        body_info['pose_scatter_drawn_deg'] = streams.drawn_deg
     return mask, body_info
+
+
+@dataclass(frozen=True)
+class _MeshStreams:
+    """What a mesh body's random streams draw.
+
+    Parameters:
+        mesh: The mesh shape and the pose it is rendered at, the drawn pose scatter
+            added.
+        relief_seed: The seed of the relief terrain (0 for a body without relief).
+        drawn_deg: The drawn pose scatter per Euler axis in degrees, or None when
+            the body has no pose scatter.
+    """
+
+    mesh: MeshBodySpec
+    relief_seed: int
+    drawn_deg: list[float] | None
+
+
+def _draw_mesh_streams(
+    body: BodySpec,
+    body_name: str,
+    *,
+    body_streams_seed: int | None,
+    body_index: int,
+    widths: tuple[float, float, float],
+) -> _MeshStreams:
+    """Seed a mesh body's relief terrain and draw its pose scatter.
+
+    The relief terrain and the pose scatter each draw from their own named stream
+    of the body's identity seed, as the ellipsoid path's streams do, so they are
+    independent of each other.  The drawn scatter travels to the render truth
+    through the returned body info.
+
+    Parameters:
+        body: The body (its mesh, relief, pose scatter, and seed are read).
+        body_name: The upper-cased body name.
+        body_streams_seed: The scene's seed for every body's random streams, or None.
+        body_index: The body's position in the scene's body list.
+        widths: The full widths of the ellipsoidal envelope, twice its semi-axes, in
+            pixels.
+
+    Returns:
+        The rendered mesh, the relief seed, and the drawn pose scatter.
+    """
+    mesh = body.mesh
+    if body.limb_relief_rms <= 0.0 and body.pose_scatter_sigma_deg <= 0.0:
+        return _MeshStreams(mesh=mesh, relief_seed=0, drawn_deg=None)
+    # The fallback digest hashes the full widths and keeps its low 31 bits, so a
+    # body drawn without seeds keeps its terrain (#913).
+    identity_seed = body_identity_seed(
+        body_streams_seed,
+        body,
+        body_index,
+        fallback_key=(*widths, body_index, body_name),
+        mask_fallback=True,
+    )
+    relief_seed = 0
+    if body.limb_relief_rms > 0.0:
+        relief_seed = derive_effect_seed(identity_seed, 'relief')
+    drawn_deg: list[float] | None = None
+    if body.pose_scatter_sigma_deg > 0.0:
+        rng = np.random.default_rng(derive_effect_seed(identity_seed, 'pose_scatter'))
+        drawn = rng.normal(0.0, body.pose_scatter_sigma_deg, size=3)
+        drawn_deg = [float(d) for d in drawn]
+        mesh = replace(
+            mesh,
+            pose_euler_deg=(
+                mesh.pose_euler_deg[0] + float(drawn[0]),
+                mesh.pose_euler_deg[1] + float(drawn[1]),
+                mesh.pose_euler_deg[2] + float(drawn[2]),
+            ),
+        )
+    return _MeshStreams(mesh=mesh, relief_seed=relief_seed, drawn_deg=drawn_deg)
