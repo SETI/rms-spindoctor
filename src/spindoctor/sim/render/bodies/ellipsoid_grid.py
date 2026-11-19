@@ -324,10 +324,14 @@ def silhouette_mask(grid: BodyGrid, field: ReliefField | None) -> NDArrayFloatTy
     the cast shadows read one consistent surface under any in-plane rotation.
     For a circular disc the two conventions coincide.
 
-    A sample exactly on the smooth limb lies outside the smooth body.  The
-    surface there faces sideways and shows no area, so the navigator's predicted
-    body leaves the sample dark; leaving it out of the outline too keeps it dark
-    here and keeps two bodies whose limbs touch there from both claiming it.
+    A sample exactly on the outline lies outside the body, for the smooth limb and
+    the relief outline alike.  On the smooth limb the surface faces sideways and
+    shows no area, so the navigator's predicted body leaves the sample dark;
+    leaving it out of the outline too keeps it dark here and keeps two smooth
+    bodies whose limbs touch there from both claiming it.  Point sampling can never
+    make a body with nearly zero relief match the smooth body exactly at a sample
+    on the smooth limb: wherever the relief outline lies outside the limb, however
+    slightly, that sample falls inside the body and is lit.
 
     Parameters:
         grid: The working-grid geometry.
@@ -348,5 +352,5 @@ def silhouette_mask(grid: BodyGrid, field: ReliefField | None) -> NDArrayFloatTy
             # angle (identical to the image azimuth for a circular disc).
             phi = np.arctan2(grid.u_rot[band] / grid.semi_b, grid.v_rot[band] / grid.semi_a)
             delta = field.outline_delta(phi)
-            mask[band] = e_band <= 1.0 + delta
+            mask[band] = e_band < 1.0 + delta
     return mask.astype(np.float64)
