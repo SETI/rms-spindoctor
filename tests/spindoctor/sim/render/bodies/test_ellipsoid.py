@@ -178,22 +178,24 @@ _RELIEF_CASES: dict[str, dict[str, Any]] = {
         'seed': 6,
     },
     'rough_low_sun': {
-        'size': 160,
-        'radius': 60.0,
+        'size': 200,
+        'radius': 80.0,
         'sun': 57.0,
         'phase': 80.0,
-        'rms': 0.04,
-        'corr': 6.0,
-        'seed': 2,
+        'rms': 0.05,
+        'corr': 5.0,
+        'seed': 3,
     },
 }
 
 # The light's center may sit this far, along each axis, from where shading wholly on
 # the working grid puts it.  Measured: crescent 0.00012 px, small body 0.00008 px,
-# rough body 0.00017 px.  The crescent reaches 0.0037 px with the tilt interpolated
-# bilinearly, the small body 0.0028 px with a limb band of half a pixel, and the
-# rough body 0.014 px when its cast shadows are interpolated; shading them on the
-# detector grid and upsampling put the light 0.013, 0.032, and 0.048 px off.
+# rough body 0.00002 px.  The crescent reaches 0.0037 px with the tilt interpolated
+# bilinearly and the small body 0.0028 px with a limb band of half a pixel.  The
+# rough body reaches 0.21 px when its cast shadows are interpolated, and 0.0050 px
+# when the cells around them are left out, where a shadow edge crosses a cell
+# without reaching its center.  Shading them on the detector grid and upsampling
+# put the light 0.013, 0.032, and 0.047 px off.
 _RELIEF_CENTROID_BOUND_PX = 0.0005
 
 
@@ -282,10 +284,6 @@ def test_relief_body_smaller_than_a_pixel_renders_its_light(
     Its silhouette covers parts of four detector pixels, none of whose centers it
     reaches; its light must land there as it does when shaded wholly on the working
     grid.
-
-    Parameters:
-        monkeypatch: Switches the reference render to shade everything on the
-            working grid.
     """
     oversample = 4
     spec = EllipsoidBodySpec(

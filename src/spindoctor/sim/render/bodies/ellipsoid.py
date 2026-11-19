@@ -639,10 +639,6 @@ def _shade_disc_with_detector_detail(
         normal_u[band] = band_u
         normal_z[band] = band_z
     if crater_slopes is not None:
-        # The interpolated relief tilt leaves the normals off unit length, and the
-        # crater tilt returns unit normals; scaling them back keeps the relief
-        # tilt's brightness as it was where the craters change nothing.
-        length = None if field is None else np.sqrt(normal_v**2 + normal_u**2 + normal_z**2)
         normal_v, normal_u, normal_z = _perturb_by_craters(
             (normal_v, normal_u, normal_z),
             (
@@ -650,10 +646,6 @@ def _shade_disc_with_detector_detail(
                 bilinear_upsample(crater_slopes[1], up_factor),
             ),
         )
-        if length is not None:
-            normal_v *= length
-            normal_u *= length
-            normal_z *= length
     cos_i = incidence_cosines(
         normal_v,
         normal_u,
