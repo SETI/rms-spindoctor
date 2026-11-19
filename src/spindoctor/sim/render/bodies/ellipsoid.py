@@ -4,8 +4,9 @@ This is the image side's one renderer for an ellipsoid body.
 :func:`spindoctor.sim.render.bodies.render.render_single_body` sends every ellipsoid
 here, whatever its settings: a smooth Lambert disc, a limb-relief field
 (:mod:`spindoctor.sim.render.bodies.relief`), a non-Lambert photometric law or
-opposition surge (:mod:`spindoctor.sim.render.bodies.photometry`), craters, and
-surface textures and transits (:mod:`spindoctor.sim.render.bodies.texture`).
+opposition surge (:mod:`spindoctor.sim.render.bodies.photometry`), craters
+(:mod:`spindoctor.sim.render.bodies.craters`), and surface textures and transits
+(:mod:`spindoctor.sim.render.bodies.texture`).
 
 **Working grid and detector grid.**  The body is drawn on its *working grid*: the
 oversampled grid, or at oversample 1 the anti-aliasing supersample grid.  The
@@ -58,6 +59,7 @@ from typing import Any
 
 import numpy as np
 
+from spindoctor.sim.render.bodies.craters import carve_crater_heights, perturb_normals_by_slope
 from spindoctor.sim.render.bodies.ellipsoid_grid import (
     bilinear_upsample,
     body_box,
@@ -77,6 +79,7 @@ from spindoctor.sim.render.bodies.texture import (
     apply_transits,
     surface_texture_factor,
 )
+from spindoctor.sim.seeds import stable_param_seed
 from spindoctor.sim.shared.ellipsoid import (
     EllipsoidProjection,
     ellipsoid_image_normals,
@@ -395,26 +398,6 @@ def _crater_slopes(
     )
 
 
-def _perturb_by_craters(
-    normals: tuple[NDArrayFloatType, NDArrayFloatType, NDArrayFloatType],
-    slopes: tuple[NDArrayFloatType, NDArrayFloatType],
-) -> tuple[NDArrayFloatType, NDArrayFloatType, NDArrayFloatType]:
-    """Tilt normals by crater slopes.
-
-    Parameters:
-        normals: The ``(v, u, z)`` unit normals.
-        slopes: The crater field's ``(slope_v, slope_u)`` on the same grid.
-
-    Returns:
-        The tilted ``(v, u, z)`` unit normals.
-    """
-    # Local import: render.py imports this module's spec and renderer, so the
-    # crater helpers resolve lazily to keep the import graph acyclic.
-    from spindoctor.sim.render.bodies.render import perturb_normals_by_slope
-
-    return perturb_normals_by_slope(*normals, *slopes)
-
-
 def _apply_law(
     cos_i: NDArrayFloatType, normal_z: NDArrayFloatType, spec: EllipsoidBodySpec
 ) -> NDArrayFloatType:
@@ -480,8 +463,8 @@ def _shade_disc(
         *relief, shadowed = _relief_normals(grid, spec, field, normals)
         normals = (relief[0], relief[1], relief[2])
     if spec.crater_fill > 0.0:
-        normals = _perturb_by_craters(
-            normals, _crater_slopes(spec, detector_grid=detector_grid, scale=scale)
+        normals = perturb_normals_by_slope(
+            *normals, *_crater_slopes(spec, detector_grid=detector_grid, scale=scale)
         )
     normal_v, normal_u, normal_z = normals
     cos_i = incidence_cosines(
@@ -589,12 +572,12 @@ def _shade_disc_with_detector_detail(
         normal_u[band] = band_u
         normal_z[band] = band_z
     if crater_slopes is not None:
-        normal_v, normal_u, normal_z = _perturb_by_craters(
-            (normal_v, normal_u, normal_z),
-            (
-                bilinear_upsample(crater_slopes[0], up_factor),
-                bilinear_upsample(crater_slopes[1], up_factor),
-            ),
+        normal_v, normal_u, normal_z = perturb_normals_by_slope(
+            normal_v,
+            normal_u,
+            normal_z,
+            bilinear_upsample(crater_slopes[0], up_factor),
+            bilinear_upsample(crater_slopes[1], up_factor),
         )
     cos_i = incidence_cosines(
         normal_v,
@@ -838,11 +821,6 @@ def _crater_heights(grid: EllipsoidProjection, spec: EllipsoidBodySpec) -> NDArr
     Returns:
         The crater height field over the grid.
     """
-    # Local import: render.py imports this module's spec and renderer, so the
-    # crater helpers resolve lazily to keep the import graph acyclic.
-    from spindoctor.sim.render.bodies.render import carve_crater_heights
-    from spindoctor.sim.seeds import stable_param_seed
-
     inside_strict = grid.ellipse_dist_sq < 1.0
     n_craters = _crater_count(grid, spec)
     if n_craters == 0 or not inside_strict.any():

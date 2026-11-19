@@ -1,17 +1,17 @@
 """Each crater draws from its own stream, so a geometry change stays local.
 
-The craters on a simulated body are carved by one function that both body renderers
-share.  Every crater takes its random values from a stream derived from the body's
-crater seed and the crater's index, so neither a one-pixel change in the body's interior
-nor a crater that carves nothing can shift the values of any other crater.
+The craters on a simulated ellipsoid are carved by one function.  Every crater takes its
+random values from a stream derived from the body's crater seed and the crater's index,
+so neither a one-pixel change in the body's interior nor a crater that carves nothing can
+shift the values of any other crater.
 """
 
 import numpy as np
 import pytest
 from scipy import ndimage
 
-from spindoctor.sim.render.bodies import render as body_render
-from spindoctor.sim.render.bodies.render import carve_crater_heights
+from spindoctor.sim.render.bodies import craters
+from spindoctor.sim.render.bodies.craters import carve_crater_heights
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 
 _SIZE = (64, 64)
@@ -110,7 +110,7 @@ def test_clearing_a_pixel_moves_only_craters_centered_on_it(
     pixel, and at least one crater must move, so the comparison is not empty.
     """
     centers: list[tuple[int, int]] = []
-    draw_center = body_render._draw_crater_center
+    draw_center = craters._draw_crater_center
 
     def recording_draw(mask: NDArrayBoolType, rng: np.random.Generator) -> tuple[int, int]:
         """Draw a crater center as the carver does and record it.
@@ -126,7 +126,7 @@ def test_clearing_a_pixel_moves_only_craters_centered_on_it(
         centers.append(center)
         return center
 
-    monkeypatch.setattr(body_render, '_draw_crater_center', recording_draw)
+    monkeypatch.setattr(craters, '_draw_crater_center', recording_draw)
     mask_full, v_coords, u_coords = _ellipse(_SMALL_SIZE, _SMALL_CENTER, *_SMALL_SEMI_AXES)
     mask_cleared = mask_full.copy()
     mask_cleared[_CLEARED_PIXEL] = False

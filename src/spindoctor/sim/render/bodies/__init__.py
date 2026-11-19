@@ -1,8 +1,9 @@
 """The body renderers of the scene-radiance stage.
 
-- :mod:`spindoctor.sim.render.bodies.render`: the placement of one body in the frame,
-  and the crater carving.
+- :mod:`spindoctor.sim.render.bodies.render`: the placement of one body in the frame.
 - :mod:`spindoctor.sim.render.bodies.ellipsoid`: the ellipsoid renderer.
+- :mod:`spindoctor.sim.render.bodies.craters`: the crater carving the ellipsoid
+  renderer uses.
 - :mod:`spindoctor.sim.render.bodies.ellipsoid_grid`: the pixel grids the ellipsoid
   renderer works on.
 - :mod:`spindoctor.sim.render.bodies.mesh`: the polyhedral-mesh renderer.
