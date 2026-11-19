@@ -243,13 +243,18 @@ def limb_band(grid: BodyGrid, field: ReliefField, *, width_px: float) -> NDArray
             pixels.
 
     Returns:
-        The band mask on ``grid``.
+        The band mask on ``grid``.  When the band's inner edge reaches the body
+        center, the band is the whole disc out to its outer edge, the center
+        included.
     """
     delta_cap = max(abs(field.h_min), abs(field.h_max))
     margin = width_px / max(min(grid.semi_a, grid.semi_b), 1e-9)
     low = max(0.0, 1.0 - delta_cap - margin)
     high = 1.0 + delta_cap + margin
-    return (grid.e2 > low * low) & (grid.e2 < high * high)
+    band = grid.e2 < high * high
+    if low > 0.0:
+        band &= grid.e2 > low * low
+    return band
 
 
 def day_night_edge_cells(lit: NDArrayBoolType) -> NDArrayBoolType:
