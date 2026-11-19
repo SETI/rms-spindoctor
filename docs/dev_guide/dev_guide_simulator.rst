@@ -2263,10 +2263,9 @@ working grid uses the same interpolated crater slopes and the same texture.
 The spline follows relief whose correlation length, in radians times the body's
 radius, spans at least about 5 detector pixels. All the bodies above meet that except
 the 5 px one, whose limb and day-night bands cover nearly all of it. Finer relief is
-interpolated less well. With 1%
-relief at a phase of 80 degrees, the light lands up to 0.011 px off at 1.5 to 4
-pixels of correlation length, and 0.023 px off at 1 pixel, where a few pixels are off
-by as much as 0.28 of their brightness.
+interpolated less well. With 1% relief at a phase of 80 degrees, the light lands up to
+0.011 px off at 1.5 to 4 pixels of correlation length, and 0.023 px off at 1 pixel,
+where a few pixels are off by as much as 0.28 of their brightness.
 
 A small body at oversample 4 misses a render 8 times finer by the sampling of the
 working grid, with or without relief, and the miss depends on where the body sits
