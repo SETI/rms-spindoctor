@@ -99,7 +99,7 @@ is confined to.
 These make every later phase cheaper or safer. Most are small.
 
 **Status (2026-11-18):** every row below is done, decided, or moved, except #126 and #945, and
-#854 (on hold). #960 is done (PR #TBD). The realism-record regeneration with #961 is done (PR #1034), and #925's
+#854 (on hold). #960 is done (PR #1067). The realism-record regeneration with #961 is done (PR #1034), and #925's
 star-count criterion moved to #899 and #895 in Phase 4a. #970 waits on the upstream camera-model
 fixes.
 
@@ -109,7 +109,7 @@ fixes.
 | #924 | **Done (PR #932).** The simulator developer guide mixes per-camera values into the mechanism descriptions | Move each camera's measured values to its instrument page so each is stated once, before Phases 3 and 4 re-measure them and every change has to edit two copies. Docs only. |
 | #911, including per-pixel variates | **Done (PR #962).** One frame-wide Poisson stream | Every later fix would otherwise turn into a new noise field across the whole frame. |
 | #954 | **Done (PR #998): each crater draws from its own stream, and its center from a search that does not depend on the body's exact shape.** A last-bit geometry change can reseed every crater on a simulated body | The same fragility as #911, in the crater field instead of the noise; fixing it moves every cratered render once, so it is cheapest alongside another regeneration. |
-| #960 | **Done (PR #TBD): the optional scene key `noise_seed` redraws only the detector's per-frame noise; the rate and band checks are measured over noise seeds, and every other single-draw check records its measured spread.** Simulator tripwires depend on a single noise draw | The #911 redraw moved three of them; until each rate or band is measured over several noise seeds, the next redraw can move them again. |
+| #960 | **Done (PR #1067): the optional scene key `noise_seed` redraws only the detector's per-frame noise; the rate and band checks are measured over noise seeds, and every other single-draw check records its measured spread.** Simulator tripwires depend on a single noise draw | The #911 redraw moved three of them; until each rate or band is measured over several noise seeds, the next redraw can move them again. |
 | #961 | **Done (PR #1034): the two sweep figures and the irregularity and pose-disagreement passages were regenerated from one run on 2026-11-17, the population claims included.** The simulator report quotes the sweeps' earlier noise draw | Regenerate the sweep figures and their prose together in the report's end-of-stack regeneration. |
 | #905, truth-check part | **Done (PR #976).** Assertions are change detectors and 1 px bounds | Give validation scenes truth-based assertions before the renders start moving, so a move is judged against the planted truth. |
 | #872 | **Done (PR #927).** The baseline regenerator imports whichever installed package it finds | Regenerated baselines must come from the checkout under test before the churn starts. |
@@ -146,7 +146,7 @@ regression bands of #903 and so meets the "realism match fails on a planted regr
 and #961's sweep figures were regenerated in the same pass.
 
 Phase 1b starts now: the realism-record regeneration (with #961) and #989, its prerequisites,
-are done. #960 is done (PR #TBD). #854 (on hold) and #126/#945 do not hold it up; a later PR among
+are done. #960 is done (PR #1067). #854 (on hold) and #126/#945 do not hold it up; a later PR among
 them that moves renders follows the rebase rule in the Risks section.
 
 ## Phase 1b: pixel-neutral restructuring
