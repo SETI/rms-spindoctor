@@ -102,8 +102,7 @@ def _body_mesh(
     return mesh
 
 
-@lru_cache(maxsize=30)
-def _render_mesh_shape_cached(
+def _render_mesh_shape(
     shape: tuple[int, int],
     center: tuple[float, float],
     semi_a_px: float,
@@ -119,11 +118,12 @@ def _render_mesh_shape_cached(
     relief_corr_deg: float,
     relief_seed: int,
 ) -> NDArrayFloatType:
-    """Cache an irregular mesh body shape drawn at the reference center on its canvas.
+    """Draw an irregular mesh body shape at the reference center on its canvas.
 
-    The truth-side upgrades (shading mode, relief field) are part of the
-    cache key; at their defaults ('flat', relief off) this renders exactly
-    the shared ``render_mesh_body_image`` result the navigator predicts.
+    The truth-side upgrades (shading mode, relief field) are part of the cache key
+    of ``_render_mesh_shape_cached``; at their defaults ('flat', relief off) this
+    renders exactly the shared ``render_mesh_body_image`` result the navigator
+    predicts.
     """
     return render_polyhedral_body(
         size=shape,
@@ -140,9 +140,18 @@ def _render_mesh_shape_cached(
     )
 
 
+# Bodies drawn on the frame share one cache.  A larger body's canvas changes whenever
+# it moves, so an offset sweep never reuses one, and a cache as large would fill with
+# drawings about the size of the frame; its cache keeps only the last drawing, which
+# still serves a body drawn twice at one position.
+_render_mesh_shape_cached = lru_cache(maxsize=30)(_render_mesh_shape)
+_render_partial_mesh_cached = lru_cache(maxsize=1)(_render_mesh_shape)
+
+
 def clear_mesh_shape_caches() -> None:
     """Drop the cached mesh body shapes and meshes (test/tooling helper)."""
     _render_mesh_shape_cached.cache_clear()
+    _render_partial_mesh_cached.cache_clear()
     _body_mesh.cache_clear()
 
 
@@ -235,7 +244,8 @@ def render_single_mesh_body(
             range_km=body.range_km,
         )
     else:
-        body_shape = _render_mesh_shape_cached(
+        draw = _render_mesh_shape_cached if canvas.on_frame else _render_partial_mesh_cached
+        body_shape = draw(
             canvas.shape,
             canvas.center,
             semi_a_px,

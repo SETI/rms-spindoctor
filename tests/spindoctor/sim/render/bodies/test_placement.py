@@ -14,10 +14,14 @@ import numpy as np
 import pytest
 from tests.spindoctor.sim.scenes import disc_body
 
+from spindoctor.sim.render.bodies import mesh as body_mesh
+from spindoctor.sim.render.bodies import render as body_render
 from spindoctor.sim.render.bodies.ellipsoid import EllipsoidBodySpec, render_ellipsoid_body
+from spindoctor.sim.render.bodies.ellipsoid_grid import CraterPlane, crater_plane_site
 from spindoctor.sim.render.bodies.placement import body_canvas
 from spindoctor.sim.render.bodies.render import render_single_body
 from spindoctor.sim.render.bodies.spec import body_spec_from_params
+from spindoctor.sim.shared.ellipsoid import project_ellipsoid
 from spindoctor.support.types import NDArrayFloatType
 
 _SIZE = 64
@@ -161,7 +165,7 @@ def test_large_relief_body_at_oversample_2_matches_the_unclipped_body() -> None:
 def test_body_reaching_past_the_frame_by_its_tilt_or_relief_matches_the_unclipped_body(
     keys: dict[str, Any],
 ) -> None:
-    """A body whose tilt or relief alone carries it past the frame matches the unclipped body.
+    """A body carried past the frame only by tilt or relief matches the unclipped body.
 
     Without them the body would fit in the frame drawn at the frame center.  The
     tilt stretches the outline along semi-axis a, and the relief lifts the limb.
@@ -217,6 +221,25 @@ def test_large_mesh_body_matches_the_unclipped_body() -> None:
     assert _light_center(img) == pytest.approx(_light_center(reference), abs=1e-9)
 
 
+def test_lumpy_mesh_body_reaching_past_its_semi_axes_matches_the_unclipped_body() -> None:
+    """A lumpy mesh body whose bumps alone carry it past the frame matches the reference.
+
+    Its semi-axes would fit in the frame drawn at the frame center, but its farthest
+    vertex lies 1.28 times the semi-axis from its center, past the frame edge.
+    """
+    body = {
+        **disc_body(50.3, 12.6, 28.0, **_SHADING),
+        'shape_model': 'polyhedral_mesh',
+        'mesh_lumpiness': 0.6,
+        'mesh_seed': 0,
+        'pose_euler_deg': [20.0, 35.0, -10.0],
+    }
+    img, _ = _render(body)
+    reference, _ = _render(body, pad=_PAD)
+    assert float(reference.sum()) > 0.0
+    assert float(np.abs(img - reference).max()) < 1e-12
+
+
 def test_partly_drawn_body_keeps_its_craters_in_place() -> None:
     """A partly drawn cratered body moved by whole pixels moves with its craters.
 
@@ -230,25 +253,144 @@ def test_partly_drawn_body_keeps_its_craters_in_place() -> None:
     assert np.array_equal(img_moved[2:, 3:], img[:-2, :-3])
 
 
-def test_body_that_misses_the_frame_paints_nothing() -> None:
-    """A large body wholly outside the frame paints nothing and keeps its inventory."""
-    img = np.zeros((_SIZE, _SIZE))
-    mask, info = render_single_body(
-        img,
-        body_spec_from_params(disc_body(-200.0, 32.0, 50.0, name='far'), index=0),
-        0.0,
-        offset_u=0.0,
+def _refuse_to_draw(*args: Any, **kwargs: Any) -> NDArrayFloatType:
+    """Stand in for a body renderer that must not be called.
+
+    Parameters:
+        *args: The renderer's positional arguments.
+        **kwargs: The renderer's keyword arguments.
+
+    Raises:
+        AssertionError: Always.
+    """
+    raise AssertionError('a body outside the frame was drawn')
+
+
+@pytest.mark.parametrize(
+    ('semi_a', 'semi_b', 'rotation_z', 'rotation_tilt', 'center'),
+    [
+        pytest.param(40.0, 40.0, 0.0, 0.0, (61.0, 57.0), id='circle_on_pixel_corners'),
+        pytest.param(37.3, 21.9, 0.7, 0.5, (60.41, 57.83), id='rotated_and_tilted'),
+        pytest.param(25.0, 24.0, np.pi / 2, 0.0, (61.5, 57.5), id='quarter_turn'),
+    ],
+)
+def test_crater_plane_counts_every_pixel_inside_the_body(
+    semi_a: float,
+    semi_b: float,
+    rotation_z: float,
+    rotation_tilt: float,
+    center: tuple[float, float],
+) -> None:
+    """The crater plane counts the pixels inside the body as testing each one does.
+
+    The count tests only pixels near the limb of each row; the reference tests every
+    pixel of the same plane with the projection the renderer uses.
+
+    Parameters:
+        semi_a: Semi-axis a in pixels.
+        semi_b: Semi-axis b in pixels.
+        rotation_z: In-plane rotation in radians.
+        rotation_tilt: Tilt in radians.
+        center: The body center on the plane.
+    """
+    shape = (122, 115)
+    grid = project_ellipsoid(
+        shape,
+        center,
+        semi_a,
+        semi_b_px=semi_b,
+        semi_c_px=semi_b,
+        rotation_z=rotation_z,
+        rotation_tilt=rotation_tilt,
     )
+    _, count = crater_plane_site(
+        CraterPlane(shape=shape, origin=(0, 0)), grid, cos_tilt=float(np.cos(rotation_tilt))
+    )
+    assert count == int(np.count_nonzero(grid.ellipse_dist_sq < 1.0))
+
+
+@pytest.mark.parametrize(
+    ('keys', 'patched'),
+    [
+        pytest.param({}, (body_render, '_render_partial_ellipsoid_cached'), id='ellipsoid'),
+        pytest.param(
+            {'shape_model': 'polyhedral_mesh'},
+            (body_mesh, '_render_partial_mesh_cached'),
+            id='mesh',
+        ),
+    ],
+)
+def test_body_that_misses_the_frame_is_never_drawn(
+    monkeypatch: pytest.MonkeyPatch, keys: dict[str, Any], patched: tuple[Any, str]
+) -> None:
+    """A large body wholly outside the frame is never drawn and keeps its inventory.
+
+    Parameters:
+        monkeypatch: The test's monkeypatch fixture.
+        keys: The body keys that choose its renderer.
+        patched: The module and name of the renderer that must not be called.
+    """
+    monkeypatch.setattr(*patched, _refuse_to_draw)
+    img = np.zeros((_SIZE, _SIZE))
+    body = {**disc_body(-200.0, 32.0, 50.0, name='far'), **keys}
+    mask, info = render_single_body(img, body_spec_from_params(body, index=0), 0.0, offset_u=0.0)
     assert not mask.any()
     assert info['inventory']['v_max_unclipped'] == pytest.approx(-150.0)
 
 
-def test_body_that_fits_is_drawn_on_the_frame() -> None:
-    """A body that fits in the frame from its center is drawn on the frame itself."""
+@pytest.mark.parametrize(
+    ('reach', 'on_frame'),
+    [pytest.param(31.0, True, id='a_pixel_inside'), pytest.param(31.5, False, id='closer')],
+)
+def test_body_is_drawn_on_the_frame_only_a_pixel_inside_its_edge(
+    reach: float, on_frame: bool
+) -> None:
+    """A body is drawn on the frame only if it stays a pixel inside the frame edge.
+
+    Parameters:
+        reach: The body's reach along v from its center.
+        on_frame: Whether the body is drawn on the frame.
+    """
     canvas = body_canvas(
-        (_SIZE, _SIZE), center_v=-10.0, center_u=70.0, reach_v=31.5, reach_u=20.0, oversample=1
+        (_SIZE, _SIZE), center_v=-10.0, center_u=70.0, reach_v=reach, reach_u=20.0, oversample=1
     )
-    assert canvas.on_frame
+    assert canvas.on_frame is on_frame
+
+
+@pytest.mark.parametrize(
+    'keys',
+    [
+        pytest.param({'semi_a_px': 32.0, 'semi_b_px': 32.0, 'semi_c_px': 32.0}, id='edge'),
+        pytest.param({'semi_a_px': 31.4, 'semi_b_px': 31.4, 'semi_c_px': 31.4}, id='aa_pixel'),
+    ],
+)
+def test_body_within_a_pixel_of_the_frame_edge_matches_the_unclipped_body(
+    keys: dict[str, Any],
+) -> None:
+    """A body reaching within a pixel of the frame edge matches the unclipped body.
+
+    Drawn on the frame, it would light the drawing's outermost pixels, part of whose
+    light the move drops, so the frame would differ from the unclipped body there.
+
+    Parameters:
+        keys: The body's semi-axes.
+    """
+    body = {**disc_body(63.6, 63.2, 1.0, **_SHADING), **keys}
+    img, _ = _render(body)
+    reference, _ = _render(body, pad=_PAD)
+    assert float(reference.sum()) > 0.0
+    assert float(np.abs(img - reference).max()) < 1e-12
+
+
+def test_offset_sweep_of_a_large_body_keeps_one_drawing() -> None:
+    """A large body drawn at several positions leaves only its last drawing cached.
+
+    Its canvas changes with every position, so keeping more would only fill memory.
+    """
+    body_render.clear_ellipsoid_shape_caches()
+    for step in range(4):
+        _render(disc_body(-40.0 + 1.3 * step, 32.4, 60.0, **_SHADING))
+    assert body_render._render_partial_ellipsoid_cached.cache_info().currsize == 1
 
 
 def test_partial_canvas_edges_lie_on_detector_pixels() -> None:

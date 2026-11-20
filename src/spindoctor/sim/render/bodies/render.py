@@ -64,17 +64,30 @@ def _reference_center(size_v: int, size_u: int) -> tuple[float, float]:
 
 @lru_cache(maxsize=30)
 def _render_ellipsoid_shape_cached(
+    size_v: int, size_u: int, spec: EllipsoidBodySpec
+) -> EllipsoidBodyRender:
+    """Cache ellipsoid body shapes drawn on the frame at the reference center.
+
+    The frozen spec is the cache key, so bodies differing in any geometry,
+    texture, relief, or photometry knob occupy distinct entries; the caller
+    translates the shape and its silhouette into place.
+    """
+    return render_ellipsoid_body((size_v, size_u), _reference_center(size_v, size_u), spec)
+
+
+@lru_cache(maxsize=1)
+def _render_partial_ellipsoid_cached(
     shape: tuple[int, int],
     center: tuple[float, float],
     crater_plane: CraterPlane | None,
     spec: EllipsoidBodySpec,
 ) -> EllipsoidBodyRender:
-    """Cache ellipsoid body shapes drawn at the reference center on their canvas.
+    """Cache the last ellipsoid body drawn on a canvas reaching past the frame.
 
-    The frozen spec is part of the key, so bodies differing in any geometry,
-    texture, relief, or photometry knob occupy distinct entries.  A body drawn on
-    the frame has the same canvas wherever it is placed, so one entry serves it at
-    every position; the caller translates the shape and its silhouette into place.
+    Such a canvas changes whenever the body moves, so an offset sweep never reuses
+    one; a cache as large as the frame-sized one would fill with drawings, each
+    about the size of the frame.  One entry still serves a body drawn twice at one
+    position, as the radiance stage does for a scene that smears each layer apart.
     """
     return render_ellipsoid_body(shape, center, spec, crater_plane=crater_plane)
 
@@ -82,6 +95,7 @@ def _render_ellipsoid_shape_cached(
 def clear_ellipsoid_shape_caches() -> None:
     """Drop the cached ellipsoid body shapes (test/tooling helper)."""
     _render_ellipsoid_shape_cached.cache_clear()
+    _render_partial_ellipsoid_cached.cache_clear()
 
 
 def render_single_body(
@@ -223,11 +237,16 @@ def _render_single_ellipsoid_body(
         )
     # The silhouette comes back separately from the radiance: a transit umbra or a
     # zero-albedo spot renders black but still belongs to the body.
-    ellipsoid_render = _render_ellipsoid_shape_cached(
-        canvas.shape,
-        canvas.center,
-        _crater_plane(canvas, spec, oversample=oversample),
-        _ellipsoid_spec(spec, seeds, oversample=oversample),
+    ellipsoid_spec = _ellipsoid_spec(spec, seeds, oversample=oversample)
+    ellipsoid_render = (
+        _render_ellipsoid_shape_cached(size_v, size_u, ellipsoid_spec)
+        if canvas.on_frame
+        else _render_partial_ellipsoid_cached(
+            canvas.shape,
+            canvas.center,
+            _crater_plane(canvas, spec, oversample=oversample),
+            ellipsoid_spec,
+        )
     )
     body_shape, halo = _apply_body_atmosphere(
         ellipsoid_render, spec, atmosphere_spec, center=canvas.center
@@ -248,7 +267,7 @@ def _render_single_ellipsoid_body(
 
 
 def _crater_plane(canvas: BodyCanvas, spec: BodySpec, *, oversample: int) -> CraterPlane | None:
-    """The detector grid a body's craters are laid out on, when the canvas holds part of it.
+    """The detector grid a partly drawn body's craters are laid out on.
 
     Parameters:
         canvas: The body's canvas.
