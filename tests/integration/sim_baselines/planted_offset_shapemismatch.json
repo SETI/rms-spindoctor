@@ -1,8 +1,8 @@
 {
   "confidence": 0.99,
   "confidence_rank": "medium",
-  "offset_du_px": -1.2752741025939696,
-  "offset_dv_px": 1.4722464274559517,
+  "offset_du_px": -1.433145965764609,
+  "offset_dv_px": 1.2731931167825732,
   "scene_name": "planted_offset_shapemismatch",
   "status": "success"
 }

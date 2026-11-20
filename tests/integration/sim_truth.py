@@ -142,14 +142,20 @@ def _b(smallest: float, largest: float, margin: float, low: float, high: float) 
 # Columns: error on the committed seed, worst error over the seeds, spread over the
 # seeds, margin.  All in pixels; the tolerance is worst + margin.
 TRUTH_TOLERANCES: dict[tuple[str, str], TruthTolerance] = {
-    # algorithmic_invariants, fused answer (disc and star scenes).  planted_offset_disc,
-    # planted_offset_disc_if, and planted_offset_small carry known errors instead.
+    # algorithmic_invariants, fused answer (disc and star scenes).  The disc rows were
+    # re-measured when the disc correlation's final pass moved to the high-pass
+    # refinement, which reaches the planted 1.43 px where the half-pixel window around
+    # the whole pixel stopped at 1.5 (#791).
+    ('planted_offset_disc', FUSED): _t(0.001, 0.011, 0.010, 0.05),
+    ('planted_offset_disc_if', FUSED): _t(0.001, 0.011, 0.010, 0.05),
     ('planted_offset_irregular', FUSED): _t(0.001, 0.001, 0.000, 0.05),
-    ('planted_offset_limb', FUSED): _t(0.067, 0.073, 0.009, 0.05),
-    ('planted_offset_limb_mesh', FUSED): _t(0.076, 0.091, 0.027, 0.05),
+    ('planted_offset_limb', FUSED): _t(0.009, 0.017, 0.011, 0.05),
+    ('planted_offset_limb_mesh', FUSED): _t(0.014, 0.029, 0.020, 0.05),
     # The prediction is the smooth limit of the rendered lumpy mesh.  This error is the
-    # cost of that mismatch.
-    ('planted_offset_shapemismatch', FUSED): _t(0.667, 0.675, 0.013, 0.14),
+    # cost of that mismatch.  The high-pass disc refinement weighs the mismatched limb
+    # more than the raw one did, so the error grew from 0.667 to 0.838 px (#791).
+    ('planted_offset_shapemismatch', FUSED): _t(0.838, 0.844, 0.011, 0.17),
+    ('planted_offset_small', FUSED): _t(0.001, 0.011, 0.010, 0.05),
     ('planted_offset_star_field', FUSED): _t(0.018, 0.019, 0.003, 0.05),
     ('planted_offset_star_field_bright', FUSED): _t(0.040, 0.041, 0.001, 0.05),
     # algorithmic_invariants, one technique navigated alone.  StarRefineNav is read from
@@ -168,28 +174,36 @@ TRUTH_TOLERANCES: dict[tuple[str, str], TruthTolerance] = {
     # seed puts them and vary only the noise draw.  The telemetry stages derive their own
     # sub-seeds from the scene seed, and the measurement fixed those at the committed
     # value.
-    ('disc_structured_loss', FUSED): _t(0.080, 0.080, 0.004, 0.05),
-    ('disc_structured_loss_adversarial', FUSED): _t(0.141, 0.141, 0.000, 0.05),
+    # The disc rows were re-measured for the high-pass disc refinement (#791).  On
+    # disc_structured_loss a lost line across the disc pulls its maximum 0.12 px in v;
+    # the raw refinement's maximum was as far off the other way, and its 0.080 px came
+    # from stopping at its window edge.
+    ('disc_structured_loss', FUSED): _t(0.134, 0.144, 0.010, 0.05),
+    ('disc_structured_loss_adversarial', FUSED): _t(0.011, 0.011, 0.010, 0.05),
     ('star_field_structured_loss', FUSED): _t(0.067, 0.070, 0.004, 0.05),
     ('star_field_structured_loss_adversarial', FUSED): _t(0.133, 0.137, 0.005, 0.05),
     # atmosphere.  In titan_haze_limb, a haze-blind navigator fits a hard limb under a
     # soft haze limb.
     ('titan_haze', FUSED): _t(0.128, 0.137, 0.018, 0.05),
-    ('titan_haze_limb', FUSED): _t(0.261, 0.269, 0.010, 0.06),
+    # The high-pass disc refinement ignores the haze's smooth glow (#791).
+    ('titan_haze_limb', FUSED): _t(0.060, 0.064, 0.011, 0.05),
     # multi_body_geometry.
     ('two_moons', FUSED): _t(0.005, 0.005, 0.000, 0.05),
-    # mutual_event.
-    ('mutual_deep', FUSED): _t(0.164, 0.174, 0.012, 0.05),
-    ('mutual_grazing', FUSED): _t(0.110, 0.117, 0.012, 0.05),
-    ('mutual_half', FUSED): _t(0.315, 0.319, 0.014, 0.07),
+    # mutual_event.  mutual_deep carries a known error in its expected block (#1050).
+    # The simulator paints a dark one-pixel seam where the near body occludes the far
+    # one, which real frames lack, and the high-pass disc refinement is pulled by it
+    # more than the raw one was: repairing the seam brings mutual_grazing's disc answer
+    # to 0.02 px and mutual_half's to 0.10 px (#893, #791).
+    ('mutual_grazing', FUSED): _t(0.184, 0.193, 0.012, 0.05),
+    ('mutual_half', FUSED): _t(0.382, 0.385, 0.007, 0.08),
     # regression, fused answer.  relief_psf_stray_light carries a known error in its
     # expected block instead (#791).
-    ('banded_planet_transit', FUSED): _t(0.124, 0.131, 0.012, 0.05),
+    ('banded_planet_transit', FUSED): _t(0.085, 0.092, 0.013, 0.05),
     ('disc_subpixel_offset', FUSED): _t(0.000, 0.000, 0.000, 0.05),
     ('low_phase_limb_misconverge', FUSED): _t(0.004, 0.004, 0.000, 0.05),
     ('star_equal_brightness', FUSED): _t(0.033, 0.033, 0.002, 0.05),
     ('star_zero_offset', FUSED): _t(0.044, 0.044, 0.003, 0.05),
-    ('textured_moon_offset', FUSED): _t(0.261, 0.630, 0.526, 0.13),
+    ('textured_moon_offset', FUSED): _t(0.266, 0.379, 0.318, 0.08),
     # regression, one technique navigated alone.
     ('disc_subpixel_offset', 'BodyDiscCorrelateNav'): _t(0.000, 0.000, 0.000, 0.05),
     ('star_equal_brightness', 'StarFieldFromCatalogNav'): _t(0.033, 0.033, 0.002, 0.05),
@@ -216,11 +230,6 @@ TRUTH_TOLERANCES: dict[tuple[str, str], TruthTolerance] = {
 # fused run.  It also asserts that the answer is not flagged spurious, so a change that
 # flags it fails too.
 KNOWN_ERRORS: dict[tuple[str, str], KnownErrorBand] = {
-    # The disc correlation stops at the edge of its +-0.5 px refinement window, so it
-    # answers 1.5 px for a planted 1.43 px (#791).
-    ('planted_offset_disc', FUSED): _b(0.0705, 0.0705, 0.05, 0.020, 0.121),
-    ('planted_offset_disc_if', FUSED): _b(0.0705, 0.0719, 0.05, 0.020, 0.122),
-    ('planted_offset_small', FUSED): _b(0.0705, 0.0705, 0.05, 0.020, 0.121),
     # BodyBlobNav answers far from the truth and does not flag these answers spurious
     # (#975).
     ('two_moons', 'BodyBlobNav'): _b(36.293, 36.309, 0.05, 36.243, 36.359),
