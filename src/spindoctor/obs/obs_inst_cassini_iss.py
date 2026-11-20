@@ -115,9 +115,10 @@ header under the PDS3 names, except the two raw-product keywords of
 attributes is split by position, which is the only transformation made here:
 ``EXPECTED_MAXIMUM``, ``FILTER_NAME``, ``INST_CMPRS_PARAM``, ``INST_CMPRS_RATE``,
 ``OPTICS_TEMPERATURE`` and ``VALID_MAXIMUM`` give their values in the label's own order,
-and each is published as the host gives it.  A keyword given as one value fills the first of its attributes and
-leaves the rest None (see :func:`_element`).  Everything else keeps the form the host
-gives: a number stays a number, text stays text, and a time stays the label's own text.
+and each is published as the host gives it.  A keyword given as one value fills the
+first of its attributes and leaves the rest None (see :func:`_element`).  Everything else
+keeps the form the host gives: a number stays a number, text stays text, and a time stays
+the label's own text.
 
 ``pre-pds_version_number`` is stated by no keyword, which is what its ``None`` keyword
 records; the image's file name states it instead (see :func:`_version_number`).  Every
