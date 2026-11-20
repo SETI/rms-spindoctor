@@ -21,12 +21,27 @@ dependencies = [
   "rms-imgdisp",
   "rms-julian>=3.0.1",
   "rms-pdslogger>=3.2.1",
-  "rms-pdstable>=1.0.1",
+  # rms-oops and the host packages read PDS3 tables a few rows at a time, which needs
+  # rms-pdstable 1.2.0.
+  "rms-pdstable>=1.2.0",
   "rms-pdstemplate>=2.3.0",
-  "rms-host-cassini>=0.1.1",
+  # The four host packages read the images of each instrument. Until their pull
+  # requests merge and are released, each is installed from its branch:
+  # SETI/rms-host-cassini#9, SETI/rms-host-galileo#9, SETI/rms-host-voyager#1, and
+  # SETI/rms-host-new-horizons#7. Restore version floors once they are on PyPI.
+  "rms-host-cassini @ git+https://github.com/SETI/rms-host-cassini@rf_261117_label_image_consistency",
+  "rms-host-galileo @ git+https://github.com/SETI/rms-host-galileo@rf_261117_vicar_label_consistency",
+  "rms-host-new-horizons @ git+https://github.com/SETI/rms-host-new-horizons@rf_261117_initial_port",
+  "rms-host-voyager @ git+https://github.com/SETI/rms-host-voyager@jns_261106_cruise_spks",
   "rms-polymath>=2.1.1",
   "rms-psfmodel",
-  "rms-oops>=0.4.0",
+  # oops.OopsSpiceError, which every host raises for missing SPICE data, comes from
+  # SETI/rms-oops#242; the hosts install the same branch. SETI/rms-oops#243 is needed as
+  # well and is not on this branch: without it, oops evaluates the inverse of a type 1
+  # C-kernel frame through SPICE, which needs angular velocities that a type 1 kernel
+  # lacks, so the pointing of some Galileo SSI images raises SPICE(NOFRAMECONNECT).
+  # Restore a version floor once both are released.
+  "rms-oops @ git+https://github.com/SETI/rms-oops@rf_261118_oops_spice_error",
   "rms-starcat>=1.0.1",
   "ruamel.yaml",
   "scipy",
@@ -72,8 +87,8 @@ dev = [
   "pytest-xdist",
   "ruff",
   # The Cassini ISS label tests read a VICAR label directly, which is the only
-  # direct use of rms-vicar; the runtime reaches VICAR files through rms-oops
-  # and rms-host-cassini.
+  # direct use of rms-vicar; the runtime reaches VICAR files through the host
+  # packages.
   "rms-vicar>=1.3.0",
   "rms-spindoctor[docs]",
   "rms-spindoctor[postgres]",
