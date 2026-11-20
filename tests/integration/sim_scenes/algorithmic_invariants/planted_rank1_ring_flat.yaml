@@ -22,10 +22,11 @@ exposure_sec: 1.0
 # real frames (#1092).  These edges run parallel to the v axis at an
 # almost constant pixel phase (the catalog edges sit at u = 70 and 150 and
 # bow 0.12 px toward lower u at the top and bottom of the frame), so the
-# 220 in-frame vertices the fit uses sit 0.460 px toward lower u on
-# average, matching the miss to 0.001 px.  Moving the ring center in
-# 0.1 px steps moves the miss with the mean vertex offset, from -0.34 to
-# +0.46 px, while the render stays exact.
+# in-frame vertices the fit uses, 220 on each edge, sit 0.460 px toward
+# lower u on average, matching the miss to 0.001 px.  Moving the ring
+# center in 0.1 px steps moves the miss from -0.34 to +0.46 px while the
+# render stays exact; across those steps the miss follows the mean vertex
+# offset to within about 0.09 px.
 bodies: []
 ring_system:
   geometry:
