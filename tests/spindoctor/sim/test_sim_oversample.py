@@ -18,13 +18,49 @@ import numpy as np
 import pytest
 from tests.spindoctor.sim.scenes import disc_body, frame_scene, quiet_noise, star_entry
 
-from spindoctor.nav_model.simulated.predict_body import create_predicted_body_image
 from spindoctor.sim.render.bodies.ellipsoid import EllipsoidBodySpec, create_ellipsoid_body
 from spindoctor.sim.render.bodies.texture import AlbedoTextureSpec, DiscTextureSpec, TransitSpec
 from spindoctor.sim.render.driver import render_scene, resolve_oversample
 from spindoctor.sim.render.pipeline import STAGES
 from spindoctor.sim.render.stages import downsample_to_detector, new_sim_frame
+from spindoctor.sim.shared.ellipsoid import project_ellipsoid, render_lambert_ellipsoid
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
+from spindoctor.support.types import NDArrayFloatType
+
+
+def _predicted_sphere(
+    size: tuple[int, int],
+    center: tuple[float, float],
+    radius_px: float,
+    *,
+    illumination_angle: float,
+    phase_angle: float,
+    anti_aliasing: float = 0.0,
+) -> NDArrayFloatType:
+    """The navigator's predicted body for a sphere: the smooth Lambert ellipsoid.
+
+    Parameters:
+        size: ``(rows, columns)`` of the image.
+        center: ``(v, u)`` of the sphere's center in pixels.
+        radius_px: The sphere's radius in pixels.
+        illumination_angle: Direction of illumination in the image plane, in radians.
+        phase_angle: Phase angle in radians.
+        anti_aliasing: Anti-aliasing amount between 0 and 1.
+
+    Returns:
+        The predicted image.
+    """
+    projection = project_ellipsoid(
+        size,
+        center,
+        radius_px,
+        semi_b_px=radius_px,
+        semi_c_px=radius_px,
+        anti_aliasing=anti_aliasing,
+    )
+    return render_lambert_ellipsoid(
+        projection, illumination_angle=illumination_angle, phase_angle=phase_angle
+    )
 
 
 def _body_scene(*, oversample: int | None) -> dict[str, Any]:
@@ -115,9 +151,7 @@ def test_oversampled_smooth_body_matches_the_navigator_model() -> None:
             oversample=4,
         ),
     )
-    predicted = create_predicted_body_image(
-        size, center, 48.0, semi_b_px=48.0, semi_c_px=48.0, illumination_angle=0.7, phase_angle=0.9
-    )
+    predicted = _predicted_sphere(size, center, 48.0, illumination_angle=0.7, phase_angle=0.9)
     np.testing.assert_allclose(rendered, predicted, rtol=0.0, atol=1e-12)
 
 
@@ -141,15 +175,8 @@ def test_anti_aliased_smooth_body_matches_the_navigator_model() -> None:
             anti_aliasing=1.0,
         ),
     )
-    predicted = create_predicted_body_image(
-        size,
-        center,
-        48.0,
-        semi_b_px=48.0,
-        semi_c_px=48.0,
-        illumination_angle=0.7,
-        phase_angle=0.9,
-        anti_aliasing=1.0,
+    predicted = _predicted_sphere(
+        size, center, 48.0, illumination_angle=0.7, phase_angle=0.9, anti_aliasing=1.0
     )
     np.testing.assert_allclose(rendered, predicted, rtol=0.0, atol=1e-12)
 
@@ -181,12 +208,10 @@ def test_oversampled_smooth_body_matches_the_navigator_model_on_the_detector_gri
         stage(frame, params=scene)
         if stage is downsample_to_detector:
             break
-    predicted = create_predicted_body_image(
+    predicted = _predicted_sphere(
         (size, size),
         center,
         12.0,
-        semi_b_px=12.0,
-        semi_c_px=12.0,
         illumination_angle=np.radians(40.0),
         phase_angle=np.radians(51.6),
         anti_aliasing=1.0,

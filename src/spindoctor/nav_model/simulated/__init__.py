@@ -19,9 +19,7 @@ Modules:
         ``NavModelTitanSimulated``, the haze-envelope model.
     ``stars``
         ``NavModelStarsSimulated``, the star model.
-    ``predict_body``
-        The predicted-body renderer the body and haze-envelope models use.
-    ``predict_ring``
+    ``predicted_ring``
         The predicted-ring renderer the ring model uses.
 
 The model classes are exported from :mod:`spindoctor.nav_model`, which imports them in

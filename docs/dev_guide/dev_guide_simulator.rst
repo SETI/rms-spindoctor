@@ -225,10 +225,13 @@ without a deliberate mismatch is the navigator's own template plus a shift and
 noise. For stars that holds only when the scene's PSF is the navigator's own,
 ``optics: {psf: {match_navigator: true}}`` (see :ref:`sim-floor`); without an
 ``optics`` block a star renders as a point, which the navigator's Gaussian
-doesn't match. Its models and renderers live under
-``nav_model/simulated/`` so the package layout states who owns them.
-:mod:`spindoctor.nav_model.simulated.predict_body` draws the predicted template of an
-ellipsoid body, and :mod:`spindoctor.nav_model.simulated.predict_ring` draws the
+doesn't match. Its models and the ring renderer live under
+``nav_model/simulated/`` so the package layout states who owns them. The ellipsoid
+body template is the exception, shared on purpose so both sides shade a smooth body
+the same way: the shared
+:func:`~spindoctor.sim.shared.ellipsoid.render_lambert_ellipsoid` draws the predicted
+template of an ellipsoid body, and
+:mod:`spindoctor.nav_model.simulated.predicted_ring` draws the
 predicted rings. :class:`~spindoctor.nav_model.simulated.body.NavModelBodySimulated`
 and :class:`~spindoctor.nav_model.simulated.rings.NavModelRingsSimulated` emit those
 templates as features. A ``polyhedral_mesh`` body is drawn by
@@ -372,6 +375,19 @@ arguments; the two record parsers
 mappings restricted to idealized keys, and on the navigator side they only
 ever receive entries that have already passed the boundary filter. Either
 way, truth cannot be smuggled across.
+
+An ellipsoid body shows how far the sharing goes. The navigator's predicted-body
+renderer and the image-side ellipsoid renderer both place the body on a pixel grid with
+:func:`~spindoctor.sim.shared.ellipsoid.project_ellipsoid`, which returns an
+:class:`~spindoctor.sim.shared.ellipsoid.EllipsoidProjection`, and both take its
+surface normals from :func:`~spindoctor.sim.shared.ellipsoid.ellipsoid_image_normals`.
+The predicted body is
+:func:`~spindoctor.sim.shared.ellipsoid.render_lambert_ellipsoid` applied to that
+projection. The image-side renderer projects each body onto its working grid and its
+detector grid (see :ref:`sim-shading-grids`) and builds its own image from there,
+with relief, craters, photometric laws, and textures. So the two sides agree on
+which pixels the body covers and which way its surface faces, but each draws its
+own limb.
 
 The shared helpers live in :mod:`spindoctor.sim.shared`. A module under
 ``nav_model/``, ``nav_technique/``, or ``nav_orchestrator/`` may import that package

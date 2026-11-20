@@ -4,27 +4,25 @@ The renderer (:mod:`spindoctor.sim.render.bodies.ellipsoid`) lays a body out on
 two grids: the *working grid* it draws the silhouette and shades on (the
 oversampled grid, or the anti-aliasing supersample grid at oversample 1), and the
 *detector grid*, one point per detector pixel, where surface detail is computed
-before it is interpolated onto the working grid.  This module builds those grids,
-crops them to the body, carries values from one to the other, and marks the
-regions the renderer treats specially: the silhouette, the band along the limb,
-and the cells along the day-night edge.
+before it is interpolated onto the working grid.  The body is projected onto each
+grid by :func:`~spindoctor.sim.shared.ellipsoid.project_ellipsoid`, the projection
+the navigator's predicted body uses too.  This module finds the box the body
+covers, carries values from one grid to the other, and marks the regions the
+renderer treats specially: the silhouette, the band along the limb, and the cells
+along the day-night edge.
 """
-
-from dataclasses import dataclass, replace
 
 import numpy as np
 from scipy import ndimage
 
 from spindoctor.sim.render.bodies.relief import ReliefField
+from spindoctor.sim.shared.ellipsoid import EllipsoidProjection
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType, NDArrayIntType
 
 __all__ = [
-    'BodyGrid',
     'bilinear_upsample',
     'body_box',
-    'body_grid',
-    'crop_grid',
     'cubic_upsample',
     'day_night_edge_cells',
     'expand_to_working_grid',
@@ -44,84 +42,6 @@ _DAY_NIGHT_MARGIN_CELLS = 3
 # Detector cells kept around the silhouette when a body is cropped to its box; one
 # cell covers the bilinear interpolation's reach and one more the outline's.
 _BOX_MARGIN_CELLS = 2
-
-
-@dataclass
-class BodyGrid:
-    """One resolution level of the body geometry.
-
-    Parameters:
-        v_ctr: Centered (unrotated) v coordinate of each pixel.
-        u_ctr: Centered (unrotated) u coordinate of each pixel.
-        v_rot: Rotated-frame v coordinate of each pixel.
-        u_rot: Rotated-frame u coordinate of each pixel.
-        e2: Squared normalized ellipse radial function ``e(p)**2``.
-        center: Body center (v, u) in this grid's pixels.
-        semi_a: Semi-axis a at this grid's resolution, pixels.
-        semi_b: Semi-axis b at this grid's resolution, pixels.
-        semi_c: Depth semi-axis c at this grid's resolution, pixels.
-    """
-
-    v_ctr: NDArrayFloatType
-    u_ctr: NDArrayFloatType
-    v_rot: NDArrayFloatType
-    u_rot: NDArrayFloatType
-    e2: NDArrayFloatType
-    center: tuple[float, float]
-    semi_a: float
-    semi_b: float
-    semi_c: float
-
-
-def body_grid(
-    dims: tuple[int, int],
-    center: tuple[float, float],
-    semi_axes: tuple[float, float, float],
-    *,
-    cos_rz: float,
-    sin_rz: float,
-    cos_rt: float,
-) -> BodyGrid:
-    """Build the rotated-frame coordinates and radial function for one grid.
-
-    The conventions (the grid built in pixel corner coordinates, rotation then
-    tilt compression) match :func:`~spindoctor.sim.shared.ellipsoid.project_ellipsoid`
-    exactly.
-
-    Parameters:
-        dims: Grid dimensions (rows, columns).
-        center: Body center (v, u) in this grid's pixels.
-        semi_axes: Semi-axes (a, b, c) in this grid's pixels.
-        cos_rz: Cosine of the in-plane rotation.
-        sin_rz: Sine of the in-plane rotation.
-        cos_rt: Cosine of the tilt.
-
-    Returns:
-        The populated :class:`BodyGrid`.
-    """
-    size_v, size_u = dims
-    semi_a, semi_b, semi_c = semi_axes
-    # The grid starts as array rows and columns and the body center is stated
-    # in pixel corner coordinates, so the half pixel goes on before the center
-    # comes off.
-    v_coords, u_coords = np.mgrid[0:size_v, 0:size_u].astype(float)
-    v_coords += PIXEL_CENTER_TO_CORNER_PX - center[0]
-    u_coords += PIXEL_CENTER_TO_CORNER_PX - center[1]
-    v_rot1 = v_coords * cos_rz - u_coords * sin_rz
-    u_rot1 = v_coords * sin_rz + u_coords * cos_rz
-    v_rot = v_rot1 * cos_rt
-    e2 = (v_rot / semi_a) ** 2 + (u_rot1 / semi_b) ** 2
-    return BodyGrid(
-        v_ctr=v_coords,
-        u_ctr=u_coords,
-        v_rot=v_rot,
-        u_rot=u_rot1,
-        e2=e2,
-        center=center,
-        semi_a=semi_a,
-        semi_b=semi_b,
-        semi_c=semi_c,
-    )
 
 
 def bilinear_upsample(field: NDArrayFloatType, factor: int) -> NDArrayFloatType:
@@ -180,7 +100,9 @@ def cubic_upsample(field: NDArrayFloatType, factor: int) -> NDArrayFloatType:
     )
 
 
-def body_box(detector_grid: BodyGrid, field: ReliefField | None) -> tuple[slice, slice] | None:
+def body_box(
+    detector_grid: EllipsoidProjection, field: ReliefField | None
+) -> tuple[slice, slice] | None:
     """The detector rows and columns the body's silhouette can touch, plus a margin.
 
     The margin of two cells keeps every interpolation that reaches the silhouette
@@ -188,7 +110,7 @@ def body_box(detector_grid: BodyGrid, field: ReliefField | None) -> tuple[slice,
     covers.
 
     Parameters:
-        detector_grid: The detector-grid geometry.
+        detector_grid: The body's projection onto the detector grid.
         field: The relief realization, or None for the smooth limb.
 
     Returns:
@@ -198,7 +120,7 @@ def body_box(detector_grid: BodyGrid, field: ReliefField | None) -> tuple[slice,
     # The reach is two detector pixels beyond the outline whatever the body's size;
     # a body smaller than a pixel still reaches the cells its silhouette touches.
     reach = 1.0 + delta_cap + 2.0 / max(min(detector_grid.semi_a, detector_grid.semi_b), 1e-9)
-    inside = detector_grid.e2 < reach * reach
+    inside = detector_grid.ellipse_dist_sq < reach * reach
     rows = np.flatnonzero(inside.any(axis=1))
     cols = np.flatnonzero(inside.any(axis=0))
     if rows.size == 0:
@@ -211,32 +133,11 @@ def body_box(detector_grid: BodyGrid, field: ReliefField | None) -> tuple[slice,
     )
 
 
-def crop_grid(grid: BodyGrid, rows: slice, cols: slice) -> BodyGrid:
-    """The part of a grid inside a box; its coordinates keep the body-centered origin.
-
-    Parameters:
-        grid: The geometry to crop.
-        rows: The box's rows.
-        cols: The box's columns.
-
-    Returns:
-        The cropped :class:`BodyGrid`, whose arrays are views into ``grid``'s.
-    """
-    return replace(
-        grid,
-        v_ctr=grid.v_ctr[rows, cols],
-        u_ctr=grid.u_ctr[rows, cols],
-        v_rot=grid.v_rot[rows, cols],
-        u_rot=grid.u_rot[rows, cols],
-        e2=grid.e2[rows, cols],
-    )
-
-
-def limb_band(grid: BodyGrid, field: ReliefField, *, width_px: float) -> NDArrayBoolType:
+def limb_band(grid: EllipsoidProjection, field: ReliefField, *, width_px: float) -> NDArrayBoolType:
     """The pixels within ``width_px`` of the relief outline's reach on either side.
 
     Parameters:
-        grid: The geometry to select on.
+        grid: The body's projection onto the grid to select on.
         field: The relief realization; its extremes bound how far the outline
             departs from the smooth limb.
         width_px: The band's half-width beyond the outline's reach, in ``grid``
@@ -251,9 +152,9 @@ def limb_band(grid: BodyGrid, field: ReliefField, *, width_px: float) -> NDArray
     margin = width_px / max(min(grid.semi_a, grid.semi_b), 1e-9)
     low = max(0.0, 1.0 - delta_cap - margin)
     high = 1.0 + delta_cap + margin
-    band = grid.e2 < high * high
+    band = grid.ellipse_dist_sq < high * high
     if low > 0.0:
-        band &= grid.e2 > low * low
+        band &= grid.ellipse_dist_sq > low * low
     return band
 
 
@@ -308,7 +209,7 @@ def expand_to_working_grid(cells: NDArrayBoolType, up_factor: int) -> NDArrayBoo
     return np.repeat(np.repeat(cells, up_factor, axis=0), up_factor, axis=1)
 
 
-def silhouette_mask(grid: BodyGrid, field: ReliefField | None) -> NDArrayFloatType:
+def silhouette_mask(grid: EllipsoidProjection, field: ReliefField | None) -> NDArrayFloatType:
     """The body's silhouette on the working grid, relief-perturbed when on.
 
     With relief, ``e_adj = e / (1 + delta(theta))`` places the limb at
@@ -334,20 +235,20 @@ def silhouette_mask(grid: BodyGrid, field: ReliefField | None) -> NDArrayFloatTy
     slightly, that sample falls inside the body and is lit.
 
     Parameters:
-        grid: The working-grid geometry.
+        grid: The body's projection onto the working grid.
         field: The relief realization, or None for the smooth limb.
 
     Returns:
         Float mask (1 inside the body, 0 outside).
     """
-    mask = grid.e2 < 1.0
+    mask = grid.ellipse_dist_sq < 1.0
     if field is not None:
         delta_cap = max(abs(field.h_min), abs(field.h_max)) * 1.001 + 1e-12
         low = max(0.0, 1.0 - delta_cap)
         high = 1.0 + delta_cap
-        band = (grid.e2 > low * low) & (grid.e2 < high * high)
+        band = (grid.ellipse_dist_sq > low * low) & (grid.ellipse_dist_sq < high * high)
         if band.any():
-            e_band = np.sqrt(grid.e2[band])
+            e_band = np.sqrt(grid.ellipse_dist_sq[band])
             # Body-attached azimuth: the rotated-frame elliptical parametric
             # angle (identical to the image azimuth for a circular disc).
             phi = np.arctan2(grid.u_rot[band] / grid.semi_b, grid.v_rot[band] / grid.semi_a)

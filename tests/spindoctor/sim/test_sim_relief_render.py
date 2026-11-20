@@ -18,10 +18,11 @@ from tests.spindoctor.sim.scenes import disc_body, frame_scene, quiet_noise
 
 from spindoctor.sim.render.bodies import ellipsoid as body_ellipsoid
 from spindoctor.sim.render.bodies.ellipsoid import EllipsoidBodySpec, create_ellipsoid_body
-from spindoctor.sim.render.bodies.ellipsoid_grid import body_grid, silhouette_mask
+from spindoctor.sim.render.bodies.ellipsoid_grid import silhouette_mask
 from spindoctor.sim.render.bodies.photometry import DARK_SIDE_FLOOR
 from spindoctor.sim.render.bodies.relief import ReliefField, cast_shadows, synthesize_relief_field
 from spindoctor.sim.render.driver import render_scene
+from spindoctor.sim.shared.ellipsoid import EllipsoidProjection, project_ellipsoid
 from spindoctor.support.types import NDArrayFloatType
 
 _RMS = 0.02
@@ -260,7 +261,7 @@ def _surface_normals(field: ReliefField, points: NDArrayFloatType) -> NDArrayFlo
 
 def _lambert_relief_disc(
     *, rms: float, corr_deg: float
-) -> tuple[EllipsoidBodySpec, Any, ReliefField]:
+) -> tuple[EllipsoidBodySpec, EllipsoidProjection, ReliefField]:
     """A 75 px Lambert sphere with relief, shaded at the render grid, and its grid and field."""
     spec = EllipsoidBodySpec(
         semi_a_px=75.0,
@@ -273,9 +274,7 @@ def _lambert_relief_disc(
         limb_relief_corr_deg=corr_deg,
         relief_seed=3,
     )
-    grid = body_grid(
-        (200, 200), (100.0, 100.0), (75.0, 75.0, 75.0), cos_rz=1.0, sin_rz=0.0, cos_rt=1.0
-    )
+    grid = project_ellipsoid((200, 200), (100.0, 100.0), 75.0, semi_b_px=75.0, semi_c_px=75.0)
     return spec, grid, synthesize_relief_field(rms, corr_deg, 3)
 
 
@@ -292,9 +291,14 @@ def test_relief_normals_shade_a_lambert_disc() -> None:
     smooth = create_ellipsoid_body(
         (200, 200), (100.0, 100.0), EllipsoidBodySpec(**{**spec.__dict__, 'limb_relief_rms': 0.0})
     )
-    near = grid.e2 < 0.8
+    near = grid.ellipse_dist_sq < 0.8
     points = np.stack(
-        [grid.v_rot[near] / 75.0, grid.u_rot[near] / 75.0, np.sqrt(1.0 - grid.e2[near])], axis=-1
+        [
+            grid.v_rot[near] / 75.0,
+            grid.u_rot[near] / 75.0,
+            np.sqrt(1.0 - grid.ellipse_dist_sq[near]),
+        ],
+        axis=-1,
     )
     sin_phase = math.sin(spec.phase_angle)
     sun = np.array(
@@ -305,7 +309,7 @@ def test_relief_normals_shade_a_lambert_disc() -> None:
         ]
     )
     cos_i = np.sum(_surface_normals(field, points) * sun, axis=-1)
-    shadowed = body_ellipsoid._relief_shading(grid, spec, field, near, cos_rz=1.0, sin_rz=0.0)[3]
+    shadowed = body_ellipsoid._relief_shading(grid, spec, field, near)[3]
     lit = (cos_i > 0.05) & ~shadowed[near]
     np.testing.assert_allclose(ragged[near][lit], cos_i[lit], rtol=0.0, atol=0.02)
     expected_change = cos_i[lit] - smooth[near][lit]
@@ -323,20 +327,20 @@ def test_relief_normals_near_the_limb_face_the_observer() -> None:
     """
     spec, grid, field = _lambert_relief_disc(rms=0.035, corr_deg=5.0)
     reach = 1.0 + field.h_max + 2.0 / 75.0
-    near = grid.e2 < reach * reach
+    near = grid.ellipse_dist_sq < reach * reach
     inside = silhouette_mask(grid, field)[near] > 0.0
-    radial = np.sqrt(np.maximum(grid.e2[near], 1.0))
+    radial = np.sqrt(np.maximum(grid.ellipse_dist_sq[near], 1.0))
     points = np.stack(
         [
             grid.v_rot[near] / 75.0 / radial,
             grid.u_rot[near] / 75.0 / radial,
-            np.sqrt(np.maximum(0.0, 1.0 - grid.e2[near])),
+            np.sqrt(np.maximum(0.0, 1.0 - grid.ellipse_dist_sq[near])),
         ],
         axis=-1,
     )
     away = inside & (_surface_normals(field, points)[:, 2] < -0.05)
     assert int(away.sum()) > 100
-    normal_z = body_ellipsoid._relief_shading(grid, spec, field, near, cos_rz=1.0, sin_rz=0.0)[2]
+    normal_z = body_ellipsoid._relief_shading(grid, spec, field, near)[2]
     assert float(normal_z.min()) >= 0.0
 
 
@@ -361,10 +365,10 @@ def test_shadow_march_resolves_fine_relief_on_a_small_body(
         limb_relief_corr_deg=1.0,
         relief_seed=3,
     )
-    grid = body_grid((80, 80), (40.0, 40.0), (30.0, 30.0, 30.0), cos_rz=1.0, sin_rz=0.0, cos_rt=1.0)
+    grid = project_ellipsoid((80, 80), (40.0, 40.0), 30.0, semi_b_px=30.0, semi_c_px=30.0)
     field = synthesize_relief_field(0.03, 1.0, 3)
-    near = grid.e2 < (1.0 + field.h_max + 2.0 / 30.0) ** 2
-    shadowed = body_ellipsoid._relief_shading(grid, spec, field, near, cos_rz=1.0, sin_rz=0.0)[3]
+    near = grid.ellipse_dist_sq < (1.0 + field.h_max + 2.0 / 30.0) ** 2
+    shadowed = body_ellipsoid._relief_shading(grid, spec, field, near)[3]
 
     cell = 2.0 * np.pi / field.grid.shape[0]
 
@@ -374,7 +378,7 @@ def test_shadow_march_resolves_fine_relief_on_a_small_body(
         return cast_shadows(points, sun, relief, step=min(step, cell / 32.0))
 
     monkeypatch.setattr(body_ellipsoid, 'cast_shadows', fine_march)
-    reference = body_ellipsoid._relief_shading(grid, spec, field, near, cos_rz=1.0, sin_rz=0.0)[3]
+    reference = body_ellipsoid._relief_shading(grid, spec, field, near)[3]
     assert int(reference.sum()) > 100
     assert int((shadowed != reference).sum()) <= 0.01 * int(reference.sum())
 

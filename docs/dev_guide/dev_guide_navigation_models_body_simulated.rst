@@ -80,9 +80,9 @@ true offset is known to the pixel.
 Restrictions and assumptions
 ----------------------------
 
-- The operator must supply finite, positive ellipsoid axes. Degenerate inputs (zero
-  radius, negative axes) are rejected by
-  :func:`~spindoctor.nav_model.simulated.predict_body.create_predicted_body_image`.
+- The operator must supply positive axes. Scene validation refuses a non-finite axis
+  but accepts zero and negative ones, and the model checks neither. An ellipsoid with
+  a zero axis draws no body, while a mesh with zero depth still draws its outline.
 - The body appearance keys -- crater terrain, the limb-relief field, the photometric
   law and opposition surge, the albedo and disc textures and transits, the atmospheric
   haze layer, the mesh shading mode and pose scatter, and anti-aliasing -- are truth
@@ -209,7 +209,7 @@ Public methods (autodocumented at :doc:`/api_reference/api_nav_model`):
 
 - :meth:`~spindoctor.nav_model.simulated.body.NavModelBodySimulated.create_model` —
   renders the simulated body (an ellipsoid via
-  :func:`~spindoctor.nav_model.simulated.predict_body.create_predicted_body_image`,
+  :func:`~spindoctor.sim.shared.ellipsoid.render_lambert_ellipsoid`,
   or a mesh via :func:`~spindoctor.sim.shared.mesh.render_mesh_body_image`), computes the limb mask via
   the shared :class:`~spindoctor.nav_model.nav_model_body_base.NavModelBodyBase` helper, and
   records the predicted diameter, tight bounding box, and silhouette overflow fraction
@@ -236,9 +236,10 @@ Call path traced through
 1. Open a logged section. Read the operator-supplied sim parameters off the per-instance
    dict.
 2. Convert per-axis rotations and angle parameters from degrees to radians.
-3. Call
-   :func:`~spindoctor.nav_model.simulated.predict_body.create_predicted_body_image`
-   with the semi-axes and geometry; the helper returns the rendered simulated body image.
+3. Render the simulated body image from the semi-axes and geometry. The model projects
+   the body with :func:`~spindoctor.sim.shared.ellipsoid.project_ellipsoid`,
+   as the image-side renderer does, and shades it with
+   :func:`~spindoctor.sim.shared.ellipsoid.render_lambert_ellipsoid`.
 4. Derive the body mask from the rendered image (every non-zero pixel is on the body).
 5. Compute the limb mask via
    :class:`~spindoctor.nav_model.nav_model_body_base.NavModelBodyBase`'s shared discrete-mask

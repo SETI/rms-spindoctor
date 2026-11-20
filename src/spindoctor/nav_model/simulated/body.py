@@ -32,8 +32,8 @@ from spindoctor.nav_model.simulated.body_arcs import (
     build_limb_arc_feature,
     build_terminator_arc_feature,
 )
-from spindoctor.nav_model.simulated.predict_body import create_predicted_body_image
 from spindoctor.obs import ObsSnapshotInst
+from spindoctor.sim.shared.ellipsoid import project_ellipsoid, render_lambert_ellipsoid
 from spindoctor.sim.shared.mesh import mesh_spec_from_params, render_mesh_body_image
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX, containing_pixel
 from spindoctor.support.filters import NavFilterKind, NavFilterSpec
@@ -328,17 +328,18 @@ class NavModelBodySimulated(NavModelBodyBase):
                 phase_angle=phase_angle_rad,
                 anti_aliasing=1.0,
             )
-        return create_predicted_body_image(
-            size=(data_size_v, data_size_u),
-            center=(center_v, center_u),
-            semi_a_px=semi_a_px,
+        projection = project_ellipsoid(
+            (data_size_v, data_size_u),
+            (center_v, center_u),
+            semi_a_px,
             semi_b_px=semi_b_px,
             semi_c_px=semi_c_px,
             rotation_z=rotation_z_rad,
             rotation_tilt=rotation_tilt_rad,
-            illumination_angle=illumination_angle_rad,
-            phase_angle=phase_angle_rad,
             anti_aliasing=1.0,
+        )
+        return render_lambert_ellipsoid(
+            projection, illumination_angle=illumination_angle_rad, phase_angle=phase_angle_rad
         )
 
     def _render(self) -> None:
