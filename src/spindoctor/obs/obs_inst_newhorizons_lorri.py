@@ -1,15 +1,15 @@
 from fractions import Fraction
 from typing import Any, cast
 
+import host_new_horizons
 import numpy as np
-from filecache import FCPath
 
 from spindoctor.config import DEFAULT_CONFIG, IMAGE_LOGGER, Config, logged_section
-from spindoctor.support.sclk import exposure_counts, fractional_count, pds3_label_clock_counts
+from spindoctor.support.sclk import exposure_counts, fractional_count
 from spindoctor.support.time import et_to_utc
-from spindoctor.support.types import PathLike
+from spindoctor.support.types import NDArrayAnyType, PathLike
 
-from .obs_snapshot_inst import ObsSnapshotInst
+from .obs_snapshot_inst import ObsSnapshotInst, host_input
 
 # SCLK01_MODULI_98 and SCLK01_OFFSETS_98 of the New Horizons spacecraft clock kernel,
 # $OOPS_RESOURCES/SPICE/New-Horizons/SCLK/new_horizons_2132.tsc: whole seconds, then
@@ -65,9 +65,6 @@ class ObsNewHorizonsLORRI(ObsSnapshotInst):
 
     model_source = 'spice'
 
-    _label_clock_counts: tuple[str | None, str | None]
-    """The start and stop clock counts of the PDS3 label beside the image."""
-
     @staticmethod
     @logged_section('obs', 'LOAD IMAGE')
     def from_file(
@@ -79,6 +76,9 @@ class ObsNewHorizonsLORRI(ObsSnapshotInst):
     ) -> 'ObsNewHorizonsLORRI':
         """Creates an ObsNewHorizonsLORRI from a New Horizons LORRI image file.
 
+        The host reads the PDS3 label beside the image together with the FITS file (see
+        :func:`~spindoctor.obs.obs_snapshot_inst.host_input`).
+
         Parameters:
             path: Path to the New Horizons LORRI image file.
             config: Configuration object to use. If None, uses the default configuration.
@@ -88,41 +88,38 @@ class ObsNewHorizonsLORRI(ObsSnapshotInst):
 
         Returns:
             An ObsNewHorizonsLORRI object containing the image data and metadata.
-        """
 
-        import oops.hosts.newhorizons.lorri
+        Raises:
+            oops.OopsSpiceError: If the SPICE kernels cannot supply the image's pointing.
+            oops.host.HostError: If the host cannot read the image or its label.
+        """
 
         config = config or DEFAULT_CONFIG
         logger = IMAGE_LOGGER
 
         logger.debug(f'Reading New Horizons LORRI image {path}')
-        # calibration=False reads the raw DN image.  LORRI navigates in DN:
-        # the calibrated LORRI products are themselves in DN (not I/F), and the
-        # navigation pipeline treats image brightness scale-invariantly (NCC
-        # correlation, image-derived MAD noise thresholds, magnitude-based star
-        # gate), so no I/F conversion is required or expected here.
-        # The host module publishes no type information for from_file.
-        obs = oops.hosts.newhorizons.lorri.from_file(  # type: ignore[no-untyped-call]
-            path, calibration=False
-        )
-        fc_path = FCPath(path)
+        # The host gives the data as the FITS file stores them, in DN, and attaches the
+        # conversion to I/F as a calibration, which is not applied: the navigation
+        # pipeline treats image brightness scale-invariantly (NCC correlation,
+        # image-derived MAD noise thresholds, magnitude-based star gate).
+        obs = host_new_horizons.NewHorizonsLORRI.from_file(host_input(path))
+        # The host inserts the image as the data subfield, which the Snapshot it returns
+        # does not declare.
+        data: NDArrayAnyType = obs.subfields['data']
 
         inst_config = config.category('newhorizons_lorri')
 
         if extfov_margin_vu is None:
             if isinstance(inst_config.extfov_margin_vu, dict):
-                extfov_margin_vu = inst_config.extfov_margin_vu[obs.data.shape[0]]
+                extfov_margin_vu = inst_config.extfov_margin_vu[data.shape[0]]
             else:
                 extfov_margin_vu = inst_config.extfov_margin_vu
-        logger.debug(f'  Data shape: {obs.data.shape}')
+        logger.debug(f'  Data shape: {data.shape}')
         logger.debug(f'  Extfov margin vu: {extfov_margin_vu}')
-        logger.debug(f'  Data min: {np.min(obs.data)}, max: {np.max(obs.data)}')
+        logger.debug(f'  Data min: {np.min(data)}, max: {np.max(data)}')
 
         new_obs = ObsNewHorizonsLORRI(obs, config=config, extfov_margin_vu=extfov_margin_vu)
         new_obs._inst_config = inst_config
-        # The spacecraft clock counts are in the PDS3 label; the FITS header the
-        # observation is read from carries the start count only.
-        new_obs._label_clock_counts = pds3_label_clock_counts(fc_path)
         return new_obs
 
     def star_min_usable_vmag(self) -> float:
@@ -178,9 +175,9 @@ class ObsNewHorizonsLORRI(ObsSnapshotInst):
     def get_public_metadata(self) -> dict[str, Any]:
         """Returns the public metadata for New Horizons LORRI.
 
-        The spacecraft clock counts are those of the PDS3 label beside the image, read
-        when the image was loaded, in seconds of the clock; each is None when the label
-        carries none.
+        The spacecraft clock counts are the host's ``spacecraft_clock_start_count`` and
+        ``spacecraft_clock_stop_count``, in seconds of the clock; each is None when no
+        label gives it.
 
         Returns:
             A dictionary containing the public metadata for New Horizons LORRI.
@@ -197,7 +194,10 @@ class ObsNewHorizonsLORRI(ObsSnapshotInst):
             'start_time_et': self.time[0],
             'midtime_et': self.midtime,
             'end_time_et': self.time[1],
-            **_published_sclk(*self._label_clock_counts),
+            **_published_sclk(
+                self.subfields.get('spacecraft_clock_start_count'),
+                self.subfields.get('spacecraft_clock_stop_count'),
+            ),
             'image_shape_xy': self.data_shape_uv,
             'camera': self.camera,
             'exposure_time': self.texp,
