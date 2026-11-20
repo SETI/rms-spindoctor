@@ -42,11 +42,11 @@ that is right at the midtime and wrong at the edges is a moving frame
 misdeclared as a constant one, and the correction is written to a kernel as a
 single body-fixed rotation.
 
-Voyager is the exception to the check, not to the convention: oops freezes the
-observation frame from a tolerance-snapped ``ckgp`` lookup rather than
-evaluating a frame chain, so ``pxform`` cannot evaluate that camera frame at
-all.  The accessor answers correctly there regardless, so only the cross-check
-is skipped.
+Voyager is the exception to the check, not to the convention: the Voyager host
+freezes the observation frame from one ``ckgp`` lookup at the image's clock stop
+count, within 20 ticks, rather than evaluating a frame chain, so ``pxform``
+cannot evaluate that camera frame at all.  The accessor answers correctly there
+regardless, so only the cross-check is skipped.
 
 What stays here is what oops does not do: turning a navigated pixel offset into
 a rotation, refusing a malformed record, naming the C-kernel object and the
@@ -171,10 +171,10 @@ class _FrameIdentity:
         ck_frame_id: SPICE id of the object a corrected C-kernel targets.
         sclk_id: SPICE id of the spacecraft clock that object's time tags are
             encoded against.
-        frozen_oops_attitude: True when oops freezes the observation frame
-            from a tolerance-snapped pointing lookup, so ``pxform`` cannot
-            evaluate the camera frame at all and the declared flip has nothing
-            to be cross-checked against.
+        frozen_oops_attitude: True when the host freezes the observation frame
+            from one pointing lookup at the image's clock count, so ``pxform``
+            cannot evaluate the camera frame at all and the declared flip has
+            nothing to be cross-checked against.
     """
 
     ck_frame_id: int
