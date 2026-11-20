@@ -29,8 +29,10 @@ moves their committed renders, so a stream name must never change.
 A scene with an active whole-scene PSF renders its radiance on an oversampled
 grid (``oversample`` > 1) so the convolution resolves sub-detector-pixel edge
 structure; the box downsample after optics returns the image and the
-pixel-space truth metadata to the detector grid.  A scene with no optics block
-renders at ``oversample`` 1, where the downsample is a no-op.
+pixel-space truth metadata to the detector grid.  A scene with no PSF (no
+``optics.psf`` block, and no catalog kernel from ``instrument_defaults``) renders
+at ``oversample`` 1, where the downsample is a no-op.  An explicit ``oversample``
+key sets the factor either way.
 
 The ``signal`` plane carries normalized [0, ~1] intensive scene units through
 the optics stage; the detector stage converts it to electrons through the

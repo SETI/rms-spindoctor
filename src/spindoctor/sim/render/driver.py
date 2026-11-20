@@ -42,7 +42,7 @@ from spindoctor.sim.render.bodies.mesh import clear_mesh_shape_caches
 from spindoctor.sim.render.bodies.relief import clear_relief_caches
 from spindoctor.sim.render.bodies.render import clear_ellipsoid_shape_caches
 from spindoctor.sim.render.optics.psf import clear_psf_caches
-from spindoctor.sim.render.optics.stage import instrument_defaults_on
+from spindoctor.sim.render.optics.stage import psf_active
 from spindoctor.sim.render.pipeline import run_pipeline
 from spindoctor.sim.render.radiance.stars import clear_star_caches
 from spindoctor.sim.render.stages import new_sim_frame
@@ -89,10 +89,10 @@ def _render_scene_cached(
     # A whole-scene PSF is applied on an oversampled radiance grid so limb, ring
     # edge, and star profiles carry sub-detector-pixel structure into the
     # convolution; the box downsample after optics returns to the detector grid.
-    # A scene with no optics block renders at oversample 1 (identical to a
-    # frame with no sub-pixel optics to resolve).  The editor's fast preview
-    # always renders at oversample 1: drawing on a grid 4 times finer in each
-    # direction costs 16 times the pixels, for detail its display can't show.
+    # A scene with no PSF renders at oversample 1 (identical to a frame with no
+    # sub-pixel optics to resolve).  The editor's fast preview always renders at
+    # oversample 1: drawing on a grid 4 times finer in each direction costs 16
+    # times the pixels, for detail its display can't show.
     oversample = 1 if preview else resolve_oversample(sim_params)
     frame = new_sim_frame(size_v, size_u, oversample=oversample, preview=preview)
     run_pipeline(frame, sim_params)
@@ -102,11 +102,11 @@ def _render_scene_cached(
 def resolve_oversample(sim_params: dict[str, Any]) -> int:
     """Return the radiance oversampling factor for a scene.
 
-    An explicit ``oversample`` key wins.  Otherwise a scene with an active PSF
-    -- an ``optics.psf`` block or the ``instrument_defaults`` opt-in, either of
-    which puts a kernel on the frame -- oversamples 4x by default so the
-    convolution resolves sub-pixel edge structure; a scene with no PSF renders on
-    the detector grid at oversample 1.
+    An explicit ``oversample`` key wins.  Otherwise a scene the optics stage blurs
+    with a PSF (:func:`~spindoctor.sim.render.optics.stage.psf_active`) oversamples
+    4x so the convolution resolves sub-pixel edge structure.  A scene with no PSF
+    renders on the detector grid at oversample 1, which includes a scene that turns
+    on ``instrument_defaults`` for a camera whose catalog entry states no kernel.
 
     Parameters:
         sim_params: The full scene mapping.
@@ -117,9 +117,7 @@ def resolve_oversample(sim_params: dict[str, Any]) -> int:
     explicit = sim_params.get('oversample')
     if explicit is not None:
         return max(1, int(explicit))
-    optics = sim_params.get('optics')
-    psf_active = isinstance(optics, dict) and isinstance(optics.get('psf'), dict)
-    return 4 if (psf_active or instrument_defaults_on(sim_params)) else 1
+    return 4 if psf_active(sim_params) else 1
 
 
 def render_scene(

@@ -195,7 +195,7 @@ typed scene, in Phase 3b.
 | #1011 | **Done (PR #1071).** The image-side renderer builds its working and detector grids with the shared `project_ellipsoid`, and the navigator's predicted body is the shared `render_lambert_ellipsoid`; the renderer's private grid copy is gone. The predicted body is bit-identical. An image-side render can move only when a coordinate of the body center, scaled to the grid (times the anti-aliasing factor on the working grid, divided by the oversample on the detector grid), is below 0.25 px. There the two copies rounded the centered coordinates differently by one unit in the last place. The largest move measured was 1.2e-14 of peak. The navigator-side predicted-body module is gone, since its one function only called the two shared helpers, and the predicted-ring module and function are now `predicted_ring` and `create_predicted_ring_feature`. The topographic body renderer projects through its own copy of the ellipsoid projection, while the navigator predicts through the shared one |
 | #1012 | **Done (PR #1073).** Crater carving and body placement have their own modules, the body modules import one another only at the top of a file and never upward, and each render cache has a public clearer. One function, `body_identity_seed`, seeds every body, each caller hashing the key it hashed before, and no scene render moves. The body renderer modules import each other through hidden cycles, and the body identity seed is written out in several places |
 | #931 | **Done (PR #1069).** Every ellipsoid is shaded on its working grid. The relief tilt is interpolated from the detector grid by a cubic spline, except in a limb band, along the relief's day-night edge, and wherever its cast shadows fall, and the crater slopes bilinearly; textures and transits are drawn on the working grid. Against working-grid shading the light of 14 test bodies with 2% relief at a 12-degree correlation length lands within 0.0015 px, and that of a 150 px body with 3% to 5% relief at 5 degrees within 0.0007 px. That holds while the relief's correlation length spans at least about 5 detector pixels; finer relief lands up to 0.011 px off at 1.5 to 4 pixels and 0.023 px at 1 pixel (#1068). Coarse shading had moved it up to 0.026 px on cratered and 0.008 px on textured bodies. Three regression baselines moved toward their planted offsets. Coarse-grid shading shifts relief, textured, and cratered bodies at oversample above 1 (smooth bodies fixed by #916); lands with #901 |
-| #1013 | A scene with instrument defaults oversamples 4x even when its camera has no PSF |
+| #1013 | **Done (PR #1075).** The oversampling choice asks the optics stage whether the scene has a PSF, through one predicate, `psf_active`, so a generic-camera scene with instrument defaults renders at oversample 1; no committed scene or render moves, since every committed scene with instrument defaults uses a camera with a kernel. A scene with instrument defaults oversamples 4x even when its camera has no PSF |
 | #1014 | The simulated Titan model predicts a mesh occluder as an ellipsoid, and at pixel (0, 0) when no center is given |
 | #890 | A body larger than half the frame and off center is clipped or vanishes |
 | #825, #644 | A planted roll turns ellipsoids the wrong way, mesh bodies and the lit side not at all, and leaves smear, companions, and sky unturned; #644 also asks for a ruling on what a roll turns |
@@ -295,7 +295,8 @@ Under the current structure, each new key is written in up to six places, each n
 needs its own dispatch, and every stage reads the scene dict with its own defaults. This phase
 gives the renderer the shape Phase 4 builds on. It runs alongside Phases 2b and 3, and must be done
 before Phase 4 starts. It changes no pixel, except where #1015 finds a hand-scaled key that was
-scaled wrongly; each such move is explained in its PR.
+scaled wrongly, and where #1074 stops a scene that asks for oversampling with no PSF from pulling
+its stars toward pixel centers (no committed scene does); each such move is explained in its PR.
 
 | Issue | Subject | Why now |
 |---|---|---|
@@ -310,6 +311,7 @@ scaled wrongly; each such move is explained in its PR.
 | #1018 | The radiance stage split into named sub-steps (after #1027 and #1028) | #895 and #896 change this stage. |
 | #1019 | Each render logs its `RenderSettings` (after #1028) | Phase 4's realism work needs to see which values a render used. |
 | #1020 | The simulated-image editor rebuilt from per-block panels generated from the typed scene's field metadata (after #1024 and #1028) | Each Phase 4 key then gets its editor control from its declaration, not from hand wiring that a later rewrite throws away. Closes #902, #947, and #967. |
+| #1074 | **Affects no current scene.** A scene that asks for oversampling with no PSF pulls its stars up to 0.43 px toward pixel centers (with #1015) | #1015 owns how the oversampling factor is chosen. |
 
 Order: #1024, then #1028, then #1027, then #1026. #1015, #1016, #1018, #1019, and #1020 follow in
 any order their own dependencies allow; #310 and #1025 follow #1026.
@@ -319,7 +321,7 @@ simulated models accept only the idealized types, and `ObsSim` holds no truth at
 applies its artifact modes in one loop over the registry. No function in the radiance, atmosphere,
 ring, body, or detector-parameter modules is longer than about 100 lines. Every scene key has an
 editor control generated from its declaration, or a documented exception. Every committed render
-reproduced unchanged through the phase, apart from #1015's explained moves.
+reproduced unchanged through the phase, apart from #1015's and #1074's explained moves.
 
 ## Phase 4: physics, in order of how many real frames need it
 
