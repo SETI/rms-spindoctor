@@ -2,8 +2,8 @@
 
 - :mod:`spindoctor.sim.render.bodies.render`: one body into the frame, sent to the
   renderer that draws it.
-- :mod:`spindoctor.sim.render.bodies.placement`: a drawn body translated into
-  place and painted.
+- :mod:`spindoctor.sim.render.bodies.placement`: the canvas a body is drawn on,
+  and the drawing translated into place and painted.
 - :mod:`spindoctor.sim.render.bodies.ellipsoid`: the ellipsoid renderer.
 - :mod:`spindoctor.sim.render.bodies.craters`: the crater carving the ellipsoid
   renderer uses.

@@ -73,7 +73,7 @@ def _render_body(extra: dict[str, Any]) -> NDArrayFloatType:
     """The zero-test body, plus ``extra`` keys, drawn by the render path at oversample 1."""
     img = np.zeros((128, 128))
     spec = body_spec_from_params({**_ZERO_BODY, **extra}, index=0)
-    render_single_body(img, spec, 0.0, offset_u=0.0, ref_center_v=64.0, ref_center_u=64.0)
+    render_single_body(img, spec, 0.0, offset_u=0.0)
     return img
 
 

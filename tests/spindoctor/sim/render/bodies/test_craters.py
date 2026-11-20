@@ -112,17 +112,17 @@ def test_clearing_a_pixel_moves_only_craters_centered_on_it(
     centers: list[tuple[int, int]] = []
     draw_center = craters._draw_crater_center
 
-    def recording_draw(mask: NDArrayBoolType, rng: np.random.Generator) -> tuple[int, int]:
+    def recording_draw(site: craters.CraterSite, rng: np.random.Generator) -> tuple[int, int]:
         """Draw a crater center as the carver does and record it.
 
         Parameters:
-            mask: The pixels a center may land on.
+            site: The grid the center is drawn on.
             rng: The crater's random stream.
 
         Returns:
             The center's array row and column.
         """
-        center = draw_center(mask, rng)
+        center = draw_center(site, rng)
         centers.append(center)
         return center
 

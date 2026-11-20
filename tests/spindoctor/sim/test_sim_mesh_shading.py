@@ -128,8 +128,6 @@ def _render_mesh_body(body: dict[str, Any]) -> NDArrayFloatType:
         illumination_angle=0.0,
         phase_angle=math.radians(5.0),
         anti_aliasing=0.0,
-        ref_center_v=_CENTER,
-        ref_center_u=_CENTER,
         body_streams_seed=99,
         body_index=0,
     )
@@ -227,8 +225,6 @@ def test_pose_scatter_draw_is_returned_with_the_body_info() -> None:
         illumination_angle=0.0,
         phase_angle=math.radians(5.0),
         anti_aliasing=0.0,
-        ref_center_v=_CENTER,
-        ref_center_u=_CENTER,
         body_streams_seed=99,
         body_index=0,
     )
@@ -290,8 +286,6 @@ def test_mesh_anti_aliasing_suppressed_on_oversampled_grid(
         body_spec_from_params(body_params, index=0),
         0.0,
         offset_u=0.0,
-        ref_center_v=32.0,
-        ref_center_u=32.0,
     )
     img_os = np.zeros((128, 128), dtype=np.float64)
     scaled = dict(body_params)
@@ -302,8 +296,6 @@ def test_mesh_anti_aliasing_suppressed_on_oversampled_grid(
         body_spec_from_params(scaled, index=0),
         0.0,
         offset_u=0.0,
-        ref_center_v=64.0,
-        ref_center_u=64.0,
         oversample=2,
     )
     assert captured[0] == 1.0

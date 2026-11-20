@@ -12,17 +12,22 @@ renderer treats specially: the silhouette, the band along the limb, and the cell
 along the day-night edge.
 """
 
+from dataclasses import dataclass
+
 import numpy as np
 from scipy import ndimage
 
+from spindoctor.sim.render.bodies.craters import CraterSite
 from spindoctor.sim.render.bodies.relief import ReliefField
 from spindoctor.sim.shared.ellipsoid import EllipsoidProjection
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType, NDArrayIntType
 
 __all__ = [
+    'CraterPlane',
     'bilinear_upsample',
     'body_box',
+    'crater_plane_site',
     'cubic_upsample',
     'day_night_edge_cells',
     'expand_to_working_grid',
@@ -42,6 +47,75 @@ _DAY_NIGHT_MARGIN_CELLS = 3
 # Detector cells kept around the silhouette when a body is cropped to its box; one
 # cell covers the bilinear interpolation's reach and one more the outline's.
 _BOX_MARGIN_CELLS = 2
+# Pixels per pass when the pixels of a crater plane inside the body are counted.
+_PLANE_COUNT_PIXELS = 2**22
+
+
+@dataclass(frozen=True)
+class CraterPlane:
+    """The detector grid a partly drawn body's crater centers are drawn on.
+
+    A body too large to be drawn whole is drawn on a box of a larger grid that holds
+    all of it.  Its craters are laid out on that larger grid, so they stay in place
+    on the body's surface whichever part of it is drawn.
+
+    Parameters:
+        shape: The plane's rows and columns, in detector pixels.
+        origin: The plane row and column of the drawn detector grid's first pixel.
+    """
+
+    shape: tuple[int, int]
+    origin: tuple[int, int]
+
+
+def crater_plane_site(
+    plane: CraterPlane, detector_grid: EllipsoidProjection, *, cos_tilt: float
+) -> tuple[CraterSite, int]:
+    """The crater site of a plane, and the number of its pixels inside the body.
+
+    A plane pixel lies inside the body when its center lies strictly inside the
+    smooth outline, as on the detector grid
+    (:func:`~spindoctor.sim.shared.ellipsoid.project_ellipsoid`).  The pixels are
+    tested where they are needed and counted a strip of rows at a time, so a plane
+    far larger than the frame takes little memory.  The count and the site test each
+    pixel with the same arithmetic, so a site whose count is positive always finds
+    a pixel inside.
+
+    Parameters:
+        plane: The plane.
+        detector_grid: The body projected onto the drawn detector grid.
+        cos_tilt: The cosine of the body's tilt.
+
+    Returns:
+        The site and the count of plane pixels inside the body.
+    """
+    n_rows, n_cols = plane.shape
+    center_v = detector_grid.center[0] + plane.origin[0]
+    center_u = detector_grid.center[1] + plane.origin[1]
+
+    def dist_sq(rows: NDArrayFloatType, cols: NDArrayFloatType) -> NDArrayFloatType:
+        """The squared normalized ellipse distance of plane pixels by row and column."""
+        v = (rows + PIXEL_CENTER_TO_CORNER_PX) - center_v
+        u = (cols + PIXEL_CENTER_TO_CORNER_PX) - center_u
+        v_rot = (v * detector_grid.cos_rz - u * detector_grid.sin_rz) * cos_tilt
+        u_rot = v * detector_grid.sin_rz + u * detector_grid.cos_rz
+        return np.asarray(
+            (v_rot / detector_grid.semi_a) ** 2 + (u_rot / detector_grid.semi_b) ** 2,
+            dtype=np.float64,
+        )
+
+    def inside(indices: NDArrayIntType) -> NDArrayBoolType:
+        """Whether each flat plane index lies inside the body."""
+        rows, cols = np.divmod(indices, n_cols)
+        return np.asarray(dist_sq(rows.astype(np.float64), cols.astype(np.float64)) < 1.0)
+
+    count = 0
+    cols_all = np.arange(n_cols, dtype=np.float64)[np.newaxis, :]
+    strip = max(1, _PLANE_COUNT_PIXELS // max(n_cols, 1))
+    for first in range(0, n_rows, strip):
+        rows = np.arange(first, min(first + strip, n_rows), dtype=np.float64)[:, np.newaxis]
+        count += int(np.count_nonzero(dist_sq(rows, cols_all) < 1.0))
+    return CraterSite(shape=plane.shape, inside=inside, origin=plane.origin), count
 
 
 def bilinear_upsample(field: NDArrayFloatType, factor: int) -> NDArrayFloatType:
