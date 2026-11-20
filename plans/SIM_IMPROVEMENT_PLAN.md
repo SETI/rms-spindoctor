@@ -210,7 +210,7 @@ typed scene, in Phase 3b.
 | #1077 | **Affects no current scene.** The simulated body model's overflow and visible-arc fractions miss part of a tilted or very lumpy body; the tilt part shrinks if #893 lands first |
 | #1080 | **Affects no current scene.** A mesh body with the default pose draws up to 3% of peak differently near its outline on frames of different size |
 | #1084 | **Affects 10 current frames, but only which random clutter stars they show, not their statistics.** The sky field turns with a planted roll but does not move with the planted offset: in the 10 committed frames with a sky field, every sky star sits 1.55 px from where it belongs |
-| #1068 | Fine limb relief (a correlation length under about 5 detector pixels) is interpolated from too coarse a grid, moving the light up to 0.023 px; the fix is shading it wholly on the working grid |
+| #1068 | **Affects no current scene.** Fine limb relief (a correlation length under about 5 detector pixels) is interpolated from too coarse a grid, moving the light up to 0.023 px; the fix is shading it wholly on the working grid |
 
 **Exit:** a frame-filling planet renders at its true position with light from beyond the frame
 edge; a rolled scene behaves as the ruling on #644 decides; a lone ring edge lands within 0.05 px
@@ -240,7 +240,7 @@ edits the navigator's config files only to delete the camera-block keys nothing 
 | #806, naming part | Split the `vgiss` entry into four per-camera entries, renaming the scene's instrument value | Renames a scene value before Phase 2b writes Voyager scenes. The per-camera values stay in Phase 4e. |
 | #1017 | Detector effects modeled twice, once in the noise block and once as an artifact mode | Removes or merges scene keys. |
 | #1023 | Image-side detector physics comes from two configuration trees, and the noise block holds keys that are not noise | Moves scene keys, and lets a scene plant a mismatch between the true and believed saturation ceilings. It also deletes the camera-block keys nothing reads, the image-side keys it stops reading among them. |
-| #1072 | A body's own `seed` key, and the editor's "Crater seed" control, never change a scene render; remove them and the fallback seeds behind them | Removes a scene key and an editor control before the typed scene declares every key. |
+| #1072 | **Affects no current scene.** A body's own `seed` key, and the editor's "Crater seed" control, never change a scene render; remove them and the fallback seeds behind them | Removes a scene key and an editor control before the typed scene declares every key. |
 
 Order: #988 and #1021 first, then #1022, #1017, and #1023, one at a time; #806's naming part and
 #1072 land whenever they are ready.
@@ -318,12 +318,12 @@ its stars toward pixel centers (no committed scene does); each such move is expl
 | #1019 | Each render logs its `RenderSettings` (after #1028) | Phase 4's realism work needs to see which values a render used. |
 | #1020 | The simulated-image editor rebuilt from per-block panels generated from the typed scene's field metadata (after #1024 and #1028) | Each Phase 4 key then gets its editor control from its declaration, not from hand wiring that a later rewrite throws away. Closes #902, #947, and #967. |
 | #1074 | **Affects no current scene.** A scene that asks for oversampling with no PSF pulls its stars up to 0.43 px toward pixel centers (with #1015) | #1015 owns how the oversampling factor is chosen. |
-| #1070 | The haze layer places its body through the shared ellipsoid projection (with #1015, or just before it) | The haze layer keeps its own copy of the projection and the normals; the grid object is where a projection of a box of the frame belongs. |
-| #1066 | Two render-time checks exceed their CPU budgets on main (the 1,024-pixel ring and haze body) | The restructuring in this phase must not slow rendering, and a budget check that always fails cannot show it. |
+| #1070 | **Affects no current scene.** The haze layer places its body through the shared ellipsoid projection (with #1015, or just before it) | The haze layer keeps its own copy of the projection and the normals; the grid object is where a projection of a box of the frame belongs. |
+| #1066 | **Affects no scene; a test-budget fix.** Two render-time checks exceed their CPU budgets on main (the 1,024-pixel ring and haze body) | The restructuring in this phase must not slow rendering, and a budget check that always fails cannot show it. |
 
 Order: #1024, then #1028, then #1027, then #1026. #1015, #1016, #1018, #1019, and #1020 follow in
 any order their own dependencies allow; #310 and #1025 follow #1026. #1066 goes first, so the
-budgets can guard the rest; #1070 and #1074 go with #1015.
+budgets can guard the rest; #1070 goes with #1015.
 
 **Exit:** the issues above are closed. No render module reads the scene dict. The navigator's
 simulated models accept only the idealized types, and `ObsSim` holds no truth attribute. Each stage
