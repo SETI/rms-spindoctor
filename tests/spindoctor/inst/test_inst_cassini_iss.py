@@ -107,17 +107,21 @@ def _is_marker(key: Any, name: str) -> bool:
     """Return whether a VICAR label key is one occurrence of a repeated marker.
 
     A label carrying several such sections has each marker keyed by its name and its
-    occurrence number.  One carrying a single section, as the earliest cruise labels do,
-    keys it by its name alone, so both forms have to be recognized.
+    occurrence number: rms-vicar keys it as a ``(name, n)`` tuple, and the host's
+    ``header_dict`` as the text ``NAME[n]``.  One carrying a single section, as the
+    earliest cruise labels do, keys it by its name alone, so every form has to be
+    recognized.
 
     Parameters:
         key: One key of the label.
         name: The marker's name, such as ``PROPERTY``.
 
     Returns:
-        True when the key is that marker, in either form.
+        True when the key is that marker, in any form.
     """
-    return key == name or (isinstance(key, tuple) and key[0] == name)
+    if isinstance(key, tuple):
+        return bool(key[0] == name)
+    return key == name or (isinstance(key, str) and key.startswith(f'{name}['))
 
 
 def _property_block_keywords(label: Mapping[str, Any]) -> list[str]:
@@ -679,10 +683,12 @@ def test_the_metadata_fixture_holds_the_keys_the_host_publishes() -> None:
 def test_a_real_image_publishes_its_vicar_label_metadata() -> None:
     """The metadata is read from the VICAR label inside the calibrated image file.
 
-    That label writes its times with a trailing Z, and gives a wide angle frame's back
-    optics temperature as -999.0, since the wide angle camera has no rear optics sensor.
-    Its two-element and four-element keywords reach the attributes their positions name,
-    and W1521598221_1_CALIB.IMG's own name states its version.
+    The host writes its times without the trailing Z the VICAR label gives them.  It
+    leaves out the -999.0 the label gives as a wide angle frame's back optics temperature,
+    since the wide angle camera has no rear optics sensor, and the N/A of an uncompressed
+    frame's compression parameters, so both attributes are null.  The two-element and
+    four-element keywords reach the attributes their positions name, and
+    W1521598221_1_CALIB.IMG's own name states its version.
     """
     public = obstcoiss.ObsCassiniISS.from_file(URL_CASSINI_ISS_RHEA_01).get_public_metadata()
     block = public['label_metadata']
@@ -700,14 +706,14 @@ def test_a_real_image_publishes_its_vicar_label_metadata() -> None:
             'cassini:pre-pds_version_number',
         )
     } == {
-        'cassini:image_time': '2006-080T01:40:16.112Z',
+        'cassini:image_time': '2006-080T01:40:16.112',
         'cassini:gain_mode_id': '29 ELECTRONS PER DN',
         'cassini:exposure_duration': 1500.0,
         'cassini:filter_name_1': 'CL1',
         'cassini:filter_name_2': 'VIO',
         'cassini:optics_temperature_front': 6.93953,
-        'cassini:optics_temperature_back': -999.0,
-        'cassini:inst_cmprs_param_malgo': 'N/A',
+        'cassini:optics_temperature_back': None,
+        'cassini:inst_cmprs_param_malgo': None,
         'cassini:pre-pds_version_number': 1,
     }
 
@@ -749,7 +755,7 @@ def test_a_tour_era_label_states_every_keyword_the_attributes_read() -> None:
     fail here.
     """
     obs = obstcoiss.ObsCassiniISS.from_file(URL_CASSINI_ISS_RHEA_01)
-    stated = set(_property_block_keywords(obs.dict))
+    stated = set(_property_block_keywords(obs.subfields['header_dict']))
     read = _read_keywords()
     assert sorted(read - stated) == []
     assert sorted(stated - read) == sorted(_UNREAD_KEYWORDS)
