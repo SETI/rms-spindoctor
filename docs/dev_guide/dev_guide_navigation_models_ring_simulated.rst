@@ -92,8 +92,9 @@ half a pixel from the exact edge, the same sampling the navigator's ring model u
 frames. Along a curved edge these offsets fall on both sides and average out. Along an edge
 that runs parallel to a pixel row or column, they all fall on the same side, and the fit
 inherits their mean. The flat-ring scene ``planted_rank1_ring_flat`` is such a case: its
-straight edges run along the v axis, their vertices sit 0.42 px toward lower u on average,
-and the navigated offset misses the planted one by about 0.46 px across the edges.
+straight edges run along the v axis, the vertices inside the frame, which are the ones
+the fit uses, sit 0.460 px toward lower u on average, and the navigated offset misses the
+planted one by 0.46 px across the edges.
 
 The scene can also declare how well its catalog knows
 each orbit, with ``declared_orbit_sigma``: :math:`\sigma_a` (``sigma_a_px``),

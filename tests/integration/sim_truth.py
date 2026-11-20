@@ -253,9 +253,10 @@ KNOWN_ERRORS: dict[tuple[str, str], KnownErrorBand] = {
 
 # The rank-1 flat-ring scene misses its planted shift along the one observable axis, the
 # edge normal, by about 0.46 px (#873).  The render puts both edges on their radii.  The
-# predicted edges' vertices sit at border-pixel centers, and along these straight edges,
-# which run parallel to the v axis, they sit 0.42 px toward lower u on average; the fit
-# inherits that.  The band holds that component's magnitude.
+# predicted edges' vertices sit at border-pixel centers (#1092), and along these straight
+# edges, which run parallel to the v axis, the 220 in-frame vertices the fit uses sit
+# 0.460 px toward lower u on average; the fit inherits that.  The band holds that
+# component's magnitude.
 RANK1_NORMAL_ERROR = _b(0.4581, 0.4624, 0.05, 0.408, 0.513)
 
 # Columns as in KNOWN_ERRORS, but in sigmas: the fused error in units of the reported
