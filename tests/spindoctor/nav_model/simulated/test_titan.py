@@ -458,12 +458,17 @@ def test_centerless_occluder_sits_at_the_frame_center() -> None:
 
     The renderer puts a body that states no center at the frame center, so
     the prediction must match that of the same moon stated there explicitly.
+    Titan sits off the frame center with its envelope edge running through
+    the frame center, so the moon there is half hidden: a default taken from
+    Titan's own center would put the whole moon over the envelope, and one at
+    pixel (0, 0) would put it clear of it.
     """
+    titan = _titan(center_v=96.5, center_u=96.5)
     centerless = _sibling(_CENTER, range_km=0.5e6)
     del centerless['center_v'], centerless['center_u']
     stated = _sibling(_SIZE / 2.0, range_km=0.5e6)
-    occluded = _model([_titan(), centerless]).geometry_inputs.occluded_fraction
-    assert occluded == _model([_titan(), stated]).geometry_inputs.occluded_fraction
+    occluded = _model([titan, centerless]).geometry_inputs.occluded_fraction
+    assert occluded == _model([titan, stated]).geometry_inputs.occluded_fraction
 
 
 def test_rotated_sibling_box_covers_its_silhouette() -> None:

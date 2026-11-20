@@ -294,7 +294,10 @@ class NavModelBodySimulated(NavModelBodyBase):
                 shape.  The unclipped whole-body render behind the
                 visible-arc fraction passes a body-sized canvas here.
             center: Optional body center ``(v, u)`` on that canvas; defaults
-                to the rendered params' own predicted center.
+                to the rendered params' predicted center on the frame, which
+                puts a body that states no center at the center of the
+                observation's data shape whatever canvas is given.  Every
+                caller that passes a canvas passes its center too.
             params: Optional body-parameter dict to render instead of this
                 model's own ``nav_body``.  The overflow fraction renders a
                 downscaled copy of the body through this.

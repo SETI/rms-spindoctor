@@ -340,7 +340,9 @@ class NavModelTitanSimulated(NavModelTitan):
                     occluder_ext, predicted_silhouette(sibling, data_shape), margin_vu
                 )
             self._paint_sibling_box(
-                contaminant_ext, predicted_silhouette_bbox(sibling, data_shape), margin_vu
+                contaminant_ext,
+                predicted_silhouette_bbox(sibling, data_shape, margin_vu=margin_vu),
+                margin_vu,
             )
         contaminant_ext |= occluder_ext
         vmag_limit = float(nav_config['star_mask_vmag_limit'])
@@ -386,25 +388,23 @@ class NavModelTitanSimulated(NavModelTitan):
         Range order is deliberately ignored, exactly as on a real frame: a
         moon behind Titan occludes nothing, but its visible sliver beside
         the limb sits squarely in the symmetry annulus and in the arc rays.
-        The box is the bounding box of the sibling's whole predicted
-        silhouette, so it holds the body at whatever center, shape, and
-        rotation that prediction gives it, and reaches into the extfov
-        margin where the body runs past the frame edge.
+        The box is the bounding box of the part of the sibling's predicted
+        silhouette that falls on the extended frame, so it holds the body at
+        whatever center, shape, and rotation that prediction gives it, and
+        reaches into the extfov margin where the body runs past the frame
+        edge.
 
         Parameters:
             mask: Extfov-shaped contaminant mask, modified in place.
-            bbox_vu: (v_min, v_max, u_min, u_max), the inclusive
-                frame-pixel bounds of the sibling's predicted silhouette, or
-                None for a silhouette too small to cover a pixel.
-            margin_vu: (margin_v, margin_u) extfov margins.
+            bbox_vu: ``(v_min, v_max, u_min, u_max)``, the inclusive
+                frame-pixel bounds of the sibling's predicted silhouette on
+                the extended frame, or None when it covers no pixel there.
+            margin_vu: ``(margin_v, margin_u)`` extfov margins.
         """
         if bbox_vu is None:
             return
         v_min, v_max, u_min, u_max = bbox_vu
-        rows, cols = mask.shape
-        v_lo = max(0, v_min + margin_vu[0])
-        v_hi = min(rows, v_max + margin_vu[0] + 1)
-        u_lo = max(0, u_min + margin_vu[1])
-        u_hi = min(cols, u_max + margin_vu[1] + 1)
-        if v_hi > v_lo and u_hi > u_lo:
-            mask[v_lo:v_hi, u_lo:u_hi] = True
+        mask[
+            v_min + margin_vu[0] : v_max + margin_vu[0] + 1,
+            u_min + margin_vu[1] : u_max + margin_vu[1] + 1,
+        ] = True

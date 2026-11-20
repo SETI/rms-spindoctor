@@ -239,13 +239,14 @@ predicted rings. :class:`~spindoctor.nav_model.simulated.body.NavModelBodySimula
 and :class:`~spindoctor.nav_model.simulated.rings.NavModelRingsSimulated` emit those
 templates as features. A ``polyhedral_mesh`` body is drawn by
 :func:`~spindoctor.sim.shared.mesh.render_mesh_body_image` instead, and the body
-model emits that image as its template in the same way. Every navigator-side drawing
-of a body goes through :mod:`spindoctor.nav_model.simulated.predicted_body`, which
-chooses between the two renderers by the body's shape model and puts a body that
-states no center at the frame center, as the renderer does. The body model draws its
-template and its occluders with it, and
+model emits that image as its template in the same way. The body model draws its
+template and its occluders through
+:mod:`spindoctor.nav_model.simulated.predicted_body`, and
 :class:`~spindoctor.nav_model.simulated.titan.NavModelTitanSimulated` draws the
-bodies that hide or crowd Titan's haze with it.
+bodies that hide or crowd Titan's haze through it too. That module chooses between
+the two renderers by the body's shape model and puts a body that states no center at
+the frame center, as the renderer does. The haze model's own envelope is a disc of
+the predicted radius, which it paints for itself.
 :class:`~spindoctor.nav_model.simulated.stars.NavModelStarsSimulated` builds its
 catalog star records directly.
 
