@@ -62,6 +62,7 @@ import numpy as np
 from spindoctor.sim.render.bodies.craters import (
     CraterSite,
     carve_crater_heights,
+    mask_site,
     perturb_normals_by_slope,
 )
 from spindoctor.sim.render.bodies.ellipsoid_grid import (
@@ -143,6 +144,9 @@ class EllipsoidBodySpec:
             oversampled scene already resolves the limb on its own grid).
         crater_seed: Seed for crater placement, of which the low 31 bits are used.
             None suits only a body that places no crater.
+        crater_turn: The planted roll the body was turned by, in radians.  The
+            craters are laid out for the body turned back by this angle and then
+            turned with it, so a rolled body carries the unrolled body's craters.
         oversample: The incoming grid's oversampling factor.  The body is drawn
             and shaded on its working grid: the incoming grid, or its
             anti-aliasing supersample at oversample 1.  Relief and craters are
@@ -177,6 +181,7 @@ class EllipsoidBodySpec:
     crater_relief_scale: float = 0.6
     anti_aliasing: float = 0.0
     crater_seed: int | None = None
+    crater_turn: float = 0.0
     oversample: int = 1
     limb_relief_rms: float = 0.0
     limb_relief_corr_deg: float = 15.0
@@ -882,11 +887,13 @@ def _crater_layout(
     The count is the crater fill times the number of pixels inside the body, over
     the area of a crater of the largest radius, between 0 and 1000.  The pixels are
     those of the detector grid, or of the crater plane when the grid holds only part
-    of the body.
+    of the body.  A body turned by a planted roll counts and draws among the pixels
+    inside the unrolled body.
 
     Parameters:
         grid: The detector-grid geometry the craters are carved on.
-        spec: The body spec (crater fill, maximum radius, and tilt are read).
+        spec: The body spec (crater fill, maximum radius, orientation, tilt, and
+            turn are read).
         plane: The larger grid the craters are laid out on, or None for ``grid``.
 
     Returns:
@@ -895,11 +902,25 @@ def _crater_layout(
     if spec.crater_fill <= 0.0:
         return _CraterLayout(site=None, count=0)
     site: CraterSite | None = None
+    draw_grid = grid
+    if spec.crater_turn != 0.0:
+        draw_grid = project_ellipsoid(
+            grid.ellipse_dist_sq.shape,
+            grid.center,
+            grid.semi_a,
+            semi_b_px=grid.semi_b,
+            semi_c_px=grid.semi_c,
+            rotation_z=spec.rotation_z + spec.crater_turn,
+            rotation_tilt=spec.rotation_tilt,
+        )
     if plane is None:
-        total_area = int(np.sum(grid.ellipse_dist_sq < 1.0))
+        inside = draw_grid.ellipse_dist_sq < 1.0
+        total_area = int(np.sum(inside))
+        if spec.crater_turn != 0.0:
+            site = mask_site(inside)
     else:
         site, total_area = crater_plane_site(
-            plane, grid, cos_tilt=float(np.cos(spec.rotation_tilt))
+            plane, draw_grid, cos_tilt=float(np.cos(spec.rotation_tilt))
         )
     avg_crater_area = (spec.crater_max_radius * grid.semi_a) ** 2
     count = int(np.clip(int(spec.crater_fill * total_area / avg_crater_area), 0, 1000))
@@ -945,4 +966,5 @@ def _crater_heights(
         work_center_v=grid.center[0],
         work_center_u=grid.center[1],
         site=craters.site,
+        turn=spec.crater_turn,
     )

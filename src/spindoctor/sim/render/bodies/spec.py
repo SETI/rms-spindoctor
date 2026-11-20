@@ -72,7 +72,9 @@ class BodySpec:
     When the scene radiance stage renders a body, it fills the spec with
     render-grid values.  It shifts the center by the ephemeris parallax and
     applies the planted roll, which rotates the center about the frame center and
-    adds to ``rotation_z``.  It then scales the center and semi-axes by the
+    turns the body about its own center by the same angle
+    (:func:`~spindoctor.sim.render.roll.roll_body_params`), and records
+    the roll in ``roll_deg``.  It then scales the center and semi-axes by the
     oversampling factor.  :func:`~spindoctor.sim.render.bodies.render.render_single_body`
     adds the planted translation when it draws the body.
 
@@ -121,6 +123,11 @@ class BodySpec:
         transits: The transiting moons and shadows, or None when the scene leaves
             out the ``transits`` list.  An empty list is an empty tuple.
         atmosphere: The validated ``atmosphere`` mapping, or None.
+        roll_deg: The planted roll the body was turned by, in degrees, which the
+            scene radiance stage sets; 0 for the body as the scene states it.  The
+            other fields already carry the roll, except the crater layout, which
+            is drawn on the image grid: the ellipsoid renderer lays the craters
+            out for the unrolled body and turns them by this angle.
     """
 
     name: str
@@ -155,6 +162,7 @@ class BodySpec:
     disc_texture: DiscTextureSpec | None
     transits: tuple[TransitSpec, ...] | None
     atmosphere: Mapping[str, Any] | None
+    roll_deg: float = 0.0
 
     @property
     def has_texture(self) -> bool:
