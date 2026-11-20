@@ -312,6 +312,7 @@ scaled wrongly; each such move is explained in its PR.
 | #1018 | The radiance stage split into named sub-steps (after #1027 and #1028) | #895 and #896 change this stage. |
 | #1019 | Each render logs its `RenderSettings` (after #1028) | Phase 4's realism work needs to see which values a render used. |
 | #1020 | The simulated-image editor rebuilt from per-block panels generated from the typed scene's field metadata (after #1024 and #1028) | Each Phase 4 key then gets its editor control from its declaration, not from hand wiring that a later rewrite throws away. Closes #902, #947, and #967. |
+| #1074 | A scene that asks for oversampling with no PSF pulls its stars up to 0.43 px toward pixel centers (with #1015) | #1015 owns how the oversampling factor is chosen. |
 
 Order: #1024, then #1028, then #1027, then #1026. #1015, #1016, #1018, #1019, and #1020 follow in
 any order their own dependencies allow; #310 and #1025 follow #1026.
