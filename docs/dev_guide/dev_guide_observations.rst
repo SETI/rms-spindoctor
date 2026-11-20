@@ -412,7 +412,13 @@ Each real camera is read by a host package, one per mission, whose class method
   :func:`~spindoctor.navigate_image_files.navigate_image_files` records the first as
   ``missing_spice_data`` and the second as ``image_read_error``. A SPICE error that
   reaches the loader directly from ``cspyce`` counts as ``missing_spice_data`` as well,
-  by the rule ``oops.OopsSpiceError.is_spice_error`` applies.
+  by the rule ``oops.OopsSpiceError.is_spice_error`` applies: an exception of any
+  class that ``cspyce`` raises (``LookupError``, ``OSError``, ``RuntimeError``, or
+  ``ValueError``) whose message carries a SPICE error code, such as
+  ``SPICE(UNKNOWNFRAME)``. Any code counts, including one that says the kernel set
+  itself is wrong, such as ``SPICE(NOLOADEDFILES)``. A ``LookupError`` or
+  ``ValueError`` whose message lacks a SPICE code is a defect and is recorded as
+  ``internal_error``.
 
 Each host documents its subfields, its merge rules, and its errors in its own user
 guide.
