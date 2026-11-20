@@ -2,7 +2,11 @@ import math
 
 import numpy as np
 import pytest
-from tests.config import REQUIRES_EXTERNAL_DATA, URL_VOYAGER_ISS_IO_01
+from tests.config import (
+    REQUIRES_EXTERNAL_DATA,
+    URL_VOYAGER_ISS_IO_01,
+    URL_VOYAGER_ISS_SATURN_V1_01,
+)
 from tests.spindoctor.inst.conftest import bare_observation, published_clock_counts
 
 import spindoctor.obs.obs_inst_voyager_iss as obstvgiss
@@ -43,6 +47,21 @@ def test_voyager_iss_metadata_spacecraft_lid() -> None:
     meta = obs.get_public_metadata()
     # The IO test image is a Voyager 2 frame.
     assert meta['instrument_host_lid'].endswith('spacecraft.vg2')
+
+
+@REQUIRES_EXTERNAL_DATA
+def test_the_host_names_a_voyager_1_saturn_frame_as_the_correction_expects() -> None:
+    """The host's subfields of a Voyager 1 Saturn frame are what ``_if_data`` tests.
+
+    The Saturn correction applies when ``spacecraft`` is 1 and ``planet`` is
+    ``'SATURN'``, and the scaling needs ``if_scale``.  A host that spelled the planet
+    another way would drop the correction with nothing failing, so the host's own values
+    are checked here on a real frame.
+    """
+    obs = obstvgiss.ObsVoyagerISS.from_file(URL_VOYAGER_ISS_SATURN_V1_01)
+    assert obs.subfields['spacecraft'] == 1
+    assert obs.subfields['planet'] == 'SATURN'
+    assert 'if_scale' in obs.subfields
 
 
 def test_the_data_are_scaled_to_if_by_the_hosts_factor() -> None:
