@@ -87,7 +87,15 @@ Sources of uncertainty
 ----------------------
 
 The rendered edge is sharp and noiseless, so the only measurement uncertainty is the
-one-pixel sampling of the polyline. The scene can also declare how well its catalog knows
+one-pixel sampling of the polyline. Each vertex sits at the center of a border pixel, up to
+half a pixel from the exact edge, the same sampling the navigator's ring model uses on real
+frames. Along a curved edge these offsets fall on both sides and average out. Along an edge
+that runs parallel to a pixel row or column, they all fall on the same side, and the fit
+inherits their mean. The flat-ring scene ``planted_rank1_ring_flat`` is such a case: its
+straight edges run along the v axis, their vertices sit 0.42 px toward lower u on average,
+and the navigated offset misses the planted one by about 0.46 px across the edges.
+
+The scene can also declare how well its catalog knows
 each orbit, with ``declared_orbit_sigma``: :math:`\sigma_a` (``sigma_a_px``),
 :math:`\sigma_{ae}` (``sigma_ae_px``), and :math:`\sigma_\varpi` (``sigma_long_peri_deg``,
 converted to radians). A key the scene omits or sets to null counts as zero. These are the
