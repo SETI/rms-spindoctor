@@ -167,7 +167,7 @@ TRUTH_TOLERANCES: dict[tuple[str, str], TruthTolerance] = {
     ('planted_offset_blob_mesh_crescent', 'BodyBlobNav'): _t(0.486, 0.592, 0.114, 0.12),
     ('planted_offset_limb', 'BodyLimbNav'): _t(0.099, 0.099, 0.050, 0.05),
     ('planted_offset_limb_mesh', 'BodyLimbNav'): _t(0.175, 0.255, 0.127, 0.06),
-    ('planted_offset_ring', 'RingEdgeNav'): _t(0.011, 0.016, 0.005, 0.05),
+    ('planted_offset_ring', 'RingEdgeNav'): _t(0.029, 0.033, 0.005, 0.05),
     ('planted_unique_star_single', 'StarUniqueMatchNav'): _t(0.054, 0.058, 0.006, 0.05),
     ('planted_refine_star_field', 'StarRefineNav'): _t(0.016, 0.019, 0.003, 0.05),
     # artifact_sweep.  The scene seed also places the lost lines, so the 16 seeds would
@@ -203,10 +203,10 @@ TRUTH_TOLERANCES: dict[tuple[str, str], TruthTolerance] = {
     ('star_equal_brightness', 'StarFieldFromCatalogNav'): _t(0.033, 0.033, 0.002, 0.05),
     ('star_zero_offset', 'StarFieldFromCatalogNav'): _t(0.041, 0.041, 0.003, 0.05),
     # ring_system.  orbit_error_ringlet carries a known error in its expected block.
-    ('edge_wave_gap', FUSED): _t(0.003, 0.008, 0.005, 0.05),
-    ('mmode_ringlet', FUSED): _t(0.003, 0.004, 0.003, 0.05),
-    ('moonlet_propeller', FUSED): _t(0.003, 0.007, 0.005, 0.05),
-    ('spoked_sheet', FUSED): _t(0.014, 0.015, 0.004, 0.05),
+    ('edge_wave_gap', FUSED): _t(0.008, 0.012, 0.004, 0.05),
+    ('mmode_ringlet', FUSED): _t(0.025, 0.026, 0.002, 0.05),
+    ('moonlet_propeller', FUSED): _t(0.012, 0.015, 0.004, 0.05),
+    ('spoked_sheet', FUSED): _t(0.026, 0.026, 0.004, 0.05),
     # star_confounder.  double_star's error is the unresolved companion's pull on the
     # photocenter.  lock_single_dense fails on 4 of the 16 seeds; its numbers come from
     # the 12 where it succeeds.
@@ -244,7 +244,7 @@ KNOWN_ERRORS: dict[tuple[str, str], KnownErrorBand] = {
     ('relief_psf_stray_light', 'BodyBlobNav'): _b(1.792, 1.851, 0.05, 1.741, 1.902),
     # RingEdgeNav lands 51.8 px off along the straight edge, the unobservable axis
     # (#755).
-    ('planted_rank1_ring_flat', 'RingEdgeNav'): _b(51.753, 51.757, 0.05, 51.703, 51.807),
+    ('planted_rank1_ring_flat', 'RingEdgeNav'): _b(51.753, 51.760, 0.05, 51.703, 51.810),
     # The roll is fitted about the extended field of view's corner, so the star
     # techniques' translations carry about 5 px of error (#434).
     ('planted_rotation_star_field', 'StarUniqueMatchNav'): _b(5.011, 5.071, 0.05, 4.961, 5.121),
@@ -252,16 +252,19 @@ KNOWN_ERRORS: dict[tuple[str, str], KnownErrorBand] = {
 }
 
 # The rank-1 flat-ring scene misses its planted shift along the one observable axis, the
-# edge normal, by about 0.52 px (#873).  The band holds that component's magnitude.
-RANK1_NORMAL_ERROR = _b(0.5158, 0.5206, 0.05, 0.465, 0.571)
+# edge normal, by about 0.46 px (#873).  The render puts both edges on their radii.  The
+# predicted edges' vertices sit at border-pixel centers, and along these straight edges,
+# which run parallel to the v axis, they sit 0.42 px toward lower u on average; the fit
+# inherits that.  The band holds that component's magnitude.
+RANK1_NORMAL_ERROR = _b(0.4581, 0.4624, 0.05, 0.408, 0.513)
 
 # Columns as in KNOWN_ERRORS, but in sigmas: the fused error in units of the reported
 # covariance.  These are the scenes that sit above SIGMA_MULTIPLE for a known reason.
 SIGMA_BANDS: dict[str, KnownErrorBand] = {
     # The two-star fused sigma is about 0.01 px against a steady 0.04 px error (#788).
     'lock_pair': _b(3.186, 4.479, 0.2585, 2.927, 4.738),
-    # The observable component misses by 0.52 px against a 0.16 px sigma (#873).
-    'planted_rank1_ring_flat': _b(3.132, 3.288, 0.1, 3.032, 3.388),
+    # The observable component misses by 0.46 px against a 0.095 px sigma (#873).
+    'planted_rank1_ring_flat': _b(4.802, 4.902, 0.1, 4.702, 5.002),
     # The translation is fitted about the extended field of view's corner (#434).
     'planted_rotation_star_field': _b(16.428, 16.517, 0.1, 16.328, 16.617),
 }
