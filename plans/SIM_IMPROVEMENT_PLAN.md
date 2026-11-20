@@ -218,6 +218,7 @@ body too large for the frame the seam fix shares.
 | #1080 | **Affects no current scene.** A mesh body with the default pose draws up to 3% of peak differently near its outline on frames of different size |
 | #1084 | **Affects 10 current frames, but only which random clutter stars they show, not their statistics.** The sky field turns with a planted roll but does not move with the planted offset: in the 10 committed frames with a sky field, every sky star sits 1.55 px from where it belongs |
 | #1068 | **Affects no current scene.** Fine limb relief (a correlation length under about 5 detector pixels) is interpolated from too coarse a grid, moving the light up to 0.023 px; the fix is shading it wholly on the working grid |
+| #1094 | **Affects no current scene.** A ring ramp under a density wave renders about 35 times slower than without it (69 s against 1.9 s for a 300 px ramp at 1,024 px and oversample 4), because every band pixel takes the 32-cell curved path |
 
 **Exit:** a frame-filling planet renders at its true position with light from beyond the frame
 edge; a rolled scene behaves as the ruling on #644 decides; a lone ring edge lands within 0.05 px
