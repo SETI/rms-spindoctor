@@ -295,7 +295,8 @@ Under the current structure, each new key is written in up to six places, each n
 needs its own dispatch, and every stage reads the scene dict with its own defaults. This phase
 gives the renderer the shape Phase 4 builds on. It runs alongside Phases 2b and 3, and must be done
 before Phase 4 starts. It changes no pixel, except where #1015 finds a hand-scaled key that was
-scaled wrongly; each such move is explained in its PR.
+scaled wrongly, and where #1074 stops a scene that asks for oversampling with no PSF from pulling
+its stars toward pixel centers (no committed scene does); each such move is explained in its PR.
 
 | Issue | Subject | Why now |
 |---|---|---|
@@ -320,7 +321,7 @@ simulated models accept only the idealized types, and `ObsSim` holds no truth at
 applies its artifact modes in one loop over the registry. No function in the radiance, atmosphere,
 ring, body, or detector-parameter modules is longer than about 100 lines. Every scene key has an
 editor control generated from its declaration, or a documented exception. Every committed render
-reproduced unchanged through the phase, apart from #1015's explained moves.
+reproduced unchanged through the phase, apart from #1015's and #1074's explained moves.
 
 ## Phase 4: physics, in order of how many real frames need it
 
