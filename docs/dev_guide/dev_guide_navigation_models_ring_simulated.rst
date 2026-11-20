@@ -213,8 +213,8 @@ Call path
    block. It shifts the projected center by the extended-FOV margins.
 2. Calls
    :func:`~spindoctor.nav_model.simulated.predicted_ring.create_predicted_ring_feature`.
-   That function builds the pixel grid in pixel-corner coordinates, projects it to ring-plane
-   :math:`(r, \lambda)` with :func:`~spindoctor.sim.shared.ring.ring_plane_from_sky`, and
+   That function builds the pixel grid in pixel-corner coordinates, projects it to
+   ring-plane :math:`(r, \lambda)` with :func:`~spindoctor.sim.shared.ring.ring_plane_from_sky`, and
    evaluates the orbit with :func:`~spindoctor.sim.shared.ring.compute_orbit_radii`. It
    then rasterizes the coverage template and one border mask per edge, with each vertex's
    outward normal and its shifts :math:`p_{a}`, :math:`p_{ae}`, and :math:`p_{\varpi}`.

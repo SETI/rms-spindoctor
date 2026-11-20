@@ -80,8 +80,9 @@ true offset is known to the pixel.
 Restrictions and assumptions
 ----------------------------
 
-- The operator must supply finite, positive ellipsoid axes. The model does not check
-  them, and an axis of zero draws no body.
+- The operator must supply positive axes. Scene validation refuses a non-finite axis
+  but accepts zero and negative ones, and the model checks neither. An ellipsoid with
+  a zero axis draws no body, while a mesh with zero depth still draws its outline.
 - The body appearance keys -- crater terrain, the limb-relief field, the photometric
   law and opposition surge, the albedo and disc textures and transits, the atmospheric
   haze layer, the mesh shading mode and pose scatter, and anti-aliasing -- are truth

@@ -372,8 +372,8 @@ sibling of each model family. These are used both by
 
 - :mod:`spindoctor.nav_model.simulated.predicted_ring` — the navigator-side
   predicted-ring renderer the simulated ring model drives. The simulated body model
-  draws its predicted ellipsoid with the shared
-  :func:`~spindoctor.sim.shared.ellipsoid.render_lambert_ellipsoid`.
+  and the simulated haze-envelope model draw their predicted ellipsoid with the
+  shared :func:`~spindoctor.sim.shared.ellipsoid.render_lambert_ellipsoid`.
 
 - ``src/spindoctor/dataset/dataset_sim.py`` and ``src/spindoctor/obs/obs_inst_sim.py``
   — the simulated-image dataset and observation wrappers (not autodoc'd).
