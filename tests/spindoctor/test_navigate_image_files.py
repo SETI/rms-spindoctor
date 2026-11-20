@@ -22,6 +22,8 @@ from typing import Any
 import numpy as np
 import pytest
 from filecache import FCPath
+from oops import OopsSpiceError
+from oops.host import HostFormatError
 from PIL import Image
 
 from spindoctor.annotation import Annotation, Annotations
@@ -409,6 +411,32 @@ def test_navigate_image_files_spice_load_failure_records_missing_kernel(
     )
     assert success is False
     assert metadata['status_error'] == 'missing_spice_data'
+
+
+def test_navigate_image_files_host_spice_error_records_missing_kernel(tmp_path: Path) -> None:
+    """A host's OopsSpiceError is ``missing_spice_data`` whatever its message says."""
+    obs_class = _make_fake_obs_class(raise_on_load=OopsSpiceError('no NAC pointing'))
+    image_files = _make_image_files(tmp_path)
+    _success, metadata = navigate_image_files(
+        obs_class,
+        image_files,
+        FCPath(str(tmp_path / 'results')),
+        write_output_files=False,
+    )
+    assert metadata['status_error'] == 'missing_spice_data'
+
+
+def test_navigate_image_files_host_format_error_records_read_error(tmp_path: Path) -> None:
+    """A file the host cannot use is an ``image_read_error``, not an internal error."""
+    obs_class = _make_fake_obs_class(raise_on_load=HostFormatError('no exposure in labels'))
+    image_files = _make_image_files(tmp_path)
+    _success, metadata = navigate_image_files(
+        obs_class,
+        image_files,
+        FCPath(str(tmp_path / 'results')),
+        write_output_files=False,
+    )
+    assert metadata['status_error'] == 'image_read_error'
 
 
 def test_navigate_image_files_writes_summary_png(tmp_path: Path) -> None:

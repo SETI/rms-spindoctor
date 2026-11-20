@@ -40,6 +40,8 @@ from typing import Any, cast
 
 import pdslogger
 from filecache import FCPath
+from oops import OopsSpiceError
+from oops.host import HostError
 from PIL import Image
 
 from spindoctor.config import (
@@ -82,11 +84,31 @@ itself holds -- the image's path, its name, its camera -- is skipped because the
 already holds it.
 """
 
-_SPICE_DATA_HINTS = (
-    'SPICE(CKINSUFFDATA)',
-    'SPICE(SPKINSUFFDATA)',
-    'SPICE(NOFRAMECONNECT)',
-)
+_IMAGE_LOAD_ERRORS = (OSError, RuntimeError, HostError)
+"""What loading an image raises when the image or the SPICE data it needs cannot be read.
+
+A host raises :class:`~oops.host.HostError` for a file it cannot read or use and
+:class:`~oops.OopsSpiceError`, a RuntimeError, for SPICE data that the kernels lack.
+Anything else that loading raises is a defect, which the driver's catch-all records as an
+internal error.
+"""
+
+
+def _is_missing_spice_data(exc: BaseException) -> bool:
+    """Return whether an image failed to load because the SPICE kernels lack its data.
+
+    Every host raises :class:`~oops.OopsSpiceError` for that.  A SPICE error that
+    reaches the loader directly from cspyce, such as for a body whose ephemeris the
+    kernels lack, counts too, by the rule oops itself applies,
+    :meth:`~oops.OopsSpiceError.is_spice_error`.
+
+    Parameters:
+        exc: What loading the image raised.
+
+    Returns:
+        True if the kernels lack data the image needs.
+    """
+    return isinstance(exc, OopsSpiceError) or OopsSpiceError.is_spice_error(exc)
 
 
 def _iso8601_utc(moment: datetime) -> str:
@@ -301,7 +323,7 @@ def navigate_image_files(
                 log_run_environment(logger, sys.argv[1:])
                 try:
                     snapshot = obs_class.from_file(image_url, **extra_params)
-                except (OSError, RuntimeError) as exc:
+                except _IMAGE_LOAD_ERRORS as exc:
                     metadata = _metadata_for_load_error(
                         image_url,
                         image_name,
@@ -436,9 +458,12 @@ def _metadata_for_load_error(
     built.  The camera is recorded when the caller could read it from the
     index, so an image that failed for want of a SPICE kernel is still
     attributed to its camera.
+
+    The failure is ``missing_spice_data`` when :func:`_is_missing_spice_data` says
+    so, and ``image_read_error`` otherwise.
     """
     message = str(exc)
-    if any(hint in message for hint in _SPICE_DATA_HINTS):
+    if _is_missing_spice_data(exc):
         logger.exception('No SPICE kernel available for "%s": %s', image_path, message)
         status_error = 'missing_spice_data'
     else:
