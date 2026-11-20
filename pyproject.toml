@@ -28,7 +28,8 @@ dependencies = [
   # The four host packages read the images of each instrument. Until their pull
   # requests merge and are released, each is installed from its branch:
   # SETI/rms-host-cassini#9, SETI/rms-host-galileo#9, SETI/rms-host-voyager#1, and
-  # SETI/rms-host-new-horizons#7. Restore version floors once they are on PyPI.
+  # SETI/rms-host-new-horizons#7. Restore version floors once they are on PyPI
+  # (#1087); a branch deleted when its pull request merges breaks every install.
   "rms-host-cassini @ git+https://github.com/SETI/rms-host-cassini@rf_261117_label_image_consistency",
   "rms-host-galileo @ git+https://github.com/SETI/rms-host-galileo@rf_261117_vicar_label_consistency",
   "rms-host-new-horizons @ git+https://github.com/SETI/rms-host-new-horizons@rf_261117_initial_port",
@@ -39,8 +40,10 @@ dependencies = [
   # SETI/rms-oops#242; the hosts install the same branch. SETI/rms-oops#243 is needed as
   # well and is not on this branch: without it, oops evaluates the inverse of a type 1
   # C-kernel frame through SPICE, which needs angular velocities that a type 1 kernel
-  # lacks, so the pointing of some Galileo SSI images raises SPICE(NOFRAMECONNECT).
-  # Restore a version floor once both are released.
+  # lacks, so the pointing of some Galileo SSI images raises SPICE(NOFRAMECONNECT)
+  # (#1088). SpinDoctor cannot add it by a second URL: pip takes one direct URL per
+  # package, and the hosts name this one. Restore a version floor once both are
+  # released (#1087).
   "rms-oops @ git+https://github.com/SETI/rms-oops@rf_261118_oops_spice_error",
   "rms-starcat>=1.0.1",
   "ruamel.yaml",
