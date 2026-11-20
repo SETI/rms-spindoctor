@@ -236,10 +236,15 @@ Call path traced through
 1. Open a logged section. Read the operator-supplied sim parameters off the per-instance
    dict.
 2. Convert per-axis rotations and angle parameters from degrees to radians.
-3. Render the simulated body image from the semi-axes and geometry. The model projects
-   the body with :func:`~spindoctor.sim.shared.ellipsoid.project_ellipsoid`,
-   as the image-side renderer does, and shades it with
-   :func:`~spindoctor.sim.shared.ellipsoid.render_lambert_ellipsoid`.
+3. Render the simulated body image from the semi-axes and geometry with
+   :func:`~spindoctor.nav_model.simulated.predicted_body.render_predicted_body`. An
+   ellipsoid body is projected with
+   :func:`~spindoctor.sim.shared.ellipsoid.project_ellipsoid`, as the image-side renderer
+   does, and shaded with
+   :func:`~spindoctor.sim.shared.ellipsoid.render_lambert_ellipsoid`; a
+   ``polyhedral_mesh`` body is drawn with
+   :func:`~spindoctor.sim.shared.mesh.render_mesh_body_image`. A body that states no
+   center sits at the frame center.
 4. Derive the body mask from the rendered image (every non-zero pixel is on the body).
 5. Compute the limb mask via
    :class:`~spindoctor.nav_model.nav_model_body_base.NavModelBodyBase`'s shared discrete-mask

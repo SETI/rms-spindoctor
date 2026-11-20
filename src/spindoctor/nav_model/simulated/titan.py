@@ -41,13 +41,16 @@ from spindoctor.config import DEFAULT_CONFIG, IMAGE_LOGGER, Config
 from spindoctor.nav_model.nav_model import NavModel
 from spindoctor.nav_model.nav_model_body import TITAN_BODY_NAME
 from spindoctor.nav_model.nav_model_titan import NavModelTitan
+from spindoctor.nav_model.simulated.predicted_body import (
+    predicted_silhouette,
+    predicted_silhouette_bbox,
+)
 from spindoctor.nav_model.titan_geometry import (
     TitanGeometryInputs,
     occluded_disc_fraction,
     paint_disc,
 )
 from spindoctor.obs import ObsSnapshotInst
-from spindoctor.sim.shared.ellipsoid import project_ellipsoid, render_lambert_ellipsoid
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 from spindoctor.support.types import NDArrayBoolType
 
@@ -86,49 +89,6 @@ def _mean_semi_axis_px(body_params: dict[str, Any]) -> float:
         The mean semi-axis in pixels.
     """
     return 0.5 * (float(body_params['semi_a_px']) + float(body_params['semi_b_px']))
-
-
-def _render_silhouette(
-    body_params: dict[str, Any], *, shape_vu: tuple[int, int]
-) -> NDArrayBoolType:
-    """Render one simulated body's silhouette on a data-shaped canvas.
-
-    Brightness above zero covers the whole visible disc: the shading floors
-    the unlit hemisphere above zero, and a solid body occludes with its full
-    silhouette, lit or not.
-
-    Parameters:
-        body_params: The occluding body's idealized parameters.
-        shape_vu: ``(rows, columns)`` of the data-coordinate canvas.
-
-    Returns:
-        The boolean silhouette mask.
-    """
-    projection = project_ellipsoid(
-        shape_vu,
-        (float(body_params.get('center_v', 0.0)), float(body_params.get('center_u', 0.0))),
-        float(body_params.get('semi_a_px', 0.0)),
-        semi_b_px=float(body_params.get('semi_b_px', 0.0)),
-        semi_c_px=float(
-            body_params.get(
-                'semi_c_px',
-                min(
-                    float(body_params.get('semi_a_px', 0.0)),
-                    float(body_params.get('semi_b_px', 0.0)),
-                ),
-            )
-        ),
-        rotation_z=math.radians(float(body_params.get('rotation_z', 0.0))),
-        rotation_tilt=math.radians(float(body_params.get('rotation_tilt', 0.0))),
-        anti_aliasing=1.0,
-    )
-    img = render_lambert_ellipsoid(
-        projection,
-        illumination_angle=math.radians(float(body_params.get('illumination_angle', 0.0))),
-        phase_angle=math.radians(float(body_params.get('phase_angle', 0.0))),
-    )
-    mask: NDArrayBoolType = np.asarray(img > 0.0, dtype=bool)
-    return mask
 
 
 class NavModelTitanSimulated(NavModelTitan):
@@ -342,13 +302,16 @@ class NavModelTitanSimulated(NavModelTitan):
         """Build the contaminant mask and the occluded fraction for a sim scene.
 
         Three of the real model's four components have sim analogs and are
-        built here: nearer-sibling occlusion (rendered silhouettes, the same
-        explicit-range rule the simulated body model applies), the bounding
-        boxes of every other body in the scene, and discs over stars
+        built here: nearer-sibling occlusion (the same explicit-range rule
+        the simulated body model applies), the bounding boxes of every other
+        body in the scene, and discs over stars
         brighter than the configured mask limit.  Ring occlusion has no
         analog -- the simulated ring system is a separate scene element with
         no depth relation to a body -- so it contributes nothing, and a
-        simulated frame simply cannot exercise that path.
+        simulated frame simply cannot exercise that path.  Each sibling's
+        silhouette and box come from the predicted silhouette the simulated
+        body model draws for the same body, in
+        :mod:`~spindoctor.nav_model.simulated.predicted_body`.
 
         Parameters:
             extfov_shape_vu: ``(rows, columns)`` of the extended frame.
@@ -374,9 +337,11 @@ class NavModelTitanSimulated(NavModelTitan):
             )
             if nearer:
                 self._embed_data_mask(
-                    occluder_ext, _render_silhouette(sibling, shape_vu=data_shape), margin_vu
+                    occluder_ext, predicted_silhouette(sibling, data_shape), margin_vu
                 )
-            self._paint_sibling_box(contaminant_ext, sibling, margin_vu)
+            self._paint_sibling_box(
+                contaminant_ext, predicted_silhouette_bbox(sibling, data_shape), margin_vu
+            )
         contaminant_ext |= occluder_ext
         vmag_limit = float(nav_config['star_mask_vmag_limit'])
         radius_px = float(nav_config['star_mask_radius_px'])
@@ -412,29 +377,34 @@ class NavModelTitanSimulated(NavModelTitan):
 
     @staticmethod
     def _paint_sibling_box(
-        mask: NDArrayBoolType, sibling: dict[str, Any], margin_vu: tuple[int, int]
+        mask: NDArrayBoolType,
+        bbox_vu: tuple[int, int, int, int] | None,
+        margin_vu: tuple[int, int],
     ) -> None:
         """Paint one sibling body's bounding box into the contaminant mask.
 
         Range order is deliberately ignored, exactly as on a real frame: a
         moon behind Titan occludes nothing, but its visible sliver beside
         the limb sits squarely in the symmetry annulus and in the arc rays.
+        The box is the bounding box of the sibling's whole predicted
+        silhouette, so it holds the body at whatever center, shape, and
+        rotation that prediction gives it, and reaches into the extfov
+        margin where the body runs past the frame edge.
 
         Parameters:
             mask: Extfov-shaped contaminant mask, modified in place.
-            sibling: The other body's idealized parameters.
-            margin_vu: ``(margin_v, margin_u)`` extfov margins.
+            bbox_vu: (v_min, v_max, u_min, u_max), the inclusive
+                frame-pixel bounds of the sibling's predicted silhouette, or
+                None for a silhouette too small to cover a pixel.
+            margin_vu: (margin_v, margin_u) extfov margins.
         """
-        center_v = sibling.get('center_v')
-        center_u = sibling.get('center_u')
-        if center_v is None or center_u is None:
+        if bbox_vu is None:
             return
-        half_v = float(sibling.get('semi_a_px', 0.0))
-        half_u = float(sibling.get('semi_b_px', 0.0))
+        v_min, v_max, u_min, u_max = bbox_vu
         rows, cols = mask.shape
-        v_lo = max(0, math.floor(float(center_v) - half_v) + margin_vu[0])
-        v_hi = min(rows, math.ceil(float(center_v) + half_v) + margin_vu[0] + 1)
-        u_lo = max(0, math.floor(float(center_u) - half_u) + margin_vu[1])
-        u_hi = min(cols, math.ceil(float(center_u) + half_u) + margin_vu[1] + 1)
+        v_lo = max(0, v_min + margin_vu[0])
+        v_hi = min(rows, v_max + margin_vu[0] + 1)
+        u_lo = max(0, u_min + margin_vu[1])
+        u_hi = min(cols, u_max + margin_vu[1] + 1)
         if v_hi > v_lo and u_hi > u_lo:
             mask[v_lo:v_hi, u_lo:u_hi] = True
