@@ -147,7 +147,8 @@ def compose_scene_radiance(frame: SimFrame, *, params: Mapping[str, Any]) -> Non
     # is scaled by ``os`` so the radiance renders at the oversampled resolution;
     # the box downsample after optics returns it to the detector grid.  At
     # ``os == 1`` every scale factor is an exact multiply-by-one, so a scene
-    # with no optics block renders identically to a detector-grid render.
+    # with no PSF (which renders at ``os == 1`` unless it sets ``oversample``)
+    # renders identically to a detector-grid render.
     os = int(frame.oversample)
     random_seed = int(params['random_seed'])
     # Sub-effect stream names follow the established 'scene_radiance/<effect>'
@@ -179,8 +180,9 @@ def compose_scene_radiance(frame: SimFrame, *, params: Mapping[str, Any]) -> Non
     # Stars are point sources deposited into the point-source plane; the scene
     # PSF (an explicit optics.psf block, the navigator-matched form, or the
     # instrument-defaults kernel) is their only convolution.  With no PSF a star
-    # is a 1-pixel spike (the undersampled limit); the recorded sigma is then
-    # 0.0 -- the actual rendered extent of an unconvolved deposit.  Recording
+    # is its bilinear deposit, at most 2 x 2 pixels at oversample 1 (the
+    # undersampled limit); the recorded sigma is then 0.0 -- the actual
+    # rendered extent of an unconvolved deposit.  Recording
     # the navigator's configured sigma here instead would falsely mark the
     # scene as PSF-matched in the truth metadata, hiding a real
     # render-vs-navigate mismatch from any floor-integrity check that reads it.

@@ -638,10 +638,17 @@ error to the one effect it varies.
   The detector adds it into the electron image after the intensive conversion
   and before Poisson, so anything in it never passes through the signal scale.
   Stars deposit in signal units, so this plane stays zeroed.
-- ``oversample`` -- the oversampling factor. A scene with an active PSF (an
-  ``optics.psf`` block or ``instrument_defaults``) renders the radiance on a 4x
-  oversampled grid and the box downsample returns it to the detector grid;
-  otherwise it is 1.
+- ``oversample`` -- the oversampling factor. A scene's ``oversample`` key sets it
+  directly. Without that key, a scene the optics stage blurs with a PSF renders the
+  radiance on a 4x oversampled grid, and the box downsample returns it to the
+  detector grid; otherwise the factor is 1. The scene has a PSF when it states an
+  ``optics.psf`` block, or when it turns on ``instrument_defaults`` and its
+  camera's catalog entry states a kernel. The generic camera states none, so a
+  generic scene with ``instrument_defaults`` renders at oversample 1. The optics
+  stage gets its kernel from
+  :func:`~spindoctor.sim.render.optics.stage.effective_psf`, and the oversampling
+  choice asks the same function through
+  :func:`~spindoctor.sim.render.optics.stage.psf_active`, so the two always agree.
 - ``truth`` -- renderer output metadata (rendered star records, body masks,
   inventory, z-order maps). None of it crosses the information boundary.
 
@@ -768,9 +775,9 @@ stages as ``SimFrame.preview`` and simplifies three of them:
   by a fraction of a pixel for most cameras, and it is one of the slowest optics steps.
 
 Every other stage runs as in the full render. The PSF stays, at oversample 1, where
-its convolution takes 10 to 20 ms on a full-size frame. Without it, every star would be
-a single pixel holding its whole flux, since the PSF is a star's only shape. The
-editor's display is stretched to the frame's peak, so a one-pixel star would dim
+its convolution takes 10 to 20 ms on a full-size frame. Without it, every star would
+put its whole flux into at most 2 x 2 pixels, since the PSF is a star's only shape. The
+editor's display is stretched to the frame's peak, so stars that concentrated would dim
 everything else on screen. The body moves to its position by linear interpolation
 from its cached drawing, as in the full render (see :ref:`placing a body
 <sim-body-placement>`). That move costs little at oversample 1.
