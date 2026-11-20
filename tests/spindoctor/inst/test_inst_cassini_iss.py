@@ -463,6 +463,20 @@ def test_cassini_iss_reports_shutter_mode() -> None:
     assert obs.shutter_mode == 'BOTSIM'
 
 
+@REQUIRES_EXTERNAL_DATA
+def test_the_host_gives_both_filters_of_a_real_image() -> None:
+    """The host's ``filter1`` and ``filter2`` subfields are what ``filters`` reads.
+
+    A host that renamed them would publish an empty ``filters`` list with nothing
+    failing, so the host's own subfields are checked here on a real frame.
+    """
+    obs = obstcoiss.ObsCassiniISS.from_file(URL_CASSINI_ISS_RHEA_01)
+    assert obs.get_public_metadata()['filters'] == [
+        obs.subfields['filter1'],
+        obs.subfields['filter2'],
+    ]
+
+
 def test_shutter_mode_absent_from_the_label_reads_as_none() -> None:
     """A label carrying no SHUTTER_MODE_ID reports no shutter mode."""
     assert _obs_with_label({}).shutter_mode is None
