@@ -92,12 +92,14 @@ An image cannot be read
 =======================
 
 The metadata document records ``image_read_error``, or the navigation reports
-``image_corrupt``. The image or label file could not be parsed, or neither gives a value
-the image needs, such as its exposure time.
+``image_corrupt``. The image or label file could not be retrieved or parsed, or neither
+gives a value the image needs, such as its exposure time.
 
 Check that both the image file and its label are present and complete. For PDS3 holdings,
 confirm that the volume was retrieved whole, and that the label beside the image is the
-label for that image.
+label for that image. For holdings on a web server, a server that did not answer when the
+label was requested fails the image this way too, so run the image again once the server
+answers.
 
 No features are found
 =====================

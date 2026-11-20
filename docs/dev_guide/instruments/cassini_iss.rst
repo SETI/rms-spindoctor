@@ -39,11 +39,12 @@ Loading the image
 =================
 
 :meth:`~spindoctor.obs.obs_inst_cassini_iss.ObsCassiniISS.from_file` calls
-``host_cassini.CassiniISS.from_file(host_input(path), fast_distortion=...,
-return_all_planets=...)``. :func:`~spindoctor.obs.obs_snapshot_inst.host_input`
-chooses the ``_CALIB.LBL`` beside the image, so that the host reads that PDS3
-label and the VICAR file together. Both keyword arguments are read from
-``**kwargs`` and default to ``True``.
+``host_cassini.CassiniISS.from_file(host_input(path, label=label),
+fast_distortion=..., return_all_planets=...)``.
+:func:`~spindoctor.obs.obs_snapshot_inst.host_input` chooses the image's
+``_CALIB.LBL``, so that the host reads that PDS3 label and the VICAR file
+together. The two other keyword arguments are read from ``**kwargs`` and default
+to ``True``.
 ``fast_distortion`` selects the host's polynomial inverse rather than an
 iterative one, which is what makes per-pixel geometry affordable in a batch;
 ``return_all_planets`` makes the host list the kernels of every planet in the

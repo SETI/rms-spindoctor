@@ -145,7 +145,9 @@ def generate_backplanes_image_files(
             try:
                 # Build observation in original FOV
                 # TODO We only support snapshots for backplane generation for now
-                obs = obs_class.from_file(image_path, extfov_margin_vu=(0, 0))
+                obs = obs_class.from_file(
+                    image_path, extfov_margin_vu=(0, 0), label=image_file.label_file_url
+                )
                 if not isinstance(obs, ObsSnapshotInst):
                     raise TypeError(f'Expected ObsSnapshotInst, got {type(obs).__name__}')
                 snapshot = obs

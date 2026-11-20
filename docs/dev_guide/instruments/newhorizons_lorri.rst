@@ -35,14 +35,15 @@ Loading the image
 
 :meth:`~spindoctor.obs.obs_inst_newhorizons_lorri.ObsNewHorizonsLORRI.from_file`
 calls ``host_new_horizons.NewHorizonsLORRI.from_file`` with the file that
-:func:`~spindoctor.obs.obs_snapshot_inst.host_input` chooses: the PDS3 label
-beside the image, so that the host reads the label and the FITS file together.
+:func:`~spindoctor.obs.obs_snapshot_inst.host_input` chooses: the image's PDS3
+label, so that the host reads the label and the FITS file together.
 The host gives the data as the FITS file stores them, in DN, and attaches its
 conversion to I/F as a calibration object, which SpinDoctor does not apply. The
 navigation pipeline treats image brightness scale-invariantly --
 normalized cross-correlation, an image-derived noise floor, a magnitude-based
-star gate -- so no conversion is needed. No other keyword argument is accepted,
-and ``**_kwargs`` is named with a leading underscore to say so.
+star gate -- so no conversion is needed. The one other keyword argument read is
+``label``, the label's URL when the caller knows it, and ``**_kwargs`` is named
+with a leading underscore to say so.
 
 Beyond the host call it reads the flat ``newhorizons_lorri`` config section
 and resolves the extended-FOV margin from the size-keyed table by

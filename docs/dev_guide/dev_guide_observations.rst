@@ -393,10 +393,16 @@ Each real camera is read by a host package, one per mission, whose class method
   the two under the PDS3 names. The data are the same either way. Some values come
   only from the PDS3 label, such as a Voyager image's start clock count, so every
   reader passes the label when there is one.
-  :func:`~spindoctor.obs.obs_snapshot_inst.host_input` makes that choice: it returns
-  the file beside the image with the image's name and the suffix ``.LBL`` (``.lbl``
-  when the image's own suffix is lower case) if that file exists, and the image file
-  otherwise.
+  :func:`~spindoctor.obs.obs_snapshot_inst.host_input` makes that choice. Every
+  reader's ``from_file`` takes the label as its ``label`` argument, and the programs
+  that load an image from a dataset pass the label URL the dataset already holds
+  (``ImageFile.label_file_url``), which is then the file read. A caller that gives no
+  label gets the file beside the image with the image's name and the suffix ``.LBL``
+  (``.lbl`` when the image's own suffix is lower case), and the image file alone only
+  when that file does not exist. A label that cannot be retrieved for another reason,
+  such as a web server that does not answer, raises ``OSError``, and the image is
+  recorded as ``image_read_error``: reading the image alone would publish less than
+  the label gives without saying so.
 - **Where values are.** A reader takes what it needs from the host's documented
   subfields by name, such as ``detector``, ``filter``, and the clock counts
   ``spacecraft_clock_start_count`` and ``spacecraft_clock_stop_count``, which every

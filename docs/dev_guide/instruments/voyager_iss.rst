@@ -39,8 +39,8 @@ Loading the image
 
 :meth:`~spindoctor.obs.obs_inst_voyager_iss.ObsVoyagerISS.from_file` calls
 ``host_voyager.VoyagerISS.from_file`` with the file that
-:func:`~spindoctor.obs.obs_snapshot_inst.host_input` chooses: the PDS3 label
-beside the image, so that the host reads the label and the VICAR file together.
+:func:`~spindoctor.obs.obs_snapshot_inst.host_input` chooses: the image's PDS3
+label, so that the host reads the label and the VICAR file together.
 The label gives more than the start clock count. Some VICAR headers have no
 usable time, and some give a clock count one or two FDS minutes late, at which
 the C kernels hold no pointing. The host takes both values from the label.

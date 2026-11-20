@@ -346,7 +346,9 @@ def navigate_image_files(
             ):
                 log_run_environment(logger, sys.argv[1:])
                 try:
-                    snapshot = obs_class.from_file(image_url, **extra_params)
+                    snapshot = obs_class.from_file(
+                        image_url, label=image_file.label_file_url, **extra_params
+                    )
                 except _CAUGHT_LOAD_ERRORS as exc:
                     if not _is_load_failure(exc):
                         raise

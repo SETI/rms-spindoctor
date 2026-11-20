@@ -34,12 +34,13 @@ Loading the image
 
 :meth:`~spindoctor.obs.obs_inst_galileo_ssi.ObsGalileoSSI.from_file` calls
 ``host_galileo.GalileoSSI.from_file`` with ``full_fov=True`` and the file that
-:func:`~spindoctor.obs.obs_snapshot_inst.host_input` chooses: the PDS3 label
-beside the image, so that the host reads the label and the VICAR file together.
+:func:`~spindoctor.obs.obs_snapshot_inst.host_input` chooses: the image's PDS3
+label, so that the host reads the label and the VICAR file together.
 ``full_fov=True`` asks the host for the whole detector array rather than the summed or windowed
 region the label describes, so the navigation models are generated over the
-same grid whatever readout mode a frame used. No other keyword argument is
-accepted, and ``**_kwargs`` is named with a leading underscore to say so.
+same grid whatever readout mode a frame used. The one other keyword argument
+read is ``label``, the label's URL when the caller knows it, and ``**_kwargs``
+is named with a leading underscore to say so.
 
 The host records ``obs.image_url``, the absolute source URL, from which the
 published image name is taken. Beyond the host call ``from_file`` reads the

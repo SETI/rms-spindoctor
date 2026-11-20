@@ -67,11 +67,12 @@ classification is the top-level ``status_error`` and the evidence is
     failed this way with ``--has-offset-spice-error``.
 
 ``image_read_error``
-    Any other load failure -- a truncated, corrupt, or absent file, or a file
-    whose labels lack a value the host needs, such as the exposure. A host
-    reports the last kind as a subclass of ``oops.host.HostError``. The
-    exception text is the reader's own message; verify the holdings path in
-    ``observation.image_path`` exists and is readable.
+    Any other load failure -- a truncated, corrupt, or absent file, a label that
+    could not be retrieved, or a file whose labels lack a value the host needs,
+    such as the exposure. A host reports the last kind as a subclass of
+    ``oops.host.HostError``. The exception text is the reader's own message;
+    verify the holdings path in ``observation.image_path`` exists and is
+    readable.
 
 ``internal_error``
     Navigating the image raised an exception the orchestrator does not turn
