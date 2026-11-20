@@ -239,7 +239,7 @@ why both tables are written out.
 **The oops-from-SPICE flip.** The identity, by construction rather than by
 measurement, for the reason in the next paragraph.
 
-**Frame evaluation: frozen, not evaluated.** ``oops`` does not build this
+**Frame evaluation: frozen, not evaluated.** The host does not build this
 observation frame from a frame chain. It builds it as
 
 .. code-block:: text
@@ -470,8 +470,8 @@ because the corrected records are not where the host looks (see "Frame
 evaluation" above).
 
 **Unit tests.** ``tests/spindoctor/inst/test_inst_voyager_iss.py`` covers the
-I/F scaling, the Saturn correction, and the refusal of a product with no I/F
-factor; the spacecraft digit; the per-camera limiting-magnitude anchors; the
+I/F scaling, the Saturn correction, and the refusal of a product lacking an
+I/F factor; the spacecraft digit; the per-camera limiting-magnitude anchors; the
 per-spacecraft metadata LIDs; and the published clock counts: fractional
 leading units with no midtime count, with no start count when the label was
 not read.
