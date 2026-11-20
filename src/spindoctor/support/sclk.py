@@ -4,31 +4,14 @@ A spacecraft clock reading is a sequence of fields, each counting in units of th
 before it, and a clock's SCLK kernel gives each field's modulus and offset.
 :func:`fractional_count` turns one reading's fields into an exact number of units of its
 leading field, and :func:`exposure_counts` assembles the start, midtime and end counts a
-host publishes for one image.  :func:`pds3_label_clock_counts` reads the start and stop
-counts from the PDS3 label beside an image.  Each instrument's host module holds its own
-clock's moduli, offsets and label format; this module holds no instrument's constants.
+host publishes for one image.  Each instrument's host module holds its own clock's
+moduli, offsets and label format; this module holds no instrument's constants.
 """
 
-import re
 from collections.abc import Sequence
 from fractions import Fraction
-from pathlib import Path
 
-from filecache import FCPath
-
-__all__ = ['exposure_counts', 'fractional_count', 'pds3_label_clock_counts']
-
-_PDS3_START_KEY = 'SPACECRAFT_CLOCK_START_COUNT'
-"""The PDS3 label keyword naming the clock count at the start of an image."""
-
-_PDS3_STOP_KEY = 'SPACECRAFT_CLOCK_STOP_COUNT'
-"""The PDS3 label keyword naming the clock count at the end of an image."""
-
-_PDS3_CLOCK_COUNT_RE = re.compile(
-    r'^[ \t]*(?P<key>SPACECRAFT_CLOCK_(?:START|STOP)_COUNT)[ \t]*=[ \t]*"(?P<value>[^"]*)"',
-    re.MULTILINE,
-)
-"""A PDS3 label's start or stop clock count keyword and its quoted value."""
+__all__ = ['exposure_counts', 'fractional_count']
 
 
 def fractional_count(
@@ -92,31 +75,3 @@ def exposure_counts(
         'midtime_sclk': midtime,
         'end_time_sclk': None if end is None else float(end),
     }
-
-
-def pds3_label_clock_counts(image: str | Path | FCPath) -> tuple[str | None, str | None]:
-    """Return the clock counts the PDS3 label beside an image records.
-
-    The label is the file with the image's name and the suffix ``.LBL``, or ``.lbl`` when
-    the image's own suffix is lower case.
-
-    Parameters:
-        image: The image file.
-
-    Returns:
-        The label's ``SPACECRAFT_CLOCK_START_COUNT`` and ``SPACECRAFT_CLOCK_STOP_COUNT``,
-        each the text within its quotes, or None where the label carries no such keyword
-        or there is no label beside the image.
-    """
-    image_path = FCPath(image)
-    suffix = image_path.suffix
-    label = image_path.with_suffix('.LBL' if suffix == suffix.upper() else '.lbl')
-    try:
-        text = label.read_text(encoding='utf-8', errors='replace')
-    except FileNotFoundError:
-        return None, None
-    counts = {
-        match.group('key'): match.group('value').strip()
-        for match in _PDS3_CLOCK_COUNT_RE.finditer(text)
-    }
-    return counts.get(_PDS3_START_KEY), counts.get(_PDS3_STOP_KEY)

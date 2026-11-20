@@ -64,13 +64,18 @@ def test_star_max_usable_vmag_non_positive_exposure_returns_anchor() -> None:
 
 
 def test_the_published_counts_are_fractional_seconds_and_their_exact_mean() -> None:
-    """The label's counts are published as clock seconds, and their mean as the midtime.
+    """The host's counts are published as clock seconds, and their mean as the midtime.
 
     lor_0003104398's one-second exposure crosses a second: its label counts are
     0003104396:49000 and 0003104397:49000, in ticks of 1/50000 second.
     """
     obs = bare_observation(
-        ObsNewHorizonsLORRI, {}, _label_clock_counts=('0003104396:49000', '0003104397:49000')
+        ObsNewHorizonsLORRI,
+        {},
+        subfields={
+            'spacecraft_clock_start_count': '0003104396:49000',
+            'spacecraft_clock_stop_count': '0003104397:49000',
+        },
     )
     start, midtime, end = published_clock_counts(obs)
     assert start == pytest.approx(3104396.98, abs=1e-9)
@@ -93,8 +98,7 @@ def test_the_midtime_count_is_the_float_nearest_the_exact_mean() -> None:
 def test_newhorizons_lorri_metadata_clock_counts_are_the_pds3_labels() -> None:
     """The published clock counts are those of the PDS3 label beside the FITS image.
 
-    The Charon test image's PDS3 label gives 0299147640:41500 and 0299147640:49000; the
-    FITS header carries the start count only.
+    The Charon test image's PDS3 label gives 0299147640:41500 and 0299147640:49000.
     """
     obs = obstnhlorri.ObsNewHorizonsLORRI.from_file(URL_NEWHORIZONS_LORRI_CHARON_01)
     meta = obs.get_public_metadata()
