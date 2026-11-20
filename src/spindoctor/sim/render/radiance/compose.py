@@ -70,6 +70,7 @@ from spindoctor.sim.render.radiance.stars import (
     render_stars,
 )
 from spindoctor.sim.render.rings.render import RingSystemMaps, render_ring_system
+from spindoctor.sim.render.roll import roll_body_params
 from spindoctor.sim.render.stages import SimFrame
 from spindoctor.sim.scene.fields import default_body_range_km, scene_binning, scene_value
 from spindoctor.sim.seeds import derive_effect_seed
@@ -246,15 +247,22 @@ def compose_scene_radiance(frame: SimFrame, *, params: Mapping[str, Any]) -> Non
     # Process bodies: parse each into its typed spec (every default applied,
     # a null key read as absent), assign default ranges, apply parallax and the
     # camera roll, and scale centers and axes to the oversampled grid.  A roll
-    # rotates each body's center about the boresight and adds to its
-    # line-of-sight pose (rotation_z), so a body moves and turns under the same
-    # pointing rotation the stars do; the body NavModel predicts the unrolled
-    # geometry.  Each body also keeps a scene mapping with the same values for
-    # the render truth.  If the scene sets a key to null, that mapping leaves
-    # the key out, so a null key and an absent one give the same truth.
+    # rotates each body's center about the boresight and turns the body about
+    # its own center by the same angle (its orientation, the direction its
+    # light comes from, and everything placed on it), so the rolled body is the
+    # unrolled one turned with the frame, as the stars are; the body NavModel
+    # predicts the unrolled geometry.  Each body also keeps a scene mapping with
+    # the values it is drawn with for the render truth.  If the scene sets a key
+    # to null, that mapping leaves the key out, so a null key and an absent one
+    # give the same truth.
     bodies_with_ranges: list[tuple[BodySpec, dict[str, Any]]] = []
     explicit_ranges: list[bool] = []
-    for body_number, body_params in enumerate(bodies_params):
+    for body_number, scene_body in enumerate(bodies_params):
+        body_params = (
+            scene_body
+            if offset_rotation_deg == 0.0
+            else roll_body_params(scene_body, roll_deg=offset_rotation_deg)
+        )
         spec = body_spec_from_params(body_params, index=body_number)
         explicit_ranges.append(spec.range_km is not None)
         # The positional default name and range are applied once here, so
@@ -269,14 +277,11 @@ def compose_scene_radiance(frame: SimFrame, *, params: Mapping[str, Any]) -> Non
         sdv, sdu = _spk_shift(range_km)
         cv += sdv
         cu += sdu
-        rotation_z = spec.rotation_z
         if offset_rotation_deg != 0.0:
             rv = cv - det_center_v
             ru = cu - det_center_u
             cv = det_center_v + roll_cos * rv - roll_sin * ru
             cu = det_center_u + roll_sin * rv + roll_cos * ru
-            rotation_z = spec.rotation_z + offset_rotation_deg
-            truth_params['rotation_z'] = rotation_z
         truth_params['center_v'] = cv * os
         truth_params['center_u'] = cu * os
         for axis_key in ('semi_a_px', 'semi_b_px', 'semi_c_px'):
@@ -290,8 +295,8 @@ def compose_scene_radiance(frame: SimFrame, *, params: Mapping[str, Any]) -> Non
             semi_a_px=spec.semi_a_px * os,
             semi_b_px=spec.semi_b_px * os,
             semi_c_px=spec.semi_c_px * os,
-            rotation_z=rotation_z,
             range_km=range_km,
+            roll_deg=offset_rotation_deg,
             # The editor's fast preview draws each limb without supersampling.
             # At the default setting the limb is drawn on a grid 4 times finer in
             # each direction, which costs most of a preview's time.
@@ -766,7 +771,7 @@ def _render_sky(
     Reads the scene ``sky_counts`` block (absent = no sky).  The faint cutoff
     (:func:`sky_star_faint_cutoff_mag`) is derived from the camera's nominal read noise
     and the scene PSF core, so the count integral stops where a star drops below the
-    sky background.
+    sky background.  The planted roll turns the field with the rest of the scene.
 
     Parameters:
         plane: The oversampled point-source plane to deposit into.
@@ -798,6 +803,7 @@ def _render_sky(
             scene_value(sky, 'diffuse_e_per_px', SKY_COUNTS_DEFAULTS['diffuse_e_per_px'])
         ),
         oversample=os,
+        rotation_deg=float(params.get('offset_rotation_deg', 0.0)),
     )
 
 

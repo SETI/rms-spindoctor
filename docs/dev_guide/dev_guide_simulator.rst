@@ -175,6 +175,9 @@ relative to ``sim/render/``):
    * - ``feature_loci.py``
      - Navigation-feature loci (body / ring rows, limb and star pixels)
        extracted from the frame truth for adversarial artifact placement.
+   * - ``roll.py``
+     - Turns a body, and any image-plane vector, by the planted camera roll
+       (see :ref:`the planted roll <sim-planted-roll>`).
    * - ``bodies/atmosphere.py``
      - The haze-limb layer for atmospheric (Titan-class) bodies: an
        exponential haze column composited onto the disc, giving a soft limb, a
@@ -2036,9 +2039,13 @@ placement. No body module imports the dispatcher.
 **The body spec.** The scene radiance stage parses each ``bodies`` entry once into a
 frozen :class:`~spindoctor.sim.render.bodies.spec.BodySpec`
 (:func:`~spindoctor.sim.render.bodies.spec.body_spec_from_params`). Every default is
-applied there, and a key set to null gets the same default as an absent key. The
-stage then shifts each center by the ephemeris parallax, applies the planted roll to the
-center and to ``rotation_z``, and scales the centers and axes to the render grid. The body
+applied there, and a key set to null gets the same default as an absent key. Under a
+planted roll the stage first turns the entry about the body's own center
+(:func:`~spindoctor.sim.render.roll.roll_body_params`; see
+:ref:`the planted roll <sim-planted-roll>`) and records the roll in the spec's
+``roll_deg``, which turns the crater layout. The stage then shifts each center by the
+ephemeris parallax, turns it about the frame center by the roll, and scales the
+centers and axes to the render grid. The body
 renderer adds the planted translation when it draws the body. Both renderers read only the
 spec. Two sub-blocks stay as their validated mappings, because their specs depend on the
 render: the ``atmosphere`` block's pixel lengths scale with the oversampling factor, and
@@ -2048,10 +2055,13 @@ them with :func:`~spindoctor.sim.render.bodies.atmosphere.atmosphere_spec_from_p
 key as absent too.
 
 The stage also writes each body's entry in the render truth. The entry starts as a
-copy of the scene entry, leaving out any key the scene sets to null, so a null key
-and an absent one give the same truth. The stage then puts in the render-grid
-centers and axes, fills in the name and range when the scene leaves them out, and,
-for a mesh body, adds the pose scatter it drew.
+copy of the scene entry, leaving out any key the scene sets to null, so the truth reads
+a null key as an absent one. Under a planted roll the entry is the turned one, and the
+angles the roll turns (``illumination_angle``, and ``rotation_z`` or
+``pose_euler_deg``) are always present: one the scene leaves out or sets to null
+carries its default turned by the roll. The stage then puts in the render-grid centers
+and axes, fills in the name and range when the scene leaves them out, and, for a mesh
+body, adds the pose scatter it drew.
 
 .. _sim-body-placement:
 
@@ -3268,31 +3278,86 @@ The scene's displacements need no conversion: the planted ``offset_v`` /
 ``offset_u``, a star's ``move_v`` / ``move_u`` smear vector, a planted
 ``catalog_error_v`` / ``catalog_error_u``, and a companion's ``sep_px``.
 
-The planted roll turns **positions** about **one** point in that same
-convention: the frame's center ``(size_v / 2, size_u / 2)``. Catalog star
-positions, body centers, and the ring system's center all pivot there, so a
-rolled scene plants a truth its three families of content agree on. The two
-orientations that describe a whole projected pattern take the roll as well: a
-body's ``rotation_z`` and the ring system's ``node_deg``. Moving the pivot
-displaces every rendered position by ``(I - R) d`` for a pivot moved by ``d`` --
-a rigid shift of the whole field of magnitude ``2 |d| sin(theta / 2)``, the same
-near the center as far from it -- so pivoting the star field half a pixel from
-the bodies would tilt the star solution against the body solution by that amount
-at every star.
+.. _sim-planted-roll:
 
-What the roll does not turn are the per-object quantities already stated in the
-detector frame: a star's ``move_v`` / ``move_u`` smear vector and a companion's
-``angle_deg`` render at the angle the scene wrote, whatever the roll. A scene
-author states them as they are to appear on the detector, so a roll that also
-turned them would apply the rotation twice. The background star field the
-``sky_counts`` block draws is not rotated either, and cannot be: its positions
-are drawn uniformly at random over the frame, so it carries no orientation to
-turn.
+**The planted roll** is a roll of the camera about its boresight. A scene describes
+what the unrolled camera would see, and the roll turns everything in the field of
+view by the same angle, in the same direction, about **one** point in that same
+convention: the frame's center ``(size_v / 2, size_u / 2)``. A positive roll turns
+from ``+v`` toward ``+u``, carrying a point at ``(dv, du)`` from the center to
+``(cos * dv - sin * du, sin * dv + cos * du)``. That is the rotation the star fit
+``similarity_transform_fit`` in ``nav_technique/_star_helpers.py`` reports and the
+rotation the edge fits apply to their model, so the rotation the navigator
+recovers equals the planted roll. The roll turns the scene first, and the planted
+``offset_v`` / ``offset_u`` then moves the turned stars, bodies, and ring system. The
+``sky_counts`` background field turns with the roll but does not move with the offset:
+its stars are drawn where they land in the frame whatever the offset. The navigator
+never learns the roll: ``offset_rotation_deg`` is a truth key, so the navigator's
+models predict the unrolled scene.
 
-The two centers inside the ``optics`` block -- ``distortion.center_v`` /
-``center_u`` and ``stray_light.center_v`` / ``center_u`` -- follow the rule too,
-though what they name is where a whole-frame field is centered rather than where
-an object sits. Both are stated as pixel corners and both convert the same way.
+The roll turns:
+
+- catalog star positions, body centers, and the ring system's center about the frame
+  center;
+- each body about its own center by the same angle: its outline, the side its light
+  comes from, and everything drawn on it (craters, relief, albedo texture, bands and
+  storms, transiting moons and their shadows, and the haze with its clouds);
+- the ring system, through its ``node_deg``, with every feature and azimuthal pattern
+  on it;
+- each star's ``move_v`` / ``move_u`` smear track, its companion's offset, and its
+  catalog error;
+- the whole-scene and per-class motion smear in the ``optics`` block. Smear is the
+  scene drifting across the detector during the exposure, so its direction is a
+  direction in the field of view and turns with it;
+- a linear stray-light ramp. The ramp rises toward a bright source beyond the field
+  of view, and rolling the camera turns that source's direction on the detector. The
+  rolled ramp is the unrolled ramp turned about the frame center, with the same slope
+  and the same value there. Where the turned frame reaches past the span the unrolled
+  ramp was scaled to, the ramp continues the same line, and where that line falls
+  below zero it is clipped to zero, since light is never negative;
+- the ``sky_counts`` background field. The turned frame also shows sky beyond the
+  unrolled frame's corners, so stars at the same density are drawn there from their
+  own stream, and the rolled sky is the unrolled sky turned with the frame. A star is
+  drawn only when its position lies in the frame, rolled or not, so a roll too small
+  to carry a star across the frame edge draws the same stars as no roll.
+
+:mod:`spindoctor.sim.render.roll` does the turning for bodies. Three body angles run
+against the roll, so the roll subtracts from them. ``rotation_z`` turns the grid an
+ellipsoid is sampled on, so the drawn outline turns by ``-rotation_z``.
+``illumination_angle`` is measured from the top of the image toward ``+u``, so the
+light direction ``(-cos, sin)`` turns by ``-illumination_angle``. A mesh body's pose is
+``Rz @ Ry @ Rx`` in camera axes ordered ``(u, v, depth)``, so its line-of-sight angle,
+the third entry of ``pose_euler_deg``, is the outermost rotation, and a ``+v`` toward
+``+u`` turn is a negative ``Rz`` there. Craters are drawn on the image grid rather
+than on the body, so the ellipsoid renderer lays them out where the unrolled body
+does, on the frame or plane the unrolled body's canvas uses, and turns each center
+onto the rolled one. A scene author writes every angle for the
+unrolled camera and never adjusts one for the roll.
+
+Moving the pivot displaces every rendered position by ``(I - R) d`` for a pivot moved
+by ``d`` -- a rigid shift of the whole field of magnitude ``2 |d| sin(theta / 2)``, the
+same near the center as far from it -- so pivoting the star field half a pixel from the
+bodies would tilt the star solution against the body solution by that amount at every
+star.
+
+The camera's own optics stay put: the PSF, the distortion, the ghosts' shifts, and the
+radial stray-light bump are optical properties of the camera rather than of the field
+of view. The two centers inside the ``optics`` block -- ``distortion.center_v`` /
+``center_u`` and ``stray_light.center_v`` / ``center_u`` -- follow the pixel-corner
+rule too, though each sets where a whole-frame field is centered rather than where an
+object sits. Both are stated as pixel corners and both convert the same way, and both
+render where the scene wrote them whatever the roll.
+
+``tests/spindoctor/sim/test_sim_roll_turns_scene.py`` holds the renderer to this. For
+each quantity that turns, a +90 degree roll must render the unrolled frame turned a
+quarter turn. An ellipsoid's outline and a smear track look the same after a half
+turn, so a 30 degree roll must turn each by 30 degrees, and it must turn a half-lit
+sphere's light the same way. On a frame twice as wide as it is tall, where only one
+of the two renders draws a long cratered body on the frame, a +90 degree roll must
+still render the unrolled frame turned wherever the turn maps the frame onto itself.
+On a frame wider than it is tall, a linear stray-light ramp rolled 37 degrees must
+equal the unrolled ramp turned and clipped at zero, and a roll must leave the ghosts
+and the radial stray-light bump where they were.
 
 Scene parameter reference
 =========================
@@ -3361,13 +3426,19 @@ inside a mode's map may be null and takes its default.
      - float
      - 0.0
      - truth
-     - Planted boresight roll (deg), turning catalog star positions, body
-       centers, and the ring center alike about the frame's uv center
-       ``(size_v / 2, size_u / 2)`` (see :ref:`sim-pixel-convention`), and added
-       to ``rotation_z`` and ``node_deg``.  Smear vectors, a companion's
-       ``angle_deg``, and the ``distortion`` and ``stray_light`` centers in the
-       ``optics`` block are stated in the detector frame and do not turn with
-       it.
+     - Planted boresight roll (deg, from ``+v`` toward ``+u``), turning
+       everything in the field of view about the frame's uv center
+       ``(size_v / 2, size_u / 2)`` (see
+       :ref:`the planted roll <sim-planted-roll>`).  That covers the positions
+       of stars and bodies; each body's outline, lit side, and surface; the ring
+       system; star smear, companions, and catalog errors; the optics motion
+       smear; a linear stray-light ramp, clipped at zero where the turned frame
+       reaches past the unrolled one; and the sky field.  The roll subtracts
+       from ``rotation_z``, ``illumination_angle``, and a mesh body's
+       line-of-sight pose angle, which run against it, and adds to
+       ``node_deg``.  The PSF, distortion,
+       ghosts, and radial stray-light bump belong to the camera and do not
+       turn.
    * - ``midtime_utc``
      - str
      - none

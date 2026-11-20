@@ -8,9 +8,10 @@ stages over a :class:`~spindoctor.sim.render.stages.SimFrame`.
 The entry point is :mod:`spindoctor.sim.render.driver`, a thin cached driver over
 :func:`spindoctor.sim.render.pipeline.run_pipeline`.  The modules beside it hold the
 pipeline (:mod:`~spindoctor.sim.render.pipeline`), the stage interface
-(:mod:`~spindoctor.sim.render.stages`), and the navigation-feature loci that artifact
-placement aims at (:mod:`~spindoctor.sim.render.feature_loci`).  The stages live in
-subpackages:
+(:mod:`~spindoctor.sim.render.stages`), the navigation-feature loci that artifact
+placement aims at (:mod:`~spindoctor.sim.render.feature_loci`), and the planted
+camera roll's turn of every direction a scene states
+(:mod:`~spindoctor.sim.render.roll`).  The stages live in subpackages:
 
 - :mod:`spindoctor.sim.render.radiance`: the scene-radiance stage, which composes
   the noise-free signal image from the bodies, rings, and stars.

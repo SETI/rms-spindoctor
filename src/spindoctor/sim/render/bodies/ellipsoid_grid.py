@@ -52,15 +52,20 @@ _BOX_MARGIN_CELLS = 2
 
 @dataclass(frozen=True)
 class CraterPlane:
-    """The detector grid a partly drawn body's crater centers are drawn on.
+    """The detector grid crater centers are drawn on, when it is not the drawn grid.
 
     A body too large to be drawn whole is drawn on a box of a larger grid that holds
     all of it.  Its craters are laid out on that larger grid, so they stay in place
-    on the body's surface whichever part of it is drawn.
+    on the body's surface whichever part of it is drawn.  A body turned by a planted
+    roll lays its craters out on the grid the unrolled body would use: the frame, or
+    the larger grid holding the unrolled body.  That grid can be smaller than the
+    drawn one, as when the unrolled body fits in the frame and the rolled one is
+    drawn on a canvas reaching past it, and its origin is then negative.
 
     Parameters:
         shape: The plane's rows and columns, in detector pixels.
-        origin: The plane row and column of the drawn detector grid's first pixel.
+        origin: The plane row and column of the drawn detector grid's first pixel,
+            negative when the drawn grid starts before the plane.
     """
 
     shape: tuple[int, int]

@@ -15,6 +15,7 @@ truth keys the navigator never sees (its best model is the smooth Lambert
 ellipsoid).
 """
 
+import math
 from collections.abc import Callable
 from dataclasses import dataclass
 
@@ -32,7 +33,11 @@ _CENTER_CANDIDATES_PER_ROUND = 256
 
 @dataclass(frozen=True)
 class CraterSite:
-    """The grid crater centers are drawn on, when it is larger than the carved grid.
+    """The grid crater centers are drawn on, when it is not the carved grid's own body.
+
+    The site is a larger grid when the carved grid holds only part of the body.  For
+    a body turned by a planted roll it is the grid the unrolled body lays its craters
+    out on, tested against the unrolled outline.
 
     Parameters:
         shape: The grid's rows and columns.
@@ -61,6 +66,7 @@ def carve_crater_heights(
     work_center_v: float,
     work_center_u: float,
     site: CraterSite | None = None,
+    turn: float = 0.0,
 ) -> NDArrayFloatType:
     """Carve the crater height field (bowl + walls + raised rim per crater).
 
@@ -89,8 +95,13 @@ def carve_crater_heights(
         crater_relief_scale: Scale factor for crater depth.
         work_center_v: Body center v on the grid.
         work_center_u: Body center u on the grid.
-        site: The larger grid the crater centers are drawn on, or None to draw them
+        site: The grid the crater centers are drawn on, or None to draw them
             among the carved grid's own pixels inside ``ellipse_mask_nz``.
+        turn: The angle in radians each drawn center is turned by about the body
+            center, from ``+v`` toward ``+u``.  A body turned by a planted roll
+            draws its centers among the pixels inside the unrolled body, and this
+            turns them onto the rolled one, so its craters are the unrolled body's
+            turned with it.
 
     Returns:
         The crater height field over the grid, in its pixels.
@@ -132,8 +143,15 @@ def carve_crater_heights(
         v_crater, u_crater = _draw_crater_center(site, rng)
 
         # The crater center is an array row and column, so the half pixel goes on here.
-        v_dist = v_abs - (v_crater + PIXEL_CENTER_TO_CORNER_PX)
-        u_dist = u_abs - (u_crater + PIXEL_CENTER_TO_CORNER_PX)
+        center_v = v_crater + PIXEL_CENTER_TO_CORNER_PX
+        center_u = u_crater + PIXEL_CENTER_TO_CORNER_PX
+        if turn != 0.0:
+            rel_v = center_v - work_center_v
+            rel_u = center_u - work_center_u
+            center_v = work_center_v + math.cos(turn) * rel_v - math.sin(turn) * rel_u
+            center_u = work_center_u + math.sin(turn) * rel_v + math.cos(turn) * rel_u
+        v_dist = v_abs - center_v
+        u_dist = u_abs - center_u
         crater_dist = np.sqrt(v_dist**2 + u_dist**2)
 
         # Mask where crater affects height (slightly beyond radius for rim)
