@@ -14,13 +14,11 @@ pixel center: offsets ``s`` from -0.5 to 0.5 in render-grid pixels, at ring-plan
 image pixel there.  This is the one-pixel linear coverage ramp: a single boundary at
 offset ``s_b`` leaves ``0.5 + s_b`` of the pixel on its inner side.  Where a boundary
 falls inside the footprint, the footprint is cut into segments at every boundary
-inside it.  Where the optical depth is constant between boundaries, each segment is
-evaluated once, at its midpoint, with a weight equal to its length.  Across a ramp's
-band the optical depth changes along the segment and the emission is not linear in
-it, so each segment there is cut into pieces and each piece is integrated by
-four-point Gauss-Legendre quadrature.  Any other pixel is evaluated at its center.  On
-an oversampled grid the box downsample then averages the render-grid pixels into each
-detector pixel, so a boundary is integrated over exactly one detector pixel.
+inside it, and :mod:`spindoctor.sim.render.rings.footprint` integrates each segment.
+A pixel that a ramp's band overlaps is integrated too, as one segment if no boundary
+falls inside it.  Any other pixel is evaluated at its center.  On an oversampled grid
+the box downsample then averages the render-grid pixels into each detector pixel, so a
+boundary is integrated over exactly one detector pixel.
 
 Profiles by kind, in render-grid ring-plane units (``r_e`` is the feature's orbit
 radius at the pixel's longitude, ``r_o`` the orbit radius widened by ``width_px``):
@@ -47,30 +45,30 @@ import numpy as np
 
 from spindoctor.sim.scene.fields import RING_SIDE_DEFAULTS, scene_value
 from spindoctor.sim.shared.ring import RingOrbit, compute_orbit_radii
-from spindoctor.support.types import NDArrayFloatType, NDArrayIntType
+from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType, NDArrayIntType
 
 __all__ = [
     'FOOTPRINT_HALF_WIDTH_PX',
+    'WAVE_UNDERFLOW_DAMPINGS',
     'FeatureBoundaries',
-    'FootprintSamples',
+    'FootprintCells',
+    'SlopedBand',
     'feature_boundaries',
     'feature_breakpoint_radii',
+    'feature_sloped_band',
     'feature_tau',
-    'feature_tau_slope',
-    'footprint_samples',
+    'footprint_cells',
 ]
 
 FOOTPRINT_HALF_WIDTH_PX: float = 0.5
 """Half the length of a pixel's radial footprint, in render-grid pixels."""
 
-# Four-point Gauss-Legendre nodes and weights on [-1, 1].  The caller cuts each
-# quadrature piece of a ramp short enough that the exponentials of the closed forms
-# change by a factor of at most e**2 across it, where four nodes integrate one to
-# 1.3e-7 of its value.
-_GAUSS_NODES, _GAUSS_WEIGHTS = np.polynomial.legendre.leggauss(4)
-# The most quadrature pieces one segment is cut into.  A ramp steep enough to need more
-# changes its emission across a sliver of the pixel; the cap bounds the cost there.
-_MAX_PIECES_PER_SEGMENT: float = 256.0
+WAVE_UNDERFLOW_DAMPINGS: float = 750.0
+"""Damping lengths past which a wave train's tau is exactly 0.0.
+
+exp(-x) underflows to exactly 0.0 in float64 before x reaches 750, so the radial
+bound that uses this stays exact rather than approximate.
+"""
 
 
 @dataclass(frozen=True)
@@ -88,23 +86,26 @@ class FeatureBoundaries:
 
 
 @dataclass(frozen=True)
-class FootprintSamples:
-    """The samples that integrate pixels along their footprints.
+class FootprintCells:
+    """The pieces of the integrated pixels' footprints.
 
     Parameters:
         pixels: The flat grid indices of the integrated pixels, sorted and unique: each
             has a boundary inside its footprint or lies across a ramp's band.
-        slot: For each sample, the index into ``pixels`` of its pixel.
-        offset: For each sample, its position in render-grid pixels from the pixel
-            center.
-        weight: For each sample, its share of the footprint; the weights of one pixel
-            sum to 1.
+        slot: For each cell, the index into ``pixels`` of its pixel.
+        lo: For each cell, where it starts, in render-grid pixels from the pixel center.
+        length: For each cell, its length as a fraction of the footprint; the lengths of
+            one pixel sum to 1.
+        linear: For each cell, whether the optical depth changes along it.  Such a
+            cell lies in a pixel that a ramp's band overlaps; every other cell has a
+            constant optical depth.
     """
 
     pixels: NDArrayIntType
     slot: NDArrayIntType
-    offset: NDArrayFloatType
-    weight: NDArrayFloatType
+    lo: NDArrayFloatType
+    length: NDArrayFloatType
+    linear: NDArrayBoolType
 
 
 def feature_boundaries(
@@ -221,54 +222,73 @@ def feature_breakpoint_radii(
     return []
 
 
-def feature_tau_slope(feature: Mapping[str, Any], *, os: int) -> float | None:
-    """Return how fast a ramp's optical depth changes with radius across its band.
+@dataclass(frozen=True)
+class SlopedBand:
+    """Where a ramp's optical depth changes with radius, and how fast.
+
+    Parameters:
+        inner: The band's inner radius at each longitude.
+        outer: The band's outer radius at each longitude.
+        rate: The change in optical depth per render-grid ring-plane unit of radius:
+            positive for a ramp that rises outward, negative for one that falls.
+    """
+
+    inner: NDArrayFloatType
+    outer: NDArrayFloatType
+    rate: float
+
+
+def feature_sloped_band(
+    feature: Mapping[str, Any], bounds: FeatureBoundaries, *, os: int
+) -> SlopedBand | None:
+    """Return the band in which a feature's optical depth changes with radius.
 
     Parameters:
         feature: The validated feature mapping.
+        bounds: The feature's orbit radii.
         os: The oversampling factor, which scales ``width_px``.
 
     Returns:
-        The magnitude of the ramp's optical-depth change per render-grid ring-plane
-        unit, or None for the other kinds.  A ringlet, gap, or edge is constant between
-        its boundaries, and a wave is smooth and point sampled.
+        A ramp's band, or None for the other kinds.  A ringlet, gap, or edge is
+        constant between its boundaries, and a wave is point sampled.
     """
     if str(feature.get('kind')) != 'ramp':
         return None
     tau = float(scene_value(feature, 'tau', 0.0))
     width = float(scene_value(feature, 'width_px', 0.0)) * os
-    return abs(tau) / width
+    side = str(scene_value(feature, 'side', RING_SIDE_DEFAULTS['ramp']))
+    rate = tau / width if side == 'out' else -tau / width
+    return SlopedBand(inner=bounds.inner, outer=_outer(bounds), rate=rate)
 
 
-def footprint_samples(
+def footprint_cells(
     pixels: NDArrayIntType,
     offsets: NDArrayFloatType,
     *,
     sloped_pixels: NDArrayIntType,
-    sloped_pieces: NDArrayFloatType,
-) -> FootprintSamples:
+    curved_pixels: NDArrayIntType,
+    curved_cells: int,
+) -> FootprintCells:
     """Cut pixel footprints at the boundaries inside them.
 
     Each pixel's footprint runs from -0.5 to 0.5 render-grid pixels.  The boundaries a
-    pixel lists split it into segments, and a segment of zero length is dropped.  Where
-    the optical depth is constant between boundaries, each segment becomes one sample
-    at its midpoint, weighted by its length.  A sloped pixel is one that a ramp's band
-    overlaps.  Its emission changes along each segment, so each segment is cut into
-    equal pieces, and each piece is integrated by four-point Gauss-Legendre quadrature.
+    pixel lists split it into segments, and a segment of zero length is dropped.  Each
+    segment is one cell, except in a curved pixel, where it is cut into
+    ``curved_cells`` equal cells.  A cell in a sloped pixel is linear.
 
     Parameters:
         pixels: The flat grid index of each boundary crossing; a pixel appears once for
             every boundary inside its footprint.
         offsets: The offset of each crossing from its pixel center, in render-grid
             pixels, strictly between -0.5 and 0.5.
-        sloped_pixels: The flat grid index of each pixel a ramp's band overlaps; a
-            pixel appears once for every ramp that overlaps it.
-        sloped_pieces: For each entry of ``sloped_pixels``, how many pieces a segment
-            one render-grid pixel long needs for that ramp.  A pixel's ramps add, and
-            every segment of a sloped pixel gets at least one piece.
+        sloped_pixels: The flat grid index of each pixel a ramp's band overlaps, in any
+            order and with repeats.
+        curved_pixels: The sloped pixels whose optical depth also curves, because a
+            propeller or a density wave reaches them.
+        curved_cells: How many cells each segment of a curved pixel is cut into.
 
     Returns:
-        The samples.
+        The cells.
     """
     half = FOOTPRINT_HALF_WIDTH_PX
     order = np.lexsort((offsets, pixels))
@@ -286,7 +306,8 @@ def footprint_samples(
     previous[1:] = cut_offsets[:-1]
     previous[run_start] = -half
     cut_unique = cut_pixels[run_start]
-    uncut = np.unique(sloped_pixels)
+    sloped_unique = np.unique(sloped_pixels)
+    uncut = sloped_unique
     if uncut.size:
         found = np.searchsorted(cut_unique, uncut)
         hit = found < cut_unique.size
@@ -302,36 +323,18 @@ def footprint_samples(
     unique = np.union1d(cut_unique, uncut) if uncut.size else cut_unique
     seg_slot = np.searchsorted(unique, seg_pixels[keep])
 
-    sloped_slot = np.searchsorted(unique, sloped_pixels)
-    density = np.bincount(sloped_slot, weights=sloped_pieces, minlength=unique.size)
     is_sloped = np.zeros(unique.size, dtype=np.bool_)
-    is_sloped[sloped_slot] = True
-    seg_sloped = is_sloped[seg_slot]
-    pieces = np.where(
-        seg_sloped,
-        np.clip(np.ceil(density[seg_slot] * length), 1.0, _MAX_PIECES_PER_SEGMENT),
-        1.0,
-    ).astype(np.int64)
-    nodes = np.where(seg_sloped, pieces * _GAUSS_NODES.size, 1)
-
-    # One sample per node: its segment, its piece within the segment, and its node
-    # within the piece.  A midpoint sample is node 0 of piece 0.
-    segment = np.repeat(np.arange(lo.size), nodes)
-    first = np.cumsum(nodes) - nodes
-    within = np.arange(segment.size) - first[segment]
-    piece_length = length[segment] / pieces[segment]
-    node = within % _GAUSS_NODES.size
-    piece_lo = lo[segment] + (within // _GAUSS_NODES.size) * piece_length
-    sloped = seg_sloped[segment]
-    offset = np.where(
-        sloped,
-        piece_lo + 0.5 * piece_length * (_GAUSS_NODES[node] + 1.0),
-        lo[segment] + 0.5 * length[segment],
-    )
-    weight = np.where(sloped, 0.5 * piece_length * _GAUSS_WEIGHTS[node], length[segment])
-    return FootprintSamples(
+    is_sloped[np.searchsorted(unique, sloped_unique)] = True
+    is_curved = np.zeros(unique.size, dtype=np.bool_)
+    is_curved[np.searchsorted(unique, curved_pixels)] = True
+    count = np.where(is_curved[seg_slot], curved_cells, 1)
+    segment = np.repeat(np.arange(lo.size), count)
+    within = np.arange(segment.size) - (np.cumsum(count) - count)[segment]
+    cell_length = length[segment] / count[segment]
+    return FootprintCells(
         pixels=unique,
         slot=cast(NDArrayIntType, seg_slot[segment]),
-        offset=cast(NDArrayFloatType, offset),
-        weight=cast(NDArrayFloatType, weight),
+        lo=cast(NDArrayFloatType, lo[segment] + within * cell_length),
+        length=cast(NDArrayFloatType, cell_length),
+        linear=cast(NDArrayBoolType, is_sloped[seg_slot][segment]),
     )

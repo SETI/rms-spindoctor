@@ -40,19 +40,15 @@ tau, emission, and transmission are evaluated in each piece, and the pieces are
 averaged by length.  So a pixel 30% covered by a ringlet gets 30% of the
 ringlet's full brightness and 70% of what lies beside it, and a boundary lands
 at its authored radius whatever its optical depth.  A pixel that a ramp's
-band overlaps is integrated along its footprint by quadrature, because the
-emission is not linear in the ramp's changing tau.  Any other pixel is
-evaluated at its center.
+band overlaps is integrated along its footprint in closed form, because the
+emission is not linear in the ramp's changing tau
+(:mod:`spindoctor.sim.render.rings.footprint`).  Any other pixel is evaluated
+at its center.
 
-Photometry (the normative equation set), with ``mu = |sin B_obs|``,
-``mu0 = |sin B_sun|``, lit iff ``sign(B_obs) == sign(B_sun)``, and the one-term
+The photometry is the single-scattering closed form of
+:mod:`spindoctor.sim.render.rings.photometry`, lit by the one-term
 Henyey-Greenstein ``P(g, alpha)`` of
-:func:`~spindoctor.sim.shared.lighting.henyey_greenstein_phase`:
-
-- lit:   ``I = A/4 * P * mu0/(mu0 + mu) * (1 - exp(-tau*(1/mu0 + 1/mu)))``
-- unlit: ``I = A/4 * P * mu0/(mu0 - mu) * (exp(-tau/mu0) - exp(-tau/mu))``,
-  with the limit ``A/4 * P * (tau/mu) * exp(-tau/mu)`` when
-  ``|mu0 - mu| < 1e-6``.
+:func:`~spindoctor.sim.shared.lighting.henyey_greenstein_phase`.
 
 An opening angle of exactly 0 (either side) renders nothing.  The unlit
 branch produces the real inversion: moderate-tau features bright from the
@@ -86,19 +82,29 @@ import numpy as np
 from spindoctor.sim.render.rings.clutter import (
     azimuthal_intensity_factor,
     moonlet_disc_coverage,
+    propeller_radial_reach,
     propeller_tau_factor,
 )
+from spindoctor.sim.render.rings.footprint import (
+    PlacedFeature,
+    RingGrid,
+    RingPhotometry,
+    SlopeMap,
+    accumulate_feature,
+    integrate_footprints,
+    integrate_linear_pixels,
+    split_sloped_pixels,
+)
+from spindoctor.sim.render.rings.photometry import ring_reflection_factor
 from spindoctor.sim.render.rings.profiles import (
     FOOTPRINT_HALF_WIDTH_PX,
-    FootprintSamples,
+    WAVE_UNDERFLOW_DAMPINGS,
     feature_boundaries,
     feature_breakpoint_radii,
+    feature_sloped_band,
     feature_tau,
-    feature_tau_slope,
-    footprint_samples,
 )
 from spindoctor.sim.scene.fields import RING_SIDE_DEFAULTS, scene_value
-from spindoctor.sim.shared.lighting import henyey_greenstein_phase
 from spindoctor.sim.shared.ring import (
     RingOrbit,
     ring_los_depth,
@@ -110,33 +116,9 @@ from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType, NDArrayIntType
 
 __all__ = [
-    'RING_ALBEDO_DEFAULT',
-    'RING_PHASE_G_DEFAULT',
     'RingSystemMaps',
     'render_ring_system',
-    'ring_reflection_factor',
 ]
-
-# Single-scattering albedo (times normalization) default; dusty features set
-# their own higher values per feature.
-RING_ALBEDO_DEFAULT: float = 0.5
-# Henyey-Greenstein asymmetry default: main-ring backscatter.  Dusty,
-# forward-scattering features set g ~ +0.6 per feature.
-RING_PHASE_G_DEFAULT: float = -0.3
-# Below this |mu0 - mu| the unlit closed form is numerically indeterminate
-# (0/0) and the analytic limit replaces it.
-_UNLIT_MU_MATCH_TOL: float = 1e-6
-# exp(-x) underflows to exactly 0.0 in float64 before x reaches 750, so a
-# wave train's tau is bitwise zero beyond this many damping lengths; the
-# radial bound uses it to stay exact rather than approximate.
-_WAVE_UNDERFLOW_DAMPINGS: float = 750.0
-# exp(-0.5 * x**2) underflows to exactly 0.0 in float64 once x passes about
-# 38.7 (0.5 * x**2 > ~745.2), so a propeller's Gaussian lobes are bitwise
-# zero beyond this many sigmas; the radial bound uses it to stay exact.
-_GAUSSIAN_UNDERFLOW_SIGMAS: float = 40.0
-# The largest change in the photometric exponent (tau times 1/mu + 1/mu0)
-# across one quadrature piece of a ramp; see the profiles module.
-_MAX_PIECE_EXPONENT: float = 2.0
 
 
 @dataclass(frozen=True)
@@ -159,38 +141,6 @@ class RingSystemMaps:
     transmission: NDArrayFloatType
     mask: NDArrayBoolType
     depth_km: NDArrayFloatType | None
-
-
-def ring_reflection_factor(
-    tau: NDArrayFloatType,
-    mu: float,
-    mu0: float,
-    *,
-    lit: bool,
-) -> NDArrayFloatType:
-    """The geometric factor of the single-scattering closed forms.
-
-    Multiplied by ``A/4 * P`` this is the emitted intensity: the lit form
-    saturates toward ``mu0/(mu0 + mu)`` at high tau, while the unlit form
-    peaks at moderate tau and falls to zero for an opaque ring (nothing
-    diffuses through) -- the real dark-side inversion.
-
-    Parameters:
-        tau: Normal optical depth per pixel (non-negative).
-        mu: ``|sin B_obs|``, nonzero.
-        mu0: ``|sin B_sun|``, nonzero.
-        lit: Whether the observer sees the lit face
-            (``sign(B_obs) == sign(B_sun)``).
-
-    Returns:
-        The per-pixel geometric factor.
-    """
-    if lit:
-        return mu0 / (mu0 + mu) * (1.0 - np.exp(-tau * (1.0 / mu0 + 1.0 / mu)))
-    if abs(mu0 - mu) < _UNLIT_MU_MATCH_TOL:
-        # The mu0 -> mu limit of the unlit form (the closed form is 0/0).
-        return (tau / mu) * np.exp(-tau / mu)
-    return mu0 / (mu0 - mu) * (np.exp(-tau / mu0) - np.exp(-tau / mu))
 
 
 def render_ring_system(
@@ -297,15 +247,10 @@ def render_ring_system(
     tau_map = np.zeros(shape, dtype=np.float64)
     ap_weighted = np.zeros(shape, dtype=np.float64)
     ap_weight = np.zeros(shape, dtype=np.float64)
-    placed: list[tuple[Mapping[str, Any], RingOrbit, float, float]] = []
+    placed: list[PlacedFeature] = []
     crossing_pixels: list[NDArrayIntType] = []
     crossing_offsets: list[NDArrayFloatType] = []
-    sloped_pixels: list[NDArrayIntType] = []
-    sloped_pieces: list[NDArrayFloatType] = []
-    # The emission and transmission are exponentials in tau at rates up to
-    # 1/mu + 1/mu0; a quadrature piece spans at most _MAX_PIECE_EXPONENT of
-    # that exponent, so this many pieces per unit of tau change.
-    pieces_per_tau = (1.0 / mu + 1.0 / mu0) / _MAX_PIECE_EXPONENT
+    slopes: SlopeMap | None = None
     for feature in features:
         # The catalog orbit with the planted (truth-side) ephemeris error
         # applied on this side only -- the navigator predicts from the
@@ -317,7 +262,7 @@ def render_ring_system(
             ring_orbit_from_mapping(feature.get('orbit') or {}), feature.get('orbit_error')
         ).scaled(float(os))
         lo, hi = _feature_radial_bounds(feature, orbit, os=os, margin=footprint_margin)
-        placed.append((feature, orbit, lo, hi))
+        placed.append(PlacedFeature(feature=feature, orbit=orbit, lo=lo, hi=hi))
         slices = _annulus_bbox_slices(
             shape,
             center_v=center_v,
@@ -337,7 +282,7 @@ def render_ring_system(
         bounds = feature_boundaries(
             feature, orbit, lam[sub_v, sub_u][sel], os=os, epoch=epoch, time=time
         )
-        _accumulate_feature(
+        accumulate_feature(
             feature,
             feature_tau(feature, r_sel, bounds, os=os),
             tau=tau_map[sub_v, sub_u],
@@ -354,17 +299,18 @@ def render_ring_system(
             if bool(np.any(inside)):
                 crossing_pixels.append(box.flat(inside))
                 crossing_offsets.append(offset[inside])
-        slope = feature_tau_slope(feature, os=os)
-        if slope is not None and bounds.outer is not None:
-            # A ramp's emission changes across every pixel its band overlaps, so
-            # each such pixel is integrated by quadrature.
-            footprint_reach = FOOTPRINT_HALF_WIDTH_PX * scale_sel
-            overlap = (r_sel + footprint_reach > bounds.inner) & (
-                r_sel - footprint_reach < bounds.outer
-            )
-            if bool(np.any(overlap)):
-                sloped_pixels.append(box.flat(overlap))
-                sloped_pieces.append(pieces_per_tau * slope * scale_sel[overlap])
+        band = feature_sloped_band(feature, bounds, os=os)
+        if band is not None:
+            # A ramp's optical depth changes across every pixel its band overlaps,
+            # so each such pixel is integrated along its footprint.
+            if slopes is None:
+                slopes = SlopeMap.empty(shape)
+            slopes.add(band, r=r_sel, radial_scale=scale_sel, sel=sel, sub_v=sub_v, sub_u=sub_u)
+    grid = RingGrid(r=r, lam=lam, radial_scale=radial_scale)
+    all_crossings = _concat_int(crossing_pixels)
+    split = split_sloped_pixels(
+        slopes, all_crossings, placed, moonlets, grid=grid, unclipped_tau=tau_map, os=os
+    )
     np.clip(tau_map, 0.0, None, out=tau_map)
 
     # Propeller lobes are local density disturbances, so they modify the
@@ -377,9 +323,7 @@ def render_ring_system(
         propeller = moonlet.get('propeller')
         if not propeller:
             continue
-        a_m = float(scene_value(moonlet, 'a_px', 0.0)) * os
-        width = float(scene_value(propeller, 'width_px', 0.0)) * os
-        reach = width * (1.0 + _GAUSSIAN_UNDERFLOW_SIGMAS)
+        a_m, reach = propeller_radial_reach(moonlet, propeller, os=os)
         slices = _annulus_bbox_slices(
             shape,
             center_v=center_v,
@@ -412,27 +356,34 @@ def render_ring_system(
     # transmission of each piece of the footprint, each at its own full tau,
     # averaged by length.  Mixing tau instead would brighten the pixel,
     # because the emission levels off as tau grows (#891).  A pixel that a
-    # ramp's band overlaps is integrated by quadrature along its footprint.
-    if crossing_pixels or sloped_pixels:
-        samples = footprint_samples(
-            _concat_int(crossing_pixels),
-            _concat_float(crossing_offsets),
-            sloped_pixels=_concat_int(sloped_pixels),
-            sloped_pieces=_concat_float(sloped_pieces),
+    # ramp's band overlaps is integrated in closed form along its footprint:
+    # directly here when nothing cuts or curves it, and by cells otherwise.
+    photometry = RingPhotometry(mu=mu, mu0=mu0, lit=lit, phase_angle=phase_angle)
+    if split.linear.pixels.size:
+        pixels = split.linear.pixels
+        emission, linear_transmission, linear_mask = integrate_linear_pixels(
+            split.linear, ap_map.flat[pixels], photometry=photometry
         )
-        _integrate_footprints(
-            samples,
-            placed,
-            moonlets,
-            grid=_RingGrid(r=r, lam=lam, radial_scale=radial_scale),
-            maps=RingSystemMaps(
-                intensity=intensity, transmission=transmission, mask=mask, depth_km=None
-            ),
-            photometry=_Photometry(mu=mu, mu0=mu0, lit=lit, phase_angle=phase_angle),
+        intensity.flat[pixels] = emission
+        transmission.flat[pixels] = linear_transmission
+        mask.flat[pixels] = linear_mask
+    if all_crossings.size or split.cell_pixels.size:
+        pixels, pixel_emission, pixel_transmission, pixel_mask = integrate_footprints(
+            all_crossings,
+            _concat_float(crossing_offsets),
+            split.cell_pixels,
+            split.curved_pixels,
+            placed=placed,
+            moonlets=moonlets,
+            grid=grid,
+            photometry=photometry,
             os=os,
             epoch=epoch,
             time=time,
         )
+        intensity.flat[pixels] = pixel_emission
+        transmission.flat[pixels] = pixel_transmission
+        mask.flat[pixels] = pixel_mask
 
     # Azimuthal structure (modulation, planet-shadow wedge, seeded spokes)
     # is albedo/illumination structure: it scales the emitted intensity and
@@ -622,7 +573,7 @@ def _feature_radial_bounds(
         hi += (
             float(scene_value(feature, 'density_wave_damping_px', 0.0))
             * os
-            * _WAVE_UNDERFLOW_DAMPINGS
+            * WAVE_UNDERFLOW_DAMPINGS
         )
     return max(lo - margin, 0.0), hi + margin
 
@@ -673,154 +624,3 @@ def _annulus_bbox_slices(
     if v0 >= v1 or u0 >= u1:
         return None
     return slice(v0, v1), slice(u0, u1)
-
-
-@dataclass(frozen=True)
-class _RingGrid:
-    """The ring-plane coordinates of every render-grid pixel center.
-
-    Parameters:
-        r: Ring-plane radius per pixel, in render-grid units.
-        lam: Ring-plane longitude per pixel, in radians.
-        radial_scale: Ring-plane radial distance per render-grid pixel.
-    """
-
-    r: NDArrayFloatType
-    lam: NDArrayFloatType
-    radial_scale: NDArrayFloatType
-
-
-@dataclass(frozen=True)
-class _Photometry:
-    """The viewing geometry the single-scattering closed forms read.
-
-    Parameters:
-        mu: ``|sin B_obs|``.
-        mu0: ``|sin B_sun|``.
-        lit: Whether the observer sees the lit face.
-        phase_angle: The phase angle in radians.
-    """
-
-    mu: float
-    mu0: float
-    lit: bool
-    phase_angle: float
-
-
-def _accumulate_feature(
-    feature: Mapping[str, Any],
-    contribution: NDArrayFloatType,
-    *,
-    tau: NDArrayFloatType,
-    ap_weighted: NDArrayFloatType,
-    ap_weight: NDArrayFloatType,
-    sel: NDArrayBoolType | NDArrayIntType,
-    phase_angle: float,
-) -> None:
-    """Add one feature's tau to the composed tau and its photometry to the weights.
-
-    A gap's tau is subtracted.  Any other feature adds its tau, and its ``A/4 * P``
-    factor joins the tau-weighted mean over the positive contributions.
-
-    Parameters:
-        feature: The validated feature mapping.
-        contribution: The feature's tau at the selected points.
-        tau: The composed tau, updated in place at ``sel``.
-        ap_weighted: The tau-weighted sum of ``A/4 * P``, updated in place at ``sel``.
-        ap_weight: The sum of the positive tau, updated in place at ``sel``.
-        sel: The points ``contribution`` belongs to, as a mask or as indices.
-        phase_angle: The phase angle in radians.
-    """
-    if str(feature.get('kind')) == 'gap':
-        tau[sel] -= contribution
-        return
-    tau[sel] += contribution
-    albedo = float(scene_value(feature, 'albedo', RING_ALBEDO_DEFAULT))
-    phase_g = float(scene_value(feature, 'phase_g', RING_PHASE_G_DEFAULT))
-    ap = albedo / 4.0 * henyey_greenstein_phase(phase_g, phase_angle)
-    positive = np.clip(contribution, 0.0, None)
-    ap_weighted[sel] += ap * positive
-    ap_weight[sel] += positive
-
-
-def _integrate_footprints(
-    samples: FootprintSamples,
-    placed: list[tuple[Mapping[str, Any], RingOrbit, float, float]],
-    moonlets: list[Mapping[str, Any]],
-    *,
-    grid: _RingGrid,
-    maps: RingSystemMaps,
-    photometry: _Photometry,
-    os: int,
-    epoch: float,
-    time: float,
-) -> None:
-    """Replace the sampled pixels' maps with their integrals along their footprints.
-
-    Every sample is a point at radius ``r + offset * radial_scale`` and at the
-    longitude of its pixel center.  Each feature and each propeller is evaluated there
-    exactly as at a pixel center, the tau is composed and clipped, and the emission and
-    transmission of the samples are summed into their pixel by weight.  The pixel joins
-    the mask when any sample carries tau.
-
-    Parameters:
-        samples: The footprint samples.
-        placed: Each feature with its render-grid orbit and its radial bounds.
-        moonlets: The scene's moonlets, for their propellers.
-        grid: The ring-plane coordinates of the pixel centers.
-        maps: The maps to update in place; ``depth_km`` is not read.
-        photometry: The viewing geometry.
-        os: The oversampling factor.
-        epoch: Ring epoch in TDB seconds.
-        time: Scene time in TDB seconds.
-    """
-    pixel = samples.pixels[samples.slot]
-    r_center = grid.r.ravel()[pixel]
-    r_point = r_center + samples.offset * grid.radial_scale.ravel()[pixel]
-    lam_point = grid.lam.ravel()[pixel]
-    tau = np.zeros(r_point.shape, dtype=np.float64)
-    ap_weighted = np.zeros(r_point.shape, dtype=np.float64)
-    ap_weight = np.zeros(r_point.shape, dtype=np.float64)
-    # Samples sorted by pixel-center radius, so each feature finds the samples
-    # inside its radial bounds by bisection instead of testing them all.
-    by_radius = np.argsort(r_center, kind='stable')
-    sorted_radius = r_center[by_radius]
-    for feature, orbit, lo, hi in placed:
-        # The bounds are tested at the pixel center, as on the grid, so a feature
-        # reaches every segment of each pixel it was evaluated at.
-        start = int(np.searchsorted(sorted_radius, lo, side='left'))
-        stop = int(np.searchsorted(sorted_radius, hi, side='right'))
-        if stop <= start:
-            continue
-        sel = by_radius[start:stop]
-        bounds = feature_boundaries(feature, orbit, lam_point[sel], os=os, epoch=epoch, time=time)
-        _accumulate_feature(
-            feature,
-            feature_tau(feature, r_point[sel], bounds, os=os),
-            tau=tau,
-            ap_weighted=ap_weighted,
-            ap_weight=ap_weight,
-            sel=sel,
-            phase_angle=photometry.phase_angle,
-        )
-    np.clip(tau, 0.0, None, out=tau)
-    for moonlet in moonlets:
-        propeller = moonlet.get('propeller')
-        if not propeller:
-            continue
-        tau *= propeller_tau_factor(moonlet, propeller, r=r_point, lam=lam_point, os=os)
-    ap = np.divide(
-        ap_weighted, ap_weight, out=np.zeros(tau.shape, dtype=np.float64), where=ap_weight > 0.0
-    )
-    emission = ap * ring_reflection_factor(tau, photometry.mu, photometry.mu0, lit=photometry.lit)
-    count = samples.pixels.size
-    weight = samples.weight
-    maps.intensity.flat[samples.pixels] = np.bincount(
-        samples.slot, weights=weight * emission, minlength=count
-    )
-    maps.transmission.flat[samples.pixels] = np.bincount(
-        samples.slot, weights=weight * np.exp(-tau / photometry.mu), minlength=count
-    )
-    maps.mask.flat[samples.pixels] = (
-        np.bincount(samples.slot, weights=weight * (tau > 0.0), minlength=count) > 0.0
-    )
