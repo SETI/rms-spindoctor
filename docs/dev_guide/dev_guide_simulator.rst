@@ -225,10 +225,11 @@ without a deliberate mismatch is the navigator's own template plus a shift and
 noise. For stars that holds only when the scene's PSF is the navigator's own,
 ``optics: {psf: {match_navigator: true}}`` (see :ref:`sim-floor`); without an
 ``optics`` block a star renders as a point, which the navigator's Gaussian
-doesn't match. Its models and renderers live under
+doesn't match. Its models and the ring renderer live under
 ``nav_model/simulated/`` so the package layout states who owns them.
-:mod:`spindoctor.nav_model.simulated.predict_body` draws the predicted template of an
-ellipsoid body, and :mod:`spindoctor.nav_model.simulated.predict_ring` draws the
+The shared :func:`~spindoctor.sim.shared.ellipsoid.render_lambert_ellipsoid` draws the
+predicted template of an ellipsoid body, and
+:mod:`spindoctor.nav_model.simulated.predict_ring` draws the
 predicted rings. :class:`~spindoctor.nav_model.simulated.body.NavModelBodySimulated`
 and :class:`~spindoctor.nav_model.simulated.rings.NavModelRingsSimulated` emit those
 templates as features. A ``polyhedral_mesh`` body is drawn by

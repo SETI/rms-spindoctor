@@ -1,7 +1,7 @@
 """Shared ellipsoid geometry and shading for the simulator's two sides.
 
 The image-side ellipsoid renderer (``spindoctor.sim.render.bodies.ellipsoid``) and the
-navigator-side predicted-body renderer (``spindoctor.nav_model.simulated.predict_body``)
+navigator's simulated body and haze-envelope models (``spindoctor.nav_model.simulated``)
 place an ellipsoid on a pixel grid through one projection, :func:`project_ellipsoid`,
 and take its surface normals from :func:`ellipsoid_image_normals`.  With shared
 conventions the planted scene error is the only error in a recovery measurement;

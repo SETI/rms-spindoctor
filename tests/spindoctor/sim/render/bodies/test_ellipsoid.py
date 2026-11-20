@@ -17,7 +17,6 @@ import numpy as np
 import pytest
 from tests.spindoctor.sim.scenes import disc_body, frame_scene
 
-from spindoctor.nav_model.simulated.predict_body import create_predicted_body_image
 from spindoctor.sim.render.bodies import ellipsoid
 from spindoctor.sim.render.bodies.ellipsoid import (
     EllipsoidBodySpec,
@@ -30,7 +29,7 @@ from spindoctor.sim.render.bodies.render import render_single_body
 from spindoctor.sim.render.bodies.spec import body_spec_from_params
 from spindoctor.sim.render.bodies.texture import AlbedoTextureSpec
 from spindoctor.sim.render.driver import render_scene
-from spindoctor.sim.shared.ellipsoid import project_ellipsoid
+from spindoctor.sim.shared.ellipsoid import project_ellipsoid, render_lambert_ellipsoid
 from spindoctor.support.types import NDArrayFloatType
 
 
@@ -327,14 +326,11 @@ def test_exact_limb_sample_renders_as_the_predicted_body() -> None:
     """
     spec = EllipsoidBodySpec(2.0, 2.0, 2.0, phase_angle=math.pi / 2.0, anti_aliasing=0.75)
     rendered = create_ellipsoid_body((9, 9), (4.5, 4.5), spec)
-    predicted = create_predicted_body_image(
-        (9, 9),
-        (4.5, 4.5),
-        2.0,
-        semi_b_px=2.0,
-        semi_c_px=2.0,
-        phase_angle=math.pi / 2.0,
-        anti_aliasing=0.75,
+    projection = project_ellipsoid(
+        (9, 9), (4.5, 4.5), 2.0, semi_b_px=2.0, semi_c_px=2.0, anti_aliasing=0.75
+    )
+    predicted = render_lambert_ellipsoid(
+        projection, illumination_angle=0.0, phase_angle=math.pi / 2.0
     )
     np.testing.assert_array_equal(rendered, predicted)
 

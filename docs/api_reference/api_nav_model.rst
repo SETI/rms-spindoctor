@@ -148,11 +148,6 @@ spindoctor.nav_model.simulated
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: spindoctor.nav_model.simulated.predict_body
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
 .. automodule:: spindoctor.nav_model.simulated.predict_ring
    :members:
    :undoc-members:

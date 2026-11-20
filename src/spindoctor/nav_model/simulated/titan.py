@@ -41,13 +41,13 @@ from spindoctor.config import DEFAULT_CONFIG, IMAGE_LOGGER, Config
 from spindoctor.nav_model.nav_model import NavModel
 from spindoctor.nav_model.nav_model_body import TITAN_BODY_NAME
 from spindoctor.nav_model.nav_model_titan import NavModelTitan
-from spindoctor.nav_model.simulated.predict_body import create_predicted_body_image
 from spindoctor.nav_model.titan_geometry import (
     TitanGeometryInputs,
     occluded_disc_fraction,
     paint_disc,
 )
 from spindoctor.obs import ObsSnapshotInst
+from spindoctor.sim.shared.ellipsoid import project_ellipsoid, render_lambert_ellipsoid
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 from spindoctor.support.types import NDArrayBoolType
 
@@ -104,10 +104,10 @@ def _render_silhouette(
     Returns:
         The boolean silhouette mask.
     """
-    img = create_predicted_body_image(
-        size=shape_vu,
-        center=(float(body_params.get('center_v', 0.0)), float(body_params.get('center_u', 0.0))),
-        semi_a_px=float(body_params.get('semi_a_px', 0.0)),
+    projection = project_ellipsoid(
+        shape_vu,
+        (float(body_params.get('center_v', 0.0)), float(body_params.get('center_u', 0.0))),
+        float(body_params.get('semi_a_px', 0.0)),
         semi_b_px=float(body_params.get('semi_b_px', 0.0)),
         semi_c_px=float(
             body_params.get(
@@ -120,9 +120,12 @@ def _render_silhouette(
         ),
         rotation_z=math.radians(float(body_params.get('rotation_z', 0.0))),
         rotation_tilt=math.radians(float(body_params.get('rotation_tilt', 0.0))),
+        anti_aliasing=1.0,
+    )
+    img = render_lambert_ellipsoid(
+        projection,
         illumination_angle=math.radians(float(body_params.get('illumination_angle', 0.0))),
         phase_angle=math.radians(float(body_params.get('phase_angle', 0.0))),
-        anti_aliasing=1.0,
     )
     mask: NDArrayBoolType = np.asarray(img > 0.0, dtype=bool)
     return mask
