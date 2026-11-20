@@ -258,7 +258,7 @@ def test_inert_surface_setting_keeps_the_smooth_shading(setting: str) -> None:
 # places one crater on the 40 px detector grid (0.03 x 454 / 9 rounds down to 1), an albedo
 # spot with no noise field, and a storm with no banding.
 _ACTIVE_SURFACES: dict[str, dict[str, Any]] = {
-    'crater_fill': {'crater_fill': 0.03},
+    'crater_fill': {'crater_fill': 0.03, 'crater_seed': 1},
     'albedo_spot': {'albedo_texture': AlbedoTextureSpec(rms=0.0, spots=((0.0, 0.0, 20.0, 0.5),))},
     'storm': {'disc_texture': DiscTextureSpec(band_amplitude=0.0, storms=((0.0, 0.0, 20.0, 0.5),))},
 }

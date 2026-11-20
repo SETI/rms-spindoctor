@@ -44,6 +44,7 @@ from spindoctor.support.types import MutableStar, NDArrayFloatType
 
 __all__ = [
     'SKY_COUNTS_DEFAULTS',
+    'clear_star_caches',
     'faint_sky_cutoff_mag',
     'render_sky_counts',
     'render_stars',
@@ -511,3 +512,9 @@ def render_sky_counts(
         # A flat pedestal survives the box-mean downsample as a constant, so the
         # commanded per-detector-pixel level is added directly on every subsample.
         point_plane += float(diffuse_flux_per_px)
+
+
+def clear_star_caches() -> None:
+    """Drop the cached star field and sky-count plane (test/tooling helper)."""
+    _render_stars_cached.cache_clear()
+    _render_sky_counts_cached.cache_clear()

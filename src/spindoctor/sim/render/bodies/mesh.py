@@ -24,16 +24,16 @@ its truth-key upgrades, none of which the navigator's prediction consumes:
   records it in the render truth.
 """
 
-import dataclasses
+from dataclasses import dataclass, replace
 from functools import lru_cache
 from typing import Any
 
 import numpy as np
 
+from spindoctor.sim.render.bodies.placement import finish_single_body
 from spindoctor.sim.render.bodies.relief import ReliefField, synthesize_relief_field
-from spindoctor.sim.render.bodies.render import finish_single_body
-from spindoctor.sim.render.bodies.spec import BodySpec
-from spindoctor.sim.seeds import derive_effect_seed, stable_param_seed
+from spindoctor.sim.render.bodies.spec import BodySpec, body_identity_seed
+from spindoctor.sim.seeds import derive_effect_seed
 from spindoctor.sim.shared.mesh import (
     Mesh,
     MeshBodySpec,
@@ -42,7 +42,7 @@ from spindoctor.sim.shared.mesh import (
 )
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 
-__all__ = ['render_single_mesh_body']
+__all__ = ['clear_mesh_shape_caches', 'render_single_mesh_body']
 
 
 def _perturb_mesh_radially(mesh: Mesh, field: ReliefField) -> Mesh:
@@ -116,36 +116,14 @@ def _render_mesh_shape_cached(
     )
 
 
-def _mesh_identity_seed(
-    body_seed: int | None,
-    *,
-    body_streams_seed: int | None,
-    body_index: int,
-    body_name: str,
-    semi_a_px: float,
-    semi_b_px: float,
-    semi_c_px: float,
-) -> int:
-    """The per-body identity seed the mesh truth streams derive from.
-
-    Mirrors the ellipsoid path's chain exactly: the scene's body streams seed
-    mixed with the body's stable identity when available, else the explicit
-    per-body seed, else a geometry-derived process-stable seed.
-    """
-    if body_streams_seed is not None:
-        return derive_effect_seed(body_streams_seed, f'body:{body_index}:{body_name}')
-    if body_seed is not None:
-        return body_seed & 0x7FFFFFFF
-    # The fallback seed is keyed on the full widths, twice the semi-axes; the
-    # terrain of the committed seed-less scenes depends on this key (#913).
-    widths = (2.0 * semi_a_px, 2.0 * semi_b_px, 2.0 * semi_c_px)
-    return stable_param_seed(*widths, body_index, body_name) & 0x7FFFFFFF
+def clear_mesh_shape_caches() -> None:
+    """Drop the cached mesh body shapes (test/tooling helper)."""
+    _render_mesh_shape_cached.cache_clear()
 
 
 def render_single_mesh_body(
     img: NDArrayFloatType,
     body: BodySpec,
-    body_name: str,
     *,
     center_v: float,
     center_u: float,
@@ -166,9 +144,9 @@ def render_single_mesh_body(
         img: Image array to modify in-place.
         body: The body, parsed by
             :func:`~spindoctor.sim.render.bodies.spec.body_spec_from_params`.
-            Its mesh shape and pose, and the truth fields ``shading``,
-            ``limb_relief_*``, and ``pose_scatter_sigma_deg``, are read here.
-        body_name: Upper-cased body name for the inventory keys.
+            Its name, its mesh shape and pose, and the truth fields ``shading``,
+            ``limb_relief_*``, and ``pose_scatter_sigma_deg``, are read here.  The
+            upper-cased name keys the inventory and the body's identity seed.
         center_v: Body center V in the image (offset already applied).
         center_u: Body center U in the image (offset already applied).
         semi_a_px: Semi-axis a of the ellipsoidal envelope in pixels.
@@ -190,57 +168,27 @@ def render_single_mesh_body(
         per-axis angles in degrees as ``pose_scatter_drawn_deg``.
     """
     size_v, size_u = img.shape
-    spec = body.mesh
-    shading = body.shading
-    relief_rms = body.limb_relief_rms
-    relief_corr_deg = body.limb_relief_corr_deg
-    scatter_sigma_deg = body.pose_scatter_sigma_deg
-
-    # The relief terrain and the pose scatter each draw from their own named
-    # stream of the per-body identity seed, mirroring the ellipsoid path, so
-    # they are independent of each other and of any crater draws.  The drawn
-    # scatter travels to the render truth through the returned body info.
-    drawn_deg: list[float] | None = None
-    relief_seed = 0
-    if relief_rms > 0.0 or scatter_sigma_deg > 0.0:
-        identity_seed = _mesh_identity_seed(
-            body.seed,
-            body_streams_seed=body_streams_seed,
-            body_index=body_index,
-            body_name=body_name,
-            semi_a_px=semi_a_px,
-            semi_b_px=semi_b_px,
-            semi_c_px=semi_c_px,
-        )
-        if relief_rms > 0.0:
-            relief_seed = derive_effect_seed(identity_seed, 'relief')
-        if scatter_sigma_deg > 0.0:
-            rng = np.random.default_rng(derive_effect_seed(identity_seed, 'pose_scatter'))
-            drawn = rng.normal(0.0, scatter_sigma_deg, size=3)
-            drawn_deg = [float(d) for d in drawn]
-            spec = dataclasses.replace(
-                spec,
-                pose_euler_deg=(
-                    spec.pose_euler_deg[0] + float(drawn[0]),
-                    spec.pose_euler_deg[1] + float(drawn[1]),
-                    spec.pose_euler_deg[2] + float(drawn[2]),
-                ),
-            )
-
+    body_name = body.name.upper()
+    streams = _draw_mesh_streams(
+        body,
+        body_streams_seed=body_streams_seed,
+        body_index=body_index,
+        widths=(2.0 * semi_a_px, 2.0 * semi_b_px, 2.0 * semi_c_px),
+    )
     body_shape = _render_mesh_shape_cached(
         size_v,
         size_u,
         semi_a_px,
         semi_b_px=semi_b_px,
         semi_c_px=semi_c_px,
-        spec=spec,
+        spec=streams.mesh,
         illumination_angle=illumination_angle,
         phase_angle=phase_angle,
         anti_aliasing=anti_aliasing,
-        shading=shading,
-        relief_rms=relief_rms,
-        relief_corr_deg=relief_corr_deg,
-        relief_seed=relief_seed,
+        shading=body.shading,
+        relief_rms=body.limb_relief_rms,
+        relief_corr_deg=body.limb_relief_corr_deg,
+        relief_seed=streams.relief_seed,
     )
     # A mesh body's pose is an arbitrary 3D rotation, so fall back to the
     # bounding sphere of the ellipsoidal envelope for both image axes.
@@ -257,6 +205,77 @@ def render_single_mesh_body(
         ref_center_u=ref_center_u,
         range_km=body.range_km,
     )
-    if drawn_deg is not None:
-        body_info['pose_scatter_drawn_deg'] = drawn_deg
+    if streams.drawn_deg is not None:
+        body_info['pose_scatter_drawn_deg'] = streams.drawn_deg
     return mask, body_info
+
+
+@dataclass(frozen=True)
+class _MeshStreams:
+    """What a mesh body's random streams draw.
+
+    Parameters:
+        mesh: The mesh shape and the pose it is rendered at, the drawn pose scatter
+            added.
+        relief_seed: The seed of the relief terrain (0 for a body without relief).
+        drawn_deg: The drawn pose scatter per Euler axis in degrees, or None when
+            the body has no pose scatter.
+    """
+
+    mesh: MeshBodySpec
+    relief_seed: int
+    drawn_deg: list[float] | None
+
+
+def _draw_mesh_streams(
+    body: BodySpec,
+    *,
+    body_streams_seed: int | None,
+    body_index: int,
+    widths: tuple[float, float, float],
+) -> _MeshStreams:
+    """Seed a mesh body's relief terrain and draw its pose scatter.
+
+    The relief terrain and the pose scatter each draw from their own named stream
+    of the body's identity seed, as the ellipsoid path's streams do, so they are
+    independent of each other.  The drawn scatter travels to the render truth
+    through the returned body info.
+
+    Parameters:
+        body: The body (its name, mesh, relief, pose scatter, and seed are read).
+        body_streams_seed: The scene's seed for every body's random streams, or None.
+        body_index: The body's position in the scene's body list.
+        widths: The full widths of the ellipsoidal envelope, twice its semi-axes, in
+            pixels.
+
+    Returns:
+        The mesh spec to render, with the drawn pose scatter added to its pose, the
+        relief seed, and the drawn pose scatter.
+    """
+    mesh = body.mesh
+    if body.limb_relief_rms <= 0.0 and body.pose_scatter_sigma_deg <= 0.0:
+        return _MeshStreams(mesh=mesh, relief_seed=0, drawn_deg=None)
+    # The fallback digest hashes the full widths, twice the semi-axes (#913).
+    identity_seed = body_identity_seed(
+        body_streams_seed,
+        body,
+        body_index,
+        fallback_key=(*widths, body_index, body.name.upper()),
+    )
+    relief_seed = 0
+    if body.limb_relief_rms > 0.0:
+        relief_seed = derive_effect_seed(identity_seed, 'relief')
+    drawn_deg: list[float] | None = None
+    if body.pose_scatter_sigma_deg > 0.0:
+        rng = np.random.default_rng(derive_effect_seed(identity_seed, 'pose_scatter'))
+        drawn = rng.normal(0.0, body.pose_scatter_sigma_deg, size=3)
+        drawn_deg = [float(d) for d in drawn]
+        mesh = replace(
+            mesh,
+            pose_euler_deg=(
+                mesh.pose_euler_deg[0] + float(drawn[0]),
+                mesh.pose_euler_deg[1] + float(drawn[1]),
+                mesh.pose_euler_deg[2] + float(drawn[2]),
+            ),
+        )
+    return _MeshStreams(mesh=mesh, relief_seed=relief_seed, drawn_deg=drawn_deg)

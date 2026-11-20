@@ -4,8 +4,9 @@ This is the image side's one renderer for an ellipsoid body.
 :func:`spindoctor.sim.render.bodies.render.render_single_body` sends every ellipsoid
 here, whatever its settings: a smooth Lambert disc, a limb-relief field
 (:mod:`spindoctor.sim.render.bodies.relief`), a non-Lambert photometric law or
-opposition surge (:mod:`spindoctor.sim.render.bodies.photometry`), craters, and
-surface textures and transits (:mod:`spindoctor.sim.render.bodies.texture`).
+opposition surge (:mod:`spindoctor.sim.render.bodies.photometry`), craters
+(:mod:`spindoctor.sim.render.bodies.craters`), and surface textures and transits
+(:mod:`spindoctor.sim.render.bodies.texture`).
 
 **Working grid and detector grid.**  The body is drawn on its *working grid*: the
 oversampled grid, or at oversample 1 the anti-aliasing supersample grid.  The
@@ -58,6 +59,7 @@ from typing import Any
 
 import numpy as np
 
+from spindoctor.sim.render.bodies.craters import carve_crater_heights, perturb_normals_by_slope
 from spindoctor.sim.render.bodies.ellipsoid_grid import (
     bilinear_upsample,
     body_box,
@@ -133,7 +135,8 @@ class EllipsoidBodySpec:
         anti_aliasing: Anti-aliasing amount in [0, 1]; only consumed at
             ``oversample`` 1, where it supersamples the body by up to 4 (an
             oversampled scene already resolves the limb on its own grid).
-        crater_seed: Seed for crater placement (None with no craters).
+        crater_seed: Seed for crater placement, of which the low 31 bits are used.
+            None suits only a body that places no crater.
         oversample: The incoming grid's oversampling factor.  The body is drawn
             and shaded on its working grid: the incoming grid, or its
             anti-aliasing supersample at oversample 1.  Relief and craters are
@@ -214,7 +217,8 @@ def create_ellipsoid_body(
         intensity of :func:`render_ellipsoid_body`.
 
     Raises:
-        ValueError: If the frame size is not divisible by the oversample.
+        ValueError: If the frame size is not divisible by the oversample, or if the
+            spec places a crater but has no crater seed.
     """
     return render_ellipsoid_body(size, center, spec).intensity
 
@@ -239,7 +243,8 @@ def render_ellipsoid_body(
         The :class:`EllipsoidBodyRender` on the ``size`` grid.
 
     Raises:
-        ValueError: If the frame size is not divisible by the oversample.
+        ValueError: If the frame size is not divisible by the oversample, or if the
+            spec places a crater but has no crater seed.
     """
     size_v, size_u = size
     os_in = max(1, int(spec.oversample))
@@ -395,26 +400,6 @@ def _crater_slopes(
     )
 
 
-def _perturb_by_craters(
-    normals: tuple[NDArrayFloatType, NDArrayFloatType, NDArrayFloatType],
-    slopes: tuple[NDArrayFloatType, NDArrayFloatType],
-) -> tuple[NDArrayFloatType, NDArrayFloatType, NDArrayFloatType]:
-    """Tilt normals by crater slopes.
-
-    Parameters:
-        normals: The ``(v, u, z)`` unit normals.
-        slopes: The crater field's ``(slope_v, slope_u)`` on the same grid.
-
-    Returns:
-        The tilted ``(v, u, z)`` unit normals.
-    """
-    # Local import: render.py imports this module's spec and renderer, so the
-    # crater helpers resolve lazily to keep the import graph acyclic.
-    from spindoctor.sim.render.bodies.render import perturb_normals_by_slope
-
-    return perturb_normals_by_slope(*normals, *slopes)
-
-
 def _apply_law(
     cos_i: NDArrayFloatType, normal_z: NDArrayFloatType, spec: EllipsoidBodySpec
 ) -> NDArrayFloatType:
@@ -480,8 +465,8 @@ def _shade_disc(
         *relief, shadowed = _relief_normals(grid, spec, field, normals)
         normals = (relief[0], relief[1], relief[2])
     if spec.crater_fill > 0.0:
-        normals = _perturb_by_craters(
-            normals, _crater_slopes(spec, detector_grid=detector_grid, scale=scale)
+        normals = perturb_normals_by_slope(
+            *normals, *_crater_slopes(spec, detector_grid=detector_grid, scale=scale)
         )
     normal_v, normal_u, normal_z = normals
     cos_i = incidence_cosines(
@@ -550,51 +535,21 @@ def _shade_disc_with_detector_detail(
     normal_v, normal_u, normal_z = ellipsoid_image_normals(work_grid)
     band_shadowed: NDArrayBoolType | None = None
     if field is not None:
-        base_v, base_u, base_z = ellipsoid_image_normals(detector_grid)
-        relief_v, relief_u, relief_z, detector_shadowed = _relief_normals(
+        band_shadowed = _add_detector_relief(
+            work_grid,
             detector_grid,
             spec,
             field,
-            (base_v.copy(), base_u.copy(), base_z.copy()),
-        )
-        # The tilt is interpolated with a cubic spline: on relief whose correlation
-        # length spans 13 detector pixels a bilinear tilt put the light 0.012 px
-        # from shading on the working grid, and the spline 0.0007 px (#931).  It is
-        # added without renormalizing: interpolation shortens the tilt but not the
-        # normal's second-order shrink toward the smooth normal, so a renormalized
-        # sum would brighten rough terrain.  As it is, on the day side a Lambert
-        # surface's brightness is the smooth brightness plus the interpolated
-        # difference between the relief and smooth brightness.
-        normal_v += cubic_upsample(relief_v - base_v, up_factor)
-        normal_u += cubic_upsample(relief_u - base_u, up_factor)
-        normal_z += cubic_upsample(relief_z - base_z, up_factor)
-        relief_cos_i = incidence_cosines(
-            relief_v,
-            relief_u,
-            relief_z,
-            illumination_angle=spec.illumination_angle,
-            phase_angle=spec.phase_angle,
-        )
-        # A cast shadow has a sharp edge, which interpolation would blur, so every
-        # cell a cast shadow darkens is shaded on the working grid.  Only a pixel
-        # facing the sun is darkened by a cast shadow; one facing away is night by
-        # its own normal.
-        band = limb_band(work_grid, field, width_px=_LIMB_BAND_PX * up_factor)
-        band |= expand_to_working_grid(day_night_edge_cells(relief_cos_i > 0.0), up_factor)
-        band |= expand_to_working_grid(
-            neighboring_cells(detector_shadowed & (relief_cos_i > 0.0)), up_factor
-        )
-        band_v, band_u, band_z, band_shadowed = _relief_shading(work_grid, spec, field, band)
-        normal_v[band] = band_v
-        normal_u[band] = band_u
-        normal_z[band] = band_z
-    if crater_slopes is not None:
-        normal_v, normal_u, normal_z = _perturb_by_craters(
             (normal_v, normal_u, normal_z),
-            (
-                bilinear_upsample(crater_slopes[0], up_factor),
-                bilinear_upsample(crater_slopes[1], up_factor),
-            ),
+            up_factor=up_factor,
+        )
+    if crater_slopes is not None:
+        normal_v, normal_u, normal_z = perturb_normals_by_slope(
+            normal_v,
+            normal_u,
+            normal_z,
+            bilinear_upsample(crater_slopes[0], up_factor),
+            bilinear_upsample(crater_slopes[1], up_factor),
         )
     cos_i = incidence_cosines(
         normal_v,
@@ -615,6 +570,76 @@ def _shade_disc_with_detector_detail(
         intensity, work_grid, spec, field, factor=factor, scale=up_factor
     )
     return full
+
+
+def _add_detector_relief(
+    work_grid: EllipsoidProjection,
+    detector_grid: EllipsoidProjection,
+    spec: EllipsoidBodySpec,
+    field: ReliefField,
+    normals: tuple[NDArrayFloatType, NDArrayFloatType, NDArrayFloatType],
+    *,
+    up_factor: int,
+) -> NDArrayBoolType:
+    """Tilt the working grid's smooth normals by the relief, and cast its shadows.
+
+    The relief's normals are computed on the detector grid, and the tilt they give
+    the smooth normals is interpolated onto the working grid.  Within
+    :data:`_LIMB_BAND_PX` detector pixels of the limb, along the relief's own
+    day-night edge, and in every cell its cast shadows reach, the relief's normals
+    and shadows are computed on the working grid instead.
+
+    Parameters:
+        work_grid: The working-grid geometry, cropped to the body.
+        detector_grid: The detector-grid geometry, cropped to the same rectangle.
+        spec: The body spec (illumination geometry is read).
+        field: The relief realization.
+        normals: The smooth normals on the working grid, updated in place.
+        up_factor: Pixels of the working grid per detector pixel.
+
+    Returns:
+        The relief's cast-shadow mask on the working grid.
+    """
+    normal_v, normal_u, normal_z = normals
+    base_v, base_u, base_z = ellipsoid_image_normals(detector_grid)
+    relief_v, relief_u, relief_z, detector_shadowed = _relief_normals(
+        detector_grid,
+        spec,
+        field,
+        (base_v.copy(), base_u.copy(), base_z.copy()),
+    )
+    # The tilt is interpolated with a cubic spline: on relief whose correlation
+    # length spans 13 detector pixels a bilinear tilt put the light 0.012 px
+    # from shading on the working grid, and the spline 0.0007 px (#931).  It is
+    # added without renormalizing: interpolation shortens the tilt but not the
+    # normal's second-order shrink toward the smooth normal, so a renormalized
+    # sum would brighten rough terrain.  As it is, on the day side a Lambert
+    # surface's brightness is the smooth brightness plus the interpolated
+    # difference between the relief and smooth brightness.
+    normal_v += cubic_upsample(relief_v - base_v, up_factor)
+    normal_u += cubic_upsample(relief_u - base_u, up_factor)
+    normal_z += cubic_upsample(relief_z - base_z, up_factor)
+    relief_cos_i = incidence_cosines(
+        relief_v,
+        relief_u,
+        relief_z,
+        illumination_angle=spec.illumination_angle,
+        phase_angle=spec.phase_angle,
+    )
+    # A cast shadow has a sharp edge, which interpolation would blur, so every
+    # cell a cast shadow darkens is shaded on the working grid.  Only a pixel
+    # facing the sun is darkened by a cast shadow; one facing away is night by
+    # its own normal.
+    band = limb_band(work_grid, field, width_px=_LIMB_BAND_PX * up_factor)
+    band |= expand_to_working_grid(day_night_edge_cells(relief_cos_i > 0.0), up_factor)
+    band |= expand_to_working_grid(
+        neighboring_cells(detector_shadowed & (relief_cos_i > 0.0)), up_factor
+    )
+    band_v, band_u, band_z, band_shadowed = _relief_shading(work_grid, spec, field, band)
+    normal_v[band] = band_v
+    normal_u[band] = band_u
+    normal_z[band] = band_z
+    return band_shadowed
 
 
 def _relief_shading(
@@ -837,30 +862,22 @@ def _crater_heights(grid: EllipsoidProjection, spec: EllipsoidBodySpec) -> NDArr
 
     Returns:
         The crater height field over the grid.
-    """
-    # Local import: render.py imports this module's spec and renderer, so the
-    # crater helpers resolve lazily to keep the import graph acyclic.
-    from spindoctor.sim.render.bodies.render import carve_crater_heights
-    from spindoctor.sim.seeds import stable_param_seed
 
+    Raises:
+        ValueError: If the spec places a crater on the grid but has no crater seed.
+    """
     inside_strict = grid.ellipse_dist_sq < 1.0
     n_craters = _crater_count(grid, spec)
     if n_craters == 0 or not inside_strict.any():
         return np.zeros_like(grid.ellipse_dist_sq)
 
-    if spec.crater_seed is not None:
-        seed_value = int(spec.crater_seed) & 0x7FFFFFFF
-    else:
-        # The fallback seed is keyed on the full widths, twice the semi-axes; the
-        # craters of the committed seed-less scenes depend on this key (#913).
-        widths = (2.0 * spec.semi_a_px, 2.0 * spec.semi_b_px, 2.0 * spec.semi_c_px)
-        seed_value = stable_param_seed(*widths, grid.center)
-        seed_value &= 0x7FFFFFFF
+    if spec.crater_seed is None:
+        raise ValueError('a body that places craters needs a crater seed')
     return carve_crater_heights(
         inside_strict,
         grid.v_coords,
         grid.u_coords,
-        crater_seed=seed_value,
+        crater_seed=int(spec.crater_seed) & 0x7FFFFFFF,
         n_craters=n_craters,
         R_min=spec.crater_min_radius * grid.semi_a,
         R_max=spec.crater_max_radius * grid.semi_a,

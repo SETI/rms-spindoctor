@@ -15,6 +15,9 @@ specs once it knows the oversampling factor and the body's identity seed, throug
 a null key as absent too.  The renderer does not read ``km_per_pixel``, which
 describes the body to the navigator, or ``nav_override``, which holds the values
 the navigator is given in place of the truth, so the spec leaves both out.
+
+:func:`body_identity_seed` chooses the seed that every random stream of a body,
+such as its craters, its relief, or its albedo noise, derives from.
 """
 
 from collections.abc import Mapping
@@ -28,12 +31,14 @@ from spindoctor.sim.render.bodies.texture import (
     transit_specs_from_params,
 )
 from spindoctor.sim.scene.fields import default_body_name, scene_value
+from spindoctor.sim.seeds import derive_effect_seed, stable_param_seed
 from spindoctor.sim.shared.mesh import MeshBodySpec, mesh_spec_from_params
 
 __all__ = [
     'CRATER_MAX_RADIUS_DEFAULT',
     'CRATER_MIN_RADIUS_DEFAULT',
     'BodySpec',
+    'body_identity_seed',
     'body_spec_from_params',
 ]
 
@@ -52,6 +57,8 @@ _LIMB_RELIEF_CORR_DEG_DEFAULT = 15.0
 _PHOTOMETRIC_LAW_DEFAULT = 'lambert'
 _MINNAERT_K_DEFAULT = 0.5
 _SURGE_WIDTH_DEG_DEFAULT = 6.0
+# A body's own seed and its fallback digest each keep their low 31 bits.
+_SEED_31_BITS = 0x7FFFFFFF
 
 
 @dataclass(frozen=True)
@@ -229,3 +236,41 @@ def body_spec_from_params(body_params: Mapping[str, Any], *, index: int) -> Body
         transits=None if transits is None else transit_specs_from_params(body_params),
         atmosphere=body_params.get('atmosphere'),
     )
+
+
+def body_identity_seed(
+    scene_seed: int | None,
+    body: BodySpec,
+    body_index: int,
+    *,
+    fallback_key: tuple[object, ...],
+) -> int:
+    """The seed every random stream of one body derives from.
+
+    The first of these that is available sets the seed:
+
+    1. The scene's seed for the bodies' streams, mixed with the body's index and its
+       upper-cased name, so two bodies of the same geometry draw independent
+       surfaces: ``derive_effect_seed(scene_seed, 'body:<index>:<NAME>')``.
+    2. The body's own ``seed``, keeping its low 31 bits.
+    3. A digest of ``fallback_key``, ``stable_param_seed(*fallback_key)``, keeping
+       its low 31 bits.
+
+    A scene render always supplies the first, so only a renderer called directly
+    reaches the other two.
+
+    Parameters:
+        scene_seed: The scene's seed for the bodies' streams, or None.
+        body: The body (its name and its own seed are read).
+        body_index: The body's position in the scene's body list.
+        fallback_key: The values the fallback digest hashes, in order.
+
+    Returns:
+        The body's identity seed: below 2**32 from the scene's seed, and below
+        2**31 otherwise.
+    """
+    if scene_seed is not None:
+        return derive_effect_seed(scene_seed, f'body:{body_index}:{body.name.upper()}')
+    if body.seed is not None:
+        return body.seed & _SEED_31_BITS
+    return stable_param_seed(*fallback_key) & _SEED_31_BITS

@@ -37,6 +37,7 @@ from spindoctor.support.types import NDArrayFloatType
 __all__ = [
     'apply_psf',
     'binned_psf_kernel',
+    'clear_psf_caches',
     'psf_kernel',
 ]
 
@@ -83,6 +84,11 @@ def psf_kernel(
 
     kernel: NDArrayFloatType = (1.0 - w) * gaussian + w * moffat
     return kernel
+
+
+def clear_psf_caches() -> None:
+    """Drop the cached PSF kernels (test/tooling helper)."""
+    psf_kernel.cache_clear()
 
 
 def apply_psf(
