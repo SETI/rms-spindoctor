@@ -83,8 +83,6 @@ def _render_haze_body(
         body_spec_from_params(body_params, index=0),
         0.0,
         offset_u=0.0,
-        ref_center_v=_SIZE / 2.0,
-        ref_center_u=_SIZE / 2.0,
     )
     halo = body_info.get('halo')
     if halo is not None:
@@ -561,7 +559,7 @@ def test_on_disc_haze_is_continuous_across_the_limb() -> None:
 # ---------------------------------------------------------------------------
 
 # A fully lit sphere of radius 15 at the frame center whose haze (H = 5,
-# tau_ref = 2) glows over a halo out to ~38 px above the limb.
+# tau_ref = 2) glows over a halo out to ~61 px above the limb.
 _C_SIZE = 96
 _C_CENTER = 48.0
 _C_RADIUS = 15.0
@@ -614,8 +612,6 @@ def test_body_mask_covers_only_the_solid_silhouette() -> None:
         body_spec_from_params(_compose_body(), index=0),
         0.0,
         offset_u=0.0,
-        ref_center_v=_C_CENTER,
-        ref_center_u=_C_CENTER,
     )
     assert bool(mask[_DISC_PIXEL])
     assert not bool(mask[_HALO_PIXEL])
@@ -707,13 +703,13 @@ def test_halo_overlap_orders_by_explicit_ranges() -> None:
 def test_overlapping_halos_without_ranges_are_ambiguous() -> None:
     """Two halos that overlap only each other still demand explicit ranges.
 
-    The discs are far enough apart that neither halo reaches the other's
-    silhouette, so only the halo-versus-halo glow overlaps -- and the two
-    screens' compositing order (each attenuates the other) would still be
+    The discs sit in opposite corners, far enough apart that neither halo reaches
+    the other's silhouette, so only the halo-versus-halo glow overlaps -- and the
+    two screens' compositing order (each attenuates the other) would still be
     ordered by the positional defaults.
     """
-    left = _compose_body(center_u=5.0)
-    right = _compose_body(name='TITAN2', center_u=91.0)
+    left = _compose_body(center_v=5.0, center_u=5.0)
+    right = _compose_body(name='TITAN2', center_v=91.0, center_u=91.0)
     # The message names the bodies in render (far-to-near) order: the second
     # body's positional default range is larger, so it renders first.
     with pytest.raises(SimSceneValidationError, match="halos of bodies 'TITAN2' and 'TITAN'"):

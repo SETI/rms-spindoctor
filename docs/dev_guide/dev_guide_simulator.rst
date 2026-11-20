@@ -120,8 +120,8 @@ relative to ``sim/render/``):
        system and body halos far to near for compositing and enforces the
        explicit-``range_km`` depth contract on every overlap.
    * - ``bodies/render.py`` / ``bodies/placement.py``
-     - Sends each body to the renderer that draws it, and moves the drawing into the
-       frame (see :ref:`sim-body-renderer`).
+     - Sends each body to the renderer that draws it, chooses the canvas it is drawn
+       on, and moves the drawing into the frame (see :ref:`sim-body-renderer`).
    * - ``bodies/ellipsoid.py`` / ``bodies/ellipsoid_grid.py`` / ``bodies/craters.py`` /
        ``bodies/texture.py`` / ``bodies/mesh.py``
      - The ellipsoid renderer (relief, photometric laws, craters, surface texture,
@@ -131,8 +131,9 @@ relative to ``sim/render/``):
        photometric laws (``bodies/photometry.py``) sit beside them.
    * - ``bodies/translate.py``
      - Moves a body drawn at a reference position into place by linear
-       interpolation, resampling only the box the body covers. Inside that box
-       the result is bit-identical to shifting the whole frame.
+       interpolation, resampling only the box the body covers. The drawing can be the
+       size of the frame or reach past it. For a drawing the size of the frame, the
+       result inside that box is bit-identical to shifting the whole frame.
    * - ``optics/lit_clusters.py``
      - Groups the lit pixels of a render-grid plane into clusters, so that the
        distortion warp and the PSF blur process each cluster on its own crop.
@@ -2062,6 +2063,21 @@ once and only moves it at each step. At catalog size a new drawing costs 0.03 to
 0.12 s. At 1024 x 1024 it costs 1.3 to 4.6 s, against 0.02 to 1.9 s to move a cached
 one.
 
+A body can be too large for a frame-sized drawing. When the body, its limb relief, or
+its halo would reach past the frame from the frame center, a drawing the size of the
+frame would cut it off, and a planet whose limb crosses a corner of the frame would
+lose that limb or vanish. Such a body is drawn on a larger canvas
+(:func:`~spindoctor.sim.render.bodies.placement.body_canvas`). The canvas is a part
+of the frame's pixel grid continued past its edges. It holds both the body and every
+pixel the move reads, plus 8 detector pixels more on each side, so the spline that
+interpolates the relief tilt never ends inside the frame. The body is still drawn at
+the frame center and moved the same way, so the frame shows exactly what the
+matching window of a frame large enough to hold the body would show. Because the
+canvas depends on where the body lands, a body this large is drawn again at every
+step of an offset sweep, at about the cost of a frame-sized drawing. Its craters are
+laid out on a grid that holds the whole body, so they stay in place on its surface
+whichever part of it is drawn.
+
 A move by a fraction ``f`` of a pixel blends two copies of the drawing: one at the
 whole-pixel position, weighted ``1 - f``, and one a pixel farther, weighted ``f``.
 The body's total brightness, its centroid, and the midpoint of its limb come out
@@ -2748,7 +2764,7 @@ success -- a wrong offset that is accepted is worse than a
 declared failure. The scene asserts that decline. The noiseless
 sibling ``titan_crescent_horns_noiseless`` -- Poisson and read noise off, the
 same haze and phase geometry -- pins the underlying centroid bias
-deterministically (planted ``du`` -0.8, blob centroid at 29.17), so the ring
+deterministically (planted ``du`` -0.8, blob centroid at 29.24), so the ring
 of light alone, not the noise, drives the collapse, and the decline is stable
 rather than noise-dependent. The haze evaluation
 is restricted to the bounding box of the

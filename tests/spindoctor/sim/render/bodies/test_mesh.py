@@ -70,8 +70,6 @@ def _render_seedless_mesh_body() -> None:
         illumination_angle=0.0,
         phase_angle=0.5,
         anti_aliasing=0.0,
-        ref_center_v=32.0,
-        ref_center_u=32.0,
         body_index=3,
     )
 

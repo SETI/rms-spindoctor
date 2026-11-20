@@ -336,9 +336,6 @@ def compose_scene_radiance(frame: SimFrame, *, params: Mapping[str, Any]) -> Non
     # Bodies in render (far-to-near) order, for the mutual-event occlusion truth.
     rendered_bodies: list[tuple[str, NDArrayBoolType]] = []
 
-    ref_center_v = size_v / 2.0
-    ref_center_u = size_u / 2.0
-
     # Build order_near_to_far for bodies (needed for body_index_map)
     sorted_bodies_by_range = sorted(bodies_with_ranges, key=lambda x: x[1]['range_km'])
     order_near_to_far = [body_spec.name.upper() for body_spec, _ in sorted_bodies_by_range]
@@ -376,8 +373,6 @@ def compose_scene_radiance(frame: SimFrame, *, params: Mapping[str, Any]) -> Non
             offset_u=offset_u,
             body_streams_seed=body_streams_seed,
             body_index=orig_idx,
-            ref_center_v=ref_center_v,
-            ref_center_u=ref_center_u,
             oversample=os,
         )
         # Store mask by original index for proper ordering
@@ -528,8 +523,6 @@ def compose_scene_radiance(frame: SimFrame, *, params: Mapping[str, Any]) -> Non
                 offset_u=offset_u,
                 body_streams_seed=body_streams_seed,
                 body_index=orig_idx,
-                ref_center_v=ref_center_v,
-                ref_center_u=ref_center_u,
                 oversample=os,
             )
         # The screens replay class by class: ring emission belongs to the

@@ -3,14 +3,16 @@
 :func:`render_single_body` draws one scene body.  An ellipsoid goes to the
 ellipsoid renderer (:mod:`spindoctor.sim.render.bodies.ellipsoid`) and a
 polyhedral-mesh body to the mesh renderer
-(:mod:`spindoctor.sim.render.bodies.mesh`); either way the body is drawn once at
-a reference center, cached, and translated into place.
+(:mod:`spindoctor.sim.render.bodies.mesh`); either way the body is drawn at a
+reference center on its canvas, cached, and translated into place (see
+:mod:`spindoctor.sim.render.bodies.placement`).
 
 The crater and relief knobs live only on this side of the information
 boundary: they are truth keys the navigator never sees (its best model is
 the smooth Lambert ellipsoid).
 """
 
+import math
 from dataclasses import dataclass
 from functools import lru_cache
 from typing import Any
@@ -18,17 +20,26 @@ from typing import Any
 import numpy as np
 
 from spindoctor.sim.render.bodies.atmosphere import (
+    AtmosphereSpec,
     HaloScreen,
     apply_atmosphere,
     atmosphere_spec_from_params,
+    halo_reach,
 )
 from spindoctor.sim.render.bodies.ellipsoid import (
     EllipsoidBodyRender,
     EllipsoidBodySpec,
     render_ellipsoid_body,
 )
+from spindoctor.sim.render.bodies.ellipsoid_grid import CraterPlane
 from spindoctor.sim.render.bodies.mesh import render_single_mesh_body
-from spindoctor.sim.render.bodies.placement import finish_single_body
+from spindoctor.sim.render.bodies.placement import (
+    BodyCanvas,
+    body_canvas,
+    finish_single_body,
+    finish_unseen_body,
+)
+from spindoctor.sim.render.bodies.relief import synthesize_relief_field
 from spindoctor.sim.render.bodies.spec import BodySpec, body_identity_seed
 from spindoctor.sim.render.bodies.texture import albedo_spec_from_params
 from spindoctor.sim.seeds import derive_effect_seed
@@ -53,15 +64,19 @@ def _reference_center(size_v: int, size_u: int) -> tuple[float, float]:
 
 @lru_cache(maxsize=30)
 def _render_ellipsoid_shape_cached(
-    size_v: int, size_u: int, spec: EllipsoidBodySpec
+    shape: tuple[int, int],
+    center: tuple[float, float],
+    crater_plane: CraterPlane | None,
+    spec: EllipsoidBodySpec,
 ) -> EllipsoidBodyRender:
-    """Cache ellipsoid body shapes at the reference center (image center).
+    """Cache ellipsoid body shapes drawn at the reference center on their canvas.
 
-    The frozen spec is the cache key, so bodies differing in any geometry,
-    texture, relief, or photometry knob occupy distinct entries; the caller
-    translates the shape and its silhouette into place.
+    The frozen spec is part of the key, so bodies differing in any geometry,
+    texture, relief, or photometry knob occupy distinct entries.  A body drawn on
+    the frame has the same canvas wherever it is placed, so one entry serves it at
+    every position; the caller translates the shape and its silhouette into place.
     """
-    return render_ellipsoid_body((size_v, size_u), _reference_center(size_v, size_u), spec)
+    return render_ellipsoid_body(shape, center, spec, crater_plane=crater_plane)
 
 
 def clear_ellipsoid_shape_caches() -> None:
@@ -77,8 +92,6 @@ def render_single_body(
     offset_u: float,
     body_streams_seed: int | None = None,
     body_index: int = 0,
-    ref_center_v: float,
-    ref_center_u: float,
     oversample: int = 1,
 ) -> tuple[NDArrayBoolType, dict[str, Any]]:
     """Render a single body into the image.
@@ -103,8 +116,6 @@ def render_single_body(
             geometry.
         body_index: Stable index of this body in the scene's body list, mixed
             into the body's identity seed alongside the body name.
-        ref_center_v: Reference center V for body shape caching.
-        ref_center_u: Reference center U for body shape caching.
         oversample: The render grid's oversampling factor.  An ellipsoid is shaded
             on its working grid, the oversampled grid or, at factor 1, its
             anti-aliasing supersample grid (see
@@ -138,8 +149,7 @@ def render_single_body(
             # rasterizer on top of it would multiply the render cost for no
             # rendered difference worth having.
             anti_aliasing=spec.anti_aliasing if oversample == 1 else 0.0,
-            ref_center_v=ref_center_v,
-            ref_center_u=ref_center_u,
+            oversample=oversample,
             body_streams_seed=body_streams_seed,
             body_index=body_index,
         )
@@ -151,8 +161,6 @@ def render_single_body(
         center_u=center_u,
         body_streams_seed=body_streams_seed,
         body_index=body_index,
-        ref_center_v=ref_center_v,
-        ref_center_u=ref_center_u,
         oversample=oversample,
     )
 
@@ -165,14 +173,12 @@ def _render_single_ellipsoid_body(
     center_u: float,
     body_streams_seed: int | None,
     body_index: int,
-    ref_center_v: float,
-    ref_center_u: float,
     oversample: int,
 ) -> tuple[NDArrayBoolType, dict[str, Any]]:
     """Render one ellipsoid body into the image in place.
 
-    The body is drawn at the reference center through the shape cache, given its
-    haze layer, and translated into place.
+    The body is drawn at the reference center on its canvas through the shape cache,
+    given its haze layer, and translated into place.
 
     Parameters:
         img: Image array to modify in-place.
@@ -181,8 +187,6 @@ def _render_single_ellipsoid_body(
         center_u: Body center U in the image (offset already applied).
         body_streams_seed: The scene's seed for every body's random streams, or None.
         body_index: The body's position in the scene's body list.
-        ref_center_v: Reference center V for body shape caching.
-        ref_center_u: Reference center U for body shape caching.
         oversample: The render grid's oversampling factor.
 
     Returns:
@@ -196,19 +200,38 @@ def _render_single_ellipsoid_body(
         size=(size_v, size_u),
         oversample=oversample,
     )
-    # The silhouette comes back separately from the radiance: a transit umbra or a
-    # zero-albedo spot renders black but still belongs to the body.
-    ellipsoid_render = _render_ellipsoid_shape_cached(
-        size_v, size_u, _ellipsoid_spec(spec, seeds, oversample=oversample)
-    )
-    body_shape, halo = _apply_body_atmosphere(
-        ellipsoid_render,
-        spec,
-        ref_center_v=ref_center_v,
-        ref_center_u=ref_center_u,
+    atmosphere_spec = atmosphere_spec_from_params(spec.atmosphere, oversample=int(oversample))
+    reach_v, reach_u = _ellipsoid_reach(spec, atmosphere_spec, relief_seed=seeds.relief_seed)
+    canvas = body_canvas(
+        (size_v, size_u),
+        center_v=center_v,
+        center_u=center_u,
+        reach_v=reach_v,
+        reach_u=reach_u,
         oversample=oversample,
     )
     half_extent_v, half_extent_u = _projected_half_extents(spec)
+    if canvas.is_empty:
+        return finish_unseen_body(
+            (size_v, size_u),
+            body_name=spec.name.upper(),
+            center_v=center_v,
+            center_u=center_u,
+            half_extent_v=half_extent_v,
+            half_extent_u=half_extent_u,
+            range_km=spec.range_km,
+        )
+    # The silhouette comes back separately from the radiance: a transit umbra or a
+    # zero-albedo spot renders black but still belongs to the body.
+    ellipsoid_render = _render_ellipsoid_shape_cached(
+        canvas.shape,
+        canvas.center,
+        _crater_plane(canvas, spec, oversample=oversample),
+        _ellipsoid_spec(spec, seeds, oversample=oversample),
+    )
+    body_shape, halo = _apply_body_atmosphere(
+        ellipsoid_render, spec, atmosphere_spec, center=canvas.center
+    )
     return finish_single_body(
         img,
         body_shape,
@@ -217,12 +240,83 @@ def _render_single_ellipsoid_body(
         center_u=center_u,
         half_extent_v=half_extent_v,
         half_extent_u=half_extent_u,
-        ref_center_v=ref_center_v,
-        ref_center_u=ref_center_u,
+        canvas=canvas,
         range_km=spec.range_km,
         halo=halo,
         silhouette=ellipsoid_render.silhouette,
     )
+
+
+def _crater_plane(canvas: BodyCanvas, spec: BodySpec, *, oversample: int) -> CraterPlane | None:
+    """The detector grid a body's craters are laid out on, when the canvas holds part of it.
+
+    Parameters:
+        canvas: The body's canvas.
+        spec: The body (its crater fill is read).
+        oversample: The render grid's oversampling factor.
+
+    Returns:
+        The crater plane in detector pixels, or None for a body drawn on the frame
+        or without craters, whose craters are laid out on the canvas itself.
+    """
+    if canvas.on_frame or spec.crater_fill <= 0.0:
+        return None
+    step = max(1, int(oversample))
+    return CraterPlane(
+        shape=(
+            (canvas.plane_rows.stop - canvas.plane_rows.start) // step,
+            (canvas.plane_cols.stop - canvas.plane_cols.start) // step,
+        ),
+        origin=(
+            (canvas.rows.start - canvas.plane_rows.start) // step,
+            (canvas.cols.start - canvas.plane_cols.start) // step,
+        ),
+    )
+
+
+def _ellipsoid_reach(
+    spec: BodySpec, atmosphere_spec: AtmosphereSpec | None, *, relief_seed: int
+) -> tuple[float, float]:
+    """How far an ellipsoid body, its relief, and its halo reach from its center.
+
+    The outline is the ellipse of semi-axes a and b, stretched along a by the tilt
+    (see :func:`~spindoctor.sim.shared.ellipsoid.project_ellipsoid`) and rotated
+    in-plane by ``rotation_z``.  Relief can lift the limb by the field's largest
+    height, and a haze layer reaches out to its outer edge.
+
+    Parameters:
+        spec: The body, scaled to the render grid.
+        atmosphere_spec: The body's haze spec on the render grid, or None.
+        relief_seed: The seed of the body's relief terrain.
+
+    Returns:
+        The reach along v and along u, in render-grid pixels.
+    """
+    rotation_z = math.radians(spec.rotation_z)
+    rotation_tilt = math.radians(spec.rotation_tilt)
+    cos_rz = math.cos(rotation_z)
+    sin_rz = math.sin(rotation_z)
+    stretched_a = spec.semi_a_px / max(abs(math.cos(rotation_tilt)), 1e-6)
+    lift = 1.0
+    if spec.limb_relief_rms > 0.0:
+        field = synthesize_relief_field(
+            spec.limb_relief_rms, spec.limb_relief_corr_deg, relief_seed
+        )
+        lift += max(abs(field.h_min), abs(field.h_max))
+    reach_v = lift * math.hypot(stretched_a * cos_rz, spec.semi_b_px * sin_rz)
+    reach_u = lift * math.hypot(stretched_a * sin_rz, spec.semi_b_px * cos_rz)
+    if atmosphere_spec is not None:
+        halo_v, halo_u = halo_reach(
+            atmosphere_spec,
+            semi_a=spec.semi_a_px,
+            semi_b=spec.semi_b_px,
+            rotation_z=rotation_z,
+            rotation_tilt=rotation_tilt,
+            phase_angle=math.radians(spec.phase_angle),
+        )
+        reach_v = max(reach_v, halo_v)
+        reach_u = max(reach_u, halo_u)
+    return reach_v, reach_u
 
 
 @dataclass(frozen=True)
@@ -361,10 +455,9 @@ def _ellipsoid_spec(spec: BodySpec, seeds: _SurfaceSeeds, *, oversample: int) ->
 def _apply_body_atmosphere(
     ellipsoid_render: EllipsoidBodyRender,
     spec: BodySpec,
+    atmosphere_spec: AtmosphereSpec | None,
     *,
-    ref_center_v: float,
-    ref_center_u: float,
-    oversample: int,
+    center: tuple[float, float],
 ) -> tuple[NDArrayFloatType, HaloScreen | None]:
     """Add a body's haze layer to its reference-centered drawing.
 
@@ -375,18 +468,16 @@ def _apply_body_atmosphere(
     hard-limbed.
 
     Parameters:
-        ellipsoid_render: The body drawn at the reference center.
-        spec: The body (its atmosphere and geometry are read).
-        ref_center_v: Reference center V the body was drawn at.
-        ref_center_u: Reference center U the body was drawn at.
-        oversample: The render grid's oversampling factor, which scales the
-            atmosphere's pixel lengths.
+        ellipsoid_render: The body drawn at the reference center on its canvas.
+        spec: The body (its geometry is read).
+        atmosphere_spec: The body's haze spec on the render grid, or None for a body
+            without an atmosphere.
+        center: The reference center (v, u) on the canvas, where the body was drawn.
 
     Returns:
         The body's opaque intensity and its halo screen, or the drawing's own
         intensity and None for a body without an atmosphere.
     """
-    atmosphere_spec = atmosphere_spec_from_params(spec.atmosphere, oversample=int(oversample))
     if atmosphere_spec is None:
         return ellipsoid_render.intensity, None
     # apply_atmosphere returns fresh arrays, so the shared render cache the
@@ -394,8 +485,8 @@ def _apply_body_atmosphere(
     layers = apply_atmosphere(
         ellipsoid_render.intensity,
         atmosphere_spec,
-        center_v=ref_center_v,
-        center_u=ref_center_u,
+        center_v=center[0],
+        center_u=center[1],
         semi_a=spec.semi_a_px,
         semi_b=spec.semi_b_px,
         semi_c=spec.semi_c_px,

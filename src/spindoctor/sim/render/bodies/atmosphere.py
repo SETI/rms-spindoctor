@@ -361,6 +361,59 @@ def _outer_altitude(spec: AtmosphereSpec, *, peak_glow: float) -> float:
     return max(reach, scale_height)
 
 
+def _outer_scale(spec: AtmosphereSpec, *, hg: float, r_mean: float) -> float:
+    """The normalized ellipse radius of the halo's outer edge (1 on the limb).
+
+    Parameters:
+        spec: The haze spec.
+        hg: The Henyey-Greenstein phase factor at the scene's phase angle.
+        r_mean: Mean apparent body radius in grid pixels.
+
+    Returns:
+        One plus the outer altitude (:func:`_outer_altitude`) over the mean radius.
+    """
+    structure = spec.structure
+    brightening = 1.0 + max(0.0, 0.0 if structure is None else structure.ns_asymmetry_amplitude)
+    return 1.0 + _outer_altitude(spec, peak_glow=spec.albedo * hg * brightening) / r_mean
+
+
+def halo_reach(
+    spec: AtmosphereSpec,
+    *,
+    semi_a: float,
+    semi_b: float,
+    rotation_z: float,
+    rotation_tilt: float,
+    phase_angle: float,
+) -> tuple[float, float]:
+    """How far a body's haze layer reaches from the body center along each image axis.
+
+    The reach bounds the box :func:`apply_atmosphere` evaluates the haze in, less
+    its one pixel of slack, so a canvas this large around the body center holds the
+    whole halo.
+
+    Parameters:
+        spec: The haze spec (pixel lengths already on the grid).
+        semi_a: Semi-axis a in grid pixels.
+        semi_b: Semi-axis b in grid pixels.
+        rotation_z: In-plane rotation about the viewing axis, radians.
+        rotation_tilt: Tilt toward or away from the viewer, radians.
+        phase_angle: Phase angle in radians.
+
+    Returns:
+        The reach along v and along u, in grid pixels.
+    """
+    semi_a = max(semi_a, 1e-6)
+    semi_b = max(semi_b, 1e-6)
+    hg = henyey_greenstein_phase(spec.g, phase_angle, denominator_floor=_HG_DENOMINATOR_FLOOR)
+    e_outer = _outer_scale(spec, hg=hg, r_mean=0.5 * (semi_a + semi_b))
+    reach_a = e_outer * semi_a / max(abs(math.cos(rotation_tilt)), 1e-6)
+    reach_b = e_outer * semi_b
+    cos_rz = abs(math.cos(rotation_z))
+    sin_rz = abs(math.sin(rotation_z))
+    return reach_a * cos_rz + reach_b * sin_rz, reach_a * sin_rz + reach_b * cos_rz
+
+
 def _vertical_optical_depth(
     spec: AtmosphereSpec, r_mean: float, scale_height: float | NDArrayFloatType
 ) -> float | NDArrayFloatType:
@@ -525,8 +578,7 @@ def apply_atmosphere(
     )
     structure = spec.structure
     hg = henyey_greenstein_phase(spec.g, phase_angle, denominator_floor=_HG_DENOMINATOR_FLOOR)
-    brightening = 1.0 + max(0.0, 0.0 if structure is None else structure.ns_asymmetry_amplitude)
-    e_outer = 1.0 + _outer_altitude(spec, peak_glow=spec.albedo * hg * brightening) / r_mean
+    e_outer = _outer_scale(spec, hg=hg, r_mean=r_mean)
     # Inside, the excess column tau_vert * (1 / mu - 1) drops below _TAU_EPS
     # once cos(emission) exceeds mu_cut; that sets the inner edge of the band.
     mu_cut = 1.0 / (1.0 + _TAU_EPS / max(tau_vert_max, 1e-12))
