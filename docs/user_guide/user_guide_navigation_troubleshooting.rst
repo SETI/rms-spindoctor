@@ -71,7 +71,9 @@ not available.
 Check that ``SPICE_PATH`` points to the kernel tree, that the tree is readable from the
 machine running the program, and that the kernels there actually cover the mission phase
 the image comes from. An image from outside the loaded coverage fails this way even when
-every path is correct.
+every path is correct. A kernel tree that could not be loaded at all gives every image
+this status too. Once the kernels are fixed, ``--has-offset-spice-error`` selects the
+images that failed this way for a second run.
 
 No images are processed at all
 ==============================

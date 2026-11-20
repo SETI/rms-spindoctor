@@ -52,14 +52,19 @@ classification is the top-level ``status_error`` and the evidence is
 ``missing_spice_data``
     The load raised ``oops.OopsSpiceError``, which every host raises when the
     kernels cannot supply what the image needs, or a SPICE error straight from
-    ``cspyce``, such as ``SPICE(SPKINSUFFDATA)``. A host's message reads like
+    ``cspyce``: an exception of any class ``cspyce`` raises whose message carries
+    a SPICE error code, such as ``SPICE(SPKINSUFFDATA)`` or
+    ``SPICE(UNKNOWNFRAME)``. A host's message reads like
     "no Cassini ISS NAC pointing at 2005-01-15T12:00:00.000 for <image file>:
     SPICE(CKINSUFFDATA)". The document records no epoch of its own, since an
     epoch is the midtime of the observation the load never built, but the
     exception text gives the epoch and the SPICE error code. Check that the
     kernel set covers that epoch: attitude gaps in reconstructed C-kernels are
     the common case, and an epoch outside every loaded CK's coverage bounds
-    cannot be navigated at all.
+    cannot be navigated at all. Any SPICE code counts, including one that says
+    the kernel set itself is wrong, such as ``SPICE(NOLOADEDFILES)`` or
+    ``SPICE(NOSUCHFILE)``; after fixing the kernels, rerun the images that
+    failed this way with ``--has-offset-spice-error``.
 
 ``image_read_error``
     The load raised any other ``OSError`` or ``RuntimeError``, or a subclass of
@@ -72,7 +77,8 @@ classification is the top-level ``status_error`` and the evidence is
 ``internal_error``
     Navigating the image raised an exception the orchestrator does not turn
     into a result: in the load itself, when the exception is of any other
-    class, such as a ``ValueError`` from a reader that refuses the product; in
+    class, or is a ``LookupError`` or ``ValueError`` whose message carries no
+    SPICE code, such as a ``ValueError`` from a reader that refuses the product; in
     provenance or context construction, the corrected-pointing computation, the
     summary PNG, or a defect anywhere between. ``status_exception`` carries the exception type and message and
     ``status_traceback`` carries the traceback, which the per-image log
