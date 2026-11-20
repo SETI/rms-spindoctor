@@ -7,9 +7,11 @@ import pytest
 
 from spindoctor.sim.render.rings.profiles import (
     FeatureBoundaries,
+    FootprintSamples,
     feature_boundaries,
-    feature_sharp_radii,
+    feature_breakpoint_radii,
     feature_tau,
+    feature_tau_slope,
     footprint_samples,
 )
 from spindoctor.sim.shared.ring import ring_orbit_from_mapping
@@ -28,29 +30,39 @@ def _bounds(feature: dict[str, Any], count: int) -> FeatureBoundaries:
     return feature_boundaries(feature, orbit, np.zeros(count), os=1, epoch=0.0, time=0.0)
 
 
+def _cut(pixels: list[int], offsets: list[float]) -> FootprintSamples:
+    """Footprint samples of pixels that only boundaries cut."""
+    return footprint_samples(
+        np.array(pixels, dtype=np.int64),
+        np.array(offsets, dtype=np.float64),
+        sloped_pixels=np.zeros(0, dtype=np.int64),
+        sloped_pieces=np.zeros(0, dtype=np.float64),
+    )
+
+
 def test_one_crossing_cuts_the_footprint_into_two_segments() -> None:
     """A boundary at +0.2 px splits the footprint into 0.7 and 0.3 of its length."""
-    samples = footprint_samples(np.array([7]), np.array([0.2]))
+    samples = _cut([7], [0.2])
     np.testing.assert_allclose(samples.weight, [0.7, 0.3], atol=1e-15)
     np.testing.assert_allclose(samples.offset, [-0.15, 0.35], atol=1e-15)
 
 
 def test_two_crossings_in_one_pixel_cut_three_segments() -> None:
     """Crossings listed out of order still cut the footprint in radial order."""
-    samples = footprint_samples(np.array([3, 3]), np.array([0.25, -0.25]))
+    samples = _cut([3, 3], [0.25, -0.25])
     np.testing.assert_allclose(samples.weight, [0.25, 0.5, 0.25], atol=1e-15)
 
 
 def test_segment_weights_sum_to_one_for_each_pixel() -> None:
     """Every listed pixel's segments cover its whole footprint."""
-    samples = footprint_samples(np.array([9, 2, 9, 5]), np.array([0.1, -0.3, -0.4, 0.0]))
+    samples = _cut([9, 2, 9, 5], [0.1, -0.3, -0.4, 0.0])
     totals = np.bincount(samples.slot, weights=samples.weight)
     np.testing.assert_allclose(totals, np.ones(3), atol=1e-15)
 
 
 def test_listed_pixels_are_sorted_and_unique() -> None:
     """The pixel list holds each pixel once, in increasing order."""
-    samples = footprint_samples(np.array([9, 2, 9, 5]), np.array([0.1, -0.3, -0.4, 0.0]))
+    samples = _cut([9, 2, 9, 5], [0.1, -0.3, -0.4, 0.0])
     np.testing.assert_array_equal(samples.pixels, [2, 5, 9])
 
 
@@ -62,7 +74,7 @@ def test_ringlet_profile_is_sharp_at_both_ends() -> None:
     np.testing.assert_array_equal(tau, [0.0, 2.0, 2.0, 0.0])
 
 
-def test_ramp_profile_is_sharp_only_at_its_tau_end() -> None:
+def test_ramp_profile_steps_only_at_its_tau_end() -> None:
     """An outward ramp rises linearly and drops straight to zero past its outer end."""
     feature = _feature('ramp', width_px=4.0, side='out')
     radii = np.array([11.0, 14.0, 14.001])
@@ -70,17 +82,61 @@ def test_ramp_profile_is_sharp_only_at_its_tau_end() -> None:
     np.testing.assert_allclose(tau, [0.5, 2.0, 0.0], atol=1e-15)
 
 
-def test_outward_ramp_steps_only_at_its_outer_end() -> None:
-    """Only the ramp end that carries tau is a sharp boundary."""
+def test_ramp_breaks_at_both_ends() -> None:
+    """A ramp's step and its bend are both boundaries."""
     feature = _feature('ramp', width_px=4.0, side='out')
-    sharp = feature_sharp_radii(feature, _bounds(feature, 1))
-    np.testing.assert_allclose(np.concatenate(sharp), [14.0])
+    breaks = feature_breakpoint_radii(feature, _bounds(feature, 1))
+    np.testing.assert_allclose(np.concatenate(breaks), [10.0, 14.0])
 
 
-def test_wave_has_no_sharp_boundary() -> None:
+def test_wave_has_no_boundary() -> None:
     """A density wave is continuous at its launch radius."""
     feature = _feature('wave', wavelength_px=4.0, density_wave_damping_px=8.0)
-    assert feature_sharp_radii(feature, _bounds(feature, 1)) == []
+    assert feature_breakpoint_radii(feature, _bounds(feature, 1)) == []
+
+
+def test_ramp_slope_is_tau_over_width() -> None:
+    """A ramp's optical depth changes by tau over its width, on the render grid."""
+    assert feature_tau_slope(_feature('ramp', width_px=4.0), os=2) == pytest.approx(0.25)
+
+
+def test_constant_kinds_have_no_slope() -> None:
+    """A ringlet's optical depth is constant between its edges."""
+    assert feature_tau_slope(_feature('ringlet', width_px=4.0), os=1) is None
+
+
+def test_sloped_pixel_is_cut_into_quadrature_pieces() -> None:
+    """A sloped segment 0.5 px long needing 6 pieces per px gets 3 pieces of 4 nodes."""
+    samples = footprint_samples(
+        np.array([4], dtype=np.int64),
+        np.array([0.0]),
+        sloped_pixels=np.array([4], dtype=np.int64),
+        sloped_pieces=np.array([6.0]),
+    )
+    assert samples.offset.size == 24
+
+
+def test_sloped_quadrature_integrates_a_cubic_exactly() -> None:
+    """Four-node pieces integrate a cubic along the footprint exactly."""
+    samples = footprint_samples(
+        np.array([4], dtype=np.int64),
+        np.array([0.2]),
+        sloped_pixels=np.array([4], dtype=np.int64),
+        sloped_pieces=np.array([3.0]),
+    )
+    integral = float(np.sum(samples.weight * (samples.offset**3 + samples.offset**2)))
+    assert integral == pytest.approx(1.0 / 12.0, abs=1e-15)
+
+
+def test_sloped_pixel_that_no_boundary_cuts_is_sampled() -> None:
+    """A pixel inside a ramp's band joins the samples with weights summing to 1."""
+    samples = footprint_samples(
+        np.zeros(0, dtype=np.int64),
+        np.zeros(0),
+        sloped_pixels=np.array([8, 8], dtype=np.int64),
+        sloped_pieces=np.array([0.5, 0.25]),
+    )
+    assert float(samples.weight.sum()) == pytest.approx(1.0, abs=1e-15)
 
 
 def test_unknown_kind_is_not_renderable() -> None:
