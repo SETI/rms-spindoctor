@@ -2901,23 +2901,37 @@ unblurred edge that finely: on a correctly drawn edge it still reads 1/12 px
 (0.083 px) off when the edge sits a quarter of a pixel from a pixel boundary.
 
 Across a ramp, the optical depth changes along the pixel, and brightness and
-transmission don't change in proportion to it. So every pixel that a ramp's
-band overlaps is integrated along its footprint. Each piece of the pixel is cut
-again into short lengths, short enough that the closed forms' exponentials
-change by at most a factor of e squared across one, and each length is summed at
-four Gauss-Legendre points. Against a reference sampled 256 by 256 times per
-pixel, ramps from 0.3 to 20 px wide, face-on and on the unlit face, keep their
-flux to 2e-4 and their brightness centroid to 1e-4 px, at oversample 1 and 4.
+transmission don't change in proportion to it. So every pixel that a ramp's band
+overlaps is integrated along its footprint. Between boundaries the optical depth
+changes linearly, and each closed form is a sum of exponentials in it, so the
+mean over each piece has an exact closed form too. The renderer evaluates the
+optical depth at two points in the piece, which fixes the line, and takes the
+closed-form mean. Where a gap pulls the summed optical depth below zero partway
+across a piece, the piece is split where the line reaches zero, and the part
+below zero emits nothing and passes everything. A ramp pixel that no boundary
+crosses is integrated the same way, from its center value and the ramp's slope.
+Against an exact integral, every pixel stays within 3e-10 of the peak for ramps
+0.05 to 50 px wide with optical depths from 5 to 50, seen 0.05 to 2 degrees from
+edge-on on either face, at oversample 1 and 4.
+
+A propeller or a density wave that reaches a ramp pixel makes its optical depth
+curve. There each piece is cut into 32 equal lengths, and each is integrated as a
+line. On a propeller with contrast 8 over a 0.5 px ramp with optical depth 3, the
+pixel is 1e-5 off on the lit face and 5e-4 off on the unlit face, where brightness
+curves most strongly with optical depth.
 
 A pixel that no boundary crosses and no ramp overlaps is drawn at its center. A
-density wave is smooth and has no boundaries, so it is point sampled, and an
-oversampled grid integrates it.
+density wave is point sampled there, and on an oversampled grid the box downsample
+averages its point samples. Neither is an integral, and a wave whose wavelength
+approaches a render-grid pixel aliases.
 
-Integrating the crossed pixels costs time in proportion to how many there are.
-The twelve-feature 1024 by 1024 budget scene renders its ring system in 1.9 s
-of CPU time, against 1.8 s if every pixel were drawn at its center. A system of
-150 ringlets, each 0.7 px wide and 2.5 px apart, takes 3.7 s against 2.7 s and
-needs 0.6 GB more memory.
+Integrating the crossed pixels costs time in proportion to how many there are. The
+cost of a ramp pixel doesn't depend on the ramp's optical depth or on the viewing
+angles. In CPU time for one 1024 by 1024 frame at oversample 4, the twelve-feature
+budget scene renders its ring system in 1.9 s, against 1.8 s if every pixel were
+drawn at its center. A system of 150 ringlets, each 0.7 px wide and 2.5 px apart,
+takes 3.6 s against 2.7 s and needs 0.6 GB more memory, and one ramp 300 px wide
+takes 1.9 s against 1.2 s and needs 0.6 GB more.
 
 The catalog orbit: m-modes and edge waves
 -----------------------------------------

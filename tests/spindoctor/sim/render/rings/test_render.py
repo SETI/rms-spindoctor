@@ -20,12 +20,12 @@ from tests.spindoctor.sim.scenes import disc_body, frame_scene, ring_system_bloc
 from spindoctor.sim.render.driver import render_scene
 from spindoctor.sim.render.radiance.compose import compose_scene_radiance
 from spindoctor.sim.render.rings import render as render_module
-from spindoctor.sim.render.rings.render import (
+from spindoctor.sim.render.rings.photometry import (
     RING_ALBEDO_DEFAULT,
     RING_PHASE_G_DEFAULT,
-    render_ring_system,
     ring_reflection_factor,
 )
+from spindoctor.sim.render.rings.render import render_ring_system
 from spindoctor.sim.render.stages import new_sim_frame
 from spindoctor.sim.scene.errors import SimSceneValidationError
 from spindoctor.sim.scene.validate import validate_sim_params

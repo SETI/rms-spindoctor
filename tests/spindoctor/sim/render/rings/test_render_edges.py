@@ -9,9 +9,10 @@ exactly.  The pixel phase is where the edge falls inside its pixel, 0 on the pix
 lower boundary and 0.5 at its center.
 
 The remaining tests compare one rendered row with a dense reference: the authored
-profile, written out here independently of the renderer, sampled 4000 times per pixel
-along the radial direction and lit by the same closed forms.  For a straight face-on
-or ansa edge that is the exact integral the renderer's footprint model aims at.
+profile, written out here independently of the renderer, sampled a million times per
+pixel along the radial direction and lit by the point forms of the photometry.  For a
+straight face-on or ansa edge that is the exact integral the renderer's footprint
+model aims at.
 """
 
 import math
@@ -23,12 +24,12 @@ from tests.spindoctor.sim.scenes import frame_scene, ring_system_block
 
 from spindoctor.sim.render.driver import render_scene
 from spindoctor.sim.render.rings.clutter import moonlet_disc_coverage, propeller_tau_factor
-from spindoctor.sim.render.rings.render import (
+from spindoctor.sim.render.rings.photometry import (
     RING_ALBEDO_DEFAULT,
     RING_PHASE_G_DEFAULT,
-    render_ring_system,
     ring_reflection_factor,
 )
+from spindoctor.sim.render.rings.render import render_ring_system
 from spindoctor.sim.shared.lighting import henyey_greenstein_phase
 from spindoctor.sim.shared.ring import ring_plane_from_sky, ring_sky_from_plane
 from spindoctor.support.types import NDArrayFloatType
@@ -36,6 +37,11 @@ from spindoctor.support.types import NDArrayFloatType
 _RADIUS = 1.0e5
 _SIZE = 32
 _TOLERANCE_PX = 0.005
+# The reference samples each pixel a million times.  Every boundary in these tests sits
+# on a multiple of 0.1 px, so it falls between samples and the reference integrates the
+# steps exactly; the renderer integrates the footprint exactly.  The two agree to about
+# 4e-11 of the peak.
+_REFERENCE_TOLERANCE = 1e-9
 
 
 def _orbit(a_px: float) -> dict[str, float]:
@@ -280,7 +286,7 @@ def test_moonlet_rim_is_blurred_only_once_at_oversample_4() -> None:
     assert coverage[row, column] == 1.0
 
 
-_REFERENCE_SAMPLES = 4000
+_REFERENCE_SAMPLES = 1_000_000
 _UNLIT: dict[str, Any] = {'b_obs': 12.0, 'b_sun': -20.0, 'lam_deg': 180.0}
 _ROW = _SIZE // 2
 
@@ -305,38 +311,37 @@ def _authored_tau(feature: dict[str, Any], r: NDArrayFloatType) -> NDArrayFloatT
     return -inside if feature['kind'] == 'gap' else inside
 
 
-def _reference_row(system: dict[str, Any]) -> tuple[NDArrayFloatType, NDArrayFloatType]:
-    """The middle row's intensity and transmission, integrated densely along u."""
+def _reference(system: dict[str, Any], columns: list[int]) -> NDArrayFloatType:
+    """The middle row's intensity in ``columns``, integrated densely along u."""
     geometry = system['geometry']
     b_obs = float(geometry['opening_deg_obs'])
     b_sun = float(geometry['opening_deg_sun'])
-    u = (np.arange(_SIZE * _REFERENCE_SAMPLES) + 0.5) / _REFERENCE_SAMPLES
-    v = np.full(u.shape, _ROW + 0.5)
-    r, lam, _x, _y = ring_plane_from_sky(
-        v - float(geometry['center_v']),
-        u - float(geometry['center_u']),
-        opening_deg_obs=b_obs,
-        node_deg=float(geometry['node_deg']),
-    )
-    tau = np.zeros(r.shape, dtype=np.float64)
-    for feature in system['features']:
-        tau += _authored_tau(feature, r)
-    np.clip(tau, 0.0, None, out=tau)
-    for moonlet in system.get('moonlets', []):
-        tau = tau * propeller_tau_factor(moonlet, moonlet['propeller'], r=r, lam=lam, os=1)
     mu = abs(math.sin(math.radians(b_obs)))
     mu0 = abs(math.sin(math.radians(b_sun)))
     ap = RING_ALBEDO_DEFAULT / 4.0 * henyey_greenstein_phase(RING_PHASE_G_DEFAULT, 0.0)
-    emission = ap * ring_reflection_factor(tau, mu, mu0, lit=(b_obs > 0.0) == (b_sun > 0.0))
-    shape = (_SIZE, _REFERENCE_SAMPLES)
-    return (
-        emission.reshape(shape).mean(axis=1),
-        np.exp(-tau / mu).reshape(shape).mean(axis=1),
-    )
+    fractions = (np.arange(_REFERENCE_SAMPLES) + 0.5) / _REFERENCE_SAMPLES
+    result = np.zeros(len(columns), dtype=np.float64)
+    for index, column in enumerate(columns):
+        u = column + fractions
+        r, lam, _x, _y = ring_plane_from_sky(
+            np.full(u.shape, _ROW + 0.5) - float(geometry['center_v']),
+            u - float(geometry['center_u']),
+            opening_deg_obs=b_obs,
+            node_deg=float(geometry['node_deg']),
+        )
+        tau = np.zeros(r.shape, dtype=np.float64)
+        for feature in system['features']:
+            tau += _authored_tau(feature, r)
+        np.clip(tau, 0.0, None, out=tau)
+        for moonlet in system.get('moonlets', []):
+            tau = tau * propeller_tau_factor(moonlet, moonlet['propeller'], r=r, lam=lam, os=1)
+        lit = (b_obs > 0.0) == (b_sun > 0.0)
+        result[index] = float(np.mean(ap * ring_reflection_factor(tau, mu, mu0, lit=lit)))
+    return result
 
 
 def _rendered_maps(system: dict[str, Any], *, os: int = 1) -> tuple[Any, Any]:
-    """The middle row's intensity and transmission, and the full render's maps."""
+    """The middle row's intensity and the full render's maps."""
     geometry = system['geometry']
     maps = render_ring_system(
         (_SIZE * os, _SIZE * os),
@@ -346,15 +351,14 @@ def _rendered_maps(system: dict[str, Any], *, os: int = 1) -> tuple[Any, Any]:
         node_deg=float(geometry['node_deg']),
         oversample=os,
     )
-    return maps.intensity[_ROW * os : (_ROW + 1) * os].reshape(os, _SIZE, os).mean(
-        axis=(0, 2)
-    ), maps
+    row = maps.intensity[_ROW * os : (_ROW + 1) * os].reshape(os, _SIZE, os).mean(axis=(0, 2))
+    return row, maps
 
 
-def _ramp(width: float, side: str = 'in') -> dict[str, Any]:
-    """A tau 2 ramp whose end at the test radius carries its full optical depth."""
+def _ramp(width: float, side: str = 'in', tau: float = 2.0) -> dict[str, Any]:
+    """A ramp whose end at the test radius carries its full optical depth."""
     inner = _RADIUS if side == 'in' else _RADIUS - width
-    return {'kind': 'ramp', 'tau': 2.0, 'width_px': width, 'side': side, 'orbit': _orbit(inner)}
+    return {'kind': 'ramp', 'tau': tau, 'width_px': width, 'side': side, 'orbit': _orbit(inner)}
 
 
 def _ringlet(inner: float, width: float, tau: float) -> dict[str, Any]:
@@ -362,36 +366,111 @@ def _ringlet(inner: float, width: float, tau: float) -> dict[str, Any]:
     return {'kind': 'ringlet', 'tau': tau, 'width_px': width, 'orbit': _orbit(inner)}
 
 
+def _matches_reference(system: dict[str, Any], columns: list[int]) -> float:
+    """The largest difference from the reference in ``columns``, relative to its peak."""
+    reference = _reference(system, columns)
+    row, _maps = _rendered_maps(system)
+    return float(np.max(np.abs(row[columns] - reference)) / np.max(np.abs(reference)))
+
+
 def test_narrow_ramp_keeps_its_flux() -> None:
     """A ramp 0.3 px wide, narrower than a pixel, emits the light the reference does."""
     system, _authored = _placed_system([_ramp(0.3)], phase=0.3)
-    reference, _transmission = _reference_row(system)
-    row, _maps = _rendered_maps(system)
-    assert float(row.sum()) == pytest.approx(float(reference.sum()), rel=1e-3)
+    assert _matches_reference(system, [16]) < _REFERENCE_TOLERANCE
+
+
+def test_narrow_unlit_ramp_between_pixel_centers_keeps_its_flux() -> None:
+    """An unlit 0.3 px ramp whose band misses every pixel center matches the reference.
+
+    The band runs from u = 15.8 to 16.1, so it reaches into two pixels without covering
+    either center.
+    """
+    system, _authored = _placed_system([_ramp(0.3)], phase=0.1, **_UNLIT)
+    assert _matches_reference(system, [15, 16]) < _REFERENCE_TOLERANCE
 
 
 def test_wide_unlit_ramp_lands_where_the_reference_does() -> None:
     """A 6 px ramp on the unlit face has the reference's brightness centroid.
 
     Brightness on the unlit face curves strongly with optical depth, so sampling the
-    ramp at pixel centers moves its centroid by about 0.08 px.
+    ramp at pixel centers would move its centroid by about 0.08 px.
     """
     system, _authored = _placed_system([_ramp(6.0)], phase=0.3, **_UNLIT)
-    reference, _transmission = _reference_row(system)
+    columns = list(range(9, 18))
+    reference = _reference(system, columns)
     row, _maps = _rendered_maps(system)
-    columns = np.arange(_SIZE) + 0.5
-    centroid = float(np.sum(columns * row) / np.sum(row))
-    expected = float(np.sum(columns * reference) / np.sum(reference))
-    assert centroid == pytest.approx(expected, abs=_TOLERANCE_PX)
+    centers = np.array(columns) + 0.5
+    centroid = float(np.sum(centers * row[columns]) / np.sum(row[columns]))
+    expected = float(np.sum(centers * reference) / np.sum(reference))
+    assert centroid == pytest.approx(expected, abs=1e-9)
+
+
+def test_two_overlapping_ramps_match_the_reference() -> None:
+    """A rising and a falling ramp that overlap, their ends in shared pixels, match."""
+    rising = {**_ramp(3.0, side='out'), 'orbit': _orbit(_RADIUS - 3.0)}
+    falling = {**_ramp(2.0, tau=1.5), 'orbit': _orbit(_RADIUS - 1.2)}
+    system, _authored = _placed_system([rising, falling], phase=0.3)
+    assert _matches_reference(system, list(range(12, 19))) < _REFERENCE_TOLERANCE
+
+
+def test_gap_clipping_a_ramp_inside_a_pixel_matches_the_reference() -> None:
+    """A gap that cuts a ramp's optical depth to zero mid-pixel matches the reference.
+
+    The tau 1 gap covers a tau 2 ramp 1 px wide, so the summed optical depth reaches
+    zero halfway across the ramp, inside a pixel, where no feature has a boundary.
+    """
+    gap = {'kind': 'gap', 'tau': 1.0, 'width_px': 5.0, 'orbit': _orbit(_RADIUS - 2.0)}
+    system, _authored = _placed_system([_ramp(1.0), gap], phase=0.3)
+    assert _matches_reference(system, [16, 17]) < _REFERENCE_TOLERANCE
+
+
+def test_propeller_over_a_ramp_matches_the_reference() -> None:
+    """A propeller lobe over a ramp, curving its optical depth, matches the reference.
+
+    Each piece of those pixels is cut into equal cells, and the curve is integrated as
+    a line across each, which leaves it about 6e-6 of the peak off the reference.
+    """
+    length_deg = 0.004
+    moonlet = {
+        'a_px': _RADIUS + 1.5,
+        'lam_deg': length_deg / 2.0,
+        'radius_px': 0.5,
+        'amplitude': 0.0,
+        'propeller': {'length_deg': length_deg, 'width_px': 1.0, 'contrast': 2.0},
+    }
+    system, _authored = _placed_system([_ramp(3.0)], phase=0.3)
+    system['moonlets'] = [moonlet]
+    assert _matches_reference(system, [16, 17, 18, 19]) < 2e-5
+
+
+def test_ramp_at_extreme_optical_depth_matches_the_analytic_integral() -> None:
+    """A tau 50 ramp seen 0.1 deg from edge-on, on the unlit face, matches its integral.
+
+    Its optical depth over ``mu`` reaches about 28,600 across the band, so the emission
+    is confined to a sliver of the pixel next to the ramp's zero end.  The band is
+    0.3 px wide inside one pixel, where tau falls linearly from 50 to 0, so the pixel's
+    emission is 0.3 times the band's mean of the closed form, which integrates exactly.
+    """
+    b_obs, b_sun, tau, width = 0.1, -0.3, 50.0, 0.3
+    system, authored = _placed_system(
+        [_ramp(width, tau=tau)], phase=0.3, b_obs=b_obs, b_sun=b_sun, lam_deg=180.0
+    )
+    row, _maps = _rendered_maps(system)
+    mu = math.sin(math.radians(b_obs))
+    mu0 = math.sin(math.radians(-b_sun))
+
+    def band_mean_exp(rate: float) -> float:
+        return -math.expm1(-rate * tau) / (rate * tau)
+
+    mean = mu0 / (mu0 - mu) * (band_mean_exp(1.0 / mu0) - band_mean_exp(1.0 / mu))
+    ap = RING_ALBEDO_DEFAULT / 4.0 * henyey_greenstein_phase(RING_PHASE_G_DEFAULT, 0.0)
+    assert row[math.floor(authored)] == pytest.approx(width * ap * mean, rel=1e-9)
 
 
 def test_sub_pixel_ringlet_matches_the_reference() -> None:
-    """A ringlet 0.3 px wide, both of whose edges fall in one pixel, matches the reference."""
-    system, authored = _placed_system([_ringlet(_RADIUS, 0.3, 2.0)], phase=0.3)
-    reference, _transmission = _reference_row(system)
-    row, _maps = _rendered_maps(system)
-    column = math.floor(authored)
-    assert row[column] == pytest.approx(reference[column], rel=1e-3)
+    """A 0.3 px ringlet with both edges in one pixel matches the reference."""
+    system, _authored = _placed_system([_ringlet(_RADIUS, 0.3, 2.0)], phase=0.3)
+    assert _matches_reference(system, [16]) < _REFERENCE_TOLERANCE
 
 
 def test_two_features_ending_in_one_pixel_match_the_reference() -> None:
@@ -401,11 +480,8 @@ def test_two_features_ending_in_one_pixel_match_the_reference() -> None:
     ringlet that overlaps it, so it has three pieces of different optical depth.
     """
     features = [_ringlet(_RADIUS - 3.0, 3.0, 0.5), _ringlet(_RADIUS - 0.4, 2.0, 3.0)]
-    system, authored = _placed_system(features, phase=0.6)
-    reference, _transmission = _reference_row(system)
-    row, _maps = _rendered_maps(system)
-    column = math.floor(authored)
-    assert row[column] == pytest.approx(reference[column], rel=1e-3)
+    system, _authored = _placed_system(features, phase=0.6)
+    assert _matches_reference(system, [16]) < _REFERENCE_TOLERANCE
 
 
 def test_pixel_a_ringlet_covers_off_center_is_masked() -> None:
@@ -419,7 +495,7 @@ def test_propeller_shapes_the_pixels_an_edge_cuts() -> None:
     """A propeller lobe over an edge darkens the cut pixel as the reference does.
 
     The renderer evaluates the smooth lobe once in each piece of the pixel, which
-    leaves it about 0.1% off the dense reference.
+    leaves it 0.13% off the dense reference.
     """
     length_deg = 0.004
     moonlet = {
@@ -431,7 +507,7 @@ def test_propeller_shapes_the_pixels_an_edge_cuts() -> None:
     }
     system, authored = _placed_system([_edge(1.5)], phase=0.3)
     system['moonlets'] = [moonlet]
-    reference, _transmission = _reference_row(system)
-    row, _maps = _rendered_maps(system)
     column = math.floor(authored)
-    assert row[column] == pytest.approx(reference[column], rel=5e-3)
+    reference = _reference(system, [column])
+    row, _maps = _rendered_maps(system)
+    assert row[column] == pytest.approx(reference[0], rel=2e-3)

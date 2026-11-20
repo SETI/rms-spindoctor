@@ -22,8 +22,35 @@ from spindoctor.support.types import NDArrayFloatType
 __all__ = [
     'azimuthal_intensity_factor',
     'moonlet_disc_coverage',
+    'propeller_radial_reach',
     'propeller_tau_factor',
 ]
+
+# exp(-0.5 * x**2) underflows to exactly 0.0 in float64 once x passes about
+# 38.7 (0.5 * x**2 > ~745.2), so a propeller's Gaussian lobes are bitwise
+# zero beyond this many sigmas; the radial bound uses it to stay exact.
+_GAUSSIAN_UNDERFLOW_SIGMAS: float = 40.0
+
+
+def propeller_radial_reach(
+    moonlet: Mapping[str, Any], propeller: Mapping[str, Any], *, os: int
+) -> tuple[float, float]:
+    """Return a propeller's center radius and how far its lobes reach from it.
+
+    Beyond the reach both Gaussian lobes are exactly 0.0, so the propeller's tau factor
+    is exactly 1.0 there.
+
+    Parameters:
+        moonlet: The moonlet mapping (placement).
+        propeller: The moonlet's ``propeller`` mapping.
+        os: The oversampling factor.
+
+    Returns:
+        ``(center, reach)`` in render-grid ring-plane units.
+    """
+    center = float(scene_value(moonlet, 'a_px', 0.0)) * os
+    width = float(scene_value(propeller, 'width_px', 0.0)) * os
+    return center, width * (1.0 + _GAUSSIAN_UNDERFLOW_SIGMAS)
 
 
 def _wrap_dlam(lam: NDArrayFloatType, center_rad: float) -> NDArrayFloatType:
