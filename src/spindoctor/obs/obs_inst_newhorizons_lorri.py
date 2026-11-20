@@ -72,11 +72,12 @@ class ObsNewHorizonsLORRI(ObsSnapshotInst):
         *,
         config: Config | None = None,
         extfov_margin_vu: tuple[int, int] | None = None,
+        label: PathLike | None = None,
         **_kwargs: Any,
     ) -> 'ObsNewHorizonsLORRI':
         """Creates an ObsNewHorizonsLORRI from a New Horizons LORRI image file.
 
-        The host reads the PDS3 label beside the image together with the FITS file (see
+        The host reads the image's PDS3 label together with the FITS file (see
         :func:`~spindoctor.obs.obs_snapshot_inst.host_input`).
 
         Parameters:
@@ -84,6 +85,7 @@ class ObsNewHorizonsLORRI(ObsSnapshotInst):
             config: Configuration object to use. If None, uses the default configuration.
             extfov_margin_vu: Optional tuple that overrides the extended field of view margins
                 found in the config.
+            label: The image's PDS3 label, if known; otherwise the label beside the image.
             **_kwargs: Additional keyword arguments (none for this instrument).
 
         Returns:
@@ -102,7 +104,7 @@ class ObsNewHorizonsLORRI(ObsSnapshotInst):
         # conversion to I/F as a calibration, which is not applied: the navigation
         # pipeline treats image brightness scale-invariantly (NCC correlation,
         # image-derived MAD noise thresholds, magnitude-based star gate).
-        obs = host_new_horizons.NewHorizonsLORRI.from_file(host_input(path))
+        obs = host_new_horizons.NewHorizonsLORRI.from_file(host_input(path, label=label))
         # The host inserts the image as the data subfield, which the Snapshot it returns
         # does not declare.
         data: NDArrayAnyType = obs.subfields['data']

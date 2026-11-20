@@ -84,11 +84,12 @@ class ObsGalileoSSI(ObsSnapshotInst, HostLabel):
         *,
         config: Config | None = None,
         extfov_margin_vu: tuple[int, int] | None = None,
+        label: PathLike | None = None,
         **_kwargs: Any,
     ) -> 'ObsGalileoSSI':
         """Creates an ObsGalileoSSI from a Galileo SSI image file.
 
-        The host reads the PDS3 label beside the image together with the image file (see
+        The host reads the image's PDS3 label together with the image file (see
         :func:`~spindoctor.obs.obs_snapshot_inst.host_input`), and keeps the image's full
         field of view.
 
@@ -97,6 +98,7 @@ class ObsGalileoSSI(ObsSnapshotInst, HostLabel):
             config: Configuration object to use. If None, uses the default configuration.
             extfov_margin_vu: Optional tuple that overrides the extended field of view margins
                 found in the config.
+            label: The image's PDS3 label, if known; otherwise the label beside the image.
             **_kwargs: Additional keyword arguments (none for this instrument).
 
         Returns:
@@ -116,7 +118,7 @@ class ObsGalileoSSI(ObsSnapshotInst, HostLabel):
         # image brightness scale-invariantly (NCC correlation, image-derived
         # MAD noise thresholds, magnitude-based star gate), so no photometric
         # calibration is required here.
-        obs = host_galileo.GalileoSSI.from_file(host_input(path), full_fov=True)
+        obs = host_galileo.GalileoSSI.from_file(host_input(path, label=label), full_fov=True)
         # The host inserts the image as the data subfield, which the Snapshot it returns
         # does not declare.
         data: NDArrayAnyType = obs.subfields['data']

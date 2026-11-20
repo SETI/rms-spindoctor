@@ -294,11 +294,12 @@ class ObsCassiniISS(ObsSnapshotInst, HostLabel):
         *,
         config: Config | None = None,
         extfov_margin_vu: tuple[int, int] | None = None,
+        label: PathLike | None = None,
         **kwargs: Any,
     ) -> 'ObsCassiniISS':
         """Creates an ObsCassiniISS from a Cassini ISS image file.
 
-        The host reads the PDS3 label beside the image together with the image file (see
+        The host reads the image's PDS3 label together with the image file (see
         :func:`~spindoctor.obs.obs_snapshot_inst.host_input`).
 
         Parameters:
@@ -306,6 +307,7 @@ class ObsCassiniISS(ObsSnapshotInst, HostLabel):
             config: Configuration object to use. If None, uses the default configuration.
             extfov_margin_vu: Optional tuple that overrides the extended field of view margins
                 found in the config.
+            label: The image's PDS3 label, if known; otherwise the label beside the image.
             **kwargs: Additional keyword arguments:
 
                 - fast_distortion: Whether to use a fast distortion model.
@@ -332,7 +334,7 @@ class ObsCassiniISS(ObsSnapshotInst, HostLabel):
         logger.debug(f'  Fast distortion: {fast_distortion}')
         logger.debug(f'  Return all planets: {return_all_planets}')
         obs = host_cassini.CassiniISS.from_file(
-            host_input(path),
+            host_input(path, label=label),
             fast_distortion=fast_distortion,
             return_all_planets=return_all_planets,
         )
