@@ -23,8 +23,8 @@ exposure_sec: 1.0
 # lands at (2.12, -1.74), about 0.27 px from the planted value.  It was 0.21 px
 # when the disc was shaded on the detector grid (#931): the fit follows the
 # brightness gradient just inside the ragged limb, which the oversampled grid
-# now resolves, and the move is well inside the fit's spread over noise seeds
-# (0.86 to 2.73 px in v over the 16 seeds below).  The disc correlation
+# now resolves, and the move is inside the fit's spread over the 16 noise
+# draws below (0.17 to 0.37 px from the planted value).  The disc correlation
 # reports (1.59, -1.5).  Its sub-pixel refinement searches only +-0.5 px
 # around the integer NCC peak (#791), and its smooth template doesn't carry
 # the relief shading the frame does.  The
@@ -33,14 +33,13 @@ exposure_sec: 1.0
 # whose error is the correlation's.
 # Known error: over 16 draws of the detector noise alone (the committed draw
 # and noise_seed 101, 202, ..., 1515), which keep this scene's limb relief,
-# the fused error is 0.809 px on every draw (spread under 0.001 px).  Each end
-# of the band sits a margin of max(0.05 px, a fifth of the spread) = 0.05 px
-# outside, giving [0.758, 0.859] px.  A worse miss fails, and so does a fix
-# that brings the error under 0.758 px.  The relief decides the error: over 16
-# values of random_seed, which redraw the relief too, it runs 0.655 to
-# 3.252 px, because which window edge the correlation stops at depends on the
-# relief drawn (#791).  With the body shaded on its oversampled grid
-# (2026-11-19, #931) the same 16 values run 0.404 to 3.249 px.
+# the fused error is 0.793 px on 4 draws and 0.801 px on the other 12 (spread
+# 0.008 px).  Each end of the band sits a margin of max(0.05 px, a fifth of the
+# spread) = 0.05 px outside, giving [0.743, 0.851] px.  A worse miss fails, and
+# so does a fix that brings the error under 0.743 px.  The relief decides the
+# error: over 16 values of random_seed, which redraw the relief too, it runs
+# 0.404 to 3.249 px, because which window edge the correlation stops at depends
+# on the relief drawn (#791).
 bodies:
   - name: RUGGED
     shape_model: ellipsoid
@@ -71,5 +70,5 @@ offset_rotation_deg: 0.0
 expected:
   status: success
   confidence_tier: medium
-  known_offset_error_px: 0.8085
-  known_offset_error_tol_px: 0.0505
+  known_offset_error_px: 0.797
+  known_offset_error_tol_px: 0.054
