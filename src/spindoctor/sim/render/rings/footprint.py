@@ -24,7 +24,7 @@ which is exact unless features of different albedo or phase asymmetry overlap th
 
 from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 
@@ -68,6 +68,9 @@ CURVED_CELLS: int = 32
 
 # The most pixels integrated directly at once.
 _LINEAR_CHUNK: int = 1 << 20
+# About the most cells integrated at once on the cell path; a batch holds whole pixels,
+# so it can exceed this by one pixel's cells.
+_CELL_BATCH: int = 1 << 20
 
 # How many damping lengths downstream of its launch radius a density wave still
 # counts as curving the optical depth of a ramp it overlaps.
@@ -331,8 +334,14 @@ def _curved(
     grid: RingGrid,
     os: int,
 ) -> NDArrayBoolType:
-    """Which of the pixels a density wave or a propeller reaches."""
+    """Which of the pixels a density wave or a propeller reaches anywhere in its footprint.
+
+    A wave's band already carries the footprint margin of its feature's radial bounds.
+    A propeller's reach is widened by the footprint's own reach, because a lobe
+    narrower than a pixel can cross a footprint whose center lies beyond the reach.
+    """
     radius = grid.r.ravel()[pixels]
+    footprint_reach = FOOTPRINT_HALF_WIDTH_PX * grid.radial_scale.ravel()[pixels]
     curved = np.zeros(pixels.size, dtype=np.bool_)
     for item in placed:
         if str(item.feature.get('kind')) == 'wave':
@@ -345,7 +354,7 @@ def _curved(
         propeller = moonlet.get('propeller')
         if propeller:
             center, reach = propeller_radial_reach(moonlet, propeller, os=os)
-            curved |= np.abs(radius - center) <= reach
+            curved |= np.abs(radius - center) <= reach + footprint_reach
     return curved
 
 
@@ -464,14 +473,93 @@ def integrate_footprints(
         time: Scene time in TDB seconds.
 
     Returns:
-        The flat indices of the integrated pixels and, for each, its emitted geometric
-        factor times ``A/4 * P``, its transmission, and whether any of it carries tau.
+        The flat indices of the integrated pixels, sorted, and, for each, its emitted
+        geometric factor times ``A/4 * P``, its transmission, and whether any of it
+        carries tau.
     """
+    order = np.lexsort((crossing_offsets, crossing_pixels))
+    cut_pixels = crossing_pixels[order]
+    cut_offsets = crossing_offsets[order]
+    sloped = np.unique(sloped_pixels)
+    curved = np.unique(curved_pixels)
+    pixels = np.union1d(cut_pixels, sloped)
+    # An upper bound on each pixel's cell count, used only to size the batches.  Each
+    # batch holds whole pixels, so every pixel's cells are summed in the same order
+    # however the pixels are batched.
+    crossings = np.searchsorted(cut_pixels, pixels, side='right') - np.searchsorted(
+        cut_pixels, pixels, side='left'
+    )
+    found = np.minimum(np.searchsorted(curved, pixels), max(curved.size - 1, 0))
+    is_curved = curved[found] == pixels if curved.size else np.zeros(pixels.size, dtype=np.bool_)
+    cells_bound = (crossings + 1) * np.where(is_curved, CURVED_CELLS, 1)
+    batch = (np.cumsum(cells_bound) - 1) // _CELL_BATCH
+    starts = np.concatenate([[0], np.flatnonzero(np.diff(batch)) + 1])
+    stops = np.concatenate([starts[1:], [pixels.size]])
+    results = [
+        _integrate_batch(
+            cut_pixels,
+            cut_offsets,
+            sloped,
+            curved,
+            first=int(pixels[start]),
+            last=int(pixels[stop - 1]),
+            placed=placed,
+            moonlets=moonlets,
+            grid=grid,
+            photometry=photometry,
+            os=os,
+            epoch=epoch,
+            time=time,
+        )
+        for start, stop in zip(starts, stops, strict=True)
+        if stop > start
+    ]
+    if not results:
+        return (
+            pixels,
+            np.zeros(0, dtype=np.float64),
+            np.zeros(0, dtype=np.float64),
+            np.zeros(0, dtype=np.bool_),
+        )
+    return (
+        cast(NDArrayIntType, np.concatenate([r[0] for r in results])),
+        cast(NDArrayFloatType, np.concatenate([r[1] for r in results])),
+        cast(NDArrayFloatType, np.concatenate([r[2] for r in results])),
+        cast(NDArrayBoolType, np.concatenate([r[3] for r in results])),
+    )
+
+
+def _between(values: NDArrayIntType, first: int, last: int) -> slice:
+    """The slice of sorted ``values`` that lies from ``first`` through ``last``."""
+    return slice(
+        int(np.searchsorted(values, first, side='left')),
+        int(np.searchsorted(values, last, side='right')),
+    )
+
+
+def _integrate_batch(
+    cut_pixels: NDArrayIntType,
+    cut_offsets: NDArrayFloatType,
+    sloped: NDArrayIntType,
+    curved: NDArrayIntType,
+    *,
+    first: int,
+    last: int,
+    placed: list[PlacedFeature],
+    moonlets: list[Mapping[str, Any]],
+    grid: RingGrid,
+    photometry: RingPhotometry,
+    os: int,
+    epoch: float,
+    time: float,
+) -> tuple[NDArrayIntType, NDArrayFloatType, NDArrayFloatType, NDArrayBoolType]:
+    """Integrate the pixels with flat indices from ``first`` through ``last``."""
+    cut = _between(cut_pixels, first, last)
     cells = footprint_cells(
-        crossing_pixels,
-        crossing_offsets,
-        sloped_pixels=sloped_pixels,
-        curved_pixels=curved_pixels,
+        cut_pixels[cut],
+        cut_offsets[cut],
+        sloped_pixels=sloped[_between(sloped, first, last)],
+        curved_pixels=curved[_between(curved, first, last)],
         curved_cells=CURVED_CELLS,
     )
     emission, transmission, covered = _cell_integrals(

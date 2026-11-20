@@ -27,10 +27,14 @@ radius at the pixel's longitude, ``r_o`` the orbit radius widened by ``width_px`
   caller subtracts a gap's profile from the features under it.
 - ``edge``: ``tau`` for ``r <= r_e`` (``side: 'in'``) or ``r >= r_e``
   (``side: 'out'``); the step is sharp.
-- ``ramp``: a linear transition across ``[r_e, r_o]``, from 0 at ``r_e`` to ``tau`` at
-  ``r_o`` (``side: 'out'``) or mirrored (``side: 'in'``), and zero outside the band.
-  The end that carries ``tau`` is a step, and the end at 0 is a bend; both are
-  boundaries.
+- ``ramp``: linear from ``r_e`` to ``r_e + w``, rising from 0 to ``tau``
+  (``side: 'out'``) or falling from ``tau`` to 0 (``side: 'in'``), and zero inward of
+  ``r_e``.  An outward ramp holds ``tau`` from ``r_e + w`` to ``r_o`` and drops to 0
+  there; an inward ramp stays at 0 outward of ``r_e + w``.  On a circular orbit
+  ``r_o = r_e + w``; on an eccentric one the widened orbit is not exactly ``w`` out, so
+  an outward ramp levels off before ``r_o`` or is cut short by it.  The step at
+  ``r_e`` (inward), the step at ``r_o`` (outward), and the bends at both ends of the
+  linear part are all boundaries.
 - ``wave``: ``tau * exp(-x / damping) * sin(2 * pi * x / wavelength)`` for
   ``x = r - r_e >= 0``, and zero inward of the launch radius.  It is continuous, so it
   has no sharp boundary.
@@ -201,22 +205,44 @@ def feature_tau(
     raise ValueError(f'ring feature kind {kind!r} is not renderable')
 
 
+def _ramp_linear_end(
+    feature: Mapping[str, Any], bounds: FeatureBoundaries, *, os: int
+) -> NDArrayFloatType:
+    """Return where a ramp's linear part ends: ``width_px`` outward of its orbit."""
+    width = float(scene_value(feature, 'width_px', 0.0)) * os
+    end: NDArrayFloatType = bounds.inner + width
+    return end
+
+
 def feature_breakpoint_radii(
-    feature: Mapping[str, Any], bounds: FeatureBoundaries
+    feature: Mapping[str, Any], bounds: FeatureBoundaries, *, os: int
 ) -> list[NDArrayFloatType]:
     """Return the radii where a feature's optical depth steps or bends.
+
+    A ramp changes linearly from its orbit radius to ``width_px`` outward of it.  On an
+    eccentric orbit the widened orbit that bounds an outward ramp does not sit exactly
+    ``width_px`` out, so an outward ramp either levels off at full tau before its outer
+    boundary or is cut short by it, and an inward ramp ignores it.
 
     Parameters:
         feature: The validated feature mapping.
         bounds: The feature's orbit radii.
+        os: The oversampling factor, which scales ``width_px``.
 
     Returns:
-        One array of radii per boundary: both ends of a ringlet, gap, or ramp, the step
-        of an edge, and none for a wave.
+        One array of radii per boundary: both ends of a ringlet or gap; the orbit
+        radius, the end of the linear part, and (outward) the outer boundary of a ramp;
+        the step of an edge; and none for a wave.
     """
     kind = str(feature.get('kind'))
-    if kind in ('ringlet', 'gap', 'ramp'):
+    if kind in ('ringlet', 'gap'):
         return [bounds.inner, _outer(bounds)]
+    if kind == 'ramp':
+        side = str(scene_value(feature, 'side', RING_SIDE_DEFAULTS['ramp']))
+        linear_end = _ramp_linear_end(feature, bounds, os=os)
+        if side == 'out':
+            return [bounds.inner, linear_end, _outer(bounds)]
+        return [bounds.inner, linear_end]
     if kind == 'edge':
         return [bounds.inner]
     return []
@@ -228,7 +254,8 @@ class SlopedBand:
 
     Parameters:
         inner: The band's inner radius at each longitude.
-        outer: The band's outer radius at each longitude.
+        outer: The band's outer radius at each longitude: where the ramp's linear part
+            ends, or an outward ramp's outer boundary if that comes first.
         rate: The change in optical depth per render-grid ring-plane unit of radius:
             positive for a ramp that rises outward, negative for one that falls.
     """
@@ -257,8 +284,14 @@ def feature_sloped_band(
     tau = float(scene_value(feature, 'tau', 0.0))
     width = float(scene_value(feature, 'width_px', 0.0)) * os
     side = str(scene_value(feature, 'side', RING_SIDE_DEFAULTS['ramp']))
-    rate = tau / width if side == 'out' else -tau / width
-    return SlopedBand(inner=bounds.inner, outer=_outer(bounds), rate=rate)
+    linear_end = _ramp_linear_end(feature, bounds, os=os)
+    if side == 'out':
+        return SlopedBand(
+            inner=bounds.inner,
+            outer=cast(NDArrayFloatType, np.minimum(linear_end, _outer(bounds))),
+            rate=tau / width,
+        )
+    return SlopedBand(inner=bounds.inner, outer=linear_end, rate=-tau / width)
 
 
 def footprint_cells(
