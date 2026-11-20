@@ -32,15 +32,18 @@ Code map
    * - Log key
      - ``other.obs`` governs the image-scoped ``LOAD IMAGE`` section; there is
        no per-instrument logging key
-   * - oops host module
+   * - Host
      - ``host_cassini.CassiniISS``, from the ``rms-host-cassini`` package
 
 Loading the image
 =================
 
 :meth:`~spindoctor.obs.obs_inst_cassini_iss.ObsCassiniISS.from_file` calls
-``host_cassini.CassiniISS.from_file(path, fast_distortion=..., return_all_planets=...)``.
-Both keyword arguments are read from ``**kwargs`` and default to ``True``.
+``host_cassini.CassiniISS.from_file(host_input(path), fast_distortion=...,
+return_all_planets=...)``. :func:`~spindoctor.obs.obs_snapshot_inst.host_input`
+chooses the ``_CALIB.LBL`` beside the image, so that the host reads that PDS3
+label and the VICAR file together. Both keyword arguments are read from
+``**kwargs`` and default to ``True``.
 ``fast_distortion`` selects the host's polynomial inverse rather than an
 iterative one, which is what makes per-pixel geometry affordable in a batch;
 ``return_all_planets`` makes the host list the kernels of every planet in the
@@ -62,11 +65,14 @@ is taken from it. Beyond the host call ``from_file`` does three things:
 Label and index dependencies
 ============================
 
-**Label fields read.**
+**Host values read.**
 
-* ``SPACECRAFT_CLOCK_START_COUNT`` and ``SPACECRAFT_CLOCK_STOP_COUNT``, read
-  from the image's VICAR label in
+* The ``spacecraft_clock_start_count`` and ``spacecraft_clock_stop_count``
+  subfields, read in
   :meth:`~spindoctor.obs.obs_inst_cassini_iss.ObsCassiniISS.get_public_metadata`.
+  The host spells them as the PDS3 label does, and computes the start count of
+  an early cruise image, whose labels give a wrong one, from the stop count and
+  the exposure.
   A count is ``SECONDS.TICKS``: whole seconds, then the 1/256-second ticks
   past them written as three digits. ``_sclk_count`` converts it to an exact
   number of seconds through :func:`~spindoctor.support.sclk.fractional_count`,
@@ -77,10 +83,13 @@ Label and index dependencies
   ``1347929382.110``. The two counts mark the start and the end of the
   exposure, so ``_published_sclk`` passes ``bracketed=True`` to
   :func:`~spindoctor.support.sclk.exposure_counts` and ``midtime_sclk`` is
-  their exact mean. A count the label does not carry is published as ``None``,
+  their exact mean. A count the host does not give is published as ``None``,
   and so is the mean.
-* ``SHUTTER_MODE_ID``, read by the ``shutter_mode`` property. A missing key or
-  a null yields ``None``; a non-string value raises, because ``str()`` would
+* The ``filter1`` and ``filter2`` subfields, for ``filters``. The host gives
+  them only when the labels give both filters, and ``filters`` is otherwise
+  empty.
+* ``SHUTTER_MODE_ID`` in ``dict``, read by the ``shutter_mode`` property. A
+  missing key yields ``None``; a non-string value raises, because ``str()`` would
   serialize any object without complaint and the result would pass downstream
   as a legible shutter mode.
 * The label metadata. ``_label_metadata`` builds the ``label_metadata`` block from
@@ -95,8 +104,8 @@ Label and index dependencies
   bundle, and whether the image file was raw or calibrated. It is the one place in
   the library that lists PDS4 attributes, and it is deliberate.
 
-  The value is what rms-vicar hands back, unconverted: numbers as numbers, text as
-  text, and times as the label's day-of-year text. The one transformation is the
+  The value is what the host's ``dict`` holds, unconverted: numbers as numbers, text
+  as text, and times as the label's day-of-year text. The one transformation is the
   positional split the attribute names require: ``EXPECTED_MAXIMUM``, ``FILTER_NAME``,
   ``INST_CMPRS_PARAM``, ``INST_CMPRS_RATE``, ``OPTICS_TEMPERATURE`` and
   ``VALID_MAXIMUM`` fill several attributes each, and ``_element`` takes the value at the
@@ -106,9 +115,9 @@ Label and index dependencies
   reads that as the first position: the value fills the first attribute and the later
   ones are ``None``. ``OPTICS_TEMPERATURE`` is the keyword this happens on --- an early
   label states one optics reading where a later one states a front reading beside a rear
-  reading. That is the same thing the two-value form says when the rear reading is the
-  ``-999.0`` a camera with no rear sensor writes, so one value and a null carry the
-  meaning the label has. Reading a single value as no sequence at all would publish the
+  reading. That is the same thing the two-value form says when the rear reading is
+  missing, as for a camera with no rear sensor, whose ``-999.0`` the host gives as
+  ``None`` in that position. Reading a single value as no sequence at all would publish the
   front reading the label does state as ``None``, which is what the cruise-era test
   holds against.
 
@@ -130,7 +139,7 @@ Label and index dependencies
   attribute is ``None``, like any other unstated value.
 
   Every attribute is published for every image, so the block is one shape across the
-  archive; an attribute whose keyword the label does not state is ``None``. The
+  archive; an attribute whose keyword the host does not give is ``None``. The
   keywords read are the observation keywords of the archive's PDS3 label, which states
   the same set throughout. The VICAR label inside a calibrated image carries all of
   them for a tour-era image; an earlier image's label may carry fewer. Such a label may
@@ -139,26 +148,32 @@ Label and index dependencies
   read from the label, so that a label carrying a keyword the table omits is a
   difference a reader can see rather than one that drops a keyword in silence; tests
   over a real tour-era label and a real cruise-era label hold both behaviors. Six
-  keywords a tour-era label states are read by no attribute --- ``DATA_SET_ID``,
+  keywords a tour-era VICAR label states are read by no attribute --- ``DATA_SET_ID``,
   ``INSTRUMENT_HOST_NAME``, ``INSTRUMENT_ID``, ``INSTRUMENT_NAME``, ``MISSION_NAME``
   and ``PRODUCT_ID`` --- and the tour-era test lists exactly those, so a seventh
-  would fail it.
+  would fail it. That test reads the host's ``header_dict``, the VICAR label as the
+  file writes it.
 
-**Which label is read.** ``obs.dict`` is the VICAR label inside the
-``_CALIB.IMG`` file, which ``host_cassini.CassiniISS.from_file`` reads with
-rms-vicar. It is neither the detached ``_CALIB.LBL`` nor the raw volume's
-``.LBL``. Its values are the raw product's, as the raw ``.LBL`` states them,
-in the VICAR spelling: reals to six or seven significant digits, times ending
-in ``Z`` (``PRODUCT_CREATION_TIME`` only on the earliest volumes),
-``IMAGE_NUMBER`` as an integer, ``MISSION_PHASE_NAME`` as
-``APPROACH_SCIENCE`` where the PDS3 labels write ``APPROACH SCIENCE``, and a
-single ``IMAGE_OBSERVATION_TYPE`` as text rather than a one-element set. The
-``_CALIB.LBL`` departs further: it carries no ``VALID_MAXIMUM``, its
-``DESCRIPTION`` is the calibration's history, and its
-``PRODUCT_CREATION_TIME`` is the calibration's, which on some labels is not
-a parsable time. Where the VICAR label repeats a keyword, such as ``DAT_TIM``, the
-host's label keeps only the first occurrence. Every read here looks a keyword up by
-name, and none reads a repeated one.
+**Which label is read.** ``obs.dict`` is the host's merge of the ``_CALIB.LBL``
+and the VICAR label inside the ``_CALIB.IMG`` file. Where the two give an item and
+agree, it is that value; where they disagree, it is the ``_CALIB.LBL``'s, except
+``MISSION_PHASE_NAME`` and ``METHOD_DESC``, which the host takes from the VICAR
+label. The values are in the PDS3 label's spelling: reals as the label prints
+them, to six decimal places, times without the VICAR label's trailing ``Z``,
+``IMAGE_NUMBER`` as text, and ``IMAGE_OBSERVATION_TYPE`` as a list. A value that
+a label gives as a placeholder (``N/A``, ``UNK``, or ``-999`` in a temperature, a
+data rate, or a compression ratio) is left out, so its attribute is ``None``.
+The rms-host-cassini user guide lists the merge rules.
+
+The ``_CALIB.LBL`` describes the calibrated product: its ``DESCRIPTION`` is the
+calibration's history and its ``PRODUCT_CREATION_TIME`` is the calibration's,
+such as ``2019-06-09T12:39:25``. The VICAR label keeps the raw product's values,
+which are what ``cassini:limitations`` and ``cassini:pds3_product_creation_time``
+mean, so ``_RAW_PRODUCT_KEYWORDS`` reads those two keywords from the host's
+``header_dict`` instead, and a placeholder there is ``None`` as well. Where the
+VICAR label repeats a keyword, such as ``DAT_TIM``, ``header_dict`` keys each
+occurrence as ``DAT_TIM[0]``, ``DAT_TIM[1]``, and so on. Every read here looks a
+keyword up by name, and none reads a repeated one.
 
 :meth:`~spindoctor.obs.obs_inst_cassini_iss.ObsCassiniISS.get_public_metadata`
 also refuses a detector that is neither ``NAC`` nor ``WAC``, because the
