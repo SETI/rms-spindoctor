@@ -25,7 +25,7 @@ from spindoctor.sim.seeds import derive_effect_seed
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType, NDArrayIntType
 
-__all__ = ['CraterSite', 'carve_crater_heights', 'mask_site', 'perturb_normals_by_slope']
+__all__ = ['CraterSite', 'carve_crater_heights', 'perturb_normals_by_slope']
 
 # Candidate pixels drawn per round of the crater center search
 _CENTER_CANDIDATES_PER_ROUND = 256
@@ -35,9 +35,9 @@ _CENTER_CANDIDATES_PER_ROUND = 256
 class CraterSite:
     """The grid crater centers are drawn on, when it is not the carved grid's own body.
 
-    The site is a larger grid when the carved grid holds only part of the body, and
-    the carved grid's pixels inside the unrolled body when a planted roll turned the
-    body (see :func:`mask_site`).
+    The site is a larger grid when the carved grid holds only part of the body.  For
+    a body turned by a planted roll it is the grid the unrolled body lays its craters
+    out on, tested against the unrolled outline.
 
     Parameters:
         shape: The grid's rows and columns.
@@ -50,23 +50,6 @@ class CraterSite:
     shape: tuple[int, int]
     inside: Callable[[NDArrayIntType], NDArrayBoolType]
     origin: tuple[int, int]
-
-
-def mask_site(mask: NDArrayBoolType) -> CraterSite:
-    """The crater site of a grid's own pixels: those where ``mask`` is True.
-
-    Parameters:
-        mask: Whether each pixel of the grid lies strictly inside the body.
-
-    Returns:
-        The site, whose origin is the grid's first pixel.
-    """
-    flat_mask = mask.ravel()
-    return CraterSite(
-        shape=(mask.shape[0], mask.shape[1]),
-        inside=lambda indices: flat_mask[indices],
-        origin=(0, 0),
-    )
 
 
 def carve_crater_heights(
@@ -131,7 +114,12 @@ def carve_crater_heights(
     if n_craters <= 0 or not ellipse_mask_nz.any():
         return height
     if site is None:
-        site = mask_site(ellipse_mask_nz)
+        flat_mask = ellipse_mask_nz.ravel()
+        site = CraterSite(
+            shape=(ellipse_mask_nz.shape[0], ellipse_mask_nz.shape[1]),
+            inside=lambda indices: flat_mask[indices],
+            origin=(0, 0),
+        )
     if crater_power_law_exponent <= 1:
         raise ValueError('alpha must be > 1 for a proper power law.')
 

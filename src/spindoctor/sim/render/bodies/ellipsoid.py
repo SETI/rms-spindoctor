@@ -62,7 +62,6 @@ import numpy as np
 from spindoctor.sim.render.bodies.craters import (
     CraterSite,
     carve_crater_heights,
-    mask_site,
     perturb_normals_by_slope,
 )
 from spindoctor.sim.render.bodies.ellipsoid_grid import (
@@ -888,7 +887,7 @@ def _crater_layout(
     the area of a crater of the largest radius, between 0 and 1000.  The pixels are
     those of the detector grid, or of the crater plane when the grid holds only part
     of the body.  A body turned by a planted roll counts and draws among the pixels
-    inside the unrolled body.
+    of the unrolled body's plane inside the unrolled body.
 
     Parameters:
         grid: The detector-grid geometry the craters are carved on.
@@ -904,8 +903,9 @@ def _crater_layout(
     site: CraterSite | None = None
     draw_grid = grid
     if spec.crater_turn != 0.0:
+        rows, cols = grid.ellipse_dist_sq.shape
         draw_grid = project_ellipsoid(
-            grid.ellipse_dist_sq.shape,
+            (rows, cols),
             grid.center,
             grid.semi_a,
             semi_b_px=grid.semi_b,
@@ -913,11 +913,9 @@ def _crater_layout(
             rotation_z=spec.rotation_z + spec.crater_turn,
             rotation_tilt=spec.rotation_tilt,
         )
+        plane = plane or CraterPlane(shape=(rows, cols), origin=(0, 0))
     if plane is None:
-        inside = draw_grid.ellipse_dist_sq < 1.0
-        total_area = int(np.sum(inside))
-        if spec.crater_turn != 0.0:
-            site = mask_site(inside)
+        total_area = int(np.sum(grid.ellipse_dist_sq < 1.0))
     else:
         site, total_area = crater_plane_site(
             plane, draw_grid, cos_tilt=float(np.cos(spec.rotation_tilt))
