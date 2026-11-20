@@ -15,6 +15,17 @@ exposure_sec: 1.0
 # status_reason=rank_1_only with the minimum-norm offset (the v component
 # projected away).  This is the end-to-end sim anchor for the
 # ring_only_flat scene class.
+# The recovered du misses the planted -1.6 by about 0.46 px (#873).  The
+# render puts both edges on their authored radii.  The miss is in the
+# predicted edges: each vertex sits at the center of a border pixel, up to
+# half a pixel from the exact edge, as in the navigator's ring model for
+# real frames.  These edges run parallel to the v axis at an almost
+# constant pixel phase (the catalog edges sit at u = 70 and 150 and bow
+# 0.26 px toward lower u at the ends of the extended field of view), so
+# the vertices sit 0.42 px toward lower u on average, and the fit inherits
+# that.  Moving the ring center by a fraction of a pixel moves the miss
+# with the mean vertex offset, from -0.31 to +0.46 px, while the render
+# stays exact.
 bodies: []
 ring_system:
   geometry:
