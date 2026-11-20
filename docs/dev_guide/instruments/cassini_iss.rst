@@ -171,7 +171,10 @@ calibration's history and its ``PRODUCT_CREATION_TIME`` is the calibration's,
 such as ``2019-06-09T12:39:25``. The VICAR label keeps the raw product's values,
 which are what ``cassini:limitations`` and ``cassini:pds3_product_creation_time``
 mean, so ``_RAW_PRODUCT_KEYWORDS`` reads those two keywords from the host's
-``header_dict`` instead, and a placeholder there is ``None`` as well. Where the
+``header_dict`` instead. ``_raw_product_value`` puts each in the form the host
+gives a merged value: a placeholder is ``None`` and a time loses its trailing
+``Z``. If the host did not read the header, both are ``None``, never the calibrated
+label's values. Where the
 VICAR label repeats a keyword, such as ``DAT_TIM``, ``header_dict`` keys each
 occurrence as ``DAT_TIM[0]``, ``DAT_TIM[1]``, and so on. Every read here looks a
 keyword up by name, and none reads a repeated one.
