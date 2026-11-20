@@ -86,6 +86,18 @@ class GlobalFieldsMixin(SimEditorBase):
         self._random_seed_spin.valueChanged.connect(self._on_random_seed)
         gen_layout.addRow('Random seed:', self._random_seed_spin)
 
+        # Noise seed: -1 leaves the key out, so the detector noise follows the
+        # random seed; any other value redraws only the detector's per-frame noise.
+        self._noise_seed_spin = QSpinBox()
+        self._noise_seed_spin.setRange(-1, 2147483647)
+        self._noise_seed_spin.setSpecialValueText('Random seed')
+        self._noise_seed_spin.setValue(int(self.sim_params.get('noise_seed', -1)))
+        self._noise_seed_spin.setToolTip(
+            'Seed for the detector noise alone; "Random seed" uses the random seed.'
+        )
+        self._noise_seed_spin.valueChanged.connect(self._on_noise_seed)
+        gen_layout.addRow('Noise seed:', self._noise_seed_spin)
+
         # Instrument selector: drives the per-instrument noise / saturation /
         # PSF / unit settings the renderer applies (see
         # spindoctor.sim.instruments.navigator_link).
@@ -224,6 +236,14 @@ class GlobalFieldsMixin(SimEditorBase):
     def _on_random_seed(self, value: int) -> None:
         """Update the render RNG seed."""
         self.sim_params['random_seed'] = value
+        self._updater.request_update()
+
+    def _on_noise_seed(self, value: int) -> None:
+        """Set the noise seed, or remove it at -1 so the random seed draws the noise."""
+        if value < 0:
+            self.sim_params.pop('noise_seed', None)
+        else:
+            self.sim_params['noise_seed'] = value
         self._updater.request_update()
 
     def _select_instrument(self, instrument: str) -> None:

@@ -6,10 +6,11 @@ The shape-mismatch scene (``planted_offset_shapemismatch``) and its irregularity
 sweep therefore take their seed by a rule fixed in advance, which this module
 implements so a later change to the relief synthesis can apply it again:
 
-    Among mesh seeds 0 to 12 (the population ``test_sim_sweeps`` navigates),
-    take the seed whose silhouette at the sweep's extreme lumpiness, rendered at
-    the scene's pose, axes, and tessellation, has the median mismatch with the
-    predicted smooth (zero-lumpiness) silhouette.
+    Among mesh seeds 0 to 12 (the population that
+    ``test_sim_irregularity_population`` navigates), take the seed whose silhouette
+    at the sweep's extreme lumpiness, rendered at the scene's pose, axes, and
+    tessellation, has the median mismatch with the predicted smooth
+    (zero-lumpiness) silhouette.
 
 The mismatch is the symmetric-difference area of the two silhouettes over the
 predicted silhouette's perimeter, a mean edge displacement in pixels at the
@@ -48,7 +49,7 @@ from tests.integration.sim_sweep import load_sweep
 
 _INTEGRATION_ROOT = Path(__file__).resolve().parent
 SWEEP_PATH = _INTEGRATION_ROOT / 'sim_sweeps' / 'irregularity_shape_mismatch.yaml'
-# The population test_sim_sweeps navigates.
+# The population test_sim_irregularity_population navigates.
 SWEEP_SEEDS = range(13)
 # Render scale of the silhouettes relative to the scene.
 _SCALE = 4

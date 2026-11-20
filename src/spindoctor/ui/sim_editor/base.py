@@ -92,6 +92,7 @@ class SimEditorBase(QMainWindow):
     _offset_rotation_spin: QDoubleSpinBox
     _exposure_spin: QDoubleSpinBox
     _random_seed_spin: QSpinBox
+    _noise_seed_spin: QSpinBox
     _instrument_combo: QComboBox
     _fit_rotation_combo: QComboBox
     _midtime_edit: QLineEdit

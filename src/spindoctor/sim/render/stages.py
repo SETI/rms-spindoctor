@@ -15,6 +15,9 @@ from ``detector/hot_pixels``, the radiance stage's background stars from
 stream may in turn seed its own named sub-streams: ``scene_radiance/craters`` seeds one
 ``body:<index>:<name>`` stream for each body, which seeds that body's ``relief``,
 ``albedo``, and ``pose_scatter`` streams and one ``crater:<k>`` stream for each crater.
+A scene may also set ``noise_seed``.  The detector's per-frame streams then derive from
+it in place of ``random_seed``, under the same names, so the same scene and camera are
+read out with a new draw of the noise.
 
 The derivation is a stable digest, so a stream's seed is the same in every process and
 on every run.  A stream's seed is computed from nothing but its name and the seed it is

@@ -73,8 +73,24 @@ from spindoctor.support.types import NDArrayFloatType, NDArrayIntType
 __all__ = ['apply_detector', 'apply_saturation', 'keep_off_marker', 'quantize_dn']
 
 
-def _stage_rng(seed: int, effect: str) -> np.random.Generator:
-    """A generator for one detector sub-effect, seeded independently by name."""
+# The detector streams that hold a property of the camera rather than of one frame.
+# A real camera shows the same hot pixels, the same per-pixel response, the same
+# column offsets, and the same warm columns in every frame, so these streams draw
+# from the scene's random_seed even when the scene sets a noise_seed.  Every other
+# detector stream is drawn fresh for each frame and follows noise_seed.
+_CAMERA_STREAMS: frozenset[str] = frozenset(
+    {'hot_pixels', 'fixed_pattern', 'fixed_pattern_dn', 'dark_ramp_columns'}
+)
+
+
+def _stream_rng(dp: DetectorParams, effect: str) -> np.random.Generator:
+    """A generator for one detector sub-effect, seeded independently by name.
+
+    The stream is named ``detector/<effect>``.  A fixed-pattern stream derives from
+    the scene's ``random_seed`` and every per-frame stream from its ``noise_seed``,
+    so a scene that sets ``noise_seed`` draws new noise on the same camera.
+    """
+    seed = dp.random_seed if effect in _CAMERA_STREAMS else dp.noise_seed
     return np.random.default_rng(derive_effect_seed(seed, f'detector/{effect}'))
 
 
@@ -96,11 +112,6 @@ def _hot_pixel_pool(
     if not dp.hot_pixel_adversarial:
         return None
     return _feature_pool(frame)
-
-
-def _mode_rng(dp: DetectorParams, mode_name: str) -> np.random.Generator:
-    """A generator seeded independently for one detector artifact mode."""
-    return _stage_rng(dp.random_seed, mode_name)
 
 
 def _record_routed_modes(dp: DetectorParams, records: dict[str, Any]) -> None:
@@ -269,7 +280,7 @@ def _apply_ccd(frame: SimFrame, dp: DetectorParams, rng: np.random.Generator) ->
             prnu_rms=float(cfg.get('prnu_rms') or 0.0),
             vignetting_frac=float(cfg.get('vignetting_frac') or 0.0),
             dust_donut_count=int(cfg.get('dust_donut_count') or 0),
-            rng=_mode_rng(dp, 'fixed_pattern'),
+            rng=_stream_rng(dp, 'fixed_pattern'),
         )
     add_dark_current(
         electrons,
@@ -303,7 +314,7 @@ def _apply_ccd(frame: SimFrame, dp: DetectorParams, rng: np.random.Generator) ->
         amplitude_e=dp.hot_pixel_amplitude_e,
         column_factor=dp.hot_pixel_column_factor,
         detector_id=dp.detector_id,
-        rng=_stage_rng(dp.random_seed, 'hot_pixels'),
+        rng=_stream_rng(dp, 'hot_pixels'),
         candidate_pool=_hot_pixel_pool(frame, dp),
         binning=dp.binning,
     )
@@ -329,7 +340,7 @@ def _apply_ccd(frame: SimFrame, dp: DetectorParams, rng: np.random.Generator) ->
         events_per_pixel_per_sec=dp.cosmic_ray_events_per_pixel_per_sec,
         exposure_sec=dp.exposure_sec,
         amplitude_e=dp.cosmic_ray_amplitude_e,
-        rng=_stage_rng(dp.random_seed, 'cosmic_rays'),
+        rng=_stream_rng(dp, 'cosmic_rays'),
         readout_dwell_sec=dp.cosmic_ray_readout_dwell_sec,
         spread_px=dp.cosmic_ray_spread_px,
     )
@@ -345,14 +356,14 @@ def _apply_ccd(frame: SimFrame, dp: DetectorParams, rng: np.random.Generator) ->
             freq_step_factor=float(cfg.get('freq_step_factor', 1.0)),
             dark_step_dn=float(cfg.get('dark_step_dn', 0.0)),
             gain_e_per_dn=dp.gain_e_per_dn,
-            rng=_mode_rng(dp, 'banding_coherent'),
+            rng=_stream_rng(dp, 'banding_coherent'),
         )
     else:
         add_banding(
             electrons,
             amplitude_e=dp.banding_amplitude_e,
             period_px=dp.banding_period_px,
-            rng=_stage_rng(dp.random_seed, 'banding'),
+            rng=_stream_rng(dp, 'banding'),
         )
     dn = electrons / dp.gain_e_per_dn + dp.bias_dn
     add_bias_structure(
@@ -360,7 +371,7 @@ def _apply_ccd(frame: SimFrame, dp: DetectorParams, rng: np.random.Generator) ->
         pedestal_sigma_dn=dp.bias_pedestal_sigma_dn,
         row_gradient_dn=dp.bias_row_gradient_dn,
         col_gradient_dn=dp.bias_col_gradient_dn,
-        rng=_stage_rng(dp.random_seed, 'bias_structure'),
+        rng=_stream_rng(dp, 'bias_structure'),
     )
     if 'fixed_pattern' in modes:
         cfg = modes['fixed_pattern']
@@ -369,7 +380,7 @@ def _apply_ccd(frame: SimFrame, dp: DetectorParams, rng: np.random.Generator) ->
             stitch_period_px=int(cfg.get('stitch_period_px') or 0),
             stitch_amplitude_dn=float(cfg.get('stitch_amplitude_dn') or 0.0),
             jail_bar_dn=float(cfg.get('jail_bar_dn') or 0.0),
-            rng=_mode_rng(dp, 'fixed_pattern_dn'),
+            rng=_stream_rng(dp, 'fixed_pattern_dn'),
         )
         records['fixed_pattern'] = {**records.get('fixed_pattern', {}), **dn_record, 'active': True}
     if 'serial_tail' in modes:
@@ -412,7 +423,7 @@ def _apply_dark_ramp(
         # The RBI flavor enhances the columns read out above hot pixels; a seeded
         # set of columns stands in for that population so the flavor is stable
         # per seed and independent of the hot-pixel realization.
-        col_rng = _mode_rng(dp, 'dark_ramp_columns')
+        col_rng = _stream_rng(dp, 'dark_ramp_columns')
         n_cols = max(1, electrons.shape[1] // 32)
         hot_columns = col_rng.integers(0, electrons.shape[1], size=n_cols)
     return add_dark_ramp(
@@ -432,7 +443,7 @@ def _apply_bright_dark_pairs(
     ``expected_events_per_sec`` is a rate per second of exposure, so the frame's
     expected pair count is that rate times the exposure time.
     """
-    rng = _mode_rng(dp, 'bright_dark_pairs')
+    rng = _stream_rng(dp, 'bright_dark_pairs')
     expected = float(cfg['expected_events_per_sec']) * dp.exposure_sec
     count = int(rng.poisson(expected)) if expected > 0.0 else 0
     pool = _feature_pool(frame) if dp.artifacts_adversarial else None
@@ -467,7 +478,7 @@ def _apply_radiation_transients(
     expected = rate * environment * (exposure + dwell)
     amplitude = cfg.get('amplitude_e')
     amplitude_e = float(amplitude) if amplitude is not None else dp.full_well_e
-    rng = _mode_rng(dp, 'radiation_transients')
+    rng = _stream_rng(dp, 'radiation_transients')
     n_events = int(rng.poisson(expected)) if expected > 0.0 else 0
     deposit_morphological_events(
         electrons,
@@ -526,7 +537,7 @@ def _apply_vidicon(frame: SimFrame, dp: DetectorParams, rng: np.random.Generator
         events_per_pixel_per_sec=dp.cosmic_ray_events_per_pixel_per_sec,
         exposure_sec=dp.exposure_sec,
         amplitude_e=dp.full_well_dn,
-        rng=_stage_rng(dp.random_seed, 'cosmic_rays'),
+        rng=_stream_rng(dp, 'cosmic_rays'),
     )
     # The target holds at most its full-scale charge, so a hit saturates the
     # pixels it lands on.
@@ -542,7 +553,7 @@ def _apply_vidicon(frame: SimFrame, dp: DetectorParams, rng: np.random.Generator
     coherent_amp = float(vidicon.get('coherent_amplitude_dn', 0.0))
     coherent_period = float(vidicon.get('coherent_period_px', 0.0))
     if coherent_amp > 0.0 and coherent_period > 0.0:
-        phase = float(_stage_rng(dp.random_seed, 'vidicon_coherent').uniform(0.0, 2.0 * np.pi))
+        phase = float(_stream_rng(dp, 'vidicon_coherent').uniform(0.0, 2.0 * np.pi))
         cols = np.arange(size_u, dtype=np.float64)
         coherent = coherent_amp * np.sin(2.0 * np.pi * cols / coherent_period + phase)
         dn = dn + coherent[None, :]
@@ -560,7 +571,7 @@ def _apply_vidicon(frame: SimFrame, dp: DetectorParams, rng: np.random.Generator
             freq_step_factor=float(cfg.get('freq_step_factor', 1.0)),
             dark_step_dn=float(cfg.get('dark_step_dn', 0.0)),
             gain_e_per_dn=1.0,
-            rng=_mode_rng(dp, 'banding_coherent'),
+            rng=_stream_rng(dp, 'banding_coherent'),
         )
     if 'bias_structure' in modes:
         add_bias_structure(
@@ -568,7 +579,7 @@ def _apply_vidicon(frame: SimFrame, dp: DetectorParams, rng: np.random.Generator
             pedestal_sigma_dn=dp.bias_pedestal_sigma_dn,
             row_gradient_dn=dp.bias_row_gradient_dn,
             col_gradient_dn=dp.bias_col_gradient_dn,
-            rng=_stage_rng(dp.random_seed, 'bias_structure'),
+            rng=_stream_rng(dp, 'bias_structure'),
         )
     # The brightness-dependent beam bend warps the formed image before digitizing.
     if 'beam_bend' in modes:
@@ -660,7 +671,7 @@ def _subtract_calibration_residual(dn: NDArrayFloatType, dp: DetectorParams) -> 
         columns = native.reshape(size_u, b).sum(axis=1) * b
         dn -= columns[np.newaxis, :] * column_e / dp.gain_e_per_dn
     if pixel_e > 0.0:
-        rng = _stage_rng(dp.random_seed, 'calibration_residual')
+        rng = _stream_rng(dp, 'calibration_residual')
         dn -= rng.normal(0.0, pixel_e * b / dp.gain_e_per_dn, size=dn.shape)
 
 
@@ -713,6 +724,10 @@ def apply_detector(frame: SimFrame, *, params: Mapping[str, Any]) -> None:
     noise; the vidicon chain draws its line and pixel read noise.  The number of values
     drawn depends only on the frame's dimensions and the enabled terms, never on the
     signal.  Each structured sub-effect draws from its own ``detector/<effect>`` stream.
+    The per-frame streams derive from the scene's ``noise_seed`` when it sets one and
+    from its ``random_seed`` otherwise.  The fixed-pattern streams (hot pixels, the
+    fixed pattern, and the dark ramp's warm columns) and each artifact mode's
+    activation draw always derive from ``random_seed``.
 
     Parameters:
         frame: The frame whose signal plane is converted in place.
@@ -722,7 +737,7 @@ def apply_detector(frame: SimFrame, *, params: Mapping[str, Any]) -> None:
     dp = resolve_detector_params(params)
     # The stream carries the stage's own name and must never be renamed: it seeds the
     # shot and read noise of every committed scene that has them.
-    rng = np.random.default_rng(derive_effect_seed(dp.random_seed, 'detector'))
+    rng = np.random.default_rng(derive_effect_seed(dp.noise_seed, 'detector'))
     if dp.detector_model == 'vidicon':
         _apply_vidicon(frame, dp, rng)
     else:

@@ -616,7 +616,7 @@ error to the one effect it varies.
 
 **Seeding by name.** A stage is handed only the frame and the scene. Each stage
 derives every random stream it needs with
-:func:`spindoctor.sim.seeds.derive_effect_seed`, from the scene's single
+:func:`spindoctor.sim.seeds.derive_effect_seed`, from the scene's
 ``random_seed`` and a name that begins with the stage's prefix: ``scene_radiance``
 for scene radiance, ``optics`` for optics, ``detector`` for the detector, and
 ``telemetry`` for telemetry. Downsampling draws nothing. The detector's shot and
@@ -647,6 +647,21 @@ detector, and so the detector's shot noise, though the detector draws from the
 same stream. A stream name is part of the noise realization
 of every scene that uses it: renaming one reseeds those scenes and moves their
 committed renders, so a stream name must never change.
+
+A scene may also set ``noise_seed``, an integer from 0 to 2147483647, the range the
+scene editor offers. The detector's per-frame streams then derive from it in place of
+``random_seed``, under the same names.
+A real camera draws these again for every frame: the shot and read noise (``detector``),
+the cosmic rays, both kinds of banding, the bias structure, the calibrated product's
+per-pixel residual, the vidicon's coherent phase, the anti-blooming pairs, and the
+radiation transients. Everything else stays on ``random_seed``. That covers the scene
+itself (stars, surfaces, and spokes), the optics' distortion, the telemetry losses, and
+whether each artifact mode is active. It also covers the detector's fixed pattern, which
+a real camera shows in every frame: the hot pixels, the pattern the ``fixed_pattern``
+mode draws, and the warm columns of the ``dark_ramp`` mode. A new ``noise_seed``
+therefore renders the same scene on the same camera with a new draw of the noise. A
+scene that leaves the key out draws its noise from ``random_seed``. It renders exactly as
+it would with ``noise_seed`` set to that value, whenever the value is in the range above. The integration tests use the key to measure a check over several noise draws.
 
 **The driver.** :func:`spindoctor.sim.render.driver.render_scene` takes a
 scene and returns ``(image, metadata)``. It encodes the scene as
@@ -977,8 +992,8 @@ intensive signal passes through the electron unit chain in
 The stochastic and structured sub-effects (dark, hot pixels, banding, bias
 structure, cosmic rays) live in
 :mod:`~spindoctor.sim.render.detector.noise_stages`; the chain draws each one
-an independent RNG stream from the scene seed, so toggling one never perturbs
-another's realization. The deterministic signal-to-DN conversion always runs --
+an independent RNG stream seeded by name (see :ref:`sim-stage-pipeline`), so toggling
+one never perturbs another's realization. The deterministic signal-to-DN conversion always runs --
 it is what makes a DN frame -- while each stochastic sub-effect is a no-op when
 its gating amplitude, fraction, or rate is zero.
 
@@ -1893,6 +1908,15 @@ sweep may set ``ensemble_seeds: N`` to replicate every point across N seeds (the
 geometry fixed, the noise and confounders redrawn) so a point becomes a
 population rather than a single realization.
 
+``test_sim_sweeps`` holds each check to one of two kinds of bound. A check that holds on
+every noise draw is a single-draw tripwire on the scene's own draw, and its docstring
+records the spread measured over other draws. A check whose outcome moves with the noise
+is asserted on a population: the sweep runs on the scene's own draw and on four more,
+each with ``noise_seed`` set, so only the detector noise changes between them. Each
+population bound was measured over 25 draws and holds for every choice of 5 of them.
+The population of irregular shapes is asserted the same way, in
+``test_sim_irregularity_population``.
+
 A *model-mismatch* sweep uses this harness to characterize one render-vs-navigate
 disagreement. Each starts from a **self-consistency floor** -- the value at which
 the rendered image equals the navigator's own model, so the floor point measures
@@ -2317,10 +2341,11 @@ navigates and states the rule in the scene file, its single-seed assertions are
 a tripwire on that realization, and any property claimed for irregular bodies in
 general is asserted over a population of seeds. ``planted_offset_shapemismatch``
 takes the seed with the median silhouette mismatch at its sweep's extreme step,
-and ``test_sim_sweeps`` asserts the veto's behavior over mesh seeds 0 to 12. The
-rule is ``tests/integration/sim_mesh_seed_rule.py``, which prints the ranking
-when run with ``python -m``, and ``test_sim_mesh_seed_rule`` fails when a change
-to the relief or the renderer moves the median away from the scene's seed.
+and ``test_sim_irregularity_population`` asserts the veto's behavior over mesh seeds
+0 to 12 on five noise draws. The rule is ``tests/integration/sim_mesh_seed_rule.py``,
+which prints the ranking when run with ``python -m``, and ``test_sim_mesh_seed_rule``
+fails when a change to the relief or the renderer moves the median away from the
+scene's seed.
 
 Faceting is a sampling effect. At the default 16 by 32 tessellation a large body
 shows rings of flat-shaded quadrilaterals around the mesh pole and a polygonal
@@ -3172,6 +3197,13 @@ inside a mode's map may be null and takes its default.
      - required
      - truth
      - Scene seed; per-stage and per-effect sub-seeds derive from it.
+   * - ``noise_seed``
+     - int
+     - ``random_seed``
+     - truth
+     - Seed for the detector's per-frame noise alone; the scene, the telemetry losses,
+       the fixed pattern, and the artifact-mode activations stay on ``random_seed``
+       (see :ref:`sim-stage-pipeline`).
    * - ``exposure_sec``
      - float
      - 1.0

@@ -11,9 +11,9 @@ sweep_name: pose_disagreement
 # silhouette happens to re-align with the predicted boundary there (on this
 # noise draw the error dips to 0.83 px at 65 deg and 1.00 px at 70 deg, and the
 # fit fails at 75, 85, 95, and 100 deg), which characterizes the mesh, not the
-# degradation mechanism the sweep exists to show.  The 90 deg step fails too,
-# and on this noise draw so does the 45 deg step; the walk keeps both as failed
-# points.
+# degradation mechanism the sweep exists to show.  On this noise draw the 45 and
+# 90 deg steps fail too; over 25 noise draws the limb flags the 45 deg step on 7,
+# the 90 deg step on 22, and the 110 deg step on 2.  The walk keeps every step.
 base_scene: phase_sweep_irregular_body/hyperion_pose_disagree.yaml
 parameters: [bodies.0.nav_override.pose_euler_deg.1]
 values: [35.0, 45.0, 55.0, 90.0, 110.0]

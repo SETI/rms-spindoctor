@@ -1559,8 +1559,9 @@ what belongs to one realization (2026-11-17 measurement, one noise draw):
 
   .. The veto gap is tracked as issue #790.
 
-``test_sim_sweeps`` asserts these population properties over the 13 seeds and
-keeps the single-seed walk as a tripwire on its realization.
+``test_sim_irregularity_population`` asserts these population properties over the 13
+seeds, and ``test_sim_sweeps`` keeps the single-seed walk as a tripwire on its
+realization.
 
 The seed-20260718 calibration campaign renders every irregular body at
 ``mesh_lumpiness`` = 3 x its published ellipsoid residual over its mean radius
