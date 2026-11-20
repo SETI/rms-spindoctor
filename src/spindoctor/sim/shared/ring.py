@@ -2,7 +2,7 @@
 
 The image-side ring-system renderer (``spindoctor.sim.render.rings.render``)
 and the navigator-side predicted-ring renderer
-(``spindoctor.nav_model.simulated.predict_ring`` plus
+(``spindoctor.nav_model.simulated.predicted_ring`` plus
 ``spindoctor.nav_model.simulated.rings``) must place a feature
 edge at byte-identical pixel positions: the same true-anomaly convention,
 the same pericenter precession, the same m-mode and edge-wave forms, and

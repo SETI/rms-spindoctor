@@ -229,7 +229,7 @@ doesn't match. Its models and the ring renderer live under
 ``nav_model/simulated/`` so the package layout states who owns them.
 The shared :func:`~spindoctor.sim.shared.ellipsoid.render_lambert_ellipsoid` draws the
 predicted template of an ellipsoid body, and
-:mod:`spindoctor.nav_model.simulated.predict_ring` draws the
+:mod:`spindoctor.nav_model.simulated.predicted_ring` draws the
 predicted rings. :class:`~spindoctor.nav_model.simulated.body.NavModelBodySimulated`
 and :class:`~spindoctor.nav_model.simulated.rings.NavModelRingsSimulated` emit those
 templates as features. A ``polyhedral_mesh`` body is drawn by

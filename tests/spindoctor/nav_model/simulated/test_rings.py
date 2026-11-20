@@ -14,7 +14,7 @@ import pytest
 
 from spindoctor.feature.composition import compose_template_features
 from spindoctor.feature.geometry import RingEdgePolyline
-from spindoctor.nav_model.simulated.predict_ring import predict_ring_feature
+from spindoctor.nav_model.simulated.predicted_ring import create_predicted_ring_feature
 from spindoctor.nav_model.simulated.rings import NavModelRingsSimulated
 from spindoctor.nav_orchestrator.nav_context import NavContext
 from spindoctor.obs.obs_inst_sim import ObsSim
@@ -427,7 +427,7 @@ def _predicted_radii(feature: dict[str, Any]) -> list[Any]:
     Returns:
         One array of vertex radii per predicted edge, in prediction order.
     """
-    prediction = predict_ring_feature((_SIZE, _SIZE), feature, **_RING_GRID)
+    prediction = create_predicted_ring_feature((_SIZE, _SIZE), feature, **_RING_GRID)
     center = np.array([_RING_GRID['center_v'], _RING_GRID['center_u']])
     return [np.hypot(*(edge.vertices_vu - center).T) for edge in prediction.edges]
 
@@ -445,7 +445,7 @@ def test_a_ramp_with_a_null_side_predicts_its_default_outer_edge() -> None:
         'side': None,
         'orbit': {'a_px': 60.0, 'ae_px': 0.0, 'long_peri_deg': 0.0},
     }
-    prediction = predict_ring_feature((_SIZE, _SIZE), ramp, **_RING_GRID)
+    prediction = create_predicted_ring_feature((_SIZE, _SIZE), ramp, **_RING_GRID)
     assert [edge.edge_type for edge in prediction.edges] == ['outer']
     (radii,) = _predicted_radii(ramp)
     np.testing.assert_allclose(radii, 80.0, atol=1.5)

@@ -178,8 +178,8 @@ Implementation
 
 Source files: ``src/spindoctor/nav_model/simulated/rings.py`` holds
 :class:`~spindoctor.nav_model.simulated.rings.NavModelRingsSimulated`, and
-``src/spindoctor/nav_model/simulated/predict_ring.py`` holds the prediction,
-:func:`~spindoctor.nav_model.simulated.predict_ring.predict_ring_feature`.
+``src/spindoctor/nav_model/simulated/predicted_ring.py`` holds the prediction,
+:func:`~spindoctor.nav_model.simulated.predicted_ring.create_predicted_ring_feature`.
 
 The class derives from :class:`~spindoctor.nav_model.nav_model_rings_base.NavModelRingsBase`.
 It overrides :meth:`~spindoctor.nav_model.nav_model.NavModel.instances_for_obs` to return one
@@ -211,8 +211,9 @@ Call path
 
 1. Opens a logged section and reads the feature's mapping and the shared ``geometry``
    block. It shifts the projected center by the extended-FOV margins.
-2. Calls :func:`~spindoctor.nav_model.simulated.predict_ring.predict_ring_feature`. That
-   function builds the pixel grid in pixel-corner coordinates, projects it to ring-plane
+2. Calls
+   :func:`~spindoctor.nav_model.simulated.predicted_ring.create_predicted_ring_feature`.
+   That function builds the pixel grid in pixel-corner coordinates, projects it to ring-plane
    :math:`(r, \lambda)` with :func:`~spindoctor.sim.shared.ring.ring_plane_from_sky`, and
    evaluates the orbit with :func:`~spindoctor.sim.shared.ring.compute_orbit_radii`. It
    then rasterizes the coverage template and one border mask per edge, with each vertex's

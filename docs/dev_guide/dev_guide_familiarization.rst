@@ -370,7 +370,7 @@ sibling of each model family. These are used both by
   - :mod:`spindoctor.sim.seeds`
   - :mod:`spindoctor.sim.png_export`
 
-- :mod:`spindoctor.nav_model.simulated.predict_ring` — the navigator-side
+- :mod:`spindoctor.nav_model.simulated.predicted_ring` — the navigator-side
   predicted-ring renderer the simulated ring model drives. The simulated body model
   draws its predicted ellipsoid with the shared
   :func:`~spindoctor.sim.shared.ellipsoid.render_lambert_ellipsoid`.

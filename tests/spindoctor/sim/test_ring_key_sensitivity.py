@@ -20,7 +20,7 @@ from typing import Any
 import numpy as np
 import pytest
 
-from spindoctor.nav_model.simulated.predict_ring import predict_ring_feature
+from spindoctor.nav_model.simulated.predicted_ring import create_predicted_ring_feature
 from spindoctor.sim.render.driver import render_scene
 from spindoctor.sim.scene.boundary import build_nav_params
 from spindoctor.sim.scene.validate import validate_sim_params
@@ -172,7 +172,7 @@ def _predictions(scene: dict[str, Any]) -> list[NDArrayBoolType]:
     geometry = nav['ring_system']['geometry']
     masks: list[NDArrayBoolType] = []
     for feature in nav['ring_system']['features']:
-        prediction = predict_ring_feature(
+        prediction = create_predicted_ring_feature(
             (_SIZE, _SIZE),
             feature,
             center_v=geometry['center_v'],

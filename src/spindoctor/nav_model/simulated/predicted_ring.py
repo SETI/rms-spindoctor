@@ -39,7 +39,7 @@ from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 __all__ = [
     'RingEdgePredicted',
     'RingFeaturePredicted',
-    'predict_ring_feature',
+    'create_predicted_ring_feature',
 ]
 
 # Half-steps of the central differences that measure an edge's sensitivity to
@@ -225,7 +225,7 @@ def _edge_from_diff(
     )
 
 
-def predict_ring_feature(
+def create_predicted_ring_feature(
     shape: tuple[int, int],
     feature: dict[str, Any],
     *,
