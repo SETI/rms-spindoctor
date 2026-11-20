@@ -34,6 +34,7 @@ from spindoctor.sim.render.bodies.ellipsoid import (
 from spindoctor.sim.render.bodies.ellipsoid_grid import CraterPlane
 from spindoctor.sim.render.bodies.mesh import render_single_mesh_body
 from spindoctor.sim.render.bodies.placement import (
+    PARTIAL_DRAWINGS_KEPT,
     BodyCanvas,
     body_canvas,
     finish_single_body,
@@ -75,19 +76,20 @@ def _render_ellipsoid_shape_cached(
     return render_ellipsoid_body((size_v, size_u), _reference_center(size_v, size_u), spec)
 
 
-@lru_cache(maxsize=1)
+@lru_cache(maxsize=PARTIAL_DRAWINGS_KEPT)
 def _render_partial_ellipsoid_cached(
     shape: tuple[int, int],
     center: tuple[float, float],
     crater_plane: CraterPlane | None,
     spec: EllipsoidBodySpec,
 ) -> EllipsoidBodyRender:
-    """Cache the last ellipsoid body drawn on a canvas reaching past the frame.
+    """Cache the last ellipsoid bodies drawn on a canvas reaching past the frame.
 
-    Such a canvas changes whenever the body moves, so an offset sweep never reuses
-    one; a cache as large as the frame-sized one would fill with drawings, each
-    about the size of the frame.  One entry still serves a body drawn twice at one
-    position, as the radiance stage does for a scene that smears each layer apart.
+    The cache keeps
+    :data:`~spindoctor.sim.render.bodies.placement.PARTIAL_DRAWINGS_KEPT` drawings,
+    enough for a scene with a few such bodies, each drawn twice when the scene
+    smears each layer apart, and few enough that an offset sweep, which never reuses
+    one, holds little memory.
     """
     return render_ellipsoid_body(shape, center, spec, crater_plane=crater_plane)
 

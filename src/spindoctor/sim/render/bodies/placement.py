@@ -27,13 +27,30 @@ from spindoctor.sim.render.bodies.atmosphere import HaloScreen
 from spindoctor.sim.render.bodies.translate import nonzero_box, shifted_box, translate_box
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 
-__all__ = ['BodyCanvas', 'body_canvas', 'finish_single_body', 'finish_unseen_body']
+__all__ = [
+    'PARTIAL_DRAWINGS_KEPT',
+    'BodyCanvas',
+    'body_canvas',
+    'finish_single_body',
+    'finish_unseen_body',
+]
 
 # Detector pixels a canvas keeps beyond the part of the body the frame reads.  The
 # relief tilt is interpolated by a cubic spline, whose end conditions reach into a
 # canvas by a fraction 0.27 per pixel, so 8 pixels hold their effect on the frame
 # below 3e-5 of the tilt.
 _CANVAS_MARGIN_DETECTOR_PX = 8
+
+
+PARTIAL_DRAWINGS_KEPT = 4
+"""How many drawings on a canvas reaching past the frame a body renderer keeps.
+
+Such a canvas changes whenever the body moves, so an offset sweep never reuses a
+drawing, and the cache holds at most this many, each about the size of the frame.
+The radiance stage draws every body twice for a scene that smears each layer apart,
+once for the composite and once for the layers, so a scene with up to four bodies
+this large draws each of them once.
+"""
 
 
 @dataclass(frozen=True)
