@@ -16,8 +16,11 @@ order chosen to mirror image formation:
    focal-plane image (internal reflections).
 5. **Stray light** adds the smooth scattered-light background last.
 
-The distortion, the PSF, the ghosts, and the stray light belong to the camera, so a
-planted roll leaves them where the scene puts them on the detector.
+The distortion, the PSF, the ghosts, and the radial stray-light bump belong to the
+camera, so a planted roll leaves them where the scene puts them on the detector.  A
+linear stray-light ramp rises toward a bright source beyond the field of view, and a
+roll turns that source's direction on the detector, so the ramp's direction turns
+with the roll.
 
 A stage whose scene block is absent contributes nothing.  Only the distortion
 non-radial field draws randomness, from its own stream ``optics/distortion``
@@ -200,15 +203,11 @@ def apply_optics(frame: SimFrame, *, params: Mapping[str, Any]) -> None:
     """
     optics = params.get('optics') or {}
     oversample = int(frame.oversample)
+    roll_deg = float(params.get('offset_rotation_deg', 0.0))
 
     smear = optics.get('smear')
     if smear:
-        apply_smear(
-            frame,
-            smear=smear,
-            oversample=oversample,
-            roll_deg=float(params.get('offset_rotation_deg', 0.0)),
-        )
+        apply_smear(frame, smear=smear, oversample=oversample, roll_deg=roll_deg)
 
     # The residual warp moves light by under a pixel for most cameras, which the
     # editor's preview can't show, and it is one of the slowest optics steps.
@@ -247,10 +246,13 @@ def apply_optics(frame: SimFrame, *, params: Mapping[str, Any]) -> None:
             center_v = float(center_v) * oversample - PIXEL_CENTER_TO_CORNER_PX
         if center_u is not None:
             center_u = float(center_u) * oversample - PIXEL_CENTER_TO_CORNER_PX
+        # The linear ramp rises toward a bright source beyond the field of view, so a
+        # planted roll turns its direction; the radial bump is centered by the optics
+        # and stays put.
         apply_stray_light(
             frame.signal,
             amplitude=float(scene_value(stray, 'amplitude', 0.0)),
-            direction_deg=float(scene_value(stray, 'direction_deg', 0.0)),
+            direction_deg=float(scene_value(stray, 'direction_deg', 0.0)) + roll_deg,
             model=str(scene_value(stray, 'model', 'linear')),
             center_v=center_v,
             center_u=center_u,

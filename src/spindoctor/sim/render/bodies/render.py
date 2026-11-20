@@ -13,7 +13,7 @@ the smooth Lambert ellipsoid).
 """
 
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from functools import lru_cache
 from typing import Any
 
@@ -65,15 +65,18 @@ def _reference_center(size_v: int, size_u: int) -> tuple[float, float]:
 
 @lru_cache(maxsize=30)
 def _render_ellipsoid_shape_cached(
-    size_v: int, size_u: int, spec: EllipsoidBodySpec
+    size_v: int, size_u: int, crater_plane: CraterPlane | None, spec: EllipsoidBodySpec
 ) -> EllipsoidBodyRender:
     """Cache ellipsoid body shapes drawn on the frame at the reference center.
 
     The frozen spec is the cache key, so bodies differing in any geometry,
     texture, relief, or photometry knob occupy distinct entries; the caller
-    translates the shape and its silhouette into place.
+    translates the shape and its silhouette into place.  The crater plane is None
+    except for a cratered body turned by a planted roll.
     """
-    return render_ellipsoid_body((size_v, size_u), _reference_center(size_v, size_u), spec)
+    return render_ellipsoid_body(
+        (size_v, size_u), _reference_center(size_v, size_u), spec, crater_plane=crater_plane
+    )
 
 
 @lru_cache(maxsize=PARTIAL_DRAWINGS_KEPT)
@@ -240,14 +243,29 @@ def _render_single_ellipsoid_body(
     # The silhouette comes back separately from the radiance: a transit umbra or a
     # zero-albedo spot renders black but still belongs to the body.
     ellipsoid_spec = _ellipsoid_spec(spec, seeds, oversample=oversample)
+    crater_canvas = canvas
+    if spec.roll_deg != 0.0 and spec.crater_fill > 0.0:
+        # A rolled body lays its craters out where the unrolled body lays them, on
+        # the unrolled body's frame or plane, and then turns them.
+        unrolled_reach = _ellipsoid_reach(
+            replace(spec, rotation_z=spec.rotation_z + spec.roll_deg),
+            atmosphere_spec,
+            relief_seed=seeds.relief_seed,
+        )
+        crater_canvas = body_canvas(
+            (size_v, size_u),
+            center_v=center_v,
+            center_u=center_u,
+            reach_v=unrolled_reach[0],
+            reach_u=unrolled_reach[1],
+            oversample=oversample,
+        )
+    crater_plane = _crater_plane(canvas, crater_canvas, spec, oversample=oversample)
     ellipsoid_render = (
-        _render_ellipsoid_shape_cached(size_v, size_u, ellipsoid_spec)
+        _render_ellipsoid_shape_cached(size_v, size_u, crater_plane, ellipsoid_spec)
         if canvas.on_frame
         else _render_partial_ellipsoid_cached(
-            canvas.shape,
-            canvas.center,
-            _crater_plane(canvas, spec, oversample=oversample),
-            ellipsoid_spec,
+            canvas.shape, canvas.center, crater_plane, ellipsoid_spec
         )
     )
     body_shape, halo = _apply_body_atmosphere(
@@ -268,30 +286,37 @@ def _render_single_ellipsoid_body(
     )
 
 
-def _crater_plane(canvas: BodyCanvas, spec: BodySpec, *, oversample: int) -> CraterPlane | None:
-    """The detector grid a partly drawn body's craters are laid out on.
+def _crater_plane(
+    canvas: BodyCanvas, crater_canvas: BodyCanvas, spec: BodySpec, *, oversample: int
+) -> CraterPlane | None:
+    """The detector grid a body's craters are laid out on, when it is not the canvas.
+
+    A body drawn on the frame lays its craters out on the frame, and a partly drawn
+    body on the plane its canvas holds the whole body in.  A body turned by a planted
+    roll lays them out where the unrolled body does, on the unrolled body's frame or
+    plane, which need not be its own; its plane is always given.
 
     Parameters:
         canvas: The body's canvas.
-        spec: The body (its crater fill is read).
+        crater_canvas: The canvas whose frame or plane the craters are laid out on:
+            ``canvas``, or the unrolled body's canvas for a rolled body.
+        spec: The body (its crater fill and roll are read).
         oversample: The render grid's oversampling factor.
 
     Returns:
-        The crater plane in detector pixels, or None for a body drawn on the frame
-        or without craters, whose craters are laid out on the canvas itself.
+        The crater plane in detector pixels, or None for an unrolled body drawn on the
+        frame or a body without craters, whose craters are laid out on the canvas
+        itself.
     """
-    if canvas.on_frame or spec.crater_fill <= 0.0:
+    if spec.crater_fill <= 0.0 or (canvas.on_frame and spec.roll_deg == 0.0):
         return None
+    # The plane of a body drawn on the frame is the frame.
+    rows = crater_canvas.plane_rows
+    cols = crater_canvas.plane_cols
     step = max(1, int(oversample))
     return CraterPlane(
-        shape=(
-            (canvas.plane_rows.stop - canvas.plane_rows.start) // step,
-            (canvas.plane_cols.stop - canvas.plane_cols.start) // step,
-        ),
-        origin=(
-            (canvas.rows.start - canvas.plane_rows.start) // step,
-            (canvas.cols.start - canvas.plane_cols.start) // step,
-        ),
+        shape=((rows.stop - rows.start) // step, (cols.stop - cols.start) // step),
+        origin=((canvas.rows.start - rows.start) // step, (canvas.cols.start - cols.start) // step),
     )
 
 

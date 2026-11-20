@@ -24,8 +24,10 @@ subtracts from both.  A mesh body's pose is ``Rz @ Ry @ Rx`` in camera axes orde
 subtracts from it too.
 
 The camera's own optics stay where they are: the PSF, the distortion, the ghosts,
-and the stray light belong to the detector rather than the field of view.  Motion
-smear is the scene drifting across the detector, so it turns.
+and the radial stray-light bump belong to the detector rather than the field of
+view.  Motion smear is the scene drifting across the detector, so it turns, and a
+linear stray-light ramp rises toward a bright source beyond the field of view, so
+its direction turns too.
 
 Only the image side reads this module.  The roll is a truth key, so the navigator
 never learns it.

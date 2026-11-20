@@ -532,7 +532,11 @@ def _roll_sky_stars(
     density are drawn over a square about the frame center, wide enough to hold the
     frame at any angle, from their own stream, and those that fall outside the
     frame are added.  Every star then turns about the frame center, so the rolled
-    sky is the unrolled sky turned with the frame.
+    sky is the unrolled sky turned with the frame.  The stars the turn leaves in the
+    frame are kept, by the rule the unrolled draw follows: a star is drawn only when
+    its position lies in the frame.  So a star just outside the frame lights no edge
+    pixel, and a roll too small to carry any star across the frame edge draws the
+    unrolled frame's stars and no others, each moved by the roll alone.
 
     Parameters:
         frame_stars: The frame's stars, as magnitudes and pixel centric v and u
@@ -545,7 +549,8 @@ def _roll_sky_stars(
         rotation_deg: The roll in degrees, from ``+v`` toward ``+u``.
 
     Returns:
-        The magnitudes and turned pixel centric v and u positions of every star.
+        The magnitudes and turned pixel centric v and u positions of the stars in the
+        frame.
     """
     size_v, size_u = size
     side = math.hypot(size_v, size_u)
@@ -572,11 +577,17 @@ def _roll_sky_stars(
     roll = math.radians(rotation_deg)
     cos_r = math.cos(roll)
     sin_r = math.sin(roll)
-    return (
-        all_mags,
-        pivot_v + cos_r * rel_v - sin_r * rel_u,
-        pivot_u + sin_r * rel_v + cos_r * rel_u,
+    turned_v = pivot_v + cos_r * rel_v - sin_r * rel_u
+    turned_u = pivot_u + sin_r * rel_v + cos_r * rel_u
+    # The frame spans ``[-half, size - half)`` pixel centric, as the unrolled draw.
+    half = PIXEL_CENTER_TO_CORNER_PX
+    in_frame = (
+        (turned_v >= -half)
+        & (turned_v < size_v - half)
+        & (turned_u >= -half)
+        & (turned_u < size_u - half)
     )
+    return all_mags[in_frame], turned_v[in_frame], turned_u[in_frame]
 
 
 def render_sky_counts(

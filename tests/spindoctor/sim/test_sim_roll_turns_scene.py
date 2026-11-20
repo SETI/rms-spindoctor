@@ -7,12 +7,15 @@ A +90 degree roll maps the pixel lattice onto itself, so most tests here compare
 rolled render with ``np.rot90(unrolled, 1)``, the quarter turn the ring and star roll
 tests in ``test_sim_rotation.py`` pin as the sense of a positive roll.  Each case holds
 one directional quantity, and each fixture differs from its own half turn, so a
-quantity that does not turn, or turns the other way, fails the comparison.
+quantity that does not turn fails the comparison, and so does one that turns the other
+way unless the quantity itself looks the same after a half turn.
 
-An ellipsoid looks the same after a half turn, so a quarter turn checks where an
-elongated ellipsoid lands and the line its long axis lies on, but cannot tell which
-way its orientation turned.  A 30 degree roll of its outline settles that, and so do
-the cases with surface detail, which a half turn does change.
+Three quantities do look the same after a half turn: an ellipsoid's outline, and a
+smear track, whether a star's own or the optics block's, each a segment centered on
+where the light would rest.  For them a quarter turn checks the line they lie on but
+cannot tell which way they turned, so a 30 degree roll of each settles the sense.  The
+cases with surface detail settle it for an ellipsoid's orientation too, since a half
+turn does change them.
 
 The renders agree to within one DN.  They agree exactly when measured, but a quarter
 turn computed in floating point puts a coordinate a few units in the last place off
@@ -25,6 +28,7 @@ from typing import Any
 
 import numpy as np
 import pytest
+from scipy import ndimage
 from tests.spindoctor.sim.scenes import disc_body, frame_scene, quiet_noise, star_entry
 
 from spindoctor.sim.render.driver import render_scene
@@ -33,10 +37,8 @@ from spindoctor.support.types import NDArrayFloatType
 _SIZE = 96
 _CENTER = _SIZE / 2.0
 _DN_TOLERANCE = 1.0
-# The sky field keeps this many pixels clear of the frame edge out of its comparison:
-# a rolled frame also shows the stars just beyond its edge, whose light reaches the
-# outermost pixels, and the unrolled frame draws none there.
-_SKY_EDGE_PX = 3
+# How far inside each corner triangle a 45 degree roll uncovers the corner test reads.
+_CORNER_MARGIN_PX = 3.0
 
 
 def _scene(roll_deg: float, **blocks: Any) -> dict[str, Any]:
@@ -204,7 +206,7 @@ def _transit_sphere() -> dict[str, Any]:
 
 
 def _hazy_sphere() -> dict[str, Any]:
-    """A sphere at the frame center with a tilted, clouded, ramped haze, lit from the side."""
+    """A side-lit sphere at the frame center under a tilted, clouded, ramped haze."""
     return {
         'bodies': [
             disc_body(
@@ -253,11 +255,41 @@ def _scene_smear() -> dict[str, Any]:
     }
 
 
+def _large_cratered_ellipsoid() -> dict[str, Any]:
+    """A fully lit cratered ellipsoid larger than the frame, drawn on a canvas past it.
+
+    Rolled and unrolled, the body reaches past the frame edge, so both lay their
+    craters out on a plane holding the whole body, and the two planes differ.
+    """
+    return {
+        'bodies': [
+            {
+                'name': 'B',
+                'center_v': 40.0,
+                'center_u': 58.0,
+                'semi_a_px': 70.0,
+                'semi_b_px': 44.0,
+                'semi_c_px': 44.0,
+                'rotation_z': 25.0,
+                'phase_angle': 0.0,
+                'crater_fill': 0.4,
+                'crater_max_radius': 0.1,
+            }
+        ]
+    }
+
+
+def _stray_light_ramp() -> dict[str, Any]:
+    """A linear stray-light ramp rising toward a source beyond the frame."""
+    return {'optics': {'stray_light': {'amplitude': 0.3, 'direction_deg': 30.0, 'model': 'linear'}}}
+
+
 _QUARTER_TURN_CASES: dict[str, Callable[[], dict[str, Any]]] = {
     'ellipsoid_orientation': _elongated_ellipsoid,
     'lit_side': _half_lit_sphere,
     'mesh_pose': _mesh_body,
     'craters': _cratered_ellipsoid,
+    'craters_on_canvas': _large_cratered_ellipsoid,
     'relief': _relief_sphere,
     'albedo_texture': _textured_sphere,
     'disc_texture': _banded_sphere,
@@ -267,6 +299,7 @@ _QUARTER_TURN_CASES: dict[str, Callable[[], dict[str, Any]]] = {
     'companion': _star_with_companion,
     'catalog_error': _star_with_catalog_error,
     'scene_smear': _scene_smear,
+    'stray_light_ramp': _stray_light_ramp,
 }
 
 
@@ -304,10 +337,19 @@ def test_quarter_roll_turns_the_sky_field() -> None:
     """A +90 degree roll renders the unrolled sky field turned a quarter turn."""
     unrolled = _render(0.0, _dense_sky())
     rolled = _render(90.0, _dense_sky())
-    inner = slice(_SKY_EDGE_PX, _SIZE - _SKY_EDGE_PX)
-    turned = np.rot90(unrolled, 1)
-    assert np.abs(unrolled - np.rot90(unrolled, 2))[inner, inner].max() > _DN_TOLERANCE
-    assert np.abs(rolled - turned)[inner, inner].max() <= _DN_TOLERANCE
+    assert np.abs(unrolled - np.rot90(unrolled, 2)).max() > _DN_TOLERANCE
+    assert np.abs(rolled - np.rot90(unrolled, 1)).max() <= _DN_TOLERANCE
+
+
+def test_negligible_roll_leaves_the_sky_field() -> None:
+    """A roll too small to carry a star across the frame edge leaves the sky as it was.
+
+    The stars drawn beyond the unrolled frame for the turn must not light the frame's
+    outermost pixels.
+    """
+    unrolled = _render(0.0, _dense_sky())
+    rolled = _render(1e-9, _dense_sky())
+    assert np.abs(rolled - unrolled).max() <= _DN_TOLERANCE
 
 
 def test_rolled_sky_field_fills_the_corners() -> None:
@@ -319,7 +361,7 @@ def test_rolled_sky_field_fills_the_corners() -> None:
     rolled = _render(45.0, _dense_sky())
     background = float(np.median(_render(45.0, {})))
     vv, uu = np.mgrid[0:_SIZE, 0:_SIZE]
-    corner_reach = _SIZE / 4.0 - _SKY_EDGE_PX
+    corner_reach = _SIZE / 4.0 - _CORNER_MARGIN_PX
     corner_sums = []
     for corner_v, corner_u in ((0, 0), (0, _SIZE), (_SIZE, 0), (_SIZE, _SIZE)):
         in_corner = np.abs(vv + 0.5 - corner_v) + np.abs(uu + 0.5 - corner_u) < corner_reach
@@ -352,6 +394,11 @@ def _long_axis_deg(img: NDArrayFloatType) -> float:
 
 _ROLL_DEG = 30.0
 _ANGLE_TOLERANCE_DEG = 0.1
+# The rolled and turned crater light correlate at 0.944 after both are smoothed by a
+# one-pixel Gaussian, which hides the resampling of the 45 degree turn; craters laid
+# out on the rolled body's own frame correlate at 0.262, and unturned ones at 0.205.
+_CRATER_SMOOTH_PX = 1.0
+_CRATER_MATCH = 0.8
 
 
 def test_roll_turns_the_lit_side_by_the_roll() -> None:
@@ -365,8 +412,17 @@ def test_roll_turns_the_lit_side_by_the_roll() -> None:
     assert abs((turned + 180.0) % 360.0 - 180.0 - _ROLL_DEG) < _ANGLE_TOLERANCE_DEG
 
 
+def _axis_turn_deg(blocks: dict[str, Any]) -> float:
+    """How far a 30 degree roll turns the long axis of the light in ``blocks``.
+
+    An axis is a line, so the turn is reduced to the half turn about zero.
+    """
+    turn = _long_axis_deg(_render(_ROLL_DEG, blocks)) - _long_axis_deg(_render(0.0, blocks))
+    return (turn + 90.0) % 180.0 - 90.0
+
+
 def test_roll_turns_an_ellipsoid_outline_by_the_roll() -> None:
-    """A 30 degree roll turns a fully lit elongated ellipsoid's long axis by 30 degrees."""
+    """A 30 degree roll turns a fully lit ellipsoid's long axis by 30 degrees."""
     body = {
         'name': 'B',
         'center_v': _CENTER,
@@ -376,6 +432,86 @@ def test_roll_turns_an_ellipsoid_outline_by_the_roll() -> None:
         'semi_c_px': 12.0,
         'phase_angle': 0.0,
     }
-    blocks = {'bodies': [body]}
-    turned = _long_axis_deg(_render(_ROLL_DEG, blocks)) - _long_axis_deg(_render(0.0, blocks))
-    assert abs(turned - _ROLL_DEG) < _ANGLE_TOLERANCE_DEG
+    assert abs(_axis_turn_deg({'bodies': [body]}) - _ROLL_DEG) < _ANGLE_TOLERANCE_DEG
+
+
+def test_roll_turns_a_star_smear_track_by_the_roll() -> None:
+    """A 30 degree roll turns a star's own smear track by 30 degrees.
+
+    The star sits at the frame center, so the roll moves it nowhere and turns only
+    its track.
+    """
+    star = star_entry(_CENTER, _CENTER, 2.0, psf_sigma=1.0, move_v=4.0, move_u=14.0)
+    assert abs(_axis_turn_deg({'stars': [star]}) - _ROLL_DEG) < _ANGLE_TOLERANCE_DEG
+
+
+def test_roll_turns_the_optics_smear_by_the_roll() -> None:
+    """A 30 degree roll turns the optics block's whole-scene smear by 30 degrees."""
+    blocks = {
+        'stars': [star_entry(_CENTER, _CENTER, 2.0, psf_sigma=1.0)],
+        'optics': {'smear': [{'dv_px': 4.0, 'du_px': 14.0, 'object_class': 'all'}]},
+    }
+    assert abs(_axis_turn_deg(blocks) - _ROLL_DEG) < _ANGLE_TOLERANCE_DEG
+
+
+def _crater_light(roll_deg: float, body: dict[str, Any]) -> NDArrayFloatType:
+    """The light the craters of ``body`` add or take away at ``roll_deg``."""
+    smooth = {**body, 'crater_fill': 0.0}
+    return _render(roll_deg, {'bodies': [body]}) - _render(roll_deg, {'bodies': [smooth]})
+
+
+def test_roll_turns_the_craters_of_a_body_only_one_render_fits() -> None:
+    """A rolled body carries the unrolled body's craters turned, though only it fits.
+
+    Unrolled, the long body reaches past the frame edge and is drawn on a canvas past
+    it, laying its craters out on a plane holding the whole body; turned 45 degrees it
+    fits in the frame.  The light the craters change in the rolled frame must match
+    that light in the unrolled frame turned 45 degrees about the frame center.  A
+    different draw of craters matches it no better than chance.
+    """
+    body = {
+        'name': 'B',
+        'center_v': _CENTER,
+        'center_u': _CENTER,
+        'semi_a_px': 56.0,
+        'semi_b_px': 14.0,
+        'semi_c_px': 14.0,
+        'phase_angle': 0.0,
+        'crater_fill': 0.4,
+        'crater_max_radius': 0.15,
+    }
+    turned = ndimage.rotate(_crater_light(0.0, body), 45.0, reshape=False, order=1)
+    unrolled = ndimage.gaussian_filter(turned, _CRATER_SMOOTH_PX)
+    rolled = ndimage.gaussian_filter(_crater_light(45.0, body), _CRATER_SMOOTH_PX)
+    assert np.corrcoef(unrolled.ravel(), rolled.ravel())[0, 1] > _CRATER_MATCH
+
+
+_CAMERA_OPTICS: dict[str, dict[str, Any]] = {
+    'radial_stray_light': {
+        'optics': {
+            'stray_light': {
+                'amplitude': 0.3,
+                'model': 'radial',
+                'center_v': 30.0,
+                'center_u': 60.0,
+            }
+        }
+    },
+    'ghost': {
+        'stars': [star_entry(_CENTER, _CENTER, 2.0, psf_sigma=1.0)],
+        'optics': {'ghosts': [{'amplitude': 0.2, 'dv_px': 10.0, 'du_px': 25.0}]},
+    },
+}
+
+
+@pytest.mark.parametrize('blocks', list(_CAMERA_OPTICS.values()), ids=list(_CAMERA_OPTICS))
+def test_roll_leaves_the_camera_optics_in_place(blocks: dict[str, Any]) -> None:
+    """A roll leaves an optical property of the camera where the scene puts it.
+
+    The ghost's star sits at the frame center, which the roll does not move.
+
+    Parameters:
+        blocks: The scene blocks holding the optical property under test.
+    """
+    unrolled = _render(0.0, blocks)
+    assert np.abs(_render(30.0, blocks) - unrolled).max() <= _DN_TOLERANCE
