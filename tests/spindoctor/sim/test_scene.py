@@ -658,12 +658,21 @@ def test_validate_sim_params_refuses_a_noise_seed_that_is_not_an_integer(value: 
         validate_sim_params(params)
 
 
-def test_validate_sim_params_refuses_a_negative_noise_seed() -> None:
-    """A negative noise_seed is refused, so the editor's -1 can only mean the key is absent."""
+@pytest.mark.parametrize('value', [-1, 2**31])
+def test_validate_sim_params_refuses_a_noise_seed_outside_the_editor_range(value: int) -> None:
+    """A noise_seed is refused below 0, where the editor's -1 means the key is absent,
+    and above the largest value the editor's control can show."""
     params = _sim_params()
-    params['noise_seed'] = -1
-    with pytest.raises(SimSceneValidationError, match='noise_seed must be zero or a positive'):
+    params['noise_seed'] = value
+    with pytest.raises(SimSceneValidationError, match='noise_seed must be an integer from 0 to'):
         validate_sim_params(params)
+
+
+def test_validate_sim_params_accepts_the_largest_noise_seed() -> None:
+    """The editor's largest noise_seed validates."""
+    params = _sim_params()
+    params['noise_seed'] = 2**31 - 1
+    validate_sim_params(params)
 
 
 @pytest.mark.parametrize('key', ['noise', 'optics', 'detector', 'artifacts', 'bodies', 'stars'])

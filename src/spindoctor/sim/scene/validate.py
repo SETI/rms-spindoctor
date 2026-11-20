@@ -74,6 +74,9 @@ _NON_NULL_TOP_LEVEL_NUMBERS: tuple[str, ...] = (
     'star_catalog_scatter_px',
 )
 
+# The largest noise_seed the scene editor's control can show and save.
+_NOISE_SEED_MAX = 2**31 - 1
+
 
 # A handful of entries.  Validation is cheap next to a render, so a scene that has
 # dropped out of the cache costs little to check again.
@@ -180,9 +183,13 @@ def validate_sim_params(
     _require_positive_int(sim_params, 'size_u', source=source)
     _require_int(sim_params, 'random_seed', source=source)
     # The scene editor shows -1 as an absent noise_seed, so a negative value could not
-    # be told apart from leaving the key out.
-    if 'noise_seed' in sim_params and _require_int(sim_params, 'noise_seed', source=source) < 0:
-        raise SimSceneValidationError(f'{source}: noise_seed must be zero or a positive integer')
+    # be told apart from leaving the key out, and its control stops at the 32-bit limit.
+    if 'noise_seed' in sim_params and not (
+        0 <= _require_int(sim_params, 'noise_seed', source=source) <= _NOISE_SEED_MAX
+    ):
+        raise SimSceneValidationError(
+            f'{source}: noise_seed must be an integer from 0 to {_NOISE_SEED_MAX}'
+        )
     null_numbers = [
         key for key in _NON_NULL_TOP_LEVEL_NUMBERS if key in sim_params and sim_params[key] is None
     ]
