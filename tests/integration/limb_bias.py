@@ -51,7 +51,7 @@ import numpy as np
 from spindoctor.nav_model import build_models_for_obs
 from spindoctor.nav_orchestrator import NavOrchestrator
 from spindoctor.obs.obs_inst_sim import ObsSim
-from spindoctor.sim.render.bodies.render import create_simulated_body
+from spindoctor.sim.render.bodies.ellipsoid import EllipsoidBodySpec, create_ellipsoid_body
 
 __all__ = [
     'LimbBiasSample',
@@ -322,7 +322,7 @@ def renderer_centroid_offset(
     """Validate the sim body renderer's sub-pixel placement, nav-code-free.
 
     Renders a fully-lit (phase 0) sphere directly through
-    :func:`create_simulated_body` at a requested sub-pixel center and measures
+    :func:`create_ellipsoid_body` at a requested sub-pixel center and measures
     the intensity-weighted centroid of the result.  A phase-0 sphere is
     radially symmetric, so its brightness centroid must coincide with its
     geometric center; any offset would be a positional bias baked into the
@@ -341,15 +341,17 @@ def renderer_centroid_offset(
         A :class:`RendererCentroidCheck` with the signed centroid error in
         pixel centric coordinates.
     """
-    img = create_simulated_body(
-        size=(size_px, size_px),
-        center=center_vu,
-        semi_a_px=diameter_px / 2.0,
-        semi_b_px=diameter_px / 2.0,
-        semi_c_px=diameter_px / 2.0,
-        illumination_angle=0.0,
-        phase_angle=0.0,
-        anti_aliasing=1,
+    img = create_ellipsoid_body(
+        (size_px, size_px),
+        center_vu,
+        EllipsoidBodySpec(
+            semi_a_px=diameter_px / 2.0,
+            semi_b_px=diameter_px / 2.0,
+            semi_c_px=diameter_px / 2.0,
+            illumination_angle=0.0,
+            phase_angle=0.0,
+            anti_aliasing=1.0,
+        ),
     )
     total = float(img.sum())
     vs, us = np.mgrid[0:size_px, 0:size_px].astype(np.float64)
@@ -385,15 +387,17 @@ def ridge_inset_phase_zero(*, diameter_px: float, size_px: int = 260) -> float:
         limb.
     """
     center = size_px / 2.0
-    img = create_simulated_body(
-        size=(size_px, size_px),
-        center=(center, center),
-        semi_a_px=diameter_px / 2.0,
-        semi_b_px=diameter_px / 2.0,
-        semi_c_px=diameter_px / 2.0,
-        illumination_angle=90.0,
-        phase_angle=0.0,
-        anti_aliasing=1,
+    img = create_ellipsoid_body(
+        (size_px, size_px),
+        (center, center),
+        EllipsoidBodySpec(
+            semi_a_px=diameter_px / 2.0,
+            semi_b_px=diameter_px / 2.0,
+            semi_c_px=diameter_px / 2.0,
+            illumination_angle=90.0,
+            phase_angle=0.0,
+            anti_aliasing=1.0,
+        ),
     )
     row = img[round(center - 0.5)].astype(np.float64)
     grad = np.abs(np.gradient(row))

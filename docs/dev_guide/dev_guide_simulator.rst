@@ -119,13 +119,13 @@ relative to ``sim/render/``):
      - The radiance stage's translucent-screen machinery: orders the ring
        system and body halos far to near for compositing and enforces the
        explicit-``range_km`` depth contract on every overlap.
-   * - ``bodies/render.py`` / ``bodies/topo.py`` / ``bodies/texture.py`` /
-       ``bodies/mesh.py``
-     - The ellipsoid body renderer and its topographic path (relief, photometric
-       laws, surface texture, transits), and the polyhedral-mesh renderer (see
-       :ref:`sim-body-renderer`). The parsed body entry (``bodies/spec.py``), the
-       relief field (``bodies/relief.py``), and the photometric laws
-       (``bodies/photometry.py``) sit beside them.
+   * - ``bodies/render.py`` / ``bodies/ellipsoid.py`` / ``bodies/ellipsoid_grid.py`` /
+       ``bodies/texture.py`` / ``bodies/mesh.py``
+     - Placing one body in the frame, the ellipsoid renderer (relief, photometric
+       laws, craters, surface texture, transits) and the grids it works on, and the
+       polyhedral-mesh renderer (see :ref:`sim-body-renderer`). The parsed body entry
+       (``bodies/spec.py``), the relief field (``bodies/relief.py``), and the
+       photometric laws (``bodies/photometry.py``) sit beside them.
    * - ``bodies/translate.py``
      - Moves a body drawn at a reference position into place by linear
        interpolation, resampling only the box the body covers. Inside that box
@@ -1972,15 +1972,16 @@ The body renderer
 =================
 
 A body is drawn by one of two renderers chosen by ``shape_model``: the
-ellipsoid renderer (``bodies/render.py``) and the polyhedral-mesh renderer
-(``bodies/mesh.py``), both sharing the axis convention below. A smooth Lambert
-ellipsoid at oversample 1 renders through the classic path unchanged. Whenever
-an ellipsoid body needs more than that -- a limb-relief field, a non-Lambert
-photometric law or opposition surge, a surface texture or a transit, or simply
-an oversampled radiance grid -- it dispatches to the *topographic path*
-(``bodies/topo.py``). All of the extra ingredients are truth keys: the
-navigator's predicted body is always the smooth Lambert template, so every one
-plants a known model error the technique must survive.
+ellipsoid renderer (``bodies/ellipsoid.py``) and the polyhedral-mesh renderer
+(``bodies/mesh.py``), both sharing the axis convention below. The ellipsoid
+renderer draws every ellipsoid body, whatever its settings: a smooth Lambert disc,
+a limb-relief field, a non-Lambert photometric law or opposition surge, craters,
+and surface textures and transits. All of those extra ingredients are truth keys:
+the navigator predicts an ellipsoid body as the smooth Lambert template, so every
+one plants a known model error the technique must survive. The navigator predicts a
+mesh body as the same mesh without the limb relief, flat-shaded, and at the catalog
+pose, unless ``nav_override`` changes it. A mesh body's limb relief, ``shading``,
+and ``pose_scatter`` are among the errors it plants.
 
 **The body spec.** The scene radiance stage parses each ``bodies`` entry once into a
 frozen :class:`~spindoctor.sim.render.bodies.spec.BodySpec`
@@ -2033,8 +2034,8 @@ keeps the cached drawing and the interpolated move.
 .. Measured 2026-11-14 for #984, which decided against drawing at the exact
    sub-pixel position. The BodyLimbNav ripple is #282.
 
-The topographic path
---------------------
+Limb relief
+-----------
 
 **The relief field.** Limb relief is a 2-D fractional-height field
 ``h(lat, lon)`` on the body surface, not a 1-D profile on the limb, so the
@@ -2196,32 +2197,84 @@ lit. Against a march at a quarter of that step, the decisions differ on under
 0.3% of the shadowed pixels, for bodies from 30 to 300 pixels in radius with
 relief from 1 to 12 degrees across.
 
-Shading and shadows are evaluated per shading pixel and upsampled with the
-rest of the shading, so a shadow's edge is as soft as the shading grid.
+On an oversampled or anti-aliased body, the relief's tilt is computed once per detector
+pixel and interpolated over most of the disc. :ref:`sim-shading-grids` explains where
+and why.
 
-Split-resolution performance
-----------------------------
+.. _sim-shading-grids:
 
-The topographic path renders a body on a working grid: the oversampled grid,
-or, at oversample 1, the anti-aliasing supersample grid. The sharp content, the
-relief-perturbed silhouette mask, is always rasterized on the working grid.
-Where the shading field (surface normals, relief shading, cast shadows, crater
-texture, and photometric law) is computed depends on the body:
+Shading grids
+-------------
 
-- A body whose relief, craters, surface texture, or transits change its shading
-  is shaded once at **detector resolution**, and the shading is bilinearly
-  upsampled onto the working grid. Disc shading is low-frequency by
-  construction, so this replaces the per-subsample shading that made an
-  oversampled body ~16x more expensive than its detector-grid equivalent, and it
-  is what lets a body-bearing scene meet the render budget below. The budget harness
-  (``tests/integration/test_sim_perf.py``) holds a large-lit-body-with-relief
-  frame to its measured budget for exactly this reason. The upsample moves the
-  disc's light about 0.007 px away from the Sun.
-- Every other body is smooth and is shaded on the working grid itself. A
-  surface setting that changes nothing leaves a body smooth: a crater fill too
-  small to place a crater at detector resolution, an albedo texture with no
-  noise field and no spots, banding of zero amplitude with no storms, or a
-  transit with neither a moon nor a shadow.
+The ellipsoid renderer draws a body on its *working grid*: the oversampled grid,
+or, at oversample 1, the anti-aliasing supersample grid. The relief-perturbed
+silhouette, the smooth ellipsoid's surface normals, and the photometric law are
+always evaluated on the working grid. Near the limb the normal turns as the square
+root of the distance from the edge, and at the terminator the law clips. Shading
+there on a coarser grid and interpolating would move a disc's light a few
+thousandths of a pixel away from the Sun, a shift the navigator's predicted body
+does not share.
+
+Relief and craters are laid out on the *detector grid*, one point per detector
+pixel, and interpolated onto the working grid. The tilt the relief gives each normal
+is interpolated with a cubic spline, and the crater slopes bilinearly. Computing the
+relief once per detector pixel instead of once per working pixel is what lets a large
+relief body meet the render budget below. In three places interpolation isn't good
+enough, so there the relief's normals and its cast shadows are computed on the
+working grid:
+
+- A band along the limb, 3 detector pixels beyond the reach of the relief
+  outline on either side, where the relief's tilt turns with the smooth normal.
+- The detector cells along the relief's own day-night edge, widened by 3 cells.
+  An interpolated tilt varies less than the terrain does, and where the law clips
+  at the terminator, that smaller variation darkens the disc.
+- Every detector cell a cast shadow reaches, with its neighbors, because a shadow's
+  edge is sharp.
+
+Outside those places the interpolated tilt is added to the smooth normal as it is,
+without scaling the sum back to unit length. On the day side a Lambert surface's
+brightness is then the smooth brightness plus the interpolated difference between the
+relief and smooth brightness. Rescaling the sum would brighten rough terrain slightly.
+Only the rectangle a relief or cratered body covers is shaded.
+
+The craters are carved on the detector grid and their slopes taken there by
+central differences. On a finer grid those slopes are interpolated, so a body has
+the same craters at every oversampling factor. The price is that a crater is no
+finer than the detector grid it is carved on: a crater about a pixel across is a
+pixel-sized dimple, even at oversample 4 or under full anti-aliasing.
+
+A body that has no relief and no craters is shaded wholly on its working grid,
+textures and transits included, because their spots, storms, and discs have sharp
+edges. A surface setting that changes nothing leaves a body smooth: a crater fill too
+small to place a crater at detector resolution, an albedo texture that has no noise
+field and no spots, banding of zero amplitude without storms, or a transit that has
+neither a moon nor a shadow. A setting at an effectively zero value renders as the
+smooth body: a relief of 1e-9 of the radius changes no pixel by more than about 1e-8
+of the peak.
+
+Measured against the same body shaded wholly on its working grid, the center of a
+relief body's light lands within 0.0015 px on 14 test bodies with 2% relief at a
+12-degree correlation length. They include 36 px bodies at several seeds and phases, a
+crescent, a Minnaert body, a cratered body, a rotated and tilted triaxial body, a body
+clipped by the frame edge, and a 5 px body. On a 150 px body with rougher relief (an
+RMS of 3% to 5% at a 5-degree correlation length) at a phase of 80 degrees, it lands
+within 0.0007 px. Near the frame edge the spline rings a little: on the clipped body
+the light lands 0.0015 px off and no pixel more than 0.012, within about 4 pixels of
+the edge. A cratered or textured body has nothing to compare: shading it wholly on the
+working grid uses the same interpolated crater slopes and the same texture.
+
+The spline follows relief whose correlation length, in radians times the body's
+radius, spans at least about 5 detector pixels. All the bodies above meet that except
+the 5 px one, whose limb and day-night bands cover nearly all of it. Finer relief is
+interpolated less well. With 1% relief at a phase of 80 degrees, the light lands up to
+0.011 px off at 1.5 to 4 pixels of correlation length, and 0.023 px off at 1 pixel,
+where a few pixels are off by as much as 0.28 of their brightness.
+
+A small body at oversample 4 misses a render 8 times finer by the sampling of the
+working grid, with or without relief, and the miss depends on where the body sits
+within a pixel. At 90 degrees of phase, the worst over 103 sub-pixel centers was
+0.068 px in the light and 4.7% in brightness at 4 px across, 0.043 px and 1.6% at
+8 px, and 0.024 px and 0.56% at 16 px.
 
 The navigator's predicted body is shaded on a grid four times finer than the
 detector's. A smooth body whose working grid has that same factor (oversample 4,
@@ -2231,10 +2284,13 @@ another oversample factor samples the body differently from the navigator. On
 the calibrated disc sweep, shading the smooth disc at detector resolution gave
 the disc correlation a steady error of about 0.015 px.
 
+.. The working-grid shading of featured bodies and the zero-value and small-body
+   measurements are #931 and #901 (2026-11-19).
+
 Photometric laws
 ----------------
 
-The topographic renderer shades an ellipsoid with a scene-selected law
+The ellipsoid renderer shades a body with a scene-selected law
 (``photometry.py``), each normalized to 1 at disc center under head-on
 illumination and written in ``mu0 = cos(incidence)`` and ``mu = cos(emission)``:
 
@@ -2815,10 +2871,9 @@ oversample 4 must render in under 2 s single-core, and a 1024x1024
 Cassini-class scene in under 8 s (``tests/integration/test_sim_perf.py``).
 The harness holds two scene families to those budgets: a star field (the PSF
 convolution on the oversampled grid and the electron chain) and a frame
-dominated by a large lit body with limb relief (the topographic body
-renderer's split-resolution path -- detector-grid shading, relief normals, and
-cast shadows upsampled under an oversampled silhouette). The
-budget is a *cold-render* budget:
+dominated by a large lit body with limb relief (the ellipsoid renderer's
+working-grid shading with the relief tilt interpolated from the detector grid, see
+:ref:`sim-shading-grids`). The budget is a *cold-render* budget:
 the render caches are cleared so the timed render pays the kernel-build and
 compile costs a first render pays, while one-time non-render costs (the lazy
 config-YAML load) are paid by an untimed warm-up first. The harness pins
@@ -3429,12 +3484,12 @@ resolution, defaults 16 / 32; 64 / 128 hides the facets on a large body),
 ``mesh_detail_octaves`` (bands of higher harmonic degrees, default 0), and
 ``pose_euler_deg`` (intrinsic X, Y, Z Euler angles, default ``[0, 0, 0]``).
 
-The truth-side body keys never reach the navigator. The relief, photometry,
-texture, and transit keys are consumed by the topographic path and the mesh
-extras by the mesh renderer (see :ref:`sim-body-renderer`); the navigator's
-predicted body is always the smooth Lambert template. A non-null value of a
-key in a row marked *ellipsoid only*, or of the ``atmosphere`` block, is
-refused on a ``polyhedral_mesh`` body (see :ref:`sim-mesh-appearance`).
+The truth-side body keys never reach the navigator, which predicts each body as
+described in :ref:`sim-body-renderer`. The ellipsoid renderer consumes the relief,
+photometry, texture, and transit keys, and the mesh renderer consumes the relief
+keys and the mesh extras. A non-null value of a key in a row marked
+*ellipsoid only*, or of the ``atmosphere`` block, is refused on a
+``polyhedral_mesh`` body (see :ref:`sim-mesh-appearance`).
 
 .. list-table::
    :widths: 30 70
@@ -3454,8 +3509,8 @@ refused on a ``polyhedral_mesh`` body (see :ref:`sim-mesh-appearance`).
        mesh, the same field displaces the vertices.
    * - ``photometric_law``, ``minnaert_k``
      - The surface-scattering law (``lambert`` / ``lommel_seeliger`` /
-       ``minnaert`` / ``lunar_lambert``) and its Minnaert exponent; ellipsoid
-       topographic path. *Ellipsoid only.*
+       ``minnaert`` / ``lunar_lambert``) and its Minnaert exponent. *Ellipsoid
+       only.*
    * - ``opposition_surge``
      - ``{amplitude, width_deg}`` -- the normalized brightness surge near
        opposition. *Ellipsoid only.*

@@ -16,10 +16,11 @@ import numpy as np
 import pytest
 from tests.spindoctor.sim.scenes import disc_body, frame_scene, quiet_noise
 
-from spindoctor.sim.render.bodies import topo as body_topo
+from spindoctor.sim.render.bodies import ellipsoid as body_ellipsoid
+from spindoctor.sim.render.bodies.ellipsoid import EllipsoidBodySpec, create_ellipsoid_body
+from spindoctor.sim.render.bodies.ellipsoid_grid import body_grid, silhouette_mask
 from spindoctor.sim.render.bodies.photometry import DARK_SIDE_FLOOR
 from spindoctor.sim.render.bodies.relief import ReliefField, cast_shadows, synthesize_relief_field
-from spindoctor.sim.render.bodies.topo import TopoBodySpec, create_topographic_body
 from spindoctor.sim.render.driver import render_scene
 from spindoctor.support.types import NDArrayFloatType
 
@@ -27,13 +28,13 @@ _RMS = 0.02
 _CORR_DEG = 15.0
 
 
-def _limb_spec(*, rms: float, seed: int) -> TopoBodySpec:
+def _limb_spec(*, rms: float, seed: int) -> EllipsoidBodySpec:
     """A fully lit sphere shaded flat (Lommel-Seeliger at phase 0).
 
     The flat disc makes the rendered image a pure silhouette probe: every
     interior pixel is bright, so the mask boundary is the limb.
     """
-    return TopoBodySpec(
+    return EllipsoidBodySpec(
         semi_a_px=80.0,
         semi_b_px=80.0,
         semi_c_px=80.0,
@@ -73,7 +74,7 @@ def test_limb_lands_on_the_relief_outline(rms: float) -> None:
     """
     seed = 42
     size = 256
-    img = create_topographic_body(
+    img = create_ellipsoid_body(
         (size, size), (size / 2.0, size / 2.0), _limb_spec(rms=rms, seed=seed)
     )
     mask = img > 0.0
@@ -98,7 +99,7 @@ def test_rendered_limb_rms_tracks_the_commanded_value() -> None:
     """The pooled silhouette displacement RMS lands near rms * r_ellipse."""
     seed = 7
     size = 256
-    img = create_topographic_body(
+    img = create_ellipsoid_body(
         (size, size), (size / 2.0, size / 2.0), _limb_spec(rms=_RMS, seed=seed)
     )
     mask = img > 0.0
@@ -108,9 +109,9 @@ def test_rendered_limb_rms_tracks_the_commanded_value() -> None:
     assert abs(float(np.std(measured - 80.0)) - commanded_px) < 0.35 * commanded_px
 
 
-def _terminator_spec(*, rms: float) -> TopoBodySpec:
+def _terminator_spec(*, rms: float) -> EllipsoidBodySpec:
     """A high-phase crescent with the sun from the right."""
-    return TopoBodySpec(
+    return EllipsoidBodySpec(
         semi_a_px=120.0,
         semi_b_px=120.0,
         semi_c_px=120.0,
@@ -126,7 +127,7 @@ def _terminator_spec(*, rms: float) -> TopoBodySpec:
 def _band_elevation_deg(field_rms: float, seed: int) -> float:
     """The sun elevation, in degrees, above which a realization casts no shadow."""
     field = synthesize_relief_field(field_rms, _CORR_DEG, seed)
-    band = body_topo._SLOPE_BAND_MARGIN * field.slope_max / (1.0 + field.h_min)
+    band = body_ellipsoid._SLOPE_BAND_MARGIN * field.slope_max / (1.0 + field.h_min)
     return math.degrees(math.atan(band))
 
 
@@ -139,10 +140,10 @@ def test_terminator_is_ragged_with_excursions_at_the_terminator() -> None:
     the smooth terminator (the shadowed fraction falls with elevation).
     """
     size = 320
-    smooth = create_topographic_body(
+    smooth = create_ellipsoid_body(
         (size, size), (size / 2.0, size / 2.0), _terminator_spec(rms=0.0)
     )
-    ragged = create_topographic_body(
+    ragged = create_ellipsoid_body(
         (size, size), (size / 2.0, size / 2.0), _terminator_spec(rms=_RMS)
     )
     both = (smooth > 0.0) & (ragged > 0.0)
@@ -154,7 +155,7 @@ def test_terminator_is_ragged_with_excursions_at_the_terminator() -> None:
     spec = _terminator_spec(rms=_RMS)
     elevation = _sun_elevation_deg(size, semi_axes=(120.0, 120.0), spec=spec)
     band_deg = _band_elevation_deg(_RMS, 5)
-    # Half a pixel of smooth-elevation slack covers the shading upsample.
+    # Half a pixel of smooth-elevation slack covers the interpolated shadows.
     assert float(elevation[newly_dark].max()) <= band_deg + 0.5
 
     # Excursions grow toward the terminator: the shadowed fraction falls
@@ -168,11 +169,12 @@ def test_terminator_is_ragged_with_excursions_at_the_terminator() -> None:
     mid = shadow_fraction(3.0, 6.0)
     far = shadow_fraction(9.0, 15.0)
     assert near > mid
-    assert near > 4.0 * far
+    # Shaded on the working grid this realization gives near / far = 3.8.
+    assert near > 3.0 * far
 
 
 def _sun_elevation_deg(
-    size: int, *, semi_axes: tuple[float, float], spec: TopoBodySpec
+    size: int, *, semi_axes: tuple[float, float], spec: EllipsoidBodySpec
 ) -> NDArrayFloatType:
     """Sun elevation above the smooth surface at each pixel center, degrees.
 
@@ -193,9 +195,9 @@ def _sun_elevation_deg(
     return np.asarray(np.degrees(np.arcsin(np.clip(mu0, -1.0, 1.0))), dtype=np.float64)
 
 
-def _moon_spec(seed: int, *, rms: float = _RMS, **extra: Any) -> TopoBodySpec:
+def _moon_spec(seed: int, *, rms: float = _RMS, **extra: Any) -> EllipsoidBodySpec:
     """An 85 px moon at phase 58 degrees, the geometry that once cut wedges through its disc."""
-    return TopoBodySpec(
+    return EllipsoidBodySpec(
         semi_a_px=85.0,
         semi_b_px=84.0,
         semi_c_px=82.0,
@@ -220,8 +222,8 @@ def test_relief_darkens_no_pixel_above_the_slope_band(seed: int) -> None:
     spec = _moon_spec(seed)
     smooth_spec = _moon_spec(seed, rms=0.0)
     center = (size / 2.0, size / 2.0)
-    smooth = create_topographic_body((size, size), center, smooth_spec)
-    ragged = create_topographic_body((size, size), center, spec)
+    smooth = create_ellipsoid_body((size, size), center, smooth_spec)
+    ragged = create_ellipsoid_body((size, size), center, spec)
     elevation = _sun_elevation_deg(size, semi_axes=(85.0, 84.0), spec=spec)
     v, u = np.mgrid[0:size, 0:size].astype(float) + 0.5 - size / 2.0
     inner = np.hypot(v / 85.0, u / 84.0) < 0.85
@@ -256,9 +258,11 @@ def _surface_normals(field: ReliefField, points: NDArrayFloatType) -> NDArrayFlo
     return cast(NDArrayFloatType, normals * np.sign(np.sum(normals * points, axis=-1))[:, None])
 
 
-def _lambert_relief_disc(*, rms: float, corr_deg: float) -> tuple[TopoBodySpec, Any, ReliefField]:
+def _lambert_relief_disc(
+    *, rms: float, corr_deg: float
+) -> tuple[EllipsoidBodySpec, Any, ReliefField]:
     """A 75 px Lambert sphere with relief, shaded at the render grid, and its grid and field."""
-    spec = TopoBodySpec(
+    spec = EllipsoidBodySpec(
         semi_a_px=75.0,
         semi_b_px=75.0,
         semi_c_px=75.0,
@@ -269,7 +273,7 @@ def _lambert_relief_disc(*, rms: float, corr_deg: float) -> tuple[TopoBodySpec, 
         limb_relief_corr_deg=corr_deg,
         relief_seed=3,
     )
-    grid = body_topo._body_grid(
+    grid = body_grid(
         (200, 200), (100.0, 100.0), (75.0, 75.0, 75.0), cos_rz=1.0, sin_rz=0.0, cos_rt=1.0
     )
     return spec, grid, synthesize_relief_field(rms, corr_deg, 3)
@@ -284,9 +288,9 @@ def test_relief_normals_shade_a_lambert_disc() -> None:
     0.5).  Where the relief moves a pixel by more than 0.03, it moves it the same way.
     """
     spec, grid, field = _lambert_relief_disc(rms=_RMS, corr_deg=_CORR_DEG)
-    ragged = create_topographic_body((200, 200), (100.0, 100.0), spec)
-    smooth = create_topographic_body(
-        (200, 200), (100.0, 100.0), TopoBodySpec(**{**spec.__dict__, 'limb_relief_rms': 0.0})
+    ragged = create_ellipsoid_body((200, 200), (100.0, 100.0), spec)
+    smooth = create_ellipsoid_body(
+        (200, 200), (100.0, 100.0), EllipsoidBodySpec(**{**spec.__dict__, 'limb_relief_rms': 0.0})
     )
     near = grid.e2 < 0.8
     points = np.stack(
@@ -301,7 +305,7 @@ def test_relief_normals_shade_a_lambert_disc() -> None:
         ]
     )
     cos_i = np.sum(_surface_normals(field, points) * sun, axis=-1)
-    shadowed = body_topo._relief_shading(grid, spec, field, near, cos_rz=1.0, sin_rz=0.0)[3]
+    shadowed = body_ellipsoid._relief_shading(grid, spec, field, near, cos_rz=1.0, sin_rz=0.0)[3]
     lit = (cos_i > 0.05) & ~shadowed[near]
     np.testing.assert_allclose(ragged[near][lit], cos_i[lit], rtol=0.0, atol=0.02)
     expected_change = cos_i[lit] - smooth[near][lit]
@@ -320,7 +324,7 @@ def test_relief_normals_near_the_limb_face_the_observer() -> None:
     spec, grid, field = _lambert_relief_disc(rms=0.035, corr_deg=5.0)
     reach = 1.0 + field.h_max + 2.0 / 75.0
     near = grid.e2 < reach * reach
-    inside = body_topo._silhouette_mask(grid, field)[near] > 0.0
+    inside = silhouette_mask(grid, field)[near] > 0.0
     radial = np.sqrt(np.maximum(grid.e2[near], 1.0))
     points = np.stack(
         [
@@ -332,7 +336,7 @@ def test_relief_normals_near_the_limb_face_the_observer() -> None:
     )
     away = inside & (_surface_normals(field, points)[:, 2] < -0.05)
     assert int(away.sum()) > 100
-    normal_z = body_topo._relief_shading(grid, spec, field, near, cos_rz=1.0, sin_rz=0.0)[2]
+    normal_z = body_ellipsoid._relief_shading(grid, spec, field, near, cos_rz=1.0, sin_rz=0.0)[2]
     assert float(normal_z.min()) >= 0.0
 
 
@@ -346,7 +350,7 @@ def test_shadow_march_resolves_fine_relief_on_a_small_body(
     decisions match a march at a quarter of its step on all but 1% of the
     shadowed pixels.
     """
-    spec = TopoBodySpec(
+    spec = EllipsoidBodySpec(
         semi_a_px=30.0,
         semi_b_px=30.0,
         semi_c_px=30.0,
@@ -357,12 +361,10 @@ def test_shadow_march_resolves_fine_relief_on_a_small_body(
         limb_relief_corr_deg=1.0,
         relief_seed=3,
     )
-    grid = body_topo._body_grid(
-        (80, 80), (40.0, 40.0), (30.0, 30.0, 30.0), cos_rz=1.0, sin_rz=0.0, cos_rt=1.0
-    )
+    grid = body_grid((80, 80), (40.0, 40.0), (30.0, 30.0, 30.0), cos_rz=1.0, sin_rz=0.0, cos_rt=1.0)
     field = synthesize_relief_field(0.03, 1.0, 3)
     near = grid.e2 < (1.0 + field.h_max + 2.0 / 30.0) ** 2
-    shadowed = body_topo._relief_shading(grid, spec, field, near, cos_rz=1.0, sin_rz=0.0)[3]
+    shadowed = body_ellipsoid._relief_shading(grid, spec, field, near, cos_rz=1.0, sin_rz=0.0)[3]
 
     cell = 2.0 * np.pi / field.grid.shape[0]
 
@@ -371,8 +373,8 @@ def test_shadow_march_resolves_fine_relief_on_a_small_body(
     ) -> Any:
         return cast_shadows(points, sun, relief, step=min(step, cell / 32.0))
 
-    monkeypatch.setattr(body_topo, 'cast_shadows', fine_march)
-    reference = body_topo._relief_shading(grid, spec, field, near, cos_rz=1.0, sin_rz=0.0)[3]
+    monkeypatch.setattr(body_ellipsoid, 'cast_shadows', fine_march)
+    reference = body_ellipsoid._relief_shading(grid, spec, field, near, cos_rz=1.0, sin_rz=0.0)[3]
     assert int(reference.sum()) > 100
     assert int((shadowed != reference).sum()) <= 0.01 * int(reference.sum())
 
@@ -431,7 +433,7 @@ def test_non_lambert_law_changes_the_disc() -> None:
 
 def test_opposition_surge_scales_the_disc_by_the_documented_factor() -> None:
     """The surge dims a high-phase disc by (1 + A exp(-a/w)) / (1 + A)."""
-    spec = TopoBodySpec(
+    spec = EllipsoidBodySpec(
         semi_a_px=60.0,
         semi_b_px=60.0,
         semi_c_px=60.0,
@@ -439,8 +441,8 @@ def test_opposition_surge_scales_the_disc_by_the_documented_factor() -> None:
         phase_angle=math.radians(70.0),
         oversample=2,
     )
-    plain = create_topographic_body((160, 160), (80.0, 80.0), spec)
-    surged_spec = TopoBodySpec(
+    plain = create_ellipsoid_body((160, 160), (80.0, 80.0), spec)
+    surged_spec = EllipsoidBodySpec(
         semi_a_px=60.0,
         semi_b_px=60.0,
         semi_c_px=60.0,
@@ -450,7 +452,7 @@ def test_opposition_surge_scales_the_disc_by_the_documented_factor() -> None:
         surge_amplitude=1.0,
         surge_width_deg=6.0,
     )
-    surged = create_topographic_body((160, 160), (80.0, 80.0), surged_spec)
+    surged = create_ellipsoid_body((160, 160), (80.0, 80.0), surged_spec)
     factor = (1.0 + math.exp(-70.0 / 6.0)) / 2.0
     interior = (plain > 0.1) & (plain < 0.99)
     assert interior.any()

@@ -19,8 +19,8 @@ import pytest
 from tests.spindoctor.sim.scenes import disc_body, frame_scene, quiet_noise, star_entry
 
 from spindoctor.nav_model.simulated.predict_body import create_predicted_body_image
+from spindoctor.sim.render.bodies.ellipsoid import EllipsoidBodySpec, create_ellipsoid_body
 from spindoctor.sim.render.bodies.texture import AlbedoTextureSpec, DiscTextureSpec, TransitSpec
-from spindoctor.sim.render.bodies.topo import TopoBodySpec, create_topographic_body
 from spindoctor.sim.render.driver import render_scene, resolve_oversample
 from spindoctor.sim.render.pipeline import STAGES
 from spindoctor.sim.render.stages import downsample_to_detector, new_sim_frame
@@ -103,10 +103,10 @@ def test_oversampled_smooth_body_matches_the_navigator_model() -> None:
     """
     size = (160, 160)
     center = (81.3, 78.9)
-    rendered = create_topographic_body(
+    rendered = create_ellipsoid_body(
         size,
         center,
-        TopoBodySpec(
+        EllipsoidBodySpec(
             semi_a_px=48.0,
             semi_b_px=48.0,
             semi_c_px=48.0,
@@ -129,10 +129,10 @@ def test_anti_aliased_smooth_body_matches_the_navigator_model() -> None:
     """
     size = (160, 160)
     center = (81.3, 78.9)
-    rendered = create_topographic_body(
+    rendered = create_ellipsoid_body(
         size,
         center,
-        TopoBodySpec(
+        EllipsoidBodySpec(
             semi_a_px=48.0,
             semi_b_px=48.0,
             semi_c_px=48.0,
@@ -213,7 +213,7 @@ def test_inert_surface_setting_keeps_the_smooth_shading(setting: str) -> None:
     Parameters:
         setting: The key into ``_INERT_SURFACES`` naming the inert setting.
     """
-    smooth = TopoBodySpec(
+    smooth = EllipsoidBodySpec(
         semi_a_px=48.0,
         semi_b_px=48.0,
         semi_c_px=48.0,
@@ -225,7 +225,7 @@ def test_inert_surface_setting_keeps_the_smooth_shading(setting: str) -> None:
     size = (160, 160)
     center = (81.3, 78.9)
     np.testing.assert_array_equal(
-        create_topographic_body(size, center, inert), create_topographic_body(size, center, smooth)
+        create_ellipsoid_body(size, center, inert), create_ellipsoid_body(size, center, smooth)
     )
 
 
@@ -246,7 +246,7 @@ def test_active_surface_setting_changes_the_shading(setting: str) -> None:
     Parameters:
         setting: The key into ``_ACTIVE_SURFACES`` naming the active setting.
     """
-    smooth = TopoBodySpec(
+    smooth = EllipsoidBodySpec(
         semi_a_px=48.0,
         semi_b_px=48.0,
         semi_c_px=48.0,
@@ -258,7 +258,7 @@ def test_active_surface_setting_changes_the_shading(setting: str) -> None:
     size = (160, 160)
     center = (81.3, 78.9)
     assert not np.array_equal(
-        create_topographic_body(size, center, active), create_topographic_body(size, center, smooth)
+        create_ellipsoid_body(size, center, active), create_ellipsoid_body(size, center, smooth)
     )
 
 

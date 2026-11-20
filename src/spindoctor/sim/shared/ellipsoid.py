@@ -1,6 +1,6 @@
 """Shared ellipsoid shading geometry for the simulator's two sides.
 
-The image-side renderer (``spindoctor.sim.render.bodies.render``) and the
+The image-side ellipsoid renderer (``spindoctor.sim.render.bodies.ellipsoid``) and the
 navigator-side predicted-body renderer
 (``spindoctor.nav_model.simulated.predict_body``) must shade an ellipsoid
 with byte-identical conventions: the same surface normals, the same light
@@ -97,12 +97,12 @@ def project_ellipsoid(
 ) -> EllipsoidProjection:
     """Project an ellipsoid onto the image plane and build the shading grids.
 
-    This is the single implementation of the projection both simulator sides
-    shade from: the working-grid coordinate frames (in-plane rotation, tilt),
-    the visible-hemisphere depth, and the (optionally anti-aliased) coverage
-    mask.  The image-side renderer carves craters into these grids and the
-    navigator-side predicted-body renderer shades them smooth, so the planted
-    scene error is the only geometric difference between the two.
+    The navigator-side predicted-body renderer shades from these grids: the
+    working-grid coordinate frames (in-plane rotation, tilt), the
+    visible-hemisphere depth, and the (optionally anti-aliased) coverage mask.
+    The image-side ellipsoid renderer builds its grids with the same conventions
+    (:func:`~spindoctor.sim.render.bodies.ellipsoid_grid.body_grid`), so the
+    planted scene error is the only geometric difference between the two.
 
     Parameters:
         size: Tuple of (size_v, size_u) giving the image dimensions in pixels.

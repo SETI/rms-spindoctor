@@ -14,9 +14,9 @@ import numpy as np
 import pytest
 from tests.spindoctor.sim.scenes import disc_body, frame_scene
 
+from spindoctor.sim.render.bodies.ellipsoid import EllipsoidBodySpec, create_ellipsoid_body
 from spindoctor.sim.render.bodies.relief import synthesize_albedo_field
 from spindoctor.sim.render.bodies.texture import AlbedoTextureSpec
-from spindoctor.sim.render.bodies.topo import TopoBodySpec, create_topographic_body
 from spindoctor.sim.render.driver import render_scene
 from spindoctor.support.types import NDArrayFloatType
 
@@ -28,9 +28,9 @@ _RADIUS = 80.0
 _PHASE = 1.0
 
 
-def _spec(albedo: AlbedoTextureSpec | None) -> TopoBodySpec:
+def _spec(albedo: AlbedoTextureSpec | None) -> EllipsoidBodySpec:
     """A sphere at moderate phase with an optional albedo texture."""
-    return TopoBodySpec(
+    return EllipsoidBodySpec(
         semi_a_px=_RADIUS,
         semi_b_px=_RADIUS,
         semi_c_px=_RADIUS,
@@ -40,7 +40,7 @@ def _spec(albedo: AlbedoTextureSpec | None) -> TopoBodySpec:
 
 
 def _render(albedo: AlbedoTextureSpec | None) -> NDArrayFloatType:
-    return create_topographic_body((_SIZE, _SIZE), (_CENTER, _CENTER), _spec(albedo))
+    return create_ellipsoid_body((_SIZE, _SIZE), (_CENTER, _CENTER), _spec(albedo))
 
 
 def _sphere_moments(grid: NDArrayFloatType) -> tuple[float, float]:
@@ -132,8 +132,8 @@ def test_spot_factor_is_multiplicative_at_the_spot() -> None:
     albedo = AlbedoTextureSpec(rms=0.0, spots=((0.0, 90.0, 12.0, 0.6),), seed=0)
     spec = dataclasses.replace(_spec(albedo), illumination_angle=0.3)
     smooth_spec = dataclasses.replace(spec, albedo_texture=None)
-    textured = create_topographic_body((_SIZE, _SIZE), (_CENTER, _CENTER), spec)
-    smooth = create_topographic_body((_SIZE, _SIZE), (_CENTER, _CENTER), smooth_spec)
+    textured = create_ellipsoid_body((_SIZE, _SIZE), (_CENTER, _CENTER), spec)
+    smooth = create_ellipsoid_body((_SIZE, _SIZE), (_CENTER, _CENTER), smooth_spec)
     center = int(_CENTER)
     assert textured[center, center] / smooth[center, center] == pytest.approx(0.6, abs=1e-9)
 

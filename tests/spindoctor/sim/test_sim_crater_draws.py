@@ -97,7 +97,6 @@ def _carve(
         crater_relief_scale=0.6,
         work_center_v=center[0],
         work_center_u=center[1],
-        aa_scale=1,
     )
 
 

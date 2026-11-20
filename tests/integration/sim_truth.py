@@ -191,13 +191,13 @@ TRUTH_TOLERANCES: dict[tuple[str, str], TruthTolerance] = {
     ('mutual_half', FUSED): _t(0.315, 0.319, 0.014, 0.07),
     # regression, fused answer.  relief_psf_stray_light carries a known error in its
     # expected block instead (#791).
-    ('banded_planet_transit', FUSED): _t(0.124, 0.131, 0.012, 0.05),
+    ('banded_planet_transit', FUSED): _t(0.120, 0.129, 0.014, 0.05),
     ('disc_subpixel_offset', FUSED): _t(0.000, 0.000, 0.000, 0.05),
     ('low_phase_limb_misconverge', FUSED): _t(0.004, 0.004, 0.000, 0.05),
     ('star_equal_brightness', FUSED): _t(0.033, 0.033, 0.002, 0.05),
     ('star_zero_offset', FUSED): _t(0.044, 0.044, 0.003, 0.05),
-    # Measured on the 16 noise draws, which keep the albedo texture: 0.259 to 0.279 px.
-    ('textured_moon_offset', FUSED): _t(0.261, 0.279, 0.020, 0.06),
+    # Measured on the 16 noise draws, which keep the albedo texture: 0.252 to 0.276 px.
+    ('textured_moon_offset', FUSED): _t(0.256, 0.276, 0.025, 0.06),
     # regression, one technique navigated alone.
     ('disc_subpixel_offset', 'BodyDiscCorrelateNav'): _t(0.000, 0.000, 0.000, 0.05),
     ('star_equal_brightness', 'StarFieldFromCatalogNav'): _t(0.033, 0.033, 0.002, 0.05),
@@ -240,8 +240,8 @@ KNOWN_ERRORS: dict[tuple[str, str], KnownErrorBand] = {
     ('titan_haze_limb', 'BodyBlobNav'): _b(1.241, 1.347, 0.05, 1.191, 1.397),
     # These two are measured on the 16 noise draws, which keep the albedo texture and
     # the limb relief.  The spreads are 0.008 px and 0.059 px.
-    ('textured_moon_offset', 'BodyBlobNav'): _b(0.623, 0.631, 0.05, 0.573, 0.682),
-    ('relief_psf_stray_light', 'BodyBlobNav'): _b(1.796, 1.856, 0.05, 1.746, 1.906),
+    ('textured_moon_offset', 'BodyBlobNav'): _b(0.624, 0.632, 0.05, 0.573, 0.682),
+    ('relief_psf_stray_light', 'BodyBlobNav'): _b(1.792, 1.851, 0.05, 1.741, 1.902),
     # RingEdgeNav lands 51.8 px off along the straight edge, the unobservable axis
     # (#755).
     ('planted_rank1_ring_flat', 'RingEdgeNav'): _b(51.753, 51.757, 0.05, 51.703, 51.807),

@@ -14,8 +14,8 @@ subpackages:
 
 - :mod:`spindoctor.sim.render.radiance`: the scene-radiance stage, which composes
   the noise-free signal image from the bodies, rings, and stars.
-- :mod:`spindoctor.sim.render.bodies`: the body renderers (ellipsoid, topographic,
-  and polyhedral mesh) with their photometry, relief, textures, and atmosphere.
+- :mod:`spindoctor.sim.render.bodies`: the body renderers (ellipsoid and polyhedral
+  mesh) with their photometry, relief, textures, and atmosphere.
 - :mod:`spindoctor.sim.render.rings`: the optical-depth ring-system renderer.
 - :mod:`spindoctor.sim.render.optics`: the optics stage (smear, distortion, PSF,
   and ghosts).
