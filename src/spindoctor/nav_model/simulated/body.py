@@ -32,9 +32,13 @@ from spindoctor.nav_model.simulated.body_arcs import (
     build_limb_arc_feature,
     build_terminator_arc_feature,
 )
+from spindoctor.nav_model.simulated.predicted_body import (
+    predicted_center_vu,
+    predicted_semi_axes_px,
+    predicted_silhouette,
+    render_predicted_body,
+)
 from spindoctor.obs import ObsSnapshotInst
-from spindoctor.sim.shared.ellipsoid import project_ellipsoid, render_lambert_ellipsoid
-from spindoctor.sim.shared.mesh import mesh_spec_from_params, render_mesh_body_image
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX, containing_pixel
 from spindoctor.support.filters import NavFilterKind, NavFilterSpec
 from spindoctor.support.time import now_dt
@@ -290,56 +294,24 @@ class NavModelBodySimulated(NavModelBodyBase):
                 shape.  The unclipped whole-body render behind the
                 visible-arc fraction passes a body-sized canvas here.
             center: Optional body center ``(v, u)`` on that canvas; defaults
-                to the rendered params' own predicted center.
+                to the rendered params' predicted center on the frame, which
+                puts a body that states no center at the center of the
+                observation's data shape whatever canvas is given.  Every
+                caller that passes a canvas passes its center too.
             params: Optional body-parameter dict to render instead of this
-                model's own ``nav_body``.  The occlusion path renders each
-                nearer sibling's predicted silhouette through this.
+                model's own ``nav_body``.  The overflow fraction renders a
+                downscaled copy of the body through this.
 
         Returns:
             The rendered image on the requested canvas.
         """
         p = self._nav_body if params is None else params
-        data_size_v, data_size_u = (
-            size
-            if size is not None
-            else (
-                int(self.obs.data_shape_v),
-                int(self.obs.data_shape_u),
-            )
-        )
-        rotation_z_rad = float(np.radians(p.get('rotation_z', 0.0)))
-        rotation_tilt_rad = float(np.radians(p.get('rotation_tilt', 0.0)))
-        illumination_angle_rad = float(np.radians(p.get('illumination_angle', 0.0)))
-        if center is not None:
-            center_v, center_u = center
-        else:
-            center_v = float(p.get('center_v', data_size_v / 2.0))
-            center_u = float(p.get('center_u', data_size_u / 2.0))
-        semi_a_px = float(p.get('semi_a_px', 0.0))
-        semi_b_px = float(p.get('semi_b_px', 0.0))
-        semi_c_px = float(p.get('semi_c_px', min(semi_a_px, semi_b_px)))
-        if str(p.get('shape_model', 'ellipsoid')) == 'polyhedral_mesh':
-            return render_mesh_body_image(
-                size=(data_size_v, data_size_u),
-                center=(center_v, center_u),
-                semi_axes_px=(semi_a_px, semi_b_px, semi_c_px),
-                spec=mesh_spec_from_params(p),
-                illumination_angle=illumination_angle_rad,
-                phase_angle=phase_angle_rad,
-                anti_aliasing=1.0,
-            )
-        projection = project_ellipsoid(
-            (data_size_v, data_size_u),
-            (center_v, center_u),
-            semi_a_px,
-            semi_b_px=semi_b_px,
-            semi_c_px=semi_c_px,
-            rotation_z=rotation_z_rad,
-            rotation_tilt=rotation_tilt_rad,
-            anti_aliasing=1.0,
-        )
-        return render_lambert_ellipsoid(
-            projection, illumination_angle=illumination_angle_rad, phase_angle=phase_angle_rad
+        data_shape_vu = (int(self.obs.data_shape_v), int(self.obs.data_shape_u))
+        return render_predicted_body(
+            p,
+            phase_angle_rad,
+            shape_vu=data_shape_vu if size is None else size,
+            center_vu=predicted_center_vu(p, data_shape_vu) if center is None else center,
         )
 
     def _render(self) -> None:
@@ -350,8 +322,7 @@ class NavModelBodySimulated(NavModelBodyBase):
         ext_margin_v = int(self.obs.extfov_margin_v)
         ext_margin_u = int(self.obs.extfov_margin_u)
         phase_angle_rad = float(np.radians(p.get('phase_angle', 0.0)))
-        center_v = float(p.get('center_v', data_size_v / 2.0))
-        center_u = float(p.get('center_u', data_size_u / 2.0))
+        center_v, center_u = predicted_center_vu(p, (data_size_v, data_size_u))
         sim_img = self._render_body_image(phase_angle_rad)
         body_mask = sim_img > 0.0
         limb_mask = self._compute_limb_mask_from_body_mask(body_mask)
@@ -449,11 +420,7 @@ class NavModelBodySimulated(NavModelBodyBase):
             cover a pixel.
         """
         p = self._nav_body
-        max_semi = max(
-            float(p.get('semi_a_px', 0.0)),
-            float(p.get('semi_b_px', 0.0)),
-            float(p.get('semi_c_px', 0.0)),
-        )
+        max_semi = max(predicted_semi_axes_px(p))
         # Half again the longest semi-axis (mesh relief can push past the
         # ellipsoid bound), and a canvas of half again the longest diameter plus
         # a fixed margin, as the arc fractions use.
@@ -620,8 +587,7 @@ class NavModelBodySimulated(NavModelBodyBase):
         data_size_u = int(self.obs.data_shape_u)
         mask = np.zeros((data_size_v, data_size_u), dtype=np.bool_)
         for sibling in occluders:
-            phase_rad = float(np.radians(sibling.get('phase_angle', 0.0)))
-            mask |= self._render_body_image(phase_rad, params=sibling) > 0.0
+            mask |= predicted_silhouette(sibling, (data_size_v, data_size_u))
         if not mask.any():
             return None
         ext_margin_v = int(self.obs.extfov_margin_v)
