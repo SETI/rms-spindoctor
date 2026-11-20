@@ -206,8 +206,8 @@ typed scene, in Phase 3b.
 | #894 | Night-side 1% floor and clipped photometric laws |
 | #875 | Relief reads disc terrain at the smooth sphere's direction |
 | #842, #646 | Simulated limbs are not checked for where the brightness gradient peaks; the limb-bias harness measures a simulated ridge half a pixel from the deployed one |
-| #1076 | The simulated Titan model draws a nearer moon on the frame alone, so its part in the margins hides none of the envelope |
-| #1077 | The simulated body model's overflow and visible-arc fractions miss part of a tilted or very lumpy body; the tilt part shrinks if #893 lands first |
+| #1076 | **Affects no current scene.** The simulated Titan model draws a nearer moon on the frame alone, so its part in the margins hides none of the envelope |
+| #1077 | **Affects no current scene.** The simulated body model's overflow and visible-arc fractions miss part of a tilted or very lumpy body; the tilt part shrinks if #893 lands first |
 
 **Exit:** a frame-filling planet renders at its true position with light from beyond the frame
 edge; a rolled scene behaves as the ruling on #644 decides; a lone ring edge lands within 0.05 px
