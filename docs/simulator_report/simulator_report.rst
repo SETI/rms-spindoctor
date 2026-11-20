@@ -977,8 +977,8 @@ recovers the same offset as the full ensemble.
    * - ``planted_offset_ring``
      - RingEdgeNav
      - (1.43, -0.61) px
-     - (1.42, -0.62) px
-     - 0.01 px
+     - (1.41, -0.63) px
+     - 0.03 px
    * - ``planted_rotation_star_field``
      - StarFieldFromCatalogNav (roll)
      - (1.43, -0.61) px, 1.37 deg

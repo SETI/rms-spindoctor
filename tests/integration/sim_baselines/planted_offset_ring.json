@@ -1,8 +1,8 @@
 {
-  "confidence": 0.9118436140638198,
+  "confidence": 0.9119497960087787,
   "confidence_rank": "high",
-  "offset_du_px": -0.6188105858307668,
-  "offset_dv_px": 1.4236981324573525,
+  "offset_du_px": -0.6317138406937752,
+  "offset_dv_px": 1.4114196736907842,
   "scene_name": "planted_offset_ring",
   "status": "success"
 }

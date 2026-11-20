@@ -240,8 +240,9 @@ def test_edge_kind_side_in_carries_tau_inside() -> None:
     assert _probe(tau_map, 10) == pytest.approx(1.5, rel=1e-12)
     assert _probe(tau_map, 18) == pytest.approx(1.5, rel=1e-12)
     assert _probe(tau_map, 22) == 0.0
-    # The pixel centered exactly on the edge carries half coverage.
-    assert _probe(tau_map, 20) == pytest.approx(0.75, rel=1e-9)
+    # The pixel centered exactly on the edge is half covered: half of it passes
+    # exp(-1.5) of the light behind, and the other half passes all of it.
+    assert _probe(tau_map, 20) == pytest.approx(-math.log(0.5 + 0.5 * math.exp(-1.5)), rel=1e-9)
 
 
 def test_edge_kind_side_out_carries_tau_outside() -> None:
