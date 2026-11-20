@@ -502,13 +502,12 @@ Three things, each impossible with real frames alone:
   gradient, cloud blobs -- so the recovery error is measured against scenes
   the method's assumption does not describe.
 - **Failure modes real data cannot isolate become provable.** The worked
-  example is the planted-radial-error family: ``orbit_error_ringlet`` plants
-  a 2.5 px radial catalog error. The fused result is a success that is 1.8 to
-  3.2 px wrong, depending on the noise draw. On a real frame this is
-  indistinguishable from a good lock -- only a frame whose truth is known by
-  construction can *prove* the ensemble absorbs this error into the offset,
-  and keep proving it (the known-error check in :ref:`sim-expected`) until the
-  gap is closed.
+  example is the planted-radial-error family: ``orbit_error_ringlet`` plants a
+  2.5 px radial catalog error. The fused result is a success that is 1.63 px
+  wrong. On a real frame this is indistinguishable from a good lock -- only a
+  frame whose truth is known by construction can *prove* the ensemble absorbs
+  this error into the offset, and keep proving it (the known-error check in
+  :ref:`sim-expected`) until the gap is closed.
 
 What it cannot do
 -----------------
@@ -1905,14 +1904,13 @@ and ``known_offset_error_tol_px``, which set a band around the known error. The
 band covers the fused error measured over 16 noise seeds: the scene's own seed
 and 15 more. Each end of the band sits outside the measured range by a margin of
 0.05 px or a fifth of the spread, whichever is larger. On
-``orbit_error_ringlet`` the error is 1.77 px on the scene's own seed and up to
-3.18 px on others, so a band fitted to one seed would fail on the next. The
-assertion fails in *both* directions. A regression that worsens the error fails.
-A genuine fix that shrinks the error also fails loudly, which prompts a
-deliberate re-measurement of the known error, or retirement of the check,
-instead of a silent behavior change. The success the check holds marks a known
-hazard. The scene comments and the
-campaign record carry the analysis, and the ensemble chapter
+``orbit_error_ringlet`` the error is 1.633 to 1.636 px over the 16 seeds, so the
+band runs from 1.583 to 1.686 px. The assertion fails in *both* directions. A
+regression that worsens the error fails. A genuine fix that shrinks the error
+also fails loudly, which prompts a deliberate re-measurement of the known error,
+or retirement of the check, instead of a silent behavior change. The success the
+check holds marks a known hazard. The scene comments and the campaign record
+carry the analysis, and the ensemble chapter
 (:doc:`dev_guide_orchestrator_ensemble`) describes the failure family. The
 ``titan_crescent_horns`` scenes are not in this family. The cross-technique
 body-witness veto declines their haze-dragged lone-blob offset, so the scenes
@@ -2808,6 +2806,71 @@ Kind-specific shape keys are validated strictly (a ``width_px`` on an
 different feature than intended. :ref:`sim-ring-system` tabulates which kind
 takes which key.
 
+Pixels that an edge crosses
+---------------------------
+
+The profiles change abruptly at their boundaries: both ends of a ringlet or gap,
+the step of an ``edge``, the end of a ``ramp`` that carries the full ``tau``,
+and the bend at the ramp's other end. When a boundary crosses a pixel, the
+renderer splits the pixel along the radial direction at the boundary. It lights
+each piece at that piece's own optical depth and averages the pieces by their
+length. A pixel that is 30% covered by a tau 2 ringlet therefore shows 30% of
+the ringlet's brightness and 70% of what lies beside it, and it passes the light
+behind it in the same proportions. A pixel crossed by two boundaries is split at
+both.
+
+Mixing the optical depth instead, so that the pixel is drawn as a full pixel of
+thinner ring, puts the edge in the wrong place. A ring's brightness levels off
+as its optical depth grows, so a thinner ring is more than proportionally
+bright, and the edge moves outward by up to 0.7 px on an opaque ring.
+
+On an oversampled grid, the split covers one grid pixel and the box downsample
+averages the grid pixels into each detector pixel, so an edge is averaged across
+exactly one detector pixel. A lone edge lands within 0.002 px of its authored
+radius, measured by the gradient centroid of the rendered profile. That holds
+for optical depths from 0.2 to 5, at every position of the edge within its
+pixel, at oversample 1 and 4, for both edge directions, for ringlet and gap
+edges, and on inclined, rotated, and unlit rings. The half-brightness crossing,
+found by straight-line interpolation between pixel centers, can't measure an
+unblurred edge that finely: on a correctly drawn edge it still reads 1/12 px
+(0.083 px) off when the edge sits a quarter of a pixel from a pixel boundary.
+
+Across a ramp, the optical depth changes along the pixel, and brightness and
+transmission don't change in proportion to it. So every pixel that a ramp's band
+overlaps is integrated along its footprint. Between boundaries the optical depth
+changes linearly, and each closed form is a sum of exponentials in it, so the
+mean over each piece has an exact closed form too. The renderer evaluates the
+optical depth at two points in the piece, which fixes the line, and takes the
+closed-form mean. Where a gap pulls the summed optical depth below zero partway
+across a piece, the piece is split where the line reaches zero, and the part
+below zero emits nothing and passes everything. A ramp pixel that no boundary
+crosses is integrated the same way, from its center value and the ramp's slope.
+Against an exact integral, every pixel stays within 3e-10 of the peak for ramps
+0.05 to 50 px wide with optical depths from 5 to 50, seen 0.05 to 2 degrees from
+edge-on on either face, at oversample 1 and 4.
+
+A propeller or a density wave that reaches a ramp pixel makes its optical depth
+curve. There each piece is cut into 32 equal lengths, and each is integrated as a
+line. On a propeller with contrast 8 over a 0.5 px ramp with optical depth 3, the
+pixel is 1e-5 off on the lit face and 5e-4 off on the unlit face, where brightness
+curves most strongly with optical depth.
+
+A pixel that no boundary crosses and no ramp overlaps is drawn at its center. A
+density wave is point sampled there, and on an oversampled grid the box downsample
+averages its point samples. Neither is an integral, and a wave whose wavelength
+approaches a render-grid pixel aliases.
+
+Integrating the crossed pixels costs time in proportion to how many there are. The
+cost of a ramp pixel doesn't depend on the ramp's optical depth or on the viewing
+angles. In CPU time for one 1024 by 1024 frame at oversample 4, the twelve-feature
+budget scene renders its ring system in 1.9 s, against 1.8 s if every pixel were
+drawn at its center. A system of 150 ringlets, each 0.7 px wide and 2.5 px apart,
+takes 3.6 s against 2.7 s and needs 0.6 GB more memory, and one ramp 300 px wide
+takes 1.9 s against 1.2 s and needs 0.6 GB more. A ramp whose whole band a density
+wave reaches is the costly case, since every pixel is cut into 32 lengths: the same
+300 px ramp under a wave takes 69 s. Those pixels are integrated in batches, which
+holds its memory to 3.9 GB.
+
 The catalog orbit: m-modes and edge waves
 -----------------------------------------
 
@@ -2865,8 +2928,8 @@ in quadrature to its reported covariance along the fit's radial direction
 
 The measured behavior on this axis stays deliberately uncomfortable, and the
 ``orbit_error_ringlet`` scene pins it: a navigable ringlet rendered 2.5 px
-outward of its catalog orbit navigates to a success that is 1.8 to 3.2 px
-wrong, depending on the noise draw. A uniform radial misplacement has no
+outward of its catalog orbit navigates to a success that is 1.63 px wrong on
+every noise draw measured. A uniform radial misplacement has no
 exact translational equivalent. The robust edge fit therefore down-weights one
 arc, locks onto one side of the annulus, and absorbs the ephemeris error into
 the recovered offset. The declared sigma widens the covariance enough to keep

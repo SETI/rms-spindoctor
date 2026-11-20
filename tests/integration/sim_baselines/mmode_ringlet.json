@@ -1,8 +1,8 @@
 {
-  "confidence": 0.9121351240542583,
+  "confidence": 0.9124969037604088,
   "confidence_rank": "high",
-  "offset_du_px": 0.8024571677964595,
-  "offset_dv_px": -1.7021579353281262,
+  "offset_du_px": 0.8152318699880207,
+  "offset_dv_px": -1.7200660877861638,
   "scene_name": "mmode_ringlet",
   "status": "success"
 }

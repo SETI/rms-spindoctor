@@ -199,13 +199,14 @@ typed scene, in Phase 3b.
 | #1014 | The simulated Titan model predicts a mesh occluder as an ellipsoid, and at pixel (0, 0) when no center is given |
 | #890 | A body larger than half the frame and off center is clipped or vanishes |
 | #825, #644 | A planted roll turns ellipsoids the wrong way, mesh bodies and the lit side not at all, and leaves smear, companions, and sky unturned; #644 also asks for a ruling on what a roll turns |
-| #891, #873 | Ring-edge anti-aliasing on optical depth shifts lone edges up to 0.7 px; a rank-1 ring scene misses its planted shift by 0.52 px |
+| #891, #873 | **Done (PR #1093).** A pixel that a ring boundary crosses is split at the boundary and each piece is lit at its own optical depth; a lone edge lands within 0.002 px of its authored radius at every optical depth, pixel phase, oversampling, and view tested (it was off by up to 0.67 px). A pixel across a ramp is integrated in closed form. The rank-1 scene's remaining 0.46 px miss comes from the navigator's pixel-centered edge vertices along its grid-aligned edges. Ring-edge anti-aliasing on optical depth shifts lone edges up to 0.7 px; a rank-1 ring scene misses its planted shift by 0.52 px |
 | #84 | Simulated rings were copied in place, so ring edges overwrote brighter objects behind them and gaps erased what lay in them. The ring system has composited by optical depth since PR #313, so a gap or a faint ring shows what lies behind it; confirm on a ring-over-body scene and close |
 | #892 | PSF and smear zero-pad the frame: darkened edges, no light from outside it |
 | #893 | Limb seam, coverage-blind star extinction, and `rotation_tilt` stretch |
 | #894 | Night-side 1% floor and clipped photometric laws |
 | #875 | Relief reads disc terrain at the smooth sphere's direction |
 | #842, #646 | Simulated limbs are not checked for where the brightness gradient peaks; the limb-bias harness measures a simulated ridge half a pixel from the deployed one |
+| #1094 | **Affects no current scene.** A ring ramp under a density wave renders about 35 times slower than without it (69 s against 1.9 s for a 300 px ramp at 1,024 px and oversample 4), because every band pixel takes the 32-cell curved path |
 
 **Exit:** a frame-filling planet renders at its true position with light from beyond the frame
 edge; a rolled scene behaves as the ruling on #644 decides; a lone ring edge lands within 0.05 px

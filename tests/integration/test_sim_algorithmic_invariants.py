@@ -238,7 +238,7 @@ def test_rank1_scene_holds_its_known_normal_error(path: Path) -> None:
             result.offset_px[1] - scene['offset_u'],
         ]
     )
-    # The observable component misses by about 0.52 px (#873).
+    # The observable component misses by about 0.46 px (#873).
     normal_error = abs(float(error_vu @ n_hat))
     assert RANK1_NORMAL_ERROR.contains(normal_error), (
         f'normal-component error {normal_error:.3f} px left the known band '
