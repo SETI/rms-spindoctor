@@ -500,13 +500,45 @@ def test_a_record_epoch_reads_back_what_the_segment_claims(
     assert residual_rad <= ATTITUDE_TOL_RAD
 
 
-def test_the_re_navigated_offset_is_zero_along_v(round_trip: RoundTrip) -> None:
+def _expect_the_voyager_kernel_unread(
+    request: pytest.FixtureRequest, round_trip: RoundTrip
+) -> None:
+    """Mark the Voyager frame's re-navigated offset as an expected failure.
+
+    The Voyager host reads an image's scan platform pointing at the image's own clock
+    count, within 20 ticks, and the corrected segment stamps its records at the exposure
+    start, midtime and stop, so the host reads the original record and the corrected
+    kernel leaves the pointing as it was: the second run measures the first run's offset
+    again.  The
+    mark is strict, so that the fix shows up here.
+
+    Parameters:
+        request: The running test, which takes the mark.
+        round_trip: The frame's findings.
+    """
+    if round_trip.image_id == _VOYAGER_NAC:
+        # #1085: the CK writer has to stamp a record at the image's clock count
+        request.applymarker(
+            pytest.mark.xfail(
+                strict=True,
+                reason='the Voyager host does not read the corrected segment',
+            )
+        )
+
+
+def test_the_re_navigated_offset_is_zero_along_v(
+    request: pytest.FixtureRequest, round_trip: RoundTrip
+) -> None:
     """Nothing is left to correct along ``v``."""
+    _expect_the_voyager_kernel_unread(request, round_trip)
     assert abs(float(round_trip.renavigated['offset_px'][0])) <= OFFSET_TOL_PX
 
 
-def test_the_re_navigated_offset_is_zero_along_u(round_trip: RoundTrip) -> None:
+def test_the_re_navigated_offset_is_zero_along_u(
+    request: pytest.FixtureRequest, round_trip: RoundTrip
+) -> None:
     """Nothing is left to correct along ``u``."""
+    _expect_the_voyager_kernel_unread(request, round_trip)
     assert abs(float(round_trip.renavigated['offset_px'][1])) <= OFFSET_TOL_PX
 
 

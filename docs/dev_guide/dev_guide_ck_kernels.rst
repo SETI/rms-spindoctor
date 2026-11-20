@@ -236,16 +236,29 @@ conjugation's *direction* cannot be pinned by any real frame, because every
 non-involutory ``R`` is what the test suite uses to hold ``R^T M R`` apart from
 ``R M R^T``.
 
-Voyager takes a different path through the same function. ``oops`` builds the
-observation frame as
-``P . ckgp(ck_id, sce2t(scid, et_mid), 800 + texp/48, 'J2000')`` with
-``P = pxform('VGn_SCAN_PLATFORM', camera_frame, 0)`` -- frozen,
-time-independent, and tolerance-snapped, so a ``pxform`` at the midtime does not
-reproduce it. For Voyager the observation frame attitude already is the SPICE
-camera attitude that was navigated: ``cmatrix_original = C_oops``, ``R`` is the
-identity by construction, and the writer has to reproduce the baseline with the
-same snapped lookup. The tick conversion is ``sce2t``, not ``sce2c``; the two
-differ, and the reproduction step matches the call it reproduces.
+Voyager takes a different path through the same function. The Voyager host
+builds the observation frame as
+``P . ckgp(ck_id, ticks(clock_stop_count), 20, 'J2000')`` with
+``P = pxform('VGn_SCAN_PLATFORM', camera_frame, 0)``: one lookup at the image's
+own clock stop count, the FDS count in its name, within 20 ticks (1.2 s) --
+frozen, time-independent, and tolerance-snapped, so a ``pxform`` at the midtime
+does not reproduce it. For Voyager the observation frame attitude already is the
+SPICE camera attitude that was navigated: ``cmatrix_original = C_oops``, ``R`` is
+the identity by construction, and the writer has to reproduce the baseline with
+the same snapped lookup.
+
+.. Issue #1085: the reproduction step still looks up the midtime, and the segment
+   lacks a record at the clock count.
+
+The reproduction step does not do that yet. It looks the baseline up as
+``ckgp(ck_id, sce2t(scid, et_mid), 800 + texp/48, 'J2000')``, at the exposure
+midtime, then again at a wider tolerance, and accepts a candidate whose attitude
+matches the recorded one within 1e-9 rad. Where the record the midtime lookup
+finds is not the one at the clock count, none of the candidates matches, and the image is
+omitted as ``no_reproducing_baseline`` although its baseline kernel is
+furnished. The segment's records are stamped at the exposure start, midtime, and
+stop, so the host, which looks at the clock count, does not read them either
+(see :doc:`instruments/voyager_iss`).
 
 The result is checked before it is recorded: ``|det(C) - 1| < 1e-9``,
 ``max|C C^T - I| < 1e-9``, and every element finite, all three raising on

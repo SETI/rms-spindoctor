@@ -26,7 +26,9 @@ tags are encoded against, is stated in each instrument's own chapter under
 The pixel offset is unaffected. Every consumer that reads ``offset`` from the
 metadata keeps working exactly as it does; the kernels are a second expression
 of the same measurement, for consumers that would rather furnish a file than
-apply an offset.
+apply an offset. A consumer sees a correction only if it looks up the pointing
+inside the exposure a corrected segment covers; an instrument whose image reader
+looks it up at another time says so in its chapter.
 
 What these kernels claim
 ========================
