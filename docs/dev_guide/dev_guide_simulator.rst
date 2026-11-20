@@ -2042,9 +2042,10 @@ frozen :class:`~spindoctor.sim.render.bodies.spec.BodySpec`
 applied there, and a key set to null gets the same default as an absent key. Under a
 planted roll the stage first turns the entry about the body's own center
 (:func:`~spindoctor.sim.render.roll.roll_body_params`; see
-:ref:`the planted roll <sim-planted-roll>`) and records the roll in the spec's ``roll_deg``, which turns the crater layout. The
-stage then shifts each center by the ephemeris parallax, turns it about the frame
-center by the roll, and scales the centers and axes to the render grid. The body
+:ref:`the planted roll <sim-planted-roll>`) and records the roll in the spec's
+``roll_deg``, which turns the crater layout. The stage then shifts each center by the
+ephemeris parallax, turns it about the frame center by the roll, and scales the
+centers and axes to the render grid. The body
 renderer adds the planted translation when it draws the body. Both renderers read only the
 spec. Two sub-blocks stay as their validated mappings, because their specs depend on the
 render: the ``atmosphere`` block's pixel lengths scale with the oversampling factor, and
@@ -2054,11 +2055,13 @@ them with :func:`~spindoctor.sim.render.bodies.atmosphere.atmosphere_spec_from_p
 key as absent too.
 
 The stage also writes each body's entry in the render truth. The entry starts as a
-copy of the scene entry, turned by the planted roll when there is one. It leaves out
-any key the scene sets to null, so the truth reads a null key as an absent one. The
-stage then puts in the render-grid centers and axes, fills in the name and
-range when the scene leaves them out, and, for a mesh body, adds the pose scatter it
-drew.
+copy of the scene entry, leaving out any key the scene sets to null, so the truth reads
+a null key as an absent one. Under a planted roll the entry is the turned one, and the
+angles the roll turns (``illumination_angle``, and ``rotation_z`` or
+``pose_euler_deg``) are always present: one the scene leaves out or sets to null
+carries its default turned by the roll. The stage then puts in the render-grid centers
+and axes, fills in the name and range when the scene leaves them out, and, for a mesh
+body, adds the pose scatter it drew.
 
 .. _sim-body-placement:
 
@@ -3286,9 +3289,11 @@ from ``+v`` toward ``+u``, carrying a point at ``(dv, du)`` from the center to
 ``similarity_transform_fit`` in ``nav_technique/_star_helpers.py`` reports and the
 rotation the edge fits apply to their model, so the rotation the navigator
 recovers equals the planted roll. The roll turns the scene first, and the planted
-``offset_v`` / ``offset_u`` then moves the turned scene. The navigator never learns
-the roll: ``offset_rotation_deg`` is a truth key, so the navigator's models predict
-the unrolled scene.
+``offset_v`` / ``offset_u`` then moves the turned stars, bodies, and ring system. The
+``sky_counts`` background field turns with the roll but does not move with the offset:
+its stars are drawn where they land in the frame whatever the offset. The navigator
+never learns the roll: ``offset_rotation_deg`` is a truth key, so the navigator's
+models predict the unrolled scene.
 
 The roll turns:
 
@@ -3301,11 +3306,17 @@ The roll turns:
   on it;
 - each star's ``move_v`` / ``move_u`` smear track, its companion's offset, and its
   catalog error;
-- the whole-scene and per-class motion smear in the ``optics`` block, which is the
-  scene drifting across the detector;
+- the whole-scene and per-class motion smear in the ``optics`` block. Smear is the
+  scene drifting across the detector during the exposure, so its direction is a
+  direction in the field of view and turns with it;
+- the direction of a linear stray-light ramp. The ramp rises toward a bright source
+  beyond the field of view, and rolling the camera turns that source's direction on
+  the detector;
 - the ``sky_counts`` background field. The turned frame also shows sky beyond the
   unrolled frame's corners, so stars at the same density are drawn there from their
-  own stream, and the rolled sky is the unrolled sky turned with the frame.
+  own stream, and the rolled sky is the unrolled sky turned with the frame. A star is
+  drawn only when its position lies in the frame, rolled or not, so a roll too small
+  to carry a star across the frame edge draws the same stars as no roll.
 
 :mod:`spindoctor.sim.render.roll` does the turning for bodies. Three body angles run
 against the roll, so the roll subtracts from them. ``rotation_z`` turns the grid an
@@ -3315,8 +3326,9 @@ light direction ``(-cos, sin)`` turns by ``-illumination_angle``. A mesh body's 
 ``Rz @ Ry @ Rx`` in camera axes ordered ``(u, v, depth)``, so its line-of-sight angle,
 the third entry of ``pose_euler_deg``, is the outermost rotation, and a ``+v`` toward
 ``+u`` turn is a negative ``Rz`` there. Craters are drawn on the image grid rather
-than on the body, so the ellipsoid renderer lays them out for the unrolled body and
-turns each center onto the rolled one. A scene author writes every angle for the
+than on the body, so the ellipsoid renderer lays them out where the unrolled body
+does, on the frame or plane the unrolled body's canvas uses, and turns each center
+onto the rolled one. A scene author writes every angle for the
 unrolled camera and never adjusts one for the roll.
 
 Moving the pivot displaces every rendered position by ``(I - R) d`` for a pivot moved
@@ -3325,18 +3337,21 @@ same near the center as far from it -- so pivoting the star field half a pixel f
 bodies would tilt the star solution against the body solution by that amount at every
 star.
 
-The camera's own optics stay put: the PSF, the distortion, the ghosts, and the stray
-light belong to the detector rather than the field of view. The two centers inside
-the ``optics`` block -- ``distortion.center_v`` / ``center_u`` and
-``stray_light.center_v`` / ``center_u`` -- follow the pixel-corner rule too, though
-each sets where a whole-frame field is centered rather than where an object sits.
-Both are stated as pixel corners and both convert the same way, and both render where
-the scene wrote them whatever the roll.
+The camera's own optics stay put: the PSF, the distortion, the ghosts' shifts, and the
+radial stray-light bump are optical properties of the camera rather than of the field
+of view. The two centers inside the ``optics`` block -- ``distortion.center_v`` /
+``center_u`` and ``stray_light.center_v`` / ``center_u`` -- follow the pixel-corner
+rule too, though each sets where a whole-frame field is centered rather than where an
+object sits. Both are stated as pixel corners and both convert the same way, and both
+render where the scene wrote them whatever the roll.
 
 ``tests/spindoctor/sim/test_sim_roll_turns_scene.py`` holds the renderer to this. For
-each quantity, a +90 degree roll must render the unrolled frame turned a quarter
-turn, and a 30 degree roll must turn a half-lit sphere's light and an ellipsoid's long
-axis by 30 degrees.
+each quantity that turns, a +90 degree roll must render the unrolled frame turned a
+quarter turn. An ellipsoid's outline and a smear track look the same after a half
+turn, so a 30 degree roll must turn each by 30 degrees, and it must turn a half-lit
+sphere's light the same way. A rolled body that only one of the two renders draws on
+the frame must still carry the unrolled body's craters, and a roll must leave the
+ghosts and the radial stray-light bump where they were.
 
 Scene parameter reference
 =========================
@@ -3411,10 +3426,12 @@ inside a mode's map may be null and takes its default.
        :ref:`the planted roll <sim-planted-roll>`).  That covers the positions
        of stars and bodies; each body's outline, lit side, and surface; the ring
        system; star smear, companions, and catalog errors; the optics motion
-       smear; and the sky field.  The roll subtracts from ``rotation_z``,
-       ``illumination_angle``, and a mesh body's line-of-sight pose angle, which
-       run against it, and adds to ``node_deg``.  The PSF, distortion, ghosts,
-       and stray light belong to the camera and do not turn.
+       smear; a linear stray-light ramp's direction; and the sky field.  The
+       roll subtracts from ``rotation_z``, ``illumination_angle``, and a mesh
+       body's line-of-sight pose angle, which run against it, and adds to
+       ``node_deg`` and the ramp's ``direction_deg``.  The PSF, distortion,
+       ghosts, and radial stray-light bump belong to the camera and do not
+       turn.
    * - ``midtime_utc``
      - str
      - none

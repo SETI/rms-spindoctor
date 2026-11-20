@@ -75,10 +75,13 @@ A scene describes what the camera would see unrolled, and the roll turns
 EVERYTHING in the field of view by the same angle, in the same direction,
 about ONE point in that same convention: the frame's center
 (size_v / 2, size_u / 2).  A positive roll turns from +v toward +u, carrying a
-point at (dv, du) from the center to (cos * dv - sin * du, sin * dv + cos * du).
+point at (dv, du) from the center to
+(cos * dv - sin * du, sin * dv + cos * du).
 That is the rotation the navigator's star fit reports, so the rotation it
 recovers equals the planted roll.  The roll turns the scene first, and the
-planted offset_v / offset_u then moves the turned scene.
+planted offset_v / offset_u then moves the turned stars, bodies, and ring
+system.  The sky_counts background field turns with the roll but does not move
+with the offset.
 
 So the roll turns star positions and body centers about the frame center, and
 turns each body about its own center by the same angle: its outline
@@ -86,10 +89,12 @@ turns each body about its own center by the same angle: its outline
 (illumination_angle), and everything drawn on it -- craters, relief, albedo
 texture, bands and storms, transiting moons and their shadows, and the haze
 with its clouds.  It adds to the ring system's node_deg, which turns every
-ring feature with it.  It turns each star's smear track (move_v / move_u), its companion's
-offset, and its catalog error, the whole-scene motion smear in the optics
-block, and the sky_counts background field, which also fills the corners the
-turn brings into view.
+ring feature with it.  It turns each star's smear track (move_v / move_u),
+its companion's offset, and its catalog error.  It turns the motion smear in
+the optics block, which is the scene drifting across the detector, and the
+direction_deg of a linear stray-light ramp, which rises toward a bright source
+beyond the field of view.  It turns the sky_counts background field, which
+also fills the corners the turn brings into view.
 
 Two of a body's angles run against the roll, so the roll subtracts from
 them: rotation_z turns the grid the ellipsoid is sampled on, so the drawn
@@ -98,8 +103,8 @@ top of the image toward +u.  A mesh body's line-of-sight pose angle, the third
 entry of pose_euler_deg, runs against it too.  A scene author writes every
 angle for the unrolled camera and never adjusts it for the roll.
 
-The camera's own optics stay put: the PSF, the distortion, the ghosts, and
-the stray light belong to the detector rather than the field of view.  The
+The camera's own optics stay put: the PSF, the distortion, the ghosts' shifts,
+and the radial stray-light bump are optical properties of the camera.  The
 two centers inside the optics block -- distortion.center_v / center_u and
 stray_light.center_v / center_u -- are pixel corners too.  Each sets where a
 whole-frame field is centered rather than where an object sits, and the same
