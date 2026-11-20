@@ -3331,9 +3331,12 @@ The roll turns:
 - the whole-scene and per-class motion smear in the ``optics`` block. Smear is the
   scene drifting across the detector during the exposure, so its direction is a
   direction in the field of view and turns with it;
-- the direction of a linear stray-light ramp. The ramp rises toward a bright source
-  beyond the field of view, and rolling the camera turns that source's direction on
-  the detector;
+- a linear stray-light ramp. The ramp rises toward a bright source beyond the field
+  of view, and rolling the camera turns that source's direction on the detector. The
+  rolled ramp is the unrolled ramp turned about the frame center, with the same slope
+  and the same value there. Where the turned frame reaches past the span the unrolled
+  ramp was scaled to, the ramp continues the same line, and where that line falls
+  below zero it is clipped to zero, since light is never negative;
 - the ``sky_counts`` background field. The turned frame also shows sky beyond the
   unrolled frame's corners, so stars at the same density are drawn there from their
   own stream, and the rolled sky is the unrolled sky turned with the frame. A star is
@@ -3371,9 +3374,12 @@ render where the scene wrote them whatever the roll.
 each quantity that turns, a +90 degree roll must render the unrolled frame turned a
 quarter turn. An ellipsoid's outline and a smear track look the same after a half
 turn, so a 30 degree roll must turn each by 30 degrees, and it must turn a half-lit
-sphere's light the same way. A rolled body that only one of the two renders draws on
-the frame must still carry the unrolled body's craters, and a roll must leave the
-ghosts and the radial stray-light bump where they were.
+sphere's light the same way. On a frame twice as wide as it is tall, where only one
+of the two renders draws a long cratered body on the frame, a +90 degree roll must
+still render the unrolled frame turned wherever the turn maps the frame onto itself.
+On a frame wider than it is tall, a linear stray-light ramp rolled 37 degrees must
+equal the unrolled ramp turned and clipped at zero, and a roll must leave the ghosts
+and the radial stray-light bump where they were.
 
 Scene parameter reference
 =========================
@@ -3448,10 +3454,11 @@ inside a mode's map may be null and takes its default.
        :ref:`the planted roll <sim-planted-roll>`).  That covers the positions
        of stars and bodies; each body's outline, lit side, and surface; the ring
        system; star smear, companions, and catalog errors; the optics motion
-       smear; a linear stray-light ramp's direction; and the sky field.  The
-       roll subtracts from ``rotation_z``, ``illumination_angle``, and a mesh
-       body's line-of-sight pose angle, which run against it, and adds to
-       ``node_deg`` and the ramp's ``direction_deg``.  The PSF, distortion,
+       smear; a linear stray-light ramp, clipped at zero where the turned frame
+       reaches past the unrolled one; and the sky field.  The roll subtracts
+       from ``rotation_z``, ``illumination_angle``, and a mesh body's
+       line-of-sight pose angle, which run against it, and adds to
+       ``node_deg``.  The PSF, distortion,
        ghosts, and radial stray-light bump belong to the camera and do not
        turn.
    * - ``midtime_utc``

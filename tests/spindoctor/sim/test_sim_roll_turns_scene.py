@@ -28,10 +28,11 @@ from typing import Any
 
 import numpy as np
 import pytest
-from scipy import ndimage
 from tests.spindoctor.sim.scenes import disc_body, frame_scene, quiet_noise, star_entry
 
 from spindoctor.sim.render.driver import render_scene
+from spindoctor.sim.render.optics.stage import apply_optics
+from spindoctor.sim.render.stages import new_sim_frame
 from spindoctor.support.types import NDArrayFloatType
 
 _SIZE = 96
@@ -394,11 +395,6 @@ def _long_axis_deg(img: NDArrayFloatType) -> float:
 
 _ROLL_DEG = 30.0
 _ANGLE_TOLERANCE_DEG = 0.1
-# The rolled and turned crater light correlate at 0.944 after both are smoothed by a
-# one-pixel Gaussian, which hides the resampling of the 45 degree turn; craters laid
-# out on the rolled body's own frame correlate at 0.262, and unturned ones at 0.205.
-_CRATER_SMOOTH_PX = 1.0
-_CRATER_MATCH = 0.8
 
 
 def test_roll_turns_the_lit_side_by_the_roll() -> None:
@@ -454,36 +450,101 @@ def test_roll_turns_the_optics_smear_by_the_roll() -> None:
     assert abs(_axis_turn_deg(blocks) - _ROLL_DEG) < _ANGLE_TOLERANCE_DEG
 
 
-def _crater_light(roll_deg: float, body: dict[str, Any]) -> NDArrayFloatType:
-    """The light the craters of ``body`` add or take away at ``roll_deg``."""
-    smooth = {**body, 'crater_fill': 0.0}
-    return _render(roll_deg, {'bodies': [body]}) - _render(roll_deg, {'bodies': [smooth]})
+# A frame twice as wide as it is tall: a long body that fits along its width does not
+# fit along its height.
+_WIDE_V = 64
+_WIDE_U = 128
+# Where a quarter turn about the frame center maps the wide frame onto itself: the
+# central square of the rolled frame, and the central square of the unrolled frame
+# turned a quarter turn.
+_ROLLED_SQUARE = (slice(0, _WIDE_V), slice((_WIDE_U - _WIDE_V) // 2, (_WIDE_U + _WIDE_V) // 2))
+_TURNED_SQUARE = (slice((_WIDE_U - _WIDE_V) // 2, (_WIDE_U + _WIDE_V) // 2), slice(0, _WIDE_V))
+
+# The in-plane rotation that lays the long body along the frame's width, and the one
+# that lays it along its height, by the roll each render sees.
+_LONG_BODY_ROTATIONS: dict[str, float] = {'rolled_on_canvas': 90.0, 'unrolled_on_canvas': 0.0}
 
 
-def test_roll_turns_the_craters_of_a_body_only_one_render_fits() -> None:
-    """A rolled body carries the unrolled body's craters turned, though only it fits.
+@pytest.mark.parametrize(
+    'rotation_z', list(_LONG_BODY_ROTATIONS.values()), ids=list(_LONG_BODY_ROTATIONS)
+)
+def test_quarter_roll_turns_the_craters_of_a_body_only_one_render_fits(
+    rotation_z: float,
+) -> None:
+    """A rolled body carries the unrolled body's craters, though only one render fits.
 
-    Unrolled, the long body reaches past the frame edge and is drawn on a canvas past
-    it, laying its craters out on a plane holding the whole body; turned 45 degrees it
-    fits in the frame.  The light the craters change in the rolled frame must match
-    that light in the unrolled frame turned 45 degrees about the frame center.  A
-    different draw of craters matches it no better than chance.
+    On the wide frame, the long cratered body fits when it lies along the frame's
+    width and reaches past the frame when it lies along its height, where it is drawn
+    on a canvas past the frame and lays its craters out on a plane holding all of it.
+    A +90 degree roll swaps the two, so exactly one of the rolled and unrolled renders
+    draws the body on the frame.  Where the quarter turn maps the frame onto itself,
+    the rolled render must equal the unrolled one turned.
+
+    Parameters:
+        rotation_z: The body's in-plane rotation, which sets which render fits.
     """
     body = {
         'name': 'B',
-        'center_v': _CENTER,
-        'center_u': _CENTER,
-        'semi_a_px': 56.0,
+        'center_v': _WIDE_V / 2.0,
+        'center_u': _WIDE_U / 2.0,
+        'semi_a_px': 50.0,
         'semi_b_px': 14.0,
         'semi_c_px': 14.0,
+        'rotation_z': rotation_z,
         'phase_angle': 0.0,
         'crater_fill': 0.4,
         'crater_max_radius': 0.15,
     }
-    turned = ndimage.rotate(_crater_light(0.0, body), 45.0, reshape=False, order=1)
-    unrolled = ndimage.gaussian_filter(turned, _CRATER_SMOOTH_PX)
-    rolled = ndimage.gaussian_filter(_crater_light(45.0, body), _CRATER_SMOOTH_PX)
-    assert np.corrcoef(unrolled.ravel(), rolled.ravel())[0, 1] > _CRATER_MATCH
+    renders = []
+    for roll_deg in (0.0, 90.0):
+        params = frame_scene(
+            size=(_WIDE_V, _WIDE_U), seed=5, exposure_sec=1.0, noise=quiet_noise(), bodies=[body]
+        )
+        params['offset_rotation_deg'] = roll_deg
+        img, _meta = render_scene(params)
+        renders.append(np.asarray(img, dtype=np.float64))
+    unrolled, rolled = renders
+    turned = np.rot90(unrolled, 1)[_TURNED_SQUARE]
+    assert np.abs(rolled[_ROLLED_SQUARE] - turned).max() <= _DN_TOLERANCE
+
+
+_RAMP_SIZE = (96, 160)
+_RAMP_ROLL_DEG = 37.0
+
+
+def _ramp_signal(roll_deg: float) -> NDArrayFloatType:
+    """The optics stage's signal plane holding only a linear ramp, at ``roll_deg``."""
+    frame = new_sim_frame(_RAMP_SIZE[0], _RAMP_SIZE[1])
+    params = frame_scene(
+        size=_RAMP_SIZE,
+        optics={'stray_light': {'amplitude': 0.4, 'direction_deg': 20.0, 'model': 'linear'}},
+    )
+    params['offset_rotation_deg'] = roll_deg
+    apply_optics(frame, params=params)
+    return frame.signal
+
+
+def test_roll_turns_the_stray_light_ramp_about_the_frame_center() -> None:
+    """A rolled linear stray-light ramp is the unrolled ramp turned, clipped at zero.
+
+    The unrolled ramp is an exact linear field over the frame's pixel centers, so its
+    slope and value at any point follow from three of its pixels.  The rolled frame
+    shows at each pixel the unrolled field at that pixel turned back by the roll about
+    the frame center, and no light below zero.  The frame is wider than it is tall and
+    the roll is not a quarter turn, so the turned frame reaches past the unrolled one.
+    """
+    unrolled = _ramp_signal(0.0)
+    rolled = _ramp_signal(_RAMP_ROLL_DEG)
+    slope_v = unrolled[1, 0] - unrolled[0, 0]
+    slope_u = unrolled[0, 1] - unrolled[0, 0]
+    center_v = (_RAMP_SIZE[0] - 1) / 2.0
+    center_u = (_RAMP_SIZE[1] - 1) / 2.0
+    vv, uu = np.mgrid[0 : _RAMP_SIZE[0], 0 : _RAMP_SIZE[1]].astype(np.float64)
+    roll = math.radians(_RAMP_ROLL_DEG)
+    back_v = center_v + math.cos(roll) * (vv - center_v) + math.sin(roll) * (uu - center_u)
+    back_u = center_u - math.sin(roll) * (vv - center_v) + math.cos(roll) * (uu - center_u)
+    expected = np.maximum(unrolled[0, 0] + slope_v * back_v + slope_u * back_u, 0.0)
+    assert np.abs(rolled - expected).max() < 1e-12
 
 
 _CAMERA_OPTICS: dict[str, dict[str, Any]] = {

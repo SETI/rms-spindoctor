@@ -264,9 +264,11 @@ def render_ellipsoid_body(
         size: Frame dimensions (rows, columns) on the incoming render grid.
         center: Body center (v, u) in incoming-grid pixels.
         spec: The body's geometry, texture, relief, and photometry.
-        crater_plane: The larger detector grid the craters are laid out on when the
-            frame holds only part of the body, or None to lay them out on the
-            frame's own detector grid.
+        crater_plane: The detector grid the craters are laid out on when it is not
+            this frame's own: a larger grid holding the whole body when the frame
+            holds only part of it, or, for a body turned by a planted roll, the
+            grid the unrolled body lays its craters out on, which can be smaller
+            than this frame.  None lays them out on the frame's own detector grid.
 
     Returns:
         The :class:`EllipsoidBodyRender` on the ``size`` grid.

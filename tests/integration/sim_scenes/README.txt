@@ -91,10 +91,12 @@ texture, bands and storms, transiting moons and their shadows, and the haze
 with its clouds.  It adds to the ring system's node_deg, which turns every
 ring feature with it.  It turns each star's smear track (move_v / move_u),
 its companion's offset, and its catalog error.  It turns the motion smear in
-the optics block, which is the scene drifting across the detector, and the
-direction_deg of a linear stray-light ramp, which rises toward a bright source
-beyond the field of view.  It turns the sky_counts background field, which
-also fills the corners the turn brings into view.
+the optics block, which is the scene drifting across the detector, and a
+linear stray-light ramp, which rises toward a bright source beyond the field
+of view: the rolled ramp is the unrolled one turned about the frame center,
+continued along the same line where the turned frame reaches past the
+unrolled one and clipped at zero there.  It turns the sky_counts background
+field, which also fills the corners the turn brings into view.
 
 Two of a body's angles run against the roll, so the roll subtracts from
 them: rotation_z turns the grid the ellipsoid is sampled on, so the drawn
