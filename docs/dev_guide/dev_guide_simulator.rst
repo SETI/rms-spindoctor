@@ -2064,19 +2064,30 @@ once and only moves it at each step. At catalog size a new drawing costs 0.03 to
 one.
 
 A body can be too large for a frame-sized drawing. When the body, its limb relief, or
-its halo would reach past the frame from the frame center, a drawing the size of the
-frame would cut it off, and a planet whose limb crosses a corner of the frame would
-lose that limb or vanish. Such a body is drawn on a larger canvas
-(:func:`~spindoctor.sim.render.bodies.placement.body_canvas`). The canvas is a part
-of the frame's pixel grid continued past its edges. It holds both the body and every
-pixel the move reads, plus 8 detector pixels more on each side, so the spline that
-interpolates the relief tilt never ends inside the frame. The body is still drawn at
-the frame center and moved the same way, so the frame shows exactly what the
-matching window of a frame large enough to hold the body would show. Because the
-canvas depends on where the body lands, a body this large is drawn again at every
-step of an offset sweep, at about the cost of a frame-sized drawing. Its craters are
-laid out on a grid that holds the whole body, so they stay in place on its surface
-whichever part of it is drawn.
+its halo would come within a pixel of the frame edge from the frame center, a drawing
+the size of the frame would cut it off. The move reads nothing past the drawing, so
+light in the drawing's outermost pixels is partly lost, and a planet whose limb
+crosses a corner of the frame would lose that limb or vanish. Such a body is drawn on a canvas
+(:func:`~spindoctor.sim.render.bodies.placement.body_canvas`), a part of the frame's
+pixel grid continued past its edges. The canvas is where the body overlaps the pixels
+the move reads for the frame, each widened by 8 detector pixels, so the spline that
+interpolates the relief tilt never ends inside the frame.
+
+The body is still drawn at the frame center and moved the same way. A smooth body, a
+mesh body, and a halo then look as they would in the same window of a frame large
+enough to hold the body, to rounding. A body with limb relief at an oversampling
+factor above 1 matches that window to about 1e-6 of full brightness, the reach of the
+spline's ends past the margin. A cratered body does not: its craters are laid out on
+a grid that holds the whole body, while on the larger frame they would be laid out on
+that frame. The grid depends only on the body's size, so the craters stay in place on
+its surface whichever part of it is drawn.
+
+The canvas depends on where the body lands, so a body this large is drawn again at
+every step of an offset sweep, and only its last drawing is kept. Drawing it costs
+about as much as drawing a body that fills the frame on the frame itself: for a body
+of radius 5000 pixels with relief, craters, and a halo, 1.4 to 1.8 s against 1.1 s on
+a 256 x 256 frame at oversampling 4, and 12 to 15 s against 12 s on a 1024 x 1024
+frame at oversampling 1.
 
 A move by a fraction ``f`` of a pixel blends two copies of the drawing: one at the
 whole-pixel position, weighted ``1 - f``, and one a pixel farther, weighted ``f``.

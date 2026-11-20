@@ -10,10 +10,11 @@ positions its translucent halo, and builds the body's inventory entry.  The
 ellipsoid path in :mod:`spindoctor.sim.render.bodies.render` and the mesh renderer
 (:mod:`spindoctor.sim.render.bodies.mesh`) both place their bodies here.
 
-A body that fits in the frame when drawn at the frame center is drawn on the frame
-itself.  A larger one, which a frame-sized drawing would cut off, is drawn on a
-canvas that holds the part of it that lands in the frame, so a planet larger than
-the frame shows its limb wherever its center lies, on the frame or off it.
+A body that fits in the frame, with a pixel to spare, when drawn at the frame center
+is drawn on the frame itself.  A larger one, which a frame-sized drawing would cut
+off, is drawn on a canvas that holds the part of it that lands in the frame, so a
+planet larger than the frame shows its limb wherever its center lies, on the frame
+or off it.
 """
 
 import math
@@ -97,13 +98,15 @@ def body_canvas(
 ) -> BodyCanvas:
     """The canvas a body is drawn on before it is translated into the frame.
 
-    A body that lies within the frame when drawn at the frame center is drawn on the
-    frame itself, wherever it is placed.  A body that reaches past the frame from
-    there is drawn on the part of the reference plane that
-    holds both the body and the pixels the translation into the frame reads, plus a
-    margin of 8 detector pixels, so the drawing never ends inside the frame.  That
-    part changes with the body's position, so such a body is drawn again whenever
-    it moves.  Every canvas edge lies on a detector pixel boundary.
+    A body that lies at least one pixel inside the frame edge when drawn at the frame
+    center is drawn on the frame itself, wherever it is placed.  The translation
+    reads nothing beyond the drawing, so a body lighting the drawing's outermost
+    pixels would lose part of their light there.  Any other body is drawn on the
+    part of the reference plane where the body and the pixels the translation into
+    the frame reads overlap, each widened by 8 detector pixels, so the drawing never
+    ends inside the frame.  That part changes with the body's position, so such a
+    body is drawn again whenever it moves.  Every canvas edge lies on a detector
+    pixel boundary.
 
     Parameters:
         frame_shape: The render grid's rows and columns.
@@ -152,8 +155,12 @@ def body_canvas(
 
 
 def _fits(ref: float, reach: float, size: int) -> bool:
-    """Whether a body drawn at ``ref`` with this reach lies within ``[0, size]``."""
-    return ref - reach >= 0.0 and ref + reach <= size
+    """Whether a body drawn at ``ref`` with this reach lies within ``[1, size - 1]``.
+
+    The pixel of clearance keeps the body off the drawing's outermost pixels, whose
+    light the translation would partly drop: it reads nothing beyond the drawing.
+    """
+    return ref - reach >= 1.0 and ref + reach <= size - 1
 
 
 def _aligned(start: int, stop: int, step: int) -> slice:
