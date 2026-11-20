@@ -351,16 +351,21 @@ Sharing code is fine; sharing information is not
 ------------------------------------------------
 
 Both sides deliberately call the same geometry helpers --
-:mod:`spindoctor.sim.shared.ellipsoid`, :mod:`spindoctor.sim.shared.mesh`,
-:mod:`spindoctor.sim.shared.ring`, and :mod:`spindoctor.sim.shared.stars`.
+:mod:`spindoctor.sim.shared.ellipsoid`, :mod:`spindoctor.sim.shared.lighting`,
+:mod:`spindoctor.sim.shared.mesh`, :mod:`spindoctor.sim.shared.ring`, and
+:mod:`spindoctor.sim.shared.stars`.
 This is not a boundary leak; it is what makes the measurement clean. With
 shared conventions (the coordinate systems, the sign of ``dv``, edge
 rasterization, record defaults) the planted error is the *only* error in a recovery
 measurement. Independent implementations would each carry their own
 conventions, and any delta between them would land as an unknown systematic
 inside the measured error -- contaminating the truth reference every simulator
-result rests on. The discipline the shared helpers follow: they never read the
-scene and never accept a truth key. Most take explicit geometry
+result rests on. For the same reason both sides derive the light direction in one
+place, :mod:`spindoctor.sim.shared.lighting`, which every ellipsoid, mesh, and haze
+shading path uses. The rings and the haze, both on the image side, also take their
+Henyey-Greenstein phase function from that module, so a scattering asymmetry ``g``
+means the same thing in both. The discipline the shared helpers follow: they never
+read the scene and never accept a truth key. Most take explicit geometry
 arguments; the two record parsers
 (:func:`spindoctor.sim.shared.stars.star_record_from_params` and
 :func:`spindoctor.sim.shared.mesh.mesh_spec_from_params`) parse per-object

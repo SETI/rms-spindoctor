@@ -23,13 +23,13 @@ from spindoctor.sim.render.rings.render import (
     RING_ALBEDO_DEFAULT,
     RING_PHASE_G_DEFAULT,
     _feature_tau_profile,
-    henyey_greenstein_phase,
     render_ring_system,
     ring_reflection_factor,
 )
 from spindoctor.sim.render.stages import new_sim_frame
 from spindoctor.sim.scene.errors import SimSceneValidationError
 from spindoctor.sim.scene.validate import validate_sim_params
+from spindoctor.sim.shared.lighting import henyey_greenstein_phase
 from spindoctor.sim.shared.ring import (
     ring_orbit_from_mapping,
     ring_plane_from_sky,
@@ -45,17 +45,6 @@ def _tau_array(*values: float) -> NDArrayFloatType:
 # ---------------------------------------------------------------------------
 # Photometry closed forms
 # ---------------------------------------------------------------------------
-
-
-def test_henyey_greenstein_backscatter_peak() -> None:
-    """P(g, alpha) at opposition matches (1 - g^2)/(1 + g)^3 for g < 0."""
-    g = -0.3
-    assert henyey_greenstein_phase(g, 0.0) == pytest.approx((1 - g * g) / (1 + g) ** 3)
-
-
-def test_henyey_greenstein_forward_scatter() -> None:
-    """A dusty positive g brightens strongly toward alpha = 180."""
-    assert henyey_greenstein_phase(0.6, 180.0) > 10.0 * henyey_greenstein_phase(0.6, 0.0)
 
 
 def test_lit_closed_form() -> None:

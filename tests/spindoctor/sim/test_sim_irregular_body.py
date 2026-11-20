@@ -36,7 +36,12 @@ def _boundary_radial_cv(mask: np.ndarray) -> float:
     return float(radii.std() / radii.mean())
 
 
-def _render(lumpiness: float, *, pose: tuple[float, float, float] = (0.0, 0.0, 0.0)) -> np.ndarray:
+def _render(
+    lumpiness: float,
+    *,
+    pose: tuple[float, float, float] = (0.0, 0.0, 0.0),
+    illumination_angle: float = 0.0,
+) -> np.ndarray:
     """Render a single equal-axis mesh body (a sphere when lumpiness is 0)."""
     mesh = make_irregular_mesh(lumpiness=lumpiness, seed=4)
     return render_polyhedral_body(
@@ -45,7 +50,7 @@ def _render(lumpiness: float, *, pose: tuple[float, float, float] = (0.0, 0.0, 0
         mesh=mesh,
         semi_axes_px=(34.0, 34.0, 34.0),
         pose_euler_deg=pose,
-        illumination_angle=0.0,
+        illumination_angle=illumination_angle,
         phase_angle=np.radians(90.0),
         anti_aliasing=1.0,
     )
@@ -92,6 +97,17 @@ def test_shading_follows_illumination() -> None:
     img = _render(0.2)
     half = img.shape[0] // 2
     assert float(img[:half, :].mean()) > float(img[half:, :].mean())
+
+
+def test_shading_follows_illumination_from_the_right() -> None:
+    """With light from the right at phase 90 deg, only the right half is lit.
+
+    A swap of the light direction's in-plane axes would light the lower half
+    instead, leaving the two side halves equally bright.
+    """
+    img = _render(0.0, illumination_angle=math.pi / 2)
+    half = img.shape[1] // 2
+    assert float(img[:, half:].mean()) > 5.0 * float(img[:, :half].mean())
 
 
 def _mesh_scene(**body: Any) -> dict[str, Any]:

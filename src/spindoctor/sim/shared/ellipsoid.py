@@ -19,6 +19,7 @@ from typing import cast
 
 import numpy as np
 
+from spindoctor.sim.shared.lighting import illumination_vector
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 
@@ -26,7 +27,6 @@ __all__ = [
     'DARK_SIDE_ILLUM_STRENGTH',
     'EllipsoidProjection',
     'ellipsoid_image_normals',
-    'illumination_vector',
     'lambert_from_normals',
     'project_ellipsoid',
 ]
@@ -270,50 +270,6 @@ def ellipsoid_image_normals(
     normal_v = normal_v_local * cos_rz + normal_u_local * sin_rz
     normal_u = -normal_v_local * sin_rz + normal_u_local * cos_rz
     return normal_v, normal_u, normal_z_local
-
-
-def illumination_vector(
-    *, illumination_angle: float, phase_angle: float
-) -> tuple[float, float, float]:
-    """The unit body-to-sun direction in image coordinates.
-
-    Both simulator sides derive the light direction here, so their
-    illumination conventions cannot diverge.
-
-    The in-plane direction comes from ``illumination_angle`` (0 = from the
-    top of the image, pi/2 = from the right; the v component is negated
-    because v increases downward).  The out-of-plane component encodes the
-    phase angle -- the observer-body-sun angle: ``z = cos(phase_angle)`` so
-    phase 0 (full) lights the visible face head-on and phase pi (new) lights
-    it from behind, while the in-plane magnitude is ``sin(phase_angle)``.
-
-    Parameters:
-        illumination_angle: In-plane light direction in radians; 0 is from
-            the top of the image, pi/2 from the right.
-        phase_angle: Phase angle in radians; 0 is fully lit, pi is backlit.
-
-    Returns:
-        Tuple of (v, u, z) components of the unit illumination direction;
-        z points toward the observer.
-    """
-    illum_v_2d = -np.cos(illumination_angle)  # Negative because v increases downward
-    illum_u_2d = np.sin(illumination_angle)
-
-    illum_z = np.cos(phase_angle)
-    illum_scale_2d = np.sin(phase_angle)
-    illum_v_3d = illum_v_2d * illum_scale_2d
-    illum_u_3d = illum_u_2d * illum_scale_2d
-
-    # Normalize the 3D illumination direction (already unit up to rounding;
-    # the guard covers a degenerate zero vector only).
-    illum_mag = np.sqrt(illum_v_3d**2 + illum_u_3d**2 + illum_z**2)
-    if illum_mag > 1e-10:
-        illum_v_3d /= illum_mag
-        illum_u_3d /= illum_mag
-        illum_z_norm = illum_z / illum_mag
-    else:
-        illum_z_norm = 1.0  # Directly toward observer
-    return float(illum_v_3d), float(illum_u_3d), float(illum_z_norm)
 
 
 def lambert_from_normals(
