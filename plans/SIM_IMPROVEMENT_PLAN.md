@@ -206,6 +206,7 @@ typed scene, in Phase 3b.
 | #894 | Night-side 1% floor and clipped photometric laws |
 | #875 | Relief reads disc terrain at the smooth sphere's direction |
 | #842, #646 | Simulated limbs are not checked for where the brightness gradient peaks; the limb-bias harness measures a simulated ridge half a pixel from the deployed one |
+| #1068 | **Affects no current scene.** Fine limb relief (a correlation length under about 5 detector pixels) is interpolated from too coarse a grid, moving the light up to 0.023 px; the fix is shading it wholly on the working grid |
 
 **Exit:** a frame-filling planet renders at its true position with light from beyond the frame
 edge; a rolled scene behaves as the ruling on #644 decides; a lone ring edge lands within 0.05 px
@@ -235,9 +236,10 @@ edits the navigator's config files only to delete the camera-block keys nothing 
 | #806, naming part | Split the `vgiss` entry into four per-camera entries, renaming the scene's instrument value | Renames a scene value before Phase 2b writes Voyager scenes. The per-camera values stay in Phase 4e. |
 | #1017 | Detector effects modeled twice, once in the noise block and once as an artifact mode | Removes or merges scene keys. |
 | #1023 | Image-side detector physics comes from two configuration trees, and the noise block holds keys that are not noise | Moves scene keys, and lets a scene plant a mismatch between the true and believed saturation ceilings. It also deletes the camera-block keys nothing reads, the image-side keys it stops reading among them. |
+| #1072 | **Affects no current scene.** A body's own `seed` key, and the editor's "Crater seed" control, never change a scene render; remove them and the fallback seeds behind them. A body renderer called directly without a scene seed, as some tests and tools do, then needs a seed passed in, and those direct renders change | Removes a scene key and an editor control before the typed scene declares every key. |
 
-Order: #988 and #1021 first, then #1022, #1017, and #1023, one at a time; #806's naming part lands
-whenever it is ready.
+Order: #988 and #1021 first, then #1022, #1017, and #1023, one at a time; #806's naming part and
+#1072 land whenever they are ready.
 
 Decisions needed before the work starts, asked one at a time: for #1017, whether each pair (banding,
 dark signal, hot pixels) is one effect or two.
@@ -310,9 +312,12 @@ scaled wrongly; each such move is explained in its PR.
 | #1018 | The radiance stage split into named sub-steps (after #1027 and #1028) | #895 and #896 change this stage. |
 | #1019 | Each render logs its `RenderSettings` (after #1028) | Phase 4's realism work needs to see which values a render used. |
 | #1020 | The simulated-image editor rebuilt from per-block panels generated from the typed scene's field metadata (after #1024 and #1028) | Each Phase 4 key then gets its editor control from its declaration, not from hand wiring that a later rewrite throws away. Closes #902, #947, and #967. |
+| #1070 | **Affects no current scene.** The haze layer places its body through the shared ellipsoid projection (with #1015, or just before it) | The haze layer keeps its own copy of the projection and the normals; the grid object is where a projection of a box of the frame belongs. |
+| #1066 | **Affects no scene; a test-budget fix.** Two render-time checks exceed their CPU budgets on main (the 1,024-pixel ring and haze body) | The restructuring in this phase must not slow rendering, and a budget check that always fails cannot show it. |
 
 Order: #1024, then #1028, then #1027, then #1026. #1015, #1016, #1018, #1019, and #1020 follow in
-any order their own dependencies allow; #310 and #1025 follow #1026.
+any order their own dependencies allow; #310 and #1025 follow #1026. #1066 goes first, so the
+budgets can guard the rest; #1070 goes with #1015.
 
 **Exit:** the issues above are closed. No render module reads the scene dict. The navigator's
 simulated models accept only the idealized types, and `ObsSim` holds no truth attribute. Each stage
